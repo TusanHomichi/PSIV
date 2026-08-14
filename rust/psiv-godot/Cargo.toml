@@ -1,0 +1,15 @@
+[package]
+name = "psiv-godot"
+version = "0.1.0"
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+psiv-core = { path = "../psiv-core" }
+psiv-data = { path = "../psiv-data" }
+psiv-runtime = { path = "../psiv-runtime" }
+godot = "0.4"

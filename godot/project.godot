@@ -1,0 +1,14 @@
+; PSIV — presentation layer. The game lives in rust/; this project renders it.
+config_version=5
+
+[application]
+config/name="PSIV"
+run/main_scene="res://field.tscn"
+config/features=PackedStringArray("4.7")
+
+[display]
+window/size/viewport_width=1280
+window/size/viewport_height=960
+
+[rendering]
+textures/canvas_textures/default_texture_filter=0
