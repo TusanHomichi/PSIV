@@ -53,7 +53,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .symbols import ITEM_SYMBOLS
+from .symbols import ITEM_SYMBOLS, MAP_SYMBOLS
 
 TERMINATOR = 0xFF
 
@@ -267,6 +267,7 @@ def extract_shop_locations(data: bytes, shop_count: int | None = None) -> dict[s
             "rom_offset": f"0x{offset:06X}",
             "map_id": map_id,
             "map_id_hex": f"0x{map_id:04X}",
+            "map_symbol": MAP_SYMBOLS[map_id] if map_id < len(MAP_SYMBOLS) else None,
             "x": int.from_bytes(record[2:4], "big"),
             "y": int.from_bytes(record[4:6], "big"),
             "selector": f"0x{value:04X}",

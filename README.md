@@ -144,6 +144,8 @@ The long-term runtime can still be Rust/Godot. This first pass is Python so the 
 
 ## Next useful slice
 
+Filed from the shops slice: the per-shop/per-inn greeting selectors (`loc_68136`, 49 words; `loc_68112`, 18 words) choose dialogue strings and belong with the text-decoder work, not with shops.
+
 1. The per-map encounter group tables (`Battle_EnemyFormationIndexes`, `Battle_MotaFormationGroupIndexes`, `Battle_DezoFormationGroupIndexes`), which map a field position to one of the 68 formation-index groups. The last two are Kosinski, so the decoder is already in place.
 2. Shops and inventories.
 3. Save/SRAM parsing and import.

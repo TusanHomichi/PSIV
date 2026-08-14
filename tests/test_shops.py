@@ -290,6 +290,30 @@ class TestShopsFromRom(unittest.TestCase):
         for name, value in ids.items():
             self.assertEqual(ITEM_SYMBOLS[value - 1], name)
 
+    def test_location_map_symbols_resolve(self):
+        from psiv_tools.symbols import MAP_SYMBOLS
+        self.assertEqual(len(MAP_SYMBOLS), 417)
+        self.assertEqual(MAP_SYMBOLS[0x10], "Piata")
+        for entry in self.result["locations"]["entries"]:
+            self.assertIsNotNone(entry["map_symbol"], entry)
+
+    @unittest.skipUnless(ASM.is_file(), f"disassembly oracle not present at {DISASM}")
+    def test_map_symbols_match_the_disassembly_constants(self):
+        """MAP_SYMBOLS[i] must equal the MapID_* constant with value i."""
+        import re
+        from psiv_tools.symbols import MAP_SYMBOLS
+        pattern = re.compile(r"MapID_(\w+)\s*=\s*id\(PtrMap_\w+\)\s*;\s*(\S+)")
+        constants = {}
+        for line in (DISASM / "ps4.constants.asm").read_text(errors="replace").splitlines():
+            m = pattern.match(line)
+            if m:
+                raw = m.group(2)
+                value = int(raw.lstrip("$"), 16) if raw.startswith("$") else int(raw)
+                constants[value] = m.group(1)
+        self.assertEqual(len(constants), len(MAP_SYMBOLS))
+        for value, name in constants.items():
+            self.assertEqual(MAP_SYMBOLS[value], name)
+
 
 if __name__ == "__main__":
     unittest.main()
