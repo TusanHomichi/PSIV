@@ -1,0 +1,14 @@
+# User-supplied ROMs / generated local data
+roms/
+generated/
+example-output/
+*.bin
+*.gen
+*.smd
+Phantasy Star IV*.md
+*.zip
+
+# Python
+__pycache__/
+*.pyc
+.venv/
