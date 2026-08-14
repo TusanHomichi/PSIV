@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .formations import extract_formation_indexes, extract_formations
 from .symbols import ENEMY_SKILL_SYMBOLS, ENEMY_SYMBOLS, ITEM_SYMBOLS
 
 EXPECTED_SHA256 = "511f35cc11f88316f8b8940e28ab298bd75a4da193672a80172884d6eb913b6a"
@@ -582,6 +583,8 @@ def extract_all(data: bytes) -> dict[str, Any]:
     if not all(v["ok"] for v in validations):
         bad = [v["label"] for v in validations if not v["ok"]]
         raise RomError("Known table signatures do not match: " + ", ".join(bad))
+    formations = extract_formations(data)
+    known_formation_ids = {f["id"] for f in formations["formations"]}
     return {
         "metadata": inspect_rom(data),
         "layout_validation": validations,
@@ -595,6 +598,8 @@ def extract_all(data: bytes) -> dict[str, Any]:
         "enemies": extract_enemies(data),
         "enemy_skills": extract_enemy_skills(data),
         "progression": extract_level_progression(data),
+        "formations": formations,
+        "formation_indexes": extract_formation_indexes(data, known_formation_ids),
     }
 
 
@@ -602,6 +607,6 @@ def write_extract(data: bytes, output_dir: str | Path) -> dict[str, Any]:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     result = extract_all(data)
-    for key in ["metadata", "layout_validation", "tables", "characters", "techniques", "skills", "combos", "vehicles", "items", "enemies", "enemy_skills", "progression"]:
+    for key in ["metadata", "layout_validation", "tables", "characters", "techniques", "skills", "combos", "vehicles", "items", "enemies", "enemy_skills", "progression", "formations", "formation_indexes"]:
         (output_dir / f"{key}.json").write_text(json.dumps(result[key], indent=2) + "\n", encoding="utf-8")
     return result

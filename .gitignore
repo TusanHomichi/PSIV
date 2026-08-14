@@ -2,6 +2,7 @@
 roms/
 generated/
 example-output/
+reference/
 *.bin
 *.gen
 *.smd

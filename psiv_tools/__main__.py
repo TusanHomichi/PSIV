@@ -39,6 +39,9 @@ def main() -> int:
             print(f"Extracted {len(result['enemies'])} enemy records")
             print(f"Extracted {len(result['enemy_skills'])} enemy skill records")
             print(f"Extracted {result['progression']['total_level_records']} level-progression records")
+            print(f"Extracted {result['formations']['total_formations']} battle formations")
+            print(f"Extracted {result['formations']['total_boss_formations']} boss formations")
+            print(f"Extracted {result['formation_indexes']['group_count']} encounter formation-index groups")
             print(f"Wrote JSON to {args.output}")
         elif args.command == "dump":
             print(json.dumps(extract_all(data), indent=2))
