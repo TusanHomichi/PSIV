@@ -270,7 +270,10 @@ impl Field {
             sheet: String,
             idle: String,
             walk: String,
-            cell: Cell,
+            // Object pixel coordinates, not cells: 85 retail objects sit on
+            // half-cells (8px-scaled words), so x/y_pixels are authoritative.
+            x: i32,
+            y: i32,
         }
         let mut draws: Vec<NpcDraw> = Vec::new();
         if let Some(record) = runtime.map_record() {
@@ -283,7 +286,8 @@ impl Field {
                     sheet: sprite.sheet.clone(),
                     idle: sprite.idle_sequence.clone(),
                     walk: sprite.walk_sequence.clone(),
-                    cell: Cell::new(npc.x_cell as u16, npc.y_cell as u16),
+                    x: npc.x_pixels as i32,
+                    y: npc.y_pixels as i32,
                 });
             }
             let missing: Vec<String> = draws
@@ -311,7 +315,12 @@ impl Field {
             node.set_z_index(5);
             let frame = view.frame_at(&draw.idle, 0);
             view.apply(&mut node, frame);
-            node.set_position(view.draw_pos(draw.cell, (0, 0)));
+            // "Draw a frame at (object_x - origin_x, object_y - origin_y) and
+            // it lands exactly where the VDP would put it."
+            node.set_position(Vector2::new(
+                (draw.x - view.origin_x) as f32,
+                (draw.y - view.origin_y) as f32,
+            ));
             self.base_mut().add_child(&node);
             self.npc_nodes.push((node, draw.sheet, draw.idle, draw.walk));
         }

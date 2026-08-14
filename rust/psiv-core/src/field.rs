@@ -48,20 +48,18 @@ impl From<Direction> for Input {
 
 /// How many ticks one cell-step takes.
 ///
-/// **This number is a placeholder with an honest interface, not extracted
-/// fidelity.** The cartridge's walk timing has not been pulled out of the
-/// disassembly yet, so the runtime refuses to hard-code a guess: the duration
-/// is a construction parameter, defaulting to 8 frames per cell (two cells per
-/// second at 60Hz, which merely looks right). When the real value is
-/// extracted, only the default changes — no call site and no rule moves. This
-/// is the "fidelity spine" discipline from `docs/RUNTIME_DESIGN.md`: the
-/// cartridge is the oracle, and anything not yet read off it is marked as
-/// such rather than quietly invented.
+/// **The default of 8 is extracted fidelity, not a guess** (it began life as
+/// a placeholder and the cartridge later agreed): `FieldObj_MovementsTbl` at
+/// ROM `0x047AA8` defines the normal walking step constant `$0200` — two
+/// pixels per frame in 16.16 fixed point — which is exactly 8 frames per
+/// 16-pixel collision cell. The table's other blocks are slow (`$0100`, 16
+/// frames) and fast (`$0400`, 4 frames), selected by `FieldObj_Step_Offset`;
+/// this stays a construction parameter so those modes cost nothing to add.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StepFrames(u8);
 
 impl StepFrames {
-    /// The placeholder default: 8 ticks per cell.
+    /// The cartridge's normal walking speed: 8 ticks per cell.
     pub const DEFAULT: StepFrames = StepFrames(8);
 
     /// Builds a step duration.

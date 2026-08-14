@@ -36,6 +36,7 @@ The ROM is **not included** and should never be committed to this project.
 - map layouts and collision: 32×32-pixel chunks, per-plane layouts, and the 4-bit-per-cell collision grid, proven by rendering Piata/PiataItemShop/IslandCave and cross-checking warp doorways against collision type 1
 - 35 Enigma-compressed plane mappings (35,436 cells): 20 battle backgrounds, the title screen, the Sega logo and the four title portraits, composed against their art and palettes into finished PNGs by `python -m psiv_tools planes`
 - a runtime pack (`python -m psiv_tools pack`, gitignored output): 359 maps as lean per-map JSON + composed PNG for the Rust runtime — collision grids, warp trigger rects transcribed from the 15 `XYRangeJmpTbl` routines (retail uses 9), NPCs, treasure, and a census of what the data actually contains vs what the code permits
+- field sprites (pack format 1): all 11 party sheets and 183 deduplicated NPC sheets with animation sequences transcribed from the cartridge's own `SprMapsPtrs_*`/`FieldObj_Animate` tables — per-frame tick durations, H-flip mirrors, per-object CRAM-line palettes proven from the `$13(a4)` byte, and the 91 invisible trigger objects classified with reasons instead of drawn
 - exact ROM offsets and raw bytes for every extracted record
 - signature checks tying the implementation to known bytes in this exact retail build
 - an exact-mirror check for the duplicated 20,614-byte character level-table block
@@ -181,6 +182,8 @@ Filed from the shops slice: the per-shop/per-inn greeting selectors (`loc_68136`
 Filed from the graphics slice: the seven shopkeeper portraits reached via the shop tables; uncompressed field/battle character sprites and the field map palettes.
 
 Filed from wave 2: the two overworld paged layouts (Motavia/Dezolis, `loc_107DC2`/`loc_115584`); the 43 character battle-sprite mappings (decode cleanly, not yet composed with their art); the Sega-logo/GameStartMotaBG palettes; `MapDataManager`/`MapUpdate`/`RunEvents` handler-name transcription; `Map_General_Var` semantics.
+
+Filed from the sprite slice: NPC wander boundaries (73 object types carry roam boxes; the random-direction routine and cadence are untranscribed, and half a model is worse than none); vehicle sprites (spawn from `Vehicle_Index`, never map-placed); sprite priority (unused by placed retail objects).
 
 Filed from the text slice: binding dialogue ids to the maps/NPCs that speak them (the `dc.l DialogueTreeN` pointers live in map headers); resolving `$F5`/`$FA`/`$FB` relative branch targets to absolute dialogue ids; the id spaces behind `$F2` action operands (panels, sounds, event flags).
 

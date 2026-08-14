@@ -325,6 +325,22 @@ distinct enemy ids that appear in formations.
   (AiedoPub object 2, byte $10); retail selects only 9 of the 15
   `XYRangeJmpTbl` routines. The pack manifest carries a `census` section so
   consumers assert against observed reality instead of hardcoding ranges.
+- Field sprite facts, all read from the cartridge: walking is 8 frames per
+  16px cell (`FieldObj_MovementsTbl` `0x047AA8`, constant `$0200`; slow/fast
+  blocks `$0100`/`$0400` exist, and retail's selector mask is `#3` where the
+  clone's is `#7`). The sprite-mapping record's piece count is stored minus
+  one while animation sequence counts are stored exactly — two opposite
+  conventions three bytes apart. Mapping byte 5 (mirror-builder X offset) is
+  real data no retail field path ever reads. Pattern words are added with a
+  genuine 16-bit carry (1,056 composed pieces depend on it). A sprite's CRAM
+  line comes solely from its routine's `$13(a4)` byte; all 11 party routines
+  store line 2, which `loc_53F14` splices from `Pal_Init_Line_3` on every
+  map — why the party's colors never change. Animation free-runs (Chaz's
+  4-frame cycle is 44 frames against 8-frame steps) and idle is walking's
+  frame 0, not a separate sequence. AiedoPub object 2's facing byte `$10`
+  sends `FieldObj_Animate` past its own table; the pack names those
+  sequences `idle_facing_0x10`/`walk_facing_0x10` so nobody reads the byte
+  as a direction.
 - Nine Enigma call sites are revision-gated and the cartridge runs the `else`
   (English) branch — proven three ways: the retail code contains each
   mapping's `lea`/`move.w #base` pair exactly once with the retail base
