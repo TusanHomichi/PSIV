@@ -3,14 +3,15 @@
 //! This crate owns pixels and input, zero game rules. Floats are legal here —
 //! they exist only between the engine's integer state and the screen.
 
+use std::collections::{BTreeMap, HashMap};
+
 use godot::classes::{
-    Camera2D, ColorRect, INode2D, Image, ImageTexture, Input, Node2D, ProjectSettings, Sprite2D,
+    Camera2D, INode2D, Image, ImageTexture, Input, Node2D, ProjectSettings, Sprite2D,
 };
-use godot::global::godot_error;
 use godot::prelude::*;
 
 use psiv_core::{Cell, Direction, StepFrames, WarpTrigger};
-use psiv_data::GameData;
+use psiv_data::{GameData, Sheet};
 use psiv_runtime::{Runtime, RuntimeEvent};
 
 struct PsivExtension;
@@ -23,16 +24,105 @@ const CELL_PIXELS: f32 = 16.0;
 const SPAWN_MAP: u16 = 0x010;
 const SPAWN_CELL: (u16, u16) = (31, 8);
 
-/// The field scene: map picture, placeholder party marker, placeholder NPCs.
+/// A sheet made drawable: its texture plus the geometry and sequences the
+/// pack declares. Copied out of `psiv-data` so nodes never borrow `GameData`.
+struct SheetView {
+    texture: Gd<ImageTexture>,
+    frame_width: i32,
+    frame_height: i32,
+    origin_x: i32,
+    origin_y: i32,
+    /// name -> (frames as (index, duration_ticks), total duration)
+    sequences: BTreeMap<String, (Vec<(i32, u32)>, u32)>,
+}
+
+impl SheetView {
+    fn build(pack_dir: &str, sheet: &Sheet) -> Option<SheetView> {
+        let path = format!("{pack_dir}/{}", sheet.png);
+        let image = Image::load_from_file(&GString::from(path.as_str()))?;
+        let texture = ImageTexture::create_from_image(&image)?;
+        let mut sequences = BTreeMap::new();
+        for (name, sequence) in &sheet.sequences {
+            let frames: Vec<(i32, u32)> = sequence
+                .frames
+                .iter()
+                .map(|f| (f.index as i32, f.duration_ticks))
+                .collect();
+            let total: u32 = frames.iter().map(|(_, d)| d).sum();
+            sequences.insert(name.clone(), (frames, total.max(1)));
+        }
+        Some(SheetView {
+            texture,
+            frame_width: sheet.frame_width as i32,
+            frame_height: sheet.frame_height as i32,
+            origin_x: sheet.origin_x,
+            origin_y: sheet.origin_y,
+            sequences,
+        })
+    }
+
+    /// The strip frame index for `sequence` at animation tick `tick`.
+    fn frame_at(&self, sequence: &str, tick: u64) -> i32 {
+        let Some((frames, total)) = self.sequences.get(sequence) else {
+            return 0;
+        };
+        let mut remaining = (tick % u64::from(*total)) as u32;
+        for (index, duration) in frames {
+            if remaining < *duration {
+                return *index;
+            }
+            remaining -= duration;
+        }
+        frames.last().map_or(0, |(index, _)| *index)
+    }
+
+    /// Configures a sprite node to show one frame of this strip.
+    fn apply(&self, sprite: &mut Gd<Sprite2D>, frame: i32) {
+        sprite.set_texture(&self.texture);
+        sprite.set_region_enabled(true);
+        sprite.set_region_rect(Rect2::new(
+            Vector2::new((frame * self.frame_width) as f32, 0.0),
+            Vector2::new(self.frame_width as f32, self.frame_height as f32),
+        ));
+    }
+
+    /// Where the frame's top-left goes for an entity occupying `cell`.
+    ///
+    /// The cartridge's character position sits one cell above the occupied
+    /// cell (the standing-cell shift), and `origin` is where that position
+    /// lands inside the frame.
+    fn draw_pos(&self, cell: Cell, offset: (i32, i32)) -> Vector2 {
+        let x = f32::from(cell.x) * CELL_PIXELS - self.origin_x as f32 + offset.0 as f32;
+        let y = (f32::from(cell.y) - 1.0) * CELL_PIXELS - self.origin_y as f32 + offset.1 as f32;
+        Vector2::new(x, y)
+    }
+}
+
+fn sequence_name(kind: &str, facing: Direction) -> String {
+    let dir = match facing {
+        Direction::Up => "up",
+        Direction::Down => "down",
+        Direction::Left => "left",
+        Direction::Right => "right",
+    };
+    format!("{kind}_{dir}")
+}
+
+/// The field scene: map picture, the party sprite, NPC sprites.
 #[derive(GodotClass)]
 #[class(base=Node2D)]
 struct Field {
     base: Base<Node2D>,
     runtime: Option<Runtime>,
+    pack_dir: String,
     map_sprite: Option<Gd<Sprite2D>>,
-    party: Option<Gd<ColorRect>>,
-    npc_nodes: Vec<Gd<ColorRect>>,
+    party: Option<Gd<Sprite2D>>,
+    party_view: Option<SheetView>,
+    /// (node, sheet id, sequence names) per visible NPC on the current map.
+    npc_nodes: Vec<(Gd<Sprite2D>, String, String, String)>,
+    sheet_views: HashMap<String, SheetView>,
     camera: Option<Gd<Camera2D>>,
+    anim_tick: u64,
 }
 
 #[godot_api]
@@ -41,24 +131,37 @@ impl INode2D for Field {
         Field {
             base,
             runtime: None,
+            pack_dir: String::new(),
             map_sprite: None,
             party: None,
+            party_view: None,
             npc_nodes: Vec::new(),
+            sheet_views: HashMap::new(),
             camera: None,
+            anim_tick: 0,
         }
     }
 
     fn ready(&mut self) {
-        let pack_dir = ProjectSettings::singleton()
+        self.pack_dir = ProjectSettings::singleton()
             .globalize_path("res://../runtime-pack")
             .to_string();
-        let data = match GameData::load(std::path::Path::new(&pack_dir)) {
+        let data = match GameData::load(std::path::Path::new(&self.pack_dir)) {
             Ok(data) => data,
             Err(e) => {
-                godot_error!("runtime pack failed to load from {pack_dir}: {e}");
+                godot_error!("runtime pack failed to load from {}: {e}", self.pack_dir);
                 return;
             }
         };
+
+        // Chaz is party slot 0.
+        self.party_view = data
+            .party_sheet(0)
+            .and_then(|sheet| SheetView::build(&self.pack_dir, sheet));
+        if self.party_view.is_none() {
+            godot_error!("party sheet 0 (Chaz) failed to load; falling back to nothing visible");
+        }
+
         let runtime = match Runtime::new(
             data,
             SPAWN_MAP,
@@ -78,9 +181,8 @@ impl INode2D for Field {
         self.base_mut().add_child(&map_sprite);
         self.map_sprite = Some(map_sprite);
 
-        let mut party = ColorRect::new_alloc();
-        party.set_size(Vector2::new(CELL_PIXELS, CELL_PIXELS));
-        party.set_color(Color::from_rgb(0.95, 0.35, 0.2));
+        let mut party = Sprite2D::new_alloc();
+        party.set_centered(false);
         party.set_z_index(10);
         self.base_mut().add_child(&party);
         self.party = Some(party);
@@ -92,8 +194,8 @@ impl INode2D for Field {
         self.camera = Some(camera);
 
         self.runtime = Some(runtime);
-        self.load_map_visuals(&pack_dir);
-        self.sync_positions();
+        self.load_map_visuals();
+        self.sync_visuals();
         godot_print!(
             "PSIV field ready: map {:#05x}, party at ({}, {})",
             SPAWN_MAP,
@@ -103,6 +205,7 @@ impl INode2D for Field {
     }
 
     fn physics_process(&mut self, _delta: f64) {
+        self.anim_tick += 1;
         let input = read_input();
         let Some(runtime) = self.runtime.as_mut() else {
             return;
@@ -117,10 +220,7 @@ impl INode2D for Field {
                         WarpTrigger::NormalGround => "ground",
                     };
                     godot_print!("map change ({kind}) -> {:#05x}", map.0);
-                    let pack_dir = ProjectSettings::singleton()
-                        .globalize_path("res://../runtime-pack")
-                        .to_string();
-                    self.load_map_visuals(&pack_dir);
+                    self.load_map_visuals();
                 }
                 RuntimeEvent::UnpackedTarget { map } => {
                     godot_error!("transition target {:#05x} is not in the pack", map.0);
@@ -130,24 +230,22 @@ impl INode2D for Field {
                 }
             }
         }
-        self.sync_positions();
+        self.sync_visuals();
     }
 }
 
 impl Field {
-    /// Loads the current map's PNG and rebuilds NPC placeholders.
-    fn load_map_visuals(&mut self, pack_dir: &str) {
+    /// Loads the current map's PNG and rebuilds NPC sprites.
+    fn load_map_visuals(&mut self) {
         let Some(runtime) = self.runtime.as_ref() else {
             return;
         };
         let id = runtime.map_id().0;
 
-        // The pack names its own files; the record's `png` field is the path.
         match runtime.map_png().map(str::to_owned) {
             Some(name) => {
-                let path = format!("{pack_dir}/{name}");
-                let image = Image::load_from_file(&GString::from(path.as_str()));
-                match image {
+                let path = format!("{}/{name}", self.pack_dir);
+                match Image::load_from_file(&GString::from(path.as_str())) {
                     Some(image) => {
                         if let Some(texture) = ImageTexture::create_from_image(&image) {
                             if let Some(sprite) = self.map_sprite.as_mut() {
@@ -161,50 +259,94 @@ impl Field {
             None => godot_error!("map {id:#05x} has no png declared in the pack"),
         }
 
-        // NPC placeholders: rebuild per map.
-        for npc in &mut self.npc_nodes {
-            npc.queue_free();
+        for (node, ..) in &mut self.npc_nodes {
+            node.queue_free();
         }
         self.npc_nodes.clear();
-        let npcs: Vec<(u16, u16)> = runtime
-            .map()
-            .npcs()
-            .iter()
-            .map(|n| (n.cell.x, n.cell.y))
-            .collect();
-        for (x, y) in npcs {
-            let mut rect = ColorRect::new_alloc();
-            rect.set_size(Vector2::new(CELL_PIXELS, CELL_PIXELS));
-            rect.set_color(Color::from_rgb(0.2, 0.5, 0.95));
-            rect.set_position(Vector2::new(
-                f32::from(x) * CELL_PIXELS,
-                f32::from(y) * CELL_PIXELS,
-            ));
-            rect.set_z_index(5);
-            self.base_mut().add_child(&rect);
-            self.npc_nodes.push(rect);
+
+        // Gather NPC draw info first; borrowing data and adding children at
+        // the same time fights the base borrow.
+        struct NpcDraw {
+            sheet: String,
+            idle: String,
+            walk: String,
+            cell: Cell,
+        }
+        let mut draws: Vec<NpcDraw> = Vec::new();
+        if let Some(record) = runtime.map_record() {
+            for npc in &record.npcs {
+                // Invisible triggers (sprite_reason set) still block in the
+                // engine, exactly like the cartridge's invisible objects, but
+                // draw nothing.
+                let Some(sprite) = &npc.sprite else { continue };
+                draws.push(NpcDraw {
+                    sheet: sprite.sheet.clone(),
+                    idle: sprite.idle_sequence.clone(),
+                    walk: sprite.walk_sequence.clone(),
+                    cell: Cell::new(npc.x_cell as u16, npc.y_cell as u16),
+                });
+            }
+            let missing: Vec<String> = draws
+                .iter()
+                .filter(|d| !self.sheet_views.contains_key(&d.sheet))
+                .map(|d| d.sheet.clone())
+                .collect();
+            for sheet_id in missing {
+                if let Some(sheet) = runtime.data().sheet(&sheet_id) {
+                    if let Some(view) = SheetView::build(&self.pack_dir, sheet) {
+                        self.sheet_views.insert(sheet_id, view);
+                    } else {
+                        godot_error!("sheet {sheet_id} png failed to load");
+                    }
+                }
+            }
+        }
+
+        for draw in draws {
+            let Some(view) = self.sheet_views.get(&draw.sheet) else {
+                continue;
+            };
+            let mut node = Sprite2D::new_alloc();
+            node.set_centered(false);
+            node.set_z_index(5);
+            let frame = view.frame_at(&draw.idle, 0);
+            view.apply(&mut node, frame);
+            node.set_position(view.draw_pos(draw.cell, (0, 0)));
+            self.base_mut().add_child(&node);
+            self.npc_nodes.push((node, draw.sheet, draw.idle, draw.walk));
         }
     }
 
-    /// Places the party marker and camera at the engine's position.
-    fn sync_positions(&mut self) {
+    /// Places and animates the party sprite, animates NPCs, moves the camera.
+    fn sync_visuals(&mut self) {
         let Some(runtime) = self.runtime.as_ref() else {
             return;
         };
         let state = runtime.state();
         let cell = state.cell();
-        let (ox, oy) = state.render_offset_16ths();
-        // Sixteenths of a cell are pixels at 1x, so this is integer-exact.
-        #[allow(clippy::cast_precision_loss)]
-        let pos = Vector2::new(
-            f32::from(cell.x) * CELL_PIXELS + ox as f32,
-            f32::from(cell.y) * CELL_PIXELS + oy as f32,
-        );
-        if let Some(party) = self.party.as_mut() {
-            party.set_position(pos);
+        let offset = state.render_offset_16ths();
+
+        if let (Some(party), Some(view)) = (self.party.as_mut(), self.party_view.as_ref()) {
+            let kind = if state.is_stepping() { "walk" } else { "idle" };
+            let sequence = sequence_name(kind, state.facing());
+            let frame = view.frame_at(&sequence, self.anim_tick);
+            view.apply(party, frame);
+            party.set_position(view.draw_pos(cell, offset));
         }
+
+        for (node, sheet_id, idle, _walk) in &mut self.npc_nodes {
+            if let Some(view) = self.sheet_views.get(sheet_id) {
+                let frame = view.frame_at(idle, self.anim_tick);
+                view.apply(node, frame);
+            }
+        }
+
         if let Some(camera) = self.camera.as_mut() {
-            camera.set_position(pos + Vector2::new(CELL_PIXELS / 2.0, CELL_PIXELS / 2.0));
+            let center = Vector2::new(
+                f32::from(cell.x) * CELL_PIXELS + offset.0 as f32 + CELL_PIXELS / 2.0,
+                f32::from(cell.y) * CELL_PIXELS + offset.1 as f32 + CELL_PIXELS / 2.0,
+            );
+            camera.set_position(center);
         }
     }
 }

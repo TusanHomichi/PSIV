@@ -17,10 +17,15 @@ use std::path::Path;
 /// `validate_*` functions in this module check is true of it: grids match their
 /// declared dimensions, positions are inside their maps, warps point somewhere
 /// the manifest knows about. Later layers can read it without re-checking.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GameData {
     manifest: Manifest,
     maps: BTreeMap<MapId, MapRecord>,
+    /// Sheet id -> sheet, merged from `sprites/party.json` and
+    /// `sprites/npcs.json`. Empty for a pre-sprite pack built from parts.
+    sheets: BTreeMap<String, crate::sprites::Sheet>,
+    /// Party sheet ids in `CharFieldArtPtrs` order (Chaz first).
+    party_sheet_ids: Vec<String>,
 }
 
 impl GameData {
@@ -70,7 +75,41 @@ impl GameData {
             records.push(record);
         }
 
-        GameData::from_parts(manifest, records)
+        let mut data = GameData::from_parts(manifest, records)?;
+
+        // Sprite index files (pack format 1). Loaded after the maps so NPC
+        // sprite references can be validated against real sheets.
+        let mut party_ids = Vec::new();
+        for (name, is_party) in [("sprites/party.json", true), ("sprites/npcs.json", false)] {
+            let path = pack_dir.join(name);
+            let text = std::fs::read_to_string(&path).map_err(|e| DataError::io(&path, e))?;
+            let file: crate::sprites::SheetFile =
+                serde_json::from_str(&text).map_err(|e| DataError::json(&path, e))?;
+            check_version(file.format_version)?;
+            if file.sheet_count as usize != file.sheets.len() {
+                return Err(DataError::ManifestMismatch {
+                    path,
+                    field: "sheet_count",
+                    manifest: file.sheet_count.to_string(),
+                    record: file.sheets.len().to_string(),
+                });
+            }
+            for sheet in file.sheets {
+                validate_sheet(&sheet)?;
+                if is_party {
+                    party_ids.push(sheet.id.clone());
+                }
+                if let Some(previous) = data.sheets.insert(sheet.id.clone(), sheet) {
+                    return Err(DataError::Sprite {
+                        who: previous.id,
+                        message: "sheet id appears in more than one index file".into(),
+                    });
+                }
+            }
+        }
+        data.party_sheet_ids = party_ids;
+        validate_sprite_refs(&data)?;
+        Ok(data)
     }
 
     /// Assemble and validate from parts already in memory.
@@ -95,12 +134,34 @@ impl GameData {
         validate_manifest(&manifest, &maps)?;
         validate_cross_references(&manifest, &maps)?;
 
-        Ok(GameData { manifest, maps })
+        Ok(GameData {
+            manifest,
+            maps,
+            sheets: BTreeMap::new(),
+            party_sheet_ids: Vec::new(),
+        })
     }
 
     /// The pack index: the ROM hash, the inventory and the skipped maps.
     pub fn manifest(&self) -> &Manifest {
         &self.manifest
+    }
+
+    /// All sprite sheets by id (party and NPC merged; ids never collide).
+    pub fn sheets(&self) -> &BTreeMap<String, crate::sprites::Sheet> {
+        &self.sheets
+    }
+
+    /// A sheet by id.
+    pub fn sheet(&self, id: &str) -> Option<&crate::sprites::Sheet> {
+        self.sheets.get(id)
+    }
+
+    /// Party sheets in `CharFieldArtPtrs` order: Chaz is `party_sheet(0)`.
+    pub fn party_sheet(&self, slot: usize) -> Option<&crate::sprites::Sheet> {
+        self.party_sheet_ids
+            .get(slot)
+            .and_then(|id| self.sheets.get(id))
     }
 
     /// The map with this id, if it is packed.
@@ -144,6 +205,76 @@ impl GameData {
     pub fn knows(&self, id: MapId) -> bool {
         self.contains(id) || self.manifest.declares_unpacked(id)
     }
+}
+
+fn validate_sheet(sheet: &crate::sprites::Sheet) -> Result<(), DataError> {
+    let fail = |message: String| DataError::Sprite {
+        who: sheet.id.clone(),
+        message,
+    };
+    if sheet.frame_width == 0 || sheet.frame_height == 0 || sheet.frame_count == 0 {
+        return Err(fail(format!(
+            "degenerate geometry {}x{} x{} frames",
+            sheet.frame_width, sheet.frame_height, sheet.frame_count
+        )));
+    }
+    if sheet.sequences.is_empty() {
+        return Err(fail("no sequences".into()));
+    }
+    for (name, sequence) in &sheet.sequences {
+        if sequence.frames.is_empty() {
+            return Err(fail(format!("sequence {name} has no frames")));
+        }
+        for frame in &sequence.frames {
+            if frame.index >= sheet.frame_count {
+                return Err(fail(format!(
+                    "sequence {name} names frame {} of a {}-frame strip",
+                    frame.index, sheet.frame_count
+                )));
+            }
+            if frame.duration_ticks == 0 {
+                return Err(fail(format!("sequence {name} holds a frame for 0 ticks")));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_sprite_refs(data: &GameData) -> Result<(), DataError> {
+    for (id, record) in &data.maps {
+        for npc in &record.npcs {
+            let who = format!("map {id} npc {}", npc.index);
+            match (&npc.sprite, &npc.sprite_reason) {
+                (Some(sprite), None) => {
+                    let Some(sheet) = data.sheets.get(&sprite.sheet) else {
+                        return Err(DataError::Sprite {
+                            who,
+                            message: format!("references missing sheet {}", sprite.sheet),
+                        });
+                    };
+                    for sequence in [&sprite.idle_sequence, &sprite.walk_sequence] {
+                        if sheet.sequence(sequence).is_none() {
+                            return Err(DataError::Sprite {
+                                who,
+                                message: format!(
+                                    "sheet {} has no sequence {sequence}",
+                                    sprite.sheet
+                                ),
+                            });
+                        }
+                    }
+                }
+                (None, Some(_)) => {}
+                (Some(_), Some(_)) | (None, None) => {
+                    return Err(DataError::Sprite {
+                        who,
+                        message: "exactly one of sprite / sprite_reason must be set".into(),
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 fn check_version(found: u32) -> Result<(), DataError> {

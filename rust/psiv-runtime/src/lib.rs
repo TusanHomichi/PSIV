@@ -213,6 +213,20 @@ impl Runtime {
         &self.map
     }
 
+    /// The loaded pack, for presentation-layer queries (sprite sheets, the
+    /// current map's record). Read-only; the runtime owns all mutation.
+    #[must_use]
+    pub fn data(&self) -> &GameData {
+        &self.data
+    }
+
+    /// The current map's record, for presentation-layer queries (NPC sprite
+    /// bindings and the like).
+    #[must_use]
+    pub fn map_record(&self) -> Option<&psiv_data::MapRecord> {
+        self.data.map(psiv_data::MapId(self.map.id().0))
+    }
+
     /// The current map's composed-render path, exactly as the pack declares
     /// it (relative to the pack root). The renderer must never invent pack
     /// filenames; the pack names its own files.

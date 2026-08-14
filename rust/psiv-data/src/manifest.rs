@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Kept in step with `psiv_tools.pack.PACK_FORMAT_VERSION`, which moves
 /// whenever an emitted field changes meaning or disappears.
-pub const PACK_FORMAT_VERSION: u32 = 0;
+pub const PACK_FORMAT_VERSION: u32 = 1;
 
 /// The pack index.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -135,7 +135,7 @@ mod tests {
 
     fn manifest_text(extra_maps: &str) -> String {
         format!(
-            r#"{{"format_version": 0,
+            r#"{{"format_version": 1,
                  "generator": "psiv_tools.pack",
                  "rom": {{"sha256": "{DIGEST}", "size_bytes": 3145728}},
                  "collision": {{"cell_pixels": 16, "blocking_types": [8, 9, 10, 11, 12]}},

@@ -52,7 +52,7 @@ impl Default for MapJson {
                        "symbol": "NPCType2", "x_pixels": 32, "y_pixels": 16,
                        "x_cell": 2, "y_cell": 2,
                        "facing": {"id": 0, "name": "down"},
-                       "dialogue_id": 64, "art_tile": 792}]"#
+                       "dialogue_id": 64, "art_tile": 792, "sprite_reason": "synthetic fixture"}]"#
                 .to_string(),
             treasure_chests: r#"[{"index": 0, "record_offset": "0x129004",
                                   "x_cell": 3, "y_cell": 3, "x_pixels": 48, "y_pixels": 32,
@@ -609,11 +609,11 @@ fn an_npc_outside_the_map_is_refused() {
         npcs: r#"[{"index": 0, "record_offset": "0x11C734", "object_id": 60,
                    "symbol": "NPCType2", "x_pixels": 32, "y_pixels": 16,
                    "x_cell": 1, "y_cell": 1, "facing": {"id": 0, "name": "down"},
-                   "dialogue_id": 64, "art_tile": 792},
+                   "dialogue_id": 64, "art_tile": 792, "sprite_reason": "synthetic fixture"},
                   {"index": 1, "record_offset": "0x11C73E", "object_id": 76,
                    "symbol": "NPCType6", "x_pixels": 32, "y_pixels": 144,
                    "x_cell": 2, "y_cell": 9, "facing": {"id": 4, "name": "up"},
-                   "dialogue_id": 83, "art_tile": 720}]"#
+                   "dialogue_id": 83, "art_tile": 720, "sprite_reason": "synthetic fixture"}]"#
             .to_string(),
         ..Default::default()
     };
@@ -782,7 +782,11 @@ impl TempPack {
     }
 
     fn write(&self, relative: &str, contents: &str) {
-        std::fs::write(self.dir.join(relative), contents).expect("write a temp pack file");
+        let path = self.dir.join(relative);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).expect("create temp pack dirs");
+        }
+        std::fs::write(path, contents).expect("write a temp pack file");
     }
 
     /// Write a complete, valid pack.
@@ -795,6 +799,13 @@ impl TempPack {
         );
         self.write(&piata.json_name(), &piata.text());
         self.write(&academy.json_name(), &academy.text());
+        // Pack format 1 always carries the sprite index files; a minimal pair
+        // keeps the synthetic pack loadable without dragging art into tests.
+        let empty = format!(
+            r#"{{"format_version": {version}, "kind": "field_party", "sheet_count": 0, "sheets": []}}"#
+        );
+        self.write("sprites/party.json", &empty);
+        self.write("sprites/npcs.json", &empty.replace("field_party", "field_npcs"));
     }
 
     fn load(&self) -> Result<GameData, DataError> {
@@ -896,7 +907,7 @@ fn load_catches_a_map_file_that_disagrees_with_its_manifest_entry() {
 
 #[test]
 fn a_missing_section_is_an_error_but_a_surplus_one_is_not() {
-    let bare = r#"{"format_version": 0, "id": 16, "symbol": "Piata"}"#;
+    let bare = r#"{"format_version": 1, "id": 16, "symbol": "Piata"}"#;
     assert!(serde_json::from_str::<MapRecord>(bare).is_err());
 
     // The pack already carries fields this crate ignores (`id_hex`,

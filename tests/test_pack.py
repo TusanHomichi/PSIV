@@ -13,7 +13,11 @@ from psiv_tools.maps import extract_maps
 from psiv_tools.pack import (
     MANIFEST_NAME,
     MAPS_DIRECTORY,
+    NPC_SPRITES_DIRECTORY,
+    NPC_SPRITES_NAME,
     PACK_FORMAT_VERSION,
+    PARTY_SPRITES_DIRECTORY,
+    PARTY_SPRITES_NAME,
     STANDING_CELL_Y_OFFSET,
     XY_RANGE_NAMES,
     PackError,
@@ -23,6 +27,7 @@ from psiv_tools.pack import (
     warp_rect,
     xy_range_name,
 )
+from psiv_tools.sprites import PARTY_SYMBOLS
 
 ROM = Path(__file__).resolve().parents[1] / "Phantasy Star IV (USA).md"
 
@@ -226,6 +231,18 @@ class TestPackFixture(unittest.TestCase):
                     blob = (self.root / entry[name]).read_bytes()
                     self.assertEqual(entry[key], hashlib.sha256(blob).hexdigest())
 
+    def test_every_emitted_json_carries_the_same_format_version(self):
+        # The version moved to 1 when field sprites landed. `psiv-data` refuses
+        # a pack it does not know, so a file that forgets to stamp it is a file
+        # the runtime cannot check.
+        self.assertEqual(PACK_FORMAT_VERSION, 1)
+        for name in (MANIFEST_NAME, PARTY_SPRITES_NAME, NPC_SPRITES_NAME):
+            with self.subTest(file=name):
+                payload = json.loads((self.root / name).read_text())
+                self.assertEqual(payload["format_version"], PACK_FORMAT_VERSION)
+        for payload in self.maps.values():
+            self.assertEqual(payload["format_version"], PACK_FORMAT_VERSION)
+
     def test_filtering_leaves_nothing_skipped(self):
         # All three fixtures carry a layout section, so nothing is dropped; the
         # world maps are only reachable through an unfiltered build.
@@ -424,7 +441,13 @@ class TestPackFixture(unittest.TestCase):
             first_files = sorted(p.relative_to(self.root) for p in self.root.rglob("*") if p.is_file())
             second_files = sorted(p.relative_to(second) for p in second.rglob("*") if p.is_file())
             self.assertEqual(first_files, second_files)
-            self.assertEqual(len(first_files), 1 + 2 * len(FIXTURE_MAPS))
+            # manifest, a JSON and a PNG per map, the two sprite indexes, the
+            # eleven party sheets, and one PNG per deduplicated NPC sheet.
+            self.assertEqual(
+                len(first_files),
+                1 + 2 * len(FIXTURE_MAPS) + 2 + len(PARTY_SYMBOLS)
+                + self.manifest["sprites"]["npc_sheet_count"],
+            )
             for name in first_files:
                 with self.subTest(file=str(name)):
                     self.assertEqual(
@@ -435,6 +458,109 @@ class TestPackFixture(unittest.TestCase):
         text = (self.root / MANIFEST_NAME).read_text()
         self.assertTrue(text.endswith("\n"))
         self.assertEqual(text, json.dumps(json.loads(text), indent=2, sort_keys=True) + "\n")
+
+    # -------------------------------------------------------------- sprites
+    def test_the_eleven_party_sheets_are_all_there(self):
+        index = json.loads((self.root / PARTY_SPRITES_NAME).read_text())
+        self.assertEqual(index["format_version"], PACK_FORMAT_VERSION)
+        self.assertEqual([sheet["id"] for sheet in index["sheets"]], list(PARTY_SYMBOLS))
+        for sheet in index["sheets"]:
+            with self.subTest(symbol=sheet["id"]):
+                self.assertEqual(sheet["png"], f"{PARTY_SPRITES_DIRECTORY}/{sheet['id']}.png")
+                image = (self.root / sheet["png"]).read_bytes()
+                self.assertEqual(sheet["png_sha256"], hashlib.sha256(image).hexdigest())
+                self.assertEqual(
+                    png_size(image),
+                    (sheet["frame_width"] * sheet["frame_count"], sheet["frame_height"]),
+                )
+                # Every party sprite is 16x32 with twelve distinct frames: three
+                # per facing, and the right-facing three are the left ones with
+                # the pattern word's H-flip bit set.
+                self.assertEqual((sheet["frame_width"], sheet["frame_height"]), (16, 32))
+                self.assertEqual(sheet["frame_count"], 12)
+                self.assertEqual(sheet["palette"]["cram_line"], 2)
+                self.assertEqual(sheet["palette"]["source"], "Pal_Init_Line_3")
+                self.assertEqual(
+                    sorted(sheet["sequences"]),
+                    sorted(
+                        f"{kind}_{name}"
+                        for kind in ("idle", "walk")
+                        for name in ("down", "up", "left", "right")
+                    ),
+                )
+                self.assertEqual(sheet["art"]["tile_count"], 72)
+
+    def test_sheet_pngs_are_indexed_with_colour_zero_transparent(self):
+        index = json.loads((self.root / NPC_SPRITES_NAME).read_text())
+        for sheet in index["sheets"]:
+            with self.subTest(sheet=sheet["id"]):
+                chunks = dict(parse_png_chunks((self.root / sheet["png"]).read_bytes()))
+                self.assertEqual(chunks[b"IHDR"][9], png.COLOR_TYPE_INDEXED)
+                self.assertEqual(len(chunks[b"PLTE"]), 16 * 3)
+                self.assertEqual(chunks[b"tRNS"][0], 0)
+                self.assertEqual(
+                    list(chunks[b"PLTE"]),
+                    [channel for colour in sheet["palette"]["colors"] for channel in colour],
+                )
+
+    def test_every_npc_resolves_to_a_sheet_or_says_why_not(self):
+        index = json.loads((self.root / NPC_SPRITES_NAME).read_text())
+        by_id = {sheet["id"]: sheet for sheet in index["sheets"]}
+        self.assertEqual(index["sheet_count"], len(by_id))
+        seen = set()
+        for payload in self.maps.values():
+            for npc in payload["npcs"]:
+                with self.subTest(map=payload["symbol"], npc=npc["index"]):
+                    if npc["sprite"] is None:
+                        # An object with no sprite has to say which routine
+                        # decided that, or the runtime is just guessing.
+                        self.assertTrue(npc["sprite_reason"])
+                        continue
+                    self.assertIsNone(npc["sprite_reason"])
+                    sheet = by_id[npc["sprite"]["sheet"]]
+                    self.assertEqual(npc["sprite"]["sheets"], NPC_SPRITES_NAME)
+                    self.assertIn(npc["sprite"]["idle_sequence"], sheet["sequences"])
+                    self.assertIn(npc["sprite"]["walk_sequence"], sheet["sequences"])
+                    seen.add(npc["sprite"]["sheet"])
+        # Nothing is emitted that nothing points at.
+        self.assertEqual(seen, set(by_id))
+
+    def test_sheets_are_shared_across_maps_and_named_for_their_content(self):
+        index = json.loads((self.root / NPC_SPRITES_NAME).read_text())
+        for sheet in index["sheets"]:
+            with self.subTest(sheet=sheet["id"]):
+                self.assertEqual(sheet["png"], f"{NPC_SPRITES_DIRECTORY}/{sheet['id']}.png")
+                self.assertGreaterEqual(sheet["placements"], 1)
+        placed = sum(sheet["placements"] for sheet in index["sheets"])
+        self.assertEqual(placed, self.manifest["sprites"]["npc_placements"])
+        self.assertEqual(
+            placed + self.manifest["sprites"]["artless_objects"],
+            sum(len(payload["npcs"]) for payload in self.maps.values()),
+        )
+
+    def test_the_sequences_carry_per_frame_durations_in_game_frames(self):
+        index = json.loads((self.root / PARTY_SPRITES_NAME).read_text())
+        chaz = next(sheet for sheet in index["sheets"] if sheet["id"] == "Chaz")
+        walk = chaz["sequences"]["walk_down"]
+        self.assertEqual([frame["index"] for frame in walk["frames"]], [0, 1, 0, 2])
+        # `SprMapsData_ChazDown` stores $0A, and the counter is spent by a
+        # `subq/bpl` pair, so each frame holds for eleven frames.
+        self.assertEqual([frame["duration_ticks"] for frame in walk["frames"]], [11] * 4)
+        self.assertEqual(chaz["sequences"]["idle_down"]["frames"], [walk["frames"][0]])
+
+    def test_the_manifest_states_where_sprite_colours_come_from(self):
+        sprites = self.manifest["sprites"]
+        self.assertEqual(sprites["palette"]["cram_lines"], {"0x00": 0, "0x20": 1, "0x40": 2, "0x60": 3})
+        self.assertEqual(sprites["palette"]["map_palette_lines"], [0, 1, 3])
+        self.assertEqual(sprites["palette"]["fixed_line"], 2)
+        self.assertEqual(sprites["palette"]["fixed_line_rom_offset"], "0x296300")
+        self.assertEqual(sprites["palette"]["party_line"], 2)
+        # Walking is eight frames per collision cell at the normal speed.
+        self.assertEqual(sprites["walk"]["frames_per_cell"], 8)
+        self.assertEqual(sprites["walk"]["normal_block"], 1)
+        self.assertEqual(
+            [block["frames_per_cell"] for block in sprites["walk"]["blocks"]], [16, 8, 4]
+        )
 
     def _only_warp(self, map_id, target):
         matches = [w for w in self.maps[map_id]["warps"] if w["target"]["id"] == target]
@@ -601,6 +727,18 @@ class TestPackAgainstTheWholeTable(unittest.TestCase):
             self.assertEqual(odd[0]["index"], 2)
             self.assertEqual(odd[0]["symbol"], "NPCType30")
             self.assertEqual(odd[0]["facing"], {"id": 0x10, "name": None})
+            # `FieldObj_Animate` adds `facing_dir` to `mappings_addr` with no
+            # bound, so $10 follows the long *past* this object's four-entry
+            # table and lands in the next one. The pack reproduces that rather
+            # than rounding the byte down to a real direction, and names the
+            # sequence after the byte so nobody reads it as one.
+            self.assertEqual(odd[0]["sprite"]["facing"], "facing_0x10")
+            self.assertEqual(odd[0]["sprite"]["idle_sequence"], "idle_facing_0x10")
+            index = json.loads((root / NPC_SPRITES_NAME).read_text())
+            sheet = next(s for s in index["sheets"] if s["id"] == odd[0]["sprite"]["sheet"])
+            self.assertEqual(
+                sorted(sheet["sequences"]), ["idle_facing_0x10", "walk_facing_0x10"]
+            )
 
     def test_an_unknown_map_id_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:

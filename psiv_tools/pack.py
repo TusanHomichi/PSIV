@@ -73,7 +73,6 @@ from .layouts import (
     CHUNK_WORDS,
     COLLISION_CELL_PIXELS,
     COLLISION_TYPE_NAMES,
-    LAYOUT_RAM_BYTES,
     MAX_CHUNKS,
     PLANE_BG,
     PLANE_FG,
@@ -91,11 +90,42 @@ from .layouts import (
     vdp_word,
 )
 from .maps import extract_maps
+from .sprites import (
+    FACINGS,
+    FIELD_OBJECTS_JMP_TBL,
+    FIELD_OBJECT_COUNT,
+    MAP_PALETTE_LINE_ORDER,
+    PAL_INIT_LINE_3,
+    PAL_INIT_LINE_3_CRAM_LINE,
+    SpriteCensus,
+    facing_table_extents,
+    party_sprites,
+    scan_field_objects,
+    step_timing_json,
+)
+# The sprite half of a pack knows only about sprites, so its layout, its sheet
+# deduplication and its two index files live in `psiv_tools.sprites.emit`. The
+# names are re-exported here because the pack's file layout is one interface.
+# The four directory and file names are re-exported rather than used here:
+# the pack's file layout is one interface and `psiv_tools.pack` is where a
+# consumer looks it up.
+from .sprites.emit import (
+    NPC_SPRITES_DIRECTORY,
+    NPC_SPRITES_NAME,
+    PARTY_SPRITES_DIRECTORY,
+    PARTY_SPRITES_NAME,
+    SheetRegistry,
+    emit_party,
+    resolve_map_sprites,
+)
 from .symbols import ITEM_SYMBOLS
 
 #: Bumped whenever a field in the emitted JSON changes meaning or disappears.
 #: `psiv-data` refuses a pack whose version it does not know.
-PACK_FORMAT_VERSION = 0
+#:
+#: 1 -- field sprites: `sprites/party.json`, `sprites/npcs.json`, their PNG
+#: sheets, and a `sprite` reference on every map record's NPC entries.
+PACK_FORMAT_VERSION = 1
 
 MANIFEST_NAME = "manifest.json"
 MAPS_DIRECTORY = "maps"
@@ -476,16 +506,26 @@ def _warps(record: dict[str, Any], grid) -> tuple[list[dict[str, Any]], list[dic
     return warps, anomalies
 
 
-def _npcs(record: dict[str, Any]) -> list[dict[str, Any]]:
+def _npcs(
+    record: dict[str, Any],
+    sprites: Sequence[tuple[dict[str, Any] | None, str | None]] = (),
+) -> list[dict[str, Any]]:
     """`LoadMapObjects` entries.
 
     Object coordinates are words scaled by 8 (`lsl.w #3,d0`), so 85 of the
     cartridge's 949 objects sit on a half-cell. Pixels are what the record
     says; the cell is the floor of that plus the standing-cell shift, i.e. the
     cell the object's collision would be read from.
+
+    `sprites` is one entry per object, in order: either a reference into
+    `sprites/npcs.json` or `None` for an object the cartridge draws nothing
+    for, in which case `sprite_reason` says which routine decided that.
     """
     out = []
     for entry in record["objects"]["entries"]:
+        sprite, reason = (
+            sprites[entry["index"]] if entry["index"] < len(sprites) else (None, None)
+        )
         out.append({
             "index": entry["index"],
             "record_offset": entry["rom_offset"],
@@ -498,6 +538,8 @@ def _npcs(record: dict[str, Any]) -> list[dict[str, Any]]:
             "facing": _facing(entry["facing_dir"]),
             "dialogue_id": entry["dialogue_id"],
             "art_tile": entry["art_tile"],
+            "sprite": sprite,
+            "sprite_reason": reason,
         })
     return out
 
@@ -536,7 +578,10 @@ def _treasure_chests(record: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def map_json(
-    record: dict[str, Any], decoded, png_path: str
+    record: dict[str, Any],
+    decoded,
+    png_path: str,
+    sprites: Sequence[tuple[dict[str, Any] | None, str | None]] = (),
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """The runtime record for one map, and its warp anomalies."""
     grid = decoded.collision
@@ -592,7 +637,7 @@ def map_json(
         },
         "dialogue_tree": record["dialogue"]["tree"],
         "warps": warps,
-        "npcs": _npcs(record),
+        "npcs": _npcs(record, sprites),
         "treasure_chests": _treasure_chests(record),
     }, anomalies
 
@@ -653,16 +698,24 @@ def build_pack(
     extracted = extract_maps(rom_bytes)
     records = _selected(extracted["maps"], map_ids)
 
+    routines = scan_field_objects(rom_bytes)
+    extents = facing_table_extents(routines)
+    party = party_sprites(rom_bytes, routines)
+    npc_sheets = SheetRegistry(NPC_SPRITES_DIRECTORY)
+    sprite_census = SpriteCensus()
+
     inventory: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
     warp_anomalies: list[dict[str, Any]] = []
     odd_layouts: list[dict[str, Any]] = []
     unloaded: list[dict[str, Any]] = []
+    artless_objects: list[dict[str, Any]] = []
     warp_targets: dict[int, dict[str, Any]] = {}
     warp_count = 0
     census: dict[str, dict[int, int]] = {
         key: {} for key in
-        ("collision_types", "npc_facing_bytes", "warp_facing_bytes", "dialogue_trees")
+        ("collision_types", "npc_facing_bytes", "warp_facing_bytes", "dialogue_trees",
+         "sprite_palette_lines")
     }
 
     def count(key: str, value: int, by: int = 1) -> None:
@@ -688,7 +741,10 @@ def build_pack(
         json_name = f"{MAPS_DIRECTORY}/{stem}.json"
         png_name = f"{MAPS_DIRECTORY}/{stem}.png"
 
-        payload, anomalies = map_json(record, decoded, png_name)
+        sprites, artless = resolve_map_sprites(
+            rom_bytes, record, decoded, routines, extents, npc_sheets, sprite_census
+        )
+        payload, anomalies = map_json(record, decoded, png_name, sprites)
         json_sha = _write_json(maps_directory / f"{stem}.json", payload)
 
         image = render_layout(
@@ -717,6 +773,8 @@ def build_pack(
             count("warp_facing_bytes", warp["facing"]["id"])
         for npc in payload["npcs"]:
             count("npc_facing_bytes", npc["facing"]["id"])
+        for entry in artless:
+            artless_objects.append({**_target(record), **entry})
 
         dimensions = payload["dimensions"]
         inventory.append({
@@ -730,6 +788,27 @@ def build_pack(
             "width_pixels": dimensions["width_pixels"],
             "height_pixels": dimensions["height_pixels"],
         })
+
+    party_entries, party_bytes = emit_party(directory, party)
+    npc_entries, npc_bytes = npc_sheets.emit(directory)
+    npc_index = {
+        "format_version": PACK_FORMAT_VERSION,
+        "kind": "field_npcs",
+        "sheet_count": len(npc_entries),
+        "sheets": npc_entries,
+    }
+    npc_sha = _write_json(directory / NPC_SPRITES_NAME, npc_index)
+    party_index = {
+        "format_version": PACK_FORMAT_VERSION,
+        "kind": "field_party",
+        "sheet_count": len(party_entries),
+        "sheets": party_entries,
+    }
+    party_sha = _write_json(directory / PARTY_SPRITES_NAME, party_index)
+
+    placed = sum(entry["placements"] for entry in npc_entries)
+    for entry in npc_entries:
+        count("sprite_palette_lines", entry["palette"]["cram_line"], entry["placements"])
 
     packed = {entry["id"] for entry in inventory}
     manifest = {
@@ -771,6 +850,56 @@ def build_pack(
             "doors_without_map_change_cell": [
                 anomaly for anomaly in warp_anomalies if anomaly["table"] == 2
             ],
+        },
+        "sprites": {
+            "party": PARTY_SPRITES_NAME,
+            "party_sha256": party_sha,
+            "party_sheet_count": len(party_entries),
+            "npcs": NPC_SPRITES_NAME,
+            "npcs_sha256": npc_sha,
+            "npc_sheet_count": len(npc_entries),
+            "npc_placements": placed,
+            "artless_objects": len(artless_objects),
+            # What the composed frames actually contain, as opposed to what the
+            # six-byte piece record allows. Every one of these decided a line of
+            # the compositor: the low-byte carry is why the pattern word is
+            # summed the way Field_FillSpriteAttributes sums it, the V-flip
+            # count is why the staged path honours both flip bits, and the
+            # per-frame-duration sequences are why both sequence forms are
+            # implemented instead of just the common one.
+            "census": sprite_census.to_json(),
+            "artless": artless_objects,
+            "bytes": party_bytes + npc_bytes,
+            "field_objects": {
+                "table": f"0x{FIELD_OBJECTS_JMP_TBL:06X}",
+                "count": FIELD_OBJECT_COUNT,
+                "stride": 4,
+            },
+            # The whole palette answer in one place. A field sprite's colours
+            # are decided by the byte its FieldObjectsJmpTbl routine stores at
+            # $13, which Field_FillSpriteAttributes ORs into the high half of
+            # every pattern word it writes; bits 6-5 of that byte are the CRAM
+            # line. Lines 0, 1 and 3 come out of the map record's own palette
+            # blob, in that order. Line 2 does not: loc_53F14 copies
+            # Pal_Init_Line_3 over it for every map, which is why the party --
+            # whose eleven routines all store $40 -- is the same colours
+            # everywhere in the game.
+            "palette": {
+                "selector": "$13(a4), OR-ed into the pattern word's high byte",
+                "cram_lines": {"0x00": 0, "0x20": 1, "0x40": 2, "0x60": 3},
+                "map_palette_lines": list(MAP_PALETTE_LINE_ORDER),
+                "fixed_line": PAL_INIT_LINE_3_CRAM_LINE,
+                "fixed_line_source": "Pal_Init_Line_3",
+                "fixed_line_rom_offset": f"0x{PAL_INIT_LINE_3:06X}",
+                "party_line": PAL_INIT_LINE_3_CRAM_LINE,
+            },
+            "facings": {str(value): name for value, name in FACINGS},
+            "walk": step_timing_json(rom_bytes, COLLISION_CELL_PIXELS),
+            "note": (
+                "Frame durations are game frames, one per Field_RunObjects call. "
+                "idle_<dir> is frame 0 of the direction's sequence, which is where "
+                "FieldObj_Move parks a stopped object; walk_<dir> is the whole cycle."
+            ),
         },
         "map_count": len(inventory),
         "maps": inventory,

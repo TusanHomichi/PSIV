@@ -67,6 +67,13 @@ pub enum DataError {
         /// What is wrong with it.
         message: String,
     },
+    /// A sprite sheet or a sprite reference is defective.
+    Sprite {
+        /// The sheet id, or the `map/npc` path of the offending reference.
+        who: String,
+        /// What is wrong with it.
+        message: String,
+    },
 }
 
 impl DataError {
@@ -150,6 +157,7 @@ impl fmt::Display for DataError {
                 field,
                 message,
             } => write!(f, "map {map}: {field}: {message}"),
+            DataError::Sprite { who, message } => write!(f, "sprite {who}: {message}"),
         }
     }
 }

@@ -382,6 +382,13 @@ pub struct Npc {
     pub facing: Facing,
     /// Index into this map's dialogue tree.
     pub dialogue_id: u16,
+    /// How to draw this object, when it has art: which sheet and sequences.
+    #[serde(default)]
+    pub sprite: Option<SpriteRef>,
+    /// Why this object has no sprite (invisible trigger, vehicle-gated art,
+    /// ...) when `sprite` is `None`. Exactly one of the two is set.
+    #[serde(default)]
+    pub sprite_reason: Option<String>,
     /// First VRAM tile of the object's art.
     pub art_tile: u32,
 }
@@ -391,6 +398,54 @@ impl Npc {
     pub const fn pos(&self) -> CellPos {
         CellPos::new(self.x_cell, self.y_cell)
     }
+}
+
+/// A sprite facing, tolerating the cartridge's one out-of-set byte.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SpriteFacing {
+    /// Facing down.
+    Down,
+    /// Facing up.
+    Up,
+    /// Facing left.
+    Left,
+    /// Facing right.
+    Right,
+    /// A facing byte outside {0, 4, 8, $C}; drawn as down.
+    #[serde(other)]
+    Unknown,
+}
+
+impl SpriteFacing {
+    /// The typed direction, defaulting the unknown byte to down.
+    #[must_use]
+    pub fn direction_or_down(self) -> Direction {
+        match self {
+            SpriteFacing::Up => Direction::Up,
+            SpriteFacing::Left => Direction::Left,
+            SpriteFacing::Right => Direction::Right,
+            SpriteFacing::Down | SpriteFacing::Unknown => Direction::Down,
+        }
+    }
+}
+
+/// An object's binding to a sprite sheet.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SpriteRef {
+    /// Sheet id inside the index file named by `sheets`.
+    pub sheet: String,
+    /// The index file, pack-root-relative (`sprites/npcs.json`).
+    pub sheets: String,
+    /// The object's facing, resolved for convenience. `Unknown` covers the
+    /// census's one odd byte (AiedoPub object 2, facing `$10`) — preserved,
+    /// not rejected; renderers treat it as down.
+    #[serde(default)]
+    pub facing: Option<SpriteFacing>,
+    /// Sequence to play at rest.
+    pub idle_sequence: String,
+    /// Sequence to play while moving.
+    pub walk_sequence: String,
 }
 
 /// What a chest holds. Byte 1 of the chest record selects between the two, and
