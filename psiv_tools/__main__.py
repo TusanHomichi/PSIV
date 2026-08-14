@@ -29,6 +29,12 @@ def main() -> int:
     p_planes.add_argument("rom", type=Path)
     p_planes.add_argument("output", type=Path)
 
+    p_pack = sub.add_parser("pack", help="Emit the runtime pack for psiv-data (writes Sega pixels; keep the output gitignored)")
+    p_pack.add_argument("rom", type=Path)
+    p_pack.add_argument("output", type=Path)
+    p_pack.add_argument("--map", dest="map_ids", type=lambda v: int(v, 0), action="append",
+                        help="restrict the pack to these map ids (repeatable)")
+
     args = parser.parse_args()
     try:
         data = read_rom(args.rom)
@@ -66,6 +72,17 @@ def main() -> int:
             from .planes import export_plane_pngs
             written = export_plane_pngs(data, args.output)
             print(f"Wrote {len(written)} composed PNGs to {args.output}")
+        elif args.command == "pack":
+            from .pack import PackError, build_pack
+            try:
+                manifest = build_pack(data, args.output, map_ids=args.map_ids)
+            except PackError as exc:
+                parser.error(str(exc))
+            print(f"Packed {manifest['map_count']} maps to {args.output}")
+            print(f"Skipped {len(manifest['skipped'])} entries; {manifest['warps']['count']} warps")
+            doors = manifest["warps"]["doors_without_map_change_cell"]
+            if doors:
+                print(f"{len(doors)} doorways have no map-change cell in the stored layout")
     except (OSError, RomError) as exc:
         parser.error(str(exc))
     return 0

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["psiv-data", "psiv-core"]
+members = ["psiv-data", "psiv-core", "psiv-runtime"]
 # psiv-godot joins when the presentation slice starts (editor: ~/.local/bin/cairn-godot-4.7.1).
 
 [workspace.package]

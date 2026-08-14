@@ -343,11 +343,39 @@ class DecodeLayoutTest(unittest.TestCase):
         self.assertEqual(layout.width_pixels, 8 * CHUNK_PIXELS_X)
         self.assertEqual(layout.height_pixels, 6 * CHUNK_PIXELS_Y)
 
-    def test_size_mismatch_is_fatal(self):
+    def test_zero_surplus_is_truncated_and_flagged_padded(self):
+        # The loader never checks the blob length; the extent comes from the
+        # dimension bytes. Seven Academy maps store zero-padded oversize
+        # buffers, so a zero surplus is slack, not an error.
         rom = kos_literals(bytes(48))
+        layout = decode_layout(rom, 0, 8, 5)
+        self.assertEqual(len(layout.cells), 40)
+        self.assertIsNotNone(layout.anomaly)
+        self.assertEqual(layout.anomaly["kind"], "padded")
+        self.assertEqual(layout.anomaly["blob_bytes"], 48)
+        self.assertEqual(layout.anomaly["grid_bytes"], 40)
+
+    def test_nonzero_surplus_is_fatal(self):
+        # A surplus carrying data means the grid extent is being read wrong.
+        rom = kos_literals(bytes(40) + bytes([7] * 8))
         with self.assertRaises(LayoutError) as caught:
             decode_layout(rom, 0, 8, 5)
-        self.assertIn("40", str(caught.exception))
+        self.assertIn("surplus", str(caught.exception))
+
+    def test_short_blob_is_zero_filled_and_flagged(self):
+        # ClimCenter_F2's BG blob is shorter than its grid (a cartridge
+        # defect); the missing cells hold stale RAM on hardware, zeros on a
+        # cold boot, and zeros here.
+        rom = kos_literals(bytes(range(1, 33)))
+        layout = decode_layout(rom, 0, 8, 5)
+        self.assertEqual(len(layout.cells), 40)
+        self.assertEqual(layout.cells[32:], bytes(8))
+        self.assertIsNotNone(layout.anomaly)
+        self.assertEqual(layout.anomaly["kind"], "short")
+
+    def test_exact_length_has_no_anomaly(self):
+        layout = decode_layout(kos_literals(bytes(48)), 0, 8, 6)
+        self.assertIsNone(layout.anomaly)
 
     def test_layout_larger_than_its_ram_region_is_rejected(self):
         with self.assertRaises(LayoutError) as caught:

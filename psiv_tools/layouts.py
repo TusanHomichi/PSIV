@@ -300,6 +300,11 @@ class Layout:
     height_chunks: int
     cells: bytes
     blob: Blob
+    #: Present when the blob's length disagreed with the grid in a way the
+    #: loader tolerates: "padded" (zero surplus no reader can reach) or
+    #: "short" (cells the cartridge leaves holding stale RAM; zero-filled
+    #: here, which is what a cold boot shows). See `decode_layout`.
+    anomaly: dict | None = None
 
     def __post_init__(self) -> None:
         if self.plane not in PLANES:
@@ -370,17 +375,54 @@ def decode_layout(
         )
 
     data, blob = _decompress_blob(rom, offset, "Layout blob")
-    if len(data) != expected:
-        raise LayoutError(
-            f"Layout at 0x{offset:06X} decompresses to {len(data)} bytes, but a "
-            f"{width_chunks}x{height_chunks} chunk grid needs {expected}"
-        )
+    # The loader's actual length rule: `loc_539E2`/`loc_53A04` hand the pointer
+    # to KosDecomp and never look at how much came back -- the grid's extent
+    # comes from the record's dimension bytes alone. Fourteen retail planes
+    # disagree with their grid: seven Academy maps store zero-padded 32x32
+    # buffers for 32x16 grids, and ClimCenter_F2's BG pointer is the next
+    # map's all-zero 32x32 buffer for a 48x48 grid (a cartridge defect; the
+    # short cells hold stale RAM on hardware, zeros on a cold boot). A surplus
+    # that is not all zero still fails closed: that means the extent is being
+    # read wrong, not that the data is slack.
+    anomaly: dict | None = None
+    if len(data) > expected:
+        if set(data[expected:]) - {0}:
+            raise LayoutError(
+                f"Layout at 0x{offset:06X} decompresses to {len(data)} bytes for "
+                f"a {width_chunks}x{height_chunks} grid and the surplus is not "
+                "zero padding; the grid extent is being read wrong"
+            )
+        anomaly = {
+            "plane": plane,
+            "kind": "padded",
+            "blob_offset": f"0x{offset:06X}",
+            "blob_bytes": len(data),
+            "grid_bytes": expected,
+            "effect": "surplus is zero padding no reader can reach",
+        }
+        cells = data[:expected]
+    elif len(data) < expected:
+        anomaly = {
+            "plane": plane,
+            "kind": "short",
+            "blob_offset": f"0x{offset:06X}",
+            "blob_bytes": len(data),
+            "grid_bytes": expected,
+            "effect": (
+                f"{expected - len(data)} cells are left holding whatever the "
+                "previously loaded map wrote to Map_Layout; zero-filled here"
+            ),
+        }
+        cells = data + bytes(expected - len(data))
+    else:
+        cells = data
     return Layout(
         plane=plane,
         width_chunks=width_chunks,
         height_chunks=height_chunks,
-        cells=data,
+        cells=cells,
         blob=blob,
+        anomaly=anomaly,
     )
 
 

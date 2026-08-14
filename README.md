@@ -35,6 +35,7 @@ The ROM is **not included** and should never be committed to this project.
 - per-map encounter binding: the 416-byte map→group table plus the two Kosinski position grids for the overworlds, cross-validated against the 68 encounter groups
 - map layouts and collision: 32×32-pixel chunks, per-plane layouts, and the 4-bit-per-cell collision grid, proven by rendering Piata/PiataItemShop/IslandCave and cross-checking warp doorways against collision type 1
 - 35 Enigma-compressed plane mappings (35,436 cells): 20 battle backgrounds, the title screen, the Sega logo and the four title portraits, composed against their art and palettes into finished PNGs by `python -m psiv_tools planes`
+- a runtime pack (`python -m psiv_tools pack`, gitignored output): 359 maps as lean per-map JSON + composed PNG for the Rust runtime — collision grids, warp trigger rects transcribed from the 15 `XYRangeJmpTbl` routines (retail uses 9), NPCs, treasure, and a census of what the data actually contains vs what the code permits
 - exact ROM offsets and raw bytes for every extracted record
 - signature checks tying the implementation to known bytes in this exact retail build
 - an exact-mirror check for the duplicated 20,614-byte character level-table block
@@ -186,4 +187,8 @@ Filed from the text slice: binding dialogue ids to the maps/NPCs that speak them
 1. Save/SRAM parsing and import (needs a real emulator save as a fixture).
 2. The filed items above, as needed by the runtime.
 
-Maps, layouts, collision, encounter binding, and all three of Sega's compression formats are done and proven. The data boundary is now large enough to start the native runtime vertical slice: a Rust core consuming this JSON, presented through Godot — walk Chaz around Piata.
+Maps, layouts, collision, encounter binding, and all three of Sega's compression formats are done and proven.
+
+## The Rust runtime
+
+`rust/` holds a Cargo workspace (see `docs/RUNTIME_DESIGN.md` for the design record): `psiv-data` (fail-closed schema over the runtime pack), `psiv-core` (the deterministic field engine — integer-only, dependency-free, floats banned by the compiler), and `psiv-runtime` (the bridge and game shell that `psiv-godot` will drive). The headless golden path passes: spawn in Piata, walk into the academy doorway, and the engine warps to `MapID_PiataAcademy` at exactly the cell and facing the cartridge's transition table stores; all 359 packed maps convert into live engine maps. `cargo test` from `rust/`.

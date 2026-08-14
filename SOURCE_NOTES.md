@@ -295,6 +295,36 @@ distinct enemy ids that appear in formations.
   off retail; `Battle_EnemyFormationIndexes` was located by content, not
   annotation. My earlier scouting note placing it at `0x0085A2` was wrong —
   that range is a 15-word palette.
+- RETAIL CARTRIDGE BUG: `ClimCenter_F2`'s BG layout pointer targets
+  `ClimCenter_F3`'s all-zero 32×32 buffer, but the map is 48×48 — 1,280 BG
+  cells render whatever the previously loaded map left in `Map_Layout_BG`
+  (zeros on a cold boot). Collision reads the FG plane there, so only the
+  picture is affected. The pack zero-fills and records the anomaly.
+- `InnerSanctuary_B1`'s BG layout names chunk `$FF` in exactly one cell while
+  the map loads 128 chunks — the only such cell in the cartridge (all 718
+  planes swept). `SetupChunksBG` has no bounds check, so hardware reads a
+  `Chunk_Table` slot the map never wrote: stale data or, cold-booted, an
+  empty definition. A stray byte in the original build data; the pack
+  substitutes the empty definition and records the substitution.
+- Seven Academy maps store zero-padded 32×32 layout buffers for 32×16 grids;
+  the surplus is unreachable (`GetChunkAndCollision` wraps Y). The loader
+  never checks blob lengths — the grid extent comes from the dimension bytes
+  alone — and `layouts.decode_layout` now implements exactly that rule.
+- `Zema_LockedDoorsOffs` is named backwards in the disassembly: the offsets
+  are where the doors *open* (chunks with map-change cells are written in
+  once `EventFlag_IgglanovaZema` is set; the stored layout holds solid
+  chunks). Five doorway warps (four in Zema, one in BirthValley_B1) cover no
+  type-1 cell in the stored layout for this reason — event-gated doors, not
+  defects.
+- Census facts (what retail data actually contains vs what the code
+  permits): collision type `$7` exists (172 cells, 8 maps, every one
+  adjacent to a `$9` water cell — a shoreline artifact of one chunk set) and
+  is walkable via `TileColl_Empty`; types `$A` (sand) and `$B` (ice) never
+  appear in any field map; dialogue-tree binding is 1-based (1..=43, never
+  0); exactly one field object has a facing byte outside {0,4,8,$C}
+  (AiedoPub object 2, byte $10); retail selects only 9 of the 15
+  `XYRangeJmpTbl` routines. The pack manifest carries a `census` section so
+  consumers assert against observed reality instead of hardcoding ranges.
 - Nine Enigma call sites are revision-gated and the cartridge runs the `else`
   (English) branch — proven three ways: the retail code contains each
   mapping's `lea`/`move.w #base` pair exactly once with the retail base

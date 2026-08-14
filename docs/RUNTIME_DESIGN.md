@@ -68,7 +68,19 @@ The pack contains Sega-derived content and is never committed — same rule as
   $C (shop). Type 1 (map change) does not block — the warp fires on entry,
   per the decoded semantics.
 - Warps resolve through the extracted transition tables; target position and
-  facing come from the cartridge data, not invention.
+  facing come from the cartridge data, not invention. There are two tables
+  with distinct semantics (proven from `RunMapTransitions` +
+  `FieldRoutine_Controls`, 2026-08-14): doorways (table 2) fire on landing on
+  a type-1 cell only when the previous standing cell was not type-1, and
+  normal-ground transitions (table 1) fire from ordinary standing cells via
+  rect scan. The routine runs every frame but dispatches on a standing-cell
+  value updated only at rest, so the effective model is per-landing — and
+  `GameMode_LoadFieldMap` initializes the standing value to 1, which is the
+  cartridge's own "placement never fires a doorway warp" anti-ping-pong rule;
+  psiv-core reproduces both. Known microscopic deviation: on retail hardware
+  a normal-ground transition can fire mid-step a few frames early as the
+  pixel position enters its rect; psiv-core fires on landing. Same step, same
+  destination.
 - Encounters (later): port the game's own RNG (`UpdateRNGSeed2`) so rolls are
   identical, not merely plausible. Requires one more small extraction of the
   RNG constants/algorithm.
@@ -91,12 +103,19 @@ overworlds (paged-layout format not yet decoded), sound.
 ## Testing
 
 - `psiv-core`: unit tests on synthetic grids, plus golden tests driven by
-  pack data ("at Piata's academy doorway, stepping up warps to map $13 at
-  the coordinates the transition table stores").
+  pack data ("at Piata's academy doorway, stepping up warps to map $11,
+  MapID_PiataAcademy, at the coordinates the transition table stores").
 - `psiv-data`: schema round-trip and validation tests, gated on pack
   presence (mirroring the Python suite's ROM-gated pattern).
 - Later: the original running in an emulator becomes the behavior oracle for
-  battle math and RNG streams.
+  battle math and RNG streams — scripted input tapes, per-frame logging of
+  named RAM addresses (the disassembly gives us the full RAM map), bit-exact
+  comparison against psiv-core replaying the same inputs. Emulator choice is
+  delegated (Peter, 2026-08-14): selection criteria are Lua/memory-watch
+  quality, headless determinism, Linux support, and Genesis core accuracy.
+  Likely pick: BizHawk with the Genesis Plus GX core (the TAS standard for
+  scriptable determinism); final call when the oracle harness is built, at
+  the start of battle work.
 
 ## Division of labor
 
