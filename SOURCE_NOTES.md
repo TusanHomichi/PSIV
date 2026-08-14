@@ -70,6 +70,59 @@ The decoder returns the number of compressed bytes consumed, which turns every
 documented blob range into a verification: decompression must terminate on the
 end marker at exactly the annotated end address.
 
+## Nemesis decompression
+
+`psiv_tools/nemesis.py` is a transcription of `NemDecomp` / `Nem_ProcessCompressedData` /
+`Nem_BuildCodeTable` (`ps4.asm:84605-84797`), not an implementation from a prose
+description. Three details were taken from the routine rather than assumed:
+
+- Output length is fixed by the header alone (`(count & $7FFF) * 8` rows); the
+  routine stops mid-run the instant the row counter hits zero, so decoding
+  until input exhaustion overruns on real data.
+- The bit-window refill runs before the pixels that emptied it are written, so
+  the routine reads one lookahead byte it may never use. Consumed length is
+  the stream length or length + 1 (observed on 23 of 68 retail blobs); the
+  length checks accept exactly that pair and nothing else.
+- XOR mode accumulates: output row N is the XOR of decoded rows 0..N, not a
+  delta against the previous row alone.
+
+The tile format is packed 4bpp (two pixels per byte, high nybble = left
+pixel), proven by `Nem_PCD_WritePixel`'s `lsl.l #4 / or.b` construction.
+
+## Palette format
+
+CRAM colours are big-endian words `%0000BBB0GGG0RRR0`. Three-bit channels are
+widened to 8 bits by bit replication (`v<<5 | v<<2 | v>>1`): 0 maps to 0, 7 to
+255, it is monotone, and inverts exactly as `v = c >> 5` (the common `v * 36`
+alternative tops out at 252). The original 0–7 levels are emitted alongside
+the widened values, so the choice is never load-bearing. Battle palettes are
+CRAM line 0, indices 1–13, index 0 forced black — proven from `loc_6C3C`,
+which clears the first word and copies `$D` words after it.
+
+Palette offsets: `Pal_Init` `0x09F2BC` (only line 2 carries colour);
+`Pal_Init_Line_3` `0x296300` (byte-exact duplicate of that line, verified, the
+same mirroring phenomenon as the level tables); title palettes `0x1D29BC` /
+`0x1D2A3C` / `0x2F4994`; 31 contiguous battle palettes from `0x007054`.
+
+## Oracle methodology for graphics
+
+No decompressed Nemesis source exists in the disassembly, so formations-style
+round trips are unavailable. Substitutes, in decreasing strength:
+
+- Battle backgrounds carry a ROM-internal exact-length oracle: each art blob's
+  Enigma plane mapping is stored immediately after it, and all 20 blobs decode
+  to exactly `mapping_ptr - art_ptr` consumed bytes.
+- The disassembly stores Nemesis blobs already compressed; each `binclude`
+  payload occurs exactly once in the retail image, fixing the offsets. The
+  oracle tests match portraits and battle art to payloads by content, not by
+  filename.
+- Visual identification pins the decoders end to end: the font decodes to the
+  Latin alphabet (letter-A bitmap pinned in a test), the Sega logo proves the
+  XOR accumulator, Chaz's portrait proves row-major 48×48 composition, and the
+  Mota desert background proves the pointer-table → art → palette path.
+- sha256 pins: font, Sega logo, Chaz individually, plus one digest over the
+  sorted digests of all 68 blobs.
+
 ## Oracle methodology for battle formations
 
 `reference/ps4disasm/battles/{battle_formations_1..4,boss_formations}.asm`
@@ -97,4 +150,23 @@ distinct enemy ids that appear in formations.
   lists three enemy/position pairs, and its group bitmasks cover three slots.
   The disassembly's uncompressed source has the same bytes, so this is the
   ROM's own inconsistency rather than a decode error. Both the declared count
-  and a mismatch flag are emitted.
+  and a mismatch flag are emitted. (Blast radius, proven from the code: the
+  count byte's only reader is the Slasher weapon's hit-effect positioning, so
+  the bug misplaces battle visuals in one rare Dezolis encounter and affects
+  nothing else.)
+- Shops: none. `ShopInventories`, its `ItemID_*` constants, and the
+  surrounding labels match the retail bytes exactly. A clean oracle is itself
+  a finding.
+- `DialoguePortraitArtPtrs` is 7 entries longer in the fork than in retail:
+  the retail table ends at index `$27` (Sekreas); the seven shopkeeper
+  portraits exist in the ROM but are reached through the shop tables near
+  `0x068000`, not through the portrait table.
+- The fork's `revision!=0` branch of `Art_DialogueFont` includes a 6,720-byte
+  italics font that appears nowhere in the retail image; retail carries the
+  1,280-byte plain dialogue font.
+- General caution: the `reference/` clone is configured as a Grand Cross hack
+  build (`grand_cross=1`, `bugfixes=1`, `optional_fixes=1`,
+  `no_random_battles=1`, `external_formation_data=1`). Its `revision`-gated
+  and option-gated branches describe the hack, not necessarily retail; every
+  slice must prove which branch matches the cartridge rather than trusting
+  the default.

@@ -27,6 +27,8 @@ The ROM is **not included** and should never be committed to this project.
 - 504 battle formations plus 27 boss formations, Kosinski-decompressed from the retail blobs
 - 68 encounter formation-index groups (32 candidate formations each)
 - 49 shop inventories plus the shop-location table binding each shop to a map position (inns hold a separate index space)
+- 68 Nemesis-compressed art blobs (10,434 tiles): all 36 dialogue portraits, 20 battle backgrounds, fonts, title art — decoded and verifiable, with a `python -m psiv_tools art` command rendering them to PNG sheets locally
+- Mega Drive CRAM palettes: the init/title palettes plus the 31-entry battle-background palette table, with the original 3-bit levels preserved next to widened RGB
 - exact ROM offsets and raw bytes for every extracted record
 - signature checks tying the implementation to known bytes in this exact retail build
 - an exact-mirror check for the duplicated 20,614-byte character level-table block
@@ -60,7 +62,8 @@ generated/
 ├── vehicles.json
 ├── formations.json
 ├── formation_indexes.json
-└── shops.json
+├── shops.json
+└── graphics.json
 ```
 
 ## Proven retail-layout tables used by this PoC
@@ -98,6 +101,16 @@ These are variable-length compressed streams, not fixed-size record tables. Rang
 ### Weird-but-useful duplicated level data
 
 The primary level-table block occupies `0x2856B0..0x28A735` (20,614 bytes). The ROM contains a byte-for-byte identical mirror beginning at `0x2A3A42`, ending at `0x2A8AC7`, immediately before the initial character data. The extractor verifies this equality and reports it in `progression.json`.
+
+## Graphics
+
+`psiv_tools/nemesis.py` is transcribed from the game's own `NemDecomp` routine, the same way `kosinski.py` was. Its three load-bearing quirks are documented in `SOURCE_NOTES.md`; the short version is that output length comes from the header alone, the routine reads one lookahead byte it may never use (so consumed length is exact-or-plus-one), and XOR mode accumulates over the whole blob.
+
+Located art: 12 named singletons (fonts, title/Sega art, window tiles), all 36 dialogue portraits via the pointer table at `0x06A4B0`, and 20 distinct battle backgrounds via the 32-entry table at `0x006ED4` — 68 blobs, 10,434 tiles. Battle backgrounds carry an internal length oracle: each art blob's Enigma plane mapping is stored immediately after it, so the compressed length is derivable from the cartridge alone. Portraits are 36 row-major tiles (48×48). Battle palettes are proven to occupy CRAM line 0 indices 1–13 with index 0 forced black.
+
+`extract` emits only metadata (offsets, sizes, tile counts, sha256s, palette values) — decoded pixels never enter committed files. `python -m psiv_tools art <rom> <outdir>` renders the sheets to PNG locally.
+
+What art still cannot do is *compose*: per-tile palette lines and screen layout live in Enigma-compressed plane mappings, which is the next graphics slice. Until then, art without a proven palette renders against a grayscale index ramp rather than a guessed palette line.
 
 ## Battle formations
 
@@ -145,6 +158,8 @@ The long-term runtime can still be Rust/Godot. This first pass is Python so the 
 ## Next useful slice
 
 Filed from the shops slice: the per-shop/per-inn greeting selectors (`loc_68136`, 49 words; `loc_68112`, 18 words) choose dialogue strings and belong with the text-decoder work, not with shops.
+
+Filed from the graphics slice: Enigma plane mappings (per-tile palette line and screen layout — without them art decodes but cannot compose); the four Kosinski-compressed title portraits (`0x2F114E`, `0x2F1E6E`, `0x2F2A9E`, `0x2F3AAE`); the seven shopkeeper portraits reached via the shop tables; uncompressed field/battle character sprites and the field map palettes.
 
 1. The per-map encounter group tables (`Battle_EnemyFormationIndexes`, `Battle_MotaFormationGroupIndexes`, `Battle_DezoFormationGroupIndexes`), which map a field position to one of the 68 formation-index groups. The last two are Kosinski, so the decoder is already in place.
 2. Shops and inventories.

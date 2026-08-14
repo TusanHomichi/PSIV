@@ -21,6 +21,10 @@ def main() -> int:
     p_dump = sub.add_parser("dump", help="Print the complete normalized extract to stdout")
     p_dump.add_argument("rom", type=Path)
 
+    p_art = sub.add_parser("art", help="Decode ROM artwork to PNG sheets (writes Sega pixels; keep the output gitignored)")
+    p_art.add_argument("rom", type=Path)
+    p_art.add_argument("output", type=Path)
+
     args = parser.parse_args()
     try:
         data = read_rom(args.rom)
@@ -43,9 +47,14 @@ def main() -> int:
             print(f"Extracted {result['formations']['total_boss_formations']} boss formations")
             print(f"Extracted {result['formation_indexes']['group_count']} encounter formation-index groups")
             print(f"Extracted {result['shops']['shop_count']} shop inventories, {result['shops']['locations']['entry_count']} shop locations")
+            print(f"Extracted graphics metadata: {result['graphics']['total_tiles_decoded']} tiles across named art, portraits, and battle backgrounds")
             print(f"Wrote JSON to {args.output}")
         elif args.command == "dump":
             print(json.dumps(extract_all(data), indent=2))
+        elif args.command == "art":
+            from .gfx import export_art_pngs
+            written = export_art_pngs(data, args.output)
+            print(f"Wrote {len(written)} PNG sheets to {args.output}")
     except (OSError, RomError) as exc:
         parser.error(str(exc))
     return 0
