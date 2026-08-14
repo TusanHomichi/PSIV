@@ -174,6 +174,21 @@ pub enum RuntimeEvent {
         /// The offending cell.
         cell: Cell,
     },
+    /// The party talked to an NPC. The renderer looks up the NPC's
+    /// dialogue binding in the map record and opens a window; while it is
+    /// open, it stops sending direction inputs (the engine is not modal).
+    Interact {
+        /// Index into the current map's NPC list.
+        npc_index: usize,
+        /// The faced cell that was hit.
+        cell: Cell,
+    },
+    /// Confirm pressed with nothing in talk range — the cartridge answers
+    /// with the leader's "Nothing here" line.
+    InteractNothing {
+        /// Which way the party was facing.
+        facing: Direction,
+    },
 }
 
 /// The game shell: pack data, the current engine map, and the field state.
@@ -269,6 +284,12 @@ impl Runtime {
                     Err(_) => events.push(RuntimeEvent::UnpackedTarget { map: target_map }),
                 },
                 Effect::WarpUnmapped { cell } => events.push(RuntimeEvent::WarpUnmapped { cell }),
+                Effect::Interact { npc_index, cell } => {
+                    events.push(RuntimeEvent::Interact { npc_index, cell });
+                }
+                Effect::InteractNothing { facing } => {
+                    events.push(RuntimeEvent::InteractNothing { facing });
+                }
             }
         }
         events

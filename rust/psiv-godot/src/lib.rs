@@ -123,6 +123,11 @@ struct Field {
     sheet_views: HashMap<String, SheetView>,
     camera: Option<Gd<Camera2D>>,
     anim_tick: u64,
+    /// The party's active sequence and the tick it started, so animation
+    /// phase restarts at frame 0 on a sequence change — matching
+    /// `FieldObj_Move`'s reset-to-frame-0 rather than free-phase modulo.
+    party_sequence: String,
+    party_seq_start: u64,
 }
 
 #[godot_api]
@@ -139,6 +144,8 @@ impl INode2D for Field {
             sheet_views: HashMap::new(),
             camera: None,
             anim_tick: 0,
+            party_sequence: String::new(),
+            party_seq_start: 0,
         }
     }
 
@@ -195,7 +202,7 @@ impl INode2D for Field {
 
         self.runtime = Some(runtime);
         self.load_map_visuals();
-        self.sync_visuals();
+        self.sync_visuals(false);
         godot_print!(
             "PSIV field ready: map {:#05x}, party at ({}, {})",
             SPAWN_MAP,
@@ -211,9 +218,10 @@ impl INode2D for Field {
             return;
         };
         let events = runtime.tick(input);
+        let mut stepped = false;
         for event in events {
             match event {
-                RuntimeEvent::StepCompleted { .. } => {}
+                RuntimeEvent::StepCompleted { .. } => stepped = true,
                 RuntimeEvent::MapChanged { map, trigger } => {
                     let kind = match trigger {
                         WarpTrigger::MapChange => "doorway",
@@ -228,9 +236,24 @@ impl INode2D for Field {
                 RuntimeEvent::WarpUnmapped { cell } => {
                     godot_error!("type-1 cell with no doorway record at {cell:?}");
                 }
+                // Dialogue windows land with the dialogue slice; until then
+                // the interaction layer reports to the console.
+                RuntimeEvent::Interact { npc_index, cell } => {
+                    godot_print!("talk: npc {npc_index} at {cell:?}");
+                }
+                RuntimeEvent::InteractNothing { .. } => {
+                    godot_print!("talk: nothing here");
+                }
             }
         }
-        self.sync_visuals();
+        // A landing tick with the key still held is mid-stride, not rest:
+        // without this, the idle frame flashes for one tick every step (the
+        // cartridge's animation free-runs and never sees such a gap).
+        let walking = {
+            let state = self.runtime.as_ref().map(|rt| rt.state());
+            state.is_some_and(|s| s.is_stepping()) || (stepped && input.direction().is_some())
+        };
+        self.sync_visuals(walking);
     }
 }
 
@@ -327,18 +350,22 @@ impl Field {
     }
 
     /// Places and animates the party sprite, animates NPCs, moves the camera.
-    fn sync_visuals(&mut self) {
+    fn sync_visuals(&mut self, walking: bool) {
         let Some(runtime) = self.runtime.as_ref() else {
             return;
         };
         let state = runtime.state();
         let cell = state.cell();
         let offset = state.render_offset_16ths();
+        let kind = if walking { "walk" } else { "idle" };
+        let sequence = sequence_name(kind, state.facing());
+        if sequence != self.party_sequence {
+            self.party_sequence = sequence;
+            self.party_seq_start = self.anim_tick;
+        }
 
         if let (Some(party), Some(view)) = (self.party.as_mut(), self.party_view.as_ref()) {
-            let kind = if state.is_stepping() { "walk" } else { "idle" };
-            let sequence = sequence_name(kind, state.facing());
-            let frame = view.frame_at(&sequence, self.anim_tick);
+            let frame = view.frame_at(&self.party_sequence, self.anim_tick - self.party_seq_start);
             view.apply(party, frame);
             party.set_position(view.draw_pos(cell, offset));
         }
