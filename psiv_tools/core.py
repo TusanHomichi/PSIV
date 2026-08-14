@@ -10,6 +10,7 @@ from typing import Any
 from .formations import extract_formation_indexes, extract_formations
 from .gfx import extract_graphics
 from .shops import extract_shops
+from .text import extract_dialogue, extract_names
 from .symbols import ENEMY_SKILL_SYMBOLS, ENEMY_SYMBOLS, ITEM_SYMBOLS
 
 EXPECTED_SHA256 = "511f35cc11f88316f8b8940e28ab298bd75a4da193672a80172884d6eb913b6a"
@@ -587,7 +588,8 @@ def extract_all(data: bytes) -> dict[str, Any]:
         raise RomError("Known table signatures do not match: " + ", ".join(bad))
     formations = extract_formations(data)
     known_formation_ids = {f["id"] for f in formations["formations"]}
-    return {
+    names = extract_names(data)
+    result = {
         "metadata": inspect_rom(data),
         "layout_validation": validations,
         "tables": {k: {**v, "offset": f"0x{v['offset']:06X}"} for k, v in TABLES.items()},
@@ -604,13 +606,27 @@ def extract_all(data: bytes) -> dict[str, Any]:
         "formation_indexes": extract_formation_indexes(data, known_formation_ids),
         "shops": extract_shops(data),
         "graphics": extract_graphics(data),
+        "names": names,
+        "dialogue": extract_dialogue(data),
     }
+    # Cartridge display names live alongside the disassembly symbols; the
+    # symbols stay because they disambiguate duplicates the ROM does not
+    # (e.g. two skills both displayed as "FLAELI").
+    for record_key, name_key in [
+        ("enemies", "enemy_names"), ("items", "item_names"),
+        ("enemy_skills", "enemy_skill_names"), ("techniques", "technique_names"),
+        ("skills", "skill_names"), ("combos", "combo_names"),
+    ]:
+        lookup = {entry["id"]: entry["name"] for entry in names[name_key]}
+        for record in result[record_key]:
+            record["display_name"] = lookup.get(record["id"])
+    return result
 
 
 def write_extract(data: bytes, output_dir: str | Path) -> dict[str, Any]:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     result = extract_all(data)
-    for key in ["metadata", "layout_validation", "tables", "characters", "techniques", "skills", "combos", "vehicles", "items", "enemies", "enemy_skills", "progression", "formations", "formation_indexes", "shops", "graphics"]:
+    for key in ["metadata", "layout_validation", "tables", "characters", "techniques", "skills", "combos", "vehicles", "items", "enemies", "enemy_skills", "progression", "formations", "formation_indexes", "shops", "graphics", "names", "dialogue"]:
         (output_dir / f"{key}.json").write_text(json.dumps(result[key], indent=2) + "\n", encoding="utf-8")
     return result

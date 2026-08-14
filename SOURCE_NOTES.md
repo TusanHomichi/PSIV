@@ -48,7 +48,34 @@ The offsets are accepted only after the full ROM SHA-256 matches the supported r
 
 ## Important boundary
 
-`ITEM_SYMBOLS` and `ENEMY_SYMBOLS` are disassembly identifiers, not decoded cartridge text. This is intentional. The eventual text-system decoder should own actual display names so this tooling does not silently blend researcher labels with source-ROM text.
+`ITEM_SYMBOLS` and `ENEMY_SYMBOLS` are disassembly identifiers, not decoded cartridge text. Records now also carry `display_name`, decoded from the cartridge's own name tables; the symbols stay because they disambiguate duplicates the ROM's display text does not (two skills both display as `FLAELI`; the ROM's `SHOOTINSTR` is the symbols' `Shootnstar`).
+
+## Two font encodings
+
+PSIV uses two charsets: `general/tables/wincharset.asm` for menu/battle name
+tables and `script/charset.asm` for dialogue. They agree on `A`–`Z` and space
+and disagree on everything else (`'a'` is 57 in the window font, 27 in the
+dialogue font), so decoding a table with the wrong one garbles lowercase and
+digits. The ROM cross-validates both: the 160 item names are stored twice,
+once per encoding (`InventoryNames` window font at `0x2AAFB4`,
+`InventoryNames2` dialogue font at `0x2ABA70`), and the decoded string sets
+are identical.
+
+Name-table retail ranges (end-exclusive): character names
+`0x280CD0..0x280D07`, professions `0x280D08..0x280D42`, enemies
+`0x280D42..0x2812E4`, enemy skills `0x2812E4..0x2816BC` (flush against the
+enemy record table), combos `0x28554C..0x2855E1`, items `0x2AAFB4..0x2AB622`,
+techniques `0x2AB622..0x2AB701`, skills `0x2AB702..0x2AB8A1`, places
+`0x2AB8A2..0x2ABA70`, items-in-dialogue-font `0x2ABA70..0x2AC0DE`. No vehicle
+name table exists; vehicles are inventory entries (`ItemID_LandRover = $96`).
+
+Dialogue: 43 Kosinski-compressed trees back-to-back from `0x1DF600` to
+`0x1FE655`, each zero-padded to a 16-byte boundary, chained into one
+continuous length proof; the uncompressed "nothing interesting" message at
+`0x1FE660` pins the region's end independently. Control codes are transcribed
+from `TextCtrlCodesJmpTbl` and `TextActionsOffs`; zero unknown control bytes
+and zero unmapped glyphs across all trees and tables, and the decoder raises
+rather than emitting placeholders.
 
 ## Kosinski decompression
 
@@ -170,3 +197,18 @@ distinct enemy ids that appear in formations.
   and option-gated branches describe the hack, not necessarily retail; every
   slice must prove which branch matches the cartridge rather than trusting
   the default.
+- `script/documentation.txt` omits control code `$FB` (extended event-flag
+  check, 3 operand bytes) entirely.
+- `$F6` (event) takes a 2-byte operand. The disassembly disagrees with itself
+  (`GetEventFromDialogue` reads a word; `TextCtrlCode_Event` skips one byte);
+  the ROM settles it — a 1-byte reading puts 43 corpus bytes outside the
+  font, a 2-byte reading puts zero. The 1-byte skip is a dormant quirk: every
+  retail `$F6` sits at an entry start, where the preprocessor handles it.
+- `CharName_Chaz = "Shay"` in `ps4.constants.asm` is the Grand Cross hack's
+  rename, applied unconditionally in this clone. The cartridge says `Chaz`.
+- Five of the 43 `script/dialogue N.asm` sources do not reproduce retail
+  bytes: tree 17 is wholesale rewritten by the fork (84 edits); trees 19, 29,
+  31 and 34 each carry two single-byte defects that cancel in total length,
+  so they pass a naive size check. The tests pin each defect's exact offset
+  and shape so a future clone update fails loudly instead of silently
+  widening the exception set. The other 38 trees round-trip byte for byte.

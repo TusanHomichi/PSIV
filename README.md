@@ -29,6 +29,8 @@ The ROM is **not included** and should never be committed to this project.
 - 49 shop inventories plus the shop-location table binding each shop to a map position (inns hold a separate index space)
 - 68 Nemesis-compressed art blobs (10,434 tiles): all 36 dialogue portraits, 20 battle backgrounds, fonts, title art — decoded and verifiable, with a `python -m psiv_tools art` command rendering them to PNG sheets locally
 - Mega Drive CRAM palettes: the init/title palettes plus the 31-entry battle-background palette table, with the original 3-bit levels preserved next to widened RGB
+- 10 localized name tables decoded straight from the cartridge (153 enemies, 112 enemy skills, 160 items twice in two fonts, 40 techniques, 54 skills, 54 places, 14 combos, 11 characters, 8 professions), attached to their records as `display_name` alongside the disassembly `symbol`
+- all 43 Kosinski-compressed dialogue trees: 2,736 entries with control codes fully identified and preserved (zero unknown bytes across the corpus)
 - exact ROM offsets and raw bytes for every extracted record
 - signature checks tying the implementation to known bytes in this exact retail build
 - an exact-mirror check for the duplicated 20,614-byte character level-table block
@@ -63,7 +65,9 @@ generated/
 ├── formations.json
 ├── formation_indexes.json
 ├── shops.json
-└── graphics.json
+├── graphics.json
+├── names.json
+└── dialogue.json
 ```
 
 ## Proven retail-layout tables used by this PoC
@@ -97,6 +101,7 @@ These are variable-length compressed streams, not fixed-size record tables. Rang
 | `Battle_FormationData3` | `0x28471C..0x284B7E` | 1,122 | 1,678 | 128 |
 | `Battle_FormationData4` | `0x284B8C..0x284F7C` | 1,008 | 1,540 | 120 |
 | `Battle_BossFormationData` | `0x284F7C..0x285012` | 150 | 300 | 27 |
+| `DialogueTree1..43` | `0x1DF600..0x1FE655` | 43 blobs | — | 2,736 entries |
 
 ### Weird-but-useful duplicated level data
 
@@ -161,11 +166,10 @@ Filed from the shops slice: the per-shop/per-inn greeting selectors (`loc_68136`
 
 Filed from the graphics slice: Enigma plane mappings (per-tile palette line and screen layout — without them art decodes but cannot compose); the four Kosinski-compressed title portraits (`0x2F114E`, `0x2F1E6E`, `0x2F2A9E`, `0x2F3AAE`); the seven shopkeeper portraits reached via the shop tables; uncompressed field/battle character sprites and the field map palettes.
 
-1. The per-map encounter group tables (`Battle_EnemyFormationIndexes`, `Battle_MotaFormationGroupIndexes`, `Battle_DezoFormationGroupIndexes`), which map a field position to one of the 68 formation-index groups. The last two are Kosinski, so the decoder is already in place.
-2. Shops and inventories.
-3. Save/SRAM parsing and import.
-4. Map/event/script structures.
-5. Text/name decoding.
-6. Graphics + palette decompression/export.
+Filed from the text slice: binding dialogue ids to the maps/NPCs that speak them (the `dc.l DialogueTreeN` pointers live in map headers); resolving `$F5`/`$FA`/`$FB` relative branch targets to absolute dialogue ids; the id spaces behind `$F2` action operands (panels, sounds, event flags).
 
-Kosinski was the first real compression boundary in this path and it is now crossed and proven. Once maps/events are normalized, the data boundary is large enough to start a tiny native runtime vertical slice without dragging Genesis-specific data handling into Godot.
+1. Map/event/script structures — the 417-map pointer table, layouts, collision, warps, NPC objects, and the per-map encounter group tables (`Battle_EnemyFormationIndexes`, `Battle_MotaFormationGroupIndexes`, `Battle_DezoFormationGroupIndexes`).
+2. Enigma decompression, which unlocks plane mappings (art composition) and is already known to be the third and last compression format in play.
+3. Save/SRAM parsing and import.
+
+Shops, text/names, dialogue, and graphics foundations are done. All three of Sega's compression formats are identified; Kosinski and Nemesis are crossed and proven. Once maps/events are normalized, the data boundary is large enough to start the native runtime vertical slice without dragging Genesis-specific data handling into Godot.
