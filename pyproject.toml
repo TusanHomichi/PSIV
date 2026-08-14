@@ -3,6 +3,7 @@ name = "psiv-tools-poc"
 version = "0.1.0"
 description = "Proof-of-concept extractor for a user-supplied Phantasy Star IV US retail ROM"
 requires-python = ">=3.10"
+license = { text = "MIT" }
 
 [project.scripts]
 psiv-tools = "psiv_tools.__main__:main"

@@ -13,3 +13,5 @@ Phantasy Star IV*.md
 __pycache__/
 *.pyc
 .venv/
+runtime-pack/
+rust/target/
