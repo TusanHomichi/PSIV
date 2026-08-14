@@ -100,6 +100,19 @@ and the map graph, not art fidelity.
 Out of scope for the slice: dialogue windows (next increment), battle,
 overworlds (paged-layout format not yet decoded), sound.
 
+## Presentation: scaling and viewport
+
+Integer scaling only, nearest-neighbor always — pixel art scales losslessly
+at integer multiples and at nothing else. Viewport policy (Peter, 2026-08-14):
+**wide view is the default.** PSIV's encounter model makes extra visible map
+gameplay-neutral — encounters are invisible random rolls from per-map group
+tables and bosses are fixed event triggers, so vision reveals nothing early.
+An authentic 320×224 viewport (the Genesis's visible area, integer-scaled
+with letterbox) becomes a settings toggle, mainly as insurance against the
+one wide-view exposure that exists: scripted scenes can show actors
+"offstage" at their marks. Both are renderer-only choices; the engine never
+knows the viewport.
+
 ## Testing
 
 - `psiv-core`: unit tests on synthetic grids, plus golden tests driven by
