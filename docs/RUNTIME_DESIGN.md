@@ -113,6 +113,15 @@ one wide-view exposure that exists: scripted scenes can show actors
 "offstage" at their marks. Both are renderer-only choices; the engine never
 knows the viewport.
 
+Planned fix for scene exposure (agreed 2026-08-14): cinema mode. When the
+event system reports a scripted scene active, the renderer eases to the
+authentic frame (zoom or letterbox) and eases back after — wide view for
+play, tight frame for theater. Offstage actors are unexposed by construction
+during the only moments that stage them, it reads as intentional
+cinematography, and it needs no engine changes and no per-scene tuning. A
+per-scene frame-hint override remains available as a fallback tier if some
+scene still leaks.
+
 ## Testing
 
 - `psiv-core`: unit tests on synthetic grids, plus golden tests driven by
