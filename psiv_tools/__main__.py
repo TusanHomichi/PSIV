@@ -42,6 +42,7 @@ def main() -> int:
             print(f"Extracted {result['formations']['total_formations']} battle formations")
             print(f"Extracted {result['formations']['total_boss_formations']} boss formations")
             print(f"Extracted {result['formation_indexes']['group_count']} encounter formation-index groups")
+            print(f"Extracted {result['shops']['shop_count']} shop inventories, {result['shops']['locations']['entry_count']} shop locations")
             print(f"Wrote JSON to {args.output}")
         elif args.command == "dump":
             print(json.dumps(extract_all(data), indent=2))

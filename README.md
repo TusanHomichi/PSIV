@@ -26,6 +26,7 @@ The ROM is **not included** and should never be committed to this project.
 - 3 vehicle records
 - 504 battle formations plus 27 boss formations, Kosinski-decompressed from the retail blobs
 - 68 encounter formation-index groups (32 candidate formations each)
+- 49 shop inventories plus the shop-location table binding each shop to a map position (inns hold a separate index space)
 - exact ROM offsets and raw bytes for every extracted record
 - signature checks tying the implementation to known bytes in this exact retail build
 - an exact-mirror check for the duplicated 20,614-byte character level-table block
@@ -58,7 +59,8 @@ generated/
 ├── combos.json
 ├── vehicles.json
 ├── formations.json
-└── formation_indexes.json
+├── formation_indexes.json
+└── shops.json
 ```
 
 ## Proven retail-layout tables used by this PoC
@@ -75,6 +77,8 @@ generated/
 | Inventory/equipment | `0x2A8E28` | 22 | 160 |
 | Techniques | `0x2A9BE8` | 8 | 40 |
 | Skills | `0x2A9D28` | 8 | 54 |
+| Shop inventories | `0x0681A4` | variable, `$FF`-terminated | 49 |
+| Shop locations | `0x068394` | 8 | 68 entries incl. 18 inns |
 
 The 937 level records are split across 11 per-character tables. Their start addresses and starting levels are read from the pointer table at `0x004074`; the extractor does not hard-code each individual table address.
 
