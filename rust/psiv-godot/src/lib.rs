@@ -142,18 +142,10 @@ impl Field {
         };
         let id = runtime.map_id().0;
 
-        // The manifest names each map's PNG; find it by id prefix.
-        let maps_dir = format!("{pack_dir}/maps");
-        let prefix = format!("{id:03x}_");
-        let png = std::fs::read_dir(&maps_dir).ok().and_then(|entries| {
-            entries
-                .filter_map(|e| e.ok())
-                .map(|e| e.file_name().to_string_lossy().into_owned())
-                .find(|name| name.starts_with(&prefix) && name.ends_with(".png"))
-        });
-        match png {
+        // The pack names its own files; the record's `png` field is the path.
+        match runtime.map_png().map(str::to_owned) {
             Some(name) => {
-                let path = format!("{maps_dir}/{name}");
+                let path = format!("{pack_dir}/{name}");
                 let image = Image::load_from_file(&GString::from(path.as_str()));
                 match image {
                     Some(image) => {
@@ -166,7 +158,7 @@ impl Field {
                     None => godot_error!("could not load map image {path}"),
                 }
             }
-            None => godot_error!("no PNG for map {id:#05x} in {maps_dir}"),
+            None => godot_error!("map {id:#05x} has no png declared in the pack"),
         }
 
         // NPC placeholders: rebuild per map.

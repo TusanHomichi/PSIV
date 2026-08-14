@@ -213,6 +213,16 @@ impl Runtime {
         &self.map
     }
 
+    /// The current map's composed-render path, exactly as the pack declares
+    /// it (relative to the pack root). The renderer must never invent pack
+    /// filenames; the pack names its own files.
+    #[must_use]
+    pub fn map_png(&self) -> Option<&str> {
+        self.data
+            .map(psiv_data::MapId(self.map.id().0))
+            .map(|record| record.png.as_str())
+    }
+
     /// The field state, for the renderer's position/interpolation queries.
     #[must_use]
     pub fn state(&self) -> &FieldState {

@@ -76,6 +76,11 @@ fn every_packed_map_converts_to_an_engine_map() {
             Ok(_) => converted += 1,
             Err(e) => panic!("map {id:?} failed to convert: {e}"),
         }
+        // The renderer resolves visuals through the record's declared path;
+        // every declared path must exist. (Regression net for the PiataHouse1
+        // hex-case bug: the renderer once guessed filenames instead.)
+        let png = Path::new(PACK).join(&record.png);
+        assert!(png.is_file(), "map {id:?} declares missing png {png:?}");
     }
     assert!(
         converted >= 350,
