@@ -25,6 +25,10 @@ def main() -> int:
     p_art.add_argument("rom", type=Path)
     p_art.add_argument("output", type=Path)
 
+    p_planes = sub.add_parser("planes", help="Compose Enigma plane mappings into finished PNGs (writes Sega pixels; keep the output gitignored)")
+    p_planes.add_argument("rom", type=Path)
+    p_planes.add_argument("output", type=Path)
+
     args = parser.parse_args()
     try:
         data = read_rom(args.rom)
@@ -49,6 +53,8 @@ def main() -> int:
             print(f"Extracted {result['shops']['shop_count']} shop inventories, {result['shops']['locations']['entry_count']} shop locations")
             print(f"Extracted graphics metadata: {result['graphics']['total_tiles_decoded']} tiles across named art, portraits, and battle backgrounds")
             print(f"Extracted {len(result['names']['tables'])} name tables and {result['dialogue']['total_entries']} dialogue entries in {len(result['dialogue']['trees'])} trees")
+            print(f"Extracted {result['maps']['real_map_count']} map records ({result['maps']['null_map_count']} null) with encounter binding")
+            print(f"Extracted {result['planes']['distinct_mappings']} Enigma plane mappings ({result['planes']['total_cells_decoded']} cells)")
             print(f"Wrote JSON to {args.output}")
         elif args.command == "dump":
             print(json.dumps(extract_all(data), indent=2))
@@ -56,6 +62,10 @@ def main() -> int:
             from .gfx import export_art_pngs
             written = export_art_pngs(data, args.output)
             print(f"Wrote {len(written)} PNG sheets to {args.output}")
+        elif args.command == "planes":
+            from .planes import export_plane_pngs
+            written = export_plane_pngs(data, args.output)
+            print(f"Wrote {len(written)} composed PNGs to {args.output}")
     except (OSError, RomError) as exc:
         parser.error(str(exc))
     return 0

@@ -484,3 +484,58 @@ MAP_SYMBOLS = [
     "GaruberkTower_Part7",  # 0x19F
     "AirCastleSpace",  # 0x1A0
 ]
+
+# MusicID_* from ps4.constants.asm, contiguous from $81.
+MUSIC_ID_BASE = 0x81
+MUSIC_SYMBOLS = """
+TonoeDePon Inn MotabiaVillage MotabiaTown OrganicBeat DezorisTown1 NowOnSale
+BehindTheCircuit MachineCenter InTheCave Winners FieldMotabia LandMaster
+RequiemForLutz MeetThemHeadOn RyucrossField DungeonArrange1 Fal TempleNgangbius
+Thray DefeatAtABlow CyberneticCarnival TerribleSight EdgeOfDarkness
+DezorisField1 Tower TakeOffLandeel DezorisTown2 DezorisField2 AHappySettlement
+Suspicion TheKingOfTerrors TheAgeOfFables Abyss EnemyAppearance HerLastBreath
+Pain JijyNoRag DungeonArrange2Cont TheBlackBlood RedAlert Laughter Mystery
+EndOfTheMillennium Explosion StaffRoll ThePromisingFuture1 PaoPao
+DungeonArrange2 ThePromisingFuture2 DezorisDeDon Ooze
+""".split()
+
+# FieldObjectsJmpTbl, 222 `bra.w` entries. An object record's id word is the
+# *byte* offset into that table (`andi.w #$7FFC, d0` before the jump), so the
+# symbol for id N is entry N/4.
+FIELD_OBJECT_SYMBOLS = """
+None Chaz Alys Hahn Rune Gryz Rika Demi Wren Raja Kyra Seth ScrollTextArrow
+RedCursor NPCType1 NPCType2 NPCType3 NPCType4 NPCType5 NPCType6 NPCType7
+NPCType8 NPCType9 NPCType10 NPCType11 NPCType12 NPCAlysPiata
+NPCHahnNearBasement NPCRune InvisibleBlock DividingSandOrSnow
+LiftingSandOrSnow loc_4D1D2 PlaceFadeIn NPCType13 NPCType14 Statue loc_4AF38
+CaveWallPiece Penguin TreasureChest Fire loc_4B0D6 loc_4B16A LandRover
+IceDigger Hydrofoil loc_489D6 NPCType16 NPCType17 NPCType18 NPCType19
+NPCType20 NPCType21 NPCType22 NPCType23 NPCType24 NPCType25 NPCType26 NPCHahn
+NPCGryz NPCType27 NPCType28 NPCType29 NPCType30 NPCType31 NPCType32 NPCType33
+NPCType34 Prisoner NPCType35 NPCType36 Elevator loc_4D2D0 loc_48F36 loc_48F96
+loc_48FF4 Pana loc_490B8 loc_49128 loc_49502 loc_49192 loc_49212 loc_49542
+Dust BigFire FireplaceFire EclipseTorch MileSandWorm loc_4B4B4 Rocky Mouse
+Butterfly BigDuck SmallWhiteDuck SmallBrownDuck FaintedPriest Xanafalgue
+Igglanova ProfHoltPetrified NPCRuneSequence NPCScriptMove loc_483DC loc_469D4
+SayaStars NPCAlysTonoe AngerLines DorinPunched DorinChair Juza Landale
+LandaleWings LandaleRearWings LandalePropulsionJets LandaleBeam LandingLandale
+LandingLandaleJets WhiteTreasureChest BarrierBeam1 BarrierBeam2 BarrierBeam3
+BarrierBeam4 Zio ZioBeam NPCWren Snow ChestBarrier ChestBarrierSplinter
+Spaceship PropulsiveJet LandingSpaceship GyLaguiah World NPCRuneFlaeli Flaeli
+BlastedRock ExplDust GravestoneHalf MuskCat MuskCatGuardMoved LyingDownMuskCat
+MuskCatChiefTopHalf MuskCatChiefBottomHalf MuskCatGuard FellowPenguin
+loc_496C6 loc_49746 loc_497A8 loc_4980A NPCKyra loc_4986C Barrier loc_498CA
+NPCRika EsperGuard InnerEsperGuards FractOoze DElmLars DarkForce1 DarkForce2
+XeAThoulAppearing XeAThoul XeAThoulDisappearing LightCircle LightCircle2
+XeAThoulMoving NPCAlysInBed XeAThoulAirCastle DeVars DeVarsFire GiLeFarg
+GiLeFargTandil SaLews SaLewsRay Blindheads BlindheadsRay ReFaze ZemaRocks
+NPCRajaSpaceport NPCKyraSpaceport NPCGryzSpaceport NPCHahnSpaceport
+NPCDemiSpaceport GryzSpaceportWaiting HahnSpaceportWaiting DemiSpaceportWaiting
+RajaSpaceportWaiting KyraSpaceportWaiting AlysAngerTower StrayRocky loc_4BC80
+Tallas TonoeBasementDoor TrappingRopes DemiTrapped PrisonDoor TallasShoes
+loc_4BDF0 loc_4BE38 loc_4BE80 RajaInBed StudentInBed KingRappy
+KingRappyFlyingAway Tinkerbell ChazAlisSword loc_4FAE0 Lashiec LutzMirror
+Stripper StripperCoat StripClubCustomer loc_49406 loc_49442 SaveSlotCursor
+DancingStripper1 DancingStripper2 DancingStripper3 loc_4B30C Pennant
+SandWormCarving loc_4FA30
+""".split()

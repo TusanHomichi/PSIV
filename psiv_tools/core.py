@@ -9,6 +9,8 @@ from typing import Any
 
 from .formations import extract_formation_indexes, extract_formations
 from .gfx import extract_graphics
+from .maps import extract_maps
+from .planes import extract_planes
 from .shops import extract_shops
 from .text import extract_dialogue, extract_names
 from .symbols import ENEMY_SKILL_SYMBOLS, ENEMY_SYMBOLS, ITEM_SYMBOLS
@@ -608,7 +610,12 @@ def extract_all(data: bytes) -> dict[str, Any]:
         "graphics": extract_graphics(data),
         "names": names,
         "dialogue": extract_dialogue(data),
+        "maps": extract_maps(data),
+        "planes": extract_planes(data),
     }
+    # extract_maps computes the per-map encounter binding as part of its walk;
+    # split it into its own dataset rather than computing it twice.
+    result["encounters"] = result["maps"].pop("encounters")
     # Cartridge display names live alongside the disassembly symbols; the
     # symbols stay because they disambiguate duplicates the ROM does not
     # (e.g. two skills both displayed as "FLAELI").
@@ -627,6 +634,6 @@ def write_extract(data: bytes, output_dir: str | Path) -> dict[str, Any]:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     result = extract_all(data)
-    for key in ["metadata", "layout_validation", "tables", "characters", "techniques", "skills", "combos", "vehicles", "items", "enemies", "enemy_skills", "progression", "formations", "formation_indexes", "shops", "graphics", "names", "dialogue"]:
+    for key in ["metadata", "layout_validation", "tables", "characters", "techniques", "skills", "combos", "vehicles", "items", "enemies", "enemy_skills", "progression", "formations", "formation_indexes", "shops", "graphics", "names", "dialogue", "maps", "encounters", "planes"]:
         (output_dir / f"{key}.json").write_text(json.dumps(result[key], indent=2) + "\n", encoding="utf-8")
     return result

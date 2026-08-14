@@ -31,6 +31,10 @@ The ROM is **not included** and should never be committed to this project.
 - Mega Drive CRAM palettes: the init/title palettes plus the 31-entry battle-background palette table, with the original 3-bit levels preserved next to widened RGB
 - 10 localized name tables decoded straight from the cartridge (153 enemies, 112 enemy skills, 160 items twice in two fonts, 40 techniques, 54 skills, 54 places, 14 combos, 11 characters, 8 professions), attached to their records as `display_name` alongside the disassembly `symbol`
 - all 43 Kosinski-compressed dialogue trees: 2,736 entries with control codes fully identified and preserved (zero unknown bytes across the corpus)
+- all 417 map records (361 real, 56 null): tilesets, sprites, dimensions, warps, NPC objects, treasure chests, tile animations, dialogue-tree binding, interaction areas, events, palettes, and per-map flags, walked with the loader's own grammar
+- per-map encounter binding: the 416-byte map→group table plus the two Kosinski position grids for the overworlds, cross-validated against the 68 encounter groups
+- map layouts and collision: 32×32-pixel chunks, per-plane layouts, and the 4-bit-per-cell collision grid, proven by rendering Piata/PiataItemShop/IslandCave and cross-checking warp doorways against collision type 1
+- 35 Enigma-compressed plane mappings (35,436 cells): 20 battle backgrounds, the title screen, the Sega logo and the four title portraits, composed against their art and palettes into finished PNGs by `python -m psiv_tools planes`
 - exact ROM offsets and raw bytes for every extracted record
 - signature checks tying the implementation to known bytes in this exact retail build
 - an exact-mirror check for the duplicated 20,614-byte character level-table block
@@ -67,7 +71,10 @@ generated/
 ├── shops.json
 ├── graphics.json
 ├── names.json
-└── dialogue.json
+├── dialogue.json
+├── maps.json
+├── encounters.json
+└── planes.json
 ```
 
 ## Proven retail-layout tables used by this PoC
@@ -86,6 +93,8 @@ generated/
 | Skills | `0x2A9D28` | 8 | 54 |
 | Shop inventories | `0x0681A4` | variable, `$FF`-terminated | 49 |
 | Shop locations | `0x068394` | 8 | 68 entries incl. 18 inns |
+| Map pointer table (`FieldMapPtrs`) | `0x100000` | 4 | 417 |
+| Map→encounter-group table | `0x008050` | 1 | 416 (sic — see SOURCE_NOTES) |
 
 The 937 level records are split across 11 per-character tables. Their start addresses and starting levels are read from the pointer table at `0x004074`; the extractor does not hard-code each individual table address.
 
@@ -115,7 +124,11 @@ Located art: 12 named singletons (fonts, title/Sega art, window tiles), all 36 d
 
 `extract` emits only metadata (offsets, sizes, tile counts, sha256s, palette values) — decoded pixels never enter committed files. `python -m psiv_tools art <rom> <outdir>` renders the sheets to PNG locally.
 
-What art still cannot do is *compose*: per-tile palette lines and screen layout live in Enigma-compressed plane mappings, which is the next graphics slice. Until then, art without a proven palette renders against a grayscale index ramp rather than a guessed palette line.
+Art composes now: `psiv_tools/enigma.py` (transcribed from the game's own `EniDecomp`, which implements a reduced Enigma — V/H flips only) decodes the plane mappings, and `psiv_tools/planes.py` composes art + mapping + palette into finished screens. Art without a proven palette still renders against a grayscale index ramp rather than a guessed line.
+
+## Map layouts and collision
+
+Field maps are built from 32×32-pixel chunks: 16 Mega Drive pattern-name words each, Kosinski-compressed and loaded back to back into `Chunk_Table`. Each plane's layout is one byte per chunk, also Kosinski, and the map record says which plane the collision reader uses. Bit 14 of a chunk word — the bit that would be the high palette-select bit — is a collision flag the game masks off before the VDP sees it (so field tiles can only use CRAM lines 0–1), and the four flags of a 2×2-tile cell spell out a 4-bit collision type per 16 pixels (0 normal, 1 map change, 2 recovery, 8 solid, 9 water, $A sand, $B ice, $C shop; 8–C block). Proven on Piata, PiataItemShop and IslandCave; `generated/layouts/piata.png` renders the town from the cartridge, all six of its doorways land on collision type 1, and the shop-location table's counter position lands on a shop cell. The two overworlds use a separate paged-layout format, deliberately out of scope for now.
 
 ## Battle formations
 
@@ -164,12 +177,13 @@ The long-term runtime can still be Rust/Godot. This first pass is Python so the 
 
 Filed from the shops slice: the per-shop/per-inn greeting selectors (`loc_68136`, 49 words; `loc_68112`, 18 words) choose dialogue strings and belong with the text-decoder work, not with shops.
 
-Filed from the graphics slice: Enigma plane mappings (per-tile palette line and screen layout — without them art decodes but cannot compose); the four Kosinski-compressed title portraits (`0x2F114E`, `0x2F1E6E`, `0x2F2A9E`, `0x2F3AAE`); the seven shopkeeper portraits reached via the shop tables; uncompressed field/battle character sprites and the field map palettes.
+Filed from the graphics slice: the seven shopkeeper portraits reached via the shop tables; uncompressed field/battle character sprites and the field map palettes.
+
+Filed from wave 2: the two overworld paged layouts (Motavia/Dezolis, `loc_107DC2`/`loc_115584`); the 43 character battle-sprite mappings (decode cleanly, not yet composed with their art); the Sega-logo/GameStartMotaBG palettes; `MapDataManager`/`MapUpdate`/`RunEvents` handler-name transcription; `Map_General_Var` semantics.
 
 Filed from the text slice: binding dialogue ids to the maps/NPCs that speak them (the `dc.l DialogueTreeN` pointers live in map headers); resolving `$F5`/`$FA`/`$FB` relative branch targets to absolute dialogue ids; the id spaces behind `$F2` action operands (panels, sounds, event flags).
 
-1. Map/event/script structures — the 417-map pointer table, layouts, collision, warps, NPC objects, and the per-map encounter group tables (`Battle_EnemyFormationIndexes`, `Battle_MotaFormationGroupIndexes`, `Battle_DezoFormationGroupIndexes`).
-2. Enigma decompression, which unlocks plane mappings (art composition) and is already known to be the third and last compression format in play.
-3. Save/SRAM parsing and import.
+1. Save/SRAM parsing and import (needs a real emulator save as a fixture).
+2. The filed items above, as needed by the runtime.
 
-Shops, text/names, dialogue, and graphics foundations are done. All three of Sega's compression formats are identified; Kosinski and Nemesis are crossed and proven. Once maps/events are normalized, the data boundary is large enough to start the native runtime vertical slice without dragging Genesis-specific data handling into Godot.
+Maps, layouts, collision, encounter binding, and all three of Sega's compression formats are done and proven. The data boundary is now large enough to start the native runtime vertical slice: a Rust core consuming this JSON, presented through Godot — walk Chaz around Piata.

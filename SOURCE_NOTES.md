@@ -131,6 +131,68 @@ Palette offsets: `Pal_Init` `0x09F2BC` (only line 2 carries colour);
 same mirroring phenomenon as the level tables); title palettes `0x1D29BC` /
 `0x1D2A3C` / `0x2F4994`; 31 contiguous battle palettes from `0x007054`.
 
+## Enigma decompression
+
+`psiv_tools/enigma.py` is a transcription of `EniDecomp` in `ps4.asm`. Six
+details taken from the routine rather than assumed: PSIV implements a reduced
+Enigma (V/H flip flags only — a stream declaring P or CC bits would
+desynchronise, so `read_header` rejects flag bytes above 3); the format entry
+is read as 7 bits and partly given back for the 6-bit modes; an inline value
+straddling the bit window reloads the window wholesale rather than streaming;
+base tile and flag bits are *added* to the value, not or-ed (invisible at the
+ROM's 4–9 inline bits, load-bearing beyond); flag-bit reads skip the refill
+check, which bounds the usable inline width (16-bit values with flags are
+undecodable and rejected); and consumed length is exact after the routine's
+rewind-and-round-to-even epilogue, so every length check is `==`.
+
+## Plane mappings
+
+35 mappings, 35,436 cells. Battle-background mappings sit in an adjacency
+chain with their art (art, its mapping, next art), so `BattleBGArtPtrs` bounds
+both halves from the cartridge alone; the title-screen chain ends exactly at
+`Pal_TitleScreen` and the portrait chain at `Pal_TitleCharPortraits`. Tile
+semantics proven four ways: `art_index = mapping_tile - art_vram_tile`, with
+the mapping's base-tile low bits equal to the art's VRAM load tile. No retail
+mapping carries per-cell palette bits; the base tile's line applies to the
+whole mapping (battle backgrounds all line 0, matching the proven battle
+palette placement). 82 of 83 disassembly `plane mappings/*.bin` payloads
+decode with consumed == file size (the 83rd bundles 348 bytes of unrelated
+sprite-mapping records after the stream — pinned).
+
+## Map records
+
+`FieldMapPtrs` at `0x100000` (417 longs, flush against its first record;
+361 real maps totalling 59,512 bytes over `0x100684..0x1CB01A`, 56 ErrorTrap
+nulls matching the `Null*` symbols). The record grammar is transcribed from
+`GameMode_LoadFieldMap` and its subroutines; consumption rules per section are
+documented in `psiv_tools/maps/records.py`. Notable proven quirks: MapID 0/1
+(the overworlds) omit the 8-byte layout-pointer section entirely; `$FFFE` in
+the sprite list is not a terminator but a decompress-to-RAM prefix; the scroll
+section has a conditional 6/14/22-byte length; treasure-chest meseta is stored
+in hundreds. Object/chest terminators are double-proven by replaying the
+loader's alternate `GoPast_FFFF_Terminator` path over all 722 sections.
+
+Encounter binding: `Battle_EnemyFormationIndexes` at `0x008050` is one byte
+per map, indexed directly by MapID with no bounds check. Values >1 are the
+encounter group; 0/1 selects the overworld position grids (Mota 64×64 cells of
+64px decompressing to 4,096 bytes, Dezo 32×64 to 2,048), `$FF` means no
+encounters and only works because those maps also clear `Random_Battles_Flag`.
+
+## Map layouts and collision
+
+Chunks are 16 big-endian pattern-name words (4×4 tiles, 32×32 px), Kosinski,
+concatenated into `Chunk_Table`; layouts are one byte per chunk, row-major,
+Kosinski, max 256 chunks addressable. Bit 14 of each chunk word is a collision
+flag the game strips before the VDP sees it (`andi.w #$BFFF` — so field tiles
+can only select CRAM lines 0–1), and the four flags of a 2×2-tile cell form a
+4-bit collision type per 16-pixel cell (bits: TL=1, TR=2, BL=4, BR=8). Types:
+0 normal, 1 map change (non-blocking — the walker steps on and the warp
+fires), 2 recovery, 8 solid, 9 water, $A sand, $B ice, $C shop; 8–C block.
+Which plane carries collision is per-map (the scroll section's first byte).
+Proven on Piata / PiataItemShop / IslandCave with exact consumed-length chains
+and two cross-table checks: all Piata doorways land on type-1 cells matching
+the transition table, and the shop-location entry lands on a type-$C cell.
+
 ## Oracle methodology for graphics
 
 No decompressed Nemesis source exists in the disassembly, so formations-style
@@ -212,3 +274,33 @@ distinct enemy ids that appear in formations.
   so they pass a naive size check. The tests pin each defect's exact offset
   and shape so a future clone update fails loudly instead of silently
   widening the exception set. The other 38 trees round-trip byte for byte.
+- RETAIL CARTRIDGE BUG: `GetChunkAndCollision` (`0x045AB8`) selects the
+  layout base from `$FFFFEC24` correctly but takes the *opposite* plane's row
+  size as its stride, contradicting `SetupChunksFG` (`0x054356`),
+  `SetupChunksBG` (`0x0543A6`) and its own bounds check eleven instructions
+  earlier. A crossed branch, confirmed in retail opcode bytes (all three
+  sites pinned). Dormant because every map gives both planes the same width;
+  our decoder takes the stride from the layout it is handed, i.e. the
+  behavior the original intended.
+- RETAIL CARTRIDGE BUG: `Battle_EnemyFormationIndexes` is 416 bytes for a
+  417-map id space; MapID `$1A0` (`AirCastleSpace`) reads one byte past the
+  end into `Character_Init` data, yielding nonexistent group 74. Dormant only
+  because that map has random battles disabled. Relatedly, `ValleyMazeUnused`
+  (`$02D`) stores `$FF` (no encounters) but leaves random battles *enabled* —
+  rolling an encounter there would index far past the tables; dormant because
+  the map is unused. `MystVale_Part4` and `AirCastleXeAThoulRoom` assign
+  groups with battles off (wasted, harmless). All surfaced in
+  `encounter_anomalies`.
+- The fork's inline address annotations around the `0x8000` region are ~0x552
+  off retail; `Battle_EnemyFormationIndexes` was located by content, not
+  annotation. My earlier scouting note placing it at `0x0085A2` was wrong —
+  that range is a 15-word palette.
+- Nine Enigma call sites are revision-gated and the cartridge runs the `else`
+  (English) branch — proven three ways: the retail code contains each
+  mapping's `lea`/`move.w #base` pair exactly once with the retail base
+  values; the decoded cell counts match only the retail dimensions; and the
+  `revision=0` bases would point mappings outside their art blobs.
+  `GetMapLayoutChunkFG/BG` hard-code the 128-byte overworld stride and are
+  overworld-only helpers despite their general names. `MapEni_GameStartMotaBG`
+  / `ArtNem_GameStartMotaBG` are unreferenced in the disassembly source; the
+  cartridge reaches them at `0x073C4E`.
