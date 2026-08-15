@@ -231,6 +231,18 @@ triangle).
   passes through, stopping only at Alys (who stands still). Unmodeled
   movement, already on the backlog; the comparator turned it from a
   "nice to have" into a measured divergence with frame numbers.
+- **Update (later 2026-08-15, wander built + seed-aligned replays)**:
+  tape 02's scalar verdict is CLEAN over the full 1080 frames (after
+  modeling the cartridge's one-frame collision-cache lag on landings);
+  the per-object verdict is clean for 619 frames and then diverges at
+  frame 7558 because the CAMERA is now the frontier — retail's camera
+  scrolls against screen-space thresholds and trails the party (an
+  object provably wakes 14 frames after the leader stops), while our
+  placeholder is leader-centred. The visibility gate advances the
+  shared RNG stream, so the camera is load-bearing for determinism.
+  Honesty note: the comparator now reports compared-vs-unavailable
+  columns explicitly; the follower group has never been verified
+  against hardware and the output says so.
 
 ## RNG design (ratified by Peter 2026-08-15)
 
