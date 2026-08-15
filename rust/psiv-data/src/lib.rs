@@ -36,6 +36,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+mod battle;
 mod collision;
 mod dialogue;
 mod error;
@@ -45,6 +46,12 @@ mod manifest;
 mod map;
 mod sprites;
 
+pub use battle::{
+    Ability, AbilitiesFile, BATTLE_DIRECTORY, BattleFiles, EffectTable, ELEMENT_SLOTS,
+    EncounterGroup, EncounterGroups, Enemy, EnemyAi, EnemyAttack, EnemyStats, EnemiesFile,
+    Formation, FormationEnemy, FormationsFile, Level, LevelStats, LevelTable, LevelsFile, NamedId,
+    Property, Rewards,
+};
 pub use collision::{Collision, CollisionGrid, CollisionType, Plane, UndefinedCollisionType};
 pub use dialogue::*;
 pub use error::DataError;
