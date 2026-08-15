@@ -357,9 +357,7 @@ fn alyss_boomerang_hits_both_enemies_in_one_swing() {
     let swing = events
         .iter()
         .find_map(|e| match e {
-            BattleEvent::Attacked { actor, targets } if *actor == id(1) => {
-                Some(targets.clone())
-            }
+            BattleEvent::Attacked { actor, targets } if *actor == id(1) => Some(targets.clone()),
             _ => None,
         })
         .expect("Alys swings");
@@ -369,9 +367,7 @@ fn alyss_boomerang_hits_both_enemies_in_one_swing() {
     let chaz = events
         .iter()
         .find_map(|e| match e {
-            BattleEvent::Attacked { actor, targets } if *actor == id(2) => {
-                Some(targets.clone())
-            }
+            BattleEvent::Attacked { actor, targets } if *actor == id(2) => Some(targets.clone()),
             _ => None,
         })
         .expect("Chaz swings");

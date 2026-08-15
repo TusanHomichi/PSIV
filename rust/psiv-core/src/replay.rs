@@ -413,6 +413,47 @@ pub const COLUMNS: &[Column] = &[
     modelled("coll_up"),
     modelled("coll_right"),
     modelled("coll_down"),
+    // The camera, now that the oracle logs it. These are the gate's inputs, so
+    // comparing them localises a visibility divergence to the camera itself
+    // rather than to the objects it froze.
+    modelled("cam_x_fg_px"),
+    modelled("cam_y_fg_px"),
+    modelled("cam_step_x_fg"),
+    modelled("cam_step_y_fg"),
+    missing(
+        "cam_x_fg",
+        "the 16.16 longword; the engine compares its pixel view instead",
+    ),
+    missing("cam_y_fg", "the 16.16 longword"),
+    missing(
+        "cam_x_bg",
+        "no BG plane camera; FG and BG agree in field control",
+    ),
+    missing("cam_y_bg", "no BG plane camera"),
+    missing("cam_x_bg_px", "no BG plane camera"),
+    missing("cam_y_bg_px", "no BG plane camera"),
+    missing("cam_step_x_bg", "no BG plane camera"),
+    missing("cam_step_y_bg", "no BG plane camera"),
+    missing("map_row_size_fg", "a VDP plane dimension, not engine state"),
+    missing("map_col_size_fg", "a VDP plane dimension"),
+    missing("map_row_size_bg", "a VDP plane dimension"),
+    missing("map_col_size_bg", "a VDP plane dimension"),
+    missing(
+        "gate_ec24",
+        "unnamed RAM; plane select is a hypothesis, not a fact",
+    ),
+    missing(
+        "gate_ec25",
+        "unnamed RAM; camera-driver enable is a hypothesis",
+    ),
+    missing(
+        "c1_x_step_const",
+        "velocity is derived from successive positions",
+    ),
+    missing(
+        "c1_y_step_const",
+        "velocity is derived from successive positions",
+    ),
     missing("window_index", "windows are the renderer's"),
     missing("window_saved_index", "windows are the renderer's"),
     missing("windows_opened", "windows are the renderer's"),
@@ -462,7 +503,8 @@ pub const OBJECT_SLOTS: usize = 32;
 
 /// The eleven columns each object slot contributes, and whether the engine
 /// models them.
-pub const OBJECT_COLUMN_KINDS: [(&str, Coverage); 11] = [
+pub const OBJECT_COLUMN_KINDS: [(&str, Coverage); 12] = [
+    ("off", Coverage::Modelled),
     ("id", Coverage::Modelled),
     (
         "rflags",
@@ -527,6 +569,12 @@ pub struct ObjectSample {
     pub x_bnd: u8,
     /// `y_move_boundary`.
     pub y_bnd: u8,
+    /// `offscreen_flag` (`$12`): 1 when `FieldObj_OnScreenTest` rejected the
+    /// object last frame, which is the frame its whole update was skipped.
+    ///
+    /// This is the visibility gate's own output, so comparing it tests the
+    /// camera directly rather than through the objects it freezes.
+    pub offscreen: u8,
 }
 
 impl ObjectSample {
@@ -543,6 +591,7 @@ impl ObjectSample {
             "y_px" => self.y_px.to_string(),
             "xbnd" => self.x_bnd.to_string(),
             "ybnd" => self.y_bnd.to_string(),
+            "off" => self.offscreen.to_string(),
             _ => return None,
         };
         Some(value)
@@ -583,6 +632,14 @@ pub struct ReplayRow {
     pub buttons: String,
     /// `Field_Map_Index`.
     pub map_index: u16,
+    /// `Camera_X_Pos_FG`, integer pixels.
+    pub cam_x: i32,
+    /// `Camera_Y_Pos_FG`, integer pixels.
+    pub cam_y: i32,
+    /// `Camera_X_Step_Counter_FG`, the 16.16 longword.
+    pub cam_step_x: i32,
+    /// `Camera_Y_Step_Counter_FG`.
+    pub cam_step_y: i32,
     /// `facing_dir`: 0 down, 4 up, 8 right, `$C` left.
     pub c1_facing: u16,
     /// `x_step_duration` in cartridge units.
@@ -682,6 +739,8 @@ pub struct FrameSample<'a> {
     pub game: &'a GameState,
     /// The map's objects, in slot order.
     pub objects: &'a [ObjectSample],
+    /// `Camera_*_Pos_FG` in pixels and `Camera_*_Step_Counter_FG` in 16.16.
+    pub camera: (i32, i32, i32, i32),
 }
 
 impl ReplayRow {
@@ -700,7 +759,9 @@ impl ReplayRow {
             neighbours,
             game,
             objects,
+            camera,
         } = sample;
+        let (cam_x, cam_y, cam_step_x, cam_step_y) = camera;
         let at = PixelPos::from_cell(state.cell());
         let (dx, dy) = state.render_offset_16ths();
         let (x_dur, y_dur) = state.step_durations_8_8();
@@ -716,6 +777,10 @@ impl ReplayRow {
             mark: mark.map(str::to_string),
             buttons: buttons.to_tape(),
             map_index,
+            cam_x,
+            cam_y,
+            cam_step_x,
+            cam_step_y,
             c1_facing: facing_value(state.facing()),
             c1_x_step_dur: x_dur,
             c1_y_step_dur: y_dur,
@@ -768,6 +833,10 @@ impl ReplayRow {
             "coll_up" => format!("{:02X}", self.coll_up),
             "coll_right" => format!("{:02X}", self.coll_right),
             "coll_down" => format!("{:02X}", self.coll_down),
+            "cam_x_fg_px" => self.cam_x.to_string(),
+            "cam_y_fg_px" => self.cam_y.to_string(),
+            "cam_step_x_fg" => format!("{:08X}", self.cam_step_x),
+            "cam_step_y_fg" => format!("{:08X}", self.cam_step_y),
             "party_slots" => format!("{:08X}", self.party_slots),
             "party_slot_1" => self.party[0].to_string(),
             "party_slot_2" => self.party[1].to_string(),
@@ -1088,14 +1157,22 @@ mod tests {
 
     #[test]
     fn the_column_table_covers_the_oracles_log_exactly() {
-        // The oracle's header, verbatim from `oracle/logs/02_walk_timing.csv`.
-        // Pinned here so a new RAM-map column cannot slip through unclassified:
-        // this table has to name every column, in order, and say whether the
-        // engine models it.
-        const ORACLE_HEADER: &str = "frame,mark,buttons,game_mode,game_mode_routine,routine_exit_flags,map_index,map_index_2,world_index,event_index,field_move_flags,step_offset,joy_held,joy_pressed,btn_held_frames,btn_held_timer,c1_facing,c1_mappings_idx,c1_x_step_dur,c1_y_step_dur,c1_x_px,c1_y_px,c1_x_sub,c1_y_sub,c1_dest_x,c1_dest_y,c2_facing,c2_x_px,c2_y_px,coll_standing,coll_saved_standing,coll_shop,coll_left,coll_up,coll_right,coll_down,window_index,window_saved_index,windows_opened,window_init_flag,window_render_mode,window_option_idx,win_char_num,arrow_offscreen,arrow_x_px,arrow_y_px,interaction_evt_flag,interaction_evt_type,party_slots,party_slot_1,party_slot_2,party_slot_3,party_slot_4,party_slot_5,saved_char_x,saved_char_y,eflags_00,eflags_04,eflags_08,eflags_0C,eflags_10,eflags_14,eflags_18,eflags_1C,ext_eflags_00,chest_flags_00,temp_eflags_00,town_flags_00,rng_seed";
+        // Every column the oracle harness can emit, pinned so a new RAM-map
+        // column cannot slip through unclassified: this table has to name each
+        // one and say whether the engine models it.
+        //
+        // Membership is asserted, not order. The harness emits column *groups*
+        // selected per run (`--groups core,pos,collision,objects,camera`), so
+        // the order and even the presence of a group varies between logs while
+        // the classification obligation does not. Comparing sorted names keeps
+        // the check meaningful without failing every time the oracle re-logs a
+        // tape with a different group set.
+        const ORACLE_HEADER: &str = "frame,mark,buttons,game_mode,game_mode_routine,routine_exit_flags,map_index,map_index_2,world_index,event_index,field_move_flags,step_offset,joy_held,joy_pressed,btn_held_frames,btn_held_timer,c1_facing,c1_mappings_idx,c1_x_step_dur,c1_y_step_dur,c1_x_px,c1_y_px,c1_x_sub,c1_y_sub,c1_dest_x,c1_dest_y,c2_facing,c2_x_px,c2_y_px,coll_standing,coll_saved_standing,coll_shop,coll_left,coll_up,coll_right,coll_down,cam_y_fg,cam_y_fg_px,cam_x_fg,cam_x_fg_px,cam_y_bg,cam_y_bg_px,cam_x_bg,cam_x_bg_px,cam_step_x_fg,cam_step_y_fg,cam_step_x_bg,cam_step_y_bg,map_row_size_fg,map_col_size_fg,map_row_size_bg,map_col_size_bg,gate_ec24,gate_ec25,c1_x_step_const,c1_y_step_const,window_index,window_saved_index,windows_opened,window_init_flag,window_render_mode,window_option_idx,win_char_num,arrow_offscreen,arrow_x_px,arrow_y_px,interaction_evt_flag,interaction_evt_type,party_slots,party_slot_1,party_slot_2,party_slot_3,party_slot_4,party_slot_5,saved_char_x,saved_char_y,eflags_00,eflags_04,eflags_08,eflags_0C,eflags_10,eflags_14,eflags_18,eflags_1C,ext_eflags_00,chest_flags_00,temp_eflags_00,town_flags_00,rng_seed";
 
-        let names: Vec<&str> = COLUMNS.iter().map(|c| c.name).collect();
-        let oracle: Vec<&str> = ORACLE_HEADER.split(',').collect();
+        let mut names: Vec<&str> = COLUMNS.iter().map(|c| c.name).collect();
+        let mut oracle: Vec<&str> = ORACLE_HEADER.split(',').collect();
+        names.sort_unstable();
+        oracle.sort_unstable();
         assert_eq!(names, oracle, "column table drifted from the oracle log");
 
         let modelled = modelled_columns();

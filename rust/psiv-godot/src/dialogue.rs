@@ -684,8 +684,7 @@ impl INode2D for DialogueWindow {
                 flow.lines().iter().map(|l| l.chars().count()).sum()
             });
             if self.revealed < total {
-                let cadence = if godot::classes::Input::singleton().is_action_pressed("ui_accept")
-                {
+                let cadence = if godot::classes::Input::singleton().is_action_pressed("ui_accept") {
                     1
                 } else {
                     3

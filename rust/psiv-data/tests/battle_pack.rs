@@ -156,7 +156,10 @@ fn an_encounter_group_holds_the_thirty_two_entries_the_roll_masks_for() {
         .encounter_groups
         .as_ref()
         .expect("the pack carries encounter groups");
-    assert_eq!(groups.entries_per_group, 32, "the `andi.w #$1F` in the roll");
+    assert_eq!(
+        groups.entries_per_group, 32,
+        "the `andi.w #$1F` in the roll"
+    );
     for group in &groups.groups {
         assert_eq!(group.formation_ids.len(), 32, "group {}", group.group);
     }
