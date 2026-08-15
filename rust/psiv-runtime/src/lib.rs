@@ -653,6 +653,26 @@ impl Runtime {
         }
     }
 
+    /// Starts an event's scene directly — the `$F6` dialogue path (the
+    /// principal's briefing). Returns whether a transcribed scene began.
+    pub fn start_event(&mut self, event: u16) -> bool {
+        if self.scene.is_some() {
+            return false;
+        }
+        let Some(scene) = scene_for(psiv_core::EventIndex(event)) else {
+            return false;
+        };
+        let cast = self.build_cast();
+        match runner_for(scene, cast, StepFrames::default()) {
+            Ok(runner) => {
+                self.scene = Some(runner);
+                self.scene_input = SceneInput::None;
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
     /// The renderer reports the scene-requested dialogue window has closed.
     pub fn dialogue_closed(&mut self) {
         if self.scene.is_some() {

@@ -106,6 +106,13 @@ impl SheetView {
     }
 }
 
+/// The event-flag bank as the dialogue window consumes it.
+fn collect_event_flags(rt: &Runtime) -> Vec<bool> {
+    (0..512u16)
+        .map(|id| rt.game().is_set(psiv_core::Flag::event(id)))
+        .collect()
+}
+
 fn sequence_name(kind: &str, facing: Direction) -> String {
     let dir = match facing {
         Direction::Up => "up",
@@ -298,6 +305,24 @@ impl INode2D for Field {
 
     fn physics_process(&mut self, _delta: f64) {
         self.anim_tick += 1;
+
+        // A `$F6` the dialogue fired becomes a running scene.
+        let pending = self
+            .dialogue
+            .as_mut()
+            .and_then(|w| w.bind_mut().take_pending_event());
+        if let Some(event) = pending {
+            let started = self
+                .runtime
+                .as_mut()
+                .is_some_and(|rt| rt.start_event(event));
+            if started {
+                godot_print!("dialogue event {event:#x} starts its scene");
+                self.set_letterbox(true);
+            } else {
+                godot_error!("dialogue fired event {event:#x} with no transcribed scene");
+            }
+        }
 
         // An open dialogue owns the input: accept advances the window, the
         // engine gets Neutral (the cartridge swaps Game_Mode_Routine to
@@ -529,10 +554,14 @@ impl Field {
                     });
                     match binding {
                         Some((tree, id)) => {
-                            let opened = self
-                                .dialogue
-                                .as_mut()
-                                .is_some_and(|w| w.bind_mut().open_dialogue(tree, id));
+                            let flags = self.runtime.as_ref().map(collect_event_flags);
+                            let opened = self.dialogue.as_mut().is_some_and(|w| {
+                                let mut w = w.bind_mut();
+                                if let Some(flags) = flags {
+                                    w.set_event_flags(flags);
+                                }
+                                w.open_dialogue(tree, id)
+                            });
                             if opened {
                                 // NPCs turn to face the speaker; the \$F3
                                 // control code exists precisely to suppress
@@ -578,10 +607,14 @@ impl Field {
                         .and_then(|rt| rt.map_record())
                         .map(|r| r.dialogue_tree)
                         .unwrap_or(0);
-                    let opened = self
-                        .dialogue
-                        .as_mut()
-                        .is_some_and(|w| w.bind_mut().open_dialogue(tree, entry));
+                    let flags = self.runtime.as_ref().map(collect_event_flags);
+                    let opened = self.dialogue.as_mut().is_some_and(|w| {
+                        let mut w = w.bind_mut();
+                        if let Some(flags) = flags {
+                            w.set_event_flags(flags);
+                        }
+                        w.open_dialogue(tree, entry)
+                    });
                     if !opened {
                         // The scene is blocked on this window; a failed open
                         // must not hang the story.

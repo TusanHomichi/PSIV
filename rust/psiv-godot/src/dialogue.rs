@@ -44,6 +44,8 @@ const Z_INDEX: i32 = 1000;
 
 /// What opening an entry produced.
 pub enum Opening {
+    /// A `$FA` preamble was taken: reopen at this entry instead.
+    Jump(u16),
     /// A window to show, driven by this flow.
     Window(Box<TextFlow>),
     /// The preamble was `$F6`: the entry fires an event and shows nothing.
@@ -83,6 +85,12 @@ pub struct TextFlow {
     /// dropped: the event system does not exist yet and this is the record of
     /// everything that will need it.
     log: Vec<String>,
+    /// The event-flag bank at open time, for mid-message `$FA`.
+    flags: Vec<bool>,
+    /// A taken mid-message `$FA` jump target; the window rebuilds the flow.
+    jump: Option<u16>,
+    /// A mid-message `$F6`; the window forwards it to the runtime.
+    event: Option<u16>,
 }
 
 impl TextFlow {
@@ -92,7 +100,16 @@ impl TextFlow {
     /// on its not-set branch -- event flags do not exist yet -- and every skip
     /// is logged.
     #[must_use]
+    #[allow(dead_code)] // The flag-free form, kept for tests and future callers.
     pub fn open(entry: &DialogueEntry) -> Opening {
+        TextFlow::open_with_flags(entry, &[])
+    }
+
+    /// [`TextFlow::open`], consulting the live event-flag bank so `$FA`
+    /// chains take their set branches (this is how the town reacts to the
+    /// story, and how the principal's entry 0 routes to his briefing).
+    #[must_use]
+    pub fn open_with_flags(entry: &DialogueEntry, flags: &[bool]) -> Opening {
         let mut log = Vec::new();
         let mut index = 0;
         while let Some(Segment::Control(ctrl @ Ctrl::FlagCheck { .. })) = entry.segments.get(index)
@@ -101,8 +118,11 @@ impl TextFlow {
                 flag, then_entry, ..
             } = ctrl
             {
+                if flags.get(*flag as usize).copied().unwrap_or(false) {
+                    return Opening::Jump(*then_entry);
+                }
                 log.push(format!(
-                    "flag_check: flag {flag} -> entry {then_entry}, not taken (no event flags yet)"
+                    "flag_check: flag {flag} -> entry {then_entry}, not taken"
                 ));
             }
             index += 1;
@@ -128,6 +148,9 @@ impl TextFlow {
             done: false,
             closed: false,
             log,
+            flags: flags.to_vec(),
+            jump: None,
+            event: None,
         };
         flow.pump();
         if flow.done && flow.stop.is_none() {
@@ -211,6 +234,16 @@ impl TextFlow {
                 }
             }
         }
+    }
+
+    /// A taken mid-message jump, once.
+    pub fn take_jump(&mut self) -> Option<u16> {
+        self.jump.take()
+    }
+
+    /// A mid-message `$F6` event, once.
+    pub fn take_event(&mut self) -> Option<u16> {
+        self.event.take()
     }
 
     /// Everything the flow could not act on since the last call.
@@ -378,15 +411,22 @@ impl TextFlow {
             Ctrl::FlagCheck {
                 flag, then_entry, ..
             } => {
+                if self.flags.get(*flag as usize).copied().unwrap_or(false) {
+                    self.jump = Some(*then_entry);
+                    self.done = true;
+                    self.close(PageEnd::End);
+                    return true;
+                }
                 self.log.push(format!(
-                    "flag_check: flag {flag} -> entry {then_entry}, not taken (no event flags yet)"
+                    "flag_check: flag {flag} -> entry {then_entry}, not taken"
                 ));
                 false
             }
             Ctrl::Event { id, .. } => {
-                self.log
-                    .push(format!("event {id} skipped (no event system yet)"));
-                false
+                self.event = Some(*id);
+                self.done = true;
+                self.close(PageEnd::End);
+                true
             }
             Ctrl::KeepNpcFacing { .. } => {
                 // Mid-message this reaches TextCtrlCode_Null, which is an rts:
@@ -568,6 +608,13 @@ pub struct DialogueWindow {
     /// Frame width in cells while the box is opening; equals the full width
     /// once it is open.
     open_cells: i32,
+    /// The live event-flag bank, copied in by Field before each open so the
+    /// `$FA` chains take their real branches.
+    event_flags: Vec<bool>,
+    /// A `$F6` the dialogue fired; Field forwards it to the runtime.
+    pending_event: Option<u16>,
+    /// The tree of the currently open dialogue, for mid-message jumps.
+    current_tree: u8,
     /// Glyphs revealed on the current page. Retail draws one character every
     /// 3 frames (oracle: logs/03_npc_talk.csv, writes to Win_Tile_Buffer on a
     /// strict 3-frame cadence — 20 chars/second); this counts revealed glyphs
@@ -587,6 +634,9 @@ impl INode2D for DialogueWindow {
             pack_dir: String::new(),
             flow: None,
             open_cells: 0,
+            event_flags: Vec::new(),
+            pending_event: None,
+            current_tree: 0,
             revealed: 0,
             reveal_tick: 0,
         }
@@ -631,6 +681,7 @@ impl INode2D for DialogueWindow {
             }
         }
         self.drain_log();
+        self.service_flow_signals();
         if redraw {
             self.sync_portrait();
             self.base_mut().queue_redraw();
@@ -673,18 +724,44 @@ impl DialogueWindow {
             godot_error!("dialogue: no pack loaded; call configure() first");
             return false;
         };
-        let Some(entry) = set.entry(tree, dialogue_id) else {
-            godot_error!("dialogue: tree {tree} has no entry {dialogue_id}");
-            return false;
-        };
-        let opening = TextFlow::open(entry);
-        self.start(opening, &format!("tree {tree} entry {dialogue_id}"))
+        // Follow `$FA` preamble jumps against the live flags, bounded so a
+        // cyclic chain (a data bug) cannot hang.
+        self.current_tree = tree;
+        let mut id = dialogue_id;
+        for _ in 0..16 {
+            let Some(entry) = set.entry(tree, id) else {
+                godot_error!("dialogue: tree {tree} has no entry {id}");
+                return false;
+            };
+            match TextFlow::open_with_flags(entry, &self.event_flags) {
+                Opening::Jump(next) => id = next,
+                opening => return self.start(opening, &format!("tree {tree} entry {id}")),
+            }
+        }
+        godot_error!("dialogue: tree {tree} entry {dialogue_id}: preamble jump chain too deep");
+        false
     }
 
     /// Opens an entry the caller already resolved.
     pub fn open(&mut self, entry: &DialogueEntry) -> bool {
-        let opening = TextFlow::open(entry);
+        let opening = TextFlow::open_with_flags(entry, &self.event_flags);
+        if let Opening::Jump(next) = opening {
+            // System messages never jump; a jump here means a caller fed a
+            // tree entry through the pre-resolved path.
+            godot_error!("dialogue: pre-resolved entry {} jumps to {next}", entry.id);
+            return false;
+        }
         self.start(opening, &format!("entry {}", entry.id))
+    }
+
+    /// Field hands in the current event-flag bank before opening dialogue.
+    pub fn set_event_flags(&mut self, flags: Vec<bool>) {
+        self.event_flags = flags;
+    }
+
+    /// A `$F6` event the dialogue fired, once. Field starts the scene.
+    pub fn take_pending_event(&mut self) -> Option<u16> {
+        self.pending_event.take()
     }
 
     /// The leader's "Nothing here" line (one per character slot).
@@ -760,13 +837,32 @@ impl DialogueWindow {
             .is_some_and(|view| self.open_cells < view.cells().0)
     }
 
+    /// Applies mid-message `$FA` jumps and `$F6` events the flow raised.
+    fn service_flow_signals(&mut self) {
+        let (jump, event) = match self.flow.as_mut() {
+            Some(flow) => (flow.take_jump(), flow.take_event()),
+            None => (None, None),
+        };
+        if let Some(event) = event {
+            self.pending_event = Some(event);
+            self.close();
+        }
+        if let Some(next) = jump {
+            let tree = self.current_tree;
+            self.close();
+            self.open_dialogue(tree, next);
+        }
+    }
+
     fn start(&mut self, opening: Opening, who: &str) -> bool {
         match opening {
+            Opening::Jump(next) => {
+                godot_error!("dialogue: {who}: unresolved jump to {next} reached start()");
+                false
+            }
             Opening::Event(event) => {
-                godot_print!(
-                    "dialogue: {who} fires event {event} instead of talking; the event system \
-                     does not exist yet"
-                );
+                godot_print!("dialogue: {who} fires event {event:#x}");
+                self.pending_event = Some(event);
                 false
             }
             Opening::Silent => {

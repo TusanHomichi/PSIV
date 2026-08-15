@@ -99,6 +99,7 @@ fn event(id: u16) -> Segment {
 fn open(entry: &DialogueEntry) -> TextFlow {
     match TextFlow::open(entry) {
         Opening::Window(flow) => *flow,
+        Opening::Jump(next) => panic!("unexpected preamble jump to {next}"),
         Opening::Event(id) => panic!("expected a window, got event {id}"),
         Opening::Silent => panic!("expected a window, got silence"),
     }
