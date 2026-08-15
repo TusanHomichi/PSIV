@@ -11,9 +11,59 @@ other opening-act scene put together.
 |---|---|
 | Event index | `$9F` (`EventPtrs[$9F]`) |
 | Retail range | **`$073946` .. `$073ECD`** (1416 bytes) |
-| Entered from | new-game path: `move.w #$9F, (Event_Index).w` (`ps4.asm:87736`) |
+| — body | `$073946` .. `$073E85` (the linear scene, ending in the flag set) |
+| — helpers | `$073E86` .. `$073ECD` (the two colour-ramp subroutines, `bsr`'d from phase 4) |
+| Entered from | `Title_StartOption` (`$043788`) |
 | Condition | none — it is the new-game entry point |
 | Ends on map | `$13` PiataAcademy_F1 |
+
+## How the title screen gets here
+
+Cross-checked against the new-game extraction lane
+(`psiv_tools/newgame.py`, `runtime-pack/game_start.json`); we agree on the
+routine start (`$073946`) and on `rom_end = $073ECE`.
+
+```
+loc_4335C        $04335C   move.w #$11, (Field_Map_Index).w   -- title screen
+loc_44414        $044414   new-game init: party, money, inventory, flags, stats
+Title_StartOption $043788  move.w #$C,  (Game_Mode_Routine).w  -- "play event"
+                           move.w #$9F, (Event_Index).w
+                           jmp    (VInt_Prepare).l
+Event_GameStart  $073946   this routine
+```
+
+`Title_StartOption` was disassembled here and matches: it sets the mode and the
+event index and jumps, and it does **not** set `Game_Mode_Index`, so the field
+mode enters the *event* path rather than a map-load path.
+
+### On "the map the opening scene plays on"
+
+`game_start.json` records `title_handoff.scene_map = $11 PiataAcademy` with the
+note *"the map the opening scene plays on, not where the player starts."* The
+first half of that is verified — `$04335C` really does write `$11` — but **the
+scene does not play on map `$11`**, and the interpreter should not model it that
+way. Two cartridge facts:
+
+1. The scene's **first instruction** is `jsr InitVRAMAndCRAM` (`$5A658`), which
+   fades the palette out and then clears the entire Plane A buffer
+   (`lea $8000.w,a0 / move.w #$7FF,d7 / trap #0` = 2048 longwords = 8 KB).
+   Whatever map `$11` had put on screen is gone before a single pixel of the
+   scene is drawn. Entry `$36` — *"Chaz, we have work to do!"* — plays over
+   black, which is what retail looks like.
+2. Within 46 bytes of entry the scene writes `Field_Map_Index = $5E`
+   (ChazHouse) and calls `RefreshMap`. It then goes `$54` Aiedo, `$00` Motavia,
+   a title image, and finally `$13`. **`$11` is never among them.**
+
+The accurate framing is that `$11` is the map *resident when the scene begins* —
+a pre-scene default the title screen leaves behind — not a map the scene
+renders. The distinction is load-bearing: map `$11` binds dialogue tree 1, and
+an interpreter that honours "the scene plays on `$11`" would try to read the
+intro's lines out of tree 1. Retail explicitly loads **tree 17** before every
+one of its four dialogue calls, precisely because the resident binding is not
+the one it wants.
+
+(Whether map `$11`'s chunk/object data is actually resident, or only its index,
+was not chased — nothing in the scene depends on it either way.)
 
 ## Fork status: body deleted
 
@@ -32,13 +82,28 @@ Event_GameStart:
 	...
 ```
 
-The clone keeps a four-instruction prologue and a ~15-instruction epilogue and
+The clone keeps a four-instruction prologue and a ~20-instruction epilogue and
 `include`s away **everything in between** — which is the entire intro. The
-include is ungated and `script/scenes/` does not exist. Both surviving fragments
-match retail, so they were useful for naming primitives
+include is ungated and `script/scenes/` does not exist.
+
+The surviving **prologue** matches retail and was useful for naming primitives
 (`InitVRAMAndCRAM = $5A658`, `Pal_FadeIn = $421D4`,
 `DialogueTreesToRAM = $53F00`, `PalFadeOut_ClrSpriteTbl = $4223E`,
-`VInt_PrepareLoop = $5A7AC`), but the behaviour is cartridge-only.
+`VInt_PrepareLoop = $5A7AC`).
+
+The surviving **epilogue does not** — it carries three Grand Cross edits, which
+the fork helpfully annotates itself. Independently confirmed by
+`psiv_tools/newgame.py`, which flags the same three:
+
+| Clone | Retail | Effect |
+|---|---|---|
+| `move.w #$58, (Map_Start_X_Pos).w ; was 60` | **`$60`** | start column |
+| `move.w #$22, (Map_Start_Y_Pos).w ; was 24` | **`$24`** | start row |
+| `move.w #FacingDir_Right, (Map_Start_Facing_Dir).w ; was 0 (down)` | **`$0` (down)** | initial facing |
+
+So the fork starts Chaz at `($2C0, $110)` facing right; retail starts him at
+`($300, $120)` facing down. Everything below is cartridge-derived, including the
+epilogue.
 
 ## The intro runs on dialogue tree 17 — the one tree the fork rewrote
 
@@ -392,8 +457,10 @@ SetFlag{EventFlag_PiataFirstTime}
 
 ## Where the act's opening state comes from
 
-This is the routine the new-game-init lane's work has to agree with. It ends by
-writing, in order:
+This is the routine the new-game-init lane's work has to agree with, and it
+does — the epilogue below is decoded identically by `psiv_tools/newgame.py`
+(`runtime-pack/game_start.json`, `first_control`), which is the citable source
+for it. It ends by writing, in order:
 
 - `Current_Party_Slots` (`$F40A`, long) = **`$00FFFFFF`** — Chaz in slot 1,
   slots 2–4 empty — plus `Current_Party_Slot_5` (`$F40E`) = `$FF`.

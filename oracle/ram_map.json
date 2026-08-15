@@ -14,179 +14,1649 @@
     "Addresses are 68000 addresses ($FFFFxxxx). The host converts to the",
     "core's work_ram indexing; see host/psiv_oracle.c for the byte-order note."
   ],
-
   "rom": {
     "name": "Phantasy Star IV (USA).md",
     "sha256": "511f35cc11f88316f8b8940e28ab298bd75a4da193672a80172884d6eb913b6a"
   },
-
   "struct_offsets": {
     "_source": "ps4.constants.asm:105-125 (common field object properties)",
-    "facing_dir": {"off": 6, "size": 2, "line": 107,
-                   "note": "0=DOWN 4=UP 8=RIGHT $C=LEFT"},
-    "mappings_idx": {"off": 16, "size": 1, "line": 108},
-    "offscreen_flag": {"off": 18, "size": 1, "line": 109,
-                       "note": "0=on-screen 1=off-screen"},
-    "dialogue_id": {"off": 20, "size": 1, "line": 110},
-    "x_step_constant": {"off": 32, "size": 4, "line": 113},
-    "y_step_constant": {"off": 36, "size": 4, "line": 114},
-    "x_step_duration": {"off": 40, "size": 2, "line": 115},
-    "y_step_duration": {"off": 42, "size": 2, "line": 116},
-    "sprite_x_pos": {"off": 44, "size": 2, "line": 117},
-    "sprite_y_pos": {"off": 46, "size": 2, "line": 118},
-    "curr_x_pos": {"off": 48, "size": 4, "line": 119,
-                   "note": "longword; high word is the whole-pixel position, see ps4.asm:11850"},
-    "curr_y_pos": {"off": 52, "size": 4, "line": 120},
-    "dest_x_pos": {"off": 56, "size": 2, "line": 121},
-    "dest_y_pos": {"off": 58, "size": 2, "line": 122}
+    "facing_dir": {
+      "off": 6,
+      "size": 2,
+      "line": 107,
+      "note": "0=DOWN 4=UP 8=RIGHT $C=LEFT"
+    },
+    "mappings_idx": {
+      "off": 16,
+      "size": 1,
+      "line": 108
+    },
+    "offscreen_flag": {
+      "off": 18,
+      "size": 1,
+      "line": 109,
+      "note": "0=on-screen 1=off-screen"
+    },
+    "dialogue_id": {
+      "off": 20,
+      "size": 1,
+      "line": 110
+    },
+    "x_step_constant": {
+      "off": 32,
+      "size": 4,
+      "line": 113
+    },
+    "y_step_constant": {
+      "off": 36,
+      "size": 4,
+      "line": 114
+    },
+    "x_step_duration": {
+      "off": 40,
+      "size": 2,
+      "line": 115
+    },
+    "y_step_duration": {
+      "off": 42,
+      "size": 2,
+      "line": 116
+    },
+    "sprite_x_pos": {
+      "off": 44,
+      "size": 2,
+      "line": 117
+    },
+    "sprite_y_pos": {
+      "off": 46,
+      "size": 2,
+      "line": 118
+    },
+    "curr_x_pos": {
+      "off": 48,
+      "size": 4,
+      "line": 119,
+      "note": "longword; high word is the whole-pixel position, see ps4.asm:11850"
+    },
+    "curr_y_pos": {
+      "off": 52,
+      "size": 4,
+      "line": 120
+    },
+    "dest_x_pos": {
+      "off": 56,
+      "size": 2,
+      "line": 121
+    },
+    "dest_y_pos": {
+      "off": 58,
+      "size": 2,
+      "line": 122
+    }
   },
-
   "fields": [
-    {"name": "game_mode", "addr": "FFFFEF00", "size": 2, "group": "core",
-     "hex": true, "source": "Game_Mode_Index, constants:2319"},
-    {"name": "game_mode_routine", "addr": "FFFFEC20", "size": 2, "group": "core",
-     "hex": true, "source": "Game_Mode_Routine, constants:2132"},
-    {"name": "routine_exit_flags", "addr": "FFFFEC27", "size": 1, "group": "core",
-     "hex": true, "source": "Routine_Exit_Flags, constants:2134"},
-    {"name": "map_index", "addr": "FFFFEC28", "size": 2, "group": "core",
-     "hex": true, "source": "Field_Map_Index, constants:2138"},
-    {"name": "map_index_2", "addr": "FFFFEC2A", "size": 2, "group": "core",
-     "hex": true, "source": "Field_Map_Index_2, constants:2139"},
-    {"name": "world_index", "addr": "FFFFF400", "size": 2, "group": "core",
-     "source": "World_Index, constants:2368"},
-    {"name": "event_index", "addr": "FFFFECA8", "size": 2, "group": "core",
-     "hex": true, "source": "Event_Index, constants:2224"},
-    {"name": "field_move_flags", "addr": "FFFFECE5", "size": 1, "group": "core",
-     "hex": true,
-     "source": "Field_Movement_Flags, constants:2244; bit0 = characters moving"},
-    {"name": "step_offset", "addr": "FFFFECE0", "size": 1, "group": "core",
-     "source": "FieldObj_Step_Offset, constants:2239; 0=slow 1=normal 2=fast"},
-
-    {"name": "joy_held", "addr": "FFFFEF02", "size": 1, "group": "input",
-     "hex": true, "source": "Joypad_Held, constants:2322"},
-    {"name": "joy_pressed", "addr": "FFFFEF03", "size": 1, "group": "input",
-     "hex": true, "source": "Joypad_Pressed, constants:2323"},
-    {"name": "btn_held_frames", "addr": "FFFFEF04", "size": 1, "group": "input",
-     "source": "Button_Held_Frames, constants:2324"},
-    {"name": "btn_held_timer", "addr": "FFFFEF08", "size": 1, "group": "input",
-     "source": "Button_Held_Timer, constants:2325"},
-
-    {"name": "c1_facing", "addr": "FFFFC006", "size": 2, "group": "pos",
-     "source": "Character_1 (constants:2086) + facing_dir (constants:107)"},
-    {"name": "c1_mappings_idx", "addr": "FFFFC010", "size": 1, "group": "pos",
-     "source": "Character_1 + mappings_idx (constants:108)"},
-    {"name": "c1_x_step_dur", "addr": "FFFFC028", "size": 2, "group": "pos",
-     "source": "Character_1 + x_step_duration (constants:115)"},
-    {"name": "c1_y_step_dur", "addr": "FFFFC02A", "size": 2, "group": "pos",
-     "source": "Character_1 + y_step_duration (constants:116)"},
-    {"name": "c1_x_px", "addr": "FFFFC030", "size": 2, "group": "pos",
-     "source": "Character_1 + curr_x_pos high word (constants:119; ps4.asm:11850)"},
-    {"name": "c1_y_px", "addr": "FFFFC034", "size": 2, "group": "pos",
-     "source": "Character_1 + curr_y_pos high word (constants:120; ps4.asm:11851)"},
-    {"name": "c1_x_sub", "addr": "FFFFC032", "size": 2, "group": "pos",
-     "hex": true, "source": "Character_1 + curr_x_pos low word (subpixel)"},
-    {"name": "c1_y_sub", "addr": "FFFFC036", "size": 2, "group": "pos",
-     "hex": true, "source": "Character_1 + curr_y_pos low word (subpixel)"},
-    {"name": "c1_dest_x", "addr": "FFFFC038", "size": 2, "group": "pos",
-     "source": "Character_1 + dest_x_pos (constants:121)"},
-    {"name": "c1_dest_y", "addr": "FFFFC03A", "size": 2, "group": "pos",
-     "source": "Character_1 + dest_y_pos (constants:122)"},
-
-    {"name": "c2_facing", "addr": "FFFFC046", "size": 2, "group": "pos2",
-     "source": "Character_2 (constants:2087) + facing_dir"},
-    {"name": "c2_x_px", "addr": "FFFFC070", "size": 2, "group": "pos2",
-     "source": "Character_2 + curr_x_pos high word"},
-    {"name": "c2_y_px", "addr": "FFFFC074", "size": 2, "group": "pos2",
-     "source": "Character_2 + curr_y_pos high word"},
-
-    {"name": "coll_standing", "addr": "FFFFEC80", "size": 1, "group": "collision",
-     "hex": true, "source": "Tile_Collision_Standing, constants:2192"},
-    {"name": "coll_saved_standing", "addr": "FFFFEC81", "size": 1,
-     "group": "collision", "hex": true,
-     "source": "Saved_Tile_Collision_Standing, constants:2193"},
-    {"name": "coll_shop", "addr": "FFFFEC82", "size": 1, "group": "collision",
-     "hex": true, "source": "Tile_Collision_Shop, constants:2194"},
-    {"name": "coll_left", "addr": "FFFFEC83", "size": 1, "group": "collision",
-     "hex": true, "source": "Tile_Collision_Left_1, constants:2195"},
-    {"name": "coll_up", "addr": "FFFFEC85", "size": 1, "group": "collision",
-     "hex": true, "source": "Tile_Collision_Up_1, constants:2197"},
-    {"name": "coll_right", "addr": "FFFFEC87", "size": 1, "group": "collision",
-     "hex": true, "source": "Tile_Collision_Right, constants:2199"},
-    {"name": "coll_down", "addr": "FFFFEC89", "size": 1, "group": "collision",
-     "hex": true, "source": "Tile_Collision_Down, constants:2201"},
-
-    {"name": "window_index", "addr": "FFFFEC90", "size": 2, "group": "window",
-     "hex": true, "source": "Window_Index, constants:2210"},
-    {"name": "window_saved_index", "addr": "FFFFEC92", "size": 2,
-     "group": "window", "hex": true,
-     "source": "Saved_Window_Index, constants:2211"},
-    {"name": "windows_opened", "addr": "FFFFEC9A", "size": 1, "group": "window",
-     "source": "Windows_Opened_Num, constants:2214"},
-    {"name": "window_init_flag", "addr": "FFFFEC9B", "size": 1, "group": "window",
-     "hex": true, "source": "Window_Init_Flag, constants:2215"},
-    {"name": "window_render_mode", "addr": "FFFFEC9C", "size": 2,
-     "group": "window", "hex": true,
-     "source": "Window_Render_Mode, constants:2217"},
-    {"name": "window_option_idx", "addr": "FFFFEC9E", "size": 1,
-     "group": "window", "source": "Window_Option_Index, constants:2218"},
-    {"name": "win_char_num", "addr": "FFFFE3F0", "size": 2, "group": "window",
-     "source": "Win_Char_Num, constants:2108"},
-    {"name": "arrow_offscreen", "addr": "FFFFC2D2", "size": 1, "group": "window",
-     "source": "Text_Scroll_Arrow (constants:2092) + offscreen_flag (constants:109)"},
-    {"name": "arrow_x_px", "addr": "FFFFC2F0", "size": 2, "group": "window",
-     "source": "Text_Scroll_Arrow + curr_x_pos high word"},
-    {"name": "arrow_y_px", "addr": "FFFFC2F4", "size": 2, "group": "window",
-     "source": "Text_Scroll_Arrow + curr_y_pos high word"},
-    {"name": "interaction_evt_flag", "addr": "FFFFECAA", "size": 1,
-     "group": "window", "hex": true,
-     "source": "Interaction_Event_Flag, constants:2226"},
-    {"name": "interaction_evt_type", "addr": "FFFFECC3", "size": 1,
-     "group": "window", "source": "Interaction_Event_Type, constants:2234"},
-
-    {"name": "party_slots", "addr": "FFFFF40A", "size": 4, "group": "party",
-     "hex": true,
-     "source": "Current_Party_Slots, constants:2373 (slots 1-4 packed)"},
-    {"name": "party_slot_1", "addr": "FFFFF40A", "size": 1, "group": "party",
-     "source": "Current_Party_Slot_1, constants:2374"},
-    {"name": "party_slot_2", "addr": "FFFFF40B", "size": 1, "group": "party",
-     "source": "Current_Party_Slot_2, constants:2375"},
-    {"name": "party_slot_3", "addr": "FFFFF40C", "size": 1, "group": "party",
-     "source": "Current_Party_Slot_3, constants:2376"},
-    {"name": "party_slot_4", "addr": "FFFFF40D", "size": 1, "group": "party",
-     "source": "Current_Party_Slot_4, constants:2377"},
-    {"name": "party_slot_5", "addr": "FFFFF40E", "size": 1, "group": "party",
-     "source": "Current_Party_Slot_5, constants:2378"},
-    {"name": "saved_char_x", "addr": "FFFFF406", "size": 2, "group": "party",
-     "source": "Saved_Char_X_Pos, constants:2371"},
-    {"name": "saved_char_y", "addr": "FFFFF408", "size": 2, "group": "party",
-     "source": "Saved_Char_Y_Pos, constants:2372"},
-
-    {"name": "eflags_00", "addr": "FFFFF100", "size": 4, "group": "flags",
-     "hex": true, "source": "Event_Flags+0, constants:2362"},
-    {"name": "eflags_04", "addr": "FFFFF104", "size": 4, "group": "flags",
-     "hex": true, "source": "Event_Flags+4"},
-    {"name": "eflags_08", "addr": "FFFFF108", "size": 4, "group": "flags",
-     "hex": true, "source": "Event_Flags+8"},
-    {"name": "eflags_0C", "addr": "FFFFF10C", "size": 4, "group": "flags",
-     "hex": true, "source": "Event_Flags+$C"},
-    {"name": "eflags_10", "addr": "FFFFF110", "size": 4, "group": "flags",
-     "hex": true, "source": "Event_Flags+$10"},
-    {"name": "eflags_14", "addr": "FFFFF114", "size": 4, "group": "flags",
-     "hex": true, "source": "Event_Flags+$14"},
-    {"name": "eflags_18", "addr": "FFFFF118", "size": 4, "group": "flags",
-     "hex": true, "source": "Event_Flags+$18"},
-    {"name": "eflags_1C", "addr": "FFFFF11C", "size": 4, "group": "flags",
-     "hex": true, "source": "Event_Flags+$1C"},
-    {"name": "ext_eflags_00", "addr": "FFFFF120", "size": 4, "group": "flags",
-     "hex": true, "source": "Extended_Event_Flags, constants:2363"},
-    {"name": "chest_flags_00", "addr": "FFFFF140", "size": 4, "group": "flags",
-     "hex": true, "source": "Chest_Flags, constants:2364"},
-    {"name": "temp_eflags_00", "addr": "FFFFF156", "size": 2, "group": "flags",
-     "hex": true, "source": "Temp_Event_Flags, constants:2365"},
-    {"name": "town_flags_00", "addr": "FFFFF160", "size": 4, "group": "flags",
-     "hex": true, "source": "Town_Flags, constants:2366"},
-
-    {"name": "rng_seed", "addr": "FFFFEF0C", "size": 4, "group": "rng",
-     "hex": true, "source": "RNG_Seed, constants:2328"}
+    {
+      "name": "game_mode",
+      "addr": "FFFFEF00",
+      "size": 2,
+      "group": "core",
+      "hex": true,
+      "source": "Game_Mode_Index, constants:2319"
+    },
+    {
+      "name": "game_mode_routine",
+      "addr": "FFFFEC20",
+      "size": 2,
+      "group": "core",
+      "hex": true,
+      "source": "Game_Mode_Routine, constants:2132"
+    },
+    {
+      "name": "routine_exit_flags",
+      "addr": "FFFFEC27",
+      "size": 1,
+      "group": "core",
+      "hex": true,
+      "source": "Routine_Exit_Flags, constants:2134"
+    },
+    {
+      "name": "map_index",
+      "addr": "FFFFEC28",
+      "size": 2,
+      "group": "core",
+      "hex": true,
+      "source": "Field_Map_Index, constants:2138"
+    },
+    {
+      "name": "map_index_2",
+      "addr": "FFFFEC2A",
+      "size": 2,
+      "group": "core",
+      "hex": true,
+      "source": "Field_Map_Index_2, constants:2139"
+    },
+    {
+      "name": "world_index",
+      "addr": "FFFFF400",
+      "size": 2,
+      "group": "core",
+      "source": "World_Index, constants:2368"
+    },
+    {
+      "name": "event_index",
+      "addr": "FFFFECA8",
+      "size": 2,
+      "group": "core",
+      "hex": true,
+      "source": "Event_Index, constants:2224"
+    },
+    {
+      "name": "field_move_flags",
+      "addr": "FFFFECE5",
+      "size": 1,
+      "group": "core",
+      "hex": true,
+      "source": "Field_Movement_Flags, constants:2244; bit0 = characters moving"
+    },
+    {
+      "name": "step_offset",
+      "addr": "FFFFECE0",
+      "size": 1,
+      "group": "core",
+      "source": "FieldObj_Step_Offset, constants:2239; 0=slow 1=normal 2=fast"
+    },
+    {
+      "name": "joy_held",
+      "addr": "FFFFEF02",
+      "size": 1,
+      "group": "input",
+      "hex": true,
+      "source": "Joypad_Held, constants:2322"
+    },
+    {
+      "name": "joy_pressed",
+      "addr": "FFFFEF03",
+      "size": 1,
+      "group": "input",
+      "hex": true,
+      "source": "Joypad_Pressed, constants:2323"
+    },
+    {
+      "name": "btn_held_frames",
+      "addr": "FFFFEF04",
+      "size": 1,
+      "group": "input",
+      "source": "Button_Held_Frames, constants:2324"
+    },
+    {
+      "name": "btn_held_timer",
+      "addr": "FFFFEF08",
+      "size": 1,
+      "group": "input",
+      "source": "Button_Held_Timer, constants:2325"
+    },
+    {
+      "name": "c1_facing",
+      "addr": "FFFFC006",
+      "size": 2,
+      "group": "pos",
+      "source": "Character_1 (constants:2086) + facing_dir (constants:107)"
+    },
+    {
+      "name": "c1_mappings_idx",
+      "addr": "FFFFC010",
+      "size": 1,
+      "group": "pos",
+      "source": "Character_1 + mappings_idx (constants:108)"
+    },
+    {
+      "name": "c1_x_step_dur",
+      "addr": "FFFFC028",
+      "size": 2,
+      "group": "pos",
+      "source": "Character_1 + x_step_duration (constants:115)"
+    },
+    {
+      "name": "c1_y_step_dur",
+      "addr": "FFFFC02A",
+      "size": 2,
+      "group": "pos",
+      "source": "Character_1 + y_step_duration (constants:116)"
+    },
+    {
+      "name": "c1_x_px",
+      "addr": "FFFFC030",
+      "size": 2,
+      "group": "pos",
+      "source": "Character_1 + curr_x_pos high word (constants:119; ps4.asm:11850)"
+    },
+    {
+      "name": "c1_y_px",
+      "addr": "FFFFC034",
+      "size": 2,
+      "group": "pos",
+      "source": "Character_1 + curr_y_pos high word (constants:120; ps4.asm:11851)"
+    },
+    {
+      "name": "c1_x_sub",
+      "addr": "FFFFC032",
+      "size": 2,
+      "group": "pos",
+      "hex": true,
+      "source": "Character_1 + curr_x_pos low word (subpixel)"
+    },
+    {
+      "name": "c1_y_sub",
+      "addr": "FFFFC036",
+      "size": 2,
+      "group": "pos",
+      "hex": true,
+      "source": "Character_1 + curr_y_pos low word (subpixel)"
+    },
+    {
+      "name": "c1_dest_x",
+      "addr": "FFFFC038",
+      "size": 2,
+      "group": "pos",
+      "source": "Character_1 + dest_x_pos (constants:121)"
+    },
+    {
+      "name": "c1_dest_y",
+      "addr": "FFFFC03A",
+      "size": 2,
+      "group": "pos",
+      "source": "Character_1 + dest_y_pos (constants:122)"
+    },
+    {
+      "name": "c2_facing",
+      "addr": "FFFFC046",
+      "size": 2,
+      "group": "pos2",
+      "source": "Character_2 (constants:2087) + facing_dir"
+    },
+    {
+      "name": "c2_x_px",
+      "addr": "FFFFC070",
+      "size": 2,
+      "group": "pos2",
+      "source": "Character_2 + curr_x_pos high word"
+    },
+    {
+      "name": "c2_y_px",
+      "addr": "FFFFC074",
+      "size": 2,
+      "group": "pos2",
+      "source": "Character_2 + curr_y_pos high word"
+    },
+    {
+      "name": "coll_standing",
+      "addr": "FFFFEC80",
+      "size": 1,
+      "group": "collision",
+      "hex": true,
+      "source": "Tile_Collision_Standing, constants:2192"
+    },
+    {
+      "name": "coll_saved_standing",
+      "addr": "FFFFEC81",
+      "size": 1,
+      "group": "collision",
+      "hex": true,
+      "source": "Saved_Tile_Collision_Standing, constants:2193"
+    },
+    {
+      "name": "coll_shop",
+      "addr": "FFFFEC82",
+      "size": 1,
+      "group": "collision",
+      "hex": true,
+      "source": "Tile_Collision_Shop, constants:2194"
+    },
+    {
+      "name": "coll_left",
+      "addr": "FFFFEC83",
+      "size": 1,
+      "group": "collision",
+      "hex": true,
+      "source": "Tile_Collision_Left_1, constants:2195"
+    },
+    {
+      "name": "coll_up",
+      "addr": "FFFFEC85",
+      "size": 1,
+      "group": "collision",
+      "hex": true,
+      "source": "Tile_Collision_Up_1, constants:2197"
+    },
+    {
+      "name": "coll_right",
+      "addr": "FFFFEC87",
+      "size": 1,
+      "group": "collision",
+      "hex": true,
+      "source": "Tile_Collision_Right, constants:2199"
+    },
+    {
+      "name": "coll_down",
+      "addr": "FFFFEC89",
+      "size": 1,
+      "group": "collision",
+      "hex": true,
+      "source": "Tile_Collision_Down, constants:2201"
+    },
+    {
+      "name": "window_index",
+      "addr": "FFFFEC90",
+      "size": 2,
+      "group": "window",
+      "hex": true,
+      "source": "Window_Index, constants:2210"
+    },
+    {
+      "name": "window_saved_index",
+      "addr": "FFFFEC92",
+      "size": 2,
+      "group": "window",
+      "hex": true,
+      "source": "Saved_Window_Index, constants:2211"
+    },
+    {
+      "name": "windows_opened",
+      "addr": "FFFFEC9A",
+      "size": 1,
+      "group": "window",
+      "source": "Windows_Opened_Num, constants:2214"
+    },
+    {
+      "name": "window_init_flag",
+      "addr": "FFFFEC9B",
+      "size": 1,
+      "group": "window",
+      "hex": true,
+      "source": "Window_Init_Flag, constants:2215"
+    },
+    {
+      "name": "window_render_mode",
+      "addr": "FFFFEC9C",
+      "size": 2,
+      "group": "window",
+      "hex": true,
+      "source": "Window_Render_Mode, constants:2217"
+    },
+    {
+      "name": "window_option_idx",
+      "addr": "FFFFEC9E",
+      "size": 1,
+      "group": "window",
+      "source": "Window_Option_Index, constants:2218"
+    },
+    {
+      "name": "win_char_num",
+      "addr": "FFFFE3F0",
+      "size": 2,
+      "group": "window",
+      "source": "Win_Char_Num, constants:2108"
+    },
+    {
+      "name": "arrow_offscreen",
+      "addr": "FFFFC2D2",
+      "size": 1,
+      "group": "window",
+      "source": "Text_Scroll_Arrow (constants:2092) + offscreen_flag (constants:109)"
+    },
+    {
+      "name": "arrow_x_px",
+      "addr": "FFFFC2F0",
+      "size": 2,
+      "group": "window",
+      "source": "Text_Scroll_Arrow + curr_x_pos high word"
+    },
+    {
+      "name": "arrow_y_px",
+      "addr": "FFFFC2F4",
+      "size": 2,
+      "group": "window",
+      "source": "Text_Scroll_Arrow + curr_y_pos high word"
+    },
+    {
+      "name": "interaction_evt_flag",
+      "addr": "FFFFECAA",
+      "size": 1,
+      "group": "window",
+      "hex": true,
+      "source": "Interaction_Event_Flag, constants:2226"
+    },
+    {
+      "name": "interaction_evt_type",
+      "addr": "FFFFECC3",
+      "size": 1,
+      "group": "window",
+      "source": "Interaction_Event_Type, constants:2234"
+    },
+    {
+      "name": "party_slots",
+      "addr": "FFFFF40A",
+      "size": 4,
+      "group": "party",
+      "hex": true,
+      "source": "Current_Party_Slots, constants:2373 (slots 1-4 packed)"
+    },
+    {
+      "name": "party_slot_1",
+      "addr": "FFFFF40A",
+      "size": 1,
+      "group": "party",
+      "source": "Current_Party_Slot_1, constants:2374"
+    },
+    {
+      "name": "party_slot_2",
+      "addr": "FFFFF40B",
+      "size": 1,
+      "group": "party",
+      "source": "Current_Party_Slot_2, constants:2375"
+    },
+    {
+      "name": "party_slot_3",
+      "addr": "FFFFF40C",
+      "size": 1,
+      "group": "party",
+      "source": "Current_Party_Slot_3, constants:2376"
+    },
+    {
+      "name": "party_slot_4",
+      "addr": "FFFFF40D",
+      "size": 1,
+      "group": "party",
+      "source": "Current_Party_Slot_4, constants:2377"
+    },
+    {
+      "name": "party_slot_5",
+      "addr": "FFFFF40E",
+      "size": 1,
+      "group": "party",
+      "source": "Current_Party_Slot_5, constants:2378"
+    },
+    {
+      "name": "saved_char_x",
+      "addr": "FFFFF406",
+      "size": 2,
+      "group": "party",
+      "source": "Saved_Char_X_Pos, constants:2371"
+    },
+    {
+      "name": "saved_char_y",
+      "addr": "FFFFF408",
+      "size": 2,
+      "group": "party",
+      "source": "Saved_Char_Y_Pos, constants:2372"
+    },
+    {
+      "name": "eflags_00",
+      "addr": "FFFFF100",
+      "size": 4,
+      "group": "flags",
+      "hex": true,
+      "source": "Event_Flags+0, constants:2362"
+    },
+    {
+      "name": "eflags_04",
+      "addr": "FFFFF104",
+      "size": 4,
+      "group": "flags",
+      "hex": true,
+      "source": "Event_Flags+4"
+    },
+    {
+      "name": "eflags_08",
+      "addr": "FFFFF108",
+      "size": 4,
+      "group": "flags",
+      "hex": true,
+      "source": "Event_Flags+8"
+    },
+    {
+      "name": "eflags_0C",
+      "addr": "FFFFF10C",
+      "size": 4,
+      "group": "flags",
+      "hex": true,
+      "source": "Event_Flags+$C"
+    },
+    {
+      "name": "eflags_10",
+      "addr": "FFFFF110",
+      "size": 4,
+      "group": "flags",
+      "hex": true,
+      "source": "Event_Flags+$10"
+    },
+    {
+      "name": "eflags_14",
+      "addr": "FFFFF114",
+      "size": 4,
+      "group": "flags",
+      "hex": true,
+      "source": "Event_Flags+$14"
+    },
+    {
+      "name": "eflags_18",
+      "addr": "FFFFF118",
+      "size": 4,
+      "group": "flags",
+      "hex": true,
+      "source": "Event_Flags+$18"
+    },
+    {
+      "name": "eflags_1C",
+      "addr": "FFFFF11C",
+      "size": 4,
+      "group": "flags",
+      "hex": true,
+      "source": "Event_Flags+$1C"
+    },
+    {
+      "name": "ext_eflags_00",
+      "addr": "FFFFF120",
+      "size": 4,
+      "group": "flags",
+      "hex": true,
+      "source": "Extended_Event_Flags, constants:2363"
+    },
+    {
+      "name": "chest_flags_00",
+      "addr": "FFFFF140",
+      "size": 4,
+      "group": "flags",
+      "hex": true,
+      "source": "Chest_Flags, constants:2364"
+    },
+    {
+      "name": "temp_eflags_00",
+      "addr": "FFFFF156",
+      "size": 2,
+      "group": "flags",
+      "hex": true,
+      "source": "Temp_Event_Flags, constants:2365"
+    },
+    {
+      "name": "town_flags_00",
+      "addr": "FFFFF160",
+      "size": 4,
+      "group": "flags",
+      "hex": true,
+      "source": "Town_Flags, constants:2366"
+    },
+    {
+      "name": "rng_seed",
+      "addr": "FFFFEF0C",
+      "size": 4,
+      "group": "rng",
+      "hex": true,
+      "source": "RNG_Seed, constants:2328"
+    },
+    {
+      "name": "rng_hi",
+      "addr": "FFFFEF0C",
+      "size": 2,
+      "group": "rng",
+      "hex": true,
+      "source": "RNG_Seed high word, constants:2328; the word UpdateRNGSeed2 rotates (ps4.asm:86101)"
+    },
+    {
+      "name": "rng_lo",
+      "addr": "FFFFEF0E",
+      "size": 2,
+      "group": "rng",
+      "hex": true,
+      "source": "RNG_Seed low word, constants:2328; only UpdateRNGSeed writes this (ps4.asm:86090)"
+    },
+    {
+      "name": "main_frame_count",
+      "addr": "FFFFEF1C",
+      "size": 2,
+      "group": "rng",
+      "source": "Main_Frame_Count, constants:2339; mixed into UpdateRNGSeed2 output"
+    },
+    {
+      "name": "random_battles_flag",
+      "addr": "FFFFECE7",
+      "size": 1,
+      "group": "rng",
+      "hex": true,
+      "source": "Random_Battles_Flag, constants:2246"
+    },
+    {
+      "name": "battle_routine",
+      "addr": "FFFF4100",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Routine, constants:2002"
+    },
+    {
+      "name": "battle_total_comd",
+      "addr": "FFFF4106",
+      "size": 2,
+      "group": "battle",
+      "source": "Battle_Total_Comd_Input, constants:2003"
+    },
+    {
+      "name": "battle_routine_2",
+      "addr": "FFFF4108",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Routine_2, constants:2004"
+    },
+    {
+      "name": "battle_main_option",
+      "addr": "FFFF41A0",
+      "size": 2,
+      "group": "battle",
+      "source": "Battle_Main_Option_Index, constants:2028"
+    },
+    {
+      "name": "battle_char_comd_idx",
+      "addr": "FFFF41A2",
+      "size": 2,
+      "group": "battle",
+      "source": "Battle_Char_Comd_Index, constants:2029"
+    },
+    {
+      "name": "battle_enemy_index",
+      "addr": "FFFF41AC",
+      "size": 2,
+      "group": "battle",
+      "source": "Battle_Enemy_Index, constants:2030"
+    },
+    {
+      "name": "battle_char_index",
+      "addr": "FFFF41B8",
+      "size": 2,
+      "group": "battle",
+      "source": "Battle_Char_Index, constants:2032"
+    },
+    {
+      "name": "battle_macro_flag",
+      "addr": "FFFF41D8",
+      "size": 2,
+      "group": "battle",
+      "source": "Battle_Macro_Flag, constants:2036"
+    },
+    {
+      "name": "battle_meseta_total",
+      "addr": "FFFF41D0",
+      "size": 2,
+      "group": "battle",
+      "source": "battle meseta accumulator; added to Current_Money at ps4.asm:4801"
+    },
+    {
+      "name": "enemy_ambush_chance",
+      "addr": "FFFF41F0",
+      "size": 1,
+      "group": "battle",
+      "source": "Enemy_Ambush_Chance, constants:2040"
+    },
+    {
+      "name": "enemy_run_chance",
+      "addr": "FFFF41F1",
+      "size": 1,
+      "group": "battle",
+      "source": "Enemy_Run_Chance, constants:2041"
+    },
+    {
+      "name": "item_drop_rate",
+      "addr": "FFFF41F2",
+      "size": 1,
+      "group": "battle",
+      "source": "Item_Drop_Rate, constants:2042"
+    },
+    {
+      "name": "dropped_item",
+      "addr": "FFFF41F3",
+      "size": 1,
+      "group": "battle",
+      "source": "Dropped_Item, constants:2043"
+    },
+    {
+      "name": "enemy_count",
+      "addr": "FFFF41F4",
+      "size": 1,
+      "group": "battle",
+      "source": "Enemy_Count, constants:2044"
+    },
+    {
+      "name": "hit_00",
+      "addr": "FFFF4150",
+      "size": 1,
+      "group": "bhit",
+      "hex": true,
+      "source": "Fighters_Hit_Flags+0 (constants:2019); $00 normal, $01 critical, $FF miss/untargeted"
+    },
+    {
+      "name": "hit_01",
+      "addr": "FFFF4151",
+      "size": 1,
+      "group": "bhit",
+      "hex": true,
+      "source": "Fighters_Hit_Flags+1 (constants:2019); $00 normal, $01 critical, $FF miss/untargeted"
+    },
+    {
+      "name": "hit_02",
+      "addr": "FFFF4152",
+      "size": 1,
+      "group": "bhit",
+      "hex": true,
+      "source": "Fighters_Hit_Flags+2 (constants:2019); $00 normal, $01 critical, $FF miss/untargeted"
+    },
+    {
+      "name": "hit_03",
+      "addr": "FFFF4153",
+      "size": 1,
+      "group": "bhit",
+      "hex": true,
+      "source": "Fighters_Hit_Flags+3 (constants:2019); $00 normal, $01 critical, $FF miss/untargeted"
+    },
+    {
+      "name": "hit_04",
+      "addr": "FFFF4154",
+      "size": 1,
+      "group": "bhit",
+      "hex": true,
+      "source": "Fighters_Hit_Flags+4 (constants:2019); $00 normal, $01 critical, $FF miss/untargeted"
+    },
+    {
+      "name": "hit_05",
+      "addr": "FFFF4155",
+      "size": 1,
+      "group": "bhit",
+      "hex": true,
+      "source": "Fighters_Hit_Flags+5 (constants:2019); $00 normal, $01 critical, $FF miss/untargeted"
+    },
+    {
+      "name": "hit_06",
+      "addr": "FFFF4156",
+      "size": 1,
+      "group": "bhit",
+      "hex": true,
+      "source": "Fighters_Hit_Flags+6 (constants:2019); $00 normal, $01 critical, $FF miss/untargeted"
+    },
+    {
+      "name": "hit_07",
+      "addr": "FFFF4157",
+      "size": 1,
+      "group": "bhit",
+      "hex": true,
+      "source": "Fighters_Hit_Flags+7 (constants:2019); $00 normal, $01 critical, $FF miss/untargeted"
+    },
+    {
+      "name": "hit_08",
+      "addr": "FFFF4158",
+      "size": 1,
+      "group": "bhit",
+      "hex": true,
+      "source": "Fighters_Hit_Flags+8 (constants:2019); $00 normal, $01 critical, $FF miss/untargeted"
+    },
+    {
+      "name": "hit_09",
+      "addr": "FFFF4159",
+      "size": 1,
+      "group": "bhit",
+      "hex": true,
+      "source": "Fighters_Hit_Flags+9 (constants:2019); $00 normal, $01 critical, $FF miss/untargeted"
+    },
+    {
+      "name": "dmg_00",
+      "addr": "FFFF415A",
+      "size": 2,
+      "group": "bhit",
+      "source": "Battle_Heal_Damage_List+0 (constants:2021); heal/damage value for fighter slot 0"
+    },
+    {
+      "name": "dmg_01",
+      "addr": "FFFF415C",
+      "size": 2,
+      "group": "bhit",
+      "source": "Battle_Heal_Damage_List+2 (constants:2021); heal/damage value for fighter slot 1"
+    },
+    {
+      "name": "dmg_02",
+      "addr": "FFFF415E",
+      "size": 2,
+      "group": "bhit",
+      "source": "Battle_Heal_Damage_List+4 (constants:2021); heal/damage value for fighter slot 2"
+    },
+    {
+      "name": "dmg_03",
+      "addr": "FFFF4160",
+      "size": 2,
+      "group": "bhit",
+      "source": "Battle_Heal_Damage_List+6 (constants:2021); heal/damage value for fighter slot 3"
+    },
+    {
+      "name": "dmg_04",
+      "addr": "FFFF4162",
+      "size": 2,
+      "group": "bhit",
+      "source": "Battle_Heal_Damage_List+8 (constants:2021); heal/damage value for fighter slot 4"
+    },
+    {
+      "name": "dmg_05",
+      "addr": "FFFF4164",
+      "size": 2,
+      "group": "bhit",
+      "source": "Battle_Heal_Damage_List+10 (constants:2021); heal/damage value for fighter slot 5"
+    },
+    {
+      "name": "dmg_06",
+      "addr": "FFFF4166",
+      "size": 2,
+      "group": "bhit",
+      "source": "Battle_Heal_Damage_List+12 (constants:2021); heal/damage value for fighter slot 6"
+    },
+    {
+      "name": "dmg_07",
+      "addr": "FFFF4168",
+      "size": 2,
+      "group": "bhit",
+      "source": "Battle_Heal_Damage_List+14 (constants:2021); heal/damage value for fighter slot 7"
+    },
+    {
+      "name": "dmg_08",
+      "addr": "FFFF416A",
+      "size": 2,
+      "group": "bhit",
+      "source": "Battle_Heal_Damage_List+16 (constants:2021); heal/damage value for fighter slot 8"
+    },
+    {
+      "name": "e1_id",
+      "addr": "FFFF4268",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_1 (constants:2050) + enemy_id, constants:58"
+    },
+    {
+      "name": "e1_level",
+      "addr": "FFFF4208",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_1 (constants:2050) + level, constants:10"
+    },
+    {
+      "name": "e1_hp",
+      "addr": "FFFF420E",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_1 (constants:2050) + curr_hp, constants:12"
+    },
+    {
+      "name": "e1_maxhp",
+      "addr": "FFFF4210",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_1 (constants:2050) + max_hp, constants:13"
+    },
+    {
+      "name": "e1_status",
+      "addr": "FFFF4216",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_1 (constants:2050) + status, constants:16"
+    },
+    {
+      "name": "e1_str",
+      "addr": "FFFF4218",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_1 (constants:2050) + strength, constants:18"
+    },
+    {
+      "name": "e1_agi",
+      "addr": "FFFF421E",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_1 (constants:2050) + agility, constants:23"
+    },
+    {
+      "name": "e1_agi_bat",
+      "addr": "FFFF4220",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_1 (constants:2050) + agility_battle, constants:25"
+    },
+    {
+      "name": "e1_dex",
+      "addr": "FFFF4221",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_1 (constants:2050) + dexterity, constants:26"
+    },
+    {
+      "name": "e1_atk",
+      "addr": "FFFF4224",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_1 (constants:2050) + atk_pow, constants:29"
+    },
+    {
+      "name": "e1_dfs",
+      "addr": "FFFF4228",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_1 (constants:2050) + dfs_pow, constants:31"
+    },
+    {
+      "name": "e2_id",
+      "addr": "FFFF42E8",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_2 (constants:2051) + enemy_id, constants:58"
+    },
+    {
+      "name": "e2_level",
+      "addr": "FFFF4288",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_2 (constants:2051) + level, constants:10"
+    },
+    {
+      "name": "e2_hp",
+      "addr": "FFFF428E",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_2 (constants:2051) + curr_hp, constants:12"
+    },
+    {
+      "name": "e2_maxhp",
+      "addr": "FFFF4290",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_2 (constants:2051) + max_hp, constants:13"
+    },
+    {
+      "name": "e2_status",
+      "addr": "FFFF4296",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_2 (constants:2051) + status, constants:16"
+    },
+    {
+      "name": "e2_str",
+      "addr": "FFFF4298",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_2 (constants:2051) + strength, constants:18"
+    },
+    {
+      "name": "e2_agi",
+      "addr": "FFFF429E",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_2 (constants:2051) + agility, constants:23"
+    },
+    {
+      "name": "e2_agi_bat",
+      "addr": "FFFF42A0",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_2 (constants:2051) + agility_battle, constants:25"
+    },
+    {
+      "name": "e2_dex",
+      "addr": "FFFF42A1",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_2 (constants:2051) + dexterity, constants:26"
+    },
+    {
+      "name": "e2_atk",
+      "addr": "FFFF42A4",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_2 (constants:2051) + atk_pow, constants:29"
+    },
+    {
+      "name": "e2_dfs",
+      "addr": "FFFF42A8",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_2 (constants:2051) + dfs_pow, constants:31"
+    },
+    {
+      "name": "e3_id",
+      "addr": "FFFF4368",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_3 (constants:2052) + enemy_id, constants:58"
+    },
+    {
+      "name": "e3_level",
+      "addr": "FFFF4308",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_3 (constants:2052) + level, constants:10"
+    },
+    {
+      "name": "e3_hp",
+      "addr": "FFFF430E",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_3 (constants:2052) + curr_hp, constants:12"
+    },
+    {
+      "name": "e3_maxhp",
+      "addr": "FFFF4310",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_3 (constants:2052) + max_hp, constants:13"
+    },
+    {
+      "name": "e3_status",
+      "addr": "FFFF4316",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_3 (constants:2052) + status, constants:16"
+    },
+    {
+      "name": "e3_str",
+      "addr": "FFFF4318",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_3 (constants:2052) + strength, constants:18"
+    },
+    {
+      "name": "e3_agi",
+      "addr": "FFFF431E",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_3 (constants:2052) + agility, constants:23"
+    },
+    {
+      "name": "e3_agi_bat",
+      "addr": "FFFF4320",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_3 (constants:2052) + agility_battle, constants:25"
+    },
+    {
+      "name": "e3_dex",
+      "addr": "FFFF4321",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_3 (constants:2052) + dexterity, constants:26"
+    },
+    {
+      "name": "e3_atk",
+      "addr": "FFFF4324",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_3 (constants:2052) + atk_pow, constants:29"
+    },
+    {
+      "name": "e3_dfs",
+      "addr": "FFFF4328",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_3 (constants:2052) + dfs_pow, constants:31"
+    },
+    {
+      "name": "e4_id",
+      "addr": "FFFF43E8",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_4 (constants:2053) + enemy_id, constants:58"
+    },
+    {
+      "name": "e4_level",
+      "addr": "FFFF4388",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_4 (constants:2053) + level, constants:10"
+    },
+    {
+      "name": "e4_hp",
+      "addr": "FFFF438E",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_4 (constants:2053) + curr_hp, constants:12"
+    },
+    {
+      "name": "e4_maxhp",
+      "addr": "FFFF4390",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_4 (constants:2053) + max_hp, constants:13"
+    },
+    {
+      "name": "e4_status",
+      "addr": "FFFF4396",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_4 (constants:2053) + status, constants:16"
+    },
+    {
+      "name": "e4_str",
+      "addr": "FFFF4398",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_4 (constants:2053) + strength, constants:18"
+    },
+    {
+      "name": "e4_agi",
+      "addr": "FFFF439E",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_4 (constants:2053) + agility, constants:23"
+    },
+    {
+      "name": "e4_agi_bat",
+      "addr": "FFFF43A0",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_4 (constants:2053) + agility_battle, constants:25"
+    },
+    {
+      "name": "e4_dex",
+      "addr": "FFFF43A1",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_4 (constants:2053) + dexterity, constants:26"
+    },
+    {
+      "name": "e4_atk",
+      "addr": "FFFF43A4",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_4 (constants:2053) + atk_pow, constants:29"
+    },
+    {
+      "name": "e4_dfs",
+      "addr": "FFFF43A8",
+      "size": 2,
+      "group": "enemy",
+      "source": "Enemy_Stats_4 (constants:2053) + dfs_pow, constants:31"
+    },
+    {
+      "name": "chaz_level",
+      "addr": "FFFFF508",
+      "size": 2,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + level, constants:10"
+    },
+    {
+      "name": "chaz_exp",
+      "addr": "FFFFF50A",
+      "size": 4,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + exp, constants:11"
+    },
+    {
+      "name": "chaz_hp",
+      "addr": "FFFFF50E",
+      "size": 2,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + curr_hp, constants:12"
+    },
+    {
+      "name": "chaz_maxhp",
+      "addr": "FFFFF510",
+      "size": 2,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + max_hp, constants:13"
+    },
+    {
+      "name": "chaz_tp",
+      "addr": "FFFFF512",
+      "size": 2,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + curr_tp, constants:14"
+    },
+    {
+      "name": "chaz_maxtp",
+      "addr": "FFFFF514",
+      "size": 2,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + max_tp, constants:15"
+    },
+    {
+      "name": "chaz_status",
+      "addr": "FFFFF516",
+      "size": 1,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + status, constants:16"
+    },
+    {
+      "name": "chaz_str",
+      "addr": "FFFFF518",
+      "size": 1,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + strength, constants:18"
+    },
+    {
+      "name": "chaz_agi",
+      "addr": "FFFFF51E",
+      "size": 1,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + agility, constants:23"
+    },
+    {
+      "name": "chaz_agi_bat",
+      "addr": "FFFFF520",
+      "size": 1,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + agility_battle, constants:25"
+    },
+    {
+      "name": "chaz_dex",
+      "addr": "FFFFF521",
+      "size": 1,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + dexterity, constants:26"
+    },
+    {
+      "name": "chaz_atk",
+      "addr": "FFFFF524",
+      "size": 2,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + atk_pow, constants:29"
+    },
+    {
+      "name": "chaz_dfs",
+      "addr": "FFFFF528",
+      "size": 2,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + dfs_pow, constants:31"
+    },
+    {
+      "name": "alys_level",
+      "addr": "FFFFF588",
+      "size": 2,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + level, constants:10"
+    },
+    {
+      "name": "alys_exp",
+      "addr": "FFFFF58A",
+      "size": 4,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + exp, constants:11"
+    },
+    {
+      "name": "alys_hp",
+      "addr": "FFFFF58E",
+      "size": 2,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + curr_hp, constants:12"
+    },
+    {
+      "name": "alys_maxhp",
+      "addr": "FFFFF590",
+      "size": 2,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + max_hp, constants:13"
+    },
+    {
+      "name": "alys_tp",
+      "addr": "FFFFF592",
+      "size": 2,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + curr_tp, constants:14"
+    },
+    {
+      "name": "alys_maxtp",
+      "addr": "FFFFF594",
+      "size": 2,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + max_tp, constants:15"
+    },
+    {
+      "name": "alys_status",
+      "addr": "FFFFF596",
+      "size": 1,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + status, constants:16"
+    },
+    {
+      "name": "alys_str",
+      "addr": "FFFFF598",
+      "size": 1,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + strength, constants:18"
+    },
+    {
+      "name": "alys_agi",
+      "addr": "FFFFF59E",
+      "size": 1,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + agility, constants:23"
+    },
+    {
+      "name": "alys_agi_bat",
+      "addr": "FFFFF5A0",
+      "size": 1,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + agility_battle, constants:25"
+    },
+    {
+      "name": "alys_dex",
+      "addr": "FFFFF5A1",
+      "size": 1,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + dexterity, constants:26"
+    },
+    {
+      "name": "alys_atk",
+      "addr": "FFFFF5A4",
+      "size": 2,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + atk_pow, constants:29"
+    },
+    {
+      "name": "alys_dfs",
+      "addr": "FFFFF5A8",
+      "size": 2,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + dfs_pow, constants:31"
+    },
+    {
+      "name": "current_money",
+      "addr": "FFFFF438",
+      "size": 4,
+      "group": "chars",
+      "source": "Current_Money, constants:2383"
+    },
+    {
+      "name": "battle_priority",
+      "addr": "FFFFEE45",
+      "size": 1,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Priority, constants:2302; 0 normal, 1 surprise attack, $FF ambush"
+    },
+    {
+      "name": "turn_00",
+      "addr": "FFFFEFB0",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Turn_Order+0 (constants:2351); index/agility pairs, 4 bytes per fighter"
+    },
+    {
+      "name": "turn_01",
+      "addr": "FFFFEFB2",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Turn_Order+2 (constants:2351); index/agility pairs, 4 bytes per fighter"
+    },
+    {
+      "name": "turn_02",
+      "addr": "FFFFEFB4",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Turn_Order+4 (constants:2351); index/agility pairs, 4 bytes per fighter"
+    },
+    {
+      "name": "turn_03",
+      "addr": "FFFFEFB6",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Turn_Order+6 (constants:2351); index/agility pairs, 4 bytes per fighter"
+    },
+    {
+      "name": "turn_04",
+      "addr": "FFFFEFB8",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Turn_Order+8 (constants:2351); index/agility pairs, 4 bytes per fighter"
+    },
+    {
+      "name": "turn_05",
+      "addr": "FFFFEFBA",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Turn_Order+10 (constants:2351); index/agility pairs, 4 bytes per fighter"
+    },
+    {
+      "name": "turn_06",
+      "addr": "FFFFEFBC",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Turn_Order+12 (constants:2351); index/agility pairs, 4 bytes per fighter"
+    },
+    {
+      "name": "turn_07",
+      "addr": "FFFFEFBE",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Turn_Order+14 (constants:2351); index/agility pairs, 4 bytes per fighter"
+    },
+    {
+      "name": "turn_08",
+      "addr": "FFFFEFC0",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Turn_Order+16 (constants:2351); index/agility pairs, 4 bytes per fighter"
+    },
+    {
+      "name": "turn_09",
+      "addr": "FFFFEFC2",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Turn_Order+18 (constants:2351); index/agility pairs, 4 bytes per fighter"
+    },
+    {
+      "name": "turn_10",
+      "addr": "FFFFEFC4",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Turn_Order+20 (constants:2351); index/agility pairs, 4 bytes per fighter"
+    },
+    {
+      "name": "turn_11",
+      "addr": "FFFFEFC6",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Turn_Order+22 (constants:2351); index/agility pairs, 4 bytes per fighter"
+    },
+    {
+      "name": "battle_exp_total",
+      "addr": "FFFF41CE",
+      "size": 2,
+      "group": "battle",
+      "source": "battle EXP accumulator; ps4.asm:4772 reads it, divides by the living party count (divu.w d2,d1 at ps4.asm:4778) and adds the quotient to each living member exp"
+    },
+    {
+      "name": "e1_str_bat",
+      "addr": "FFFF421A",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_1 + strength_battle (constants:20)"
+    },
+    {
+      "name": "e1_men_bat",
+      "addr": "FFFF421D",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_1 + mental_battle (constants:22)"
+    },
+    {
+      "name": "e1_dex_bat",
+      "addr": "FFFF4223",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_1 + dexterity_battle (constants:27)"
+    },
+    {
+      "name": "e2_str_bat",
+      "addr": "FFFF429A",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_2 + strength_battle (constants:20)"
+    },
+    {
+      "name": "e2_men_bat",
+      "addr": "FFFF429D",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_2 + mental_battle (constants:22)"
+    },
+    {
+      "name": "e2_dex_bat",
+      "addr": "FFFF42A3",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_2 + dexterity_battle (constants:27)"
+    },
+    {
+      "name": "e3_str_bat",
+      "addr": "FFFF431A",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_3 + strength_battle (constants:20)"
+    },
+    {
+      "name": "e3_men_bat",
+      "addr": "FFFF431D",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_3 + mental_battle (constants:22)"
+    },
+    {
+      "name": "e3_dex_bat",
+      "addr": "FFFF4323",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_3 + dexterity_battle (constants:27)"
+    },
+    {
+      "name": "e4_str_bat",
+      "addr": "FFFF439A",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_4 + strength_battle (constants:20)"
+    },
+    {
+      "name": "e4_men_bat",
+      "addr": "FFFF439D",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_4 + mental_battle (constants:22)"
+    },
+    {
+      "name": "e4_dex_bat",
+      "addr": "FFFF43A3",
+      "size": 1,
+      "group": "enemy",
+      "source": "Enemy_Stats_4 + dexterity_battle (constants:27)"
+    },
+    {
+      "name": "hahn_level",
+      "addr": "FFFFF608",
+      "size": 2,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + level, constants:10"
+    },
+    {
+      "name": "hahn_exp",
+      "addr": "FFFFF60A",
+      "size": 4,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + exp, constants:11"
+    },
+    {
+      "name": "hahn_hp",
+      "addr": "FFFFF60E",
+      "size": 2,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + curr_hp, constants:12"
+    },
+    {
+      "name": "hahn_maxhp",
+      "addr": "FFFFF610",
+      "size": 2,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + max_hp, constants:13"
+    },
+    {
+      "name": "hahn_tp",
+      "addr": "FFFFF612",
+      "size": 2,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + curr_tp, constants:14"
+    },
+    {
+      "name": "hahn_maxtp",
+      "addr": "FFFFF614",
+      "size": 2,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + max_tp, constants:15"
+    },
+    {
+      "name": "hahn_status",
+      "addr": "FFFFF616",
+      "size": 1,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + status, constants:16"
+    },
+    {
+      "name": "hahn_str",
+      "addr": "FFFFF618",
+      "size": 1,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + strength, constants:18"
+    },
+    {
+      "name": "hahn_agi",
+      "addr": "FFFFF61E",
+      "size": 1,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + agility, constants:23"
+    },
+    {
+      "name": "hahn_agi_bat",
+      "addr": "FFFFF620",
+      "size": 1,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + agility_battle, constants:25"
+    },
+    {
+      "name": "hahn_dex",
+      "addr": "FFFFF621",
+      "size": 1,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + dexterity, constants:26"
+    },
+    {
+      "name": "hahn_atk",
+      "addr": "FFFFF624",
+      "size": 2,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + atk_pow, constants:29"
+    },
+    {
+      "name": "hahn_dfs",
+      "addr": "FFFFF628",
+      "size": 2,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + dfs_pow, constants:31"
+    },
+    {
+      "name": "battle_actor",
+      "addr": "FFFF4142",
+      "size": 2,
+      "group": "battle",
+      "source": "acting fighter index; Battle_DoAttackEffect reads it at ps4.asm:5D48 (move.w ($FFFF4142).l,d0 then Battle_GetFighterAddr). Overlaps Battle_Skill_List (constants:2015) in the constants file"
+    }
   ]
 }

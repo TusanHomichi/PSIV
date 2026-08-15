@@ -47,6 +47,9 @@ oracle/
 ├── host/psiv_oracle.c      the headless libretro host
 ├── host/libretro.h         minimal libretro ABI subset
 ├── build_core.sh           fetches + builds the pinned emulation core
+├── route.py                plans a walking route over the pack's collision data
+├── navigate.py             closed-loop tape authoring (route + observe + re-plan)
+├── analyze_rng.py          per-frame RNG call census from a log
 ├── core/…_libretro.so      built core (not committed)
 ├── gpgx-src/               core source checkout (not committed)
 ├── ram_map.json            RAM map, source of truth, with disassembly cites
@@ -187,6 +190,11 @@ both paths against values the cartridge itself chose (see Results).
 | `01_newgame_to_first_control.tape` | the boot path is reachable deterministically from power-on; new-game starting state |
 | `02_walk_timing.tape` | frames per cell, the four facing values, blocked-press behaviour |
 | `03_npc_talk.tape` | talk range, dialogue open/close timing, text draw rate |
+| `04_alys_joins.tape` | the first story gate: Alys joins and takes slot 1 |
+| `05_principal_assignment.tape` | the principal's assignment scene (event `$8001`) |
+| `06_basement_quest.tape` | the basement-stair NPCs, event `$0004`, Hahn joins |
+| `07_first_battle.tape` | the first random encounter and the fight through to victory |
+| `08_rng_characterization.tape` | RNG call counts per frame across title, field, walking and menu |
 
 Tape A's presses are placed from the disassembly, not by trial: `GameMode_Title`
 begins at f226; `TitleRoutine_FadingText` takes a START to skip; then
@@ -205,9 +213,10 @@ Frame numbers below cite marks in the named log; regenerate with `verify.sh`.
 
 ### Determinism
 
-Tape A run twice from power-on produces **byte-identical** logs,
-`sha256 89e0f2871c9f4400a34364b2a2ec99c5b55cb8051343fbab4ba9115c86ddde5e`.
-Pinned in `verify.sh`.
+Tape A run twice from power-on produces **byte-identical** logs. `verify.sh`
+prints the hash on every run and fails if the two differ; the hash itself is
+deliberately not pinned in this document, because it changes whenever the RAM
+map gains a column and a stale value here would look like a regression.
 
 Core: **Genesis Plus GX v1.7.4**, libretro build, commit
 `2d7131c5efa606f649d36e1685a8ca47c24f31b3`, region NTSC.
@@ -320,6 +329,244 @@ This contradicts the current implementation: `RUNTIME_DESIGN.md` records
 dialogue text as instant, with `$F9` treated as the only pause. Retail is a
 3-frame-per-character typewriter. The cartridge outranks the doc.
 
+### RNG
+
+**There is one seed, not two.** `RNG_Seed` ($FFFFEF0C, `constants:2328`) is the
+only random state in the game: the whole disassembly contains exactly two
+writes to it, one in each of the two update routines. What look like two
+generators are two *algorithms* over the same 32-bit word.
+
+- **`UpdateRNGSeed`** (`ps4.asm:86066-86092`) rewrites the whole longword.
+  Substitute `$2A6D365B` when the low word is zero, multiply the longword by
+  41, then store `(low16 + high16)` of the product in the high word and the
+  product's low word in the low word. Transcribed in `analyze_rng.py`.
+- **`UpdateRNGSeed2`** (`ps4.asm:86098-86102`) is not a generator at all in the
+  usual sense: it `ror`s the *high word* by one bit and returns a value mixed
+  from `Main_Frame_Count` and the pre-rotation seed.
+
+Because the first algorithm is exact, a log can be turned into a census: predict
+`UpdateRNGSeed` forward and count how many applications reach the next frame's
+value. That count is how many times the game called the generator that frame.
+Over `logs/06_rng.csv`, **every one of the 8037 frame transitions is explained
+exactly** — which is itself the proof that the transcription above is what the
+cartridge runs.
+
+| phase | RNG calls per frame |
+|---|---|
+| title / attract | 1 (0 during fades, when the vblank handler does not run) |
+| intro cutscene | 1 |
+| **field control, idle** | **2** (291/300 frames), 3 on 9 frames |
+| **field control, walking** | **2** (92/96 frames), 3 on 4 frames |
+| **camp menu idle** | **1** on all 300 frames, no exceptions |
+
+Reading the table:
+
+- The baseline is **one call per frame from the vblank handler**, everywhere.
+- **Field mode adds exactly one more call per frame**, with an occasional third.
+- **Walking does not advance the seed beyond that baseline.** Idle and walking
+  are statistically identical, so the answer to "does walking advance it" is:
+  only in the sense that being in field mode at all does. Steps are not the
+  clock; frames are.
+- **Opening the camp menu drops back to one call per frame**, which says the
+  second field-mode call belongs to per-frame field-object updating (NPC
+  wander), suspended while a menu is up.
+
+The practical consequence for `psiv-core`: the seed is a **free-running
+per-frame counter**, not a stream advanced by consumers. Anything that wants
+bit-exact RNG parity has to advance it on the same frame schedule, not on
+gameplay events. A core that only ticks the RNG when it rolls something will
+desync immediately.
+
+### Battle ground truth
+
+Tape 07 walks the whole opening act from power-on and fights the first random
+encounter in the Academy Basement. Battle at **f24794-30428**, `Battle_Priority`
+= 0 (normal, no ambush or preemptive strike).
+
+**Formation: two ZoranBult (enemy id 10).** Every stat in RAM matches
+`generated/enemies.json` exactly:
+
+| stat | RAM | enemies.json |
+|---|---|---|
+| HP | 25 | 25 |
+| attack | 16 | 16 |
+| defence | 2 | 2 |
+| agility | 6 | 6 |
+| strength | 18 | 18 |
+| mental | 4 | 4 |
+| dexterity | 8 | 8 |
+
+One wrinkle worth knowing: **enemies leave the base stat bytes at zero and
+carry their live values in the `_battle` variants** (`strength_battle` `$1A`,
+`mental_battle` `$1D`, `dexterity_battle` `$23`, `agility_battle` `$20`).
+Reading `strength` `$18` off an enemy gets 0, and `level` `$08` is not a level
+at all. Party members populate both.
+
+Party: Alys lvl 7 (HP 53, str 12, dex 13, atk 13, agi 15), Chaz lvl 1 (HP 25,
+str 8, dex 5, atk 18, agi 7), Hahn lvl 1 (HP 21, str 6, dex 5, atk 8, agi 4).
+
+#### Turn order versus agility
+
+`Battle_Turn_Order` ($FFFFEFB0) is rebuilt each round, four bytes per entry —
+a fighter index word then the ordering agility in the next word's low byte,
+sorted highest first. Fighter index is slot + 1, so 1-3 are the party and 6-7
+the enemies.
+
+| round | frame | ordering values | stored `agility_battle` |
+|---|---|---|---|
+| 1 | f29483 | Alys 20, Chaz 11, Enemy2 11, Enemy1 9, Hahn 6 | 15, 7, 6, 6, 4 |
+| 2 | f30091 | Alys 19, Chaz 12, Enemy2 8, Hahn 7 | 15, 7, 6, 4 |
+
+**The ordering value is `agility_battle` plus a per-round random addend**, not
+the raw stat: the addends were +5, +4, +5, +3, +2 in round one and +4, +5, +2,
++3 in round two, all in the range +2..+5 across nine samples. The stored
+`agility_battle` never changed. Fitting the exact distribution is the design
+session's job; the numbers above are the observations.
+
+#### Damage events
+
+Every HP change, with the attacker taken from the acting-fighter index
+($FFFF4142, read by `Battle_DoAttackEffect`) and the RNG seed at that frame:
+
+| frame | attacker | defender | damage | RNG seed |
+|---|---|---|---|---|
+| 29640 | Alys | Enemy1 | 12 | `037A83E3` |
+| 29640 | Alys | Enemy2 | 10 | `037A83E3` |
+| 29752 | Chaz | Enemy1 | 15 (kill) | `392D5BAB` |
+| 29872 | Enemy2 | Hahn | 6 | `30B40CEB` |
+| 29967 | Hahn | Enemy2 | 5 | `E4D042BB` |
+| 30248 | Alys | Enemy2 | 11 (kill) | `F373A2CB` |
+
+Notes for formula fitting: **Alys's normal attack hit both enemies in the same
+frame** (f29640, `Fighters_Hit_Flags` slots 5 and 6 both `$00`), so her weapon
+is multi-target and a single-target damage model will not fit her rows.
+`Fighters_Hit_Flags` is nine bytes from `$FFFF4150`, indexed by fighter slot
+(0-4 party, 5-8 enemies): `$00` normal hit, `$01` critical, `$FF` not targeted
+or missed. `Battle_Heal_Damage_List` ($FFFF415A) is one word per fighter slot
+with the same indexing. Enemy HP goes **signed negative** on death (-2 and -1
+above), so a comparator reading it unsigned sees 65534/65535.
+
+#### Rewards, and the EXP divisor
+
+`ps4.asm:4772-4779` reads the battle EXP accumulator, halves it if the party is
+in a vehicle, then does `divu.w d2, d1` where `d2` is the count of **living**
+party members, and adds the quotient to each living member.
+
+Observed exactly: `battle_exp_total` ($FFFF41CE) steps `0 -> 12` when the first
+ZoranBult dies and `12 -> 24` when the second does, matching `experience_reward`
+= 12 per enemy. The party is three by this point (Hahn joins in the basement
+quest), so each of Chaz, Alys and Hahn gained **+8 = 24 / 3**. Meseta went
+600 -> 606, **+6 = 2 x `meseta_reward` 3**.
+
+So both reward fields in `generated/enemies.json` are confirmed against the
+cartridge, and the EXP split is per living member, not per party slot.
+
+#### What the battle menu required
+
+`RunBattleRoutines2` dispatches on `Battle_Routine_2` and reads
+`Joypad_Pressed`. `Battle_MainOptions` accepts `ButtonSpeak|ButtonCamp` — **C
+or A** — and `Battle_Main_Option_Index` defaults to 0 (COMD). The per-character
+command and target cursors default to attack and the first living enemy, so
+**mashing C is enough to drive a whole fight**: tape 07 does nothing but pulse
+C every 16 frames. `Battle_Total_Comd_Input` counts commands entered and
+`Battle_ProcessCOMD` moves to `OrderTurns` once it reaches 5, skipping slots
+whose character is dead, paralysed or asleep.
+
+`Battle_Routine` values decoded from `BattleRoutines` (`ps4.asm:7524`) are in
+`analyze_battle.py`; the observed fight ran init -> ProcessCOMD (three times,
+once per living member) -> OrderTurns -> the action routines -> victory.
+
+### Collision grid indexing, independently confirmed
+
+`GetChunkAndCollision` adds `$10` to Y before shifting down to a cell, so the
+cell a character *occupies* is one row below `curr_y_pos / 16`. The packer
+already applies that shift when it emits `y_cell`, and
+`rust/psiv-data/src/map.rs` documents it.
+
+This harness measured the same offset from the other direction, against the
+game's own `Tile_Collision_Standing` / `_Up` / `_Down` / `_Left` / `_Right`
+readouts over 6510 cell-aligned samples: **dx=0, dy=+1 matches 99.86%**, versus
+93.2% for the next-best offset and 79.8% for the naive `y_px // 16`. The
+convention in the pack is right, and it is now confirmed behaviourally rather
+than only by reading the disassembly.
+
+### Field objects block, and block taller than the grid
+
+Two independent confirmations beyond the first report:
+
+- An NPC standing at pixel row R blocks a character trying to enter pixel
+  row R+1, so **objects occupy a two-row footprint**, not one cell.
+  `navigate.py` encodes this as `OBJ_FOOTPRINT`.
+- Object blocking is invisible to the terrain grid. Walking west along the
+  map-$13 corridor stops dead with `coll_left` reading `00`.
+
+This matters more than it first looks: on map $13 a single NPC (Alys) closes
+the only two-row corridor completely, so the terrain grid alone says the map is
+traversable when the cartridge says it is not.
+
+### Story gates found by walking into them
+
+Two gates showed up while trying to reach an encounter map on foot, both of
+which a route planner working from map data alone would not predict:
+
+- **`NPCAlysPiata`** (map $13 object 7, dialogue 41) is parked in the only
+  corridor to the doorway. Talking to her fires event `$03` and
+  `Current_Party_Slots` becomes `0100FFFF` at f7478 — **Alys in slot 1, Chaz
+  in slot 2**, confirming `Event_AlysFound` and that Alys leads. Tape
+  `04_alys_joins.tape`.
+- **The Piata town gate is closed.** The gate is the four-cell gap at cols
+  30-33 in the wall spanning rows 46-47; guards were observed at cells (31,46)
+  and (33,46). The navigator tried all four columns in turn and the cartridge
+  refused every one, so this is a hard story gate
+  (`Event_PiataGuardsReprimand`), not two NPCs that can be walked around.
+  **The Motavia overworld is not reachable on foot at this point in the
+  story**, which is why the game's first random encounters are in the Academy
+  Basement (encounter group 14) rather than outside town.
+
+### Battle RAM map
+
+Added for the battle lane, all transcribed from the constants file with the
+same citation discipline as the rest of the map:
+
+| group | what it covers |
+|---|---|
+| `battle` | `Battle_Routine` ($FFFF4100), `Battle_Routine_2`, `Battle_Total_Comd_Input`, the cursor indices, `Battle_Priority` ($FFFFEE45: 0 normal / 1 surprise / $FF ambush), `Enemy_Count`, ambush and run chances, item drop rate, and `Battle_Turn_Order` ($FFFFEFB0) |
+| `bhit` | `Fighters_Hit_Flags` ($FFFF4150; $00 normal, $01 critical, $FF miss or untargeted) and `Battle_Heal_Damage_List` ($FFFF415A), the per-fighter damage numbers |
+| `enemy` | all four `Enemy_Stats` slots ($FFFF4200, $80 stride): id, level, HP/max HP, status, strength, agility and battle agility, dexterity, attack and defence |
+| `chars` | Chaz and Alys from `Character_Stats` ($FFFFF500, $80 stride): level, EXP, HP/TP, status, the same stat block, plus `Current_Money` |
+
+`Battle_Routine` values are decoded from `BattleRoutines` (`ps4.asm:7524`):
+`$08` ProcessCOMD, `$0A` ProcessMACRO, `$0C` ProcessRUN, `$0E` **OrderTurns**,
+`$16` **DoAttackEffect**. `Battle_OrderTurns` builds `Battle_Turn_Order` from
+each living fighter's `agility_battle`, four bytes per entry (index word then
+agility one byte in), sorted highest first — so turn order versus agility is
+readable straight out of the log.
+
+EXP is not accumulated in a battle-local total; `ps4.asm:4775` adds it directly
+into each character's `exp` field, so the award is observed as a delta on
+`chaz_exp` / `alys_exp`. Meseta accumulates in `$FFFF41D0` and is added to
+`Current_Money` at `ps4.asm:4801`.
+
+`analyze_battle.py` reads a battle log and reports the formation and stats, the
+routine timeline, the turn order, every HP change with the hit flags, damage
+list and RNG seed at that frame, and the EXP/meseta deltas.
+
+### Tape authoring tools
+
+`route.py` plans a walk over the runtime pack's own collision grids and warp
+graph, so a generated route that walks correctly on the cartridge is also a
+check that the extraction agrees with the cartridge. It models the anti-ping-
+pong rule (`GameMode_LoadFieldMap` initialising `Tile_Collision_Standing` to 1,
+so a doorway never fires on the frame you are placed on its destination) — the
+planner walks straight back through the door it came from without it.
+
+`navigate.py` closes the loop, because terrain is not the whole story: it plans
+a short leg, runs it, reads where the character actually ended up, marks
+observed object footprints and cells the cartridge refused to enter, and
+re-plans. **The feedback is at authoring time only** — the artifact it writes is
+an ordinary static tape with no runtime feedback in it, so it still replays
+byte-identically like every other tape here.
+
 ## Still open
 
 - **Beside-talk empirical confirmation.** Answered from code above with a
@@ -338,8 +585,13 @@ dialogue text as instant, with `$F9` treated as the only pause. Retail is a
 - **Scroll-arrow art.** `Text_Scroll_Arrow` (`$FFFFC2C0`) is in the map and its
   `offscreen_flag` is logged, but the arrow's on/off timing was not
   characterised.
-- **Battle and RNG.** Untouched. `RNG_Seed` (`$FFFFEF0C`) is already in the
-  map and updates every frame, so an RNG-stream comparison is ready to build.
+- **Battle ground truth.** The RAM map, the log analyser (`analyze_battle.py`)
+  and the encounter-hunting tape generator (`find_battle.py`) are in place, but
+  no battle log has been captured yet. Random encounters need an encounter map,
+  and the route to one runs through the opening act: the Piata town gate is
+  shut (see Story gates), so the nearest encounter map is the Academy Basement,
+  reached via Alys joining, the principal's assignment, and the NPCs currently
+  blocking the basement stairs. Tapes 04 and 05 cover the first two.
 
 ## Feeding a comparator
 

@@ -25,7 +25,7 @@
 
 #include "libretro.h"
 
-#define MAX_FIELDS 128
+#define MAX_FIELDS 512
 #define MAX_TAPE_STEPS 262144
 #define MAX_MARK_LEN 48
 

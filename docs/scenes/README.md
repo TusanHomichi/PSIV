@@ -40,9 +40,11 @@ absent file, and an `rts`. Degrees of damage vary:
 
 - **Nothing survives**: `PiataChazAlone`, `SuspicionOnPrincipal`,
   `BasementContainers`.
-- **Prologue and epilogue survive, the middle is gone**: `gamestart`,
-  `AlysFound` (and `AlysFound` also carries two behavioural edits in the
-  surviving parts — see [03](03_AlysFound.md)).
+- **Prologue and epilogue survive, the middle is gone — and the survivors are
+  themselves edited**: `gamestart` (three Grand Cross edits to the start
+  position and facing in its epilogue — see [01](01_GameStart.md)) and
+  `AlysFound` (two behavioural edits — see [03](03_AlysFound.md)). Both cases
+  are the dangerous shape: code that *looks* like retail and is not.
 - **Body survives as a `;`-commented block**: `AfterIgglanova` — dead code, but
   it matched the cartridge line for line and served as an independent check.
 
@@ -170,10 +172,18 @@ no map update runs), `IntroTextFadeUp{}` / `IntroTextFadeDown{}` (the
 
 ## Documents
 
+Cross-checked against the new-game extraction lane where they overlap:
+`psiv_tools/newgame.py` and `runtime-pack/game_start.json` own the title
+handoff and `Event_GameStart`'s epilogue, and this set cites them rather than
+re-deriving. We agree on the routine start, on `rom_end = $073ECE`, on the
+mid-scene party `[Alys, Chaz]` at `$073A24`, and on the three fork edits in the
+epilogue. One framing correction is recorded in [01](01_GameStart.md): map `$11`
+is the map *resident when the scene starts*, not a map the scene plays on.
+
 | # | Scene | Event id | Retail | Fork status |
 |---|---|---|---|---|
 | [00](00_triggers.md) | Trigger table | — | `$560E8` | clean, spot-verified |
-| [01](01_GameStart.md) | `Event_GameStart` | `$9F` | `$73946`–`$73ECE` | **body deleted** |
+| [01](01_GameStart.md) | `Event_GameStart` | `$9F` | `$73946`–`$73ECE` | **body deleted, epilogue edited** |
 | [02](02_PiataChazAlone.md) | `Event_PiataChazAlone` | `$A0` | `$73ECE`–`$73EE0` | **body deleted** |
 | [03](03_AlysFound.md) | `Event_AlysFound` | `$03` | `$6B2D8`–`$6B3BA` | **partly deleted + 2 edits** |
 | [04](04_PiataPrincipal.md) | `Cutscene_PiataPrincipal` | `$8001` | `$73EE0`–`$73F22` | clean |
@@ -189,7 +199,12 @@ no map update runs), `IntroTextFadeUp{}` / `IntroTextFadeDown{}` (the
 
 ```
 power-on
+  ── title screen
+       loc_4335C   $04335C  Field_Map_Index = $11 (pre-scene default only)
+       loc_44414   $044414  new-game init  (see psiv_tools/newgame.py)
+       Title_StartOption $043788  Game_Mode_Routine = $C, Event_Index = $9F
   └─ Event_GameStart ($9F)              sets EventFlag_PiataFirstTime ($07)
+       plays on maps $5E ChazHouse -> $54 Aiedo -> $00 Motavia -> title image
        lands on map $13 PiataAcademy_F1
   └─ RunEvent_PiataChazAlone ($7C)      flag $15 clear
        └─ Event_PiataChazAlone ($A0)    sets EventFlag_PiataChazControl ($15)
