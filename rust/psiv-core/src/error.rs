@@ -9,6 +9,7 @@ use core::fmt;
 
 use crate::geom::{Cell, CellRect};
 use crate::map::{MapId, NpcId, SubCellOffset};
+use crate::state::FlagBank;
 
 /// Why a [`CollisionGrid`](crate::CollisionGrid), [`FieldMap`](crate::FieldMap)
 /// or [`FieldState`](crate::FieldState) could not be built.
@@ -109,6 +110,22 @@ pub enum MapError {
     },
     /// A step duration of zero frames was requested.
     ZeroStepFrames,
+    /// A flag id was past the end of its bank.
+    FlagOutOfRange {
+        /// Which bank.
+        bank: FlagBank,
+        /// The id asked for.
+        id: u16,
+        /// How many flags that bank holds.
+        capacity: u16,
+    },
+    /// A party slot index was past the end of the slot array.
+    PartySlotOutOfRange {
+        /// The slot asked for.
+        slot: usize,
+        /// How many slots exist.
+        slots: usize,
+    },
     /// More party members were requested than the cartridge has slots for.
     TooManyPartyMembers {
         /// Members requested, leader included.
@@ -195,6 +212,13 @@ impl fmt::Display for MapError {
                 cell.x, cell.y, map.0
             ),
             MapError::ZeroStepFrames => write!(f, "a step must last at least one frame"),
+            MapError::FlagOutOfRange { bank, id, capacity } => write!(
+                f,
+                "flag id {id} is outside the {bank:?} bank's {capacity} flags"
+            ),
+            MapError::PartySlotOutOfRange { slot, slots } => {
+                write!(f, "party slot {slot} does not exist; there are {slots}")
+            }
             MapError::TooManyPartyMembers { requested, max } => write!(
                 f,
                 "a party of {requested} exceeds the cartridge's {max} field slots"

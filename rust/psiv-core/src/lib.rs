@@ -80,6 +80,13 @@ mod field;
 mod geom;
 mod map;
 mod party;
+mod scene;
+mod scene_runner;
+mod scenes;
+mod state;
+mod trigger;
+mod trigger_custom;
+mod trigger_table;
 
 pub use collision::{CollisionGrid, CollisionType, MAX_COLLISION_VALUE};
 pub use error::MapError;
@@ -89,3 +96,15 @@ pub use field::{
 pub use geom::{CELL_PIXELS, Cell, CellRect, Direction};
 pub use map::{FieldMap, MapId, Npc, NpcId, SubCellOffset, Topology, Warp, WarpTrigger};
 pub use party::{MAX_PARTY_MEMBERS, MemberView, Party};
+pub use scene::{
+    ActorRef, Axis, DialogueId, DialogueSource, OP_BUDGET_PER_TICK, SceneEffect, SceneFault,
+    SceneInput, SceneOp, ScriptedActor,
+};
+pub use scene_runner::{Scene, SceneRunner, runner_for};
+pub use scenes::{SCENES, scene_for};
+pub use state::{CharId, Flag, FlagBank, GameState, PARTY_SLOTS, StateSnapshot};
+pub use trigger::{
+    AxisPredicate, Condition, CustomTrigger, EventIndex, PixelPos, PositionPredicate, Trigger,
+    TriggerContext, TriggerResult, Unsupported, evaluate_list,
+};
+pub use trigger_table::TRIGGERS;

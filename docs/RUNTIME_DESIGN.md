@@ -148,7 +148,10 @@ scene still leaks.
 
 Three kinds of data plus one machine, per docs/EVENT_ENGINE_SCOUT.md:
 
-- **GameState** in psiv-core: the event-flag bitset (~174), temp flags,
+- **GameState** in psiv-core: the event-flag banks (five banks off $F100:
+  event/extended/chest/temp/town, 256/256/176/80/128 addressable bits, MSB
+  first — "~174" was the count of *named* constants, not the space), temp
+  flags (never auto-cleared; scenes clear them in explicit pairs),
   `Current_Party_Slots`. Also the future save-file shape. The bridge applies
   flag-gated extractions (layout patches, MapDataManager effects, NPC
   despawns) on flag changes by rebuilding the FieldMap.
