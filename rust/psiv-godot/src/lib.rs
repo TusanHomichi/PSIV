@@ -229,6 +229,7 @@ impl INode2D for Field {
 
     fn physics_process(&mut self, _delta: f64) {
         self.anim_tick += 1;
+        self.debug_hooks_tick();
 
         if self.drive_battle_if_active() {
             return;
@@ -536,6 +537,40 @@ impl Field {
                 base: (draw.x, draw.y),
                 spawn,
             });
+        }
+    }
+
+    /// Debug-only automation for the fix loop (no effect without the env
+    /// vars): `PSIV_DEBUG_BATTLE=<formation hex>` starts that battle a few
+    /// frames after boot with no play needed; `PSIV_DEBUG_SHOT=<path.png>`
+    /// (with optional `PSIV_DEBUG_SHOT_FRAME=<n>`, default 180) saves a
+    /// viewport screenshot so an agent can see what a player would.
+    fn debug_hooks_tick(&mut self) {
+        if self.anim_tick == 30
+            && let Ok(formation) = std::env::var("PSIV_DEBUG_BATTLE")
+        {
+            let trimmed = formation.trim_start_matches("0x");
+            match u16::from_str_radix(trimmed, 16) {
+                Ok(id) => {
+                    godot_print!("debug: starting battle {id:#05x}");
+                    self.start_random_battle(id);
+                }
+                Err(_) => godot_error!("PSIV_DEBUG_BATTLE={formation} is not hex"),
+            }
+        }
+        if let Ok(path) = std::env::var("PSIV_DEBUG_SHOT") {
+            let at: u64 = std::env::var("PSIV_DEBUG_SHOT_FRAME")
+                .ok()
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(180);
+            if self.anim_tick == at
+                && let Some(viewport) = self.base().get_viewport()
+                && let Some(texture) = viewport.get_texture()
+                && let Some(image) = texture.get_image()
+            {
+                let err = image.save_png(&GString::from(path.as_str()));
+                godot_print!("debug: screenshot -> {path} ({err:?})");
+            }
         }
     }
 

@@ -351,19 +351,20 @@ impl INode2D for BattleScreen {
     fn ready(&mut self) {
         self.base_mut().set_z_index(100);
         self.base_mut().set_visible(false);
+        // The black stage backing must sit BELOW the art children: a
+        // CanvasItem's own draw() paints at its z, and the art nodes use
+        // negative relative z — a draw_rect here covered the entire stage
+        // (found via the self-screenshot loop). A ColorRect child at z -30
+        // backs everything instead.
+        let mut backing = godot::classes::ColorRect::new_alloc();
+        backing.set_position(Vector2::ZERO);
+        backing.set_size(Vector2::new(BATTLE_FRAME_WIDTH, BATTLE_FRAME_HEIGHT));
+        backing.set_color(Color::BLACK);
+        backing.set_z_index(-30);
+        self.base_mut().add_child(&backing);
     }
 
     fn draw(&mut self) {
-        // `docs/BATTLE_GEOMETRY.md` §1: Plane B is 512x192, only its left
-        // 320x192 is visible, and rows 24..27 have no background. Retail still
-        // presents a black 320x224 frame around that 192px stage.
-        self.base_mut().draw_rect(
-            Rect2::new(
-                Vector2::ZERO,
-                Vector2::new(BATTLE_FRAME_WIDTH, BATTLE_FRAME_HEIGHT),
-            ),
-            Color::BLACK,
-        );
         let Some(chrome) = self.chrome.as_ref() else {
             return;
         };
