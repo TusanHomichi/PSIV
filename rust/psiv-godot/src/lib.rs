@@ -10,8 +10,10 @@ use godot::classes::{
 };
 use godot::prelude::*;
 
+mod battle;
 mod dialogue;
 mod view;
+use battle::BattleScreen;
 use dialogue::DialogueWindow;
 use view::{NpcNode, SheetView, sequence_name};
 
@@ -58,6 +60,9 @@ struct Field {
     sheet_views: HashMap<String, SheetView>,
     camera: Option<Gd<Camera2D>>,
     dialogue: Option<Gd<DialogueWindow>>,
+    battle_screen: Option<Gd<BattleScreen>>,
+    battle_files: Option<psiv_data::BattleFiles>,
+    battle_field_visibility: Option<battle::FieldVisibility>,
     anim_tick: u64,
     /// Cinema-mode letterbox bars, shown while a scene runs.
     letterbox: Vec<Gd<godot::classes::ColorRect>>,
@@ -91,6 +96,9 @@ impl INode2D for Field {
             sheet_views: HashMap::new(),
             camera: None,
             dialogue: None,
+            battle_screen: None,
+            battle_files: None,
+            battle_field_visibility: None,
             anim_tick: 0,
             accept_blocked: false,
             letterbox: Vec::new(),
@@ -172,16 +180,7 @@ impl INode2D for Field {
                 return;
             }
         };
-        match psiv_data::BattleFiles::load(std::path::Path::new(&self.pack_dir)) {
-            Ok(files) => {
-                if let Err(e) = runtime.enable_battles(&files) {
-                    godot_error!("battle pack failed to enable: {e}");
-                }
-            }
-            Err(e) => {
-                godot_error!("battle pack failed to load from {}: {e}", self.pack_dir);
-            }
-        }
+        self.configure_battles(&mut runtime);
 
         let mut map_sprite = Sprite2D::new_alloc();
         map_sprite.set_centered(false);
@@ -228,6 +227,10 @@ impl INode2D for Field {
 
     fn physics_process(&mut self, _delta: f64) {
         self.anim_tick += 1;
+
+        if self.drive_battle_if_active() {
+            return;
+        }
 
         // A `$F6` the dialogue fired becomes a running scene.
         let pending = self
@@ -312,7 +315,9 @@ impl INode2D for Field {
             let state = self.runtime.as_ref().map(|rt| rt.state());
             state.is_some_and(|s| s.is_stepping()) || (stepped && input.direction().is_some())
         };
-        self.sync_visuals(walking);
+        if !self.battle_presentation_active() {
+            self.sync_visuals(walking);
+        }
     }
 }
 
@@ -540,12 +545,7 @@ impl Field {
             match event {
                 RuntimeEvent::StepCompleted { .. } => stepped = true,
                 RuntimeEvent::EncounterRolled { formation } => {
-                    // The battle screen is not built yet; the roll is real,
-                    // the fight is deferred. Logged so playtests can see the
-                    // encounter rate is live.
-                    godot_print!(
-                        "encounter rolled: formation {formation:#05x} (battle UI pending)"
-                    );
+                    self.start_random_battle(formation);
                 }
                 RuntimeEvent::MapChanged { map, trigger } => {
                     let kind = match trigger {
@@ -665,7 +665,7 @@ impl Field {
                 }
                 RuntimeEvent::SceneBattleSkipped { index } => {
                     godot_print!(
-                        "battle {index} requested - no battle engine yet, scene continues"
+                        "battle {index} requested by scene - scene battles remain skipped; random encounters only"
                     );
                 }
                 RuntimeEvent::PartyChanged => {

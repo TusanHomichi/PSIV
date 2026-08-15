@@ -843,6 +843,28 @@ fn the_counter_probe_also_skips_a_non_interactable_npc() {
 }
 
 #[test]
+fn a_collision_only_object_stays_solid_but_answers_nothing() {
+    let map = map_with(
+        &["...", "...", "..."],
+        vec![],
+        vec![npc(0x74, 1, 1).with_talkable(false)],
+    );
+    assert!(map.npc_at(Cell::new(1, 1)).is_some());
+
+    let mut state = party(&map, 0, 1);
+    assert!(
+        walk_one_step(&mut state, &map, Direction::Right).is_empty(),
+        "a collision-only object must still stop the party"
+    );
+    assert_eq!(
+        press_action(&mut state, &map),
+        vec![Effect::InteractNothing {
+            facing: Direction::Right
+        }]
+    );
+}
+
+#[test]
 fn a_talkable_npc_behind_a_silent_one_is_still_out_of_reach() {
     // Skipping a slot does not make the probe reach further: the monster is
     // adjacent, the shopkeeper two cells away with no counter between them.

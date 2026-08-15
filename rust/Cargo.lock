@@ -167,6 +167,8 @@ dependencies = [
  "psiv-core",
  "psiv-data",
  "psiv-runtime",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

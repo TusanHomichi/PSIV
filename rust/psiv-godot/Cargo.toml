@@ -13,3 +13,5 @@ psiv-core = { path = "../psiv-core" }
 psiv-data = { path = "../psiv-data" }
 psiv-runtime = { path = "../psiv-runtime" }
 godot = "0.4"
+serde.workspace = true
+serde_json.workspace = true

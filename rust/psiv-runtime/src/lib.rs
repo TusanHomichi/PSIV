@@ -11,6 +11,7 @@
 
 use std::collections::BTreeSet;
 
+mod battle_interim;
 mod bridge;
 mod effects;
 mod encounters;
@@ -591,7 +592,8 @@ impl Runtime {
     /// Resolves one battle round with the party's orders.
     ///
     /// After an `Ended` event appears in the timeline the shell calls
-    /// [`Runtime::finish_battle`] to return to the field.
+    /// [`Runtime::finish_battle_absorbing`] to return the records to the
+    /// field roster (and to run the victory award pass).
     ///
     /// # Errors
     /// [`BridgeError::Rejected`] when no battle is active or a data lookup
@@ -609,15 +611,6 @@ impl Runtime {
         battle
             .round(orders, &set.data, &mut rng2)
             .map_err(|e| BridgeError::Rejected(e.to_string()))
-    }
-
-    /// Ends the battle and re-arms the encounter grace period, as the
-    /// cartridge resets `$FFFFECE4` to 10 after every fight.
-    pub fn finish_battle(&mut self) {
-        self.battle = None;
-        if let Some(set) = self.battles.as_mut() {
-            set.clock.reset();
-        }
     }
 
     /// Restores one object's position, facing and wander state — the

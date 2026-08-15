@@ -189,6 +189,7 @@ mod tests {
             facing: Direction::Down,
             active: true,
             interactable: true,
+            talkable: true,
         }];
         let mut map = FieldMap::new(MapId(0x15), grid, Vec::new(), npcs).unwrap();
         let chests = vec![
