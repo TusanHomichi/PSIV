@@ -126,6 +126,14 @@ pub enum MapError {
         /// How many flags that bank holds.
         capacity: u16,
     },
+    /// The party's forty item slots are all taken, so the item cannot simply
+    /// be added.
+    ///
+    /// Not a failure: it is the branch `FieldRoutine_ItemFound` takes when its
+    /// count reaches forty, and the caller answers it by offering the swap.
+    /// Also returned for the two inputs that can never name a real item — slot
+    /// id `0`, which is the empty marker, and an out-of-range slot.
+    InventoryFull,
     /// A party slot index was past the end of the slot array.
     PartySlotOutOfRange {
         /// The slot asked for.
@@ -226,6 +234,13 @@ impl fmt::Display for MapError {
                 f,
                 "flag id {id} is outside the {bank:?} bank's {capacity} flags"
             ),
+            MapError::InventoryFull => {
+                write!(
+                    f,
+                    "all {} inventory slots are taken",
+                    crate::INVENTORY_SLOTS
+                )
+            }
             MapError::PartySlotOutOfRange { slot, slots } => {
                 write!(f, "party slot {slot} does not exist; there are {slots}")
             }

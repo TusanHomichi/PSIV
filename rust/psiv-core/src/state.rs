@@ -88,7 +88,9 @@
 //! constants, not the addressable space; the trigger table's highest observed
 //! event flag is `$E8` and the whole retail set fits the base bank.
 
+use crate::chest::{Chest, ChestContents, ChestOutcome};
 use crate::error::MapError;
+use crate::inventory::{INVENTORY_SLOTS, Inventory};
 
 /// Which bit array a flag lives in.
 ///
@@ -215,6 +217,12 @@ pub struct StateSnapshot {
     pub chest_flags: [u8; 32],
     /// `Town_Flags`.
     pub town_flags: [u8; 16],
+    /// `Inventory` (`$F410`), forty item slots, `0` for empty.
+    ///
+    /// **Save-format addition, 2026-08-15.** A snapshot written before this
+    /// existed has no item list; loading one should treat the party as
+    /// carrying nothing, which is also what a new game starts with.
+    pub inventory: [u8; INVENTORY_SLOTS],
     /// `Current_Party_Slots`, `$FF` for an empty slot.
     pub party: [u8; PARTY_SLOTS],
     /// `Current_Money`.
@@ -244,6 +252,8 @@ pub struct GameState {
     /// `$F140`: chest and temp flags, one array.
     chest: Vec<u8>,
     town: Vec<u8>,
+    /// `Inventory` (`$F410`), the party's forty item slots.
+    inventory: Inventory,
     party: [u8; PARTY_SLOTS],
     money: u32,
 }
@@ -263,8 +273,86 @@ impl GameState {
             chest: vec![0; FlagBank::Chest.bytes()],
             town: vec![0; FlagBank::Town.bytes()],
             party: [CharId::EMPTY; PARTY_SLOTS],
+            inventory: Inventory::new(),
             money: 0,
         }
+    }
+
+    /// The party's item list.
+    #[must_use]
+    pub const fn inventory(&self) -> &Inventory {
+        &self.inventory
+    }
+
+    /// The party's item list, mutably.
+    pub const fn inventory_mut(&mut self) -> &mut Inventory {
+        &mut self.inventory
+    }
+
+    /// Opens `chest`, granting its contents and setting its flag.
+    ///
+    /// `FieldRoutine_ItemFound` (`ps4.asm:137246`) in order: test the flag and
+    /// leave if it is set, grant, then set the flag. The grant comes *first*,
+    /// and that ordering is load-bearing — a full inventory diverts to the swap
+    /// path with the flag still clear, so the chest stays shut and can be
+    /// opened again after the player makes room.
+    pub fn open_chest(&mut self, chest: &Chest) -> ChestOutcome {
+        if self.is_set(chest.chest_flag()) {
+            return ChestOutcome::AlreadyOpen;
+        }
+        match chest.contents {
+            ChestContents::Meseta(amount) => {
+                self.add_money(amount);
+                let _ = self.set(chest.chest_flag());
+                ChestOutcome::Meseta { amount }
+            }
+            ChestContents::Item(item) => match self.inventory.add(item) {
+                Ok(slot) => {
+                    let _ = self.set(chest.chest_flag());
+                    ChestOutcome::Took { item, slot }
+                }
+                // No flag, no grant: the chest is still shut.
+                Err(_) => ChestOutcome::Full { item },
+            },
+        }
+    }
+
+    /// Completes a chest whose contents would not fit, by giving up whatever
+    /// is in `slot`.
+    ///
+    /// The player has chosen what to drop, so the grant now succeeds and the
+    /// flag is set — the same tail `open_chest` runs.
+    ///
+    /// # Errors
+    ///
+    /// [`MapError::InventoryFull`] if `slot` is out of range. An already-open
+    /// chest yields [`ChestOutcome::AlreadyOpen`] without touching anything.
+    pub fn complete_chest_swap(
+        &mut self,
+        chest: &Chest,
+        slot: usize,
+    ) -> Result<ChestOutcome, MapError> {
+        if self.is_set(chest.chest_flag()) {
+            return Ok(ChestOutcome::AlreadyOpen);
+        }
+        let ChestContents::Item(item) = chest.contents else {
+            // Meseta never needs a slot, so this is the ordinary path.
+            return Ok(self.open_chest(chest));
+        };
+        self.inventory.swap(slot, item)?;
+        let _ = self.set(chest.chest_flag());
+        Ok(ChestOutcome::Took { item, slot })
+    }
+
+    /// Whether `chest` has already been opened, which is what decides its
+    /// sprite frame at map build.
+    ///
+    /// `LoadTreasureChests` calls `ChestFlags_Test` as it loads each chest and
+    /// sets the open animation frame when it comes back set, so open-state is
+    /// derived rather than stored.
+    #[must_use]
+    pub fn chest_is_open(&self, chest: &Chest) -> bool {
+        self.is_set(chest.chest_flag())
     }
 
     /// `Current_Money` (`$F438`, longword).
@@ -452,6 +540,7 @@ impl GameState {
         let mut snapshot = StateSnapshot {
             event_flags: [0; 64],
             chest_flags: [0; 32],
+            inventory: *self.inventory.slots(),
             town_flags: [0; 16],
             party: self.party,
             money: self.money,
@@ -469,6 +558,7 @@ impl GameState {
         GameState {
             event: snapshot.event_flags.to_vec(),
             chest: snapshot.chest_flags.to_vec(),
+            inventory: Inventory::from_slots(snapshot.inventory),
             town: snapshot.town_flags.to_vec(),
             party: snapshot.party,
             money: snapshot.money,
@@ -552,6 +642,109 @@ mod tests {
         ));
     }
 
+    fn item_chest(flag: u8, item: u8) -> Chest {
+        Chest {
+            cell: crate::geom::Cell::new(4, 4),
+            flag,
+            contents: ChestContents::Item(item),
+            white: false,
+            index: 0,
+        }
+    }
+
+    #[test]
+    fn opening_a_chest_grants_the_item_and_sets_its_flag() {
+        let mut state = GameState::new();
+        let chest = item_chest(24, 0x7D);
+        assert!(!state.chest_is_open(&chest));
+
+        assert_eq!(
+            state.open_chest(&chest),
+            ChestOutcome::Took {
+                item: 0x7D,
+                slot: 0
+            }
+        );
+        assert_eq!(state.inventory().get(0), Some(0x7D));
+        assert!(state.chest_is_open(&chest), "the flag records it");
+    }
+
+    #[test]
+    fn a_chest_stays_open_and_cannot_be_looted_twice() {
+        // Re-entering the map rebuilds the chest from the same flag, so this is
+        // also what makes it draw open.
+        let mut state = GameState::new();
+        let chest = item_chest(24, 0x7D);
+        state.open_chest(&chest);
+
+        assert_eq!(state.open_chest(&chest), ChestOutcome::AlreadyOpen);
+        assert_eq!(state.inventory().occupied(), 1, "no second copy");
+        assert!(state.chest_is_open(&chest));
+    }
+
+    #[test]
+    fn a_meseta_chest_pays_in_hundreds() {
+        let mut state = GameState::new();
+        let chest = Chest {
+            contents: ChestContents::Meseta(400),
+            ..item_chest(25, 0)
+        };
+        assert_eq!(
+            state.open_chest(&chest),
+            ChestOutcome::Meseta { amount: 400 }
+        );
+        assert_eq!(state.money(), 400);
+        assert!(state.chest_is_open(&chest));
+        assert_eq!(state.inventory().occupied(), 0, "meseta takes no slot");
+    }
+
+    #[test]
+    fn a_full_inventory_leaves_the_chest_shut_until_the_swap() {
+        // The grant happens before the flag is set, so a chest that could not
+        // give up its contents is still closed and can be opened again later.
+        let mut state = GameState::new();
+        for id in 1..=40 {
+            state.inventory_mut().add(id).unwrap();
+        }
+        let chest = item_chest(24, 0x7D);
+
+        assert_eq!(state.open_chest(&chest), ChestOutcome::Full { item: 0x7D });
+        assert!(!state.chest_is_open(&chest), "still shut");
+        assert!(!state.inventory().contains(0x7D), "and nothing was granted");
+
+        // The player drops slot 7 and the open completes.
+        assert_eq!(
+            state.complete_chest_swap(&chest, 7).unwrap(),
+            ChestOutcome::Took {
+                item: 0x7D,
+                slot: 7
+            }
+        );
+        assert_eq!(state.inventory().get(7), Some(0x7D));
+        assert!(state.chest_is_open(&chest));
+    }
+
+    #[test]
+    fn a_chest_flag_and_its_alias_temp_flag_are_one_bit() {
+        // Opening the Alshline chest writes TempEveFlag_BioPlantAlarm, because
+        // both are id 8 in the $F140 bank. Retail behaviour, reproduced.
+        let mut state = GameState::new();
+        let alshline = item_chest(8, 0x7D);
+        state.open_chest(&alshline);
+
+        assert!(
+            state.is_set(Flag::temp(8)),
+            "the alarm's flag now reads set"
+        );
+
+        // And the other way: a scene tripping the alarm marks the chest open,
+        // so it can never be looted.
+        let mut state = GameState::new();
+        state.set(Flag::temp(8)).unwrap();
+        assert!(state.chest_is_open(&alshline));
+        assert_eq!(state.open_chest(&alshline), ChestOutcome::AlreadyOpen);
+    }
+
     #[test]
     fn the_snapshot_carries_four_banks() {
         // The save shape. `chest_flags` absorbed the old `temp_flags`, so a
@@ -560,6 +753,7 @@ mod tests {
         assert_eq!(snapshot.event_flags.len(), 64);
         assert_eq!(snapshot.chest_flags.len(), 32);
         assert_eq!(snapshot.town_flags.len(), 16);
+        assert_eq!(snapshot.inventory.len(), 40, "$F410 to $F438");
 
         // A temp flag lands in the chest array, at the byte its id implies.
         let mut state = GameState::new();
