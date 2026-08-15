@@ -67,6 +67,10 @@ The pack contains Sega-derived content and is never committed — same rule as
   is exactly the original's: types 8 (solid), 9 (water), $A (sand), $B (ice),
   $C (shop). Type 1 (map change) does not block — the warp fires on entry,
   per the decoded semantics.
+- NPC occupancy blocks movement independently of the terrain grid (the
+  collision array is terrain-only) — implemented in FieldMap from the start
+  and behaviorally confirmed by the oracle (walking into an NPC on walkable
+  terrain stops with coll reading 00).
 - Warps resolve through the extracted transition tables; target position and
   facing come from the cartridge data, not invention. There are two tables
   with distinct semantics (proven from `RunMapTransitions` +
