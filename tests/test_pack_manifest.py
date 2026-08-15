@@ -154,6 +154,52 @@ class TestManifest(PackFixtureCase):
         self.assertEqual(battle["files"]["levels"]["records"], 937)
         self.assertEqual(battle["ability_effects"]["count"], 44)
 
+    def test_the_battle_art_census_shows_the_body_hole_split(self):
+        # `battle.art` is a subtree of the battle fragment, not a replacement
+        # for it: the data keys are still there beside it (equipment_rules
+        # joined with the party/equipment files).
+        battle = self.manifest["battle"]
+        self.assertEqual(
+            sorted(battle),
+            ["ability_effects", "art", "census", "directory", "equipment_rules", "files"],
+        )
+        art = battle["art"]
+        self.assertEqual(art["directory"], "battle/art")
+        for entry in art["files"].values():
+            with self.subTest(file=entry["file"]):
+                blob = (self.root / entry["file"]).read_bytes()
+                self.assertEqual(entry["sha256"], hashlib.sha256(blob).hexdigest())
+                self.assertEqual(json.loads(blob)["format_version"], PACK_FORMAT_VERSION)
+        # The split a consumer needs without opening 196 files: the body layer
+        # alone completes 84 of the 153 enemies, and the animated sprite-piece
+        # overlay that would finish the other 69 is a separate slice.
+        census = art["census"]
+        self.assertEqual(census["enemies"], 153)
+        self.assertEqual(census["body_complete"], 84)
+        self.assertEqual(census["body_holes"], 69)
+        self.assertEqual(census["body_complete"] + census["body_holes"], census["enemies"])
+        self.assertEqual(census["total_body_holes"], 303)
+        self.assertEqual(census["characters"], 11)
+        self.assertEqual(census["poses"], 43)
+        self.assertEqual(census["enemy_cram_lines"], [1, 2])
+        # No enemy body pixel reaches the UI colours, which is what lets the
+        # bodies ship without a CRAM line baked in.
+        self.assertEqual(census["enemy_body_color_indices"], list(range(14)))
+        self.assertEqual(art["files"]["enemies"]["png_count"], 153)
+        self.assertEqual(art["files"]["characters"]["png_count"], 43)
+        # The 32 battle backgrounds over their 20 shared art blobs, and the
+        # binding that decides which one a battle uses. Every one is reachable
+        # from one of the three selection paths, so none is dead data.
+        self.assertEqual(census["backgrounds"], 32)
+        self.assertEqual(census["background_art_blobs"], 20)
+        self.assertEqual(census["backgrounds_selectable"], 32)
+        self.assertEqual(census["backgrounds_never_selectable"], [])
+        self.assertEqual(census["background_event_battles"], 27)
+        self.assertEqual(
+            census["background_maps_bound"] + census["background_maps_none"], 416
+        )
+        self.assertEqual(art["files"]["backgrounds"]["png_count"], 32)
+
     def test_the_event_census_counts_every_reference(self):
         census = self.manifest["census"]["event_ids"]
         total = sum(len(p["events"]) for p in self.maps.values())
@@ -169,21 +215,28 @@ class TestManifest(PackFixtureCase):
             first_files = sorted(p.relative_to(self.root) for p in self.root.rglob("*") if p.is_file())
             second_files = sorted(p.relative_to(second) for p in second.rglob("*") if p.is_file())
             self.assertEqual(first_files, second_files)
-            # manifest, game_start.json, npc_commands.json, the four battle
+            # manifest, game_start.json, npc_commands.json, the six battle
             # files, a JSON and a PNG per map, an overlay PNG per map that has priority tiles, the two
             # sprite indexes, the eleven party sheets, and one PNG per
             # deduplicated NPC sheet. The dialogue half (emitted by
             # build_pack since it became part of the pack proper) is counted
             # by its own subtree; it must exist and its shape is pinned by
-            # test_dialogue_pack.
+            # test_dialogue_pack. Battle art is counted from its own manifest
+            # subtree the same way: two indexes plus one PNG per enemy body and
+            # per character pose.
             dialogue_files = [f for f in first_files if f.parts[0] == "dialogue"]
             self.assertTrue(dialogue_files, "build_pack emits the dialogue half")
+            art = self.manifest["battle"]["art"]["files"]
+            battle_art_files = len(art) + sum(
+                entry["png_count"] for entry in art.values()
+            )
             self.assertEqual(
                 len(first_files) - len(dialogue_files),
-                3 + 4 + 2 * len(FIXTURE_MAPS)
+                3 + 6 + 2 * len(FIXTURE_MAPS)
                 + self.manifest["overlays"]["maps_with_overlay"]
                 + 2 + len(PARTY_SYMBOLS)
-                + self.manifest["sprites"]["npc_sheet_count"],
+                + self.manifest["sprites"]["npc_sheet_count"]
+                + battle_art_files,
             )
             for name in first_files:
                 with self.subTest(file=str(name)):

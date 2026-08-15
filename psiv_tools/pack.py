@@ -54,7 +54,9 @@ from .layouts import (
     chunk_palette,
     render_layout,
 )
+from .map_effects import extract_map_effects
 from .maps import extract_maps
+from .battle_art_pack import emit_battle_art
 from .battle_pack import emit_battle
 from .dialogue_pack import emit_dialogue
 from .newgame import extract_new_game
@@ -139,6 +141,8 @@ PACK_FORMAT_VERSION = 1
 MANIFEST_NAME = "manifest.json"
 MAPS_DIRECTORY = "maps"
 GAME_START_NAME = "game_start.json"
+#: A layout a MapDataManager routine swaps in, rendered like any other.
+VARIANT_SUFFIX = "_variant"
 NPC_COMMANDS_NAME = "npc_commands.json"
 
 #: `Map_Start_Facing_Dir` in the disassembly's constants.
@@ -152,6 +156,95 @@ TRANSITION_TABLES = (
 )
 
 MAP_CHANGE_COLLISION_TYPE = 0x1
+
+
+def layout_variants(rom: bytes, record: dict[str, Any], decoded, replacements,
+                    directory: Path, stem: str) -> list[dict[str, Any]]:
+    """Render the alternate layouts a `layout_replace` swaps in.
+
+    `MapDataMan_GaruberkTowerPart2` and `...Part6` do not patch cells: they
+    `KosDecomp` a whole different layout over a plane, which changes the
+    collision grid as much as the picture. Emitting the blob pointer would make
+    every consumer a Kosinski decoder, so the pack ships each alternate as a
+    first-class layout -- decoded grid, collision rows, composed PNG and
+    priority overlay -- and the runtime swaps whole variants at build time.
+
+    One plane of each pair turns out to be the map's own base blob, so only the
+    other actually changes; that is recorded rather than hidden.
+    """
+    from .layouts import Layout, MapLayout, decode_collision
+    from .kosinski import decompress as kos_decompress
+
+    if not replacements:
+        return []
+    spec = decoded.spec
+    base = {"fg": spec.layout_fg, "bg": spec.layout_bg}
+    sizes = {
+        "fg": (spec.width_chunks_fg, spec.height_chunks_fg),
+        "bg": (spec.width_chunks_bg, spec.height_chunks_bg),
+    }
+    planes = {"fg": decoded.fg, "bg": decoded.bg}
+    changed = []
+    for replacement in replacements:
+        plane = replacement["plane"]
+        source = int(replacement["source"], 16)
+        width, height = sizes[plane]
+        cells, _ = kos_decompress(rom, source)
+        expected = width * height
+        if len(cells) != expected:
+            raise PackError(
+                f"map 0x{record['id']:03X}: the {plane.upper()} replacement at "
+                f"0x{source:06X} decompresses to {len(cells)} bytes, not the "
+                f"{expected} a {width}x{height} grid needs"
+            )
+        planes[plane] = Layout(plane=plane, width_chunks=width, height_chunks=height,
+                               cells=cells, blob=planes[plane].blob)
+        changed.append({
+            "plane": plane,
+            "source": replacement["source"],
+            "identical_to_base": source == base[plane],
+        })
+
+    variant = MapLayout(
+        spec=spec, chunks=decoded.chunks, fg=planes["fg"], bg=planes["bg"],
+        collision=decode_collision(decoded.chunks,
+                                   planes["bg"] if spec.collision_plane else planes["fg"]),
+        patterns=decoded.patterns,
+    )
+    palette = chunk_palette(rom, spec.palette)
+    image = render_layout(variant.chunks, variant.bg, variant.patterns, palette,
+                          overlay=variant.fg)
+    overlay_image, priority_counts = priority_overlay(variant, palette)
+    png_name = f"{MAPS_DIRECTORY}/{stem}{VARIANT_SUFFIX}.png"
+    (directory / png_name).write_bytes(image)
+    over_name = None
+    if overlay_image is not None:
+        over_name = f"{MAPS_DIRECTORY}/{stem}{VARIANT_SUFFIX}_over.png"
+        (directory / over_name).write_bytes(overlay_image)
+
+    grid = variant.collision
+    return [{
+        "id": 0,
+        "planes": changed,
+        "png": png_name,
+        "png_over": over_name,
+        "png_sha256": hashlib.sha256(image).hexdigest(),
+        "png_over_sha256": (hashlib.sha256(overlay_image).hexdigest()
+                            if overlay_image is not None else None),
+        "priority_tiles": sum(priority_counts["tiles"].values()),
+        "unloaded_patterns": unloaded_patterns(variant),
+        "collision": {
+            "plane": spec.collision_plane_name,
+            "width_cells": grid.width,
+            "height_cells": grid.height,
+            "rows": [list(grid.types[y * grid.width:(y + 1) * grid.width])
+                     for y in range(grid.height)],
+            "sha256": hashlib.sha256(grid.types).hexdigest(),
+        },
+        "differs_from_base_cells": sum(
+            1 for a, b in zip(decoded.collision.types, grid.types) if a != b
+        ),
+    }]
 
 
 # ---------------------------------------------------------------------------
@@ -317,6 +410,8 @@ def map_json(
     sprites: Sequence[tuple[dict[str, Any] | None, str | None]] = (),
     overworld: Overworld | None = None,
     png_over_path: str | None = None,
+    effects: Sequence[dict[str, Any]] = (),
+    variants: Sequence[dict[str, Any]] = (),
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """The runtime record for one map, and its warp anomalies.
 
@@ -389,6 +484,13 @@ def map_json(
         # first one whose condition is met. So the order is evaluation order and
         # the list is a priority list, not a set.
         "events": record["events"]["ids"],
+        # The map's MapDataManager list, decoded. Applied when the map is
+        # built, from the flag state at that moment, and never re-evaluated
+        # while it is loaded -- see `psiv_tools.map_effects`.
+        "map_effects": list(effects),
+        # Alternate layouts a `layout_replace` swaps in, already decoded and
+        # rendered so no consumer needs a decompressor.
+        "layout_variants": list(variants),
         "warps": warps,
         "npcs": _npcs(record, sprites),
         "treasure_chests": _treasure_chests(record),
@@ -461,8 +563,15 @@ def build_pack(
     npc_sheets = SheetRegistry(NPC_SPRITES_DIRECTORY)
     sprite_census = SpriteCensus()
 
+    # Every map's MapDataManager list, decoded once and handed out per map.
+    effects = extract_map_effects(rom_bytes, extracted["maps"])
+    replacements_by_map: dict[int, list[dict[str, Any]]] = {}
+    for replacement in effects["replacements"]:
+        replacements_by_map.setdefault(replacement["map"], []).append(replacement)
+
     inventory: list[dict[str, Any]] = []
     overworlds: list[dict[str, Any]] = []
+    variant_maps: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
     warp_anomalies: list[dict[str, Any]] = []
     odd_layouts: list[dict[str, Any]] = []
@@ -508,9 +617,16 @@ def build_pack(
             f"{MAPS_DIRECTORY}/{stem}_over.png" if overlay_image is not None else None
         )
 
-        payload, anomalies = map_json(
-            record, decoded, png_name, sprites, overworld, png_over_name
+        variants = layout_variants(
+            rom_bytes, record, decoded, replacements_by_map.get(record["id"], []),
+            directory, stem,
         )
+        payload, anomalies = map_json(
+            record, decoded, png_name, sprites, overworld, png_over_name,
+            effects["per_map"].get(record["id"], []), variants,
+        )
+        if variants:
+            variant_maps.append({**_target(record), "variants": len(variants)})
         json_sha = _write_json(maps_directory / f"{stem}.json", payload)
         (maps_directory / f"{stem}.png").write_bytes(image)
         if overlay_image is not None:
@@ -628,6 +744,11 @@ def build_pack(
     # half of the game from field mode, and `psiv_tools.battle_pack` is the
     # only thing that knows its shape.
     battle = emit_battle(rom_bytes, directory, PACK_FORMAT_VERSION)
+    # The pictures that go with those records: 153 enemy bodies and 43
+    # character poses, under battle/art/. A subtree of the battle fragment
+    # rather than a sibling of it, because it is the same half of the game and
+    # `psiv_tools.battle_art_pack` owns its shape.
+    battle["art"] = emit_battle_art(rom_bytes, directory, PACK_FORMAT_VERSION)
 
     # The dialogue half: trees, font, portraits, window chrome. Emitted here
     # rather than by the CLI so that a programmatic build_pack() produces a
@@ -788,6 +909,23 @@ def build_pack(
         # Enemies, formations, levels and abilities, under battle/.
         "battle": battle,
         "dialogue": dialogue,
+        # The flag-gated patches a map's MapDataManager list applies when the
+        # map is built. Per-map lists live on the map records; this is the
+        # census over all of them.
+        "map_effects": {
+            **effects["census"],
+            "maps_with_layout_variants": variant_maps,
+            "slice": 1,
+            "kinds_emitted": [
+                "object_despawn", "object_rewrite", "object_dialogue",
+                "layout_write", "layout_replace",
+            ],
+            "kinds_deferred": (
+                "palette, scroll, chunk-table rewrites, alternate colours and "
+                "flag writes are later slices; a path that performs one carries "
+                "it in `deferred` rather than dropping it"
+            ),
+        },
         # The NPC movement-command table, indexed by a scene op's command byte.
         "npc_commands": {
             "file": NPC_COMMANDS_NAME,

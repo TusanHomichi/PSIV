@@ -3,7 +3,7 @@
 `generated/` already holds all of this, decoded and provenance-heavy. This
 module does not re-derive any of it -- it imports the same extractors the
 `extract` command uses and reshapes their output for the runtime, the way
-`psiv_tools.pack` does for field maps. Four files under `battle/`:
+`psiv_tools.pack` does for field maps. Six files under `battle/`:
 
     enemies.json     153 records: stats, the fourteen element properties, the
                      AI lists, rewards, and what a basic attack is
@@ -14,6 +14,14 @@ module does not re-derive any of it -- it imports the same extractors the
     abilities.json   the 8-byte records the damage pipeline consumes:
                      techniques, skills, enemy skills, and every item's
                      embedded battle effect
+    characters.json  the eleven `InitialCharStats` records and the RAM state
+                     `InitializeCharStats` builds from them -- what a party is
+                     seated from
+    equipment.json   every inventory record's battle half, and the cartridge
+                     rules that give the type, bonus and element bytes meaning
+
+The last two are built by `psiv_tools.battle_records`, which decodes the five
+routines those rules live in rather than transcribing them.
 
 Field names come from the extractors, which proved them against the cartridge,
 with one deliberate exception: the formation header is renamed to what the
@@ -57,6 +65,7 @@ from .core import (
     extract_skills,
     extract_techniques,
 )
+from .battle_records import build_characters, build_equipment
 from .formations import extract_formation_indexes, extract_formations
 from .maps.encounters import extract_encounter_binding
 from .text import extract_names
@@ -71,6 +80,8 @@ DISPLAY_NAME_TABLES = {
     "enemy_skills": "enemy_skill_names",
     "techniques": "technique_names",
     "skills": "skill_names",
+    "characters": "character_names",
+    "professions": "profession_names",
 }
 
 
@@ -88,6 +99,8 @@ ENEMIES_NAME = f"{BATTLE_DIRECTORY}/enemies.json"
 FORMATIONS_NAME = f"{BATTLE_DIRECTORY}/formations.json"
 LEVELS_NAME = f"{BATTLE_DIRECTORY}/levels.json"
 ABILITIES_NAME = f"{BATTLE_DIRECTORY}/abilities.json"
+CHARACTERS_NAME = f"{BATTLE_DIRECTORY}/characters.json"
+EQUIPMENT_NAME = f"{BATTLE_DIRECTORY}/equipment.json"
 
 #: `AbilityEffectsOffs`, and the routine that sits immediately after it.
 ABILITY_EFFECTS_OFFS = 0x0061BE
@@ -491,7 +504,16 @@ def emit_battle(rom: bytes, out_dir: str | Path, version: int) -> dict[str, Any]
         FORMATIONS_NAME: build_formations(rom),
         LEVELS_NAME: build_levels(rom),
         ABILITIES_NAME: build_abilities(rom, effect_count, display),
+        CHARACTERS_NAME: build_characters(rom, display),
+        EQUIPMENT_NAME: build_equipment(rom, display["items"]),
     }
+    # The two record files cross-check each other: nothing a character starts
+    # with may be something the equip filter would refuse them.
+    refused = payloads[CHARACTERS_NAME]["census"]["equipment_the_owner_cannot_equip"]
+    if refused:
+        raise BattlePackError(
+            f"initial equipment the equip filter refuses: {refused}"
+        )
     shas = {
         name: _write(directory, name, payload, version)
         for name, payload in payloads.items()
@@ -501,6 +523,8 @@ def emit_battle(rom: bytes, out_dir: str | Path, version: int) -> dict[str, Any]
     formations = payloads[FORMATIONS_NAME]
     levels = payloads[LEVELS_NAME]
     abilities = payloads[ABILITIES_NAME]
+    characters = payloads[CHARACTERS_NAME]
+    equipment = payloads[EQUIPMENT_NAME]
     return {
         "directory": BATTLE_DIRECTORY,
         "files": {
@@ -515,12 +539,32 @@ def emit_battle(rom: bytes, out_dir: str | Path, version: int) -> dict[str, Any]
                        "records": levels["total_records"]},
             "abilities": {"file": ABILITIES_NAME, "sha256": shas[ABILITIES_NAME],
                           **abilities["counts"]},
+            "characters": {"file": CHARACTERS_NAME, "sha256": shas[CHARACTERS_NAME],
+                           "count": characters["count"]},
+            "equipment": {"file": EQUIPMENT_NAME, "sha256": shas[EQUIPMENT_NAME],
+                          "count": equipment["count"],
+                          "equippable": equipment["census"]["equippable"]},
         },
         "ability_effects": abilities["effects"],
+        # A headline only; equipment.json carries the decoded rules in full.
+        "equipment_rules": {
+            "routines": {
+                name: equipment["rules"][name]["routine"]
+                for name in ("equip", "attack", "derived_stats", "elements")
+            },
+            "max_equippable_type": equipment["rules"]["equip"]["max_equippable_type"],
+            "weapon_types": equipment["rules"]["attack"]["weapon_types"],
+            "multi_target_types": equipment["rules"]["attack"]["multi_target_types"],
+            "derived_stats": [
+                entry["stat"] for entry in equipment["rules"]["derived_stats"]["passes"]
+            ],
+        },
         "census": {
             "enemies": enemies["census"],
             "formations": formations["census"],
             "levels": levels["census"],
             "abilities": abilities["census"],
+            "characters": characters["census"],
+            "equipment": equipment["census"],
         },
     }

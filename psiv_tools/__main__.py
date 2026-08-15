@@ -90,6 +90,11 @@ def main() -> int:
                 f"{sum(battle['abilities'][k] for k in ('techniques','skills','enemy_skills','item_effects'))} "
                 "ability records"
             )
+            print(
+                f"Party: {battle['characters']['count']} character records, "
+                f"{battle['equipment']['count']} inventory records "
+                f"({battle['equipment']['equippable']} equippable)"
+            )
             print(f"Skipped {len(manifest['skipped'])} entries; {manifest['warps']['count']} warps")
             doors = manifest["warps"]["doors_without_map_change_cell"]
             if doors:
