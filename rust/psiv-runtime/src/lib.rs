@@ -13,11 +13,13 @@ use std::fmt;
 
 use std::collections::BTreeSet;
 
+use psiv_core::battle::Lcg41;
 use psiv_core::{
     ActorRef, Cell, CharId, CollisionGrid, Direction, Effect, FieldMap, FieldState, Flag,
     GameState, Input, InteractReach, MapId, MemberView, Npc, NpcId, Party, PixelPos, SceneEffect,
-    SceneInput, SceneOp, SceneRunner, ScriptedActor, StepFrames, TRIGGERS, TriggerContext,
-    TriggerResult, Warp, WarpTrigger, runner_for, scene_for,
+    SceneInput, SceneOp, SceneRunner, ScriptedActor, StepFrames, TRIGGERS, Topology,
+    TriggerContext, TriggerResult, WanderKind, WanderSet, Wanderer, Warp, WarpTrigger, runner_for,
+    scene_for,
 };
 use psiv_data::{GameData, MapRecord, TransitionTable};
 
@@ -270,6 +272,16 @@ pub struct Runtime {
     /// layer is extracted.
     despawned: BTreeSet<(u16, usize)>,
     prev_standing: Option<u8>,
+    /// The map's wandering townsfolk (NPCType2/3), rebuilt per map load.
+    wander: WanderSet,
+    /// The one shared seed, ticked once per frame like the cartridge's
+    /// vblank call; wander decisions draw from the same stream, as retail's
+    /// FieldObj_GetRandomMove shares UpdateRNGSeed with encounter rolls.
+    rng: Lcg41,
+    /// The cartridge suspends field-object updates while a window is up
+    /// (proven by the oracle's RNG census: 2 calls/frame in field, 1 in a
+    /// menu). The renderer sets this while dialogue is open.
+    field_suspended: bool,
 }
 
 impl Runtime {
@@ -317,6 +329,7 @@ impl Runtime {
             let _ = game.set_party_slot(0, Some(CharId(0)));
         }
 
+        let wander = build_wander(&map, record)?;
         Ok(Runtime {
             data,
             map,
@@ -326,6 +339,9 @@ impl Runtime {
             scene_input: SceneInput::None,
             despawned: BTreeSet::new(),
             prev_standing: None,
+            wander,
+            rng: Lcg41::default(),
+            field_suspended: false,
         })
     }
 
@@ -448,7 +464,96 @@ impl Runtime {
         {
             events.extend(self.evaluate_triggers(cell));
         }
+
+        // The free-running seed: one tick per frame regardless of use, then
+        // the field-object update drawing from the same stream — suspended,
+        // like the cartridge's, while a window is up.
+        self.rng.step();
+        if !self.field_suspended {
+            self.tick_wander();
+        }
         events
+    }
+
+    /// One frame of NPC wander: visibility from the retail camera box, the
+    /// party's occupied cells as obstacles, decisions from the shared seed.
+    fn tick_wander(&mut self) {
+        if self.wander.is_empty() {
+            return;
+        }
+        let party_cells: Vec<Cell> = self.party.members().iter().map(|m| m.cell).collect();
+        // Retail freezes off-screen objects entirely (FieldObj_OnScreenTest):
+        // the visible box is the 320x224 view plus a 32px margin each side
+        // (sprite coords $60..$1E0 x $60..$180). The camera is the cartridge's
+        // own — centred on the leader, clamped at bounded map edges, free on
+        // the toroidal overworlds.
+        let (cam_x, cam_y) = self.camera_origin();
+        let map_w = i32::from(self.map.width()) * 16;
+        let map_h = i32::from(self.map.height()) * 16;
+        let torus = self.map.topology() == Topology::Torus;
+        let vis: Vec<bool> = self
+            .map
+            .npcs()
+            .iter()
+            .map(|npc| {
+                let px = i32::from(npc.cell.x) * 16;
+                let py = i32::from(npc.cell.y) * 16;
+                let (mut dx, mut dy) = (px - cam_x, py - cam_y);
+                if torus {
+                    dx = dx.rem_euclid(map_w);
+                    dy = dy.rem_euclid(map_h);
+                }
+                (-32..352).contains(&dx) && (-32..256).contains(&dy)
+            })
+            .collect();
+        self.wander
+            .tick(&mut self.map, &mut self.rng, &party_cells, |i| {
+                vis.get(i).copied().unwrap_or(false)
+            });
+    }
+
+    /// The retail camera origin in map pixels: leader centred in a 320x224
+    /// view, clamped to the map on bounded maps (small maps clamp to 0).
+    fn camera_origin(&self) -> (i32, i32) {
+        let leader = self.party.leader();
+        let (ox, oy) = leader.render_offset_16ths();
+        let lx = i32::from(leader.cell().x) * 16 + ox;
+        let ly = i32::from(leader.cell().y) * 16 + oy;
+        let map_w = i32::from(self.map.width()) * 16;
+        let map_h = i32::from(self.map.height()) * 16;
+        let (cx, cy) = (lx + 8 - 160, ly + 8 - 112);
+        if self.map.topology() == Topology::Torus {
+            (cx.rem_euclid(map_w), cy.rem_euclid(map_h))
+        } else {
+            (
+                cx.clamp(0, (map_w - 320).max(0)),
+                cy.clamp(0, (map_h - 224).max(0)),
+            )
+        }
+    }
+
+    /// The map's wanderers, for the renderer's per-frame positions.
+    #[must_use]
+    pub fn wanderers(&self) -> &[Wanderer] {
+        self.wander.wanderers()
+    }
+
+    /// Turns an object to face a direction — the cartridge's default when
+    /// spoken to (`$F3` exists to suppress it). Out-of-range indices are the
+    /// renderer's bug to log, not the engine's to crash on.
+    pub fn face_npc(&mut self, index: usize, facing: Direction) {
+        let _ = self.map.set_npc_facing(index, facing);
+    }
+
+    /// Mirrors the cartridge's window-up suspension of field-object updates.
+    /// The renderer sets this while a dialogue window is open.
+    pub fn set_field_suspended(&mut self, suspended: bool) {
+        self.field_suspended = suspended;
+    }
+
+    /// Seeds the shared RNG word — for replays that align to an oracle log.
+    pub fn set_rng_seed(&mut self, seed: u32) {
+        self.rng = Lcg41::new(seed);
     }
 
     /// One tick of a running scene: feed any pending input, translate the
@@ -714,9 +819,28 @@ impl Runtime {
         self.party
             .enter_map(&map, cell, facing)
             .map_err(|e| BridgeError::Rejected(e.to_string()))?;
+        self.wander = build_wander(&map, record)?;
         self.map = map;
         Ok(())
     }
+}
+
+/// The wandering objects on a map: exactly the pack NPCs whose behaviour
+/// routine is NPCType2 or NPCType3 — the two types that share the cartridge's
+/// random walker (`docs/NPC_WANDER.md`). Everything else stands still until
+/// its own routine is transcribed.
+fn build_wander(map: &FieldMap, record: &MapRecord) -> Result<WanderSet, BridgeError> {
+    let objects: Vec<(usize, WanderKind)> = record
+        .npcs
+        .iter()
+        .enumerate()
+        .filter_map(|(i, npc)| match npc.symbol.as_deref() {
+            Some("NPCType2") => Some((i, WanderKind::Type2)),
+            Some("NPCType3") => Some((i, WanderKind::Type3)),
+            _ => None,
+        })
+        .collect();
+    WanderSet::build(map, &objects).map_err(|e| BridgeError::Rejected(e.to_string()))
 }
 
 /// Character id by party-sheet symbol (`CharFieldArtPtrs` order is the id).

@@ -28,6 +28,20 @@ const CELL_PIXELS: f32 = 16.0;
 const FALLBACK_SPAWN_MAP: u16 = 0x010;
 const FALLBACK_SPAWN_CELL: (u16, u16) = (31, 8);
 
+/// One drawn NPC: its sprite node plus what the per-frame pass needs to
+/// place and animate it. `base` is the pack's pixel anchor (authoritative —
+/// 85 retail objects sit on half-cells) and `spawn` the engine cell it was
+/// built at; a wanderer's current position is `base + (cell - spawn) * 16`
+/// plus its step offset, which preserves half-cell anchors while cells move.
+struct NpcNode {
+    node: Gd<Sprite2D>,
+    sheet: String,
+    idle: String,
+    index: usize,
+    base: (i32, i32),
+    spawn: (i32, i32),
+}
+
 /// A sheet made drawable: its texture plus the geometry and sequences the
 /// pack declares. Copied out of `psiv-data` so nodes never borrow `GameData`.
 struct SheetView {
@@ -136,9 +150,8 @@ struct Field {
     overlay_sprite: Option<Gd<Sprite2D>>,
     party: Option<Gd<Sprite2D>>,
     party_view: Option<SheetView>,
-    /// (node, sheet id, idle sequence, walk sequence, map-order npc index)
-    /// per visible NPC on the current map.
-    npc_nodes: Vec<(Gd<Sprite2D>, String, String, String, usize)>,
+    /// One entry per visible NPC on the current map.
+    npc_nodes: Vec<NpcNode>,
     /// Follower sprites (party members after the leader), created on demand.
     /// (node, active sequence, sequence start tick) per follower.
     follower_nodes: Vec<(Gd<Sprite2D>, String, u64)>,
@@ -342,7 +355,12 @@ impl INode2D for Field {
             let events = self
                 .runtime
                 .as_mut()
-                .map(|rt| rt.tick(psiv_core::Input::Neutral))
+                .map(|rt| {
+                    // A window is up: the cartridge suspends field-object
+                    // updates (the wanderers freeze mid-town).
+                    rt.set_field_suspended(true);
+                    rt.tick(psiv_core::Input::Neutral)
+                })
                 .unwrap_or_default();
             // The scene's post-dialogue ops run on exactly this tick, so
             // their events (party changes, despawns, SceneEnded) must be
@@ -374,6 +392,7 @@ impl INode2D for Field {
         let Some(runtime) = self.runtime.as_mut() else {
             return;
         };
+        runtime.set_field_suspended(false);
         let events = runtime.tick(input);
         let stepped = self.process_events(events);
         // A landing tick with the key still held is mid-stride, not rest:
@@ -432,7 +451,7 @@ impl Field {
             }
         }
 
-        for (node, ..) in &mut self.npc_nodes {
+        for NpcNode { node, .. } in &mut self.npc_nodes {
             node.queue_free();
         }
         self.npc_nodes.clear();
@@ -443,7 +462,6 @@ impl Field {
             index: usize,
             sheet: String,
             idle: String,
-            walk: String,
             // Object pixel coordinates, not cells: 85 retail objects sit on
             // half-cells (8px-scaled words), so x/y_pixels are authoritative.
             x: i32,
@@ -465,7 +483,6 @@ impl Field {
                     index,
                     sheet: sprite.sheet.clone(),
                     idle: sprite.idle_sequence.clone(),
-                    walk: sprite.walk_sequence.clone(),
                     x: npc.x_pixels as i32,
                     y: npc.y_pixels as i32,
                 });
@@ -502,8 +519,19 @@ impl Field {
                 (draw.y - view.origin_y + view.frame_height) as f32,
             ));
             self.base_mut().add_child(&node);
-            self.npc_nodes
-                .push((node, draw.sheet, draw.idle, draw.walk, draw.index));
+            let spawn = self
+                .runtime
+                .as_ref()
+                .and_then(|rt| rt.map().npcs().get(draw.index).map(|n| n.cell))
+                .map_or((0, 0), |c| (i32::from(c.x), i32::from(c.y)));
+            self.npc_nodes.push(NpcNode {
+                node,
+                sheet: draw.sheet,
+                idle: draw.idle,
+                index: draw.index,
+                base: (draw.x, draw.y),
+                spawn,
+            });
         }
     }
 
@@ -572,10 +600,15 @@ impl Field {
                                     .map(|rt| rt.state().facing().opposite());
                                 if let Some(toward) = toward {
                                     let name = sequence_name("idle", toward);
-                                    for (_, _, idle, _, index) in &mut self.npc_nodes {
-                                        if *index == npc_index {
-                                            *idle = name.clone();
+                                    for entry in &mut self.npc_nodes {
+                                        if entry.index == npc_index {
+                                            entry.idle = name.clone();
                                         }
+                                    }
+                                    // The engine's facing is the wanderers'
+                                    // source of truth, so turn it there too.
+                                    if let Some(rt) = self.runtime.as_mut() {
+                                        rt.face_npc(npc_index, toward);
                                     }
                                 }
                             }
@@ -632,7 +665,7 @@ impl Field {
                     self.refresh_party_sheets();
                 }
                 RuntimeEvent::NpcsDespawned { first, count } => {
-                    for (node, _, _, _, index) in &mut self.npc_nodes {
+                    for NpcNode { node, index, .. } in &mut self.npc_nodes {
                         if (first..first + count).contains(index) {
                             node.set_visible(false);
                         }
@@ -807,10 +840,59 @@ impl Field {
             node.set_position(view.draw_pos(draw.cell, draw.offset));
         }
 
-        for (node, sheet_id, idle, _walk, _index) in &mut self.npc_nodes {
-            if let Some(view) = self.sheet_views.get(sheet_id) {
-                let frame = view.frame_at(idle, self.anim_tick);
-                view.apply(node, frame);
+        // Static NPCs replay their idle sequence in place; wanderers are
+        // placed and animated from the engine — cell, facing and step offset
+        // all live there, so the picture can't desync from the collision.
+        struct WanderView {
+            index: usize,
+            facing: Direction,
+            stepping: bool,
+            offset: (i32, i32),
+            cell: (u16, u16),
+        }
+        let wander_states: Vec<WanderView> = self
+            .runtime
+            .as_ref()
+            .map(|rt| {
+                rt.wanderers()
+                    .iter()
+                    .filter_map(|w| {
+                        let npc = rt.map().npcs().get(w.npc_index())?;
+                        Some(WanderView {
+                            index: w.npc_index(),
+                            facing: npc.facing,
+                            stepping: w.is_stepping(),
+                            offset: w.render_offset_16ths(),
+                            cell: (npc.cell.x, npc.cell.y),
+                        })
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        for entry in &mut self.npc_nodes {
+            let Some(view) = self.sheet_views.get(&entry.sheet) else {
+                continue;
+            };
+            let wander = wander_states.iter().find(|w| w.index == entry.index);
+            match wander {
+                Some(w) => {
+                    let kind = if w.stepping { "walk" } else { "idle" };
+                    let name = sequence_name(kind, w.facing);
+                    // Not every sheet animates every way; frame 0 is the
+                    // sheet's own fallback, same as the cartridge's art.
+                    let frame = view.frame_at(&name, self.anim_tick);
+                    view.apply(&mut entry.node, frame);
+                    let x = entry.base.0 + (i32::from(w.cell.0) - entry.spawn.0) * 16 + w.offset.0;
+                    let y = entry.base.1 + (i32::from(w.cell.1) - entry.spawn.1) * 16 + w.offset.1;
+                    entry.node.set_position(Vector2::new(
+                        (x - view.origin_x) as f32,
+                        (y - view.origin_y + view.frame_height) as f32,
+                    ));
+                }
+                None => {
+                    let frame = view.frame_at(&entry.idle, self.anim_tick);
+                    view.apply(&mut entry.node, frame);
+                }
             }
         }
 
@@ -823,15 +905,15 @@ impl Field {
                 }
             }
             for (index, acell, afacing) in moves {
-                for (node, sheet_id, idle, _walk, nidx) in &mut self.npc_nodes {
-                    if *nidx == index
-                        && let Some(view) = self.sheet_views.get(sheet_id)
+                for entry in &mut self.npc_nodes {
+                    if entry.index == index
+                        && let Some(view) = self.sheet_views.get(&entry.sheet)
                     {
                         let name = sequence_name("idle", afacing);
-                        *idle = name;
-                        let frame = view.frame_at(idle, self.anim_tick);
-                        view.apply(node, frame);
-                        node.set_position(view.draw_pos(acell, (0, 0)));
+                        entry.idle = name;
+                        let frame = view.frame_at(&entry.idle, self.anim_tick);
+                        view.apply(&mut entry.node, frame);
+                        entry.node.set_position(view.draw_pos(acell, (0, 0)));
                     }
                 }
             }
