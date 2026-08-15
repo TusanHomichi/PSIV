@@ -455,3 +455,14 @@ and the flag-set whose absence would re-fire the trigger forever.
   it) elsewhere in the world. Full table and behavioural pin in
   psiv-core/src/state.rs; hardware confirmation queued with the oracle
   (those dungeons are late-game, so it waits for deeper routes).
+- The flag-bank alias is CONFIRMED ON HARDWARE (tape 17): the Xanafalgue
+  temp flag ($13) lands at $FFFFF142 bit 4 — byte 2 of the CHEST bank,
+  exactly where the reversed-bit arithmetic (`bset 7-(id&7)`) predicts —
+  while the clone's fifth bank at $F156 stays zero for all 24,880 frames.
+  The innocent explanation is ruled out, not assumed away: ItemFound never
+  runs and the basement's own chests live in byte 3, which never moves.
+  Measured consequence: walking the opening-act Piata basement WRITES THE
+  GARUBERK TOWER MOON SLASHER CHEST'S FLAG (ChestFlag_GrbrkTwMoonSlashr =
+  $13). Bounded claims: whether that chest reads as looted at Garuberk
+  (unreachable by tape), and whether anything clears the bit on leaving
+  the basement, are both untested — a leave-and-reenter tape is queued.

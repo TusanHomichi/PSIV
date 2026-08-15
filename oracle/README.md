@@ -50,6 +50,9 @@ oracle/
 ├── route.py                plans a walking route over the pack's collision data
 ├── navigate.py             closed-loop tape authoring (route + observe + re-plan)
 ├── analyze_rng.py          per-frame RNG call census from a log
+├── anim_sweep.py           press-offset sweep across the dialogue open animation
+├── damage_census.py        same-matchup damage samples across shifted seed paths
+├── checks.py               shared helpers for verify.sh's two lanes
 ├── core/…_libretro.so      built core (not committed)
 ├── gpgx-src/               core source checkout (not committed)
 ├── ram_map.json            RAM map, source of truth, with disassembly cites
@@ -211,6 +214,9 @@ both paths against values the cartridge itself chose (see Results).
 | `12_escape.tape` | a successful escape attempt |
 | `13_open_anim_press.tape` | Speak pressed inside the window-open animation |
 | `14_defend.tape` | the DEFEND command and its `physical_prop` clobber |
+| `15_text_hold.tape` | text draw acceleration while Speak is held |
+| `16_page_boundary.tape` | holding Speak across the end of a page |
+| `17_flag_alias.tape` | the chest/temp flag-bank alias, on hardware |
 
 `prelude_basement.tape` is a generated intermediate (`navigate.py` output) that
 both battle tapes are built from; `find_battle.py` consumes it.
@@ -766,6 +772,88 @@ Two consequences for the renderer:
 - What we are missing is not press buffering but **hold-to-fast-forward while
   text is drawing**. Implementing a queued page-advance would be wrong.
 
+### Holding Speak across a page boundary
+
+The NPC line in tape 03 is **two pages**. With no input, page 1 draws 58
+characters at one per 3 frames and finishes at f7371; the window then sits
+indefinitely. Three runs settle what a held button does (tape 16, measured on
+`Text_Buffer` writes):
+
+| run | page 1 draws | page 1 cadence | page 2 |
+|---|---|---|---|
+| no input | 58, ends f7371 | 3 frames | never starts |
+| **hold Speak across the boundary** | 58, ends f7257 | **1 frame** | **never starts** — dead stop while still held |
+| press after page 1 completes, keep holding | 58, ends f7371 | 3 frames | **55 draws from f7395, 1-frame cadence** |
+
+**Advancing a finished page needs a fresh press; a held button will not do it.**
+Holding drew page 1 three times faster and then stopped at the boundary for the
+remaining ~1100 frames with the button still down. The conservative guess in the
+code comments was right, and is now measured rather than assumed.
+
+**But the next page does start accelerated if the button is still held.** After
+a fresh press advances the page, page 2 drew all 55 of its characters at one per
+frame while the hold continued.
+
+So the two behaviours are independent and should be implemented as such:
+
+- **page advance is edge-triggered** — a press, not a level;
+- **draw acceleration is level-driven** — it applies to whatever page is
+  currently drawing, including a page that has just been advanced into.
+
+A single 24-frame gap separates the pages when advanced by a tap (page 1 ends
+f7371, the tap lands f7393, page 2's first draw is f7395), so the advance costs
+about two frames beyond the press itself.
+
+### The flag-bank alias, confirmed on hardware
+
+`SOURCE_NOTES` proves from ROM bytes that retail has **four** flag banks, not
+five: nothing addresses the clone's `Temp_Event_Flags` at `$FFFFF156`, and the
+"TempEveFlags" calls dispatch through the **chest** bank's door at `$FFFFF140`.
+A "temp" flag and a chest flag of the same raw id are therefore one physical
+bit. Tape 17 tests that on hardware.
+
+The prediction comes from `ChestFlags_Set` (`ps4.asm:116683`), and the bit
+numbering inside a byte is **reversed**: `bset (7 - (id & 7)), (bank + (id >> 3))`.
+So `TempEveFlag_Xanafalgue = $13` = 19 must land at byte `19 >> 3` = 2 and bit
+`7 - (19 & 7)` = 4 — that is, **`$10` at `$FFFFF142`**.
+
+Measured, walking a short way into the Piata basement:
+
+| | |
+|---|---|
+| `chestb2` (`$FFFFF142`) | **`00` → `$10` at f24618**, at cell (42,20) on map $15 |
+| `tempb0..3` (`$FFFFF156-9`) | **`00` for all 24,880 frames** — never written |
+| `chestb3` | `00` throughout |
+| `FieldRoutine_ItemFound` (`$24`) | never runs |
+
+**The alias is real.** The temp-flag write lands in the chest bank exactly
+where the reversed-bit arithmetic predicts, and the fifth bank stays dead.
+
+The innocent explanation is ruled out rather than assumed away: no chest was
+opened (the ItemFound routine never runs), and the basement's own chests are
+flags 24 and 25, which live in byte **3** — which stayed `00`. Nothing but the
+flag-$13 write can account for byte 2 bit 4.
+
+**The colliding chest is `ChestFlag_GrbrkTwMoonSlashr` ($13)** — the Garuberk
+Tower Moon Slasher chest. So walking through the Piata Academy Basement in the
+opening act marks a very-late-game chest's flag as set. That is a more
+consequential instance than the Alshline pairing the candidate-bug note
+proposed, and unlike that one it is measured rather than deduced.
+
+Two things this tape does **not** establish, and should not be read as:
+
+- **Whether the chest actually appears looted in play.** That needs the
+  chest-open check to read the same bit at Garuberk Tower, which is far out of
+  tape reach. What is proven is the shared bit and the write.
+- **Whether the bit is ever cleared.** It stays set for the remaining ~36,500
+  frames of tape 10, but that tape never leaves the basement. The clone's
+  comment says temp flags clear on exit; if retail clears it the same way, the
+  collision would instead *un-loot* the chest. Untested either way.
+
+For `psiv-core`: model one 256-id bank at `$F140` with reversed in-byte bit
+numbering, and route both the chest and "temp" APIs to it. Modelling five
+banks reproduces the clone, not the cartridge.
+
 ### Camera, and what gates the wander timer
 
 Added for core-lane's camera model: a `camera` group covering
@@ -922,29 +1010,64 @@ byte-identically like every other tape here.
 
 ## Still open
 
-- **Beside-talk empirical confirmation.** Answered from code above with a
-  citation, and the code is unambiguous, but no tape yet stages the exact
-  adjacent-not-facing press. It needs a map spot where the cell the player
-  would turn toward is blocked while an NPC sits perpendicular. Worth one
-  targeted tape to close the loop.
-- **Accept press during the window-open animation.** Untested. The 9-frame
-  open animation (f7187-7196) is now a known window, so the tape is easy: press
-  Speak inside it and see whether the page advances immediately on completion
-  (buffered) or not (dropped).
-- **Multi-page dialogue boundaries.** The talk in tape C spans two pages, but
-  no logged field distinguishes page N from page N+1 — the first advance press
-  changed nothing in the RAM map. Finding the page-index variable would let
-  tapes assert per-page behaviour.
-- **Scroll-arrow art.** `Text_Scroll_Arrow` (`$FFFFC2C0`) is in the map and its
-  `offscreen_flag` is logged, but the arrow's on/off timing was not
-  characterised.
-- **Battle ground truth.** The RAM map, the log analyser (`analyze_battle.py`)
-  and the encounter-hunting tape generator (`find_battle.py`) are in place, but
-  no battle log has been captured yet. Random encounters need an encounter map,
-  and the route to one runs through the opening act: the Piata town gate is
-  shut (see Story gates), so the nearest encounter map is the Academy Basement,
-  reached via Alys joining, the principal's assignment, and the NPCs currently
-  blocking the basement stairs. Tapes 04 and 05 cover the first two.
+Closed since the first draft, and listed here only so the history is legible:
+beside-talk (tape 11, hardware evidence), the accept press during the open
+animation (tapes 13/15/16 — it turned out to be hold-to-accelerate, not
+buffering), and battle ground truth (tapes 07/09/10/12/14).
+
+Genuinely outstanding:
+
+- **No escape-failure sample.** Nine press timings all succeeded, matching the
+  ~83% the formula predicts. Team lead's call is not to grind for one: the
+  failure branch gets pinned by forced rolls in the Tier 1 engine tests, and a
+  hardware sample is a nice-to-have if a future tape happens to catch one.
+- **No page-index RAM field.** Tape 16 pins the page *boundary* behaviour
+  precisely, but only by watching `Text_Buffer` writes. Nothing in the map
+  distinguishes page N from page N+1, so a tape cannot assert "we are on page
+  2" directly. Finding that variable would make per-page assertions cheap.
+- **`$F9` pause length is uncharacterised.** The 3-frame draw cadence has one
+  6-frame gap in it, consistent with an explicit pause control code, but the
+  pause's own duration has not been measured against the dialogue data.
+- **Scroll-arrow timing.** `Text_Scroll_Arrow` ($FFFFC2C0) is mapped and its
+  `offscreen_flag` logged, but that byte read 0 for the whole dialogue, so as
+  mapped it does not indicate the arrow's visibility. The right field has not
+  been found, and the arrow's art is still unextracted.
+- **The other five aliased id pairs (filed for when route tooling reaches
+  mid-game).** Tape 17 proves the one-bank mechanism at id `$13`; the merge
+  sweep found six more pairs, and all six sit in **one byte, `$FFFFF141`**,
+  already covered by the `flagbytes` group's `chestb1` column. No RAM-map work
+  is needed — only route reach.
+
+  | id | "temp" flag | chest flag | mask in `$F141` |
+  |---|---|---|---|
+  | `$08` | BioPlantAlarm | Alshline | `$80` |
+  | `$09` | VahFortMovingPltfrm1 | PsycoWand | `$40` |
+  | `$0A` | VahFortMovingPltfrm2 | ControlKey | `$20` |
+  | `$0B` | VahFortTerminal | Canceller | `$10` |
+  | `$0C` | VahFortTerminal2 | EclpsTorch | `$08` |
+  | `$0D` | WpnPlantMovingPltfrm1 | AeroPrism | `$04` |
+
+  (Masks from `bit = 7 - (id & 7)`, the same reversed numbering tape 17
+  confirmed. Note `$0B`/`$0C` are the conveyor-direction *terminals*, not
+  platforms — a different interaction to stage than riding.)
+
+  **The platform pairs are the strongest available evidence and should be
+  tried first.** `VahFortMovingPltfrm1/2` are set when a platform moves down
+  and *cleared* when it moves up, so riding one flips the paired chest bit
+  **both ways** in ordinary play. That demonstrates the alias bidirectionally —
+  set *and* clear — which the `$13` tape cannot, since walking into the
+  basement only ever sets. It also settles the open "is the bit ever cleared"
+  question above: if a platform clears `$F141` bit 6, a looted PsycoWand chest
+  un-loots, which is the un-looting direction the candidate-bug note predicted.
+
+  Experiment when Vahal Fort is reachable: route to a moving platform, log
+  `flagbytes`, ride it down and up, and watch `chestb1` toggle `$40`. One round
+  trip is the whole test.
+
+- **Camera beyond map $13.** The `(152, 88)` leader lock and the identical
+  FG/BG cameras are measured on one interior map. Overworld maps are tori with
+  paged scrolling and may well behave differently; the columns are in place, a
+  tape is not.
 
 ## Feeding a comparator
 

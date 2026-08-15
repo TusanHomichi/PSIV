@@ -92,6 +92,10 @@ run "$ORACLE/tapes/04_alys_joins.tape" "$OUT/verify_alys.csv" \
     --groups core,party
 run "$ORACLE/tapes/11_beside_press.tape" "$OUT/verify_beside.csv" \
     --groups core,pos,window,text
+run "$ORACLE/tapes/16_page_boundary.tape" "$OUT/verify_page.csv" \
+    --groups core,window,text
+run "$ORACLE/tapes/17_flag_alias.tape" "$OUT/verify_flags.csv" \
+    --groups core,flagbytes
 
 echo "== findings =="
 PYTHONPATH="$ORACLE" python3 - "$OUT" <<'PY'
@@ -284,6 +288,62 @@ if txt(me + 250) != txt(mb + 250):
         "it may have reached the NPC; re-check the staged geometry")
 ok(f"beside press at f{mb} (leader facing {byf[mb]['c1_facing']}) draws the "
    "same text as the open-ground press: it hit 'nothing here', not the NPC")
+
+# Page advance is edge-triggered: holding Speak accelerates the page being
+# drawn but must NOT carry past its end. Two claims in one tape - the hold
+# draws page 1 at one character per frame, and page 2 never starts.
+rows = load(OUT/'verify_page.csv')
+byf = by_frame(rows)
+NT = 24
+text = lambda f: tuple(byf[f][f'tb{i:02d}'] for i in range(NT))
+# Only the dialogue matters: the prelude's title screens, intro cutscene and
+# menus all write the text buffer too, and scanning the whole tape mixes them
+# in with the page being measured.
+speak = next(int(r['frame']) for r in rows if r['mark'] == 'speak')
+draws = [f for f in range(speak + 1, speak + 1500)
+         if f in byf and f - 1 in byf and text(f) != text(f - 1)]
+if not draws:
+    bad("tape 16 recorded no text draws at all")
+gaps = [b - a for a, b in zip(draws, draws[1:])]
+if sorted(set(gaps)) not in ([1], [1, 2], [1, 2, 3], [1, 3]):
+    bad(f"tape 16 draw gaps were {sorted(set(gaps))}; holding Speak should "
+        "draw one character per frame")
+# Under the hold, page 1's 58 characters land within ~60 frames of the first
+# draw. The tape then runs on for another ~1300 frames with the button still
+# down, so any draw well past that window means the page advanced.
+late = [f for f in draws if f > draws[0] + 300]
+if late:
+    bad(f"tape 16 drew text at f{late[0]}, long after page 1 finished - a held "
+        "button appears to have advanced the page")
+ok(f"page advance is edge-triggered: holding Speak drew page 1's {len(draws)} "
+   f"characters at 1/frame (ending f{draws[-1]}) and never advanced to page 2")
+
+# The flag-bank alias, on hardware. SOURCE_NOTES proves from ROM bytes that the
+# clone's fifth bank at $F156 does not exist in retail and "temp" flag writes
+# go through the chest bank's door. TempEveFlag_Xanafalgue = $13 fires in the
+# Piata basement; ChestFlags_Set puts id N at byte N>>3, mask 1 << (7 - (N&7)),
+# so $13 must land as $10 at $FFFFF142 if the alias is real.
+rows = load(OUT/'verify_flags.csv')
+sets = [r for a, r in zip(rows, rows[1:])
+        if a['chestb2'] == '00' and r['chestb2'] == '10']
+if not sets:
+    bad("tape 17 never set $FFFFF142 bit 4 - TempEveFlag_Xanafalgue did not "
+        "land in the chest bank")
+setf = int(sets[0]['frame'])
+dead = {k for k in ('tempb0', 'tempb1', 'tempb2', 'tempb3')
+        if {r[k] for r in rows} != {'00'}}
+if dead:
+    bad(f"the $F156 bank was written ({sorted(dead)}); retail should never "
+        "touch it")
+# Rule out the innocent explanation: an opened chest would also set chest bits.
+# The basement's own chests are flags 24 and 25, which live in byte 3.
+if {r['chestb3'] for r in rows} != {'00'}:
+    bad("chest bank byte 3 changed - a basement chest was opened, so the "
+        "byte-2 bit cannot be attributed to the temp-flag write")
+if '0024' in {r['game_mode_routine'] for r in rows}:
+    bad("FieldRoutine_ItemFound ran - a chest was opened during tape 17")
+ok(f"flag alias: TempEveFlag_Xanafalgue ($13) sets $FFFFF142 bit 4 at f{setf}, "
+   "inside the CHEST bank; the $F156 bank stays 00 and no chest was opened")
 PY
 
 if [ "$LANE" = fast ]; then

@@ -5215,6 +5215,166 @@
       "size": 1,
       "group": "objects",
       "source": "Field_Obj_Secondary slot 31 ($FFFFCAC0) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "chestb0",
+      "addr": "FFFFF140",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest_Flags byte 0 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ps4.asm:116683"
+    },
+    {
+      "name": "chestb1",
+      "addr": "FFFFF141",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest_Flags byte 1 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ps4.asm:116683"
+    },
+    {
+      "name": "chestb2",
+      "addr": "FFFFF142",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest_Flags byte 2 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ps4.asm:116683"
+    },
+    {
+      "name": "chestb3",
+      "addr": "FFFFF143",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest_Flags byte 3 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ps4.asm:116683"
+    },
+    {
+      "name": "chestb4",
+      "addr": "FFFFF144",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest_Flags byte 4 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ps4.asm:116683"
+    },
+    {
+      "name": "chestb5",
+      "addr": "FFFFF145",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest_Flags byte 5 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ps4.asm:116683"
+    },
+    {
+      "name": "chestb6",
+      "addr": "FFFFF146",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest_Flags byte 6 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ps4.asm:116683"
+    },
+    {
+      "name": "chestb7",
+      "addr": "FFFFF147",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest_Flags byte 7 (constants:2364, base $FFFFF140). Flag id N is byte N>>3, mask 1 << (7 - (N & 7)) - see ps4.asm:116683"
+    },
+    {
+      "name": "tempb0",
+      "addr": "FFFFF156",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "the clone's Temp_Event_Flags byte 0 (constants:2365, $FFFFF156). SOURCE_NOTES finds no retail code addressing this bank; logged to show whether it stays dead while the chest bank takes the writes"
+    },
+    {
+      "name": "tempb1",
+      "addr": "FFFFF157",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "the clone's Temp_Event_Flags byte 1 (constants:2365, $FFFFF156). SOURCE_NOTES finds no retail code addressing this bank; logged to show whether it stays dead while the chest bank takes the writes"
+    },
+    {
+      "name": "tempb2",
+      "addr": "FFFFF158",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "the clone's Temp_Event_Flags byte 2 (constants:2365, $FFFFF156). SOURCE_NOTES finds no retail code addressing this bank; logged to show whether it stays dead while the chest bank takes the writes"
+    },
+    {
+      "name": "tempb3",
+      "addr": "FFFFF159",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "the clone's Temp_Event_Flags byte 3 (constants:2365, $FFFFF156). SOURCE_NOTES finds no retail code addressing this bank; logged to show whether it stays dead while the chest bank takes the writes"
+    },
+    {
+      "name": "eventb0",
+      "addr": "FFFFF100",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Event_Flags byte 0 (constants:2362, base $FFFFF100)"
+    },
+    {
+      "name": "eventb1",
+      "addr": "FFFFF101",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Event_Flags byte 1 (constants:2362, base $FFFFF100)"
+    },
+    {
+      "name": "eventb2",
+      "addr": "FFFFF102",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Event_Flags byte 2 (constants:2362, base $FFFFF100)"
+    },
+    {
+      "name": "eventb3",
+      "addr": "FFFFF103",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Event_Flags byte 3 (constants:2362, base $FFFFF100)"
+    },
+    {
+      "name": "eventb4",
+      "addr": "FFFFF104",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Event_Flags byte 4 (constants:2362, base $FFFFF100)"
+    },
+    {
+      "name": "eventb5",
+      "addr": "FFFFF105",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Event_Flags byte 5 (constants:2362, base $FFFFF100)"
+    },
+    {
+      "name": "eventb6",
+      "addr": "FFFFF106",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Event_Flags byte 6 (constants:2362, base $FFFFF100)"
+    },
+    {
+      "name": "eventb7",
+      "addr": "FFFFF107",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Event_Flags byte 7 (constants:2362, base $FFFFF100)"
     }
   ]
 }
