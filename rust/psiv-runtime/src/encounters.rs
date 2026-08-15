@@ -17,9 +17,10 @@
 
 use std::collections::BTreeMap;
 
+use psiv_core::battle::Bonuses;
 use psiv_core::battle::{
-    BattleData, ELEMENT_SLOTS, EnemyRecord, FormationEnemy, FormationRecord, ItemRecord,
-    LevelRecord, LevelTable, Rolls,
+    BattleData, CharacterRecord, ELEMENT_SLOTS, EnemyRecord, FormationEnemy, FormationRecord,
+    ItemKind, ItemRecord, LevelRecord, LevelTable, Rolls,
 };
 use psiv_core::{Cell, CollisionType, FieldMap};
 use psiv_data::BattleFiles;
@@ -55,9 +56,37 @@ pub fn battle_data(files: &BattleFiles) -> Result<BattleData, BridgeError> {
         enemies.push(enemy_record(&files.enemies.properties, enemy)?);
     }
 
-    let mut data = BattleData::new()
-        .with_enemies(enemies)
-        .with_items(Vec::<ItemRecord>::new());
+    // Equipment: every record whose type byte names an equippable kind.
+    // Unequippable kinds (plot items, consumable-only types) never appear in
+    // an equipment slot; if a character record somehow names one anyway,
+    // PartyMember::seat's own lookup fails closed and loudly.
+    let items: Vec<ItemRecord> = files
+        .equipment
+        .items
+        .iter()
+        .filter_map(|item| {
+            let kind = ItemKind::from_byte(item.kind.id)?;
+            Some(ItemRecord {
+                id: item.id,
+                name: item
+                    .display_name
+                    .clone()
+                    .unwrap_or_else(|| item.symbol.clone()),
+                kind,
+                bonuses: Bonuses {
+                    strength: item.bonuses.strength,
+                    mental: item.bonuses.mental,
+                    agility: item.bonuses.agility,
+                    dexterity: item.bonuses.dexterity,
+                    attack: item.bonuses.attack,
+                    defence: item.bonuses.defense,
+                    mental_defence: item.bonuses.magic_defense,
+                },
+                element: item.element.id,
+            })
+        })
+        .collect();
+    let mut data = BattleData::new().with_enemies(enemies).with_items(items);
     for table in &files.levels.characters {
         data = data.with_level_table(table.character_id, level_table(table));
     }
@@ -373,6 +402,55 @@ impl EncounterClock {
         }
         false
     }
+}
+
+/// Converts one pack character into the engine's `Character_Init` record.
+///
+/// `property_order` is the enemies file's 14-name list — the one canonical
+/// element-slot ordering the whole pack shares.
+///
+/// # Errors
+/// [`BridgeError::Rejected`] for a missing property or a wrong-arity list.
+pub fn character_record(
+    character: &psiv_data::Character,
+    property_order: &[String],
+) -> Result<CharacterRecord, BridgeError> {
+    if property_order.len() != ELEMENT_SLOTS {
+        return Err(BridgeError::Rejected(format!(
+            "character file wants {ELEMENT_SLOTS} element properties, got {}",
+            property_order.len()
+        )));
+    }
+    let mut properties = [0u8; ELEMENT_SLOTS];
+    for (slot, name) in property_order.iter().enumerate() {
+        let property = character.properties.get(name).ok_or_else(|| {
+            BridgeError::Rejected(format!(
+                "character {} missing property {name}",
+                character.character_id
+            ))
+        })?;
+        properties[slot] = property.value;
+    }
+    Ok(CharacterRecord {
+        id: character.character_id,
+        name: character
+            .display_name
+            .clone()
+            .unwrap_or_else(|| character.symbol.clone()),
+        profession: character.profession.id,
+        level: character.level,
+        experience: character.experience,
+        hp: character.hp,
+        max_hp: character.max_hp,
+        tp: character.tp,
+        max_tp: character.max_tp,
+        strength: character.stats.strength,
+        mental: character.stats.mental,
+        agility: character.stats.agility,
+        dexterity: character.stats.dexterity,
+        properties,
+        equipment: character.equipment.item_ids(),
+    })
 }
 
 #[cfg(test)]

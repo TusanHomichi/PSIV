@@ -399,6 +399,8 @@ struct BattleSet {
     data: psiv_core::battle::BattleData,
     table: EncounterTable,
     clock: EncounterClock,
+    /// Display names by character id, for battle timelines.
+    names: std::collections::BTreeMap<u8, String>,
 }
 
 impl Runtime {
@@ -481,12 +483,73 @@ impl Runtime {
     /// # Errors
     /// [`BridgeError::Rejected`] when a record does not fit the engine.
     pub fn enable_battles(&mut self, files: &psiv_data::BattleFiles) -> Result<(), BridgeError> {
+        let data = battle_data(files)?;
+        // Seat all eleven characters, exactly as InitializeCharStats does
+        // whether or not they are in the party. The roster refuses a second
+        // constructor path by design, so this goes through the same
+        // PartyMember::seat every battle uses.
+        for character in &files.characters.characters {
+            let record = encounters::character_record(character, &files.enemies.properties)?;
+            let member = psiv_core::battle::PartyMember::seat(&record, &data)
+                .map_err(|e| BridgeError::Rejected(e.to_string()))?;
+            self.game
+                .roster_mut()
+                .seat(CharId(member.character), member.stats)
+                .map_err(|e| BridgeError::Rejected(e.to_string()))?;
+        }
         self.battles = Some(BattleSet {
-            data: battle_data(files)?,
+            data,
             table: EncounterTable::from_files(files)?,
             clock: EncounterClock::new(),
+            names: files
+                .characters
+                .characters
+                .iter()
+                .map(|c| {
+                    (
+                        c.character_id,
+                        c.display_name.clone().unwrap_or_else(|| c.symbol.clone()),
+                    )
+                })
+                .collect(),
         });
         Ok(())
+    }
+
+    /// The current party as battle members, drawn from the roster — the
+    /// records battles read and write in place, per the cartridge's own
+    /// model. Empty if battles are not enabled or the roster is unseated.
+    #[must_use]
+    pub fn battle_party(&self) -> Vec<psiv_core::battle::PartyMember> {
+        let Some(set) = self.battles.as_ref() else {
+            return Vec::new();
+        };
+        self.game
+            .party_members()
+            .into_iter()
+            .filter_map(|id| {
+                let stats = self.game.roster().get(id)?.clone();
+                Some(psiv_core::battle::PartyMember {
+                    character: id.0,
+                    name: set.names.get(&id.0).cloned().unwrap_or_default(),
+                    stats,
+                })
+            })
+            .collect()
+    }
+
+    /// Ends a battle by absorbing the party records back into the roster and
+    /// running both award passes — the full cartridge epilogue. The caller
+    /// passes the per-member award (the split the battle computed).
+    pub fn finish_battle_absorbing(&mut self, each: u16) {
+        if let Some(battle) = self.battle.take() {
+            let party = battle.into_party();
+            self.game.roster_mut().absorb(&party);
+            let _ = self.game.award_experience(each);
+        }
+        if let Some(set) = self.battles.as_mut() {
+            set.clock.reset();
+        }
     }
 
     /// The currently loaded map.

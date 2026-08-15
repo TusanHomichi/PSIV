@@ -106,3 +106,82 @@ fn walking_an_encounter_map_rolls_a_formation_from_its_group() {
         "formation {formation} is not in map {map_id:#05x}'s group {group}"
     );
 }
+
+#[test]
+fn a_battle_round_trips_through_the_roster() {
+    if !Path::new(PACK).join("battle").is_dir() {
+        eprintln!("pack battle section not present; skipping");
+        return;
+    }
+    let files = BattleFiles::load(Path::new(PACK)).expect("battle files load");
+    let data = GameData::load(Path::new(PACK)).expect("pack loads");
+
+    // Spawn at game start (Chaz alone), enable battles: the roster seats all
+    // eleven from the pack through the one seating path.
+    let start = data.manifest().game_start.clone().expect("game start");
+    let mut rt = Runtime::new(
+        data,
+        start.map.id,
+        Cell::new(start.x_cell as u16, start.y_cell as u16),
+        Direction::Down,
+        psiv_core::StepFrames::default(),
+    )
+    .expect("spawn");
+    rt.enable_battles(&files).expect("battles enable");
+
+    let party = rt.battle_party();
+    assert_eq!(party.len(), 1, "Chaz alone at first control");
+    assert_eq!(party[0].name, "Chaz");
+    let hp_before = party[0].stats.curr_hp;
+    let exp_before = party[0].stats.experience;
+
+    // The scout's worked example formation: 2x ZoranBult is anything from
+    // the basement group; use the first formation the basement group lists.
+    let group = files
+        .formations
+        .encounter_groups
+        .as_ref()
+        .unwrap()
+        .groups
+        .iter()
+        .find(|g| !g.formation_ids.is_empty())
+        .unwrap();
+    let formation = group.formation_ids[0];
+
+    let events = rt.start_battle(formation, party).expect("battle starts");
+    assert!(!events.is_empty(), "the opening emits a timeline");
+    // Mash attack until it ends, bounded.
+    let mut ended = None;
+    for _ in 0..200 {
+        let round = rt
+            .battle_round(&psiv_core::battle::RoundOrders::attack_all())
+            .expect("round resolves");
+        for event in &round {
+            if let psiv_core::battle::BattleEvent::Ended { outcome } = event {
+                ended = Some(*outcome);
+            }
+        }
+        if ended.is_some() {
+            break;
+        }
+    }
+    let outcome = ended.expect("the battle ends within 200 rounds");
+
+    // Absorb + award: the roster's record IS the battle's record afterward.
+    rt.finish_battle_absorbing(5);
+    assert!(!rt.battle_active());
+    let after = rt.battle_party();
+    assert_eq!(after.len(), 1);
+    match outcome {
+        psiv_core::battle::Outcome::Victory => {
+            assert!(
+                after[0].stats.experience > exp_before,
+                "victory pays experience through the roster"
+            );
+        }
+        _ => eprintln!("non-victory outcome {outcome:?}; persistence still checked"),
+    }
+    // Damage taken in battle walks out to the field: hp must be <= before,
+    // and whatever it is, it is the ROSTER's copy that says so.
+    assert!(after[0].stats.curr_hp <= hp_before);
+}
