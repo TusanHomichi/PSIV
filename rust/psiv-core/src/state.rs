@@ -124,9 +124,11 @@
 //! constants, not the addressable space; the trigger table's highest observed
 //! event flag is `$E8` and the whole retail set fits the base bank.
 
+use crate::battle::Stats;
 use crate::chest::{Chest, ChestContents, ChestOutcome};
 use crate::error::MapError;
 use crate::inventory::{INVENTORY_SLOTS, Inventory};
+use crate::roster::{CHARACTER_COUNT, CharacterRoster, REUNION_FLAG};
 
 /// Which bit array a flag lives in.
 ///
@@ -269,6 +271,18 @@ pub struct StateSnapshot {
     /// existed has no item list; loading one should treat the party as
     /// carrying nothing, which is also what a new game starts with.
     pub inventory: [u8; INVENTORY_SLOTS],
+    /// `Character_Stats` (`$F500`-`$FA80`): the eleven records, whole.
+    ///
+    /// **Save-format addition, 2026-08-15 (delta #4).** The records are carried
+    /// entire rather than field-picked, including the `_battle` tier — the save
+    /// routine copies `$F100`..`$FB00` in one pass (`ps4.asm:134843`, annotated
+    /// "save data for the Event Flags through the Vehicle Stats"), so retail
+    /// saves those bytes too. They are stale between battles and simply never
+    /// read while stale.
+    ///
+    /// A snapshot written before this existed has no roster; loading one should
+    /// leave every seat empty and re-seat from the pack.
+    pub characters: [Option<Stats>; CHARACTER_COUNT],
     /// `Current_Party_Slots`, `$FF` for an empty slot.
     pub party: [u8; PARTY_SLOTS],
     /// `Current_Money`.
@@ -300,6 +314,8 @@ pub struct GameState {
     town: Vec<u8>,
     /// `Inventory` (`$F410`), the party's forty item slots.
     inventory: Inventory,
+    /// `Character_Stats` (`$F500`): the eleven character records.
+    roster: CharacterRoster,
     party: [u8; PARTY_SLOTS],
     money: u32,
 }
@@ -320,8 +336,47 @@ impl GameState {
             town: vec![0; FlagBank::Town.bytes()],
             party: [CharId::EMPTY; PARTY_SLOTS],
             inventory: Inventory::new(),
+            roster: CharacterRoster::new(),
             money: 0,
         }
+    }
+
+    /// The eleven character records.
+    #[must_use]
+    pub const fn roster(&self) -> &CharacterRoster {
+        &self.roster
+    }
+
+    /// The eleven character records, mutably.
+    pub const fn roster_mut(&mut self) -> &mut CharacterRoster {
+        &mut self.roster
+    }
+
+    /// The characters currently in the party, in slot order.
+    #[must_use]
+    pub fn party_members(&self) -> Vec<CharId> {
+        self.party
+            .iter()
+            .filter(|id| **id != CharId::EMPTY)
+            .map(|id| CharId(*id))
+            .collect()
+    }
+
+    /// Both halves of `Battle_VictoryMessage`'s experience award.
+    ///
+    /// The party pass sets `gain_exp_flag` on every occupied slot and pays the
+    /// living; the absent pass pays every other seated character carrying the
+    /// flag, unless `EventFlag_Reunion` is set. Returns `(party, absent)` — the
+    /// ids each pass actually paid.
+    ///
+    /// `each` is the per-head share `battle::split_rewards` computed, not the
+    /// pool: the cartridge divides once and both passes add the same quotient.
+    pub fn award_experience(&mut self, each: u16) -> (Vec<CharId>, Vec<CharId>) {
+        let party = self.party_members();
+        let reunion = self.is_set(Flag::event(REUNION_FLAG));
+        let paid_party = self.roster.award_party(&party, each);
+        let paid_absent = self.roster.award_absent(&party, each, reunion);
+        (paid_party, paid_absent)
     }
 
     /// The party's item list.
@@ -586,6 +641,9 @@ impl GameState {
         let mut snapshot = StateSnapshot {
             event_flags: [0; 64],
             temp_flags: [0; 32],
+            characters: core::array::from_fn(|index| {
+                self.roster.seats().get(index).cloned().flatten()
+            }),
             inventory: *self.inventory.slots(),
             town_flags: [0; 16],
             party: self.party,
@@ -605,6 +663,7 @@ impl GameState {
             event: snapshot.event_flags.to_vec(),
             temp: snapshot.temp_flags.to_vec(),
             inventory: Inventory::from_slots(snapshot.inventory),
+            roster: CharacterRoster::from_seats(&snapshot.characters),
             town: snapshot.town_flags.to_vec(),
             party: snapshot.party,
             money: snapshot.money,

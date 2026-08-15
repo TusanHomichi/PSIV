@@ -10,7 +10,7 @@ Status at a glance:
 | Inventory | **implemented**, `psiv-core/src/inventory.rs` |
 | Treasure chests | **implemented**, `psiv-core/src/chest.rs` + `GameState::open_chest` |
 | Map-load flag clears | **implemented**, `psiv-core/src/map_load.rs` |
-| Character roster | **scouted, not implemented** — see the cut proposal at the end |
+| Character roster | **implemented**, `psiv-core/src/roster.rs` |
 
 ## 1. The character record
 
@@ -347,7 +347,56 @@ day — the flag-bank merge collapsed `chest_flags`/`temp_flags` into a single
   the Python side; the `_mod` derivation consumes them through `psiv-data`'s
   `ItemRecord`.
 
-## Cut proposal: the character roster is its own slice
+## The roster, as built
+
+`psiv-core/src/roster.rs`. `GameState` owns a `CharacterRoster` of eleven
+`Option<Stats>` seats, seated through battle-scout-lane's
+`PartyMember::seat` / `Stats::from_character` path — no constructor of its own,
+because a second way to build a character record is a second way for one to be
+wrong.
+
+**The round trip is `absorb`, and it replaces records whole.** `into_party`
+hands back the same `Stats` that went in, so nothing is picked out and nothing
+is merged. That is what makes "everything survives except `_battle`" true by
+construction rather than by maintenance: a field added to `Stats` later
+round-trips without anyone remembering to update this.
+
+**`gain_exp_flag`, both passes.** `award_party` sets the flag on every occupied
+slot *before* the status check and pays only the living; `award_absent` pays
+every other seated character carrying the flag, and returns nothing at all when
+`EventFlag_Reunion` (`$DA`) is set. `GameState::award_experience` runs both and
+reads Reunion from its own flags. Both clamp at 9,999,999.
+
+Note the asymmetry, which is the cartridge's: the party pass tests status, the
+absent pass does not. A dead benched character is paid.
+
+`battle::split_rewards` documents the absent pass as out of its scope —
+"that needs the roster of everyone recruited so far, which battle does not
+own" — so the two halves meet here.
+
+### Pinned against the level-up tape
+
+`the_level_up_tape_round_trips_through_the_roster` uses tape 10's measured
+numbers (`oracle/logs/verify_levelup.csv`), Chaz's second level-up:
+
+| frame | change |
+| --- | --- |
+| f51600 | level 1, exp 17, hp 20/25, tp 10/10, str 8 men 6 agi 7 dex 5 |
+| f51785 | exp 17 -> 26 (pool 27, three recipients, 9 each) |
+| f51786 | level 1 -> 2 |
+| f51817 | str 8 -> 9, men 6 -> 7 |
+| f51833 | agi 7 -> 8, dex 5 -> 6 |
+| f51849 | maxhp 25 -> 31, maxtp 10 -> 13 |
+| f51899 | level 2, exp 26, hp **20**/31, tp **10**/13 |
+
+The stat rises are staged over ~64 frames for presentation; only the end state
+persists. The load-bearing line is the last one: **a level-up raises the maxima
+and does not refill.** Chaz walks out on 20 of 31.
+
+Computing the rise is `battle::apply_level_ups` and is tested there. What this
+pins is the half the roster owns — the award arithmetic and what persists.
+
+## Superseded: the cut proposal
 
 The roster is not deep in RE terms — the struct is transcribed above and the
 hard part, `update_mod_stats`, already exists. It is deep in *ownership* terms,

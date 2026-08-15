@@ -134,6 +134,14 @@ pub enum MapError {
     /// Also returned for the two inputs that can never name a real item — slot
     /// id `0`, which is the empty marker, and an out-of-range slot.
     InventoryFull,
+    /// A character id outside `0..11`.
+    ///
+    /// `Character_Stats` holds exactly eleven records, `$F500` to `$FA80` at
+    /// stride `$80`, and the id is the index into them.
+    UnknownCharacter {
+        /// The id asked for.
+        id: u8,
+    },
     /// A party slot index was past the end of the slot array.
     PartySlotOutOfRange {
         /// The slot asked for.
@@ -241,6 +249,11 @@ impl fmt::Display for MapError {
                     crate::INVENTORY_SLOTS
                 )
             }
+            MapError::UnknownCharacter { id } => write!(
+                f,
+                "character id {id} does not exist; there are {}",
+                crate::CHARACTER_COUNT
+            ),
             MapError::PartySlotOutOfRange { slot, slots } => {
                 write!(f, "party slot {slot} does not exist; there are {slots}")
             }

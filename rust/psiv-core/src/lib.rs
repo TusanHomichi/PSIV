@@ -86,6 +86,7 @@ mod map;
 mod map_load;
 mod party;
 mod replay;
+mod roster;
 mod scene;
 mod scene_runner;
 mod scenes;
@@ -115,6 +116,9 @@ pub use replay::{
     OBJECT_ID_LOADED, OBJECT_SLOTS, ObjectSample, OracleLog, ReplayRow, Tape, TapeError, TapeFrame,
     TapeStep, all_modelled_columns, csv_header, facing_value, modelled_columns, object_column,
     object_columns,
+};
+pub use roster::{
+    CHARACTER_COUNT, CharacterRoster, DEAD_STATUS_MASK, EXPERIENCE_CAP, REUNION_FLAG,
 };
 pub use scene::{
     ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, OP_BUDGET_PER_TICK, SceneEffect,
