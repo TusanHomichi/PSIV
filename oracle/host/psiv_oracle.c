@@ -135,6 +135,18 @@ static char g_system_dir[1024];
 static char g_save_dir[1024];
 static int g_dump_options;
 
+/* Raw work-RAM snapshots, for "what state survives X?" questions that named
+ * columns cannot answer: dump the full 64KB at two frames and diff them. The
+ * dumps are written in 68000 byte order (ram[A^1]) so an offset in the file is
+ * the 68000 address minus $FFFF0000, not the core's word-swapped layout. */
+#define MAX_RAM_DUMPS 8
+struct ram_dump {
+	uint64_t frame;
+	const char *path;
+};
+static struct ram_dump g_dumps[MAX_RAM_DUMPS];
+static int g_ndumps;
+
 /* Declared-option index, captured when the core announces its options, so we
  * can prove every pinned value is one the core actually accepts. A core that
  * receives an unrecognised value does not report an error: Genesis Plus GX
@@ -712,6 +724,20 @@ int main(int argc, char **argv)
 		else if (!strcmp(argv[i], "--out") && i + 1 < argc) out_path = argv[++i];
 		else if (!strcmp(argv[i], "--groups") && i + 1 < argc) groups = argv[++i];
 		else if (!strcmp(argv[i], "--dump-options")) g_dump_options = 1;
+		else if (!strcmp(argv[i], "--dump-ram") && i + 1 < argc) {
+			/* --dump-ram <frame>:<path> */
+			char *spec = argv[++i];
+			char *colon = strchr(spec, ':');
+			if (!colon || g_ndumps >= MAX_RAM_DUMPS) {
+				fprintf(stderr, "psiv_oracle: --dump-ram wants "
+				        "<frame>:<path> (max %d)\n", MAX_RAM_DUMPS);
+				return 2;
+			}
+			*colon = 0;
+			g_dumps[g_ndumps].frame = strtoull(spec, NULL, 10);
+			g_dumps[g_ndumps].path = colon + 1;
+			g_ndumps++;
+		}
 		else if (!strcmp(argv[i], "--probe-endian")) probe_endian = 1;
 		else { usage(); return 2; }
 	}
@@ -893,6 +919,22 @@ int main(int argc, char **argv)
 
 			rt_run();
 			frame++;
+
+			for (i = 0; i < g_ndumps; i++) {
+				FILE *df;
+				uint32_t a;
+				if (g_dumps[i].frame != frame)
+					continue;
+				df = fopen(g_dumps[i].path, "wb");
+				if (!df) {
+					fprintf(stderr, "psiv_oracle: cannot write %s: %s\n",
+					        g_dumps[i].path, strerror(errno));
+					return 1;
+				}
+				for (a = 0; a < 0x10000; a++)
+					fputc(g_ram[a ^ 1], df);
+				fclose(df);
+			}
 
 			if (g_cur_buttons & PAD_UP) btn[n++] = 'U';
 			if (g_cur_buttons & PAD_DOWN) btn[n++] = 'D';

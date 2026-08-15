@@ -857,31 +857,88 @@ timing:
 Every value matches the pack record: `chest_flag` 24 = `ChestFlag_PiataMonomate`
 ($18), item 125 = Dimate.
 
-**But no chest flag is written.** Logging all 64 bytes of `$FFFFF140-$FFFFF17F`
-across the whole tape, the only write anywhere in that region is Town_Flags at
-f902 during the intro. `$FFFFF143` — where flag 24 belongs under the
-`bit = 7 - (id & 7)` rule tape 17 confirmed — stays `00` through the open and
-for 900 frames after.
+**The chest flag is written inline, to `$FFFFF123`.** An earlier revision of
+this section reported "no chest flag is written", on the strength of watching
+`$FFFFF140-$FFFFF17F` — the bank the constants file calls `Chest_Flags`. That
+was the wrong eight bytes. Diffing all 64KB of work RAM before the open against
+after a round trip found the survivor at **`$FFFFF123`**, in the bank the clone
+labels `Extended_Event_Flags`.
 
-This reproduces under two different input patterns (a Speak mash and a single
-clean dismissal press), so it is not an artefact of re-triggering the routine.
+With that address logged, the write is exactly where the code says:
+**`$FFFFF123` goes `00` -> `$80` at f24675 — the same frame the Dimate lands in
+`Inventory[0]`.** Grant and flag are simultaneous, not deferred to a transition.
+Byte 3, bit 7 is flag id 24 under the same `bit = 7 - (id & 7)` rule.
 
-What is **not** isolated: why. `FieldRoutine_ItemFound` does contain a
-`jsr (ChestFlags_Set)` (`ps4.asm:137471`), gated on
-`Interaction_Event_Type == 1`, and the RAM shows that type *is* 1 with the
-right flag id in place — so either that path is not reached by the route this
-tape takes through the routine, or the write happens on a later transition the
-tape does not cover (a map exit or a save). A consistent side-effect: the chest
-re-enters `ItemFound` on each subsequent press, which is what an unset flag
-would cause, though no duplicate item is granted.
+`$FFFFF143` — where id 24 would live if `$F140` were the chest bank — stays
+`00` through the whole tape. Both facts are pinned in `verify.sh` so the earlier
+mistake cannot recur silently.
 
-**For `psiv-core`:** a chest's item grant and its flag write should not be
-assumed simultaneous. The grant is measured at routine-start + 9 frames; the
-flag write is not observed at all here, so an `open_chest` that sets the flag
-inline will diverge from this trace. Worth pinning down before the comparator
-reaches chest maps — a tape that opens a chest, leaves the map and returns
-would say whether the chest stays open, which is the behaviour that actually
-matters.
+**The lesson, worth generalising:** a negative result about RAM is only as good
+as the address range it watched. "No write observed" needed a whole-RAM diff to
+be trustworthy, and `--dump-ram <frame>:<path>` now exists on the host for
+exactly that — dump two frames, diff, find what survives.
+
+#### The chest is open on return, and there is no duplication
+
+Tape 20 opens the chest, walks out to `PiataAcademyNearBasement` and back:
+
+| frame | event |
+|---|---|
+| f24667 | chest object's `facing_dir` 0 -> **4** (opened), one frame into ItemFound |
+| f24675 | Dimate to `Inventory[0]` **and** `$FFFFF123` bit 7 set |
+| f25773 | warp to map $12 |
+| f25969 | back on map $15 |
+| f26800 | **slot 1 (the opened chest) spawns with `facing` = 4; slot 2 (the untouched one) spawns `facing` = 0** |
+
+So the chest **stays open** across the round trip, the item is kept, and it
+cannot be taken again. No duplication, and no ledger material here.
+
+#### The no-duplicate guard
+
+Two mechanisms, and they are separate:
+
+- **The visible state is the chest object's own `facing_dir` (offset `$6`)**,
+  which `ItemFound` overwrites with 4 (`ps4.asm`, `move.w #4, $6(a4)`). It is
+  the only chest-slot byte that changes on opening. On reload it comes back as
+  4 for the opened chest, so the load path initialises it from the flag.
+- **The grant guard is the flag test at `ItemFound`'s entry.** Re-pressing on
+  the same visit still enters routine `$24`, but grants nothing — the early-out
+  path. So "entered ItemFound" is not evidence of a grant; the inventory write
+  is.
+
+**For `psiv-core`:** grant and flag write are simultaneous, at routine-start
++ 9 frames. A chest's rendered open/closed state is `facing_dir`, not a
+separate field, and it is derived from the flag at map load.
+
+### RETRACTION IN PROGRESS: which bank holds chest flags
+
+**The alias section below is in doubt and should not be relied on until this is
+resolved.** It concluded that a "temp" flag and a chest flag of the same id are
+one physical bit, on the strength of `TempEveFlag_Xanafalgue` ($13) landing at
+`$FFFFF142` — inside what `ps4.constants.asm` labels `Chest_Flags` ($F140).
+
+Opening a real chest then measured where a **chest** flag actually goes, and it
+is not that bank:
+
+| write | lands at | bank the clone labels it |
+|---|---|---|
+| `TempEveFlag_Xanafalgue` ($13) | `$FFFFF142` bit 4 | `Chest_Flags` ($F140) |
+| **`ChestFlag_PiataMonomate` (24)** | **`$FFFFF123` bit 7** | `Extended_Event_Flags` ($F120) |
+
+Same reversed-bit arithmetic in both cases, different banks. If chest flags live
+at `$F120` and "temp" flags at `$F140`, then a temp flag and a chest flag of the
+same id are in **different** banks, there is no collision, and **the un-looting
+bug reported from tape 18 does not exist** — the clone's two bank labels would
+simply both be wrong.
+
+What is measured and not in doubt: the two addresses above, the set/clear cycle
+of `$FFFFF142` across a basement round trip, and the chest behaviour below.
+What is in doubt: the interpretation that those two addresses are the same
+bank.
+
+The decisive follow-up is one tape: open the basement's *second* chest (flag 25)
+and see whether it lands at `$FFFFF123` bit 6. If it does, chest flags are
+confirmed at `$F120` and the alias claim retracts.
 
 ### The flag-bank alias, confirmed on hardware
 

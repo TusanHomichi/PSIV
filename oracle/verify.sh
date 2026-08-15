@@ -346,8 +346,8 @@ if {r['chestb3'] for r in rows} != {'00'}:
         "byte-2 bit cannot be attributed to the temp-flag write")
 if '0024' in {r['game_mode_routine'] for r in rows}:
     bad("FieldRoutine_ItemFound ran - a chest was opened during tape 17")
-ok(f"flag alias: TempEveFlag_Xanafalgue ($13) sets $FFFFF142 bit 4 at f{setf}, "
-   "inside the CHEST bank; the $F156 bank stays 00 and no chest was opened")
+ok(f"TempEveFlag_Xanafalgue ($13) sets $FFFFF142 bit 4 at f{setf}; the $F156 "
+   "bank stays 00 and no chest was opened")
 
 # The round trip: the bit clears on the way out and the Xanafalgue respawns on
 # the way back, which is what makes the chest collision an un-loot rather than
@@ -403,11 +403,25 @@ op = next(int(r['frame']) for r in rows if r['mark'] == 'open_chest')
 found = [r for r in rows if int(r['frame']) >= op and r['inv0'] == '7D']
 if not found:
     bad("opening the chest never put the Dimate ($7D) in Inventory[0]")
+# The chest flag IS written, inline with the grant - but to $FFFFF123, in the
+# bank the clone labels Extended_Event_Flags ($F120), NOT to $FFFFF143 in the
+# bank it labels Chest_Flags ($F140). An earlier revision of this check pinned
+# the absence of a $F143 write as a finding; that was watching the wrong eight
+# bytes. Both halves are asserted so the mistake cannot recur silently.
+grant = int(found[0]['frame'])
+wrote = [r for r in rows if r['extb3'] == '80']
+if not wrote:
+    bad("$FFFFF123 bit 7 was never set - the chest flag write did not land in "
+        "the $F120 bank")
+w = int(wrote[0]['frame'])
+if w != grant:
+    bad(f"chest flag set at f{w} but the item was granted at f{grant}; they "
+        "were measured as simultaneous")
 if {r['chestb3'] for r in rows} != {'00'}:
-    bad("$FFFFF143 changed - the chest flag write now happens inline, which "
-        "contradicts the recorded trace; re-check the README's chest section")
-ok(f"chest open: Dimate reaches Inventory[0] at f{found[0]['frame']}, and no "
-   "chest-flag write lands in $FFFFF143 (measured negative)")
+    bad("$FFFFF143 changed - chest flags were measured to live at $F120, not "
+        "$F140; re-check the README's chest section")
+ok(f"chest open: Dimate reaches Inventory[0] and chest flag 24 sets "
+   f"$FFFFF123 bit 7, both at f{grant}; $FFFFF143 stays 00")
 PY
 
 if [ "$LANE" = fast ]; then

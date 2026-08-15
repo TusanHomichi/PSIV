@@ -740,3 +740,11 @@ inv4	FFFFF414	1	chars	hex
 inv5	FFFFF415	1	chars	hex
 inv6	FFFFF416	1	chars	hex
 inv7	FFFFF417	1	chars	hex
+extb0	FFFFF120	1	flagbytes	hex
+extb1	FFFFF121	1	flagbytes	hex
+extb2	FFFFF122	1	flagbytes	hex
+extb3	FFFFF123	1	flagbytes	hex
+extb4	FFFFF124	1	flagbytes	hex
+extb5	FFFFF125	1	flagbytes	hex
+extb6	FFFFF126	1	flagbytes	hex
+extb7	FFFFF127	1	flagbytes	hex

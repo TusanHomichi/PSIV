@@ -417,7 +417,7 @@ and the flag-set whose absence would re-fire the trigger forever.
   across all eleven characters is exactly 36 words. Found by
   `psiv_tools/battle_art.py`, which pins the anomaly rather than widening
   its size rule.
-- RETAIL FINDING (2026-08-15, triple-verified): the cartridge has FOUR flag
+- [PARTIALLY CORRECTED — see the FLAG MODEL FINAL entry] RETAIL FINDING (2026-08-15, triple-verified): the cartridge has FOUR flag
   banks, not five. The clone defines `Temp_Event_Flags = $FFFFF156` with its
   own Test/Set/Clear doors — but the retail image contains ZERO instructions
   addressing $F156 (no `lea (xxx).w` = 41F8F156, no absolute-long
@@ -446,7 +446,7 @@ and the flag-set whose absence would re-fire the trigger forever.
   authored 416-byte tables over a 417-map space suggests the id-space count
   itself was wrong somewhere in Sega's build tooling. Found during battle
   background emission (battle/art/backgrounds).
-- The flag-bank alias (above) collides on SIX id pairs in actual use, not
+- [RETRACTED — see the FLAG MODEL FINAL entry] The flag-bank alias (above) collides on SIX id pairs in actual use, not
   one: temp $08 BioPlantAlarm = chest Alshline, and temp $09-$0D — Vahal Fort's two
   moving platforms and two conveyor-direction terminals plus a Weapon
   Plant platform — = the PsycoWand, ControlKey, Canceller, EclpsTorch
@@ -467,7 +467,7 @@ and the flag-set whose absence would re-fire the trigger forever.
   framing is "the whole range", not an enumeration. Seven map-load
   routines clear twenty of these ids as explicit immediates
   (psiv-core/src/map_load.rs carries the transcribed table).
-- The flag-bank alias is CONFIRMED ON HARDWARE (tape 17): the Xanafalgue
+- [INTERPRETATION CORRECTED — the measurement stands; see the FLAG MODEL FINAL entry] The flag-bank alias is CONFIRMED ON HARDWARE (tape 17): the Xanafalgue
   temp flag ($13) lands at $FFFFF142 bit 4 — byte 2 of the CHEST bank,
   exactly where the reversed-bit arithmetic (`bset 7-(id&7)`) predicts —
   while the clone's fifth bank at $F156 stays zero for all 24,880 frames.
@@ -478,7 +478,7 @@ and the flag-set whose absence would re-fire the trigger forever.
   $13). Bounded claims: whether that chest reads as looted at Garuberk
   (unreachable by tape), and whether anything clears the bit on leaving
   the basement, are both untested — a leave-and-reenter tape is queued.
-- RETAIL CARTRIDGE BUG (measured both directions, tape 18): the basement
+- [CHEST CONSEQUENCE RETRACTED — see the FLAG MODEL FINAL entry; the measured set/clear/respawn cycle stands] RETAIL CARTRIDGE BUG (measured both directions, tape 18): the basement
   round trip is a REPEATABLE UN-LOOTER. The Xanafalgue's flee sets chest
   bit $13 at despawn (same frame); arriving on the destination map clears
   it 39 frames after load (the clear is tied to LOADING the destination,
@@ -530,3 +530,31 @@ and the flag-set whose absence would re-fire the trigger forever.
   one word past the end, into whatever follows at $FFFFEFD4. Dormant in
   effect (the stray word only matters if it exceeds every real agility);
   the port implements the intended nine and documents the deviation.
+
+- FLAG MODEL FINAL (2026-08-15, three independent evidence lines): the
+  clone mislabelled TWO banks, not one. Retail's four flag banks are:
+  $F100 event (256), $F120 CHEST + "extended event" — ONE bank, two
+  name-spaces on the same bits — $F140 TEMP (what the clone calls
+  Chest_Flags), $F160 town. $F156 remains fiction. Evidence: (1) the
+  chest system's three call sites all target the $F120 doors
+  (LoadTreasureChests test 0x537E0, ItemFound entry test 0x66B2A,
+  ItemFound set 0x66DE0; ItemFound's type dispatch is 0->F100,
+  1->F120, else->F140), byte-verified twice independently; (2) tape 20's
+  whole-64KB RAM diff — found blind, before the byte reading reached the
+  oracle — shows ChestFlag_PiataMonomate (24) landing at $FFFFF123 bit 7,
+  simultaneous with the item grant at ItemFound+10, and NOTHING in
+  $F140-$F17F; (3) the pack census: the new-game initialiser's 11
+  preloaded "extended event flags" are, eleven for eleven, real chests'
+  flag ids (BioPlant_B2 x3, HuntersGuildStorage, KadaryStorageRoom,
+  Nurvus_B3, Hangar, Kuran_F1, ClimCenter_F3, WeaponPlant_F2,
+  TonoeBasement_B3) — RETAIL PRE-SETS ELEVEN CHESTS AT NEW GAME,
+  presumably "not lootable yet" state that story events clear through
+  the $F120 clear door (0x576B2; caller sweep pending). Consequences:
+  temp and chest flags never collide (the six-pairs table and the
+  basement-un-looter bug 11 retract — the measured $F142 set/clear/
+  respawn cycle stands, it just gates only the Xanafalgue); the LIVE
+  alias is chest <-> extended-event, same-id same-bit; chest open state
+  renders via the object's facing_dir byte, derived from the flag at
+  load; grant and flag write are simultaneous. Oracle process lesson
+  kept in oracle/README: a negative about RAM is only as good as the
+  watched range — whole-RAM diff before ever reporting an absence.

@@ -5471,6 +5471,70 @@
       "group": "chars",
       "hex": true,
       "source": "Inventory byte 7 (constants:2381, base $FFFFF410)"
+    },
+    {
+      "name": "extb0",
+      "addr": "FFFFF120",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Extended_Event_Flags byte 0 (constants:2363, base $FFFFF120). Measured to be where retail lands CHEST flags: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143"
+    },
+    {
+      "name": "extb1",
+      "addr": "FFFFF121",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Extended_Event_Flags byte 1 (constants:2363, base $FFFFF120). Measured to be where retail lands CHEST flags: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143"
+    },
+    {
+      "name": "extb2",
+      "addr": "FFFFF122",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Extended_Event_Flags byte 2 (constants:2363, base $FFFFF120). Measured to be where retail lands CHEST flags: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143"
+    },
+    {
+      "name": "extb3",
+      "addr": "FFFFF123",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Extended_Event_Flags byte 3 (constants:2363, base $FFFFF120). Measured to be where retail lands CHEST flags: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143"
+    },
+    {
+      "name": "extb4",
+      "addr": "FFFFF124",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Extended_Event_Flags byte 4 (constants:2363, base $FFFFF120). Measured to be where retail lands CHEST flags: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143"
+    },
+    {
+      "name": "extb5",
+      "addr": "FFFFF125",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Extended_Event_Flags byte 5 (constants:2363, base $FFFFF120). Measured to be where retail lands CHEST flags: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143"
+    },
+    {
+      "name": "extb6",
+      "addr": "FFFFF126",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Extended_Event_Flags byte 6 (constants:2363, base $FFFFF120). Measured to be where retail lands CHEST flags: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143"
+    },
+    {
+      "name": "extb7",
+      "addr": "FFFFF127",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Extended_Event_Flags byte 7 (constants:2363, base $FFFFF120). Measured to be where retail lands CHEST flags: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143"
     }
   ]
 }
