@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+from dataclasses import dataclass
 from typing import Any, Sequence
 
 from .. import png
@@ -32,7 +33,13 @@ from .field import (
     stage_map_art,
     tile_source_from_patterns,
 )
-from .objects import FieldObjectRoutine
+from .objects import (
+    FIELD_OBJECTS_JMP_TBL,
+    FIELD_OBJ_DO_OBJ_COLLISION,
+    INTERACTION_CHK_OBJECTS,
+    RENDER_FLAG_INTERACTABLE,
+    FieldObjectRoutine,
+)
 from .records import SpriteError
 
 SPRITES_DIRECTORY = "sprites"
@@ -47,6 +54,27 @@ SPRITE_TRANSPARENT_INDEX = 0
 
 #: How much of a sheet's content hash goes into its file name.
 SHEET_ID_LENGTH = 8
+
+
+@dataclass(frozen=True)
+class NpcMetadata:
+    """Everything the pack knows about one placed object beyond its record.
+
+    `interactable` rides here rather than in `sprite` because it is true of
+    objects that have no sprite at all: `FieldObj_InvisibleBlock` draws nothing
+    and is still both a talk trigger and a wall.
+    """
+
+    sprite: dict[str, Any] | None
+    sprite_reason: str | None
+    interactable: bool
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "sprite": self.sprite,
+            "sprite_reason": self.sprite_reason,
+            "interactable": self.interactable,
+        }
 
 
 def sheet_png(sheet: Sheet) -> bytes:
@@ -188,6 +216,59 @@ def emit_party(root: Path, party: Sequence[PartySprite]) -> tuple[list[dict[str,
     return entries, total
 
 
+def field_objects_json(
+    routines: Sequence[FieldObjectRoutine], placements: dict[int, int]
+) -> dict[str, Any]:
+    """The per-object-type interaction table, with its provenance stated once.
+
+    `interactable` is `render_flags` bit 3. Emitting it per type rather than
+    only per placement matters because the bit is a property of the
+    `FieldObjectsJmpTbl` routine, not of the map record -- every `Xanafalgue`
+    in the game is un-talkable for the same reason, and a consumer that wants
+    to know *why* should not have to read 359 map files to find out.
+
+    `placements` is how many objects of each type the emitted maps carry, so a
+    reader can tell "no map uses this" from "this is off everywhere".
+    """
+    types = [
+        {
+            "object_id": routine.object_id,
+            "symbol": routine.symbol,
+            "routine_offset": f"0x{routine.rom_offset:06X}",
+            "interactable": routine.interactable,
+            "source": routine.interactable_source,
+            "changes_at_runtime": routine.interactable_changes_at_runtime,
+            "placements": placements.get(routine.object_id, 0),
+        }
+        for routine in routines
+    ]
+    return {
+        "render_flags_bit": RENDER_FLAG_INTERACTABLE,
+        "table": f"0x{FIELD_OBJECTS_JMP_TBL:06X}",
+        "count": len(types),
+        # Both readers do the identical `btst #3, $2(a3) / beq -> skip`, so the
+        # bit is not "can be talked to" alone: an object with it clear is also
+        # invisible to the walker's object collision.
+        "tested_by": [
+            {"routine": "Interaction_ChkObjects", "rom_offset": f"0x{INTERACTION_CHK_OBJECTS:06X}",
+             "effect": "the talk probe skips the object"},
+            {"routine": "FieldObj_DoObjCollision", "rom_offset": f"0x{FIELD_OBJ_DO_OBJ_COLLISION:06X}",
+             "effect": "the object does not block the walker"},
+        ],
+        # The complete set of encodings retail uses to write the bit. A sweep of
+        # every 68000 form that can write a byte at $2(a4) over the field-object
+        # code region finds only these two: no ori/andi, no register-operand bit
+        # instruction, no move.b over the whole byte.
+        "instruction_forms": ["bset #3, $2(a4)", "bclr #3, $2(a4)"],
+        "unwritten_bit_is_clear_because": (
+            "GameMode_LoadFieldMap zero-fills $400 longwords from "
+            "Field_Objects_Memory via trap #0 before LoadMapObjects parses the "
+            "record, so a routine that writes neither leaves the bit clear"
+        ),
+        "types": types,
+    }
+
+
 def _sprite_reference(sprite: ObjectSprite, sheet_id: str) -> dict[str, Any]:
     return {
         "sheets": NPC_SPRITES_NAME,
@@ -206,7 +287,7 @@ def resolve_map_sprites(
     extents: dict[int, int],
     registry: SheetRegistry,
     census: SpriteCensus,
-) -> tuple[list[tuple[dict[str, Any] | None, str | None]], list[dict[str, Any]]]:
+) -> tuple[list[NpcMetadata], list[dict[str, Any]]]:
     """Resolve every object of one map to a sheet, or to a reason it has none.
 
     The pattern bank the objects draw from is the one the record itself fills:
@@ -219,7 +300,7 @@ def resolve_map_sprites(
     palette = palette_rgb(decode_map_palette(rom, decoded.spec.palette))
     by_id = {routine.object_id: routine for routine in routines}
 
-    references: list[tuple[dict[str, Any] | None, str | None]] = []
+    references: list[NpcMetadata] = []
     artless: list[dict[str, Any]] = []
     for entry in record["objects"]["entries"]:
         routine = by_id.get(entry["object_id"])
@@ -233,7 +314,7 @@ def resolve_map_sprites(
             facing=entry["facing_dir"], art_tile=entry["art_tile"], census=census,
         )
         if sprite.sheet is None:
-            references.append((None, sprite.reason))
+            references.append(NpcMetadata(None, sprite.reason, routine.interactable))
             artless.append({
                 "npc_index": entry["index"],
                 "object_id": entry["object_id"],
@@ -243,5 +324,7 @@ def resolve_map_sprites(
             })
             continue
         sheet_id = registry.register(sprite.sheet, entry["symbol"] or "FieldObj")
-        references.append((_sprite_reference(sprite, sheet_id), None))
+        references.append(
+            NpcMetadata(_sprite_reference(sprite, sheet_id), None, routine.interactable)
+        )
     return references, artless

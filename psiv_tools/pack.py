@@ -102,11 +102,13 @@ from .sprites import (
 # consumer looks it up.
 from .sprites.emit import (
     NPC_SPRITES_DIRECTORY,
+    NpcMetadata,
     NPC_SPRITES_NAME,
     PARTY_SPRITES_DIRECTORY,
     PARTY_SPRITES_NAME,
     SheetRegistry,
     emit_party,
+    field_objects_json,
     resolve_map_sprites,
 )
 from .symbols import ITEM_SYMBOLS
@@ -127,7 +129,9 @@ from .warps import (  # noqa: F401
 #: overworlds joined at the same version: their records use every field the
 #: others do, and the one thing they add -- `layout_patches`, the event-gated
 #: chunk writes their page loader performs -- is a key no other map carries and
-#: no existing key changed meaning for.
+#: no existing key changed meaning for. `interactable` on every NPC entry and
+#: the `field_objects` table in `sprites/npcs.json` join on the same reasoning:
+#: both are new keys, and nothing that was already emitted reads differently.
 PACK_FORMAT_VERSION = 1
 
 MANIFEST_NAME = "manifest.json"
@@ -236,8 +240,7 @@ def _warps(record: dict[str, Any], grid) -> tuple[list[dict[str, Any]], list[dic
 
 
 def _npcs(
-    record: dict[str, Any],
-    sprites: Sequence[tuple[dict[str, Any] | None, str | None]] = (),
+    record: dict[str, Any], sprites: Sequence[NpcMetadata] = ()
 ) -> list[dict[str, Any]]:
     """`LoadMapObjects` entries.
 
@@ -246,15 +249,15 @@ def _npcs(
     says; the cell is the floor of that plus the standing-cell shift, i.e. the
     cell the object's collision would be read from.
 
-    `sprites` is one entry per object, in order: either a reference into
-    `sprites/npcs.json` or `None` for an object the cartridge draws nothing
-    for, in which case `sprite_reason` says which routine decided that.
+    `sprites` is one `NpcMetadata` per object, in order: the sheet reference or
+    the reason there is none, plus `interactable`. That last one is independent
+    of art -- an invisible block draws nothing and still answers the talk probe
+    and still blocks the walker -- so it sits beside `sprite`, not inside it.
     """
     out = []
+    blank = NpcMetadata(None, None, False)
     for entry in record["objects"]["entries"]:
-        sprite, reason = (
-            sprites[entry["index"]] if entry["index"] < len(sprites) else (None, None)
-        )
+        meta = sprites[entry["index"]] if entry["index"] < len(sprites) else blank
         out.append({
             "index": entry["index"],
             "record_offset": entry["rom_offset"],
@@ -267,8 +270,7 @@ def _npcs(
             "facing": _facing(entry["facing_dir"]),
             "dialogue_id": entry["dialogue_id"],
             "art_tile": entry["art_tile"],
-            "sprite": sprite,
-            "sprite_reason": reason,
+            **meta.to_json(),
         })
     return out
 
@@ -464,6 +466,8 @@ def build_pack(
     odd_layouts: list[dict[str, Any]] = []
     unloaded: list[dict[str, Any]] = []
     artless_objects: list[dict[str, Any]] = []
+    object_placements: dict[int, int] = {}
+    mute_dialogue: list[dict[str, Any]] = []
     without_overlay: list[dict[str, Any]] = []
     priority_totals = {"tiles": 0, "opaque_pixels": 0}
     warp_targets: dict[int, dict[str, Any]] = {}
@@ -471,7 +475,7 @@ def build_pack(
     census: dict[str, dict[int, int]] = {
         key: {} for key in
         ("collision_types", "npc_facing_bytes", "warp_facing_bytes", "dialogue_trees",
-         "sprite_palette_lines", "priority_tiles", "event_ids")
+         "sprite_palette_lines", "priority_tiles", "event_ids", "npc_interactable")
     }
 
     def count(key: str, value: int, by: int = 1) -> None:
@@ -556,6 +560,16 @@ def build_pack(
             count("warp_facing_bytes", warp["facing"]["id"])
         for npc in payload["npcs"]:
             count("npc_facing_bytes", npc["facing"]["id"])
+        for npc in payload["npcs"]:
+            count("npc_interactable", int(npc["interactable"]))
+            object_placements[npc["object_id"]] = (
+                object_placements.get(npc["object_id"], 0) + 1
+            )
+            if npc["dialogue_id"] and not npc["interactable"]:
+                mute_dialogue.append({
+                    **_target(record), "npc_index": npc["index"],
+                    "symbol": npc["symbol"], "dialogue_id": npc["dialogue_id"],
+                })
         for entry in artless:
             artless_objects.append({**_target(record), **entry})
 
@@ -585,6 +599,7 @@ def build_pack(
         "kind": "field_npcs",
         "sheet_count": len(npc_entries),
         "sheets": npc_entries,
+        "field_objects": field_objects_json(routines, object_placements),
     }
     npc_sha = _write_json(directory / NPC_SPRITES_NAME, npc_index)
     party_index = {
@@ -664,6 +679,20 @@ def build_pack(
             "npc_sheet_count": len(npc_entries),
             "npc_placements": placed,
             "artless_objects": len(artless_objects),
+            # `render_flags` bit 3 decides both the talk probe and object
+            # collision. Objects that carry a dialogue id and still have it
+            # clear are the interesting class: the cartridge never lets the
+            # player reach that dialogue, so a runtime that probes them anyway
+            # answers with whatever its tree lookup falls back to.
+            "interaction": {
+                "render_flags_bit": 3,
+                "types_interactable": sum(1 for r in routines if r.interactable),
+                "types_not_interactable": sum(1 for r in routines if not r.interactable),
+                "types_changing_at_runtime": [
+                    r.symbol for r in routines if r.interactable_changes_at_runtime
+                ],
+                "dialogue_id_but_not_interactable": mute_dialogue,
+            },
             # What the composed frames actually contain, as opposed to what the
             # six-byte piece record allows. Every one of these decided a line of
             # the compositor: the low-byte carry is why the pattern word is

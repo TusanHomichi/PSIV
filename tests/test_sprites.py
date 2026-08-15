@@ -1,3 +1,4 @@
+import collections
 import hashlib
 import re
 import unittest
@@ -13,8 +14,16 @@ from psiv_tools.sprites import (
     FIELD_OBJECT_COUNT,
     FIELD_OBJ_ANIMATE,
     HFLIP_BIT,
+    FIELD_OBJECTS_CLEAR_SIGNATURE,
+    FIELD_OBJECTS_CLEAR_SITE,
+    FIELD_OBJECTS_MEMORY_CLEAR_LONGS,
+    FIELD_OBJ_DO_OBJ_COLLISION,
+    INTERACTION_BTST_SIGNATURE,
+    INTERACTION_CHK_OBJECTS,
+    INTERACTION_LOOP_SIGNATURE,
     MOVEMENTS_TBL,
     MOVEMENT_SELECTOR_MASK,
+    RENDER_FLAG_INTERACTABLE,
     MOVEMENT_SELECTOR_MASK_SITE,
     PAL_INIT_LINE_3,
     PAL_INIT_LINE_3_CRAM_LINE,
@@ -651,6 +660,193 @@ class TestAgainstTheDisassembly(unittest.TestCase):
             self.data[MOVEMENT_SELECTOR_MASK_SITE:MOVEMENT_SELECTOR_MASK_SITE + 4],
             bytes.fromhex("0241") + MOVEMENT_SELECTOR_MASK.to_bytes(2, "big"),
         )
+
+
+# ---------------------------------------------------------------------------
+# render_flags bit 3: the talk probe and object collision.
+# ---------------------------------------------------------------------------
+#: Every 68000 encoding that can write a byte at `(d16, A4)`. The ea half is
+#: fixed to mode 5 register 4 (0x2C), so only the operation half varies. The
+#: point of the list is that most of it is *absent* from the cartridge.
+def byte_write_opcodes() -> dict[int, str]:
+    forms = {
+        0x086C: "bchg #imm", 0x08AC: "bclr #imm", 0x08EC: "bset #imm",
+        0x002C: "ori.b #imm", 0x022C: "andi.b #imm", 0x0A2C: "eori.b #imm",
+        0x422C: "clr.b", 0x462C: "not.b", 0x197C: "move.b #imm",
+    }
+    for n in range(8):
+        forms[0x016C | (n << 9)] = f"bchg d{n}"
+        forms[0x01AC | (n << 9)] = f"bclr d{n}"
+        forms[0x01EC | (n << 9)] = f"bset d{n}"
+        forms[0x1940 | n] = f"move.b d{n}"
+        forms[0x812C | (n << 9)] = f"or.b d{n}"
+        forms[0xC12C | (n << 9)] = f"and.b d{n}"
+        forms[0xB12C | (n << 9)] = f"eor.b d{n}"
+    return forms
+
+
+@unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
+class TestInteractableBit(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.data = read_rom(ROM)
+        cls.routines = scan_field_objects(cls.data)
+        cls.by_symbol = {r.symbol: r for r in cls.routines}
+
+    def test_both_readers_of_the_bit_are_where_we_say(self):
+        # `Interaction_ChkObjects` is the talk probe; `FieldObj_DoObjCollision`
+        # is whether the object blocks the walker. Both open with the same
+        # `lea / moveq #$33 / tst.w (a3) / beq / btst #3,$2(a3) / beq`, so one
+        # bit governs both and an object nobody can talk to is also walkable
+        # through.
+        for offset in (INTERACTION_CHK_OBJECTS, FIELD_OBJ_DO_OBJ_COLLISION):
+            with self.subTest(offset=hex(offset)):
+                self.assertEqual(self.data[offset:offset + 4], bytes.fromhex("47f8c300"))
+                head = offset + 4
+                self.assertEqual(
+                    self.data[head:head + len(INTERACTION_LOOP_SIGNATURE)],
+                    INTERACTION_LOOP_SIGNATURE,
+                )
+                btst = head + 8
+                self.assertEqual(
+                    self.data[btst:btst + len(INTERACTION_BTST_SIGNATURE)],
+                    INTERACTION_BTST_SIGNATURE,
+                )
+        self.assertEqual(RENDER_FLAG_INTERACTABLE, 3)
+
+    def test_only_two_instruction_forms_ever_write_the_flags_byte(self):
+        # The claim the extractor rests on: retail writes `render_flags` with
+        # static-immediate bit instructions and nothing else. If a future read
+        # of this region ever finds an `ori.b` or a register-operand `bset`,
+        # the scanner is blind to it and this test says so.
+        starts = sorted({r.rom_offset for r in self.routines})
+        lo, hi = starts[0], starts[-1] + 0x200
+        forms = byte_write_opcodes()
+        seen = set()
+        offset = lo
+        while offset < hi - 6:
+            word = int.from_bytes(self.data[offset:offset + 2], "big")
+            name = forms.get(word)
+            if name is not None:
+                immediate = "#imm" in name
+                displacement = offset + (4 if immediate else 2)
+                if int.from_bytes(self.data[displacement:displacement + 2], "big") == 0x0002:
+                    bit = (
+                        int.from_bytes(self.data[offset + 2:offset + 4], "big")
+                        if immediate else None
+                    )
+                    seen.add((name, bit))
+            offset += 2
+        operations = {name.split()[0] for name, _ in seen}
+        self.assertEqual(operations, {"bset", "bclr", "bchg"})
+        # Bit 3 specifically is only ever set or cleared, never toggled.
+        self.assertEqual(
+            {name for name, bit in seen if bit == RENDER_FLAG_INTERACTABLE},
+            {"bset #imm", "bclr #imm"},
+        )
+
+    def test_an_unwritten_bit_is_clear_because_the_loader_zeroes_the_slots(self):
+        # This is what makes "the routine never mentions bit 3" a decided
+        # answer rather than "whatever the previous map left in that slot".
+        self.assertEqual(
+            self.data[FIELD_OBJECTS_CLEAR_SITE:
+                      FIELD_OBJECTS_CLEAR_SITE + len(FIELD_OBJECTS_CLEAR_SIGNATURE)],
+            FIELD_OBJECTS_CLEAR_SIGNATURE,
+        )
+        # `trap #0` is `moveq #0,d0 / move.l d0,(a0)+ / dbf d7`, so d7+1 longs.
+        declared = int.from_bytes(
+            self.data[FIELD_OBJECTS_CLEAR_SITE + 2:FIELD_OBJECTS_CLEAR_SITE + 4], "big"
+        ) + 1
+        self.assertEqual(declared, FIELD_OBJECTS_MEMORY_CLEAR_LONGS)
+        # Field_Obj_Secondary is $FFFFC300 and Field_LoadObject hands out slots
+        # up to $FFFFCFC0, so the clear covers every slot it can return.
+        self.assertGreaterEqual(0xC000 + declared * 4, 0xCFC0 + 0x40)
+
+    def test_the_split_across_all_222_routines(self):
+        interactable = [r for r in self.routines if r.interactable]
+        self.assertEqual(len(interactable), 104)
+        self.assertEqual(len(self.routines) - len(interactable), 118)
+        sources = collections.Counter(r.interactable_source for r in self.routines)
+        self.assertEqual(sources["bset #3, $2(a4) in the init block"], 104)
+        self.assertEqual(sources["bclr #3, $2(a4) in the init block"], 74)
+        self.assertEqual(sources["routine has no init block"], 1)
+        self.assertEqual(sum(sources.values()), len(self.routines))
+        # The 43 that write neither are not interactable by the loader's clear.
+        silent = [r for r in self.routines if r.interactable_source.startswith("no write")]
+        self.assertEqual(len(silent), 43)
+        self.assertTrue(all(not r.interactable for r in silent))
+
+    def test_the_one_routine_that_changes_the_bit_while_it_runs(self):
+        # `FieldObj_FellowPenguin` sets bit 3 in its init, then clears it once
+        # `EventFlag_Penguin` is set -- once you have talked to it, it stops
+        # answering and stops blocking. Reported, not flattened.
+        changing = [r for r in self.routines if r.interactable_changes_at_runtime]
+        self.assertEqual([r.symbol for r in changing], ["FellowPenguin"])
+        self.assertTrue(changing[0].interactable)
+
+    def test_the_academy_basement_monsters_are_not_talkable(self):
+        # The live bug this extraction exists for: both bosses carry
+        # `bclr #3`, so retail's probe skips them and never reaches their map's
+        # dialogue tree.
+        for symbol in ("Xanafalgue", "Igglanova"):
+            with self.subTest(symbol=symbol):
+                routine = self.by_symbol[symbol]
+                self.assertFalse(routine.interactable)
+                self.assertIn("bclr", routine.interactable_source)
+        # An invisible block draws nothing and is still both a talk trigger and
+        # a wall, so art-less does not mean interaction-less.
+        block = self.by_symbol["InvisibleBlock"]
+        self.assertTrue(block.interactable)
+        self.assertFalse(block.builds_sprites)
+
+
+@unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
+@unittest.skipUnless(
+    DISASM.exists(),
+    "reference/ps4disasm is not checked out; clone it to run the oracle tests",
+)
+class TestInteractableAgainstTheDisassembly(unittest.TestCase):
+    """The clone's init blocks agree about bit 3 for every routine it names."""
+
+    def test_every_matched_init_block_agrees(self):
+        data = read_rom(ROM)
+        text = DISASM.read_text(errors="replace")
+        # The clone spells the field both ways, `$2(a4)` and `render_flags(a4)`.
+        setter = re.compile(r"^\tbset\t#3, (?:\$2|render_flags)\(a4\)", re.M)
+        clearer = re.compile(r"^\tbclr\t#3, (?:\$2|render_flags)\(a4\)", re.M)
+        bodies = {}
+        pattern = re.compile(
+            r"^(FieldObj_[A-Za-z0-9_]+|loc_[0-9A-F]+):\s*\n\tbset\t#7, \(a4\)\n"
+            r"\tbne\.s\s+([.\w+]+)\s*\n",
+            re.M,
+        )
+        for match in pattern.finditer(text):
+            label, target = match.group(1), match.group(2)
+            rest = text[match.end():]
+            stop = (
+                re.search(r"^\+", rest, re.M) if target.startswith("+")
+                else re.search(rf"^{re.escape(target)}\b", rest, re.M)
+            )
+            bodies[label] = rest[:stop.start()] if stop else rest[:2000]
+
+        checked = 0
+        for routine in scan_field_objects(data):
+            body = bodies.get(f"FieldObj_{routine.symbol}") or bodies.get(routine.symbol)
+            if body is None:
+                continue
+            checked += 1
+            with self.subTest(symbol=routine.symbol):
+                clone_sets = bool(setter.search(body))
+                clone_clears = bool(clearer.search(body))
+                self.assertEqual(clone_sets, routine.interactable)
+                if not clone_sets:
+                    self.assertEqual(
+                        clone_clears,
+                        "bclr" in routine.interactable_source,
+                    )
+        # Seven routines the clone labels in a form this parser does not reach;
+        # the rest is a full cross-check.
+        self.assertEqual(checked, 215)
 
 
 if __name__ == "__main__":

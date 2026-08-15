@@ -54,6 +54,9 @@ MAP_BIRTH_VALLEY_B1 = 0x2C
 MAP_AIEDO_PUB = 0x64
 MAP_KADARY_INN_F1 = 0x72
 MAP_MILE_DEAD = 0x1E
+# The two academy-basement rooms whose bosses must not answer the talk probe.
+MAP_ACADEMY_BASEMENT = 0x15
+MAP_ACADEMY_BASEMENT_B2 = 0x17
 MAP_DEZOLIS = DEZOLIS
 #: `MapID_TheEdge`: one of the 22 maps that draw nothing above sprites.
 MAP_THE_EDGE = 0x100
@@ -587,6 +590,45 @@ class TestPackFixture(unittest.TestCase):
             sum(len(payload["npcs"]) for payload in self.maps.values()),
         )
 
+    def test_every_npc_says_whether_it_answers_the_talk_probe(self):
+        index = json.loads((self.root / NPC_SPRITES_NAME).read_text())
+        types = {entry["object_id"]: entry for entry in index["field_objects"]["types"]}
+        self.assertEqual(index["field_objects"]["render_flags_bit"], 3)
+        self.assertEqual(index["field_objects"]["count"], 222)
+        # The complete set of encodings retail uses to write the bit.
+        self.assertEqual(
+            index["field_objects"]["instruction_forms"],
+            ["bset #3, $2(a4)", "bclr #3, $2(a4)"],
+        )
+        # Both readers are named, because the bit is not dialogue-only: an
+        # object with it clear is also invisible to the walker's collision.
+        self.assertEqual(
+            [reader["routine"] for reader in index["field_objects"]["tested_by"]],
+            ["Interaction_ChkObjects", "FieldObj_DoObjCollision"],
+        )
+        for payload in self.maps.values():
+            for npc in payload["npcs"]:
+                with self.subTest(map=payload["symbol"], npc=npc["index"]):
+                    self.assertIsInstance(npc["interactable"], bool)
+                    # The per-map bool and the per-type table cannot disagree.
+                    self.assertEqual(
+                        npc["interactable"], types[npc["object_id"]]["interactable"]
+                    )
+                    self.assertTrue(types[npc["object_id"]]["source"])
+
+    def test_the_interaction_census_counts_both_answers(self):
+        counted = self.manifest["census"]["npc_interactable"]
+        self.assertEqual(
+            sum(counted.values()),
+            sum(len(payload["npcs"]) for payload in self.maps.values()),
+        )
+        interaction = self.manifest["sprites"]["interaction"]
+        self.assertEqual(interaction["render_flags_bit"], 3)
+        self.assertEqual(
+            interaction["types_interactable"] + interaction["types_not_interactable"], 222
+        )
+        self.assertEqual(interaction["types_changing_at_runtime"], ["FellowPenguin"])
+
     def test_the_sequences_carry_per_frame_durations_in_game_frames(self):
         index = json.loads((self.root / PARTY_SPRITES_NAME).read_text())
         chaz = next(sheet for sheet in index["sheets"] if sheet["id"] == "Chaz")
@@ -978,6 +1020,32 @@ class TestPackAgainstTheWholeTable(unittest.TestCase):
                 self.assertEqual(anomaly["symbol"], "Dezolis")
                 self.assertEqual(anomaly["distinct_pages"], 8)
                 self.assertEqual(len(anomaly["aliased_pages"]), 8)
+
+    def test_the_academy_basement_monsters_do_not_answer_the_talk_probe(self):
+        # The live bug: a runtime that probes every nearby object reaches these
+        # two, finds dialogue id 0, and falls through its tree to whatever the
+        # map's tree 33 chains to. Retail never reaches them at all --
+        # `FieldObj_Xanafalgue` and `FieldObj_Igglanova` both `bclr #3`.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "pack"
+            manifest = build_pack(
+                self.data, root, map_ids=[MAP_ACADEMY_BASEMENT, MAP_ACADEMY_BASEMENT_B2]
+            )
+            npcs = {}
+            for entry in manifest["maps"]:
+                payload = json.loads((root / entry["json"]).read_text())
+                for npc in payload["npcs"]:
+                    npcs.setdefault(npc["symbol"], []).append(npc)
+            for symbol in ("Xanafalgue", "Igglanova"):
+                with self.subTest(symbol=symbol):
+                    self.assertTrue(npcs[symbol])
+                    for npc in npcs[symbol]:
+                        self.assertFalse(npc["interactable"])
+            # The invisible blocks in the same room are the other way round:
+            # no art at all, and still interactable.
+            for npc in npcs["InvisibleBlock"]:
+                self.assertTrue(npc["interactable"])
+                self.assertIsNone(npc["sprite"])
 
     def test_an_unknown_map_id_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -71,6 +71,34 @@ OFF_ART_PTR = 0x18
 #: `render_flags` bit 1: `Field_FillSpriteAttributes` returns on it.
 RENDER_FLAG_NO_SPRITES = 1
 
+#: `render_flags` bit 3, the disassembly's "object can be interacted with".
+#: Two routines read it and both do the same `btst #3, $2(a3) / beq -> skip`:
+#: `Interaction_ChkObjects`, which is the talk probe, and
+#: `FieldObj_DoObjCollision`, which is whether the object blocks the walker.
+#: One bit, two meanings -- an object that cannot be talked to also cannot be
+#: bumped into, and the pack says so rather than emitting "interactable" as if
+#: it only governed dialogue.
+RENDER_FLAG_INTERACTABLE = 3
+INTERACTION_CHK_OBJECTS = 0x058D50
+FIELD_OBJ_DO_OBJ_COLLISION = 0x047DA8
+#: `moveq #$33,d7 / tst.w (a3) / beq.w .. / btst #3,$2(a3) / beq.w`, the head
+#: of both readers' loops. The `$33` is 52 secondary object slots.
+INTERACTION_LOOP_SIGNATURE = bytes.fromhex("7e334a536700")
+INTERACTION_BTST_SIGNATURE = bytes.fromhex("082b000300026700")
+
+#: `GameMode_LoadFieldMap` zero-fills `$400` longwords from
+#: `Field_Objects_Memory` through `trap #0` before it parses a record, and
+#: `Trap00Exception` is `moveq #0,d0 / move.l d0,(a0)+ / dbf`. That covers
+#: every object slot `Field_LoadObject` can hand out, so a routine that never
+#: writes bit 3 leaves it clear and the object is not interactable. The clear
+#: is what makes "silent" a decidable answer instead of "whatever the last map
+#: left in that slot".
+FIELD_OBJECTS_MEMORY_CLEAR_LONGS = 0x400
+#: `move.w #$3FF,d7 / lea (Field_Objects_Memory).w,a0 / trap #0`, in
+#: `GameMode_LoadFieldMap`.
+FIELD_OBJECTS_CLEAR_SITE = 0x0517A4
+FIELD_OBJECTS_CLEAR_SIGNATURE = bytes.fromhex("3e3c03ff41f8c0004e40")
+
 
 # ---------------------------------------------------------------------------
 # The field-object jump table and its init blocks
@@ -95,6 +123,9 @@ class FieldObjectRoutine:
     starts_hidden: bool
     animates: bool
     streams_art: bool
+    interactable: bool
+    interactable_source: str
+    interactable_changes_at_runtime: bool
 
     @property
     def object_id(self) -> int:
@@ -126,6 +157,9 @@ class FieldObjectRoutine:
             "starts_hidden": self.starts_hidden,
             "animates": self.animates,
             "streams_art": self.streams_art,
+            "interactable": self.interactable,
+            "interactable_source": self.interactable_source,
+            "interactable_changes_at_runtime": self.interactable_changes_at_runtime,
         }
 
 
@@ -149,6 +183,67 @@ def _check_jump_table(rom: bytes) -> None:
         raise SpriteError(
             f"FieldObj_Animate at {_hex(FIELD_OBJ_ANIMATE)} does not match its signature"
         )
+
+
+def _check_interaction_readers(rom: bytes) -> None:
+    """Both readers of `render_flags` bit 3 are where this build thinks.
+
+    `Interaction_ChkObjects` is the talk probe and `FieldObj_DoObjCollision` is
+    the walker's object collision. They open with the same six instructions, so
+    the same two signatures pin both, and an offset that has drifted fails here
+    rather than silently making every object interactable.
+    """
+    for label, offset in (
+        ("Interaction_ChkObjects", INTERACTION_CHK_OBJECTS),
+        ("FieldObj_DoObjCollision", FIELD_OBJ_DO_OBJ_COLLISION),
+    ):
+        head = offset + 4  # past `lea (Field_Obj_Secondary).w, a3`
+        if rom[head:head + len(INTERACTION_LOOP_SIGNATURE)] != INTERACTION_LOOP_SIGNATURE:
+            raise SpriteError(f"{label} at {_hex(offset)} does not open its slot loop")
+        btst = head + 8
+        if rom[btst:btst + len(INTERACTION_BTST_SIGNATURE)] != INTERACTION_BTST_SIGNATURE:
+            raise SpriteError(
+                f"{label} at {_hex(offset)} does not test render_flags bit "
+                f"{RENDER_FLAG_INTERACTABLE}"
+            )
+
+
+def _interactable(
+    symbol: str, init: dict[tuple[str, int], list[int]],
+    body: dict[tuple[str, int], list[int]],
+) -> tuple[bool, str, bool]:
+    """Does this object type answer the talk probe, and how do we know?
+
+    Retail writes the bit exactly two ways and nowhere else: `bset #3, $2(a4)`
+    and `bclr #3, $2(a4)`, both static-immediate bit instructions. There is no
+    `ori`/`andi`, no register-operand bit form, no `move.b` to the whole byte --
+    a sweep of every 68000 encoding that can write a byte at `$2(a4)` over the
+    field-object code region finds only the static bit ops.
+
+    A routine that writes neither is *not* interactable, because
+    `GameMode_LoadFieldMap` zero-fills the object area before parsing the
+    record. That is a decided answer, not a default.
+    """
+    def bit(where: dict[tuple[str, int], list[int]], kind: str) -> bool:
+        return RENDER_FLAG_INTERACTABLE in where.get((kind, OFF_RENDER_FLAGS), [])
+
+    init_set, init_clear = bit(init, "bset"), bit(init, "bclr")
+    later = any(bit(body, kind) for kind in ("bset", "bclr", "bchg"))
+    if init_set and init_clear:
+        raise SpriteError(
+            f"FieldObj_{symbol} both sets and clears render_flags bit "
+            f"{RENDER_FLAG_INTERACTABLE} in one init block"
+        )
+    if init_set:
+        source = f"bset #{RENDER_FLAG_INTERACTABLE}, $2(a4) in the init block"
+    elif init_clear:
+        source = f"bclr #{RENDER_FLAG_INTERACTABLE}, $2(a4) in the init block"
+    else:
+        source = (
+            "no write; GameMode_LoadFieldMap zero-fills the object area before "
+            "LoadMapObjects, so the bit is clear"
+        )
+    return init_set, source, later
 
 
 def _routine_targets(rom: bytes) -> list[int]:
@@ -250,6 +345,7 @@ def scan_field_objects(rom: bytes) -> list[FieldObjectRoutine]:
     branch into `FieldObj_Animate`, and every routine ends with one.
     """
     _check_jump_table(rom)
+    _check_interaction_readers(rom)
     targets = _routine_targets(rom)
     starts = sorted(set(targets))
 
@@ -269,6 +365,9 @@ def scan_field_objects(rom: bytes) -> list[FieldObjectRoutine]:
                     sprite_tile_props=None, alternate_tile_props=(),
                     mappings_duration=None, builds_sprites=False, starts_hidden=False,
                     animates=animate or animate2, streams_art=animate,
+                    interactable=False,
+                    interactable_source="routine has no init block",
+                    interactable_changes_at_runtime=False,
                 )
             )
             continue
@@ -301,6 +400,7 @@ def scan_field_objects(rom: bytes) -> list[FieldObjectRoutine]:
         # set it at load and clear it once they should appear (the Zio Fort
         # barrier beams switch on and off as the player walks past), so only an
         # object whose body never clears it is genuinely art-less.
+        interactable, why, changes = _interactable(symbol, stores, body)
         hidden = RENDER_FLAG_NO_SPRITES in stores.get(("bset", OFF_RENDER_FLAGS), [])
         unhides = any(
             RENDER_FLAG_NO_SPRITES in body.get((key, OFF_RENDER_FLAGS), [])
@@ -324,6 +424,9 @@ def scan_field_objects(rom: bytes) -> list[FieldObjectRoutine]:
                 starts_hidden=hidden,
                 animates=animate or animate2,
                 streams_art=animate,
+                interactable=interactable,
+                interactable_source=why,
+                interactable_changes_at_runtime=changes,
             )
         )
     return routines
