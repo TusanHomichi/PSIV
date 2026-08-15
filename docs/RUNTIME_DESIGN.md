@@ -140,6 +140,34 @@ scene still leaks.
   scriptable determinism); final call when the oracle harness is built, at
   the start of battle work.
 
+## Event engine (designed 2026-08-15, Peter + Fable)
+
+Three kinds of data plus one machine, per docs/EVENT_ENGINE_SCOUT.md:
+
+- **GameState** in psiv-core: the event-flag bitset (~174), temp flags,
+  `Current_Party_Slots`. Also the future save-file shape. The bridge applies
+  flag-gated extractions (layout patches, MapDataManager effects, NPC
+  despawns) on flag changes by rebuilding the FieldMap.
+- **Triggers**: the 128 `RunEventsJmpTbl` checks transcribed into a condition
+  table (flags + position predicate -> event id); custom cases explicitly
+  marked. Evaluated on landing, like transitions.
+- **Scenes**: a `SceneOp` vocabulary interpreted deterministically in
+  psiv-core (MoveActor, Face, RunDialogue, SetFlag, JoinParty, DespawnNpc,
+  MoveCamera, Wait, flag/choice branches), effects out to the renderer. Each
+  retail scene is a hand-transcribed SceneOp sequence, committed to the repo
+  like all behavior code; dialogue text stays in the pack. **The 17
+  fork-rewritten scenes are transcribed from retail bytes only** — the clone
+  is adversarial there.
+- **Renderer**: animates scene actors from effects, routes dialogue `$F6` and
+  yes/no into the event queue, and turns on cinema mode (the scene-active
+  signal is the hook the viewport section has been waiting for).
+
+Decisions (Peter, 2026-08-15): the BizHawk oracle harness is built
+**alongside** event work, not after — scenes are where static-data
+verification runs out. v1 scope is the **opening act** (~6 scenes: intro,
+Alys joins and leads, the principal's assignment, the basement quest,
+leaving Piata), making the game playable as a story to the first dungeon.
+
 ## Open fidelity questions (for the emulator oracle)
 
 - Dialogue text speed: does retail draw characters progressively, at what
