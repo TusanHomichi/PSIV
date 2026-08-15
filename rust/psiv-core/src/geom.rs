@@ -6,6 +6,10 @@
 //! single 16-pixel cell per step and the walker commits to one axis at a time
 //! (see `docs/RUNTIME_DESIGN.md`, "Fidelity spine").
 
+/// Pixels along one edge of a collision cell. `GetChunkAndCollision` resolves
+/// one collision type per 16 pixels.
+pub const CELL_PIXELS: i32 = 16;
+
 /// A cardinal direction, used both for facing and for movement.
 ///
 /// Screen convention: `y` grows downward, matching the row-major layout of

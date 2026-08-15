@@ -74,6 +74,6 @@ mod map;
 
 pub use collision::{CollisionGrid, CollisionType, MAX_COLLISION_VALUE};
 pub use error::MapError;
-pub use field::{Effect, FieldState, Input, SUBCELL_UNITS, StepFrames};
-pub use geom::{Cell, CellRect, Direction};
-pub use map::{FieldMap, MapId, Npc, NpcId, Warp, WarpTrigger};
+pub use field::{Effect, FieldState, Input, SUBCELL_UNITS, StepFrames, TALK_RANGE_PX};
+pub use geom::{CELL_PIXELS, Cell, CellRect, Direction};
+pub use map::{FieldMap, MapId, Npc, NpcId, SubCellOffset, Warp, WarpTrigger};

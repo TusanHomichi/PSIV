@@ -7,7 +7,7 @@
 
 use crate::collision::CollisionType;
 use crate::error::MapError;
-use crate::geom::{Cell, Direction};
+use crate::geom::{CELL_PIXELS, Cell, Direction};
 use crate::map::{FieldMap, MapId, Warp, WarpTrigger};
 
 /// How many sixteenths make up one cell. A collision cell is 16 pixels, so a
@@ -15,18 +15,35 @@ use crate::map::{FieldMap, MapId, Warp, WarpTrigger};
 /// [`FieldState::render_offset_16ths`].
 pub const SUBCELL_UNITS: i32 = 16;
 
-/// One tick of player input: a d-pad direction, or nothing.
+/// One tick of player input: a d-pad direction, the confirm button, or
+/// nothing.
 ///
 /// There is no diagonal. The original resolves movement on the 16-pixel
 /// collision grid one axis at a time, so a bridge that reads two d-pad axes
 /// must pick one direction per tick before calling [`FieldState::tick`].
+///
+/// One input per tick, and **the bridge decides precedence** when the player
+/// holds a direction and presses confirm on the same frame. Sending
+/// [`Input::Action`] is the right call there: the cartridge reads the two
+/// through different paths — `FieldObj_GetInput` masks `Joypad_Held` down to
+/// the four d-pad bits, while `FieldControls_GetInput` reads `ButtonSpeak` out
+/// of `Joypad_Pressed` — so in the original both can be true at once and the
+/// talk wins. Nothing is lost by choosing Action: this engine latches it and,
+/// if a direction is still held next tick, walks then.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub enum Input {
-    /// No direction held this tick.
+    /// Nothing held this tick.
     #[default]
     Neutral,
     /// A direction held this tick.
     Direction(Direction),
+    /// The confirm button (`ButtonSpeak`, bit 5 of the pad) this tick.
+    ///
+    /// Edge-triggered: the engine acts on the transition from not-held to held,
+    /// so a bridge may either send this only on the press edge or hold it down
+    /// across frames — both produce exactly one interaction per press, matching
+    /// the cartridge's use of `Joypad_Pressed` rather than `Joypad_Held`.
+    Action,
 }
 
 impl Input {
@@ -34,9 +51,15 @@ impl Input {
     #[must_use]
     pub const fn direction(self) -> Option<Direction> {
         match self {
-            Input::Neutral => None,
+            Input::Neutral | Input::Action => None,
             Input::Direction(dir) => Some(dir),
         }
+    }
+
+    /// Whether the confirm button is held this tick.
+    #[must_use]
+    pub const fn is_action(self) -> bool {
+        matches!(self, Input::Action)
     }
 }
 
@@ -132,6 +155,64 @@ pub enum Effect {
         /// The unmapped map-change cell.
         cell: Cell,
     },
+    /// The party talked to an NPC.
+    ///
+    /// **The field engine does not go modal.** It has no notion of an open
+    /// dialogue and will happily keep stepping if you keep feeding it
+    /// directions. Suspending movement is the caller's job: on this effect the
+    /// runtime opens its window and simply stops sending direction inputs until
+    /// the window closes, which is what the cartridge does by switching
+    /// `Game_Mode_Routine` from `FieldRoutine_Controls` to
+    /// `FieldRoutine_Interaction`. Keeping that state out of [`FieldState`]
+    /// keeps the field engine a pure movement machine.
+    Interact {
+        /// Index into [`FieldMap::npcs`] — a field object's identity, since
+        /// [`NpcId`] is a type id and repeats within a map.
+        ///
+        /// [`FieldMap::npcs`]: crate::FieldMap::npcs
+        /// [`NpcId`]: crate::NpcId
+        npc_index: usize,
+        /// The cell the party was facing: the talk target.
+        cell: Cell,
+    },
+    /// The party pressed confirm with nothing in talk range.
+    ///
+    /// Not silence: the cartridge answers this case with the party leader's
+    /// "Nothing here" line (`Interaction_ChkObjects` returning zero falls
+    /// through to `Interaction_DoPlayerNothingMsg`, `ps4.asm:118251`). The
+    /// engine cannot show a message, so it reports the miss and lets the
+    /// runtime decide. A caller with no dialogue layer yet can ignore this.
+    ///
+    /// Carries the facing rather than a cell because the faced position may lie
+    /// off the grid — pressing confirm at the top-left corner while facing up
+    /// is legal, and has no cell to name.
+    InteractNothing {
+        /// Which way the party was facing.
+        facing: Direction,
+    },
+}
+
+/// How far, in pixels on each axis, an object may sit from the talk target and
+/// still be reachable.
+///
+/// `Interaction_ChkObjects` (`ps4.asm:118729`) builds a point one cell ahead of
+/// the party in its facing direction, then rejects any object whose distance
+/// from that point exceeds `#$80000` on either axis — 8.0 pixels in the 16.16
+/// fixed point `curr_x_pos` uses. The comparison is `bhi`, so exactly 8 still
+/// matches.
+pub const TALK_RANGE_PX: i32 = 8;
+
+/// The first NPC within talk range of a target point, given in pixels relative
+/// to the origin of the grid.
+///
+/// First match wins, scanning in map order — the cartridge's loop `rts`es on
+/// its first hit rather than looking for a nearest.
+fn npc_in_talk_range(map: &FieldMap, target_x: i32, target_y: i32) -> Option<usize> {
+    map.npcs().iter().position(|npc| {
+        let npc_x = i32::from(npc.cell.x) * CELL_PIXELS + i32::from(npc.offset.x);
+        let npc_y = i32::from(npc.cell.y) * CELL_PIXELS + i32::from(npc.offset.y);
+        (npc_x - target_x).abs() <= TALK_RANGE_PX && (npc_y - target_y).abs() <= TALK_RANGE_PX
+    })
 }
 
 /// Whether `cell` on `map` is collision type 1. Out of bounds is not, which is
@@ -179,6 +260,17 @@ pub struct FieldState {
     /// `MapTransTile_MapChange` only fires when the *previous* cell was not,
     /// which is what keeps a wide doorway from re-firing as you walk along it.
     on_map_change: bool,
+    /// Whether the confirm button was held on the previous tick, so a held
+    /// button produces one interaction rather than one per frame. The cartridge
+    /// gets this from `Joypad_Pressed`, which is already edge-filtered.
+    action_was_held: bool,
+    /// A confirm press waiting for the party to come to rest.
+    ///
+    /// `FieldControls_GetInput` (`ps4.asm:114889`) latches the press into
+    /// `Field_Input_Buffer` unconditionally, then only consumes it once both
+    /// step durations are zero. So pressing confirm mid-step is not dropped —
+    /// it fires the moment the step lands.
+    action_latched: bool,
 }
 
 impl FieldState {
@@ -200,6 +292,8 @@ impl FieldState {
             step: None,
             step_frames,
             on_map_change: false,
+            action_was_held: false,
+            action_latched: false,
         };
         state.enter_map(map, cell, facing)?;
         Ok(state)
@@ -249,22 +343,43 @@ impl FieldState {
         self.facing = facing;
         self.step = None;
         self.on_map_change = is_map_change(map, cell);
+        self.action_latched = false;
         Ok(())
+    }
+
+    /// The point the talk check aims at: one cell ahead in the facing
+    /// direction, in pixels. Signed, because facing off the grid is legal.
+    fn talk_target_px(&self) -> (i32, i32) {
+        let (dx, dy) = self.facing.delta();
+        (
+            (i32::from(self.cell.x) + dx) * CELL_PIXELS,
+            (i32::from(self.cell.y) + dy) * CELL_PIXELS,
+        )
     }
 
     /// Advances one tick.
     ///
     /// The rules, in the order they apply:
     ///
-    /// 1. **At rest with a direction held**: face that way (facing always
+    /// 1. **Confirm pressed**: the press is latched, edge-triggered, so holding
+    ///    the button yields one interaction rather than one per frame. The
+    ///    latch is spent on the first tick the party is at rest, which means a
+    ///    press during a step is not discarded — it fires as the step lands,
+    ///    matching `Field_Input_Buffer`. Spending it emits either
+    ///    [`Effect::Interact`] or [`Effect::InteractNothing`] and consumes the
+    ///    tick: no step starts, because the cartridge hands the frame to
+    ///    `FieldRoutine_Interaction` instead of its movement code. The talk
+    ///    target is one cell ahead in the facing direction, matched against
+    ///    NPCs by the pixel range rule described on [`TALK_RANGE_PX`].
+    /// 2. **At rest with a direction held**: face that way (facing always
     ///    changes, even into a wall — you can look at a sign you cannot walk
     ///    into). If the target cell is in bounds, non-blocking and unoccupied
     ///    by an NPC, a step begins and advances on this same tick, so a step
     ///    started on tick `T` completes on tick `T + frames - 1`.
-    /// 2. **Mid-step**: progress advances regardless of input, and input is not
+    /// 3. **Mid-step**: progress advances regardless of input, and input is not
     ///    read at all. The original commits to a whole cell-step once it
     ///    starts; releasing the d-pad mid-step still finishes the cell.
-    /// 3. **On completion**: the party lands, and effects are pushed in this
+    /// 4. **On completion**: the party lands, and effects are pushed in this
     ///    order — [`Effect::StepCompleted`] first, then at most one of
     ///    [`Effect::Warp`] / [`Effect::WarpUnmapped`]. A landing therefore
     ///    yields one or two effects, never more, and a warp fires exactly once,
@@ -289,6 +404,31 @@ impl FieldState {
         );
 
         let mut effects = Vec::new();
+
+        // Latch a fresh confirm press, edge-triggered. The latch survives the
+        // rest of a step in progress and is spent on the first tick at rest.
+        let action_pressed = input.is_action() && !self.action_was_held;
+        self.action_was_held = input.is_action();
+        self.action_latched |= action_pressed;
+
+        if self.step.is_none() && self.action_latched {
+            self.action_latched = false;
+            // Facing off the grid is legal (confirm at the top-left corner
+            // facing up). Nothing can match there: every NPC is in bounds, so
+            // the nearest possible object is a full cell from the target and
+            // the range is half a cell. Skipping the scan is equivalent.
+            let hit = self.cell.neighbor(self.facing).and_then(|cell| {
+                let (target_x, target_y) = self.talk_target_px();
+                npc_in_talk_range(map, target_x, target_y)
+                    .map(|npc_index| Effect::Interact { npc_index, cell })
+            });
+            effects.push(hit.unwrap_or(Effect::InteractNothing {
+                facing: self.facing,
+            }));
+            // The cartridge hands the frame to `FieldRoutine_Interaction` and
+            // never reaches its movement code, so no step starts this tick.
+            return effects;
+        }
 
         if self.step.is_none()
             && let Some(dir) = input.direction()

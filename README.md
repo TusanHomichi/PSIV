@@ -185,6 +185,8 @@ Filed from wave 2: the two overworld paged layouts (Motavia/Dezolis, `loc_107DC2
 
 Filed from the sprite slice: NPC wander boundaries (73 object types carry roam boxes; the random-direction routine and cadence are untranscribed, and half a model is worse than none); vehicle sprites (spawn from `Vehicle_Index`, never map-placed); sprite priority (unused by placed retail objects).
 
+Filed from the interaction slice: shop-counter reach (`Interaction_ChkObjsSpecial` extends talk range one further cell across a `$C` counter tile and routes to the shop system — belongs with the shop-UI slice; until then shopkeepers behind counters are out of range); the per-object interactable runtime flag (bit 3 of `$2(a3)`, not in the pack; every object currently answers).
+
 Filed from the text slice: binding dialogue ids to the maps/NPCs that speak them (the `dc.l DialogueTreeN` pointers live in map headers); resolving `$F5`/`$FA`/`$FB` relative branch targets to absolute dialogue ids; the id spaces behind `$F2` action operands (panels, sounds, event flags).
 
 1. Save/SRAM parsing and import (needs a real emulator save as a fixture).

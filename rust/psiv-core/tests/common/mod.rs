@@ -8,7 +8,7 @@
 
 use psiv_core::{
     Cell, CollisionGrid, Direction, Effect, FieldMap, FieldState, Input, MapId, Npc, NpcId,
-    StepFrames, Warp,
+    StepFrames, SubCellOffset, Warp,
 };
 
 /// ASCII legend for the 4-bit collision types.
@@ -97,4 +97,45 @@ pub fn run(state: &mut FieldState, map: &FieldMap, input: Input, ticks: usize) -
 pub fn walk_one_step(state: &mut FieldState, map: &FieldMap, dir: Direction) -> Vec<Effect> {
     let frames = usize::from(state.step_frames().get());
     run(state, map, Input::Direction(dir), frames)
+}
+
+/// An NPC standing part-way into its cell, for the talk-range tests.
+pub fn npc_offset(id: u16, x: u16, y: u16, ox: u8, oy: u8) -> Npc {
+    Npc::with_offset(
+        NpcId(id),
+        Cell::new(x, y),
+        SubCellOffset::new(ox, oy),
+        Direction::Down,
+    )
+}
+
+/// Presses confirm for one tick and returns the effects.
+pub fn press_action(state: &mut FieldState, map: &FieldMap) -> Vec<Effect> {
+    state.tick(map, Input::Action)
+}
+
+/// A party standing at `(x, y)` already facing `dir`.
+///
+/// Placement is the only way to face a *walkable* direction without moving:
+/// at rest, a direction input turns and immediately begins the step. That is
+/// the engine's rule, not a fixture limitation, so range tests position the
+/// party rather than trying to pivot it.
+pub fn party_facing(map: &FieldMap, x: u16, y: u16, dir: Direction) -> FieldState {
+    let mut state = party(map, x, y);
+    state
+        .enter_map(map, Cell::new(x, y), dir)
+        .expect("valid party placement");
+    state
+}
+
+/// Turns to face `dir`, walking out any step that starts, then presses confirm.
+///
+/// Only safe when the faced cell is blocked or occupied; use [`party_facing`]
+/// otherwise.
+pub fn face_then_act(state: &mut FieldState, map: &FieldMap, dir: Direction) -> Vec<Effect> {
+    state.tick(map, Input::Direction(dir));
+    while state.is_stepping() {
+        state.tick(map, Input::Neutral);
+    }
+    press_action(state, map)
 }

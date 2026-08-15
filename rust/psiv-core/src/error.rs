@@ -8,7 +8,7 @@
 use core::fmt;
 
 use crate::geom::{Cell, CellRect};
-use crate::map::{MapId, NpcId};
+use crate::map::{MapId, NpcId, SubCellOffset};
 
 /// Why a [`CollisionGrid`](crate::CollisionGrid), [`FieldMap`](crate::FieldMap)
 /// or [`FieldState`](crate::FieldState) could not be built.
@@ -76,6 +76,14 @@ pub enum MapError {
         /// Grid height in cells.
         height: u16,
     },
+    /// An NPC's sub-cell offset had a component of 16 or more, which would put
+    /// it in a different cell than the one it claims.
+    NpcOffsetOutOfRange {
+        /// The offending NPC.
+        npc: NpcId,
+        /// The offset supplied.
+        offset: SubCellOffset,
+    },
     /// The party was placed outside the grid.
     PartyOutOfBounds {
         /// The map it was placed on.
@@ -141,6 +149,11 @@ impl fmt::Display for MapError {
                 f,
                 "npc {} at ({}, {}) is outside a {width}x{height} grid",
                 npc.0, cell.x, cell.y
+            ),
+            MapError::NpcOffsetOutOfRange { npc, offset } => write!(
+                f,
+                "npc {} has sub-cell offset ({}, {}); both must be under 16",
+                npc.0, offset.x, offset.y
             ),
             MapError::PartyOutOfBounds {
                 map,

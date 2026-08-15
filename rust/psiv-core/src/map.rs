@@ -7,7 +7,7 @@
 
 use crate::collision::{CollisionGrid, CollisionType};
 use crate::error::MapError;
-use crate::geom::{Cell, CellRect, Direction};
+use crate::geom::{CELL_PIXELS, Cell, CellRect, Direction};
 
 /// A map id, as stored in the cartridge's map tables.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
@@ -107,22 +107,77 @@ impl Warp {
     }
 }
 
+/// How far into its cell an object sits, in pixels, on each axis.
+///
+/// Field object coordinates are words scaled by 8 (`lsl.w #3,d0` in
+/// `LoadMapObjects`), but a collision cell is 16 pixels — so an object can sit
+/// on a half-cell, and 85 of the cartridge's 949 do. Blocking still works on
+/// whole cells, but the talk check is a pixel range check
+/// ([`FieldState::tick`]), so the core needs the sub-cell part to reproduce it.
+///
+/// Both components are `0..=15`. A bridge computes them as the object's pixel
+/// position modulo 16 on each axis; the whole-cell part is [`Npc::cell`].
+///
+/// [`FieldState::tick`]: crate::FieldState::tick
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct SubCellOffset {
+    /// Pixels right of the cell's left edge, `0..=15`.
+    pub x: u8,
+    /// Pixels below the cell's top edge, `0..=15`.
+    pub y: u8,
+}
+
+impl SubCellOffset {
+    /// No offset: the object sits exactly on its cell.
+    pub const ALIGNED: SubCellOffset = SubCellOffset { x: 0, y: 0 };
+
+    /// Constructs an offset. Values are validated when the map is built.
+    #[must_use]
+    pub const fn new(x: u8, y: u8) -> SubCellOffset {
+        SubCellOffset { x, y }
+    }
+}
+
 /// A field object standing on a map. NPCs block movement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Npc {
     /// The object's type id. Not unique within a map; see [`NpcId`].
     pub id: NpcId,
-    /// Which cell it occupies.
+    /// Which cell it occupies. This is what blocks the walker.
     pub cell: Cell,
+    /// Where inside that cell it stands. Only the talk range check reads this.
+    pub offset: SubCellOffset,
     /// Which way it faces.
     pub facing: Direction,
 }
 
 impl Npc {
-    /// Constructs an NPC.
+    /// Constructs a cell-aligned NPC — the common case (864 of the
+    /// cartridge's 949 objects).
     #[must_use]
     pub const fn new(id: NpcId, cell: Cell, facing: Direction) -> Npc {
-        Npc { id, cell, facing }
+        Npc {
+            id,
+            cell,
+            offset: SubCellOffset::ALIGNED,
+            facing,
+        }
+    }
+
+    /// Constructs an NPC standing part-way into its cell.
+    #[must_use]
+    pub const fn with_offset(
+        id: NpcId,
+        cell: Cell,
+        offset: SubCellOffset,
+        facing: Direction,
+    ) -> Npc {
+        Npc {
+            id,
+            cell,
+            offset,
+            facing,
+        }
     }
 }
 
@@ -195,6 +250,12 @@ impl FieldMap {
                     cell: npc.cell,
                     width,
                     height,
+                });
+            }
+            if i32::from(npc.offset.x) >= CELL_PIXELS || i32::from(npc.offset.y) >= CELL_PIXELS {
+                return Err(MapError::NpcOffsetOutOfRange {
+                    npc: npc.id,
+                    offset: npc.offset,
                 });
             }
         }

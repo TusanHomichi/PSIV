@@ -387,9 +387,14 @@ impl Field {
     }
 }
 
-/// One direction per tick; the engine has no diagonals, so order breaks ties.
+/// One input per tick. Confirm wins over movement — the cartridge reads them
+/// on separate paths and the talk takes the frame; a still-held direction
+/// simply walks on the next tick. The engine edge-detects Action internally.
 fn read_input() -> psiv_core::Input {
     let input = Input::singleton();
+    if input.is_action_pressed("ui_accept") {
+        return psiv_core::Input::Action;
+    }
     let held = [
         ("ui_up", Direction::Up),
         ("ui_down", Direction::Down),

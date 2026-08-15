@@ -10,18 +10,20 @@ mod common;
 use common::{map_with, npc, party};
 use psiv_core::{Cell, Direction, Effect, FieldMap, FieldState, Input, MapId, Warp};
 
-/// A deterministic input script: a 32-bit LCG mapped onto the five inputs.
+/// A deterministic input script: a 32-bit LCG mapped onto the six inputs,
+/// confirm presses included, so replays cover the interaction path too.
 fn input_script(seed: u32, length: usize) -> Vec<Input> {
     let mut state = seed;
     let mut script = Vec::with_capacity(length);
     for _ in 0..length {
         state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
-        script.push(match (state >> 16) % 5 {
+        script.push(match (state >> 16) % 6 {
             0 => Input::Neutral,
             1 => Input::Direction(Direction::Up),
             2 => Input::Direction(Direction::Down),
             3 => Input::Direction(Direction::Left),
-            _ => Input::Direction(Direction::Right),
+            4 => Input::Direction(Direction::Right),
+            _ => Input::Action,
         });
     }
     script
@@ -89,6 +91,8 @@ fn many_seeds_replay_identically_and_exercise_every_effect() {
     let mut saw_step = false;
     let mut saw_warp = false;
     let mut saw_unmapped = false;
+    let mut saw_interact = false;
+    let mut saw_nothing = false;
 
     for seed in 0..64_u32 {
         let script = input_script(seed.wrapping_mul(2_654_435_761), 200);
@@ -102,6 +106,8 @@ fn many_seeds_replay_identically_and_exercise_every_effect() {
                 Effect::StepCompleted { .. } => saw_step = true,
                 Effect::Warp { .. } => saw_warp = true,
                 Effect::WarpUnmapped { .. } => saw_unmapped = true,
+                Effect::Interact { .. } => saw_interact = true,
+                Effect::InteractNothing { .. } => saw_nothing = true,
             }
         }
     }
@@ -109,6 +115,8 @@ fn many_seeds_replay_identically_and_exercise_every_effect() {
     assert!(saw_step, "no steps completed across 64 scripts");
     assert!(saw_warp, "no warp fired across 64 scripts");
     assert!(saw_unmapped, "no unmapped doorway hit across 64 scripts");
+    assert!(saw_interact, "no NPC talked to across 64 scripts");
+    assert!(saw_nothing, "no empty-handed confirm across 64 scripts");
 }
 
 #[test]
