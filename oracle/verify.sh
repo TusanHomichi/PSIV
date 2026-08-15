@@ -71,6 +71,14 @@ run "$ORACLE/tapes/09_second_battle.tape" "$OUT/verify_battle2.csv" \
     --groups core,battle,bhit,enemy,chars,rng
 run "$ORACLE/tapes/08_rng_characterization.tape" "$OUT/verify_objects.csv" \
     --groups core,rng,objects
+run "$ORACLE/tapes/10_levelup.tape" "$OUT/verify_levelup.csv" \
+    --groups core,battle,bhit,enemy,chars,rng
+run "$ORACLE/tapes/11_beside_press.tape" "$OUT/verify_beside.csv" \
+    --groups core,pos,window,text
+run "$ORACLE/tapes/12_escape.tape" "$OUT/verify_escape.csv" \
+    --groups core,battle,chars
+run "$ORACLE/tapes/14_defend.tape" "$OUT/verify_defend.csv" \
+    --groups core,battle,bcmd,chars
 
 echo "== findings =="
 python3 - "$OUT" <<'PY'
@@ -370,6 +378,84 @@ if matched != total:
     bad(f"wander RNG rule held on only {matched}/{total} field-control frames")
 ok(f"RNG in field control == 2 + (wandering objects with timer 0) on all "
    f"{total} frames; {len(wander)} of 8 map $13 objects wander")
+
+# Level up, and the equipment stat-lag bug that the fidelity policy turns on.
+rows = load(OUT/'verify_levelup.csv')
+byf = {int(r['frame']): r for r in rows}
+lvl = next((int(b['frame']) for a, b in zip(rows, rows[1:])
+            if a['chaz_level'] == '1' and b['chaz_level'] == '2'), None)
+if lvl is None:
+    bad("tape 10 never levelled Chaz to 2")
+before, after = byf[lvl - 1], byf[min(lvl + 600, int(rows[-1]['frame']))]
+exp = {'chaz_maxhp': ('25', '31'), 'chaz_maxtp': ('10', '13'),
+       'chaz_str': ('8', '9'), 'chaz_agi': ('7', '8'), 'chaz_dex': ('5', '6')}
+for k, (b0, a0) in exp.items():
+    if before[k] != b0 or after[k] != a0:
+        bad(f"{k} went {before[k]}->{after[k]}, expected {b0}->{a0}")
+ok(f"level up at f{lvl}: maxhp 25->31, maxtp 10->13, str 8->9, agi 7->8, "
+   "dex 5->6, all matching progression.json level 2")
+lag = {k: (before[k], after[k]) for k in
+       ('chaz_atk', 'chaz_dfs', 'chaz_str_mod', 'chaz_agi_mod', 'chaz_dex_mod',
+        'chaz_mdef') if before[k] != after[k]}
+if lag:
+    bad(f"equipment-derived stats refreshed on level up: {lag} - the retail "
+        "stat-lag bug did not reproduce")
+ok("stat lag confirmed: atk_pow stays 18 and the *_mod / magic_dfs stats do "
+   "not refresh when the base stats rise")
+
+# A miss must be present: an action that resolves with no HP change at all.
+misses = 0
+for a, b in zip(rows, rows[1:]):
+    if a['game_mode'] not in ('0010', '0014'):
+        continue
+    if all(b[f'hit_{i:02d}'] == 'FF' for i in range(9)) and \
+       any(a[f'hit_{i:02d}'] != 'FF' for i in range(9)):
+        misses += 1
+if misses == 0:
+    bad("tape 10 recorded no all-FF hit-flag frame (no miss sample)")
+ok(f"miss samples present in tape 10 ({misses} all-FF resolutions)")
+
+# Beside press: identical text to the open-ground press means it took the
+# "nothing here" path and never reached the adjacent NPC.
+rows = load(OUT/'verify_beside.csv')
+byf = {int(r['frame']): r for r in rows}
+me = next(int(r['frame']) for r in rows if r['mark'] == 'speak_empty')
+mb = next(int(r['frame']) for r in rows if r['mark'] == 'speak_beside')
+txt = lambda f: ' '.join(byf[f][f'tb{i:02d}'] for i in range(24))
+if txt(me + 250) != txt(mb + 250):
+    bad("the beside press drew different text from the open-ground press - "
+        "it may have reached the NPC; re-check the staged geometry")
+r = byf[mb]
+ok(f"beside press at f{mb} (leader facing {r['c1_facing']}) draws the same "
+   "text as the open-ground press: it hit 'nothing here', not the NPC")
+
+# Escape leaves battle mode.
+rows = load(OUT/'verify_escape.csv')
+cf = next(int(r['frame']) for r in rows if r['mark'] == 'confirm_run')
+after = [r for r in rows if int(r['frame']) > cf
+         and r['game_mode'] not in ('0010', '0014')]
+if not after:
+    bad("tape 12 never left battle mode after confirming RUN")
+ok(f"escape confirmed at f{cf} leaves battle at f{after[0]['frame']}")
+
+# DEFEND, and the physical_prop clobber the bugfix policy hinges on.
+rows = load(OUT/'verify_defend.csv')
+byf = {int(r['frame']): r for r in rows}
+cd = next(int(r['frame']) for r in rows if r['mark'] == 'confirm_defend')
+picked = byf[cd + 150]
+if picked['cmd0_index'] != '5':
+    bad(f"defend selection wrote command {picked['cmd0_index']}, expected 5")
+props = {r['alys_phys_prop'] for r in rows if cd <= int(r['frame']) <= cd + 3000}
+if '258' not in props or '514' not in props:
+    bad(f"alys physical_prop never toggled 514<->258 while defending; saw {sorted(props)}")
+saves = {r['alys_phys_prop_save'] for r in rows}
+if saves != {'0'}:
+    bad(f"physical_prop_save was written ({sorted(saves)}); retail leaves it 0")
+others = {r['chaz_phys_prop'] for r in rows if cd <= int(r['frame']) <= cd + 3000}
+if others != {'514'}:
+    bad(f"a non-defending member's physical_prop changed: {sorted(others)}")
+ok("defend: command 5 selected; physical_prop 514->258 on the defender only, "
+   "physical_prop_save stays 0 (the retail clobber)")
 PY
 
 echo

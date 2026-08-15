@@ -177,5 +177,94 @@ def main():
         print(f"  battle_meseta_total values seen: {sorted(v for v in vals if v)}")
 
 
+def actions(log):
+    """Action-level view: one row per acting fighter, with what they chose,
+    what the damage list said, and whether any HP actually moved.
+
+    HP-change scanning alone cannot see a miss - a miss produces no HP change,
+    so it is invisible unless actions are enumerated first and then checked for
+    an effect. Fighters_Hit_Flags persists between actions, so it is only
+    meaningful when read at the frame the action resolves.
+    """
+    global HEX_FIELDS
+    HEX_FIELDS = load_hex_fields()
+    rows = load(log)
+    byf = {int(r['frame']): r for r in rows}
+    FIGHT = {1: 'Alys', 2: 'Chaz', 3: 'Hahn', 6: 'Enemy1', 7: 'Enemy2',
+             8: 'Enemy3', 9: 'Enemy4'}
+    CMD = {0: '-', 1: 'attack', 2: 'technique', 3: 'skill', 4: 'item',
+           5: 'defend'}
+    HPK = [('e1_hp', 'Enemy1'), ('e2_hp', 'Enemy2'), ('e3_hp', 'Enemy3'),
+           ('e4_hp', 'Enemy4'), ('chaz_hp', 'Chaz'), ('alys_hp', 'Alys'),
+           ('hahn_hp', 'Hahn')]
+    HPK = [(k, n) for k, n in HPK if k in rows[0]]
+
+    def s16(v):
+        return v - 65536 if v > 32767 else v
+
+    # Battle windows.
+    wins, cur = [], None
+    for r in rows:
+        b = r['game_mode'] in ('0010', '0014')
+        if b and cur is None:
+            cur = int(r['frame'])
+        if not b and cur is not None:
+            wins.append((cur, int(r['frame']) - 1))
+            cur = None
+    if cur:
+        wins.append((cur, int(rows[-1]['frame'])))
+
+    for bi, (bf, bl) in enumerate(wins, 1):
+        print(f"\n=== battle {bi}: f{bf}-{bl} ===")
+        m = byf[min(bf + 400, bl)]
+        es = [f"{e}:id{num(m, f'e{e}_id')}" for e in ENEMY_SLOTS
+              if num(m, f'e{e}_hp')]
+        print(f"  formation {' '.join(es)}  run_chance={m.get('enemy_run_chance')}"
+              f"  ambush={m.get('enemy_ambush_chance')}")
+        prev_actor, act_start = None, None
+        hp_at = {k: s16(num(byf[bf], k)) for k, _ in HPK}
+        for f in range(bf, bl + 1):
+            r = byf.get(f)
+            if not r:
+                continue
+            a = num(r, 'battle_actor') if 'battle_actor' in r else 0
+            # Before the battle initialises, $FFFF4142 holds leftover data;
+            # only 1-9 are real fighter indices (5 party then 4 enemies).
+            if not (1 <= a <= 9):
+                a = prev_actor
+            if a != prev_actor:
+                if prev_actor:
+                    # Close out the previous action.
+                    hp_now = {k: s16(num(r, k)) for k, _ in HPK}
+                    moved = [(n, hp_at[k], hp_now[k]) for k, n in HPK
+                             if hp_now[k] != hp_at[k]]
+                    rr = byf.get(act_start, r)
+                    ci = prev_actor - 1
+                    cmd = (num(rr, f'cmd{ci}_index')
+                           if 0 <= ci < 5 and f'cmd{ci}_index' in rr else None)
+                    flags = ' '.join(rr.get(f'hit_{i:02d}', '') for i in range(9))
+                    label = FIGHT.get(prev_actor, f'#{prev_actor}')
+                    if moved:
+                        eff = ", ".join(f"{n} {a0}->{b0} ({b0 - a0:+d})"
+                                        for n, a0, b0 in moved)
+                    else:
+                        eff = "NO HP CHANGE (miss, defend, or non-damaging)"
+                    print(f"  f{act_start:<7} {label:7s} "
+                          f"cmd={CMD.get(cmd, cmd)}  {eff}")
+                    print(f"           hit_flags {flags}  rng={rr.get('rng_seed')}")
+                    hp_at = hp_now
+                prev_actor, act_start = a, f
+        end = byf.get(min(bl + 300, int(rows[-1]['frame'])), rows[-1])
+        print("  rewards: " + ", ".join(
+            f"{c} exp +{num(end, f'{c}_exp') - num(byf[bf], f'{c}_exp')}"
+            for c in CHAR_SLOTS if f'{c}_exp' in rows[0])
+            + f", exp_total={num(end, 'battle_exp_total')}"
+            if 'battle_exp_total' in rows[0] else "")
+
+
 if __name__ == '__main__':
-    main()
+    import sys
+    if len(sys.argv) > 2 and sys.argv[2] == '--actions':
+        actions(sys.argv[1])
+    else:
+        main()

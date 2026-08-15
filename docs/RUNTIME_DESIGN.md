@@ -201,8 +201,18 @@ harness; determinism proven byte-identical):
   confirmation of the static extraction. The intro tours maps
   $11→$5E→$54→$00→$13 with Alys leading mid-scene.
 
-Still open: the staged beside-press tape; accept during the open animation;
-the scroll-arrow art (hardware sprite, still a placeholder triangle).
+Closed 2026-08-15 (tapes 11/13, oracle/README.md): the beside-press is
+DISPROVEN on hardware — a press beside a non-faced NPC draws byte-identical
+"nothing here" text to open ground (the staging must out-wait wandering
+NPCs, and `Windows_Opened_Num` cannot support a negative test because
+pressing at nothing opens a window too; `Text_Buffer` is the
+discriminator). Accept during the window-open animation is CONSUMED, not
+swallowed: it accelerates the typewriter by two draws without skipping the
+page — our renderer swallowing it is a known divergence, awaiting one more
+characterization tape before implementing the acceleration.
+
+Still open: the scroll-arrow art (hardware sprite, still a placeholder
+triangle).
 
 ### Comparator verdicts (2026-08-15, psiv-replay vs tape 02)
 
@@ -254,7 +264,11 @@ obviously meant to work another way." Battle-era ruling: bugs that are
 plainly unintended get FIXED in the port (level-99 results-loop pointer
 desync, the shield-element read, stat lag after level-up, Defend/armour
 physical_prop clobber, Telepipe/Escapipe consumed in battle, Zio3's
-out-of-table effect id rejected at load). Retail behavior stays documented
+out-of-table effect id rejected at load). Two of these are now MEASURED
+on hardware (tape 10/14, oracle/README.md): the stat lag — Chaz levels
+to 2, strength 8→9, and atk_pow stays 18 across 600 frames — and the
+Defend clobber — defend rewrites physical_prop's high byte 2→1 for the
+round while the fork-only physical_prop_save stays unwritten. Retail behavior stays documented
 in SOURCE_NOTES per bug; quirks that read as design (cure spells also
 restoring agility/dexterity, enemy paralysis clearing each turn) stay
 faithful. Each fix gets its own ledger line at implementation time.

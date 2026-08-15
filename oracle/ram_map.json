@@ -4185,6 +4185,660 @@
       "size": 1,
       "group": "objects",
       "source": "Field_Obj_Secondary slot 31 ($FFFFCAC0) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "cmd0_index",
+      "addr": "FFFF410A",
+      "size": 1,
+      "group": "bcmd",
+      "source": "Character_Command_Data slot 0 byte 1 (constants:2005); 1 attack 2 tech 3 skill 4 item 5 defense"
+    },
+    {
+      "name": "cmd0_id",
+      "addr": "FFFF410B",
+      "size": 1,
+      "group": "bcmd",
+      "source": "Character_Command_Data slot 0 byte 2; tech/skill/item id"
+    },
+    {
+      "name": "cmd0_target",
+      "addr": "FFFF410C",
+      "size": 2,
+      "group": "bcmd",
+      "source": "Character_Command_Data slot 0 bytes 3-4; target index"
+    },
+    {
+      "name": "cmd1_index",
+      "addr": "FFFF410E",
+      "size": 1,
+      "group": "bcmd",
+      "source": "Character_Command_Data slot 1 byte 1 (constants:2005); 1 attack 2 tech 3 skill 4 item 5 defense"
+    },
+    {
+      "name": "cmd1_id",
+      "addr": "FFFF410F",
+      "size": 1,
+      "group": "bcmd",
+      "source": "Character_Command_Data slot 1 byte 2; tech/skill/item id"
+    },
+    {
+      "name": "cmd1_target",
+      "addr": "FFFF4110",
+      "size": 2,
+      "group": "bcmd",
+      "source": "Character_Command_Data slot 1 bytes 3-4; target index"
+    },
+    {
+      "name": "cmd2_index",
+      "addr": "FFFF4112",
+      "size": 1,
+      "group": "bcmd",
+      "source": "Character_Command_Data slot 2 byte 1 (constants:2005); 1 attack 2 tech 3 skill 4 item 5 defense"
+    },
+    {
+      "name": "cmd2_id",
+      "addr": "FFFF4113",
+      "size": 1,
+      "group": "bcmd",
+      "source": "Character_Command_Data slot 2 byte 2; tech/skill/item id"
+    },
+    {
+      "name": "cmd2_target",
+      "addr": "FFFF4114",
+      "size": 2,
+      "group": "bcmd",
+      "source": "Character_Command_Data slot 2 bytes 3-4; target index"
+    },
+    {
+      "name": "cmd3_index",
+      "addr": "FFFF4116",
+      "size": 1,
+      "group": "bcmd",
+      "source": "Character_Command_Data slot 3 byte 1 (constants:2005); 1 attack 2 tech 3 skill 4 item 5 defense"
+    },
+    {
+      "name": "cmd3_id",
+      "addr": "FFFF4117",
+      "size": 1,
+      "group": "bcmd",
+      "source": "Character_Command_Data slot 3 byte 2; tech/skill/item id"
+    },
+    {
+      "name": "cmd3_target",
+      "addr": "FFFF4118",
+      "size": 2,
+      "group": "bcmd",
+      "source": "Character_Command_Data slot 3 bytes 3-4; target index"
+    },
+    {
+      "name": "cmd4_index",
+      "addr": "FFFF411A",
+      "size": 1,
+      "group": "bcmd",
+      "source": "Character_Command_Data slot 4 byte 1 (constants:2005); 1 attack 2 tech 3 skill 4 item 5 defense"
+    },
+    {
+      "name": "cmd4_id",
+      "addr": "FFFF411B",
+      "size": 1,
+      "group": "bcmd",
+      "source": "Character_Command_Data slot 4 byte 2; tech/skill/item id"
+    },
+    {
+      "name": "cmd4_target",
+      "addr": "FFFF411C",
+      "size": 2,
+      "group": "bcmd",
+      "source": "Character_Command_Data slot 4 bytes 3-4; target index"
+    },
+    {
+      "name": "ecmd0_index",
+      "addr": "FFFF411E",
+      "size": 1,
+      "group": "bcmd",
+      "source": "Enemy_Command_Data slot 0 byte 1 (constants:2010)"
+    },
+    {
+      "name": "ecmd0_id",
+      "addr": "FFFF411F",
+      "size": 1,
+      "group": "bcmd",
+      "source": "Enemy_Command_Data slot 0 byte 2"
+    },
+    {
+      "name": "ecmd0_target",
+      "addr": "FFFF4120",
+      "size": 2,
+      "group": "bcmd",
+      "source": "Enemy_Command_Data slot 0 bytes 3-4"
+    },
+    {
+      "name": "ecmd1_index",
+      "addr": "FFFF4122",
+      "size": 1,
+      "group": "bcmd",
+      "source": "Enemy_Command_Data slot 1 byte 1 (constants:2010)"
+    },
+    {
+      "name": "ecmd1_id",
+      "addr": "FFFF4123",
+      "size": 1,
+      "group": "bcmd",
+      "source": "Enemy_Command_Data slot 1 byte 2"
+    },
+    {
+      "name": "ecmd1_target",
+      "addr": "FFFF4124",
+      "size": 2,
+      "group": "bcmd",
+      "source": "Enemy_Command_Data slot 1 bytes 3-4"
+    },
+    {
+      "name": "ecmd2_index",
+      "addr": "FFFF4126",
+      "size": 1,
+      "group": "bcmd",
+      "source": "Enemy_Command_Data slot 2 byte 1 (constants:2010)"
+    },
+    {
+      "name": "ecmd2_id",
+      "addr": "FFFF4127",
+      "size": 1,
+      "group": "bcmd",
+      "source": "Enemy_Command_Data slot 2 byte 2"
+    },
+    {
+      "name": "ecmd2_target",
+      "addr": "FFFF4128",
+      "size": 2,
+      "group": "bcmd",
+      "source": "Enemy_Command_Data slot 2 bytes 3-4"
+    },
+    {
+      "name": "ecmd3_index",
+      "addr": "FFFF412A",
+      "size": 1,
+      "group": "bcmd",
+      "source": "Enemy_Command_Data slot 3 byte 1 (constants:2010)"
+    },
+    {
+      "name": "ecmd3_id",
+      "addr": "FFFF412B",
+      "size": 1,
+      "group": "bcmd",
+      "source": "Enemy_Command_Data slot 3 byte 2"
+    },
+    {
+      "name": "ecmd3_target",
+      "addr": "FFFF412C",
+      "size": 2,
+      "group": "bcmd",
+      "source": "Enemy_Command_Data slot 3 bytes 3-4"
+    },
+    {
+      "name": "chaz_str_mod",
+      "addr": "FFFFF519",
+      "size": 1,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + strength_mod, constants:19"
+    },
+    {
+      "name": "chaz_men_mod",
+      "addr": "FFFFF51C",
+      "size": 1,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + mental_mod, constants:21"
+    },
+    {
+      "name": "chaz_agi_mod",
+      "addr": "FFFFF51F",
+      "size": 1,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + agility_mod, constants:24"
+    },
+    {
+      "name": "chaz_dex_mod",
+      "addr": "FFFFF522",
+      "size": 1,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + dexterity_mod, constants:27"
+    },
+    {
+      "name": "chaz_atk_bat",
+      "addr": "FFFFF526",
+      "size": 2,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + atk_pow_battle, constants:30"
+    },
+    {
+      "name": "chaz_dfs_bat",
+      "addr": "FFFFF52A",
+      "size": 2,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + dfs_pow_battle, constants:32"
+    },
+    {
+      "name": "chaz_mdef",
+      "addr": "FFFFF52C",
+      "size": 2,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + magic_dfs, constants:33"
+    },
+    {
+      "name": "chaz_mdef_bat",
+      "addr": "FFFFF52E",
+      "size": 2,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + magic_dfs_battle, constants:34"
+    },
+    {
+      "name": "chaz_phys_prop",
+      "addr": "FFFFF530",
+      "size": 2,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + physical_prop, constants:36; Defend overwrites this (the clobber bug)"
+    },
+    {
+      "name": "chaz_phys_prop_save",
+      "addr": "FFFFF57B",
+      "size": 1,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + physical_prop_save, constants:61"
+    },
+    {
+      "name": "chaz_rhand",
+      "addr": "FFFFF54C",
+      "size": 1,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + right_hand equipment, constants:51"
+    },
+    {
+      "name": "chaz_body",
+      "addr": "FFFFF54F",
+      "size": 1,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + body equipment, constants:54"
+    },
+    {
+      "name": "alys_str_mod",
+      "addr": "FFFFF599",
+      "size": 1,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + strength_mod, constants:19"
+    },
+    {
+      "name": "alys_men_mod",
+      "addr": "FFFFF59C",
+      "size": 1,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + mental_mod, constants:21"
+    },
+    {
+      "name": "alys_agi_mod",
+      "addr": "FFFFF59F",
+      "size": 1,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + agility_mod, constants:24"
+    },
+    {
+      "name": "alys_dex_mod",
+      "addr": "FFFFF5A2",
+      "size": 1,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + dexterity_mod, constants:27"
+    },
+    {
+      "name": "alys_atk_bat",
+      "addr": "FFFFF5A6",
+      "size": 2,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + atk_pow_battle, constants:30"
+    },
+    {
+      "name": "alys_dfs_bat",
+      "addr": "FFFFF5AA",
+      "size": 2,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + dfs_pow_battle, constants:32"
+    },
+    {
+      "name": "alys_mdef",
+      "addr": "FFFFF5AC",
+      "size": 2,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + magic_dfs, constants:33"
+    },
+    {
+      "name": "alys_mdef_bat",
+      "addr": "FFFFF5AE",
+      "size": 2,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + magic_dfs_battle, constants:34"
+    },
+    {
+      "name": "alys_phys_prop",
+      "addr": "FFFFF5B0",
+      "size": 2,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + physical_prop, constants:36; Defend overwrites this (the clobber bug)"
+    },
+    {
+      "name": "alys_phys_prop_save",
+      "addr": "FFFFF5FB",
+      "size": 1,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + physical_prop_save, constants:61"
+    },
+    {
+      "name": "alys_rhand",
+      "addr": "FFFFF5CC",
+      "size": 1,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + right_hand equipment, constants:51"
+    },
+    {
+      "name": "alys_body",
+      "addr": "FFFFF5CF",
+      "size": 1,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + body equipment, constants:54"
+    },
+    {
+      "name": "hahn_str_mod",
+      "addr": "FFFFF619",
+      "size": 1,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + strength_mod, constants:19"
+    },
+    {
+      "name": "hahn_men_mod",
+      "addr": "FFFFF61C",
+      "size": 1,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + mental_mod, constants:21"
+    },
+    {
+      "name": "hahn_agi_mod",
+      "addr": "FFFFF61F",
+      "size": 1,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + agility_mod, constants:24"
+    },
+    {
+      "name": "hahn_dex_mod",
+      "addr": "FFFFF622",
+      "size": 1,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + dexterity_mod, constants:27"
+    },
+    {
+      "name": "hahn_atk_bat",
+      "addr": "FFFFF626",
+      "size": 2,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + atk_pow_battle, constants:30"
+    },
+    {
+      "name": "hahn_dfs_bat",
+      "addr": "FFFFF62A",
+      "size": 2,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + dfs_pow_battle, constants:32"
+    },
+    {
+      "name": "hahn_mdef",
+      "addr": "FFFFF62C",
+      "size": 2,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + magic_dfs, constants:33"
+    },
+    {
+      "name": "hahn_mdef_bat",
+      "addr": "FFFFF62E",
+      "size": 2,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + magic_dfs_battle, constants:34"
+    },
+    {
+      "name": "hahn_phys_prop",
+      "addr": "FFFFF630",
+      "size": 2,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + physical_prop, constants:36; Defend overwrites this (the clobber bug)"
+    },
+    {
+      "name": "hahn_phys_prop_save",
+      "addr": "FFFFF67B",
+      "size": 1,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + physical_prop_save, constants:61"
+    },
+    {
+      "name": "hahn_rhand",
+      "addr": "FFFFF64C",
+      "size": 1,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + right_hand equipment, constants:51"
+    },
+    {
+      "name": "hahn_body",
+      "addr": "FFFFF64F",
+      "size": 1,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + body equipment, constants:54"
+    },
+    {
+      "name": "chaz_men",
+      "addr": "FFFFF51B",
+      "size": 1,
+      "group": "chars",
+      "source": "Chaz_Stats, constants:2399 + mental, constants:20"
+    },
+    {
+      "name": "alys_men",
+      "addr": "FFFFF59B",
+      "size": 1,
+      "group": "chars",
+      "source": "Alys_Stats, constants:2400 + mental, constants:20"
+    },
+    {
+      "name": "hahn_men",
+      "addr": "FFFFF61B",
+      "size": 1,
+      "group": "chars",
+      "source": "Hahn_Stats, constants:2401 + mental, constants:20"
+    },
+    {
+      "name": "tb00",
+      "addr": "FFFF7000",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+0 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb01",
+      "addr": "FFFF7004",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+4 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb02",
+      "addr": "FFFF7008",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+8 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb03",
+      "addr": "FFFF700C",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+12 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb04",
+      "addr": "FFFF7010",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+16 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb05",
+      "addr": "FFFF7014",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+20 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb06",
+      "addr": "FFFF7018",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+24 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb07",
+      "addr": "FFFF701C",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+28 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb08",
+      "addr": "FFFF7020",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+32 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb09",
+      "addr": "FFFF7024",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+36 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb10",
+      "addr": "FFFF7028",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+40 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb11",
+      "addr": "FFFF702C",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+44 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb12",
+      "addr": "FFFF7030",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+48 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb13",
+      "addr": "FFFF7034",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+52 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb14",
+      "addr": "FFFF7038",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+56 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb15",
+      "addr": "FFFF703C",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+60 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb16",
+      "addr": "FFFF7040",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+64 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb17",
+      "addr": "FFFF7044",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+68 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb18",
+      "addr": "FFFF7048",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+72 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb19",
+      "addr": "FFFF704C",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+76 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb20",
+      "addr": "FFFF7050",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+80 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb21",
+      "addr": "FFFF7054",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+84 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb22",
+      "addr": "FFFF7058",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+88 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "tb23",
+      "addr": "FFFF705C",
+      "size": 4,
+      "group": "text",
+      "hex": true,
+      "source": "Text_Buffer+92 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
     }
   ]
 }

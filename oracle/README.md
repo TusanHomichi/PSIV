@@ -196,6 +196,11 @@ both paths against values the cartridge itself chose (see Results).
 | `07_first_battle.tape` | the first random encounter and the fight through to victory |
 | `08_rng_characterization.tape` | RNG call counts per frame across title, field, walking and menu |
 | `09_second_battle.tape` | a second encounter on a different seed path, including a critical hit |
+| `10_levelup.tape` | three encounters back to back; Chaz reaches level 2 |
+| `11_beside_press.tape` | Speak at an NPC that is adjacent but not in front |
+| `12_escape.tape` | a successful escape attempt |
+| `13_open_anim_press.tape` | Speak pressed inside the window-open animation |
+| `14_defend.tape` | the DEFEND command and its `physical_prop` clobber |
 
 `prelude_basement.tape` is a generated intermediate (`navigate.py` output) that
 both battle tapes are built from; `find_battle.py` consumes it.
@@ -471,6 +476,123 @@ records), **21 / 3 = 7 each**, meseta **+5 = 2 + 3**. The divisor rule from
 tape 07 reproduces on a different formation, and the run supplies the first
 **critical hit** sample for the damage formula.
 
+#### Level up, and the equipment stat-lag bug
+
+Tape 10 fights three encounters back to back (2x ZoranBult, then two
+3x Xanafalgue groups) so Chaz crosses the 21 EXP that `progression.json` gives
+for level 2. EXP runs 0 -> 8 -> 17 -> 26.
+
+The level applies over four frames, and the staggering is the level-up window
+revealing one line at a time:
+
+| frame | change |
+|---|---|
+| f51785 | `exp` 17 -> 26 |
+| f51786 | `level` 1 -> 2 |
+| f51817 | `strength` 8 -> 9 |
+| f51833 | `agility` 7 -> 8, `dexterity` 5 -> 6 |
+| f51849 | `max_hp` 25 -> 31, `max_tp` 10 -> 13 |
+
+All of it matches the `progression.json` level-2 record exactly (hp 31, tp 13,
+str 9, agi 8, dex 6).
+
+**The stat-lag bug is confirmed as measured ground truth.** Diffing every Chaz
+column before the level against 600 frames after, the *only* fields that moved
+are `level`, `max_hp`, `max_tp`, `strength`, `agility`, `dexterity`. The
+equipment-derived and modified stats did **not** refresh:
+
+- `atk_pow` stayed **18** despite strength going 8 -> 9
+- `dfs_pow` stayed 10
+- `strength_mod` stayed 8, `agility_mod` 7, `dexterity_mod` 5
+- `magic_dfs` stayed 6
+
+So retail really does leave the derived stats stale at level-up until something
+else recalculates them. Anything that "fixes" this changes observable numbers
+and belongs in the bugfix-policy ledger as a deliberate deviation, not a
+silent correction.
+
+#### Miss and critical samples
+
+The action-level view (`analyze_battle.py <log> --actions`) enumerates each
+acting fighter and then checks whether any HP moved, which is what makes a miss
+visible at all — a miss produces no HP change and is invisible to HP-change
+scanning.
+
+- **Miss, party side:** tape 10, f51294. Hahn (dexterity 5) attacks and
+  `Fighters_Hit_Flags` reads `FF` across the board with no HP change.
+- **Miss, enemy side:** tape 10, f51340. Enemy3 attacks, same signature.
+- **Critical, party side:** tape 10, f38908. Chaz hits Enemy1 for 22 with
+  `hit_05 = $01`. Tape 09 has a second at f31377 (Hahn, 7 damage).
+
+`Fighters_Hit_Flags` is only meaningful **at the frame an action resolves** —
+it persists between actions, so scanning it over a whole battle reports
+hundreds of spurious criticals.
+
+#### Escape
+
+Tape 12. `Battle_ProcessRUN` calls `Battle_CalculateChances` with the party's
+highest agility against `Enemy_Run_Chance`, `d3 = 2`, lower bound `$28`:
+
+```
+roll  = UpdateRNGSeed2() & $3F          ; 0..63
+score = (roll + highest_agility - run_chance) * 2
+score <= $28  ->  escape fails
+```
+
+The basement formations carry `run_chance = 5` (well under the `$F0` that makes
+escape impossible), and Alys's agility is 15, so escape needs `roll > 10` —
+about 53 in 64, and every one of nine timing variations tried succeeded.
+
+Observed on the successful run: cursor 0 -> 1 -> 2, Speak at f30809 sets
+`Battle_Routine_2 = 3`, `Battle_Routine` becomes `$0C` (`Battle_ProcessRUN`) at
+f30813, the message runs `$23` -> `$24` -> `$2F`, and the game leaves battle
+mode at f31727 with no rewards. **The escape message needs a press to dismiss** —
+without one the battle appears not to end, which cost me a wrong reading first
+time round.
+
+**No failure sample yet.** Nine press timings all succeeded, consistent with the
+~83% success rate the formula predicts. A failure needs either more timing
+variations or a formation with a higher `run_chance`.
+
+#### DEFEND, and the physical_prop clobber
+
+The per-character command menu is **horizontal**, which is why Down presses do
+nothing to it — `Win_UpdateCursorUpDown` drives the *main* menu only. Right
+steps the cursor and it wraps after five entries:
+
+| Right presses | `Battle_Char_Comd_Index` | `Battle_Command_Data` byte 1 |
+|---|---|---|
+| 0 | 0 | 1 attack |
+| 1 | 1 | 2 technique |
+| 2 | 2 | 3 skill |
+| 3 | 3 | 4 item |
+| **4** | **4** | **5 defend** |
+| 5 | 0 | wraps to attack |
+
+Tape 14 selects DEFEND for the party leader (Alys) and watches the property
+bytes:
+
+| frame | `alys_phys_prop` | `alys_phys_prop_save` | chaz / hahn |
+|---|---|---|---|
+| f30641 (before) | `$0202` | 0 | `$0202` |
+| f31391 (defending) | **`$0102`** | 0 | `$0202` |
+| f31707 (round over) | `$0202` | 0 | `$0202` |
+| f31871 (defending again) | **`$0102`** | 0 | `$0202` |
+
+**The clobber is confirmed.** Defending rewrites the high byte of
+`physical_prop` from 2 (normal) to 1 (resistant) — and
+**`physical_prop_save` is never written; it stays 0 throughout.** That field
+exists only for the fork's bugfix (constants:61 says so outright), so retail
+overwrites the property with nothing saved. Only the defender's property
+changes; the other two party members are untouched, and `dfs_pow` /
+`dfs_pow_battle` do not move at all — defend is a damage-class change, not a
+defence-power change.
+
+The practical consequence: any implementation that stores an armour-derived
+`physical_prop` and lets Defend overwrite it will lose the armour setting the
+way retail does. Reproducing that is fidelity; restoring from a save slot is a
+deliberate deviation and belongs in the bugfix ledger.
+
 #### Rewards, and the EXP divisor
 
 `ps4.asm:4772-4779` reads the battle EXP accumulator, halves it if the party is
@@ -558,6 +680,61 @@ For core-lane: this is the portable part. The generator is the per-frame
 `UpdateRNGSeed`, and wander rides it by consuming extra calls on decision
 frames — so reclaiming tape 02's divergent tail needs the decision *schedule*
 to match, not just the generator.
+
+### A window opening is not proof of a talk
+
+`Interaction_ContinueChecks` ends with
+`beq.w Interaction_DoPlayerNothingMsg` — **pressing Speak at nothing opens a
+window too**, carrying the player's "nothing here" line. `Windows_Opened_Num`
+going 0 to 1 therefore proves only that *some* window opened.
+
+That matters for anything reported off this harness: an earlier round used
+`Windows_Opened_Num` as the talk indicator. For a *positive* test it happens to
+be safe (the facing press really did open NPC dialogue), but it cannot support
+a negative test, and it briefly produced a reading that looked like beside-talk
+working. **The sound discriminator is `Text_Buffer` ($FFFF7000):** capture a
+Speak in open ground as the "nothing here" reference and compare the bytes.
+
+### Beside-press: disproven on hardware
+
+Tape 11. The leader parks at cell (17,7) facing RIGHT, held there by the wall
+at (18,7), with a map $13 NPC at rest at (16,7) — orthogonally adjacent,
+directly behind the facing. An earlier Speak in open corridor supplies the
+reference message.
+
+**The beside press draws byte-identical text to the open-corridor press.** It
+took the "nothing here" path; the adjacent NPC was never reached. Combined with
+the facing press opening real dialogue, **talk range is facing-only, and Peter's
+recollection is disproven with hardware evidence rather than only by reading
+the code.**
+
+Getting there needed three attempts, and the reason is worth recording: **the
+NPCs wander, so a test staged from pack spawn cells is invalid by the time the
+leader arrives.** The tape's wait is therefore *measured* — the run is first
+made with the leader parked, the log scanned for a frame where an at-rest
+object is orthogonally adjacent but outside the faced cell, and the press
+placed at that offset. Two earlier attempts failed silently because the NPC had
+moved into the faced cell, turning the "beside" test into a facing test.
+
+### Accept press during the window-open animation
+
+Tape 13 against a control with the press removed, compared on `Text_Buffer`
+writes:
+
+| | text-draw frames after the window opens |
+|---|---|
+| control (no press) | 7197, 7200, 7203, 7206, 7209, … |
+| press at f7191 (inside the animation) | 7197, **7198, 7199**, 7202, 7205, … |
+
+**The press is consumed, not swallowed.** It produces two extra character draws
+within three frames of the window opening and shifts the whole subsequent draw
+cadence by one frame. It does *not* skip the page.
+
+So the retail behaviour is neither "buffered as a page advance" nor "dropped" —
+the press reaches the text-draw stage and advances it. Our renderer swallowing
+it is a divergence, but the fix is not a queued page-advance either; it is the
+draw acceleration. Worth one more tape to characterise the acceleration
+properly before implementing.
 
 ### Collision grid indexing, independently confirmed
 
