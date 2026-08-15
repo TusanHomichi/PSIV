@@ -226,8 +226,11 @@ the scroll-arrow art (hardware sprite, still a placeholder triangle).
 
 The oracle settled the facts first: there is ONE 32-bit seed
 ($FFFFEF0C) for the whole game, free-running as a per-frame counter
-(1 tick/vblank; 2/frame in field mode, the second being the
-field-object update, suspended during menus; never advanced by steps),
+(1 tick/vblank in every mode; +1/frame in field mode from
+GameMode_Field's unconditional opening call, which vanishes while a
+window is up because window loops never return to the mode dispatcher;
+wander and encounter draws are occasional extra consumers; never
+advanced by steps — see docs/NPC_WANDER.md "per-frame tick structure"),
 with two algorithms over it — the portable x41 LCG (UpdateRNGSeed) and
 the battle mixer (UpdateRNGSeed2: ror the high word, return
 HV_counter + frame_count - seed_word). Only the HV-counter term is

@@ -21,6 +21,56 @@ That means **cartridge NPC positions are bit-exactly reproducible** given the
 same seed and the same frame cadence. Nothing about wander needs the "which
 substitute generator" decision that `BATTLE_SCOUT.md` §16.1 leaves open.
 
+## The per-frame tick structure — and what wander is *not*
+
+Oracle-lane measured exactly **two `UpdateRNGSeed` calls per frame in field
+mode**, with the second disappearing while a menu is open, and asked whether
+that second call is the NPC update. **It is not.** The two per-frame calls are:
+
+| # | call site | retail | when |
+|---|---|---|---|
+| 1 | the VInt handler | `ps4.asm:617` | every frame, every game mode |
+| 2 | `GameMode_Field` | `ps4.asm:107638` | every frame in field mode |
+
+`GameMode_Field` opens with the call, before it dispatches anything:
+
+```
+GameMode_Field:
+    jsr     (UpdateRNGSeed).l
+    move.w  (Game_Mode_Routine).w, d0
+    movea.l FieldRoutinePtrs(pc,d0.w), a0
+    jmp     (a0)
+```
+
+Unconditional, once per frame, serving no particular consumer — it simply
+stirs the seed before the frame's field work. That is the second tick.
+
+**Why it vanishes with a menu open**: window-bearing routines do not return to
+the mode dispatcher. `FieldRoutine_Menu` ends in `Field_MenuLoop`
+(`ps4.asm:117143`) and `FieldRoutine_Shop` in `loc_65D58`, both spinning on
+`Window_Update` + `VInt_Prepare`/`DMAPlane_A_VInt` until the window closes.
+The VInt handler keeps ticking (call 1), but `GameMode_Field` is never
+re-entered, so call 2 stops. The measurement and the instruction stream agree
+exactly.
+
+**Wander rolls are additional and conditional.** `FieldObj_GetRandomMove` draws
+only when its object is idle *and* its countdown has expired — so a frame's
+total is 2 plus however many NPCs happen to roll on it. The occasional 3/frame
+oracle-lane saw is one NPC rolling; 4 or more is several timers expiring
+together, which is uncommon but not rare. With ~8 wanderers on a map and pauses
+averaging ~32 frames, the expected extra is about a quarter of a call per
+frame.
+
+`RunRandomBattles` (`ps4.asm:116868`) is a third occasional source, but it is
+not per-frame either: it draws only when its step counter reaches zero, i.e.
+once every ten steps the party takes.
+
+**Consequence for the engine.** Reproducing the cartridge's stream needs *all*
+of it: two unconditional ticks per field frame, plus the conditional wander and
+encounter draws, on one shared seed. A runtime that only ticks the LCG when an
+NPC rolls will drift immediately, and one that ticks twice while a window is
+open will drift the other way.
+
 ## Which types wander
 
 Census over the 949 objects in all packed maps:

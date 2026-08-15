@@ -404,8 +404,20 @@ impl Runtime {
 
     /// Advances one tick and resolves any map change.
     pub fn tick(&mut self, input: Input) -> Vec<RuntimeEvent> {
+        // The vblank tick: the cartridge stirs the one seed every frame in
+        // every game mode (VInt handler, ps4.asm:617) — scenes included.
+        self.rng.step();
         if self.scene.is_some() {
             return self.scene_tick();
+        }
+        // The field-mode tick: GameMode_Field opens with an unconditional
+        // UpdateRNGSeed before dispatching (ps4.asm:107638). It vanishes
+        // while a window is up because window loops never return to the
+        // mode dispatcher — hence the suspension gate, which also parks the
+        // wander draws further down. docs/NPC_WANDER.md, "per-frame tick
+        // structure".
+        if !self.field_suspended {
+            self.rng.step();
         }
         let mut events = Vec::new();
         let mut landed: Option<Cell> = None;
@@ -465,10 +477,8 @@ impl Runtime {
             events.extend(self.evaluate_triggers(cell));
         }
 
-        // The free-running seed: one tick per frame regardless of use, then
-        // the field-object update drawing from the same stream — suspended,
-        // like the cartridge's, while a window is up.
-        self.rng.step();
+        // Wander draws are conditional consumers of the same stream — an
+        // idle NPC whose countdown expires rolls once; most frames none do.
         if !self.field_suspended {
             self.tick_wander();
         }
