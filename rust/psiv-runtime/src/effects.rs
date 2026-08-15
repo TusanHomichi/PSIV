@@ -53,8 +53,13 @@ pub struct EffectOutcome {
 fn gate_holds(gate: &EffectGate, game: &GameState, unknown: &mut Vec<String>) -> bool {
     let flag = match gate.bank.as_str() {
         "event_flags" => Flag::event(gate.flag),
-        // The cartridge's $F140 bank: chest and "temp" ids are one space.
-        "chest_flags" => Flag::chest(gate.flag),
+        // The pack's "chest_flags" label names the $F140 door, which the
+        // corrected flag model identifies as the TEMP bank (SOURCE_NOTES,
+        // FLAG MODEL FINAL). Mapping it to Flag::chest would read $F120 —
+        // the same silent-wrong-bank class apply_map_load was caught with.
+        // The emission rename to "temp_flags" is coordinated separately;
+        // until it lands, this string means temp.
+        "chest_flags" => Flag::temp(gate.flag),
         other => {
             unknown.push(other.to_owned());
             return false;
