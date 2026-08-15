@@ -573,3 +573,28 @@ and the flag-set whose absence would re-fire the trigger forever.
   load; grant and flag write are simultaneous. Oracle process lesson
   kept in oracle/README: a negative about RAM is only as good as the
   watched range — whole-RAM diff before ever reporting an absence.
+- CORRECTION to the shop-counter reading: the counter is NOT gated on
+  collision type $C — loc_65D12 never touches the collision grid; the
+  location table is keyed by the SHOPKEEPER OBJECT's position, and the
+  $C correlation is incidental (52 counters on $C, 13 on ordinary floor,
+  3 on solid — a runtime gating on collision would break thirteen
+  shops). The pack binds each counter to its object, fail-closed: 65 of
+  68 rows land exactly on a placement.
+- Three shops were cut in development and their rows left behind: table
+  rows 21-23 name Tonoe at (0,0), which no object occupies — shop
+  inventories 9/10/11 are referenced only by those rows and are
+  unreachable in play. The location table's 0..$30 coverage stands as
+  bytes; the REACHABLE shop set is 46, not 49. Tonoe's only live
+  counter is its inn.
+- Shop economy facts (docs/SHOPS.md): sell price is exactly half,
+  rounding down (read from the lsr, not assumed); stock is structurally
+  unlimited (buy lists re-read from ROM, nothing decrements); the inn
+  bill is rate x occupied party slots, DEAD MEMBERS BILLED, and a night
+  is the game's only full-party revive (hp/tp/status incl. death/skill
+  uses, party then vehicles); the Aiedo inn (selector 6) runs
+  Event_GirlsSneakingOut instead of a night while Zio and GirlsCaught
+  are both clear; there is NO church/clinic mechanism anywhere — three
+  counter groups only, cure and revival are otherwise items/techniques.
+  Shopkeeper greetings bypass the dialogue tree entirely (selector-
+  assembled text + portrait tables, most shop objects carry
+  dialogue_id 0).
