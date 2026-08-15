@@ -9,7 +9,7 @@
 mod common;
 
 use common::{
-    face_then_act, map, map_with, npc, npc_offset, party, party_at_rate, party_facing,
+    face_then_act, map, map_with, monster, npc, npc_offset, party, party_at_rate, party_facing,
     press_action, walk_one_step,
 };
 use psiv_core::{Cell, Direction, Effect, Input, InteractReach, NpcId, TALK_RANGE_PX};
@@ -766,4 +766,130 @@ fn npcs_are_active_by_default() {
     assert!(plain.active);
     assert!(!plain.with_active(false).active);
     assert!(plain.with_active(false).with_active(true).active);
+}
+
+// ---------------------------------------------------------------------------
+// Solid but silent objects
+//
+// Retail keeps interactability as bit 3 of `$2(a3)`, set per object type at
+// init. `InteractionObjs_Loop` skips any slot without it, so a monster is
+// solid, occupies its cell, and answers confirm with the leader's "nothing
+// here" line rather than an empty window.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_non_interactable_npc_still_blocks_movement() {
+    let map = map_with(&["...", "...", "..."], vec![], vec![monster(0x50, 1, 1)]);
+    let mut state = party(&map, 0, 1);
+
+    let effects = walk_one_step(&mut state, &map, Direction::Right);
+
+    assert!(effects.is_empty(), "monsters are solid");
+    assert_eq!(state.cell(), Cell::new(0, 1));
+    assert!(!map.is_walkable(Cell::new(1, 1)));
+    assert!(
+        map.npc_at(Cell::new(1, 1)).is_some(),
+        "it still occupies the cell"
+    );
+}
+
+#[test]
+fn facing_a_non_interactable_npc_answers_nothing_here() {
+    let map = map_with(&["...", "...", "..."], vec![], vec![monster(0x50, 1, 0)]);
+    let mut state = party_facing(&map, 1, 1, Direction::Up);
+
+    assert_eq!(
+        press_action(&mut state, &map),
+        vec![Effect::InteractNothing {
+            facing: Direction::Up
+        }],
+        "the probe skips the slot entirely, so nothing is found"
+    );
+}
+
+#[test]
+fn the_counter_probe_also_skips_a_non_interactable_npc() {
+    // Two cells across a $C cell: the extended reach must skip it too, and
+    // fall through to the adjacent probe finding nothing.
+    let map = map_with(&["...", ".$.", "..."], vec![], vec![monster(0x50, 1, 0)]);
+    let mut state = party_facing(&map, 1, 2, Direction::Up);
+
+    assert_eq!(
+        press_action(&mut state, &map),
+        vec![Effect::InteractNothing {
+            facing: Direction::Up
+        }]
+    );
+}
+
+#[test]
+fn a_talkable_npc_behind_a_silent_one_is_still_out_of_reach() {
+    // Skipping a slot does not make the probe reach further: the monster is
+    // adjacent, the shopkeeper two cells away with no counter between them.
+    let map = map_with(
+        &["...", "...", "..."],
+        vec![],
+        vec![monster(0x50, 1, 0), npc(0x108, 1, 1)],
+    );
+    let mut state = party_facing(&map, 1, 2, Direction::Up);
+
+    assert_eq!(
+        press_action(&mut state, &map),
+        vec![Effect::Interact {
+            npc_index: 1,
+            cell: Cell::new(1, 1),
+            reach: InteractReach::Adjacent,
+        }],
+        "the adjacent cell holds the talkable one here"
+    );
+}
+
+#[test]
+fn interactable_npcs_are_unchanged() {
+    let map = map_with(&["...", "...", "..."], vec![], vec![npc(0x108, 1, 0)]);
+    let mut state = party_facing(&map, 1, 1, Direction::Up);
+
+    assert_eq!(
+        press_action(&mut state, &map),
+        vec![Effect::Interact {
+            npc_index: 0,
+            cell: Cell::new(1, 0),
+            reach: InteractReach::Adjacent,
+        }]
+    );
+    assert!(!map.is_walkable(Cell::new(1, 0)));
+}
+
+#[test]
+fn the_two_flags_are_independent() {
+    let plain = npc(10, 0, 0);
+    assert!(plain.active && plain.interactable, "both default true");
+
+    let silent = plain.with_interactable(false);
+    assert!(silent.active, "silencing does not despawn");
+    assert!(!silent.interactable);
+
+    let gone = plain.with_active(false);
+    assert!(
+        gone.interactable,
+        "despawning does not touch interactability"
+    );
+    assert!(!gone.active);
+
+    // A despawned monster: neither solid nor talkable.
+    let both = plain.with_active(false).with_interactable(false);
+    assert!(!both.active && !both.interactable);
+}
+
+#[test]
+fn a_despawned_monster_stops_blocking_too() {
+    let mut map = map_with(&["...", "...", "..."], vec![], vec![monster(0x50, 1, 1)]);
+    assert!(!map.is_walkable(Cell::new(1, 1)));
+
+    map.set_npc_active(0, false).unwrap();
+
+    assert!(
+        map.is_walkable(Cell::new(1, 1)),
+        "active governs solidity; interactable never did"
+    );
 }

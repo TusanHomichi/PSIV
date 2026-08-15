@@ -110,6 +110,11 @@ pub fn walk_one_step(state: &mut FieldState, map: &FieldMap, dir: Direction) -> 
     run(state, map, Input::Direction(dir), frames)
 }
 
+/// A solid but silent object — a basement monster.
+pub fn monster(id: u16, x: u16, y: u16) -> Npc {
+    npc(id, x, y).with_interactable(false)
+}
+
 /// An NPC standing part-way into its cell, for the talk-range tests.
 pub fn npc_offset(id: u16, x: u16, y: u16, ox: u8, oy: u8) -> Npc {
     Npc::with_offset(

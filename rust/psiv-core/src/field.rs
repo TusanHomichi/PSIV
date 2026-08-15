@@ -257,6 +257,13 @@ fn npc_in_talk_range(map: &FieldMap, target: Cell) -> Option<usize> {
         if !npc.active {
             return false;
         }
+        // A non-interactable one is present and solid but has no `btst #3`
+        // bit set, so `InteractionObjs_Loop` skips its slot and the probe
+        // finds nothing — which is why facing a monster answers "nothing
+        // here" rather than opening an empty window.
+        if !npc.interactable {
+            return false;
+        }
         let npc_x = i32::from(npc.cell.x) * CELL_PIXELS + i32::from(npc.offset.x);
         let npc_y = i32::from(npc.cell.y) * CELL_PIXELS + i32::from(npc.offset.y);
         let (dx, dy) = map.wrap_delta_px(npc_x - target_x, npc_y - target_y);

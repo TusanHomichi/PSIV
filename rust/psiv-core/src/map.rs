@@ -167,6 +167,21 @@ pub struct Npc {
     /// visible to [`FieldMap::npcs`] so a renderer can tell "gone" from
     /// "never existed".
     pub active: bool,
+    /// Whether the object answers the talk probes.
+    ///
+    /// Distinct from [`Npc::active`], and honoured in exactly one place: a
+    /// non-interactable object is **still solid**. Basement monsters occupy
+    /// their cells and block the party like any other object; they simply
+    /// never speak. Pressing confirm at one produces
+    /// [`Effect::InteractNothing`](crate::Effect::InteractNothing) — the
+    /// leader's "nothing here" line — because `Interaction_ChkObjects` skips
+    /// the object entirely rather than finding it and having nothing to say.
+    ///
+    /// Retail keeps this as **bit 3 of `$2(a3)`**, set per object type at
+    /// init: `InteractionObjs_Loop` opens `btst #3, $2(a3) / beq` and moves to
+    /// the next slot when it is clear (`ps4.asm:118735`). The per-type values
+    /// come from the extraction lane; the bridge fills this field.
+    pub interactable: bool,
 }
 
 impl Npc {
@@ -180,6 +195,7 @@ impl Npc {
             offset: SubCellOffset::ALIGNED,
             facing,
             active: true,
+            interactable: true,
         }
     }
 
@@ -197,6 +213,7 @@ impl Npc {
             offset,
             facing,
             active: true,
+            interactable: true,
         }
     }
 
@@ -205,6 +222,16 @@ impl Npc {
     #[must_use]
     pub const fn with_active(self, active: bool) -> Npc {
         Npc { active, ..self }
+    }
+
+    /// The same object with its interactability set. Monsters and scenery get
+    /// `false`; it does not make them any less solid.
+    #[must_use]
+    pub const fn with_interactable(self, interactable: bool) -> Npc {
+        Npc {
+            interactable,
+            ..self
+        }
     }
 }
 
