@@ -178,9 +178,21 @@ impl INode2D for Field {
         // Characters sort by their feet line, like the hardware's sprite
         // ordering: standing north of an NPC puts you behind them.
         self.base_mut().set_y_sort_enabled(true);
-        self.pack_dir = ProjectSettings::singleton()
+        // Pack discovery: an exported build ships runtime-pack beside the
+        // executable; the dev tree keeps it at the repo root. First hit wins.
+        let exe_side = godot::classes::Os::singleton()
+            .get_executable_path()
+            .to_string();
+        let exe_dir = std::path::Path::new(&exe_side)
+            .parent()
+            .map(|p| p.join("runtime-pack"));
+        let dev = ProjectSettings::singleton()
             .globalize_path("res://../runtime-pack")
             .to_string();
+        self.pack_dir = exe_dir
+            .filter(|p| p.join("manifest.json").is_file())
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or(dev);
         let data = match GameData::load(std::path::Path::new(&self.pack_dir)) {
             Ok(data) => data,
             Err(e) => {

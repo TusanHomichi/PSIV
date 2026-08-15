@@ -20,3 +20,4 @@ oracle/gpgx-src/
 oracle/core/
 oracle/bin/
 oracle/logs/
+build/
