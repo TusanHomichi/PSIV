@@ -80,6 +80,7 @@ mod field;
 mod geom;
 mod map;
 mod party;
+mod replay;
 mod scene;
 mod scene_runner;
 mod scenes;
@@ -96,6 +97,10 @@ pub use field::{
 pub use geom::{CELL_PIXELS, Cell, CellRect, Direction};
 pub use map::{FieldMap, MapId, Npc, NpcId, SubCellOffset, Topology, Warp, WarpTrigger};
 pub use party::{MAX_PARTY_MEMBERS, MemberView, Party};
+pub use replay::{
+    Buttons, COLUMNS, Column, Coverage, Divergence, FrameSample, OracleLog, ReplayRow, Tape,
+    TapeError, TapeFrame, TapeStep, csv_header, facing_value, modelled_columns,
+};
 pub use scene::{
     ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, OP_BUDGET_PER_TICK, SceneEffect,
     SceneFault, SceneInput, SceneOp, ScriptedActor,

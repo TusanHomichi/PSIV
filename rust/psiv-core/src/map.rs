@@ -167,20 +167,32 @@ pub struct Npc {
     /// visible to [`FieldMap::npcs`] so a renderer can tell "gone" from
     /// "never existed".
     pub active: bool,
-    /// Whether the object answers the talk probes.
+    /// The cartridge's **bit 3 of `$2(a3)`**, set per object type at init.
     ///
-    /// Distinct from [`Npc::active`], and honoured in exactly one place: a
-    /// non-interactable object is **still solid**. Basement monsters occupy
-    /// their cells and block the party like any other object; they simply
-    /// never speak. Pressing confirm at one produces
-    /// [`Effect::InteractNothing`](crate::Effect::InteractNothing) — the
-    /// leader's "nothing here" line — because `Interaction_ChkObjects` skips
-    /// the object entirely rather than finding it and having nothing to say.
+    /// Two routines test this bit, identically, and a clear bit makes the
+    /// object invisible to both:
     ///
-    /// Retail keeps this as **bit 3 of `$2(a3)`**, set per object type at
-    /// init: `InteractionObjs_Loop` opens `btst #3, $2(a3) / beq` and moves to
-    /// the next slot when it is clear (`ps4.asm:118735`). The per-type values
-    /// come from the extraction lane; the bridge fills this field.
+    /// - `Interaction_ChkObjects` (`0x058D50`) — `btst #3, $2(a3) / beq` skips
+    ///   to the next slot, so the object never answers a talk probe.
+    /// - `FieldObj_DoObjCollision` (`0x047DA8`) — the same test, so the object
+    ///   **does not block the walker either**.
+    ///
+    /// So a bit-clear object is drawn and nothing else: retail's monsters,
+    /// statues and fireplace flames are walk-through at the object layer, and
+    /// whatever stops you there is the terrain under them. Pressing confirm at
+    /// one produces [`Effect::InteractNothing`](crate::Effect::InteractNothing)
+    /// — the leader's "nothing here" line — because the probe skips the slot
+    /// rather than finding it and having nothing to say.
+    ///
+    /// The difference from [`Npc::active`] is what each flag means, not what
+    /// it does: `active` is renderer-visible existence (a despawned object is
+    /// gone from the screen), `interactable` is the cartridge's bit-3
+    /// behaviour (a bit-clear object is still drawn). Both suppress blocking
+    /// and talking.
+    ///
+    /// It genuinely toggles at runtime: `FieldObj_FellowPenguin` clears its own
+    /// bit 3 once `EventFlag_Penguin` is set, so the penguin stops answering
+    /// *and* stops blocking. See [`FieldMap::set_npc_interactable`].
     pub interactable: bool,
 }
 
@@ -224,8 +236,8 @@ impl Npc {
         Npc { active, ..self }
     }
 
-    /// The same object with its interactability set. Monsters and scenery get
-    /// `false`; it does not make them any less solid.
+    /// The same object with its bit-3 behaviour set. Monsters and scenery get
+    /// `false`, which makes them drawn but walk-through and silent.
     #[must_use]
     pub const fn with_interactable(self, interactable: bool) -> Npc {
         Npc {
@@ -526,16 +538,24 @@ impl FieldMap {
             .and_then(|cell| self.grid.type_at(cell))
     }
 
-    /// The first **active** NPC standing on `cell`, if any.
+    /// The first NPC **occupying** `cell` — present and solid.
+    ///
+    /// Occupancy is `active && interactable`, because the cartridge gates its
+    /// object collision on the same bit 3 that gates talking
+    /// (`FieldObj_DoObjCollision`, `0x047DA8`). An object that is despawned or
+    /// bit-clear is not here for any purpose that walks: the party walker, the
+    /// follower trail, and the talk probes all agree.
     ///
     /// A linear scan in data order: NPC counts per map are tiny, and scanning a
     /// `Vec` keeps lookup order observable and stable, which a hashed container
-    /// would not. Inactive objects are skipped, which is what makes a despawned
-    /// NPC walk-through; use [`FieldMap::npcs`] to see them regardless.
+    /// would not. Use [`FieldMap::npcs`] to see every object regardless — a
+    /// bit-clear one is still drawn.
     #[must_use]
     pub fn npc_at(&self, cell: Cell) -> Option<&Npc> {
         let cell = self.normalize(cell)?;
-        self.npcs.iter().find(|npc| npc.active && npc.cell == cell)
+        self.npcs
+            .iter()
+            .find(|npc| npc.active && npc.interactable && npc.cell == cell)
     }
 
     /// Marks an object present or absent, keeping its index.
@@ -553,6 +573,29 @@ impl FieldMap {
             return Err(MapError::NpcIndexOutOfRange { index, count });
         };
         npc.active = active;
+        Ok(())
+    }
+
+    /// Sets an object's bit-3 behaviour, keeping its index.
+    ///
+    /// Objects flip this at runtime: `FieldObj_FellowPenguin` clears its own
+    /// bit 3 once `EventFlag_Penguin` is set, after which the penguin neither
+    /// answers nor blocks — while still being drawn. This is the hook for the
+    /// event layer to apply that and anything like it.
+    ///
+    /// # Errors
+    ///
+    /// [`MapError::NpcIndexOutOfRange`] when there is no such object.
+    pub fn set_npc_interactable(
+        &mut self,
+        index: usize,
+        interactable: bool,
+    ) -> Result<(), MapError> {
+        let count = self.npcs.len();
+        let Some(npc) = self.npcs.get_mut(index) else {
+            return Err(MapError::NpcIndexOutOfRange { index, count });
+        };
+        npc.interactable = interactable;
         Ok(())
     }
 

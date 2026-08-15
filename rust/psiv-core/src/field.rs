@@ -257,10 +257,10 @@ fn npc_in_talk_range(map: &FieldMap, target: Cell) -> Option<usize> {
         if !npc.active {
             return false;
         }
-        // A non-interactable one is present and solid but has no `btst #3`
-        // bit set, so `InteractionObjs_Loop` skips its slot and the probe
-        // finds nothing — which is why facing a monster answers "nothing
-        // here" rather than opening an empty window.
+        // A bit-3-clear object is skipped by `Interaction_ChkObjects`
+        // (`0x058D50`) exactly as it is skipped by `FieldObj_DoObjCollision`
+        // (`0x047DA8`) — drawn, but neither solid nor talkable. Facing one
+        // answers "nothing here" rather than opening an empty window.
         if !npc.interactable {
             return false;
         }

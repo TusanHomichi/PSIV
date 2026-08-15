@@ -600,3 +600,55 @@ fn followers_never_stray_further_than_one_cell_from_the_member_ahead() {
         }
     }
 }
+
+#[test]
+fn the_trail_crosses_a_bit_clear_object() {
+    // The follower trail asks occupancy, so it has to agree with the walker:
+    // an object whose bit 3 is clear is not there for anything that walks.
+    // Retail's monsters and fireplace flames sit in corridors the party
+    // routinely walks through.
+    let map = map_with(
+        &["........", "........", "........"],
+        vec![],
+        vec![
+            Npc::new(NpcId(0x50), Cell::new(2, 1), Direction::Down).with_interactable(false),
+            Npc::new(NpcId(0x51), Cell::new(3, 1), Direction::Down).with_active(false),
+        ],
+    );
+    let mut party = party_of(&map, 0, 1, 2);
+
+    for _ in 0..4 {
+        step(&mut party, &map, Direction::Right);
+    }
+
+    assert_eq!(
+        cells(&party),
+        vec![Cell::new(4, 1), Cell::new(3, 1), Cell::new(2, 1)],
+        "leader and both followers walk straight over them"
+    );
+    assert!(
+        party.members().iter().all(|m| !m.is_stepping),
+        "and the line is at rest, not stuck mid-step"
+    );
+}
+
+#[test]
+fn a_solid_object_still_stops_the_whole_line() {
+    // The contrast case, so the test above proves the flag and not the map.
+    let map = map_with(
+        &["........", "........", "........"],
+        vec![],
+        vec![Npc::new(NpcId(0x50), Cell::new(2, 1), Direction::Down)],
+    );
+    let mut party = party_of(&map, 0, 1, 2);
+
+    for _ in 0..4 {
+        step(&mut party, &map, Direction::Right);
+    }
+
+    assert_eq!(
+        cells(&party),
+        vec![Cell::new(1, 1), Cell::new(0, 1), Cell::new(0, 1)],
+        "the leader stops short and the trail never fully unspools"
+    );
+}

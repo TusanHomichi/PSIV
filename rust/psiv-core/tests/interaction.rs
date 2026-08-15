@@ -778,33 +778,53 @@ fn npcs_are_active_by_default() {
 // ---------------------------------------------------------------------------
 
 #[test]
-fn a_non_interactable_npc_still_blocks_movement() {
+fn a_bit_clear_object_neither_blocks_nor_talks_but_is_still_there() {
+    // Retail tests bit 3 in both `Interaction_ChkObjects` (0x058D50) and
+    // `FieldObj_DoObjCollision` (0x047DA8), so a monster is drawn and
+    // walk-through; whatever stops you is the terrain under it.
     let map = map_with(&["...", "...", "..."], vec![], vec![monster(0x50, 1, 1)]);
     let mut state = party(&map, 0, 1);
 
     let effects = walk_one_step(&mut state, &map, Direction::Right);
 
-    assert!(effects.is_empty(), "monsters are solid");
-    assert_eq!(state.cell(), Cell::new(0, 1));
-    assert!(!map.is_walkable(Cell::new(1, 1)));
-    assert!(
-        map.npc_at(Cell::new(1, 1)).is_some(),
-        "it still occupies the cell"
+    assert_eq!(
+        effects,
+        vec![Effect::StepCompleted {
+            cell: Cell::new(1, 1)
+        }],
+        "the object layer does not block"
     );
+    assert_eq!(
+        state.cell(),
+        Cell::new(1, 1),
+        "the party walks onto its cell"
+    );
+    assert!(map.is_walkable(Cell::new(1, 1)));
+    assert!(
+        map.npc_at(Cell::new(1, 1)).is_none(),
+        "it is not occupancy for anything that walks"
+    );
+    assert_eq!(
+        map.npcs().len(),
+        1,
+        "but it is still in the list, so the renderer still draws it"
+    );
+    assert!(map.npcs()[0].active, "and it has not been despawned");
 }
 
 #[test]
-fn facing_a_non_interactable_npc_answers_nothing_here() {
-    let map = map_with(&["...", "...", "..."], vec![], vec![monster(0x50, 1, 0)]);
-    let mut state = party_facing(&map, 1, 1, Direction::Up);
+fn terrain_under_a_bit_clear_object_still_blocks() {
+    // The corollary: walk-through at the *object* layer only.
+    let map = map_with(&["...", ".#.", "..."], vec![], vec![monster(0x50, 1, 1)]);
+    let mut state = party(&map, 0, 1);
 
-    assert_eq!(
-        press_action(&mut state, &map),
-        vec![Effect::InteractNothing {
-            facing: Direction::Up
-        }],
-        "the probe skips the slot entirely, so nothing is found"
+    let effects = walk_one_step(&mut state, &map, Direction::Right);
+
+    assert!(
+        effects.is_empty(),
+        "the solid cell under it still stops you"
     );
+    assert_eq!(state.cell(), Cell::new(0, 1));
 }
 
 #[test]
@@ -882,14 +902,45 @@ fn the_two_flags_are_independent() {
 }
 
 #[test]
-fn a_despawned_monster_stops_blocking_too() {
-    let mut map = map_with(&["...", "...", "..."], vec![], vec![monster(0x50, 1, 1)]);
-    assert!(!map.is_walkable(Cell::new(1, 1)));
-
-    map.set_npc_active(0, false).unwrap();
+fn bit_three_toggles_at_runtime_like_the_fellow_penguin() {
+    // `FieldObj_FellowPenguin` clears its own bit 3 once EventFlag_Penguin is
+    // set, after which it neither answers nor blocks — while still being drawn.
+    let mut map = map_with(&["...", "...", "..."], vec![], vec![npc(0x60, 1, 0)]);
 
     assert!(
-        map.is_walkable(Cell::new(1, 1)),
-        "active governs solidity; interactable never did"
+        !map.is_walkable(Cell::new(1, 0)),
+        "blocks while the bit is set"
     );
+    let mut state = party_facing(&map, 1, 1, Direction::Up);
+    assert!(matches!(
+        press_action(&mut state, &map).as_slice(),
+        [Effect::Interact { .. }]
+    ));
+
+    map.set_npc_interactable(0, false).expect("index 0 exists");
+
+    assert!(map.is_walkable(Cell::new(1, 0)), "and stops blocking");
+    let mut state = party_facing(&map, 1, 1, Direction::Up);
+    assert_eq!(
+        press_action(&mut state, &map),
+        vec![Effect::InteractNothing {
+            facing: Direction::Up
+        }],
+        "and stops answering"
+    );
+    assert_eq!(map.npcs().len(), 1, "and is still drawn");
+
+    // And back again, since the flag could be cleared.
+    map.set_npc_interactable(0, true).unwrap();
+    assert!(!map.is_walkable(Cell::new(1, 0)));
+}
+
+#[test]
+fn set_npc_interactable_rejects_an_index_that_names_nothing() {
+    let mut map = map_with(&["..", ".."], vec![], vec![npc(10, 0, 0)]);
+    assert!(matches!(
+        map.set_npc_interactable(1, false),
+        Err(psiv_core::MapError::NpcIndexOutOfRange { index: 1, count: 1 })
+    ));
+    assert!(map.set_npc_interactable(0, false).is_ok());
 }
