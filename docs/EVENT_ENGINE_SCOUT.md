@@ -22,9 +22,9 @@ Three layers, cleanly separated in the original:
    `MapDataManager` interplay. The Grand Cross DSL exists precisely because
    these patterns are regular.
 3. **Flags** (`EventFlags_Set`/`Test`, ~174-flag space; `TempEveFlags` for
-   transients — note these are *not* a separate bank in retail, they are the
-   $F140 chest bank's bits under another name; see `psiv-core`'s `state.rs`
-   module docs). Plus `Current_Party_Slots` and the character-slot copying
+   transients — these live at $F140, which the disassembly mislabels
+   `Chest_Flags`; real chest flags are $F120 bits shared with the extended
+   event flags. See `psiv-core`'s `state.rs` module docs). Plus `Current_Party_Slots` and the character-slot copying
    that party changes do.
 
 Worked example (`Event_AlysFound`): walk NPC-Alys to align with Chaz, face

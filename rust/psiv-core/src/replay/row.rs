@@ -240,14 +240,21 @@ impl ReplayRow {
             party_slots: be_u32(&snapshot.party),
             party: snapshot.party,
             eflags,
+            // These three column names come from the disassembly's labels, and
+            // two of those labels are wrong about their address. What each
+            // column actually reads:
+            //
+            //   ext_eflags_00   $F120 -- the event bank's upper half, which is
+            //                   also where chest flags live
+            //   chest_flags_00  $F140 -- the temp bank, despite the name
+            //   temp_eflags_00  $F156 -- byte 22 of that same $F140 bank
+            //
+            // The names are the oracle's and stay as they are; the mapping is
+            // what had to be corrected.
             ext_eflags_00: be_u32(&snapshot.event_flags[32..]),
-            chest_flags_00: be_u32(&snapshot.chest_flags),
-            // The oracle reads this at $F156, which is byte 22 of the $F140
-            // bank ($F156 - $F140 = $16). Retail has no separate temp bank, so
-            // the column is a window into the chest bytes rather than an array
-            // of its own.
-            temp_eflags_00: (u16::from(snapshot.chest_flags[22]) << 8)
-                | u16::from(snapshot.chest_flags[23]),
+            chest_flags_00: be_u32(&snapshot.temp_flags),
+            temp_eflags_00: (u16::from(snapshot.temp_flags[22]) << 8)
+                | u16::from(snapshot.temp_flags[23]),
             town_flags_00: be_u32(&snapshot.town_flags),
             objects: objects.to_vec(),
         }

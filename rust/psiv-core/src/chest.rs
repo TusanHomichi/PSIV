@@ -48,11 +48,18 @@
 //! flag at map build, exactly as `LoadTreasureChests` derives the sprite frame
 //! by calling `ChestFlags_Test` as it loads each one.
 //!
-//! **Mind the alias.** Chest flags live in the `$F140` bank, which retail also
-//! uses for temp event flags — see `state.rs`. Six ids are used under both
-//! names, so opening certain chests writes state a trigger reads as a temp
-//! flag and vice versa. That is retail behaviour and this module does nothing
-//! to prevent it.
+//! **Which bank.** Chest flags are `$F120` bits — the same array as the
+//! extended event flags, reached through the same door. They are *not* `$F140`
+//! temp flags, whatever the disassembly's `Chest_Flags` label says; `state.rs`
+//! carries the byte-level proof and the oracle's confirmation.
+//!
+//! The sharing with extended event flags is deliberate rather than accidental:
+//! story logic gates content on "has the player opened this chest" by testing
+//! the chest's own flag. Every literal-id `$F120` test site in the ROM reads a
+//! real chest's bit.
+//!
+//! And nothing ever clears one. The `$F120` clear door's only caller is dead
+//! code, so a chest, once opened, stays open for the rest of the save.
 
 use crate::geom::Cell;
 use crate::state::Flag;
@@ -184,11 +191,14 @@ mod tests {
     }
 
     #[test]
-    fn a_chests_flag_is_a_f140_flag() {
-        // And therefore shares the bank with temp event flags.
+    fn a_chests_flag_is_an_f120_bit_not_an_f140_one() {
+        // Oracle tape 20 measured `ChestFlag_PiataMonomate` (24) landing at
+        // `$FFFFF123` bit 7 — byte 3 of `$F120`, exactly where
+        // `bset 7-(id&7)` puts id 24 in that bank — with `$F140` untouched.
         let c = chest(24, ChestContents::Item(0x7D));
         assert_eq!(c.chest_flag(), Flag::chest(24));
-        assert_eq!(c.chest_flag(), Flag::temp(24), "same bank, same bit");
+        assert_eq!(c.chest_flag(), Flag::event(0x118), "the $F120 half");
+        assert_ne!(c.chest_flag(), Flag::temp(24), "not the temp bank");
     }
 
     #[test]

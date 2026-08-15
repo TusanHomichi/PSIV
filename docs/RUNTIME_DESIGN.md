@@ -154,22 +154,40 @@ Three kinds of data plus one machine, per docs/EVENT_ENGINE_SCOUT.md:
   (never auto-cleared; scenes clear them in explicit pairs),
   `Current_Party_Slots`. Also the future save-file shape.
 
-  **Corrected 2026-08-15**: this said five banks, splitting $F140 into a
-  176-bit chest bank and an 80-bit `Temp_Event_Flags` bank at $F156. That
-  split is the disassembly's, not the cartridge's — retail contains zero
-  instructions addressing $F156, and every `TempEveFlags_*` call dispatches
-  through the $F140 door with the id raw. **Retail temp flag N and chest
-  flag N are the same bit.** $F140 is one 256-id space running to $F160.
-  `Flag::chest(n)` and `Flag::temp(n)` both survive as constructors because
-  both names appear in the cartridge's data, but they are aliases. Proof
-  chain: the RETAIL FINDING entry dated 2026-08-15 in `SOURCE_NOTES.md`;
-  discovery in `docs/MAP_EFFECTS.md` finding 5.
+  **Corrected 2026-08-15, twice.** This first said five banks, splitting
+  $F140 into a chest bank and a `Temp_Event_Flags` bank at $F156. The second
+  revision merged those into one $F140 bank. Both were wrong about where chest
+  flags live, because both trusted the disassembly's labels for the flag door
+  block — and that block is where the clone reconstructed one more entry point
+  than retail has, shifting every label below it.
 
-  One consequence is load-bearing rather than cosmetic:
-  `TempEveFlag_BioPlantAlarm` is 8 and so is `ChestFlag_Alshline`, so trigger
-  $0C (alarm, wants the bit clear) and trigger $18 (Finding Alshline, wants it
-  set) are mutually exclusive on hardware. psiv-core reproduces that and pins
-  it with a test rather than treating it as a defect. The bridge applies
+  The final model, confirmed by three independent lines:
+
+  | bank | address | holds |
+  |---|---|---|
+  | event | $F100 | `EventFlag_*` ids $00-$FF |
+  | event (extended) **and chest** | $F120 | ids $100-$1FF, i.e. `ChestFlag_N` == `EventFlag_(0x100+N)` |
+  | temp event | $F140 | `TempEveFlag_*`, what the clone calls `Chest_Flags` |
+  | town | $F160 | `TownFlag_*` |
+
+  There is no $F156 bank. `Flag::chest(n)` and `Flag::event(0x100 + n)` are the
+  same bit and both constructors are kept; `Flag::temp(n)` is independent.
+
+  Evidence: (1) the ROM door-block decode plus the three chest call sites, all
+  targeting the $F120 door — `LoadTreasureChests` at 0x537E0, and
+  `FieldRoutine_ItemFound`'s entry test at 0x66B2A and its set at 0x66DE0;
+  (2) a pack census — all eleven ids the new-game initialiser pre-sets in $F120
+  are real chests' flags; (3) oracle tape 20's whole-RAM diff, which caught
+  `ChestFlag_PiataMonomate` landing at $FFFFF123 bit 7 with $F140 untouched,
+  measured before the prediction reached them. `SOURCE_NOTES.md`'s "FLAG MODEL
+  FINAL" entry is the record.
+
+  Two consequences are load-bearing. Chest flags being event flags is
+  *deliberate*: every literal-id $F120 test site in the ROM reads a real
+  chest's bit, so story logic gates content on "has the player opened this
+  chest". And nothing in the cartridge ever clears a $F120 bit — the clear
+  door's only caller is dead code — so a chest, once opened, stays open, and
+  the eleven the initialiser pre-sets can never be looted at all. The bridge applies
   flag-gated extractions (layout patches, MapDataManager effects, NPC
   despawns) on flag changes by rebuilding the FieldMap.
 - **Triggers**: the 128 `RunEventsJmpTbl` checks transcribed into a condition

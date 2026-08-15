@@ -58,13 +58,18 @@
 //! entry `$38`) clears `$A9` every frame but the disassembly annotates it "Not
 //! referenced" — dead code, and chasing it would be a waste.
 //!
-//! # These clears land in the chest bank
+//! # These clears are temp flags only
 //!
-//! Every id above is a `$F140` id, so each one is simultaneously a chest flag.
-//! `$13` is `TempEveFlag_Xanafalgue` **and** `ChestFlag_GrbrkTwMoonSlashr`;
-//! `$08` is `TempEveFlag_BioPlantAlarm` **and** `ChestFlag_Alshline`. Clearing
-//! them un-loots those chests. That is the retail bug tape 18 measured, and
-//! reproducing it is the point.
+//! Every id above is a `$F140` id, and `$F140` carries **only** temp event
+//! flags. An earlier revision of this engine believed `$F140` was the chest
+//! bank and concluded that these clears un-loot chests — that the Xanafalgue's
+//! flag being `$13` re-armed `ChestFlag_GrbrkTwMoonSlashr`. It does not. Chest
+//! flags are `$F120` bits (see `state.rs`), a different array, and nothing in
+//! the cartridge ever clears one.
+//!
+//! What tape 18 measured stands: the clear happens, and the Xanafalgue
+//! respawns. The chest consequence was an inference from the wrong bank model
+//! and is withdrawn.
 
 use crate::state::{Flag, GameState};
 
@@ -110,7 +115,7 @@ pub fn apply_map_load(state: &mut GameState, entries: &[u8]) -> Vec<Flag> {
     let mut cleared = Vec::new();
     for entry in entries {
         for id in flag_clears_for_entry(*entry) {
-            let flag = Flag::chest(u16::from(*id));
+            let flag = Flag::temp(u16::from(*id));
             if state.is_set(flag) {
                 let _ = state.clear(flag);
                 cleared.push(flag);
@@ -147,7 +152,7 @@ mod tests {
         state.set(Flag::temp(0x13)).unwrap();
 
         let cleared = apply_map_load(&mut state, &[0x03, 0x18]);
-        assert_eq!(cleared, vec![Flag::chest(0x13)]);
+        assert_eq!(cleared, vec![Flag::temp(0x13)]);
         assert!(state.is_clear(Flag::temp(0x13)));
     }
 
@@ -169,48 +174,18 @@ mod tests {
     }
 
     #[test]
-    fn the_basement_round_trip_un_loots_the_moon_slasher_chest() {
-        // Tape 18's measured bug, end to end. $13 is TempEveFlag_Xanafalgue and
-        // ChestFlag_GrbrkTwMoonSlashr at once, so the map-load clear that
-        // respawns the Xanafalgue also re-arms a chest the player already
-        // emptied — reachable by ordinary backtracking.
-        let mut state = GameState::new();
-        let moon_slasher = crate::Chest {
-            cell: crate::geom::Cell::new(4, 4),
-            flag: 0x13,
-            contents: crate::ChestContents::Item(0x40),
-            white: false,
-            index: 0,
-        };
-
-        // Loot it at Garuberk Tower.
-        state.open_chest(&moon_slasher);
-        assert!(state.chest_is_open(&moon_slasher));
-
-        // Much later, walk into the Piata basement — the Xanafalgue flees and
-        // sets $13, which is already set, so nothing visibly happens — and then
-        // walk back out onto map $012.
-        apply_map_load(&mut state, &[0x18]);
-
-        assert!(
-            !state.chest_is_open(&moon_slasher),
-            "the chest reads unlooted again"
-        );
-        // And it really can be taken a second time.
-        assert!(matches!(
-            state.open_chest(&moon_slasher),
-            crate::ChestOutcome::Took { item: 0x40, .. }
-        ));
-    }
-
-    #[test]
-    fn leaving_the_bio_plant_clears_the_alarm_and_re_arms_the_alshline_chest() {
-        // The same shape at id $08: TempEveFlag_BioPlantAlarm is
-        // ChestFlag_Alshline, and entry $84 clears it on load.
+    fn leaving_the_bio_plant_clears_the_alarm_without_touching_the_chest() {
+        // Entry $84 clears temp $08, `TempEveFlag_BioPlantAlarm`. Chest $08 is
+        // `ChestFlag_Alshline` and lives in a different array; an earlier
+        // revision had these as one bit and concluded the alarm re-armed the
+        // chest. It does not.
         let mut state = GameState::new();
         state.set(Flag::temp(0x08)).unwrap();
+        state.set(Flag::chest(0x08)).unwrap();
+
         let cleared = apply_map_load(&mut state, &[0x84]);
-        assert_eq!(cleared, vec![Flag::chest(0x08)]);
-        assert!(state.is_clear(Flag::chest(0x08)));
+        assert_eq!(cleared, vec![Flag::temp(0x08)]);
+        assert!(state.is_clear(Flag::temp(0x08)));
+        assert!(state.is_set(Flag::chest(0x08)), "the chest stays looted");
     }
 }

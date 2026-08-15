@@ -221,14 +221,29 @@ Open-state needs no storage: it is derived from the flag, exactly as
 `LoadTreasureChests` derives the sprite frame by calling `ChestFlags_Test` as it
 loads each chest.
 
-### The alias is live here
+### Which bank, and why it is shared
 
-Chest flags are `$F140` flags, and retail uses that bank for temp event flags
-too — six ids under both names (see `psiv-core/src/state.rs`). So opening
-certain chests writes state a trigger reads as a temp flag, and tripping certain
-temp flags marks a chest as already looted. `a_chest_flag_and_its_alias_temp_flag_are_one_bit`
-pins the Alshline/BioPlantAlarm case in both directions. Nothing here tries to
-prevent it.
+**Chest flags are `$F120` bits**, the same array as the extended event flags —
+not `$F140`, whatever the disassembly's `Chest_Flags` label says. `state.rs`
+carries the byte-level proof and the evidence chain. `Flag::chest(n)` is
+exactly `Flag::event(0x100 + n)`.
+
+The sharing is deliberate. Every literal-id `$F120` test site in the ROM reads
+a real chest's flag — the five tower rings at `$A1`-`$A5`, plus `EclpsTorch`,
+`FradeMantl`, `Canceller`, `PalmaRing`, `AeroPrism` and `RepairKit` at
+`$08`-`$0D`. Story logic gates content on "has the player opened this chest".
+
+And **nothing ever clears one**. The `$F120` clear door at `0x0576B2` has a
+single caller in the whole ROM, `MapUpdate_ClrChestFlag`, which the
+disassembly annotates "Not referenced" and which clears the unused id `$A9`.
+Dead code. A chest, once opened, stays open for the life of the save — and the
+eleven the initialiser pre-sets (`$27 $28 $2A $34 $38 $50 $5B $5D $6B $78
+$A7`) can never be looted at all. Seven of them hold a HuntKnife across
+unrelated maps, which reads as placeholder records deliberately switched off.
+
+Temp flags are independent: `a_temp_flag_is_independent_of_the_chest_flag_of_that_id`
+pins that, and `the_eleven_preloaded_chests_read_as_open_at_a_new_game` pins the
+census.
 
 ## 4. Map load clears flags — implemented
 
@@ -268,21 +283,25 @@ the object's routine. And `MapUpdate_ClrChestFlag` (`MapUpdateJmpTbl` entry
 `$38`) clears `$A9` every frame, but the disassembly annotates it **"Not
 referenced"**: dead code, recorded here so nobody else chases it.
 
-Every id above is a `$F140` id and therefore simultaneously a chest flag. `$13`
-is `TempEveFlag_Xanafalgue` *and* `ChestFlag_GrbrkTwMoonSlashr`; `$08` is
-`TempEveFlag_BioPlantAlarm` *and* `ChestFlag_Alshline`. Clearing them un-loots
-those chests, which is tape 18's measured bug, reproduced end to end by
-`the_basement_round_trip_un_loots_the_moon_slasher_chest`.
+Every id above is a `$F140` id, and `$F140` carries **only** temp flags. An
+earlier revision concluded that these clears un-loot chests — that clearing
+`$13` re-armed `ChestFlag_GrbrkTwMoonSlashr`. Withdrawn: chest flags are
+`$F120` bits and nothing clears them.
 
-### The alias is wider than the trigger tables showed
+Tape 18's *measurements* stand — the clear happens on destination load and the
+Xanafalgue respawns. Only the chest consequence, which the ledger itself
+flagged as an inference rather than a measurement, is gone.
 
-Sweeping the transcribed tables gave six colliding ids. The constants file gives
-the real extent: `TempEveFlag_*` runs `$00`, `$08`..`$1D`+ and `ChestFlag_*`
-covers the same range continuously, so **essentially every temp flag id is also
-a chest flag id**. `$14` is `GrbkTwEyeball` and `GrbrkTwStarDew`; `$15` is
-`GrbkTwMoonSlshrRoom` and `GrbrkTwMoonDew`; `$18` is `ChazHouse` and
-`PiataMonomate`; `$19` is `SilenceTm` and `Piata100Meseta`. Six was the count of
-pairs *we had transcribed*, not the count that exists.
+### Withdrawn: the temp/chest alias
+
+Two earlier revisions of this document claimed temp flags and chest flags share
+bits — first six colliding ids, then "essentially the whole `$08`..`$1D`
+range". **Both are withdrawn.** They rested on `$F140` being the chest bank,
+which it is not. `TempEveFlag_*` ids and `ChestFlag_*` ids of the same number
+are different bits in different arrays and never interact.
+
+What survives is the *other* sharing, which is real and deliberate: chest flags
+and extended event flags are one bank, `$F120`.
 
 ### Extractor gap: the pack carries no flag-clear data
 
