@@ -73,6 +73,16 @@ pub enum ActorRef {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DialogueId(pub u16);
 
+/// Which dialogue-window setup a scene asked for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub enum DialogueWindow {
+    /// `Event_GetAndRunDialogue` (`$5AC66`) — every scene but one.
+    #[default]
+    Standard,
+    /// `Event_GetAndRunDialogue5` (`$5ADF8`) — `Cutscene_PiataPrincipal`.
+    Cutscene,
+}
+
 /// Where a dialogue entry index comes from.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DialogueSource {
@@ -98,6 +108,134 @@ pub enum SceneOp {
         /// Where to.
         to: Cell,
     },
+    /// Turn `actor` to face another actor head-on.
+    ///
+    /// `Event_PrincipalConfession` does `move.w facing_dir(leader),d0 / bchg
+    /// #2,d0` — bit 2 is the axis-flip within each facing pair, so the result
+    /// is the exact opposite of the other actor's facing (down<->up,
+    /// right<->left). That is [`Direction::opposite`], and it makes the
+    /// principal turn toward the party from whichever side they approached.
+    /// Note it reads the *leader's* facing, which after `Event_AlysFound` is
+    /// Alys.
+    FaceOppositeOf {
+        /// Who turns.
+        actor: ActorRef,
+        /// Whose facing is flipped.
+        of: ActorRef,
+    },
+    /// Place an actor at a pixel position outright, setting both current and
+    /// destination — staging, not walking.
+    PlaceActor {
+        /// Who.
+        actor: ActorRef,
+        /// X in pixels.
+        x: i32,
+        /// Y in pixels.
+        y: i32,
+    },
+    /// Set an actor's destination without starting a scripted walk, so the
+    /// ordinary follow logic drives them there.
+    SetActorDest {
+        /// Who.
+        actor: ActorRef,
+        /// X in pixels.
+        x: i32,
+        /// Y in pixels.
+        y: i32,
+    },
+    /// Exchange two character objects wholesale — the three-way `trap #1`
+    /// through the `$E200` scratch buffer that `Event_GameStart` uses to put
+    /// Alys in front.
+    SwapCharSlots {
+        /// One character-object index.
+        a: usize,
+        /// The other.
+        b: usize,
+    },
+    /// Re-upload the current map's palette (`Map_Palettes_Addr` ->
+    /// `Palette_Table_Buffer`, 48 words in two copies).
+    ReloadMapPalette,
+    /// Clear VRAM and CRAM (`InitVRAMAndCRAM`, `$5A658`): fades out, resets a
+    /// VDP register and rebuilds the Plane A buffer. Engine-visible effect is
+    /// the fade; the rest is the renderer's.
+    InitVramAndCram,
+    /// Return from the scene with an explicit value.
+    ///
+    /// The value is part of the contract, not a C convention. For a
+    /// **cutscene**, `FieldRoutine_Cutscene` reloads the map when `d0 == 0`
+    /// (`bset #2, Map_Load_Flags` then `GameMode_LoadFieldMap`), which is how
+    /// `Cutscene_PiataPrincipal` gets the office back with post-briefing NPC
+    /// state. For a plain **event**, a non-zero return is what suppresses the
+    /// map reload — `Event_IgglanovaBattle` relies on that so its battle
+    /// hand-off survives.
+    Return {
+        /// The `d0` value.
+        value: u16,
+    },
+    /// Jump on whether one actor's coordinate is greater than another's.
+    ///
+    /// `Event_MeetingHahn` picks its walk direction with
+    /// `cmp.w hahn_x, leader_x / bhi` — unsigned, so this is a strict
+    /// greater-than on `a` against `b`.
+    BranchIfActorGreater {
+        /// The actor whose coordinate is on the left of the comparison.
+        a: ActorRef,
+        /// The one on the right.
+        b: ActorRef,
+        /// Which coordinate.
+        axis: Axis,
+        /// Op index taken when `a`'s coordinate is greater.
+        if_greater: usize,
+        /// Op index taken otherwise.
+        if_not: usize,
+    },
+    /// Load a palette from ROM (intro only).
+    LoadPalette {
+        /// The palette's ROM address.
+        rom_addr: u32,
+        /// How many words to copy.
+        words: u16,
+    },
+    /// Park the camera at a pixel position without scrolling (intro only).
+    SetCameraPos {
+        /// X in pixels.
+        x: i32,
+        /// Y in pixels.
+        y: i32,
+    },
+    /// Upload the title image (intro only).
+    LoadTitleImage {
+        /// Art ROM address.
+        art: u32,
+        /// Plane-mapping ROM address.
+        mapping: u32,
+        /// Columns.
+        width: u16,
+        /// Rows.
+        height: u16,
+        /// Destination VRAM address.
+        vram: u32,
+    },
+    /// Set the prologue text colour (intro only).
+    SetTextColour {
+        /// A CRAM colour word.
+        colour: u16,
+    },
+    /// Draw a dialogue entry straight onto a plane (intro only) — the prologue
+    /// crawl does not use a dialogue window.
+    DrawTextToPlane {
+        /// Which entry of the current tree.
+        entry: u16,
+        /// Plane buffer address.
+        plane: u32,
+        /// Destination VRAM address.
+        vram: u32,
+    },
+    /// Ramp the prologue text colour up one step (intro only). The routine
+    /// acts one frame in four and adds `$222` per step.
+    IntroTextFadeUp,
+    /// Ramp the prologue text colour down one step (intro only).
+    IntroTextFadeDown,
     /// Turn `actor` in place — a **direct facing write**, not a movement.
     ///
     /// Scenes are not bound by the walker's no-turn-in-place rule. Input-driven
@@ -117,6 +255,11 @@ pub enum SceneOp {
     RunDialogue {
         /// Which entry, and where its index comes from.
         source: DialogueSource,
+        /// Which window the cartridge opens. `Event_GetAndRunDialogue`
+        /// (`$5AC66`) and `Event_GetAndRunDialogue5` (`$5ADF8`) fetch the same
+        /// text and differ only in window setup, which is the renderer's
+        /// business — but the sequence records which was called.
+        window: DialogueWindow,
     },
     /// Resume the dialogue where `RunText` left off.
     ///
@@ -149,11 +292,20 @@ pub enum SceneOp {
         /// The five slots.
         slots: [Option<CharId>; PARTY_SLOTS],
     },
-    /// Remove a field object from the map. The runtime rebuilds the
-    /// [`FieldMap`] without it.
+    /// Remove one or more consecutive field objects from the map.
+    ///
+    /// **The width is load-bearing.** The despawn is a `trap #0` block clear
+    /// over `d7 + 1` longwords, and one object struct is `$40` bytes — so
+    /// `#$F` clears one object and `#$2F` clears three. `Event_AlysFound`
+    /// clears one; `Event_MeetingHahn` clears **three**, because map `$12`'s
+    /// NPC 0 is Hahn and NPCs 1-2 are the `InvisibleBlock` pair fencing him in.
+    /// Modelling this as "clear one" leaves two invisible walls across the
+    /// basement corridor.
     DespawnNpc {
-        /// Which object.
+        /// The first object cleared.
         npc_index: usize,
+        /// How many consecutive objects the block clear covers.
+        count: usize,
     },
     /// Move the camera to a pixel position at `speed`.
     ///
@@ -176,6 +328,11 @@ pub enum SceneOp {
         x: i32,
         /// Target Y in pixels.
         y: i32,
+        /// Whether the scene spins until the walk completes. The retail
+        /// primitives drive the object until `curr == dest`, so this is `true`
+        /// for every transcribed use; `false` exists for staging moves that
+        /// the following ops are expected to overlap.
+        wait: bool,
     },
     /// Drive an actor with one of the NPC movement-command bytes and
     /// optionally spin until the step completes — the `AlysFound` idiom of
@@ -258,8 +415,11 @@ pub enum SceneOp {
         start_y: u16,
         /// `Map_Start_Facing_Dir`.
         facing: Direction,
-        /// `Map_Start_Char_Align`.
+        /// `Map_Start_Char_Align`. Consumed by `loc_535D4` alongside facing
+        /// when placing followers; not fully decoded.
         align: u8,
+        /// `Map_Load_Flags` bits to clear before `RefreshMap`.
+        clear_load_flags: u8,
     },
     /// Whether sprites render during a cutscene
     /// (`Render_Sprites_In_Cutscenes`, `$ECFD`).
@@ -433,10 +593,24 @@ pub enum SceneEffect {
     },
     /// The party composition changed.
     PartyChanged,
-    /// Drop this object from the map.
+    /// Drop objects from the map, starting at `npc_index`.
     NpcDespawned {
-        /// Which object.
+        /// The first object cleared.
         npc_index: usize,
+        /// How many consecutive objects.
+        count: usize,
+    },
+    /// An actor was placed outright rather than walked.
+    ActorPlaced {
+        /// Who.
+        actor: ActorRef,
+        /// Where.
+        at: Cell,
+    },
+    /// The scene returned a value; see [`SceneOp::Return`].
+    Returned {
+        /// The `d0` value.
+        value: u16,
     },
     /// The purse changed.
     MoneyChanged {
@@ -573,7 +747,15 @@ impl ScriptedActor {
                     // consulted: the cartridge's scripted moves write dest and
                     // drive the object there, and several scenes deliberately
                     // walk actors across cells the player could not.
-                    let to = map.neighbor(self.cell, dir).unwrap_or(self.cell);
+                    //
+                    // A target off the edge of a bounded map is the one thing
+                    // that cannot be walked to. Abandoning the walk there is
+                    // what keeps a `WaitForActor` from blocking forever; the
+                    // arrival is still reported, at the cell actually reached.
+                    let Some(to) = map.neighbor(self.cell, dir) else {
+                        self.target = None;
+                        return Some(self.cell);
+                    };
                     self.step = Some((dir, to, 0));
                 }
                 None => {

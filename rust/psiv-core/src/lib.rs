@@ -97,8 +97,8 @@ pub use geom::{CELL_PIXELS, Cell, CellRect, Direction};
 pub use map::{FieldMap, MapId, Npc, NpcId, SubCellOffset, Topology, Warp, WarpTrigger};
 pub use party::{MAX_PARTY_MEMBERS, MemberView, Party};
 pub use scene::{
-    ActorRef, Axis, DialogueId, DialogueSource, OP_BUDGET_PER_TICK, SceneEffect, SceneFault,
-    SceneInput, SceneOp, ScriptedActor,
+    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, OP_BUDGET_PER_TICK, SceneEffect,
+    SceneFault, SceneInput, SceneOp, ScriptedActor,
 };
 pub use scene_runner::{Scene, SceneRunner, runner_for};
 pub use scenes::{SCENES, scene_for};

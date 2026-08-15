@@ -14,6 +14,13 @@ use crate::scene::{
 };
 use crate::state::GameState;
 
+/// The cell a pixel position names, undoing the standing-cell shift.
+fn pixel_cell(x: i32, y: i32) -> Cell {
+    let cx = (x / crate::geom::CELL_PIXELS).clamp(0, i32::from(u16::MAX));
+    let cy = ((y / crate::geom::CELL_PIXELS) + 1).clamp(0, i32::from(u16::MAX));
+    Cell::new(cx as u16, cy as u16)
+}
+
 /// What the runner is waiting for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Blocked {
@@ -204,7 +211,7 @@ impl SceneRunner {
                 effects.push(SceneEffect::ActorFaced { actor, facing });
                 self.pc += 1;
             }
-            SceneOp::RunDialogue { source } => {
+            SceneOp::RunDialogue { source, .. } => {
                 let dialogue = match source {
                     DialogueSource::Entry(id) => id,
                     DialogueSource::NpcDialogueId(actor) => {
@@ -267,17 +274,18 @@ impl SceneRunner {
                 effects.push(SceneEffect::MapRequested { op });
                 self.pc += 1;
             }
-            SceneOp::MoveActorTo { actor, x, y } => {
+            SceneOp::MoveActorTo { actor, x, y, wait } => {
                 let Some(walker) = self.actor_mut(actor) else {
                     return Some(SceneFault::UnknownActor { actor });
                 };
-                let to = Cell::new(
-                    (x / crate::geom::CELL_PIXELS).clamp(0, i32::from(u16::MAX)) as u16,
-                    ((y / crate::geom::CELL_PIXELS) + 1).clamp(0, i32::from(u16::MAX)) as u16,
-                );
+                let to = pixel_cell(x, y);
                 walker.target = Some(to);
+                let walking = walker.is_walking();
                 effects.push(SceneEffect::ActorMoveStarted { actor, to });
                 self.pc += 1;
+                if wait && walking {
+                    self.blocked = Blocked::Actor(actor);
+                }
             }
             SceneOp::MoveActorCommand { actor, .. } => {
                 if self.actor(actor).is_none() {
@@ -286,7 +294,74 @@ impl SceneRunner {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }
-            SceneOp::OverlapCharacters
+            SceneOp::FaceOppositeOf { actor, of } => {
+                let Some(other) = self.actor(of) else {
+                    return Some(SceneFault::UnknownActor { actor: of });
+                };
+                let facing = other.facing.opposite();
+                let Some(walker) = self.actor_mut(actor) else {
+                    return Some(SceneFault::UnknownActor { actor });
+                };
+                walker.facing = facing;
+                effects.push(SceneEffect::ActorFaced { actor, facing });
+                self.pc += 1;
+            }
+            SceneOp::PlaceActor { actor, x, y } => {
+                let cell = pixel_cell(x, y);
+                let Some(walker) = self.actor_mut(actor) else {
+                    return Some(SceneFault::UnknownActor { actor });
+                };
+                walker.cell = cell;
+                walker.target = None;
+                effects.push(SceneEffect::ActorPlaced { actor, at: cell });
+                self.pc += 1;
+            }
+            SceneOp::SetActorDest { actor, x, y } => {
+                let cell = pixel_cell(x, y);
+                let Some(walker) = self.actor_mut(actor) else {
+                    return Some(SceneFault::UnknownActor { actor });
+                };
+                walker.target = Some(cell);
+                effects.push(SceneEffect::ActorMoveStarted { actor, to: cell });
+                self.pc += 1;
+            }
+            SceneOp::Return { value } => {
+                effects.push(SceneEffect::Returned { value });
+                effects.push(SceneEffect::Finished);
+                self.blocked = Blocked::Done;
+            }
+            SceneOp::BranchIfActorGreater {
+                a,
+                b,
+                axis,
+                if_greater,
+                if_not,
+            } => {
+                let (Some(first), Some(second)) = (self.actor(a), self.actor(b)) else {
+                    let missing = if self.actor(a).is_none() { a } else { b };
+                    return Some(SceneFault::UnknownActor { actor: missing });
+                };
+                let greater = match axis {
+                    Axis::X => first.cell.x > second.cell.x,
+                    Axis::Y => first.cell.y > second.cell.y,
+                };
+                let target = if greater { if_greater } else { if_not };
+                if target > self.scene.len() {
+                    return Some(SceneFault::BadJump { target });
+                }
+                self.pc = target;
+            }
+            SceneOp::SwapCharSlots { .. }
+            | SceneOp::ReloadMapPalette
+            | SceneOp::InitVramAndCram
+            | SceneOp::LoadPalette { .. }
+            | SceneOp::SetCameraPos { .. }
+            | SceneOp::LoadTitleImage { .. }
+            | SceneOp::SetTextColour { .. }
+            | SceneOp::DrawTextToPlane { .. }
+            | SceneOp::IntroTextFadeUp
+            | SceneOp::IntroTextFadeDown
+            | SceneOp::OverlapCharacters
             | SceneOp::SetFollowMode { .. }
             | SceneOp::SetStepOffset { .. }
             | SceneOp::PlaySound { .. }
@@ -324,8 +399,8 @@ impl SceneRunner {
                 effects.push(SceneEffect::PartyChanged);
                 self.pc += 1;
             }
-            SceneOp::DespawnNpc { npc_index } => {
-                effects.push(SceneEffect::NpcDespawned { npc_index });
+            SceneOp::DespawnNpc { npc_index, count } => {
+                effects.push(SceneEffect::NpcDespawned { npc_index, count });
                 self.pc += 1;
             }
             SceneOp::MoveCamera { .. } => {
