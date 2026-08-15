@@ -673,13 +673,25 @@ impl INode2D for DialogueWindow {
                 // animation holds the text loop the same way.
                 redraw = flow.tick();
             }
-            // The typewriter: one glyph per 3 frames, measured off hardware.
+            // The typewriter: one glyph per 3 frames released, one per frame
+            // while Speak is held — hold-to-accelerate, measured off hardware
+            // (oracle tapes 13/15: 39 draws in a 40-frame held span vs 13
+            // released; an early press inside the open animation is dropped,
+            // which the swallow above already models). Holding does NOT
+            // auto-advance a finished page — that path still wants a press,
+            // pending a hold-across-page-boundary tape.
             let total = self.flow.as_ref().map_or(0, |flow| {
                 flow.lines().iter().map(|l| l.chars().count()).sum()
             });
             if self.revealed < total {
+                let cadence = if godot::classes::Input::singleton().is_action_pressed("ui_accept")
+                {
+                    1
+                } else {
+                    3
+                };
                 self.reveal_tick += 1;
-                if self.reveal_tick >= 3 {
+                if self.reveal_tick >= cadence {
                     self.reveal_tick = 0;
                     self.revealed += 1;
                     redraw = true;
@@ -794,13 +806,11 @@ impl DialogueWindow {
             reopen = flow.page_end() == Some(PageEnd::Close);
             let total: usize = flow.lines().iter().map(|l| l.chars().count()).sum();
             if self.revealed < total {
-                // A press mid-typewriter completes the page instead of
-                // advancing it. ASSUMPTION pending an oracle tape (the
-                // common idiom; retail's behavior here is untested).
-                self.revealed = total;
-                self.drain_log();
-                self.sync_portrait();
-                self.base_mut().queue_redraw();
+                // A press mid-typewriter neither completes the page nor
+                // advances it: retail accelerates only while Speak is HELD
+                // (tick's cadence), and a tap adds exactly its held frames
+                // (oracle tapes 13/15 — the earlier complete-the-page
+                // assumption was wrong). Swallow the press.
                 return;
             }
             flow.advance();
