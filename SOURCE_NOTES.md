@@ -394,3 +394,18 @@ and the flag-set whose absence would re-fire the trigger forever.
   overworld-only helpers despite their general names. `MapEni_GameStartMotaBG`
   / `ArtNem_GameStartMotaBG` are unreferenced in the disassembly source; the
   cartridge reaches them at `0x073C4E`.
+- RETAIL CARTRIDGE BUG: `Battle_ProcessRUN` calls `Battle_CalculateChances`
+  (`$00B5A6`) with `d5` — the critical threshold — uninitialised
+  (`ps4.asm:7704-7712` loads only `d1-d4`). Dormant: the caller tests only
+  the result's sign, and both "normal" (0) and "critical" (1) verdicts are
+  non-negative, so whatever garbage `d5` holds cannot change the escape
+  outcome. A port must document this rather than silently invent a value.
+- RETAIL CARTRIDGE BUG: enemy skill 112 `BLACK WAVE` declares effect `$2C`,
+  one past the end of the 44-entry `AbilityEffectsOffs` table (`$0061BE`,
+  ids `$00-$2B`). The `TRAP #2` dispatcher (`$000216`) has no bounds check;
+  dispatching it would jump to the odd address `$00B033` and raise a 68000
+  address error — a crash. Dormant: the skill's only user is enemy 152
+  `Zio3` (16383 HP, all-255 defences — a debug/leftover boss) which appears
+  in zero of the 504+27 formations. Verdict for the port: reject effect ids
+  outside `$00-$2B` at data-load time and record the one offender as a
+  census anomaly. Full battle fact base: `docs/BATTLE_SCOUT.md`.
