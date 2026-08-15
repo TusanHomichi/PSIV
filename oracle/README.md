@@ -44,7 +44,9 @@ wants anyway.
 
 ```
 oracle/
-├── host/psiv_oracle.c      the headless libretro host
+├── host/psiv_oracle.c      the headless libretro host runner
+├── host/frame_dump.c       negotiated-format PNG video sink
+├── host/ram_dump.c         raw work-RAM snapshot sink
 ├── host/libretro.h         minimal libretro ABI subset
 ├── build_core.sh           fetches + builds the pinned emulation core
 ├── route.py                plans a walking route over the pack's collision data
@@ -73,6 +75,7 @@ oracle/gpgx-src/
 oracle/core/
 oracle/logs/
 oracle/bin/
+oracle/frames/
 ```
 
 `host/`, `tapes/`, `ram_map.json`, `ram_map.tsv`, `gen_ram_map.py`,
@@ -109,6 +112,47 @@ oracle/bin/psiv_oracle \
 
 Other flags: `--dump-options` lists every option the core declares with its
 default; `--probe-endian` prints work-RAM diagnostics.
+
+### Video frame capture
+
+The host can save exact, player-visible reference frames directly from the
+libretro video callback:
+
+```sh
+oracle/bin/psiv_oracle \
+    --core oracle/core/genesis_plus_gx_libretro.so \
+    --rom  "Phantasy Star IV (USA).md" \
+    --map  oracle/ram_map.tsv \
+    --tape oracle/tapes/07_first_battle.tape \
+    --out /dev/null \
+    --dump-frames 25000,31000 \
+    --dump-frames-dir oracle/frames
+```
+
+`--dump-frames` is a comma-separated list of explicit, 1-based
+`retro_run()` frame numbers. `--dump-frames-dir` is required with it; the
+host creates that directory when it is absent and writes
+`frame_<N>.png`. The list may contain at most 256 unique positive numbers.
+The host fails if a requested frame is never emitted, rather than silently
+producing a stale image.
+
+The core negotiates `RETRO_PIXEL_FORMAT_RGB565` for this build. The sink also
+decodes libretro's `0RGB1555` and `XRGB8888` software formats, converting all
+three to dependency-free 8-bit RGB PNGs. `retro_get_system_av_info()` reports
+the core's reset-time geometry as **256x192**, then Genesis Plus GX switches
+the VDP to the retail **320x224** viewport on the first frame; the sink
+ignores that one reset-mode callback and rejects any dumped callback that is
+not exactly 320x224. The observed callback pitch is 1440 bytes, and no
+overscan/max-width pixels are included.
+
+The first checked-in reference set is:
+
+| file | source | depicted moment |
+|---|---|---|
+| `oracle/frames/frame_25000.png` | tape 07 | battle command menu idle (`COMD` selected), two Zoran Bults and the three-party status bar |
+| `oracle/frames/frame_31000.png` | tape 07 | post-battle field message while the text is still mid-draw (`Stop wasting time, there's not`) |
+| `oracle/frames/frame_7000.png` | tape 02 | Piata field, Chaz facing the town interior and its NPCs |
+| `oracle/frames/frame_7400.png` | tape 03 | NPC dialogue window with the first page fully visible |
 
 `--groups` selects which RAM-map groups are logged, and on a long tape it is
 the difference between a 2MB log and a 60MB one. Available groups, with their

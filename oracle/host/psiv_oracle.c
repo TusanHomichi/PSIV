@@ -23,7 +23,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "frame_dump.h"
 #include "libretro.h"
+#include "ram_dump.h"
 
 #define MAX_FIELDS 1024
 #define MAX_TAPE_STEPS 262144
@@ -123,8 +125,9 @@ static const struct pinned_opt g_pinned[] = {
 	/* Sprite limit is not cosmetic: it drives VDP status bits the 68000 can
 	 * read, so the accurate (limited) behaviour is required. */
 	{ "genesis_plus_gx_no_sprite_limit", "disabled" },
-	/* Rendering stays on and accurate. Frames are discarded, but VDP state
-	 * feeds status registers, so we do not skip work the hardware does. */
+	/* Rendering stays on and accurate. With no frame flags the video callback's
+	 * pixels are discarded, but VDP state feeds status registers, so we do not
+	 * skip work the hardware does. */
 	{ "genesis_plus_gx_render", "single field" },
 	{ "genesis_plus_gx_frameskip", "disabled" },
 	{ "genesis_plus_gx_overscan", "disabled" },
@@ -134,18 +137,6 @@ static const struct pinned_opt g_pinned[] = {
 static char g_system_dir[1024];
 static char g_save_dir[1024];
 static int g_dump_options;
-
-/* Raw work-RAM snapshots, for "what state survives X?" questions that named
- * columns cannot answer: dump the full 64KB at two frames and diff them. The
- * dumps are written in 68000 byte order (ram[A^1]) so an offset in the file is
- * the 68000 address minus $FFFF0000, not the core's word-swapped layout. */
-#define MAX_RAM_DUMPS 8
-struct ram_dump {
-	uint64_t frame;
-	const char *path;
-};
-static struct ram_dump g_dumps[MAX_RAM_DUMPS];
-static int g_ndumps;
 
 /* Declared-option index, captured when the core announces its options, so we
  * can prove every pinned value is one the core actually accepts. A core that
@@ -265,7 +256,8 @@ static int environment_cb(unsigned cmd, void *data)
 		return 1;
 
 	case RETRO_ENVIRONMENT_SET_PIXEL_FORMAT:
-		return 1; /* frames are discarded; any format is fine */
+		return frame_dump_accept_pixel_format(
+			*(const enum retro_pixel_format *)data);
 
 	case RETRO_ENVIRONMENT_GET_SYSTEM_DIRECTORY:
 		*(const char **)data = g_system_dir;
@@ -296,7 +288,7 @@ static int environment_cb(unsigned cmd, void *data)
 
 	case RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE:
 		/* Bit 0 = video, bit 1 = audio. Both stay enabled so the core does
-		 * exactly the work the hardware does; we simply drop the output. */
+		 * exactly the work the hardware does; the video sink may capture it. */
 		*(int *)data = 0x3;
 		return 1;
 
@@ -364,7 +356,7 @@ static int environment_cb(unsigned cmd, void *data)
 static void video_refresh_cb(const void *data, unsigned w, unsigned h,
                              size_t pitch)
 {
-	(void)data; (void)w; (void)h; (void)pitch;
+	frame_dump_video_refresh(data, w, h, pitch);
 }
 
 static void audio_sample_cb(int16_t l, int16_t r) { (void)l; (void)r; }
@@ -699,21 +691,25 @@ static void usage(void)
 	        "usage: psiv_oracle --core <so> --rom <md> --tape <tape> "
 	        "[--map <map>] [--out <csv>]\n"
 	        "                   [--groups a,b,c] [--dump-options] "
-	        "[--probe-endian]\n");
+	        "[--probe-endian]\n"
+	        "                   [--dump-frames N1,N2,...] "
+	        "--dump-frames-dir <dir>\n");
 }
 
 int main(int argc, char **argv)
 {
 	const char *core_path = NULL, *rom_path = NULL, *tape_path = NULL;
 	const char *map_path = NULL, *out_path = NULL, *groups = NULL;
+	const char *dump_frames = NULL, *dump_frames_dir = NULL;
 	int probe_endian = 0;
 	FILE *out = stdout;
 	struct retro_system_info sysinfo;
+	struct retro_system_av_info av_info;
 	struct retro_game_info game;
 	uint8_t *rom = NULL;
 	size_t rom_size = 0;
 	FILE *rf;
-	int i, step;
+	int i, step, frame_dump_status;
 	uint64_t frame = 0;
 
 	for (i = 1; i < argc; i++) {
@@ -724,22 +720,32 @@ int main(int argc, char **argv)
 		else if (!strcmp(argv[i], "--out") && i + 1 < argc) out_path = argv[++i];
 		else if (!strcmp(argv[i], "--groups") && i + 1 < argc) groups = argv[++i];
 		else if (!strcmp(argv[i], "--dump-options")) g_dump_options = 1;
+		else if (!strcmp(argv[i], "--dump-frames") && i + 1 < argc)
+			dump_frames = argv[++i];
+		else if (!strcmp(argv[i], "--dump-frames-dir") && i + 1 < argc)
+			dump_frames_dir = argv[++i];
 		else if (!strcmp(argv[i], "--dump-ram") && i + 1 < argc) {
-			/* --dump-ram <frame>:<path> */
-			char *spec = argv[++i];
-			char *colon = strchr(spec, ':');
-			if (!colon || g_ndumps >= MAX_RAM_DUMPS) {
-				fprintf(stderr, "psiv_oracle: --dump-ram wants "
-				        "<frame>:<path> (max %d)\n", MAX_RAM_DUMPS);
+			if (ram_dump_add_spec(argv[++i]) != 0) {
+				fprintf(stderr, "psiv_oracle: %s\n", ram_dump_error());
 				return 2;
 			}
-			*colon = 0;
-			g_dumps[g_ndumps].frame = strtoull(spec, NULL, 10);
-			g_dumps[g_ndumps].path = colon + 1;
-			g_ndumps++;
 		}
 		else if (!strcmp(argv[i], "--probe-endian")) probe_endian = 1;
 		else { usage(); return 2; }
+	}
+	if ((dump_frames && !dump_frames_dir) ||
+	    (!dump_frames && dump_frames_dir)) {
+		fprintf(stderr, "psiv_oracle: --dump-frames and --dump-frames-dir "
+		        "must be used together\n");
+		return 2;
+	}
+	if (dump_frames && frame_dump_set_frames(dump_frames) != 0) {
+		fprintf(stderr, "psiv_oracle: %s\n", frame_dump_error());
+		return 2;
+	}
+	if (dump_frames_dir && frame_dump_set_directory(dump_frames_dir) != 0) {
+		fprintf(stderr, "psiv_oracle: %s\n", frame_dump_error());
+		return 2;
 	}
 
 	if (!core_path || !rom_path ||
@@ -839,6 +845,20 @@ int main(int argc, char **argv)
 		fprintf(stderr, "psiv_oracle: core refused the rom\n");
 		return 1;
 	}
+	rt_get_system_av_info(&av_info);
+	if (frame_dump_set_geometry(av_info.geometry.base_width,
+	                            av_info.geometry.base_height) != 0) {
+		fprintf(stderr, "psiv_oracle: %s\n", frame_dump_error());
+		return 1;
+	}
+	if (frame_dump_enabled())
+		fprintf(stderr,
+		        "psiv_oracle: video capture pixel_format=%s av_base=%ux%u "
+		        "target=320x224 max=%ux%u\n",
+		        frame_dump_pixel_format_name(
+				frame_dump_negotiated_pixel_format()),
+		        av_info.geometry.base_width, av_info.geometry.base_height,
+		        av_info.geometry.max_width, av_info.geometry.max_height);
 
 	rt_set_controller_port_device(0, RETRO_DEVICE_JOYPAD);
 	rt_set_controller_port_device(1, RETRO_DEVICE_JOYPAD);
@@ -917,23 +937,17 @@ int main(int argc, char **argv)
 			char btn[16];
 			int n = 0;
 
+			frame_dump_begin_frame(frame + 1);
 			rt_run();
 			frame++;
+			if (frame_dump_failed()) {
+				fprintf(stderr, "psiv_oracle: %s\n", frame_dump_error());
+				return 1;
+			}
 
-			for (i = 0; i < g_ndumps; i++) {
-				FILE *df;
-				uint32_t a;
-				if (g_dumps[i].frame != frame)
-					continue;
-				df = fopen(g_dumps[i].path, "wb");
-				if (!df) {
-					fprintf(stderr, "psiv_oracle: cannot write %s: %s\n",
-					        g_dumps[i].path, strerror(errno));
-					return 1;
-				}
-				for (a = 0; a < 0x10000; a++)
-					fputc(g_ram[a ^ 1], df);
-				fclose(df);
+			if (ram_dump_write(frame, g_ram) != 0) {
+				fprintf(stderr, "psiv_oracle: %s\n", ram_dump_error());
+				return 1;
 			}
 
 			if (g_cur_buttons & PAD_UP) btn[n++] = 'U';
@@ -972,10 +986,14 @@ int main(int argc, char **argv)
 		}
 	}
 
+	frame_dump_status = frame_dump_finish();
+	if (frame_dump_status != 0)
+		fprintf(stderr, "psiv_oracle: %s\n", frame_dump_error());
 	if (out != stdout)
 		fclose(out);
 	rt_unload_game();
 	rt_deinit();
 	free(rom);
-	return 0;
+	frame_dump_shutdown();
+	return frame_dump_status != 0;
 }

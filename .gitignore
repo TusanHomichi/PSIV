@@ -20,5 +20,6 @@ oracle/gpgx-src/
 oracle/core/
 oracle/bin/
 oracle/logs/
+oracle/frames/
 build/
 oracle/tmp_*
