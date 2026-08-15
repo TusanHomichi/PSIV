@@ -488,3 +488,19 @@ and the flag-set whose absence would re-fire the trigger forever.
   despawn; the runtime's interim session-permanent despawn ledger
   diverges (no respawn) and is slated for replacement by the map-effects
   flag gates plus the yet-unread map-load flag-clear routine.
+- Item byte $12 has TWO readings (UpdateCharElems 0x05FD2A): held by a
+  weapon hand it is the attack element Battle_LoadWpnAttackElem reads;
+  worn as a shield/head/body item it instead writes resistance value 1
+  into the element property it names — and the grant is unconditional,
+  so armour can DOWNGRADE a character's innate immunity (0) to mere
+  resistance (1). Reachable in play; the pack emits element.role per
+  item and finished element_props per character as conformance vectors.
+- Dual-wielding is initial-data-only: EquipItemType_OneHanded always
+  writes the right hand and only shields ever write the left, so Chaz's
+  and Rika's starting second weapons are live in battle
+  (Battle_AttackCommand reads both hands) but can never be re-equipped
+  once removed. Cartridge design fact, not a bug.
+- Citation correction: UpdateCharModStats is retail $05F754, not
+  $05F880 ($05F880 is the unrelated routine UpdateEquipment tail-calls).
+  The behaviour transcribed everywhere is correct; two docs carried the
+  wrong address.

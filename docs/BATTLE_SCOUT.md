@@ -834,7 +834,7 @@ SOURCE_NOTES.
 id 0): level 1, HP 25, STR 8, MEN 6, AGI 7, DEX 5. Equipment record bytes
 `02 02 05 04` = Hunt-Knife in **both** hands, Leather Helm, Leather Cloth.
 
-Derived by `UpdateCharModStats` (`ps4.asm:127814`):
+Derived by `UpdateCharModStats` (retail `$05F754`; ps4.asm:127814):
 - `atk_pow` = STR 8 + Σ(item `$B` strength + item `$F` attack) = 8 + (5+5+0+0) = **18**
 - `dfs_pow` = AGI 7 + Σ(item `$D` agility + item `$10` defence) = 7 + (0+0+1+2) = **10**
 

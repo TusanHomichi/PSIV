@@ -6,7 +6,7 @@
 //!
 //! - **base** (`$18`, `$1B`, `$1E`, `$21`) is what the level table wrote.
 //! - **mod** (`$19`, `$1C`, `$1F`, `$22`) is base plus equipment, computed by
-//!   `UpdateCharModStats` (`$0005F880`, `ps4.asm:127814`), and is what a
+//!   `UpdateCharModStats` (`$0005F754`, `ps4.asm:127814`), and is what a
 //!   cure or a wake-up restores `battle` *from*.
 //! - **battle** (`$1A`, `$1D`, `$20`, `$23`) is the live value every formula
 //!   reads, and the only one a buff or a status effect moves.
@@ -244,7 +244,7 @@ impl Stats {
         stats
     }
 
-    /// `UpdateCharModStats` — retail `$0005F880` (`ps4.asm:127814`).
+    /// `UpdateCharModStats` — retail `$0005F754` (`ps4.asm:127814`).
     ///
     /// Seven passes over the four equipment slots:
     ///
