@@ -576,6 +576,54 @@ impl FieldMap {
         Ok(())
     }
 
+    /// Moves an object to another cell, keeping its index.
+    ///
+    /// This is how a wanderer walks: occupancy, blocking, the follower trail
+    /// and the talk probes all read [`FieldMap::npc_at`], so an object that
+    /// moves anywhere other than in the map would be visible in one of them
+    /// and invisible in the rest. The comparator caught exactly that — the
+    /// party blocking on a spawn cell the cartridge's NPC had already left.
+    ///
+    /// # Errors
+    ///
+    /// [`MapError::NpcIndexOutOfRange`] when there is no such object, or
+    /// [`MapError::NpcOutOfBounds`] when the cell is off the grid.
+    pub fn set_npc_cell(&mut self, index: usize, cell: Cell) -> Result<(), MapError> {
+        let count = self.npcs.len();
+        let (width, height) = (self.width(), self.height());
+        let Some(cell) = self.normalize(cell) else {
+            let npc = self.npcs.get(index).map_or(NpcId(0), |npc| npc.id);
+            return Err(MapError::NpcOutOfBounds {
+                npc,
+                cell,
+                width,
+                height,
+            });
+        };
+        let Some(npc) = self.npcs.get_mut(index) else {
+            return Err(MapError::NpcIndexOutOfRange { index, count });
+        };
+        npc.cell = cell;
+        Ok(())
+    }
+
+    /// Turns an object in place, keeping its index.
+    ///
+    /// A wander command that any gate refuses still writes the facing, so a
+    /// blocked NPC turns on the spot (`loc_4A188`).
+    ///
+    /// # Errors
+    ///
+    /// [`MapError::NpcIndexOutOfRange`] when there is no such object.
+    pub fn set_npc_facing(&mut self, index: usize, facing: Direction) -> Result<(), MapError> {
+        let count = self.npcs.len();
+        let Some(npc) = self.npcs.get_mut(index) else {
+            return Err(MapError::NpcIndexOutOfRange { index, count });
+        };
+        npc.facing = facing;
+        Ok(())
+    }
+
     /// Sets an object's bit-3 behaviour, keeping its index.
     ///
     /// Objects flip this at runtime: `FieldObj_FellowPenguin` clears its own

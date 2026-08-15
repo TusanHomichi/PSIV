@@ -1,0 +1,192 @@
+# NPC wander: how the cartridge's townsfolk move
+
+Scouted 2026-08-15 (core-lane) from `reference/ps4disasm`, cross-checked
+against `runtime-pack/npc_commands.json` (overworld-lane's extraction of the
+same tables). Written to the `BATTLE_SCOUT.md` standard: routine labels are
+retail and load-bearing, **inline comments in the clone drift and are not
+evidence**. Everything below is the instruction stream.
+
+Prompted by the comparator: from frame 7819 of tape 02 the cartridge's
+NPCType2 townsfolk have wandered off their spawn cells while ours stand still,
+and our walker then blocks on a cell the cartridge's NPC had already left.
+
+## The headline: it is the portable RNG
+
+**`FieldObj_GetRandomMove` calls `UpdateRNGSeed` (`$04236C`), not
+`UpdateRNGSeed2`.** Wander is driven by the multiply-by-41 LCG the encounter
+rolls already use — not the VDP H/V-counter generator that makes battle rolls
+unreproducible.
+
+That means **cartridge NPC positions are bit-exactly reproducible** given the
+same seed and the same frame cadence. Nothing about wander needs the "which
+substitute generator" decision that `BATTLE_SCOUT.md` §16.1 leaves open.
+
+## Which types wander
+
+Census over the 949 objects in all packed maps:
+
+| symbol | count | routine | mover |
+|---|---:|---|---|
+| `NPCType2` | 275 | `ps4.asm:95081` | `FieldObj_GetRandomMove` |
+| `NPCType3` | 22 | `ps4.asm:95113` | `FieldObj_GetRandomMove2` |
+| `NPCType1` | 37 | `ps4.asm:95047` | `FieldObj_NPCMoveDown` — not random |
+| everything else | 615 | bespoke per symbol | — |
+
+**Types 2 and 3 are 297 objects, 31% of all placements**, and they are the two
+the comparator caught. They differ in exactly one constant. Everything else —
+`NPCType1`, `4`, `9`, `10`, `30`, `32`, `Elevator`, `Mouse`, `Statue`,
+`FireplaceFire` and 128 more symbols — is its own routine and its own scope.
+
+## The decision, per frame
+
+`FieldObj_NPCType2` (`ps4.asm:95081`) runs, per frame:
+
+```
+    bsr.w   FieldObj_OnScreenTest
+    bne.s   loc_484E4               ; off-screen -> skip ALL movement
+    bsr.w   FieldObj_GetRandomMove
+    moveq   #0, d7                  ; speed selector 0
+    bsr.w   FieldObj_NPCMove
+    bsr.w   FieldObj_UpdateStepDuration
+    bsr.w   FieldObj_UpdatePosition
+```
+
+**Off-screen NPCs are frozen.** `FieldObj_OnScreenTest` (`$049B34`,
+`ps4.asm:96661`) rejects sprite positions outside `$60..$1E0` horizontally and
+`$60..$180` vertically, and a rejected object skips the move, the duration
+update *and* the position update. A wanderer only wanders while it is on
+camera, so its position is a function of where the player has been looking.
+
+`FieldObj_GetRandomMove` (`$049B62`, `ps4.asm:96693`):
+
+```
+    moveq   #0, d0
+    move.w  x_step_duration(a4), d1
+    or.w    y_step_duration(a4), d1
+    beq.s   loc_49B6C               ; idle -> consider a new move
+    bpl.s   loc_49B88               ; still stepping -> command 0
+loc_49B6C:
+    subq.w  #1, timer(a4)
+    bpl.s   loc_49B88               ; still counting down -> command 0
+    jsr     (UpdateRNGSeed).l
+    move.w  (RNG_Seed).w, d0
+    andi.w  #$3F, d0                ; NPCType3 uses $7F here
+    move.w  d0, timer(a4)           ; the pause, 0..63
+    andi.w  #7, d0                  ; the direction index, 0..7
+loc_49B88:
+    bra.w   loc_4A144
+```
+
+Three things worth stating plainly:
+
+1. **One roll decides both the pause and the direction.** `timer = r & $3F` and
+   `index = r & 7`, from the *same* word — so `index == timer & 7`. They are
+   not independent draws, and a model that rolls twice is wrong.
+2. **The only difference between Type2 and Type3 is the timer mask**: `$3F`
+   (pause 0..63) versus `$7F` (pause 0..127). Type3 is the same walker, idling
+   about twice as long.
+3. The countdown is `subq.w #1` then `bpl`, so a timer of `n` waits `n + 1`
+   frames before the next roll — and the roll's own value becomes the next
+   pause, so an NPC's rhythm is self-similar.
+
+### The direction remap
+
+`loc_4A144` (`ps4.asm:97233`) puts the 0..7 index through an 8-byte table at
+`loc_4A150`:
+
+```
+    dc.b $00, $01, $02, $04, $08, $00, $00, $00
+```
+
+So the index maps to a command byte: `0→stand, 1→up, 2→down, 3→left,
+4→right, 5,6,7→stand`. The distribution over eight equally likely indices is
+therefore **50% stand still, 12.5% each of the four directions** — symmetric.
+
+This remap is easy to miss, and missing it is a trap: the raw command table has
+*three* ids for left (4, 5, 6) and three for right (8, 9, 10), so masking the
+roll with `& 7` and using it as a command byte directly makes right unreachable
+and left three times as likely. The remap exists precisely to prevent that.
+
+## The move, and the three gates
+
+`FieldObj_NPCMove` (`$04A1D3`, `ps4.asm:97257`) returns immediately if either
+step duration is nonzero, then selects the speed table by `d7 * 4` and runs
+three checks in order. **Any refusal jumps to `loc_4A188`**, which zeroes the
+step constants, resets the animation, and still writes the facing byte — so a
+blocked NPC turns on the spot without moving.
+
+| order | routine | retail | what it rejects |
+|---|---|---|---|
+| 1 | `loc_4A3B6` | `ps4.asm:97532` | the leash |
+| 2 | `loc_45CA4` | `ps4.asm:91098` | terrain collision |
+| 3 | `loc_4A316` | `ps4.asm:97461` | other objects |
+
+### 1. The leash
+
+Each object carries four bytes: `x_max_move_boundary` (`$3C`),
+`y_max_move_boundary` (`$3D`), `x_move_boundary` (`$3E`), `y_move_boundary`
+(`$3F`). `FieldObj_NPCType2`'s init writes `move.w #$404, $3C(a4)` and
+`move.w #$202, $3E(a4)` — maxima of 4 on both axes, current offsets starting at
+2. So a wanderer roams a **5×5 cell box with its spawn cell at the centre**,
+two cells in each direction.
+
+`loc_4A3B6` looks the move's cell delta up in `loc_4A3FE` (indexed by command
+byte doubled: `up (0,-1)`, `down (0,+1)`, `left (-1,0)`, `right (+1,0)`), adds
+it to the current offsets, and refuses if either goes negative or above its
+maximum.
+
+**The offsets are committed before the other two checks run.** A move that
+passes the leash but is then refused by terrain or by an object has *already*
+consumed its leash budget — so the box drifts relative to the spawn cell over
+time. That is a genuine cartridge quirk, not a tidy invariant, and reproducing
+it matters for long-running position comparisons.
+
+### 2. Terrain
+
+`loc_45CA4` offsets the position by ±16 px from `loc_45CDC`, calls
+`GetChunkAndCollision`, and dispatches through `TileCollNormalPtrs` — the same
+blocking set the party walker uses. Nothing NPC-specific.
+
+### 3. Objects
+
+`loc_4A316` scans `Character_1` and the four slots after it, comparing
+extrapolated positions, so **a wanderer will not walk into the party**. It is
+gated on `btst #3, render_flags(a4)`: an object with bit 3 clear does no object
+collision at all, which is the same bit that gates the talk probe and
+`FieldObj_DoObjCollision`. One flag, three readers.
+
+## Cadence
+
+`d7 = 0` selects the first speed table (`$04A20E`). Its entries give a step
+duration of `$1000` (16.0 px in 8.8 fixed point) and a velocity of `$80`
+(0.5 px/frame), so **a wandering NPC takes 32 frames per cell** — four times
+slower than the party's 8. The other two speed tables (`$04A266`, 16 frames;
+and a third) exist but Types 2 and 3 never select them.
+
+## Interaction while moving
+
+- **A mid-step NPC can still be talked to.** `Interaction_ChkObjects` reads
+  `curr_x_pos`/`curr_y_pos` in pixels and extrapolates by the object's
+  remaining step duration, so it finds the object at its *destination*, not its
+  spawn. Our engine's cell-based probe therefore needs a mid-step NPC to occupy
+  its destination cell for talk purposes.
+- **A wanderer does not path around the party** — it simply refuses the move
+  and turns, per gate 3. There is no re-routing.
+- **Nothing re-faces an NPC after a conversation** in the wander path itself;
+  turn-to-face is the interaction code's doing, and the next accepted wander
+  command overwrites the facing.
+
+## What this leaves open
+
+- **Frame cadence versus tick cadence.** The engine ticks once per frame like
+  the cartridge, so the countdown maps directly — but only if the engine's NPC
+  update runs every frame the cartridge's does, including the on-screen gate.
+  Reproducing positions bit-exactly needs the camera model too.
+- The initial `timer` value at spawn. `timer` is the word at `$1C`
+  (`ps4.constants.asm:96`); the init block's `move.l d0, $28(a4)` clears the
+  two duration words and does not touch it, so the timer's value at spawn is
+  whatever the object slot's block-clear left — zero on a fresh map load, which
+  makes an NPC roll on its first on-screen frame.
+- The third speed table's contents, unused by these two types.
+- Every non-Type2/3 wanderer. 615 objects across 130-odd symbols, each its own
+  routine.

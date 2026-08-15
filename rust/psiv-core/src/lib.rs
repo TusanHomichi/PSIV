@@ -89,6 +89,7 @@ mod state;
 mod trigger;
 mod trigger_custom;
 mod trigger_table;
+mod wander;
 
 pub use collision::{CollisionGrid, CollisionType, MAX_COLLISION_VALUE};
 pub use error::MapError;
@@ -114,3 +115,4 @@ pub use trigger::{
     TriggerContext, TriggerResult, Unsupported, evaluate_list,
 };
 pub use trigger_table::TRIGGERS;
+pub use wander::{Leash, WANDER_STEP_FRAMES, WanderKind, WanderSet, Wanderer};
