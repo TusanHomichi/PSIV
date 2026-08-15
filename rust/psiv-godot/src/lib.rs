@@ -542,6 +542,14 @@ impl Field {
         for event in events {
             match event {
                 RuntimeEvent::StepCompleted { .. } => stepped = true,
+                RuntimeEvent::EncounterRolled { formation } => {
+                    // The battle screen is not built yet; the roll is real,
+                    // the fight is deferred. Logged so playtests can see the
+                    // encounter rate is live.
+                    godot_print!(
+                        "encounter rolled: formation {formation:#05x} (battle UI pending)"
+                    );
+                }
                 RuntimeEvent::MapChanged { map, trigger } => {
                     let kind = match trigger {
                         WarpTrigger::MapChange => "doorway",

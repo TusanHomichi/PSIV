@@ -340,6 +340,90 @@ pub struct FormationsFile {
     /// The 32-entry groups an encounter roll indexes.
     #[serde(default)]
     pub encounter_groups: Option<EncounterGroups>,
+    /// Which encounter source each of the 417 maps uses.
+    #[serde(default)]
+    pub map_bindings: Vec<MapBinding>,
+    /// The two overworld position grids, 64px cells, indexed `[y][x]`.
+    #[serde(default)]
+    pub position_grids: Vec<PositionGrid>,
+}
+
+/// One map's row in `Battle_EnemyFormationIndexes`, plus how to read it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MapBinding {
+    /// The map.
+    pub map_id: u16,
+    /// Its `MapID_*` symbol.
+    #[serde(default)]
+    pub map_symbol: Option<String>,
+    /// Whether the 416-byte table actually covers this id. `false` only for
+    /// MapID `$1A0`, whose read runs past the end (`mode` is `outside_table`).
+    pub in_table: bool,
+    /// The raw table byte — `None` exactly when `in_table` is false.
+    #[serde(default)]
+    pub value: Option<u8>,
+    /// How encounters are sourced here. `none` | `group` | `position_grid` |
+    /// `outside_table` — the fourth exists so the 416-vs-417 overrun stays a
+    /// visible anomaly rather than an ordinary no-encounters map.
+    pub mode: String,
+    /// The encounter group, when `mode` is `group`.
+    #[serde(default)]
+    pub group: Option<u32>,
+    /// The grid name, when `mode` is `position_grid`.
+    #[serde(default)]
+    pub position_grid: Option<String>,
+    /// Groups the grid can yield (overworlds only).
+    #[serde(default)]
+    pub groups_available: Option<Vec<u32>>,
+    /// Vehicle-selected groups (overworlds only). Tier 3.
+    #[serde(default)]
+    pub vehicle_groups: Option<Vec<u32>>,
+}
+
+/// One overworld's formation-group grid.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PositionGrid {
+    /// The binding key (`motavia` / `dezolis`).
+    pub name: String,
+    /// The disassembly label.
+    #[serde(default)]
+    pub label: Option<String>,
+    /// The map this grid serves.
+    pub map: NamedMapRef,
+    /// Where the compressed grid sits in the ROM.
+    #[serde(default)]
+    pub rom_offset: Option<String>,
+    /// Grid width in cells.
+    pub columns: u32,
+    /// Grid height in cells.
+    pub rows: u32,
+    /// World pixels per grid cell (64: the cartridge shifts coordinates
+    /// right by 6).
+    pub cell_size_pixels: u32,
+    /// The cartridge's own indexing note.
+    #[serde(default)]
+    pub indexing: Option<String>,
+    /// Groups the cells actually name.
+    #[serde(default)]
+    pub groups_used: Vec<u32>,
+    /// The group a negative cell byte falls back to.
+    pub fallback_group: u32,
+    /// How many cells hold the fallback byte.
+    #[serde(default)]
+    pub fallback_cells: Option<u32>,
+    /// Rows of columns — `cells[y][x]`, exactly the cartridge's
+    /// `(y >> 6) * 64 + (x >> 6)`. A value `>= 0x80` means the fallback.
+    pub cells: Vec<Vec<u8>>,
+}
+
+/// A map reference as the battle files spell it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NamedMapRef {
+    /// Map id.
+    pub id: u16,
+    /// The `MapID_*` symbol.
+    #[serde(default)]
+    pub symbol: Option<String>,
 }
 
 /// One `$FF`-terminated formation record.

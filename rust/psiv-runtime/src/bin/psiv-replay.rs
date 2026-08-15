@@ -49,6 +49,14 @@ struct Args {
     /// Restore the map's objects from the log at the alignment frame, instead
     /// of starting them at their pack spawn cells.
     restore_objects: bool,
+    /// Print the camera position for frames in `lo..=hi`. The oracle logs do
+    /// not carry camera columns yet, so this is how a camera divergence is
+    /// read.
+    trace_camera: Option<(u32, u32)>,
+    /// Park the camera at `x,y` before replaying. The opening scene positions
+    /// the retail camera and the engine cannot execute it, so at an alignment
+    /// frame the camera is inherited state like the RNG seed is.
+    camera: Option<(i32, i32)>,
 }
 
 enum Align {
@@ -58,7 +66,7 @@ enum Align {
 
 fn usage() -> &'static str {
     "usage: psiv-replay --tape <t> --pack <dir> (--align-mark <m> | --align-frame <n>) \
-     [--log <csv>] [--out <csv>] [--limit <frames>] [--skip <column>]... [--seed <hex>] [--restore-objects]"
+     [--log <csv>] [--out <csv>] [--limit <frames>] [--skip <column>]... [--seed <hex>] [--restore-objects] [--camera <x,y>] [--trace-camera <lo,hi>]"
 }
 
 fn parse_args() -> Result<Args, String> {
@@ -71,6 +79,8 @@ fn parse_args() -> Result<Args, String> {
     let mut skip = Vec::new();
     let mut seed = None;
     let mut restore_objects = false;
+    let mut camera = None;
+    let mut trace_camera = None;
 
     let mut args = std::env::args().skip(1);
     while let Some(flag) = args.next() {
@@ -89,6 +99,30 @@ fn parse_args() -> Result<Args, String> {
             }
             "--skip" => skip.push(value()?),
             "--restore-objects" => restore_objects = true,
+            "--trace-camera" => {
+                let raw = value()?;
+                let (lo, hi) = raw
+                    .split_once(',')
+                    .ok_or_else(|| format!("bad frame window {raw:?}, want lo,hi"))?;
+                trace_camera = Some((
+                    lo.trim().parse().map_err(|_| format!("bad frame {lo:?}"))?,
+                    hi.trim().parse().map_err(|_| format!("bad frame {hi:?}"))?,
+                ));
+            }
+            "--camera" => {
+                let raw = value()?;
+                let (x, y) = raw
+                    .split_once(',')
+                    .ok_or_else(|| format!("bad camera {raw:?}, want x,y"))?;
+                camera = Some((
+                    x.trim()
+                        .parse()
+                        .map_err(|_| format!("bad camera x {x:?}"))?,
+                    y.trim()
+                        .parse()
+                        .map_err(|_| format!("bad camera y {y:?}"))?,
+                ));
+            }
             "--seed" => {
                 let raw = value()?;
                 let text = raw.trim_start_matches("0x");
@@ -113,6 +147,8 @@ fn parse_args() -> Result<Args, String> {
         skip,
         seed,
         restore_objects,
+        camera,
+        trace_camera,
     })
 }
 
@@ -261,6 +297,7 @@ fn object_samples(
             // objects, so the comparator carries whatever the restore read.
             x_bnd: leash.map_or_else(|| static_bounds.get(slot).map_or(0, |b| b.0), |l| l.x),
             y_bnd: leash.map_or_else(|| static_bounds.get(slot).map_or(0, |b| b.1), |l| l.y),
+            offscreen: u8::from(runtime.object_offscreen(slot)),
         };
     }
     out
@@ -321,6 +358,10 @@ fn run() -> Result<bool, String> {
         eprintln!("seeded the RNG with {seed:08X}");
     }
 
+    if let Some((x, y)) = args.camera {
+        runtime.set_camera(x, y);
+        eprintln!("parked the camera at {x},{y}");
+    }
     let mut static_bounds = vec![(0u8, 0u8); OBJECT_SLOTS];
     if args.restore_objects {
         let Some(log_path) = &args.log else {
@@ -376,6 +417,19 @@ fn run() -> Result<bool, String> {
         let input: Input = frame.buttons.to_input();
         runtime.tick(input);
 
+        if let Some((lo, hi)) = args.trace_camera
+            && (lo..=hi).contains(&frame.number)
+        {
+            let cam = runtime.camera();
+            eprintln!(
+                "cam f{} pos={:?} step={:?} leader=({},{})",
+                frame.number,
+                cam.position(),
+                cam.raw_step(),
+                runtime.state().cell().x,
+                runtime.state().cell().y
+            );
+        }
         let state = runtime.state();
         let follower = runtime
             .members()
@@ -395,6 +449,12 @@ fn run() -> Result<bool, String> {
             neighbours: cached_neighbours,
             game: runtime.game(),
             objects: &objects,
+            camera: {
+                let cam = runtime.camera();
+                let (x, y) = cam.position();
+                let (sx, sy) = cam.raw_step();
+                (x, y, sx, sy)
+            },
         }));
 
         if runtime.scene_active() && scene_from.is_none() {

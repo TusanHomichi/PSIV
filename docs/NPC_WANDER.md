@@ -294,16 +294,38 @@ walks north:
 | 1 | (752, 144) | 7567 | 7558 |
 | 2 | (639, 128) | 7606 | 7597 |
 
-Both wake-ups are **exactly nine frames early** in the engine, which models the
-camera as instantaneously centred on the leader. Nine frames at the walking rate
-of 2 px/frame is 18 px of trailing camera. Slot 2 settles it: the leader has been
-parked at (800, 240) since frame 7592, yet the cartridge does not wake slot 2
-until 7606 — fourteen frames after the leader stopped moving. So the camera is
-still scrolling toward its target after the leader is at rest, and a
-leader-centred camera cannot reproduce that. `FieldObj_CameraYPos_FG`
-(`ps4.asm:89590`) scrolls against screen-space thresholds (`#$D8` for y, `#$118`
-for x) rather than re-centring, which is the shape of the routine that produces
-the lag. Pinning it exactly is the camera model's job, not wander's.
+The wake-ups were **nine frames early** in the engine, which modelled the camera
+as instantaneously centred on the leader. The real camera is a threshold latch
+that holds the driver at (152, 88) from the top-left of the view rather than at
+its centre — sixteen pixels of difference, which is eight frames at the walking
+rate of 2 px/frame. `docs/CAMERA.md` has the full transcription. With that
+camera implemented, all three wake frames reproduce exactly.
+
+### A correction, and the trap it came from (2026-08-15)
+
+An earlier revision of this section claimed slot 2's wake at 7606 could not be a
+camera event, on the grounds that the leader had been parked since 7578 and a
+stationary driver cannot scroll a threshold-latched camera. The reasoning was
+sound; the premise was not. Slot 2's wake is not a visibility event at all — the
+object was **mid-step**, and `FieldObj_GetRandomMove` skips the timer decrement
+entirely while a step duration is running:
+
+```
+move.w  x_step_duration(a4), d1
+or.w    y_step_duration(a4), d1
+beq.s   loc_49B6C          ; both zero -> decrement the timer
+bpl.s   loc_49B88          ; still stepping -> skip it
+```
+
+Its `xdur` counts `256, 128, 0` across frames 7603-7605 and the timer starts
+moving at 7606, the first frame after the step lands. The engine reproduces all
+of it.
+
+The trap worth remembering: the "nothing else in the log changed at 7606"
+observation that started the whole investigation came from diffing against a
+*stale engine CSV* rather than the oracle's own columns, and `o02_xdur` had in
+fact been changing the whole time. A frozen-looking column is only evidence of a
+freeze if every column that would move is checked in the same source.
 
 ## What this leaves open
 - The initial `timer` value at spawn. `timer` is the word at `$1C`

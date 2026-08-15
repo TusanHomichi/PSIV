@@ -13,13 +13,19 @@ use std::fmt;
 
 use std::collections::BTreeSet;
 
-use psiv_core::battle::Lcg41;
+mod encounters;
+pub use encounters::{
+    EncounterClock, EncounterTable, FOOT_MASK, GRACE_STEPS, GROUP_MASK, battle_data,
+    formation_record,
+};
+
+use psiv_core::battle::{Battle, BattleEvent, Lcg41, Rng2, Rolls, RoundOrders};
 use psiv_core::{
-    ActorRef, Cell, CharId, CollisionGrid, Direction, Effect, FieldMap, FieldState, Flag,
-    GameState, Input, InteractReach, MapId, MemberView, Npc, NpcId, Party, PixelPos, SceneEffect,
-    SceneInput, SceneOp, SceneRunner, ScriptedActor, StepFrames, TRIGGERS, Topology,
-    TriggerContext, TriggerResult, WanderKind, WanderSet, Wanderer, Warp, WarpTrigger, runner_for,
-    scene_for,
+    ActorRef, Camera, CameraBounds, CameraEdges, Cell, CharId, CollisionGrid, Direction, Driver,
+    Effect, FieldMap, FieldState, Flag, GameState, Input, InteractReach, MapId, MemberView, Npc,
+    NpcId, ONE_PIXEL, Party, PixelPos, SceneEffect, SceneInput, SceneOp, SceneRunner,
+    ScriptedActor, StepFrames, TRIGGERS, Topology, TriggerContext, TriggerResult, WanderKind,
+    WanderSet, Wanderer, Warp, WarpTrigger, runner_for, scene_for,
 };
 use psiv_data::{GameData, MapRecord, TransitionTable};
 
@@ -249,6 +255,12 @@ pub enum RuntimeEvent {
     /// The party composition changed (join, swap, leader change). The
     /// renderer refreshes party sprites.
     PartyChanged,
+    /// A random encounter fired on this landing. The shell seats the party
+    /// and calls [`Runtime::start_battle`] with this formation.
+    EncounterRolled {
+        /// The formation id the encounter tables picked.
+        formation: u16,
+    },
     /// Map objects were despawned in place (indices stable). The renderer
     /// hides their nodes.
     NpcsDespawned {
@@ -282,6 +294,40 @@ pub struct Runtime {
     /// (proven by the oracle's RNG census: 2 calls/frame in field, 1 in a
     /// menu). The renderer sets this while dialogue is open.
     field_suspended: bool,
+    /// `Main_Frame_Count`: ticks since the runtime started, wrapped to the
+    /// word the cartridge keeps. `Rng2` mixes it into every battle roll.
+    frames: u16,
+    /// The field camera. Not presentation: it decides which objects are on
+    /// screen, and `FieldObj_OnScreenTest` freezes the ones that are not, so
+    /// its position reaches the shared RNG stream through the rolls those
+    /// objects do or do not draw.
+    camera: Camera,
+    /// Set when a scene has just been created and has not run an op yet.
+    ///
+    /// A trigger does not enter the event mode itself — it sets
+    /// `Game_Mode_Index`, and the mode dispatcher picks the new mode up on the
+    /// *following* frame, which it spends entering. So a scene's first op runs
+    /// two frames after the landing that fired it, not one. Tape 02 measures
+    /// exactly that: the trigger fires at 7874 and Alys turns at 7876.
+    scene_warmup: bool,
+    /// `offscreen_flag` (`$12`) per object, refreshed every field frame.
+    ///
+    /// `FieldObj_OnScreenTest` writes it at the top of every object's routine
+    /// from the sprite position the *previous* frame computed, so it is a frame
+    /// old by construction and is stored rather than recomputed on demand.
+    offscreen: Vec<bool>,
+    /// Battle data + encounter tables, present once [`Runtime::enable_battles`]
+    /// has run. `None` means encounters never roll — a pre-battle pack.
+    battles: Option<BattleSet>,
+    /// A battle in progress. Field input is ignored while this is `Some`.
+    battle: Option<Battle>,
+}
+
+/// Everything encounters need, converted from the pack once.
+struct BattleSet {
+    data: psiv_core::battle::BattleData,
+    table: EncounterTable,
+    clock: EncounterClock,
 }
 
 impl Runtime {
@@ -330,6 +376,7 @@ impl Runtime {
         }
 
         let wander = build_wander(&map, record)?;
+        let camera = Camera::placed_on(driver_of(party.leader()), bounds_of(&map));
         Ok(Runtime {
             data,
             map,
@@ -342,7 +389,26 @@ impl Runtime {
             wander,
             rng: Lcg41::default(),
             field_suspended: false,
+            frames: 0,
+            camera,
+            scene_warmup: false,
+            offscreen: Vec::new(),
+            battles: None,
+            battle: None,
         })
+    }
+
+    /// Converts the pack's battle files and arms random encounters.
+    ///
+    /// # Errors
+    /// [`BridgeError::Rejected`] when a record does not fit the engine.
+    pub fn enable_battles(&mut self, files: &psiv_data::BattleFiles) -> Result<(), BridgeError> {
+        self.battles = Some(BattleSet {
+            data: battle_data(files)?,
+            table: EncounterTable::from_files(files)?,
+            clock: EncounterClock::new(),
+        });
+        Ok(())
     }
 
     /// The currently loaded map.
@@ -404,10 +470,23 @@ impl Runtime {
 
     /// Advances one tick and resolves any map change.
     pub fn tick(&mut self, input: Input) -> Vec<RuntimeEvent> {
-        // The vblank tick: the cartridge stirs the one seed every frame in
-        // every game mode (VInt handler, ps4.asm:617) — scenes included.
+        // `Main_Frame_Count` first, then the vblank tick: the cartridge
+        // stirs the one seed every frame in every game mode (VInt handler,
+        // ps4.asm:617) — scenes included.
+        self.frames = self.frames.wrapping_add(1);
         self.rng.step();
+        // A battle owns the frame: the field is parked exactly as
+        // GameMode_Battle parks it, and the shell drives rounds through
+        // [`Runtime::battle_round`].
+        if self.battle.is_some() {
+            return Vec::new();
+        }
         if self.scene.is_some() {
+            // The frame the mode dispatcher spends entering event mode.
+            if self.scene_warmup {
+                self.scene_warmup = false;
+                return Vec::new();
+            }
             return self.scene_tick();
         }
         // The field-mode tick: GameMode_Field opens with an unconditional
@@ -477,75 +556,187 @@ impl Runtime {
             events.extend(self.evaluate_triggers(cell));
         }
 
+        // RunRandomBattles ($05784E): only on a landing that neither changed
+        // the map nor started a scene, on a map whose binding rolls at all,
+        // and never standing on/next to transition tiles. Ten free steps,
+        // then seed-word & $1F == 0 fires — one extra LCG draw per rolling
+        // step, exactly the cartridge's extra call.
+        if let Some(cell) = landed
+            && !map_changed
+            && self.scene.is_none()
+            && let Some(set) = self.battles.as_mut()
+            && set.table.enabled(self.map.id().0)
+            && !EncounterClock::suppressed(&self.map, cell)
+            && set.clock.step()
+            && self.rng.next_roll() & FOOT_MASK == 0
+        {
+            // The formation pick is UpdateRNGSeed2's: same seed, other mixer.
+            let mut rng2 = Rng2::with_surrogate(&mut self.rng, self.frames);
+            if let Some(formation) = set.table.select(self.map.id().0, cell, &mut rng2) {
+                events.push(RuntimeEvent::EncounterRolled {
+                    formation: formation.id,
+                });
+            }
+        }
+
+        // Every object's routine opens with the visibility test, whether or not
+        // it wanders, so the flags are refreshed unconditionally.
+        self.update_visibility();
         // Wander draws are conditional consumers of the same stream — an
         // idle NPC whose countdown expires rolls once; most frames none do.
+        // This runs before the camera's own tick because the cartridge's
+        // visibility test reads sprite positions written the frame before.
         if !self.field_suspended {
             self.tick_wander();
         }
+        // `UpdateCamera*PosFG` folds in last frame's scroll and `FieldObj_*`
+        // latches this frame's, both against the party's post-movement
+        // position.
+        self.camera.tick(driver_of(self.party.leader()));
         events
     }
 
     /// One frame of NPC wander: visibility from the retail camera box, the
     /// party's occupied cells as obstacles, decisions from the shared seed.
+    /// Refreshes `offscreen_flag` for every object.
+    ///
+    /// Runs before anything that consumes it, against the camera as it stood at
+    /// the top of the frame — `FieldObj_OnScreenTest` reads the sprite position
+    /// the previous frame's `FieldObj_CalcSpritePos` wrote, so the gate is one
+    /// frame behind the camera by construction, not by approximation.
+    fn update_visibility(&mut self) {
+        let camera = self.camera;
+        self.offscreen.clear();
+        self.offscreen
+            .extend(self.map.npcs().iter().enumerate().map(|(index, npc)| {
+                // An object whose routine never calls the test keeps the
+                // flag its slot was initialised with and is updated
+                // wherever it is.
+                if !psiv_core::type_tests_visibility(npc.id.0) {
+                    return false;
+                }
+                let wanderer = self
+                    .wander
+                    .wanderers()
+                    .iter()
+                    .find(|w| w.npc_index() == index);
+                let (x, y) = object_position(npc, wanderer);
+                !camera.sees(x, y)
+            }));
+    }
+
+    /// Whether object `index` was off screen this frame, and so was not updated.
+    #[must_use]
+    pub fn object_offscreen(&self, index: usize) -> bool {
+        self.offscreen.get(index).copied().unwrap_or(true)
+    }
+
     fn tick_wander(&mut self) {
         if self.wander.is_empty() {
             return;
         }
         let party_cells: Vec<Cell> = self.party.members().iter().map(|m| m.cell).collect();
-        // Retail freezes off-screen objects entirely (FieldObj_OnScreenTest):
-        // the visible box is the 320x224 view plus a 32px margin each side
-        // (sprite coords $60..$1E0 x $60..$180). The camera is the cartridge's
-        // own — centred on the leader, clamped at bounded map edges, free on
-        // the toroidal overworlds.
-        let (cam_x, cam_y) = self.camera_origin();
-        let map_w = i32::from(self.map.width()) * 16;
-        let map_h = i32::from(self.map.height()) * 16;
-        let torus = self.map.topology() == Topology::Torus;
-        let vis: Vec<bool> = self
-            .map
-            .npcs()
-            .iter()
-            .map(|npc| {
-                let px = i32::from(npc.cell.x) * 16;
-                let py = i32::from(npc.cell.y) * 16;
-                let (mut dx, mut dy) = (px - cam_x, py - cam_y);
-                if torus {
-                    dx = dx.rem_euclid(map_w);
-                    dy = dy.rem_euclid(map_h);
-                }
-                (-32..352).contains(&dx) && (-32..256).contains(&dy)
-            })
-            .collect();
+        let offscreen = &self.offscreen;
         self.wander
             .tick(&mut self.map, &mut self.rng, &party_cells, |i| {
-                vis.get(i).copied().unwrap_or(false)
+                !offscreen.get(i).copied().unwrap_or(true)
             });
     }
 
-    /// The retail camera origin in map pixels: leader centred in a 320x224
-    /// view, clamped to the map on bounded maps (small maps clamp to 0).
-    fn camera_origin(&self) -> (i32, i32) {
-        let leader = self.party.leader();
-        let (ox, oy) = leader.render_offset_16ths();
-        let lx = i32::from(leader.cell().x) * 16 + ox;
-        let ly = i32::from(leader.cell().y) * 16 + oy;
-        let map_w = i32::from(self.map.width()) * 16;
-        let map_h = i32::from(self.map.height()) * 16;
-        let (cx, cy) = (lx + 8 - 160, ly + 8 - 112);
-        if self.map.topology() == Topology::Torus {
-            (cx.rem_euclid(map_w), cy.rem_euclid(map_h))
-        } else {
-            (
-                cx.clamp(0, (map_w - 320).max(0)),
-                cy.clamp(0, (map_h - 224).max(0)),
-            )
-        }
+    /// The camera bounds this map imposes.
+    /// The leader as the camera reads it: 16.16 position and this frame's
+    /// velocity.
+    ///
+    /// The velocity is the cartridge's `y_step_constant` — a whole cell divided
+    /// by the step's frame count, which is 2 px/frame at the default eight
+    /// frames per cell — and it is zero at rest, which is what stops the camera
+    /// dead rather than letting it drift.
+    /// The field camera, for the renderer's authentic 320x224 viewport.
+    #[must_use]
+    pub const fn camera(&self) -> &Camera {
+        &self.camera
+    }
+
+    /// Parks the camera at an absolute position.
+    ///
+    /// Scenes do this (`SceneOp::SetCameraPos`), and so does a replay whose
+    /// alignment frame inherits a camera the engine could not have produced,
+    /// the opening scene having placed it.
+    pub fn set_camera(&mut self, x: i32, y: i32) {
+        self.camera.set_position(x, y);
     }
 
     /// The map's wanderers, for the renderer's per-frame positions.
     #[must_use]
     pub fn wanderers(&self) -> &[Wanderer] {
         self.wander.wanderers()
+    }
+
+    /// Whether a battle currently owns the frame.
+    #[must_use]
+    pub fn battle_active(&self) -> bool {
+        self.battle.is_some()
+    }
+
+    /// Starts a battle against `formation`, seating `party`.
+    ///
+    /// The party's stats are the caller's until the pack carries
+    /// `battle/characters.json` + `battle/equipment.json`; then the runtime
+    /// seats its own party from game state and this takes only the formation.
+    ///
+    /// # Errors
+    /// [`BridgeError::Rejected`] when battles are not enabled, the formation
+    /// id is unknown, or the engine refuses the setup.
+    pub fn start_battle(
+        &mut self,
+        formation: u16,
+        party: Vec<psiv_core::battle::PartyMember>,
+    ) -> Result<Vec<BattleEvent>, BridgeError> {
+        let set = self
+            .battles
+            .as_ref()
+            .ok_or_else(|| BridgeError::Rejected("battles not enabled".into()))?;
+        let record = set
+            .table
+            .formation(formation)
+            .ok_or_else(|| BridgeError::Rejected(format!("unknown formation {formation}")))?;
+        let mut rng2 = Rng2::with_surrogate(&mut self.rng, self.frames);
+        let (battle, events) = Battle::start(record, party, &set.data, false, &mut rng2)
+            .map_err(|e| BridgeError::Rejected(e.to_string()))?;
+        self.battle = Some(battle);
+        Ok(events)
+    }
+
+    /// Resolves one battle round with the party's orders.
+    ///
+    /// After an `Ended` event appears in the timeline the shell calls
+    /// [`Runtime::finish_battle`] to return to the field.
+    ///
+    /// # Errors
+    /// [`BridgeError::Rejected`] when no battle is active or a data lookup
+    /// fails mid-round.
+    pub fn battle_round(&mut self, orders: &RoundOrders) -> Result<Vec<BattleEvent>, BridgeError> {
+        let set = self
+            .battles
+            .as_ref()
+            .ok_or_else(|| BridgeError::Rejected("battles not enabled".into()))?;
+        let battle = self
+            .battle
+            .as_mut()
+            .ok_or_else(|| BridgeError::Rejected("no battle in progress".into()))?;
+        let mut rng2 = Rng2::with_surrogate(&mut self.rng, self.frames);
+        battle
+            .round(orders, &set.data, &mut rng2)
+            .map_err(|e| BridgeError::Rejected(e.to_string()))
+    }
+
+    /// Ends the battle and re-arms the encounter grace period, as the
+    /// cartridge resets `$FFFFECE4` to 10 after every fight.
+    pub fn finish_battle(&mut self) {
+        self.battle = None;
+        if let Some(set) = self.battles.as_mut() {
+            set.clock.reset();
+        }
     }
 
     /// Restores one object's position, facing and wander state — the
@@ -698,6 +889,17 @@ impl Runtime {
             // Flag effects: nothing flag-gated is rebuilt yet (the real
             // MapDataManager layer is filed); scene despawns cover the act.
             SceneEffect::FlagChanged { .. } => {}
+            // A scripted facing is written straight into the field object slot
+            // by the cartridge, so it has to reach the map's own record and not
+            // only the scene's actor list. Two representations of one object's
+            // facing is how the oracle's `oNN_facing` column diverged for the
+            // whole length of a scene while everything else matched.
+            SceneEffect::ActorFaced {
+                actor: ActorRef::Npc(index),
+                facing,
+            } => {
+                let _ = self.map.set_npc_facing(index, facing);
+            }
             // Actor motion is polled via scene_actors(); presentation ops and
             // arrivals need no runtime action.
             _ => {}
@@ -728,6 +930,7 @@ impl Runtime {
                         Ok(runner) => {
                             self.scene = Some(runner);
                             self.scene_input = SceneInput::None;
+                            self.scene_warmup = true;
                             events.push(RuntimeEvent::SceneStarted { trigger: index });
                         }
                         Err(_) => events.push(RuntimeEvent::SceneMissing { event: event.0 }),
@@ -825,6 +1028,7 @@ impl Runtime {
             Ok(runner) => {
                 self.scene = Some(runner);
                 self.scene_input = SceneInput::None;
+                self.scene_warmup = true;
                 true
             }
             Err(_) => false,
@@ -859,6 +1063,9 @@ impl Runtime {
             .enter_map(&map, cell, facing)
             .map_err(|e| BridgeError::Rejected(e.to_string()))?;
         self.wander = build_wander(&map, record)?;
+        // Map entry places the view rather than scrolling it in, so the camera
+        // starts framed on the party wherever the warp dropped them.
+        self.camera = Camera::placed_on(driver_of(self.party.leader()), bounds_of(&map));
         self.map = map;
         Ok(())
     }
@@ -868,6 +1075,46 @@ impl Runtime {
 /// routine is NPCType2 or NPCType3 — the two types that share the cartridge's
 /// random walker (`docs/NPC_WANDER.md`). Everything else stands still until
 /// its own routine is transcribed.
+/// The camera bounds a map imposes: its pixel extent, and whether the edges
+/// clamp or wrap.
+fn bounds_of(map: &FieldMap) -> CameraBounds {
+    CameraBounds::from_cells(
+        map.width(),
+        map.height(),
+        if map.topology() == Topology::Torus {
+            CameraEdges::Wrapping
+        } else {
+            CameraEdges::Clamped
+        },
+    )
+}
+
+/// The leader's 16.16 position, as the camera reads it.
+///
+/// The camera derives the velocity it latches on from successive positions, so
+/// there is deliberately no velocity here to get wrong.
+fn driver_of(leader: &FieldState) -> Driver {
+    let (ox, oy) = leader.render_offset_16ths();
+    let at = PixelPos::from_cell(leader.cell());
+    Driver {
+        x: (at.x + ox) * ONE_PIXEL,
+        y: (at.y + oy) * ONE_PIXEL,
+    }
+}
+
+/// An object's 16.16 map position, including the part-cell travel of a step in
+/// progress.
+///
+/// A stepping object's cell is already its destination — the engine commits it
+/// at step start — so the pixel position interpolates from the origin the step
+/// remembers, not from the cell.
+fn object_position(npc: &Npc, wanderer: Option<&Wanderer>) -> (i32, i32) {
+    let base = wanderer.and_then(Wanderer::step_origin).unwrap_or(npc.cell);
+    let at = PixelPos::from_cell(base);
+    let (tx, ty) = wanderer.map_or((0, 0), Wanderer::travelled_px);
+    ((at.x + tx) * ONE_PIXEL, (at.y + ty) * ONE_PIXEL)
+}
+
 fn build_wander(map: &FieldMap, record: &MapRecord) -> Result<WanderSet, BridgeError> {
     let objects: Vec<(usize, WanderKind)> = record
         .npcs

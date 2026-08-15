@@ -75,6 +75,7 @@
 #![deny(clippy::float_arithmetic)]
 
 pub mod battle;
+mod camera;
 mod collision;
 mod error;
 mod field;
@@ -91,6 +92,10 @@ mod trigger_custom;
 mod trigger_table;
 mod wander;
 
+pub use camera::{
+    Camera, CameraBounds, CameraEdges, Driver, HOME_X, HOME_Y, ONE_PIXEL, SCREEN_HEIGHT,
+    SCREEN_WIDTH, SPRITE_ORIGIN, THRESHOLD_X, THRESHOLD_Y, on_screen, type_tests_visibility,
+};
 pub use collision::{CollisionGrid, CollisionType, MAX_COLLISION_VALUE};
 pub use error::MapError;
 pub use field::{

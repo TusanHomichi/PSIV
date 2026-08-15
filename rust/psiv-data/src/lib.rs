@@ -47,10 +47,10 @@ mod map;
 mod sprites;
 
 pub use battle::{
-    Ability, AbilitiesFile, BATTLE_DIRECTORY, BattleFiles, EffectTable, ELEMENT_SLOTS,
-    EncounterGroup, EncounterGroups, Enemy, EnemyAi, EnemyAttack, EnemyStats, EnemiesFile,
-    Formation, FormationEnemy, FormationsFile, Level, LevelStats, LevelTable, LevelsFile, NamedId,
-    Property, Rewards,
+    AbilitiesFile, Ability, BATTLE_DIRECTORY, BattleFiles, ELEMENT_SLOTS, EffectTable,
+    EncounterGroup, EncounterGroups, EnemiesFile, Enemy, EnemyAi, EnemyAttack, EnemyStats,
+    Formation, FormationEnemy, FormationsFile, Level, LevelStats, LevelTable, LevelsFile,
+    MapBinding, NamedId, NamedMapRef, PositionGrid, Property, Rewards,
 };
 pub use collision::{Collision, CollisionGrid, CollisionType, Plane, UndefinedCollisionType};
 pub use dialogue::*;
