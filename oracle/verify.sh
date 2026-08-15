@@ -96,6 +96,8 @@ run "$ORACLE/tapes/16_page_boundary.tape" "$OUT/verify_page.csv" \
     --groups core,window,text
 run "$ORACLE/tapes/17_flag_alias.tape" "$OUT/verify_flags.csv" \
     --groups core,flagbytes
+run "$ORACLE/tapes/18_flag_round_trip.tape" "$OUT/verify_roundtrip.csv" \
+    --groups core,objects,flagbytes
 
 echo "== findings =="
 PYTHONPATH="$ORACLE" python3 - "$OUT" <<'PY'
@@ -344,6 +346,30 @@ if '0024' in {r['game_mode_routine'] for r in rows}:
     bad("FieldRoutine_ItemFound ran - a chest was opened during tape 17")
 ok(f"flag alias: TempEveFlag_Xanafalgue ($13) sets $FFFFF142 bit 4 at f{setf}, "
    "inside the CHEST bank; the $F156 bank stays 00 and no chest was opened")
+
+# The round trip: the bit clears on the way out and the Xanafalgue respawns on
+# the way back, which is what makes the chest collision an un-loot rather than
+# a pre-loot, and repeatable.
+rows = load(OUT/'verify_roundtrip.csv')
+seq, prev = [], None
+for r in rows:
+    if r['chestb2'] != prev:
+        seq.append((int(r['frame']), r['chestb2']))
+        prev = r['chestb2']
+vals = [v for _, v in seq]
+if vals[:3] != ['00', '10', '00']:
+    bad(f"chestb2 did not go 00 -> 10 -> 00 across the round trip; saw {vals[:5]}")
+cleared = seq[2][0]
+# Object slot 0 on map $15 is the Xanafalgue (pack object_id 388). It must be
+# gone after the flee and present again after re-entry.
+back = [r for r in rows if int(r['frame']) > cleared
+        and r['map_index'] == '0015'
+        and (int(r['o00_id'], 16) & 0x7FFF) == 388]
+if not back:
+    bad("the Xanafalgue never respawned after re-entering with the flag clear")
+ok(f"round trip: $FFFFF142 bit 4 clears at f{cleared} on leaving, and the "
+   f"Xanafalgue respawns at f{back[0]['frame']} on return - the set/clear "
+   "cycle is repeatable")
 PY
 
 if [ "$LANE" = fast ]; then

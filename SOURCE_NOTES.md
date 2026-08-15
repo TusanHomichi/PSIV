@@ -471,3 +471,20 @@ and the flag-set whose absence would re-fire the trigger forever.
   $13). Bounded claims: whether that chest reads as looted at Garuberk
   (unreachable by tape), and whether anything clears the bit on leaving
   the basement, are both untested — a leave-and-reenter tape is queued.
+- RETAIL CARTRIDGE BUG (measured both directions, tape 18): the basement
+  round trip is a REPEATABLE UN-LOOTER. The Xanafalgue's flee sets chest
+  bit $13 at despawn (same frame); arriving on the destination map clears
+  it 39 frames after load (the clear is tied to LOADING the destination,
+  not to leaving — whether every map clears id $13 or only some is
+  untested); returning to the basement respawns the Xanafalgue. So a
+  player who owns the Garuberk Tower Moon Slasher and later walks into
+  the Piata Academy Basement and back out has that chest's flag CLEARED
+  and can take the item again — reachable by ordinary backtracking, no
+  sequence break. Remaining untested: that Garuberk's chest-open check
+  reads this bit (route unreachable by tape; follows from the measured
+  one-bank model). Bonus transcription datum: the fleeing Xanafalgue
+  runs at 4 frames/cell — the fast step table. ENGINE NOTE: the flag
+  set/clear/respawn cycle is the real model for the Xanafalgue's
+  despawn; the runtime's interim session-permanent despawn ledger
+  diverges (no respawn) and is slated for replacement by the map-effects
+  flag gates plus the yet-unread map-load flag-clear routine.

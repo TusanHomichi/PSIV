@@ -157,13 +157,19 @@ def main():
         if (nmid, nx, ny) in cells:
             i = cells.index((nmid, nx, ny))
             if i + 1 < len(leg):
-                (m0, cx, cy), letter = leg[i + 1 if i + 1 < len(leg) else i]
+                (m0, cx, cy), _letter = leg[i + 1]
                 stop_at = (m0, cx, cy)
             else:
                 (m0, cx, cy), letter = leg[-1]
-                ddx, ddy = {'U': (0, -1), 'D': (0, 1),
-                            'L': (-1, 0), 'R': (1, 0)}[letter]
-                stop_at = (m0, cx + ddx, cy + ddy)
+                if letter == '*':
+                    # The leg ended on a warp that refused to fire. The cell
+                    # itself is what to route around, and there is no step
+                    # direction to offset by.
+                    stop_at = (m0, cx, cy)
+                else:
+                    ddx, ddy = {'U': (0, -1), 'D': (0, 1),
+                                'L': (-1, 0), 'R': (1, 0)}[letter]
+                    stop_at = (m0, cx + ddx, cy + ddy)
         if stop_at is None or stop_at in blacklist:
             stop_at = want
         if stop_at is None or stop_at in blacklist:

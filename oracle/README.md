@@ -217,6 +217,7 @@ both paths against values the cartridge itself chose (see Results).
 | `15_text_hold.tape` | text draw acceleration while Speak is held |
 | `16_page_boundary.tape` | holding Speak across the end of a page |
 | `17_flag_alias.tape` | the chest/temp flag-bank alias, on hardware |
+| `18_flag_round_trip.tape` | the aliased bit across a leave-and-reenter round trip |
 
 `prelude_basement.tape` is a generated intermediate (`navigate.py` output) that
 both battle tapes are built from; `find_battle.py` consumes it.
@@ -840,15 +841,85 @@ opening act marks a very-late-game chest's flag as set. That is a more
 consequential instance than the Alshline pairing the candidate-bug note
 proposed, and unlike that one it is measured rather than deduced.
 
-Two things this tape does **not** establish, and should not be read as:
+#### What the flag actually gates, and the flee itself
+
+Map $15 carries exactly **one** object: the Xanafalgue (`object_id` 388),
+spawned at cell (44,19). Logging the object columns alongside the flag catches
+the whole scripted moment:
+
+- From f24545 the Xanafalgue **runs west** as the party approaches — (43,19),
+  (42,19), … (25,19) — at **4 frames per cell**. That is the *fast* step mode:
+  the party walks at 8 frames/cell and wandering NPCs at ~32, so the flee is
+  twice the party's speed and eight times an idle townsperson's.
+- At **f24618 the object despawns** (`obj_id` `$8184` → `0000`) **and
+  `$FFFFF142` takes `$10` in the same frame.**
+
+So the flag gates the Xanafalgue's presence, and set-on-despawn is exact —
+same frame, no lag.
+
+#### Leaving clears it, which flips the bug's direction
+
+Tape 18 routes out of the basement into `PiataAcademyNearBasement` ($12):
+
+| frame | event |
+|---|---|
+| f24618 | flag sets (`$10`) as the Xanafalgue despawns |
+| f25191 | party arrives on map $12, flag still `$10` |
+| **f25230** | **`$FFFFF142` → `$00`** — cleared, 39 frames into the new map |
+
+**Retail does clear it, and it clears it by writing the chest bank.** The
+clone's "cleared when you get out" prose is right about the behaviour and wrong
+only about which bank takes the write.
+
+That inverts the consequence. The bit is **set on entering** the basement and
+**cleared on leaving**, so the damaging order is not pre-looting but
+**un-looting**: a player who has already taken the Garuberk Tower Moon Slasher
+chest (flag `$13` set) and later walks into and out of the Piata Academy
+Basement would have that flag **cleared**, and the chest would be available
+again. Piata is a revisitable town, so the sequence is reachable in ordinary
+play — which also answers "would any retail player have noticed": far more
+plausibly this way round than the pre-looting one.
+
+One precision worth keeping: the clear lands **39 frames after arriving on map
+$12**, not on leaving $15, so it is tied to loading the destination map rather
+than to the exit itself. Whether every map clears id `$13` or only some is
+untested.
+
+#### And re-entering respawns it, so the whole thing is repeatable
+
+Continuing the same tape back down the stairs:
+
+| frame | event |
+|---|---|
+| f25191 | arrive on map $12, flag still `$10` |
+| f25230 | flag cleared to `$00` |
+| f25823 | back on map $15, flag `$00` |
+| **f25857** | **the Xanafalgue is back** — object slot 0 holds id 388 again at its spawn |
+
+So the scene resets completely: **leave, and the flag clears; return, and the
+Xanafalgue is there to flee again.** The set/clear cycle can be run as many
+times as the player likes.
+
+That is what makes the collision more than a curiosity. **Every basement round
+trip clears chest flag `$13`.** A player who has taken the Garuberk Tower Moon
+Slasher chest and later walks down into the Piata basement and back out has
+that chest's flag cleared, and can take it again — repeatably, at will, with no
+special sequence beyond visiting a town they can already revisit.
+
+(The re-entry in the tape is hand-written rather than routed: coming up the
+stairs leaves the party standing *on* the stairs cell, and the cartridge's
+anti-ping-pong rule will not fire a warp from the cell you were placed on, so
+the tape steps off and back on. `navigate.py` cannot plan from a warp cell it
+is already standing on — noted as a tooling limit, not a cartridge one.)
+
+Two things these tapes do **not** establish, and should not be read as:
 
 - **Whether the chest actually appears looted in play.** That needs the
   chest-open check to read the same bit at Garuberk Tower, which is far out of
   tape reach. What is proven is the shared bit and the write.
-- **Whether the bit is ever cleared.** It stays set for the remaining ~36,500
-  frames of tape 10, but that tape never leaves the basement. The clone's
-  comment says temp flags clear on exit; if retail clears it the same way, the
-  collision would instead *un-loot* the chest. Untested either way.
+- **Whether the chest-open check reads this bit.** Proven: the shared physical
+  bit, the set, and the clear. Not proven: that Garuberk Tower's chest actually
+  responds to it, which needs a route no tape can reach.
 
 For `psiv-core`: model one 256-id bank at `$F140` with reversed in-byte bit
 numbering, and route both the chest and "temp" APIs to it. Modelling five
