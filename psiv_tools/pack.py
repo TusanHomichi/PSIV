@@ -56,6 +56,7 @@ from .layouts import (
 )
 from .maps import extract_maps
 from .newgame import extract_new_game
+from .npc_commands import extract_npc_commands
 # The two world maps' layouts are not in their records at all -- they stream
 # from paged tables -- so their decode lives in `psiv_tools.overworld`.
 from .overworld import (
@@ -132,6 +133,7 @@ PACK_FORMAT_VERSION = 1
 MANIFEST_NAME = "manifest.json"
 MAPS_DIRECTORY = "maps"
 GAME_START_NAME = "game_start.json"
+NPC_COMMANDS_NAME = "npc_commands.json"
 
 #: `Map_Start_Facing_Dir` in the disassembly's constants.
 FACING_NAMES: dict[int, str] = {0: "down", 4: "up", 8: "right", 0xC: "left"}
@@ -378,6 +380,11 @@ def map_json(
             "dungeon_teleport_index": flags["dungeon_teleport_index"],
         },
         "dialogue_tree": record["dialogue"]["tree"],
+        # `RunEvents` walks this list every frame the party is standing still,
+        # calls each id's `RunEventsJmpTbl` entry in order, and stops at the
+        # first one whose condition is met. So the order is evaluation order and
+        # the list is a priority list, not a set.
+        "events": record["events"]["ids"],
         "warps": warps,
         "npcs": _npcs(record, sprites),
         "treasure_chests": _treasure_chests(record),
@@ -464,7 +471,7 @@ def build_pack(
     census: dict[str, dict[int, int]] = {
         key: {} for key in
         ("collision_types", "npc_facing_bytes", "warp_facing_bytes", "dialogue_trees",
-         "sprite_palette_lines", "priority_tiles")
+         "sprite_palette_lines", "priority_tiles", "event_ids")
     }
 
     def count(key: str, value: int, by: int = 1) -> None:
@@ -542,6 +549,8 @@ def build_pack(
         for value, cells in decoded.collision.histogram().items():
             count("collision_types", value, cells)
         count("dialogue_trees", payload["dialogue_tree"])
+        for event_id in payload["events"]:
+            count("event_ids", event_id)
         for warp in payload["warps"]:
             warp_targets.setdefault(warp["target"]["id"], warp["target"])
             count("warp_facing_bytes", warp["facing"]["id"])
@@ -593,6 +602,13 @@ def build_pack(
     game_start = {"format_version": PACK_FORMAT_VERSION, **extract_new_game(rom_bytes)}
     game_start_sha = _write_json(directory / GAME_START_NAME, game_start)
     start = game_start["first_control"]
+
+    # What a scene's MoveActorCommand byte means. Its own file for the same
+    # reason: the provenance is bulky and it is read once, not per map.
+    npc_commands = {
+        "format_version": PACK_FORMAT_VERSION, **extract_npc_commands(rom_bytes)
+    }
+    npc_commands_sha = _write_json(directory / NPC_COMMANDS_NAME, npc_commands)
 
     placed = sum(entry["placements"] for entry in npc_entries)
     for entry in npc_entries:
@@ -709,6 +725,16 @@ def build_pack(
                 "title screen dispatches as event 0x9F. The party the new-game "
                 "initialiser writes (Chaz and Alys) does not survive that scene."
             ),
+        },
+        # The NPC movement-command table, indexed by a scene op's command byte.
+        "npc_commands": {
+            "file": NPC_COMMANDS_NAME,
+            "sha256": npc_commands_sha,
+            "command_count": npc_commands["command_count"],
+            "speed_count": npc_commands["dispatch"]["speed_count"],
+            "frames_per_cell": [
+                speed["frames_per_cell"][0] for speed in npc_commands["speeds"]
+            ],
         },
         # The above-sprites layer. `png_over` is null for a map whose tiles all
         # draw below sprites, and those maps get no file at all rather than an

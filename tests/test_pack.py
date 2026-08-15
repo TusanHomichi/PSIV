@@ -15,20 +15,16 @@ from psiv_tools.pack import (
     GAME_START_NAME,
     MANIFEST_NAME,
     MAPS_DIRECTORY,
+    NPC_COMMANDS_NAME,
     NPC_SPRITES_DIRECTORY,
     NPC_SPRITES_NAME,
     PACK_FORMAT_VERSION,
     PARTY_SPRITES_DIRECTORY,
     PARTY_SPRITES_NAME,
-    STANDING_CELL_Y_OFFSET,
-    XY_RANGE_NAMES,
     PackError,
-    Rect,
     build_pack,
     decode_map_section,
     layout_spec,
-    warp_rect,
-    xy_range_name,
 )
 from psiv_tools.sprites import PARTY_SYMBOLS
 
@@ -126,17 +122,6 @@ class TestImportSurface(unittest.TestCase):
         self.assertIs(pack_layouts.PackError, warps.PackError)
         self.assertIs(render.PackError, warps.PackError)
         self.assertIs(PackError, warps.PackError)
-
-    def test_the_names_this_file_imports_are_the_ones_it_uses(self):
-        # Imported here to pin the surface rather than to be used below; the
-        # tests that exercise them moved to test_warps.py.
-        self.assertEqual(STANDING_CELL_Y_OFFSET, 1)
-        self.assertEqual(len(XY_RANGE_NAMES), 15)
-        self.assertEqual(xy_range_name(0x2), "XYPlus20")
-        self.assertEqual(
-            warp_rect(0x2, 4, 4, 64, 64).to_json(),
-            Rect(4, 5, 2, 2).to_json(),
-        )
 
 
 @unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
@@ -393,6 +378,30 @@ class TestPackFixture(unittest.TestCase):
         # `game_start` is pack-wide, not per-map.
         self.assertNotIn(start["map"]["id"], {e["id"] for e in self.manifest["maps"]})
 
+    def test_every_map_carries_its_event_list_in_evaluation_order(self):
+        # `RunEvents` walks the record's byte list in order and stops at the
+        # first id whose condition holds, so the list is a priority list. It is
+        # emitted exactly as the record stores it.
+        records = {r["id"]: r for r in extract_maps(self.data)["maps"]}
+        for map_id, payload in self.maps.items():
+            with self.subTest(map=payload["symbol"]):
+                self.assertEqual(payload["events"], records[map_id]["events"]["ids"])
+                self.assertTrue(all(isinstance(i, int) for i in payload["events"]))
+                # `RunEventsJmpTbl` is 128 entries; the record walker already
+                # refuses anything past it, so this is the pack restating the
+                # bound its consumer needs.
+                self.assertTrue(all(0 <= i < 0x80 for i in payload["events"]))
+        # Piata's is the null event, which is what most maps carry.
+        self.assertEqual(self.maps[MAP_PIATA]["events"], [0])
+
+    def test_the_event_census_counts_every_reference(self):
+        census = self.manifest["census"]["event_ids"]
+        total = sum(len(p["events"]) for p in self.maps.values())
+        self.assertEqual(sum(census.values()), total)
+        self.assertEqual(census["0"], sum(
+            1 for p in self.maps.values() for i in p["events"] if i == 0
+        ))
+
     def test_the_manifest_says_where_the_overlay_sits_in_the_draw_order(self):
         overlays = self.manifest["overlays"]
         self.assertEqual(overlays["priority_bit"], 15)
@@ -477,12 +486,13 @@ class TestPackFixture(unittest.TestCase):
             first_files = sorted(p.relative_to(self.root) for p in self.root.rglob("*") if p.is_file())
             second_files = sorted(p.relative_to(second) for p in second.rglob("*") if p.is_file())
             self.assertEqual(first_files, second_files)
-            # manifest, game_start.json, a JSON and a PNG per map, an overlay
-            # PNG per map that has priority tiles, the two sprite indexes, the
-            # eleven party sheets, and one PNG per deduplicated NPC sheet.
+            # manifest, game_start.json, npc_commands.json, a JSON and a PNG
+            # per map, an overlay PNG per map that has priority tiles, the two
+            # sprite indexes, the eleven party sheets, and one PNG per
+            # deduplicated NPC sheet.
             self.assertEqual(
                 len(first_files),
-                2 + 2 * len(FIXTURE_MAPS)
+                3 + 2 * len(FIXTURE_MAPS)
                 + self.manifest["overlays"]["maps_with_overlay"]
                 + 2 + len(PARTY_SYMBOLS)
                 + self.manifest["sprites"]["npc_sheet_count"],
