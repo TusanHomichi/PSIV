@@ -728,3 +728,15 @@ eventb4	FFFFF104	1	flagbytes	hex
 eventb5	FFFFF105	1	flagbytes	hex
 eventb6	FFFFF106	1	flagbytes	hex
 eventb7	FFFFF107	1	flagbytes	hex
+found_item_loc	FFFFECAB	1	window	hex
+found_item	FFFFECC2	1	window	hex
+found_item_type	FFFFECC4	1	window	hex
+treasure_addr	FFFFECAC	4	window	hex
+inv0	FFFFF410	1	chars	hex
+inv1	FFFFF411	1	chars	hex
+inv2	FFFFF412	1	chars	hex
+inv3	FFFFF413	1	chars	hex
+inv4	FFFFF414	1	chars	hex
+inv5	FFFFF415	1	chars	hex
+inv6	FFFFF416	1	chars	hex
+inv7	FFFFF417	1	chars	hex

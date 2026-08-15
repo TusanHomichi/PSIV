@@ -98,6 +98,8 @@ run "$ORACLE/tapes/17_flag_alias.tape" "$OUT/verify_flags.csv" \
     --groups core,flagbytes
 run "$ORACLE/tapes/18_flag_round_trip.tape" "$OUT/verify_roundtrip.csv" \
     --groups core,objects,flagbytes
+run "$ORACLE/tapes/19_chest_map_objects.tape" "$OUT/verify_chestmap.csv" \
+    --groups core,pos,window,objects,flagbytes,chars
 
 echo "== findings =="
 PYTHONPATH="$ORACLE" python3 - "$OUT" <<'PY'
@@ -370,6 +372,42 @@ if not back:
 ok(f"round trip: $FFFFF142 bit 4 clears at f{cleared} on leaving, and the "
    f"Xanafalgue respawns at f{back[0]['frame']} on return - the set/clear "
    "cycle is repeatable")
+
+# Object slots on a chest map: NPCs fill the pool first, chests follow in
+# record order, so a chest's slot is npc_count + chest_index. Tape 02's map has
+# no chests, so this is the only tape that exercises the offset.
+rows = load(OUT/'verify_chestmap.csv')
+# Objects populate over several frames, so sample once the pool has settled
+# rather than on the first frame slot 0 appears - an early frame catches the
+# chest slots still empty.
+settle = next(int(r['frame']) for r in rows if r['mark'] == 'settle')
+spawn = next(r for r in rows if int(r['frame']) >= settle
+             and r['map_index'] == '0015' and r['o02_id'] != '0000')
+if (int(spawn['o00_id'], 16) & 0x7FFF) != 388:
+    bad(f"map $15 slot 0 is {spawn['o00_id']}, expected the Xanafalgue (388)")
+for slot in (1, 2):
+    got = int(spawn[f'o{slot:02d}_id'], 16) & 0x7FFF
+    if got != 0xA0:
+        bad(f"map $15 slot {slot} is {got:#x}, expected a chest ($A0)")
+    if spawn[f'o{slot:02d}_timer'] != '0':
+        bad(f"chest in slot {slot} has a non-zero wander timer "
+            f"({spawn[f'o{slot:02d}_timer']}) - chests must never wander")
+ok("chest map object pool: slot 0 is the NPC (388), slots 1-2 are chests "
+   "($A0) in record order, both with timer 0")
+
+# The chest open itself: the item is granted, and the flag write is NOT
+# observed. Both halves are pinned - the second is a measured negative that a
+# core writing the flag inline would contradict.
+byf = by_frame(rows)
+op = next(int(r['frame']) for r in rows if r['mark'] == 'open_chest')
+found = [r for r in rows if int(r['frame']) >= op and r['inv0'] == '7D']
+if not found:
+    bad("opening the chest never put the Dimate ($7D) in Inventory[0]")
+if {r['chestb3'] for r in rows} != {'00'}:
+    bad("$FFFFF143 changed - the chest flag write now happens inline, which "
+        "contradicts the recorded trace; re-check the README's chest section")
+ok(f"chest open: Dimate reaches Inventory[0] at f{found[0]['frame']}, and no "
+   "chest-flag write lands in $FFFFF143 (measured negative)")
 PY
 
 if [ "$LANE" = fast ]; then

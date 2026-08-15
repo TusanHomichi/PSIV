@@ -5375,6 +5375,102 @@
       "group": "flagbytes",
       "hex": true,
       "source": "Event_Flags byte 7 (constants:2362, base $FFFFF100)"
+    },
+    {
+      "name": "found_item_loc",
+      "addr": "FFFFECAB",
+      "size": 1,
+      "group": "window",
+      "hex": true,
+      "source": "Found_Item_Location, constants:2227; 0 = the item came from a treasure chest"
+    },
+    {
+      "name": "found_item",
+      "addr": "FFFFECC2",
+      "size": 1,
+      "group": "window",
+      "hex": true,
+      "source": "Found_Item, constants:2233; item id, or money/100"
+    },
+    {
+      "name": "found_item_type",
+      "addr": "FFFFECC4",
+      "size": 1,
+      "group": "window",
+      "hex": true,
+      "source": "Found_Item_Type, constants:2235; 0 = item, 1 = money"
+    },
+    {
+      "name": "treasure_addr",
+      "addr": "FFFFECAC",
+      "size": 4,
+      "group": "window",
+      "hex": true,
+      "source": "Treasure_Chest_Addr, constants:2228"
+    },
+    {
+      "name": "inv0",
+      "addr": "FFFFF410",
+      "size": 1,
+      "group": "chars",
+      "hex": true,
+      "source": "Inventory byte 0 (constants:2381, base $FFFFF410)"
+    },
+    {
+      "name": "inv1",
+      "addr": "FFFFF411",
+      "size": 1,
+      "group": "chars",
+      "hex": true,
+      "source": "Inventory byte 1 (constants:2381, base $FFFFF410)"
+    },
+    {
+      "name": "inv2",
+      "addr": "FFFFF412",
+      "size": 1,
+      "group": "chars",
+      "hex": true,
+      "source": "Inventory byte 2 (constants:2381, base $FFFFF410)"
+    },
+    {
+      "name": "inv3",
+      "addr": "FFFFF413",
+      "size": 1,
+      "group": "chars",
+      "hex": true,
+      "source": "Inventory byte 3 (constants:2381, base $FFFFF410)"
+    },
+    {
+      "name": "inv4",
+      "addr": "FFFFF414",
+      "size": 1,
+      "group": "chars",
+      "hex": true,
+      "source": "Inventory byte 4 (constants:2381, base $FFFFF410)"
+    },
+    {
+      "name": "inv5",
+      "addr": "FFFFF415",
+      "size": 1,
+      "group": "chars",
+      "hex": true,
+      "source": "Inventory byte 5 (constants:2381, base $FFFFF410)"
+    },
+    {
+      "name": "inv6",
+      "addr": "FFFFF416",
+      "size": 1,
+      "group": "chars",
+      "hex": true,
+      "source": "Inventory byte 6 (constants:2381, base $FFFFF410)"
+    },
+    {
+      "name": "inv7",
+      "addr": "FFFFF417",
+      "size": 1,
+      "group": "chars",
+      "hex": true,
+      "source": "Inventory byte 7 (constants:2381, base $FFFFF410)"
     }
   ]
 }

@@ -218,6 +218,7 @@ both paths against values the cartridge itself chose (see Results).
 | `16_page_boundary.tape` | holding Speak across the end of a page |
 | `17_flag_alias.tape` | the chest/temp flag-bank alias, on hardware |
 | `18_flag_round_trip.tape` | the aliased bit across a leave-and-reenter round trip |
+| `19_chest_map_objects.tape` | object slots on a chest-bearing map, and opening a chest |
 
 `prelude_basement.tape` is a generated intermediate (`navigate.py` output) that
 both battle tapes are built from; `find_battle.py` consumes it.
@@ -804,6 +805,83 @@ So the two behaviours are independent and should be implemented as such:
 A single 24-frame gap separates the pages when advanced by a tap (page 1 ends
 f7371, the tap lands f7393, page 2's first draw is f7395), so the advance costs
 about two frames beyond the press itself.
+
+### Object slots on a chest-bearing map
+
+Tape 02's map has no chests, so the comparator had never exercised the slot
+offset chest maps introduce. `AcademyBasement` ($15) carries 1 NPC and 2
+chests, which is enough to settle the layout.
+
+Measured at the spawn, before anything moves:
+
+| slot | raw id | masked | cell | offscreen | rflags | timer |
+|---|---|---|---|---|---|---|
+| 0 | `$8184` | 388 | (44,18) | 1 | `$44` | 2 |
+| 1 | `$80A0` | **`$A0`** | (40,8) | 0 | `$4C` | 0 |
+| 2 | `$80A0` | **`$A0`** | (14,19) | 1 | `$4C` | 0 |
+
+**NPCs fill the pool first, then chests, each in pack record order.** Slot 0 is
+the Xanafalgue (`object_id` 388, `npcs[0]`); slots 1 and 2 are
+`treasure_chests[0]` (Dimate, cell (40,8)) and `treasure_chests[1]` (100
+meseta, cell (14,19)). So a chest's slot index is `npc_count + chest_index`.
+
+The chest object ids are confirmed from `Interaction_ChkIfTreasureChest`:
+**`$A0` = `FieldObj_TreasureChest`, `$1D4` = `FieldObj_WhiteTreasureChest`**.
+Both basement chests are the plain kind; no white chest appears on this map, so
+`$1D4` is unobserved here.
+
+Two incidental checks fall out. Chests carry **`timer` = 0 permanently**, which
+is consistent with the wander rule above — they are exactly the "never wanders"
+case, and a core that ticks the RNG for every zero-timer object would
+over-consume on every chest map. And `offscreen_flag` tracks visibility
+sensibly: the near chest reads 0 and the far one 1 from the spawn.
+
+### Opening a chest, and a write that does not happen
+
+The tape walks to (41,8), turns to face the chest at (40,8), and presses Speak.
+(A straight walk west from the spawn does **not** reach it — a wall at column 46
+stops the party at (47,8). The route is planned around the chest's own cell,
+since objects block.)
+
+The interaction itself is clean and gives core-lane's `open_chest` path its
+timing:
+
+| frame | event |
+|---|---|
+| f24665 | `Game_Mode_Routine` = `$08` (`FieldRoutine_Interaction`) |
+| f24666 | `$24` (`FieldRoutine_ItemFound`); `Interaction_Event_Flag` = `$18` (24), `Interaction_Event_Type` = 1 (chest), `Found_Item` = `$7D` (125, Dimate), `Found_Item_Location` = 0 (from a chest) |
+| f24675 | window opens and **`Inventory[0]` becomes `$7D`** — the item is granted 9 frames after the routine starts |
+| f25069 | window closes on the dismissal press |
+| f25080 | back to `FieldRoutine_Controls` |
+
+Every value matches the pack record: `chest_flag` 24 = `ChestFlag_PiataMonomate`
+($18), item 125 = Dimate.
+
+**But no chest flag is written.** Logging all 64 bytes of `$FFFFF140-$FFFFF17F`
+across the whole tape, the only write anywhere in that region is Town_Flags at
+f902 during the intro. `$FFFFF143` — where flag 24 belongs under the
+`bit = 7 - (id & 7)` rule tape 17 confirmed — stays `00` through the open and
+for 900 frames after.
+
+This reproduces under two different input patterns (a Speak mash and a single
+clean dismissal press), so it is not an artefact of re-triggering the routine.
+
+What is **not** isolated: why. `FieldRoutine_ItemFound` does contain a
+`jsr (ChestFlags_Set)` (`ps4.asm:137471`), gated on
+`Interaction_Event_Type == 1`, and the RAM shows that type *is* 1 with the
+right flag id in place — so either that path is not reached by the route this
+tape takes through the routine, or the write happens on a later transition the
+tape does not cover (a map exit or a save). A consistent side-effect: the chest
+re-enters `ItemFound` on each subsequent press, which is what an unset flag
+would cause, though no duplicate item is granted.
+
+**For `psiv-core`:** a chest's item grant and its flag write should not be
+assumed simultaneous. The grant is measured at routine-start + 9 frames; the
+flag write is not observed at all here, so an `open_chest` that sets the flag
+inline will diverge from this trace. Worth pinning down before the comparator
+reaches chest maps — a tape that opens a chest, leaves the map and returns
+would say whether the chest stays open, which is the behaviour that actually
+matters.
 
 ### The flag-bank alias, confirmed on hardware
 
