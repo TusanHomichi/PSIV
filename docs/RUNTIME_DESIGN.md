@@ -222,6 +222,28 @@ the scroll-arrow art (hardware sprite, still a placeholder triangle).
   movement, already on the backlog; the comparator turned it from a
   "nice to have" into a measured divergence with frame numbers.
 
+## RNG design (ratified by Peter 2026-08-15)
+
+The oracle settled the facts first: there is ONE 32-bit seed
+($FFFFEF0C) for the whole game, free-running as a per-frame counter
+(1 tick/vblank; 2/frame in field mode, the second being the
+field-object update, suspended during menus; never advanced by steps),
+with two algorithms over it — the portable x41 LCG (UpdateRNGSeed) and
+the battle mixer (UpdateRNGSeed2: ror the high word, return
+HV_counter + frame_count - seed_word). Only the HV-counter term is
+unportable.
+
+Decision: the runtime keeps BOTH cartridge algorithms over the one
+shared seed, ticks it on the cartridge's per-frame schedule, and
+replaces the HV-counter read with a deterministic surrogate. Everything
+else about battle rolls — the ror, the frame-count term, the masks, the
+16-draw structure — is the cartridge's own code. Formula-exact,
+structure-exact, distribution-faithful; stream-different from hardware
+only through the missing beam position. Bit-exact battle replay against
+the cartridge is explicitly out of scope; the oracle verifies battle
+FORMULAS via forced seeds and end-of-turn RAM, not per-frame streams.
+Field/encounter RNG stays fully bit-exact (it never reads the beam).
+
 ## Battle bug policy (Peter, 2026-08-15)
 
 "Fix obvious bugs still... this ain't 1994 and we can fix stuff that was
