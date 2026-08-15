@@ -291,3 +291,14 @@ Design and adjudication in the main loop; implementation lanes own disjoint
 files and report for review. Same rules as the extraction waves: no lane
 touches shared files, no git commands from lanes, the lead integrates,
 verifies, and commits.
+
+## Battle presentation (Peter, 2026-08-15)
+
+No interim text-window battles. Encounters roll engine-side (logged as
+EncounterRolled, no fight presented) until the REAL battle screen ships:
+enemy bodies on the background layer, character battle sprites, battle
+backgrounds, command menu, message window, damage numbers — the retail
+screen, modernized like the field. Prerequisites, in flight: battle art
+pack emission (sprite-lane), battle backgrounds into the pack,
+characters/equipment pack files (overworld-lane), then the psiv-godot
+battle scene consuming the engine's BattleEvent timeline.
