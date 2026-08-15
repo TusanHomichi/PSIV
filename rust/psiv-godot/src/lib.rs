@@ -82,6 +82,9 @@ impl SheetView {
     /// Configures a sprite node to show one frame of this strip.
     fn apply(&self, sprite: &mut Gd<Sprite2D>, frame: i32) {
         sprite.set_texture(&self.texture);
+        // Drawn above the node origin so the origin is the feet line and
+        // y-sort orders characters the way the hardware did.
+        sprite.set_offset(Vector2::new(0.0, -(self.frame_height as f32)));
         sprite.set_region_enabled(true);
         sprite.set_region_rect(Rect2::new(
             Vector2::new((frame * self.frame_width) as f32, 0.0),
@@ -97,7 +100,8 @@ impl SheetView {
     fn draw_pos(&self, cell: Cell, offset: (i32, i32)) -> Vector2 {
         let x = f32::from(cell.x) * CELL_PIXELS - self.origin_x as f32 + offset.0 as f32;
         let y = (f32::from(cell.y) - 1.0) * CELL_PIXELS - self.origin_y as f32 + offset.1 as f32;
-        Vector2::new(x, y)
+        // Node origin sits at the feet; apply() draws the frame above it.
+        Vector2::new(x, y + self.frame_height as f32)
     }
 }
 
@@ -124,12 +128,18 @@ struct Field {
     overlay_sprite: Option<Gd<Sprite2D>>,
     party: Option<Gd<Sprite2D>>,
     party_view: Option<SheetView>,
-    /// (node, sheet id, sequence names) per visible NPC on the current map.
-    npc_nodes: Vec<(Gd<Sprite2D>, String, String, String)>,
+    /// (node, sheet id, idle sequence, walk sequence, map-order npc index)
+    /// per visible NPC on the current map.
+    npc_nodes: Vec<(Gd<Sprite2D>, String, String, String, usize)>,
     sheet_views: HashMap<String, SheetView>,
     camera: Option<Gd<Camera2D>>,
     dialogue: Option<Gd<DialogueWindow>>,
     anim_tick: u64,
+    /// Set while a dialogue is open and until accept is released after it
+    /// closes — the press that dismisses a window must not immediately
+    /// re-open it (the engine's own press latch resets while we starve it
+    /// with Neutral, so the still-held key would read as a fresh press).
+    accept_blocked: bool,
     /// The party's active sequence and the tick it started, so animation
     /// phase restarts at frame 0 on a sequence change — matching
     /// `FieldObj_Move`'s reset-to-frame-0 rather than free-phase modulo.
@@ -153,12 +163,16 @@ impl INode2D for Field {
             camera: None,
             dialogue: None,
             anim_tick: 0,
+            accept_blocked: false,
             party_sequence: String::new(),
             party_seq_start: 0,
         }
     }
 
     fn ready(&mut self) {
+        // Characters sort by their feet line, like the hardware's sprite
+        // ordering: standing north of an NPC puts you behind them.
+        self.base_mut().set_y_sort_enabled(true);
         self.pack_dir = ProjectSettings::singleton()
             .globalize_path("res://../runtime-pack")
             .to_string();
@@ -205,7 +219,7 @@ impl INode2D for Field {
 
         let mut party = Sprite2D::new_alloc();
         party.set_centered(false);
-        party.set_z_index(10);
+        party.set_z_index(5);
         self.base_mut().add_child(&party);
         self.party = Some(party);
 
@@ -243,6 +257,7 @@ impl INode2D for Field {
         // FieldRoutine_Interaction; we model it by starving the field of
         // input, per the engine's documented non-modal contract).
         if self.dialogue.as_ref().is_some_and(|w| w.bind().is_open()) {
+            self.accept_blocked = true;
             if Input::singleton().is_action_just_pressed("ui_accept")
                 && let Some(window) = self.dialogue.as_mut()
             {
@@ -255,7 +270,17 @@ impl INode2D for Field {
             return;
         }
 
-        let input = read_input();
+        let mut input = read_input();
+        // The press that dismissed a window stays swallowed until released —
+        // otherwise the engine (whose press latch reset during the Neutral
+        // starvation) reads the still-held key as fresh and reopens the NPC.
+        if self.accept_blocked {
+            if matches!(input, psiv_core::Input::Action) {
+                input = psiv_core::Input::Neutral;
+            } else {
+                self.accept_blocked = false;
+            }
+        }
         let Some(runtime) = self.runtime.as_mut() else {
             return;
         };
@@ -291,8 +316,26 @@ impl INode2D for Field {
                     });
                     match binding {
                         Some((tree, id)) => {
-                            if let Some(window) = self.dialogue.as_mut() {
-                                window.bind_mut().open_dialogue(tree, id);
+                            let opened = self
+                                .dialogue
+                                .as_mut()
+                                .is_some_and(|w| w.bind_mut().open_dialogue(tree, id));
+                            if opened {
+                                // NPCs turn to face the speaker; the \$F3
+                                // control code exists precisely to suppress
+                                // this, which proves it is the default.
+                                let toward = self
+                                    .runtime
+                                    .as_ref()
+                                    .map(|rt| rt.state().facing().opposite());
+                                if let Some(toward) = toward {
+                                    let name = sequence_name("idle", toward);
+                                    for (_, _, idle, _, index) in &mut self.npc_nodes {
+                                        if *index == npc_index {
+                                            *idle = name.clone();
+                                        }
+                                    }
+                                }
                             }
                         }
                         None => godot_print!(
@@ -371,6 +414,7 @@ impl Field {
         // Gather NPC draw info first; borrowing data and adding children at
         // the same time fights the base borrow.
         struct NpcDraw {
+            index: usize,
             sheet: String,
             idle: String,
             walk: String,
@@ -381,12 +425,13 @@ impl Field {
         }
         let mut draws: Vec<NpcDraw> = Vec::new();
         if let Some(record) = runtime.map_record() {
-            for npc in &record.npcs {
+            for (index, npc) in record.npcs.iter().enumerate() {
                 // Invisible triggers (sprite_reason set) still block in the
                 // engine, exactly like the cartridge's invisible objects, but
                 // draw nothing.
                 let Some(sprite) = &npc.sprite else { continue };
                 draws.push(NpcDraw {
+                    index,
                     sheet: sprite.sheet.clone(),
                     idle: sprite.idle_sequence.clone(),
                     walk: sprite.walk_sequence.clone(),
@@ -423,11 +468,11 @@ impl Field {
             // it lands exactly where the VDP would put it."
             node.set_position(Vector2::new(
                 (draw.x - view.origin_x) as f32,
-                (draw.y - view.origin_y) as f32,
+                (draw.y - view.origin_y + view.frame_height) as f32,
             ));
             self.base_mut().add_child(&node);
             self.npc_nodes
-                .push((node, draw.sheet, draw.idle, draw.walk));
+                .push((node, draw.sheet, draw.idle, draw.walk, draw.index));
         }
     }
 
@@ -452,7 +497,7 @@ impl Field {
             party.set_position(view.draw_pos(cell, offset));
         }
 
-        for (node, sheet_id, idle, _walk) in &mut self.npc_nodes {
+        for (node, sheet_id, idle, _walk, _index) in &mut self.npc_nodes {
             if let Some(view) = self.sheet_views.get(sheet_id) {
                 let frame = view.frame_at(idle, self.anim_tick);
                 view.apply(node, frame);

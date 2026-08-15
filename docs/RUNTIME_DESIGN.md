@@ -140,6 +140,21 @@ scene still leaks.
   scriptable determinism); final call when the oracle harness is built, at
   the start of battle work.
 
+## Open fidelity questions (for the emulator oracle)
+
+- Dialogue text speed: does retail draw characters progressively, at what
+  rate? (Currently instant; `$F9` is an explicit pause, not a speed.)
+- The scroll-arrow art: a hardware sprite, not yet extracted. Placeholder
+  triangle at the pack's (264, 202) position.
+- Talk range: Peter's memory says you could stand *beside* an NPC and they'd
+  turn to face you; the transcribed `Interaction_ChkObjects` projects one
+  cell ahead of the party's facing (±8px). Turn-to-face itself is implemented
+  (the `$F3` keep-npc-facing code proves it was the default); the *range*
+  question needs the oracle.
+- Does an accept press during the window-open animation buffer or drop?
+- Does the final dialogue page close on its own or require a press?
+  (Currently requires a press.)
+
 ## Division of labor
 
 Design and adjudication in the main loop; implementation lanes own disjoint

@@ -74,6 +74,14 @@ pub enum DataError {
         /// What is wrong with it.
         message: String,
     },
+    /// The dialogue pack is defective: a tree entry, glyph, portrait, or
+    /// window record failed validation.
+    Dialogue {
+        /// The file the defect lives in.
+        path: PathBuf,
+        /// What is wrong, naming the tree/entry/glyph.
+        message: String,
+    },
 }
 
 impl DataError {
@@ -158,6 +166,9 @@ impl fmt::Display for DataError {
                 message,
             } => write!(f, "map {map}: {field}: {message}"),
             DataError::Sprite { who, message } => write!(f, "sprite {who}: {message}"),
+            DataError::Dialogue { path, message } => {
+                write!(f, "dialogue pack {}: {message}", path.display())
+            }
         }
     }
 }

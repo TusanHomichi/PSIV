@@ -476,7 +476,10 @@ fn read_json<T: DeserializeOwned>(path: &Path) -> Result<T, DataError> {
 /// a proposal in this lane's report, and this function is the only place it
 /// would change.
 fn defect(path: &Path, message: impl fmt::Display) -> DataError {
-    DataError::json(path, serde_json::Error::custom(message))
+    DataError::Dialogue {
+        path: path.to_path_buf(),
+        message: message.to_string(),
+    }
 }
 
 /// `"0xFA"` -> `0xFA`. The pack writes code bytes as hex strings so a reader
