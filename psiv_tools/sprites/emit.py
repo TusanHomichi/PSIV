@@ -142,7 +142,14 @@ class SheetRegistry:
         self._users: dict[str, int] = {}
         self._names: set[str] = set()
 
-    def register(self, sheet: Sheet, symbol: str) -> str:
+    def register(self, sheet: Sheet, symbol: str, placed: bool = True) -> str:
+        """Register a sheet and return its name.
+
+        `placed` is False for a sheet nothing stands on -- an alternate a
+        palette copy switches to. Those are real files a runtime may draw, but
+        counting them as placements would make `placements` stop meaning "how
+        many placed NPCs draw this", which is the number the census reports.
+        """
         identity = sheet.identity()
         name = self._by_identity.get(identity)
         if name is None:
@@ -156,7 +163,8 @@ class SheetRegistry:
             self._by_identity[identity] = name
             self._sheets[name] = sheet
             self._users[name] = 0
-        self._users[name] += 1
+        if placed:
+            self._users[name] += 1
         return name
 
     def emit(self, root: Path) -> tuple[list[dict[str, Any]], int]:

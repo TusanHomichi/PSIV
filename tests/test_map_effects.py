@@ -15,6 +15,7 @@ from psiv_tools.map_effects import (
     FLAG_TEST_BLOCK,
     GET_MAP_LAYOUT_OFFSET,
     MAP_DATA_MANAGER_ROUTINES,
+    MAP_LAYOUT_BYTES,
     Gate,
     MapEffectsError,
     Write,
@@ -22,6 +23,7 @@ from psiv_tools.map_effects import (
     dispatch_table,
     extract_map_effects,
     flag_clears,
+    map_layout_bases,
     flag_tests,
     resolve_layout_write,
     routine_address,
@@ -44,8 +46,12 @@ ALYS_ENTRY = 0x01
 EVENT_FLAG_ALYS_FOUND = 0x08
 
 
+#: The two layout buffers, as `GetMapLayoutOffset` names them.
+BASES = {"fg": 0xA000, "bg": 0xB000}
+
+
 class TestResolveLayoutWrite(unittest.TestCase):
-    """A displacement is in layout bytes, so it needs the map's row size."""
+    """A displacement is applied to an address, so it needs the buffer bases."""
 
     def write(self, plane="bg", x=4, y=3, disp=0, chunk=0x59):
         return Write("layout_write", 0x1234, {
@@ -53,33 +59,36 @@ class TestResolveLayoutWrite(unittest.TestCase):
             "displacement": disp, "chunk_id": chunk,
         })
 
+    def resolve(self, write, widths, heights=None):
+        return resolve_layout_write(write, widths, BASES, heights)
+
     def test_a_displacement_wraps_onto_the_next_row(self):
         widths = {"fg": 32, "bg": 32}
         self.assertEqual(
-            resolve_layout_write(self.write(x=31, disp=1), widths)["chunk_x"], 0)
+            self.resolve(self.write(x=31, disp=1), widths)["chunk_x"], 0)
         self.assertEqual(
-            resolve_layout_write(self.write(x=31, disp=1), widths)["chunk_y"], 4)
+            self.resolve(self.write(x=31, disp=1), widths)["chunk_y"], 4)
         # One row down is exactly the row size.
-        moved = resolve_layout_write(self.write(disp=32), widths)
+        moved = self.resolve(self.write(disp=32), widths)
         self.assertEqual((moved["chunk_x"], moved["chunk_y"]), (4, 4))
 
     def test_the_same_write_resolves_differently_on_two_maps(self):
         # This is why resolution happens at emission and not at decode: one
         # routine serves maps of different widths.
-        narrow = resolve_layout_write(self.write(disp=1), {"fg": 32, "bg": 32})
-        wide = resolve_layout_write(self.write(x=31, disp=1), {"fg": 48, "bg": 48})
+        narrow = self.resolve(self.write(disp=1), {"fg": 32, "bg": 32})
+        wide = self.resolve(self.write(x=31, disp=1), {"fg": 48, "bg": 48})
         self.assertEqual((narrow["chunk_x"], narrow["chunk_y"]), (5, 3))
         self.assertEqual((wide["chunk_x"], wide["chunk_y"]), (32, 3))
 
     def test_the_plane_picks_which_row_size_applies(self):
         widths = {"fg": 32, "bg": 48}
         self.assertEqual(
-            resolve_layout_write(self.write(plane="fg", x=31, disp=1), widths)["chunk_y"], 4)
+            self.resolve(self.write(plane="fg", x=31, disp=1), widths)["chunk_y"], 4)
         self.assertEqual(
-            resolve_layout_write(self.write(plane="bg", x=31, disp=1), widths)["chunk_y"], 3)
+            self.resolve(self.write(plane="bg", x=31, disp=1), widths)["chunk_y"], 3)
 
     def test_cells_are_twice_the_chunk(self):
-        resolved = resolve_layout_write(self.write(x=5, y=6), {"fg": 32, "bg": 32})
+        resolved = self.resolve(self.write(x=5, y=6), {"fg": 32, "bg": 32})
         self.assertEqual((resolved["cell_x"], resolved["cell_y"]), (10, 12))
 
 
@@ -244,14 +253,18 @@ class TestDecodedEntries(unittest.TestCase):
         self.assertEqual(census["unreferenced_entries"], 33)
         self.assertEqual(census["maps_with_entries"], 139)
         self.assertEqual(census["map_entry_pairs"], 188)
-        self.assertEqual(census["decoded_entries"], 113)
-        self.assertEqual(len(census["undecoded_entries"]), 14)
+        self.assertEqual(census["decoded_entries"], 116)
+        self.assertEqual(len(census["undecoded_entries"]), 11)
         self.assertEqual(census["evaluated"], "map load only")
         self.assertEqual(sorted(census["kinds"]), [
-            "layout_replace", "layout_write", "object_despawn",
+            "flag_clear", "layout_replace", "layout_write", "object_despawn",
             "object_dialogue", "object_rewrite",
         ])
-        self.assertEqual(census["kinds"]["object_despawn"], 339)
+        # 335, not the 339 an earlier pass counted: four of those came from a
+        # path whose gates required one flag both set and clear, which no map
+        # load can satisfy. Pruning it removed the path and its writes.
+        self.assertEqual(census["kinds"]["object_despawn"], 335)
+        self.assertEqual(census["kinds"]["layout_write"], 191)
         self.assertEqual(census["kinds"]["layout_replace"], 4)
         self.assertEqual(census["maps_per_kind"]["layout_replace"], 2)
 
@@ -268,7 +281,7 @@ class TestDecodedEntries(unittest.TestCase):
                 self.assertTrue(entry["maps"])
         # Every referenced entry is either decoded or listed.
         listed = {e["entry"] for e in self.census["undecoded_entries"]}
-        self.assertEqual(len(listed), 14)
+        self.assertEqual(len(listed), 11)
 
 
 @unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
@@ -395,3 +408,192 @@ class DisassemblyOracleTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
+class TestCrossPlaneWrites(unittest.TestCase):
+    """A displacement can leave the plane it was computed for.
+
+    `GetMapLayoutOffset` returns a pointer into one of two adjacent buffers, so
+    `-$1000(a1)` off a BG pointer is the same byte offset in the FG buffer.
+    Three retail routines use exactly that to stamp a tile on both planes.
+    """
+
+    #: Krup's inn, whose vase-and-flowers routine writes to both planes.
+    MAP_KRUP_INN_F1 = 0x03F
+    KRUP_ENTRY = 32
+    #: The Inner Sanctuary, the other cross-plane routine.
+    MAP_INNER_SANCTUARY_B1 = 0x16F
+    SANCTUARY_ENTRY = 85
+
+    @classmethod
+    def setUpClass(cls):
+        cls.data = read_rom(ROM)
+        cls.effects = extract_map_effects(cls.data, extract_maps(cls.data)["maps"])
+
+    def writes(self, map_id, entry_index):
+        return [
+            write
+            for entry in self.effects["per_map"][map_id] if entry["entry"] == entry_index
+            for path in entry["paths"] for write in path["writes"]
+            if write["kind"] == "layout_write"
+        ]
+
+    def test_the_buffers_come_from_the_routine_that_names_them(self):
+        bases = map_layout_bases(self.data)
+        self.assertEqual(bases, {"fg": 0xA000, "bg": 0xB000})
+        self.assertEqual(abs(bases["bg"] - bases["fg"]), MAP_LAYOUT_BYTES)
+
+    def test_no_write_anywhere_resolves_to_a_negative_cell(self):
+        # The defect this replaced: ten writes carried cell_y in the -200s,
+        # which is not a coordinate and which psiv-data cannot load.
+        for map_id, entries in self.effects["per_map"].items():
+            for entry in entries:
+                for path in entry.get("paths", ()):
+                    for write in path["writes"]:
+                        if write["kind"] != "layout_write" or write["out_of_bounds"]:
+                            continue
+                        with self.subTest(map=map_id, entry=entry["entry_hex"]):
+                            self.assertGreaterEqual(write["cell_x"], 0)
+                            self.assertGreaterEqual(write["cell_y"], 0)
+                            self.assertGreaterEqual(write["chunk_x"], 0)
+                            self.assertGreaterEqual(write["chunk_y"], 0)
+
+    def test_krups_flowers_land_on_the_other_plane(self):
+        # The disassembly's own comments: the vase is "on Plane B" and the two
+        # flower tiles "on Plane A" -- the same cell and the row above it.
+        writes = self.writes(self.MAP_KRUP_INN_F1, self.KRUP_ENTRY)
+        self.assertEqual(len(writes), 3)
+        vase, flower_a, flower_b = writes
+        self.assertEqual((vase["plane"], vase["cell_x"], vase["cell_y"]), ("bg", 34, 32))
+        self.assertFalse(vase["crosses_plane"])
+        self.assertEqual(
+            (flower_a["plane"], flower_a["cell_x"], flower_a["cell_y"]), ("fg", 34, 32)
+        )
+        self.assertEqual(
+            (flower_b["plane"], flower_b["cell_x"], flower_b["cell_y"]), ("fg", 34, 30)
+        )
+        for flower in (flower_a, flower_b):
+            self.assertTrue(flower["crosses_plane"])
+            self.assertEqual(flower["requested_plane"], "bg")
+        # -$1000 is the buffer gap; -$1020 is that plus one row of this map.
+        self.assertEqual(flower_a["displacement"], -MAP_LAYOUT_BYTES)
+        self.assertEqual(flower_b["displacement"], -(MAP_LAYOUT_BYTES + 32))
+
+    def test_the_sanctuary_crosses_once(self):
+        writes = self.writes(self.MAP_INNER_SANCTUARY_B1, self.SANCTUARY_ENTRY)
+        crossing = [w for w in writes if w["crosses_plane"]]
+        self.assertEqual(len(crossing), 1)
+        self.assertEqual(
+            (crossing[0]["plane"], crossing[0]["cell_x"], crossing[0]["cell_y"]),
+            ("fg", 30, 22),
+        )
+
+    def test_a_write_outside_both_buffers_is_refused_not_numbered(self):
+        # No retail write does this; the branch exists so that one ever
+        # appearing is skippable rather than plausible-looking.
+        write = Write("layout_write", 0x1234, {
+            "plane": "fg", "chunk_x": 0, "chunk_y": 0,
+            "displacement": -0x4000, "chunk_id": 1,
+        })
+        resolved = resolve_layout_write(write, {"fg": 32, "bg": 32}, BASES)
+        self.assertTrue(resolved["out_of_bounds"])
+        self.assertNotIn("cell_x", resolved)
+        self.assertNotIn("cell_y", resolved)
+        self.assertEqual(resolved["displacement"], -0x4000)
+
+
+@unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
+class TestImpossiblePaths(unittest.TestCase):
+    """A backward branch re-tests a flag; one arm then contradicts the path."""
+
+    MAP_KRUP_INN_F1 = 0x03F
+    KRUP_ENTRY = 32
+
+    @classmethod
+    def setUpClass(cls):
+        cls.data = read_rom(ROM)
+        cls.effects = extract_map_effects(cls.data, extract_maps(cls.data)["maps"])
+
+    def test_no_path_requires_a_flag_both_ways(self):
+        for map_id, entries in self.effects["per_map"].items():
+            for entry in entries:
+                for index, path in enumerate(entry.get("paths", ())):
+                    seen: dict[tuple[str, int], str] = {}
+                    for gate in path["gates"]:
+                        key = (gate["bank"], gate["flag"])
+                        with self.subTest(map=map_id, entry=entry["entry_hex"],
+                                          path=index, flag=gate["flag_hex"]):
+                            self.assertEqual(
+                                seen.setdefault(key, gate["required"]),
+                                gate["required"],
+                                "a path requires one flag both set and clear",
+                            )
+
+    def test_krups_three_paths_are_the_three_real_ones(self):
+        entry = next(
+            e for e in self.effects["per_map"][self.MAP_KRUP_INN_F1]
+            if e["entry"] == self.KRUP_ENTRY
+        )
+        gates = [
+            [(g["flag_hex"], g["required"]) for g in path["gates"]]
+            for path in entry["paths"]
+        ]
+        self.assertEqual(gates, [
+            [("0x67", "clear"), ("0x42", "clear")],
+            [("0x67", "set"), ("0x42", "clear")],
+            [("0x67", "set"), ("0x42", "set")],
+        ])
+        # Only the both-set path plants the flowers.
+        self.assertEqual([len(p["writes"]) for p in entry["paths"]], [4, 4, 7])
+
+
+@unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
+class TestFlagClears(unittest.TestCase):
+    """Map-load flag clears, and the table core-lane transcribed by hand."""
+
+    #: `rust/psiv-core/src/map_load.rs`, `MAP_LOAD_FLAG_CLEARS`.
+    CORE_TABLE = {
+        0x14: [0x09, 0x0A, 0x0D, 0x0E, 0x0F, 0x10],
+        0x17: [0x0B, 0x0C, 0x11, 0x12],
+        0x18: [0x13],
+        0x3D: [0x15],
+        0x3E: [0x17],
+        0x47: [0x19],
+        0x84: [0x08],
+    }
+
+    @classmethod
+    def setUpClass(cls):
+        cls.data = read_rom(ROM)
+        cls.census = extract_map_effects(
+            cls.data, extract_maps(cls.data)["maps"]
+        )["census"]
+
+    def test_the_decoded_clears_match_the_transcribed_table(self):
+        decoded = self.census["flag_clears"]["chest_flags"]["by_entry"]
+        expected = {f"0x{k:02X}": v for k, v in self.CORE_TABLE.items()}
+        self.assertEqual(decoded, expected)
+        self.assertEqual(self.census["flag_clears"]["chest_flags"]["entries"], 7)
+        self.assertEqual(
+            len(self.census["flag_clears"]["chest_flags"]["flag_ids"]), 15
+        )
+
+    def test_the_bank_address_is_carried_beside_the_name(self):
+        # The `$F140` bank's name is under review; an address does not move.
+        self.assertEqual(
+            self.census["flag_clears"]["chest_flags"]["bank_address"], "0xFFFFF140"
+        )
+
+    def test_one_entry_clears_an_event_flag_not_a_temp_one(self):
+        # Entry $1A goes through the *first* clear door, so it is an event-flag
+        # clear and correctly absent from a table scoped to $F140.
+        event = self.census["flag_clears"]["event_flags"]
+        self.assertEqual(event["by_entry"], {"0x1A": [0x14]})
+        self.assertEqual(event["bank_address"], "0xFFFFF100")
+
+    def test_a_position_gated_path_is_not_called_unconditional(self):
+        # Two Garuberk routines clear a flag and then put it back if the player
+        # is past a coordinate. The put-back path is conditional on something
+        # this slice does not model, and must not read as "always".
+        self.assertGreater(self.census["paths_position_gated"], 0)

@@ -47,17 +47,28 @@ import json
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
+from .gfx import palette_rgb
 from .layouts import (
     BLOCKING_COLLISION_TYPES,
     COLLISION_CELL_PIXELS,
     COLLISION_TYPE_NAMES,
     chunk_palette,
+    decode_map_palette,
     render_layout,
 )
 from .map_effects import extract_map_effects
+from .map_patches import (
+    ATLAS_TILE_PIXELS,
+    atlas_json,
+    resolve_palette_effects,
+    index_writes,
+    patch_atlas,
+    resolve_map_effects,
+)
 from .maps import extract_maps
 from .battle_art_pack import emit_battle_art
 from .battle_pack import emit_battle
+from .shop_pack import emit_shops
 from .dialogue_pack import emit_dialogue
 from .newgame import extract_new_game
 from .npc_commands import extract_npc_commands
@@ -143,6 +154,8 @@ MAPS_DIRECTORY = "maps"
 GAME_START_NAME = "game_start.json"
 #: A layout a MapDataManager routine swaps in, rendered like any other.
 VARIANT_SUFFIX = "_variant"
+#: A map's patched-chunk atlas, beside its base render.
+PATCH_SUFFIX = "_patch"
 NPC_COMMANDS_NAME = "npc_commands.json"
 
 #: `Map_Start_Facing_Dir` in the disassembly's constants.
@@ -412,6 +425,7 @@ def map_json(
     png_over_path: str | None = None,
     effects: Sequence[dict[str, Any]] = (),
     variants: Sequence[dict[str, Any]] = (),
+    patch_tiles: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """The runtime record for one map, and its warp anomalies.
 
@@ -491,6 +505,11 @@ def map_json(
         # Alternate layouts a `layout_replace` swaps in, already decoded and
         # rendered so no consumer needs a decompressor.
         "layout_variants": list(variants),
+        # The chunks a `layout_write` stamps in, drawn: each write names a tile
+        # in this atlas, and the resolved collision travels on the write itself
+        # as `cells`. `None` for a map whose effects write no layout cell --
+        # which is every map but thirteen.
+        "patch_tiles": patch_tiles,
         "warps": warps,
         "npcs": _npcs(record, sprites),
         "treasure_chests": _treasure_chests(record),
@@ -570,6 +589,8 @@ def build_pack(
         replacements_by_map.setdefault(replacement["map"], []).append(replacement)
 
     inventory: list[dict[str, Any]] = []
+    # Kept for the shop join: a counter names a shopkeeper by position.
+    map_payloads: dict[int, dict[str, Any]] = {}
     overworlds: list[dict[str, Any]] = []
     variant_maps: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
@@ -577,6 +598,9 @@ def build_pack(
     odd_layouts: list[dict[str, Any]] = []
     unloaded: list[dict[str, Any]] = []
     artless_objects: list[dict[str, Any]] = []
+    patch_maps: list[dict[str, Any]] = []
+    patch_totals: dict[str, int] = {}
+    palette_totals: dict[str, int] = {}
     object_placements: dict[int, int] = {}
     mute_dialogue: list[dict[str, Any]] = []
     without_overlay: list[dict[str, Any]] = []
@@ -608,7 +632,8 @@ def build_pack(
         sprites, artless = resolve_map_sprites(
             rom_bytes, record, decoded, routines, extents, npc_sheets, sprite_census
         )
-        palette = chunk_palette(rom_bytes, spec.palette)
+        palette_48 = palette_rgb(decode_map_palette(rom_bytes, spec.palette))
+        palette = palette_48[:32]
         image = render_layout(
             decoded.chunks, decoded.bg, decoded.patterns, palette, overlay=decoded.fg
         )
@@ -621,12 +646,52 @@ def build_pack(
             rom_bytes, record, decoded, replacements_by_map.get(record["id"], []),
             directory, stem,
         )
+        # `layout_write` entries arrive as chunk ids; a runtime needs the cells
+        # they change and a picture of the chunk. Both are resolved here, where
+        # the map's own chunk table and tileset are already decoded.
+        map_effects, patched_chunks, patch_counts = resolve_map_effects(
+            decoded, effects["per_map"].get(record["id"], [])
+        )
+        # A path that copies a CRAM line repaints the NPCs drawn on it, and
+        # nothing else -- map tiles cannot select the line these three copies
+        # write. The alternates register as ordinary sheets.
+        for key, value in resolve_palette_effects(
+            rom_bytes, record, decoded, map_effects, sprites, routines, extents,
+            npc_sheets, sprite_census, palette_48,
+            int(effects["census"]["jump_table"], 16),
+        ).items():
+            palette_totals[key] = palette_totals.get(key, 0) + value
+        patch_tiles = None
+        if patched_chunks:
+            patch_base, patch_over, patch_entries = patch_atlas(
+                decoded, patched_chunks, palette
+            )
+            index_writes(map_effects, patch_entries)
+            patch_name = f"{MAPS_DIRECTORY}/{stem}{PATCH_SUFFIX}.png"
+            patch_over_name = (
+                f"{MAPS_DIRECTORY}/{stem}{PATCH_SUFFIX}_over.png"
+                if patch_over is not None else None
+            )
+            (directory / patch_name).write_bytes(patch_base)
+            if patch_over is not None:
+                (directory / patch_over_name).write_bytes(patch_over)
+            patch_tiles = atlas_json(
+                patch_entries, patch_name, patch_base, patch_over_name, patch_over
+            )
+            patch_maps.append({
+                **_target(record), "writes": patch_counts["layout_writes"],
+                "chunks": len(patch_entries), "cells": patch_counts["cells"],
+                "has_overlay": patch_over is not None,
+            })
+            for key, value in patch_counts.items():
+                patch_totals[key] = patch_totals.get(key, 0) + value
         payload, anomalies = map_json(
             record, decoded, png_name, sprites, overworld, png_over_name,
-            effects["per_map"].get(record["id"], []), variants,
+            map_effects, variants, patch_tiles,
         )
         if variants:
             variant_maps.append({**_target(record), "variants": len(variants)})
+        map_payloads[record["id"]] = payload
         json_sha = _write_json(maps_directory / f"{stem}.json", payload)
         (maps_directory / f"{stem}.png").write_bytes(image)
         if overlay_image is not None:
@@ -744,6 +809,13 @@ def build_pack(
     # half of the game from field mode, and `psiv_tools.battle_pack` is the
     # only thing that knows its shape.
     battle = emit_battle(rom_bytes, directory, PACK_FORMAT_VERSION)
+    # Where the party spends its money. One file rather than a per-map
+    # section: a counter is looked up by (map, position) once, on talking
+    # to a shopkeeper, and the price and inn rules are global.
+    shops = emit_shops(
+        rom_bytes, map_payloads, directory, PACK_FORMAT_VERSION,
+        complete=map_ids is None,
+    )
     # The pictures that go with those records: 153 enemy bodies and 43
     # character poses, under battle/art/. A subtree of the battle fragment
     # rather than a sibling of it, because it is the same half of the game and
@@ -908,12 +980,44 @@ def build_pack(
         },
         # Enemies, formations, levels and abilities, under battle/.
         "battle": battle,
+        # Counters, inventories and inn rates, in shops.json.
+        "shops": shops,
         "dialogue": dialogue,
         # The flag-gated patches a map's MapDataManager list applies when the
         # map is built. Per-map lists live on the map records; this is the
         # census over all of them.
         "map_effects": {
             **effects["census"],
+            # A `layout_write` resolved: the collision cells it changes, and a
+            # drawn tile of the chunk it stamps in. `collision_authoritative`
+            # counts the writes that land on the plane GetChunkAndCollision
+            # actually reads for that map; the rest change the picture only.
+            "layout_write_resolution": {
+                **patch_totals,
+                "maps": patch_maps,
+                "map_count": len(patch_maps),
+                "atlas_tile_pixels": ATLAS_TILE_PIXELS,
+                "cells_per_chunk": 4,
+                "note": (
+                    "Each layout_write carries `cells` (the 2x2 collision cells "
+                    "the written chunk imposes) and `patch_tile` (an index into "
+                    "that map's patch_tiles atlas)."
+                ),
+            },
+            # A `MapDataManager` path that copies a CRAM line. All three retail
+            # copies write line 3, which map chunks cannot select -- so they
+            # repaint NPC sprites and leave the baked render untouched.
+            "palette_copies": {
+                **palette_totals,
+                "cram_line": 3,
+                "map_tiles_affected": 0,
+                "note": (
+                    "Chunk words carry one palette bit, so map tiles reach CRAM "
+                    "lines 0 and 1. A copy to line 3 repaints the field objects "
+                    "whose routine stores $60; the alternates are ordinary "
+                    "sheets named per NPC on the path's deferred_effects."
+                ),
+            },
             "maps_with_layout_variants": variant_maps,
             "slice": 1,
             "kinds_emitted": [

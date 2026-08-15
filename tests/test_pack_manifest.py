@@ -215,29 +215,47 @@ class TestManifest(PackFixtureCase):
             first_files = sorted(p.relative_to(self.root) for p in self.root.rglob("*") if p.is_file())
             second_files = sorted(p.relative_to(second) for p in second.rglob("*") if p.is_file())
             self.assertEqual(first_files, second_files)
-            # manifest, game_start.json, npc_commands.json, the six battle
-            # files, a JSON and a PNG per map, an overlay PNG per map that has priority tiles, the two
-            # sprite indexes, the eleven party sheets, and one PNG per
-            # deduplicated NPC sheet. The dialogue half (emitted by
-            # build_pack since it became part of the pack proper) is counted
-            # by its own subtree; it must exist and its shape is pinned by
-            # test_dialogue_pack. Battle art is counted from its own manifest
-            # subtree the same way: two indexes plus one PNG per enemy body and
-            # per character pose.
-            dialogue_files = [f for f in first_files if f.parts[0] == "dialogue"]
-            self.assertTrue(dialogue_files, "build_pack emits the dialogue half")
+            # Every file the pack writes belongs to a category, and each
+            # category's size comes from the manifest rather than a literal.
+            # The top-level JSONs are counted rather than listed on purpose:
+            # four lanes add pack files, and a hardcoded total is a tripwire
+            # that fires on their work instead of on a defect. What this still
+            # catches is a category going missing or growing a file nothing
+            # declares.
+            def under(prefix):
+                return [f for f in first_files if f.parts[0] == prefix]
+
+            self.assertTrue(under("dialogue"), "build_pack emits the dialogue half")
             art = self.manifest["battle"]["art"]["files"]
-            battle_art_files = len(art) + sum(
-                entry["png_count"] for entry in art.values()
+            self.assertEqual(
+                len(under("battle")),
+                # The six data files, plus each art index and its PNGs.
+                6 + len(art) + sum(entry["png_count"] for entry in art.values()),
             )
             self.assertEqual(
-                len(first_files) - len(dialogue_files),
-                3 + 6 + 2 * len(FIXTURE_MAPS)
-                + self.manifest["overlays"]["maps_with_overlay"]
-                + 2 + len(PARTY_SYMBOLS)
-                + self.manifest["sprites"]["npc_sheet_count"]
-                + battle_art_files,
+                len(under("sprites")),
+                # Two indexes, the eleven party sheets, one PNG per NPC sheet.
+                2 + len(PARTY_SYMBOLS) + self.manifest["sprites"]["npc_sheet_count"],
             )
+            patches = sum(
+                1 + int(entry["has_overlay"])
+                for entry in self.manifest["map_effects"]["layout_write_resolution"]["maps"]
+            )
+            self.assertEqual(
+                len(under("maps")),
+                # A JSON and a PNG each, an overlay for a map with priority
+                # tiles, and a patch atlas for a map whose effects write one.
+                2 * len(FIXTURE_MAPS)
+                + self.manifest["overlays"]["maps_with_overlay"]
+                + patches,
+            )
+            # Whatever is left is top-level JSON, manifest included.
+            categorised = sum(
+                len(under(prefix)) for prefix in ("dialogue", "battle", "sprites", "maps")
+            )
+            top_level = [f for f in first_files if len(f.parts) == 1]
+            self.assertEqual(len(first_files), categorised + len(top_level))
+            self.assertIn(Path(MANIFEST_NAME), top_level)
             for name in first_files:
                 with self.subTest(file=str(name)):
                     self.assertEqual(

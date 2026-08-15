@@ -41,10 +41,9 @@ tables raises.
 
 from __future__ import annotations
 
-import re
-import struct
 from typing import Any
 
+from . import m68k
 from .core import ITEM_TYPES, PROPERTY_NAMES, TABLES
 
 
@@ -91,7 +90,7 @@ SIGNATURES: dict[str, tuple[str, int]] = {
 }
 
 
-class BattleRecordError(ValueError):
+class BattleRecordError(m68k.DecodeError):
     pass
 
 
@@ -101,78 +100,29 @@ class BattleRecordError(ValueError):
 def _sites(rom: bytes, label: str) -> list[int]:
     """Every offset of `label`'s signature, checked against its retail count."""
     signature, expected = SIGNATURES[label]
-    pattern = bytes.fromhex(signature)
-    hits = [match.start() for match in re.finditer(re.escape(pattern), rom)]
-    if len(hits) != expected:
-        raise BattleRecordError(
-            f"{label}: signature {signature} occurs {len(hits)} times, not the "
-            f"{expected} retail has"
-        )
-    return hits
+    try:
+        return m68k.find_exactly(rom, signature, expected, label)
+    except m68k.DecodeError as exc:
+        raise BattleRecordError(str(exc)) from None
 
 
 def _site(rom: bytes, label: str) -> int:
     return _sites(rom, label)[0]
 
 
-def _w(rom: bytes, at: int) -> int:
-    return struct.unpack_from(">H", rom, at)[0]
-
-
-def _sw(rom: bytes, at: int) -> int:
-    return struct.unpack_from(">h", rom, at)[0]
-
-
-def _l(rom: bytes, at: int) -> int:
-    return struct.unpack_from(">I", rom, at)[0]
-
-
-def _expect(rom: bytes, at: int, opcode: int, what: str) -> None:
-    if _w(rom, at) != opcode:
-        raise BattleRecordError(
-            f"0x{at:06X}: expected {what} (0x{opcode:04X}), found 0x{_w(rom, at):04X}"
-        )
-
-
-def _bra_target(rom: bytes, at: int) -> int:
-    """The target of a `bra.w`/`jsr`-table entry at `at`."""
-    _expect(rom, at, 0x6000, "bra.w")
-    return at + 2 + _sw(rom, at + 2)
+_w = m68k.w
+_sw = m68k.sw
+_l = m68k.l
+_expect = m68k.expect
+_bra_target = m68k.bra_target
 
 
 def _pc_relative_table(rom: bytes, at: int, opcode: int, what: str) -> int:
-    """The table a `jmp`/`jsr (d8,PC,d0.w)` at `at` dispatches through."""
-    _expect(rom, at, opcode, what)
-    extension = _w(rom, at + 2)
-    if extension & 0xFF00:
-        raise BattleRecordError(
-            f"0x{at:06X}: {what} extension 0x{extension:04X} is not the plain "
-            "word-indexed form the dispatchers use"
-        )
-    return at + 2 + (extension & 0xFF)
+    return m68k.pc_relative_table(rom, at, opcode, what)
 
 
 def _self_bounded_entries(rom: bytes, table: int, what: str) -> int:
-    """How many `bra.w` entries a table has, from its own lowest target.
-
-    Every entry jumps forward past the end of the table, so the table ends
-    where the nearest target begins. The same trick bounds `AbilityEffectsOffs`
-    in `psiv_tools.battle_pack`; here it means neither jump table's length is
-    carried as a constant.
-    """
-    lowest = None
-    count = 0
-    while lowest is None or table + count * 4 < lowest:
-        target = _bra_target(rom, table + count * 4)
-        if target <= table + count * 4:
-            raise BattleRecordError(
-                f"{what}: entry {count} jumps backwards to 0x{target:06X}"
-            )
-        lowest = target if lowest is None else min(lowest, target)
-        count += 1
-        if count > 64:
-            raise BattleRecordError(f"{what}: no entry bounds the table")
-    return count
+    return m68k.self_bounded_bra_table(rom, table, what)
 
 
 # ---------------------------------------------------------------------------

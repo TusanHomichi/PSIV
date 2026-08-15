@@ -95,6 +95,11 @@ def main() -> int:
                 f"{battle['equipment']['count']} inventory records "
                 f"({battle['equipment']['equippable']} equippable)"
             )
+            shops = manifest["shops"]
+            print(
+                f"Shops: {shops['counters']} counters, "
+                f"{shops['inventories']} inventories, {shops['inns']} inns"
+            )
             print(f"Skipped {len(manifest['skipped'])} entries; {manifest['warps']['count']} warps")
             doors = manifest["warps"]["doors_without_map_change_cell"]
             if doors:

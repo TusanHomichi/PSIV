@@ -97,6 +97,11 @@ FLAG_BANKS = {
     0xF140: "chest_flags",
     0xF160: "town_flags",
 }
+#: The inverse, so a write can carry the bank's address beside its name. The
+#: `$F140` name is under review -- core-lane's map-load scout finds that bank
+#: carries temp event flags, not chest flags -- and an address does not move
+#: when a name does.
+FLAG_BANK_ADDRESSES = {name: address for address, name in FLAG_BANKS.items()}
 
 #: `tst.w d3 / ... / adda.w d1,a1`: a1 = plane + (row_size + 1) * d2 + d1, so
 #: d1 is a chunk column, d2 a chunk row and d3 picks the plane. The row size is
@@ -110,15 +115,32 @@ FIELD_OBJ_LAST = 0xCFC0
 #: `LoadMapObjects` writes the dialogue id to `$14(a4)`.
 OBJECT_DIALOGUE_OFFSET = 0x14
 
+#: The two layout buffers, from the `lea (Map_Layout_*).w, a1` pair inside
+#: `GetMapLayoutOffset`. They are adjacent and exactly `MAP_LAYOUT_BYTES`
+#: apart, which is the whole reason a routine can reach the *other* plane with
+#: a negative displacement instead of asking for it: `-$1000(a1)` off a BG
+#: pointer is the same byte offset in the FG buffer. `map_layout_bases`
+#: re-derives both from the cartridge and refuses a disagreement.
 MAP_LAYOUT = {0xA000: "fg", 0xB000: "bg"}
+MAP_LAYOUT_BYTES = 0x1000
 
 #: Kosinski, for `layout_replace`.
 KOS_DECOMP = None  # resolved from the cartridge; see `_kos_decomp`
 
 SLICE_ONE_KINDS = (
     "object_despawn", "object_rewrite", "object_dialogue",
-    "layout_write", "layout_replace",
+    "layout_write", "layout_replace", "flag_clear",
 )
+
+#: Conditional branches that follow an arithmetic compare rather than a flag
+#: test. The routines that use them compare the player's position, which this
+#: slice does not model, so both arms are walked and the compare is recorded as
+#: `deferred`. `beq`/`bne` are excluded: those are the flag tests.
+COMPARE_BRANCHES = {
+    0x6200: "bhi", 0x6300: "bls", 0x6400: "bcc", 0x6500: "bcs",
+    0x6A00: "bpl", 0x6B00: "bmi", 0x6C00: "bge", 0x6D00: "blt",
+    0x6E00: "bgt", 0x6F00: "ble",
+}
 
 
 class MapEffectsError(ValueError):
@@ -245,6 +267,11 @@ class Path:
     gates: tuple[Gate, ...] = ()
     writes: list[Write] = field(default_factory=list)
     aborts: bool = False
+    #: Conditions this slice recognises but does not model -- currently the
+    #: player-position compares two Garuberk routines make. A path carrying one
+    #: is NOT unconditional, and saying so would tell a consumer to apply it on
+    #: every load.
+    conditions: list[str] = field(default_factory=list)
     #: Effects this slice recognises but does not decode, so that a routine
     #: mixing Slice 1 with later work says so instead of looking complete.
     deferred: list[str] = field(default_factory=list)
@@ -330,13 +357,14 @@ class _Decoder:
         )
 
     def run(self) -> list[Path]:
-        self._walk(self.start, {}, (), [], [])
+        self._walk(self.start, {}, (), [], [], [])
         return self.paths
 
-    def _walk(self, pc, regs, gates, writes, deferred, steps=0):
+    def _walk(self, pc, regs, gates, writes, deferred, conditions, steps=0):
         if len(self.paths) >= self.MAX_PATHS:
             raise MapEffectsError(f"more than {self.MAX_PATHS} paths")
         regs, writes, deferred = dict(regs), list(writes), list(deferred)
+        conditions = list(conditions)
         while True:
             steps += 1
             if steps > self.STEPS:
@@ -344,7 +372,10 @@ class _Decoder:
             op = self.w(pc)
 
             if op == 0x4E75:  # rts
-                self.paths.append(Path(gates, writes, bool(regs.get("d7")), deferred))
+                self.paths.append(Path(
+                    gates=gates, writes=writes, aborts=bool(regs.get("d7")),
+                    deferred=deferred, conditions=conditions,
+                ))
                 return
 
             # `dbf dN,disp`. With the counter known this runs the loop for real,
@@ -382,9 +413,15 @@ class _Decoder:
                 pc += size
                 continue
 
-            # move.w #imm,dN / moveq #imm,dN
+            # move.w #imm,dN / move.b #imm,dN / moveq #imm,dN
             if op & 0xF1FF == 0x303C:
                 regs[f"d{(op >> 9) & 7}"] = self.w(pc + 2)
+                pc += 4
+                continue
+            # The byte form, which the flag-clear routines use for ids that fit
+            # in one: `move.b #$0B, d0 / jsr (clear door)`.
+            if op & 0xF1FF == 0x103C:
+                regs[f"d{(op >> 9) & 7}"] = self.w(pc + 2) & 0xFF
                 pc += 4
                 continue
             if op & 0xF100 == 0x7000:
@@ -414,6 +451,40 @@ class _Decoder:
                 pc = self._call(pc, pc + 2 + (((op & 0xFF) ^ 0x80) - 0x80), 2,
                                 regs, writes, deferred); continue
 
+            # `cmpi.w #imm, d16(aN)`. Two routines compare the player object's
+            # position before deciding whether to put a flag back; the compare
+            # itself is not a flag test, so it is recorded as a condition this
+            # slice does not model and both arms are walked.
+            if op & 0xFFF8 == 0x0C68:
+                note = (
+                    f"position compare at 0x{pc:06X}: "
+                    f"#{self.w(pc + 2):#06x} against ${self.w(pc + 4):02X}"
+                    f"(a{op & 7})"
+                )
+                if note not in conditions:
+                    conditions.append(note)
+                regs["pending_unmodelled"] = note
+                pc += 6
+                continue
+
+            # A branch on that compare. There is no flag condition to record,
+            # so both arms are walked ungated and the note above is what says
+            # the path is conditional on something unmodelled.
+            if op & 0xFF00 in COMPARE_BRANCHES:
+                if regs.pop("pending_unmodelled", None) is None:
+                    self.fail(
+                        pc,
+                        f"a {COMPARE_BRANCHES[op & 0xFF00]} with no compare before it",
+                    )
+                if op & 0xFF:
+                    target, after = pc + 2 + (((op & 0xFF) ^ 0x80) - 0x80), pc + 2
+                else:
+                    target, after = pc + 2 + self.sw(pc + 2), pc + 4
+                for destination in (target, after):
+                    self._walk(destination, regs, gates, writes, deferred,
+                               conditions)
+                return
+
             # branches
             if op & 0xFF00 in (0x6700, 0x6600, 0x6000):
                 kind = {0x6700: "beq", 0x6600: "bne", 0x6000: "bra"}[op & 0xFF00]
@@ -430,10 +501,24 @@ class _Decoder:
                 bank, flag = gate
                 # The test leaves Z set when the flag is CLEAR, so `beq` is the
                 # clear arm and `bne` the set arm.
-                self._walk(target, regs, gates + (Gate(bank, flag, kind == "bne"),),
-                           writes, deferred)
-                self._walk(after, regs, gates + (Gate(bank, flag, kind != "bne"),),
-                           writes, deferred)
+                for destination, required in (
+                    (target, kind == "bne"), (after, kind != "bne")
+                ):
+                    arm = Gate(bank, flag, required)
+                    # A routine with a backward branch re-tests a flag it has
+                    # already branched on, and one of the two arms then
+                    # contradicts a gate this path already carries. That arm is
+                    # unreachable in a single map load -- a flag does not change
+                    # between two tests -- so it is dropped rather than walked,
+                    # which is what stops the same writes being emitted twice
+                    # under impossible conditions.
+                    if any(g.bank == arm.bank and g.flag == arm.flag
+                           and g.required != arm.required for g in gates):
+                        continue
+                    # Re-testing a flag the same way adds no condition.
+                    extended = gates if arm in gates else gates + (arm,)
+                    self._walk(destination, regs, extended, writes, deferred,
+                               conditions)
                 return
 
             # `clr.w (xxx).w` and `move.b #imm,(xxx).w`: a store to an absolute
@@ -499,8 +584,25 @@ class _Decoder:
                 "plane": MAP_LAYOUT[plane], "source": f"0x{source:06X}",
             }))
             return pc + size
-        note = (f"{self.clears[target]} write" if target in self.clears
-                else f"call to 0x{target:06X}")
+        if target in self.clears:
+            # A map-load flag clear. The bank comes from which door was called,
+            # exactly as the test and set blocks are bound. The address is
+            # emitted beside the name because the name of the `$F140` bank is
+            # under review -- a consumer keying on `bank_address` is safe from
+            # the rename.
+            flag = regs.get("d0")
+            if flag is None:
+                self.fail(pc, "a flag clear with no id in d0")
+            bank = self.clears[target]
+            writes.append(Write("flag_clear", pc, {
+                "bank": bank,
+                "bank_address": f"0xFFFF{FLAG_BANK_ADDRESSES[bank]:04X}",
+                "flag": flag,
+                "flag_hex": f"0x{flag:02X}",
+                "door": f"0x{target:06X}",
+            }))
+            return pc + size
+        note = f"call to 0x{target:06X}"
         if note not in deferred:
             deferred.append(note)
         return pc + size
@@ -589,13 +691,13 @@ class Entry:
     def kinds(self) -> tuple[str, ...]:
         return tuple(sorted({w.kind for p in self.paths for w in p.writes}))
 
-    def to_json(self, widths: dict[str, int] | None = None) -> dict[str, Any]:
+    def to_json(self, geometry: "MapGeometry | None" = None) -> dict[str, Any]:
         """This entry as the pack emits it.
 
-        `widths` is the map's layout width per plane. A `layout_write`'s
-        displacement is in layout bytes and only becomes a coordinate once the
-        row size is known, so an entry serialised without them leaves those
-        writes unresolved -- which is why the pack always passes them.
+        `geometry` is the map's layout shape and the two buffer addresses. A
+        `layout_write`'s displacement is applied to an address, so it only
+        becomes a coordinate once both the row sizes and the buffer bases are
+        known -- which is why the pack always passes them.
         """
         out: dict[str, Any] = {
             "entry": self.index,
@@ -612,12 +714,16 @@ class Entry:
         out["paths"] = [
             {
                 "gates": [g.to_json() for g in path.gates],
-                "unconditional": not path.gates,
+                # A path with an unmodelled condition is not unconditional; a
+                # consumer applying it on every load would be wrong.
+                "unconditional": not path.gates and not path.conditions,
+                "unmodelled_conditions": path.conditions,
                 "aborts_remaining_entries": path.aborts,
                 "deferred": path.deferred,
                 "writes": [
-                    resolve_layout_write(w, widths)
-                    if w.kind == "layout_write" and widths else w.to_json()
+                    resolve_layout_write(w, geometry.widths, geometry.bases,
+                                         geometry.heights)
+                    if w.kind == "layout_write" and geometry else w.to_json()
                     for w in path.writes
                 ],
             }
@@ -659,38 +765,125 @@ def _flag_symbol(bank: str, flag: int) -> str | None:
     return EVENT_FLAG_SYMBOLS.get(flag) if bank == "event_flags" else None
 
 
-def resolve_layout_write(write: Write, widths: dict[str, int]) -> dict[str, Any]:
-    """A layout write with its displacement folded into the coordinate.
+def map_layout_bases(rom: bytes) -> dict[str, int]:
+    """The two layout buffer addresses, read out of `GetMapLayoutOffset`.
 
-    `GetMapLayoutOffset` multiplies the row by the *map's* row size, so a
-    displacement off the returned pointer only becomes a coordinate once the
-    map is known. Two maps sharing a routine resolve it differently, which is
-    why this is done at emission rather than at decode.
+    The routine picks a plane with `d3` and loads its buffer with
+    `lea (Map_Layout_FG).w, a1` / `lea (Map_Layout_BG).w, a1`. Both `lea`s are
+    read back here rather than trusted, because the distance between them is
+    what makes a cross-plane displacement resolvable at all.
+    """
+    bases: dict[str, int] = {}
+    for probe in range(GET_MAP_LAYOUT_OFFSET, GET_MAP_LAYOUT_OFFSET + 0x20, 2):
+        if int.from_bytes(rom[probe:probe + 2], "big") != 0x43F8:  # lea (xxx).w, a1
+            continue
+        address = int.from_bytes(rom[probe + 2:probe + 4], "big")
+        if address not in MAP_LAYOUT:
+            raise MapEffectsError(
+                f"0x{probe:06X}: GetMapLayoutOffset loads an unknown layout "
+                f"buffer 0xFFFF{address:04X}"
+            )
+        bases[MAP_LAYOUT[address]] = address
+    if sorted(bases) != ["bg", "fg"]:
+        raise MapEffectsError(
+            f"GetMapLayoutOffset names {sorted(bases)}, not both layout buffers"
+        )
+    if abs(bases["bg"] - bases["fg"]) != MAP_LAYOUT_BYTES:
+        raise MapEffectsError(
+            f"the layout buffers are 0x{abs(bases['bg'] - bases['fg']):X} apart, "
+            f"not the 0x{MAP_LAYOUT_BYTES:X} a cross-plane displacement assumes"
+        )
+    return bases
+
+
+def resolve_layout_write(write: Write, widths: dict[str, int],
+                         bases: dict[str, int],
+                         heights: dict[str, int] | None = None) -> dict[str, Any]:
+    """A layout write with its displacement resolved to a real cell.
+
+    `GetMapLayoutOffset` returns a pointer *into a buffer*, computed with the
+    row size of the plane it was asked for. The displacement is then applied to
+    that address, not to a coordinate -- so it can leave the plane entirely.
+    Three retail routines rely on that: they ask for BG, write the BG cell, and
+    then reach `-$1000(a1)` and `-$1020(a1)` to stamp the matching FG cells,
+    because the FG buffer sits exactly one buffer below the BG one.
+
+    Folding the displacement into the asked-for plane's row arithmetic, which
+    is what this used to do, turned those three into coordinates hundreds of
+    rows negative. The address is resolved instead: which buffer it lands in
+    names the plane actually written, and the offset within that buffer is read
+    with *that* plane's row size.
     """
     detail = dict(write.detail)
-    # `GetMapLayoutOffset` takes the row size of the plane it was asked for.
-    width = widths[detail["plane"]]
-    offset = detail["chunk_y"] * width + detail["chunk_x"] + detail["displacement"]
-    chunk_y, chunk_x = divmod(offset, width)
-    return {
+    asked = detail["plane"]
+    address = (
+        bases[asked]
+        + detail["chunk_y"] * widths[asked] + detail["chunk_x"]
+        + detail["displacement"]
+    )
+    out: dict[str, Any] = {
         "kind": write.kind,
         "at": f"0x{write.at:06X}",
-        "plane": detail["plane"],
+        "chunk_id": detail["chunk_id"],
+        "requested_plane": asked,
+        "displacement": detail["displacement"],
+    }
+    target = next(
+        (name for name, base in bases.items()
+         if base <= address < base + MAP_LAYOUT_BYTES),
+        None,
+    )
+    if target is None:
+        # No retail write takes this branch. It exists so that one ever
+        # appearing is emitted as a refusal a consumer can skip, rather than as
+        # a coordinate that looks addressable and is not.
+        return {
+            **out,
+            "plane": asked,
+            "out_of_bounds": True,
+            "address": f"0xFFFF{address & 0xFFFF:04X}",
+        }
+    offset = address - bases[target]
+    chunk_y, chunk_x = divmod(offset, widths[target])
+    out.update({
+        "plane": target,
+        "crosses_plane": target != asked,
         "chunk_x": chunk_x,
         "chunk_y": chunk_y,
         "cell_x": chunk_x * 2,
         "cell_y": chunk_y * 2,
-        "chunk_id": detail["chunk_id"],
-    }
+        "out_of_bounds": False,
+    })
+    # Inside the buffer but past the map's own layout: addressable, but not a
+    # cell this map draws. Marked rather than dropped.
+    if heights is not None and chunk_y >= heights[target]:
+        out["past_map_layout"] = True
+    return out
 
 
-def _widths(record: dict[str, Any]) -> dict[str, int]:
-    """The map's layout width per plane, in chunks. The record stores size-1."""
+@dataclass(frozen=True)
+class MapGeometry:
+    """What a `layout_write` needs to become a cell on a particular map."""
+
+    widths: dict[str, int]
+    heights: dict[str, int]
+    bases: dict[str, int]
+
+
+def _geometry(record: dict[str, Any], bases: dict[str, int]) -> MapGeometry:
+    """The map's layout shape per plane, in chunks. The record stores size-1."""
     dimensions = record["dimensions"]
-    return {
-        "fg": dimensions["fg_row_size"] + 1,
-        "bg": dimensions["bg_row_size"] + 1,
-    }
+    return MapGeometry(
+        widths={
+            "fg": dimensions["fg_row_size"] + 1,
+            "bg": dimensions["bg_row_size"] + 1,
+        },
+        heights={
+            "fg": dimensions["fg_column_size"] + 1,
+            "bg": dimensions["bg_column_size"] + 1,
+        },
+        bases=bases,
+    )
 
 
 def extract_map_effects(rom: bytes, maps: list[dict[str, Any]]) -> dict[str, Any]:
@@ -703,6 +896,7 @@ def extract_map_effects(rom: bytes, maps: list[dict[str, Any]]) -> dict[str, Any
     """
     ctx = dict(table=dispatch_table(rom), tests=flag_tests(rom),
                kos=_kos_decomp(rom), clears=flag_clears(rom))
+    bases = map_layout_bases(rom)
     real = [record for record in maps if not record["is_null"]]
     referenced = sorted({i for r in real for i in r["map_data_manager"]["ids"]})
     entries = {index: decode_entry(rom, index, **ctx) for index in referenced}
@@ -714,15 +908,16 @@ def extract_map_effects(rom: bytes, maps: list[dict[str, Any]]) -> dict[str, Any
     flags: dict[str, set[int]] = {}
     maps_per_kind: dict[str, set[int]] = {}
     undecoded: list[dict[str, Any]] = []
-    unconditional = gated = 0
+    unconditional = gated = position_gated = 0
+    clears: dict[str, dict[int, set[int]]] = {}
     replacements: list[dict[str, Any]] = []
 
     for record in real:
         ids = record["map_data_manager"]["ids"]
         if not ids:
             continue
-        widths = _widths(record)
-        emitted = [entries[index].to_json(widths) for index in ids]
+        geometry = _geometry(record, bases)
+        emitted = [entries[index].to_json(geometry) for index in ids]
         per_map[record["id"]] = emitted
         for entry in emitted:
             if not entry["decoded"]:
@@ -730,8 +925,10 @@ def extract_map_effects(rom: bytes, maps: list[dict[str, Any]]) -> dict[str, Any
             for path in entry["paths"]:
                 if path["gates"]:
                     gated += 1
-                else:
+                elif path["unconditional"]:
                     unconditional += 1
+                else:
+                    position_gated += 1
                 for gate in path["gates"]:
                     banks[gate["bank"]] = banks.get(gate["bank"], 0) + 1
                     flags.setdefault(gate["bank"], set()).add(gate["flag"])
@@ -745,6 +942,10 @@ def extract_map_effects(rom: bytes, maps: list[dict[str, Any]]) -> dict[str, Any
                             "at": write["at"], "object_index": index,
                             "map_objects": record["objects"]["count"],
                         })
+                    if write["kind"] == "flag_clear":
+                        (clears.setdefault(write["bank"], {})
+                              .setdefault(entry["entry"], set())
+                              .add(write["flag"]))
                     if write["kind"] == "layout_replace":
                         replacements.append({
                             "map": record["id"], "plane": write["plane"],
@@ -766,6 +967,10 @@ def extract_map_effects(rom: bytes, maps: list[dict[str, Any]]) -> dict[str, Any
     return {
         "per_map": per_map,
         "replacements": replacements,
+        # The jump table's address, for a caller that needs to re-reach a
+        # routine by entry index -- `routine_address(rom, dispatch_table, entry)`.
+        # The census carries the same value formatted for a reader.
+        "dispatch_table": ctx["table"],
         "census": {
             "jump_table": f"0x{ctx['table']:06X}",
             "table_entries": MAP_DATA_MANAGER_ROUTINES,
@@ -778,6 +983,22 @@ def extract_map_effects(rom: bytes, maps: list[dict[str, Any]]) -> dict[str, Any
             "kinds": {k: kinds[k] for k in sorted(kinds)},
             "maps_per_kind": {k: len(maps_per_kind[k]) for k in sorted(maps_per_kind)},
             "gate_banks": {k: banks[k] for k in sorted(banks)},
+            # Map-load flag clears, by the bank whose door was called. Emitted
+            # per entry because that is how a runtime consumes them: it has the
+            # map's entry list already. `bank_address` on each write is the
+            # stable key -- the `$F140` bank's *name* is under review.
+            "flag_clears": {
+                bank: {
+                    "bank_address": f"0xFFFF{FLAG_BANK_ADDRESSES[bank]:04X}",
+                    "entries": len(by_entry),
+                    "flag_ids": sorted({f for ids in by_entry.values() for f in ids}),
+                    "by_entry": {
+                        f"0x{entry:02X}": sorted(ids)
+                        for entry, ids in sorted(by_entry.items())
+                    },
+                }
+                for bank, by_entry in sorted(clears.items())
+            },
             "flags_per_bank": {k: sorted(flags[k]) for k in sorted(flags)},
             # Some routines clear more slots than the map has objects. On a
             # fresh load those slots are empty, so the write is a no-op -- the
@@ -786,6 +1007,9 @@ def extract_map_effects(rom: bytes, maps: list[dict[str, Any]]) -> dict[str, Any
             # treat it as a defect.
             "object_writes_past_map_object_count": past_end,
             "paths_gated": gated,
+            # Reached only under a condition this slice recognises but does
+            # not model -- currently the two player-position compares.
+            "paths_position_gated": position_gated,
             "paths_unconditional": unconditional,
             "evaluated": "map load only",
             "note": (
