@@ -297,13 +297,16 @@ impl Runtime {
             for flag in &start.event_flags_set {
                 let _ = game.set(Flag::event(*flag));
             }
-            // Extended ids are within their own bank; Flag::event's id space
-            // reaches them at $100.., mirroring the cartridge's split arrays.
+            // The pack emits extended ids already in the combined $100..
+            // space Flag::event models, so no offset is applied here.
             for flag in &start.extended_event_flags_set {
-                let _ = game.set(Flag::event(0x100 + *flag));
+                let _ = game.set(Flag::event(*flag));
             }
             for flag in &start.town_flags_set {
                 let _ = game.set(Flag::town(*flag));
+            }
+            for flag in &start.chest_flags_set {
+                let _ = game.set(Flag::chest(*flag));
             }
             for (slot, symbol) in start.party.iter().enumerate() {
                 if let Some(id) = char_id_by_symbol(&data, symbol) {

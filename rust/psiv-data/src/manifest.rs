@@ -227,10 +227,15 @@ pub struct GameStartSummary {
     pub party: Vec<String>,
     /// Event flags already set when control arrives.
     pub event_flags_set: Vec<u16>,
-    /// Extended event flags (`Extended_Event_Flags`, ids within that bank)
-    /// already set when control arrives. Absent in packs predating the field.
+    /// Extended event flags already set when control arrives, as ids in the
+    /// combined `$100..=$1FF` event-flag space (the pack emits them
+    /// pre-offset). Absent in packs predating the field.
     #[serde(default)]
     pub extended_event_flags_set: Vec<u16>,
+    /// Chest flags already set when control arrives (retail: none). Absent
+    /// in packs predating the field.
+    #[serde(default)]
+    pub chest_flags_set: Vec<u16>,
     /// Town flags already set when control arrives. Absent in packs
     /// predating the field.
     #[serde(default)]

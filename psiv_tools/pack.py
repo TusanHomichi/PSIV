@@ -614,7 +614,10 @@ def build_pack(
     # section: it carries the provenance of nine instruction sites, which is
     # more than a manifest entry should hold, and a runtime reads it once at
     # new-game and never again.
-    game_start = {"format_version": PACK_FORMAT_VERSION, **extract_new_game(rom_bytes)}
+    game_start = {
+        "format_version": PACK_FORMAT_VERSION,
+        **extract_new_game(rom_bytes, extracted["maps"]),
+    }
     game_start_sha = _write_json(directory / GAME_START_NAME, game_start)
     start = game_start["first_control"]
 
@@ -748,11 +751,25 @@ def build_pack(
             "facing": start["facing"],
             "party": [slot["symbol"] for slot in start["party"] if not slot["empty"]],
             "music": start["music"],
+            # The whole seedable flag state, not just the base bank. Two scenes
+            # run before control and only the base bank changes, but a runtime
+            # has to seed all four, and the extended bank is preloaded from a
+            # table rather than starting clear.
             "event_flags_set": [flag["id"] for flag in start["event_flags_set"]],
+            "extended_event_flags_set": start["extended_event_flags_set"],
+            "town_flags_set": start["town_flags_set"],
+            "chest_flags_set": start["chest_flags_set"],
+            "flag_banks": {
+                bank: {"address": value["address"], "raw_hex": value["raw_hex"]}
+                for bank, value in start["flag_banks"].items()
+            },
+            "scene_chain": [scene["event_hex"] for scene in start["scene_chain"]],
             "note": (
-                "the first controllable moment, after the opening scene the "
-                "title screen dispatches as event 0x9F. The party the new-game "
-                "initialiser writes (Chaz and Alys) does not survive that scene."
+                "the first controllable moment, after the two scenes the title "
+                "screen's event 0x9F chains through. The party the new-game "
+                "initialiser writes (Chaz and Alys) does not survive them, and "
+                "neither scene ends the flag state -- Event_PiataChazAlone sets "
+                "the flag its own trigger tests, which is what stops the chain."
             ),
         },
         # The NPC movement-command table, indexed by a scene op's command byte.

@@ -10,6 +10,7 @@ from psiv_tools.newgame import (
     CHARACTER_SYMBOLS,
     EMPTY_SLOT,
     EVENT_FLAGS_SET,
+    EVENT_FLAG_PIATA_CHAZ_CONTROL,
     EVENT_FLAG_PIATA_FIRST_TIME,
     EVENT_PTRS,
     EXTENDED_EVENT_FLAGS,
@@ -22,7 +23,11 @@ from psiv_tools.newgame import (
     TITLE_SET_MAP,
     NewGameError,
     _flag_ids,
+    _pack_flags,
     event_routine,
+    event_routines,
+    flag_setters,
+    read_trigger,
     extract_new_game,
     read_first_control,
     read_new_game_init,
@@ -54,6 +59,28 @@ class TestFlagPacking(unittest.TestCase):
 
     def test_nothing_set_is_no_ids(self):
         self.assertEqual(_flag_ids(bytes(32), 0x100), ())
+
+
+class TestFlagPacking2(unittest.TestCase):
+    """Packing is the inverse of reading, so a round trip is the proof."""
+
+    def test_pack_and_unpack_are_inverses(self):
+        for flags, base in (({7, 21}, 0), ({0x127, 0x1A7}, 0x100),
+                            ({0, 0x10, 0x19}, 0), (set(), 0), ({255}, 0)):
+            with self.subTest(flags=sorted(flags)):
+                self.assertEqual(set(_flag_ids(_pack_flags(flags, base), base)), flags)
+
+    def test_the_oracles_first_long_falls_out_of_the_packing(self):
+        # oracle/logs/01_newgame.csv: eflags_00 = 01000400 with flags $07/$15.
+        self.assertEqual(_pack_flags({0x07, 0x15})[:4].hex(), "01000400")
+        # town_flags_00 = 80008040 with town flags 0/$10/$19.
+        self.assertEqual(_pack_flags({0x00, 0x10, 0x19})[:4].hex(), "80008040")
+
+    def test_a_flag_outside_its_bank_is_refused(self):
+        with self.assertRaises(NewGameError):
+            _pack_flags({0x127}, 0)      # extended id in the base bank
+        with self.assertRaises(NewGameError):
+            _pack_flags({0x100}, 0)      # past 256 flags
 
 
 class TestCharacterSymbols(unittest.TestCase):
@@ -194,16 +221,102 @@ class TestNewGameAgainstTheRom(unittest.TestCase):
             position["y_cell"], position["y_pixels"] // 16 + STANDING_CELL_Y_OFFSET
         )
 
-    def test_exactly_one_event_flag_is_set_by_the_opening(self):
+    def test_two_scenes_run_before_control_and_the_chain_stops_itself(self):
+        # The defect this replaced: only Event_GameStart was scanned, but
+        # control does not reach the player when it ends. RunEvents walks the
+        # start map's trigger list first, and one of those triggers plays
+        # another scene.
+        chain = self.payload["first_control"]["scene_chain"]
+        self.assertEqual([scene["event_hex"] for scene in chain], ["0x9F", "0xA0"])
+        self.assertEqual(chain[0]["routine"], "0x073946")
+        # Event_PiataChazAlone is eighteen bytes ending in a tail jump.
+        self.assertEqual((chain[1]["routine"], chain[1]["rom_end"]),
+                         ("0x073ECE", "0x073EE0"))
+        self.assertEqual([s["flag_hex"] for s in chain[0]["sets"]], ["0x07"])
+        self.assertEqual([s["flag_hex"] for s in chain[1]["sets"]], ["0x15"])
+        # The chain terminates because the second scene sets the very flag its
+        # own trigger tests.
+        trigger = next(t for t in chain[1]["triggers_after"] if t["event"] == "0xA0")
+        self.assertEqual(trigger["gates"],
+                         [{"flag": 0x15, "flag_hex": "0x15", "required": "clear"}])
+
+    def test_the_start_maps_other_triggers_do_not_fire(self):
+        # Both are reported rather than dropped, and each is excluded for a
+        # reason the extraction can state.
+        chain = self.payload["first_control"]["scene_chain"]
+        triggers = {t["index"]: t for t in chain[0]["triggers_after"]}
+        self.assertEqual(sorted(triggers), [3, 10, 124])
+        # RunEvent_FindingAlys waits for the party to stand somewhere, and the
+        # party cannot move before it has control.
+        self.assertTrue(triggers[3]["position_gated"])
+        # RunEvent_SuspicionOnPrincipal wants a flag a new game has not set.
+        self.assertFalse(triggers[10]["position_gated"])
+        self.assertIn({"flag": 9, "flag_hex": "0x09", "required": "set"},
+                      triggers[10]["gates"])
+
+    def test_both_flags_are_set_at_first_control(self):
         flags = self.payload["first_control"]["event_flags_set"]
-        self.assertEqual(len(flags), 1)
-        self.assertEqual(flags[0]["id"], EVENT_FLAG_PIATA_FIRST_TIME)
-        self.assertEqual(flags[0]["symbol"], "EventFlag_PiataFirstTime")
-        # `read_first_control` refuses a routine that reaches EventFlags_Set
-        # more than once, so this list being short is a checked claim.
-        self.assertEqual(EVENT_FLAGS_SET, 0x057666)
+        self.assertEqual([f["id"] for f in flags],
+                         [EVENT_FLAG_PIATA_FIRST_TIME, EVENT_FLAG_PIATA_CHAZ_CONTROL])
+        self.assertEqual([f["symbol"] for f in flags],
+                         ["EventFlag_PiataFirstTime", "EventFlag_PiataChazControl"])
+
+    def test_the_flag_banks_match_the_emulator_oracle(self):
+        # oracle/README.md and oracle/logs/01_newgame.csv, last frame (6938):
+        #   eflags_00 = 01000400, eflags_04..eflags_1C = 00000000
+        #   ext_eflags_00 = 00000000
+        #   town_flags_00 = 80008040
+        banks = self.payload["first_control"]["flag_banks"]
+        self.assertEqual(banks["event_flags"]["first_long"], "0x01000400")
+        self.assertEqual(banks["event_flags"]["raw_hex"], "01000400" + "00" * 28)
+        self.assertEqual(banks["extended_event_flags"]["first_long"], "0x00000000")
+        self.assertEqual(banks["town_flags"]["first_long"], "0x80008040")
+        self.assertEqual(banks["chest_flags"]["raw_hex"], "00" * 32)
+        for bank in banks.values():
+            self.assertEqual(bank["bytes"], 32)
+
+    def test_all_four_banks_are_scanned_not_just_the_base_one(self):
+        # The four setters share one bit routine and differ only in the `lea`
+        # that picks the bank, so a scan that knew about one would miss three.
+        setters = flag_setters(self.data)
+        self.assertEqual(sorted(setters.values()),
+                         ["chest_flags", "event_flags", "extended_event_flags",
+                          "town_flags"])
+        self.assertEqual(setters[EVENT_FLAGS_SET], "event_flags")
+        control = self.payload["first_control"]
+        self.assertEqual(control["chest_flags_set"], [])
+        self.assertEqual(control["town_flags_set"], [0x00, 0x10, 0x19])
+        self.assertEqual(len(control["extended_event_flags_set"]), 11)
+        # Neither scene touches anything but the base bank, so the other three
+        # are exactly what the initialiser left.
+        init = self.payload["new_game_init"]["flags"]
+        self.assertEqual(
+            [f"0x{flag:03X}" for flag in control["extended_event_flags_set"]],
+            init["extended_event_flags"]["set"],
+        )
 
     # ------------------------------------------------------------ fail-closed
+    def test_the_trigger_decoder_reads_gates_and_dispatch(self):
+        # RunEvent_PiataChazAlone: one flag gate, one dispatch, no position.
+        trigger = read_trigger(self.data, 124)
+        self.assertEqual(trigger.event, 0xA0)
+        self.assertEqual(trigger.gates, ((EVENT_FLAG_PIATA_CHAZ_CONTROL, False),))
+        self.assertFalse(trigger.position_gated)
+        self.assertTrue(trigger.fires(frozenset()))
+        self.assertFalse(trigger.fires(frozenset({EVENT_FLAG_PIATA_CHAZ_CONTROL})))
+        # RunEvent_Null00 dispatches nothing, so it can never fire.
+        null = read_trigger(self.data, 0)
+        self.assertIsNone(null.event)
+        self.assertFalse(null.fires(frozenset()))
+
+    def test_the_event_table_ends_where_the_code_after_it_begins(self):
+        routines = event_routines(self.data)
+        self.assertEqual(len(routines), 0xA1)
+        self.assertEqual(EVENT_PTRS + len(routines) * 4, 0x05A538)
+        # Event_PiataChazAlone is the last routine by address, which is why its
+        # extent comes from its tail jump rather than from the next entry.
+        self.assertEqual(max(routines), routines[0xA0])
+
     def test_a_rom_whose_init_moved_is_refused(self):
         for site, reader in (
             (NEW_GAME_INIT + 0x50, read_new_game_init),

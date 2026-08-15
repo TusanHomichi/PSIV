@@ -58,7 +58,7 @@ import re
 from dataclasses import dataclass
 from typing import Any
 
-from .symbols import MAP_SYMBOLS, MUSIC_ID_BASE, MUSIC_SYMBOLS
+from .symbols import EVENT_FLAG_SYMBOLS, MAP_SYMBOLS, MUSIC_ID_BASE, MUSIC_SYMBOLS
 
 # ---------------------------------------------------------------------------
 # RAM addresses, from ps4.constants.asm. These are the operands the pinned
@@ -123,14 +123,41 @@ TITLE_START_OPTION_HANDOFF = 0x043788
 EVENT_DISPATCH = 0x05A27A
 EVENT_PTRS = 0x05A2B4
 EVENT_FLAGS_SET = 0x057666
+EVENT_FLAGS_TEST = 0x057624
+#: The four flag banks, by the RAM address their setter's `lea` names. They
+#: share one bit routine and differ only in that base, so scanning a scene for
+#: writes means scanning for all four -- a scan that covered only the first
+#: would under-report exactly the way this module once did.
+FLAG_BANKS = {
+    EVENT_FLAGS: "event_flags",
+    EXTENDED_EVENT_FLAGS: "extended_event_flags",
+    CHEST_FLAGS: "chest_flags",
+    TOWN_FLAGS: "town_flags",
+}
+#: `movem.l / lea / bra.s` three times and then `movem.l / lea` -- the four
+#: entry points fall out of the block at a fixed stride.
+FLAG_SETTER_STRIDE = 0x0A
 GAME_START_EVENT_INDEX = 0x9F
+#: The `lea (d16,PC),a2` inside `RunEvents` that names `RunEventsJmpTbl`.
+RUN_EVENTS_JMP_TBL_SITE = 0x0560CA
+#: `Character_1`. A trigger that reads it is gated on where the player is
+#: standing, which is the discriminator the chain walk below turns on.
+CHARACTER_1 = 0xC000
 
 #: `EventFlags_Set`, transcribed: `andi.w #$FF,d0` then byte `id >> 3`, bit
 #: `7 - (id & 7)`. Flags are packed most-significant-bit first.
 FLAG_BITS_PER_BYTE = 8
 
-#: `EventFlag_PiataFirstTime` -- the one flag `Event_GameStart` sets.
-EVENT_FLAG_PIATA_FIRST_TIME = 7
+#: The two flags the pre-control chain sets. `psiv_tools.symbols` holds the
+#: shared table but was not in this task's ownership to extend; these belong
+#: there, and an oracle test checks both names against ps4.constants.asm.
+EVENT_FLAG_PIATA_FIRST_TIME = 0x07
+EVENT_FLAG_PIATA_CHAZ_CONTROL = 0x15
+PRE_CONTROL_FLAG_SYMBOLS = {
+    EVENT_FLAG_PIATA_FIRST_TIME: "EventFlag_PiataFirstTime",
+    EVENT_FLAG_PIATA_CHAZ_CONTROL: "EventFlag_PiataChazControl",
+}
+FLAG_SYMBOLS = {**EVENT_FLAG_SYMBOLS, **PRE_CONTROL_FLAG_SYMBOLS}
 
 
 class NewGameError(ValueError):
@@ -280,11 +307,36 @@ def _music(value: int) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # The three routines
 # ---------------------------------------------------------------------------
-def event_routine(rom: bytes, index: int) -> int:
-    """One entry of `EventPtrs`, the table `loc_5A27A` indexes by Event_Index.
+def event_routines(rom: bytes) -> tuple[int, ...]:
+    """Every `EventPtrs` entry, up to where the table stops holding addresses.
 
-    The table is reached PC-relative, so its address cannot be grepped; it is
-    pinned instead by the `lea (d16,PC),a0` that names it.
+    The table is not length-tagged and nothing follows it but code, so its
+    extent is the first entry that is not a ROM address. Retail gives 0xA1
+    entries, ending flush against the routine at 0x05A538.
+    """
+    base = event_ptrs(rom)
+    routines: list[int] = []
+    while True:
+        entry = base + len(routines) * 4
+        value = int.from_bytes(rom[entry:entry + 4], "big")
+        if not 0 < value < len(rom):
+            break
+        routines.append(value)
+        if len(routines) > 0x200:
+            raise NewGameError("EventPtrs does not end within 512 entries")
+    if base + len(routines) * 4 > min(routines):
+        raise NewGameError(
+            f"EventPtrs runs to 0x{base + len(routines) * 4:06X}, past its own "
+            f"first routine at 0x{min(routines):06X}"
+        )
+    return tuple(routines)
+
+
+def event_ptrs(rom: bytes) -> int:
+    """`EventPtrs`, the table `loc_5A27A` indexes by Event_Index.
+
+    Reached PC-relative, so its address cannot be grepped; it is pinned instead
+    by the `lea (d16,PC),a0` that names it.
     """
     lea = _read(
         rom, b"\x48\xe7\xff\xf8\x41\xfa(..)\xd0\x40\xd0\x40\x20\x70\x00\x00\x4e\x90",
@@ -296,8 +348,17 @@ def event_routine(rom: bytes, index: int) -> int:
         raise NewGameError(
             f"EventPtrs resolves to 0x{base:06X}, not the expected 0x{EVENT_PTRS:06X}"
         )
-    entry = base + index * 4
-    return int.from_bytes(rom[entry:entry + 4], "big")
+    return base
+
+
+def event_routine(rom: bytes, index: int) -> int:
+    """One entry of `EventPtrs`."""
+    routines = event_routines(rom)
+    if not 0 <= index < len(routines):
+        raise NewGameError(
+            f"event 0x{index:02X} is outside the {len(routines)}-entry EventPtrs table"
+        )
+    return routines[index]
 
 
 def read_title_handoff(rom: bytes) -> dict[str, Any]:
@@ -468,23 +529,198 @@ def read_new_game_init(rom: bytes) -> dict[str, Any]:
     }
 
 
-def read_first_control(rom: bytes) -> dict[str, Any]:
-    """`Event_GameStart`'s epilogue: the first moment the player has input.
+def run_events_jmp_tbl(rom: bytes) -> int:
+    """`RunEventsJmpTbl`, from the `lea (d16,PC),a2` in `RunEvents` that names it.
 
-    Everything before this in the routine is the opening scene, which needs an
-    event interpreter to run. Everything the scene leaves behind that matters
-    to a runtime is rewritten here, which is why this epilogue is a complete
-    starting state and not a partial one.
+    PC-relative, so it cannot be grepped; the site is pinned and the table is
+    computed from its displacement.
     """
-    routine = event_routine(rom, GAME_START_EVENT_INDEX)
-    next_routine = event_routine(rom, GAME_START_EVENT_INDEX + 1)
-    if not routine < next_routine <= len(rom):
+    site = RUN_EVENTS_JMP_TBL_SITE
+    if rom[site:site + 2] != b"\x45\xfa":
         raise NewGameError(
-            f"Event_GameStart at 0x{routine:06X} does not precede the next event "
-            f"routine at 0x{next_routine:06X}"
+            f"0x{site:06X} is not the `lea (d16,PC),a2` that names RunEventsJmpTbl"
         )
-    window = (routine, next_routine)
+    return site + 2 + int.from_bytes(rom[site + 2:site + 4], "big", signed=True)
 
+
+@dataclass(frozen=True)
+class Trigger:
+    """One `RunEventsJmpTbl` entry: what gates it and what it plays.
+
+    Only the shape retail's start-of-game triggers are written in is decoded --
+    flag tests, an optional `Event_Index` write, a `moveq #1,d7` and an `rts`.
+    Anything else in the routine shows up as `position_gated` or as no dispatch
+    at all, and the chain walk refuses to guess about either.
+    """
+
+    index: int
+    rom_offset: int
+    event: int | None
+    #: `(flag id, must be set)` in test order.
+    gates: tuple[tuple[int, bool], ...]
+    position_gated: bool
+
+    def fires(self, flags: frozenset[int]) -> bool:
+        """Would this trigger dispatch, given the flags set so far?
+
+        A position-gated trigger never fires here, and that is a statement
+        about the player rather than about the code: it is waiting for the
+        party to stand somewhere, and the party cannot move until it has
+        control. See `read_first_control`.
+        """
+        if self.event is None or self.position_gated:
+            return False
+        return all((flag in flags) == wanted for flag, wanted in self.gates)
+
+    def to_json(self) -> dict[str, Any]:
+        return {
+            "index": self.index,
+            "routine": f"0x{self.rom_offset:06X}",
+            "event": None if self.event is None else f"0x{self.event:02X}",
+            "gates": [
+                {"flag": flag, "flag_hex": f"0x{flag:02X}",
+                 "required": "set" if wanted else "clear"}
+                for flag, wanted in self.gates
+            ],
+            "position_gated": self.position_gated,
+        }
+
+
+def read_trigger(rom: bytes, index: int) -> Trigger:
+    """Decode one `RunEventsJmpTbl` entry, up to its first `rts`."""
+    table = run_events_jmp_tbl(rom)
+    entry = table + index * 4
+    if int.from_bytes(rom[entry:entry + 2], "big") != 0x6000:
+        raise NewGameError(
+            f"RunEventsJmpTbl entry {index} at 0x{entry:06X} is not a `bra.w`"
+        )
+    start = entry + 2 + int.from_bytes(rom[entry + 2:entry + 4], "big", signed=True)
+
+    event: int | None = None
+    gates: list[tuple[int, bool]] = []
+    position_gated = False
+    pos = start
+    limit = start + 0x100
+    while pos < limit:
+        word = int.from_bytes(rom[pos:pos + 2], "big")
+        if word == 0x4E75:  # rts -- the routine ends here
+            break
+        # `lea (Character_1).w,An` for any address register.
+        if (word & 0xF1FF) == 0x41F8 and int.from_bytes(rom[pos + 2:pos + 4], "big") == CHARACTER_1:
+            position_gated = True
+        # `move.w #imm,(Event_Index).w`
+        if word == 0x31FC and int.from_bytes(rom[pos + 4:pos + 6], "big") == EVENT_INDEX:
+            event = int.from_bytes(rom[pos + 2:pos + 4], "big")
+        # `jsr (EventFlags_Test).l` preceded by the flag load, followed by the
+        # branch whose sense says which way the test has to go.
+        if word == 0x4EB9 and int.from_bytes(rom[pos + 2:pos + 6], "big") == EVENT_FLAGS_TEST:
+            flag = _preceding_d0(rom, pos)
+            branch = rom[pos + 6]
+            if branch == 0x66:      # bne -> skip when set, so the gate wants it clear
+                gates.append((flag, False))
+            elif branch == 0x67:    # beq -> skip when clear, so the gate wants it set
+                gates.append((flag, True))
+            else:
+                raise NewGameError(
+                    f"trigger {index}: the flag test at 0x{pos:06X} is followed by "
+                    f"0x{branch:02X}, neither `beq` nor `bne`"
+                )
+        pos += 2
+    else:
+        raise NewGameError(f"trigger {index} at 0x{start:06X} has no `rts` within 256 bytes")
+    return Trigger(index=index, rom_offset=start, event=event,
+                   gates=tuple(gates), position_gated=position_gated)
+
+
+def _preceding_d0(rom: bytes, call: int) -> int:
+    """The flag id loaded into d0 just before a call: `moveq` or `move.w`."""
+    if rom[call - 2] == 0x70:
+        return rom[call - 1]
+    if rom[call - 4:call - 2] == b"\x30\x3c":
+        return int.from_bytes(rom[call - 2:call], "big")
+    raise NewGameError(
+        f"the call at 0x{call:06X} is not preceded by a `moveq`/`move.w` into d0"
+    )
+
+
+def flag_setters(rom: bytes) -> dict[int, str]:
+    """The four flag-setting entry points, by address, with the bank each writes.
+
+    They are one routine with four doors: each door is `movem.l d0-d2/a0,-(sp)`
+    then the `lea` that picks the bank, and the shared tail does the bit
+    arithmetic. Reading the `lea` operands is what binds an address to a bank.
+    """
+    setters: dict[int, str] = {}
+    for index in range(len(FLAG_BANKS)):
+        address = EVENT_FLAGS_SET + index * FLAG_SETTER_STRIDE
+        if rom[address:address + 4] != b"\x48\xe7\xe0\x80":
+            raise NewGameError(
+                f"0x{address:06X} is not a flag setter's `movem.l d0-d2/a0,-(sp)`"
+            )
+        if rom[address + 4:address + 6] != b"\x41\xf8":
+            raise NewGameError(f"0x{address:06X} does not pick a bank with `lea`")
+        bank = int.from_bytes(rom[address + 6:address + 8], "big")
+        if bank not in FLAG_BANKS:
+            raise NewGameError(
+                f"the setter at 0x{address:06X} writes 0xFFFF{bank:04X}, which is "
+                "not one of the four flag banks"
+            )
+        setters[address] = FLAG_BANKS[bank]
+    if sorted(setters.values()) != sorted(FLAG_BANKS.values()):
+        raise NewGameError("the four setters do not cover the four banks")
+    return setters
+
+
+def scene_flags(rom: bytes, start: int, end: int) -> tuple[tuple[str, Read], ...]:
+    """Every flag a scene routine sets, in any of the four banks."""
+    found: list[tuple[str, Read]] = []
+    for address, bank in flag_setters(rom).items():
+        for call in (0x4EB9, 0x4EF9):  # jsr and the tail jmp
+            pattern = int.to_bytes(call, 2, "big") + address.to_bytes(4, "big")
+            offset = start
+            while True:
+                offset = rom.find(pattern, offset, end)
+                if offset < 0:
+                    break
+                found.append((bank, Read(
+                    label=f"{bank} set at 0x{offset:06X}",
+                    rom_offset=offset,
+                    raw_hex=rom[offset - 4:offset + 6].hex(),
+                    values=(_preceding_d0(rom, offset),),
+                )))
+                offset += 2
+    return tuple(sorted(found, key=lambda pair: pair[1].rom_offset))
+
+
+def event_routine_bounds(rom: bytes, index: int) -> tuple[int, int]:
+    """One event routine's extent.
+
+    Ordinarily the next routine by address bounds it. `Event_PiataChazAlone` is
+    the last one in the table, and it ends in a tail `jmp (EventFlags_Set).l`,
+    so the terminator bounds it instead.
+    """
+    start = event_routine(rom, index)
+    later = [address for address in event_routines(rom) if address > start]
+    if later:
+        return start, min(later)
+    tail = rom.find(b"\x4e\xf9" + EVENT_FLAGS_SET.to_bytes(4, "big"), start, start + 0x100)
+    if tail < 0:
+        raise NewGameError(
+            f"event 0x{index:02X} at 0x{start:06X} is the last routine and does not "
+            "end in a tail jump to EventFlags_Set, so its extent is unknown"
+        )
+    return start, tail + 6
+
+
+def _game_start_epilogue(rom: bytes, routine: int, end: int) -> dict[str, Any]:
+    """`Event_GameStart`'s epilogue: where the opening scene puts the player.
+
+    Everything before it in the routine is the scene, which needs an event
+    interpreter to run. The epilogue rewrites the party, the map, the position
+    and the music outright, so what it leaves is a complete placement and not a
+    partial one.
+    """
+    window = (routine, end)
     # The routine writes the party twice: once to stage the scene, once to hand
     # it to the player. Reading both is the point -- the first is why "you start
     # with Alys and Chaz" is a real memory of a state that does not survive.
@@ -494,12 +730,13 @@ def read_first_control(rom: bytes) -> dict[str, Any]:
     party = _move_l_imm(rom, CURRENT_PARTY_SLOTS, "Event_GameStart: party",
                         window=window, expect=2, pick=1)
     slot5 = _move_b_imm(rom, CURRENT_PARTY_SLOT_5, "Event_GameStart: slot 5", window=window)
+
     # The scene moves the camera and the map around before it ends, so the
     # placement is read from the epilogue alone -- which begins at the party
-    # write above and runs to the next event routine.
-    epilogue = (party.rom_offset, next_routine)
+    # write above and runs to the end of the routine.
+    epilogue_window = (party.rom_offset, end)
     reads = {
-        name: _move_w_imm(rom, ram, f"Event_GameStart: {name}", window=epilogue)
+        name: _move_w_imm(rom, ram, f"Event_GameStart: {name}", window=epilogue_window)
         for name, ram in (
             ("map", FIELD_MAP_INDEX),
             ("map_2", FIELD_MAP_INDEX_2),
@@ -510,27 +747,11 @@ def read_first_control(rom: bytes) -> dict[str, Any]:
         )
     }
     music = _move_b_imm(rom, SAVED_SOUND_INDEX, "Event_GameStart: Saved_Sound_Index",
-                        window=epilogue)
-    flag = _read(
-        rom, b"\x70(.)\x4e\xf9" + re.escape(EVENT_FLAGS_SET.to_bytes(4, "big")),
-        "Event_GameStart: EventFlags_Set", window=epilogue,
-    )
-    if flag.value != EVENT_FLAG_PIATA_FIRST_TIME:
-        raise NewGameError(
-            f"Event_GameStart sets event flag {flag.value}, not the expected "
-            f"{EVENT_FLAG_PIATA_FIRST_TIME}"
-        )
-    if len(re.findall(re.escape(EVENT_FLAGS_SET.to_bytes(4, "big")), rom[routine:next_routine])) != 1:
-        raise NewGameError(
-            "Event_GameStart reaches EventFlags_Set more than once; the set of "
-            "flags a new game starts with is not just the one"
-        )
+                        window=epilogue_window)
 
     # The four slots the long covers, then slot 5. Slot 4 keeps whatever
     # `loc_44414` left, which is empty.
-    slots = list(party.value.to_bytes(4, "big"))
-    slots.append(EMPTY_SLOT)
-    slots.append(slot5.value)
+    slots = list(party.value.to_bytes(4, "big")) + [EMPTY_SLOT, slot5.value]
 
     x_pixels = reads["x"].value * START_POS_PIXELS
     y_pixels = reads["y"].value * START_POS_PIXELS
@@ -539,12 +760,12 @@ def read_first_control(rom: bytes) -> dict[str, Any]:
             "index": GAME_START_EVENT_INDEX,
             "index_hex": f"0x{GAME_START_EVENT_INDEX:02X}",
             "routine": f"0x{routine:06X}",
-            "rom_end": f"0x{next_routine:06X}",
+            "rom_end": f"0x{end:06X}",
             "symbol": "Event_GameStart",
             "note": (
                 "an opening scene runs first and this project cannot execute it; "
-                "the state below is the epilogue, which is what the player is "
-                "handed when it ends"
+                "the placement below is the epilogue, and the flags below are "
+                "every scene the chain runs before control"
             ),
             "party_during_scene": [
                 _character(v) for v in scene_party.value.to_bytes(4, "big")
@@ -571,26 +792,191 @@ def read_first_control(rom: bytes) -> dict[str, Any]:
                    "name": FACING_NAMES.get(reads["facing"].value)},
         "character_alignment": reads["align"].value,
         "music": _music(music.value),
-        "event_flags_set": [{
-            "id": flag.value,
-            "id_hex": f"0x{flag.value:02X}",
-            "symbol": "EventFlag_PiataFirstTime",
-        }],
-        "reads": [r.to_json() for r in
-                  (party, slot5, scene_party, music, flag, *reads.values())],
+        "reads": [scene_party, party, slot5, music, *reads.values()],
     }
 
 
-def extract_new_game(rom: bytes) -> dict[str, Any]:
-    """The whole new-game path, as the pack emits it."""
+def read_first_control(rom: bytes, record: dict[str, Any] | None = None) -> dict[str, Any]:
+    """The state at the first moment the player has input.
+
+    A new game does not hand over control when `Event_GameStart` ends. That
+    scene places the player on a map, and `RunEvents` then walks that map's own
+    trigger list before `FieldRoutine_Controls` ever runs -- so any trigger that
+    is satisfied plays another scene, and only when none is satisfied does the
+    player get to move. This walks that chain.
+
+    The walk is sound without an event interpreter because of one asymmetry: a
+    trigger gated on the party's position cannot fire before the party has
+    moved, and the party cannot move before it has control. So the pre-control
+    chain is made only of triggers decidable from event flags, which is exactly
+    the shape `read_trigger` decodes. Position-gated triggers on the start map
+    are still reported, so nothing is silently dropped.
+
+    Retail runs two scenes: `Event_GameStart` sets `EventFlag_PiataFirstTime`,
+    and the trigger that survives it plays `Event_PiataChazAlone`, which sets
+    `EventFlag_PiataChazControl` -- the very flag its own trigger tests, which
+    is what stops the chain.
+    """
+    scenes: list[dict[str, Any]] = []
+    reads: list[Read] = []
+    # Seeded from the initialiser: the chain only ever writes the base bank, but
+    # the state a runtime has to seed is all four.
+    init = read_new_game_init(rom)["flags"]
+    banks: dict[str, set[int]] = {
+        "event_flags": set(),
+        "extended_event_flags": {
+            int(value, 16) for value in init["extended_event_flags"]["set"]
+        },
+        "chest_flags": set(),
+        "town_flags": {int(value, 16) for value in init["town_flags"]["set"]},
+    }
+    index: int | None = GAME_START_EVENT_INDEX
+    epilogue_of: dict[str, Any] | None = None
+
+    while index is not None:
+        start, end = event_routine_bounds(rom, index)
+        sets = scene_flags(rom, start, end)
+        reads.extend(read for _, read in sets)
+        if index == GAME_START_EVENT_INDEX:
+            epilogue_of = _game_start_epilogue(rom, start, end)
+            reads.extend(epilogue_of.pop("reads"))
+        scenes.append({
+            "event": index,
+            "event_hex": f"0x{index:02X}",
+            "routine": f"0x{start:06X}",
+            "rom_end": f"0x{end:06X}",
+            "sets": [
+                {"bank": bank, "flag": read.value, "flag_hex": f"0x{read.value:02X}",
+                 "symbol": FLAG_SYMBOLS.get(read.value) if bank == "event_flags" else None,
+                 "at": f"0x{read.rom_offset:06X}"}
+                for bank, read in sets
+            ],
+        })
+        for bank, read in sets:
+            banks[bank].add(read.value)
+        index = _next_scene(rom, record, banks["event_flags"], scenes)
+
+    if epilogue_of is None:
+        raise NewGameError("the chain did not start at Event_GameStart")
+
+    epilogue_of["scene_chain"] = scenes
+    epilogue_of["event_flags_set"] = [
+        {"id": flag, "id_hex": f"0x{flag:02X}", "symbol": FLAG_SYMBOLS.get(flag)}
+        for flag in sorted(banks["event_flags"])
+    ]
+    epilogue_of["extended_event_flags_set"] = sorted(banks["extended_event_flags"])
+    epilogue_of["town_flags_set"] = sorted(banks["town_flags"])
+    epilogue_of["chest_flags_set"] = sorted(banks["chest_flags"])
+    # The banks as bytes, which is what a runtime seeds and what an emulator
+    # oracle dumps. `EventFlags_Set` packs most-significant-bit first, so this
+    # is the same arithmetic run backwards.
+    epilogue_of["flag_banks"] = {
+        bank: {
+            "address": f"0xFFFF{address:04X}",
+            "first_id": FLAG_BANK_BASES[bank],
+            "bytes": FLAG_BANK_BYTES,
+            "raw_hex": packed.hex(),
+            "first_long": f"0x{int.from_bytes(packed[:4], 'big'):08X}",
+            "set": [f"0x{flag:03X}" for flag in sorted(banks[bank])],
+        }
+        for address, bank in FLAG_BANKS.items()
+        for packed in (_pack_flags(banks[bank], FLAG_BANK_BASES[bank]),)
+    }
+    epilogue_of["reads"] = [read.to_json() for read in reads]
+    return epilogue_of
+
+
+#: Each bank is 32 bytes: $F100, $F120, $F140 and $F160 sit that far apart.
+FLAG_BANK_BYTES = 0x20
+
+#: What an id in each bank counts from. Every setter masks with `andi.w #$FF`,
+#: so a bank holds 256 flags; the extended bank's ids are quoted from $100 up
+#: because that is the space `ExtendedEventFlags_Test` and the dialogue `$FB`
+#: control code address it in.
+FLAG_BANK_BASES = {
+    "event_flags": 0x000,
+    "extended_event_flags": 0x100,
+    "chest_flags": 0x000,
+    "town_flags": 0x000,
+}
+
+
+def _pack_flags(flags: set[int], base: int = 0) -> bytes:
+    """A flag set as the cartridge holds it, most-significant-bit first.
+
+    The inverse of `_flag_ids`, so a round trip through the two is the check
+    that the packing is right.
+    """
+    packed = bytearray(FLAG_BANK_BYTES)
+    for flag in flags:
+        index = (flag - base) >> 3
+        if not 0 <= index < FLAG_BANK_BYTES:
+            raise NewGameError(
+                f"flag 0x{flag:03X} is outside the {FLAG_BANK_BYTES}-byte bank "
+                f"that starts at 0x{base:03X}"
+            )
+        packed[index] |= 1 << (FLAG_BITS_PER_BYTE - 1 - ((flag - base) & 7))
+    return bytes(packed)
+
+
+def _next_scene(
+    rom: bytes,
+    record: dict[str, Any] | None,
+    flags: set[int],
+    scenes: list[dict[str, Any]],
+) -> int | None:
+    """The event the start map's trigger list plays next, if any."""
+    if record is None:
+        return None
+    triggers = [read_trigger(rom, index) for index in record["events"]["ids"]]
+    scenes[-1]["triggers_after"] = [trigger.to_json() for trigger in triggers]
+    played = {scene["event"] for scene in scenes}
+    for trigger in triggers:
+        if trigger.fires(frozenset(flags)):
+            if trigger.event in played:
+                raise NewGameError(
+                    f"trigger {trigger.index} would replay event "
+                    f"0x{trigger.event:02X}; the pre-control chain does not terminate"
+                )
+            return trigger.event
+    return None
+
+
+def extract_new_game(
+    rom: bytes, maps: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
+    """The whole new-game path, as the pack emits it.
+
+    `maps` is `psiv_tools.maps.extract_maps(rom)["maps"]`. The chain walk needs
+    the start map's event list to know which scenes run before control; without
+    it the walk stops after `Event_GameStart` and the flag set is incomplete, so
+    this extracts the table itself rather than emitting a half answer.
+    """
+    if maps is None:
+        from .maps import extract_maps
+
+        maps = extract_maps(rom)["maps"]
+    handoff = read_title_handoff(rom)
+    init = read_new_game_init(rom)
+    # Which map the chain walks the triggers of is the map the epilogue moves
+    # the player to, so the first pass reads the placement and the second walks
+    # the chain over that map's list.
+    start, end = event_routine_bounds(rom, GAME_START_EVENT_INDEX)
+    placement = _game_start_epilogue(rom, start, end)
+    start_map = placement["map"]["id"]
+    record = next((r for r in maps if r["id"] == start_map), None)
+    if record is None or record.get("is_null"):
+        raise NewGameError(
+            f"the game starts on map 0x{start_map:03X}, which is not a real record"
+        )
     return {
         "kind": "game_start",
         "note": (
             "Where a fresh playthrough begins. `first_control` is the state to "
-            "resume from: an opening scene runs between `new_game_init` and it, "
-            "and its only lasting effects are the ones recorded there."
+            "resume from: two scenes run between `new_game_init` and it, and "
+            "every flag they set is recorded there."
         ),
-        "title_handoff": read_title_handoff(rom),
-        "new_game_init": read_new_game_init(rom),
-        "first_control": read_first_control(rom),
+        "title_handoff": handoff,
+        "new_game_init": init,
+        "first_control": read_first_control(rom, record),
     }
