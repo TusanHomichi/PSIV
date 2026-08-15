@@ -148,11 +148,28 @@ scene still leaks.
 
 Three kinds of data plus one machine, per docs/EVENT_ENGINE_SCOUT.md:
 
-- **GameState** in psiv-core: the event-flag banks (five banks off $F100:
-  event/extended/chest/temp/town, 256/256/176/80/128 addressable bits, MSB
-  first — "~174" was the count of *named* constants, not the space), temp
-  flags (never auto-cleared; scenes clear them in explicit pairs),
-  `Current_Party_Slots`. Also the future save-file shape. The bridge applies
+- **GameState** in psiv-core: the event-flag banks (**four** banks off $F100:
+  event/extended, $F140, town — 256/256/256/128 addressable bits, MSB first —
+  "~174" was the count of *named* constants, not the space), temp flags
+  (never auto-cleared; scenes clear them in explicit pairs),
+  `Current_Party_Slots`. Also the future save-file shape.
+
+  **Corrected 2026-08-15**: this said five banks, splitting $F140 into a
+  176-bit chest bank and an 80-bit `Temp_Event_Flags` bank at $F156. That
+  split is the disassembly's, not the cartridge's — retail contains zero
+  instructions addressing $F156, and every `TempEveFlags_*` call dispatches
+  through the $F140 door with the id raw. **Retail temp flag N and chest
+  flag N are the same bit.** $F140 is one 256-id space running to $F160.
+  `Flag::chest(n)` and `Flag::temp(n)` both survive as constructors because
+  both names appear in the cartridge's data, but they are aliases. Proof
+  chain: the RETAIL FINDING entry dated 2026-08-15 in `SOURCE_NOTES.md`;
+  discovery in `docs/MAP_EFFECTS.md` finding 5.
+
+  One consequence is load-bearing rather than cosmetic:
+  `TempEveFlag_BioPlantAlarm` is 8 and so is `ChestFlag_Alshline`, so trigger
+  $0C (alarm, wants the bit clear) and trigger $18 (Finding Alshline, wants it
+  set) are mutually exclusive on hardware. psiv-core reproduces that and pins
+  it with a test rather than treating it as a defect. The bridge applies
   flag-gated extractions (layout patches, MapDataManager effects, NPC
   despawns) on flag changes by rebuilding the FieldMap.
 - **Triggers**: the 128 `RunEventsJmpTbl` checks transcribed into a condition
@@ -273,6 +290,16 @@ only through the missing beam position. Bit-exact battle replay against
 the cartridge is explicitly out of scope; the oracle verifies battle
 FORMULAS via forced seeds and end-of-turn RAM, not per-frame streams.
 Field/encounter RNG stays fully bit-exact (it never reads the beam).
+
+Surrogate VALIDATED (2026-08-15, oracle damage census x engine
+simulation): 158 hardware damage samples across six matchups vs 20k
+simulated rolls per cell - means agree within a few percent everywhere,
+the surrogate's spread is statistically indistinguishable from ideal
+iid draws (the seed's per-draw rotation supplies the variance; the
+fixed residue does not collapse it), and the defence-exceeds-attack
+cell reproduces the census's constant-1 floor as the expected ~99.5%
+tail mass. The remaining sd gaps are exactly the census's included
+criticals. oracle/logs/damage_census.csv is the ground truth.
 
 ## Battle bug policy (Peter, 2026-08-15)
 
