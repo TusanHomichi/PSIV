@@ -48,6 +48,10 @@ pub struct EffectOutcome {
     /// Gates on banks this consumer does not recognise. A non-empty list is
     /// a schema drift and the map build should fail.
     pub unknown_banks: Vec<String>,
+    /// Flags cleared by active `flag_clear` writes during the walk — the
+    /// destination-load clears tape 18 measured (the Xanafalgue respawn's
+    /// mechanism). Applied in walk order so later gates see them.
+    pub flags_cleared: Vec<Flag>,
 }
 
 fn gate_holds(gate: &EffectGate, game: &GameState, unknown: &mut Vec<String>) -> bool {
@@ -75,9 +79,13 @@ fn gate_holds(gate: &EffectGate, game: &GameState, unknown: &mut Vec<String>) ->
     }
 }
 
-/// Evaluates a record's effect list against the current flag state.
+/// Evaluates a record's effect list, walking entries in list order exactly
+/// as `MapDataManager` does — which means `flag_clear` writes MUTATE the
+/// state mid-walk, so a later entry's gates see the cleared flag. This is
+/// why the parameter is `&mut`: the cartridge's dispatcher is stateful and a
+/// pure model would evaluate later gates against pre-clear state.
 #[must_use]
-pub fn evaluate(record: &MapRecord, game: &GameState) -> EffectOutcome {
+pub fn evaluate(record: &MapRecord, game: &mut GameState) -> EffectOutcome {
     let mut out = EffectOutcome::default();
     let object_count = record.npcs.len();
 
@@ -142,6 +150,24 @@ pub fn evaluate(record: &MapRecord, game: &GameState) -> EffectOutcome {
                             }
                         }
                     }
+                    "flag_clear" => match (write.bank.as_deref(), write.flag) {
+                        (Some(bank @ ("chest_flags" | "temp_flags")), Some(id)) => {
+                            let _ = bank;
+                            let flag = Flag::temp(id);
+                            if game.is_set(flag) {
+                                let _ = game.clear(flag);
+                                out.flags_cleared.push(flag);
+                            }
+                        }
+                        (Some("event_flags"), Some(id)) => {
+                            let flag = Flag::event(id);
+                            if game.is_set(flag) {
+                                let _ = game.clear(flag);
+                                out.flags_cleared.push(flag);
+                            }
+                        }
+                        other => out.unknown_banks.push(format!("flag_clear {other:?}")),
+                    },
                     "layout_replace" => {
                         // Match the write's source to the variant whose
                         // changed plane came from it.
@@ -190,6 +216,8 @@ mod tests {
             cells: Vec::new(),
             collision_authoritative: None,
             patch_tile: None,
+            bank: None,
+            flag: None,
         }
     }
 
@@ -246,9 +274,9 @@ mod tests {
             5,
         );
         let mut game = GameState::new();
-        assert_eq!(evaluate(&record, &game).despawns, Vec::<usize>::new());
+        assert_eq!(evaluate(&record, &mut game).despawns, Vec::<usize>::new());
         game.set(Flag::event(0x33)).unwrap();
-        assert_eq!(evaluate(&record, &game).despawns, vec![2]);
+        assert_eq!(evaluate(&record, &mut game).despawns, vec![2]);
     }
 
     #[test]
@@ -270,7 +298,7 @@ mod tests {
             )],
             5,
         );
-        let out = evaluate(&record, &GameState::new());
+        let out = evaluate(&record, &mut GameState::new());
         assert!(out.despawns.is_empty());
         assert_eq!(out.out_of_range_objects, 1);
     }
@@ -289,7 +317,53 @@ mod tests {
         let mut effect = gated_effect(1, "set", vec![write("object_despawn", 0)]);
         effect.paths[0].gates[0].bank = "town_flags".into();
         let record = record_with(vec![effect], 5);
-        let out = evaluate(&record, &GameState::new());
+        let out = evaluate(&record, &mut GameState::new());
         assert_eq!(out.unknown_banks, vec!["town_flags".to_string()]);
+    }
+}
+
+#[cfg(test)]
+mod door_regression {
+    use super::*;
+    use psiv_core::Flag;
+
+    /// The doorway-into-the-void regression: map $012 carries a decoded
+    /// flag_clear entry, and a consumer that treats the kind as schema
+    /// drift refuses the whole map — the party warps into nothing. Builds
+    /// the real record and asserts the walk both applies the gated clear
+    /// and leaves the map buildable.
+    #[test]
+    fn map_012_with_its_flag_clear_entry_still_builds() {
+        let pack = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("pack absent; skipping");
+            return;
+        }
+        let data = psiv_data::GameData::load(pack).expect("pack loads");
+        let record = data.map(psiv_data::MapId(0x012)).expect("map $012");
+
+        // Gate: entry $18 clears temp $13 only while event $0B is clear.
+        let mut game = GameState::new();
+        game.set(Flag::temp(0x13)).unwrap();
+        let out = evaluate(record, &mut game);
+        assert!(
+            out.unknown_banks.is_empty(),
+            "flag_clear must be understood"
+        );
+        assert_eq!(out.flags_cleared, vec![Flag::temp(0x13)]);
+        assert!(
+            game.is_clear(Flag::temp(0x13)),
+            "the Xanafalgue respawn clear"
+        );
+        crate::field_map_patched(record, Some(&out)).expect("the map builds");
+
+        // With the gate unsatisfied the clear must NOT run.
+        let mut game = GameState::new();
+        game.set(Flag::event(0x0B)).unwrap();
+        game.set(Flag::temp(0x13)).unwrap();
+        let out = evaluate(record, &mut game);
+        assert!(out.flags_cleared.is_empty());
+        assert!(game.is_set(Flag::temp(0x13)));
+        crate::field_map_patched(record, Some(&out)).expect("still builds");
     }
 }

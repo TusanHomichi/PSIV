@@ -138,11 +138,10 @@ impl Runtime {
             let _ = game.set_party_slot(0, Some(CharId(0)));
         }
 
-        // The destination map's flag-clearing entries run first, then the
-        // patch entries evaluate — the load order change_map() documents.
-        let entries: Vec<u8> = record.map_effects.iter().map(|e| e.entry as u8).collect();
-        let _cleared = psiv_core::apply_map_load(&mut game, &entries);
-        let effects = effects::evaluate(record, &game);
+        // MapDataManager's walk is stateful: flag_clear writes land mid-walk
+        // so later gates see them. The clears come from the pack's decoded
+        // data (psiv-core::map_load's transcribed table is the cross-check).
+        let effects = effects::evaluate(record, &mut game);
         let map = field_map_patched(record, Some(&effects))?;
         // Follower count comes from game-start state once extracted; the
         // solo default keeps behavior identical until then.
@@ -934,19 +933,13 @@ impl Runtime {
             .data
             .map(psiv_data::MapId(target.0))
             .ok_or(BridgeError::NotPacked(target.0))?;
-        // MapDataManager runs inside map load: first the destination map's
-        // flag-clearing entries mutate state (the basement un-looter's
-        // mechanism), then the patch entries evaluate against the result.
-        // The cartridge walks one list doing both interleaved; clear-first
-        // is equivalent for every retail map (no map patches on a flag its
-        // own later entry clears) and the simpler model wins until a
-        // counterexample exists.
-        let entries: Vec<u8> = record.map_effects.iter().map(|e| e.entry as u8).collect();
-        // Cleared flags resurrect gated objects on OTHER maps at their next
-        // build; this map's own build below already sees the post-clear
-        // state, so nothing needs rebuilding here.
-        let _cleared = psiv_core::apply_map_load(&mut self.game, &entries);
-        let effects = effects::evaluate(record, &self.game);
+        // MapDataManager runs inside map load, and its walk is STATEFUL:
+        // flag_clear writes (from the pack's decoded data) land mid-walk so
+        // later entries' gates see them — the Xanafalgue-respawn mechanism
+        // tape 18 measured. Cleared flags resurrect gated objects on OTHER
+        // maps at their next build; this map's own build below already sees
+        // the post-clear state.
+        let effects = effects::evaluate(record, &mut self.game);
         let mut map = field_map_patched(record, Some(&effects))?;
         self.effects = effects;
         // Re-apply this session's scene-driven despawns (the interim ledger

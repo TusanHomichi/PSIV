@@ -207,6 +207,13 @@ pub struct EffectWrite {
     /// [`LayoutVariant`] plane source.
     #[serde(default)]
     pub source: Option<String>,
+    /// The flag bank label, for `flag_clear` (the door the routine calls;
+    /// "chest_flags"/"temp_flags" both name the $F140 temp door).
+    #[serde(default)]
+    pub bank: Option<String>,
+    /// The flag id within the bank, for `flag_clear`.
+    #[serde(default)]
+    pub flag: Option<u16>,
     /// Per-cell collision resolution: always exactly 4 cells in
     /// `(0,0) (1,0) (0,1) (1,1)` order, absolute coordinates.
     #[serde(default)]
