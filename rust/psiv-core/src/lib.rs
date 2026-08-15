@@ -100,7 +100,7 @@ pub use camera::{
     Camera, CameraBounds, CameraEdges, Driver, HOME_X, HOME_Y, ONE_PIXEL, SCREEN_HEIGHT,
     SCREEN_WIDTH, SPRITE_ORIGIN, THRESHOLD_X, THRESHOLD_Y, on_screen, type_tests_visibility,
 };
-pub use chest::{Chest, ChestContents, ChestOutcome};
+pub use chest::{CHEST_OPEN_FACING, CHEST_SHUT_FACING, Chest, ChestContents, ChestOutcome};
 pub use collision::{CollisionGrid, CollisionType, MAX_COLLISION_VALUE};
 pub use error::MapError;
 pub use field::{

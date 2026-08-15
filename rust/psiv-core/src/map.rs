@@ -5,6 +5,7 @@
 //! into these; the core deliberately knows nothing about JSON, serde, or the
 //! cartridge's record layout. See `docs/RUNTIME_DESIGN.md`, "Shape".
 
+use crate::chest::{CHEST_OPEN_FACING, CHEST_SHUT_FACING, Chest};
 use crate::collision::{CollisionGrid, CollisionType};
 use crate::error::MapError;
 use crate::geom::{CELL_PIXELS, Cell, CellRect, Direction};
@@ -329,6 +330,17 @@ pub struct FieldMap {
     grid: CollisionGrid,
     warps: Vec<Warp>,
     npcs: Vec<Npc>,
+    /// The map's treasure chests, in record order.
+    ///
+    /// They also occupy entries in `npcs`, from `chest_slot_base` on — a chest
+    /// *is* a field object and shares the one object pool, so occupancy, the
+    /// talk probes and the visibility gate all reach it without knowing it is a
+    /// chest. This vector is the side data those entries cannot carry: the
+    /// flag, the contents, and which of the two chest sprites it uses.
+    chests: Vec<Chest>,
+    /// The object slot the first chest took, which is the NPC count at the time
+    /// the chests were appended.
+    chest_slot_base: usize,
     topology: Topology,
 }
 
@@ -425,8 +437,101 @@ impl FieldMap {
             grid,
             warps,
             npcs,
+            chests: Vec::new(),
+            chest_slot_base: 0,
             topology,
         })
+    }
+
+    /// Appends the map's treasure chests to the object pool.
+    ///
+    /// `GameMode_LoadFieldMap` calls `LoadMapObjects` and then
+    /// `LoadTreasureChests`, and `Field_LoadObject` hands out the first free
+    /// slot, so a map's chests occupy the object slots immediately after its
+    /// NPCs. Appending them here reproduces that, and it is why the oracle's
+    /// `oNN_*` columns line up: on `AcademyBasement` the Xanafalgue is slot 0
+    /// and the two chests are slots 1 and 2.
+    ///
+    /// They join the same `Vec` the NPCs live in rather than sitting beside it,
+    /// because a chest genuinely is a field object: `FieldObj_TreasureChest`
+    /// and `FieldObj_WhiteTreasureChest` both `bset #3, $2(a4)`, so a chest
+    /// blocks the walker and answers the talk probe by exactly the rule an NPC
+    /// does. One pool means one source of truth for occupancy.
+    ///
+    /// `is_open` reports whether a chest's flag is set — `LoadTreasureChests`
+    /// calls `ChestFlags_Test` per chest as it loads, and an open chest gets
+    /// `move.w #4, $6(a4)`. Offset `$6` is `facing_dir`
+    /// (`ps4.constants.asm:107`), so the lid state is stored *in the facing
+    /// word*: 0 closed, 4 open. That is why an opened chest logs `facing=4`.
+    ///
+    /// # Errors
+    ///
+    /// [`MapError::NpcOutOfBounds`] if a chest stands off the grid.
+    pub fn with_chests(
+        &mut self,
+        chests: Vec<Chest>,
+        is_open: impl Fn(&Chest) -> bool,
+    ) -> Result<(), MapError> {
+        self.chest_slot_base = self.npcs.len();
+        for chest in &chests {
+            if self.normalize(chest.cell).is_none() {
+                return Err(MapError::NpcOutOfBounds {
+                    npc: NpcId(chest.object_id()),
+                    cell: chest.cell,
+                    width: self.grid.width(),
+                    height: self.grid.height(),
+                });
+            }
+            self.npcs.push(Npc {
+                id: NpcId(chest.object_id()),
+                cell: chest.cell,
+                offset: SubCellOffset::ALIGNED,
+                facing: if is_open(chest) {
+                    CHEST_OPEN_FACING
+                } else {
+                    CHEST_SHUT_FACING
+                },
+                active: true,
+                // Both chest routines `bset #3, $2(a4)`: solid and talkable.
+                interactable: true,
+            });
+        }
+        self.chests = chests;
+        Ok(())
+    }
+
+    /// The map's chests, in record order.
+    #[must_use]
+    pub fn chests(&self) -> &[Chest] {
+        &self.chests
+    }
+
+    /// The object slot the first chest occupies.
+    #[must_use]
+    pub const fn chest_slot_base(&self) -> usize {
+        self.chest_slot_base
+    }
+
+    /// The chest occupying object slot `slot`, if that slot holds one.
+    #[must_use]
+    pub fn chest_at_slot(&self, slot: usize) -> Option<&Chest> {
+        self.chests.get(slot.checked_sub(self.chest_slot_base)?)
+    }
+
+    /// Whether the chest in `slot` is drawn open, read from the facing word the
+    /// cartridge stores its lid state in.
+    #[must_use]
+    pub fn chest_is_open_at_slot(&self, slot: usize) -> Option<bool> {
+        self.chest_at_slot(slot)?;
+        Some(self.npcs.get(slot)?.facing == CHEST_OPEN_FACING)
+    }
+
+    /// Marks the chest in `slot` open, which is the write
+    /// `FieldRoutine_ItemFound` makes one frame into the open.
+    pub fn open_chest_at_slot(&mut self, slot: usize) -> Option<()> {
+        self.chest_at_slot(slot)?;
+        self.npcs.get_mut(slot)?.facing = CHEST_OPEN_FACING;
+        Some(())
     }
 
     /// Whether this map's coordinates wrap.

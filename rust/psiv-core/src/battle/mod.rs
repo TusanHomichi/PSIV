@@ -43,7 +43,7 @@
 //! | [`choose_ability`] | `ps4.asm:19146` | §7 |
 //! | [`roll_hits`] | `$00B6A2` | §5 |
 //! | [`split_rewards`] | `ps4.asm:4705` | §10 |
-//! | [`apply_level_ups`] | `ps4.asm:5993` | §10 |
+//! | [`level_up`] | `ps4.asm:5993` | §10 |
 //!
 //! # What this tier does not do
 //!
@@ -98,9 +98,7 @@ pub use records::{
     EQUIPMENT_SLOTS, ElementRole, EnemyRecord, EquipSlot, FormationEnemy, FormationRecord,
     ItemKind, ItemRecord, LevelRecord, LevelTable, REGULAR_ABILITIES, UNRUNNABLE,
 };
-pub use rewards::{
-    CURRENCY_CAP, MAX_LEVEL, POOL_CAP, Pools, Split, apply_level_ups, award, split_rewards,
-};
+pub use rewards::{MAX_LEVEL, POOL_CAP, Pools, Split, level_up, split_rewards};
 pub use rng::{HV_SURROGATE, Lcg41, RESEED, Rng2, Rolls, SliceRolls};
 pub use stats::{
     DEFENDING_PHYSICAL_PROP, GRANTED_RESISTANCE, PROFESSION_ANDROID, StatPair, StatTriple, Stats,

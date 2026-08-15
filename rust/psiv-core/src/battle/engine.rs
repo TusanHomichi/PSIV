@@ -35,7 +35,7 @@ use super::event::{BattleEvent, Outcome, Skipped};
 use super::fighters::{ENEMY_SLOTS, FighterId, Roster, Side};
 use super::order::{Priority, QueueEntry, build_queue, roll_priority};
 use super::records::{BattleData, BattleDataError, CharacterRecord, FormationRecord};
-use super::rewards::{Pools, apply_level_ups, award, split_rewards};
+use super::rewards::{Pools, split_rewards};
 use super::rng::Rolls;
 use super::stats::Stats;
 
@@ -343,9 +343,16 @@ impl Battle {
         if let Some(outcome) = self.settle_outcome() {
             self.outcome = Some(outcome);
             if outcome == Outcome::Victory {
+                // Computed, not applied. The roster owns both award passes and
+                // the level-up rise that reads what they wrote — see
+                // `rewards`'s module note on where the seam sits.
                 let split = split_rewards(&self.roster, self.pools, false);
-                events.extend(award(&mut self.roster, &split));
-                events.extend(apply_level_ups(&mut self.roster, data)?);
+                events.push(BattleEvent::Rewarded {
+                    experience_total: split.total,
+                    experience_each: split.each,
+                    meseta: split.meseta,
+                    recipients: split.recipients,
+                });
             }
             events.push(BattleEvent::Ended { outcome });
         }

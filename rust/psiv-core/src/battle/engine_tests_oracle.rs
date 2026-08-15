@@ -297,10 +297,10 @@ fn both_escape_branches_are_reachable_with_a_forced_roll() {
 }
 
 #[test]
-fn tape_10s_level_up_applies_the_record_and_deviates_only_where_it_should() {
-    // Chaz crosses 21 experience with 26 and takes level 2. Every measured
-    // field is asserted, and the one deliberate deviation is asserted as a
-    // deviation rather than quietly matched.
+fn tape_10s_level_up_is_driven_by_the_share_battle_reports() {
+    // The tape crosses 21 experience and takes level 2. Battle's half is the
+    // share; `rewards::level_up` applies the record and is tested there, and
+    // the seam between them is tested in the parent module.
     let data = fixtures::data();
     let mut rolls = SliceRolls::new(&[20]);
     let mut battle = start(
@@ -309,50 +309,20 @@ fn tape_10s_level_up_applies_the_record_and_deviates_only_where_it_should() {
         &data,
         &mut rolls,
     );
-    let chaz = id(1);
-    {
-        let fighter = battle.roster.get_mut(chaz).expect("Chaz");
-        fighter.stats.curr_hp = 500;
-        fighter.stats.max_hp = 500;
-        fighter.stats.experience = 17; // what the tape holds going in
-    }
-    // Before: the seated level-1 values.
-    assert_eq!(
-        battle.roster.get(chaz).expect("Chaz").stats.attack.derived,
-        18
-    );
+    battle.roster.get_mut(id(1)).expect("Chaz").stats.curr_hp = 500;
+    battle.roster.get_mut(id(1)).expect("Chaz").stats.max_hp = 500;
 
     let mut seed = Lcg41::new(0x1357_9BDF);
     let mut rolls = Rng2::with_surrogate(&mut seed, 8);
     let timeline = play_out(&mut battle, &RoundOrders::attack_all(), &data, &mut rolls);
     assert_eq!(battle.outcome(), Some(Outcome::Victory));
 
-    // 17 + 24 / 1 = 41, past the 21 the level-2 record asks for.
-    assert!(timeline.contains(&BattleEvent::LevelUp {
-        character: 0,
-        level: 2,
-        max_hp: 31,
-        max_tp: 13,
-    }));
-    let stats = &battle.roster.get(chaz).expect("Chaz").stats;
-    assert_eq!(stats.level, 2);
-    assert_eq!(stats.experience, 41);
-    assert_eq!(stats.max_hp, 31, "the tape's 25 -> 31");
-    assert_eq!(stats.max_tp, 13, "and 10 -> 13");
-    assert_eq!(stats.strength.base, 9, "8 -> 9");
-    assert_eq!(stats.agility.base, 8, "7 -> 8");
-    assert_eq!(stats.dexterity.base, 6, "5 -> 6");
-
-    // THE DELIBERATE DEVIATION. Retail leaves every derived and modified stat
-    // stale — the oracle diffed 600 frames and watched `atk_pow` sit at 18
-    // while strength went 8 -> 9. `docs/RUNTIME_DESIGN.md` "Battle bug policy"
-    // fixes it, so these are the numbers retail does *not* produce.
-    assert_eq!(stats.attack.derived, 19, "FIXED; retail leaves 18");
-    assert_eq!(stats.defence.derived, 11, "FIXED; retail leaves 10");
-    assert_eq!(stats.mental_defence.derived, 7, "FIXED; retail leaves 6");
-    assert_eq!(stats.strength.modified, 9, "FIXED; retail leaves 8");
-    assert_eq!(stats.agility.modified, 8, "FIXED; retail leaves 7");
-    assert_eq!(stats.dexterity.modified, 6, "FIXED; retail leaves 5");
+    // Two ZoranBult at 12 each, one survivor collecting the lot.
+    let (total, each, _, recipients) = rewarded(&timeline).expect("a victory");
+    assert_eq!((total, each, recipients), (24, 24, 1));
+    // 17 going in plus 24 clears the 21 the level-2 record asks for, which is
+    // the arithmetic the tape's `exp 17 -> 26` step performs on its own party.
+    assert!(17 + u32::from(each) >= 21);
 }
 
 #[test]

@@ -61,7 +61,7 @@
 //! And nothing ever clears one. The `$F120` clear door's only caller is dead
 //! code, so a chest, once opened, stays open for the rest of the save.
 
-use crate::geom::Cell;
+use crate::geom::{Cell, Direction};
 use crate::state::Flag;
 
 /// What a chest holds.
@@ -105,7 +105,23 @@ pub struct Chest {
     pub index: usize,
 }
 
+/// The facing word a shut chest holds. `facing_dir` is `$6`
+/// (`ps4.constants.asm:107`) and a chest reuses it for its lid state rather
+/// than for a direction.
+pub const CHEST_SHUT_FACING: Direction = Direction::Down;
+
+/// The facing word an open chest holds — `move.w #4, $6(a4)`, and 4 is `UP` in
+/// the facing encoding. Nothing is facing anywhere; it is the open-lid frame.
+pub const CHEST_OPEN_FACING: Direction = Direction::Up;
+
 impl Chest {
+    /// `FieldObj_TreasureChest` (`$A0`) or `FieldObj_WhiteTreasureChest`
+    /// (`$1D4`) — the object type this chest loads as.
+    #[must_use]
+    pub const fn object_id(&self) -> u16 {
+        if self.white { 0x01D4 } else { 0x00A0 }
+    }
+
     /// The flag this chest sets when opened.
     #[must_use]
     pub const fn chest_flag(&self) -> Flag {
@@ -156,6 +172,46 @@ pub enum ChestOutcome {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::battle::Lcg41;
+    use crate::collision::CollisionGrid;
+    use crate::map::{FieldMap, MapId, Npc, NpcId, SubCellOffset};
+    use crate::wander::WanderSet;
+
+    /// `AcademyBasement` as the pack records it: one NPC (the Xanafalgue) and
+    /// two chests. The oracle's tape 19 logs exactly this, and it is the
+    /// acceptance case for the slot arithmetic.
+    fn academy_basement(open: &[u8]) -> FieldMap {
+        let grid = CollisionGrid::new(64, 32, vec![0; 64 * 32]).unwrap();
+        let npcs = vec![Npc {
+            id: NpcId(0x0184),
+            cell: Cell::new(44, 19),
+            offset: SubCellOffset::ALIGNED,
+            facing: Direction::Down,
+            active: true,
+            interactable: true,
+        }];
+        let mut map = FieldMap::new(MapId(0x15), grid, Vec::new(), npcs).unwrap();
+        let chests = vec![
+            Chest {
+                cell: Cell::new(40, 9),
+                flag: 24,
+                contents: ChestContents::Item(0x7D),
+                white: false,
+                index: 0,
+            },
+            Chest {
+                cell: Cell::new(14, 20),
+                flag: 25,
+                contents: ChestContents::Meseta(100),
+                white: false,
+                index: 1,
+            },
+        ];
+        let opened = open.to_vec();
+        map.with_chests(chests, |chest| opened.contains(&chest.flag))
+            .unwrap();
+        map
+    }
 
     fn chest(flag: u8, contents: ChestContents) -> Chest {
         Chest {
@@ -199,6 +255,118 @@ mod tests {
         assert_eq!(c.chest_flag(), Flag::chest(24));
         assert_eq!(c.chest_flag(), Flag::event(0x118), "the $F120 half");
         assert_ne!(c.chest_flag(), Flag::temp(24), "not the temp bank");
+    }
+
+    #[test]
+    fn a_maps_chests_land_in_the_slots_the_oracle_logged() {
+        // Tape 19, `AcademyBasement`: slot 0 the Xanafalgue ($8184), slot 1 a
+        // chest ($80A0) at (640,128), slot 2 a chest ($80A0) at (224,304).
+        // `LoadMapObjects` runs before `LoadTreasureChests` and
+        // `Field_LoadObject` takes the first free slot.
+        let map = academy_basement(&[]);
+        assert_eq!(map.npcs().len(), 3, "one NPC plus two chests, one pool");
+        assert_eq!(map.chest_slot_base(), 1);
+
+        assert_eq!(map.npcs()[0].id, NpcId(0x0184), "Xanafalgue");
+        assert_eq!(map.npcs()[1].id, NpcId(0x00A0), "chest");
+        assert_eq!(map.npcs()[2].id, NpcId(0x00A0), "chest");
+
+        // The oracle's pixel positions, via the standing-cell shift.
+        assert_eq!(crate::PixelPos::from_cell(map.npcs()[1].cell).x, 640);
+        assert_eq!(crate::PixelPos::from_cell(map.npcs()[1].cell).y, 128);
+        assert_eq!(crate::PixelPos::from_cell(map.npcs()[2].cell).x, 224);
+        assert_eq!(crate::PixelPos::from_cell(map.npcs()[2].cell).y, 304);
+
+        assert_eq!(map.chest_at_slot(1).map(|c| c.flag), Some(24));
+        assert_eq!(map.chest_at_slot(2).map(|c| c.flag), Some(25));
+        assert!(map.chest_at_slot(0).is_none(), "slot 0 is the NPC");
+    }
+
+    #[test]
+    fn a_white_chest_loads_as_the_other_object_type() {
+        let chest = Chest {
+            white: true,
+            ..chest(24, ChestContents::Item(1))
+        };
+        assert_eq!(chest.object_id(), 0x01D4);
+        assert_eq!(super::super::chest::Chest::object_id(&chest), 0x01D4);
+    }
+
+    #[test]
+    fn lid_state_is_the_facing_word_and_comes_from_the_flag_at_build() {
+        // `LoadTreasureChests` calls `ChestFlags_Test` per chest and writes
+        // `move.w #4, $6(a4)` when it comes back set. Offset $6 is `facing_dir`,
+        // so the lid state lives in the facing word: 0 shut, 4 open. Tape 19
+        // logs the opened chest at facing=4 and the other at facing=0.
+        let shut = academy_basement(&[]);
+        assert_eq!(shut.npcs()[1].facing, CHEST_SHUT_FACING);
+        assert_eq!(shut.chest_is_open_at_slot(1), Some(false));
+
+        let open = academy_basement(&[24]);
+        assert_eq!(open.npcs()[1].facing, CHEST_OPEN_FACING);
+        assert_eq!(open.chest_is_open_at_slot(1), Some(true));
+        assert_eq!(open.chest_is_open_at_slot(2), Some(false), "flag 25 clear");
+
+        // 4 is `UP` in the facing encoding. Nothing is facing anywhere.
+        assert_eq!(crate::facing_value(CHEST_OPEN_FACING), 4);
+        assert_eq!(crate::facing_value(CHEST_SHUT_FACING), 0);
+        assert_eq!(shut.chest_is_open_at_slot(0), None, "not a chest");
+    }
+
+    #[test]
+    fn opening_a_chest_in_the_map_flips_the_facing_word() {
+        // The write `FieldRoutine_ItemFound` makes one frame into the open.
+        let mut map = academy_basement(&[]);
+        assert_eq!(map.open_chest_at_slot(1), Some(()));
+        assert_eq!(map.npcs()[1].facing, CHEST_OPEN_FACING);
+        assert_eq!(map.open_chest_at_slot(0), None, "slot 0 is the NPC");
+    }
+
+    #[test]
+    fn a_chest_blocks_the_walker_and_answers_the_talk_probe() {
+        // Both chest routines `bset #3, $2(a4)`, which is the same bit an
+        // ordinary NPC sets — so a chest is solid and talkable by exactly the
+        // rule `Interaction_ChkObjects` and `FieldObj_DoObjCollision` apply.
+        // Sharing one object pool is what makes that free rather than
+        // duplicated.
+        let map = academy_basement(&[]);
+        let at = map.npc_at(Cell::new(40, 9)).expect("the chest occupies it");
+        assert_eq!(at.id, NpcId(0x00A0));
+        assert!(at.interactable && at.active);
+        assert!(!map.is_walkable(Cell::new(40, 9)), "a chest blocks");
+        assert!(map.is_walkable(Cell::new(1, 1)), "open floor still walks");
+    }
+
+    #[test]
+    fn a_chest_never_wanders_and_draws_no_rolls() {
+        // Chests are types $A0/$1D4, not NPCType2/3, so nothing registers them
+        // as wanderers. The property that matters is the shared RNG: an object
+        // that drew a roll it should not would desynchronise every other
+        // consumer of the seed.
+        let mut map = academy_basement(&[]);
+        let mut set = WanderSet::build(&map, &[]).unwrap();
+        let mut rng = Lcg41::new(0xCB5A_53D3);
+        let before = rng.seed();
+        let cells: Vec<Cell> = map.npcs().iter().map(|n| n.cell).collect();
+
+        for _ in 0..256 {
+            set.tick(&mut map, &mut rng, &[], |_| true);
+        }
+
+        assert_eq!(rng.seed(), before, "a chest drew from the shared stream");
+        assert_eq!(
+            map.npcs().iter().map(|n| n.cell).collect::<Vec<_>>(),
+            cells,
+            "and nothing moved"
+        );
+    }
+
+    #[test]
+    fn chests_are_frozen_off_screen_like_any_other_gated_object() {
+        // $A0 and $1D4 are both in the visibility table, which was built from
+        // the routines rather than from this — an independent agreement.
+        assert!(crate::type_tests_visibility(0x80A0), "TreasureChest");
+        assert!(crate::type_tests_visibility(0x81D4), "WhiteTreasureChest");
     }
 
     #[test]

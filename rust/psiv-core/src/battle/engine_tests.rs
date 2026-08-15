@@ -13,6 +13,7 @@ use crate::battle::damage::{DAMAGE_DRAWS, calculate_damage, clamp_damage};
 use crate::battle::fighters::FIGHTER_SLOTS;
 use crate::battle::fixtures;
 use crate::battle::records::{CharacterRecord, FormationRecord};
+use crate::battle::rewards::level_up;
 use crate::battle::rng::{Lcg41, Rng2, SliceRolls};
 use crate::battle::stats::status;
 
@@ -747,9 +748,9 @@ fn a_formation_the_data_cannot_resolve_is_an_error_not_a_panic() {
 }
 
 #[test]
-fn a_victory_levels_the_party_up_from_the_experience_it_just_won() {
-    // Chaz needs 21 for level 2; two ZoranBult pay 24 split three ways is
-    // only 8, so a solo Chaz gets all 24 and levels.
+fn battle_reports_the_split_and_pays_nobody() {
+    // The contract the roster relies on: a won battle emits `Rewarded` with the
+    // arithmetic and mutates no experience, no flag and no level.
     let data = fixtures::data();
     let mut rolls = SliceRolls::new(&[20]);
     let mut battle = start(
@@ -758,68 +759,95 @@ fn a_victory_levels_the_party_up_from_the_experience_it_just_won() {
         &data,
         &mut rolls,
     );
-    battle.roster.get_mut(id(1)).expect("Chaz").stats.max_hp = 500;
-    battle.roster.get_mut(id(1)).expect("Chaz").stats.curr_hp = 500;
+    {
+        let chaz = battle.roster.get_mut(id(1)).expect("Chaz");
+        chaz.stats.curr_hp = 500;
+        chaz.stats.max_hp = 500;
+        chaz.stats.experience = 17;
+    }
 
     let mut seed = Lcg41::new(0x2222_3333);
     let mut rolls = Rng2::with_surrogate(&mut seed, 5);
     let timeline = play_out(&mut battle, &RoundOrders::attack_all(), &data, &mut rolls);
 
     assert_eq!(battle.outcome(), Some(Outcome::Victory));
+    // Two ZoranBult at 12 apiece, one living member.
     assert_eq!(rewarded(&timeline), Some((24, 24, 6, 1)));
-    assert!(timeline.contains(&BattleEvent::LevelUp {
-        character: 0,
-        level: 2,
-        max_hp: 31,
-        max_tp: 13,
-    }));
-    // And the derived stats were refreshed with the new base strength.
-    assert_eq!(
-        battle.roster.get(id(1)).expect("Chaz").stats.attack.battle,
-        19
+    assert!(
+        !timeline
+            .iter()
+            .any(|event| matches!(event, BattleEvent::LevelUp { .. })),
+        "battle cannot level: the experience it would read has not been awarded"
     );
+
+    let chaz = &battle.into_party()[0].stats;
+    assert_eq!(chaz.experience, 17);
+    assert_eq!(chaz.level, 1);
+    assert!(!chaz.gain_exp_flag);
 }
 
-/// Sixteen draws whose masked values sum to `sum`.
-fn draws_for(sum: u16) -> Vec<u16> {
-    assert!(sum <= 112, "S maxes out at 112");
-    let mut out = vec![0u16; DAMAGE_DRAWS];
-    let mut left = sum;
-    for slot in &mut out {
-        let take = left.min(7);
-        *slot = take;
-        left -= take;
-    }
-    out
+#[test]
+fn the_battle_roster_seam_composes_in_the_cartridges_order() {
+    // The three stages a battle end runs, in the order `rewards`'s module note
+    // fixes: absorb what the battle changed, award over the whole roster, then
+    // level off the experience the award just wrote.
+    use crate::roster::CharacterRoster;
+    use crate::state::CharId;
+
+    let data = fixtures::data();
+    let mut roster = CharacterRoster::new();
+    let mut chaz = Stats::from_character(&fixtures::chaz(), |id| data.item(id).ok().cloned());
+    chaz.experience = 17;
+    roster.seat(CharId(0), chaz).expect("a real seat");
+
+    // Fight.
+    let mut rolls = SliceRolls::new(&[20]);
+    let mut battle = start(
+        &fixtures::formation_two_zoran_bults(),
+        vec![PartyMember {
+            character: 0,
+            name: "CHAZ".into(),
+            stats: roster.get(CharId(0)).expect("seated").clone(),
+        }],
+        &data,
+        &mut rolls,
+    );
+    battle.roster.get_mut(id(1)).expect("Chaz").stats.curr_hp = 500;
+    battle.roster.get_mut(id(1)).expect("Chaz").stats.max_hp = 500;
+    let mut seed = Lcg41::new(0x2222_3333);
+    let mut rolls = Rng2::with_surrogate(&mut seed, 5);
+    let timeline = play_out(&mut battle, &RoundOrders::attack_all(), &data, &mut rolls);
+    let (_, each, meseta, _) = rewarded(&timeline).expect("a victory");
+    assert_eq!((each, meseta), (24, 6));
+
+    // 1. absorb: HP and status cross over, experience does not.
+    assert_eq!(roster.absorb(&battle.into_party()), 1);
+    assert_eq!(roster.get(CharId(0)).expect("seated").experience, 17);
+
+    // 2. award: the roster's two passes.
+    let paid = roster.award_party(&[CharId(0)], each);
+    assert_eq!(paid, vec![CharId(0)]);
+    let seated = roster.get(CharId(0)).expect("seated");
+    assert_eq!(seated.experience, 41, "17 + 24");
+    assert!(seated.gain_exp_flag, "and the flag the roster sets");
+
+    // 3. level: reading what step 2 wrote.
+    let event = level_up(0, roster.get_mut(CharId(0)).expect("seated"), &data)
+        .expect("resolves")
+        .expect("41 is past the 21 the level-2 record asks for");
+    assert_eq!(
+        event,
+        BattleEvent::LevelUp {
+            character: 0,
+            level: 2,
+            max_hp: 31,
+            max_tp: 13,
+        }
+    );
+    let seated = roster.get(CharId(0)).expect("seated");
+    assert_eq!(seated.level, 2);
+    assert_eq!(seated.attack.derived, 19, "and the stats refreshed");
 }
-
-/// Every damage figure reachable for a stat pairing, over every possible
-/// sum of sixteen draws.
-///
-/// "Reachable" is the strongest claim available against the oracle once the
-/// H/V term is substituted: the exact stream is out of reach by design, so
-/// a logged number is checked against the set the formula can produce
-/// rather than against one particular roll.
-fn achievable(attack: u16, defence: u16, element: u16, bonus: u16) -> Vec<u16> {
-    let mut seen: Vec<u16> = (0..=112u16)
-        .map(|sum| {
-            let draws = draws_for(sum);
-            let mut rolls = SliceRolls::new(&draws);
-            clamp_damage(calculate_damage(
-                attack, defence, element, bonus, &mut rolls,
-            ))
-        })
-        .collect();
-    seen.dedup();
-    seen
-}
-
-#[path = "engine_tests_oracle.rs"]
-mod oracle;
-
-// ---------------------------------------------------------------------
-// Stats as a shared record: the round-trip invariant
-// ---------------------------------------------------------------------
 
 #[test]
 fn a_battle_hands_back_the_same_records_it_was_given() {
@@ -881,12 +909,15 @@ fn the_fields_the_field_carries_away_survive_a_battle() {
     let chaz = &party[0].stats;
     assert!(chaz.curr_hp < 400, "the enemies got some hits in");
     assert!(chaz.curr_hp > 0);
-    assert_eq!(chaz.max_hp, 31, "and the level-up moved the ceiling");
+    assert_eq!(chaz.max_hp, 500, "battle does not level anyone");
     assert_eq!(chaz.curr_tp, 7, "TP is untouched by a Tier 1 battle");
-    assert_eq!(chaz.experience, 41, "17 + all 24");
-    assert_eq!(chaz.level, 2);
-    assert!(chaz.gain_exp_flag, "set by surviving a won battle");
     assert_eq!(chaz.status, 0, "and he is still standing");
+
+    // The reward-shaped fields are the roster's, and a battle must leave them
+    // exactly as it found them — see `rewards`'s note on the seam.
+    assert_eq!(chaz.experience, 17, "unchanged: the roster awards");
+    assert_eq!(chaz.level, 1, "unchanged: the roster levels");
+    assert!(!chaz.gain_exp_flag, "unchanged: the roster sets the flag");
 }
 
 #[test]
@@ -988,3 +1019,40 @@ fn party_stats_and_into_party_agree() {
         .collect();
     assert_eq!(viewed, taken, "the borrow and the move see the same thing");
 }
+
+/// Sixteen draws whose masked values sum to `sum`.
+fn draws_for(sum: u16) -> Vec<u16> {
+    assert!(sum <= 112, "S maxes out at 112");
+    let mut out = vec![0u16; DAMAGE_DRAWS];
+    let mut left = sum;
+    for slot in &mut out {
+        let take = left.min(7);
+        *slot = take;
+        left -= take;
+    }
+    out
+}
+
+/// Every damage figure reachable for a stat pairing, over every possible sum of
+/// sixteen draws.
+///
+/// "Reachable" is the strongest claim available against the oracle once the
+/// H/V term is substituted: the exact stream is out of reach by design, so a
+/// logged number is checked against the set the formula can produce rather than
+/// against one particular roll.
+fn achievable(attack: u16, defence: u16, element: u16, bonus: u16) -> Vec<u16> {
+    let mut seen: Vec<u16> = (0..=112u16)
+        .map(|sum| {
+            let draws = draws_for(sum);
+            let mut rolls = SliceRolls::new(&draws);
+            clamp_damage(calculate_damage(
+                attack, defence, element, bonus, &mut rolls,
+            ))
+        })
+        .collect();
+    seen.dedup();
+    seen
+}
+
+#[path = "engine_tests_oracle.rs"]
+mod oracle;
