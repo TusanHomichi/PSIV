@@ -81,14 +81,19 @@ by a handful of consumers (encounters, paralysis recovery, field effects).
     move.w  d1, d0                 ; d0.w = lo(41x)
     swap    d1
     add.w   d1, d0                 ; d0.w = lo(41x) + hi(41x)
-    move.w  d0, d1                 ; d1 = hi(41x):sum  ->
-    swap    d1                     ;   d1 = sum:hi(41x)
+    move.w  d0, d1                 ; d1 = lo(41x):sum  ->
+    swap    d1                     ;   d1 = sum:lo(41x)
     move.l  d1, (RNG_Seed).w
 ```
 
-New seed long = `(lo(41x)+hi(41x)) << 16 | hi(41x)`. Deterministic, portable,
-trivially reproducible. Reseed constant `$2A6D365B` fires when the *low* word
-hits zero.
+New seed long = `(lo(41x)+hi(41x)) << 16 | lo(41x)`. (Correction 2026-08-15,
+verified during the kernel port: after `swap d1` the register holds `lo:hi`,
+so the `move.w` overwrites the *hi* word with the sum and the final `swap`
+leaves `lo` in the low half. An earlier revision of this doc said `| hi`.)
+The routine brackets itself with `movem.l d0-d1/...(sp)+` and returns nothing
+in a register — consumers read the word at `(RNG_Seed).w` = the high half =
+the sum. Deterministic, portable, trivially reproducible. Reseed constant
+`$2A6D365B` fires when the *low* word hits zero.
 
 ### `UpdateRNGSeed2` — retail `$04239E` (`ps4.asm:86097`)
 
@@ -897,10 +902,13 @@ one-shots it on a high roll. `FighterShowDamage_DecreaseHP` then does
 S = 56:  (64*14)=896  ; >>6 = 14 ; +14 = 28 ; *2 = 56 ; >>2 = 14 ; -10 =  4
 S = 0:   (8*14) =112  ; >>6 =  1 ; +14 = 15 ; *2 = 30 ; >>2 =  7 ; -10 = -3 -> clamped to 1
 S = 112: (120*14)=1680; >>6 = 26 ; +14 = 40 ; *2 = 80 ; >>2 = 20 ; -10 = 10
-critical (S=56): +2*3 = 6 before the halving -> 17 ; >>2 ... = 7 ; -10 = -3 -> 1
+critical (S=56): 14+14 = 28 ; +2*3 = 34 ; *2 = 68 ; >>2 = 17 ; -10 = 7
 ```
 
-**Damage range 1–10 normal, mean 4**, against 25 HP.
+**Damage range 1–10 normal, mean 4; a mean-roll critical deals 7**, against
+25 HP. (Correction 2026-08-15: an earlier revision of the critical line
+mis-ordered the pipeline and concluded 1 — the doubled bonus survives the
+element multiply and is worth a real 3 damage here.)
 
 ### The poison rider
 

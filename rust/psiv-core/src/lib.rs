@@ -74,6 +74,7 @@
 // the compiler enforces their absence rather than a code-review habit.
 #![deny(clippy::float_arithmetic)]
 
+pub mod battle;
 mod collision;
 mod error;
 mod field;
