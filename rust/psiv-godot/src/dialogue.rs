@@ -91,6 +91,8 @@ pub struct TextFlow {
     jump: Option<u16>,
     /// A mid-message `$F6`; the window forwards it to the runtime.
     event: Option<u16>,
+    /// This flow's entry id — `$FA` branch targets are relative to it.
+    entry_id: u16,
 }
 
 impl TextFlow {
@@ -119,7 +121,10 @@ impl TextFlow {
             } = ctrl
             {
                 if flags.get(*flag as usize).copied().unwrap_or(false) {
-                    return Opening::Jump(*then_entry);
+                    // Branch targets are RELATIVE: GetOffsetByID counts
+                    // forward from the current entry. (Absolute worked for
+                    // the principal only because his chain starts at 0.)
+                    return Opening::Jump(entry.id + *then_entry);
                 }
                 log.push(format!(
                     "flag_check: flag {flag} -> entry {then_entry}, not taken"
@@ -151,6 +156,7 @@ impl TextFlow {
             flags: flags.to_vec(),
             jump: None,
             event: None,
+            entry_id: entry.id,
         };
         flow.pump();
         if flow.done && flow.stop.is_none() {
@@ -412,7 +418,7 @@ impl TextFlow {
                 flag, then_entry, ..
             } => {
                 if self.flags.get(*flag as usize).copied().unwrap_or(false) {
-                    self.jump = Some(*then_entry);
+                    self.jump = Some(self.entry_id + *then_entry);
                     self.done = true;
                     self.close(PageEnd::End);
                     return true;
