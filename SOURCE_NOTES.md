@@ -547,9 +547,24 @@ and the flag-set whose absence would re-fire the trigger forever.
   preloaded "extended event flags" are, eleven for eleven, real chests'
   flag ids (BioPlant_B2 x3, HuntersGuildStorage, KadaryStorageRoom,
   Nurvus_B3, Hangar, Kuran_F1, ClimCenter_F3, WeaponPlant_F2,
-  TonoeBasement_B3) — RETAIL PRE-SETS ELEVEN CHESTS AT NEW GAME,
-  presumably "not lootable yet" state that story events clear through
-  the $F120 clear door (0x576B2; caller sweep pending). Consequences:
+  TonoeBasement_B3) — RETAIL PRE-SETS ELEVEN CHESTS AT NEW GAME.
+  MECHANISM CORRECTED by the clear-door sweep: there is NO arming
+  scheme, because NOTHING in the cartridge clears a $F120 bit — the
+  clear door's sole caller is the disassembly's own annotated dead
+  routine. Chest flags are permanent, and the eleven are permanently
+  DISABLED chests: seven hold HuntKnife across unrelated maps (plus
+  100mst, ShortCake) — placeholder/duplicate records with defaulted
+  items, switched off at boot so they never spawn lootable. And the
+  REAL proof of one-bank-two-names is a second behavioural 11/11:
+  every literal-id $F120 test site in story code is a real chest's
+  flag ($08-$0D = EclpsTorch/FradeMantl/Canceller/PalmaRing/AeroPrism/
+  RepairKit; $A1-$A5 = the five tower rings, MapUpdate_CourageTwChests
+  its own routine) — chest writes, story READS. Deliberate reuse: the
+  game asks "did the player take this item" by testing the chest's own
+  bit. Port caution: retail's $F120 door takes the RAW id (no
+  subi.w #$100 — the clone's is fiction), so any caller convention
+  mixing $127-style combined ids with $27-style bank ids is where an
+  off-by-$100 would hide; the engine pins the arithmetic. Consequences:
   temp and chest flags never collide (the six-pairs table and the
   basement-un-looter bug 11 retract — the measured $F142 set/clear/
   respawn cycle stands, it just gates only the Xanafalgue); the LIVE
