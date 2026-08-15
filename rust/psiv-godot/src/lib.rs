@@ -13,7 +13,7 @@ use godot::prelude::*;
 mod battle;
 mod dialogue;
 mod view;
-use battle::BattleScreen;
+use battle::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
 use dialogue::DialogueWindow;
 use view::{NpcNode, SheetView, sequence_name};
 
@@ -64,7 +64,9 @@ struct Field {
     battle_files: Option<psiv_data::BattleFiles>,
     battle_field_visibility: Option<battle::FieldVisibility>,
     anim_tick: u64,
-    /// Cinema-mode letterbox bars, shown while a scene runs.
+    /// Cinema-mode bars, shown while a scene or battle owns the authentic
+    /// 320x224 frame. Four bars are needed in the wide field viewport: the
+    /// extra horizontal margins are just as real as the top and bottom ones.
     letterbox: Vec<Gd<godot::classes::ColorRect>>,
     /// The character id whose sheet the leader sprite currently uses.
     leader_char: u8,
@@ -629,6 +631,10 @@ impl Field {
                     godot_print!("scene started (trigger {trigger})");
                     self.set_letterbox(true);
                 }
+                RuntimeEvent::SceneStartedFromInteraction { area, event } => {
+                    godot_print!("scene started (interaction area {area}, event {event:#x})");
+                    self.set_letterbox(true);
+                }
                 RuntimeEvent::SceneEnded => {
                     godot_print!("scene ended");
                     self.set_letterbox(false);
@@ -695,7 +701,7 @@ impl Field {
     /// Cinema mode: letterbox bars over the world, under the dialogue box.
     fn set_letterbox(&mut self, on: bool) {
         if on && self.letterbox.is_empty() {
-            for _ in 0..2 {
+            for _ in 0..4 {
                 let mut bar = godot::classes::ColorRect::new_alloc();
                 bar.set_color(Color::from_rgb(0.0, 0.0, 0.0));
                 bar.set_z_index(500);
@@ -708,7 +714,9 @@ impl Field {
         }
     }
 
-    /// Keeps the bars glued to the camera view, 15% of height each.
+    /// Keeps the bars glued to the camera view and masks everything outside
+    /// the authentic 320x224 frame. At the existing 3x camera zoom this is a
+    /// lossless 960x672 presentation inside the 1280x800 wide viewport.
     fn place_letterbox(&mut self) {
         if self.letterbox.is_empty() || !self.letterbox[0].is_visible() {
             return;
@@ -721,12 +729,35 @@ impl Field {
         let view = viewport / zoom;
         let center = camera.get_position();
         let top_left = center - view / 2.0;
-        let bar_h = (view.y * 0.15).floor();
+        let frame_top_left =
+            center - Vector2::new(BATTLE_FRAME_WIDTH / 2.0, BATTLE_FRAME_HEIGHT / 2.0);
+        let frame_bottom_right =
+            center + Vector2::new(BATTLE_FRAME_WIDTH / 2.0, BATTLE_FRAME_HEIGHT / 2.0);
         let sizes = [
-            (top_left, Vector2::new(view.x, bar_h)),
             (
-                Vector2::new(top_left.x, top_left.y + view.y - bar_h),
-                Vector2::new(view.x, bar_h),
+                top_left,
+                Vector2::new(view.x, (frame_top_left.y - top_left.y).max(0.0)),
+            ),
+            (
+                Vector2::new(top_left.x, frame_bottom_right.y),
+                Vector2::new(
+                    view.x,
+                    (top_left.y + view.y - frame_bottom_right.y).max(0.0),
+                ),
+            ),
+            (
+                Vector2::new(top_left.x, frame_top_left.y),
+                Vector2::new(
+                    (frame_top_left.x - top_left.x).max(0.0),
+                    BATTLE_FRAME_HEIGHT,
+                ),
+            ),
+            (
+                Vector2::new(frame_bottom_right.x, frame_top_left.y),
+                Vector2::new(
+                    (top_left.x + view.x - frame_bottom_right.x).max(0.0),
+                    BATTLE_FRAME_HEIGHT,
+                ),
             ),
         ];
         for (bar, (pos, size)) in self.letterbox.iter_mut().zip(sizes) {

@@ -57,6 +57,17 @@ pub enum RuntimeEvent {
         /// The RunEventsJmpTbl index that fired.
         trigger: u8,
     },
+    /// An interaction area resolved an event and installed its scene.
+    ///
+    /// This is separate from [`RuntimeEvent::SceneStarted`] because the
+    /// source is a map-area record, not the map's RunEvents list. The Godot
+    /// shell uses both notifications to enter cinema mode.
+    SceneStartedFromInteraction {
+        /// Index in the current map's interaction-area list.
+        area: u32,
+        /// The resolved Event_Index word, including the cutscene bit.
+        event: u16,
+    },
     /// The running scene finished (or faulted; faults are logged). Cinema off.
     SceneEnded,
     /// A trigger fired an event with no transcribed scene yet.

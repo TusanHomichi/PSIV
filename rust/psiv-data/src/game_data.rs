@@ -328,6 +328,10 @@ fn validate_map(record: &MapRecord) -> Result<(), DataError> {
         validate_warp_geometry(id, dims, index, warp)?;
     }
 
+    for (index, area) in record.interaction_areas.iter().enumerate() {
+        validate_interaction_geometry(id, dims, index, area)?;
+    }
+
     Ok(())
 }
 
@@ -476,6 +480,36 @@ fn validate_warp_geometry(
                 "cells {}..{} x {}..{} run outside the {}x{} map; the packer must clip \
                  open-ended XYRange entries such as {} to the map",
                 rect.x, end.x, rect.y, end.y, dims.width_cells, dims.height_cells, warp.range.name
+            ),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_interaction_geometry(
+    id: MapId,
+    dims: &Dimensions,
+    index: usize,
+    area: &crate::map::InteractionArea,
+) -> Result<(), DataError> {
+    let Some(rect) = area.rect else {
+        return Ok(());
+    };
+    if rect.width == 0 || rect.height == 0 {
+        return Err(DataError::validation(
+            id,
+            format!("interaction_areas[{index}].rect"),
+            "an interaction area cannot have zero width or height",
+        ));
+    }
+    let end = rect.end();
+    if end.x > dims.width_cells || end.y > dims.height_cells {
+        return Err(DataError::validation(
+            id,
+            format!("interaction_areas[{index}].rect"),
+            format!(
+                "cells {}..{} x {}..{} run outside the {}x{} map",
+                rect.x, end.x, rect.y, end.y, dims.width_cells, dims.height_cells
             ),
         ));
     }

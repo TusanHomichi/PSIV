@@ -17,16 +17,38 @@ use super::art::BattleArt;
 use super::timeline::{self, Beat};
 use super::{BattleSetup, EnemyPlacement, PartyPlacement};
 
-/// `Battle_Speed == 2`: 12 * (speed + 1) frames. Runtime has no speed setting
-/// API yet, so this is the documented retail default rather than a hidden
-/// presentation guess.
+/// `Battle_Speed == 2`: 12 * (speed + 1) frames, per
+/// `docs/BATTLE_GEOMETRY.md` §5. Runtime has no speed setting API yet, so this
+/// is the documented retail default rather than a hidden presentation guess.
 pub(crate) const BATTLE_DWELL_FRAMES: u16 = 36;
 
-/// Party columns in fighter-id order. The retail layout is center-out, so the
-/// visible order is slot 4, 2, 1, 3, 5.
-pub(crate) const PARTY_COLUMNS: [i32; 5] = [17, 11, 23, 5, 29];
+/// Plane cells are 8x8 pixels, per `docs/BATTLE_GEOMETRY.md` §1.
+const BATTLE_CELL_PIXELS: i32 = 8;
 
-/// Byte-pinned upper battle window used for the one-line event narration.
+/// Party columns in fighter-id order. The retail layout is center-out, so the
+/// visible order is slot 4, 2, 1, 3, 5. These are the §3 table verbatim.
+pub(crate) const PARTY_COLUMNS: [i32; 5] = [17, 11, 23, 5, 29];
+/// Party art starts at plane row 15 / screen y120, and is 6x6 cells (§3).
+const PARTY_ROW_Y: f32 = 120.0;
+
+/// The enemy decoder anchors art at row 15 and grows it upward (§2).
+const ENEMY_BASELINE_ROW: i32 = 15;
+
+/// §4 places enemy damage three columns left of the enemy's position byte.
+const ENEMY_DAMAGE_COLUMN_OFFSET: i32 = 3;
+const ENEMY_DAMAGE_Y: f32 = 40.0;
+const PARTY_DAMAGE_Y: f32 = 144.0;
+const DAMAGE_WIDTH: f32 = 40.0;
+const DAMAGE_HEIGHT: f32 = 16.0;
+
+/// The authentic Genesis battle frame, `BATTLE_GEOMETRY.md` §1.
+pub(crate) const BATTLE_FRAME_WIDTH: f32 = 320.0;
+pub(crate) const BATTLE_FRAME_HEIGHT: f32 = 224.0;
+const BATTLE_BACKGROUND_WIDTH: i32 = 512;
+const BATTLE_BACKGROUND_HEIGHT: i32 = 192;
+
+/// Byte-pinned upper battle window used for the one-line event narration:
+/// `docs/BATTLE_GEOMETRY.md` §4, x40 y72 w120 h48.
 const NARRATION_RECT: WindowRect = WindowRect {
     x: 40.0,
     y: 72.0,
@@ -34,17 +56,16 @@ const NARRATION_RECT: WindowRect = WindowRect {
     h: 48.0,
 };
 
-/// The retail main options rectangle was not pinned in BATTLE_GEOMETRY.md.
-/// Tier 1 temporarily draws COMD/RUN in the known small-list rectangle. Keep
-/// this named and visible so it cannot be mistaken for byte-verified layout.
+/// The retail main options rectangle was not pinned in
+/// `docs/BATTLE_GEOMETRY.md` §7 does not pin the COMD/MACR/RUN opener. Tier 1
+/// uses the §4 small-list rectangle verbatim as the closest documented menu
+/// shape; keep this named and visible so it cannot be mistaken for a verified
+/// main-options rect.
 const PROVISIONAL_COMMAND_RECT: WindowRect = WindowRect {
     x: 248.0,
     y: 120.0,
     w: 56.0,
-    // Deliberately 7x6 rather than the byte-pinned small-list 7x5: the
-    // retail main-options rect is unresolved, and two 8x16 glyph rows need
-    // the extra cell to keep COMD and RUN inside the frame.
-    h: 48.0,
+    h: 40.0,
 };
 
 #[derive(Clone, Copy)]
@@ -228,6 +249,18 @@ fn load_image(pack_dir: &str, name: &str) -> Option<Gd<Image>> {
     Image::load_from_file(&GString::from(path.as_str()))
 }
 
+/// Converts the formation position byte and the art record's dimensions into
+/// the sprite's top-left pixel. `docs/BATTLE_GEOMETRY.md` §2 makes the byte the
+/// art's bottom-right column, not its left edge; both axes use the 8-pixel
+/// plane cell.
+fn enemy_sprite_origin(position: u8, width_cells: u16, height_cells: u16) -> (i32, i32) {
+    let column = i32::from(position & 0x7F);
+    (
+        (column - i32::from(width_cells)) * BATTLE_CELL_PIXELS,
+        (ENEMY_BASELINE_ROW - i32::from(height_cells)) * BATTLE_CELL_PIXELS,
+    )
+}
+
 struct EnemySprite {
     fighter: FighterId,
     node: Gd<Sprite2D>,
@@ -321,6 +354,16 @@ impl INode2D for BattleScreen {
     }
 
     fn draw(&mut self) {
+        // `docs/BATTLE_GEOMETRY.md` §1: Plane B is 512x192, only its left
+        // 320x192 is visible, and rows 24..27 have no background. Retail still
+        // presents a black 320x224 frame around that 192px stage.
+        self.base_mut().draw_rect(
+            Rect2::new(
+                Vector2::ZERO,
+                Vector2::new(BATTLE_FRAME_WIDTH, BATTLE_FRAME_HEIGHT),
+            ),
+            Color::BLACK,
+        );
         let Some(chrome) = self.chrome.as_ref() else {
             return;
         };
@@ -342,15 +385,17 @@ impl INode2D for BattleScreen {
         if let Some(damage) = self.damage
             && let Some(column) = self.damage_column(damage.target)
         {
+            // `docs/BATTLE_GEOMETRY.md` §4: enemy damage is row 5 / y40,
+            // party damage is row 18 / y144, and the digit block is 5x2 cells.
             let rect = WindowRect {
-                x: column as f32 * 8.0,
+                x: column as f32 * BATTLE_CELL_PIXELS as f32,
                 y: if damage.target.side() == psiv_core::battle::Side::Enemy {
-                    40.0
+                    ENEMY_DAMAGE_Y
                 } else {
-                    144.0
+                    PARTY_DAMAGE_Y
                 },
-                w: 40.0,
-                h: 16.0,
+                w: DAMAGE_WIDTH,
+                h: DAMAGE_HEIGHT,
             };
             let label = if damage.critical {
                 format!("{}!", damage.amount)
@@ -542,13 +587,29 @@ impl BattleScreen {
         let mut node = Sprite2D::new_alloc();
         node.set_centered(false);
         node.set_z_index(-20);
+        // The §1 background is 512x192 at world origin; the 320x224 camera
+        // frame shows its left 320 pixels and leaves the bottom UI strip clear.
+        node.set_position(Vector2::ZERO);
         if let Some(path) = selected {
             let full = format!("{}/{}", self.pack_dir, path);
             match Image::load_from_file(&GString::from(full.as_str())) {
-                Some(image) => match ImageTexture::create_from_image(&image) {
-                    Some(texture) => node.set_texture(&texture),
-                    None => godot_error!("battle background texture creation failed: {full}"),
-                },
+                Some(image) => {
+                    if image.get_width() != BATTLE_BACKGROUND_WIDTH
+                        || image.get_height() != BATTLE_BACKGROUND_HEIGHT
+                    {
+                        godot_error!(
+                            "battle background {full} is {}x{}, expected {}x{}",
+                            image.get_width(),
+                            image.get_height(),
+                            BATTLE_BACKGROUND_WIDTH,
+                            BATTLE_BACKGROUND_HEIGHT
+                        );
+                    }
+                    match ImageTexture::create_from_image(&image) {
+                        Some(texture) => node.set_texture(&texture),
+                        None => godot_error!("battle background texture creation failed: {full}"),
+                    }
+                }
                 None => godot_error!("battle background image failed to load: {full}"),
             }
         }
@@ -576,10 +637,8 @@ impl BattleScreen {
             let mut node = Sprite2D::new_alloc();
             node.set_centered(false);
             node.set_z_index(-10);
-            node.set_position(Vector2::new(
-                ((enemy.position & 0x7f) as i32 - width as i32) as f32 * 8.0,
-                (15 - height as i32) as f32 * 8.0,
-            ));
+            let (x, y) = enemy_sprite_origin(enemy.position, width, height);
+            node.set_position(Vector2::new(x as f32, y as f32));
             let line = super::art::enemy_cram_line(enemy.position);
             let key = (enemy.enemy_id, line);
             let texture = self.enemy_textures.get(&key).cloned().or_else(|| {
@@ -637,7 +696,10 @@ impl BattleScreen {
             node.set_centered(false);
             node.set_z_index(-10);
             let column = PARTY_COLUMNS.get(index).copied().unwrap_or(0);
-            node.set_position(Vector2::new(column as f32 * 8.0, 120.0));
+            node.set_position(Vector2::new(
+                column as f32 * BATTLE_CELL_PIXELS as f32,
+                PARTY_ROW_Y,
+            ));
             node.set_texture(&idle);
             self.base_mut().add_child(&node);
             self.names.insert(member.fighter_id, member.name.clone());
@@ -758,10 +820,27 @@ impl BattleScreen {
             return self
                 .enemy_positions
                 .get(&target.get())
-                .map(|position| i32::from(position & 0x7f) - 3);
+                .map(|position| i32::from(position & 0x7f) - ENEMY_DAMAGE_COLUMN_OFFSET);
         }
         PARTY_COLUMNS
             .get(target.get().checked_sub(1)? as usize)
             .copied()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::enemy_sprite_origin;
+
+    #[test]
+    fn enemy_position_byte_is_a_bottom_right_anchor() {
+        assert_eq!(enemy_sprite_origin(20, 10, 10), (80, 40));
+        assert_eq!(enemy_sprite_origin(137, 6, 6), (24, 72));
+        assert_eq!(enemy_sprite_origin(159, 6, 6), (200, 72));
+    }
+
+    #[test]
+    fn enemy_palette_bit_does_not_move_the_body() {
+        assert_eq!(enemy_sprite_origin(20 | 0x80, 10, 10), (80, 40));
     }
 }

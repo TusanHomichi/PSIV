@@ -8,7 +8,7 @@ mod art;
 mod timeline;
 mod ui;
 
-pub(crate) use ui::BattleScreen;
+pub(crate) use ui::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
 
 use godot::prelude::*;
 
@@ -156,8 +156,13 @@ impl Field {
         };
         screen.bind_mut().begin(setup, events);
         self.hide_field_for_battle();
+        // `docs/BATTLE_GEOMETRY.md` §1 is a 320x224 authentic frame; the
+        // camera owns its centre while cinema mode masks the wide field view.
         if let Some(camera) = self.camera.as_mut() {
-            camera.set_position(Vector2::new(160.0, 112.0));
+            camera.set_position(Vector2::new(
+                BATTLE_FRAME_WIDTH / 2.0,
+                BATTLE_FRAME_HEIGHT / 2.0,
+            ));
         }
         self.set_letterbox(true);
         self.place_letterbox();

@@ -68,8 +68,9 @@ pub use manifest::{
 };
 pub use map::{
     COLLISION_CELL_PIXELS, Cell, CellPos, CellRect, ContentsType, DIALOGUE_TREE_COUNT, Dimensions,
-    Direction, EffectGate, EffectPath, EffectWrite, Facing, Flags, LayoutVariant, MapEffect,
-    MapRecord, MapRef, Music, Npc, RangeRef, ResolvedCell, SpriteFacing, SpriteRef,
-    TransitionTable, Treasure, VariantCollision, VariantPlane, Warp, WarpSource,
+    Direction, EffectGate, EffectPath, EffectWrite, Facing, Flags, InteractionArea,
+    InteractionFlagType, InteractionSource, LayoutVariant, MapEffect, MapRecord, MapRef, Music,
+    Npc, RangeRef, ResolvedCell, SpriteFacing, SpriteRef, TransitionTable, Treasure,
+    VariantCollision, VariantPlane, Warp, WarpSource,
 };
 pub use sprites::{Sequence, SequenceFrame, Sheet, SheetFile};

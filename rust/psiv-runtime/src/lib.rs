@@ -30,10 +30,10 @@ use bridge::{build_wander, char_id_by_symbol};
 
 use psiv_core::battle::{Battle, BattleEvent, Lcg41, Rng2, Rolls, RoundOrders};
 use psiv_core::{
-    ActorRef, Camera, CameraBounds, CameraEdges, Cell, CharId, Direction, Driver, Effect, FieldMap,
-    FieldState, Flag, GameState, Input, MapId, MemberView, Npc, ONE_PIXEL, Party, PixelPos,
-    SceneInput, SceneRunner, ScriptedActor, StepFrames, TRIGGERS, Topology, TriggerContext,
-    TriggerResult, WanderSet, Wanderer, runner_for, scene_for,
+    ActorRef, Camera, CameraBounds, CameraEdges, Cell, CharId, Direction, Driver, Effect,
+    EventIndex, FieldMap, FieldState, Flag, GameState, Input, MapId, MemberView, Npc, ONE_PIXEL,
+    Party, PixelPos, SceneInput, SceneRunner, ScriptedActor, StepFrames, TRIGGERS, Topology,
+    TriggerContext, TriggerResult, WanderSet, Wanderer, runner_for, scene_for,
 };
 use psiv_data::GameData;
 
@@ -106,6 +106,19 @@ struct BattleSet {
     names: std::collections::BTreeMap<u8, String>,
     /// Event battle index -> boss formation. Boss records have no normal id.
     boss_formations: std::collections::BTreeMap<u16, psiv_core::battle::FormationRecord>,
+}
+
+/// Mirrors `Interaction_ChkMapAreas`'s already-processed gate. A story area
+/// with flag zero is explicitly unconditional; nonzero selectors are clear
+/// until the corresponding handler records them.
+fn interaction_flag_clear(game: &GameState, area: &psiv_data::InteractionArea) -> bool {
+    match area.flag_type.id {
+        0 if area.flag == 0 => true,
+        0 => game.is_clear(Flag::event(u16::from(area.flag))),
+        1 => game.is_clear(Flag::chest(u16::from(area.flag))),
+        2 => game.is_clear(Flag::temp(u16::from(area.flag))),
+        _ => false,
+    }
 }
 
 impl Runtime {
@@ -395,6 +408,7 @@ impl Runtime {
         let mut events = Vec::new();
         let mut landed: Option<Cell> = None;
         let mut map_changed = false;
+        let mut interaction_started = false;
         for effect in self.party.tick(&self.map, input) {
             match effect {
                 Effect::StepCompleted { cell } => {
@@ -429,14 +443,22 @@ impl Runtime {
                     cell,
                     reach,
                 } => {
-                    events.push(RuntimeEvent::Interact {
-                        npc_index,
-                        cell,
-                        reach,
-                    });
+                    if self.start_interaction_event(&mut events) {
+                        interaction_started = true;
+                    } else {
+                        events.push(RuntimeEvent::Interact {
+                            npc_index,
+                            cell,
+                            reach,
+                        });
+                    }
                 }
                 Effect::InteractNothing { facing } => {
-                    events.push(RuntimeEvent::InteractNothing { facing });
+                    if self.start_interaction_event(&mut events) {
+                        interaction_started = true;
+                    } else {
+                        events.push(RuntimeEvent::InteractNothing { facing });
+                    }
                 }
             }
         }
@@ -446,6 +468,7 @@ impl Runtime {
         // again, skipped when a transition already changed the map.
         if let Some(cell) = landed
             && !map_changed
+            && !interaction_started
         {
             events.extend(self.evaluate_triggers(cell));
         }
@@ -690,21 +713,13 @@ impl Runtime {
         let hit = psiv_core::evaluate_list(&TRIGGERS, &indices, &ctx);
         self.prev_standing = standing;
         match hit {
-            Some((index, TriggerResult::Fire(event))) => match scene_for(event) {
-                Some(scene) => {
-                    let cast = self.build_cast();
-                    match runner_for(scene, cast, StepFrames::default()) {
-                        Ok(runner) => {
-                            self.scene = Some(runner);
-                            self.scene_input = SceneInput::None;
-                            self.scene_warmup = true;
-                            events.push(RuntimeEvent::SceneStarted { trigger: index });
-                        }
-                        Err(_) => events.push(RuntimeEvent::SceneMissing { event: event.0 }),
-                    }
+            Some((index, TriggerResult::Fire(event))) => {
+                if self.install_scene(event) {
+                    events.push(RuntimeEvent::SceneStarted { trigger: index });
+                } else {
+                    events.push(RuntimeEvent::SceneMissing { event: event.0 });
                 }
-                None => events.push(RuntimeEvent::SceneMissing { event: event.0 }),
-            },
+            }
             Some((index, TriggerResult::Unsupported(..))) => {
                 events.push(RuntimeEvent::TriggerUnsupported { trigger: index });
             }
@@ -713,6 +728,74 @@ impl Runtime {
             | None => {}
         }
         events
+    }
+
+    /// Runs the type-2 map interaction area probe on a consumed confirm.
+    ///
+    /// The pack has already resolved the record's 8-pixel source and
+    /// `XYRangeJmpTbl` selector into collision cells. Other interaction
+    /// handlers remain deliberately outside this path: their parameters are
+    /// dialogue/chest-specific, not event indexes.
+    fn start_interaction_event(&mut self, events: &mut Vec<RuntimeEvent>) -> bool {
+        let leader = self.party.leader();
+        let Some(adjacent) = leader.cell().neighbor(leader.facing()) else {
+            return false;
+        };
+        let Some(record) = self.data.map(psiv_data::MapId(self.map.id().0)) else {
+            return false;
+        };
+        let Some((area_index, parameter, event)) = record
+            .interaction_areas
+            .iter()
+            .find(|area| {
+                area.interaction_type == 2
+                    && interaction_flag_clear(&self.game, area)
+                    && area.rect.is_some_and(|rect| {
+                        rect.contains(psiv_data::CellPos::new(
+                            u32::from(adjacent.x),
+                            u32::from(adjacent.y),
+                        ))
+                    })
+            })
+            .map(|area| (area.index, area.parameter, area.event_index))
+        else {
+            return false;
+        };
+        let Some(event) = event else {
+            events.push(RuntimeEvent::SceneMissing {
+                event: u16::from(parameter),
+            });
+            return true;
+        };
+        if self.install_scene(EventIndex(event)) {
+            events.push(RuntimeEvent::SceneStartedFromInteraction {
+                area: area_index,
+                event,
+            });
+        } else {
+            events.push(RuntimeEvent::SceneMissing { event });
+        }
+        true
+    }
+
+    /// Installs a transcribed scene and parks the field until its runner
+    /// produces a completion input. The renderer is notified separately by
+    /// the caller because the source of a scene matters to its diagnostics.
+    fn install_scene(&mut self, event: EventIndex) -> bool {
+        if self.scene.is_some() {
+            return false;
+        }
+        let Some(scene) = scene_for(event) else {
+            return false;
+        };
+        let cast = self.build_cast();
+        let Ok(runner) = runner_for(scene, cast, StepFrames::default()) else {
+            return false;
+        };
+        self.scene = Some(runner);
+        self.scene_input = SceneInput::None;
+        self.scene_warmup = true;
+        true
     }
 
     /// The cast a scene may address: every party member (by slot and by
@@ -784,22 +867,7 @@ impl Runtime {
     /// Starts an event's scene directly — the `$F6` dialogue path (the
     /// principal's briefing). Returns whether a transcribed scene began.
     pub fn start_event(&mut self, event: u16) -> bool {
-        if self.scene.is_some() {
-            return false;
-        }
-        let Some(scene) = scene_for(psiv_core::EventIndex(event)) else {
-            return false;
-        };
-        let cast = self.build_cast();
-        match runner_for(scene, cast, StepFrames::default()) {
-            Ok(runner) => {
-                self.scene = Some(runner);
-                self.scene_input = SceneInput::None;
-                self.scene_warmup = true;
-                true
-            }
-            Err(_) => false,
-        }
+        self.install_scene(EventIndex(event))
     }
 
     /// The renderer reports the scene-requested dialogue window has closed.

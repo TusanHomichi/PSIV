@@ -1,50 +1,62 @@
-//! Live-QA repro: pressing at the non-interactable Igglanova on map $17 must
-//! answer "nothing here", not open the principal's dialogue.
+//! Live-QA regression: the map-$17 interaction area must win before the
+//! invisible blocker probe and hand the scene-owned battle to the runtime.
 
 use std::path::Path;
 
 use psiv_core::{Cell, Direction, Input, StepFrames};
-use psiv_data::GameData;
-use psiv_runtime::Runtime;
+use psiv_data::{BattleFiles, GameData};
+use psiv_runtime::{Runtime, RuntimeEvent};
 
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
 
 #[test]
-fn the_igglanova_answers_nothing_here() {
-    if !Path::new(PACK).join("manifest.json").is_file() {
+fn the_igglanova_area_starts_the_scene_before_the_blocker() {
+    if !Path::new(PACK).join("battle").is_dir() {
         eprintln!("pack absent; skipping");
         return;
     }
     let data = GameData::load(Path::new(PACK)).expect("pack loads");
-    let record = data.map(psiv_data::MapId(0x017)).expect("map");
-    let boss = &record.npcs[0];
-    let (bx, by) = (boss.x_cell as u16, boss.y_cell as u16);
-    eprintln!("boss at ({bx},{by})");
-    let mut rt = Runtime::new(
+    let mut runtime = Runtime::new(
         data,
         0x017,
-        Cell::new(bx, by + 1),
+        Cell::new(15, 11),
         Direction::Up,
         StepFrames::default(),
     )
-    .expect("spawn below the boss");
-    // Press up at the boss.
-    let mut saw = Vec::new();
-    for _ in 0..8 {
-        for e in rt.tick(Input::Action) {
-            saw.push(format!("{e:?}"));
+    .expect("runtime starts below Igglanova");
+    let files = BattleFiles::load(Path::new(PACK)).expect("battle files load");
+    runtime.enable_battles(&files).expect("battles enable");
+
+    let first = runtime.tick(Input::Action);
+    assert_eq!(
+        first,
+        vec![RuntimeEvent::SceneStartedFromInteraction {
+            area: 0,
+            event: 0x006B,
+        }],
+        "the area notification must precede the invisible-blocker probe"
+    );
+
+    let mut battle_started = false;
+    for _ in 0..20 {
+        for event in runtime.tick(Input::Neutral) {
+            if matches!(event, RuntimeEvent::SceneBattleStarted { index: 0, .. }) {
+                battle_started = true;
+            }
+            assert!(
+                !matches!(
+                    event,
+                    RuntimeEvent::Interact { .. } | RuntimeEvent::InteractNothing { .. }
+                ),
+                "the area must consume confirm before the blocker answers: {event:?}"
+            );
         }
-        for e in rt.tick(Input::Neutral) {
-            saw.push(format!("{e:?}"));
+        if battle_started {
+            break;
         }
     }
-    eprintln!("events: {saw:?}");
     assert!(
-        saw.iter().any(|e| e.contains("InteractNothing")),
-        "expected nothing-here, got {saw:?}"
-    );
-    assert!(
-        !saw.iter().any(|e| e.contains("Interact {")),
-        "the bit-clear boss must not be talkable: {saw:?}"
+        battle_started,
+        "the scene-owned boss battle starts from the interaction area"
     );
 }
