@@ -123,10 +123,17 @@ would have got wrong:
 
 - **HP and TP are not restored after a battle.** They are the same words the
   battle spent, so the field carries the damage out. Healing is an explicit act.
-- **`_battle` values must never be persisted.** They are stale the moment a
-  battle ends and are recomputed before they are next read. Writing them into a
-  save would be harmless today and a bug the first time the recompute order
-  changes.
+- **`_battle` values are persisted, and that is correct.** An earlier revision
+  of this section said they must never be written to a save. That was wrong.
+  The save routine (`ps4.asm:134843`) copies `#$27F` longwords from
+  `Event_Flags` — 2560 bytes, `$F100`..`$FB00`, annotated in the source as
+  "save data for the Event Flags through the Vehicle Stats". That span contains
+  all eleven `Character_Stats` records whole, `_battle` bytes included, so
+  retail saves them.
+
+  The real invariant is narrower and is about reads, not writes: **a `_battle`
+  value must never be read before `FillBattleStats` has recomputed it.** It is
+  stale between battles; it is simply never consulted while stale.
 
 The oracle's level-up tape is the ground truth for what actually moves, and
 pinning the round trip against it belongs to the roster slice.
