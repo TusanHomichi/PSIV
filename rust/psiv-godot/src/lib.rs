@@ -141,8 +141,6 @@ struct Field {
     anim_tick: u64,
     /// Cinema-mode letterbox bars, shown while a scene runs.
     letterbox: Vec<Gd<godot::classes::ColorRect>>,
-    /// Map-order indices of NPCs despawned by scenes; their nodes hide.
-    hidden_npcs: std::collections::HashSet<usize>,
     /// The character id whose sheet the leader sprite currently uses.
     leader_char: u8,
     /// Set while a dialogue is open and until accept is released after it
@@ -176,7 +174,6 @@ impl INode2D for Field {
             anim_tick: 0,
             accept_blocked: false,
             letterbox: Vec::new(),
-            hidden_npcs: std::collections::HashSet::new(),
             leader_char: 0,
             party_sequence: String::new(),
             party_seq_start: 0,
@@ -432,7 +429,12 @@ impl Field {
             for (index, npc) in record.npcs.iter().enumerate() {
                 // Invisible triggers (sprite_reason set) still block in the
                 // engine, exactly like the cartridge's invisible objects, but
-                // draw nothing.
+                // draw nothing. Despawned objects (engine `active` false —
+                // the single source of truth) draw nothing either, which is
+                // what keeps Alys's old self from resurrecting on rebuild.
+                if !runtime.map().npcs().get(index).is_none_or(|n| n.active) {
+                    continue;
+                }
                 let Some(sprite) = &npc.sprite else { continue };
                 draws.push(NpcDraw {
                     index,
@@ -597,10 +599,11 @@ impl Field {
                     self.refresh_party_sheets();
                 }
                 RuntimeEvent::NpcsDespawned { first, count } => {
-                    for i in first..first + count {
-                        self.hidden_npcs.insert(i);
+                    for (node, _, _, _, index) in &mut self.npc_nodes {
+                        if (first..first + count).contains(index) {
+                            node.set_visible(false);
+                        }
                     }
-                    self.apply_npc_visibility();
                 }
                 RuntimeEvent::InteractNothing { .. } => {
                     // The cartridge answers with the leader's own "Nothing
@@ -675,13 +678,6 @@ impl Field {
                 self.party_view = view;
                 godot_print!("party leader is now sheet {leader}");
             }
-        }
-    }
-
-    /// Applies the hidden set to NPC nodes.
-    fn apply_npc_visibility(&mut self) {
-        for (node, _, _, _, index) in &mut self.npc_nodes {
-            node.set_visible(!self.hidden_npcs.contains(index));
         }
     }
 
