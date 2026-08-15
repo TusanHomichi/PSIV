@@ -406,6 +406,7 @@ fn expand_channel(level: u16) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use psiv_data::BattleFiles;
 
     fn tables() -> BackgroundTables {
         BackgroundTables {
@@ -480,5 +481,41 @@ mod tests {
         assert_eq!(art.background_tables.event_battle.len(), 27);
         assert_eq!(art.background_tables.field_map.len(), 416);
         assert_eq!(art.background_tables.motavia_terrain.len(), 42);
+    }
+
+    #[test]
+    fn igglanova_boss_uses_pack_positions_palette_and_event_background() {
+        let pack = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
+        let files = BattleFiles::load(&pack).expect("retail battle pack loads");
+        let formation = files
+            .formations
+            .boss_formations
+            .iter()
+            .find(|formation| formation.event_battle_index == Some(0))
+            .expect("Igglanova event battle exists");
+
+        assert_eq!(formation.run_chance, 0xFE);
+        assert_eq!(
+            formation
+                .enemies
+                .iter()
+                .map(|enemy| (enemy.enemy_id, enemy.position))
+                .collect::<Vec<_>>(),
+            vec![(9, 137), (12, 20), (9, 159)]
+        );
+
+        let art = BattleArt::load(&pack.to_string_lossy()).expect("retail battle art loads");
+        for enemy_id in [9, 12] {
+            let entry = art.enemies.get(&enemy_id).expect("boss enemy art exists");
+            assert_eq!(entry.palette_words.len(), 11);
+            assert!(!entry.png.is_empty());
+        }
+        assert_eq!(enemy_cram_line(20), 1);
+        assert_eq!(enemy_cram_line(137), 2);
+        assert_eq!(enemy_cram_line(159), 2);
+        assert_eq!(
+            art.background_path(Some(0), 0x17, None, false),
+            Some("battle/art/backgrounds/13_AcademyBasement.png")
+        );
     }
 }

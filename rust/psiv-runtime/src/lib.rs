@@ -12,10 +12,12 @@
 use std::collections::BTreeSet;
 
 mod battle_interim;
+mod boss_battles;
 mod bridge;
 mod effects;
 mod encounters;
 mod events;
+mod scene_runtime;
 pub use bridge::{BridgeError, field_map, field_map_patched};
 pub use effects::{EffectOutcome, evaluate as evaluate_map_effects};
 pub use encounters::{
@@ -30,8 +32,8 @@ use psiv_core::battle::{Battle, BattleEvent, Lcg41, Rng2, Rolls, RoundOrders};
 use psiv_core::{
     ActorRef, Camera, CameraBounds, CameraEdges, Cell, CharId, Direction, Driver, Effect, FieldMap,
     FieldState, Flag, GameState, Input, MapId, MemberView, Npc, ONE_PIXEL, Party, PixelPos,
-    SceneEffect, SceneInput, SceneOp, SceneRunner, ScriptedActor, StepFrames, TRIGGERS, Topology,
-    TriggerContext, TriggerResult, WanderSet, Wanderer, WarpTrigger, runner_for, scene_for,
+    SceneInput, SceneRunner, ScriptedActor, StepFrames, TRIGGERS, Topology, TriggerContext,
+    TriggerResult, WanderSet, Wanderer, runner_for, scene_for,
 };
 use psiv_data::GameData;
 
@@ -85,6 +87,11 @@ pub struct Runtime {
     battles: Option<BattleSet>,
     /// A battle in progress. Field input is ignored while this is `Some`.
     battle: Option<Battle>,
+    /// The event battle that owns the current scene block, if any.
+    scene_battle: Option<u16>,
+    /// An interim Igglanova loss asks the scene to be installed again after
+    /// the finished runner consumes its BattleFinished input.
+    scene_retry: Option<u16>,
     /// The current map's evaluated MapDataManager outcome — dialogue
     /// overrides, the active layout variant, and the surfaced gaps.
     effects: EffectOutcome,
@@ -97,6 +104,8 @@ struct BattleSet {
     clock: EncounterClock,
     /// Display names by character id, for battle timelines.
     names: std::collections::BTreeMap<u8, String>,
+    /// Event battle index -> boss formation. Boss records have no normal id.
+    boss_formations: std::collections::BTreeMap<u16, psiv_core::battle::FormationRecord>,
 }
 
 impl Runtime {
@@ -169,6 +178,8 @@ impl Runtime {
             offscreen: Vec::new(),
             battles: None,
             battle: None,
+            scene_battle: None,
+            scene_retry: None,
             effects,
         })
     }
@@ -207,6 +218,7 @@ impl Runtime {
                     )
                 })
                 .collect(),
+            boss_formations: boss_battles::boss_formation_records(files)?,
         });
         Ok(())
     }
@@ -586,6 +598,7 @@ impl Runtime {
         let (battle, events) = Battle::start(record, party, &set.data, false, &mut rng2)
             .map_err(|e| BridgeError::Rejected(e.to_string()))?;
         self.battle = Some(battle);
+        self.scene_battle = None;
         Ok(events)
     }
 
@@ -658,126 +671,6 @@ impl Runtime {
     /// Seeds the shared RNG word — for replays that align to an oracle log.
     pub fn set_rng_seed(&mut self, seed: u32) {
         self.rng = Lcg41::new(seed);
-    }
-
-    /// One tick of a running scene: feed any pending input, translate the
-    /// effects, close out the scene when the runner finishes.
-    fn scene_tick(&mut self) -> Vec<RuntimeEvent> {
-        let input = std::mem::take(&mut self.scene_input);
-        let mut events = Vec::new();
-        let Some(runner) = self.scene.as_mut() else {
-            return events;
-        };
-        let effects = runner.tick(&self.map, &mut self.game, input);
-        let finished = runner.is_finished();
-        for effect in effects {
-            self.translate_scene_effect(effect, &mut events);
-        }
-        if finished {
-            self.scene = None;
-            events.push(RuntimeEvent::SceneEnded);
-        }
-        events
-    }
-
-    fn translate_scene_effect(&mut self, effect: SceneEffect, events: &mut Vec<RuntimeEvent>) {
-        match effect {
-            SceneEffect::DialogueOpen(id) => {
-                events.push(RuntimeEvent::SceneDialogue { entry: id.0 });
-            }
-            SceneEffect::DialogueOpenFromNpc { actor } => {
-                let entry = match actor {
-                    ActorRef::Npc(i) => self
-                        .map_record()
-                        .and_then(|r| r.npcs.get(i))
-                        .map(|n| n.dialogue_id),
-                    _ => None,
-                };
-                match entry {
-                    Some(entry) => events.push(RuntimeEvent::SceneDialogue { entry }),
-                    // A missing binding is a data defect; resume the scene so
-                    // it cannot hang, and say so.
-                    None => self.scene_input = SceneInput::DialogueClosed,
-                }
-            }
-            // Mid-conversation resumes reopen saved dialogue state the window
-            // does not model yet; auto-resume so the scene continues.
-            SceneEffect::DialogueResume => self.scene_input = SceneInput::DialogueClosed,
-            // The opening act asks no choices; auto-answer yes if one appears.
-            SceneEffect::ChoiceRequested => self.scene_input = SceneInput::Choice(true),
-            SceneEffect::BattleRequested { index } => {
-                events.push(RuntimeEvent::SceneBattleSkipped { index });
-                self.scene_input = SceneInput::DialogueClosed;
-            }
-            SceneEffect::NpcDespawned { npc_index, count } => {
-                let map = self.map.id().0;
-                for i in npc_index..npc_index + count {
-                    self.despawned.insert((map, i));
-                    let _ = self.map.set_npc_active(i, false);
-                }
-                events.push(RuntimeEvent::NpcsDespawned {
-                    first: npc_index,
-                    count,
-                });
-            }
-            SceneEffect::NpcPromoted { npc, .. } => {
-                self.despawned.insert((self.map.id().0, npc));
-                events.push(RuntimeEvent::NpcsDespawned {
-                    first: npc,
-                    count: 1,
-                });
-                events.push(RuntimeEvent::PartyChanged);
-            }
-            SceneEffect::PartyChanged | SceneEffect::CharSlotCopied { .. } => {
-                self.resize_party();
-                events.push(RuntimeEvent::PartyChanged);
-            }
-            SceneEffect::MapRequested {
-                op:
-                    SceneOp::LoadMap {
-                        map,
-                        start_x,
-                        start_y,
-                        facing,
-                        ..
-                    },
-            } => {
-                {
-                    // Start words are 8px units; the standing shift applies
-                    // on Y, as everywhere in the pack.
-                    let cell = Cell::new(start_x / 2, start_y / 2 + 1);
-                    match self.change_map(MapId(map), cell, facing) {
-                        Ok(()) => {
-                            if let Some(runner) = self.scene.as_mut() {
-                                runner.recast(Vec::new());
-                            }
-                            events.push(RuntimeEvent::MapChanged {
-                                map: MapId(map),
-                                trigger: WarpTrigger::MapChange,
-                            });
-                        }
-                        Err(_) => events.push(RuntimeEvent::UnpackedTarget { map: MapId(map) }),
-                    }
-                }
-            }
-            // Flag effects: nothing flag-gated is rebuilt yet (the real
-            // MapDataManager layer is filed); scene despawns cover the act.
-            SceneEffect::FlagChanged { .. } => {}
-            // A scripted facing is written straight into the field object slot
-            // by the cartridge, so it has to reach the map's own record and not
-            // only the scene's actor list. Two representations of one object's
-            // facing is how the oracle's `oNN_facing` column diverged for the
-            // whole length of a scene while everything else matched.
-            SceneEffect::ActorFaced {
-                actor: ActorRef::Npc(index),
-                facing,
-            } => {
-                let _ = self.map.set_npc_facing(index, facing);
-            }
-            // Actor motion is polled via scene_actors(); presentation ops and
-            // arrivals need no runtime action.
-            _ => {}
-        }
     }
 
     /// Evaluates the map's trigger list at a landing.

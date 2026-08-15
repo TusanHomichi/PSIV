@@ -663,10 +663,11 @@ impl Field {
                         }
                     }
                 }
-                RuntimeEvent::SceneBattleSkipped { index } => {
-                    godot_print!(
-                        "battle {index} requested by scene - scene battles remain skipped; random encounters only"
-                    );
+                RuntimeEvent::SceneBattleStarted { index, events } => {
+                    self.start_scene_battle(index, events);
+                }
+                RuntimeEvent::SceneBattleFailed { index, error } => {
+                    godot_error!("scene battle {index} could not start: {error}");
                 }
                 RuntimeEvent::PartyChanged => {
                     self.refresh_party_sheets();

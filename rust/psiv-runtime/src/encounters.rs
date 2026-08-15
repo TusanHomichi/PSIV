@@ -174,12 +174,16 @@ fn level_table(table: &psiv_data::LevelTable) -> LevelTable {
 /// Converts one pack formation into the engine's record.
 ///
 /// # Errors
-/// [`BridgeError::Rejected`] for a formation with no id (boss formations are
-/// keyed by `Event_Battle_Index` instead; pass those separately).
+/// [`BridgeError::Rejected`] for a formation with neither a normal id nor an
+/// event battle index. Boss formations use the latter as their lookup key but
+/// share this conversion path.
 pub fn formation_record(formation: &psiv_data::Formation) -> Result<FormationRecord, BridgeError> {
     let id = formation
         .id
-        .ok_or_else(|| BridgeError::Rejected("formation without an id".into()))?;
+        .or(formation.event_battle_index)
+        .ok_or_else(|| {
+            BridgeError::Rejected("formation without an id or event battle index".into())
+        })?;
     Ok(FormationRecord {
         id,
         ambush_chance: formation.ambush_chance,

@@ -1,5 +1,6 @@
 //! Runtime events emitted for the presentation layer to consume.
 
+use psiv_core::battle::BattleEvent;
 use psiv_core::{Cell, Direction, InteractReach, MapId, WarpTrigger};
 
 /// What a [`crate::Runtime`] tick produced, for the presentation layer.
@@ -75,11 +76,22 @@ pub enum RuntimeEvent {
         /// Entry index in the map's dialogue tree.
         entry: u16,
     },
-    /// The scene requested a battle; no battle engine exists, so the runtime
-    /// resumes the scene immediately. Logged, never silent.
-    SceneBattleSkipped {
+    /// A scene requested an event battle and the runtime started it. The
+    /// initial setup events are delivered with the same timeline as random
+    /// encounters, so the presentation layer can use one battle screen.
+    SceneBattleStarted {
         /// The event battle index.
         index: u16,
+        /// Battle-start timeline events.
+        events: Vec<BattleEvent>,
+    },
+    /// A scene battle could not be started. The runtime resumes the scene
+    /// with an escaped outcome so a malformed pack cannot deadlock it.
+    SceneBattleFailed {
+        /// The event battle index.
+        index: u16,
+        /// The conversion or setup error.
+        error: String,
     },
     /// The party composition changed (join, swap, leader change). The
     /// renderer refreshes party sprites.

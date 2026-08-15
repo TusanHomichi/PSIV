@@ -13,7 +13,7 @@ pub(crate) use ui::BattleScreen;
 use godot::prelude::*;
 
 use psiv_core::Flag;
-use psiv_core::battle::Outcome;
+use psiv_core::battle::{BattleEvent, Outcome};
 use psiv_data::BattleFiles;
 use psiv_runtime::Runtime;
 
@@ -23,8 +23,8 @@ use super::Field;
 /// pack/runtime records so the Godot node never borrows either lower layer.
 pub(crate) struct BattleSetup {
     pub(crate) map_id: u16,
-    /// `None` for random encounters. Event-battle selection remains reserved
-    /// for the explicitly skipped scene-battle path.
+    /// `None` for random encounters; `Some` selects the event-battle
+    /// background table for a scene-owned boss formation.
     pub(crate) event_battle: Option<u16>,
     /// Runtime does not yet expose the raw Motavia terrain byte. Keeping this
     /// `None` makes the missing boundary explicit; a map-0 encounter reports
@@ -79,8 +79,7 @@ impl Field {
         self.battle_screen = Some(screen);
     }
 
-    /// Random encounters are the only battle trigger in this slice. Scene
-    /// `BattleRequested` remains intentionally skipped in `process_events`.
+    /// Starts a random encounter through the shared battle presentation path.
     pub(crate) fn start_random_battle(&mut self, formation: u16) {
         let Some(files) = self.battle_files.as_ref() else {
             godot_error!(
@@ -113,10 +112,45 @@ impl Field {
                 return;
             }
         };
+        self.begin_battle_presentation(setup, events, &format!("formation {formation:#05x}"));
+    }
+
+    /// Starts a boss battle emitted by a running scene. Runtime owns the
+    /// already-started battle; this method only selects the matching pack art
+    /// and hands its initial events to the existing screen.
+    pub(crate) fn start_scene_battle(&mut self, index: u16, events: Vec<BattleEvent>) {
+        let Some(files) = self.battle_files.as_ref() else {
+            godot_error!(
+                "scene requested boss event battle {index}, but battle files are not enabled"
+            );
+            if let Some(runtime) = self.runtime.as_mut() {
+                let _ = runtime.finish_battle_for_outcome(Outcome::Escaped, 0);
+            }
+            return;
+        };
+        let Some(runtime) = self.runtime.as_ref() else {
+            godot_error!("scene boss event battle {index} started without a runtime");
+            return;
+        };
+        let Some(setup) = build_boss_setup(files, runtime, index) else {
+            if let Some(runtime) = self.runtime.as_mut() {
+                let _ = runtime.finish_battle_for_outcome(Outcome::Escaped, 0);
+            }
+            return;
+        };
+        self.begin_battle_presentation(setup, events, &format!("boss event {index}"));
+    }
+
+    fn begin_battle_presentation(
+        &mut self,
+        setup: BattleSetup,
+        events: Vec<BattleEvent>,
+        label: &str,
+    ) {
         let Some(screen) = self.battle_screen.as_mut() else {
             godot_error!("battle started without a BattleScreen node");
             if let Some(runtime) = self.runtime.as_mut() {
-                let _ = runtime.finish_battle_absorbing(0);
+                let _ = runtime.finish_battle_for_outcome(Outcome::Escaped, 0);
             }
             return;
         };
@@ -127,7 +161,7 @@ impl Field {
         }
         self.set_letterbox(true);
         self.place_letterbox();
-        godot_print!("battle started: formation {formation:#05x}");
+        godot_print!("battle started: {label}");
     }
 
     /// Drives one presentation frame while a battle owns the field.
@@ -203,25 +237,13 @@ impl Field {
         else {
             return;
         };
-        let levels = match request.outcome {
-            Outcome::Victory => self.runtime.as_mut().map_or_else(Vec::new, |runtime| {
-                runtime.finish_battle_absorbing(request.reward_each)
-            }),
-            Outcome::Escaped => self
-                .runtime
-                .as_mut()
-                .map_or_else(Vec::new, |runtime| runtime.finish_battle_absorbing(0)),
-            Outcome::Defeat => {
-                let levels = self
-                    .runtime
-                    .as_mut()
-                    .map_or_else(Vec::new, |runtime| runtime.finish_battle_absorbing(0));
-                if let Some(runtime) = self.runtime.as_mut() {
-                    runtime.revive_interim();
-                }
-                levels
-            }
+        let reward = match request.outcome {
+            Outcome::Victory => request.reward_each,
+            Outcome::Escaped | Outcome::Defeat => 0,
         };
+        let levels = self.runtime.as_mut().map_or_else(Vec::new, |runtime| {
+            runtime.finish_battle_for_outcome(request.outcome, reward)
+        });
         if let Some(screen) = self.battle_screen.as_mut() {
             // Queue level-up narration before marking idle-close, otherwise
             // an empty level-up vector could close the node one frame early.
@@ -320,6 +342,32 @@ fn build_setup(files: &BattleFiles, runtime: &Runtime, formation_id: u16) -> Opt
         godot_error!("encounter rolled unknown formation {formation_id:#05x}");
         return None;
     };
+    build_setup_for_formation(files, runtime, formation, None)
+}
+
+fn build_boss_setup(
+    files: &BattleFiles,
+    runtime: &Runtime,
+    event_battle_index: u16,
+) -> Option<BattleSetup> {
+    let Some(formation) = files
+        .formations
+        .boss_formations
+        .iter()
+        .find(|formation| formation.event_battle_index == Some(event_battle_index))
+    else {
+        godot_error!("scene requested unknown boss event battle {event_battle_index}");
+        return None;
+    };
+    build_setup_for_formation(files, runtime, formation, Some(event_battle_index))
+}
+
+fn build_setup_for_formation(
+    files: &BattleFiles,
+    runtime: &Runtime,
+    formation: &psiv_data::Formation,
+    event_battle: Option<u16>,
+) -> Option<BattleSetup> {
     let party = runtime
         .battle_party()
         .into_iter()
@@ -356,7 +404,7 @@ fn build_setup(files: &BattleFiles, runtime: &Runtime, formation_id: u16) -> Opt
         .collect();
     Some(BattleSetup {
         map_id: runtime.map_id().0,
-        event_battle: None,
+        event_battle,
         // Runtime currently exposes no raw Motavia terrain byte. Do not
         // derive one from map art or collision; report the boundary instead.
         motavia_terrain: None,

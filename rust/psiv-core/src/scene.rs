@@ -524,6 +524,12 @@ pub enum SceneInput {
     DialogueClosed,
     /// The player answered the pending choice.
     Choice(bool),
+    /// The battle requested by the scene has ended. The interpreter only
+    /// needs the completion edge; the runtime owns the outcome policy.
+    BattleFinished {
+        /// The result reported by the battle engine.
+        outcome: crate::battle::Outcome,
+    },
 }
 
 /// Something the runtime must act on.

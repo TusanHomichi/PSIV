@@ -29,6 +29,7 @@ enum Blocked {
     Actor(ActorRef),
     Dialogue,
     Choice,
+    Battle,
     Done,
 }
 
@@ -144,6 +145,7 @@ impl SceneRunner {
                 _ => Blocked::No,
             },
             Blocked::Dialogue if input == SceneInput::DialogueClosed => Blocked::No,
+            Blocked::Battle if matches!(input, SceneInput::BattleFinished { .. }) => Blocked::No,
             Blocked::Choice => match input {
                 SceneInput::Choice(_) => Blocked::No,
                 _ => Blocked::Choice,
@@ -267,7 +269,7 @@ impl SceneRunner {
             }
             SceneOp::StartBattle { index } => {
                 effects.push(SceneEffect::BattleRequested { index });
-                self.blocked = Blocked::Dialogue;
+                self.blocked = Blocked::Battle;
                 self.pc += 1;
             }
             SceneOp::LoadMap { .. } => {

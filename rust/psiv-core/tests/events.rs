@@ -1062,8 +1062,10 @@ fn run_scene(name: &str, state: &mut GameState, cast: Vec<ScriptedActor>) -> Vec
         let input = match log.last() {
             Some(SceneEffect::DialogueOpen(_))
             | Some(SceneEffect::DialogueOpenFromNpc { .. })
-            | Some(SceneEffect::DialogueResume)
-            | Some(SceneEffect::BattleRequested { .. }) => SceneInput::DialogueClosed,
+            | Some(SceneEffect::DialogueResume) => SceneInput::DialogueClosed,
+            Some(SceneEffect::BattleRequested { .. }) => SceneInput::BattleFinished {
+                outcome: psiv_core::battle::Outcome::Victory,
+            },
             Some(SceneEffect::ChoiceRequested) => SceneInput::Choice(true),
             _ => SceneInput::None,
         };
