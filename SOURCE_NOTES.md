@@ -426,12 +426,14 @@ and the flag-set whose absence would re-fire the trigger forever.
   its chest AND temp labels (Test/Set at four banks each — event, extended,
   $F140, town — Clear at three; nothing ever clears a town flag). So the
   retail "TempEveFlags" calls dispatch through the chest bank's door.
-  OPEN QUESTION under investigation: the clone's TempEveFlag_* ids are
-  small (0..~$20) and overlap real ChestFlag_* ids (8=Alshline etc.) in the
-  same range — either the retail call sites carry an id offset not yet
-  read, or temp flag N and chest flag N genuinely alias on the cartridge
-  and the game's design accidentally-or-deliberately survives it. psiv-core
-  currently models five separate banks per the clone; the engine change
-  waits on the call-site reading. Found by the map-effects decoder
+  ANSWERED by call-site bytes: every retail `move.w #\$13,d0` (the clone's
+  TempEveFlag_Xanafalgue) jsr-targets the \$F140 doors — set 0x04AEA4 ->
+  0x05767A, test 0x051E18 -> 0x057638, clear 0x0522BE -> 0x0576BC — with
+  the id RAW, no offset. Retail temp flag N and chest flag N are the same
+  bit. CANDIDATE RETAIL BUG (behavioral test pending): TempEveFlag_
+  BioPlantAlarm = 8 = ChestFlag_Alshline, so the Bio Plant alarm's
+  set-on-trigger / clear-on-exit plausibly re-arms or force-loots the
+  Alshline chest on hardware. psiv-core's five-bank model must merge temp
+  into the \$F140 bank (one 256-id space) to reproduce retail. Found by the map-effects decoder
   (docs/MAP_EFFECTS.md finding 5); ROM byte sweeps re-verified
   independently by the lead.
