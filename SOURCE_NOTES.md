@@ -230,6 +230,13 @@ distinct enemy ids that appear in formations.
 
 ## Discrepancies found against the disassembly's annotations
 
+Scene-level fork divergences (the 17 ungated Grand Cross scene rewrites) are
+documented per scene in `docs/scenes/*.md`, each with retail byte ranges and
+byte-diff analyses — including `AlysFound`, where the fork kept the retail
+prologue/epilogue and cut a hole in the middle, omitting the dialogue call
+and the flag-set whose absence would re-fire the trigger forever.
+
+
 - `Battle_FormationData4`: the inline range annotation in `ps4.asm` gives
   `0x284B8C-0x284C3D`, which is only the first of many annotated chunks for
   that blob. The Kosinski stream actually runs to `0x284F7C`, immediately
