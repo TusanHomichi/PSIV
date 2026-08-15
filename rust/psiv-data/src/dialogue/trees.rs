@@ -28,6 +28,22 @@ pub struct TreeFile {
     /// them out of `RunText_CharacterLoop`. Cross-checked against
     /// `window.json` by the renderer, not here: this is the text side.
     pub window: TreeWindow,
+    /// The per-character "Nothing here" lines (`WinTiles_PlayerNothingMsg`,
+    /// stored uncompressed past the tree region): one message per party
+    /// member, each carrying that member's portrait. Absent in packs built
+    /// before the emission landed.
+    #[serde(default)]
+    pub system_messages: Option<SystemMessages>,
+}
+
+/// The uncompressed system-message block.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct SystemMessages {
+    /// The disassembly label the block came from.
+    #[serde(default)]
+    pub label: Option<String>,
+    /// One message per party member, index = character slot (Chaz 0, ...).
+    pub messages: Vec<DialogueEntry>,
 }
 
 /// One Kosinski tree.

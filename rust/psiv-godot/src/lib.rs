@@ -361,9 +361,12 @@ impl INode2D for Field {
                     }
                 }
                 RuntimeEvent::InteractNothing { .. } => {
-                    // The cartridge shows the leader's "Nothing here" line;
-                    // its wiring is pending the lane's report.
-                    godot_print!("talk: nothing here");
+                    // The cartridge answers with the leader's own "Nothing
+                    // here" line — one per character. Slot 0 (Chaz) until
+                    // game-start state supplies the real leader.
+                    if let Some(window) = self.dialogue.as_mut() {
+                        window.bind_mut().open_nothing_here(0);
+                    }
                 }
             }
         }

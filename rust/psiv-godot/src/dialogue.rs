@@ -658,10 +658,22 @@ impl DialogueWindow {
     }
 
     /// Opens an entry the caller already resolved.
-    #[allow(dead_code)] // For callers with a pre-resolved entry ("Nothing here" wiring).
     pub fn open(&mut self, entry: &DialogueEntry) -> bool {
         let opening = TextFlow::open(entry);
         self.start(opening, &format!("entry {}", entry.id))
+    }
+
+    /// The leader's "Nothing here" line (one per character slot).
+    pub fn open_nothing_here(&mut self, character_slot: usize) -> bool {
+        let Some(set) = self.set.as_ref() else {
+            godot_error!("dialogue: no pack loaded; call configure() first");
+            return false;
+        };
+        let Some(entry) = set.nothing_here(character_slot).cloned() else {
+            godot_print!("dialogue: pack carries no system messages");
+            return false;
+        };
+        self.open(&entry)
     }
 
     /// The accept press.

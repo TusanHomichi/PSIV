@@ -44,7 +44,7 @@ pub use chrome::{
 };
 pub use trees::{
     ActionKind, Ctrl, DialogueEntry, DialogueTree, FlagScope, PORTRAIT_HIDE, Page, PageEnd,
-    ScrollArrow, Segment, TreeFile, TreeWindow,
+    ScrollArrow, Segment, SystemMessages, TreeFile, TreeWindow,
 };
 
 /// Format version every file of the dialogue pack declares.
@@ -124,6 +124,18 @@ impl DialogueSet {
     #[must_use]
     pub fn portrait(&self, id: u8) -> Option<&Portrait> {
         self.portraits.portraits.iter().find(|p| p.id == id)
+    }
+
+    /// The party leader's "Nothing here" line — the cartridge's answer to an
+    /// empty-handed confirm, one per character (slot 0 = Chaz). `None` on a
+    /// pack from before the system-message emission.
+    #[must_use]
+    pub fn nothing_here(&self, character_slot: usize) -> Option<&DialogueEntry> {
+        self.trees
+            .system_messages
+            .as_ref()?
+            .messages
+            .get(character_slot)
     }
 
     /// Where `ch` sits in the glyph strip.
