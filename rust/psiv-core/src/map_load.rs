@@ -1,0 +1,216 @@
+//! What a map load does to persistent state.
+//!
+//! The engine has, until now, never cleared a flag by itself: everything that
+//! set one left it set until a scene explicitly cleared it. That is wrong, and
+//! oracle tape 18 measured the consequence — the Xanafalgue respawns and the
+//! Piata Academy basement becomes a repeatable un-looter of the Garuberk Tower
+//! Moon Slasher chest, because both are flag `$13` in the one `$F140` bank.
+//!
+//! # The mechanism
+//!
+//! `MapDataManager` (`0x051B38`, `ps4.asm:107815`) is called from
+//! `GameMode_LoadFieldMap` and walks the map record's `$FFFF`-terminated list
+//! of entry ids, dispatching each through `MapDataManagerJmpTbl`:
+//!
+//! ```text
+//! MapDataManager:
+//!     move.w  (a0), d0
+//!     cmpi.w  #$FFFF, d0
+//!     beq.s   +                       ; end of this map's list
+//!     lea     (MapDataManagerJmpTbl).l, a1
+//!     add.w   d0, d0
+//!     add.w   d0, d0
+//!     jsr     (a1,d0.w)
+//!     ...
+//!     lea     $2(a0), a0
+//!     bra.s   MapDataManager
+//! ```
+//!
+//! Some of those routines clear specific `$F140` flags. So the answers to the
+//! three questions the measurement raised are:
+//!
+//! - **Which routine**: whichever `MapDataMan_*` entries the *destination*
+//!   map's list names. There is no single clearing routine.
+//! - **Which ids**: an explicit literal list per routine. Not a range, not a
+//!   bulk pass, and not derived from anything — seven routines name twenty
+//!   ids between them, and every id is written out as an immediate.
+//! - **Destination-load-tied?** Yes, and the Xanafalgue case shows it plainly:
+//!   `MapDataMan_NearPiataBasement` lives on map `$012`
+//!   (`PiataAcademyNearBasement`), the map you *arrive* on, not on the basement
+//!   you left. `MapDataManager` runs during that map's load, which is what the
+//!   oracle measured as load+39.
+//!
+//! # The table
+//!
+//! | entry | routine | clears |
+//! |---|---|---|
+//! | `$14` | `MapDataMan_MovingPlatforms` | `$09 $0A $0D $0E $0F $10` |
+//! | `$17` | `MapDataMan_Terminals` | `$0B $0C $11 $12` |
+//! | `$18` | `MapDataMan_NearPiataBasement` | `$13` |
+//! | `$3D` | `MapDataMan_GaruberkTowerPart4` | `$15` |
+//! | `$3E` | `MapDataMan_GaruberkTowerPart5` | `$17` |
+//! | `$47` | `MapDataMan_LeRoofRoom` | `$19` |
+//! | `$84` | `MapDataMan_ClrBioPlantAlarm` | `$08` |
+//!
+//! Two clear sites are deliberately **not** here because they are not map load:
+//! `FieldObj_EsperGuard` clears `$1A` while the guards animate, which belongs
+//! to that object's routine; and `MapUpdate_ClrChestFlag` (`MapUpdateJmpTbl`
+//! entry `$38`) clears `$A9` every frame but the disassembly annotates it "Not
+//! referenced" — dead code, and chasing it would be a waste.
+//!
+//! # These clears land in the chest bank
+//!
+//! Every id above is a `$F140` id, so each one is simultaneously a chest flag.
+//! `$13` is `TempEveFlag_Xanafalgue` **and** `ChestFlag_GrbrkTwMoonSlashr`;
+//! `$08` is `TempEveFlag_BioPlantAlarm` **and** `ChestFlag_Alshline`. Clearing
+//! them un-loots those chests. That is the retail bug tape 18 measured, and
+//! reproducing it is the point.
+
+use crate::state::{Flag, GameState};
+
+/// `MapDataManagerJmpTbl` entries that clear flags, and what each clears.
+///
+/// Transcribed from the seven routines named in the module docs. The entry id
+/// is the index the map record stores, so a caller matches this against the
+/// map's own `MapDataManager` list — which the pack already extracts as
+/// `map_effects[].entry`.
+const MAP_LOAD_FLAG_CLEARS: [(u8, &[u8]); 7] = [
+    // Vahal Fort and Weapon Plant moving platforms, reset so the platforms
+    // start where the map art draws them.
+    (0x14, &[0x09, 0x0A, 0x0D, 0x0E, 0x0F, 0x10]),
+    // The conveyor terminals in the same two dungeons.
+    (0x17, &[0x0B, 0x0C, 0x11, 0x12]),
+    // The Xanafalgue. Runs on the map outside the basement, not in it.
+    (0x18, &[0x13]),
+    (0x3D, &[0x15]),
+    (0x3E, &[0x17]),
+    (0x47, &[0x19]),
+    (0x84, &[0x08]),
+];
+
+/// The flag ids a `MapDataManager` entry clears when its map loads.
+///
+/// Empty for the great majority of entries — of the 131 in the table, seven
+/// clear anything.
+#[must_use]
+pub fn flag_clears_for_entry(entry: u8) -> &'static [u8] {
+    MAP_LOAD_FLAG_CLEARS
+        .iter()
+        .find(|(id, _)| *id == entry)
+        .map_or(&[], |(_, ids)| *ids)
+}
+
+/// Applies every map-load flag clear for a map whose `MapDataManager` list is
+/// `entries`, returning the flags actually cleared.
+///
+/// Call this when the destination map loads, not when the source map is left.
+/// The return value is for the bridge: an object gated on one of these flags
+/// has to be rebuilt, which is what makes the Xanafalgue reappear.
+pub fn apply_map_load(state: &mut GameState, entries: &[u8]) -> Vec<Flag> {
+    let mut cleared = Vec::new();
+    for entry in entries {
+        for id in flag_clears_for_entry(*entry) {
+            let flag = Flag::chest(u16::from(*id));
+            if state.is_set(flag) {
+                let _ = state.clear(flag);
+                cleared.push(flag);
+            }
+        }
+    }
+    cleared
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_seven_entries_clear_anything() {
+        let clearing = (0u8..=0xFF)
+            .filter(|e| !flag_clears_for_entry(*e).is_empty())
+            .count();
+        assert_eq!(clearing, 7);
+        assert!(flag_clears_for_entry(0x00).is_empty());
+        assert!(flag_clears_for_entry(0x03).is_empty(), "the despawn entry");
+    }
+
+    #[test]
+    fn the_map_outside_the_basement_clears_the_xanafalgue_flag() {
+        // Entry $18 is MapDataMan_NearPiataBasement, which sits on map $012 —
+        // the destination, not the basement.
+        assert_eq!(flag_clears_for_entry(0x18), &[0x13]);
+    }
+
+    #[test]
+    fn arriving_clears_the_flag_and_reports_what_it_cleared() {
+        let mut state = GameState::new();
+        state.set(Flag::temp(0x13)).unwrap();
+
+        let cleared = apply_map_load(&mut state, &[0x03, 0x18]);
+        assert_eq!(cleared, vec![Flag::chest(0x13)]);
+        assert!(state.is_clear(Flag::temp(0x13)));
+    }
+
+    #[test]
+    fn a_flag_that_was_not_set_is_not_reported_as_cleared() {
+        // The bridge rebuilds on what actually changed, so an unconditional
+        // clear would make every load look like a state change.
+        let mut state = GameState::new();
+        let cleared = apply_map_load(&mut state, &[0x18]);
+        assert!(cleared.is_empty());
+    }
+
+    #[test]
+    fn a_map_with_no_clearing_entries_leaves_everything_alone() {
+        let mut state = GameState::new();
+        state.set(Flag::temp(0x13)).unwrap();
+        assert!(apply_map_load(&mut state, &[0x00, 0x03, 0x05]).is_empty());
+        assert!(state.is_set(Flag::temp(0x13)));
+    }
+
+    #[test]
+    fn the_basement_round_trip_un_loots_the_moon_slasher_chest() {
+        // Tape 18's measured bug, end to end. $13 is TempEveFlag_Xanafalgue and
+        // ChestFlag_GrbrkTwMoonSlashr at once, so the map-load clear that
+        // respawns the Xanafalgue also re-arms a chest the player already
+        // emptied — reachable by ordinary backtracking.
+        let mut state = GameState::new();
+        let moon_slasher = crate::Chest {
+            cell: crate::geom::Cell::new(4, 4),
+            flag: 0x13,
+            contents: crate::ChestContents::Item(0x40),
+            white: false,
+            index: 0,
+        };
+
+        // Loot it at Garuberk Tower.
+        state.open_chest(&moon_slasher);
+        assert!(state.chest_is_open(&moon_slasher));
+
+        // Much later, walk into the Piata basement — the Xanafalgue flees and
+        // sets $13, which is already set, so nothing visibly happens — and then
+        // walk back out onto map $012.
+        apply_map_load(&mut state, &[0x18]);
+
+        assert!(
+            !state.chest_is_open(&moon_slasher),
+            "the chest reads unlooted again"
+        );
+        // And it really can be taken a second time.
+        assert!(matches!(
+            state.open_chest(&moon_slasher),
+            crate::ChestOutcome::Took { item: 0x40, .. }
+        ));
+    }
+
+    #[test]
+    fn leaving_the_bio_plant_clears_the_alarm_and_re_arms_the_alshline_chest() {
+        // The same shape at id $08: TempEveFlag_BioPlantAlarm is
+        // ChestFlag_Alshline, and entry $84 clears it on load.
+        let mut state = GameState::new();
+        state.set(Flag::temp(0x08)).unwrap();
+        let cleared = apply_map_load(&mut state, &[0x84]);
+        assert_eq!(cleared, vec![Flag::chest(0x08)]);
+        assert!(state.is_clear(Flag::chest(0x08)));
+    }
+}

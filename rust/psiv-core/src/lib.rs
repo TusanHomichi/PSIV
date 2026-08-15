@@ -83,6 +83,7 @@ mod field;
 mod geom;
 mod inventory;
 mod map;
+mod map_load;
 mod party;
 mod replay;
 mod scene;
@@ -107,6 +108,7 @@ pub use field::{
 pub use geom::{CELL_PIXELS, Cell, CellRect, Direction};
 pub use inventory::{EMPTY, INVENTORY_SLOTS, Inventory};
 pub use map::{FieldMap, MapId, Npc, NpcId, SubCellOffset, Topology, Warp, WarpTrigger};
+pub use map_load::{apply_map_load, flag_clears_for_entry};
 pub use party::{MAX_PARTY_MEMBERS, MemberView, Party};
 pub use replay::{
     Buttons, COLUMNS, Column, Coverage, DiffReport, Divergence, FrameSample, OBJECT_COLUMN_KINDS,

@@ -9,6 +9,7 @@ Status at a glance:
 | --- | --- |
 | Inventory | **implemented**, `psiv-core/src/inventory.rs` |
 | Treasure chests | **implemented**, `psiv-core/src/chest.rs` + `GameState::open_chest` |
+| Map-load flag clears | **implemented**, `psiv-core/src/map_load.rs` |
 | Character roster | **scouted, not implemented** — see the cut proposal at the end |
 
 ## 1. The character record
@@ -62,6 +63,73 @@ reuse it, not re-derive it.
 they gain experience even while out of the party. This is what makes the
 eleven-character roster necessary rather than a five-slot one — benched
 characters keep levelling.
+
+The award routine (`ps4.asm:4735-4782`, reached from `Battle_VictoryMessage`)
+does it in two passes, and the details matter for the round trip:
+
+**In the party.** For each occupied slot, `st gain_exp_flag(a0)` sets the flag
+to `$FF` **unconditionally** — before any other check. Then `status & $44` is
+tested, masking bits 2 and 6 (`StatusDead` and the android dead bit); if either
+is set the character gains **no experience**. Otherwise `exp += award`, clamped
+to **9,999,999**. So a character who died during the battle still earns the
+flag, just not the experience.
+
+**Out of the party.** Gated on `EventFlag_Reunion` being **clear**. While it is,
+a second pass walks all eleven records (`moveq #$A, d7`, stride `$80`), skips
+anyone already awarded as a party member, and gives the same award to any
+character whose `gain_exp_flag` is set — same 9,999,999 clamp. Once Reunion is
+set, benched characters stop gaining.
+
+Slot to record is `lsl.w #7, d0`, i.e. id x `$80`, which is a third independent
+confirmation of the stride.
+
+## The shared invariant: `Stats` is the persistent record
+
+**Adjudicated 2026-08-15 (team lead): option 1.** `battle::Stats` *is* the
+persistent per-character record. `GameState` owns eleven of them and there is no
+projection or conversion layer.
+
+The cartridge settles this rather than taste. There is one copy of each
+character at `$F500 + n * $80`, and battles read and write it **in place** —
+`FillBattleStats` (`ps4.asm:11272`) walks `Character_Stats` itself with
+`moveq #$A, d7` and stride `$80`, and the experience award above writes `exp`
+straight into the same records. Nothing anywhere copies a character into a
+battle-local structure and back. A projection layer would be inventing a seam
+the hardware does not have, and inventing a seam is inventing a place to drift.
+
+### Governance
+
+`psiv-core/src/battle/stats.rs` remains **battle-scout-lane's file**. `Stats` is
+a **declared shared interface type**: neither lane changes its shape without the
+lead's sign-off. Both lanes cite this section.
+
+### The round-trip contract
+
+State survives a battle unless it is in the `_battle` tier.
+
+| tier | fields | survives a battle? |
+| --- | --- | --- |
+| persistent | `level`, `exp`, `curr_hp`, `curr_tp`, `max_hp`, `max_tp`, `status`, `gain_exp_flag`, `profession`, equipment, element props | **yes** |
+| base | `strength`, `mental`, `agility`, `dexterity` | yes — only levelling changes them |
+| `_mod` | the same four, plus `atk_pow` / `dfs_pow` / `magic_dfs` | yes — derived from base + equipment by `UpdateCharModStats`, so it changes only when equipment or base does |
+| `_battle` | the same seven | **no** — `FillBattleStats` overwrites every one from its `_mod` at the start of every battle |
+
+Stating it as a tier rule rather than a field list is deliberate: a list drifts
+as fields are added, whereas "everything except `_battle`" stays true and tells
+a reader what to check when they add one.
+
+Two consequences worth naming, because they are the ones a conversion layer
+would have got wrong:
+
+- **HP and TP are not restored after a battle.** They are the same words the
+  battle spent, so the field carries the damage out. Healing is an explicit act.
+- **`_battle` values must never be persisted.** They are stale the moment a
+  battle ends and are recomputed before they are next read. Writing them into a
+  save would be harmless today and a bug the first time the recompute order
+  changes.
+
+The oracle's level-up tape is the ground truth for what actually moves, and
+pinning the round trip against it belongs to the roster slice.
 
 ### The new-game initialiser
 
@@ -154,6 +222,79 @@ certain chests writes state a trigger reads as a temp flag, and tripping certain
 temp flags marks a chest as already looted. `a_chest_flag_and_its_alias_temp_flag_are_one_bit`
 pins the Alshline/BioPlantAlarm case in both directions. Nothing here tries to
 prevent it.
+
+## 4. Map load clears flags — implemented
+
+Until this, the engine never cleared a flag by itself. Oracle tape 18 measured
+that it must: a clear lands 39 frames after arriving on the destination map,
+which is what respawns the Xanafalgue and turns the Piata Academy basement into
+a repeatable un-looter of the Garuberk Tower Moon Slasher chest.
+
+`MapDataManager` (`0x051B38`, `ps4.asm:107815`) is called from
+`GameMode_LoadFieldMap` and walks the map record's `$FFFF`-terminated list of
+entry ids, dispatching each through `MapDataManagerJmpTbl`. Some of those
+routines clear specific `$F140` flags.
+
+- **Which routine**: whichever `MapDataMan_*` entries the *destination* map's
+  list names. There is no single clearing routine.
+- **Which ids**: an explicit literal list per routine — not a range, not a bulk
+  pass, not derived. Seven routines name twenty ids between them, every one
+  written out as an immediate.
+- **Destination-load-tied?** Yes, and the Xanafalgue case shows it plainly:
+  `MapDataMan_NearPiataBasement` is entry `$18` and it appears on map `$012`,
+  `PiataAcademyNearBasement` — the map you *arrive* on, not the basement you
+  left. That is exactly the oracle's load+39.
+
+| entry | routine | clears | on maps |
+| --- | --- | --- | --- |
+| `$14` | `MapDataMan_MovingPlatforms` | `$09 $0A $0D $0E $0F $10` | Motavia, Dezolis |
+| `$17` | `MapDataMan_Terminals` | `$0B $0C $11 $12` | Vahal Fort, Weapon Plant |
+| `$18` | `MapDataMan_NearPiataBasement` | `$13` | `$012` |
+| `$3D` | `MapDataMan_GaruberkTowerPart4` | `$15` | `$19C` |
+| `$3E` | `MapDataMan_GaruberkTowerPart5` | `$17` | `$19D` |
+| `$47` | `MapDataMan_LeRoofRoom` | `$19` | `$0F0` |
+| `$84` | `MapDataMan_ClrBioPlantAlarm` | `$08` | Bio Plant exit |
+
+Two clear sites are deliberately excluded because they are not map load.
+`FieldObj_EsperGuard` clears `$1A` while the guards animate — that belongs to
+the object's routine. And `MapUpdate_ClrChestFlag` (`MapUpdateJmpTbl` entry
+`$38`) clears `$A9` every frame, but the disassembly annotates it **"Not
+referenced"**: dead code, recorded here so nobody else chases it.
+
+Every id above is a `$F140` id and therefore simultaneously a chest flag. `$13`
+is `TempEveFlag_Xanafalgue` *and* `ChestFlag_GrbrkTwMoonSlashr`; `$08` is
+`TempEveFlag_BioPlantAlarm` *and* `ChestFlag_Alshline`. Clearing them un-loots
+those chests, which is tape 18's measured bug, reproduced end to end by
+`the_basement_round_trip_un_loots_the_moon_slasher_chest`.
+
+### The alias is wider than the trigger tables showed
+
+Sweeping the transcribed tables gave six colliding ids. The constants file gives
+the real extent: `TempEveFlag_*` runs `$00`, `$08`..`$1D`+ and `ChestFlag_*`
+covers the same range continuously, so **essentially every temp flag id is also
+a chest flag id**. `$14` is `GrbkTwEyeball` and `GrbrkTwStarDew`; `$15` is
+`GrbkTwMoonSlshrRoom` and `GrbrkTwMoonDew`; `$18` is `ChazHouse` and
+`PiataMonomate`; `$19` is `SilenceTm` and `Piata100Meseta`. Six was the count of
+pairs *we had transcribed*, not the count that exists.
+
+### Extractor gap: the pack carries no flag-clear data
+
+The map-effects extractor already emits each map's `MapDataManager` entry list,
+which is what `map_load::apply_map_load` consumes — so the binding is available.
+But the decoder does not recognise the clears themselves:
+
+- The three entries that call the `$F140` clear door at `0x0576BC` (`$17`,
+  `$3D`, `$3E`) **fail to decode**, two on `opcode 0x0C6C` and one on `opcode
+  0x103C` — `move.b #id, d0`, the byte form of the immediate load. The decoder
+  knows `move.w` (`303C`) but not `move.b`.
+- The entries that *do* decode (`$14`, `$18`, `$47`) come back with
+  `kinds: []` — walked successfully, but with no vocabulary for a flag-clear
+  write, so nothing is emitted.
+
+Either way the pack contains no record that any flag is ever cleared. The table
+in `map_load.rs` is transcribed from the disassembly to fill that gap; adding a
+`flag_clear` kind to the decoder (and the `move.b` immediate form) would let it
+come from data instead, and is a `psiv_tools` change rather than a core one.
 
 ## Save-format deltas
 
