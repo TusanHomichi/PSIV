@@ -202,16 +202,20 @@ pub enum Effect {
 /// matches.
 pub const TALK_RANGE_PX: i32 = 8;
 
-/// The first NPC within talk range of a target point, given in pixels relative
-/// to the origin of the grid.
+/// The first NPC within talk range of `target`.
 ///
 /// First match wins, scanning in map order — the cartridge's loop `rts`es on
-/// its first hit rather than looking for a nearest.
-fn npc_in_talk_range(map: &FieldMap, target_x: i32, target_y: i32) -> Option<usize> {
+/// its first hit rather than looking for a nearest. Distances are measured
+/// through [`FieldMap::wrap_delta_px`], so on a wrapping map an object just
+/// across the seam is as reachable as any other neighbour.
+fn npc_in_talk_range(map: &FieldMap, target: Cell) -> Option<usize> {
+    let target_x = i32::from(target.x) * CELL_PIXELS;
+    let target_y = i32::from(target.y) * CELL_PIXELS;
     map.npcs().iter().position(|npc| {
         let npc_x = i32::from(npc.cell.x) * CELL_PIXELS + i32::from(npc.offset.x);
         let npc_y = i32::from(npc.cell.y) * CELL_PIXELS + i32::from(npc.offset.y);
-        (npc_x - target_x).abs() <= TALK_RANGE_PX && (npc_y - target_y).abs() <= TALK_RANGE_PX
+        let (dx, dy) = map.wrap_delta_px(npc_x - target_x, npc_y - target_y);
+        dx.abs() <= TALK_RANGE_PX && dy.abs() <= TALK_RANGE_PX
     })
 }
 
@@ -330,14 +334,14 @@ impl FieldState {
         cell: Cell,
         facing: Direction,
     ) -> Result<(), MapError> {
-        if !map.grid().contains(cell) {
+        let Some(cell) = map.normalize(cell) else {
             return Err(MapError::PartyOutOfBounds {
                 map: map.id(),
                 cell,
                 width: map.width(),
                 height: map.height(),
             });
-        }
+        };
         self.map = map.id();
         self.cell = cell;
         self.facing = facing;
@@ -345,16 +349,6 @@ impl FieldState {
         self.on_map_change = is_map_change(map, cell);
         self.action_latched = false;
         Ok(())
-    }
-
-    /// The point the talk check aims at: one cell ahead in the facing
-    /// direction, in pixels. Signed, because facing off the grid is legal.
-    fn talk_target_px(&self) -> (i32, i32) {
-        let (dx, dy) = self.facing.delta();
-        (
-            (i32::from(self.cell.x) + dx) * CELL_PIXELS,
-            (i32::from(self.cell.y) + dy) * CELL_PIXELS,
-        )
     }
 
     /// Advances one tick.
@@ -413,14 +407,14 @@ impl FieldState {
 
         if self.step.is_none() && self.action_latched {
             self.action_latched = false;
-            // Facing off the grid is legal (confirm at the top-left corner
-            // facing up). Nothing can match there: every NPC is in bounds, so
-            // the nearest possible object is a full cell from the target and
-            // the range is half a cell. Skipping the scan is equivalent.
-            let hit = self.cell.neighbor(self.facing).and_then(|cell| {
-                let (target_x, target_y) = self.talk_target_px();
-                npc_in_talk_range(map, target_x, target_y)
-                    .map(|npc_index| Effect::Interact { npc_index, cell })
+            // Facing off a bounded map is legal (confirm at the top-left
+            // corner facing up). Nothing can match there: every NPC is on the
+            // grid, so the nearest possible object is a full cell from the
+            // target and the range is half a cell. Skipping the scan is
+            // equivalent. On a torus there is no such edge and this is always
+            // `Some`.
+            let hit = map.neighbor(self.cell, self.facing).and_then(|cell| {
+                npc_in_talk_range(map, cell).map(|npc_index| Effect::Interact { npc_index, cell })
             });
             effects.push(hit.unwrap_or(Effect::InteractNothing {
                 facing: self.facing,
@@ -434,7 +428,7 @@ impl FieldState {
             && let Some(dir) = input.direction()
         {
             self.facing = dir;
-            if let Some(to) = self.cell.neighbor(dir)
+            if let Some(to) = map.neighbor(self.cell, dir)
                 && map.is_walkable(to)
             {
                 self.step = Some(Step {

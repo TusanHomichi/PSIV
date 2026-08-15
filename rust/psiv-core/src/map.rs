@@ -181,11 +181,64 @@ impl Npc {
     }
 }
 
+/// The signed distance from 0 to `delta` on a ring of circumference `span`,
+/// taking whichever way round is shorter.
+fn shortest_delta(delta: i32, span: i32) -> i32 {
+    let d = delta.rem_euclid(span);
+    if d * 2 > span { d - span } else { d }
+}
+
+/// Whether a map's coordinate space has edges or wraps around.
+///
+/// The two overworlds (MapID 0 and 1) are globes: position wraps at
+/// `(size + 1) << 5` pixels on both axes and `GetChunkAndCollision` masks the
+/// windowed row, so walking off the east edge arrives at the west. Every other
+/// map is a bounded room whose edges stop the walker.
+///
+/// Corroboration from the other direction: `FieldObj_CameraXPos_FG`
+/// (`ps4.asm:89549`) opens with `move.w (Field_Map_Index).w, d0 / andi.w
+/// #$FFFE, d0 / beq` — it branches *past* all of its camera clamping precisely
+/// when the map index is 0 or 1. The overworlds are the maps with nothing to
+/// clamp against.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub enum Topology {
+    /// Edges stop the walker; stepping off the grid is impossible. Every
+    /// interior, town and dungeon map.
+    #[default]
+    Bounded,
+    /// Both axes wrap at the grid's own dimensions. The two overworlds.
+    ///
+    /// The wrap period is the map's width and height in cells, not a baked
+    /// constant: the cartridge derives it from `Map_Row_Size_FG` /
+    /// `Map_Column_Size_FG`, which for the overworlds give the 4,096-pixel
+    /// (256-cell) period.
+    Torus,
+}
+
+impl Topology {
+    /// Whether coordinates wrap.
+    #[must_use]
+    pub const fn wraps(self) -> bool {
+        matches!(self, Topology::Torus)
+    }
+}
+
 /// A validated field map.
 ///
 /// Construction rejects what would make the walker's arithmetic meaningless —
-/// a warp rectangle that is empty or runs off the grid, an NPC placed outside
-/// the grid — and nothing else.
+/// a warp rectangle that is empty or (on a bounded map) runs off the grid, an
+/// NPC placed outside the grid — and nothing else.
+///
+/// # Collision data is the caller's to supply
+///
+/// A map holds whatever [`CollisionGrid`] it is handed. Nothing here reads a
+/// ROM, caches, or treats the grid as immutable cartridge truth — the grid is
+/// a plain `Vec<u8>` the bridge builds, and [`CollisionGrid::set`] can rewrite
+/// any cell. That is deliberate: the overworlds ship event-flag-gated
+/// `layout_patches` (the Motavia spaceport turning cells into a type-1
+/// doorway, say), and **applying the active patches is the bridge's job**. The
+/// engine models no event flags and sees only the resulting grid. Rebuild the
+/// [`FieldMap`] when the active patch set changes.
 ///
 /// It deliberately does **not** reject odd-but-real placements, because the
 /// retail cartridge is full of them and the fidelity policy is to reproduce
@@ -210,10 +263,12 @@ pub struct FieldMap {
     grid: CollisionGrid,
     warps: Vec<Warp>,
     npcs: Vec<Npc>,
+    topology: Topology,
 }
 
 impl FieldMap {
-    /// Builds and validates a map.
+    /// Builds and validates a [`Topology::Bounded`] map — every interior,
+    /// town and dungeon.
     ///
     /// # Errors
     ///
@@ -227,13 +282,52 @@ impl FieldMap {
         warps: Vec<Warp>,
         npcs: Vec<Npc>,
     ) -> Result<FieldMap, MapError> {
+        FieldMap::with_topology(id, grid, warps, npcs, Topology::Bounded)
+    }
+
+    /// Builds and validates a map with an explicit [`Topology`]. Use this with
+    /// [`Topology::Torus`] for the two overworlds.
+    ///
+    /// # Errors
+    ///
+    /// As [`FieldMap::new`], plus [`MapError::WarpRectLargerThanMap`]: on a
+    /// torus a warp rectangle may run past the edge and wrap, but one bigger
+    /// than the world itself would cover some cells twice and is rejected.
+    pub fn with_topology(
+        id: MapId,
+        grid: CollisionGrid,
+        warps: Vec<Warp>,
+        npcs: Vec<Npc>,
+        topology: Topology,
+    ) -> Result<FieldMap, MapError> {
         let (width, height) = (grid.width(), grid.height());
 
         for (warp_index, warp) in warps.iter().enumerate() {
             if warp.source.is_empty() {
                 return Err(MapError::EmptyWarpRect { warp_index });
             }
-            if warp.source.right() > u32::from(width) || warp.source.bottom() > u32::from(height) {
+            if topology.wraps() {
+                // Running past the edge is legal and means "wraps round"; the
+                // origin still has to name a real cell.
+                if warp.source.width > width || warp.source.height > height {
+                    return Err(MapError::WarpRectLargerThanMap {
+                        warp_index,
+                        rect: warp.source,
+                        width,
+                        height,
+                    });
+                }
+                if warp.source.x >= width || warp.source.y >= height {
+                    return Err(MapError::WarpRectOutOfBounds {
+                        warp_index,
+                        rect: warp.source,
+                        width,
+                        height,
+                    });
+                }
+            } else if warp.source.right() > u32::from(width)
+                || warp.source.bottom() > u32::from(height)
+            {
                 return Err(MapError::WarpRectOutOfBounds {
                     warp_index,
                     rect: warp.source,
@@ -265,7 +359,73 @@ impl FieldMap {
             grid,
             warps,
             npcs,
+            topology,
         })
+    }
+
+    /// Whether this map's coordinates wrap.
+    #[must_use]
+    pub const fn topology(&self) -> Topology {
+        self.topology
+    }
+
+    /// Convenience for `topology().wraps()`.
+    #[must_use]
+    pub const fn wraps(&self) -> bool {
+        self.topology.wraps()
+    }
+
+    /// Brings a raw signed cell coordinate into the map's own space.
+    ///
+    /// On a torus every coordinate names a cell, so this always succeeds; on a
+    /// bounded map anything off the grid is `None`. This is the single place
+    /// topology is applied — every lookup below goes through it, so a caller
+    /// cannot accidentally query a wrapping map with unwrapped coordinates.
+    #[must_use]
+    pub fn normalize_signed(&self, x: i32, y: i32) -> Option<Cell> {
+        let (w, h) = (i32::from(self.width()), i32::from(self.height()));
+        let (x, y) = if self.wraps() {
+            (x.rem_euclid(w), y.rem_euclid(h))
+        } else {
+            (x, y)
+        };
+        if x < 0 || y < 0 || x >= w || y >= h {
+            return None;
+        }
+        // Both are inside 0..w / 0..h, which fit u16 by construction.
+        Some(Cell::new(x as u16, y as u16))
+    }
+
+    /// Brings a cell into the map's own space. Identity for any in-range cell.
+    #[must_use]
+    pub fn normalize(&self, cell: Cell) -> Option<Cell> {
+        self.normalize_signed(i32::from(cell.x), i32::from(cell.y))
+    }
+
+    /// The cell one step from `cell` in `dir`, respecting topology.
+    ///
+    /// `None` only at the edge of a bounded map; on a torus the seam is not an
+    /// edge and this always succeeds.
+    #[must_use]
+    pub fn neighbor(&self, cell: Cell, dir: Direction) -> Option<Cell> {
+        let (dx, dy) = dir.delta();
+        self.normalize_signed(i32::from(cell.x) + dx, i32::from(cell.y) + dy)
+    }
+
+    /// Shortens a pixel delta across the seam on a torus: on a globe two
+    /// points are never further apart than half the world.
+    ///
+    /// Identity on a bounded map. Used by the talk range check so an object
+    /// just across the seam is as reachable as any other neighbour.
+    #[must_use]
+    pub fn wrap_delta_px(&self, dx: i32, dy: i32) -> (i32, i32) {
+        if !self.wraps() {
+            return (dx, dy);
+        }
+        (
+            shortest_delta(dx, i32::from(self.width()) * CELL_PIXELS),
+            shortest_delta(dy, i32::from(self.height()) * CELL_PIXELS),
+        )
     }
 
     /// The map's id.
@@ -304,10 +464,12 @@ impl FieldMap {
         &self.npcs
     }
 
-    /// The collision type at `cell`, or `None` when out of bounds.
+    /// The collision type at `cell`, or `None` when the cell is off a bounded
+    /// map. On a torus the coordinate is wrapped first, so this never fails.
     #[must_use]
     pub fn collision_at(&self, cell: Cell) -> Option<CollisionType> {
-        self.grid.type_at(cell)
+        self.normalize(cell)
+            .and_then(|cell| self.grid.type_at(cell))
     }
 
     /// The first NPC standing on `cell`, if any.
@@ -317,6 +479,7 @@ impl FieldMap {
     /// would not.
     #[must_use]
     pub fn npc_at(&self, cell: Cell) -> Option<&Npc> {
+        let cell = self.normalize(cell)?;
         self.npcs.iter().find(|npc| npc.cell == cell)
     }
 
@@ -331,9 +494,27 @@ impl FieldMap {
     /// [`FieldState::tick`]: crate::FieldState::tick
     #[must_use]
     pub fn warp_at(&self, cell: Cell, trigger: WarpTrigger) -> Option<&Warp> {
+        let cell = self.normalize(cell)?;
         self.warps
             .iter()
-            .find(|warp| warp.trigger == trigger && warp.source.contains(cell))
+            .find(|warp| warp.trigger == trigger && self.rect_contains(warp.source, cell))
+    }
+
+    /// Whether `rect` covers `cell`, following the map's topology.
+    ///
+    /// On a torus a rectangle may start near the east edge and run past it,
+    /// wrapping onto the west; membership is the offset from the rectangle's
+    /// origin taken modulo the world, not a plain coordinate comparison.
+    /// [`CellRect::contains`] is the un-wrapped primitive and stays that way.
+    #[must_use]
+    pub fn rect_contains(&self, rect: CellRect, cell: Cell) -> bool {
+        if !self.wraps() {
+            return rect.contains(cell);
+        }
+        let (w, h) = (i32::from(self.width()), i32::from(self.height()));
+        let dx = (i32::from(cell.x) - i32::from(rect.x)).rem_euclid(w);
+        let dy = (i32::from(cell.y) - i32::from(rect.y)).rem_euclid(h);
+        dx < i32::from(rect.width) && dy < i32::from(rect.height)
     }
 
     /// Indices of NPCs standing on blocking terrain.
@@ -374,22 +555,26 @@ impl FieldMap {
     }
 
     fn rect_covers_map_change(&self, rect: CellRect) -> bool {
-        let right = rect.right().min(u32::from(self.width()));
-        let bottom = rect.bottom().min(u32::from(self.height()));
-        (u32::from(rect.y)..bottom).any(|y| {
-            (u32::from(rect.x)..right).any(|x| {
-                // Both loops are clipped to the grid, so the casts are exact.
-                let cell = Cell::new(x as u16, y as u16);
-                self.collision_at(cell)
+        // Walk the rectangle in its own coordinates and let `normalize` place
+        // each cell, so a seam-crossing rect on a torus is covered correctly
+        // and a bounded rect is simply clipped by `collision_at` returning
+        // `None`.
+        (0..i32::from(rect.height)).any(|dy| {
+            (0..i32::from(rect.width)).any(|dx| {
+                self.normalize_signed(i32::from(rect.x) + dx, i32::from(rect.y) + dy)
+                    .and_then(|cell| self.collision_at(cell))
                     .is_some_and(CollisionType::is_map_change)
             })
         })
     }
 
-    /// Whether the party can occupy `cell`: in bounds, non-blocking terrain,
-    /// and no NPC standing there.
+    /// Whether the party can occupy `cell`: on the map, non-blocking terrain,
+    /// and no NPC standing there. Coordinates are wrapped first on a torus.
     #[must_use]
     pub fn is_walkable(&self, cell: Cell) -> bool {
+        let Some(cell) = self.normalize(cell) else {
+            return false;
+        };
         !self.grid.is_blocking(cell) && self.npc_at(cell).is_none()
     }
 }

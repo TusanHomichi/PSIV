@@ -8,7 +8,7 @@
 
 use psiv_core::{
     Cell, CollisionGrid, Direction, Effect, FieldMap, FieldState, Input, MapId, Npc, NpcId,
-    StepFrames, SubCellOffset, Warp,
+    StepFrames, SubCellOffset, Topology, Warp,
 };
 
 /// ASCII legend for the 4-bit collision types.
@@ -60,6 +60,17 @@ pub fn map(rows: &[&str]) -> FieldMap {
 /// A map with warps and NPCs.
 pub fn map_with(rows: &[&str], warps: Vec<Warp>, npcs: Vec<Npc>) -> FieldMap {
     FieldMap::new(MapId(0), grid(rows), warps, npcs).expect("valid test map")
+}
+
+/// A wrapping (overworld-style) map with warps and NPCs.
+pub fn torus_with(rows: &[&str], warps: Vec<Warp>, npcs: Vec<Npc>) -> FieldMap {
+    FieldMap::with_topology(MapId(0), grid(rows), warps, npcs, Topology::Torus)
+        .expect("valid test map")
+}
+
+/// A wrapping map with no warps and no NPCs.
+pub fn torus(rows: &[&str]) -> FieldMap {
+    torus_with(rows, vec![], vec![])
 }
 
 /// An NPC facing down, for tests that only care that it blocks.

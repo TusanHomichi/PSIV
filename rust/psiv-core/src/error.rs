@@ -65,6 +65,18 @@ pub enum MapError {
         /// Grid height in cells.
         height: u16,
     },
+    /// A warp's source rectangle was bigger than a wrapping map, so it would
+    /// cover some cells more than once.
+    WarpRectLargerThanMap {
+        /// Index of the warp in the map's warp list.
+        warp_index: usize,
+        /// The offending rectangle.
+        rect: CellRect,
+        /// Grid width in cells.
+        width: u16,
+        /// Grid height in cells.
+        height: u16,
+    },
     /// An NPC stood outside the grid.
     NpcOutOfBounds {
         /// The offending NPC.
@@ -139,6 +151,16 @@ impl fmt::Display for MapError {
                 f,
                 "warp {warp_index} source rect ({}, {}) {}x{} runs past a {width}x{height} grid",
                 rect.x, rect.y, rect.width, rect.height
+            ),
+            MapError::WarpRectLargerThanMap {
+                warp_index,
+                rect,
+                width,
+                height,
+            } => write!(
+                f,
+                "warp {warp_index} source rect {}x{} is larger than the {width}x{height} world it wraps in",
+                rect.width, rect.height
             ),
             MapError::NpcOutOfBounds {
                 npc,

@@ -146,7 +146,17 @@ pub fn field_map(record: &MapRecord) -> Result<FieldMap, BridgeError> {
         npcs.push(Npc::with_offset(NpcId(npc.object_id), cell, offset, facing));
     }
 
-    FieldMap::new(MapId(record.id.0), grid, warps, npcs)
+    // The overworlds are tori: the cartridge itself selects the paged/wrapping
+    // path by `Field_Map_Index & $FFFE == 0`, so hard-coding ids 0 and 1 here
+    // is fidelity, not shortcut. Layout patches are event-flag-gated and no
+    // flags exist at a fresh spawn, so none apply yet; when flag state lands,
+    // the bridge applies active patches to the grid and rebuilds the map (see
+    // FieldMap's contract docs).
+    let topology = match record.id.0 {
+        0 | 1 => psiv_core::Topology::Torus,
+        _ => psiv_core::Topology::Bounded,
+    };
+    FieldMap::with_topology(MapId(record.id.0), grid, warps, npcs, topology)
         .map_err(|e| BridgeError::Rejected(e.to_string()))
 }
 

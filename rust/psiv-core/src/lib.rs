@@ -16,6 +16,14 @@
 //! and the transition fires on arrival. Transitions come from the cartridge's
 //! two tables, which fire under different conditions; see [`WarpTrigger`].
 //!
+//! Most maps are bounded rooms whose edges stop the walker. The two overworlds
+//! are globes: see [`Topology`].
+//!
+//! Collision grids are supplied by the caller and never treated as immutable
+//! cartridge truth. The overworlds' event-flag-gated `layout_patches` are
+//! applied by the bridge before the map is built; this crate models no event
+//! flags and sees only the resulting grid.
+//!
 //! # Usage
 //!
 //! ```
@@ -76,4 +84,4 @@ pub use collision::{CollisionGrid, CollisionType, MAX_COLLISION_VALUE};
 pub use error::MapError;
 pub use field::{Effect, FieldState, Input, SUBCELL_UNITS, StepFrames, TALK_RANGE_PX};
 pub use geom::{CELL_PIXELS, Cell, CellRect, Direction};
-pub use map::{FieldMap, MapId, Npc, NpcId, SubCellOffset, Warp, WarpTrigger};
+pub use map::{FieldMap, MapId, Npc, NpcId, SubCellOffset, Topology, Warp, WarpTrigger};
