@@ -72,6 +72,207 @@ pub struct MapRecord {
     pub npcs: Vec<Npc>,
     /// `LoadTreasureChests` entries.
     pub treasure_chests: Vec<Treasure>,
+    /// `MapDataManager` entries for this map: flag-gated load-time patches
+    /// (`docs/MAP_EFFECTS.md`). Absent on packs predating the extraction.
+    #[serde(default)]
+    pub map_effects: Vec<MapEffect>,
+    /// Decoded whole-layout replacements referenced by `layout_replace`
+    /// writes, shipped as first-class variants with their own collision.
+    #[serde(default)]
+    pub layout_variants: Vec<LayoutVariant>,
+    /// The 32px patch-tile atlas for this map's `layout_write`s, or `None`
+    /// on the 346 maps that patch nothing.
+    #[serde(default)]
+    pub patch_tiles: Option<PatchTiles>,
+}
+
+/// A map's patch-tile atlas: one 32x32 tile per distinct written chunk.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PatchTiles {
+    /// The atlas PNG, one row of tiles.
+    pub png: String,
+    /// The above-sprites overlay atlas, when some patched chunk has
+    /// priority tiles.
+    #[serde(default)]
+    pub png_over: Option<String>,
+    /// Tile edge length in pixels (32: a chunk is 2x2 collision cells).
+    pub tile_pixels: u32,
+    /// How many tiles the atlas holds.
+    pub count: u32,
+    /// The tiles, ordered by chunk id.
+    pub tiles: Vec<PatchTile>,
+}
+
+/// One atlas tile.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PatchTile {
+    /// Position in the atlas row; `x` is its pixel offset.
+    pub index: u32,
+    /// The chunk this tile draws.
+    pub chunk_id: u16,
+    /// Pixel x of this tile inside the atlas PNG.
+    pub x: u32,
+    /// How many of the tile's 8px cells carry the priority bit.
+    #[serde(default)]
+    pub priority_tiles: u32,
+}
+
+/// One `MapDataManager` jump-table entry as it applies to this map.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MapEffect {
+    /// The jump-table entry index.
+    pub entry: u16,
+    /// Whether the decoder fully decoded the routine. `false` entries carry
+    /// `reason` instead of paths and a consumer must treat the map as
+    /// possibly incompletely patched.
+    pub decoded: bool,
+    /// The write kinds this entry produces, for census-level checks.
+    #[serde(default)]
+    pub kinds: Vec<String>,
+    /// Execution paths, each with the exact gate conditions that reach it.
+    #[serde(default)]
+    pub paths: Vec<EffectPath>,
+    /// Why decoding stopped, when `decoded` is false.
+    #[serde(default)]
+    pub reason: Option<String>,
+}
+
+/// One execution route through an effect routine.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EffectPath {
+    /// Flag conditions that must all hold for this path to run.
+    #[serde(default)]
+    pub gates: Vec<EffectGate>,
+    /// True when the path has no gates — it runs on every load.
+    #[serde(default)]
+    pub unconditional: bool,
+    /// The dormant dispatcher abort: a routine returning non-zero skips the
+    /// rest of the map's list. No retail routine sets it.
+    #[serde(default)]
+    pub aborts_remaining_entries: bool,
+    /// Recognised-but-not-modelled instructions stepped over on this path.
+    #[serde(default)]
+    pub deferred: Vec<String>,
+    /// The writes this path performs.
+    #[serde(default)]
+    pub writes: Vec<EffectWrite>,
+}
+
+/// One flag condition on an effect path.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EffectGate {
+    /// `event_flags` or `chest_flags` — the only banks retail gates on.
+    pub bank: String,
+    /// The flag id within the bank.
+    pub flag: u16,
+    /// `set` or `clear`.
+    pub required: String,
+    /// The disassembly's name, when it has one.
+    #[serde(default)]
+    pub symbol: Option<String>,
+}
+
+/// One write a path performs. Kind-specific fields are optional so one type
+/// covers the union; the `kind` string is authoritative.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EffectWrite {
+    /// `object_despawn` | `object_rewrite` | `object_dialogue` |
+    /// `layout_write` | `layout_replace`.
+    pub kind: String,
+    /// ROM address of the writing instruction.
+    #[serde(default)]
+    pub at: Option<String>,
+    /// Record object index, for the object kinds.
+    #[serde(default)]
+    pub object_index: Option<u32>,
+    /// The new object id, for `object_rewrite`.
+    #[serde(default)]
+    pub object_id: Option<u16>,
+    /// The new dialogue id, for `object_dialogue`.
+    #[serde(default)]
+    pub dialogue_id: Option<u16>,
+    /// Chunk-level coordinates, for `layout_write`.
+    #[serde(default)]
+    pub cell_x: Option<u32>,
+    /// Row, in collision cells, for `layout_write`.
+    #[serde(default)]
+    pub cell_y: Option<u32>,
+    /// The chunk id written, for `layout_write`.
+    #[serde(default)]
+    pub chunk_id: Option<u16>,
+    /// Which plane the write targets.
+    #[serde(default)]
+    pub plane: Option<String>,
+    /// The replacement layout's ROM source, for `layout_replace` — matches a
+    /// [`LayoutVariant`] plane source.
+    #[serde(default)]
+    pub source: Option<String>,
+    /// Per-cell collision resolution: always exactly 4 cells in
+    /// `(0,0) (1,0) (0,1) (1,1)` order, absolute coordinates.
+    #[serde(default)]
+    pub cells: Vec<ResolvedCell>,
+    /// Whether this write's plane is the one collision reads on this map
+    /// (276 retail maps read BG, 83 FG). `false` means picture-only: the
+    /// patch tile still draws, the cells never touch the grid.
+    #[serde(default)]
+    pub collision_authoritative: Option<bool>,
+    /// Index into the map's [`PatchTiles`] atlas for this write's chunk.
+    #[serde(default)]
+    pub patch_tile: Option<u32>,
+}
+
+/// A resolved collision cell for a `layout_write`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ResolvedCell {
+    /// Column, in collision cells.
+    pub x: u32,
+    /// Row, in collision cells.
+    pub y: u32,
+    /// The 4-bit collision type the written chunk imposes.
+    pub collision: u8,
+}
+
+/// A whole-layout replacement, decoded like a base layout.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LayoutVariant {
+    /// The variant render.
+    pub png: String,
+    /// The variant's priority overlay, when it has priority tiles.
+    #[serde(default)]
+    pub png_over: Option<String>,
+    /// Per-plane provenance: which plane changed and its ROM source.
+    #[serde(default)]
+    pub planes: Vec<VariantPlane>,
+    /// The variant's collision grid.
+    pub collision: VariantCollision,
+}
+
+/// One plane of a layout variant.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VariantPlane {
+    /// `fg` or `bg`.
+    pub plane: String,
+    /// ROM offset of the replacement blob.
+    #[serde(default)]
+    pub source: Option<String>,
+    /// True when the "replacement" is the map's own base blob (one plane of
+    /// each retail pair is).
+    #[serde(default)]
+    pub identical_to_base: bool,
+}
+
+/// A variant's collision grid, rows of 4-bit types.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VariantCollision {
+    /// The plane collision reads on this map.
+    #[serde(default)]
+    pub plane: Option<String>,
+    /// Width in cells.
+    pub width_cells: u32,
+    /// Height in cells.
+    pub height_cells: u32,
+    /// Row-major cell types.
+    pub rows: Vec<Vec<u8>>,
 }
 
 impl MapRecord {

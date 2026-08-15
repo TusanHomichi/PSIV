@@ -34,7 +34,8 @@
 //! | [`calculate_chances`] | `$00B5A6` | §5 |
 //! | [`STAT_OFFSETS`] | `$00275A` | §4.1 |
 //! | [`ELEMENT_OFFSETS`] | `$00276A` | §4.1 |
-//! | [`Stats::update_mod_stats`] | `$0005F880` | §12 |
+//! | [`Stats::update_mod_stats`] | `$0005F754` | §12 |
+//! | [`Stats::update_char_elems`] | `$0005FD2A` | — |
 //! | [`Stats::from_enemy`] | `ps4.asm:11939` | §9 |
 //! | [`roll_priority`] | `$00B62A` | §8 |
 //! | [`build_queue`] | `ps4.asm:7723` | §3 |
@@ -51,8 +52,8 @@
 //! implements only the plain attack; anything else raises
 //! [`BattleEvent::UnsupportedAbility`] and falls back rather than inventing a
 //! number. The 44-entry ability-effect dispatch is absent entirely, as is the
-//! weapon-element fallback for physical skills ([`element_offset`] returns
-//! `None` rather than guessing).
+//! weapon-element fallback for physical skills is resolved by
+//! [`ability_element_factor`], but no ability dispatches through it yet.
 
 mod action;
 mod ai;
@@ -70,10 +71,15 @@ mod tables;
 
 #[cfg(test)]
 mod fixtures;
+#[cfg(test)]
+mod party_fixtures;
+#[cfg(test)]
+#[path = "party_tests.rs"]
+mod party_tests;
 
 pub use action::{
-    HitPass, Reach, candidate_targets, character_element_factor, critical_bonus,
-    enemy_element_factor, resolve_attack, roll_hits, weapon_reach,
+    HitPass, Reach, ability_element_factor, candidate_targets, character_element_factor,
+    critical_bonus, enemy_element_factor, resolve_attack, roll_hits, weapon_reach,
 };
 pub use ai::{ABILITY_ROLL_MASK, TARGET_RATES, choose_ability, choose_target, targetable_party};
 pub use chances::{CHANCE_ROLL_MASK, ESCAPE, PHYSICAL, START_PRIORITY, Verdict, calculate_chances};
@@ -89,14 +95,17 @@ pub use fighters::{
 pub use order::{Priority, QueueEntry, build_queue, roll_priority};
 pub use records::{
     AI_CONDITIONS, BattleData, BattleDataError, Bonuses, CharacterRecord, ELEMENT_SLOTS,
-    EQUIPMENT_SLOTS, EnemyRecord, FormationEnemy, FormationRecord, ItemKind, ItemRecord,
-    LevelRecord, LevelTable, REGULAR_ABILITIES, UNRUNNABLE,
+    EQUIPMENT_SLOTS, ElementRole, EnemyRecord, EquipSlot, FormationEnemy, FormationRecord,
+    ItemKind, ItemRecord, LevelRecord, LevelTable, REGULAR_ABILITIES, UNRUNNABLE,
 };
 pub use rewards::{
     CURRENCY_CAP, MAX_LEVEL, POOL_CAP, Pools, Split, apply_level_ups, award, split_rewards,
 };
 pub use rng::{HV_SURROGATE, Lcg41, RESEED, Rng2, Rolls, SliceRolls};
-pub use stats::{DEFENDING_PHYSICAL_PROP, PROFESSION_ANDROID, StatPair, StatTriple, Stats, status};
+pub use stats::{
+    DEFENDING_PHYSICAL_PROP, GRANTED_RESISTANCE, PROFESSION_ANDROID, StatPair, StatTriple, Stats,
+    status,
+};
 pub use tables::{
     ELEMENT_NAMES, ELEMENT_OFFSETS, STAT_INDEX_MASK, STAT_OFFSETS, StatSlot, StatWidth,
     WEAPON_ELEMENT_SENTINEL, WORD_STAT_THRESHOLD, element_name, element_offset, stat_slot,

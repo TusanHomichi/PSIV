@@ -15,6 +15,7 @@ use super::fighters::{FighterId, Roster, Side};
 use super::records::{BattleData, BattleDataError, ItemKind};
 use super::rng::Rolls;
 use super::stats::Stats;
+use super::tables::WEAPON_ELEMENT_SENTINEL;
 
 /// How far an attack reaches.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -85,6 +86,34 @@ pub fn character_element_factor(
         factor = factor.max(hand_factor);
     }
     Ok(factor)
+}
+
+/// The element factor an ability presents, resolving the physical-skill
+/// fallback.
+///
+/// An ability record's byte 5 is normally an element id the target resists
+/// directly. At [`WEAPON_ELEMENT_SENTINEL`] and above it means "this is a
+/// physical skill — use the attacker's weapons instead", and `loc_26F8`
+/// (`ps4.asm:3814`) then runs the same larger-of-the-two-hands rule that a
+/// plain attack does. Crosscut is the obvious example: element `$10`, so a
+/// Crosscut swung with a fire sword is a fire attack.
+///
+/// This is the function to call when an element id came out of an ability
+/// record. [`element_offset`](crate::battle::element_offset) deliberately
+/// refuses the sentinel rather than guessing.
+///
+/// # Errors
+/// [`BattleDataError::UnknownItem`] for an undefined equipment id.
+pub fn ability_element_factor(
+    attacker: &Stats,
+    target: &Stats,
+    element_id: u8,
+    data: &BattleData,
+) -> Result<u16, BattleDataError> {
+    if element_id >= WEAPON_ELEMENT_SENTINEL {
+        return character_element_factor(attacker, target, data);
+    }
+    Ok(u16::from(target.element_factor(element_id).unwrap_or(0)))
 }
 
 /// The element factor an enemy's plain attack presents.

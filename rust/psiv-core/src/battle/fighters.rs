@@ -179,6 +179,14 @@ impl Roster {
         self.slots[id.slot()].as_mut()
     }
 
+    /// Consumes the roster, yielding every occupied slot in id order.
+    ///
+    /// The way a finished battle hands its fighters back rather than leaving
+    /// the caller to remember to copy them.
+    pub fn into_iter_fighters(self) -> impl Iterator<Item = Fighter> {
+        self.slots.into_iter().flatten()
+    }
+
     /// Every occupied slot, in id order.
     pub fn iter(&self) -> impl Iterator<Item = &Fighter> {
         self.slots.iter().flatten()

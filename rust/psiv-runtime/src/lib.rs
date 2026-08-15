@@ -13,7 +13,9 @@ use std::fmt;
 
 use std::collections::BTreeSet;
 
+mod effects;
 mod encounters;
+pub use effects::{EffectOutcome, evaluate as evaluate_map_effects};
 pub use encounters::{
     EncounterClock, EncounterTable, FOOT_MASK, GRACE_STEPS, GROUP_MASK, battle_data,
     formation_record,
@@ -91,12 +93,66 @@ fn direction(d: psiv_data::Direction) -> Direction {
 /// scenery objects reuse the byte for non-directional state and their facing
 /// never affects collision.
 pub fn field_map(record: &MapRecord) -> Result<FieldMap, BridgeError> {
-    let grid = &record.collision.grid;
-    let width = u16::try_from(grid.width())
-        .map_err(|_| BridgeError::OutOfRange(format!("width {}", grid.width())))?;
-    let height = u16::try_from(grid.height())
-        .map_err(|_| BridgeError::OutOfRange(format!("height {}", grid.height())))?;
-    let cells: Vec<u8> = grid.cells().iter().map(|c| c.code()).collect();
+    field_map_patched(record, None)
+}
+
+/// [`field_map`], with a map-effects outcome applied during construction —
+/// the cartridge's own order: `MapDataManager` runs inside map load, so a
+/// patched map never exists unpatched.
+pub fn field_map_patched(
+    record: &MapRecord,
+    outcome: Option<&EffectOutcome>,
+) -> Result<FieldMap, BridgeError> {
+    if let Some(out) = outcome
+        && !out.unknown_banks.is_empty()
+    {
+        return Err(BridgeError::Rejected(format!(
+            "map {}: effect schema drift: {:?}",
+            record.label(),
+            out.unknown_banks
+        )));
+    }
+    // The grid: the variant's collision when a layout_replace is active,
+    // the record's otherwise; then any resolved layout_write cells.
+    let (width_u32, height_u32, mut cells): (u32, u32, Vec<u8>) = match outcome
+        .and_then(|o| o.variant)
+    {
+        Some(index) => {
+            let variant = record.layout_variants.get(index).ok_or_else(|| {
+                BridgeError::Rejected(format!("map {}: variant {index} missing", record.label()))
+            })?;
+            let flat: Vec<u8> = variant.collision.rows.iter().flatten().copied().collect();
+            (
+                variant.collision.width_cells,
+                variant.collision.height_cells,
+                flat,
+            )
+        }
+        None => {
+            let grid = &record.collision.grid;
+            (
+                grid.width(),
+                grid.height(),
+                grid.cells().iter().map(|c| c.code()).collect(),
+            )
+        }
+    };
+    if let Some(out) = outcome {
+        for &(x, y, collision) in &out.cell_patches {
+            if x < width_u32 && y < height_u32 {
+                cells[(y * width_u32 + x) as usize] = collision;
+            } else {
+                return Err(BridgeError::OutOfRange(format!(
+                    "map {}: layout_write cell ({x},{y})",
+                    record.label()
+                )));
+            }
+        }
+    }
+    let width = u16::try_from(width_u32)
+        .map_err(|_| BridgeError::OutOfRange(format!("width {width_u32}")))?;
+    let height = u16::try_from(height_u32)
+        .map_err(|_| BridgeError::OutOfRange(format!("height {height_u32}")))?;
     let grid = CollisionGrid::new(width, height, cells)
         .map_err(|e| BridgeError::Rejected(e.to_string()))?;
 
@@ -142,7 +198,7 @@ pub fn field_map(record: &MapRecord) -> Result<FieldMap, BridgeError> {
     }
 
     let mut npcs = Vec::new();
-    for npc in &record.npcs {
+    for (index, npc) in record.npcs.iter().enumerate() {
         let cell = cell_u16(npc.x_cell, npc.y_cell, "npc")?;
         let facing = npc
             .facing
@@ -153,9 +209,21 @@ pub fn field_map(record: &MapRecord) -> Result<FieldMap, BridgeError> {
         // lets the ±8px talk range reach them from both straddled cells.
         let offset =
             psiv_core::SubCellOffset::new((npc.x_pixels % 16) as u8, (npc.y_pixels % 16) as u8);
+        // Effects apply at construction: a rewritten object carries its new
+        // id from the first tick, a despawned one is born inactive.
+        let object_id = outcome
+            .and_then(|o| {
+                o.rewrites
+                    .iter()
+                    .find(|(i, _)| *i == index)
+                    .map(|(_, id)| *id)
+            })
+            .unwrap_or(npc.object_id);
+        let active = outcome.is_none_or(|o| !o.despawns.contains(&index));
         npcs.push(
-            Npc::with_offset(NpcId(npc.object_id), cell, offset, facing)
-                .with_interactable(npc.interactable),
+            Npc::with_offset(NpcId(object_id), cell, offset, facing)
+                .with_interactable(npc.interactable)
+                .with_active(active),
         );
     }
 
@@ -321,6 +389,9 @@ pub struct Runtime {
     battles: Option<BattleSet>,
     /// A battle in progress. Field input is ignored while this is `Some`.
     battle: Option<Battle>,
+    /// The current map's evaluated MapDataManager outcome — dialogue
+    /// overrides, the active layout variant, and the surfaced gaps.
+    effects: EffectOutcome,
 }
 
 /// Everything encounters need, converted from the pack once.
@@ -342,14 +413,9 @@ impl Runtime {
         let record = data
             .map(psiv_data::MapId(map_id))
             .ok_or(BridgeError::NotPacked(map_id))?;
-        let map = field_map(record)?;
-        // Follower count comes from game-start state once extracted; the
-        // solo default keeps behavior identical until then.
-        let party = Party::new(&map, spawn, facing, step_frames, 0)
-            .map_err(|e| BridgeError::Rejected(e.to_string()))?;
 
-        // Seed persistent state from the cartridge's first-controllable
-        // moment: the party slots and the flags the opening leaves set.
+        // Seed persistent state FIRST: map effects are evaluated against the
+        // flag state at load, exactly the cartridge's MapDataManager order.
         let mut game = GameState::new();
         if let Some(start) = data.manifest().game_start.as_ref() {
             for flag in &start.event_flags_set {
@@ -375,6 +441,17 @@ impl Runtime {
             let _ = game.set_party_slot(0, Some(CharId(0)));
         }
 
+        // The destination map's flag-clearing entries run first, then the
+        // patch entries evaluate — the load order change_map() documents.
+        let entries: Vec<u8> = record.map_effects.iter().map(|e| e.entry as u8).collect();
+        let _cleared = psiv_core::apply_map_load(&mut game, &entries);
+        let effects = effects::evaluate(record, &game);
+        let map = field_map_patched(record, Some(&effects))?;
+        // Follower count comes from game-start state once extracted; the
+        // solo default keeps behavior identical until then.
+        let party = Party::new(&map, spawn, facing, step_frames, 0)
+            .map_err(|e| BridgeError::Rejected(e.to_string()))?;
+
         let wander = build_wander(&map, record)?;
         let camera = Camera::placed_on(driver_of(party.leader()), bounds_of(&map));
         Ok(Runtime {
@@ -395,6 +472,7 @@ impl Runtime {
             offscreen: Vec::new(),
             battles: None,
             battle: None,
+            effects,
         })
     }
 
@@ -439,21 +517,52 @@ impl Runtime {
 
     /// The current map's composed-render path, exactly as the pack declares
     /// it (relative to the pack root). The renderer must never invent pack
-    /// filenames; the pack names its own files.
+    /// filenames; the pack names its own files. When a `layout_replace` is
+    /// active this is the variant's render.
     #[must_use]
     pub fn map_png(&self) -> Option<&str> {
-        self.data
-            .map(psiv_data::MapId(self.map.id().0))
-            .map(|record| record.png.as_str())
+        let record = self.data.map(psiv_data::MapId(self.map.id().0))?;
+        match self.effects.variant {
+            Some(index) => record.layout_variants.get(index).map(|v| v.png.as_str()),
+            None => Some(record.png.as_str()),
+        }
     }
 
     /// The current map's priority-overlay path — tiles the VDP draws above
-    /// sprites — or `None` when the map has no priority tiles.
+    /// sprites — or `None` when the map has no priority tiles. Variant-aware
+    /// like [`Runtime::map_png`].
     #[must_use]
     pub fn map_png_over(&self) -> Option<&str> {
+        let record = self.data.map(psiv_data::MapId(self.map.id().0))?;
+        match self.effects.variant {
+            Some(index) => record
+                .layout_variants
+                .get(index)
+                .and_then(|v| v.png_over.as_deref()),
+            None => record.png_over.as_deref(),
+        }
+    }
+
+    /// An object's live dialogue id: the map-effect override when one is
+    /// active, the record's own binding otherwise. The renderer's talk path
+    /// must use this, not the record directly — `object_dialogue` patches
+    /// are how clinics and story rooms change what a person says.
+    #[must_use]
+    pub fn npc_dialogue_id(&self, index: usize) -> Option<u16> {
+        if let Some(id) = self.effects.dialogue_overrides.get(&index) {
+            return Some(*id);
+        }
         self.data
             .map(psiv_data::MapId(self.map.id().0))
-            .and_then(|record| record.png_over.as_deref())
+            .and_then(|record| record.npcs.get(index))
+            .map(|npc| npc.dialogue_id)
+    }
+
+    /// The current map's evaluated effect outcome, for the renderer's gap
+    /// logging (unresolved layout writes, undecoded entries).
+    #[must_use]
+    pub fn map_effects(&self) -> &EffectOutcome {
+        &self.effects
     }
 
     /// The field state, for the renderer's position/interpolation queries.
@@ -1052,8 +1161,23 @@ impl Runtime {
             .data
             .map(psiv_data::MapId(target.0))
             .ok_or(BridgeError::NotPacked(target.0))?;
-        let mut map = field_map(record)?;
-        // Re-apply this session's despawns: the interim MapDataManager.
+        // MapDataManager runs inside map load: first the destination map's
+        // flag-clearing entries mutate state (the basement un-looter's
+        // mechanism), then the patch entries evaluate against the result.
+        // The cartridge walks one list doing both interleaved; clear-first
+        // is equivalent for every retail map (no map patches on a flag its
+        // own later entry clears) and the simpler model wins until a
+        // counterexample exists.
+        let entries: Vec<u8> = record.map_effects.iter().map(|e| e.entry as u8).collect();
+        // Cleared flags resurrect gated objects on OTHER maps at their next
+        // build; this map's own build below already sees the post-clear
+        // state, so nothing needs rebuilding here.
+        let _cleared = psiv_core::apply_map_load(&mut self.game, &entries);
+        let effects = effects::evaluate(record, &self.game);
+        let mut map = field_map_patched(record, Some(&effects))?;
+        self.effects = effects;
+        // Re-apply this session's scene-driven despawns (the interim ledger
+        // for despawns whose gating flag is not yet modelled).
         for &(m, i) in &self.despawned {
             if m == target.0 {
                 let _ = map.set_npc_active(i, false);

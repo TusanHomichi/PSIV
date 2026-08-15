@@ -413,12 +413,68 @@ impl Field {
             return;
         };
         let id = runtime.map_id().0;
+        // Surface every gap the effect layer knows about — silence here
+        // would read as "fully patched" when it is not.
+        let fx = runtime.map_effects();
+        if fx.unresolved_layout_writes > 0 {
+            godot_warn!(
+                "map {id:#05x}: {} layout write(s) active but unresolved - collision/visual patch pending pack support",
+                fx.unresolved_layout_writes
+            );
+        }
+        if fx.undecoded_entries > 0 {
+            godot_print!(
+                "map {id:#05x}: {} undecoded effect entr(ies) - possibly incompletely patched",
+                fx.undecoded_entries
+            );
+        }
+        if fx.variant.is_some() {
+            godot_print!("map {id:#05x}: layout variant active");
+        }
+
+        // Active layout_writes blit their 32px patch tiles over the baked
+        // PNG — the doors MapDataManager opens have to LOOK open, not just
+        // walk open. Collected before the image loads to keep borrows flat.
+        let blits: Vec<(u32, u32, u32)> = fx.patch_blits.clone();
+        let atlas = runtime
+            .map_record()
+            .and_then(|r| r.patch_tiles.clone())
+            .filter(|_| !blits.is_empty());
 
         match runtime.map_png().map(str::to_owned) {
             Some(name) => {
                 let path = format!("{}/{name}", self.pack_dir);
                 match Image::load_from_file(&GString::from(path.as_str())) {
-                    Some(image) => {
+                    Some(mut image) => {
+                        if let Some(tiles) = &atlas {
+                            let atlas_path = format!("{}/{}", self.pack_dir, tiles.png);
+                            match Image::load_from_file(&GString::from(atlas_path.as_str())) {
+                                Some(atlas_img) => {
+                                    let edge = tiles.tile_pixels as i32;
+                                    for &(cx, cy, index) in &blits {
+                                        let Some(tile) =
+                                            tiles.tiles.iter().find(|t| t.index == index)
+                                        else {
+                                            godot_error!("patch tile {index} missing from atlas");
+                                            continue;
+                                        };
+                                        image.blit_rect(
+                                            &atlas_img,
+                                            Rect2i::new(
+                                                Vector2i::new(tile.x as i32, 0),
+                                                Vector2i::new(edge, edge),
+                                            ),
+                                            Vector2i::new(cx as i32 * edge, cy as i32 * edge),
+                                        );
+                                    }
+                                    godot_print!(
+                                        "map {id:#05x}: {} patch tile(s) applied",
+                                        blits.len()
+                                    );
+                                }
+                                None => godot_error!("could not load patch atlas {atlas_path}"),
+                            }
+                        }
                         if let Some(texture) = ImageTexture::create_from_image(&image)
                             && let Some(sprite) = self.map_sprite.as_mut()
                         {
@@ -437,12 +493,43 @@ impl Field {
             match over {
                 Some(name) => {
                     let path = format!("{}/{name}", self.pack_dir);
-                    match Image::load_from_file(&GString::from(path.as_str()))
-                        .and_then(|image| ImageTexture::create_from_image(&image))
-                    {
-                        Some(texture) => {
-                            sprite.set_texture(&texture);
-                            sprite.set_visible(true);
+                    match Image::load_from_file(&GString::from(path.as_str())) {
+                        Some(mut image) => {
+                            // The overlay atlas mirrors the base one: same
+                            // indices, above-sprites pixels only.
+                            if let Some(tiles) = &atlas
+                                && let Some(over_png) = &tiles.png_over
+                            {
+                                let atlas_path = format!("{}/{over_png}", self.pack_dir);
+                                if let Some(atlas_img) =
+                                    Image::load_from_file(&GString::from(atlas_path.as_str()))
+                                {
+                                    let edge = tiles.tile_pixels as i32;
+                                    for &(cx, cy, index) in &blits {
+                                        if let Some(tile) =
+                                            tiles.tiles.iter().find(|t| t.index == index)
+                                        {
+                                            image.blit_rect(
+                                                &atlas_img,
+                                                Rect2i::new(
+                                                    Vector2i::new(tile.x as i32, 0),
+                                                    Vector2i::new(edge, edge),
+                                                ),
+                                                Vector2i::new(cx as i32 * edge, cy as i32 * edge),
+                                            );
+                                        }
+                                    }
+                                } else {
+                                    godot_error!("could not load overlay atlas {atlas_path}");
+                                }
+                            }
+                            match ImageTexture::create_from_image(&image) {
+                                Some(texture) => {
+                                    sprite.set_texture(&texture);
+                                    sprite.set_visible(true);
+                                }
+                                None => godot_error!("could not texture overlay {path}"),
+                            }
                         }
                         None => godot_error!("could not load overlay {path}"),
                     }
@@ -585,7 +672,9 @@ impl Field {
                             0 => return None,
                             tree => tree,
                         };
-                        let id = record.npcs.get(npc_index)?.dialogue_id;
+                        // The live binding: map-effect overrides included
+                        // (clinics and story rooms swap what a person says).
+                        let id = rt.npc_dialogue_id(npc_index)?;
                         Some((tree, id))
                     });
                     match binding {

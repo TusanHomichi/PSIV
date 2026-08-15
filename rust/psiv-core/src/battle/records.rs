@@ -70,6 +70,48 @@ pub struct EnemyRecord {
     pub meseta: u16,
 }
 
+/// Which equipment slot a type belongs in.
+///
+/// From the pack's decoded type table (`battle/equipment.json`, `types`),
+/// which is `Equip_Item`'s jump table (`$05F6AE`) read out rather than guessed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum EquipSlot {
+    /// Types 1..=4.
+    RightHand,
+    /// Type 5.
+    LeftHand,
+    /// Type 6.
+    Head,
+    /// Type 7.
+    Body,
+}
+
+impl EquipSlot {
+    /// Its index into [`Stats::equipment`](crate::battle::Stats::equipment).
+    #[must_use]
+    pub const fn index(&self) -> usize {
+        match self {
+            EquipSlot::RightHand => 0,
+            EquipSlot::LeftHand => 1,
+            EquipSlot::Head => 2,
+            EquipSlot::Body => 3,
+        }
+    }
+}
+
+/// What an item's element byte (`$12`) means for that item.
+///
+/// The byte has two jobs and the type decides which — the dual role
+/// SOURCE_NOTES records. `UpdateCharElems` (`$0005FD2A`) is where the split
+/// happens.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ElementRole {
+    /// Types 1..=4: the element this weapon's swings carry.
+    AttackElement,
+    /// Types 5..=7: the element this armour grants resistance to.
+    ResistanceGranted,
+}
+
 /// An inventory record's type byte (`$A`).
 ///
 /// `Battle_AttackCommand` (`ps4.asm:2235`) branches on exactly this: types 2
@@ -141,6 +183,52 @@ impl ItemKind {
             ItemKind::OneHandedMultiTarget | ItemKind::TwoHandedMultiTarget
         )
     }
+
+    /// Which slot `Equip_Item` puts this in, or `None` for the three types it
+    /// refuses to equip at all (`max_equippable_type` is 7).
+    #[must_use]
+    pub const fn slot(&self) -> Option<EquipSlot> {
+        Some(match self {
+            ItemKind::OneHandedSingleTarget
+            | ItemKind::OneHandedMultiTarget
+            | ItemKind::TwoHandedSingleTarget
+            | ItemKind::TwoHandedMultiTarget => EquipSlot::RightHand,
+            ItemKind::Shield => EquipSlot::LeftHand,
+            ItemKind::Headwear => EquipSlot::Head,
+            ItemKind::Body => EquipSlot::Body,
+            ItemKind::Disposable | ItemKind::Plot | ItemKind::FieldOnly => return None,
+        })
+    }
+
+    /// Whether equipping this clears the other hand (types 3 and 4).
+    #[must_use]
+    pub const fn is_two_handed(&self) -> bool {
+        matches!(
+            self,
+            ItemKind::TwoHandedSingleTarget | ItemKind::TwoHandedMultiTarget
+        )
+    }
+
+    /// Whether this can be equipped at all.
+    #[must_use]
+    pub const fn is_equippable(&self) -> bool {
+        self.slot().is_some()
+    }
+
+    /// What this type's element byte means.
+    #[must_use]
+    pub const fn element_role(&self) -> Option<ElementRole> {
+        Some(match self {
+            ItemKind::OneHandedSingleTarget
+            | ItemKind::OneHandedMultiTarget
+            | ItemKind::TwoHandedSingleTarget
+            | ItemKind::TwoHandedMultiTarget => ElementRole::AttackElement,
+            ItemKind::Shield | ItemKind::Headwear | ItemKind::Body => {
+                ElementRole::ResistanceGranted
+            }
+            ItemKind::Disposable | ItemKind::Plot | ItemKind::FieldOnly => return None,
+        })
+    }
 }
 
 /// The seven stat bonuses at record offsets `$B`..`$11`.
@@ -181,7 +269,13 @@ pub struct ItemRecord {
     pub kind: ItemKind,
     /// Record bytes `$B`..`$11`.
     pub bonuses: Bonuses,
-    /// Record byte `$12`, read by `Battle_LoadWpnAttackElem` (`$0027DDD4`).
+    /// Record byte `$12`.
+    ///
+    /// Two jobs, decided by [`ItemKind::element_role`]: on a weapon it is the
+    /// element the swing carries, read by `Battle_LoadWpnAttackElem`
+    /// (`$0027DDD4`); on a shield or armour it names the element the wearer
+    /// gains resistance to, applied by
+    /// [`Stats::update_char_elems`](crate::battle::Stats::update_char_elems).
     pub element: u8,
 }
 
@@ -242,10 +336,14 @@ pub struct CharacterRecord {
     pub level: u16,
     /// Starting experience.
     pub experience: u32,
-    /// Starting and maximum HP.
+    /// Current HP.
     pub hp: u16,
-    /// Starting and maximum TP.
+    /// Maximum HP. Equal to [`CharacterRecord::hp`] in every initial record.
+    pub max_hp: u16,
+    /// Current TP.
     pub tp: u16,
+    /// Maximum TP.
+    pub max_tp: u16,
     /// Base strength, before equipment.
     pub strength: u8,
     /// Base mental.

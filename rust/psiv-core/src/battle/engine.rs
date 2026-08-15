@@ -34,12 +34,16 @@ use super::chances::{ESCAPE, Verdict, calculate_chances};
 use super::event::{BattleEvent, Outcome, Skipped};
 use super::fighters::{ENEMY_SLOTS, FighterId, Roster, Side};
 use super::order::{Priority, QueueEntry, build_queue, roll_priority};
-use super::records::{BattleData, BattleDataError, FormationRecord};
+use super::records::{BattleData, BattleDataError, CharacterRecord, FormationRecord};
 use super::rewards::{Pools, apply_level_ups, award, split_rewards};
 use super::rng::Rolls;
 use super::stats::Stats;
 
 /// One party member entering a battle.
+///
+/// Build one with [`PartyMember::seat`] from a character record and the item
+/// table, or construct it directly when the character is carrying state from
+/// the field rather than starting fresh.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PartyMember {
     /// Index into `Character_Stats`, which is also the key into the level
@@ -49,6 +53,41 @@ pub struct PartyMember {
     pub name: String,
     /// Live stats, carried in from the field.
     pub stats: Stats,
+}
+
+impl PartyMember {
+    /// Seats a character from their initial record, deriving everything.
+    ///
+    /// This is `InitializeCharStats` (`$0044652`) for one character: copy the
+    /// record across, then run both derivation passes — `UpdateCharModStats`
+    /// for the stat totals and `UpdateCharElems` for the element properties and
+    /// the weapon-element cache. The result matches the pack's `initialized`
+    /// vector for all eleven starting characters.
+    ///
+    /// Fail-closed on equipment: every non-zero slot must name an item the data
+    /// set knows, because an item that quietly resolved to nothing would take
+    /// its stat bonuses and its element with it and the damage numbers would
+    /// merely look plausible.
+    ///
+    /// # Errors
+    /// [`BattleDataError::UnknownItem`] naming the first slot that does not
+    /// resolve.
+    pub fn seat(
+        record: &CharacterRecord,
+        data: &BattleData,
+    ) -> Result<PartyMember, BattleDataError> {
+        for id in record.equipment {
+            if id != 0 {
+                data.item(id)?;
+            }
+        }
+        let item = |id: u8| data.item(id).ok().cloned();
+        Ok(PartyMember {
+            character: record.id,
+            name: record.name.clone(),
+            stats: Stats::from_character(record, item),
+        })
+    }
 }
 
 /// What a party member does with their turn.
@@ -178,6 +217,42 @@ impl Battle {
     #[must_use]
     pub const fn roster(&self) -> &Roster {
         &self.roster
+    }
+
+    /// The party's live stats, keyed by `Character_Stats` index.
+    ///
+    /// A borrowing view for inspecting a battle in progress. To *keep* the
+    /// results, use [`Battle::into_party`] — the whole point of the shared
+    /// [`Stats`] record is that what a battle leaves behind is what the field
+    /// carries away, with no conversion in between.
+    pub fn party_stats(&self) -> impl Iterator<Item = (u8, &Stats)> {
+        self.roster
+            .side(Side::Party)
+            .filter_map(|fighter| fighter.character.map(|id| (id, &fighter.stats)))
+    }
+
+    /// Consumes the battle and hands the party back.
+    ///
+    /// Everything a battle changed about a character — HP spent, experience
+    /// and levels won, `gain_exp_flag`, death — is in the returned [`Stats`],
+    /// because it is the same record that went in. Nothing needs translating
+    /// and nothing may be dropped: a caller that takes this and writes it back
+    /// over `GameState`'s copy has round-tripped the battle correctly by
+    /// construction.
+    ///
+    /// Enemies are discarded; they exist only for the length of the fight.
+    #[must_use]
+    pub fn into_party(self) -> Vec<PartyMember> {
+        self.roster
+            .into_iter_fighters()
+            .filter_map(|fighter| {
+                fighter.character.map(|character| PartyMember {
+                    character,
+                    name: fighter.name,
+                    stats: fighter.stats,
+                })
+            })
+            .collect()
     }
 
     /// How the battle finished, if it has.

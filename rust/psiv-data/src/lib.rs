@@ -52,6 +52,11 @@ pub use battle::{
     Formation, FormationEnemy, FormationsFile, Level, LevelStats, LevelTable, LevelsFile,
     MapBinding, NamedId, NamedMapRef, PositionGrid, Property, Rewards,
 };
+// The seating path: `battle/characters.json` and `battle/equipment.json`.
+pub use battle::{
+    Character, CharactersFile, DerivedStat, ElementRef, Equipment, EquipmentBonuses, EquipmentFile,
+    EquipmentKindRef, EquipmentType, Equipped, Initialized, Loadout, WeaponElements,
+};
 pub use collision::{Collision, CollisionGrid, CollisionType, Plane, UndefinedCollisionType};
 pub use dialogue::*;
 pub use error::DataError;
@@ -63,7 +68,8 @@ pub use manifest::{
 };
 pub use map::{
     COLLISION_CELL_PIXELS, Cell, CellPos, CellRect, ContentsType, DIALOGUE_TREE_COUNT, Dimensions,
-    Direction, Facing, Flags, MapRecord, MapRef, Music, Npc, RangeRef, SpriteFacing, SpriteRef,
-    TransitionTable, Treasure, Warp, WarpSource,
+    Direction, EffectGate, EffectPath, EffectWrite, Facing, Flags, LayoutVariant, MapEffect,
+    MapRecord, MapRef, Music, Npc, RangeRef, ResolvedCell, SpriteFacing, SpriteRef,
+    TransitionTable, Treasure, VariantCollision, VariantPlane, Warp, WarpSource,
 };
 pub use sprites::{Sequence, SequenceFrame, Sheet, SheetFile};

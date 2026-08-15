@@ -19,7 +19,7 @@
 //! instead of in a damage number.
 
 use super::records::{
-    Bonuses, CharacterRecord, ELEMENT_SLOTS, EQUIPMENT_SLOTS, EnemyRecord, ItemRecord,
+    Bonuses, CharacterRecord, ELEMENT_SLOTS, EQUIPMENT_SLOTS, EnemyRecord, ItemKind, ItemRecord,
 };
 
 /// Status bits at `$16` of the stats struct.
@@ -55,6 +55,11 @@ pub mod status {
 /// `ProfessionID_Android`. Androids diverge from Tier 2 on.
 pub const PROFESSION_ANDROID: u16 = 5;
 
+/// What `UpdateCharElems` writes into a property an equipped item names.
+///
+/// Always `1` — "resistant" — regardless of the item or the character.
+pub const GRANTED_RESISTANCE: u8 = 1;
+
 /// The element factor a fighter gets while defending.
 ///
 /// `Character_Defend`'s tail writes `move.b #1, $30(a0)` (`ps4.asm:6824`) —
@@ -63,6 +68,30 @@ pub const PROFESSION_ANDROID: u16 = 5;
 pub const DEFENDING_PHYSICAL_PROP: u8 = 1;
 
 /// One fighter's stats, laid out as the cartridge's 128-byte struct.
+///
+/// # A shared interface type
+///
+/// This is **the** persistent per-character record, not a battle-local copy.
+/// `GameState` owns eleven of them — the cartridge's own `Character_Stats`
+/// model at `$FFFFF500` — and a battle reads and writes them in place rather
+/// than converting to and from something of its own. That is the whole reason
+/// the struct carries fields battle never reads, like [`Stats::experience`] and
+/// [`Stats::gain_exp_flag`].
+///
+/// Its shape is therefore a contract between this crate's battle and field
+/// halves, and changing it needs the lead's sign-off (adjudicated 2026-08-15).
+/// Adding a *method* is free; adding, removing or repurposing a **field** is
+/// not.
+///
+/// # The round-trip invariant
+///
+/// A battle must leave `curr_hp`, `curr_tp`, `experience`, `level`, `status`
+/// and `gain_exp_flag` in a state the field can carry straight on with.
+/// [`Battle::into_party`](crate::battle::Battle::into_party) is the handoff,
+/// and `battle::engine_tests` pins the invariant. Everything a battle mutates
+/// temporarily — the `battle` copies, [`Stats::element_props`] under a Defend —
+/// is restored or recomputed before the battle ends, so no caller has to know
+/// which fields were transient.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Stats {
     /// `$06`. `ProfessionID_*`.
@@ -105,8 +134,34 @@ pub struct Stats {
     /// how the high bytes get populated at all, since `Character_Init` writes
     /// only the low ones (`ps4.asm:88774`).
     pub element_shadow: [u8; ELEMENT_SLOTS],
+    /// `$50` and `$51`: the attack element each hand's weapon carries, as
+    /// [`Stats::update_char_elems`] caches it.
+    ///
+    /// **Presentation only.** The damage pipeline reads a weapon's element
+    /// straight out of `InventoryData` through `Battle_LoadWpnAttackElem`
+    /// (`$0027DDD4`); these two bytes are consumed by the battle object that
+    /// draws the swing (`move.w $50(a1), $1E(a4)`, `ps4.asm:33857`). They are
+    /// modelled because the pack emits them in its conformance vector and
+    /// because the same two offsets mean something entirely different on an
+    /// enemy, where `$50`..`$5F` is the AI block.
+    pub weapon_elements: [u8; 2],
     /// `$4C`..`$4F`: right hand, left hand, head, body.
     pub equipment: [u8; EQUIPMENT_SLOTS],
+    /// `$7B` — the finished physical property, saved so Defend can be undone
+    /// without losing what armour granted.
+    ///
+    /// # A ratified bug fix
+    ///
+    /// Retail has no such byte. `Battle_RestoreStatsAtTurnEnd` puts `$30` back
+    /// from `$31` (`ps4.asm:9806`), and `$31` holds the *character record's*
+    /// innate value — not the value `UpdateCharElems` computed from armour. So
+    /// on the cartridge, defending once permanently discards whatever
+    /// resistance your gear was granting for the rest of the battle. That is
+    /// the Defend/armour `physical_prop` clobber in
+    /// `docs/RUNTIME_DESIGN.md` "Battle bug policy", listed as a fix; the
+    /// disassembly's own `bugfixes=1` branch invents this same byte to solve it
+    /// (`physical_prop_save = $7B`, `ps4.constants.asm:61`).
+    pub physical_prop_save: u8,
     /// `$68`. Zero for characters.
     pub enemy_id: u16,
     /// `$7A`. Set the first time a character survives a won battle; gates
@@ -195,25 +250,30 @@ impl Stats {
             mental_defence: StatPair::uniform(record.mental_defence),
             element_props: record.properties,
             element_shadow: record.properties,
+            weapon_elements: [0; 2],
             equipment: [0; EQUIPMENT_SLOTS],
+            physical_prop_save: record.properties[0],
             enemy_id: record.id,
             gain_exp_flag: false,
         }
     }
 
-    /// A character at the state their initial record describes.
+    /// A character seated exactly as `InitializeCharStats` (`$0044652`) leaves
+    /// them.
     ///
-    /// Derived stats come from [`Stats::update_mod_stats`], so the caller must
-    /// supply the equipped items.
+    /// That routine copies the 66-byte record into the 128-byte struct and
+    /// finishes with **both** derivation passes — [`Stats::update_mod_stats`]
+    /// and [`Stats::update_char_elems`] — so a seated character's derived stats
+    /// and finished element properties are a pure function of the record plus
+    /// the items it names. `item` supplies those items.
     ///
-    /// The cartridge populates the element-property *high* bytes indirectly:
-    /// `Character_Init` writes only the low ones and the first
-    /// `Battle_RestoreStatsAtTurnEnd` — which the battle intro runs before the
-    /// first round — copies them up. Setting both here reaches the same state
-    /// without modelling a frame of stale RAM.
+    /// The pack emits the expected result as each character's `initialized`
+    /// vector; all eleven are pinned as tests.
     ///
-    /// # Errors
-    /// Propagates whatever [`Stats::update_mod_stats`] reports.
+    /// Note which copy the record's element bytes land in: `Character_Init`
+    /// writes only the *low* halves (`ps4.asm:88774`), and
+    /// [`Stats::update_char_elems`] is what fills the high halves the damage
+    /// pipeline reads.
     pub fn from_character(
         record: &CharacterRecord,
         item: impl Fn(u8) -> Option<ItemRecord>,
@@ -223,9 +283,9 @@ impl Stats {
             level: record.level,
             experience: record.experience,
             curr_hp: record.hp,
-            max_hp: record.hp,
+            max_hp: record.max_hp,
             curr_tp: record.tp,
-            max_tp: record.tp,
+            max_tp: record.max_tp,
             status: 0,
             strength: StatTriple::uniform(record.strength),
             mental: StatTriple::uniform(record.mental),
@@ -234,14 +294,93 @@ impl Stats {
             attack: StatPair::default(),
             defence: StatPair::default(),
             mental_defence: StatPair::default(),
-            element_props: record.properties,
+            element_props: [0; ELEMENT_SLOTS],
             element_shadow: record.properties,
+            weapon_elements: [0; 2],
             equipment: record.equipment,
+            physical_prop_save: 0,
             enemy_id: 0,
             gain_exp_flag: false,
         };
         stats.update_mod_stats(&item);
+        stats.update_char_elems(&item);
         stats
+    }
+
+    /// `UpdateCharElems` — retail **`$0005FD2A`** (`ps4.asm:128345`).
+    ///
+    /// Rebuilds all fourteen element properties from scratch, from the four
+    /// equipment slots and the character record underneath them:
+    ///
+    /// ```text
+    ///     ; clear the fourteen HIGH bytes, and both weapon-element bytes
+    ///     move.b  d0, (a0,d2.w)       ; d2 walks $30, $32, .. $4A
+    ///     move.w  d0, $50(a0)
+    ///
+    ///     ; right hand, then left: a shield grants a resistance, anything
+    ///     ; else sets that hand's attack element
+    ///     cmpi.b  #5, $A(a2)
+    ///     beq.s   loc_5FD58           ; -> grant
+    ///     bsr.s   loc_5FDB0           ; move.b $12(a2), $50(a0)
+    ///
+    ///     ; head and body: always grant
+    ///     bsr.s   loc_5FDC0
+    ///
+    /// loc_5FDC0:                      ; grant
+    ///     move.b  $12(a2), d0
+    ///     beq.s   +                   ; element 0 grants nothing
+    ///     subq.w  #1, d0
+    ///     add.w   d0, d0
+    ///     move.b  #1, $30(a0,d0.w)    ; UNCONDITIONAL
+    ///
+    ///     ; anything still zero falls back to the record's own byte
+    /// loc_5FD8A:
+    ///     tst.b   (a1)
+    ///     bne.s   +
+    ///     move.b  $1(a1), (a1)
+    /// ```
+    ///
+    /// # The grant is unconditional, and that is not a rounding error
+    ///
+    /// `move.b #1` overwrites whatever was there. A character innately **immune**
+    /// to an element (property 0) who equips armour naming that element comes
+    /// out merely *resistant* (property 1) — the gear makes them strictly worse
+    /// against it. Reachable in play and reproduced deliberately; the pack's
+    /// census counts it as `element_props_weakened_by_equipment`, which is empty
+    /// for the eleven starting loadouts and need not stay that way.
+    ///
+    /// The fallback pass keys on the high byte still being zero, which is why a
+    /// granted `1` survives it and an untouched slot does not.
+    pub fn update_char_elems(&mut self, item: &impl Fn(u8) -> Option<ItemRecord>) {
+        self.element_props = [0; ELEMENT_SLOTS];
+        self.weapon_elements = [0; 2];
+
+        let equipment = self.equipment;
+        for (slot, id) in equipment.iter().enumerate() {
+            if *id == 0 {
+                continue;
+            }
+            let Some(record) = item(*id) else { continue };
+            // A hand holding anything but a shield sets that hand's attack
+            // element; every other case grants a resistance.
+            if slot < 2 && record.kind != ItemKind::Shield {
+                self.weapon_elements[slot] = record.element;
+            } else if let Some(prop) = usize::from(record.element)
+                .checked_sub(1)
+                .and_then(|index| self.element_props.get_mut(index))
+            {
+                *prop = GRANTED_RESISTANCE;
+            }
+        }
+
+        for (prop, innate) in self.element_props.iter_mut().zip(self.element_shadow) {
+            if *prop == 0 {
+                *prop = innate;
+            }
+        }
+        // FIX: retail restores `$30` from `$31` and so throws the line above
+        // away the first time anyone defends. See [`Stats::physical_prop_save`].
+        self.physical_prop_save = self.element_props[0];
     }
 
     /// `UpdateCharModStats` — retail `$0005F754` (`ps4.asm:127814`).
@@ -346,10 +485,20 @@ impl Stats {
     /// `Battle_RestoreStatsAtTurnEnd`'s first act (`ps4.asm:9806`):
     /// `move.b $31(a3), physical_prop(a3)`.
     ///
-    /// Only the physical slot, only from the shadow byte. The other thirteen
-    /// are restored by `AbilityEffect_RestoreStats`, which is Tier 2.
+    /// Only the physical slot. The other thirteen are restored by
+    /// `AbilityEffect_RestoreStats`, which is Tier 2.
+    ///
+    /// # A ratified bug fix
+    ///
+    /// Retail restores from `$31`, the character record's *innate* byte, which
+    /// silently discards any physical resistance `UpdateCharElems` derived from
+    /// armour. This restores from [`Stats::physical_prop_save`] instead, so
+    /// defending costs nothing. The observable Defend behaviour — resistance 1
+    /// while defending, the granted value afterwards — is unchanged for anyone
+    /// whose gear grants no physical resistance, which is every retail loadout
+    /// the oracle has measured.
     pub const fn restore_physical_prop(&mut self) {
-        self.element_props[0] = self.element_shadow[0];
+        self.element_props[0] = self.physical_prop_save;
     }
 }
 

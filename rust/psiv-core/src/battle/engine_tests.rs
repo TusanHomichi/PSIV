@@ -199,182 +199,6 @@ fn the_worked_examples_damage_band_is_ten_to_twenty_five() {
 }
 
 // ---------------------------------------------------------------------
-// Oracle ground truth
-// ---------------------------------------------------------------------
-
-/// Sixteen draws whose masked values sum to `sum`.
-fn draws_for(sum: u16) -> Vec<u16> {
-    assert!(sum <= 112, "S maxes out at 112");
-    let mut out = vec![0u16; DAMAGE_DRAWS];
-    let mut left = sum;
-    for slot in &mut out {
-        let take = left.min(7);
-        *slot = take;
-        left -= take;
-    }
-    out
-}
-
-/// Every damage figure reachable for a stat pairing, over every possible
-/// sum of sixteen draws.
-///
-/// "Reachable" is the strongest claim available against the oracle once the
-/// H/V term is substituted: the exact stream is out of reach by design, so
-/// a logged number is checked against the set the formula can produce
-/// rather than against one particular roll.
-fn achievable(attack: u16, defence: u16, element: u16, bonus: u16) -> Vec<u16> {
-    let mut seen: Vec<u16> = (0..=112u16)
-        .map(|sum| {
-            let draws = draws_for(sum);
-            let mut rolls = SliceRolls::new(&draws);
-            clamp_damage(calculate_damage(
-                attack, defence, element, bonus, &mut rolls,
-            ))
-        })
-        .collect();
-    seen.dedup();
-    seen
-}
-
-#[test]
-fn every_damage_row_the_oracle_logged_is_reachable() {
-    use crate::battle::action::critical_bonus;
-
-    // (attack, defence, critical, observed) — tapes 07 and 09.
-    let rows: [(u16, u16, bool, u16, &str); 12] = [
-        (13, 2, false, 12, "Alys -> ZoranBult (multi)"),
-        (13, 2, false, 10, "Alys -> ZoranBult (multi)"),
-        (18, 2, false, 15, "Chaz -> ZoranBult, a kill"),
-        (16, 9, false, 6, "ZoranBult -> Hahn"),
-        (8, 2, false, 5, "Hahn -> ZoranBult"),
-        (13, 2, false, 11, "Alys -> ZoranBult, a kill"),
-        (13, 0, false, 13, "Alys -> Xanafalgue (multi)"),
-        (13, 2, false, 10, "Alys -> ZoranBult (multi)"),
-        (13, 18, false, 1, "Xanafalgue -> Alys, the floor"),
-        (18, 0, false, 18, "Chaz -> Xanafalgue, a kill"),
-        (8, 2, true, 7, "Hahn -> ZoranBult, the critical sample"),
-        (13, 2, false, 10, "Alys -> ZoranBult, a kill"),
-    ];
-    for (attack, defence, critical, observed, what) in rows {
-        let bonus = if critical { critical_bonus(attack) } else { 0 };
-        let band = achievable(attack, defence, 2, bonus);
-        assert!(
-            band.contains(&observed),
-            "{what}: {observed} is not in {band:?}"
-        );
-    }
-}
-
-#[test]
-fn xanafalgue_can_never_do_more_than_one_to_alys() {
-    use crate::battle::action::critical_bonus;
-    use crate::battle::chances::{PHYSICAL, Verdict, calculate_chances};
-
-    // atk 13 against dfs 18: even the maximum roll lands on the floor, so
-    // the oracle's single observation is the only value it can produce.
-    assert_eq!(achievable(13, 18, 2, 0), vec![1], "every roll clamps to 1");
-
-    // A critical would break out of the floor — it reaches 3 at the top of
-    // the range — but Xanafalgue can never roll one against Alys: dexterity
-    // 7 against agility 15 is a margin of -8, past the -5 critical cliff.
-    assert_eq!(
-        *achievable(13, 18, 2, critical_bonus(13)).last().unwrap(),
-        3
-    );
-    let (scale, miss, crit) = PHYSICAL;
-    for roll in 0..=63u16 {
-        let draws = [roll];
-        let mut rolls = SliceRolls::new(&draws);
-        assert_ne!(
-            calculate_chances(7, 15, scale, miss, crit, &mut rolls),
-            Verdict::Critical,
-            "roll {roll}"
-        );
-    }
-}
-
-#[test]
-fn tape_07_splits_its_rewards_the_way_the_cartridge_did() {
-    // Two ZoranBult, a party of three, mash-attack until they fall.
-    let data = fixtures::data();
-    let mut seed = Lcg41::new(0x1234_5678);
-    let mut rolls = Rng2::with_surrogate(&mut seed, 0);
-    let mut battle = start(
-        &fixtures::formation_two_zoran_bults(),
-        basement_party(&data),
-        &data,
-        &mut rolls,
-    );
-    let timeline = play_out(&mut battle, &RoundOrders::attack_all(), &data, &mut rolls);
-
-    assert_eq!(battle.outcome(), Some(Outcome::Victory));
-    assert_eq!(
-        rewarded(&timeline),
-        Some((24, 8, 6, 3)),
-        "24 experience over three living members, and 6 meseta"
-    );
-}
-
-#[test]
-fn tape_09_splits_its_rewards_the_way_the_cartridge_did() {
-    let data = fixtures::data();
-    let mut seed = Lcg41::new(0x0BAD_F00D);
-    let mut rolls = Rng2::with_surrogate(&mut seed, 3);
-    let mut battle = start(
-        &fixtures::formation_xanafalgue_and_zoran_bult(),
-        basement_party(&data),
-        &data,
-        &mut rolls,
-    );
-    let timeline = play_out(&mut battle, &RoundOrders::attack_all(), &data, &mut rolls);
-
-    assert_eq!(battle.outcome(), Some(Outcome::Victory));
-    assert_eq!(
-        rewarded(&timeline),
-        Some((21, 7, 5, 3)),
-        "Xanafalgue 9 + ZoranBult 12, and 2 + 3 meseta"
-    );
-}
-
-#[test]
-fn alyss_boomerang_hits_both_enemies_in_one_swing() {
-    // The oracle's headline observation: both enemy hit flags set in the
-    // same frame, with different damage for each.
-    let data = fixtures::data();
-    let mut rolls = SliceRolls::new(&[20]);
-    let mut battle = start(
-        &fixtures::formation_two_zoran_bults(),
-        basement_party(&data),
-        &data,
-        &mut rolls,
-    );
-    let mut seed = Lcg41::new(0xFEED_BEEF);
-    let mut rolls = Rng2::with_surrogate(&mut seed, 1);
-    let events = battle
-        .round(&RoundOrders::attack_all(), &data, &mut rolls)
-        .expect("resolves");
-
-    let swing = events
-        .iter()
-        .find_map(|e| match e {
-            BattleEvent::Attacked { actor, targets } if *actor == id(1) => Some(targets.clone()),
-            _ => None,
-        })
-        .expect("Alys swings");
-    assert_eq!(swing, vec![id(6), id(7)], "both enemies at once");
-
-    // And Chaz's Hunt-Knives reach exactly one.
-    let chaz = events
-        .iter()
-        .find_map(|e| match e {
-            BattleEvent::Attacked { actor, targets } if *actor == id(2) => Some(targets.clone()),
-            _ => None,
-        })
-        .expect("Chaz swings");
-    assert_eq!(chaz.len(), 1);
-}
-
-// ---------------------------------------------------------------------
 // Round structure
 // ---------------------------------------------------------------------
 
@@ -954,4 +778,213 @@ fn a_victory_levels_the_party_up_from_the_experience_it_just_won() {
         battle.roster.get(id(1)).expect("Chaz").stats.attack.battle,
         19
     );
+}
+
+/// Sixteen draws whose masked values sum to `sum`.
+fn draws_for(sum: u16) -> Vec<u16> {
+    assert!(sum <= 112, "S maxes out at 112");
+    let mut out = vec![0u16; DAMAGE_DRAWS];
+    let mut left = sum;
+    for slot in &mut out {
+        let take = left.min(7);
+        *slot = take;
+        left -= take;
+    }
+    out
+}
+
+/// Every damage figure reachable for a stat pairing, over every possible
+/// sum of sixteen draws.
+///
+/// "Reachable" is the strongest claim available against the oracle once the
+/// H/V term is substituted: the exact stream is out of reach by design, so
+/// a logged number is checked against the set the formula can produce
+/// rather than against one particular roll.
+fn achievable(attack: u16, defence: u16, element: u16, bonus: u16) -> Vec<u16> {
+    let mut seen: Vec<u16> = (0..=112u16)
+        .map(|sum| {
+            let draws = draws_for(sum);
+            let mut rolls = SliceRolls::new(&draws);
+            clamp_damage(calculate_damage(
+                attack, defence, element, bonus, &mut rolls,
+            ))
+        })
+        .collect();
+    seen.dedup();
+    seen
+}
+
+#[path = "engine_tests_oracle.rs"]
+mod oracle;
+
+// ---------------------------------------------------------------------
+// Stats as a shared record: the round-trip invariant
+// ---------------------------------------------------------------------
+
+#[test]
+fn a_battle_hands_back_the_same_records_it_was_given() {
+    // `Stats` is the persistent per-character record, so what goes in is what
+    // comes out — identity preserved, no conversion layer, nobody dropped.
+    let data = fixtures::data();
+    let party = basement_party(&data);
+    let going_in: Vec<(u8, String)> = party
+        .iter()
+        .map(|m| (m.character, m.name.clone()))
+        .collect();
+
+    let mut rolls = SliceRolls::new(&[20]);
+    let mut battle = start(
+        &fixtures::formation_two_zoran_bults(),
+        party,
+        &data,
+        &mut rolls,
+    );
+    let mut seed = Lcg41::new(0x7777_1111);
+    let mut rolls = Rng2::with_surrogate(&mut seed, 11);
+    play_out(&mut battle, &RoundOrders::attack_all(), &data, &mut rolls);
+
+    let coming_out: Vec<(u8, String)> = battle
+        .into_party()
+        .into_iter()
+        .map(|m| (m.character, m.name))
+        .collect();
+    assert_eq!(coming_out, going_in, "same members, same order");
+}
+
+#[test]
+fn the_fields_the_field_carries_away_survive_a_battle() {
+    // The invariant `docs/FIELD_STATE.md` records: HP spent, experience and
+    // levels won, and death all persist in the record the battle gives back.
+    let data = fixtures::data();
+    let mut rolls = SliceRolls::new(&[20]);
+    let mut battle = start(
+        &fixtures::formation_two_zoran_bults(),
+        vec![member(&fixtures::chaz(), &data)],
+        &data,
+        &mut rolls,
+    );
+    {
+        let chaz = battle.roster.get_mut(id(1)).expect("Chaz");
+        chaz.stats.curr_hp = 400;
+        chaz.stats.max_hp = 500;
+        chaz.stats.curr_tp = 7;
+        chaz.stats.experience = 17;
+        assert!(!chaz.stats.gain_exp_flag);
+    }
+
+    let mut seed = Lcg41::new(0x2468_ACE0);
+    let mut rolls = Rng2::with_surrogate(&mut seed, 12);
+    play_out(&mut battle, &RoundOrders::attack_all(), &data, &mut rolls);
+    assert_eq!(battle.outcome(), Some(Outcome::Victory));
+
+    let party = battle.into_party();
+    let chaz = &party[0].stats;
+    assert!(chaz.curr_hp < 400, "the enemies got some hits in");
+    assert!(chaz.curr_hp > 0);
+    assert_eq!(chaz.max_hp, 31, "and the level-up moved the ceiling");
+    assert_eq!(chaz.curr_tp, 7, "TP is untouched by a Tier 1 battle");
+    assert_eq!(chaz.experience, 41, "17 + all 24");
+    assert_eq!(chaz.level, 2);
+    assert!(chaz.gain_exp_flag, "set by surviving a won battle");
+    assert_eq!(chaz.status, 0, "and he is still standing");
+}
+
+#[test]
+fn a_wiped_party_comes_back_marked_dead_rather_than_missing() {
+    // The field needs to know who fell, so death is state on the record, not
+    // an absence from the handoff.
+    let data = fixtures::data();
+    let mut rolls = SliceRolls::new(&[20]);
+    let mut battle = start(
+        &fixtures::formation_two_zoran_bults(),
+        vec![member(&fixtures::hahn(), &data)],
+        &data,
+        &mut rolls,
+    );
+    battle.roster.get_mut(id(1)).expect("Hahn").stats.curr_hp = 1;
+
+    let mut seed = Lcg41::new(0x0BAD_0BAD);
+    let mut rolls = Rng2::with_surrogate(&mut seed, 13);
+    play_out(&mut battle, &RoundOrders::attack_all(), &data, &mut rolls);
+    assert_eq!(battle.outcome(), Some(Outcome::Defeat));
+
+    let party = battle.into_party();
+    assert_eq!(party.len(), 1, "still handed back");
+    assert_eq!(party[0].stats.status & status::DEAD, status::DEAD);
+    assert_eq!(party[0].stats.curr_hp, 0);
+    assert!(!party[0].stats.gain_exp_flag, "a wipe pays nothing");
+}
+
+#[test]
+fn nothing_transient_leaks_out_of_a_finished_battle() {
+    // A caller must not have to know which fields were battle-only. The
+    // `battle` copies still agree with their derived values, and a Defend that
+    // ran during the fight has been undone.
+    let data = fixtures::data();
+    let mut rolls = SliceRolls::new(&[20]);
+    let mut battle = start(
+        &fixtures::formation_two_zoran_bults(),
+        basement_party(&data),
+        &data,
+        &mut rolls,
+    );
+    for slot in [1u8, 2, 3, 6, 7] {
+        let fighter = battle.roster.get_mut(id(slot)).expect("present");
+        fighter.stats.curr_hp = 500;
+        fighter.stats.max_hp = 500;
+    }
+    // Everyone defends for a round, then the fight is played out normally.
+    let draws: Vec<u16> = std::iter::repeat_n(0u16, FIGHTER_SLOTS + ENEMY_SLOTS)
+        .chain(std::iter::repeat_n(30u16, 400))
+        .collect();
+    let mut rolls = SliceRolls::new(&draws);
+    battle
+        .round(
+            &RoundOrders::Commands(vec![Command::Defend, Command::Defend, Command::Defend]),
+            &data,
+            &mut rolls,
+        )
+        .expect("resolves");
+    let mut seed = Lcg41::new(0x3141_5926);
+    let mut rolls = Rng2::with_surrogate(&mut seed, 14);
+    play_out(&mut battle, &RoundOrders::attack_all(), &data, &mut rolls);
+
+    for member in battle.into_party() {
+        let stats = &member.stats;
+        assert_eq!(
+            stats.element_props[0], stats.physical_prop_save,
+            "character {}: a Defend was left in place",
+            member.character
+        );
+        assert_eq!(stats.attack.battle, stats.attack.derived);
+        assert_eq!(stats.defence.battle, stats.defence.derived);
+        assert_eq!(stats.strength.battle, stats.strength.modified);
+        assert_eq!(stats.agility.battle, stats.agility.modified);
+    }
+}
+
+#[test]
+fn party_stats_and_into_party_agree() {
+    let data = fixtures::data();
+    let mut rolls = SliceRolls::new(&[20]);
+    let mut battle = start(
+        &fixtures::formation_two_zoran_bults(),
+        basement_party(&data),
+        &data,
+        &mut rolls,
+    );
+    let mut seed = Lcg41::new(0x5A5A_5A5A);
+    let mut rolls = Rng2::with_surrogate(&mut seed, 15);
+    play_out(&mut battle, &RoundOrders::attack_all(), &data, &mut rolls);
+
+    let viewed: Vec<(u8, Stats)> = battle
+        .party_stats()
+        .map(|(id, stats)| (id, stats.clone()))
+        .collect();
+    let taken: Vec<(u8, Stats)> = battle
+        .into_party()
+        .into_iter()
+        .map(|m| (m.character, m.stats))
+        .collect();
+    assert_eq!(viewed, taken, "the borrow and the move see the same thing");
 }

@@ -104,19 +104,23 @@ pub const ELEMENT_OFFSETS: [u8; 16] = [
     0x00, 0x30, 0x32, 0x34, 0x36, 0x38, 0x3A, 0x3C, 0x3E, 0x40, 0x42, 0x44, 0x46, 0x48, 0x4A, 0x00,
 ];
 
-/// The disassembly's names for element ids 1..=14, in order.
+/// Names for element ids 1..=14, in record order.
+///
+/// The extractor's vocabulary, which is what the pack's `properties` maps are
+/// keyed by — so a name here and a name in `battle/enemies.json` refer to the
+/// same slot without a translation step.
 pub const ELEMENT_NAMES: [&str; 14] = [
     "physical",
     "energy",
     "fire",
     "gravity",
     "water",
-    "anti",
+    "anti_evil",
     "electric",
-    "holy",
-    "bros",
-    "bio",
-    "psycho",
+    "holyword",
+    "brose",
+    "biological",
+    "psychic",
     "mechanical",
     "efess",
     "destroy",
@@ -129,18 +133,19 @@ pub const WEAPON_ELEMENT_SENTINEL: u8 = 0x10;
 /// The resistance offset for an element id, or `None` when the id selects
 /// nothing or defers to the weapon.
 ///
-/// # The weapon fallback is not implemented
+/// # The weapon fallback lives one layer up
 ///
 /// An id at or above [`WEAPON_ELEMENT_SENTINEL`] means the attack takes its
-/// element from the attacker's equipped weapon (`Battle_LoadWpnAttackElem`,
-/// `$0027DDD4`). Resolving that needs equipment plumbing this tier does not
-/// have, so it returns `None` and the caller must notice — deliberately, rather
-/// than silently defaulting to physical and producing plausible wrong numbers.
+/// element from the attacker's equipped weapons rather than from this table —
+/// the larger of the two hands' factors, per `loc_2716`. That needs the
+/// attacker's equipment and the item table, so it belongs to
+/// [`ability_element_factor`](crate::battle::ability_element_factor), which is
+/// the function to call when an element id might be a physical skill's. This
+/// one keeps returning `None` so a caller that reaches for the table directly
+/// cannot get a plausible wrong number out of it.
 #[must_use]
 pub fn element_offset(element_id: u8) -> Option<u8> {
     if element_id >= WEAPON_ELEMENT_SENTINEL {
-        // TODO(equipment): resolve through Battle_LoadWpnAttackElem once the
-        // fighter's equipped weapon is reachable from the kernel.
         return None;
     }
     match ELEMENT_OFFSETS.get(usize::from(element_id)) {
@@ -242,8 +247,9 @@ mod tests {
 
     #[test]
     fn the_weapon_fallback_refuses_rather_than_guessing() {
-        // $10 and up defer to the equipped weapon, which this tier cannot
-        // resolve. Returning None makes the caller handle it.
+        // $10 and up defer to the equipped weapon, which this table cannot
+        // resolve on its own. Returning None sends the caller to
+        // `ability_element_factor`.
         for id in [0x10u8, 0x11, 0x20, 0xFF] {
             assert_eq!(element_offset(id), None, "id {id:#04X}");
         }
