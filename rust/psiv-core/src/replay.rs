@@ -802,8 +802,12 @@ impl ReplayRow {
             eflags,
             ext_eflags_00: be_u32(&snapshot.event_flags[32..]),
             chest_flags_00: be_u32(&snapshot.chest_flags),
-            temp_eflags_00: (u16::from(snapshot.temp_flags[0]) << 8)
-                | u16::from(snapshot.temp_flags[1]),
+            // The oracle reads this at $F156, which is byte 22 of the $F140
+            // bank ($F156 - $F140 = $16). Retail has no separate temp bank, so
+            // the column is a window into the chest bytes rather than an array
+            // of its own.
+            temp_eflags_00: (u16::from(snapshot.chest_flags[22]) << 8)
+                | u16::from(snapshot.chest_flags[23]),
             town_flags_00: be_u32(&snapshot.town_flags),
             objects: objects.to_vec(),
         }

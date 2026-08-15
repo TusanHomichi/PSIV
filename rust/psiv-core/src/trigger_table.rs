@@ -92,7 +92,9 @@ pub const TRIGGERS: [Trigger; 128] = [
     flags(&[Flag::event(0x09)], &[Flag::event(0x0E)], 0x000F),
     // $0B RunEvent_Null0B (115234)
     Never,
-    // $0C RunEvent_BioPlantAlarm (115238) — TempEveFlag_BioPlantAlarm clear
+    // $0C RunEvent_BioPlantAlarm (115238) — TempEveFlag_BioPlantAlarm clear.
+    // Retail has no separate temp bank, so this is ChestFlag_Alshline's bit:
+    // see `state.rs` module docs and the test below.
     cond(
         NONE,
         &[Flag::temp(0x08)],
@@ -128,7 +130,8 @@ pub const TRIGGERS: [Trigger; 128] = [
     ),
     // $17 RunEvent_ZemaIgglanovaDefeated (115627) — IgglanovaZema set, AfterIgglanovaZema clear
     flags(&[Flag::event(0x33)], &[Flag::event(0x37)], 0x8006),
-    // $18 RunEvent_FindingAlshline (115638) — ChestFlag_Alshline set, AlshlineFound clear
+    // $18 RunEvent_FindingAlshline (115638) — ChestFlag_Alshline set,
+    // AlshlineFound clear. Shares its bit with $0C's temp flag.
     flags(&[Flag::chest(0x08)], &[Flag::event(0x32)], 0x0028),
     // $19 RunEvent_RuneLadeaTower (115649) — RuneJoinedAgain clear
     cond(
@@ -584,6 +587,43 @@ mod tests {
         assert_eq!(
             TRIGGERS[0x18].evaluate(&ctx(&state, 0, 0)),
             TriggerResult::Fire(EventIndex(0x28))
+        );
+    }
+
+    #[test]
+    fn the_bio_plant_alarm_and_the_alshline_chest_share_one_bit() {
+        // `TempEveFlag_BioPlantAlarm` is 8 and `ChestFlag_Alshline` is 8, and
+        // retail dispatches temp flags through the `$F140` door with the id
+        // raw — so they are the same bit and these two triggers are mutually
+        // exclusive on hardware.
+        //
+        // Trigger $0C wants it clear, $18 wants it set. Reproducing that is the
+        // point: the disassembly's five-bank model would let both fire, retail
+        // cannot. If the hardware test shows the alarm re-arming or force-
+        // looting the chest, this is where it comes from. Do not "fix" it.
+        let mut state = GameState::new();
+        assert_eq!(
+            TRIGGERS[0x0C].evaluate(&ctx(&state, 0, 0x180)),
+            TriggerResult::Fire(EventIndex(0x12)),
+            "alarm armed while the bit is clear"
+        );
+        assert_eq!(
+            TRIGGERS[0x18].evaluate(&ctx(&state, 0, 0)),
+            TriggerResult::NoEvent,
+            "and the chest event cannot fire yet"
+        );
+
+        // Loot the chest — or trip the alarm; it is one write.
+        state.set(Flag::chest(0x08)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x0C].evaluate(&ctx(&state, 0, 0x180)),
+            TriggerResult::NoEvent,
+            "the alarm is disarmed by the chest flag"
+        );
+        assert_eq!(
+            TRIGGERS[0x18].evaluate(&ctx(&state, 0, 0)),
+            TriggerResult::Fire(EventIndex(0x28)),
+            "and the chest event now fires"
         );
     }
 

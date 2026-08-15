@@ -28,16 +28,61 @@
 //! `ExtendedEventFlags_Test` subtracts `$100` before running the same body, so
 //! the event-flag id space is `$000..=$1FF` split across two banks.
 //!
-//! Bank sizes come straight from the RAM map (`ps4.constants.asm:2362-2367`),
-//! each bank running up to the next symbol:
+//! # Four banks, not five
+//!
+//! The disassembly names five, but the retail cartridge has **four**. The
+//! clone defines `Temp_Event_Flags = $FFFFF156` with its own Test/Set/Clear
+//! doors, and the retail image contains **zero instructions addressing
+//! `$F156`** — no `lea (xxx).w` = `41F8F156`, no absolute-long `0000F156`, no
+//! word-lea anywhere in `$F141-$F15F`. Meanwhile the `$F140` door shows
+//! exactly the site count the clone splits across its chest *and* temp labels.
+//!
+//! Verified at the byte level: every retail `move.w #$13,d0` — the clone's
+//! `TempEveFlag_Xanafalgue` — jsr-targets the `$F140` doors with the id
+//! **raw**, no offset: set `0x04AEA4 -> 0x05767A`, test
+//! `0x051E18 -> 0x057638`, clear `0x0522BE -> 0x0576BC`.
+//!
+//! **So retail temp flag N and chest flag N are the same bit.** `$F140` is one
+//! 256-flag space running to `$F160` where the town bank starts. See the
+//! RETAIL FINDING entry dated 2026-08-15 in `SOURCE_NOTES.md` for the full
+//! chain, and `docs/MAP_EFFECTS.md` finding 5 for its discovery.
+//!
+//! Bank sizes, from the RAM map (`ps4.constants.asm:2362-2367`), each bank
+//! running up to the next symbol that retail actually addresses:
 //!
 //! | bank | address | bytes | flags |
 //! |---|---|---:|---:|
 //! | `Event_Flags` | `$F100` | 32 | 256 |
 //! | `Extended_Event_Flags` | `$F120` | 32 | 256 |
-//! | `Chest_Flags` | `$F140` | 22 | 176 |
-//! | `Temp_Event_Flags` | `$F156` | 10 | 80 |
+//! | `Chest_Flags` | `$F140` | 32 | 256 |
 //! | `Town_Flags` | `$F160` | 16 | 128 |
+//!
+//! The consequence is not cosmetic. Across the transcribed trigger tables, six
+//! ids are used under both names, so six pairs of unrelated-looking game state
+//! are one bit each:
+//!
+//! | id | as a temp flag | as a chest flag |
+//! |---|---|---|
+//! | `$08` | `BioPlantAlarm` (trigger `$0C`) | `Alshline` (trigger `$18`) |
+//! | `$09` | Vahal Fort moving platform (custom `$0E`) | `PsycoWand` (trigger `$1E`) |
+//! | `$0A` | Weapon Plant moving platform (custom `$0F`) | `ControlKey` (trigger `$1B`) |
+//! | `$0B` | moving platform state | `Canceller` (trigger `$55`) |
+//! | `$0C` | moving platform state | `EclpsTorch` (trigger `$45`) |
+//! | `$0D` | moving platform state | `AeroPrism` (triggers `$3B`, `$5A`) |
+//!
+//! The `$08` pair is the one the ledger calls out: the Bio Plant alarm's
+//! set-on-trigger and clear-on-exit land on the Alshline chest's bit, so the
+//! two triggers are mutually exclusive and the alarm plausibly re-arms or
+//! force-loots the chest. The other five are the same shape and were found by
+//! sweeping the tables after the merge — the moving-platform flags in Vahal
+//! Fort and the Weapon Plant share bits with five treasure chests, so riding a
+//! platform and looting a chest write the same state.
+//!
+//! Whether each is observable on hardware is a behavioural question, not a
+//! transcription one, and it is the oracle's to answer. What matters here is
+//! that reproducing them is the *point* of modelling the cartridge rather than
+//! the disassembly's labels: none of these is a defect in this engine, and
+//! "fixing" any of them would be the defect.
 //!
 //! The design doc's "~174 flags" is the count of *named* `EventFlag_*`
 //! constants, not the addressable space; the trigger table's highest observed
@@ -50,14 +95,17 @@ use crate::error::MapError;
 /// Separate banks, not one id space: the cartridge reaches each through its
 /// own entry point, and a chest flag `$08` and an event flag `$08` are
 /// unrelated bits in different arrays.
+///
+/// There is no `Temp` variant — see the module docs. Retail's temp flags live
+/// in [`FlagBank::Chest`], the same bits, and [`Flag::temp`] addresses it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FlagBank {
     /// `Event_Flags` plus `Extended_Event_Flags`, one id space `$000..=$1FF`.
     Event,
-    /// `Chest_Flags` — one bit per treasure chest.
+    /// `Chest_Flags` at `$F140`: chest flags **and** temp event flags, one
+    /// 256-id space. The disassembly's separate `Temp_Event_Flags` bank does
+    /// not exist in the retail image; see the module docs.
     Chest,
-    /// `Temp_Event_Flags` — see [`GameState`] on their lifetime.
-    Temp,
     /// `Town_Flags`.
     Town,
 }
@@ -69,8 +117,8 @@ impl FlagBank {
         match self {
             // 32 bytes at $F100 plus 32 more at $F120, reached by id >= $100.
             FlagBank::Event => 512,
-            FlagBank::Chest => 176,
-            FlagBank::Temp => 80,
+            // $F140 to $F160, where the town bank starts.
+            FlagBank::Chest => 256,
             FlagBank::Town => 128,
         }
     }
@@ -108,11 +156,18 @@ impl Flag {
         }
     }
 
-    /// A `TempEveFlag_*` id.
+    /// A `TempEveFlag_*` id — **the same bit** as [`Flag::chest`] of the same
+    /// id.
+    ///
+    /// Both constructors are kept because both names appear in the cartridge's
+    /// data and a call site reads better saying which one it means. They are
+    /// aliases, not distinct banks: retail dispatches every temp-flag call
+    /// through the `$F140` door with the id raw. The module docs carry the
+    /// byte-level proof.
     #[must_use]
     pub const fn temp(id: u16) -> Flag {
         Flag {
-            bank: FlagBank::Temp,
+            bank: FlagBank::Chest,
             id,
         }
     }
@@ -150,10 +205,14 @@ pub const PARTY_SLOTS: usize = 5;
 pub struct StateSnapshot {
     /// `Event_Flags` + `Extended_Event_Flags`, MSB-first per byte.
     pub event_flags: [u8; 64],
-    /// `Chest_Flags`.
-    pub chest_flags: [u8; 22],
-    /// `Temp_Event_Flags`.
-    pub temp_flags: [u8; 10],
+    /// `Chest_Flags` at `$F140`: chest and temp flags share these bytes.
+    ///
+    /// **Shape change, 2026-08-15**: was `[u8; 22]` beside a separate
+    /// `temp_flags: [u8; 10]`. Retail has no `$F156` bank, so the two merged
+    /// into one 32-byte array. Anything that persisted the old five-bank shape
+    /// must migrate by concatenating chest then temp — which is exactly what
+    /// the addresses were doing anyway.
+    pub chest_flags: [u8; 32],
     /// `Town_Flags`.
     pub town_flags: [u8; 16],
     /// `Current_Party_Slots`, `$FF` for an empty slot.
@@ -167,10 +226,10 @@ pub struct StateSnapshot {
 /// # Temp flags are not automatically cleared
 ///
 /// The name suggests a per-map or per-scene lifetime. The cartridge has no
-/// such rule: `Temp_Event_Flags` is referenced in exactly four places in the
-/// whole disassembly — `TempEveFlags_Test`, `_Set`, `_Clear` and `_Toggle` —
-/// and nothing bulk-clears it, not at map load, not on save/load (it sits
-/// inside `SRAM_Buffer`, so it is saved with everything else).
+/// such rule, and since retail's temp flags are simply bits in the `$F140`
+/// bank the point is now trivially true: nothing bulk-clears them, not at map
+/// load, not on save/load (the bank sits inside `SRAM_Buffer`, so it is saved
+/// with everything else).
 ///
 /// What makes them "temp" is that events clear them explicitly, in pairs. The
 /// trigger table shows the idiom plainly: index `$26`
@@ -182,8 +241,8 @@ pub struct StateSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GameState {
     event: Vec<u8>,
+    /// `$F140`: chest and temp flags, one array.
     chest: Vec<u8>,
-    temp: Vec<u8>,
     town: Vec<u8>,
     party: [u8; PARTY_SLOTS],
     money: u32,
@@ -202,7 +261,6 @@ impl GameState {
         GameState {
             event: vec![0; FlagBank::Event.bytes()],
             chest: vec![0; FlagBank::Chest.bytes()],
-            temp: vec![0; FlagBank::Temp.bytes()],
             town: vec![0; FlagBank::Town.bytes()],
             party: [CharId::EMPTY; PARTY_SLOTS],
             money: 0,
@@ -230,7 +288,6 @@ impl GameState {
         match bank {
             FlagBank::Event => &self.event,
             FlagBank::Chest => &self.chest,
-            FlagBank::Temp => &self.temp,
             FlagBank::Town => &self.town,
         }
     }
@@ -239,7 +296,6 @@ impl GameState {
         match bank {
             FlagBank::Event => &mut self.event,
             FlagBank::Chest => &mut self.chest,
-            FlagBank::Temp => &mut self.temp,
             FlagBank::Town => &mut self.town,
         }
     }
@@ -395,15 +451,13 @@ impl GameState {
     pub fn snapshot(&self) -> StateSnapshot {
         let mut snapshot = StateSnapshot {
             event_flags: [0; 64],
-            chest_flags: [0; 22],
-            temp_flags: [0; 10],
+            chest_flags: [0; 32],
             town_flags: [0; 16],
             party: self.party,
             money: self.money,
         };
         snapshot.event_flags.copy_from_slice(&self.event);
         snapshot.chest_flags.copy_from_slice(&self.chest);
-        snapshot.temp_flags.copy_from_slice(&self.temp);
         snapshot.town_flags.copy_from_slice(&self.town);
         snapshot
     }
@@ -415,7 +469,6 @@ impl GameState {
         GameState {
             event: snapshot.event_flags.to_vec(),
             chest: snapshot.chest_flags.to_vec(),
-            temp: snapshot.temp_flags.to_vec(),
             town: snapshot.town_flags.to_vec(),
             party: snapshot.party,
             money: snapshot.money,
@@ -444,13 +497,80 @@ mod tests {
     }
 
     #[test]
-    fn banks_are_independent() {
+    fn the_three_banks_are_independent() {
         let mut state = GameState::new();
         state.set(Flag::chest(8)).unwrap();
         assert!(state.is_set(Flag::chest(8)));
         assert!(state.is_clear(Flag::event(8)));
-        assert!(state.is_clear(Flag::temp(8)));
         assert!(state.is_clear(Flag::town(8)));
+    }
+
+    #[test]
+    fn a_temp_flag_is_the_same_bit_as_the_chest_flag_of_that_id() {
+        // The retail cartridge has no `$F156` bank: every `TempEveFlags_*` call
+        // dispatches through the `$F140` door with the id raw. Id 8 is the case
+        // that matters — `TempEveFlag_BioPlantAlarm` is 8 and so is
+        // `ChestFlag_Alshline`, so the Bio Plant alarm writes the Alshline
+        // chest's bit. If that turns out to re-arm or force-loot the chest on
+        // hardware, it is a retail bug we reproduce rather than a bug here.
+        let mut state = GameState::new();
+        state.set(Flag::temp(8)).unwrap();
+        assert!(state.is_set(Flag::chest(8)), "temp 8 set the chest 8 bit");
+
+        // And back the other way, including the clear.
+        let mut state = GameState::new();
+        state.set(Flag::chest(8)).unwrap();
+        assert!(state.is_set(Flag::temp(8)));
+        state.clear(Flag::temp(8)).unwrap();
+        assert!(state.is_clear(Flag::chest(8)), "clearing temp 8 cleared it");
+
+        // The two constructors are the same flag, not merely equal in effect.
+        assert_eq!(Flag::temp(0x13), Flag::chest(0x13));
+        assert_eq!(Flag::temp(8).bank, FlagBank::Chest);
+    }
+
+    #[test]
+    fn the_banks_hold_what_the_ram_map_gives_them() {
+        // Four banks, not five. `$F140` runs to `$F160` where town starts, so
+        // it is 32 bytes rather than the clone's 22 + 10 split.
+        assert_eq!(FlagBank::Event.capacity(), 512, "$F100 + $F120");
+        assert_eq!(FlagBank::Chest.capacity(), 256, "$F140..$F160");
+        assert_eq!(FlagBank::Town.capacity(), 128, "$F160..$F170");
+
+        // The highest id each bank accepts, and the first it rejects.
+        let mut state = GameState::new();
+        assert!(state.set(Flag::chest(255)).is_ok());
+        assert!(matches!(
+            state.set(Flag::chest(256)),
+            Err(MapError::FlagOutOfRange { .. })
+        ));
+        assert!(state.set(Flag::event(511)).is_ok());
+        assert!(state.set(Flag::town(127)).is_ok());
+        assert!(matches!(
+            state.set(Flag::town(128)),
+            Err(MapError::FlagOutOfRange { .. })
+        ));
+    }
+
+    #[test]
+    fn the_snapshot_carries_four_banks() {
+        // The save shape. `chest_flags` absorbed the old `temp_flags`, so a
+        // stored five-bank snapshot migrates by concatenating chest then temp.
+        let snapshot = GameState::new().snapshot();
+        assert_eq!(snapshot.event_flags.len(), 64);
+        assert_eq!(snapshot.chest_flags.len(), 32);
+        assert_eq!(snapshot.town_flags.len(), 16);
+
+        // A temp flag lands in the chest array, at the byte its id implies.
+        let mut state = GameState::new();
+        state.set(Flag::temp(0)).unwrap();
+        assert_eq!(state.snapshot().chest_flags[0], 0b1000_0000);
+
+        // And the bytes the clone called `Temp_Event_Flags` are simply the
+        // ones from `$F156` on — offset 22 into this array.
+        let mut state = GameState::new();
+        state.set(Flag::temp(22 * 8)).unwrap();
+        assert_eq!(state.snapshot().chest_flags[22], 0b1000_0000);
     }
 
     #[test]
@@ -468,11 +588,11 @@ mod tests {
     fn ids_past_a_banks_capacity_are_rejected_and_read_clear() {
         let mut state = GameState::new();
         assert!(matches!(
-            state.set(Flag::temp(80)),
+            state.set(Flag::town(128)),
             Err(MapError::FlagOutOfRange { .. })
         ));
-        assert!(state.is_clear(Flag::temp(80)));
-        assert!(state.set(Flag::temp(79)).is_ok());
+        assert!(state.is_clear(Flag::town(128)));
+        assert!(state.set(Flag::town(127)).is_ok());
     }
 
     #[test]
