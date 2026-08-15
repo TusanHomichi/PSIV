@@ -982,6 +982,16 @@ $0027F3BC:  00 20 D8 50   04 08 00 12   00 20 D7 7C   00 20 D2 C8   00 20 D2 A6
 $0027F3D0:  00 20 D8 50   04 08 00 1E   00 20 DC E6   00 20 D8 AC   00 20 D8 70
 ```
 
+(Correction 2026-08-15, from the extraction — `psiv_tools/battle_art.py` is
+now the authoritative decode: the records table is `loc_27F3AE` @ `0x27F3AE`,
+stride 20, 153 entries, ending exactly where the 22-byte palette table
+`loc_27FFA2` begins; the `+$00` word is a VRAM *reservation* advanced by
+`lsl.w #5` at `loc_7BFA`, not a mirror of art #1's header — that claim was
+wrong for 104 of 153; the width byte is a HALF-width, doubled by `loc_10ED4`
+before drawing; the mapping addresses the three art blobs concatenated in
+order #3, #1, #2; and two mappings — ProfoundDarkness2/3 — are raw word
+arrays, not Enigma.)
+
 Long 0 is an **Enigma-compressed plane mapping**, decompressed by `loc_10ED4`
 (`$00010ED4`) into RAM and stamped into the plane buffer with `PlaneMapToRAM` —
 **enemies are drawn as background plane graphics, not hardware sprites**, which

@@ -376,7 +376,19 @@ class TestPackFixture(unittest.TestCase):
         self.assertEqual(start["map"]["symbol"], "PiataAcademy_F1")
         self.assertEqual((start["x_cell"], start["y_cell"]), (48, 19))
         self.assertEqual(start["facing"], {"id": 0, "name": "down"})
-        self.assertEqual(start["event_flags_set"], [7])
+        # Two scenes run before control: $9F sets $07, then the trigger it
+        # leaves satisfied plays $A0, which sets $15. Pinned against
+        # oracle/logs/01_newgame.csv (eflags_00 = 01000400).
+        self.assertEqual(start["event_flags_set"], [0x07, 0x15])
+        self.assertEqual(start["scene_chain"], ["0x9F", "0xA0"])
+        self.assertEqual(start["town_flags_set"], [0x00, 0x10, 0x19])
+        self.assertEqual(len(start["extended_event_flags_set"]), 11)
+        self.assertEqual(start["chest_flags_set"], [])
+        # The whole seedable state, as the cartridge holds it.
+        self.assertEqual(start["flag_banks"]["event_flags"]["raw_hex"],
+                         "01000400" + "00" * 28)
+        self.assertEqual(start["flag_banks"]["town_flags"]["raw_hex"],
+                         "80008040" + "00" * 28)
         # The start map is not one of this fixture's three, and that is fine:
         # `game_start` is pack-wide, not per-map.
         self.assertNotIn(start["map"]["id"], {e["id"] for e in self.manifest["maps"]})

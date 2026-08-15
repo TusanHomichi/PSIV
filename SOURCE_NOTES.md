@@ -409,3 +409,11 @@ and the flag-set whose absence would re-fire the trigger forever.
   in zero of the 504+27 formations. Verdict for the port: reject effect ids
   outside `$00-$2B` at data-load time and record the one offender as a
   census anomaly. Full battle fact base: `docs/BATTLE_SCOUT.md`.
+- RETAIL CARTRIDGE BUG: Wren's battle pose 3 (Charge) decompresses 42 words
+  into a 36-word plane buffer. The per-slot buffers (`loc_9A80`) are `$48`
+  bytes apart and the draw loop (`loc_86D6`) stamps 6x6, so the surplus 6
+  words land in the next party slot's buffer and are never drawn — dormant
+  unless the neighbouring slot isn't redrawn afterwards. Every other pose
+  across all eleven characters is exactly 36 words. Found by
+  `psiv_tools/battle_art.py`, which pins the anomaly rather than widening
+  its size rule.
