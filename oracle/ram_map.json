@@ -4839,6 +4839,382 @@
       "group": "text",
       "hex": true,
       "source": "Text_Buffer+92 (constants:2076); the composed dialogue text. Comparing these bytes is the only sound way to tell a real talk from the \"nothing here\" message, since both open a window"
+    },
+    {
+      "name": "cam_y_fg",
+      "addr": "FFFFEF90",
+      "size": 4,
+      "group": "camera",
+      "hex": true,
+      "source": "Camera_Y_Pos_FG, constants:2346; longword, 16.16 fixed point"
+    },
+    {
+      "name": "cam_y_fg_px",
+      "addr": "FFFFEF90",
+      "size": 2,
+      "group": "camera",
+      "source": "Camera_Y_Pos_FG, constants:2346; high word = whole-pixel camera position"
+    },
+    {
+      "name": "cam_x_fg",
+      "addr": "FFFFEF94",
+      "size": 4,
+      "group": "camera",
+      "hex": true,
+      "source": "Camera_X_Pos_FG, constants:2347; longword, 16.16 fixed point"
+    },
+    {
+      "name": "cam_x_fg_px",
+      "addr": "FFFFEF94",
+      "size": 2,
+      "group": "camera",
+      "source": "Camera_X_Pos_FG, constants:2347; high word = whole-pixel camera position"
+    },
+    {
+      "name": "cam_y_bg",
+      "addr": "FFFFEF98",
+      "size": 4,
+      "group": "camera",
+      "hex": true,
+      "source": "Camera_Y_Pos_BG, constants:2348; longword, 16.16 fixed point"
+    },
+    {
+      "name": "cam_y_bg_px",
+      "addr": "FFFFEF98",
+      "size": 2,
+      "group": "camera",
+      "source": "Camera_Y_Pos_BG, constants:2348; high word = whole-pixel camera position"
+    },
+    {
+      "name": "cam_x_bg",
+      "addr": "FFFFEF9C",
+      "size": 4,
+      "group": "camera",
+      "hex": true,
+      "source": "Camera_X_Pos_BG, constants:2349; longword, 16.16 fixed point"
+    },
+    {
+      "name": "cam_x_bg_px",
+      "addr": "FFFFEF9C",
+      "size": 2,
+      "group": "camera",
+      "source": "Camera_X_Pos_BG, constants:2349; high word = whole-pixel camera position"
+    },
+    {
+      "name": "cam_step_x_fg",
+      "addr": "FFFFEC50",
+      "size": 4,
+      "group": "camera",
+      "hex": true,
+      "source": "Camera_X_Step_Counter_FG, constants:2161; longword"
+    },
+    {
+      "name": "cam_step_y_fg",
+      "addr": "FFFFEC54",
+      "size": 4,
+      "group": "camera",
+      "hex": true,
+      "source": "Camera_Y_Step_Counter_FG, constants:2162; longword"
+    },
+    {
+      "name": "cam_step_x_bg",
+      "addr": "FFFFEC58",
+      "size": 4,
+      "group": "camera",
+      "hex": true,
+      "source": "Camera_X_Step_Counter_BG, constants:2163; longword"
+    },
+    {
+      "name": "cam_step_y_bg",
+      "addr": "FFFFEC5C",
+      "size": 4,
+      "group": "camera",
+      "hex": true,
+      "source": "Camera_Y_Step_Counter_BG, constants:2164; longword"
+    },
+    {
+      "name": "map_row_size_fg",
+      "addr": "FFFFEC64",
+      "size": 1,
+      "group": "camera",
+      "source": "Map_Row_Size_FG, constants:2165; byte"
+    },
+    {
+      "name": "map_col_size_fg",
+      "addr": "FFFFEC65",
+      "size": 1,
+      "group": "camera",
+      "source": "Map_Column_Size_FG, constants:2166; byte"
+    },
+    {
+      "name": "map_row_size_bg",
+      "addr": "FFFFEC66",
+      "size": 1,
+      "group": "camera",
+      "source": "Map_Row_Size_BG, constants:2167; byte"
+    },
+    {
+      "name": "map_col_size_bg",
+      "addr": "FFFFEC67",
+      "size": 1,
+      "group": "camera",
+      "source": "Map_Column_Size_BG, constants:2168; byte"
+    },
+    {
+      "name": "gate_ec24",
+      "addr": "FFFFEC24",
+      "size": 1,
+      "group": "camera",
+      "hex": true,
+      "source": "unnamed byte at $FFFFEC24; core-lane reads it as plane select. NOT named in ps4.constants.asm - logged positionally, naming unverified"
+    },
+    {
+      "name": "gate_ec25",
+      "addr": "FFFFEC25",
+      "size": 1,
+      "group": "camera",
+      "hex": true,
+      "source": "unnamed byte at $FFFFEC25; core-lane reads it as FG camera driver enable. NOT named in ps4.constants.asm - logged positionally, naming unverified"
+    },
+    {
+      "name": "c1_x_step_const",
+      "addr": "FFFFC020",
+      "size": 4,
+      "group": "pos",
+      "hex": true,
+      "source": "Character_1 (constants:2086) + x_step_constant (constants:113); longword, generally 2 or $FFFE while moving"
+    },
+    {
+      "name": "c1_y_step_const",
+      "addr": "FFFFC024",
+      "size": 4,
+      "group": "pos",
+      "hex": true,
+      "source": "Character_1 + y_step_constant (constants:114); longword"
+    },
+    {
+      "name": "o00_off",
+      "addr": "FFFFC312",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 0 ($FFFFC300) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o01_off",
+      "addr": "FFFFC352",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 1 ($FFFFC340) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o02_off",
+      "addr": "FFFFC392",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 2 ($FFFFC380) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o03_off",
+      "addr": "FFFFC3D2",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 3 ($FFFFC3C0) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o04_off",
+      "addr": "FFFFC412",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 4 ($FFFFC400) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o05_off",
+      "addr": "FFFFC452",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 5 ($FFFFC440) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o06_off",
+      "addr": "FFFFC492",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 6 ($FFFFC480) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o07_off",
+      "addr": "FFFFC4D2",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 7 ($FFFFC4C0) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o08_off",
+      "addr": "FFFFC512",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 8 ($FFFFC500) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o09_off",
+      "addr": "FFFFC552",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 9 ($FFFFC540) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o10_off",
+      "addr": "FFFFC592",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 10 ($FFFFC580) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o11_off",
+      "addr": "FFFFC5D2",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 11 ($FFFFC5C0) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o12_off",
+      "addr": "FFFFC612",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 12 ($FFFFC600) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o13_off",
+      "addr": "FFFFC652",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 13 ($FFFFC640) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o14_off",
+      "addr": "FFFFC692",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 14 ($FFFFC680) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o15_off",
+      "addr": "FFFFC6D2",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 15 ($FFFFC6C0) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o16_off",
+      "addr": "FFFFC712",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 16 ($FFFFC700) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o17_off",
+      "addr": "FFFFC752",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 17 ($FFFFC740) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o18_off",
+      "addr": "FFFFC792",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 18 ($FFFFC780) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o19_off",
+      "addr": "FFFFC7D2",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 19 ($FFFFC7C0) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o20_off",
+      "addr": "FFFFC812",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 20 ($FFFFC800) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o21_off",
+      "addr": "FFFFC852",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 21 ($FFFFC840) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o22_off",
+      "addr": "FFFFC892",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 22 ($FFFFC880) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o23_off",
+      "addr": "FFFFC8D2",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 23 ($FFFFC8C0) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o24_off",
+      "addr": "FFFFC912",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 24 ($FFFFC900) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o25_off",
+      "addr": "FFFFC952",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 25 ($FFFFC940) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o26_off",
+      "addr": "FFFFC992",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 26 ($FFFFC980) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o27_off",
+      "addr": "FFFFC9D2",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 27 ($FFFFC9C0) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o28_off",
+      "addr": "FFFFCA12",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 28 ($FFFFCA00) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o29_off",
+      "addr": "FFFFCA52",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 29 ($FFFFCA40) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o30_off",
+      "addr": "FFFFCA92",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 30 ($FFFFCA80) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
+    },
+    {
+      "name": "o31_off",
+      "addr": "FFFFCAD2",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 31 ($FFFFCAC0) + offscreen_flag (constants:109); 0 = on-screen, 1 = off-screen"
     }
   ]
 }

@@ -79,8 +79,18 @@ oracle/bin/
 
 ```sh
 ./oracle/build_core.sh     # once: clone + build Genesis Plus GX (pinned commit)
-./oracle/verify.sh         # build the host, prove determinism, re-derive findings
+./oracle/verify.sh         # fast lane: ~55s, run this routinely
+./oracle/verify.sh --full  # everything, incl. the battle tapes: tens of minutes
 ```
+
+**Two lanes.** The fast lane runs the structural checks and the short tapes and
+finishes in under a minute: determinism, both byte-order accessors, first
+control, walk timing, talk behaviour, the RNG transcription and per-phase call
+counts, the object slot mapping, the wander RNG rule, Alys joining, and the
+beside press. The full lane adds everything that needs a battle - the two
+encounters, the level-up grind, escape and defend. The split is by tape cost,
+not importance: tape 10 alone is ~55k frames, and the battle tapes are where
+all the time goes.
 
 One tape by hand:
 
@@ -718,23 +728,106 @@ moved into the faced cell, turning the "beside" test into a facing test.
 
 ### Accept press during the window-open animation
 
-Tape 13 against a control with the press removed, compared on `Text_Buffer`
-writes:
+**This supersedes an earlier reading in this document.** A single press offset
+suggested "the press is consumed and produces two extra draws". Sweeping the
+offset across the animation (`anim_sweep.py`) and then holding the button
+(tape 15) shows what is really happening, and it is simpler.
 
-| | text-draw frames after the window opens |
-|---|---|
-| control (no press) | 7197, 7200, 7203, 7206, 7209, … |
-| press at f7191 (inside the animation) | 7197, **7198, 7199**, 7202, 7205, … |
+Speak lands at f7185, `Window_Render_Mode` goes `$0600` at f7187, and the
+window opens at f7196. Draws are counted as `Text_Buffer` writes, relative to
+the open frame:
 
-**The press is consumed, not swallowed.** It produces two extra character draws
-within three frames of the window opening and shifts the whole subsequent draw
-cadence by one frame. It does *not* skip the page.
+| press offset (from Speak) | inside animation | extra draws vs control |
+|---|---|---|
+| +4 … +7 | yes | **0 — identical to control** |
+| +8, +9 | yes | +1 |
+| +10, +11 | yes | +2 |
+| +12 and later | no (window already open) | +1 … +2 |
 
-So the retail behaviour is neither "buffered as a page advance" nor "dropped" —
-the press reaches the text-draw stage and advances it. Our renderer swallowing
-it is a divergence, but the fix is not a queued page-advance either; it is the
-draw acceleration. Worth one more tape to characterise the acceleration
-properly before implementing.
+And holding the button rather than tapping it, over a 40-frame hold well after
+the window is open:
+
+| | draws in the 40-frame span | gap between draws |
+|---|---|---|
+| control | 13 | 3 frames |
+| holding Speak | **39** | **1 frame** |
+
+**The mechanic is hold-to-accelerate, not a buffered page advance.** Text
+normally draws one character every 3 frames; **while Speak is held it draws one
+character per frame**, a 3x speed-up, for exactly as long as the button is
+down. The "extra draws" in the offset table are just a 4-frame hold overlapping
+the draw schedule.
+
+Two consequences for the renderer:
+
+- **A press landing in the first half of the open animation (Speak+4 to
+  Speak+7) really is dropped** — those offsets reproduce the control draw
+  sequence exactly. So "swallowed" is right for that window.
+- What we are missing is not press buffering but **hold-to-fast-forward while
+  text is drawing**. Implementing a queued page-advance would be wrong.
+
+### Camera, and what gates the wander timer
+
+Added for core-lane's camera model: a `camera` group covering
+`Camera_X/Y_Pos_FG` ($FFFFEF94/$FFFFEF90) and `_BG` ($FFFFEF9C/$FFFFEF98) as
+16.16 longwords plus their high-word pixel views, the four
+`Camera_*_Step_Counter_*` longwords ($FFFFEC50-$FFFFEC5C), and
+`Map_Row/Column_Size_FG/BG` ($FFFFEC64-$FFFFEC67). Per object, the
+`offscreen_flag` byte (+$12) joins the existing `render_flags`. The leader's
+`x_step_constant` / `y_step_constant` (+$20/+$24) are in the `pos` group.
+
+Caveat on two of them: **`$FFFFEC24` and `$FFFFEC25` are not named in
+`ps4.constants.asm`** — the block runs straight from `Game_Mode_Routine`
+($EC20) to `Routine_Exit_Flags` ($EC27). They are logged positionally as
+`gate_ec24` / `gate_ec25`; the "plane select" and "FG camera driver enable"
+readings are core-lane's own and are not corroborated by the constants file.
+On tape 02 both go `00 -> 01` at f1209 and never change again, so on this tape
+they are not a dynamic gate.
+
+From the tape-02 re-log, over the 1563 field-control frames:
+
+- **The camera is rigidly locked to the leader.** `leader - camera_FG` is
+  `(152, 88)` on *every* field-control frame — exactly one distinct offset, no
+  lag, no easing, no deadzone.
+- **FG and BG cameras are identical** on all 1563 of those frames. The 679
+  frames where they differ are all in the intro cutscene, so there is no
+  parallax to model for ordinary field play on this map.
+- **Camera step counters take three values only:** 0, `$00020000` (+2.0) and
+  `$FFFE0000` (-2.0) — the same 2 px/frame the characters move at.
+
+#### What actually gates an NPC's wander timer
+
+The question was whether slot 2's timer resuming at f7606, with the leader long
+stopped, meant a BG-plane object on an independent BG camera, or a step
+constant staying hot while walled. **Neither.**
+
+**The wander timer only ticks while the object is at rest.** Slot 2 was
+mid-step the whole time: its `x_step_duration` counts 3968 down to 0 across
+f7575-7605, and the timer resumes on f7606, the first frame after the step
+completes. Across all 32 slots for the whole tape: **1974 timer decrements,
+zero of them while `x_step_duration` or `y_step_duration` is non-zero**, and
+13101 mid-step frames with the timer frozen.
+
+So the rule is `timer ticks iff xdur == 0 and ydur == 0`. `render_flags` bit 2
+("animation finished") is *not* the gate — it sets at f7602, four frames early,
+and 270 of the 1974 decrements happen with it clear.
+
+Also from the same trace: **NPC steps are four times slower than the party's.**
+The step duration decrements by 128 per frame for objects versus 512 for the
+leader, so an NPC takes ~32 frames to cross a cell where the party takes 8.
+
+#### Do the leader's step constants stay hot while blocked?
+
+No. Holding Up into the wall at (50,15):
+
+| frame | `y_step_duration` | `y_step_constant` | `coll_up` |
+|---|---|---|---|
+| f7578 | 0 (step just landed) | `$FFFE0000` | `00` |
+| f7579 | 0 | **`$00000000`** | `08` (wall) |
+
+The constant is stale for exactly **one frame** — the landing frame, before the
+next step is evaluated — and is cleared the moment the blocked evaluation runs.
+It does not stay hot.
 
 ### Collision grid indexing, independently confirmed
 

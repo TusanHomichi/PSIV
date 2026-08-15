@@ -206,10 +206,15 @@ DISPROVEN on hardware — a press beside a non-faced NPC draws byte-identical
 "nothing here" text to open ground (the staging must out-wait wandering
 NPCs, and `Windows_Opened_Num` cannot support a negative test because
 pressing at nothing opens a window too; `Text_Buffer` is the
-discriminator). Accept during the window-open animation is CONSUMED, not
-swallowed: it accelerates the typewriter by two draws without skipping the
-page — our renderer swallowing it is a known divergence, awaiting one more
-characterization tape before implementing the acceleration.
+discriminator). Text-speed mechanic SETTLED by the sweep + hold tapes
+(13/15, correcting an earlier "consumed press" reading): retail is
+HOLD-TO-ACCELERATE — one character per frame while Speak is held versus
+one per three released — and a press landing in the first half of the
+9-frame open animation is genuinely dropped (byte-identical to control).
+So the renderer's swallow of early presses is retail-correct; the actual
+missing feature is hold-to-fast-forward during the typewriter, and a
+queued page-advance would be the wrong implementation. Filed for the
+renderer.
 
 Still open: the scroll-arrow art (hardware sprite, still a placeholder
 triangle).
