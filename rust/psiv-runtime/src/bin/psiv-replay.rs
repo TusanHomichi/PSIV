@@ -53,6 +53,15 @@ struct Args {
     /// not carry camera columns yet, so this is how a camera divergence is
     /// read.
     trace_camera: Option<(u32, u32)>,
+    /// Take the starting map, position and facing from the log at the
+    /// alignment frame instead of from the pack's `game_start`.
+    ///
+    /// The alignment contract already treats the RNG seed, the camera and the
+    /// objects as state inherited from frames the engine cannot replay. A tape
+    /// that walks to another map before doing anything interesting makes the
+    /// party's own position inherited state too — without this, aligning
+    /// mid-tape fails on `map_index` before comparing anything.
+    start_from_log: bool,
     /// Park the camera at `x,y` before replaying. The opening scene positions
     /// the retail camera and the engine cannot execute it, so at an alignment
     /// frame the camera is inherited state like the RNG seed is.
@@ -66,7 +75,7 @@ enum Align {
 
 fn usage() -> &'static str {
     "usage: psiv-replay --tape <t> --pack <dir> (--align-mark <m> | --align-frame <n>) \
-     [--log <csv>] [--out <csv>] [--limit <frames>] [--skip <column>]... [--seed <hex>] [--restore-objects] [--camera <x,y>] [--trace-camera <lo,hi>]"
+     [--log <csv>] [--out <csv>] [--limit <frames>] [--skip <column>]... [--seed <hex>] [--restore-objects] [--start-from-log] [--camera <x,y>] [--trace-camera <lo,hi>]"
 }
 
 fn parse_args() -> Result<Args, String> {
@@ -79,6 +88,7 @@ fn parse_args() -> Result<Args, String> {
     let mut skip = Vec::new();
     let mut seed = None;
     let mut restore_objects = false;
+    let mut start_from_log = false;
     let mut camera = None;
     let mut trace_camera = None;
 
@@ -99,6 +109,7 @@ fn parse_args() -> Result<Args, String> {
             }
             "--skip" => skip.push(value()?),
             "--restore-objects" => restore_objects = true,
+            "--start-from-log" => start_from_log = true,
             "--trace-camera" => {
                 let raw = value()?;
                 let (lo, hi) = raw
@@ -147,6 +158,7 @@ fn parse_args() -> Result<Args, String> {
         skip,
         seed,
         restore_objects,
+        start_from_log,
         camera,
         trace_camera,
     })
@@ -350,7 +362,44 @@ fn run() -> Result<bool, String> {
         }
     };
 
-    let mut runtime = Runtime::new(data, start.map.id, spawn, facing, StepFrames::default())
+    // The alignment frame's own state, when the tape has walked somewhere the
+    // engine cannot reach on its own.
+    let (start_map, spawn, facing) = if args.start_from_log {
+        let log_path = args
+            .log
+            .as_ref()
+            .ok_or("--start-from-log needs --log to read the starting state from")?;
+        let text = std::fs::read_to_string(log_path)
+            .map_err(|e| format!("{}: {e}", log_path.display()))?;
+        let log = OracleLog::parse(&text);
+        let read = |column: &str| {
+            log.get(align_frame, column)
+                .ok_or_else(|| format!("the log has no {column} at frame {align_frame}"))
+        };
+        let map = u16::from_str_radix(read("map_index")?.trim(), 16)
+            .map_err(|_| "bad map_index in the log")?;
+        let x: i32 = read("c1_x_px")?.parse().map_err(|_| "bad c1_x_px")?;
+        let y: i32 = read("c1_y_px")?.parse().map_err(|_| "bad c1_y_px")?;
+        let cell = Cell::new(
+            u16::try_from(x / 16).map_err(|_| "log x out of range")?,
+            // The standing-cell shift: the occupied cell is one row below
+            // `curr_y_pos / 16`.
+            u16::try_from(y / 16 + 1).map_err(|_| "log y out of range")?,
+        );
+        let facing = match read("c1_facing")?.trim().parse::<u16>() {
+            Ok(0) => Direction::Down,
+            Ok(4) => Direction::Up,
+            Ok(8) => Direction::Right,
+            Ok(12) => Direction::Left,
+            other => return Err(format!("log facing {other:?} is not one of 0/4/8/12")),
+        };
+        eprintln!("starting from the log: map {map:#06X} at {cell:?} facing {facing:?}");
+        (map, cell, facing)
+    } else {
+        (start.map.id, spawn, facing)
+    };
+
+    let mut runtime = Runtime::new(data, start_map, spawn, facing, StepFrames::default())
         .map_err(|e| format!("runtime: {e}"))?;
 
     if let Some(seed) = args.seed {

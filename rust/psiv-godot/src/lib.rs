@@ -3,7 +3,7 @@
 //! This crate owns pixels and input, zero game rules. Floats are legal here —
 //! they exist only between the engine's integer state and the screen.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 use godot::classes::{
     Camera2D, INode2D, Image, ImageTexture, Input, Node2D, ProjectSettings, Sprite2D,
@@ -11,10 +11,12 @@ use godot::classes::{
 use godot::prelude::*;
 
 mod dialogue;
+mod view;
 use dialogue::DialogueWindow;
+use view::{NpcNode, SheetView, sequence_name};
 
 use psiv_core::{Cell, Direction, StepFrames, WarpTrigger};
-use psiv_data::{GameData, Sheet};
+use psiv_data::GameData;
 use psiv_runtime::{Runtime, RuntimeEvent};
 
 struct PsivExtension;
@@ -22,119 +24,17 @@ struct PsivExtension;
 #[gdextension]
 unsafe impl ExtensionLibrary for PsivExtension {}
 
-const CELL_PIXELS: f32 = 16.0;
+pub(crate) const CELL_PIXELS: f32 = 16.0;
 /// Fallback spawn when the pack predates game-start extraction: Piata, one
 /// cell below the academy doors (the golden test's spawn).
 const FALLBACK_SPAWN_MAP: u16 = 0x010;
 const FALLBACK_SPAWN_CELL: (u16, u16) = (31, 8);
-
-/// One drawn NPC: its sprite node plus what the per-frame pass needs to
-/// place and animate it. `base` is the pack's pixel anchor (authoritative —
-/// 85 retail objects sit on half-cells) and `spawn` the engine cell it was
-/// built at; a wanderer's current position is `base + (cell - spawn) * 16`
-/// plus its step offset, which preserves half-cell anchors while cells move.
-struct NpcNode {
-    node: Gd<Sprite2D>,
-    sheet: String,
-    idle: String,
-    index: usize,
-    base: (i32, i32),
-    spawn: (i32, i32),
-}
-
-/// A sheet made drawable: its texture plus the geometry and sequences the
-/// pack declares. Copied out of `psiv-data` so nodes never borrow `GameData`.
-struct SheetView {
-    texture: Gd<ImageTexture>,
-    frame_width: i32,
-    frame_height: i32,
-    origin_x: i32,
-    origin_y: i32,
-    /// name -> (frames as (index, duration_ticks), total duration)
-    sequences: BTreeMap<String, (Vec<(i32, u32)>, u32)>,
-}
-
-impl SheetView {
-    fn build(pack_dir: &str, sheet: &Sheet) -> Option<SheetView> {
-        let path = format!("{pack_dir}/{}", sheet.png);
-        let image = Image::load_from_file(&GString::from(path.as_str()))?;
-        let texture = ImageTexture::create_from_image(&image)?;
-        let mut sequences = BTreeMap::new();
-        for (name, sequence) in &sheet.sequences {
-            let frames: Vec<(i32, u32)> = sequence
-                .frames
-                .iter()
-                .map(|f| (f.index as i32, f.duration_ticks))
-                .collect();
-            let total: u32 = frames.iter().map(|(_, d)| d).sum();
-            sequences.insert(name.clone(), (frames, total.max(1)));
-        }
-        Some(SheetView {
-            texture,
-            frame_width: sheet.frame_width as i32,
-            frame_height: sheet.frame_height as i32,
-            origin_x: sheet.origin_x,
-            origin_y: sheet.origin_y,
-            sequences,
-        })
-    }
-
-    /// The strip frame index for `sequence` at animation tick `tick`.
-    fn frame_at(&self, sequence: &str, tick: u64) -> i32 {
-        let Some((frames, total)) = self.sequences.get(sequence) else {
-            return 0;
-        };
-        let mut remaining = (tick % u64::from(*total)) as u32;
-        for (index, duration) in frames {
-            if remaining < *duration {
-                return *index;
-            }
-            remaining -= duration;
-        }
-        frames.last().map_or(0, |(index, _)| *index)
-    }
-
-    /// Configures a sprite node to show one frame of this strip.
-    fn apply(&self, sprite: &mut Gd<Sprite2D>, frame: i32) {
-        sprite.set_texture(&self.texture);
-        // Drawn above the node origin so the origin is the feet line and
-        // y-sort orders characters the way the hardware did.
-        sprite.set_offset(Vector2::new(0.0, -(self.frame_height as f32)));
-        sprite.set_region_enabled(true);
-        sprite.set_region_rect(Rect2::new(
-            Vector2::new((frame * self.frame_width) as f32, 0.0),
-            Vector2::new(self.frame_width as f32, self.frame_height as f32),
-        ));
-    }
-
-    /// Where the frame's top-left goes for an entity occupying `cell`.
-    ///
-    /// The cartridge's character position sits one cell above the occupied
-    /// cell (the standing-cell shift), and `origin` is where that position
-    /// lands inside the frame.
-    fn draw_pos(&self, cell: Cell, offset: (i32, i32)) -> Vector2 {
-        let x = f32::from(cell.x) * CELL_PIXELS - self.origin_x as f32 + offset.0 as f32;
-        let y = (f32::from(cell.y) - 1.0) * CELL_PIXELS - self.origin_y as f32 + offset.1 as f32;
-        // Node origin sits at the feet; apply() draws the frame above it.
-        Vector2::new(x, y + self.frame_height as f32)
-    }
-}
 
 /// The event-flag bank as the dialogue window consumes it.
 fn collect_event_flags(rt: &Runtime) -> Vec<bool> {
     (0..512u16)
         .map(|id| rt.game().is_set(psiv_core::Flag::event(id)))
         .collect()
-}
-
-fn sequence_name(kind: &str, facing: Direction) -> String {
-    let dir = match facing {
-        Direction::Up => "up",
-        Direction::Down => "down",
-        Direction::Left => "left",
-        Direction::Right => "right",
-    };
-    format!("{kind}_{dir}")
 }
 
 /// The field scene: map picture, the party sprite, NPC sprites.
