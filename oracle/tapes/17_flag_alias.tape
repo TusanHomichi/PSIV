@@ -124,11 +124,12 @@ end
 300 . cross
 
 # ---------------------------------------------------------------------------
-# Tape 17 - the flag-bank alias, tested on hardware.
+# Tape 17 - where a "temp" event flag write lands, tested on hardware.
 #
 # SOURCE_NOTES proves from ROM bytes that retail has four flag banks, not five:
 # nothing addresses the clone's Temp_Event_Flags at $F156, and the
-# "TempEveFlags" calls dispatch through the CHEST bank's door at $F140. That
+# "TempEveFlags" calls dispatch through the door at $F140 - which the constants
+# file labels Chest_Flags, but tapes 20/21 show chests write $F120 instead. That
 # makes a "temp" flag and a chest flag of the same raw id one physical bit.
 #
 # TempEveFlag_Xanafalgue = $13 is set when the Xanafalgue runs away in the

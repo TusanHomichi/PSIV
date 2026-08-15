@@ -82,12 +82,12 @@ oracle/bin/
 
 ```sh
 ./oracle/build_core.sh     # once: clone + build Genesis Plus GX (pinned commit)
-./oracle/verify.sh         # fast lane: ~55s, run this routinely
+./oracle/verify.sh         # fast lane: ~3 min, run this routinely
 ./oracle/verify.sh --full  # everything, incl. the battle tapes: tens of minutes
 ```
 
-**Two lanes.** The fast lane runs the structural checks and the short tapes and
-finishes in under a minute: determinism, both byte-order accessors, first
+**Two lanes.** The fast lane runs the structural checks and the short tapes in
+about three minutes: determinism, both byte-order accessors, first
 control, walk timing, talk behaviour, the RNG transcription and per-phase call
 counts, the object slot mapping, the wander RNG rule, Alys joining, and the
 beside press. The full lane adds everything that needs a battle - the two
@@ -110,9 +110,26 @@ oracle/bin/psiv_oracle \
 Other flags: `--dump-options` lists every option the core declares with its
 default; `--probe-endian` prints work-RAM diagnostics.
 
-`--groups` selects which RAM-map groups are logged. Available groups: `core`,
-`input`, `pos`, `pos2`, `collision`, `window`, `party`, `flags`, `rng`.
-Omitting `--groups` logs all 66 fields.
+`--groups` selects which RAM-map groups are logged, and on a long tape it is
+the difference between a 2MB log and a 60MB one. Available groups, with their
+field counts:
+
+| group | n | group | n | group | n |
+|---|---|---|---|---|---|
+| `core` | 9 | `party` | 8 | `chars` | 87 |
+| `input` | 4 | `flags` | 12 | `objects` | 384 |
+| `pos` | 12 | `rng` | 5 | `bcmd` | 27 |
+| `pos2` | 3 | `battle` | 29 | `text` | 24 |
+| `collision` | 7 | `bhit` | 19 | `camera` | 18 |
+| `window` | 16 | `enemy` | 56 | `flagbytes` | 52 |
+
+Omitting `--groups` logs all 772 fields.
+
+`--dump-ram <frame>:<path>` writes all 64KB of work RAM at one frame, in 68000
+byte order, so the file offset of a byte is its address minus `$FFFF0000`.
+Diffing two dumps is the tool for "where did that write go" when the RAM map
+does not already have a column for it — which is exactly how the chest flag
+bank was found after a mapped-column search returned a confident wrong answer.
 
 ## Tape format
 
@@ -216,9 +233,11 @@ both paths against values the cartridge itself chose (see Results).
 | `14_defend.tape` | the DEFEND command and its `physical_prop` clobber |
 | `15_text_hold.tape` | text draw acceleration while Speak is held |
 | `16_page_boundary.tape` | holding Speak across the end of a page |
-| `17_flag_alias.tape` | the chest/temp flag-bank alias, on hardware |
-| `18_flag_round_trip.tape` | the aliased bit across a leave-and-reenter round trip |
+| `17_flag_alias.tape` | where a "temp" event flag write lands, on hardware |
+| `18_flag_round_trip.tape` | that bit across a leave-and-reenter round trip |
 | `19_chest_map_objects.tape` | object slots on a chest-bearing map, and opening a chest |
+| `20_chest_round_trip.tape` | re-pressing an opened chest, and whether it is still open after leaving and returning |
+| `21_second_chest.tape` | a second chest id, which is what pins the flag bank's bit arithmetic |
 
 `prelude_basement.tape` is a generated intermediate (`navigate.py` output) that
 both battle tapes are built from; `find_battle.py` consumes it.
@@ -836,7 +855,7 @@ case, and a core that ticks the RNG for every zero-timer object would
 over-consume on every chest map. And `offscreen_flag` tracks visibility
 sensibly: the near chest reads 0 and the far one 1 from the spawn.
 
-### Opening a chest, and a write that does not happen
+### Opening a chest
 
 The tape walks to (41,8), turns to face the chest at (40,8), and presses Speak.
 (A straight walk west from the spawn does **not** reach it — a wall at column 46
@@ -880,18 +899,29 @@ exactly that — dump two frames, diff, find what survives.
 
 #### The chest is open on return, and there is no duplication
 
-Tape 20 opens the chest, walks out to `PiataAcademyNearBasement` and back:
+Tape 20 opens the chest, presses it again where it stands, then walks out to
+`PiataAcademyNearBasement` and back:
 
 | frame | event |
 |---|---|
 | f24667 | chest object's `facing_dir` 0 -> **4** (opened), one frame into ItemFound |
 | f24675 | Dimate to `Inventory[0]` **and** `$FFFFF123` bit 7 set |
-| f25773 | warp to map $12 |
-| f25969 | back on map $15 |
-| f26800 | **slot 1 (the opened chest) spawns with `facing` = 4; slot 2 (the untouched one) spawns `facing` = 0** |
+| f25573 | **re-press on the same visit**: routine `$08` -> `$24`, ItemFound entered again |
+| f25582 | its window opens 9 frames later, as on the first press — but `Inventory[1]` stays `00` and `$FFFFF123` stays `$80` |
+| f26381 | warp to map $12 |
+| f27157 | back on map $15 |
+| f27192 | **slot 1 (the opened chest) spawns with `facing` = 4; slot 2 (the untouched one) spawns `facing` = 0** |
 
 So the chest **stays open** across the round trip, the item is kept, and it
-cannot be taken again. No duplication, and no ledger material here.
+cannot be taken again on either visit. No duplication, and no ledger material
+here.
+
+(One authoring trap worth recording, because it silently voided the first cut
+of this tape: the re-press opens a window, and an undismissed window pins
+`Game_Mode_Routine` at `$24` indefinitely. The party took no further step and
+the whole round trip below it never happened, while every position assertion
+still passed because the party was standing where it was supposed to end up.
+The tape now dismisses that window before walking.)
 
 #### The no-duplicate guard
 
@@ -901,54 +931,124 @@ Two mechanisms, and they are separate:
   which `ItemFound` overwrites with 4 (`ps4.asm`, `move.w #4, $6(a4)`). It is
   the only chest-slot byte that changes on opening. On reload it comes back as
   4 for the opened chest, so the load path initialises it from the flag.
-- **The grant guard is the flag test at `ItemFound`'s entry.** Re-pressing on
-  the same visit still enters routine `$24`, but grants nothing — the early-out
-  path. So "entered ItemFound" is not evidence of a grant; the inventory write
-  is.
+- **The grant guard is the flag test at `ItemFound`'s entry** (`$66B2A`), not a
+  refusal to spawn the chest as interactable. This is measured, and it is the
+  one place the two candidate guards give different observable answers:
+  re-pressing still reaches routine `$24` and still opens a window, so the
+  object is fully interactable — it is the grant inside that is skipped. So
+  "entered ItemFound" is never evidence of a grant; the inventory write is.
+
+  The code agrees exactly. `FieldRoutine_ItemFound` (`ps4.asm:137246`) opens
+  with `jsr (ChestFlags_Test)` and, on a set bit, branches to `loc_66E0C`,
+  which creates a window, renders the string at `loc_2AA70A` and waits for a
+  press — a full interaction with no grant in it. That is the second window the
+  tape sees.
+
+**And the same routine explains the whole bank question.** Its tail dispatches
+on `Interaction_Event_Type` (`ps4.asm:137463-137475`):
+
+| `Interaction_Event_Type` | call | door |
+|---|---|---|
+| 0 | `EventFlags_Set` | `$F100` |
+| 1 | `ChestFlags_Set` | `$F120` |
+| else | `TempEveFlags_Set` | `$F140` |
+
+`Interaction_ChkIfTreasureChest` (`ps4.asm:118579`) hardcodes
+`move.b #1, (Interaction_Event_Type)` for both chest object ids (`$A0` and
+`$1D4`), so a chest always takes the middle row. Three distinct setters, three
+distinct banks, chosen by a field the chest path pins to 1 — which is why a
+chest flag and a "temp" flag of the same id can never be the same bit.
 
 **For `psiv-core`:** grant and flag write are simultaneous, at routine-start
 + 9 frames. A chest's rendered open/closed state is `facing_dir`, not a
 separate field, and it is derived from the flag at map load.
 
-### RETRACTION IN PROGRESS: which bank holds chest flags
+#### The second chest, and what it pays
 
-**The alias section below is in doubt and should not be relied on until this is
-resolved.** It concluded that a "temp" flag and a chest flag of the same id are
-one physical bit, on the strength of `TempEveFlag_Xanafalgue` ($13) landing at
-`$FFFFF142` — inside what `ps4.constants.asm` labels `Chest_Flags` ($F140).
+Tape 21 opens `AcademyBasement`'s other chest, at (14,19), to test the bit rule
+on a second id (see the retraction section above for why one chest is not
+enough):
 
-Opening a real chest then measured where a **chest** flag actually goes, and it
-is not that bank:
+| frame | event |
+|---|---|
+| f25129 | `Game_Mode_Routine` = `$08` |
+| f25130 | `$24`; `Found_Item` = 1, **`Found_Item_Type` = 1 (meseta, not an item)**, `Treasure_Addr` = `$FFFFC380` (slot 2) |
+| f25131 | chest `facing_dir` 0 -> 4 |
+| f25139 | **`$FFFFF123` bit 6 set** and `Current_Money` 600 -> 700 |
 
-| write | lands at | bank the clone labels it |
-|---|---|---|
-| `TempEveFlag_Xanafalgue` ($13) | `$FFFFF142` bit 4 | `Chest_Flags` ($F140) |
-| **`ChestFlag_PiataMonomate` (24)** | **`$FFFFF123` bit 7** | `Extended_Event_Flags` ($F120) |
+Identical shape to the item chest — routine-start +1 to open, +9 to pay — with
+`Found_Item_Type` discriminating meseta from inventory. The `Found_Item` value
+is a **multiplier of 100**, not an amount and not an item id:
+`mulu.w #100, d0 / add.l d0, (Current_Money)` (`ps4.asm:137348-137351`), so this
+chest's `1` pays 100.
 
-Same reversed-bit arithmetic in both cases, different banks. If chest flags live
-at `$F120` and "temp" flags at `$F140`, then a temp flag and a chest flag of the
-same id are in **different** banks, there is no collision, and **the un-looting
-bug reported from tape 18 does not exist** — the clone's two bank labels would
-simply both be wrong.
+### RETRACTED: the chest/temp flag-bank alias, and the un-looting bug
 
-What is measured and not in doubt: the two addresses above, the set/clear cycle
-of `$FFFFF142` across a basement round trip, and the chest behaviour below.
-What is in doubt: the interpretation that those two addresses are the same
-bank.
+**Chest flags do not live at `$FFFFF140`. There is no alias, and the un-looting
+bug reported here from tape 18 does not exist.** This section used to claim the
+opposite; the claim is withdrawn, and the sections below are the corrected
+account. Every *measurement* previously reported still stands — only the
+inference that two addresses were the same bank was wrong.
 
-The decisive follow-up is one tape: open the basement's *second* chest (flag 25)
-and see whether it lands at `$FFFFF123` bit 6. If it does, chest flags are
-confirmed at `$F120` and the alias claim retracts.
+The retraction rests on two chests rather than one. A single chest cannot
+separate the bit rule from a coincidence, because byte 3 bit 7 is what a dozen
+different arithmetics give for a single id. `AcademyBasement` has two chests
+with adjacent ids, so the rule predicts adjacent bits in the same byte:
 
-### The flag-bank alias, confirmed on hardware
+| write | id | predicted | measured |
+|---|---|---|---|
+| `TempEveFlag_Xanafalgue` | `$13` = 19 | `$F140` + 2, bit 4 | **`$FFFFF142` bit 4**, tape 17 |
+| `ChestFlag_PiataMonomate` | `$18` = 24 | `$F120` + 3, bit 7 | **`$FFFFF123` bit 7**, tape 20 |
+| `ChestFlag_PiataMeseta` | `$19` = 25 | `$F120` + 3, bit 6 | **`$FFFFF123` bit 6**, tape 21 |
+
+Two chest ids, two neighbouring bits of one byte, both exactly where
+`base $F120`, `byte id >> 3`, `mask 1 << (7 - (id & 7))` puts them, while
+`$FFFFF143` — where those ids would land if `$F140` were the chest bank — stays
+`00` through every one of these tapes. This agrees with core-lane's independent
+ROM reading: the chest system's three call sites (`LoadTreasureChests` test at
+`$537E0`, `ItemFound` entry test at `$66B2A`, `ItemFound` set at `$66DE0`) all
+address the `$F120` door.
+
+So `ps4.constants.asm` mislabels its banks: the door named `Chest_Flags`
+(`$F140`) is where the "temp" event flags go, and the door named
+`Extended_Event_Flags` (`$F120`) is the real chest bank. A "temp" flag and a
+chest flag of the same raw id are in **different** banks and cannot collide.
+The Garuberk Tower Moon Slasher chest is not touched by walking through the
+Piata basement, at any point, in either direction.
+
+A third measurement makes the identification independent of any single write.
+`Event_GameStart` **preloads eleven ids into `$F120-$F13F` at f902**, and the
+runtime pack's own `game_start` snapshot for `extended_event_flags` carries the
+same thirty-two bytes:
+
+```
+0000000001a00880000080140010008000000000010000000000000000000000
+```
+
+Decoded with the same rule, those eleven bits are ids `$27 $28 $2A $34 $38 $50
+$5B $5D $6B $78 $A7` — and the pack lists exactly those ids (as 295, 296, 298,
+… 423, its numbering carrying a +256 bank offset). Eleven-for-eleven, they are
+chest ids. A bank that ships pre-set with a list of chest ids, and that takes a
+chest's bit when a chest is opened, is the chest bank.
+
+**Integration note for core-lane and pack-lane, filed rather than assumed:** the
+pack numbers this bank's ids with a **+256 offset** (`extended_event_flags_set`
+holds 295 for `$27`) while the chest call sites use the raw 0-255 id. Whatever
+the engine's `Flag::chest` uses must be one consistent space, or the preload and
+the chest writes will land in different places. Separately, the manifest counts
+**82 map-effect gates on a bank it calls `chest_flags`** — those gates are a
+different code path from the three chest call sites, and which door *they* read
+is not settled by these tapes. It is worth the same byte-level check core-lane
+did for the chest sites.
+
+### Where the "temp" event flags land, on hardware
 
 `SOURCE_NOTES` proves from ROM bytes that retail has **four** flag banks, not
 five: nothing addresses the clone's `Temp_Event_Flags` at `$FFFFF156`, and the
-"TempEveFlags" calls dispatch through the **chest** bank's door at `$FFFFF140`.
-A "temp" flag and a chest flag of the same raw id are therefore one physical
-bit. Tape 17 tests that on hardware.
+"TempEveFlags" calls dispatch through the door at `$FFFFF140`. That part holds —
+it is only the name on that door that was wrong. Tape 17 measures the write.
 
-The prediction comes from `ChestFlags_Set` (`ps4.asm:116683`), and the bit
+The prediction comes from `ChestFlags_Set` (`ps4.asm:116683`), whose bit
 numbering inside a byte is **reversed**: `bset (7 - (id & 7)), (bank + (id >> 3))`.
 So `TempEveFlag_Xanafalgue = $13` = 19 must land at byte `19 >> 3` = 2 and bit
 `7 - (19 & 7)` = 4 — that is, **`$10` at `$FFFFF142`**.
@@ -959,22 +1059,22 @@ Measured, walking a short way into the Piata basement:
 |---|---|
 | `chestb2` (`$FFFFF142`) | **`00` → `$10` at f24618**, at cell (42,20) on map $15 |
 | `tempb0..3` (`$FFFFF156-9`) | **`00` for all 24,880 frames** — never written |
-| `chestb3` | `00` throughout |
+| `extb3` (`$FFFFF123`) | `00` throughout |
 | `FieldRoutine_ItemFound` (`$24`) | never runs |
 
-**The alias is real.** The temp-flag write lands in the chest bank exactly
-where the reversed-bit arithmetic predicts, and the fifth bank stays dead.
+The write lands exactly where the reversed-bit arithmetic predicts, and the
+clone's fifth bank stays dead.
 
 The innocent explanation is ruled out rather than assumed away: no chest was
-opened (the ItemFound routine never runs), and the basement's own chests are
-flags 24 and 25, which live in byte **3** — which stayed `00`. Nothing but the
-flag-$13 write can account for byte 2 bit 4.
+opened (the ItemFound routine never runs), and the basement's own chests write
+`$FFFFF123` — which stayed `00`. Nothing but the flag-$13 write can account for
+byte 2 bit 4.
 
-**The colliding chest is `ChestFlag_GrbrkTwMoonSlashr` ($13)** — the Garuberk
-Tower Moon Slasher chest. So walking through the Piata Academy Basement in the
-opening act marks a very-late-game chest's flag as set. That is a more
-consequential instance than the Alshline pairing the candidate-bug note
-proposed, and unlike that one it is measured rather than deduced.
+There is **no colliding chest**. An earlier revision of this section named
+`ChestFlag_GrbrkTwMoonSlashr` ($13) as sharing this bit and drew a bug from it;
+that followed from reading `$F140` as the chest bank, and tapes 20 and 21
+disprove it. Chest id `$13` lives at `$FFFFF122` bit 4, in the other bank, and
+nothing in the Piata basement writes it.
 
 #### What the flag actually gates, and the flee itself
 
@@ -992,7 +1092,7 @@ the whole scripted moment:
 So the flag gates the Xanafalgue's presence, and set-on-despawn is exact —
 same frame, no lag.
 
-#### Leaving clears it, which flips the bug's direction
+#### Leaving clears it
 
 Tape 18 routes out of the basement into `PiataAcademyNearBasement` ($12):
 
@@ -1002,18 +1102,13 @@ Tape 18 routes out of the basement into `PiataAcademyNearBasement` ($12):
 | f25191 | party arrives on map $12, flag still `$10` |
 | **f25230** | **`$FFFFF142` → `$00`** — cleared, 39 frames into the new map |
 
-**Retail does clear it, and it clears it by writing the chest bank.** The
-clone's "cleared when you get out" prose is right about the behaviour and wrong
-only about which bank takes the write.
+**Retail does clear it, and it clears it in the `$F140` bank.** The clone's
+"cleared when you get out" prose is right about the behaviour and wrong only
+about which bank the write names.
 
-That inverts the consequence. The bit is **set on entering** the basement and
-**cleared on leaving**, so the damaging order is not pre-looting but
-**un-looting**: a player who has already taken the Garuberk Tower Moon Slasher
-chest (flag `$13` set) and later walks into and out of the Piata Academy
-Basement would have that flag **cleared**, and the chest would be available
-again. Piata is a revisitable town, so the sequence is reachable in ordinary
-play — which also answers "would any retail player have noticed": far more
-plausibly this way round than the pre-looting one.
+Set on entering the basement, cleared on leaving: an ordinary scene-scoped temp
+flag doing an ordinary temp flag's job. No chest flag is involved in either
+direction.
 
 One precision worth keeping: the clear lands **39 frames after arriving on map
 $12**, not on leaving $15, so it is tied to loading the destination map rather
@@ -1035,30 +1130,17 @@ So the scene resets completely: **leave, and the flag clears; return, and the
 Xanafalgue is there to flee again.** The set/clear cycle can be run as many
 times as the player likes.
 
-That is what makes the collision more than a curiosity. **Every basement round
-trip clears chest flag `$13`.** A player who has taken the Garuberk Tower Moon
-Slasher chest and later walks down into the Piata basement and back out has
-that chest's flag cleared, and can take it again — repeatably, at will, with no
-special sequence beyond visiting a town they can already revisit.
-
 (The re-entry in the tape is hand-written rather than routed: coming up the
 stairs leaves the party standing *on* the stairs cell, and the cartridge's
 anti-ping-pong rule will not fire a warp from the cell you were placed on, so
 the tape steps off and back on. `navigate.py` cannot plan from a warp cell it
 is already standing on — noted as a tooling limit, not a cartridge one.)
 
-Two things these tapes do **not** establish, and should not be read as:
-
-- **Whether the chest actually appears looted in play.** That needs the
-  chest-open check to read the same bit at Garuberk Tower, which is far out of
-  tape reach. What is proven is the shared bit and the write.
-- **Whether the chest-open check reads this bit.** Proven: the shared physical
-  bit, the set, and the clear. Not proven: that Garuberk Tower's chest actually
-  responds to it, which needs a route no tape can reach.
-
-For `psiv-core`: model one 256-id bank at `$F140` with reversed in-byte bit
-numbering, and route both the chest and "temp" APIs to it. Modelling five
-banks reproduces the clone, not the cartridge.
+For `psiv-core`: model **four** banks, not five and not three. The `$F156` bank
+does not exist and must never be written. The `$F140` bank takes the "temp"
+event flag API. Chests get their own 256-id bank at `$F120`, which is also the
+bank `Event_GameStart` preloads. All of them use the same reversed in-byte
+numbering, `bit = 7 - (id & 7)`.
 
 ### Camera, and what gates the wander timer
 
@@ -1198,6 +1280,28 @@ into each character's `exp` field, so the award is observed as a delta on
 routine timeline, the turn order, every HP change with the hit flags, damage
 list and RNG seed at that frame, and the EXP/meseta deltas.
 
+### The encounter clock, and why long tapes need tuning
+
+Any tape that walks far inside a dungeon is playing a dice game, and it is
+worth stating the odds because they set what tape lengths are practical.
+`RunRandomBattles` (`ps4.asm:116840`) counts `$FFFFECE4` down from 10 — reset
+on every map entry and after every battle — on each *completed* step, then from
+that point rolls on every step: `UpdateRNGSeed`, and a battle if
+`RNG_Seed & $1F == 0` (`& $7F` in a vehicle). Flat 1/32 per step, no ramp.
+
+So an N-step route survives with probability `(31/32)^(N-10)`: 25 steps is a
+62% bet, 58 steps a 22% one. Tape 21's route is 58 steps, and sweeping its
+pre-walk idle over 14 values produced exactly 3 clean runs — 21%, against 22%
+predicted. That is a behavioural confirmation of the rule, and incidentally of
+`psiv-runtime`'s `GRACE_STEPS = 10` and `FOOT_MASK = 0x1F`, which match.
+
+The dodge is `sweep_encounter.py`: idle frames advance the seed without
+consuming a step, so varying one `N . <mark>` wait re-rolls every check
+downstream while leaving the route byte-identical. It runs the variants in
+parallel and reports which values walk clean. Tapes 20 and 21 both carry a
+tuned wait, noted as such in their comments — a tape that walks far and has no
+tuned wait in it is a tape that has not been re-run since it was written.
+
 ### Tape authoring tools
 
 `route.py` plans a walk over the runtime pack's own collision grids and warp
@@ -1238,37 +1342,21 @@ Genuinely outstanding:
   `offscreen_flag` logged, but that byte read 0 for the whole dialogue, so as
   mapped it does not indicate the arrow's visibility. The right field has not
   been found, and the arrow's art is still unextracted.
-- **The other five aliased id pairs (filed for when route tooling reaches
-  mid-game).** Tape 17 proves the one-bank mechanism at id `$13`; the merge
-  sweep found six more pairs, and all six sit in **one byte, `$FFFFF141`**,
-  already covered by the `flagbytes` group's `chestb1` column. No RAM-map work
-  is needed — only route reach.
+- **~~The other five aliased id pairs~~ — closed, no experiment needed.** This
+  entry used to queue a Vahal Fort platform tape to demonstrate the chest/temp
+  alias bidirectionally. Tapes 20 and 21 showed there is no alias to
+  demonstrate: the six "pairs" were an artifact of reading `$F140` as the chest
+  bank. `VahFortMovingPltfrm1` and `ChestFlag_PsycoWand` share an id but sit in
+  different banks (`$F141` bit 6 and `$F121` bit 6), so riding the platform
+  cannot touch the chest. Nothing to route to, nothing to test.
 
-  | id | "temp" flag | chest flag | mask in `$F141` |
-  |---|---|---|---|
-  | `$08` | BioPlantAlarm | Alshline | `$80` |
-  | `$09` | VahFortMovingPltfrm1 | PsycoWand | `$40` |
-  | `$0A` | VahFortMovingPltfrm2 | ControlKey | `$20` |
-  | `$0B` | VahFortTerminal | Canceller | `$10` |
-  | `$0C` | VahFortTerminal2 | EclpsTorch | `$08` |
-  | `$0D` | WpnPlantMovingPltfrm1 | AeroPrism | `$04` |
-
-  (Masks from `bit = 7 - (id & 7)`, the same reversed numbering tape 17
-  confirmed. Note `$0B`/`$0C` are the conveyor-direction *terminals*, not
-  platforms — a different interaction to stage than riding.)
-
-  **The platform pairs are the strongest available evidence and should be
-  tried first.** `VahFortMovingPltfrm1/2` are set when a platform moves down
-  and *cleared* when it moves up, so riding one flips the paired chest bit
-  **both ways** in ordinary play. That demonstrates the alias bidirectionally —
-  set *and* clear — which the `$13` tape cannot, since walking into the
-  basement only ever sets. It also settles the open "is the bit ever cleared"
-  question above: if a platform clears `$F141` bit 6, a looted PsycoWand chest
-  un-loots, which is the un-looting direction the candidate-bug note predicted.
-
-  Experiment when Vahal Fort is reachable: route to a moving platform, log
-  `flagbytes`, ride it down and up, and watch `chestb1` toggle `$40`. One round
-  trip is the whole test.
+- **Which door the 82 `chest_flags` map-effect gates read.** The chest system's
+  three call sites are settled at `$F120`. The manifest counts 82 map-effect
+  gates the extractor labels `chest_flags`, and those come from a different code
+  path; if that path reads `$F140` while chests write `$F120`, gates that are
+  supposed to react to a looted chest never fire. Cheapest resolution is a
+  byte-level read of the gate call sites, the way core-lane did for the chest
+  ones, not a tape.
 
 - **Camera beyond map $13.** The `(152, 88)` leader lock and the identical
   FG/BG cameras are measured on one interior map. Overworld maps are tori with

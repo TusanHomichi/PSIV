@@ -5478,7 +5478,7 @@
       "size": 1,
       "group": "flagbytes",
       "hex": true,
-      "source": "Extended_Event_Flags byte 0 (constants:2363, base $FFFFF120). Measured to be where retail lands CHEST flags: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143"
+      "source": "Chest-flag bank byte 0 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
     },
     {
       "name": "extb1",
@@ -5486,7 +5486,7 @@
       "size": 1,
       "group": "flagbytes",
       "hex": true,
-      "source": "Extended_Event_Flags byte 1 (constants:2363, base $FFFFF120). Measured to be where retail lands CHEST flags: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143"
+      "source": "Chest-flag bank byte 1 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
     },
     {
       "name": "extb2",
@@ -5494,7 +5494,7 @@
       "size": 1,
       "group": "flagbytes",
       "hex": true,
-      "source": "Extended_Event_Flags byte 2 (constants:2363, base $FFFFF120). Measured to be where retail lands CHEST flags: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143"
+      "source": "Chest-flag bank byte 2 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
     },
     {
       "name": "extb3",
@@ -5502,7 +5502,7 @@
       "size": 1,
       "group": "flagbytes",
       "hex": true,
-      "source": "Extended_Event_Flags byte 3 (constants:2363, base $FFFFF120). Measured to be where retail lands CHEST flags: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143"
+      "source": "Chest-flag bank byte 3 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
     },
     {
       "name": "extb4",
@@ -5510,7 +5510,7 @@
       "size": 1,
       "group": "flagbytes",
       "hex": true,
-      "source": "Extended_Event_Flags byte 4 (constants:2363, base $FFFFF120). Measured to be where retail lands CHEST flags: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143"
+      "source": "Chest-flag bank byte 4 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
     },
     {
       "name": "extb5",
@@ -5518,7 +5518,7 @@
       "size": 1,
       "group": "flagbytes",
       "hex": true,
-      "source": "Extended_Event_Flags byte 5 (constants:2363, base $FFFFF120). Measured to be where retail lands CHEST flags: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143"
+      "source": "Chest-flag bank byte 5 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
     },
     {
       "name": "extb6",
@@ -5526,7 +5526,7 @@
       "size": 1,
       "group": "flagbytes",
       "hex": true,
-      "source": "Extended_Event_Flags byte 6 (constants:2363, base $FFFFF120). Measured to be where retail lands CHEST flags: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143"
+      "source": "Chest-flag bank byte 6 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
     },
     {
       "name": "extb7",
@@ -5534,7 +5534,199 @@
       "size": 1,
       "group": "flagbytes",
       "hex": true,
-      "source": "Extended_Event_Flags byte 7 (constants:2363, base $FFFFF120). Measured to be where retail lands CHEST flags: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143"
+      "source": "Chest-flag bank byte 7 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb8",
+      "addr": "FFFFF128",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 8 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb9",
+      "addr": "FFFFF129",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 9 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb10",
+      "addr": "FFFFF12A",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 10 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb11",
+      "addr": "FFFFF12B",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 11 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb12",
+      "addr": "FFFFF12C",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 12 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb13",
+      "addr": "FFFFF12D",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 13 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb14",
+      "addr": "FFFFF12E",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 14 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb15",
+      "addr": "FFFFF12F",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 15 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb16",
+      "addr": "FFFFF130",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 16 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb17",
+      "addr": "FFFFF131",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 17 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb18",
+      "addr": "FFFFF132",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 18 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb19",
+      "addr": "FFFFF133",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 19 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb20",
+      "addr": "FFFFF134",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 20 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb21",
+      "addr": "FFFFF135",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 21 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb22",
+      "addr": "FFFFF136",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 22 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb23",
+      "addr": "FFFFF137",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 23 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb24",
+      "addr": "FFFFF138",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 24 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb25",
+      "addr": "FFFFF139",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 25 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb26",
+      "addr": "FFFFF13A",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 26 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb27",
+      "addr": "FFFFF13B",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 27 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb28",
+      "addr": "FFFFF13C",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 28 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb29",
+      "addr": "FFFFF13D",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 29 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb30",
+      "addr": "FFFFF13E",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 30 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
+    },
+    {
+      "name": "extb31",
+      "addr": "FFFFF13F",
+      "size": 1,
+      "group": "flagbytes",
+      "hex": true,
+      "source": "Chest-flag bank byte 31 (base $FFFFF120; the constants file labels this Extended_Event_Flags at constants:2363, but the chest system's three call sites - LoadTreasureChests test $537E0, ItemFound entry test $66B2A, ItemFound set $66DE0 - all target this door, verified in ROM by core-lane and measured here: opening chest flag 24 sets $FFFFF123 bit 7, not $FFFFF143)"
     }
   ]
 }

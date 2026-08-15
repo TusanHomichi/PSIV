@@ -124,54 +124,41 @@ end
 300 . cross
 
 # ---------------------------------------------------------------------------
-# Tape 19 - a chest-bearing map's object pool, and opening a chest.
+# Tape 21 - the basement's SECOND chest, as an independent read of the flag
+# bank's bit arithmetic.
 #
-# Tape 02's map has no chests, so the comparator has never exercised the slot
-# offset chest maps introduce. AcademyBasement ($15) carries 1 NPC (the
-# Xanafalgue) and 2 chests, and measurement shows the pool fills NPCs first:
-# slot 0 is the Xanafalgue (id 388), slots 1 and 2 are the chests (id $A0), in
-# pack record order.
+# Tape 20 showed that opening chest flag 24 sets $FFFFF123 bit 7. One chest
+# cannot separate the bit rule from a coincidence: byte 3 bit 7 is what BOTH
+# `base + (id >> 3)`, `1 << (7 - (id & 7))` with base $F120 AND a dozen other
+# arithmetics would give for a single id. AcademyBasement's other chest is
+# flag 25, one id along, and the rule predicts the neighbouring bit in the
+# SAME byte: $FFFFF123 bit 6. So the byte should read $80 before this tape's
+# press and $C0 after, and nothing in $FFFFF140-$FFFFF147 should move.
 #
-# The route below reaches (41,8), immediately east of the Dimate chest at
-# (40,8); the chest's own cell is excluded from the search because objects
-# block. A straight walk west from the spawn does NOT work - a wall at col 46
-# stops the party at (47,8), which is what the first attempt hit.
-#
-# Speak there opens the chest. That sets ChestFlag 24 -> byte 3, bit 7 -> $80
-# at $FFFFF123 - the $F120 bank, not the $F140 one the constants file labels
-# Chest_Flags; see tapes 20 and 21. This gives core-lane's open_chest path its
-# frame timing and its bank write. (Opening the basement's own chests is a
-# harmless save change.)
-#
-# The legs afterwards give the object columns a walk to compare against rather
-# than a single standing sample.
+# Chest 2 sits at (14,19); the party approaches (15,19) and turns west into it.
+# 58 steps of walking is the tape's whole fragility - RunRandomBattles
+# (ps4.asm:116840) gives ten free steps per map entry and then rolls
+# RNG_Seed & $1F == 0 on every step after, so this route takes 48 rolls at
+# 1/32 and loses about four times in five untuned. The `settle` wait below is
+# the tuning knob: idle frames advance the seed without consuming a step.
 # ---------------------------------------------------------------------------
-200 . settle
+400 . basement_settle
 72 D
-48 L
+144 L
 32 U
+24 L
+24 U
+88 L
+32 D
 8 L
-40 U
+40 D
 40 . arrived
-# The route's last leg moves up, so the party arrives facing UP. Pressing Left
-# targets the chest's own cell, which blocks, so the party turns in place to
-# face it without moving - the geometry Interaction_ChkObjects wants.
+
+# Arriving southbound leaves the party facing DOWN; Left targets the chest's
+# own cell, which blocks, so the party turns in place to face it.
 4 L face_chest
 40 . at_chest
 4 C open_chest
-400 . opened
-repeat 40
-4 C
-12 .
-end
-200 . chest_done
-
-120 . legs
-120 D leg_down
-40 . r1
-120 R leg_right
-40 . r2
-120 U leg_up
-40 . r3
-120 L leg_left
-60 . done
+500 . opened
+4 C dismiss
+300 . control_back

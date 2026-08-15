@@ -100,6 +100,10 @@ run "$ORACLE/tapes/18_flag_round_trip.tape" "$OUT/verify_roundtrip.csv" \
     --groups core,objects,flagbytes
 run "$ORACLE/tapes/19_chest_map_objects.tape" "$OUT/verify_chestmap.csv" \
     --groups core,pos,window,objects,flagbytes,chars
+run "$ORACLE/tapes/20_chest_round_trip.tape" "$OUT/verify_chesttrip.csv" \
+    --groups core,pos,window,objects,flagbytes,chars
+run "$ORACLE/tapes/21_second_chest.tape" "$OUT/verify_chest2.csv" \
+    --groups core,pos,window,objects,flagbytes,chars,party
 
 echo "== findings =="
 PYTHONPATH="$ORACLE" python3 - "$OUT" <<'PY'
@@ -322,36 +326,39 @@ if late:
 ok(f"page advance is edge-triggered: holding Speak drew page 1's {len(draws)} "
    f"characters at 1/frame (ending f{draws[-1]}) and never advanced to page 2")
 
-# The flag-bank alias, on hardware. SOURCE_NOTES proves from ROM bytes that the
-# clone's fifth bank at $F156 does not exist in retail and "temp" flag writes
-# go through the chest bank's door. TempEveFlag_Xanafalgue = $13 fires in the
-# Piata basement; ChestFlags_Set puts id N at byte N>>3, mask 1 << (7 - (N&7)),
-# so $13 must land as $10 at $FFFFF142 if the alias is real.
+# Where "temp" event flags land, on hardware. SOURCE_NOTES proves from ROM
+# bytes that the clone's fifth bank at $F156 does not exist in retail and that
+# "temp" flag writes go through the door at $F140 - the one the constants file
+# labels Chest_Flags. That label is wrong about chests (tapes 20 and 21 below
+# show chests writing $F120 instead) but right about the address these writes
+# use. TempEveFlag_Xanafalgue = $13 fires in the Piata basement, and the shared
+# bit rule puts id N at byte N>>3, mask 1 << (7 - (N&7)), so $13 must land as
+# $10 at $FFFFF142.
 rows = load(OUT/'verify_flags.csv')
 sets = [r for a, r in zip(rows, rows[1:])
         if a['chestb2'] == '00' and r['chestb2'] == '10']
 if not sets:
     bad("tape 17 never set $FFFFF142 bit 4 - TempEveFlag_Xanafalgue did not "
-        "land in the chest bank")
+        "land in the $F140 bank")
 setf = int(sets[0]['frame'])
 dead = {k for k in ('tempb0', 'tempb1', 'tempb2', 'tempb3')
         if {r[k] for r in rows} != {'00'}}
 if dead:
     bad(f"the $F156 bank was written ({sorted(dead)}); retail should never "
         "touch it")
-# Rule out the innocent explanation: an opened chest would also set chest bits.
-# The basement's own chests are flags 24 and 25, which live in byte 3.
-if {r['chestb3'] for r in rows} != {'00'}:
-    bad("chest bank byte 3 changed - a basement chest was opened, so the "
-        "byte-2 bit cannot be attributed to the temp-flag write")
+# Rule out the innocent explanation: a chest opening during this tape. The
+# basement's chests write $F123 (tape 21), so that is the byte to watch.
+if {r['extb3'] for r in rows} != {'00'}:
+    bad("$FFFFF123 changed - a basement chest was opened, so the byte-2 bit "
+        "cannot be attributed to the temp-flag write")
 if '0024' in {r['game_mode_routine'] for r in rows}:
     bad("FieldRoutine_ItemFound ran - a chest was opened during tape 17")
 ok(f"TempEveFlag_Xanafalgue ($13) sets $FFFFF142 bit 4 at f{setf}; the $F156 "
    "bank stays 00 and no chest was opened")
 
 # The round trip: the bit clears on the way out and the Xanafalgue respawns on
-# the way back, which is what makes the chest collision an un-loot rather than
-# a pre-loot, and repeatable.
+# the way back, so the set/clear cycle is repeatable. This is a property of the
+# $F140 temp bank alone; it says nothing about chests, which never write here.
 rows = load(OUT/'verify_roundtrip.csv')
 seq, prev = [], None
 for r in rows:
@@ -395,19 +402,17 @@ for slot in (1, 2):
 ok("chest map object pool: slot 0 is the NPC (388), slots 1-2 are chests "
    "($A0) in record order, both with timer 0")
 
-# The chest open itself: the item is granted, and the flag write is NOT
-# observed. Both halves are pinned - the second is a measured negative that a
-# core writing the flag inline would contradict.
+# The chest open itself: the item is granted, and the flag write lands in the
+# $F120 bank, not the $F140 one the constants file calls Chest_Flags. An
+# earlier revision of this check pinned the ABSENCE of a $F143 write as a
+# finding; that negative was true but useless, because it was watching the
+# wrong eight bytes. Both halves are asserted together now so the same mistake
+# cannot recur silently: a positive somewhere and a negative everywhere else.
 byf = by_frame(rows)
 op = next(int(r['frame']) for r in rows if r['mark'] == 'open_chest')
 found = [r for r in rows if int(r['frame']) >= op and r['inv0'] == '7D']
 if not found:
     bad("opening the chest never put the Dimate ($7D) in Inventory[0]")
-# The chest flag IS written, inline with the grant - but to $FFFFF123, in the
-# bank the clone labels Extended_Event_Flags ($F120), NOT to $FFFFF143 in the
-# bank it labels Chest_Flags ($F140). An earlier revision of this check pinned
-# the absence of a $F143 write as a finding; that was watching the wrong eight
-# bytes. Both halves are asserted so the mistake cannot recur silently.
 grant = int(found[0]['frame'])
 wrote = [r for r in rows if r['extb3'] == '80']
 if not wrote:
@@ -422,6 +427,87 @@ if {r['chestb3'] for r in rows} != {'00'}:
         "$F140; re-check the README's chest section")
 ok(f"chest open: Dimate reaches Inventory[0] and chest flag 24 sets "
    f"$FFFFF123 bit 7, both at f{grant}; $FFFFF143 stays 00")
+
+# ---------------------------------------------------------------------------
+# Tape 20: the same chest, pressed twice and revisited.
+# ---------------------------------------------------------------------------
+rows = load(OUT/'verify_chesttrip.csv')
+byf = by_frame(rows)
+EXT = [f'extb{n}' for n in range(32)]
+
+# The bank is not empty at a new game. Event_GameStart preloads eleven ids into
+# $F120-$F13F, and the runtime pack's own game_start snapshot carries the same
+# thirty-two bytes - a check that the extractor and the cartridge agree about
+# the bank's identity, not just its contents.
+import json, pathlib as _p
+pack = _p.Path('runtime-pack/manifest.json')
+preload = next(r for r in rows if int(r['frame']) >= 1000)
+live = ''.join(preload[c].lower() for c in EXT)
+if pack.is_file():
+    want = json.loads(pack.read_text())['game_start']['flag_banks'] \
+        ['extended_event_flags']['raw_hex'].lower()
+    if live != want:
+        bad(f"$F120-$F13F reads {live} at f{preload['frame']} but the pack's "
+            f"game_start snapshot says {want}")
+    ok(f"new-game preload: $F120-$F13F matches the pack's game_start snapshot "
+       f"byte for byte ({sum(bin(int(preload[c],16)).count('1') for c in EXT)} "
+       "ids set)")
+
+# Pressing an opened chest again, standing still, on the same visit. The
+# routine IS entered - so the guard is not LoadTreasureChests refusing to spawn
+# an interactable object - but nothing is granted and no bit moves.
+rp = next(int(r['frame']) for r in rows if r['mark'] == 'repress_same_visit')
+after = [r for r in rows if rp <= int(r['frame']) <= rp + 120]
+if '0024' not in {r['game_mode_routine'] for r in after}:
+    bad("re-pressing an opened chest never entered FieldRoutine_ItemFound "
+        "($24) - the guard would then be at the spawn site, not in ItemFound")
+if {r['inv1'] for r in after} != {'00'}:
+    bad("re-pressing an opened chest granted a second item")
+if {r['extb3'] for r in after} != {'80'}:
+    bad("re-pressing an opened chest moved $FFFFF123")
+ok(f"same-visit re-press at f{rp}: ItemFound is entered, no item is granted "
+   "and $FFFFF123 stays $80 - the guard is the flag test inside ItemFound")
+
+# Leave the map, come back: the chest is still open, because the bit that
+# decides its facing was written on the first visit and never cleared.
+ret = next(int(r['frame']) for r in rows if r['mark'] == 'returned')
+spawn = next(r for r in rows if int(r['frame']) > ret
+             and r['map_index'] == '0015' and r['o01_id'] != '0000')
+if spawn['o01_facing'] != '4':
+    bad(f"chest slot 1 respawned facing {spawn['o01_facing']} at "
+        f"f{spawn['frame']}; an opened chest must come back open (facing 4)")
+if spawn['o02_facing'] != '0':
+    bad(f"chest slot 2 respawned facing {spawn['o02_facing']}; the untouched "
+        "chest must come back closed (facing 0)")
+if spawn['extb3'] != '80':
+    bad("$FFFFF123 bit 7 did not survive the map transition")
+# Nothing a chest does may touch the $F140 bank. The one bit that moves there
+# is the Xanafalgue's temp flag, byte 2 - so byte 3, where ids 24 and 25 would
+# land under the mislabelling, is the byte to pin.
+if {r['chestb3'] for r in rows} != {'00'}:
+    bad("$FFFFF143 moved during the chest round trip")
+ok(f"leave and return: the opened chest respawns open at f{spawn['frame']} "
+   "(facing 4) while the untouched one respawns closed, and $FFFFF143 never "
+   "moves")
+
+# ---------------------------------------------------------------------------
+# Tape 21: the second chest, which is what separates the bit rule from luck.
+# ---------------------------------------------------------------------------
+rows = load(OUT/'verify_chest2.csv')
+op = next(int(r['frame']) for r in rows if r['mark'] == 'open_chest')
+hit = [r for r in rows if int(r['frame']) >= op and r['extb3'] == '40']
+if not hit:
+    bad("opening chest flag 25 did not set $FFFFF123 bit 6 - the bit rule "
+        "base $F120, byte id>>3, mask 1 << (7 - (id & 7)) does not hold")
+if {r['chestb3'] for r in rows} != {'00'}:
+    bad("$FFFFF143 moved while opening chest 25")
+before = next(r for r in rows if int(r['frame']) == op - 1)
+paid = int(rows[-1]['current_money']) - int(before['current_money'])
+if paid != 100:
+    bad(f"chest 25 paid {paid} meseta, expected 100")
+ok(f"chest flag 25 sets $FFFFF123 bit 6 at f{hit[0]['frame']} and pays 100 "
+   "meseta - two ids, two neighbouring bits, one bank: the chest system's "
+   "door is $F120")
 PY
 
 if [ "$LANE" = fast ]; then

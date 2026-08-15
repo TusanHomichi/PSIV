@@ -124,25 +124,22 @@ end
 300 . cross
 
 # ---------------------------------------------------------------------------
-# Tape 19 - a chest-bearing map's object pool, and opening a chest.
+# Tape 20 - opening a chest, pressing it again, and leaving and coming back.
 #
-# Tape 02's map has no chests, so the comparator has never exercised the slot
-# offset chest maps introduce. AcademyBasement ($15) carries 1 NPC (the
-# Xanafalgue) and 2 chests, and measurement shows the pool fills NPCs first:
-# slot 0 is the Xanafalgue (id 388), slots 1 and 2 are the chests (id $A0), in
-# pack record order.
+# Three questions in one run: does a re-press on the same visit grant a second
+# item (and if not, where is the guard), does the chest come back open after a
+# map transition, and does anything about a chest ever touch $FFFFF140.
 #
 # The route below reaches (41,8), immediately east of the Dimate chest at
 # (40,8); the chest's own cell is excluded from the search because objects
 # block. A straight walk west from the spawn does NOT work - a wall at col 46
 # stops the party at (47,8), which is what the first attempt hit.
 #
-# Speak there opens the chest. That sets ChestFlag 24 -> byte 3, bit 7 -> $80
-# at $FFFFF143, giving core-lane's open_chest path its frame timing and its
-# bank write. (Opening the basement's own chests is a harmless save change.)
-#
-# The legs afterwards give the object columns a walk to compare against rather
-# than a single standing sample.
+# Speak there opens the chest. That sets ChestFlag 24 -> $FFFFF123 bit 7 - the
+# $F120 bank, NOT the $F140 one the constants file calls Chest_Flags. Tape 21
+# opens the neighbouring chest (flag 25 -> $FFFFF123 bit 6) to show that is the
+# bit rule and not a coincidence. (Opening the basement's own chests is a
+# harmless save change.)
 # ---------------------------------------------------------------------------
 200 . settle
 72 D
@@ -165,10 +162,24 @@ end
 4 C dismiss
 400 . control_back
 
-# Back to the stairs: tape 19's approach reversed. The 400-frame wait above is
-# tuned, not arbitrary - the basement has random encounters on, and shorter
-# waits put a battle in the middle of this walk. Deterministic replay makes the
-# dodge stable.
+# Same-visit re-press, standing still. This is the guard test with no walking
+# in it, so no random-battle roll can land between the two presses: the party
+# is still on (41,8) facing the chest, and the only thing that changed since
+# the first press is the flag bit. Whether Game_Mode_Routine reaches $24 at all
+# says which of the two candidate guards retail uses - the LoadTreasureChests
+# test (chest never becomes interactable again) or the ItemFound entry test
+# (routine entered, grant skipped).
+4 C repress_same_visit
+300 . after_repress
+
+# The re-press opens a window of its own, and an undismissed window holds
+# Game_Mode_Routine at $24 forever - the first cut of this tape left it open
+# and the party never took another step, which silently voided the whole
+# round trip below. Dismiss it before walking.
+4 C dismiss2
+300 . control_back2
+
+# Back to the stairs: the approach above, reversed.
 40 D
 8 R
 32 D
@@ -188,6 +199,14 @@ end
 # Walk to the chest again and press Speak. If the chest is CLOSED and grants a
 # second Dimate, the item is duplicable by revisiting - which is what an
 # unwritten chest flag implies.
+#
+# The two 25-step walks in this half are the tape's only real fragility.
+# RunRandomBattles (ps4.asm:116840) counts down $FFFFECE4 from 10 on map entry
+# and then rolls RNG_Seed & $1F == 0 on every completed step, so 50 steps is
+# 40 rolls at 1/32 and an untuned tape loses this coin flip more often than
+# not. The `300 . control_back2` wait above is the tuning knob: idle frames
+# shift the seed those rolls read without consuming a single step.
+# sweep_encounter.py swept it; 300 walks both legs clean.
 72 D
 48 L
 32 U
