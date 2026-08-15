@@ -490,6 +490,7 @@ impl Runtime {
                 let map = self.map.id().0;
                 for i in npc_index..npc_index + count {
                     self.despawned.insert((map, i));
+                    let _ = self.map.set_npc_active(i, false);
                 }
                 events.push(RuntimeEvent::NpcsDespawned {
                     first: npc_index,
@@ -669,7 +670,13 @@ impl Runtime {
             .data
             .map(psiv_data::MapId(target.0))
             .ok_or(BridgeError::NotPacked(target.0))?;
-        let map = field_map(record)?;
+        let mut map = field_map(record)?;
+        // Re-apply this session's despawns: the interim MapDataManager.
+        for &(m, i) in &self.despawned {
+            if m == target.0 {
+                let _ = map.set_npc_active(i, false);
+            }
+        }
         self.party
             .enter_map(&map, cell, facing)
             .map_err(|e| BridgeError::Rejected(e.to_string()))?;
