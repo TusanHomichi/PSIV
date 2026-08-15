@@ -708,7 +708,13 @@ impl Field {
         {
             let members = runtime.members();
             for (slot, member) in members.iter().enumerate().skip(1) {
-                let sheet_id = runtime.data().party_sheet(slot).map(|s| s.id.clone());
+                // Sheet by the CHARACTER in the slot, not the slot number.
+                let char_id = runtime
+                    .game()
+                    .party_slot(slot)
+                    .map(|c| c.0 as usize)
+                    .unwrap_or(slot);
+                let sheet_id = runtime.data().party_sheet(char_id).map(|s| s.id.clone());
                 fdraws.push(sheet_id.map(|sheet_id| FollowerDraw {
                     sheet_id,
                     kind: if member.is_stepping { "walk" } else { "idle" },

@@ -505,20 +505,23 @@ impl Runtime {
                 events.push(RuntimeEvent::PartyChanged);
             }
             SceneEffect::PartyChanged | SceneEffect::CharSlotCopied { .. } => {
+                self.resize_party();
                 events.push(RuntimeEvent::PartyChanged);
             }
-            SceneEffect::MapRequested { op } => {
-                if let SceneOp::LoadMap {
-                    map,
-                    start_x,
-                    start_y,
-                    facing,
-                    ..
-                } = op
+            SceneEffect::MapRequested {
+                op:
+                    SceneOp::LoadMap {
+                        map,
+                        start_x,
+                        start_y,
+                        facing,
+                        ..
+                    },
+            } => {
                 {
                     // Start words are 8px units; the standing shift applies
                     // on Y, as everywhere in the pack.
-                    let cell = Cell::new((start_x / 2) as u16, (start_y / 2 + 1) as u16);
+                    let cell = Cell::new(start_x / 2, start_y / 2 + 1);
                     match self.change_map(MapId(map), cell, facing) {
                         Ok(()) => {
                             if let Some(runner) = self.scene.as_mut() {
@@ -632,6 +635,21 @@ impl Runtime {
                     .collect()
             })
             .unwrap_or_default()
+    }
+
+    /// Rebuilds the walking party to match the game state's composition,
+    /// stacked at the leader's cell exactly as retail stacks on entry.
+    fn resize_party(&mut self) {
+        let followers = self.game.party_len().saturating_sub(1);
+        if followers + 1 == self.party.len() {
+            return;
+        }
+        let cell = self.party.leader().cell();
+        let facing = self.party.leader().facing();
+        let frames = self.party.leader().step_frames();
+        if let Ok(party) = Party::new(&self.map, cell, facing, frames, followers) {
+            self.party = party;
+        }
     }
 
     /// The renderer reports the scene-requested dialogue window has closed.
