@@ -805,7 +805,10 @@ impl TempPack {
             r#"{{"format_version": {version}, "kind": "field_party", "sheet_count": 0, "sheets": []}}"#
         );
         self.write("sprites/party.json", &empty);
-        self.write("sprites/npcs.json", &empty.replace("field_party", "field_npcs"));
+        self.write(
+            "sprites/npcs.json",
+            &empty.replace("field_party", "field_npcs"),
+        );
     }
 
     fn load(&self) -> Result<GameData, DataError> {

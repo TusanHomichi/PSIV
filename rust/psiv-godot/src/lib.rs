@@ -10,6 +10,9 @@ use godot::classes::{
 };
 use godot::prelude::*;
 
+mod dialogue;
+use dialogue::DialogueWindow;
+
 use psiv_core::{Cell, Direction, StepFrames, WarpTrigger};
 use psiv_data::{GameData, Sheet};
 use psiv_runtime::{Runtime, RuntimeEvent};
@@ -125,6 +128,7 @@ struct Field {
     npc_nodes: Vec<(Gd<Sprite2D>, String, String, String)>,
     sheet_views: HashMap<String, SheetView>,
     camera: Option<Gd<Camera2D>>,
+    dialogue: Option<Gd<DialogueWindow>>,
     anim_tick: u64,
     /// The party's active sequence and the tick it started, so animation
     /// phase restarts at frame 0 on a sequence change — matching
@@ -147,6 +151,7 @@ impl INode2D for Field {
             npc_nodes: Vec::new(),
             sheet_views: HashMap::new(),
             camera: None,
+            dialogue: None,
             anim_tick: 0,
             party_sequence: String::new(),
             party_seq_start: 0,
@@ -210,6 +215,15 @@ impl INode2D for Field {
         camera.make_current();
         self.camera = Some(camera);
 
+        let mut window = DialogueWindow::new_alloc();
+        match psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
+            Ok(set) => window.bind_mut().configure(&self.pack_dir, set),
+            Err(e) => godot_error!("dialogue pack failed to load: {e}"),
+        }
+        window.set_z_index(30);
+        self.base_mut().add_child(&window);
+        self.dialogue = Some(window);
+
         self.runtime = Some(runtime);
         self.load_map_visuals();
         self.sync_visuals(false);
@@ -223,6 +237,24 @@ impl INode2D for Field {
 
     fn physics_process(&mut self, _delta: f64) {
         self.anim_tick += 1;
+
+        // An open dialogue owns the input: accept advances the window, the
+        // engine gets Neutral (the cartridge swaps Game_Mode_Routine to
+        // FieldRoutine_Interaction; we model it by starving the field of
+        // input, per the engine's documented non-modal contract).
+        if self.dialogue.as_ref().is_some_and(|w| w.bind().is_open()) {
+            if Input::singleton().is_action_just_pressed("ui_accept")
+                && let Some(window) = self.dialogue.as_mut()
+            {
+                window.bind_mut().advance();
+            }
+            if let Some(runtime) = self.runtime.as_mut() {
+                runtime.tick(psiv_core::Input::Neutral);
+            }
+            self.sync_visuals(false);
+            return;
+        }
+
         let input = read_input();
         let Some(runtime) = self.runtime.as_mut() else {
             return;
@@ -246,12 +278,31 @@ impl INode2D for Field {
                 RuntimeEvent::WarpUnmapped { cell } => {
                     godot_error!("type-1 cell with no doorway record at {cell:?}");
                 }
-                // Dialogue windows land with the dialogue slice; until then
-                // the interaction layer reports to the console.
                 RuntimeEvent::Interact { npc_index, cell } => {
-                    godot_print!("talk: npc {npc_index} at {cell:?}");
+                    let binding = self.runtime.as_ref().and_then(|rt| {
+                        let record = rt.map_record()?;
+                        // Trees are 1-based; 0 means the map binds none.
+                        let tree = match record.dialogue_tree {
+                            0 => return None,
+                            tree => tree,
+                        };
+                        let id = record.npcs.get(npc_index)?.dialogue_id;
+                        Some((tree, id))
+                    });
+                    match binding {
+                        Some((tree, id)) => {
+                            if let Some(window) = self.dialogue.as_mut() {
+                                window.bind_mut().open_dialogue(tree, id);
+                            }
+                        }
+                        None => godot_print!(
+                            "talk: npc {npc_index} at {cell:?} has no dialogue binding"
+                        ),
+                    }
                 }
                 RuntimeEvent::InteractNothing { .. } => {
+                    // The cartridge shows the leader's "Nothing here" line;
+                    // its wiring is pending the lane's report.
                     godot_print!("talk: nothing here");
                 }
             }
@@ -280,10 +331,10 @@ impl Field {
                 let path = format!("{}/{name}", self.pack_dir);
                 match Image::load_from_file(&GString::from(path.as_str())) {
                     Some(image) => {
-                        if let Some(texture) = ImageTexture::create_from_image(&image) {
-                            if let Some(sprite) = self.map_sprite.as_mut() {
-                                sprite.set_texture(&texture);
-                            }
+                        if let Some(texture) = ImageTexture::create_from_image(&image)
+                            && let Some(sprite) = self.map_sprite.as_mut()
+                        {
+                            sprite.set_texture(&texture);
                         }
                     }
                     None => godot_error!("could not load map image {path}"),
@@ -375,7 +426,8 @@ impl Field {
                 (draw.y - view.origin_y) as f32,
             ));
             self.base_mut().add_child(&node);
-            self.npc_nodes.push((node, draw.sheet, draw.idle, draw.walk));
+            self.npc_nodes
+                .push((node, draw.sheet, draw.idle, draw.walk));
         }
     }
 

@@ -139,10 +139,8 @@ pub fn field_map(record: &MapRecord) -> Result<FieldMap, BridgeError> {
             .unwrap_or(Direction::Down);
         // 85 retail objects sit on half-cells; the sub-cell offset is what
         // lets the ±8px talk range reach them from both straddled cells.
-        let offset = psiv_core::SubCellOffset::new(
-            (npc.x_pixels % 16) as u8,
-            (npc.y_pixels % 16) as u8,
-        );
+        let offset =
+            psiv_core::SubCellOffset::new((npc.x_pixels % 16) as u8, (npc.y_pixels % 16) as u8);
         npcs.push(Npc::with_offset(NpcId(npc.object_id), cell, offset, facing));
     }
 

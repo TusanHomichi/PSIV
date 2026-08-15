@@ -37,6 +37,7 @@
 #![warn(missing_docs)]
 
 mod collision;
+mod dialogue;
 mod error;
 mod game_data;
 mod ids;
@@ -45,13 +46,14 @@ mod map;
 mod sprites;
 
 pub use collision::{Collision, CollisionGrid, CollisionType, Plane, UndefinedCollisionType};
+pub use dialogue::*;
 pub use error::DataError;
 pub use game_data::GameData;
 pub use ids::{MapId, RomHash};
 pub use manifest::{Manifest, MapEntry, PACK_FORMAT_VERSION, RomInfo, SkippedMap};
 pub use map::{
     COLLISION_CELL_PIXELS, Cell, CellPos, CellRect, ContentsType, DIALOGUE_TREE_COUNT, Dimensions,
-    Direction, Facing, Flags, MapRecord, MapRef, Music, Npc, RangeRef, SpriteFacing, SpriteRef, TransitionTable,
-    Treasure, Warp, WarpSource,
+    Direction, Facing, Flags, MapRecord, MapRef, Music, Npc, RangeRef, SpriteFacing, SpriteRef,
+    TransitionTable, Treasure, Warp, WarpSource,
 };
 pub use sprites::{Sequence, SequenceFrame, Sheet, SheetFile};
