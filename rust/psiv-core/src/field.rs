@@ -172,8 +172,12 @@ pub enum Effect {
         /// [`FieldMap::npcs`]: crate::FieldMap::npcs
         /// [`NpcId`]: crate::NpcId
         npc_index: usize,
-        /// The cell the party was facing: the talk target.
+        /// The cell the probe hit: one cell ahead for an ordinary talk, two
+        /// for one reaching across a counter.
         cell: Cell,
+        /// Which probe found the object. **Load-bearing for shops** — see
+        /// [`InteractReach`].
+        reach: InteractReach,
     },
     /// The party pressed confirm with nothing in talk range.
     ///
@@ -190,6 +194,39 @@ pub enum Effect {
         /// Which way the party was facing.
         facing: Direction,
     },
+}
+
+/// Which of the two probes found the object the party is talking to.
+///
+/// This is not decoration: the cartridge only ever opens a shop from the
+/// counter-reaching probe. `Interaction_ChkObjsSpecial` (`ps4.asm:119267`)
+/// returns 1 or 2 and its caller splits on that —
+///
+/// ```text
+/// Interaction_ChkShop:
+///     cmpi.w  #2, d0
+///     bne.w   Interaction_ProcessDialogueTree   ; d0 = 1 -> ordinary dialogue
+///     ...shop...                               ; d0 = 2 -> shop
+/// ```
+///
+/// — while the ordinary one-cell probe (`Interaction_ContinueChecks`) goes
+/// straight to the dialogue tree and can never open a shop. So a shopkeeper
+/// caught by the adjacent probe talks; the same shopkeeper caught across their
+/// counter sells.
+///
+/// Which of 1 or 2 the special probe returns is decided by `loc_65D12`
+/// (`ps4.asm:136048`), a linear scan of the shop-location table at ROM
+/// `0x068394` for an entry matching `(current map, object x, object y)`. That
+/// table is pack data the engine does not have, so **the engine reports the
+/// reach and the consumer makes the split** — see the crate docs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum InteractReach {
+    /// Found one cell ahead, by `Interaction_ChkObjects`. Always dialogue.
+    Adjacent,
+    /// Found two cells ahead, across a `$C` shop/counter cell, by
+    /// `Interaction_ChkObjsSpecial`. Dialogue *unless* the object's position is
+    /// in the shop-location table, in which case it is a shop.
+    AcrossCounter,
 }
 
 /// How far, in pixels on each axis, an object may sit from the talk target and
@@ -407,18 +444,7 @@ impl FieldState {
 
         if self.step.is_none() && self.action_latched {
             self.action_latched = false;
-            // Facing off a bounded map is legal (confirm at the top-left
-            // corner facing up). Nothing can match there: every NPC is on the
-            // grid, so the nearest possible object is a full cell from the
-            // target and the range is half a cell. Skipping the scan is
-            // equivalent. On a torus there is no such edge and this is always
-            // `Some`.
-            let hit = map.neighbor(self.cell, self.facing).and_then(|cell| {
-                npc_in_talk_range(map, cell).map(|npc_index| Effect::Interact { npc_index, cell })
-            });
-            effects.push(hit.unwrap_or(Effect::InteractNothing {
-                facing: self.facing,
-            }));
+            effects.push(self.probe_for_talk(map));
             // The cartridge hands the frame to `FieldRoutine_Interaction` and
             // never reaches its movement code, so no step starts this tick.
             return effects;
@@ -472,6 +498,54 @@ impl FieldState {
         }
 
         effects
+    }
+
+    /// Runs the cartridge's two talk probes, in its order, and turns the
+    /// result into an effect.
+    ///
+    /// `Interaction_DoChecks` (`ps4.asm:118256`) calls
+    /// `Interaction_ChkObjsSpecial` **before** falling through to the ordinary
+    /// `Interaction_ChkObjects`, so the counter-reaching probe wins when both
+    /// would hit.
+    fn probe_for_talk(&self, map: &FieldMap) -> Effect {
+        // Facing off a bounded map is legal (confirm at the top-left corner
+        // facing up). Nothing can match there: every NPC is on the grid, so
+        // the nearest possible object is a full cell from the probe and the
+        // range is half a cell. Skipping the scan is equivalent. On a torus
+        // there is no such edge and `neighbor` is always `Some`.
+        let Some(adjacent) = map.neighbor(self.cell, self.facing) else {
+            return Effect::InteractNothing {
+                facing: self.facing,
+            };
+        };
+
+        // `Interaction_ChkObjsSpecial`: when the faced tile is collision $C the
+        // probe is displaced a further 16 pixels (`loc_5915C`) and the object
+        // scan re-run, which lands it two cells ahead — reaching the clerk or
+        // the academy principal standing behind their counter.
+        if map
+            .collision_at(adjacent)
+            .is_some_and(|kind| kind == CollisionType::Shop)
+            && let Some(across) = map.neighbor(adjacent, self.facing)
+            && let Some(npc_index) = npc_in_talk_range(map, across)
+        {
+            return Effect::Interact {
+                npc_index,
+                cell: across,
+                reach: InteractReach::AcrossCounter,
+            };
+        }
+
+        match npc_in_talk_range(map, adjacent) {
+            Some(npc_index) => Effect::Interact {
+                npc_index,
+                cell: adjacent,
+                reach: InteractReach::Adjacent,
+            },
+            None => Effect::InteractNothing {
+                facing: self.facing,
+            },
+        }
     }
 
     /// The map the party is on.

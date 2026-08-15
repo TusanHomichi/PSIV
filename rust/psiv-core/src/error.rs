@@ -109,6 +109,13 @@ pub enum MapError {
     },
     /// A step duration of zero frames was requested.
     ZeroStepFrames,
+    /// More party members were requested than the cartridge has slots for.
+    TooManyPartyMembers {
+        /// Members requested, leader included.
+        requested: usize,
+        /// The cartridge's cap.
+        max: usize,
+    },
 }
 
 impl fmt::Display for MapError {
@@ -188,6 +195,10 @@ impl fmt::Display for MapError {
                 cell.x, cell.y, map.0
             ),
             MapError::ZeroStepFrames => write!(f, "a step must last at least one frame"),
+            MapError::TooManyPartyMembers { requested, max } => write!(
+                f,
+                "a party of {requested} exceeds the cartridge's {max} field slots"
+            ),
         }
     }
 }

@@ -11,7 +11,7 @@ mod common;
 use common::{
     face_then_act, map, map_with, npc, npc_offset, party, party_at_rate, party_facing, press_action,
 };
-use psiv_core::{Cell, Direction, Effect, Input, TALK_RANGE_PX};
+use psiv_core::{Cell, Direction, Effect, Input, InteractReach, TALK_RANGE_PX};
 
 // ---------------------------------------------------------------------------
 // The faced cell
@@ -40,7 +40,11 @@ fn confirm_talks_to_the_npc_in_the_faced_cell_from_every_direction() {
         let effects = face_then_act(&mut state, &map, dir);
         assert_eq!(
             effects,
-            vec![Effect::Interact { npc_index, cell }],
+            vec![Effect::Interact {
+                npc_index,
+                cell,
+                reach: InteractReach::Adjacent
+            }],
             "facing {dir:?} should reach the NPC in that cell"
         );
         assert_eq!(
@@ -105,7 +109,8 @@ fn confirm_does_not_reach_diagonally() {
         press_action(&mut state, &map),
         vec![Effect::Interact {
             npc_index: 0,
-            cell: Cell::new(2, 2)
+            cell: Cell::new(2, 2),
+            reach: InteractReach::Adjacent,
         }]
     );
 }
@@ -123,7 +128,8 @@ fn confirm_reaches_an_npc_through_a_wall_it_stands_on() {
         effects,
         vec![Effect::Interact {
             npc_index: 0,
-            cell: Cell::new(1, 1)
+            cell: Cell::new(1, 1),
+            reach: InteractReach::Adjacent,
         }]
     );
 }
@@ -144,7 +150,8 @@ fn the_first_npc_in_map_order_wins() {
         effects,
         vec![Effect::Interact {
             npc_index: 0,
-            cell: Cell::new(1, 0)
+            cell: Cell::new(1, 0),
+            reach: InteractReach::Adjacent,
         }]
     );
 }
@@ -188,7 +195,8 @@ fn an_object_on_a_half_cell_is_reachable_from_both_cells_it_straddles() {
         press_action(&mut from_left, &map),
         vec![Effect::Interact {
             npc_index: 0,
-            cell: Cell::new(1, 1)
+            cell: Cell::new(1, 1),
+            reach: InteractReach::Adjacent,
         }]
     );
 
@@ -199,7 +207,8 @@ fn an_object_on_a_half_cell_is_reachable_from_both_cells_it_straddles() {
         press_action(&mut from_right, &map),
         vec![Effect::Interact {
             npc_index: 0,
-            cell: Cell::new(2, 1)
+            cell: Cell::new(2, 1),
+            reach: InteractReach::Adjacent,
         }]
     );
 }
@@ -244,7 +253,8 @@ fn a_nine_pixel_offset_falls_out_of_range_on_the_near_side() {
         press_action(&mut far, &map),
         vec![Effect::Interact {
             npc_index: 0,
-            cell: Cell::new(2, 1)
+            cell: Cell::new(2, 1),
+            reach: InteractReach::Adjacent,
         }]
     );
 }
@@ -278,7 +288,8 @@ fn the_range_applies_to_both_axes_independently() {
         press_action(&mut state, &map),
         vec![Effect::Interact {
             npc_index: 0,
-            cell: Cell::new(1, 1)
+            cell: Cell::new(1, 1),
+            reach: InteractReach::Adjacent,
         }],
         "8 pixels is still inside it"
     );
@@ -327,7 +338,8 @@ fn releasing_and_pressing_confirm_again_talks_again() {
         again,
         vec![Effect::Interact {
             npc_index: 0,
-            cell: Cell::new(1, 0)
+            cell: Cell::new(1, 0),
+            reach: InteractReach::Adjacent,
         }]
     );
 }
@@ -371,7 +383,8 @@ fn confirm_mid_step_is_buffered_and_fires_when_the_step_lands() {
         landed,
         vec![Effect::Interact {
             npc_index: 0,
-            cell: Cell::new(3, 1)
+            cell: Cell::new(3, 1),
+            reach: InteractReach::Adjacent,
         }],
         "the buffered press fires on the first tick at rest"
     );
@@ -454,4 +467,185 @@ fn confirm_does_not_change_facing() {
     state.tick(&map, Input::Action);
 
     assert_eq!(state.facing(), before);
+}
+
+// ---------------------------------------------------------------------------
+// Reaching across a counter
+//
+// `Interaction_ChkObjsSpecial` (`ps4.asm:119267`) runs before the ordinary
+// object check. When the faced tile is collision $C it displaces the probe a
+// further 16 pixels in the facing direction (`loc_5915C`) and re-runs the scan,
+// which lands it two cells ahead — the Piata academy principal behind his desk,
+// or a shop clerk behind the counter.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn confirm_reaches_across_a_counter_cell_to_the_npc_beyond() {
+    // Party at (1, 3), counter at (1, 2), principal at (1, 1).
+    let map = map_with(
+        &["...", "...", ".$.", "..."],
+        vec![],
+        vec![npc(0x108, 1, 1)],
+    );
+    let mut state = party_facing(&map, 1, 3, Direction::Up);
+
+    let effects = press_action(&mut state, &map);
+
+    assert_eq!(
+        effects,
+        vec![Effect::Interact {
+            npc_index: 0,
+            cell: Cell::new(1, 1),
+            reach: InteractReach::AcrossCounter,
+        }],
+        "the desk should be reached across, not blocked by"
+    );
+}
+
+#[test]
+fn the_counter_reach_works_from_every_facing() {
+    // Party in the middle of a 5x5 room, a $C counter on each side of it and
+    // an NPC directly beyond each counter.
+    #[rustfmt::skip]
+    let rows = [
+        ".....",
+        "..$..",
+        ".$.$.",
+        "..$..",
+        ".....",
+    ];
+    let npcs = vec![
+        npc(0x200, 2, 0), // beyond the counter above
+        npc(0x201, 2, 4), // below
+        npc(0x202, 0, 2), // left
+        npc(0x203, 4, 2), // right
+    ];
+    let map = map_with(&rows, vec![], npcs);
+
+    let expected = [
+        (Direction::Up, 0, Cell::new(2, 0)),
+        (Direction::Down, 1, Cell::new(2, 4)),
+        (Direction::Left, 2, Cell::new(0, 2)),
+        (Direction::Right, 3, Cell::new(4, 2)),
+    ];
+
+    for (dir, npc_index, cell) in expected {
+        let mut state = party_facing(&map, 2, 2, dir);
+        assert_eq!(
+            press_action(&mut state, &map),
+            vec![Effect::Interact {
+                npc_index,
+                cell,
+                reach: InteractReach::AcrossCounter,
+            }],
+            "counter reach facing {dir:?}"
+        );
+    }
+}
+
+#[test]
+fn the_extended_reach_only_applies_across_a_shop_cell() {
+    // The same geometry with a solid wall instead of a counter: two cells is
+    // out of reach, because `ChkObjsSpecial` only fires on collision $C.
+    for blocker in ['#', '~', 's', 'i', '.'] {
+        let middle = format!(".{blocker}.");
+        let map = map_with(
+            &["...", "...", &middle, "..."],
+            vec![],
+            vec![npc(0x108, 1, 1)],
+        );
+        let mut state = party_facing(&map, 1, 3, Direction::Up);
+
+        assert_eq!(
+            press_action(&mut state, &map),
+            vec![Effect::InteractNothing {
+                facing: Direction::Up
+            }],
+            "collision {blocker:?} must not extend the talk reach"
+        );
+    }
+}
+
+#[test]
+fn an_npc_standing_on_the_counter_itself_is_still_reached() {
+    // The shopkeeper stands *on* the $C cell rather than behind it — 62 retail
+    // objects do. The special probe misses (nothing two cells ahead) and the
+    // ordinary probe picks them up.
+    let map = map_with(&["...", ".$.", "..."], vec![], vec![npc(0x108, 1, 1)]);
+    let mut state = party_facing(&map, 1, 2, Direction::Up);
+
+    assert_eq!(
+        press_action(&mut state, &map),
+        vec![Effect::Interact {
+            npc_index: 0,
+            cell: Cell::new(1, 1),
+            reach: InteractReach::Adjacent,
+        }]
+    );
+}
+
+#[test]
+fn the_counter_probe_wins_when_both_probes_would_hit() {
+    // `Interaction_DoChecks` calls the special probe first, so the object
+    // beyond the counter answers before the one standing on it.
+    let map = map_with(
+        &["...", ".$.", "..."],
+        vec![],
+        vec![npc(0x300, 1, 1), npc(0x301, 1, 0)],
+    );
+    let mut state = party_facing(&map, 1, 2, Direction::Up);
+
+    assert_eq!(
+        press_action(&mut state, &map),
+        vec![Effect::Interact {
+            npc_index: 1,
+            cell: Cell::new(1, 0),
+            reach: InteractReach::AcrossCounter,
+        }],
+        "the object across the counter is checked first"
+    );
+}
+
+#[test]
+fn a_counter_with_nothing_behind_it_reports_nothing() {
+    let map = map_with(&["...", ".$.", "..."], vec![], vec![]);
+    let mut state = party_facing(&map, 1, 2, Direction::Up);
+
+    assert_eq!(
+        press_action(&mut state, &map),
+        vec![Effect::InteractNothing {
+            facing: Direction::Up
+        }]
+    );
+}
+
+#[test]
+fn the_counter_reach_stops_at_the_edge_of_a_bounded_map() {
+    // Counter on the top row: there is no cell beyond it to probe.
+    let map = map_with(&["$..", "...", "..."], vec![], vec![]);
+    let mut state = party_facing(&map, 0, 1, Direction::Up);
+
+    assert_eq!(
+        press_action(&mut state, &map),
+        vec![Effect::InteractNothing {
+            facing: Direction::Up
+        }],
+        "probing past the edge must not panic or wrap"
+    );
+}
+
+#[test]
+fn the_ordinary_one_cell_reach_is_unchanged() {
+    // The regression guard: no counter anywhere, adjacent NPC, Adjacent reach.
+    let map = map_with(&["...", "...", "..."], vec![], vec![npc(0x400, 1, 0)]);
+    let mut state = party_facing(&map, 1, 1, Direction::Up);
+
+    assert_eq!(
+        press_action(&mut state, &map),
+        vec![Effect::Interact {
+            npc_index: 0,
+            cell: Cell::new(1, 0),
+            reach: InteractReach::Adjacent,
+        }]
+    );
 }

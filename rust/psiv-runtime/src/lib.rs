@@ -12,8 +12,8 @@
 use std::fmt;
 
 use psiv_core::{
-    Cell, CollisionGrid, Direction, Effect, FieldMap, FieldState, Input, MapId, Npc, NpcId,
-    StepFrames, Warp, WarpTrigger,
+    Cell, CollisionGrid, Direction, Effect, FieldMap, FieldState, Input, InteractReach, MapId,
+    MemberView, Npc, NpcId, Party, StepFrames, Warp, WarpTrigger,
 };
 use psiv_data::{GameData, MapRecord, TransitionTable};
 
@@ -194,8 +194,12 @@ pub enum RuntimeEvent {
     Interact {
         /// Index into the current map's NPC list.
         npc_index: usize,
-        /// The faced cell that was hit.
+        /// The probe cell that was hit.
         cell: Cell,
+        /// Whether the hit came from the ordinary one-cell probe or across a
+        /// `$C` counter. Counter hits check the shop-location table (shop vs
+        /// dialogue); adjacent hits are always dialogue.
+        reach: InteractReach,
     },
     /// Confirm pressed with nothing in talk range — the cartridge answers
     /// with the leader's "Nothing here" line.
@@ -209,7 +213,7 @@ pub enum RuntimeEvent {
 pub struct Runtime {
     data: GameData,
     map: FieldMap,
-    state: FieldState,
+    party: Party,
 }
 
 impl Runtime {
@@ -225,9 +229,11 @@ impl Runtime {
             .map(psiv_data::MapId(map_id))
             .ok_or(BridgeError::NotPacked(map_id))?;
         let map = field_map(record)?;
-        let state = FieldState::new(&map, spawn, facing, step_frames)
+        // Follower count comes from game-start state once extracted; the
+        // solo default keeps behavior identical until then.
+        let party = Party::new(&map, spawn, facing, step_frames, 0)
             .map_err(|e| BridgeError::Rejected(e.to_string()))?;
-        Ok(Runtime { data, map, state })
+        Ok(Runtime { data, map, party })
     }
 
     /// The currently loaded map.
@@ -278,13 +284,19 @@ impl Runtime {
     /// The field state, for the renderer's position/interpolation queries.
     #[must_use]
     pub fn state(&self) -> &FieldState {
-        &self.state
+        self.party.leader()
+    }
+
+    /// Every party member in draw order (0 = leader), for the renderer.
+    #[must_use]
+    pub fn members(&self) -> Vec<MemberView> {
+        self.party.members()
     }
 
     /// Advances one tick and resolves any map change.
     pub fn tick(&mut self, input: Input) -> Vec<RuntimeEvent> {
         let mut events = Vec::new();
-        for effect in self.state.tick(&self.map, input) {
+        for effect in self.party.tick(&self.map, input) {
             match effect {
                 Effect::StepCompleted { cell } => events.push(RuntimeEvent::StepCompleted { cell }),
                 Effect::Warp {
@@ -307,8 +319,16 @@ impl Runtime {
                     Err(_) => events.push(RuntimeEvent::UnpackedTarget { map: target_map }),
                 },
                 Effect::WarpUnmapped { cell } => events.push(RuntimeEvent::WarpUnmapped { cell }),
-                Effect::Interact { npc_index, cell } => {
-                    events.push(RuntimeEvent::Interact { npc_index, cell });
+                Effect::Interact {
+                    npc_index,
+                    cell,
+                    reach,
+                } => {
+                    events.push(RuntimeEvent::Interact {
+                        npc_index,
+                        cell,
+                        reach,
+                    });
                 }
                 Effect::InteractNothing { facing } => {
                     events.push(RuntimeEvent::InteractNothing { facing });
@@ -329,7 +349,7 @@ impl Runtime {
             .map(psiv_data::MapId(target.0))
             .ok_or(BridgeError::NotPacked(target.0))?;
         let map = field_map(record)?;
-        self.state
+        self.party
             .enter_map(&map, cell, facing)
             .map_err(|e| BridgeError::Rejected(e.to_string()))?;
         self.map = map;

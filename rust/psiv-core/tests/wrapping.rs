@@ -9,8 +9,8 @@ mod common;
 
 use common::{map_with, party, party_at_rate, party_facing, run, torus, torus_with, walk_one_step};
 use psiv_core::{
-    Cell, CellRect, CollisionGrid, Direction, Effect, FieldMap, Input, MapError, MapId, Npc, NpcId,
-    StepFrames, SubCellOffset, Topology, Warp, WarpTrigger,
+    Cell, CellRect, CollisionGrid, Direction, Effect, FieldMap, Input, InteractReach, MapError,
+    MapId, Npc, NpcId, StepFrames, SubCellOffset, Topology, Warp, WarpTrigger,
 };
 
 fn open_torus() -> FieldMap {
@@ -308,7 +308,8 @@ fn an_npc_across_the_seam_is_in_talk_range() {
         effects,
         vec![Effect::Interact {
             npc_index: 0,
-            cell: Cell::new(0, 1)
+            cell: Cell::new(0, 1),
+            reach: InteractReach::Adjacent
         }],
         "the talk point wraps with everything else"
     );
@@ -336,7 +337,8 @@ fn a_half_cell_npc_still_straddles_correctly_at_the_seam() {
         across_seam.tick(&map, Input::Action),
         vec![Effect::Interact {
             npc_index: 0,
-            cell: Cell::new(0, 1)
+            cell: Cell::new(0, 1),
+            reach: InteractReach::Adjacent
         }]
     );
 

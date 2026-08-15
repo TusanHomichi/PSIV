@@ -79,9 +79,13 @@ mod error;
 mod field;
 mod geom;
 mod map;
+mod party;
 
 pub use collision::{CollisionGrid, CollisionType, MAX_COLLISION_VALUE};
 pub use error::MapError;
-pub use field::{Effect, FieldState, Input, SUBCELL_UNITS, StepFrames, TALK_RANGE_PX};
+pub use field::{
+    Effect, FieldState, Input, InteractReach, SUBCELL_UNITS, StepFrames, TALK_RANGE_PX,
+};
 pub use geom::{CELL_PIXELS, Cell, CellRect, Direction};
 pub use map::{FieldMap, MapId, Npc, NpcId, SubCellOffset, Topology, Warp, WarpTrigger};
+pub use party::{MAX_PARTY_MEMBERS, MemberView, Party};

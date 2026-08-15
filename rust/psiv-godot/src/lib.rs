@@ -131,6 +131,9 @@ struct Field {
     /// (node, sheet id, idle sequence, walk sequence, map-order npc index)
     /// per visible NPC on the current map.
     npc_nodes: Vec<(Gd<Sprite2D>, String, String, String, usize)>,
+    /// Follower sprites (party members after the leader), created on demand.
+    /// (node, active sequence, sequence start tick) per follower.
+    follower_nodes: Vec<(Gd<Sprite2D>, String, u64)>,
     sheet_views: HashMap<String, SheetView>,
     camera: Option<Gd<Camera2D>>,
     dialogue: Option<Gd<DialogueWindow>>,
@@ -159,6 +162,7 @@ impl INode2D for Field {
             party: None,
             party_view: None,
             npc_nodes: Vec::new(),
+            follower_nodes: Vec::new(),
             sheet_views: HashMap::new(),
             camera: None,
             dialogue: None,
@@ -303,7 +307,20 @@ impl INode2D for Field {
                 RuntimeEvent::WarpUnmapped { cell } => {
                     godot_error!("type-1 cell with no doorway record at {cell:?}");
                 }
-                RuntimeEvent::Interact { npc_index, cell } => {
+                RuntimeEvent::Interact {
+                    npc_index,
+                    cell,
+                    reach,
+                } => {
+                    if matches!(reach, psiv_core::InteractReach::AcrossCounter) {
+                        // Shop-vs-dialogue splits on the shop-location table;
+                        // until the shop UI exists, counters open dialogue,
+                        // which is also the correct behavior for desks (the
+                        // principal is not in the shop table).
+                        godot_print!(
+                            "counter reach at {cell:?} (shop-table check pending shop UI)"
+                        );
+                    }
                     let binding = self.runtime.as_ref().and_then(|rt| {
                         let record = rt.map_record()?;
                         // Trees are 1-based; 0 means the map binds none.
@@ -495,6 +512,67 @@ impl Field {
             let frame = view.frame_at(&self.party_sequence, self.anim_tick - self.party_seq_start);
             view.apply(party, frame);
             party.set_position(view.draw_pos(cell, offset));
+        }
+
+        // Followers: members()[1..] walk the leader's vacated cells. Which
+        // character occupies which slot comes from game-start state; until it
+        // lands, slot index selects the party sheet directly (no followers
+        // exist yet, so this is forward wiring, not a guess shipped).
+        struct FollowerDraw {
+            sheet_id: String,
+            kind: &'static str,
+            facing: Direction,
+            cell: Cell,
+            offset: (i32, i32),
+        }
+        let mut fdraws: Vec<Option<FollowerDraw>> = Vec::new();
+        {
+            let members = runtime.members();
+            for (slot, member) in members.iter().enumerate().skip(1) {
+                let sheet_id = runtime.data().party_sheet(slot).map(|s| s.id.clone());
+                fdraws.push(sheet_id.map(|sheet_id| FollowerDraw {
+                    sheet_id,
+                    kind: if member.is_stepping { "walk" } else { "idle" },
+                    facing: member.facing,
+                    cell: member.cell,
+                    offset: member.render_offset_16ths,
+                }));
+            }
+            let missing: Vec<String> = fdraws
+                .iter()
+                .flatten()
+                .filter(|d| !self.sheet_views.contains_key(&d.sheet_id))
+                .map(|d| d.sheet_id.clone())
+                .collect();
+            for sheet_id in missing {
+                if let Some(sheet) = runtime.data().sheet(&sheet_id)
+                    && let Some(view) = SheetView::build(&self.pack_dir, sheet)
+                {
+                    self.sheet_views.insert(sheet_id, view);
+                }
+            }
+        }
+        while self.follower_nodes.len() < fdraws.len() {
+            let mut node = Sprite2D::new_alloc();
+            node.set_centered(false);
+            node.set_z_index(5);
+            self.base_mut().add_child(&node);
+            self.follower_nodes.push((node, String::new(), 0));
+        }
+        for (idx, draw) in fdraws.iter().enumerate() {
+            let Some(draw) = draw else { continue };
+            let Some(view) = self.sheet_views.get(&draw.sheet_id) else {
+                continue;
+            };
+            let (node, seq, start) = &mut self.follower_nodes[idx];
+            let name = sequence_name(draw.kind, draw.facing);
+            if *seq != name {
+                *seq = name;
+                *start = self.anim_tick;
+            }
+            let frame = view.frame_at(seq, self.anim_tick - *start);
+            view.apply(node, frame);
+            node.set_position(view.draw_pos(draw.cell, draw.offset));
         }
 
         for (node, sheet_id, idle, _walk, _index) in &mut self.npc_nodes {
