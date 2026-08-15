@@ -204,6 +204,36 @@ harness; determinism proven byte-identical):
 Still open: the staged beside-press tape; accept during the open animation;
 the scroll-arrow art (hardware sprite, still a placeholder triangle).
 
+### Comparator verdicts (2026-08-15, psiv-replay vs tape 02)
+
+- **Field movement is bit-exact**: 880 frames from first control, 36
+  columns (positions in cartridge units, the $1000→0 duration ladder,
+  facing, destinations, party slots, and all twelve flag-bank words),
+  zero divergences across all four walk legs and every blocked press.
+- **Neighbour-collision RAM lags on hardware**: the cartridge refreshes
+  its four Tile_Collision mirror bytes ~2 frames after a landing; the
+  engine computes them on the landing tick. Values agree; timing of the
+  RAM mirror doesn't. Compared with `--skip coll_*` until modeled (if
+  ever — nothing gameplay-visible reads the stale window).
+- **NPC wander is the frontier**: from frame 7819 the engine's walk-left
+  leg stops at cell (44,16) — an NPCType2's spawn cell — while the
+  cartridge's copy of that NPC had wandered elsewhere and its walker
+  passes through, stopping only at Alys (who stands still). Unmodeled
+  movement, already on the backlog; the comparator turned it from a
+  "nice to have" into a measured divergence with frame numbers.
+
+## Battle bug policy (Peter, 2026-08-15)
+
+"Fix obvious bugs still... this ain't 1994 and we can fix stuff that was
+obviously meant to work another way." Battle-era ruling: bugs that are
+plainly unintended get FIXED in the port (level-99 results-loop pointer
+desync, the shield-element read, stat lag after level-up, Defend/armour
+physical_prop clobber, Telepipe/Escapipe consumed in battle, Zio3's
+out-of-table effect id rejected at load). Retail behavior stays documented
+in SOURCE_NOTES per bug; quirks that read as design (cure spells also
+restoring agility/dexterity, enemy paralysis clearing each turn) stay
+faithful. Each fix gets its own ledger line at implementation time.
+
 ## Division of labor
 
 Design and adjudication in the main loop; implementation lanes own disjoint
