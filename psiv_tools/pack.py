@@ -56,6 +56,7 @@ from .layouts import (
 )
 from .maps import extract_maps
 from .battle_pack import emit_battle
+from .dialogue_pack import emit_dialogue
 from .newgame import extract_new_game
 from .npc_commands import extract_npc_commands
 # The two world maps' layouts are not in their records at all -- they stream
@@ -628,6 +629,11 @@ def build_pack(
     # only thing that knows its shape.
     battle = emit_battle(rom_bytes, directory, PACK_FORMAT_VERSION)
 
+    # The dialogue half: trees, font, portraits, window chrome. Emitted here
+    # rather than by the CLI so that a programmatic build_pack() produces a
+    # complete pack — its absence once shipped a game that couldn't talk.
+    dialogue = emit_dialogue(rom_bytes, directory)
+
     # What a scene's MoveActorCommand byte means. Its own file for the same
     # reason: the provenance is bulky and it is read once, not per map.
     npc_commands = {
@@ -781,6 +787,7 @@ def build_pack(
         },
         # Enemies, formations, levels and abilities, under battle/.
         "battle": battle,
+        "dialogue": dialogue,
         # The NPC movement-command table, indexed by a scene op's command byte.
         "npc_commands": {
             "file": NPC_COMMANDS_NAME,

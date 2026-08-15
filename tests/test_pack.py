@@ -521,9 +521,14 @@ class TestPackFixture(unittest.TestCase):
             # manifest, game_start.json, npc_commands.json, the four battle
             # files, a JSON and a PNG per map, an overlay PNG per map that has priority tiles, the two
             # sprite indexes, the eleven party sheets, and one PNG per
-            # deduplicated NPC sheet.
+            # deduplicated NPC sheet. The dialogue half (emitted by
+            # build_pack since it became part of the pack proper) is counted
+            # by its own subtree; it must exist and its shape is pinned by
+            # test_dialogue_pack.
+            dialogue_files = [f for f in first_files if f.parts[0] == "dialogue"]
+            self.assertTrue(dialogue_files, "build_pack emits the dialogue half")
             self.assertEqual(
-                len(first_files),
+                len(first_files) - len(dialogue_files),
                 3 + 4 + 2 * len(FIXTURE_MAPS)
                 + self.manifest["overlays"]["maps_with_overlay"]
                 + 2 + len(PARTY_SYMBOLS)
