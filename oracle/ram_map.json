@@ -1657,6 +1657,2534 @@
       "size": 2,
       "group": "battle",
       "source": "acting fighter index; Battle_DoAttackEffect reads it at ps4.asm:5D48 (move.w ($FFFF4142).l,d0 then Battle_GetFighterAddr). Overlaps Battle_Skill_List (constants:2015) in the constants file"
+    },
+    {
+      "name": "o00_id",
+      "addr": "FFFFC300",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 0 ($FFFFC300) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o00_rflags",
+      "addr": "FFFFC302",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 0 ($FFFFC300) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o00_facing",
+      "addr": "FFFFC306",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 0 ($FFFFC300) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o00_map_idx",
+      "addr": "FFFFC310",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 0 ($FFFFC300) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o00_timer",
+      "addr": "FFFFC31C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 0 ($FFFFC300) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o00_xdur",
+      "addr": "FFFFC328",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 0 ($FFFFC300) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o00_ydur",
+      "addr": "FFFFC32A",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 0 ($FFFFC300) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o00_x_px",
+      "addr": "FFFFC330",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 0 ($FFFFC300) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o00_y_px",
+      "addr": "FFFFC334",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 0 ($FFFFC300) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o00_xbnd",
+      "addr": "FFFFC33E",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 0 ($FFFFC300) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o00_ybnd",
+      "addr": "FFFFC33F",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 0 ($FFFFC300) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o01_id",
+      "addr": "FFFFC340",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 1 ($FFFFC340) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o01_rflags",
+      "addr": "FFFFC342",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 1 ($FFFFC340) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o01_facing",
+      "addr": "FFFFC346",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 1 ($FFFFC340) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o01_map_idx",
+      "addr": "FFFFC350",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 1 ($FFFFC340) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o01_timer",
+      "addr": "FFFFC35C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 1 ($FFFFC340) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o01_xdur",
+      "addr": "FFFFC368",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 1 ($FFFFC340) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o01_ydur",
+      "addr": "FFFFC36A",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 1 ($FFFFC340) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o01_x_px",
+      "addr": "FFFFC370",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 1 ($FFFFC340) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o01_y_px",
+      "addr": "FFFFC374",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 1 ($FFFFC340) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o01_xbnd",
+      "addr": "FFFFC37E",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 1 ($FFFFC340) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o01_ybnd",
+      "addr": "FFFFC37F",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 1 ($FFFFC340) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o02_id",
+      "addr": "FFFFC380",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 2 ($FFFFC380) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o02_rflags",
+      "addr": "FFFFC382",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 2 ($FFFFC380) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o02_facing",
+      "addr": "FFFFC386",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 2 ($FFFFC380) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o02_map_idx",
+      "addr": "FFFFC390",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 2 ($FFFFC380) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o02_timer",
+      "addr": "FFFFC39C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 2 ($FFFFC380) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o02_xdur",
+      "addr": "FFFFC3A8",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 2 ($FFFFC380) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o02_ydur",
+      "addr": "FFFFC3AA",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 2 ($FFFFC380) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o02_x_px",
+      "addr": "FFFFC3B0",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 2 ($FFFFC380) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o02_y_px",
+      "addr": "FFFFC3B4",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 2 ($FFFFC380) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o02_xbnd",
+      "addr": "FFFFC3BE",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 2 ($FFFFC380) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o02_ybnd",
+      "addr": "FFFFC3BF",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 2 ($FFFFC380) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o03_id",
+      "addr": "FFFFC3C0",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 3 ($FFFFC3C0) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o03_rflags",
+      "addr": "FFFFC3C2",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 3 ($FFFFC3C0) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o03_facing",
+      "addr": "FFFFC3C6",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 3 ($FFFFC3C0) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o03_map_idx",
+      "addr": "FFFFC3D0",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 3 ($FFFFC3C0) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o03_timer",
+      "addr": "FFFFC3DC",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 3 ($FFFFC3C0) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o03_xdur",
+      "addr": "FFFFC3E8",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 3 ($FFFFC3C0) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o03_ydur",
+      "addr": "FFFFC3EA",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 3 ($FFFFC3C0) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o03_x_px",
+      "addr": "FFFFC3F0",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 3 ($FFFFC3C0) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o03_y_px",
+      "addr": "FFFFC3F4",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 3 ($FFFFC3C0) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o03_xbnd",
+      "addr": "FFFFC3FE",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 3 ($FFFFC3C0) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o03_ybnd",
+      "addr": "FFFFC3FF",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 3 ($FFFFC3C0) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o04_id",
+      "addr": "FFFFC400",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 4 ($FFFFC400) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o04_rflags",
+      "addr": "FFFFC402",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 4 ($FFFFC400) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o04_facing",
+      "addr": "FFFFC406",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 4 ($FFFFC400) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o04_map_idx",
+      "addr": "FFFFC410",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 4 ($FFFFC400) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o04_timer",
+      "addr": "FFFFC41C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 4 ($FFFFC400) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o04_xdur",
+      "addr": "FFFFC428",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 4 ($FFFFC400) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o04_ydur",
+      "addr": "FFFFC42A",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 4 ($FFFFC400) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o04_x_px",
+      "addr": "FFFFC430",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 4 ($FFFFC400) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o04_y_px",
+      "addr": "FFFFC434",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 4 ($FFFFC400) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o04_xbnd",
+      "addr": "FFFFC43E",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 4 ($FFFFC400) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o04_ybnd",
+      "addr": "FFFFC43F",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 4 ($FFFFC400) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o05_id",
+      "addr": "FFFFC440",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 5 ($FFFFC440) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o05_rflags",
+      "addr": "FFFFC442",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 5 ($FFFFC440) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o05_facing",
+      "addr": "FFFFC446",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 5 ($FFFFC440) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o05_map_idx",
+      "addr": "FFFFC450",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 5 ($FFFFC440) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o05_timer",
+      "addr": "FFFFC45C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 5 ($FFFFC440) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o05_xdur",
+      "addr": "FFFFC468",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 5 ($FFFFC440) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o05_ydur",
+      "addr": "FFFFC46A",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 5 ($FFFFC440) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o05_x_px",
+      "addr": "FFFFC470",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 5 ($FFFFC440) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o05_y_px",
+      "addr": "FFFFC474",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 5 ($FFFFC440) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o05_xbnd",
+      "addr": "FFFFC47E",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 5 ($FFFFC440) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o05_ybnd",
+      "addr": "FFFFC47F",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 5 ($FFFFC440) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o06_id",
+      "addr": "FFFFC480",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 6 ($FFFFC480) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o06_rflags",
+      "addr": "FFFFC482",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 6 ($FFFFC480) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o06_facing",
+      "addr": "FFFFC486",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 6 ($FFFFC480) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o06_map_idx",
+      "addr": "FFFFC490",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 6 ($FFFFC480) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o06_timer",
+      "addr": "FFFFC49C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 6 ($FFFFC480) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o06_xdur",
+      "addr": "FFFFC4A8",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 6 ($FFFFC480) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o06_ydur",
+      "addr": "FFFFC4AA",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 6 ($FFFFC480) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o06_x_px",
+      "addr": "FFFFC4B0",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 6 ($FFFFC480) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o06_y_px",
+      "addr": "FFFFC4B4",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 6 ($FFFFC480) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o06_xbnd",
+      "addr": "FFFFC4BE",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 6 ($FFFFC480) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o06_ybnd",
+      "addr": "FFFFC4BF",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 6 ($FFFFC480) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o07_id",
+      "addr": "FFFFC4C0",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 7 ($FFFFC4C0) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o07_rflags",
+      "addr": "FFFFC4C2",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 7 ($FFFFC4C0) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o07_facing",
+      "addr": "FFFFC4C6",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 7 ($FFFFC4C0) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o07_map_idx",
+      "addr": "FFFFC4D0",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 7 ($FFFFC4C0) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o07_timer",
+      "addr": "FFFFC4DC",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 7 ($FFFFC4C0) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o07_xdur",
+      "addr": "FFFFC4E8",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 7 ($FFFFC4C0) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o07_ydur",
+      "addr": "FFFFC4EA",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 7 ($FFFFC4C0) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o07_x_px",
+      "addr": "FFFFC4F0",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 7 ($FFFFC4C0) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o07_y_px",
+      "addr": "FFFFC4F4",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 7 ($FFFFC4C0) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o07_xbnd",
+      "addr": "FFFFC4FE",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 7 ($FFFFC4C0) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o07_ybnd",
+      "addr": "FFFFC4FF",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 7 ($FFFFC4C0) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o08_id",
+      "addr": "FFFFC500",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 8 ($FFFFC500) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o08_rflags",
+      "addr": "FFFFC502",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 8 ($FFFFC500) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o08_facing",
+      "addr": "FFFFC506",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 8 ($FFFFC500) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o08_map_idx",
+      "addr": "FFFFC510",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 8 ($FFFFC500) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o08_timer",
+      "addr": "FFFFC51C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 8 ($FFFFC500) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o08_xdur",
+      "addr": "FFFFC528",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 8 ($FFFFC500) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o08_ydur",
+      "addr": "FFFFC52A",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 8 ($FFFFC500) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o08_x_px",
+      "addr": "FFFFC530",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 8 ($FFFFC500) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o08_y_px",
+      "addr": "FFFFC534",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 8 ($FFFFC500) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o08_xbnd",
+      "addr": "FFFFC53E",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 8 ($FFFFC500) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o08_ybnd",
+      "addr": "FFFFC53F",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 8 ($FFFFC500) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o09_id",
+      "addr": "FFFFC540",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 9 ($FFFFC540) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o09_rflags",
+      "addr": "FFFFC542",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 9 ($FFFFC540) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o09_facing",
+      "addr": "FFFFC546",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 9 ($FFFFC540) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o09_map_idx",
+      "addr": "FFFFC550",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 9 ($FFFFC540) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o09_timer",
+      "addr": "FFFFC55C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 9 ($FFFFC540) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o09_xdur",
+      "addr": "FFFFC568",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 9 ($FFFFC540) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o09_ydur",
+      "addr": "FFFFC56A",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 9 ($FFFFC540) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o09_x_px",
+      "addr": "FFFFC570",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 9 ($FFFFC540) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o09_y_px",
+      "addr": "FFFFC574",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 9 ($FFFFC540) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o09_xbnd",
+      "addr": "FFFFC57E",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 9 ($FFFFC540) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o09_ybnd",
+      "addr": "FFFFC57F",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 9 ($FFFFC540) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o10_id",
+      "addr": "FFFFC580",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 10 ($FFFFC580) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o10_rflags",
+      "addr": "FFFFC582",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 10 ($FFFFC580) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o10_facing",
+      "addr": "FFFFC586",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 10 ($FFFFC580) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o10_map_idx",
+      "addr": "FFFFC590",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 10 ($FFFFC580) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o10_timer",
+      "addr": "FFFFC59C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 10 ($FFFFC580) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o10_xdur",
+      "addr": "FFFFC5A8",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 10 ($FFFFC580) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o10_ydur",
+      "addr": "FFFFC5AA",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 10 ($FFFFC580) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o10_x_px",
+      "addr": "FFFFC5B0",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 10 ($FFFFC580) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o10_y_px",
+      "addr": "FFFFC5B4",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 10 ($FFFFC580) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o10_xbnd",
+      "addr": "FFFFC5BE",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 10 ($FFFFC580) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o10_ybnd",
+      "addr": "FFFFC5BF",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 10 ($FFFFC580) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o11_id",
+      "addr": "FFFFC5C0",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 11 ($FFFFC5C0) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o11_rflags",
+      "addr": "FFFFC5C2",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 11 ($FFFFC5C0) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o11_facing",
+      "addr": "FFFFC5C6",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 11 ($FFFFC5C0) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o11_map_idx",
+      "addr": "FFFFC5D0",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 11 ($FFFFC5C0) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o11_timer",
+      "addr": "FFFFC5DC",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 11 ($FFFFC5C0) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o11_xdur",
+      "addr": "FFFFC5E8",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 11 ($FFFFC5C0) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o11_ydur",
+      "addr": "FFFFC5EA",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 11 ($FFFFC5C0) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o11_x_px",
+      "addr": "FFFFC5F0",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 11 ($FFFFC5C0) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o11_y_px",
+      "addr": "FFFFC5F4",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 11 ($FFFFC5C0) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o11_xbnd",
+      "addr": "FFFFC5FE",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 11 ($FFFFC5C0) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o11_ybnd",
+      "addr": "FFFFC5FF",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 11 ($FFFFC5C0) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o12_id",
+      "addr": "FFFFC600",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 12 ($FFFFC600) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o12_rflags",
+      "addr": "FFFFC602",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 12 ($FFFFC600) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o12_facing",
+      "addr": "FFFFC606",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 12 ($FFFFC600) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o12_map_idx",
+      "addr": "FFFFC610",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 12 ($FFFFC600) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o12_timer",
+      "addr": "FFFFC61C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 12 ($FFFFC600) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o12_xdur",
+      "addr": "FFFFC628",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 12 ($FFFFC600) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o12_ydur",
+      "addr": "FFFFC62A",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 12 ($FFFFC600) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o12_x_px",
+      "addr": "FFFFC630",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 12 ($FFFFC600) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o12_y_px",
+      "addr": "FFFFC634",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 12 ($FFFFC600) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o12_xbnd",
+      "addr": "FFFFC63E",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 12 ($FFFFC600) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o12_ybnd",
+      "addr": "FFFFC63F",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 12 ($FFFFC600) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o13_id",
+      "addr": "FFFFC640",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 13 ($FFFFC640) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o13_rflags",
+      "addr": "FFFFC642",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 13 ($FFFFC640) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o13_facing",
+      "addr": "FFFFC646",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 13 ($FFFFC640) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o13_map_idx",
+      "addr": "FFFFC650",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 13 ($FFFFC640) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o13_timer",
+      "addr": "FFFFC65C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 13 ($FFFFC640) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o13_xdur",
+      "addr": "FFFFC668",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 13 ($FFFFC640) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o13_ydur",
+      "addr": "FFFFC66A",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 13 ($FFFFC640) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o13_x_px",
+      "addr": "FFFFC670",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 13 ($FFFFC640) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o13_y_px",
+      "addr": "FFFFC674",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 13 ($FFFFC640) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o13_xbnd",
+      "addr": "FFFFC67E",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 13 ($FFFFC640) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o13_ybnd",
+      "addr": "FFFFC67F",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 13 ($FFFFC640) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o14_id",
+      "addr": "FFFFC680",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 14 ($FFFFC680) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o14_rflags",
+      "addr": "FFFFC682",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 14 ($FFFFC680) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o14_facing",
+      "addr": "FFFFC686",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 14 ($FFFFC680) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o14_map_idx",
+      "addr": "FFFFC690",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 14 ($FFFFC680) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o14_timer",
+      "addr": "FFFFC69C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 14 ($FFFFC680) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o14_xdur",
+      "addr": "FFFFC6A8",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 14 ($FFFFC680) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o14_ydur",
+      "addr": "FFFFC6AA",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 14 ($FFFFC680) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o14_x_px",
+      "addr": "FFFFC6B0",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 14 ($FFFFC680) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o14_y_px",
+      "addr": "FFFFC6B4",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 14 ($FFFFC680) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o14_xbnd",
+      "addr": "FFFFC6BE",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 14 ($FFFFC680) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o14_ybnd",
+      "addr": "FFFFC6BF",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 14 ($FFFFC680) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o15_id",
+      "addr": "FFFFC6C0",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 15 ($FFFFC6C0) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o15_rflags",
+      "addr": "FFFFC6C2",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 15 ($FFFFC6C0) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o15_facing",
+      "addr": "FFFFC6C6",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 15 ($FFFFC6C0) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o15_map_idx",
+      "addr": "FFFFC6D0",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 15 ($FFFFC6C0) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o15_timer",
+      "addr": "FFFFC6DC",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 15 ($FFFFC6C0) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o15_xdur",
+      "addr": "FFFFC6E8",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 15 ($FFFFC6C0) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o15_ydur",
+      "addr": "FFFFC6EA",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 15 ($FFFFC6C0) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o15_x_px",
+      "addr": "FFFFC6F0",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 15 ($FFFFC6C0) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o15_y_px",
+      "addr": "FFFFC6F4",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 15 ($FFFFC6C0) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o15_xbnd",
+      "addr": "FFFFC6FE",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 15 ($FFFFC6C0) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o15_ybnd",
+      "addr": "FFFFC6FF",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 15 ($FFFFC6C0) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o16_id",
+      "addr": "FFFFC700",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 16 ($FFFFC700) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o16_rflags",
+      "addr": "FFFFC702",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 16 ($FFFFC700) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o16_facing",
+      "addr": "FFFFC706",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 16 ($FFFFC700) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o16_map_idx",
+      "addr": "FFFFC710",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 16 ($FFFFC700) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o16_timer",
+      "addr": "FFFFC71C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 16 ($FFFFC700) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o16_xdur",
+      "addr": "FFFFC728",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 16 ($FFFFC700) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o16_ydur",
+      "addr": "FFFFC72A",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 16 ($FFFFC700) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o16_x_px",
+      "addr": "FFFFC730",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 16 ($FFFFC700) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o16_y_px",
+      "addr": "FFFFC734",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 16 ($FFFFC700) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o16_xbnd",
+      "addr": "FFFFC73E",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 16 ($FFFFC700) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o16_ybnd",
+      "addr": "FFFFC73F",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 16 ($FFFFC700) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o17_id",
+      "addr": "FFFFC740",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 17 ($FFFFC740) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o17_rflags",
+      "addr": "FFFFC742",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 17 ($FFFFC740) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o17_facing",
+      "addr": "FFFFC746",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 17 ($FFFFC740) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o17_map_idx",
+      "addr": "FFFFC750",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 17 ($FFFFC740) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o17_timer",
+      "addr": "FFFFC75C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 17 ($FFFFC740) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o17_xdur",
+      "addr": "FFFFC768",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 17 ($FFFFC740) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o17_ydur",
+      "addr": "FFFFC76A",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 17 ($FFFFC740) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o17_x_px",
+      "addr": "FFFFC770",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 17 ($FFFFC740) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o17_y_px",
+      "addr": "FFFFC774",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 17 ($FFFFC740) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o17_xbnd",
+      "addr": "FFFFC77E",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 17 ($FFFFC740) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o17_ybnd",
+      "addr": "FFFFC77F",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 17 ($FFFFC740) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o18_id",
+      "addr": "FFFFC780",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 18 ($FFFFC780) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o18_rflags",
+      "addr": "FFFFC782",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 18 ($FFFFC780) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o18_facing",
+      "addr": "FFFFC786",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 18 ($FFFFC780) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o18_map_idx",
+      "addr": "FFFFC790",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 18 ($FFFFC780) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o18_timer",
+      "addr": "FFFFC79C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 18 ($FFFFC780) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o18_xdur",
+      "addr": "FFFFC7A8",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 18 ($FFFFC780) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o18_ydur",
+      "addr": "FFFFC7AA",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 18 ($FFFFC780) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o18_x_px",
+      "addr": "FFFFC7B0",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 18 ($FFFFC780) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o18_y_px",
+      "addr": "FFFFC7B4",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 18 ($FFFFC780) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o18_xbnd",
+      "addr": "FFFFC7BE",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 18 ($FFFFC780) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o18_ybnd",
+      "addr": "FFFFC7BF",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 18 ($FFFFC780) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o19_id",
+      "addr": "FFFFC7C0",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 19 ($FFFFC7C0) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o19_rflags",
+      "addr": "FFFFC7C2",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 19 ($FFFFC7C0) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o19_facing",
+      "addr": "FFFFC7C6",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 19 ($FFFFC7C0) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o19_map_idx",
+      "addr": "FFFFC7D0",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 19 ($FFFFC7C0) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o19_timer",
+      "addr": "FFFFC7DC",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 19 ($FFFFC7C0) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o19_xdur",
+      "addr": "FFFFC7E8",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 19 ($FFFFC7C0) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o19_ydur",
+      "addr": "FFFFC7EA",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 19 ($FFFFC7C0) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o19_x_px",
+      "addr": "FFFFC7F0",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 19 ($FFFFC7C0) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o19_y_px",
+      "addr": "FFFFC7F4",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 19 ($FFFFC7C0) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o19_xbnd",
+      "addr": "FFFFC7FE",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 19 ($FFFFC7C0) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o19_ybnd",
+      "addr": "FFFFC7FF",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 19 ($FFFFC7C0) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o20_id",
+      "addr": "FFFFC800",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 20 ($FFFFC800) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o20_rflags",
+      "addr": "FFFFC802",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 20 ($FFFFC800) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o20_facing",
+      "addr": "FFFFC806",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 20 ($FFFFC800) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o20_map_idx",
+      "addr": "FFFFC810",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 20 ($FFFFC800) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o20_timer",
+      "addr": "FFFFC81C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 20 ($FFFFC800) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o20_xdur",
+      "addr": "FFFFC828",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 20 ($FFFFC800) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o20_ydur",
+      "addr": "FFFFC82A",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 20 ($FFFFC800) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o20_x_px",
+      "addr": "FFFFC830",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 20 ($FFFFC800) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o20_y_px",
+      "addr": "FFFFC834",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 20 ($FFFFC800) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o20_xbnd",
+      "addr": "FFFFC83E",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 20 ($FFFFC800) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o20_ybnd",
+      "addr": "FFFFC83F",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 20 ($FFFFC800) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o21_id",
+      "addr": "FFFFC840",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 21 ($FFFFC840) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o21_rflags",
+      "addr": "FFFFC842",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 21 ($FFFFC840) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o21_facing",
+      "addr": "FFFFC846",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 21 ($FFFFC840) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o21_map_idx",
+      "addr": "FFFFC850",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 21 ($FFFFC840) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o21_timer",
+      "addr": "FFFFC85C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 21 ($FFFFC840) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o21_xdur",
+      "addr": "FFFFC868",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 21 ($FFFFC840) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o21_ydur",
+      "addr": "FFFFC86A",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 21 ($FFFFC840) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o21_x_px",
+      "addr": "FFFFC870",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 21 ($FFFFC840) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o21_y_px",
+      "addr": "FFFFC874",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 21 ($FFFFC840) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o21_xbnd",
+      "addr": "FFFFC87E",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 21 ($FFFFC840) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o21_ybnd",
+      "addr": "FFFFC87F",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 21 ($FFFFC840) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o22_id",
+      "addr": "FFFFC880",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 22 ($FFFFC880) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o22_rflags",
+      "addr": "FFFFC882",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 22 ($FFFFC880) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o22_facing",
+      "addr": "FFFFC886",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 22 ($FFFFC880) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o22_map_idx",
+      "addr": "FFFFC890",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 22 ($FFFFC880) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o22_timer",
+      "addr": "FFFFC89C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 22 ($FFFFC880) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o22_xdur",
+      "addr": "FFFFC8A8",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 22 ($FFFFC880) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o22_ydur",
+      "addr": "FFFFC8AA",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 22 ($FFFFC880) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o22_x_px",
+      "addr": "FFFFC8B0",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 22 ($FFFFC880) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o22_y_px",
+      "addr": "FFFFC8B4",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 22 ($FFFFC880) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o22_xbnd",
+      "addr": "FFFFC8BE",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 22 ($FFFFC880) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o22_ybnd",
+      "addr": "FFFFC8BF",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 22 ($FFFFC880) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o23_id",
+      "addr": "FFFFC8C0",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 23 ($FFFFC8C0) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o23_rflags",
+      "addr": "FFFFC8C2",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 23 ($FFFFC8C0) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o23_facing",
+      "addr": "FFFFC8C6",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 23 ($FFFFC8C0) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o23_map_idx",
+      "addr": "FFFFC8D0",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 23 ($FFFFC8C0) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o23_timer",
+      "addr": "FFFFC8DC",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 23 ($FFFFC8C0) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o23_xdur",
+      "addr": "FFFFC8E8",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 23 ($FFFFC8C0) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o23_ydur",
+      "addr": "FFFFC8EA",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 23 ($FFFFC8C0) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o23_x_px",
+      "addr": "FFFFC8F0",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 23 ($FFFFC8C0) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o23_y_px",
+      "addr": "FFFFC8F4",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 23 ($FFFFC8C0) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o23_xbnd",
+      "addr": "FFFFC8FE",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 23 ($FFFFC8C0) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o23_ybnd",
+      "addr": "FFFFC8FF",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 23 ($FFFFC8C0) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o24_id",
+      "addr": "FFFFC900",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 24 ($FFFFC900) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o24_rflags",
+      "addr": "FFFFC902",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 24 ($FFFFC900) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o24_facing",
+      "addr": "FFFFC906",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 24 ($FFFFC900) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o24_map_idx",
+      "addr": "FFFFC910",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 24 ($FFFFC900) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o24_timer",
+      "addr": "FFFFC91C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 24 ($FFFFC900) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o24_xdur",
+      "addr": "FFFFC928",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 24 ($FFFFC900) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o24_ydur",
+      "addr": "FFFFC92A",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 24 ($FFFFC900) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o24_x_px",
+      "addr": "FFFFC930",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 24 ($FFFFC900) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o24_y_px",
+      "addr": "FFFFC934",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 24 ($FFFFC900) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o24_xbnd",
+      "addr": "FFFFC93E",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 24 ($FFFFC900) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o24_ybnd",
+      "addr": "FFFFC93F",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 24 ($FFFFC900) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o25_id",
+      "addr": "FFFFC940",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 25 ($FFFFC940) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o25_rflags",
+      "addr": "FFFFC942",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 25 ($FFFFC940) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o25_facing",
+      "addr": "FFFFC946",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 25 ($FFFFC940) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o25_map_idx",
+      "addr": "FFFFC950",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 25 ($FFFFC940) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o25_timer",
+      "addr": "FFFFC95C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 25 ($FFFFC940) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o25_xdur",
+      "addr": "FFFFC968",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 25 ($FFFFC940) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o25_ydur",
+      "addr": "FFFFC96A",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 25 ($FFFFC940) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o25_x_px",
+      "addr": "FFFFC970",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 25 ($FFFFC940) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o25_y_px",
+      "addr": "FFFFC974",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 25 ($FFFFC940) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o25_xbnd",
+      "addr": "FFFFC97E",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 25 ($FFFFC940) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o25_ybnd",
+      "addr": "FFFFC97F",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 25 ($FFFFC940) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o26_id",
+      "addr": "FFFFC980",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 26 ($FFFFC980) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o26_rflags",
+      "addr": "FFFFC982",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 26 ($FFFFC980) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o26_facing",
+      "addr": "FFFFC986",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 26 ($FFFFC980) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o26_map_idx",
+      "addr": "FFFFC990",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 26 ($FFFFC980) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o26_timer",
+      "addr": "FFFFC99C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 26 ($FFFFC980) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o26_xdur",
+      "addr": "FFFFC9A8",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 26 ($FFFFC980) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o26_ydur",
+      "addr": "FFFFC9AA",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 26 ($FFFFC980) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o26_x_px",
+      "addr": "FFFFC9B0",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 26 ($FFFFC980) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o26_y_px",
+      "addr": "FFFFC9B4",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 26 ($FFFFC980) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o26_xbnd",
+      "addr": "FFFFC9BE",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 26 ($FFFFC980) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o26_ybnd",
+      "addr": "FFFFC9BF",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 26 ($FFFFC980) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o27_id",
+      "addr": "FFFFC9C0",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 27 ($FFFFC9C0) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o27_rflags",
+      "addr": "FFFFC9C2",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 27 ($FFFFC9C0) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o27_facing",
+      "addr": "FFFFC9C6",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 27 ($FFFFC9C0) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o27_map_idx",
+      "addr": "FFFFC9D0",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 27 ($FFFFC9C0) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o27_timer",
+      "addr": "FFFFC9DC",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 27 ($FFFFC9C0) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o27_xdur",
+      "addr": "FFFFC9E8",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 27 ($FFFFC9C0) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o27_ydur",
+      "addr": "FFFFC9EA",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 27 ($FFFFC9C0) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o27_x_px",
+      "addr": "FFFFC9F0",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 27 ($FFFFC9C0) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o27_y_px",
+      "addr": "FFFFC9F4",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 27 ($FFFFC9C0) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o27_xbnd",
+      "addr": "FFFFC9FE",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 27 ($FFFFC9C0) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o27_ybnd",
+      "addr": "FFFFC9FF",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 27 ($FFFFC9C0) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o28_id",
+      "addr": "FFFFCA00",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 28 ($FFFFCA00) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o28_rflags",
+      "addr": "FFFFCA02",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 28 ($FFFFCA00) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o28_facing",
+      "addr": "FFFFCA06",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 28 ($FFFFCA00) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o28_map_idx",
+      "addr": "FFFFCA10",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 28 ($FFFFCA00) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o28_timer",
+      "addr": "FFFFCA1C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 28 ($FFFFCA00) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o28_xdur",
+      "addr": "FFFFCA28",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 28 ($FFFFCA00) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o28_ydur",
+      "addr": "FFFFCA2A",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 28 ($FFFFCA00) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o28_x_px",
+      "addr": "FFFFCA30",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 28 ($FFFFCA00) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o28_y_px",
+      "addr": "FFFFCA34",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 28 ($FFFFCA00) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o28_xbnd",
+      "addr": "FFFFCA3E",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 28 ($FFFFCA00) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o28_ybnd",
+      "addr": "FFFFCA3F",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 28 ($FFFFCA00) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o29_id",
+      "addr": "FFFFCA40",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 29 ($FFFFCA40) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o29_rflags",
+      "addr": "FFFFCA42",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 29 ($FFFFCA40) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o29_facing",
+      "addr": "FFFFCA46",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 29 ($FFFFCA40) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o29_map_idx",
+      "addr": "FFFFCA50",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 29 ($FFFFCA40) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o29_timer",
+      "addr": "FFFFCA5C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 29 ($FFFFCA40) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o29_xdur",
+      "addr": "FFFFCA68",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 29 ($FFFFCA40) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o29_ydur",
+      "addr": "FFFFCA6A",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 29 ($FFFFCA40) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o29_x_px",
+      "addr": "FFFFCA70",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 29 ($FFFFCA40) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o29_y_px",
+      "addr": "FFFFCA74",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 29 ($FFFFCA40) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o29_xbnd",
+      "addr": "FFFFCA7E",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 29 ($FFFFCA40) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o29_ybnd",
+      "addr": "FFFFCA7F",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 29 ($FFFFCA40) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o30_id",
+      "addr": "FFFFCA80",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 30 ($FFFFCA80) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o30_rflags",
+      "addr": "FFFFCA82",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 30 ($FFFFCA80) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o30_facing",
+      "addr": "FFFFCA86",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 30 ($FFFFCA80) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o30_map_idx",
+      "addr": "FFFFCA90",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 30 ($FFFFCA80) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o30_timer",
+      "addr": "FFFFCA9C",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 30 ($FFFFCA80) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o30_xdur",
+      "addr": "FFFFCAA8",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 30 ($FFFFCA80) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o30_ydur",
+      "addr": "FFFFCAAA",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 30 ($FFFFCA80) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o30_x_px",
+      "addr": "FFFFCAB0",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 30 ($FFFFCA80) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o30_y_px",
+      "addr": "FFFFCAB4",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 30 ($FFFFCA80) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o30_xbnd",
+      "addr": "FFFFCABE",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 30 ($FFFFCA80) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o30_ybnd",
+      "addr": "FFFFCABF",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 30 ($FFFFCA80) + y_move_boundary (constants:126); same on Y"
+    },
+    {
+      "name": "o31_id",
+      "addr": "FFFFCAC0",
+      "size": 2,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 31 ($FFFFCAC0) + obj_id (constants:83); 0 = empty slot. The per-frame routine is (obj_id & $7FFC) indexed into FieldObjectsJmpTbl, so this doubles as the movement routine selector"
+    },
+    {
+      "name": "o31_rflags",
+      "addr": "FFFFCAC2",
+      "size": 1,
+      "group": "objects",
+      "hex": true,
+      "source": "Field_Obj_Secondary slot 31 ($FFFFCAC0) + render_flags (constants:84); bit 2 animation finished, bit 3 interactable"
+    },
+    {
+      "name": "o31_facing",
+      "addr": "FFFFCAC6",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 31 ($FFFFCAC0) + facing_dir (constants:107); 0 down 4 up 8 right $C left"
+    },
+    {
+      "name": "o31_map_idx",
+      "addr": "FFFFCAD0",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 31 ($FFFFCAC0) + mappings_idx (constants:108); animation frame"
+    },
+    {
+      "name": "o31_timer",
+      "addr": "FFFFCADC",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 31 ($FFFFCAC0) + timer (constants:96); the per-object countdown the wander logic runs on"
+    },
+    {
+      "name": "o31_xdur",
+      "addr": "FFFFCAE8",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 31 ($FFFFCAC0) + x_step_duration (constants:115); non-zero means mid-step"
+    },
+    {
+      "name": "o31_ydur",
+      "addr": "FFFFCAEA",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 31 ($FFFFCAC0) + y_step_duration (constants:116); non-zero means mid-step"
+    },
+    {
+      "name": "o31_x_px",
+      "addr": "FFFFCAF0",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 31 ($FFFFCAC0) + curr_x_pos high word (constants:119)"
+    },
+    {
+      "name": "o31_y_px",
+      "addr": "FFFFCAF4",
+      "size": 2,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 31 ($FFFFCAC0) + curr_y_pos high word (constants:120)"
+    },
+    {
+      "name": "o31_xbnd",
+      "addr": "FFFFCAFE",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 31 ($FFFFCAC0) + x_move_boundary (constants:125); steps remaining in the wander box on X"
+    },
+    {
+      "name": "o31_ybnd",
+      "addr": "FFFFCAFF",
+      "size": 1,
+      "group": "objects",
+      "source": "Field_Obj_Secondary slot 31 ($FFFFCAC0) + y_move_boundary (constants:126); same on Y"
     }
   ]
 }

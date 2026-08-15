@@ -195,6 +195,10 @@ both paths against values the cartridge itself chose (see Results).
 | `06_basement_quest.tape` | the basement-stair NPCs, event `$0004`, Hahn joins |
 | `07_first_battle.tape` | the first random encounter and the fight through to victory |
 | `08_rng_characterization.tape` | RNG call counts per frame across title, field, walking and menu |
+| `09_second_battle.tape` | a second encounter on a different seed path, including a critical hit |
+
+`prelude_basement.tape` is a generated intermediate (`navigate.py` output) that
+both battle tapes are built from; `find_battle.py` consumes it.
 
 Tape A's presses are placed from the disassembly, not by trial: `GameMode_Title`
 begins at f226; `TitleRoutine_FadingText` takes a START to skip; then
@@ -446,6 +450,27 @@ or missed. `Battle_Heal_Damage_List` ($FFFF415A) is one word per fighter slot
 with the same indexing. Enemy HP goes **signed negative** on death (-2 and -1
 above), so a comparator reading it unsigned sees 65534/65535.
 
+#### Second battle (tape 09)
+
+A different patrol produces a different seed path and a different formation:
+**Xanafalgue (id 9) + ZoranBult (id 10)**, battle f25002-31908. Both records
+check out against `generated/enemies.json` again — Xanafalgue hp 16, attack 13,
+defence 0, agility 5.
+
+| frame | attacker | defender | damage | note | RNG seed |
+|---|---|---|---|---|---|
+| 31040 | Alys | Xanafalgue | 13 | multi-target | `F97FD423` |
+| 31040 | Alys | ZoranBult | 10 | same frame | `F97FD423` |
+| 31135 | Xanafalgue | Alys | 1 | atk 13 vs dfs 18 | `F3FAAC6B` |
+| 31257 | Chaz | Xanafalgue | 18 (kill) | | `5AE02DAB` |
+| 31377 | Hahn | ZoranBult | 7 | **critical** (`hit_06 = $01`) | `3B14E3BB` |
+| 31728 | Alys | ZoranBult | 10 (kill) | | `6CBAB75B` |
+
+Rewards: `battle_exp_total` steps `0 -> 9 -> 21` (9 + 12, matching both
+records), **21 / 3 = 7 each**, meseta **+5 = 2 + 3**. The divisor rule from
+tape 07 reproduces on a different formation, and the run supplies the first
+**critical hit** sample for the damage formula.
+
 #### Rewards, and the EXP divisor
 
 `ps4.asm:4772-4779` reads the battle EXP accumulator, halves it if the party is
@@ -475,6 +500,64 @@ whose character is dead, paralysed or asleep.
 `Battle_Routine` values decoded from `BattleRoutines` (`ps4.asm:7524`) are in
 `analyze_battle.py`; the observed fight ran init -> ProcessCOMD (three times,
 once per living member) -> OrderTurns -> the action routines -> victory.
+
+### Field object columns, and the wander RNG rule
+
+`Field_RunObjects` (`ps4.asm:89478`) walks **64 slots of `$40`** from
+`Field_Objects_Memory` ($FFFFC000), dispatching each through
+`FieldObjectsJmpTbl` on `obj_id & $7FFC`. Slots 0-4 are `Character_1..5`,
+slot 10 is `Red_Cursor`, slot 11 is `Text_Scroll_Arrow`, and slots 12-63 are
+the 52 `Field_Obj_Secondary` entries ($FFFFC300) — the same 52
+`Interaction_ChkObjects` scans.
+
+The `objects` group logs **32 secondary slots** (the densest retail map, Jut,
+has 31 NPCs), eleven columns each: `id`, `rflags`, `facing`, `map_idx`,
+`timer`, `xdur`, `ydur`, `x_px`, `y_px`, `xbnd`, `ybnd`. Tapes 02, 03 and 08
+are logged with it.
+
+**Slot-to-record mapping is positional and exact.** `LoadMapObjects` fills the
+secondary slots in map-record order, so **secondary slot `i` is the pack's
+`npcs[i]`** — verified on map $13 at the spawn frame (f6175) for all 8 objects,
+matching pixel position, facing and object id. The comparator can join on the
+index; no spawn-cell join is needed. One gotcha: **RAM `obj_id` is
+`$8000 | pack object_id`** (mask with `$7FFF` to compare), and positions drift
+within a frame or two of spawn as wander starts, so any comparison against pack
+values has to be taken at the spawn frame.
+
+#### The third field-mode RNG call is a wander decision
+
+Correlating the RNG census against the new object columns over the 1154
+field-control frames of tape 08:
+
+| RNG calls that frame | wandering objects with `timer == 0` | frames |
+|---|---|---|
+| 2 | 0 | 1122 |
+| 3 | 1 | 32 |
+
+**The rule holds on 100% of frames:**
+
+```
+calls per frame = 1 (vblank)
+                + 1 (field-mode object update)
+                + 1 per wandering object whose timer is 0 this frame
+```
+
+The reloaded timer values are 1..63 across 31 samples, consistent with a
+6-bit mask. A decision can occupy two consecutive frames — slot 0's timer sat
+at 0 for f6871 and f6872 before reloading to 24 at f6873, consuming a call on
+each — which is why the rule is keyed on "timer is 0", not on the reload edge.
+
+**Object type decides whether a slot wanders at all.** 7 of map $13's 8 objects
+wander; slot 7 (`obj_id` 104, `NPCAlysPiata`) holds `timer == 0` permanently
+and consumes nothing, so a core that ticks the RNG for every zero-timer object
+will over-consume. Whether a slot wanders is a property of its `obj_id`
+routine, and the harness identifies it behaviourally as "its timer is ever
+non-zero".
+
+For core-lane: this is the portable part. The generator is the per-frame
+`UpdateRNGSeed`, and wander rides it by consuming extra calls on decision
+frames — so reclaiming tape 02's divergent tail needs the decision *schedule*
+to match, not just the generator.
 
 ### Collision grid indexing, independently confirmed
 

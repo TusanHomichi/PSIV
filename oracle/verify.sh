@@ -47,17 +47,30 @@ run() { "$BIN" --core "$CORE" --rom "$ROM" --map "$ORACLE/ram_map.tsv" \
 
 echo "== determinism =="
 # The whole point of the harness: same tape in, same log out, bit for bit.
-run "$ORACLE/tapes/01_newgame_to_first_control.tape" "$OUT/verify_run1.csv"
-run "$ORACLE/tapes/01_newgame_to_first_control.tape" "$OUT/verify_run2.csv"
+# Each run logs only the groups its checks read: the full 566-column map makes
+# 60MB logs per tape for no benefit here.
+run "$ORACLE/tapes/01_newgame_to_first_control.tape" "$OUT/verify_run1.csv" \
+    --groups core,pos,input,party,collision
+run "$ORACLE/tapes/01_newgame_to_first_control.tape" "$OUT/verify_run2.csv" \
+    --groups core,pos,input,party,collision
 cmp -s "$OUT/verify_run1.csv" "$OUT/verify_run2.csv" \
 	|| fail "two runs of tape A differ - the harness is not deterministic"
 pass "tape A replays byte-identically ($(sha256sum <"$OUT/verify_run1.csv" | cut -c1-16)...)"
 
-run "$ORACLE/tapes/02_walk_timing.tape" "$OUT/verify_walk.csv"
-run "$ORACLE/tapes/03_npc_talk.tape" "$OUT/verify_talk.csv"
-run "$ORACLE/tapes/08_rng_characterization.tape" "$OUT/verify_rng.csv"
-run "$ORACLE/tapes/04_alys_joins.tape" "$OUT/verify_alys.csv"
-run "$ORACLE/tapes/07_first_battle.tape" "$OUT/verify_battle.csv"
+run "$ORACLE/tapes/02_walk_timing.tape" "$OUT/verify_walk.csv" \
+    --groups core,pos,collision
+run "$ORACLE/tapes/03_npc_talk.tape" "$OUT/verify_talk.csv" \
+    --groups core,pos,window
+run "$ORACLE/tapes/08_rng_characterization.tape" "$OUT/verify_rng.csv" \
+    --groups core,rng
+run "$ORACLE/tapes/04_alys_joins.tape" "$OUT/verify_alys.csv" \
+    --groups core,party
+run "$ORACLE/tapes/07_first_battle.tape" "$OUT/verify_battle.csv" \
+    --groups core,battle,bhit,enemy,chars,rng
+run "$ORACLE/tapes/09_second_battle.tape" "$OUT/verify_battle2.csv" \
+    --groups core,battle,bhit,enemy,chars,rng
+run "$ORACLE/tapes/08_rng_characterization.tape" "$OUT/verify_objects.csv" \
+    --groups core,rng,objects
 
 echo "== findings =="
 python3 - "$OUT" <<'PY'
@@ -265,6 +278,98 @@ if money != 6:
     bad(f"meseta gain was {money}, expected 6 (2 x ZoranBult meseta_reward 3)")
 ok("rewards: battle_exp_total 24 (2 x 12), 8 exp each to 3 living members, "
    "+6 meseta (2 x 3) - all matching enemies.json")
+
+# Second battle: a different seed path, a different formation, and a critical.
+rows = load(OUT/'verify_battle2.csv')
+byf = {int(r['frame']): r for r in rows}
+inb = [r for r in rows if r['game_mode'] in ('0010', '0014')]
+if not inb:
+    bad("tape 09 never entered a battle")
+b2f, b2l = int(inb[0]['frame']), int(inb[-1]['frame'])
+mid = byf[min(b2f + 240, b2l)]
+if mid['e1_id'] != '9' or mid['e2_id'] != '10':
+    bad(f"battle 2 formation is e1={mid['e1_id']} e2={mid['e2_id']}, "
+        "expected 9 (Xanafalgue) and 10 (ZoranBult)")
+totals = []
+for f in range(b2f, b2l + 1):
+    r = byf.get(f)
+    if r and (not totals or r['battle_exp_total'] != totals[-1]):
+        totals.append(r['battle_exp_total'])
+if '9' not in totals or '21' not in totals:
+    bad(f"battle 2 exp total never stepped 9 then 21; saw {totals[:8]}")
+g2 = {c: int(rows[-1][f'{c}_exp']) - int(byf[b2f][f'{c}_exp'])
+      for c in ('chaz', 'alys', 'hahn')}
+if set(g2.values()) != {7}:
+    bad(f"battle 2 exp gains were {g2}, expected 7 each (21 / 3)")
+m2 = int(rows[-1]['current_money']) - int(byf[b2f]['current_money'])
+if m2 != 5:
+    bad(f"battle 2 meseta gain was {m2}, expected 5 (2 + 3)")
+crit = [int(r['frame']) for r in rows if b2f <= int(r['frame']) <= b2l
+        and any(r[f'hit_{i:02d}'] == '01' for i in range(9))]
+if not crit:
+    bad("battle 2 recorded no critical hit (Fighters_Hit_Flags $01)")
+ok(f"battle 2 f{b2f}-{b2l}: Xanafalgue+ZoranBult, exp 21/3 = 7 each, "
+   f"+5 meseta, critical hit at f{crit[0]}")
+
+# NPC object columns: slot i must be the map's npc record i at spawn, and the
+# third field-mode RNG call must be a wander decision.
+import json as _json
+rows = load(OUT/'verify_objects.csv')
+byf = {int(r['frame']): r for r in rows}
+pack = pathlib.Path(__file__).parent.parent / 'runtime-pack' / 'maps'
+rec = pack / '013_PiataAcademy_F1.json'
+if rec.exists():
+    npcs = _json.loads(rec.read_text())['npcs']
+    spawn = next(r for r in rows
+                 if r['map_index'] == '0013' and r['o00_id'] != '0000')
+    for i, n in enumerate(npcs):
+        x, y = int(spawn[f'o{i:02d}_x_px']), int(spawn[f'o{i:02d}_y_px'])
+        oid = int(spawn[f'o{i:02d}_id'], 16) & 0x7FFF
+        if (x, y, oid) != (n['x_pixels'], n['y_pixels'], n['object_id']):
+            bad(f"object slot {i} is ({x},{y}) id {oid}, pack npcs[{i}] is "
+                f"({n['x_pixels']},{n['y_pixels']}) id {n['object_id']}")
+    ok(f"object slot i == pack npcs[i] for all {len(npcs)} map $13 NPCs "
+       f"at spawn (f{spawn['frame']})")
+else:
+    print("  skip  slot/pack mapping (runtime-pack not built)")
+
+M32 = 0xFFFFFFFF
+def upd2(seed):
+    d1 = seed
+    if (d1 & 0xFFFF) == 0:
+        d1 = 0x2A6D365B
+    d1 = (d1 * 41) & M32
+    lo, hi = d1 & 0xFFFF, (d1 >> 16) & 0xFFFF
+    return ((((lo + hi) & 0xFFFF) << 16) | lo) & M32
+def ncalls(a, b, k=24):
+    if a == b:
+        return 0
+    x = a
+    for i in range(1, k + 1):
+        x = upd2(x)
+        if x == b:
+            return i
+    return None
+
+LO, HI = 6456, 7610
+SL = range(32)
+wander = [i for i in SL
+          if any(byf[f][f'o{i:02d}_id'] != '0000' and byf[f][f'o{i:02d}_timer'] != '0'
+                 for f in range(LO, HI) if f in byf)]
+matched = total = 0
+for f in range(LO, HI):
+    if f + 1 not in byf:
+        continue
+    a = byf[f]
+    expired = sum(1 for i in wander
+                  if a[f'o{i:02d}_id'] != '0000' and a[f'o{i:02d}_timer'] == '0')
+    total += 1
+    if ncalls(int(a['rng_seed'], 16), int(byf[f + 1]['rng_seed'], 16)) == 2 + expired:
+        matched += 1
+if matched != total:
+    bad(f"wander RNG rule held on only {matched}/{total} field-control frames")
+ok(f"RNG in field control == 2 + (wandering objects with timer 0) on all "
+   f"{total} frames; {len(wander)} of 8 map $13 objects wander")
 PY
 
 echo
