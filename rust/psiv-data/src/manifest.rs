@@ -248,4 +248,3 @@ pub struct GameStartFacing {
     #[serde(default)]
     pub name: Option<crate::map::Direction>,
 }
-

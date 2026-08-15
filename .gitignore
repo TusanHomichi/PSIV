@@ -16,3 +16,7 @@ __pycache__/
 runtime-pack/
 rust/target/
 godot/.godot/
+oracle/gpgx-src/
+oracle/core/
+oracle/bin/
+oracle/logs/

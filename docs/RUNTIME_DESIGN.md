@@ -168,20 +168,34 @@ verification runs out. v1 scope is the **opening act** (~6 scenes: intro,
 Alys joins and leads, the principal's assignment, the basement quest,
 leaving Piata), making the game playable as a story to the first dungeon.
 
-## Open fidelity questions (for the emulator oracle)
+## Fidelity questions: oracle verdicts (2026-08-15, oracle/README.md)
 
-- Dialogue text speed: does retail draw characters progressively, at what
-  rate? (Currently instant; `$F9` is an explicit pause, not a speed.)
-- The scroll-arrow art: a hardware sprite, not yet extracted. Placeholder
-  triangle at the pack's (264, 202) position.
-- Talk range: Peter's memory says you could stand *beside* an NPC and they'd
-  turn to face you; the transcribed `Interaction_ChkObjects` projects one
-  cell ahead of the party's facing (±8px). Turn-to-face itself is implemented
-  (the `$F3` keep-npc-facing code proves it was the default); the *range*
-  question needs the oracle.
-- Does an accept press during the window-open animation buffer or drop?
-- Does the final dialogue page close on its own or require a press?
-  (Currently requires a press.)
+Answered by tapes against the running cartridge (Genesis Plus GX headless
+harness; determinism proven byte-identical):
+
+- **Text speed: one character per 3 frames** (20/second), measured off
+  Win_Tile_Buffer writes. Implemented as a typewriter; a press mid-reveal
+  completes the page (ASSUMPTION pending one more tape — the buffer-or-drop
+  question below covers it).
+- **Talk range: facing only.** The ±8px box one cell ahead is exact; a
+  beside NPC at 16px off-axis cannot be talked to. The transcription stood;
+  the beside-talk memory did not. (One targeted tape still owed for the
+  staged empirical press; the code reading is unambiguous.)
+- **Walk timing: exactly 8.00 frames/cell**, all four directions — third
+  independent confirmation.
+- **The final page does not auto-close** (300 frames observed); a press
+  closes over 9 frames.
+- **Window opens in 9 frames** — the pack's step_cells is per side; the
+  renderer doubles it.
+- **No turn-in-place toward walkable cells**: any such press commits a full
+  step; turning without moving happens only against blocked cells. Matches
+  the engine.
+- **First control**: map $13, cell (48,18)+shift, Chaz alone — behavioral
+  confirmation of the static extraction. The intro tours maps
+  $11→$5E→$54→$00→$13 with Alys leading mid-scene.
+
+Still open: the staged beside-press tape; accept during the open animation;
+the scroll-arrow art (hardware sprite, still a placeholder triangle).
 
 ## Division of labor
 

@@ -568,6 +568,12 @@ pub struct DialogueWindow {
     /// Frame width in cells while the box is opening; equals the full width
     /// once it is open.
     open_cells: i32,
+    /// Glyphs revealed on the current page. Retail draws one character every
+    /// 3 frames (oracle: logs/03_npc_talk.csv, writes to Win_Tile_Buffer on a
+    /// strict 3-frame cadence — 20 chars/second); this counts revealed glyphs
+    /// and `reveal_tick` counts frames toward the next one.
+    revealed: usize,
+    reveal_tick: u8,
 }
 
 #[godot_api]
@@ -581,6 +587,8 @@ impl INode2D for DialogueWindow {
             pack_dir: String::new(),
             flow: None,
             open_cells: 0,
+            revealed: 0,
+            reveal_tick: 0,
         }
     }
 
@@ -598,13 +606,29 @@ impl INode2D for DialogueWindow {
         let full = self.view.as_ref().map_or(0, |view| view.cells().0);
         let mut redraw = false;
         if self.open_cells < full {
-            let step = self.view.as_ref().map_or(2, |view| view.step_cells);
+            // Oracle: the box opens in 9 frames; the pack's step_cells is
+            // per SIDE, so the width grows by twice that each frame.
+            let step = self.view.as_ref().map_or(2, |view| view.step_cells) * 2;
             self.open_cells = (self.open_cells + step).min(full);
             redraw = true;
-        } else if let Some(flow) = self.flow.as_mut() {
-            // Delays only run once the box is open; the cartridge's animation
-            // holds the text loop the same way.
-            redraw = flow.tick();
+        } else {
+            if let Some(flow) = self.flow.as_mut() {
+                // Delays only run once the box is open; the cartridge's
+                // animation holds the text loop the same way.
+                redraw = flow.tick();
+            }
+            // The typewriter: one glyph per 3 frames, measured off hardware.
+            let total = self.flow.as_ref().map_or(0, |flow| {
+                flow.lines().iter().map(|l| l.chars().count()).sum()
+            });
+            if self.revealed < total {
+                self.reveal_tick += 1;
+                if self.reveal_tick >= 3 {
+                    self.reveal_tick = 0;
+                    self.revealed += 1;
+                    redraw = true;
+                }
+            }
         }
         self.drain_log();
         if redraw {
@@ -685,7 +709,20 @@ impl DialogueWindow {
         let mut closed = false;
         if let Some(flow) = self.flow.as_mut() {
             reopen = flow.page_end() == Some(PageEnd::Close);
+            let total: usize = flow.lines().iter().map(|l| l.chars().count()).sum();
+            if self.revealed < total {
+                // A press mid-typewriter completes the page instead of
+                // advancing it. ASSUMPTION pending an oracle tape (the
+                // common idiom; retail's behavior here is untested).
+                self.revealed = total;
+                self.drain_log();
+                self.sync_portrait();
+                self.base_mut().queue_redraw();
+                return;
+            }
             flow.advance();
+            self.revealed = 0;
+            self.reveal_tick = 0;
             closed = !flow.is_open();
         }
         self.drain_log();
@@ -698,6 +735,8 @@ impl DialogueWindow {
             // $F7 destroys the window; the next page opens a new one, so the
             // animation runs again.
             self.open_cells = 0;
+            self.revealed = 0;
+            self.reveal_tick = 0;
         }
         self.base_mut().queue_redraw();
     }
@@ -848,8 +887,13 @@ impl DialogueWindow {
         let mut arrow = None;
         if width_cells == full_cells {
             let origin = Vector2::new(view.border * cell, view.border * cell);
-            for (row, line) in flow.lines().iter().enumerate().take(LINES_PER_WINDOW) {
+            let mut budget = self.revealed;
+            'lines: for (row, line) in flow.lines().iter().enumerate().take(LINES_PER_WINDOW) {
                 for (column, ch) in line.chars().enumerate().take(CHARS_PER_LINE) {
+                    if budget == 0 {
+                        break 'lines;
+                    }
+                    budget -= 1;
                     let Some(at) = view.glyph_at.get(&ch) else {
                         // Load-time validation proves every retail character
                         // has a glyph, so this is a pack defect if it happens.
@@ -883,7 +927,8 @@ impl DialogueWindow {
                 });
             }
 
-            if flow.is_waiting() {
+            let total: usize = flow.lines().iter().map(|l| l.chars().count()).sum();
+            if flow.is_waiting() && self.revealed >= total {
                 arrow = Some(waiting_indicator(view.arrow_offset, cell));
             }
         }
