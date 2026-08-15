@@ -236,15 +236,30 @@ impl Runtime {
     /// Ends a battle by absorbing the party records back into the roster and
     /// running both award passes — the full cartridge epilogue. The caller
     /// passes the per-member award (the split the battle computed).
-    pub fn finish_battle_absorbing(&mut self, each: u16) {
+    pub fn finish_battle_absorbing(&mut self, each: u16) -> Vec<BattleEvent> {
+        let mut timeline = Vec::new();
         if let Some(battle) = self.battle.take() {
+            // The cartridge's results order, load-bearing: absorb the
+            // records whole, pay both award passes, then level everyone the
+            // pay reached — levelling first levels nobody, and levelling
+            // battle's copies levels stale numbers.
             let party = battle.into_party();
             self.game.roster_mut().absorb(&party);
-            let _ = self.game.award_experience(each);
+            let (paid_party, paid_absent) = self.game.award_experience(each);
+            if let Some(set) = self.battles.as_ref() {
+                for id in paid_party.iter().chain(&paid_absent) {
+                    if let Some(stats) = self.game.roster_mut().get_mut(*id)
+                        && let Ok(Some(event)) = psiv_core::battle::level_up(id.0, stats, &set.data)
+                    {
+                        timeline.push(event);
+                    }
+                }
+            }
         }
         if let Some(set) = self.battles.as_mut() {
             set.clock.reset();
         }
+        timeline
     }
 
     /// The currently loaded map.
