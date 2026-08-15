@@ -446,3 +446,12 @@ and the flag-set whose absence would re-fire the trigger forever.
   authored 416-byte tables over a 417-map space suggests the id-space count
   itself was wrong somewhere in Sega's build tooling. Found during battle
   background emission (battle/art/backgrounds).
+- The flag-bank alias (above) collides on SIX id pairs in actual use, not
+  one: temp $08 BioPlantAlarm = chest Alshline, and temp $09-$0D (the
+  Vahal Fort / Weapon Plant moving-platform state machines) = the
+  PsycoWand, ControlKey, Canceller, EclpsTorch and AeroPrism chests.
+  Platform state and treasure state are one bit each on retail hardware —
+  a platform left mid-cycle plausibly marks a chest looted (or re-arms
+  it) elsewhere in the world. Full table and behavioural pin in
+  psiv-core/src/state.rs; hardware confirmation queued with the oracle
+  (those dungeons are late-game, so it waits for deeper routes).
