@@ -422,3 +422,23 @@ how the runtime `lib.rs` interleaving happened, so I have not.
 Recommendation: settle the ownership question first, then implement the roster
 against the oracle's level-up tape in one focused slice. The scout above is
 complete enough that it should be a short one.
+
+## Invisible blockers and the talk probe (2026-08-15)
+
+Retail has NO invisible-object talk filter: `Interaction_ChkObjects`
+($058D50) tests only bit 3 ($058D5C), the blocker type ($74 ->
+FieldObjectsJmpTbl $04AA6C -> $0488D8) sets bit 3 at $048904, and a
+matched object's dialogue id 0 reaches tree entry 0 via GetDialogueByID
+($059164/$05916E). So on the cartridge, pressing at the invisible walls
+stacked on the Academy Basement bosses plausibly opens the principal's
+chain — the exact live-QA symptom. CANDIDATE RETAIL BUG, hardware tape
+pending (press at the Igglanova cell on the emulator oracle).
+
+The engine deviates DELIBERATELY under the ratified bug policy
+(obviously unintended): `Npc::talkable` is a separate property from
+solidity, derived as `sprite_reason.is_none() || dialogue_id != 0` —
+an invisible object with no dialogue is solid but answers nothing;
+invisible objects WITH dialogue (hidden triggers) stay talkable; every
+visible object behaves exactly as bit 3 says. If the hardware tape
+shows retail answering nothing-here instead, the RE missed a branch and
+this section gets corrected.

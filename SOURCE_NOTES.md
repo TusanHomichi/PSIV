@@ -598,3 +598,10 @@ and the flag-set whose absence would re-fire the trigger forever.
   Shopkeeper greetings bypass the dialogue tree entirely (selector-
   assembled text + portrait tables, most shop objects carry
   dialogue_id 0).
+- CANDIDATE RETAIL BUG (engine deviates under the bug policy): the talk
+  probe has no invisible-object filter, so the invisible blocker walls
+  stacked on the Academy Basement bosses (type $74, bit 3 set, dialogue
+  id 0) plausibly open dialogue tree entry 0 — the principal's chain —
+  when pressed at on hardware. The port makes invisible no-dialogue
+  objects solid-but-silent (docs/FIELD_STATE.md, invisible-blockers
+  section). Hardware confirmation tape filed with the oracle.

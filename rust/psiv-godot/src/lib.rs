@@ -159,7 +159,7 @@ impl INode2D for Field {
                 Direction::Up,
             ),
         };
-        let runtime = match Runtime::new(
+        let mut runtime = match Runtime::new(
             data,
             spawn_map,
             spawn_cell,
@@ -172,6 +172,16 @@ impl INode2D for Field {
                 return;
             }
         };
+        match psiv_data::BattleFiles::load(std::path::Path::new(&self.pack_dir)) {
+            Ok(files) => {
+                if let Err(e) = runtime.enable_battles(&files) {
+                    godot_error!("battle pack failed to enable: {e}");
+                }
+            }
+            Err(e) => {
+                godot_error!("battle pack failed to load from {}: {e}", self.pack_dir);
+            }
+        }
 
         let mut map_sprite = Sprite2D::new_alloc();
         map_sprite.set_centered(false);

@@ -63,6 +63,17 @@ fn direction(d: psiv_data::Direction) -> Direction {
     }
 }
 
+/// A placed object with no art and no dialogue entry is collision-only.
+///
+/// Invisible objects with a nonzero dialogue id are real hidden triggers in
+/// the pack, so `sprite_reason` alone is not a talk filter. Conversely, an
+/// artless object with dialogue id zero has nothing for the runtime's dialogue
+/// consumer to open. Keep this derived from the pack's existing fields rather
+/// than teaching the core about field-object symbols.
+fn dialogue_probe_eligible(npc: &psiv_data::Npc) -> bool {
+    npc.sprite_reason.is_none() || npc.dialogue_id != 0
+}
+
 /// Converts one pack record into an engine [`FieldMap`].
 ///
 /// Warps with no trigger area (`rect == None` — dead data the manifest
@@ -201,6 +212,7 @@ pub fn field_map_patched(
         npcs.push(
             Npc::with_offset(NpcId(object_id), cell, offset, facing)
                 .with_interactable(npc.interactable)
+                .with_talkable(dialogue_probe_eligible(npc))
                 .with_active(active),
         );
     }

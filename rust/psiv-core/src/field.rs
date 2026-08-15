@@ -264,6 +264,13 @@ fn npc_in_talk_range(map: &FieldMap, target: Cell) -> Option<usize> {
         if !npc.interactable {
             return false;
         }
+        // A collision-only object can retain bit 3 so it blocks while still
+        // having no dialogue binding. The pack bridge derives this separate
+        // fact from the object's sprite/dialogue fields; hidden objects with
+        // a nonzero dialogue id remain eligible for the probe.
+        if !npc.talkable {
+            return false;
+        }
         let npc_x = i32::from(npc.cell.x) * CELL_PIXELS + i32::from(npc.offset.x);
         let npc_y = i32::from(npc.cell.y) * CELL_PIXELS + i32::from(npc.offset.y);
         let (dx, dy) = map.wrap_delta_px(npc_x - target_x, npc_y - target_y);

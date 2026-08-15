@@ -195,6 +195,15 @@ pub struct Npc {
     /// bit 3 once `EventFlag_Penguin` is set, so the penguin stops answering
     /// *and* stops blocking. See [`FieldMap::set_npc_interactable`].
     pub interactable: bool,
+    /// Whether the object is a candidate for the dialogue probe.
+    ///
+    /// This is deliberately separate from [`Npc::interactable`]. The pack can
+    /// describe a collision-only object with no sprite and no dialogue entry:
+    /// it keeps bit 3 so it blocks, but there is no dialogue object for the
+    /// confirm path to open. Objects with an artless dialogue binding remain
+    /// talkable, because invisible field objects are also used as hidden
+    /// dialogue/event triggers.
+    pub talkable: bool,
 }
 
 impl Npc {
@@ -209,6 +218,7 @@ impl Npc {
             facing,
             active: true,
             interactable: true,
+            talkable: true,
         }
     }
 
@@ -227,6 +237,7 @@ impl Npc {
             facing,
             active: true,
             interactable: true,
+            talkable: true,
         }
     }
 
@@ -245,6 +256,12 @@ impl Npc {
             interactable,
             ..self
         }
+    }
+
+    /// The same object with its dialogue-probe eligibility set.
+    #[must_use]
+    pub const fn with_talkable(self, talkable: bool) -> Npc {
+        Npc { talkable, ..self }
     }
 }
 
@@ -494,6 +511,7 @@ impl FieldMap {
                 active: true,
                 // Both chest routines `bset #3, $2(a4)`: solid and talkable.
                 interactable: true,
+                talkable: true,
             });
         }
         self.chests = chests;
