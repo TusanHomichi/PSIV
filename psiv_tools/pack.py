@@ -55,6 +55,7 @@ from .layouts import (
     render_layout,
 )
 from .maps import extract_maps
+from .newgame import extract_new_game
 # The two world maps' layouts are not in their records at all -- they stream
 # from paged tables -- so their decode lives in `psiv_tools.overworld`.
 from .overworld import (
@@ -130,6 +131,7 @@ PACK_FORMAT_VERSION = 1
 
 MANIFEST_NAME = "manifest.json"
 MAPS_DIRECTORY = "maps"
+GAME_START_NAME = "game_start.json"
 
 #: `Map_Start_Facing_Dir` in the disassembly's constants.
 FACING_NAMES: dict[int, str] = {0: "down", 4: "up", 8: "right", 0xC: "left"}
@@ -584,6 +586,14 @@ def build_pack(
     }
     party_sha = _write_json(directory / PARTY_SPRITES_NAME, party_index)
 
+    # Where a fresh playthrough begins. Its own file rather than a manifest
+    # section: it carries the provenance of nine instruction sites, which is
+    # more than a manifest entry should hold, and a runtime reads it once at
+    # new-game and never again.
+    game_start = {"format_version": PACK_FORMAT_VERSION, **extract_new_game(rom_bytes)}
+    game_start_sha = _write_json(directory / GAME_START_NAME, game_start)
+    start = game_start["first_control"]
+
     placed = sum(entry["placements"] for entry in npc_entries)
     for entry in npc_entries:
         count("sprite_palette_lines", entry["palette"]["cram_line"], entry["placements"])
@@ -680,6 +690,26 @@ def build_pack(
             ),
         },
         "map_count": len(inventory),
+        # The headline of `game_start.json`, so the manifest alone answers
+        # "where does a new game begin" without a second file read. The full
+        # extraction, including every instruction site it was read from, is in
+        # the file.
+        "game_start": {
+            "file": GAME_START_NAME,
+            "sha256": game_start_sha,
+            "map": start["map"],
+            "x_cell": start["position"]["x_cell"],
+            "y_cell": start["position"]["y_cell"],
+            "facing": start["facing"],
+            "party": [slot["symbol"] for slot in start["party"] if not slot["empty"]],
+            "music": start["music"],
+            "event_flags_set": [flag["id"] for flag in start["event_flags_set"]],
+            "note": (
+                "the first controllable moment, after the opening scene the "
+                "title screen dispatches as event 0x9F. The party the new-game "
+                "initialiser writes (Chaz and Alys) does not survive that scene."
+            ),
+        },
         # The above-sprites layer. `png_over` is null for a map whose tiles all
         # draw below sprites, and those maps get no file at all rather than an
         # entirely transparent one.

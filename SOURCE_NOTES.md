@@ -367,6 +367,17 @@ distinct enemy ids that appear in formations.
   sends `FieldObj_Animate` past its own table; the pack names those
   sequences `idle_facing_0x10`/`walk_facing_0x10` so nobody reads the byte
   as a direction.
+- New-game findings (instruction-level provenance in the pack's
+  game_start.json): retail hands over control with **Chaz alone** on
+  PiataAcademy_F1 at cell (48,19) facing down — Alys is the NPC he finds;
+  she leads only after Event_AlysFound. 500 meseta, empty inventory, event
+  flag 7 set by the opening event, 11 unnamed extended event flags and three
+  town flags preloaded by the initialiser (probably dialogue-state; recorded
+  as ids, not guessed). The clone mislabels the initialiser's flag-table
+  copy target as Chest_Flags where retail writes Extended_Event_Flags — a
+  reading under which every new game would start with 11 chests looted —
+  and carries Grand Cross start-position edits ($58/$22/right vs retail's
+  $60/$24/down, self-documented by "; was" comments).
 - Nine Enigma call sites are revision-gated and the cartridge runs the `else`
   (English) branch — proven three ways: the retail code contains each
   mapping's `lea`/`move.w #base` pair exactly once with the retail base

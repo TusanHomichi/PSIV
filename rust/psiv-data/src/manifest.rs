@@ -28,6 +28,11 @@ pub struct Manifest {
     pub generator: Option<String>,
     /// The ROM the pack was extracted from.
     pub rom: RomInfo,
+    /// The cartridge's new-game first-controllable state, when the pack
+    /// carries it (extracted from the title-screen handoff and the opening
+    /// event's epilogue; full provenance lives in `game_start.json`).
+    #[serde(default)]
+    pub game_start: Option<GameStartSummary>,
     /// Every packed map, in id order.
     pub maps: Vec<MapEntry>,
     /// Maps deliberately not packed, and why: the `PtrMap_Null` placeholders
@@ -204,3 +209,43 @@ mod tests {
         assert!(serde_json::from_str::<Manifest>(&json).is_err());
     }
 }
+
+/// The manifest's new-game headline: enough to spawn without opening
+/// `game_start.json`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GameStartSummary {
+    /// The first controllable map.
+    pub map: GameStartMap,
+    /// Column, in cells.
+    pub x_cell: u32,
+    /// Row, in cells (standing shift applied, like everything in the pack).
+    pub y_cell: u32,
+    /// Initial facing.
+    pub facing: GameStartFacing,
+    /// Occupied party slots at first control, as character symbols (the
+    /// cartridge starts Chaz alone). Full slot detail is in game_start.json.
+    pub party: Vec<String>,
+    /// Event flags already set when control arrives.
+    pub event_flags_set: Vec<u16>,
+}
+
+/// The starting map reference.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GameStartMap {
+    /// Map id.
+    pub id: u16,
+    /// The `MapID_*` symbol.
+    #[serde(default)]
+    pub symbol: Option<String>,
+}
+
+/// The starting facing.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GameStartFacing {
+    /// Raw byte.
+    pub id: u8,
+    /// Decoded name, when the byte is one of the four.
+    #[serde(default)]
+    pub name: Option<crate::map::Direction>,
+}
+

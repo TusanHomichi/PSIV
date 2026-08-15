@@ -23,9 +23,10 @@ struct PsivExtension;
 unsafe impl ExtensionLibrary for PsivExtension {}
 
 const CELL_PIXELS: f32 = 16.0;
-/// Piata, one cell below the academy doors — the golden test's spawn.
-const SPAWN_MAP: u16 = 0x010;
-const SPAWN_CELL: (u16, u16) = (31, 8);
+/// Fallback spawn when the pack predates game-start extraction: Piata, one
+/// cell below the academy doors (the golden test's spawn).
+const FALLBACK_SPAWN_MAP: u16 = 0x010;
+const FALLBACK_SPAWN_CELL: (u16, u16) = (31, 8);
 
 /// A sheet made drawable: its texture plus the geometry and sequences the
 /// pack declares. Copied out of `psiv-data` so nodes never borrow `GameData`.
@@ -196,11 +197,35 @@ impl INode2D for Field {
             godot_error!("party sheet 0 (Chaz) failed to load; falling back to nothing visible");
         }
 
+        // Spawn where the cartridge's new game actually hands over control:
+        // Chaz alone in PiataAcademy_F1, facing down (game_start.json). Alys
+        // is the NPC he walks over to find, exactly as retail opens.
+        let (spawn_map, spawn_cell, spawn_facing) = match data.manifest().game_start.as_ref() {
+            Some(start) => (
+                start.map.id,
+                Cell::new(start.x_cell as u16, start.y_cell as u16),
+                start
+                    .facing
+                    .name
+                    .map(|d| match d {
+                        psiv_data::Direction::Up => Direction::Up,
+                        psiv_data::Direction::Down => Direction::Down,
+                        psiv_data::Direction::Left => Direction::Left,
+                        psiv_data::Direction::Right => Direction::Right,
+                    })
+                    .unwrap_or(Direction::Down),
+            ),
+            None => (
+                FALLBACK_SPAWN_MAP,
+                Cell::new(FALLBACK_SPAWN_CELL.0, FALLBACK_SPAWN_CELL.1),
+                Direction::Up,
+            ),
+        };
         let runtime = match Runtime::new(
             data,
-            SPAWN_MAP,
-            Cell::new(SPAWN_CELL.0, SPAWN_CELL.1),
-            Direction::Up,
+            spawn_map,
+            spawn_cell,
+            spawn_facing,
             StepFrames::default(),
         ) {
             Ok(rt) => rt,
@@ -247,9 +272,9 @@ impl INode2D for Field {
         self.sync_visuals(false);
         godot_print!(
             "PSIV field ready: map {:#05x}, party at ({}, {})",
-            SPAWN_MAP,
-            SPAWN_CELL.0,
-            SPAWN_CELL.1
+            spawn_map,
+            spawn_cell.x,
+            spawn_cell.y
         );
     }
 

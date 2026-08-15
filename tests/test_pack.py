@@ -12,6 +12,7 @@ from psiv_tools.layouts import COLLISION_CELL_PIXELS, collision_type_name, is_bl
 from psiv_tools.maps import extract_maps
 from psiv_tools.overworld import DEZOLIS, MOTAVIA, OVERWORLD_MAP_IDS
 from psiv_tools.pack import (
+    GAME_START_NAME,
     MANIFEST_NAME,
     MAPS_DIRECTORY,
     NPC_SPRITES_DIRECTORY,
@@ -366,6 +367,32 @@ class TestPackFixture(unittest.TestCase):
                 overlays["without_overlay"][0]["symbol"], "TheEdge"
             )
 
+    def test_the_manifest_points_at_the_game_start_file(self):
+        # Where a new game begins. The manifest carries the headline so a
+        # runtime can spawn from it alone; `game_start.json` carries the
+        # instruction sites it was read from.
+        start = self.manifest["game_start"]
+        self.assertEqual(start["file"], GAME_START_NAME)
+        blob = (self.root / GAME_START_NAME).read_bytes()
+        self.assertEqual(start["sha256"], hashlib.sha256(blob).hexdigest())
+        payload = json.loads(blob)
+        self.assertEqual(payload["format_version"], PACK_FORMAT_VERSION)
+        self.assertEqual(payload["kind"], "game_start")
+        # The three sections the extraction is built from, and the one that
+        # matters to a runtime with no event engine.
+        self.assertEqual(
+            sorted(k for k in payload if k not in ("format_version", "kind", "note")),
+            ["first_control", "new_game_init", "title_handoff"],
+        )
+        self.assertEqual(start["party"], ["Chaz"])
+        self.assertEqual(start["map"]["symbol"], "PiataAcademy_F1")
+        self.assertEqual((start["x_cell"], start["y_cell"]), (48, 19))
+        self.assertEqual(start["facing"], {"id": 0, "name": "down"})
+        self.assertEqual(start["event_flags_set"], [7])
+        # The start map is not one of this fixture's three, and that is fine:
+        # `game_start` is pack-wide, not per-map.
+        self.assertNotIn(start["map"]["id"], {e["id"] for e in self.manifest["maps"]})
+
     def test_the_manifest_says_where_the_overlay_sits_in_the_draw_order(self):
         overlays = self.manifest["overlays"]
         self.assertEqual(overlays["priority_bit"], 15)
@@ -450,12 +477,12 @@ class TestPackFixture(unittest.TestCase):
             first_files = sorted(p.relative_to(self.root) for p in self.root.rglob("*") if p.is_file())
             second_files = sorted(p.relative_to(second) for p in second.rglob("*") if p.is_file())
             self.assertEqual(first_files, second_files)
-            # manifest, a JSON and a PNG per map, an overlay PNG per map that
-            # has priority tiles, the two sprite indexes, the eleven party
-            # sheets, and one PNG per deduplicated NPC sheet.
+            # manifest, game_start.json, a JSON and a PNG per map, an overlay
+            # PNG per map that has priority tiles, the two sprite indexes, the
+            # eleven party sheets, and one PNG per deduplicated NPC sheet.
             self.assertEqual(
                 len(first_files),
-                1 + 2 * len(FIXTURE_MAPS)
+                2 + 2 * len(FIXTURE_MAPS)
                 + self.manifest["overlays"]["maps_with_overlay"]
                 + 2 + len(PARTY_SYMBOLS)
                 + self.manifest["sprites"]["npc_sheet_count"],

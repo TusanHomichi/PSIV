@@ -50,7 +50,10 @@ pub use dialogue::*;
 pub use error::DataError;
 pub use game_data::GameData;
 pub use ids::{MapId, RomHash};
-pub use manifest::{Manifest, MapEntry, PACK_FORMAT_VERSION, RomInfo, SkippedMap};
+pub use manifest::{
+    GameStartFacing, GameStartMap, GameStartSummary, Manifest, MapEntry,
+    PACK_FORMAT_VERSION, RomInfo, SkippedMap,
+};
 pub use map::{
     COLLISION_CELL_PIXELS, Cell, CellPos, CellRect, ContentsType, DIALOGUE_TREE_COUNT, Dimensions,
     Direction, Facing, Flags, MapRecord, MapRef, Music, Npc, RangeRef, SpriteFacing, SpriteRef,
