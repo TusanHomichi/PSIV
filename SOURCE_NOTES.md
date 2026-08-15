@@ -417,3 +417,21 @@ and the flag-set whose absence would re-fire the trigger forever.
   across all eleven characters is exactly 36 words. Found by
   `psiv_tools/battle_art.py`, which pins the anomaly rather than widening
   its size rule.
+- RETAIL FINDING (2026-08-15, triple-verified): the cartridge has FOUR flag
+  banks, not five. The clone defines `Temp_Event_Flags = $FFFFF156` with its
+  own Test/Set/Clear doors — but the retail image contains ZERO instructions
+  addressing $F156 (no `lea (xxx).w` = 41F8F156, no absolute-long
+  0000F156, no word-lea to any address in $F141-$F15F), while the $F140
+  (Chest_Flags) door shows exactly the site count the clone splits across
+  its chest AND temp labels (Test/Set at four banks each — event, extended,
+  $F140, town — Clear at three; nothing ever clears a town flag). So the
+  retail "TempEveFlags" calls dispatch through the chest bank's door.
+  OPEN QUESTION under investigation: the clone's TempEveFlag_* ids are
+  small (0..~$20) and overlap real ChestFlag_* ids (8=Alshline etc.) in the
+  same range — either the retail call sites carry an id offset not yet
+  read, or temp flag N and chest flag N genuinely alias on the cartridge
+  and the game's design accidentally-or-deliberately survives it. psiv-core
+  currently models five separate banks per the clone; the engine change
+  waits on the call-site reading. Found by the map-effects decoder
+  (docs/MAP_EFFECTS.md finding 5); ROM byte sweeps re-verified
+  independently by the lead.
