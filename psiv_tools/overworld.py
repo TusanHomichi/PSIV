@@ -138,6 +138,9 @@ from .layouts import (
     decode_collision,
     decode_tilesets,
 )
+# Re-exported: the eight flags the page hooks test are this module's readers'
+# business, and `psiv_tools.symbols` is where every symbol table lives.
+from .symbols import EVENT_FLAG_SYMBOLS  # noqa: F401
 
 #: `Field_Map_Index` values that take the paged path, i.e. the two the
 #: `andi.w #$FFFE` test leaves at zero.
@@ -251,19 +254,6 @@ GET_MAP_LAYOUT_CHUNK_SIGNATURE = bytes.fromhex(
 )
 
 EVENT_FLAGS_TEST = 0x057624
-
-#: Only the flags these nine routines test. `psiv_tools.symbols` has no event
-#: flag table yet; if a second module needs one, this belongs there.
-EVENT_FLAG_SYMBOLS: dict[int, str] = {
-    0x34: "EventFlag_BioPlantEscape",
-    0x35: "EventFlag_RikaJoined",
-    0x43: "EventFlag_MachineCenter",
-    0x65: "EventFlag_ZioNurvus",
-    0x66: "EventFlag_MotaSpaceport",
-    0x82: "EventFlag_DezoSpaceport",
-    0x9E: "EventFlag_DarkForce2",
-    0xDA: "EventFlag_Reunion",
-}
 
 
 def is_overworld(map_id: int) -> bool:

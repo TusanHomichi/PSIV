@@ -93,161 +93,49 @@ def png_size(data: bytes) -> tuple[int, int]:
     return struct.unpack(">II", chunks[b"IHDR"][:8])
 
 
-def png_pixels(data: bytes) -> tuple[int, int, bytes]:
-    """Width, height and the raw index bytes of an indexed PNG.
+class TestImportSurface(unittest.TestCase):
+    """`psiv_tools.pack` is one import, whatever the file layout underneath.
 
-    `psiv_tools.png` writes filter type 0 on every scanline and one IDAT, so
-    undoing it is stripping one byte per row.
-    """
-    chunks = parse_png_chunks(data)
-    lookup = dict(chunks)
-    width, height = struct.unpack(">II", lookup[b"IHDR"][:8])
-    raw = zlib.decompress(b"".join(p for kind, p in chunks if kind == b"IDAT"))
-    rows = bytearray()
-    for y in range(height):
-        start = y * (width + 1)
-        if raw[start] != 0:
-            raise AssertionError(f"row {y} uses filter {raw[start]}, not None")
-        rows += raw[start + 1:start + 1 + width]
-    return width, height, bytes(rows)
-
-
-# ---------------------------------------------------------------------------
-# XYRangeJmpTbl, transcribed. These need no ROM.
-# ---------------------------------------------------------------------------
-class TestRect(unittest.TestCase):
-    def test_cells_are_half_open(self):
-        self.assertEqual(
-            list(Rect(2, 3, 2, 2).cells()), [(2, 3), (3, 3), (2, 4), (3, 4)]
-        )
-
-    def test_an_empty_rect_is_not_a_rect(self):
-        with self.assertRaises(PackError):
-            Rect(0, 0, 0, 4)
-        with self.assertRaises(PackError):
-            Rect(0, 0, 4, -1)
-
-
-class TestWarpRect(unittest.TestCase):
-    """`XYRangeJmpTbl`, entry by entry.
-
-    Sizes are the `addi.w` immediates the routines add to the record's
-    coordinate before comparing; the accept window is `d0 <= player < d0 + w`,
-    so a rectangle is half-open and the immediate is its width in pixels.
+    The emitter was split into `warps`, `pack_layouts` and `render` when it
+    passed a thousand lines. Nothing that imported from `psiv_tools.pack`
+    before should have had to change, and these are the same objects rather
+    than copies -- `except PackError` has to catch the one raised in `render`.
     """
 
-    GRID = (64, 64)
+    def test_the_names_the_split_moved_are_still_here(self):
+        from psiv_tools import pack, pack_layouts, render, warps
 
-    def rect(self, range_id, x=4, y=4):
-        return warp_rect(range_id, x, y, *self.GRID)
+        moved = {
+            warps: ("PackError", "Rect", "STANDING_CELL_Y_OFFSET", "XY_RANGE_NAMES",
+                    "warp_rect", "xy_range_name"),
+            pack_layouts: ("UNDEFINED_CHUNK", "decode_layout_section",
+                           "decode_map_section", "layout_spec", "unloaded_patterns"),
+            render: ("OVERLAY_TRANSPARENT_INDICES", "PLANE_BYTES", "priority_overlay",
+                     "priority_tiles"),
+        }
+        for module, names in moved.items():
+            for name in names:
+                with self.subTest(module=module.__name__, name=name):
+                    self.assertIs(getattr(pack, name), getattr(module, name))
 
-    def test_every_jump_table_entry_has_a_name(self):
-        self.assertEqual(sorted(XY_RANGE_NAMES), list(range(15)))
-        self.assertEqual(xy_range_name(0x9), "XPlus20_YPlus10")
-        with self.assertRaises(PackError):
-            xy_range_name(0xF)
+    def test_one_error_class_across_all_four_modules(self):
+        from psiv_tools import pack, pack_layouts, render, warps
 
-    def test_box_ranges_are_their_addi_immediates(self):
-        for range_id, (name, pixels_x, pixels_y) in {
-            0x1: ("XYPlus40", 0x40, 0x40),
-            0x2: ("XYPlus20", 0x20, 0x20),
-            0x9: ("XPlus20_YPlus10", 0x20, 0x10),
-            0xA: ("XPlus10_YPlus60", 0x10, 0x60),
-            0xB: ("XPlus40_YPlus20", 0x40, 0x20),
-            0xC: ("XPlus10_YPlus20", 0x10, 0x20),
-            0xD: ("XPlus60_YPlus10", 0x60, 0x10),
-            0xE: ("XPlus40_YPlus10", 0x40, 0x10),
-        }.items():
-            with self.subTest(range=name):
-                self.assertEqual(xy_range_name(range_id), name)
-                rect = self.rect(range_id)
-                self.assertEqual(
-                    (rect.width, rect.height),
-                    (pixels_x // COLLISION_CELL_PIXELS, pixels_y // COLLISION_CELL_PIXELS),
-                )
+        self.assertIs(pack.PackError, warps.PackError)
+        self.assertIs(pack_layouts.PackError, warps.PackError)
+        self.assertIs(render.PackError, warps.PackError)
+        self.assertIs(PackError, warps.PackError)
 
-    def test_a_rect_starts_at_the_record_coordinate_one_row_down(self):
-        # GetChunkAndCollision adds $10 to Y before it derives a cell, so the
-        # cell a character at curr_y_pos occupies is one row below curr_y_pos/16.
-        rect = warp_rect(0x9, 31, 6, *self.GRID)
-        self.assertEqual(rect.to_json(), {"x": 31, "y": 7, "width": 2, "height": 1})
+    def test_the_names_this_file_imports_are_the_ones_it_uses(self):
+        # Imported here to pin the surface rather than to be used below; the
+        # tests that exercise them moved to test_warps.py.
         self.assertEqual(STANDING_CELL_Y_OFFSET, 1)
-
-    def test_exact_is_a_single_cell(self):
+        self.assertEqual(len(XY_RANGE_NAMES), 15)
+        self.assertEqual(xy_range_name(0x2), "XYPlus20")
         self.assertEqual(
-            self.rect(0x3, 22, 20).to_json(), {"x": 22, "y": 21, "width": 1, "height": 1}
+            warp_rect(0x2, 4, 4, 64, 64).to_json(),
+            Rect(4, 5, 2, 2).to_json(),
         )
-
-    def test_null_never_fires(self):
-        self.assertIsNone(self.rect(0x0))
-
-    def test_half_plane_ranges_run_to_the_map_edge(self):
-        # XLower/YLower accept a player at or before the coordinate, XHigher/
-        # YHigher at or after it; the other bound is the grid.
-        self.assertEqual(
-            self.rect(0x4, 10, 20).to_json(), {"x": 0, "y": 0, "width": 11, "height": 64}
-        )
-        self.assertEqual(
-            self.rect(0x5, 10, 20).to_json(), {"x": 10, "y": 0, "width": 54, "height": 64}
-        )
-        self.assertEqual(
-            self.rect(0x6, 10, 20).to_json(), {"x": 0, "y": 0, "width": 64, "height": 22}
-        )
-        self.assertEqual(
-            self.rect(0x7, 10, 20).to_json(), {"x": 0, "y": 21, "width": 64, "height": 43}
-        )
-
-    def test_xy_lower_with_player_y_keeps_its_2a0_floor(self):
-        # `cmpi.w #$2A0,d3 / bls` returns before either coordinate is looked at,
-        # so the rectangle starts at the first cell a standing player can be in
-        # with curr_y_pos above $2A0: ($2A0 + $10) / 16, plus the standing shift.
-        rect = warp_rect(0x8, 20, 60, 128, 128)
-        self.assertEqual(rect.to_json(), {"x": 0, "y": 44, "width": 21, "height": 18})
-        self.assertIsNone(warp_rect(0x8, 20, 10, 128, 128))
-
-    def test_rects_are_clipped_to_the_map(self):
-        self.assertEqual(
-            warp_rect(0x1, 62, 62, 64, 64).to_json(),
-            {"x": 62, "y": 63, "width": 2, "height": 1},
-        )
-        self.assertIsNone(warp_rect(0x1, 70, 70, 64, 64))
-
-    def test_an_index_past_the_jump_table_is_rejected(self):
-        with self.assertRaises(PackError):
-            warp_rect(0xF, 0, 0, 64, 64)
-        with self.assertRaises(PackError):
-            warp_rect(0x9, 0, 0, 0, 64)
-
-
-class TestPriorityTiles(unittest.TestCase):
-    """Bit 15 of a pattern-name word, on chunk definitions this test writes."""
-
-    def chunks(self, *definitions):
-        from psiv_tools.layouts import CHUNK_WORDS, ChunkTable
-
-        return ChunkTable(
-            words=tuple(
-                tuple(words) + (0,) * (CHUNK_WORDS - len(words))
-                for words in definitions
-            ),
-            blobs=(),
-        )
-
-    def test_a_chunk_without_the_bit_is_absent_rather_than_empty(self):
-        from psiv_tools.pack import priority_tiles
-
-        # Chunk 0 has none; chunk 1 has bit 15 on its second and sixth words,
-        # i.e. tile (1, 0) and tile (1, 1) of the 4x4.
-        found = priority_tiles(self.chunks([0x0001, 0x4002], [0, 0x8003, 0, 0, 0, 0x8004]))
-        self.assertEqual(list(found), [1])
-        self.assertEqual(found[1], ((1, 0, 0x8003), (1, 1, 0x8004)))
-
-    def test_the_collision_bit_is_not_the_priority_bit(self):
-        from psiv_tools.pack import priority_tiles
-
-        # $4000 is collision, $8000 is priority; only the second is video data.
-        self.assertEqual(priority_tiles(self.chunks([0x4000] * 16)), {})
-        self.assertEqual(len(priority_tiles(self.chunks([0x8000] * 16))[0]), 16)
 
 
 @unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
@@ -453,74 +341,6 @@ class TestPackFixture(unittest.TestCase):
                 )
 
     # -------------------------------------------------------- priority overlay
-    def test_piatas_overlay_is_the_pixels_that_draw_above_sprites(self):
-        # Piata is the case that found the bug: its palm crowns, dome roofs and
-        # the top course of the town wall all carry bit 15, so a character walks
-        # behind them. The digest pins the whole image; the assertions below say
-        # what it is made of.
-        entry = next(e for e in self.manifest["maps"] if e["id"] == MAP_PIATA)
-        self.assertEqual(entry["png_over"], f"{MAPS_DIRECTORY}/010_Piata_over.png")
-        self.assertEqual(entry["priority_tiles"], 1068)
-        self.assertEqual(
-            entry["png_over_sha256"],
-            "83e57e42c357adbb2e7aed8be55a23b8f46a4ab80c3f89551b6e3632084952f2",
-        )
-
-        base = parse_png_chunks((self.root / entry["png"]).read_bytes())
-        overlay = parse_png_chunks((self.root / entry["png_over"]).read_bytes())
-        # Same palette as the base render, plus a tRNS the base does not have.
-        self.assertEqual(dict(base)[b"PLTE"], dict(overlay)[b"PLTE"])
-        self.assertNotIn(b"tRNS", dict(base))
-        alpha = dict(overlay)[b"tRNS"]
-        self.assertEqual(
-            [i for i, a in enumerate(alpha) if a == 0], [0, 16]
-        )
-
-        width, height, pixels = png_pixels((self.root / entry["png_over"]).read_bytes())
-        self.assertEqual((width, height), png_size((self.root / entry["png"]).read_bytes()))
-        self.assertEqual((width, height), (1024, 1024))
-        # 16 is CRAM line 1 colour 0, which the compositor never writes: it
-        # skips colour 0 before adding the line shift, so every non-zero byte is
-        # a pixel the cartridge really draws over a sprite.
-        self.assertNotIn(16, set(pixels))
-        opaque = sum(1 for value in pixels if value)
-        self.assertEqual(opaque, 47854)
-        # Far less than the map, and not nothing.
-        self.assertLess(opaque, width * height // 10)
-
-    def test_the_overlay_only_holds_priority_tiles(self):
-        # Re-derived from the chunk definitions rather than from the image: the
-        # set of pixels the overlay may touch is exactly the bounding boxes of
-        # the tiles whose pattern word has bit 15.
-        from psiv_tools.layouts import CHUNK_PIXELS_X, CHUNK_PIXELS_Y, TILE_PIXELS
-        from psiv_tools.pack import decode_layout_section, priority_tiles
-
-        record = extract_maps(self.data)["maps"][MAP_PIATA]
-        decoded, _ = decode_layout_section(self.data, layout_spec(record))
-        by_chunk = priority_tiles(decoded.chunks)
-        allowed = set()
-        for layout in (decoded.bg, decoded.fg):
-            for chunk_y in range(layout.height_chunks):
-                for chunk_x in range(layout.width_chunks):
-                    for tile_x, tile_y, _ in by_chunk.get(
-                        layout.chunk_at(chunk_x, chunk_y), ()
-                    ):
-                        ox = chunk_x * CHUNK_PIXELS_X + tile_x * TILE_PIXELS
-                        oy = chunk_y * CHUNK_PIXELS_Y + tile_y * TILE_PIXELS
-                        for y in range(TILE_PIXELS):
-                            for x in range(TILE_PIXELS):
-                                allowed.add((ox + x, oy + y))
-
-        entry = next(e for e in self.manifest["maps"] if e["id"] == MAP_PIATA)
-        width, _, pixels = png_pixels((self.root / entry["png_over"]).read_bytes())
-        drawn = {
-            (index % width, index // width)
-            for index, value in enumerate(pixels)
-            if value
-        }
-        self.assertTrue(drawn)
-        self.assertEqual(drawn - allowed, set())
-
     def test_a_map_with_no_priority_tiles_gets_no_overlay_file(self):
         # `MapID_TheEdge` draws nothing above sprites, so the pack says null
         # rather than writing a 1024x1024 file of pure transparency.

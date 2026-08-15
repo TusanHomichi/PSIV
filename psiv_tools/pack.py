@@ -8,41 +8,26 @@ from. `docs/RUNTIME_DESIGN.md` is the decision record; this module is the
 emitter, and the JSON it writes is a versioned interface, so field names here
 are stable and `format_version` moves when they are not.
 
-Nothing in here re-decodes anything. Map records come from
-`psiv_tools.maps.extract_maps`, layouts, collision and the composed render come
-from `psiv_tools.layouts`. The one piece of format knowledge that lives here
-and nowhere else is the warp trigger rectangle.
+Nothing in here re-decodes anything, and since the file passed a thousand lines
+it does not compose anything either. Four modules feed it, in dependency order,
+and `psiv_tools.pack` re-exports all of them so that
+`from psiv_tools.pack import ...` stays the one import a consumer needs:
 
-Trigger rectangles
-------------------
+* `psiv_tools.warps` -- `XYRangeJmpTbl` transcribed into trigger rectangles,
+  the standing-cell Y shift, and `PackError`.
+* `psiv_tools.pack_layouts` -- a map record's layout section to a decoded
+  `MapLayout`, by whichever of the two paths its id selects.
+* `psiv_tools.render` -- the priority overlay, the pixels the VDP draws above
+  sprites.
+* `psiv_tools.overworld` -- the paged layouts of MapID 0 and 1.
 
-A transition record stores an `XYRangeJmpTbl` index, not a rectangle.
-`DoMapTransitionData` loads the record's two coordinate bytes into d0/d1 scaled
-by 16, the party leader's `curr_x_pos`/`curr_y_pos` into d2/d3, and jumps into
-the table; the routine there answers "is the player inside this transition's
-area". The fifteen routines are transcribed below into rectangles.
+What is left here is the shape of the emitted JSON and the act of writing it:
+per-map records, the manifest, and the census of what the cartridge's data
+actually contains. The JSON is a versioned interface, so field names in this
+module are stable and `format_version` moves when they are not.
 
-Two details decide what those rectangles mean, and both are checkable against
-the cartridge rather than assumed:
-
-* `DoMapTransitionData` returns immediately when either step counter is
-  non-zero, so the comparison only ever runs with the character standing still,
-  i.e. exactly on the 16-pixel grid. Every bound the routines test is itself a
-  multiple of 16, so a pixel rectangle converts to a cell rectangle with
-  nothing left over.
-* `GetChunkAndCollision` adds `#$10` to Y before it derives a cell
-  (`addi.w #$10,d6`), so the cell a character *occupies* is one row below
-  `curr_y_pos // 16`. Record coordinates are `curr_*_pos` values, so every Y a
-  map record stores -- transition source and destination, object and chest
-  placement -- is one row above the cell it is talking about.
-
-So the rectangles this module emits are in **collision-grid cells**, the same
-coordinate space as `collision.rows` and the same space
-`docs/RUNTIME_DESIGN.md` puts logical position in: a warp fires when the
-player's occupied cell is inside `rect`. The raw record bytes stay in
-`source.x_byte` / `source.y_byte` so the shift is re-derivable.
-
-Which table a transition came from is load-bearing and is emitted as `table`:
+Which transition table a warp came from is load-bearing and is emitted as
+`table`:
 
 * table 1 (`Map_Transition_Data_Addr`) is walked by `MapTransTile_Normal`,
   which `RunMapTransitions` selects for every standing collision type *except*
@@ -53,62 +38,46 @@ Which table a transition came from is load-bearing and is emitted as `table`:
   occupied cell was not also type 1. These are doorways, and their rectangles
   must overlap a type-1 cell or they can never fire; the manifest reports any
   that do not.
-
-Rectangles are clipped to the map. Five of the routines are open-ended
-(`XLower`, `XHigher`, `YLower`, `YHigher`, `XYLowerWithPlayerY` test one bound
-and let the other run to infinity), which is only a rectangle at all because
-the player cannot leave the grid.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Sequence
+from typing import Any, Iterable, Sequence
 
-from . import png
 from .layouts import (
     BLOCKING_COLLISION_TYPES,
-    CHUNK_PIXELS_X,
-    CHUNK_PIXELS_Y,
-    CHUNK_TILES_X,
-    CHUNK_WORDS,
     COLLISION_CELL_PIXELS,
     COLLISION_TYPE_NAMES,
-    MAX_CHUNKS,
-    PLANE_BG,
-    PLANE_FG,
-    TILE_PIXELS,
-    ChunkTable,
-    Layout,
-    MapLayout,
-    MapLayoutSpec,
     chunk_palette,
-    decode_chunks,
-    decode_collision,
-    decode_layout,
-    decode_tilesets,
-    h_flip,
-    palette_line,
-    priority,
     render_layout,
-    tile_index,
-    v_flip,
-    vdp_word,
 )
 from .maps import extract_maps
 # The two world maps' layouts are not in their records at all -- they stream
-# from paged tables -- so their decode lives in `psiv_tools.overworld`. What
-# this module needs from it is one more way to fill in a `MapLayout`.
+# from paged tables -- so their decode lives in `psiv_tools.overworld`.
 from .overworld import (
     OVERWORLD_MAP_IDS,
     Overworld,
     check_code_sites as overworld_code_sites,
-    decode_overworld,
-    is_overworld,
     opening_patches,
+)
+# Some of these are re-exports rather than uses: `psiv_tools.pack` is the one
+# import a consumer needs, so every name the pack's interface ever had is still
+# reachable from here after the split.
+from .pack_layouts import (  # noqa: F401
+    UNDEFINED_CHUNK,
+    decode_layout_section,
+    decode_map_section,
+    layout_spec,
+    unloaded_patterns,
+)
+from .render import (  # noqa: F401
+    OVERLAY_TRANSPARENT_INDICES,
+    PLANE_BYTES,
+    priority_overlay,
+    priority_tiles,
 )
 from .sprites import (
     FACINGS,
@@ -139,6 +108,14 @@ from .sprites.emit import (
     resolve_map_sprites,
 )
 from .symbols import ITEM_SYMBOLS
+from .warps import (  # noqa: F401
+    STANDING_CELL_Y_OFFSET,
+    XY_RANGE_NAMES,
+    PackError,
+    Rect,
+    warp_rect,
+    xy_range_name,
+)
 
 #: Bumped whenever a field in the emitted JSON changes meaning or disappears.
 #: `psiv-data` refuses a pack whose version it does not know.
@@ -154,9 +131,6 @@ PACK_FORMAT_VERSION = 1
 MANIFEST_NAME = "manifest.json"
 MAPS_DIRECTORY = "maps"
 
-#: `GetChunkAndCollision`: `addi.w #$10,d6` before the shift down to a cell.
-STANDING_CELL_Y_OFFSET = 1
-
 #: `Map_Start_Facing_Dir` in the disassembly's constants.
 FACING_NAMES: dict[int, str] = {0: "down", 4: "up", 8: "right", 0xC: "left"}
 
@@ -168,453 +142,6 @@ TRANSITION_TABLES = (
 )
 
 MAP_CHANGE_COLLISION_TYPE = 0x1
-
-
-class PackError(ValueError):
-    pass
-
-
-# ---------------------------------------------------------------------------
-# XYRangeJmpTbl
-# ---------------------------------------------------------------------------
-@dataclass(frozen=True)
-class Rect:
-    """A half-open rectangle of collision cells."""
-
-    x: int
-    y: int
-    width: int
-    height: int
-
-    def __post_init__(self) -> None:
-        if self.width <= 0 or self.height <= 0:
-            raise PackError(
-                f"Rect at ({self.x}, {self.y}) is {self.width}x{self.height}; an "
-                "empty trigger area is reported as no rectangle at all"
-            )
-
-    def cells(self) -> Iterator[tuple[int, int]]:
-        for y in range(self.y, self.y + self.height):
-            for x in range(self.x, self.x + self.width):
-                yield x, y
-
-    def to_json(self) -> dict[str, int]:
-        return {"x": self.x, "y": self.y, "width": self.width, "height": self.height}
-
-
-#: The eight `XYRangeJmpTbl` routines that build a box out of the record's
-#: coordinate: `d6 = d0 + w`, `d7 = d1 + h`, then four comparisons that accept
-#: `d0 <= player_x < d6` and `d1 <= player_y < d7`. Sizes are in pixels, as the
-#: `addi.w` immediates spell them.
-_BOX_RANGES: dict[int, tuple[str, int, int]] = {
-    0x1: ("XYPlus40", 0x40, 0x40),
-    0x2: ("XYPlus20", 0x20, 0x20),
-    0x9: ("XPlus20_YPlus10", 0x20, 0x10),
-    0xA: ("XPlus10_YPlus60", 0x10, 0x60),
-    0xB: ("XPlus40_YPlus20", 0x40, 0x20),
-    0xC: ("XPlus10_YPlus20", 0x10, 0x20),
-    0xD: ("XPlus60_YPlus10", 0x60, 0x10),
-    0xE: ("XPlus40_YPlus10", 0x40, 0x10),
-}
-
-#: The seven that do not: a point test, four half-plane tests, the one that
-#: also gates on the player being past a fixed Y, and the one that never fires.
-_OTHER_RANGES: dict[int, str] = {
-    0x0: "Null",
-    0x3: "XYExact",
-    0x4: "XLower",
-    0x5: "XHigher",
-    0x6: "YLower",
-    0x7: "YHigher",
-    0x8: "XYLowerWithPlayerY",
-}
-
-XY_RANGE_NAMES: dict[int, str] = {
-    **{value: name for value, (name, _, _) in _BOX_RANGES.items()},
-    **_OTHER_RANGES,
-}
-
-#: `XYRange_XYLowerWithPlayerY` starts `cmpi.w #$2A0,d3 / bls` -- it does
-#: nothing at all unless the player's Y is strictly greater than $2A0. On the
-#: 16-pixel grid that means `curr_y_pos >= $2B0`, one cell further down again
-#: once the standing-cell shift is applied.
-_PLAYER_Y_FLOOR_PIXELS = 0x2A0
-_PLAYER_Y_FLOOR_CELL = (
-    _PLAYER_Y_FLOOR_PIXELS // COLLISION_CELL_PIXELS + 1 + STANDING_CELL_Y_OFFSET
-)
-
-
-def xy_range_name(value: int) -> str:
-    if value not in XY_RANGE_NAMES:
-        raise PackError(f"XYRange index {value} is outside the 15-entry jump table")
-    return XY_RANGE_NAMES[value]
-
-
-def warp_rect(
-    range_id: int, x_byte: int, y_byte: int, width_cells: int, height_cells: int
-) -> Rect | None:
-    """The cells a transition record covers, clipped to its map.
-
-    `x_byte`/`y_byte` are the record's two coordinate bytes as stored. The
-    result is in collision-grid cells, so `y_byte` has already been shifted by
-    `STANDING_CELL_Y_OFFSET`. `None` means the transition can never fire, which
-    is `XYRange_Null` or a rectangle that lies entirely off the map.
-    """
-    if width_cells <= 0 or height_cells <= 0:
-        raise PackError(f"Map is {width_cells}x{height_cells} cells")
-    x = x_byte
-    y = y_byte + STANDING_CELL_Y_OFFSET
-    #: Half-open bounds before clipping. The open-ended routines are written
-    #: with the map's own edge as the missing bound, which is only legitimate
-    #: because the player can never stand outside the grid.
-    if range_id in _BOX_RANGES:
-        _, pixels_x, pixels_y = _BOX_RANGES[range_id]
-        bounds = (x, y, x + pixels_x // COLLISION_CELL_PIXELS, y + pixels_y // COLLISION_CELL_PIXELS)
-    elif range_id == 0x0:
-        # `moveq #0,d7 / rts` -- never inside.
-        return None
-    elif range_id == 0x3:
-        # Both coordinates compared with `bne`: one cell, exactly.
-        bounds = (x, y, x + 1, y + 1)
-    elif range_id == 0x4:
-        # `cmp.w d2,d0 / bcs` fails only when the target X is below the
-        # player's, so everything from the left edge up to and including x.
-        bounds = (0, 0, x + 1, height_cells)
-    elif range_id == 0x5:
-        # `bhi` fails when the target X is above the player's: x and rightwards.
-        bounds = (x, 0, width_cells, height_cells)
-    elif range_id == 0x6:
-        bounds = (0, 0, width_cells, y + 1)
-    elif range_id == 0x7:
-        bounds = (0, y, width_cells, height_cells)
-    elif range_id == 0x8:
-        # X and Y both "lower", plus the $2A0 floor on the player's own Y.
-        bounds = (0, _PLAYER_Y_FLOOR_CELL, x + 1, y + 1)
-    else:
-        raise PackError(f"XYRange index {range_id} is outside the 15-entry jump table")
-
-    x0, y0 = max(bounds[0], 0), max(bounds[1], 0)
-    x1, y1 = min(bounds[2], width_cells), min(bounds[3], height_cells)
-    if x1 <= x0 or y1 <= y0:
-        return None
-    return Rect(x0, y0, x1 - x0, y1 - y0)
-
-
-# ---------------------------------------------------------------------------
-# Record -> layout spec
-# ---------------------------------------------------------------------------
-def _offset(text: str) -> int:
-    return int(text, 16)
-
-
-def layout_spec(record: dict[str, Any]) -> MapLayoutSpec:
-    """Assemble the `MapLayoutSpec` a decoded map record describes.
-
-    `scroll.mode` is `loc_51AB2`'s first byte, the `$FFFFEC24` flag that
-    `GetChunkAndCollision` reads to pick a plane, so it is the spec's
-    `collision_plane` and not a rendering hint.
-    """
-    layout = record["layout"]
-    if not layout["present"]:
-        raise PackError(
-            f"map 0x{record['id']:03X} ({record['symbol']}) has no layout section"
-        )
-    dimensions = record["dimensions"]
-    return MapLayoutSpec.from_header(
-        chunk_blobs=[_offset(p) for p in record["chunks"]["pointers"]],
-        layout_fg=_offset(layout["fg_offset"]),
-        layout_bg=_offset(layout["bg_offset"]),
-        dimension_bytes=[
-            dimensions["fg_row_size"],
-            dimensions["fg_column_size"],
-            dimensions["bg_row_size"],
-            dimensions["bg_column_size"],
-        ],
-        collision_plane=record["scroll"]["mode"],
-        tilesets=[
-            (entry["vram_tile"], _offset(entry["source_offset"]))
-            for entry in record["tilesets"]["entries"]
-        ],
-        palette=_offset(record["palette"]["pointer"]),
-        label=record["symbol"],
-    )
-
-
-#: A chunk definition of nothing: pattern 0, no flips, no collision bit. This
-#: is what `Chunk_Table` holds at a slot no map has decompressed into.
-UNDEFINED_CHUNK = (0,) * CHUNK_WORDS
-
-
-def _fill_undefined_chunks(
-    chunks: ChunkTable, planes: Sequence[Layout]
-) -> tuple[ChunkTable, dict[str, Any] | None]:
-    """Give a layout somewhere to point when it names a chunk the map never loads.
-
-    `SetupChunksFG` turns a layout byte into `Chunk_Table + (id << 5)` with no
-    bound of any kind, and `Chunk_Table` is a 1024-definition region, so an
-    out-of-range id reads a slot the map did not write -- stale data from the
-    previously loaded map, or nothing at all on a cold boot. One cell of one
-    retail map does this: `MapID_InnerSanctuary_B1`'s BG plane names chunk $FF
-    at chunk (26, 28) while the map loads 128 chunks, surrounded by chunk 0.
-
-    There is no faithful value to emit, because the cartridge's own is
-    undefined. The pack substitutes the empty definition, which is what the
-    region holds before any map has reached that far, and records the
-    substitution so a reader is never told a guess is data. Layout cells are
-    single bytes, so this can never grow the table past `MAX_CHUNKS`.
-    """
-    highest = max(max(layout.cells) for layout in planes)
-    if highest < len(chunks):
-        return chunks, None
-    if highest >= MAX_CHUNKS:
-        raise PackError(
-            f"Layout names chunk 0x{highest:02X}, past the {MAX_CHUNKS} a byte cell "
-            "can reach"
-        )
-    filled = ChunkTable(
-        words=chunks.words
-        + tuple(UNDEFINED_CHUNK for _ in range(len(chunks), highest + 1)),
-        blobs=chunks.blobs,
-    )
-    cells = [
-        {"plane": layout.plane, "x": index % layout.width_chunks,
-         "y": index // layout.width_chunks, "chunk_id": f"0x{value:02X}"}
-        for layout in planes
-        for index, value in enumerate(layout.cells)
-        if value >= len(chunks)
-    ]
-    return filled, {
-        "kind": "undefined_chunk",
-        "loaded_chunks": len(chunks),
-        "chunk_ids": sorted({cell["chunk_id"] for cell in cells}),
-        "cells": cells,
-        "effect": (
-            "the cartridge reads a Chunk_Table slot this map never wrote; the "
-            "pack substitutes an empty chunk definition"
-        ),
-    }
-
-
-def decode_layout_section(
-    rom: bytes, spec: MapLayoutSpec
-) -> tuple[MapLayout, list[dict[str, Any]]]:
-    """`layouts.decode_map_layout`, collecting the planes' length anomalies."""
-    chunks = decode_chunks(rom, spec.chunk_blobs)
-    fg = decode_layout(
-        rom, spec.layout_fg, spec.width_chunks_fg, spec.height_chunks_fg, PLANE_FG
-    )
-    bg = decode_layout(
-        rom, spec.layout_bg, spec.width_chunks_bg, spec.height_chunks_bg, PLANE_BG
-    )
-    fg_anomaly, bg_anomaly = fg.anomaly, bg.anomaly
-    chunks, chunk_anomaly = _fill_undefined_chunks(chunks, (fg, bg))
-    decoded = MapLayout(
-        spec=spec,
-        chunks=chunks,
-        fg=fg,
-        bg=bg,
-        collision=decode_collision(chunks, bg if spec.collision_plane else fg),
-        patterns=decode_tilesets(rom, spec.tilesets),
-    )
-    return decoded, [a for a in (fg_anomaly, bg_anomaly, chunk_anomaly) if a is not None]
-
-
-def decode_map_section(
-    rom: bytes, record: dict[str, Any]
-) -> tuple[MapLayout, list[dict[str, Any]], Overworld | None]:
-    """Decode one map's layout by whichever of the two paths its id selects.
-
-    359 records point at two Kosinski blobs. The two world maps point at
-    nothing: `loc_539E2`/`loc_53A04` branch out on `Field_Map_Index & $FFFE`
-    before reading a pointer, and their planes stream from paged tables. Both
-    paths end in the same `MapLayout`, so everything downstream of here -- the
-    per-map JSON, the collision grid, the composed render -- is written once.
-    """
-    if record["layout"]["present"]:
-        decoded, anomalies = decode_layout_section(rom, layout_spec(record))
-        return decoded, anomalies, None
-    if not is_overworld(record["id"]):
-        raise PackError(
-            f"map 0x{record['id']:03X} ({record['symbol']}) has no layout section and "
-            "is not one of the paged world maps"
-        )
-    overworld = decode_overworld(rom, record["id"], record, with_tiles=True)
-    return overworld.layout, list(overworld.anomalies), overworld
-
-
-def unloaded_patterns(decoded) -> list[int]:
-    """VRAM tiles a map's chunks name but its `loc_519D2` tilesets never fill.
-
-    `compose_layout` reports these too, but only as a side effect of rendering.
-    Walking the distinct chunks instead costs nothing and lets the manifest
-    carry the answer for every map.
-
-    Two different things land here and the manifest says so rather than calling
-    both a defect. Some of these tiles are filled by the record's *sprite* art
-    lists (`loc_51A1A`/`loc_51A5C`), which a `MapLayoutSpec` does not carry, so
-    the chunk is drawing perfectly real art this pack has not staged. The rest
-    are VRAM nothing in the record writes, which on the cartridge draws
-    whatever the previous map left there.
-    """
-    missing: set[int] = set()
-    for layout in (decoded.bg, decoded.fg):
-        for chunk_id in layout.distinct_chunks:
-            for word in decoded.chunks[chunk_id]:
-                index = tile_index(vdp_word(word))
-                if index not in decoded.patterns.loaded:
-                    missing.add(index)
-    return sorted(missing)
-
-
-# ---------------------------------------------------------------------------
-# The priority overlay
-# ---------------------------------------------------------------------------
-# Bit 15 of a pattern-name word is the VDP's priority bit, and unlike bit 14 it
-# is real video data: `ChunkTilesToBuffer` masks with `#$BFFF`, which clears the
-# collision flag and leaves priority alone. The Mega Drive resolves a pixel in
-# this order:
-#
-#     high-priority sprites
-#     high-priority plane A
-#     high-priority plane B
-#     low-priority sprites
-#     low-priority plane A
-#     low-priority plane B
-#     backdrop
-#
-# so a map tile with the bit set draws *over* an ordinary sprite. That is how an
-# archway's keystone and a palm tree's crown sit in front of Chaz instead of
-# behind him. A renderer that draws the base image, then the party, and stops,
-# puts the party through the archway -- which is the bug this overlay fixes.
-#
-# The overlay is the base render with everything but the priority tiles removed:
-# same dimensions, same 32-colour palette, same compositing order (plane B
-# first, plane A over it with colour 0 transparent). A renderer draws base, then
-# sprites, then this, and gets the hardware's answer for every pixel field mode
-# can produce.
-#
-# Colour index 0 stays transparent on a priority tile too, because that is what
-# transparent means to the VDP; it is why a sprite still shows through the empty
-# corners of an arch. The composer never writes a colour-0 pixel, so a nonzero
-# byte means "the cartridge draws this above sprites" and a zero byte means
-# nothing at all -- but the tRNS chunk marks both lines' colour 0, because the
-# palette is the base render's palette and in it both are the transparent
-# colour.
-#
-# One caveat for the runtime, read off `Field_FillSpriteAttributes`: a field
-# object whose flag byte has bit 4 set gets `bset #7,d0` on its pattern word's
-# high byte, i.e. it becomes a *high-priority* sprite and belongs above this
-# overlay rather than below it. The party is never one of those -- all eleven
-# party routines store $40 at `$13(a4)`, which leaves bit 7 clear -- so the
-# overlay is unconditionally correct for the case that motivated it. Whether any
-# NPC sets the bit is a question about `FieldObjectsJmpTbl` routines rather than
-# about map data, and this module does not answer it.
-
-#: The overlay's transparent palette indices. Pixel values are
-#: `palette_line * 16 + colour_index`, so colour 0 of CRAM lines 0 and 1 are
-#: indices 0 and 16.
-OVERLAY_TRANSPARENT_INDICES = (0, 16)
-
-#: `plane_byte` values, the same 0/1 the collision section uses for its plane.
-PLANE_BYTES = {PLANE_FG: 0, PLANE_BG: 1}
-
-
-def priority_tiles(chunks: ChunkTable) -> dict[int, tuple[tuple[int, int, int], ...]]:
-    """Each chunk definition's priority tiles, as `(tile x, tile y, word)`.
-
-    Chunks without one are absent rather than empty, so the compositor can skip
-    a layout cell with a single dictionary miss. Most cells are such a miss.
-    """
-    found: dict[int, tuple[tuple[int, int, int], ...]] = {}
-    for chunk_id, words in enumerate(chunks.words):
-        tiles = tuple(
-            (index % CHUNK_TILES_X, index // CHUNK_TILES_X, word)
-            for index, word in enumerate(words)
-            if priority(word)
-        )
-        if tiles:
-            found[chunk_id] = tiles
-    return found
-
-
-def _draw_priority_plane(
-    layout: Layout,
-    tiles_by_chunk: dict[int, tuple[tuple[int, int, int], ...]],
-    patterns,
-    pixels: bytearray,
-    width: int,
-) -> int:
-    """Draw one plane's priority tiles, returning how many it placed.
-
-    The inner loop is `compose_layout`'s, minus the branch for a base image:
-    this always composites, because a plane that is not drawing a priority tile
-    is not drawing anything.
-    """
-    placed = 0
-    for chunk_y in range(layout.height_chunks):
-        for chunk_x in range(layout.width_chunks):
-            tiles = tiles_by_chunk.get(layout.chunk_at(chunk_x, chunk_y))
-            if tiles is None:
-                continue
-            for tile_x, tile_y, raw in tiles:
-                placed += 1
-                word = vdp_word(raw)
-                index = tile_index(word)
-                if index not in patterns.loaded:
-                    # Already surfaced by `unloaded_patterns`; drawing nothing
-                    # is what the base render does with it too.
-                    continue
-                tile = patterns.tile(index)
-                shift = palette_line(word) * 16
-                flip_x, flip_y = h_flip(word), v_flip(word)
-                ox = chunk_x * CHUNK_PIXELS_X + tile_x * TILE_PIXELS
-                oy = chunk_y * CHUNK_PIXELS_Y + tile_y * TILE_PIXELS
-                for y in range(TILE_PIXELS):
-                    source_y = TILE_PIXELS - 1 - y if flip_y else y
-                    row = tile[source_y * TILE_PIXELS:(source_y + 1) * TILE_PIXELS]
-                    if flip_x:
-                        row = row[::-1]
-                    start = (oy + y) * width + ox
-                    for x in range(TILE_PIXELS):
-                        value = row[x]
-                        if value:
-                            pixels[start + x] = value + shift
-    return placed
-
-
-def priority_overlay(
-    decoded, palette: Sequence[tuple[int, int, int]]
-) -> tuple[bytes | None, dict[str, Any]]:
-    """The above-sprites layer of one map, as a PNG, plus what went into it.
-
-    Returns `(None, counts)` when the map has no priority pixels at all: an
-    entirely transparent file is a file every consumer has to load to learn
-    nothing, so the pack says `png_over: null` instead of writing one.
-    """
-    width, height = decoded.bg.width_pixels, decoded.bg.height_pixels
-    if (decoded.fg.width_pixels, decoded.fg.height_pixels) != (width, height):
-        raise PackError(
-            f"map planes are {decoded.fg.width_pixels}x{decoded.fg.height_pixels} and "
-            f"{width}x{height}; an overlay has to line up with the base render"
-        )
-
-    tiles_by_chunk = priority_tiles(decoded.chunks)
-    pixels = bytearray(width * height)
-    counts = {"tiles": {}, "opaque_pixels": 0}
-    # Plane B first, plane A over it: the same order the base render uses, and
-    # the order the VDP resolves two high-priority pixels in.
-    for layout in (decoded.bg, decoded.fg):
-        counts["tiles"][layout.plane] = _draw_priority_plane(
-            layout, tiles_by_chunk, decoded.patterns, pixels, width
-        )
-    counts["opaque_pixels"] = sum(1 for value in pixels if value)
-    counts["chunks_with_priority_tiles"] = len(tiles_by_chunk)
-    if not counts["opaque_pixels"]:
-        return None, counts
-    colours = list(palette)
-    return png.encode_indexed(
-        width, height, bytes(pixels), colours[:32], OVERLAY_TRANSPARENT_INDICES
-    ), counts
 
 
 # ---------------------------------------------------------------------------

@@ -539,3 +539,23 @@ Stripper StripperCoat StripClubCustomer loc_49406 loc_49442 SaveSlotCursor
 DancingStripper1 DancingStripper2 DancingStripper3 loc_4B30C Pennant
 SandWormCarving loc_4FA30
 """.split()
+
+# EventFlag_* from ps4.constants.asm. This is not the full 174-entry set: it is
+# the flags the code this project has decoded actually tests, so a symbol
+# appearing here means some extractor names it, not that the flag matters more
+# than the rest. Extend it as more flag-gated code is read.
+#
+# All eight below are read by the overworld page-load hooks
+# (`psiv_tools.overworld`), which rewrite layout cells when the flag is set --
+# the two spaceports, Machine Center and The Edge are doors that only exist
+# once the story has opened them.
+EVENT_FLAG_SYMBOLS: dict[int, str] = {
+    0x34: "EventFlag_BioPlantEscape",
+    0x35: "EventFlag_RikaJoined",
+    0x43: "EventFlag_MachineCenter",
+    0x65: "EventFlag_ZioNurvus",
+    0x66: "EventFlag_MotaSpaceport",
+    0x82: "EventFlag_DezoSpaceport",
+    0x9E: "EventFlag_DarkForce2",
+    0xDA: "EventFlag_Reunion",
+}

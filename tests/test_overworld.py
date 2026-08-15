@@ -3,6 +3,7 @@ import struct
 import unittest
 from pathlib import Path
 
+from psiv_tools import overworld as overworld_module
 from psiv_tools.core import read_rom
 from psiv_tools.layouts import (
     COLLISION_CELL_PIXELS,
@@ -15,7 +16,6 @@ from psiv_tools.layouts import (
 from psiv_tools.maps import extract_maps
 from psiv_tools.overworld import (
     DEZOLIS,
-    EVENT_FLAG_SYMBOLS,
     GET_MAP_LAYOUT_CHUNK_BG,
     GET_MAP_LAYOUT_CHUNK_FG,
     HEIGHT_CHUNKS,
@@ -53,6 +53,7 @@ from psiv_tools.pack import (
     MAP_CHANGE_COLLISION_TYPE as PACK_MAP_CHANGE,
     warp_rect,
 )
+from psiv_tools.symbols import EVENT_FLAG_SYMBOLS
 
 ROM = Path(__file__).resolve().parents[1] / "Phantasy Star IV (USA).md"
 REFERENCE = Path(__file__).resolve().parents[1] / "reference" / "ps4disasm"
@@ -710,6 +711,9 @@ class DisassemblyOracleTest(unittest.TestCase):
         self.assertIn("\tandi.w\t#$1F, d1\n\tlsl.w\t#7, d1", self.source)
 
     def test_the_event_flags_the_patches_test(self):
+        # The table lives in `psiv_tools.symbols` with every other symbol table
+        # and is re-exported here, so the two names are one object.
+        self.assertIs(overworld_module.EVENT_FLAG_SYMBOLS, EVENT_FLAG_SYMBOLS)
         for value, symbol in EVENT_FLAG_SYMBOLS.items():
             with self.subTest(symbol=symbol):
                 literal = f"${value:X}" if value > 9 else str(value)
