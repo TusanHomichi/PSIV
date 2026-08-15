@@ -156,16 +156,19 @@ impl Field {
         };
         screen.bind_mut().begin(setup, events);
         self.hide_field_for_battle();
-        // `docs/BATTLE_GEOMETRY.md` §1 is a 320x224 authentic frame; the
-        // camera owns its centre while cinema mode masks the wide field view.
+        // HOTFIX (live QA: the framed takeover blacked out all battle art
+        // while screen-space windows survived): camera repositioning and the
+        // cinema letterbox are DISABLED for battles until the framing is
+        // rebuilt with live visual verification. The camera stays where the
+        // field left it; battle art parents to the BattleScreen at the
+        // field camera's current view. Ugly float, but visible - the
+        // authentic 320x224 framing returns as its own verified task.
         if let Some(camera) = self.camera.as_mut() {
             camera.set_position(Vector2::new(
                 BATTLE_FRAME_WIDTH / 2.0,
                 BATTLE_FRAME_HEIGHT / 2.0,
             ));
         }
-        self.set_letterbox(true);
-        self.place_letterbox();
         godot_print!("battle started: {label}");
     }
 
