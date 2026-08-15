@@ -677,9 +677,13 @@ impl INode2D for DialogueWindow {
             // while Speak is held — hold-to-accelerate, measured off hardware
             // (oracle tapes 13/15: 39 draws in a 40-frame held span vs 13
             // released; an early press inside the open animation is dropped,
-            // which the swallow above already models). Holding does NOT
-            // auto-advance a finished page — that path still wants a press,
-            // pending a hold-across-page-boundary tape.
+            // which the swallow above already models). Page advance is
+            // EDGE-triggered and acceleration is LEVEL-driven — measured
+            // independently (tape 16): a held button never advances a
+            // finished page (58 chars at 1/frame, then a dead stop with the
+            // button down), but a fresh press with the hold maintained
+            // starts the next page already accelerated. Reading the held
+            // state per tick here gives exactly that pairing.
             let total = self.flow.as_ref().map_or(0, |flow| {
                 flow.lines().iter().map(|l| l.chars().count()).sum()
             });

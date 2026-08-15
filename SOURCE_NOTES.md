@@ -437,3 +437,12 @@ and the flag-set whose absence would re-fire the trigger forever.
   into the $F140 bank (one 256-id space) to reproduce retail. Found by the map-effects decoder
   (docs/MAP_EFFECTS.md finding 5); ROM byte sweeps re-verified
   independently by the lead.
+- RETAIL CARTRIDGE BUG (a second instance of a known one):
+  `Battle_BackgroundIndexes` (0x006CA8) is 416 bytes for the 417-map id
+  space — the identical off-by-one `Battle_EnemyFormationIndexes` has.
+  MapID `$1A0` reads the byte past the end (the first byte of the 32-entry
+  post-step selector at `loc_6E48`, value 0 → MotaDesert). Dormant for the
+  same reason: that map has random battles disabled. Two independently
+  authored 416-byte tables over a 417-map space suggests the id-space count
+  itself was wrong somewhere in Sega's build tooling. Found during battle
+  background emission (battle/art/backgrounds).
