@@ -823,6 +823,82 @@ mod tests {
     }
 
     #[test]
+    fn every_story_gated_id_is_a_real_chests_flag() {
+        // The stronger of the two censuses, because it is behavioural rather
+        // than statistical: these are the *only* ids in the ROM that reach the
+        // `$F120` test door with a literal immediate, i.e. the only bits story
+        // code asks about by name. Every one is a treasure chest's flag, which
+        // is what makes "chest writes, story reads" the model rather than an
+        // accident of overlapping id spaces.
+        //
+        // Ids and chests from the pack's `treasure_chests` records; the call
+        // sites are the fifteen callers of `0x05762E`.
+        const STORY_GATED: [(u16, &str); 11] = [
+            (0x08, "TonoeBasement_B3 EclpsTorch"),
+            (0x09, "LadeaTower_F5 FradeMantl"),
+            (0x0A, "MachineCenter_B1 Canceller"),
+            (0x0B, "Zelan_F1 PalmaRing"),
+            (0x0C, "AirCastleInner_B1_Part3 AeroPrism"),
+            (0x0D, "SoldiersTemple RepairKit"),
+            (0xA1, "StrengthTower_F4 MotaRing"),
+            (0xA2, "StrengthTower_F4 DezoRing"),
+            (0xA3, "StrengthTower_F4 RykrRing"),
+            (0xA4, "CourageTower_F4 AlgoRing"),
+            (0xA5, "CourageTower_F4 MahlayRing"),
+        ];
+
+        let mut state = GameState::new();
+        for (id, chest) in STORY_GATED {
+            // The story test and the chest open are the same bit, so opening
+            // the chest is what satisfies the story gate.
+            state.set(Flag::chest(id)).unwrap();
+            assert!(state.is_set(Flag::event(0x100 + id)), "{chest}");
+            assert!(state.is_clear(Flag::temp(id)), "{chest}: not a temp flag");
+        }
+    }
+
+    #[test]
+    fn the_two_id_conventions_land_on_the_same_bit() {
+        // The off-by-$100 killer. The pack emits the preloaded set as combined
+        // ids (`0x127`), while a chest record names the same bit as `0x27`.
+        // Retail's `$F120` door takes the id **raw** — it has no
+        // `subi.w #$100, d0`, whatever the clone shows — so the caller owns the
+        // offset, and this is where getting it wrong would hide.
+        //
+        // Constructing from each convention must reach one byte and one bit.
+        for n in [0u16, 1, 7, 8, 0x27, 0x78, 0xA7, 0xFF] {
+            let from_chest = Flag::chest(n);
+            let from_combined = Flag::event(0x100 + n);
+            assert_eq!(from_chest, from_combined, "id ${n:02X}");
+
+            let mut a = GameState::new();
+            a.set(from_chest).unwrap();
+            let mut b = GameState::new();
+            b.set(from_combined).unwrap();
+            assert_eq!(
+                a.snapshot().event_flags,
+                b.snapshot().event_flags,
+                "id ${n:02X}: same byte, same bit"
+            );
+
+            // And the bit is where the cartridge's `bset 7-(id&7)` puts it,
+            // counted from `$F120` — byte 32 of the event array.
+            let byte = 32 + (n as usize >> 3);
+            let bit = 7 - (n & 7);
+            assert_eq!(
+                a.snapshot().event_flags[byte],
+                1u8 << bit,
+                "id ${n:02X} at $F1{:02X} bit {bit}",
+                0x20 + (n >> 3)
+            );
+        }
+
+        // A chest id must never reach the low half — that would be an event
+        // flag of the same number, which is a different bit entirely.
+        assert_ne!(Flag::chest(0x27), Flag::event(0x27));
+    }
+
+    #[test]
     fn the_snapshot_carries_four_banks() {
         // The save shape. `chest_flags` absorbed the old `temp_flags`, so a
         // stored five-bank snapshot migrates by concatenating chest then temp.

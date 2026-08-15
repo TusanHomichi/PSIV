@@ -166,6 +166,38 @@ mod tests {
     }
 
     #[test]
+    fn no_map_load_can_ever_clear_a_chest_flag() {
+        // Permanence, pinned as a property rather than described in a comment.
+        //
+        // Nothing in the cartridge clears a `$F120` bit: the clear door at
+        // `0x0576B2` has one caller, `MapUpdate_ClrChestFlag`, which the
+        // disassembly annotates "Not referenced" and which clears the unused id
+        // `$A9`. A chest, once opened, stays open for the life of the save.
+        //
+        // Map load is the only thing in this engine that clears flags at all,
+        // so it is the only place that could violate it. Every entry, against
+        // every chest flag.
+        let mut state = GameState::new();
+        for id in 0..=0xFFu16 {
+            state.set(Flag::chest(id)).unwrap();
+        }
+        let before = state.snapshot().event_flags;
+
+        for entry in 0..=0xFFu8 {
+            apply_map_load(&mut state, &[entry]);
+        }
+
+        assert_eq!(
+            state.snapshot().event_flags,
+            before,
+            "a map load cleared a chest flag"
+        );
+        for id in 0..=0xFFu16 {
+            assert!(state.is_set(Flag::chest(id)), "chest ${id:02X}");
+        }
+    }
+
+    #[test]
     fn a_map_with_no_clearing_entries_leaves_everything_alone() {
         let mut state = GameState::new();
         state.set(Flag::temp(0x13)).unwrap();
