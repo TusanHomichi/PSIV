@@ -55,6 +55,7 @@ from .layouts import (
     render_layout,
 )
 from .maps import extract_maps
+from .battle_pack import emit_battle
 from .newgame import extract_new_game
 from .npc_commands import extract_npc_commands
 # The two world maps' layouts are not in their records at all -- they stream
@@ -621,6 +622,12 @@ def build_pack(
     game_start_sha = _write_json(directory / GAME_START_NAME, game_start)
     start = game_start["first_control"]
 
+    # Enemies, formations, level progression and the ability records the
+    # damage pipeline consumes. Its own directory because it is a different
+    # half of the game from field mode, and `psiv_tools.battle_pack` is the
+    # only thing that knows its shape.
+    battle = emit_battle(rom_bytes, directory, PACK_FORMAT_VERSION)
+
     # What a scene's MoveActorCommand byte means. Its own file for the same
     # reason: the provenance is bulky and it is read once, not per map.
     npc_commands = {
@@ -772,6 +779,8 @@ def build_pack(
                 "the flag its own trigger tests, which is what stops the chain."
             ),
         },
+        # Enemies, formations, levels and abilities, under battle/.
+        "battle": battle,
         # The NPC movement-command table, indexed by a scene op's command byte.
         "npc_commands": {
             "file": NPC_COMMANDS_NAME,

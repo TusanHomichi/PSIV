@@ -93,6 +93,14 @@ def main() -> int:
             )
             print(f"Packed {manifest['map_count']} maps to {args.output}")
             print(f"Dialogue: {dialogue['trees']['tree_count']} trees emitted")
+            battle = manifest["battle"]["files"]
+            print(
+                f"Battle: {battle['enemies']['count']} enemies, "
+                f"{battle['formations']['count']}+{battle['formations']['boss_count']} "
+                f"formations, {battle['levels']['records']} level records, "
+                f"{sum(battle['abilities'][k] for k in ('techniques','skills','enemy_skills','item_effects'))} "
+                "ability records"
+            )
             print(f"Skipped {len(manifest['skipped'])} entries; {manifest['warps']['count']} warps")
             doors = manifest["warps"]["doors_without_map_change_cell"]
             if doors:

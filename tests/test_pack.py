@@ -355,6 +355,23 @@ class TestPackFixture(unittest.TestCase):
                 overlays["without_overlay"][0]["symbol"], "TheEdge"
             )
 
+    def test_the_manifest_points_at_the_battle_files(self):
+        battle = self.manifest["battle"]
+        self.assertEqual(battle["directory"], "battle")
+        for entry in battle["files"].values():
+            with self.subTest(file=entry["file"]):
+                blob = (self.root / entry["file"]).read_bytes()
+                self.assertEqual(entry["sha256"], hashlib.sha256(blob).hexdigest())
+                self.assertEqual(
+                    json.loads(blob)["format_version"], PACK_FORMAT_VERSION
+                )
+        # Battle data is pack-wide, not per map, so a filtered build still
+        # carries all of it.
+        self.assertEqual(battle["files"]["enemies"]["count"], 153)
+        self.assertEqual(battle["files"]["formations"]["count"], 504)
+        self.assertEqual(battle["files"]["levels"]["records"], 937)
+        self.assertEqual(battle["ability_effects"]["count"], 44)
+
     def test_the_manifest_points_at_the_game_start_file(self):
         # Where a new game begins. The manifest carries the headline so a
         # runtime can spawn from it alone; `game_start.json` carries the
@@ -501,13 +518,13 @@ class TestPackFixture(unittest.TestCase):
             first_files = sorted(p.relative_to(self.root) for p in self.root.rglob("*") if p.is_file())
             second_files = sorted(p.relative_to(second) for p in second.rglob("*") if p.is_file())
             self.assertEqual(first_files, second_files)
-            # manifest, game_start.json, npc_commands.json, a JSON and a PNG
-            # per map, an overlay PNG per map that has priority tiles, the two
+            # manifest, game_start.json, npc_commands.json, the four battle
+            # files, a JSON and a PNG per map, an overlay PNG per map that has priority tiles, the two
             # sprite indexes, the eleven party sheets, and one PNG per
             # deduplicated NPC sheet.
             self.assertEqual(
                 len(first_files),
-                3 + 2 * len(FIXTURE_MAPS)
+                3 + 4 + 2 * len(FIXTURE_MAPS)
                 + self.manifest["overlays"]["maps_with_overlay"]
                 + 2 + len(PARTY_SYMBOLS)
                 + self.manifest["sprites"]["npc_sheet_count"],
