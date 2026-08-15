@@ -862,3 +862,177 @@ fn a_scene_struct_carries_its_provenance() {
     assert_eq!(scene.name, "Event_Synthetic");
     assert_eq!(scene.ops.len(), 1);
 }
+
+// ---------------------------------------------------------------------------
+// Oracle-facing sampling and multi-map scenes
+// ---------------------------------------------------------------------------
+
+#[test]
+fn step_durations_match_the_cartridges_countdown_ladder() {
+    // Hardware: x_step_duration counts $1000 -> 0 in $200 steps, eight states,
+    // and only the walked axis is non-zero.
+    let map = map_with(&["....", "....", "...."], vec![], vec![]);
+    let mut state = psiv_core::FieldState::new(
+        &map,
+        Cell::new(0, 1),
+        Direction::Down,
+        StepFrames::default(),
+    )
+    .unwrap();
+
+    assert_eq!(state.step_durations_8_8(), (0, 0), "at rest");
+    assert_eq!(state.step_remaining_frames(), 0);
+
+    let mut ladder = Vec::new();
+    for _ in 0..8 {
+        state.tick(&map, psiv_core::Input::Direction(Direction::Right));
+        ladder.push(state.step_durations_8_8());
+    }
+    assert_eq!(
+        ladder,
+        vec![
+            (0x0E00, 0),
+            (0x0C00, 0),
+            (0x0A00, 0),
+            (0x0800, 0),
+            (0x0600, 0),
+            (0x0400, 0),
+            (0x0200, 0),
+            (0, 0),
+        ],
+        "the $200-per-frame ladder, landing at zero"
+    );
+
+    // Walking vertically moves the other column.
+    state.tick(&map, psiv_core::Input::Direction(Direction::Down));
+    assert_eq!(state.step_durations_8_8(), (0, 0x0E00));
+}
+
+#[test]
+fn a_scene_can_be_recast_across_a_map_change() {
+    // The opening event tours five maps; NPC indices only mean anything
+    // relative to one map's object list, so the cast is re-seated on the way.
+    let first = map_with(&["....", "....", "...."], vec![], vec![]);
+    let second = map_with(&["......", "......", "......"], vec![], vec![]);
+    let mut state = GameState::new();
+
+    static TOUR: &[SceneOp] = &[
+        SceneOp::LoadMap {
+            map: 0x13,
+            prev_map: 0x11,
+            start_x: 4,
+            start_y: 4,
+            facing: Direction::Down,
+            align: 0,
+        },
+        SceneOp::Face {
+            actor: ActorRef::Npc(0),
+            facing: Direction::Left,
+        },
+        SceneOp::End,
+    ];
+
+    let mut runner = SceneRunner::new(
+        TOUR,
+        vec![ScriptedActor::new(
+            ActorRef::Npc(3),
+            Cell::new(1, 1),
+            Direction::Down,
+        )],
+        frames(),
+    );
+
+    // Without a recast the scene faults on the op naming an actor the new map
+    // does not have — loudly, which is the point.
+    let mut doomed = runner.clone();
+    let effects = doomed.tick(&first, &mut state, SceneInput::None);
+    assert!(
+        effects
+            .iter()
+            .any(|e| matches!(e, SceneEffect::Faulted(SceneFault::UnknownActor { .. }))),
+        "a stale cast must fault rather than drive ghosts"
+    );
+
+    // The runtime's actual flow: load the map on MapRequested, recast, carry on.
+    let mut runner2 = SceneRunner::new(
+        &TOUR[..1],
+        vec![ScriptedActor::new(
+            ActorRef::Npc(3),
+            Cell::new(1, 1),
+            Direction::Down,
+        )],
+        frames(),
+    );
+    let effects = runner2.tick(&first, &mut state, SceneInput::None);
+    assert!(
+        effects
+            .iter()
+            .any(|e| matches!(e, SceneEffect::MapRequested { .. })),
+        "the map change is reported so the runtime can act"
+    );
+
+    runner.recast(vec![ScriptedActor::new(
+        ActorRef::Npc(0),
+        Cell::new(2, 2),
+        Direction::Up,
+    )]);
+    let effects = runner.tick(&second, &mut state, SceneInput::None);
+    assert!(effects.iter().any(|e| matches!(
+        e,
+        SceneEffect::ActorFaced {
+            actor: ActorRef::Npc(0),
+            ..
+        }
+    )));
+    assert_eq!(
+        runner.actor(ActorRef::Npc(0)).unwrap().facing,
+        Direction::Left
+    );
+}
+
+#[test]
+fn face_is_a_direct_write_not_a_step() {
+    // Scenes are not bound by the walker's commit-a-whole-cell rule.
+    let map = map_with(&["....", "....", "...."], vec![], vec![]);
+    let mut state = GameState::new();
+    static TURN: &[SceneOp] = &[
+        SceneOp::Face {
+            actor: ActorRef::Npc(0),
+            facing: Direction::Right,
+        },
+        SceneOp::End,
+    ];
+    let mut runner = SceneRunner::new(
+        TURN,
+        vec![ScriptedActor::new(
+            ActorRef::Npc(0),
+            Cell::new(1, 1),
+            Direction::Down,
+        )],
+        frames(),
+    );
+
+    runner.tick(&map, &mut state, SceneInput::None);
+    let actor = runner.actor(ActorRef::Npc(0)).unwrap();
+    assert_eq!(actor.facing, Direction::Right);
+    assert_eq!(actor.cell, Cell::new(1, 1), "facing must not move anyone");
+    assert!(!actor.is_walking());
+}
+
+#[test]
+fn the_transcribed_party_words_match_the_oracles_observations() {
+    // Observed on tape: 00FFFFFF (Chaz alone), 0001FFFF (Chaz then Alys),
+    // 0100FFFF (Alys leading, post-AlysFound).
+    let mut state = GameState::new();
+
+    state.set_party([Some(CharId(0)), None, None, None, None]);
+    assert_eq!(state.party_slot(0), Some(CharId(0)));
+    assert_eq!(state.party_len(), 1);
+
+    state.set_party([Some(CharId(0)), Some(CharId(1)), None, None, None]);
+    assert_eq!(state.party_len(), 2);
+
+    state.set_party([Some(CharId(1)), Some(CharId(0)), None, None, None]);
+    assert_eq!(state.party_slot(0), Some(CharId(1)), "Alys leads");
+    assert_eq!(state.party_slot(1), Some(CharId(0)));
+}

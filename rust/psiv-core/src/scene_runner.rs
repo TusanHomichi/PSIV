@@ -70,6 +70,23 @@ impl SceneRunner {
         &self.actors
     }
 
+    /// Replaces the cast mid-scene, keeping the program counter and any block.
+    ///
+    /// **Multi-map scenes need this.** [`SceneOp::LoadMap`] changes the map
+    /// under a running scene — the opening event tours five maps — and an
+    /// [`ActorRef::Npc`] index only means anything relative to one map's object
+    /// list. So on a [`SceneEffect::MapRequested`] the runtime loads the map,
+    /// then re-seats the cast for it before ticking again. Without that the
+    /// scene would keep driving actors that no longer exist, and the runner
+    /// would fault on the first op naming one.
+    ///
+    /// Actors not mentioned in the new cast are dropped; ones that persist keep
+    /// whatever position the caller gives them, since a map change relocates
+    /// everyone anyway.
+    pub fn recast(&mut self, cast: Vec<ScriptedActor>) {
+        self.actors = cast;
+    }
+
     /// One actor by reference.
     #[must_use]
     pub fn actor(&self, actor: ActorRef) -> Option<&ScriptedActor> {

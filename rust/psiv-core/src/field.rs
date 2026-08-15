@@ -83,6 +83,10 @@ pub struct StepFrames(u8);
 
 impl StepFrames {
     /// The cartridge's normal walking speed: 8 ticks per cell.
+    ///
+    /// Confirmed on hardware by the oracle tape: exactly 8.00 frames per
+    /// 16-pixel cell in all four directions, `x_step_duration` counting down
+    /// from `$1000` to 0 in `$200` steps (`oracle/README.md`, "Walk timing").
     pub const DEFAULT: StepFrames = StepFrames(8);
 
     /// Builds a step duration.
@@ -597,6 +601,39 @@ impl FieldState {
     #[must_use]
     pub const fn step_frames(&self) -> StepFrames {
         self.step_frames
+    }
+
+    /// Ticks left in the step in progress; 0 at rest.
+    #[must_use]
+    pub fn step_remaining_frames(&self) -> u8 {
+        self.step.map_or(0, |step| {
+            self.step_frames.get().saturating_sub(step.progress)
+        })
+    }
+
+    /// `(x_step_duration, y_step_duration)` in the cartridge's own units, for
+    /// the oracle comparator.
+    ///
+    /// The hardware pair counts down from `$1000` — 16.0 pixels in the 8.8
+    /// fixed point the duration words use — reaching 0 as the step lands. Only
+    /// the axis being walked is non-zero, and both are 0 at rest.
+    ///
+    /// Allocation-free and cheap, because the replay comparator samples it
+    /// every frame.
+    #[must_use]
+    pub fn step_durations_8_8(&self) -> (u16, u16) {
+        let Some(step) = self.step else {
+            return (0, 0);
+        };
+        let frames = u32::from(self.step_frames.get());
+        let remaining = u32::from(self.step_remaining_frames());
+        // $1000 scaled by how much of the step is left; exact for any duration,
+        // and exactly the $200-per-frame ladder at the default 8.
+        let duration = ((0x1000 * remaining) / frames) as u16;
+        match step.dir {
+            Direction::Left | Direction::Right => (duration, 0),
+            Direction::Up | Direction::Down => (0, duration),
+        }
     }
 
     /// The sub-cell displacement from [`FieldState::cell`], in sixteenths of a

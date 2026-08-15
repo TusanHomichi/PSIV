@@ -98,7 +98,15 @@ pub enum SceneOp {
         /// Where to.
         to: Cell,
     },
-    /// Turn `actor` in place.
+    /// Turn `actor` in place — a **direct facing write**, not a movement.
+    ///
+    /// Scenes are not bound by the walker's no-turn-in-place rule. Input-driven
+    /// movement commits a whole 16-pixel step the moment a direction is pressed
+    /// toward a walkable cell (measured on hardware: a one-frame tap moves a
+    /// full cell), so the party only turns without moving against a blocked
+    /// cell. `Event_UpdateObjFacing` (`$5A936`) has no such constraint — it
+    /// writes `facing_dir` and returns, which is how `Event_AlysFound` turns
+    /// Alys to face right without her taking a step.
     Face {
         /// Who turns.
         actor: ActorRef,
