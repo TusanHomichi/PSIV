@@ -317,9 +317,16 @@ impl INode2D for Field {
                     rt.dialogue_closed();
                 }
             }
-            if let Some(runtime) = self.runtime.as_mut() {
-                runtime.tick(psiv_core::Input::Neutral);
-            }
+            let events = self
+                .runtime
+                .as_mut()
+                .map(|rt| rt.tick(psiv_core::Input::Neutral))
+                .unwrap_or_default();
+            // The scene's post-dialogue ops run on exactly this tick, so
+            // their events (party changes, despawns, SceneEnded) must be
+            // processed here too — dropping them was a live bug: Alys stayed
+            // standing and the leader never swapped.
+            self.process_events(events);
             self.sync_visuals(false);
             return;
         }
@@ -346,6 +353,136 @@ impl INode2D for Field {
             return;
         };
         let events = runtime.tick(input);
+        let stepped = self.process_events(events);
+        // A landing tick with the key still held is mid-stride, not rest:
+        // without this, the idle frame flashes for one tick every step (the
+        // cartridge's animation free-runs and never sees such a gap).
+        let walking = {
+            let state = self.runtime.as_ref().map(|rt| rt.state());
+            state.is_some_and(|s| s.is_stepping()) || (stepped && input.direction().is_some())
+        };
+        self.sync_visuals(walking);
+    }
+}
+
+impl Field {
+    /// Loads the current map's PNG and rebuilds NPC sprites.
+    fn load_map_visuals(&mut self) {
+        let Some(runtime) = self.runtime.as_ref() else {
+            return;
+        };
+        let id = runtime.map_id().0;
+
+        match runtime.map_png().map(str::to_owned) {
+            Some(name) => {
+                let path = format!("{}/{name}", self.pack_dir);
+                match Image::load_from_file(&GString::from(path.as_str())) {
+                    Some(image) => {
+                        if let Some(texture) = ImageTexture::create_from_image(&image)
+                            && let Some(sprite) = self.map_sprite.as_mut()
+                        {
+                            sprite.set_texture(&texture);
+                        }
+                    }
+                    None => godot_error!("could not load map image {path}"),
+                }
+            }
+            None => godot_error!("map {id:#05x} has no png declared in the pack"),
+        }
+
+        // The priority overlay: absent on the 22 maps with no priority tiles.
+        let over = runtime.map_png_over().map(str::to_owned);
+        if let Some(sprite) = self.overlay_sprite.as_mut() {
+            match over {
+                Some(name) => {
+                    let path = format!("{}/{name}", self.pack_dir);
+                    match Image::load_from_file(&GString::from(path.as_str()))
+                        .and_then(|image| ImageTexture::create_from_image(&image))
+                    {
+                        Some(texture) => {
+                            sprite.set_texture(&texture);
+                            sprite.set_visible(true);
+                        }
+                        None => godot_error!("could not load overlay {path}"),
+                    }
+                }
+                None => sprite.set_visible(false),
+            }
+        }
+
+        for (node, ..) in &mut self.npc_nodes {
+            node.queue_free();
+        }
+        self.npc_nodes.clear();
+
+        // Gather NPC draw info first; borrowing data and adding children at
+        // the same time fights the base borrow.
+        struct NpcDraw {
+            index: usize,
+            sheet: String,
+            idle: String,
+            walk: String,
+            // Object pixel coordinates, not cells: 85 retail objects sit on
+            // half-cells (8px-scaled words), so x/y_pixels are authoritative.
+            x: i32,
+            y: i32,
+        }
+        let mut draws: Vec<NpcDraw> = Vec::new();
+        if let Some(record) = runtime.map_record() {
+            for (index, npc) in record.npcs.iter().enumerate() {
+                // Invisible triggers (sprite_reason set) still block in the
+                // engine, exactly like the cartridge's invisible objects, but
+                // draw nothing.
+                let Some(sprite) = &npc.sprite else { continue };
+                draws.push(NpcDraw {
+                    index,
+                    sheet: sprite.sheet.clone(),
+                    idle: sprite.idle_sequence.clone(),
+                    walk: sprite.walk_sequence.clone(),
+                    x: npc.x_pixels as i32,
+                    y: npc.y_pixels as i32,
+                });
+            }
+            let missing: Vec<String> = draws
+                .iter()
+                .filter(|d| !self.sheet_views.contains_key(&d.sheet))
+                .map(|d| d.sheet.clone())
+                .collect();
+            for sheet_id in missing {
+                if let Some(sheet) = runtime.data().sheet(&sheet_id) {
+                    if let Some(view) = SheetView::build(&self.pack_dir, sheet) {
+                        self.sheet_views.insert(sheet_id, view);
+                    } else {
+                        godot_error!("sheet {sheet_id} png failed to load");
+                    }
+                }
+            }
+        }
+
+        for draw in draws {
+            let Some(view) = self.sheet_views.get(&draw.sheet) else {
+                continue;
+            };
+            let mut node = Sprite2D::new_alloc();
+            node.set_centered(false);
+            node.set_z_index(5);
+            let frame = view.frame_at(&draw.idle, 0);
+            view.apply(&mut node, frame);
+            // "Draw a frame at (object_x - origin_x, object_y - origin_y) and
+            // it lands exactly where the VDP would put it."
+            node.set_position(Vector2::new(
+                (draw.x - view.origin_x) as f32,
+                (draw.y - view.origin_y + view.frame_height) as f32,
+            ));
+            self.base_mut().add_child(&node);
+            self.npc_nodes
+                .push((node, draw.sheet, draw.idle, draw.walk, draw.index));
+        }
+    }
+
+    /// Applies a batch of runtime events to the presentation. Returns whether
+    /// a step completed (the walk-animation bridge needs it).
+    fn process_events(&mut self, events: Vec<RuntimeEvent>) -> bool {
         let mut stepped = false;
         for event in events {
             match event {
@@ -475,130 +612,7 @@ impl INode2D for Field {
                 }
             }
         }
-        // A landing tick with the key still held is mid-stride, not rest:
-        // without this, the idle frame flashes for one tick every step (the
-        // cartridge's animation free-runs and never sees such a gap).
-        let walking = {
-            let state = self.runtime.as_ref().map(|rt| rt.state());
-            state.is_some_and(|s| s.is_stepping()) || (stepped && input.direction().is_some())
-        };
-        self.sync_visuals(walking);
-    }
-}
-
-impl Field {
-    /// Loads the current map's PNG and rebuilds NPC sprites.
-    fn load_map_visuals(&mut self) {
-        let Some(runtime) = self.runtime.as_ref() else {
-            return;
-        };
-        let id = runtime.map_id().0;
-
-        match runtime.map_png().map(str::to_owned) {
-            Some(name) => {
-                let path = format!("{}/{name}", self.pack_dir);
-                match Image::load_from_file(&GString::from(path.as_str())) {
-                    Some(image) => {
-                        if let Some(texture) = ImageTexture::create_from_image(&image)
-                            && let Some(sprite) = self.map_sprite.as_mut()
-                        {
-                            sprite.set_texture(&texture);
-                        }
-                    }
-                    None => godot_error!("could not load map image {path}"),
-                }
-            }
-            None => godot_error!("map {id:#05x} has no png declared in the pack"),
-        }
-
-        // The priority overlay: absent on the 22 maps with no priority tiles.
-        let over = runtime.map_png_over().map(str::to_owned);
-        if let Some(sprite) = self.overlay_sprite.as_mut() {
-            match over {
-                Some(name) => {
-                    let path = format!("{}/{name}", self.pack_dir);
-                    match Image::load_from_file(&GString::from(path.as_str()))
-                        .and_then(|image| ImageTexture::create_from_image(&image))
-                    {
-                        Some(texture) => {
-                            sprite.set_texture(&texture);
-                            sprite.set_visible(true);
-                        }
-                        None => godot_error!("could not load overlay {path}"),
-                    }
-                }
-                None => sprite.set_visible(false),
-            }
-        }
-
-        for (node, ..) in &mut self.npc_nodes {
-            node.queue_free();
-        }
-        self.npc_nodes.clear();
-
-        // Gather NPC draw info first; borrowing data and adding children at
-        // the same time fights the base borrow.
-        struct NpcDraw {
-            index: usize,
-            sheet: String,
-            idle: String,
-            walk: String,
-            // Object pixel coordinates, not cells: 85 retail objects sit on
-            // half-cells (8px-scaled words), so x/y_pixels are authoritative.
-            x: i32,
-            y: i32,
-        }
-        let mut draws: Vec<NpcDraw> = Vec::new();
-        if let Some(record) = runtime.map_record() {
-            for (index, npc) in record.npcs.iter().enumerate() {
-                // Invisible triggers (sprite_reason set) still block in the
-                // engine, exactly like the cartridge's invisible objects, but
-                // draw nothing.
-                let Some(sprite) = &npc.sprite else { continue };
-                draws.push(NpcDraw {
-                    index,
-                    sheet: sprite.sheet.clone(),
-                    idle: sprite.idle_sequence.clone(),
-                    walk: sprite.walk_sequence.clone(),
-                    x: npc.x_pixels as i32,
-                    y: npc.y_pixels as i32,
-                });
-            }
-            let missing: Vec<String> = draws
-                .iter()
-                .filter(|d| !self.sheet_views.contains_key(&d.sheet))
-                .map(|d| d.sheet.clone())
-                .collect();
-            for sheet_id in missing {
-                if let Some(sheet) = runtime.data().sheet(&sheet_id) {
-                    if let Some(view) = SheetView::build(&self.pack_dir, sheet) {
-                        self.sheet_views.insert(sheet_id, view);
-                    } else {
-                        godot_error!("sheet {sheet_id} png failed to load");
-                    }
-                }
-            }
-        }
-
-        for draw in draws {
-            let Some(view) = self.sheet_views.get(&draw.sheet) else {
-                continue;
-            };
-            let mut node = Sprite2D::new_alloc();
-            node.set_centered(false);
-            node.set_z_index(5);
-            let frame = view.frame_at(&draw.idle, 0);
-            view.apply(&mut node, frame);
-            // "Draw a frame at (object_x - origin_x, object_y - origin_y) and
-            // it lands exactly where the VDP would put it."
-            node.set_position(Vector2::new(
-                (draw.x - view.origin_x) as f32,
-                (draw.y - view.origin_y + view.frame_height) as f32,
-            ));
-            self.base_mut().add_child(&node);
-            self.npc_nodes
-                .push((node, draw.sheet, draw.idle, draw.walk, draw.index));
-        }
+        stepped
     }
 
     /// Cinema mode: letterbox bars over the world, under the dialogue box.
@@ -717,7 +731,11 @@ impl Field {
                 let sheet_id = runtime.data().party_sheet(char_id).map(|s| s.id.clone());
                 fdraws.push(sheet_id.map(|sheet_id| FollowerDraw {
                     sheet_id,
-                    kind: if member.is_stepping { "walk" } else { "idle" },
+                    // The caterpillar is lockstep: followers walk exactly when
+                    // the leader walks, and the leader's `walking` flag also
+                    // bridges the one-tick gap between chained steps that made
+                    // followers glide like the dead.
+                    kind: if walking { "walk" } else { "idle" },
                     facing: member.facing,
                     cell: member.cell,
                     offset: member.render_offset_16ths,
