@@ -810,10 +810,12 @@ SOURCE_NOTES.
    (`raw_hex 2c00000000000000`), declares effect `$2C`. The `TRAP #2` dispatcher
    at `$000216` is `add.w d0,d0 / adda.w (a0,d0.w),a0 / jsr (a0)` — **no bounds
    check** — so the jump would land on odd address `$00B033` and raise an
-   address error. **Dormant**: `BLACK WAVE` is used only by enemy 152 `Zio3`
-   (HP 16383, agility 255, defence 255, magic-defence 255), which appears in
-   **zero** of the 504 + 27 formations. An unused debug/leftover boss whose only
-   attack would crash the game.
+   address error. **CORRECTED 2026-08-15**: `BLACK WAVE` belongs to enemy 152 `Zio3`
+   (HP 16383, agility 255, defence 255, magic-defence 255) — and Zio3 IS
+   fielded, in boss formation `event_battle_index` 4, the scripted Zio
+   fight (the original claim searched only the 504 normal formations).
+   Whether retail can reach the crash there is unsettled; see
+   SOURCE_NOTES.
 3. **`AbilityEffect_Death`, `Poison`, `Paralyze`, `SealTech` and the stat-down
    effects resist off *element properties*, not a saving throw** — `bio_prop`,
    `efess_prop`, `psy_prop`, `physical_prop`. Not a bug; just a design fact that

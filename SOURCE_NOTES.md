@@ -511,3 +511,22 @@ and the flag-set whose absence would re-fire the trigger forever.
   $05F880 ($05F880 is the unrelated routine UpdateEquipment tail-calls).
   The behaviour transcribed everywhere is correct; two docs carried the
   wrong address.
+- CORRECTION to the BLACK WAVE entry: Zio3 IS fielded — boss formation
+  `event_battle_index` 4, the scripted Zio fight (the earlier "zero of
+  the 504+27 formations" searched only the 504 normal ones). Whether
+  retail can actually dispatch effect $2C there (address-error crash) is
+  UNSETTLED — thirty years without crash reports suggests the scripted
+  fight ends before the AI reaches the skill, or the dispatch path
+  differs; an oracle experiment waits on mid-game routes. The port's
+  guard moves accordingly: the loader cannot hard-reject the record
+  (that refuses the retail pack), so usable()/rejected() splits plus the
+  runtime UnsupportedAbility event hold the line.
+- Retail equipment bonuses go genuinely negative (agility to -5, mental
+  and dexterity to -10), making the two-adder split live: add.b without
+  sign extension for the four byte stats, ext.w signed for the three
+  derived words. Both reproduced; the 11 conformance vectors exercise it.
+- RETAIL CARTRIDGE BUG: Battle_OrderTurns' max-agility scan reads TEN
+  words of the nine-entry Battle_Turn_Order table (ps4.asm:7779-7788) —
+  one word past the end, into whatever follows at $FFFFEFD4. Dormant in
+  effect (the stray word only matters if it exceeds every real agility);
+  the port implements the intended nine and documents the deviation.
