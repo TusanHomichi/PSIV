@@ -10,6 +10,7 @@ from psiv_tools import png
 from psiv_tools.core import read_rom
 from psiv_tools.layouts import COLLISION_CELL_PIXELS, collision_type_name, is_blocking
 from psiv_tools.maps import extract_maps
+from psiv_tools.overworld import DEZOLIS, MOTAVIA, OVERWORLD_MAP_IDS
 from psiv_tools.pack import (
     MANIFEST_NAME,
     MAPS_DIRECTORY,
@@ -23,6 +24,7 @@ from psiv_tools.pack import (
     PackError,
     Rect,
     build_pack,
+    decode_map_section,
     layout_spec,
     warp_rect,
     xy_range_name,
@@ -38,7 +40,7 @@ MAP_PIATA = 0x10
 MAP_PIATA_ACADEMY = 0x11
 MAP_PIATA_ITEM_SHOP = 0x1B
 MAP_ISLAND_CAVE = 0x92
-MAP_MOTAVIA = 0x00
+MAP_MOTAVIA = MOTAVIA
 
 FIXTURE_MAPS = (MAP_PIATA, MAP_PIATA_ITEM_SHOP, MAP_ISLAND_CAVE)
 
@@ -55,8 +57,16 @@ MAP_BIRTH_VALLEY_B1 = 0x2C
 MAP_AIEDO_PUB = 0x64
 MAP_KADARY_INN_F1 = 0x72
 MAP_MILE_DEAD = 0x1E
+MAP_DEZOLIS = DEZOLIS
+#: `MapID_TheEdge`: one of the 22 maps that draw nothing above sprites.
+MAP_THE_EDGE = 0x100
 
 MAP_CHANGE = 0x1
+
+#: Real records, and `PtrMap_Null` entries, in the 417-entry table. Every real
+#: one is packed now that the two paged world maps decode.
+REAL_MAPS = 361
+NULL_MAPS = 56
 
 
 def parse_png_chunks(data: bytes) -> list[tuple[bytes, bytes]]:
@@ -81,6 +91,25 @@ def parse_png_chunks(data: bytes) -> list[tuple[bytes, bytes]]:
 def png_size(data: bytes) -> tuple[int, int]:
     chunks = dict(parse_png_chunks(data))
     return struct.unpack(">II", chunks[b"IHDR"][:8])
+
+
+def png_pixels(data: bytes) -> tuple[int, int, bytes]:
+    """Width, height and the raw index bytes of an indexed PNG.
+
+    `psiv_tools.png` writes filter type 0 on every scanline and one IDAT, so
+    undoing it is stripping one byte per row.
+    """
+    chunks = parse_png_chunks(data)
+    lookup = dict(chunks)
+    width, height = struct.unpack(">II", lookup[b"IHDR"][:8])
+    raw = zlib.decompress(b"".join(p for kind, p in chunks if kind == b"IDAT"))
+    rows = bytearray()
+    for y in range(height):
+        start = y * (width + 1)
+        if raw[start] != 0:
+            raise AssertionError(f"row {y} uses filter {raw[start]}, not None")
+        rows += raw[start + 1:start + 1 + width]
+    return width, height, bytes(rows)
 
 
 # ---------------------------------------------------------------------------
@@ -190,6 +219,37 @@ class TestWarpRect(unittest.TestCase):
             warp_rect(0x9, 0, 0, 0, 64)
 
 
+class TestPriorityTiles(unittest.TestCase):
+    """Bit 15 of a pattern-name word, on chunk definitions this test writes."""
+
+    def chunks(self, *definitions):
+        from psiv_tools.layouts import CHUNK_WORDS, ChunkTable
+
+        return ChunkTable(
+            words=tuple(
+                tuple(words) + (0,) * (CHUNK_WORDS - len(words))
+                for words in definitions
+            ),
+            blobs=(),
+        )
+
+    def test_a_chunk_without_the_bit_is_absent_rather_than_empty(self):
+        from psiv_tools.pack import priority_tiles
+
+        # Chunk 0 has none; chunk 1 has bit 15 on its second and sixth words,
+        # i.e. tile (1, 0) and tile (1, 1) of the 4x4.
+        found = priority_tiles(self.chunks([0x0001, 0x4002], [0, 0x8003, 0, 0, 0, 0x8004]))
+        self.assertEqual(list(found), [1])
+        self.assertEqual(found[1], ((1, 0, 0x8003), (1, 1, 0x8004)))
+
+    def test_the_collision_bit_is_not_the_priority_bit(self):
+        from psiv_tools.pack import priority_tiles
+
+        # $4000 is collision, $8000 is priority; only the second is video data.
+        self.assertEqual(priority_tiles(self.chunks([0x4000] * 16)), {})
+        self.assertEqual(len(priority_tiles(self.chunks([0x8000] * 16))[0]), 16)
+
+
 @unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
 class TestPackFixture(unittest.TestCase):
     """One three-map pack, built once and inspected from every angle."""
@@ -230,6 +290,19 @@ class TestPackFixture(unittest.TestCase):
                 for key, name in (("json_sha256", "json"), ("png_sha256", "png")):
                     blob = (self.root / entry[name]).read_bytes()
                     self.assertEqual(entry[key], hashlib.sha256(blob).hexdigest())
+                # `png_over` is null for a map with no priority tiles, and then
+                # there is deliberately no file to hash.
+                if entry["png_over"] is None:
+                    self.assertIsNone(entry["png_over_sha256"])
+                    self.assertEqual(entry["priority_tiles"], 0)
+                else:
+                    self.assertEqual(entry["png_over"], f"{MAPS_DIRECTORY}/{stem}_over.png")
+                    blob = (self.root / entry["png_over"]).read_bytes()
+                    self.assertEqual(entry["png_over_sha256"], hashlib.sha256(blob).hexdigest())
+                    self.assertGreater(entry["priority_tiles"], 0)
+                self.assertEqual(
+                    self.maps[entry["id"]]["png_over"], entry["png_over"]
+                )
 
     def test_every_emitted_json_carries_the_same_format_version(self):
         # The version moved to 1 when field sprites landed. `psiv-data` refuses
@@ -244,9 +317,11 @@ class TestPackFixture(unittest.TestCase):
             self.assertEqual(payload["format_version"], PACK_FORMAT_VERSION)
 
     def test_filtering_leaves_nothing_skipped(self):
-        # All three fixtures carry a layout section, so nothing is dropped; the
-        # world maps are only reachable through an unfiltered build.
+        # `skipped` only ever holds `PtrMap_Null` entries, and none of the three
+        # fixtures is one.
         self.assertEqual(self.manifest["skipped"], [])
+        # No overworld in this filtered set, so no overworld section content.
+        self.assertEqual(self.manifest["overworld"]["maps"], [])
 
     # ------------------------------------------------------------- Piata JSON
     def test_piatas_collision_grid_is_sixty_four_cells_square(self):
@@ -377,6 +452,120 @@ class TestPackFixture(unittest.TestCase):
                      declared["height_cells"] * COLLISION_CELL_PIXELS),
                 )
 
+    # -------------------------------------------------------- priority overlay
+    def test_piatas_overlay_is_the_pixels_that_draw_above_sprites(self):
+        # Piata is the case that found the bug: its palm crowns, dome roofs and
+        # the top course of the town wall all carry bit 15, so a character walks
+        # behind them. The digest pins the whole image; the assertions below say
+        # what it is made of.
+        entry = next(e for e in self.manifest["maps"] if e["id"] == MAP_PIATA)
+        self.assertEqual(entry["png_over"], f"{MAPS_DIRECTORY}/010_Piata_over.png")
+        self.assertEqual(entry["priority_tiles"], 1068)
+        self.assertEqual(
+            entry["png_over_sha256"],
+            "83e57e42c357adbb2e7aed8be55a23b8f46a4ab80c3f89551b6e3632084952f2",
+        )
+
+        base = parse_png_chunks((self.root / entry["png"]).read_bytes())
+        overlay = parse_png_chunks((self.root / entry["png_over"]).read_bytes())
+        # Same palette as the base render, plus a tRNS the base does not have.
+        self.assertEqual(dict(base)[b"PLTE"], dict(overlay)[b"PLTE"])
+        self.assertNotIn(b"tRNS", dict(base))
+        alpha = dict(overlay)[b"tRNS"]
+        self.assertEqual(
+            [i for i, a in enumerate(alpha) if a == 0], [0, 16]
+        )
+
+        width, height, pixels = png_pixels((self.root / entry["png_over"]).read_bytes())
+        self.assertEqual((width, height), png_size((self.root / entry["png"]).read_bytes()))
+        self.assertEqual((width, height), (1024, 1024))
+        # 16 is CRAM line 1 colour 0, which the compositor never writes: it
+        # skips colour 0 before adding the line shift, so every non-zero byte is
+        # a pixel the cartridge really draws over a sprite.
+        self.assertNotIn(16, set(pixels))
+        opaque = sum(1 for value in pixels if value)
+        self.assertEqual(opaque, 47854)
+        # Far less than the map, and not nothing.
+        self.assertLess(opaque, width * height // 10)
+
+    def test_the_overlay_only_holds_priority_tiles(self):
+        # Re-derived from the chunk definitions rather than from the image: the
+        # set of pixels the overlay may touch is exactly the bounding boxes of
+        # the tiles whose pattern word has bit 15.
+        from psiv_tools.layouts import CHUNK_PIXELS_X, CHUNK_PIXELS_Y, TILE_PIXELS
+        from psiv_tools.pack import decode_layout_section, priority_tiles
+
+        record = extract_maps(self.data)["maps"][MAP_PIATA]
+        decoded, _ = decode_layout_section(self.data, layout_spec(record))
+        by_chunk = priority_tiles(decoded.chunks)
+        allowed = set()
+        for layout in (decoded.bg, decoded.fg):
+            for chunk_y in range(layout.height_chunks):
+                for chunk_x in range(layout.width_chunks):
+                    for tile_x, tile_y, _ in by_chunk.get(
+                        layout.chunk_at(chunk_x, chunk_y), ()
+                    ):
+                        ox = chunk_x * CHUNK_PIXELS_X + tile_x * TILE_PIXELS
+                        oy = chunk_y * CHUNK_PIXELS_Y + tile_y * TILE_PIXELS
+                        for y in range(TILE_PIXELS):
+                            for x in range(TILE_PIXELS):
+                                allowed.add((ox + x, oy + y))
+
+        entry = next(e for e in self.manifest["maps"] if e["id"] == MAP_PIATA)
+        width, _, pixels = png_pixels((self.root / entry["png_over"]).read_bytes())
+        drawn = {
+            (index % width, index // width)
+            for index, value in enumerate(pixels)
+            if value
+        }
+        self.assertTrue(drawn)
+        self.assertEqual(drawn - allowed, set())
+
+    def test_a_map_with_no_priority_tiles_gets_no_overlay_file(self):
+        # `MapID_TheEdge` draws nothing above sprites, so the pack says null
+        # rather than writing a 1024x1024 file of pure transparency.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "pack"
+            manifest = build_pack(self.data, root, map_ids=[MAP_THE_EDGE])
+            entry = manifest["maps"][0]
+            self.assertIsNone(entry["png_over"])
+            self.assertIsNone(entry["png_over_sha256"])
+            self.assertEqual(entry["priority_tiles"], 0)
+            self.assertEqual(
+                sorted(p.name for p in (root / MAPS_DIRECTORY).iterdir()),
+                ["100_TheEdge.json", "100_TheEdge.png"],
+            )
+            payload = json.loads((root / entry["json"]).read_text())
+            # The key is always present; only its value moves.
+            self.assertIn("png_over", payload)
+            self.assertIsNone(payload["png_over"])
+            overlays = manifest["overlays"]
+            self.assertEqual(overlays["maps_with_overlay"], 0)
+            self.assertEqual(overlays["maps_without_overlay"], 1)
+            self.assertEqual(
+                overlays["without_overlay"][0]["symbol"], "TheEdge"
+            )
+
+    def test_the_manifest_says_where_the_overlay_sits_in_the_draw_order(self):
+        overlays = self.manifest["overlays"]
+        self.assertEqual(overlays["priority_bit"], 15)
+        self.assertEqual(overlays["file_suffix"], "_over.png")
+        self.assertEqual(overlays["transparent_palette_indices"], [0, 16])
+        self.assertEqual(
+            overlays["maps_with_overlay"] + overlays["maps_without_overlay"],
+            self.manifest["map_count"],
+        )
+        self.assertEqual(
+            overlays["priority_tiles"],
+            sum(entry["priority_tiles"] for entry in self.manifest["maps"]),
+        )
+        # `census.priority_tiles` is keyed by the same plane byte the collision
+        # section uses: 0 is plane A, 1 is plane B.
+        self.assertEqual(
+            sum(self.manifest["census"]["priority_tiles"].values()),
+            overlays["priority_tiles"],
+        )
+
     def test_the_composed_render_uses_both_planes(self):
         # Plane A over plane B with colour 0 transparent: the FG-only pixels are
         # what makes Piata a town rather than a field of ground tiles, so a
@@ -441,11 +630,14 @@ class TestPackFixture(unittest.TestCase):
             first_files = sorted(p.relative_to(self.root) for p in self.root.rglob("*") if p.is_file())
             second_files = sorted(p.relative_to(second) for p in second.rglob("*") if p.is_file())
             self.assertEqual(first_files, second_files)
-            # manifest, a JSON and a PNG per map, the two sprite indexes, the
-            # eleven party sheets, and one PNG per deduplicated NPC sheet.
+            # manifest, a JSON and a PNG per map, an overlay PNG per map that
+            # has priority tiles, the two sprite indexes, the eleven party
+            # sheets, and one PNG per deduplicated NPC sheet.
             self.assertEqual(
                 len(first_files),
-                1 + 2 * len(FIXTURE_MAPS) + 2 + len(PARTY_SYMBOLS)
+                1 + 2 * len(FIXTURE_MAPS)
+                + self.manifest["overlays"]["maps_with_overlay"]
+                + 2 + len(PARTY_SYMBOLS)
                 + self.manifest["sprites"]["npc_sheet_count"],
             )
             for name in first_files:
@@ -600,9 +792,56 @@ class TestPackAgainstTheWholeTable(unittest.TestCase):
             for record in self.records
             if not record["is_null"] and not record["layout"]["present"]
         ]
-        self.assertEqual(without, [0x00, 0x01])
+        self.assertEqual(without, list(OVERWORLD_MAP_IDS))
+        # `layout_spec` reads the record's two layout pointers, which these two
+        # records do not have; `decode_map_section` is the one that knows there
+        # is a second path and takes it.
         with self.assertRaises(PackError):
-            layout_spec(self.records[0x00])
+            layout_spec(self.records[MAP_MOTAVIA])
+        decoded, anomalies, overworld = decode_map_section(
+            self.data, self.records[MAP_MOTAVIA]
+        )
+        self.assertIsNotNone(overworld)
+        self.assertEqual(anomalies, [])
+        self.assertEqual(
+            (decoded.collision.width, decoded.collision.height), (256, 256)
+        )
+        # And an interior still comes back with no overworld attached.
+        _, _, none = decode_map_section(self.data, self.records[MAP_PIATA])
+        self.assertIsNone(none)
+
+    def test_the_table_holds_361_real_maps_and_56_nulls(self):
+        real = [record for record in self.records if not record["is_null"]]
+        self.assertEqual(len(real), REAL_MAPS)
+        self.assertEqual(len(self.records) - len(real), NULL_MAPS)
+        # Every one of them has a layout by one path or the other, so an
+        # unfiltered build packs all 361 and skips only the nulls.
+        self.assertEqual(
+            sum(
+                1
+                for record in real
+                if record["layout"]["present"] or record["id"] in OVERWORLD_MAP_IDS
+            ),
+            REAL_MAPS,
+        )
+
+    def test_the_map_graph_closes(self):
+        # Every transition in the cartridge targets a real record, so an
+        # unfiltered build leaves `unpacked_warp_targets` empty. Checking it on
+        # the records rather than on a full pack keeps the claim cheap.
+        real = {record["id"] for record in self.records if not record["is_null"]}
+        targets = {
+            entry["target"]["id"]
+            for record in self.records
+            if not record["is_null"]
+            for section in ("transitions", "transitions_2")
+            for entry in record[section]["entries"]
+        }
+        self.assertTrue(targets)
+        self.assertEqual(targets - real, set())
+        # The two that used to be missing are in there, and they are the only
+        # maps every town's exit leads to.
+        self.assertTrue(set(OVERWORLD_MAP_IDS) <= targets)
 
     def test_the_academy_maps_pad_their_layout_blobs(self):
         # Seven records store a 1024-byte layout for a 32x16 grid. `KosDecomp`
@@ -739,6 +978,149 @@ class TestPackAgainstTheWholeTable(unittest.TestCase):
             self.assertEqual(
                 sorted(sheet["sequences"]), ["idle_facing_0x10", "walk_facing_0x10"]
             )
+
+    def test_the_overworlds_pack_like_any_other_map(self):
+        # Three maps: the two paged world maps and the town whose exit leads to
+        # one of them, so both directions of one warp are inside the same pack.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "pack"
+            manifest = build_pack(
+                self.data, root, map_ids=[MAP_MOTAVIA, MAP_DEZOLIS, MAP_PIATA]
+            )
+            self.assertEqual(manifest["map_count"], 3)
+            self.assertEqual(manifest["skipped"], [])
+            maps = {
+                entry["id"]: json.loads((root / entry["json"]).read_text())
+                for entry in manifest["maps"]
+            }
+
+            for map_id, symbol in ((MAP_MOTAVIA, "Motavia"), (MAP_DEZOLIS, "Dezolis")):
+                with self.subTest(map=symbol):
+                    payload = maps[map_id]
+                    self.assertEqual(payload["format_version"], PACK_FORMAT_VERSION)
+                    self.assertEqual(payload["symbol"], symbol)
+                    self.assertEqual(payload["dimensions"], {
+                        "cell_pixels": 16,
+                        "height_cells": 256, "height_chunks": 128, "height_pixels": 4096,
+                        "width_cells": 256, "width_chunks": 128, "width_pixels": 4096,
+                    })
+                    self.assertEqual(payload["collision"]["plane"], "bg")
+                    self.assertEqual(len(payload["collision"]["rows"]), 256)
+                    self.assertTrue(all(len(r) == 256 for r in payload["collision"]["rows"]))
+                    # No objects and no chests on either world map, and every
+                    # transition is a doorway.
+                    self.assertEqual(payload["npcs"], [])
+                    self.assertEqual(payload["treasure_chests"], [])
+                    self.assertTrue(all(w["table"] == 2 for w in payload["warps"]))
+                    entry = next(e for e in manifest["maps"] if e["id"] == map_id)
+                    self.assertEqual(
+                        png_size((root / entry["png"]).read_bytes()), (4096, 4096)
+                    )
+
+            self.assertEqual(len(maps[MAP_MOTAVIA]["warps"]), 29)
+            self.assertEqual(len(maps[MAP_DEZOLIS]["warps"]), 14)
+            # Piata's exit and Motavia's entrance are now both in the pack, and
+            # the destination the town stores is inside the world's trigger.
+            exit_warp = next(
+                w for w in maps[MAP_PIATA]["warps"] if w["target"]["id"] == MAP_MOTAVIA
+            )
+            entrance = next(
+                w for w in maps[MAP_MOTAVIA]["warps"] if w["target"]["id"] == MAP_PIATA
+            )
+            self.assertEqual(exit_warp["destination"], {"x_cell": 46, "y_cell": 143})
+            self.assertEqual(
+                entrance["rect"], {"x": 44, "y": 140, "width": 4, "height": 4}
+            )
+            rows = maps[MAP_MOTAVIA]["collision"]["rows"]
+            self.assertEqual(rows[143][46], MAP_CHANGE)
+
+    def test_only_the_overworlds_carry_layout_patches(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "pack"
+            manifest = build_pack(
+                self.data, root, map_ids=[MAP_MOTAVIA, MAP_DEZOLIS, MAP_PIATA]
+            )
+            maps = {
+                entry["id"]: json.loads((root / entry["json"]).read_text())
+                for entry in manifest["maps"]
+            }
+            self.assertNotIn("layout_patches", maps[MAP_PIATA])
+            self.assertEqual(len(maps[MAP_MOTAVIA]["layout_patches"]), 9)
+            self.assertEqual(len(maps[MAP_DEZOLIS]["layout_patches"]), 3)
+            patch = next(
+                p for p in maps[MAP_MOTAVIA]["layout_patches"]
+                if p["event_flag"]["symbol"] == "EventFlag_MotaSpaceport"
+            )
+            self.assertEqual(patch["writes"], [{
+                "plane": "bg", "chunk_x": 26, "chunk_y": 45,
+                "cell_x": 52, "cell_y": 90,
+                "chunk_ids": ["0x3F"], "displacement": 0,
+            }])
+
+            overworld = manifest["overworld"]
+            self.assertEqual(overworld["map_ids"], list(OVERWORLD_MAP_IDS))
+            self.assertEqual([m["map_id"] for m in overworld["maps"]], [0, 1])
+            self.assertEqual(overworld["maps"][0]["compression"], None)
+            self.assertEqual(
+                overworld["code"]["page_tables"]["fg"]["motavia"], "0x107DC2"
+            )
+            self.assertEqual(
+                overworld["code"]["page_tables"]["bg"]["dezolis"], "0x1175C4"
+            )
+
+    def test_the_six_overworld_doors_an_event_opens(self):
+        # These are doorways whose trigger covers no map-change cell in the
+        # stored layout, exactly like Zema's four -- except that here the pack
+        # can name the flag, because the write is in the page loader and the
+        # pack decodes it.
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = build_pack(
+                self.data, Path(directory) / "pack", map_ids=[MAP_MOTAVIA, MAP_DEZOLIS]
+            )
+            waiting = [
+                (a["symbol"], a["target"]["symbol"],
+                 [o["symbol"] for o in a["opened_by"]])
+                for a in manifest["warps"]["doors_without_map_change_cell"]
+            ]
+            self.assertEqual(waiting, [
+                ("Motavia", "MachineCenter", ["EventFlag_MachineCenter"]),
+                ("Motavia", "MotaSpaceport", ["EventFlag_MotaSpaceport"]),
+                ("Motavia", "TheEdge", ["EventFlag_Reunion"]),
+                ("Motavia", "TheEdge", ["EventFlag_Reunion"]),
+                ("Motavia", "TheEdge", ["EventFlag_Reunion"]),
+                ("Dezolis", "DezoSpaceport", ["EventFlag_DezoSpaceport"]),
+            ])
+            self.assertEqual(manifest["warps"]["without_map_change_cell"], {
+                "table_1": 0, "table_2": 6,
+            })
+
+    def test_the_overworlds_bring_the_two_missing_collision_types(self):
+        # Sand and ice route to `TileColl_Solid` and appeared nowhere in the
+        # cartridge until these two maps were decoded, so the census is the
+        # only place a consumer can learn they are real.
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = build_pack(
+                self.data, Path(directory) / "pack", map_ids=[MAP_MOTAVIA, MAP_DEZOLIS]
+            )
+            census = manifest["census"]["collision_types"]
+            self.assertEqual(census["10"], 632)
+            self.assertEqual(census["11"], 1704)
+            for value in (0xA, 0xB):
+                self.assertTrue(is_blocking(value))
+                self.assertIn(f"0x{value:X}", manifest["collision"]["type_names"])
+
+    def test_dezolis_repeats_its_last_page(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = build_pack(
+                self.data, Path(directory) / "pack", map_ids=[MAP_DEZOLIS]
+            )
+            anomalies = manifest["layout_anomalies"]
+            self.assertEqual([a["kind"] for a in anomalies], ["aliased_pages"] * 2)
+            self.assertEqual([a["plane"] for a in anomalies], ["fg", "bg"])
+            for anomaly in anomalies:
+                self.assertEqual(anomaly["symbol"], "Dezolis")
+                self.assertEqual(anomaly["distinct_pages"], 8)
+                self.assertEqual(len(anomaly["aliased_pages"]), 8)
 
     def test_an_unknown_map_id_is_rejected(self):
         with tempfile.TemporaryDirectory() as directory:

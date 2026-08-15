@@ -116,6 +116,9 @@ struct Field {
     runtime: Option<Runtime>,
     pack_dir: String,
     map_sprite: Option<Gd<Sprite2D>>,
+    /// Priority tiles — what the VDP draws above sprites (palm crowns,
+    /// archways). Sits over the party and NPCs, under the dialogue window.
+    overlay_sprite: Option<Gd<Sprite2D>>,
     party: Option<Gd<Sprite2D>>,
     party_view: Option<SheetView>,
     /// (node, sheet id, sequence names) per visible NPC on the current map.
@@ -138,6 +141,7 @@ impl INode2D for Field {
             runtime: None,
             pack_dir: String::new(),
             map_sprite: None,
+            overlay_sprite: None,
             party: None,
             party_view: None,
             npc_nodes: Vec::new(),
@@ -187,6 +191,12 @@ impl INode2D for Field {
         map_sprite.set_centered(false);
         self.base_mut().add_child(&map_sprite);
         self.map_sprite = Some(map_sprite);
+
+        let mut overlay_sprite = Sprite2D::new_alloc();
+        overlay_sprite.set_centered(false);
+        overlay_sprite.set_z_index(20);
+        self.base_mut().add_child(&overlay_sprite);
+        self.overlay_sprite = Some(overlay_sprite);
 
         let mut party = Sprite2D::new_alloc();
         party.set_centered(false);
@@ -280,6 +290,26 @@ impl Field {
                 }
             }
             None => godot_error!("map {id:#05x} has no png declared in the pack"),
+        }
+
+        // The priority overlay: absent on the 22 maps with no priority tiles.
+        let over = runtime.map_png_over().map(str::to_owned);
+        if let Some(sprite) = self.overlay_sprite.as_mut() {
+            match over {
+                Some(name) => {
+                    let path = format!("{}/{name}", self.pack_dir);
+                    match Image::load_from_file(&GString::from(path.as_str()))
+                        .and_then(|image| ImageTexture::create_from_image(&image))
+                    {
+                        Some(texture) => {
+                            sprite.set_texture(&texture);
+                            sprite.set_visible(true);
+                        }
+                        None => godot_error!("could not load overlay {path}"),
+                    }
+                }
+                None => sprite.set_visible(false),
+            }
         }
 
         for (node, ..) in &mut self.npc_nodes {

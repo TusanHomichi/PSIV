@@ -258,6 +258,15 @@ impl Runtime {
             .map(|record| record.png.as_str())
     }
 
+    /// The current map's priority-overlay path — tiles the VDP draws above
+    /// sprites — or `None` when the map has no priority tiles.
+    #[must_use]
+    pub fn map_png_over(&self) -> Option<&str> {
+        self.data
+            .map(psiv_data::MapId(self.map.id().0))
+            .and_then(|record| record.png_over.as_deref())
+    }
+
     /// The field state, for the renderer's position/interpolation queries.
     #[must_use]
     pub fn state(&self) -> &FieldState {

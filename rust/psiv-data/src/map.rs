@@ -48,6 +48,10 @@ pub struct MapRecord {
     pub symbol: Option<String>,
     /// The composed render, relative to the pack directory.
     pub png: String,
+    /// The priority-tile overlay render (tiles the VDP draws above sprites),
+    /// or `None` for the 22 maps with zero priority tiles.
+    #[serde(default)]
+    pub png_over: Option<String>,
     /// Size, in cells, chunks and pixels.
     pub dimensions: Dimensions,
     /// The collision grid and the plane it came from.

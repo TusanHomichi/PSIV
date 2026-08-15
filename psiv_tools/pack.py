@@ -68,14 +68,19 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Iterator, Sequence
 
+from . import png
 from .layouts import (
     BLOCKING_COLLISION_TYPES,
+    CHUNK_PIXELS_X,
+    CHUNK_PIXELS_Y,
+    CHUNK_TILES_X,
     CHUNK_WORDS,
     COLLISION_CELL_PIXELS,
     COLLISION_TYPE_NAMES,
     MAX_CHUNKS,
     PLANE_BG,
     PLANE_FG,
+    TILE_PIXELS,
     ChunkTable,
     Layout,
     MapLayout,
@@ -85,11 +90,26 @@ from .layouts import (
     decode_collision,
     decode_layout,
     decode_tilesets,
+    h_flip,
+    palette_line,
+    priority,
     render_layout,
     tile_index,
+    v_flip,
     vdp_word,
 )
 from .maps import extract_maps
+# The two world maps' layouts are not in their records at all -- they stream
+# from paged tables -- so their decode lives in `psiv_tools.overworld`. What
+# this module needs from it is one more way to fill in a `MapLayout`.
+from .overworld import (
+    OVERWORLD_MAP_IDS,
+    Overworld,
+    check_code_sites as overworld_code_sites,
+    decode_overworld,
+    is_overworld,
+    opening_patches,
+)
 from .sprites import (
     FACINGS,
     FIELD_OBJECTS_JMP_TBL,
@@ -124,7 +144,11 @@ from .symbols import ITEM_SYMBOLS
 #: `psiv-data` refuses a pack whose version it does not know.
 #:
 #: 1 -- field sprites: `sprites/party.json`, `sprites/npcs.json`, their PNG
-#: sheets, and a `sprite` reference on every map record's NPC entries.
+#: sheets, and a `sprite` reference on every map record's NPC entries. The two
+#: overworlds joined at the same version: their records use every field the
+#: others do, and the one thing they add -- `layout_patches`, the event-gated
+#: chunk writes their page loader performs -- is a key no other map carries and
+#: no existing key changed meaning for.
 PACK_FORMAT_VERSION = 1
 
 MANIFEST_NAME = "manifest.json"
@@ -395,6 +419,29 @@ def decode_layout_section(
     return decoded, [a for a in (fg_anomaly, bg_anomaly, chunk_anomaly) if a is not None]
 
 
+def decode_map_section(
+    rom: bytes, record: dict[str, Any]
+) -> tuple[MapLayout, list[dict[str, Any]], Overworld | None]:
+    """Decode one map's layout by whichever of the two paths its id selects.
+
+    359 records point at two Kosinski blobs. The two world maps point at
+    nothing: `loc_539E2`/`loc_53A04` branch out on `Field_Map_Index & $FFFE`
+    before reading a pointer, and their planes stream from paged tables. Both
+    paths end in the same `MapLayout`, so everything downstream of here -- the
+    per-map JSON, the collision grid, the composed render -- is written once.
+    """
+    if record["layout"]["present"]:
+        decoded, anomalies = decode_layout_section(rom, layout_spec(record))
+        return decoded, anomalies, None
+    if not is_overworld(record["id"]):
+        raise PackError(
+            f"map 0x{record['id']:03X} ({record['symbol']}) has no layout section and "
+            "is not one of the paged world maps"
+        )
+    overworld = decode_overworld(rom, record["id"], record, with_tiles=True)
+    return overworld.layout, list(overworld.anomalies), overworld
+
+
 def unloaded_patterns(decoded) -> list[int]:
     """VRAM tiles a map's chunks name but its `loc_519D2` tilesets never fill.
 
@@ -417,6 +464,157 @@ def unloaded_patterns(decoded) -> list[int]:
                 if index not in decoded.patterns.loaded:
                     missing.add(index)
     return sorted(missing)
+
+
+# ---------------------------------------------------------------------------
+# The priority overlay
+# ---------------------------------------------------------------------------
+# Bit 15 of a pattern-name word is the VDP's priority bit, and unlike bit 14 it
+# is real video data: `ChunkTilesToBuffer` masks with `#$BFFF`, which clears the
+# collision flag and leaves priority alone. The Mega Drive resolves a pixel in
+# this order:
+#
+#     high-priority sprites
+#     high-priority plane A
+#     high-priority plane B
+#     low-priority sprites
+#     low-priority plane A
+#     low-priority plane B
+#     backdrop
+#
+# so a map tile with the bit set draws *over* an ordinary sprite. That is how an
+# archway's keystone and a palm tree's crown sit in front of Chaz instead of
+# behind him. A renderer that draws the base image, then the party, and stops,
+# puts the party through the archway -- which is the bug this overlay fixes.
+#
+# The overlay is the base render with everything but the priority tiles removed:
+# same dimensions, same 32-colour palette, same compositing order (plane B
+# first, plane A over it with colour 0 transparent). A renderer draws base, then
+# sprites, then this, and gets the hardware's answer for every pixel field mode
+# can produce.
+#
+# Colour index 0 stays transparent on a priority tile too, because that is what
+# transparent means to the VDP; it is why a sprite still shows through the empty
+# corners of an arch. The composer never writes a colour-0 pixel, so a nonzero
+# byte means "the cartridge draws this above sprites" and a zero byte means
+# nothing at all -- but the tRNS chunk marks both lines' colour 0, because the
+# palette is the base render's palette and in it both are the transparent
+# colour.
+#
+# One caveat for the runtime, read off `Field_FillSpriteAttributes`: a field
+# object whose flag byte has bit 4 set gets `bset #7,d0` on its pattern word's
+# high byte, i.e. it becomes a *high-priority* sprite and belongs above this
+# overlay rather than below it. The party is never one of those -- all eleven
+# party routines store $40 at `$13(a4)`, which leaves bit 7 clear -- so the
+# overlay is unconditionally correct for the case that motivated it. Whether any
+# NPC sets the bit is a question about `FieldObjectsJmpTbl` routines rather than
+# about map data, and this module does not answer it.
+
+#: The overlay's transparent palette indices. Pixel values are
+#: `palette_line * 16 + colour_index`, so colour 0 of CRAM lines 0 and 1 are
+#: indices 0 and 16.
+OVERLAY_TRANSPARENT_INDICES = (0, 16)
+
+#: `plane_byte` values, the same 0/1 the collision section uses for its plane.
+PLANE_BYTES = {PLANE_FG: 0, PLANE_BG: 1}
+
+
+def priority_tiles(chunks: ChunkTable) -> dict[int, tuple[tuple[int, int, int], ...]]:
+    """Each chunk definition's priority tiles, as `(tile x, tile y, word)`.
+
+    Chunks without one are absent rather than empty, so the compositor can skip
+    a layout cell with a single dictionary miss. Most cells are such a miss.
+    """
+    found: dict[int, tuple[tuple[int, int, int], ...]] = {}
+    for chunk_id, words in enumerate(chunks.words):
+        tiles = tuple(
+            (index % CHUNK_TILES_X, index // CHUNK_TILES_X, word)
+            for index, word in enumerate(words)
+            if priority(word)
+        )
+        if tiles:
+            found[chunk_id] = tiles
+    return found
+
+
+def _draw_priority_plane(
+    layout: Layout,
+    tiles_by_chunk: dict[int, tuple[tuple[int, int, int], ...]],
+    patterns,
+    pixels: bytearray,
+    width: int,
+) -> int:
+    """Draw one plane's priority tiles, returning how many it placed.
+
+    The inner loop is `compose_layout`'s, minus the branch for a base image:
+    this always composites, because a plane that is not drawing a priority tile
+    is not drawing anything.
+    """
+    placed = 0
+    for chunk_y in range(layout.height_chunks):
+        for chunk_x in range(layout.width_chunks):
+            tiles = tiles_by_chunk.get(layout.chunk_at(chunk_x, chunk_y))
+            if tiles is None:
+                continue
+            for tile_x, tile_y, raw in tiles:
+                placed += 1
+                word = vdp_word(raw)
+                index = tile_index(word)
+                if index not in patterns.loaded:
+                    # Already surfaced by `unloaded_patterns`; drawing nothing
+                    # is what the base render does with it too.
+                    continue
+                tile = patterns.tile(index)
+                shift = palette_line(word) * 16
+                flip_x, flip_y = h_flip(word), v_flip(word)
+                ox = chunk_x * CHUNK_PIXELS_X + tile_x * TILE_PIXELS
+                oy = chunk_y * CHUNK_PIXELS_Y + tile_y * TILE_PIXELS
+                for y in range(TILE_PIXELS):
+                    source_y = TILE_PIXELS - 1 - y if flip_y else y
+                    row = tile[source_y * TILE_PIXELS:(source_y + 1) * TILE_PIXELS]
+                    if flip_x:
+                        row = row[::-1]
+                    start = (oy + y) * width + ox
+                    for x in range(TILE_PIXELS):
+                        value = row[x]
+                        if value:
+                            pixels[start + x] = value + shift
+    return placed
+
+
+def priority_overlay(
+    decoded, palette: Sequence[tuple[int, int, int]]
+) -> tuple[bytes | None, dict[str, Any]]:
+    """The above-sprites layer of one map, as a PNG, plus what went into it.
+
+    Returns `(None, counts)` when the map has no priority pixels at all: an
+    entirely transparent file is a file every consumer has to load to learn
+    nothing, so the pack says `png_over: null` instead of writing one.
+    """
+    width, height = decoded.bg.width_pixels, decoded.bg.height_pixels
+    if (decoded.fg.width_pixels, decoded.fg.height_pixels) != (width, height):
+        raise PackError(
+            f"map planes are {decoded.fg.width_pixels}x{decoded.fg.height_pixels} and "
+            f"{width}x{height}; an overlay has to line up with the base render"
+        )
+
+    tiles_by_chunk = priority_tiles(decoded.chunks)
+    pixels = bytearray(width * height)
+    counts = {"tiles": {}, "opaque_pixels": 0}
+    # Plane B first, plane A over it: the same order the base render uses, and
+    # the order the VDP resolves two high-priority pixels in.
+    for layout in (decoded.bg, decoded.fg):
+        counts["tiles"][layout.plane] = _draw_priority_plane(
+            layout, tiles_by_chunk, decoded.patterns, pixels, width
+        )
+    counts["opaque_pixels"] = sum(1 for value in pixels if value)
+    counts["chunks_with_priority_tiles"] = len(tiles_by_chunk)
+    if not counts["opaque_pixels"]:
+        return None, counts
+    colours = list(palette)
+    return png.encode_indexed(
+        width, height, bytes(pixels), colours[:32], OVERLAY_TRANSPARENT_INDICES
+    ), counts
 
 
 # ---------------------------------------------------------------------------
@@ -582,8 +780,22 @@ def map_json(
     decoded,
     png_path: str,
     sprites: Sequence[tuple[dict[str, Any] | None, str | None]] = (),
+    overworld: Overworld | None = None,
+    png_over_path: str | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """The runtime record for one map, and its warp anomalies."""
+    """The runtime record for one map, and its warp anomalies.
+
+    `png_over_path` names the priority overlay when the map has one, and is
+    `None` when every tile it draws is below sprites. The key is always
+    present, so a consumer tests its value rather than its existence.
+
+    `overworld` is set for the two paged maps and adds `layout_patches`: the
+    event-gated chunk writes their page loader performs after copying a page,
+    which is where five of their six doors come from. No other map carries the
+    key, because no other map has a loader step that writes `Map_Layout`. The
+    equivalent for interiors is `MapDataManager`, which this pack does not
+    decode for anyone.
+    """
     grid = decoded.collision
     layout = decoded.collision_layout
     if (grid.width, grid.height) != (
@@ -598,13 +810,14 @@ def map_json(
     warps, anomalies = _warps(record, grid)
     flags = record["flags"]
     music = record["music"]
-    return {
+    payload = {
         "format_version": PACK_FORMAT_VERSION,
         "id": record["id"],
         "id_hex": record["id_hex"],
         "symbol": record["symbol"],
         "record_offset": record["rom_offset"],
         "png": png_path,
+        "png_over": png_over_path,
         "dimensions": {
             "width_cells": grid.width,
             "height_cells": grid.height,
@@ -639,7 +852,10 @@ def map_json(
         "warps": warps,
         "npcs": _npcs(record, sprites),
         "treasure_chests": _treasure_chests(record),
-    }, anomalies
+    }
+    if overworld is not None:
+        payload["layout_patches"] = [patch.to_json() for patch in overworld.patches]
+    return payload, anomalies
 
 
 # ---------------------------------------------------------------------------
@@ -682,12 +898,13 @@ def build_pack(
 ) -> dict[str, Any]:
     """Emit the runtime pack for `rom_bytes` under `out_dir`, return the manifest.
 
-    Every real map whose record carries a layout section is exported. The two
-    world maps are not: `loc_539E2`/`loc_53A04` skip the layout pointers for
-    `Field_Map_Index & $FFFE == 0` and stream a paged format this project has
-    not decoded, so they are listed in `skipped` with that reason rather than
-    guessed at. `map_ids` narrows the set for tests; a warp whose target falls
-    outside the emitted set is normal and is listed in `unpacked_warp_targets`.
+    Every real map is exported, the two world maps included: their layouts come
+    from the paged tables `psiv_tools.overworld` decodes rather than from their
+    records, and everything else about them is an ordinary map record. Only the
+    56 `PtrMap_Null` entries are skipped. `map_ids` narrows the set for tests; a
+    warp whose target falls outside the emitted set is normal and is listed in
+    `unpacked_warp_targets`, which for an unfiltered build is empty -- the map
+    graph closes.
 
     The output holds Sega-derived pixels and is never committed.
     """
@@ -705,17 +922,20 @@ def build_pack(
     sprite_census = SpriteCensus()
 
     inventory: list[dict[str, Any]] = []
+    overworlds: list[dict[str, Any]] = []
     skipped: list[dict[str, Any]] = []
     warp_anomalies: list[dict[str, Any]] = []
     odd_layouts: list[dict[str, Any]] = []
     unloaded: list[dict[str, Any]] = []
     artless_objects: list[dict[str, Any]] = []
+    without_overlay: list[dict[str, Any]] = []
+    priority_totals = {"tiles": 0, "opaque_pixels": 0}
     warp_targets: dict[int, dict[str, Any]] = {}
     warp_count = 0
     census: dict[str, dict[int, int]] = {
         key: {} for key in
         ("collision_types", "npc_facing_bytes", "warp_facing_bytes", "dialogue_trees",
-         "sprite_palette_lines")
+         "sprite_palette_lines", "priority_tiles")
     }
 
     def count(key: str, value: int, by: int = 1) -> None:
@@ -728,15 +948,8 @@ def build_pack(
                 "reason": "PtrMap_Null placeholder; the table entry points at ErrorTrap",
             })
             continue
-        if not record["layout"]["present"]:
-            skipped.append({
-                **_target(record),
-                "reason": record["layout"]["reason"],
-            })
-            continue
-
-        spec = layout_spec(record)
-        decoded, layout_anomalies = decode_layout_section(rom_bytes, spec)
+        decoded, layout_anomalies, overworld = decode_map_section(rom_bytes, record)
+        spec = decoded.spec
         stem = _map_stem(record["id"], record["symbol"])
         json_name = f"{MAPS_DIRECTORY}/{stem}.json"
         png_name = f"{MAPS_DIRECTORY}/{stem}.png"
@@ -744,22 +957,54 @@ def build_pack(
         sprites, artless = resolve_map_sprites(
             rom_bytes, record, decoded, routines, extents, npc_sheets, sprite_census
         )
-        payload, anomalies = map_json(record, decoded, png_name, sprites)
-        json_sha = _write_json(maps_directory / f"{stem}.json", payload)
-
+        palette = chunk_palette(rom_bytes, spec.palette)
         image = render_layout(
-            decoded.chunks,
-            decoded.bg,
-            decoded.patterns,
-            chunk_palette(rom_bytes, spec.palette),
-            overlay=decoded.fg,
+            decoded.chunks, decoded.bg, decoded.patterns, palette, overlay=decoded.fg
         )
+        overlay_image, priority_counts = priority_overlay(decoded, palette)
+        png_over_name = (
+            f"{MAPS_DIRECTORY}/{stem}_over.png" if overlay_image is not None else None
+        )
+
+        payload, anomalies = map_json(
+            record, decoded, png_name, sprites, overworld, png_over_name
+        )
+        json_sha = _write_json(maps_directory / f"{stem}.json", payload)
         (maps_directory / f"{stem}.png").write_bytes(image)
+        if overlay_image is not None:
+            (maps_directory / f"{stem}_over.png").write_bytes(overlay_image)
+        for plane, placed in priority_counts["tiles"].items():
+            if placed:
+                count("priority_tiles", PLANE_BYTES[plane], placed)
+        priority_totals["tiles"] += sum(priority_counts["tiles"].values())
+        priority_totals["opaque_pixels"] += priority_counts["opaque_pixels"]
+        if overlay_image is None:
+            without_overlay.append({
+                **_target(record),
+                "priority_tiles": sum(priority_counts["tiles"].values()),
+            })
 
         for anomaly in anomalies:
-            warp_anomalies.append({**_target(record), **anomaly})
+            entry = {**_target(record), **anomaly}
+            if overworld is not None and anomaly["rect"] is not None:
+                # An overworld door with no map-change cell is a door an event
+                # opens, and the pack proves which event by applying each patch
+                # to the collision plane rather than by quoting a comment.
+                rect = Rect(**anomaly["rect"])
+                entry["opened_by"] = [
+                    {
+                        "id": patch.event_flag,
+                        "id_hex": f"0x{patch.event_flag:02X}",
+                        "symbol": patch.event_symbol,
+                        "routine": f"0x{patch.routine:06X}",
+                    }
+                    for patch in opening_patches(overworld, list(rect.cells()))
+                ]
+            warp_anomalies.append(entry)
         for anomaly in layout_anomalies:
             odd_layouts.append({**_target(record), **anomaly})
+        if overworld is not None:
+            overworlds.append(overworld.to_json())
         missing = unloaded_patterns(decoded)
         if missing:
             unloaded.append({**_target(record), "patterns": missing})
@@ -781,8 +1026,14 @@ def build_pack(
             **_target(record),
             "json": json_name,
             "png": png_name,
+            "png_over": png_over_name,
             "json_sha256": json_sha,
             "png_sha256": hashlib.sha256(image).hexdigest(),
+            "png_over_sha256": (
+                hashlib.sha256(overlay_image).hexdigest()
+                if overlay_image is not None else None
+            ),
+            "priority_tiles": sum(priority_counts["tiles"].values()),
             "width_cells": dimensions["width_cells"],
             "height_cells": dimensions["height_cells"],
             "width_pixels": dimensions["width_pixels"],
@@ -902,7 +1153,52 @@ def build_pack(
             ),
         },
         "map_count": len(inventory),
+        # The above-sprites layer. `png_over` is null for a map whose tiles all
+        # draw below sprites, and those maps get no file at all rather than an
+        # entirely transparent one.
+        "overlays": {
+            "file_suffix": "_over.png",
+            "priority_bit": 15,
+            "draw_order": [
+                "high-priority sprites",
+                "<id>_<symbol>_over.png",
+                "field sprites",
+                "<id>_<symbol>.png",
+            ],
+            "transparent_palette_indices": list(OVERLAY_TRANSPARENT_INDICES),
+            "composited": "plane B first, plane A over it, colour 0 transparent",
+            "maps_with_overlay": sum(1 for e in inventory if e["png_over"]),
+            "maps_without_overlay": len(without_overlay),
+            "priority_tiles": priority_totals["tiles"],
+            "opaque_pixels": priority_totals["opaque_pixels"],
+            "without_overlay": without_overlay,
+            "note": (
+                "Bit 15 survives ChunkTilesToBuffer's #$BFFF mask, so it is real "
+                "VDP data: a map tile carrying it draws above an ordinary sprite. "
+                "A field object whose flag byte has bit 4 set is a high-priority "
+                "sprite (Field_FillSpriteAttributes' bset #7) and belongs above "
+                "the overlay; the party never is."
+            ),
+        },
         "maps": inventory,
+        # Everything a consumer needs to know that maps 0 and 1 were built by a
+        # different loader path, and that their runtime records are otherwise
+        # the same shape as everyone else's.
+        "overworld": {
+            "map_ids": list(OVERWORLD_MAP_IDS),
+            "selector": "Field_Map_Index & $FFFE == 0",
+            "note": (
+                "loc_539E2/loc_53A04 read no layout pointer for these two; both "
+                "planes stream 1KB pages of raw chunk ids from fixed tables into a "
+                "four-page rolling window. Nothing on this path is compressed. "
+                "layout_patches on the map record are the event-gated writes the "
+                "page loader performs; MapDataManager effects are not decoded for "
+                "any map, including MapDataMan_Dezolis, which rewrites Dezolis' "
+                "chunk definitions once EventFlag_DarkForce2 is set."
+            ),
+            "code": overworld_code_sites(rom_bytes),
+            "maps": overworlds,
+        },
         "skipped": skipped,
         "unpacked_warp_targets": [
             target for map_id, target in sorted(warp_targets.items())

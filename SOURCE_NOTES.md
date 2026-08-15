@@ -325,6 +325,32 @@ distinct enemy ids that appear in formations.
   (AiedoPub object 2, byte $10); retail selects only 9 of the 15
   `XYRangeJmpTbl` routines. The pack manifest carries a `census` section so
   consumers assert against observed reality instead of hardcoding ranges.
+- RETAIL CARTRIDGE BUG: the in-game world-map viewer reads its chunk ids 64
+  bytes early. `FieldRoutine_WorldMap` (`0x0666CC`) loads the BG *pointer
+  table* address (`loc_10BE02`) and streams 16×1,024 bytes from there as raw
+  chunk ids, but the page data starts 64 bytes later at `0x10BE42` — so the
+  minimap draws the pointer table's own bytes as terrain in its first
+  half-row and shifts the whole planet by 64 chunks. Same shape for Dezolis
+  (`0x0666DA`). Settled by rendering both readings: aligned yields Motavia
+  with the Nurvus crater centered; retail's yields a split continent with a
+  garbage strip. Confined to that viewer screen.
+- Census correction (overworld data): collision types `$A` (sand) and `$B`
+  (ice) are absent from the interiors but NOT the cartridge — Motavia has
+  632 sand cells (no ice), Dezolis 1,704 ice cells (no sand). The earlier
+  "never appear in any field map" note was interior-only truth.
+- Overworld facts: the paged layout format is uncompressed (1,024-byte pages
+  of chunk ids, a rolling 4KB / four-page window keyed by camera row; chunk
+  definitions still Kosinski via the record's normal list); both planets are
+  128×128 chunks wrapping at 4,096 px on both axes; Dezolis stores only 8
+  distinct pages and aliases its bottom half from its own rim (emitted
+  as-is, recorded as an anomaly). Nine page-copy hooks rewrite layout cells
+  from event flags — 12 patches, 51 writes, 147 cells — which is how the
+  spaceports, Machine Center and The Edge doors appear and how the Bio Plant
+  seals; the pack emits them as `layout_patches`, proven by applying each
+  patch and watching doorway cells become type 1. Priority tiles (bit 15,
+  which survives the collision-bit mask) draw above sprites on hardware; 339
+  maps carry an overlay, and all 22 maps without one have exactly zero
+  priority tiles.
 - Field sprite facts, all read from the cartridge: walking is 8 frames per
   16px cell (`FieldObj_MovementsTbl` `0x047AA8`, constant `$0200`; slow/fast
   blocks `$0100`/`$0400` exist, and retail's selector mask is `#3` where the

@@ -97,8 +97,9 @@ their extracted placements. NPCs and Chaz render as placeholders until field
 sprites are extracted (filed); the slice proves the data path, collision,
 and the map graph, not art fidelity.
 
-Out of scope for the slice: dialogue windows (next increment), battle,
-overworlds (paged-layout format not yet decoded), sound.
+Out of scope for the original slice: dialogue windows, battle, sound.
+(The overworld paged format and dialogue pack landed later the same day;
+battle and sound remain.)
 
 ## Presentation: scaling and viewport
 
