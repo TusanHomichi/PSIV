@@ -227,6 +227,14 @@ pub struct GameStartSummary {
     pub party: Vec<String>,
     /// Event flags already set when control arrives.
     pub event_flags_set: Vec<u16>,
+    /// Extended event flags (`Extended_Event_Flags`, ids within that bank)
+    /// already set when control arrives. Absent in packs predating the field.
+    #[serde(default)]
+    pub extended_event_flags_set: Vec<u16>,
+    /// Town flags already set when control arrives. Absent in packs
+    /// predating the field.
+    #[serde(default)]
+    pub town_flags_set: Vec<u16>,
 }
 
 /// The starting map reference.

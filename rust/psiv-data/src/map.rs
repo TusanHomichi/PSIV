@@ -399,6 +399,16 @@ pub struct Npc {
     pub sprite_reason: Option<String>,
     /// First VRAM tile of the object's art.
     pub art_tile: u32,
+    /// Whether the object's type sets render-flags bit 3 (`$2(a3)`), which
+    /// the cartridge tests before BOTH the talk probe and object collision.
+    /// A `false` here is a monster you can see, not speak to, and walk
+    /// straight through. Defaults `true` for packs predating the field.
+    #[serde(default = "interactable_default")]
+    pub interactable: bool,
+}
+
+const fn interactable_default() -> bool {
+    true
 }
 
 impl Npc {

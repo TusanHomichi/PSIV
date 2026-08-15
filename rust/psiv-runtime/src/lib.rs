@@ -145,7 +145,10 @@ pub fn field_map(record: &MapRecord) -> Result<FieldMap, BridgeError> {
         // lets the ±8px talk range reach them from both straddled cells.
         let offset =
             psiv_core::SubCellOffset::new((npc.x_pixels % 16) as u8, (npc.y_pixels % 16) as u8);
-        npcs.push(Npc::with_offset(NpcId(npc.object_id), cell, offset, facing));
+        npcs.push(
+            Npc::with_offset(NpcId(npc.object_id), cell, offset, facing)
+                .with_interactable(npc.interactable),
+        );
     }
 
     // The overworlds are tori: the cartridge itself selects the paged/wrapping
@@ -293,6 +296,14 @@ impl Runtime {
         if let Some(start) = data.manifest().game_start.as_ref() {
             for flag in &start.event_flags_set {
                 let _ = game.set(Flag::event(*flag));
+            }
+            // Extended ids are within their own bank; Flag::event's id space
+            // reaches them at $100.., mirroring the cartridge's split arrays.
+            for flag in &start.extended_event_flags_set {
+                let _ = game.set(Flag::event(0x100 + *flag));
+            }
+            for flag in &start.town_flags_set {
+                let _ = game.set(Flag::town(*flag));
             }
             for (slot, symbol) in start.party.iter().enumerate() {
                 if let Some(id) = char_id_by_symbol(&data, symbol) {
