@@ -193,22 +193,108 @@ impl Wanderer {
         self.step.is_some()
     }
 
+    /// How far into its step it is, in frames. `0` at rest, `1..=frames` while
+    /// walking — the step's first frame is the frame the command was issued.
+    #[must_use]
+    pub fn progress(&self) -> u8 {
+        self.step.map_or(0, |step| step.progress)
+    }
+
+    /// The cell it stepped away from, while stepping.
+    ///
+    /// The object's *current* cell is in the map — committed at step start —
+    /// so this is what the pixel position has to be measured from.
+    #[must_use]
+    pub fn step_origin(&self) -> Option<Cell> {
+        self.step.map(|step| step.from)
+    }
+
+    /// The signed pixel offset from the origin cell, floored as the hardware
+    /// floors it.
+    ///
+    /// Position is a 16.16 fixed point and the logged word is its integer half,
+    /// so the fraction rounds **down**, not toward zero — and that is not
+    /// symmetric. Half a pixel into a step, an object moving down reads `+0`
+    /// while one moving left reads `−1`. Frame 6939 of the oracle log shows
+    /// both at once: slot 3 walking down sits at its origin `y`, slot 2 walking
+    /// left is already a pixel past its origin `x`.
+    #[must_use]
+    pub fn travelled_px(&self) -> (i32, i32) {
+        let Some(step) = self.step else {
+            return (0, 0);
+        };
+        let numerator = i32::from(step.progress) * crate::field::SUBCELL_UNITS;
+        let frames = i32::from(self.frames.get());
+        let (dx, dy) = step.dir.delta();
+        (
+            (dx * numerator).div_euclid(frames),
+            (dy * numerator).div_euclid(frames),
+        )
+    }
+
+    /// `(x_step_duration, y_step_duration)` in the cartridge's units.
+    ///
+    /// An object's duration counts `$1000` down to 0 in `$80` steps — a
+    /// thirty-second of a cell per frame. Only the walked axis is nonzero, and
+    /// both are zero at rest.
+    #[must_use]
+    pub fn step_durations(&self) -> (u16, u16) {
+        let Some(step) = self.step else {
+            return (0, 0);
+        };
+        let per_frame = 0x1000 / u16::from(self.frames.get());
+        let left = 0x1000u16.saturating_sub(u16::from(step.progress) * per_frame);
+        match step.dir {
+            Direction::Left | Direction::Right => (left, 0),
+            Direction::Up | Direction::Down => (0, left),
+        }
+    }
+
     /// Sub-cell displacement in sixteenths, for the renderer.
     ///
     /// Measured from the cell it is walking *to*, because the object commits to
     /// its destination cell the moment the step starts — so the offset runs
     /// from −16 back to 0 rather than 0 out to 16.
+    ///
+    /// The truncation matches the hardware's: on a step's first frame the
+    /// object has moved *nothing* (offset a full −16), because half a pixel
+    /// truncates to zero. Measuring the remaining distance instead would put it
+    /// a pixel ahead of the cartridge for the whole step.
     #[must_use]
     pub fn render_offset_16ths(&self) -> (i32, i32) {
-        let Some(step) = self.step else {
+        if self.step.is_none() {
             return (0, 0);
-        };
-        let frames = i32::from(self.frames.get());
-        let remaining = frames - i32::from(step.progress);
-        let travelled = remaining * crate::field::SUBCELL_UNITS / frames;
-        let (dx, dy) = step.dir.delta();
-        (-dx * travelled, -dy * travelled)
+        }
+        // The offset is measured back from the committed destination cell.
+        let (tx, ty) = self.travelled_px();
+        let (dx, dy) = self.step.map_or((0, 0), |step| step.dir.delta());
+        (
+            tx - dx * crate::field::SUBCELL_UNITS,
+            ty - dy * crate::field::SUBCELL_UNITS,
+        )
     }
+}
+
+/// A wanderer's state at a moment in time, for picking a replay up mid-run.
+///
+/// The engine cannot execute the opening scene, so at a replay's alignment
+/// frame the cartridge's objects have already been wandering for thousands of
+/// frames — they are not at their spawn cells and their leashes are not
+/// centred. Restoring is the object-side twin of seeding the RNG and the
+/// party's `game_start`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct WanderState {
+    /// The countdown to the next roll.
+    pub timer: i16,
+    /// The leash offsets and maxima.
+    pub leash: Leash,
+    /// A step in progress: the direction, how many frames in it is (`1..=32`),
+    /// and the cell it stepped **out of**.
+    ///
+    /// The object's current cell is its *destination* and lives in the map; the
+    /// origin is what the pixel position interpolates from, so a restore has to
+    /// carry it rather than leave it to be guessed.
+    pub step: Option<(Direction, u8, Cell)>,
 }
 
 /// Every wanderer on a map.
@@ -265,6 +351,33 @@ impl WanderSet {
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.wanderers.is_empty()
+    }
+
+    /// Restores one wanderer's state, for a replay picking up mid-run.
+    ///
+    /// The object's cell and facing live in the map; set those with
+    /// [`FieldMap::set_npc_cell`] and [`FieldMap::set_npc_facing`], remembering
+    /// that a mid-step object's cell is its **destination**.
+    ///
+    /// # Errors
+    ///
+    /// [`MapError::NpcIndexOutOfRange`] when no wanderer drives that object.
+    pub fn restore(&mut self, npc_index: usize, state: WanderState) -> Result<(), MapError> {
+        let count = self.wanderers.len();
+        let Some(wanderer) = self.wanderers.iter_mut().find(|w| w.npc_index == npc_index) else {
+            return Err(MapError::NpcIndexOutOfRange {
+                index: npc_index,
+                count,
+            });
+        };
+        wanderer.timer = state.timer;
+        wanderer.leash = state.leash;
+        wanderer.step = state.step.map(|(dir, progress, from)| WanderStep {
+            dir,
+            from,
+            progress,
+        });
+        Ok(())
     }
 
     /// Advances every wanderer one frame.
@@ -675,6 +788,203 @@ mod tests {
                 cell.y
             );
         }
+    }
+
+    #[test]
+    fn the_step_trace_matches_the_oracles_object_columns() {
+        // Pinned against `oracle/logs/02_walk_timing.csv` slot o00, frames
+        // 6962-6994: timer reads 0, the next frame rolls and reloads to 10
+        // (and 10 & 7 = 2 = down, which is how the remap table gets confirmed
+        // from hardware), ydur runs $0F80 down to 0 in $80 steps over exactly
+        // 32 frames, and y advances 240 -> 256 half a pixel at a time.
+        let mut map = map_with_npc(&["....", "....", "....", "....", "...."], Cell::new(1, 1));
+        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
+        let draws = [10u16];
+        let mut rolls = SliceRolls::new(&draws);
+
+        set.tick(&mut map, &mut rolls, &[], |_| true);
+        assert_eq!(
+            set.get(0).unwrap().timer(),
+            10,
+            "the reload the oracle logs"
+        );
+        assert_eq!(map.npcs()[0].facing, Direction::Down, "10 & 7 = 2 = down");
+
+        let origin = crate::trigger::PixelPos::from_cell(Cell::new(1, 1));
+        let mut durations = Vec::new();
+        let mut pixels = Vec::new();
+        // Oracle frames 6963..6993: the 31 frames with distance still to run.
+        for _ in 0..(WANDER_STEP_FRAMES - 1) {
+            let w = set.get(0).unwrap();
+            durations.push(w.step_durations().1);
+            pixels.push(origin.y + w.travelled_px().1);
+            set.tick(&mut map, &mut rolls, &[], |_| true);
+        }
+
+        assert_eq!(
+            &durations[..4],
+            &[0x0F80, 0x0F00, 0x0E80, 0x0E00],
+            "$80 a frame, the first sample already decremented"
+        );
+        assert_eq!(
+            durations.last(),
+            Some(&0x0080),
+            "the last frame with distance left"
+        );
+        // Oracle frames 6963-6967 read y = 240, 241, 241, 242, 242.
+        assert_eq!(
+            &pixels[..5],
+            &[
+                origin.y,
+                origin.y + 1,
+                origin.y + 1,
+                origin.y + 2,
+                origin.y + 2
+            ],
+            "half a pixel a frame, truncated"
+        );
+
+        // The last of those ticks is frame 6994, arrival: the duration reads
+        // zero and the timer is still the reload, because the arriving frame
+        // does no timer work.
+        assert_eq!(set.get(0).unwrap().step_durations(), (0, 0), "arrived");
+        assert_eq!(map.npcs()[0].cell, Cell::new(1, 2), "one cell down");
+        assert_eq!(
+            set.get(0).unwrap().timer(),
+            10,
+            "untouched for the whole step"
+        );
+
+        // Frame 6995: the first frame to decrement it again.
+        set.tick(&mut map, &mut rolls, &[], |_| true);
+        assert_eq!(set.get(0).unwrap().timer(), 9);
+    }
+
+    #[test]
+    fn the_pixel_offset_floors_rather_than_truncating_toward_zero() {
+        // Oracle frame 6939: slot 3 walking *down* with ydur $0F80 reads y at
+        // its origin (112), while slot 2 walking *left* with xdur $0F80 already
+        // reads x one pixel past its origin (639 from 640). Half a pixel floors
+        // to 0 going down and to -1 going left.
+        let mut map = map_with_npc(&["......", "......", "......"], Cell::new(2, 1));
+        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
+        // index 2 -> down.
+        let draws = [2u16];
+        let mut rolls = SliceRolls::new(&draws);
+        set.tick(&mut map, &mut rolls, &[], |_| true);
+        assert_eq!(
+            set.get(0).unwrap().travelled_px(),
+            (0, 0),
+            "down: floors to 0"
+        );
+
+        let mut map = map_with_npc(&["......", "......", "......"], Cell::new(2, 1));
+        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
+        // index 3 -> command $04 -> left.
+        let draws = [3u16];
+        let mut rolls = SliceRolls::new(&draws);
+        set.tick(&mut map, &mut rolls, &[], |_| true);
+        assert_eq!(
+            set.get(0).unwrap().travelled_px(),
+            (-1, 0),
+            "left: floors to -1"
+        );
+    }
+
+    #[test]
+    fn a_restored_wanderer_carries_its_timer_leash_and_step() {
+        let map = map_with_npc(&["......", "......", "......"], Cell::new(2, 1));
+        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
+
+        set.restore(
+            0,
+            WanderState {
+                timer: 23,
+                leash: Leash {
+                    x_max: 4,
+                    y_max: 4,
+                    x: 4,
+                    y: 2,
+                },
+                step: Some((Direction::Left, 1, Cell::new(2, 1))),
+            },
+        )
+        .unwrap();
+
+        let w = set.get(0).unwrap();
+        assert_eq!(w.timer(), 23);
+        assert_eq!(w.leash().x, 4, "already at the leash limit, as slot 0 is");
+        assert!(w.is_stepping());
+        assert_eq!(w.step_durations(), (0x0F80, 0), "one frame into the step");
+        assert_eq!(w.travelled_px(), (-1, 0));
+
+        assert!(matches!(
+            set.restore(
+                9,
+                WanderState {
+                    timer: 0,
+                    leash: Leash::default(),
+                    step: None
+                }
+            ),
+            Err(MapError::NpcIndexOutOfRange { .. })
+        ));
+    }
+
+    #[test]
+    fn a_roll_fires_on_the_frame_the_timer_reads_zero() {
+        // Not on an expiry edge some frames later: the countdown reaches 0,
+        // and the *next* frame rolls. A reload of 0 therefore rolls again
+        // immediately, which is the consecutive-roll case.
+        let mut map = map_with_npc(&["....", "....", "...."], Cell::new(1, 1));
+        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
+        // Roll 0: index 0 -> stand still, and a reload of 0.
+        let draws = [0u16];
+        let mut rolls = SliceRolls::new(&draws);
+
+        for frame in 0..5 {
+            set.tick(&mut map, &mut rolls, &[], |_| true);
+            assert_eq!(
+                set.get(0).unwrap().timer(),
+                0,
+                "frame {frame}: a zero reload keeps the timer at zero"
+            );
+        }
+        assert_eq!(rolls.drawn(), 5, "so it rolls every single frame");
+    }
+
+    #[test]
+    fn only_registered_wanderers_consume_rolls() {
+        // Slot 7 on PiataAcademy_F1 is NPCAlysPiata: the oracle sees her timer
+        // hold 0 for all 1563 field frames while consuming nothing, because
+        // her routine is not GetRandomMove. A set that does not register an
+        // object must never draw for it.
+        let grid = CollisionGrid::filled(6, 4, 0).unwrap();
+        let mut map = FieldMap::new(
+            MapId(0),
+            grid,
+            vec![],
+            vec![
+                Npc::new(NpcId(0x3C), Cell::new(1, 1), Direction::Down),
+                Npc::new(NpcId(0x68), Cell::new(3, 1), Direction::Down),
+            ],
+        )
+        .unwrap();
+        // Only slot 0 wanders.
+        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
+        let draws = [0x20u16];
+        let mut rolls = SliceRolls::new(&draws);
+
+        for _ in 0..200 {
+            set.tick(&mut map, &mut rolls, &[], |_| true);
+        }
+
+        assert_eq!(
+            map.npcs()[1].cell,
+            Cell::new(3, 1),
+            "the unregistered object never moved"
+        );
+        assert!(set.get(1).is_none(), "and has no wander state at all");
     }
 
     #[test]

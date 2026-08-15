@@ -100,8 +100,10 @@ pub use geom::{CELL_PIXELS, Cell, CellRect, Direction};
 pub use map::{FieldMap, MapId, Npc, NpcId, SubCellOffset, Topology, Warp, WarpTrigger};
 pub use party::{MAX_PARTY_MEMBERS, MemberView, Party};
 pub use replay::{
-    Buttons, COLUMNS, Column, Coverage, Divergence, FrameSample, OracleLog, ReplayRow, Tape,
-    TapeError, TapeFrame, TapeStep, csv_header, facing_value, modelled_columns,
+    Buttons, COLUMNS, Column, Coverage, DiffReport, Divergence, FrameSample, OBJECT_COLUMN_KINDS,
+    OBJECT_ID_LOADED, OBJECT_SLOTS, ObjectSample, OracleLog, ReplayRow, Tape, TapeError, TapeFrame,
+    TapeStep, all_modelled_columns, csv_header, facing_value, modelled_columns, object_column,
+    object_columns,
 };
 pub use scene::{
     ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, OP_BUDGET_PER_TICK, SceneEffect,
@@ -115,4 +117,4 @@ pub use trigger::{
     TriggerContext, TriggerResult, Unsupported, evaluate_list,
 };
 pub use trigger_table::TRIGGERS;
-pub use wander::{Leash, WANDER_STEP_FRAMES, WanderKind, WanderSet, Wanderer};
+pub use wander::{Leash, WANDER_STEP_FRAMES, WanderKind, WanderSet, WanderState, Wanderer};

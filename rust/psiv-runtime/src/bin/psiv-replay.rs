@@ -23,8 +23,9 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use psiv_core::{
-    Cell, CollisionType, Direction, FieldMap, FrameSample, Input, OracleLog, ReplayRow, StepFrames,
-    Tape, csv_header, modelled_columns,
+    Cell, CollisionType, Direction, FieldMap, FrameSample, Input, OBJECT_ID_LOADED, OBJECT_SLOTS,
+    ObjectSample, OracleLog, PixelPos, ReplayRow, StepFrames, Tape, all_modelled_columns,
+    csv_header,
 };
 use psiv_data::GameData;
 use psiv_runtime::Runtime;
@@ -41,6 +42,13 @@ struct Args {
     /// Columns to leave out of the comparison. Every exclusion is named on
     /// stdout, so a clean verdict always says what it ignored.
     skip: Vec<String>,
+    /// The RNG seed to start from, as the oracle's `rng_seed` column spells it
+    /// (an eight-digit longword). Without it the wander stream is arbitrary and
+    /// every object column will diverge on the first roll.
+    seed: Option<u32>,
+    /// Restore the map's objects from the log at the alignment frame, instead
+    /// of starting them at their pack spawn cells.
+    restore_objects: bool,
 }
 
 enum Align {
@@ -50,7 +58,7 @@ enum Align {
 
 fn usage() -> &'static str {
     "usage: psiv-replay --tape <t> --pack <dir> (--align-mark <m> | --align-frame <n>) \
-     [--log <csv>] [--out <csv>] [--limit <frames>] [--skip <column>]..."
+     [--log <csv>] [--out <csv>] [--limit <frames>] [--skip <column>]... [--seed <hex>] [--restore-objects]"
 }
 
 fn parse_args() -> Result<Args, String> {
@@ -61,6 +69,8 @@ fn parse_args() -> Result<Args, String> {
     let mut align = None;
     let mut limit = None;
     let mut skip = Vec::new();
+    let mut seed = None;
+    let mut restore_objects = false;
 
     let mut args = std::env::args().skip(1);
     while let Some(flag) = args.next() {
@@ -78,6 +88,13 @@ fn parse_args() -> Result<Args, String> {
                 ));
             }
             "--skip" => skip.push(value()?),
+            "--restore-objects" => restore_objects = true,
+            "--seed" => {
+                let raw = value()?;
+                let text = raw.trim_start_matches("0x");
+                seed =
+                    Some(u32::from_str_radix(text, 16).map_err(|_| format!("bad seed {raw:?}"))?);
+            }
             "--limit" => {
                 let raw = value()?;
                 limit = Some(raw.parse().map_err(|_| format!("bad limit {raw:?}"))?);
@@ -94,12 +111,159 @@ fn parse_args() -> Result<Args, String> {
         align: align.ok_or_else(|| usage().to_string())?,
         limit,
         skip,
+        seed,
+        restore_objects,
     })
 }
 
 /// The raw collision value at `cell`, or 0 off the map.
 fn collision(map: &FieldMap, cell: Cell) -> u8 {
     map.collision_at(cell).map_or(0, CollisionType::to_raw)
+}
+
+/// Seeds every object from the oracle's own columns at `frame`.
+///
+/// The engine cannot execute the opening scene, so by a replay's alignment
+/// frame the cartridge's objects have wandered for thousands of frames: off
+/// their spawn cells, leashes no longer centred, several mid-step. Starting
+/// them at the pack's spawn state makes every object column diverge on frame
+/// one for a reason that has nothing to do with the wander model.
+fn restore_objects_from(
+    runtime: &mut Runtime,
+    log: &OracleLog,
+    frame: u32,
+) -> Result<(usize, Vec<(u8, u8)>), String> {
+    let count = runtime.map().npcs().len();
+    let mut restored = 0;
+    let mut bounds = vec![(0u8, 0u8); OBJECT_SLOTS];
+    for (slot, slot_bounds) in bounds.iter_mut().enumerate().take(count.min(OBJECT_SLOTS)) {
+        let read = |kind: &str| log.get(frame, &psiv_core::object_column(slot, kind));
+        let (Some(x_px), Some(y_px), Some(facing)) = (read("x_px"), read("y_px"), read("facing"))
+        else {
+            continue;
+        };
+        let x_px: i32 = x_px.parse().map_err(|_| format!("slot {slot}: bad x_px"))?;
+        let y_px: i32 = y_px.parse().map_err(|_| format!("slot {slot}: bad y_px"))?;
+        let facing = match facing.parse::<u16>() {
+            Ok(0) => Direction::Down,
+            Ok(4) => Direction::Up,
+            Ok(8) => Direction::Right,
+            Ok(12) => Direction::Left,
+            _ => {
+                return Err(format!(
+                    "slot {slot}: facing {facing:?} is not one of 0/4/8/12"
+                ));
+            }
+        };
+        let timer: i16 = read("timer").and_then(|v| v.parse().ok()).unwrap_or(0);
+        let x_dur: u32 = read("xdur").and_then(|v| v.parse().ok()).unwrap_or(0);
+        let y_dur: u32 = read("ydur").and_then(|v| v.parse().ok()).unwrap_or(0);
+        let x_bnd: u8 = read("xbnd").and_then(|v| v.parse().ok()).unwrap_or(2);
+        let y_bnd: u8 = read("ybnd").and_then(|v| v.parse().ok()).unwrap_or(2);
+
+        // A running duration says how many frames into its step the object is:
+        // it counts $1000 down to 0 in $80 steps.
+        const FULL: u32 = 0x1000;
+        const PER_FRAME: u32 = FULL / psiv_core::WANDER_STEP_FRAMES as u32;
+        // A running duration says how many frames into its step the object is.
+        // A wandering object faces the way it walks, so the facing is the
+        // step's direction.
+        let progress = if x_dur > 0 || y_dur > 0 {
+            Some((((FULL - x_dur.max(y_dur)) / PER_FRAME) as u8).max(1))
+        } else {
+            None
+        };
+
+        // Undo the part-cell travel to recover the origin cell. The travel is
+        // floored, not truncated, so this cannot be done by dividing the
+        // current pixel: an object one frame into a leftward step reads a pixel
+        // *past* its origin while one stepping down reads its origin exactly.
+        let (dx, dy) = facing.delta();
+        let (tx, ty) = progress.map_or((0, 0), |p| {
+            let n = i32::from(p) * 16;
+            (
+                (dx * n).div_euclid(i32::from(psiv_core::WANDER_STEP_FRAMES)),
+                (dy * n).div_euclid(i32::from(psiv_core::WANDER_STEP_FRAMES)),
+            )
+        });
+        let origin = Cell::new(
+            u16::try_from(((x_px - tx).max(0)) / 16).map_err(|_| "origin x")?,
+            u16::try_from((((y_px - ty).max(0)) / 16) + 1).map_err(|_| "origin y")?,
+        );
+        // The engine commits the destination at step start, so that is the
+        // object's cell.
+        let cell = match progress {
+            Some(_) => runtime.map().neighbor(origin, facing).unwrap_or(origin),
+            None => origin,
+        };
+        let step = progress.map(|p| (facing, p, origin));
+
+        runtime
+            .restore_object(
+                slot,
+                cell,
+                facing,
+                psiv_core::WanderState {
+                    timer,
+                    leash: psiv_core::Leash {
+                        x_max: 4,
+                        y_max: 4,
+                        x: x_bnd,
+                        y: y_bnd,
+                    },
+                    step,
+                },
+            )
+            .map_err(|e| format!("slot {slot}: {e}"))?;
+        *slot_bounds = (x_bnd, y_bnd);
+        restored += 1;
+    }
+    Ok((restored, bounds))
+}
+
+/// The map's objects in the oracle's slot order: slot `i` is `npcs[i]`.
+///
+/// A wandering object contributes its timer, durations and leash; everything
+/// else reads zero there, which is what the cartridge shows for an object whose
+/// routine never touches them. Empty slots past the map's object count are all
+/// zero, id included.
+fn object_samples(
+    runtime: &psiv_runtime::Runtime,
+    static_bounds: &[(u8, u8)],
+) -> Vec<ObjectSample> {
+    let map = runtime.map();
+    let wanderers = runtime.wanderers();
+    let mut out = vec![ObjectSample::default(); OBJECT_SLOTS];
+
+    for (slot, npc) in map.npcs().iter().enumerate().take(OBJECT_SLOTS) {
+        let wanderer = wanderers.iter().find(|w| w.npc_index() == slot);
+        // A mid-step object's pixels run out of the cell it left, because the
+        // engine commits the destination cell the moment the step starts.
+        let base = wanderer
+            .and_then(psiv_core::Wanderer::step_origin)
+            .unwrap_or(npc.cell);
+        let at = PixelPos::from_cell(base);
+        let (tx, ty) = wanderer.map_or((0, 0), psiv_core::Wanderer::travelled_px);
+        let (x_dur, y_dur) = wanderer.map_or((0, 0), psiv_core::Wanderer::step_durations);
+        let leash = wanderer.map(psiv_core::Wanderer::leash);
+
+        out[slot] = ObjectSample {
+            id: OBJECT_ID_LOADED | npc.id.0,
+            facing: psiv_core::facing_value(npc.facing),
+            timer: wanderer.map_or(0, psiv_core::Wanderer::timer),
+            x_dur,
+            y_dur,
+            x_px: at.x + tx,
+            y_px: at.y + ty,
+            // A non-wandering object still has boundary bytes, written once by
+            // its own init routine and never touched again — Alys on the
+            // academy floor reads 8/8. The engine models no state for those
+            // objects, so the comparator carries whatever the restore read.
+            x_bnd: leash.map_or_else(|| static_bounds.get(slot).map_or(0, |b| b.0), |l| l.x),
+            y_bnd: leash.map_or_else(|| static_bounds.get(slot).map_or(0, |b| b.1), |l| l.y),
+        };
+    }
+    out
 }
 
 /// Left, up, right, down — the order `UpdateCharacterCollision` caches them.
@@ -152,10 +316,41 @@ fn run() -> Result<bool, String> {
     let mut runtime = Runtime::new(data, start.map.id, spawn, facing, StepFrames::default())
         .map_err(|e| format!("runtime: {e}"))?;
 
+    if let Some(seed) = args.seed {
+        runtime.set_rng_seed(seed);
+        eprintln!("seeded the RNG with {seed:08X}");
+    }
+
+    let mut static_bounds = vec![(0u8, 0u8); OBJECT_SLOTS];
+    if args.restore_objects {
+        let Some(log_path) = &args.log else {
+            return Err("--restore-objects needs --log to read the state from".into());
+        };
+        let text = std::fs::read_to_string(log_path)
+            .map_err(|e| format!("{}: {e}", log_path.display()))?;
+        let log = OracleLog::parse(&text);
+        // The log samples at end-of-frame, so the state the replay must start
+        // from is the row *before* the alignment frame — the same convention
+        // the RNG seed uses.
+        let from = align_frame.saturating_sub(1);
+        let (restored, bounds) = restore_objects_from(&mut runtime, &log, from)?;
+        static_bounds = bounds;
+        eprintln!("restored {restored} objects from the log at frame {from}");
+    }
+
     // Replay from the alignment frame on. Everything before it is boot, which
     // the engine has no way to reproduce.
     let mut rows = Vec::new();
-    let mut previous_standing = collision(runtime.map(), runtime.state().cell());
+    // `FieldRoutine_Controls` refreshes the standing and neighbour collision
+    // caches only when both step durations read zero *at the top of the frame*
+    // (`UpdateCharacterStandCollision` / `UpdateCharacterCollision` sit behind
+    // that gate). So the caches lag a landing by exactly one frame: the frame
+    // the step completes still reports the pre-step neighbours, and the frame
+    // after picks up the new ones. Sampling them live instead is a one-frame
+    // error at every landing that changes a neighbour.
+    let mut cached_standing = collision(runtime.map(), runtime.state().cell());
+    let mut previous_standing = cached_standing;
+    let mut cached_neighbours = neighbours(runtime.map(), runtime.state().cell());
     let mut replayed = 0;
     let mut scene_from: Option<u32> = None;
 
@@ -168,17 +363,25 @@ fn run() -> Result<bool, String> {
         }
         replayed += 1;
 
+        // Top of frame: refresh the caches only if the party is at rest, using
+        // the position it holds *before* this frame's movement.
+        if !runtime.state().is_stepping() {
+            let map = runtime.map();
+            let cell = runtime.state().cell();
+            previous_standing = cached_standing;
+            cached_standing = collision(map, cell);
+            cached_neighbours = neighbours(map, cell);
+        }
+
         let input: Input = frame.buttons.to_input();
         runtime.tick(input);
 
-        let map = runtime.map();
         let state = runtime.state();
-        let cell = state.cell();
-        let standing = collision(map, cell);
         let follower = runtime
             .members()
             .get(1)
-            .map(|m| (m.facing, psiv_core::PixelPos::from_cell(m.cell)));
+            .map(|m| (m.facing, PixelPos::from_cell(m.cell)));
+        let objects = object_samples(&runtime, &static_bounds);
 
         rows.push(ReplayRow::from_sample(FrameSample {
             frame: frame.number,
@@ -187,12 +390,12 @@ fn run() -> Result<bool, String> {
             map_index: runtime.map_id().0,
             state,
             follower,
-            standing,
+            standing: cached_standing,
             previously_standing: previous_standing,
-            neighbours: neighbours(map, cell),
+            neighbours: cached_neighbours,
             game: runtime.game(),
+            objects: &objects,
         }));
-        previous_standing = standing;
 
         if runtime.scene_active() && scene_from.is_none() {
             scene_from = Some(frame.number);
@@ -202,7 +405,7 @@ fn run() -> Result<bool, String> {
     if let Some(path) = &args.out {
         let mut text = csv_header();
         text.push('\n');
-        let columns = modelled_columns();
+        let columns = all_modelled_columns();
         for row in &rows {
             text.push_str(&row.to_csv(&columns));
             text.push('\n');
@@ -264,12 +467,19 @@ fn run() -> Result<bool, String> {
     if !skip.is_empty() {
         println!("skipping columns: {}", skip.join(", "));
     }
-    let divergences = log.diff(&rows, &skip);
+    let report = log.compare(&rows, &skip);
+    if !report.unavailable.is_empty() {
+        println!(
+            "not in the log, so not compared: {}",
+            report.unavailable.join(", ")
+        );
+    }
+    let divergences = report.divergences;
     if divergences.is_empty() {
         println!(
-            "CLEAN: {} frames from {align_frame}, {} columns, zero divergences",
+            "CLEAN: {} frames from {align_frame}, {} columns compared, zero divergences",
             rows.len(),
-            modelled_columns().len() - 2
+            report.compared.len()
         );
         return Ok(true);
     }

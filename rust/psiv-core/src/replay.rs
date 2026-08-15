@@ -32,6 +32,7 @@
 //! Frames before the alignment point are skipped, not replayed.
 
 use core::fmt;
+use std::collections::BTreeMap;
 
 use crate::field::{FieldState, Input};
 use crate::geom::Direction;
@@ -453,6 +454,101 @@ pub const COLUMNS: &[Column] = &[
     missing("rng_seed", "the cartridge RNG is not ported yet"),
 ];
 
+/// How many secondary object slots the oracle logs.
+///
+/// Slot `i` is `npcs[i]` of the packed map record, and the logged `id` is
+/// `$8000 | pack id` — the high bit is the object-loaded marker.
+pub const OBJECT_SLOTS: usize = 32;
+
+/// The eleven columns each object slot contributes, and whether the engine
+/// models them.
+pub const OBJECT_COLUMN_KINDS: [(&str, Coverage); 11] = [
+    ("id", Coverage::Modelled),
+    (
+        "rflags",
+        Coverage::NotModelled("render flags beyond bit 3 are presentation state"),
+    ),
+    ("facing", Coverage::Modelled),
+    (
+        "map_idx",
+        Coverage::NotModelled("the object's map slot is bridge bookkeeping"),
+    ),
+    ("timer", Coverage::Modelled),
+    ("xdur", Coverage::Modelled),
+    ("ydur", Coverage::Modelled),
+    ("x_px", Coverage::Modelled),
+    ("y_px", Coverage::Modelled),
+    ("xbnd", Coverage::Modelled),
+    ("ybnd", Coverage::Modelled),
+];
+
+/// The high bit the oracle's object id carries.
+pub const OBJECT_ID_LOADED: u16 = 0x8000;
+
+/// The oracle's name for one object column, e.g. `o07_timer`.
+#[must_use]
+pub fn object_column(slot: usize, kind: &str) -> String {
+    format!("o{slot:02}_{kind}")
+}
+
+/// Every object column, in the oracle's order.
+#[must_use]
+pub fn object_columns() -> Vec<Column> {
+    let mut out = Vec::with_capacity(OBJECT_SLOTS * OBJECT_COLUMN_KINDS.len());
+    for slot in 0..OBJECT_SLOTS {
+        for (kind, coverage) in OBJECT_COLUMN_KINDS {
+            out.push(Column {
+                name: Box::leak(object_column(slot, kind).into_boxed_str()),
+                coverage,
+            });
+        }
+    }
+    out
+}
+
+/// One object slot's state, in the oracle's shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct ObjectSample {
+    /// `$8000 | pack id`, or 0 for an empty slot.
+    pub id: u16,
+    /// `facing_dir`: 0 down, 4 up, 8 right, `$C` left.
+    pub facing: u16,
+    /// The wander countdown, or 0 for an object that does not wander.
+    pub timer: i16,
+    /// `x_step_duration`, `$1000` down to 0 in `$80` steps.
+    pub x_dur: u16,
+    /// `y_step_duration`.
+    pub y_dur: u16,
+    /// `curr_x_pos` integer word.
+    pub x_px: i32,
+    /// `curr_y_pos` integer word.
+    pub y_px: i32,
+    /// `x_move_boundary`, the leash offset.
+    pub x_bnd: u8,
+    /// `y_move_boundary`.
+    pub y_bnd: u8,
+}
+
+impl ObjectSample {
+    /// The value of one of this slot's columns.
+    #[must_use]
+    pub fn field(&self, kind: &str) -> Option<String> {
+        let value = match kind {
+            "id" => format!("{:04X}", self.id),
+            "facing" => self.facing.to_string(),
+            "timer" => self.timer.to_string(),
+            "xdur" => self.x_dur.to_string(),
+            "ydur" => self.y_dur.to_string(),
+            "x_px" => self.x_px.to_string(),
+            "y_px" => self.y_px.to_string(),
+            "xbnd" => self.x_bnd.to_string(),
+            "ybnd" => self.y_bnd.to_string(),
+            _ => return None,
+        };
+        Some(value)
+    }
+}
+
 /// The names this engine emits values for.
 #[must_use]
 pub fn modelled_columns() -> Vec<&'static str> {
@@ -461,6 +557,19 @@ pub fn modelled_columns() -> Vec<&'static str> {
         .filter(|c| c.coverage == Coverage::Modelled)
         .map(|c| c.name)
         .collect()
+}
+
+/// The scalar modelled columns plus every modelled object column.
+#[must_use]
+pub fn all_modelled_columns() -> Vec<&'static str> {
+    let mut out = modelled_columns();
+    out.extend(
+        object_columns()
+            .into_iter()
+            .filter(|c| c.coverage == Coverage::Modelled)
+            .map(|c| c.name),
+    );
+    out
 }
 
 /// A frame's worth of engine state in the oracle's own shape.
@@ -520,6 +629,8 @@ pub struct ReplayRow {
     pub temp_eflags_00: u16,
     /// Town flags, first longword.
     pub town_flags_00: u32,
+    /// The secondary object slots, index-aligned with the map's NPC list.
+    pub objects: Vec<ObjectSample>,
 }
 
 /// The cartridge's `facing_dir` value for a direction.
@@ -569,6 +680,8 @@ pub struct FrameSample<'a> {
     pub neighbours: [u8; 4],
     /// Persistent state.
     pub game: &'a GameState,
+    /// The map's objects, in slot order.
+    pub objects: &'a [ObjectSample],
 }
 
 impl ReplayRow {
@@ -586,6 +699,7 @@ impl ReplayRow {
             previously_standing,
             neighbours,
             game,
+            objects,
         } = sample;
         let at = PixelPos::from_cell(state.cell());
         let (dx, dy) = state.render_offset_16ths();
@@ -626,6 +740,7 @@ impl ReplayRow {
             temp_eflags_00: (u16::from(snapshot.temp_flags[0]) << 8)
                 | u16::from(snapshot.temp_flags[1]),
             town_flags_00: be_u32(&snapshot.town_flags),
+            objects: objects.to_vec(),
         }
     }
 
@@ -671,7 +786,13 @@ impl ReplayRow {
             "chest_flags_00" => format!("{:08X}", self.chest_flags_00),
             "temp_eflags_00" => format!("{:04X}", self.temp_eflags_00),
             "town_flags_00" => format!("{:08X}", self.town_flags_00),
-            _ => return None,
+            name => {
+                // Object columns: `oNN_kind`, slot-aligned with the map's NPCs.
+                let rest = name.strip_prefix('o')?;
+                let (slot, kind) = rest.split_once('_')?;
+                let slot: usize = slot.parse().ok()?;
+                return self.objects.get(slot).and_then(|obj| obj.field(kind));
+            }
         };
         Some(value)
     }
@@ -697,8 +818,27 @@ pub fn csv_header() -> String {
             out.push_str(&format!("# not modelled: {} - {}\n", column.name, why));
         }
     }
-    out.push_str(&modelled_columns().join(","));
+    for column in object_columns() {
+        if let Coverage::NotModelled(why) = column.coverage {
+            out.push_str(&format!("# not modelled: {} - {}\n", column.name, why));
+        }
+    }
+    out.push_str(&all_modelled_columns().join(","));
     out
+}
+
+/// The outcome of a comparison: what disagreed, and over which columns.
+#[derive(Debug, Clone)]
+pub struct DiffReport {
+    /// Every disagreement, ordered by frame then column.
+    pub divergences: Vec<Divergence>,
+    /// Columns both sides carried, so a clean result over them means something.
+    pub compared: Vec<&'static str>,
+    /// Columns the engine emits that the oracle log does not carry. These were
+    /// not compared, and reporting them as agreement is how a false pass
+    /// happens — a whole column group once vanished into a silent `continue`
+    /// and the run announced itself clean over columns it had never read.
+    pub unavailable: Vec<&'static str>,
 }
 
 /// One frame's disagreement between engine and oracle.
@@ -725,10 +865,15 @@ impl fmt::Display for Divergence {
 }
 
 /// An oracle log, indexed by frame.
+///
+/// Both indexes are built at parse time. A linear scan per lookup is fine at
+/// thirty-odd columns and quadratic at three hundred — the object group made
+/// that difference the gap between a second and an afternoon.
 #[derive(Debug, Clone, Default)]
 pub struct OracleLog {
-    header: Vec<String>,
     rows: Vec<Vec<String>>,
+    by_frame: BTreeMap<u32, usize>,
+    by_column: BTreeMap<String, usize>,
 }
 
 impl OracleLog {
@@ -748,19 +893,36 @@ impl OracleLog {
                 rows.push(fields);
             }
         }
-        OracleLog { header, rows }
+        let by_column = header
+            .iter()
+            .enumerate()
+            .map(|(index, name)| (name.clone(), index))
+            .collect();
+        let frame_index = header.iter().position(|name| name == "frame");
+        let by_frame = frame_index
+            .map(|frame_index| {
+                rows.iter()
+                    .enumerate()
+                    .filter_map(|(row, fields)| {
+                        let frame = fields.get(frame_index)?.parse::<u32>().ok()?;
+                        Some((frame, row))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        OracleLog {
+            rows,
+            by_frame,
+            by_column,
+        }
     }
 
     /// The value of `column` on `frame`, if the log has both.
     #[must_use]
     pub fn get(&self, frame: u32, column: &str) -> Option<&str> {
-        let index = self.header.iter().position(|name| name == column)?;
-        let frame_index = self.header.iter().position(|name| name == "frame")?;
-        let row = self
-            .rows
-            .iter()
-            .find(|row| row.get(frame_index).and_then(|f| f.parse::<u32>().ok()) == Some(frame))?;
-        row.get(index).map(String::as_str)
+        let column = *self.by_column.get(column)?;
+        let row = *self.by_frame.get(&frame)?;
+        self.rows.get(row)?.get(column).map(String::as_str)
     }
 
     /// How many data rows.
@@ -784,18 +946,34 @@ impl OracleLog {
     /// Returns divergences in frame order, first one first.
     #[must_use]
     pub fn diff(&self, rows: &[ReplayRow], skip: &[&str]) -> Vec<Divergence> {
-        let mut out = Vec::new();
-        for row in rows {
-            for column in modelled_columns() {
-                if skip.contains(&column) || column == "mark" || column == "frame" {
-                    continue;
-                }
+        self.compare(rows, skip).divergences
+    }
+
+    /// The full comparison: what diverged, and what was actually looked at.
+    ///
+    /// A column both sides carry is compared; one the oracle log does not carry
+    /// is *unavailable*, not clean. Keeping the two apart is the difference
+    /// between a verdict and a false pass — an engine column the log never had
+    /// would otherwise vanish into a silent `continue` and be counted as
+    /// agreement.
+    #[must_use]
+    pub fn compare(&self, rows: &[ReplayRow], skip: &[&str]) -> DiffReport {
+        let mut divergences = Vec::new();
+        let mut compared = Vec::new();
+        let mut unavailable = Vec::new();
+        for column in all_modelled_columns() {
+            if skip.contains(&column) || column == "mark" || column == "frame" {
+                continue;
+            }
+            let mut seen = false;
+            for row in rows {
                 let (Some(engine), Some(oracle)) = (row.field(column), self.get(row.frame, column))
                 else {
                     continue;
                 };
+                seen = true;
                 if engine != oracle {
-                    out.push(Divergence {
+                    divergences.push(Divergence {
                         frame: row.frame,
                         column: column.to_string(),
                         engine,
@@ -803,8 +981,18 @@ impl OracleLog {
                     });
                 }
             }
+            if seen {
+                compared.push(column);
+            } else {
+                unavailable.push(column);
+            }
         }
-        out
+        divergences.sort_by(|a, b| a.frame.cmp(&b.frame).then(a.column.cmp(&b.column)));
+        DiffReport {
+            divergences,
+            compared,
+            unavailable,
+        }
     }
 }
 

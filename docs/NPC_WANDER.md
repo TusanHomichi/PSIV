@@ -205,12 +205,48 @@ gated on `btst #3, render_flags(a4)`: an object with bit 3 clear does no object
 collision at all, which is the same bit that gates the talk probe and
 `FieldObj_DoObjCollision`. One flag, three readers.
 
+## Corrections, 2026-08-15
+
+Two conflicts with oracle-lane's report, both settled against the re-logged
+`oracle/logs/02_walk_timing.csv` object columns. **Both resolve in favour of
+this document**; the numbers below are read straight off slot `o00`.
+
+**Cadence — 32 frames per cell stands.** The oracle's report gave 8
+frames/cell, reading the duration as counting down in `$0200` steps. That is
+the *party's* rate: the party runs at `FieldObj_Step_Offset = 1`, velocity
+`$0200`. An object's duration decrements by `$80` a frame — frames 6901-6915
+show `ydur` going 3712, 3584, 3456, 3328 … exactly 128 apart — and the step
+from frame 6963 (`ydur $0F80`) to frame 6994 (`ydur 0`) spans **32 frames**,
+over which `y` advances 240 → 256, one cell. Position corroborates the
+duration independently: `y` gains a pixel every *other* frame, 0.5 px/frame.
+
+**Decision schedule — a roll fires on the frame the timer reads zero.** The
+oracle is right that this is per-zero-frame rather than an expiry edge, and the
+implementation already matched: `subq.w #1` then `bpl` means the roll happens
+when the *pre-decrement* timer is 0, so a reload of 0 rolls again the next
+frame. Frames 6940-6963 show the countdown 22, 21, … 1, 0 and then the reload
+to 10 on the very next frame. Two details the log confirms for free:
+
+- The reload was **10**, and `10 & 7 = 2` → the remap table's index 2 → *down*
+  — and `y` duly increases. The one-roll-two-uses finding and the remap table
+  are both confirmed from hardware, not just from the instruction stream.
+- The timer is **untouched for the whole step** (holds 10 across frames
+  6963-6994) and the arriving frame does no timer work either; 6995 is the
+  first frame to decrement it again. That is the `beq`/`bpl` guard on the two
+  durations doing its job.
+
+**A third thing the object columns settled**: `NPCAlysPiata` (slot `o07`,
+id `$8068`) holds `timer 0` for all 1,563 field frames and consumes nothing.
+A timer of zero is not sufficient to roll — the object's *routine* has to be
+`GetRandomMove`. Registering the wrong types would consume rolls the cartridge
+does not and desynchronise the shared seed for everything else.
+
 ## Cadence
 
 `d7 = 0` selects the first speed table (`$04A20E`). Its entries give a step
 duration of `$1000` (16.0 px in 8.8 fixed point) and a velocity of `$80`
 (0.5 px/frame), so **a wandering NPC takes 32 frames per cell** — four times
-slower than the party's 8. The other two speed tables (`$04A266`, 16 frames;
+slower than the party's 8. Confirmed on hardware; see the corrections above. The other two speed tables (`$04A266`, 16 frames;
 and a third) exist but Types 2 and 3 never select them.
 
 ## Interaction while moving
@@ -226,12 +262,50 @@ and a third) exist but Types 2 and 3 never select them.
   turn-to-face is the interaction code's doing, and the next accepted wander
   command overwrites the facing.
 
-## What this leaves open
+## The visibility gate, measured (2026-08-15)
 
-- **Frame cadence versus tick cadence.** The engine ticks once per frame like
-  the cartridge, so the countdown maps directly — but only if the engine's NPC
-  update runs every frame the cartridge's does, including the on-screen gate.
-  Reproducing positions bit-exactly needs the camera model too.
+An off-screen object is not updated **at all** — no timer decrement, no roll, no
+movement. This is not a rendering optimisation we may skip: because the roll
+comes from the shared `UpdateRNGSeed` stream, whether an object is on screen
+decides how many times that stream advances, so the gate is load-bearing for
+every other consumer of the seed.
+
+`FieldObj_OnScreenTest` (`ps4.asm:96661`) tests the sprite-space position, where
+`$80` is screen pixel 0 (`FieldObj_CalcSpritePos`, `ps4.asm:89801`, computes
+`sprite = obj + $80 - camera - camera_step_counter`):
+
+| axis | on-screen range | in screen pixels |
+| --- | --- | --- |
+| x | `$60 ..= $1E0` | `-32 ..= 352` |
+| y | `$60 ..= $180` | `-32 ..= 256` |
+
+That is the 320x224 view plus a 32-pixel margin on all four sides. A sprite
+coordinate of exactly 0 short-circuits to on-screen on either axis.
+
+Tape 02 confirms the gate is real and that the box is right, and it isolates
+the camera as the one remaining unknown. Of the eight objects on the academy
+map, slots 3-6 (x 256-352, far to the left) never update in 1080 frames, slot 0
+updates from the first frame, and slots 1 and 2 wake mid-tape as the leader
+walks north:
+
+| slot | object at | wakes (cartridge) | wakes (engine) |
+| --- | --- | --- | --- |
+| 0 | (736, 240) | 6940 | 6940 |
+| 1 | (752, 144) | 7567 | 7558 |
+| 2 | (639, 128) | 7606 | 7597 |
+
+Both wake-ups are **exactly nine frames early** in the engine, which models the
+camera as instantaneously centred on the leader. Nine frames at the walking rate
+of 2 px/frame is 18 px of trailing camera. Slot 2 settles it: the leader has been
+parked at (800, 240) since frame 7592, yet the cartridge does not wake slot 2
+until 7606 — fourteen frames after the leader stopped moving. So the camera is
+still scrolling toward its target after the leader is at rest, and a
+leader-centred camera cannot reproduce that. `FieldObj_CameraYPos_FG`
+(`ps4.asm:89590`) scrolls against screen-space thresholds (`#$D8` for y, `#$118`
+for x) rather than re-centring, which is the shape of the routine that produces
+the lag. Pinning it exactly is the camera model's job, not wander's.
+
+## What this leaves open
 - The initial `timer` value at spawn. `timer` is the word at `$1C`
   (`ps4.constants.asm:96`); the init block's `move.l d0, $28(a4)` clears the
   two duration words and does not touch it, so the timer's value at spawn is

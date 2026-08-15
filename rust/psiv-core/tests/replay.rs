@@ -48,6 +48,7 @@ fn replay(tape_text: &str, from: u32) -> Vec<ReplayRow> {
             previously_standing: previous_standing,
             neighbours: [0; 4],
             game: &game,
+            objects: &[],
         }));
         previous_standing = standing;
     }

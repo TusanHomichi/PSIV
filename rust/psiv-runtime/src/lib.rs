@@ -548,6 +548,35 @@ impl Runtime {
         self.wander.wanderers()
     }
 
+    /// Restores one object's position, facing and wander state — the
+    /// object-side twin of [`Runtime::set_rng_seed`].
+    ///
+    /// A replay picking a tape up mid-run inherits objects that have been
+    /// wandering since the opening scene: off their spawn cells, leashes no
+    /// longer centred, several mid-step. Without this they start from the
+    /// pack's spawn state and every object column diverges on frame one.
+    ///
+    /// A mid-step object's `cell` is its **destination**, because the engine
+    /// commits that the moment a step starts.
+    ///
+    /// # Errors
+    ///
+    /// Whatever [`FieldMap`] or [`psiv_core::WanderSet`] rejects.
+    pub fn restore_object(
+        &mut self,
+        npc_index: usize,
+        cell: Cell,
+        facing: Direction,
+        state: psiv_core::WanderState,
+    ) -> Result<(), psiv_core::MapError> {
+        self.map.set_npc_cell(npc_index, cell)?;
+        self.map.set_npc_facing(npc_index, facing)?;
+        // Objects that do not wander (Alys on the academy floor) have position
+        // and facing but no wander state; a missing wanderer is not an error.
+        let _ = self.wander.restore(npc_index, state);
+        Ok(())
+    }
+
     /// Turns an object to face a direction — the cartridge's default when
     /// spoken to (`$F3` exists to suppress it). Out-of-range indices are the
     /// renderer's bug to log, not the engine's to crash on.
