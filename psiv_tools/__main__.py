@@ -73,12 +73,26 @@ def main() -> int:
             written = export_plane_pngs(data, args.output)
             print(f"Wrote {len(written)} composed PNGs to {args.output}")
         elif args.command == "pack":
+            from .dialogue_pack import emit_dialogue
             from .pack import PackError, build_pack
             try:
                 manifest = build_pack(data, args.output, map_ids=args.map_ids)
             except PackError as exc:
                 parser.error(str(exc))
+            # The dialogue half is part of the pack, not an optional extra: a
+            # pack without dialogue/ is a game that cannot talk. Its fragment
+            # goes into the manifest, re-serialized exactly as build_pack
+            # wrote it (sorted keys, indent 2, trailing newline) so the pack
+            # stays byte-deterministic.
+            dialogue = emit_dialogue(data, args.output)
+            manifest["dialogue"] = dialogue
+            manifest_path = args.output / "manifest.json"
+            manifest_path.write_text(
+                json.dumps(manifest, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
             print(f"Packed {manifest['map_count']} maps to {args.output}")
+            print(f"Dialogue: {dialogue['trees']['tree_count']} trees emitted")
             print(f"Skipped {len(manifest['skipped'])} entries; {manifest['warps']['count']} warps")
             doors = manifest["warps"]["doors_without_map_change_cell"]
             if doors:
