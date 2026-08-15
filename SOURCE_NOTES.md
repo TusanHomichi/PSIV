@@ -460,6 +460,13 @@ and the flag-set whose absence would re-fire the trigger forever.
   it) elsewhere in the world. Full table and behavioural pin in
   psiv-core/src/state.rs; hardware confirmation queued with the oracle
   (those dungeons are late-game, so it waits for deeper routes).
+  WIDENED (map-load-clear scout): six was the count among transcribed
+  trigger tables only — the constants file shows essentially every temp
+  id across $08..$1D doubling as a chest id (e.g. $14 GrbkTwEyeball =
+  GrbrkTwStarDew, $18 ChazHouse = PiataMonomate), so the hardware-test
+  framing is "the whole range", not an enumeration. Seven map-load
+  routines clear twenty of these ids as explicit immediates
+  (psiv-core/src/map_load.rs carries the transcribed table).
 - The flag-bank alias is CONFIRMED ON HARDWARE (tape 17): the Xanafalgue
   temp flag ($13) lands at $FFFFF142 bit 4 — byte 2 of the CHEST bank,
   exactly where the reversed-bit arithmetic (`bset 7-(id&7)`) predicts —
