@@ -447,9 +447,14 @@ and the flag-set whose absence would re-fire the trigger forever.
   itself was wrong somewhere in Sega's build tooling. Found during battle
   background emission (battle/art/backgrounds).
 - The flag-bank alias (above) collides on SIX id pairs in actual use, not
-  one: temp $08 BioPlantAlarm = chest Alshline, and temp $09-$0D (the
-  Vahal Fort / Weapon Plant moving-platform state machines) = the
-  PsycoWand, ControlKey, Canceller, EclpsTorch and AeroPrism chests.
+  one: temp $08 BioPlantAlarm = chest Alshline, and temp $09-$0D — Vahal Fort's two
+  moving platforms and two conveyor-direction terminals plus a Weapon
+  Plant platform — = the PsycoWand, ControlKey, Canceller, EclpsTorch
+  and AeroPrism chests. All six pairs live in ONE byte, $FFFFF141
+  (masks $80/$40/$20/$10/$08/$04, MSB-first), already logged as the
+  oracle's chestb1 column — the future mid-game experiment needs route
+  reach only, and a single platform round trip demonstrates the alias
+  BIDIRECTIONALLY (down sets, up clears the paired chest bit).
   Platform state and treasure state are one bit each on retail hardware —
   a platform left mid-cycle plausibly marks a chest looted (or re-arms
   it) elsewhere in the world. Full table and behavioural pin in
