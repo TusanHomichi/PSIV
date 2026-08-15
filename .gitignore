@@ -21,3 +21,4 @@ oracle/core/
 oracle/bin/
 oracle/logs/
 build/
+oracle/tmp_*
