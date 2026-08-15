@@ -11,9 +11,13 @@
 
 use std::fmt;
 
+use std::collections::BTreeSet;
+
 use psiv_core::{
-    Cell, CollisionGrid, Direction, Effect, FieldMap, FieldState, Input, InteractReach, MapId,
-    MemberView, Npc, NpcId, Party, StepFrames, Warp, WarpTrigger,
+    ActorRef, Cell, CharId, CollisionGrid, Direction, Effect, FieldMap, FieldState, Flag,
+    GameState, Input, InteractReach, MapId, MemberView, Npc, NpcId, Party, PixelPos, SceneEffect,
+    SceneInput, SceneOp, SceneRunner, ScriptedActor, StepFrames, TRIGGERS, TriggerContext,
+    TriggerResult, Warp, WarpTrigger, runner_for, scene_for,
 };
 use psiv_data::{GameData, MapRecord, TransitionTable};
 
@@ -207,6 +211,47 @@ pub enum RuntimeEvent {
         /// Which way the party was facing.
         facing: Direction,
     },
+    /// A trigger fired and a transcribed scene began. Cinema mode on.
+    SceneStarted {
+        /// The RunEventsJmpTbl index that fired.
+        trigger: u8,
+    },
+    /// The running scene finished (or faulted; faults are logged). Cinema off.
+    SceneEnded,
+    /// A trigger fired an event with no transcribed scene yet.
+    SceneMissing {
+        /// The event index that has no scene.
+        event: u16,
+    },
+    /// A trigger hit one of the four honestly-unsupported custom checks.
+    TriggerUnsupported {
+        /// The trigger index.
+        trigger: u8,
+    },
+    /// The scene asks for a dialogue entry (within the current map's bound
+    /// tree). The renderer opens the window and calls
+    /// [`Runtime::dialogue_closed`] when it shuts.
+    SceneDialogue {
+        /// Entry index in the map's dialogue tree.
+        entry: u16,
+    },
+    /// The scene requested a battle; no battle engine exists, so the runtime
+    /// resumes the scene immediately. Logged, never silent.
+    SceneBattleSkipped {
+        /// The event battle index.
+        index: u16,
+    },
+    /// The party composition changed (join, swap, leader change). The
+    /// renderer refreshes party sprites.
+    PartyChanged,
+    /// Map objects were despawned in place (indices stable). The renderer
+    /// hides their nodes.
+    NpcsDespawned {
+        /// First object index.
+        first: usize,
+        /// How many consecutive objects.
+        count: usize,
+    },
 }
 
 /// The game shell: pack data, the current engine map, and the field state.
@@ -214,6 +259,14 @@ pub struct Runtime {
     data: GameData,
     map: FieldMap,
     party: Party,
+    game: GameState,
+    scene: Option<SceneRunner>,
+    scene_input: SceneInput,
+    /// Interim MapDataManager: (map id, npc index) pairs despawned this
+    /// session, applied on every map build until the real flag-gated effect
+    /// layer is extracted.
+    despawned: BTreeSet<(u16, usize)>,
+    prev_standing: Option<u8>,
 }
 
 impl Runtime {
@@ -233,7 +286,33 @@ impl Runtime {
         // solo default keeps behavior identical until then.
         let party = Party::new(&map, spawn, facing, step_frames, 0)
             .map_err(|e| BridgeError::Rejected(e.to_string()))?;
-        Ok(Runtime { data, map, party })
+
+        // Seed persistent state from the cartridge's first-controllable
+        // moment: the party slots and the flags the opening leaves set.
+        let mut game = GameState::new();
+        if let Some(start) = data.manifest().game_start.as_ref() {
+            for flag in &start.event_flags_set {
+                let _ = game.set(Flag::event(*flag));
+            }
+            for (slot, symbol) in start.party.iter().enumerate() {
+                if let Some(id) = char_id_by_symbol(&data, symbol) {
+                    let _ = game.set_party_slot(slot, Some(CharId(id)));
+                }
+            }
+        } else {
+            let _ = game.set_party_slot(0, Some(CharId(0)));
+        }
+
+        Ok(Runtime {
+            data,
+            map,
+            party,
+            game,
+            scene: None,
+            scene_input: SceneInput::None,
+            despawned: BTreeSet::new(),
+            prev_standing: None,
+        })
     }
 
     /// The currently loaded map.
@@ -295,10 +374,18 @@ impl Runtime {
 
     /// Advances one tick and resolves any map change.
     pub fn tick(&mut self, input: Input) -> Vec<RuntimeEvent> {
+        if self.scene.is_some() {
+            return self.scene_tick();
+        }
         let mut events = Vec::new();
+        let mut landed: Option<Cell> = None;
+        let mut map_changed = false;
         for effect in self.party.tick(&self.map, input) {
             match effect {
-                Effect::StepCompleted { cell } => events.push(RuntimeEvent::StepCompleted { cell }),
+                Effect::StepCompleted { cell } => {
+                    landed = Some(cell);
+                    events.push(RuntimeEvent::StepCompleted { cell });
+                }
                 Effect::Warp {
                     trigger,
                     target_map,
@@ -306,10 +393,13 @@ impl Runtime {
                     facing,
                     ..
                 } => match self.change_map(target_map, target_cell, facing) {
-                    Ok(()) => events.push(RuntimeEvent::MapChanged {
-                        map: target_map,
-                        trigger,
-                    }),
+                    Ok(()) => {
+                        map_changed = true;
+                        events.push(RuntimeEvent::MapChanged {
+                            map: target_map,
+                            trigger,
+                        });
+                    }
                     Err(BridgeError::NotPacked(id)) => {
                         events.push(RuntimeEvent::UnpackedTarget { map: MapId(id) });
                     }
@@ -335,7 +425,220 @@ impl Runtime {
                 }
             }
         }
+
+        // Trigger evaluation on landing, exactly like the cartridge's
+        // RunEvents: per rest-frame after a step, before the player moves
+        // again, skipped when a transition already changed the map.
+        if let Some(cell) = landed
+            && !map_changed
+        {
+            events.extend(self.evaluate_triggers(cell));
+        }
         events
+    }
+
+    /// One tick of a running scene: feed any pending input, translate the
+    /// effects, close out the scene when the runner finishes.
+    fn scene_tick(&mut self) -> Vec<RuntimeEvent> {
+        let input = std::mem::take(&mut self.scene_input);
+        let mut events = Vec::new();
+        let Some(runner) = self.scene.as_mut() else {
+            return events;
+        };
+        let effects = runner.tick(&self.map, &mut self.game, input);
+        let finished = runner.is_finished();
+        for effect in effects {
+            self.translate_scene_effect(effect, &mut events);
+        }
+        if finished {
+            self.scene = None;
+            events.push(RuntimeEvent::SceneEnded);
+        }
+        events
+    }
+
+    fn translate_scene_effect(&mut self, effect: SceneEffect, events: &mut Vec<RuntimeEvent>) {
+        match effect {
+            SceneEffect::DialogueOpen(id) => {
+                events.push(RuntimeEvent::SceneDialogue { entry: id.0 });
+            }
+            SceneEffect::DialogueOpenFromNpc { actor } => {
+                let entry = match actor {
+                    ActorRef::Npc(i) => self
+                        .map_record()
+                        .and_then(|r| r.npcs.get(i))
+                        .map(|n| n.dialogue_id),
+                    _ => None,
+                };
+                match entry {
+                    Some(entry) => events.push(RuntimeEvent::SceneDialogue { entry }),
+                    // A missing binding is a data defect; resume the scene so
+                    // it cannot hang, and say so.
+                    None => self.scene_input = SceneInput::DialogueClosed,
+                }
+            }
+            // Mid-conversation resumes reopen saved dialogue state the window
+            // does not model yet; auto-resume so the scene continues.
+            SceneEffect::DialogueResume => self.scene_input = SceneInput::DialogueClosed,
+            // The opening act asks no choices; auto-answer yes if one appears.
+            SceneEffect::ChoiceRequested => self.scene_input = SceneInput::Choice(true),
+            SceneEffect::BattleRequested { index } => {
+                events.push(RuntimeEvent::SceneBattleSkipped { index });
+                self.scene_input = SceneInput::DialogueClosed;
+            }
+            SceneEffect::NpcDespawned { npc_index, count } => {
+                let map = self.map.id().0;
+                for i in npc_index..npc_index + count {
+                    self.despawned.insert((map, i));
+                }
+                events.push(RuntimeEvent::NpcsDespawned {
+                    first: npc_index,
+                    count,
+                });
+            }
+            SceneEffect::NpcPromoted { npc, .. } => {
+                self.despawned.insert((self.map.id().0, npc));
+                events.push(RuntimeEvent::NpcsDespawned {
+                    first: npc,
+                    count: 1,
+                });
+                events.push(RuntimeEvent::PartyChanged);
+            }
+            SceneEffect::PartyChanged | SceneEffect::CharSlotCopied { .. } => {
+                events.push(RuntimeEvent::PartyChanged);
+            }
+            SceneEffect::MapRequested { op } => {
+                if let SceneOp::LoadMap {
+                    map,
+                    start_x,
+                    start_y,
+                    facing,
+                    ..
+                } = op
+                {
+                    // Start words are 8px units; the standing shift applies
+                    // on Y, as everywhere in the pack.
+                    let cell = Cell::new((start_x / 2) as u16, (start_y / 2 + 1) as u16);
+                    match self.change_map(MapId(map), cell, facing) {
+                        Ok(()) => {
+                            if let Some(runner) = self.scene.as_mut() {
+                                runner.recast(Vec::new());
+                            }
+                            events.push(RuntimeEvent::MapChanged {
+                                map: MapId(map),
+                                trigger: WarpTrigger::MapChange,
+                            });
+                        }
+                        Err(_) => events.push(RuntimeEvent::UnpackedTarget { map: MapId(map) }),
+                    }
+                }
+            }
+            // Flag effects: nothing flag-gated is rebuilt yet (the real
+            // MapDataManager layer is filed); scene despawns cover the act.
+            SceneEffect::FlagChanged { .. } => {}
+            // Actor motion is polled via scene_actors(); presentation ops and
+            // arrivals need no runtime action.
+            _ => {}
+        }
+    }
+
+    /// Evaluates the map's trigger list at a landing.
+    fn evaluate_triggers(&mut self, cell: Cell) -> Vec<RuntimeEvent> {
+        let mut events = Vec::new();
+        let Some(record) = self.data.map(psiv_data::MapId(self.map.id().0)) else {
+            return events;
+        };
+        let indices: Vec<u8> = record.events.iter().map(|&e| e as u8).collect();
+        let standing = self.map.collision_at(cell).map(|c| c.to_raw());
+        let ctx = TriggerContext {
+            state: &self.game,
+            at: PixelPos::from_cell(cell),
+            standing,
+            previously_standing: self.prev_standing,
+        };
+        let hit = psiv_core::evaluate_list(&TRIGGERS, &indices, &ctx);
+        self.prev_standing = standing;
+        match hit {
+            Some((index, TriggerResult::Fire(event))) => match scene_for(event) {
+                Some(scene) => {
+                    let cast = self.build_cast();
+                    match runner_for(scene, cast, StepFrames::default()) {
+                        Ok(runner) => {
+                            self.scene = Some(runner);
+                            self.scene_input = SceneInput::None;
+                            events.push(RuntimeEvent::SceneStarted { trigger: index });
+                        }
+                        Err(_) => events.push(RuntimeEvent::SceneMissing { event: event.0 }),
+                    }
+                }
+                None => events.push(RuntimeEvent::SceneMissing { event: event.0 }),
+            },
+            Some((index, TriggerResult::Unsupported(..))) => {
+                events.push(RuntimeEvent::TriggerUnsupported { trigger: index });
+            }
+            Some((_, TriggerResult::FireWithoutIndex))
+            | Some((_, TriggerResult::NoEvent))
+            | None => {}
+        }
+        events
+    }
+
+    /// The cast a scene may address: every party member (by slot and by
+    /// character) plus every map object by index.
+    fn build_cast(&self) -> Vec<ScriptedActor> {
+        let mut cast = Vec::new();
+        for (slot, member) in self.party.members().iter().enumerate() {
+            cast.push(ScriptedActor::new(
+                ActorRef::PartyMember(slot),
+                member.cell,
+                member.facing,
+            ));
+            if let Some(id) = self.game.party_slot(slot) {
+                cast.push(ScriptedActor::new(
+                    ActorRef::Character(id),
+                    member.cell,
+                    member.facing,
+                ));
+            }
+        }
+        for (i, npc) in self.map.npcs().iter().enumerate() {
+            cast.push(ScriptedActor::new(ActorRef::Npc(i), npc.cell, npc.facing));
+        }
+        cast
+    }
+
+    /// The persistent game state (flags, party, money).
+    #[must_use]
+    pub fn game(&self) -> &GameState {
+        &self.game
+    }
+
+    /// Whether a scene is running (cinema mode, input ownership).
+    #[must_use]
+    pub fn scene_active(&self) -> bool {
+        self.scene.is_some()
+    }
+
+    /// The running scene's actors, for the renderer to draw at their scripted
+    /// positions. Empty when no scene runs.
+    #[must_use]
+    pub fn scene_actors(&self) -> Vec<(ActorRef, Cell, Direction)> {
+        self.scene
+            .as_ref()
+            .map(|r| {
+                r.actors()
+                    .iter()
+                    .map(|a| (a.actor, a.cell, a.facing))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    /// The renderer reports the scene-requested dialogue window has closed.
+    pub fn dialogue_closed(&mut self) {
+        if self.scene.is_some() {
+            self.scene_input = SceneInput::DialogueClosed;
+        }
     }
 
     fn change_map(
@@ -355,4 +658,14 @@ impl Runtime {
         self.map = map;
         Ok(())
     }
+}
+
+/// Character id by party-sheet symbol (`CharFieldArtPtrs` order is the id).
+fn char_id_by_symbol(data: &GameData, symbol: &str) -> Option<u8> {
+    (0..11)
+        .find(|&slot| {
+            data.party_sheet(slot)
+                .is_some_and(|sheet| sheet.id == symbol)
+        })
+        .map(|slot| slot as u8)
 }

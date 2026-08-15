@@ -89,6 +89,13 @@ pub enum MapError {
         /// Grid height in cells.
         height: u16,
     },
+    /// An NPC index named no object on the map.
+    NpcIndexOutOfRange {
+        /// The index asked for.
+        index: usize,
+        /// How many objects the map has.
+        count: usize,
+    },
     /// An NPC's sub-cell offset had a component of 16 or more, which would put
     /// it in a different cell than the one it claims.
     NpcOffsetOutOfRange {
@@ -196,6 +203,9 @@ impl fmt::Display for MapError {
                 "npc {} at ({}, {}) is outside a {width}x{height} grid",
                 npc.0, cell.x, cell.y
             ),
+            MapError::NpcIndexOutOfRange { index, count } => {
+                write!(f, "npc index {index} does not exist; the map has {count}")
+            }
             MapError::NpcOffsetOutOfRange { npc, offset } => write!(
                 f,
                 "npc {} has sub-cell offset ({}, {}); both must be under 16",

@@ -253,6 +253,10 @@ fn npc_in_talk_range(map: &FieldMap, target: Cell) -> Option<usize> {
     let target_x = i32::from(target.x) * CELL_PIXELS;
     let target_y = i32::from(target.y) * CELL_PIXELS;
     map.npcs().iter().position(|npc| {
+        // An inactive object is gone: neither probe can reach it.
+        if !npc.active {
+            return false;
+        }
         let npc_x = i32::from(npc.cell.x) * CELL_PIXELS + i32::from(npc.offset.x);
         let npc_y = i32::from(npc.cell.y) * CELL_PIXELS + i32::from(npc.offset.y);
         let (dx, dy) = map.wrap_delta_px(npc_x - target_x, npc_y - target_y);

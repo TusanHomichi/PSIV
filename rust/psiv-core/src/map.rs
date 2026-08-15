@@ -138,7 +138,7 @@ impl SubCellOffset {
     }
 }
 
-/// A field object standing on a map. NPCs block movement.
+/// A field object standing on a map. Active NPCs block movement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Npc {
     /// The object's type id. Not unique within a map; see [`NpcId`].
@@ -149,6 +149,24 @@ pub struct Npc {
     pub offset: SubCellOffset,
     /// Which way it faces.
     pub facing: Direction,
+    /// Whether the object is present.
+    ///
+    /// Despawning **keeps the index**. Dialogue bindings and
+    /// [`Effect::Interact`](crate::Effect::Interact) name objects by their
+    /// position in [`FieldMap::npcs`], so removing one from the vector would
+    /// renumber every object after it and silently repoint those references.
+    ///
+    /// That is also what the cartridge does: a despawn is `clr.w (npc)` plus a
+    /// `trap #0` block clear over the object's RAM slot, which empties the slot
+    /// and leaves it exactly where it was. `Field_RunObjects` then skips any
+    /// slot whose id word is zero (`ps4.asm:89482`). Indices are stable across
+    /// a despawn in retail for the same reason they are here.
+    ///
+    /// An inactive object does not block movement, cannot be talked to by
+    /// either probe, and is not occupancy for anything that walks. It stays
+    /// visible to [`FieldMap::npcs`] so a renderer can tell "gone" from
+    /// "never existed".
+    pub active: bool,
 }
 
 impl Npc {
@@ -161,6 +179,7 @@ impl Npc {
             cell,
             offset: SubCellOffset::ALIGNED,
             facing,
+            active: true,
         }
     }
 
@@ -177,7 +196,15 @@ impl Npc {
             cell,
             offset,
             facing,
+            active: true,
         }
+    }
+
+    /// The same object with its presence set — for building a map whose
+    /// flag-gated despawns are already known.
+    #[must_use]
+    pub const fn with_active(self, active: bool) -> Npc {
+        Npc { active, ..self }
     }
 }
 
@@ -472,15 +499,34 @@ impl FieldMap {
             .and_then(|cell| self.grid.type_at(cell))
     }
 
-    /// The first NPC standing on `cell`, if any.
+    /// The first **active** NPC standing on `cell`, if any.
     ///
     /// A linear scan in data order: NPC counts per map are tiny, and scanning a
     /// `Vec` keeps lookup order observable and stable, which a hashed container
-    /// would not.
+    /// would not. Inactive objects are skipped, which is what makes a despawned
+    /// NPC walk-through; use [`FieldMap::npcs`] to see them regardless.
     #[must_use]
     pub fn npc_at(&self, cell: Cell) -> Option<&Npc> {
         let cell = self.normalize(cell)?;
-        self.npcs.iter().find(|npc| npc.cell == cell)
+        self.npcs.iter().find(|npc| npc.active && npc.cell == cell)
+    }
+
+    /// Marks an object present or absent, keeping its index.
+    ///
+    /// This is how the runtime applies a scene's
+    /// [`SceneEffect::NpcDespawned`](crate::SceneEffect::NpcDespawned) and any
+    /// flag-gated despawn, without rebuilding the map or renumbering anything.
+    ///
+    /// # Errors
+    ///
+    /// [`MapError::NpcIndexOutOfRange`] when there is no such object.
+    pub fn set_npc_active(&mut self, index: usize, active: bool) -> Result<(), MapError> {
+        let count = self.npcs.len();
+        let Some(npc) = self.npcs.get_mut(index) else {
+            return Err(MapError::NpcIndexOutOfRange { index, count });
+        };
+        npc.active = active;
+        Ok(())
     }
 
     /// The first warp from `trigger`'s table whose source rectangle covers

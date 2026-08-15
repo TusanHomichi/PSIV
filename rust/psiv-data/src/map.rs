@@ -62,6 +62,10 @@ pub struct MapRecord {
     pub flags: Flags,
     /// Which of the 43 dialogue trees this map's objects speak from, `1..=43`.
     pub dialogue_tree: u8,
+    /// `RunEventsJmpTbl` trigger indices in evaluation order (`[0]` is the
+    /// retail idle case — no map carries an empty list).
+    #[serde(default)]
+    pub events: Vec<u16>,
     /// Map transitions from both tables, in record order.
     pub warps: Vec<Warp>,
     /// `LoadMapObjects` entries.

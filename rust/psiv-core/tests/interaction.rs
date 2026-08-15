@@ -9,9 +9,10 @@
 mod common;
 
 use common::{
-    face_then_act, map, map_with, npc, npc_offset, party, party_at_rate, party_facing, press_action,
+    face_then_act, map, map_with, npc, npc_offset, party, party_at_rate, party_facing,
+    press_action, walk_one_step,
 };
-use psiv_core::{Cell, Direction, Effect, Input, InteractReach, TALK_RANGE_PX};
+use psiv_core::{Cell, Direction, Effect, Input, InteractReach, NpcId, TALK_RANGE_PX};
 
 // ---------------------------------------------------------------------------
 // The faced cell
@@ -648,4 +649,121 @@ fn the_ordinary_one_cell_reach_is_unchanged() {
             reach: InteractReach::Adjacent,
         }]
     );
+}
+
+// ---------------------------------------------------------------------------
+// Despawned NPCs keep their index
+//
+// The cartridge despawns by clearing the object's RAM slot and leaving the slot
+// in place (`clr.w` + `trap #0`; `Field_RunObjects` then skips any slot whose
+// id word is zero). Indices stay stable, which is what dialogue bindings and
+// `Effect::Interact` depend on.
+// ---------------------------------------------------------------------------
+
+#[test]
+fn an_inactive_npc_can_be_walked_through() {
+    let mut map = map_with(&["...", "...", "..."], vec![], vec![npc(10, 1, 1)]);
+    let mut state = party(&map, 0, 1);
+
+    // Active: it blocks.
+    assert!(walk_one_step(&mut state, &map, Direction::Right).is_empty());
+    assert_eq!(state.cell(), Cell::new(0, 1));
+
+    map.set_npc_active(0, false).expect("index 0 exists");
+    assert!(map.is_walkable(Cell::new(1, 1)));
+    assert!(map.npc_at(Cell::new(1, 1)).is_none());
+
+    let mut state = party(&map, 0, 1);
+    walk_one_step(&mut state, &map, Direction::Right);
+    assert_eq!(state.cell(), Cell::new(1, 1), "the cell is now free");
+}
+
+#[test]
+fn an_inactive_npc_cannot_be_reached_by_either_probe() {
+    // Adjacent probe.
+    let mut adjacent = map_with(&["...", "...", "..."], vec![], vec![npc(10, 1, 0)]);
+    adjacent.set_npc_active(0, false).unwrap();
+    let mut state = party_facing(&adjacent, 1, 1, Direction::Up);
+    assert_eq!(
+        press_action(&mut state, &adjacent),
+        vec![Effect::InteractNothing {
+            facing: Direction::Up
+        }]
+    );
+
+    // Counter-reaching probe: same object, two cells across a $C cell.
+    let mut across = map_with(&["...", ".$.", "..."], vec![], vec![npc(0x108, 1, 0)]);
+    across.set_npc_active(0, false).unwrap();
+    let mut state = party_facing(&across, 1, 2, Direction::Up);
+    assert_eq!(
+        press_action(&mut state, &across),
+        vec![Effect::InteractNothing {
+            facing: Direction::Up
+        }],
+        "the counter probe must not reach a despawned object either"
+    );
+}
+
+#[test]
+fn reactivating_restores_blocking_and_talking() {
+    let mut map = map_with(&["...", "...", "..."], vec![], vec![npc(10, 1, 0)]);
+    map.set_npc_active(0, false).unwrap();
+    map.set_npc_active(0, true).unwrap();
+
+    assert!(!map.is_walkable(Cell::new(1, 0)), "blocks again");
+    let mut state = party_facing(&map, 1, 1, Direction::Up);
+    assert_eq!(
+        press_action(&mut state, &map),
+        vec![Effect::Interact {
+            npc_index: 0,
+            cell: Cell::new(1, 0),
+            reach: InteractReach::Adjacent,
+        }],
+        "and talks again"
+    );
+}
+
+#[test]
+fn despawning_does_not_renumber_the_objects_after_it() {
+    // The whole point: index 2 is still index 2 once index 0 is gone.
+    let mut map = map_with(
+        &["....", "....", "...."],
+        vec![],
+        vec![npc(10, 0, 0), npc(11, 1, 0), npc(12, 2, 0)],
+    );
+    map.set_npc_active(0, false).unwrap();
+
+    assert_eq!(map.npcs().len(), 3, "the slot stays in place");
+    assert_eq!(map.npcs()[0].id, NpcId(10), "and keeps its identity");
+    assert!(!map.npcs()[0].active);
+    assert_eq!(map.npcs()[2].id, NpcId(12));
+
+    // Talking to the survivor still reports index 2.
+    let mut state = party_facing(&map, 2, 1, Direction::Up);
+    assert_eq!(
+        press_action(&mut state, &map),
+        vec![Effect::Interact {
+            npc_index: 2,
+            cell: Cell::new(2, 0),
+            reach: InteractReach::Adjacent,
+        }]
+    );
+}
+
+#[test]
+fn set_npc_active_rejects_an_index_that_names_nothing() {
+    let mut map = map_with(&["..", ".."], vec![], vec![npc(10, 0, 0)]);
+    assert!(matches!(
+        map.set_npc_active(1, false),
+        Err(psiv_core::MapError::NpcIndexOutOfRange { index: 1, count: 1 })
+    ));
+    assert!(map.set_npc_active(0, false).is_ok());
+}
+
+#[test]
+fn npcs_are_active_by_default() {
+    let plain = npc(10, 0, 0);
+    assert!(plain.active);
+    assert!(!plain.with_active(false).active);
+    assert!(plain.with_active(false).with_active(true).active);
 }

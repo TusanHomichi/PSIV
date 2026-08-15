@@ -139,6 +139,12 @@ struct Field {
     camera: Option<Gd<Camera2D>>,
     dialogue: Option<Gd<DialogueWindow>>,
     anim_tick: u64,
+    /// Cinema-mode letterbox bars, shown while a scene runs.
+    letterbox: Vec<Gd<godot::classes::ColorRect>>,
+    /// Map-order indices of NPCs despawned by scenes; their nodes hide.
+    hidden_npcs: std::collections::HashSet<usize>,
+    /// The character id whose sheet the leader sprite currently uses.
+    leader_char: u8,
     /// Set while a dialogue is open and until accept is released after it
     /// closes — the press that dismisses a window must not immediately
     /// re-open it (the engine's own press latch resets while we starve it
@@ -169,6 +175,9 @@ impl INode2D for Field {
             dialogue: None,
             anim_tick: 0,
             accept_blocked: false,
+            letterbox: Vec::new(),
+            hidden_npcs: std::collections::HashSet::new(),
+            leader_char: 0,
             party_sequence: String::new(),
             party_seq_start: 0,
         }
@@ -303,6 +312,10 @@ impl INode2D for Field {
                 && let Some(window) = self.dialogue.as_mut()
             {
                 window.bind_mut().advance();
+                let closed = !window.bind().is_open();
+                if closed && let Some(rt) = self.runtime.as_mut() {
+                    rt.dialogue_closed();
+                }
             }
             if let Some(runtime) = self.runtime.as_mut() {
                 runtime.tick(psiv_core::Input::Neutral);
@@ -311,7 +324,14 @@ impl INode2D for Field {
             return;
         }
 
-        let mut input = read_input();
+        // While a scene runs the field gets Neutral: the story owns the
+        // party. (Dialogue windows opened by scenes are handled above.)
+        let scene_active = self.runtime.as_ref().is_some_and(|rt| rt.scene_active());
+        let mut input = if scene_active {
+            psiv_core::Input::Neutral
+        } else {
+            read_input()
+        };
         // The press that dismissed a window stays swallowed until released —
         // otherwise the engine (whose press latch reset during the Neutral
         // starvation) reads the still-held key as fresh and reopens the NPC.
@@ -396,6 +416,54 @@ impl INode2D for Field {
                             "talk: npc {npc_index} at {cell:?} has no dialogue binding"
                         ),
                     }
+                }
+                RuntimeEvent::SceneStarted { trigger } => {
+                    godot_print!("scene started (trigger {trigger})");
+                    self.set_letterbox(true);
+                }
+                RuntimeEvent::SceneEnded => {
+                    godot_print!("scene ended");
+                    self.set_letterbox(false);
+                    self.load_map_visuals();
+                }
+                RuntimeEvent::SceneMissing { event } => {
+                    godot_error!("trigger fired event {event:#x} with no transcribed scene");
+                }
+                RuntimeEvent::TriggerUnsupported { trigger } => {
+                    godot_print!("trigger {trigger} is an unsupported custom check");
+                }
+                RuntimeEvent::SceneDialogue { entry } => {
+                    let tree = self
+                        .runtime
+                        .as_ref()
+                        .and_then(|rt| rt.map_record())
+                        .map(|r| r.dialogue_tree)
+                        .unwrap_or(0);
+                    let opened = self
+                        .dialogue
+                        .as_mut()
+                        .is_some_and(|w| w.bind_mut().open_dialogue(tree, entry));
+                    if !opened {
+                        // The scene is blocked on this window; a failed open
+                        // must not hang the story.
+                        if let Some(rt) = self.runtime.as_mut() {
+                            rt.dialogue_closed();
+                        }
+                    }
+                }
+                RuntimeEvent::SceneBattleSkipped { index } => {
+                    godot_print!(
+                        "battle {index} requested - no battle engine yet, scene continues"
+                    );
+                }
+                RuntimeEvent::PartyChanged => {
+                    self.refresh_party_sheets();
+                }
+                RuntimeEvent::NpcsDespawned { first, count } => {
+                    for i in first..first + count {
+                        self.hidden_npcs.insert(i);
+                    }
+                    self.apply_npc_visibility();
                 }
                 RuntimeEvent::InteractNothing { .. } => {
                     // The cartridge answers with the leader's own "Nothing
@@ -533,6 +601,76 @@ impl Field {
         }
     }
 
+    /// Cinema mode: letterbox bars over the world, under the dialogue box.
+    fn set_letterbox(&mut self, on: bool) {
+        if on && self.letterbox.is_empty() {
+            for _ in 0..2 {
+                let mut bar = godot::classes::ColorRect::new_alloc();
+                bar.set_color(Color::from_rgb(0.0, 0.0, 0.0));
+                bar.set_z_index(500);
+                self.base_mut().add_child(&bar);
+                self.letterbox.push(bar);
+            }
+        }
+        for bar in &mut self.letterbox {
+            bar.set_visible(on);
+        }
+    }
+
+    /// Keeps the bars glued to the camera view, 15% of height each.
+    fn place_letterbox(&mut self) {
+        if self.letterbox.is_empty() || !self.letterbox[0].is_visible() {
+            return;
+        }
+        let Some(camera) = self.camera.as_ref() else {
+            return;
+        };
+        let viewport = self.base().get_viewport_rect().size;
+        let zoom = camera.get_zoom().x.max(0.01);
+        let view = viewport / zoom;
+        let center = camera.get_position();
+        let top_left = center - view / 2.0;
+        let bar_h = (view.y * 0.15).floor();
+        let sizes = [
+            (top_left, Vector2::new(view.x, bar_h)),
+            (
+                Vector2::new(top_left.x, top_left.y + view.y - bar_h),
+                Vector2::new(view.x, bar_h),
+            ),
+        ];
+        for (bar, (pos, size)) in self.letterbox.iter_mut().zip(sizes) {
+            bar.set_position(pos);
+            bar.set_size(size);
+        }
+    }
+
+    /// Reloads the leader sprite sheet from the game's party slot 0 and
+    /// refreshes follower sheets. Called on PartyChanged.
+    fn refresh_party_sheets(&mut self) {
+        let Some(runtime) = self.runtime.as_ref() else {
+            return;
+        };
+        let leader = runtime.game().party_slot(0).map(|c| c.0).unwrap_or(0);
+        if leader != self.leader_char {
+            self.leader_char = leader;
+            let view = runtime
+                .data()
+                .party_sheet(leader as usize)
+                .and_then(|sheet| SheetView::build(&self.pack_dir, sheet));
+            if view.is_some() {
+                self.party_view = view;
+                godot_print!("party leader is now sheet {leader}");
+            }
+        }
+    }
+
+    /// Applies the hidden set to NPC nodes.
+    fn apply_npc_visibility(&mut self) {
+        for (node, _, _, _, index) in &mut self.npc_nodes {
+            node.set_visible(!self.hidden_npcs.contains(index));
+        }
+    }
+
     /// Places and animates the party sprite, animates NPCs, moves the camera.
     fn sync_visuals(&mut self, walking: bool) {
         let Some(runtime) = self.runtime.as_ref() else {
@@ -541,6 +679,7 @@ impl Field {
         let state = runtime.state();
         let cell = state.cell();
         let offset = state.render_offset_16ths();
+        let scene_actors = runtime.scene_actors();
         let kind = if walking { "walk" } else { "idle" };
         let sequence = sequence_name(kind, state.facing());
         if sequence != self.party_sequence {
@@ -622,6 +761,29 @@ impl Field {
             }
         }
 
+        // Scene actors: scripted positions override the static NPC layout.
+        if !scene_actors.is_empty() {
+            let mut moves: Vec<(usize, Cell, Direction)> = Vec::new();
+            for (actor, acell, afacing) in &scene_actors {
+                if let psiv_core::ActorRef::Npc(i) = actor {
+                    moves.push((*i, *acell, *afacing));
+                }
+            }
+            for (index, acell, afacing) in moves {
+                for (node, sheet_id, idle, _walk, nidx) in &mut self.npc_nodes {
+                    if *nidx == index
+                        && let Some(view) = self.sheet_views.get(sheet_id)
+                    {
+                        let name = sequence_name("idle", afacing);
+                        *idle = name;
+                        let frame = view.frame_at(idle, self.anim_tick);
+                        view.apply(node, frame);
+                        node.set_position(view.draw_pos(acell, (0, 0)));
+                    }
+                }
+            }
+        }
+
         if let Some(camera) = self.camera.as_mut() {
             let center = Vector2::new(
                 f32::from(cell.x) * CELL_PIXELS + offset.0 as f32 + CELL_PIXELS / 2.0,
@@ -629,6 +791,7 @@ impl Field {
             );
             camera.set_position(center);
         }
+        self.place_letterbox();
     }
 }
 
