@@ -184,3 +184,22 @@ def warp_rect(
     if x1 <= x0 or y1 <= y0:
         return None
     return Rect(x0, y0, x1 - x0, y1 - y0)
+
+
+def interaction_rect(
+    range_id: int, x_tile: int, y_tile: int, width_cells: int, height_cells: int
+) -> Rect | None:
+    """Resolve an interaction area's 8-pixel coordinates into map cells.
+
+    Interaction records are not transition records: their coordinates are
+    eight-pixel tile words, while ``XYRangeJmpTbl`` compares the party's
+    sixteen-pixel collision-cell position.  Keeping this conversion separate
+    prevents the two record formats from silently sharing the transition
+    helper with the wrong unit.
+    """
+    if x_tile % 2 or y_tile % 2:
+        raise PackError(
+            "interaction area coordinates must land on the 16-pixel collision grid: "
+            f"({x_tile}, {y_tile})"
+        )
+    return warp_rect(range_id, x_tile // 2, y_tile // 2, width_cells, height_cells)

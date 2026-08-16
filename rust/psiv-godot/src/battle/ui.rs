@@ -11,9 +11,10 @@ use godot::classes::{INode2D, Image, ImageTexture, Input, Node2D, Sprite2D};
 use godot::prelude::*;
 
 use psiv_core::battle::{BattleEvent, FighterId, Outcome, RoundOrders};
-use psiv_data::{DialogueSet, Role};
+use psiv_data::DialogueSet;
 
 use super::art::BattleArt;
+use super::chrome::{BattleChrome, WindowRect};
 use super::timeline::{self, Beat};
 use super::{BattleSetup, EnemyPlacement, PartyPlacement};
 
@@ -47,207 +48,34 @@ pub(crate) const BATTLE_FRAME_HEIGHT: f32 = 224.0;
 const BATTLE_BACKGROUND_WIDTH: i32 = 512;
 const BATTLE_BACKGROUND_HEIGHT: i32 = 192;
 
-/// Byte-pinned upper battle window used for the one-line event narration:
-/// `docs/BATTLE_GEOMETRY.md` §4, x40 y72 w120 h48.
-const NARRATION_RECT: WindowRect = WindowRect {
-    x: 40.0,
-    y: 72.0,
-    w: 120.0,
-    h: 48.0,
+/// Retail command-idle geometry measured from `oracle/frames/frame_25000.png`.
+const ENEMY_NAME_RECT: WindowRect = WindowRect {
+    x: 16.0,
+    y: 8.0,
+    w: 96.0,
+    h: 24.0,
 };
-
-/// The retail main options rectangle was not pinned in
-/// `docs/BATTLE_GEOMETRY.md` §7 does not pin the COMD/MACR/RUN opener. Tier 1
-/// uses the §4 small-list rectangle verbatim as the closest documented menu
-/// shape; keep this named and visible so it cannot be mistaken for a verified
-/// main-options rect.
-const PROVISIONAL_COMMAND_RECT: WindowRect = WindowRect {
-    x: 248.0,
-    y: 120.0,
-    w: 56.0,
+const COMMAND_RECT: WindowRect = WindowRect {
+    x: 24.0,
+    y: 40.0,
+    w: 64.0,
+    h: 56.0,
+};
+const TRANSIENT_MESSAGE_RECT: WindowRect = WindowRect {
+    x: 88.0,
+    y: 144.0,
+    w: 96.0,
+    h: 24.0,
+};
+const WIDE_MESSAGE_RECT: WindowRect = WindowRect {
+    x: 80.0,
+    y: 128.0,
+    w: 160.0,
     h: 40.0,
 };
-
-#[derive(Clone, Copy)]
-struct WindowRect {
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
-}
-
-impl WindowRect {
-    fn inset(self, amount: f32) -> WindowRect {
-        WindowRect {
-            x: self.x + amount,
-            y: self.y + amount,
-            w: (self.w - amount * 2.0).max(0.0),
-            h: (self.h - amount * 2.0).max(0.0),
-        }
-    }
-}
-
-struct Quad {
-    texture: Gd<ImageTexture>,
-    dest: Rect2,
-    src: Rect2,
-}
-
-struct BattleChrome {
-    tiles: BTreeMap<&'static str, Gd<ImageTexture>>,
-    font: Gd<ImageTexture>,
-    glyph_at: BTreeMap<char, Vector2>,
-    glyph: Vector2,
-    cell: f32,
-    text_color: Color,
-}
-
-impl BattleChrome {
-    /// Uses the same pack assets and role flips as `dialogue.rs`, without
-    /// borrowing the dialogue renderer or changing its >1k-line module.
-    fn build(pack_dir: &str, set: &DialogueSet) -> Option<BattleChrome> {
-        let strip = load_image(pack_dir, &set.window.png)?;
-        let mut tiles = BTreeMap::new();
-        for role in Role::ALL {
-            let tile = set.window.role(role)?;
-            let region = Rect2i::new(
-                Vector2i::new(tile.x, tile.y),
-                Vector2i::new(tile.width as i32, tile.height as i32),
-            );
-            let mut cell = strip.get_region(region)?;
-            if tile.flip_h {
-                cell.flip_x();
-            }
-            if tile.flip_v {
-                cell.flip_y();
-            }
-            tiles.insert(role.as_str(), ImageTexture::create_from_image(&cell)?);
-        }
-
-        let font = ImageTexture::create_from_image(&load_image(pack_dir, &set.font.png)?)?;
-        let glyph_at = set
-            .font
-            .by_char
-            .iter()
-            .filter_map(|(ch, byte)| {
-                let glyph = set.font.glyphs.iter().find(|g| g.byte == *byte)?;
-                Some((*ch, Vector2::new(glyph.x as f32, glyph.y as f32)))
-            })
-            .collect();
-        let text_color = set
-            .window
-            .palette
-            .colors
-            .get(15)
-            .map_or(Color::WHITE, |rgb| {
-                Color::from_rgba8(rgb[0], rgb[1], rgb[2], 255)
-            });
-
-        Some(BattleChrome {
-            tiles,
-            font,
-            glyph_at,
-            glyph: Vector2::new(set.font.glyph.width as f32, set.font.glyph.height as f32),
-            cell: set.window.geometry.cell_pixels as f32,
-            text_color,
-        })
-    }
-
-    fn tile(&self, name: &'static str) -> Option<Gd<ImageTexture>> {
-        self.tiles.get(name).cloned()
-    }
-
-    fn frame(&self, rect: WindowRect) -> Option<Vec<Quad>> {
-        let cols = (rect.w / self.cell).round() as i32;
-        let rows = (rect.h / self.cell).round() as i32;
-        if cols < 2 || rows < 2 {
-            return None;
-        }
-        let mut quads = Vec::new();
-        let at = |x: i32, y: i32| {
-            Rect2::new(
-                Vector2::new(rect.x + x as f32 * self.cell, rect.y + y as f32 * self.cell),
-                Vector2::new(self.cell, self.cell),
-            )
-        };
-        let src = Rect2::new(Vector2::ZERO, Vector2::new(self.cell, self.cell));
-        let mut push = |name: &'static str, x: i32, y: i32| {
-            if let Some(texture) = self.tile(name) {
-                quads.push(Quad {
-                    texture,
-                    dest: at(x, y),
-                    src,
-                });
-            }
-        };
-
-        for y in 1..rows - 1 {
-            for x in 1..cols - 1 {
-                push("fill", x, y);
-            }
-        }
-        for x in 1..cols - 1 {
-            push("edge_top", x, 0);
-            push("edge_bottom", x, rows - 1);
-        }
-        for y in 1..rows - 1 {
-            push("edge_left", 0, y);
-            push("edge_right", cols - 1, y);
-        }
-        push("corner_top_left", 0, 0);
-        push("corner_top_right", cols - 1, 0);
-        push("corner_bottom_left", 0, rows - 1);
-        push("corner_bottom_right", cols - 1, rows - 1);
-        Some(quads)
-    }
-
-    fn text(&self, text: &str, rect: WindowRect) -> Vec<Quad> {
-        let cols = (rect.w / self.glyph.x.max(1.0)).floor() as usize;
-        let rows = (rect.h / self.glyph.y.max(1.0)).floor() as usize;
-        if cols == 0 || rows == 0 {
-            return Vec::new();
-        }
-        let mut quads = Vec::new();
-        let mut col = 0usize;
-        let mut row = 0usize;
-        for ch in text.chars() {
-            if ch == '\n' {
-                col = 0;
-                row += 1;
-                continue;
-            }
-            if col >= cols {
-                col = 0;
-                row += 1;
-            }
-            if row >= rows {
-                break;
-            }
-            let Some(source) = self.glyph_at.get(&ch).or_else(|| self.glyph_at.get(&'?')) else {
-                col += 1;
-                continue;
-            };
-            quads.push(Quad {
-                texture: self.font.clone(),
-                dest: Rect2::new(
-                    Vector2::new(
-                        rect.x + col as f32 * self.glyph.x,
-                        rect.y + row as f32 * self.glyph.y,
-                    ),
-                    self.glyph,
-                ),
-                src: Rect2::new(*source, self.glyph),
-            });
-            col += 1;
-        }
-        quads
-    }
-}
-
-fn load_image(pack_dir: &str, name: &str) -> Option<Gd<Image>> {
-    let path = format!("{pack_dir}/{name}");
-    Image::load_from_file(&GString::from(path.as_str()))
-}
+const STATUS_Y: f32 = 168.0;
+const STATUS_PANE_W: f32 = 64.0;
+const STATUS_PANE_STEP: f32 = 56.0;
 
 /// Converts the formation position byte and the art record's dimensions into
 /// the sprite's top-left pixel. `docs/BATTLE_GEOMETRY.md` §2 makes the byte the
@@ -291,6 +119,22 @@ struct DamageDraw {
     critical: bool,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MessageKind {
+    None,
+    Transient,
+    Wide,
+}
+
+#[derive(Clone)]
+struct PartyStatus {
+    fighter: u8,
+    character: u8,
+    name: String,
+    hp: u16,
+    tp: u16,
+}
+
 /// The battle presentation node owned by [`super::super::Field`].
 #[derive(GodotClass)]
 #[class(base=Node2D)]
@@ -306,9 +150,11 @@ pub(crate) struct BattleScreen {
     enemy_positions: BTreeMap<u8, u8>,
     names: BTreeMap<u8, String>,
     character_names: BTreeMap<u8, String>,
+    party_status: Vec<PartyStatus>,
     events: VecDeque<BattleEvent>,
     current: Option<ActiveEvent>,
     message: String,
+    message_kind: MessageKind,
     damage: Option<DamageDraw>,
     command_open: bool,
     cursor: usize,
@@ -334,9 +180,11 @@ impl INode2D for BattleScreen {
             enemy_positions: BTreeMap::new(),
             names: BTreeMap::new(),
             character_names: BTreeMap::new(),
+            party_status: Vec::new(),
             events: VecDeque::new(),
             current: None,
             message: String::new(),
+            message_kind: MessageKind::None,
             damage: None,
             command_open: false,
             cursor: 0,
@@ -369,19 +217,118 @@ impl INode2D for BattleScreen {
             return;
         };
         let cell = chrome.cell;
-        let glyph_height = chrome.glyph.y;
-        let text_color = chrome.text_color;
+        let palette = chrome.palette;
         let mut quads = Vec::new();
-        if let Some(frame) = chrome.frame(NARRATION_RECT) {
-            quads.extend(frame);
-            quads.extend(chrome.text(&self.message, NARRATION_RECT.inset(cell)));
-        }
         if self.command_open
-            && let Some(frame) = chrome.frame(PROVISIONAL_COMMAND_RECT)
+            && let Some(frame) = chrome.frame(ENEMY_NAME_RECT)
         {
             quads.extend(frame);
-            let text_rect = PROVISIONAL_COMMAND_RECT.inset(cell);
-            quads.extend(chrome.text("COMD\nRUN", text_rect));
+            let name = self.names.values().next().map_or("", String::as_str);
+            quads.extend(chrome.text(name, ENEMY_NAME_RECT.inset(cell)));
+        }
+        if self.command_open
+            && let Some(frame) = chrome.frame(COMMAND_RECT)
+        {
+            quads.extend(frame);
+            quads.extend(chrome.text_with_pitch(
+                "COMD\nMACR\nRUN",
+                WindowRect {
+                    x: 48.0,
+                    y: 48.0,
+                    w: 40.0,
+                    h: 48.0,
+                },
+                16.0,
+            ));
+        }
+        if self.message_kind != MessageKind::None && !self.message.is_empty() {
+            let rect = match self.message_kind {
+                MessageKind::Transient => TRANSIENT_MESSAGE_RECT,
+                MessageKind::Wide => WIDE_MESSAGE_RECT,
+                MessageKind::None => unreachable!(),
+            };
+            if let Some(frame) = chrome.frame(rect) {
+                quads.extend(frame);
+                quads.extend(chrome.text(&self.message, rect.inset(cell)));
+            }
+        }
+        for pane in 0..5 {
+            let rect = WindowRect {
+                x: 16.0 + pane as f32 * STATUS_PANE_STEP,
+                y: STATUS_Y,
+                w: STATUS_PANE_W,
+                h: 48.0,
+            };
+            if let Some(frame) = chrome.frame(rect) {
+                quads.extend(frame);
+            }
+            let x = rect.x + cell;
+            if pane == 0 || pane == 4 {
+                quads.extend(chrome.text(
+                    "HP:",
+                    WindowRect {
+                        x,
+                        y: 192.0,
+                        w: 24.0,
+                        h: 8.0,
+                    },
+                ));
+                quads.extend(chrome.text(
+                    "TP:",
+                    WindowRect {
+                        x,
+                        y: 200.0,
+                        w: 24.0,
+                        h: 8.0,
+                    },
+                ));
+            } else if let Some(member) = self.party_status.get(pane - 1) {
+                quads.extend(chrome.text(
+                    &member.name,
+                    WindowRect {
+                        x,
+                        y: 176.0,
+                        w: 32.0,
+                        h: 8.0,
+                    },
+                ));
+                quads.extend(chrome.text(
+                    "HP:",
+                    WindowRect {
+                        x,
+                        y: 192.0,
+                        w: 24.0,
+                        h: 8.0,
+                    },
+                ));
+                quads.extend(chrome.text(
+                    &member.hp.to_string(),
+                    WindowRect {
+                        x: x + 32.0,
+                        y: 192.0,
+                        w: 24.0,
+                        h: 8.0,
+                    },
+                ));
+                quads.extend(chrome.text(
+                    "TP:",
+                    WindowRect {
+                        x,
+                        y: 200.0,
+                        w: 24.0,
+                        h: 8.0,
+                    },
+                ));
+                quads.extend(chrome.text(
+                    &member.tp.to_string(),
+                    WindowRect {
+                        x: x + 32.0,
+                        y: 200.0,
+                        w: 24.0,
+                        h: 8.0,
+                    },
+                ));
+            }
         }
         if let Some(damage) = self.damage
             && let Some(column) = self.damage_column(damage.target)
@@ -410,19 +357,108 @@ impl INode2D for BattleScreen {
                 .draw_texture_rect_region(&quad.texture, quad.dest, quad.src);
         }
         if self.command_open {
-            let y = PROVISIONAL_COMMAND_RECT.y + cell + self.cursor as f32 * glyph_height;
-            let x = PROVISIONAL_COMMAND_RECT.x + cell * 0.35;
-            let points = PackedVector2Array::from(&[
-                Vector2::new(x, y + 2.0),
-                Vector2::new(x + 5.0, y + 6.0),
-                Vector2::new(x, y + 10.0),
-            ]);
-            self.base_mut().draw_colored_polygon(&points, text_color);
+            for row in 0..3 {
+                self.draw_bullet(
+                    Vector2::new(32.0, 48.0 + row as f32 * 16.0),
+                    row == self.cursor,
+                    palette,
+                );
+            }
         }
+        self.draw_status_icons(palette);
     }
 }
 
 impl BattleScreen {
+    fn draw_pixel(&mut self, x: f32, y: f32, color: Color) {
+        let points = PackedVector2Array::from(&[
+            Vector2::new(x, y),
+            Vector2::new(x + 1.0, y),
+            Vector2::new(x + 1.0, y + 1.0),
+            Vector2::new(x, y + 1.0),
+        ]);
+        self.base_mut().draw_colored_polygon(&points, color);
+    }
+
+    fn draw_pattern(&mut self, origin: Vector2, rows: &[&str], palette: [Color; 16]) {
+        for (row, line) in rows.iter().enumerate() {
+            for (column, symbol) in line.chars().enumerate() {
+                let color = match symbol {
+                    'B' => palette[14],
+                    'W' => palette[15],
+                    'K' => palette[0],
+                    'L' => palette[2],
+                    'R' => palette[13],
+                    'P' => palette[12],
+                    'Y' => palette[11],
+                    'q' => palette[6],
+                    'o' => palette[5],
+                    _ => continue,
+                };
+                self.draw_pixel(origin.x + column as f32, origin.y + row as f32, color);
+            }
+        }
+    }
+
+    fn draw_bullet(&mut self, origin: Vector2, selected: bool, palette: [Color; 16]) {
+        const SELECTED: [&str; 8] = [
+            "BLLLLLLB", "LRRRRRRL", "LRYYPRRL", "LRYPPRRL", "LRPPPRRL", "LRRRRRRL", "LRRRRRRL",
+            "BLLLLLLB",
+        ];
+        const DISABLED: [&str; 8] = [
+            "BLLLLLLB", "LBBBBBBL", "LBBBBBBL", "LBBBBBBL", "LBBBBBBL", "LBBBBBBL", "LBBBBBBL",
+            "BLLLLLLB",
+        ];
+        let rows = if selected { &SELECTED } else { &DISABLED };
+        self.draw_pattern(origin, rows, palette);
+    }
+
+    fn draw_status_icons(&mut self, palette: [Color; 16]) {
+        const QUESTION: [&str; 16] = [
+            "BWWWWWWWWWWWWWWB",
+            "WKKKKKKKKKKKKKKW",
+            "WKKKKKKKKKKKKKKW",
+            "WKKKqoYYYYoqKKKW",
+            "WKKKoYqKKqYoqKKW",
+            "WKKKYYKKKKYYqKKW",
+            "WKKKoYKKKKYYqKKW",
+            "WKKKKKKqoYYqKKKW",
+            "WKKKKKKYYoqKKKKW",
+            "WKKKKKKYYqKKKKKW",
+            "WKKKKKKKKKKKKKKW",
+            "WKKKKKKYYqKKKKKW",
+            "WKKKKKKYYqKKKKKW",
+            "WKKKKKKKKKKKKKKW",
+            "WKKKKKKKKKKKKKKW",
+            "BWWWWWWWWWWWWWWB",
+        ];
+        const BLANK: [&str; 16] = [
+            "BWWWWWWWWWWWWWWB",
+            "WKKKKKKKKKKKKKKW",
+            "WKKKKKKKKKKKKKKW",
+            "WKKKKKKKKKKKKKKW",
+            "WKKKKKKKKKKKKKKW",
+            "WKKKKKKKKKKKKKKW",
+            "WKKKKKKKKKKKKKKW",
+            "WKKKKKKKKKKKKKKW",
+            "WKKKKKKKKKKKKKKW",
+            "WKKKKKKKKKKKKKKW",
+            "WKKKKKKKKKKKKKKW",
+            "WKKKKKKKKKKKKKKW",
+            "WKKKKKKKKKKKKKKW",
+            "WKKKKKKKKKKKKKKW",
+            "WKKKKKKKKKKKKKKW",
+            "BWWWWWWWWWWWWWWB",
+        ];
+        for pane in 0..5 {
+            let member = pane > 0 && pane < 4 && self.party_status.get(pane - 1).is_some();
+            if pane == 0 || pane == 4 || member {
+                let origin = Vector2::new(16.0 + pane as f32 * STATUS_PANE_STEP + 40.0, 176.0);
+                self.draw_pattern(origin, if member { &QUESTION } else { &BLANK }, palette);
+            }
+        }
+    }
+
     /// Loads the battle art and the dialogue chrome/font conventions.
     pub(crate) fn configure(&mut self, pack_dir: &str) {
         self.pack_dir = pack_dir.to_owned();
@@ -450,6 +486,7 @@ impl BattleScreen {
         self.enemy_positions.clear();
         self.names.clear();
         self.character_names.clear();
+        self.party_status.clear();
         self.events.clear();
         self.current = None;
         self.finish_outcome = None;
@@ -460,6 +497,7 @@ impl BattleScreen {
         self.cursor = 0;
         self.reward_each = 0;
         self.message.clear();
+        self.message_kind = MessageKind::None;
         self.damage = None;
 
         self.build_background(&setup);
@@ -488,10 +526,15 @@ impl BattleScreen {
             self.base_mut().queue_redraw();
         }
         if input.is_action_just_pressed("ui_down") || input.is_action_just_pressed("ui_right") {
-            self.cursor = (self.cursor + 1).min(1);
+            self.cursor = (self.cursor + 1).min(2);
             self.base_mut().queue_redraw();
         }
         if !input.is_action_just_pressed("ui_accept") {
+            return None;
+        }
+        if self.cursor == 1 {
+            // MACR is visible for retail parity; macro execution is Tier 3.
+            self.base_mut().queue_redraw();
             return None;
         }
         self.command_open = false;
@@ -547,6 +590,7 @@ impl BattleScreen {
     pub(crate) fn fail_round(&mut self, error: &str) {
         godot_error!("battle round failed: {error}");
         self.message = "Battle error!".into();
+        self.message_kind = MessageKind::Wide;
         self.current = None;
         self.events.clear();
         self.finish_outcome = None;
@@ -669,10 +713,21 @@ impl BattleScreen {
     }
 
     fn build_party(&mut self, party: &[PartyPlacement]) {
+        self.party_status = party
+            .iter()
+            .map(|member| PartyStatus {
+                fighter: member.fighter_id,
+                character: member.character,
+                name: member.name.clone(),
+                hp: member.hp,
+                tp: member.tp,
+            })
+            .collect();
+        self.party_status.sort_by_key(|member| member.character);
         if self.art.is_none() {
             return;
         }
-        for (index, member) in party.iter().enumerate() {
+        for member in party {
             let Some(fighter) = FighterId::new(member.fighter_id) else {
                 godot_error!("battle party has invalid fighter id {}", member.fighter_id);
                 continue;
@@ -696,7 +751,11 @@ impl BattleScreen {
             let mut node = Sprite2D::new_alloc();
             node.set_centered(false);
             node.set_z_index(-10);
-            let column = PARTY_COLUMNS.get(index).copied().unwrap_or(0);
+            let column = member
+                .fighter_id
+                .checked_sub(1)
+                .and_then(|index| PARTY_COLUMNS.get(index as usize).copied())
+                .unwrap_or(0);
             node.set_position(Vector2::new(
                 column as f32 * BATTLE_CELL_PIXELS as f32,
                 PARTY_ROW_Y,
@@ -731,10 +790,13 @@ impl BattleScreen {
                 self.command_open = false;
             } else {
                 self.command_open = true;
+                self.message.clear();
+                self.message_kind = MessageKind::None;
             }
             return;
         };
 
+        self.update_live_party_hp(&event);
         let narration = timeline::narration(&event, &self.names, &self.character_names);
         if narration.line == "Unhandled battle event." {
             godot_error!("battle renderer: unhandled BattleEvent: {event:?}");
@@ -752,6 +814,13 @@ impl BattleScreen {
             self.reward_each = experience_each;
         }
         self.message = narration.line;
+        self.message_kind = match narration.beat {
+            Beat::Start => MessageKind::None,
+            Beat::End(_) | Beat::Reward | Beat::LevelUp => MessageKind::Wide,
+            Beat::None | Beat::Attack(_) | Beat::Damage { .. } | Beat::Hide(_) => {
+                MessageKind::Transient
+            }
+        };
         self.damage = None;
         self.restore_party_pose();
         match narration.beat {
@@ -775,6 +844,25 @@ impl BattleScreen {
             remaining: BATTLE_DWELL_FRAMES,
         });
         self.command_open = false;
+    }
+
+    fn update_live_party_hp(&mut self, event: &BattleEvent) {
+        let BattleEvent::Resolved {
+            target,
+            remaining_hp,
+            ..
+        } = event
+        else {
+            return;
+        };
+        if target.side() == psiv_core::battle::Side::Party
+            && let Some(member) = self
+                .party_status
+                .iter_mut()
+                .find(|member| member.fighter == target.get())
+        {
+            member.hp = *remaining_hp;
+        }
     }
 
     fn restore_party_pose(&mut self) {

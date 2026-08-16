@@ -49,10 +49,12 @@ pass "Genesis Plus GX core present"
 
 echo "== build =="
 mkdir -p "$ORACLE/bin" "$OUT"
-gcc -O2 -Wall -Wextra -o "$BIN" \
-	"$ORACLE/host/psiv_oracle.c" \
-	"$ORACLE/host/frame_dump.c" \
-	"$ORACLE/host/ram_dump.c" -ldl
+	gcc -O2 -Wall -Wextra -o "$BIN" \
+		"$ORACLE/host/psiv_oracle.c" \
+		"$ORACLE/host/frame_dump.c" \
+		"$ORACLE/host/ram_dump.c" \
+		"$ORACLE/host/state_dump.c" \
+		"$ORACLE/host/tape.c" -ldl
 pass "host builds clean"
 
 # The C host reads ram_map.tsv, but ram_map.json is the source of truth. If the

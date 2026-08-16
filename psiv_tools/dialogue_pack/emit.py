@@ -7,10 +7,12 @@ fragment is relative to the pack root, so the fragment drops straight into
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 from typing import Any
 
 from .. import png
+from ..gfx import NEMESIS_ART, compose_sheet, decode_tiles, decompress_art
 from ..text import extract_dialogue
 from .art import emit_portraits, font_json, font_strip, glyph_bitmaps
 from .chrome import emit_window
@@ -19,6 +21,7 @@ from .common import (
     DIALOGUE_FORMAT_VERSION,
     FONT_JSON_NAME,
     FONT_PNG_NAME,
+    MENU_FONT_PNG_NAME,
     PORTRAITS_DIRECTORY,
     PORTRAITS_NAME,
     TREES_NAME,
@@ -64,6 +67,19 @@ def emit_dialogue(rom_bytes: bytes, out_dir: str | Path) -> dict[str, Any]:
 
     window, window_image = emit_window(rom_bytes, root, palette)
     window_sha = write_json(root / WINDOW_JSON_NAME, window)
+
+    menu_spec = next(spec for spec in NEMESIS_ART if spec["label"] == "ArtNem_Font")
+    menu_raw, _ = decompress_art(
+        rom_bytes,
+        int(menu_spec["rom_offset"]),
+        menu_spec["label"],
+        compressed_size=int(menu_spec["compressed_size"]),
+    )
+    menu_tiles = decode_tiles(menu_raw)
+    menu_width, menu_height, menu_pixels = compose_sheet(menu_tiles, 16)
+    menu_image = png.encode_indexed(menu_width, menu_height, menu_pixels, list(palette))
+    (root / MENU_FONT_PNG_NAME).write_bytes(menu_image)
+    menu_sha = hashlib.sha256(menu_image).hexdigest()
 
     portraits, portrait_bytes = emit_portraits(rom_bytes, root, palette)
     portraits_sha = write_json(root / PORTRAITS_NAME, portraits)
@@ -127,6 +143,11 @@ def emit_dialogue(rom_bytes: bytes, out_dir: str | Path) -> dict[str, Any]:
                 name: role["tile"] for name, role in sorted(window["roles"].items())
             },
             "rect": window["text_window"]["rect"],
+        },
+        "menu_font": {
+            "path": MENU_FONT_PNG_NAME,
+            "png_sha256": menu_sha,
+            "tile_count": len(menu_tiles),
         },
         "portraits": {
             "path": PORTRAITS_NAME,

@@ -6,6 +6,7 @@ it needs to *talk*. Three files and one directory, all under `dialogue/`:
     dialogue/trees.json          43 trees, every entry as renderer-ready segments
     dialogue/font.png            the 80 dialogue glyphs as an 8x16 strip
     dialogue/font.json           byte -> glyph rect, plus the window's palette
+    dialogue/menu_font.png       the retail 8x8 battle/menu glyph sheet
     dialogue/window.png          ArtNem_WindowTiles, the box's chrome
     dialogue/window.json         which tile is which corner, and the box's size
     dialogue/portraits.json      the 39 portrait ids and their provenance
@@ -184,6 +185,7 @@ from .common import (
     DIALOGUE_FORMAT_VERSION,
     FONT_JSON_NAME,
     FONT_PNG_NAME,
+    MENU_FONT_PNG_NAME,
     PORTRAITS_DIRECTORY,
     PORTRAITS_NAME,
     TREES_NAME,

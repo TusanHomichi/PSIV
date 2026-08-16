@@ -132,6 +132,15 @@ XY_RANGES = (
 # `Interaction_ChkMapAreas` stores byte 6 into Interaction_Event_Type.
 INTERACTION_FLAG_TYPES = {0: "story", 1: "chest", 2: "temporary"}
 
+# `Interaction_GetEvent` indexes this word table with the area's byte 9.  The
+# high bit keeps the same cutscene-vs-event meaning as Event_Index.  It is
+# emitted with the runtime area rather than re-created in the Rust bridge.
+INTERACTION_EVENT_INDEXES = (
+    0x0000, 0x0029, 0x002D, 0x0035, 0x0036, 0x0039, 0x003A, 0x0042,
+    0x0008, 0x0066, 0x801E, 0x006B, 0x006C, 0x006D, 0x006E, 0x006F,
+    0x0000, 0x0000, 0x0000, 0x0013, 0x0000, 0x0000, 0x0000, 0x0000,
+)
+
 # Chest byte 1 -> Found_Item_Type. Zero means byte 3 is an item id; non-zero
 # means byte 3 is a meseta count, rendered by loc_66BEE as the number followed
 # by the string at loc_2AAACA, which decodes to "00 meseta procured!" -- so

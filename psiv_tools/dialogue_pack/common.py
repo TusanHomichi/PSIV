@@ -21,6 +21,7 @@ PORTRAITS_DIRECTORY = f"{DIALOGUE_DIRECTORY}/portraits"
 TREES_NAME = f"{DIALOGUE_DIRECTORY}/trees.json"
 FONT_JSON_NAME = f"{DIALOGUE_DIRECTORY}/font.json"
 FONT_PNG_NAME = f"{DIALOGUE_DIRECTORY}/font.png"
+MENU_FONT_PNG_NAME = f"{DIALOGUE_DIRECTORY}/menu_font.png"
 WINDOW_JSON_NAME = f"{DIALOGUE_DIRECTORY}/window.json"
 WINDOW_PNG_NAME = f"{DIALOGUE_DIRECTORY}/window.png"
 PORTRAITS_NAME = f"{DIALOGUE_DIRECTORY}/portraits.json"
@@ -50,4 +51,3 @@ def write_json(path: Path, payload: dict[str, Any]) -> str:
     data = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
     path.write_bytes(data)
     return hashlib.sha256(data).hexdigest()
-

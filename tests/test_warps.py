@@ -15,6 +15,7 @@ from psiv_tools.warps import (
     XY_RANGE_NAMES,
     PackError,
     Rect,
+    interaction_rect,
     warp_rect,
     xy_range_name,
 )
@@ -130,3 +131,15 @@ class TestWarpRect(unittest.TestCase):
             warp_rect(0xF, 0, 0, 64, 64)
         with self.assertRaises(PackError):
             warp_rect(0x9, 0, 0, 0, 64)
+
+
+class TestInteractionRect(unittest.TestCase):
+    def test_raw_eight_pixel_coordinates_become_collision_cells(self):
+        self.assertEqual(
+            interaction_rect(0x9, 30, 18, 64, 32).to_json(),
+            {"x": 15, "y": 10, "width": 2, "height": 1},
+        )
+
+    def test_half_cell_raw_coordinates_are_rejected(self):
+        with self.assertRaises(PackError):
+            interaction_rect(0x9, 31, 18, 64, 32)

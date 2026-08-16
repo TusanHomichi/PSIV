@@ -5,6 +5,7 @@
 //! resolve a `RoundOrders`, absorb the result, and resume the field.
 
 mod art;
+mod chrome;
 mod timeline;
 mod ui;
 
@@ -39,6 +40,8 @@ pub(crate) struct PartyPlacement {
     pub(crate) fighter_id: u8,
     pub(crate) character: u8,
     pub(crate) name: String,
+    pub(crate) hp: u16,
+    pub(crate) tp: u16,
 }
 
 pub(crate) struct EnemyPlacement {
@@ -384,6 +387,8 @@ fn build_setup_for_formation(
             fighter_id: index as u8 + 1,
             character: member.character,
             name: member.name,
+            hp: member.stats.curr_hp,
+            tp: member.stats.curr_tp,
         })
         .collect();
     let enemies = formation

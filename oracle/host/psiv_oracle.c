@@ -26,10 +26,10 @@
 #include "frame_dump.h"
 #include "libretro.h"
 #include "ram_dump.h"
+#include "state_dump.h"
+#include "tape.h"
 
 #define MAX_FIELDS 1024
-#define MAX_TAPE_STEPS 262144
-#define MAX_MARK_LEN 48
 
 /* ------------------------------------------------------------------ */
 /* RAM map                                                            */
@@ -51,28 +51,6 @@ static int g_nfields;
 /* ------------------------------------------------------------------ */
 /* Tape                                                               */
 /* ------------------------------------------------------------------ */
-
-/* Genesis pad bits, in the order used by the tape's button letters. */
-enum {
-	PAD_UP = 1 << 0,
-	PAD_DOWN = 1 << 1,
-	PAD_LEFT = 1 << 2,
-	PAD_RIGHT = 1 << 3,
-	PAD_A = 1 << 4,
-	PAD_B = 1 << 5,
-	PAD_C = 1 << 6,
-	PAD_START = 1 << 7
-};
-
-struct tape_step {
-	uint32_t frames;
-	uint32_t buttons;
-	char mark[MAX_MARK_LEN]; /* label emitted on this step's first frame */
-};
-
-static struct tape_step g_tape[MAX_TAPE_STEPS];
-static int g_ntape;
-static uint64_t g_total_frames;
 
 /* ------------------------------------------------------------------ */
 /* Core handle and callbacks                                          */
@@ -516,154 +494,6 @@ static int load_ram_map(const char *path)
 	return 0;
 }
 
-static int parse_buttons(const char *s, uint32_t *out)
-{
-	uint32_t b = 0;
-	if (strcmp(s, ".") == 0) {
-		*out = 0;
-		return 0;
-	}
-	for (; *s; s++) {
-		switch (*s) {
-		case 'U': b |= PAD_UP; break;
-		case 'D': b |= PAD_DOWN; break;
-		case 'L': b |= PAD_LEFT; break;
-		case 'R': b |= PAD_RIGHT; break;
-		case 'A': b |= PAD_A; break;
-		case 'B': b |= PAD_B; break;
-		case 'C': b |= PAD_C; break;
-		case 'S': b |= PAD_START; break;
-		default:
-			return -1;
-		}
-	}
-	*out = b;
-	return 0;
-}
-
-/* Tape format: one step per line, "<frames> <buttons> [mark]".
- *   frames  - how many consecutive frames to hold this state (>= 1)
- *   buttons - "." for nothing, else letters from UDLRABCS
- *   mark    - optional label recorded on the step's first frame
- * A run of steps can be repeated with a block:
- *   repeat <count>
- *       4 B
- *       12 .
- *   end
- * Blocks do not nest. Blank lines and lines starting with '#' are ignored.
- * Playback always starts from power-on, so a tape plus a core build fully
- * determines the run. */
-static int load_tape(const char *path)
-{
-	FILE *f = fopen(path, "r");
-	char line[512];
-	int lineno = 0;
-	int repeat_start = -1;
-	uint32_t repeat_count = 0;
-
-	if (!f) {
-		fprintf(stderr, "psiv_oracle: cannot open tape %s: %s\n", path,
-		        strerror(errno));
-		return -1;
-	}
-
-	while (fgets(line, sizeof line, f)) {
-		char *p = trim(line), *tok, *save;
-		struct tape_step *st;
-		lineno++;
-		if (!*p || *p == '#')
-			continue;
-
-		if (strncmp(p, "repeat", 6) == 0 &&
-		    (p[6] == ' ' || p[6] == '\t')) {
-			if (repeat_start >= 0) {
-				fprintf(stderr, "psiv_oracle: tape line %d: repeat blocks do "
-				        "not nest\n", lineno);
-				fclose(f);
-				return -1;
-			}
-			repeat_count = (uint32_t)strtoul(p + 7, NULL, 10);
-			if (repeat_count == 0) {
-				fprintf(stderr, "psiv_oracle: tape line %d: repeat count must "
-				        "be >= 1\n", lineno);
-				fclose(f);
-				return -1;
-			}
-			repeat_start = g_ntape;
-			continue;
-		}
-
-		if (strcmp(p, "end") == 0) {
-			int block_len = g_ntape - repeat_start;
-			uint32_t rep;
-			int j;
-			if (repeat_start < 0) {
-				fprintf(stderr, "psiv_oracle: tape line %d: 'end' without "
-				        "'repeat'\n", lineno);
-				fclose(f);
-				return -1;
-			}
-			if ((uint64_t)repeat_start + (uint64_t)block_len * repeat_count >
-			    (uint64_t)MAX_TAPE_STEPS) {
-				fprintf(stderr, "psiv_oracle: tape line %d: repeat expands "
-				        "past the %d step limit\n", lineno, MAX_TAPE_STEPS);
-				fclose(f);
-				return -1;
-			}
-			for (rep = 1; rep < repeat_count; rep++)
-				for (j = 0; j < block_len; j++) {
-					g_tape[g_ntape] = g_tape[repeat_start + j];
-					g_total_frames += g_tape[g_ntape].frames;
-					g_ntape++;
-				}
-			repeat_start = -1;
-			continue;
-		}
-
-		if (g_ntape >= MAX_TAPE_STEPS) {
-			fprintf(stderr, "psiv_oracle: tape too long (max %d steps)\n",
-			        MAX_TAPE_STEPS);
-			fclose(f);
-			return -1;
-		}
-		st = &g_tape[g_ntape];
-		memset(st, 0, sizeof *st);
-
-		tok = strtok_r(p, " \t", &save);
-		if (!tok) continue;
-		st->frames = (uint32_t)strtoul(tok, NULL, 10);
-		if (st->frames == 0) {
-			fprintf(stderr, "psiv_oracle: tape line %d: frame count must be "
-			        ">= 1\n", lineno);
-			fclose(f);
-			return -1;
-		}
-
-		tok = strtok_r(NULL, " \t", &save);
-		if (!tok || parse_buttons(tok, &st->buttons) != 0) {
-			fprintf(stderr, "psiv_oracle: tape line %d: bad button set\n",
-			        lineno);
-			fclose(f);
-			return -1;
-		}
-
-		tok = strtok_r(NULL, " \t", &save);
-		if (tok)
-			snprintf(st->mark, sizeof st->mark, "%s", trim(tok));
-
-		g_total_frames += st->frames;
-		g_ntape++;
-	}
-	if (repeat_start >= 0) {
-		fprintf(stderr, "psiv_oracle: tape ended inside an unterminated "
-		        "'repeat' block\n");
-		fclose(f);
-		return -1;
-	}
-	fclose(f);
-	return 0;
-}
-
 static void enable_groups(const char *csv)
 {
 	int i;
@@ -693,7 +523,9 @@ static void usage(void)
 	        "                   [--groups a,b,c] [--dump-options] "
 	        "[--probe-endian]\n"
 	        "                   [--dump-frames N1,N2,...] "
-	        "--dump-frames-dir <dir>\n");
+	        "--dump-frames-dir <dir>\n"
+	        "                   [--dump-ram <frame>:<path>]\n"
+	        "                   [--dump-state <frame>:<path>]\n");
 }
 
 int main(int argc, char **argv)
@@ -727,6 +559,12 @@ int main(int argc, char **argv)
 		else if (!strcmp(argv[i], "--dump-ram") && i + 1 < argc) {
 			if (ram_dump_add_spec(argv[++i]) != 0) {
 				fprintf(stderr, "psiv_oracle: %s\n", ram_dump_error());
+				return 2;
+			}
+		}
+		else if (!strcmp(argv[i], "--dump-state") && i + 1 < argc) {
+			if (state_dump_add_spec(argv[++i]) != 0) {
+				fprintf(stderr, "psiv_oracle: %s\n", state_dump_error());
 				return 2;
 			}
 		}
@@ -905,8 +743,10 @@ int main(int argc, char **argv)
 		return 1;
 	if (groups)
 		enable_groups(groups);
-	if (load_tape(tape_path) != 0)
+	if (psiv_tape_load(tape_path) != 0) {
+		fprintf(stderr, "psiv_oracle: %s\n", psiv_tape_error());
 		return 1;
+	}
 
 	if (out_path) {
 		out = fopen(out_path, "w");
@@ -922,18 +762,19 @@ int main(int argc, char **argv)
 	        sysinfo.library_version,
 	        rt_get_region() == RETRO_REGION_PAL ? "PAL" : "NTSC");
 	fprintf(out, "# rom=%s size=%zu\n", rom_path, rom_size);
-	fprintf(out, "# tape=%s steps=%d frames=%llu\n", tape_path, g_ntape,
-	        (unsigned long long)g_total_frames);
+	fprintf(out, "# tape=%s steps=%d frames=%llu\n", tape_path,
+	        psiv_tape_count(), (unsigned long long)psiv_tape_total_frames());
 	fprintf(out, "frame,mark,buttons");
 	for (i = 0; i < g_nfields; i++)
 		if (g_fields[i].enabled)
 			fprintf(out, ",%s", g_fields[i].name);
 	fprintf(out, "\n");
 
-	for (step = 0; step < g_ntape; step++) {
+	for (step = 0; step < psiv_tape_count(); step++) {
+		const struct psiv_tape_step *tape_step = psiv_tape_step_at(step);
 		uint32_t k;
-		g_cur_buttons = g_tape[step].buttons;
-		for (k = 0; k < g_tape[step].frames; k++) {
+		g_cur_buttons = tape_step->buttons;
+		for (k = 0; k < tape_step->frames; k++) {
 			char btn[16];
 			int n = 0;
 
@@ -949,6 +790,10 @@ int main(int argc, char **argv)
 				fprintf(stderr, "psiv_oracle: %s\n", ram_dump_error());
 				return 1;
 			}
+			if (state_dump_write(frame, g_ram) != 0) {
+				fprintf(stderr, "psiv_oracle: %s\n", state_dump_error());
+				return 1;
+			}
 
 			if (g_cur_buttons & PAD_UP) btn[n++] = 'U';
 			if (g_cur_buttons & PAD_DOWN) btn[n++] = 'D';
@@ -962,7 +807,7 @@ int main(int argc, char **argv)
 			btn[n] = 0;
 
 			fprintf(out, "%llu,%s,%s", (unsigned long long)frame,
-			        (k == 0) ? g_tape[step].mark : "", btn);
+			        (k == 0) ? tape_step->mark : "", btn);
 
 			for (i = 0; i < g_nfields; i++) {
 				uint32_t v;

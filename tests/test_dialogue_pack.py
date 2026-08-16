@@ -16,6 +16,7 @@ from psiv_tools.dialogue_pack import (
     DIALOGUE_WINDOW_INDEX,
     FONT_JSON_NAME,
     FONT_PNG_NAME,
+    MENU_FONT_PNG_NAME,
     FONT_ROM_OFFSET,
     FONT_SIZE,
     GLYPH_BYTES,
@@ -828,6 +829,7 @@ class TestDialoguePack(unittest.TestCase):
             (fragment["font"]["png"], fragment["font"]["png_sha256"]),
             (fragment["chrome"]["path"], fragment["chrome"]["sha256"]),
             (fragment["chrome"]["png"], fragment["chrome"]["png_sha256"]),
+            (fragment["menu_font"]["path"], fragment["menu_font"]["png_sha256"]),
             (fragment["portraits"]["path"], fragment["portraits"]["sha256"]),
         ):
             data = (self.root / path).read_bytes()
@@ -838,8 +840,9 @@ class TestDialoguePack(unittest.TestCase):
             str(path.relative_to(self.root))
             for path in self.root.rglob("*") if path.is_file()
         )
-        self.assertEqual(len(written), 6 + 39)
+        self.assertEqual(len(written), 7 + 39)
         self.assertIn(TREES_NAME, written)
+        self.assertIn(MENU_FONT_PNG_NAME, written)
 
     def test_rebuilding_is_byte_identical(self):
         with tempfile.TemporaryDirectory() as other:

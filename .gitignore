@@ -21,5 +21,7 @@ oracle/core/
 oracle/bin/
 oracle/logs/
 oracle/frames/
+oracle/states/
+oracle/layouts/
 build/
 oracle/tmp_*

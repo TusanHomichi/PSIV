@@ -12,6 +12,7 @@ from psiv_tools.maps.encounters import (
 from psiv_tools.maps.records import (
     ERROR_TRAP,
     FIELD_MAP_PTRS,
+    INTERACTION_EVENT_INDEXES,
     MAP_COUNT,
     MAP_DATA_MANAGER_ROUTINES,
     MAP_UPDATE_ROUTINES,
@@ -458,6 +459,15 @@ class TestMapsFromRom(unittest.TestCase):
             for area in entry["interaction_areas"]["entries"]
         }
         self.assertEqual(sorted(used), [0, 1, 2, 5])
+
+    def test_academy_boss_area_keeps_its_event_parameter(self):
+        area = self.maps[0x17]["interaction_areas"]["entries"][0]
+        self.assertEqual(area["x_tile"], 30)
+        self.assertEqual(area["y_tile"], 18)
+        self.assertEqual(area["range"]["id"], 0x9)
+        self.assertEqual(area["interaction_type"], 2)
+        self.assertEqual(area["parameter"], 0x0B)
+        self.assertEqual(INTERACTION_EVENT_INDEXES[area["parameter"]], 0x006B)
 
     def test_shop_locations_land_on_real_maps(self):
         locations = extract_shops(self.data)["locations"]["entries"]

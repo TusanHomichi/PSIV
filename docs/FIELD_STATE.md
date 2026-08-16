@@ -423,22 +423,17 @@ Recommendation: settle the ownership question first, then implement the roster
 against the oracle's level-up tape in one focused slice. The scout above is
 complete enough that it should be a short one.
 
-## Invisible blockers and the talk probe (2026-08-15)
+## Interaction areas precede the object probe (2026-08-15)
 
-Retail has NO invisible-object talk filter: `Interaction_ChkObjects`
-($058D50) tests only bit 3 ($058D5C), the blocker type ($74 ->
-FieldObjectsJmpTbl $04AA6C -> $0488D8) sets bit 3 at $048904, and a
-matched object's dialogue id 0 reaches tree entry 0 via GetDialogueByID
-($059164/$05916E). So on the cartridge, pressing at the invisible walls
-stacked on the Academy Basement bosses plausibly opens the principal's
-chain — the exact live-QA symptom. CANDIDATE RETAIL BUG, hardware tape
-pending (press at the Igglanova cell on the emulator oracle).
+`FieldRoutine_Interaction` checks the map's fixed interaction-area records on
+confirm before it probes field objects. The map-`$17` boss approach is the
+first record: raw coordinates `$1E,$12` (8-pixel units), range `$09`
+(`XPlus20_YPlus10`), routine type 2, parameter `$0B`. Its pack rectangle is
+collision cells `(15,10)` through `(16,10)`, so a party standing at `(15,11)`
+and facing up resolves Event `$6B` before the invisible blocker can answer
+"Nothing here". The runtime carries the explicit area record and event-index
+lookup so this ordering is preserved in the headed game as well as in tests.
 
-The engine deviates DELIBERATELY under the ratified bug policy
-(obviously unintended): `Npc::talkable` is a separate property from
-solidity, derived as `sprite_reason.is_none() || dialogue_id != 0` —
-an invisible object with no dialogue is solid but answers nothing;
-invisible objects WITH dialogue (hidden triggers) stay talkable; every
-visible object behaves exactly as bit 3 says. If the hardware tape
-shows retail answering nothing-here instead, the RE missed a branch and
-this section gets corrected.
+Only when no enabled interaction area matches does the field path continue to
+the object probe. The separate object rule still matters for ordinary NPCs
+and objects, but it is not the route that starts the Academy Basement boss.

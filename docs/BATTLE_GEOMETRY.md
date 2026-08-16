@@ -7,9 +7,9 @@ the windows and damage numbers go, and what sets the pace.
 Every constant below was verified against the retail cartridge
 (`Phantasy Star IV (USA).md`, sha256 `511f35cc…13b6a`) by matching opcode
 bytes — see the appendix. Dimensions come from the extractor, which proves them
-against the same image. Where something is genuinely dynamic the rule is given
-rather than a number, and the three things I could not pin are named in §7
-rather than guessed at.
+against the same image. The command-idle rectangles and status strip below are
+also checked against `oracle/frames/frame_25000.png`, the retail 320x224 capture.
+Where something is genuinely dynamic the rule is given rather than a number.
 
 `loc_XXXXX` labels in `ps4.asm` are retail addresses (established in
 `docs/BATTLE_SCOUT.md`); the `;0x…` inline comments are the fork's and drift.
@@ -264,6 +264,31 @@ from the addresses by the §1 formula.
 | transient message base | `$FFFF8900` | (18, 0) | — | the row the transient windows index from |
 | upper window | `$FFFF848A` | (9, 5) | 15 × 6 | x 40–159, y 72–119 |
 
+### Command-idle capture
+
+The tape-07 command-idle frame pins the battle opener and the bottom status
+layout. These are presentation rectangles, not guesses from the cursor tables:
+
+| what | screen rect (px) | cells | contents |
+|---|---|---|---|
+| enemy group name | x 16–111, y 8–31 | 12 × 3 | first/current enemy-group name |
+| main command menu | x 24–87, y 40–95 | 8 × 7 | COMD, MACR, RUN; one 8×8 bullet per row |
+| status pane 0 | x 16–79, y 168–215 | 8 × 6 | HP:/TP: labels and empty `?` box |
+| status panes 1–3 | x 72–135, x 128–191, x 184–247; y 168–215 | 8 × 6 each | member name, HP/TP, `?` box |
+| status pane 4 | x 240–303, y 168–215 | 8 × 6 | HP:/TP: labels and empty `?` box |
+
+Adjacent status panes overlap by one cell (56 px pitch, 64 px frame width).
+The reference party order is Chaz, Alys, Hahn; the battle fighter slots remain
+the independent center-out table in §3. Menu and status text use the retail
+8×8 `ArtNem_Font`; dialogue's 8×16 font is a different asset. The selected
+COMD bullet is red, while the unselected/MACR bullets are blue. MACR is
+displayed but has no Tier-1 action.
+
+The retail command-idle frame has no floating narration box. Combat narration
+uses the 12×3 transient rectangle above; victory/results text uses the 20×5
+wide list rectangle. The status strip remains visible while those windows are
+active.
+
 Sizes come from the `d1`/`d2` pair each opener passes to `Battle_SetupWindow`
 / `Battle_CreateWindow` (`d1` = width − 1 in some callers, so the table above
 uses the literal `moveq` values as counts where the routine treats them as
@@ -392,21 +417,12 @@ per-map and per-event-battle selectors from `Battle_BackgroundIndexes`
 
 Named rather than guessed, per house standard.
 
-1. **The main options window rect** (COMD / MACR / RUN). I have the cursor
-   sprite X tables — `Battle_ComdCursorInitPos` (`$A8, $108, $D8, $D8, $108`)
-   and `Battle_AllyCursorInitPos` (`$B0, $E8, $120, $158, $190`, spacing `$38`)
-   — but not the window's own plane rectangle. The ally cursor's spacing is 56
-   px against the party's 48 px slot pitch, so the two are not the same grid and
-   I will not derive one from the other.
-2. **Window size conventions.** Several openers pass `moveq #N, d1` where other
+1. **Window size conventions.** Several openers pass `moveq #N, d1` where other
    call sites clearly mean "N cells" and some appear to mean "N − 1". I have
-   quoted the literal values; someone should confirm `Battle_SetupWindow` /
-   `Battle_CreateWindow`'s convention once before the rects in §4 are trusted to
-   the cell.
-3. **The enemy-name label rects.** `Fighter_Enemy_Group_1/2` sit at
-   `fighter_x_pos` `$84` and `$B4`, which are not multiples of 8 above either
-   origin, so the label objects use their own placement path in
-   `EnemyGroup_SetupNames`. Not chased.
+   quoted the literal values; the command-idle capture settles the actual
+   screen rectangles even where an opener's argument convention is ambiguous.
+   Dynamic list contents and animation-time window lifetimes still need their
+   own tape captures.
 
 Also deliberately out of scope, by instruction: the pose-index-to-frame
 animation timeline. §3 gives the idle default and the swing trigger only.
