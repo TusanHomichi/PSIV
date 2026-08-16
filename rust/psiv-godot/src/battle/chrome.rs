@@ -6,6 +6,9 @@ use godot::prelude::*;
 
 use psiv_data::{DialogueSet, Role};
 
+const WINDOW_BASE_TILE: u16 = 0x680;
+const FONT_BASE_TILE: u16 = 0x7c0;
+
 #[derive(Clone, Copy)]
 pub(super) struct WindowRect {
     pub(super) x: f32,
@@ -33,6 +36,7 @@ pub(super) struct Quad {
 
 pub(super) struct BattleChrome {
     tiles: BTreeMap<&'static str, Gd<ImageTexture>>,
+    window_words: BTreeMap<(u16, bool, bool), Gd<ImageTexture>>,
     font: Gd<ImageTexture>,
     glyph_at: BTreeMap<char, Vector2>,
     glyph: Vector2,
@@ -74,6 +78,7 @@ impl BattleChrome {
                 Image::load_from_file(&GString::from(path.to_string_lossy().as_ref()))
             })?;
         let font = ImageTexture::create_from_image(&menu_image)?;
+        let window_words = retail_window_words(&strip)?;
         let glyph_at = retail_glyphs();
         let mut palette = [Color::BLACK; 16];
         for (index, rgb) in set.window.palette.colors.iter().take(16).enumerate() {
@@ -82,6 +87,7 @@ impl BattleChrome {
 
         Some(BattleChrome {
             tiles,
+            window_words,
             font,
             glyph_at,
             glyph: Vector2::new(8.0, 8.0),
@@ -95,6 +101,18 @@ impl BattleChrome {
     }
 
     pub(super) fn frame(&self, rect: WindowRect) -> Option<Vec<Quad>> {
+        self.frame_excluding(rect, &[])
+    }
+
+    /// Draws the retail nine-tile frame, omitting local cells occupied by a
+    /// plane-A special tile. The battle status strip is one 36x6 window with
+    /// four separator columns punched through it; five overlapping windows
+    /// cannot reproduce those decoded cells.
+    pub(super) fn frame_excluding(
+        &self,
+        rect: WindowRect,
+        excluded: &[(i32, i32)],
+    ) -> Option<Vec<Quad>> {
         let cols = (rect.w / self.cell).round() as i32;
         let rows = (rect.h / self.cell).round() as i32;
         if cols < 2 || rows < 2 {
@@ -108,7 +126,11 @@ impl BattleChrome {
             )
         };
         let src = Rect2::new(Vector2::ZERO, Vector2::new(self.cell, self.cell));
+        let is_excluded = |x: i32, y: i32| excluded.iter().any(|&(ex, ey)| ex == x && ey == y);
         let mut push = |name: &'static str, x: i32, y: i32| {
+            if is_excluded(x, y) {
+                return;
+            }
             if let Some(texture) = self.tile(name) {
                 quads.push(Quad {
                     texture,
@@ -138,8 +160,71 @@ impl BattleChrome {
         Some(quads)
     }
 
+    /// A decoded window-plane word, addressed by its retail VRAM pattern.
+    /// Battle cursor and status separator/label cells are window art, not
+    /// font glyphs, so drawing them from the atlas preserves every pixel and
+    /// the plane's flip bits.
+    pub(super) fn window_word(
+        &self,
+        pattern: u16,
+        flip_h: bool,
+        flip_v: bool,
+        dest: Rect2,
+    ) -> Option<Quad> {
+        Some(Quad {
+            texture: self.window_words.get(&(pattern, flip_h, flip_v))?.clone(),
+            dest,
+            src: Rect2::new(Vector2::ZERO, Vector2::new(self.cell, self.cell)),
+        })
+    }
+
+    /// A decoded menu-font word, addressed by the second VRAM load's base
+    /// (`0x7c0`). This is used for the status-strip colon, whose plane word is
+    /// `0x7f3`; regular text still goes through the character map below.
+    pub(super) fn font_word(&self, pattern: u16, dest: Rect2) -> Option<Quad> {
+        let index = pattern.checked_sub(FONT_BASE_TILE)? as i32;
+        let columns = (self.font.get_width() / self.cell as i32).max(1);
+        let source = Vector2::new(
+            (index % columns) as f32 * self.cell,
+            (index / columns) as f32 * self.cell,
+        );
+        Some(Quad {
+            texture: self.font.clone(),
+            dest,
+            src: Rect2::new(source, Vector2::new(self.cell, self.cell)),
+        })
+    }
+
     pub(super) fn text(&self, text: &str, rect: WindowRect) -> Vec<Quad> {
         self.text_with_pitch(text, rect, self.glyph.y)
+    }
+
+    /// The battle status routine uses the second, wider number run in
+    /// `ArtNem_Font`: source cells 36..45, VRAM patterns `0x7e4..0x7ed`.
+    /// It is distinct from the window-charset digit bytes used by ordinary
+    /// menu/name strings.
+    pub(super) fn battle_number(&self, text: &str, rect: WindowRect) -> Vec<Quad> {
+        let mut quads = Vec::new();
+        for (col, ch) in text.chars().enumerate() {
+            let Some(digit) = ch.to_digit(10) else {
+                continue;
+            };
+            let index = 36 + digit as i32;
+            let columns = (self.font.get_width() / self.cell as i32).max(1);
+            let source = Vector2::new(
+                (index % columns) as f32 * self.cell,
+                (index / columns) as f32 * self.cell,
+            );
+            quads.push(Quad {
+                texture: self.font.clone(),
+                dest: Rect2::new(
+                    Vector2::new(rect.x + col as f32 * self.glyph.x, rect.y),
+                    self.glyph,
+                ),
+                src: Rect2::new(source, self.glyph),
+            });
+        }
+        quads
     }
 
     pub(super) fn text_with_pitch(
@@ -169,19 +254,29 @@ impl BattleChrome {
             if row >= rows {
                 break;
             }
+            let dest = Rect2::new(
+                Vector2::new(
+                    rect.x + col as f32 * self.glyph.x,
+                    rect.y + row as f32 * line_pitch,
+                ),
+                self.glyph,
+            );
+            // `oracle/layouts/battle_command_idle.json` decodes the space in
+            // `ZORAN BULT` as window pattern 0x680, not font cell 0 (A).
+            if ch == ' ' {
+                if let Some(quad) = self.window_word(0x680, false, false, dest) {
+                    quads.push(quad);
+                }
+                col += 1;
+                continue;
+            }
             let Some(source) = self.glyph_at.get(&ch).or_else(|| self.glyph_at.get(&'?')) else {
                 col += 1;
                 continue;
             };
             quads.push(Quad {
                 texture: self.font.clone(),
-                dest: Rect2::new(
-                    Vector2::new(
-                        rect.x + col as f32 * self.glyph.x,
-                        rect.y + row as f32 * line_pitch,
-                    ),
-                    self.glyph,
-                ),
+                dest,
                 src: Rect2::new(*source, self.glyph),
             });
             col += 1;
@@ -199,28 +294,30 @@ fn retail_glyphs() -> BTreeMap<char, Vector2> {
         );
     }
     for (index, ch) in ('0'..='9').enumerate() {
-        let index = index + 27;
+        // The window charset stores digits at byte values 27..36; the PNG
+        // starts at the font's loaded tile 0x681, so source cells are 26..35.
+        let index = index + 26;
         glyphs.insert(
             ch,
             Vector2::new((index % 16) as f32 * 8.0, (index / 16) as f32 * 8.0),
         );
     }
     for (index, ch) in ('a'..='z').enumerate() {
-        let index = index + 57;
+        let index = index + 56;
         glyphs.insert(
             ch,
             Vector2::new((index % 16) as f32 * 8.0, (index / 16) as f32 * 8.0),
         );
     }
     for (index, ch) in [
-        (0, ' '),
-        (49, '-'),
-        (50, '!'),
-        (51, '?'),
-        (52, ':'),
-        (83, '.'),
-        (84, '\''),
-        (85, ','),
+        (48, '-'),
+        (49, '!'),
+        (50, '?'),
+        (51, ':'),
+        (52, ','),
+        (53, '.'),
+        (54, '<'),
+        (55, '>'),
     ] {
         glyphs.insert(
             ch,
@@ -228,6 +325,35 @@ fn retail_glyphs() -> BTreeMap<char, Vector2> {
         );
     }
     glyphs
+}
+
+fn retail_window_words(strip: &Gd<Image>) -> Option<BTreeMap<(u16, bool, bool), Gd<ImageTexture>>> {
+    // These are the non-role window patterns observed in the decoded battle
+    // planes: the 0x680 space/fill, selected/disabled cursor, separator
+    // top/middle/bottom, and the HP/TP label glyphs. The source PNG is the
+    // `0x680` window-tile load.
+    const PATTERNS: [u16; 8] = [0x680, 0x6e7, 0x6e8, 0x6f4, 0x6f5, 0x6f8, 0x6f9, 0x6fa];
+    let mut words = BTreeMap::new();
+    for pattern in PATTERNS {
+        let index = i32::from(pattern - WINDOW_BASE_TILE);
+        for flip_h in [false, true] {
+            for flip_v in [false, true] {
+                let region = Rect2i::new(Vector2i::new(index * 8, 0), Vector2i::new(8, 8));
+                let mut cell = strip.get_region(region)?;
+                if flip_h {
+                    cell.flip_x();
+                }
+                if flip_v {
+                    cell.flip_y();
+                }
+                words.insert(
+                    (pattern, flip_h, flip_v),
+                    ImageTexture::create_from_image(&cell)?,
+                );
+            }
+        }
+    }
+    Some(words)
 }
 
 fn load_image(pack_dir: &str, name: &str) -> Option<Gd<Image>> {

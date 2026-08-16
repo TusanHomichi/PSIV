@@ -6,6 +6,7 @@
 
 mod art;
 mod chrome;
+mod layout;
 mod timeline;
 mod ui;
 
@@ -50,6 +51,12 @@ pub(crate) struct EnemyPlacement {
     pub(crate) position: u8,
     pub(crate) name: String,
 }
+
+/// `oracle/layouts/battle_command_idle.json`: the two six-cell enemy body
+/// runs start at plane columns 11 and 23. `enemy_sprite_origin` consumes the
+/// retail position byte as the bottom-right column, so those decoded origins
+/// are position bytes 17 and 29.
+const ORACLE_ENEMY_POSITIONS: [u8; 2] = [17, 29];
 
 pub(super) struct FieldVisibility {
     map: bool,
@@ -116,6 +123,58 @@ impl Field {
             }
         };
         self.begin_battle_presentation(setup, events, &format!("formation {formation:#05x}"));
+    }
+
+    /// Presents the command-idle oracle fixture used by the visual loop.
+    /// `PSIV_DEBUG_BATTLE=0x88` is intentionally a capture selector, not a
+    /// raw formation id: the retail frame is tape 07's post-opening party
+    /// (Chaz/Alys/Hahn) against two Zoran Bults on the Academy Basement art.
+    /// No runtime round is started, so this path cannot mutate game state.
+    pub(crate) fn start_oracle_debug_battle(&mut self) {
+        let setup = BattleSetup {
+            map_id: 0x17,
+            event_battle: Some(0),
+            motavia_terrain: None,
+            dark_force_2: false,
+            party: vec![
+                PartyPlacement {
+                    fighter_id: 1,
+                    character: 0,
+                    name: "Chaz".into(),
+                    hp: 25,
+                    tp: 10,
+                },
+                PartyPlacement {
+                    fighter_id: 2,
+                    character: 1,
+                    name: "Alys".into(),
+                    hp: 53,
+                    tp: 40,
+                },
+                PartyPlacement {
+                    fighter_id: 3,
+                    character: 2,
+                    name: "Hahn".into(),
+                    hp: 21,
+                    tp: 25,
+                },
+            ],
+            enemies: vec![
+                EnemyPlacement {
+                    fighter_id: 6,
+                    enemy_id: 10,
+                    position: ORACLE_ENEMY_POSITIONS[0],
+                    name: "ZORAN BULT".into(),
+                },
+                EnemyPlacement {
+                    fighter_id: 7,
+                    enemy_id: 10,
+                    position: ORACLE_ENEMY_POSITIONS[1],
+                    name: "ZORAN BULT".into(),
+                },
+            ],
+        };
+        self.begin_battle_presentation(setup, Vec::new(), "oracle tape-07 command idle");
     }
 
     /// Starts a boss battle emitted by a running scene. Runtime owns the

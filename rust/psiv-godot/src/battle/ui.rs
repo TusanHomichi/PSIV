@@ -15,6 +15,7 @@ use psiv_data::DialogueSet;
 
 use super::art::BattleArt;
 use super::chrome::{BattleChrome, WindowRect};
+use super::layout::{append_status_quads, tile_dest};
 use super::timeline::{self, Beat};
 use super::{BattleSetup, EnemyPlacement, PartyPlacement};
 
@@ -24,7 +25,7 @@ use super::{BattleSetup, EnemyPlacement, PartyPlacement};
 pub(crate) const BATTLE_DWELL_FRAMES: u16 = 36;
 
 /// Plane cells are 8x8 pixels, per `docs/BATTLE_GEOMETRY.md` §1.
-const BATTLE_CELL_PIXELS: i32 = 8;
+pub(super) const BATTLE_CELL_PIXELS: i32 = 8;
 
 /// Party columns in fighter-id order. The retail layout is center-out, so the
 /// visible order is slot 4, 2, 1, 3, 5. These are the §3 table verbatim.
@@ -48,19 +49,63 @@ pub(crate) const BATTLE_FRAME_HEIGHT: f32 = 224.0;
 const BATTLE_BACKGROUND_WIDTH: i32 = 512;
 const BATTLE_BACKGROUND_HEIGHT: i32 = 192;
 
-/// Retail command-idle geometry measured from `oracle/frames/frame_25000.png`.
-const ENEMY_NAME_RECT: WindowRect = WindowRect {
+/// `oracle/layouts/battle_command_idle.json`: `planes.plane_a.chrome_rectangles`
+/// entry `kind=enemy_name_window`, `pixel_rect`.
+pub(super) const ENEMY_NAME_RECT: WindowRect = WindowRect {
     x: 16.0,
     y: 8.0,
     w: 96.0,
     h: 24.0,
 };
-const COMMAND_RECT: WindowRect = WindowRect {
+/// `oracle/layouts/battle_command_idle.json`: `planes.plane_a.text_runs` run
+/// `text=ZORAN BULT`, cell `(3,2)`, pixel `(24,16)`. The same interior origin
+/// is used for the runtime enemy name in every command-idle/return capture.
+pub(super) const ENEMY_NAME_TEXT_RECT: WindowRect = WindowRect {
+    x: 24.0,
+    y: 16.0,
+    w: 80.0,
+    h: 8.0,
+};
+
+/// `oracle/layouts/battle_command_idle.json`: `planes.plane_a.chrome_rectangles`
+/// entry `kind=command_window`, `pixel_rect`.
+pub(super) const COMMAND_RECT: WindowRect = WindowRect {
     x: 24.0,
     y: 40.0,
     w: 64.0,
     h: 56.0,
 };
+/// `oracle/layouts/battle_command_idle.json`: `planes.plane_a.text_runs` runs
+/// `COMD`, `MACR`, and `RUN`, beginning at cell `(6,6)` / pixel `(48,48)`;
+/// the decoded line pitch is 16 pixels.
+pub(super) const COMMAND_TEXT_RECT: WindowRect = WindowRect {
+    x: 48.0,
+    y: 48.0,
+    w: 40.0,
+    h: 48.0,
+};
+
+/// `oracle/layouts/battle_victory.json`: `planes.plane_a.chrome_rectangles`
+/// entry `kind=victory_window`, `pixel_rect`.
+pub(super) const VICTORY_RECT: WindowRect = WindowRect {
+    x: 80.0,
+    y: 128.0,
+    w: 160.0,
+    h: 40.0,
+};
+/// `oracle/layouts/battle_victory.json`: `planes.plane_a.text_runs` run
+/// `Victory!`, cell `(11,17)` / pixel `(88,136)`.
+pub(super) const VICTORY_TEXT_RECT: WindowRect = WindowRect {
+    x: 88.0,
+    y: 136.0,
+    w: 144.0,
+    h: 8.0,
+};
+
+/// The transient and wide message rectangles are retained for non-capture
+/// event narration. Their placements are the corresponding records in
+/// `docs/BATTLE_GEOMETRY.md`; attack/followup captures deliberately contain no
+/// message rectangle and therefore suppress these during those beats.
 const TRANSIENT_MESSAGE_RECT: WindowRect = WindowRect {
     x: 88.0,
     y: 144.0,
@@ -73,15 +118,35 @@ const WIDE_MESSAGE_RECT: WindowRect = WindowRect {
     w: 160.0,
     h: 40.0,
 };
-const STATUS_Y: f32 = 168.0;
-const STATUS_PANE_W: f32 = 64.0;
-const STATUS_PANE_STEP: f32 = 56.0;
+/// `oracle/layouts/battle_command_idle.json`: `planes.plane_a.chrome_rectangles`
+/// entry `kind=status_strip`, `pixel_rect`.
+pub(super) const STATUS_RECT: WindowRect = WindowRect {
+    x: 16.0,
+    y: 168.0,
+    w: 288.0,
+    h: 48.0,
+};
+/// `oracle/layouts/battle_command_idle.json`: `planes.plane_a.chrome_rectangles`
+/// `status_strip.interior` begins at cell `(3,22)` and the decoded tile runs
+/// place pane starts at cells 2, 9, 16, 23, and 30 (56-pixel pitch).
+pub(super) const STATUS_PANE_START_CELLS: [i32; 5] = [2, 9, 16, 23, 30];
+pub(super) const STATUS_NAME_Y: f32 = 176.0;
+pub(super) const STATUS_HP_Y: f32 = 192.0;
+pub(super) const STATUS_TP_Y: f32 = 200.0;
+
+/// `oracle/layouts/battle_command_idle.json`: selected/disabled command cursor
+/// tile runs at row 6/8/10, local command cell x=1 (screen x=32).
+const COMMAND_CURSOR_WORDS: [u16; 3] = [0x6e8, 0x6e7, 0x6e7];
+/// `oracle/layouts/battle_command_idle.json`: separator special cells at
+/// global columns 9,16,23,30, rows 21..26, with patterns 0x6f4/0x6f5 and the
+/// bottom vertical flip. These holes belong to one status window, not five.
+pub(super) const STATUS_SEPARATOR_COLUMNS: [i32; 4] = [9, 16, 23, 30];
 
 /// Converts the formation position byte and the art record's dimensions into
 /// the sprite's top-left pixel. `docs/BATTLE_GEOMETRY.md` §2 makes the byte the
 /// art's bottom-right column, not its left edge; both axes use the 8-pixel
 /// plane cell.
-fn enemy_sprite_origin(position: u8, width_cells: u16, height_cells: u16) -> (i32, i32) {
+pub(super) fn enemy_sprite_origin(position: u8, width_cells: u16, height_cells: u16) -> (i32, i32) {
     let column = i32::from(position & 0x7F);
     (
         (column - i32::from(width_cells)) * BATTLE_CELL_PIXELS,
@@ -127,12 +192,12 @@ enum MessageKind {
 }
 
 #[derive(Clone)]
-struct PartyStatus {
-    fighter: u8,
-    character: u8,
-    name: String,
-    hp: u16,
-    tp: u16,
+pub(super) struct PartyStatus {
+    pub(super) fighter: u8,
+    pub(super) character: u8,
+    pub(super) name: String,
+    pub(super) hp: u16,
+    pub(super) tp: u16,
 }
 
 /// The battle presentation node owned by [`super::super::Field`].
@@ -223,23 +288,19 @@ impl INode2D for BattleScreen {
             && let Some(frame) = chrome.frame(ENEMY_NAME_RECT)
         {
             quads.extend(frame);
-            let name = self.names.values().next().map_or("", String::as_str);
-            quads.extend(chrome.text(name, ENEMY_NAME_RECT.inset(cell)));
+            let name = self
+                .enemy_positions
+                .keys()
+                .next()
+                .and_then(|fighter| self.names.get(fighter))
+                .map_or("", String::as_str);
+            quads.extend(chrome.text(name, ENEMY_NAME_TEXT_RECT));
         }
         if self.command_open
             && let Some(frame) = chrome.frame(COMMAND_RECT)
         {
             quads.extend(frame);
-            quads.extend(chrome.text_with_pitch(
-                "COMD\nMACR\nRUN",
-                WindowRect {
-                    x: 48.0,
-                    y: 48.0,
-                    w: 40.0,
-                    h: 48.0,
-                },
-                16.0,
-            ));
+            quads.extend(chrome.text_with_pitch("COMD\nMACR\nRUN", COMMAND_TEXT_RECT, 16.0));
         }
         if self.message_kind != MessageKind::None && !self.message.is_empty() {
             let rect = match self.message_kind {
@@ -247,89 +308,22 @@ impl INode2D for BattleScreen {
                 MessageKind::Wide => WIDE_MESSAGE_RECT,
                 MessageKind::None => unreachable!(),
             };
-            if let Some(frame) = chrome.frame(rect) {
-                quads.extend(frame);
-                quads.extend(chrome.text(&self.message, rect.inset(cell)));
-            }
-        }
-        for pane in 0..5 {
-            let rect = WindowRect {
-                x: 16.0 + pane as f32 * STATUS_PANE_STEP,
-                y: STATUS_Y,
-                w: STATUS_PANE_W,
-                h: 48.0,
+            let text_rect = if self.message == "Victory!" {
+                VICTORY_TEXT_RECT
+            } else {
+                rect.inset(cell)
             };
-            if let Some(frame) = chrome.frame(rect) {
+            let frame_rect = if self.message == "Victory!" {
+                VICTORY_RECT
+            } else {
+                rect
+            };
+            if let Some(frame) = chrome.frame(frame_rect) {
                 quads.extend(frame);
-            }
-            let x = rect.x + cell;
-            if pane == 0 || pane == 4 {
-                quads.extend(chrome.text(
-                    "HP:",
-                    WindowRect {
-                        x,
-                        y: 192.0,
-                        w: 24.0,
-                        h: 8.0,
-                    },
-                ));
-                quads.extend(chrome.text(
-                    "TP:",
-                    WindowRect {
-                        x,
-                        y: 200.0,
-                        w: 24.0,
-                        h: 8.0,
-                    },
-                ));
-            } else if let Some(member) = self.party_status.get(pane - 1) {
-                quads.extend(chrome.text(
-                    &member.name,
-                    WindowRect {
-                        x,
-                        y: 176.0,
-                        w: 32.0,
-                        h: 8.0,
-                    },
-                ));
-                quads.extend(chrome.text(
-                    "HP:",
-                    WindowRect {
-                        x,
-                        y: 192.0,
-                        w: 24.0,
-                        h: 8.0,
-                    },
-                ));
-                quads.extend(chrome.text(
-                    &member.hp.to_string(),
-                    WindowRect {
-                        x: x + 32.0,
-                        y: 192.0,
-                        w: 24.0,
-                        h: 8.0,
-                    },
-                ));
-                quads.extend(chrome.text(
-                    "TP:",
-                    WindowRect {
-                        x,
-                        y: 200.0,
-                        w: 24.0,
-                        h: 8.0,
-                    },
-                ));
-                quads.extend(chrome.text(
-                    &member.tp.to_string(),
-                    WindowRect {
-                        x: x + 32.0,
-                        y: 200.0,
-                        w: 24.0,
-                        h: 8.0,
-                    },
-                ));
+                quads.extend(chrome.text(&self.message, text_rect));
             }
         }
+        append_status_quads(chrome, &self.party_status, &mut quads);
         if let Some(damage) = self.damage
             && let Some(column) = self.damage_column(damage.target)
         {
@@ -352,18 +346,20 @@ impl INode2D for BattleScreen {
             };
             quads.extend(chrome.text(&label, rect));
         }
+        if self.command_open {
+            for (row, pattern) in COMMAND_CURSOR_WORDS.into_iter().enumerate() {
+                if let Some(quad) =
+                    chrome.window_word(pattern, false, false, tile_dest(4, 6 + row as i32 * 2))
+                {
+                    // `0x6e8` is selected COMD; `0x6e7` is the retail blue
+                    // disabled/unselected form for MACR and RUN.
+                    quads.push(quad);
+                }
+            }
+        }
         for quad in quads {
             self.base_mut()
                 .draw_texture_rect_region(&quad.texture, quad.dest, quad.src);
-        }
-        if self.command_open {
-            for row in 0..3 {
-                self.draw_bullet(
-                    Vector2::new(32.0, 48.0 + row as f32 * 16.0),
-                    row == self.cursor,
-                    palette,
-                );
-            }
         }
         self.draw_status_icons(palette);
     }
@@ -398,19 +394,6 @@ impl BattleScreen {
                 self.draw_pixel(origin.x + column as f32, origin.y + row as f32, color);
             }
         }
-    }
-
-    fn draw_bullet(&mut self, origin: Vector2, selected: bool, palette: [Color; 16]) {
-        const SELECTED: [&str; 8] = [
-            "BLLLLLLB", "LRRRRRRL", "LRYYPRRL", "LRYPPRRL", "LRPPPRRL", "LRRRRRRL", "LRRRRRRL",
-            "BLLLLLLB",
-        ];
-        const DISABLED: [&str; 8] = [
-            "BLLLLLLB", "LBBBBBBL", "LBBBBBBL", "LBBBBBBL", "LBBBBBBL", "LBBBBBBL", "LBBBBBBL",
-            "BLLLLLLB",
-        ];
-        let rows = if selected { &SELECTED } else { &DISABLED };
-        self.draw_pattern(origin, rows, palette);
     }
 
     fn draw_status_icons(&mut self, palette: [Color; 16]) {
@@ -450,10 +433,16 @@ impl BattleScreen {
             "WKKKKKKKKKKKKKKW",
             "BWWWWWWWWWWWWWWB",
         ];
-        for pane in 0..5 {
+        for (pane, start) in STATUS_PANE_START_CELLS.iter().copied().enumerate() {
             let member = pane > 0 && pane < 4 && self.party_status.get(pane - 1).is_some();
             if pane == 0 || pane == 4 || member {
-                let origin = Vector2::new(16.0 + pane as f32 * STATUS_PANE_STEP + 40.0, 176.0);
+                // `oracle/layouts/battle_command_idle.json` places the outer
+                // icon words at cells 7/8 and the party icon words at
+                // 14/15, 21/22, and 28/29; all are 16x16 at row 22.
+                let origin = Vector2::new(
+                    (start + 5) as f32 * BATTLE_CELL_PIXELS as f32,
+                    STATUS_NAME_Y,
+                );
                 self.draw_pattern(origin, if member { &QUESTION } else { &BLANK }, palette);
             }
         }
@@ -817,9 +806,12 @@ impl BattleScreen {
         self.message_kind = match narration.beat {
             Beat::Start => MessageKind::None,
             Beat::End(_) | Beat::Reward | Beat::LevelUp => MessageKind::Wide,
-            Beat::None | Beat::Attack(_) | Beat::Damage { .. } | Beat::Hide(_) => {
-                MessageKind::Transient
-            }
+            // `oracle/layouts/battle_attack_effect.json` and
+            // `battle_followup.json` decode only the status strip during the
+            // attack/effect interval. The retail transient message is absent
+            // there, so these beats carry narration for logs but no window.
+            Beat::Attack(_) | Beat::Damage { .. } | Beat::Hide(_) => MessageKind::None,
+            Beat::None => MessageKind::Transient,
         };
         self.damage = None;
         self.restore_party_pose();
