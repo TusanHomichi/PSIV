@@ -202,9 +202,10 @@ def window_json_document(
     palette: Sequence[tuple[int, int, int]],
     art: dict[str, Any],
     image: bytes,
+    scroll_arrow: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     box = check_window_fits_the_text(records)
-    return {
+    document = {
         "format_version": DIALOGUE_FORMAT_VERSION,
         "kind": "dialogue_window",
         "png": WINDOW_PNG_NAME,
@@ -304,10 +305,16 @@ def window_json_document(
             ),
         },
     }
+    if scroll_arrow is not None:
+        document["scroll_arrow"] = scroll_arrow
+    return document
 
 
 def emit_window(
-    rom: bytes, root: Path, palette: Sequence[tuple[int, int, int]]
+    rom: bytes,
+    root: Path,
+    palette: Sequence[tuple[int, int, int]],
+    scroll_arrow: dict[str, Any] | None = None,
 ) -> tuple[dict[str, Any], bytes]:
     """Write `window.png` and build `window.json`."""
     decompressed, art = decompress_art(
@@ -323,6 +330,7 @@ def emit_window(
     width, height, pixels = compose_sheet(tiles, len(tiles))
     image = png.encode_indexed(width, height, pixels, list(palette))
     (root / WINDOW_PNG_NAME).write_bytes(image)
-    document = window_json_document(rom, window_records(rom), palette, art, image)
+    document = window_json_document(
+        rom, window_records(rom), palette, art, image, scroll_arrow
+    )
     return document, image
-

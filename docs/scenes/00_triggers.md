@@ -133,6 +133,7 @@ event index directly — it indexes the word table
 $64F22: 0000 0029 002D 0035 0036 0039 003A 0042   ; params $00-$07
         0008 0066 801E 006B 006C 006D 006E 006F   ; params $08-$0F
         0000 0000 0000 0013 0000 0000 0000 0000   ; params $10-$17
+        0000 0000 0000 001B 001C 0000 0000 0000   ; params $18-$1F
 ```
 
 Bit 15 set means a cutscene index; clear means a plain `Event_Index`.

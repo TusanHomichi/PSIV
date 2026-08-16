@@ -43,6 +43,13 @@ from psiv_tools.battle_art import (
     extract_battle_art,
     verify_ui_colors,
 )
+from psiv_tools.battle_enemy_overlays import (
+    ENEMY_SPRITE_ANIMATE_OFFSET,
+    ENEMY_SPRITE_ANIMATE_SIGNATURE,
+    ENEMY_SPRITE_MAPPING_TABLE,
+    ZORAN_MAPPING_OFFSET,
+    extract_enemy_overlays,
+)
 from psiv_tools.core import read_rom
 from psiv_tools.enigma import decompress as enigma_decompress
 from psiv_tools.nemesis import TILE_SIZE
@@ -269,6 +276,50 @@ class TestBattleArtFromRom(unittest.TestCase):
         self.assertEqual(len(incomplete), ENEMY_COUNT - 84)
         for entry in self.enemies["enemies"]:
             self.assertLessEqual(entry["patterns_used"], entry["bank_patterns"])
+
+    # -- dynamic tile overlays --------------------------------------------
+    def test_overlay_table_and_animation_routine_are_retail_pinned(self):
+        overlay = self.enemies["overlay"]
+        self.assertEqual(overlay["table"]["label"], "EnemySpriteMappingsOffs")
+        self.assertEqual(overlay["table"]["rom_offset"], "0x010FCE")
+        self.assertEqual(overlay["table"]["entry_count"], ENEMY_COUNT)
+        self.assertEqual(overlay["provenance"]["animation_routine"]["rom_offset"],
+                         f"0x{ENEMY_SPRITE_ANIMATE_OFFSET:06X}")
+        self.assertEqual(
+            bytes.fromhex(overlay["provenance"]["animation_routine"]["signature"]),
+            ENEMY_SPRITE_ANIMATE_SIGNATURE,
+        )
+
+    def test_zoran_bult_piece_sets_carry_offsets_sources_flips_and_cadence(self):
+        zoran = self.by_symbol["ZoranBult"]["overlay"]
+        self.assertEqual(zoran["mapping_block_rom_offset"], f"0x{ZORAN_MAPPING_OFFSET:06X}")
+        self.assertEqual(zoran["piece_count"], 3)
+        pieces = zoran["pieces"]
+        self.assertEqual(
+            [(p["destination_tile"], p["tile_count"]) for p in pieces],
+            [(17, 2), (13, 4), (4, 9)],
+        )
+        self.assertEqual([p["source_patterns"] for p in pieces], [[43, 41, 39, 41], [27, 31, 35], [0, 9, 18]])
+        self.assertEqual([p["cadence"] for p in pieces], [8, 4, None])
+        self.assertEqual(pieces[0]["offset_pixels"], [16, 32])
+        self.assertEqual(pieces[0]["size_pixels"], [8, 16])
+        self.assertEqual(
+            {(p["flip_h"], p["flip_v"]) for piece in pieces for p in piece["placements"]},
+            {(False, False), (True, False)},
+        )
+
+    def test_overlay_coverage_census_is_explicit(self):
+        coverage = self.enemies["overlay"]["coverage"]
+        self.assertEqual(coverage["holed_enemy_count"], 69)
+        self.assertEqual(len(coverage["holed_enemies_fully_covered_by_destination"]), 59)
+        self.assertEqual(coverage["total_body_holes"], 303)
+        self.assertEqual(coverage["total_holes_covered_by_destination"], 216)
+
+    def test_overlay_decoder_fails_closed_on_a_drifted_table(self):
+        broken = bytearray(self.data)
+        broken[ENEMY_SPRITE_MAPPING_TABLE["rom_offset"]] ^= 1
+        with self.assertRaises(BattleArtError):
+            extract_enemy_overlays(bytes(broken))
 
     # -- pins --------------------------------------------------------------
     def test_pinned_enemies(self):

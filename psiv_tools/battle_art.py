@@ -1,9 +1,11 @@
 """Battle presentation art: enemy sprites and character battle poses.
 
-Battle actors are not hardware sprites. Both enemies and party members are
-composed into plane buffers and drawn with `PlaneMapToRAM`, so the pipeline is
-the one `psiv_tools.planes` already models: a tile bank, a grid of pattern-name
-words, and a CRAM line.
+Static enemy bodies and party members are composed into plane buffers and drawn
+with `PlaneMapToRAM`, so that base pipeline is the one `psiv_tools.planes`
+already models: a tile bank, a grid of pattern-name words, and a CRAM line.
+Enemy animation pieces are separately managed by the retail `Enemy_Sprites`
+path and emitted by `psiv_tools.battle_enemy_overlays` as dynamic tile
+replacements over that body.
 
 ## Enemies
 
@@ -12,13 +14,13 @@ Three parallel tables, all indexed by `fighter_id` (= the 0-based enemy id, so
 
     loc_27F3AE   20 bytes  the graphics record (below)
     loc_27FFA2   22 bytes  eleven palette words
-    EnemySpriteMappingsOffs  the animation piece lists (not decoded here)
+    EnemySpriteMappingsOffs  the dynamic tile-replacement piece lists
 
 The graphics record is:
 
     +$00 word  VRAM allocation, in patterns
     +$02 long  ArtNem #1, decompressed to VRAM by `loc_7BFA`
-    +$06 long  ArtNem #2, decompressed to RAM
+    +$06 long  ArtNem #2, decompressed to RAM and used by the piece lists
     +$0A long  ArtNem #3, decompressed to RAM for the sprite-piece system
     +$0E long  the body plane mapping, Enigma
     +$12 byte  half-width in cells
@@ -50,11 +52,11 @@ Two enemies -- ProfoundDarkness2 and ProfoundDarkness3 -- do not have an
 Enigma stream in the +$0E field at all. See `RAW_MAPPING_ENEMY_IDS`.
 
 The body mapping is not the whole enemy. `loc_7C56` walks
-`EnemySpriteMappingsOffs` into per-enemy piece lists that overlay hardware
-sprites, animated from art #2, on top of the plane-drawn body. This module
-decodes the body only, so 69 of the 153 enemies compose with some cells still
-empty; `body_holes` counts them per enemy rather than hiding them. Decoding
-the piece lists is the animation slice's job, not this one's.
+`EnemySpriteMappingsOffs` into per-enemy dynamic tile replacements, animated
+from Art #2 and copied into the Art #3 staging bank. The overlay decoder lives
+in `psiv_tools.battle_enemy_overlays`; this module attaches its strict,
+metadata-only result to each enemy so the body census and the replacement
+census cannot drift apart.
 
 ## Characters
 
@@ -578,6 +580,19 @@ def extract_enemy_art(data: bytes) -> dict[str, Any]:
             },
         })
 
+    # Keep the body and dynamic-tile censuses in one extraction result.  The
+    # import is local because the overlay module reuses this module's body
+    # decoders; at call time this module is fully initialized.
+    from .battle_enemy_overlays import decode_enemy_overlay_records, overlay_payload
+
+    overlay_provenance, overlay_records = decode_enemy_overlay_records(
+        data, records, bounds
+    )
+    overlay = overlay_payload(overlay_provenance, overlay_records)
+    overlays_by_id = {entry["id"]: entry for entry in overlay["enemies"]}
+    for entry in entries:
+        entry["overlay"] = overlays_by_id[entry["id"]]
+
     return {
         "art_table": {
             "label": ENEMY_ART_TABLE["label"],
@@ -600,6 +615,14 @@ def extract_enemy_art(data: bytes) -> dict[str, Any]:
         "art_bank_order": [f + 1 for f in ENEMY_ART_BANK_ORDER],
         "bodies_complete": sum(1 for e in entries if e["body_complete"]),
         "total_body_holes": sum(e["body_holes"] for e in entries),
+        "overlay": {
+            "table": overlay["table"],
+            "provenance": overlay["provenance"],
+            "coverage": overlay["coverage"],
+            "piece_count": overlay["piece_count"],
+            "enabled_piece_count": overlay["enabled_piece_count"],
+            "distinct_mapping_blocks": overlay["distinct_mapping_blocks"],
+        },
         "enemies": entries,
     }
 

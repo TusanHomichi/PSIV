@@ -14,11 +14,16 @@ use godot::classes::{Image, ImageTexture, image::Format};
 use godot::prelude::*;
 use serde::Deserialize;
 
+use super::enemy_overlay::{
+    AnimationPiece, EnemyAnimation, EnemyOverlayFile, EnemyOverlayFileEntry,
+};
+
 /// Parsed battle art, with no Godot objects retained between battles.
 pub(crate) struct BattleArt {
     enemies: BTreeMap<u16, EnemyArt>,
     characters: BTreeMap<u8, CharacterArt>,
     backgrounds: BTreeMap<u8, String>,
+    enemy_overlays: BTreeMap<u16, EnemyOverlayFileEntry>,
     background_tables: BackgroundTables,
     enemy_palette: EnemyPaletteLayout,
 }
@@ -148,6 +153,7 @@ fn parse_word(text: &str) -> Result<u16, String> {
 impl BattleArt {
     pub(crate) fn load(pack_dir: &str) -> Result<BattleArt, String> {
         let enemy_file: EnemyFile = read_json(pack_dir, "battle/art/enemies.json")?;
+        let overlay_file: EnemyOverlayFile = read_json(pack_dir, "battle/art/enemy_overlays.json")?;
         let character_file: CharacterFile = read_json(pack_dir, "battle/art/characters.json")?;
         let background_file: BackgroundFile = read_json(pack_dir, "battle/art/backgrounds.json")?;
 
@@ -193,6 +199,12 @@ impl BattleArt {
             })
             .collect();
 
+        let enemy_overlays = overlay_file
+            .enemies
+            .into_iter()
+            .map(|entry| (entry.id, entry))
+            .collect();
+
         let EnemyPaletteFileLayout {
             first_table_index,
             fixed_colors: fixed_color_words,
@@ -226,6 +238,7 @@ impl BattleArt {
                 .into_iter()
                 .map(|entry| (entry.index, entry.png))
                 .collect(),
+            enemy_overlays,
             background_tables: BackgroundTables {
                 event_battle: background_file.selection.event_battle.indexes,
                 field_map: background_file.selection.field_map.indexes,
@@ -276,10 +289,63 @@ impl BattleArt {
         position: u8,
     ) -> Option<Gd<ImageTexture>> {
         let art = self.enemies.get(&enemy_id)?;
+        let image = self.enemy_image(pack_dir, art, &art.png, position)?;
+        ImageTexture::create_from_image(&image)
+    }
+
+    pub(crate) fn enemy_animation(
+        &self,
+        pack_dir: &str,
+        enemy_id: u16,
+        position: u8,
+    ) -> Option<EnemyAnimation> {
+        let art = self.enemies.get(&enemy_id)?;
+        let overlay = self.enemy_overlays.get(&enemy_id)?;
+        let base = self.enemy_image(pack_dir, art, &art.png, position)?;
+        let mut pieces = Vec::new();
+        for piece in &overlay.pieces {
+            if !piece.enabled || piece.placements.is_empty() {
+                continue;
+            }
+            let Some(initial_path) = piece.initial_png.as_ref() else {
+                godot_error!("battle enemy {enemy_id} overlay piece has no initial frame");
+                return None;
+            };
+            if piece.frames.len() != piece.durations.len() || piece.frames.is_empty() {
+                godot_error!(
+                    "battle enemy {enemy_id} overlay piece has {} frames and {} durations",
+                    piece.frames.len(),
+                    piece.durations.len()
+                );
+                return None;
+            }
+            let initial = self.enemy_image(pack_dir, art, initial_path, position)?;
+            let frames = piece
+                .frames
+                .iter()
+                .map(|frame| self.enemy_image(pack_dir, art, &frame.png, position))
+                .collect::<Option<Vec<_>>>()?;
+            pieces.push(AnimationPiece {
+                initial,
+                frames,
+                durations: piece.durations.clone(),
+                placements: piece.placements.clone(),
+            });
+        }
+        EnemyAnimation::new(base, pieces)
+    }
+
+    fn enemy_image(
+        &self,
+        pack_dir: &str,
+        art: &EnemyArt,
+        relative_path: &str,
+        position: u8,
+    ) -> Option<Gd<Image>> {
         let line = enemy_cram_line(position);
         let palette = assemble_enemy_palette(&art.palette_words, line, &self.enemy_palette)?;
         let source_palette = assemble_enemy_palette(&art.palette_words, 1, &self.enemy_palette)?;
-        let path = format!("{pack_dir}/{}", art.png);
+        let path = format!("{pack_dir}/{relative_path}");
         let mut image = Image::load_from_file(&GString::from(path.as_str()))?;
         image.convert(Format::RGBA8);
 
@@ -300,11 +366,10 @@ impl BattleArt {
         }
         if unresolved {
             godot_error!(
-                "battle art: {} contains a pixel outside its declared CRAM palette",
-                art.png
+                "battle art: {relative_path} contains a pixel outside its declared CRAM palette"
             );
         }
-        ImageTexture::create_from_image(&image)
+        Some(image)
     }
 
     pub(crate) fn character_texture(

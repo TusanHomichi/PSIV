@@ -132,13 +132,19 @@ pub struct TreeWindow {
     pub scroll_arrow: ScrollArrow,
 }
 
-/// The scroll-arrow sprite's screen position.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+/// The scroll-arrow sprite's screen position and emitted art.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct ScrollArrow {
     /// Screen x, in Genesis pixels.
     pub screen_x: i32,
     /// Screen y, in Genesis pixels.
     pub screen_y: i32,
+    /// The extracted 2x1 hardware sprite, pack-root-relative.
+    pub png: String,
+    /// Sprite width in pixels: 16.
+    pub width: u32,
+    /// Sprite height in pixels: 8.
+    pub height: u32,
 }
 
 // ---------------------------------------------------------------------------

@@ -14,7 +14,13 @@ from typing import Any
 from .. import png
 from ..gfx import NEMESIS_ART, compose_sheet, decode_tiles, decompress_art
 from ..text import extract_dialogue
-from .art import emit_portraits, font_json, font_strip, glyph_bitmaps
+from .art import (
+    emit_portraits,
+    emit_scroll_arrow,
+    font_json,
+    font_strip,
+    glyph_bitmaps,
+)
 from .chrome import emit_window
 from .common import (
     DIALOGUE_DIRECTORY,
@@ -65,7 +71,8 @@ def emit_dialogue(rom_bytes: bytes, out_dir: str | Path) -> dict[str, Any]:
     font = font_json(rom_bytes, glyphs, palette, font_image)
     font_sha = write_json(root / FONT_JSON_NAME, font)
 
-    window, window_image = emit_window(rom_bytes, root, palette)
+    scroll_arrow = emit_scroll_arrow(rom_bytes, root, palette)
+    window, window_image = emit_window(rom_bytes, root, palette, scroll_arrow)
     window_sha = write_json(root / WINDOW_JSON_NAME, window)
 
     menu_spec = next(spec for spec in NEMESIS_ART if spec["label"] == "ArtNem_Font")
@@ -94,6 +101,7 @@ def emit_dialogue(rom_bytes: bytes, out_dir: str | Path) -> dict[str, Any]:
         for entry in entries:
             census.add_entry(tree["tree"], entry, entry["segments"], entry["pages"])
 
+    tree_window = window_json(scroll_arrow)
     payload = {
         "format_version": DIALOGUE_FORMAT_VERSION,
         "kind": "dialogue_trees",
@@ -101,7 +109,7 @@ def emit_dialogue(rom_bytes: bytes, out_dir: str | Path) -> dict[str, Any]:
         "tree_count": len(trees),
         "entry_count": decoded["total_entries"],
         "charset": "dialogue",
-        "window": window_json(),
+        "window": tree_window,
         "interaction": interaction_json(),
         "control_codes": {
             f"0x{code:02X}": {"ctrl": name, "note": CTRL_NOTES[code]}
@@ -143,6 +151,7 @@ def emit_dialogue(rom_bytes: bytes, out_dir: str | Path) -> dict[str, Any]:
                 name: role["tile"] for name, role in sorted(window["roles"].items())
             },
             "rect": window["text_window"]["rect"],
+            "scroll_arrow": scroll_arrow,
         },
         "menu_font": {
             "path": MENU_FONT_PNG_NAME,
@@ -157,7 +166,7 @@ def emit_dialogue(rom_bytes: bytes, out_dir: str | Path) -> dict[str, Any]:
             "distinct_art": portraits["distinct_art"],
             "bytes": portrait_bytes,
         },
-        "window": window_json(),
+        "window": tree_window,
         "signatures": signatures,
         "census": census.to_json(
             (entry["id"] for entry in portraits["portraits"]),

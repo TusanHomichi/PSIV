@@ -6,6 +6,7 @@
 
 mod art;
 mod chrome;
+mod enemy_overlay;
 mod layout;
 mod timeline;
 mod ui;

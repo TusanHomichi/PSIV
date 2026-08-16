@@ -2,6 +2,59 @@
 
 The extractor is grounded against Peter's verified US retail PSIV ROM and the public `ps4disasm` work. No ROM bytes are shipped in this repository beyond very short structural signatures used as tests.
 
+## Retail bug ledger index
+
+The numbered index follows the ledger numbering established in the commit
+history. It has **12 entries** as of 2026-08-15. The detailed records below are
+deliberately chronological and retain their corrections, retractions, and
+superseded interpretations; this index is only a map, not a replacement for
+that evidence. Classifications are kept explicit: a retail finding is not
+quietly promoted to a confirmed cartridge bug, and a candidate is not counted
+as one.
+
+1. **RETAIL FINDING / ROM bug — formation `0x177`.** The record declares four
+   enemies but contains three enemy/position pairs; the retail source carries
+   the same inconsistency.
+2. **RETAIL CARTRIDGE BUG — `GetChunkAndCollision`.** The routine uses the
+   opposite plane's row stride; the defect is dormant while retail plane widths
+   agree.
+3. **RETAIL CARTRIDGE BUG — `Battle_EnemyFormationIndexes`.** The table is 416
+   bytes for a 417-map space; `AirCastleSpace` reads past it, with the related
+   unused `ValleyMazeUnused` encounter footgun recorded in the same entry.
+4. **RETAIL FINDING / stray build data — `InnerSanctuary_B1`.** One BG cell
+   names chunk `$FF` although the map loads only 128 chunks.
+5. **RETAIL CARTRIDGE BUG — `ClimCenter_F2`.** Its BG layout points at the
+   wrong, smaller map buffer, leaving 1,280 cells dependent on stale layout RAM.
+6. **RETAIL CARTRIDGE BUG — world-map viewer.** The viewer starts 64 bytes
+   before the planet page data and renders the pointer table as terrain.
+7. **RETAIL CARTRIDGE BUG — `Battle_ProcessRUN`.** It passes an uninitialised
+   critical threshold to `Battle_CalculateChances`; the sign-only caller makes
+   the result dormant in retail.
+8. **RETAIL CARTRIDGE BUG — BLACK WAVE effect `$2C`.** The effect is beyond the
+   dispatch table; the later Zio3 correction leaves whether the scripted fight
+   reaches the crash path unsettled.
+9. **RETAIL CARTRIDGE BUG — Wren Charge pose.** Decompression writes 42 words
+   into a 36-word plane buffer and spills six into the next party slot.
+10. **RETAIL CARTRIDGE BUG — `Battle_BackgroundIndexes`.** A second 416-byte
+    table serves the 417-map id space and reads past its end at `0x1A0`.
+11. **RETAIL CARTRIDGE BUG — basement repeatable un-looter.** The historical
+    consequence is marked retracted by the final flag model; the measured
+    set/clear/respawn cycle remains in the detailed record.
+12. **RETAIL CARTRIDGE BUG — `Battle_OrderTurns`.** The max-agility scan reads
+    ten words from a nine-entry table and consumes one word past its end.
+
+### Other classified records in the chronology
+
+- **RETAIL FINDING — FLAG MODEL FINAL.** Retail has four flag banks; `$F120`
+  is the shared chest/extended-event bank, `$F140` is temp, and `$F156` is
+  fiction. This is the current flag model and supersedes the earlier chain.
+- **CANDIDATE RETAIL BUG — `TempEveFlag_BioPlantAlarm`.** The earlier alias
+  interpretation is superseded by FLAG MODEL FINAL; the historical candidate
+  remains visible below.
+- **CANDIDATE RETAIL BUG — invisible Academy Basement blockers.** The port
+  treats invisible no-dialogue blockers as solid and silent; hardware
+  confirmation remains pending.
+
 ## Public reverse-engineering references used
 
 - `squidfeatures/ps4disasm` (`ps4.asm`, `ps4.constants.asm`), including the documented record layouts and stable symbolic IDs.

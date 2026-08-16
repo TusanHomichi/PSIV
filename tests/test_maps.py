@@ -176,6 +176,11 @@ class TestRecordDecoders(unittest.TestCase):
         self.assertEqual(decoded["parameter"], 1)
         self.assertNotIn("index", decoded)
 
+    def test_interaction_event_index_table_matches_the_retail_word_count(self):
+        self.assertEqual(len(INTERACTION_EVENT_INDEXES), 0x20)
+        self.assertEqual(INTERACTION_EVENT_INDEXES[0x1B], 0x001B)
+        self.assertEqual(INTERACTION_EVENT_INDEXES[0x1C], 0x001C)
+
     def test_scroll_reads_step_counters_only_when_the_mode_byte_is_zero(self):
         """loc_51AB2's `bne` skips the four longs when the byte is non-zero."""
         short = _read_scroll(cursor("010000010001" + "dead"))

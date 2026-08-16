@@ -171,8 +171,8 @@ class TestManifest(PackFixtureCase):
                 self.assertEqual(entry["sha256"], hashlib.sha256(blob).hexdigest())
                 self.assertEqual(json.loads(blob)["format_version"], PACK_FORMAT_VERSION)
         # The split a consumer needs without opening 196 files: the body layer
-        # alone completes 84 of the 153 enemies, and the animated sprite-piece
-        # overlay that would finish the other 69 is a separate slice.
+        # completes 84 of the 153 enemies, while the additive animated
+        # sprite-piece overlay carries the decoded destination coverage.
         census = art["census"]
         self.assertEqual(census["enemies"], 153)
         self.assertEqual(census["body_complete"], 84)

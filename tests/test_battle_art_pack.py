@@ -42,6 +42,7 @@ from psiv_tools.battle_art_pack import (
     CHARACTER_ART_NAME,
     CHARACTER_PNG_DIRECTORY,
     ENEMY_ART_NAME,
+    ENEMY_OVERLAY_ART_NAME,
     ENEMY_PNG_DIRECTORY,
     LINE_DEPENDENT_INDEX,
     PLACEHOLDER_COLOR,
@@ -142,6 +143,7 @@ class TestEmittedFiles(unittest.TestCase):
         self.assertEqual(self.fragment["directory"], ART_DIRECTORY)
         for key, name in (
             ("enemies", ENEMY_ART_NAME),
+            ("enemy_overlays", ENEMY_OVERLAY_ART_NAME),
             ("characters", CHARACTER_ART_NAME),
             ("backgrounds", BACKGROUND_ART_NAME),
         ):
@@ -150,18 +152,28 @@ class TestEmittedFiles(unittest.TestCase):
                 self.assertEqual(files[key]["file"], name)
                 self.assertEqual(files[key]["sha256"], hashlib.sha256(blob).hexdigest())
         on_disk = sorted(p for p in (self.root / ART_DIRECTORY).rglob("*") if p.is_file())
-        self.assertEqual(len(on_disk), ENEMY_COUNT + TOTAL_POSES + BACKGROUNDS + 3)
+        self.assertEqual(
+            len(on_disk),
+            len(files) + sum(entry["png_count"] for entry in files.values()),
+        )
         self.assertEqual(files["enemies"]["png_count"], ENEMY_COUNT)
         self.assertEqual(files["characters"]["png_count"], TOTAL_POSES)
         self.assertEqual(files["backgrounds"]["png_count"], BACKGROUNDS)
+        self.assertGreater(files["enemy_overlays"]["png_count"], files["enemy_overlays"]["count"])
 
     def test_every_json_carries_the_pack_format_version(self):
         backgrounds = json.loads((self.root / BACKGROUND_ART_NAME).read_text())
-        for payload in (self.enemies, self.characters, backgrounds):
+        overlays = json.loads((self.root / ENEMY_OVERLAY_ART_NAME).read_text())
+        for payload in (self.enemies, overlays, self.characters, backgrounds):
             self.assertEqual(payload["format_version"], PACK_VERSION)
 
     def test_json_is_canonical_and_newline_terminated(self):
-        for name in (ENEMY_ART_NAME, CHARACTER_ART_NAME, BACKGROUND_ART_NAME):
+        for name in (
+            ENEMY_ART_NAME,
+            ENEMY_OVERLAY_ART_NAME,
+            CHARACTER_ART_NAME,
+            BACKGROUND_ART_NAME,
+        ):
             with self.subTest(file=name):
                 text = (self.root / name).read_text()
                 self.assertTrue(text.endswith("\n"))

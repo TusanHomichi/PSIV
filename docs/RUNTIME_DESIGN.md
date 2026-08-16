@@ -4,6 +4,31 @@ Decided 2026-08-14 (Peter + Fable design session). This is the reference for
 the native runtime; changes to these decisions get recorded here, not left in
 conversation.
 
+## State as of 2026-08-15
+
+The field-only target described in the early sections has been superseded by a
+working pack-driven Rust/Godot runtime. The current verified surface is:
+
+- **Field and persistence:** maps, collision, warps, sprites, dialogue,
+  encounters, FG camera, NPCType2/3 wander, flag-gated map effects, inventory,
+  chests, map-load clears, and the eleven-record roster are wired through
+  `psiv-core`/`psiv-runtime`; the opening-act scene/event path is executable.
+- **Battle:** retail formation/data loading, the deterministic turn engine,
+  rewards/level-up, encounter launch, the real Godot battle screen, and the
+  Igglanova event battle are implemented. The decoded battle layout and chrome
+  are oracle-tested; animated enemy overlay art is the remaining battle-screen
+  visual gap. Battle formulas and distributions are validated, but exact
+  hardware battle RNG streams remain impossible without the VDP beam.
+- **Shop boundary:** shop inventories, locations, prices, inn rules, portraits,
+  and greeting selectors are extracted and packed. The shop menu/window
+  plumbing is still open.
+
+The remaining work is bounded: save/SRAM import, full-campaign scenes beyond
+the opening act, BG-camera/driver variants, non-Type2/3 wanderers, and the
+remaining presentation/art edges. Tape 02's current FG field replay is clean
+across its compared columns and objects. The correction trails below are kept
+as historical records; this section is the current-state summary.
+
 ## Goal
 
 A one-for-one PSIV runtime on a modern stack: the retail cartridge is the

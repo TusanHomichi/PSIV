@@ -1,8 +1,8 @@
-# psiv-tools proof of concept
+# PSIV tools and runtime
 
-A deliberately small, dependency-free extractor for the verified US retail ROM of **Phantasy Star IV**.
+A deliberately small, dependency-free extractor for the verified US retail ROM of **Phantasy Star IV**. The repository now also contains the pack-driven Rust/Godot runtime built on that extraction.
 
-This is an archaeology/provenance tool, not an emulator and not a game engine. It proves that documented PSIV structures can be decoded directly from the retail cartridge into ordinary modern data without shipping Sega's ROM or extracted assets in the tool itself.
+The extractor remains an archaeology/provenance tool, not an emulator. It proves that documented PSIV structures can be decoded directly from the retail cartridge into ordinary modern data without shipping Sega's ROM or extracted assets in the tool itself; the native runtime lives under `rust/` and `godot/`.
 
 ## Supported ROM
 
@@ -41,7 +41,7 @@ The ROM is **not included** and should never be committed to this project.
 - signature checks tying the implementation to known bytes in this exact retail build
 - an exact-mirror check for the duplicated 20,614-byte character level-table block
 
-The item and enemy `symbol` fields are stable identifiers transcribed from the public disassembly constants. They are **not yet cartridge-localized display strings**. A later text-decoder slice should recover the actual encoded in-game names.
+The item and enemy `symbol` fields are stable identifiers transcribed from the public disassembly constants. Records also carry `display_name`, decoded from the cartridge's localized name tables; symbols remain alongside them because they disambiguate duplicate display names.
 
 ## Run it
 
@@ -173,29 +173,44 @@ git clone --depth 1 https://github.com/alechenninger/ps4disasm reference/ps4disa
 
 ## Why Python first?
 
-The long-term runtime can still be Rust/Godot. This first pass is Python so the extractor can be executed and tested immediately. Once formats are proven, porting fixed-width big-endian readers and structs to Rust is intentionally boring.
+The extractor stays in Python so it remains executable and testable as the
+research bench. The native runtime consumes its output through the Rust/Godot
+workspace below; porting fixed-width big-endian readers and structs into that
+runtime is intentionally boring once the formats are proven.
 
-## Next useful slice
+## Runtime status and next useful slice (2026-08-15)
 
-Filed from the shops slice: the per-shop/per-inn greeting selectors (`loc_68136`, 49 words; `loc_68112`, 18 words) choose dialogue strings and belong with the text-decoder work, not with shops.
+The runtime has moved past the original field-only vertical slice. These are
+closed and tested in the current tree:
 
-Filed from the graphics slice: the seven shopkeeper portraits reached via the shop tables; uncompressed field/battle character sprites and the field map palettes.
+- battle data, the headless battle engine, the real battle screen, and the
+  Igglanova event battle;
+- flag-gated map effects, encounters, chests, inventory, and the eleven-seat
+  roster;
+- shop inventories, locations, prices, inn rules, portraits, and greeting
+  selectors in the runtime pack;
+- the field camera's FG path and NPCType2/3 wander, including the shared RNG
+  and tape-02 replay coverage;
+- field sprites, dialogue, opening-act event scenes, and the pack/data/runtime
+  joins that drive them.
 
-Filed from wave 2: the 43 character battle-sprite mappings (decode cleanly, not yet composed with their art); the Sega-logo/GameStartMotaBG palettes; `MapDataManager`/`MapUpdate`/`RunEvents` handler-name transcription (a MapDataManager lane would close all event-gated doors at once — Zema's, the overworld spaceports, and Dezolis' chunk-definition swaps); `Map_General_Var` semantics; whether any NPC routine sets the high-priority sprite bit (bit 4 of the flag byte — such a sprite belongs above the priority overlay).
-
-Filed from the sprite slice: NPC wander boundaries (73 object types carry roam boxes; the random-direction routine and cadence are untranscribed, and half a model is worse than none); vehicle sprites (spawn from `Vehicle_Index`, never map-placed); sprite priority (unused by placed retail objects).
-
-Filed from the oracle slice: a psiv-core tape-replay entry point emitting the oracle's CSV columns, so golden logs become CI fixtures with no emulator in the loop (comparator design in oracle/README.md); the two remaining tapes (accept-press during the 9-frame open animation; a staged beside-talk press); scroll-arrow timing.
-
-Filed from the interaction slice: shop-counter reach (`Interaction_ChkObjsSpecial` extends talk range one further cell across a `$C` counter tile and routes to the shop system — belongs with the shop-UI slice; until then shopkeepers behind counters are out of range); the per-object interactable runtime flag (bit 3 of `$2(a3)`, not in the pack; every object currently answers).
-
-Filed from the text slice: binding dialogue ids to the maps/NPCs that speak them (the `dc.l DialogueTreeN` pointers live in map headers); resolving `$F5`/`$FA`/`$FB` relative branch targets to absolute dialogue ids; the id spaces behind `$F2` action operands (panels, sounds, event flags).
+The remaining backlog is deliberately narrower:
 
 1. Save/SRAM parsing and import (needs a real emulator save as a fixture).
-2. The filed items above, as needed by the runtime.
+2. Shop window plumbing: menu state, greeting fragments, and the bakery's
+   special-case flow (`docs/SHOPS.md`); the shop data and rules are done.
+3. The battle enemy overlay-art pipeline. The screen geometry, chrome, static
+   body layer, and event timeline are in place; animated/overlay enemy art is
+   the remaining visual gap (`docs/BATTLE_ORACLE_UI.md`).
+4. Full-campaign event coverage beyond the completed opening act.
+5. Remaining field parity: BG-camera/driver gates, non-Type2/3 wanderers, and
+   the third wander speed table (`docs/CAMERA.md`, `docs/NPC_WANDER.md`).
+6. Vehicle sprites and the still-unimplemented presentation details that
+   depend on them.
 
-Maps, layouts, collision, encounter binding, and all three of Sega's compression formats are done and proven.
+Maps, layouts, collision, encounter binding, all three Sega compression
+formats, and the completed items above are done and proven.
 
 ## The Rust runtime
 
-`rust/` holds a Cargo workspace (see `docs/RUNTIME_DESIGN.md` for the design record): `psiv-data` (fail-closed schema over the runtime pack), `psiv-core` (the deterministic field engine — integer-only, dependency-free, floats banned by the compiler), and `psiv-runtime` (the bridge and game shell that `psiv-godot` will drive). The headless golden path passes: spawn in Piata, walk into the academy doorway, and the engine warps to `MapID_PiataAcademy` at exactly the cell and facing the cartridge's transition table stores; all 359 packed maps convert into live engine maps. `cargo test` from `rust/`.
+`rust/` holds a Cargo workspace (see `docs/RUNTIME_DESIGN.md` for the design record): `psiv-data` (fail-closed schema over the runtime pack), `psiv-core` (the deterministic field, event, persistence, and battle engine — integer-only, dependency-free, floats banned by the compiler), and `psiv-runtime` (the bridge and game shell that `psiv-godot` drives). The headless golden path still passes: spawn in Piata, walk into the academy doorway, and the engine warps to `MapID_PiataAcademy` at exactly the cell and facing the cartridge's transition table stores; all 359 packed maps convert into live engine maps. The current Godot path also runs real encounters and the opening-act Igglanova battle through the retail-shaped battle screen. `cargo test` from `rust/`.

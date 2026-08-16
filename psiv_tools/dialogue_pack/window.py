@@ -89,8 +89,25 @@ def dialogue_palette(rom: bytes) -> list[tuple[int, int, int]]:
     return palette_rgb(decode_palette(mirror))
 
 
-def window_json() -> dict[str, Any]:
-    """Everything a renderer needs to lay a dialogue window out."""
+def window_json(scroll_arrow: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Everything a renderer needs to lay a dialogue window out.
+
+    ``scroll_arrow`` is the emitted art/provenance record.  Keeping the
+    position here means the text-side JSON and the chrome JSON share one
+    screen-space answer, while the optional argument keeps this helper useful
+    for geometry-only callers.
+    """
+    arrow = {
+        "screen_x": SCROLL_ARROW_SPRITE_X - SPRITE_ORIGIN,
+        "screen_y": SCROLL_ARROW_SPRITE_Y - SPRITE_ORIGIN,
+        "note": (
+            "A sprite, so its stored position is VDP sprite space; the "
+            "routine also subtracts the camera's sub-tile scroll so it "
+            "stays locked to the window."
+        ),
+    }
+    if scroll_arrow is not None:
+        arrow.update(scroll_arrow)
     return {
         "chars_per_line": CHARS_PER_LINE,
         "lines_per_window": LINES_PER_WINDOW,
@@ -112,15 +129,7 @@ def window_json() -> dict[str, Any]:
         "palette": "Pal_Init_Line_3",
         "text_color_index": TEXT_COLOR_INDEX,
         "background_color_index": BACKGROUND_COLOR_INDEX,
-        "scroll_arrow": {
-            "screen_x": SCROLL_ARROW_SPRITE_X - SPRITE_ORIGIN,
-            "screen_y": SCROLL_ARROW_SPRITE_Y - SPRITE_ORIGIN,
-            "note": (
-                "A sprite, so its stored position is VDP sprite space; the "
-                "routine also subtracts the camera's sub-tile scroll so it "
-                "stays locked to the window."
-            ),
-        },
+        "scroll_arrow": arrow,
         "page_endings": list(PAGE_ENDINGS),
         "chrome": WINDOW_JSON_NAME,
         "note": (
@@ -153,4 +162,3 @@ def interaction_json() -> dict[str, Any]:
             "ids are dense and include the empty entries."
         ),
     }
-

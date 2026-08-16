@@ -1,4 +1,4 @@
-"""The dialogue half of the runtime pack: text, font and portraits.
+"""The dialogue half of the runtime pack: text, font, arrow and portraits.
 
 `psiv_tools.pack` emits what field mode needs to *walk*; this module emits what
 it needs to *talk*. Three files and one directory, all under `dialogue/`:
@@ -9,6 +9,7 @@ it needs to *talk*. Three files and one directory, all under `dialogue/`:
     dialogue/menu_font.png       the retail 8x8 battle/menu glyph sheet
     dialogue/window.png          ArtNem_WindowTiles, the box's chrome
     dialogue/window.json         which tile is which corner, and the box's size
+    dialogue/scroll_arrow.png    the retail 2x1 waiting sprite
     dialogue/portraits.json      the 39 portrait ids and their provenance
     dialogue/portraits/*.png     48x48 composed portraits
 
@@ -18,9 +19,10 @@ same shape as a tree entry because the cartridge runs them through the same
 `RunText`.
 
 Nothing here re-decodes anything. The trees come from `psiv_tools.text`, the
-font and the portraits from `psiv_tools.gfx`. What lives here and nowhere else
-is the *window*: how many characters fit on a line, how many lines fit in the
-window, which colours the glyphs are drawn in, and where the box sits on the
+font, arrow and portraits from `psiv_tools.gfx` plus the retail loader
+signatures. What lives here and nowhere else is the *window*: how many
+characters fit on a line, how many lines fit in the window, which colours the
+glyphs are drawn in, and where the box and its waiting sprite sit on the
 screen. All of it is transcribed from `RunText` and checked against the retail
 opcodes before anything is emitted (`SIGNATURES`).
 
@@ -133,7 +135,7 @@ Where things live
     signatures.py  the retail opcodes every constant below is read off
     window.py      the text window's metrics, palette and geometry
     chrome.py      ArtNem_WindowTiles, the frame's role map, WinGroup_Dialogue
-    art.py         the font strip and the portraits
+    art.py         the font strip, waiting sprite and portraits
     flow.py        control codes, typed segments, pagination, the census
     emit.py        `emit_dialogue`, which writes all of the above
 
@@ -152,7 +154,16 @@ from .art import (
     PORTRAIT_TILE_Y,
     PORTRAIT_TRANSPARENT_INDEX,
     PORTRAIT_VRAM_TILE,
+    SCROLL_ARROW_ART_COMPRESSED_SIZE,
+    SCROLL_ARROW_ART_ROM_OFFSET,
+    SCROLL_ARROW_FONT_VRAM_TILE,
+    SCROLL_ARROW_MAPPING_BYTES,
+    SCROLL_ARROW_MAPPING_ROM_OFFSET,
+    SCROLL_ARROW_TILE_INDEX,
+    SCROLL_ARROW_TILE_COUNT,
+    SCROLL_ARROW_VRAM_TILE,
     emit_portraits,
+    emit_scroll_arrow,
     font_json,
     font_strip,
     glyph_bitmaps,
@@ -188,6 +199,7 @@ from .common import (
     MENU_FONT_PNG_NAME,
     PORTRAITS_DIRECTORY,
     PORTRAITS_NAME,
+    SCROLL_ARROW_PNG_NAME,
     TREES_NAME,
     WINDOW_JSON_NAME,
     WINDOW_PNG_NAME,

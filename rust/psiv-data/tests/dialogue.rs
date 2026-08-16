@@ -370,7 +370,10 @@ fn trees_json() -> String {
   "window": {
     "chars_per_line": 32, "lines_per_window": 2, "glyph_width": 8, "glyph_height": 16,
     "rect": {"x": 32, "y": 168, "width": 256, "height": 32},
-    "scroll_arrow": {"screen_x": 264, "screen_y": 202}
+    "scroll_arrow": {
+      "screen_x": 264, "screen_y": 202,
+      "png": "dialogue/scroll_arrow.png", "width": 16, "height": 8
+    }
   },
   "trees": [
     {

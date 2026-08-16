@@ -1,4 +1,4 @@
-"""Battle art in the runtime pack: enemy bodies, character poses, backgrounds.
+"""Battle art in the runtime pack: enemy bodies, overlays, poses, backgrounds.
 
 `psiv_tools.battle_art` and `psiv_tools.planes` decode; this writes. It emits
 under `battle/art/`, beside the battle data `psiv_tools.battle_pack` already
@@ -63,13 +63,14 @@ off-by-one `Battle_EnemyFormationIndexes` has. MapID `$1A0` reads the byte past
 the end, which belongs to `loc_6E48`; it is dormant because that map has random
 battles disabled.
 
-## The body layer is the whole of this
+## Enemy overlays are additive
 
-`loc_7C56` overlays animated hardware sprites from a per-enemy piece list on
-top of the plane-drawn body. That system is not decoded here, which is why 69
-of the 153 bodies compose with cells the static art leaves blank. `body_holes`
-counts them per enemy and the manifest census carries the 84/69 split, so a
-consumer sees which enemies are incomplete without opening a file.
+`loc_7C56` copies animated Art #2 tiles into an Art #3 staging bank. The
+strict decoder and per-piece frame emitter live in
+`psiv_tools.battle_enemy_overlays`; this module adds their JSON and PNGs
+beside the existing body files. A frame is full-body-sized on purpose: colour
+zero in a replacement tile must clear the old body pixel, so consumers copy
+the declared body placements rather than alpha-stack an old body underneath.
 
 Sega pixels: the output is gitignored pack, never committed.
 """
@@ -117,6 +118,11 @@ from .battle_art import (
     enemy_records,
     verify_ui_colors,
 )
+from .battle_enemy_overlays import (
+    OVERLAY_ART_DIRECTORY,
+    OVERLAY_ART_NAME,
+    emit_enemy_overlays,
+)
 from .enigma import decompress as enigma_decompress
 from .gfx import (
     BATTLE_BG_ART_SYMBOLS,
@@ -139,6 +145,9 @@ ENEMY_ART_NAME = f"{ART_DIRECTORY}/enemies.json"
 CHARACTER_ART_NAME = f"{ART_DIRECTORY}/characters.json"
 ENEMY_PNG_DIRECTORY = f"{ART_DIRECTORY}/enemies"
 CHARACTER_PNG_DIRECTORY = f"{ART_DIRECTORY}/characters"
+# Public pack names for the additive dynamic-tile extension.
+ENEMY_OVERLAY_PNG_DIRECTORY = OVERLAY_ART_DIRECTORY
+ENEMY_OVERLAY_ART_NAME = OVERLAY_ART_NAME
 
 #: CRAM index 0 is the backdrop in every line, so it is transparent rather than
 #: a colour, and the entry the PNG carries for it is never drawn.
@@ -362,8 +371,9 @@ def build_enemies(rom: bytes, directory: Path) -> tuple[dict[str, Any], int]:
         "body_layer_only": {
             "overlay": "loc_7C56 EnemySpriteMappingsOffs piece lists",
             "note": (
-                "The animated sprite pieces that fill an enemy's remaining "
-                "cells are not decoded; body_holes counts the cells they cover."
+                "This index is the static plane body. The additive "
+                "enemy_overlays.json index carries the dynamic tile replacement "
+                "frames and body placements."
             ),
         },
         "enemies": entries,
@@ -754,9 +764,11 @@ def emit_battle_art(rom: bytes, out_dir: str | Path, version: int) -> dict[str, 
     """Write `battle/art/` and return the `art` subtree of the battle manifest."""
     directory = Path(out_dir)
     enemies, enemy_bytes = build_enemies(rom, directory)
+    overlays, overlay_bytes, overlay_png_count = emit_enemy_overlays(rom, directory)
     characters, character_bytes = build_characters(rom, directory)
     backgrounds, background_bytes = build_backgrounds(rom, directory)
     enemy_sha = _write(directory, ENEMY_ART_NAME, enemies, version)
+    overlay_sha = _write(directory, ENEMY_OVERLAY_ART_NAME, overlays, version)
     character_sha = _write(directory, CHARACTER_ART_NAME, characters, version)
     background_sha = _write(directory, BACKGROUND_ART_NAME, backgrounds, version)
 
@@ -794,16 +806,27 @@ def emit_battle_art(rom: bytes, out_dir: str | Path, version: int) -> dict[str, 
                 "png_count": backgrounds["count"],
                 "png_bytes": background_bytes,
             },
+            "enemy_overlays": {
+                "file": ENEMY_OVERLAY_ART_NAME,
+                "sha256": overlay_sha,
+                "count": overlays["piece_count"],
+                "png_directory": ENEMY_OVERLAY_PNG_DIRECTORY,
+                "png_count": overlay_png_count,
+                "png_bytes": overlay_bytes,
+            },
         },
         # What the emitted art actually contains, so a consumer sees the split
         # without opening 196 files. `body_holes` is the count of enemies with
-        # at least one uncovered cell -- the ones whose sprite-piece overlay is
-        # not decoded -- and `total_body_holes` is the cells themselves.
+        # at least one uncovered cell in the static body; the overlay census
+        # beside it says which dynamic destination tiles cover those cells.
         "census": {
             "enemies": enemies["count"],
             "body_complete": complete,
             "body_holes": holed,
             "total_body_holes": sum(e["body_holes"] for e in enemies["enemies"]),
+            "enemy_overlay_pieces": overlays["piece_count"],
+            "enemy_overlay_enabled_pieces": overlays["enabled_piece_count"],
+            "enemy_overlay_coverage": overlays["coverage"],
             "enemy_mapping_formats": formats,
             "enemy_cram_lines": list(ENEMY_CRAM_LINES),
             "enemy_body_color_indices": (
@@ -843,7 +866,8 @@ def emit_battle_art(rom: bytes, out_dir: str | Path, version: int) -> dict[str, 
             ),
         },
         "note": (
-            "Body layer only. The animated sprite-piece overlay that completes "
-            "the holed enemies is a separate slice."
+            "Body layer plus the additive animated sprite-piece overlay. "
+            "The overlay census records the 87 static hole cells whose decoded "
+            "destinations do not fully cover a body."
         ),
     }

@@ -1,7 +1,8 @@
-"""The dialogue font and the portraits: pixels, and the maps into them.
+"""The dialogue font, waiting sprite and portraits: pixels and their maps.
 
-Both halves render against `Pal_Init_Line_3`, which is `window.py`'s business;
-what is here is the glyph format, the strip layout and the portrait table.
+All three render against `Pal_Init_Line_3`, which is `window.py`'s business;
+what is here is the glyph format, the arrow's two font tiles, the strip layout
+and the portrait table.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from typing import Any, Sequence
 from .. import png
 from ..gfx import (
     COLORS_PER_LINE,
+    NEMESIS_ART,
     PORTRAIT_COLUMNS,
     PORTRAIT_TILES,
     compose_sheet,
@@ -25,6 +27,7 @@ from .common import (
     DIALOGUE_FORMAT_VERSION,
     FONT_PNG_NAME,
     PORTRAITS_DIRECTORY,
+    SCROLL_ARROW_PNG_NAME,
     DialoguePackError,
     rom_slice,
     safe_name,
@@ -56,6 +59,22 @@ PORTRAIT_CUTSCENE_TILE_Y = 0xE
 PORTRAIT_PLANE_MAP = 0x2A2B36
 PORTRAIT_VRAM_TILE = 0x55C
 PORTRAIT_TRANSPARENT_INDEX = 0
+
+# `FieldObj_ScrollTextArrow` selects the two adjacent patterns beginning at
+# `$7F6`. They are the retail menu-font blob at `$7C0`, not the 1bpp dialogue
+# font and not a triangle reconstructed from its position.
+SCROLL_ARROW_ART_LABEL = "ArtNem_Font"
+SCROLL_ARROW_ART_ROM_OFFSET = 0x2A303A
+SCROLL_ARROW_ART_COMPRESSED_SIZE = 790
+SCROLL_ARROW_FONT_VRAM_TILE = 0x7C0
+SCROLL_ARROW_VRAM_TILE = 0x7F6
+SCROLL_ARROW_TILE_INDEX = SCROLL_ARROW_VRAM_TILE - SCROLL_ARROW_FONT_VRAM_TILE
+SCROLL_ARROW_TILE_COUNT = 2
+SCROLL_ARROW_MAPPING_ROM_OFFSET = 0x046532
+SCROLL_ARROW_MAPPING_BYTES = bytes.fromhex("00000004000000F0")
+SCROLL_ARROW_WIDTH = TILE_PIXELS * SCROLL_ARROW_TILE_COUNT
+SCROLL_ARROW_HEIGHT = TILE_PIXELS
+SCROLL_ARROW_TRANSPARENT_INDEX = 0
 
 # ---------------------------------------------------------------------------
 # Font
@@ -161,6 +180,112 @@ def font_json(
         "unmapped_glyphs": [
             index for index in range(GLYPH_COUNT) if index not in DIALOGUE_CHARSET
         ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Waiting arrow
+# ---------------------------------------------------------------------------
+def emit_scroll_arrow(
+    rom: bytes, root: Path, palette: Sequence[tuple[int, int, int]]
+) -> dict[str, Any]:
+    """Emit the two-tile hardware sprite used while retail text waits.
+
+    The mapping is a 2x1 sprite, so `$7F6` and `$7F7` are both part of the
+    image.  The first pattern is the byte-verified `ArtNem_Font` payload's
+    tile `$36`; the second is its adjacent `$37`.  VDP colour zero is
+    transparent for the sprite, while the two drawn indices use the dialogue
+    CRAM line selected by the decoded sprite attribute.
+    """
+    spec = next(
+        (candidate for candidate in NEMESIS_ART
+         if candidate["label"] == SCROLL_ARROW_ART_LABEL),
+        None,
+    )
+    if spec is None or int(spec["rom_offset"]) != SCROLL_ARROW_ART_ROM_OFFSET:
+        raise DialoguePackError("ArtNem_Font spec drifted away from the retail arrow source")
+    if int(spec["compressed_size"]) != SCROLL_ARROW_ART_COMPRESSED_SIZE:
+        raise DialoguePackError("ArtNem_Font compressed size drifted away from the retail arrow")
+
+    decompressed, art = decompress_art(
+        rom,
+        SCROLL_ARROW_ART_ROM_OFFSET,
+        SCROLL_ARROW_ART_LABEL,
+        compressed_size=SCROLL_ARROW_ART_COMPRESSED_SIZE,
+    )
+    tiles = decode_tiles(decompressed)
+    end = SCROLL_ARROW_TILE_INDEX + SCROLL_ARROW_TILE_COUNT
+    if len(tiles) != 87 or end > len(tiles):
+        raise DialoguePackError(
+            f"{SCROLL_ARROW_ART_LABEL} decodes to {len(tiles)} tiles; "
+            f"arrow needs tile range {SCROLL_ARROW_TILE_INDEX}:{end}"
+        )
+
+    mapping = rom_slice(
+        rom,
+        SCROLL_ARROW_MAPPING_ROM_OFFSET,
+        len(SCROLL_ARROW_MAPPING_BYTES),
+        "Mappings_ScrollTextArrow",
+    )
+    if mapping != SCROLL_ARROW_MAPPING_BYTES:
+        raise DialoguePackError(
+            "Mappings_ScrollTextArrow bytes drifted: expected "
+            f"{SCROLL_ARROW_MAPPING_BYTES.hex()}, got {mapping.hex()}"
+        )
+
+    pixels = b"".join(
+        tiles[SCROLL_ARROW_TILE_INDEX + index] for index in range(SCROLL_ARROW_TILE_COUNT)
+    )
+    image = png.encode_indexed(
+        SCROLL_ARROW_WIDTH,
+        SCROLL_ARROW_HEIGHT,
+        pixels,
+        list(palette),
+        (SCROLL_ARROW_TRANSPARENT_INDEX,),
+    )
+    (root / SCROLL_ARROW_PNG_NAME).write_bytes(image)
+    return {
+        "png": SCROLL_ARROW_PNG_NAME,
+        "png_sha256": hashlib.sha256(image).hexdigest(),
+        "width": SCROLL_ARROW_WIDTH,
+        "height": SCROLL_ARROW_HEIGHT,
+        "screen_x": 0x188 - 128,
+        "screen_y": 0x14A - 128,
+        "note": (
+            "A sprite, so its stored position is VDP sprite space; the "
+            "routine also subtracts the camera's sub-tile scroll so it "
+            "stays locked to the window."
+        ),
+        "source": {
+            "label": SCROLL_ARROW_ART_LABEL,
+            "rom_offset": f"0x{SCROLL_ARROW_ART_ROM_OFFSET:06X}",
+            "rom_end_exclusive": f"0x{SCROLL_ARROW_ART_ROM_OFFSET + SCROLL_ARROW_ART_COMPRESSED_SIZE:06X}",
+            "compression": "nemesis",
+            "compressed_size": art["compressed_size"],
+            "compressed_sha256": art["compressed_sha256"],
+            "decompressed_sha256": art["decompressed_sha256"],
+            "font_vram_tile": f"0x{SCROLL_ARROW_FONT_VRAM_TILE:03X}",
+            "sprite_vram_tile": f"0x{SCROLL_ARROW_VRAM_TILE:03X}",
+            "tile_indices": [
+                f"0x{SCROLL_ARROW_TILE_INDEX + index:02X}"
+                for index in range(SCROLL_ARROW_TILE_COUNT)
+            ],
+            "tile_count": SCROLL_ARROW_TILE_COUNT,
+            "loader": "FieldObj_ScrollTextArrow",
+            "mapping_rom_offset": f"0x{SCROLL_ARROW_MAPPING_ROM_OFFSET:06X}",
+            "mapping_hex": mapping.hex(),
+            "mapping_width_cells": SCROLL_ARROW_TILE_COUNT,
+            "mapping_height_cells": 1,
+            "palette": {
+                "source": "Pal_Init_Line_3",
+                "cram_line": DIALOGUE_CRAM_LINE,
+                "transparent_index": SCROLL_ARROW_TRANSPARENT_INDEX,
+            },
+            "note": (
+                "FieldObj_ScrollTextArrow writes art tile $7F6 and the retail "
+                "mapping is a 2x1 sprite; the indexed PNG preserves both tiles."
+            ),
+        },
     }
 
 
@@ -283,4 +408,3 @@ def emit_portraits(
         "portraits": entries,
     }
     return index_json, total
-

@@ -29,6 +29,7 @@ from psiv_tools.dialogue_pack import (
     PAGE_ENDINGS,
     PORTRAITS_DIRECTORY,
     PORTRAITS_NAME,
+    SCROLL_ARROW_PNG_NAME,
     SIGNATURES,
     SYSTEM_MESSAGE_COUNT,
     SYSTEM_MESSAGES_LABEL,
@@ -829,6 +830,10 @@ class TestDialoguePack(unittest.TestCase):
             (fragment["font"]["png"], fragment["font"]["png_sha256"]),
             (fragment["chrome"]["path"], fragment["chrome"]["sha256"]),
             (fragment["chrome"]["png"], fragment["chrome"]["png_sha256"]),
+            (
+                fragment["chrome"]["scroll_arrow"]["png"],
+                fragment["chrome"]["scroll_arrow"]["png_sha256"],
+            ),
             (fragment["menu_font"]["path"], fragment["menu_font"]["png_sha256"]),
             (fragment["portraits"]["path"], fragment["portraits"]["sha256"]),
         ):
@@ -840,9 +845,37 @@ class TestDialoguePack(unittest.TestCase):
             str(path.relative_to(self.root))
             for path in self.root.rglob("*") if path.is_file()
         )
-        self.assertEqual(len(written), 7 + 39)
+        self.assertEqual(len(written), 8 + 39)
         self.assertIn(TREES_NAME, written)
         self.assertIn(MENU_FONT_PNG_NAME, written)
+        self.assertIn(SCROLL_ARROW_PNG_NAME, written)
+
+    def test_the_scroll_arrow_is_the_retail_two_tile_sprite(self):
+        arrow = self.trees["window"]["scroll_arrow"]
+        self.assertEqual(
+            (arrow["screen_x"], arrow["screen_y"], arrow["width"], arrow["height"]),
+            (264, 202, 16, 8),
+        )
+        width, height, rows, chunks = png_pixels(
+            (self.root / SCROLL_ARROW_PNG_NAME).read_bytes()
+        )
+        self.assertEqual((width, height), (16, 8))
+        values = {value for row in rows for value in row}
+        self.assertTrue({1, TEXT_COLOR_INDEX}.issubset(values))
+        self.assertIn(b"tRNS", chunks)
+        self.assertEqual(self.window["scroll_arrow"], arrow)
+        source = arrow["source"]
+        self.assertEqual(
+            (source["label"], source["rom_offset"], source["sprite_vram_tile"]),
+            ("ArtNem_Font", "0x2A303A", "0x7F6"),
+        )
+        self.assertEqual(source["tile_indices"], ["0x36", "0x37"])
+        self.assertEqual(source["mapping_hex"], "00000004000000f0")
+        reference = Path(__file__).resolve().parents[1] / \
+            "reference" / "ps4disasm" / "graphics" / "font" / "Font Nemesis.bin"
+        self.assertEqual(
+            self.data[0x2A303A:0x2A303A + 790], reference.read_bytes()
+        )
 
     def test_rebuilding_is_byte_identical(self):
         with tempfile.TemporaryDirectory() as other:

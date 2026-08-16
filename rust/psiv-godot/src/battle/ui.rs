@@ -15,6 +15,7 @@ use psiv_data::DialogueSet;
 
 use super::art::BattleArt;
 use super::chrome::{BattleChrome, WindowRect};
+use super::enemy_overlay::EnemyAnimation;
 use super::layout::{append_status_quads, tile_dest};
 use super::timeline::{self, Beat};
 use super::{BattleSetup, EnemyPlacement, PartyPlacement};
@@ -157,6 +158,7 @@ pub(super) fn enemy_sprite_origin(position: u8, width_cells: u16, height_cells: 
 struct EnemySprite {
     fighter: FighterId,
     node: Gd<Sprite2D>,
+    animation: Option<EnemyAnimation>,
 }
 
 struct PartySprite {
@@ -538,6 +540,13 @@ impl BattleScreen {
     /// Advances one retail-default dwell frame and starts the next event when
     /// the prior visual beat is complete.
     pub(crate) fn advance_frame(&mut self) {
+        for enemy in &mut self.enemy_nodes {
+            if let Some(animation) = enemy.animation.as_mut()
+                && let Some(texture) = animation.advance()
+            {
+                enemy.node.set_texture(&texture);
+            }
+        }
         if let Some(active) = self.current.as_mut() {
             if active.remaining > 1 {
                 active.remaining -= 1;
@@ -673,23 +682,30 @@ impl BattleScreen {
             node.set_z_index(-10);
             let (x, y) = enemy_sprite_origin(enemy.position, width, height);
             node.set_position(Vector2::new(x as f32, y as f32));
+            let mut animation = self.art.as_ref().and_then(|art| {
+                art.enemy_animation(&self.pack_dir, enemy.enemy_id, enemy.position)
+            });
             let line = super::art::enemy_cram_line(enemy.position);
             let key = (enemy.enemy_id, line);
-            let texture = self.enemy_textures.get(&key).cloned().or_else(|| {
-                let texture = self.art.as_ref().and_then(|art| {
-                    art.enemy_texture(&self.pack_dir, enemy.enemy_id, enemy.position)
-                });
-                if let Some(texture) = texture.as_ref() {
-                    self.enemy_textures.insert(key, texture.clone());
-                } else {
-                    godot_error!(
-                        "battle enemy {} body failed to load for fighter {}",
-                        enemy.enemy_id,
-                        enemy.fighter_id
-                    );
-                }
-                texture
-            });
+            let texture = if let Some(current) = animation.as_ref().map(EnemyAnimation::texture) {
+                Some(current)
+            } else {
+                self.enemy_textures.get(&key).cloned().or_else(|| {
+                    let texture = self.art.as_ref().and_then(|art| {
+                        art.enemy_texture(&self.pack_dir, enemy.enemy_id, enemy.position)
+                    });
+                    if let Some(texture) = texture.as_ref() {
+                        self.enemy_textures.insert(key, texture.clone());
+                    } else {
+                        godot_error!(
+                            "battle enemy {} body failed to load for fighter {}",
+                            enemy.enemy_id,
+                            enemy.fighter_id
+                        );
+                    }
+                    texture
+                })
+            };
             if let Some(texture) = texture {
                 node.set_texture(&texture);
             }
@@ -697,7 +713,11 @@ impl BattleScreen {
             self.enemy_positions
                 .insert(enemy.fighter_id, enemy.position);
             self.names.insert(enemy.fighter_id, enemy.name.clone());
-            self.enemy_nodes.push(EnemySprite { fighter, node });
+            self.enemy_nodes.push(EnemySprite {
+                fighter,
+                node,
+                animation: animation.take(),
+            });
         }
     }
 

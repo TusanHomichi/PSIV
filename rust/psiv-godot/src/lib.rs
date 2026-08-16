@@ -541,14 +541,22 @@ impl Field {
         }
     }
 
-    /// Debug-only automation for the fix loop (no effect without the env
-    /// vars): `PSIV_DEBUG_BATTLE=<formation hex>` starts that battle a few
-    /// frames after boot with no play needed; `PSIV_DEBUG_SHOT=<path.png>`
-    /// (with optional `PSIV_DEBUG_SHOT_FRAME=<n>`, default 180) saves a
-    /// viewport screenshot so an agent can see what a player would.
+    /// Debug-only automation for the fix loop (no effect without the debug
+    /// selectors): `PSIV_DEBUG_BATTLE=<formation hex>` or
+    /// `--psiv-debug-battle=<formation hex>` starts that battle a few frames
+    /// after boot with no play needed; `PSIV_DEBUG_SHOT=<path.png>` (with
+    /// optional `PSIV_DEBUG_SHOT_FRAME=<n>`, default 180) saves a viewport
+    /// screenshot so an agent can see what a player would.
     fn debug_hooks_tick(&mut self) {
+        let formation = std::env::var("PSIV_DEBUG_BATTLE").ok().or_else(|| {
+            std::env::args().find_map(|argument| {
+                argument
+                    .strip_prefix("--psiv-debug-battle=")
+                    .map(str::to_owned)
+            })
+        });
         if self.anim_tick == 30
-            && let Ok(formation) = std::env::var("PSIV_DEBUG_BATTLE")
+            && let Some(formation) = formation
         {
             let trimmed = formation.trim_start_matches("0x");
             match u16::from_str_radix(trimmed, 16) {
@@ -560,7 +568,7 @@ impl Field {
                         self.start_random_battle(id);
                     }
                 }
-                Err(_) => godot_error!("PSIV_DEBUG_BATTLE={formation} is not hex"),
+                Err(_) => godot_error!("debug battle selector {formation} is not hex"),
             }
         }
         if let Ok(path) = std::env::var("PSIV_DEBUG_SHOT") {

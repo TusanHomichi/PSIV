@@ -12,6 +12,8 @@
 
 use super::{Opening, TextFlow};
 use psiv_data::{Ctrl, DialogueEntry, DialogueSet, FlagScope, PageEnd, Segment};
+use serde_json::Value;
+use std::fs;
 use std::path::PathBuf;
 
 // ---------------------------------------------------------------------------
@@ -334,6 +336,105 @@ fn pack_dir() -> PathBuf {
             .join("../..")
             .join("runtime-pack"),
     }
+}
+
+/// The dialogue decoder cannot see the VDP window plane or infer a portrait
+/// from a page that never emits `$F4`, so this proof is opt-in and consumes a
+/// small sidecar made from the read-only oracle captures. The normal suite
+/// stays useful without a local oracle checkout; an oracle run makes the
+/// assertion strict.
+fn dialogue_oracle() -> Option<Value> {
+    let path = PathBuf::from(std::env::var_os("PSIV_DIALOGUE_LAYOUT_ORACLE")?);
+    if !path.is_file() {
+        eprintln!("skipping dialogue oracle: {} is absent", path.display());
+        return None;
+    }
+    let contents = fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("could not read {}: {error}", path.display()));
+    let document: Value = serde_json::from_str(&contents)
+        .unwrap_or_else(|error| panic!("could not parse {}: {error}", path.display()));
+    if document["kind"] != "psiv_dialogue_layout_oracle" {
+        panic!("{} is not a dialogue layout oracle sidecar", path.display());
+    }
+    Some(document)
+}
+
+fn oracle_rect(document: &Value, name: &str) -> [i32; 4] {
+    let rect = &document[name];
+    ["x", "y", "width", "height"].map(|field| {
+        rect[field]
+            .as_i64()
+            .unwrap_or_else(|| panic!("oracle {name}.{field} is not an integer")) as i32
+    })
+}
+
+#[test]
+fn dialogue_window_matches_decoded_tape03_layout() {
+    let Some(oracle) = dialogue_oracle() else {
+        return;
+    };
+    assert_eq!(oracle["captures"]["window"]["frame"], 7400);
+    assert_eq!(oracle["captures"]["window"]["self_check_passed"], true);
+    assert_eq!(oracle["captures"]["arrow"]["frame"], 7371);
+    assert_eq!(oracle["captures"]["arrow"]["self_check_passed"], true);
+
+    let dir = pack_dir();
+    let set = DialogueSet::load(&dir).expect("the dialogue pack loads");
+    let text = set.window.text_window.rect;
+    assert_eq!(
+        [text.x, text.y, text.width, text.height],
+        oracle_rect(&oracle, "window_rect")
+    );
+    let portrait = set.window.portrait_window.rect;
+    assert_eq!(
+        [portrait.x, portrait.y, portrait.width, portrait.height],
+        oracle_rect(&oracle, "portrait_rect")
+    );
+
+    let border = set.window.geometry.border_cells as i32 * set.window.geometry.cell_pixels as i32;
+    assert_eq!(
+        [text.x + border, text.y + border],
+        [
+            oracle["text_origin"]["x"]
+                .as_i64()
+                .expect("oracle text origin x") as i32,
+            oracle["text_origin"]["y"]
+                .as_i64()
+                .expect("oracle text origin y") as i32,
+        ]
+    );
+
+    let arrow = &set.trees.window.scroll_arrow;
+    assert_eq!(
+        [
+            arrow.screen_x,
+            arrow.screen_y,
+            arrow.width as i32,
+            arrow.height as i32
+        ],
+        [
+            oracle["arrow"]["screen_x"]
+                .as_i64()
+                .expect("oracle arrow x") as i32,
+            oracle["arrow"]["screen_y"]
+                .as_i64()
+                .expect("oracle arrow y") as i32,
+            oracle["arrow"]["width"]
+                .as_i64()
+                .expect("oracle arrow width") as i32,
+            oracle["arrow"]["height"]
+                .as_i64()
+                .expect("oracle arrow height") as i32,
+        ]
+    );
+    assert_eq!(oracle["arrow"]["pattern"], 0x7F6);
+    assert_eq!(oracle["arrow"]["palette_line"], 2);
+
+    assert_eq!(oracle["portrait_present"], false);
+    assert!(!oracle["gaps"].as_array().expect("oracle gaps").is_empty());
+    eprintln!(
+        "dialogue oracle gap: tape 03 frame 7400 has no portrait `$F4`; portrait position is decoded from the retail window group, not visible art"
+    );
 }
 
 #[test]
