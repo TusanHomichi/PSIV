@@ -2,13 +2,14 @@
 
 use std::collections::BTreeMap;
 
-use psiv_core::battle::{BattleEvent, FighterId, Outcome, Verdict};
+use psiv_core::battle::{BattleEvent, FighterId, Outcome, Priority, Verdict};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Beat {
     None,
     Start,
     Attack(FighterId),
+    Defense(FighterId),
     Damage {
         target: FighterId,
         amount: Option<u16>,
@@ -26,11 +27,26 @@ pub(crate) struct Narration {
     pub(crate) beat: Beat,
 }
 
+pub(crate) const fn waits_for_confirm(beat: Beat) -> bool {
+    matches!(
+        beat,
+        Beat::Reward | Beat::LevelUp | Beat::End(Outcome::Victory)
+    )
+}
+
 fn fighter_name(id: FighterId, names: &BTreeMap<u8, String>) -> String {
     names
         .get(&id.get())
         .cloned()
         .unwrap_or_else(|| format!("Fighter {}", id.get()))
+}
+
+fn first_party_name(names: &BTreeMap<u8, String>) -> String {
+    names
+        .iter()
+        .find(|(id, _)| **id < 6)
+        .map(|(_, name)| name.clone())
+        .unwrap_or_else(|| "Someone".into())
 }
 
 /// Every current [`BattleEvent`] variant gets one line and one beat. The
@@ -42,96 +58,86 @@ pub(crate) fn narration(
     character_names: &BTreeMap<u8, String>,
 ) -> Narration {
     match event {
+        BattleEvent::Started {
+            priority: Priority::Ambush,
+            ..
+        } => Narration {
+            line: "Surprise Attack!".into(),
+            beat: Beat::None,
+        },
         BattleEvent::Started { .. } => Narration {
-            line: "Battle start!".into(),
+            line: String::new(),
             beat: Beat::Start,
         },
-        BattleEvent::RoundBegan { round, .. } => Narration {
-            line: format!("Round {round}"),
+        BattleEvent::RoundBegan { .. } => Narration {
+            line: String::new(),
             beat: Beat::None,
         },
         BattleEvent::Escaped => Narration {
-            line: "Got away!".into(),
+            line: format!("{} retreated!", first_party_name(names)),
             beat: Beat::End(Outcome::Escaped),
         },
         BattleEvent::EscapeFailed => Narration {
-            line: "Can't escape!".into(),
+            line: "Cannot escape!".into(),
             beat: Beat::None,
         },
-        BattleEvent::TurnSkipped { actor, reason } => Narration {
-            line: format!("{} {:?}.", fighter_name(*actor, names), reason),
+        BattleEvent::TurnSkipped { .. } => Narration {
+            line: String::new(),
             beat: Beat::None,
         },
         BattleEvent::Attacked { actor, .. } => Narration {
-            line: format!("{} attacks!", fighter_name(*actor, names)),
+            line: "ATTACK".into(),
             beat: Beat::Attack(*actor),
         },
         BattleEvent::Defended { actor } => Narration {
-            line: format!("{} defends.", fighter_name(*actor, names)),
-            beat: Beat::None,
+            line: "DEFENSE".into(),
+            beat: Beat::Defense(*actor),
         },
         BattleEvent::Resolved {
-            actor,
+            actor: _,
             target,
             verdict,
             damage,
             ..
-        } => {
-            let line = match verdict {
-                Verdict::Miss => format!("{} missed!", fighter_name(*actor, names)),
-                Verdict::Critical => format!("Critical! {} damage!", damage.unwrap_or(0)),
-                Verdict::Normal => format!("{} damage!", damage.unwrap_or(0)),
-            };
-            Narration {
-                line,
-                beat: Beat::Damage {
-                    target: *target,
-                    amount: *damage,
-                    critical: *verdict == Verdict::Critical,
-                },
-            }
-        }
-        BattleEvent::UnsupportedAbility { actor, ability } => Narration {
-            line: format!(
-                "{} ability {} unsupported!",
-                fighter_name(*actor, names),
-                ability
-            ),
+        } => Narration {
+            // Retail draws the 5x2 damage tile block here. It does not print
+            // prose such as "42 damage!" or "missed!".
+            line: String::new(),
+            beat: Beat::Damage {
+                target: *target,
+                amount: *damage,
+                critical: *verdict == Verdict::Critical,
+            },
+        },
+        BattleEvent::UnsupportedAbility { actor, .. } => Narration {
+            line: "ATTACK".into(),
             beat: Beat::Attack(*actor),
         },
         BattleEvent::Died { fighter } => Narration {
-            line: format!("{} falls!", fighter_name(*fighter, names)),
+            line: format!("{} defeated...!", fighter_name(*fighter, names)),
             beat: Beat::Hide(*fighter),
         },
         BattleEvent::RoundEnded { .. } => Narration {
-            line: "Ready.".into(),
+            line: String::new(),
             beat: Beat::None,
         },
-        BattleEvent::Rewarded {
-            experience_each,
-            meseta,
-            ..
-        } => Narration {
-            line: format!("Got {experience_each} EXP! Got {meseta} meseta!"),
+        BattleEvent::Rewarded { .. } => Narration {
+            line: "Each got".into(),
             beat: Beat::Reward,
         },
-        BattleEvent::LevelUp {
-            character, level, ..
-        } => {
+        BattleEvent::LevelUp { character, .. } => {
             let name = character_names
                 .get(character)
                 .cloned()
                 .unwrap_or_else(|| format!("Character {character}"));
             Narration {
-                line: format!("{name} reached level {level}!"),
+                line: format!("{name} LV increased!"),
                 beat: Beat::LevelUp,
             }
         }
         BattleEvent::Ended { outcome } => Narration {
             line: match outcome {
-                Outcome::Victory => "Victory!".into(),
-                Outcome::Defeat => "Defeat!".into(),
-                Outcome::Escaped => "Escaped.".into(),
+                Outcome::Victory | Outcome::Defeat | Outcome::Escaped => String::new(),
             },
             beat: Beat::End(*outcome),
         },
@@ -151,7 +157,7 @@ mod tests {
     }
 
     #[test]
-    fn narration_covers_damage_flavours_and_rewards() {
+    fn narration_uses_retail_damage_and_reward_strings() {
         let names = BTreeMap::from([(1, "Chaz".to_owned()), (6, "MonsterFly".to_owned())]);
         let miss = narration(
             &BattleEvent::Resolved {
@@ -164,7 +170,7 @@ mod tests {
             &names,
             &BTreeMap::new(),
         );
-        assert_eq!(miss.line, "Chaz missed!");
+        assert!(miss.line.is_empty());
         assert_eq!(
             miss.beat,
             Beat::Damage {
@@ -185,7 +191,7 @@ mod tests {
             &names,
             &BTreeMap::new(),
         );
-        assert_eq!(critical.line, "Critical! 42 damage!");
+        assert!(critical.line.is_empty());
         assert_eq!(
             critical.beat,
             Beat::Damage {
@@ -205,7 +211,7 @@ mod tests {
             &names,
             &BTreeMap::new(),
         );
-        assert_eq!(reward.line, "Got 15 EXP! Got 12 meseta!");
+        assert_eq!(reward.line, "Each got");
         assert_eq!(reward.beat, Beat::Reward);
     }
 
@@ -225,12 +231,43 @@ mod tests {
             &names,
             &BTreeMap::new(),
         );
-        assert_eq!(end.line, "Victory!");
+        assert!(end.line.is_empty());
         assert_eq!(end.beat, Beat::End(Outcome::Victory));
     }
 
     #[test]
-    fn skipped_turns_are_not_silent() {
+    fn narration_matches_retail_transient_strings() {
+        let names = BTreeMap::from([(1, "Chaz".to_owned())]);
+        let defense = narration(
+            &BattleEvent::Defended { actor: id(1) },
+            &names,
+            &BTreeMap::new(),
+        );
+        assert_eq!(defense.line, "DEFENSE");
+        assert_eq!(defense.beat, Beat::Defense(id(1)));
+
+        let failed = narration(&BattleEvent::EscapeFailed, &names, &BTreeMap::new());
+        assert_eq!(failed.line, "Cannot escape!");
+        assert_eq!(failed.beat, Beat::None);
+
+        let escaped = narration(&BattleEvent::Escaped, &names, &BTreeMap::new());
+        assert_eq!(escaped.line, "Chaz retreated!");
+        assert_eq!(escaped.beat, Beat::End(Outcome::Escaped));
+
+        let surprise = narration(
+            &BattleEvent::Started {
+                priority: Priority::Ambush,
+                enemies: vec![id(6)],
+            },
+            &names,
+            &BTreeMap::new(),
+        );
+        assert_eq!(surprise.line, "Surprise Attack!");
+        assert_eq!(surprise.beat, Beat::None);
+    }
+
+    #[test]
+    fn skipped_turns_are_silent_and_attack_is_a_command_label() {
         let names = BTreeMap::from([(1, "Chaz".to_owned())]);
         let event = narration(
             &BattleEvent::TurnSkipped {
@@ -240,6 +277,15 @@ mod tests {
             &names,
             &BTreeMap::new(),
         );
-        assert!(event.line.contains("Unarmed"));
+        assert!(event.line.is_empty());
+        let attack = narration(
+            &BattleEvent::Attacked {
+                actor: id(1),
+                targets: vec![id(6)],
+            },
+            &names,
+            &BTreeMap::new(),
+        );
+        assert_eq!(attack.line, "ATTACK");
     }
 }

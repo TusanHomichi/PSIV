@@ -97,6 +97,7 @@ pub(super) fn append_status_quads(
 
 #[cfg(test)]
 mod tests {
+    use super::super::ui::{battle_dwell_frames, enemy_sprite_origin};
     use super::*;
     use serde_json::Value;
     use std::fs;
@@ -149,6 +150,22 @@ mod tests {
         assert_eq!(integer(run, "cell_y"), cell_y);
         assert_eq!(integer(run, "pixel_x"), pixel_x);
         assert_eq!(integer(run, "pixel_y"), pixel_y);
+    }
+
+    fn assert_tile_pattern(doc: &Value, cell_x: i32, cell_y: i32, pattern: i32) {
+        let run = doc["planes"]["plane_a"]["tile_runs"]
+            .as_array()
+            .expect("oracle tile runs")
+            .iter()
+            .find(|run| integer(run, "cell_x") == cell_x && integer(run, "cell_y") == cell_y)
+            .unwrap_or_else(|| panic!("missing decoded tile at ({cell_x},{cell_y})"));
+        assert_eq!(integer(run, "pattern"), pattern);
+    }
+
+    fn assert_tile_row(doc: &Value, y: i32, x: i32, patterns: &[i32]) {
+        for (offset, pattern) in patterns.iter().copied().enumerate() {
+            assert_tile_pattern(doc, x + offset as i32, y, pattern);
+        }
     }
 
     fn body_row_cells(doc: &Value, y: i32) -> Vec<i32> {
@@ -218,6 +235,24 @@ mod tests {
         assert_rect(&victory, "victory_window", super::super::ui::VICTORY_RECT);
         assert_rect(&victory, "status_strip", STATUS_RECT);
         assert_text(&victory, "Victory!", 11, 17, 88, 136);
+
+        let Some(rewards) = oracle("battle_victory_rewards.json") else {
+            return;
+        };
+        assert_rect(&rewards, "victory_window", super::super::ui::VICTORY_RECT);
+        assert_text(&rewards, "Each got", 11, 17, 88, 136);
+        assert_text(&rewards, "EXP", 22, 17, 176, 136);
+        assert_text(&rewards, "meseta!", 13, 19, 104, 152);
+        assert_tile_pattern(&rewards, 20, 17, 0x7e2);
+        assert_tile_pattern(&rewards, 11, 19, 0x7e0);
+
+        let Some(damage) = oracle("battle_damage_effect.json") else {
+            return;
+        };
+        assert_tile_row(&damage, 5, 11, &[0x5e4, 0x5e5, 0x5e7, 0x5e9, 0x5e4]);
+        assert_tile_row(&damage, 6, 11, &[0x5e4, 0x5e5, 0x5e8, 0x5ea, 0x5e4]);
+        assert_tile_row(&damage, 5, 23, &[0x5e4, 0x5e5, 0x5e7, 0x5e6, 0x5e4]);
+        assert_tile_row(&damage, 6, 23, &[0x5e4, 0x5e5, 0x5e8, 0x5e6, 0x5e4]);
     }
 
     #[test]
@@ -254,5 +289,22 @@ mod tests {
                 .collect();
             assert_eq!(actual.as_slice(), positions);
         }
+    }
+
+    #[test]
+    fn enemy_position_byte_is_a_bottom_right_anchor() {
+        assert_eq!(enemy_sprite_origin(20, 10, 10), (80, 40));
+        assert_eq!(enemy_sprite_origin(137, 6, 6), (24, 72));
+        assert_eq!(enemy_sprite_origin(159, 6, 6), (200, 72));
+        assert_eq!(enemy_sprite_origin(20 | 0x80, 10, 10), (80, 40));
+    }
+
+    #[test]
+    fn battle_speed_uses_the_retail_dwell_table() {
+        assert_eq!(
+            (0..=4).map(battle_dwell_frames).collect::<Vec<_>>(),
+            [12, 24, 36, 48, 60]
+        );
+        assert_eq!(battle_dwell_frames(99), 60);
     }
 }

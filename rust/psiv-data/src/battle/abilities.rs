@@ -88,6 +88,10 @@ pub struct Ability {
     /// Byte 1, for a technique.
     #[serde(default)]
     pub tp_cost: Option<u8>,
+    /// Byte 1, for an item effect. The field is named `parameter_2` in the
+    /// extracted record because its meaning depends on the item effect.
+    #[serde(default)]
+    pub parameter_2: Option<u8>,
     /// Byte 1's low seven bits, for a skill or enemy skill: which of the
     /// actor's stats supplies the attack power.
     #[serde(default)]
@@ -98,6 +102,9 @@ pub struct Ability {
     /// Byte 3.
     #[serde(default)]
     pub power_or_hit_chance: Option<u16>,
+    /// Byte 2, for an item effect: single-target or party-target mode.
+    #[serde(default)]
+    pub targeting_or_parameter_3: Option<u8>,
     /// Byte 4: which of the target's stats resists.
     #[serde(default)]
     pub resistance_stat: Option<NamedId>,

@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use godot::classes::{Image, ImageTexture};
+use godot::classes::{Image, ImageTexture, image::Format};
 use godot::prelude::*;
 
 use psiv_data::{DialogueSet, Role};
@@ -37,6 +37,7 @@ pub(super) struct Quad {
 pub(super) struct BattleChrome {
     tiles: BTreeMap<&'static str, Gd<ImageTexture>>,
     window_words: BTreeMap<(u16, bool, bool), Gd<ImageTexture>>,
+    damage_words: BTreeMap<(u16, bool, bool), Gd<ImageTexture>>,
     font: Gd<ImageTexture>,
     glyph_at: BTreeMap<char, Vector2>,
     glyph: Vector2,
@@ -79,6 +80,7 @@ impl BattleChrome {
             })?;
         let font = ImageTexture::create_from_image(&menu_image)?;
         let window_words = retail_window_words(&strip)?;
+        let damage_words = retail_damage_words()?;
         let glyph_at = retail_glyphs();
         let mut palette = [Color::BLACK; 16];
         for (index, rgb) in set.window.palette.colors.iter().take(16).enumerate() {
@@ -88,6 +90,7 @@ impl BattleChrome {
         Some(BattleChrome {
             tiles,
             window_words,
+            damage_words,
             font,
             glyph_at,
             glyph: Vector2::new(8.0, 8.0),
@@ -227,6 +230,150 @@ impl BattleChrome {
         quads
     }
 
+    /// The victory routine uses the active digit patterns at `0x7da..0x7e3`,
+    /// rather than the status strip's widened `0x7e4..0x7ed` run.
+    pub(super) fn victory_number(&self, text: &str, rect: WindowRect) -> Vec<Quad> {
+        let mut quads = Vec::new();
+        for (col, ch) in text.chars().enumerate() {
+            let Some(digit) = ch.to_digit(10) else {
+                continue;
+            };
+            let dest = Rect2::new(
+                Vector2::new(rect.x + col as f32 * self.glyph.x, rect.y),
+                self.glyph,
+            );
+            if let Some(quad) = self.font_word(0x7da + digit as u16, dest) {
+                quads.push(quad);
+            }
+        }
+        quads
+    }
+
+    pub(super) fn victory_quads(
+        &self,
+        frame_rect: WindowRect,
+        victory_text_rect: WindowRect,
+        rewards: Option<(u16, u16)>,
+    ) -> Vec<Quad> {
+        let Some(mut quads) = self.frame(frame_rect) else {
+            return Vec::new();
+        };
+        if let Some((experience, meseta)) = rewards {
+            quads.extend(self.text(
+                "Each got",
+                WindowRect {
+                    x: 88.0,
+                    y: 136.0,
+                    w: 64.0,
+                    h: 8.0,
+                },
+            ));
+            quads.extend(self.victory_number(
+                &experience.to_string(),
+                WindowRect {
+                    x: 160.0,
+                    y: 136.0,
+                    w: 8.0,
+                    h: 8.0,
+                },
+            ));
+            quads.extend(self.text(
+                "EXP",
+                WindowRect {
+                    x: 176.0,
+                    y: 136.0,
+                    w: 24.0,
+                    h: 8.0,
+                },
+            ));
+            quads.extend(self.victory_number(
+                &meseta.to_string(),
+                WindowRect {
+                    x: 88.0,
+                    y: 152.0,
+                    w: 8.0,
+                    h: 8.0,
+                },
+            ));
+            quads.extend(self.text(
+                "meseta!",
+                WindowRect {
+                    x: 104.0,
+                    y: 152.0,
+                    w: 56.0,
+                    h: 8.0,
+                },
+            ));
+        } else {
+            quads.extend(self.text("Victory!", victory_text_rect));
+        }
+        quads
+    }
+
+    /// `Fighter_OpenDamageWindow` writes a five-by-two tile block from the
+    /// retail `$5e4` damage art. The first-battle captures exercise 0, 1, 2,
+    /// 5, 6, and 11; unknown glyph art falls back to a readable number until
+    /// another oracle capture supplies those source tiles.
+    pub(super) fn damage_quads(&self, amount: u16, rect: WindowRect) -> Vec<Quad> {
+        let value = amount.min(999);
+        let mut top = [(0x5e5, false, true); 3];
+        let mut bottom = [(0x5e5, false, false); 3];
+        if value >= 100 {
+            (top[0], bottom[0]) = damage_digit(value / 100 % 10);
+        }
+        if value >= 10 {
+            (top[1], bottom[1]) = damage_digit(value / 10 % 10);
+        }
+        (top[2], bottom[2]) = damage_digit(value % 10);
+
+        let cells = [
+            (0x5e4, false, false),
+            top[0],
+            top[1],
+            top[2],
+            (0x5e4, true, false),
+            (0x5e4, false, true),
+            bottom[0],
+            bottom[1],
+            bottom[2],
+            (0x5e4, true, true),
+        ];
+        if cells
+            .iter()
+            .any(|cell| !self.damage_words.contains_key(cell))
+        {
+            let mut fallback = self.frame(rect).unwrap_or_default();
+            fallback.extend(self.text(
+                &value.to_string(),
+                WindowRect {
+                    x: rect.x + self.cell,
+                    y: rect.y + 4.0,
+                    w: rect.w - self.cell * 2.0,
+                    h: self.cell,
+                },
+            ));
+            return fallback;
+        }
+
+        cells
+            .into_iter()
+            .enumerate()
+            .filter_map(|(index, cell)| {
+                let texture = self.damage_words.get(&cell)?.clone();
+                let x = index as i32 % 5;
+                let y = index as i32 / 5;
+                Some(Quad {
+                    texture,
+                    dest: Rect2::new(
+                        Vector2::new(rect.x + x as f32 * self.cell, rect.y + y as f32 * self.cell),
+                        Vector2::new(self.cell, self.cell),
+                    ),
+                    src: Rect2::new(Vector2::ZERO, Vector2::new(self.cell, self.cell)),
+                })
+            })
+            .collect()
+    }
+
     pub(super) fn text_with_pitch(
         &self,
         text: &str,
@@ -354,6 +501,103 @@ fn retail_window_words(strip: &Gd<Image>) -> Option<BTreeMap<(u16, bool, bool), 
         }
     }
     Some(words)
+}
+
+fn damage_digit(digit: u16) -> ((u16, bool, bool), (u16, bool, bool)) {
+    match digit {
+        0 => ((0x5e6, false, false), (0x5e6, false, true)),
+        1 => ((0x5e7, false, false), (0x5e8, false, false)),
+        2 => ((0x5e9, false, false), (0x5ea, false, false)),
+        3 => ((0x5eb, false, false), (0x5e9, false, true)),
+        4 => ((0x5ec, false, false), (0x5ed, false, false)),
+        5 => ((0x5ee, false, false), (0x5e9, false, true)),
+        6 => ((0x5ef, false, false), (0x5e6, false, true)),
+        7 => ((0x5f0, false, false), (0x5f1, false, false)),
+        8 => ((0x5f2, false, false), (0x5e6, false, true)),
+        9 => ((0x5e6, true, false), (0x5ef, true, true)),
+        _ => ((0x5e5, false, true), (0x5e5, false, false)),
+    }
+}
+
+fn retail_damage_words() -> Option<BTreeMap<(u16, bool, bool), Gd<ImageTexture>>> {
+    let patterns = [
+        0x5e4, 0x5e5, 0x5e6, 0x5e7, 0x5e8, 0x5e9, 0x5ea, 0x5ee, 0x5ef,
+    ];
+    let mut words = BTreeMap::new();
+    for pattern in patterns {
+        let rows = damage_pattern(pattern)?;
+        for flip_h in [false, true] {
+            for flip_v in [false, true] {
+                let mut bytes = Vec::with_capacity(8 * 8 * 4);
+                for y in 0..8 {
+                    for x in 0..8 {
+                        let row = rows[if flip_v { 7 - y } else { y }].as_bytes();
+                        let symbol = row[if flip_h { 7 - x } else { x }];
+                        bytes.extend_from_slice(match symbol {
+                            b'B' => &[0, 0, 98, 255],
+                            b'G' => &[172, 170, 172, 255],
+                            b'W' => &[238, 238, 238, 255],
+                            _ => return None,
+                        });
+                    }
+                }
+                let image = Image::create_from_data(
+                    8,
+                    8,
+                    false,
+                    Format::RGBA8,
+                    &PackedByteArray::from(bytes),
+                )?;
+                words.insert(
+                    (pattern, flip_h, flip_v),
+                    ImageTexture::create_from_image(&image)?,
+                );
+            }
+        }
+    }
+    Some(words)
+}
+
+fn damage_pattern(pattern: u16) -> Option<[&'static str; 8]> {
+    Some(match pattern {
+        0x5e4 => [
+            "BBBBBBBB", "BBGGGGGG", "BGGBBBBB", "BGGBBBBB", "BGGBBBBB", "BGGBBBBB", "BGGBBBBB",
+            "BGGBBBBB",
+        ],
+        0x5e5 => [
+            "BBBBBBBB", "BBBBBBBB", "BBBBBBBB", "BBBBBBBB", "BBBBBBBB", "BBBBBBBB", "GGGGGGGG",
+            "BBBBBBBB",
+        ],
+        0x5e6 => [
+            "BBBBBBBB", "GGGGGGGG", "BBBBBBBB", "BBBBBBBB", "BBWWWWBB", "BWWBBWWB", "BWWBBWWB",
+            "BWWBBWWB",
+        ],
+        0x5e7 => [
+            "BBBBBBBB", "GGGGGGGG", "BBBBBBBB", "BBBBBBBB", "BBBWWBBB", "BBWWWBBB", "BBBWWBBB",
+            "BBBWWBBB",
+        ],
+        0x5e8 => [
+            "BBBWWBBB", "BBBWWBBB", "BBBWWBBB", "BBWWWWBB", "BBBBBBBB", "BBBBBBBB", "GGGGGGGG",
+            "BBBBBBBB",
+        ],
+        0x5e9 => [
+            "BBBBBBBB", "GGGGGGGG", "BBBBBBBB", "BBBBBBBB", "BBWWWWBB", "BWWBBWWB", "BWWBBWWB",
+            "BBBBBWWB",
+        ],
+        0x5ea => [
+            "BBBWWWBB", "BBWWWBBB", "BWWBBBBB", "BWWWWWWB", "BBBBBBBB", "BBBBBBBB", "GGGGGGGG",
+            "BBBBBBBB",
+        ],
+        0x5ee => [
+            "BBBBBBBB", "GGGGGGGG", "BBBBBBBB", "BBBBBBBB", "BWWWWWWB", "BWWBBBBB", "BWWWWWBB",
+            "BWWBBWWB",
+        ],
+        0x5ef => [
+            "BBBBBBBB", "GGGGGGGG", "BBBBBBBB", "BBBBBBBB", "BBWWWWBB", "BWWBBWWB", "BWWBBBBB",
+            "BWWWWWBB",
+        ],
+        _ => return None,
+    })
 }
 
 fn load_image(pack_dir: &str, name: &str) -> Option<Gd<Image>> {

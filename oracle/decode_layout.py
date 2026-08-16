@@ -2,9 +2,11 @@
 """Decode retail battle layout state captured by ``psiv_oracle``.
 
 The Genesis display is a set of pattern-name words, not a picture.  This
-decoder keeps that distinction intact: the two visible plane matrices remain
+decoder keeps that distinction intact: the visible plane matrices remain
 lossless numbers, while chrome, text, residual tile runs, SAT entries, and
-CRAM are convenient structured views over the same bytes.
+CRAM are convenient structured views over the same bytes.  Some captures also
+carry the VDP Window name table as an optional 64x32 region; that plane is
+decoded separately because it has no work-RAM buffer in the current host dump.
 """
 
 from __future__ import annotations
@@ -81,6 +83,29 @@ def _region_bytes(state: dict[str, Any], name: str, expected_size: int) -> bytes
             f"state region {name!r} is {len(raw)} bytes, expected {expected_size}"
         )
     return raw
+
+
+def _optional_region(
+    state: dict[str, Any], names: tuple[str, ...], expected_size: int
+) -> tuple[str, bytes, dict[str, Any]] | None:
+    """Read the first present alias for an optional state region."""
+    regions = state.get("regions", {})
+    for name in names:
+        if name not in regions:
+            continue
+        region = regions[name]
+        if not isinstance(region, dict):
+            raise LayoutDecodeError(f"state region {name!r} is malformed")
+        try:
+            raw = bytes.fromhex(region["bytes_hex"])
+        except (KeyError, TypeError, ValueError) as exc:
+            raise LayoutDecodeError(f"state region {name!r} is malformed") from exc
+        if len(raw) != expected_size or region.get("size_bytes") != expected_size:
+            raise LayoutDecodeError(
+                f"state region {name!r} is {len(raw)} bytes, expected {expected_size}"
+            )
+        return name, raw, region
+    return None
 
 
 def decode_pattern_word(word: int) -> dict[str, Any]:
@@ -245,6 +270,59 @@ def _find_text_runs(words: list[list[int]], rectangles: list[dict[str, Any]]) ->
     return runs
 
 
+def _find_unframed_text_runs(
+    words: list[list[int]], existing: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Find Window-charset runs when the VDP plane has no detected border."""
+    occupied = {
+        (cell["cell_x"], cell["cell_y"])
+        for run in existing
+        for cell in run["cells"]
+    }
+    runs: list[dict[str, Any]] = []
+    for y in range(VISIBLE_HEIGHT_CELLS):
+        glyph_x = [
+            x
+            for x in range(VISIBLE_WIDTH_CELLS)
+            if (words[y][x] & 0x07FF) - 0x680 in WINDOW_CHARSET
+            and WINDOW_CHARSET[(words[y][x] & 0x07FF) - 0x680] != " "
+            and (x, y) not in occupied
+        ]
+        if not glyph_x:
+            continue
+        groups: list[list[int]] = []
+        for x in glyph_x:
+            if not groups or x - groups[-1][-1] > 2:
+                groups.append([x])
+            else:
+                groups[-1].append(x)
+        for group in groups:
+            start, end = group[0], group[-1]
+            cells = [_cell(words[y][x], x, y) for x in range(start, end + 1)]
+            chars = [
+                WINDOW_CHARSET[(words[y][x] & 0x07FF) - 0x680]
+                for x in range(start, end + 1)
+            ]
+            text = "".join(chars)
+            if not text.strip():
+                continue
+            runs.append({
+                "window_index": None,
+                "window_kind": "vdp_window_plane",
+                "text": text,
+                "cell_x": start,
+                "cell_y": y,
+                "length_cells": end - start + 1,
+                "pixel_x": start * CELL_PIXELS,
+                "pixel_y": y * CELL_PIXELS,
+                "charset": "window",
+                "font_vram_base": "0x680",
+                "cells": cells,
+            })
+    runs.sort(key=lambda run: (run["cell_y"], run["cell_x"]))
+    return runs
+
+
 def _window_chrome_cells(words: list[list[int]], rectangles: list[dict[str, Any]],
                          text_runs: list[dict[str, Any]]) -> tuple[set[tuple[int, int]], list[dict[str, Any]]]:
     text_cells = {
@@ -303,10 +381,20 @@ def _tile_runs(words: list[list[int]], excluded: set[tuple[int, int]]) -> list[d
     return runs
 
 
-def decode_plane(raw: bytes, name: str) -> dict[str, Any]:
+def decode_plane(
+    raw: bytes,
+    name: str,
+    *,
+    allow_unframed_text: bool = False,
+    buffer_address: str | None = None,
+    source_region: str | None = None,
+) -> dict[str, Any]:
     words = _word_matrix(raw)
     rectangles = _find_rectangles(words)
     text_runs = _find_text_runs(words, rectangles)
+    if allow_unframed_text:
+        text_runs.extend(_find_unframed_text_runs(words, text_runs))
+        text_runs.sort(key=lambda run: (run["cell_y"], run["cell_x"]))
     chrome_cells, special_cells = _window_chrome_cells(words, rectangles, text_runs)
     text_cells = {
         (cell["cell_x"], cell["cell_y"])
@@ -320,9 +408,10 @@ def decode_plane(raw: bytes, name: str) -> dict[str, Any]:
         if (role := _role(word)) is not None
     )
     visible = [row[:VISIBLE_WIDTH_CELLS] for row in words[:VISIBLE_HEIGHT_CELLS]]
-    return {
+    decoded = {
         "name": name,
-        "buffer_address": "0xFFFF8000" if name == "plane_a" else "0xFFFF9000",
+        "buffer_address": buffer_address
+        or ("0xFFFF8000" if name == "plane_a" else "0xFFFF9000"),
         "grid": {
             "width_cells": PLANE_WIDTH_CELLS,
             "height_cells": PLANE_HEIGHT_CELLS,
@@ -340,6 +429,11 @@ def decode_plane(raw: bytes, name: str) -> dict[str, Any]:
         "visible_nonzero_cells": sum(word != 0 for row in visible for word in row),
         "omitted_zero_cells": sum(word == 0 for row in visible for word in row),
     }
+    if source_region is not None:
+        decoded["source_region"] = source_region
+    if allow_unframed_text:
+        decoded["text_scan"] = "framed_and_unframed_window_charset_runs"
+    return decoded
 
 
 def decode_sprites(raw: bytes) -> dict[str, Any]:
@@ -404,14 +498,15 @@ def decode_cram(raw: bytes) -> dict[str, Any]:
 
 
 def _self_check(layout: dict[str, Any], expected_texts: list[str]) -> dict[str, Any]:
-    text_runs = layout["planes"]["plane_a"]["text_runs"]
+    planes = layout["planes"]
+    text_runs = [run for plane in planes.values() for run in plane["text_runs"]]
     decoded = [run["text"] for run in text_runs]
     missing = [text for text in expected_texts if text not in decoded]
     checks = {
-        "plane_a_visible_matrix": len(layout["planes"]["plane_a"]["visible_words"]) == 28
-        and all(len(row) == 40 for row in layout["planes"]["plane_a"]["visible_words"]),
-        "plane_b_visible_matrix": len(layout["planes"]["plane_b"]["visible_words"]) == 28
-        and all(len(row) == 40 for row in layout["planes"]["plane_b"]["visible_words"]),
+        "plane_a_visible_matrix": len(planes["plane_a"]["visible_words"]) == 28
+        and all(len(row) == 40 for row in planes["plane_a"]["visible_words"]),
+        "plane_b_visible_matrix": len(planes["plane_b"]["visible_words"]) == 28
+        and all(len(row) == 40 for row in planes["plane_b"]["visible_words"]),
         "text_glyphs_have_window_charset_codes": all(
             all(0 <= (cell["pattern"] - 0x680) in WINDOW_CHARSET for cell in run["cells"])
             for run in text_runs
@@ -428,7 +523,7 @@ def _self_check(layout: dict[str, Any], expected_texts: list[str]) -> dict[str, 
         "passed": True,
         "checks": checks,
         "expected_texts": expected_texts,
-        "decoded_plane_a_text_runs": decoded,
+        "decoded_text_runs": decoded,
     }
 
 
@@ -436,6 +531,27 @@ def decode_layout(state_path: Path, expected_texts: list[str], label: str | None
     state = _read_state(state_path)
     plane_a = decode_plane(_region_bytes(state, "plane_a", 0x1000), "plane_a")
     plane_b = decode_plane(_region_bytes(state, "plane_b", 0x1000), "plane_b")
+    planes: dict[str, dict[str, Any]] = {"plane_a": plane_a, "plane_b": plane_b}
+    window_region = _optional_region(
+        state, ("window_plane", "vdp_window_plane", "vdp_window", "window"), 0x1000
+    )
+    window_metadata: dict[str, Any] = {
+        "present": window_region is not None,
+        "name_table": "VDP Window plane",
+        "expected_size_bytes": 0x1000,
+        "expected_grid": "64x32 pattern-name words",
+    }
+    if window_region is not None:
+        region_name, raw, region = window_region
+        planes["window_plane"] = decode_plane(
+            raw,
+            "window_plane",
+            allow_unframed_text=True,
+            buffer_address=region.get("address", "0x0000F000"),
+            source_region=region_name,
+        )
+        window_metadata["source_region"] = region_name
+        window_metadata["address"] = region.get("address", "0x0000F000")
     layout: dict[str, Any] = {
         "format_version": 1,
         "kind": "psiv_battle_layout",
@@ -458,7 +574,8 @@ def decode_layout(state_path: Path, expected_texts: list[str], label: str | None
             "bits": "priority bit 15; palette line bits 14-13; vflip bit 12; hflip bit 11; pattern bits 10-0",
             "word_byte_order": "big-endian in the state JSON",
         },
-        "planes": {"plane_a": plane_a, "plane_b": plane_b},
+        "planes": planes,
+        "window_plane": window_metadata,
         "sprites": decode_sprites(_region_bytes(state, "sprite_table", 0x280)),
         "cram": decode_cram(_region_bytes(state, "cram", 0x80)),
     }

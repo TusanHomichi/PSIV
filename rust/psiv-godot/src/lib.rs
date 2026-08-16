@@ -6,16 +6,22 @@
 use std::collections::HashMap;
 
 use godot::classes::{
-    Camera2D, INode2D, Image, ImageTexture, Input, Node2D, ProjectSettings, Sprite2D,
+    Camera2D, ColorRect, INode2D, Image, ImageTexture, Input, Node2D, ProjectSettings, Sprite2D,
 };
 use godot::prelude::*;
 
 mod battle;
+mod camp;
 mod dialogue;
 mod field_visuals;
+mod shop;
+mod transitions;
 mod view;
 use battle::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
+use camp::CampMenu;
 use dialogue::DialogueWindow;
+use shop::ShopWindow;
+use transitions::TransitionKind;
 use view::{NpcNode, SheetView, sequence_name};
 
 use psiv_core::{Cell, Direction, StepFrames, WarpTrigger};
@@ -61,6 +67,8 @@ struct Field {
     sheet_views: HashMap<String, SheetView>,
     camera: Option<Gd<Camera2D>>,
     dialogue: Option<Gd<DialogueWindow>>,
+    shop: Option<Gd<ShopWindow>>,
+    camp_menu: Option<Gd<CampMenu>>,
     battle_screen: Option<Gd<BattleScreen>>,
     battle_files: Option<psiv_data::BattleFiles>,
     battle_field_visibility: Option<battle::FieldVisibility>,
@@ -69,6 +77,13 @@ struct Field {
     /// 320x224 frame. Four bars are needed in the wide field viewport: the
     /// extra horizontal margins are just as real as the top and bottom ones.
     letterbox: Vec<Gd<godot::classes::ColorRect>>,
+    /// Active palette/cover transition, driven by the field visual seam.
+    transition: Option<transitions::Transition>,
+    /// ColorRect pieces used by the active transition cover.
+    transition_nodes: Vec<Gd<ColorRect>>,
+    /// True only for a high-bit cutscene whose retail scene has the full
+    /// palette treatment; ordinary events retain their dialogue-window motion.
+    scene_transition_active: bool,
     /// The character id whose sheet the leader sprite currently uses.
     leader_char: u8,
     /// Set while a dialogue is open and until accept is released after it
@@ -99,12 +114,17 @@ impl INode2D for Field {
             sheet_views: HashMap::new(),
             camera: None,
             dialogue: None,
+            shop: None,
+            camp_menu: None,
             battle_screen: None,
             battle_files: None,
             battle_field_visibility: None,
             anim_tick: 0,
             accept_blocked: false,
             letterbox: Vec::new(),
+            transition: None,
+            transition_nodes: Vec::new(),
+            scene_transition_active: false,
             leader_char: 0,
             party_sequence: String::new(),
             party_seq_start: 0,
@@ -217,9 +237,23 @@ impl INode2D for Field {
         self.base_mut().add_child(&window);
         self.dialogue = Some(window);
 
+        let mut shop = ShopWindow::new_alloc();
+        shop.bind_mut().configure(&self.pack_dir);
+        self.base_mut().add_child(&shop);
+        self.shop = Some(shop);
+
+        let mut camp = CampMenu::new_alloc();
+        match psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
+            Ok(set) => camp.bind_mut().configure(&self.pack_dir, set),
+            Err(e) => godot_error!("camp menu pack failed to load: {e}"),
+        }
+        self.base_mut().add_child(&camp);
+        self.camp_menu = Some(camp);
+
         self.runtime = Some(runtime);
         self.load_map_visuals();
         self.sync_visuals(false);
+        self.start_transition(TransitionKind::GameStart);
         godot_print!(
             "PSIV field ready: map {:#05x}, party at ({}, {})",
             spawn_map,
@@ -230,7 +264,12 @@ impl INode2D for Field {
 
     fn physics_process(&mut self, _delta: f64) {
         self.anim_tick += 1;
+        self.tick_transition();
+        let battle_was_active = self.battle_presentation_active();
         self.debug_hooks_tick();
+        if !battle_was_active && self.battle_presentation_active() {
+            self.start_transition(TransitionKind::BattleEntry);
+        }
 
         if self.drive_battle_if_active() {
             return;
@@ -249,6 +288,10 @@ impl INode2D for Field {
             if started {
                 godot_print!("dialogue event {event:#x} starts its scene");
                 self.set_letterbox(true);
+                if event & 0x8000 != 0 {
+                    self.scene_transition_active = true;
+                    self.start_transition(TransitionKind::SceneStart);
+                }
             } else {
                 godot_error!("dialogue fired event {event:#x} with no transcribed scene");
             }
@@ -285,6 +328,14 @@ impl INode2D for Field {
             // standing and the leader never swapped.
             self.process_events(events);
             self.sync_visuals(false);
+            return;
+        }
+
+        if self.drive_shop_if_active() {
+            return;
+        }
+
+        if self.drive_camp_if_active() {
             return;
         }
 
@@ -546,7 +597,8 @@ impl Field {
     /// `--psiv-debug-battle=<formation hex>` starts that battle a few frames
     /// after boot with no play needed; `PSIV_DEBUG_SHOT=<path.png>` (with
     /// optional `PSIV_DEBUG_SHOT_FRAME=<n>`, default 180) saves a viewport
-    /// screenshot so an agent can see what a player would.
+    /// screenshot so an agent can see what a player would. `PSIV_DEBUG_CAMP=1`
+    /// opens the field camp at tick 30.
     fn debug_hooks_tick(&mut self) {
         let formation = std::env::var("PSIV_DEBUG_BATTLE").ok().or_else(|| {
             std::env::args().find_map(|argument| {
@@ -569,6 +621,24 @@ impl Field {
                     }
                 }
                 Err(_) => godot_error!("debug battle selector {formation} is not hex"),
+            }
+        }
+        if self.anim_tick == 30 && std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1")
+        {
+            godot_print!("debug: opening camp menu");
+            self.open_camp_menu();
+        }
+        if self.anim_tick == 30
+            && let Ok(value) = std::env::var("PSIV_DEBUG_SHOP")
+            && let Ok(index) = value.parse::<usize>()
+        {
+            let opened = match (self.shop.as_mut(), self.runtime.as_ref()) {
+                (Some(shop), Some(runtime)) => shop.bind_mut().open_index(index, runtime),
+                _ => false,
+            };
+            if opened {
+                godot_print!("debug: opening shop counter {index}");
+                self.place_shop_window();
             }
         }
         if let Ok(path) = std::env::var("PSIV_DEBUG_SHOT") {
@@ -596,6 +666,9 @@ impl Field {
                 RuntimeEvent::StepCompleted { .. } => stepped = true,
                 RuntimeEvent::EncounterRolled { formation } => {
                     self.start_random_battle(formation);
+                    if self.battle_presentation_active() {
+                        self.start_transition(TransitionKind::BattleEntry);
+                    }
                 }
                 RuntimeEvent::MapChanged { map, trigger } => {
                     let kind = match trigger {
@@ -604,6 +677,9 @@ impl Field {
                     };
                     godot_print!("map change ({kind}) -> {:#05x}", map.0);
                     self.load_map_visuals();
+                    if matches!(trigger, WarpTrigger::MapChange) {
+                        self.start_transition(TransitionKind::Doorway);
+                    }
                 }
                 RuntimeEvent::UnpackedTarget { map } => {
                     godot_error!("transition target {:#05x} is not in the pack", map.0);
@@ -617,13 +693,36 @@ impl Field {
                     reach,
                 } => {
                     if matches!(reach, psiv_core::InteractReach::AcrossCounter) {
-                        // Shop-vs-dialogue splits on the shop-location table;
-                        // until the shop UI exists, counters open dialogue,
-                        // which is also the correct behavior for desks (the
-                        // principal is not in the shop table).
-                        godot_print!(
-                            "counter reach at {cell:?} (shop-table check pending shop UI)"
-                        );
+                        let counter = self.shop.as_ref().and_then(|shop| {
+                            let runtime = self.runtime.as_ref()?;
+                            let object_cell =
+                                runtime.map().npcs().get(npc_index).map(|npc| npc.cell);
+                            object_cell
+                                .into_iter()
+                                .chain(std::iter::once(cell))
+                                .find_map(|at| {
+                                    shop.bind().counter_at(runtime.map_id().0, at.x, at.y)
+                                })
+                        });
+                        if let Some(counter) = counter {
+                            let opened = match (self.shop.as_mut(), self.runtime.as_ref()) {
+                                (Some(shop), Some(runtime)) => {
+                                    shop.bind_mut().open(counter, runtime)
+                                }
+                                _ => false,
+                            };
+                            if opened {
+                                self.place_shop_window();
+                                if let Some(runtime) = self.runtime.as_mut() {
+                                    let facing = runtime.state().facing().opposite();
+                                    runtime.face_npc(npc_index, facing);
+                                }
+                                continue;
+                            }
+                        }
+                        // Desks and other across-counter objects remain
+                        // ordinary dialogue when no shop-table row matches.
+                        godot_print!("counter reach at {cell:?} has no shop row; dialogue");
                     }
                     let binding = self.runtime.as_ref().and_then(|rt| {
                         let record = rt.map_record()?;
@@ -682,10 +781,19 @@ impl Field {
                 RuntimeEvent::SceneStartedFromInteraction { area, event } => {
                     godot_print!("scene started (interaction area {area}, event {event:#x})");
                     self.set_letterbox(true);
+                    if event & 0x8000 != 0 {
+                        self.scene_transition_active = true;
+                        self.start_transition(TransitionKind::SceneStart);
+                    }
                 }
                 RuntimeEvent::SceneEnded => {
                     godot_print!("scene ended");
-                    self.set_letterbox(false);
+                    if self.scene_transition_active {
+                        self.scene_transition_active = false;
+                        self.start_transition(TransitionKind::SceneEnd);
+                    } else {
+                        self.set_letterbox(false);
+                    }
                     self.load_map_visuals();
                 }
                 RuntimeEvent::SceneMissing { event } => {

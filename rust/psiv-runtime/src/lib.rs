@@ -14,17 +14,21 @@ use std::collections::BTreeSet;
 mod battle_interim;
 mod boss_battles;
 mod bridge;
+mod camp;
 mod effects;
 mod encounters;
 mod events;
 mod scene_runtime;
+mod shop;
 pub use bridge::{BridgeError, field_map, field_map_patched};
+pub use camp::{CampCharacter, CampItem, CampState, CampUseResult};
 pub use effects::{EffectOutcome, evaluate as evaluate_map_effects};
 pub use encounters::{
     EncounterClock, EncounterTable, FOOT_MASK, GRACE_STEPS, GROUP_MASK, battle_data,
     formation_record,
 };
 pub use events::RuntimeEvent;
+pub use shop::{InnResult, ShopBuyResult, ShopSellResult};
 
 use bridge::{build_wander, char_id_by_symbol};
 
@@ -104,6 +108,7 @@ struct BattleSet {
     clock: EncounterClock,
     /// Display names by character id, for battle timelines.
     names: std::collections::BTreeMap<u8, String>,
+    camp: camp::CampCatalog,
     /// Event battle index -> boss formation. Boss records have no normal id.
     boss_formations: std::collections::BTreeMap<u16, psiv_core::battle::FormationRecord>,
 }
@@ -231,6 +236,7 @@ impl Runtime {
                     )
                 })
                 .collect(),
+            camp: camp::catalog(files),
             boss_formations: boss_battles::boss_formation_records(files)?,
         });
         Ok(())

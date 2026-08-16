@@ -20,10 +20,13 @@ use super::layout::{append_status_quads, tile_dest};
 use super::timeline::{self, Beat};
 use super::{BattleSetup, EnemyPlacement, PartyPlacement};
 
-/// `Battle_Speed == 2`: 12 * (speed + 1) frames, per
-/// `docs/BATTLE_GEOMETRY.md` §5. Runtime has no speed setting API yet, so this
-/// is the documented retail default rather than a hidden presentation guess.
-pub(crate) const BATTLE_DWELL_FRAMES: u16 = 36;
+/// Retail `$FFFFEE66`: `12 * (Battle_Speed + 1)`, clamped to 0..4.
+pub(crate) const fn battle_dwell_frames(speed: u16) -> u16 {
+    let speed = if speed > 4 { 4 } else { speed };
+    12 * (speed + 1)
+}
+
+pub(crate) const BATTLE_DWELL_FRAMES: u16 = battle_dwell_frames(2);
 
 /// Plane cells are 8x8 pixels, per `docs/BATTLE_GEOMETRY.md` §1.
 pub(super) const BATTLE_CELL_PIXELS: i32 = 8;
@@ -103,14 +106,18 @@ pub(super) const VICTORY_TEXT_RECT: WindowRect = WindowRect {
     h: 8.0,
 };
 
-/// The transient and wide message rectangles are retained for non-capture
-/// event narration. Their placements are the corresponding records in
-/// `docs/BATTLE_GEOMETRY.md`; attack/followup captures deliberately contain no
-/// message rectangle and therefore suppress these during those beats.
+/// Non-capture narration uses the decoded transient/wide placements; attack
+/// and effect captures have no message rectangle.
 const TRANSIENT_MESSAGE_RECT: WindowRect = WindowRect {
     x: 88.0,
     y: 144.0,
     w: 96.0,
+    h: 24.0,
+};
+const LONG_TRANSIENT_MESSAGE_RECT: WindowRect = WindowRect {
+    x: 88.0,
+    y: 144.0,
+    w: 144.0,
     h: 24.0,
 };
 const WIDE_MESSAGE_RECT: WindowRect = WindowRect {
@@ -170,6 +177,7 @@ struct PartySprite {
 
 struct ActiveEvent {
     remaining: u16,
+    wait_for_confirm: bool,
 }
 
 /// A request for the field to call the runtime epilogue after playback.
@@ -183,7 +191,6 @@ pub(crate) struct FinishRequest {
 struct DamageDraw {
     target: FighterId,
     amount: u16,
-    critical: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -191,6 +198,8 @@ enum MessageKind {
     None,
     Transient,
     Wide,
+    Victory,
+    VictoryRewards,
 }
 
 #[derive(Clone)]
@@ -227,6 +236,8 @@ pub(crate) struct BattleScreen {
     cursor: usize,
     finish_outcome: Option<Outcome>,
     reward_each: u16,
+    reward_meseta: u16,
+    transient_column: i32,
     finish_request: Option<FinishRequest>,
     close_when_idle: bool,
     close_ready: bool,
@@ -257,6 +268,8 @@ impl INode2D for BattleScreen {
             cursor: 0,
             finish_outcome: None,
             reward_each: 0,
+            reward_meseta: 0,
+            transient_column: 11,
             finish_request: None,
             close_when_idle: false,
             close_ready: false,
@@ -304,33 +317,41 @@ impl INode2D for BattleScreen {
             quads.extend(frame);
             quads.extend(chrome.text_with_pitch("COMD\nMACR\nRUN", COMMAND_TEXT_RECT, 16.0));
         }
-        if self.message_kind != MessageKind::None && !self.message.is_empty() {
-            let rect = match self.message_kind {
-                MessageKind::Transient => TRANSIENT_MESSAGE_RECT,
-                MessageKind::Wide => WIDE_MESSAGE_RECT,
-                MessageKind::None => unreachable!(),
-            };
-            let text_rect = if self.message == "Victory!" {
-                VICTORY_TEXT_RECT
-            } else {
-                rect.inset(cell)
-            };
-            let frame_rect = if self.message == "Victory!" {
-                VICTORY_RECT
-            } else {
-                rect
-            };
-            if let Some(frame) = chrome.frame(frame_rect) {
-                quads.extend(frame);
-                quads.extend(chrome.text(&self.message, text_rect));
+        match self.message_kind {
+            MessageKind::Transient | MessageKind::Wide if !self.message.is_empty() => {
+                let rect =
+                    if self.message_kind == MessageKind::Transient && self.message == "DEFENSE" {
+                        WindowRect {
+                            x: self.transient_column as f32 * cell,
+                            ..TRANSIENT_MESSAGE_RECT
+                        }
+                    } else if self.message_kind == MessageKind::Transient {
+                        LONG_TRANSIENT_MESSAGE_RECT
+                    } else {
+                        WIDE_MESSAGE_RECT
+                    };
+                if let Some(frame) = chrome.frame(rect) {
+                    quads.extend(frame);
+                    quads.extend(chrome.text(&self.message, rect.inset(cell)));
+                }
             }
+            MessageKind::Victory => {
+                quads.extend(chrome.victory_quads(VICTORY_RECT, VICTORY_TEXT_RECT, None));
+            }
+            MessageKind::VictoryRewards => {
+                quads.extend(chrome.victory_quads(
+                    VICTORY_RECT,
+                    VICTORY_TEXT_RECT,
+                    Some((self.reward_each, self.reward_meseta)),
+                ));
+            }
+            MessageKind::None | MessageKind::Transient | MessageKind::Wide => {}
         }
         append_status_quads(chrome, &self.party_status, &mut quads);
         if let Some(damage) = self.damage
             && let Some(column) = self.damage_column(damage.target)
         {
-            // `docs/BATTLE_GEOMETRY.md` §4: enemy damage is row 5 / y40,
-            // party damage is row 18 / y144, and the digit block is 5x2 cells.
+            // §4: enemy damage is row 5, party damage row 18; each block is 5x2.
             let rect = WindowRect {
                 x: column as f32 * BATTLE_CELL_PIXELS as f32,
                 y: if damage.target.side() == psiv_core::battle::Side::Enemy {
@@ -341,12 +362,7 @@ impl INode2D for BattleScreen {
                 w: DAMAGE_WIDTH,
                 h: DAMAGE_HEIGHT,
             };
-            let label = if damage.critical {
-                format!("{}!", damage.amount)
-            } else {
-                damage.amount.to_string()
-            };
-            quads.extend(chrome.text(&label, rect));
+            quads.extend(chrome.damage_quads(damage.amount, rect));
         }
         if self.command_open {
             for (row, pattern) in COMMAND_CURSOR_WORDS.into_iter().enumerate() {
@@ -487,6 +503,8 @@ impl BattleScreen {
         self.command_open = false;
         self.cursor = 0;
         self.reward_each = 0;
+        self.reward_meseta = 0;
+        self.transient_column = 11;
         self.message.clear();
         self.message_kind = MessageKind::None;
         self.damage = None;
@@ -548,6 +566,12 @@ impl BattleScreen {
             }
         }
         if let Some(active) = self.current.as_mut() {
+            if active.wait_for_confirm {
+                if !Input::singleton().is_action_just_pressed("ui_accept") {
+                    return;
+                }
+                active.remaining = 1;
+            }
             if active.remaining > 1 {
                 active.remaining -= 1;
                 return;
@@ -810,7 +834,7 @@ impl BattleScreen {
         if narration.line == "Unhandled battle event." {
             godot_error!("battle renderer: unhandled BattleEvent: {event:?}");
         }
-        if let BattleEvent::UnsupportedAbility { actor, ability } = event {
+        if let BattleEvent::UnsupportedAbility { actor, ability } = &event {
             godot_error!(
                 "battle renderer: engine emitted unsupported ability {ability} for fighter {}",
                 actor.get()
@@ -818,21 +842,44 @@ impl BattleScreen {
         }
         if let BattleEvent::Rewarded {
             experience_each, ..
-        } = event
+        } = &event
         {
-            self.reward_each = experience_each;
+            self.reward_each = *experience_each;
+        }
+        if let BattleEvent::Rewarded { meseta, .. } = &event {
+            self.reward_meseta = *meseta;
         }
         self.message = narration.line;
+        self.transient_column = 11;
         self.message_kind = match narration.beat {
             Beat::Start => MessageKind::None,
-            Beat::End(_) | Beat::Reward | Beat::LevelUp => MessageKind::Wide,
-            // `oracle/layouts/battle_attack_effect.json` and
-            // `battle_followup.json` decode only the status strip during the
-            // attack/effect interval. The retail transient message is absent
-            // there, so these beats carry narration for logs but no window.
+            Beat::End(Outcome::Escaped) | Beat::Defense(_) => MessageKind::Transient,
+            Beat::End(Outcome::Victory) if matches!(&event, BattleEvent::Ended { .. }) => {
+                self.message.clear();
+                MessageKind::VictoryRewards
+            }
+            Beat::End(_) | Beat::LevelUp => MessageKind::Wide,
+            Beat::Reward => {
+                self.message = "Victory!".into();
+                MessageKind::Victory
+            }
+            // Attack/effect captures decode only the status strip here.
             Beat::Attack(_) | Beat::Damage { .. } | Beat::Hide(_) => MessageKind::None,
+            Beat::None if self.message.is_empty() => MessageKind::None,
             Beat::None => MessageKind::Transient,
         };
+        if let BattleEvent::Died { fighter } = &event
+            && fighter.side() == psiv_core::battle::Side::Party
+            && self.party_defeated()
+        {
+            self.message_kind = MessageKind::Wide;
+        }
+        if let Beat::Defense(actor) = narration.beat {
+            self.transient_column = Self::transient_column(actor);
+        }
+        if matches!(&event, BattleEvent::Escaped) {
+            self.transient_column = 11;
+        }
         self.damage = None;
         self.restore_party_pose();
         match narration.beat {
@@ -840,20 +887,28 @@ impl BattleScreen {
             Beat::Damage {
                 target,
                 amount: Some(amount),
-                critical,
+                ..
             } => {
-                self.damage = Some(DamageDraw {
-                    target,
-                    amount,
-                    critical,
-                });
+                self.damage = Some(DamageDraw { target, amount });
             }
             Beat::Hide(fighter) => self.hide_fighter(fighter),
             Beat::End(outcome) => self.finish_outcome = Some(outcome),
-            Beat::None | Beat::Start | Beat::Reward | Beat::LevelUp | Beat::Damage { .. } => {}
+            Beat::None
+            | Beat::Start
+            | Beat::Defense(_)
+            | Beat::Reward
+            | Beat::LevelUp
+            | Beat::Damage { .. } => {}
         }
         self.current = Some(ActiveEvent {
-            remaining: BATTLE_DWELL_FRAMES,
+            remaining: if self.message_kind == MessageKind::Wide
+                && self.message.ends_with("defeated...!")
+            {
+                0x78
+            } else {
+                BATTLE_DWELL_FRAMES
+            },
+            wait_for_confirm: timeline::waits_for_confirm(narration.beat),
         });
         self.command_open = false;
     }
@@ -916,6 +971,19 @@ impl BattleScreen {
         }
     }
 
+    fn transient_column(fighter: FighterId) -> i32 {
+        match fighter.get() {
+            1 => 5,
+            2 | 5 => 17,
+            3 | 4 => 11,
+            _ => 11,
+        }
+    }
+
+    fn party_defeated(&self) -> bool {
+        !self.party_status.is_empty() && self.party_status.iter().all(|member| member.hp == 0)
+    }
+
     fn damage_column(&self, target: FighterId) -> Option<i32> {
         if target.side() == psiv_core::battle::Side::Enemy {
             return self
@@ -926,22 +994,5 @@ impl BattleScreen {
         PARTY_COLUMNS
             .get(target.get().checked_sub(1)? as usize)
             .copied()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::enemy_sprite_origin;
-
-    #[test]
-    fn enemy_position_byte_is_a_bottom_right_anchor() {
-        assert_eq!(enemy_sprite_origin(20, 10, 10), (80, 40));
-        assert_eq!(enemy_sprite_origin(137, 6, 6), (24, 72));
-        assert_eq!(enemy_sprite_origin(159, 6, 6), (200, 72));
-    }
-
-    #[test]
-    fn enemy_palette_bit_does_not_move_the_body() {
-        assert_eq!(enemy_sprite_origin(20 | 0x80, 10, 10), (80, 40));
     }
 }

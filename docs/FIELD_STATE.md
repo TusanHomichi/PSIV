@@ -172,6 +172,16 @@ because the count above diverts a full inventory first. `Inventory::add`
 returns `MapError::InventoryFull` instead of reproducing an overwrite the
 cartridge cannot actually perform.
 
+## 2a. Camp menu Tier 1
+
+`psiv-runtime/src/camp.rs` exposes a renderer-safe snapshot of the live party
+roster, forty-slot inventory, read-only equipment names, next-level experience,
+and meseta. `psiv-godot/src/camp/` owns only the decoded windows and input.
+Consumable item commands return to the runtime and mutate `GameState` through
+`inventory_mut().remove()` and `roster_mut().get_mut()`. Healing and status
+cures use the `item_effects` records from `battle/abilities.json`; equipment
+slots are display-only in this slice.
+
 ## 3. Treasure chests — implemented
 
 ### A chest is a field object
@@ -332,7 +342,9 @@ day — the flag-bank merge collapsed `chest_flags`/`temp_flags` into a single
 
 ## Open
 
-- **Character roster.** Scouted above, not implemented — see below.
+- **Character roster.** The live Tier-1 camp display is implemented in the
+  runtime camp snapshot and Godot camp menu; save/load presentation remains
+  outside this slice.
 - **Object slots on maps with chests.** The comparator's object columns index
   the shared pool, and `psiv-core`'s object list is currently the pack's NPCs
   only. On a map with chests the engine's slot indices would run short of the

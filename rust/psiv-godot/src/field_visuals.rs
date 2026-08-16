@@ -1,11 +1,12 @@
 //! Per-frame field drawing, split from the Godot bridge so the bridge stays
 //! below the repository's one-thousand-line maintenance limit.
 
-use godot::classes::Sprite2D;
+use godot::classes::{ColorRect, Sprite2D};
 use godot::prelude::*;
 
 use psiv_core::{Cell, Direction};
 
+use super::transitions::{Transition, TransitionKind};
 use super::view::{SheetView, sequence_name};
 use super::{CELL_PIXELS, Field};
 
@@ -190,5 +191,135 @@ impl Field {
             camera.set_position(center);
         }
         self.place_letterbox();
+        self.sync_transition();
+    }
+
+    /// Starts one retail-timed transition. The caller owns the semantic
+    /// trigger; this layer only owns the cover and its frame cadence.
+    pub(super) fn start_transition(&mut self, kind: TransitionKind) {
+        self.transition = Some(Transition::new(kind));
+        self.ensure_transition_nodes();
+        self.sync_transition();
+    }
+
+    /// Advances transitions even while the battle presentation owns the
+    /// normal runtime tick.
+    pub(super) fn tick_transition(&mut self) {
+        let finished_kind = self
+            .transition
+            .as_mut()
+            .and_then(|transition| transition.tick().then_some(transition.kind()));
+        if let Some(kind) = finished_kind {
+            self.transition = None;
+            if kind == TransitionKind::SceneEnd {
+                self.set_letterbox(false);
+            }
+        }
+        self.sync_transition();
+    }
+
+    fn ensure_transition_nodes(&mut self) {
+        if !self.transition_nodes.is_empty() {
+            return;
+        }
+        for _ in 0..4 {
+            let mut node = ColorRect::new_alloc();
+            node.set_visible(false);
+            node.set_z_index(600);
+            self.base_mut().add_child(&node);
+            self.transition_nodes.push(node);
+        }
+    }
+
+    fn sync_transition(&mut self) {
+        let Some(transition) = self.transition else {
+            for node in &mut self.transition_nodes {
+                node.set_visible(false);
+            }
+            return;
+        };
+        let Some(visual) = transition.visual() else {
+            for node in &mut self.transition_nodes {
+                node.set_visible(false);
+            }
+            return;
+        };
+        let Some((top_left, view)) = self.transition_view() else {
+            return;
+        };
+        let alpha = f32::from(visual.level) / 7.0;
+        let color = match visual.color {
+            super::transitions::TransitionColor::Black => Color::from_rgba(0.0, 0.0, 0.0, alpha),
+            super::transitions::TransitionColor::White => Color::from_rgba(1.0, 1.0, 1.0, alpha),
+        };
+        let z = if transition.front_layer() { 600 } else { 25 };
+        for node in &mut self.transition_nodes {
+            node.set_color(color);
+            node.set_z_index(z);
+            node.set_visible(false);
+        }
+        if alpha <= 0.0 {
+            return;
+        }
+
+        match visual.opening {
+            None => {
+                let node = &mut self.transition_nodes[0];
+                node.set_position(top_left);
+                node.set_size(view);
+                node.set_visible(true);
+            }
+            Some(opening) => self.place_wipe(top_left, view, opening),
+        }
+    }
+
+    fn transition_view(&self) -> Option<(Vector2, Vector2)> {
+        let camera = self.camera.as_ref()?;
+        let viewport = self.base().get_viewport_rect().size;
+        let zoom = camera.get_zoom().x.max(0.01);
+        let view = viewport / zoom;
+        Some((camera.get_position() - view / 2.0, view))
+    }
+
+    fn place_wipe(&mut self, top_left: Vector2, view: Vector2, opening: f32) {
+        let opening = opening.clamp(0.0, 1.0);
+        if opening >= 1.0 {
+            return;
+        }
+        if opening <= 0.0 {
+            let node = &mut self.transition_nodes[0];
+            node.set_position(top_left);
+            node.set_size(view);
+            node.set_visible(true);
+            return;
+        }
+
+        let window = view * opening;
+        let window_pos = top_left + (view - window) / 2.0;
+        let bottom = window_pos.y + window.y;
+        let right = window_pos.x + window.x;
+        let sizes = [
+            (
+                top_left,
+                Vector2::new(view.x, (window_pos.y - top_left.y).max(0.0)),
+            ),
+            (
+                Vector2::new(top_left.x, bottom),
+                Vector2::new(view.x, (top_left.y + view.y - bottom).max(0.0)),
+            ),
+            (
+                Vector2::new(top_left.x, window_pos.y),
+                Vector2::new((window_pos.x - top_left.x).max(0.0), window.y),
+            ),
+            (
+                Vector2::new(right, window_pos.y),
+                Vector2::new((top_left.x + view.x - right).max(0.0), window.y),
+            ),
+        ];
+        for (node, (position, size)) in self.transition_nodes.iter_mut().zip(sizes) {
+            node.set_position(position);
+            node.set_size(size);
+            node.set_visible(true);
+        }
     }
 }
