@@ -35,6 +35,13 @@ def main() -> int:
     p_pack.add_argument("--map", dest="map_ids", type=lambda v: int(v, 0), action="append",
                         help="restrict the pack to these map ids (repeatable)")
 
+    p_sound = sub.add_parser(
+        "sound",
+        help="Extract raw music, SFX, voices, envelopes and DAC data (writes the gitignored sound pack)",
+    )
+    p_sound.add_argument("rom", type=Path)
+    p_sound.add_argument("output", type=Path)
+
     args = parser.parse_args()
     try:
         data = read_rom(args.rom)
@@ -104,6 +111,24 @@ def main() -> int:
             doors = manifest["warps"]["doors_without_map_change_cell"]
             if doors:
                 print(f"{len(doors)} doorways have no map-change cell in the stored layout")
+        elif args.command == "sound":
+            from .sound import SoundError, emit_sound
+            try:
+                result = emit_sound(data, args.output)
+            except SoundError as exc:
+                parser.error(str(exc))
+            census = result
+            print(
+                f"Sound: {census['music']['records']} music records, "
+                f"{census['sfx']['regular_records']} regular SFX records, "
+                f"{census['sfx']['special_records']} special SFX records, "
+                f"{census['track_count']} tracks"
+            )
+            print(
+                f"Command vocabulary: {census['command_vocabulary_size']} observed "
+                f"primary opcodes ({', '.join(census['command_opcodes_seen'])})"
+            )
+            print(f"Wrote raw sound pack to {args.output / 'sound'}")
     except (OSError, RomError) as exc:
         parser.error(str(exc))
     return 0

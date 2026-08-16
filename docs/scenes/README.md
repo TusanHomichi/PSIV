@@ -1,13 +1,39 @@
-# Opening-act scene transcriptions
+# Retail scene transcriptions
 
-Transcribed 2026-08-14 from the retail cartridge. These documents are the
+Opening-act material was transcribed 2026-08-14 from the retail cartridge;
+the next-arc records below were added 2026-08-16. These documents are the
 evidence base the event-interpreter lane implements from: every scene in the
 opening act, disassembled from cartridge bytes, expressed as an ordered
 `SceneOp` sequence, with every RAM address, event flag and dialogue reference
 resolved to a name.
 
-**Scope**: power-on through leaving Piata with the basement quest done — the
-v1 slice `docs/RUNTIME_DESIGN.md` calls the opening act.
+**Opening-act scope**: power-on through leaving Piata with the basement quest
+done — the v1 slice `docs/RUNTIME_DESIGN.md` calls this the opening act.
+
+**Next-arc scope**: the scene set from Piata's post-gate Professor Holt beat
+through Zema, the Tonoe road, and the Birth Valley hand-off. The trigger/map
+census is [12_ArcTriggerCensus](12_ArcTriggerCensus.md); the per-scene records
+are [13_ProfHolt](13_ProfHolt.md) through
+[25_TonoeBasementDoor](25_TonoeBasementDoor.md). The native registry and
+headless proof live beside those documents in `psiv-core` and `psiv-runtime`.
+
+## Next-arc registry
+
+| Scene | Event | Doc | Retail bytes |
+|---|---:|---|---|
+| `Cutscene_ProfHolt` | `$8002` | [13](13_ProfHolt.md) | `$073F22..$073F9B` |
+| `Cutscene_MeetingRune` | `$8003` | [14](14_MeetingRune.md) | `$073F9C..$074033` |
+| `Event_MeetingDorin` | `$32` | [15](15_MeetingDorin.md) | `$06EEBE..$06F1A3` |
+| `Cutscene_Dorin` | `$8004` | [16](16_Dorin.md) | `$074034..$0741E5` |
+| `Event_RuneFlaeli` | `$27` | [17](17_RuneFlaeli.md) | `$06D7C2..$06DBD7` |
+| `Event_AlshlineFound` | `$28` | [18](18_AlshlineFound.md) | `$06DBD8..$06DBE7` |
+| `Cutscene_Alshline` | `$8005` | [19](19_Alshline.md) | `$0741E6..$074555` |
+| `Cutscene_ZemaIgglanovaDefeated` | `$8006` | [20](20_ZemaIgglanovaDefeated.md) | `$074556..$0745DD` |
+| `Event_ZemaServantBattle` | `$8A` | [21](21_ZemaServantBattle.md) | `$07311E..$07313D` |
+| `Event_ZemaOldMan` | `$8B` | [22](22_ZemaOldMan.md) | `$07313E..$073165` |
+| `Event_ZemaOldManAfterMission` | `$8C` | [23](23_ZemaOldManAfterMission.md) | `$073166..$07318D` |
+| `Event_MeetingSaya` | `$0D` | [24](24_MeetingSaya.md) | `$06BC6A..$06BE77` |
+| `Event_TonoeBasementDoor` | `$33` | [25](25_TonoeBasementDoor.md) | `$06F1A4..$06F2E9` |
 
 ## Why these were disassembled and not read
 
@@ -117,7 +143,8 @@ The scratch tooling lives outside the repo (session scratchpad):
 ## SceneOp vocabulary
 
 Base vocabulary from `docs/RUNTIME_DESIGN.md`, plus the extensions the opening
-act genuinely needs. **The interpreter lane implements exactly this union.**
+and next acts genuinely need. **The interpreter lane implements exactly this
+union.**
 
 ### Base (used as designed)
 
@@ -157,6 +184,23 @@ dialogue tree (which the dialogue system owns, not the scene interpreter).
 | `AddMoney{amount}` | `addi.l #n, (Current_Money).w` | MeetingHahn (+100), PrincipalConfession (+300) |
 | `StartBattle{event_battle_index}` | `Event_Battle_Index $ECFC` + `bset #3,(Routine_Exit_Flags)` | IgglanovaBattle |
 | `SetRenderSpritesInCutscene{b}` | `Render_Sprites_In_Cutscenes $ECFD` | PiataPrincipal |
+
+### Next-arc extensions
+
+| Op | Retail primitive | Used by |
+|---|---|---|
+| `MoveActorToActor{who, target}` | copy a live object's position before `Event_MoveObjectStatic` | Tonoe basement door |
+| `PanelCreate{id}` / `PanelDestroy{id}` / `DmaPlanes` | `Panel_Create`, `Panel_Destroy`, `DMAPlanes_VInt` | Alshline |
+| `LoadArt{rom_addr, tile}` | `LoadVRAMAddressFromTileNumber` + `NemDecomp` | RuneFlaeli, Alshline |
+| `ObjectAnimation{slot, object_id, art_tile, frames}` | temporary field-object construction and keyframe loops | MeetingDorin, RuneFlaeli, Alshline, Saya |
+| `RemoveItem{item}` | `GetItem` + clear slot + `ReorderInventory` | Alshline |
+| `SetMapLoadFlags{set, clear}` | raw `Map_Load_Flags` writes around `RefreshMap` | Dorin, Alshline, servant battle |
+| `RecoverStats{}` | `RecoverStats` | Alshline |
+
+`LoadMap` is now a blocking op: the runtime responds with `MapLoaded` only
+after it has rebuilt and recast the new map. NPC `ActorMoveStarted` and
+`ActorArrived` edges update `FieldMap`, which is the authoritative landing
+state used by the comparator.
 
 ### Intro-only extensions
 
@@ -229,21 +273,13 @@ power-on
        └─ Event_PiataGuardsReprimand    bounces you back into Piata  <-- act boundary
 ```
 
-## Out of scope (noticed, not transcribed)
+## Still out of scope (noticed, not transcribed)
 
-- `Cutscene_ProfHolt` (`$8002`, retail `$73F22`–`$73F9C`) — fires from **tree 3**
-  entry `$6A`, i.e. after Piata; warps toward Zema/Birth Valley. This is the
-  next act's opening, not this one's close.
-- `Event_MeetingSaya` (`$0D`) / `RunEvent_MeetingSaya` (`$16`) and the unused
-  `RunEvent_MeetingSayaUnused` (`$09`) — Zema, past the boundary. Note the
-  `Unused` one is genuinely unreferenced: it appears in `RunEventsJmpTbl` at
-  index `$09` but no map's event list contains `$09`.
+- `RunEvent_MeetingSayaUnused` (`$09`) — genuinely unreferenced: it appears
+  in `RunEventsJmpTbl` but no map's event list contains `$09`.
 - `Event_MachineCenterAppearing` (`$06`) — trigger `$06` requires
   `EventFlag_Zio`, far past this act.
-- The remaining 11 scene includes. Only one of them, **`MeetingSaya`**, is
-  ungated and therefore needs the same cartridge-only treatment as the opening
-  act's six. The other 10 (`BioPlantAlarm`, `GirlsSneakingOut`, `AlshlineFound`,
-  `ChazHouse`, `ZemaIgglanovaDefeated`, `RuneFlaeli`, `Alshline`,
-  `MeetingRika`, `FortuneTeller`, `AfterFortuneTeller`) keep retail source in
-  their `grand_cross=0` branch — still worth byte-verifying against the
-  cartridge before transcribing, but not archaeology from scratch.
+- The remaining scene includes: `BioPlantAlarm`, `GirlsSneakingOut`,
+  `ChazHouse`, `MeetingRika`, `FortuneTeller`, `AfterFortuneTeller`, and later
+  story scenes. Their retail branches still need the same byte audit before
+  they enter the registry.

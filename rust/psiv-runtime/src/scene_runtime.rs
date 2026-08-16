@@ -106,8 +106,9 @@ impl Runtime {
                 let cell = Cell::new(start_x / 2, start_y / 2 + 1);
                 match self.change_map(MapId(map), cell, facing) {
                     Ok(()) => {
+                        let cast = self.build_cast();
                         if let Some(runner) = self.scene.as_mut() {
-                            runner.recast(Vec::new());
+                            runner.recast(cast);
                         }
                         events.push(RuntimeEvent::MapChanged {
                             map: MapId(map),
@@ -116,6 +117,11 @@ impl Runtime {
                     }
                     Err(_) => events.push(RuntimeEvent::UnpackedTarget { map: MapId(map) }),
                 }
+                // Whether the target was accepted or rejected, release the
+                // interpreter's map-load barrier. A rejected target is then
+                // allowed to report its own missing-actor fault instead of
+                // hanging a scene forever.
+                self.scene_input = SceneInput::MapLoaded;
             }
             // MapDataManager effects are load-time work, not a live rebuild on
             // every flag write. The next map load evaluates the new flag and
@@ -130,8 +136,31 @@ impl Runtime {
             } => {
                 let _ = self.map.set_npc_facing(index, facing);
             }
-            // Actor motion is polled via scene_actors(); presentation ops and
-            // arrivals need no runtime action.
+            // Scripted movement has two consumers: the runner's actor list for
+            // interpolation, and the live FieldMap for collision/comparator
+            // reads. The old bridge handled facing but dropped both movement
+            // edges, so a scene NPC appeared to walk only in the renderer and
+            // landed back at its old map cell. Land on the map at the start
+            // edge as retail's destination write does, and assert the arrival
+            // again when the runner reaches it.
+            SceneEffect::ActorMoveStarted {
+                actor: ActorRef::Npc(index),
+                to,
+            }
+            | SceneEffect::ActorArrived {
+                actor: ActorRef::Npc(index),
+                at: to,
+            }
+            | SceneEffect::ActorPlaced {
+                actor: ActorRef::Npc(index),
+                at: to,
+            } => {
+                let _ = self.map.set_npc_cell(index, to);
+            }
+            // Party/character objects are represented by the scene cast for
+            // now; their authoritative live positions are rebuilt by the
+            // party driver. Presentation ops and their arrivals need no other
+            // runtime action.
             _ => {}
         }
     }

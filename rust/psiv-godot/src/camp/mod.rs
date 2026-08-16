@@ -5,11 +5,13 @@
 //! the place where `Field` applies the cartridge's field-suspension seam.
 
 mod chrome;
+mod equipment;
 mod layout;
 
 use godot::classes::{INode2D, Image, ImageTexture, Input, Node2D};
 use godot::global::Key;
 use godot::prelude::*;
+use std::path::PathBuf;
 
 use psiv_runtime::{CampCharacter, CampState, CampUseResult, Runtime};
 
@@ -18,9 +20,9 @@ use crate::Field;
 use self::chrome::{CampChrome, Quad};
 use self::layout::{
     CHARACTER_SUMMARY, CHILD_CURSOR_PATTERN, ITEM_EMPTY_TEXT, ITEM_MESSAGE, MESETA,
-    ROOT_CURSOR_CELL, ROOT_MENU, ROOT_TEXT, SELECTED_CURSOR_PATTERN, STATE_CURSOR_CELL,
-    STATE_OPTIONS, STATE_TEXT, STATUS_EQUIPMENT, STATUS_EXP, STATUS_INFO, STATUS_PORTRAIT,
-    STATUS_STATS, STATUS_TEXT,
+    ROOT_CURSOR_CELL, ROOT_MENU, ROOT_TEXT, SAVE_SLOT_TEXT, SAVE_SLOTS_OPTIONS,
+    SELECTED_CURSOR_PATTERN, STATE_CURSOR_CELL, STATE_SAVE_OPTIONS, STATE_SAVE_TEXT, STATE_TEXT,
+    STATUS_EQUIPMENT, STATUS_EXP, STATUS_INFO, STATUS_PORTRAIT, STATUS_STATS, STATUS_TEXT,
 };
 
 /// Tier-1 browse geometry for inventory and target pages. The tape only
@@ -39,7 +41,13 @@ enum Mode {
     ItemList,
     ItemTarget,
     ItemResult,
+    EquipCharacters,
+    EquipStats,
+    EquipItems,
+    EquipResult,
     State,
+    SaveSlots,
+    SaveResult,
     Status,
     Unsupported,
 }
@@ -60,10 +68,15 @@ pub(crate) struct CampMenu {
     mode: Mode,
     root_selection: usize,
     state_selection: usize,
+    save_selection: usize,
     item_selection: usize,
     target_selection: usize,
     status_selection: usize,
     status_from_state: bool,
+    equipment_character_selection: usize,
+    equipment_slot_selection: usize,
+    equipment_item_selection: usize,
+    equipment_options: Vec<psiv_runtime::CampItem>,
     snapshot: CampState,
     message: String,
     x_down: bool,
@@ -79,10 +92,15 @@ impl INode2D for CampMenu {
             mode: Mode::Closed,
             root_selection: 0,
             state_selection: 0,
+            save_selection: 0,
             item_selection: 0,
             target_selection: 0,
             status_selection: 0,
             status_from_state: false,
+            equipment_character_selection: 0,
+            equipment_slot_selection: 0,
+            equipment_item_selection: 0,
+            equipment_options: Vec::new(),
             snapshot: CampState::default(),
             message: String::new(),
             x_down: false,
@@ -133,10 +151,15 @@ impl CampMenu {
         self.mode = Mode::Root;
         self.root_selection = 0;
         self.state_selection = 0;
+        self.save_selection = 0;
         self.item_selection = 0;
         self.target_selection = 0;
         self.status_selection = 0;
         self.status_from_state = false;
+        self.equipment_character_selection = 0;
+        self.equipment_slot_selection = 0;
+        self.equipment_item_selection = 0;
+        self.equipment_options = runtime.camp_equipment(0);
         self.message.clear();
         self.snapshot = runtime.camp_state();
         self.base_mut().set_visible(true);
@@ -164,6 +187,14 @@ impl CampMenu {
         self.target_selection = self
             .target_selection
             .min(self.snapshot.party.len().saturating_sub(1));
+        self.equipment_character_selection = self
+            .equipment_character_selection
+            .min(self.snapshot.party.len().saturating_sub(1));
+        self.equipment_slot_selection = self.equipment_slot_selection.min(3);
+        self.equipment_options = runtime.camp_equipment(self.equipment_character_selection);
+        self.equipment_item_selection = self
+            .equipment_item_selection
+            .min(self.equipment_options.len().saturating_sub(1));
         self.base_mut().queue_redraw();
     }
 
@@ -243,19 +274,82 @@ impl CampMenu {
                     };
                 }
             }
+            Mode::EquipCharacters => {
+                if self.snapshot.party.is_empty() {
+                    self.mode = Mode::EquipResult;
+                    self.message = "NO PARTY MEMBER".to_owned();
+                } else if up {
+                    self.equipment_character_selection = wrap(
+                        self.equipment_character_selection,
+                        self.snapshot.party.len(),
+                        false,
+                    );
+                } else if down {
+                    self.equipment_character_selection = wrap(
+                        self.equipment_character_selection,
+                        self.snapshot.party.len(),
+                        true,
+                    );
+                } else if accept {
+                    self.equipment_slot_selection = 0;
+                    self.equipment_options =
+                        runtime.camp_equipment(self.equipment_character_selection);
+                    self.mode = Mode::EquipStats;
+                }
+            }
+            Mode::EquipStats => {
+                if self.snapshot.party.is_empty() {
+                    self.mode = Mode::EquipResult;
+                    self.message = "NO PARTY MEMBER".to_owned();
+                } else if up {
+                    self.equipment_slot_selection = wrap(self.equipment_slot_selection, 4, false);
+                } else if down {
+                    self.equipment_slot_selection = wrap(self.equipment_slot_selection, 4, true);
+                } else if accept {
+                    self.confirm_equipment_slot(runtime);
+                }
+            }
+            Mode::EquipItems => {
+                if self.equipment_options.is_empty() {
+                    self.mode = Mode::EquipResult;
+                    self.message = "NO EQUIPMENT".to_owned();
+                } else if up {
+                    self.equipment_item_selection = wrap(
+                        self.equipment_item_selection,
+                        self.equipment_options.len(),
+                        false,
+                    );
+                } else if down {
+                    self.equipment_item_selection = wrap(
+                        self.equipment_item_selection,
+                        self.equipment_options.len(),
+                        true,
+                    );
+                } else if accept {
+                    self.equip_selected_item(runtime);
+                }
+            }
+            Mode::EquipResult => {
+                if accept {
+                    self.mode = Mode::EquipStats;
+                }
+            }
             Mode::State => {
                 if up {
-                    self.state_selection = wrap(self.state_selection, 2, false);
+                    self.state_selection = wrap(self.state_selection, 3, false);
                 } else if down {
-                    self.state_selection = wrap(self.state_selection, 2, true);
+                    self.state_selection = wrap(self.state_selection, 3, true);
                 } else if accept {
                     if self.state_selection == 0 {
                         self.status_selection = 0;
                         self.status_from_state = true;
                         self.mode = Mode::Status;
-                    } else {
+                    } else if self.state_selection == 1 {
                         self.mode = Mode::Unsupported;
                         self.message = "ORDER NOT READY".to_owned();
+                    } else {
+                        self.save_selection = 0;
+                        self.mode = Mode::SaveSlots;
                     }
                 }
             }
@@ -275,6 +369,20 @@ impl CampMenu {
                     self.mode = Mode::Root;
                 }
             }
+            Mode::SaveSlots => {
+                if up {
+                    self.save_selection = wrap(self.save_selection, 3, false);
+                } else if down {
+                    self.save_selection = wrap(self.save_selection, 3, true);
+                } else if accept {
+                    self.save_selected(runtime);
+                }
+            }
+            Mode::SaveResult => {
+                if accept {
+                    self.mode = Mode::State;
+                }
+            }
             Mode::Closed => {}
         }
         self.sync(runtime);
@@ -292,6 +400,22 @@ impl CampMenu {
                 self.mode = Mode::ItemList;
                 false
             }
+            Mode::EquipCharacters => {
+                self.mode = Mode::Root;
+                false
+            }
+            Mode::EquipStats => {
+                self.mode = Mode::EquipCharacters;
+                false
+            }
+            Mode::EquipItems => {
+                self.mode = Mode::EquipStats;
+                false
+            }
+            Mode::EquipResult => {
+                self.mode = Mode::EquipStats;
+                false
+            }
             Mode::State => {
                 self.mode = Mode::Root;
                 false
@@ -302,6 +426,10 @@ impl CampMenu {
                 } else {
                     Mode::Root
                 };
+                false
+            }
+            Mode::SaveSlots | Mode::SaveResult => {
+                self.mode = Mode::State;
                 false
             }
         }
@@ -317,8 +445,11 @@ impl CampMenu {
                 };
             }
             3 => {
-                self.status_from_state = false;
-                self.mode = Mode::Status;
+                self.equipment_character_selection = 0;
+                self.equipment_slot_selection = 0;
+                self.equipment_item_selection = 0;
+                self.equipment_options = runtime.camp_equipment(0);
+                self.mode = Mode::EquipCharacters;
             }
             4 => self.mode = Mode::State,
             _ => {
@@ -363,6 +494,14 @@ impl CampMenu {
         self.sync(runtime);
     }
 
+    fn save_selected(&mut self, runtime: &Runtime) {
+        match runtime.save_slot(&save_directory(), self.save_selection) {
+            Ok(_) => self.message = "FILE SAVED".to_owned(),
+            Err(error) => self.message = format!("SAVE ERROR: {error}"),
+        }
+        self.mode = Mode::SaveResult;
+    }
+
     fn draw_list(&self) -> Option<DrawList> {
         let chrome = self.chrome.as_ref()?;
         let mut list = DrawList {
@@ -375,7 +514,13 @@ impl CampMenu {
             Mode::ItemList => self.draw_item_list(chrome, &mut list),
             Mode::ItemTarget => self.draw_item_target(chrome, &mut list),
             Mode::ItemResult => self.draw_item_result(chrome, &mut list),
+            Mode::EquipCharacters => self.draw_equip_characters(chrome, &mut list),
+            Mode::EquipStats => self.draw_equip_stats(chrome, &mut list),
+            Mode::EquipItems => self.draw_equip_items(chrome, &mut list),
+            Mode::EquipResult => self.draw_equip_result(chrome, &mut list),
             Mode::State => self.draw_state(chrome, &mut list),
+            Mode::SaveSlots => self.draw_save_slots(chrome, &mut list),
+            Mode::SaveResult => self.draw_save_result(chrome, &mut list),
             Mode::Status => self.draw_status(chrome, &mut list),
             Mode::Unsupported => self.draw_unsupported(chrome, &mut list),
             Mode::Closed => return None,
@@ -457,10 +602,18 @@ impl CampMenu {
 
     fn draw_state(&self, chrome: &CampChrome, list: &mut DrawList) {
         self.draw_root(chrome, list, true);
-        frame(chrome, &mut list.quads, STATE_OPTIONS);
+        // STATE_OPTIONS is the oracle-pinned retail two-row rectangle. This
+        // modern branch adds SAVE without rewriting that retail constant.
+        frame(chrome, &mut list.quads, STATE_SAVE_OPTIONS);
         for text in STATE_TEXT {
             draw_text(chrome, &mut list.quads, text.text, text.cell);
         }
+        draw_text(
+            chrome,
+            &mut list.quads,
+            STATE_SAVE_TEXT.text,
+            STATE_SAVE_TEXT.cell,
+        );
         let cursor = (
             STATE_CURSOR_CELL.0,
             STATE_CURSOR_CELL.1 + self.state_selection as i32 * 2,
@@ -468,6 +621,26 @@ impl CampMenu {
         if let Some(quad) = chrome.window_word(CHILD_CURSOR_PATTERN, cursor) {
             list.quads.push(quad);
         }
+    }
+
+    fn draw_save_slots(&self, chrome: &CampChrome, list: &mut DrawList) {
+        self.draw_root(chrome, list, true);
+        frame(chrome, &mut list.quads, SAVE_SLOTS_OPTIONS);
+        for text in SAVE_SLOT_TEXT {
+            draw_text(chrome, &mut list.quads, text.text, text.cell);
+        }
+        if let Some(quad) = chrome.window_word(
+            CHILD_CURSOR_PATTERN,
+            (10, 8 + self.save_selection as i32 * 2),
+        ) {
+            list.quads.push(quad);
+        }
+    }
+
+    fn draw_save_result(&self, chrome: &CampChrome, list: &mut DrawList) {
+        self.draw_save_slots(chrome, list);
+        frame(chrome, &mut list.quads, ITEM_MESSAGE);
+        draw_text(chrome, &mut list.quads, &self.message, (8, 22));
     }
 
     fn draw_status(&self, chrome: &CampChrome, list: &mut DrawList) {
@@ -603,6 +776,10 @@ fn wrap(current: usize, count: usize, forward: bool) -> usize {
     } else {
         current - 1
     }
+}
+
+fn save_directory() -> PathBuf {
+    std::env::var_os("PSIV_SAVE_DIR").map_or_else(|| PathBuf::from("saves"), PathBuf::from)
 }
 
 fn frame(chrome: &CampChrome, quads: &mut Vec<Quad>, rect: layout::CellRect) {

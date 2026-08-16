@@ -178,31 +178,48 @@ research bench. The native runtime consumes its output through the Rust/Godot
 workspace below; porting fixed-width big-endian readers and structs into that
 runtime is intentionally boring once the formats are proven.
 
-## Runtime status and next useful slice (2026-08-15)
+## Runtime status and next useful slice (2026-08-16)
 
 The runtime has moved past the original field-only vertical slice. These are
 closed and tested in the current tree:
 
-- battle data, the headless battle engine, the real battle screen, and the
-  Igglanova event battle;
+- battle data, the headless battle engine, the real battle screen with enemy
+  overlay composition, and the Igglanova event battle;
 - flag-gated map effects, encounters, chests, inventory, and the eleven-seat
   roster;
-- shop inventories, locations, prices, inn rules, portraits, and greeting
-  selectors in the runtime pack;
+- shop inventories, locations, prices, inn rules, portraits, greeting
+  selectors, and the decoded-layout shop UI;
 - the field camera's FG path and NPCType2/3 wander, including the shared RNG
   and tape-02 replay coverage;
-- field sprites, dialogue, opening-act event scenes, and the pack/data/runtime
-  joins that drive them.
+- field sprites, dialogue, and the pack/data/runtime joins that drive them;
+- event scenes through the opening act and the Zema/Tonoe arc (Holt → Rune →
+  Dorin → Alshline → Zema aftermath, `docs/scenes/`), with scripted actor
+  movement live in the field;
+- save/SRAM: retail layout scouted from ROM (`docs/SAVE_SCOUT.md`),
+  byte-compatible three-slot serialization, camp STATE slot chooser, and
+  `PSIV_LOAD_SLOT` boot hooks;
+- equip/unequip: scouted rules (`docs/EQUIP_SCOUT.md`), transactional core
+  seam, and the interactive camp EQUIP screen;
+- sound extraction: all 557 tracks (music/SFX/special), 327 voices, DAC
+  banks, and the full driver vocabulary as raw records in
+  `runtime-pack/sound/` (`docs/SOUND_EXTRACTION.md`);
+- sound playback foundation: `psiv-sound` (Nuked-OPN2 YM2612 core, SN76489
+  PSG, SMPS-derived driver interpreter) with register-log fixture tests and a
+  Godot `AudioStreamGenerator` output path.
 
-The remaining backlog is deliberately narrower:
+The remaining backlog:
 
-1. Save/SRAM parsing and import (needs a real emulator save as a fixture).
-2. Shop window plumbing: menu state, greeting fragments, and the bakery's
-   special-case flow (`docs/SHOPS.md`); the shop data and rules are done.
-3. The battle enemy overlay-art pipeline. The screen geometry, chrome, static
-   body layer, and event timeline are in place; animated/overlay enemy art is
-   the remaining visual gap (`docs/BATTLE_ORACLE_UI.md`).
-4. Full-campaign event coverage beyond the completed opening act.
+1. Sound integration: feed the extracted `runtime-pack/sound/` records
+   through the `psiv-sound` driver in-game (map/battle themes, SFX triggers)
+   and render DAC PCM from the extracted sample banks (currently control-only).
+2. Save payload completion: vehicles, button mapping, message/battle speed,
+   macros, and the unidentified character-record bytes are currently written
+   as zero (`docs/SAVE_SCOUT.md` divergences); vehicles become load-bearing
+   mid-game.
+3. Full-campaign event coverage beyond the Zema/Tonoe arc (next:
+   BioPlantAlarm → MeetingRika chain), plus renderer-side visual panel and
+   temporary-object ops that scenes currently carry as data.
+4. Title screen and the front-of-house boot flow.
 5. Remaining field parity: BG-camera/driver gates, non-Type2/3 wanderers, and
    the third wander speed table (`docs/CAMERA.md`, `docs/NPC_WANDER.md`).
 6. Vehicle sprites and the still-unimplemented presentation details that

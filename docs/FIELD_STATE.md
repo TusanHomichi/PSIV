@@ -175,12 +175,13 @@ cartridge cannot actually perform.
 ## 2a. Camp menu Tier 1
 
 `psiv-runtime/src/camp.rs` exposes a renderer-safe snapshot of the live party
-roster, forty-slot inventory, read-only equipment names, next-level experience,
-and meseta. `psiv-godot/src/camp/` owns only the decoded windows and input.
+roster, forty-slot inventory, equipment names, next-level experience, and
+meseta. `psiv-godot/src/camp/` owns only the decoded windows and input.
 Consumable item commands return to the runtime and mutate `GameState` through
 `inventory_mut().remove()` and `roster_mut().get_mut()`. Healing and status
-cures use the `item_effects` records from `battle/abilities.json`; equipment
-slots are display-only in this slice.
+cures use the `item_effects` records from `battle/abilities.json`; EQUIP uses
+the pack's type/mask rules through the core equipment seam. The scout and
+implementation record is [`docs/EQUIP_SCOUT.md`](EQUIP_SCOUT.md).
 
 ## 3. Treasure chests — implemented
 
@@ -352,9 +353,9 @@ day — the flag-bank merge collapsed `chest_flags`/`temp_flags` into a single
   the clean 339-column result does not exercise this. A tape on a chest-bearing
   map would, and `Chest::object_slot` is the piece that makes it correct once
   `FieldMap` carries chests.
-- **Equip and unequip.** The `$4C..$4F` slots are read by `update_mod_stats`,
-  but nothing yet writes them outside of the initialiser. The menu flow that
-  does — and whether equipping re-derives `_mod` immediately — is unscouted.
+- **Equip and unequip — implemented.** [`docs/EQUIP_SCOUT.md`](EQUIP_SCOUT.md)
+  records the retail `$4C..$4F` flow, type/mask filter, immediate modified-stat
+  refresh, two-handed/shield asymmetry, and the absence of a curse guard.
 - **`InventoryData` bonus records** are `$16` bytes each and already decoded on
   the Python side; the `_mod` derivation consumes them through `psiv-data`'s
   `ItemRecord`.

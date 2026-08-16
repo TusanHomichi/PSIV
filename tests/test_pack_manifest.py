@@ -154,6 +154,20 @@ class TestManifest(PackFixtureCase):
         self.assertEqual(battle["files"]["levels"]["records"], 937)
         self.assertEqual(battle["ability_effects"]["count"], 44)
 
+    def test_the_manifest_points_at_the_sound_files(self):
+        sound = self.manifest["sound"]
+        self.assertEqual(sound["track_count"], 557)
+        self.assertEqual(sound["command_vocabulary_size"], 24)
+        self.assertEqual(sound["unresolved"], [])
+        for entry in sound["files"]:
+            with self.subTest(file=entry["file"]):
+                blob = (self.root / entry["file"]).read_bytes()
+                self.assertEqual(entry["size_bytes"], len(blob))
+                self.assertEqual(entry["sha256"], hashlib.sha256(blob).hexdigest())
+        for name in ("driver", "music", "sfx"):
+            payload = json.loads((self.root / sound[name]["file"]).read_text())
+            self.assertEqual(payload["format_version"], 1)
+
     def test_the_battle_art_census_shows_the_body_hole_split(self):
         # `battle.art` is a subtree of the battle fragment, not a replacement
         # for it: the data keys are still there beside it (equipment_rules
@@ -226,6 +240,8 @@ class TestManifest(PackFixtureCase):
                 return [f for f in first_files if f.parts[0] == prefix]
 
             self.assertTrue(under("dialogue"), "build_pack emits the dialogue half")
+            self.assertTrue(under("sound"), "build_pack emits the raw sound half")
+            self.assertEqual(len(under("sound")), len(self.manifest["sound"]["files"]))
             art = self.manifest["battle"]["art"]["files"]
             self.assertEqual(
                 len(under("battle")),
@@ -251,7 +267,8 @@ class TestManifest(PackFixtureCase):
             )
             # Whatever is left is top-level JSON, manifest included.
             categorised = sum(
-                len(under(prefix)) for prefix in ("dialogue", "battle", "sprites", "maps")
+                len(under(prefix))
+                for prefix in ("dialogue", "battle", "sprites", "maps", "sound")
             )
             top_level = [f for f in first_files if len(f.parts) == 1]
             self.assertEqual(len(first_files), categorised + len(top_level))

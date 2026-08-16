@@ -87,6 +87,7 @@ mod map_load;
 mod party;
 mod replay;
 mod roster;
+mod save;
 mod scene;
 mod scene_runner;
 mod scenes;
@@ -119,6 +120,11 @@ pub use replay::{
 };
 pub use roster::{
     CHARACTER_COUNT, CharacterRoster, DEAD_STATUS_MASK, EXPERIENCE_CAP, REUNION_FLAG,
+};
+pub use save::{
+    RETAIL_HEADER_LOGICAL_BYTES, RETAIL_HEADER_PHYSICAL_BYTES, RETAIL_PAYLOAD_BYTES,
+    RETAIL_SLOT_COUNT, RETAIL_SLOT_FILE_BYTES, RETAIL_SLOT_STRIDE_BYTES, RetailLocation,
+    RetailSave, RetailSlot, SaveError,
 };
 pub use scene::{
     ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, OP_BUDGET_PER_TICK, SceneEffect,

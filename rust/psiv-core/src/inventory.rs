@@ -143,6 +143,24 @@ impl Inventory {
         Some(held)
     }
 
+    /// Closes holes from left to right.
+    ///
+    /// This is not the normal inventory-removal operation. It is the private
+    /// `ReorderInventory` tail used by the equipment window when the selected
+    /// item is replaced by an empty displaced slot; field item use continues
+    /// to leave a hole in cartridge order.
+    pub(crate) fn compact(&mut self) {
+        let mut write = 0;
+        for read in 0..INVENTORY_SLOTS {
+            if self.slots[read] == EMPTY {
+                continue;
+            }
+            self.slots.swap(write, read);
+            write += 1;
+        }
+        self.slots[write..].fill(EMPTY);
+    }
+
     /// The full-inventory path: gives up whatever is in `slot` and puts `item`
     /// there, returning the item dropped.
     ///

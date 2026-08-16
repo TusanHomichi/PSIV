@@ -7,6 +7,7 @@
 
 use std::collections::BTreeMap;
 
+use psiv_core::battle::{self, EquipmentError};
 use psiv_core::{CharId, DEAD_STATUS_MASK, GameState};
 use psiv_data::BattleFiles;
 
@@ -27,6 +28,7 @@ pub(super) struct CampCatalog {
     ages: BTreeMap<u8, u16>,
     item_names: BTreeMap<u8, String>,
     item_kinds: BTreeMap<u8, u8>,
+    item_masks: BTreeMap<u8, Option<u16>>,
     effects: BTreeMap<u8, CampItemEffect>,
     levels: BTreeMap<u8, Vec<(u16, u32)>>,
 }
@@ -92,6 +94,12 @@ pub(super) fn catalog(files: &BattleFiles) -> CampCatalog {
             .items
             .iter()
             .map(|item| (item.id, item.kind.id))
+            .collect(),
+        item_masks: files
+            .equipment
+            .items
+            .iter()
+            .map(|item| (item.id, item.usable_by_mask()))
             .collect(),
         effects: files
             .abilities
@@ -234,6 +242,30 @@ pub enum CampUseResult {
     },
 }
 
+/// The runtime result of an equipment command.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CampEquipResult {
+    /// The selected inventory item was committed to the character.
+    Equipped {
+        /// Item display name.
+        item_name: String,
+        /// Character display name.
+        character_name: String,
+    },
+    /// The selected equipment byte was returned to inventory.
+    Unequipped {
+        /// Item display name.
+        item_name: String,
+        /// Character display name.
+        character_name: String,
+    },
+    /// The command was rejected without mutating persistent state.
+    Unavailable {
+        /// Short reason for the renderer's result line.
+        reason: String,
+    },
+}
+
 impl Runtime {
     /// Returns a copy of the live roster, inventory, equipment labels, and
     /// meseta for the camp renderer.
@@ -249,6 +281,155 @@ impl Runtime {
             money: self.game.money(),
             party: party_snapshot(&self.game, set),
             inventory: inventory_snapshot(&self.game, set),
+        }
+    }
+
+    /// Returns the cartridge-filtered equipment list for one party slot.
+    ///
+    /// The returned `slot` values are raw inventory positions, so duplicate
+    /// item ids remain independently selectable just as they are in the
+    /// cartridge's forty-byte list.
+    #[must_use]
+    pub fn camp_equipment(&self, party_slot: usize) -> Vec<CampItem> {
+        let Some(set) = self.battles.as_ref() else {
+            return Vec::new();
+        };
+        let Some(character_id) = self.game.party_slot(party_slot) else {
+            return Vec::new();
+        };
+        let item = |item_id| set.data.item(item_id).ok().cloned();
+        let mask = |item_id| set.camp.item_masks.get(&item_id).copied().flatten();
+        battle::equipment_candidates(self.game.inventory(), character_id.0, &item, &mask)
+            .into_iter()
+            .map(|candidate| CampItem {
+                slot: candidate.inventory_slot,
+                id: candidate.item_id,
+                name: set
+                    .camp
+                    .item_names
+                    .get(&candidate.item_id)
+                    .cloned()
+                    .unwrap_or_else(|| format!("ITEM-{:02X}", candidate.item_id)),
+                usable: false,
+                targeting: 0,
+            })
+            .collect()
+    }
+
+    /// Equips one filtered inventory entry through the core transaction seam.
+    pub fn equip_camp_item(&mut self, party_slot: usize, inventory_slot: usize) -> CampEquipResult {
+        let Some(set) = self.battles.as_ref() else {
+            return CampEquipResult::Unavailable {
+                reason: "EQUIPMENT DATA UNAVAILABLE".to_owned(),
+            };
+        };
+        let Some(character_id) = self.game.party_slot(party_slot) else {
+            return CampEquipResult::Unavailable {
+                reason: "NO PARTY MEMBER".to_owned(),
+            };
+        };
+        let Some(mut stats) = self.game.roster().get(character_id).cloned() else {
+            return CampEquipResult::Unavailable {
+                reason: "ROSTER RECORD MISSING".to_owned(),
+            };
+        };
+        let Some(item_id) = self.game.inventory().get(inventory_slot) else {
+            return CampEquipResult::Unavailable {
+                reason: "ITEM SLOT EMPTY".to_owned(),
+            };
+        };
+        let item_name = set
+            .camp
+            .item_names
+            .get(&item_id)
+            .cloned()
+            .unwrap_or_else(|| format!("ITEM-{item_id:02X}"));
+        let character_name = character_name(set, character_id);
+        let mut inventory = self.game.inventory().clone();
+        let item = |id| set.data.item(id).ok().cloned();
+        let mask = |id| set.camp.item_masks.get(&id).copied().flatten();
+        match battle::equip_item(
+            &mut stats,
+            &mut inventory,
+            character_id.0,
+            inventory_slot,
+            &item,
+            &mask,
+        ) {
+            Ok(()) => {
+                *self
+                    .game
+                    .roster_mut()
+                    .get_mut(character_id)
+                    .expect("roster record was cloned above") = stats;
+                *self.game.inventory_mut() = inventory;
+                CampEquipResult::Equipped {
+                    item_name,
+                    character_name,
+                }
+            }
+            Err(error) => CampEquipResult::Unavailable {
+                reason: equipment_error_message(error),
+            },
+        }
+    }
+
+    /// Unequips a raw `$4C..$4F` equipment slot through the core seam.
+    pub fn unequip_camp_item(
+        &mut self,
+        party_slot: usize,
+        equipment_slot: usize,
+    ) -> CampEquipResult {
+        let Some(set) = self.battles.as_ref() else {
+            return CampEquipResult::Unavailable {
+                reason: "EQUIPMENT DATA UNAVAILABLE".to_owned(),
+            };
+        };
+        let Some(character_id) = self.game.party_slot(party_slot) else {
+            return CampEquipResult::Unavailable {
+                reason: "NO PARTY MEMBER".to_owned(),
+            };
+        };
+        let Some(mut stats) = self.game.roster().get(character_id).cloned() else {
+            return CampEquipResult::Unavailable {
+                reason: "ROSTER RECORD MISSING".to_owned(),
+            };
+        };
+        let Some(item_id) = stats.equipment.get(equipment_slot).copied() else {
+            return CampEquipResult::Unavailable {
+                reason: "EQUIPMENT SLOT INVALID".to_owned(),
+            };
+        };
+        if item_id == 0 {
+            return CampEquipResult::Unavailable {
+                reason: "EQUIPMENT SLOT EMPTY".to_owned(),
+            };
+        }
+        let item_name = set
+            .camp
+            .item_names
+            .get(&item_id)
+            .cloned()
+            .unwrap_or_else(|| format!("ITEM-{item_id:02X}"));
+        let character_name = character_name(set, character_id);
+        let mut inventory = self.game.inventory().clone();
+        let item = |id| set.data.item(id).ok().cloned();
+        match battle::unequip_item(&mut stats, &mut inventory, equipment_slot, &item) {
+            Ok(()) => {
+                *self
+                    .game
+                    .roster_mut()
+                    .get_mut(character_id)
+                    .expect("roster record was cloned above") = stats;
+                *self.game.inventory_mut() = inventory;
+                CampEquipResult::Unequipped {
+                    item_name,
+                    character_name,
+                }
+            }
+            Err(error) => CampEquipResult::Unavailable {
+                reason: equipment_error_message(error),
+            },
         }
     }
 
@@ -451,6 +632,10 @@ fn character_name(set: &BattleSet, id: CharId) -> String {
         .get(&id.0)
         .cloned()
         .unwrap_or_else(|| format!("CHAR-{:02X}", id.0))
+}
+
+fn equipment_error_message(error: EquipmentError) -> String {
+    error.to_string().to_uppercase()
 }
 
 fn apply_item_effect(

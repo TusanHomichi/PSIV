@@ -7,19 +7,25 @@ use std::collections::HashMap;
 
 use godot::classes::{
     Camera2D, ColorRect, INode2D, Image, ImageTexture, Input, Node2D, ProjectSettings, Sprite2D,
+    notify::CanvasItemNotification,
 };
 use godot::prelude::*;
 
+mod audio;
 mod battle;
+mod boot;
 mod camp;
 mod dialogue;
 mod field_visuals;
+mod input;
 mod shop;
 mod transitions;
 mod view;
 use battle::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
+use boot::{FALLBACK_SPAWN_CELL, FALLBACK_SPAWN_MAP, collect_event_flags};
 use camp::CampMenu;
 use dialogue::DialogueWindow;
+use input::{read_input, requested_save_slot, save_directory};
 use shop::ShopWindow;
 use transitions::TransitionKind;
 use view::{NpcNode, SheetView, sequence_name};
@@ -27,6 +33,7 @@ use view::{NpcNode, SheetView, sequence_name};
 use psiv_core::{Cell, Direction, StepFrames, WarpTrigger};
 use psiv_data::GameData;
 use psiv_runtime::{Runtime, RuntimeEvent};
+use psiv_sound::SAMPLE_RATE;
 
 struct PsivExtension;
 
@@ -34,17 +41,6 @@ struct PsivExtension;
 unsafe impl ExtensionLibrary for PsivExtension {}
 
 pub(crate) const CELL_PIXELS: f32 = 16.0;
-/// Fallback spawn when the pack predates game-start extraction: Piata, one
-/// cell below the academy doors (the golden test's spawn).
-const FALLBACK_SPAWN_MAP: u16 = 0x010;
-const FALLBACK_SPAWN_CELL: (u16, u16) = (31, 8);
-
-/// The event-flag bank as the dialogue window consumes it.
-fn collect_event_flags(rt: &Runtime) -> Vec<bool> {
-    (0..512u16)
-        .map(|id| rt.game().is_set(psiv_core::Flag::event(id)))
-        .collect()
-}
 
 /// The field scene: map picture, the party sprite, NPC sprites.
 #[derive(GodotClass)]
@@ -96,6 +92,7 @@ struct Field {
     /// `FieldObj_Move`'s reset-to-frame-0 rather than free-phase modulo.
     party_sequence: String,
     party_seq_start: u64,
+    audio: Option<audio::AudioOutput>,
 }
 
 #[godot_api]
@@ -128,6 +125,16 @@ impl INode2D for Field {
             leader_char: 0,
             party_sequence: String::new(),
             party_seq_start: 0,
+            audio: None,
+        }
+    }
+
+    fn on_notification(&mut self, what: CanvasItemNotification) {
+        if what == CanvasItemNotification::EXIT_TREE {
+            if let Some(audio) = self.audio.as_mut() {
+                audio.shutdown();
+            }
+            self.audio = None;
         }
     }
 
@@ -190,18 +197,51 @@ impl INode2D for Field {
                 Direction::Up,
             ),
         };
-        let mut runtime = match Runtime::new(
-            data,
-            spawn_map,
-            spawn_cell,
-            spawn_facing,
-            StepFrames::default(),
-        ) {
-            Ok(rt) => rt,
-            Err(e) => {
-                godot_error!("runtime failed to start: {e}");
-                return;
-            }
+        let requested_slot = requested_save_slot();
+        let mut runtime = match requested_slot {
+            Some(slot) => match Runtime::load_slot(
+                data.clone(),
+                &save_directory(),
+                slot,
+                StepFrames::default(),
+            ) {
+                Ok(rt) => {
+                    godot_print!("save boot: loaded slot {}", slot + 1);
+                    rt
+                }
+                Err(error) => {
+                    godot_error!(
+                        "save boot for slot {} failed: {error}; starting new game",
+                        slot + 1
+                    );
+                    match Runtime::new(
+                        data,
+                        spawn_map,
+                        spawn_cell,
+                        spawn_facing,
+                        StepFrames::default(),
+                    ) {
+                        Ok(rt) => rt,
+                        Err(e) => {
+                            godot_error!("runtime failed to start: {e}");
+                            return;
+                        }
+                    }
+                }
+            },
+            None => match Runtime::new(
+                data,
+                spawn_map,
+                spawn_cell,
+                spawn_facing,
+                StepFrames::default(),
+            ) {
+                Ok(rt) => rt,
+                Err(e) => {
+                    godot_error!("runtime failed to start: {e}");
+                    return;
+                }
+            },
         };
         self.configure_battles(&mut runtime);
 
@@ -250,19 +290,34 @@ impl INode2D for Field {
         self.base_mut().add_child(&camp);
         self.camp_menu = Some(camp);
 
+        let ready_map = runtime.map_id().0;
+        let ready_cell = runtime.state().cell();
         self.runtime = Some(runtime);
+        let debug_tone = std::env::var("PSIV_DEBUG_TONE").is_ok_and(|value| value == "1");
+        let mut audio = audio::AudioOutput::new();
+        self.base_mut().add_child(audio.node());
+        if debug_tone {
+            audio.start();
+        }
+        self.audio = Some(audio);
+        if debug_tone {
+            godot_print!("debug: PSIV_DEBUG_TONE fixture started at {SAMPLE_RATE} Hz");
+        }
         self.load_map_visuals();
         self.sync_visuals(false);
         self.start_transition(TransitionKind::GameStart);
         godot_print!(
             "PSIV field ready: map {:#05x}, party at ({}, {})",
-            spawn_map,
-            spawn_cell.x,
-            spawn_cell.y
+            ready_map,
+            ready_cell.x,
+            ready_cell.y
         );
     }
 
     fn physics_process(&mut self, _delta: f64) {
+        if let Some(audio) = self.audio.as_mut() {
+            audio.fill();
+        }
         self.anim_tick += 1;
         self.tick_transition();
         let battle_was_active = self.battle_presentation_active();
@@ -940,27 +995,5 @@ impl Field {
                 godot_print!("party leader is now sheet {leader}");
             }
         }
-    }
-}
-
-/// One input per tick. Confirm wins over movement — the cartridge reads them
-/// on separate paths and the talk takes the frame; a still-held direction
-/// simply walks on the next tick. The engine edge-detects Action internally.
-fn read_input() -> psiv_core::Input {
-    let input = Input::singleton();
-    if input.is_action_pressed("ui_accept") {
-        return psiv_core::Input::Action;
-    }
-    let held = [
-        ("ui_up", Direction::Up),
-        ("ui_down", Direction::Down),
-        ("ui_left", Direction::Left),
-        ("ui_right", Direction::Right),
-    ]
-    .into_iter()
-    .find(|(action, _)| input.is_action_pressed(*action));
-    match held {
-        Some((_, dir)) => psiv_core::Input::Direction(dir),
-        None => psiv_core::Input::Neutral,
     }
 }

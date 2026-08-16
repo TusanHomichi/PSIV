@@ -30,6 +30,7 @@ enum Blocked {
     Dialogue,
     Choice,
     Battle,
+    Map,
     Done,
 }
 
@@ -146,6 +147,7 @@ impl SceneRunner {
             },
             Blocked::Dialogue if input == SceneInput::DialogueClosed => Blocked::No,
             Blocked::Battle if matches!(input, SceneInput::BattleFinished { .. }) => Blocked::No,
+            Blocked::Map if input == SceneInput::MapLoaded => Blocked::No,
             Blocked::Choice => match input {
                 SceneInput::Choice(_) => Blocked::No,
                 _ => Blocked::Choice,
@@ -275,12 +277,38 @@ impl SceneRunner {
             SceneOp::LoadMap { .. } => {
                 effects.push(SceneEffect::MapRequested { op });
                 self.pc += 1;
+                // The runtime must load the new map and recast the runner
+                // before any following op can name a map-local NPC. Retail
+                // returns to the event routine only after RefreshMap has
+                // rebuilt those objects; keeping this edge explicit prevents
+                // a scene from driving the old map's object list for one
+                // accidental tick.
+                self.blocked = Blocked::Map;
             }
             SceneOp::MoveActorTo { actor, x, y, wait } => {
                 let Some(walker) = self.actor_mut(actor) else {
                     return Some(SceneFault::UnknownActor { actor });
                 };
                 let to = pixel_cell(x, y);
+                walker.target = Some(to);
+                let walking = walker.is_walking();
+                effects.push(SceneEffect::ActorMoveStarted { actor, to });
+                self.pc += 1;
+                if wait && walking {
+                    self.blocked = Blocked::Actor(actor);
+                }
+            }
+            SceneOp::MoveActorToActor {
+                actor,
+                target,
+                wait,
+            } => {
+                let Some(to) = self.actor(target).map(|a| a.cell) else {
+                    return Some(SceneFault::UnknownActor { actor: target });
+                };
+                let Some(walker) = self.actor_mut(actor) else {
+                    return Some(SceneFault::UnknownActor { actor });
+                };
                 walker.target = Some(to);
                 let walking = walker.is_walking();
                 effects.push(SceneEffect::ActorMoveStarted { actor, to });
@@ -357,6 +385,7 @@ impl SceneRunner {
             | SceneOp::ReloadMapPalette
             | SceneOp::InitVramAndCram
             | SceneOp::LoadPalette { .. }
+            | SceneOp::LoadArt { .. }
             | SceneOp::SetCameraPos { .. }
             | SceneOp::LoadTitleImage { .. }
             | SceneOp::SetTextColour { .. }
@@ -370,6 +399,8 @@ impl SceneRunner {
             | SceneOp::SetSavedMusic { .. }
             | SceneOp::FadeIn
             | SceneOp::FadeOut
+            | SceneOp::DmaPlanes
+            | SceneOp::RecoverStats
             | SceneOp::SetDialogueTree { .. }
             | SceneOp::SetRenderSpritesInCutscene { .. } => {
                 effects.push(SceneEffect::Presentation { op });
@@ -475,6 +506,26 @@ impl SceneRunner {
                 if self.actor(actor).is_none() {
                     return Some(SceneFault::UnknownActor { actor });
                 }
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+            }
+            SceneOp::RemoveItem { item } => {
+                if let Some(slot) = state
+                    .inventory()
+                    .slots()
+                    .iter()
+                    .position(|&held| held == item)
+                {
+                    let _ = state.inventory_mut().remove(slot);
+                }
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+            }
+            SceneOp::PanelCreate { .. }
+            | SceneOp::PanelDestroy { .. }
+            | SceneOp::PanelDestroyAll
+            | SceneOp::ObjectAnimation { .. }
+            | SceneOp::SetMapLoadFlags { .. } => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }

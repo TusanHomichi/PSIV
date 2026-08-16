@@ -196,6 +196,14 @@ pub enum SceneOp {
         /// How many words to copy.
         words: u16,
     },
+    /// Decompress one Nemesis art blob into a tile (`LoadVRAMAddressFromTileNumber`
+    /// plus `NemDecomp`).
+    LoadArt {
+        /// The retail ROM source address.
+        rom_addr: u32,
+        /// The destination tile number.
+        tile: u16,
+    },
     /// Park the camera at a pixel position without scrolling (intro only).
     SetCameraPos {
         /// X in pixels.
@@ -332,6 +340,18 @@ pub enum SceneOp {
         /// primitives drive the object until `curr == dest`, so this is `true`
         /// for every transcribed use; `false` exists for staging moves that
         /// the following ops are expected to overlap.
+        wait: bool,
+    },
+    /// Walk `actor` to the current cell of `target`. Retail uses this shape
+    /// when it copies Gryz's live position into Character_1 before opening
+    /// Tonoe's basement door; a literal destination would lose that
+    /// map-state dependency.
+    MoveActorToActor {
+        /// Who walks.
+        actor: ActorRef,
+        /// Whose current cell is the destination.
+        target: ActorRef,
+        /// Whether to block until the walk completes.
         wait: bool,
     },
     /// Drive an actor with one of the NPC movement-command bytes and
@@ -505,6 +525,58 @@ pub enum SceneOp {
         /// The VRAM tile number.
         tile: u16,
     },
+    /// Create or replace one of the VDP panel images used by the retail
+    /// presentation routines (`Panel_Create`). The panel allocator and DMA
+    /// are renderer work; retaining the literal id keeps the transcription
+    /// auditable without pretending the field engine owns VRAM.
+    PanelCreate {
+        /// The retail panel id.
+        id: u8,
+    },
+    /// Destroy one panel image (`Panel_Destroy`).
+    PanelDestroy {
+        /// The retail panel id.
+        id: u8,
+    },
+    /// Destroy every panel image currently staged by the scene.
+    PanelDestroyAll,
+    /// Flush the staged planes during a panel transition (`DMAPlanes_VInt`).
+    DmaPlanes,
+    /// Animate a temporary field object. These are the small effect objects
+    /// the cartridge places outside the ordinary map-NPC list for Flaeli,
+    /// Saya and Igglanova's fusion sequence. The runtime carries the literal
+    /// fields as presentation data; ordinary actor walks use `MoveActorTo` so
+    /// they still land in [`FieldMap`] and remain comparator-visible.
+    ObjectAnimation {
+        /// The field-object slot the retail routine writes.
+        slot: usize,
+        /// The retail object id.
+        object_id: u16,
+        /// The art tile loaded for the object.
+        art_tile: u16,
+        /// Number of animation frames or update-loop iterations.
+        frames: u16,
+    },
+    /// Remove the first inventory slot containing `item`, matching the
+    /// cartridge's item-removal loop and leaving the resulting hole intact.
+    RemoveItem {
+        /// The item id.
+        item: u8,
+    },
+    /// Record raw `Map_Load_Flags` writes surrounding a retail map refresh.
+    /// The loader consumes these bits; the scene runner keeps them as a
+    /// presentation/data effect because its `LoadMap` op already names the
+    /// state that matters to the headless map build.
+    SetMapLoadFlags {
+        /// Bits set by the scene.
+        set: u8,
+        /// Bits cleared by the scene.
+        clear: u8,
+    },
+    /// Retail's `RecoverStats` presentation/state refresh between the second
+    /// dialogue and the Zema map rebuild. Battle-derived stats already live in
+    /// the runtime roster; this edge remains explicit for the transcription.
+    RecoverStats,
     /// Unconditional jump.
     Jump {
         /// Op index.
@@ -530,6 +602,9 @@ pub enum SceneInput {
         /// The result reported by the battle engine.
         outcome: crate::battle::Outcome,
     },
+    /// The runtime completed a scene-requested map load and has recast the
+    /// runner against the new [`FieldMap`].
+    MapLoaded,
 }
 
 /// Something the runtime must act on.

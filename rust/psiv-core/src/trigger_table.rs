@@ -612,4 +612,57 @@ mod tests {
             TriggerResult::FireWithoutIndex
         );
     }
+
+    #[test]
+    fn zema_tonoe_and_birth_valley_census_dispatches_the_arc_events() {
+        let mut state = GameState::new();
+
+        state.set(Flag::event(0x36)).unwrap(); // Dorin
+        assert_eq!(
+            TRIGGERS[0x14].evaluate(&ctx(&state, 0, 0)),
+            TriggerResult::Fire(EventIndex(0x8004))
+        );
+
+        state.set(Flag::event(0x32)).unwrap(); // Alshline found
+        assert_eq!(
+            TRIGGERS[0x15].evaluate(&ctx(&state, 0, 0)),
+            TriggerResult::Fire(EventIndex(0x8005))
+        );
+
+        state.set(Flag::event(0x12)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x16].evaluate(&ctx(&state, 0, 0x280)),
+            TriggerResult::NoEvent
+        );
+        state.clear(Flag::event(0x12)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x16].evaluate(&ctx(&state, 0, 0x280)),
+            TriggerResult::Fire(EventIndex(0x000D))
+        );
+
+        state.set(Flag::event(0x33)).unwrap(); // Zema Igglanova
+        assert_eq!(
+            TRIGGERS[0x17].evaluate(&ctx(&state, 0, 0)),
+            TriggerResult::Fire(EventIndex(0x8006))
+        );
+
+        state.clear(Flag::event(0x32)).unwrap();
+        state.set(Flag::chest(0x08)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x18].evaluate(&ctx(&state, 0, 0)),
+            TriggerResult::Fire(EventIndex(0x0028))
+        );
+
+        state.set(Flag::event(0x11)).unwrap(); // Rune joined
+        assert_eq!(
+            TRIGGERS[0x30].evaluate(&ctx(&state, 0, 0)),
+            TriggerResult::Fire(EventIndex(0x0027))
+        );
+
+        state.set(Flag::event(0xB1)).unwrap(); // Silver Soldier
+        assert_eq!(
+            TRIGGERS[0x74].evaluate(&ctx(&state, 0, 0)),
+            TriggerResult::Fire(EventIndex(0x008A))
+        );
+    }
 }

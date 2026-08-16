@@ -45,6 +45,7 @@ def write_manifest(
     priority_totals = state["priority_totals"]
     routines = state["routines"]
     shops = state["shops"]
+    sound = state["sound"]
     skipped = state["skipped"]
     sprite_census = state["sprite_census"]
     start = state["start"]
@@ -198,6 +199,7 @@ def write_manifest(
         "battle": battle,
         # Counters, inventories and inn rates, in shops.json.
         "shops": shops,
+        "sound": sound,
         "dialogue": dialogue,
         # The flag-gated patches a map's MapDataManager list applies when the
         # map is built. Per-map lists live on the map records; this is the
@@ -330,4 +332,3 @@ def write_manifest(
     }
     p._write_json(directory / p.MANIFEST_NAME, manifest)
     return manifest
-

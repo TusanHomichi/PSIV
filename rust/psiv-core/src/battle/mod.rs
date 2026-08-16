@@ -60,6 +60,7 @@ mod ai;
 mod chances;
 mod damage;
 mod engine;
+mod equipment;
 mod event;
 mod fighters;
 mod order;
@@ -88,6 +89,9 @@ pub use damage::{
     clamp_damage,
 };
 pub use engine::{Battle, Command, PartyMember, RoundOrders};
+pub use equipment::{
+    EquipmentCandidate, EquipmentError, equip_item, equipment_candidates, unequip_item,
+};
 pub use event::{BattleEvent, Outcome, Skipped};
 pub use fighters::{
     ENEMY_SLOTS, FIGHTER_SLOTS, Fighter, FighterId, LAST_PARTY_ID, PARTY_SLOTS, Roster, Side,

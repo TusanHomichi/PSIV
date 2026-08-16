@@ -18,16 +18,18 @@ mod camp;
 mod effects;
 mod encounters;
 mod events;
+mod save;
 mod scene_runtime;
 mod shop;
 pub use bridge::{BridgeError, field_map, field_map_patched};
-pub use camp::{CampCharacter, CampItem, CampState, CampUseResult};
+pub use camp::{CampCharacter, CampEquipResult, CampItem, CampState, CampUseResult};
 pub use effects::{EffectOutcome, evaluate as evaluate_map_effects};
 pub use encounters::{
     EncounterClock, EncounterTable, FOOT_MASK, GRACE_STEPS, GROUP_MASK, battle_data,
     formation_record,
 };
 pub use events::RuntimeEvent;
+pub use save::RuntimeSaveError;
 pub use shop::{InnResult, ShopBuyResult, ShopSellResult};
 
 use bridge::{build_wander, char_id_by_symbol};
@@ -135,10 +137,6 @@ impl Runtime {
         facing: Direction,
         step_frames: StepFrames,
     ) -> Result<Runtime, BridgeError> {
-        let record = data
-            .map(psiv_data::MapId(map_id))
-            .ok_or(BridgeError::NotPacked(map_id))?;
-
         // Seed persistent state FIRST: map effects are evaluated against the
         // flag state at load, exactly the cartridge's MapDataManager order.
         let mut game = GameState::new();
@@ -167,39 +165,9 @@ impl Runtime {
         }
 
         // MapDataManager's walk is stateful: flag_clear writes land mid-walk
-        // so later gates see them. The clears come from the pack's decoded
-        // data (psiv-core::map_load's transcribed table is the cross-check).
-        let effects = effects::evaluate(record, &mut game);
-        let map = field_map_patched(record, Some(&effects))?;
-        // Follower count comes from game-start state once extracted; the
-        // solo default keeps behavior identical until then.
-        let party = Party::new(&map, spawn, facing, step_frames, 0)
-            .map_err(|e| BridgeError::Rejected(e.to_string()))?;
-
-        let wander = build_wander(&map, record)?;
-        let camera = Camera::placed_on(driver_of(party.leader()), bounds_of(&map));
-        Ok(Runtime {
-            data,
-            map,
-            party,
-            game,
-            scene: None,
-            scene_input: SceneInput::None,
-            despawned: BTreeSet::new(),
-            prev_standing: None,
-            wander,
-            rng: Lcg41::default(),
-            field_suspended: false,
-            frames: 0,
-            camera,
-            scene_warmup: false,
-            offscreen: Vec::new(),
-            battles: None,
-            battle: None,
-            scene_battle: None,
-            scene_retry: None,
-            effects,
-        })
+        // so later gates see them. Construction is shared with loaded saves;
+        // the loaded snapshot must reach this point before map effects run.
+        save::construct_runtime(data, map_id, spawn, facing, step_frames, game, 0)
     }
 
     /// Converts the pack's battle files and arms random encounters.
@@ -213,12 +181,16 @@ impl Runtime {
         // constructor path by design, so this goes through the same
         // PartyMember::seat every battle uses.
         for character in &files.characters.characters {
+            let id = CharId(character.character_id);
+            if self.game.roster().get(id).is_some() {
+                continue;
+            }
             let record = encounters::character_record(character, &files.enemies.properties)?;
             let member = psiv_core::battle::PartyMember::seat(&record, &data)
                 .map_err(|e| BridgeError::Rejected(e.to_string()))?;
             self.game
                 .roster_mut()
-                .seat(CharId(member.character), member.stats)
+                .seat(id, member.stats)
                 .map_err(|e| BridgeError::Rejected(e.to_string()))?;
         }
         self.battles = Some(BattleSet {

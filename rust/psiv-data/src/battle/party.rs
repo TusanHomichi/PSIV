@@ -234,6 +234,12 @@ pub struct Equipment {
     /// Record byte `$13`: what a hit with it inflicts. Tier 2.
     #[serde(default)]
     pub post_attack_effect_id: Option<u8>,
+    /// Record bytes `$08..$09`, decoded as the character usability bitmask.
+    ///
+    /// This stays as the pack's hexadecimal spelling at the schema boundary;
+    /// the runtime parses it fail-closed when it builds the camp command seam.
+    #[serde(default)]
+    pub equippable_by_mask: String,
 }
 
 /// An item's type, by byte and name.
@@ -276,4 +282,20 @@ pub struct EquipmentBonuses {
     pub attack: i8,
     pub defense: i8,
     pub magic_defense: i8,
+}
+
+impl Equipment {
+    /// Parses the decoded usable-by mask, or `None` for absent/malformed data.
+    ///
+    /// A missing mask must not turn into an all-party permission. Keeping the
+    /// parser here makes that rule reusable without changing the core item
+    /// record or its shared `Stats` interface.
+    #[must_use]
+    pub fn usable_by_mask(&self) -> Option<u16> {
+        let raw = self
+            .equippable_by_mask
+            .strip_prefix("0x")
+            .or_else(|| self.equippable_by_mask.strip_prefix("0X"))?;
+        u16::from_str_radix(raw, 16).ok()
+    }
 }

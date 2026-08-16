@@ -138,6 +138,7 @@ from .warps import (  # noqa: F401
     warp_rect,
     xy_range_name,
 )
+from .sound import SoundError, emit_sound  # noqa: F401
 
 #: Bumped whenever a field in the emitted JSON changes meaning or disappears.
 #: `psiv-data` refuses a pack whose version it does not know.
@@ -630,6 +631,19 @@ def build_pack(
 
     extracted = extract_maps(rom_bytes)
     records = _selected(extracted["maps"], map_ids)
+
+    # Sound is pack-wide.  Keep the map music ids as usage provenance even for
+    # a filtered test pack; the raw sound section always contains the complete
+    # driver id space, not only the maps selected for this build.
+    sound = emit_sound(
+        rom_bytes,
+        directory,
+        map_music_ids=[
+            record["music"]["id"]
+            for record in extracted["maps"]
+            if record.get("music", {}).get("id") is not None
+        ],
+    )
 
     routines = scan_field_objects(rom_bytes)
     extents = facing_table_extents(routines)

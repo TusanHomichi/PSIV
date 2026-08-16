@@ -1,11 +1,12 @@
-//! The scene registry: the opening act transcribed from retail bytes.
+//! The scene registry: retail-byte transcriptions from the opening act into
+//! the post-Piata Zema/Tonoe/Birth-Valley arc.
 //!
 //! Every scene here comes from `docs/scenes/`, which disassembled the cartridge
 //! directly. That indirection is not ceremony: `ps4.asm` `include`s
-//! `script/scenes/<Name>/event.asm` for eighteen scenes **ungated**, and that
+//! `script/scenes/<Name>/event.asm` for seventeen scenes, and that
 //! directory does not exist in the clone at all — for those the reference
 //! contains no behaviour, just a label, an absent include and an `rts`. Six are
-//! in this act. A seventh (`Event_PrincipalConfession`) is commented out to a
+//! in the opening act. A seventh (`Event_PrincipalConfession`) is commented out to a
 //! bare `rts`, and an eighth (`Event_PiataGuardsReprimand`) is rewritten in
 //! place to use the wrong dialogue tree. Nothing here was read off the clone.
 //!
@@ -38,6 +39,7 @@
 //! every count below is the corrected `d0 + 1`.
 
 mod game_start;
+pub(crate) mod next_arc;
 pub(crate) mod opening;
 
 use crate::scene_runner::Scene;
@@ -50,6 +52,10 @@ pub const CHAZ: CharId = CharId(0);
 pub const ALYS: CharId = CharId(1);
 /// `CharID_Hahn`, from `Event_MeetingHahn`'s `moveq #2,d0`.
 pub const HAHN: CharId = CharId(2);
+/// `CharID_Rune`, used by the Zema/Tonoe recruitment scenes.
+pub const RUNE: CharId = CharId(3);
+/// `CharID_Gryz`, used by Dorin's replacement scene.
+pub const GRYZ: CharId = CharId(4);
 
 /// Every transcribed scene, in story order.
 pub static SCENES: &[Scene] = &[
@@ -64,6 +70,19 @@ pub static SCENES: &[Scene] = &[
     opening::AFTER_IGGLANOVA,
     opening::PRINCIPAL_CONFESSION,
     opening::PIATA_GUARDS_REPRIMAND,
+    next_arc::PROF_HOLT,
+    next_arc::MEETING_RUNE,
+    next_arc::MEETING_DORIN,
+    next_arc::DORIN,
+    next_arc::RUNE_FLAELI,
+    next_arc::ALSHLINE_FOUND,
+    next_arc::ALSHLINE,
+    next_arc::ZEMA_IGGLANOVA_DEFEATED,
+    next_arc::ZEMA_SERVANT_BATTLE,
+    next_arc::ZEMA_OLD_MAN,
+    next_arc::ZEMA_OLD_MAN_AFTER_MISSION,
+    next_arc::MEETING_SAYA,
+    next_arc::TONOE_BASEMENT_DOOR,
 ];
 
 /// The scene an event index selects, if it has been transcribed.
@@ -105,6 +124,19 @@ mod tests {
             ("Event_AfterIgglanova", 15),
             ("Event_PrincipalConfession", 6),
             ("Event_PiataGuardsReprimand", 10),
+            ("Cutscene_ProfHolt", 13),
+            ("Cutscene_MeetingRune", 13),
+            ("Event_MeetingDorin", 20),
+            ("Cutscene_Dorin", 17),
+            ("Event_RuneFlaeli", 27),
+            ("Event_AlshlineFound", 2),
+            ("Cutscene_Alshline", 85),
+            ("Cutscene_ZemaIgglanovaDefeated", 10),
+            ("Event_ZemaServantBattle", 4),
+            ("Event_ZemaOldMan", 3),
+            ("Event_ZemaOldManAfterMission", 3),
+            ("Event_MeetingSaya", 12),
+            ("Event_TonoeBasementDoor", 19),
         ];
         assert_eq!(
             SCENES.len(),
@@ -174,6 +206,16 @@ mod tests {
             .filter(|s| s.event.is_cutscene())
             .map(|s| s.name)
             .collect();
-        assert_eq!(cutscenes, vec!["Cutscene_PiataPrincipal"]);
+        assert_eq!(
+            cutscenes,
+            vec![
+                "Cutscene_PiataPrincipal",
+                "Cutscene_ProfHolt",
+                "Cutscene_MeetingRune",
+                "Cutscene_Dorin",
+                "Cutscene_Alshline",
+                "Cutscene_ZemaIgglanovaDefeated",
+            ]
+        );
     }
 }

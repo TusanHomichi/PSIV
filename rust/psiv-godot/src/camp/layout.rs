@@ -48,7 +48,14 @@ pub(super) const MESETA: CellRect = CellRect::new(3, 23, 13, 3);
 pub(super) const ITEM_MESSAGE: CellRect = CellRect::new(7, 21, 26, 5);
 /// The decoded STATE child chooser.
 // docs/CAMP_MENU_LAYOUT.md § STATE chooser; oracle/... camp_state_chooser.state_options
+#[cfg(test)]
 pub(super) const STATE_OPTIONS: CellRect = CellRect::new(2, 5, 10, 5);
+/// Modern STATE chooser geometry with the save action added below the two
+/// retail rows. `STATE_OPTIONS` remains the oracle-pinned retail rectangle.
+pub(super) const STATE_SAVE_OPTIONS: CellRect = CellRect::new(2, 5, 10, 7);
+/// The disk-save slot chooser. Retail's system SAVE window is wider and sits
+/// on the system-menu path; this is the explicit camp-owned seam.
+pub(super) const SAVE_SLOTS_OPTIONS: CellRect = CellRect::new(7, 5, 26, 9);
 /// The STATUS portrait tile block.
 // docs/CAMP_MENU_LAYOUT.md § STATUS; oracle/... camp_status.portrait
 pub(super) const STATUS_PORTRAIT: CellRect = CellRect::new(3, 2, 10, 10);
@@ -64,6 +71,34 @@ pub(super) const STATUS_EQUIPMENT: CellRect = CellRect::new(3, 14, 12, 9);
 /// The STATUS experience/next-level window.
 // docs/CAMP_MENU_LAYOUT.md § STATUS; oracle/... camp_status.exp_next
 pub(super) const STATUS_EXP: CellRect = CellRect::new(25, 21, 12, 5);
+
+/// The retail EQUIP character chooser groups `$93..$96`, decoded from
+/// `WinGroup_Menu` (`ps4.asm:140623-140633`). The width and origin stay fixed;
+/// the height grows by two cells per additional party member.
+pub(super) const fn equip_character_list(party_len: usize) -> CellRect {
+    let height = match party_len {
+        0 | 1 => 6,
+        2 => 8,
+        3 => 10,
+        _ => 12,
+    };
+    CellRect::new(2, 13, 9, height)
+}
+
+/// The retail EQUIP stats group `$97`: `[10,08,02,02]` plus one-cell
+/// dimensions, so outer `(2,2,17,9)`.
+// reference/ps4disasm/ps4.asm:140635-140636
+pub(super) const EQUIP_STATS: CellRect = CellRect::new(2, 2, 17, 9);
+/// The retail equipped-item group `$C0`: `[0E,09,03,0C]` plus dimensions.
+// reference/ps4disasm/ps4.asm:140758-140759
+pub(super) const EQUIPPED_ITEMS: CellRect = CellRect::new(3, 12, 15, 10);
+/// The first retail EQUIP item-list page `$98`: `[0D,11,14,02]` plus
+/// dimensions. Later pages only reduce the visible height or move right.
+// reference/ps4disasm/ps4.asm:140638-140639
+pub(super) const EQUIP_ITEM_LIST: CellRect = CellRect::new(20, 2, 14, 18);
+/// EQUIP's result/message group `$C1`, shared with the decoded ITEM message.
+// reference/ps4disasm/ps4.asm:140761-140762
+pub(super) const EQUIP_MESSAGE: CellRect = ITEM_MESSAGE;
 
 /// Root menu strings and their decoded origins.
 // docs/CAMP_MENU_LAYOUT.md § Root; oracle/... camp_root.text_runs
@@ -146,6 +181,32 @@ pub(super) const STATE_TEXT: &[TextAnchor] = &[
     TextAnchor {
         text: "ORDER",
         cell: (5, 8),
+    },
+];
+
+/// The added modern save row; the two retail STATE strings stay above it.
+pub(super) const STATE_SAVE_TEXT: TextAnchor = TextAnchor {
+    text: "SAVE",
+    cell: (5, 10),
+};
+
+/// Prompt and visible three-slot labels for the camp save flow.
+pub(super) const SAVE_SLOT_TEXT: &[TextAnchor] = &[
+    TextAnchor {
+        text: "SAVE IN NUMBER- ?",
+        cell: (9, 6),
+    },
+    TextAnchor {
+        text: "1",
+        cell: (11, 8),
+    },
+    TextAnchor {
+        text: "2",
+        cell: (11, 10),
+    },
+    TextAnchor {
+        text: "3",
+        cell: (11, 12),
     },
 ];
 
