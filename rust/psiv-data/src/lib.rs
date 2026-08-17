@@ -49,9 +49,11 @@ mod sprites;
 
 pub use battle::{
     AbilitiesFile, Ability, BATTLE_DIRECTORY, BattleFiles, ELEMENT_SLOTS, EffectTable,
-    EncounterGroup, EncounterGroups, EnemiesFile, Enemy, EnemyAi, EnemyAttack, EnemyStats,
-    Formation, FormationEnemy, FormationsFile, Level, LevelStats, LevelTable, LevelsFile,
-    MapBinding, NamedId, NamedMapRef, PositionGrid, Property, Rewards,
+    EncounterGroup, EncounterGroups, EnemiesFile, Enemy, EnemyAi, EnemyAnimation,
+    EnemyAnimationCensus, EnemyAnimationDispatch, EnemyAnimationFrameSequence,
+    EnemyAnimationSfxWrite, EnemyAnimationSource, EnemyAnimationTableSource, EnemyAnimationsFile,
+    EnemyAttack, EnemyStats, Formation, FormationEnemy, FormationsFile, Level, LevelStats,
+    LevelTable, LevelsFile, MapBinding, NamedId, NamedMapRef, PositionGrid, Property, Rewards,
 };
 // The seating path: `battle/characters.json` and `battle/equipment.json`.
 pub use battle::{
@@ -73,7 +75,7 @@ pub use map::{
     Direction, EffectGate, EffectPath, EffectWrite, Facing, Flags, InteractionArea,
     InteractionFlagType, InteractionSource, LayoutVariant, MapEffect, MapRecord, MapRef, Music,
     Npc, RangeRef, ResolvedCell, SpriteFacing, SpriteRef, TransitionTable, Treasure,
-    VariantCollision, VariantPlane, Warp, WarpSource,
+    VariantCollision, VariantPlane, VehicleBattleLayout, Warp, WarpSource,
 };
 pub use sound::{SoundFiles, SoundRecord, SoundTrackKind, SoundTrackRecord};
 pub use sprites::{Sequence, SequenceFrame, Sheet, SheetFile};

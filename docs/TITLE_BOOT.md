@@ -39,9 +39,14 @@ background transfer at frames 300-401, settled logo and subtitle at frame 450,
 Press Start/copyright from frame 500, and the no-save menu after acceptance.
 Godot keeps the same decoded phase boundaries and uses the existing 3x camera;
 the title frame is letterboxed with black outside the retail 320x224 surface.
-The extracted PNGs bake the settled `Pal_TitleScreen`; Godot's current fade is
-an alpha/black phase treatment, while `palette_cycle.json` is the complete
-numeric contract for a future per-entry CRAM replay.
+
+The per-frame CRAM replay is now emitted, not merely recorded. The pack carries
+16 captured frame states (25 through 650) and re-encodes all 7 indexed title
+surfaces against the captured 64 CRAM words: background, transfer, and the five
+title assets. `title/palette_cycle.json` remains the numeric source record;
+`title/replay/frame_<N>/` is the runtime surface set. `title.rs` selects the
+last replay frame at or before the title tick, so the fade/cycling sequence is
+replayed from the oracle data rather than approximated with a global alpha.
 
 ## Art extraction and pack surface
 

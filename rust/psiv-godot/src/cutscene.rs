@@ -8,14 +8,17 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use godot::classes::{INode2D, Image, ImageTexture, Node2D};
+use godot::classes::{INode2D, Image, ImageTexture, Node2D, Sprite2D};
 use godot::prelude::*;
-use psiv_core::{PresentationOp, SceneOp};
-use psiv_data::{DialogueEntry, DialogueSet};
+use psiv_core::{PresentationAsset, PresentationOp, SceneOp};
+use psiv_data::{DialogueSet, Role};
 use serde::Deserialize;
 
 use crate::Field;
 use crate::transitions::TransitionKind;
+
+mod text_layer;
+use text_layer::OpeningTextLayer;
 
 const SCREEN: Vector2 = Vector2::new(320.0, 224.0);
 
@@ -26,6 +29,10 @@ struct PanelManifest {
     palettes: Vec<PaletteRecord>,
     #[serde(default)]
     opening_background: Option<OpeningBackgroundRecord>,
+    #[serde(default)]
+    temporary_objects: Vec<TemporaryObjectRecord>,
+    #[serde(default)]
+    portraits: Vec<PortraitRecord>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -47,6 +54,43 @@ struct PaletteRecord {
     raw_hex: String,
 }
 
+#[derive(Debug, Deserialize)]
+struct TemporaryObjectRecord {
+    object_id: u16,
+    art_tile: u16,
+    png: String,
+    frame_width: i32,
+    frame_height: i32,
+    origin_x: i32,
+    origin_y: i32,
+    sequences: BTreeMap<String, AnimationRecord>,
+    #[serde(default)]
+    load_art: Option<LoadArtRecord>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AnimationRecord {
+    frames: Vec<AnimationFrameRecord>,
+}
+
+#[derive(Debug, Deserialize)]
+struct AnimationFrameRecord {
+    index: i32,
+    duration_ticks: u32,
+}
+
+#[derive(Debug, Deserialize)]
+struct LoadArtRecord {
+    source_rom_addr: String,
+    destination_tile: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct PortraitRecord {
+    id: String,
+    png: String,
+}
+
 /// Renderer state that has no place in `psiv-runtime`'s field semantics.
 #[derive(Debug, Default)]
 pub(crate) struct PresentationState {
@@ -54,6 +98,7 @@ pub(crate) struct PresentationState {
     saved_music: Option<u8>,
     temporary_objects: BTreeMap<usize, TemporaryObject>,
     loaded_palettes: BTreeMap<u32, u16>,
+    loaded_art: BTreeMap<(u32, u16), u64>,
     current_dialogue_tree: Option<u32>,
     op_count: u64,
 }
@@ -69,10 +114,55 @@ pub(crate) struct TemporaryObject {
     pub(crate) destination: Option<(i32, i32)>,
 }
 
+/// A scene-owned sprite sheet, kept separate from map `SheetView`s because it
+/// is keyed by the literal ObjectAnimation pair rather than a placed NPC.
+#[derive(Clone)]
+pub(crate) struct TemporarySpriteAsset {
+    texture: Gd<ImageTexture>,
+    pub(crate) frame_width: i32,
+    pub(crate) frame_height: i32,
+    pub(crate) origin_x: i32,
+    pub(crate) origin_y: i32,
+    sequences: BTreeMap<String, (Vec<(i32, u32)>, u32)>,
+    load_art: Option<(u32, u16)>,
+}
+
+impl TemporarySpriteAsset {
+    pub(crate) fn frame_at(&self, sequence: &str, tick: u64) -> i32 {
+        let Some((frames, total)) = self.sequences.get(sequence) else {
+            return 0;
+        };
+        let mut remaining = (tick % u64::from((*total).max(1))) as u32;
+        for (index, duration) in frames {
+            if remaining < *duration {
+                return *index;
+            }
+            remaining = remaining.saturating_sub(*duration);
+        }
+        frames.last().map_or(0, |(index, _)| *index)
+    }
+
+    pub(crate) fn apply(&self, node: &mut Gd<Sprite2D>, frame: i32) {
+        node.set_texture(&self.texture);
+        node.set_offset(Vector2::new(0.0, -(self.frame_height as f32)));
+        node.set_region_enabled(true);
+        node.set_region_rect(Rect2::new(
+            Vector2::new((frame * self.frame_width) as f32, 0.0),
+            Vector2::new(self.frame_width as f32, self.frame_height as f32),
+        ));
+    }
+
+    pub(crate) fn art_loaded(&self, state: &PresentationState) -> bool {
+        self.load_art
+            .is_none_or(|key| state.art_loaded(key.0, key.1))
+    }
+}
+
 impl PresentationState {
     pub(crate) fn reset_scene(&mut self) {
         self.render_sprites = true;
         self.temporary_objects.clear();
+        self.loaded_art.clear();
         self.current_dialogue_tree = None;
     }
 
@@ -86,6 +176,14 @@ impl PresentationState {
 
     pub(crate) fn set_saved_music(&mut self, id: u8) {
         self.saved_music = (id != 0).then_some(id);
+    }
+
+    pub(crate) fn load_art(&mut self, rom_addr: u32, tile: u16) {
+        self.loaded_art.insert((rom_addr, tile), self.op_count);
+    }
+
+    pub(crate) fn art_loaded(&self, rom_addr: u32, tile: u16) -> bool {
+        self.loaded_art.contains_key(&(rom_addr, tile))
     }
 
     pub(crate) fn scene_dialogue_tree(&self, fallback: u8) -> u8 {
@@ -139,6 +237,7 @@ impl PresentationState {
 pub(crate) struct CutsceneLayer {
     base: Base<Node2D>,
     textures: BTreeMap<u8, Gd<ImageTexture>>,
+    temporary_assets: BTreeMap<(u16, u16), TemporarySpriteAsset>,
     palettes: BTreeMap<u32, Vec<u16>>,
     staged: Vec<u8>,
     visible: Vec<u8>,
@@ -148,6 +247,11 @@ pub(crate) struct CutsceneLayer {
     opening_screen_y: f32,
     opening_visible: bool,
     text_layer: Option<Gd<OpeningTextLayer>>,
+    window_tiles: BTreeMap<&'static str, Gd<ImageTexture>>,
+    generic_window_rect: Rect2,
+    generic_window_visible: bool,
+    generic_portrait: Option<Gd<ImageTexture>>,
+    generic_portrait_rect: Option<Rect2>,
 }
 
 #[godot_api]
@@ -156,6 +260,7 @@ impl INode2D for CutsceneLayer {
         Self {
             base,
             textures: BTreeMap::new(),
+            temporary_assets: BTreeMap::new(),
             palettes: BTreeMap::new(),
             staged: Vec::new(),
             visible: Vec::new(),
@@ -163,6 +268,11 @@ impl INode2D for CutsceneLayer {
             opening_screen_y: 40.0,
             opening_visible: false,
             text_layer: None,
+            window_tiles: BTreeMap::new(),
+            generic_window_rect: Rect2::new(Vector2::new(24.0, 160.0), Vector2::new(272.0, 48.0)),
+            generic_window_visible: false,
+            generic_portrait: None,
+            generic_portrait_rect: None,
         }
     }
 
@@ -196,6 +306,14 @@ impl INode2D for CutsceneLayer {
                     true,
                 );
             }
+        }
+        if self.generic_window_visible {
+            self.draw_generic_window();
+        }
+        if let (Some(texture), Some(rect)) =
+            (self.generic_portrait.clone(), self.generic_portrait_rect)
+        {
+            self.base_mut().draw_texture_rect(&texture, rect, true);
         }
     }
 }
@@ -245,6 +363,59 @@ impl CutsceneLayer {
                         godot_error!("scene panel {} failed to load: {path}", panel.id);
                     }
                 }
+                for temporary in manifest.temporary_objects {
+                    let path = format!("{pack_dir}/{}", temporary.png);
+                    let Some(image) = Image::load_from_file(&GString::from(path.as_str())) else {
+                        godot_error!(
+                            "scene temporary object {:#06x}/{:#05x} failed to load: {path}",
+                            temporary.object_id,
+                            temporary.art_tile
+                        );
+                        continue;
+                    };
+                    let Some(texture) = ImageTexture::create_from_image(&image) else {
+                        godot_error!("scene temporary object texture failed: {path}");
+                        continue;
+                    };
+                    let sequences = temporary
+                        .sequences
+                        .into_iter()
+                        .map(|(name, sequence)| {
+                            let frames: Vec<(i32, u32)> = sequence
+                                .frames
+                                .into_iter()
+                                .map(|frame| (frame.index, frame.duration_ticks))
+                                .collect();
+                            let total: u32 = frames.iter().map(|(_, duration)| *duration).sum();
+                            (name, (frames, total.max(1)))
+                        })
+                        .collect();
+                    let load_art = temporary.load_art.and_then(|load| {
+                        let source = parse_hex(&load.source_rom_addr)?;
+                        let tile = parse_hex(&load.destination_tile)? as u16;
+                        Some((source, tile))
+                    });
+                    self.temporary_assets.insert(
+                        (temporary.object_id, temporary.art_tile),
+                        TemporarySpriteAsset {
+                            texture,
+                            frame_width: temporary.frame_width,
+                            frame_height: temporary.frame_height,
+                            origin_x: temporary.origin_x,
+                            origin_y: temporary.origin_y,
+                            sequences,
+                            load_art,
+                        },
+                    );
+                }
+                for portrait in manifest.portraits {
+                    if portrait.id == "shopkeeper_2" {
+                        let path = format!("{pack_dir}/{}", portrait.png);
+                        self.generic_portrait =
+                            Image::load_from_file(&GString::from(path.as_str()))
+                                .and_then(|image| ImageTexture::create_from_image(&image));
+                    }
+                }
             }
             None => godot_warn!("scene panel manifest missing: {}", manifest_path.display()),
         }
@@ -254,6 +425,37 @@ impl CutsceneLayer {
             .and_then(|image| ImageTexture::create_from_image(&image));
         if self.opening_background.is_none() {
             godot_error!("opening background failed to load: {background}");
+        }
+
+        let window_path = format!("{pack_dir}/{}", set.window.png);
+        if let Some(window) = Image::load_from_file(&GString::from(window_path.as_str())) {
+            for role in Role::ALL {
+                let Some(tile) = set.window.role(role) else {
+                    continue;
+                };
+                let Some(mut image) = window.get_region(Rect2i::new(
+                    Vector2i::new(tile.x, tile.y),
+                    Vector2i::new(tile.width as i32, tile.height as i32),
+                )) else {
+                    continue;
+                };
+                if tile.flip_h {
+                    image.flip_x();
+                }
+                if tile.flip_v {
+                    image.flip_y();
+                }
+                if let Some(texture) = ImageTexture::create_from_image(&image) {
+                    self.window_tiles.insert(role.as_str(), texture);
+                }
+            }
+            let rect = set.window.text_window.rect;
+            self.generic_window_rect = Rect2::new(
+                Vector2::new(rect.x as f32, rect.y as f32),
+                Vector2::new(rect.width as f32, rect.height as f32),
+            );
+        } else {
+            godot_error!("generic scene window failed to load: {window_path}");
         }
 
         let mut text = OpeningTextLayer::new_alloc();
@@ -315,14 +517,17 @@ impl CutsceneLayer {
         self.staged.clear();
         self.visible.clear();
         let opening_visible = self.opening_visible;
-        self.base_mut().set_visible(opening_visible);
+        let generic_window_visible = self.generic_window_visible;
+        self.base_mut()
+            .set_visible(opening_visible || generic_window_visible);
         self.base_mut().queue_redraw();
         godot_print!("scene panels destroyed: all");
     }
 
     pub(crate) fn dma_planes(&mut self) {
         self.visible.clone_from(&self.staged);
-        let visible = self.opening_visible || !self.visible.is_empty();
+        let visible =
+            self.opening_visible || self.generic_window_visible || !self.visible.is_empty();
         self.base_mut().set_visible(visible);
         self.base_mut().queue_redraw();
         godot_print!("scene DMA planes: {} visible panel(s)", self.visible.len());
@@ -342,7 +547,7 @@ impl CutsceneLayer {
         if let Some(text) = self.text_layer.as_mut() {
             text.bind_mut().clear();
         }
-        let visible = !self.visible.is_empty();
+        let visible = self.generic_window_visible || !self.visible.is_empty();
         self.base_mut().set_visible(visible);
         self.base_mut().queue_redraw();
     }
@@ -377,178 +582,86 @@ impl CutsceneLayer {
             text.bind_mut().tick();
         }
     }
-}
 
-/// The opening crawl is a separate drawable child so its CRAM text ramp does
-/// not modulate the opaque black/title image behind it.
-#[derive(GodotClass)]
-#[class(base=Node2D)]
-struct OpeningTextLayer {
-    base: Base<Node2D>,
-    font: Option<Gd<ImageTexture>>,
-    set: Option<DialogueSet>,
-    entries: [Option<DialogueEntry>; 4],
-    next_slot: usize,
-    colour: Color,
-    fade_direction: i8,
-    fade_tick: u8,
-    fade_frames_left: u8,
-}
-
-#[godot_api]
-impl INode2D for OpeningTextLayer {
-    fn init(base: Base<Node2D>) -> Self {
-        Self {
-            base,
-            font: None,
-            set: None,
-            entries: std::array::from_fn(|_| None),
-            next_slot: 0,
-            colour: Color::from_rgb(0.0, 0.0, 0.0),
-            fade_direction: 0,
-            fade_tick: 0,
-            fade_frames_left: 0,
-        }
+    pub(crate) fn temporary_asset(
+        &self,
+        object_id: u16,
+        art_tile: u16,
+    ) -> Option<TemporarySpriteAsset> {
+        self.temporary_assets.get(&(object_id, art_tile)).cloned()
     }
 
-    fn ready(&mut self) {
-        self.base_mut().set_z_index(560);
-        self.base_mut().set_z_as_relative(false);
-        self.base_mut().set_visible(false);
+    pub(crate) fn window_destroy(&mut self) {
+        self.generic_window_visible = false;
+        self.generic_portrait_rect = None;
+        let visible = self.opening_visible || !self.visible.is_empty();
+        self.base_mut().set_visible(visible);
+        self.base_mut().queue_redraw();
     }
 
-    fn draw(&mut self) {
-        let Some(font) = self.font.clone() else {
-            return;
-        };
-        let mut quads = Vec::new();
-        for (row, entry) in self.entries.iter().enumerate() {
-            let Some(entry) = entry else { continue };
-            let Some(page) = entry.pages.first() else {
-                continue;
-            };
-            let line = page.lines.first().map(String::as_str).unwrap_or_default();
-            // Plane offset $40A is tile column 5: every line starts at x=40
-            // and any centring is baked into the entry text itself.
-            let x = 40.0;
-            // DrawTextToPlane targets $840A, then advances 0x180 bytes per
-            // entry: plane offset $40A is tile row 8 (y=64) and 0x180 bytes
-            // is three 0x80-byte plane rows, a 24-pixel line pitch — both
-            // confirmed against oracle/frames/opening/frame_4000.png.
-            let y = 64.0 + row as f32 * 24.0;
-            for (column, ch) in line.chars().enumerate() {
-                let Some(glyph) = self.set.as_ref().and_then(|set| set.glyph(ch)) else {
-                    continue;
-                };
-                quads.push((
-                    Rect2::new(
-                        Vector2::new(x + column as f32 * 8.0, y),
-                        Vector2::new(8.0, 16.0),
-                    ),
-                    Rect2::new(
-                        Vector2::new(glyph.x as f32, glyph.y as f32),
-                        Vector2::new(8.0, 16.0),
-                    ),
-                ));
-            }
-        }
-        for (dest, src) in quads {
-            self.base_mut().draw_texture_rect_region(&font, dest, src);
-        }
-    }
-}
-
-impl OpeningTextLayer {
-    fn configure(&mut self, pack_dir: &str, set: DialogueSet) {
-        let path = format!("{pack_dir}/{}", set.font.png);
-        self.font = Image::load_from_file(&GString::from(path.as_str()))
-            .and_then(|image| ImageTexture::create_from_image(&image));
-        self.set = Some(set);
-        self.base_mut().set_visible(false);
-    }
-
-    fn entry(&self, tree_rom_addr: Option<u32>, entry: u16) -> Option<&DialogueEntry> {
-        // The opening's SetDialogueTree points at retail DialogueTree17. The
-        // pack carries the same tree by its stable 1-based number; other
-        // scene tree addresses belong to ordinary dialogue windows.
-        if tree_rom_addr != Some(0x001E_BA90) {
-            return None;
-        }
-        self.set.as_ref()?.entry(17, entry)
-    }
-
-    fn place(&mut self) {
-        let viewport = self.base().get_viewport_rect();
-        let canvas = self.base().get_canvas_transform().affine_inverse();
-        let top_left = canvas * viewport.position;
-        let bottom_right = canvas * (viewport.position + viewport.size);
-        let visible = bottom_right - top_left;
-        self.base_mut().set_position(Vector2::new(
-            (top_left.x + (visible.x - SCREEN.x) / 2.0).floor(),
-            (top_left.y + (visible.y - SCREEN.y) / 2.0).floor(),
-        ));
-    }
-
-    fn draw_entry(&mut self, entry: &DialogueEntry) {
-        self.entries[self.next_slot] = Some(entry.clone());
-        self.next_slot = (self.next_slot + 1) % self.entries.len();
+    pub(crate) fn window_create(&mut self) {
+        self.generic_window_visible = true;
         self.base_mut().set_visible(true);
         self.base_mut().queue_redraw();
     }
 
-    fn clear(&mut self) {
-        self.entries = std::array::from_fn(|_| None);
-        self.next_slot = 0;
-        self.base_mut().set_visible(false);
+    pub(crate) fn load_window_tiles(&self, asset: PresentationAsset) {
+        godot_print!("scene generic window tiles loaded: {asset:?}");
+    }
+
+    pub(crate) fn load_portrait(&mut self, asset: PresentationAsset) {
+        if asset == PresentationAsset::ShopkeeperDialPortrait2 && self.generic_portrait.is_none() {
+            godot_error!("scene shopkeeper portrait was not emitted in the presentation pack");
+        }
+    }
+
+    pub(crate) fn draw_portrait(&mut self, x: u8, y: u8, width: u8, height: u8) {
+        self.generic_portrait_rect = Some(Rect2::new(
+            Vector2::new(f32::from(x) * 8.0, f32::from(y) * 8.0),
+            Vector2::new(f32::from(width) * 8.0, f32::from(height) * 8.0),
+        ));
         self.base_mut().queue_redraw();
     }
 
-    fn set_colour(&mut self, raw: u16) {
-        self.colour = cram_colour(raw);
-        let colour = self.colour;
-        self.base_mut().set_modulate(colour);
-        self.base_mut().queue_redraw();
-    }
-
-    fn set_fade(&mut self, direction: i8) {
-        self.fade_direction = direction;
-        self.fade_tick = 0;
-        self.fade_frames_left = 20;
-    }
-
-    fn tick(&mut self) {
-        if self.fade_direction == 0 || self.fade_frames_left == 0 {
-            return;
-        }
-        self.fade_frames_left = self.fade_frames_left.saturating_sub(1);
-        self.fade_tick = self.fade_tick.wrapping_add(1);
-        if !self.fade_tick.is_multiple_of(4) {
-            return;
-        }
-        let channels = self.colour;
-        let step = 2.0 / 7.0;
-        let next = if self.fade_direction > 0 {
-            Color::from_rgb(
-                (channels.r + step).min(1.0),
-                (channels.g + step).min(1.0),
-                (channels.b + step).min(1.0),
-            )
-        } else {
-            Color::from_rgb(
-                (channels.r - step).max(0.0),
-                (channels.g - step).max(0.0),
-                (channels.b - step).max(0.0),
-            )
+    fn draw_generic_window(&mut self) {
+        let rect = self.generic_window_rect;
+        let columns = (rect.size.x / 8.0).round() as i32;
+        let rows = (rect.size.y / 8.0).round() as i32;
+        let cell = |role: &str, x: i32, y: i32, this: &mut CutsceneLayer| {
+            let Some(texture) = this.window_tiles.get(role).cloned() else {
+                return;
+            };
+            this.base_mut().draw_texture_rect(
+                &texture,
+                Rect2::new(
+                    rect.position + Vector2::new(x as f32 * 8.0, y as f32 * 8.0),
+                    Vector2::new(8.0, 8.0),
+                ),
+                false,
+            );
         };
-        self.colour = next;
-        self.base_mut().set_modulate(next);
-        self.base_mut().queue_redraw();
+        for y in 1..rows - 1 {
+            for x in 1..columns - 1 {
+                cell("fill", x, y, self);
+            }
+        }
+        for x in 1..columns - 1 {
+            cell("edge_top", x, 0, self);
+            cell("edge_bottom", x, rows - 1, self);
+        }
+        for y in 1..rows - 1 {
+            cell("edge_left", 0, y, self);
+            cell("edge_right", columns - 1, y, self);
+        }
+        cell("corner_top_left", 0, 0, self);
+        cell("corner_top_right", columns - 1, 0, self);
+        cell("corner_bottom_left", 0, rows - 1, self);
+        cell("corner_bottom_right", columns - 1, rows - 1, self);
     }
 }
 
-fn cram_colour(raw: u16) -> Color {
-    let channel = |shift: u16| f32::from((raw >> shift) & 0x7) / 7.0;
-    Color::from_rgb(channel(1), channel(5), channel(9))
+fn parse_hex(value: &str) -> Option<u32> {
+    u32::from_str_radix(value.trim_start_matches("0x"), 16).ok()
 }
 
 impl Field {
@@ -557,6 +670,11 @@ impl Field {
     /// updates the shell's drawable/audio surfaces.
     pub(super) fn consume_scene_op(&mut self, op: SceneOp) {
         self.presentation.op_count = self.presentation.op_count.saturating_add(1);
+        // The tick prefix is what lets a debug capture be paired with an
+        // oracle tape frame: the op log becomes a timeline, not just an order.
+        if std::env::var_os("PSIV_DEBUG_SCENE_TICKS").is_some() {
+            godot_print!("scene op t{}: {op:?}", self.anim_tick);
+        }
         match op {
             SceneOp::FadeIn => self.start_transition(TransitionKind::SceneFadeIn),
             SceneOp::FadeOut => self.start_transition(TransitionKind::SceneFadeOut),
@@ -573,6 +691,7 @@ impl Field {
                 godot_print!("scene palette: {words} words from {rom_addr:#08x}");
             }
             SceneOp::LoadArt { rom_addr, tile } => {
+                self.presentation.load_art(rom_addr, tile);
                 godot_print!("scene art: {rom_addr:#08x} -> VRAM tile {tile:#05x}");
             }
             SceneOp::SetCameraPos { x, y } | SceneOp::MoveCamera { x, y, .. } => {
@@ -675,17 +794,43 @@ impl Field {
                 self.load_map_visuals();
             }
             PresentationOp::LoadSceneAsset { .. }
-            | PresentationOp::WindowDestroy { .. }
-            | PresentationOp::WindowCreate { .. }
-            | PresentationOp::LoadWindowTiles { .. }
-            | PresentationOp::LoadPortrait { .. }
-            | PresentationOp::DrawPortrait { .. }
             | PresentationOp::SetGameMode { .. }
             | PresentationOp::ClearHeldInput
             | PresentationOp::SavePartySpriteX { .. }
             | PresentationOp::RestorePartySpriteX
             | PresentationOp::SetDialoguePortrait { .. } => {
                 godot_print!("scene presentation record consumed: {op:?}");
+            }
+            PresentationOp::WindowDestroy { .. } => {
+                if let Some(layer) = self.cutscene_layer.as_mut() {
+                    layer.bind_mut().window_destroy();
+                }
+            }
+            PresentationOp::WindowCreate { .. } => {
+                if let Some(layer) = self.cutscene_layer.as_mut() {
+                    layer.bind_mut().window_create();
+                }
+            }
+            PresentationOp::LoadWindowTiles { asset, .. } => {
+                if let Some(layer) = self.cutscene_layer.as_mut() {
+                    layer.bind().load_window_tiles(asset);
+                }
+            }
+            PresentationOp::LoadPortrait { asset, .. } => {
+                if let Some(layer) = self.cutscene_layer.as_mut() {
+                    layer.bind_mut().load_portrait(asset);
+                }
+            }
+            PresentationOp::DrawPortrait {
+                x,
+                y,
+                width,
+                height,
+                ..
+            } => {
+                if let Some(layer) = self.cutscene_layer.as_mut() {
+                    layer.bind_mut().draw_portrait(x, y, width, height);
+                }
             }
             PresentationOp::SetPaletteWords {
                 offset,
@@ -740,6 +885,10 @@ impl Field {
         }
         for npc in &mut self.npc_nodes {
             npc.node.set_visible(visible);
+        }
+        let has_temporary = !self.presentation.temporary_objects.is_empty();
+        for node in self.temporary_nodes.values_mut() {
+            node.set_visible(visible && has_temporary);
         }
     }
 }

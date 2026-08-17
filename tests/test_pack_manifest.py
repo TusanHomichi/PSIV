@@ -20,6 +20,7 @@ from psiv_tools.pack import (
     NPC_SPRITES_NAME,
     PACK_FORMAT_VERSION,
     PARTY_SPRITES_NAME,
+    VEHICLE_SPRITES_NAME,
     PackError,
     build_pack,
 )
@@ -123,7 +124,7 @@ class TestManifest(PackFixtureCase):
         # a pack it does not know, so a file that forgets to stamp it is a file
         # the runtime cannot check.
         self.assertEqual(PACK_FORMAT_VERSION, 1)
-        for name in (MANIFEST_NAME, PARTY_SPRITES_NAME, NPC_SPRITES_NAME):
+        for name in (MANIFEST_NAME, PARTY_SPRITES_NAME, NPC_SPRITES_NAME, VEHICLE_SPRITES_NAME):
             with self.subTest(file=name):
                 payload = json.loads((self.root / name).read_text())
                 self.assertEqual(payload["format_version"], PACK_FORMAT_VERSION)
@@ -244,20 +245,30 @@ class TestManifest(PackFixtureCase):
             self.assertTrue(under("sound"), "build_pack emits the raw sound half")
             self.assertEqual(
                 len(under("presentation")),
-                # panels.json, the opening background, one PNG per panel.
-                2 + self.manifest["presentation"]["panels"],
+                # panels.json, the opening background, panel PNGs, the
+                # additive LoadArt previews, temporary-object sheets, and
+                # generic scene portraits.
+                2
+                + self.manifest["presentation"]["panels"]
+                + self.manifest["presentation"]["load_art"]
+                + self.manifest["presentation"]["temporary_objects"]
+                + self.manifest["presentation"]["portraits"],
             )
             self.assertEqual(len(under("sound")), len(self.manifest["sound"]["files"]))
             art = self.manifest["battle"]["art"]["files"]
             self.assertEqual(
                 len(under("battle")),
-                # The six data files, plus each art index and its PNGs.
-                6 + len(art) + sum(entry["png_count"] for entry in art.values()),
+                # The seven data files, plus each art index and its PNGs.
+                7 + len(art) + sum(entry["png_count"] for entry in art.values()),
             )
             self.assertEqual(
                 len(under("sprites")),
-                # Two indexes, the eleven party sheets, one PNG per NPC sheet.
-                2 + len(PARTY_SYMBOLS) + self.manifest["sprites"]["npc_sheet_count"],
+                # Three indexes, the eleven party sheets, one PNG per NPC
+                # sheet, and one PNG per vehicle selector.
+                3
+                + len(PARTY_SYMBOLS)
+                + self.manifest["sprites"]["npc_sheet_count"]
+                + self.manifest["sprites"]["vehicle_sheet_count"],
             )
             patches = sum(
                 1 + int(entry["has_overlay"])

@@ -752,4 +752,75 @@ mod tests {
             TriggerResult::Fire(EventIndex(0x800B))
         );
     }
+
+    #[test]
+    fn the_post_zio_dispatch_delta_matches_the_retail_census() {
+        let mut state = GameState::new();
+
+        assert_eq!(
+            TRIGGERS[0x21].evaluate(&ctx(&state, 0x1E0, 0x120)),
+            TriggerResult::Fire(EventIndex(0x800D))
+        );
+        assert_eq!(
+            TRIGGERS[0x23].evaluate(&ctx(&state, 0, 0x2F0)),
+            TriggerResult::Fire(EventIndex(0x800D))
+        );
+        assert_eq!(
+            TRIGGERS[0x24].evaluate(&ctx(&state, 0, 0x370)),
+            TriggerResult::Fire(EventIndex(0x800D))
+        );
+        assert_eq!(
+            TRIGGERS[0x25].evaluate(&ctx(&state, 0, 0x120)),
+            TriggerResult::Fire(EventIndex(0x800D))
+        );
+
+        state.set(Flag::event(0x70)).unwrap();
+        state.set(Flag::event(0x72)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x28].evaluate(&ctx(&state, 0, 0x2F0)),
+            TriggerResult::Fire(EventIndex(0x800E))
+        );
+        state.set(Flag::event(0x71)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x29].evaluate(&ctx(&state, 0, 0)),
+            TriggerResult::Fire(EventIndex(0x800F))
+        );
+
+        state.set(Flag::event(0x84)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x2B].evaluate(&ctx(&state, 0x1A0, 0x520)),
+            TriggerResult::Fire(EventIndex(0x8010))
+        );
+        state.clear(Flag::event(0x86)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x2C].evaluate(&ctx(&state, 0, 0)),
+            TriggerResult::Fire(EventIndex(0x003D))
+        );
+        state.set(Flag::event(0x86)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x2D].evaluate(&ctx(&state, 0, 0x200)),
+            TriggerResult::Fire(EventIndex(0x003E))
+        );
+        state.set(Flag::event(0x87)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x2E].evaluate(&ctx(&state, 0, 0x0D0)),
+            TriggerResult::Fire(EventIndex(0x003F))
+        );
+        state.set(Flag::event(0x83)).unwrap();
+        state.set(Flag::event(0x41)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x2F].evaluate(&ctx(&state, 0, 0)),
+            TriggerResult::Fire(EventIndex(0x0041))
+        );
+        state.clear(Flag::event(0x80)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x31].evaluate(&ctx(&state, 0, 0)),
+            TriggerResult::Fire(EventIndex(0x0043))
+        );
+        state.clear(Flag::event(0x89)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x32].evaluate(&ctx(&state, 0, 0)),
+            TriggerResult::Fire(EventIndex(0x8011))
+        );
+    }
 }

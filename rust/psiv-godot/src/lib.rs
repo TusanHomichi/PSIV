@@ -3,7 +3,7 @@
 //! This crate owns pixels and input, zero game rules. Floats are legal here —
 //! they exist only between the engine's integer state and the screen.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use godot::classes::{
     Camera2D, ColorRect, INode2D, Image, ImageTexture, Input, Node2D, ProjectSettings, Sprite2D,
@@ -53,6 +53,16 @@ unsafe impl ExtensionLibrary for PsivExtension {}
 
 pub(crate) const CELL_PIXELS: f32 = 16.0;
 
+/// Oracle tapes hold Speak for four frames for a dismissal edge.  Retail
+/// pacing deliberately waits those frames after the typewriter reports a
+/// complete page; it does not use the compressed debug autoclose path.
+pub(crate) const RETAIL_DISMISS_HOLD_FRAMES: u16 = 4;
+
+pub(crate) fn retail_pace_enabled() -> bool {
+    std::env::var("PSIV_DEBUG_AUTOCLOSE_SCENE").is_ok_and(|value| value == "1")
+        && std::env::var("PSIV_DEBUG_RETAIL_PACE").is_ok_and(|value| value == "1")
+}
+
 /// `EventBattleMusicData` (`ps4.asm:120820`): music id per event-battle
 /// index, byte-for-byte. Index `$1A` (Abyss) also clears `Battle_Type`.
 const EVENT_BATTLE_MUSIC: [u8; 27] = [
@@ -77,11 +87,15 @@ struct Field {
     overlay_sprite: Option<Gd<Sprite2D>>,
     party: Option<Gd<Sprite2D>>,
     party_view: Option<SheetView>,
+    vehicle: Option<Gd<Sprite2D>>,
     /// One entry per visible NPC on the current map.
     npc_nodes: Vec<NpcNode>,
     /// Follower sprites (party members after the leader), created on demand.
     /// (node, active sequence, sequence start tick) per follower.
     follower_nodes: Vec<(Gd<Sprite2D>, String, u64)>,
+    /// Scene-owned objects have no map NPC index; their nodes live by scene
+    /// slot and are hidden as soon as the presentation state expires them.
+    temporary_nodes: BTreeMap<usize, Gd<Sprite2D>>,
     sheet_views: HashMap<String, SheetView>,
     camera: Option<Gd<Camera2D>>,
     dialogue: Option<Gd<DialogueWindow>>,
@@ -115,11 +129,17 @@ struct Field {
     /// re-open it (the engine's own press latch resets while we starve it
     /// with Neutral, so the still-held key would read as a fresh press).
     accept_blocked: bool,
+    /// Auto-paced scene dialogue hold counter.  This is only used when the
+    /// debug autoclose harness is explicitly put back on retail cadence.
+    retail_dialogue_wait: u16,
+    retail_pace_logged: bool,
     /// The party's active sequence and the tick it started, so animation
     /// phase restarts at frame 0 on a sequence change — matching
     /// `FieldObj_Move`'s reset-to-frame-0 rather than free-phase modulo.
     party_sequence: String,
     party_seq_start: u64,
+    vehicle_sequence: String,
+    vehicle_seq_start: u64,
     audio: Option<audio::AudioOutput>,
 }
 
@@ -134,8 +154,10 @@ impl INode2D for Field {
             overlay_sprite: None,
             party: None,
             party_view: None,
+            vehicle: None,
             npc_nodes: Vec::new(),
             follower_nodes: Vec::new(),
+            temporary_nodes: BTreeMap::new(),
             sheet_views: HashMap::new(),
             camera: None,
             dialogue: None,
@@ -149,6 +171,8 @@ impl INode2D for Field {
             presentation: PresentationState::default(),
             anim_tick: 0,
             accept_blocked: false,
+            retail_dialogue_wait: 0,
+            retail_pace_logged: false,
             letterbox: Vec::new(),
             transition: None,
             transition_nodes: Vec::new(),
@@ -156,6 +180,8 @@ impl INode2D for Field {
             leader_char: 0,
             party_sequence: String::new(),
             party_seq_start: 0,
+            vehicle_sequence: String::new(),
+            vehicle_seq_start: 0,
             audio: None,
         }
     }
@@ -286,6 +312,15 @@ impl INode2D for Field {
                 },
             },
         };
+        if std::env::var("PSIV_DEBUG_VEHICLE").is_ok_and(|value| value == "1")
+            || std::env::var_os("PSIV_DEBUG_VEHICLE_BATTLE").is_some()
+        {
+            if let Err(error) = runtime.set_vehicle_index(1) {
+                godot_error!("debug Land Rover selector failed: {error}");
+                return;
+            }
+            godot_print!("debug: Land Rover mounted (Vehicle_Index=1)");
+        }
         self.configure_battles(&mut runtime);
 
         let mut map_sprite = Sprite2D::new_alloc();
@@ -304,6 +339,12 @@ impl INode2D for Field {
         party.set_z_index(5);
         self.base_mut().add_child(&party);
         self.party = Some(party);
+
+        let mut vehicle = Sprite2D::new_alloc();
+        vehicle.set_centered(false);
+        vehicle.set_z_index(5);
+        self.base_mut().add_child(&vehicle);
+        self.vehicle = Some(vehicle);
 
         let mut camera = Camera2D::new_alloc();
         camera.set_zoom(Vector2::new(3.0, 3.0));
@@ -443,10 +484,23 @@ impl INode2D for Field {
         // input, per the engine's documented non-modal contract).
         if self.dialogue.as_ref().is_some_and(|w| w.bind().is_open()) {
             self.accept_blocked = true;
-            if Input::singleton().is_action_just_pressed("ui_accept")
+            let dismissable = self
+                .dialogue
+                .as_ref()
+                .is_some_and(|window| window.bind().is_dismissable());
+            let retail_auto_advance = retail_pace_enabled()
+                && dismissable
+                && self.retail_dialogue_wait >= RETAIL_DISMISS_HOLD_FRAMES;
+            if retail_pace_enabled() && dismissable {
+                self.retail_dialogue_wait = self.retail_dialogue_wait.saturating_add(1);
+            } else if !dismissable {
+                self.retail_dialogue_wait = 0;
+            }
+            if (Input::singleton().is_action_just_pressed("ui_accept") || retail_auto_advance)
                 && let Some(window) = self.dialogue.as_mut()
             {
                 window.bind_mut().advance();
+                self.retail_dialogue_wait = 0;
                 let closed = !window.bind().is_open();
                 if closed && let Some(rt) = self.runtime.as_mut() {
                     rt.dialogue_closed();
@@ -470,6 +524,7 @@ impl INode2D for Field {
             self.sync_visuals(false);
             return;
         }
+        self.retail_dialogue_wait = 0;
 
         if self.drive_shop_if_active() {
             return;

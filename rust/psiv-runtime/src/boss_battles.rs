@@ -61,6 +61,7 @@ impl Runtime {
         Ok(BattleTimeline {
             events,
             sounds: Vec::new(),
+            animations: Vec::new(),
         })
     }
 

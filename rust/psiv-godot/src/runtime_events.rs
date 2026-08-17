@@ -7,7 +7,7 @@
 use crate::boot::collect_event_flags;
 use crate::transitions::TransitionKind;
 use crate::view::{NpcNode, sequence_name};
-use crate::{Field, event_battle_music};
+use crate::{Field, RETAIL_DISMISS_HOLD_FRAMES, event_battle_music, retail_pace_enabled};
 use godot::prelude::*;
 use psiv_core::WarpTrigger;
 use psiv_runtime::RuntimeEvent;
@@ -21,7 +21,12 @@ impl Field {
             match event {
                 RuntimeEvent::StepCompleted { .. } => stepped = true,
                 RuntimeEvent::EncounterRolled { formation } => {
-                    self.play_sound(0x8f);
+                    let music = self
+                        .runtime
+                        .as_ref()
+                        .filter(|runtime| runtime.vehicle_active())
+                        .map_or(0x8f, |_| 0x96);
+                    self.play_sound(music);
                     self.start_random_battle(formation);
                     if self.battle_presentation_active() {
                         self.start_transition(TransitionKind::BattleEntry);
@@ -157,12 +162,23 @@ impl Field {
                     godot_print!("trigger {trigger} is an unsupported custom check");
                 }
                 RuntimeEvent::SceneDialogue { entry } => {
-                    if std::env::var("PSIV_DEBUG_AUTOCLOSE_SCENE").is_ok_and(|value| value == "1") {
+                    if std::env::var("PSIV_DEBUG_AUTOCLOSE_SCENE").is_ok_and(|value| value == "1")
+                        && !retail_pace_enabled()
+                    {
                         godot_print!("debug: auto-closing scene dialogue entry {entry}");
                         if let Some(rt) = self.runtime.as_mut() {
                             rt.dialogue_closed();
                         }
                         continue;
+                    }
+                    if retail_pace_enabled() {
+                        if !self.retail_pace_logged {
+                            godot_print!(
+                                "debug: retail-paced scene dialogue enabled (3f/char, dismiss hold {RETAIL_DISMISS_HOLD_FRAMES}f)"
+                            );
+                            self.retail_pace_logged = true;
+                        }
+                        self.retail_dialogue_wait = 0;
                     }
                     let tree = self
                         .runtime
@@ -187,11 +203,12 @@ impl Field {
                     index,
                     events,
                     sounds,
+                    animations,
                 } => {
                     if let Some(id) = event_battle_music(index) {
                         self.play_sound(id);
                     }
-                    self.start_scene_battle(index, events, sounds);
+                    self.start_scene_battle(index, events, sounds, animations);
                 }
                 RuntimeEvent::SceneFaulted { fault } => {
                     godot_error!("scene fault: {fault:?}");
@@ -205,6 +222,12 @@ impl Field {
                 }
                 RuntimeEvent::VehicleChanged { index } => {
                     godot_print!("vehicle changed to {index:#06x}");
+                    if index == 0 && !self.battle_presentation_active() {
+                        self.play_map_music();
+                    }
+                }
+                RuntimeEvent::VehicleDismountBlocked => {
+                    godot_print!("vehicle cannot dismount on this terrain");
                 }
                 RuntimeEvent::RosterChanged { who } => {
                     godot_print!("roster record changed for {who:?}");

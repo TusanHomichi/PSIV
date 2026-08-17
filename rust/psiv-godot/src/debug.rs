@@ -8,16 +8,22 @@ impl Field {
     /// optional `PSIV_DEBUG_SHOT_FRAME=<n>`, default 180) saves a viewport
     /// screenshot so an agent can see what a player would. `PSIV_DEBUG_EVENT`
     /// starts a transcribed scene at tick 30; combine it with
-    /// `PSIV_DEBUG_AUTOCLOSE_SCENE=1` for deterministic headless scene runs.
+    /// `PSIV_DEBUG_AUTOCLOSE_SCENE=1` for deterministic headless scene runs,
+    /// or add `PSIV_DEBUG_RETAIL_PACE=1` to keep the retail 3f/character
+    /// typewriter and four-frame dismiss hold while using the debug selector.
     /// `PSIV_DEBUG_CAMP=1` opens the field camp at tick 30.
     pub(super) fn debug_hooks_tick(&mut self) {
-        let formation = std::env::var("PSIV_DEBUG_BATTLE").ok().or_else(|| {
-            std::env::args().find_map(|argument| {
-                argument
-                    .strip_prefix("--psiv-debug-battle=")
-                    .map(str::to_owned)
-            })
-        });
+        let vehicle_battle = std::env::var("PSIV_DEBUG_VEHICLE_BATTLE").ok();
+        let formation = std::env::var("PSIV_DEBUG_BATTLE")
+            .ok()
+            .or_else(|| vehicle_battle.clone())
+            .or_else(|| {
+                std::env::args().find_map(|argument| {
+                    argument
+                        .strip_prefix("--psiv-debug-battle=")
+                        .map(str::to_owned)
+                })
+            });
         if self.anim_tick == 30
             && let Some(formation) = formation
         {
@@ -25,12 +31,18 @@ impl Field {
             match u16::from_str_radix(trimmed, 16) {
                 Ok(id) => {
                     godot_print!("debug: starting battle {id:#05x}");
-                    if id == 0x88 {
+                    if id == 0x88 && vehicle_battle.is_none() {
                         godot_print!("debug: battle theme dispatch: 0x95");
                         self.play_sound(0x95);
                         self.start_oracle_debug_battle();
                     } else {
-                        self.play_sound(0x8f);
+                        let music = self
+                            .runtime
+                            .as_ref()
+                            .filter(|runtime| runtime.vehicle_active())
+                            .map_or(0x8f, |_| 0x96);
+                        godot_print!("debug: battle theme dispatch: {music:#04x}");
+                        self.play_sound(music);
                         self.start_random_battle(id);
                     }
                 }

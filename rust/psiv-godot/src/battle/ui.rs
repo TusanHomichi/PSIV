@@ -12,16 +12,18 @@ use godot::prelude::*;
 
 use psiv_core::battle::{BattleEvent, FighterId, Outcome, RoundOrders};
 use psiv_data::DialogueSet;
-use psiv_runtime::BattleTimeline;
+use psiv_runtime::{BattleAnimationEvent, BattleTimeline};
 
 use super::art::BattleArt;
+use super::attack::{EnemySprite, enemy_sprite_origin};
 use super::chrome::{BattleChrome, WindowRect};
 use super::enemy_overlay::EnemyAnimation;
-use super::layout::{append_status_quads, tile_dest};
+use super::layout::{append_status_quads, tile_dest, transient_column};
 use super::sfx::{BattleSoundRequests, QueuedBattleEvent, queue_timeline};
 use super::state::{ActiveEvent, DamageDraw, FinishRequest, MessageKind};
 use super::timeline::{self, Beat};
-use super::{BattleSetup, EnemyPlacement, PartyPlacement};
+use super::vehicle::texture as vehicle_texture;
+use super::{BattleSetup, EnemyPlacement};
 
 pub(super) use super::state::PartyStatus;
 
@@ -41,9 +43,6 @@ pub(super) const BATTLE_CELL_PIXELS: i32 = 8;
 pub(crate) const PARTY_COLUMNS: [i32; 5] = [17, 11, 23, 5, 29];
 /// Party art starts at plane row 15 / screen y120, and is 6x6 cells (§3).
 const PARTY_ROW_Y: f32 = 120.0;
-
-/// The enemy decoder anchors art at row 15 and grows it upward (§2).
-const ENEMY_BASELINE_ROW: i32 = 15;
 
 /// §4 places enemy damage three columns left of the enemy's position byte.
 const ENEMY_DAMAGE_COLUMN_OFFSET: i32 = 3;
@@ -154,24 +153,6 @@ const COMMAND_CURSOR_WORDS: [u16; 3] = [0x6e8, 0x6e7, 0x6e7];
 /// global columns 9,16,23,30, rows 21..26, with patterns 0x6f4/0x6f5 and the
 /// bottom vertical flip. These holes belong to one status window, not five.
 pub(super) const STATUS_SEPARATOR_COLUMNS: [i32; 4] = [9, 16, 23, 30];
-
-/// Converts the formation position byte and the art record's dimensions into
-/// the sprite's top-left pixel. `docs/BATTLE_GEOMETRY.md` §2 makes the byte the
-/// art's bottom-right column, not its left edge; both axes use the 8-pixel
-/// plane cell.
-pub(super) fn enemy_sprite_origin(position: u8, width_cells: u16, height_cells: u16) -> (i32, i32) {
-    let column = i32::from(position & 0x7F);
-    (
-        (column - i32::from(width_cells)) * BATTLE_CELL_PIXELS,
-        (ENEMY_BASELINE_ROW - i32::from(height_cells)) * BATTLE_CELL_PIXELS,
-    )
-}
-
-struct EnemySprite {
-    fighter: FighterId,
-    node: Gd<Sprite2D>,
-    animation: Option<EnemyAnimation>,
-}
 
 struct PartySprite {
     fighter: FighterId,
@@ -483,7 +464,7 @@ impl BattleScreen {
 
         self.build_background(&setup);
         self.build_enemies(&setup.enemies);
-        self.build_party(&setup.party);
+        self.build_party(&setup);
         self.events.extend(queue_timeline(timeline));
         self.base_mut().set_visible(true);
         self.start_next_event();
@@ -536,6 +517,7 @@ impl BattleScreen {
             {
                 enemy.node.set_texture(&texture);
             }
+            enemy.advance_attack();
         }
         if let Some(active) = self.current.as_mut() {
             if active.wait_for_confirm {
@@ -570,6 +552,7 @@ impl BattleScreen {
         self.enqueue_timeline(BattleTimeline {
             events,
             sounds: Vec::new(),
+            animations: Vec::new(),
         });
     }
 
@@ -725,11 +708,14 @@ impl BattleScreen {
                 fighter,
                 node,
                 animation: animation.take(),
+                attack: None,
             });
         }
     }
 
-    fn build_party(&mut self, party: &[PartyPlacement]) {
+    fn build_party(&mut self, setup: &BattleSetup) {
+        let party = &setup.party;
+        let vehicle_surface = setup.vehicle_index.is_some();
         self.party_status = party
             .iter()
             .map(|member| PartyStatus {
@@ -741,7 +727,7 @@ impl BattleScreen {
             })
             .collect();
         self.party_status.sort_by_key(|member| member.character);
-        if self.art.is_none() {
+        if self.art.is_none() && !vehicle_surface {
             return;
         }
         for member in party {
@@ -749,11 +735,19 @@ impl BattleScreen {
                 godot_error!("battle party has invalid fighter id {}", member.fighter_id);
                 continue;
             };
-            let Some(idle) = self
-                .art
-                .as_ref()
-                .and_then(|art| art.character_texture(&self.pack_dir, member.character, 0))
-            else {
+            let idle = setup
+                .vehicle_png
+                .as_deref()
+                .zip(setup.vehicle_frame)
+                .and_then(|(path, (width, height))| {
+                    vehicle_texture(&self.pack_dir, path, width, height)
+                })
+                .or_else(|| {
+                    self.art
+                        .as_ref()
+                        .and_then(|art| art.character_texture(&self.pack_dir, member.character, 0))
+                });
+            let Some(idle) = idle else {
                 godot_error!(
                     "battle character {} idle pose failed to load for fighter {}",
                     member.character,
@@ -761,10 +755,13 @@ impl BattleScreen {
                 );
                 continue;
             };
-            let attack = self
-                .art
-                .as_ref()
-                .and_then(|art| art.character_texture(&self.pack_dir, member.character, 1));
+            let attack = if vehicle_surface {
+                None
+            } else {
+                self.art
+                    .as_ref()
+                    .and_then(|art| art.character_texture(&self.pack_dir, member.character, 1))
+            };
             let mut node = Sprite2D::new_alloc();
             node.set_centered(false);
             node.set_z_index(-10);
@@ -813,6 +810,7 @@ impl BattleScreen {
             return;
         };
         self.sound_requests.extend(queued.sounds);
+        self.start_enemy_animations(&queued.animations);
         let event = queued.event;
 
         self.update_live_party_hp(&event);
@@ -861,7 +859,7 @@ impl BattleScreen {
             self.message_kind = MessageKind::Wide;
         }
         if let Beat::Defense(actor) = narration.beat {
-            self.transient_column = Self::transient_column(actor);
+            self.transient_column = transient_column(actor);
         }
         if matches!(&event, BattleEvent::Escaped) {
             self.transient_column = 11;
@@ -953,16 +951,23 @@ impl BattleScreen {
             .iter_mut()
             .find(|enemy| enemy.fighter == fighter)
         {
+            enemy.clear_attack();
             enemy.node.set_visible(false);
         }
     }
 
-    fn transient_column(fighter: FighterId) -> i32 {
-        match fighter.get() {
-            1 => 5,
-            2 | 5 => 17,
-            3 | 4 => 11,
-            _ => 11,
+    fn start_enemy_animations(&mut self, animations: &[BattleAnimationEvent]) {
+        for animation in animations {
+            if animation.actor.side() != psiv_core::battle::Side::Enemy {
+                continue;
+            }
+            if let Some(enemy) = self
+                .enemy_nodes
+                .iter_mut()
+                .find(|enemy| enemy.fighter == animation.actor)
+            {
+                enemy.begin_attack(animation);
+            }
         }
     }
 

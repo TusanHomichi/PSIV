@@ -84,6 +84,12 @@ pub struct MapRecord {
     /// writes, shipped as first-class variants with their own collision.
     #[serde(default)]
     pub layout_variants: Vec<LayoutVariant>,
+    /// Raw chunk ids from the plane `GetChunkAndCollision` uses. Vehicle battle
+    /// background selection indexes this grid before the collision nibble is
+    /// resolved; keeping it beside the collision grid avoids reconstructing
+    /// chunk identity from a lossy four-bit view.
+    #[serde(default)]
+    pub vehicle_battle: Option<VehicleBattleLayout>,
     /// The 32px patch-tile atlas for this map's `layout_write`s, or `None`
     /// on the 346 maps that patch nothing.
     #[serde(default)]
@@ -256,6 +262,10 @@ pub struct LayoutVariant {
     pub planes: Vec<VariantPlane>,
     /// The variant's collision grid.
     pub collision: VariantCollision,
+    /// The variant's raw chunk grid, when its layout can feed vehicle battle
+    /// background selection.
+    #[serde(default)]
+    pub vehicle_battle: Option<VehicleBattleLayout>,
 }
 
 /// One plane of a layout variant.
@@ -284,6 +294,20 @@ pub struct VariantCollision {
     pub height_cells: u32,
     /// Row-major cell types.
     pub rows: Vec<Vec<u8>>,
+}
+
+/// Raw chunk ids in the collision-authoritative layout plane.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VehicleBattleLayout {
+    /// `fg` or `bg`, matching the decoded map plane.
+    #[serde(default)]
+    pub plane: Option<String>,
+    /// Width in 32-pixel chunks.
+    pub width_chunks: u32,
+    /// Height in 32-pixel chunks.
+    pub height_chunks: u32,
+    /// Row-major raw chunk ids.
+    pub rows: Vec<Vec<u16>>,
 }
 
 impl MapRecord {

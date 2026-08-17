@@ -22,10 +22,13 @@ pub struct GameData {
     manifest: Manifest,
     maps: BTreeMap<MapId, MapRecord>,
     /// Sheet id -> sheet, merged from `sprites/party.json` and
-    /// `sprites/npcs.json`. Empty for a pre-sprite pack built from parts.
+    /// `sprites/npcs.json` and the optional vehicle index. Empty for a
+    /// pre-sprite pack built from parts.
     sheets: BTreeMap<String, crate::sprites::Sheet>,
     /// Party sheet ids in `CharFieldArtPtrs` order (Chaz first).
     party_sheet_ids: Vec<String>,
+    /// Vehicle selector -> sheet id, in `Vehicle_Index` order.
+    vehicle_sheet_ids: Vec<String>,
     sound: crate::sound::SoundFiles,
 }
 
@@ -82,9 +85,18 @@ impl GameData {
         // Sprite index files (pack format 1). Loaded after the maps so NPC
         // sprite references can be validated against real sheets.
         let mut party_ids = Vec::new();
-        for (name, is_party) in [("sprites/party.json", true), ("sprites/npcs.json", false)] {
+        let mut vehicle_ids = Vec::new();
+        for (name, is_party, is_vehicle, optional) in [
+            ("sprites/party.json", true, false, false),
+            ("sprites/npcs.json", false, false, false),
+            ("sprites/vehicles.json", false, true, true),
+        ] {
             let path = pack_dir.join(name);
-            let text = std::fs::read_to_string(&path).map_err(|e| DataError::io(&path, e))?;
+            let text = match std::fs::read_to_string(&path) {
+                Ok(text) => text,
+                Err(error) if optional && error.kind() == std::io::ErrorKind::NotFound => continue,
+                Err(error) => return Err(DataError::io(&path, error)),
+            };
             let file: crate::sprites::SheetFile =
                 serde_json::from_str(&text).map_err(|e| DataError::json(&path, e))?;
             check_version(file.format_version)?;
@@ -101,6 +113,9 @@ impl GameData {
                 if is_party {
                     party_ids.push(sheet.id.clone());
                 }
+                if is_vehicle {
+                    vehicle_ids.push(sheet.id.clone());
+                }
                 if let Some(previous) = data.sheets.insert(sheet.id.clone(), sheet) {
                     return Err(DataError::Sprite {
                         who: previous.id,
@@ -110,6 +125,7 @@ impl GameData {
             }
         }
         data.party_sheet_ids = party_ids;
+        data.vehicle_sheet_ids = vehicle_ids;
         validate_sprite_refs(&data)?;
         Ok(data)
     }
@@ -141,6 +157,7 @@ impl GameData {
             maps,
             sheets: BTreeMap::new(),
             party_sheet_ids: Vec::new(),
+            vehicle_sheet_ids: Vec::new(),
             sound: crate::sound::SoundFiles::default(),
         })
     }
@@ -170,6 +187,14 @@ impl GameData {
     pub fn party_sheet(&self, slot: usize) -> Option<&crate::sprites::Sheet> {
         self.party_sheet_ids
             .get(slot)
+            .and_then(|id| self.sheets.get(id))
+    }
+
+    /// The field sheet for a persisted vehicle selector (`1..=3`).
+    pub fn vehicle_sheet(&self, index: u16) -> Option<&crate::sprites::Sheet> {
+        index
+            .checked_sub(1)
+            .and_then(|slot| self.vehicle_sheet_ids.get(slot as usize))
             .and_then(|id| self.sheets.get(id))
     }
 

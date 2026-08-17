@@ -1,6 +1,8 @@
 //! Per-frame field drawing, split from the Godot bridge so the bridge stays
 //! below the repository's one-thousand-line maintenance limit.
 
+use std::collections::HashSet;
+
 use godot::classes::{ColorRect, Sprite2D};
 use godot::prelude::*;
 
@@ -34,6 +36,44 @@ impl Field {
             let frame = view.frame_at(&self.party_sequence, self.anim_tick - self.party_seq_start);
             view.apply(party, frame);
             party.set_position(view.draw_pos(cell, offset));
+        }
+
+        // A mounted vehicle owns the field draw slot. Its selector and sheet
+        // come from the persisted Vehicle_Index/vehicle index, while the
+        // core supplies the 32px-grid cell and interpolated 4/8px movement.
+        let vehicle_state = runtime.vehicle_state();
+        if let Some(vehicle_state) = vehicle_state {
+            let sheet_id = runtime
+                .vehicle_index()
+                .and_then(|index| runtime.data().vehicle_sheet(index))
+                .map(|sheet| sheet.id.clone());
+            if let Some(sheet_id) = sheet_id {
+                if !self.sheet_views.contains_key(&sheet_id)
+                    && let Some(sheet) = runtime.data().sheet(&sheet_id)
+                    && let Some(view) = SheetView::build(&self.pack_dir, sheet)
+                {
+                    self.sheet_views.insert(sheet_id.clone(), view);
+                }
+                if let Some(view) = self.sheet_views.get(&sheet_id)
+                    && let Some(node) = self.vehicle.as_mut()
+                {
+                    let kind = if vehicle_state.is_moving() {
+                        "walk"
+                    } else {
+                        "idle"
+                    };
+                    let name = sequence_name(kind, vehicle_state.facing());
+                    if name != self.vehicle_sequence {
+                        self.vehicle_sequence = name.clone();
+                        self.vehicle_seq_start = self.anim_tick;
+                    }
+                    let frame = view.frame_at(&name, self.anim_tick - self.vehicle_seq_start);
+                    view.apply(node, frame);
+                    node.set_position(
+                        view.draw_pos(vehicle_state.cell(), vehicle_state.render_offset_16ths()),
+                    );
+                }
+            }
         }
 
         // Followers: members()[1..] walk the leader's vacated cells. Which
@@ -194,26 +234,57 @@ impl Field {
             }
         }
 
-        // Temporary `$C340`/`$C4C0` objects retain their literal scene slot
-        // and animation fields. When the slot corresponds to an existing
-        // map sprite, reuse that decoded retail sheet rather than fabricating
-        // art; a future asset decode can add a standalone node without
-        // changing the scene event contract.
+        // Temporary objects are keyed by the scene's literal slot, not by a
+        // map sprite.  The pack carries their decoded Nemesis/field-art sheet;
+        // map sprites remain a fallback only for an unrecognised asset.
+        let mut custom_slots = HashSet::new();
         for (slot, object) in self.presentation.temporary_draws() {
-            let Some(entry) = self.npc_nodes.iter_mut().find(|entry| entry.index == slot) else {
+            let asset = self.cutscene_layer.as_ref().and_then(|layer| {
+                layer
+                    .bind()
+                    .temporary_asset(object.object_id, object.art_tile)
+            });
+            let Some(asset) = asset else {
+                let Some(entry) = self.npc_nodes.iter_mut().find(|entry| entry.index == slot)
+                else {
+                    continue;
+                };
+                let Some(view) = self.sheet_views.get(&entry.sheet) else {
+                    continue;
+                };
+                let frame = view.frame_at("idle_down", self.anim_tick);
+                view.apply(&mut entry.node, frame);
+                if let Some((x, y)) = object.destination {
+                    entry.node.set_position(Vector2::new(
+                        (x - view.origin_x) as f32,
+                        (y - view.origin_y + view.frame_height) as f32,
+                    ));
+                }
                 continue;
             };
-            let Some(view) = self.sheet_views.get(&entry.sheet) else {
+            if !asset.art_loaded(&self.presentation) || object.frames_left == 0 {
+                continue;
+            }
+            let Some(position) = temporary_position(self, slot, object.destination, &scene_actors)
+            else {
                 continue;
             };
-            let _retail_fields = (object.object_id, object.art_tile);
-            let frame = view.frame_at("idle_down", self.anim_tick);
-            view.apply(&mut entry.node, frame);
-            if let Some((x, y)) = object.destination {
-                entry.node.set_position(Vector2::new(
-                    (x - view.origin_x) as f32,
-                    (y - view.origin_y + view.frame_height) as f32,
+            if !self.temporary_nodes.contains_key(&slot) {
+                let mut node = Sprite2D::new_alloc();
+                node.set_centered(false);
+                node.set_z_index(5);
+                self.base_mut().add_child(&node);
+                self.temporary_nodes.insert(slot, node);
+            }
+            if let Some(node) = self.temporary_nodes.get_mut(&slot) {
+                let frame = asset.frame_at("idle_down", self.anim_tick);
+                asset.apply(node, frame);
+                node.set_position(Vector2::new(
+                    (position.0 - asset.origin_x) as f32,
+                    (position.1 - asset.origin_y + asset.frame_height) as f32,
                 ));
+                node.set_visible(scene_sprites_visible);
+                custom_slots.insert(slot);
             }
         }
 
@@ -226,19 +297,52 @@ impl Field {
             camera.set_position(center);
         }
         if let Some(party) = self.party.as_mut() {
-            party.set_visible(scene_sprites_visible);
+            party.set_visible(scene_sprites_visible && vehicle_state.is_none());
         }
         for follower in &mut self.follower_nodes {
-            follower.0.set_visible(scene_sprites_visible);
+            follower
+                .0
+                .set_visible(scene_sprites_visible && vehicle_state.is_none());
+        }
+        if let Some(vehicle) = self.vehicle.as_mut() {
+            vehicle.set_visible(scene_sprites_visible && vehicle_state.is_some());
         }
         for npc in &mut self.npc_nodes {
             let active = active_npcs.get(npc.index).copied().unwrap_or(false);
-            npc.node.set_visible(scene_sprites_visible && active);
+            npc.node
+                .set_visible(scene_sprites_visible && active && !custom_slots.contains(&npc.index));
+        }
+        for (slot, node) in &mut self.temporary_nodes {
+            node.set_visible(scene_sprites_visible && custom_slots.contains(slot));
         }
         self.place_letterbox();
         self.sync_transition();
     }
+}
 
+fn temporary_position(
+    field: &Field,
+    slot: usize,
+    destination: Option<(i32, i32)>,
+    scene_actors: &[(psiv_core::ActorRef, Cell, Direction)],
+) -> Option<(i32, i32)> {
+    if let Some(position) = destination {
+        return Some(position);
+    }
+    if let Some((_, cell, _)) = scene_actors
+        .iter()
+        .find(|(actor, _, _)| matches!(actor, psiv_core::ActorRef::Npc(index) if *index == slot))
+    {
+        return Some((i32::from(cell.x) * 16, (i32::from(cell.y) - 1) * 16));
+    }
+    field
+        .npc_nodes
+        .iter()
+        .find(|entry| entry.index == slot)
+        .map(|entry| entry.base)
+}
+
+impl Field {
     /// Starts one retail-timed transition. The caller owns the semantic
     /// trigger; this layer only owns the cover and its frame cadence.
     pub(super) fn start_transition(&mut self, kind: TransitionKind) {

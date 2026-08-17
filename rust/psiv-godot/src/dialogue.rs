@@ -423,6 +423,13 @@ impl DialogueWindow {
         self.flow.as_ref().is_some_and(TextFlow::is_waiting)
     }
 
+    /// Whether an accept press would advance or dismiss the current page,
+    /// including the entry's final `End` page. The retail-pace harness uses
+    /// this; the arrow keeps using [`DialogueWindow::is_waiting`].
+    pub fn is_dismissable(&self) -> bool {
+        self.flow.as_ref().is_some_and(TextFlow::is_dismissable)
+    }
+
     fn is_opening(&self) -> bool {
         self.view
             .as_ref()

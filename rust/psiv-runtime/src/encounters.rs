@@ -38,6 +38,10 @@ pub const GRACE_STEPS: u8 = 10;
 /// Vehicles mask `$7F` (1 in 128); Tier 3.
 pub const FOOT_MASK: u16 = 0x1F;
 
+/// The mounted roll mask: `RunRandomBattles` uses `& $7F` when
+/// `Vehicle_Index != 0` (`ps4.asm:116840-116884`).
+pub const VEHICLE_MASK: u16 = 0x7F;
+
 /// The formation pick inside a group: `UpdateRNGSeed2 & $1F`, 32 entries.
 pub const GROUP_MASK: u16 = 0x1F;
 
@@ -336,6 +340,34 @@ impl EncounterTable {
         let id = *block.get(pick)?;
         self.formations.get(&id)
     }
+
+    /// Picks a mounted formation using `Battle_SetupEnemyData`'s vehicle
+    /// groups (`ps4.asm:11813-11824`). Motavia's background index selects
+    /// groups 8/9/A; every non-Motavia map uses group D. The selection roll is
+    /// still the normal 32-entry `UpdateRNGSeed2 & $1F` pick.
+    pub fn select_vehicle(
+        &self,
+        map: u16,
+        motavia_background: u8,
+        rolls: &mut impl Rolls,
+    ) -> Option<&FormationRecord> {
+        if !self.enabled(map) {
+            return None;
+        }
+        let group = if map == 0 {
+            match motavia_background {
+                1 => 9,
+                3 => 10,
+                _ => 8,
+            }
+        } else {
+            13
+        };
+        let block = self.groups.get(&group)?;
+        let pick = usize::from(rolls.next_roll() & GROUP_MASK);
+        let id = *block.get(pick)?;
+        self.formations.get(&id)
+    }
 }
 
 /// `RunRandomBattles`' step counter and gates.
@@ -405,6 +437,13 @@ impl EncounterClock {
             }
         }
         false
+    }
+
+    /// Mounted suppression: raw standing 1/2 and adjacent directional
+    /// footprint samples of raw 1, as the vehicle branch's grace checks use.
+    #[must_use]
+    pub fn vehicle_suppressed(map: &FieldMap, cell: Cell) -> bool {
+        psiv_core::encounter_suppressed(map, cell)
     }
 }
 

@@ -190,6 +190,7 @@ from .objects import (
     facing_table_extents,
     scan_field_objects,
 )
+from .vehicles import VEHICLE_RECORDS, VehicleSprite, vehicle_sprites
 from .records import (
     FACINGS,
     FACING_NAMES,

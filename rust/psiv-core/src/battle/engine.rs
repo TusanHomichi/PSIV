@@ -148,6 +148,8 @@ pub struct Battle {
     /// `Enemy_Run_Chance`, or `None` for a formation at or above `$F0` that
     /// cannot be escaped at all.
     run_chance: Option<u8>,
+    /// Whether this is the one-fighter vehicle battle surface.
+    vehicle: bool,
 }
 
 impl Battle {
@@ -164,6 +166,30 @@ impl Battle {
         party: Vec<PartyMember>,
         data: &BattleData,
         boss: bool,
+        rolls: &mut impl Rolls,
+    ) -> Result<(Battle, Vec<BattleEvent>), BattleDataError> {
+        Self::start_inner(formation, party, data, boss, false, rolls)
+    }
+
+    /// Sets up the retail vehicle battle surface: one saved vehicle fighter,
+    /// the ordinary formation expansion and the vehicle reward halving.
+    /// `loc_78EE` replaces the party with one fighter; the runtime supplies
+    /// that member from `VehicleRecord`.
+    pub fn start_vehicle(
+        formation: &FormationRecord,
+        party: Vec<PartyMember>,
+        data: &BattleData,
+        rolls: &mut impl Rolls,
+    ) -> Result<(Battle, Vec<BattleEvent>), BattleDataError> {
+        Self::start_inner(formation, party, data, false, true, rolls)
+    }
+
+    fn start_inner(
+        formation: &FormationRecord,
+        party: Vec<PartyMember>,
+        data: &BattleData,
+        boss: bool,
+        vehicle: bool,
         rolls: &mut impl Rolls,
     ) -> Result<(Battle, Vec<BattleEvent>), BattleDataError> {
         if formation.enemies.is_empty() {
@@ -208,6 +234,7 @@ impl Battle {
                 outcome: None,
                 last_ability_index: None,
                 run_chance: formation.can_run().then_some(formation.run_chance),
+                vehicle,
             },
             events,
         ))
@@ -271,6 +298,12 @@ impl Battle {
     #[must_use]
     pub const fn pools(&self) -> Pools {
         self.pools
+    }
+
+    /// Whether this battle uses the saved vehicle fighter surface.
+    #[must_use]
+    pub const fn is_vehicle(&self) -> bool {
+        self.vehicle
     }
 
     /// Resolves one round.
@@ -346,7 +379,7 @@ impl Battle {
                 // Computed, not applied. The roster owns both award passes and
                 // the level-up rise that reads what they wrote — see
                 // `rewards`'s module note on where the seam sits.
-                let split = split_rewards(&self.roster, self.pools, false);
+                let split = split_rewards(&self.roster, self.pools, self.vehicle);
                 events.push(BattleEvent::Rewarded {
                     experience_total: split.total,
                     experience_each: split.each,

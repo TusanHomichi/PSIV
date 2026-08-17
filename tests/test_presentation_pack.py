@@ -99,3 +99,69 @@ class PresentationPackTests(unittest.TestCase):
         self.assertEqual(layout["screen"]["visible_height_cells"], 28)
         self.assertIs(layout["self_check"]["passed"], True)
         self.assertTrue(all(layout["self_check"]["checks"].values()))
+
+    def test_scene_owned_assets_and_load_art_are_emitted_additively(self):
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        self.assertEqual(
+            manifest["coverage"],
+            {
+                "panel_records": 15,
+                "load_art_records": 7,
+                "temporary_object_keys": 6,
+                "generic_portraits": 1,
+            },
+        )
+        loads = {
+            (record["source_rom_addr"], record["destination_tile"]): record
+            for record in manifest["load_art"]
+        }
+        self.assertEqual(
+            set(loads),
+            {
+                ("0x1D5DF0", "0x02E6"),
+                ("0x1D628C", "0x0179"),
+                ("0x1D642E", "0x0191"),
+                ("0x1D6A2E", "0x01FB"),
+                ("0x1D6BC8", "0x020C"),
+                ("0x12951A", "0x03A5"),
+                ("0x1289FA", "0x04A5"),
+            },
+        )
+        for record in loads.values():
+            self.assertTrue((ROOT / "runtime-pack" / record["png"]).is_file())
+            self.assertGreater(record["tile_count"], 0)
+
+        temporary = {
+            (record["object_id"], record["art_tile"]): record
+            for record in manifest["temporary_objects"]
+        }
+        self.assertEqual(
+            set(temporary),
+            {
+                (0x18, 0x26A),
+                (0x18, 0x55C),
+                (0x194, 0x4A5),
+                (0x214, 0x179),
+                (0x188, 0x3A5),
+                (0x1FC, 0x2E6),
+            },
+        )
+        self.assertEqual(temporary[(0x18, 0x26A)]["render_status"], "exact")
+        self.assertEqual(temporary[(0x18, 0x55C)]["render_status"], "exact")
+        self.assertEqual(
+            temporary[(0x1FC, 0x2E6)]["render_status"],
+            "partial_transparent_holes",
+        )
+        self.assertEqual(
+            temporary[(0x1FC, 0x2E6)]["missing_patterns"],
+            list(range(0x34B, 0x38D)),
+        )
+        for record in temporary.values():
+            self.assertTrue((ROOT / "runtime-pack" / record["png"]).is_file())
+            self.assertGreater(record["frame_count"], 0)
+
+        portrait = manifest["portraits"][0]
+        self.assertEqual(portrait["mapping"], "0x2A2B36")
+        self.assertEqual(portrait["destination_tile"], "0x055C")
+        self.assertEqual(portrait["size_pixels"], [48, 48])
+        self.assertTrue((ROOT / "runtime-pack" / portrait["png"]).is_file())

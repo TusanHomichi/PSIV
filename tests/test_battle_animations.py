@@ -1,0 +1,74 @@
+import unittest
+from pathlib import Path
+
+from psiv_tools.battle_animations import build_enemy_animations
+from psiv_tools.core import EXPECTED_SHA256, read_rom
+
+ROM = Path(__file__).resolve().parents[1] / "Phantasy Star IV (USA).md"
+
+
+@unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
+class TestBattleAnimations(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.payload = build_enemy_animations(read_rom(ROM))
+
+    def test_retail_provenance_is_fail_closed_against_grand_cross(self):
+        source = self.payload["source"]
+        self.assertEqual(source["rom_sha256"], EXPECTED_SHA256)
+        self.assertEqual(source["grand_cross"], 0)
+        self.assertEqual(source["reference_grand_cross"], 1)
+        self.assertEqual(source["record_count"], 153)
+        self.assertTrue(source["tables"])
+        self.assertTrue(all(table["grand_cross"] == 0 for table in source["tables"]))
+
+    def test_every_enemy_has_exact_sfx_and_no_generic_fallback(self):
+        self.assertEqual(self.payload["count"], 153)
+        census = self.payload["census"]
+        self.assertEqual(census["exact_sfx"], 153)
+        self.assertEqual(census["generic_sfx"], 0)
+        self.assertEqual(census["frame_sequence_records"], 79)
+        self.assertEqual(census["timed_frame_sequences"], 79)
+        self.assertEqual(
+            census["timed_frame_sequences"] + census["frame_sequence_deferred"],
+            153,
+        )
+        for animation in self.payload["animations"]:
+            self.assertTrue(
+                any(
+                    write["dispatch"] == "Sound_Index"
+                    and write["sound_id"] == animation["sfx_id"]
+                    for write in animation["sfx_writes"]
+                ),
+                animation["enemy_id"],
+            )
+
+    def test_two_enemy_records_retain_distinct_retail_ids(self):
+        records = {record["enemy_id"]: record for record in self.payload["animations"]}
+        self.assertEqual(
+            (records[2]["sfx_id"], records[2]["sfx_name"]),
+            (0xD6, "MechEnemyAlarm"),
+        )
+        self.assertEqual(
+            (records[10]["sfx_id"], records[10]["sfx_name"]),
+            (0xD8, "EnemyAttack4"),
+        )
+        self.assertNotEqual(records[2]["sfx_id"], records[10]["sfx_id"])
+
+    def test_frame_records_are_structured_or_explicitly_deferred(self):
+        for animation in self.payload["animations"]:
+            sequence = animation["frame_sequence"]
+            if sequence is None:
+                self.assertFalse(animation["flash_timing_proven"])
+                continue
+            self.assertEqual(sequence["frame_timer_helper"], "loc_256AE")
+            self.assertGreater(sequence["frame_duration"], 0)
+            self.assertGreater(sequence["frame_count"], 0)
+            self.assertEqual(
+                sequence["total_frames"],
+                sequence["frame_duration"] * sequence["frame_count"],
+            )
+            self.assertTrue(animation["flash_timing_proven"])
+
+    def test_extraction_is_deterministic(self):
+        self.assertEqual(self.payload, build_enemy_animations(read_rom(ROM)))

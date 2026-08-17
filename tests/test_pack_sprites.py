@@ -17,6 +17,8 @@ from psiv_tools.pack import (
     PACK_FORMAT_VERSION,
     PARTY_SPRITES_DIRECTORY,
     PARTY_SPRITES_NAME,
+    VEHICLE_SPRITES_DIRECTORY,
+    VEHICLE_SPRITES_NAME,
     build_pack,
 )
 from psiv_tools.sprites import PARTY_SYMBOLS
@@ -77,6 +79,19 @@ class TestSpriteSheets(PackFixtureCase):
                     ),
                 )
                 self.assertEqual(sheet["art"]["tile_count"], 72)
+
+    def test_vehicle_sheets_are_the_three_retail_selectors(self):
+        index = json.loads((self.root / VEHICLE_SPRITES_NAME).read_text())
+        self.assertEqual(index["format_version"], PACK_FORMAT_VERSION)
+        self.assertEqual([sheet["vehicle_index"] for sheet in index["sheets"]], [1, 2, 3])
+        for sheet in index["sheets"]:
+            with self.subTest(selector=sheet["vehicle_index"]):
+                self.assertEqual(
+                    sheet["png"], f"{VEHICLE_SPRITES_DIRECTORY}/{sheet['id']}.png"
+                )
+                self.assertEqual((sheet["frame_width"], sheet["frame_height"]), (40, 32))
+                self.assertEqual(sheet["palette"]["cram_line"], 3)
+                self.assertEqual(sheet["art"]["compression"], "nemesis")
 
     def test_sheet_pngs_are_indexed_with_colour_zero_transparent(self):
         index = json.loads((self.root / NPC_SPRITES_NAME).read_text())

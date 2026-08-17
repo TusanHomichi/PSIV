@@ -154,6 +154,18 @@ impl TextFlow {
         )
     }
 
+    /// Whether an accept press would advance or dismiss the page. Unlike
+    /// [`TextFlow::is_waiting`] this includes the entry's final `End` page —
+    /// the state a scene dialogue rests in until dismissed. `Choice` is
+    /// deliberately excluded: advancing one selects an answer.
+    #[must_use]
+    pub fn is_dismissable(&self) -> bool {
+        matches!(
+            self.stop,
+            Some(PageEnd::Full | PageEnd::Wait | PageEnd::Close | PageEnd::End)
+        )
+    }
+
     /// Whether the window is still showing anything.
     #[must_use]
     pub fn is_open(&self) -> bool {

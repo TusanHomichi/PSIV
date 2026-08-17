@@ -14,8 +14,11 @@ import hashlib
 import json
 from pathlib import Path
 from typing import Any
+import struct
+import zlib
 
 from . import png
+from .gfx import decode_palette, palette_rgb
 from .planes import (
     MAPPINGS,
     art_tiles,
@@ -55,6 +58,117 @@ def _write_json(path: Path, payload: dict[str, Any]) -> str:
     data = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
     path.write_bytes(data)
     return hashlib.sha256(data).hexdigest()
+
+
+def _indexed_png(image: bytes) -> tuple[int, int, bytes, bool]:
+    """Read the minimal indexed PNGs this module emits.
+
+    Keeping the pixel indices lets the runtime replay CRAM words instead of
+    applying a post-hoc RGB tint, which would change unrelated colours.
+    """
+    if not image.startswith(png.PNG_SIGNATURE):
+        raise ValueError("title replay source is not a PNG")
+    cursor = len(png.PNG_SIGNATURE)
+    width = height = None
+    idat = bytearray()
+    transparent = False
+    while cursor < len(image):
+        size = struct.unpack(">I", image[cursor:cursor + 4])[0]
+        kind = image[cursor + 4:cursor + 8]
+        payload = image[cursor + 8:cursor + 8 + size]
+        cursor += 12 + size
+        if kind == b"IHDR":
+            width, height, depth, colour_type = struct.unpack(">IIBB", payload[:10])
+            if depth != 8 or colour_type != png.COLOR_TYPE_INDEXED:
+                raise ValueError("title replay source is not 8-bit indexed PNG")
+        elif kind == b"tRNS":
+            transparent = bool(payload and payload[0] == 0)
+        elif kind == b"IDAT":
+            idat += payload
+        elif kind == b"IEND":
+            break
+    if width is None or height is None:
+        raise ValueError("title replay source has no dimensions")
+    raw = zlib.decompress(bytes(idat))
+    stride = width
+    pixels = bytearray()
+    for row in range(height):
+        start = row * (stride + 1)
+        if raw[start] != 0:
+            raise ValueError("title replay source uses a non-zero PNG filter")
+        pixels += raw[start + 1:start + 1 + stride]
+    return width, height, bytes(pixels), transparent
+
+
+def _palette_cycle() -> dict[str, Any]:
+    path = Path(__file__).resolve().parents[1] / "oracle/layouts/title/palette_cycle.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if payload.get("line_count") != 4 or payload.get("colors_per_line") != 16:
+        raise ValueError("title palette cycle is not a 4x16 CRAM capture")
+    return payload
+
+
+def _cycle_colours(frame: dict[str, Any]) -> list[tuple[int, int, int]]:
+    raw = b"".join(
+        int(word).to_bytes(2, "big")
+        for line in range(4)
+        for word in frame["lines"][str(line)]
+    )
+    return palette_rgb(decode_palette(raw))
+
+
+def _emit_replay_variants(
+    root: Path,
+    cycle: dict[str, Any],
+    assets: dict[str, dict[str, Any]],
+    background: dict[str, Any],
+    transfer: dict[str, Any],
+) -> dict[str, Any]:
+    """Re-encode every title surface against each captured CRAM frame."""
+    sources = {
+        "background": (background["png"], False),
+        "background_transfer": (transfer["png"], False),
+        **{
+            name: (asset["png"], True)
+            for name, asset in assets.items()
+        },
+    }
+    frames: dict[str, Any] = {}
+    for frame_name, frame in sorted(cycle["frames"].items(), key=lambda pair: int(pair[0])):
+        colours = _cycle_colours(frame)
+        frame_dir = root / TITLE_DIRECTORY / "replay" / f"frame_{frame_name}"
+        frame_dir.mkdir(parents=True, exist_ok=True)
+        for name, (relative, transparent) in sources.items():
+            source = root / relative
+            width, height, pixels, source_transparent = _indexed_png(source.read_bytes())
+            output = frame_dir / Path(relative).name
+            output.write_bytes(
+                png.encode_indexed(
+                    width,
+                    height,
+                    pixels,
+                    colours,
+                    transparent=(0,) if transparent or source_transparent else (),
+                )
+            )
+        frames[frame_name] = {
+            "changed_entries_from_previous": frame["changed_entries_from_previous"],
+            "directory": f"title/replay/frame_{frame_name}",
+        }
+    path = root / TITLE_DIRECTORY / "palette_cycle.json"
+    cycle_payload = {
+        **cycle,
+        "frames": frames,
+        "source": "oracle/layouts/title/palette_cycle.json",
+        "replay": "indexed title surfaces re-encoded against captured CRAM words",
+    }
+    cycle_sha = _write_json(path, cycle_payload)
+    return {
+        "path": str(path.relative_to(root)),
+        "sha256": cycle_sha,
+        "frames": [int(frame) for frame in sorted(frames, key=int)],
+        "surface_count": len(sources),
+    }
 
 
 def _decode_mapping_asset(
@@ -205,6 +319,14 @@ def emit_title(rom_bytes: bytes, out_dir: str | Path) -> dict[str, Any]:
         )
 
     background, pieces, background_transfer = _background(rom_bytes, cram, root)
+    cycle = _palette_cycle()
+    replay = _emit_replay_variants(
+        root,
+        cycle,
+        assets,
+        background,
+        background_transfer,
+    )
     layout = {
         "format_version": 1,
         "kind": "psiv_title_pack",
@@ -220,6 +342,7 @@ def emit_title(rom_bytes: bytes, out_dir: str | Path) -> dict[str, Any]:
         "background": background,
         "background_pieces": pieces,
         "background_transfer": background_transfer,
+        "palette_cycle": replay,
         "placement_contract": {
             "sega_logo": {"x_cell": 12, "y_cell": 11, "width_cells": 17, "height_cells": 5},
             "title_logo": {"x_cell": 11, "y_cell": 3, "width_cells": 17, "height_cells": 13},
@@ -249,6 +372,7 @@ def emit_title(rom_bytes: bytes, out_dir: str | Path) -> dict[str, Any]:
             "png_sha256": background_transfer["png_sha256"],
             "size_pixels": background_transfer["size_pixels"],
         },
+        "palette_cycle": replay,
         "assets": {
             name: {
                 "png": asset["png"],

@@ -52,6 +52,7 @@ mkdir -p "$ORACLE/bin" "$OUT"
 	gcc -O2 -Wall -Wextra -o "$BIN" \
 		"$ORACLE/host/psiv_oracle.c" \
 		"$ORACLE/host/frame_dump.c" \
+		"$ORACLE/host/ram_patch.c" \
 		"$ORACLE/host/ram_dump.c" \
 		"$ORACLE/host/state_dump.c" \
 		"$ORACLE/host/tape.c" -ldl

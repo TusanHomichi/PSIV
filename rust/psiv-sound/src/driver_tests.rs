@@ -204,3 +204,48 @@ fn battle_action_sfx_dispatch_order_is_deterministic_over_theme() {
             });
     assert_eq!(compressed, vec![1, 2, 3]);
 }
+
+#[test]
+fn distinct_enemy_attack_sfx_register_log_is_ordered_and_deterministic() {
+    let mut zoran_voice = crate::FmVoice::fixture();
+    zoran_voice.algorithm = 4;
+    let mut gunner_voice = crate::FmVoice::fixture();
+    gunner_voice.algorithm = 5;
+    let track = |voice| SoundTrack::fm(0, vec![0xef, 0, 0x81, 0x20, 0xf2]).voice(voice);
+    let bank = crate::SoundBank::new(
+        vec![
+            SoundSequence::new(0xD8, 1, vec![zoran_voice], Vec::new(), vec![track(0)]),
+            SoundSequence::new(0xD6, 1, vec![gunner_voice], Vec::new(), vec![track(0)]),
+        ],
+        Vec::new(),
+    );
+
+    let run = |bank| {
+        let mut machine = crate::SoundMachine::new();
+        machine.load_bank(bank);
+        machine.play(0xD8); // Zoran Bult: retail EnemyAttack4.
+        let _ = machine.tick();
+        machine.play(0xD6); // Gunner Bit: retail MechEnemyAlarm.
+        let _ = machine.tick();
+        (machine.take_register_log(), machine.last_error().is_none())
+    };
+
+    let (first_log, first_ok) = run(bank.clone());
+    let (second_log, second_ok) = run(bank);
+    assert_eq!(first_log, second_log);
+    assert!(first_ok && second_ok);
+    let algorithms: Vec<_> = first_log
+        .iter()
+        .filter(|write| write.register == 0xB0)
+        .map(|write| write.value)
+        .collect();
+    let compressed = algorithms
+        .into_iter()
+        .fold(Vec::new(), |mut values, algorithm| {
+            if values.last().copied() != Some(algorithm) {
+                values.push(algorithm);
+            }
+            values
+        });
+    assert_eq!(compressed, vec![4, 5]);
+}

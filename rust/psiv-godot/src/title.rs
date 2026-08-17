@@ -6,7 +6,8 @@
 //! START releases the already-authoritative new-game runtime.  The opening
 //! scene's plane/text operations are a separate renderer slice.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+use std::path::Path;
 
 use godot::classes::{ColorRect, Image, ImageTexture, Sprite2D};
 use godot::obj::BaseMut;
@@ -73,6 +74,12 @@ struct Visual {
     node: VisualNode,
     offset: Vector2,
     surface: Surface,
+    replay: BTreeMap<u32, Gd<ImageTexture>>,
+}
+
+#[derive(serde::Deserialize)]
+struct TitleReplayManifest {
+    frames: BTreeMap<String, serde_json::Value>,
 }
 
 #[derive(Clone, Copy)]
@@ -92,6 +99,8 @@ pub(crate) struct TitleScreen {
     menu_index: usize,
     accept_down: bool,
     direction_down: bool,
+    replay_frames: Vec<u32>,
+    elapsed: u32,
 }
 
 impl TitleScreen {
@@ -108,6 +117,8 @@ impl TitleScreen {
             menu_index: 0,
             accept_down: false,
             direction_down: false,
+            replay_frames: load_replay_frames(pack_dir),
+            elapsed: 0,
         };
 
         let dialogue = match DialogueSet::load(std::path::Path::new(pack_dir)) {
@@ -193,6 +204,7 @@ impl TitleScreen {
             node: VisualNode::Rect(node),
             offset: Vector2::new(-VIEW_WIDTH / 2.0 - 1.0, -VIEW_HEIGHT / 2.0 - 1.0),
             surface: Surface::Black,
+            replay: BTreeMap::new(),
         });
     }
 
@@ -230,10 +242,26 @@ impl TitleScreen {
             Surface::Copyright => screen_cell(12, 25),
             Surface::Black | Surface::Menu { .. } => Vector2::ZERO,
         };
+        let mut replay = BTreeMap::new();
+        if !matches!(surface, Surface::Black | Surface::Menu { .. }) {
+            let file = Path::new(relative)
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or_default();
+            for frame in &self.replay_frames {
+                let path = format!("{pack_dir}/title/replay/frame_{frame}/{file}");
+                if let Some(image) = Image::load_from_file(&GString::from(path.as_str()))
+                    && let Some(texture) = ImageTexture::create_from_image(&image)
+                {
+                    replay.insert(*frame, texture);
+                }
+            }
+        }
         self.visuals.push(Visual {
             node: VisualNode::Sprite(node),
             offset,
             surface,
+            replay,
         });
         Some(())
     }
@@ -387,6 +415,7 @@ impl TitleScreen {
             node: VisualNode::Sprite(node),
             offset,
             surface: Surface::Menu { kind, option },
+            replay: BTreeMap::new(),
         });
     }
 
@@ -421,6 +450,7 @@ impl TitleScreen {
                         kind,
                         option: Some(option),
                     },
+                    replay: BTreeMap::new(),
                 });
             }
         }
@@ -478,6 +508,16 @@ impl TitleScreen {
             };
             match &mut visual.node {
                 VisualNode::Sprite(node) => {
+                    if let Some(frame) = self
+                        .replay_frames
+                        .iter()
+                        .copied()
+                        .take_while(|frame| *frame <= self.elapsed)
+                        .last()
+                        && let Some(texture) = visual.replay.get(&frame)
+                    {
+                        node.set_texture(texture);
+                    }
                     node.set_visible(visible);
                     node.set_modulate(if selected {
                         Color::from_rgba(1.0, 1.0, 0.35, alpha)
@@ -552,6 +592,7 @@ impl TitleScreen {
 
     fn tick(&mut self, input: CoreInput) -> Option<TitleChoice> {
         self.ticks = self.ticks.saturating_add(1);
+        self.elapsed = self.elapsed.saturating_add(1);
         let accept_down = matches!(input, CoreInput::Action);
         let pressed = accept_down && !self.accept_down;
         self.accept_down = accept_down;
@@ -619,6 +660,25 @@ fn screen_cell(x: i32, y: i32) -> Vector2 {
         x as f32 * CELL - SCREEN_WIDTH / 2.0,
         y as f32 * CELL - SCREEN_HEIGHT / 2.0,
     )
+}
+
+fn load_replay_frames(pack_dir: &str) -> Vec<u32> {
+    let path = format!("{pack_dir}/title/palette_cycle.json");
+    let Ok(raw) = std::fs::read_to_string(&path) else {
+        godot_warn!("title: CRAM replay manifest missing: {path}");
+        return Vec::new();
+    };
+    let Ok(manifest) = serde_json::from_str::<TitleReplayManifest>(&raw) else {
+        godot_error!("title: CRAM replay manifest is invalid: {path}");
+        return Vec::new();
+    };
+    let mut frames: Vec<u32> = manifest
+        .frames
+        .keys()
+        .filter_map(|frame| frame.parse().ok())
+        .collect();
+    frames.sort_unstable();
+    frames
 }
 
 impl Field {

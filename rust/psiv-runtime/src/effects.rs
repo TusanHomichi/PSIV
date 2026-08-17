@@ -32,6 +32,10 @@ pub struct EffectOutcome {
     /// `layout_write`s, applied to the (possibly variant) grid:
     /// `(x, y, collision_type)`.
     pub cell_patches: Vec<(u32, u32, u8)>,
+    /// Raw collision-plane chunk replacements from active layout writes:
+    /// `(chunk_x, chunk_y, chunk_id)`. Vehicle battle background selection
+    /// reads this identity before collision decoding.
+    pub chunk_patches: Vec<(u32, u32, u16)>,
     /// Patch tiles the renderer blits over the baked map PNG for active
     /// `layout_write`s: `(chunk_x, chunk_y, atlas_index)`. Emitted for
     /// picture-only writes too — the picture is the point there.
@@ -139,6 +143,11 @@ pub fn evaluate(record: &MapRecord, game: &mut GameState) -> EffectOutcome {
                             if write.collision_authoritative != Some(false) {
                                 for cell in &write.cells {
                                     out.cell_patches.push((cell.x, cell.y, cell.collision));
+                                }
+                                if let (Some(chunk_id), Some(cell_x), Some(cell_y)) =
+                                    (write.chunk_id, write.cell_x, write.cell_y)
+                                {
+                                    out.chunk_patches.push((cell_x / 2, cell_y / 2, chunk_id));
                                 }
                             }
                             if let (Some(tile), Some(cx), Some(cy)) = (

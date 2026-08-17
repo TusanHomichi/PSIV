@@ -98,6 +98,11 @@ def main() -> int:
                 "ability records"
             )
             print(
+                f"Enemy attacks: {battle['enemy_animations']['exact_sfx']} exact SFX, "
+                f"{battle['enemy_animations']['generic_sfx']} generic, "
+                f"{manifest['battle']['census']['enemy_animations']['timed_frame_sequences']} timed sequences"
+            )
+            print(
                 f"Party: {battle['characters']['count']} character records, "
                 f"{battle['equipment']['count']} inventory records "
                 f"({battle['equipment']['equippable']} equippable)"

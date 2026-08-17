@@ -17,13 +17,38 @@ pub struct BattleSoundEvent {
     pub id: u8,
 }
 
-/// One ordered battle presentation batch plus its retail SFX sidecar.
+/// A proven enemy attack presentation beat attached to one ordered event.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BattleAnimationEvent {
+    /// Index into [`BattleTimeline::events`].
+    pub event_index: usize,
+    /// Enemy fighter whose attack object was dispatched.
+    pub actor: FighterId,
+    /// Pack enemy record selected by the fighter's live stats.
+    pub enemy_id: u16,
+    /// The exact retail SFX selected by the same object graph.
+    pub sfx_id: u8,
+    /// Fixed mapping duration, when `loc_256AE` consumption was proven.
+    pub frame_duration: Option<u8>,
+    /// Fixed mapping count, when available.
+    pub frame_count: Option<u8>,
+    /// Product of duration and count, when available.
+    pub total_frames: Option<u16>,
+    /// Retail movement was not inferred into the body sprite.
+    pub movement_proven: bool,
+    /// The fixed timing is safe to use as a presentation beat.
+    pub flash_timing_proven: bool,
+}
+
+/// One ordered battle presentation batch plus its retail sidecars.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BattleTimeline {
     /// Core events in deterministic resolution order.
     pub events: Vec<BattleEvent>,
     /// Sound requests keyed to the event that reaches the retail moment.
     pub sounds: Vec<BattleSoundEvent>,
+    /// Proven enemy attack presentation records keyed to the same events.
+    pub animations: Vec<BattleAnimationEvent>,
 }
 
 impl BattleTimeline {
@@ -34,28 +59,29 @@ impl BattleTimeline {
     /// `Field::play_sound` path with an attack, a second attack, and a miss.
     #[must_use]
     pub fn debug_audio_probe() -> BattleTimeline {
-        let actor = FighterId::new(1).expect("fighter id 1");
-        let target = FighterId::new(6).expect("fighter id 6");
+        let party = FighterId::new(1).expect("fighter id 1");
+        let zoran = FighterId::new(6).expect("fighter id 6");
+        let gunner = FighterId::new(7).expect("fighter id 7");
         BattleTimeline {
             events: vec![
                 BattleEvent::Attacked {
-                    actor,
-                    targets: vec![target],
+                    actor: zoran,
+                    targets: vec![party],
                 },
                 BattleEvent::Resolved {
-                    actor,
-                    target,
+                    actor: zoran,
+                    target: party,
                     verdict: Verdict::Normal,
                     damage: Some(7),
                     remaining_hp: 18,
                 },
                 BattleEvent::Attacked {
-                    actor,
-                    targets: vec![target],
+                    actor: gunner,
+                    targets: vec![party],
                 },
                 BattleEvent::Resolved {
-                    actor,
-                    target,
+                    actor: gunner,
+                    target: party,
                     verdict: Verdict::Miss,
                     damage: None,
                     remaining_hp: 18,
@@ -64,15 +90,39 @@ impl BattleTimeline {
             sounds: vec![
                 BattleSoundEvent {
                     event_index: 0,
-                    id: 0xF5,
+                    id: 0xD8,
                 },
                 BattleSoundEvent {
                     event_index: 2,
-                    id: 0xF5,
+                    id: 0xD6,
                 },
                 BattleSoundEvent {
                     event_index: 3,
                     id: 0xB8,
+                },
+            ],
+            animations: vec![
+                BattleAnimationEvent {
+                    event_index: 0,
+                    actor: zoran,
+                    enemy_id: 10,
+                    sfx_id: 0xD8,
+                    frame_duration: Some(2),
+                    frame_count: Some(8),
+                    total_frames: Some(16),
+                    movement_proven: false,
+                    flash_timing_proven: true,
+                },
+                BattleAnimationEvent {
+                    event_index: 2,
+                    actor: gunner,
+                    enemy_id: 2,
+                    sfx_id: 0xD6,
+                    frame_duration: None,
+                    frame_count: None,
+                    total_frames: None,
+                    movement_proven: false,
+                    flash_timing_proven: false,
                 },
             ],
         }
@@ -191,6 +241,8 @@ pub enum RuntimeEvent {
         events: Vec<BattleEvent>,
         /// Retail SFX requests keyed to `events`.
         sounds: Vec<BattleSoundEvent>,
+        /// Proven enemy attack presentation records keyed to `events`.
+        animations: Vec<BattleAnimationEvent>,
     },
     /// A scene battle could not be started. The runtime resumes the scene
     /// with an escaped outcome so a malformed pack cannot deadlock it.
@@ -210,6 +262,8 @@ pub enum RuntimeEvent {
         /// The retail vehicle id.
         index: u16,
     },
+    /// A mounted Action press hit a non-empty dismount cell.
+    VehicleDismountBlocked,
     /// The scene wrote a persistent character record.
     RosterChanged {
         /// The character id whose record changed.

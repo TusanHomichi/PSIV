@@ -98,6 +98,33 @@ fn runtime_with_four_party_and_battles_at(map: u16) -> Runtime {
     runtime
 }
 
+fn relocate_with_state(runtime: &Runtime, map: u16) -> Runtime {
+    Runtime::from_save(
+        runtime.data().clone(),
+        RetailSave {
+            snapshot: runtime.game().snapshot(),
+            location: RetailLocation {
+                world_index: 0,
+                map_index_2: 0,
+                map_index: map,
+                char_x: 0x1E0,
+                char_y: 0x120,
+            },
+        },
+        StepFrames::default(),
+    )
+    .expect("runtime relocates with persistent state")
+}
+
+fn relocate_with_battles(runtime: &Runtime, map: u16) -> Runtime {
+    let mut relocated = relocate_with_state(runtime, map);
+    let files = BattleFiles::load(Path::new(PACK)).expect("battle files load");
+    relocated
+        .enable_battles(&files)
+        .expect("battles enable after relocation");
+    relocated
+}
+
 fn drive_scene(runtime: &mut Runtime, event: u16) -> Vec<RuntimeEvent> {
     assert!(runtime.start_event(event), "event {event:#x} starts");
     let mut log = Vec::new();
@@ -347,6 +374,12 @@ fn the_retail_chain_runs_from_rika_to_zio_defeat() {
             .is_some_and(|stats| stats.curr_hp == stats.max_hp)
     }));
 
+    // The route from Krup into Nurvus is on foot; the player dismounts the
+    // Land Rover before the event battle, as the cartridge's field handoff
+    // requires. Keep that player-controlled edge explicit in the arc test.
+    runtime
+        .set_vehicle_index(0)
+        .expect("dismount before entering Nurvus");
     let nurvus = drive_until_battle(&mut runtime, 0x0034);
     assert!(
         nurvus
@@ -366,6 +399,83 @@ fn the_retail_chain_runs_from_rika_to_zio_defeat() {
         vec![CharId(0), CharId(5), CharId(3)]
     );
     assert!(runtime.game().roster().get(CharId(0)).unwrap().curr_hp > 0);
+
+    // The player walks from Motavia to Mota Spaceport before the next scene.
+    // Re-enter through the same decoded snapshot so this is one persistent arc
+    // test rather than a second synthetic game state.
+    let mut post_zio = relocate_with_battles(&runtime, 0x0BF);
+    let _ = drive_scene(&mut post_zio, 0x800D);
+    assert_eq!(post_zio.map_id().0, 0x18D);
+    assert_eq!(
+        post_zio.game().party_members(),
+        vec![CharId(0), CharId(5), CharId(3)]
+    );
+    assert!(post_zio.game().is_set(Flag::event(0x68)));
+
+    // The player takes the elevator to Zelan F1, where the retail cutscene
+    // promotes the map's Wren object into party slot 4 (zero-based slot 3).
+    post_zio = relocate_with_battles(&post_zio, 0x18E);
+    let _ = drive_scene(&mut post_zio, 0x800C);
+    assert!(post_zio.game().is_set(Flag::event(0x70)));
+    assert_eq!(
+        post_zio.game().party_members(),
+        vec![CharId(0), CharId(5), CharId(3), CharId(7)]
+    );
+    assert!(
+        !post_zio.map().npcs()[0].active,
+        "Wren's map object is gone"
+    );
+
+    // The next trip is the player-selected Zelan -> Kuran route. The scene
+    // owns the Chaos Sorcerer battle and must set its flag before handing off.
+    post_zio = relocate_with_battles(&post_zio, 0x18D);
+    let sabotage = drive_until_battle(&mut post_zio, 0x800E);
+    assert!(
+        sabotage
+            .iter()
+            .any(|item| matches!(item, RuntimeEvent::SceneBattleStarted { index: 8, .. }))
+    );
+    assert!(post_zio.game().is_set(Flag::event(0x71)));
+    let _ = resolve_scene_battle(&mut post_zio);
+    assert_eq!(post_zio.map_id().0, 0x18C);
+
+    let _ = drive_scene(&mut post_zio, 0x800F);
+    assert_eq!(post_zio.map_id().0, 0x14C);
+    assert!(post_zio.game().is_set(Flag::event(0x85)));
+    assert!(post_zio.game().is_set(Flag::event(0x88)));
+    assert_eq!(
+        post_zio.game().party_members(),
+        vec![CharId(0), CharId(5), CharId(3), CharId(7), CharId(8)]
+    );
+
+    // Landale is reached on the player-controlled Dezolis walk. It is a
+    // separate retail dispatch, so preserve the state and enter at Hangar.
+    let mut landale = relocate_with_state(&post_zio, 0x15F);
+    let _ = drive_scene(&mut landale, 0x8010);
+    assert_eq!(landale.map_id().0, 0x001);
+    assert!(landale.game().is_set(Flag::event(0x82)));
+
+    // Kuran's three compact event bodies are the next tractable Dezo/Kuran
+    // slice. The final one hands off to event battle 9.
+    post_zio = relocate_with_battles(&landale, 0x190);
+    let _ = drive_scene(&mut post_zio, 0x003D);
+    assert!(post_zio.game().is_set(Flag::event(0x86)));
+    let _ = drive_scene(&mut post_zio, 0x003E);
+    assert!(post_zio.game().is_set(Flag::event(0x87)));
+    let dark_force = drive_until_battle(&mut post_zio, 0x003F);
+    assert!(
+        dark_force
+            .iter()
+            .any(|item| matches!(item, RuntimeEvent::SceneBattleStarted { index: 9, .. }))
+    );
+    assert!(post_zio.game().is_set(Flag::event(0x83)));
+    let _ = resolve_scene_battle(&mut post_zio);
+
+    let _ = drive_scene(&mut post_zio, 0x8011);
+    assert_eq!(post_zio.map_id().0, 0x18E);
+    assert!(post_zio.game().is_set(Flag::event(0x89)));
+    assert!(post_zio.game().inventory().slots().contains(&0x97));
+    assert!(!post_zio.game().inventory().slots().contains(&0x9A));
 }
 
 #[test]

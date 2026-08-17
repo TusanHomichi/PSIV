@@ -3,7 +3,7 @@
 `generated/` already holds all of this, decoded and provenance-heavy. This
 module does not re-derive any of it -- it imports the same extractors the
 `extract` command uses and reshapes their output for the runtime, the way
-`psiv_tools.pack` does for field maps. Six files under `battle/`:
+`psiv_tools.pack` does for field maps. Seven files under `battle/`:
 
     enemies.json     153 records: stats, the fourteen element properties, the
                      AI lists, rewards, and what a basic attack is
@@ -19,9 +19,14 @@ module does not re-derive any of it -- it imports the same extractors the
                      seated from
     equipment.json   every inventory record's battle half, and the cartridge
                      rules that give the type, bonus and element bytes meaning
+    enemy_animations.json  the retail EnemyAttackOffs/object graph, exact
+                           per-enemy Sound_Index writes, and proven frame timing
 
-The last two are built by `psiv_tools.battle_records`, which decodes the five
-routines those rules live in rather than transcribing them.
+`characters.json` and `equipment.json` are built by
+`psiv_tools.battle_records`, which decodes the five routines those rules live
+in rather than transcribing them. `enemy_animations.json` is built by
+`psiv_tools.battle_animations` from the retail `EnemyAttackOffs` and object
+pointer tables.
 
 Field names come from the extractors, which proved them against the cartridge,
 with one deliberate exception: the formation header is renamed to what the
@@ -66,6 +71,7 @@ from .core import (
     extract_techniques,
 )
 from .battle_records import build_characters, build_equipment
+from .battle_animations import build_enemy_animations
 from .formations import extract_formation_indexes, extract_formations
 from .maps.encounters import extract_encounter_binding
 from .text import extract_names
@@ -101,6 +107,7 @@ LEVELS_NAME = f"{BATTLE_DIRECTORY}/levels.json"
 ABILITIES_NAME = f"{BATTLE_DIRECTORY}/abilities.json"
 CHARACTERS_NAME = f"{BATTLE_DIRECTORY}/characters.json"
 EQUIPMENT_NAME = f"{BATTLE_DIRECTORY}/equipment.json"
+ENEMY_ANIMATIONS_NAME = f"{BATTLE_DIRECTORY}/enemy_animations.json"
 
 #: `AbilityEffectsOffs`, and the routine that sits immediately after it.
 ABILITY_EFFECTS_OFFS = 0x0061BE
@@ -501,6 +508,7 @@ def emit_battle(rom: bytes, out_dir: str | Path, version: int) -> dict[str, Any]
 
     payloads = {
         ENEMIES_NAME: build_enemies(rom, effect_count, display["enemies"]),
+        ENEMY_ANIMATIONS_NAME: build_enemy_animations(rom, display["enemies"]),
         FORMATIONS_NAME: build_formations(rom),
         LEVELS_NAME: build_levels(rom),
         ABILITIES_NAME: build_abilities(rom, effect_count, display),
@@ -525,6 +533,7 @@ def emit_battle(rom: bytes, out_dir: str | Path, version: int) -> dict[str, Any]
     abilities = payloads[ABILITIES_NAME]
     characters = payloads[CHARACTERS_NAME]
     equipment = payloads[EQUIPMENT_NAME]
+    enemy_animations = payloads[ENEMY_ANIMATIONS_NAME]
     return {
         "directory": BATTLE_DIRECTORY,
         "files": {
@@ -544,6 +553,13 @@ def emit_battle(rom: bytes, out_dir: str | Path, version: int) -> dict[str, Any]
             "equipment": {"file": EQUIPMENT_NAME, "sha256": shas[EQUIPMENT_NAME],
                           "count": equipment["count"],
                           "equippable": equipment["census"]["equippable"]},
+            "enemy_animations": {
+                "file": ENEMY_ANIMATIONS_NAME,
+                "sha256": shas[ENEMY_ANIMATIONS_NAME],
+                "count": enemy_animations["count"],
+                "exact_sfx": enemy_animations["census"]["exact_sfx"],
+                "generic_sfx": enemy_animations["census"]["generic_sfx"],
+            },
         },
         "ability_effects": abilities["effects"],
         # A headline only; equipment.json carries the decoded rules in full.
@@ -566,5 +582,6 @@ def emit_battle(rom: bytes, out_dir: str | Path, version: int) -> dict[str, Any]
             "abilities": abilities["census"],
             "characters": characters["census"],
             "equipment": equipment["census"],
+            "enemy_animations": enemy_animations["census"],
         },
     }

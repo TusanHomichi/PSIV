@@ -1,5 +1,5 @@
-//! The scene registry: retail-byte transcriptions from the opening act into
-//! the post-Piata Zema/Tonoe/Birth-Valley arc.
+//! The scene registry: retail-byte transcriptions from the opening act through
+//! the post-Zio Zelan/Dezolis/Kuran handoff.
 //!
 //! Every scene here comes from `docs/scenes/`, which disassembled the cartridge
 //! directly. That indirection is not ceremony: `ps4.asm` `include`s
@@ -44,6 +44,7 @@ pub(crate) mod next_arc_followup;
 pub(crate) mod opening;
 pub(crate) mod post_rika_cutscenes;
 pub(crate) mod post_rika_events;
+pub(crate) mod post_zio_cutscenes;
 
 use crate::scene_runner::Scene;
 use crate::state::CharId;
@@ -63,6 +64,10 @@ pub const GRYZ: CharId = CharId(4);
 pub const RIKA: CharId = CharId(5);
 /// `CharID_Demi`, seated after Alys and Hahn leave the party.
 pub const DEMI: CharId = CharId(6);
+/// `CharID_Wren`, added by `Cutscene_MeetingWren`.
+pub const WREN: CharId = CharId(7);
+/// `CharID_Raja`, added by `Cutscene_CrashLaanding`.
+pub const RAJA: CharId = CharId(8);
 
 /// Every transcribed scene, in story order.
 pub static SCENES: &[Scene] = &[
@@ -104,6 +109,17 @@ pub static SCENES: &[Scene] = &[
     post_rika_cutscenes::PSYCO_WAND,
     post_rika_events::ZIO_NURVUS,
     post_rika_cutscenes::ZIO_DEFEATED,
+    post_zio_cutscenes::MEETING_WREN,
+    post_zio_cutscenes::INSIDE_SPACESHIP,
+    post_zio_cutscenes::SPACESHIP_SABOTAGE,
+    post_zio_cutscenes::CRASH_LANDING,
+    post_zio_cutscenes::LANDALE,
+    post_zio_cutscenes::KURAN_ARRIVAL,
+    post_zio_cutscenes::NEAR_DARK_FORCE_1,
+    post_zio_cutscenes::DARK_FORCE_1,
+    post_zio_cutscenes::DARK_FORCE_1_DEFEATED,
+    post_zio_cutscenes::JUZA,
+    post_zio_cutscenes::JUZA_DEFEATED,
 ];
 
 /// The scene an event index selects, if it has been transcribed.
@@ -172,6 +188,17 @@ mod tests {
             ("Cutscene_PsycoWand", 107),
             ("Event_ZioNurvus", 17),
             ("Cutscene_ZioDefeated", 43),
+            ("Cutscene_MeetingWren", 16),
+            ("Cutscene_InsideSpaceship", 12),
+            ("Cutscene_SpaceshipSabotage", 40),
+            ("Cutscene_CrashLaanding", 120),
+            ("Cutscene_Landale", 22),
+            ("Event_KuranArrival", 2),
+            ("Event_NearDarkForce1", 2),
+            ("Event_DarkForce1", 5),
+            ("Cutscene_DarkForce1Defeated", 27),
+            ("Event_Juza", 5),
+            ("Event_JuzaDefeated", 6),
         ];
         assert_eq!(
             SCENES.len(),
@@ -255,6 +282,12 @@ mod tests {
                 "Cutscene_AlysWounded",
                 "Cutscene_PsycoWand",
                 "Cutscene_ZioDefeated",
+                "Cutscene_MeetingWren",
+                "Cutscene_InsideSpaceship",
+                "Cutscene_SpaceshipSabotage",
+                "Cutscene_CrashLaanding",
+                "Cutscene_Landale",
+                "Cutscene_DarkForce1Defeated",
             ]
         );
     }

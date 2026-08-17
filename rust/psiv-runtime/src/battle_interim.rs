@@ -4,11 +4,10 @@ use std::collections::BTreeMap;
 
 use psiv_core::battle::{BattleEvent, FighterId, RoundOrders, Side, Stats, Verdict};
 
-use crate::{BattleSoundEvent, BattleTimeline, BridgeError, Runtime};
+use crate::{BattleAnimationEvent, BattleSoundEvent, BattleTimeline, BridgeError, Runtime};
 
 const SFX_ATTACK_MISS: u8 = 0xB8;
 const SFX_ENEMY_KILLED: u8 = 0xB9;
-const SFX_ENEMY_ATTACK_1: u8 = 0xBA;
 const SFX_ROD: u8 = 0xB5;
 const SFX_SHOT: u8 = 0xB6;
 const SFX_CLAW: u8 = 0xE8;
@@ -39,6 +38,7 @@ impl Runtime {
         Ok(BattleTimeline {
             events,
             sounds: Vec::new(),
+            animations: Vec::new(),
         })
     }
 
@@ -50,9 +50,15 @@ impl Runtime {
         orders: &RoundOrders,
     ) -> Result<BattleTimeline, BridgeError> {
         let actor_sounds = self.battle_audio_context();
+        let actor_animations = self.battle_animation_context();
         let events = self.battle_round(orders)?;
         let sounds = battle_sound_events(&events, &actor_sounds);
-        Ok(BattleTimeline { events, sounds })
+        let animations = battle_animation_events(&events, &actor_animations);
+        Ok(BattleTimeline {
+            events,
+            sounds,
+            animations,
+        })
     }
 
     fn battle_audio_context(&self) -> BTreeMap<FighterId, u8> {
@@ -65,12 +71,32 @@ impl Runtime {
             .filter_map(|fighter| {
                 let id = match fighter.id.side() {
                     Side::Party => player_attack_sound(&fighter.stats),
-                    // Tier 1 has no enemy animation/object event surface yet.
-                    // `$BA` is the documented generic physical fallback; the
-                    // per-enemy object census remains deferred below.
-                    Side::Enemy => Some(SFX_ENEMY_ATTACK_1),
+                    Side::Enemy => self
+                        .battles
+                        .as_ref()
+                        .and_then(|set| set.enemy_animations.get(&fighter.stats.enemy_id))
+                        .map(|animation| animation.sfx_id),
                 }?;
                 Some((fighter.id, id))
+            })
+            .collect()
+    }
+
+    fn battle_animation_context(&self) -> BTreeMap<FighterId, psiv_data::EnemyAnimation> {
+        let Some(battle) = self.battle.as_ref() else {
+            return BTreeMap::new();
+        };
+        let Some(set) = self.battles.as_ref() else {
+            return BTreeMap::new();
+        };
+        battle
+            .roster()
+            .side(Side::Enemy)
+            .filter_map(|fighter| {
+                Some((
+                    fighter.id,
+                    set.enemy_animations.get(&fighter.stats.enemy_id)?.clone(),
+                ))
             })
             .collect()
     }
@@ -106,6 +132,37 @@ fn battle_sound_events(
         }
     }
     sounds
+}
+
+fn battle_animation_events(
+    events: &[BattleEvent],
+    actor_animations: &BTreeMap<FighterId, psiv_data::EnemyAnimation>,
+) -> Vec<BattleAnimationEvent> {
+    events
+        .iter()
+        .enumerate()
+        .filter_map(|(event_index, event)| {
+            let BattleEvent::Attacked { actor, .. } = event else {
+                return None;
+            };
+            if actor.side() != Side::Enemy {
+                return None;
+            }
+            let animation = actor_animations.get(actor)?;
+            let sequence = animation.frame_sequence.as_ref();
+            Some(BattleAnimationEvent {
+                event_index,
+                actor: *actor,
+                enemy_id: animation.enemy_id,
+                sfx_id: animation.sfx_id,
+                frame_duration: sequence.map(|sequence| sequence.frame_duration),
+                frame_count: sequence.map(|sequence| sequence.frame_count),
+                total_frames: sequence.map(|sequence| sequence.total_frames),
+                movement_proven: animation.movement_proven,
+                flash_timing_proven: animation.flash_timing_proven,
+            })
+        })
+        .collect()
 }
 
 fn player_attack_sound(stats: &Stats) -> Option<u8> {
@@ -170,10 +227,19 @@ mod tests {
     fn battle_sound_order_follows_attack_miss_and_death_events() {
         let actor = id(1);
         let target = id(6);
+        let second_enemy = id(7);
         let events = vec![
             BattleEvent::Attacked {
                 actor,
                 targets: vec![target],
+            },
+            BattleEvent::Attacked {
+                actor: target,
+                targets: vec![actor],
+            },
+            BattleEvent::Attacked {
+                actor: second_enemy,
+                targets: vec![actor],
             },
             BattleEvent::Resolved {
                 actor,
@@ -184,7 +250,8 @@ mod tests {
             },
             BattleEvent::Died { fighter: target },
         ];
-        let actor_sounds = BTreeMap::from([(actor, SFX_SWORD), (target, SFX_ENEMY_ATTACK_1)]);
+        let actor_sounds =
+            BTreeMap::from([(actor, SFX_SWORD), (target, 0xD7), (second_enemy, 0xD6)]);
         assert_eq!(
             battle_sound_events(&events, &actor_sounds),
             vec![
@@ -194,10 +261,18 @@ mod tests {
                 },
                 BattleSoundEvent {
                     event_index: 1,
-                    id: SFX_ATTACK_MISS,
+                    id: 0xD7,
                 },
                 BattleSoundEvent {
                     event_index: 2,
+                    id: 0xD6,
+                },
+                BattleSoundEvent {
+                    event_index: 3,
+                    id: SFX_ATTACK_MISS,
+                },
+                BattleSoundEvent {
+                    event_index: 4,
                     id: SFX_ENEMY_KILLED,
                 },
             ]

@@ -18,28 +18,31 @@ mod camp;
 mod effects;
 mod encounters;
 mod events;
+mod geometry;
 mod save;
 mod scene_runtime;
 mod shop;
+mod vehicle;
 pub use bridge::{BridgeError, field_map, field_map_patched};
 pub use camp::{CampCharacter, CampEquipResult, CampItem, CampState, CampUseResult};
 pub use effects::{EffectOutcome, evaluate as evaluate_map_effects};
 pub use encounters::{
-    EncounterClock, EncounterTable, FOOT_MASK, GRACE_STEPS, GROUP_MASK, battle_data,
+    EncounterClock, EncounterTable, FOOT_MASK, GRACE_STEPS, GROUP_MASK, VEHICLE_MASK, battle_data,
     formation_record,
 };
-pub use events::{BattleSoundEvent, BattleTimeline, RuntimeEvent};
+pub use events::{BattleAnimationEvent, BattleSoundEvent, BattleTimeline, RuntimeEvent};
 pub use save::RuntimeSaveError;
 pub use shop::{InnResult, ShopBuyResult, ShopSellResult};
 
 use bridge::{build_wander, char_id_by_symbol};
+use geometry::{bounds_of, driver_of, object_position};
 
 use psiv_core::battle::{Battle, BattleEvent, Lcg41, Rng2, Rolls, RoundOrders};
 use psiv_core::{
-    ActorRef, Camera, CameraBounds, CameraEdges, Cell, CharId, Direction, Driver, Effect,
-    EventIndex, FieldMap, FieldState, Flag, GameState, Input, MapId, MemberView, Npc, ONE_PIXEL,
-    Party, PixelPos, SceneInput, SceneRunner, ScriptedActor, StepFrames, TRIGGERS, Topology,
-    TriggerContext, TriggerResult, WanderSet, Wanderer, runner_for, scene_for,
+    ActorRef, Camera, Cell, CharId, Direction, Effect, EventIndex, FieldMap, FieldState, Flag,
+    GameState, Input, MapId, MemberView, Party, PixelPos, SceneInput, SceneRunner, ScriptedActor,
+    StepFrames, TRIGGERS, TriggerContext, TriggerResult, WanderSet, Wanderer, runner_for,
+    scene_for,
 };
 use psiv_data::GameData;
 
@@ -106,6 +109,8 @@ pub struct Runtime {
     /// The current map's evaluated MapDataManager outcome — dialogue
     /// overrides, the active layout variant, and the surfaced gaps.
     effects: EffectOutcome,
+    /// Mounted field state; `None` means `Vehicle_Index == 0`.
+    vehicle: Option<psiv_core::VehicleState>,
 }
 
 /// Everything encounters need, converted from the pack once.
@@ -118,6 +123,8 @@ struct BattleSet {
     camp: camp::CampCatalog,
     /// Event battle index -> boss formation. Boss records have no normal id.
     boss_formations: std::collections::BTreeMap<u16, psiv_core::battle::FormationRecord>,
+    /// Enemy id -> retail attack-object presentation record.
+    enemy_animations: std::collections::BTreeMap<u16, psiv_data::EnemyAnimation>,
 }
 
 /// Mirrors `Interaction_ChkMapAreas`'s already-processed gate. A story area
@@ -220,6 +227,12 @@ impl Runtime {
                 .collect(),
             camp: camp::catalog(files),
             boss_formations: boss_battles::boss_formation_records(files)?,
+            enemy_animations: files
+                .enemy_animations
+                .animations
+                .iter()
+                .map(|animation| (animation.enemy_id, animation.clone()))
+                .collect(),
         });
         Ok(())
     }
@@ -232,6 +245,12 @@ impl Runtime {
         let Some(set) = self.battles.as_ref() else {
             return Vec::new();
         };
+        if let Some(index) = self.vehicle_index()
+            && let Some(record) = self.game.vehicles().get(index.saturating_sub(1) as usize)
+            && let Some(member) = psiv_core::battle_member(index, *record)
+        {
+            return vec![member];
+        }
         self.game
             .party_members()
             .into_iter()
@@ -252,19 +271,33 @@ impl Runtime {
     pub fn finish_battle_absorbing(&mut self, each: u16) -> Vec<BattleEvent> {
         let mut timeline = Vec::new();
         if let Some(battle) = self.battle.take() {
-            // The cartridge's results order, load-bearing: absorb the
-            // records whole, pay both award passes, then level everyone the
-            // pay reached — levelling first levels nobody, and levelling
-            // battle's copies levels stale numbers.
-            let party = battle.into_party();
-            self.game.roster_mut().absorb(&party);
-            let (paid_party, paid_absent) = self.game.award_experience(each);
-            if let Some(set) = self.battles.as_ref() {
-                for id in paid_party.iter().chain(&paid_absent) {
-                    if let Some(stats) = self.game.roster_mut().get_mut(*id)
-                        && let Ok(Some(event)) = psiv_core::battle::level_up(id.0, stats, &set.data)
-                    {
-                        timeline.push(event);
+            if battle.is_vehicle() {
+                let index = self.vehicle_index().unwrap_or(0);
+                if let Some(member) = battle.into_party().into_iter().next()
+                    && let Some(record) = self
+                        .game
+                        .vehicles_mut()
+                        .get_mut(index.saturating_sub(1) as usize)
+                {
+                    record.current_hp = member.stats.curr_hp;
+                    record.current_skill_uses = member.stats.curr_skill_uses;
+                }
+            } else {
+                // The cartridge's results order, load-bearing: absorb the
+                // records whole, pay both award passes, then level everyone the
+                // pay reached — levelling first levels nobody, and levelling
+                // battle's copies levels stale numbers.
+                let party = battle.into_party();
+                self.game.roster_mut().absorb(&party);
+                let (paid_party, paid_absent) = self.game.award_experience(each);
+                if let Some(set) = self.battles.as_ref() {
+                    for id in paid_party.iter().chain(&paid_absent) {
+                        if let Some(stats) = self.game.roster_mut().get_mut(*id)
+                            && let Ok(Some(event)) =
+                                psiv_core::battle::level_up(id.0, stats, &set.data)
+                        {
+                            timeline.push(event);
+                        }
                     }
                 }
             }
@@ -392,6 +425,9 @@ impl Runtime {
         // structure".
         if !self.field_suspended {
             self.rng.step();
+        }
+        if self.vehicle.is_some() {
+            return self.tick_vehicle(input);
         }
         let mut events = Vec::new();
         let mut landed: Option<Cell> = None;
@@ -613,8 +649,12 @@ impl Runtime {
             .formation(formation)
             .ok_or_else(|| BridgeError::Rejected(format!("unknown formation {formation}")))?;
         let mut rng2 = Rng2::with_surrogate(&mut self.rng, self.frames);
-        let (battle, events) = Battle::start(record, party, &set.data, false, &mut rng2)
-            .map_err(|e| BridgeError::Rejected(e.to_string()))?;
+        let (battle, events) = if self.vehicle.is_some() {
+            Battle::start_vehicle(record, party, &set.data, &mut rng2)
+        } else {
+            Battle::start(record, party, &set.data, false, &mut rng2)
+        }
+        .map_err(|e| BridgeError::Rejected(e.to_string()))?;
         self.battle = Some(battle);
         self.scene_battle = None;
         Ok(events)
@@ -906,49 +946,15 @@ impl Runtime {
         // starts framed on the party wherever the warp dropped them.
         self.camera = Camera::placed_on(driver_of(self.party.leader()), bounds_of(&map));
         self.map = map;
+        if let Some(vehicle) = self.vehicle.as_mut() {
+            if !vehicle.enter_map(&self.map, cell, facing) {
+                return Err(BridgeError::Rejected(format!(
+                    "vehicle destination ({}, {}) is outside map {}",
+                    cell.x, cell.y, target.0
+                )));
+            }
+            self.camera = Camera::placed_on(vehicle::driver_of(vehicle), bounds_of(&self.map));
+        }
         Ok(())
     }
-}
-
-/// The camera bounds a map imposes: its pixel extent, and whether the edges
-/// clamp or wrap.
-fn bounds_of(map: &FieldMap) -> CameraBounds {
-    CameraBounds::from_cells(
-        map.width(),
-        map.height(),
-        if map.topology() == Topology::Torus {
-            CameraEdges::Wrapping
-        } else {
-            CameraEdges::Clamped
-        },
-    )
-}
-
-/// The leader's 16.16 position, as the camera reads it.
-///
-/// The camera derives the velocity it latches on from successive positions, so
-/// there is deliberately no velocity here to get wrong.
-fn driver_of(leader: &FieldState) -> Driver {
-    let (ox, oy) = leader.render_offset_16ths();
-    let at = PixelPos::from_cell(leader.cell());
-    Driver {
-        x: (at.x + ox) * ONE_PIXEL,
-        y: (at.y + oy) * ONE_PIXEL,
-    }
-}
-
-/// An object's 16.16 map position, including the part-cell travel of a step in
-/// progress.
-///
-/// A stepping object's cell is already its destination — the engine commits it
-/// at step start — so the pixel position interpolates from the origin the step
-/// remembers, not from the cell.
-fn object_position(npc: &Npc, wanderer: Option<&Wanderer>) -> (i32, i32) {
-    let base = wanderer.and_then(Wanderer::step_origin).unwrap_or(npc.cell);
-    let at = PixelPos::from_cell(base);
-    let (tx, ty) = wanderer.map_or((0, 0), Wanderer::travelled_px);
-    (
-        (at.x + i32::from(npc.offset.x) + tx) * ONE_PIXEL,
-        (at.y + i32::from(npc.offset.y) + ty) * ONE_PIXEL,
-    )
 }

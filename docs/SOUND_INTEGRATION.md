@@ -50,20 +50,23 @@ The music ID table is the retail `MusicPtrs` table at `$D1C40`, with IDs
 | Player physical attack | `BattleEvent::Attacked` -> `BattleSoundEvent` at the event index | Wired for all retail weapon classes |
 | Miss effect `$B8` `AttackMiss` | `BattleEvent::Resolved { verdict: Miss }` | Wired |
 | Enemy death `$B9` `EnemyKilled` | `BattleEvent::Died` | Wired |
-| Enemy physical attack | `BattleEvent::Attacked` -> generic `$BA` `EnemyAttack1` | Wired as Tier-1 fallback; per-enemy animation SFX deferred |
+| Enemy physical attack | `BattleEvent::Attacked` -> `BattleAnimationEvent`/exact pack SFX | Wired for all 153 retail enemy records; no generic `$BA` fallback |
 | Technique/skill/item animation SFX | No Tier-1 core command/event carries the selected ability | Deferred: no honest runtime moment yet |
 | Enemy ability/effect SFX | `UnsupportedAbility` records the roll but does not execute its animation | Deferred: no ability animation event surface yet |
 | Sequence-internal `EB` | `commands.rs` queues the payload through the same driver priority path | Wired; register-log covered |
-| Vehicle battle `$96` `CyberneticCarnival` | No vehicle-battle runtime event exists | Deferred: blocker documented, no fake battle |
+| Vehicle battle `$96` `CyberneticCarnival` | Mounted `EncounterRolled` and debug vehicle-battle entry dispatch `$96` through `Field::play_sound` | Wired 2026-08-16 |
 
 Battle presentation now receives a `BattleTimeline`: the core event vector is
-unchanged, and `BattleSoundEvent { event_index, id }` is an ordered sidecar.
-`psiv-runtime` captures weapon state before round mutation, maps the retail
+unchanged, and `BattleSoundEvent { event_index, id }` plus
+`BattleAnimationEvent` are ordered sidecars. `psiv-runtime` captures weapon
+state and the selected enemy record before round mutation, maps the retail
 weapon-index table, and attaches requests to `Attacked`, miss, and death
-events. `psiv-godot/src/battle/sfx.rs` pairs the sidecar with the screen queue;
-`Field::drive_battle_if_active` drains it into the existing live
+events. `psiv-godot/src/battle/sfx.rs` pairs both sidecars with the screen
+queue; `Field::drive_battle_if_active` drains sound IDs into the existing live
 `Field::play_sound` path. The driver remains responsible for mixing SFX with
-the active theme.
+the active theme. The enemy records and their object/frame provenance live in
+`battle/enemy_animations.json`; the scout and its explicit deferred surface
+are recorded in `docs/BATTLE_ANIMATIONS.md`.
 
 The current UI hooks intentionally cover input-owned `$F2`/`$F3` writes. They
 do not claim that every internal menu write is a distinct new event: the
@@ -206,9 +209,10 @@ Sound_StopMusic: 6422,6642
 The object-local writes at `Saved_Sound_Index_2/3/4` are also part of the
 route: `30579`, `52422-52423`, `53872-53873`, `63268-63269`, and
 `69012/69034` save delayed IDs; `67103`, `68905`, `68983-68994` restore them
-into the live index. They are why an event-level “attack happened” callback
-cannot claim exact critical/effect timing without the animation-object
-surface.
+into the live index. The new enemy-object scout retains those writes and
+their owning object IDs. The Tier-1 runtime still exposes one ordered attack
+event rather than every child/effect tick, so those child writes remain
+provenance and are not falsely emitted as extra timeline events.
 
 ## Dispatch coverage and honest limits
 
@@ -217,13 +221,13 @@ surface.
 | Weapon attack (`Sword`, `Rod`, `Claw`, `Shot`) | Pre-round raw equipment -> exact retail index table -> `Attacked` | Wired for Tier-1 physical turns; multi-target attacks emit one action sound, matching the object load point |
 | Hit/miss | `Resolved` miss -> `$B8`; ordinary hit is already the weapon action sound | Wired |
 | Enemy death | `Died` -> `$B9` | Wired |
-| Per-enemy physical animation (`EnemyAttack1/3/4/5`, `MoleAttack`, etc.) | Generic `$BA` on enemy `Attacked` | Deferred per-enemy; no enemy animation/object ID in the Tier-1 event contract |
+| Per-enemy physical animation (`EnemyAttack1/3/4/5`, `MoleAttack`, etc.) | Retail `EnemyAttackOffs` object graph -> exact SFX on enemy `Attacked` | Wired for all 153 records; fixed timing is presented where proven, movement/sprite sheets remain explicit |
 | Technique/skill/item effects | `TechCast`, `Foi`, `Megid`, healing/buff/effect families | Deferred; core has no command/event carrying the retail technique/skill/effect at its animation moment |
 | Battle menus | `$F2`/`$F3` modal input hooks; direct internal writes remain censused | Wired for live input, internal transition parity deferred |
 | Run/flee | `Battle_ProcessRUN` and `Battle_RunFailMsg` have no distinct SFX write | No additional sound to dispatch; selection is the only retail menu sound |
 | Victory and level-up results | `$8B` victory music plus `$F3` result confirmation | Wired; no separate level-up jingle exists in the census |
 | EB sequence routes | Driver `EB` queues the byte and applies sound priority before the next tick | Wired; fixture proves SFX starts over active music |
-| Vehicle battle music `$96` | No vehicle battle event or battle resolver | Deferred with blocker; no invented vehicle battle |
+| Vehicle battle music `$96` | Mounted encounter/debug battle dispatches `$96` through the existing music queue | Wired; vehicle battle surface is recorded in `docs/VEHICLES.md` |
 
 ## EB route and channel-stealing proof
 
@@ -245,11 +249,13 @@ music note-off (`$28`) and SFX voice writes.
 The companion fixture `battle_action_sfx_dispatch_order_is_deterministic_over_theme`
 queues a theme, `$F5` weapon attack, and `$B8` miss in that order and asserts
 the same register trace twice, with compressed FM voice algorithms
-`[theme, attack, miss]`.
+`[theme, attack, miss]`. `distinct_enemy_attack_sfx_register_log_is_ordered_and_deterministic`
+does the same for retail `$D8` Zoran Bult followed by `$D6` Gunner Bit and
+asserts compressed algorithms `[4, 5]` on both runs.
 
 ## Verification
 
-The final local checks were:
+The final local checks for the sound slice were:
 
 ```text
 cargo fmt --manifest-path rust/Cargo.toml --all -- --check
@@ -260,9 +266,11 @@ timeout 30s env PSIV_DEBUG_BATTLE=0x88 godot --headless --audio-driver Dummy --p
 
 Results for this slice: Rust workspace green, clippy zero, and the sound
 register-log fixture plus runtime battle-SFX ordering tests are green. The
-Godot headless proof prints the battle theme dispatch followed by
-`battle SFX dispatch: 0xf5`, a second `0xf5`, and miss effect `0xb8`. The real
-Piata track's existing first-three-tick fixture remains deterministic and
+intended Godot headless proof prints the battle theme dispatch followed by the
+exact enemy attack IDs `0xd8` and `0xd6`, then miss effect `0xb8`; this
+workspace currently has no `godot` or `godot4` executable, so that last live
+engine command is environment-blocked and is not claimed green here. The
+real Piata track's existing first-three-tick fixture remains deterministic and
 includes YM DAC `$2A` data plus `$2B` enable writes.
 
 Headless Godot boots exit successfully and demonstrate normal Piata routing,

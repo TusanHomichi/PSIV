@@ -12,6 +12,7 @@ from psiv_tools.battle_pack import (
     FORMATION_HEADER_RENAMES,
     ABILITIES_NAME,
     ENEMIES_NAME,
+    ENEMY_ANIMATIONS_NAME,
     FORMATIONS_NAME,
     LEVELS_NAME,
     BattlePackError,
@@ -58,7 +59,13 @@ class TestBattlePack(unittest.TestCase):
         cls.fragment = emit_battle(cls.data, cls.root, PACK_FORMAT_VERSION)
         cls.files = {
             name: json.loads((cls.root / name).read_text())
-            for name in (ENEMIES_NAME, FORMATIONS_NAME, LEVELS_NAME, ABILITIES_NAME)
+            for name in (
+                ENEMIES_NAME,
+                ENEMY_ANIMATIONS_NAME,
+                FORMATIONS_NAME,
+                LEVELS_NAME,
+                ABILITIES_NAME,
+            )
         }
 
     @classmethod
@@ -120,10 +127,14 @@ class TestBattlePack(unittest.TestCase):
         self.assertEqual(files["abilities"]["skills"], 54)
         self.assertEqual(files["abilities"]["enemy_skills"], 112)
         self.assertEqual(files["abilities"]["item_effects"], 160)
+        self.assertEqual(files["enemy_animations"]["count"], 153)
+        self.assertEqual(files["enemy_animations"]["exact_sfx"], 153)
+        self.assertEqual(files["enemy_animations"]["generic_sfx"], 0)
 
     def test_every_file_declares_the_pack_version_and_its_kind(self):
         kinds = {
             ENEMIES_NAME: "battle_enemies",
+            ENEMY_ANIMATIONS_NAME: "battle_enemy_animations",
             FORMATIONS_NAME: "battle_formations",
             LEVELS_NAME: "battle_levels",
             ABILITIES_NAME: "battle_abilities",

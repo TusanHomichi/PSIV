@@ -227,38 +227,53 @@ closed and tested in the current tree:
 - scene presentation consumption: ordered `ScenePresentation` events drive
   fades, panels, palettes, sprite gating, scene audio, and saved-music
   restore in Godot; the opening cinematic renders through the same op family
-  and a live capture matches the oracle narration frame at rmse=6.59 after
-  three placement fixes (`docs/SCENE_PRESENTATION.md`); the panel/opening
-  extraction is part of `python -m psiv_tools pack` (`presentation/`);
-- event scenes through ZioDefeated (`docs/scenes/` 31–39: Demi rescue, Alys
-  wounded, Land Rover, Machine Center, Ladea Tower, Psyco Wand, Zio's fall),
-  with roster/heal/revive/vehicle state ops and typed change events; Molcum
-  is a proven event dead end, and the next retail gate is Reunion
-  (`$50 → $801F`) on the Dezo/Kuran maps;
+  (historical live opening comparison: **rmse=6.586813**),
+  the additive pack now carries all 7 decoded `LoadArt` writes, 6 standalone
+  temporary-object keys, and the generic shopkeeper window/portrait surfaces
+  (`docs/SCENE_PRESENTATION.md`); the panel/opening extraction is part of
+  `python -m psiv_tools pack` (`presentation/`);
+- event scenes through the post-Zio Zelan/Dezolis/Kuran handoff
+  (`docs/scenes/` 31–50: Zio's fall, Wren, spaceship travel, crash landing,
+  Landale, Kuran and the first Dark Force beat), with roster/heal/revive,
+  inventory and typed presentation records; Molcum is a proven event dead end,
+  and the later retail Reunion gate remains `$50 → $801F`;
 - battle SFX: ordered battle-timeline events carry the retail SFX at the
   retail moment — per-weapon attack sounds, miss, death, menu routes, EB
-  sequence sounds over music through the driver's priority arbitration
-  (`docs/SOUND_INTEGRATION.md`).
+  sequence sounds over music through the driver's priority arbitration; all
+  153 enemies dispatch their exact per-enemy attack SFX from the decoded
+  `EnemyAttackOffs` tables, proven live (`docs/SOUND_INTEGRATION.md`,
+  `docs/BATTLE_ANIMATIONS.md`);
+- vehicles: the Land Rover slice — retail movement/terrain/dismount rules
+  transcribed, all three vehicle sheets extracted, mount rendering, vehicle
+  battle entry from the saved records, and the `$96` battle theme, proven
+  live (`docs/VEHICLES.md`);
+- two exact-frame retail-paced RMSE certifications: opening narration
+  page 1 (clone t3450 vs oracle 4000, **rmse 6.587**) and page 2 (clone
+  t4440 vs oracle 5200, **rmse 6.578**), captured under Xvfb with the
+  `PSIV_DEBUG_SCENE_TICKS` timeline (`docs/SCENE_PRESENTATION.md`).
 
 The remaining backlog:
 
-1. Full-campaign event coverage past ZioDefeated: the Reunion gate
-   (`$50 → $801F`) onward, on the Dezo/Kuran maps.
-2. Scene presentation leftovers: standalone Nemesis temporary objects,
-   `LoadArt`, and generic scene windows/portraits are logged-but-deferred;
-   exact-frame RMSE pairing needs a retail-paced harness mode (the debug
-   harness compresses dialogue time).
-3. Sound gaps: per-enemy attack/animation SFX (generic `$BA` fallback today)
-   and vehicle battle `$96`, which still waits on a vehicle-battle runtime
-   surface (`docs/SOUND_INTEGRATION.md`).
-4. Remaining field parity: per-object bit-0 camera flags, dynamic gate values
+1. Dialogue-embedded actions: `Ctrl::Action` (`LoadPanel`, sounds, flags
+   inside dialogue entries) is skipped-with-log across the whole dialogue
+   system, and the action panels (e.g. `$30`, the professor/Rika picture)
+   are outside the extracted panel set. This blocks the MeetingRika RMSE
+   pair and is a visible fidelity gap wherever retail dialogue drives
+   pictures or sounds.
+2. Full-campaign event coverage: the Dezo campaign RunEvents (`$33` onward —
+   LeRoof, carnivorous trees, Eclipse Torch…) through the Reunion gate
+   (`$50 → $801F`) and beyond.
+3. Enemy attack presentation: movement animation and sprite-sheet
+   composition remain deferred for all 153 enemies (SFX and timing are
+   exact; `docs/BATTLE_ANIMATIONS.md`).
+4. Vehicle remainder: Ice Digger/Hydrofoil field rules, vehicle skill-use
+   UI, per-map vehicle palettes, mounted scene-battle entry, an oracle
+   vehicle tape, and per-map battle-BG assets for mounted battles.
+5. Remaining field parity: per-object bit-0 camera flags, dynamic gate values
    outside ordinary field entry, fractional camera low-word receipts, and the
    remaining bespoke NPC routines (`docs/CAMERA.md`, `docs/NPC_WANDER.md`).
-5. Title fidelity details: per-frame CRAM fade replay (currently baked
-   palettes with deterministic fades) and a real ERASE DATA implementation
-   (currently deliberately non-destructive).
-6. Vehicle sprites and the still-unimplemented presentation details that
-   depend on them.
+6. Title fidelity detail: a real ERASE DATA implementation (currently
+   deliberately non-destructive).
 
 Maps, layouts, collision, encounter binding, all three Sega compression
 formats, and the completed items above are done and proven.

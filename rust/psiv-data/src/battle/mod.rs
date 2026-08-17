@@ -43,7 +43,7 @@ pub const BATTLE_DIRECTORY: &str = "battle";
 /// How many element-resistance slots an enemy record carries.
 pub const ELEMENT_SLOTS: usize = 14;
 
-/// The four `battle/` files, parsed and cross-checked.
+/// The seven `battle/` files, parsed and cross-checked.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BattleFiles {
     /// `battle/enemies.json`.
@@ -58,6 +58,8 @@ pub struct BattleFiles {
     pub characters: CharactersFile,
     /// `battle/equipment.json`.
     pub equipment: EquipmentFile,
+    /// `battle/enemy_animations.json`.
+    pub enemy_animations: EnemyAnimationsFile,
 }
 
 impl BattleFiles {
@@ -74,6 +76,7 @@ impl BattleFiles {
             abilities: read(pack_dir, "abilities.json")?,
             characters: read(pack_dir, "characters.json")?,
             equipment: read(pack_dir, "equipment.json")?,
+            enemy_animations: read(pack_dir, "enemy_animations.json")?,
         };
         files.validate(pack_dir)?;
         Ok(files)
@@ -179,6 +182,28 @@ impl BattleFiles {
             self.levels.characters.len(),
         )?;
         count_check(
+            "enemy_animations.json",
+            "count",
+            self.enemy_animations.count,
+            self.enemy_animations.animations.len(),
+        )?;
+
+        if self.enemy_animations.source.grand_cross != 0
+            || self
+                .enemy_animations
+                .source
+                .tables
+                .iter()
+                .any(|table| table.grand_cross != 0)
+        {
+            return Err(DataError::ManifestMismatch {
+                path: dir.join("enemy_animations.json"),
+                field: "grand_cross",
+                manifest: "0".into(),
+                record: "nonzero animation table provenance".into(),
+            });
+        }
+        count_check(
             "characters.json",
             "count",
             self.characters.count,
@@ -217,6 +242,35 @@ impl BattleFiles {
                     field: "properties",
                     manifest: ELEMENT_SLOTS.to_string(),
                     record: enemy.properties.len().to_string(),
+                });
+            }
+        }
+
+        let animation_ids: BTreeSet<u16> = self
+            .enemy_animations
+            .animations
+            .iter()
+            .map(|animation| animation.enemy_id)
+            .collect();
+        if animation_ids != seen {
+            return Err(DataError::ManifestMismatch {
+                path: dir.join("enemy_animations.json"),
+                field: "enemy_id",
+                manifest: format!("{} enemy ids", seen.len()),
+                record: format!("{} animation ids", animation_ids.len()),
+            });
+        }
+        for animation in &self.enemy_animations.animations {
+            if !animation
+                .sfx_writes
+                .iter()
+                .any(|write| write.dispatch == "Sound_Index" && write.sound_id == animation.sfx_id)
+            {
+                return Err(DataError::ManifestMismatch {
+                    path: dir.join("enemy_animations.json"),
+                    field: "sfx_id",
+                    manifest: animation.sfx_id.to_string(),
+                    record: animation.enemy_id.to_string(),
                 });
             }
         }
@@ -305,7 +359,8 @@ versioned!(
     LevelsFile,
     AbilitiesFile,
     CharactersFile,
-    EquipmentFile
+    EquipmentFile,
+    EnemyAnimationsFile
 );
 
 // ---------------------------------------------------------------------------
@@ -330,12 +385,17 @@ pub struct NamedId {
 }
 
 mod abilities;
+mod animations;
 mod enemies;
 mod formations;
 mod levels;
 mod party;
 
 pub use abilities::{AbilitiesFile, Ability, EffectTable};
+pub use animations::{
+    EnemyAnimation, EnemyAnimationCensus, EnemyAnimationDispatch, EnemyAnimationFrameSequence,
+    EnemyAnimationSfxWrite, EnemyAnimationSource, EnemyAnimationTableSource, EnemyAnimationsFile,
+};
 pub use enemies::{EnemiesFile, Enemy, EnemyAi, EnemyAttack, EnemyStats, Rewards};
 pub use formations::{
     EncounterGroup, EncounterGroups, Formation, FormationEnemy, FormationsFile, MapBinding,

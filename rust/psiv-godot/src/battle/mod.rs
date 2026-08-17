@@ -5,6 +5,7 @@
 //! resolve a `RoundOrders`, absorb the result, and resume the field.
 
 mod art;
+mod attack;
 mod chrome;
 mod enemy_overlay;
 mod layout;
@@ -12,6 +13,7 @@ mod sfx;
 mod state;
 mod timeline;
 mod ui;
+mod vehicle;
 
 pub(crate) use ui::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
 
@@ -32,9 +34,15 @@ pub(crate) struct BattleSetup {
     /// background table for a scene-owned boss formation.
     pub(crate) event_battle: Option<u16>,
     /// Runtime does not yet expose the raw Motavia terrain byte. Keeping this
-    /// `None` makes the missing boundary explicit; a map-0 encounter reports
-    /// and uses the art-0 fallback instead of silently inventing terrain.
+    /// `None` for non-Motavia battles; map 0 carries the raw chunk id used by
+    /// `MotaBattleBGIndexes`.
     pub(crate) motavia_terrain: Option<u8>,
+    /// The mounted selector, when this is the one-fighter vehicle surface.
+    pub(crate) vehicle_index: Option<u16>,
+    /// Pack-relative vehicle field sheet, used for the battle fighter body.
+    pub(crate) vehicle_png: Option<String>,
+    /// First-frame crop size from the vehicle field sheet.
+    pub(crate) vehicle_frame: Option<(u32, u32)>,
     pub(crate) dark_force_2: bool,
     pub(crate) party: Vec<PartyPlacement>,
     pub(crate) enemies: Vec<EnemyPlacement>,
@@ -65,6 +73,7 @@ pub(super) struct FieldVisibility {
     map: bool,
     overlay: bool,
     party: bool,
+    vehicle: bool,
     dialogue: bool,
     npcs: Vec<bool>,
     followers: Vec<bool>,
@@ -131,13 +140,17 @@ impl Field {
     /// Presents the command-idle oracle fixture used by the visual loop.
     /// `PSIV_DEBUG_BATTLE=0x88` is intentionally a capture selector, not a
     /// raw formation id: the retail frame is tape 07's post-opening party
-    /// (Chaz/Alys/Hahn) against two Zoran Bults on the Academy Basement art.
+    /// (Chaz/Alys/Hahn) against a Zoran Bult and a Gunner Bit on the Academy
+    /// Basement art, so the debug timeline exercises two distinct enemy SFX.
     /// No runtime round is started, so this path cannot mutate game state.
     pub(crate) fn start_oracle_debug_battle(&mut self) {
         let setup = BattleSetup {
             map_id: 0x17,
             event_battle: Some(0),
             motavia_terrain: None,
+            vehicle_index: None,
+            vehicle_png: None,
+            vehicle_frame: None,
             dark_force_2: false,
             party: vec![
                 PartyPlacement {
@@ -171,9 +184,9 @@ impl Field {
                 },
                 EnemyPlacement {
                     fighter_id: 7,
-                    enemy_id: 10,
+                    enemy_id: 2,
                     position: ORACLE_ENEMY_POSITIONS[1],
-                    name: "ZORAN BULT".into(),
+                    name: "GUNNER BIT".into(),
                 },
             ],
         };
@@ -192,6 +205,7 @@ impl Field {
         index: u16,
         events: Vec<psiv_core::battle::BattleEvent>,
         sounds: Vec<psiv_runtime::BattleSoundEvent>,
+        animations: Vec<psiv_runtime::BattleAnimationEvent>,
     ) {
         let Some(files) = self.battle_files.as_ref() else {
             godot_error!(
@@ -214,7 +228,11 @@ impl Field {
         };
         self.begin_battle_presentation(
             setup,
-            BattleTimeline { events, sounds },
+            BattleTimeline {
+                events,
+                sounds,
+                animations,
+            },
             &format!("boss event {index}"),
         );
     }
@@ -370,6 +388,7 @@ impl Field {
                 .as_ref()
                 .is_some_and(|node| node.is_visible()),
             party: self.party.as_ref().is_some_and(|node| node.is_visible()),
+            vehicle: self.vehicle.as_ref().is_some_and(|node| node.is_visible()),
             dialogue: self.dialogue.as_ref().is_some_and(|node| node.is_visible()),
             npcs: self
                 .npc_nodes
@@ -389,6 +408,9 @@ impl Field {
             node.set_visible(false);
         }
         if let Some(node) = self.party.as_mut() {
+            node.set_visible(false);
+        }
+        if let Some(node) = self.vehicle.as_mut() {
             node.set_visible(false);
         }
         if let Some(node) = self.dialogue.as_mut() {
@@ -416,6 +438,9 @@ impl Field {
             }
             if let Some(node) = self.party.as_mut() {
                 node.set_visible(visibility.party);
+            }
+            if let Some(node) = self.vehicle.as_mut() {
+                node.set_visible(visibility.vehicle);
             }
             if let Some(node) = self.dialogue.as_mut() {
                 node.set_visible(visibility.dialogue);
@@ -510,9 +535,18 @@ fn build_setup_for_formation(
     Some(BattleSetup {
         map_id: runtime.map_id().0,
         event_battle,
-        // Runtime currently exposes no raw Motavia terrain byte. Do not
-        // derive one from map art or collision; report the boundary instead.
-        motavia_terrain: None,
+        motavia_terrain: (runtime.map_id().0 == 0)
+            .then(|| runtime.vehicle_battle_terrain())
+            .flatten(),
+        vehicle_index: runtime.vehicle_index(),
+        vehicle_png: runtime
+            .vehicle_index()
+            .and_then(|index| runtime.data().vehicle_sheet(index))
+            .map(|sheet| sheet.png.clone()),
+        vehicle_frame: runtime
+            .vehicle_index()
+            .and_then(|index| runtime.data().vehicle_sheet(index))
+            .map(|sheet| (sheet.frame_width, sheet.frame_height)),
         dark_force_2: runtime.game().is_set(Flag::event(0x9E)),
         party,
         enemies,

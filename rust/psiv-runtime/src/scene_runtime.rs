@@ -58,6 +58,7 @@ impl Runtime {
                     index,
                     events: initial.events,
                     sounds: initial.sounds,
+                    animations: initial.animations,
                 }),
                 Err(error) => {
                     events.push(RuntimeEvent::SceneBattleFailed {
@@ -94,6 +95,12 @@ impl Runtime {
             }
             SceneEffect::InventoryChanged => events.push(RuntimeEvent::InventoryChanged),
             SceneEffect::VehicleChanged { index } => {
+                if self.set_vehicle_index(index).is_err() {
+                    events.push(RuntimeEvent::SceneFaulted {
+                        fault: psiv_core::SceneFault::BadWrite,
+                    });
+                    return;
+                }
                 events.push(RuntimeEvent::VehicleChanged { index });
             }
             SceneEffect::RosterChanged { who } => {

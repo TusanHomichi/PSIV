@@ -112,6 +112,7 @@ from .sprites import (
     party_sprites,
     scan_field_objects,
     step_timing_json,
+    vehicle_sprites,
 )
 # The sprite half of a pack knows only about sprites, so its layout, its sheet
 # deduplication and its two index files live in `psiv_tools.sprites.emit`. The
@@ -125,8 +126,11 @@ from .sprites.emit import (
     NPC_SPRITES_NAME,
     PARTY_SPRITES_DIRECTORY,
     PARTY_SPRITES_NAME,
+    VEHICLE_SPRITES_DIRECTORY,
+    VEHICLE_SPRITES_NAME,
     SheetRegistry,
     emit_party,
+    emit_vehicles,
     field_objects_json,
     resolve_map_sprites,
 )
@@ -259,6 +263,20 @@ def layout_variants(rom: bytes, record: dict[str, Any], decoded, replacements,
             "rows": [list(grid.types[y * grid.width:(y + 1) * grid.width])
                      for y in range(grid.height)],
             "sha256": hashlib.sha256(grid.types).hexdigest(),
+        },
+        "vehicle_battle": {
+            "plane": variant.collision_layout.plane,
+            "width_chunks": variant.collision_layout.width_chunks,
+            "height_chunks": variant.collision_layout.height_chunks,
+            "rows": [
+                list(
+                    variant.collision_layout.cells[
+                        y * variant.collision_layout.width_chunks:
+                        (y + 1) * variant.collision_layout.width_chunks
+                    ]
+                )
+                for y in range(variant.collision_layout.height_chunks)
+            ],
         },
         "differs_from_base_cells": sum(
             1 for a, b in zip(decoded.collision.types, grid.types) if a != b
@@ -538,6 +556,18 @@ def map_json(
                 for y in range(grid.height)
             ],
         },
+        # Vehicle battle selects its background from the raw chunk id at the
+        # current 32px cell, before collision decoding. Preserve that plane so
+        # the runtime does not try to infer a chunk from a four-bit nibble.
+        "vehicle_battle": {
+            "plane": layout.plane,
+            "width_chunks": layout.width_chunks,
+            "height_chunks": layout.height_chunks,
+            "rows": [
+                list(layout.cells[y * layout.width_chunks:(y + 1) * layout.width_chunks])
+                for y in range(layout.height_chunks)
+            ],
+        },
         "music": {
             "id": music["id"],
             "symbol": music["symbol"],
@@ -650,6 +680,7 @@ def build_pack(
     routines = scan_field_objects(rom_bytes)
     extents = facing_table_extents(routines)
     party = party_sprites(rom_bytes, routines)
+    vehicle_palette: Sequence[tuple[int, int, int]] | None = None
     npc_sheets = SheetRegistry(NPC_SPRITES_DIRECTORY)
     sprite_census = SpriteCensus()
 
@@ -704,6 +735,12 @@ def build_pack(
             rom_bytes, record, decoded, routines, extents, npc_sheets, sprite_census
         )
         palette_48 = palette_rgb(decode_map_palette(rom_bytes, spec.palette))
+        if vehicle_palette is None:
+            # Vehicle routines write $60 to the sprite selector, so their
+            # colour source is map CRAM line 3. The index has one baked sheet
+            # per selector; use the first selected map's line-3 palette and
+            # keep that choice explicit in the emitted index.
+            vehicle_palette = palette_48
         palette = palette_48[:32]
         image = render_layout(
             decoded.chunks, decoded.bg, decoded.patterns, palette, overlay=decoded.fg
@@ -848,6 +885,18 @@ def build_pack(
 
     party_entries, party_bytes = emit_party(directory, party)
     npc_entries, npc_bytes = npc_sheets.emit(directory)
+    if vehicle_palette is None:
+        raise PackError("cannot extract vehicle sheets from an empty map selection")
+    vehicles = vehicle_sprites(rom_bytes, vehicle_palette)
+    vehicle_entries, vehicle_bytes = emit_vehicles(directory, vehicles)
+    vehicle_index = {
+        "format_version": PACK_FORMAT_VERSION,
+        "kind": "field_vehicles",
+        "sheet_count": len(vehicle_entries),
+        "palette_source": "first selected map palette, CRAM line 3",
+        "sheets": vehicle_entries,
+    }
+    vehicle_sha = _write_json(directory / VEHICLE_SPRITES_NAME, vehicle_index)
     npc_index = {
         "format_version": PACK_FORMAT_VERSION,
         "kind": "field_npcs",

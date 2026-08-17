@@ -6,6 +6,16 @@ use super::ui::{
     STATUS_RECT, STATUS_SEPARATOR_COLUMNS, STATUS_TP_Y,
 };
 use godot::prelude::*;
+use psiv_core::battle::FighterId;
+
+pub(super) fn transient_column(fighter: FighterId) -> i32 {
+    match fighter.get() {
+        1 => 5,
+        2 | 5 => 17,
+        3 | 4 => 11,
+        _ => 11,
+    }
+}
 
 pub(super) fn tile_dest(x_cell: i32, y_cell: i32) -> Rect2 {
     Rect2::new(
@@ -97,7 +107,8 @@ pub(super) fn append_status_quads(
 
 #[cfg(test)]
 mod tests {
-    use super::super::ui::{battle_dwell_frames, enemy_sprite_origin};
+    use super::super::attack::enemy_sprite_origin;
+    use super::super::ui::battle_dwell_frames;
     use super::*;
     use serde_json::Value;
     use std::fs;
@@ -212,8 +223,8 @@ mod tests {
             body_row_cells(&idle, 9),
             (11..17).chain(23..29).collect::<Vec<_>>()
         );
-        assert_eq!(super::super::ui::enemy_sprite_origin(17, 6, 6), (88, 72));
-        assert_eq!(super::super::ui::enemy_sprite_origin(29, 6, 6), (184, 72));
+        assert_eq!(enemy_sprite_origin(17, 6, 6), (88, 72));
+        assert_eq!(enemy_sprite_origin(29, 6, 6), (184, 72));
 
         for name in [
             "battle_command_return.json",

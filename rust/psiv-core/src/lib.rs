@@ -96,6 +96,7 @@ mod state;
 mod trigger;
 mod trigger_custom;
 mod trigger_table;
+pub mod vehicle;
 mod wander;
 
 pub use camera::{
@@ -145,6 +146,11 @@ pub use trigger::{
     TriggerContext, TriggerResult, Unsupported, evaluate_list,
 };
 pub use trigger_table::TRIGGERS;
+pub use vehicle::{
+    DEFAULT_STEP_OFFSET, VEHICLE_INDEX_MAX, VEHICLE_INDEX_MIN, VehicleEffect, VehicleProfile,
+    VehicleState, battle_member, can_cross, can_enter, directional_collision, dismount_allowed,
+    encounter_suppressed, profile, standing_collision,
+};
 pub use wander::{
     Leash, WANDER_STEP_FRAMES, WanderKind, WanderSet, WanderSpeed, WanderState, Wanderer,
 };

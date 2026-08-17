@@ -26,6 +26,8 @@ pub(crate) fn title_bypassed() -> bool {
     requested_save_slot().is_some()
         || std::env::var_os("PSIV_DEBUG_BATTLE").is_some()
         || std::env::args().any(|argument| argument.starts_with("--psiv-debug-battle="))
+        || std::env::var_os("PSIV_DEBUG_VEHICLE").is_some()
+        || std::env::var_os("PSIV_DEBUG_VEHICLE_BATTLE").is_some()
         || std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1")
         || std::env::var_os("PSIV_DEBUG_SHOP").is_some()
         || std::env::var_os("PSIV_DEBUG_EVENT").is_some()
@@ -50,8 +52,10 @@ pub(crate) fn debug_scene_runtime(
         ),
         0x8007 => (
             0x00AC,
-            16,
-            16,
+            // The oracle's tape-28 fixture: leader at pixel ($1F0,$1A0) —
+            // the retail trigger requires leader Y exactly $1A0.
+            0x1F0,
+            0x1A0,
             [
                 Some(CharId(0)),
                 Some(CharId(1)),

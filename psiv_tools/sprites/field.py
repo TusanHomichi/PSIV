@@ -556,8 +556,14 @@ def _streamed_source(rom: bytes, art_ptr: int, art: StagedArt) -> TileSource | N
     of those, and the blobs carry no length of their own, so reading 2,304
     bytes from an address that is not in the table would be inventing a size.
     """
+    # Scene LoadArt/temporary-object extraction may have staged a ROM-side
+    # field-art blob under its literal work-RAM destination.  Check the staged
+    # bank first: a custom scene upload is authoritative for this draw, even
+    # when the pointer numerically resembles a ROM address.
+    if art_ptr in art.ram:
+        return art.ram[art_ptr]
     if art_ptr >= ROM_LIMIT:
-        return art.ram.get(art_ptr)
+        return None
     if art_ptr not in char_field_art_pointers(rom):
         return None
     return party_art(rom, art_ptr)

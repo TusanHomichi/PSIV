@@ -47,6 +47,8 @@ PARTY_SPRITES_DIRECTORY = f"{SPRITES_DIRECTORY}/party"
 NPC_SPRITES_DIRECTORY = f"{SPRITES_DIRECTORY}/npcs"
 PARTY_SPRITES_NAME = f"{SPRITES_DIRECTORY}/party.json"
 NPC_SPRITES_NAME = f"{SPRITES_DIRECTORY}/npcs.json"
+VEHICLE_SPRITES_DIRECTORY = f"{SPRITES_DIRECTORY}/vehicles"
+VEHICLE_SPRITES_NAME = f"{SPRITES_DIRECTORY}/vehicles.json"
 
 #: Colour 0 of a Mega Drive sprite is transparent, so the sheets carry a tRNS
 #: chunk marking it rather than a colour the renderer has to know to skip.
@@ -220,6 +222,35 @@ def emit_party(root: Path, party: Sequence[PartySprite]) -> tuple[list[dict[str,
             },
             "mappings_table": f"0x{sprite.mappings_addr:06X}",
             **sheet_json(sprite.sheet, f"{PARTY_SPRITES_DIRECTORY}/{name}", image),
+        })
+    return entries, total
+
+
+def emit_vehicles(root: Path, vehicles: Sequence[Any]) -> tuple[list[dict[str, Any]], int]:
+    """Write the three selector-addressed vehicle field sheets."""
+    directory = root / VEHICLE_SPRITES_DIRECTORY
+    directory.mkdir(parents=True, exist_ok=True)
+    entries = []
+    total = 0
+    for sprite in vehicles:
+        image = sheet_png(sprite.sheet)
+        name = f"{_safe(sprite.symbol)}.png"
+        (directory / name).write_bytes(image)
+        total += len(image)
+        entries.append({
+            "id": sprite.symbol,
+            "vehicle_index": sprite.vehicle_index,
+            "symbol": sprite.symbol,
+            "art": {
+                "rom_offset": f"0x{sprite.art_offset:06X}",
+                "size_bytes": sprite.art_size,
+                "compressed_size_bytes": sprite.compressed_size,
+                "tile_count": sprite.art_size // 32,
+                "compression": "nemesis",
+                "sha256": sprite.art_sha256,
+            },
+            "mappings_table": f"0x{sprite.mappings_addr:06X}",
+            **sheet_json(sprite.sheet, f"{VEHICLE_SPRITES_DIRECTORY}/{name}", image),
         })
     return entries, total
 

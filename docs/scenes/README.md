@@ -11,10 +11,11 @@ resolved to a name.
 done — the v1 slice `docs/RUNTIME_DESIGN.md` calls this the opening act.
 
 **Next-arc scope**: the scene set from Piata's post-gate Professor Holt beat
-through Zema, the Tonoe road, the BioPlant escape, the Rika hand-off and the
-retail chain that follows it through Zio's defeat. The trigger/map census is
+through Zema, the Tonoe road, the BioPlant escape, the Rika hand-off, Zio's
+fall, the Zelan spaceship route, Dezolis/Raja arrival and the first Kuran/Dark
+Force handoff. The trigger/map census is
 [12_ArcTriggerCensus](12_ArcTriggerCensus.md); the per-scene records are
-[13_ProfHolt](13_ProfHolt.md) through [39_ZioDefeated](39_ZioDefeated.md).
+[13_ProfHolt](13_ProfHolt.md) through [50_JuzaDefeated](50_JuzaDefeated.md).
 The native registry and headless proof live beside those documents in
 `psiv-core` and `psiv-runtime`.
 
@@ -49,6 +50,17 @@ The native registry and headless proof live beside those documents in
 | `Cutscene_PsycoWand` | `$800A` | [37](37_PsycoWand.md) | `$075200..$075A11` |
 | `Event_ZioNurvus` | `$34` | [38](38_ZioNurvus.md) | `$06F2EA..$06F439` |
 | `Cutscene_ZioDefeated` | `$800B` | [39](39_ZioDefeated.md) | `$075A12..$075FC7` |
+| `Cutscene_MeetingWren` | `$800C` | [40](40_MeetingWren.md) | `$075FC8..$07606B` |
+| `Cutscene_InsideSpaceship` | `$800D` | [41](41_InsideSpaceship.md) | `$07606C..$07607D` |
+| `Cutscene_SpaceshipSabotage` | `$800E` | [42](42_SpaceshipSabotage.md) | `$07607E..$076589` |
+| `Cutscene_CrashLaanding` | `$800F` | [43](43_CrashLanding.md) | `$07658A..$07714F` |
+| `Cutscene_Landale` | `$8010` | [44](44_Landale.md) | `$077150..$0771D1` |
+| `Event_KuranArrival` | `$3D` | [45](45_KuranArrival.md) | `$06FAD4..$06FAE5` |
+| `Event_NearDarkForce1` | `$3E` | [46](46_NearDarkForce1.md) | `$06FAE6..$06FAF7` |
+| `Event_DarkForce1` | `$3F` | [47](47_DarkForce1.md) | `$06FAF8..$06FB1D` |
+| `Cutscene_DarkForce1Defeated` | `$8011` | [48](48_DarkForce1Defeated.md) | `$0771D2..$07734B` |
+| `Event_Juza` | `$40` | [49](49_Juza.md) | `$06FB1E..$06FB5D` |
+| `Event_JuzaDefeated` | `$41` | [50](50_JuzaDefeated.md) | `$06FB5E..$06FBED` |
 
 ## Why these were disassembled and not read
 
@@ -329,6 +341,21 @@ Zema aftermath
        │    Zio Nurvus `$65`, battle index 6
        └─ Nurvus B4 Part2 `$D3`, `$20` → Cutscene_ZioDefeated `$800B`
             Gryz/Demi leave; Gryz Gone `$68`, Mota Spaceport `$66`, Plate Engine `$61`
+  └─ player walks to the retail post-Zio maps
+       ├─ Zelan F1 / dialogue handoff → Cutscene_MeetingWren `$800C`
+       │    Wren joins slot 4; Wren Joined `$70`
+       ├─ Mota Spaceport `$BF`, `$21` → Cutscene_InsideSpaceship `$800D`
+       │    menu-selected Zelan route: Motavia → Zelan Space → Zelan
+       ├─ Zelan `$18D`, `$28` → Cutscene_SpaceshipSabotage `$800E`
+       │    Chaos Sorcerer `$71`, battle index 8
+       ├─ Zelan Space `$18C`, `$29` → Cutscene_CrashLaanding `$800F`
+       │    Dezolis `$001` → Raja Temple `$14C`; Raja joins; `$85/$88`
+       ├─ Dezo player walk / Tyler gate → Cutscene_Landale `$8010`
+       │    Dezo Spaceport `$82`
+       ├─ Kuran `$190`, `$2C` → Event_KuranArrival `$003D`
+       │    Kuran `$86`; `$2D/$2E` then set `$87/$83`, battle index 9
+       └─ trigger `$32` → Cutscene_DarkForce1Defeated `$8011`
+            Canceller out, Ice Digger `$97` in inventory, Ice Digger `$89`
 ```
 
 The order of the shop and house detours is player-controlled; the census keeps
@@ -353,5 +380,5 @@ field maps.
 - Molcum `$40` has only event index `$00`, and `RunEvent_Null00` returns
   immediately. Its aftermath is map/NPC flag state, not a retail scene body;
   no Molcum cutscene was invented. The later `$50`/`$801F` reunion trigger is
-  also outside this chain: it requires Elsydeon `$D9` and is reached much later
-  on Dezo Spaceport/Kuran maps.
+  still outside this slice: it requires Elsydeon `$D9` and is reached after the
+  Kuran/Dezo beats covered here.

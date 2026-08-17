@@ -72,6 +72,13 @@ class TestTitlePack(PackFixtureCase):
         self.assertEqual(layout["background"]["placements"][0]["x_pixels"], 0)
         self.assertEqual(layout["background"]["placements"][-1]["x_pixels"], 112)
         self.assertEqual(layout["background_transfer"]["size_pixels"], [64, 224])
+        self.assertEqual(
+            layout["palette_cycle"]["frames"],
+            [25, 50, 75, 100, 125, 150, 175, 200, 300, 400, 401, 450, 500, 550, 600, 650],
+        )
+        replay = self.root / "title" / "replay" / "frame_650"
+        self.assertTrue((replay / "background.png").is_file())
+        self.assertTrue((replay / "title_logo.png").is_file())
         self.assertTrue((self.root / title["background_transfer"]["png"]).is_file())
         for name, size in {
             "sega_logo": (136, 40),

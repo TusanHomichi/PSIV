@@ -39,6 +39,9 @@ def write_manifest(
     party_bytes = state["party_bytes"]
     party_entries = state["party_entries"]
     party_sha = state["party_sha"]
+    vehicle_bytes = state["vehicle_bytes"]
+    vehicle_entries = state["vehicle_entries"]
+    vehicle_sha = state["vehicle_sha"]
     patch_maps = state["patch_maps"]
     patch_totals = state["patch_totals"]
     placed = state["placed"]
@@ -105,6 +108,10 @@ def write_manifest(
             "npcs": p.NPC_SPRITES_NAME,
             "npcs_sha256": npc_sha,
             "npc_sheet_count": len(npc_entries),
+            "vehicles": p.VEHICLE_SPRITES_NAME,
+            "vehicles_sha256": vehicle_sha,
+            "vehicle_sheet_count": len(vehicle_entries),
+            "vehicle_palette_source": "first selected map palette, CRAM line 3",
             "npc_placements": placed,
             "artless_objects": len(artless_objects),
             # `render_flags` bit 3 decides both the talk probe and object
@@ -130,7 +137,7 @@ def write_manifest(
             # implemented instead of just the common one.
             "census": sprite_census.to_json(),
             "artless": artless_objects,
-            "bytes": party_bytes + npc_bytes,
+            "bytes": party_bytes + npc_bytes + vehicle_bytes,
             "field_objects": {
                 "table": f"0x{p.FIELD_OBJECTS_JMP_TBL:06X}",
                 "count": p.FIELD_OBJECT_COUNT,
@@ -211,6 +218,10 @@ def write_manifest(
             "record_size": presentation["record_size"],
             "panels": len(presentation["panels"]),
             "palettes": len(presentation["palettes"]),
+            "load_art": len(presentation["load_art"]),
+            "temporary_objects": len(presentation["temporary_objects"]),
+            "portraits": len(presentation["portraits"]),
+            "coverage": presentation["coverage"],
         },
         # The flag-gated patches a map's MapDataManager list applies when the
         # map is built. Per-map lists live on the map records; this is the

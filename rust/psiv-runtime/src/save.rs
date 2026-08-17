@@ -136,7 +136,7 @@ pub(super) fn construct_runtime(
     .map_err(|error| BridgeError::Rejected(error.to_string()))?;
     let wander = build_wander(&map, record)?;
     let camera = Camera::placed_on(driver_of(party.leader()), bounds_of(&map));
-    Ok(Runtime {
+    let mut runtime = Runtime {
         data,
         map,
         party,
@@ -159,7 +159,10 @@ pub(super) fn construct_runtime(
         scene_battle: None,
         scene_retry: None,
         effects,
-    })
+        vehicle: None,
+    };
+    runtime.sync_vehicle_selector()?;
+    Ok(runtime)
 }
 
 impl Runtime {
@@ -176,7 +179,8 @@ impl Runtime {
     /// temporary directory without changing runtime state.
     pub fn save_slot(&self, directory: &Path, slot: usize) -> Result<PathBuf, RuntimeSaveError> {
         let path = Self::slot_path(directory, slot)?;
-        let (char_x, char_y) = cell_pixels(self.state().cell())?;
+        let cell = self.vehicle_cell().unwrap_or_else(|| self.state().cell());
+        let (char_x, char_y) = cell_pixels(cell)?;
         let save = RetailSave {
             snapshot: self.game.snapshot(),
             location: RetailLocation {

@@ -25,6 +25,7 @@
 
 #include "frame_dump.h"
 #include "libretro.h"
+#include "ram_patch.h"
 #include "ram_dump.h"
 #include "state_dump.h"
 #include "tape.h"
@@ -558,8 +559,9 @@ static void usage(void)
 	        "[--map <map>] [--out <csv>]\n"
 	        "                   [--groups a,b,c] [--dump-options] "
 	        "[--probe-endian]\n"
-	        "                   [--dump-frames N1,N2,...] "
-	        "--dump-frames-dir <dir>\n"
+		"                   [--dump-frames N1,N2,...] "
+		"--dump-frames-dir <dir>\n"
+		"                   [--ram-patch <frame>:<address>:<hex-bytes>]\n"
 		"                   [--dump-ram <frame>:<path>]\n"
 	        "                   [--dump-state <frame>:<path>]\n"
 	        "                   [--load-sram <path>]\n");
@@ -594,6 +596,12 @@ int main(int argc, char **argv)
 			dump_frames = argv[++i];
 		else if (!strcmp(argv[i], "--dump-frames-dir") && i + 1 < argc)
 			dump_frames_dir = argv[++i];
+		else if (!strcmp(argv[i], "--ram-patch") && i + 1 < argc) {
+			if (ram_patch_add_spec(argv[++i]) != 0) {
+				fprintf(stderr, "psiv_oracle: %s\n", ram_patch_error());
+				return 2;
+			}
+		}
 		else if (!strcmp(argv[i], "--dump-ram") && i + 1 < argc) {
 			if (ram_dump_add_spec(argv[++i]) != 0) {
 				fprintf(stderr, "psiv_oracle: %s\n", ram_dump_error());
@@ -796,6 +804,10 @@ int main(int argc, char **argv)
 		fprintf(stderr, "psiv_oracle: %s\n", psiv_tape_error());
 		return 1;
 	}
+	if (ram_patch_validate_total(psiv_tape_total_frames()) != 0) {
+		fprintf(stderr, "psiv_oracle: %s\n", ram_patch_error());
+		return 2;
+	}
 
 	if (out_path) {
 		out = fopen(out_path, "w");
@@ -827,6 +839,7 @@ int main(int argc, char **argv)
 			char btn[16];
 			int n = 0;
 
+			ram_patch_apply(frame + 1, (uint8_t *)g_ram, g_ram_size);
 			frame_dump_begin_frame(frame + 1);
 			rt_run();
 			frame++;
@@ -878,6 +891,10 @@ int main(int argc, char **argv)
 			}
 			fprintf(out, "\n");
 		}
+	}
+	if (ram_patch_finish() != 0) {
+		fprintf(stderr, "psiv_oracle: %s\n", ram_patch_error());
+		return 1;
 	}
 
 	frame_dump_status = frame_dump_finish();
