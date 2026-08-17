@@ -35,7 +35,7 @@ pub use save::RuntimeSaveError;
 pub use shop::{InnResult, ShopBuyResult, ShopSellResult};
 
 use bridge::{build_wander, char_id_by_symbol};
-use geometry::{bounds_of, driver_of, object_position};
+use geometry::{camera_for_record, driver_of, object_position};
 
 use psiv_core::battle::{Battle, BattleEvent, Lcg41, Rng2, Rolls, RoundOrders};
 use psiv_core::{
@@ -59,6 +59,9 @@ pub struct Runtime {
     saved_map_index_2: u16,
     scene: Option<SceneRunner>,
     scene_input: SceneInput,
+    /// Volatile end-of-game latch set by the retail ending after Start.
+    /// This is presentation state, not save data.
+    game_cleared: bool,
     /// Interim MapDataManager: (map id, npc index) pairs despawned this
     /// session, applied on every map build until the real flag-gated effect
     /// layer is extracted.
@@ -419,7 +422,7 @@ impl Runtime {
                 self.scene_warmup = false;
                 return Vec::new();
             }
-            return self.scene_tick();
+            return self.scene_tick(input);
         }
         // The field-mode tick: GameMode_Field opens with an unconditional
         // UpdateRNGSeed before dispatching (ps4.asm:107638). It vanishes
@@ -569,7 +572,7 @@ impl Runtime {
                     .iter()
                     .find(|w| w.npc_index() == index);
                 let (x, y) = object_position(npc, wanderer);
-                !camera.sees(x, y)
+                !camera.sees_with_camera_bypass(x, y, npc.camera_bypass)
             }));
     }
 
@@ -922,6 +925,19 @@ impl Runtime {
         }
     }
 
+    /// Releases the retail ending's final Start gate.
+    pub fn ending_continue(&mut self) {
+        if self.scene.is_some() {
+            self.scene_input = SceneInput::EndingContinue;
+        }
+    }
+
+    /// Returns whether the retail ending has latched the cleared-game state.
+    #[must_use]
+    pub fn game_cleared(&self) -> bool {
+        self.game_cleared
+    }
+
     fn change_map(
         &mut self,
         target: MapId,
@@ -954,7 +970,8 @@ impl Runtime {
         self.wander = build_wander(&map, record)?;
         // Map entry places the view rather than scrolling it in, so the camera
         // starts framed on the party wherever the warp dropped them.
-        self.camera = Camera::placed_on(driver_of(self.party.leader()), bounds_of(&map));
+        self.camera = camera_for_record(driver_of(self.party.leader()), &map, record)
+            .map_err(BridgeError::Rejected)?;
         self.map = map;
         if let Some(vehicle) = self.vehicle.as_mut() {
             if !vehicle.enter_map(&self.map, cell, facing) {
@@ -963,7 +980,8 @@ impl Runtime {
                     cell.x, cell.y, target.0
                 )));
             }
-            self.camera = Camera::placed_on(vehicle::driver_of(vehicle), bounds_of(&self.map));
+            self.camera = camera_for_record(vehicle::driver_of(vehicle), &self.map, record)
+                .map_err(BridgeError::Rejected)?;
         }
         Ok(())
     }

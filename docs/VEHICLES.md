@@ -1,7 +1,8 @@
 # Vehicles
 
 Retail vehicle field, battle, palette and scene-entry record for the verified
-US build, with `grand_cross=0` throughout. This is the Wave 5 follow-up to the
+US **Grand Cross** build, with `grand_cross=1` at
+`reference/ps4disasm/ps4.options.asm:10`. This is the Wave 5 follow-up to the
 Land Rover slice. The three selectors share the same field-object machinery,
 but their collision masks and movement timing are not interchangeable.
 
@@ -164,10 +165,32 @@ use count in `psiv-core`; a valid command decrements the battle copy and emits
 decrement. Invalid commands emit `VehicleSkillRejected` and do not attack.
 
 The actual 44-entry skill-effect dispatcher and vehicle effect animation are
-still Tier 2. A selected valid vehicle skill currently emits
-`VehicleSkillEffectUnavailable` and performs no physical fallback. That seam is
-deliberately loud in the Godot log; pretending Cluster or N-Sphere was an
-ordinary attack would be worse than leaving the effect dispatcher open.
+now transcribed for every record present in the retail vehicle masks. The
+dispatcher is `rust/psiv-core/src/battle/vehicle_skill.rs`; it keeps the
+cartridge's ordinary hit-flag pass, then reads bytes 1–6 of
+`VehicleSkillData` (`ps4.asm:321275-321299`) for the damage/effect path. It
+never turns an unavailable record into a physical attack.
+
+| id | name | effect | power byte 4 | resistance byte 5 | element byte 6 | proven animation path |
+|---:|---|---|---:|---|---:|---|
+| 1 | CLUSTER | damage | `$80` | defence | physical | standard damage result |
+| 2 | GRAVITN | damage | `$F0` | magic defence | gravity | standard damage result |
+| 3 | TH.GRID | damage | `$00` | magic defence | lightning | standard damage result |
+| 4 | X-BURST | damage | `$F0` | magic defence | energy | standard damage result |
+| 5 | NAPALM | damage | `$80` | magic defence | fire | standard damage result |
+| 6 | NOTHING | damage | `$80` | defence | physical | standard damage result |
+| 7 | N-SPHER | death | `$20` | mental | destroy | `BattleObj_DeathEffect` (`ps4.asm:8658`, `74778`) |
+| 8 | NOTHING | damage | `$80` | defence | physical | standard damage result |
+
+All eight records use strength (byte 2) and all-enemy range (byte 3). Damage
+uses `Battle_CalculateDamage` with strength as attack, the selected resistance,
+the selected element factor, and byte 4 as the power bonus. N-Spher first takes
+the same proven damage path, then runs `AbilityEffect_Death`'s separate chance
+roll (`ps4.asm:9098`, `9513-9608`) against mental resistance and the Destroy
+factor; a landed effect marks the target dead and emits the vehicle effect
+timeline event. The Godot timeline consumes that event without adding a fake
+vehicle-specific damage number; the existing resolved-damage and death beats
+carry the visible result.
 
 ### Mounted scene battles
 
@@ -306,13 +329,10 @@ Implemented and tested:
 
 Still open:
 
-1. The vehicle skill effect/animation dispatcher (`VehicleSkillData`, including
-   damage and N-Sphere death) remains Tier 2. The UI and saved-use behavior are
-   real; the engine will not fake the missing effect as physical damage.
-2. Tape 29 uses the README-approved RAM-patch fixture after a normal retail
+1. Tape 29 uses the README-approved RAM-patch fixture after a normal retail
    boot/map load. It does not replace a full natural playthrough to the Ice
    Digger or Hydrofoil story routes.
-3. The Godot shell can report one non-fatal `AudioStreamGeneratorPlayback`
+2. The Godot shell can report one non-fatal `AudioStreamGeneratorPlayback`
    ObjectDB leak at shutdown on some headless runs. The field/battle boot exits
    successfully; this is the pre-existing audio lifecycle, outside the vehicle
    slice.
@@ -322,5 +342,5 @@ Ownership remains split cleanly: core movement and battle-member rules are in
 `rust/psiv-runtime/src/vehicle.rs` and `boss_battles.rs`, Godot vehicle/battle
 presentation in the runtime vehicle and battle modules, and additive extraction
 in `psiv_tools/vehicle_pack.py` and `psiv_tools/battle_art_pack.py`. No scene
-runner, dialogue system, enemy animation code, save layout or `title.rs` was
-changed for this slice.
+runner, dialogue system, enemy animation code or save layout was changed for
+this slice. `title.rs` is touched only by the separate ERASE DATA closure.

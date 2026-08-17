@@ -65,9 +65,11 @@ step a second time.
 The object bit is a separate branch: `btst #0,$2(a4)` followed by `bne` skips
 both camera subtractions for that object. It does **not** select BG. The global
 `$FFFFEC24` byte selects FG (`0`) or BG (`nonzero`) for ordinary objects. The
-core exposes the object-independent global plane and leaves the unpacked
-per-object bit-0 render flag as an explicit bridge/schema question, rather than
-assigning it the wrong meaning.
+additive pack schema now carries `camera_bypass` on each NPC placement and the
+core visibility gate honors it. The Grand Cross scan found no ordinary field
+init that sets bit 0, so every current placement is explicitly false with the
+loader-zero provenance retained in `sprites/npcs.json`; a later dynamic writer
+will remain visible as a routine-level change rather than being flattened.
 
 ## The BG path and driver gates
 
@@ -85,16 +87,18 @@ Both latches read the same driver's last-frame sprite coordinates (`$2C/$2E`)
 and the same velocity source, but they write independent positions and step
 counters. `psiv-core::Camera` carries both planes, `CameraGates` carries
 `EC24/EC25/EC26`, and `Camera::tick` clears a disabled plane's step before the
-commit. The normal bridge map-load state is `EC24=1`, `EC25=1`, `EC26=1`, the
-values observed after the field map path enters control.
+commit. The bridge now consumes the map record's `scroll` section, preserving
+the record-specific values rather than forcing `1/1/1`. The census is 278 maps
+at `1/1/1`, 65 at `0/1/1`, and 18 at `0/1/0`; all currently decoded initial
+step counters are zero. Those values come directly from `loc_51AB2`, not from
+a scene or object side channel.
 
 The gate bytes are read during map setup at `loc_51AB2` (`ps4.asm:107749`):
 `EC24` selects the sprite plane; each driver gate selects whether its plane
 latches and its step counters are refreshed. Placement at `loc_53854`
 (`ps4.asm:111050`) initializes both plane positions when their gates are set.
 The runtime's replay rows compare FG and BG pixel positions, both step
-counters, and the logged `gate_ec24`/`gate_ec25` columns; `EC26` is exposed in
-the camera API but is not a column in the current oracle RAM map.
+counters, the raw 16.16 positions, and all three logged gate columns.
 
 ## The follow rule: a one-sided latch
 
@@ -276,31 +280,32 @@ at an alignment frame the retail camera holds whatever the opening scene left,
 and the engine cannot execute that scene. `psiv-replay --camera <x,y>` exists to
 supply it.
 
-## Open
+## Remaining camera debt
 
-- **Per-object bit-0 render flags.** The branch is now transcribed correctly as
-  “bypass camera subtraction,” but the current pack schema does not carry the
-  byte at `$2(a4)` independently of bit 3. A future object-render extraction
-  must feed that flag to visibility/sprite calculation before bit-0 objects can
-  be certified.
-- **Dynamic gate values outside ordinary field entry.** Core/runtime model all
-  three bytes and the bridge supplies the ordinary `EC24=1, EC25=1, EC26=1`
-  map-load state. Scene-specific writes or map records that deliberately alter
-  the bytes still need a pack field and an owner-authorized caller. The oracle
-  RAM map currently exposes only `gate_ec24` and `gate_ec25`, so `EC26` has no
-  tape column yet.
-- **Raw sub-pixel camera columns.** The engine keeps full 16.16 plane positions
-  and step counters, and the replay compares the step longwords. The current
-  oracle comparison still exposes only integer position columns, so a tape
-  with a fractional-speed camera remains un-certified at the low-word level.
+The three accumulated camera debts are now represented end to end:
+
+- the additive pack schema carries per-object render-flags bit 0, and runtime
+  visibility/sprite placement consumes it independently of interaction bit 3;
+- map records carry the ordinary gate bytes and the initial fixed-point step
+  counters, while replay exposes all three gate bytes; and
+- replay rows expose the raw 16.16 FG/BG camera words, including their low
+  words, instead of comparing only integer pixels.
+
+Scene-specific writes that deliberately change the gate bytes after map entry
+remain an owner-receipt boundary. No such write is silently inferred from a
+generic map record.
 
 ## Status
 
 Tape 02 is the field receipt for the closed path: its 1080 frames cover the
-FG and BG pixel columns, both step-counter pairs, `gate_ec24`/`gate_ec25`, and
-all 32 object slots. The focused core receipt is
-`camera::tests::the_existing_field_tape_replays_both_camera_planes`; the
-rebuilt `psiv-replay` receipt is **CLEAN** over 1080 frames and 345 compared
-columns. The fresh full-pack comparison has 2,957/2,957 shared files
-identical with zero differing files; the 17 runtime-only
-`presentation/*` assets are outside the `psiv_tools pack` output scope.
+FG and BG pixel columns, both raw 16.16 position pairs, both step-counter
+pairs, all three gate bytes, and all 32 object slots. The focused core receipt
+is `camera::tests::the_existing_field_tape_replays_both_camera_planes`. The
+2026-08-17 rebuilt `psiv-replay` receipt is **CLEAN** over 350 compared
+columns, with zero divergences, using the inherited map/seed/camera/object
+state at `settle` (`--start-from-log --camera 616,200 --seed 0xCB5A53D3
+--restore-objects`) against the regenerated `camera` oracle group in
+`oracle/logs/field_parity_02.csv`. The fresh full-pack comparison is
+4,315/4,315 shared files identical with zero differing files; the 17
+runtime-only `presentation/*` assets are outside the `psiv_tools pack` output
+scope.

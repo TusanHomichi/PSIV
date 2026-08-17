@@ -18,8 +18,9 @@ the dialogue text.
 1. Face NPC `$C400` opposite `Character_1`.
 2. Initialise VRAM/CRAM; play `Music_Thray` (`$94`); fade in.
 3. Enable cutscene sprites and run tree 7 entry `3` with dialogue window 5.
-4. Write Rune (`CharID $03`) into party slot 4 (native slot 1), construct the
-   Rune field object at the NPC's position with art tile `$54C`, and run its
+4. Write Rune (`CharID $03`) into `Current_Party_Slot_4` (the native fourth
+   party slot; zero-based Rust slot 3), construct the Rune field object at the
+   NPC's position with art tile `$54C`, and run its
    field routine once.
 5. Clear the temporary NPC object (`trap #0`, one `$40`-byte object), add Rune
    to the macro party, and set `EventFlag_RuneJoined` (`$11`).

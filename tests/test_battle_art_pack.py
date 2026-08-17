@@ -42,6 +42,8 @@ from psiv_tools.battle_art_pack import (
     CHARACTER_ART_NAME,
     CHARACTER_PNG_DIRECTORY,
     ENEMY_ART_NAME,
+    ENEMY_ATTACK_ART_NAME,
+    ENEMY_ATTACK_ART_DIRECTORY,
     ENEMY_OVERLAY_ART_NAME,
     ENEMY_PNG_DIRECTORY,
     LINE_DEPENDENT_INDEX,
@@ -136,6 +138,7 @@ class TestEmittedFiles(unittest.TestCase):
     def setUpClass(cls):
         cls.root, cls.fragment = emitted()
         cls.enemies = json.loads((cls.root / ENEMY_ART_NAME).read_text())
+        cls.attacks = json.loads((cls.root / ENEMY_ATTACK_ART_NAME).read_text())
         cls.characters = json.loads((cls.root / CHARACTER_ART_NAME).read_text())
 
     def test_the_fragment_describes_every_file_on_disk(self):
@@ -144,6 +147,7 @@ class TestEmittedFiles(unittest.TestCase):
         for key, name in (
             ("enemies", ENEMY_ART_NAME),
             ("enemy_overlays", ENEMY_OVERLAY_ART_NAME),
+            ("enemy_attacks", ENEMY_ATTACK_ART_NAME),
             ("characters", CHARACTER_ART_NAME),
             ("backgrounds", BACKGROUND_ART_NAME),
         ):
@@ -164,13 +168,36 @@ class TestEmittedFiles(unittest.TestCase):
     def test_every_json_carries_the_pack_format_version(self):
         backgrounds = json.loads((self.root / BACKGROUND_ART_NAME).read_text())
         overlays = json.loads((self.root / ENEMY_OVERLAY_ART_NAME).read_text())
-        for payload in (self.enemies, overlays, self.characters, backgrounds):
+        for payload in (self.enemies, overlays, self.attacks, self.characters, backgrounds):
             self.assertEqual(payload["format_version"], PACK_VERSION)
+
+    def test_attack_census_emits_newly_exact_frames_and_external_art_sources(self):
+        files = self.fragment["files"]["enemy_attacks"]
+        self.assertEqual(files["file"], ENEMY_ATTACK_ART_NAME)
+        self.assertEqual(files["png_directory"], ENEMY_ATTACK_ART_DIRECTORY)
+        self.assertEqual(files["count"], 153)
+        self.assertEqual(files["png_count"], 956)
+        by_id = {entry["id"]: entry for entry in self.attacks["enemies"]}
+        for enemy_id in (2, 24, 39, 149):
+            with self.subTest(enemy_id=enemy_id):
+                entry = by_id[enemy_id]
+                self.assertEqual(entry["status"], "exact")
+                self.assertTrue(entry["frames"])
+                for frame in entry["frames"]:
+                    image = (self.root / frame["png"]).read_bytes()
+                    self.assertEqual(
+                        frame["png_sha256"], hashlib.sha256(image).hexdigest()
+                    )
+        worker = by_id[24]
+        self.assertTrue(any(source["field"] == "attack_plc" for source in worker["art"]))
+        self.assertEqual(by_id[130]["status"], "partial")
+        self.assertFalse(by_id[130]["frames"])
 
     def test_json_is_canonical_and_newline_terminated(self):
         for name in (
             ENEMY_ART_NAME,
             ENEMY_OVERLAY_ART_NAME,
+            ENEMY_ATTACK_ART_NAME,
             CHARACTER_ART_NAME,
             BACKGROUND_ART_NAME,
         ):

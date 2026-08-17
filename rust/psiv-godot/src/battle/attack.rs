@@ -26,7 +26,7 @@ pub(super) struct EnemySprite {
 pub(super) struct EnemyAttackState {
     remaining: u16,
     elapsed: u16,
-    frame_duration: u8,
+    frame_durations: Vec<u8>,
     frames: Vec<Gd<ImageTexture>>,
     layer: Gd<Sprite2D>,
     origin_pixels: Vector2i,
@@ -47,11 +47,16 @@ impl EnemySprite {
                 .animation
                 .as_ref()
                 .and_then(EnemyAnimation::attack_spec)
-            && let (Some(frame_count), Some(frame_duration)) =
-                (event.frame_count, event.frame_duration)
+            && let Some(frame_count) = event.frame_count
+            && let Some(frame_durations) = event.frame_durations.clone().or_else(|| {
+                event
+                    .frame_duration
+                    .map(|duration| vec![duration; usize::from(frame_count)])
+            })
             && frame_count > 0
-            && frame_duration > 0
             && usize::from(frame_count) == spec.frames.len()
+            && frame_durations.len() == spec.frames.len()
+            && frame_durations.iter().all(|duration| *duration > 0)
         {
             let mut layer = Sprite2D::new_alloc();
             layer.set_centered(false);
@@ -65,7 +70,7 @@ impl EnemySprite {
             self.attack = Some(EnemyAttackState {
                 remaining: total_frames,
                 elapsed: 0,
-                frame_duration,
+                frame_durations,
                 frames: spec.frames,
                 layer,
                 origin_pixels: spec.origin_pixels,
@@ -81,7 +86,7 @@ impl EnemySprite {
             self.attack = Some(EnemyAttackState {
                 remaining: total_frames,
                 elapsed: 0,
-                frame_duration: 1,
+                frame_durations: vec![1],
                 frames: Vec::new(),
                 layer: Sprite2D::new_alloc(),
                 origin_pixels: Vector2i::ZERO,
@@ -100,7 +105,7 @@ impl EnemySprite {
             attack.remaining -= 1;
             if !attack.frames.is_empty() {
                 attack.elapsed = attack.elapsed.saturating_add(1);
-                let frame = frame_index(attack.elapsed, attack.frame_duration, attack.frames.len());
+                let frame = frame_index(attack.elapsed, &attack.frame_durations);
                 attack.layer.set_texture(&attack.frames[frame]);
                 let offset = motion_offset(
                     attack.elapsed,
@@ -129,11 +134,19 @@ impl EnemySprite {
     }
 }
 
-fn frame_index(elapsed: u16, duration: u8, frame_count: usize) -> usize {
-    if frame_count <= 1 {
+fn frame_index(elapsed: u16, durations: &[u8]) -> usize {
+    if durations.len() <= 1 {
         return 0;
     }
-    (usize::from(elapsed) / usize::from(duration.max(1))).min(frame_count - 1)
+    let mut start = 0usize;
+    for (index, duration) in durations.iter().enumerate() {
+        let end = start + usize::from((*duration).max(1));
+        if usize::from(elapsed) < end {
+            return index;
+        }
+        start = end;
+    }
+    durations.len() - 1
 }
 
 fn motion_offset(
@@ -177,8 +190,19 @@ mod tests {
 
     #[test]
     fn zoran_frame_clock_is_deterministic() {
-        let frames: Vec<_> = (0..8).map(|elapsed| frame_index(elapsed, 2, 8)).collect();
+        let frames: Vec<_> = (0..8)
+            .map(|elapsed| frame_index(elapsed, &[2; 8]))
+            .collect();
         assert_eq!(frames, vec![0, 0, 1, 1, 2, 2, 3, 3]);
+    }
+
+    #[test]
+    fn variable_retail_durations_select_cumulative_frames() {
+        let durations = [4, 3, 4];
+        let frames: Vec<_> = (0..11)
+            .map(|elapsed| frame_index(elapsed, &durations))
+            .collect();
+        assert_eq!(frames, vec![0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 2]);
     }
 
     #[test]

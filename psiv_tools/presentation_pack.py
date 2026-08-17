@@ -88,6 +88,20 @@ DIALOGUE_ACTION_PANEL_IDS = (
     0x185, 0x186, 0x18D,
 )
 
+# `Cutscene_Ending` (`$078F3E`) is not reached through a dialogue action, so
+# its panel creates do not appear in the dialogue census above. Keep the
+# retail ending's complete panel stream explicit here: the scene contract and
+# the extracted pack must agree about every `Panel_Create` it can issue.
+ENDING_PANEL_IDS = (
+    0x147, 0x148, 0x149, 0x14A, 0x14B, 0x14C, 0x14D, 0x14E,
+    0x14F, 0x150, 0x151, 0x152, 0x153, 0x154, 0x155, 0x156,
+    0x157, 0x158, 0x159, 0x15A, 0x15D, 0x15F, 0x160, 0x161,
+    0x162, 0x163, 0x164, 0x165, 0x166, 0x167, 0x168, 0x169,
+    0x16A, 0x16B, 0x16C, 0x16D, 0x16E, 0x16F, 0x170, 0x171,
+    0x173, 0x175, 0x177, 0x179, 0x17C, 0x17E, 0x182, 0x187,
+    0x188, 0x189,
+)
+
 # These are the records used by the transcribed story scenes plus every panel
 # referenced by a retail dialogue action.  Sorting makes the generated pack
 # and manifest deterministic.
@@ -95,6 +109,7 @@ PANEL_IDS = tuple(sorted(set(
     tuple(range(0x1A, 0x23))
     + (0x25, 0x26, 0x33, 0x34, 0x3B, 0x3C)
     + DIALOGUE_ACTION_PANEL_IDS
+    + ENDING_PANEL_IDS
 )))
 
 
@@ -271,7 +286,8 @@ def _layer_pixels(
         base_tile=base_tile,
         max_words=columns * rows,
     )
-    if len(words) != columns * rows:
+    expected_words = columns * rows
+    if len(words) > expected_words or len(words) % columns:
         raise ValueError(
             f"mapping at 0x{mapping_address:06X} decoded {len(words)} words, "
             f"expected {columns}x{rows}"
@@ -282,6 +298,14 @@ def _layer_pixels(
         art,
         art_vram_tile=base_tile & 0x07FF,
     )
+    if len(words) < expected_words:
+        # Retail panel 0x14E's Plane-B mapping terminates after six of its
+        # seven declared rows.  Panel_Create leaves the untouched row at the
+        # VDP clear value; preserve that exact transparent tail rather than
+        # making the extractor reject a panel the ending really creates.
+        missing_rows = rows - (len(words) // columns)
+        indexed += b"\x00" * (width * missing_rows * 8)
+        height += missing_rows * 8
     return width, height, indexed, _palette(data, palette_address)
 
 

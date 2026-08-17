@@ -40,6 +40,8 @@ enum Phase {
     PressStart,
     Menu,
     Slots,
+    EraseSlots,
+    EraseConfirm,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -47,6 +49,7 @@ enum MenuKind {
     NoSave,
     SaveOptions,
     Slots,
+    EraseConfirm,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -86,6 +89,7 @@ struct TitleReplayManifest {
 enum TitleChoice {
     Start,
     Continue(usize),
+    Erase(usize),
 }
 
 /// State and nodes for the front door.  The nodes remain children of Field so
@@ -97,6 +101,7 @@ pub(crate) struct TitleScreen {
     phase: Phase,
     ticks: u32,
     menu_index: usize,
+    erase_slot: usize,
     accept_down: bool,
     direction_down: bool,
     replay_frames: Vec<u32>,
@@ -115,6 +120,7 @@ impl TitleScreen {
             phase: Phase::Sega,
             ticks: 0,
             menu_index: 0,
+            erase_slot: 0,
             accept_down: false,
             direction_down: false,
             replay_frames: load_replay_frames(pack_dir),
@@ -301,6 +307,7 @@ impl TitleScreen {
         self.add_frame(parent, &roles, MenuKind::NoSave, (13, 12, 14, 3));
         self.add_frame(parent, &roles, MenuKind::SaveOptions, (13, 10, 14, 7));
         self.add_frame(parent, &roles, MenuKind::Slots, (13, 10, 14, 7));
+        self.add_frame(parent, &roles, MenuKind::EraseConfirm, (11, 10, 18, 6));
 
         let font_path = format!("{pack_dir}/dialogue/menu_font.png");
         let Some(font) = Image::load_from_file(&GString::from(font_path.as_str())) else {
@@ -353,6 +360,30 @@ impl TitleScreen {
                 slot,
             );
         }
+        self.add_text(
+            parent,
+            &font_texture,
+            MenuKind::EraseConfirm,
+            "ARE YOU SURE?",
+            (13, 12),
+            0,
+        );
+        self.add_text(
+            parent,
+            &font_texture,
+            MenuKind::EraseConfirm,
+            "YES",
+            (17, 14),
+            0,
+        );
+        self.add_text(
+            parent,
+            &font_texture,
+            MenuKind::EraseConfirm,
+            "NO",
+            (23, 14),
+            1,
+        );
         true
     }
 
@@ -471,6 +502,8 @@ impl TitleScreen {
             Phase::Menu if self.slots.iter().any(|slot| *slot) => Some(MenuKind::SaveOptions),
             Phase::Menu => Some(MenuKind::NoSave),
             Phase::Slots => Some(MenuKind::Slots),
+            Phase::EraseSlots => Some(MenuKind::Slots),
+            Phase::EraseConfirm => Some(MenuKind::EraseConfirm),
             _ => None,
         }
     }
@@ -548,7 +581,8 @@ impl TitleScreen {
         let count = match self.phase {
             Phase::Menu if self.slots.iter().any(|slot| *slot) => 3,
             Phase::Menu => 1,
-            Phase::Slots => 3,
+            Phase::Slots | Phase::EraseSlots => 3,
+            Phase::EraseConfirm => 2,
             _ => return,
         };
         self.menu_index = match direction {
@@ -581,11 +615,27 @@ impl TitleScreen {
                 self.menu_index = self.slots.iter().position(|slot| *slot).unwrap_or(0);
             }
             Phase::Menu if self.menu_index == 1 => return Some(TitleChoice::Start),
-            Phase::Menu => godot_print!("title: ERASE DATA is not destructive in this lane"),
+            Phase::Menu => {
+                self.phase = Phase::EraseSlots;
+                self.menu_index = self.slots.iter().position(|slot| *slot).unwrap_or(0);
+            }
             Phase::Slots if self.slots.get(self.menu_index).copied().unwrap_or(false) => {
                 return Some(TitleChoice::Continue(self.menu_index));
             }
             Phase::Slots => godot_print!("title: selected save slot is empty"),
+            Phase::EraseSlots if self.slots.get(self.menu_index).copied().unwrap_or(false) => {
+                self.erase_slot = self.menu_index;
+                self.phase = Phase::EraseConfirm;
+                self.menu_index = 0;
+            }
+            Phase::EraseSlots => godot_print!("title: selected save slot is empty"),
+            Phase::EraseConfirm if self.menu_index == 0 => {
+                return Some(TitleChoice::Erase(self.erase_slot));
+            }
+            Phase::EraseConfirm => {
+                self.phase = Phase::EraseSlots;
+                self.menu_index = self.erase_slot;
+            }
         }
         None
     }
@@ -693,8 +743,30 @@ impl Field {
         }
         title_debug_shot(self, self.anim_tick, title.ticks);
         if let Some(choice) = choice {
-            title.hide();
-            self.finish_title_choice(choice);
+            match choice {
+                TitleChoice::Erase(slot) => match Runtime::erase_slot(&save_directory(), slot) {
+                    Ok(path) => {
+                        godot_print!("title: erased save slot {} ({})", slot + 1, path.display());
+                        title.slots[slot] = false;
+                        title.phase = Phase::Menu;
+                        title.menu_index = 0;
+                        title.ticks = 0;
+                        title.apply_phase();
+                        self.title = Some(title);
+                    }
+                    Err(error) => {
+                        godot_error!("title: ERASE DATA slot {} failed: {error}", slot + 1);
+                        title.phase = Phase::EraseSlots;
+                        title.menu_index = slot;
+                        title.apply_phase();
+                        self.title = Some(title);
+                    }
+                },
+                choice => {
+                    title.hide();
+                    self.finish_title_choice(choice);
+                }
+            }
         } else {
             self.title = Some(title);
         }
@@ -728,6 +800,7 @@ impl Field {
                     ),
                 }
             }
+            TitleChoice::Erase(_) => unreachable!("title erase is completed by drive_title"),
         }
     }
 }

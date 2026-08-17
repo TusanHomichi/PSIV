@@ -1,5 +1,5 @@
 //! The scene registry: retail-byte transcriptions from the opening act through
-//! the post-Zio Zelan/Dezolis/Kuran handoff.
+//! the post-Zio Zelan/Dezolis/Kuran handoff and terminal ending surfaces.
 //!
 //! Every scene here comes from `docs/scenes/`, which disassembled the cartridge
 //! directly. That indirection is not ceremony: `ps4.asm` `include`s
@@ -29,6 +29,18 @@
 //! Op counts are the docs' own, and a test asserts each one — a transcription
 //! that drifts from its doc trips a test rather than a playthrough.
 //!
+//! # Terminal deterministic surfaces
+//!
+//! | Scene | Event | Doc | Ops |
+//! |---|---|---|---:|
+//! | `Cutscene_RajaSick` | `$8012` | `88_RetailBoundaries.md` | 54 |
+//! | `Cutscene_Rykros` | `$801B` | `88_RetailBoundaries.md` | 27 |
+//! | `Cutscene_Ending` | `$8021` | `89_Ending.md` | 367 |
+//!
+//! These are kept beside the opening and next-arc registry because their
+//! retail bytes are deterministic presentation routines, while the remaining
+//! recorded boundaries are input-driven controls rather than fixed scenes.
+//!
 //! # Two waits, three primitives
 //!
 //! [`SceneOp::Wait`] is `DoMapUpdateLoop` (`$5A71E`): it runs a map update per
@@ -47,6 +59,7 @@ pub(crate) mod opening;
 pub(crate) mod post_rika_cutscenes;
 pub(crate) mod post_rika_events;
 pub(crate) mod post_zio_cutscenes;
+pub(crate) mod retail_endgame;
 
 use crate::scene_runner::Scene;
 use crate::state::CharId;
@@ -163,6 +176,9 @@ pub static SCENES: &[Scene] = &[
     dezo_endgame::ANGER_TOWER_TOP,
     dezo_endgame::ANGER_TOWER_EXIT_TOP,
     dezo_endgame::PROFOUND_DARKNESS,
+    retail_endgame::RAJA_SICK,
+    retail_endgame::RYKROS,
+    retail_endgame::ENDING,
 ];
 
 /// The scene an event index selects, if it has been transcribed.
@@ -279,6 +295,9 @@ mod tests {
             ("Event_AngerTowerTop", 12),
             ("Event_AngerTowerExitTop", 10),
             ("Cutscene_ProfoundDarkness", 20),
+            ("Cutscene_RajaSick", 54),
+            ("Cutscene_Rykros", 27),
+            ("Cutscene_Ending", 367),
         ];
         assert_eq!(
             SCENES.len(),
@@ -385,6 +404,9 @@ mod tests {
                 "Cutscene_Elsydeon",
                 "Cutscene_Reunion",
                 "Cutscene_ProfoundDarkness",
+                "Cutscene_RajaSick",
+                "Cutscene_Rykros",
+                "Cutscene_Ending",
             ]
         );
     }

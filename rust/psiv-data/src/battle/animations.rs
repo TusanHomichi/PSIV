@@ -4,6 +4,8 @@
 //! this record owns the presentation dispatch reached after `Enemy_Attack` has
 //! selected that enemy's attack routine.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 
 /// The provenance and build guard for the retail animation extraction.
@@ -61,9 +63,9 @@ pub struct EnemyAnimationCensus {
     pub exact_sfx: u32,
     /// Enemies without an exact per-enemy sound binding.
     pub generic_sfx: u32,
-    /// Enemy roots with a fixed mapping record in the decoded graph.
+    /// Enemy roots with a decoded mapping sequence in the object graph.
     pub frame_sequence_records: u32,
-    /// Enemy roots with a positive-duration mapping consumed by `loc_256AE`.
+    /// Enemy roots with a positive-duration mapping consumed by a retail frame helper.
     pub timed_frame_sequences: u32,
     /// Enemy roots whose mapping/sprite answer remains deferred.
     pub frame_sequence_deferred: u32,
@@ -91,6 +93,24 @@ pub struct EnemyAnimationCensus {
     /// Enemy roots whose mapping records are not renderable yet.
     #[serde(default)]
     pub sprite_sheet_status_deferred: u32,
+    /// Per-enemy routine classes selected by the structural decoder.
+    #[serde(default)]
+    pub routine_classifications: BTreeMap<String, u32>,
+    /// Routine classes among enemies without a decoded mapping sequence.
+    #[serde(default)]
+    pub deferred_routine_classifications: BTreeMap<String, u32>,
+    /// Distinct routine bodies represented by deferred enemy records.
+    #[serde(default)]
+    pub deferred_routine_bodies: u32,
+    /// Object-graph classifications, including repeated shared objects.
+    #[serde(default)]
+    pub object_classifications: BTreeMap<String, u32>,
+    /// Proven `LoadPLC1` call records retained in the pack.
+    #[serde(default)]
+    pub attack_plc_loads: u32,
+    /// Distinct PLC table records decoded from those calls.
+    #[serde(default)]
+    pub attack_plc_distinct_records: u32,
 }
 
 /// A three-way extraction result.  `partial` is deliberately distinct from
@@ -137,17 +157,24 @@ pub struct EnemyAnimationFrameSequence {
     pub assignment_offset: String,
     /// ROM address of the `[duration, frame_count, pointers...]` record.
     pub mapping_offset: String,
-    /// Number of ticks each mapping pointer remains active.
+    /// Number of ticks the first mapping pointer remains active.  Variable
+    /// and selector records retain the complete duration vector below.
     pub frame_duration: u8,
     /// Number of mapping pointers.
     pub frame_count: u8,
-    /// `frame_duration * frame_count`.
+    /// Sum of the per-frame durations.
     pub total_frames: u16,
     /// Retail mapping record pointers. Their sprite-sheet interpretation is
     /// intentionally not claimed here.
-    pub mapping_pointers: Vec<String>,
+    pub mapping_pointers: Vec<Option<String>>,
     /// The helper that consumes this timing, when proven.
     pub frame_timer_helper: Option<String>,
+    /// Exact duration for every mapping/selector frame.
+    #[serde(default)]
+    pub frame_durations: Vec<u8>,
+    /// `fixed`, `variable`, or `selector`.
+    #[serde(default)]
+    pub timing_model: String,
 }
 
 /// One enemy's selected attack routine and the presentation facts it proves.

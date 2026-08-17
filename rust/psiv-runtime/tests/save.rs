@@ -1,6 +1,7 @@
 //! Runtime-level save/load proof: file I/O plus the loaded-runtime seam.
 
 use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use psiv_core::battle::{StatPair, StatTriple, Stats};
@@ -59,6 +60,44 @@ fn unique_directory() -> PathBuf {
         .expect("system clock after epoch")
         .as_nanos();
     std::env::temp_dir().join(format!("psiv-save-test-{}-{nanos}", std::process::id()))
+}
+
+struct SaveDirectoryEnv {
+    _lock: MutexGuard<'static, ()>,
+    previous: Option<std::ffi::OsString>,
+}
+
+impl SaveDirectoryEnv {
+    fn set(path: &Path) -> SaveDirectoryEnv {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        let lock = LOCK
+            .get_or_init(|| Mutex::new(()))
+            .lock()
+            .expect("save-directory environment lock");
+        let previous = std::env::var_os("PSIV_SAVE_DIR");
+        // Rust 2024 makes process-environment mutation explicitly unsafe;
+        // the lock scopes this test's temporary override and Drop restores it.
+        unsafe { std::env::set_var("PSIV_SAVE_DIR", path) };
+        SaveDirectoryEnv {
+            _lock: lock,
+            previous,
+        }
+    }
+
+    fn path() -> PathBuf {
+        std::env::var_os("PSIV_SAVE_DIR")
+            .map(PathBuf::from)
+            .expect("PSIV_SAVE_DIR is set to the test directory")
+    }
+}
+
+impl Drop for SaveDirectoryEnv {
+    fn drop(&mut self) {
+        match self.previous.take() {
+            Some(path) => unsafe { std::env::set_var("PSIV_SAVE_DIR", path) },
+            None => unsafe { std::env::remove_var("PSIV_SAVE_DIR") },
+        }
+    }
 }
 
 #[test]
@@ -132,5 +171,58 @@ fn runtime_save_file_round_trips_a_mid_progress_game_state() {
     assert_eq!(persisted.location.world_index, 2);
     assert_eq!(persisted.location.map_index_2, 0x44);
     assert!(directory.join("slot_1.sram").is_file());
+    std::fs::remove_dir_all(directory).expect("remove only this test's temp directory");
+}
+
+#[test]
+fn title_erase_zeros_only_the_selected_payload_and_preserves_other_slots() {
+    let Some(data) = load() else { return };
+    let directory = unique_directory();
+    let _save_directory = SaveDirectoryEnv::set(&directory);
+    let directory = SaveDirectoryEnv::path();
+    let save = RetailSave {
+        snapshot: GameState::new().snapshot(),
+        location: RetailLocation {
+            map_index: 0,
+            char_x: 16,
+            char_y: 16,
+            ..RetailLocation::default()
+        },
+    };
+    let runtime =
+        Runtime::from_save(data, save, StepFrames::default()).expect("boot erase fixture");
+    for slot in 0..3 {
+        runtime
+            .save_slot(&directory, slot)
+            .expect("write erase fixture");
+    }
+    let before: Vec<Vec<u8>> = (0..3)
+        .map(|slot| {
+            std::fs::read(directory.join(format!("slot_{}.sram", slot + 1)))
+                .expect("read erase fixture")
+        })
+        .collect();
+
+    Runtime::erase_slot(&directory, 1).expect("erase slot two");
+
+    for slot in [0, 2] {
+        let after = std::fs::read(directory.join(format!("slot_{}.sram", slot + 1)))
+            .expect("read preserved slot");
+        assert_eq!(after, before[slot], "slot {} must survive", slot + 1);
+    }
+    let erased = std::fs::read(directory.join("slot_2.sram")).expect("read erased slot");
+    assert_eq!(
+        erased[..psiv_core::RETAIL_HEADER_PHYSICAL_BYTES],
+        before[1][..psiv_core::RETAIL_HEADER_PHYSICAL_BYTES]
+    );
+    assert!(
+        erased[psiv_core::RETAIL_HEADER_PHYSICAL_BYTES..]
+            .iter()
+            .all(|byte| *byte == 0)
+    );
+    assert!(matches!(
+        RetailSlot::from_bytes(&erased, 1),
+        Err(psiv_core::SaveError::ChecksumMismatch { slot: 1, .. })
+    ));
     std::fs::remove_dir_all(directory).expect("remove only this test's temp directory");
 }

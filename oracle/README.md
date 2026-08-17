@@ -176,6 +176,33 @@ Diffing two dumps is the tool for "where did that write go" when the RAM map
 does not already have a column for it — which is exactly how the chest flag
 bank was found after a mapped-column search returned a confident wrong answer.
 
+`--dump-state <frame>:<path>` writes the named plane/CRAM/sprite buffers plus
+the scroll receipt used by `oracle/decode_layout.py`: camera position and step
+counters, H-int state, the generated H-scroll work buffer, the
+`Chunk_Table`/VSRAM-shadow source, VDP registers, VSRAM, and the active VDP
+H-scroll table. The VDP words are emitted in Genesis big-endian order and the
+state header names the address space and region byte order. The host resolves
+the pinned Genesis Plus GX local VDP symbols from the loaded core ELF, so no
+third-party core ABI or emulation behavior is modified.
+
+For the MeetingRika receipt, add this flag to the Tape 28 command below:
+
+```sh
+--dump-ram 7250:/tmp/psiv-scroll-check.ram \
+--dump-state 7250:/tmp/psiv-scroll-check.json
+PYTHONPATH=. python3 oracle/decode_layout.py \
+  /tmp/psiv-scroll-check.json --label meeting-rika-7250 \
+  --output /tmp/psiv-scroll-check-layout.json --grand-cross 0
+```
+
+At frame 7250 the decoded receipt is: all camera and step words zero;
+`HInt_Addr=0x00000758` (the retail RTE), H-int split disabled; VDP H-scroll
+full-screen at `$F400` with zero Plane A/B columns; VSRAM Plane A/B zero; and
+the generated `$FFFF60E0` H-scroll buffer zero. The `$FFFF6000` bytes are
+reported as an inactive `Chunk_Table`/VSRAM-shadow source, not falsely called
+live VSRAM. The window-region report is scanlines 160..223 and the placement
+provenance records `grand_cross=0` plus the measured `(1,1)` plane residue.
+
 ### Deterministic scene fixtures
 
 `--ram-patch <frame>:<68000-address>:<hex-bytes>` is an explicit oracle-fixture

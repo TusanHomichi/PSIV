@@ -5029,6 +5029,14 @@
       "source": "unnamed byte at $FFFFEC25; core-lane reads it as FG camera driver enable. NOT named in ps4.constants.asm - logged positionally, naming unverified"
     },
     {
+      "name": "gate_ec26",
+      "addr": "FFFFEC26",
+      "size": 1,
+      "group": "camera",
+      "hex": true,
+      "source": "unnamed byte at $FFFFEC26; loc_51AB2 loads it as the BG camera driver enable"
+    },
+    {
       "name": "c1_x_step_const",
       "addr": "FFFFC020",
       "size": 4,

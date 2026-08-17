@@ -23,6 +23,10 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from psiv_tools.text import WINDOW_CHARSET
+from oracle.scroll_state import (
+    ScrollDecodeError,
+    decode_scroll_state,
+)
 
 
 CELL_PIXELS = 8
@@ -751,6 +755,7 @@ def decode_layout(
     label: str | None = None,
     *,
     title: bool = False,
+    grand_cross: int = 0,
 ) -> dict[str, Any]:
     state = _read_state(state_path)
     plane_a = decode_plane(_region_bytes(state, "plane_a", 0x1000), "plane_a")
@@ -802,6 +807,7 @@ def decode_layout(
         "window_plane": window_metadata,
         "sprites": decode_sprites(_region_bytes(state, "sprite_table", 0x280)),
         "cram": decode_cram(_region_bytes(state, "cram", 0x80)),
+        "scroll": decode_scroll_state(state, grand_cross),
     }
     if title:
         layout["title"] = decode_title_summary(
@@ -827,14 +833,19 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="add the retail title placement, palette, and menu contract",
     )
+    parser.add_argument(
+        "--grand-cross", type=int, default=0,
+        help="record the retail grand_cross variant used by placement math",
+    )
     args = parser.parse_args(argv)
     try:
         layout = decode_layout(
-            args.state, args.expect_text, args.label, title=args.title
+            args.state, args.expect_text, args.label, title=args.title,
+            grand_cross=args.grand_cross,
         )
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(layout, indent=2) + "\n")
-    except (LayoutDecodeError, OSError) as exc:
+    except (LayoutDecodeError, ScrollDecodeError, OSError) as exc:
         parser.error(str(exc))
     return 0
 

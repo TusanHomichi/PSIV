@@ -49,9 +49,8 @@ struct Args {
     /// Restore the map's objects from the log at the alignment frame, instead
     /// of starting them at their pack spawn cells.
     restore_objects: bool,
-    /// Print the camera position for frames in `lo..=hi`. The oracle logs do
-    /// not carry camera columns yet, so this is how a camera divergence is
-    /// read.
+    /// Print the camera position for frames in `lo..=hi`, including raw
+    /// 16.16 positions and step counters.
     trace_camera: Option<(u32, u32)>,
     /// Take the starting map, position and facing from the log at the
     /// alignment frame instead of from the pack's `game_start`.
@@ -521,7 +520,15 @@ fn run() -> Result<bool, String> {
             },
             camera_gates: {
                 let gates = runtime.camera().gates();
-                (gates.ec24, gates.ec25)
+                (gates.ec24, gates.ec25, gates.ec26)
+            },
+            camera_raw: {
+                let cam = runtime.camera();
+                cam.raw_on(psiv_core::CameraPlane::Foreground)
+            },
+            camera_bg_raw: {
+                let cam = runtime.camera();
+                cam.raw_on(psiv_core::CameraPlane::Background)
             },
         }));
 

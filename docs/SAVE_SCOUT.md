@@ -234,11 +234,22 @@ bit by copying `Saved_Char_X_Pos` and `Saved_Char_Y_Pos` into the map start
 position (`ps4.asm:87719-87724`, `110806-110812`). Facing is not in the saved
 range.
 
-The current runtime has no title screen. `Runtime::from_save` is the intended
-load seam: decode the slot, rebuild `GameState`, evaluate the selected map's
-load effects against it, construct the party at the saved cell, and default
-facing to Down. Godot selects it with `PSIV_LOAD_SLOT=1..3` or
-`--psiv-load-slot=N` until the title flow exists.
+`Title_EraseOption` uses a separate two-choice confirmation window. YES passes
+the selected zero-based slot to `loc_64DC0` while SRAM write mode is enabled
+(`ps4.asm:87746-87910`). The routine masks the selector with `#3`, multiplies
+it by the physical slot stride `$1400`, and executes `#$280` `MOVEP.L` writes
+of zero from `$200200 + slot*$1400` (`ps4.asm:87931-87953`). Therefore the
+retail erase clears exactly the selected 0x1400-byte physical payload block;
+the common 0x200-byte header, including the signature and checksum-table
+words, survives. The resulting selected slot is checksum-invalid until a new
+save overwrites it. The three-file disk model applies the same operation to
+`saves/slot_N.sram`; `PSIV_SAVE_DIR` is the test/runtime boundary.
+
+`Runtime::from_save` remains the load seam: decode the slot, rebuild
+`GameState`, evaluate the selected map's load effects against it, construct the
+party at the saved cell, and default facing to Down. Godot's title Continue
+path and the `PSIV_LOAD_SLOT=1..3` / `--psiv-load-slot=N` debug selectors use
+that seam.
 
 ## Divergences and load semantics
 

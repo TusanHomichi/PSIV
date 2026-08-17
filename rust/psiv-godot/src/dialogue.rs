@@ -30,6 +30,15 @@ use psiv_data::{CHARS_PER_LINE, DialogueEntry, DialogueSet, LINES_PER_WINDOW, Pa
 /// wider viewport keeps the box's margins rather than its coordinates.
 const SCREEN: (f32, f32) = (320.0, 224.0);
 
+/// Retail `grand_cross=0` plane pixels retain the decoded `(1,1)` origin
+/// residue while the dialogue window remains on the window-plane origin.
+/// See `oracle/scroll_state.py` and the MeetingRika frame-7250 receipt.
+const RETAIL_PLANE_SCROLL_RESIDUE: Vector2 = Vector2::new(1.0, 1.0);
+
+fn retail_plane_scroll_offset() -> Vector2 {
+    RETAIL_PLANE_SCROLL_RESIDUE
+}
+
 /// Above the field, above the party, above anything a later overlay adds.
 const Z_INDEX: i32 = 1000;
 
@@ -665,7 +674,10 @@ impl DialogueWindow {
                 // carry the border, so no chrome is drawn under them.
                 quads.push(Quad {
                     texture: texture.clone(),
-                    dest: Rect2::new(view.portrait_offset, view.portrait_size),
+                    dest: Rect2::new(
+                        view.portrait_offset + retail_plane_scroll_offset(),
+                        view.portrait_size,
+                    ),
                     src: Rect2::new(Vector2::ZERO, view.portrait_size),
                 });
             }

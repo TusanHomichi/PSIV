@@ -720,7 +720,7 @@ fn an_unimplemented_ability_is_announced_rather_than_faked() {
 }
 
 #[test]
-fn a_vehicle_skill_consumes_a_use_without_faking_a_physical_attack() {
+fn a_vehicle_skill_consumes_a_use_and_runs_its_retail_dispatcher() {
     let data = fixtures::data();
     let vehicle = crate::vehicle::battle_member(
         1,
@@ -759,22 +759,27 @@ fn a_vehicle_skill_consumes_a_use_without_faking_a_physical_attack() {
         skill: 1,
         remaining: 0,
     }));
-    assert!(
-        events.contains(&BattleEvent::VehicleSkillEffectUnavailable {
-            actor: id(1),
+    assert!(events.iter().any(|event| matches!(
+        event,
+        BattleEvent::VehicleSkillEffect {
+            actor,
             skill: 1,
-        })
-    );
-    assert!(
-        !events
-            .iter()
-            .any(|event| matches!(event, BattleEvent::Attacked { actor, .. } if *actor == id(1)))
-    );
-    assert!(
-        !events
-            .iter()
-            .any(|event| matches!(event, BattleEvent::Resolved { actor, .. } if *actor == id(1)))
-    );
+            effect: crate::battle::VehicleSkillEffectKind::Damage,
+            ..
+        } if *actor == id(1)
+    )));
+    assert!(!events.iter().any(|event| matches!(
+        event,
+        BattleEvent::VehicleSkillEffectUnavailable { actor, skill: 1 } if *actor == id(1)
+    )));
+    assert!(events.iter().any(|event| matches!(
+        event,
+        BattleEvent::Attacked { actor, .. } if *actor == id(1)
+    )));
+    assert!(events.iter().any(|event| matches!(
+        event,
+        BattleEvent::Resolved { actor, .. } if *actor == id(1)
+    )));
     assert_eq!(
         battle
             .party_stats()

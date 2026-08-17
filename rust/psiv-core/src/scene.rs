@@ -36,6 +36,8 @@ use crate::map::FieldMap;
 use crate::scene_presentation::PresentationOp;
 use crate::state::{CharId, Flag, PARTY_SLOTS};
 
+pub use crate::scene_types::{SceneEffect, SceneFault, SceneInput};
+
 /// How many ops one tick may execute before the runner assumes the script is
 /// looping and faults. Generous for real scenes, finite for broken ones.
 pub const OP_BUDGET_PER_TICK: usize = 1024;
@@ -82,6 +84,14 @@ pub enum DialogueWindow {
     Standard,
     /// `Event_GetAndRunDialogue5` (`$5ADF8`) — `Cutscene_PiataPrincipal`.
     Cutscene,
+    /// `Event_GetAndRunDialogue3`, used by the Rykros surface.
+    Cutscene3,
+    /// The ending's first `RunText3` window before the panel sequence.
+    EndingIntro,
+    /// `Event_GetAndRunDialogue4` / `Event_RunDialogue4` in `$8021`.
+    Ending,
+    /// `Event_RunDialogue5` used for the Rykros hand-off line.
+    Cutscene5,
 }
 
 /// Where a dialogue entry index comes from.
@@ -230,8 +240,8 @@ pub enum SceneOp {
         /// A CRAM colour word.
         colour: u16,
     },
-    /// Draw a dialogue entry straight onto a plane (intro only) — the prologue
-    /// crawl does not use a dialogue window.
+    /// Draw a dialogue entry straight onto a plane. The prologue crawl and
+    /// retail ending staff roll use this instead of a dialogue window.
     DrawTextToPlane {
         /// Which entry of the current tree.
         entry: u16,
@@ -276,6 +286,11 @@ pub enum SceneOp {
     /// (`$ECF0`); this is the clone's `popdlg` idiom. Blocks like
     /// [`SceneOp::RunDialogue`].
     RunDialogueResume,
+    /// Resume a saved dialogue through a named retail window routine.
+    RunDialogueResumeWithWindow {
+        /// The retail window routine selected for the resume.
+        window: DialogueWindow,
+    },
     /// Point the dialogue system at a different tree (`DialogueTreesToRAM`,
     /// `$53F00`). Entry indices after this are relative to the new tree.
     SetDialogueTree {
@@ -539,6 +554,8 @@ pub enum SceneOp {
         /// Who to wait for.
         actor: ActorRef,
     },
+    /// Block on the retail ending's `Joypad_Pressed` Start loop.
+    WaitForStart,
     /// Jump depending on a flag.
     BranchFlag {
         /// Which flag.
@@ -622,6 +639,9 @@ pub enum SceneOp {
         /// The retail panel id.
         id: u16,
     },
+    /// Pop the most recently created panel (`Panel_Destroy` with no id in the
+    /// source). The allocator is stack based; the caller supplies no literal.
+    PanelDestroyLast,
     /// Destroy every panel image currently staged by the scene.
     PanelDestroyAll,
     /// Flush the staged planes during a panel transition (`DMAPlanes_VInt`).
@@ -673,6 +693,9 @@ pub enum SceneOp {
     /// dialogue and the Zema map rebuild. Battle-derived stats already live in
     /// the runtime roster; this edge remains explicit for the transcription.
     RecoverStats,
+    /// Set the volatile `Game_Cleared_Flag` after the player dismisses the
+    /// final Termi scene. This is not save serialization state.
+    MarkGameCleared,
     /// Unconditional jump.
     Jump {
         /// Op index.
@@ -680,183 +703,6 @@ pub enum SceneOp {
     },
     /// Finish the scene.
     End,
-}
-
-/// What the runtime tells the runner between ticks.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum SceneInput {
-    /// Nothing happened.
-    #[default]
-    None,
-    /// The dialogue window the runner asked for has closed.
-    DialogueClosed,
-    /// The player answered the pending choice.
-    Choice(bool),
-    /// The battle requested by the scene has ended. The interpreter only
-    /// needs the completion edge; the runtime owns the outcome policy.
-    BattleFinished {
-        /// The result reported by the battle engine.
-        outcome: crate::battle::Outcome,
-    },
-    /// The runtime completed a scene-requested map load and has recast the
-    /// runner against the new [`FieldMap`].
-    MapLoaded,
-}
-
-/// Something the runtime must act on.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SceneEffect {
-    /// Open this dialogue. The runner is blocked until
-    /// [`SceneInput::DialogueClosed`].
-    DialogueOpen(DialogueId),
-    /// Ask the pending yes/no question. Blocked until [`SceneInput::Choice`].
-    ChoiceRequested,
-    /// Open the dialogue whose entry index lives on a field object's
-    /// `dialogue_id` byte. The runtime reads it from the map record.
-    DialogueOpenFromNpc {
-        /// Whose `dialogue_id` to read.
-        actor: ActorRef,
-    },
-    /// Resume the dialogue from `Saved_Dialogue_Addr`.
-    DialogueResume,
-    /// One character slot's struct was copied over another.
-    CharSlotCopied {
-        /// Source slot.
-        from: usize,
-        /// Destination slot.
-        to: usize,
-    },
-    /// An NPC became a party character.
-    NpcPromoted {
-        /// The map object that was promoted.
-        npc: usize,
-        /// Who they became.
-        char_id: CharId,
-        /// The slot they took.
-        slot: usize,
-        /// Their art tile.
-        art_tile: u16,
-        /// Their facing.
-        facing: Direction,
-    },
-    /// An actor began walking to `to`.
-    ActorMoveStarted {
-        /// Who.
-        actor: ActorRef,
-        /// Their destination.
-        to: Cell,
-    },
-    /// An actor arrived.
-    ActorArrived {
-        /// Who.
-        actor: ActorRef,
-        /// Where.
-        at: Cell,
-    },
-    /// An actor turned in place.
-    ActorFaced {
-        /// Who.
-        actor: ActorRef,
-        /// Which way.
-        facing: Direction,
-    },
-    /// A flag changed. The runtime rebuilds anything flag-gated — layout
-    /// patches, NPC despawns, `MapDataManager` effects.
-    FlagChanged {
-        /// Which flag.
-        flag: Flag,
-        /// Its new value.
-        value: bool,
-    },
-    /// The party composition changed.
-    PartyChanged,
-    /// The scene copied its party slots to the transient retail save area.
-    PartySlotsSaved {
-        /// The five captured slots.
-        slots: [Option<CharId>; PARTY_SLOTS],
-    },
-    /// Restore the transient party-slot area. The runtime owns the bytes so
-    /// they can survive a separate scene dispatch without entering SRAM.
-    PartySlotsRestored,
-    /// The inventory changed.
-    InventoryChanged,
-    /// The selected vehicle changed.
-    VehicleChanged {
-        /// The new vehicle id.
-        index: u16,
-    },
-    /// A roster record changed outside a battle.
-    RosterChanged {
-        /// The character whose record was written.
-        who: CharId,
-    },
-    /// Drop objects from the map, starting at `npc_index`.
-    NpcDespawned {
-        /// The first object cleared.
-        npc_index: usize,
-        /// How many consecutive objects.
-        count: usize,
-    },
-    /// An actor was placed outright rather than walked.
-    ActorPlaced {
-        /// Who.
-        actor: ActorRef,
-        /// Where.
-        at: Cell,
-    },
-    /// The scene returned a value; see [`SceneOp::Return`].
-    Returned {
-        /// The `d0` value.
-        value: u16,
-    },
-    /// The purse changed.
-    MoneyChanged {
-        /// The new total.
-        total: u32,
-    },
-    /// Hand control to a battle; the scene stays blocked until the runtime
-    /// resumes it.
-    BattleRequested {
-        /// The event battle index.
-        index: u16,
-    },
-    /// Load a map. The runtime rebuilds the [`FieldMap`] and places the party.
-    MapRequested {
-        /// The op as transcribed, with every field the loader needs.
-        op: SceneOp,
-    },
-    /// An op the engine has no state for: camera, palette, sound, fades, the
-    /// intro's bespoke text presentation. Carried as the op itself so the
-    /// runtime matches on it directly rather than through a parallel enum that
-    /// would have to be kept in step.
-    Presentation {
-        /// The op that ran.
-        op: SceneOp,
-    },
-    /// The scene ended.
-    Finished,
-    /// The scene could not continue. Emitted instead of panicking or looping
-    /// forever; the runner stops.
-    Faulted(SceneFault),
-}
-
-/// Why a scene stopped early.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SceneFault {
-    /// A jump or branch target was past the end of the scene.
-    BadJump {
-        /// The offending target.
-        target: usize,
-    },
-    /// An op named an actor the scene never declared.
-    UnknownActor {
-        /// The offending reference.
-        actor: ActorRef,
-    },
-    /// A flag or party write was rejected.
-    BadWrite,
-    /// The op budget ran out — almost certainly a jump loop with no wait in it.
-    Runaway,
 }
 
 /// A scene actor: a cell position, a facing, and a walk in progress.

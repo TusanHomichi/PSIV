@@ -102,6 +102,10 @@ pub(crate) fn narration(
             line: String::new(),
             beat: Beat::None,
         },
+        BattleEvent::VehicleSkillEffect { .. } => Narration {
+            line: String::new(),
+            beat: Beat::None,
+        },
         BattleEvent::Resolved {
             actor: _,
             target,

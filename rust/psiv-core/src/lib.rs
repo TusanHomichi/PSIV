@@ -91,6 +91,7 @@ mod save;
 mod scene;
 mod scene_presentation;
 mod scene_runner;
+mod scene_types;
 mod scenes;
 mod state;
 mod trigger;
@@ -133,7 +134,7 @@ pub use scene::{
     ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, OP_BUDGET_PER_TICK, SceneEffect,
     SceneFault, SceneInput, SceneOp, ScriptedActor,
 };
-pub use scene_presentation::{PresentationAsset, PresentationOp};
+pub use scene_presentation::{CreditsPlane, PresentationAsset, PresentationOp};
 pub use scene_runner::{Scene, SceneRunner, runner_for};
 pub use scenes::{SCENES, scene_for};
 pub use state::{CharId, Flag, FlagBank, GameState, PARTY_SLOTS};

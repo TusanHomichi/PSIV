@@ -8,7 +8,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use godot::classes::{INode2D, Image, ImageTexture, Node2D, Sprite2D};
+use godot::classes::{INode2D, Image, ImageTexture, Input, Node2D};
 use godot::prelude::*;
 use psiv_core::{PresentationAsset, PresentationOp, SceneOp};
 use psiv_data::{DialogueSet, Role};
@@ -17,10 +17,23 @@ use serde::Deserialize;
 use crate::Field;
 use crate::transitions::TransitionKind;
 
+#[path = "temporary_sprite_asset.rs"]
+mod temporary_sprite_asset;
 mod text_layer;
+use temporary_sprite_asset::TemporarySpriteAsset;
 use text_layer::OpeningTextLayer;
 
 const SCREEN: Vector2 = Vector2::new(320.0, 224.0);
+
+/// Retail `grand_cross=0` keeps the plane origin one pixel right/down of the
+/// window coordinate origin in the settled MeetingRika receipt.  Camera and
+/// VDP scroll values are decoded in `oracle/scroll_state.py`; this is the
+/// remaining hardware-origin term, not a camera adjustment.
+const RETAIL_PLANE_SCROLL_RESIDUE: Vector2 = Vector2::new(1.0, 1.0);
+
+fn retail_plane_scroll_offset() -> Vector2 {
+    RETAIL_PLANE_SCROLL_RESIDUE
+}
 
 #[derive(Debug, Deserialize)]
 struct PanelManifest {
@@ -100,6 +113,7 @@ pub(crate) struct PresentationState {
     loaded_palettes: BTreeMap<u32, u16>,
     loaded_art: BTreeMap<(u32, u16), u64>,
     current_dialogue_tree: Option<u32>,
+    ending_waiting_for_start: bool,
     op_count: u64,
 }
 
@@ -114,56 +128,13 @@ pub(crate) struct TemporaryObject {
     pub(crate) destination: Option<(i32, i32)>,
 }
 
-/// A scene-owned sprite sheet, kept separate from map `SheetView`s because it
-/// is keyed by the literal ObjectAnimation pair rather than a placed NPC.
-#[derive(Clone)]
-pub(crate) struct TemporarySpriteAsset {
-    texture: Gd<ImageTexture>,
-    pub(crate) frame_width: i32,
-    pub(crate) frame_height: i32,
-    pub(crate) origin_x: i32,
-    pub(crate) origin_y: i32,
-    sequences: BTreeMap<String, (Vec<(i32, u32)>, u32)>,
-    load_art: Option<(u32, u16)>,
-}
-
-impl TemporarySpriteAsset {
-    pub(crate) fn frame_at(&self, sequence: &str, tick: u64) -> i32 {
-        let Some((frames, total)) = self.sequences.get(sequence) else {
-            return 0;
-        };
-        let mut remaining = (tick % u64::from((*total).max(1))) as u32;
-        for (index, duration) in frames {
-            if remaining < *duration {
-                return *index;
-            }
-            remaining = remaining.saturating_sub(*duration);
-        }
-        frames.last().map_or(0, |(index, _)| *index)
-    }
-
-    pub(crate) fn apply(&self, node: &mut Gd<Sprite2D>, frame: i32) {
-        node.set_texture(&self.texture);
-        node.set_offset(Vector2::new(0.0, -(self.frame_height as f32)));
-        node.set_region_enabled(true);
-        node.set_region_rect(Rect2::new(
-            Vector2::new((frame * self.frame_width) as f32, 0.0),
-            Vector2::new(self.frame_width as f32, self.frame_height as f32),
-        ));
-    }
-
-    pub(crate) fn art_loaded(&self, state: &PresentationState) -> bool {
-        self.load_art
-            .is_none_or(|key| state.art_loaded(key.0, key.1))
-    }
-}
-
 impl PresentationState {
     pub(crate) fn reset_scene(&mut self) {
         self.render_sprites = true;
         self.temporary_objects.clear();
         self.loaded_art.clear();
         self.current_dialogue_tree = None;
+        self.ending_waiting_for_start = false;
     }
 
     pub(crate) fn sprites_visible(&self, scene_active: bool) -> bool {
@@ -189,6 +160,8 @@ impl PresentationState {
     pub(crate) fn scene_dialogue_tree(&self, fallback: u8) -> u8 {
         match self.current_dialogue_tree {
             Some(0x001E_BA90) => 17,
+            Some(0x001F_AAC0) => 39,
+            Some(0x001F_C920) => 42,
             _ => fallback,
         }
     }
@@ -304,7 +277,7 @@ impl INode2D for CutsceneLayer {
             if let Some(texture) = self.textures.get(&id).cloned() {
                 self.base_mut().draw_texture_rect(
                     &texture,
-                    Rect2::new(Vector2::ZERO, SCREEN),
+                    Rect2::new(retail_plane_scroll_offset(), SCREEN),
                     true,
                 );
             }
@@ -775,6 +748,13 @@ impl Field {
             SceneOp::WaitFrames { frames } => {
                 godot_print!("scene wait-frames: {frames}");
             }
+            SceneOp::WaitForStart => {
+                self.presentation.ending_waiting_for_start = true;
+                godot_print!("scene waiting for ending Start input");
+            }
+            SceneOp::MarkGameCleared => {
+                godot_print!("scene marked game cleared");
+            }
             SceneOp::PanelCreate { id } => {
                 if let Some(layer) = self.cutscene_layer.as_mut() {
                     layer.bind_mut().panel_create(id);
@@ -783,6 +763,11 @@ impl Field {
             SceneOp::PanelDestroy { id } => {
                 if let Some(layer) = self.cutscene_layer.as_mut() {
                     layer.bind_mut().panel_destroy(id);
+                }
+            }
+            SceneOp::PanelDestroyLast => {
+                if let Some(layer) = self.cutscene_layer.as_mut() {
+                    layer.bind_mut().panel_destroy_last();
                 }
             }
             SceneOp::PanelDestroyAll => {
@@ -889,10 +874,40 @@ impl Field {
             PresentationOp::FadeToRed { lines } | PresentationOp::FadeFromRed { lines } => {
                 godot_print!("scene red palette fade across {lines} line(s)");
             }
+            op @ (PresentationOp::CopyRamWords { .. }
+            | PresentationOp::ClearRamWords { .. }
+            | PresentationOp::ClearRamLongs { .. }
+            | PresentationOp::FillRamWords { .. }
+            | PresentationOp::ClearPlanes
+            | PresentationOp::EndingFinaleFieldPrep { .. }
+            | PresentationOp::DmaPlanesLoop { .. }
+            | PresentationOp::PaletteIncreaseTone { .. }
+            | PresentationOp::ClearPaletteLine { .. }
+            | PresentationOp::VariablePaletteFade { .. }
+            | PresentationOp::RykrosPaletteCycle { .. }
+            | PresentationOp::CameraToActor { .. }
+            | PresentationOp::RajaSickTemporaryObject { .. }
+            | PresentationOp::RajaSickResetRaja { .. }
+            | PresentationOp::RajaSickArrangeParty { .. }
+            | PresentationOp::EndingCreditsAssets { .. }
+            | PresentationOp::EndingCreditsStage { .. }
+            | PresentationOp::EndingCreditsPaletteRamp { .. }
+            | PresentationOp::EndingStaffRollTransition { .. }
+            | PresentationOp::EndingFinale { .. }) => {
+                godot_print!("scene presentation record consumed: {op:?}");
+            }
         }
     }
 
     pub(super) fn tick_cutscene_presentation(&mut self) {
+        if self.presentation.ending_waiting_for_start
+            && Input::singleton().is_action_just_pressed("ui_accept")
+        {
+            self.presentation.ending_waiting_for_start = false;
+            if let Some(runtime) = self.runtime.as_mut() {
+                runtime.ending_continue();
+            }
+        }
         self.presentation.advance_objects();
         if let Some(layer) = self.cutscene_layer.as_mut() {
             layer.bind_mut().tick();

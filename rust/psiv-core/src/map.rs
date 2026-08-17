@@ -168,6 +168,8 @@ pub struct Npc {
     /// visible to [`FieldMap::npcs`] so a renderer can tell "gone" from
     /// "never existed".
     pub active: bool,
+    /// The cartridge's render-flags bit 0: skip both camera subtractions.
+    pub camera_bypass: bool,
     /// The cartridge's **bit 3 of `$2(a3)`**, set per object type at init.
     ///
     /// Two routines test this bit, identically, and a clear bit makes the
@@ -217,6 +219,7 @@ impl Npc {
             offset: SubCellOffset::ALIGNED,
             facing,
             active: true,
+            camera_bypass: false,
             interactable: true,
             talkable: true,
         }
@@ -236,6 +239,7 @@ impl Npc {
             offset,
             facing,
             active: true,
+            camera_bypass: false,
             interactable: true,
             talkable: true,
         }
@@ -246,6 +250,15 @@ impl Npc {
     #[must_use]
     pub const fn with_active(self, active: bool) -> Npc {
         Npc { active, ..self }
+    }
+
+    /// The same object with render-flags bit 0 set or cleared.
+    #[must_use]
+    pub const fn with_camera_bypass(self, camera_bypass: bool) -> Npc {
+        Npc {
+            camera_bypass,
+            ..self
+        }
     }
 
     /// The same object with its bit-3 behaviour set. Monsters and scenery get
@@ -509,6 +522,7 @@ impl FieldMap {
                     CHEST_SHUT_FACING
                 },
                 active: true,
+                camera_bypass: false,
                 // Both chest routines `bset #3, $2(a4)`: solid and talkable.
                 interactable: true,
                 talkable: true,

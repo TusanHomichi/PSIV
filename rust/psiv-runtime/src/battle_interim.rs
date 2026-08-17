@@ -158,6 +158,13 @@ fn battle_animation_events(
                 frame_duration: sequence.map(|sequence| sequence.frame_duration),
                 frame_count: sequence.map(|sequence| sequence.frame_count),
                 total_frames: sequence.map(|sequence| sequence.total_frames),
+                frame_durations: sequence.map(|sequence| {
+                    if sequence.frame_durations.is_empty() {
+                        vec![sequence.frame_duration; usize::from(sequence.frame_count)]
+                    } else {
+                        sequence.frame_durations.clone()
+                    }
+                }),
                 movement_proven: animation.movement_proven,
                 sprite_sheet_proven: animation.sprite_sheet_proven,
                 flash_timing_proven: animation.flash_timing_proven,

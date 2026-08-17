@@ -32,8 +32,11 @@ pub struct BattleAnimationEvent {
     pub frame_duration: Option<u8>,
     /// Fixed mapping count, when available.
     pub frame_count: Option<u8>,
-    /// Product of duration and count, when available.
+    /// Sum of the per-frame durations, when available.
     pub total_frames: Option<u16>,
+    /// Variable timer bytes, one per mapping frame.  Fixed records carry a
+    /// repeated vector so the Godot clock has one contract for both forms.
+    pub frame_durations: Option<Vec<u8>>,
     /// Retail movement was not inferred into the body sprite.
     pub movement_proven: bool,
     /// The selected six-byte mapping records compose against the enemy art
@@ -114,6 +117,7 @@ impl BattleTimeline {
                     frame_duration: Some(2),
                     frame_count: Some(8),
                     total_frames: Some(16),
+                    frame_durations: Some(vec![2; 8]),
                     movement_proven: true,
                     sprite_sheet_proven: true,
                     flash_timing_proven: true,
@@ -126,11 +130,75 @@ impl BattleTimeline {
                     frame_duration: Some(2),
                     frame_count: Some(4),
                     total_frames: Some(8),
+                    frame_durations: Some(vec![2; 4]),
                     movement_proven: true,
                     sprite_sheet_proven: true,
                     flash_timing_proven: true,
                 },
             ],
+        }
+    }
+
+    /// Builds an attack-only probe for a real formation whose newly decoded
+    /// members are supplied by the Godot setup.  The records are copied from
+    /// the retail pack census so the live selector exercises the variable and
+    /// selector clocks without requiring a player to drive a command menu.
+    #[must_use]
+    pub fn debug_newly_exact_probe(enemies: &[(u8, u16)]) -> BattleTimeline {
+        let party = FighterId::new(1).expect("fighter id 1");
+        let mut events = Vec::new();
+        let mut sounds = Vec::new();
+        let mut animations = Vec::new();
+        for (fighter_id, enemy_id) in enemies {
+            let Some((sfx_id, durations)) = (match *enemy_id {
+                2 => Some((0xD6, vec![6, 4, 4, 5])),
+                17 => Some((0xB6, vec![4, 3, 4])),
+                24 => Some((0xD6, vec![4, 6, 6])),
+                39 => Some((
+                    0xCD,
+                    vec![1, 1, 1, 1, 1, 2, 1, 1, 3, 1, 1, 4, 1, 1, 5, 1, 1],
+                )),
+                149 => Some((0xD5, vec![6, 8, 8, 8, 8, 8, 8, 8, 8])),
+                _ => None,
+            }) else {
+                continue;
+            };
+            let actor = FighterId::new(*fighter_id).expect("debug enemy fighter id");
+            let event_index = events.len();
+            let total_frames = durations.iter().map(|duration| u16::from(*duration)).sum();
+            events.push(BattleEvent::Attacked {
+                actor,
+                targets: vec![party],
+            });
+            sounds.push(BattleSoundEvent {
+                event_index,
+                id: sfx_id,
+            });
+            animations.push(BattleAnimationEvent {
+                event_index,
+                actor,
+                enemy_id: *enemy_id,
+                sfx_id,
+                frame_duration: durations.first().copied(),
+                frame_count: u8::try_from(durations.len()).ok(),
+                total_frames: Some(total_frames),
+                frame_durations: Some(durations),
+                movement_proven: true,
+                sprite_sheet_proven: true,
+                flash_timing_proven: true,
+            });
+            events.push(BattleEvent::Resolved {
+                actor,
+                target: party,
+                verdict: Verdict::Normal,
+                damage: Some(1),
+                remaining_hp: 24,
+            });
+        }
+        BattleTimeline {
+            events,
+            sounds,
+            animations,
         }
     }
 }

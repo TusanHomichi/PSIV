@@ -42,7 +42,8 @@ The rebuilt pack reports this exact census in
 |---|---:|---|
 | scene-owned panel records | 15 | exact decoded scene records |
 | dialogue action panel records | 163 | every distinct `$F2 LoadPanel` id, including `$30` |
-| total panel records | 178 | all PNGs present in the runtime manifest |
+| ending-only panel records | 50 | `$8021` post-battle story sequence |
+| total panel records | 228 | all PNGs present in the runtime manifest |
 | `LoadArt` writes | 7 | all payloads rendered to preview PNGs |
 | standalone temporary-object keys | 6 | 5 exact sheets; chest splinter preserves 66 named transparent VRAM pattern holes |
 | generic portraits | 1 | exact 48x48 `shopkeeper_2` sheet |
@@ -63,8 +64,8 @@ power-on-to-first-control schedule for `Event_GameStart ($9F)`. Its captures
 are in `oracle/frames/opening/`; the frame-4000 state is
 `oracle/states/opening/frame_4000.json`.
 
-The pack decoder asserts all 178 panel records (15 scene-owned plus 163
-dialogue-action records), all 7 `LoadArt` source /
+The pack decoder asserts all 228 panel records (15 scene-owned, 163
+dialogue-action records and 50 ending-only records), all 7 `LoadArt` source /
 destination pairs, the 6 temporary-object keys, the generic portrait's art /
 mapping / tile contract, both Enigma planes for each panel, their retail
 coordinates, and the opening image addresses in
@@ -127,6 +128,37 @@ the retail 3-frame-per-character typewriter and holds a completed page for
 and the clone's fixed debug shot tick, the pair is deterministic and the
 offset is recorded rather than guessed.
 
+### Retail scroll receipt
+
+The new `--dump-state` receipt was decoded from the MeetingRika fixture at
+retail frame 7250 (`/tmp/psiv-scroll-check.json`). The host resolves the
+Genesis Plus GX local VDP symbols from the loaded ELF; it does not change the
+third-party core ABI. `oracle/decode_layout.py` reports these numbers with
+`grand_cross=0`:
+
+| input | decoded value | provenance |
+|---|---:|---|
+| foreground camera `(X,Y)` | `(0, 0)` pixels; raw `0x00000000` / `0x00000000` | `ps4.constants.asm`, `Camera_X_Pos_FG` / `Camera_Y_Pos_FG`, 16.16 work-RAM words at `$FFFFEF94` / `$FFFFEF90` |
+| background camera `(X,Y)` | `(0, 0)` pixels; raw `0x00000000` / `0x00000000` | `Camera_X_Pos_BG` / `Camera_Y_Pos_BG` at `$FFFFEF9C` / `$FFFFEF98` |
+| camera step counters | all four `0x00000000` | `Camera_X/Y_Step_Counter_FG/BG` at `$FFFFEC50..$FFFFEC5F` |
+| H-int jump/address | `0x4EF9`, `0x00000758` | `HInt_Jump` / `HInt_Addr` at `$FFFFECB0/$FFFFECB2`; `0x758` is the retail `HInt` `RTE` |
+| split state | disabled; mode `0`, cursor `0`, slope `0x00000000`, flags `0x0000` | `$FFFFECB8..$FFFFECC1`, with the inactive address selecting the RTE |
+| VDP H-scroll mode/base | full-screen, base `$F400` | VDP register 11 mode bits `0`; register 13 value `$3D` |
+| VDP H-scroll columns | Plane A/B `0x0000` for the first 224 line pairs | VDP H-scroll table at `$F400`, emitted as `vdp_hscroll_table` |
+| VDP VSRAM | Plane A/B `0x0000` | emitted as `vdp_vsram`, Genesis big-endian words |
+| work H-scroll buffer | `0x0000` for all 224 words | `$FFFF60E0`, the generated per-line buffer used by the split path |
+| VSRAM shadow source | inactive for this receipt; first words `0x6040, 0x61DC, 0x0010, 0x0010` | `$FFFF6000` `Chunk_Table`; the H-int path consumes it only when enabled |
+
+The dialogue window occupies scanlines **160..223**; the H-int/VDP receipt
+covers all 224 scanlines. H-int split is false, so both planes use the live VDP
+VSRAM words for this frame. The remaining
+screen-space term is the measured retail plane/window residue
+`(x=1,y=1)` pixel at `grand_cross=0`; its provenance is recorded in the JSON
+as `placement_provenance`, not disguised as camera motion. The clone applies
+that term only to scene panel planes and portraits. Dialogue window chrome,
+glyphs, arrows, and the opening background retain their independent retail
+origins.
+
 **Existing opening reference pairs (integration, 2026-08-16):**
 
 | Pair | Clone tick | Oracle frame | RMSE |
@@ -164,20 +196,17 @@ oracle frame 7250's professor/Rika picture is dialogue `Ctrl::Action`
 cutscene panel stack. The oracle command from `oracle/README.md` was run on
 2026-08-16; frame 7250 has SHA-256
 `d8fc26ae6987e416ee75c02cd10ea4975e9be22485b8feeda84161aa489888c9`.
-The clone capture ran at integration (2026-08-17, Xvfb). The settled Chaz
-page — fully typed `Professor! / Thank goodness you're safe!`, panel up,
-field blanked — is clone tick 162–164; the measured RMSE against oracle
-frame 7250 is **59.4**, and a diagnostic 1-pixel shift probe drops it to
-**37.9**, with columns 96–128 and 288–320 matching exactly. Getting there
-fixed three real defects (recorded below), and what remains is a bounded,
-diagnosed question rather than a capture gap: the oracle's plane-drawn
-content (panel, portrait) sits ≈1–2 pixels right/down of the clone's
-screen-space placement while the dialogue window itself aligns — the
-signature of retail's plane-scroll residue with a split-scrolled window
-region. Closing it needs the scroll columns decoded from the oracle state
-dump at 7250 (`--dump-state` emits plane/CRAM/sprite buffers today; the
-scroll buffers need a decode_layout addition). Filed as the follow-up; the
-number above is real and unfudged.
+The pre-fix clone capture's settled Chaz page — fully typed
+`Professor! / Thank goodness you're safe!`, panel up, field blanked — was
+clone tick 162–164 with real RMSE **59.434935**; the diagnostic 1-pixel shift
+probe was **37.9**, with columns 96–128 and 288–320 matching exactly.
+
+The runtime now applies the decoded `(1,1)` plane residue to the panel and
+portrait placement. A post-fix RMSE is **not claimed here**: this sandbox
+cannot create an X11 socket (`bind(2)` is denied even in a private namespace),
+so the required fresh Xvfb capture did not run. The ready-to-run command below
+must record the settled tick from its own `PSIV_DEBUG_SCENE_TICKS=1` log and
+then produce the post-fix number during integration.
 
 Integration-time defects fixed while certifying (2026-08-17):
 
@@ -218,6 +247,57 @@ Choose `<settled-clone-tick>` from the same run's scene-tick log after the
 produce the certified pair. The oracle frame 7250 and frame 7300 are identical,
 so a clone settled window is valid when the log proves it is inside the same
 post-action hold.
+
+## Broader exact-frame certification surface
+
+These are the deterministic fixtures and reference hashes for the next
+certification pass. The battle measurement is a real existing Xvfb artifact
+from the battle-layout work; it is recorded here as a measured reference, not
+silently upgraded to a fresh post-change capture. Title and camp have decoded
+oracle materials and exact commands, but no RMSE is claimed until they run
+under the required Xvfb/X11 harness.
+
+| surface | deterministic fixture / clone tick | oracle frame and SHA-256 | RMSE | status |
+|---|---|---|---:|---|
+| battle command idle | `PSIV_DEBUG_BATTLE=0x88`, shot tick **200** | `oracle/frames/frame_25000.png`, `761fb241a2360d222fdf1538be1af89b7bfb9cd09376a6157733fd8f71e773c4` | **32.732584** | measured existing Xvfb artifact `/tmp/loop-frame-final3.png` (SHA-256 `adad835514b8adfe33425c5145e7aec175f4c0177c758febb516736660b6da58`) |
+| title settled | `PSIV_DEBUG_TITLE_SHOT=1`, shot tick **450** | `oracle/frames/title/frame_450.png`, `8cebd30d62a7b5b0c3ad634ec6efc5ab6ab62e088d6166835d447c843df18c10` | pending | integration command below |
+| camp root idle | `PSIV_DEBUG_CAMP=1`, shot tick **60**; oracle mark `camp_root_idle` | `oracle/frames/frame_7675.png`, `9bf283d9f48b4c0d959eb297ca0b1a997b62f227385ec25cae921e078ceaeca0` | pending | integration command below |
+
+Title certification:
+
+```sh
+GODOT=/home/peter/.local/bin/psiv-godot-4.7.1
+xvfb-run -a env \
+  PSIV_DEBUG_TITLE_SHOT=1 \
+  PSIV_DEBUG_SHOT=/tmp/psiv-title-xvfb-450.png \
+  PSIV_DEBUG_SHOT_FRAME=450 \
+  "$GODOT" --display-driver x11 --audio-driver Dummy \
+  --path godot --quit-after 451 \
+  > /tmp/psiv-title-xvfb-450.log 2>&1
+python3 psiv_tools/presentation_rmse.py \
+  /tmp/psiv-title-xvfb-450.png oracle/frames/title/frame_450.png
+```
+
+Camp certification:
+
+```sh
+GODOT=/home/peter/.local/bin/psiv-godot-4.7.1
+xvfb-run -a env \
+  PSIV_DEBUG_CAMP=1 \
+  PSIV_DEBUG_SHOT=/tmp/psiv-camp-xvfb-60.png \
+  PSIV_DEBUG_SHOT_FRAME=60 \
+  "$GODOT" --display-driver x11 --audio-driver Dummy \
+  --path godot --quit-after 61 \
+  > /tmp/psiv-camp-xvfb-60.log 2>&1
+python3 psiv_tools/presentation_rmse.py \
+  /tmp/psiv-camp-xvfb-60.png oracle/frames/frame_7675.png
+```
+
+The old title smoke number (**0.01995** at tick 450) used a Vulkan/live
+capture and is deliberately not a certification. The same rule applies to
+the old camp PNGs: visual evidence is useful, but it cannot pin the surface
+under this capture doctrine. The current sandbox failure is environmental,
+not a missing fixture or an invented RMSE.
 
 ## Runtime evidence
 
@@ -269,11 +349,10 @@ All three are evaluation switches and are never used by normal play.
 
 ## Remaining deferrals
 
-- **MeetingRika sub-cell alignment:** the measured pair (clone t162 vs
-  oracle 7250) stands at RMSE 59.4 with a diagnosed ≈1–2 pixel plane-scroll
-  offset on panel/portrait content (window aligned). Decode the oracle's
-  scroll columns at frame 7250 and make panel placement scroll-aware to
-  close it.
+- **Fresh visual certification:** integration still needs the post-fix
+  MeetingRika RMSE plus the title and camp RMSEs from the commands above. The
+  oracle hashes and deterministic ticks are pinned; this sandbox cannot bind
+  the Xvfb socket needed to produce the clone images.
 - **Chest splinter's 66 unmapped patterns:** retained as transparent holes
   because the retail scene mapping consumes VRAM left by another runtime load;
   no source-of-truth pixels for those slots were found in the declared upload.

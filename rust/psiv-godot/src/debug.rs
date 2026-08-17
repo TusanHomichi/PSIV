@@ -35,6 +35,10 @@ impl Field {
                         godot_print!("debug: battle theme dispatch: 0x95");
                         self.play_sound(0x95);
                         self.start_oracle_debug_battle();
+                    } else if id == 0x89 && vehicle_battle.is_none() {
+                        godot_print!("debug: battle theme dispatch: 0x95");
+                        self.play_sound(0x95);
+                        self.start_newly_exact_debug_battle();
                     } else {
                         let music = self
                             .runtime

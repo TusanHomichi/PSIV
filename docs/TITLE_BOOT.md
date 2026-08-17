@@ -73,9 +73,13 @@ The empty SRAM capture opens a `14x3` window at `(13,12)` and decodes one
 option: `START` at `(16,13)`. A valid slot-0 SRAM capture opens the retail
 `14x7` window at `(13,10)` and decodes `CONTINUE`, `START`, and `ERASE DATA`
 at rows 11, 13, and 15 respectively. The title code gates `CONTINUE` on the
-same validated `Runtime::load_slot` path used by boot; it never writes save
-data. It exposes a slot picker after CONTINUE, refuses empty slots, and keeps
-ERASE DATA non-destructive until save-erasure ownership is explicitly added.
+same validated `Runtime::load_slot` path used by boot and exposes a three-slot
+picker that refuses empty slots. `ERASE DATA` opens the selected populated slot
+picker, asks `ARE YOU SURE?`, and on YES calls the retail-equivalent
+`Runtime::erase_slot` operation. It clears only that file's 0x1400-byte
+physical payload and leaves the 0x200-byte common header untouched; the erased
+slot is then removed from the title's available-slot view. The exact retail
+flow and byte boundary are recorded in [`SAVE_SCOUT.md`](SAVE_SCOUT.md).
 
 `rust/psiv-godot/src/title.rs` renders the decoded assets at the 3x camera
 scale and drives Sega -> reveal -> Press Start -> menu. `boot.rs` preserves
@@ -84,6 +88,34 @@ the fast paths for `PSIV_LOAD_SLOT`, `PSIV_DEBUG_BATTLE`, `PSIV_DEBUG_CAMP`,
 retail front door. For visual QA only, `PSIV_DEBUG_TITLE_SHOT=1` opts an
 existing `PSIV_DEBUG_SHOT` capture into the title; ordinary debug screenshots
 continue to bypass the front door.
+
+## Exact-frame certification
+
+The settled title fixture is retail tape 25 frame **450**: Plane B is settled,
+the PSIV logo and subtitle are present, and the capture is within the fixed
+title hold. The oracle reference is
+`oracle/frames/title/frame_450.png`, SHA-256
+`8cebd30d62a7b5b0c3ad634ec6efc5ab6ab62e088d6166835d447c843df18c10`.
+The deterministic clone tick is **450** with `PSIV_DEBUG_TITLE_SHOT=1`:
+
+```sh
+GODOT=/home/peter/.local/bin/psiv-godot-4.7.1
+xvfb-run -a env \
+  PSIV_DEBUG_TITLE_SHOT=1 \
+  PSIV_DEBUG_SHOT=/tmp/psiv-title-xvfb-450.png \
+  PSIV_DEBUG_SHOT_FRAME=450 \
+  "$GODOT" --display-driver x11 --audio-driver Dummy \
+  --path godot --quit-after 451 \
+  > /tmp/psiv-title-xvfb-450.log 2>&1
+python3 psiv_tools/presentation_rmse.py \
+  /tmp/psiv-title-xvfb-450.png oracle/frames/title/frame_450.png
+```
+
+No compliant clone RMSE is recorded in this checkout: the sandbox's Xvfb
+cannot bind its X11 socket (`/tmp/.X11-unix` is host-owned by `nobody`, and a
+private namespace is denied `bind(2)`). A previous Vulkan/live smoke capture
+measured **0.01995**, but it is explicitly non-certification evidence and
+does not pin this title surface.
 
 ## Opening cinematic boundary
 

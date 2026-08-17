@@ -37,6 +37,7 @@
 #![warn(missing_docs)]
 
 mod battle;
+mod camera;
 mod collision;
 mod dialogue;
 mod error;
@@ -56,6 +57,7 @@ pub use battle::{
     FormationEnemy, FormationsFile, Level, LevelStats, LevelTable, LevelsFile, MapBinding, NamedId,
     NamedMapRef, PositionGrid, Property, Rewards,
 };
+pub use camera::{MapScroll, ScrollCounters};
 // The seating path: `battle/characters.json` and `battle/equipment.json`.
 pub use battle::{
     Character, CharactersFile, DerivedStat, ElementRef, Equipment, EquipmentBonuses, EquipmentFile,

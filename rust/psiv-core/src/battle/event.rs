@@ -15,6 +15,7 @@
 use super::chances::Verdict;
 use super::fighters::FighterId;
 use super::order::Priority;
+use super::vehicle_skill::VehicleSkillEffectKind;
 
 /// How a battle finished.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -86,8 +87,6 @@ pub enum BattleEvent {
         actor: FighterId,
     },
     /// A mounted vehicle consumed one saved use from its selected skill slot.
-    /// The effect dispatcher is not yet in Tier 1; a following
-    /// [`VehicleSkillEffectUnavailable`] event records that boundary.
     VehicleSkillUsed {
         /// Who selected the skill.
         actor: FighterId,
@@ -105,14 +104,28 @@ pub enum BattleEvent {
         /// One-based vehicle skill slot.
         skill: u8,
     },
-    /// A valid vehicle skill was consumed, but its effect dispatcher is still
-    /// outside the implemented battle tier. This is deliberately a no-op
-    /// marker: a vehicle skill must never masquerade as physical damage.
+    /// A valid vehicle skill named an effect that is outside the implemented
+    /// retail table. This is deliberately a no-op marker: a vehicle skill must
+    /// never masquerade as physical damage.
     VehicleSkillEffectUnavailable {
         /// Who selected the skill.
         actor: FighterId,
         /// One-based vehicle skill slot.
         skill: u8,
+    },
+    /// The proven `VehicleSkillData` dispatcher selected an effect and its
+    /// affected targets. Damage skills use the ordinary resolved-damage path;
+    /// N-Spher uses the separate death-effect chance and follows this event
+    /// with `Died` for each target it kills.
+    VehicleSkillEffect {
+        /// Who selected the skill.
+        actor: FighterId,
+        /// One-based vehicle skill slot.
+        skill: u8,
+        /// The retail effect kind.
+        effect: VehicleSkillEffectKind,
+        /// Targets that accepted the selected effect.
+        targets: Vec<FighterId>,
     },
     /// One attacker-target pair resolved.
     Resolved {

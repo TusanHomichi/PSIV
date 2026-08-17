@@ -11,13 +11,13 @@ use std::path::{Path, PathBuf};
 
 use psiv_core::battle::Lcg41;
 use psiv_core::{
-    Camera, Cell, Direction, GameState, Party, RetailLocation, RetailSave, RetailSlot, SceneInput,
+    Cell, Direction, GameState, Party, RetailLocation, RetailSave, RetailSlot, SceneInput,
     StepFrames,
 };
 use psiv_data::GameData;
 
 use super::bridge::build_wander;
-use super::{BridgeError, Runtime, bounds_of, driver_of, field_map_patched};
+use super::{BridgeError, Runtime, camera_for_record, driver_of, field_map_patched};
 
 /// An error while reading, writing or constructing a runtime save.
 #[derive(Debug)]
@@ -135,7 +135,8 @@ pub(super) fn construct_runtime(
     )
     .map_err(|error| BridgeError::Rejected(error.to_string()))?;
     let wander = build_wander(&map, record)?;
-    let camera = Camera::placed_on(driver_of(party.leader()), bounds_of(&map));
+    let camera = camera_for_record(driver_of(party.leader()), &map, record)
+        .map_err(BridgeError::Rejected)?;
     let mut runtime = Runtime {
         data,
         map,
@@ -145,6 +146,7 @@ pub(super) fn construct_runtime(
         saved_map_index_2: placement.map_index_2,
         scene: None,
         scene_input: SceneInput::None,
+        game_cleared: false,
         despawned: std::collections::BTreeSet::new(),
         prev_standing: None,
         wander,
@@ -213,6 +215,20 @@ impl Runtime {
         let bytes = std::fs::read(path)?;
         let save = RetailSlot::from_bytes(&bytes, slot)?.decode()?;
         Self::from_save(data, save, step_frames)
+    }
+
+    /// Performs the retail title's destructive erase for one visible slot.
+    ///
+    /// The selected file's interleaved common header survives; only its
+    /// physical payload is zeroed, matching `loc_64DC0` on the shared SRAM
+    /// device. The directory is caller-owned so Godot and tests can use the
+    /// same `PSIV_SAVE_DIR` boundary.
+    pub fn erase_slot(directory: &Path, slot: usize) -> Result<PathBuf, RuntimeSaveError> {
+        let path = Self::slot_path(directory, slot)?;
+        let bytes = std::fs::read(&path)?;
+        let erased = RetailSlot::erase_physical_payload(&bytes, slot)?;
+        std::fs::write(&path, erased.as_bytes())?;
+        Ok(path)
     }
 
     /// Constructs a runtime from an already decoded retail save.

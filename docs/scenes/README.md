@@ -110,11 +110,21 @@ tables; the clone's hack-only bodies are not evidence.
 | `Event_AngerTowerExitTop` | `$6A` | [86](86_AngerTowerExitTop.md) | `$072262..$0722D1` |
 | `Cutscene_ProfoundDarkness` | `$8020` | [87](87_ProfoundDarkness.md) | `$078D30..$078F3D` |
 
-The complete retail table census, including pointer bodies deliberately left
-outside this typed scene surface and the `$8021` ending boundary, is in
-[12_ArcTriggerCensus](12_ArcTriggerCensus.md). The headless proof is
-`rust/psiv-runtime/tests/next_arc.rs` and continues in the existing test from
-`Cutscene_DarkForce1Defeated` through the `$8020` battle request.
+## Terminal and recorded boundary surfaces
+
+| Scene | Event | Doc | Retail bytes |
+|---|---:|---|---|
+| `Cutscene_RajaSick` | `$8012` | [88](88_RetailBoundaries.md) | `$07734C..$077787` |
+| `Cutscene_Rykros` | `$801B` | [88](88_RetailBoundaries.md) | `$07818E..$078345` |
+| `Cutscene_Ending` | `$8021` | [89](89_Ending.md) | `$078F3E..$07A811` |
+
+The complete retail table census, including the input-driven surfaces that
+remain precise why-not boundaries, is in
+[12_ArcTriggerCensus](12_ArcTriggerCensus.md). The persistent headless proof
+is `rust/psiv-runtime/tests/next_arc.rs`: it runs title through the `$8020`
+battle request and the `$8021` ending, asserting the relevant flags and party
+roster at each handoff. `rust/psiv-runtime/tests/retail_boundaries.rs` covers
+the deterministic Raja Sick and Rykros records independently.
 
 ## Why these were disassembled and not read
 

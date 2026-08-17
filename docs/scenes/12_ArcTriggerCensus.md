@@ -108,12 +108,13 @@ This is the exact dispatch delta audited by
 | `$51` | `RunEvent_AngerTowerTop` | `$E4` clear, `x=$1C0..$1D0`, `y=$250..$260` | `EventPtrs[$69]` / `$0069` |
 | `$52` | `RunEvent_AngerTowerExitTop` | `$E7` clear, `x=$1A0..$1B0`, `y=$260` | `EventPtrs[$6A]` / `$006A` |
 | `$53` | `RunEvent_ProfoundDarkness` | `$E8` clear, `y=$160` | `CutscenePtrs[$20]` / `$8020` |
-| `$54` | `RunEvent_Ending` | `$E8` set | `CutscenePtrs[$21]` / `$8021` (boundary) |
+| `$54` | `RunEvent_Ending` | `$E8` set | `CutscenePtrs[$21]` / `$8021` / terminal ending |
 
 ## Retail pointer body ranges for the Dezo census
 
-`EventPtrs` ranges below are ROM half-open ranges shown as inclusive bytes in
-the scene documents. This table includes direct side bodies so they cannot be
+`EventPtrs` and `CutscenePtrs` ranges below use half-open `[start,next)`
+notation. The scene documents state their corresponding inclusive byte ranges.
+This table includes direct side bodies so they cannot be
 mistaken for missing pointer data.
 
 | EventPtrs | retail body | ROM range | scene record |
@@ -159,7 +160,7 @@ The corresponding cutscene bodies are:
 
 | CutscenePtrs | body | ROM range | scene record |
 |---:|---|---|---|
-| `$12` / `$8012` | `Cutscene_RajaSick` | `$07734C..$077788` | boundary [88](88_RetailBoundaries.md) |
+| `$12` / `$8012` | `Cutscene_RajaSick` | `$07734C..$077788` | [88](88_RetailBoundaries.md) |
 | `$13` / `$8013` | `Cutscene_MeetingKyra` | `$077788..$077896` | [55](55_MeetingKyra.md) |
 | `$14` / `$8014` | `Cutscene_LutzRevelation` | `$077896..$077A2E` | [58](58_LutzRevelation.md) |
 | `$15` / `$8015` | `Cutscene_FindingAirCastle` | `$077A2E..$077A68` | [68](68_FindingAirCastle.md) |
@@ -168,13 +169,13 @@ The corresponding cutscene bodies are:
 | `$18` / `$8018` | `Cutscene_GumbiousBishop` | `$077DC6..$077EAC` | [74](74_GumbiousBishop.md) |
 | `$19` / `$8019` | `Cutscene_MeetingSeth` | `$077EAC..$077F2E` | [60](60_MeetingSeth.md) |
 | `$1A` / `$801A` | `Cutscene_AeroPrism` | `$077F2E..$07818E` | [61](61_AeroPrism.md) |
-| `$1B` / `$801B` | `Cutscene_Rykros` | `$07818E..$078346` | boundary [88](88_RetailBoundaries.md) |
+| `$1B` / `$801B` | `Cutscene_Rykros` | `$07818E..$078346` | [88](88_RetailBoundaries.md) |
 | `$1C` / `$801C` | `Cutscene_LeRoofAgain` | `$078346..$0784B6` | [52](52_LeRoofAgain.md) |
 | `$1D` / `$801D` | `Cutscene_BeforeElsydeonCave` | `$0784B6..$078584` | [82](82_BeforeElsydeonCave.md) |
 | `$1E` / `$801E` | `Cutscene_Elsydeon` | `$078584..$078A7C` | [83](83_Elsydeon.md) |
 | `$1F` / `$801F` | `Cutscene_Reunion` | `$078A7C..$078D30` | [84](84_Reunion.md) |
 | `$20` / `$8020` | `Cutscene_ProfoundDarkness` | `$078D30..$078F3E` | [87](87_ProfoundDarkness.md) |
-| `$21` / `$8021` | `Cutscene_Ending` | `$078F3E..EOF` | boundary [88](88_RetailBoundaries.md) |
+| `$21` / `$8021` | `Cutscene_Ending` | `$078F3E..$07A812` | [89](89_Ending.md); padding begins at `$07A812` |
 
 ## Direct dialogue controls on the same route
 
@@ -302,15 +303,17 @@ labels and are excluded.
 ## Proven boundary
 
 The new typed chain runs from the Dark Force 1 post-battle handoff through
-`$8020`, including the Reunion gate: `$50`, `RunEvent_Reunion`, requires
-Elsydeon `$D9` set and Reunion `$DA` clear before writing `$801F`. The chain
-stops at the `$8020` Profound Darkness battle request. `$54` then dispatches
-`Cutscene_Ending` `$8021`, whose body is the final credits/presentation
-surface and is intentionally outside the current typed scene contract. The
-direct Raja Sick, Rykros, Alys, guild and fifth-character controls are
-enumerated in [88](88_RetailBoundaries.md), but are not hidden in the fixed
-RunEvents chain. Molcum `$40` still has only `[0]`; `$00` dispatches
-`RunEvent_Null00`, which returns without an event body.
+the `$8020` Profound Darkness battle request, including the Reunion gate:
+`$50`, `RunEvent_Reunion`, requires Elsydeon `$D9` set and Reunion `$DA` clear
+before writing `$801F`. `$54` then dispatches `Cutscene_Ending` `$8021`; its
+normal retail path is now typed through the post-battle dialogue, panel
+sequence, credits, final Start gate and `Game_Cleared_Flag`. The persistent
+headless arc proof covers title through that terminal edge. The direct Raja
+Sick, Rykros arrival gate, Alys, guild and fifth-character controls are
+enumerated in [88](88_RetailBoundaries.md); deterministic Raja Sick and Rykros
+cutscene bodies are transcribed there, while the input-driven controls remain
+precise why-not boundaries. Molcum `$40` still has only `[0]`; `$00`
+dispatches `RunEvent_Null00`, which returns without an event body.
 
 ## Fork and byte authority
 

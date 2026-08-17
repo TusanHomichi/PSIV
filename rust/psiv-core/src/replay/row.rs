@@ -92,6 +92,16 @@ pub struct ReplayRow {
     pub gate_ec24: u8,
     /// `$EC25`, FG driver gate.
     pub gate_ec25: u8,
+    /// `$EC26`, BG driver gate.
+    pub gate_ec26: u8,
+    /// `Camera_X_Pos_FG`, full 16.16 longword.
+    pub cam_x_fg_raw: i32,
+    /// `Camera_Y_Pos_FG`, full 16.16 longword.
+    pub cam_y_fg_raw: i32,
+    /// `Camera_X_Pos_BG`, full 16.16 longword.
+    pub cam_x_bg_raw: i32,
+    /// `Camera_Y_Pos_BG`, full 16.16 longword.
+    pub cam_y_bg_raw: i32,
     /// `facing_dir`: 0 down, 4 up, 8 right, `$C` left.
     pub c1_facing: u16,
     /// `x_step_duration` in cartridge units.
@@ -196,7 +206,11 @@ pub struct FrameSample<'a> {
     /// BG `Camera_*_Pos` in pixels and `Camera_*_Step_Counter` in 16.16.
     pub camera_bg: (i32, i32, i32, i32),
     /// The oracle's camera gate columns `$EC24` and `$EC25`.
-    pub camera_gates: (u8, u8),
+    pub camera_gates: (u8, u8, u8),
+    /// FG `Camera_*_Pos` as full 16.16 longwords.
+    pub camera_raw: (i32, i32),
+    /// BG `Camera_*_Pos` as full 16.16 longwords.
+    pub camera_bg_raw: (i32, i32),
 }
 
 impl ReplayRow {
@@ -218,10 +232,14 @@ impl ReplayRow {
             camera,
             camera_bg,
             camera_gates,
+            camera_raw,
+            camera_bg_raw,
         } = sample;
         let (cam_x, cam_y, cam_step_x, cam_step_y) = camera;
         let (cam_x_bg, cam_y_bg, cam_step_x_bg, cam_step_y_bg) = camera_bg;
-        let (gate_ec24, gate_ec25) = camera_gates;
+        let (gate_ec24, gate_ec25, gate_ec26) = camera_gates;
+        let (cam_x_fg_raw, cam_y_fg_raw) = camera_raw;
+        let (cam_x_bg_raw, cam_y_bg_raw) = camera_bg_raw;
         let at = PixelPos::from_cell(state.cell());
         let (dx, dy) = state.render_offset_16ths();
         let (x_dur, y_dur) = state.step_durations_8_8();
@@ -247,6 +265,11 @@ impl ReplayRow {
             cam_step_y_bg,
             gate_ec24,
             gate_ec25,
+            gate_ec26,
+            cam_x_fg_raw,
+            cam_y_fg_raw,
+            cam_x_bg_raw,
+            cam_y_bg_raw,
             c1_facing: facing_value(state.facing()),
             c1_x_step_dur: x_dur,
             c1_y_step_dur: y_dur,
@@ -312,14 +335,19 @@ impl ReplayRow {
             "coll_down" => format!("{:02X}", self.coll_down),
             "cam_x_fg_px" => self.cam_x.to_string(),
             "cam_y_fg_px" => self.cam_y.to_string(),
+            "cam_x_fg" => format!("{:08X}", self.cam_x_fg_raw),
+            "cam_y_fg" => format!("{:08X}", self.cam_y_fg_raw),
             "cam_step_x_fg" => format!("{:08X}", self.cam_step_x),
             "cam_step_y_fg" => format!("{:08X}", self.cam_step_y),
             "cam_x_bg_px" => self.cam_x_bg.to_string(),
             "cam_y_bg_px" => self.cam_y_bg.to_string(),
+            "cam_x_bg" => format!("{:08X}", self.cam_x_bg_raw),
+            "cam_y_bg" => format!("{:08X}", self.cam_y_bg_raw),
             "cam_step_x_bg" => format!("{:08X}", self.cam_step_x_bg),
             "cam_step_y_bg" => format!("{:08X}", self.cam_step_y_bg),
             "gate_ec24" => format!("{:02X}", self.gate_ec24),
             "gate_ec25" => format!("{:02X}", self.gate_ec25),
+            "gate_ec26" => format!("{:02X}", self.gate_ec26),
             "party_slots" => format!("{:08X}", self.party_slots),
             "party_slot_1" => self.party[0].to_string(),
             "party_slot_2" => self.party[1].to_string(),

@@ -37,6 +37,7 @@ from .objects import (
     FIELD_OBJECTS_JMP_TBL,
     FIELD_OBJ_DO_OBJ_COLLISION,
     INTERACTION_CHK_OBJECTS,
+    RENDER_FLAG_CAMERA_BYPASS,
     RENDER_FLAG_INTERACTABLE,
     FieldObjectRoutine,
 )
@@ -70,12 +71,14 @@ class NpcMetadata:
     sprite: dict[str, Any] | None
     sprite_reason: str | None
     interactable: bool
+    camera_bypass: bool
 
     def to_json(self) -> dict[str, Any]:
         return {
             "sprite": self.sprite,
             "sprite_reason": self.sprite_reason,
             "interactable": self.interactable,
+            "camera_bypass": self.camera_bypass,
         }
 
 
@@ -268,7 +271,8 @@ def field_objects_json(
 ) -> dict[str, Any]:
     """The per-object-type interaction table, with its provenance stated once.
 
-    `interactable` is `render_flags` bit 3. Emitting it per type rather than
+    `interactable` is `render_flags` bit 3 and `camera_bypass` is bit 0.
+    Emitting them per type rather than
     only per placement matters because the bit is a property of the
     `FieldObjectsJmpTbl` routine, not of the map record -- every `Xanafalgue`
     in the game is un-talkable for the same reason, and a consumer that wants
@@ -285,12 +289,16 @@ def field_objects_json(
             "interactable": routine.interactable,
             "source": routine.interactable_source,
             "changes_at_runtime": routine.interactable_changes_at_runtime,
+            "camera_bypass": routine.camera_bypass,
+            "camera_bypass_source": routine.camera_bypass_source,
+            "camera_bypass_changes_at_runtime": routine.camera_bypass_changes_at_runtime,
             "placements": placements.get(routine.object_id, 0),
         }
         for routine in routines
     ]
     return {
         "render_flags_bit": RENDER_FLAG_INTERACTABLE,
+        "camera_render_flags_bit": RENDER_FLAG_CAMERA_BYPASS,
         "table": f"0x{FIELD_OBJECTS_JMP_TBL:06X}",
         "count": len(types),
         # Both readers do the identical `btst #3, $2(a3) / beq -> skip`, so the
@@ -361,7 +369,9 @@ def resolve_map_sprites(
             facing=entry["facing_dir"], art_tile=entry["art_tile"], census=census,
         )
         if sprite.sheet is None:
-            references.append(NpcMetadata(None, sprite.reason, routine.interactable))
+            references.append(
+                NpcMetadata(None, sprite.reason, routine.interactable, routine.camera_bypass)
+            )
             artless.append({
                 "npc_index": entry["index"],
                 "object_id": entry["object_id"],
@@ -372,6 +382,9 @@ def resolve_map_sprites(
             continue
         sheet_id = registry.register(sprite.sheet, entry["symbol"] or "FieldObj")
         references.append(
-            NpcMetadata(_sprite_reference(sprite, sheet_id), None, routine.interactable)
+            NpcMetadata(
+                _sprite_reference(sprite, sheet_id), None,
+                routine.interactable, routine.camera_bypass,
+            )
         )
     return references, artless

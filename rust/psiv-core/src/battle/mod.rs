@@ -47,16 +47,18 @@
 //!
 //! # What this tier does not do
 //!
-//! Techniques, ordinary skills, items, combos, macros, status effects, drops,
-//! vehicle skill effects and boss formations are Tier 2 and later. Enemy AI
+//! Techniques, ordinary skills, items, combos, macros, most status effects,
+//! drops and boss formations are Tier 2 and later. The proven retail vehicle
+//! skill records and their damage/death dispatcher are included below; unknown
+//! future effect ids still stop at an explicit boundary. Enemy AI
 //! rolls its ability but implements only the plain attack; anything else raises
 //! [`BattleEvent::UnsupportedAbility`] and falls back rather than inventing a
 //! number. Vehicle selection and saved-use consumption are exposed on the
-//! battle surface, but a valid vehicle skill raises
-//! [`BattleEvent::VehicleSkillEffectUnavailable`] and never fakes a physical
-//! attack. The 44-entry ability-effect dispatch is absent entirely, as is the
+//! battle surface, and an unproven vehicle effect raises
+//! [`BattleEvent::VehicleSkillEffectUnavailable`] rather than faking a physical
+//! attack. The broader 44-entry ability-effect dispatch is absent, as is the
 //! weapon-element fallback for physical skills; [`ability_element_factor`]
-//! exists for the future dispatcher but no ability dispatches through it yet.
+//! exists for that future dispatcher.
 
 mod action;
 mod ai;
@@ -72,6 +74,7 @@ mod rewards;
 mod rng;
 mod stats;
 mod tables;
+mod vehicle_skill;
 
 #[cfg(test)]
 mod fixtures;
@@ -115,4 +118,8 @@ pub use stats::{
 pub use tables::{
     ELEMENT_NAMES, ELEMENT_OFFSETS, STAT_INDEX_MASK, STAT_OFFSETS, StatSlot, StatWidth,
     WEAPON_ELEMENT_SENTINEL, WORD_STAT_THRESHOLD, element_name, element_offset, stat_slot,
+};
+pub use vehicle_skill::{
+    VehicleSkillData, VehicleSkillEffectKind, VehicleSkillResistance, resolve_vehicle_skill,
+    vehicle_skill_data,
 };

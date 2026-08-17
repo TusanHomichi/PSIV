@@ -71,6 +71,11 @@ OFF_ART_PTR = 0x18
 #: `render_flags` bit 1: `Field_FillSpriteAttributes` returns on it.
 RENDER_FLAG_NO_SPRITES = 1
 
+#: `render_flags` bit 0: `FieldObj_CalcSpritePos` skips both camera-plane
+#: subtractions when this is set. It is a placement/render flag, not the
+#: bit-3 interaction contract below.
+RENDER_FLAG_CAMERA_BYPASS = 0
+
 #: `render_flags` bit 3, the disassembly's "object can be interacted with".
 #: Two routines read it and both do the same `btst #3, $2(a3) / beq -> skip`:
 #: `Interaction_ChkObjects`, which is the talk probe, and
@@ -126,6 +131,9 @@ class FieldObjectRoutine:
     interactable: bool
     interactable_source: str
     interactable_changes_at_runtime: bool
+    camera_bypass: bool
+    camera_bypass_source: str
+    camera_bypass_changes_at_runtime: bool
 
     @property
     def object_id(self) -> int:
@@ -160,6 +168,9 @@ class FieldObjectRoutine:
             "interactable": self.interactable,
             "interactable_source": self.interactable_source,
             "interactable_changes_at_runtime": self.interactable_changes_at_runtime,
+            "camera_bypass": self.camera_bypass,
+            "camera_bypass_source": self.camera_bypass_source,
+            "camera_bypass_changes_at_runtime": self.camera_bypass_changes_at_runtime,
         }
 
 
@@ -238,6 +249,42 @@ def _interactable(
         source = f"bset #{RENDER_FLAG_INTERACTABLE}, $2(a4) in the init block"
     elif init_clear:
         source = f"bclr #{RENDER_FLAG_INTERACTABLE}, $2(a4) in the init block"
+    else:
+        source = (
+            "no write; GameMode_LoadFieldMap zero-fills the object area before "
+            "LoadMapObjects, so the bit is clear"
+        )
+    return init_set, source, later
+
+
+def _camera_bypass(
+    symbol: str, init: dict[tuple[str, int], list[int]],
+    body: dict[tuple[str, int], list[int]],
+) -> tuple[bool, str, bool]:
+    """Transcribe render-flags bit 0 independently of bit 3.
+
+    `FieldObj_CalcSpritePos` tests bit 0 before selecting either camera plane
+    (`ps4.asm:89801-89832`). The field-object loader clears all slots before
+    loading a map, so an unwritten bit is a proven false value. Keep runtime
+    writes visible in the schema even when a future routine changes the bit
+    after initialisation; flattening that into an unconditional bool would be
+    the exact parity bug this field is meant to prevent.
+    """
+    def bit(where: dict[tuple[str, int], list[int]], kind: str) -> bool:
+        return RENDER_FLAG_CAMERA_BYPASS in where.get((kind, OFF_RENDER_FLAGS), [])
+
+    init_set = bit(init, "bset")
+    init_clear = bit(init, "bclr")
+    later = any(bit(body, kind) for kind in ("bset", "bclr", "bchg"))
+    if init_set and init_clear:
+        raise SpriteError(
+            f"FieldObj_{symbol} both sets and clears render-flags bit "
+            f"{RENDER_FLAG_CAMERA_BYPASS} in one init block"
+        )
+    if init_set:
+        source = f"bset #{RENDER_FLAG_CAMERA_BYPASS}, $2(a4) in the init block"
+    elif init_clear:
+        source = f"bclr #{RENDER_FLAG_CAMERA_BYPASS}, $2(a4) in the init block"
     else:
         source = (
             "no write; GameMode_LoadFieldMap zero-fills the object area before "
@@ -368,6 +415,9 @@ def scan_field_objects(rom: bytes) -> list[FieldObjectRoutine]:
                     interactable=False,
                     interactable_source="routine has no init block",
                     interactable_changes_at_runtime=False,
+                    camera_bypass=False,
+                    camera_bypass_source="routine has no init block",
+                    camera_bypass_changes_at_runtime=False,
                 )
             )
             continue
@@ -401,6 +451,7 @@ def scan_field_objects(rom: bytes) -> list[FieldObjectRoutine]:
         # barrier beams switch on and off as the player walks past), so only an
         # object whose body never clears it is genuinely art-less.
         interactable, why, changes = _interactable(symbol, stores, body)
+        camera_bypass, camera_why, camera_changes = _camera_bypass(symbol, stores, body)
         hidden = RENDER_FLAG_NO_SPRITES in stores.get(("bset", OFF_RENDER_FLAGS), [])
         unhides = any(
             RENDER_FLAG_NO_SPRITES in body.get((key, OFF_RENDER_FLAGS), [])
@@ -427,6 +478,9 @@ def scan_field_objects(rom: bytes) -> list[FieldObjectRoutine]:
                 interactable=interactable,
                 interactable_source=why,
                 interactable_changes_at_runtime=changes,
+                camera_bypass=camera_bypass,
+                camera_bypass_source=camera_why,
+                camera_bypass_changes_at_runtime=camera_changes,
             )
         )
     return routines

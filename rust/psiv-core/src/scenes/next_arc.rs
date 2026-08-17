@@ -131,7 +131,7 @@ static MEETING_RUNE_OPS: &[SceneOp] = &[
     SceneOp::PromoteNpcToChar {
         npc: 4,
         char_id: RUNE,
-        slot: 1,
+        slot: 3,
         art_tile: 0x54C,
         facing: Direction::Down,
     },
@@ -139,7 +139,7 @@ static MEETING_RUNE_OPS: &[SceneOp] = &[
         npc_index: 4,
         count: 1,
     },
-    SceneOp::JoinParty { slot: 1, who: RUNE },
+    SceneOp::JoinParty { slot: 3, who: RUNE },
     SceneOp::SetFlag {
         flag: Flag::event(0x11),
         value: true,
@@ -263,7 +263,7 @@ static DORIN_OPS: &[SceneOp] = &[
     SceneOp::PromoteNpcToChar {
         npc: 2,
         char_id: GRYZ,
-        slot: 1,
+        slot: 3,
         art_tile: 0x534,
         facing: Direction::Down,
     },

@@ -24,6 +24,7 @@
 #include <string.h>
 
 #include "frame_dump.h"
+#include "core_vdp.h"
 #include "libretro.h"
 #include "ram_patch.h"
 #include "ram_dump.h"
@@ -77,6 +78,7 @@ static void (*rt_unload_game)(void);
 static void *(*rt_get_memory_data)(unsigned);
 static size_t (*rt_get_memory_size)(unsigned);
 static unsigned (*rt_get_region)(void);
+static struct core_vdp g_vdp;
 
 /* Options we pin explicitly. Anything not listed here falls through to the
  * core's compiled-in default, which is deterministic for a fixed core build;
@@ -731,6 +733,11 @@ int main(int argc, char **argv)
 		fprintf(stderr, "psiv_oracle: core refused the rom\n");
 		return 1;
 	}
+	if (state_dump_enabled() &&
+	    core_vdp_bind((void *)(uintptr_t)rt_run, &g_vdp) != 0) {
+		fprintf(stderr, "psiv_oracle: %s\n", core_vdp_error());
+		return 1;
+	}
 	if (load_sram_path) {
 		void *sram = rt_get_memory_data(RETRO_MEMORY_SAVE_RAM);
 		size_t sram_size = rt_get_memory_size(RETRO_MEMORY_SAVE_RAM);
@@ -852,7 +859,8 @@ int main(int argc, char **argv)
 				fprintf(stderr, "psiv_oracle: %s\n", ram_dump_error());
 				return 1;
 			}
-			if (state_dump_write(frame, g_ram) != 0) {
+			if (state_dump_write(frame, g_ram,
+			                     state_dump_enabled() ? &g_vdp : NULL) != 0) {
 				fprintf(stderr, "psiv_oracle: %s\n", state_dump_error());
 				return 1;
 			}

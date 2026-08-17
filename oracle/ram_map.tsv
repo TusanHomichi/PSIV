@@ -681,6 +681,7 @@ map_row_size_bg	FFFFEC66	1	camera	-
 map_col_size_bg	FFFFEC67	1	camera	-
 gate_ec24	FFFFEC24	1	camera	hex
 gate_ec25	FFFFEC25	1	camera	hex
+gate_ec26	FFFFEC26	1	camera	hex
 c1_x_step_const	FFFFC020	4	pos	hex
 c1_y_step_const	FFFFC024	4	pos	hex
 o00_off	FFFFC312	1	objects	-

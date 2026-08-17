@@ -222,6 +222,26 @@ impl RetailSlot {
         Ok(RetailSlot { bytes: owned })
     }
 
+    /// Applies the retail title's per-slot erase operation to a raw slot file.
+    ///
+    /// `Title_EraseOption` calls `loc_64DC0`, which zeros the selected
+    /// `$200200 + slot * $1400` physical payload block. It does not rewrite
+    /// the common header, signature, or checksum table; validation notices the
+    /// stale checksum on the next title pass.
+    pub fn erase_physical_payload(bytes: &[u8], slot: usize) -> Result<RetailSlot, SaveError> {
+        validate_slot(slot)?;
+        if bytes.len() != RETAIL_SLOT_FILE_BYTES {
+            return Err(SaveError::InvalidLength {
+                expected: RETAIL_SLOT_FILE_BYTES,
+                actual: bytes.len(),
+            });
+        }
+        let mut owned = [0; RETAIL_SLOT_FILE_BYTES];
+        owned.copy_from_slice(bytes);
+        owned[RETAIL_HEADER_PHYSICAL_BYTES..].fill(0);
+        Ok(RetailSlot { bytes: owned })
+    }
+
     /// Returns the exact physical bytes represented by this slot file.
     #[must_use]
     pub const fn as_bytes(&self) -> &[u8; RETAIL_SLOT_FILE_BYTES] {

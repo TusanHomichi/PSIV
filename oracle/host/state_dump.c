@@ -28,6 +28,11 @@ static const struct state_region g_regions[] = {
 	{ "plane_b", "Plane_B_Buffer", 0x9000, 0x1000 },
 	{ "cram", "Palette_Table_Buffer", 0xFB00, 0x0080 },
 	{ "sprite_table", "Sprite_Table_Buffer", 0xFC00, 0x0280 },
+	{ "camera_step_counters", "Camera_*_Step_Counter_*", 0xEC50, 0x0010 },
+	{ "h_int_state", "HInt_Jump..HInt_Split_State", 0xECB0, 0x0012 },
+	{ "hscroll_work_buffer", "loc_69E_HInt_Line_Buffer", 0x60E0, 0x01C0 },
+	{ "vsram_shadow", "Chunk_Table_HInt2_Source", 0x6000, 0x01C0 },
+	{ "camera", "Camera_Y/X_Pos_FG/BG", 0xEF90, 0x0010 },
 };
 
 static struct state_dump g_dumps[MAX_STATE_DUMPS];
@@ -100,17 +105,74 @@ static int write_hex(FILE *out, const uint8_t *ram, uint32_t address,
 	return 0;
 }
 
-static int write_state(FILE *out, uint64_t frame, const uint8_t *ram)
+static int write_vdp_bytes_hex(FILE *out, const uint8_t *bytes, size_t size,
+	                           int words)
+{
+	static const char digits[] = "0123456789ABCDEF";
+	size_t i;
+
+	for (i = 0; i < size; i++) {
+		size_t source = words ? (i ^ 1) : i;
+		uint8_t byte = bytes[source];
+		if (fputc(digits[byte >> 4], out) == EOF ||
+		    fputc(digits[byte & 0x0F], out) == EOF)
+			return -1;
+	}
+	return 0;
+}
+
+static int write_ram_region(FILE *out, const uint8_t *ram,
+	                           const struct state_region *region, int comma)
+{
+	if (fprintf(out,
+	            "    \"%s\": {\"symbol\": \"%s\", "
+	            "\"storage\": \"work_ram\", "
+	            "\"byte_order\": \"68000_address_order\", "
+	            "\"address\": \"0xFFFF%04X\", "
+	            "\"ram_offset\": \"0x%04X\", "
+	            "\"size_bytes\": %zu, \"bytes_hex\": \"",
+	            region->name, region->symbol, region->address,
+	            region->address, region->size) < 0)
+		return -1;
+	if (write_hex(out, ram, region->address, region->size) != 0 ||
+	    fprintf(out, "\"}%s\n", comma ? "," : "") < 0)
+		return -1;
+	return 0;
+}
+
+static int write_vdp_region(FILE *out, const char *name, const char *symbol,
+	                          uint32_t address, const uint8_t *bytes,
+	                          size_t size, int words, int comma)
+{
+	if (fprintf(out,
+	            "    \"%s\": {\"symbol\": \"%s\", "
+	            "\"storage\": \"vdp\", "
+	            "\"byte_order\": \"genesis_word_order\", "
+	            "\"address\": \"0x%04X\", \"size_bytes\": %zu, "
+	            "\"bytes_hex\": \"",
+	            name, symbol, address, size) < 0)
+		return -1;
+	if (write_vdp_bytes_hex(out, bytes, size, words) != 0 ||
+	    fprintf(out, "\"}%s\n", comma ? "," : "") < 0)
+		return -1;
+	return 0;
+}
+
+static int write_state(FILE *out, uint64_t frame, const uint8_t *ram,
+	                      const struct core_vdp *vdp)
 {
 	size_t i;
+	size_t ram_region_count = sizeof g_regions / sizeof g_regions[0];
+	uint16_t hscroll_base = 0;
+	int has_vdp = vdp != NULL;
 
 	if (fprintf(out,
 	            "{\n"
 	            "  \"format_version\": 1,\n"
 	            "  \"kind\": \"psiv_oracle_state\",\n"
 	            "  \"frame\": %llu,\n"
-	            "  \"address_space\": \"68000_work_ram\",\n"
-	            "  \"byte_order\": \"68000_address_order\",\n"
+	            "  \"address_space\": \"68000_work_ram_and_vdp\",\n"
+	            "  \"byte_order\": \"region_declared\",\n"
 	            "  \"visible_screen\": {\"width_pixels\": 320, "
 	            "\"height_pixels\": 224, \"width_cells\": 40, "
 	            "\"height_cells\": 28},\n"
@@ -118,27 +180,32 @@ static int write_state(FILE *out, uint64_t frame, const uint8_t *ram)
 	            (unsigned long long)frame) < 0)
 		return -1;
 
-	for (i = 0; i < sizeof g_regions / sizeof g_regions[0]; i++) {
-		const struct state_region *region = &g_regions[i];
-		if (fprintf(out,
-		            "    \"%s\": {\"symbol\": \"%s\", "
-		            "\"address\": \"0xFFFF%04X\", "
-		            "\"ram_offset\": \"0x%04X\", "
-		            "\"size_bytes\": %zu, "
-		            "\"bytes_hex\": \"",
-		            region->name, region->symbol, region->address,
-		            region->address, region->size) < 0)
+	for (i = 0; i < ram_region_count; i++) {
+		if (write_ram_region(out, ram, &g_regions[i],
+		                     i + 1 < ram_region_count || has_vdp) != 0)
 			return -1;
-		if (write_hex(out, ram, region->address, region->size) != 0)
-			return -1;
-		if (fprintf(out, "\"}%s\n",
-		            i + 1 == sizeof g_regions / sizeof g_regions[0] ? "" : ",") < 0)
+	}
+	if (has_vdp) {
+		hscroll_base = *vdp->hscroll_base;
+		if (write_vdp_region(out, "vdp_registers", "reg", 0,
+		                     vdp->registers, 0x20, 0, 1) != 0 ||
+		    write_vdp_region(out, "vdp_vsram", "vsram", 0,
+		                     vdp->vsram, 0x80, 1, 1) != 0 ||
+		    write_vdp_region(out, "vdp_hscroll_table", "vram+hscb",
+		                     hscroll_base, vdp->vram + hscroll_base,
+		                     0x400, 1, 0) != 0)
 			return -1;
 	}
 	return fprintf(out, "  }\n}\n") < 0 ? -1 : 0;
 }
 
-int state_dump_write(uint64_t frame, const uint8_t *ram)
+int state_dump_enabled(void)
+{
+	return g_ndumps != 0;
+}
+
+int state_dump_write(uint64_t frame, const uint8_t *ram,
+	                 const struct core_vdp *vdp)
 {
 	int i;
 
@@ -152,7 +219,7 @@ int state_dump_write(uint64_t frame, const uint8_t *ram)
 			failf("cannot write %s: %s", g_dumps[i].path, strerror(errno));
 			return -1;
 		}
-		if (write_state(out, frame, ram) != 0) {
+		if (write_state(out, frame, ram, vdp) != 0) {
 			fclose(out);
 			failf("short write while writing %s", g_dumps[i].path);
 			return -1;

@@ -20,6 +20,7 @@
 //! packer applies that shift and emits the occupied cell in `y_cell`. Use
 //! `y_cell`; `y_byte` and `y_pixels` are there to re-derive it, not to walk on.
 
+use crate::camera::MapScroll;
 use crate::collision::{Collision, CollisionType};
 use crate::ids::MapId;
 use serde::{Deserialize, Serialize};
@@ -56,6 +57,9 @@ pub struct MapRecord {
     pub dimensions: Dimensions,
     /// The collision grid and the plane it came from.
     pub collision: Collision,
+    /// The map-load camera bytes and optional initial 16.16 step counters.
+    #[serde(default)]
+    pub scroll: MapScroll,
     /// What plays on arrival.
     pub music: Music,
     /// The four per-map flags.
@@ -696,6 +700,10 @@ pub struct Npc {
     /// straight through. Defaults `true` for packs predating the field.
     #[serde(default = "interactable_default")]
     pub interactable: bool,
+    /// Whether the object's type sets render-flags bit 0, bypassing both
+    /// camera-plane subtractions in `FieldObj_CalcSpritePos`.
+    #[serde(default)]
+    pub camera_bypass: bool,
 }
 
 const fn interactable_default() -> bool {

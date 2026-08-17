@@ -8,6 +8,7 @@ from pathlib import Path
 from psiv_tools.enigma import decompress as enigma_decompress
 from psiv_tools.presentation_pack import (
     DIALOGUE_ACTION_PANEL_IDS,
+    ENDING_PANEL_IDS,
     PANEL_IDS,
     PANEL_RECORD_SIZE,
     panel_record_offset,
@@ -39,8 +40,9 @@ class PresentationPackTests(unittest.TestCase):
         }
         records = {record["id"]: record for record in manifest["panels"]}
         self.assertEqual(len(records), len(PANEL_IDS))
-        self.assertEqual(len(records), 178)
+        self.assertEqual(len(records), 228)
         self.assertTrue(set(DIALOGUE_ACTION_PANEL_IDS) <= set(records))
+        self.assertTrue(set(ENDING_PANEL_IDS) <= set(records))
         self.assertEqual(manifest["record_table"], "0x07B000")
         self.assertEqual(manifest["record_size"], PANEL_RECORD_SIZE)
 
@@ -112,7 +114,7 @@ class PresentationPackTests(unittest.TestCase):
         self.assertEqual(
             manifest["coverage"],
             {
-                "panel_records": 178,
+                "panel_records": 228,
                 "load_art_records": 7,
                 "temporary_object_keys": 6,
                 "generic_portraits": 1,

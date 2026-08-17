@@ -322,11 +322,32 @@ impl Camera {
         bounds_bg: CameraBounds,
         gates: CameraGates,
     ) -> Camera {
+        Self::placed_on_planes_with_steps(driver, bounds_fg, bounds_bg, gates, (0, 0), (0, 0))
+    }
+
+    /// Places both planes with the map record's initial 16.16 step counters.
+    ///
+    /// `loc_51AB2` can seed these before `loc_53854` positions the camera. The
+    /// ordinary pack has zeroes today, but retaining the values prevents a
+    /// map-record exception from being silently turned into a clean start.
+    #[must_use]
+    pub fn placed_on_planes_with_steps(
+        driver: Driver,
+        bounds_fg: CameraBounds,
+        bounds_bg: CameraBounds,
+        gates: CameraGates,
+        step_fg: (i32, i32),
+        step_bg: (i32, i32),
+    ) -> Camera {
         let mut camera = Camera {
             pos_x: driver.x - HOME_X * ONE_PIXEL,
             pos_y: driver.y - HOME_Y * ONE_PIXEL,
+            step_x: step_fg.0,
+            step_y: step_fg.1,
             pos_x_bg: driver.x - HOME_X * ONE_PIXEL,
             pos_y_bg: driver.y - HOME_Y * ONE_PIXEL,
+            step_x_bg: step_bg.0,
+            step_y_bg: step_bg.1,
             bounds: bounds_fg,
             bounds_bg,
             gates,
@@ -593,10 +614,38 @@ impl Camera {
         }
     }
 
+    /// The sprite position with render-flags bit 0 applied.
+    ///
+    /// Retail skips both plane subtractions for that bit. The normal path
+    /// remains the legacy integer view used by the established field tape;
+    /// the bypass path is explicit so a caller cannot accidentally make every
+    /// object screen-relative.
+    #[must_use]
+    pub const fn sprite_pos_on_with_camera_bypass(
+        &self,
+        plane: CameraPlane,
+        x: i32,
+        y: i32,
+        camera_bypass: bool,
+    ) -> (i32, i32) {
+        if camera_bypass {
+            return ((x >> 16) + SPRITE_ORIGIN, (y >> 16) + SPRITE_ORIGIN);
+        }
+        self.sprite_pos_on(plane, x, y)
+    }
+
     /// Whether an object at 16.16 map position `(x, y)` is on screen.
     #[must_use]
     pub const fn sees(&self, x: i32, y: i32) -> bool {
         let (sx, sy) = self.sprite_pos(x, y);
+        on_screen(sx, sy)
+    }
+
+    /// Whether an object is in the retail visibility box, honoring bit 0.
+    #[must_use]
+    pub const fn sees_with_camera_bypass(&self, x: i32, y: i32, camera_bypass: bool) -> bool {
+        let (sx, sy) =
+            self.sprite_pos_on_with_camera_bypass(self.active_plane(), x, y, camera_bypass);
         on_screen(sx, sy)
     }
 

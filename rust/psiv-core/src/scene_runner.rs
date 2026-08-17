@@ -28,6 +28,7 @@ enum Blocked {
     Ticks(u16),
     Actor(ActorRef),
     Dialogue,
+    EndingContinue,
     Choice,
     Battle,
     Map,
@@ -146,6 +147,7 @@ impl SceneRunner {
                 _ => Blocked::No,
             },
             Blocked::Dialogue if input == SceneInput::DialogueClosed => Blocked::No,
+            Blocked::EndingContinue if input == SceneInput::EndingContinue => Blocked::No,
             Blocked::Battle if matches!(input, SceneInput::BattleFinished { .. }) => Blocked::No,
             Blocked::Map if input == SceneInput::MapLoaded => Blocked::No,
             Blocked::Choice => match input {
@@ -237,7 +239,7 @@ impl SceneRunner {
                 self.blocked = Blocked::Dialogue;
                 self.pc += 1;
             }
-            SceneOp::RunDialogueResume => {
+            SceneOp::RunDialogueResume | SceneOp::RunDialogueResumeWithWindow { .. } => {
                 effects.push(SceneEffect::DialogueResume);
                 self.blocked = Blocked::Dialogue;
                 self.pc += 1;
@@ -536,6 +538,10 @@ impl SceneRunner {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }
+            SceneOp::MarkGameCleared => {
+                effects.push(SceneEffect::GameCleared);
+                self.pc += 1;
+            }
             SceneOp::WaitFrames { frames } => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
@@ -611,6 +617,11 @@ impl SceneRunner {
                 if walking {
                     self.blocked = Blocked::Actor(actor);
                 }
+            }
+            SceneOp::WaitForStart => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+                self.blocked = Blocked::EndingContinue;
             }
             SceneOp::BranchFlag {
                 flag,
@@ -694,6 +705,7 @@ impl SceneRunner {
             }
             SceneOp::PanelCreate { .. }
             | SceneOp::PanelDestroy { .. }
+            | SceneOp::PanelDestroyLast
             | SceneOp::PanelDestroyAll
             | SceneOp::ObjectAnimation { .. }
             | SceneOp::Presentation { .. }

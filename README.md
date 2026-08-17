@@ -268,30 +268,34 @@ closed and tested in the current tree:
   body-flash fallback for the rest — no guessed art or motion
   (`docs/BATTLE_ANIMATIONS.md`).
 
+These closed in the same wave: the `$8021` Ending (docs/scenes/89, 367 ops
+— panels, staff roll, credits, Termi finale, `Game_Cleared_Flag`) plus Raja
+Sick and Rykros, with the full-campaign arc test running title → Profound
+Darkness → Ending on one snapshot; the oracle scroll receipt (all scroll
+state zero, split disabled) and the verified `(1,1)` plane placement
+(MeetingRika 59.4 → 36.3); enemy animation coverage doubled (120/153 exact,
+956 frame PNGs, the remaining 32 records structurally classified across 16
+shared routine bodies; DarkForce1's `$6000` palette bit is the one named
+partial); seven more bespoke NPC families (374 placements, tape-02 clean at
+350 columns); all eight `VehicleSkillData` effects; and a real ERASE DATA
+(0x1400-byte payload wipe, header preserved, byte-level tests).
+
 The remaining backlog:
 
-1. The Ending: retail RunEvents `$54` dispatches `$8021`, a separate final
-   presentation surface outside the current typed scene contract — the last
-   untranscribed story beat. The other recorded retail boundaries (Raja
-   Sick, Rykros, guild and fifth-character surfaces,
-   `docs/scenes/88_RetailBoundaries.md`) belong to the same closing pass.
-2. MeetingRika sub-cell alignment: the measured pair stands at RMSE 59.4
-   with a diagnosed 1–2 pixel plane-scroll offset on panel/portrait content
-   (the window aligns). Decode the oracle scroll columns at frame 7250 and
-   make panel placement scroll-aware (`docs/SCENE_PRESENTATION.md`).
-3. Enemy attack presentation remainder: 74 frame records, 78 sprite
-   compositions, and 49 movement tracks are still partial or deferred;
-   the exact set covers 60 enemies with 393 verified frame PNGs
-   (`docs/BATTLE_ANIMATIONS.md`).
-4. Vehicle skill effects: the Tier-2 `VehicleSkillData` effect and animation
-   dispatcher is still explicit in the battle log; the selection/use UI and
-   saved-use decrement are live, but no physical fallback is permitted.
-   Natural (non-fixture) vehicle oracle tapes are also open.
-5. Remaining field parity: per-object bit-0 camera flags, dynamic gate values
-   outside ordinary field entry, fractional camera low-word receipts, and the
-   remaining bespoke NPC routines (`docs/CAMERA.md`, `docs/NPC_WANDER.md`).
-6. Title fidelity detail: a real ERASE DATA implementation (currently
-   deliberately non-destructive).
+1. Pixel-exactness: the pack widens CRAM levels linearly (`level*255/7`)
+   while the GPGX oracle uses its measured ramp with RGB565 output — a
+   systemic color delta under every RMSE pair (the opening's ~6.6 floor,
+   MeetingRika's 36.3 remainder). Adopt the emulator ramp with oracle CRAM
+   receipts, fix the two measured dialogue geometry deltas (portrait +16/-7
+   px; text line 1 at row 151 vs retail 158), pick blink-phase-correct
+   title/camp fixture ticks, and re-certify every pair — opening,
+   MeetingRika, battle (29.2 measured), title, camp.
+2. Bespoke NPC remainder: 243 placements across 121 symbols, plus
+   scene-specific post-entry gate writes (`docs/NPC_WANDER.md`).
+3. Enemy animation structural remainder: the 16 shared routine bodies (21
+   tile-upload-only, 9 state machines, 1 projectile graph, 1 palette
+   effect) and DarkForce1's palette bit (`docs/BATTLE_ANIMATIONS.md`).
+4. Natural (non-fixture) vehicle oracle tapes.
 
 Maps, layouts, collision, encounter binding, all three Sega compression
 formats, and the completed items above are done and proven.

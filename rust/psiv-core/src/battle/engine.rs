@@ -38,6 +38,7 @@ use super::records::{BattleData, BattleDataError, CharacterRecord, FormationReco
 use super::rewards::{Pools, split_rewards};
 use super::rng::Rolls;
 use super::stats::Stats;
+use super::vehicle_skill::resolve_vehicle_skill;
 
 /// One party member entering a battle.
 ///
@@ -465,11 +466,19 @@ impl Battle {
                         skill,
                         remaining: fighter.stats.curr_skill_uses[slot],
                     });
-                    // The full VehicleSkillData effect dispatcher is Tier 2.
-                    // Do not call resolve_attack: the UI-visible use decrement
-                    // is real, while fake physical damage would corrupt battle
-                    // parity and make the open effect seam invisible.
-                    events.push(BattleEvent::VehicleSkillEffectUnavailable { actor, skill });
+                    let died = resolve_vehicle_skill(&mut self.roster, actor, skill, rolls, events);
+                    for fighter in died {
+                        if fighter.side() == Side::Enemy {
+                            let record = self
+                                .roster
+                                .get(fighter)
+                                .map(|f| f.stats.enemy_id)
+                                .and_then(|id| data.enemy(id).ok());
+                            if let Some(record) = record {
+                                self.pools.add(record.experience, record.meseta);
+                            }
+                        }
+                    }
                     return Ok(());
                 }
             },

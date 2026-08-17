@@ -3,9 +3,13 @@
 
 #include <stdint.h>
 
+#include "core_vdp.h"
+
 /* Each spec is <frame>:<path>; the path is a self-contained JSON state file. */
 int state_dump_add_spec(const char *spec);
-int state_dump_write(uint64_t frame, const uint8_t *ram);
+int state_dump_enabled(void);
+int state_dump_write(uint64_t frame, const uint8_t *ram,
+	                 const struct core_vdp *vdp);
 const char *state_dump_error(void);
 
 #endif

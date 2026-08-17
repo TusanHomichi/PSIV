@@ -54,6 +54,7 @@ mkdir -p "$ORACLE/bin" "$OUT"
 		"$ORACLE/host/frame_dump.c" \
 		"$ORACLE/host/ram_patch.c" \
 		"$ORACLE/host/ram_dump.c" \
+		"$ORACLE/host/core_vdp.c" \
 		"$ORACLE/host/state_dump.c" \
 		"$ORACLE/host/tape.c" -ldl
 pass "host builds clean"

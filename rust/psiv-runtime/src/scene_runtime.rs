@@ -1,20 +1,25 @@
 //! Scene execution and translation into runtime events.
 
 use psiv_core::battle::Outcome;
-use psiv_core::{ActorRef, Cell, MapId, SceneEffect, SceneInput, SceneOp, WarpTrigger};
+use psiv_core::{ActorRef, Cell, Input, MapId, SceneEffect, SceneInput, SceneOp, WarpTrigger};
 
 use crate::{Runtime, RuntimeEvent};
 
 impl Runtime {
     /// One tick of a running scene: feed any pending input, translate the
     /// effects, close out the scene when the runner finishes.
-    pub(crate) fn scene_tick(&mut self) -> Vec<RuntimeEvent> {
-        let input = std::mem::take(&mut self.scene_input);
+    pub(crate) fn scene_tick(&mut self, input: Input) -> Vec<RuntimeEvent> {
+        let pending = std::mem::take(&mut self.scene_input);
+        let scene_input = if pending == SceneInput::None && input == Input::Action {
+            SceneInput::EndingContinue
+        } else {
+            pending
+        };
         let mut events = Vec::new();
         let Some(runner) = self.scene.as_mut() else {
             return events;
         };
-        let effects = runner.tick(&self.map, &mut self.game, input);
+        let effects = runner.tick(&self.map, &mut self.game, scene_input);
         let finished = runner.is_finished();
         for effect in effects {
             self.translate_scene_effect(effect, &mut events);
@@ -105,6 +110,14 @@ impl Runtime {
             }
             SceneEffect::PartyChanged | SceneEffect::CharSlotCopied { .. } => {
                 self.resize_party();
+                // A scene may name a character immediately after joining it
+                // (the Rika cutscene does exactly that). Keep the interpreter
+                // cast in step with the persistent party, just as map loads
+                // recast it against the new map object list.
+                let cast = self.build_cast();
+                if let Some(runner) = self.scene.as_mut() {
+                    runner.recast(cast);
+                }
                 events.push(RuntimeEvent::PartyChanged);
             }
             SceneEffect::InventoryChanged => events.push(RuntimeEvent::InventoryChanged),
@@ -162,6 +175,9 @@ impl Runtime {
             // same choreography and timing as the interpreter produced.
             SceneEffect::Presentation { op } => {
                 events.push(RuntimeEvent::ScenePresentation { op });
+            }
+            SceneEffect::GameCleared => {
+                self.game_cleared = true;
             }
             // A scripted facing is written straight into the field object slot
             // by the cartridge, so it has to reach the map's own record and not

@@ -108,11 +108,49 @@ checked against the disassembly:
 | `MuskCat` | 10 | `ps4.asm:99413` | `FieldObj_GetRandomMove` (`96693`) | 16/16, 8/8 |
 
 The ten packed random families above are **332 placements**. The remaining
-617 placements are not generic random walkers: `NPCType1` (37) calls
-`FieldObj_NPCMoveDown` at `ps4.asm:95047`, Pana is fixed, MileSandWorm is a
-special animation, and the rest are bespoke routines. Those are intentionally
-not registered in `WanderSet`; registering every unknown symbol as a Type2
-would corrupt the shared RNG stream.
+617 placements are not generic random walkers. They are intentionally not
+registered in `WanderSet`; registering every unknown symbol as a Type2 would
+corrupt the shared RNG stream.
+
+### Bespoke-family transcription, wave 4
+
+The first pass over the non-random debt covers the seven families with the
+largest placement counts. These are static or animation-only bodies, so their
+correct parity consequence is **no wander state and no RNG draw**, not a new
+random-walk kind:
+
+| routine family | placements | proven body | retail source |
+|---|---:|---|---|
+| `Elevator` | 92 | updates its map position, selects tile props from `BG_Alternate_Color_Flag`, then runs `FieldObj_Animate2`; interaction bit 3 is cleared | `FieldObj_Elevator`, `ps4.asm:101622-101650` |
+| `InvisibleBlock` | 90 | interaction/event trigger with no sprite; sets no-sprite bit 1, updates position and recalculates coordinates | `FieldObj_InvisibleBlock`, `ps4.asm:95407-95424` |
+| `NPCType32` | 51 | clears its facing animation byte, updates position, recalculates coordinates, and animates in place; fixed down-facing shopkeeper | `FieldObj_NPCType32`, `ps4.asm:96225-96255` |
+| `FireplaceFire` | 48 | recalculates coordinates, applies the on-screen gate, and runs `FieldObj_Animate2`; no movement or interaction | `FieldObj_FireplaceFire`, `ps4.asm:98712-98730` |
+| `NPCType1` | 37 | calls `FieldObj_NPCMoveDown`; its zero-height leash rejects the down step, leaving a fixed down-facing NPC, then updates/animates | `FieldObj_NPCType1`, `ps4.asm:95047-95079`; helper at `96686` |
+| `Fire` | 32 | recalculates coordinates, applies the on-screen gate, and animates in place; no movement or interaction | `FieldObj_Fire`, `ps4.asm:98675-98692` |
+| `Statue` | 24 | static non-interactable art: on-screen test, position update, coordinate calculation, idle animation | `FieldObj_Statue`, `ps4.asm:98619-98642` |
+
+That is **374 of the 617** placements. The remaining census is below. It is
+grouped by count so the full symbol set remains reviewable without pretending
+that one of these routines shares another routine's movement contract.
+
+| placements per symbol | symbols |
+|---:|---|
+| 13 | `NPCType30` |
+| 12 | `NPCType9`, `NPCType10` |
+| 10 | `Mouse` |
+| 9 | `XeAThoulAirCastle` |
+| 7 | `NPCType8`, `NPCType20` |
+| 6 | `NPCType31`, `loc_49502` |
+| 4 | `NPCType16`, `NPCType17`, `loc_48F96` |
+| 3 | `BigFire`, `NPCRune`, `NPCType19`, `NPCType21`, `NPCType22`, `NPCType27`, `PrisonDoor`, `StrayRocky`, `loc_49542`, `loc_4980A` |
+| 2 | `Barrier`, `Blindheads`, `EsperGuard`, `GiLeFarg`, `GravestoneHalf`, `InnerEsperGuards`, `MuskCatGuard`, `NPCHahn`, `NPCKyraSpaceport`, `NPCRajaSpaceport`, `NPCScriptMove`, `NPCType6`, `NPCType24`, `NPCWren`, `Pana`, `Rika`, `StudentInBed`, `loc_49406`, `loc_49442`, `loc_4BDF0` |
+| 1 | `AlysAngerTower`, `BarrierBeam1`, `BarrierBeam2`, `BarrierBeam3`, `BarrierBeam4`, `BigDuck`, `CaveWallPiece`, `ChestBarrier`, `DElmLars`, `DarkForce1`, `DarkForce2`, `DeVars`, `DemiSpaceportWaiting`, `DemiTrapped`, `DorinChair`, `EclipseTorch`, `FellowPenguin`, `FractOoze`, `GryzSpaceportWaiting`, `HahnSpaceportWaiting`, `Igglanova`, `Juza`, `KingRappy`, `KingRappyFlyingAway`, `KyraSpaceportWaiting`, `LutzMirror`, `LyingDownMuskCat`, `MileSandWorm`, `MuskCatChiefBottomHalf`, `MuskCatChiefTopHalf`, `NPCAlysInBed`, `NPCAlysPiata`, `NPCDemiSpaceport`, `NPCGryz`, `NPCGryzSpaceport`, `NPCHahnNearBasement`, `NPCHahnSpaceport`, `NPCKyra`, `NPCRika`, `NPCType5`, `NPCType7`, `NPCType11`, `NPCType13`, `NPCType14`, `NPCType18`, `NPCType23`, `NPCType25`, `NPCType26`, `NPCType29`, `NPCType33`, `NPCType34`, `NPCType35`, `NPCType36`, `Pennant`, `Prisoner`, `ProfHoltPetrified`, `Raja`, `RajaInBed`, `RajaSpaceportWaiting`, `Rocky`, `SaLews`, `SandWormCarving`, `SmallBrownDuck`, `SmallWhiteDuck`, `TallasShoes`, `TonoeBasementDoor`, `TrappingRopes`, `ZemaRocks`, `loc_48F36`, `loc_48FF4`, `loc_49128`, `loc_49192`, `loc_49212`, `loc_496C6`, `loc_497A8`, `loc_4986C`, `loc_498CA`, `loc_4BE38`, `loc_4BE80` |
+
+`Pana` is included in the two-placement census because its body is fixed and
+not a random family. `MileSandWorm` is the one-placement special animation;
+neither is safe to fold into the generic walker. The next wave remains a
+per-family transcription task, with no RNG registration until each body's
+instruction stream and an oracle receipt are in hand.
 
 Types 2 and 3 are still 297 objects and differ in exactly one pause mask. The
 newly transcribed families share the same remap and three collision gates, but
@@ -399,10 +437,9 @@ freeze if every column that would move is checked in the same source.
 - Runtime event-state side effects after Xanafalgue crosses `$100`: the
   movement and object-slot clear are modelled, but `TempEveFlag_Xanafalgue`
   remains in the event-state lane and is not folded into save serialization.
-- The remaining 617 non-random or bespoke placements. Their routines are not
-  one shared contract: NPCType1 is fixed-facing, Pana and MileSandWorm have
-  fixed/special bodies, and the other symbols need individual transcription
-  before they can consume the shared RNG safely.
+- The remaining **243 placements in 121 symbols** after the wave-4 top seven
+  transcription. Their routines are not one shared contract; the census above
+  is the current boundary and no symbol below it is registered as a walker.
 
 ## Closed parity receipts
 
@@ -415,6 +452,13 @@ freeze if every column that would move is checked in the same source.
   order on that tape's parsed frame stream. The Xanafalgue escape receipt is
   `oracle/tapes/18_flag_round_trip.tape`, whose existing oracle path already
   covers the temporary-flag/object-slot transition.
+- **Wave-4 static-family receipt:** the same tape-02 replay compares all 32
+  object slots, including the eight live academy objects, after inheriting the
+  retail object state at `settle`; the regenerated camera-group oracle and
+  replay are clean across the 1080-frame field segment. The seven largest
+  bespoke families are deliberately represented as no-wander/no-RNG routines,
+  and the remaining 243 placements stay explicitly censused rather than being
+  misregistered as random walkers.
 - **Speed table:** `loc_4A202` pointer table and records at `$04A20E`,
   `$04A266`, `$04A2BE`, ending `$04A316`; tape-independent extraction receipt
   is `runtime-pack/npc_commands.json`, whose selector-2 SHA is pinned by the

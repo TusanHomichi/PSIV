@@ -297,26 +297,24 @@ triangle).
   passes through, stopping only at Alys (who stands still). Unmodeled
   movement, already on the backlog; the comparator turned it from a
   "nice to have" into a measured divergence with frame numbers.
-- **Update (later 2026-08-15, wander built + seed-aligned replays)**:
-  tape 02's scalar verdict is CLEAN over the full 1080 frames (after
-  modeling the cartridge's one-frame collision-cache lag on landings);
-  the per-object verdict is clean for 619 frames and then diverges at
-  frame 7558 because the CAMERA is now the frontier — retail's camera
-  scrolls against screen-space thresholds and trails the party (an
-  object provably wakes 14 frames after the leader stops), while our
-  placeholder is leader-centred. The visibility gate advances the
-  shared RNG stream, so the camera is load-bearing for determinism.
-  Honesty note: the comparator now reports compared-vs-unavailable
-  columns explicitly; the follower group has never been verified
-  against hardware and the output says so.
-- **Update (2026-08-16, field-parity slice):** the common BG camera path and
-  EC24/EC25/EC26 driver gates are now represented in `psiv-core`; replay rows
-  compare both plane pixel/step columns and the logged gate bytes. The packed
-  random families beyond Type2/3 (332 placements) and all three NPC speed
-  records are transcribed; Xanafalgue's escape branch is covered by tape 18.
-  Remaining field gaps are the per-object bit-0 camera flag, dynamic gate
-  values not present in the pack schema, fractional camera low-word receipts,
-  and bespoke non-random NPC routines.
+- **Historical update (2026-08-15, before camera closure):** tape 02's
+  scalar verdict was CLEAN over the full 1080 frames, while the per-object
+  verdict diverged at frame 7558 because the placeholder camera was
+  leader-centred. That measured frontier is retained here as provenance; the
+  2026-08-17 camera-group receipt below closes it with inherited camera and
+  object state. The comparator reports compared-vs-unavailable columns
+  explicitly.
+- **Update (2026-08-17, field-parity closure):** the common BG camera path,
+  EC24/EC25/EC26 driver gates, per-object render-flags bit 0, and raw 16.16
+  camera words are represented end to end. The regenerated
+  `oracle/logs/field_parity_02.csv` tape-02 oracle log with the `camera` group
+  compares cleanly against the replay for 1080 frames
+  and 350 columns after inheriting the retail map, seed, camera, and object
+  state at `settle`. The packed random families beyond Type2/3 (332
+  placements) and all three NPC speed records are transcribed; Xanafalgue's
+  escape branch is covered by tape 18. Remaining field gaps are
+  scene-specific gate writes after map entry and the 243 bespoke placements in
+  121 symbols recorded in `docs/NPC_WANDER.md`.
 
 ## RNG design (ratified by Peter 2026-08-15)
 

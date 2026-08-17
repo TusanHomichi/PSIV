@@ -207,6 +207,45 @@ impl Field {
         );
     }
 
+    /// Presents real formation `$0F7` with the newly exact Worker Pod attack
+    /// injected as an ordered probe.  The formation and enemy placement come
+    /// from the pack; only the command result is deterministic debug tape.
+    pub(crate) fn start_newly_exact_debug_battle(&mut self) {
+        const FORMATION: u16 = 0x00F7;
+        let Some(files) = self.battle_files.as_ref() else {
+            godot_error!("newly-exact debug battle needs battle files");
+            return;
+        };
+        let Some(runtime) = self.runtime.as_ref() else {
+            godot_error!("newly-exact debug battle needs a runtime");
+            return;
+        };
+        let Some(mut setup) = build_setup(files, runtime, FORMATION) else {
+            return;
+        };
+        // Keep the live proof on the already verified Academy battle
+        // background. The enemy identities and positions still come from
+        // formation $0F7; this only avoids making the screenshot depend on
+        // the current field map's random-battle background binding.
+        setup.map_id = 0x17;
+        setup.event_battle = Some(0);
+        let enemy_specs: Vec<_> = setup
+            .enemies
+            .iter()
+            .map(|enemy| (enemy.fighter_id, enemy.enemy_id))
+            .collect();
+        let timeline = BattleTimeline::debug_newly_exact_probe(&enemy_specs);
+        if timeline.animations.is_empty() {
+            godot_error!("formation {FORMATION:#05x} has no newly-exact debug member");
+            return;
+        }
+        self.begin_battle_presentation(
+            setup,
+            timeline,
+            "formation 0x0f7 newly-exact Worker Pod attack probe",
+        );
+    }
+
     /// Starts a boss battle emitted by a running scene. Runtime owns the
     /// already-started battle; this method only selects the matching pack art
     /// and hands its initial events to the existing screen.

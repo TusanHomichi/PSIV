@@ -211,6 +211,7 @@ pub fn field_map_patched(
         let active = outcome.is_none_or(|o| !o.despawns.contains(&index));
         npcs.push(
             Npc::with_offset(NpcId(object_id), cell, offset, facing)
+                .with_camera_bypass(npc.camera_bypass)
                 .with_interactable(npc.interactable)
                 .with_talkable(dialogue_probe_eligible(npc))
                 .with_active(active),

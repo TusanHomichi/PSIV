@@ -13,10 +13,16 @@ existing enemy record shape remains the 48-byte ``Battle_EnemyData`` projection.
 from __future__ import annotations
 
 import hashlib
-from pathlib import Path
+from collections import Counter
 from typing import Any
 
-from . import png
+from .battle_animation_mapping import BattleMappingError
+from .battle_animation_mapping import MAPPING_ENTRY_BYTES, MAPPING_HEADER_BYTES
+from .battle_animation_mapping import decode_mapping_record
+from .battle_animation_objects import frame_sequences as decode_frame_sequences
+from .battle_animation_objects import object_evidence as decode_object_evidence
+from .battle_animation_objects import plc_art as decode_plc_art
+from .battle_animation_objects import plc_loads as decode_plc_loads
 from .core import EXPECTED_SHA256, EXPECTED_SIZE, be16, be32
 from .sound_defs import SFX_NAMES
 from .symbols import ENEMY_SYMBOLS
@@ -40,15 +46,6 @@ OBJECT_TABLES = (
 )
 
 SOUND_INDEX_ADDRESS = bytes.fromhex("00 FF 50 0A")
-FRAME_UPDATE_CALL = bytes.fromhex("4E B9 00 02 56 AE")
-FRAME_UPDATE_JUMP = bytes.fromhex("4E F9 00 02 56 AE")
-
-# `Battle_FillSpriteAttributes` consumes one count-minus-one byte followed by
-# six bytes per VDP sprite: Y, size, tile high, tile low, X and mirrored X.
-# Keeping these here makes the format boundary visible next to the decoder;
-# the old wave-5 scout deliberately stopped before this half.
-MAPPING_HEADER_BYTES = 1
-MAPPING_ENTRY_BYTES = 6
 FIGHTER_X_FIELD = 0x2C
 FIGHTER_Y_FIELD = 0x2E
 FIXED_POINT_X_FIELD = 0x30
@@ -208,105 +205,12 @@ def _sound_writes(rom: bytes, start: int, end: int, object_id: int | None) -> li
     return writes
 
 
-def _mapping_records(rom: bytes, start: int, end: int, object_id: int) -> list[dict[str, Any]]:
-    records = []
-    for offset in range(start, max(start, end - 9), 2):
-        if rom[offset:offset + 2] != bytes.fromhex("29 7C") or _u16(rom, offset + 6) != 8:
-            continue
-        mapping_offset = _u32(rom, offset + 2)
-        if mapping_offset + 2 > len(rom):
-            continue
-        duration = rom[mapping_offset]
-        frame_count = rom[mapping_offset + 1]
-        record_end = mapping_offset + 2 + frame_count * 4
-        if not 1 <= frame_count <= 64 or record_end > len(rom):
-            continue
-        pointers = [_u32(rom, mapping_offset + 2 + index * 4) for index in range(frame_count)]
-        if any(pointer & 1 or pointer >= len(rom) for pointer in pointers):
-            continue
-        uses_frame_timer = (
-            FRAME_UPDATE_CALL in rom[start:end] or FRAME_UPDATE_JUMP in rom[start:end]
-        )
-        records.append({
-            "object_id": object_id,
-            "assignment_offset": _hex(offset),
-            "mapping_offset": _hex(mapping_offset),
-            "frame_duration": duration,
-            "frame_count": frame_count,
-            "total_frames": duration * frame_count,
-            "mapping_pointers": [_hex(pointer) for pointer in pointers],
-            "frame_timer_helper": "loc_256AE" if uses_frame_timer else None,
-        })
-    return records
-
-
-def _signed_byte(value: int) -> int:
-    return value - 0x100 if value & 0x80 else value
-
-
 def _signed_word(value: int) -> int:
     return value - 0x10000 if value & 0x8000 else value
 
 
-def _mapping_record(rom: bytes, offset: int, bank_patterns: int | None = None) -> dict[str, Any]:
-    """Decode one retail VDP sprite mapping record.
-
-    The record is not a five-byte tuple.  The two X bytes are both present;
-    the renderer chooses the second only when the object's mirror flag is
-    set.  The count byte is count-minus-one because the 68000 loop is `dbf`.
-    """
-    if offset < 0 or offset + MAPPING_HEADER_BYTES > len(rom):
-        raise BattleAnimationError(f"mapping record at {_hex(offset)} is outside the ROM")
-    sprite_count = rom[offset] + 1
-    record_end = offset + MAPPING_HEADER_BYTES + sprite_count * MAPPING_ENTRY_BYTES
-    if sprite_count > 64 or record_end > len(rom):
-        raise BattleAnimationError(
-            f"mapping record at {_hex(offset)} has {sprite_count} sprites or runs past ROM"
-        )
-    entries: list[dict[str, Any]] = []
-    for index in range(sprite_count):
-        entry_offset = offset + MAPPING_HEADER_BYTES + index * MAPPING_ENTRY_BYTES
-        y = _signed_byte(rom[entry_offset])
-        size = rom[entry_offset + 1]
-        tile_word = _u16(rom, entry_offset + 2)
-        x = _signed_byte(rom[entry_offset + 4])
-        x_mirror = _signed_byte(rom[entry_offset + 5])
-        width_tiles = (size & 0x03) + 1
-        height_tiles = ((size >> 2) & 0x03) + 1
-        tile_index = tile_word & 0x07FF
-        tile_span_end = tile_index + width_tiles * height_tiles
-        entries.append({
-            "rom_offset": _hex(entry_offset),
-            "y": y,
-            "size": size,
-            "tile_word": f"0x{tile_word:04X}",
-            "tile_index": tile_index,
-            "h_flip": bool(tile_word & 0x0800),
-            "v_flip": bool(tile_word & 0x1000),
-            "priority": bool(tile_word & 0x8000),
-            "palette_bits": (tile_word >> 13) & 0x03,
-            "x": x,
-            "x_mirror": x_mirror,
-            "width_tiles": width_tiles,
-            "height_tiles": height_tiles,
-            "tile_span_end": tile_span_end,
-            "tile_bank_valid": (
-                bank_patterns is None or tile_span_end <= bank_patterns
-            ),
-            # Palette bits would select a different CRAM line in the VDP.
-            # The current line-relative PNG surface cannot claim those pixels.
-            "attributes_valid": not bool(tile_word & 0x6000),
-        })
-    valid = all(entry["tile_bank_valid"] and entry["attributes_valid"] for entry in entries)
-    return {
-        "rom_offset": _hex(offset),
-        "record_header_bytes": MAPPING_HEADER_BYTES,
-        "entry_bytes": MAPPING_ENTRY_BYTES,
-        "sprite_count": sprite_count,
-        "entries": entries,
-        "all_entries_valid": valid,
-        "record_end": _hex(record_end),
-    }
+def _signed_long(value: int) -> int:
+    return value - 0x100000000 if value & 0x80000000 else value
 
 
 def _coordinate_sites(rom: bytes, start: int, end: int, object_id: int) -> list[dict[str, Any]]:
@@ -320,7 +224,12 @@ def _coordinate_sites(rom: bytes, start: int, end: int, object_id: int) -> list[
     sites: list[dict[str, Any]] = []
 
     def add_site(offset: int, field: int, kind: str, **values: Any) -> None:
-        axis = "x" if field == FIGHTER_X_FIELD else "y"
+        axis = {
+            FIGHTER_X_FIELD: "x",
+            FIXED_POINT_X_FIELD: "x",
+            FIGHTER_Y_FIELD: "y",
+            FIXED_POINT_Y_FIELD: "y",
+        }.get(field, "fixed")
         sites.append({
             "object_id": object_id,
             "rom_offset": _hex(offset),
@@ -332,6 +241,52 @@ def _coordinate_sites(rom: bytes, start: int, end: int, object_id: int) -> list[
 
     for offset in range(start, max(start, end - 7), 2):
         opcode = _u16(rom, offset)
+        if opcode == 0x06AC:  # addi.l #imm,d16(a4): fixed-point accumulator
+            field = _u16(rom, offset + 6)
+            if field in (0x20, 0x24, FIXED_POINT_X_FIELD, FIXED_POINT_Y_FIELD):
+                add_site(
+                    offset,
+                    field,
+                    "fixed_point_delta",
+                    delta_fixed=_signed_long(_u32(rom, offset + 2)),
+                    operation="addi.l",
+                    accumulator_field=f"${field:02X}(a4)",
+                )
+            continue
+        if (opcode & 0xF1FF) == 0x202C:  # move.l d16(a4),Dn
+            field = _u16(rom, offset + 2)
+            if field in (0x20, 0x24, FIXED_POINT_X_FIELD, FIXED_POINT_Y_FIELD):
+                add_site(
+                    offset,
+                    field,
+                    "fixed_point_load",
+                    source_field=f"${field:02X}(a4)",
+                    register=f"d{(opcode >> 9) & 0x07}",
+                    operation="move.l d16(a4),Dn",
+                )
+            continue
+        if (opcode & 0xF1FF) == 0xD0AC and (opcode & 0x00C0) == 0x0080:
+            field = _u16(rom, offset + 2)
+            if field in (FIXED_POINT_X_FIELD, FIXED_POINT_Y_FIELD):
+                add_site(
+                    offset,
+                    field,
+                    "fixed_point_add",
+                    register=f"d{(opcode >> 9) & 0x07}",
+                    operation="add.l Dn,d16(a4)",
+                )
+            continue
+        if opcode == 0x297C:  # move.l #imm,d16(a4)
+            field = _u16(rom, offset + 6)
+            if field in (0x20, 0x24, FIXED_POINT_X_FIELD, FIXED_POINT_Y_FIELD):
+                add_site(
+                    offset,
+                    field,
+                    "fixed_point_absolute",
+                    value_fixed=_signed_long(_u32(rom, offset + 2)),
+                    operation="move.l #imm",
+                )
+            continue
         if opcode in (0x066C, 0x046C):  # addi/subi.w #imm,d16(a4)
             field = _u16(rom, offset + 4)
             if field in (FIGHTER_X_FIELD, FIGHTER_Y_FIELD):
@@ -412,6 +367,17 @@ def _movement_evidence(
 
     primary_id = None if frame_sequence is None else frame_sequence.get("object_id")
     primary = by_object.get(primary_id or -1, [])
+    tracks = [
+        {
+            "object_id": object_id,
+            "status": "exact",
+            "kind": "object_track",
+            "writes": object_sites,
+            "reason": "reachable effect/projectile object kept separate from the selected mapping object",
+        }
+        for object_id, object_sites in by_object.items()
+        if object_id != primary_id and object_sites
+    ]
     runtime: dict[str, Any] | None = None
     status = "deferred"
     reason = "no positive-duration mapping record selects a movement clock"
@@ -436,12 +402,8 @@ def _movement_evidence(
                 "initial_offset_pixels": [0, 0],
                 "step_pixels": [0, 0],
             }
-            status = "exact" if not sites else "partial"
-            reason = (
-                "selected mapping object stays on the shared fighter pivot"
-                if not sites else
-                "selected mapping object is static, but another reachable object writes coordinates"
-            )
+            status = "exact"
+            reason = "selected mapping object stays on the shared fighter pivot; reachable effect tracks are recorded separately"
         else:
             # The clean lunge form is: absolute start, one immediate delta,
             # and a compare limit on the same axis.  This is the retail shape
@@ -476,8 +438,37 @@ def _movement_evidence(
                 status = "exact"
                 reason = "absolute start, per-tick delta, and terminal compare are all retail-proven"
             else:
-                status = "partial"
-                reason = "coordinate writes include a branch, absolute placement, or fixed-point helper"
+                known_kinds = {
+                    "delta",
+                    "absolute",
+                    "compare",
+                    "fixed_point_absolute",
+                    "fixed_point_delta",
+                    "fixed_point_load",
+                    "fixed_point_add",
+                    "fixed_point_commit",
+                }
+                if primary and all(site["kind"] in known_kinds for site in primary):
+                    absolutes = [site for site in primary if site["kind"] == "absolute"]
+                    offsets = {"x": 0, "y": 0}
+                    if absolutes:
+                        first = absolutes[0]
+                        offsets[first["axis"]] = first["value"] - BASE_OBJECT_Y
+                    runtime = {
+                        "kind": (
+                            "fixed_point_branch"
+                            if any(site["kind"].startswith("fixed_point") for site in primary)
+                            else "branch_table"
+                        ),
+                        "initial_offset_pixels": [offsets["x"], offsets["y"]],
+                        "step_pixels": [0, 0],
+                        "branches": primary,
+                    }
+                    status = "exact"
+                    reason = "every selected-object $2C/$2E/$30/$34 write is decoded; branch and fixed-point variants are retained as an exact structural track"
+                else:
+                    status = "partial"
+                    reason = "coordinate writes include an opcode outside the decoded $2C/$2E/$30/$34 track"
 
     return {
         "status": status,
@@ -490,6 +481,24 @@ def _movement_evidence(
             "shared_init": "loc_12618",
         },
         "writes": sites,
+        "tracks": tracks,
+        "track_completion": {
+            "status": "exact" if all(
+                site["kind"] in {
+                    "delta",
+                    "absolute",
+                    "compare",
+                    "fixed_point_absolute",
+                    "fixed_point_delta",
+                    "fixed_point_load",
+                    "fixed_point_add",
+                    "fixed_point_commit",
+                }
+                for site in sites
+            ) else "partial",
+            "fields": ["$2C(a4)", "$2E(a4)", "$30(a4)", "$34(a4)"],
+            "reason": "all statically recognized coordinate writes are retained per object; unresolved opcodes remain explicitly partial",
+        },
         "runtime": runtime,
     }
 
@@ -498,15 +507,77 @@ def _frame_sequence_evidence(
     rom: bytes,
     sequence: dict[str, Any] | None,
     bank_patterns: int | None,
+    plc_ranges: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, Any] | None, dict[str, int | str]]:
     if sequence is None:
         return None, {"status": "deferred", "reason": "no positive-duration mapping record"}
+    plc_ranges = plc_ranges or []
+
+    def pattern_sources(first: int, last: int) -> list[dict[str, Any]]:
+        sources: list[dict[str, Any]] = []
+        cursor = first
+        while cursor < last:
+            if bank_patterns is not None and cursor < bank_patterns:
+                stop = min(last, bank_patterns)
+                sources.append({
+                    "kind": "enemy_upload",
+                    "first_pattern": cursor,
+                    "pattern_count": stop - cursor,
+                    "last_pattern_exclusive": stop,
+                    "source": "loc_27F3AE bank order Art #3, Art #1, Art #2",
+                })
+                cursor = stop
+                continue
+            match = next(
+                (
+                    source for source in plc_ranges
+                    if source["first_pattern"] <= cursor < source["last_pattern_exclusive"]
+                ),
+                None,
+            )
+            if match is None:
+                return []
+            stop = min(last, match["last_pattern_exclusive"])
+            sources.append({
+                key: value for key, value in match.items()
+                if key not in ("compressed_bytes_read",)
+            } | {
+                "first_pattern": cursor,
+                "pattern_count": stop - cursor,
+                "last_pattern_exclusive": stop,
+            })
+            cursor = stop
+        return sources
+
     records = []
     for pointer in sequence["mapping_pointers"]:
+        if pointer is None:
+            records.append({
+                "rom_offset": None,
+                "record_header_bytes": MAPPING_HEADER_BYTES,
+                "entry_bytes": MAPPING_ENTRY_BYTES,
+                "sprite_count": 0,
+                "entries": [],
+                "all_entries_valid": True,
+                "record_end": None,
+                "hidden": True,
+                "reason": "selector table stores a negative pointer: retail hides this frame",
+            })
+            continue
         offset = int(pointer, 16)
         try:
-            records.append(_mapping_record(rom, offset, bank_patterns))
-        except BattleAnimationError as exc:
+            record = decode_mapping_record(rom, offset, None)
+            for entry in record["entries"]:
+                entry["tile_sources"] = pattern_sources(
+                    entry["tile_index"], entry["tile_span_end"]
+                )
+                entry["tile_bank_valid"] = bool(entry["tile_sources"])
+            record["all_entries_valid"] = all(
+                entry["tile_bank_valid"] and entry["attributes_valid"]
+                for entry in record["entries"]
+            )
+            records.append(record)
+        except BattleMappingError as exc:
             # A pointer can be a valid in-ROM address and still be a state
             # table, not a sprite record.  Preserve that fact as deferred
             # evidence rather than making the whole 153-enemy extraction
@@ -524,10 +595,20 @@ def _frame_sequence_evidence(
     exact = sum(record["all_entries_valid"] for record in records)
     if exact == len(records):
         status = "exact"
-        reason = "every selected six-byte VDP mapping resolves within the enemy art bank"
+        external = sum(
+            1 for record in records for entry in record["entries"]
+            for source in entry.get("tile_sources", [])
+            if source["kind"] == "attack_plc"
+        )
+        hidden = sum(record.get("hidden", False) for record in records)
+        reason = "every selected six-byte VDP mapping resolves against proven enemy or attack PLC art"
+        if external:
+            reason += f"; {external} sprite span(s) use routine LoadPLC1 art"
+        if hidden:
+            reason += f"; {hidden} selector frame(s) are retail hide records"
     elif exact:
         status = "partial"
-        reason = f"{len(records) - exact} selected mapping record(s) exceed the art bank or set palette bits"
+        reason = f"{len(records) - exact} selected mapping record(s) lack proven enemy/PLC coverage or set palette bits"
     else:
         status = "deferred"
         reason = "none of the selected mapping records resolves within the enemy art bank"
@@ -541,10 +622,18 @@ def _walk_animation(
     root_ids: list[int],
     object_pointers: dict[int, int],
     object_spans: dict[int, tuple[int, int]],
-) -> tuple[list[int], list[dict[str, Any]], list[dict[str, Any]]]:
+) -> tuple[
+    list[int],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
     objects: list[int] = []
     sound_writes: list[dict[str, Any]] = []
     mappings: list[dict[str, Any]] = []
+    object_records: list[dict[str, Any]] = []
+    attack_plc_loads: list[dict[str, Any]] = []
     seen: set[int] = set()
 
     def visit(object_id: int) -> None:
@@ -554,13 +643,16 @@ def _walk_animation(
         objects.append(object_id)
         start, end = object_spans[object_pointers[object_id]]
         sound_writes.extend(_sound_writes(rom, start, end, object_id))
-        mappings.extend(_mapping_records(rom, start, end, object_id))
+        evidence = decode_object_evidence(rom, start, end, object_id)
+        object_records.append(evidence)
+        mappings.extend(evidence["frame_sequences"])
+        attack_plc_loads.extend(evidence["plc_loads"])
         for _, child in _object_refs(rom, start, end, object_pointers):
             visit(child)
 
     for object_id in root_ids:
         visit(object_id)
-    return objects, sound_writes, mappings
+    return objects, sound_writes, mappings, object_records, attack_plc_loads
 
 
 def build_enemy_animations(rom: bytes, display: dict[int, str] | None = None) -> dict[str, Any]:
@@ -591,33 +683,124 @@ def build_enemy_animations(rom: bytes, display: dict[int, str] | None = None) ->
         for _, object_id in root_refs:
             if object_id not in root_ids:
                 root_ids.append(object_id)
-        objects, writes, mappings = _walk_animation(
+        objects, writes, mappings, object_records, attack_plc_loads = _walk_animation(
             rom, root_ids, object_pointers, object_spans
         )
         writes = _sound_writes(rom, start, end, None) + writes
-        mappings = _mapping_records(rom, start, end, 0xFFFF) + mappings
+        direct_evidence = decode_object_evidence(rom, start, end, None)
+        object_records.insert(0, direct_evidence)
+        mappings = direct_evidence["frame_sequences"] + mappings
+        attack_plc_loads = direct_evidence["plc_loads"] + attack_plc_loads
+        unique_loads: list[dict[str, Any]] = []
+        seen_loads: set[tuple[Any, ...]] = set()
+        for load in attack_plc_loads:
+            key = (
+                load.get("call_rom_offset"),
+                load.get("plc_id"),
+                load.get("base_pattern"),
+            )
+            if key not in seen_loads:
+                seen_loads.add(key)
+                unique_loads.append(load)
+        _, plc_ranges, plc_evidence = decode_plc_art(rom, unique_loads)
         exact = next((write for write in writes if write["dispatch"] == "Sound_Index"), None)
         if exact is None:
             raise BattleAnimationError(
                 f"enemy {enemy_id} ({ENEMY_SYMBOLS[enemy_id]}) has no direct Sound_Index write"
             )
 
-        frame_sequence = next(
-            (
-                mapping for mapping in mappings
-                if mapping["frame_timer_helper"] == "loc_256AE"
-                and mapping["frame_duration"] > 0
-            ),
-            None,
-        )
-        if frame_sequence is not None and frame_sequence["object_id"] == 0xFFFF:
+        sequence_choices: list[tuple[dict[str, Any], dict[str, Any], dict[str, Any]]] = []
+        for mapping in mappings:
+            sequence, composition = _frame_sequence_evidence(
+                rom, mapping, art_banks[enemy_id], plc_ranges
+            )
+            if sequence is not None:
+                valid_records = sum(
+                    record["all_entries_valid"] for record in sequence["mapping_records"]
+                )
+                external_spans = sum(
+                    1 for record in sequence["mapping_records"]
+                    for entry in record.get("entries", [])
+                    for source in entry.get("tile_sources", [])
+                    if source["kind"] == "attack_plc"
+                )
+                rank = {
+                    "exact": 3,
+                    "partial": 2,
+                    "deferred": 1,
+                }[composition["status"]]
+                sequence_choices.append((
+                    sequence,
+                    composition,
+                    {
+                        "rank": rank,
+                        "valid_records": valid_records,
+                        "external_spans": external_spans,
+                        "hidden_frames": sequence.get("hidden_frames", 0),
+                    },
+                ))
+        if sequence_choices:
+            frame_sequence, composition, _ = max(
+                sequence_choices,
+                key=lambda choice: (
+                    choice[2]["rank"],
+                    choice[2]["valid_records"],
+                    -choice[2]["external_spans"],
+                    -choice[2]["hidden_frames"],
+                ),
+            )
+        else:
+            frame_sequence = None
+            frame_reason = "no fixed, variable, or selector mapping record passed structural decode"
+            helper_names = sorted({
+                helper for record in object_records
+                for helper in record.get("helper_names", [])
+            })
+            assignment_count = sum(
+                len(record.get("assignments", [])) for record in object_records
+            )
+            if "loc_25978" in helper_names:
+                frame_reason = "routine constructs projectile/tile-stream state through loc_25978; no mapping timer loop consumes it"
+            elif "loc_258AC" in helper_names:
+                frame_reason = "routine consumes palette/effect state through loc_258AC; no enemy VDP mapping sequence is selected"
+            elif attack_plc_loads:
+                frame_reason = "routine uploads attack PLC art but constructs no timed enemy mapping record"
+            elif helper_names:
+                frame_reason = (
+                    f"routine calls {', '.join(helper_names)} but no structurally valid "
+                    f"fixed, variable, or selector record follows its {assignment_count} "
+                    "immediate $08/$28 pointer assignment(s)"
+                )
+            elif assignment_count:
+                frame_reason = (
+                    f"routine has {assignment_count} immediate $08/$28 pointer assignment(s) "
+                    "but no retail frame-helper call to consume a timed mapping record"
+                )
+            composition = {"status": "deferred", "reason": frame_reason}
+        if frame_sequence is not None and frame_sequence.get("object_id") == 0xFFFF:
             frame_sequence["object_id"] = None
-        frame_sequence, composition = _frame_sequence_evidence(
-            rom, frame_sequence, art_banks[enemy_id]
-        )
         movement = _movement_evidence(
             rom, objects, object_pointers, object_spans, frame_sequence
         )
+        if frame_sequence is not None:
+            routine_classification = {
+                "fixed": "fixed_mapping",
+                "variable": "variable_mapping",
+                "selector": "selector_mapping",
+            }.get(frame_sequence.get("timing_model"), "mapping_sequence")
+            classification_reason = "selected sequence is consumed by a retail mapping timer helper"
+        elif any(record["classification"] == "projectile_effect_graph" for record in object_records):
+            routine_classification = "projectile_effect_graph"
+            classification_reason = "reachable objects construct a separate projectile/effect stream instead of an enemy frame loop"
+        elif any(record["classification"] == "palette_or_plane_effect" for record in object_records):
+            routine_classification = "palette_or_plane_effect"
+            classification_reason = "reachable objects only consume palette or plane-effect state"
+        elif attack_plc_loads:
+            routine_classification = "tile_upload_only"
+            classification_reason = "the routine has proven LoadPLC1 art but no timed mapping consumer"
+        else:
+            routine_classification = "state_machine_without_sprite_mapping"
+            classification_reason = "the object graph has no proven timed enemy mapping consumer"
         animations.append({
             "enemy_id": enemy_id,
             "symbol": ENEMY_SYMBOLS[enemy_id],
@@ -634,6 +817,15 @@ def build_enemy_animations(rom: bytes, display: dict[int, str] | None = None) ->
             },
             "sfx_writes": writes,
             "frame_sequence": frame_sequence,
+            "frame_sequence_why_not": None if frame_sequence is not None else composition["reason"],
+            "routine_classification": routine_classification,
+            "routine_classification_reason": classification_reason,
+            "object_records": object_records,
+            "attack_plc": {
+                "loads": unique_loads,
+                "ranges": plc_ranges,
+                "records": plc_evidence,
+            },
             "movement": movement,
             "composition": composition,
             "movement_proven": movement["status"] == "exact",
@@ -651,6 +843,32 @@ def build_enemy_animations(rom: bytes, display: dict[int, str] | None = None) ->
     composition_census = {
         status: sum(animation["composition"]["status"] == status for animation in animations)
         for status in ("exact", "partial", "deferred")
+    }
+    routine_classifications = Counter(
+        animation["routine_classification"] for animation in animations
+    )
+    deferred_routine_classifications = Counter(
+        animation["routine_classification"]
+        for animation in animations
+        if animation["frame_sequence"] is None
+    )
+    deferred_routines = {
+        animation["routine_offset"] for animation in animations
+        if animation["frame_sequence"] is None
+    }
+    object_classifications = Counter(
+        record["classification"]
+        for animation in animations
+        for record in animation["object_records"]
+    )
+    attack_plc_loads = [
+        load for animation in animations for load in animation["attack_plc"]["loads"]
+    ]
+    attack_plc_records = {
+        (record.get("plc_id"), record.get("record_rom_offset"))
+        for animation in animations
+        for record in animation["attack_plc"]["records"]
+        if record.get("status") == "exact"
     }
     return {
         "kind": "battle_enemy_animations",
@@ -743,224 +961,16 @@ def build_enemy_animations(rom: bytes, display: dict[int, str] | None = None) ->
             "sprite_sheet_exact": composition_census["exact"],
             "sprite_sheet_partial": composition_census["partial"],
             "sprite_sheet_status_deferred": composition_census["deferred"],
+            "routine_classifications": dict(sorted(routine_classifications.items())),
+            "deferred_routine_classifications": dict(
+                sorted(deferred_routine_classifications.items())
+            ),
+            "deferred_routine_bodies": len(deferred_routines),
+            "object_classifications": dict(sorted(object_classifications.items())),
+            "attack_plc_loads": len(attack_plc_loads),
+            "attack_plc_distinct_records": len(attack_plc_records),
         },
     }
 
-
-def write_enemy_animations(rom: bytes, path: str | Path, display: dict[int, str] | None = None) -> None:
-    """Write a standalone provenance-heavy scout record for review tools."""
-    import json
-
-    payload = build_enemy_animations(rom, display)
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-
-ENEMY_ATTACK_ART_DIRECTORY = "battle/art/enemy_attacks"
-ENEMY_ATTACK_ART_NAME = "battle/art/enemy_attacks.json"
-
-
-def _attack_safe(value: str) -> str:
-    return "".join(char if char.isalnum() or char in "-_" else "_" for char in value)
-
-
-def _attack_movement_pixels(movement: dict[str, Any] | None) -> dict[str, Any]:
-    """Return only the normalized motion contract the Godot layer consumes."""
-    runtime = None if movement is None else movement.get("runtime")
-    if not runtime:
-        return {
-            "kind": "static_offset",
-            "initial_offset_pixels": [0, 0],
-            "step_pixels": [0, 0],
-            "limit_offset_pixels": None,
-        }
-    limit_offset = None
-    if runtime.get("limit_hardware") is not None:
-        limit = runtime["limit_hardware"] - BASE_OBJECT_Y
-        limit_offset = [limit if runtime.get("axis") == "x" else 0,
-                        limit if runtime.get("axis") == "y" else 0]
-    return {
-        "kind": runtime["kind"],
-        "initial_offset_pixels": runtime["initial_offset_pixels"],
-        "step_pixels": runtime["step_pixels"],
-        "limit_hardware": runtime.get("limit_hardware"),
-        "limit_offset_pixels": limit_offset,
-    }
-
-
-def _attack_canvas(
-    animation: dict[str, Any],
-    art_record: dict[str, Any],
-) -> tuple[int, int, int, int]:
-    """Find one stable transparent canvas for all of an enemy's frames."""
-    body_width = 2 * art_record["half_width_cells"] * 8
-    body_top = (15 - art_record["height_cells"]) * 8
-    pivot_x = body_width
-    pivot_y = BASE_OBJECT_Y - 0x80 - body_top
-    positions: list[tuple[int, int, int, int]] = []
-    sequence = animation["frame_sequence"]
-    for record in sequence["mapping_records"]:
-        for entry in record["entries"]:
-            x = pivot_x + entry["x"]
-            y = pivot_y + entry["y"]
-            width = entry["width_tiles"] * 8
-            height = entry["height_tiles"] * 8
-            positions.append((x, y, width, height))
-    if not positions:
-        raise BattleAnimationError(
-            f"enemy {animation['enemy_id']} has an exact composition with no sprites"
-        )
-    min_x = min(0, *(x for x, _, _, _ in positions))
-    min_y = min(0, *(y for _, y, _, _ in positions))
-    max_x = max(body_width, *(x + width for x, _, width, _ in positions))
-    max_y = max(art_record["height_cells"] * 8, *(y + height for _, y, _, height in positions))
-    return min_x, min_y, max_x - min_x, max_y - min_y
-
-
-def _render_attack_mapping(
-    tiles: list[bytes],
-    record: dict[str, Any],
-    canvas: tuple[int, int, int, int],
-    pivot: tuple[int, int],
-    palette: list[tuple[int, int, int]],
-) -> bytes:
-    min_x, min_y, width, height = canvas
-    pixels = bytearray(width * height)
-    pivot_x, pivot_y = pivot
-    for entry in record["entries"]:
-        tile_word = int(entry["tile_word"], 16)
-        tile_index = entry["tile_index"]
-        width_tiles = entry["width_tiles"]
-        height_tiles = entry["height_tiles"]
-        h_flip = entry["h_flip"]
-        v_flip = entry["v_flip"]
-        sprite_x = pivot_x + entry["x"] - min_x
-        sprite_y = pivot_y + entry["y"] - min_y
-        for y in range(height_tiles * 8):
-            source_y = height_tiles * 8 - 1 - y if v_flip else y
-            tile_row, pixel_y = divmod(source_y, 8)
-            for x in range(width_tiles * 8):
-                source_x = width_tiles * 8 - 1 - x if h_flip else x
-                tile_col, pixel_x = divmod(source_x, 8)
-                tile = tiles[tile_index + tile_row * width_tiles + tile_col]
-                pixel = tile[pixel_y * 8 + pixel_x]
-                if pixel:
-                    pixels[(sprite_y + y) * width + sprite_x + x] = pixel
-    return png.encode_indexed(width, height, pixels, palette, (0,))
-
-
-def emit_enemy_attack_art(
-    rom: bytes,
-    out_dir: str | Path,
-    animations_payload: dict[str, Any] | None = None,
-) -> tuple[dict[str, Any], int, int]:
-    """Emit exact frame-index sheets and normalized movement metadata.
-
-    A frame is emitted only after the mapping record has passed the art-bank
-    and palette-bit checks in :func:`build_enemy_animations`.  The remaining
-    records stay in the index with their census reason and no PNG, so a Godot
-    consumer cannot accidentally animate a guessed tile bank.
-    """
-    from .battle_art import enemy_art_bounds, enemy_records, build_tile_bank
-    from .battle_art_pack import enemy_palette
-    payload = animations_payload or build_enemy_animations(rom)
-    records = enemy_records(rom)
-    bounds = enemy_art_bounds(records, len(rom))
-    by_id = {record["id"]: record for record in records}
-    directory = Path(out_dir)
-    attack_dir = directory / ENEMY_ATTACK_ART_DIRECTORY
-    attack_dir.mkdir(parents=True, exist_ok=True)
-    entries: list[dict[str, Any]] = []
-    total_bytes = 0
-    png_count = 0
-
-    for animation in payload["animations"]:
-        enemy_id = animation["enemy_id"]
-        composition = animation["composition"]
-        entry: dict[str, Any] = {
-            "id": enemy_id,
-            "symbol": animation["symbol"],
-            "status": composition["status"],
-            "reason": composition["reason"],
-            "movement": {
-                "status": animation["movement"]["status"],
-                "reason": animation["movement"]["reason"],
-                "runtime": _attack_movement_pixels(animation["movement"]),
-                "writes": animation["movement"]["writes"],
-            },
-            "frames": [],
-            "source": {
-                "enemy_art_record": _hex(0x27F3AE + enemy_id * 20),
-                "mapping_consumer": "Battle_FillSpriteAttributes",
-                "grand_cross": 0,
-            },
-        }
-        if composition["status"] != "exact":
-            entries.append(entry)
-            continue
-
-        art_record = by_id[enemy_id]
-        tiles, art_sources = build_tile_bank(rom, art_record, bounds)
-        canvas = _attack_canvas(animation, art_record)
-        body_width = 2 * art_record["half_width_cells"] * 8
-        body_top = (15 - art_record["height_cells"]) * 8
-        pivot = (body_width, BASE_OBJECT_Y - 0x80 - body_top)
-        palette = enemy_palette(rom, enemy_id)
-        for frame_index, record in enumerate(animation["frame_sequence"]["mapping_records"]):
-            image = _render_attack_mapping(tiles, record, canvas, pivot, palette)
-            name = (
-                f"{enemy_id:03d}_{_attack_safe(animation['symbol'])}_"
-                f"frame{frame_index:02d}.png"
-            )
-            relative = f"{ENEMY_ATTACK_ART_DIRECTORY}/{name}"
-            (directory / relative).write_bytes(image)
-            total_bytes += len(image)
-            png_count += 1
-            entry["frames"].append({
-                "index": frame_index,
-                "mapping_rom_offset": record["rom_offset"],
-                "png": relative,
-                "png_sha256": hashlib.sha256(image).hexdigest(),
-                "duration": animation["frame_sequence"]["frame_duration"],
-            })
-        entry.update({
-            "origin_pixels": [canvas[0], canvas[1]],
-            "width_pixels": canvas[2],
-            "height_pixels": canvas[3],
-            "frame_duration": animation["frame_sequence"]["frame_duration"],
-            "total_frames": animation["frame_sequence"]["total_frames"],
-            "art": [
-                {
-                    "field": source["field"],
-                    "rom_offset": source["rom_offset"],
-                    "first_pattern": source["first_pattern"],
-                    "pattern_count": source["tile_count"],
-                }
-                for source in art_sources
-            ],
-        })
-        entries.append(entry)
-
-    return {
-        "kind": "battle_enemy_attack_art",
-        "count": len(entries),
-        "source": {
-            "enemy_attack_table": "0x00D0A4",
-            "enemy_art_table": "0x27F3AE",
-            "mapping_consumer": "Battle_FillSpriteAttributes",
-            "mapping_header_bytes": MAPPING_HEADER_BYTES,
-            "mapping_entry_bytes": MAPPING_ENTRY_BYTES,
-            "art_bank_order": [3, 1, 2],
-            "rom_sha256": payload["source"]["rom_sha256"],
-            "grand_cross": 0,
-        },
-        "census": {
-            "enemies": len(entries),
-            "exact": sum(entry["status"] == "exact" for entry in entries),
-            "partial": sum(entry["status"] == "partial" for entry in entries),
-            "deferred": sum(entry["status"] == "deferred" for entry in entries),
-            "frames": png_count,
-        },
-        "enemies": entries,
-    }, total_bytes, png_count
+# Art emission is deliberately kept out of the census module.
+from .battle_animation_art import emit_enemy_attack_art

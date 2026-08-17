@@ -188,6 +188,7 @@ mod tests {
             offset: SubCellOffset::ALIGNED,
             facing: Direction::Down,
             active: true,
+            camera_bypass: false,
             interactable: true,
             talkable: true,
         }];

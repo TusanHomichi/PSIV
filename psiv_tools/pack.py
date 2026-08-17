@@ -436,7 +436,7 @@ def _npcs(
     and still blocks the walker -- so it sits beside `sprite`, not inside it.
     """
     out = []
-    blank = NpcMetadata(None, None, False)
+    blank = NpcMetadata(None, None, False, False)
     for entry in record["objects"]["entries"]:
         meta = sprites[entry["index"]] if entry["index"] < len(sprites) else blank
         out.append({
@@ -545,6 +545,9 @@ def map_json(
             "height_pixels": layout.height_pixels,
             "cell_pixels": COLLISION_CELL_PIXELS,
         },
+        # `loc_51AB2` consumes this record section before object loading and
+        # writes EC24/25/26; it is camera control, not object metadata.
+        "scroll": record["scroll"],
         "collision": {
             "plane": decoded.spec.collision_plane_name,
             "plane_byte": decoded.spec.collision_plane,

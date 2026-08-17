@@ -51,7 +51,9 @@ fn replay(tape_text: &str, from: u32) -> Vec<ReplayRow> {
             objects: &[],
             camera: (0, 0, 0, 0),
             camera_bg: (0, 0, 0, 0),
-            camera_gates: (0, 1),
+            camera_gates: (0, 1, 1),
+            camera_raw: (0, 0),
+            camera_bg_raw: (0, 0),
         }));
         previous_standing = standing;
     }
