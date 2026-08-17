@@ -57,6 +57,13 @@ impl Field {
         {
             godot_print!("debug: opening camp menu");
             self.open_camp_menu();
+            // The tape-22 frame-7675 receipt: retail's camera settled at
+            // ($258,$E8), 16px below the fixture's player-centred default
+            // (the receipt reflects the walk history the fixture does not
+            // replay). Field-only correlation confirmed dy=16 exactly.
+            if let Some(rt) = self.runtime.as_mut() {
+                rt.set_camera(0x258, 0xE8);
+            }
         }
         if self.anim_tick == 30
             && let Ok(value) = std::env::var("PSIV_DEBUG_SHOP")

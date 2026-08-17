@@ -173,12 +173,17 @@ fn motion_offset(
     Vector2i::new(x, y)
 }
 
-/// Converts the formation position byte and art dimensions into a top-left
-/// pixel. The position byte is the body's bottom-right column.
-pub(super) fn enemy_sprite_origin(position: u8, width_cells: u16, height_cells: u16) -> (i32, i32) {
+/// Converts the formation position byte and the art record's half-width into
+/// a top-left pixel. The position byte is the body's right-edge anchor; the
+/// rendered body is `2 * half_width_cells` wide.
+pub(super) fn enemy_sprite_origin(
+    position: u8,
+    half_width_cells: u16,
+    height_cells: u16,
+) -> (i32, i32) {
     let column = i32::from(position & 0x7F);
     (
-        (column - i32::from(width_cells)) * 8,
+        (column - i32::from(half_width_cells)) * 8,
         (15 - i32::from(height_cells)) * 8,
     )
 }

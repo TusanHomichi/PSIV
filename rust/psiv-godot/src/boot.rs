@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use psiv_core::{CharId, GameState, RetailLocation, RetailSave, StepFrames};
+use psiv_core::{CharId, Direction, GameState, RetailLocation, RetailSave, StepFrames};
 use psiv_data::GameData;
 use psiv_runtime::Runtime;
 
@@ -84,6 +84,63 @@ pub(crate) fn debug_scene_runtime(
             step_frames,
         )
         .map_err(|error| error.to_string()),
+    )
+}
+
+/// Reproduces tape 22's `camp_root_idle` receipt without making a save file:
+/// Chaz alone at map `$13`, field position `($2F0,$140)`, with 500 MST. The
+/// location is the runtime's player coordinate; the oracle camera settles at
+/// `($258,$E8)` after the map renderer applies its viewport offset.
+pub(crate) fn debug_camp_runtime(
+    data: GameData,
+    step_frames: StepFrames,
+) -> Option<Result<Runtime, String>> {
+    if !std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1") {
+        return None;
+    }
+    let mut game = GameState::new();
+    game.set_party([Some(CharId(0)), None, None, None, None]);
+    game.set_money(500);
+    // Tape 22, mark `camp_root_idle`, frame 7675. These are live RAM object
+    // positions, not map-spawn guesses. Camp opens with the field suspended,
+    // so the 30-frame debug lead-in cannot consume another wander step before
+    // the receipt-backed state is drawn.
+    const OBJECTS: [(i32, i32, Direction); 8] = [
+        (736, 226, Direction::Down),
+        (743, 128, Direction::Left),
+        (624, 128, Direction::Left),
+        (352, 112, Direction::Down),
+        (320, 256, Direction::Right),
+        (271, 160, Direction::Left),
+        (256, 112, Direction::Down),
+        (592, 240, Direction::Down),
+    ];
+    Some(
+        Runtime::from_save(
+            data,
+            RetailSave {
+                snapshot: game.snapshot(),
+                location: RetailLocation {
+                    world_index: 0,
+                    map_index_2: 0xFFFF,
+                    map_index: 0x13,
+                    char_x: 0x2F0,
+                    char_y: 0x140,
+                },
+            },
+            step_frames,
+        )
+        .map_err(|error| error.to_string())
+        .and_then(|mut runtime| {
+            for (index, &(x, y, facing)) in OBJECTS.iter().enumerate() {
+                runtime
+                    .set_npc_pixel_position(index, x, y)
+                    .map_err(|error| format!("camp object {index} position failed: {error}"))?;
+                runtime.face_npc(index, facing);
+            }
+            runtime.set_field_suspended(true);
+            Ok(runtime)
+        }),
     )
 }
 

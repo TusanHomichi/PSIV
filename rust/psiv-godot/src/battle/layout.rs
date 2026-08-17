@@ -217,14 +217,14 @@ mod tests {
 
         // `oracle/layouts/battle_command_idle.json`: the two enemy body
         // tile-run blocks occupy x=11..16 and x=23..28 at rows 9..14. The
-        // scene's 6x6 texture origins must therefore be (88,72) and
-        // (184,72), not guessed formation columns.
+        // formation receipt carries positions 0x0E/0x1A and the generated
+        // Zoran art record has half-width 3, giving origins (88,72)/(184,72).
         assert_eq!(
             body_row_cells(&idle, 9),
             (11..17).chain(23..29).collect::<Vec<_>>()
         );
-        assert_eq!(enemy_sprite_origin(17, 6, 6), (88, 72));
-        assert_eq!(enemy_sprite_origin(29, 6, 6), (184, 72));
+        assert_eq!(enemy_sprite_origin(0x0E, 3, 6), (88, 72));
+        assert_eq!(enemy_sprite_origin(0x1A, 3, 6), (184, 72));
 
         for name in [
             "battle_command_return.json",
@@ -303,10 +303,10 @@ mod tests {
     }
 
     #[test]
-    fn enemy_position_byte_is_a_bottom_right_anchor() {
+    fn enemy_position_byte_is_a_right_edge_half_width_anchor() {
         assert_eq!(enemy_sprite_origin(20, 10, 10), (80, 40));
-        assert_eq!(enemy_sprite_origin(137, 6, 6), (24, 72));
-        assert_eq!(enemy_sprite_origin(159, 6, 6), (200, 72));
+        assert_eq!(enemy_sprite_origin(137, 3, 6), (48, 72));
+        assert_eq!(enemy_sprite_origin(159, 3, 6), (224, 72));
         assert_eq!(enemy_sprite_origin(20 | 0x80, 10, 10), (80, 40));
     }
 

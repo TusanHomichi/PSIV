@@ -33,6 +33,17 @@ const TITLE_ART_APPEAR_TICKS: u32 = 248;
 const TITLE_REVEAL_TICKS: u32 = 299;
 const PRESS_START_HOLD_TICKS: u32 = 563;
 
+/// `Main_Frame_Count` is 93 frames behind the tape frame number when the
+/// title routine starts in the Grand Cross build. The oracle receipts at
+/// frames 500/550/600 therefore sample counts 407/457/507. The prompt's
+/// palette table is indexed from that counter, not from the title phase.
+const TITLE_MAIN_FRAME_OFFSET: u32 = 93;
+const PRESS_START_PALETTE: [u16; 32] = [
+    0x04EE, 0x04EE, 0x04EE, 0x04EE, 0x04EE, 0x04EE, 0x04EE, 0x04EE, 0x04CE, 0x04AE, 0x048E, 0x046E,
+    0x044E, 0x042E, 0x040E, 0x020C, 0x000A, 0x000A, 0x000A, 0x000A, 0x000A, 0x000A, 0x000A, 0x000A,
+    0x020C, 0x040E, 0x042E, 0x044E, 0x046E, 0x048E, 0x04AE, 0x04CE,
+];
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Phase {
     Sega,
@@ -78,6 +89,7 @@ struct Visual {
     offset: Vector2,
     surface: Surface,
     replay: BTreeMap<u32, Gd<ImageTexture>>,
+    press_cycle: Vec<Gd<ImageTexture>>,
 }
 
 #[derive(serde::Deserialize)]
@@ -211,6 +223,7 @@ impl TitleScreen {
             offset: Vector2::new(-VIEW_WIDTH / 2.0 - 1.0, -VIEW_HEIGHT / 2.0 - 1.0),
             surface: Surface::Black,
             replay: BTreeMap::new(),
+            press_cycle: Vec::new(),
         });
     }
 
@@ -232,6 +245,11 @@ impl TitleScreen {
             godot_error!("title: could not texture image {path}");
             None
         })?;
+        let press_cycle = if matches!(surface, Surface::PressStart) {
+            press_start_cycle(&image)?
+        } else {
+            Vec::new()
+        };
         let mut node = Sprite2D::new_alloc();
         let background = matches!(surface, Surface::Background | Surface::BackgroundTransfer);
         node.set_centered(if background { false } else { centered });
@@ -268,6 +286,7 @@ impl TitleScreen {
             offset,
             surface,
             replay,
+            press_cycle,
         });
         Some(())
     }
@@ -447,6 +466,7 @@ impl TitleScreen {
             offset,
             surface: Surface::Menu { kind, option },
             replay: BTreeMap::new(),
+            press_cycle: Vec::new(),
         });
     }
 
@@ -482,6 +502,7 @@ impl TitleScreen {
                         option: Some(option),
                     },
                     replay: BTreeMap::new(),
+                    press_cycle: Vec::new(),
                 });
             }
         }
@@ -548,6 +569,14 @@ impl TitleScreen {
                         .take_while(|frame| *frame <= self.elapsed)
                         .last()
                         && let Some(texture) = visual.replay.get(&frame)
+                    {
+                        node.set_texture(texture);
+                    }
+                    if visible
+                        && matches!(visual.surface, Surface::PressStart)
+                        && let Some(texture) = visual
+                            .press_cycle
+                            .get(press_start_palette_index(self.elapsed))
                     {
                         node.set_texture(texture);
                     }
@@ -685,6 +714,46 @@ impl TitleScreen {
             }
         }
     }
+}
+
+fn press_start_cycle(image: &Gd<Image>) -> Option<Vec<Gd<ImageTexture>>> {
+    const BASE_PROMPT: (u8, u8, u8) = (238, 238, 65);
+    let mut textures = Vec::with_capacity(PRESS_START_PALETTE.len());
+    for word in PRESS_START_PALETTE {
+        let mut frame = image.duplicate()?.try_cast::<Image>().ok()?;
+        let color = title_cram_color(word);
+        for y in 0..frame.get_height() {
+            for x in 0..frame.get_width() {
+                let pixel = frame.get_pixel(x, y);
+                if pixel.a8() != 0 && (pixel.r8(), pixel.g8(), pixel.b8()) == BASE_PROMPT {
+                    frame.set_pixel(x, y, color.with_alpha(f32::from(pixel.a8()) / 255.0));
+                }
+            }
+        }
+        textures.push(ImageTexture::create_from_image(&frame)?);
+    }
+    Some(textures)
+}
+
+/// Mirrors `DoPressStartButtonCyclingPal`: update only on every fourth main
+/// frame, then select a word through the `$7C`/`>>1` byte offset. The table is
+/// word-aligned, so its word index is the equivalent `>>2` expression.
+fn press_start_palette_index(title_frame: u32) -> usize {
+    let main_frame = title_frame.saturating_sub(TITLE_MAIN_FRAME_OFFSET);
+    ((main_frame & 0x7C) >> 2) as usize
+}
+
+fn title_cram_color(word: u16) -> Color {
+    Color::from_rgba8(
+        expand_channel((word >> 1) & 7),
+        expand_channel((word >> 5) & 7),
+        expand_channel((word >> 9) & 7),
+        255,
+    )
+}
+
+fn expand_channel(level: u16) -> u8 {
+    ((level << 5) | (level << 2) | (level >> 1)) as u8
 }
 
 fn menu_glyph_index(character: char) -> Option<usize> {
@@ -829,4 +898,16 @@ fn title_debug_shot(field: &Field, anim_tick: u64, title_ticks: u32) {
     godot_print!(
         "debug: title screenshot -> {path} ({error:?}, anim_tick={anim_tick}, title_ticks={title_ticks})"
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::press_start_palette_index;
+
+    #[test]
+    fn press_start_cycle_uses_retail_main_frame_phase() {
+        assert_eq!(press_start_palette_index(500), 5);
+        assert_eq!(press_start_palette_index(550), 18);
+        assert_eq!(press_start_palette_index(600), 30);
+    }
 }

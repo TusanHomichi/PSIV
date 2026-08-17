@@ -695,6 +695,26 @@ impl Runtime {
         let _ = self.map.set_npc_facing(index, facing);
     }
 
+    /// Places a field object at a cartridge pixel position.
+    ///
+    /// This is the position-side twin of [`Runtime::face_npc`]. It is used by
+    /// receipt-backed replay/debug fixtures whose object has already wandered
+    /// off its packed spawn point; normal gameplay reaches the same map seam
+    /// through the field-object walker.
+    ///
+    /// # Errors
+    ///
+    /// [`psiv_core::MapError`] when the object index or pixel position is not
+    /// valid for the loaded map.
+    pub fn set_npc_pixel_position(
+        &mut self,
+        index: usize,
+        x: i32,
+        y: i32,
+    ) -> Result<(), psiv_core::MapError> {
+        self.map.set_npc_pixel_position(index, x, y)
+    }
+
     /// Mirrors the cartridge's window-up suspension of field-object updates.
     /// The renderer sets this while a dialogue window is open.
     pub fn set_field_suspended(&mut self, suspended: bool) {

@@ -120,20 +120,23 @@ So the byte splits into two independent things:
 ```
 
 `$FFFF8780` is **row 15, column 0**, and `(x − $80)/4` bytes is exactly
-`position & $7F` cells. Then `suba.w` walks the pointer left by `w` cells
-(`w*2` bytes) and up by `h` rows (`h*128` bytes), so the blit runs from there.
+`position & $7F` cells. The art record's byte 4 is a **half-width** anchor
+(`hwidth`), not the rendered width: the loader doubles it for the six/eight/
+ten-cell body map, while the destination pointer backs up `hwidth` cells
+(`hwidth*2` bytes) and `height` rows (`height*128` bytes).
 
-**The anchor is the bottom-right corner.** An enemy of art size `w × h`
-occupies:
+**The position byte is the art anchor seam.** An enemy with half-width `hwidth`
+and height `height` occupies:
 
 ```
-columns  (position & $7F) - w  ..  (position & $7F) - 1
-rows     15 - h                ..  14
+columns  (position & $7F) - hwidth .. (position & $7F) + hwidth - 1
+rows     15 - height               .. 14
 ```
 
-`w` and `h` are bytes 4 and 5 of the 20-byte per-enemy art record at
-**`$0027F3BC`** (`record = $0027F3BC + enemy_id * 20`; long 0 is the Enigma
-mapping, bytes 4/5 the size, bytes 6–7 the base tile).
+The half-width and height are bytes 4 and 5 of the 20-byte per-enemy art
+record at **`$0027F3BC`** (`record = $0027F3BC + enemy_id * 20`; long 0 is the
+Enigma mapping, bytes 6–7 the base tile). The generated pack exposes both
+`half_width_cells` and the derived `width_cells = 2 * half_width_cells`.
 
 **Every enemy stands on the same baseline**: the bottom row is always plane row
 14, i.e. **screen y 112–119**, feet at y = 120. Taller enemies grow upward.
@@ -144,8 +147,18 @@ There is none — no arithmetic spaces enemies apart. Each enemy's column is
 whatever its formation record says, and the formations are hand-authored so the
 art does not collide. A renderer must not invent spacing; it must use the bytes.
 
-Formation 0 of block 1 (two MonsterFly) carries positions 14 and 26, so their
-right edges sit at columns 14 and 26 — 12 cells apart.
+Formation 0 of block 1 (two MonsterFly) carries anchors 14 and 26, so the
+centres/seams are 12 cells apart. The body span comes from each enemy's own
+half-width record; the renderer must not substitute the full width for the
+anchor subtraction.
+
+The tape-07 command-idle receipt makes this distinction concrete. RAM at
+`$41F0` on frame 25000 begins
+`0F 05 00 00 02 03 00 0A 0E 0A 1A FF ...`: two enemy id-10 Zoran Bults at
+positions `$0E` and `$1A`. Zoran's half-width is 3, so the six-cell body runs
+are columns 11..16 and 23..28, with pixel origins `(88,72)` and `(184,72)`.
+The party receipt is Chaz/Alys/Hahn at `25/10`, `53/40`, and `21/25` HP/TP;
+the settled command frame has no debug attack timeline event.
 
 ### VRAM sharing
 

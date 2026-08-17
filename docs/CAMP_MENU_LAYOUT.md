@@ -1,7 +1,7 @@
 # Retail camp-menu layout
 
-Scouted 2026-08-15 from the retail USA ROM with the headless oracle. This is
-prep evidence only: no engine code is changed here. The capture starts from
+Scouted 2026-08-15 from the retail USA ROM with the headless oracle. The
+implementation receipt was closed 2026-08-17. The capture starts from
 Tape 08's deterministic new-game route, then follows the root menu into the
 empty-inventory ITEM message, the STATE chooser, and the one-member STATUS
 screen.
@@ -86,9 +86,9 @@ Positions are the first cell of each run; pixel positions are simply cell × 8.
 | text | cell | pixel |
 |---|---:|---:|
 | `Chaz` | `(27,2)` | `(216,16)` |
-| `LV : 1` | `(33,2)` | `(264,16)` |
-| `HP: 25/25` | `(27,4)` | `(216,32)` |
-| `TP: 10/10` | `(27,5)` | `(216,40)` |
+| `LV  : 1` | `(33,2)` | `(264,16)` |
+| `HP: 25/ 25` | `(27,4)` | `(216,32)` |
+| `TP: 10/ 10` | `(27,5)` | `(216,40)` |
 | `ITEM` | `(7,3)` | `(56,24)` |
 | `TECH` | `(7,5)` | `(56,40)` |
 | `SKILL` | `(7,7)` | `(56,56)` |
@@ -110,10 +110,23 @@ At root idle the selected ITEM cursor is one 8 × 8 SAT cell at pixel `(40,24)`
 direct decoder preserves it as SAT entry 0 in `oracle/layouts/camp_root.json`:
 `raw=00980001C6E800A8`, `screen_x=40`, `screen_y=24`.
 
+Retail also emits a hollow selector cell before **every** root entry. The
+seven cells are pattern `0x6E7`, palette line 2, at
+`(5,3),(5,5),...,(5,15)`; the selected red `0x6E8` cell overlays the active
+one. The same `0x6E7` form is used by the STATE, item, target, and save-slot
+child lists. A clone that draws only the active cursor is visibly wrong even
+when its selected row is correct.
+
+The summary's `HP`/`TP` values are a split charset case. The label and colon
+use ordinary menu text, but current/max digits use source font cells 36..45
+(`DecimalVRAMOffset2`, patterns `$7E4..$7ED`). The separator is raw window
+byte `$77`, loaded from the window strip as pattern `0x6F7`; it is not the
+menu-font glyph `?`.
+
 The summary contains one party member:
 
 ```text
-Chaz   LV 1   HP 25/25   TP 10/10
+    Chaz   LV 1   HP 25/ 25   TP 10/ 10
 ```
 
 The numeric cells use the retail decimal tile patterns, not just the `$680`
@@ -212,10 +225,10 @@ screen.
 |---|---:|---:|
 | `Chaz` | `(15,3)` | `(120,24)` |
 | `HUNTER` | `(15,5)` | `(120,40)` |
-| `LV : 1` | `(15,7)` | `(120,56)` |
+| `LV  : 1` | `(15,7)` | `(120,56)` |
 | `AGE : 16` | `(15,9)` | `(120,72)` |
-| `HP: 25/25` | `(14,11)` | `(112,88)` |
-| `TP: 10/10` | `(14,12)` | `(112,96)` |
+| `HP: 25/ 25` | `(14,11)` | `(112,88)` |
+| `TP: 10/ 10` | `(14,12)` | `(112,96)` |
 | `STRNGTH: 8` | `(26,3)` | `(208,24)` |
 | `MENTAL : 6` | `(26,5)` | `(208,40)` |
 | `AGILITY: 7` | `(26,7)` | `(208,56)` |
@@ -277,6 +290,25 @@ message, so the result does not rely on a vacuous empty expected-text list.
   `$680` text-run self-check cannot validate those numeric glyphs as ordinary
   strings.
 
-This is enough geometry to start a future camp-menu build without guessing at
+## State-matched certification fixture
+
+Tape 22 mark `camp_root_idle` is frame **7675**. Its receipt is:
+
+| field | value |
+|---|---:|
+| map index | `$13` |
+| world / map-index-2 | `0 / $FFFF` |
+| player position | `($2F0,$140)` pixels, cell `(47,20)` |
+| settled camera | `($258,$E8)` pixels |
+| party | Chaz only |
+| Chaz HP/TP | `25/25`, `10/10` |
+| money | `500 MST` |
+
+`PSIV_DEBUG_CAMP=1` now boots that in-memory retail save. The required clone
+pair is tick **60** against `oracle/frames/frame_7675.png`; the capture tick
+and state are deterministic, but the post-fix RMSE remains unmeasured until
+the Xvfb listener is available.
+
+This is enough geometry and state to certify the camp root without guessing at
 the retail rectangles, text origins, cursor variants, or single-member status
 composition.

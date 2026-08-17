@@ -17,7 +17,7 @@ use psiv_runtime::{CampCharacter, CampState, CampUseResult, Runtime};
 
 use crate::Field;
 
-use self::chrome::{CampChrome, Quad};
+use self::chrome::{CampChrome, Quad, STATUS_SLASH_PATTERN};
 use self::layout::{
     CHARACTER_SUMMARY, CHILD_CURSOR_PATTERN, ITEM_EMPTY_TEXT, ITEM_MESSAGE, MESETA,
     ROOT_CURSOR_CELL, ROOT_MENU, ROOT_TEXT, SAVE_SLOT_TEXT, SAVE_SLOTS_OPTIONS,
@@ -567,6 +567,12 @@ impl CampMenu {
             }
             draw_text(chrome, &mut list.quads, &item.name, (16, 3 + row as i32));
         }
+        draw_selectors(
+            chrome,
+            &mut list.quads,
+            (15, 3),
+            self.snapshot.inventory.len().min(16),
+        );
         if !self.snapshot.inventory.is_empty()
             && let Some(quad) =
                 chrome.window_word(CHILD_CURSOR_PATTERN, (15, 3 + self.item_selection as i32))
@@ -586,6 +592,7 @@ impl CampMenu {
                 (20, 7 + row as i32),
             );
         }
+        draw_selectors(chrome, &mut list.quads, (19, 7), self.snapshot.party.len());
         if !self.snapshot.party.is_empty()
             && let Some(quad) =
                 chrome.window_word(CHILD_CURSOR_PATTERN, (19, 7 + self.target_selection as i32))
@@ -614,6 +621,7 @@ impl CampMenu {
             STATE_SAVE_TEXT.text,
             STATE_SAVE_TEXT.cell,
         );
+        draw_selectors(chrome, &mut list.quads, STATE_CURSOR_CELL, 3);
         let cursor = (
             STATE_CURSOR_CELL.0,
             STATE_CURSOR_CELL.1 + self.state_selection as i32 * 2,
@@ -629,6 +637,7 @@ impl CampMenu {
         for text in SAVE_SLOT_TEXT {
             draw_text(chrome, &mut list.quads, text.text, text.cell);
         }
+        draw_selectors(chrome, &mut list.quads, (10, 8), 3);
         if let Some(quad) = chrome.window_word(
             CHILD_CURSOR_PATTERN,
             (10, 8 + self.save_selection as i32 * 2),
@@ -794,6 +803,23 @@ fn draw_root_options(chrome: &CampChrome, quads: &mut Vec<Quad>) {
     for text in &ROOT_TEXT[4..11] {
         draw_text(chrome, quads, text.text, text.cell);
     }
+    draw_selectors(chrome, quads, ROOT_CURSOR_CELL, ROOT_OPTIONS.len());
+}
+
+fn draw_selectors(
+    chrome: &CampChrome,
+    quads: &mut Vec<Quad>,
+    first_cell: (i32, i32),
+    count: usize,
+) {
+    for row in 0..count {
+        if let Some(quad) = chrome.window_word(
+            CHILD_CURSOR_PATTERN,
+            (first_cell.0, first_cell.1 + row as i32 * 2),
+        ) {
+            quads.push(quad);
+        }
+    }
 }
 
 fn draw_meseta(chrome: &CampChrome, quads: &mut Vec<Quad>, money: u32) {
@@ -809,18 +835,40 @@ fn draw_summary(chrome: &CampChrome, quads: &mut Vec<Quad>, character: &CampChar
         &format!("LV  : {}", character.level),
         ROOT_TEXT[1].cell,
     );
-    draw_text(
+    draw_status_pair(
         chrome,
         quads,
-        &format!("HP: {}/{}", character.current_hp, character.max_hp),
+        "HP: ",
+        character.current_hp,
+        character.max_hp,
         ROOT_TEXT[2].cell,
     );
-    draw_text(
+    draw_status_pair(
         chrome,
         quads,
-        &format!("TP: {}/{}", character.current_tp, character.max_tp),
+        "TP: ",
+        character.current_tp,
+        character.max_tp,
         ROOT_TEXT[3].cell,
     );
+}
+
+fn draw_status_pair(
+    chrome: &CampChrome,
+    quads: &mut Vec<Quad>,
+    label: &str,
+    current: u16,
+    maximum: u16,
+    cell: (i32, i32),
+) {
+    draw_text(chrome, quads, label, cell);
+    quads.extend(chrome.number(&current.to_string(), (cell.0 + 4, cell.1)));
+    if let Some(quad) = chrome.window_word(STATUS_SLASH_PATTERN, (cell.0 + 6, cell.1)) {
+        quads.push(quad);
+    }
+    // Retail leaves the window-font blank cell immediately after the slash:
+    // `25/ 25`, not the compact `25/25` form.
+    quads.extend(chrome.number(&maximum.to_string(), (cell.0 + 8, cell.1)));
 }
 
 fn draw_status_text(
@@ -837,14 +885,6 @@ fn draw_status_text(
         (character.profession.clone(), STATUS_TEXT[1].cell),
         (format!("LV  : {}", character.level), STATUS_TEXT[2].cell),
         (format!("AGE : {age}"), STATUS_TEXT[3].cell),
-        (
-            format!("HP: {}/{}", character.current_hp, character.max_hp),
-            STATUS_TEXT[4].cell,
-        ),
-        (
-            format!("TP: {}/{}", character.current_tp, character.max_tp),
-            STATUS_TEXT[5].cell,
-        ),
         (
             format!("STRNGTH: {}", character.strength),
             STATUS_TEXT[6].cell,
@@ -891,6 +931,22 @@ fn draw_status_text(
     for (text, cell) in lines {
         draw_text(chrome, quads, &text, cell);
     }
+    draw_status_pair(
+        chrome,
+        quads,
+        "HP: ",
+        character.current_hp,
+        character.max_hp,
+        STATUS_TEXT[4].cell,
+    );
+    draw_status_pair(
+        chrome,
+        quads,
+        "TP: ",
+        character.current_tp,
+        character.max_tp,
+        STATUS_TEXT[5].cell,
+    );
 }
 
 fn use_result_message(result: CampUseResult) -> String {

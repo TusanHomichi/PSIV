@@ -32,7 +32,10 @@ pub(crate) struct BattleArt {
 
 #[derive(Clone)]
 pub(crate) struct EnemyArt {
-    pub(crate) width_cells: u16,
+    /// The ROM position byte is the right-edge/half-width anchor, not the
+    /// rendered body's full width. The generated art record supplies this
+    /// anchor alongside the full-width metadata used during pack validation.
+    pub(crate) half_width_cells: u16,
     pub(crate) height_cells: u16,
     pub(crate) png: String,
     pub(crate) palette_words: Vec<u16>,
@@ -70,6 +73,7 @@ struct EnemyFile {
 #[derive(Deserialize)]
 struct EnemyFileEntry {
     id: u16,
+    half_width_cells: u16,
     width_cells: u16,
     height_cells: u16,
     png: String,
@@ -164,6 +168,12 @@ impl BattleArt {
             .enemies
             .into_iter()
             .map(|entry| {
+                if entry.width_cells != entry.half_width_cells.saturating_mul(2) {
+                    return Err(format!(
+                        "enemy {} width {} is not twice half-width {}",
+                        entry.id, entry.width_cells, entry.half_width_cells
+                    ));
+                }
                 let palette_words = entry
                     .palette_words
                     .iter()
@@ -180,7 +190,7 @@ impl BattleArt {
                 Ok((
                     entry.id,
                     EnemyArt {
-                        width_cells: entry.width_cells,
+                        half_width_cells: entry.half_width_cells,
                         height_cells: entry.height_cells,
                         png: entry.png,
                         palette_words,
@@ -290,7 +300,7 @@ impl BattleArt {
     pub(crate) fn enemy_size(&self, enemy_id: u16) -> Option<(u16, u16)> {
         self.enemies
             .get(&enemy_id)
-            .map(|art| (art.width_cells, art.height_cells))
+            .map(|art| (art.half_width_cells, art.height_cells))
     }
 
     pub(crate) fn enemy_texture(

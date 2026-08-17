@@ -44,9 +44,14 @@ The per-frame CRAM replay is now emitted, not merely recorded. The pack carries
 16 captured frame states (25 through 650) and re-encodes all 7 indexed title
 surfaces against the captured 64 CRAM words: background, transfer, and the five
 title assets. `title/palette_cycle.json` remains the numeric source record;
-`title/replay/frame_<N>/` is the runtime surface set. `title.rs` selects the
-last replay frame at or before the title tick, so the fade/cycling sequence is
-replayed from the oracle data rather than approximated with a global alpha.
+`title/replay/frame_<N>/` is the runtime surface set for the sampled fade and
+background phases. The Press Start prompt is the exception: retail's
+`DoPressStartButtonCyclingPal` updates its palette entry every four
+`Main_Frame_Count` frames through the 32-word table at
+`ps4.asm:87014-87065`. `title.rs` generates those 32 prompt textures and
+selects the calibrated main-frame phase, so the prompt fades through the
+retail dark/red/orange cycle instead of staying on the last sparse replay
+sample.
 
 ## Art extraction and pack surface
 
@@ -96,26 +101,29 @@ the PSIV logo and subtitle are present, and the capture is within the fixed
 title hold. The oracle reference is
 `oracle/frames/title/frame_450.png`, SHA-256
 `8cebd30d62a7b5b0c3ad634ec6efc5ab6ab62e088d6166835d447c843df18c10`.
-The deterministic clone tick is **450** with `PSIV_DEBUG_TITLE_SHOT=1`:
+The deterministic clone tick is **480** with `PSIV_DEBUG_TITLE_SHOT=1`:
 
 ```sh
 GODOT=/home/peter/.local/bin/psiv-godot-4.7.1
-xvfb-run -a env \
+xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 PSIV_DEBUG_SCENE_TICKS=1 \
   PSIV_DEBUG_TITLE_SHOT=1 \
-  PSIV_DEBUG_SHOT=/tmp/psiv-title-xvfb-450.png \
-  PSIV_DEBUG_SHOT_FRAME=450 \
-  "$GODOT" --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
-  --path godot --quit-after 451 \
-  > /tmp/psiv-title-xvfb-450.log 2>&1
+  PSIV_DEBUG_SHOT=/tmp/psiv-title-xvfb-480.png \
+  PSIV_DEBUG_SHOT_FRAME=480 \
+  timeout 180s "$GODOT" --log-file /tmp/psiv-title-godot.log \
+  --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
+  --path godot --quit-after 300000 \
+  > /tmp/psiv-title-xvfb-480.log 2>&1
 python3 psiv_tools/presentation_rmse.py \
-  /tmp/psiv-title-xvfb-450.png oracle/frames/title/frame_450.png
+  /tmp/psiv-title-xvfb-480.png oracle/frames/title/frame_450.png
 ```
 
-No compliant clone RMSE is recorded in this checkout: the sandbox's Xvfb
-cannot bind its X11 socket (`/tmp/.X11-unix` is host-owned by `nobody`, and a
-private namespace is denied `bind(2)`). A previous Vulkan/live smoke capture
-measured **0.01995**, but it is explicitly non-certification evidence and
-does not pin this title surface.
+The existing certified clone pair is tick **480** against frame 450 at RMSE
+**0.000000**. The new Press Start palette-cycle code does not affect that
+pre-prompt frame. A mandated post-change recapture is currently blocked: the
+sandbox's Xvfb cannot bind its X11 socket (`/tmp/.X11-unix` is host-owned by
+`nobody`, and a private namespace is denied `bind(2)`). A previous
+Vulkan/live smoke capture measured **0.01995**, but it is explicitly
+non-certification evidence and does not replace the certified pair.
 
 ## Opening cinematic boundary
 

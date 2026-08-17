@@ -29,14 +29,14 @@ rebuilds the body with those replacement tiles at the retail `duration + 1`
 cadence. A global art-bank permutation remains invalid; it would break the
 existing body assets.
 
-The Wayland capture of `--psiv-debug-battle=0x88` matches the retail Zoran
-formation at body anchors `(88,72)` and `(184,72)`, including the red bodies
-and blue lightning. `oracle/layouts/battle_command_idle.json` has no visible
+The old Wayland capture of `--psiv-debug-battle=0x88` is historical evidence
+only. The state-matched fixture now uses an empty presentation timeline, so
+the settled shot contains the two red Zoran bodies and no debug lightning.
+`oracle/layouts/battle_command_idle.json` has no visible
 SAT entries for this idle fixture, so its position proof is the decoded body
 anchor plus the overlay placement metadata; the SAT artifact is not being
 claimed as evidence where it contains no entries. The runtime frame still
-shows 204 changed pixels between adjacent captured animation states, confined
-to the enemy regions.
+requires a fresh compliant capture before an RMSE can be claimed.
 
 The managed shell's Xvfb path is currently blocked before the game starts:
 `/tmp/.X11-unix` is owned by `nobody`, and Xvfb refuses that socket directory.

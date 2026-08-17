@@ -30,8 +30,8 @@ mod transitions;
 mod view;
 use battle::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
 use boot::{
-    FALLBACK_SPAWN_CELL, FALLBACK_SPAWN_MAP, available_save_slots, debug_scene_runtime,
-    title_bypassed,
+    FALLBACK_SPAWN_CELL, FALLBACK_SPAWN_MAP, available_save_slots, debug_camp_runtime,
+    debug_scene_runtime, title_bypassed,
 };
 use camp::CampMenu;
 use cutscene::{CutsceneLayer, PresentationState};
@@ -258,60 +258,63 @@ impl INode2D for Field {
         let debug_event = std::env::var("PSIV_DEBUG_EVENT")
             .ok()
             .and_then(|value| u16::from_str_radix(value.trim().trim_start_matches("0x"), 16).ok());
-        let mut runtime = match debug_event
-            .and_then(|event| debug_scene_runtime(data.clone(), event, StepFrames::default()))
-        {
-            Some(Ok(runtime)) => runtime,
-            Some(Err(error)) => {
-                godot_error!("debug scene runtime failed: {error}");
-                return;
-            }
-            None => match requested_slot {
-                Some(slot) => match Runtime::load_slot(
-                    data.clone(),
-                    &save_directory(),
-                    slot,
-                    StepFrames::default(),
-                ) {
-                    Ok(rt) => {
-                        godot_print!("save boot: loaded slot {}", slot + 1);
-                        rt
-                    }
-                    Err(error) => {
-                        godot_error!(
-                            "save boot for slot {} failed: {error}; starting new game",
-                            slot + 1
-                        );
-                        match Runtime::new(
-                            data,
-                            spawn_map,
-                            spawn_cell,
-                            spawn_facing,
-                            StepFrames::default(),
-                        ) {
-                            Ok(rt) => rt,
-                            Err(e) => {
-                                godot_error!("runtime failed to start: {e}");
-                                return;
+        let mut runtime =
+            match debug_camp_runtime(data.clone(), StepFrames::default()).or_else(|| {
+                debug_event.and_then(|event| {
+                    debug_scene_runtime(data.clone(), event, StepFrames::default())
+                })
+            }) {
+                Some(Ok(runtime)) => runtime,
+                Some(Err(error)) => {
+                    godot_error!("debug scene runtime failed: {error}");
+                    return;
+                }
+                None => match requested_slot {
+                    Some(slot) => match Runtime::load_slot(
+                        data.clone(),
+                        &save_directory(),
+                        slot,
+                        StepFrames::default(),
+                    ) {
+                        Ok(rt) => {
+                            godot_print!("save boot: loaded slot {}", slot + 1);
+                            rt
+                        }
+                        Err(error) => {
+                            godot_error!(
+                                "save boot for slot {} failed: {error}; starting new game",
+                                slot + 1
+                            );
+                            match Runtime::new(
+                                data,
+                                spawn_map,
+                                spawn_cell,
+                                spawn_facing,
+                                StepFrames::default(),
+                            ) {
+                                Ok(rt) => rt,
+                                Err(e) => {
+                                    godot_error!("runtime failed to start: {e}");
+                                    return;
+                                }
                             }
                         }
-                    }
+                    },
+                    None => match Runtime::new(
+                        data,
+                        spawn_map,
+                        spawn_cell,
+                        spawn_facing,
+                        StepFrames::default(),
+                    ) {
+                        Ok(rt) => rt,
+                        Err(e) => {
+                            godot_error!("runtime failed to start: {e}");
+                            return;
+                        }
+                    },
                 },
-                None => match Runtime::new(
-                    data,
-                    spawn_map,
-                    spawn_cell,
-                    spawn_facing,
-                    StepFrames::default(),
-                ) {
-                    Ok(rt) => rt,
-                    Err(e) => {
-                        godot_error!("runtime failed to start: {e}");
-                        return;
-                    }
-                },
-            },
-        };
+            };
         let debug_vehicle = std::env::var("PSIV_DEBUG_VEHICLE_INDEX")
             .ok()
             .or_else(|| std::env::var("PSIV_DEBUG_VEHICLE").ok())

@@ -15,6 +15,10 @@ use psiv_data::{DialogueSet, Role};
 use super::layout::{CELL, CellRect};
 
 const WINDOW_BASE_TILE: u16 = 0x680;
+/// Retail's HP/TP separator is loaded from the window charset, not the
+/// ordinary menu font. `WinTiles_CharStatsOverview` emits raw byte `$77`,
+/// which becomes pattern `$6F7` after the `$680` window base is added.
+pub(super) const STATUS_SLASH_PATTERN: u16 = 0x6F7;
 
 pub(super) struct Quad {
     pub(super) texture: Gd<ImageTexture>,
@@ -123,6 +127,12 @@ impl CampChrome {
         let mut quads = Vec::new();
         for (column, character) in text.chars().enumerate() {
             let dest_cell = (cell.0 + column as i32, cell.1);
+            if character == '/' {
+                if let Some(quad) = self.window_word(STATUS_SLASH_PATTERN, dest_cell) {
+                    quads.push(quad);
+                }
+                continue;
+            }
             let dest = Rect2::new(
                 Vector2::new(dest_cell.0 as f32 * CELL, dest_cell.1 as f32 * CELL),
                 Vector2::new(CELL, CELL),
@@ -144,6 +154,33 @@ impl CampChrome {
                 texture: self.font.clone(),
                 dest,
                 src: Rect2::new(*source, Vector2::new(CELL, CELL)),
+            });
+        }
+        quads
+    }
+
+    /// The status routine's current/max HP and TP values use the second
+    /// numeric run in `menu_font.png` (source cells 36..45). Level, money,
+    /// and ordinary menu strings retain the first run used by `text`.
+    pub(super) fn number(&self, text: &str, cell: (i32, i32)) -> Vec<Quad> {
+        let columns = (self.font.get_width() / CELL as i32).max(1);
+        let mut quads = Vec::new();
+        for (column, character) in text.chars().enumerate() {
+            let Some(digit) = character.to_digit(10) else {
+                continue;
+            };
+            let index = 36 + digit as i32;
+            let source = Vector2::new(
+                (index % columns) as f32 * CELL,
+                (index / columns) as f32 * CELL,
+            );
+            quads.push(Quad {
+                texture: self.font.clone(),
+                dest: Rect2::new(
+                    Vector2::new((cell.0 + column as i32) as f32 * CELL, cell.1 as f32 * CELL),
+                    Vector2::new(CELL, CELL),
+                ),
+                src: Rect2::new(source, Vector2::new(CELL, CELL)),
             });
         }
         quads
@@ -191,7 +228,7 @@ fn retail_glyphs() -> BTreeMap<char, Vector2> {
 }
 
 fn retail_window_words(strip: &Gd<Image>) -> Option<BTreeMap<(u16, bool, bool), Gd<ImageTexture>>> {
-    const PATTERNS: [u16; 3] = [0x680, 0x6E7, 0x6E8];
+    const PATTERNS: [u16; 4] = [0x680, 0x6E7, 0x6E8, STATUS_SLASH_PATTERN];
     let mut words = BTreeMap::new();
     for pattern in PATTERNS {
         let index = i32::from(pattern - WINDOW_BASE_TILE);

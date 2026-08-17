@@ -35,7 +35,7 @@ retail captures; the source-backed text geometry is already aligned. The
 reported row-151/158 discrepancy is therefore not implemented as an
 unsupported shift that would break the aligned second line.
 
-Fixture phase is pinned: title clone tick **450** pairs with
+Fixture phase is pinned: title clone tick **480** pairs with
 `oracle/frames/title/frame_450.png` (settled title, no Press Start), and camp
 clone tick **60** pairs with `oracle/frames/frame_7675.png`, mark
 `camp_root_idle`. The pre-fix title diagnostic at clone tick 750 was the
@@ -43,24 +43,79 @@ wrong blink phase (`RMSE 19.408013`); it is not used for certification.
 
 ### Re-certification ledger
 
-The numbers below distinguish the supplied pre-change diagnostics from an
-actual post-change capture. The required Xvfb command was attempted with
-`--display-driver x11 --rendering-method gl_compatibility
---rendering-driver opengl3`; this sandbox cannot create the X11 display, so
-no post-change RMSE is fabricated.
+The numbers below distinguish the already-certified baseline pairs from the
+post-change captures still required for the battle/camp fixture work. The
+required Xvfb command was attempted with `--display-driver x11
+--rendering-method gl_compatibility --rendering-driver opengl3`; this sandbox
+cannot create the X11 display, so no missing post-change RMSE is fabricated.
 
 | pair | before | after | required pairing | status |
 |---|---:|---:|---|---|
-| opening page 1 | 6.587 | unverified | clone t3450 ↔ opening frame 4000 | Xvfb unavailable |
-| opening page 2 | 6.578 | unverified | clone t4440 ↔ opening frame 5200 | Xvfb unavailable |
-| MeetingRika | 36.3 | unverified | clone t162 ↔ frame 7250 | Xvfb unavailable |
-| battle `0x88` | 29.2 | unverified | clone t200 ↔ frame 25000 | Xvfb unavailable |
-| title | 19.408013 (wrong-phase t750) | unverified | clone t450 ↔ title frame 450 | Xvfb unavailable |
-| camp root | not recorded | unverified | clone t60 ↔ frame 7675 (`camp_root_idle`) | Xvfb unavailable |
+| opening page 1 | 6.587 | **0.000000** | clone t3550 ↔ opening frame 4000 | certified baseline |
+| opening page 2 | 6.578 | **0.000000** | clone t4550 ↔ opening frame 5200 | certified baseline |
+| MeetingRika | 36.3 | **0.000000** | clone t160 ↔ frame 7250 | certified baseline |
+| battle `0x88` | **20.598323** (pre-slot remap) | not measured after fixture fix | clone t200 ↔ frame 25000 | Xvfb listener blocked |
+| title | 19.408013 (wrong-phase t750) | **0.000000** baseline; post-blink recapture blocked | clone t480 ↔ title frame 450 | certified pre-prompt baseline |
+| camp root | **48.709921** (pre-receipt NPC state) | not measured after state/chrome fix | clone t60 ↔ frame 7675 (`camp_root_idle`) | Xvfb listener blocked |
 
 The exact commands below are the integration handoff. They must be run one
 at a time under Xvfb, with `PSIV_DEBUG_SCENE_TICKS=1` on scene captures, and
 the settled tick from that same log must be recorded beside each RMSE.
+
+### Last-two-pair receipt recheck (2026-08-17)
+
+Both oracle references were replayed from their source tapes before changing
+the clone. The regenerated PNG hashes are unchanged: Tape 07 frame 25000 is
+`761fb241a2360d222fdf1538be1af89b7bfb9cd09376a6157733fd8f71e773c4`, and Tape
+22 frame 7675 is
+`9bf283d9f48b4c0d959eb297ca0b1a997b62f227385ec25cae921e078ceaeca0`.
+
+#### Battle command idle
+
+`oracle/tapes/07_first_battle.tape` produces `frame_25000.png`, the settled
+command-idle battle. The RAM receipt at `$41F0` is
+`0F 05 00 00 02 03 00 0A 0E 0A 1A FF ...`: the two Zoran Bult position bytes
+are `$0E` and `$1A`, which decode to body anchors **(88,72)** and **(184,72)**
+with six-cell body runs at Plane A columns 11..16 and 23..28. Those enemy
+constants were already receipt-correct in the clone.
+
+The party layout receipt is center-out rather than status-strip order:
+
+| fighter slot | character | screen origin | Plane A destination | idle pose grid |
+|---:|---|---:|---:|---:|
+| 1 | Alys | `(136,120)` | row 15, col 17 | `$FFFF3000` |
+| 2 | Chaz | `(88,120)` | row 15, col 11 | `$FFFF3048` |
+| 3 | Hahn | `(184,120)` | row 15, col 23 | `$FFFF3090` |
+
+The fresh VDP SAT region at the retail SAT base is all zero and the checked-in
+`battle_command_idle` layout has no visible SAT entries. Position/pose proof
+for this idle frame is therefore the Plane A tile runs, `$41F0`, and the
+overlay metadata; no SAT attributes are invented here. The clone now assigns
+the character records to those receipt-backed fighter slots, preserving the
+retail idle pose selected by each slot.
+
+#### Camp root idle
+
+`oracle/tapes/22_camp_menu_layout.tape`, mark `camp_root_idle`, produces
+`frame_7675.png`. The receipt is map `$13`, world/map-index-2 `0/$FFFF`, Chaz
+at `($2F0,$140)`, and settled camera `($258,$E8)`. The live object slots at
+that frame are:
+
+| slot | object id | x | y | facing | map index |
+|---:|---:|---:|---:|---|---:|
+| 0 | `$803C` | 736 | 226 | down | 1 |
+| 1 | `$803C` | 743 | 128 | left | 3 |
+| 2 | `$803C` | 624 | 128 | left | 0 |
+| 3 | `$803C` | 352 | 112 | down | 0 |
+| 4 | `$803C` | 320 | 256 | right | 0 |
+| 5 | `$8040` | 271 | 160 | left | 0 |
+| 6 | `$803C` | 256 | 112 | down | 0 |
+| 7 | `$8068` | 592 | 240 | down | 0 |
+
+The debug camp fixture keeps the complete receipt-backed map/player/party
+setup, places all eight runtime objects at these pixel positions and facings,
+and suspends field wandering during the debug lead-in. This removes the
+non-deterministic post-spawn drift without changing normal gameplay.
 
 ## Op coverage
 
@@ -133,7 +188,7 @@ The capture command, once a display backend is available, is deliberately
 boring and explicit:
 
 ```sh
-xvfb-run -a env \
+xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 \
   PSIV_DEBUG_EVENT=0x9f \
   PSIV_DEBUG_AUTOCLOSE_SCENE=1 \
   PSIV_DEBUG_RETAIL_PACE=1 \
@@ -147,7 +202,7 @@ xvfb-run -a env \
 python3 psiv_tools/presentation_rmse.py \
   /tmp/psiv-opening-retail.png oracle/frames/opening/frame_4000.png
 
-xvfb-run -a env \
+xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 \
   PSIV_DEBUG_EVENT=0x8007 \
   PSIV_DEBUG_AUTOCLOSE_SCENE=1 \
   PSIV_DEBUG_RETAIL_PACE=1 \
@@ -211,7 +266,7 @@ that term only to scene panel planes and portraits. Dialogue window chrome,
 glyphs, arrows, and the opening background retain their independent retail
 origins.
 
-**Certified pairs (integration, 2026-08-17, post-COLOR_PIPELINE ramp):**
+**Known certified pairs (integration, 2026-08-17, post-COLOR_PIPELINE ramp):**
 
 | Pair | Clone tick | Oracle frame | RMSE |
 |---|---:|---:|---:|
@@ -219,8 +274,10 @@ origins.
 | Opening narration page 2 | 4550 | `opening/frame_5200.png` | **0.000000** |
 | MeetingRika settled Chaz page | 160 | tape-28 `frame_7250` (`d8fc26ae…`) | **0.000000** |
 | Title settled, pre-prompt | 480 | `title/frame_450.png` | **0.000000** |
-| Battle command idle `0x88` | 200 | `frame_25000.png` | 27.1 — state-mismatched fixture, see below |
-| Camp root idle | 60 | `frame_7675.png` | 68.8 — chrome defects + state mismatch, see below |
+
+The battle and camp rows from the earlier table were state-mismatched
+diagnostics, not certifications. Their post-fix captures remain blocked by
+the Xvfb listener and are listed separately below.
 
 The opening narration is **pixel-identical to the emulator** — the entire
 pre-ramp ~6.58 residual was the linear-vs-GPGX palette widening, not the
@@ -244,17 +301,18 @@ pixels were receipt-verified against the frame-7250 SAT/VRAM dump (they are
 a threshold artifact — index-1 dark pixels vs white-only). Note the settled
 window is narrow: full reveal ~t158, dismiss ~t163.
 
-Title certifies at t480 — the window between reveal-settle and the
-prompt/copyright draw, matching pre-prompt oracle frame 450. The clone's
-Press Start does not yet blink (retail does); filed.
+Title certifies at t480 in the settled pre-prompt pair — the window between
+reveal-settle and the prompt/copyright draw, matching pre-prompt oracle frame
+450. The Press Start cadence is now implemented from the retail palette-cycle
+routine; a post-change capture is blocked by this sandbox's Xvfb listener,
+but the changed prompt is not visible in this certified pair.
 
-The two open pairs are NOT phase problems: battle `0x88` t200 differs from
-tape frame 25000 in state (the tape's live party is 25/25 HP and 10/10 TP
-against a different enemy-slot arrangement than the debug battle builds),
-and camp differs in state (0 vs 500 MST, position) plus three real chrome
-defects — the per-row selector boxes retail draws before every menu entry
-are missing, the HP/TP `/` separator renders with the wrong glyph, and the
-LV line formatting differs. All filed with fixtures as the certfix lane.
+The original open pairs were state problems, not phase problems. The battle
+fixture now uses the tape's fresh 25/25, 10/10 Chaz and two-Zoran formation;
+the camp fixture now uses 500 MST and the tape's map/position, and its three
+chrome defects are implemented: per-row selector boxes, the window-charset
+HP/TP slash, and the exact `LV  : 1` spacing. The required post-fix RMSEs are
+left unclaimed until the compliant capture can run.
 
 Two defects were found and fixed to get there:
 
@@ -316,9 +374,9 @@ xvfb-run -a env \
   PSIV_DEBUG_SCENE_TICKS=1 \
   PSIV_DEBUG_SHOT=/tmp/psiv-meeting-rika-retail.png \
   PSIV_DEBUG_SHOT_FRAME=<settled-clone-tick> \
-  "$GODOT" --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
+  timeout 180s "$GODOT" --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
   --log-file /tmp/psiv-meeting-rika-retail-godot.log \
-  --path godot --quit-after <settled-clone-tick-plus-one> \
+  --path godot --quit-after 300000 \
   > /tmp/psiv-meeting-rika-retail.log 2>&1
 python3 psiv_tools/presentation_rmse.py \
   /tmp/psiv-meeting-rika-retail.png \
@@ -342,45 +400,73 @@ under the required Xvfb/X11 harness.
 
 | surface | deterministic fixture / clone tick | oracle frame and SHA-256 | RMSE | status |
 |---|---|---|---:|---|
-| battle command idle | `PSIV_DEBUG_BATTLE=0x88`, shot tick **200** | `oracle/frames/frame_25000.png`, `761fb241a2360d222fdf1538be1af89b7bfb9cd09376a6157733fd8f71e773c4` | **32.732584** | measured existing Xvfb artifact `/tmp/loop-frame-final3.png` (SHA-256 `adad835514b8adfe33425c5145e7aec175f4c0177c758febb516736660b6da58`) |
-| title settled | `PSIV_DEBUG_TITLE_SHOT=1`, shot tick **450** | `oracle/frames/title/frame_450.png`, `8cebd30d62a7b5b0c3ad634ec6efc5ab6ab62e088d6166835d447c843df18c10` | pending | integration command below |
-| camp root idle | `PSIV_DEBUG_CAMP=1`, shot tick **60**; oracle mark `camp_root_idle` | `oracle/frames/frame_7675.png`, `9bf283d9f48b4c0d959eb297ca0b1a997b62f227385ec25cae921e078ceaeca0` | pending | integration command below |
+| battle command idle | `PSIV_DEBUG_BATTLE=0x88`, shot tick **200** | `oracle/frames/frame_25000.png`, `761fb241a2360d222fdf1538be1af89b7bfb9cd09376a6157733fd8f71e773c4` | not measured after state fix | old artifact used the wrong Zoran/Twin-Arms fixture; required recapture below |
+| title settled | `PSIV_DEBUG_TITLE_SHOT=1`, shot tick **480** | `oracle/frames/title/frame_450.png`, `8cebd30d62a7b5b0c3ad634ec6efc5ab6ab62e088d6166835d447c843df18c10` | prior **0.000000**; post-blink recapture blocked | expected unchanged because Press Start is invisible |
+| camp root idle | `PSIV_DEBUG_CAMP=1`, shot tick **60**; oracle mark `camp_root_idle` | `oracle/frames/frame_7675.png`, `9bf283d9f48b4c0d959eb297ca0b1a997b62f227385ec25cae921e078ceaeca0` | not measured after state/chrome fix | required recapture below |
 
 Title certification:
 
 ```sh
 GODOT=/home/peter/.local/bin/psiv-godot-4.7.1
-xvfb-run -a env \
+xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 PSIV_DEBUG_SCENE_TICKS=1 \
   PSIV_DEBUG_TITLE_SHOT=1 \
-  PSIV_DEBUG_SHOT=/tmp/psiv-title-xvfb-450.png \
-  PSIV_DEBUG_SHOT_FRAME=450 \
-  "$GODOT" --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
-  --path godot --quit-after 451 \
-  > /tmp/psiv-title-xvfb-450.log 2>&1
+  PSIV_DEBUG_SHOT=/tmp/psiv-title-xvfb-480.png \
+  PSIV_DEBUG_SHOT_FRAME=480 \
+  timeout 180s "$GODOT" --log-file /tmp/psiv-title-godot.log \
+  --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
+  --path godot --quit-after 300000 \
+  > /tmp/psiv-title-xvfb-480.log 2>&1
 python3 psiv_tools/presentation_rmse.py \
-  /tmp/psiv-title-xvfb-450.png oracle/frames/title/frame_450.png
+  /tmp/psiv-title-xvfb-480.png oracle/frames/title/frame_450.png
 ```
 
 Camp certification:
 
 ```sh
 GODOT=/home/peter/.local/bin/psiv-godot-4.7.1
-xvfb-run -a env \
+xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 PSIV_DEBUG_SCENE_TICKS=1 \
   PSIV_DEBUG_CAMP=1 \
   PSIV_DEBUG_SHOT=/tmp/psiv-camp-xvfb-60.png \
   PSIV_DEBUG_SHOT_FRAME=60 \
-  "$GODOT" --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
-  --path godot --quit-after 61 \
+  timeout 180s "$GODOT" --log-file /tmp/psiv-camp-godot.log \
+  --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
+  --path godot --quit-after 300000 \
   > /tmp/psiv-camp-xvfb-60.log 2>&1
 python3 psiv_tools/presentation_rmse.py \
   /tmp/psiv-camp-xvfb-60.png oracle/frames/frame_7675.png
 ```
 
+Battle certification uses the same wrapper and a settled shot at tick 200:
+
+```sh
+GODOT=/home/peter/.local/bin/psiv-godot-4.7.1
+xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 PSIV_DEBUG_SCENE_TICKS=1 \
+  PSIV_DEBUG_BATTLE=0x88 \
+  PSIV_DEBUG_SHOT=/tmp/psiv-battle-xvfb-200.png \
+  PSIV_DEBUG_SHOT_FRAME=200 \
+  timeout 180s "$GODOT" --log-file /tmp/psiv-battle-godot.log \
+  --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
+  --path godot --quit-after 300000 \
+  > /tmp/psiv-battle-xvfb-200.log 2>&1
+python3 psiv_tools/presentation_rmse.py \
+  /tmp/psiv-battle-xvfb-200.png oracle/frames/frame_25000.png
+```
+
 The old title smoke number (**0.01995** at tick 450) used a Vulkan/live
 capture and is deliberately not a certification. The same rule applies to
 the old camp PNGs: visual evidence is useful, but it cannot pin the surface
-under this capture doctrine. The current sandbox failure is environmental,
-not a missing fixture or an invented RMSE.
+under this capture doctrine. On 2026-08-17 the mandated wrapper failed before
+Godot started: `/tmp/.X11-unix` is owned by `nobody` and contains stale
+`X0`/`X1` sockets, so Xvfb reports `Owner of /tmp/.X11-unix should be set to
+root` and cannot bind its display. The additional non-destructive TCP test
+(`xvfb-run -a -l -s '-nolisten unix -screen 0 1280x800x24'`) also failed with
+`unable to open display`; this sandbox cannot bind TCP either. Therefore the
+three commands above have exact expected pairings but no post-fix RMSE is
+claimed here. The post-change battle attempt also returned before Godot could
+create `/tmp/psiv-battle-after.png`; the Xvfb stderr was
+`XSERVTransSocketCreateListener: failed to bind listener`, followed by
+`Fatal server error: Cannot establish any listening sockets`. The stale global
+socket directory was left untouched.
 
 ## Runtime evidence
 

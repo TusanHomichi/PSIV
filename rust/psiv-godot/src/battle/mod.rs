@@ -69,11 +69,10 @@ pub(crate) struct EnemyPlacement {
     pub(crate) name: String,
 }
 
-/// `oracle/layouts/battle_command_idle.json`: the two six-cell enemy body
-/// runs start at plane columns 11 and 23. `enemy_sprite_origin` consumes the
-/// retail position byte as the bottom-right column, so those decoded origins
-/// are position bytes 17 and 29.
-const ORACLE_ENEMY_POSITIONS: [u8; 2] = [17, 29];
+/// Tape 07 RAM receipt at frame 25000 (`0x41F0`) carries two Zoran Bults at
+/// positions `$0E` and `$1A`. Their generated art record has half-width 3,
+/// producing the decoded six-cell body runs at columns 11 and 23.
+const ORACLE_ENEMY_POSITIONS: [u8; 2] = [0x0E, 0x1A];
 
 pub(super) struct FieldVisibility {
     map: bool,
@@ -146,9 +145,8 @@ impl Field {
     /// Presents the command-idle oracle fixture used by the visual loop.
     /// `PSIV_DEBUG_BATTLE=0x88` is intentionally a capture selector, not a
     /// raw formation id: the retail frame is tape 07's post-opening party
-    /// (Chaz/Alys/Hahn) against a Zoran Bult and a Twin Arms on the Academy
-    /// Basement art, so the debug timeline exercises both a static exact
-    /// attack and a visible retail lunge.
+    /// (Chaz/Alys/Hahn) against two Zoran Bults on the Academy Basement art.
+    /// The RAM receipt has no live animation event at the settled shot.
     /// No runtime round is started, so this path cannot mutate game state.
     pub(crate) fn start_oracle_debug_battle(&mut self) {
         let setup = BattleSetup {
@@ -161,7 +159,13 @@ impl Field {
             dark_force_2: false,
             party: vec![
                 PartyPlacement {
-                    fighter_id: 1,
+                    // Tape 07's party is ordered Chaz/Alys/Hahn in the
+                    // status strip, but the retail fighter slots are the
+                    // independent center-out layout: Alys is slot 1 at the
+                    // center, Chaz slot 2 at the left, Hahn slot 3 at the
+                    // right.  Keep the character ids attached to those
+                    // receipt-backed slots rather than the status order.
+                    fighter_id: 2,
                     character: 0,
                     name: "Chaz".into(),
                     hp: 25,
@@ -169,7 +173,7 @@ impl Field {
                     ..Default::default()
                 },
                 PartyPlacement {
-                    fighter_id: 2,
+                    fighter_id: 1,
                     character: 1,
                     name: "Alys".into(),
                     hp: 53,
@@ -194,16 +198,20 @@ impl Field {
                 },
                 EnemyPlacement {
                     fighter_id: 7,
-                    enemy_id: 87,
+                    enemy_id: 10,
                     position: ORACLE_ENEMY_POSITIONS[1],
-                    name: "TWIN ARMS".into(),
+                    name: "ZORAN BULT".into(),
                 },
             ],
         };
         self.begin_battle_presentation(
             setup,
-            BattleTimeline::debug_audio_probe(),
-            "oracle tape-07 command idle with audio probe",
+            BattleTimeline {
+                events: Vec::new(),
+                sounds: Vec::new(),
+                animations: Vec::new(),
+            },
+            "oracle tape-07 command idle receipt",
         );
     }
 
