@@ -233,8 +233,17 @@ def emit_scroll_arrow(
             f"{SCROLL_ARROW_MAPPING_BYTES.hex()}, got {mapping.hex()}"
         )
 
+    # A 2x1 VDP sprite is two side-by-side cells: compose row-interleaved
+    # (left tile's row r, then right tile's row r), not tile-concatenated —
+    # the concatenated form smeared tile 0 across the top four rows of the
+    # 16-wide image. Receipt: the frame-7250 oracle SAT/VRAM decode shows
+    # the clean 13-wide triangle this now reproduces.
+    left = tiles[SCROLL_ARROW_TILE_INDEX]
+    right = tiles[SCROLL_ARROW_TILE_INDEX + 1]
     pixels = b"".join(
-        tiles[SCROLL_ARROW_TILE_INDEX + index] for index in range(SCROLL_ARROW_TILE_COUNT)
+        left[row * TILE_PIXELS : (row + 1) * TILE_PIXELS]
+        + right[row * TILE_PIXELS : (row + 1) * TILE_PIXELS]
+        for row in range(TILE_PIXELS)
     )
     image = png.encode_indexed(
         SCROLL_ARROW_WIDTH,

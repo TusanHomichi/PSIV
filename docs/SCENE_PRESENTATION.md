@@ -217,8 +217,10 @@ origins.
 |---|---:|---:|---:|
 | Opening narration page 1 | 3550 | `opening/frame_4000.png` | **0.000000** |
 | Opening narration page 2 | 4550 | `opening/frame_5200.png` | **0.000000** |
-| MeetingRika settled Chaz page | 156–162 | tape-28 `frame_7250` (`d8fc26ae…`) | **20.926049** |
-| Battle command idle `0x88` | 200 | `frame_25000.png` | **27.139003** |
+| MeetingRika settled Chaz page | 160 | tape-28 `frame_7250` (`d8fc26ae…`) | **0.000000** |
+| Title settled, pre-prompt | 480 | `title/frame_450.png` | **0.000000** |
+| Battle command idle `0x88` | 200 | `frame_25000.png` | 27.1 — state-mismatched fixture, see below |
+| Camp root idle | 60 | `frame_7675.png` | 68.8 — chrome defects + state mismatch, see below |
 
 The opening narration is **pixel-identical to the emulator** — the entire
 pre-ramp ~6.58 residual was the linear-vs-GPGX palette widening, not the
@@ -230,14 +232,29 @@ without it, Mesa's amdgpu probe can fail in a background session and Godot
 silently falls back to the live Wayland desktop, whose real input corrupts
 the timeline.
 
-MeetingRika's remaining 20.9 decomposes into receipts: the dialogue window
-needed the same +1 X plane-origin residue as the panels (applied; rows
-176–208 dropped 62→13), the portrait art sits 1–2 px off inside its frame,
-and the window chrome retains a small residual. Battle's 27.1 is unanalyzed
-phase/content variance (enemy idle animation and HUD state at the fixture
-tick). Title and camp pairs await blink-phase-matched fixtures. These are
-the final-mile placement items, each measurable by the same crop/shift
-probes recorded here.
+MeetingRika reached zero through three receipts: the dialogue window needed
+the same +1 X plane-origin residue as the panels (rows 176–208 dropped
+62→13); the portrait had the residue double-applied on top of the box's own
++1 (correlation demanded exactly (-1,-1); the portrait is window chrome, so
+the residue term was removed); and the pack's scroll-arrow PNG was
+mis-composed — the two 8x8 tiles were byte-concatenated into the 16-wide
+image instead of row-interleaved as a 2x1 VDP sprite. The arrow's true
+pixels were receipt-verified against the frame-7250 SAT/VRAM dump (they are
+`ArtNem_Font` tiles $36/$37 exactly as scouted; earlier shape confusion was
+a threshold artifact — index-1 dark pixels vs white-only). Note the settled
+window is narrow: full reveal ~t158, dismiss ~t163.
+
+Title certifies at t480 — the window between reveal-settle and the
+prompt/copyright draw, matching pre-prompt oracle frame 450. The clone's
+Press Start does not yet blink (retail does); filed.
+
+The two open pairs are NOT phase problems: battle `0x88` t200 differs from
+tape frame 25000 in state (the tape's live party is 25/25 HP and 10/10 TP
+against a different enemy-slot arrangement than the debug battle builds),
+and camp differs in state (0 vs 500 MST, position) plus three real chrome
+defects — the per-row selector boxes retail draws before every menu entry
+are missing, the HP/TP `/` separator renders with the wrong glyph, and the
+LV line formatting differs. All filed with fixtures as the certfix lane.
 
 Two defects were found and fixed to get there:
 

@@ -38,15 +38,6 @@ const RETAIL_TEXT_LINE_PITCH: f32 = 16.0;
 /// measured event-mode delta at draw time.
 const RETAIL_SCENE_PORTRAIT_OFFSET: Vector2 = Vector2::new(-16.0, 8.0);
 
-/// Retail `grand_cross=0` plane pixels retain the decoded `(1,1)` origin
-/// residue while the dialogue window remains on the window-plane origin.
-/// See `oracle/scroll_state.py` and the MeetingRika frame-7250 receipt.
-const RETAIL_PLANE_SCROLL_RESIDUE: Vector2 = Vector2::new(1.0, 1.0);
-
-fn retail_plane_scroll_offset() -> Vector2 {
-    RETAIL_PLANE_SCROLL_RESIDUE
-}
-
 /// Above the field, above the party, above anything a later overlay adds.
 const Z_INDEX: i32 = 1000;
 
@@ -713,6 +704,11 @@ impl DialogueWindow {
             {
                 // The portrait art covers its own frame completely: the PNGs
                 // carry the border, so no chrome is drawn under them.
+                // The portrait rides the window plane: the box's own +1 X
+                // origin already applies through the node position, and
+                // adding the scene-plane (1,1) residue on top double-shifts
+                // it (frame-7250 receipt: correlation wants exactly (-1,-1)
+                // back).
                 quads.push(Quad {
                     texture: texture.clone(),
                     dest: Rect2::new(
@@ -721,8 +717,7 @@ impl DialogueWindow {
                                 RETAIL_SCENE_PORTRAIT_OFFSET
                             } else {
                                 Vector2::ZERO
-                            }
-                            + retail_plane_scroll_offset(),
+                            },
                         view.portrait_size,
                     ),
                     src: Rect2::new(Vector2::ZERO, view.portrait_size),
