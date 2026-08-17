@@ -26,3 +26,4 @@ oracle/states/
 oracle/layouts/
 build/
 oracle/tmp_*
+oracle/fixtures/battle_animation_art/*.png
