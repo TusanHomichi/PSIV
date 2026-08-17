@@ -148,9 +148,84 @@ that one of these routines shares another routine's movement contract.
 
 `Pana` is included in the two-placement census because its body is fixed and
 not a random family. `MileSandWorm` is the one-placement special animation;
-neither is safe to fold into the generic walker. The next wave remains a
-per-family transcription task, with no RNG registration until each body's
-instruction stream and an oracle receipt are in hand.
+neither is safe to fold into the generic walker.
+
+## Bespoke completion: wave 8
+
+The post-wave-7 census is now closed against the live pack: **243 placements
+across 121 symbols before this wave, 0 placements across 0 symbols after it**.
+The 949-placement total is unchanged: the ten random families remain in
+`WanderSet`, the seven wave-4 static families remain their existing no-RNG
+classification, and all 121 symbols covering those 243 placements now have an
+explicit `BespokeKind` entry in `rust/psiv-runtime/src/bridge.rs`.
+
+The implementation is deliberately split by what the routine actually does:
+
+| engine classification | families | shared-stream consequence |
+|---|---|---|
+| `Pattern` | `NPCType5`, `NPCType17`, `NPCType35`, `NPCType36`, `Rocky`, `loc_48F36`, `loc_49128`, `NPCHahnNearBasement` | literal command tables, selector 0/1 as shown by each caller, no RNG |
+| `Fixed` | `NPCType9`, `NPCType10`, `NPCType16`, `NPCType18`, `NPCType19`, `NPCType27`, `NPCType30`, `NPCType31`, `NPCType33`, `NPCType34`, `Pana`, `Juza`, `StrayRocky`, `loc_48F96`, `loc_48FF4`, `loc_497A8`, `loc_4980A`, `loc_4986C`, `loc_498CA` | raw facing is written; leash/terrain/object gates decide whether a step starts; no RNG |
+| `Random` | `NPCType11`, `NPCType12`, `NPCType13`, `Mouse`, `Prisoner`, `SmallWhiteDuck`, `SmallBrownDuck` | one `Rolls` stream in map-object order; helper-specific masks and retry rules are transcribed |
+| `FlaggedRandom` | `NPCType8` | no draw while `EventFlag_IgglanovaZema` is clear; `loc_49CEA` draws only after it is set |
+| `Follow` / `FlaggedFollow` | `NPCType6`, `NPCType7`, `FellowPenguin`, `loc_49192`, `loc_496C6` | relationship/object-target command, no RNG; FellowPenguin clears interaction bit 3 when joined |
+| `FlaggedPattern` | `EsperGuard`, `InnerEsperGuards`, `MuskCatGuard` | fixed pre-flag command, then the extracted literal route; no RNG |
+
+The motion classes all use the same cartridge gates as the ordinary walkers:
+facing is written before a leash refusal, accepted movement commits the map
+cell immediately, and a step uses the caller's extracted speed selector. The
+runtime ticks wanderers and bespoke actors by **one ascending NPC index** so a
+new random helper cannot silently get a private RNG stream. The routine and
+table provenance is `FieldObj_NPCType5..36` (`ps4.asm:95171-95834`),
+`loc_48F36..loc_49128` (`95858-95993`), the object-follow bodies
+`loc_49192`/`loc_496C6` (`96019`/`96366`) and `loc_4A05E`/`loc_4B366`
+(`97139`/`98916`), and helpers `loc_49BDA..loc_4A0F4` (`96744-97195`); the
+executable tables are constants in `rust/psiv-core/src/bespoke.rs`.
+
+### Why the largest families do not become fake walkers
+
+The 13 `NPCType30`, 12 `NPCType9/10`, and 6 `NPCType31` placements are
+deterministic **attempts**, not free-standing movers. For example, Type9's
+up command starts at `y=8` with a zero-height y leash; Type10's left command
+starts at `x=0` with a zero-width x leash; Type30's right command starts at
+the x maximum. They still write their facing and run the animation/position
+helpers, so dropping them entirely would be wrong; giving them random movement
+would be worse. `Fixed` preserves exactly the useful state and spends zero
+RNG.
+
+The small random helpers are likewise not generalized:
+
+- Type11 (`loc_49D34`) draws once to choose one of eight literal sequences;
+  the sequence itself draws nothing.
+- Type12/Mouse (`loc_49DCA`) decrements its routine timer and draws once on
+  the expiry branch, with `Main_Frame_Count & 3` selecting the two masks.
+- Type13 and both ducks (`loc_49E20`) draw until the low three bits are 3 or 4.
+- Prisoner (`loc_49EA4`) draws one low-six-bit value; zero alternates left and
+  right, nonzero chooses down.
+- Type8 (`loc_49CEA`) stays quiet until the Zema event gate is set, then uses
+  the same timer-plus-one-draw contract.
+
+### Explicit stays: scene and presentation ownership
+
+The remaining routines are registered, but their why-not is structural rather
+than a missing census entry:
+
+| classification | symbols | why the field tick does not synthesize movement |
+|---|---|---|
+| `SceneDriven` | `AlysAngerTower`, `DemiSpaceportWaiting`, `GryzSpaceportWaiting`, `HahnSpaceportWaiting`, `KingRappyFlyingAway`, `KyraSpaceportWaiting`, `NPCDemiSpaceport`, `NPCGryz`, `NPCGryzSpaceport`, `NPCHahnSpaceport`, `NPCKyra`, `NPCKyraSpaceport`, `NPCRajaSpaceport`, `NPCRika`, `NPCScriptMove`, `NPCWren`, `Raja`, `RajaSpaceportWaiting`, `Rika`, `NPCAlysPiata` | the body reads `FieldObj_GetInput` under event/player authority or consumes a scripted destination; scene/event authority owns the input |
+| `StaticAnimation` | `BigFire`, `CaveWallPiece`, `DElmLars`, `DarkForce1`, `DarkForce2`, `DeVars`, `DemiTrapped`, `DorinChair`, `EclipseTorch`, `FractOoze`, `GravestoneHalf`, `Igglanova`, `KingRappy`, `loc_49212`, `loc_49406`, `loc_49442`, `loc_49502`, `loc_49542`, `loc_4BDF0`, `loc_4BE38`, `loc_4BE80`, `LutzMirror`, `LyingDownMuskCat`, `MuskCatChiefBottomHalf`, `MuskCatChiefTopHalf`, `NPCAlysInBed`, `NPCHahn`, `NPCRune`, `Pennant`, `PrisonDoor`, `ProfHoltPetrified`, `RajaInBed`, `SaLews`, `SandWormCarving`, `StudentInBed`, `TallasShoes`, `TonoeBasementDoor`, `TrappingRopes`, `ZemaRocks` | deterministic position/animation only; no cell command and no shared RNG. The engine records the routine as a no-RNG actor rather than pretending it is absent |
+| `PresentationOnly` | `Barrier`, `BarrierBeam1..4`, `BigDuck`, `Blindheads`, `ChestBarrier`, `GiLeFarg`, `MileSandWorm`, `XeAThoulAirCastle` | special art, hide/show, or absolute-pixel state. `MileSandWorm` also draws only from its visual animation state (`$10/$11`); that state is outside the field tick, so the engine records the structural boundary instead of inventing a draw or cell occupancy |
+
+For `grand_cross=0`, the barrier beams retain the source's hide/show bounds and
+parity animation but omit the Grand Cross-only sound/flag side effects. Big
+Duck uses its direct pixel table; Mile Sand Worm hides for its opening 0x78
+frames and later has a four-way absolute-position RNG write; neither is a
+cell-walk contract. `XeAThoulAirCastle` is a deterministic map/frame flicker.
+Those routines stay `PresentationOnly` with the reason visible in the census.
+The field tick does not consume Mile Sand Worm's later four-way draw because it
+does not own the `$10/$11` animation-state transition that gates it; a visual
+lane that models that transition can take ownership of the draw without
+changing field movement order. This is the honest boundary: no fake movement,
+no silent RNG draw, no palette regeneration.
 
 Types 2 and 3 are still 297 objects and differ in exactly one pause mask. The
 newly transcribed families share the same remap and three collision gates, but
@@ -437,9 +512,9 @@ freeze if every column that would move is checked in the same source.
 - Runtime event-state side effects after Xanafalgue crosses `$100`: the
   movement and object-slot clear are modelled, but `TempEveFlag_Xanafalgue`
   remains in the event-state lane and is not folded into save serialization.
-- The remaining **243 placements in 121 symbols** after the wave-4 top seven
-  transcription. Their routines are not one shared contract; the census above
-  is the current boundary and no symbol below it is registered as a walker.
+- Visual animation state for `StaticAnimation` and `PresentationOnly` actors.
+  Their movement/RNG ownership is closed here; sprite art, frame tables, and
+  absolute-pixel presentation remain in the visual lane by scope.
 
 ## Closed parity receipts
 
@@ -455,10 +530,26 @@ freeze if every column that would move is checked in the same source.
 - **Wave-4 static-family receipt:** the same tape-02 replay compares all 32
   object slots, including the eight live academy objects, after inheriting the
   retail object state at `settle`; the regenerated camera-group oracle and
-  replay are clean across the 1080-frame field segment. The seven largest
-  bespoke families are deliberately represented as no-wander/no-RNG routines,
-  and the remaining 243 placements stay explicitly censused rather than being
-  misregistered as random walkers.
+  replay are clean across the 1080-frame field segment.
+- **Bespoke completion receipt:** `oracle/tapes/30_bespoke_piata.tape` reaches
+  map `$0010` (Piata), walks to the two `NPCType6` guards, and holds them on
+  screen. Its oracle log is `oracle/logs/30_bespoke_piata.csv`; replay from
+  mark `bespoke_guards` with the inherited map/seed/camera/object state reports
+  **CLEAN: 120 frames, 350 columns compared, zero divergences**. The guards'
+  facing writes and zero-RNG fixed/follow behavior are therefore covered in
+  cartridge order, not just by a unit test.
+- **Census closure:** the live `runtime-pack` count is 949 placements across
+  138 symbols: 332 random, 374 wave-4 static, and 243 wave-8 bespoke. The
+  post-wave-7 remainder is zero; `BespokeKind` is explicit for all 121
+  symbols, including the scene/presentation stays and their structural
+  reasons above.
+- **Post-entry gate receipt:** `oracle/states/refresh_map_camera_gate_receipt.json`
+  records the `loc_51AB2` contract. There are two call sites for the loader:
+  ordinary `GameMode_LoadFieldMap` (`ps4.asm:107556`) and `RefreshMap`
+  (`121797`); the latter is reached by scene/warp-time refreshes. No separate
+  literal EC25/EC26 writer was found. `Camera::apply_gate_write` and
+  `Runtime::refresh_map_camera_gates` preserve the zero-gate counter loads and
+  nonzero-gate counter preservation.
 - **Speed table:** `loc_4A202` pointer table and records at `$04A20E`,
   `$04A266`, `$04A2BE`, ending `$04A316`; tape-independent extraction receipt
   is `runtime-pack/npc_commands.json`, whose selector-2 SHA is pinned by the

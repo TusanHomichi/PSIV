@@ -338,7 +338,7 @@ class TestBattleArtFromRom(unittest.TestCase):
         self.assertEqual(helex["palette"]["rom_offset"], "0x27FFA2")
         self.assertEqual(
             [c["hex"] for c in helex["palette"]["colors"][:3]],
-            ["#240000", "#6D2400", "#B60000"],
+            ["#200000", "#622000", "#AC0000"],
         )
 
         igglanova = self.by_symbol["Igglanova"]
@@ -398,7 +398,7 @@ class TestBattleArtFromRom(unittest.TestCase):
         self.assertEqual(len(table["colors"]), CHARACTER_PALETTE_COLORS)
         self.assertEqual(
             [c["hex"] for c in table["colors"][:4]],
-            ["#000000", "#B6B6B6", "#6D6D6D", "#FFB66D"],
+            ["#000000", "#ACAAAC", "#626562", "#EEAA62"],
         )
         line = character_cram_line(self.data, 0)
         self.assertEqual(len(line), 16)

@@ -658,6 +658,8 @@ def _walk_animation(
 def build_enemy_animations(rom: bytes, display: dict[int, str] | None = None) -> dict[str, Any]:
     """Decode the retail enemy attack dispatch and battle-object records."""
     _check_retail_rom(rom)
+    from .battle_animation_receipts import apply_oracle_receipt
+
     routines = _attack_routines(rom)
     object_pointers, object_tables = _object_pointers(rom)
     object_spans = _spans(object_pointers, len(rom))
@@ -801,7 +803,7 @@ def build_enemy_animations(rom: bytes, display: dict[int, str] | None = None) ->
         else:
             routine_classification = "state_machine_without_sprite_mapping"
             classification_reason = "the object graph has no proven timed enemy mapping consumer"
-        animations.append({
+        animation = {
             "enemy_id": enemy_id,
             "symbol": ENEMY_SYMBOLS[enemy_id],
             "display_name": display.get(enemy_id),
@@ -831,7 +833,9 @@ def build_enemy_animations(rom: bytes, display: dict[int, str] | None = None) ->
             "movement_proven": movement["status"] == "exact",
             "flash_timing_proven": frame_sequence is not None,
             "sprite_sheet_proven": composition["status"] == "exact",
-        })
+        }
+        apply_oracle_receipt(animation)
+        animations.append(animation)
 
     exact_count = len(animations)
     timed = sum(animation["frame_sequence"] is not None for animation in animations)

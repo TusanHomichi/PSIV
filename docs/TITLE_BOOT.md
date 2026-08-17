@@ -104,7 +104,7 @@ xvfb-run -a env \
   PSIV_DEBUG_TITLE_SHOT=1 \
   PSIV_DEBUG_SHOT=/tmp/psiv-title-xvfb-450.png \
   PSIV_DEBUG_SHOT_FRAME=450 \
-  "$GODOT" --display-driver x11 --audio-driver Dummy \
+  "$GODOT" --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
   --path godot --quit-after 451 \
   > /tmp/psiv-title-xvfb-450.log 2>&1
 python3 psiv_tools/presentation_rmse.py \

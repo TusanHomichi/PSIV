@@ -75,6 +75,7 @@
 #![deny(clippy::float_arithmetic)]
 
 pub mod battle;
+mod bespoke;
 mod camera;
 mod chest;
 mod collision;
@@ -100,6 +101,11 @@ mod trigger_table;
 pub mod vehicle;
 mod wander;
 
+pub use bespoke::{
+    BespokeActor, BespokeContext, BespokeFlag, BespokeFlags, BespokeKind, BespokeRandom,
+    BespokeSet, FollowTarget, PATTERN_48F36, PATTERN_49128, PATTERN_ESPER_GUARD,
+    PATTERN_MUSK_GUARD, PATTERN_TYPE5, PATTERN_TYPE17, PATTERN_TYPE35, PATTERN_TYPE36,
+};
 pub use camera::{
     Camera, CameraBounds, CameraEdges, CameraGates, CameraPlane, Driver, HOME_X, HOME_Y, ONE_PIXEL,
     SCREEN_HEIGHT, SCREEN_WIDTH, SPRITE_ORIGIN, THRESHOLD_X, THRESHOLD_Y, on_screen,

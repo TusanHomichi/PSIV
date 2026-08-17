@@ -16,7 +16,7 @@ use psiv_core::{
 };
 use psiv_data::GameData;
 
-use super::bridge::build_wander;
+use super::bridge::{build_bespoke, build_wander, clear_bespoke_entry_flags};
 use super::{BridgeError, Runtime, camera_for_record, driver_of, field_map_patched};
 
 /// An error while reading, writing or constructing a runtime save.
@@ -126,6 +126,7 @@ pub(super) fn construct_runtime(
         .ok_or(BridgeError::NotPacked(placement.map_id))?;
     let effects = super::effects::evaluate(record, &mut game);
     let map = field_map_patched(record, Some(&effects))?;
+    clear_bespoke_entry_flags(&mut game, record);
     let party = Party::new(
         &map,
         placement.spawn,
@@ -135,6 +136,7 @@ pub(super) fn construct_runtime(
     )
     .map_err(|error| BridgeError::Rejected(error.to_string()))?;
     let wander = build_wander(&map, record)?;
+    let bespoke = build_bespoke(&map, record)?;
     let camera = camera_for_record(driver_of(party.leader()), &map, record)
         .map_err(BridgeError::Rejected)?;
     let mut runtime = Runtime {
@@ -150,6 +152,7 @@ pub(super) fn construct_runtime(
         despawned: std::collections::BTreeSet::new(),
         prev_standing: None,
         wander,
+        bespoke,
         rng: Lcg41::default(),
         field_suspended: false,
         frames: 0,

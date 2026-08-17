@@ -11,6 +11,57 @@ The ordering contract is covered by
 `presentation_events_keep_scene_order_and_tick_boundaries` in
 `rust/psiv-runtime/tests/next_arc.rs`.
 
+## Pixel-exactness pass (2026-08-17)
+
+The CRAM widening is now receipt-backed and centralized in
+[`COLOR_PIPELINE.md`](COLOR_PIPELINE.md). The pack was regenerated from the
+Grand Cross build (`grand_cross=0`); no linear or bit-replication widening
+remains in the Python pack emitters.
+
+The MeetingRika geometry scout resolved the portrait delta to a retail window
+group choice. `WinGroup_Dialogue` record 2 is `(5,13)` = `(40,104)` pixels;
+the scene/event branch in `TextCtrlCode_Portrait` selects `WinGroup_Event`
+record 4, `(3,14)` = `(24,112)`. The clone now marks scene-owned dialogue and
+applies `(-16,+8)` to the packed talk portrait, plus the measured `(1,1)`
+plane residue. That produces the observed retail-visible delta from `(43,108)`
+to `(27,115)` as `(-16,+7)` after the residue/content edge is included.
+
+The text scout did not support an arbitrary seven-pixel shift. Retail's
+`TextBufferToPlane` writes screen tile `(4,$15)` (`ps4.asm:143409`), a 32x4
+map of 8x16 glyphs. `dialogue.rs` now names that contract explicitly as an
+8-pixel text origin and 16-pixel line pitch. In the normalized frame-7250
+receipts, both lines occupy rows 171..180 and 186..198 in the old clone and
+retail captures; the source-backed text geometry is already aligned. The
+reported row-151/158 discrepancy is therefore not implemented as an
+unsupported shift that would break the aligned second line.
+
+Fixture phase is pinned: title clone tick **450** pairs with
+`oracle/frames/title/frame_450.png` (settled title, no Press Start), and camp
+clone tick **60** pairs with `oracle/frames/frame_7675.png`, mark
+`camp_root_idle`. The pre-fix title diagnostic at clone tick 750 was the
+wrong blink phase (`RMSE 19.408013`); it is not used for certification.
+
+### Re-certification ledger
+
+The numbers below distinguish the supplied pre-change diagnostics from an
+actual post-change capture. The required Xvfb command was attempted with
+`--display-driver x11 --rendering-method gl_compatibility
+--rendering-driver opengl3`; this sandbox cannot create the X11 display, so
+no post-change RMSE is fabricated.
+
+| pair | before | after | required pairing | status |
+|---|---:|---:|---|---|
+| opening page 1 | 6.587 | unverified | clone t3450 ↔ opening frame 4000 | Xvfb unavailable |
+| opening page 2 | 6.578 | unverified | clone t4440 ↔ opening frame 5200 | Xvfb unavailable |
+| MeetingRika | 36.3 | unverified | clone t162 ↔ frame 7250 | Xvfb unavailable |
+| battle `0x88` | 29.2 | unverified | clone t200 ↔ frame 25000 | Xvfb unavailable |
+| title | 19.408013 (wrong-phase t750) | unverified | clone t450 ↔ title frame 450 | Xvfb unavailable |
+| camp root | not recorded | unverified | clone t60 ↔ frame 7675 (`camp_root_idle`) | Xvfb unavailable |
+
+The exact commands below are the integration handoff. They must be run one
+at a time under Xvfb, with `PSIV_DEBUG_SCENE_TICKS=1` on scene captures, and
+the settled tick from that same log must be recorded beside each RMSE.
+
 ## Op coverage
 
 | Operation family | Shell status | Evidence / limit |
@@ -86,10 +137,11 @@ xvfb-run -a env \
   PSIV_DEBUG_EVENT=0x9f \
   PSIV_DEBUG_AUTOCLOSE_SCENE=1 \
   PSIV_DEBUG_RETAIL_PACE=1 \
+  PSIV_DEBUG_SCENE_TICKS=1 \
   PSIV_DEBUG_SHOT=/tmp/psiv-opening-retail.png \
   PSIV_DEBUG_SHOT_FRAME=<clone-tick> \
   /home/peter/.local/bin/psiv-godot-4.7.1 \
-  --display-driver x11 --audio-driver Dummy \
+  --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
   --log-file /tmp/psiv-opening-retail-godot.log \
   --path godot --quit-after <clone-tick-plus-one>
 python3 psiv_tools/presentation_rmse.py \
@@ -103,7 +155,7 @@ xvfb-run -a env \
   PSIV_DEBUG_SHOT=/tmp/psiv-meeting-rika-retail.png \
   PSIV_DEBUG_SHOT_FRAME=<clone-tick> \
   /home/peter/.local/bin/psiv-godot-4.7.1 \
-  --display-driver x11 --audio-driver Dummy \
+  --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
   --log-file /tmp/psiv-meeting-rika-retail-godot.log \
   --path godot --quit-after <clone-tick-plus-one>
 python3 psiv_tools/presentation_rmse.py \
@@ -159,19 +211,33 @@ that term only to scene panel planes and portraits. Dialogue window chrome,
 glyphs, arrows, and the opening background retain their independent retail
 origins.
 
-**Existing opening reference pairs (integration, 2026-08-16):**
+**Certified pairs (integration, 2026-08-17, post-COLOR_PIPELINE ramp):**
 
 | Pair | Clone tick | Oracle frame | RMSE |
 |---|---:|---:|---:|
-| Opening narration page 1 | 3450 | `opening/frame_4000.png` | **6.586813** |
-| Opening narration page 2 | 4440 | `opening/frame_5200.png` (= 5600) | **6.578011** |
+| Opening narration page 1 | 3550 | `opening/frame_4000.png` | **0.000000** |
+| Opening narration page 2 | 4550 | `opening/frame_5200.png` | **0.000000** |
+| MeetingRika settled Chaz page | 156–162 | tape-28 `frame_7250` (`d8fc26ae…`) | **20.926049** |
+| Battle command idle `0x88` | 200 | `frame_25000.png` | **27.139003** |
 
-Those historical captures land inside a settled 900-frame hold, where every frame is
-pixel-identical, so hold-window pairing is exact by construction. The
-clone timeline (holds at t3000–3900 and t3990–4890) is printed by
-`PSIV_DEBUG_SCENE_TICKS=1`, added for exactly this pairing work. The shared
-~6.58 residual is dominated by the intro's flying sprite sitting at a
-different point on its path plus minor sky deltas.
+The opening narration is **pixel-identical to the emulator** — the entire
+pre-ramp ~6.58 residual was the linear-vs-GPGX palette widening, not the
+flying sprite. Hold ticks shifted to 3550/4550 with the wave-6 dialogue
+timeline (holds now t3093–3993 and t4083–4983; re-derive from
+`PSIV_DEBUG_SCENE_TICKS=1` whenever scene content changes). Capture
+doctrine addition: export `LIBGL_ALWAYS_SOFTWARE=1` for Xvfb captures —
+without it, Mesa's amdgpu probe can fail in a background session and Godot
+silently falls back to the live Wayland desktop, whose real input corrupts
+the timeline.
+
+MeetingRika's remaining 20.9 decomposes into receipts: the dialogue window
+needed the same +1 X plane-origin residue as the panels (applied; rows
+176–208 dropped 62→13), the portrait art sits 1–2 px off inside its frame,
+and the window chrome retains a small residual. Battle's 27.1 is unanalyzed
+phase/content variance (enemy idle animation and HUD state at the fixture
+tick). Title and camp pairs await blink-phase-matched fixtures. These are
+the final-mile placement items, each measurable by the same crop/shift
+probes recorded here.
 
 Two defects were found and fixed to get there:
 
@@ -233,7 +299,7 @@ xvfb-run -a env \
   PSIV_DEBUG_SCENE_TICKS=1 \
   PSIV_DEBUG_SHOT=/tmp/psiv-meeting-rika-retail.png \
   PSIV_DEBUG_SHOT_FRAME=<settled-clone-tick> \
-  "$GODOT" --display-driver x11 --audio-driver Dummy \
+  "$GODOT" --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
   --log-file /tmp/psiv-meeting-rika-retail-godot.log \
   --path godot --quit-after <settled-clone-tick-plus-one> \
   > /tmp/psiv-meeting-rika-retail.log 2>&1
@@ -271,7 +337,7 @@ xvfb-run -a env \
   PSIV_DEBUG_TITLE_SHOT=1 \
   PSIV_DEBUG_SHOT=/tmp/psiv-title-xvfb-450.png \
   PSIV_DEBUG_SHOT_FRAME=450 \
-  "$GODOT" --display-driver x11 --audio-driver Dummy \
+  "$GODOT" --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
   --path godot --quit-after 451 \
   > /tmp/psiv-title-xvfb-450.log 2>&1
 python3 psiv_tools/presentation_rmse.py \
@@ -286,7 +352,7 @@ xvfb-run -a env \
   PSIV_DEBUG_CAMP=1 \
   PSIV_DEBUG_SHOT=/tmp/psiv-camp-xvfb-60.png \
   PSIV_DEBUG_SHOT_FRAME=60 \
-  "$GODOT" --display-driver x11 --audio-driver Dummy \
+  "$GODOT" --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
   --path godot --quit-after 61 \
   > /tmp/psiv-camp-xvfb-60.log 2>&1
 python3 psiv_tools/presentation_rmse.py \

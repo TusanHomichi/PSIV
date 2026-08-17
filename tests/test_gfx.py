@@ -19,6 +19,7 @@ from psiv_tools.gfx import (
     PORTRAIT_TILES,
     RAW_ART,
     GraphicsError,
+    GPGX_RGB565_RAMP,
     compose_sheet,
     decode_color,
     decode_palette,
@@ -267,18 +268,21 @@ class TestNemesisDecoder(unittest.TestCase):
 
 
 class TestTileAndPaletteDecoding(unittest.TestCase):
-    def test_channel_expansion_hits_both_ends(self):
+    def test_channel_expansion_matches_the_receipt_backed_ramp(self):
+        self.assertEqual(tuple(expand_channel(v) for v in range(8)), GPGX_RGB565_RAMP["r"])
+        self.assertEqual(
+            tuple(expand_channel(v, "g") for v in range(8)), GPGX_RGB565_RAMP["g"]
+        )
         self.assertEqual(expand_channel(0), 0)
-        self.assertEqual(expand_channel(7), 255)
-        self.assertEqual([expand_channel(v) >> 5 for v in range(8)], list(range(8)))
+        self.assertEqual(expand_channel(7), 238)
 
     def test_cram_word_layout(self):
         self.assertEqual(decode_color(0x0000)["rgb"], [0, 0, 0])
-        self.assertEqual(decode_color(0x0EEE)["rgb"], [255, 255, 255])
-        self.assertEqual(decode_color(0x000E)["rgb"], [255, 0, 0])
-        self.assertEqual(decode_color(0x00E0)["rgb"], [0, 255, 0])
-        self.assertEqual(decode_color(0x0E00)["rgb"], [0, 0, 255])
-        self.assertEqual(decode_color(0x0246)["hex"], "#6D4924")
+        self.assertEqual(decode_color(0x0EEE)["rgb"], [238, 238, 238])
+        self.assertEqual(decode_color(0x000E)["rgb"], [238, 0, 0])
+        self.assertEqual(decode_color(0x00E0)["rgb"], [0, 238, 0])
+        self.assertEqual(decode_color(0x0E00)["rgb"], [0, 0, 238])
+        self.assertEqual(decode_color(0x0246)["hex"], "#624420")
         self.assertEqual(decode_color(0x0246)["levels"], {"r": 3, "g": 2, "b": 1})
 
     def test_unused_cram_bits_are_flagged_not_dropped(self):
@@ -499,7 +503,7 @@ class TestGraphicsFromRom(unittest.TestCase):
         self.assertEqual(first["art"]["tile_count"], 348)
         self.assertEqual(first["palette"]["rom_offset"], "0x007054")
         self.assertEqual(len(first["palette"]["colors"]), BATTLE_BG_PALETTE_COLORS)
-        self.assertEqual(first["palette"]["colors"][0]["hex"], "#B6B692")
+        self.assertEqual(first["palette"]["colors"][0]["hex"], "#ACAA8B")
 
         # Seven consecutive entries share one art blob under seven palettes.
         power = [e for e in battle["entries"] if e["art_symbol"] == "PowerPlants"]
@@ -547,9 +551,9 @@ class TestGraphicsFromRom(unittest.TestCase):
             self.assertTrue(all(c["raw"] == "0x0000" for c in init["lines"][line]["colors"]))
         self.assertEqual(
             [c["hex"] for c in init["lines"][2]["colors"][:6]],
-            ["#000000", "#000000", "#B6B6B6", "#6D6D6D", "#FFB66D", "#B66D24"],
+            ["#000000", "#000000", "#ACAAAC", "#626562", "#EEAA62", "#AC6520"],
         )
-        self.assertEqual(init["lines"][2]["colors"][15]["hex"], "#FFFFFF")
+        self.assertEqual(init["lines"][2]["colors"][15]["hex"], "#EEEEEE")
         self.assertEqual(
             palettes["Pal_Init_Line_3"]["lines"][0]["colors"],
             init["lines"][2]["colors"],

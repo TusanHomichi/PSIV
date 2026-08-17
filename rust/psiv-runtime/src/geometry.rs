@@ -1,8 +1,8 @@
 //! Map and camera geometry shared by the runtime shell and save seam.
 
 use psiv_core::{
-    Camera, CameraBounds, CameraEdges, CameraGates, Driver, FieldMap, FieldState, Npc, ONE_PIXEL,
-    PixelPos, Topology, Wanderer,
+    BespokeActor, Camera, CameraBounds, CameraEdges, CameraGates, Driver, FieldMap, FieldState,
+    Npc, ONE_PIXEL, PixelPos, Topology, Wanderer,
 };
 use psiv_data::MapRecord;
 
@@ -49,6 +49,28 @@ pub(super) fn camera_for_record(
     ))
 }
 
+/// Applies `loc_51AB2` to a live camera without re-positioning it. This is the
+/// part of `RefreshMap` that ordinary field state can observe after a scene or
+/// warp-time map refresh.
+pub(super) fn refresh_camera_gates(camera: &mut Camera, record: &MapRecord) -> Result<(), String> {
+    let counters = |value: Option<&psiv_data::ScrollCounters>| -> Result<(i32, i32), String> {
+        let Some(value) = value else {
+            return Ok((0, 0));
+        };
+        Ok((parse_fixed(&value.x)?, parse_fixed(&value.y)?))
+    };
+    camera.apply_gate_write(
+        CameraGates {
+            ec24: record.scroll.mode,
+            ec25: record.scroll.fg_scroll_mode,
+            ec26: record.scroll.bg_scroll_mode,
+        },
+        counters(record.scroll.fg_step_counters.as_ref())?,
+        counters(record.scroll.bg_step_counters.as_ref())?,
+    );
+    Ok(())
+}
+
 fn parse_fixed(value: &str) -> Result<i32, String> {
     let digits = value
         .strip_prefix("0x")
@@ -83,10 +105,20 @@ pub(super) fn driver_of(leader: &FieldState) -> Driver {
 /// A stepping object's cell is already its destination — the engine commits it
 /// at step start — so the pixel position interpolates from the origin the step
 /// remembers, not from the cell.
-pub(super) fn object_position(npc: &Npc, wanderer: Option<&Wanderer>) -> (i32, i32) {
-    let base = wanderer.and_then(Wanderer::step_origin).unwrap_or(npc.cell);
+pub(super) fn object_position(
+    npc: &Npc,
+    wanderer: Option<&Wanderer>,
+    bespoke: Option<&BespokeActor>,
+) -> (i32, i32) {
+    let base = wanderer
+        .and_then(Wanderer::step_origin)
+        .or_else(|| bespoke.and_then(BespokeActor::step_origin))
+        .unwrap_or(npc.cell);
     let at = PixelPos::from_cell(base);
-    let (tx, ty) = wanderer.map_or((0, 0), Wanderer::travelled_px);
+    let (tx, ty) = wanderer
+        .map(Wanderer::travelled_px)
+        .or_else(|| bespoke.map(BespokeActor::travelled_px))
+        .unwrap_or((0, 0));
     (
         (at.x + i32::from(npc.offset.x) + tx) * ONE_PIXEL,
         (at.y + i32::from(npc.offset.y) + ty) * ONE_PIXEL,

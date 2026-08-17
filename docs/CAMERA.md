@@ -266,8 +266,8 @@ So a frame is:
 3. the scroll is folded into the camera position, then clamped or wrapped
 4. every object recomputes its sprite position against the new position
 
-The engine reproduces this order in `Camera::tick` and in `Runtime::tick_wander`,
-which deliberately runs before the camera's own tick.
+The engine reproduces this order in `Camera::tick` and in the field-object phase
+of `Runtime::tick`, which deliberately runs before the camera's own tick.
 
 ## Map entry
 
@@ -291,9 +291,22 @@ The three accumulated camera debts are now represented end to end:
 - replay rows expose the raw 16.16 FG/BG camera words, including their low
   words, instead of comparing only integer pixels.
 
-Scene-specific writes that deliberately change the gate bytes after map entry
-remain an owner-receipt boundary. No such write is silently inferred from a
-generic map record.
+### Post-entry gate writes
+
+The disassembly has one gate-loader routine, `loc_51AB2`
+(`ps4.asm:107749-107763`), and two callers: ordinary
+`GameMode_LoadFieldMap` (`ps4.asm:107556`) and `RefreshMap`
+(`ps4.asm:121797`). `RefreshMap` is the post-entry path reached by scene and
+warp-time refreshes. It rereads the current map record; the scout found no
+separate literal `EC25`/`EC26` writer outside `loc_51AB2`.
+
+`Camera::apply_gate_write` implements the loader's exact rule: write all three
+gate bytes, load the FG counters only when `EC25 == 0`, load the BG counters
+only when `EC26 == 0`, and preserve an existing pair for a nonzero gate.
+`Runtime::refresh_map_camera_gates` is the runtime seam for those post-entry
+`RefreshMap` calls. The focused receipt is
+`oracle/states/refresh_map_camera_gate_receipt.json`, and the core test is
+`camera::tests::refresh_map_rewrites_gate_bytes_and_only_zero_gates_consume_counters`.
 
 ## Status
 
@@ -305,7 +318,8 @@ is `camera::tests::the_existing_field_tape_replays_both_camera_planes`. The
 columns, with zero divergences, using the inherited map/seed/camera/object
 state at `settle` (`--start-from-log --camera 616,200 --seed 0xCB5A53D3
 --restore-objects`) against the regenerated `camera` oracle group in
-`oracle/logs/field_parity_02.csv`. The fresh full-pack comparison is
-4,315/4,315 shared files identical with zero differing files; the 17
-runtime-only `presentation/*` assets are outside the `psiv_tools pack` output
-scope.
+`oracle/logs/field_parity_02.csv`. The current structure-only pack check is
+4,518/4,518 files identical with zero differing files. That comparison is a
+same-tree integrity check; the Python pack tests also pass their independent
+temporary-build byte comparison, and no palette regeneration was performed
+for this wave.

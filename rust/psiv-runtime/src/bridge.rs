@@ -4,8 +4,10 @@ use std::fmt;
 
 use crate::effects::EffectOutcome;
 use psiv_core::{
-    Cell, CollisionGrid, Direction, FieldMap, MapId, Npc, NpcId, WanderKind, WanderSet, Warp,
-    WarpTrigger,
+    BespokeFlag, BespokeKind, BespokeRandom, BespokeSet, Cell, CollisionGrid, Direction, FieldMap,
+    FollowTarget, GameState, Leash, MapId, Npc, NpcId, PATTERN_48F36, PATTERN_49128,
+    PATTERN_ESPER_GUARD, PATTERN_MUSK_GUARD, PATTERN_TYPE5, PATTERN_TYPE17, PATTERN_TYPE35,
+    PATTERN_TYPE36, WanderKind, WanderSet, WanderSpeed, Warp, WarpTrigger,
 };
 use psiv_data::{GameData, MapRecord, TransitionTable};
 
@@ -264,6 +266,269 @@ pub(super) fn build_wander(map: &FieldMap, record: &MapRecord) -> Result<WanderS
     WanderSet::build(map, &objects).map_err(|e| BridgeError::Rejected(e.to_string()))
 }
 
+const fn leash(x_max: u8, y_max: u8, x: u8, y: u8) -> Leash {
+    Leash { x_max, y_max, x, y }
+}
+
+const fn fixed(command: u8, speed: WanderSpeed, leash: Leash) -> BespokeKind {
+    BespokeKind::Fixed {
+        command,
+        speed,
+        leash,
+    }
+}
+
+const fn pattern(commands: &'static [u8], speed: WanderSpeed, leash: Leash) -> BespokeKind {
+    BespokeKind::Pattern {
+        commands,
+        speed,
+        leash,
+    }
+}
+
+/// Converts every post-wave-7 routine into an explicit core classification.
+///
+/// The match is intentionally symbol-based. Object ids are the jump-table
+/// offsets, but the pack already gives us the disassembly symbol and that is
+/// the stable provenance key used by the census.
+fn bespoke_kind(symbol: Option<&str>) -> Option<BespokeKind> {
+    use BespokeKind::{
+        FlaggedFollow, FlaggedPattern, FlaggedRandom, Follow, PresentationOnly, Random,
+        SceneDriven, StaticAnimation,
+    };
+    Some(match symbol? {
+        // Deterministic field walkers and fixed attempts.
+        "NPCType5" => pattern(PATTERN_TYPE5, WanderSpeed::Selector1, leash(2, 2, 0, 2)),
+        "NPCType6" => FlaggedFollow {
+            flag: BespokeFlag::PrincipalConfession,
+            before: 2,
+            target: FollowTarget::LeaderGuard,
+            follow_when_set: false,
+            speed: WanderSpeed::Selector2,
+            leash: leash(2, 0, 1, 0),
+        },
+        "NPCType7" => Follow {
+            target: FollowTarget::LeaderRanch,
+            speed: WanderSpeed::Selector1,
+            leash: leash(1, 0, 1, 0),
+        },
+        "NPCType8" => FlaggedRandom {
+            flag: BespokeFlag::IgglanovaZema,
+            kind: BespokeRandom::Igglanova,
+            speed: WanderSpeed::Selector0,
+            leash: leash(16, 16, 8, 8),
+        },
+        "NPCType9" => fixed(1, WanderSpeed::Selector0, leash(16, 0, 8, 0)),
+        "NPCType10" => fixed(3, WanderSpeed::Selector0, leash(0, 16, 0, 8)),
+        "NPCType11" => Random {
+            kind: BespokeRandom::SequenceChoice,
+            speed: WanderSpeed::Selector1,
+            leash: leash(11, 1, 4, 1),
+        },
+        "NPCType12" => Random {
+            kind: BespokeRandom::Mouse,
+            speed: WanderSpeed::Selector1,
+            leash: leash(16, 16, 8, 8),
+        },
+        "NPCType13" => Random {
+            kind: BespokeRandom::FilteredCardinal,
+            speed: WanderSpeed::Selector0,
+            leash: leash(4, 0, 0, 0),
+        },
+        "NPCType14" => StaticAnimation,
+        "NPCType16" => fixed(2, WanderSpeed::Selector0, leash(16, 0, 8, 0)),
+        "NPCType17" => pattern(PATTERN_TYPE17, WanderSpeed::Selector1, leash(4, 4, 0, 0)),
+        "NPCType18" => fixed(3, WanderSpeed::Selector0, Leash::ZERO),
+        "NPCType19" => fixed(1, WanderSpeed::Selector0, Leash::ZERO),
+        "NPCType20" | "NPCType21" | "NPCType22" | "NPCType23" | "NPCType24" | "NPCType25"
+        | "NPCType26" | "NPCType29" => StaticAnimation,
+        "NPCType27" => fixed(2, WanderSpeed::Selector1, leash(16, 0, 8, 0)),
+        "NPCType30" => fixed(4, WanderSpeed::Selector0, leash(2, 16, 2, 8)),
+        "NPCType31" => fixed(2, WanderSpeed::Selector0, leash(16, 0, 8, 0)),
+        "NPCType33" => fixed(3, WanderSpeed::Selector0, leash(0, 16, 0, 8)),
+        "NPCType34" => fixed(4, WanderSpeed::Selector0, leash(0, 16, 0, 8)),
+        "NPCType35" => pattern(PATTERN_TYPE35, WanderSpeed::Selector1, leash(6, 4, 0, 0)),
+        "NPCType36" => pattern(PATTERN_TYPE36, WanderSpeed::Selector1, leash(6, 4, 2, 0)),
+        "Mouse" => Random {
+            kind: BespokeRandom::Mouse,
+            speed: WanderSpeed::Selector0,
+            leash: leash(16, 16, 8, 8),
+        },
+        "Prisoner" => Random {
+            kind: BespokeRandom::Prisoner,
+            speed: WanderSpeed::Selector0,
+            leash: leash(1, 0, 0, 0),
+        },
+        "Rocky" => pattern(PATTERN_TYPE5, WanderSpeed::Selector0, leash(4, 4, 2, 2)),
+        "SmallWhiteDuck" | "SmallBrownDuck" => Random {
+            kind: BespokeRandom::FilteredCardinal,
+            speed: WanderSpeed::Selector0,
+            leash: leash(32, 32, 16, 16),
+        },
+        "loc_48F36" => pattern(PATTERN_48F36, WanderSpeed::Selector0, leash(4, 0, 1, 0)),
+        "loc_48F96" => fixed(2, WanderSpeed::Selector0, Leash::ZERO),
+        "loc_48FF4" => fixed(4, WanderSpeed::Selector0, leash(0, 16, 0, 8)),
+        "loc_49128" => pattern(PATTERN_49128, WanderSpeed::Selector0, leash(16, 4, 1, 0)),
+        "loc_49192" => Follow {
+            target: FollowTarget::PreviousObject,
+            speed: WanderSpeed::Selector0,
+            leash: leash(32, 32, 16, 16),
+        },
+        "loc_497A8" => fixed(4, WanderSpeed::Selector0, leash(4, 4, 4, 2)),
+        "loc_4980A" => fixed(3, WanderSpeed::Selector0, leash(4, 4, 0, 2)),
+        "loc_4986C" => fixed(2, WanderSpeed::Selector0, leash(1, 0, 0, 0)),
+        "loc_498CA" => fixed(2, WanderSpeed::Selector0, Leash::ZERO),
+        "NPCHahnNearBasement" => pattern(&[3, 4], WanderSpeed::Selector1, leash(1, 0, 1, 0)),
+        "Pana" => fixed(2, WanderSpeed::Selector0, leash(16, 0, 8, 0)),
+        "Juza" => fixed(2, WanderSpeed::Selector0, Leash::ZERO),
+        "StrayRocky" => fixed(3, WanderSpeed::Selector0, leash(2, 0, 0, 0)),
+        "EsperGuard" => FlaggedPattern {
+            flag: BespokeFlag::EspMansionGuards,
+            before: 2,
+            after: PATTERN_ESPER_GUARD,
+            speed: WanderSpeed::Selector0,
+            leash: leash(16, 0, 8, 0),
+        },
+        "InnerEsperGuards" => FlaggedPattern {
+            flag: BespokeFlag::InnerSanctuary,
+            before: 1,
+            after: PATTERN_ESPER_GUARD,
+            speed: WanderSpeed::Selector0,
+            leash: leash(16, 0, 8, 0),
+        },
+        "MuskCatGuard" => FlaggedPattern {
+            flag: BespokeFlag::MuskCats,
+            before: 2,
+            after: PATTERN_MUSK_GUARD,
+            speed: WanderSpeed::Selector0,
+            leash: leash(16, 0, 8, 0),
+        },
+        "FellowPenguin" => BespokeKind::FlaggedFollow {
+            flag: BespokeFlag::Penguin,
+            before: 2,
+            target: FollowTarget::PartyTail,
+            follow_when_set: true,
+            speed: WanderSpeed::Selector0,
+            leash: leash(4, 4, 2, 4),
+        },
+        "loc_496C6" => Follow {
+            target: FollowTarget::ObjectAt(9),
+            speed: WanderSpeed::Selector0,
+            leash: leash(32, 32, 16, 16),
+        },
+
+        // Input, mode, and cast-owned actors. Their input is scene authority,
+        // so inventing a field AI here would be a cross-lane semantic bug.
+        "AlysAngerTower"
+        | "DemiSpaceportWaiting"
+        | "GryzSpaceportWaiting"
+        | "HahnSpaceportWaiting"
+        | "KingRappyFlyingAway"
+        | "KyraSpaceportWaiting"
+        | "NPCDemiSpaceport"
+        | "NPCGryz"
+        | "NPCGryzSpaceport"
+        | "NPCHahnSpaceport"
+        | "NPCKyra"
+        | "NPCKyraSpaceport"
+        | "NPCRajaSpaceport"
+        | "NPCRika"
+        | "NPCScriptMove"
+        | "NPCWren"
+        | "Raja"
+        | "RajaSpaceportWaiting"
+        | "Rika"
+        | "NPCAlysPiata" => SceneDriven,
+
+        // Fixed art/animation routines: they update position and animation
+        // state, but never consume the field RNG or choose a cell direction.
+        "BigFire"
+        | "CaveWallPiece"
+        | "DElmLars"
+        | "DarkForce1"
+        | "DarkForce2"
+        | "DeVars"
+        | "DemiTrapped"
+        | "DorinChair"
+        | "EclipseTorch"
+        | "FractOoze"
+        | "Igglanova"
+        | "KingRappy"
+        | "LutzMirror"
+        | "LyingDownMuskCat"
+        | "MuskCatChiefBottomHalf"
+        | "MuskCatChiefTopHalf"
+        | "NPCAlysInBed"
+        | "NPCHahn"
+        | "NPCRune"
+        | "Pennant"
+        | "PrisonDoor"
+        | "ProfHoltPetrified"
+        | "RajaInBed"
+        | "SaLews"
+        | "SandWormCarving"
+        | "StudentInBed"
+        | "TallasShoes"
+        | "TonoeBasementDoor"
+        | "TrappingRopes"
+        | "ZemaRocks"
+        | "GravestoneHalf"
+        | "loc_49212"
+        | "loc_49406"
+        | "loc_49442"
+        | "loc_49502"
+        | "loc_49542"
+        | "loc_4BDF0"
+        | "loc_4BE38"
+        | "loc_4BE80" => StaticAnimation,
+
+        // These bodies have deterministic render/animation state, but their
+        // movement is not a cell walk and belongs to the visual/special-object
+        // lane. MileSandWorm's later draw is gated by visual animation state,
+        // which this field lane deliberately does not synthesize.
+        "Barrier" | "BarrierBeam1" | "BarrierBeam2" | "BarrierBeam3" | "BarrierBeam4"
+        | "BigDuck" | "Blindheads" | "ChestBarrier" | "GiLeFarg" | "XeAThoulAirCastle"
+        | "MileSandWorm" => PresentationOnly,
+        _ => return None,
+    })
+}
+
+/// Builds the explicit post-wave-7 actor set for a map.
+pub(super) fn build_bespoke(map: &FieldMap, record: &MapRecord) -> Result<BespokeSet, BridgeError> {
+    let objects: Vec<(usize, BespokeKind)> = record
+        .npcs
+        .iter()
+        .enumerate()
+        .filter_map(|(i, npc)| {
+            if !map.npcs().get(i).is_some_and(|object| object.active) {
+                return None;
+            }
+            bespoke_kind(npc.symbol.as_deref()).map(|kind| (i, kind))
+        })
+        .collect();
+    BespokeSet::build(map, &objects).map_err(|e| BridgeError::Rejected(e.to_string()))
+}
+
+/// Object initialisers in the retail routine clear these two transient/story
+/// bits before their first main pass. Doing it after `MapDataManager` effects
+/// preserves the cartridge's order without making the save format scene-aware.
+pub(super) fn clear_bespoke_entry_flags(game: &mut GameState, record: &MapRecord) {
+    if record
+        .npcs
+        .iter()
+        .any(|npc| npc.symbol.as_deref() == Some("FellowPenguin"))
+    {
+        let _ = game.clear(psiv_core::Flag::event(0x8A));
+    }
+    if record
+        .npcs
+        .iter()
+        .any(|npc| npc.symbol.as_deref() == Some("EsperGuard"))
+    {
+        let _ = game.clear(psiv_core::Flag::temp(0x1A));
+    }
+}
+
 /// Character id by party-sheet symbol (`CharFieldArtPtrs` order is the id).
 pub(super) fn char_id_by_symbol(data: &GameData, symbol: &str) -> Option<u8> {
     (0..11)
@@ -272,4 +537,37 @@ pub(super) fn char_id_by_symbol(data: &GameData, symbol: &str) -> Option<u8> {
                 .is_some_and(|sheet| sheet.id == symbol)
         })
         .map(|slot| slot as u8)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn bespoke_leashes_preserve_disassembly_word_byte_order() {
+        let cases = [
+            (
+                "NPCType5",
+                Leash {
+                    x_max: 2,
+                    y_max: 2,
+                    x: 0,
+                    y: 2,
+                },
+            ),
+            (
+                "loc_48F36",
+                Leash {
+                    x_max: 4,
+                    y_max: 0,
+                    x: 1,
+                    y: 0,
+                },
+            ),
+        ];
+
+        for (symbol, expected) in cases {
+            assert_eq!(bespoke_kind(Some(symbol)).unwrap().leash(), expected);
+        }
+    }
 }

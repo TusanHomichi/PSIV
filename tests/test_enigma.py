@@ -129,7 +129,7 @@ COMPOSED_BATTLE_SHA256 = {
     0x00: (512, 192, "f0b86a200e089b41c37867012db651d1b9822a3d22c8ce710107ce32f1f961c3"),
     0x02: (512, 192, "7a667d4a93abc7a3ada35ade5dc7bb431b02d829d2a4fefc0827021399e8ad10"),
 }
-MOTA_DESERT_PNG_SHA256 = "3f0d7eca21ddb181f10b743181b7e514a4f9f6073e93465eccfa438d5d7a63ba"
+MOTA_DESERT_PNG_SHA256 = "9d442ef62895a5a9a17e2061068728848f4234610ca62d7bf3fda42f32fe8209"
 
 # Six of the call sites sit inside `if revision=0 ... else ... endif` in the
 # fork, which assembles the `revision=0` side. These are the base tiles that

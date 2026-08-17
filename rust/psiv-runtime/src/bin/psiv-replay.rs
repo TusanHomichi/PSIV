@@ -293,20 +293,37 @@ fn object_samples(
 
     for (slot, npc) in map.npcs().iter().enumerate().take(OBJECT_SLOTS) {
         let wanderer = wanderers.iter().find(|w| w.npc_index() == slot);
+        let bespoke = runtime
+            .bespoke_actors()
+            .iter()
+            .find(|actor| actor.npc_index() == slot);
+        let bespoke_state = bespoke.filter(|actor| actor.kind().reports_state());
         // A mid-step object's pixels run out of the cell it left, because the
         // engine commits the destination cell the moment the step starts.
         let base = wanderer
             .and_then(psiv_core::Wanderer::step_origin)
+            .or_else(|| bespoke.and_then(psiv_core::BespokeActor::step_origin))
             .unwrap_or(npc.cell);
         let at = PixelPos::from_cell(base);
-        let (tx, ty) = wanderer.map_or((0, 0), psiv_core::Wanderer::travelled_px);
-        let (x_dur, y_dur) = wanderer.map_or((0, 0), psiv_core::Wanderer::step_durations);
-        let leash = wanderer.map(psiv_core::Wanderer::leash);
+        let (tx, ty) = wanderer
+            .map(psiv_core::Wanderer::travelled_px)
+            .or_else(|| bespoke.map(psiv_core::BespokeActor::travelled_px))
+            .unwrap_or((0, 0));
+        let (x_dur, y_dur) = wanderer
+            .map(psiv_core::Wanderer::step_durations)
+            .or_else(|| bespoke_state.map(psiv_core::BespokeActor::step_durations))
+            .unwrap_or((0, 0));
+        let leash = wanderer
+            .map(psiv_core::Wanderer::leash)
+            .or_else(|| bespoke_state.map(psiv_core::BespokeActor::leash));
 
         out[slot] = ObjectSample {
             id: OBJECT_ID_LOADED | npc.id.0,
             facing: psiv_core::facing_value(npc.facing),
-            timer: wanderer.map_or(0, psiv_core::Wanderer::timer),
+            timer: wanderer
+                .map(psiv_core::Wanderer::timer)
+                .or_else(|| bespoke_state.map(psiv_core::BespokeActor::timer))
+                .unwrap_or(0),
             x_dur,
             y_dur,
             x_px: at.x + tx,

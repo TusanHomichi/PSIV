@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import struct
+import zlib
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +18,7 @@ MAPPING_HEADER_BYTES = 1
 MAPPING_ENTRY_BYTES = 6
 ENEMY_ATTACK_ART_DIRECTORY = "battle/art/enemy_attacks"
 ENEMY_ATTACK_ART_NAME = "battle/art/enemy_attacks.json"
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _hex(value: int) -> str:
@@ -115,6 +118,129 @@ def _render_attack_mapping(
     return png.encode_indexed(width, height, pixels, palette, (0,))
 
 
+def _indexed_pixels(data: bytes) -> tuple[int, int, bytes]:
+    """Read the dependency-free indexed PNGs emitted by the oracle renderer."""
+    if data[:8] != png.PNG_SIGNATURE:
+        raise ValueError("oracle attack fixture is not a PNG")
+    pos = 8
+    ihdr = None
+    compressed = bytearray()
+    while pos < len(data):
+        if pos + 12 > len(data):
+            raise ValueError("oracle attack fixture has a truncated PNG chunk")
+        (length,) = struct.unpack(">I", data[pos:pos + 4])
+        kind = data[pos + 4:pos + 8]
+        payload_start = pos + 8
+        payload_end = payload_start + length
+        if payload_end + 4 > len(data):
+            raise ValueError("oracle attack fixture has an overlong PNG chunk")
+        payload = data[payload_start:payload_end]
+        if kind == b"IHDR":
+            ihdr = payload
+        elif kind == b"IDAT":
+            compressed.extend(payload)
+        pos = payload_end + 4
+    if ihdr is None or len(ihdr) != 13:
+        raise ValueError("oracle attack fixture has no valid IHDR")
+    width, height, depth, color_type, compression, filtering, interlace = struct.unpack(
+        ">IIBBBBB", ihdr
+    )
+    if (depth, color_type, compression, filtering, interlace) != (
+        8, png.COLOR_TYPE_INDEXED, 0, 0, 0
+    ):
+        raise ValueError("oracle attack fixture is not a filter-0 indexed PNG")
+    raw = zlib.decompress(bytes(compressed))
+    stride = width + 1
+    if len(raw) != stride * height:
+        raise ValueError("oracle attack fixture has malformed scanlines")
+    if any(raw[row * stride] != 0 for row in range(height)):
+        raise ValueError("oracle attack fixture uses an unsupported PNG filter")
+    pixels = b"".join(
+        raw[row * stride + 1:(row + 1) * stride] for row in range(height)
+    )
+    return width, height, pixels
+
+
+def _emit_oracle_receipt_art(
+    animation: dict[str, Any],
+    receipt: dict[str, Any],
+    directory: Path,
+    entry: dict[str, Any],
+    rom: bytes,
+) -> tuple[int, int]:
+    """Copy VRAM-rendered oracle frames into the normal attack-art surface."""
+    from .battle_art_pack import enemy_palette
+
+    prefix = receipt.get("frame_asset_prefix")
+    if not prefix:
+        raise ValueError(
+            f"{receipt.get('routine_offset')}: oracle receipt has no art prefix"
+        )
+    durations = receipt["durations"]
+    origin = receipt.get("origin_pixels")
+    if (
+        not isinstance(origin, list)
+        or len(origin) != 2
+        or not all(isinstance(value, int) for value in origin)
+    ):
+        raise ValueError(
+            f"{receipt.get('routine_offset')}: oracle receipt has no local origin"
+        )
+    total_bytes = 0
+    png_count = 0
+    for frame_index, duration in enumerate(durations):
+        source = ROOT / f"{prefix}_frame{frame_index:02d}.png"
+        if not source.is_file():
+            raise FileNotFoundError(f"missing oracle attack frame: {source}")
+        source_image = source.read_bytes()
+        width, height, pixels = _indexed_pixels(source_image)
+        # A shared routine body can serve enemies with different CRAM words.
+        # Preserve the oracle's structure/pixels, but give each copied PNG its
+        # own existing line-relative palette so Godot's indexed recolour pass
+        # can resolve it without smuggling a colour decision into the receipt.
+        image = png.encode_indexed(
+            width,
+            height,
+            pixels,
+            enemy_palette(rom, animation["enemy_id"]),
+            transparent=(0,),
+        )
+        name = (
+            f"{animation['enemy_id']:03d}_"
+            f"{_attack_safe(animation['symbol'])}_frame{frame_index:02d}.png"
+        )
+        relative = f"{ENEMY_ATTACK_ART_DIRECTORY}/{name}"
+        (directory / relative).write_bytes(image)
+        total_bytes += len(image)
+        png_count += 1
+        entry["frames"].append({
+            "index": frame_index,
+            "mapping_rom_offset": (
+                f"oracle:{receipt['routine_offset']}:frame{frame_index:02d}"
+            ),
+            "png": relative,
+            "png_sha256": hashlib.sha256(image).hexdigest(),
+            "duration": duration,
+        })
+    entry.update({
+        "origin_pixels": origin,
+        "width_pixels": width,
+        "height_pixels": height,
+        "frame_duration": durations[0],
+        "total_frames": sum(durations),
+        "art": [{
+            "field": "oracle_vdp_vram",
+            "routine_offset": receipt["routine_offset"],
+            "representative_enemy_id": receipt["representative_enemy_id"],
+            "action_frame": receipt["action_frame"],
+            "observed_offsets": receipt["observed_offsets"],
+            "capture": receipt["capture"],
+            "source": receipt["receipt"],
+        }],
+    })
+    return total_bytes, png_count
+
+
 def emit_enemy_attack_art(
     rom: bytes,
     out_dir: str | Path,
@@ -157,6 +283,23 @@ def emit_enemy_attack_art(
             },
         }
         if composition["status"] != "exact":
+            entries.append(entry)
+            continue
+
+        receipt = animation.get("oracle_receipt")
+        if receipt is not None and receipt.get("frame_asset_prefix"):
+            entry["source"]["oracle_receipt"] = {
+                "routine_offset": receipt["routine_offset"],
+                "representative_enemy_id": receipt["representative_enemy_id"],
+                "presentation": receipt["presentation"],
+                "action_frame": receipt["action_frame"],
+                "receipt": receipt["receipt"],
+            }
+            receipt_bytes, receipt_pngs = _emit_oracle_receipt_art(
+                animation, receipt, directory, entry, rom
+            )
+            total_bytes += receipt_bytes
+            png_count += receipt_pngs
             entries.append(entry)
             continue
 
@@ -242,4 +385,3 @@ def emit_enemy_attack_art(
         },
         "enemies": entries,
     }, total_bytes, png_count
-

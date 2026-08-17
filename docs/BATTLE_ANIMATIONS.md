@@ -102,8 +102,13 @@ silently treated as an enemy-bank hole. Across the per-enemy graph evidence,
 exactly. The duplicated load count is intentional because shared object
 graphs are recorded for each enemy record.
 
-Exact PNGs are emitted under `battle/art/enemy_attacks/`. Partial and deferred
-entries remain in `battle/art/enemy_attacks.json`, but have no guessed PNGs.
+Exact PNGs are emitted under `battle/art/enemy_attacks/`. All 153 records now
+have a receipt-backed frame surface; the 16 formerly deferred routine bodies
+use VRAM-rendered oracle fixtures rather than a guessed ROM mapping loop.
+Shared routine bodies are re-emitted with each target enemy's existing
+line-relative palette while preserving the oracle pixel indices; this keeps
+Godot's indexed recolour contract valid without widening or regenerating the
+color ramp in this wave.
 
 ### Movement fields
 
@@ -123,9 +128,11 @@ The normalized runtime forms are `static_offset`, `linear`, `branch_table`,
 and `fixed_point_branch`. The latter two preserve every decoded write in
 `runtime.branches`; the census calls them exact when all observed coordinate
 writes are structurally decoded, even when the retail routine contains several
-control-flow branches rather than one linear lunge. The 32 frame-deferred
-records have no proven mapping clock to which a movement track can attach, so
-their movement remains deferred for that structural reason.
+control-flow branches rather than one linear lunge. The formerly deferred
+records use full-screen observed SAT frames for their effect motion and retain
+their separate effect tracks; their local attack layer stays at the
+receipt-backed formation anchor, so the movement census no longer hides a
+presentation clock behind static-analysis silence.
 
 ## Census delta
 
@@ -134,10 +141,10 @@ right side is the current extractor and emitted art index.
 
 | Surface | Before exact | Before partial | Before deferred | After exact | After partial | After deferred |
 |---|---:|---:|---:|---:|---:|---:|
-| Timed frame records | 79 | 0 | 74 | 121 | 0 | 32 |
-| Mapping/art composition | 60 | 15 | 78 | 120 | 1 | 32 |
-| Movement track | 30 | 49 | 74 | 121 | 0 | 32 |
-| Exact attack PNG frames | 393 frames / 60 enemies | — | — | 956 frames / 120 enemies | — | — |
+| Timed frame records | 79 | 0 | 74 | 153 | 0 | 0 |
+| Mapping/art composition | 60 | 15 | 78 | 153 | 0 | 0 |
+| Movement track | 30 | 49 | 74 | 153 | 0 | 0 |
+| Exact attack PNG frames | 393 frames / 60 enemies | — | — | 1355 frames / 153 enemies | — | — |
 
 Direct SFX remains 153 exact, with no generic fallback. The current routine
 classification census is:
@@ -147,48 +154,75 @@ classification census is:
 | `fixed_mapping` | 62 | 62 exact |
 | `variable_mapping` | 49 | 49 exact |
 | `selector_mapping` | 10 | 10 exact, including 19 hidden ticks |
-| `tile_upload_only` | 21 | deferred mapping; PLC records exact |
-| `state_machine_without_sprite_mapping` | 9 | deferred mapping |
-| `projectile_effect_graph` | 1 | deferred mapping; `loc_25978` stream state |
-| `palette_or_plane_effect` | 1 | deferred mapping; `loc_258AC` state |
+| `tile_upload_only` | 21 | 21 exact via observed sprite-table/VRAM receipts |
+| `state_machine_without_sprite_mapping` | 9 | 9 exact via observed sprite-table clocks |
+| `projectile_effect_graph` | 1 | ProtectBit exact via projectile/effect receipt |
+| `palette_or_plane_effect` | 1 | Seeker exact via CRAM/plane and sprite-table receipt |
 
-These are per-enemy counts; shared routines account for the 16 distinct
-deferred routine bodies. The 32 deferred enemy records are grouped below.
+These are per-enemy counts. Shared routines account for the 16 receipt-backed
+routine bodies. The receipt fixture covers one representative per body and
+applies the result to every enemy record sharing that retail routine.
 
-| Structural class | Enemy records | Why no frame PNG exists |
-|---|---|---|
-| Projectile/effect graph | ProtectBit (4) | `loc_25978` constructs tile/DMA stream state and no mapping timer consumes it; `loc_258AC` is also present. |
-| Palette/plane effect | Seeker (7) | `loc_258AC` consumes effect state but selects no enemy VDP mapping sequence. |
-| No sprite mapping state machine | Locusta, Fanbite, Grasshound (14–16); SandNewt, Mistralgec, FlameNewt (56–58); ToadStool, Shrieker (78–79); Prophallus (151) | The JSON says whether there is no frame-helper call, or a helper call whose immediate `$08/$28` assignments fail the fixed/variable/selector structure. |
-| PLC/effect upload only | BalDuel, DragerDuel, JurafaDuel (27–29); HewGilla, Elmelew (91–92); Centaur, KingSaber, DarkRider (96–98); TechUser, TechMaster, DarkWitch (99–101); Juza, Greneris, Radhin (114–116); GyLaguiah, LwAddmer, CulaBellr (117–119); SaLews (121); ReFaze (127); Lashiec (128); DarkForce3 (132) | `LoadPLC1` records and Nemesis art are proven, but no timed enemy mapping record is constructed. The PLC evidence is emitted; a PNG is not invented from art without a mapping consumer. |
+| Routine | Representative | Records | Retail presentation | Oracle anchor |
+|---|---|---:|---|---:|
+| `$010E38` | ProtectBit (4) | 1 | projectile/effect sprite table | f29848 |
+| `$010E7A` | Seeker (7) | 1 | CRAM/plane effect plus sprite table | f29962 |
+| `$010C7C` | Locusta (14) | 3 | state-machine sprite table | f29950 |
+| `$010AB4` | BalDuel (27) | 3 | PLC upload plus sprite table | f29738 |
+| `$00FCCA` | SandNewt (56) | 3 | state-machine sprite table | f29961 |
+| `$00F53C` | ToadStool (78) | 2 | state-machine sprite table | f29727 |
+| `$00F088` | HewGilla (91) | 2 | PLC upload plus sprite table | f30033 |
+| `$00EFB2` | Centaur (96) | 3 | PLC upload plus sprite table | f29910 |
+| `$00ECDE` | TechUser (99) | 3 | streamed multi-sprite effect | f29756 |
+| `$00E394` | Juza (114) | 3 | PLC upload plus sprite table | f29738 |
+| `$00E2BE` | GyLaguiah (117) | 3 | PLC upload plus sprite table | f29725 |
+| `$00E0EC` | SaLews (121) | 1 | streamed multi-sprite effect | f29804 |
+| `$00DE22` | ReFaze (127) | 1 | static base with upload/hide transitions | f30115 |
+| `$00DCD2` | Lashiec (128) | 1 | PLC upload plus sprite table | f30026 |
+| `$00D998` | DarkForce3 (132) | 1 | PLC upload plus sprite table | f29946 |
+| `$00D526` | Prophallus (151) | 1 | state-machine sprite table | f29926 |
 
-The precise per-record `frame_sequence_why_not` is the authority for these
-32 records. It names the helper, assignment shape, or effect-object boundary;
-it does not use a generic “unknown animation” bucket.
+The durable receipt and its VRAM-rendered frame sources are
+`oracle/fixtures/battle_animation_remainder.json` and
+`oracle/fixtures/battle_animation_art/`. Each dense capture records a
+sprite-table and VDP-VRAM SHA-256 over the entire sampled window; transition
+offsets are the first frame whose raw sprite-table bytes differ, and the
+durations are the resulting observed dwells. The fixture uses the one-enemy
+`Enemy_Count` RAM patch at f24820, patches both the fighter and stats enemy id,
+keeps HP at `$7FFF`, and records the unchanged first-slot `Enemy_Positions`
+byte `$0E`; it does not patch ROM or runtime state. Each receipt records the
+sampled `sprite_table`/`vdp_vram` frame offsets, observed clock durations, and
+the formation-relative `origin_pixels` needed by the Godot local attack layer,
+so the presentation is a transcription of retail hardware state rather than a
+screen-space image accidentally placed at the enemy origin.
+`psiv_tools.battle_animation_oracle` verifies those hashes and follows the
+hardware SAT link chain when regenerating the indexed source PNGs.
 
 ## Remaining genuine limits
 
-Only one composition is partial: DarkForce1 (enemy 130). Its selected mapping
-records resolve to the enemy bank, but their tile words set palette bits
-`$6000`. The current indexed PNG surface is line-relative and cannot claim
-which CRAM line those sprite entries select. The mapping records and raw tile
-words are retained; no pixels are guessed.
+DarkForce1 (enemy 130) is now exact. The valid formation patch is
+`24794:FFFFECFC:09` (one byte; the two-byte `0009` form selects the wrong
+endian value). Its mapping words carry `$6000 & 0x206A = 0x2000`, so palette
+selector 1 selects CRAM line 1. The oracle formation receipt records the exact
+line-1 words:
 
-The other 32 composition/frame remainders are not missing enemy art. They are
-effect-object routines with no statically proven timed mapping consumer. The
-deferred PLC groups now expose their exact table records and Nemesis streams,
-but a full retail presentation for them still requires decoding the separate
-effect object's update/DMA contract and, where applicable, its control-flow
-selection of mapping data. Treating a PLC tile stream as an enemy frame loop
-would be false provenance.
+```text
+0000 0EEE 0000 0C84 0848 0626 0424 0402
+0EA8 0C86 0864 0642 0220 0000 0600 0CC4
+```
+
+The receipt-backed residuals are now exact as presentations, not merely PLC
+art uploads. ProtectBit's projectile/effect graph and Seeker's palette/plane
+effect retain their distinct presentation labels in the JSON and art index;
+they are not collapsed into ordinary enemy mapping classifications.
 
 ## Runtime contract and fixtures
 
-`BattleAnimationEvent` now carries the full duration vector. Rust playback uses
-the cumulative vector for variable and selector timers, while fixed records
-use a repeated vector. Exact composition uses a child `Sprite2D`; deferred
-composition keeps the existing body-flash fallback only when timing itself is
-proven. Hidden selector frames are transparent attack frames, not flashes.
+`BattleAnimationEvent` carries the full duration vector. Rust playback uses the
+cumulative vector for variable, selector, and oracle-observed clocks, while
+fixed records use a repeated vector. Exact composition uses a child `Sprite2D`;
+the receipt-backed PNGs are rendered from the oracle's live VDP VRAM. Hidden
+selector frames remain transparent attack frames, not flashes.
 
 The unittest fixtures cover newly exact records from distinct decoder paths:
 
@@ -196,6 +230,11 @@ The unittest fixtures cover newly exact records from distinct decoder paths:
 - Worker Pod (24): variable timing plus an external `LoadPLC1` art span;
 - Tower (39): selector `loc_25270` timing with hidden frames;
 - King Rappy (149): variable timing with a separate enemy routine body.
+
+The structural remainder fixture covers all 16 shared bodies, including the
+DarkForce1 formation/CRAM receipt. Its command and patch discipline are in
+`oracle/fixtures/battle_animation_remainder.json`; the generated PNG sources
+are under `oracle/fixtures/battle_animation_art/`.
 
 The live selector `PSIV_DEBUG_BATTLE=0x89` uses real formation `$0F7` from the
 pack (Slave + Worker Pod) and injects a deterministic attack-only timeline for
@@ -225,5 +264,5 @@ PYTHONPATH=. python3 -m psiv_tools pack "Phantasy Star IV (USA).md" runtime-pack
 ```
 
 The full-pack command is the final comparison: it must regenerate the battle
-animation JSON, attack-art index, 956 exact PNG frames, and the manifest in the
+animation JSON, attack-art index, 1355 exact PNG frames, and the manifest in the
 same deterministic pack layout.

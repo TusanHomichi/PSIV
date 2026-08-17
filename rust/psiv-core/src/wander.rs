@@ -235,6 +235,15 @@ impl Default for Leash {
 }
 
 impl Leash {
+    /// A zeroed boundary record, used by object routines that never write a
+    /// movement leash of their own.
+    pub const ZERO: Leash = Leash {
+        x_max: 0,
+        y_max: 0,
+        x: 0,
+        y: 0,
+    };
+
     /// Applies a cell delta, or refuses.
     ///
     /// **Commits on success**, which is what the cartridge does — and it does
@@ -254,6 +263,14 @@ impl Leash {
         self.x = x;
         self.y = y;
         true
+    }
+
+    /// Applies a cell delta using the cartridge's boundary gate.
+    ///
+    /// This is public because the bespoke field-object routines share the
+    /// exact same `loc_4A3B6` gate as the ordinary random walkers.
+    pub fn accepts_delta(&mut self, dx: i8, dy: i8) -> bool {
+        self.accepts(dx, dy)
     }
 }
 
@@ -714,6 +731,30 @@ impl WanderSet {
             };
             self.wanderers[index].step =
                 (step.progress < self.wanderers[index].frames.get()).then_some(step);
+        }
+    }
+
+    /// Ticks the walker for one object slot, preserving map-object order when
+    /// the runtime interleaves it with bespoke routines.
+    pub fn tick_one_for_npc(
+        &mut self,
+        npc_index: usize,
+        map: &mut FieldMap,
+        rolls: &mut impl Rolls,
+        party: &[Cell],
+        driver_pixels: (i32, i32),
+    ) {
+        let Some(index) = self
+            .wanderers
+            .iter()
+            .position(|wanderer| wanderer.npc_index == npc_index)
+        else {
+            return;
+        };
+        if self.wanderers[index].kind == WanderKind::Xanafalgue && driver_pixels.1 > 0x100 {
+            self.tick_xanafalgue_escape(index, map);
+        } else {
+            self.tick_one(index, map, rolls, party);
         }
     }
 }

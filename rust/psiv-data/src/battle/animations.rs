@@ -164,15 +164,15 @@ pub struct EnemyAnimationFrameSequence {
     pub frame_count: u8,
     /// Sum of the per-frame durations.
     pub total_frames: u16,
-    /// Retail mapping record pointers. Their sprite-sheet interpretation is
-    /// intentionally not claimed here.
+    /// Retail mapping record pointers, or stable `oracle:` frame identifiers
+    /// for a receipt-backed observed sprite-table clock.
     pub mapping_pointers: Vec<Option<String>>,
     /// The helper that consumes this timing, when proven.
     pub frame_timer_helper: Option<String>,
     /// Exact duration for every mapping/selector frame.
     #[serde(default)]
     pub frame_durations: Vec<u8>,
-    /// `fixed`, `variable`, or `selector`.
+    /// `fixed`, `variable`, `selector`, or `observed`.
     #[serde(default)]
     pub timing_model: String,
 }

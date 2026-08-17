@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_STATE_DUMPS 16
+#define MAX_STATE_DUMPS 128
 #define STATE_DUMP_PATH_MAX 4096
 
 struct state_dump {
@@ -193,7 +193,9 @@ static int write_state(FILE *out, uint64_t frame, const uint8_t *ram,
 		                     vdp->vsram, 0x80, 1, 1) != 0 ||
 		    write_vdp_region(out, "vdp_hscroll_table", "vram+hscb",
 		                     hscroll_base, vdp->vram + hscroll_base,
-		                     0x400, 1, 0) != 0)
+		                     0x400, 1, 1) != 0 ||
+		    write_vdp_region(out, "vdp_vram", "vram", 0,
+		                     vdp->vram, 0x10000, 1, 0) != 0)
 			return -1;
 	}
 	return fprintf(out, "  }\n}\n") < 0 ? -1 : 0;

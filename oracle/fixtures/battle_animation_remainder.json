@@ -1,0 +1,266 @@
+{
+  "format_version": 1,
+  "kind": "psiv_battle_animation_oracle_receipts",
+  "source": {
+    "rom": "Phantasy Star IV (USA).md",
+    "rom_sha256": "511f35cc11f88316f8b8940e28ab298bd75a4da193672a80172884d6eb913b6a",
+    "grand_cross": 0,
+    "core": "Genesis Plus GX v1.7.4 2d7131c"
+  },
+  "fixture": {
+    "tape": "oracle/tapes/07_first_battle.tape",
+    "patch_frame": 24820,
+    "enemy_position": "0x0E",
+    "patches": [
+      {
+        "address": "0xFFFF41F4",
+        "bytes": "01",
+        "meaning": "Enemy_Count = one patched enemy"
+      },
+      {
+        "address": "0xFFFF4552",
+        "bytes": "<representative enemy id as 16-bit big-endian word>",
+        "meaning": "Fighter_Enemy_1.fighter_id"
+      },
+      {
+        "address": "0xFFFF4268",
+        "bytes": "<representative enemy id as 16-bit big-endian word>",
+        "meaning": "Enemy_Stats_1.enemy_id"
+      },
+      {
+        "address": "0xFFFF420E",
+        "bytes": "7FFF",
+        "meaning": "current HP keeps the probe alive"
+      },
+      {
+        "address": "0xFFFF4210",
+        "bytes": "7FFF",
+        "meaning": "maximum HP keeps the probe alive"
+      }
+    ],
+    "discipline": "RAM patches are applied at battle setup, before the selected enemy acts; no ROM, scene, or runtime state is modified. Enemy ids are 16-bit big-endian words; the enemy-count patch is one byte."
+  },
+  "receipts": [
+    {
+      "routine_offset": "0x00D526",
+      "origin_pixels": [-16, -24],
+      "representative_enemy_id": 151,
+      "enemy_ids": [151],
+      "presentation": "state_machine_sprite_table",
+      "action_frame": 29926,
+      "observed_offsets": [0, 19, 30, 35, 37, 39, 42, 44, 56],
+      "durations": [19, 11, 5, 2, 2, 3, 2, 12, 8],
+      "frame_asset_prefix": "oracle/fixtures/battle_animation_art/00D526",
+      "receipt": "count1 trace: battle actor 6 enters DoAttackEffect at f29926; sprite_table and vdp_vram sampled at each listed offset",
+      "capture": {"frame_first": 29926, "frame_count": 64, "frame_last_exclusive": 29990, "sprite_table_sha256": "9edb69f02621623a7cb6add5f986fef990ee860085e822e01427bdef84c5ea60", "vdp_vram_sha256": "093fe840fae7b86ef39dc09fb94d7b646ef885427036997b6809b310f833fc19", "transition_rule": "first frame whose raw sprite_table bytes differ"}
+    },
+    {
+      "routine_offset": "0x00D998",
+      "origin_pixels": [-176, 0],
+      "representative_enemy_id": 132,
+      "enemy_ids": [132],
+      "presentation": "tile_upload_sprite_table",
+      "action_frame": 29946,
+      "observed_offsets": [0, 4, 15, 20, 23, 25, 27, 29, 41],
+      "durations": [4, 11, 5, 3, 2, 2, 2, 12, 23],
+      "frame_asset_prefix": "oracle/fixtures/battle_animation_art/00D998",
+      "receipt": "count1 trace: battle actor 6 enters DoAttackEffect at f29946; selected sprite_table frames include the DarkForce3 PLC upload",
+      "capture": {"frame_first": 29946, "frame_count": 64, "frame_last_exclusive": 30010, "sprite_table_sha256": "b28ba98716251477ca898902b328591185cd73112bbda397735c8534335cdf6a", "vdp_vram_sha256": "6d514390bbc67a411841920c83174a3d491ad94a5ad7902db752b10d31a99cf4", "transition_rule": "first frame whose raw sprite_table bytes differ"}
+    },
+    {
+      "routine_offset": "0x00DCD2",
+      "origin_pixels": [-16, -24],
+      "representative_enemy_id": 128,
+      "enemy_ids": [128],
+      "presentation": "tile_upload_sprite_table",
+      "action_frame": 30026,
+      "observed_offsets": [0, 4, 15, 20, 23, 26, 28, 30, 42],
+      "durations": [4, 11, 5, 3, 3, 2, 2, 12, 22],
+      "frame_asset_prefix": "oracle/fixtures/battle_animation_art/00DCD2",
+      "receipt": "count1 trace: battle actor 6 enters DoAttackEffect at f30026; sprite_table and vdp_vram sampled at each listed offset",
+      "capture": {"frame_first": 30026, "frame_count": 64, "frame_last_exclusive": 30090, "sprite_table_sha256": "b88314cde9e47be9e1381c70eb69f294b0dd0fd30bce2a4f9f7e929e901c5665", "vdp_vram_sha256": "43962fa667d99415727b1bb33f4b2bee1ca53bf1f2843c54403cd7d0487114d7", "transition_rule": "first frame whose raw sprite_table bytes differ"}
+    },
+    {
+      "routine_offset": "0x00DE22",
+      "origin_pixels": [-48, -56],
+      "representative_enemy_id": 127,
+      "enemy_ids": [127],
+      "presentation": "tile_upload_static_base",
+      "action_frame": 30115,
+      "observed_offsets": [0, 43, 44, 46, 63],
+      "durations": [43, 1, 2, 17, 1],
+      "frame_asset_prefix": "oracle/fixtures/battle_animation_art/00DE22",
+      "receipt": "count1 trace: base sprite remains the visible presentation until the observed upload/hide transitions at f30163, f30179, and f30195",
+      "capture": {"frame_first": 30115, "frame_count": 64, "frame_last_exclusive": 30179, "sprite_table_sha256": "68fd05610d9df5e67f68e6d0d6c5de1c618e1c3c77a4c38a76669d80dadb1adc", "vdp_vram_sha256": "8e1f54751a60c60b128604ae5a49948815b3bac303bfcbfeb0f154b04f5fa3ca", "transition_rule": "first frame whose raw sprite_table bytes differ"}
+    },
+    {
+      "routine_offset": "0x00E0EC",
+      "origin_pixels": [-16, -24],
+      "representative_enemy_id": 121,
+      "enemy_ids": [121],
+      "presentation": "tile_upload_sprite_table",
+      "action_frame": 29804,
+      "observed_offsets": [0, 4, 7, 9, 11, 13, 15, 17, 19, 24, 29, 32, 35, 39, 43],
+      "durations": [4, 3, 2, 2, 2, 2, 2, 2, 5, 5, 3, 3, 4, 4, 85],
+      "frame_asset_prefix": "oracle/fixtures/battle_animation_art/00E0EC",
+      "receipt": "count1 trace: sprite_table becomes the four/eight-piece streamed effect at offsets +24 and +32, then advances through the observed tile stream",
+      "capture": {"frame_first": 29804, "frame_count": 128, "frame_last_exclusive": 29932, "sprite_table_sha256": "34b6691f84c5390176643a72e469d84ae669c39ce12465acafe3e99ee76d4d4f", "vdp_vram_sha256": "7badc87f9bd5d132f8039920e95312e3c9cece0763672a91de2367a744ae46a5", "transition_rule": "first frame whose raw sprite_table bytes differ"}
+    },
+    {
+      "routine_offset": "0x00E2BE",
+      "origin_pixels": [-32, -40],
+      "representative_enemy_id": 117,
+      "enemy_ids": [117, 118, 119],
+      "presentation": "tile_upload_sprite_table",
+      "action_frame": 29725,
+      "observed_offsets": [0, 4, 15, 20, 22, 24, 26, 28, 40],
+      "durations": [4, 11, 5, 2, 2, 2, 2, 12, 24],
+      "frame_asset_prefix": "oracle/fixtures/battle_animation_art/00E2BE",
+      "receipt": "count1 trace: sprite_table and vdp_vram sampled through the shared streamed attack effect",
+      "capture": {"frame_first": 29725, "frame_count": 64, "frame_last_exclusive": 29789, "sprite_table_sha256": "a9cd98c2e563b2290ac685d3ea8f4136987ea10b4c2b954c21ebfb167cdd4602", "vdp_vram_sha256": "49e99266cc95988c4e56c3eb6cb2d81f8927b27ab6d9970bae12c9630c277d50", "transition_rule": "first frame whose raw sprite_table bytes differ"}
+    },
+    {
+      "routine_offset": "0x00E394",
+      "origin_pixels": [-64, -64],
+      "representative_enemy_id": 114,
+      "enemy_ids": [114, 115, 116],
+      "presentation": "tile_upload_sprite_table",
+      "action_frame": 29738,
+      "observed_offsets": [0, 4, 15, 20, 22, 24, 26, 28, 30, 40, 45, 46, 48, 50, 52, 54],
+      "durations": [4, 11, 5, 2, 2, 2, 2, 2, 10, 5, 1, 2, 2, 2, 2, 10],
+      "frame_asset_prefix": "oracle/fixtures/battle_animation_art/00E394",
+      "receipt": "count1 trace: sprite_table and vdp_vram sampled through the shared streamed attack effect",
+      "capture": {"frame_first": 29738, "frame_count": 64, "frame_last_exclusive": 29802, "sprite_table_sha256": "86208c78991c7b192e161056c5ef0b7501bca5699c52f46ececc9055a7f1e601", "vdp_vram_sha256": "6a9f2d8207d08f344e180cb84dc4c4bbe862df39d7caa7cda7b85a5d3b5810ac", "transition_rule": "first frame whose raw sprite_table bytes differ"}
+    },
+    {
+      "routine_offset": "0x00ECDE",
+      "origin_pixels": [-80, -64],
+      "representative_enemy_id": 99,
+      "enemy_ids": [99, 100, 101],
+      "presentation": "tile_upload_sprite_table",
+      "action_frame": 29756,
+      "observed_offsets": [0, 7, 17, 21, 24, 28, 33, 36, 40, 45, 50, 55, 56, 60, 64, 68, 73, 77, 81, 84, 87, 91, 95, 99, 100],
+      "durations": [7, 10, 4, 3, 4, 5, 3, 4, 5, 5, 5, 1, 4, 4, 4, 5, 4, 4, 3, 3, 4, 4, 4, 1, 28],
+      "frame_asset_prefix": "oracle/fixtures/battle_animation_art/00ECDE",
+      "receipt": "count1 trace: sprite_table expands from the base into the observed 4/8/15/23-piece streamed effect; vdp_vram covers the uploaded tile run",
+      "capture": {"frame_first": 29756, "frame_count": 128, "frame_last_exclusive": 29884, "sprite_table_sha256": "d9320f33bbaccfbcfc45529c9659ec9f5cb184769dde3747f2bdcfdda295c402", "vdp_vram_sha256": "9f3c9c8191df71f7deb31633ae58814e0f3bc39a24e485a046ef9f6ada874ed2", "transition_rule": "first frame whose raw sprite_table bytes differ"}
+    },
+    {
+      "routine_offset": "0x00EFB2",
+      "origin_pixels": [-48, -40],
+      "representative_enemy_id": 96,
+      "enemy_ids": [96, 97, 98],
+      "presentation": "tile_upload_sprite_table",
+      "action_frame": 29910,
+      "observed_offsets": [0, 19, 30, 35, 37, 39, 41, 43, 55],
+      "durations": [19, 11, 5, 2, 2, 2, 2, 12, 9],
+      "frame_asset_prefix": "oracle/fixtures/battle_animation_art/00EFB2",
+      "receipt": "count1 trace: sprite_table and vdp_vram sampled through the shared streamed attack effect",
+      "capture": {"frame_first": 29910, "frame_count": 64, "frame_last_exclusive": 29974, "sprite_table_sha256": "022de357702e4c5c770e9cbeb9dd2d8e8f105aea6653908400ae39dfed30b596", "vdp_vram_sha256": "380ee72ecdedc9dcc67b2388e1d77843184711b9bcbe05aa0abcedbb4f11882e", "transition_rule": "first frame whose raw sprite_table bytes differ"}
+    },
+    {
+      "routine_offset": "0x00F088",
+      "origin_pixels": [-48, -56],
+      "representative_enemy_id": 91,
+      "enemy_ids": [91, 92],
+      "presentation": "tile_upload_sprite_table",
+      "action_frame": 30033,
+      "observed_offsets": [0, 4, 15, 20, 23, 25, 27, 29, 41],
+      "durations": [4, 11, 5, 3, 2, 2, 2, 12, 23],
+      "frame_asset_prefix": "oracle/fixtures/battle_animation_art/00F088",
+      "receipt": "count1 trace: sprite_table and vdp_vram sampled through the shared streamed attack effect",
+      "capture": {"frame_first": 30033, "frame_count": 64, "frame_last_exclusive": 30097, "sprite_table_sha256": "868909e4f813c2db63347b2a93bf137c050885faf77e75b127bf4f975ae6c21f", "vdp_vram_sha256": "118bde9f0902e34666717cd468344caa3dc86613f5f10051a0c6b3c329a460f1", "transition_rule": "first frame whose raw sprite_table bytes differ"}
+    },
+    {
+      "routine_offset": "0x00F53C",
+      "origin_pixels": [-64, -72],
+      "representative_enemy_id": 78,
+      "enemy_ids": [78, 79],
+      "presentation": "state_machine_sprite_table",
+      "action_frame": 29727,
+      "observed_offsets": [0, 4, 15, 20, 22, 24, 26, 28, 30, 40, 45, 46, 48, 50, 52, 54],
+      "durations": [4, 11, 5, 2, 2, 2, 2, 2, 10, 5, 1, 2, 2, 2, 2, 10],
+      "frame_asset_prefix": "oracle/fixtures/battle_animation_art/00F53C",
+      "receipt": "count1 trace: state-machine body enters the shared effect and advances the sprite table at the listed hardware frames",
+      "capture": {"frame_first": 29727, "frame_count": 64, "frame_last_exclusive": 29791, "sprite_table_sha256": "67d0eddd874259845d0ef14996bb0e577d6af7f69f207d0e2cbaa6d9f57de28c", "vdp_vram_sha256": "48602bc5826c79f401ec26b466e681f3deb81de192a1d515bfa71197adfbb862", "transition_rule": "first frame whose raw sprite_table bytes differ"}
+    },
+    {
+      "routine_offset": "0x00FCCA",
+      "origin_pixels": [-48, -72],
+      "representative_enemy_id": 56,
+      "enemy_ids": [56, 57, 58],
+      "presentation": "state_machine_sprite_table",
+      "action_frame": 29961,
+      "observed_offsets": [0, 4, 15, 20, 22, 24, 26, 28, 40],
+      "durations": [4, 11, 5, 2, 2, 2, 2, 12, 24],
+      "frame_asset_prefix": "oracle/fixtures/battle_animation_art/00FCCA",
+      "receipt": "count1 trace: state-machine body enters the shared effect and advances the sprite table at the listed hardware frames",
+      "capture": {"frame_first": 29961, "frame_count": 64, "frame_last_exclusive": 30025, "sprite_table_sha256": "b540026cd6b37b62553e008316e3db2832b548e17b0cd8abd5231f4572ab0649", "vdp_vram_sha256": "c02a4445ea3d4fd9242f9d6c3a2dc3e929f09435970b930de3981ba5f3db3984", "transition_rule": "first frame whose raw sprite_table bytes differ"}
+    },
+    {
+      "routine_offset": "0x010AB4",
+      "origin_pixels": [-32, -56],
+      "representative_enemy_id": 27,
+      "enemy_ids": [27, 28, 29],
+      "presentation": "tile_upload_sprite_table",
+      "action_frame": 29738,
+      "observed_offsets": [0, 4, 15, 20, 22, 24, 26, 28, 30, 40, 45, 46, 48, 50, 52, 54],
+      "durations": [4, 11, 5, 2, 2, 2, 2, 2, 10, 5, 1, 2, 2, 2, 2, 10],
+      "frame_asset_prefix": "oracle/fixtures/battle_animation_art/010AB4",
+      "receipt": "count1 trace: full-frame sprite_table receipt; BalDuel's uploaded PLC bank is visible at patterns 425..460",
+      "capture": {"frame_first": 29738, "frame_count": 64, "frame_last_exclusive": 29802, "sprite_table_sha256": "f7e2ec2ee1866789ae6e32ad7e451488d08ff4524426d328044907e0b7459f6d", "vdp_vram_sha256": "23609e0fff901e14c01dc06a8d387e391ef6b8365e1df1d33caac1c8d496cdde", "transition_rule": "first frame whose raw sprite_table bytes differ"}
+    },
+    {
+      "routine_offset": "0x010C7C",
+      "origin_pixels": [-32, -32],
+      "representative_enemy_id": 14,
+      "enemy_ids": [14, 15, 16],
+      "presentation": "state_machine_sprite_table",
+      "action_frame": 29950,
+      "observed_offsets": [0, 4, 15, 21, 23, 25, 27, 29, 41],
+      "durations": [4, 11, 6, 2, 2, 2, 2, 12, 23],
+      "frame_asset_prefix": "oracle/fixtures/battle_animation_art/010C7C",
+      "receipt": "count1 trace: Locusta representative advances the shared effect sprite table at the listed hardware frames",
+      "capture": {"frame_first": 29950, "frame_count": 64, "frame_last_exclusive": 30014, "sprite_table_sha256": "0c9bb23ac8acaaf817376fd298e758ed1ea7a3484421b04bbf3a54c71ac08e75", "vdp_vram_sha256": "ce28aa475115974e7a2701c6a67e42cc39034775bfc540fbeece077e6f244ecd", "transition_rule": "first frame whose raw sprite_table bytes differ"}
+    },
+    {
+      "routine_offset": "0x010E38",
+      "origin_pixels": [-64, -48],
+      "representative_enemy_id": 4,
+      "enemy_ids": [4],
+      "presentation": "projectile_effect_sprite_table",
+      "action_frame": 29848,
+      "observed_offsets": [0, 27, 29, 31, 33, 35, 37, 39, 41, 43],
+      "durations": [27, 2, 2, 2, 2, 2, 2, 2, 2, 21],
+      "frame_asset_prefix": "oracle/fixtures/battle_animation_art/010E38",
+      "receipt": "count1 trace: ProtectBit projectile/effect graph changes sprite_table and vdp_vram at the observed effect frames",
+      "capture": {"frame_first": 29848, "frame_count": 64, "frame_last_exclusive": 29912, "sprite_table_sha256": "28381de09cb6fb0e4cfeca8566aa6550874914d752e9bfc72f4b44bfc045c241", "vdp_vram_sha256": "9ad059a74c6aafa5f21846c271f72780cd294f494d2a50b6142908200a053f71", "transition_rule": "first frame whose raw sprite_table bytes differ"}
+    },
+    {
+      "routine_offset": "0x010E7A",
+      "origin_pixels": [-48, -72],
+      "representative_enemy_id": 7,
+      "enemy_ids": [7],
+      "presentation": "palette_plane_and_sprite_table",
+      "action_frame": 29962,
+      "observed_offsets": [0, 4, 15, 20, 23, 25, 27, 29, 41],
+      "durations": [4, 11, 5, 3, 2, 2, 2, 12, 23],
+      "frame_asset_prefix": "oracle/fixtures/battle_animation_art/010E7A",
+      "receipt": "count1 trace: Seeker changes CRAM/plane effect state and also advances the observed sprite table",
+      "capture": {"frame_first": 29962, "frame_count": 64, "frame_last_exclusive": 30026, "sprite_table_sha256": "2f77bcd6061d84730a6fd89f7c34009827c4fdf534be4db59247e78ba76a15db", "vdp_vram_sha256": "9f1fbdb6b3d367cd56e3b003822aa2c1cd4759d497872922aae98f82dc0760d8", "transition_rule": "first frame whose raw sprite_table bytes differ"}
+    }
+  ],
+  "darkforce1": {
+    "enemy_id": 130,
+    "routine_offset": "0x00DB6C",
+    "formation_patch": "24794:FFFFECFC:09",
+    "formation_index": 9,
+    "formation_receipt": "f24794 selects one-enemy DarkForce1 formation; the earlier two-byte 0009 patch was rejected as endian-wrong",
+    "cram_line": 1,
+    "cram_words": ["0x0000", "0x0EEE", "0x0000", "0x0C84", "0x0848", "0x0626", "0x0424", "0x0402", "0x0EA8", "0x0C86", "0x0864", "0x0642", "0x0220", "0x0000", "0x0600", "0x0CC4"],
+    "palette_selector": 1,
+    "palette_mask": "0x6000",
+    "palette_word_masked": "0x2000",
+    "receipt": "battle CRAM state at f29700 and mapping words at 0x02CDEA/0x02CDFE/0x02CE12"
+  }
+}

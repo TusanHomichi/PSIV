@@ -194,7 +194,7 @@ impl Field {
                         if let Some(flags) = flags {
                             w.set_event_flags(flags);
                         }
-                        w.open_dialogue(tree, entry)
+                        w.open_scene_dialogue(tree, entry)
                     });
                     if !opened && let Some(rt) = self.runtime.as_mut() {
                         rt.dialogue_closed();

@@ -176,11 +176,12 @@ Diffing two dumps is the tool for "where did that write go" when the RAM map
 does not already have a column for it — which is exactly how the chest flag
 bank was found after a mapped-column search returned a confident wrong answer.
 
-`--dump-state <frame>:<path>` writes the named plane/CRAM/sprite buffers plus
+`--dump-state <frame>:<path>` (up to 128 frame receipts per oracle run) writes
+the named plane/CRAM/sprite buffers plus
 the scroll receipt used by `oracle/decode_layout.py`: camera position and step
 counters, H-int state, the generated H-scroll work buffer, the
 `Chunk_Table`/VSRAM-shadow source, VDP registers, VSRAM, and the active VDP
-H-scroll table. The VDP words are emitted in Genesis big-endian order and the
+H-scroll table and a raw `vdp_vram` 64 KiB receipt. The VDP words are emitted in Genesis big-endian order and the
 state header names the address space and region byte order. The host resolves
 the pinned Genesis Plus GX local VDP symbols from the loaded core ELF, so no
 third-party core ABI or emulation behavior is modified.

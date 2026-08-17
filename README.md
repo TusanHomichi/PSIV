@@ -280,22 +280,25 @@ partial); seven more bespoke NPC families (374 placements, tape-02 clean at
 350 columns); all eight `VehicleSkillData` effects; and a real ERASE DATA
 (0x1400-byte payload wipe, header preserved, byte-level tests).
 
+These closed in the same wave: the receipt-derived GPGX/RGB565 color ramp
+(`docs/COLOR_PIPELINE.md`) with the **opening narration certified
+pixel-identical to the emulator (rmse 0.000000, both pages)**; the bespoke
+NPC census drained to **zero** (all 949 placements across 138 symbols
+transcribed, gate writes audited, tape 30 receipt); and the enemy
+animation census drained to **zero deferred** — all 153 enemies exact on
+every surface (1,355 attack PNGs, all 16 remaining routine bodies decoded
+from oracle sprite-table receipts, DarkForce1 included).
+
 The remaining backlog:
 
-1. Pixel-exactness: the pack widens CRAM levels linearly (`level*255/7`)
-   while the GPGX oracle uses its measured ramp with RGB565 output — a
-   systemic color delta under every RMSE pair (the opening's ~6.6 floor,
-   MeetingRika's 36.3 remainder). Adopt the emulator ramp with oracle CRAM
-   receipts, fix the two measured dialogue geometry deltas (portrait +16/-7
-   px; text line 1 at row 151 vs retail 158), pick blink-phase-correct
-   title/camp fixture ticks, and re-certify every pair — opening,
-   MeetingRika, battle (29.2 measured), title, camp.
-2. Bespoke NPC remainder: 243 placements across 121 symbols, plus
-   scene-specific post-entry gate writes (`docs/NPC_WANDER.md`).
-3. Enemy animation structural remainder: the 16 shared routine bodies (21
-   tile-upload-only, 9 state machines, 1 projectile graph, 1 palette
-   effect) and DarkForce1's palette bit (`docs/BATTLE_ANIMATIONS.md`).
-4. Natural (non-fixture) vehicle oracle tapes.
+1. Final-mile placement receipts (`docs/SCENE_PRESENTATION.md`):
+   MeetingRika at 20.9 (portrait art 1–2 px inside its frame, window
+   chrome residual), battle idle at 27.1 (unanalyzed phase/content
+   variance), title and camp pairs awaiting blink-phase-matched fixtures.
+   Method is established; each item is a crop/shift probe plus a capture
+   cycle.
+2. Natural (non-fixture) vehicle oracle tapes — the lane never launched
+   (codex auth token expired); brief ready at /tmp/x8-vehicletape.txt.
 
 Maps, layouts, collision, encounter binding, all three Sega compression
 formats, and the completed items above are done and proven.

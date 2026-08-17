@@ -445,7 +445,7 @@ def decode_palette_requests(data: bytes) -> list[dict[str, object]]:
 
 def _map_palette(rom: bytes, record: dict[str, Any]) -> list[tuple[int, int, int]]:
     pointer = int(record["palette"]["pointer"], 16)
-    return [tuple(entry["rgb"]) for entry in decode_map_palette(rom, pointer)]
+    return gfx.palette_rgb(decode_map_palette(rom, pointer))
 
 
 def _art_blob(rom: bytes, spec: dict[str, Any]) -> tuple[bytes, int, str]:

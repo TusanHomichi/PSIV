@@ -255,6 +255,47 @@ fn bg_has_its_own_driver_latch_and_ec25_can_disable_fg() {
 }
 
 #[test]
+fn refresh_map_rewrites_gate_bytes_and_only_zero_gates_consume_counters() {
+    let bounds = CameraBounds::from_cells(40, 40, CameraEdges::Clamped);
+    let mut camera = Camera::new_planes(bounds, bounds, CameraGates::field_default());
+
+    // `loc_51AB2` writes EC24/25/26, then conditionally consumes the two
+    // longwords behind each zero gate. This is the post-entry RefreshMap
+    // contract, not a fresh camera placement.
+    camera.apply_gate_write(
+        CameraGates {
+            ec24: 0,
+            ec25: 0,
+            ec26: 1,
+        },
+        (px(-2), px(3)),
+        (px(5), px(-6)),
+    );
+    assert_eq!(
+        camera.gates(),
+        CameraGates {
+            ec24: 0,
+            ec25: 0,
+            ec26: 1,
+        }
+    );
+    assert_eq!(camera.raw_step_on(CameraPlane::Foreground), (px(-2), px(3)));
+    assert_eq!(camera.raw_step_on(CameraPlane::Background), (0, 0));
+
+    camera.apply_gate_write(
+        CameraGates {
+            ec24: 1,
+            ec25: 1,
+            ec26: 0,
+        },
+        (px(9), px(10)),
+        (px(7), px(-8)),
+    );
+    assert_eq!(camera.raw_step_on(CameraPlane::Foreground), (px(-2), px(3)));
+    assert_eq!(camera.raw_step_on(CameraPlane::Background), (px(7), px(-8)));
+}
+
+#[test]
 fn the_existing_field_tape_replays_both_camera_planes() {
     let tape =
         crate::replay::Tape::parse(include_str!("../../../oracle/tapes/02_walk_timing.tape"))

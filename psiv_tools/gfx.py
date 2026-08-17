@@ -27,12 +27,10 @@ A colour is one big-endian word laid out as `%0000 BBB0 GGG0 RRR0`: three bits
 per channel at bit positions 1-3, 5-7 and 9-11. The remaining bits are ignored
 by the VDP.
 
-Three bits are widened to eight by **bit replication** (`v << 5 | v << 2 |
-v >> 1`). The alternative in common use is `v * 36`, which is simpler but tops
-out at 252, so pure white never reaches 0xFF and a round trip through an image
-editor cannot reproduce the source value. Replication maps 0 to 0 and 7 to
-255, is monotone, and inverts exactly as `v = c >> 5`, so nothing is lost.
-`levels` keeps the original 0-7 triple alongside the widened value regardless.
+The oracle's GPGX output is the authority for widening those levels. GPGX
+negotiates RGB565, then the host expands the 5/6-bit channels to 8-bit RGB;
+the measured result is deliberately not the old linear or bit-replication
+table. `levels` keeps the original 0-7 triple alongside the widened value.
 
 ## Provenance
 
@@ -64,6 +62,15 @@ PALETTE_LINE_SIZE = COLORS_PER_LINE * 2
 CRAM_DEFINED_MASK = 0x0EEE
 
 RGB = tuple[int, int, int]
+
+# Measured from same-frame CRAM-shadow/PNG receipts; see
+# ``docs/COLOR_PIPELINE.md``.  Green has the six-bit RGB565 quantizer, so its
+# ramp is not identical to red and blue.
+GPGX_RGB565_RAMP: dict[str, tuple[int, ...]] = {
+    "r": (0, 32, 65, 98, 139, 172, 205, 238),
+    "g": (0, 32, 68, 101, 137, 170, 206, 238),
+    "b": (0, 32, 65, 98, 139, 172, 205, 238),
+}
 
 
 class GraphicsError(ValueError):
@@ -220,11 +227,15 @@ GRAYSCALE_RAMP: tuple[RGB, ...] = tuple(
 # ---------------------------------------------------------------------------
 # Colour decoding
 # ---------------------------------------------------------------------------
-def expand_channel(level: int) -> int:
-    """Widen a 3-bit CRAM channel to 8 bits by replicating its bits."""
+def expand_channel(level: int, channel: str = "r") -> int:
+    """Return the receipt-backed GPGX/RGB565 value for one CRAM level."""
     if not 0 <= level <= 7:
         raise GraphicsError(f"CRAM channel level {level} is outside 0..7")
-    return (level << 5) | (level << 2) | (level >> 1)
+    try:
+        ramp = GPGX_RGB565_RAMP[channel]
+    except KeyError as exc:
+        raise GraphicsError(f"unknown CRAM channel {channel!r}") from exc
+    return ramp[level]
 
 
 def decode_color(word: int) -> dict[str, Any]:
@@ -234,13 +245,13 @@ def decode_color(word: int) -> dict[str, Any]:
     red = (word >> 1) & 7
     green = (word >> 5) & 7
     blue = (word >> 9) & 7
-    rgb = (expand_channel(red), expand_channel(green), expand_channel(blue))
     entry: dict[str, Any] = {
         "raw": f"0x{word:04X}",
         "levels": {"r": red, "g": green, "b": blue},
-        "rgb": list(rgb),
-        "hex": "#{:02X}{:02X}{:02X}".format(*rgb),
     }
+    rgb = palette_rgb([entry])[0]
+    entry["rgb"] = list(rgb)
+    entry["hex"] = "#{:02X}{:02X}{:02X}".format(*rgb)
     if word & ~CRAM_DEFINED_MASK & 0xFFFF:
         # The VDP ignores these bits; flag them rather than silently dropping
         # them, since a set bit here usually means the offset is wrong.
@@ -256,7 +267,18 @@ def decode_palette(raw: bytes) -> list[dict[str, Any]]:
 
 
 def palette_rgb(colors: Iterable[dict[str, Any]]) -> list[RGB]:
-    return [tuple(c["rgb"]) for c in colors]  # type: ignore[misc]
+    """Widen decoded CRAM levels through the one canonical palette choke point."""
+    output: list[RGB] = []
+    for color in colors:
+        levels = color["levels"]
+        output.append(
+            (
+                expand_channel(int(levels["r"]), "r"),
+                expand_channel(int(levels["g"]), "g"),
+                expand_channel(int(levels["b"]), "b"),
+            )
+        )
+    return output
 
 
 # ---------------------------------------------------------------------------
@@ -458,7 +480,7 @@ def extract_palettes(data: bytes) -> dict[str, Any]:
     return {
         "format": "megadrive_cram",
         "color_word_layout": "%0000BBB0GGG0RRR0, big-endian",
-        "channel_expansion": "3-bit to 8-bit by bit replication (v<<5 | v<<2 | v>>1)",
+        "channel_expansion": "receipt-backed GPGX RGB565 ramp; see docs/COLOR_PIPELINE.md",
         "pal_init_line_3_mirrors_pal_init_line": PAL_INIT_MIRRORED_LINE,
         "palettes": entries,
         "_lines_by_label": by_label,

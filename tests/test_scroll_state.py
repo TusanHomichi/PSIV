@@ -1,6 +1,6 @@
 import unittest
 
-from oracle.scroll_state import decode_scroll_state
+from oracle.scroll_state import decode_cram_shadow, decode_scroll_state
 
 
 def _region(raw: bytes, address: str = "0x0000") -> dict:
@@ -17,9 +17,30 @@ def _word_region(words: list[int], size: int, address: str = "0x0000") -> dict:
 
 
 class TestScrollState(unittest.TestCase):
+    def test_cram_shadow_keeps_words_and_logical_levels(self):
+        raw = b"".join(
+            word.to_bytes(2, "big")
+            for word in (0x0000, 0x0020, 0x0248, 0x0EEE)
+        ).ljust(0x80, b"\0")
+        decoded = decode_cram_shadow(
+            {
+                "frame": 7250,
+                "regions": {
+                    "cram": _region(raw, "0xFFFFFB00")
+                    | {"symbol": "Palette_Table_Buffer"}
+                },
+            }
+        )
+        self.assertTrue(decoded["present"])
+        self.assertEqual(decoded["source"]["symbol"], "Palette_Table_Buffer")
+        self.assertEqual(decoded["provenance"]["paired_frame"], 7250)
+        self.assertEqual(decoded["words"][2]["raw"], "0x0248")
+        self.assertEqual(decoded["words"][2]["levels"], {"r": 4, "g": 2, "b": 1})
+
     def test_missing_receipt_is_reported_without_fabricating_zeroes(self):
         decoded = decode_scroll_state({"regions": {}}, grand_cross=0)
         self.assertFalse(decoded["present"])
+        self.assertFalse(decoded["cram_shadow"]["present"])
         self.assertEqual(
             decoded["missing_regions"],
             ["camera", "camera_step_counters", "h_int_state"],

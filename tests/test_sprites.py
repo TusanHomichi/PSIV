@@ -535,8 +535,8 @@ class TestSpritePalettes(unittest.TestCase):
         # A cheap sanity check that this is a character palette and not, say,
         # the window frame: indices 4-6 are a skin-tone ramp and 15 is white.
         colours = pal_init_line_3(self.data)
-        self.assertEqual(colours[4], (255, 182, 109))
-        self.assertEqual(colours[15], (255, 255, 255))
+        self.assertEqual(colours[4], (238, 170, 98))
+        self.assertEqual(colours[15], (238, 238, 238))
         self.assertEqual(colours[0], (0, 0, 0))
 
 

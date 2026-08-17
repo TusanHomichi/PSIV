@@ -72,7 +72,7 @@ PINNED_TREE = 1
 PINNED_ENTRY = 4
 
 # `ArtNem_ChazDialPortrait`, decompressed and composed six tiles across.
-CHAZ_PORTRAIT_SHA = "a0f4230b0e22abaee6b16a61f21656d196bdaef5cea94c2c37797fa998b77495"
+CHAZ_PORTRAIT_SHA = "5ce6bd10f11e60cfac0e83c8cd421c8bda9c7e31c43be9c3962fcc115c1f9d00"
 
 
 def parse_png_chunks(data: bytes) -> list[tuple[bytes, bytes]]:
@@ -373,10 +373,10 @@ class TestDialoguePack(unittest.TestCase):
         self.assertEqual(len(palette), 16)
         # Index $E is the window's blue and index $F the text's white; every
         # glyph is drawn out of exactly these two.
-        self.assertEqual(palette[TEXT_COLOR_INDEX], (255, 255, 255))
-        self.assertEqual(palette[BACKGROUND_COLOR_INDEX], (0, 0x24, 0x6D))
+        self.assertEqual(palette[TEXT_COLOR_INDEX], (238, 238, 238))
+        self.assertEqual(palette[BACKGROUND_COLOR_INDEX], (0, 32, 98))
         self.assertEqual(
-            self.font["palette"]["colors"][BACKGROUND_COLOR_INDEX], [0, 0x24, 0x6D]
+            self.font["palette"]["colors"][BACKGROUND_COLOR_INDEX], [0, 32, 98]
         )
         self.assertEqual(self.font["palette"]["cram_line"], 2)
         self.assertEqual(self.portraits["palette"]["cram_line"], 2)
@@ -653,7 +653,7 @@ class TestDialoguePack(unittest.TestCase):
         self.assertEqual(pixels, {BACKGROUND_COLOR_INDEX})
         palette = chunks[b"PLTE"]
         index = BACKGROUND_COLOR_INDEX * 3
-        self.assertEqual(tuple(palette[index:index + 3]), (0, 0x24, 0x6D))
+        self.assertEqual(tuple(palette[index:index + 3]), (0, 32, 98))
         self.assertEqual(self.window["palette"]["fill_index"], BACKGROUND_COLOR_INDEX)
         self.assertEqual(self.window["palette"]["cram_line"], 2)
 

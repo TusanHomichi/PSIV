@@ -27,8 +27,8 @@ class TestBattleAnimations(unittest.TestCase):
         census = self.payload["census"]
         self.assertEqual(census["exact_sfx"], 153)
         self.assertEqual(census["generic_sfx"], 0)
-        self.assertEqual(census["frame_sequence_records"], 121)
-        self.assertEqual(census["timed_frame_sequences"], 121)
+        self.assertEqual(census["frame_sequence_records"], 153)
+        self.assertEqual(census["timed_frame_sequences"], 153)
         self.assertEqual(
             census["timed_frame_sequences"] + census["frame_sequence_deferred"],
             153,
@@ -63,7 +63,12 @@ class TestBattleAnimations(unittest.TestCase):
                 continue
             self.assertIn(
                 sequence["frame_timer_helper"],
-                {"loc_256AE", "loc_256F4", "loc_25270"},
+                {
+                    "loc_256AE",
+                    "loc_256F4",
+                    "loc_25270",
+                    "oracle:observed_sprite_table_clock",
+                },
             )
             self.assertGreater(sequence["frame_duration"], 0)
             self.assertGreater(sequence["frame_count"], 0)
@@ -92,12 +97,12 @@ class TestBattleAnimations(unittest.TestCase):
         self.assertEqual(
             (census["sprite_sheet_exact"], census["sprite_sheet_partial"],
              census["sprite_sheet_status_deferred"]),
-            (120, 1, 32),
+            (153, 0, 0),
         )
         self.assertEqual(
             (census["movement_exact"], census["movement_partial"],
              census["movement_status_deferred"]),
-            (121, 0, 32),
+            (153, 0, 0),
         )
         records = {record["enemy_id"]: record for record in self.payload["animations"]}
         zoran = records[10]
@@ -145,18 +150,49 @@ class TestBattleAnimations(unittest.TestCase):
                 "variable_mapping": 49,
             },
         )
-        self.assertEqual(census["deferred_routine_bodies"], 16)
+        self.assertEqual(census["deferred_routine_bodies"], 0)
         self.assertEqual(census["attack_plc_loads"], 383)
         self.assertEqual(census["attack_plc_distinct_records"], 122)
         for animation in self.payload["animations"]:
-            if animation["frame_sequence"] is None:
-                self.assertTrue(animation["frame_sequence_why_not"])
-                self.assertIn(animation["routine_classification"], {
-                    "palette_or_plane_effect",
-                    "projectile_effect_graph",
-                    "state_machine_without_sprite_mapping",
-                    "tile_upload_only",
-                })
+            self.assertIsNotNone(animation["frame_sequence"])
+            self.assertIsNone(animation["frame_sequence_why_not"])
+
+    def test_oracle_receipts_close_every_remainder_body_and_darkforce_palette(self):
+        records = {record["enemy_id"]: record for record in self.payload["animations"]}
+        remainder_ids = (4, 7, 14, 27, 56, 78, 91, 96, 99, 114, 117, 121, 127, 128, 132, 151)
+        for enemy_id in remainder_ids:
+            with self.subTest(enemy_id=enemy_id):
+                record = records[enemy_id]
+                self.assertEqual(record["composition"]["status"], "exact")
+                self.assertEqual(
+                    record["frame_sequence"]["frame_timer_helper"],
+                    "oracle:observed_sprite_table_clock",
+                )
+                self.assertIn(enemy_id, record["oracle_receipt"]["enemy_ids"])
+                self.assertEqual(
+                    record["frame_sequence"]["total_frames"],
+                    sum(record["oracle_receipt"]["durations"]),
+                )
+                receipt = record["oracle_receipt"]
+                self.assertEqual(
+                    receipt["capture"]["frame_count"],
+                    sum(receipt["durations"]),
+                )
+                self.assertEqual(
+                    receipt["observed_offsets"],
+                    [
+                        sum(receipt["durations"][:index])
+                        for index in range(len(receipt["durations"]))
+                    ],
+                )
+                self.assertEqual(len(receipt["origin_pixels"]), 2)
+        self.assertEqual(records[27]["oracle_receipt"]["origin_pixels"], [-32, -56])
+        self.assertEqual(records[132]["oracle_receipt"]["origin_pixels"], [-176, 0])
+        darkforce = records[130]
+        self.assertEqual(darkforce["composition"]["status"], "exact")
+        self.assertEqual(darkforce["oracle_receipt"]["cram_line"], 1)
+        self.assertEqual(darkforce["frame_sequence"]["palette_receipt"]["cram_line"], 1)
+        self.assertEqual(darkforce["frame_sequence"]["palette_receipt"]["cram_words"][1], "0x0EEE")
 
     def test_extraction_is_deterministic(self):
         self.assertEqual(self.payload, build_enemy_animations(read_rom(ROM)))

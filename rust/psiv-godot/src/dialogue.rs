@@ -30,6 +30,14 @@ use psiv_data::{CHARS_PER_LINE, DialogueEntry, DialogueSet, LINES_PER_WINDOW, Pa
 /// wider viewport keeps the box's margins rather than its coordinates.
 const SCREEN: (f32, f32) = (320.0, 224.0);
 
+/// `TextBufferToPlane` writes the 32x4 text map at screen tile (4,21).
+const RETAIL_TEXT_ORIGIN: Vector2 = Vector2::new(8.0, 8.0);
+const RETAIL_TEXT_LINE_PITCH: f32 = 16.0;
+/// `WinGroup_Event` record 2 is at (3,14); normal dialogue uses (5,13).
+/// The pack stores the common talk rect, so scene dialogue applies this
+/// measured event-mode delta at draw time.
+const RETAIL_SCENE_PORTRAIT_OFFSET: Vector2 = Vector2::new(-16.0, 8.0);
+
 /// Retail `grand_cross=0` plane pixels retain the decoded `(1,1)` origin
 /// residue while the dialogue window remains on the window-plane origin.
 /// See `oracle/scroll_state.py` and the MeetingRika frame-7250 receipt.
@@ -59,9 +67,11 @@ struct WindowView {
     glyph_at: HashMap<char, Vector2>,
     glyph: Vector2,
     cell: f32,
-    border: f32,
     /// The whole message box, frame included.
     box_size: Vector2,
+    /// Retail `TextBufferToPlane` origin and the two 8x16 glyph row pitch.
+    text_origin: Vector2,
+    text_line_pitch: f32,
     /// Where the portrait goes, relative to the box's top-left corner.
     portrait_offset: Vector2,
     portrait_size: Vector2,
@@ -121,8 +131,9 @@ impl WindowView {
             glyph_at,
             glyph: Vector2::new(text.glyph_width as f32, text.glyph_height as f32),
             cell: set.window.geometry.cell_pixels as f32,
-            border: set.window.geometry.border_cells as f32,
             box_size: Vector2::new(text.rect.width as f32, text.rect.height as f32),
+            text_origin: RETAIL_TEXT_ORIGIN,
+            text_line_pitch: RETAIL_TEXT_LINE_PITCH,
             portrait_offset: Vector2::new(
                 (portrait.rect.x - text.rect.x) as f32,
                 (portrait.rect.y - text.rect.y) as f32,
@@ -203,6 +214,9 @@ pub struct DialogueWindow {
     pending_event: Option<u16>,
     /// The tree of the currently open dialogue, for mid-message jumps.
     current_tree: u8,
+    /// Scene dialogue selects `WinGroup_Event` for its portrait window;
+    /// ordinary talk keeps `WinGroup_Dialogue`.
+    scene_dialogue: bool,
     /// Glyphs revealed on the current page. Retail draws one character every
     /// 3 frames (oracle: logs/03_npc_talk.csv, writes to Win_Tile_Buffer on a
     /// strict 3-frame cadence — 20 chars/second); this counts revealed glyphs
@@ -225,6 +239,7 @@ impl INode2D for DialogueWindow {
             event_flags: Vec::new(),
             pending_event: None,
             current_tree: 0,
+            scene_dialogue: false,
             revealed: 0,
             reveal_tick: 0,
         }
@@ -323,6 +338,21 @@ impl DialogueWindow {
     /// Opens an NPC's line: the map's dialogue tree (1-based) and the object's
     /// `dialogue_id`. Returns whether a window actually opened.
     pub fn open_dialogue(&mut self, tree: u8, dialogue_id: u16) -> bool {
+        self.open_dialogue_with_mode(tree, dialogue_id, false)
+    }
+
+    /// Opens a scene-owned line. Retail scene dialogue uses the event window
+    /// group for its portrait, while the text map remains at `(4,21)`.
+    pub fn open_scene_dialogue(&mut self, tree: u8, dialogue_id: u16) -> bool {
+        self.open_dialogue_with_mode(tree, dialogue_id, true)
+    }
+
+    fn open_dialogue_with_mode(
+        &mut self,
+        tree: u8,
+        dialogue_id: u16,
+        scene_dialogue: bool,
+    ) -> bool {
         let Some(set) = self.set.as_ref() else {
             godot_error!("dialogue: no pack loaded; call configure() first");
             return false;
@@ -330,6 +360,7 @@ impl DialogueWindow {
         // Follow `$FA` preamble jumps against the live flags, bounded so a
         // cyclic chain (a data bug) cannot hang.
         self.current_tree = tree;
+        self.scene_dialogue = scene_dialogue;
         let mut id = dialogue_id;
         for _ in 0..16 {
             let Some(entry) = set.entry(tree, id) else {
@@ -347,6 +378,7 @@ impl DialogueWindow {
 
     /// Opens an entry the caller already resolved.
     pub fn open(&mut self, entry: &DialogueEntry) -> bool {
+        self.scene_dialogue = false;
         let opening = TextFlow::open_with_flags(entry, &self.event_flags);
         if let Opening::Jump(next) = opening {
             // System messages never jump; a jump here means a caller fed a
@@ -501,8 +533,9 @@ impl DialogueWindow {
         }
         if let Some(next) = jump {
             let tree = self.current_tree;
+            let scene_dialogue = self.scene_dialogue;
             self.close();
-            self.open_dialogue(tree, next);
+            self.open_dialogue_with_mode(tree, next, scene_dialogue);
         }
     }
 
@@ -537,6 +570,7 @@ impl DialogueWindow {
     fn close(&mut self) {
         self.flow = None;
         self.open_cells = 0;
+        self.scene_dialogue = false;
         self.base_mut().set_visible(false);
         self.base_mut().queue_redraw();
     }
@@ -577,8 +611,12 @@ impl DialogueWindow {
         let bottom_right = canvas * (viewport.position + viewport.size);
         let visible = bottom_right - top_left;
         let surface_top = top_left.y + (visible.y - SCREEN.1) / 2.0;
+        // The window plane carries the same one-pixel horizontal origin
+        // residue the scene panels do (oracle receipt: the settled
+        // MeetingRika window matches at a +1 X shift, rows 176..208
+        // dropping 62→13 RMSE; Y needs none).
         let position = Vector2::new(
-            (top_left.x + (visible.x - size.x) / 2.0).floor(),
+            (top_left.x + (visible.x - size.x) / 2.0).floor() + 1.0,
             (surface_top + SCREEN.1 - margin - size.y).floor(),
         );
         self.base_mut().set_position(position);
@@ -638,7 +676,10 @@ impl DialogueWindow {
 
         let mut arrow = None;
         if width_cells == full_cells {
-            let origin = Vector2::new(view.border * cell, view.border * cell);
+            // These are the retail `TextBufferToPlane` coordinates, not a
+            // generic centre-in-window guess: screen tile (4,21), 8x16
+            // glyphs, and a 16-pixel line pitch.
+            let origin = view.text_origin;
             let mut budget = self.revealed;
             'lines: for (row, line) in flow.lines().iter().enumerate().take(LINES_PER_WINDOW) {
                 for (column, ch) in line.chars().enumerate().take(CHARS_PER_LINE) {
@@ -658,7 +699,7 @@ impl DialogueWindow {
                             origin
                                 + Vector2::new(
                                     column as f32 * view.glyph.x,
-                                    row as f32 * view.glyph.y,
+                                    row as f32 * view.text_line_pitch,
                                 ),
                             view.glyph,
                         ),
@@ -675,7 +716,13 @@ impl DialogueWindow {
                 quads.push(Quad {
                     texture: texture.clone(),
                     dest: Rect2::new(
-                        view.portrait_offset + retail_plane_scroll_offset(),
+                        view.portrait_offset
+                            + if self.scene_dialogue {
+                                RETAIL_SCENE_PORTRAIT_OFFSET
+                            } else {
+                                Vector2::ZERO
+                            }
+                            + retail_plane_scroll_offset(),
                         view.portrait_size,
                     ),
                     src: Rect2::new(Vector2::ZERO, view.portrait_size),

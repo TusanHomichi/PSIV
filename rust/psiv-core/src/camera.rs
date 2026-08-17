@@ -417,6 +417,33 @@ impl Camera {
         });
     }
 
+    /// Applies the packed `loc_51AB2` gate write used by both ordinary map
+    /// entry and `RefreshMap`.
+    ///
+    /// The gate bytes are always written. A zero plane gate is followed by
+    /// two longwords which seed that plane's step counters; a nonzero gate
+    /// leaves its existing counters alone, exactly as the 68000 routine does.
+    pub fn apply_gate_write(
+        &mut self,
+        gates: CameraGates,
+        step_fg: (i32, i32),
+        step_bg: (i32, i32),
+    ) {
+        self.gates = gates;
+        if gates.ec25 == 0 {
+            self.step_x = step_fg.0;
+            self.step_y = step_fg.1;
+        }
+        if gates.ec26 == 0 {
+            self.step_x_bg = step_bg.0;
+            self.step_y_bg = step_bg.1;
+        }
+        self.refresh_driver_sprite(Driver {
+            x: self.driver_x,
+            y: self.driver_y,
+        });
+    }
+
     /// The camera position in whole pixels, as the renderer wants it.
     #[must_use]
     pub const fn position(&self) -> (i32, i32) {

@@ -176,7 +176,7 @@ class TestEmittedFiles(unittest.TestCase):
         self.assertEqual(files["file"], ENEMY_ATTACK_ART_NAME)
         self.assertEqual(files["png_directory"], ENEMY_ATTACK_ART_DIRECTORY)
         self.assertEqual(files["count"], 153)
-        self.assertEqual(files["png_count"], 956)
+        self.assertEqual(files["png_count"], 1355)
         by_id = {entry["id"]: entry for entry in self.attacks["enemies"]}
         for enemy_id in (2, 24, 39, 149):
             with self.subTest(enemy_id=enemy_id):
@@ -190,8 +190,30 @@ class TestEmittedFiles(unittest.TestCase):
                     )
         worker = by_id[24]
         self.assertTrue(any(source["field"] == "attack_plc" for source in worker["art"]))
-        self.assertEqual(by_id[130]["status"], "partial")
-        self.assertFalse(by_id[130]["frames"])
+        self.assertEqual(by_id[130]["status"], "exact")
+        self.assertTrue(by_id[130]["frames"])
+        self.assertEqual(by_id[130]["source"]["grand_cross"], 0)
+
+    def test_oracle_frames_keep_each_enemy_indexed_structure(self):
+        by_id = {entry["id"]: entry for entry in self.attacks["enemies"]}
+        for enemy_id in (27, 28, 29, 99, 100, 101, 117, 118, 119):
+            with self.subTest(enemy_id=enemy_id):
+                self.assertEqual(len(by_id[enemy_id]["origin_pixels"]), 2)
+                for frame in by_id[enemy_id]["frames"]:
+                    image = (self.root / frame["png"]).read_bytes()
+                    source_name = (
+                        frame["mapping_rom_offset"].split(":")[1].removeprefix("0x")
+                        + f"_frame{frame['index']:02d}.png"
+                    )
+                    source = (
+                        Path(__file__).resolve().parents[1]
+                        / "oracle/fixtures/battle_animation_art"
+                        / source_name
+                    ).read_bytes()
+                    self.assertEqual(png_pixels(image), png_pixels(source))
+                    chunks = png_chunks(image)
+                    self.assertEqual(chunks[b"IHDR"][9], png.COLOR_TYPE_INDEXED)
+                    self.assertEqual(list(chunks[b"tRNS"])[TRANSPARENT_INDEX], 0)
 
     def test_json_is_canonical_and_newline_terminated(self):
         for name in (

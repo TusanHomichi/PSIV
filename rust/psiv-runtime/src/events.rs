@@ -28,9 +28,9 @@ pub struct BattleAnimationEvent {
     pub enemy_id: u16,
     /// The exact retail SFX selected by the same object graph.
     pub sfx_id: u8,
-    /// Fixed mapping duration, when `loc_256AE` consumption was proven.
+    /// Mapping duration, when a retail helper or oracle receipt proved it.
     pub frame_duration: Option<u8>,
-    /// Fixed mapping count, when available.
+    /// Mapping count, when available.
     pub frame_count: Option<u8>,
     /// Sum of the per-frame durations, when available.
     pub total_frames: Option<u16>,

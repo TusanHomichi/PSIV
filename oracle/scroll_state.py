@@ -37,6 +37,66 @@ def _be_words(raw: bytes) -> list[int]:
     return [int.from_bytes(raw[i : i + 2], "big") for i in range(0, len(raw), 2)]
 
 
+def decode_cram_shadow(state: dict[str, Any]) -> dict[str, Any]:
+    """Decode the game-owned 64-word CRAM shadow carried by a state dump.
+
+    The host receipt names this region ``Palette_Table_Buffer``.  It is not a
+    live VDP read, but it is the exact big-endian shadow the retail renderer
+    copied into CRAM before the paired PNG frame was captured.  Keeping the
+    raw word and its three logical levels here gives palette investigations a
+    lossless receipt instead of making them scrape a JSON hex string.
+    """
+    region = _optional_region(state, "cram", 0x80)
+    if region is None:
+        return {
+            "present": False,
+            "missing_region": "cram",
+            "provenance": {
+                "source": "oracle host state dump",
+                "region_symbol": "Palette_Table_Buffer",
+            },
+        }
+
+    raw, metadata = region
+    words = _be_words(raw)
+    entries = [
+        {
+            "index": index,
+            "raw": f"0x{word:04X}",
+            "levels": {
+                "r": (word >> 1) & 0x7,
+                "g": (word >> 5) & 0x7,
+                "b": (word >> 9) & 0x7,
+            },
+        }
+        for index, word in enumerate(words)
+    ]
+    return {
+        "present": True,
+        "word_count": len(entries),
+        "raw_hex": raw.hex().upper(),
+        "source": {
+            "symbol": metadata.get("symbol", "Palette_Table_Buffer"),
+            "storage": metadata.get("storage", "work_ram"),
+            "address": metadata.get("address"),
+            "byte_order": metadata.get("byte_order", "68000_address_order"),
+        },
+        "words": entries,
+        "lines": [
+            {
+                "line": line,
+                "words": entries[line * 16 : (line + 1) * 16],
+            }
+            for line in range(4)
+        ],
+        "provenance": {
+            "receipt": "state.regions.cram",
+            "paired_frame": state.get("frame"),
+            "region_symbol": "Palette_Table_Buffer",
+        },
+    }
+
+
 def _fixed_camera(raw: bytes, offset: int) -> dict[str, Any]:
     value = int.from_bytes(raw[offset : offset + 4], "big", signed=True)
     return {
@@ -62,6 +122,7 @@ def decode_scroll_state(
     Older state files predate the host VDP receipt. They remain decodable, but
     explicitly report the missing receipt instead of inventing zeros.
     """
+    cram_shadow = decode_cram_shadow(state)
     needed = {
         "camera": 0x10,
         "camera_step_counters": 0x10,
@@ -79,6 +140,7 @@ def decode_scroll_state(
         return {
             "present": False,
             "missing_regions": missing,
+            "cram_shadow": cram_shadow,
             "provenance": {
                 "grand_cross": grand_cross,
                 "source": "oracle host VDP/state receipt (not present in this file)",
@@ -153,6 +215,7 @@ def decode_scroll_state(
     work_v = _optional_region(state, "vsram_shadow", 0x1C0)
     return {
         "present": True,
+        "cram_shadow": cram_shadow,
         "provenance": {
             "grand_cross": grand_cross,
             "camera_symbols": "ps4.constants.asm:2346-2349, 16.16 fixed point",

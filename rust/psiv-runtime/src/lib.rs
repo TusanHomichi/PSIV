@@ -18,6 +18,7 @@ mod camp;
 mod effects;
 mod encounters;
 mod events;
+mod field_objects;
 mod geometry;
 mod save;
 mod scene_runtime;
@@ -34,15 +35,15 @@ pub use events::{BattleAnimationEvent, BattleSoundEvent, BattleTimeline, Runtime
 pub use save::RuntimeSaveError;
 pub use shop::{InnResult, ShopBuyResult, ShopSellResult};
 
-use bridge::{build_wander, char_id_by_symbol};
-use geometry::{camera_for_record, driver_of, object_position};
+use bridge::{build_bespoke, build_wander, char_id_by_symbol, clear_bespoke_entry_flags};
+use geometry::{camera_for_record, driver_of, refresh_camera_gates};
 
 use psiv_core::battle::{Battle, BattleEvent, Lcg41, Rng2, Rolls, RoundOrders};
 use psiv_core::{
-    ActorRef, Camera, Cell, CharId, Direction, Effect, EventIndex, FieldMap, FieldState, Flag,
-    GameState, Input, MapId, MemberView, PARTY_SLOTS, Party, PixelPos, SceneInput, SceneRunner,
-    ScriptedActor, StepFrames, TRIGGERS, TriggerContext, TriggerResult, WanderSet, Wanderer,
-    runner_for, scene_for,
+    ActorRef, BespokeActor, BespokeSet, Camera, Cell, CharId, Direction, Effect, EventIndex,
+    FieldMap, FieldState, Flag, GameState, Input, MapId, MemberView, PARTY_SLOTS, Party, PixelPos,
+    SceneInput, SceneRunner, ScriptedActor, StepFrames, TRIGGERS, TriggerContext, TriggerResult,
+    WanderSet, Wanderer, runner_for, scene_for,
 };
 use psiv_data::GameData;
 
@@ -69,6 +70,9 @@ pub struct Runtime {
     prev_standing: Option<u8>,
     /// The map's transcribed random-wander objects, rebuilt per map load.
     wander: WanderSet,
+    /// The map's post-wave-7 bespoke routines, rebuilt in the same map-object
+    /// order as [`Runtime::wander`].
+    bespoke: BespokeSet,
     /// The one shared seed, ticked once per frame like the cartridge's
     /// vblank call; wander decisions draw from the same stream, as retail's
     /// FieldObj_GetRandomMove shares UpdateRNGSeed with encounter rolls.
@@ -530,72 +534,19 @@ impl Runtime {
         // Every object's routine opens with the visibility test, whether or not
         // it wanders, so the flags are refreshed unconditionally.
         self.update_visibility();
-        // Wander draws are conditional consumers of the same stream — an
-        // idle NPC whose countdown expires rolls once; most frames none do.
+        // Wander and bespoke draws are conditional consumers of the same
+        // stream — an idle NPC whose countdown expires rolls once; most frames
+        // none do.
         // This runs before the camera's own tick because the cartridge's
         // visibility test reads sprite positions written the frame before.
         if !self.field_suspended {
-            self.tick_wander();
+            self.tick_field_objects();
         }
         // `UpdateCamera*PosFG/BG` folds in last frame's scroll and
         // `FieldObj_*` latches this frame's, both against the party's
         // post-movement position.
         self.camera.tick(driver_of(self.party.leader()));
         events
-    }
-
-    /// One frame of NPC wander: visibility from the retail camera box, the
-    /// party's occupied cells as obstacles, decisions from the shared seed.
-    /// Refreshes `offscreen_flag` for every object.
-    ///
-    /// Runs before anything that consumes it, against the camera as it stood at
-    /// the top of the frame — `FieldObj_OnScreenTest` reads the sprite position
-    /// the previous frame's `FieldObj_CalcSpritePos` wrote, so the gate is one
-    /// frame behind the camera by construction, not by approximation.
-    fn update_visibility(&mut self) {
-        let camera = self.camera;
-        self.offscreen.clear();
-        self.offscreen
-            .extend(self.map.npcs().iter().enumerate().map(|(index, npc)| {
-                if !npc.active {
-                    return true;
-                }
-                // An object whose routine never calls the test keeps the
-                // flag its slot was initialised with and is updated
-                // wherever it is.
-                if !psiv_core::type_tests_visibility(npc.id.0) {
-                    return false;
-                }
-                let wanderer = self
-                    .wander
-                    .wanderers()
-                    .iter()
-                    .find(|w| w.npc_index() == index);
-                let (x, y) = object_position(npc, wanderer);
-                !camera.sees_with_camera_bypass(x, y, npc.camera_bypass)
-            }));
-    }
-
-    /// Whether object `index` was off screen this frame, and so was not updated.
-    #[must_use]
-    pub fn object_offscreen(&self, index: usize) -> bool {
-        self.offscreen.get(index).copied().unwrap_or(true)
-    }
-
-    fn tick_wander(&mut self) {
-        if self.wander.is_empty() {
-            return;
-        }
-        let party_cells: Vec<Cell> = self.party.members().iter().map(|m| m.cell).collect();
-        let offscreen = &self.offscreen;
-        let driver = driver_of(self.party.leader());
-        self.wander.tick_with_driver_pixels(
-            &mut self.map,
-            &mut self.rng,
-            &party_cells,
-            (driver.x >> 16, driver.y >> 16),
-            |i| !offscreen.get(i).copied().unwrap_or(true),
-        );
     }
 
     /// The camera bounds this map imposes.
@@ -621,10 +572,27 @@ impl Runtime {
         self.camera.set_position(x, y);
     }
 
+    /// Applies the packed `loc_51AB2` gate write to the current camera without
+    /// repositioning the view. This is the runtime seam for `RefreshMap` calls
+    /// made after a scene or warp has already entered the map.
+    pub fn refresh_map_camera_gates(&mut self) -> Result<(), BridgeError> {
+        let record = self
+            .map_record()
+            .cloned()
+            .ok_or(BridgeError::NotPacked(self.map.id().0))?;
+        refresh_camera_gates(&mut self.camera, &record).map_err(BridgeError::Rejected)
+    }
+
     /// The map's wanderers, for the renderer's per-frame positions.
     #[must_use]
     pub fn wanderers(&self) -> &[Wanderer] {
         self.wander.wanderers()
+    }
+
+    /// The map's bespoke field-object actors, for renderer and replay state.
+    #[must_use]
+    pub fn bespoke_actors(&self) -> &[BespokeActor] {
+        self.bespoke.actors()
     }
 
     /// Whether a battle currently owns the frame.
@@ -956,6 +924,7 @@ impl Runtime {
         // the post-clear state.
         let effects = effects::evaluate(record, &mut self.game);
         let mut map = field_map_patched(record, Some(&effects))?;
+        clear_bespoke_entry_flags(&mut self.game, record);
         self.effects = effects;
         // Re-apply this session's scene-driven despawns (the interim ledger
         // for despawns whose gating flag is not yet modelled).
@@ -968,6 +937,7 @@ impl Runtime {
             .enter_map(&map, cell, facing)
             .map_err(|e| BridgeError::Rejected(e.to_string()))?;
         self.wander = build_wander(&map, record)?;
+        self.bespoke = build_bespoke(&map, record)?;
         // Map entry places the view rather than scrolling it in, so the camera
         // starts framed on the party wherever the warp dropped them.
         self.camera = camera_for_record(driver_of(self.party.leader()), &map, record)
