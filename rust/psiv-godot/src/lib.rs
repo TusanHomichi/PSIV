@@ -15,14 +15,22 @@ mod audio;
 mod battle;
 mod boot;
 mod camp;
+#[path = "debug.rs"]
+mod debug;
 mod dialogue;
 mod field_visuals;
 mod input;
 mod shop;
+#[path = "sound_hooks.rs"]
+mod sound_hooks;
+mod title;
 mod transitions;
 mod view;
 use battle::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
-use boot::{FALLBACK_SPAWN_CELL, FALLBACK_SPAWN_MAP, collect_event_flags};
+use boot::{
+    FALLBACK_SPAWN_CELL, FALLBACK_SPAWN_MAP, available_save_slots, collect_event_flags,
+    title_bypassed,
+};
 use camp::CampMenu;
 use dialogue::DialogueWindow;
 use input::{read_input, requested_save_slot, save_directory};
@@ -41,6 +49,17 @@ struct PsivExtension;
 unsafe impl ExtensionLibrary for PsivExtension {}
 
 pub(crate) const CELL_PIXELS: f32 = 16.0;
+
+/// `EventBattleMusicData` (`ps4.asm:120820`): music id per event-battle
+/// index, byte-for-byte. Index `$1A` (Abyss) also clears `Battle_Type`.
+const EVENT_BATTLE_MUSIC: [u8; 27] = [
+    0x95, 0x95, 0x8f, 0x95, 0xaa, 0x95, 0xaa, 0x8f, 0x95, 0xa0, 0x95, 0x8f, 0x95, 0x8f, 0x95, 0x8f,
+    0xaa, 0xa0, 0xa0, 0x95, 0x8f, 0x95, 0x95, 0x95, 0xa4, 0x95, 0xa2,
+];
+
+fn event_battle_music(index: u16) -> Option<u8> {
+    EVENT_BATTLE_MUSIC.get(usize::from(index)).copied()
+}
 
 /// The field scene: map picture, the party sprite, NPC sprites.
 #[derive(GodotClass)]
@@ -65,6 +84,7 @@ struct Field {
     dialogue: Option<Gd<DialogueWindow>>,
     shop: Option<Gd<ShopWindow>>,
     camp_menu: Option<Gd<CampMenu>>,
+    title: Option<title::TitleScreen>,
     battle_screen: Option<Gd<BattleScreen>>,
     battle_files: Option<psiv_data::BattleFiles>,
     battle_field_visibility: Option<battle::FieldVisibility>,
@@ -113,6 +133,7 @@ impl INode2D for Field {
             dialogue: None,
             shop: None,
             camp_menu: None,
+            title: None,
             battle_screen: None,
             battle_files: None,
             battle_field_visibility: None,
@@ -268,6 +289,15 @@ impl INode2D for Field {
         camera.make_current();
         self.camera = Some(camera);
 
+        // The title is additive presentation over the existing runtime. All
+        // explicit save/debug selectors keep their fast paths and never pay
+        // the retail front-door delay.
+        if !title_bypassed() {
+            let slots = available_save_slots(runtime.data(), &save_directory());
+            let pack_dir = self.pack_dir.clone();
+            self.title = title::TitleScreen::build(&pack_dir, slots, self.base_mut());
+        }
+
         let mut window = DialogueWindow::new_alloc();
         match psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
             Ok(set) => window.bind_mut().configure(&self.pack_dir, set),
@@ -292,18 +322,26 @@ impl INode2D for Field {
 
         let ready_map = runtime.map_id().0;
         let ready_cell = runtime.state().cell();
+        let sound_bank = match audio::sound_bank_from_data(runtime.data().sound()) {
+            Ok(bank) => bank,
+            Err(error) => {
+                godot_error!("sound records failed to resolve: {error}");
+                psiv_sound::SoundBank::default()
+            }
+        };
         self.runtime = Some(runtime);
-        let debug_tone = std::env::var("PSIV_DEBUG_TONE").is_ok_and(|value| value == "1");
-        let mut audio = audio::AudioOutput::new();
+        let mut audio = audio::AudioOutput::new(sound_bank);
+        let debug_audio = audio.has_debug_override();
         self.base_mut().add_child(audio.node());
-        if debug_tone {
+        if debug_audio {
             audio.start();
         }
         self.audio = Some(audio);
-        if debug_tone {
-            godot_print!("debug: PSIV_DEBUG_TONE fixture started at {SAMPLE_RATE} Hz");
+        if debug_audio {
+            godot_print!("debug: audio override started at {SAMPLE_RATE} Hz");
         }
         self.load_map_visuals();
+        self.play_map_music();
         self.sync_visuals(false);
         self.start_transition(TransitionKind::GameStart);
         godot_print!(
@@ -320,8 +358,12 @@ impl INode2D for Field {
         }
         self.anim_tick += 1;
         self.tick_transition();
+        if self.drive_title() {
+            return;
+        }
         let battle_was_active = self.battle_presentation_active();
         self.debug_hooks_tick();
+        self.service_ui_audio();
         if !battle_was_active && self.battle_presentation_active() {
             self.start_transition(TransitionKind::BattleEntry);
         }
@@ -647,71 +689,6 @@ impl Field {
         }
     }
 
-    /// Debug-only automation for the fix loop (no effect without the debug
-    /// selectors): `PSIV_DEBUG_BATTLE=<formation hex>` or
-    /// `--psiv-debug-battle=<formation hex>` starts that battle a few frames
-    /// after boot with no play needed; `PSIV_DEBUG_SHOT=<path.png>` (with
-    /// optional `PSIV_DEBUG_SHOT_FRAME=<n>`, default 180) saves a viewport
-    /// screenshot so an agent can see what a player would. `PSIV_DEBUG_CAMP=1`
-    /// opens the field camp at tick 30.
-    fn debug_hooks_tick(&mut self) {
-        let formation = std::env::var("PSIV_DEBUG_BATTLE").ok().or_else(|| {
-            std::env::args().find_map(|argument| {
-                argument
-                    .strip_prefix("--psiv-debug-battle=")
-                    .map(str::to_owned)
-            })
-        });
-        if self.anim_tick == 30
-            && let Some(formation) = formation
-        {
-            let trimmed = formation.trim_start_matches("0x");
-            match u16::from_str_radix(trimmed, 16) {
-                Ok(id) => {
-                    godot_print!("debug: starting battle {id:#05x}");
-                    if id == 0x88 {
-                        self.start_oracle_debug_battle();
-                    } else {
-                        self.start_random_battle(id);
-                    }
-                }
-                Err(_) => godot_error!("debug battle selector {formation} is not hex"),
-            }
-        }
-        if self.anim_tick == 30 && std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1")
-        {
-            godot_print!("debug: opening camp menu");
-            self.open_camp_menu();
-        }
-        if self.anim_tick == 30
-            && let Ok(value) = std::env::var("PSIV_DEBUG_SHOP")
-            && let Ok(index) = value.parse::<usize>()
-        {
-            let opened = match (self.shop.as_mut(), self.runtime.as_ref()) {
-                (Some(shop), Some(runtime)) => shop.bind_mut().open_index(index, runtime),
-                _ => false,
-            };
-            if opened {
-                godot_print!("debug: opening shop counter {index}");
-                self.place_shop_window();
-            }
-        }
-        if let Ok(path) = std::env::var("PSIV_DEBUG_SHOT") {
-            let at: u64 = std::env::var("PSIV_DEBUG_SHOT_FRAME")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(180);
-            if self.anim_tick == at
-                && let Some(viewport) = self.base().get_viewport()
-                && let Some(texture) = viewport.get_texture()
-                && let Some(image) = texture.get_image()
-            {
-                let err = image.save_png(&GString::from(path.as_str()));
-                godot_print!("debug: screenshot -> {path} ({err:?})");
-            }
-        }
-    }
-
     /// Applies a batch of runtime events to the presentation. Returns whether
     /// a step completed (the walk-animation bridge needs it).
     fn process_events(&mut self, events: Vec<RuntimeEvent>) -> bool {
@@ -720,6 +697,7 @@ impl Field {
             match event {
                 RuntimeEvent::StepCompleted { .. } => stepped = true,
                 RuntimeEvent::EncounterRolled { formation } => {
+                    self.play_sound(0x8f);
                     self.start_random_battle(formation);
                     if self.battle_presentation_active() {
                         self.start_transition(TransitionKind::BattleEntry);
@@ -732,6 +710,7 @@ impl Field {
                     };
                     godot_print!("map change ({kind}) -> {:#05x}", map.0);
                     self.load_map_visuals();
+                    self.play_map_music();
                     if matches!(trigger, WarpTrigger::MapChange) {
                         self.start_transition(TransitionKind::Doorway);
                     }
@@ -881,7 +860,13 @@ impl Field {
                     }
                 }
                 RuntimeEvent::SceneBattleStarted { index, events } => {
+                    if let Some(id) = event_battle_music(index) {
+                        self.play_sound(id);
+                    }
                     self.start_scene_battle(index, events);
+                }
+                RuntimeEvent::SceneFaulted { fault } => {
+                    godot_error!("scene fault: {fault:?}");
                 }
                 RuntimeEvent::SceneBattleFailed { index, error } => {
                     godot_error!("scene battle {index} could not start: {error}");

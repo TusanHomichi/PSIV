@@ -82,6 +82,13 @@ pub enum DataError {
         /// What is wrong, naming the tree/entry/glyph.
         message: String,
     },
+    /// The extracted sound pack is missing a required record or raw file.
+    Sound {
+        /// The sound file or directory associated with the defect.
+        path: PathBuf,
+        /// What is structurally wrong.
+        message: String,
+    },
 }
 
 impl DataError {
@@ -127,7 +134,8 @@ impl DataError {
         match self {
             DataError::Io { path, .. }
             | DataError::Json { path, .. }
-            | DataError::ManifestMismatch { path, .. } => Some(path),
+            | DataError::ManifestMismatch { path, .. }
+            | DataError::Sound { path, .. } => Some(path),
             _ => None,
         }
     }
@@ -168,6 +176,9 @@ impl fmt::Display for DataError {
             DataError::Sprite { who, message } => write!(f, "sprite {who}: {message}"),
             DataError::Dialogue { path, message } => {
                 write!(f, "dialogue pack {}: {message}", path.display())
+            }
+            DataError::Sound { path, message } => {
+                write!(f, "sound pack {}: {message}", path.display())
             }
         }
     }

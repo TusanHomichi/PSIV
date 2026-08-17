@@ -8,7 +8,9 @@
 use std::path::Path;
 
 use psiv_core::battle::{BattleEvent, Outcome, RoundOrders};
-use psiv_core::{Cell, Direction, Flag, Input, StepFrames};
+use psiv_core::{
+    Cell, CharId, Direction, Flag, GameState, Input, RetailLocation, RetailSave, StepFrames,
+};
 use psiv_data::{BattleFiles, GameData};
 use psiv_runtime::{Runtime, RuntimeEvent};
 
@@ -33,12 +35,43 @@ fn runtime_with_battles_at(map: u16) -> Runtime {
     runtime
 }
 
+fn runtime_with_four_party_at(map: u16) -> Runtime {
+    let data = GameData::load(Path::new(PACK)).expect("pack loads");
+    let mut game = GameState::new();
+    for (slot, id) in [CharId(0), CharId(1), CharId(2), CharId(3)]
+        .into_iter()
+        .enumerate()
+    {
+        game.set_party_slot(slot, Some(id))
+            .expect("party slot exists");
+    }
+    Runtime::from_save(
+        data,
+        RetailSave {
+            snapshot: game.snapshot(),
+            location: RetailLocation {
+                world_index: 0,
+                map_index_2: 0,
+                map_index: map,
+                char_x: 16,
+                char_y: 16,
+            },
+        },
+        StepFrames::default(),
+    )
+    .expect("runtime with seeded party starts")
+}
+
 fn drive_scene(runtime: &mut Runtime, event: u16) -> Vec<RuntimeEvent> {
     assert!(runtime.start_event(event), "event {event:#x} starts");
     let mut log = Vec::new();
     for _ in 0..20_000 {
         let events = runtime.tick(Input::Neutral);
         for item in &events {
+            assert!(
+                !matches!(item, RuntimeEvent::SceneFaulted { .. }),
+                "event {event:#x} faulted: {item:?}"
+            );
             if matches!(item, RuntimeEvent::SceneDialogue { .. }) {
                 runtime.dialogue_closed();
             }
@@ -67,6 +100,10 @@ fn drive_until_battle(runtime: &mut Runtime, event: u16) -> Vec<RuntimeEvent> {
             .iter()
             .any(|item| matches!(item, RuntimeEvent::SceneBattleStarted { .. }));
         for item in &events {
+            assert!(
+                !matches!(item, RuntimeEvent::SceneFaulted { .. }),
+                "event {event:#x} faulted: {item:?}"
+            );
             if matches!(item, RuntimeEvent::SceneDialogue { .. }) {
                 runtime.dialogue_closed();
             }
@@ -132,8 +169,17 @@ fn every_next_arc_scene_reaches_its_return_edge() {
         ("ZemaOldManAfterMission", 0x24, 0x008C),
         ("MeetingSaya", 0x3A, 0x000D),
         ("TonoeBasementDoor", 0x42, 0x0033),
+        ("BioPlantAlarm", 0xA3, 0x0012),
+        ("GirlsSneakingOut", 0x63, 0x0023),
+        ("ChazHouse", 0x5E, 0x003B),
+        ("LeavingChazHouse", 0x54, 0x003C),
+        ("MeetingRika", 0xAC, 0x8007),
     ] {
-        let mut runtime = runtime_at(map);
+        let mut runtime = if event == 0x8007 {
+            runtime_with_four_party_at(map)
+        } else {
+            runtime_at(map)
+        };
         let log = drive_scene(&mut runtime, event);
         assert!(
             log.iter()
@@ -141,6 +187,60 @@ fn every_next_arc_scene_reaches_its_return_edge() {
             "{name} emits SceneEnded"
         );
     }
+}
+
+#[test]
+fn the_followup_chain_carries_alarm_through_rika_recruitment() {
+    if !Path::new(PACK).join("manifest.json").is_file() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+
+    // The alarm fires in BioPlant Part2 and the Rika trigger is in its later
+    // B4 Part2 room. The map traversal between them is player-controlled, so
+    // this single runtime starts at the latter room after the retail walk.
+    let mut runtime = runtime_with_four_party_at(0xAC);
+    let initial_inventory = *runtime.game().inventory().slots();
+    let _ = drive_scene(&mut runtime, 0x0012);
+    assert!(runtime.game().is_set(Flag::temp(0x08)));
+    assert!(runtime.game().is_clear(Flag::event(0x34)));
+
+    let log = drive_scene(&mut runtime, 0x8007);
+    assert_eq!(
+        runtime.map_id().0,
+        0x00,
+        "Rika tail: {:?}",
+        &log[log.len().saturating_sub(12)..]
+    );
+    assert!(runtime.game().is_set(Flag::event(0x34)));
+    assert!(runtime.game().is_set(Flag::event(0x35)));
+    assert_eq!(runtime.game().party_slot(4).map(|id| id.0), Some(5));
+    assert_eq!(*runtime.game().inventory().slots(), initial_inventory);
+}
+
+#[test]
+fn the_shop_and_house_followups_write_their_retail_flags() {
+    if !Path::new(PACK).join("manifest.json").is_file() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+
+    let mut girls = runtime_at(0x63);
+    let girls_inventory = *girls.game().inventory().slots();
+    let _ = drive_scene(&mut girls, 0x0023);
+    assert!(girls.game().is_set(Flag::event(0x46)));
+    assert_eq!(*girls.game().inventory().slots(), girls_inventory);
+
+    let mut house = runtime_at(0x5E);
+    let house_inventory = *house.game().inventory().slots();
+    let _ = drive_scene(&mut house, 0x003B);
+    assert_eq!(house.map_id().0, 0x5E);
+    assert!(house.game().is_set(Flag::temp(0x18)));
+    assert_eq!(*house.game().inventory().slots(), house_inventory);
+
+    let _ = drive_scene(&mut house, 0x003C);
+    assert!(house.game().is_clear(Flag::temp(0x18)));
+    assert_eq!(*house.game().inventory().slots(), house_inventory);
 }
 
 #[test]

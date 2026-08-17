@@ -72,6 +72,7 @@ from .battle_art_pack import emit_battle_art
 from .battle_pack import emit_battle
 from .shop_pack import emit_shops
 from .dialogue_pack import emit_dialogue
+from .title_pack import emit_title
 from .newgame import extract_new_game
 from .npc_commands import extract_npc_commands
 # The two world maps' layouts are not in their records at all -- they stream
@@ -895,6 +896,12 @@ def build_pack(
     # rather than by the CLI so that a programmatic build_pack() produces a
     # complete pack — its absence once shipped a game that couldn't talk.
     dialogue = emit_dialogue(rom_bytes, directory)
+
+    # The retail front door: Sega logo, title mappings, and the composed
+    # 320x224 background. Pixels stay in the ignored runtime pack; the
+    # manifest carries the small index and title/layout.json carries the
+    # extraction provenance.
+    title = emit_title(rom_bytes, directory)
 
     # What a scene's MoveActorCommand byte means. Its own file for the same
     # reason: the provenance is bulky and it is read once, not per map.

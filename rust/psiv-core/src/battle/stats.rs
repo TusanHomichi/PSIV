@@ -20,6 +20,7 @@
 
 use super::records::{
     Bonuses, CharacterRecord, ELEMENT_SLOTS, EQUIPMENT_SLOTS, EnemyRecord, ItemKind, ItemRecord,
+    SKILL_SLOTS, TECHNIQUE_SLOTS,
 };
 
 /// Status bits at `$16` of the stats struct.
@@ -94,6 +95,12 @@ pub const DEFENDING_PHYSICAL_PROP: u8 = 1;
 /// which fields were transient.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Stats {
+    /// `$00..$05`. The cartridge name buffer, terminated by `$FE`.
+    ///
+    /// The field is present on character records only. It is kept here rather
+    /// than reconstructed from pack metadata because a save carries the bytes
+    /// in place and the name is part of the 0x80-byte record.
+    pub name_bytes: [u8; 6],
     /// `$06`. `ProfessionID_*`.
     pub profession: u16,
     /// `$08`. Not a level at all for enemies.
@@ -147,6 +154,18 @@ pub struct Stats {
     pub weapon_elements: [u8; 2],
     /// `$4C`..`$4F`: right hand, left hand, head, body.
     pub equipment: [u8; EQUIPMENT_SLOTS],
+    /// `$52..$61`: the sixteen technique ids. Zero means an empty slot.
+    pub techniques: [u8; TECHNIQUE_SLOTS],
+    /// `$62..$69`: the eight character skill ids.
+    ///
+    /// Enemy stats use `$68..$69` as the `enemy_id` union instead; save
+    /// serialization is for character records and therefore writes these
+    /// bytes as skills, never as `enemy_id`.
+    pub skills: [u8; SKILL_SLOTS],
+    /// Even bytes `$6A..$78`: current uses for the eight skills.
+    pub curr_skill_uses: [u8; SKILL_SLOTS],
+    /// Odd bytes `$6B..$79`: maximum uses for the eight skills.
+    pub max_skill_uses: [u8; SKILL_SLOTS],
     /// `$7B` — the finished physical property, saved so Defend can be undone
     /// without losing what armour granted.
     ///
@@ -233,6 +252,7 @@ impl Stats {
     #[must_use]
     pub fn from_enemy(record: &EnemyRecord) -> Stats {
         Stats {
+            name_bytes: [0; 6],
             profession: 0,
             level: 0,
             experience: 0,
@@ -252,6 +272,10 @@ impl Stats {
             element_shadow: record.properties,
             weapon_elements: [0; 2],
             equipment: [0; EQUIPMENT_SLOTS],
+            techniques: [0; TECHNIQUE_SLOTS],
+            skills: [0; SKILL_SLOTS],
+            curr_skill_uses: [0; SKILL_SLOTS],
+            max_skill_uses: [0; SKILL_SLOTS],
             physical_prop_save: record.properties[0],
             enemy_id: record.id,
             gain_exp_flag: false,
@@ -279,6 +303,7 @@ impl Stats {
         item: impl Fn(u8) -> Option<ItemRecord>,
     ) -> Stats {
         let mut stats = Stats {
+            name_bytes: encode_character_name(&record.name),
             profession: record.profession,
             level: record.level,
             experience: record.experience,
@@ -298,6 +323,10 @@ impl Stats {
             element_shadow: record.properties,
             weapon_elements: [0; 2],
             equipment: record.equipment,
+            techniques: record.techniques,
+            skills: record.skills,
+            curr_skill_uses: record.skill_uses,
+            max_skill_uses: record.skill_uses,
             physical_prop_save: 0,
             enemy_id: 0,
             gain_exp_flag: false,
@@ -500,6 +529,36 @@ impl Stats {
     pub const fn restore_physical_prop(&mut self) {
         self.element_props[0] = self.physical_prop_save;
     }
+}
+
+/// Encodes the ASCII names used by the retail `WinCharset` table into the
+/// six-byte name field. `InitializeCharStats` copies source bytes through the
+/// `$FF` separator and writes `$FE` as the in-record terminator.
+fn encode_character_name(name: &str) -> [u8; 6] {
+    let mut bytes = [0; 6];
+    let mut cursor = 0;
+    for byte in name.bytes() {
+        if cursor == 5 {
+            break;
+        }
+        bytes[cursor] = match byte {
+            b'A'..=b'Z' => byte - b'A' + 1,
+            b'a'..=b'z' => byte - b'a' + 57,
+            b'0'..=b'9' => byte - b'0' + 27,
+            b' ' => 0,
+            b'-' => 0x31,
+            b'!' => 0x32,
+            b'?' => 0x33,
+            b':' => 0x34,
+            b'.' => 0x53,
+            b'\'' => 0x54,
+            b',' => 0x55,
+            _ => 0x33,
+        };
+        cursor += 1;
+    }
+    bytes[cursor] = 0xFE;
+    bytes
 }
 
 #[cfg(test)]

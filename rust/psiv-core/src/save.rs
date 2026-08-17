@@ -10,13 +10,16 @@
 //! logical header interleaved into 0x200 physical bytes, followed by one
 //! 0xA00-byte logical payload interleaved into its 0x1400-byte retail block.
 //! The common physical SRAM device is therefore represented by three files,
-//! rather than by one shared 0x4000-byte device. The divergence and the few
-//! fields `StateSnapshot` does not model are recorded in `docs/SAVE_SCOUT.md`.
+//! rather than by one shared 0x4000-byte device. The remaining file-level
+//! divergence is recorded in `docs/SAVE_SCOUT.md`.
 
 use core::fmt;
 
 use crate::battle::{StatPair, StatTriple, Stats};
-use crate::{INVENTORY_SLOTS, PARTY_SLOTS, StateSnapshot};
+use crate::{
+    INVENTORY_SLOTS, MacroCommand, MacroRecord, PARTY_SLOTS, StateSnapshot, VEHICLE_RECORD_BYTES,
+    VehicleRecord,
+};
 
 /// The number of save files exposed by the retail title and save menu.
 pub const RETAIL_SLOT_COUNT: usize = 3;
@@ -45,9 +48,16 @@ const LOCATION_Y_OFFSET: usize = 0x308;
 const PARTY_OFFSET: usize = 0x30A;
 const INVENTORY_OFFSET: usize = 0x310;
 const MONEY_OFFSET: usize = 0x338;
+const VEHICLE_INDEX_OFFSET: usize = 0x33C;
+const BUTTON_MAPPINGS_INDEX_OFFSET: usize = 0x33E;
+const MESSAGE_SPEED_OFFSET: usize = 0x340;
+const BATTLE_SPEED_OFFSET: usize = 0x342;
+const MACRO_OFFSET: usize = 0x344;
+const MACRO_RECORD_BYTES: usize = 0x14;
 const CHARACTER_OFFSET: usize = 0x400;
 const CHARACTER_STRIDE: usize = 0x80;
 const CHARACTER_RECORD_BYTES: usize = 0x80;
+const VEHICLE_OFFSET: usize = 0x980;
 const SIGNATURE: &[u8; 15] = b"PHANTASY STAR 4";
 
 /// The location fields the retail load path restores before entering the
@@ -253,9 +263,9 @@ impl RetailSlot {
 impl StateSnapshot {
     /// Serializes the state into the exact logical `$F100..$FB00` payload.
     ///
-    /// Fields not represented by `StateSnapshot` are zeroed. The retail
-    /// vehicle/settings/macro records are therefore intentionally not
-    /// invented by this layer; see `docs/SAVE_SCOUT.md`.
+    /// All modeled retail state is written at its retail offset. The remaining
+    /// bytes in a character record are the four-byte tail the disassembly never
+    /// addresses and stay zero, as retail's character initializer leaves them.
     #[must_use]
     pub fn to_retail_payload(&self) -> [u8; RETAIL_PAYLOAD_BYTES] {
         encode_snapshot(self)
@@ -288,6 +298,21 @@ fn encode_snapshot(snapshot: &StateSnapshot) -> [u8; RETAIL_PAYLOAD_BYTES] {
     payload[INVENTORY_OFFSET..INVENTORY_OFFSET + INVENTORY_SLOTS]
         .copy_from_slice(&snapshot.inventory);
     write_u32(&mut payload, MONEY_OFFSET, snapshot.money);
+    write_u16(&mut payload, VEHICLE_INDEX_OFFSET, snapshot.vehicle_index);
+    write_u16(
+        &mut payload,
+        BUTTON_MAPPINGS_INDEX_OFFSET,
+        snapshot.button_mappings_index,
+    );
+    write_u16(&mut payload, MESSAGE_SPEED_OFFSET, snapshot.message_speed);
+    write_u16(&mut payload, BATTLE_SPEED_OFFSET, snapshot.battle_speed);
+    for (index, record) in snapshot.macros.iter().enumerate() {
+        encode_macro(
+            record,
+            &mut payload[MACRO_OFFSET + index * MACRO_RECORD_BYTES
+                ..MACRO_OFFSET + (index + 1) * MACRO_RECORD_BYTES],
+        );
+    }
     for (index, character) in snapshot.characters.iter().enumerate() {
         if let Some(character) = character {
             encode_stats(
@@ -296,6 +321,13 @@ fn encode_snapshot(snapshot: &StateSnapshot) -> [u8; RETAIL_PAYLOAD_BYTES] {
                     ..CHARACTER_OFFSET + index * CHARACTER_STRIDE + CHARACTER_RECORD_BYTES],
             );
         }
+    }
+    for (index, vehicle) in snapshot.vehicles.iter().enumerate() {
+        encode_vehicle(
+            vehicle,
+            &mut payload[VEHICLE_OFFSET + index * VEHICLE_RECORD_BYTES
+                ..VEHICLE_OFFSET + (index + 1) * VEHICLE_RECORD_BYTES],
+        );
     }
     payload
 }
@@ -314,6 +346,14 @@ fn snapshot_from_payload(
     party.copy_from_slice(&payload[PARTY_OFFSET..PARTY_OFFSET + PARTY_SLOTS]);
     let mut inventory = [0; INVENTORY_SLOTS];
     inventory.copy_from_slice(&payload[INVENTORY_OFFSET..INVENTORY_OFFSET + INVENTORY_SLOTS]);
+    let macros = core::array::from_fn(|index| {
+        let start = MACRO_OFFSET + index * MACRO_RECORD_BYTES;
+        decode_macro(&payload[start..start + MACRO_RECORD_BYTES])
+    });
+    let vehicles = core::array::from_fn(|index| {
+        let start = VEHICLE_OFFSET + index * VEHICLE_RECORD_BYTES;
+        decode_vehicle(&payload[start..start + VEHICLE_RECORD_BYTES])
+    });
     let characters = core::array::from_fn(|index| {
         let start = CHARACTER_OFFSET + index * CHARACTER_STRIDE;
         let bytes = &payload[start..start + CHARACTER_RECORD_BYTES];
@@ -331,10 +371,17 @@ fn snapshot_from_payload(
         town_flags,
         party,
         money: read_u32(payload, MONEY_OFFSET),
+        vehicle_index: read_u16(payload, VEHICLE_INDEX_OFFSET),
+        button_mappings_index: read_u16(payload, BUTTON_MAPPINGS_INDEX_OFFSET),
+        message_speed: read_u16(payload, MESSAGE_SPEED_OFFSET),
+        battle_speed: read_u16(payload, BATTLE_SPEED_OFFSET),
+        macros,
+        vehicles,
     }
 }
 
 fn encode_stats(stats: &Stats, bytes: &mut [u8]) {
+    bytes[0x00..0x06].copy_from_slice(&stats.name_bytes);
     write_u16(bytes, 0x06, stats.profession);
     write_u16(bytes, 0x08, stats.level);
     write_u32(bytes, 0x0A, stats.experience);
@@ -361,7 +408,17 @@ fn encode_stats(stats: &Stats, bytes: &mut [u8]) {
     }
     bytes[0x4C..0x50].copy_from_slice(&stats.equipment);
     bytes[0x50..0x52].copy_from_slice(&stats.weapon_elements);
-    write_u16(bytes, 0x68, stats.enemy_id);
+    bytes[0x52..0x62].copy_from_slice(&stats.techniques);
+    bytes[0x62..0x6A].copy_from_slice(&stats.skills);
+    for (index, (&current, &maximum)) in stats
+        .curr_skill_uses
+        .iter()
+        .zip(stats.max_skill_uses.iter())
+        .enumerate()
+    {
+        bytes[0x6A + index * 2] = current;
+        bytes[0x6B + index * 2] = maximum;
+    }
     bytes[0x7A] = u8::from(stats.gain_exp_flag);
     bytes[0x7B] = stats.physical_prop_save;
 }
@@ -369,7 +426,13 @@ fn encode_stats(stats: &Stats, bytes: &mut [u8]) {
 fn decode_stats(bytes: &[u8]) -> Stats {
     let element_props = core::array::from_fn(|index| bytes[0x30 + index * 2]);
     let element_shadow = core::array::from_fn(|index| bytes[0x31 + index * 2]);
+    let name_bytes = core::array::from_fn(|index| bytes[index]);
+    let techniques = core::array::from_fn(|index| bytes[0x52 + index]);
+    let skills = core::array::from_fn(|index| bytes[0x62 + index]);
+    let curr_skill_uses = core::array::from_fn(|index| bytes[0x6A + index * 2]);
+    let max_skill_uses = core::array::from_fn(|index| bytes[0x6B + index * 2]);
     Stats {
+        name_bytes,
         profession: read_u16(bytes, 0x06),
         level: read_u16(bytes, 0x08),
         experience: read_u32(bytes, 0x0A),
@@ -389,9 +452,66 @@ fn decode_stats(bytes: &[u8]) -> Stats {
         element_shadow,
         weapon_elements: [bytes[0x50], bytes[0x51]],
         equipment: [bytes[0x4C], bytes[0x4D], bytes[0x4E], bytes[0x4F]],
+        techniques,
+        skills,
+        curr_skill_uses,
+        max_skill_uses,
         physical_prop_save: bytes[0x7B],
-        enemy_id: read_u16(bytes, 0x68),
+        enemy_id: 0,
         gain_exp_flag: bytes[0x7A] != 0,
+    }
+}
+
+fn encode_macro(record: &MacroRecord, bytes: &mut [u8]) {
+    for (index, command) in record.commands.iter().enumerate() {
+        let offset = index * 4;
+        bytes[offset] = command.character_id;
+        bytes[offset + 1] = command.command_index;
+        bytes[offset + 2] = command.ability_id;
+        bytes[offset + 3] = command.reserved;
+    }
+}
+
+fn decode_macro(bytes: &[u8]) -> MacroRecord {
+    MacroRecord {
+        commands: core::array::from_fn(|index| {
+            let offset = index * 4;
+            MacroCommand {
+                character_id: bytes[offset],
+                command_index: bytes[offset + 1],
+                ability_id: bytes[offset + 2],
+                reserved: bytes[offset + 3],
+            }
+        }),
+    }
+}
+
+fn encode_vehicle(record: &VehicleRecord, bytes: &mut [u8]) {
+    write_u16(bytes, 0x00, record.current_hp);
+    write_u16(bytes, 0x02, record.max_hp);
+    bytes[0x04] = record.skill_mask;
+    bytes[0x05] = record.reserved_05;
+    for (index, (&current, &maximum)) in record
+        .current_skill_uses
+        .iter()
+        .zip(record.max_skill_uses.iter())
+        .enumerate()
+    {
+        bytes[0x06 + index * 2] = current;
+        bytes[0x07 + index * 2] = maximum;
+    }
+    bytes[0x16..0x20].copy_from_slice(&record.reserved_tail);
+}
+
+fn decode_vehicle(bytes: &[u8]) -> VehicleRecord {
+    VehicleRecord {
+        current_hp: read_u16(bytes, 0x00),
+        max_hp: read_u16(bytes, 0x02),
+        skill_mask: bytes[0x04],
+        reserved_05: bytes[0x05],
+        current_skill_uses: core::array::from_fn(|index| bytes[0x06 + index * 2]),
+        max_skill_uses: core::array::from_fn(|index| bytes[0x07 + index * 2]),
+        reserved_tail: core::array::from_fn(|index| bytes[0x16 + index]),
     }
 }
 
@@ -479,10 +599,11 @@ fn deinterleave<const N: usize>(physical: &[u8]) -> [u8; N] {
 mod tests {
     use super::*;
     use crate::battle::{StatPair, StatTriple};
-    use crate::{CHARACTER_COUNT, CharId, Flag, GameState};
+    use crate::{CHARACTER_COUNT, CharId, Flag, GameState, MacroCommand, VehicleRecord};
 
     fn stats(index: u8) -> Stats {
         Stats {
+            name_bytes: [index, index + 1, index + 2, index + 3, 0xFE, 0],
             profession: u16::from(index),
             level: u16::from(index) + 1,
             experience: 1000 + u32::from(index),
@@ -509,8 +630,12 @@ mod tests {
             element_shadow: [index + 1; 14],
             weapon_elements: [index, index + 1],
             equipment: [index, index + 1, index + 2, index + 3],
+            techniques: [index + 10; 16],
+            skills: [index + 20; 8],
+            curr_skill_uses: [index + 30; 8],
+            max_skill_uses: [index + 40; 8],
             physical_prop_save: index + 4,
-            enemy_id: 0x4000 + u16::from(index),
+            enemy_id: 0,
             gain_exp_flag: index.is_multiple_of(2),
         }
     }
@@ -534,7 +659,33 @@ mod tests {
         state.roster_mut().get_mut(CharId(0)).unwrap().curr_hp = 3;
         state.roster_mut().get_mut(CharId(0)).unwrap().status = 1;
         state.roster_mut().get_mut(CharId(0)).unwrap().equipment = [0x21, 0x22, 0x23, 0x24];
+        state.set_vehicle_index(2);
+        state.set_button_mappings_index(4);
+        state.set_message_speed(3);
+        state.set_battle_speed(1);
+        state.macros_mut()[3].commands[2] = MacroCommand {
+            character_id: 4,
+            command_index: 2,
+            ability_id: 31,
+            reserved: 0xA5,
+        };
+        state.vehicles_mut()[1] = VehicleRecord {
+            current_hp: 0x0123,
+            max_hp: 0x0456,
+            skill_mask: 0xA5,
+            reserved_05: 0x5A,
+            current_skill_uses: [1, 2, 3, 4, 5, 6, 7, 8],
+            max_skill_uses: [8, 7, 6, 5, 4, 3, 2, 1],
+            reserved_tail: [0xCC; 10],
+        };
         state
+    }
+
+    #[test]
+    fn logical_payload_round_trips_byte_for_byte() {
+        let payload = mid_progress_state().snapshot().to_retail_payload();
+        let decoded = StateSnapshot::from_retail_payload(&payload).unwrap();
+        assert_eq!(decoded.to_retail_payload(), payload);
     }
 
     #[test]
@@ -554,7 +705,7 @@ mod tests {
         assert_eq!(slot.as_bytes().len(), RETAIL_SLOT_FILE_BYTES);
         assert_eq!(slot.as_bytes()[0], 0, "MOVEP even byte is a hole");
         assert_eq!(slot.as_bytes()[RETAIL_HEADER_PHYSICAL_BYTES], 0);
-        assert_eq!(slot.checksum(1).unwrap(), 0x45F6);
+        assert_eq!(slot.checksum(1).unwrap(), 0x8B64);
 
         let loaded = RetailSlot::from_bytes(slot.as_bytes(), 1)
             .unwrap()
@@ -587,6 +738,7 @@ mod tests {
             .seat(
                 CharId(4),
                 Stats {
+                    name_bytes: [0; 6],
                     profession: 0,
                     level: 0,
                     experience: 0,
@@ -606,6 +758,10 @@ mod tests {
                     element_shadow: [0; 14],
                     weapon_elements: [0; 2],
                     equipment: [0; 4],
+                    techniques: [0; 16],
+                    skills: [0; 8],
+                    curr_skill_uses: [0; 8],
+                    max_skill_uses: [0; 8],
                     physical_prop_save: 0,
                     enemy_id: 0,
                     gain_exp_flag: false,
@@ -624,6 +780,7 @@ mod tests {
         assert_eq!(
             loaded.snapshot.characters[4],
             Some(Stats {
+                name_bytes: [0; 6],
                 profession: 0,
                 level: 0,
                 experience: 0,
@@ -643,6 +800,10 @@ mod tests {
                 element_shadow: [0; 14],
                 weapon_elements: [0; 2],
                 equipment: [0; 4],
+                techniques: [0; 16],
+                skills: [0; 8],
+                curr_skill_uses: [0; 8],
+                max_skill_uses: [0; 8],
                 physical_prop_save: 0,
                 enemy_id: 0,
                 gain_exp_flag: false,

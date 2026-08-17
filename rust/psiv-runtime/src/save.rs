@@ -85,22 +85,55 @@ impl From<BridgeError> for RuntimeSaveError {
 
 /// Builds a normal runtime from a `GameState` that has already been chosen by
 /// either new-game initialization or a loaded save.
-pub(super) fn construct_runtime(
-    data: GameData,
+#[derive(Debug, Clone, Copy)]
+pub(super) struct RuntimePlacement {
     map_id: u16,
     spawn: Cell,
     facing: Direction,
     step_frames: StepFrames,
+    world_index: u16,
+    map_index_2: u16,
+}
+
+impl RuntimePlacement {
+    pub(super) const fn new(
+        map_id: u16,
+        spawn: Cell,
+        facing: Direction,
+        step_frames: StepFrames,
+        world_index: u16,
+        map_index_2: u16,
+    ) -> RuntimePlacement {
+        RuntimePlacement {
+            map_id,
+            spawn,
+            facing,
+            step_frames,
+            world_index,
+            map_index_2,
+        }
+    }
+}
+
+pub(super) fn construct_runtime(
+    data: GameData,
+    placement: RuntimePlacement,
     mut game: GameState,
     followers: usize,
 ) -> Result<Runtime, BridgeError> {
     let record = data
-        .map(psiv_data::MapId(map_id))
-        .ok_or(BridgeError::NotPacked(map_id))?;
+        .map(psiv_data::MapId(placement.map_id))
+        .ok_or(BridgeError::NotPacked(placement.map_id))?;
     let effects = super::effects::evaluate(record, &mut game);
     let map = field_map_patched(record, Some(&effects))?;
-    let party = Party::new(&map, spawn, facing, step_frames, followers)
-        .map_err(|error| BridgeError::Rejected(error.to_string()))?;
+    let party = Party::new(
+        &map,
+        placement.spawn,
+        placement.facing,
+        placement.step_frames,
+        followers,
+    )
+    .map_err(|error| BridgeError::Rejected(error.to_string()))?;
     let wander = build_wander(&map, record)?;
     let camera = Camera::placed_on(driver_of(party.leader()), bounds_of(&map));
     Ok(Runtime {
@@ -108,6 +141,8 @@ pub(super) fn construct_runtime(
         map,
         party,
         game,
+        saved_world_index: placement.world_index,
+        saved_map_index_2: placement.map_index_2,
         scene: None,
         scene_input: SceneInput::None,
         despawned: std::collections::BTreeSet::new(),
@@ -145,11 +180,11 @@ impl Runtime {
         let save = RetailSave {
             snapshot: self.game.snapshot(),
             location: RetailLocation {
-                // The current runtime has one map namespace. Retail also
-                // persists planet and secondary-map selectors; those are
-                // retained in RetailLocation but have no source in Runtime.
-                world_index: 0,
-                map_index_2: 0,
+                // The current runtime has one map namespace. The other two
+                // selectors are still carried so a load/save cycle preserves
+                // their exact retail words.
+                world_index: self.saved_world_index,
+                map_index_2: self.saved_map_index_2,
                 map_index: self.map.id().0,
                 char_x,
                 char_y,
@@ -187,13 +222,17 @@ impl Runtime {
             .saturating_sub(1);
         construct_runtime(
             data,
-            save.location.map_index,
-            cell,
-            // Retail does not persist facing in the save range. The title
-            // load path supplies map state, so Down is the explicit interim
-            // default until a title-facing seam is decoded.
-            Direction::Down,
-            step_frames,
+            RuntimePlacement::new(
+                save.location.map_index,
+                cell,
+                // Retail does not persist facing in the save range. The title
+                // load path supplies map state, so Down is the explicit interim
+                // default until a title-facing seam is decoded.
+                Direction::Down,
+                step_frames,
+                save.location.world_index,
+                save.location.map_index_2,
+            ),
             GameState::from_snapshot(&save.snapshot),
             followers,
         )

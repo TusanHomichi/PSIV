@@ -317,6 +317,59 @@ impl SceneRunner {
                     self.blocked = Blocked::Actor(actor);
                 }
             }
+            SceneOp::MoveActorToActorAxis {
+                actor,
+                target,
+                axis,
+                wait,
+            } => {
+                let Some(target_actor) = self.actor(target) else {
+                    return Some(SceneFault::UnknownActor { actor: target });
+                };
+                let Some(walker) = self.actor(actor) else {
+                    return Some(SceneFault::UnknownActor { actor });
+                };
+                let mut to = walker.cell;
+                match axis {
+                    Axis::X => to.x = target_actor.cell.x,
+                    Axis::Y => to.y = target_actor.cell.y,
+                }
+                let Some(walker) = self.actor_mut(actor) else {
+                    return Some(SceneFault::UnknownActor { actor });
+                };
+                walker.target = Some(to);
+                let walking = walker.is_walking();
+                effects.push(SceneEffect::ActorMoveStarted { actor, to });
+                self.pc += 1;
+                if wait && walking {
+                    self.blocked = Blocked::Actor(actor);
+                }
+            }
+            SceneOp::MoveActorOffset {
+                actor,
+                dx,
+                dy,
+                wait,
+            } => {
+                let Some(walker) = self.actor(actor) else {
+                    return Some(SceneFault::UnknownActor { actor });
+                };
+                let x = (i32::from(walker.cell.x) + dx.div_euclid(crate::geom::CELL_PIXELS))
+                    .clamp(0, i32::from(u16::MAX)) as u16;
+                let y = (i32::from(walker.cell.y) + dy.div_euclid(crate::geom::CELL_PIXELS))
+                    .clamp(0, i32::from(u16::MAX)) as u16;
+                let to = crate::geom::Cell::new(x, y);
+                let Some(walker) = self.actor_mut(actor) else {
+                    return Some(SceneFault::UnknownActor { actor });
+                };
+                walker.target = Some(to);
+                let walking = walker.is_walking();
+                effects.push(SceneEffect::ActorMoveStarted { actor, to });
+                self.pc += 1;
+                if wait && walking {
+                    self.blocked = Blocked::Actor(actor);
+                }
+            }
             SceneOp::MoveActorCommand { actor, .. } => {
                 if self.actor(actor).is_none() {
                     return Some(SceneFault::UnknownActor { actor });
@@ -525,6 +578,7 @@ impl SceneRunner {
             | SceneOp::PanelDestroy { .. }
             | SceneOp::PanelDestroyAll
             | SceneOp::ObjectAnimation { .. }
+            | SceneOp::Presentation { .. }
             | SceneOp::SetMapLoadFlags { .. } => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;

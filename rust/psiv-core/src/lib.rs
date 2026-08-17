@@ -89,6 +89,7 @@ mod replay;
 mod roster;
 mod save;
 mod scene;
+mod scene_presentation;
 mod scene_runner;
 mod scenes;
 mod state;
@@ -130,9 +131,14 @@ pub use scene::{
     ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, OP_BUDGET_PER_TICK, SceneEffect,
     SceneFault, SceneInput, SceneOp, ScriptedActor,
 };
+pub use scene_presentation::{PresentationAsset, PresentationOp};
 pub use scene_runner::{Scene, SceneRunner, runner_for};
 pub use scenes::{SCENES, scene_for};
-pub use state::{CharId, Flag, FlagBank, GameState, PARTY_SLOTS, StateSnapshot};
+pub use state::{CharId, Flag, FlagBank, GameState, PARTY_SLOTS};
+pub use state::{
+    MACRO_COMMANDS, MACRO_COUNT, MacroCommand, MacroRecord, StateSnapshot, VEHICLE_COUNT,
+    VEHICLE_RECORD_BYTES, VehicleRecord,
+};
 pub use trigger::{
     AxisPredicate, Condition, CustomTrigger, EventIndex, PixelPos, PositionPredicate, Trigger,
     TriggerContext, TriggerResult, Unsupported, evaluate_list,

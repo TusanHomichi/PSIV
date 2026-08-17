@@ -26,6 +26,7 @@ pub struct GameData {
     sheets: BTreeMap<String, crate::sprites::Sheet>,
     /// Party sheet ids in `CharFieldArtPtrs` order (Chaz first).
     party_sheet_ids: Vec<String>,
+    sound: crate::sound::SoundFiles,
 }
 
 impl GameData {
@@ -76,6 +77,7 @@ impl GameData {
         }
 
         let mut data = GameData::from_parts(manifest, records)?;
+        data.sound = crate::sound::SoundFiles::load(pack_dir)?;
 
         // Sprite index files (pack format 1). Loaded after the maps so NPC
         // sprite references can be validated against real sheets.
@@ -139,6 +141,7 @@ impl GameData {
             maps,
             sheets: BTreeMap::new(),
             party_sheet_ids: Vec::new(),
+            sound: crate::sound::SoundFiles::default(),
         })
     }
 
@@ -150,6 +153,12 @@ impl GameData {
     /// All sprite sheets by id (party and NPC merged; ids never collide).
     pub fn sheets(&self) -> &BTreeMap<String, crate::sprites::Sheet> {
         &self.sheets
+    }
+
+    /// The extracted music, SFX, envelope and DAC records, if this pack has
+    /// the sound wave installed.
+    pub fn sound(&self) -> &crate::sound::SoundFiles {
+        &self.sound
     }
 
     /// A sheet by id.

@@ -50,19 +50,33 @@ impl FmVoice {
     }
 }
 
-/// A PSG envelope slice. The values are signed attenuation deltas; control
-/// bytes from the retail envelope table are intentionally left for the
-/// extraction lane to normalize into this small runtime view.
+/// A PSG envelope slice. `values` is retained as a convenient view for simple
+/// callers; `controls` is the byte-exact retail stream, including RESET/HOLD/
+/// JUMP/OFF controls.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PsgEnvelope {
     pub values: Vec<i8>,
+    pub controls: Vec<u8>,
 }
 
 impl PsgEnvelope {
     pub fn new(values: impl Into<Vec<i8>>) -> Self {
+        let values = values.into();
         Self {
-            values: values.into(),
+            controls: values.iter().map(|value| *value as u8).collect(),
+            values,
         }
+    }
+
+    pub fn from_bytes(bytes: impl Into<Vec<u8>>) -> Self {
+        let controls = bytes.into();
+        let values = controls
+            .iter()
+            .copied()
+            .filter(|value| *value < 0x80)
+            .map(|value| value as i8)
+            .collect();
+        Self { values, controls }
     }
 }
 
@@ -71,11 +85,18 @@ impl PsgEnvelope {
 pub struct SoundTrack {
     pub kind: TrackKind,
     pub channel: Option<u8>,
+    /// Cursor into `bytes` where the track's first command lives. Extracted
+    /// tracks retain the complete record because relative GOTO/GOSUB targets
+    /// may land in shared subroutines before the track pointer.
+    pub start_offset: usize,
     pub bytes: Vec<u8>,
     pub initial_voice: Option<u8>,
     pub initial_pan: u8,
     pub initial_transpose: i8,
+    pub initial_volume: i8,
+    pub psg_envelope: Option<usize>,
     pub tick_multiplier: u8,
+    pub dac: bool,
 }
 
 impl SoundTrack {
@@ -99,11 +120,15 @@ impl SoundTrack {
         Self {
             kind,
             channel,
+            start_offset: 0,
             bytes: bytes.into(),
             initial_voice: None,
             initial_pan: 0xc0,
             initial_transpose: 0,
+            initial_volume: 0,
+            psg_envelope: None,
             tick_multiplier: 1,
+            dac: false,
         }
     }
 
@@ -114,6 +139,26 @@ impl SoundTrack {
 
     pub fn pan(mut self, value: u8) -> Self {
         self.initial_pan = value;
+        self
+    }
+
+    pub fn volume(mut self, value: i8) -> Self {
+        self.initial_volume = value;
+        self
+    }
+
+    pub fn envelope(mut self, index: usize) -> Self {
+        self.psg_envelope = Some(index);
+        self
+    }
+
+    pub fn dac(mut self) -> Self {
+        self.dac = true;
+        self
+    }
+
+    pub fn start_offset(mut self, offset: usize) -> Self {
+        self.start_offset = offset;
         self
     }
 }
@@ -173,11 +218,40 @@ impl SoundSequence {
                     });
                 }
             }
+            if track.start_offset >= track.bytes.len() {
+                return Err(SequenceError::InvalidStartOffset {
+                    offset: track.start_offset,
+                });
+            }
             if track.tick_multiplier == 0 {
                 return Err(SequenceError::ZeroTickMultiplier);
             }
         }
         Ok(())
+    }
+}
+
+/// One extracted PCM bank entry. The byte stream is the raw signed-PCM data
+/// read from the cartridge DAC bank; the YM bridge consumes it unchanged.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DacSample {
+    pub id: u8,
+    pub bytes: Vec<u8>,
+}
+
+/// All resolved sound records and DAC samples needed by the live driver.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct SoundBank {
+    pub sequences: Vec<SoundSequence>,
+    pub dac_samples: Vec<DacSample>,
+}
+
+impl SoundBank {
+    pub fn new(sequences: Vec<SoundSequence>, dac_samples: Vec<DacSample>) -> Self {
+        Self {
+            sequences,
+            dac_samples,
+        }
     }
 }
 
@@ -187,6 +261,7 @@ impl SoundSequence {
 pub enum SequenceError {
     InvalidVoiceLength { actual: usize },
     InvalidChannel { kind: TrackKind, channel: u8 },
+    InvalidStartOffset { offset: usize },
     ZeroTickMultiplier,
     UnexpectedEnd { command: u8, cursor: usize },
     InvalidJump { cursor: usize, target: isize },
@@ -196,6 +271,7 @@ pub enum SequenceError {
     CommandBudgetExceeded { cursor: usize },
     MissingVoice { index: usize },
     MissingEnvelope { index: usize },
+    MissingSequence { id: u8 },
 }
 
 impl std::fmt::Display for SequenceError {

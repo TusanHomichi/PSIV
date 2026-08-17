@@ -118,11 +118,83 @@ town bank, this covers the four cartridge-named flag regions without reviving
 the old false `$F156` temp-bank split.
 
 The 11 character records are Chaz through Seth at `$F500 + n*$80`
-(`ps4.constants.asm:2398-2409`). The serializer writes every field represented
-by `Stats` at its retail offset, including the stale `_battle` tier, current
-HP/TP, status, equipment, element pairs, `gain_exp_flag`, and the physical
-property save byte. It does not rederive battle values; the retail save copy
-is whole-record state.
+(`ps4.constants.asm:2398-2409`). The serializer writes every modeled byte at
+its retail offset, including the stale `_battle` tier, current HP/TP, status,
+equipment, element pairs, name buffer, techniques, skills, skill-use pairs,
+`gain_exp_flag`, and the physical-property save byte. It does not rederive
+battle values; the retail save copy is whole-record state.
+
+### Character-record byte census
+
+There is no unexplained character-record byte left in the serializer. The
+following is the complete `$00..$7F` census for one record:
+
+| record bytes | meaning | status |
+|---:|---|---|
+| `$00..$05` | six-byte WinCharset name buffer; `InitializeCharStats` writes `$FE` after the source name and the remaining bytes stay zero | named |
+| `$06..$07` | profession word | named |
+| `$08..$09` | level word | named |
+| `$0A..$0D` | experience longword | named |
+| `$0E..$0F` | current HP word | named |
+| `$10..$11` | maximum HP word | named |
+| `$12..$13` | current TP word | named |
+| `$14..$15` | maximum TP word | named |
+| `$16` | status bits | named |
+| `$17` | no stored field; the physical-attack routine uses `$17 + 3*n` as an arithmetic base to reach the battle-stat bytes, but no character-record routine reads or writes this byte by itself | proven padding/unused |
+| `$18..$20` | strength, mental and agility triples: base, modified, battle | named |
+| `$21..$23` | dexterity triple: base, modified, battle | named |
+| `$24..$27` | attack power and battle attack power | named |
+| `$28..$2B` | defence power and battle defence power | named |
+| `$2C..$2F` | magic-defence power and battle magic-defence power | named |
+| `$30..$4B` | fourteen two-byte element properties; high bytes are live/derived and low bytes are the record shadow | named |
+| `$4C..$4F` | right hand, left hand, head and body equipment ids | named |
+| `$50..$51` | cached right/left weapon elements | named |
+| `$52..$61` | sixteen technique ids | named |
+| `$62..$69` | eight character skill ids; enemy stats instead use `$68..$69` as the `enemy_id` union | named |
+| `$6A..$79` | eight current/max skill-use pairs, current at even offsets and maximum at odd offsets | named |
+| `$7A` | gain-experience flag | named |
+| `$7B` | physical-property save byte in the project’s ratified bugfix branch | named/project extension |
+| `$7C..$7F` | no character-stat consumer addresses this tail; the stride is `$80` and the retail initializer leaves it zero | proven padding |
+
+The name copy is `ps4.asm:88679-88697`. The technique, skill and current/max
+use copies are `ps4.asm:88793-88810`; level-up writes the same arrays at
+`ps4.asm:5951-5972`, and macro skill selection reads the skill list and use
+bytes at `ps4.asm:7077-7091`. The field names and offsets are also explicit in
+`ps4.constants.asm:6-61`. The `$17` references at
+`ps4.asm:9642-9647` are indexed arithmetic, while the standalone `$17` uses
+at `ps4.asm:89311-90212` belong to field-sprite records, not
+`Character_Stats`; no character-stat path addresses `$7C..$7F`.
+
+### Vehicle records
+
+`Saved_Vehicle_Stats` starts at `$FA80`, with Land Rover, Ice Digger and
+Hydrofoil at `$FA80`, `$FAA0` and `$FAC0` respectively
+(`ps4.constants.asm:2412-2415`). Each record is 0x20 bytes:
+
+| record offset | meaning | status |
+|---:|---|---|
+| `$00..$01` | current HP | named |
+| `$02..$03` | maximum HP | named |
+| `$04` | skill availability mask | named |
+| `$05` | no saved-vehicle consumer | preserved reserved byte |
+| `$06/$07`, `$08/$09`, ... `$14/$15` | eight current/max skill-use pairs | named |
+| `$16..$1F` | no saved-vehicle consumer | preserved reserved tail |
+
+The new-game values are written at `ps4.asm:88707-88730`. Battle setup loads
+the static vehicle profile from `VehicleData` and then overlays the saved mask
+and sixteen use bytes at `ps4.asm:11295-11403`; the static profiles and their
+vehicle ids are at `ps4.asm:321107-321173`. Battle exit copies live vehicle
+current/max uses back to the selected saved record at `ps4.asm:6375-6387`,
+and `DoVehicleRecovery` refreshes each current byte from its paired maximum at
+`ps4.asm:136536-136550`. That is the save mapping: HP and mask at the front,
+then eight interleaved current/max use pairs, with a 0x20-byte stride.
+
+`StateSnapshot` now carries all three records, including the reserved bytes,
+so a fabricated mid-game vehicle state survives core serialization and the
+runtime file load/save seam. Settings at `$F43C..$F442` and the eight 20-byte
+macro records at `$F444` are modeled alongside them. The new-game defaults are
+the values written at `ps4.asm:88667-88749`; macro command byte meanings are
+documented in `ps4.constants.asm:2391-2396`.
 
 ## Signature and checksum
 
@@ -171,33 +243,25 @@ facing to Down. Godot selects it with `PSIV_LOAD_SLOT=1..3` or
 ## Divergences and load semantics
 
 The implementation is byte-compatible for the retail header, interleaving,
-payload offsets, character stride, signature and checksum. These are the
-known, bounded divergences:
+payload offsets, character stride, signature, checksum, settings, macros,
+character records and vehicle records. The only remaining save-format
+divergence is the disk representation:
 
 * The disk uses three per-slot files instead of one shared SRAM device. Files
   are `saves/slot_1.sram` through `saves/slot_3.sram`; `saves/` is ignored by
   the repository. `PSIV_SAVE_DIR` overrides that directory for a run or test.
-* `StateSnapshot` does not model vehicles, button mappings, message/battle
-  speed, macros, vehicle records, or the unidentified tech/skill/use bytes in
-  each 0x80-byte character record. Those bytes are written as zero. The
-  modeled roster, inventory, flags, money, equipment and live battle-carried
-  fields are retained whole.
-* `RetailLocation` carries world, both map selectors, and pixel coordinates.
-  The current `Runtime` has one map namespace, so saves write world and the
-  secondary selector as zero and load the primary map selector. A title seam
-  that models planet/secondary-map selection can consume the preserved fields
-  without changing the payload shape.
-* Retail does not save facing in this range. `Runtime::from_save` explicitly
-  starts a loaded party facing Down. The title screen is not present yet, so
-  `PSIV_LOAD_SLOT=1`, `2`, or `3` (or `--psiv-load-slot=N`) selects the boot
-  path; a missing selector starts the normal new-game path. A failed load is
-  logged and falls back to new game rather than constructing a half-loaded
-  runtime.
-* The camp STATE screen's SAVE row and its wider three-slot chooser are modern
-  wiring for this pre-title slice. Retail's actual SAVE entry remains the
-  system menu route described above.
+
+The following are runtime-surface notes, not save-payload divergences: the
+current runtime has one active map namespace and therefore consumes the
+primary map selector; it retains the world and secondary selectors through a
+load/save cycle. Retail does not save facing in this range, so
+`Runtime::from_save` starts the party facing Down. The title screen and the
+retail system-menu SAVE route are not present in this slice; the modern STATE
+SAVE row and chooser are only the current shell’s access path.
 
 The round-trip tests in `psiv-core/src/save.rs` cover an all-bank,
-all-roster, inventory, money, location save, checksum corruption, and a
-mid-progress state with flags set, items held, damaged/statused HP, and changed
-equipment. `GameState::from_snapshot` equality is asserted after decode.
+all-roster, inventory, money, settings, macros, location save, checksum
+corruption, and a mid-progress state with flags set, items held,
+damaged/statused HP, changed equipment, skill bytes, and vehicle state.
+`GameState::from_snapshot` equality and logical payload byte identity are
+asserted after decode.

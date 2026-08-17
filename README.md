@@ -206,22 +206,40 @@ closed and tested in the current tree:
 - sound playback foundation: `psiv-sound` (Nuked-OPN2 YM2612 core, SN76489
   PSG, SMPS-derived driver interpreter) with register-log fixture tests and a
   Godot `AudioStreamGenerator` output path.
+- sound integration: the runtime pack now feeds real voices, envelopes,
+  tracks, and DAC sample banks through the live driver; map music, field and
+  event battle themes, victory, and current menu/cursor SFX routes are wired
+  through Godot (`docs/SOUND_INTEGRATION.md`);
+- save payload completion: the full character-record byte census (every byte
+  named or proven padding), vehicle records, settings, and battle macros all
+  round-trip at exact retail offsets (`docs/SAVE_SCOUT.md`); the only
+  remaining save divergence is three per-slot files instead of one SRAM
+  device;
+- event scenes through MeetingRika (`docs/scenes/` 26–30); FortuneTeller and
+  AfterFortuneTeller are Grand Cross hack content with no retail bodies, so
+  the retail chain resumes at the next retail beat;
+- the front door: Sega logo → title reveal → Press Start → save menu
+  (START/CONTINUE/ERASE DATA gating from real slot state), built to the
+  decoded layout numbers and RMSE-checked against oracle frames
+  (`docs/TITLE_BOOT.md`), with all `PSIV_DEBUG_*`/`PSIV_LOAD_SLOT` fast
+  paths intact.
 
 The remaining backlog:
 
-1. Sound integration: feed the extracted `runtime-pack/sound/` records
-   through the `psiv-sound` driver in-game (map/battle themes, SFX triggers)
-   and render DAC PCM from the extracted sample banks (currently control-only).
-2. Save payload completion: vehicles, button mapping, message/battle speed,
-   macros, and the unidentified character-record bytes are currently written
-   as zero (`docs/SAVE_SCOUT.md` divergences); vehicles become load-bearing
-   mid-game.
-3. Full-campaign event coverage beyond the Zema/Tonoe arc (next:
-   BioPlantAlarm → MeetingRika chain), plus renderer-side visual panel and
-   temporary-object ops that scenes currently carry as data.
-4. Title screen and the front-of-house boot flow.
-5. Remaining field parity: BG-camera/driver gates, non-Type2/3 wanderers, and
+1. Scene presentation consumption: scenes carry fades, panels, palette work,
+   temporary objects, and `PlaySound`/`SetSavedMusic` as typed presentation
+   effects (`scene_presentation.rs`), but nothing in the Godot layer consumes
+   them yet — cutscene visuals and cutscene audio both land when that lane
+   does. The opening cinematic renderer is the same family of work.
+2. Full-campaign event coverage past MeetingRika (next retail beat onward).
+3. Sound gaps blocked on missing runtime dispatch surfaces: vehicle battle
+   `$96`, attack/effect SFX, and sequence-internal `EB` routes
+   (`docs/SOUND_INTEGRATION.md`).
+4. Remaining field parity: BG-camera/driver gates, non-Type2/3 wanderers, and
    the third wander speed table (`docs/CAMERA.md`, `docs/NPC_WANDER.md`).
+5. Title fidelity details: per-frame CRAM fade replay (currently baked
+   palettes with deterministic fades) and a real ERASE DATA implementation
+   (currently deliberately non-destructive).
 6. Vehicle sprites and the still-unimplemented presentation details that
    depend on them.
 

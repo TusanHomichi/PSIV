@@ -435,6 +435,14 @@ pub fn character_record(
         })?;
         properties[slot] = property.value;
     }
+    let techniques = copy_initial_slots(
+        &character.techniques.slots,
+        character.character_id,
+        "techniques",
+    )?;
+    let skills = copy_initial_slots(&character.skills.slots, character.character_id, "skills")?;
+    let skill_uses =
+        copy_initial_slots(&character.skills.uses, character.character_id, "skill uses")?;
     Ok(CharacterRecord {
         id: character.character_id,
         name: character
@@ -454,7 +462,26 @@ pub fn character_record(
         dexterity: character.stats.dexterity,
         properties,
         equipment: character.equipment.item_ids(),
+        techniques,
+        skills,
+        skill_uses,
     })
+}
+
+fn copy_initial_slots<const N: usize>(
+    source: &[u8],
+    character_id: u8,
+    label: &str,
+) -> Result<[u8; N], BridgeError> {
+    if source.len() > N {
+        return Err(BridgeError::Rejected(format!(
+            "character {character_id} has {} {label} slots; maximum is {N}",
+            source.len()
+        )));
+    }
+    let mut slots = [0; N];
+    slots[..source.len()].copy_from_slice(source);
+    Ok(slots)
 }
 
 #[cfg(test)]

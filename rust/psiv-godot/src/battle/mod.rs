@@ -308,6 +308,9 @@ impl Field {
         else {
             return;
         };
+        if request.outcome == Outcome::Victory {
+            self.play_sound(0x8b);
+        }
         let reward = match request.outcome {
             Outcome::Victory => request.reward_each,
             Outcome::Escaped | Outcome::Defeat => 0,

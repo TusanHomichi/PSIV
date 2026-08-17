@@ -55,6 +55,58 @@ CHROME_ROLES: dict[tuple[int, bool, bool], str] = {
 TOP_EDGE_ROLES = {"edge_top", "status_separator_top"}
 BOTTOM_EDGE_ROLES = {"edge_bottom", "status_separator_bottom"}
 
+# Retail title mappings are copied into the visible plane at these exact
+# cells.  Keeping the rectangles here, beside the decoder rather than in a
+# screenshot fixture, makes the layout contract useful to both the oracle
+# reports and the runtime-pack emitter.
+TITLE_ELEMENTS: tuple[dict[str, Any], ...] = (
+    {
+        "name": "sega_logo",
+        "cell_rect": {"x": 12, "y": 11, "width": 17, "height": 5},
+        "base_tile": 0x10,
+        "columns": 17,
+        "rows": 5,
+        "pattern_range": [0x10, 0x55],
+        "palette_line": 0,
+    },
+    {
+        "name": "title_logo",
+        "cell_rect": {"x": 11, "y": 3, "width": 17, "height": 13},
+        "base_tile": 0x10,
+        "columns": 17,
+        "rows": 13,
+        "pattern_range": [0x10, 0x91],
+        "palette_line": 0,
+    },
+    {
+        "name": "subtitle",
+        "cell_rect": {"x": 5, "y": 17, "width": 29, "height": 3},
+        "base_tile": 0x92,
+        "columns": 29,
+        "rows": 3,
+        "pattern_range": [0x92, 0xC9],
+        "palette_line": 0,
+    },
+    {
+        "name": "press_start",
+        "cell_rect": {"x": 11, "y": 22, "width": 18, "height": 1},
+        "base_tile": 0xD8,
+        "columns": 18,
+        "rows": 1,
+        "pattern_range": [0xD8, 0xE2],
+        "palette_line": 2,
+    },
+    {
+        "name": "copyright",
+        "cell_rect": {"x": 12, "y": 25, "width": 17, "height": 1},
+        "base_tile": 0xCA,
+        "columns": 17,
+        "rows": 1,
+        "pattern_range": [0xCA, 0xD6],
+        "palette_line": 1,
+    },
+)
+
 
 class LayoutDecodeError(ValueError):
     """The state file cannot be decoded as the expected retail layout."""
@@ -497,6 +549,172 @@ def decode_cram(raw: bytes) -> dict[str, Any]:
     }
 
 
+def _title_rect_summary(
+    words: list[list[int]], spec: dict[str, Any], phase: str
+) -> dict[str, Any]:
+    rect = spec["cell_rect"]
+    cells = [
+        words[y][x]
+        for y in range(rect["y"], rect["y"] + rect["height"])
+        for x in range(rect["x"], rect["x"] + rect["width"])
+    ]
+    nonzero = [word for word in cells if word]
+    patterns = [word & 0x07FF for word in nonzero]
+    palette_lines = sorted({(word >> 13) & 0x03 for word in nonzero})
+    expected_count = spec["columns"] * spec["rows"]
+    expected_low, expected_high = spec["pattern_range"]
+    observed = sorted(patterns)
+    # The Sega and title mappings overlap at VRAM $010.  The phase is the
+    # disambiguator for that one deliberate reuse; the state still reports
+    # the raw observed count and range so this never becomes screenshot lore.
+    active = {
+        "sega_logo": phase == "sega_logo",
+        "title_logo": phase in {"title_reveal", "title"},
+        "subtitle": phase in {"title_reveal", "title"} and bool(nonzero),
+        "press_start": phase == "title" and bool(nonzero),
+        "copyright": phase == "title" and bool(nonzero),
+    }[spec["name"]]
+    return {
+        "name": spec["name"],
+        "active": active,
+        "cell_rect": rect,
+        "pixel_rect": {
+            "x": rect["x"] * CELL_PIXELS,
+            "y": rect["y"] * CELL_PIXELS,
+            "width": rect["width"] * CELL_PIXELS,
+            "height": rect["height"] * CELL_PIXELS,
+        },
+        "mapping": {
+            "base_tile": f"0x{spec['base_tile']:03X}",
+            "columns": spec["columns"],
+            "rows": spec["rows"],
+            "expected_pattern_range": [
+                f"0x{expected_low:03X}", f"0x{expected_high:03X}"
+            ],
+            "expected_cell_count": expected_count,
+            "palette_line": spec["palette_line"],
+        },
+        "observed": {
+            "nonzero_cells": len(nonzero),
+            "coverage": len(nonzero) / expected_count,
+            "pattern_range": (
+                [f"0x{min(patterns):03X}", f"0x{max(patterns):03X}"]
+                if patterns else None
+            ),
+            "palette_lines": palette_lines,
+            "patterns_within_declared_range": all(
+                expected_low <= pattern <= expected_high for pattern in patterns
+            ),
+            "observed_range_matches_declared": bool(patterns)
+            and min(patterns) == expected_low
+            and max(patterns) == expected_high,
+        },
+    }
+
+
+def _title_palette_summary(cram: dict[str, Any]) -> dict[str, Any]:
+    lines = {
+        str(line["line"]): [int(word, 16) for word in line["words"]]
+        for line in cram["lines"]
+    }
+    return {
+        "line_count": 4,
+        "colors_per_line": 16,
+        "raw_word_format": "big-endian Genesis CRAM words; decimal values",
+        "lines": lines,
+        "active_logo_lines": [0],
+        "active_press_start_lines": [2],
+        "active_copyright_lines": [1],
+    }
+
+
+def decode_title_summary(
+    plane_a: dict[str, Any], plane_b: dict[str, Any], cram: dict[str, Any], frame: int
+) -> dict[str, Any]:
+    """Add the title-specific contract over the lossless plane decode."""
+    phase = (
+        "sega_logo"
+        if frame <= 225 and plane_a["visible_nonzero_cells"]
+        else "menu"
+        if any(run["text"] in {"START", "CONTINUE", "ERASE DATA"}
+               for run in plane_a["text_runs"])
+        else "title"
+        if plane_a["visible_nonzero_cells"]
+        else "title_reveal"
+    )
+    words_a = [
+        [int(word, 16) for word in row]
+        for row in plane_a["visible_words"]
+    ]
+    words_b = [
+        [int(word, 16) for word in row]
+        for row in plane_b["visible_words"]
+    ]
+    elements = {
+        spec["name"]: _title_rect_summary(words_a, spec, phase)
+        for spec in TITLE_ELEMENTS
+    }
+    background_words = [word for row in words_b for word in row if word]
+    background = {
+        "cell_rect": {"x": 0, "y": 0, "width": 40, "height": 28},
+        "pixel_rect": {"x": 0, "y": 0, "width": 320, "height": 224},
+        "mapping": {
+            "base_tile": "0x0E3",
+            "palette_line": 3,
+            "priority": True,
+            "destination": "plane_b",
+        },
+        "observed": {
+            "nonzero_cells": len(background_words),
+            "pattern_range": (
+                [
+                    f"0x{min(word & 0x07FF for word in background_words):03X}",
+                    f"0x{max(word & 0x07FF for word in background_words):03X}",
+                ]
+                if background_words else None
+            ),
+            "palette_lines": sorted({(word >> 13) & 0x03 for word in background_words}),
+            "priority_values": sorted({bool(word & 0x8000) for word in background_words}),
+        },
+    }
+    menu_rectangles = plane_a["chrome_rectangles"]
+    menu_runs = [
+        {
+            key: value
+            for key, value in run.items()
+            if key != "cells"
+        }
+        for run in plane_a["text_runs"]
+        if run["text"].strip()
+    ]
+    labels = [run["text"] for run in menu_runs]
+    window_kind = (
+        "no_save_data"
+        if any(rect["x_cell"] == 13 and rect["y_cell"] == 12
+               and rect["width_cells"] == 14 and rect["height_cells"] == 3
+               for rect in menu_rectangles)
+        else "save_slots"
+        if any(rect["x_cell"] == 13 and rect["y_cell"] == 10
+               and rect["width_cells"] == 14 and rect["height_cells"] == 7
+               for rect in menu_rectangles)
+        else None
+    )
+    return {
+        "phase": phase,
+        "elements": elements,
+        "background": background,
+        "palette_cycle": _title_palette_summary(cram),
+        "menu": {
+            "window_kind": window_kind,
+            "window_rectangles": menu_rectangles,
+            "text_runs": menu_runs,
+            "options": labels,
+            "continue_present": "CONTINUE" in labels,
+            "continue_gate": "save_present" if "CONTINUE" in labels else "no_valid_save_slots",
+        },
+    }
+
+
 def _self_check(layout: dict[str, Any], expected_texts: list[str]) -> dict[str, Any]:
     planes = layout["planes"]
     text_runs = [run for plane in planes.values() for run in plane["text_runs"]]
@@ -527,7 +745,13 @@ def _self_check(layout: dict[str, Any], expected_texts: list[str]) -> dict[str, 
     }
 
 
-def decode_layout(state_path: Path, expected_texts: list[str], label: str | None = None) -> dict[str, Any]:
+def decode_layout(
+    state_path: Path,
+    expected_texts: list[str],
+    label: str | None = None,
+    *,
+    title: bool = False,
+) -> dict[str, Any]:
     state = _read_state(state_path)
     plane_a = decode_plane(_region_bytes(state, "plane_a", 0x1000), "plane_a")
     plane_b = decode_plane(_region_bytes(state, "plane_b", 0x1000), "plane_b")
@@ -554,7 +778,7 @@ def decode_layout(state_path: Path, expected_texts: list[str], label: str | None
         window_metadata["address"] = region.get("address", "0x0000F000")
     layout: dict[str, Any] = {
         "format_version": 1,
-        "kind": "psiv_battle_layout",
+        "kind": "psiv_title_layout" if title else "psiv_battle_layout",
         "capture": {
             "label": label or state_path.stem,
             "frame": state["frame"],
@@ -579,6 +803,10 @@ def decode_layout(state_path: Path, expected_texts: list[str], label: str | None
         "sprites": decode_sprites(_region_bytes(state, "sprite_table", 0x280)),
         "cram": decode_cram(_region_bytes(state, "cram", 0x80)),
     }
+    if title:
+        layout["title"] = decode_title_summary(
+            plane_a, plane_b, layout["cram"], state["frame"]
+        )
     layout["self_check"] = _self_check(layout, expected_texts)
     return layout
 
@@ -594,9 +822,16 @@ def main(argv: list[str] | None = None) -> int:
         default=[],
         help="require this decoded battle string; repeat for the frame self-check",
     )
+    parser.add_argument(
+        "--title",
+        action="store_true",
+        help="add the retail title placement, palette, and menu contract",
+    )
     args = parser.parse_args(argv)
     try:
-        layout = decode_layout(args.state, args.expect_text, args.label)
+        layout = decode_layout(
+            args.state, args.expect_text, args.label, title=args.title
+        )
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(layout, indent=2) + "\n")
     except (LayoutDecodeError, OSError) as exc:

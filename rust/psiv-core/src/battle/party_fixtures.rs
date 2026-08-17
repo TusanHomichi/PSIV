@@ -534,6 +534,48 @@ pub fn equipment() -> Vec<ItemRecord> {
 }
 
 /// The eleven `InitialCharStats` records.
+const INITIAL_TECHNIQUES: [[u8; 16]; 11] = [
+    [24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [1, 30, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [24, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [1, 4, 13, 40, 39, 38, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [17, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0; 16],
+    [0; 16],
+    [24, 34, 35, 27, 38, 23, 25, 22, 36, 0, 0, 0, 0, 0, 0, 0],
+    [24, 1, 34, 35, 25, 2, 13, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0; 16],
+];
+
+const INITIAL_SKILLS: [[u8; 8]; 11] = [
+    [31, 0, 0, 0, 0, 0, 0, 0],
+    [6, 0, 0, 0, 0, 0, 0, 0],
+    [47, 0, 0, 0, 0, 0, 0, 0],
+    [4, 10, 0, 0, 0, 0, 0, 0],
+    [34, 0, 0, 0, 0, 0, 0, 0],
+    [28, 0, 0, 0, 0, 0, 0, 0],
+    [42, 35, 23, 38, 45, 0, 0, 0],
+    [54, 5, 52, 53, 0, 0, 0, 0],
+    [40, 25, 46, 44, 18, 0, 0, 0],
+    [43, 49, 29, 50, 0, 0, 0, 0],
+    [30, 19, 37, 26, 0, 0, 0, 0],
+];
+
+const INITIAL_SKILL_USES: [[u8; 8]; 11] = [
+    [3, 0, 0, 0, 0, 0, 0, 0],
+    [5, 0, 0, 0, 0, 0, 0, 0],
+    [5, 0, 0, 0, 0, 0, 0, 0],
+    [12, 5, 0, 0, 0, 0, 0, 0],
+    [7, 0, 0, 0, 0, 0, 0, 0],
+    [3, 0, 0, 0, 0, 0, 0, 0],
+    [8, 5, 4, 3, 1, 1, 0, 0],
+    [16, 12, 8, 4, 1, 1, 1, 0],
+    [16, 10, 3, 1, 1, 0, 0, 0],
+    [18, 13, 9, 5, 0, 0, 0, 0],
+    [26, 18, 13, 9, 0, 0, 0, 0],
+];
+
 #[must_use]
 pub fn records() -> Vec<CharacterRecord> {
     vec![
@@ -553,6 +595,9 @@ pub fn records() -> Vec<CharacterRecord> {
             dexterity: 5,
             properties: [2, 2, 2, 2, 2, 2, 2, 0, 1, 2, 2, 0, 2, 2],
             equipment: [2, 2, 5, 4],
+            techniques: INITIAL_TECHNIQUES[0],
+            skills: INITIAL_SKILLS[0],
+            skill_uses: INITIAL_SKILL_USES[0],
         },
         CharacterRecord {
             id: 1,
@@ -570,6 +615,9 @@ pub fn records() -> Vec<CharacterRecord> {
             dexterity: 13,
             properties: [2, 2, 2, 2, 2, 2, 2, 0, 1, 2, 2, 0, 2, 2],
             equipment: [3, 0, 6, 4],
+            techniques: INITIAL_TECHNIQUES[1],
+            skills: INITIAL_SKILLS[1],
+            skill_uses: INITIAL_SKILL_USES[1],
         },
         CharacterRecord {
             id: 2,
@@ -587,6 +635,9 @@ pub fn records() -> Vec<CharacterRecord> {
             dexterity: 5,
             properties: [2, 2, 2, 2, 2, 2, 2, 0, 1, 2, 2, 0, 2, 2],
             equipment: [1, 10, 7, 4],
+            techniques: INITIAL_TECHNIQUES[2],
+            skills: INITIAL_SKILLS[2],
+            skill_uses: INITIAL_SKILL_USES[2],
         },
         CharacterRecord {
             id: 3,
@@ -604,6 +655,9 @@ pub fn records() -> Vec<CharacterRecord> {
             dexterity: 21,
             properties: [2, 2, 2, 2, 2, 2, 2, 0, 1, 2, 2, 0, 2, 2],
             equipment: [16, 0, 15, 17],
+            techniques: INITIAL_TECHNIQUES[3],
+            skills: INITIAL_SKILLS[3],
+            skill_uses: INITIAL_SKILL_USES[3],
         },
         CharacterRecord {
             id: 4,
@@ -621,6 +675,9 @@ pub fn records() -> Vec<CharacterRecord> {
             dexterity: 11,
             properties: [2, 2, 1, 2, 3, 2, 2, 0, 1, 2, 2, 0, 2, 2],
             equipment: [21, 0, 25, 23],
+            techniques: INITIAL_TECHNIQUES[4],
+            skills: INITIAL_SKILLS[4],
+            skill_uses: INITIAL_SKILL_USES[4],
         },
         CharacterRecord {
             id: 5,
@@ -638,6 +695,9 @@ pub fn records() -> Vec<CharacterRecord> {
             dexterity: 11,
             properties: [2, 2, 2, 2, 2, 2, 2, 0, 1, 2, 2, 0, 2, 2],
             equipment: [32, 32, 31, 28],
+            techniques: INITIAL_TECHNIQUES[5],
+            skills: INITIAL_SKILLS[5],
+            skill_uses: INITIAL_SKILL_USES[5],
         },
         CharacterRecord {
             id: 6,
@@ -655,6 +715,9 @@ pub fn records() -> Vec<CharacterRecord> {
             dexterity: 25,
             properties: [2, 2, 1, 2, 1, 2, 3, 0, 2, 0, 0, 2, 0, 2],
             equipment: [43, 0, 45, 44],
+            techniques: INITIAL_TECHNIQUES[6],
+            skills: INITIAL_SKILLS[6],
+            skill_uses: INITIAL_SKILL_USES[6],
         },
         CharacterRecord {
             id: 7,
@@ -672,6 +735,9 @@ pub fn records() -> Vec<CharacterRecord> {
             dexterity: 39,
             properties: [2, 2, 1, 2, 1, 2, 3, 0, 2, 0, 0, 2, 0, 2],
             equipment: [62, 0, 61, 60],
+            techniques: INITIAL_TECHNIQUES[7],
+            skills: INITIAL_SKILLS[7],
+            skill_uses: INITIAL_SKILL_USES[7],
         },
         CharacterRecord {
             id: 8,
@@ -689,6 +755,9 @@ pub fn records() -> Vec<CharacterRecord> {
             dexterity: 30,
             properties: [2, 2, 3, 2, 1, 2, 2, 0, 1, 2, 2, 0, 2, 2],
             equipment: [68, 0, 70, 69],
+            techniques: INITIAL_TECHNIQUES[8],
+            skills: INITIAL_SKILLS[8],
+            skill_uses: INITIAL_SKILL_USES[8],
         },
         CharacterRecord {
             id: 9,
@@ -706,6 +775,9 @@ pub fn records() -> Vec<CharacterRecord> {
             dexterity: 40,
             properties: [2, 2, 2, 2, 2, 2, 2, 0, 1, 2, 2, 0, 2, 2],
             equipment: [93, 88, 74, 89],
+            techniques: INITIAL_TECHNIQUES[9],
+            skills: INITIAL_SKILLS[9],
+            skill_uses: INITIAL_SKILL_USES[9],
         },
         CharacterRecord {
             id: 10,
@@ -723,6 +795,9 @@ pub fn records() -> Vec<CharacterRecord> {
             dexterity: 50,
             properties: [2, 2, 2, 2, 2, 2, 2, 0, 1, 1, 0, 0, 0, 2],
             equipment: [91, 88, 106, 108],
+            techniques: INITIAL_TECHNIQUES[10],
+            skills: INITIAL_SKILLS[10],
+            skill_uses: INITIAL_SKILL_USES[10],
         },
     ]
 }

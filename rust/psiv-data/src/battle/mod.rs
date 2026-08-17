@@ -344,7 +344,8 @@ pub use formations::{
 pub use levels::{Level, LevelStats, LevelTable, LevelsFile};
 pub use party::{
     Character, CharactersFile, DerivedStat, ElementRef, Equipment, EquipmentBonuses, EquipmentFile,
-    EquipmentKindRef, EquipmentType, Equipped, Initialized, Loadout, WeaponElements,
+    EquipmentKindRef, EquipmentType, Equipped, Initialized, Loadout, SkillSlots, TechniqueSlots,
+    WeaponElements,
 };
 
 #[cfg(test)]

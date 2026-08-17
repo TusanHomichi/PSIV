@@ -127,6 +127,7 @@ impl Runtime {
             // every flag write. The next map load evaluates the new flag and
             // applies the pack's Igglanova despawn gate.
             SceneEffect::FlagChanged { .. } => {}
+            SceneEffect::Faulted(fault) => events.push(RuntimeEvent::SceneFaulted { fault }),
             // A scripted facing is written straight into the field object slot
             // by the cartridge, so it has to reach the map's own record and not
             // only the scene's actor list.

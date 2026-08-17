@@ -1,7 +1,7 @@
 //! Runtime events emitted for the presentation layer to consume.
 
 use psiv_core::battle::BattleEvent;
-use psiv_core::{Cell, Direction, InteractReach, MapId, WarpTrigger};
+use psiv_core::{Cell, Direction, InteractReach, MapId, SceneFault, WarpTrigger};
 
 /// What a [`crate::Runtime`] tick produced, for the presentation layer.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,8 +68,15 @@ pub enum RuntimeEvent {
         /// The resolved Event_Index word, including the cutscene bit.
         event: u16,
     },
-    /// The running scene finished (or faulted; faults are logged). Cinema off.
+    /// The running scene finished successfully. Cinema off.
     SceneEnded,
+    /// The scene interpreter rejected an op. A fault is never a successful
+    /// scene completion; the shell can surface the exact actor/jump/write
+    /// defect to the developer instead of silently dropping it.
+    SceneFaulted {
+        /// Interpreter fault.
+        fault: SceneFault,
+    },
     /// A trigger fired an event with no transcribed scene yet.
     SceneMissing {
         /// The event index that has no scene.

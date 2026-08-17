@@ -44,6 +44,7 @@ mod game_data;
 mod ids;
 mod manifest;
 mod map;
+mod sound;
 mod sprites;
 
 pub use battle::{
@@ -55,7 +56,8 @@ pub use battle::{
 // The seating path: `battle/characters.json` and `battle/equipment.json`.
 pub use battle::{
     Character, CharactersFile, DerivedStat, ElementRef, Equipment, EquipmentBonuses, EquipmentFile,
-    EquipmentKindRef, EquipmentType, Equipped, Initialized, Loadout, WeaponElements,
+    EquipmentKindRef, EquipmentType, Equipped, Initialized, Loadout, SkillSlots, TechniqueSlots,
+    WeaponElements,
 };
 pub use collision::{Collision, CollisionGrid, CollisionType, Plane, UndefinedCollisionType};
 pub use dialogue::*;
@@ -73,4 +75,5 @@ pub use map::{
     Npc, RangeRef, ResolvedCell, SpriteFacing, SpriteRef, TransitionTable, Treasure,
     VariantCollision, VariantPlane, Warp, WarpSource,
 };
+pub use sound::{SoundFiles, SoundRecord, SoundTrackKind, SoundTrackRecord};
 pub use sprites::{Sequence, SequenceFrame, Sheet, SheetFile};

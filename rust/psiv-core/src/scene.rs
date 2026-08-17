@@ -33,6 +33,7 @@
 use crate::field::StepFrames;
 use crate::geom::{Cell, Direction};
 use crate::map::FieldMap;
+use crate::scene_presentation::PresentationOp;
 use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 /// How many ops one tick may execute before the runner assumes the script is
@@ -354,6 +355,32 @@ pub enum SceneOp {
         /// Whether to block until the walk completes.
         wait: bool,
     },
+    /// Walk `actor` to the target actor's coordinate on one axis while
+    /// preserving the actor's other coordinate. This is the exact shape of
+    /// Rika's opening alignment: `Event_MoveSingleObject` receives the
+    /// leader's X and the temporary object's own Y.
+    MoveActorToActorAxis {
+        /// Who walks.
+        actor: ActorRef,
+        /// Whose coordinate supplies the destination.
+        target: ActorRef,
+        /// Which coordinate to copy.
+        axis: Axis,
+        /// Whether to block until the walk completes.
+        wait: bool,
+    },
+    /// Walk an actor by a live offset from its current cell. The source uses
+    /// this for Rika's `$10,$10` look-around beat after the Zema map load.
+    MoveActorOffset {
+        /// Who walks.
+        actor: ActorRef,
+        /// X offset in pixels.
+        dx: i32,
+        /// Y offset in pixels.
+        dy: i32,
+        /// Whether to block until the walk completes.
+        wait: bool,
+    },
     /// Drive an actor with one of the NPC movement-command bytes and
     /// optionally spin until the step completes — the `AlysFound` idiom of
     /// calling the NPC's own field routine with `d0 = command`.
@@ -556,6 +583,13 @@ pub enum SceneOp {
         art_tile: u16,
         /// Number of animation frames or update-loop iterations.
         frames: u16,
+    },
+    /// Preserve renderer-owned writes whose state is not part of the field
+    /// core. The typed payload records the retail primitive and literals;
+    /// the runtime is free to consume it without changing scene control flow.
+    Presentation {
+        /// The renderer-owned record.
+        op: PresentationOp,
     },
     /// Remove the first inventory slot containing `item`, matching the
     /// cartridge's item-removal loop and leaving the resulting hole intact.

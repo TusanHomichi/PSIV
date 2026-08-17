@@ -4,7 +4,10 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use psiv_core::battle::{StatPair, StatTriple, Stats};
-use psiv_core::{CharId, Flag, GameState, RetailLocation, RetailSave, StepFrames};
+use psiv_core::{
+    CharId, Flag, GameState, MacroCommand, RetailLocation, RetailSave, RetailSlot, StepFrames,
+    VehicleRecord,
+};
 use psiv_data::GameData;
 use psiv_runtime::Runtime;
 
@@ -20,6 +23,7 @@ fn load() -> Option<GameData> {
 
 fn stats(index: u8) -> Stats {
     Stats {
+        name_bytes: [index, index + 1, index + 2, index + 3, 0xFE, 0],
         profession: 1,
         level: 5 + u16::from(index),
         experience: 800 + u32::from(index),
@@ -39,6 +43,10 @@ fn stats(index: u8) -> Stats {
         element_shadow: [0; 14],
         weapon_elements: [0; 2],
         equipment: [0; 4],
+        techniques: [index + 1; 16],
+        skills: [index + 2; 8],
+        curr_skill_uses: [index + 3; 8],
+        max_skill_uses: [index + 4; 8],
         physical_prop_save: 0,
         enemy_id: 0,
         gain_exp_flag: index == 0,
@@ -72,13 +80,33 @@ fn runtime_save_file_round_trips_a_mid_progress_game_state() {
     chaz.curr_hp = 3;
     chaz.status = 1;
     chaz.equipment = [0x21, 0x22, 0x23, 0x24];
+    game.set_vehicle_index(1);
+    game.set_button_mappings_index(2);
+    game.set_message_speed(4);
+    game.set_battle_speed(3);
+    game.macros_mut()[2].commands[1] = MacroCommand {
+        character_id: 1,
+        command_index: 4,
+        ability_id: 0x1F,
+        reserved: 0x7E,
+    };
+    game.vehicles_mut()[0] = VehicleRecord {
+        current_hp: 0x0102,
+        max_hp: 0x0304,
+        skill_mask: 0x03,
+        reserved_05: 0x55,
+        current_skill_uses: [1, 2, 3, 4, 5, 6, 7, 8],
+        max_skill_uses: [8, 7, 6, 5, 4, 3, 2, 1],
+        reserved_tail: [0xAA; 10],
+    };
     let save = RetailSave {
         snapshot: game.snapshot(),
         location: RetailLocation {
+            world_index: 2,
+            map_index_2: 0x44,
             map_index: 0x13,
             char_x: 38 * 16,
             char_y: 18 * 16,
-            ..RetailLocation::default()
         },
     };
     let expected = GameState::from_snapshot(&save.snapshot);
@@ -94,6 +122,15 @@ fn runtime_save_file_round_trips_a_mid_progress_game_state() {
     assert_eq!(reloaded.game(), runtime.game());
     assert_eq!(reloaded.map_id(), runtime.map_id());
     assert_eq!(reloaded.state().cell(), runtime.state().cell());
+    let persisted = RetailSlot::from_bytes(
+        &std::fs::read(directory.join("slot_1.sram")).expect("read saved slot"),
+        0,
+    )
+    .expect("validate saved slot")
+    .decode()
+    .expect("decode saved slot");
+    assert_eq!(persisted.location.world_index, 2);
+    assert_eq!(persisted.location.map_index_2, 0x44);
     assert!(directory.join("slot_1.sram").is_file());
     std::fs::remove_dir_all(directory).expect("remove only this test's temp directory");
 }

@@ -15,6 +15,12 @@ pub const ELEMENT_SLOTS: usize = 14;
 /// How many equipment slots a character has: right hand, left hand, head, body.
 pub const EQUIPMENT_SLOTS: usize = 4;
 
+/// How many technique ids a character record carries at `$52..$61`.
+pub const TECHNIQUE_SLOTS: usize = 16;
+
+/// How many skill ids and use-count pairs a character record carries.
+pub const SKILL_SLOTS: usize = 8;
+
 /// How many regular abilities an enemy's AI picks between (`$58`..`$5F`).
 pub const REGULAR_ABILITIES: usize = 8;
 
@@ -356,6 +362,12 @@ pub struct CharacterRecord {
     pub properties: [u8; ELEMENT_SLOTS],
     /// Right hand, left hand, head, body. `0` means empty.
     pub equipment: [u8; EQUIPMENT_SLOTS],
+    /// `$52..$61`, the sixteen initial technique ids.
+    pub techniques: [u8; TECHNIQUE_SLOTS],
+    /// `$62..$69`, the eight initial skill ids.
+    pub skills: [u8; SKILL_SLOTS],
+    /// `$6A..$79`, one initial use count for each skill slot.
+    pub skill_uses: [u8; SKILL_SLOTS],
 }
 
 /// One 22-byte level record.

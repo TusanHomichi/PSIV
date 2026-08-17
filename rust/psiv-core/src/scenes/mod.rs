@@ -40,6 +40,7 @@
 
 mod game_start;
 pub(crate) mod next_arc;
+pub(crate) mod next_arc_followup;
 pub(crate) mod opening;
 
 use crate::scene_runner::Scene;
@@ -56,6 +57,8 @@ pub const HAHN: CharId = CharId(2);
 pub const RUNE: CharId = CharId(3);
 /// `CharID_Gryz`, used by Dorin's replacement scene.
 pub const GRYZ: CharId = CharId(4);
+/// `CharID_Rika`, added to party slot 5 after the Bio Plant escape.
+pub const RIKA: CharId = CharId(5);
 
 /// Every transcribed scene, in story order.
 pub static SCENES: &[Scene] = &[
@@ -83,6 +86,11 @@ pub static SCENES: &[Scene] = &[
     next_arc::ZEMA_OLD_MAN_AFTER_MISSION,
     next_arc::MEETING_SAYA,
     next_arc::TONOE_BASEMENT_DOOR,
+    next_arc_followup::BIO_PLANT_ALARM,
+    next_arc_followup::GIRLS_SNEAKING_OUT,
+    next_arc_followup::CHAZ_HOUSE,
+    next_arc_followup::LEAVING_CHAZ_HOUSE,
+    next_arc_followup::MEETING_RIKA,
 ];
 
 /// The scene an event index selects, if it has been transcribed.
@@ -137,6 +145,11 @@ mod tests {
             ("Event_ZemaOldManAfterMission", 3),
             ("Event_MeetingSaya", 12),
             ("Event_TonoeBasementDoor", 19),
+            ("Event_BioPlantAlarm", 6),
+            ("Event_GirlsSneakingOut", 27),
+            ("Event_ChazHouse", 13),
+            ("Event_LeavingChazHouse", 1),
+            ("Cutscene_MeetingRika", 107),
         ];
         assert_eq!(
             SCENES.len(),
@@ -215,6 +228,7 @@ mod tests {
                 "Cutscene_Dorin",
                 "Cutscene_Alshline",
                 "Cutscene_ZemaIgglanovaDefeated",
+                "Cutscene_MeetingRika",
             ]
         );
     }

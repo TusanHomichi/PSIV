@@ -46,6 +46,7 @@ def write_manifest(
     routines = state["routines"]
     shops = state["shops"]
     sound = state["sound"]
+    title = state["title"]
     skipped = state["skipped"]
     sprite_census = state["sprite_census"]
     start = state["start"]
@@ -201,6 +202,7 @@ def write_manifest(
         "shops": shops,
         "sound": sound,
         "dialogue": dialogue,
+        "title": title,
         # The flag-gated patches a map's MapDataManager list applies when the
         # map is built. Per-map lists live on the map records; this is the
         # census over all of them.

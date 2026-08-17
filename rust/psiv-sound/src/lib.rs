@@ -11,6 +11,7 @@
 //! stream, while future oracle captures can replace expected vectors without
 //! changing the renderer or driver.
 
+mod dac;
 mod driver;
 mod fm;
 mod psg;
@@ -19,7 +20,9 @@ mod trace;
 
 pub use fm::Ym2612;
 pub use psg::Sn76489;
-pub use sequence::{FmVoice, PsgEnvelope, SequenceError, SoundSequence, SoundTrack, TrackKind};
+pub use sequence::{
+    DacSample, FmVoice, PsgEnvelope, SequenceError, SoundBank, SoundSequence, SoundTrack, TrackKind,
+};
 pub use trace::{Chip, RegisterLog, RegisterWrite};
 
 /// Genesis libretro and the scout's oracle path use 44.1 kHz PCM.
@@ -67,6 +70,14 @@ impl SoundMachine {
         self.log.clear();
     }
 
+    /// Loads all extracted music/SFX records and their raw DAC samples.
+    pub fn load_bank(&mut self, bank: SoundBank) {
+        self.driver.load_bank(bank);
+        self.ym.reset();
+        self.psg.reset();
+        self.log.clear();
+    }
+
     /// Starts the sequence's first frame on the next [`Self::tick`].
     pub fn start(&mut self) {
         self.driver.start();
@@ -76,6 +87,11 @@ impl SoundMachine {
     /// dispatch and priority behavior at the next tick.
     pub fn queue_sound(&mut self, id: u8) {
         self.driver.queue_sound(id);
+    }
+
+    /// Queues one extracted music or SFX record for playback.
+    pub fn play(&mut self, id: u8) {
+        self.queue_sound(id);
     }
 
     /// Runs one 60 Hz driver update and returns the first mixed sample from
@@ -118,6 +134,7 @@ impl SoundMachine {
     }
 
     fn render_one(&mut self) -> StereoFrame {
+        self.driver.render_dac(&mut self.ym, &mut self.log);
         let fm = self.ym.render_sample();
         let psg = self.psg.render_sample();
         StereoFrame {

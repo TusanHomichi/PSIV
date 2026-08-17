@@ -11,11 +11,11 @@ resolved to a name.
 done — the v1 slice `docs/RUNTIME_DESIGN.md` calls this the opening act.
 
 **Next-arc scope**: the scene set from Piata's post-gate Professor Holt beat
-through Zema, the Tonoe road, and the Birth Valley hand-off. The trigger/map
-census is [12_ArcTriggerCensus](12_ArcTriggerCensus.md); the per-scene records
-are [13_ProfHolt](13_ProfHolt.md) through
-[25_TonoeBasementDoor](25_TonoeBasementDoor.md). The native registry and
-headless proof live beside those documents in `psiv-core` and `psiv-runtime`.
+through Zema, the Tonoe road, the BioPlant escape and the Rika hand-off. The
+trigger/map census is [12_ArcTriggerCensus](12_ArcTriggerCensus.md); the
+per-scene records are [13_ProfHolt](13_ProfHolt.md) through
+[30_MeetingRika](30_MeetingRika.md). The native registry and headless proof
+live beside those documents in `psiv-core` and `psiv-runtime`.
 
 ## Next-arc registry
 
@@ -34,6 +34,11 @@ headless proof live beside those documents in `psiv-core` and `psiv-runtime`.
 | `Event_ZemaOldManAfterMission` | `$8C` | [23](23_ZemaOldManAfterMission.md) | `$073166..$07318D` |
 | `Event_MeetingSaya` | `$0D` | [24](24_MeetingSaya.md) | `$06BC6A..$06BE77` |
 | `Event_TonoeBasementDoor` | `$33` | [25](25_TonoeBasementDoor.md) | `$06F1A4..$06F2E9` |
+| `Event_BioPlantAlarm` | `$12` | [26](26_BioPlantAlarm.md) | `$06C27C..$06C2BB` |
+| `Event_GirlsSneakingOut` | `$23` | [27](27_GirlsSneakingOut.md) | `$06D4A6..$06D615` |
+| `Event_ChazHouse` | `$3B` | [28](28_ChazHouse.md) | `$06FA34..$06FACB` |
+| `Event_LeavingChazHouse` | `$3C` | [29](29_LeavingChazHouse.md) | `$06FACC..$06FAD3` |
+| `Cutscene_MeetingRika` | `$8007` | [30](30_MeetingRika.md) | `$0745DE..$074A7D` |
 
 ## Why these were disassembled and not read
 
@@ -52,13 +57,13 @@ never an option either.
 > `BasementContainers`, `MeetingSaya`, `SuspicionOnPrincipal`, `AfterIgglanova`,
 > `gamestart`, `PiataChazAlone`, `AlysFound`.
 >
-> The other 10 (`BioPlantAlarm`, `GirlsSneakingOut`, `AlshlineFound`,
-> `ChazHouse`, `ZemaIgglanovaDefeated`, `RuneFlaeli`, `Alshline`,
-> `MeetingRika`, `FortuneTeller`, `AfterFortuneTeller`) sit in an
+> Eight (`BioPlantAlarm`, `GirlsSneakingOut`, `AlshlineFound`, `ChazHouse`,
+> `ZemaIgglanovaDefeated`, `RuneFlaeli`, `Alshline`, `MeetingRika`) sit in an
 > `if grand_cross=1 … else … endif`, so their **retail source survives in the
-> `grand_cross=0` branch**. That is a materially smaller blast radius than the
-> scout implies — but it does not help the opening act at all, because **all
-> six** opening-act casualties are in the ungated seven.
+> `grand_cross=0` branch**. `FortuneTeller` and `AfterFortuneTeller` are
+> different: their labels and Grand Cross includes are inside `if grand_cross=1`,
+> with no retail `else` body and no retail pointer slots. They cannot be
+> transcribed from retail bytes without inventing a scene.
 
 For the ungated seven the clone does not contain a fork *rewrite* of retail
 behaviour; it contains *no* behaviour — an entry label, an `include` of an
@@ -196,6 +201,9 @@ dialogue tree (which the dialogue system owns, not the scene interpreter).
 | `RemoveItem{item}` | `GetItem` + clear slot + `ReorderInventory` | Alshline |
 | `SetMapLoadFlags{set, clear}` | raw `Map_Load_Flags` writes around `RefreshMap` | Dorin, Alshline, servant battle |
 | `RecoverStats{}` | `RecoverStats` | Alshline |
+| `MoveActorToActorAxis{who, target, axis}` | copy one live coordinate before `Event_MoveSingleObject` | MeetingRika |
+| `MoveActorOffset{who, dx, dy}` | read a character's current position, add offsets, move | MeetingRika |
+| `Presentation{op}` | typed VDP/window/palette/temp-object record | BioPlantAlarm, GirlsSneakingOut, ChazHouse, MeetingRika |
 
 `LoadMap` is now a blocking op: the runtime responds with `MapLoaded` only
 after it has rebuilt and recast the new map. NPC `ActorMoveStarted` and
@@ -273,13 +281,37 @@ power-on
        └─ Event_PiataGuardsReprimand    bounces you back into Piata  <-- act boundary
 ```
 
+## Story continuation and boundary
+
+The newly covered continuation is:
+
+```
+Zema aftermath
+  ├─ BioPlant Part2 `$A3`, trigger `$0C` → Event_BioPlantAlarm `$12`
+  │    temp `$08` set; player-controlled BioPlant traversal follows
+  ├─ Aiedo Supermarket selector `$06` → Event_GirlsSneakingOut `$23`
+  │    event `$46` set; this is a direct shop call, not a map trigger
+  ├─ ChazHouse `$5E`, trigger `$26` → Event_ChazHouse `$3B`
+  │    temp `$18` set; Aiedo exit trigger `$27` → Event_LeavingChazHouse `$3C`
+  └─ BioPlant B4 Part2 `$AC`, trigger `$1A` → Cutscene_MeetingRika `$8007`
+       event `$34` set, Rika joins slot 5, event `$35` set, Motavia `$00`
+```
+
+The order of the shop and house detours is player-controlled; the census keeps
+those dispatch surfaces separate instead of pretending they are one linear
+map-event list.
+
 ## Still out of scope (noticed, not transcribed)
 
 - `RunEvent_MeetingSayaUnused` (`$09`) — genuinely unreferenced: it appears
   in `RunEventsJmpTbl` but no map's event list contains `$09`.
 - `Event_MachineCenterAppearing` (`$06`) — trigger `$06` requires
   `EventFlag_Zio`, far past this act.
-- The remaining scene includes: `BioPlantAlarm`, `GirlsSneakingOut`,
-  `ChazHouse`, `MeetingRika`, `FortuneTeller`, `AfterFortuneTeller`, and later
-  story scenes. Their retail branches still need the same byte audit before
-  they enter the registry.
+- `Event_FortuneTeller` and `Event_AfterFortuneTeller`: the retail
+  `EventPtrs` table stops at `$A0`, so `$A1/$A2` are not retail event pointers;
+  the clone only has their Grand Cross includes. There is no retail byte range
+  to transcribe.
+- Later story scenes after the Rika hand-off, including the Rune/Molcum
+  reunion material, remain out of scope for this slice. Their pointer ranges
+  and trigger prerequisites need a separate byte audit rather than being
+  inferred from the Grand Cross script tree.

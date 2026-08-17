@@ -116,6 +116,42 @@ static char g_system_dir[1024];
 static char g_save_dir[1024];
 static int g_dump_options;
 
+static int load_save_ram_file(const char *path, void *memory, size_t capacity)
+{
+	FILE *file;
+	long length;
+	size_t count;
+
+	file = fopen(path, "rb");
+	if (!file) {
+		fprintf(stderr, "psiv_oracle: cannot open SRAM %s: %s\n", path,
+		        strerror(errno));
+		return -1;
+	}
+	if (fseek(file, 0, SEEK_END) != 0 || (length = ftell(file)) < 0 ||
+	    fseek(file, 0, SEEK_SET) != 0) {
+		fprintf(stderr, "psiv_oracle: cannot size SRAM %s\n", path);
+		fclose(file);
+		return -1;
+	}
+	if ((unsigned long)length > capacity) {
+		fprintf(stderr, "psiv_oracle: SRAM %s is %ld bytes, max is %zu\n",
+		        path, length, capacity);
+		fclose(file);
+		return -1;
+	}
+	count = (size_t)length;
+	if (fread(memory, 1, count, file) != count || fclose(file) != 0) {
+		fprintf(stderr, "psiv_oracle: cannot read SRAM %s\n", path);
+		return -1;
+	}
+	/* Genesis Plus GX initializes the unprovided tail to erased SRAM. Keep
+	 * the same frontend contract for compact .srm fixtures. */
+	if (count < capacity)
+		memset((uint8_t *)memory + count, 0xFF, capacity - count);
+	return 0;
+}
+
 /* Declared-option index, captured when the core announces its options, so we
  * can prove every pinned value is one the core actually accepts. A core that
  * receives an unrecognised value does not report an error: Genesis Plus GX
@@ -524,8 +560,9 @@ static void usage(void)
 	        "[--probe-endian]\n"
 	        "                   [--dump-frames N1,N2,...] "
 	        "--dump-frames-dir <dir>\n"
-	        "                   [--dump-ram <frame>:<path>]\n"
-	        "                   [--dump-state <frame>:<path>]\n");
+		"                   [--dump-ram <frame>:<path>]\n"
+	        "                   [--dump-state <frame>:<path>]\n"
+	        "                   [--load-sram <path>]\n");
 }
 
 int main(int argc, char **argv)
@@ -533,6 +570,7 @@ int main(int argc, char **argv)
 	const char *core_path = NULL, *rom_path = NULL, *tape_path = NULL;
 	const char *map_path = NULL, *out_path = NULL, *groups = NULL;
 	const char *dump_frames = NULL, *dump_frames_dir = NULL;
+	const char *load_sram_path = NULL;
 	int probe_endian = 0;
 	FILE *out = stdout;
 	struct retro_system_info sysinfo;
@@ -568,6 +606,8 @@ int main(int argc, char **argv)
 				return 2;
 			}
 		}
+		else if (!strcmp(argv[i], "--load-sram") && i + 1 < argc)
+			load_sram_path = argv[++i];
 		else if (!strcmp(argv[i], "--probe-endian")) probe_endian = 1;
 		else { usage(); return 2; }
 	}
@@ -682,6 +722,15 @@ int main(int argc, char **argv)
 	if (!rt_load_game(&game)) {
 		fprintf(stderr, "psiv_oracle: core refused the rom\n");
 		return 1;
+	}
+	if (load_sram_path) {
+		void *sram = rt_get_memory_data(RETRO_MEMORY_SAVE_RAM);
+		size_t sram_size = rt_get_memory_size(RETRO_MEMORY_SAVE_RAM);
+		if (!sram || sram_size == 0 ||
+		    load_save_ram_file(load_sram_path, sram, sram_size) != 0)
+			return 1;
+		fprintf(stderr, "psiv_oracle: loaded SRAM %s (%zu-byte core buffer)\n",
+		        load_sram_path, sram_size);
 	}
 	rt_get_system_av_info(&av_info);
 	if (frame_dump_set_geometry(av_info.geometry.base_width,

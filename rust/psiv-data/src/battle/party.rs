@@ -51,8 +51,35 @@ pub struct Character {
     pub properties: std::collections::BTreeMap<String, Property>,
     /// What the character starts wearing.
     pub equipment: Loadout,
+    /// The sixteen technique ids copied into `$52..$61` by
+    /// `InitializeCharStats`.
+    #[serde(default)]
+    pub techniques: TechniqueSlots,
+    /// The eight skill ids and their initial use counts copied into
+    /// `$62..$79` by `InitializeCharStats`.
+    #[serde(default)]
+    pub skills: SkillSlots,
     /// What `InitializeCharStats` leaves in RAM — the conformance vector.
     pub initialized: Initialized,
+}
+
+/// The sixteen technique slots in an `InitialCharStats` source record.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TechniqueSlots {
+    /// Technique ids, in retail slot order. Zero means an empty slot.
+    #[serde(default)]
+    pub slots: Vec<u8>,
+}
+
+/// The eight skill slots and their initial use counts.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SkillSlots {
+    /// Skill ids, in retail slot order. Zero means an empty slot.
+    #[serde(default)]
+    pub slots: Vec<u8>,
+    /// Initial uses for the corresponding skill slots.
+    #[serde(default)]
+    pub uses: Vec<u8>,
 }
 
 /// The four equipment slots. A slot the character starts with empty is `null`.

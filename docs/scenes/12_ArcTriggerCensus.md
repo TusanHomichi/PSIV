@@ -10,6 +10,10 @@ authority is retail `EventPtrs` at `$05A2B4` (161 `$A1` entries) and
 
 | Map | id | tree | per-map events | dispatch |
 |---|---:|---:|---|---|
+| BioPlant Part2 | `$A3` / 163 | 12 | `$0C` | `$0012` / BioPlant alarm |
+| BioPlant B4 Part2 | `$AC` / 172 | 34 | `$1A` | `$8007` / Meeting Rika |
+| Aiedo | `$54` / 84 | 5 | `$27` | `$003C` / leaving ChazHouse |
+| ChazHouse | `$5E` / 94 | 10 | `$26` | `$003B` / ChazHouse rest |
 | Zema | `$24` / 36 | 4 | `$15,$17,$74` | `$8005`, `$8006`, `$008A` |
 | BirthValley | `$2B` / 43 | 3 | `$00` | null; no scene |
 | BirthValley B1 | `$2C` / 44 | 3 | `$00` | null; no scene |
@@ -40,16 +44,25 @@ surface and are part of the playable arc:
 | tree 4 | `$4C` (76) | F6 | `$008B` `Event_ZemaOldMan` |
 | tree 4 | `$4E` (78) | F6 | `$008C` `Event_ZemaOldManAfterMission` |
 
+The Aiedo supermarket is not in this table because its inn/shop routine calls
+`Event_GirlsSneakingOut` directly when selector `$06` is active and both Zio
+and GirlsCaught are clear. It is a pointer-table event `$23`, not a
+`RunEventsJmpTbl` dispatch.
+
 ## Trigger formulas transcribed in `trigger_table`
 
 | trigger | retail routine | required state | event |
 |---:|---|---|---|
 | `$14` | `RunEvent_Dorin` | Dorin `$36` set, Gryz `$30` clear | `$8004` |
+| `$0C` | `RunEvent_BioPlantAlarm` | temp `$08` clear, leader Y `$180` | `$0012` |
 | `$15` | `RunEvent_UsingAlshline` | Alshline `$32` set, Zema Igglanova `$33` clear | `$8005` |
 | `$16` | `RunEvent_MeetingSaya` | Saya `$12` clear, standing y `<=$280` | `$000D` |
 | `$17` | `RunEvent_ZemaIgglanovaDefeated` | Zema Igglanova `$33` set, after-beat `$37` clear | `$8006` |
 | `$18` | `RunEvent_FindingAlshline` | chest `$08` set, Alshline `$32` clear | `$0028` |
 | `$30` | `RunEvent_RuneFlaeli` | Rune `$11` set, Tonoe path `$13` clear | `$0027` |
+| `$1A` | `RunEvent_MeetingRika` | BioPlant escape `$34` clear, leader Y `$1A0` | `$8007` |
+| `$26` | `RunEvent_ChazHouseRest` | temp `$18` clear | `$003B` |
+| `$27` | `RunEvent_ClrChazHouseRest` | temp `$18` set | `$003C` |
 | `$74` | `RunEvent_ZemaServantBattle` | Silver Soldier `$B1` set, servants `$B2` clear | `$008A` |
 
 The formulas are covered by the focused census test in
@@ -60,7 +73,8 @@ needed: every trigger in these maps is already a flags/position condition.
 
 `reference/ps4disasm/ps4.asm` is the Grand Cross clone, not a retail oracle.
 For the retail-only scene includes (`MeetingSaya`, `RuneFlaeli`, `Alshline`,
-`ZemaIgglanovaDefeated`, and the other conditional scene bodies), the
+`ZemaIgglanovaDefeated`, `BioPlantAlarm`, `GirlsSneakingOut`, `ChazHouse`,
+`LeavingChazHouse`, `MeetingRika`, and the other conditional scene bodies), the
 `grand_cross=1` branch is an absent `script/scenes/...` include; the retail
 bytes below are the only executable authority. The surviving `grand_cross=0`
 branches were checked against the retail pointer ranges before they were

@@ -664,5 +664,38 @@ mod tests {
             TRIGGERS[0x74].evaluate(&ctx(&state, 0, 0)),
             TriggerResult::Fire(EventIndex(0x008A))
         );
+
+        state.clear(Flag::temp(0x08)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x0C].evaluate(&ctx(&state, 0, 0x180)),
+            TriggerResult::Fire(EventIndex(0x0012))
+        );
+        state.set(Flag::temp(0x08)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x0C].evaluate(&ctx(&state, 0, 0x180)),
+            TriggerResult::NoEvent
+        );
+
+        state.clear(Flag::event(0x34)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x1A].evaluate(&ctx(&state, 0, 0x1A0)),
+            TriggerResult::Fire(EventIndex(0x8007))
+        );
+        state.set(Flag::event(0x34)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x1A].evaluate(&ctx(&state, 0, 0x1A0)),
+            TriggerResult::NoEvent
+        );
+
+        state.clear(Flag::temp(0x18)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x26].evaluate(&ctx(&state, 0, 0)),
+            TriggerResult::Fire(EventIndex(0x003B))
+        );
+        state.set(Flag::temp(0x18)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x27].evaluate(&ctx(&state, 0, 0)),
+            TriggerResult::Fire(EventIndex(0x003C))
+        );
     }
 }

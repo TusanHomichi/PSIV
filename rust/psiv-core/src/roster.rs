@@ -240,6 +240,7 @@ mod tests {
 
     fn stats(level: u16, experience: u32) -> Stats {
         Stats {
+            name_bytes: [0; 6],
             profession: 0,
             level,
             experience,
@@ -258,6 +259,10 @@ mod tests {
             element_props: [0; 14],
             element_shadow: [0; 14],
             equipment: [0; 4],
+            techniques: [0; 16],
+            skills: [0; 8],
+            curr_skill_uses: [0; 8],
+            max_skill_uses: [0; 8],
             enemy_id: 0,
             gain_exp_flag: false,
             weapon_elements: Default::default(),

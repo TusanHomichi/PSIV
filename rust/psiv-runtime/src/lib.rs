@@ -49,6 +49,11 @@ pub struct Runtime {
     map: FieldMap,
     party: Party,
     game: GameState,
+    /// Retail's saved world selector. The current runtime has one namespace,
+    /// but a load/save cycle must not erase the word.
+    saved_world_index: u16,
+    /// Retail's saved secondary-map selector, retained across the same seam.
+    saved_map_index_2: u16,
     scene: Option<SceneRunner>,
     scene_input: SceneInput,
     /// Interim MapDataManager: (map id, npc index) pairs despawned this
@@ -167,7 +172,12 @@ impl Runtime {
         // MapDataManager's walk is stateful: flag_clear writes land mid-walk
         // so later gates see them. Construction is shared with loaded saves;
         // the loaded snapshot must reach this point before map effects run.
-        save::construct_runtime(data, map_id, spawn, facing, step_frames, game, 0)
+        save::construct_runtime(
+            data,
+            save::RuntimePlacement::new(map_id, spawn, facing, step_frames, 0, 0),
+            game,
+            0,
+        )
     }
 
     /// Converts the pack's battle files and arms random encounters.

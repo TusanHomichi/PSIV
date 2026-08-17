@@ -57,6 +57,24 @@ fn character(
     equipment: [u8; 4],
 ) -> CharacterRecord {
     let (strength, mental, agility, dexterity) = stats;
+    let (techniques, skills, skill_uses) = match id {
+        0 => (
+            [24, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [31, 0, 0, 0, 0, 0, 0, 0],
+            [3, 0, 0, 0, 0, 0, 0, 0],
+        ),
+        1 => (
+            [1, 30, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [6, 0, 0, 0, 0, 0, 0, 0],
+            [5, 0, 0, 0, 0, 0, 0, 0],
+        ),
+        2 => (
+            [24, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [47, 0, 0, 0, 0, 0, 0, 0],
+            [5, 0, 0, 0, 0, 0, 0, 0],
+        ),
+        _ => ([0; 16], [0; 8], [0; 8]),
+    };
     CharacterRecord {
         id,
         name: name.into(),
@@ -73,6 +91,9 @@ fn character(
         dexterity,
         properties: chaz_properties(),
         equipment,
+        techniques,
+        skills,
+        skill_uses,
     }
 }
 

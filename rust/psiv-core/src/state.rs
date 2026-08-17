@@ -244,6 +244,57 @@ impl CharId {
 /// `$F40A..$F40E`, with `Char_ID_Mem_End` immediately after.
 pub const PARTY_SLOTS: usize = 5;
 
+/// Number of persisted macro records at `$F444`.
+pub const MACRO_COUNT: usize = 8;
+
+/// Number of four-byte commands in one persisted macro record.
+pub const MACRO_COMMANDS: usize = 5;
+
+/// Number of saved vehicle records at `$FA80`.
+pub const VEHICLE_COUNT: usize = 3;
+
+/// Size of one saved vehicle record.
+pub const VEHICLE_RECORD_BYTES: usize = 0x20;
+
+/// One four-byte command inside a retail macro record.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct MacroCommand {
+    /// Character id, the first byte.
+    pub character_id: u8,
+    /// Retail command index, the second byte.
+    pub command_index: u8,
+    /// Technique, skill or item id, the third byte.
+    pub ability_id: u8,
+    /// The fourth byte is currently unused/alignment in retail.
+    pub reserved: u8,
+}
+
+/// One 20-byte retail macro record: five four-byte commands.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct MacroRecord {
+    /// Commands in the order the battle macro interpreter reads them.
+    pub commands: [MacroCommand; MACRO_COMMANDS],
+}
+
+/// One 0x20-byte saved Land Rover, Ice Digger or Hydrofoil record.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct VehicleRecord {
+    /// `$00`, current vehicle HP.
+    pub current_hp: u16,
+    /// `$02`, maximum vehicle HP.
+    pub max_hp: u16,
+    /// `$04`, the vehicle's skill availability mask.
+    pub skill_mask: u8,
+    /// `$05`, not read by any saved-vehicle consumer in the disassembly.
+    pub reserved_05: u8,
+    /// Even bytes `$06..$14`: current uses for eight vehicle skills.
+    pub current_skill_uses: [u8; 8],
+    /// Odd bytes `$07..$15`: maximum uses for eight vehicle skills.
+    pub max_skill_uses: [u8; 8],
+    /// `$16..$1F`, not read by any saved-vehicle consumer in the disassembly.
+    pub reserved_tail: [u8; 10],
+}
+
 /// A plain-data copy of the whole state, for saving.
 ///
 /// Deliberately nothing but arrays and integers: another crate serialises it
@@ -287,6 +338,18 @@ pub struct StateSnapshot {
     pub party: [u8; PARTY_SLOTS],
     /// `Current_Money`.
     pub money: u32,
+    /// `Vehicle_Index`, `$F43C`.
+    pub vehicle_index: u16,
+    /// `Button_Mappings_Index`, `$F43E`.
+    pub button_mappings_index: u16,
+    /// `Message_Speed`, `$F440`.
+    pub message_speed: u16,
+    /// `Battle_Speed`, `$F442`.
+    pub battle_speed: u16,
+    /// `Macro_Data`, `$F444..$F4E4`.
+    pub macros: [MacroRecord; MACRO_COUNT],
+    /// `Saved_Vehicle_Stats`, `$FA80..$FB00`.
+    pub vehicles: [VehicleRecord; VEHICLE_COUNT],
 }
 
 /// The persistent state the event engine reads and writes.
@@ -318,6 +381,12 @@ pub struct GameState {
     roster: CharacterRoster,
     party: [u8; PARTY_SLOTS],
     money: u32,
+    vehicle_index: u16,
+    button_mappings_index: u16,
+    message_speed: u16,
+    battle_speed: u16,
+    macros: [MacroRecord; MACRO_COUNT],
+    vehicles: [VehicleRecord; VEHICLE_COUNT],
 }
 
 impl Default for GameState {
@@ -330,6 +399,13 @@ impl GameState {
     /// A fresh state: every flag clear, every party slot empty.
     #[must_use]
     pub fn new() -> GameState {
+        let mut macros = [MacroRecord::default(); MACRO_COUNT];
+        macros[0].commands[0] = MacroCommand {
+            character_id: 0,
+            command_index: 1,
+            ability_id: 0,
+            reserved: 0,
+        };
         GameState {
             event: vec![0; FlagBank::Event.bytes()],
             temp: vec![0; FlagBank::Temp.bytes()],
@@ -338,6 +414,40 @@ impl GameState {
             inventory: Inventory::new(),
             roster: CharacterRoster::new(),
             money: 0,
+            vehicle_index: 0,
+            button_mappings_index: 0,
+            message_speed: 2,
+            battle_speed: 2,
+            macros,
+            vehicles: [
+                VehicleRecord {
+                    current_hp: 0x02E4,
+                    max_hp: 0x02E4,
+                    skill_mask: 3,
+                    reserved_05: 0,
+                    current_skill_uses: [8, 8, 0, 0, 0, 0, 0, 0],
+                    max_skill_uses: [8, 8, 0, 0, 0, 0, 0, 0],
+                    reserved_tail: [0; 10],
+                },
+                VehicleRecord {
+                    current_hp: 0x03C0,
+                    max_hp: 0x03C0,
+                    skill_mask: 0x50,
+                    reserved_05: 0,
+                    current_skill_uses: [8, 4, 0, 0, 0, 0, 0, 0],
+                    max_skill_uses: [8, 4, 0, 0, 0, 0, 0, 0],
+                    reserved_tail: [0; 10],
+                },
+                VehicleRecord {
+                    current_hp: 0x02A8,
+                    max_hp: 0x02A8,
+                    skill_mask: 0x0C,
+                    reserved_05: 0,
+                    current_skill_uses: [8, 2, 0, 0, 0, 0, 0, 0],
+                    max_skill_uses: [8, 2, 0, 0, 0, 0, 0, 0],
+                    reserved_tail: [0; 10],
+                },
+            ],
         }
     }
 
@@ -388,6 +498,72 @@ impl GameState {
     /// The party's item list, mutably.
     pub const fn inventory_mut(&mut self) -> &mut Inventory {
         &mut self.inventory
+    }
+
+    /// The selected vehicle, `0` for on foot.
+    #[must_use]
+    pub const fn vehicle_index(&self) -> u16 {
+        self.vehicle_index
+    }
+
+    /// Sets the selected vehicle index.
+    pub const fn set_vehicle_index(&mut self, index: u16) {
+        self.vehicle_index = index;
+    }
+
+    /// The persisted button mapping selector.
+    #[must_use]
+    pub const fn button_mappings_index(&self) -> u16 {
+        self.button_mappings_index
+    }
+
+    /// Sets the persisted button mapping selector.
+    pub const fn set_button_mappings_index(&mut self, index: u16) {
+        self.button_mappings_index = index;
+    }
+
+    /// The persisted message speed setting.
+    #[must_use]
+    pub const fn message_speed(&self) -> u16 {
+        self.message_speed
+    }
+
+    /// Sets the persisted message speed setting.
+    pub const fn set_message_speed(&mut self, speed: u16) {
+        self.message_speed = speed;
+    }
+
+    /// The persisted battle speed setting.
+    #[must_use]
+    pub const fn battle_speed(&self) -> u16 {
+        self.battle_speed
+    }
+
+    /// Sets the persisted battle speed setting.
+    pub const fn set_battle_speed(&mut self, speed: u16) {
+        self.battle_speed = speed;
+    }
+
+    /// The eight persisted macro records.
+    #[must_use]
+    pub const fn macros(&self) -> &[MacroRecord; MACRO_COUNT] {
+        &self.macros
+    }
+
+    /// The eight persisted macro records, mutably.
+    pub const fn macros_mut(&mut self) -> &mut [MacroRecord; MACRO_COUNT] {
+        &mut self.macros
+    }
+
+    /// The three persisted vehicle records.
+    #[must_use]
+    pub const fn vehicles(&self) -> &[VehicleRecord; VEHICLE_COUNT] {
+        &self.vehicles
+    }
+
+    /// The three persisted vehicle records, mutably.
+    pub const fn vehicles_mut(&mut self) -> &mut [VehicleRecord; VEHICLE_COUNT] {
+        &mut self.vehicles
     }
 
     /// Opens `chest`, granting its contents and setting its flag.
@@ -648,6 +824,12 @@ impl GameState {
             town_flags: [0; 16],
             party: self.party,
             money: self.money,
+            vehicle_index: self.vehicle_index,
+            button_mappings_index: self.button_mappings_index,
+            message_speed: self.message_speed,
+            battle_speed: self.battle_speed,
+            macros: self.macros,
+            vehicles: self.vehicles,
         };
         snapshot.event_flags.copy_from_slice(&self.event);
         snapshot.temp_flags.copy_from_slice(&self.temp);
@@ -667,413 +849,16 @@ impl GameState {
             town: snapshot.town_flags.to_vec(),
             party: snapshot.party,
             money: snapshot.money,
+            vehicle_index: snapshot.vehicle_index,
+            button_mappings_index: snapshot.button_mappings_index,
+            message_speed: snapshot.message_speed,
+            battle_speed: snapshot.battle_speed,
+            macros: snapshot.macros,
+            vehicles: snapshot.vehicles,
         }
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn bit_order_is_most_significant_first() {
-        // The cartridge's `7 - (id & 7)`: flag 0 is bit 7 of byte 0.
-        let mut state = GameState::new();
-        state.set(Flag::event(0)).unwrap();
-        assert_eq!(state.snapshot().event_flags[0], 0b1000_0000);
-
-        let mut state = GameState::new();
-        state.set(Flag::event(7)).unwrap();
-        assert_eq!(state.snapshot().event_flags[0], 0b0000_0001);
-
-        let mut state = GameState::new();
-        state.set(Flag::event(8)).unwrap();
-        assert_eq!(state.snapshot().event_flags[1], 0b1000_0000);
-    }
-
-    #[test]
-    fn the_three_banks_are_independent() {
-        let mut state = GameState::new();
-        state.set(Flag::chest(8)).unwrap();
-        assert!(state.is_set(Flag::chest(8)));
-        assert!(state.is_clear(Flag::event(8)));
-        assert!(state.is_clear(Flag::town(8)));
-    }
-
-    #[test]
-    fn a_chest_flag_is_the_same_bit_as_the_extended_event_flag_above_it() {
-        // `$F120` is one bank with two name-spaces on it. The chest system
-        // reaches it through the same door as the extended event flags — three
-        // call sites, all `0x05762E`/`0x057670`, in the module docs.
-        assert_eq!(Flag::chest(0x18), Flag::event(0x118));
-        assert_eq!(Flag::chest(0).bank, FlagBank::Event);
-
-        let mut state = GameState::new();
-        state.set(Flag::chest(0x18)).unwrap();
-        assert!(
-            state.is_set(Flag::event(0x118)),
-            "opening a chest is visible as an extended event flag"
-        );
-
-        // And back, including the clear — story code reads these bits.
-        let mut state = GameState::new();
-        state.set(Flag::event(0x118)).unwrap();
-        assert!(state.is_set(Flag::chest(0x18)));
-        state.clear(Flag::chest(0x18)).unwrap();
-        assert!(state.is_clear(Flag::event(0x118)));
-    }
-
-    #[test]
-    fn a_temp_flag_is_independent_of_the_chest_flag_of_that_id() {
-        // The correction that cost the most: `$F140` is the temp bank, not the
-        // chest bank. An earlier revision aliased these and was wrong in both
-        // directions. Id 8 is `TempEveFlag_BioPlantAlarm` and
-        // `ChestFlag_Alshline`; they never touch.
-        let mut state = GameState::new();
-        state.set(Flag::temp(8)).unwrap();
-        assert!(state.is_clear(Flag::chest(8)), "different array");
-        assert!(
-            state.is_clear(Flag::event(8)),
-            "and not an event flag either"
-        );
-
-        state.set(Flag::chest(8)).unwrap();
-        assert!(state.is_set(Flag::temp(8)), "still set, untouched");
-
-        state.clear(Flag::chest(8)).unwrap();
-        assert!(state.is_set(Flag::temp(8)), "clearing one leaves the other");
-
-        assert_ne!(Flag::temp(0x13), Flag::chest(0x13));
-        assert_eq!(Flag::temp(8).bank, FlagBank::Temp);
-    }
-
-    #[test]
-    fn the_eleven_preloaded_chests_read_as_open_at_a_new_game() {
-        // The initialiser pre-sets eleven `$F120` bits, and every one is a real
-        // chest's flag. Nothing in the cartridge clears a `$F120` bit — the
-        // clear door's only caller is dead code — so these eleven chests are
-        // unlootable from the first frame and stay that way.
-        const PRELOADED: [u16; 11] = [
-            0x27, 0x28, 0x2A, 0x34, 0x38, 0x50, 0x5B, 0x5D, 0x6B, 0x78, 0xA7,
-        ];
-        let mut state = GameState::new();
-        for id in PRELOADED {
-            state.set(Flag::chest(id)).unwrap();
-        }
-        for id in PRELOADED {
-            assert!(state.is_set(Flag::chest(id)), "chest ${id:02X}");
-            // Each is equally an extended event flag, which is how the
-            // initialiser writes them.
-            assert!(state.is_set(Flag::event(0x100 + id)));
-            // And none of them touched the temp bank.
-            assert!(state.is_clear(Flag::temp(id)), "temp ${id:02X} untouched");
-        }
-    }
-
-    #[test]
-    fn the_banks_hold_what_the_ram_map_gives_them() {
-        // Four banks, not five. `$F140` runs to `$F160` where town starts, so
-        // it is 32 bytes rather than the clone's 22 + 10 split.
-        assert_eq!(FlagBank::Event.capacity(), 512, "$F100 + $F120");
-        assert_eq!(FlagBank::Temp.capacity(), 256, "$F140..$F160");
-        assert_eq!(FlagBank::Town.capacity(), 128, "$F160..$F170");
-
-        // The highest id each bank accepts, and the first it rejects.
-        let mut state = GameState::new();
-        assert!(state.set(Flag::chest(255)).is_ok());
-        assert!(matches!(
-            // Chest 256 would be event $200, past the event bank's end.
-            state.set(Flag::chest(256)),
-            Err(MapError::FlagOutOfRange { .. })
-        ));
-        assert!(state.set(Flag::temp(255)).is_ok());
-        assert!(matches!(
-            state.set(Flag::temp(256)),
-            Err(MapError::FlagOutOfRange { .. })
-        ));
-        assert!(state.set(Flag::event(511)).is_ok());
-        assert!(state.set(Flag::town(127)).is_ok());
-        assert!(matches!(
-            state.set(Flag::town(128)),
-            Err(MapError::FlagOutOfRange { .. })
-        ));
-    }
-
-    fn item_chest(flag: u8, item: u8) -> Chest {
-        Chest {
-            cell: crate::geom::Cell::new(4, 4),
-            flag,
-            contents: ChestContents::Item(item),
-            white: false,
-            index: 0,
-        }
-    }
-
-    #[test]
-    fn opening_a_chest_grants_the_item_and_sets_its_flag() {
-        let mut state = GameState::new();
-        let chest = item_chest(24, 0x7D);
-        assert!(!state.chest_is_open(&chest));
-
-        assert_eq!(
-            state.open_chest(&chest),
-            ChestOutcome::Took {
-                item: 0x7D,
-                slot: 0
-            }
-        );
-        assert_eq!(state.inventory().get(0), Some(0x7D));
-        assert!(state.chest_is_open(&chest), "the flag records it");
-    }
-
-    #[test]
-    fn a_chest_stays_open_and_cannot_be_looted_twice() {
-        // Re-entering the map rebuilds the chest from the same flag, so this is
-        // also what makes it draw open.
-        let mut state = GameState::new();
-        let chest = item_chest(24, 0x7D);
-        state.open_chest(&chest);
-
-        assert_eq!(state.open_chest(&chest), ChestOutcome::AlreadyOpen);
-        assert_eq!(state.inventory().occupied(), 1, "no second copy");
-        assert!(state.chest_is_open(&chest));
-    }
-
-    #[test]
-    fn a_meseta_chest_pays_in_hundreds() {
-        let mut state = GameState::new();
-        let chest = Chest {
-            contents: ChestContents::Meseta(400),
-            ..item_chest(25, 0)
-        };
-        assert_eq!(
-            state.open_chest(&chest),
-            ChestOutcome::Meseta { amount: 400 }
-        );
-        assert_eq!(state.money(), 400);
-        assert!(state.chest_is_open(&chest));
-        assert_eq!(state.inventory().occupied(), 0, "meseta takes no slot");
-    }
-
-    #[test]
-    fn a_full_inventory_leaves_the_chest_shut_until_the_swap() {
-        // The grant happens before the flag is set, so a chest that could not
-        // give up its contents is still closed and can be opened again later.
-        let mut state = GameState::new();
-        for id in 1..=40 {
-            state.inventory_mut().add(id).unwrap();
-        }
-        let chest = item_chest(24, 0x7D);
-
-        assert_eq!(state.open_chest(&chest), ChestOutcome::Full { item: 0x7D });
-        assert!(!state.chest_is_open(&chest), "still shut");
-        assert!(!state.inventory().contains(0x7D), "and nothing was granted");
-
-        // The player drops slot 7 and the open completes.
-        assert_eq!(
-            state.complete_chest_swap(&chest, 7).unwrap(),
-            ChestOutcome::Took {
-                item: 0x7D,
-                slot: 7
-            }
-        );
-        assert_eq!(state.inventory().get(7), Some(0x7D));
-        assert!(state.chest_is_open(&chest));
-    }
-
-    #[test]
-    fn every_story_gated_id_is_a_real_chests_flag() {
-        // The stronger of the two censuses, because it is behavioural rather
-        // than statistical: these are the *only* ids in the ROM that reach the
-        // `$F120` test door with a literal immediate, i.e. the only bits story
-        // code asks about by name. Every one is a treasure chest's flag, which
-        // is what makes "chest writes, story reads" the model rather than an
-        // accident of overlapping id spaces.
-        //
-        // Ids and chests from the pack's `treasure_chests` records; the call
-        // sites are the fifteen callers of `0x05762E`.
-        const STORY_GATED: [(u16, &str); 11] = [
-            (0x08, "TonoeBasement_B3 EclpsTorch"),
-            (0x09, "LadeaTower_F5 FradeMantl"),
-            (0x0A, "MachineCenter_B1 Canceller"),
-            (0x0B, "Zelan_F1 PalmaRing"),
-            (0x0C, "AirCastleInner_B1_Part3 AeroPrism"),
-            (0x0D, "SoldiersTemple RepairKit"),
-            (0xA1, "StrengthTower_F4 MotaRing"),
-            (0xA2, "StrengthTower_F4 DezoRing"),
-            (0xA3, "StrengthTower_F4 RykrRing"),
-            (0xA4, "CourageTower_F4 AlgoRing"),
-            (0xA5, "CourageTower_F4 MahlayRing"),
-        ];
-
-        let mut state = GameState::new();
-        for (id, chest) in STORY_GATED {
-            // The story test and the chest open are the same bit, so opening
-            // the chest is what satisfies the story gate.
-            state.set(Flag::chest(id)).unwrap();
-            assert!(state.is_set(Flag::event(0x100 + id)), "{chest}");
-            assert!(state.is_clear(Flag::temp(id)), "{chest}: not a temp flag");
-        }
-    }
-
-    #[test]
-    fn the_two_id_conventions_land_on_the_same_bit() {
-        // The off-by-$100 killer. The pack emits the preloaded set as combined
-        // ids (`0x127`), while a chest record names the same bit as `0x27`.
-        // Retail's `$F120` door takes the id **raw** — it has no
-        // `subi.w #$100, d0`, whatever the clone shows — so the caller owns the
-        // offset, and this is where getting it wrong would hide.
-        //
-        // Constructing from each convention must reach one byte and one bit.
-        for n in [0u16, 1, 7, 8, 0x27, 0x78, 0xA7, 0xFF] {
-            let from_chest = Flag::chest(n);
-            let from_combined = Flag::event(0x100 + n);
-            assert_eq!(from_chest, from_combined, "id ${n:02X}");
-
-            let mut a = GameState::new();
-            a.set(from_chest).unwrap();
-            let mut b = GameState::new();
-            b.set(from_combined).unwrap();
-            assert_eq!(
-                a.snapshot().event_flags,
-                b.snapshot().event_flags,
-                "id ${n:02X}: same byte, same bit"
-            );
-
-            // And the bit is where the cartridge's `bset 7-(id&7)` puts it,
-            // counted from `$F120` — byte 32 of the event array.
-            let byte = 32 + (n as usize >> 3);
-            let bit = 7 - (n & 7);
-            assert_eq!(
-                a.snapshot().event_flags[byte],
-                1u8 << bit,
-                "id ${n:02X} at $F1{:02X} bit {bit}",
-                0x20 + (n >> 3)
-            );
-        }
-
-        // A chest id must never reach the low half — that would be an event
-        // flag of the same number, which is a different bit entirely.
-        assert_ne!(Flag::chest(0x27), Flag::event(0x27));
-    }
-
-    #[test]
-    fn the_snapshot_carries_four_banks() {
-        // The save shape. `chest_flags` absorbed the old `temp_flags`, so a
-        // stored five-bank snapshot migrates by concatenating chest then temp.
-        let snapshot = GameState::new().snapshot();
-        assert_eq!(snapshot.event_flags.len(), 64);
-        assert_eq!(snapshot.temp_flags.len(), 32);
-        assert_eq!(snapshot.town_flags.len(), 16);
-        assert_eq!(snapshot.inventory.len(), 40, "$F410 to $F438");
-
-        // A chest flag lands in the event array's upper half — `$F120`.
-        let mut state = GameState::new();
-        state.set(Flag::chest(0)).unwrap();
-        assert_eq!(state.snapshot().event_flags[32], 0b1000_0000);
-
-        // A temp flag lands in its own array at `$F140`.
-        let mut state = GameState::new();
-        state.set(Flag::temp(0)).unwrap();
-        assert_eq!(state.snapshot().temp_flags[0], 0b1000_0000);
-
-        // And the bytes the clone called `Temp_Event_Flags` are the ones from
-        // `$F156` on — offset 22 into the temp array, not a bank of their own.
-        let mut state = GameState::new();
-        state.set(Flag::temp(22 * 8)).unwrap();
-        assert_eq!(state.snapshot().temp_flags[22], 0b1000_0000);
-    }
-
-    #[test]
-    fn the_event_bank_spans_the_extended_range() {
-        let mut state = GameState::new();
-        // $100 is the first extended id; the cartridge subtracts $100 and uses
-        // a second 32-byte array, which is contiguous with the first here.
-        state.set(Flag::event(0x100)).unwrap();
-        assert!(state.is_set(Flag::event(0x100)));
-        assert!(state.is_clear(Flag::event(0)));
-        assert_eq!(state.snapshot().event_flags[32], 0b1000_0000);
-    }
-
-    #[test]
-    fn ids_past_a_banks_capacity_are_rejected_and_read_clear() {
-        let mut state = GameState::new();
-        assert!(matches!(
-            state.set(Flag::town(128)),
-            Err(MapError::FlagOutOfRange { .. })
-        ));
-        assert!(state.is_clear(Flag::town(128)));
-        assert!(state.set(Flag::town(127)).is_ok());
-    }
-
-    #[test]
-    fn setting_and_clearing_round_trips() {
-        let mut state = GameState::new();
-        for id in 0..64 {
-            state.set(Flag::event(id)).unwrap();
-        }
-        for id in 0..64 {
-            assert!(state.is_set(Flag::event(id)), "flag {id}");
-        }
-        for id in (0..64).step_by(2) {
-            state.clear(Flag::event(id)).unwrap();
-        }
-        for id in 0..64 {
-            assert_eq!(state.is_set(Flag::event(id)), id % 2 == 1, "flag {id}");
-        }
-    }
-
-    #[test]
-    fn party_counts_to_the_first_empty_slot() {
-        let mut state = GameState::new();
-        assert_eq!(state.party_len(), 0);
-
-        state.set_party([
-            Some(CharId(1)),
-            Some(CharId(2)),
-            Some(CharId(3)),
-            None,
-            None,
-        ]);
-        assert_eq!(state.party_len(), 3);
-
-        // A hole truncates, exactly as `CalcPartyNumber` does.
-        state.set_party([Some(CharId(1)), None, Some(CharId(3)), None, None]);
-        assert_eq!(state.party_len(), 1);
-        assert_eq!(state.party_slot(2), Some(CharId(3)));
-    }
-
-    #[test]
-    fn the_alys_found_write_puts_alys_in_front() {
-        // Event_AlysFound writes (CharID_Alys << 8) | CharID_Chaz as a word to
-        // Current_Party_Slots: big-endian, so the high byte lands in slot 1.
-        const CHAZ: u8 = 0;
-        const ALYS: u8 = 1;
-        let word: u16 = (u16::from(ALYS) << 8) | u16::from(CHAZ);
-
-        let mut state = GameState::new();
-        state
-            .set_party_slot(0, Some(CharId((word >> 8) as u8)))
-            .unwrap();
-        state.set_party_slot(1, Some(CharId(word as u8))).unwrap();
-
-        assert_eq!(state.party_slot(0), Some(CharId(ALYS)), "Alys leads");
-        assert_eq!(state.party_slot(1), Some(CharId(CHAZ)));
-        assert_eq!(state.party_len(), 2);
-    }
-
-    #[test]
-    fn snapshots_round_trip() {
-        let mut state = GameState::new();
-        state.set(Flag::event(0x42)).unwrap();
-        state.set(Flag::chest(0x0D)).unwrap();
-        state.set(Flag::temp(0x1B)).unwrap();
-        state.set(Flag::town(3)).unwrap();
-        state.set_party([Some(CharId(1)), Some(CharId(0)), None, None, None]);
-        state.add_money(400);
-
-        let restored = GameState::from_snapshot(&state.snapshot());
-        assert_eq!(restored.money(), 400);
-        assert_eq!(restored, state);
-    }
-}
+#[path = "state_tests.rs"]
+mod tests;
