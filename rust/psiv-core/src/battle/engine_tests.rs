@@ -16,6 +16,7 @@ use crate::battle::records::{CharacterRecord, FormationRecord};
 use crate::battle::rewards::level_up;
 use crate::battle::rng::{Lcg41, Rng2, SliceRolls};
 use crate::battle::stats::status;
+use crate::state::VehicleRecord;
 
 fn id(n: u8) -> FighterId {
     FighterId::new(n).expect("a valid id")
@@ -719,6 +720,73 @@ fn an_unimplemented_ability_is_announced_rather_than_faked() {
 }
 
 #[test]
+fn a_vehicle_skill_consumes_a_use_without_faking_a_physical_attack() {
+    let data = fixtures::data();
+    let vehicle = crate::vehicle::battle_member(
+        1,
+        VehicleRecord {
+            current_hp: 500,
+            max_hp: 500,
+            skill_mask: 0x03,
+            current_skill_uses: [1, 0, 0, 0, 0, 0, 0, 0],
+            max_skill_uses: [1, 0, 0, 0, 0, 0, 0, 0],
+            ..VehicleRecord::default()
+        },
+    )
+    .expect("Land Rover battle member");
+    let mut setup_rolls = SliceRolls::new(&[20]);
+    let (mut battle, _) = Battle::start_vehicle(
+        &fixtures::formation_two_zoran_bults(),
+        vec![vehicle],
+        &data,
+        &mut setup_rolls,
+    )
+    .expect("vehicle battle starts");
+    let draws: Vec<u16> = std::iter::repeat_n(0u16, FIGHTER_SLOTS + ENEMY_SLOTS)
+        .chain(std::iter::repeat_n(30u16, 200))
+        .collect();
+    let mut rolls = SliceRolls::new(&draws);
+    let events = battle
+        .round(
+            &RoundOrders::Commands(vec![Command::VehicleSkill(1)]),
+            &data,
+            &mut rolls,
+        )
+        .expect("vehicle round resolves");
+
+    assert!(events.contains(&BattleEvent::VehicleSkillUsed {
+        actor: id(1),
+        skill: 1,
+        remaining: 0,
+    }));
+    assert!(
+        events.contains(&BattleEvent::VehicleSkillEffectUnavailable {
+            actor: id(1),
+            skill: 1,
+        })
+    );
+    assert!(
+        !events
+            .iter()
+            .any(|event| matches!(event, BattleEvent::Attacked { actor, .. } if *actor == id(1)))
+    );
+    assert!(
+        !events
+            .iter()
+            .any(|event| matches!(event, BattleEvent::Resolved { actor, .. } if *actor == id(1)))
+    );
+    assert_eq!(
+        battle
+            .party_stats()
+            .next()
+            .expect("vehicle stats")
+            .1
+            .curr_skill_uses[0],
+        0
+    );
+}
+
+#[test]
 fn a_formation_the_data_cannot_resolve_is_an_error_not_a_panic() {
     let data = BattleData::new();
     let mut rolls = SliceRolls::new(&[0]);
@@ -920,139 +988,10 @@ fn the_fields_the_field_carries_away_survive_a_battle() {
     assert!(!chaz.gain_exp_flag, "unchanged: the roster sets the flag");
 }
 
-#[test]
-fn a_wiped_party_comes_back_marked_dead_rather_than_missing() {
-    // The field needs to know who fell, so death is state on the record, not
-    // an absence from the handoff.
-    let data = fixtures::data();
-    let mut rolls = SliceRolls::new(&[20]);
-    let mut battle = start(
-        &fixtures::formation_two_zoran_bults(),
-        vec![member(&fixtures::hahn(), &data)],
-        &data,
-        &mut rolls,
-    );
-    battle.roster.get_mut(id(1)).expect("Hahn").stats.curr_hp = 1;
-
-    let mut seed = Lcg41::new(0x0BAD_0BAD);
-    let mut rolls = Rng2::with_surrogate(&mut seed, 13);
-    play_out(&mut battle, &RoundOrders::attack_all(), &data, &mut rolls);
-    assert_eq!(battle.outcome(), Some(Outcome::Defeat));
-
-    let party = battle.into_party();
-    assert_eq!(party.len(), 1, "still handed back");
-    assert_eq!(party[0].stats.status & status::DEAD, status::DEAD);
-    assert_eq!(party[0].stats.curr_hp, 0);
-    assert!(!party[0].stats.gain_exp_flag, "a wipe pays nothing");
-}
-
-#[test]
-fn nothing_transient_leaks_out_of_a_finished_battle() {
-    // A caller must not have to know which fields were battle-only. The
-    // `battle` copies still agree with their derived values, and a Defend that
-    // ran during the fight has been undone.
-    let data = fixtures::data();
-    let mut rolls = SliceRolls::new(&[20]);
-    let mut battle = start(
-        &fixtures::formation_two_zoran_bults(),
-        basement_party(&data),
-        &data,
-        &mut rolls,
-    );
-    for slot in [1u8, 2, 3, 6, 7] {
-        let fighter = battle.roster.get_mut(id(slot)).expect("present");
-        fighter.stats.curr_hp = 500;
-        fighter.stats.max_hp = 500;
-    }
-    // Everyone defends for a round, then the fight is played out normally.
-    let draws: Vec<u16> = std::iter::repeat_n(0u16, FIGHTER_SLOTS + ENEMY_SLOTS)
-        .chain(std::iter::repeat_n(30u16, 400))
-        .collect();
-    let mut rolls = SliceRolls::new(&draws);
-    battle
-        .round(
-            &RoundOrders::Commands(vec![Command::Defend, Command::Defend, Command::Defend]),
-            &data,
-            &mut rolls,
-        )
-        .expect("resolves");
-    let mut seed = Lcg41::new(0x3141_5926);
-    let mut rolls = Rng2::with_surrogate(&mut seed, 14);
-    play_out(&mut battle, &RoundOrders::attack_all(), &data, &mut rolls);
-
-    for member in battle.into_party() {
-        let stats = &member.stats;
-        assert_eq!(
-            stats.element_props[0], stats.physical_prop_save,
-            "character {}: a Defend was left in place",
-            member.character
-        );
-        assert_eq!(stats.attack.battle, stats.attack.derived);
-        assert_eq!(stats.defence.battle, stats.defence.derived);
-        assert_eq!(stats.strength.battle, stats.strength.modified);
-        assert_eq!(stats.agility.battle, stats.agility.modified);
-    }
-}
-
-#[test]
-fn party_stats_and_into_party_agree() {
-    let data = fixtures::data();
-    let mut rolls = SliceRolls::new(&[20]);
-    let mut battle = start(
-        &fixtures::formation_two_zoran_bults(),
-        basement_party(&data),
-        &data,
-        &mut rolls,
-    );
-    let mut seed = Lcg41::new(0x5A5A_5A5A);
-    let mut rolls = Rng2::with_surrogate(&mut seed, 15);
-    play_out(&mut battle, &RoundOrders::attack_all(), &data, &mut rolls);
-
-    let viewed: Vec<(u8, Stats)> = battle
-        .party_stats()
-        .map(|(id, stats)| (id, stats.clone()))
-        .collect();
-    let taken: Vec<(u8, Stats)> = battle
-        .into_party()
-        .into_iter()
-        .map(|m| (m.character, m.stats))
-        .collect();
-    assert_eq!(viewed, taken, "the borrow and the move see the same thing");
-}
-
-/// Sixteen draws whose masked values sum to `sum`.
-fn draws_for(sum: u16) -> Vec<u16> {
-    assert!(sum <= 112, "S maxes out at 112");
-    let mut out = vec![0u16; DAMAGE_DRAWS];
-    let mut left = sum;
-    for slot in &mut out {
-        let take = left.min(7);
-        *slot = take;
-        left -= take;
-    }
-    out
-}
-
-/// Every damage figure reachable for a stat pairing, over every possible sum of
-/// sixteen draws.
-///
-/// "Reachable" is the strongest claim available against the oracle once the
-/// H/V term is substituted: the exact stream is out of reach by design, so a
-/// logged number is checked against the set the formula can produce rather than
-/// against one particular roll.
-fn achievable(attack: u16, defence: u16, element: u16, bonus: u16) -> Vec<u16> {
-    let mut seen: Vec<u16> = (0..=112u16)
-        .map(|sum| {
-            let draws = draws_for(sum);
-            let mut rolls = SliceRolls::new(&draws);
-            clamp_damage(calculate_damage(
-                attack, defence, element, bonus, &mut rolls,
-            ))
-        })
-        .collect();
-    seen.dedup();
-    seen
-}
-
 #[path = "engine_tests_oracle.rs"]
 mod oracle;
+
+#[path = "engine_tests_tail.rs"]
+mod tail;
+
+use tail::achievable_impl as achievable;

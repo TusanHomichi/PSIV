@@ -11,7 +11,7 @@
 //! it drives is not.
 
 use super::{Opening, TextFlow};
-use psiv_data::{Ctrl, DialogueEntry, DialogueSet, FlagScope, PageEnd, Segment};
+use psiv_data::{ActionKind, Ctrl, DialogueEntry, DialogueSet, FlagScope, PageEnd, Segment};
 use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
@@ -115,9 +115,15 @@ fn pages(entry: &DialogueEntry) -> Vec<(Vec<String>, PageEnd)> {
     };
     let mut pages = Vec::new();
     while flow.is_open() {
+        while flow.take_pending_action().is_some() {
+            flow.resume_after_action();
+        }
         let mut guard = 0;
         while flow.is_holding() {
             flow.tick();
+            while flow.take_pending_action().is_some() {
+                flow.resume_after_action();
+            }
             guard += 1;
             assert!(guard < 1_000, "a delay that never ends");
         }
@@ -306,7 +312,7 @@ fn an_empty_entry_opens_no_window() {
 }
 
 #[test]
-fn an_action_is_logged_and_the_message_runs_on() {
+fn an_action_stops_at_its_retail_byte_position() {
     let entry = entry(vec![
         Segment::Control(Ctrl::Action {
             code: 0xF2,
@@ -320,9 +326,41 @@ fn an_action_is_logged_and_the_message_runs_on() {
         text("after the panel"),
     ]);
     let mut flow = open(&entry);
+    assert_eq!(flow.lines(), [""]);
+    assert!(flow.action_ready(0));
+    assert_eq!(
+        flow.take_pending_action(),
+        Some(super::DialogueAction::LoadPanel(387))
+    );
+    flow.resume_after_action();
     assert_eq!(flow.lines(), ["after the panel"]);
-    let log = flow.drain_log();
-    assert!(log.iter().any(|line| line.contains("387")), "{log:?}");
+}
+
+#[test]
+fn an_action_after_text_waits_for_the_typewriter() {
+    let entry = entry(vec![
+        text("before"),
+        Segment::Control(Ctrl::Action {
+            code: 0xF2,
+            operands: vec![0, 0x30],
+            action: ActionKind::LoadPanel,
+            action_id: 0,
+            sound: None,
+            panel: Some(0x30),
+            flag: None,
+        }),
+        text("after"),
+    ]);
+    let mut flow = open(&entry);
+    assert_eq!(flow.lines(), ["before"]);
+    assert!(!flow.action_ready(0));
+    assert!(flow.action_ready(6));
+    assert_eq!(
+        flow.take_pending_action(),
+        Some(super::DialogueAction::LoadPanel(0x30))
+    );
+    flow.resume_after_action();
+    assert_eq!(flow.lines(), ["beforeafter"]);
 }
 
 // ---------------------------------------------------------------------------

@@ -102,6 +102,14 @@ pub enum Command {
     AttackTarget(FighterId),
     /// Take physical resistance until the round ends.
     Defend,
+    /// Spend one saved vehicle skill use and resolve the turn.
+    ///
+    /// The skill effect itself remains a Tier-2 seam. The engine owns the
+    /// cartridge-visible part of the command: it validates the selected slot
+    /// against the mounted member's skill mask, decrements the current use
+    /// count, and emits an explicit effect-boundary marker. It never converts
+    /// a vehicle skill into a physical attack.
+    VehicleSkill(u8),
 }
 
 /// What the party chose from the main menu.
@@ -432,6 +440,38 @@ impl Battle {
                 }
                 Command::Attack => None,
                 Command::AttackTarget(target) => Some(target),
+                Command::VehicleSkill(skill) => {
+                    let valid = self.vehicle
+                        && skill
+                            .checked_sub(1)
+                            .and_then(|slot| {
+                                fighter
+                                    .stats
+                                    .skills
+                                    .get(slot as usize)
+                                    .zip(fighter.stats.curr_skill_uses.get(slot as usize))
+                            })
+                            .is_some_and(|(&known, &uses)| known == skill && uses > 0);
+                    if !valid {
+                        events.push(BattleEvent::VehicleSkillRejected { actor, skill });
+                        return Ok(());
+                    }
+
+                    let fighter = self.roster.get_mut(actor).expect("present");
+                    let slot = usize::from(skill - 1);
+                    fighter.stats.curr_skill_uses[slot] -= 1;
+                    events.push(BattleEvent::VehicleSkillUsed {
+                        actor,
+                        skill,
+                        remaining: fighter.stats.curr_skill_uses[slot],
+                    });
+                    // The full VehicleSkillData effect dispatcher is Tier 2.
+                    // Do not call resolve_attack: the UI-visible use decrement
+                    // is real, while fake physical damage would corrupt battle
+                    // parity and make the open effect seam invisible.
+                    events.push(BattleEvent::VehicleSkillEffectUnavailable { actor, skill });
+                    return Ok(());
+                }
             },
             Side::Enemy => {
                 self.roll_enemy_ability(actor, data, rolls, events)?;

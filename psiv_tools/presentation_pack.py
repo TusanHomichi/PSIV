@@ -48,9 +48,70 @@ PANEL_RECORD_SIZE = 0x1E
 SCREEN_WIDTH = 320
 SCREEN_HEIGHT = 224
 
-# These are the records used by the transcribed story scenes.  Keeping the
-# list explicit prevents accidentally treating unused ROM bytes as panels.
-PANEL_IDS = tuple(range(0x1A, 0x23)) + (0x25, 0x26, 0x33, 0x34, 0x3B, 0x3C)
+# Panel pointers are banked by the upper six bits of the word id.  Part 4 is
+# present in the retail pointer table but has no records referenced by the
+# extracted Grand Cross dialogue, so it is deliberately represented as None.
+PANEL_BANK_BASES: tuple[int | None, ...] = (
+    0x07B000,
+    0x09F940,
+    0x2B0000,
+    None,
+    0x2B9010,
+    0x2D6750,
+    0x2EECD0,
+)
+
+# The action census is an extracted-script authority, not a scan of nearby
+# ROM bytes.  Keep this additive list explicit so a missing panel cannot hide
+# behind a decoder default.  The source and the checked-in census must agree.
+DIALOGUE_ACTION_PANEL_IDS = (
+    0x000, 0x001, 0x002, 0x003, 0x004, 0x005, 0x006, 0x007,
+    0x008, 0x009, 0x00A, 0x00B, 0x00C, 0x00D, 0x00E, 0x00F,
+    0x010, 0x011, 0x012, 0x013, 0x014, 0x015, 0x016, 0x017,
+    0x018, 0x019, 0x023, 0x024, 0x027, 0x028, 0x029, 0x02A,
+    0x02B, 0x02C, 0x02D, 0x02E, 0x02F, 0x030, 0x031, 0x032,
+    0x035, 0x036, 0x037, 0x038, 0x039, 0x03A, 0x03D, 0x03E,
+    0x03F, 0x041, 0x043, 0x044, 0x045, 0x046, 0x047, 0x048,
+    0x049, 0x04B, 0x04C, 0x04D, 0x04E, 0x04F, 0x050, 0x053,
+    0x054, 0x055, 0x058, 0x059, 0x05C, 0x068, 0x06B, 0x06E,
+    0x06F, 0x071, 0x072, 0x077, 0x078, 0x079, 0x07B, 0x07F,
+    0x081, 0x082, 0x083, 0x084, 0x085, 0x089, 0x08A, 0x08C,
+    0x08D, 0x08F, 0x090, 0x091, 0x094, 0x095, 0x096, 0x097,
+    0x09A, 0x09C, 0x09D, 0x09F, 0x0A1, 0x0A2, 0x0A3, 0x0A6,
+    0x0A7, 0x100, 0x101, 0x102, 0x103, 0x104, 0x105, 0x106,
+    0x108, 0x109, 0x10B, 0x10C, 0x111, 0x112, 0x113, 0x114,
+    0x115, 0x117, 0x119, 0x11C, 0x11D, 0x11E, 0x11F, 0x120,
+    0x121, 0x122, 0x123, 0x124, 0x126, 0x127, 0x128, 0x12A,
+    0x137, 0x138, 0x13C, 0x141, 0x142, 0x143, 0x144, 0x145,
+    0x146, 0x15B, 0x15C, 0x15E, 0x172, 0x174, 0x176, 0x178,
+    0x17A, 0x17B, 0x17D, 0x17F, 0x180, 0x181, 0x183, 0x184,
+    0x185, 0x186, 0x18D,
+)
+
+# These are the records used by the transcribed story scenes plus every panel
+# referenced by a retail dialogue action.  Sorting makes the generated pack
+# and manifest deterministic.
+PANEL_IDS = tuple(sorted(set(
+    tuple(range(0x1A, 0x23))
+    + (0x25, 0x26, 0x33, 0x34, 0x3B, 0x3C)
+    + DIALOGUE_ACTION_PANEL_IDS
+)))
+
+
+def panel_record_offset(panel_id: int) -> int:
+    """Return the ROM offset for one word-sized retail panel id."""
+
+    if panel_id < 0:
+        raise ValueError(f"panel id cannot be negative: {panel_id}")
+    bank = panel_id >> 6
+    if bank >= len(PANEL_BANK_BASES):
+        raise ValueError(f"panel id 0x{panel_id:X} is outside the retail table")
+    base = PANEL_BANK_BASES[bank]
+    if base is None:
+        raise ValueError(
+            f"panel id 0x{panel_id:X} is in retail PanelData_Part4, which has no records"
+        )
+    return base + (panel_id & 0x3F) * PANEL_RECORD_SIZE
 
 OPENING_ART = 0x001C_F1F2
 OPENING_MAPPING = 0x001D_25BE
@@ -225,7 +286,7 @@ def _layer_pixels(
 
 
 def decode_panel(data: bytes, panel_id: int, out_dir: Path) -> dict[str, object]:
-    offset = ROM_PANEL_TABLE + panel_id * PANEL_RECORD_SIZE
+    offset = panel_record_offset(panel_id)
     record = data[offset:offset + PANEL_RECORD_SIZE]
     if len(record) != PANEL_RECORD_SIZE:
         raise ValueError(f"panel 0x{panel_id:02X} record runs past the ROM")
@@ -628,6 +689,15 @@ def emit_presentation(rom_bytes: bytes, out_dir: str | Path) -> dict[str, object
         "source_rom_sha256": hashlib.sha256(rom_bytes).hexdigest(),
         "record_table": f"0x{ROM_PANEL_TABLE:06X}",
         "record_size": PANEL_RECORD_SIZE,
+        "record_banks": [
+            {
+                "first_id": f"0x{bank * 0x40:03X}",
+                "last_id": f"0x{bank * 0x40 + 0x3F:03X}",
+                "record_table": f"0x{base:06X}",
+            }
+            for bank, base in enumerate(PANEL_BANK_BASES)
+            if base is not None
+        ],
         "screen": [SCREEN_WIDTH, SCREEN_HEIGHT],
         "opening_background": opening,
         "palettes": decode_palette_requests(rom_bytes),

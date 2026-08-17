@@ -111,7 +111,9 @@ def write_manifest(
             "vehicles": p.VEHICLE_SPRITES_NAME,
             "vehicles_sha256": vehicle_sha,
             "vehicle_sheet_count": len(vehicle_entries),
-            "vehicle_palette_source": "first selected map palette, CRAM line 3",
+            "vehicle_palette_source": (
+                "each selected map palette, CRAM line 3; base is first selected map"
+            ),
             "npc_placements": placed,
             "artless_objects": len(artless_objects),
             # `render_flags` bit 3 decides both the talk probe and object

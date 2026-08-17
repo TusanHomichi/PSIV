@@ -6,7 +6,12 @@ import unittest
 from pathlib import Path
 
 from psiv_tools.enigma import decompress as enigma_decompress
-from psiv_tools.presentation_pack import PANEL_RECORD_SIZE, ROM_PANEL_TABLE
+from psiv_tools.presentation_pack import (
+    DIALOGUE_ACTION_PANEL_IDS,
+    PANEL_IDS,
+    PANEL_RECORD_SIZE,
+    panel_record_offset,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -33,7 +38,9 @@ class PresentationPackTests(unittest.TestCase):
             0x3C: (15, 8, 10, 11),
         }
         records = {record["id"]: record for record in manifest["panels"]}
-        self.assertEqual(len(records), 15)
+        self.assertEqual(len(records), len(PANEL_IDS))
+        self.assertEqual(len(records), 178)
+        self.assertTrue(set(DIALOGUE_ACTION_PANEL_IDS) <= set(records))
         self.assertEqual(manifest["record_table"], "0x07B000")
         self.assertEqual(manifest["record_size"], PANEL_RECORD_SIZE)
 
@@ -52,7 +59,7 @@ class PresentationPackTests(unittest.TestCase):
             png = ROOT / "runtime-pack" / record["png"]
             self.assertTrue(png.is_file())
 
-            offset = ROM_PANEL_TABLE + panel_id * PANEL_RECORD_SIZE
+            offset = panel_record_offset(panel_id)
             raw = data[offset : offset + PANEL_RECORD_SIZE]
             art_a = _word(raw, 10)
             mapping_a = int.from_bytes(raw[16:20], "big")
@@ -105,7 +112,7 @@ class PresentationPackTests(unittest.TestCase):
         self.assertEqual(
             manifest["coverage"],
             {
-                "panel_records": 15,
+                "panel_records": 178,
                 "load_art_records": 7,
                 "temporary_object_keys": 6,
                 "generic_portraits": 1,

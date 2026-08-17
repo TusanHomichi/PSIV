@@ -166,6 +166,58 @@
       "source": "FieldObj_Step_Offset, constants:2239; 0=slow 1=normal 2=fast"
     },
     {
+      "name": "vehicle_index",
+      "addr": "FFFFF43C",
+      "size": 2,
+      "group": "vehicle",
+      "hex": true,
+      "source": "Vehicle_Index, constants:2385; 0=foot 1=Land Rover 2=Ice Digger 3=Hydrofoil"
+    },
+    {
+      "name": "vehicle_boarding_flags",
+      "addr": "FFFFEC7F",
+      "size": 1,
+      "group": "vehicle",
+      "hex": true,
+      "source": "Vehicle_Boarding_Flags, constants:2179; bits 0..2 board Land Rover/Ice Digger/Hydrofoil"
+    },
+    {
+      "name": "vehicle_land_hp",
+      "addr": "FFFFFA80",
+      "size": 2,
+      "group": "vehicle",
+      "source": "Saved_Vehicle_Stats, constants:2412 + current HP offset 0"
+    },
+    {
+      "name": "vehicle_land_max_hp",
+      "addr": "FFFFFA82",
+      "size": 2,
+      "group": "vehicle",
+      "source": "Saved_Vehicle_Stats, constants:2412 + max HP offset 2"
+    },
+    {
+      "name": "vehicle_land_skill_mask",
+      "addr": "FFFFFA84",
+      "size": 1,
+      "group": "vehicle",
+      "hex": true,
+      "source": "Saved_Vehicle_Stats, constants:2412 + skill mask offset 4"
+    },
+    {
+      "name": "vehicle_land_skill1_current",
+      "addr": "FFFFFA86",
+      "size": 1,
+      "group": "vehicle",
+      "source": "Saved_Vehicle_Stats, constants:2412 + skill 1 current-use offset 6"
+    },
+    {
+      "name": "vehicle_land_skill1_max",
+      "addr": "FFFFFA87",
+      "size": 1,
+      "group": "vehicle",
+      "source": "Saved_Vehicle_Stats, constants:2412 + skill 1 max-use offset 7"
+    },
+    {
       "name": "joy_held",
       "addr": "FFFFEF02",
       "size": 1,

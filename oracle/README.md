@@ -217,6 +217,82 @@ side of the clone RMSE pair, not clone screenshots. In the final replay,
 `frame_7250.png` hashed to
 `d8fc26ae6987e416ee75c02cd10ea4975e9be22485b8feeda84161aa489888c9`.
 
+### Vehicle tape 29
+
+Tape 29 uses the same fixture discipline for the mounted field and battle
+surface. The first patch starts the normal Motavia map loader and sets
+`EventFlag_PrincipalConfession` (`$FFFFF101:08`) so the retail
+`RunEvent_ReenterPiata` startup branch does not immediately redirect the test.
+The map loader settles normally. At frame 7200 the fixture then installs the
+Land Rover selector and object state at a clear Motavia anchor. At frame 7605
+it moves that anchor over raw standing collision `9`, producing the real retail
+`Cannot get off!` window. At frame 7830 the fixture enters the common
+`FieldRoutine_Battle` path while the selector is still mounted; that last write
+is an entry-surface probe, not a claim that a natural random encounter happened
+at that exact frame.
+
+```sh
+oracle/bin/psiv_oracle \
+    --core oracle/core/genesis_plus_gx_libretro.so \
+    --rom  "Phantasy Star IV (USA).md" \
+    --map  oracle/ram_map.tsv \
+    --tape oracle/tapes/29_vehicle_land_rover_probe.tape \
+    --groups core,pos,collision,vehicle,battle \
+    --out /tmp/vehicle29-mounted-battle.csv \
+    --ram-patch 7000:FFFFEC28:0000 \
+    --ram-patch 7000:FFFFEC2A:FFFF \
+    --ram-patch 7000:FFFFEF00:0008 \
+    --ram-patch 7000:FFFFF400:0000 \
+    --ram-patch 7000:FFFFECA8:FFFF \
+    --ram-patch 7000:FFFFF101:08 \
+    --ram-patch 7000:FFFFEC44:0000 \
+    --ram-patch 7000:FFFFEC46:0000 \
+    --ram-patch 7000:FFFFEC48:0124 \
+    --ram-patch 7000:FFFFEC4A:0040 \
+    --ram-patch 7200:FFFFEC20:0000 \
+    --ram-patch 7200:FFFFF43C:0001 \
+    --ram-patch 7200:FFFFC000:00B0 \
+    --ram-patch 7200:FFFFC030:0920 \
+    --ram-patch 7200:FFFFC032:0000 \
+    --ram-patch 7200:FFFFC034:0200 \
+    --ram-patch 7200:FFFFC036:0000 \
+    --ram-patch 7200:FFFFC038:0920 \
+    --ram-patch 7200:FFFFC03A:0200 \
+    --ram-patch 7605:FFFFC030:0940 \
+    --ram-patch 7605:FFFFC034:0480 \
+    --ram-patch 7605:FFFFC038:0940 \
+    --ram-patch 7605:FFFFC03A:0480 \
+    --ram-patch 7830:FFFFEC20:0014 \
+    --dump-frames 7605,7726,7830,7900 \
+    --dump-frames-dir /tmp/psiv-vehicle29-oracle
+```
+
+The pinned replay produced the following state and video receipts:
+
+| frame | receipt |
+|---:|---|
+| `7200` | `Vehicle_Index=1`, position `(2336,512)`, standing collision `0` |
+| `7201` | right input advances four pixels, confirming 4 px/frame and an eight-frame 32-pixel step |
+| `7300` | the vehicle remains at the solid boundary rather than crossing it |
+| `7605` | standing collision is raw `9`; the selector remains mounted |
+| `7726` | retail PNG visibly reads `Cannot get off!` |
+| `7830` | `Game_Mode_Routine=14` while `Vehicle_Index=1` |
+| `7850` | battle game mode is active with the mounted vehicle fighter |
+| `7900` | battle routine has initialized three enemies while the vehicle remains selected |
+
+The dumped PNG SHA-256 values from the final replay are:
+
+```text
+frame_7605.png  2cb50dd71b656517e1f424fe3a497ad429f06f9a504018079ac86fc199fcbc61
+frame_7726.png  72928413566ced72c3bcfe626d55ada7e34c228e9feb0a61843045f04025e84
+frame_7830.png  498ce5848d85c752bae7ead67d022079044dc355ef8bc429eb1c5de3dd866e9f
+frame_7900.png  bc52c0c9edd58cefa3c17816ed999c5547513595e95883f4f07ee1a9bab483cb
+```
+
+A replay with the frame-7605 bad-terrain patches omitted dismounts by frame
+8125. That is the success-side check for the same retail `Event_GettingOffVehicle`
+path; the refusal and success cases are not inferred from the clone.
+
 ## Tape format
 
 Line-oriented, one step per line:
@@ -325,6 +401,7 @@ both paths against values the cartridge itself chose (see `RESULTS.md`).
 | `20_chest_round_trip.tape` | re-pressing an opened chest, and whether it is still open after leaving and returning |
 | `21_second_chest.tape` | a second chest id, which is what pins the flag bank's bit arithmetic |
 | `28_meeting_rika_retail_probe.tape` | power-on schedule plus explicit RAM patches for deterministic MeetingRika video frames |
+| `29_vehicle_land_rover_probe.tape` | retail field boot plus a documented Land Rover movement, dismount-refusal and mounted-battle fixture |
 
 `prelude_basement.tape` is a generated intermediate (`navigate.py` output) that
 both battle tapes are built from; `find_battle.py` consumes it.

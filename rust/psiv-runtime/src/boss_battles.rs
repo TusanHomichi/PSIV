@@ -54,8 +54,16 @@ impl Runtime {
             ));
         }
         let mut rng2 = Rng2::with_surrogate(&mut self.rng, self.frames);
-        let (battle, events) = Battle::start(record, party, &set.data, true, &mut rng2)
-            .map_err(|e| BridgeError::Rejected(e.to_string()))?;
+        let (battle, events) = if self.vehicle.is_some() {
+            // `RunEventBattle` falls into the same battle setup as a random
+            // encounter. `Vehicle_Index` is the discriminator: it replaces
+            // the party with the saved vehicle fighter even when the scene
+            // supplied Event_Battle_Index for its formation/background.
+            Battle::start_vehicle(record, party, &set.data, &mut rng2)
+        } else {
+            Battle::start(record, party, &set.data, true, &mut rng2)
+        }
+        .map_err(|e| BridgeError::Rejected(e.to_string()))?;
         self.battle = Some(battle);
         self.scene_battle = Some(index);
         Ok(BattleTimeline {

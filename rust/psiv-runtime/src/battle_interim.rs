@@ -159,6 +159,7 @@ fn battle_animation_events(
                 frame_count: sequence.map(|sequence| sequence.frame_count),
                 total_frames: sequence.map(|sequence| sequence.total_frames),
                 movement_proven: animation.movement_proven,
+                sprite_sheet_proven: animation.sprite_sheet_proven,
                 flash_timing_proven: animation.flash_timing_proven,
             })
         })

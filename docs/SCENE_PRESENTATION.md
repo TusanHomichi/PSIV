@@ -17,7 +17,7 @@ The ordering contract is covered by
 |---|---|---|
 | `InitVramAndCram` | Implemented | Clears staged/visible scene planes and opening text. |
 | `FadeIn`, `FadeOut` | Implemented | Seven CRAM-equivalent levels, two-frame stepping, 14 renderer ticks; the cover is above cutscene planes and below dialogue. |
-| `Panel_Create`, `Panel_Destroy`, `Panel_DestroyAll` | Implemented for the extracted scene-panel set | Retail records are decoded from `$07B000`; Meeting Rika's `$33/$34/$3B/$3C` panels are live, destroy is stack-pop, and an id mismatch warns. Later post-Rika panel ids remain an explicit pack gap. |
+| `Panel_Create`, `Panel_Destroy`, `Panel_DestroyAll` | Implemented for scene ops and dialogue `$F2` actions | Retail panel records are decoded from all non-empty banked `PanelPtrs` ranges. Scene ids remain compatible with the typed scene stream; dialogue word ids include `$30` and the other 162 action-referenced records. Destroy is stack-pop, and an id mismatch warns. |
 | `DmaPlanes` | Implemented | Staged panels become visible only at the DMA event. |
 | `LoadPalette` | Implemented | Decoded word records are loaded and length-checked from `presentation/panels.json`. Pixel assets bake their retail palette for Godot's texture path. |
 | `LoadArt` | Implemented for all 7 decoded scene writes | `presentation/load_art/` carries each Nemesis payload, source address, destination tile, map context, consumed/decompressed size, and hash. The four object-consuming writes also feed the temporary-object sheets. |
@@ -27,6 +27,7 @@ The ordering contract is covered by
 | `SetRenderSpritesInCutscene` | Implemented | Gates party, follower, and map NPC visibility while a scene is active. |
 | `ObjectAnimation`, `SetObjectDestination` | Implemented for map sprites and the 6 standalone object keys | MeetingRika's two Rika keys (`$18/$26A`, `$18/$55C`) use the raw field-art source at `$292D00`; Holt, RuneFlaeli, Igglanova, and the chest splinter use their decoded `LoadArt` payloads. Sheets are gated until the matching art upload is consumed and are rendered at the scene destination. |
 | `PlaySound` | Implemented | Routes through the live `AudioOutput`/`SoundMachine` path, separate from battle SFX dispatch. |
+| dialogue `Ctrl::Action` | Implemented | `TextFlow` stops at the retail byte position; `DialogueWindow` releases the action after the preceding glyphs, and `Field` routes panels, sounds, palette effects, and flags through the existing seams. See [`DIALOGUE_ACTIONS.md`](DIALOGUE_ACTIONS.md). |
 | `SetSavedMusic` | Implemented | Stores the retail one-byte restore word; zero clears it. Scene end, battle close, and non-scene map reload consume it and replay the sound through `AudioOutput`. |
 | `WaitFrames` | Implemented | Runtime owns the blocking count; Godot records the op and does not create a second timer. |
 | `PresentationOp::RebuildSprites` / `ReloadMapChunks` | Implemented | Rebuilds map visuals at the ordered event. |
@@ -39,7 +40,9 @@ The rebuilt pack reports this exact census in
 
 | Surface | Count | Result |
 |---|---:|---|
-| scene panels | 15 | exact decoded panel records |
+| scene-owned panel records | 15 | exact decoded scene records |
+| dialogue action panel records | 163 | every distinct `$F2 LoadPanel` id, including `$30` |
+| total panel records | 178 | all PNGs present in the runtime manifest |
 | `LoadArt` writes | 7 | all payloads rendered to preview PNGs |
 | standalone temporary-object keys | 6 | 5 exact sheets; chest splinter preserves 66 named transparent VRAM pattern holes |
 | generic portraits | 1 | exact 48x48 `shopkeeper_2` sheet |
@@ -60,7 +63,8 @@ power-on-to-first-control schedule for `Event_GameStart ($9F)`. Its captures
 are in `oracle/frames/opening/`; the frame-4000 state is
 `oracle/states/opening/frame_4000.json`.
 
-The pack decoder asserts all 15 scene-panel records, all 7 `LoadArt` source /
+The pack decoder asserts all 178 panel records (15 scene-owned plus 163
+dialogue-action records), all 7 `LoadArt` source /
 destination pairs, the 6 temporary-object keys, the generic portrait's art /
 mapping / tile contract, both Enigma planes for each panel, their retail
 coordinates, and the opening image addresses in
@@ -77,21 +81,30 @@ The capture command, once a display backend is available, is deliberately
 boring and explicit:
 
 ```sh
-PSIV_DEBUG_EVENT=0x9f \
-PSIV_DEBUG_AUTOCLOSE_SCENE=1 \
-PSIV_DEBUG_RETAIL_PACE=1 \
-PSIV_DEBUG_SHOT=/tmp/psiv-opening-retail.png \
-PSIV_DEBUG_SHOT_FRAME=<clone-tick> \
-godot --path godot --quit-after <clone-tick-plus-one>
+xvfb-run -a env \
+  PSIV_DEBUG_EVENT=0x9f \
+  PSIV_DEBUG_AUTOCLOSE_SCENE=1 \
+  PSIV_DEBUG_RETAIL_PACE=1 \
+  PSIV_DEBUG_SHOT=/tmp/psiv-opening-retail.png \
+  PSIV_DEBUG_SHOT_FRAME=<clone-tick> \
+  /home/peter/.local/bin/psiv-godot-4.7.1 \
+  --display-driver x11 --audio-driver Dummy \
+  --log-file /tmp/psiv-opening-retail-godot.log \
+  --path godot --quit-after <clone-tick-plus-one>
 python3 psiv_tools/presentation_rmse.py \
   /tmp/psiv-opening-retail.png oracle/frames/opening/frame_4000.png
 
-PSIV_DEBUG_EVENT=0x8007 \
-PSIV_DEBUG_AUTOCLOSE_SCENE=1 \
-PSIV_DEBUG_RETAIL_PACE=1 \
-PSIV_DEBUG_SHOT=/tmp/psiv-meeting-rika-retail.png \
-PSIV_DEBUG_SHOT_FRAME=<clone-tick> \
-godot --path godot --quit-after <clone-tick-plus-one>
+xvfb-run -a env \
+  PSIV_DEBUG_EVENT=0x8007 \
+  PSIV_DEBUG_AUTOCLOSE_SCENE=1 \
+  PSIV_DEBUG_RETAIL_PACE=1 \
+  PSIV_DEBUG_SCENE_TICKS=1 \
+  PSIV_DEBUG_SHOT=/tmp/psiv-meeting-rika-retail.png \
+  PSIV_DEBUG_SHOT_FRAME=<clone-tick> \
+  /home/peter/.local/bin/psiv-godot-4.7.1 \
+  --display-driver x11 --audio-driver Dummy \
+  --log-file /tmp/psiv-meeting-rika-retail-godot.log \
+  --path godot --quit-after <clone-tick-plus-one>
 python3 psiv_tools/presentation_rmse.py \
   /tmp/psiv-meeting-rika-retail.png \
   /tmp/psiv-meeting-rika-oracle/frame_7250.png
@@ -114,14 +127,14 @@ the retail 3-frame-per-character typewriter and holds a completed page for
 and the clone's fixed debug shot tick, the pair is deterministic and the
 offset is recorded rather than guessed.
 
-**Certified retail-paced pairs (integration, 2026-08-16, Xvfb captures):**
+**Existing opening reference pairs (integration, 2026-08-16):**
 
 | Pair | Clone tick | Oracle frame | RMSE |
 |---|---:|---:|---:|
 | Opening narration page 1 | 3450 | `opening/frame_4000.png` | **6.586813** |
 | Opening narration page 2 | 4440 | `opening/frame_5200.png` (= 5600) | **6.578011** |
 
-Both captures land inside a settled 900-frame hold, where every frame is
+Those historical captures land inside a settled 900-frame hold, where every frame is
 pixel-identical, so hold-window pairing is exact by construction. The
 clone timeline (holds at t3000–3900 and t3990–4890) is printed by
 `PSIV_DEBUG_SCENE_TICKS=1`, added for exactly this pairing work. The shared
@@ -145,22 +158,78 @@ the real session receives real input, and the typewriter's hold-to-
 accelerate makes the timeline input-dependent, which showed up as
 run-to-run timeline shifts until isolated.
 
-The MeetingRika pair remains **uncertified and blocked**: oracle frame 7250's
-professor/Rika picture is drawn by the dialogue's own `Ctrl::Action`
-`LoadPanel` (panel `$30`), and dialogue-embedded actions are not wired —
-`Ctrl::Action` is skipped with a log across the whole dialogue system, and
-panel `$30` is outside the extracted 15-record set. That wiring (actions:
-sounds, panels, flags) is a scoped follow-up lane, not a capture problem.
+The MeetingRika blocker that motivated this slice is fixed in code and pack:
+oracle frame 7250's professor/Rika picture is dialogue `Ctrl::Action`
+`LoadPanel` panel `$30`, and `$30` is now decoded and dispatched through the
+cutscene panel stack. The oracle command from `oracle/README.md` was run on
+2026-08-16; frame 7250 has SHA-256
+`d8fc26ae6987e416ee75c02cd10ea4975e9be22485b8feeda84161aa489888c9`.
+The clone capture ran at integration (2026-08-17, Xvfb). The settled Chaz
+page — fully typed `Professor! / Thank goodness you're safe!`, panel up,
+field blanked — is clone tick 162–164; the measured RMSE against oracle
+frame 7250 is **59.4**, and a diagnostic 1-pixel shift probe drops it to
+**37.9**, with columns 96–128 and 288–320 matching exactly. Getting there
+fixed three real defects (recorded below), and what remains is a bounded,
+diagnosed question rather than a capture gap: the oracle's plane-drawn
+content (panel, portrait) sits ≈1–2 pixels right/down of the clone's
+screen-space placement while the dialogue window itself aligns — the
+signature of retail's plane-scroll residue with a split-scrolled window
+region. Closing it needs the scroll columns decoded from the oracle state
+dump at 7250 (`--dump-state` emits plane/CRAM/sprite buffers today; the
+scroll buffers need a decode_layout addition). Filed as the follow-up; the
+number above is real and unfudged.
+
+Integration-time defects fixed while certifying (2026-08-17):
+
+* Retail dialogue during scenes now plays over the blanked field:
+  `InitVramAndCram` hides the map layers until the scene's own map redraw
+  restores them (the oracle shows panels over black; the opening's first
+  dialogue precedes its `LoadMap`).
+* The retail-pace hold gated on the flow's page end, which the flow reaches
+  before the typewriter reveals the glyphs — the auto-advance spam added
+  accelerated frames and corrupted the cadence. The gate now requires the
+  page fully revealed and the open animation finished.
+* The dialogue window anchored to the viewport bottom, drifting ≈21 pixels
+  low whenever the viewport is taller than the 3x surface; it now anchors
+  to the centred 320x224 retail surface, the same rule as the panel layer.
+
+**MeetingRika capture command for integration:**
+
+```sh
+GODOT=/home/peter/.local/bin/psiv-godot-4.7.1
+xvfb-run -a env \
+  PSIV_DEBUG_EVENT=0x8007 \
+  PSIV_DEBUG_AUTOCLOSE_SCENE=1 \
+  PSIV_DEBUG_RETAIL_PACE=1 \
+  PSIV_DEBUG_SCENE_TICKS=1 \
+  PSIV_DEBUG_SHOT=/tmp/psiv-meeting-rika-retail.png \
+  PSIV_DEBUG_SHOT_FRAME=<settled-clone-tick> \
+  "$GODOT" --display-driver x11 --audio-driver Dummy \
+  --log-file /tmp/psiv-meeting-rika-retail-godot.log \
+  --path godot --quit-after <settled-clone-tick-plus-one> \
+  > /tmp/psiv-meeting-rika-retail.log 2>&1
+python3 psiv_tools/presentation_rmse.py \
+  /tmp/psiv-meeting-rika-retail.png \
+  /tmp/psiv-meeting-rika-oracle/frame_7250.png
+```
+
+Choose `<settled-clone-tick>` from the same run's scene-tick log after the
+`LoadPanel(0x030)` action and its DMA commit; rerun with that concrete tick to
+produce the certified pair. The oracle frame 7250 and frame 7300 are identical,
+so a clone settled window is valid when the log proves it is inside the same
+post-action hold.
 
 ## Runtime evidence
 
-The rebuilt opening harness (`PSIV_DEBUG_EVENT=0x9f`, 7,000 frames) completed
-in `/tmp/psiv-opening-final.log`: it traversed the scene, emitted the 64-word
+The historical live opening harness (`PSIV_DEBUG_EVENT=0x9f`, 7,000 frames)
+completed in `/tmp/psiv-opening-final.log`: it traversed the scene, emitted the 64-word
 palette load, both 900-frame holds and 90/120-frame pauses, then logged
 `scene ended` followed by `scene restored saved music: 0x84`.
 
-The rebuilt Meeting Rika harness (`PSIV_DEBUG_EVENT=0x8007`, 4,500 frames) is
-in `/tmp/psiv-meeting-rika-audio-final.log`. It reached the final Motavia handoff and
+The historical live Meeting Rika smoke harness (`PSIV_DEBUG_EVENT=0x8007`,
+4,500 frames) is in `/tmp/psiv-meeting-rika-audio-final.log`. It used the old
+`(1,1)` debug spawn and is not a retail-paced or Xvfb certification. It reached
+the final Motavia handoff and
 logged scene sounds `$91/$FB/$F8/$FD/$FE/$AD/$8C`, the saved-music write `$91`
 and `$8C`, the two temporary-object constructions, the palette-word write,
 Rika's party/macro path, `scene ended`, and `scene restored saved music: 0x8C`.
@@ -200,12 +269,15 @@ All three are evaluation switches and are never used by normal play.
 
 ## Remaining deferrals
 
-- **Exact-frame RMSE certification:** blocked only by the unavailable live/Xvfb
-  display in this environment; the implementation and oracle fixture are in
-  place, but two PNG comparisons are not certified without actual rendered
-  clone frames.
+- **MeetingRika sub-cell alignment:** the measured pair (clone t162 vs
+  oracle 7250) stands at RMSE 59.4 with a diagnosed ≈1–2 pixel plane-scroll
+  offset on panel/portrait content (window aligned). Decode the oracle's
+  scroll columns at frame 7250 and make panel placement scroll-aware to
+  close it.
 - **Chest splinter's 66 unmapped patterns:** retained as transparent holes
   because the retail scene mapping consumes VRAM left by another runtime load;
   no source-of-truth pixels for those slots were found in the declared upload.
-- **Later bespoke scene panel ids:** the post-Rika panel records outside the
-  extracted 15-record set remain an explicit pack gap, as before.
+- **Palette-baked raster limit:** `UpdatePalette` and the three bespoke red
+  effects use the decoded cutscene-layer redraw/overlay seam. A future CRAM
+  renderer can replace that shell effect without changing the dialogue action
+  timing or dispatch contract.

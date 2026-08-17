@@ -148,6 +148,11 @@ CHARACTER_PNG_DIRECTORY = f"{ART_DIRECTORY}/characters"
 # Public pack names for the additive dynamic-tile extension.
 ENEMY_OVERLAY_PNG_DIRECTORY = OVERLAY_ART_DIRECTORY
 ENEMY_OVERLAY_ART_NAME = OVERLAY_ART_NAME
+# Attack-object frames are emitted by the animation scout because their
+# mapping records and movement provenance live there.  They sit beside the
+# body and dynamic replacement indices in the same battle-art namespace.
+ENEMY_ATTACK_ART_DIRECTORY = "battle/art/enemy_attacks"
+ENEMY_ATTACK_ART_NAME = "battle/art/enemy_attacks.json"
 
 #: CRAM index 0 is the backdrop in every line, so it is transparent rather than
 #: a colour, and the entry the PNG carries for it is never drawn.
@@ -619,6 +624,17 @@ def background_selection(rom: bytes) -> dict[str, Any]:
             ),
             "indexes": mota,
         },
+        "vehicle_mounted": {
+            "selector": "Vehicle_Index != 0",
+            "event_battle": "event_battle remains first when a scene supplies Event_Battle_Index",
+            "mapped_planets": "Battle_BackgroundIndexes[Field_Map_Index]",
+            "motavia": "MotaBattleBGIndexes[raw_chunk] when Field_Map_Index is 0",
+            "debug_unmapped_fallback": (
+                "use the Motavia chunk table only when a mounted debug map has "
+                "no field-map background entry"
+            ),
+            "source": "Battle_SetupBackground and GetMotaBattleBGIndex",
+        },
         "dark_force_2_swap": {
             "from": DARK_FORCE_2_SWAP[0],
             "to": DARK_FORCE_2_SWAP[1],
@@ -762,13 +778,17 @@ def build_backgrounds(rom: bytes, directory: Path) -> tuple[dict[str, Any], int]
 # ---------------------------------------------------------------------------
 def emit_battle_art(rom: bytes, out_dir: str | Path, version: int) -> dict[str, Any]:
     """Write `battle/art/` and return the `art` subtree of the battle manifest."""
+    from .battle_animations import emit_enemy_attack_art
+
     directory = Path(out_dir)
     enemies, enemy_bytes = build_enemies(rom, directory)
     overlays, overlay_bytes, overlay_png_count = emit_enemy_overlays(rom, directory)
+    attacks, attack_bytes, attack_png_count = emit_enemy_attack_art(rom, directory)
     characters, character_bytes = build_characters(rom, directory)
     backgrounds, background_bytes = build_backgrounds(rom, directory)
     enemy_sha = _write(directory, ENEMY_ART_NAME, enemies, version)
     overlay_sha = _write(directory, ENEMY_OVERLAY_ART_NAME, overlays, version)
+    attack_sha = _write(directory, ENEMY_ATTACK_ART_NAME, attacks, version)
     character_sha = _write(directory, CHARACTER_ART_NAME, characters, version)
     background_sha = _write(directory, BACKGROUND_ART_NAME, backgrounds, version)
 
@@ -814,6 +834,14 @@ def emit_battle_art(rom: bytes, out_dir: str | Path, version: int) -> dict[str, 
                 "png_count": overlay_png_count,
                 "png_bytes": overlay_bytes,
             },
+            "enemy_attacks": {
+                "file": ENEMY_ATTACK_ART_NAME,
+                "sha256": attack_sha,
+                "count": attacks["count"],
+                "png_directory": ENEMY_ATTACK_ART_DIRECTORY,
+                "png_count": attack_png_count,
+                "png_bytes": attack_bytes,
+            },
         },
         # What the emitted art actually contains, so a consumer sees the split
         # without opening 196 files. `body_holes` is the count of enemies with
@@ -827,6 +855,7 @@ def emit_battle_art(rom: bytes, out_dir: str | Path, version: int) -> dict[str, 
             "enemy_overlay_pieces": overlays["piece_count"],
             "enemy_overlay_enabled_pieces": overlays["enabled_piece_count"],
             "enemy_overlay_coverage": overlays["coverage"],
+            "enemy_attack_sheets": attacks["census"],
             "enemy_mapping_formats": formats,
             "enemy_cram_lines": list(ENEMY_CRAM_LINES),
             "enemy_body_color_indices": (

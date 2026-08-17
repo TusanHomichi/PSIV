@@ -93,6 +93,15 @@ pub(crate) fn narration(
             line: "DEFENSE".into(),
             beat: Beat::Defense(*actor),
         },
+        BattleEvent::VehicleSkillUsed { .. } => Narration {
+            line: String::new(),
+            beat: Beat::None,
+        },
+        BattleEvent::VehicleSkillRejected { .. }
+        | BattleEvent::VehicleSkillEffectUnavailable { .. } => Narration {
+            line: String::new(),
+            beat: Beat::None,
+        },
         BattleEvent::Resolved {
             actor: _,
             target,

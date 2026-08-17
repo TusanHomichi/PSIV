@@ -89,6 +89,20 @@ impl Runtime {
                 });
                 events.push(RuntimeEvent::PartyChanged);
             }
+            SceneEffect::PartySlotsSaved { slots } => {
+                self.saved_party_slots = Some(slots);
+            }
+            SceneEffect::PartySlotsRestored => {
+                let Some(slots) = self.saved_party_slots.take() else {
+                    events.push(RuntimeEvent::SceneFaulted {
+                        fault: psiv_core::SceneFault::BadWrite,
+                    });
+                    return;
+                };
+                self.game.set_party(slots);
+                self.resize_party();
+                events.push(RuntimeEvent::PartyChanged);
+            }
             SceneEffect::PartyChanged | SceneEffect::CharSlotCopied { .. } => {
                 self.resize_party();
                 events.push(RuntimeEvent::PartyChanged);

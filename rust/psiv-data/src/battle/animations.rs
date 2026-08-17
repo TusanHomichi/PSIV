@@ -73,6 +73,44 @@ pub struct EnemyAnimationCensus {
     pub flash_timing: u32,
     /// Enemy roots whose retail sprite-sheet composition is not yet decoded.
     pub sprite_sheet_deferred: u32,
+    /// Enemy roots whose movement writes are fully normalized for playback.
+    #[serde(default)]
+    pub movement_exact: u32,
+    /// Enemy roots with movement writes that remain only partially modeled.
+    #[serde(default)]
+    pub movement_partial: u32,
+    /// Enemy roots with no movement clock that can be attached to a frame.
+    #[serde(default)]
+    pub movement_status_deferred: u32,
+    /// Enemy roots whose selected mapping records compose exactly.
+    #[serde(default)]
+    pub sprite_sheet_exact: u32,
+    /// Enemy roots with some mapping records but unresolved composition.
+    #[serde(default)]
+    pub sprite_sheet_partial: u32,
+    /// Enemy roots whose mapping records are not renderable yet.
+    #[serde(default)]
+    pub sprite_sheet_status_deferred: u32,
+}
+
+/// A three-way extraction result.  `partial` is deliberately distinct from
+/// `deferred`: the renderer may use an exact subset only when the sidecar says
+/// so, and never by treating a missing field as a green result.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct EnemyAnimationEvidence {
+    /// `exact`, `partial`, or `deferred`.
+    pub status: String,
+    /// Retail/provenance reason for the status.
+    pub reason: String,
+}
+
+impl Default for EnemyAnimationEvidence {
+    fn default() -> Self {
+        Self {
+            status: "deferred".into(),
+            reason: "field absent from an older animation pack".into(),
+        }
+    }
 }
 
 /// One direct or object-local retail sound write.
@@ -137,11 +175,17 @@ pub struct EnemyAnimation {
     pub sfx_writes: Vec<EnemyAnimationSfxWrite>,
     /// Fixed timing only when the helper and record are both proven.
     pub frame_sequence: Option<EnemyAnimationFrameSequence>,
-    /// Movement is deliberately not inferred from unrelated object positions.
+    /// Normalized movement evidence from the selected object graph.
+    #[serde(default)]
+    pub movement: EnemyAnimationEvidence,
+    /// Mapping-to-art composition evidence from the wave-1 enemy banks.
+    #[serde(default)]
+    pub composition: EnemyAnimationEvidence,
+    /// Kept as a compact boolean for older callers and the runtime sidecar.
     pub movement_proven: bool,
     /// Fixed-frame timing is available for the presentation flash beat.
     pub flash_timing_proven: bool,
-    /// Retail sprite-sheet/mapping decoding is not yet claimed by this file.
+    /// The selected mapping records are safe to render as attack frames.
     pub sprite_sheet_proven: bool,
 }
 

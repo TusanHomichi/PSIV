@@ -116,6 +116,65 @@ fn relocate_with_state(runtime: &Runtime, map: u16) -> Runtime {
     .expect("runtime relocates with persistent state")
 }
 
+fn relocate_with_edit<F>(runtime: &Runtime, map: u16, edit: F) -> Runtime
+where
+    F: FnOnce(&mut GameState),
+{
+    let mut game = GameState::from_snapshot(&runtime.game().snapshot());
+    edit(&mut game);
+    Runtime::from_save(
+        runtime.data().clone(),
+        RetailSave {
+            snapshot: game.snapshot(),
+            location: RetailLocation {
+                world_index: 0,
+                map_index_2: 0,
+                map_index: map,
+                char_x: 0x1E0,
+                char_y: 0x120,
+            },
+        },
+        StepFrames::default(),
+    )
+    .expect("runtime relocates with edited persistent state")
+}
+
+fn relocate_with_edit_and_battles<F>(runtime: &Runtime, map: u16, edit: F) -> Runtime
+where
+    F: FnOnce(&mut GameState),
+{
+    let mut relocated = relocate_with_edit(runtime, map, edit);
+    let files = BattleFiles::load(Path::new(PACK)).expect("battle files load");
+    relocated
+        .enable_battles(&files)
+        .expect("battles enable after edited relocation");
+    relocated
+}
+
+fn harden_arc_battle_roster(game: &mut GameState) {
+    // The arc test checks scene state transitions, not the balance curve. Give
+    // every seated character deterministic late-game combat stats so a long
+    // chain cannot die because the preceding synthetic walk left one member
+    // at an early-game level or low HP.
+    for raw in 0..11 {
+        if let Some(stats) = game.roster_mut().get_mut(CharId(raw)) {
+            stats.curr_hp = u16::MAX;
+            stats.max_hp = u16::MAX;
+            stats.curr_tp = u16::MAX;
+            stats.max_tp = u16::MAX;
+            stats.status = 0;
+            stats.strength.battle = u8::MAX;
+            stats.dexterity.battle = u8::MAX;
+            stats.attack.derived = 1_000;
+            stats.attack.battle = 1_000;
+            stats.defence.derived = 1_000;
+            stats.defence.battle = 1_000;
+            stats.mental_defence.derived = 1_000;
+            stats.mental_defence.battle = 1_000;
+        }
+    }
+}
+
 fn relocate_with_battles(runtime: &Runtime, map: u16) -> Runtime {
     let mut relocated = relocate_with_state(runtime, map);
     let files = BattleFiles::load(Path::new(PACK)).expect("battle files load");
@@ -476,6 +535,234 @@ fn the_retail_chain_runs_from_rika_to_zio_defeat() {
     assert!(post_zio.game().is_set(Flag::event(0x89)));
     assert!(post_zio.game().inventory().slots().contains(&0x97));
     assert!(!post_zio.game().inventory().slots().contains(&0x9A));
+
+    // Wave 5 ends here. From this point the test keeps one retail-shaped
+    // state alive through every newly registered Dezo scene. The tower chest
+    // flags and Eclipse Torch are player-controlled prerequisites, so seed
+    // those exact persistent bits before entering the first trigger.
+    assert_eq!(
+        post_zio.game().party_members(),
+        vec![CharId(0), CharId(5), CharId(3), CharId(7), CharId(8)]
+    );
+    post_zio = relocate_with_edit_and_battles(&post_zio, 0x001, |game| {
+        game.set(Flag::event(0xD5)).expect("strength chest flag");
+        game.set(Flag::event(0xD3)).expect("courage chest flag");
+        game.inventory_mut()
+            .add(0x8E)
+            .expect("Eclipse Torch fits inventory");
+        harden_arc_battle_roster(game);
+    });
+
+    let _ = drive_scene(&mut post_zio, 0x0048);
+    assert!(post_zio.game().is_set(Flag::event(0xD1)));
+
+    let _ = drive_scene(&mut post_zio, 0x801C);
+    assert_eq!(post_zio.map_id().0, 0x18D);
+    assert!(post_zio.game().is_set(Flag::event(0xD6)));
+    assert!(post_zio.game().is_set(Flag::event(0xD7)));
+
+    post_zio = relocate_with_battles(&post_zio, 0x001);
+    let trees = drive_until_battle(&mut post_zio, 0x004C);
+    assert!(
+        trees
+            .iter()
+            .any(|item| matches!(item, RuntimeEvent::SceneBattleStarted { index: 0x0A, .. }))
+    );
+    assert_eq!(resolve_scene_battle(&mut post_zio), Outcome::Victory);
+
+    post_zio = relocate_with_edit_and_battles(&post_zio, 0x001, |game| {
+        game.set(Flag::event(0x94)).expect("RajaSick prerequisite");
+    });
+    let saving_kyra = drive_until_battle(&mut post_zio, 0x004D);
+    assert!(post_zio.game().is_set(Flag::event(0x95)));
+    assert!(
+        saving_kyra
+            .iter()
+            .any(|item| matches!(item, RuntimeEvent::SceneBattleStarted { index: 0x0A, .. }))
+    );
+    assert_eq!(resolve_scene_battle(&mut post_zio), Outcome::Victory);
+
+    let _ = drive_scene(&mut post_zio, 0x8013);
+    assert_eq!(post_zio.map_id().0, 0x001);
+    assert!(post_zio.game().is_set(Flag::event(0xA0)));
+    assert_eq!(post_zio.game().party_slot(4), Some(CharId(9)));
+    assert_eq!(post_zio.vehicle_index(), Some(2));
+
+    let _ = drive_scene(&mut post_zio, 0x0047);
+    assert!(post_zio.game().is_set(Flag::event(0x9C)));
+    assert_eq!(post_zio.vehicle_index(), None);
+
+    let dark_force_2 = drive_until_battle(&mut post_zio, 0x004E);
+    assert!(post_zio.game().is_set(Flag::event(0x9E)));
+    assert!(
+        dark_force_2
+            .iter()
+            .any(|item| matches!(item, RuntimeEvent::SceneBattleStarted { index: 0x11, .. }))
+    );
+    assert_eq!(resolve_scene_battle(&mut post_zio), Outcome::Victory);
+
+    let _ = drive_scene(&mut post_zio, 0x8014);
+    assert_eq!(post_zio.map_id().0, 0x16F);
+    assert!(post_zio.game().is_set(Flag::event(0x97)));
+
+    let _ = drive_scene(&mut post_zio, 0x8017);
+    assert_eq!(post_zio.map_id().0, 0x001);
+    assert!(post_zio.game().is_set(Flag::event(0xA1)));
+    assert_eq!(post_zio.game().party_slot(3), Some(CharId(7)));
+    assert!(!post_zio.game().party_members().contains(&CharId(9)));
+
+    let _ = drive_scene(&mut post_zio, 0x8019);
+    assert_eq!(post_zio.map_id().0, 0x000);
+    assert!(post_zio.game().is_set(Flag::event(0xC1)));
+    assert_eq!(post_zio.game().party_slot(4), Some(CharId(10)));
+
+    post_zio = relocate_with_edit_and_battles(&post_zio, 0x000, |game| {
+        game.set(Flag::chest(0x0D)).expect("Aero Prism chest flag");
+    });
+    let aero_prism = drive_until_battle(&mut post_zio, 0x801A);
+    assert!(post_zio.game().is_set(Flag::event(0xC5)));
+    assert!(!post_zio.game().party_members().contains(&CharId(10)));
+    assert!(
+        aero_prism
+            .iter()
+            .any(|item| matches!(item, RuntimeEvent::SceneBattleStarted { index: 0x12, .. }))
+    );
+    assert_eq!(resolve_scene_battle(&mut post_zio), Outcome::Victory);
+
+    let _ = drive_scene(&mut post_zio, 0x0050);
+    assert!(post_zio.game().is_set(Flag::event(0xC6)));
+    let reshel = drive_until_battle(&mut post_zio, 0x0053);
+    assert!(post_zio.game().is_set(Flag::event(0x8B)));
+    assert!(
+        reshel
+            .iter()
+            .any(|item| matches!(item, RuntimeEvent::SceneBattleStarted { index: 0x0D, .. }))
+    );
+    assert_eq!(resolve_scene_battle(&mut post_zio), Outcome::Victory);
+
+    let clm_forced = drive_until_battle(&mut post_zio, 0x0054);
+    assert!(post_zio.game().is_set(Flag::event(0x92)));
+    assert!(
+        clm_forced
+            .iter()
+            .any(|item| matches!(item, RuntimeEvent::SceneBattleStarted { index: 0x0B, .. }))
+    );
+    assert_eq!(resolve_scene_battle(&mut post_zio), Outcome::Victory);
+    let _ = drive_scene(&mut post_zio, 0x0055);
+    assert!(post_zio.game().is_set(Flag::event(0xA4)));
+
+    let d_elm_lars = drive_until_battle(&mut post_zio, 0x0056);
+    assert!(post_zio.game().is_set(Flag::event(0x93)));
+    assert!(
+        d_elm_lars
+            .iter()
+            .any(|item| matches!(item, RuntimeEvent::SceneBattleStarted { index: 0x0C, .. }))
+    );
+    assert_eq!(resolve_scene_battle(&mut post_zio), Outcome::Victory);
+    let _ = drive_scene(&mut post_zio, 0x0057);
+    assert!(post_zio.game().is_set(Flag::event(0xA5)));
+
+    let _ = drive_scene(&mut post_zio, 0x8015);
+    assert_eq!(post_zio.map_id().0, 0x18D);
+    assert!(post_zio.game().is_set(Flag::event(0x99)));
+    let _ = drive_scene(&mut post_zio, 0x0058);
+    assert!(post_zio.game().is_set(Flag::event(0x9F)));
+
+    let xe_a_thoul = drive_until_battle(&mut post_zio, 0x0059);
+    assert!(post_zio.game().is_set(Flag::event(0x9A)));
+    assert!(
+        xe_a_thoul
+            .iter()
+            .any(|item| matches!(item, RuntimeEvent::SceneBattleStarted { index: 0x0E, .. }))
+    );
+    assert_eq!(resolve_scene_battle(&mut post_zio), Outcome::Victory);
+
+    let air_fake_chest = drive_until_battle(&mut post_zio, 0x005A);
+    assert!(post_zio.game().is_set(Flag::event(0xA6)));
+    assert!(!post_zio.game().inventory().slots().contains(&0x8E));
+    assert!(
+        air_fake_chest
+            .iter()
+            .any(|item| matches!(item, RuntimeEvent::SceneBattleStarted { index: 0x0F, .. }))
+    );
+    assert_eq!(resolve_scene_battle(&mut post_zio), Outcome::Victory);
+
+    let lashiec_appears = drive_until_battle(&mut post_zio, 0x005D);
+    assert!(post_zio.game().is_set(Flag::event(0x9B)));
+    assert!(
+        lashiec_appears
+            .iter()
+            .any(|item| matches!(item, RuntimeEvent::SceneBattleStarted { index: 0x10, .. }))
+    );
+    assert_eq!(resolve_scene_battle(&mut post_zio), Outcome::Victory);
+
+    let _ = drive_scene(&mut post_zio, 0x8016);
+    assert_eq!(post_zio.map_id().0, 0x162);
+    assert!(post_zio.game().inventory().slots().contains(&0x8E));
+    let _ = drive_scene(&mut post_zio, 0x8018);
+    assert_eq!(post_zio.map_id().0, 0x0BF);
+    assert!(post_zio.game().is_set(Flag::event(0x9D)));
+    assert!(post_zio.game().is_set(Flag::event(0xC0)));
+    assert!(post_zio.game().inventory().slots().contains(&0x98));
+
+    post_zio = relocate_with_battles(&post_zio, 0x0F6);
+    let _ = drive_scene(&mut post_zio, 0x005E);
+    assert!(post_zio.game().is_set(Flag::event(0xE2)));
+    post_zio = relocate_with_battles(&post_zio, 0x0FB);
+    let _ = drive_scene(&mut post_zio, 0x005F);
+    assert!(post_zio.game().is_set(Flag::event(0xE3)));
+
+    let de_vars = drive_until_battle(&mut post_zio, 0x0060);
+    assert!(post_zio.game().is_set(Flag::event(0xD4)));
+    assert!(
+        de_vars
+            .iter()
+            .any(|item| matches!(item, RuntimeEvent::SceneBattleStarted { index: 0x16, .. }))
+    );
+    assert_eq!(resolve_scene_battle(&mut post_zio), Outcome::Victory);
+    let sa_lews = drive_until_battle(&mut post_zio, 0x0061);
+    assert!(post_zio.game().is_set(Flag::event(0xD2)));
+    assert!(
+        sa_lews
+            .iter()
+            .any(|item| matches!(item, RuntimeEvent::SceneBattleStarted { index: 0x17, .. }))
+    );
+    assert_eq!(resolve_scene_battle(&mut post_zio), Outcome::Victory);
+
+    post_zio = relocate_with_edit_and_battles(&post_zio, 0x0FB, |game| {
+        game.set(Flag::event(0xE4))
+            .expect("Alys fight prerequisite");
+    });
+    let _ = drive_scene(&mut post_zio, 0x0063);
+    assert!(post_zio.game().is_set(Flag::event(0xE1)));
+    post_zio = relocate_with_edit_and_battles(&post_zio, 0x0FB, |game| {
+        game.clear(Flag::event(0xE4)).expect("Alys fight clears");
+    });
+    assert!(post_zio.game().is_clear(Flag::event(0xE4)));
+
+    let _ = drive_scene(&mut post_zio, 0x0064);
+    assert!(post_zio.game().is_set(Flag::event(0xE5)));
+    let _ = drive_scene(&mut post_zio, 0x0065);
+    assert!(post_zio.game().is_set(Flag::event(0xE6)));
+
+    // The retail Alys interaction at EventPtrs[$62] and its battle epilogue
+    // are outside this RunEvents delta. The trigger's post-battle state is
+    // represented explicitly here: AlysFight is clear, ReFaze is set.
+    post_zio = relocate_with_battles(&post_zio, 0x0FE);
+    let _ = drive_scene(&mut post_zio, 0x0069);
+    assert!(post_zio.game().is_set(Flag::event(0xE2)));
+    assert_eq!(post_zio.map_id().0, 0x0FE);
+    let _ = drive_scene(&mut post_zio, 0x006A);
+    assert!(post_zio.game().is_set(Flag::event(0xE7)));
+
+    let profound = drive_until_battle(&mut post_zio, 0x8020);
+    assert!(post_zio.game().is_set(Flag::event(0xE8)));
+    assert!(
+        profound
+            .iter()
+            .any(|item| matches!(item, RuntimeEvent::SceneBattleStarted { index: 0x1A, .. }))
+    );
+    assert_eq!(resolve_scene_battle(&mut post_zio), Outcome::Victory);
 }
 
 #[test]

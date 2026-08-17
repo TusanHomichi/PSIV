@@ -312,14 +312,19 @@ impl INode2D for Field {
                 },
             },
         };
-        if std::env::var("PSIV_DEBUG_VEHICLE").is_ok_and(|value| value == "1")
-            || std::env::var_os("PSIV_DEBUG_VEHICLE_BATTLE").is_some()
-        {
-            if let Err(error) = runtime.set_vehicle_index(1) {
-                godot_error!("debug Land Rover selector failed: {error}");
+        let debug_vehicle = std::env::var("PSIV_DEBUG_VEHICLE_INDEX")
+            .ok()
+            .or_else(|| std::env::var("PSIV_DEBUG_VEHICLE").ok())
+            .and_then(|value| value.parse::<u16>().ok())
+            .filter(|index| (1..=3).contains(index))
+            .or_else(|| std::env::var_os("PSIV_DEBUG_VEHICLE_BATTLE").map(|_| 1));
+        if let Some(index) = debug_vehicle {
+            if let Err(error) = runtime.set_vehicle_index(index) {
+                godot_error!("debug vehicle selector {index} failed: {error}");
                 return;
             }
-            godot_print!("debug: Land Rover mounted (Vehicle_Index=1)");
+            let name = psiv_core::profile(index).map_or("UNKNOWN", |profile| profile.name);
+            godot_print!("debug: {name} mounted (Vehicle_Index={index})");
         }
         self.configure_battles(&mut runtime);
 
@@ -521,6 +526,7 @@ impl INode2D for Field {
             // processed here too — dropping them was a live bug: Alys stayed
             // standing and the leader never swapped.
             self.process_events(events);
+            self.service_dialogue_actions();
             self.sync_visuals(false);
             return;
         }
@@ -558,6 +564,7 @@ impl INode2D for Field {
         runtime.set_field_suspended(false);
         let events = runtime.tick(input);
         let stepped = self.process_events(events);
+        self.service_dialogue_actions();
         // A landing tick with the key still held is mid-stride, not rest:
         // without this, the idle frame flashes for one tick every step (the
         // cartridge's animation free-runs and never sees such a gap).
@@ -644,6 +651,9 @@ impl Field {
                             && let Some(sprite) = self.map_sprite.as_mut()
                         {
                             sprite.set_texture(&texture);
+                            // A scene's InitVramAndCram may have blanked the
+                            // field; a map redraw is what restores it.
+                            sprite.set_visible(true);
                         }
                     }
                     None => godot_error!("could not load map image {path}"),

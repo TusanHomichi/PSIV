@@ -47,13 +47,16 @@
 //!
 //! # What this tier does not do
 //!
-//! Techniques, skills, items, combos, macros, status effects, drops, vehicles
-//! and boss formations are Tier 2 and later. Enemy AI rolls its ability but
-//! implements only the plain attack; anything else raises
+//! Techniques, ordinary skills, items, combos, macros, status effects, drops,
+//! vehicle skill effects and boss formations are Tier 2 and later. Enemy AI
+//! rolls its ability but implements only the plain attack; anything else raises
 //! [`BattleEvent::UnsupportedAbility`] and falls back rather than inventing a
-//! number. The 44-entry ability-effect dispatch is absent entirely, as is the
-//! weapon-element fallback for physical skills is resolved by
-//! [`ability_element_factor`], but no ability dispatches through it yet.
+//! number. Vehicle selection and saved-use consumption are exposed on the
+//! battle surface, but a valid vehicle skill raises
+//! [`BattleEvent::VehicleSkillEffectUnavailable`] and never fakes a physical
+//! attack. The 44-entry ability-effect dispatch is absent entirely, as is the
+//! weapon-element fallback for physical skills; [`ability_element_factor`]
+//! exists for the future dispatcher but no ability dispatches through it yet.
 
 mod action;
 mod ai;

@@ -222,9 +222,10 @@ impl VehicleState {
     #[must_use]
     pub fn new(map: &FieldMap, index: u16, cell: Cell, facing: Direction) -> Option<Self> {
         profile(index)?;
+        let cell = map.normalize(cell)?;
         Some(Self {
             index,
-            cell: map.normalize(cell)?,
+            cell,
             facing,
             step_offset: DEFAULT_STEP_OFFSET,
             previous_standing: standing_collision(map, cell),

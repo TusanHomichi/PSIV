@@ -36,6 +36,9 @@ pub struct BattleAnimationEvent {
     pub total_frames: Option<u16>,
     /// Retail movement was not inferred into the body sprite.
     pub movement_proven: bool,
+    /// The selected six-byte mapping records compose against the enemy art
+    /// bank and may replace the body flash with a real attack layer.
+    pub sprite_sheet_proven: bool,
     /// The fixed timing is safe to use as a presentation beat.
     pub flash_timing_proven: bool,
 }
@@ -56,12 +59,13 @@ impl BattleTimeline {
     ///
     /// The oracle battle selector intentionally does not start a runtime
     /// round. This fixture still exercises the exact Godot queue and live
-    /// `Field::play_sound` path with an attack, a second attack, and a miss.
+    /// `Field::play_sound` path with a static exact attack, a moving exact
+    /// attack, and a miss.
     #[must_use]
     pub fn debug_audio_probe() -> BattleTimeline {
         let party = FighterId::new(1).expect("fighter id 1");
         let zoran = FighterId::new(6).expect("fighter id 6");
-        let gunner = FighterId::new(7).expect("fighter id 7");
+        let twin_arms = FighterId::new(7).expect("fighter id 7");
         BattleTimeline {
             events: vec![
                 BattleEvent::Attacked {
@@ -76,11 +80,11 @@ impl BattleTimeline {
                     remaining_hp: 18,
                 },
                 BattleEvent::Attacked {
-                    actor: gunner,
+                    actor: twin_arms,
                     targets: vec![party],
                 },
                 BattleEvent::Resolved {
-                    actor: gunner,
+                    actor: twin_arms,
                     target: party,
                     verdict: Verdict::Miss,
                     damage: None,
@@ -94,7 +98,7 @@ impl BattleTimeline {
                 },
                 BattleSoundEvent {
                     event_index: 2,
-                    id: 0xD6,
+                    id: 0xD5,
                 },
                 BattleSoundEvent {
                     event_index: 3,
@@ -110,19 +114,21 @@ impl BattleTimeline {
                     frame_duration: Some(2),
                     frame_count: Some(8),
                     total_frames: Some(16),
-                    movement_proven: false,
+                    movement_proven: true,
+                    sprite_sheet_proven: true,
                     flash_timing_proven: true,
                 },
                 BattleAnimationEvent {
                     event_index: 2,
-                    actor: gunner,
-                    enemy_id: 2,
-                    sfx_id: 0xD6,
-                    frame_duration: None,
-                    frame_count: None,
-                    total_frames: None,
-                    movement_proven: false,
-                    flash_timing_proven: false,
+                    actor: twin_arms,
+                    enemy_id: 87,
+                    sfx_id: 0xD5,
+                    frame_duration: Some(2),
+                    frame_count: Some(4),
+                    total_frames: Some(8),
+                    movement_proven: true,
+                    sprite_sheet_proven: true,
+                    flash_timing_proven: true,
                 },
             ],
         }

@@ -243,32 +243,50 @@ closed and tested in the current tree:
   153 enemies dispatch their exact per-enemy attack SFX from the decoded
   `EnemyAttackOffs` tables, proven live (`docs/SOUND_INTEGRATION.md`,
   `docs/BATTLE_ANIMATIONS.md`);
-- vehicles: the Land Rover slice — retail movement/terrain/dismount rules
-  transcribed, all three vehicle sheets extracted, mount rendering, vehicle
-  battle entry from the saved records, and the `$96` battle theme, proven
-  live (`docs/VEHICLES.md`);
+- vehicles: all three field machines — selector-specific terrain/movement and
+  dismount rules, story-live Ice Digger, vehicle skill menu/use surface,
+  per-map CRAM-line-3 palettes, mounted battle entry, 32 battle backgrounds,
+  and the `$96` battle theme, with retail tape 29 receipts
+  (`docs/VEHICLES.md`);
 - two exact-frame retail-paced RMSE certifications: opening narration
   page 1 (clone t3450 vs oracle 4000, **rmse 6.587**) and page 2 (clone
   t4440 vs oracle 5200, **rmse 6.578**), captured under Xvfb with the
-  `PSIV_DEBUG_SCENE_TICKS` timeline (`docs/SCENE_PRESENTATION.md`).
+  `PSIV_DEBUG_SCENE_TICKS` timeline (`docs/SCENE_PRESENTATION.md`);
+- dialogue-embedded actions: all 266 retail `Ctrl::Action` codes across 55
+  entries dispatch for real — 178 extracted panels through the cutscene
+  stack at the typewriter's byte position, sounds through the live driver,
+  the `$45` flag write, and the four bespoke palette effects
+  (`docs/DIALOGUE_ACTIONS.md`); scene dialogue plays over the blanked field
+  exactly as the oracle shows;
+- the full story engine: scenes 51–87 carry the Dezo campaign in retail
+  dispatch order — LeRoof, Kyra, Eclipse Torch, Dark Forces 2 and 3, Seth,
+  the Aero Prism, the tower trials, Elsydeon, Reunion, and the Profound
+  Darkness battle request; only the `$8021` Ending surface remains, and the
+  recorded retail boundaries live in `docs/scenes/88_RetailBoundaries.md`;
+- enemy attack motion: decoded movement fields and mapping records drive 60
+  enemies' exact frame playback (393 verified PNGs) with the proven
+  body-flash fallback for the rest — no guessed art or motion
+  (`docs/BATTLE_ANIMATIONS.md`).
 
 The remaining backlog:
 
-1. Dialogue-embedded actions: `Ctrl::Action` (`LoadPanel`, sounds, flags
-   inside dialogue entries) is skipped-with-log across the whole dialogue
-   system, and the action panels (e.g. `$30`, the professor/Rika picture)
-   are outside the extracted panel set. This blocks the MeetingRika RMSE
-   pair and is a visible fidelity gap wherever retail dialogue drives
-   pictures or sounds.
-2. Full-campaign event coverage: the Dezo campaign RunEvents (`$33` onward —
-   LeRoof, carnivorous trees, Eclipse Torch…) through the Reunion gate
-   (`$50 → $801F`) and beyond.
-3. Enemy attack presentation: movement animation and sprite-sheet
-   composition remain deferred for all 153 enemies (SFX and timing are
-   exact; `docs/BATTLE_ANIMATIONS.md`).
-4. Vehicle remainder: Ice Digger/Hydrofoil field rules, vehicle skill-use
-   UI, per-map vehicle palettes, mounted scene-battle entry, an oracle
-   vehicle tape, and per-map battle-BG assets for mounted battles.
+1. The Ending: retail RunEvents `$54` dispatches `$8021`, a separate final
+   presentation surface outside the current typed scene contract — the last
+   untranscribed story beat. The other recorded retail boundaries (Raja
+   Sick, Rykros, guild and fifth-character surfaces,
+   `docs/scenes/88_RetailBoundaries.md`) belong to the same closing pass.
+2. MeetingRika sub-cell alignment: the measured pair stands at RMSE 59.4
+   with a diagnosed 1–2 pixel plane-scroll offset on panel/portrait content
+   (the window aligns). Decode the oracle scroll columns at frame 7250 and
+   make panel placement scroll-aware (`docs/SCENE_PRESENTATION.md`).
+3. Enemy attack presentation remainder: 74 frame records, 78 sprite
+   compositions, and 49 movement tracks are still partial or deferred;
+   the exact set covers 60 enemies with 393 verified frame PNGs
+   (`docs/BATTLE_ANIMATIONS.md`).
+4. Vehicle skill effects: the Tier-2 `VehicleSkillData` effect and animation
+   dispatcher is still explicit in the battle log; the selection/use UI and
+   saved-use decrement are live, but no physical fallback is permitted.
+   Natural (non-fixture) vehicle oracle tapes are also open.
 5. Remaining field parity: per-object bit-0 camera flags, dynamic gate values
    outside ordinary field entry, fractional camera low-word receipts, and the
    remaining bespoke NPC routines (`docs/CAMERA.md`, `docs/NPC_WANDER.md`).

@@ -306,6 +306,14 @@ pub enum SceneOp {
         /// The five slots.
         slots: [Option<CharId>; PARTY_SLOTS],
     },
+    /// Copy the five party slots to retail's transient `Saved_Char_ID_Mem`.
+    ///
+    /// These bytes bridge separate scene dispatches (the Elsydeon cave and
+    /// the Anger Tower top). They are scene/runtime state, not save-file
+    /// state, so the save serializer deliberately never sees them.
+    SavePartySlots,
+    /// Restore the slots captured by [`SceneOp::SavePartySlots`].
+    RestorePartySlots,
     /// Add `amount` HP to every occupied party record and clear its status.
     RestorePartyHp {
         /// The retail healing amount.
@@ -319,6 +327,14 @@ pub enum SceneOp {
         equipment: [u8; 4],
         /// Whether the source copies max HP/TP into current HP/TP.
         restore_hp_tp: bool,
+    },
+    /// Patch only the equipment slots the retail routine writes, preserving
+    /// the other two slots on the roster record.
+    SetCharacterEquipment {
+        /// The roster record.
+        who: CharId,
+        /// Right hand, left hand, head, body; `None` leaves a slot intact.
+        slots: [Option<u8>; 4],
     },
     /// Clear a character's status byte.
     ClearCharacterStatus {
@@ -559,6 +575,13 @@ pub enum SceneOp {
         /// Op index taken otherwise.
         if_not: usize,
     },
+    /// Split the retail mounted/foot path on `Vehicle_Index`.
+    BranchIfVehicle {
+        /// Op index taken when a vehicle is mounted.
+        if_mounted: usize,
+        /// Op index taken on foot.
+        if_on_foot: usize,
+    },
     /// Copy one character *field object's* whole struct over another — the
     /// `trap #1` 32-word copy that relocates Chaz's on-map object from
     /// `Character_1` to `Character_2`.
@@ -592,12 +615,12 @@ pub enum SceneOp {
     /// auditable without pretending the field engine owns VRAM.
     PanelCreate {
         /// The retail panel id.
-        id: u8,
+        id: u16,
     },
     /// Destroy one panel image (`Panel_Destroy`).
     PanelDestroy {
         /// The retail panel id.
-        id: u8,
+        id: u16,
     },
     /// Destroy every panel image currently staged by the scene.
     PanelDestroyAll,
@@ -747,6 +770,14 @@ pub enum SceneEffect {
     },
     /// The party composition changed.
     PartyChanged,
+    /// The scene copied its party slots to the transient retail save area.
+    PartySlotsSaved {
+        /// The five captured slots.
+        slots: [Option<CharId>; PARTY_SLOTS],
+    },
+    /// Restore the transient party-slot area. The runtime owns the bytes so
+    /// they can survive a separate scene dispatch without entering SRAM.
+    PartySlotsRestored,
     /// The inventory changed.
     InventoryChanged,
     /// The selected vehicle changed.

@@ -9,6 +9,13 @@ world_index	FFFFF400	2	core	-
 event_index	FFFFECA8	2	core	hex
 field_move_flags	FFFFECE5	1	core	hex
 step_offset	FFFFECE0	1	core	-
+vehicle_index	FFFFF43C	2	vehicle	hex
+vehicle_boarding_flags	FFFFEC7F	1	vehicle	hex
+vehicle_land_hp	FFFFFA80	2	vehicle	-
+vehicle_land_max_hp	FFFFFA82	2	vehicle	-
+vehicle_land_skill_mask	FFFFFA84	1	vehicle	hex
+vehicle_land_skill1_current	FFFFFA86	1	vehicle	-
+vehicle_land_skill1_max	FFFFFA87	1	vehicle	-
 joy_held	FFFFEF02	1	input	hex
 joy_pressed	FFFFEF03	1	input	hex
 btn_held_frames	FFFFEF04	1	input	-

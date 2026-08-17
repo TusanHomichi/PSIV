@@ -43,7 +43,7 @@ struct OpeningBackgroundRecord {
 
 #[derive(Debug, Deserialize)]
 struct PanelRecord {
-    id: u8,
+    id: u16,
     png: String,
 }
 
@@ -236,11 +236,11 @@ impl PresentationState {
 #[class(base=Node2D)]
 pub(crate) struct CutsceneLayer {
     base: Base<Node2D>,
-    textures: BTreeMap<u8, Gd<ImageTexture>>,
+    textures: BTreeMap<u16, Gd<ImageTexture>>,
     temporary_assets: BTreeMap<(u16, u16), TemporarySpriteAsset>,
     palettes: BTreeMap<u32, Vec<u16>>,
-    staged: Vec<u8>,
-    visible: Vec<u8>,
+    staged: Vec<u16>,
+    visible: Vec<u16>,
     opening_background: Option<Gd<ImageTexture>>,
     /// Oracle-measured top of the narration image band, from the pack
     /// manifest (`presentation/panels.json`, `opening_background.screen_y`).
@@ -252,6 +252,7 @@ pub(crate) struct CutsceneLayer {
     generic_window_visible: bool,
     generic_portrait: Option<Gd<ImageTexture>>,
     generic_portrait_rect: Option<Rect2>,
+    red_flash_frames: u8,
 }
 
 #[godot_api]
@@ -273,6 +274,7 @@ impl INode2D for CutsceneLayer {
             generic_window_visible: false,
             generic_portrait: None,
             generic_portrait_rect: None,
+            red_flash_frames: 0,
         }
     }
 
@@ -314,6 +316,12 @@ impl INode2D for CutsceneLayer {
             (self.generic_portrait.clone(), self.generic_portrait_rect)
         {
             self.base_mut().draw_texture_rect(&texture, rect, true);
+        }
+        if self.red_flash_frames > 0 {
+            self.base_mut().draw_rect(
+                Rect2::new(Vector2::ZERO, SCREEN),
+                Color::from_rgba(0.8, 0.0, 0.0, 0.55),
+            );
         }
     }
 }
@@ -480,12 +488,12 @@ impl CutsceneLayer {
         }
     }
 
-    pub(crate) fn panel_create(&mut self, id: u8) {
+    pub(crate) fn panel_create(&mut self, id: u16) {
         if self.textures.contains_key(&id) {
             self.staged.push(id);
-            godot_print!("scene panel staged: {id:#04x}");
+            godot_print!("scene panel staged: {id:#05x}");
         } else {
-            godot_error!("scene panel {id:#04x} is not decoded in the runtime pack");
+            godot_error!("scene panel {id:#05x} is not decoded in the runtime pack");
         }
     }
 
@@ -502,15 +510,37 @@ impl CutsceneLayer {
         }
     }
 
-    pub(crate) fn panel_destroy(&mut self, id: u8) {
+    pub(crate) fn panel_destroy(&mut self, id: u16) {
         if let Some(actual) = self.staged.pop()
             && actual != id
         {
             godot_warn!(
-                "Panel_Destroy({id:#04x}) popped staged panel {actual:#04x}; retail allocator is stack based"
+                "Panel_Destroy({id:#05x}) popped staged panel {actual:#05x}; retail allocator is stack based"
             );
         }
-        godot_print!("scene panel destroyed: {id:#04x}");
+        godot_print!("scene panel destroyed: {id:#05x}");
+    }
+
+    pub(crate) fn panel_destroy_last(&mut self) {
+        if let Some(id) = self.staged.pop() {
+            godot_print!("scene panel destroyed: last {id:#05x}");
+        }
+    }
+
+    /// `$F2` palette actions target CRAM, while this pack stores panels as
+    /// palette-baked PNGs. Redrawing is the faithful operation available at
+    /// this presentation boundary; the raw palette records remain auditable
+    /// in `presentation/panels.json`.
+    pub(crate) fn refresh_palette(&mut self) {
+        self.base_mut().queue_redraw();
+        godot_print!("dialogue action: palette refresh");
+    }
+
+    /// Small red-palette overlay used by the three retail dialogue effects
+    /// whose source writes CRAM synchronously instead of loading a panel.
+    pub(crate) fn red_flash(&mut self, frames: u8) {
+        self.red_flash_frames = self.red_flash_frames.max(frames);
+        self.base_mut().queue_redraw();
     }
 
     pub(crate) fn panel_destroy_all(&mut self) {
@@ -578,8 +608,12 @@ impl CutsceneLayer {
     }
 
     pub(crate) fn tick(&mut self) {
+        self.red_flash_frames = self.red_flash_frames.saturating_sub(1);
         if let Some(text) = self.text_layer.as_mut() {
             text.bind_mut().tick();
+        }
+        if self.red_flash_frames > 0 {
+            self.base_mut().queue_redraw();
         }
     }
 
@@ -682,6 +716,11 @@ impl Field {
                 if let Some(layer) = self.cutscene_layer.as_mut() {
                     layer.bind_mut().panel_destroy_all();
                 }
+                // On hardware this wipes the tile planes: the field map is
+                // gone until the scene's own LoadMap/RefreshMap redraws it
+                // (the oracle shows dialogue panels over black here, and the
+                // opening's first dialogue runs before its LoadMap).
+                self.set_field_map_visible(false);
             }
             SceneOp::LoadPalette { rom_addr, words } => {
                 self.presentation.loaded_palettes.insert(rom_addr, words);

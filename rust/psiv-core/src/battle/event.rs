@@ -85,6 +85,35 @@ pub enum BattleEvent {
         /// Who.
         actor: FighterId,
     },
+    /// A mounted vehicle consumed one saved use from its selected skill slot.
+    /// The effect dispatcher is not yet in Tier 1; a following
+    /// [`VehicleSkillEffectUnavailable`] event records that boundary.
+    VehicleSkillUsed {
+        /// Who selected the skill.
+        actor: FighterId,
+        /// One-based vehicle skill slot.
+        skill: u8,
+        /// Uses left in the battle copy after the decrement.
+        remaining: u8,
+    },
+    /// A vehicle-skill command named a slot that was not available in the
+    /// mounted member's battle copy. The command consumes no use and does not
+    /// fall through to a physical attack.
+    VehicleSkillRejected {
+        /// Who selected the slot.
+        actor: FighterId,
+        /// One-based vehicle skill slot.
+        skill: u8,
+    },
+    /// A valid vehicle skill was consumed, but its effect dispatcher is still
+    /// outside the implemented battle tier. This is deliberately a no-op
+    /// marker: a vehicle skill must never masquerade as physical damage.
+    VehicleSkillEffectUnavailable {
+        /// Who selected the skill.
+        actor: FighterId,
+        /// One-based vehicle skill slot.
+        skill: u8,
+    },
     /// One attacker-target pair resolved.
     Resolved {
         /// Who swung.

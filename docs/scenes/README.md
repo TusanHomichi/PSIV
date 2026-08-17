@@ -1,7 +1,8 @@
 # Retail scene transcriptions
 
 Opening-act material was transcribed 2026-08-14 from the retail cartridge;
-the next-arc records below were added 2026-08-16. These documents are the
+the next-arc records below were added 2026-08-16, with the Dezo campaign
+continuation added in the same wave. These documents are the
 evidence base the event-interpreter lane implements from: every scene in the
 opening act, disassembled from cartridge bytes, expressed as an ordered
 `SceneOp` sequence, with every RAM address, event flag and dialogue reference
@@ -13,7 +14,8 @@ done — the v1 slice `docs/RUNTIME_DESIGN.md` calls this the opening act.
 **Next-arc scope**: the scene set from Piata's post-gate Professor Holt beat
 through Zema, the Tonoe road, the BioPlant escape, the Rika hand-off, Zio's
 fall, the Zelan spaceship route, Dezolis/Raja arrival and the first Kuran/Dark
-Force handoff. The trigger/map census is
+Force handoff. The Dezo campaign continuation runs from Le Roof through the
+Reunion gate and the Profound Darkness battle request. The trigger/map census is
 [12_ArcTriggerCensus](12_ArcTriggerCensus.md); the per-scene records are
 [13_ProfHolt](13_ProfHolt.md) through [50_JuzaDefeated](50_JuzaDefeated.md).
 The native registry and headless proof live beside those documents in
@@ -61,6 +63,58 @@ The native registry and headless proof live beside those documents in
 | `Cutscene_DarkForce1Defeated` | `$8011` | [48](48_DarkForce1Defeated.md) | `$0771D2..$07734B` |
 | `Event_Juza` | `$40` | [49](49_Juza.md) | `$06FB1E..$06FB5D` |
 | `Event_JuzaDefeated` | `$41` | [50](50_JuzaDefeated.md) | `$06FB5E..$06FBED` |
+
+## Dezo campaign registry
+
+Wave 6 continues from the Dark Force 1 handoff in retail dispatch order. The
+records below are the `grand_cross=0` bodies selected by the retail pointer
+tables; the clone's hack-only bodies are not evidence.
+
+| Scene | Event | Doc | Retail bytes |
+|---|---:|---|---|
+| `Event_MeetingLeRoof` | `$48` | [51](51_MeetingLeRoof.md) | `$070482..$07069D` |
+| `Cutscene_LeRoofAgain` | `$801C` | [52](52_LeRoofAgain.md) | `$078346..$0784B5` |
+| `Event_CarnivorousTrees` | `$4C` | [53](53_CarnivorousTrees.md) | `$070774..$070855` |
+| `Event_SavingKyra` | `$4D` | [54](54_SavingKyra.md) | `$070856..$070975` |
+| `Cutscene_MeetingKyra` | `$8013` | [55](55_MeetingKyra.md) | `$077788..$077895` |
+| `Event_EclipseTorchUsed` | `$47` | [56](56_EclipseTorchUsed.md) | `$07018A..$070481` |
+| `Event_DarkForce2` | `$4E` | [57](57_DarkForce2.md) | `$070976..$0709A1` |
+| `Cutscene_LutzRevelation` | `$8014` | [58](58_LutzRevelation.md) | `$077896..$077A2D` |
+| `Cutscene_DarkForce2Defeated` | `$8017` | [59](59_DarkForce2Defeated.md) | `$077BDA..$077DC5` |
+| `Cutscene_MeetingSeth` | `$8019` | [60](60_MeetingSeth.md) | `$077EAC..$077F2D` |
+| `Cutscene_AeroPrism` | `$801A` | [61](61_AeroPrism.md) | `$077F2E..$07818D` |
+| `Event_DarkForce3Defeated` | `$50` | [62](62_DarkForce3Defeated.md) | `$070A2A..$070A4D` |
+| `Event_ReshelBattle` | `$53` | [63](63_ReshelBattle.md) | `$070A9E..$070ABB` |
+| `Event_ClmCenterForcedBattle` | `$54` | [64](64_ClmCenterForcedBattle.md) | `$070ABC..$070AD9` |
+| `Event_ClmCenterAfterBattle` | `$55` | [65](65_ClmCenterAfterBattle.md) | `$070ADA..$070AEB` |
+| `Event_DElmLars` | `$56` | [66](66_DElmLars.md) | `$070AEC..$070B0B` |
+| `Event_AfterDElmLarsBattle` | `$57` | [67](67_AfterDElmLarsBattle.md) | `$070B0C..$070B1D` |
+| `Cutscene_FindingAirCastle` | `$8015` | [68](68_FindingAirCastle.md) | `$077A2E..$077A67` |
+| `Event_AirCastleArrival` | `$58` | [69](69_AirCastleArrival.md) | `$070B1E..$070B2F` |
+| `Event_XeAThoulBeforeBattle` | `$59` | [70](70_XeAThoulBeforeBattle.md) | `$070B30..$070B55` |
+| `Event_AirCastleFakeChest` | `$5A` | [71](71_AirCastleFakeChest.md) | `$070B56..$070C2F` |
+| `Event_LashiecAppearance` | `$5D` | [72](72_LashiecAppearance.md) | `$070CB4..$070E4D` |
+| `Cutscene_LashiecDefeated` | `$8016` | [73](73_LashiecDefeated.md) | `$077A68..$077BD9` |
+| `Cutscene_GumbiousBishop` | `$8018` | [74](74_GumbiousBishop.md) | `$077DC6..$077EAB` |
+| `Event_StrengthTowerTop` | `$5E` | [75](75_StrengthTowerTop.md) | `$070E4E..$071101` |
+| `Event_CourageTowerTop` | `$5F` | [76](76_CourageTowerTop.md) | `$071102..$071449` |
+| `Event_DeVars` | `$60` | [77](77_DeVars.md) | `$07144A..$071469` |
+| `Event_SaLews` | `$61` | [78](78_SaLews.md) | `$07146A..$071489` |
+| `Event_ReFaze` | `$63` | [79](79_ReFaze.md) | `$07157A..$071759` |
+| `Event_DeVarsDefeated` | `$64` | [80](80_DeVarsDefeated.md) | `$07175A..$071821` |
+| `Event_SaLewsDefeated` | `$65` | [81](81_SaLewsDefeated.md) | `$071822..$0718E5` |
+| `Cutscene_BeforeElsydeonCave` | `$801D` | [82](82_BeforeElsydeonCave.md) | `$0784B6..$078583` |
+| `Cutscene_Elsydeon` | `$801E` | [83](83_Elsydeon.md) | `$078584..$078A7B` |
+| `Cutscene_Reunion` | `$801F` | [84](84_Reunion.md) | `$078A7C..$078D2F` |
+| `Event_AngerTowerTop` | `$69` | [85](85_AngerTowerTop.md) | `$0721CC..$072261` |
+| `Event_AngerTowerExitTop` | `$6A` | [86](86_AngerTowerExitTop.md) | `$072262..$0722D1` |
+| `Cutscene_ProfoundDarkness` | `$8020` | [87](87_ProfoundDarkness.md) | `$078D30..$078F3D` |
+
+The complete retail table census, including pointer bodies deliberately left
+outside this typed scene surface and the `$8021` ending boundary, is in
+[12_ArcTriggerCensus](12_ArcTriggerCensus.md). The headless proof is
+`rust/psiv-runtime/tests/next_arc.rs` and continues in the existing test from
+`Cutscene_DarkForce1Defeated` through the `$8020` battle request.
 
 ## Why these were disassembled and not read
 
@@ -231,6 +285,20 @@ Post-Rika state extensions are deliberately small and state-bearing:
 `SetVehicleIndex`, `AddItem`, `ConfigureCharacter`, `RestorePartyHp`,
 `RemovePartyMember`, `ClearCharacterStatus` and `ReviveIfDead`. They are used
 by the new records rather than hidden in runtime-specific scene names.
+
+### Dezo campaign extensions
+
+| Op | Retail primitive | Used by |
+|---|---|---|
+| `BranchIfVehicle{if_mounted, if_on_foot}` | `Vehicle_Index` test around mounted event bodies | Carnivorous Trees, Saving Kyra, Eclipse Torch |
+| `SetCharacterEquipment{who, slots}` | retail partial equipment write | Elsydeon |
+| `SavePartySlots` / `RestorePartySlots` | transient `Saved_Char_ID_Mem_1/_5` bridge | Before Elsydeon, Elsydeon, Anger Tower |
+
+`PanelCreate` and `PanelDestroy` carry the full retail panel word, not a byte;
+Dezo panels such as `$10D`, `$13F` and `$18F` are the proof cases. The saved
+party bridge is runtime-only and is deliberately absent from `StateSnapshot`
+and save serialization. The headless arc test asserts the party, flags,
+inventory, vehicles and equipment at each state-bearing edge.
 
 `LoadMap` is now a blocking op: the runtime responds with `MapLoaded` only
 after it has rebuilt and recast the new map. NPC `ActorMoveStarted` and

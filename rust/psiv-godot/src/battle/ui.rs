@@ -21,8 +21,10 @@ use super::enemy_overlay::EnemyAnimation;
 use super::layout::{append_status_quads, tile_dest, transient_column};
 use super::sfx::{BattleSoundRequests, QueuedBattleEvent, queue_timeline};
 use super::state::{ActiveEvent, DamageDraw, FinishRequest, MessageKind};
+use super::status;
 use super::timeline::{self, Beat};
 use super::vehicle::texture as vehicle_texture;
+use super::vehicle_ui::{self, SkillSlot};
 use super::{BattleSetup, EnemyPlacement};
 
 pub(super) use super::state::PartyStatus;
@@ -185,6 +187,10 @@ pub(crate) struct BattleScreen {
     damage: Option<DamageDraw>,
     command_open: bool,
     cursor: usize,
+    vehicle_index: Option<u16>,
+    vehicle_skills: Vec<SkillSlot>,
+    skill_open: bool,
+    skill_cursor: usize,
     finish_outcome: Option<Outcome>,
     reward_each: u16,
     reward_meseta: u16,
@@ -218,6 +224,10 @@ impl INode2D for BattleScreen {
             damage: None,
             command_open: false,
             cursor: 0,
+            vehicle_index: None,
+            vehicle_skills: Vec::new(),
+            skill_open: false,
+            skill_cursor: 0,
             finish_outcome: None,
             reward_each: 0,
             reward_meseta: 0,
@@ -252,6 +262,7 @@ impl INode2D for BattleScreen {
         let palette = chrome.palette;
         let mut quads = Vec::new();
         if self.command_open
+            && !self.skill_open
             && let Some(frame) = chrome.frame(ENEMY_NAME_RECT)
         {
             quads.extend(frame);
@@ -264,10 +275,19 @@ impl INode2D for BattleScreen {
             quads.extend(chrome.text(name, ENEMY_NAME_TEXT_RECT));
         }
         if self.command_open
+            && !self.skill_open
             && let Some(frame) = chrome.frame(COMMAND_RECT)
         {
             quads.extend(frame);
-            quads.extend(chrome.text_with_pitch("COMD\nMACR\nRUN", COMMAND_TEXT_RECT, 16.0));
+            let labels = if self.vehicle_index.is_some() {
+                "ATTAC\nOPTIN\nRUN"
+            } else {
+                "COMD\nMACR\nRUN"
+            };
+            quads.extend(chrome.text_with_pitch(labels, COMMAND_TEXT_RECT, 16.0));
+        }
+        if self.command_open && self.skill_open {
+            vehicle_ui::draw(chrome, &self.vehicle_skills, self.skill_cursor, &mut quads);
         }
         match self.message_kind {
             MessageKind::Transient | MessageKind::Wide if !self.message.is_empty() => {
@@ -316,13 +336,13 @@ impl INode2D for BattleScreen {
             };
             quads.extend(chrome.damage_quads(damage.amount, rect));
         }
-        if self.command_open {
+        if self.command_open && !self.skill_open {
             for (row, pattern) in COMMAND_CURSOR_WORDS.into_iter().enumerate() {
                 if let Some(quad) =
                     chrome.window_word(pattern, false, false, tile_dest(4, 6 + row as i32 * 2))
                 {
-                    // `0x6e8` is selected COMD; `0x6e7` is the retail blue
-                    // disabled/unselected form for MACR and RUN.
+                    // `0x6e8` is the selected command; `0x6e7` is the retail
+                    // blue disabled/unselected form for the other rows.
                     quads.push(quad);
                 }
             }
@@ -331,93 +351,20 @@ impl INode2D for BattleScreen {
             self.base_mut()
                 .draw_texture_rect_region(&quad.texture, quad.dest, quad.src);
         }
-        self.draw_status_icons(palette);
+        let icon_pixels = status::status_pixels(palette, &self.party_status);
+        for (position, color) in icon_pixels {
+            let points = PackedVector2Array::from(&[
+                position,
+                Vector2::new(position.x + 1.0, position.y),
+                Vector2::new(position.x + 1.0, position.y + 1.0),
+                Vector2::new(position.x, position.y + 1.0),
+            ]);
+            self.base_mut().draw_colored_polygon(&points, color);
+        }
     }
 }
 
 impl BattleScreen {
-    fn draw_pixel(&mut self, x: f32, y: f32, color: Color) {
-        let points = PackedVector2Array::from(&[
-            Vector2::new(x, y),
-            Vector2::new(x + 1.0, y),
-            Vector2::new(x + 1.0, y + 1.0),
-            Vector2::new(x, y + 1.0),
-        ]);
-        self.base_mut().draw_colored_polygon(&points, color);
-    }
-
-    fn draw_pattern(&mut self, origin: Vector2, rows: &[&str], palette: [Color; 16]) {
-        for (row, line) in rows.iter().enumerate() {
-            for (column, symbol) in line.chars().enumerate() {
-                let color = match symbol {
-                    'B' => palette[14],
-                    'W' => palette[15],
-                    'K' => palette[0],
-                    'L' => palette[2],
-                    'R' => palette[13],
-                    'P' => palette[12],
-                    'Y' => palette[11],
-                    'q' => palette[6],
-                    'o' => palette[5],
-                    _ => continue,
-                };
-                self.draw_pixel(origin.x + column as f32, origin.y + row as f32, color);
-            }
-        }
-    }
-
-    fn draw_status_icons(&mut self, palette: [Color; 16]) {
-        const QUESTION: [&str; 16] = [
-            "BWWWWWWWWWWWWWWB",
-            "WKKKKKKKKKKKKKKW",
-            "WKKKKKKKKKKKKKKW",
-            "WKKKqoYYYYoqKKKW",
-            "WKKKoYqKKqYoqKKW",
-            "WKKKYYKKKKYYqKKW",
-            "WKKKoYKKKKYYqKKW",
-            "WKKKKKKqoYYqKKKW",
-            "WKKKKKKYYoqKKKKW",
-            "WKKKKKKYYqKKKKKW",
-            "WKKKKKKKKKKKKKKW",
-            "WKKKKKKYYqKKKKKW",
-            "WKKKKKKYYqKKKKKW",
-            "WKKKKKKKKKKKKKKW",
-            "WKKKKKKKKKKKKKKW",
-            "BWWWWWWWWWWWWWWB",
-        ];
-        const BLANK: [&str; 16] = [
-            "BWWWWWWWWWWWWWWB",
-            "WKKKKKKKKKKKKKKW",
-            "WKKKKKKKKKKKKKKW",
-            "WKKKKKKKKKKKKKKW",
-            "WKKKKKKKKKKKKKKW",
-            "WKKKKKKKKKKKKKKW",
-            "WKKKKKKKKKKKKKKW",
-            "WKKKKKKKKKKKKKKW",
-            "WKKKKKKKKKKKKKKW",
-            "WKKKKKKKKKKKKKKW",
-            "WKKKKKKKKKKKKKKW",
-            "WKKKKKKKKKKKKKKW",
-            "WKKKKKKKKKKKKKKW",
-            "WKKKKKKKKKKKKKKW",
-            "WKKKKKKKKKKKKKKW",
-            "BWWWWWWWWWWWWWWB",
-        ];
-        for (pane, start) in STATUS_PANE_START_CELLS.iter().copied().enumerate() {
-            let member = pane > 0 && pane < 4 && self.party_status.get(pane - 1).is_some();
-            if pane == 0 || pane == 4 || member {
-                // `oracle/layouts/battle_command_idle.json` places the outer
-                // icon words at cells 7/8 and the party icon words at
-                // 14/15, 21/22, and 28/29; all are 16x16 at row 22.
-                let origin = Vector2::new(
-                    (start + 5) as f32 * BATTLE_CELL_PIXELS as f32,
-                    STATUS_NAME_Y,
-                );
-                self.draw_pattern(origin, if member { &QUESTION } else { &BLANK }, palette);
-            }
-        }
-    }
-
     /// Loads the battle art and the dialogue chrome/font conventions.
     pub(crate) fn configure(&mut self, pack_dir: &str) {
         self.pack_dir = pack_dir.to_owned();
@@ -455,6 +402,14 @@ impl BattleScreen {
         self.close_ready = false;
         self.command_open = false;
         self.cursor = 0;
+        self.vehicle_index = setup.vehicle_index;
+        self.vehicle_skills = setup
+            .party
+            .first()
+            .map(vehicle_ui::slots_for)
+            .unwrap_or_default();
+        self.skill_open = false;
+        self.skill_cursor = 0;
         self.reward_each = 0;
         self.reward_meseta = 0;
         self.transient_column = 11;
@@ -471,7 +426,7 @@ impl BattleScreen {
         self.base_mut().queue_redraw();
     }
 
-    /// Reads the Tier-1 COMD/RUN menu. The field calls Runtime after this
+    /// Reads the retail command menu. The field calls Runtime after this
     /// returns; this node never resolves a round itself.
     pub(crate) fn take_command(&mut self) -> Option<RoundOrders> {
         if !self.command_open
@@ -483,6 +438,45 @@ impl BattleScreen {
             return None;
         }
         let input = Input::singleton();
+        if self.skill_open {
+            if input.is_action_just_pressed("ui_cancel") {
+                self.skill_open = false;
+                self.skill_cursor = 0;
+                self.base_mut().queue_redraw();
+                return None;
+            }
+            if input.is_action_just_pressed("ui_up") {
+                self.skill_cursor =
+                    vehicle_ui::move_cursor(self.skill_cursor, self.vehicle_skills.len(), -2);
+                self.base_mut().queue_redraw();
+            }
+            if input.is_action_just_pressed("ui_down") {
+                self.skill_cursor =
+                    vehicle_ui::move_cursor(self.skill_cursor, self.vehicle_skills.len(), 2);
+                self.base_mut().queue_redraw();
+            }
+            if input.is_action_just_pressed("ui_left") {
+                self.skill_cursor =
+                    vehicle_ui::move_cursor(self.skill_cursor, self.vehicle_skills.len(), -1);
+                self.base_mut().queue_redraw();
+            }
+            if input.is_action_just_pressed("ui_right") {
+                self.skill_cursor =
+                    vehicle_ui::move_cursor(self.skill_cursor, self.vehicle_skills.len(), 1);
+                self.base_mut().queue_redraw();
+            }
+            if !input.is_action_just_pressed("ui_accept") {
+                return None;
+            }
+            let skill = vehicle_ui::selected(&self.vehicle_skills, self.skill_cursor)?;
+            self.vehicle_skills[self.skill_cursor].current -= 1;
+            self.skill_open = false;
+            self.command_open = false;
+            self.base_mut().queue_redraw();
+            return Some(RoundOrders::Commands(vec![
+                psiv_core::battle::Command::VehicleSkill(skill),
+            ]));
+        }
         if input.is_action_just_pressed("ui_up") || input.is_action_just_pressed("ui_left") {
             self.cursor = self.cursor.saturating_sub(1);
             self.base_mut().queue_redraw();
@@ -495,7 +489,12 @@ impl BattleScreen {
             return None;
         }
         if self.cursor == 1 {
-            // MACR is visible for retail parity; macro execution is Tier 3.
+            if self.vehicle_index.is_some() {
+                self.skill_open = true;
+                self.skill_cursor = 0;
+            }
+            // MACR is visible for ordinary party parity; macro execution is
+            // Tier 3. A vehicle's middle entry opens the retail OPTIN list.
             self.base_mut().queue_redraw();
             return None;
         }
@@ -610,6 +609,7 @@ impl BattleScreen {
                 setup.map_id,
                 setup.motavia_terrain,
                 setup.dark_force_2,
+                setup.vehicle_index.is_some(),
             )
             .or_else(|| {
                 godot_error!(
@@ -821,6 +821,12 @@ impl BattleScreen {
         if let BattleEvent::UnsupportedAbility { actor, ability } = &event {
             godot_error!(
                 "battle renderer: engine emitted unsupported ability {ability} for fighter {}",
+                actor.get()
+            );
+        }
+        if let BattleEvent::VehicleSkillEffectUnavailable { actor, skill } = &event {
+            godot_error!(
+                "battle renderer: vehicle skill {skill} for fighter {} has no effect dispatcher",
                 actor.get()
             );
         }

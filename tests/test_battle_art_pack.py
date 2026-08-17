@@ -412,6 +412,9 @@ class TestBackgrounds(unittest.TestCase):
         )
         self.assertEqual(self.selection["order"],
                          ["event_battle", "field_map", "motavia_terrain"])
+        self.assertEqual(
+            self.selection["vehicle_mounted"]["selector"], "Vehicle_Index != 0"
+        )
         for key, offset, count in (
             ("event_battle", EVENT_BG_INDEXES, EVENT_BG_COUNT),
             ("field_map", FIELD_MAP_BG_INDEXES, FIELD_MAP_BG_COUNT),

@@ -287,6 +287,17 @@ impl SceneRunner {
                 effects.push(SceneEffect::RosterChanged { who });
                 self.pc += 1;
             }
+            SceneOp::SetCharacterEquipment { who, slots } => {
+                if let Some(stats) = state.roster_mut().get_mut(who) {
+                    for (target, replacement) in stats.equipment.iter_mut().zip(slots) {
+                        if let Some(item) = replacement {
+                            *target = item;
+                        }
+                    }
+                }
+                effects.push(SceneEffect::RosterChanged { who });
+                self.pc += 1;
+            }
             SceneOp::ClearCharacterStatus { who } => {
                 if let Some(stats) = state.roster_mut().get_mut(who) {
                     stats.status = 0;
@@ -567,6 +578,16 @@ impl SceneRunner {
                 effects.push(SceneEffect::PartyChanged);
                 self.pc += 1;
             }
+            SceneOp::SavePartySlots => {
+                effects.push(SceneEffect::PartySlotsSaved {
+                    slots: state.party(),
+                });
+                self.pc += 1;
+            }
+            SceneOp::RestorePartySlots => {
+                effects.push(SceneEffect::PartySlotsRestored);
+                self.pc += 1;
+            }
             SceneOp::DespawnNpc { npc_index, count } => {
                 effects.push(SceneEffect::NpcDespawned { npc_index, count });
                 self.pc += 1;
@@ -610,6 +631,20 @@ impl SceneRunner {
                 }
                 effects.push(SceneEffect::ChoiceRequested);
                 self.blocked = Blocked::Choice;
+            }
+            SceneOp::BranchIfVehicle {
+                if_mounted,
+                if_on_foot,
+            } => {
+                let target = if state.vehicle_index() == 0 {
+                    if_on_foot
+                } else {
+                    if_mounted
+                };
+                if target > self.scene.len() {
+                    return Some(SceneFault::BadJump { target });
+                }
+                self.pc = target;
             }
             SceneOp::BranchIfAligned {
                 a,

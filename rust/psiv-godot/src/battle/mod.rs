@@ -11,9 +11,11 @@ mod enemy_overlay;
 mod layout;
 mod sfx;
 mod state;
+mod status;
 mod timeline;
 mod ui;
 mod vehicle;
+mod vehicle_ui;
 
 pub(crate) use ui::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
 
@@ -48,12 +50,16 @@ pub(crate) struct BattleSetup {
     pub(crate) enemies: Vec<EnemyPlacement>,
 }
 
+#[derive(Default)]
 pub(crate) struct PartyPlacement {
     pub(crate) fighter_id: u8,
     pub(crate) character: u8,
     pub(crate) name: String,
     pub(crate) hp: u16,
     pub(crate) tp: u16,
+    pub(crate) skills: [u8; 8],
+    pub(crate) skill_uses: [u8; 8],
+    pub(crate) max_skill_uses: [u8; 8],
 }
 
 pub(crate) struct EnemyPlacement {
@@ -140,8 +146,9 @@ impl Field {
     /// Presents the command-idle oracle fixture used by the visual loop.
     /// `PSIV_DEBUG_BATTLE=0x88` is intentionally a capture selector, not a
     /// raw formation id: the retail frame is tape 07's post-opening party
-    /// (Chaz/Alys/Hahn) against a Zoran Bult and a Gunner Bit on the Academy
-    /// Basement art, so the debug timeline exercises two distinct enemy SFX.
+    /// (Chaz/Alys/Hahn) against a Zoran Bult and a Twin Arms on the Academy
+    /// Basement art, so the debug timeline exercises both a static exact
+    /// attack and a visible retail lunge.
     /// No runtime round is started, so this path cannot mutate game state.
     pub(crate) fn start_oracle_debug_battle(&mut self) {
         let setup = BattleSetup {
@@ -159,6 +166,7 @@ impl Field {
                     name: "Chaz".into(),
                     hp: 25,
                     tp: 10,
+                    ..Default::default()
                 },
                 PartyPlacement {
                     fighter_id: 2,
@@ -166,6 +174,7 @@ impl Field {
                     name: "Alys".into(),
                     hp: 53,
                     tp: 40,
+                    ..Default::default()
                 },
                 PartyPlacement {
                     fighter_id: 3,
@@ -173,6 +182,7 @@ impl Field {
                     name: "Hahn".into(),
                     hp: 21,
                     tp: 25,
+                    ..Default::default()
                 },
             ],
             enemies: vec![
@@ -184,9 +194,9 @@ impl Field {
                 },
                 EnemyPlacement {
                     fighter_id: 7,
-                    enemy_id: 2,
+                    enemy_id: 87,
                     position: ORACLE_ENEMY_POSITIONS[1],
-                    name: "GUNNER BIT".into(),
+                    name: "TWIN ARMS".into(),
                 },
             ],
         };
@@ -506,6 +516,9 @@ fn build_setup_for_formation(
             name: member.name,
             hp: member.stats.curr_hp,
             tp: member.stats.curr_tp,
+            skills: member.stats.skills,
+            skill_uses: member.stats.curr_skill_uses,
+            max_skill_uses: member.stats.max_skill_uses,
         })
         .collect();
     let enemies = formation
@@ -535,17 +548,25 @@ fn build_setup_for_formation(
     Some(BattleSetup {
         map_id: runtime.map_id().0,
         event_battle,
-        motavia_terrain: (runtime.map_id().0 == 0)
+        motavia_terrain: (runtime.map_id().0 == 0 || runtime.vehicle_index().is_some())
             .then(|| runtime.vehicle_battle_terrain())
             .flatten(),
         vehicle_index: runtime.vehicle_index(),
         vehicle_png: runtime
             .vehicle_index()
-            .and_then(|index| runtime.data().vehicle_sheet(index))
+            .and_then(|index| {
+                runtime
+                    .data()
+                    .vehicle_sheet_for_map(runtime.map_id().0, index)
+            })
             .map(|sheet| sheet.png.clone()),
         vehicle_frame: runtime
             .vehicle_index()
-            .and_then(|index| runtime.data().vehicle_sheet(index))
+            .and_then(|index| {
+                runtime
+                    .data()
+                    .vehicle_sheet_for_map(runtime.map_id().0, index)
+            })
             .map(|sheet| (sheet.frame_width, sheet.frame_height)),
         dark_force_2: runtime.game().is_set(Flag::event(0x9E)),
         party,

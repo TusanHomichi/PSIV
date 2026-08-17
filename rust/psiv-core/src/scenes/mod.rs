@@ -38,6 +38,8 @@
 //! does not, so the transcriptions keep them apart. Both are `dbra` loops, so
 //! every count below is the corrected `d0 + 1`.
 
+pub(crate) mod dezo_campaign;
+pub(crate) mod dezo_endgame;
 mod game_start;
 pub(crate) mod next_arc;
 pub(crate) mod next_arc_followup;
@@ -68,6 +70,10 @@ pub const DEMI: CharId = CharId(6);
 pub const WREN: CharId = CharId(7);
 /// `CharID_Raja`, added by `Cutscene_CrashLaanding`.
 pub const RAJA: CharId = CharId(8);
+/// `CharID_Kyra`.
+pub const KYRA: CharId = CharId(9);
+/// `CharID_Seth`.
+pub const SETH: CharId = CharId(10);
 
 /// Every transcribed scene, in story order.
 pub static SCENES: &[Scene] = &[
@@ -120,6 +126,43 @@ pub static SCENES: &[Scene] = &[
     post_zio_cutscenes::DARK_FORCE_1_DEFEATED,
     post_zio_cutscenes::JUZA,
     post_zio_cutscenes::JUZA_DEFEATED,
+    dezo_campaign::MEETING_LE_ROOF,
+    dezo_campaign::LE_ROOF_AGAIN,
+    dezo_campaign::CARNIVOROUS_TREES,
+    dezo_campaign::SAVING_KYRA,
+    dezo_campaign::MEETING_KYRA,
+    dezo_campaign::ECLIPSE_TORCH_USED,
+    dezo_campaign::DARK_FORCE_2,
+    dezo_campaign::LUTZ_REVELATION,
+    dezo_campaign::DARK_FORCE_2_DEFEATED,
+    dezo_campaign::MEETING_SETH,
+    dezo_campaign::AERO_PRISM,
+    dezo_campaign::DARK_FORCE_3_DEFEATED,
+    dezo_campaign::RESHEL_BATTLE,
+    dezo_campaign::CLM_CENTER_FORCED_BATTLE,
+    dezo_campaign::CLM_CENTER_AFTER_BATTLE,
+    dezo_campaign::D_ELM_LARS,
+    dezo_campaign::AFTER_D_ELM_LARS_BATTLE,
+    dezo_campaign::FINDING_AIR_CASTLE,
+    dezo_campaign::AIR_CASTLE_ARRIVAL,
+    dezo_campaign::XE_ATHOUL_BEFORE_BATTLE,
+    dezo_campaign::AIR_CASTLE_FAKE_CHEST,
+    dezo_campaign::LASHIEC_APPEARANCE,
+    dezo_campaign::LASHIEC_DEFEATED,
+    dezo_campaign::GUMBIOUS_BISHOP,
+    dezo_endgame::STRENGTH_TOWER_TOP,
+    dezo_endgame::COURAGE_TOWER_TOP,
+    dezo_endgame::DE_VARS,
+    dezo_endgame::SA_LEWS,
+    dezo_endgame::REFAZE,
+    dezo_endgame::DE_VARS_DEFEATED,
+    dezo_endgame::SA_LEWS_DEFEATED,
+    dezo_endgame::BEFORE_ELSYDEON_CAVE,
+    dezo_endgame::ELSYDEON,
+    dezo_endgame::REUNION,
+    dezo_endgame::ANGER_TOWER_TOP,
+    dezo_endgame::ANGER_TOWER_EXIT_TOP,
+    dezo_endgame::PROFOUND_DARKNESS,
 ];
 
 /// The scene an event index selects, if it has been transcribed.
@@ -199,6 +242,43 @@ mod tests {
             ("Cutscene_DarkForce1Defeated", 27),
             ("Event_Juza", 5),
             ("Event_JuzaDefeated", 6),
+            ("Event_MeetingLeRoof", 17),
+            ("Cutscene_LeRoofAgain", 35),
+            ("Event_CarnivorousTrees", 13),
+            ("Event_SavingKyra", 19),
+            ("Cutscene_MeetingKyra", 24),
+            ("Event_EclipseTorchUsed", 28),
+            ("Event_DarkForce2", 6),
+            ("Cutscene_LutzRevelation", 30),
+            ("Cutscene_DarkForce2Defeated", 33),
+            ("Cutscene_MeetingSeth", 11),
+            ("Cutscene_AeroPrism", 27),
+            ("Event_DarkForce3Defeated", 2),
+            ("Event_ReshelBattle", 4),
+            ("Event_ClmCenterForcedBattle", 4),
+            ("Event_ClmCenterAfterBattle", 2),
+            ("Event_DElmLars", 4),
+            ("Event_AfterDElmLarsBattle", 2),
+            ("Cutscene_FindingAirCastle", 18),
+            ("Event_AirCastleArrival", 2),
+            ("Event_XeAThoulBeforeBattle", 5),
+            ("Event_AirCastleFakeChest", 11),
+            ("Event_LashiecAppearance", 12),
+            ("Cutscene_LashiecDefeated", 27),
+            ("Cutscene_GumbiousBishop", 17),
+            ("Event_StrengthTowerTop", 15),
+            ("Event_CourageTowerTop", 18),
+            ("Event_DeVars", 4),
+            ("Event_SaLews", 4),
+            ("Event_ReFaze", 26),
+            ("Event_DeVarsDefeated", 6),
+            ("Event_SaLewsDefeated", 6),
+            ("Cutscene_BeforeElsydeonCave", 16),
+            ("Cutscene_Elsydeon", 46),
+            ("Cutscene_Reunion", 35),
+            ("Event_AngerTowerTop", 12),
+            ("Event_AngerTowerExitTop", 10),
+            ("Cutscene_ProfoundDarkness", 20),
         ];
         assert_eq!(
             SCENES.len(),
@@ -228,6 +308,10 @@ mod tests {
                     SceneOp::BranchIfAligned {
                         if_aligned, if_not, ..
                     } => vec![*if_aligned, *if_not],
+                    SceneOp::BranchIfVehicle {
+                        if_mounted,
+                        if_on_foot,
+                    } => vec![*if_mounted, *if_on_foot],
                     SceneOp::BranchIfActorGreater {
                         if_greater, if_not, ..
                     } => vec![*if_greater, *if_not],
@@ -288,6 +372,19 @@ mod tests {
                 "Cutscene_CrashLaanding",
                 "Cutscene_Landale",
                 "Cutscene_DarkForce1Defeated",
+                "Cutscene_LeRoofAgain",
+                "Cutscene_MeetingKyra",
+                "Cutscene_LutzRevelation",
+                "Cutscene_DarkForce2Defeated",
+                "Cutscene_MeetingSeth",
+                "Cutscene_AeroPrism",
+                "Cutscene_FindingAirCastle",
+                "Cutscene_LashiecDefeated",
+                "Cutscene_GumbiousBishop",
+                "Cutscene_BeforeElsydeonCave",
+                "Cutscene_Elsydeon",
+                "Cutscene_Reunion",
+                "Cutscene_ProfoundDarkness",
             ]
         );
     }

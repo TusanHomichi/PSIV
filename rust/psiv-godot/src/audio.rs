@@ -16,6 +16,7 @@ pub(crate) struct AudioOutput {
     player: Option<Gd<AudioStreamPlayer>>,
     machine: SoundMachine,
     enabled: bool,
+    music_paused: bool,
     debug_track: Option<u8>,
     debug_tone: bool,
 }
@@ -36,6 +37,7 @@ impl AudioOutput {
             player: Some(player),
             machine,
             enabled: false,
+            music_paused: false,
             debug_track: parse_sound_id("PSIV_DEBUG_TRACK"),
             debug_tone: std::env::var("PSIV_DEBUG_TONE").is_ok_and(|value| value == "1"),
         }
@@ -62,6 +64,14 @@ impl AudioOutput {
         }
     }
 
+    pub(crate) fn pause_music(&mut self) {
+        self.music_paused = true;
+    }
+
+    pub(crate) fn resume_music(&mut self) {
+        self.music_paused = false;
+    }
+
     pub(crate) fn has_debug_override(&self) -> bool {
         self.debug_track.is_some() || self.debug_tone
     }
@@ -78,7 +88,7 @@ impl AudioOutput {
     }
 
     pub(crate) fn fill(&mut self) {
-        if !self.enabled {
+        if !self.enabled || self.music_paused {
             return;
         }
         let Some(mut playback) = self.player.as_mut().and_then(generator_playback) else {

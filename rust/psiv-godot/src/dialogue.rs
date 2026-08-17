@@ -34,7 +34,7 @@ const SCREEN: (f32, f32) = (320.0, 224.0);
 const Z_INDEX: i32 = 1000;
 
 mod text_flow;
-pub use text_flow::{Opening, TextFlow};
+pub use text_flow::{DialogueAction, Opening, TextFlow};
 
 // The pack, made drawable
 // ---------------------------------------------------------------------------
@@ -358,6 +358,41 @@ impl DialogueWindow {
         self.pending_event.take()
     }
 
+    /// Returns the next embedded action only after the preceding glyphs have
+    /// been revealed. This is the shell-side timing gate for retail `$F2`.
+    pub fn take_ready_action(&mut self) -> Option<DialogueAction> {
+        let ready = self
+            .flow
+            .as_ref()
+            .is_some_and(|flow| flow.action_ready(self.revealed));
+        ready
+            .then(|| self.flow.as_mut().and_then(TextFlow::take_pending_action))
+            .flatten()
+    }
+
+    /// Lets the pure text loop continue after Field has applied one action.
+    pub fn resume_after_action(&mut self) {
+        if let Some(flow) = self.flow.as_mut() {
+            flow.resume_after_action();
+        }
+        self.service_flow_signals();
+        self.sync_portrait();
+        self.base_mut().queue_redraw();
+    }
+
+    /// Applies a flag written by an embedded action to both the shell's live
+    /// bank and the currently running flow.
+    pub fn set_event_flag(&mut self, flag: u8) {
+        let index = usize::from(flag);
+        if self.event_flags.len() <= index {
+            self.event_flags.resize(index + 1, false);
+        }
+        self.event_flags[index] = true;
+        if let Some(flow) = self.flow.as_mut() {
+            flow.set_event_flag(flag);
+        }
+    }
+
     /// The leader's "Nothing here" line (one per character slot).
     pub fn open_nothing_here(&mut self, character_slot: usize) -> bool {
         let Some(set) = self.set.as_ref() else {
@@ -427,7 +462,16 @@ impl DialogueWindow {
     /// including the entry's final `End` page. The retail-pace harness uses
     /// this; the arrow keeps using [`DialogueWindow::is_waiting`].
     pub fn is_dismissable(&self) -> bool {
-        self.flow.as_ref().is_some_and(TextFlow::is_dismissable)
+        // The flow reaches its page end before the typewriter has revealed
+        // the glyphs; the retail-pace hold must not start (or spam no-op
+        // advances, each of which adds accelerated frames) until the page is
+        // actually on screen.
+        let total: usize = self.flow.as_ref().map_or(0, |flow| {
+            flow.lines().iter().map(|l| l.chars().count()).sum()
+        });
+        self.revealed >= total
+            && !self.is_opening()
+            && self.flow.as_ref().is_some_and(TextFlow::is_dismissable)
     }
 
     fn is_opening(&self) -> bool {
@@ -507,9 +551,12 @@ impl DialogueWindow {
     }
 
     /// Puts the node where the box belongs on screen: the pack's position in
-    /// the Genesis frame, generalised to whatever viewport the renderer has.
-    /// The box keeps its distance from the bottom edge and stays centred, at
-    /// the world's own integer scale.
+    /// the Genesis frame. The 320x224 retail surface is centred in whatever
+    /// viewport the renderer has (the same rule the cutscene panel layer
+    /// uses), and the box sits at its retail coordinates inside that surface
+    /// — anchoring to the viewport instead drifts the box downward whenever
+    /// the viewport is taller than the 3x surface, which the oracle pairs
+    /// caught as a ~21-pixel error.
     fn place(&mut self) {
         let Some(size) = self.view.as_ref().map(|view| view.box_size) else {
             return;
@@ -520,9 +567,10 @@ impl DialogueWindow {
         let top_left = canvas * viewport.position;
         let bottom_right = canvas * (viewport.position + viewport.size);
         let visible = bottom_right - top_left;
+        let surface_top = top_left.y + (visible.y - SCREEN.1) / 2.0;
         let position = Vector2::new(
             (top_left.x + (visible.x - size.x) / 2.0).floor(),
-            (top_left.y + visible.y - margin - size.y).floor(),
+            (surface_top + SCREEN.1 - margin - size.y).floor(),
         );
         self.base_mut().set_position(position);
     }

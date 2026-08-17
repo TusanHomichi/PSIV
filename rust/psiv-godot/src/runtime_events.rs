@@ -5,6 +5,7 @@
 //! ordered: `ScenePresentation` is consumed exactly where the runtime put it.
 
 use crate::boot::collect_event_flags;
+use crate::dialogue::DialogueAction;
 use crate::transitions::TransitionKind;
 use crate::view::{NpcNode, sequence_name};
 use crate::{Field, RETAIL_DISMISS_HOLD_FRAMES, event_battle_music, retail_pace_enabled};
@@ -248,5 +249,114 @@ impl Field {
             }
         }
         stepped
+    }
+
+    /// Drain actions only when the typewriter has reached their byte
+    /// position. Consecutive actions are intentionally looped here: retail
+    /// runs them back-to-back before the next character iteration.
+    pub(super) fn service_dialogue_actions(&mut self) {
+        loop {
+            let action = self
+                .dialogue
+                .as_mut()
+                .and_then(|window| window.bind_mut().take_ready_action());
+            let Some(action) = action else {
+                break;
+            };
+            self.dispatch_dialogue_action(action);
+            if let Some(window) = self.dialogue.as_mut() {
+                window.bind_mut().resume_after_action();
+            }
+        }
+    }
+
+    fn dispatch_dialogue_action(&mut self, action: DialogueAction) {
+        match action {
+            DialogueAction::LoadPanel(id) => {
+                if let Some(layer) = self.cutscene_layer.as_mut() {
+                    layer.bind_mut().panel_create(id);
+                    layer.bind_mut().dma_planes();
+                }
+                godot_print!("dialogue action: LoadPanel({id:#05x})");
+            }
+            DialogueAction::DestroyLastPanel => {
+                if let Some(layer) = self.cutscene_layer.as_mut() {
+                    layer.bind_mut().panel_destroy_last();
+                    layer.bind_mut().dma_planes();
+                }
+                godot_print!("dialogue action: DestroyLastPanel");
+            }
+            DialogueAction::DestroyAllPanels => {
+                if let Some(layer) = self.cutscene_layer.as_mut() {
+                    layer.bind_mut().panel_destroy_all();
+                    layer.bind_mut().dma_planes();
+                }
+                godot_print!("dialogue action: DestroyAllPanels");
+            }
+            DialogueAction::LoadSound(id) => {
+                if id != 0 {
+                    self.play_sound(id);
+                }
+                godot_print!("dialogue action: LoadSound({id:#04x})");
+            }
+            DialogueAction::LoadSound2(id) => {
+                self.play_sound(id);
+                godot_print!("dialogue action: LoadSound2({id:#04x})");
+            }
+            DialogueAction::UpdatePalette => {
+                if let Some(layer) = self.cutscene_layer.as_mut() {
+                    layer.bind_mut().refresh_palette();
+                }
+            }
+            DialogueAction::ZioEyesRed => {
+                self.play_sound(0xCB);
+                if let Some(layer) = self.cutscene_layer.as_mut() {
+                    layer.bind_mut().red_flash(6);
+                }
+                godot_print!("dialogue action: ZioEyesRed");
+            }
+            DialogueAction::PauseMusic => {
+                if let Some(audio) = self.audio.as_mut() {
+                    audio.pause_music();
+                }
+                godot_print!("dialogue action: PauseMusic");
+            }
+            DialogueAction::ResumeMusic => {
+                if let Some(audio) = self.audio.as_mut() {
+                    audio.resume_music();
+                }
+                godot_print!("dialogue action: ResumeMusic");
+            }
+            DialogueAction::SabotageAlarmRedPalette => {
+                self.play_sound(0xDB);
+                if let Some(layer) = self.cutscene_layer.as_mut() {
+                    layer.bind_mut().red_flash(18);
+                }
+                godot_print!("dialogue action: SabotageAlarmRedPalette");
+            }
+            DialogueAction::SetEventFlag(flag) => {
+                let result = self
+                    .runtime
+                    .as_mut()
+                    .map_or(Ok(()), |runtime| runtime.set_event_flag(flag));
+                match result {
+                    Ok(()) => {
+                        if let Some(window) = self.dialogue.as_mut() {
+                            window.bind_mut().set_event_flag(flag);
+                        }
+                        godot_print!("dialogue action: SetEventFlag({flag:#04x})");
+                    }
+                    Err(error) => {
+                        godot_error!("dialogue action SetEventFlag({flag:#04x}) failed: {error}")
+                    }
+                }
+            }
+            DialogueAction::ElsydeonBroken => {
+                if let Some(layer) = self.cutscene_layer.as_mut() {
+                    layer.bind_mut().red_flash(12);
+                }
+                godot_print!("dialogue action: ElsydeonBroken");
+            }
+        }
     }
 }

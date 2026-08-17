@@ -1,7 +1,8 @@
 //! The pure retail dialogue text loop.
 
 use psiv_data::{
-    CHARS_PER_LINE, Ctrl, DialogueEntry, LINES_PER_WINDOW, PORTRAIT_HIDE, PageEnd, Segment,
+    ActionKind, CHARS_PER_LINE, Ctrl, DialogueEntry, LINES_PER_WINDOW, PORTRAIT_HIDE, PageEnd,
+    Segment,
 };
 
 /// What opening an entry produced.
@@ -15,6 +16,25 @@ pub enum Opening {
     /// The entry has nothing to say -- an empty entry, which the cartridge's
     /// dense ids are full of.
     Silent,
+}
+
+/// One retail `$F2` action, released when the typewriter reaches its byte
+/// position. Payload-bearing variants keep the decoder's word/byte widths;
+/// action dispatch itself belongs to the Godot field shell.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DialogueAction {
+    LoadPanel(u16),
+    DestroyLastPanel,
+    DestroyAllPanels,
+    LoadSound(u8),
+    LoadSound2(u8),
+    UpdatePalette,
+    ZioEyesRed,
+    PauseMusic,
+    ResumeMusic,
+    SabotageAlarmRedPalette,
+    SetEventFlag(u8),
+    ElsydeonBroken,
 }
 
 /// `RunText_CharacterLoop`, one page at a time.
@@ -43,9 +63,8 @@ pub struct TextFlow {
     done: bool,
     /// The window is gone.
     closed: bool,
-    /// What v1 could not act on, for the caller to print. Never silently
-    /// dropped: the event system does not exist yet and this is the record of
-    /// everything that will need it.
+    /// Diagnostic messages for controls that are intentionally not visual
+    /// actions, such as a not-taken flag check.
     log: Vec<String>,
     /// The event-flag bank at open time, for mid-message `$FA`.
     flags: Vec<bool>,
@@ -53,6 +72,9 @@ pub struct TextFlow {
     jump: Option<u16>,
     /// A mid-message `$F6`; the window forwards it to the runtime.
     event: Option<u16>,
+    /// The next action at the retail byte position. Pumping stops here so the
+    /// window can wait for the preceding glyphs before the shell dispatches it.
+    pending_action: Option<DialogueAction>,
     /// This flow's entry id — `$FA` branch targets are relative to it.
     entry_id: u16,
 }
@@ -118,6 +140,7 @@ impl TextFlow {
             flags: flags.to_vec(),
             jump: None,
             event: None,
+            pending_action: None,
             entry_id: entry.id,
         };
         flow.pump();
@@ -224,6 +247,34 @@ impl TextFlow {
     /// A mid-message `$F6` event, once.
     pub fn take_event(&mut self) -> Option<u16> {
         self.event.take()
+    }
+
+    /// Whether the next `$F2` has reached the end of the currently revealed
+    /// text. An action before the first glyph is ready immediately.
+    #[must_use]
+    pub fn action_ready(&self, revealed: usize) -> bool {
+        self.pending_action.is_some() && revealed >= self.visible_chars()
+    }
+
+    /// Takes the action without advancing the byte stream. The caller must
+    /// dispatch it, then call [`TextFlow::resume_after_action`].
+    pub fn take_pending_action(&mut self) -> Option<DialogueAction> {
+        self.pending_action.take()
+    }
+
+    /// Resumes the retail text loop after the shell has applied one action.
+    pub fn resume_after_action(&mut self) {
+        self.pump();
+    }
+
+    /// Updates the copied event bank immediately, so a following `$FA` in the
+    /// same entry sees a flag written by an embedded action.
+    pub fn set_event_flag(&mut self, flag: u8) {
+        let index = usize::from(flag);
+        if self.flags.len() <= index {
+            self.flags.resize(index + 1, false);
+        }
+        self.flags[index] = true;
     }
 
     /// Everything the flow could not act on since the last call.
@@ -376,17 +427,36 @@ impl TextFlow {
             }
             Ctrl::Action {
                 action,
-                action_id,
                 sound,
                 panel,
                 flag,
                 ..
             } => {
-                self.log.push(format!(
-                    "action: {action:?} (#{action_id}) skipped; sound {sound:?}, panel {panel:?}, \
-                     flag {flag:?}"
-                ));
-                false
+                let action = match action {
+                    ActionKind::LoadPanel => panel.map(DialogueAction::LoadPanel),
+                    ActionKind::DestroyLastPanel => Some(DialogueAction::DestroyLastPanel),
+                    ActionKind::DestroyAllPanels => Some(DialogueAction::DestroyAllPanels),
+                    ActionKind::LoadSound => Some(DialogueAction::LoadSound(sound.unwrap_or(0))),
+                    ActionKind::LoadSound2 => Some(DialogueAction::LoadSound2(sound.unwrap_or(0))),
+                    ActionKind::UpdatePalette => Some(DialogueAction::UpdatePalette),
+                    ActionKind::ZioEyesRed => Some(DialogueAction::ZioEyesRed),
+                    ActionKind::PauseMusic => Some(DialogueAction::PauseMusic),
+                    ActionKind::ResumeMusic => Some(DialogueAction::ResumeMusic),
+                    ActionKind::SabotageAlarmRedPalette => {
+                        Some(DialogueAction::SabotageAlarmRedPalette)
+                    }
+                    ActionKind::SetEventFlag => flag.map(DialogueAction::SetEventFlag),
+                    ActionKind::ElsydeonBroken => Some(DialogueAction::ElsydeonBroken),
+                };
+                if let Some(action) = action {
+                    self.pending_action = Some(action);
+                    true
+                } else {
+                    self.log.push(format!(
+                        "action {action:?} has an invalid or missing retail payload"
+                    ));
+                    false
+                }
             }
             Ctrl::FlagCheck {
                 flag, then_entry, ..
@@ -425,5 +495,9 @@ impl TextFlow {
             "yes_no: no choice window in v1, the message ends here (both branches skipped)"
                 .to_owned(),
         );
+    }
+
+    fn visible_chars(&self) -> usize {
+        self.lines.iter().map(|line| line.chars().count()).sum()
     }
 }

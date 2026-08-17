@@ -23,6 +23,24 @@ pub struct SheetFile {
     pub sheet_count: u32,
     /// The sheets.
     pub sheets: Vec<Sheet>,
+    /// Optional per-map vehicle palette variants. The base `sheets` remain the
+    /// selector-addressed fallback; each variant names the same three vehicle
+    /// slots and carries only the additional sheets required by its CRAM line.
+    #[serde(default)]
+    pub palette_variants: Vec<VehiclePaletteVariant>,
+}
+
+/// One CRAM-line-3 vehicle palette used by one or more maps.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize)]
+pub struct VehiclePaletteVariant {
+    /// Map ids whose vehicle sprites use this palette.
+    pub map_ids: Vec<u16>,
+    /// Three sheet ids in `Vehicle_Index` order.
+    pub sheet_ids: Vec<String>,
+    /// Additional sheets. The base variant may leave this empty and refer to
+    /// the ordinary `SheetFile::sheets` entries.
+    #[serde(default)]
+    pub sheets: Vec<Sheet>,
 }
 
 /// One frame-strip sheet.

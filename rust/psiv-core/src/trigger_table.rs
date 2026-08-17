@@ -823,4 +823,81 @@ mod tests {
             TriggerResult::Fire(EventIndex(0x8011))
         );
     }
+
+    #[test]
+    fn the_dezo_campaign_dispatch_delta_matches_the_retail_census() {
+        let mut state = GameState::new();
+        let fire = |index: usize, expected: u16, state: &GameState, x: i32, y: i32| {
+            assert_eq!(
+                TRIGGERS[index].evaluate(&ctx(state, x, y)),
+                TriggerResult::Fire(EventIndex(expected)),
+                "RunEventsJmpTbl[{index:#04X}]"
+            );
+        };
+
+        fire(0x33, 0x0048, &state, 0, 0);
+        state.set(Flag::event(0xD5)).unwrap();
+        state.set(Flag::event(0xD3)).unwrap();
+        fire(0x34, 0x801C, &state, 0, 0);
+
+        fire(0x35, 0x004C, &state, 0xBA0, 0xC0);
+        state.set(Flag::event(0x94)).unwrap();
+        fire(0x35, 0x004D, &state, 0xBA0, 0xC0);
+        state.set(Flag::event(0x95)).unwrap();
+        fire(0x35, 0x8013, &state, 0, 0);
+
+        state.set(Flag::event(0x9B)).unwrap();
+        fire(0x36, 0x0047, &state, 0xB80, 0xE0);
+        fire(0x37, 0x004E, &state, 0, 0x100);
+        state.set(Flag::event(0x9E)).unwrap();
+        fire(0x38, 0x8017, &state, 0, 0);
+        fire(0x39, 0x8014, &state, 0x1E0, 0x1D0);
+        fire(0x3A, 0x8019, &state, 0x770, 0x9B0);
+        state.set(Flag::chest(0x0D)).unwrap();
+        fire(0x3B, 0x801A, &state, 0, 0);
+        state.set(Flag::event(0xC5)).unwrap();
+        fire(0x3C, 0x0050, &state, 0, 0);
+        fire(0x3D, 0x0053, &state, 0, 0);
+        state.clear(Flag::event(0x9E)).unwrap();
+        fire(0x3E, 0x0054, &state, 0, 0);
+        state.set(Flag::event(0x92)).unwrap();
+        fire(0x3F, 0x0055, &state, 0, 0);
+        fire(0x40, 0x0056, &state, 0, 0x0F0);
+        state.set(Flag::event(0x93)).unwrap();
+        fire(0x41, 0x0057, &state, 0, 0);
+        state.set(Flag::event(0x98)).unwrap();
+        fire(0x42, 0x8015, &state, 0, 0);
+        fire(0x43, 0x0058, &state, 0, 0);
+        fire(0x44, 0x0059, &state, 0x1D0, 0x220);
+        state.set(Flag::chest(0x0C)).unwrap();
+        fire(0x45, 0x005A, &state, 0, 0);
+        state.set(Flag::event(0xA6)).unwrap();
+        state.clear(Flag::event(0x9B)).unwrap();
+        fire(0x46, 0x005D, &state, 0, 0);
+        state.set(Flag::event(0x9B)).unwrap();
+        fire(0x47, 0x8016, &state, 0, 0);
+        fire(0x48, 0x8018, &state, 0x1E0, 0x180);
+        fire(0x49, 0x005E, &state, 0, 0);
+        fire(0x4A, 0x005F, &state, 0, 0);
+        state.set(Flag::event(0xD4)).unwrap();
+        fire(0x4B, 0x0064, &state, 0, 0);
+        state.set(Flag::event(0xD2)).unwrap();
+        fire(0x4C, 0x0065, &state, 0, 0);
+        assert_eq!(
+            TRIGGERS[0x4D].evaluate(&ctx(&state, 0, 0)),
+            TriggerResult::FireWithoutIndex
+        );
+        state.set(Flag::event(0xE4)).unwrap();
+        fire(0x4E, 0x0063, &state, 0, 0);
+        state.set(Flag::event(0xD6)).unwrap();
+        fire(0x4F, 0x801D, &state, 0, 0);
+        state.set(Flag::event(0xD9)).unwrap();
+        fire(0x50, 0x801F, &state, 0, 0);
+        state.clear(Flag::event(0xE4)).unwrap();
+        fire(0x51, 0x0069, &state, 0x1C0, 0x250);
+        fire(0x52, 0x006A, &state, 0x1A0, 0x260);
+        fire(0x53, 0x8020, &state, 0, 0x160);
+        state.set(Flag::event(0xE8)).unwrap();
+        fire(0x54, 0x8021, &state, 0, 0);
+    }
 }

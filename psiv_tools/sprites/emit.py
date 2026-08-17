@@ -226,19 +226,27 @@ def emit_party(root: Path, party: Sequence[PartySprite]) -> tuple[list[dict[str,
     return entries, total
 
 
-def emit_vehicles(root: Path, vehicles: Sequence[Any]) -> tuple[list[dict[str, Any]], int]:
-    """Write the three selector-addressed vehicle field sheets."""
+def emit_vehicles(
+    root: Path, vehicles: Sequence[Any], name_suffix: str = ""
+) -> tuple[list[dict[str, Any]], int]:
+    """Write the three selector-addressed vehicle field sheets.
+
+    A suffix is used only for an additional map-palette variant. The vehicle
+    selector remains the source of truth; the JSON variant table points back
+    to these ids in selector order.
+    """
     directory = root / VEHICLE_SPRITES_DIRECTORY
     directory.mkdir(parents=True, exist_ok=True)
     entries = []
     total = 0
     for sprite in vehicles:
         image = sheet_png(sprite.sheet)
-        name = f"{_safe(sprite.symbol)}.png"
+        label = f"{sprite.symbol}{name_suffix}"
+        name = f"{_safe(label)}.png"
         (directory / name).write_bytes(image)
         total += len(image)
         entries.append({
-            "id": sprite.symbol,
+            "id": label,
             "vehicle_index": sprite.vehicle_index,
             "symbol": sprite.symbol,
             "art": {

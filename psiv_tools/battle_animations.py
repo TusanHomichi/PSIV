@@ -16,6 +16,7 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
+from . import png
 from .core import EXPECTED_SHA256, EXPECTED_SIZE, be16, be32
 from .sound_defs import SFX_NAMES
 from .symbols import ENEMY_SYMBOLS
@@ -41,6 +42,18 @@ OBJECT_TABLES = (
 SOUND_INDEX_ADDRESS = bytes.fromhex("00 FF 50 0A")
 FRAME_UPDATE_CALL = bytes.fromhex("4E B9 00 02 56 AE")
 FRAME_UPDATE_JUMP = bytes.fromhex("4E F9 00 02 56 AE")
+
+# `Battle_FillSpriteAttributes` consumes one count-minus-one byte followed by
+# six bytes per VDP sprite: Y, size, tile high, tile low, X and mirrored X.
+# Keeping these here makes the format boundary visible next to the decoder;
+# the old wave-5 scout deliberately stopped before this half.
+MAPPING_HEADER_BYTES = 1
+MAPPING_ENTRY_BYTES = 6
+FIGHTER_X_FIELD = 0x2C
+FIGHTER_Y_FIELD = 0x2E
+FIXED_POINT_X_FIELD = 0x30
+FIXED_POINT_Y_FIELD = 0x34
+BASE_OBJECT_Y = 0x00D8
 
 
 class BattleAnimationError(ValueError):
@@ -227,6 +240,302 @@ def _mapping_records(rom: bytes, start: int, end: int, object_id: int) -> list[d
     return records
 
 
+def _signed_byte(value: int) -> int:
+    return value - 0x100 if value & 0x80 else value
+
+
+def _signed_word(value: int) -> int:
+    return value - 0x10000 if value & 0x8000 else value
+
+
+def _mapping_record(rom: bytes, offset: int, bank_patterns: int | None = None) -> dict[str, Any]:
+    """Decode one retail VDP sprite mapping record.
+
+    The record is not a five-byte tuple.  The two X bytes are both present;
+    the renderer chooses the second only when the object's mirror flag is
+    set.  The count byte is count-minus-one because the 68000 loop is `dbf`.
+    """
+    if offset < 0 or offset + MAPPING_HEADER_BYTES > len(rom):
+        raise BattleAnimationError(f"mapping record at {_hex(offset)} is outside the ROM")
+    sprite_count = rom[offset] + 1
+    record_end = offset + MAPPING_HEADER_BYTES + sprite_count * MAPPING_ENTRY_BYTES
+    if sprite_count > 64 or record_end > len(rom):
+        raise BattleAnimationError(
+            f"mapping record at {_hex(offset)} has {sprite_count} sprites or runs past ROM"
+        )
+    entries: list[dict[str, Any]] = []
+    for index in range(sprite_count):
+        entry_offset = offset + MAPPING_HEADER_BYTES + index * MAPPING_ENTRY_BYTES
+        y = _signed_byte(rom[entry_offset])
+        size = rom[entry_offset + 1]
+        tile_word = _u16(rom, entry_offset + 2)
+        x = _signed_byte(rom[entry_offset + 4])
+        x_mirror = _signed_byte(rom[entry_offset + 5])
+        width_tiles = (size & 0x03) + 1
+        height_tiles = ((size >> 2) & 0x03) + 1
+        tile_index = tile_word & 0x07FF
+        tile_span_end = tile_index + width_tiles * height_tiles
+        entries.append({
+            "rom_offset": _hex(entry_offset),
+            "y": y,
+            "size": size,
+            "tile_word": f"0x{tile_word:04X}",
+            "tile_index": tile_index,
+            "h_flip": bool(tile_word & 0x0800),
+            "v_flip": bool(tile_word & 0x1000),
+            "priority": bool(tile_word & 0x8000),
+            "palette_bits": (tile_word >> 13) & 0x03,
+            "x": x,
+            "x_mirror": x_mirror,
+            "width_tiles": width_tiles,
+            "height_tiles": height_tiles,
+            "tile_span_end": tile_span_end,
+            "tile_bank_valid": (
+                bank_patterns is None or tile_span_end <= bank_patterns
+            ),
+            # Palette bits would select a different CRAM line in the VDP.
+            # The current line-relative PNG surface cannot claim those pixels.
+            "attributes_valid": not bool(tile_word & 0x6000),
+        })
+    valid = all(entry["tile_bank_valid"] and entry["attributes_valid"] for entry in entries)
+    return {
+        "rom_offset": _hex(offset),
+        "record_header_bytes": MAPPING_HEADER_BYTES,
+        "entry_bytes": MAPPING_ENTRY_BYTES,
+        "sprite_count": sprite_count,
+        "entries": entries,
+        "all_entries_valid": valid,
+        "record_end": _hex(record_end),
+    }
+
+
+def _coordinate_sites(rom: bytes, start: int, end: int, object_id: int) -> list[dict[str, Any]]:
+    """Find direct retail writes to a battle object's coordinate fields.
+
+    This is intentionally a small opcode decoder rather than a disassembler
+    dependency.  It recognizes the immediate/add-quick forms and the
+    fixed-point commits used by the attack objects.  Other coordinate writes
+    remain visible as a partial/deferred reason instead of being guessed.
+    """
+    sites: list[dict[str, Any]] = []
+
+    def add_site(offset: int, field: int, kind: str, **values: Any) -> None:
+        axis = "x" if field == FIGHTER_X_FIELD else "y"
+        sites.append({
+            "object_id": object_id,
+            "rom_offset": _hex(offset),
+            "field": f"${field:02X}(a4)",
+            "axis": axis,
+            "kind": kind,
+            **values,
+        })
+
+    for offset in range(start, max(start, end - 7), 2):
+        opcode = _u16(rom, offset)
+        if opcode in (0x066C, 0x046C):  # addi/subi.w #imm,d16(a4)
+            field = _u16(rom, offset + 4)
+            if field in (FIGHTER_X_FIELD, FIGHTER_Y_FIELD):
+                immediate = _signed_word(_u16(rom, offset + 2))
+                add_site(
+                    offset,
+                    field,
+                    "delta",
+                    delta=immediate if opcode == 0x066C else -immediate,
+                    operation="addi.w" if opcode == 0x066C else "subi.w",
+                )
+            continue
+        # addq/subq.w #n,d16(a4), where the quick value is in bits 3..1 of
+        # the high byte.  The low byte is the a4 displacement mode.
+        if 0x5000 <= opcode <= 0x5FFF and (opcode & 0x00FF) == 0x6C:
+            field = _u16(rom, offset + 2)
+            if field in (FIGHTER_X_FIELD, FIGHTER_Y_FIELD):
+                quick = (opcode >> 1) & 0x07 or 8
+                is_add = not bool(opcode & 0x0001)
+                add_site(
+                    offset,
+                    field,
+                    "delta",
+                    delta=quick if is_add else -quick,
+                    operation="addq.w" if is_add else "subq.w",
+                )
+            continue
+        if opcode == 0x397C:  # move.w #imm,d16(a4)
+            field = _u16(rom, offset + 4)
+            if field in (FIGHTER_X_FIELD, FIGHTER_Y_FIELD):
+                add_site(
+                    offset,
+                    field,
+                    "absolute",
+                    value=_u16(rom, offset + 2),
+                    operation="move.w #imm",
+                )
+            continue
+        if opcode == 0x0C6C:  # cmpi.w #imm,d16(a4)
+            field = _u16(rom, offset + 4)
+            if field in (FIGHTER_X_FIELD, FIGHTER_Y_FIELD):
+                add_site(
+                    offset,
+                    field,
+                    "compare",
+                    value=_u16(rom, offset + 2),
+                    operation="cmpi.w #imm",
+                )
+            continue
+        if opcode == 0x396C:  # move.w d16(a4),d16(a4)
+            field = _u16(rom, offset + 4)
+            if field in (FIGHTER_X_FIELD, FIGHTER_Y_FIELD):
+                add_site(
+                    offset,
+                    field,
+                    "fixed_point_commit",
+                    source_field=f"${_u16(rom, offset + 2):02X}(a4)",
+                    operation="move.w d16(a4),d16(a4)",
+                )
+    return sites
+
+
+def _movement_evidence(
+    rom: bytes,
+    object_ids: list[int],
+    object_pointers: dict[int, int],
+    object_spans: dict[int, tuple[int, int]],
+    frame_sequence: dict[str, Any] | None,
+) -> dict[str, Any]:
+    sites: list[dict[str, Any]] = []
+    by_object: dict[int, list[dict[str, Any]]] = {}
+    for object_id in object_ids:
+        object_sites = _coordinate_sites(
+            rom, *object_spans[object_pointers[object_id]], object_id
+        )
+        by_object[object_id] = object_sites
+        sites.extend(object_sites)
+
+    primary_id = None if frame_sequence is None else frame_sequence.get("object_id")
+    primary = by_object.get(primary_id or -1, [])
+    runtime: dict[str, Any] | None = None
+    status = "deferred"
+    reason = "no positive-duration mapping record selects a movement clock"
+
+    if frame_sequence is not None:
+        # A single immediate delta (or no coordinate write at all) is safe:
+        # loc_12618 supplies the exact pivot and the object only offsets it.
+        if primary and all(site["kind"] == "delta" for site in primary):
+            offsets = {"x": 0, "y": 0}
+            for site in primary:
+                offsets[site["axis"]] += site["delta"]
+            runtime = {
+                "kind": "static_offset",
+                "initial_offset_pixels": [offsets["x"], offsets["y"]],
+                "step_pixels": [0, 0],
+            }
+            status = "exact"
+            reason = "selected object uses only direct relative coordinate deltas"
+        elif not primary:
+            runtime = {
+                "kind": "static_offset",
+                "initial_offset_pixels": [0, 0],
+                "step_pixels": [0, 0],
+            }
+            status = "exact" if not sites else "partial"
+            reason = (
+                "selected mapping object stays on the shared fighter pivot"
+                if not sites else
+                "selected mapping object is static, but another reachable object writes coordinates"
+            )
+        else:
+            # The clean lunge form is: absolute start, one immediate delta,
+            # and a compare limit on the same axis.  This is the retail shape
+            # used by object $370 (TwinArms/SoldrFiend family).
+            absolutes = [site for site in primary if site["kind"] == "absolute"]
+            deltas = [site for site in primary if site["kind"] == "delta"]
+            compares = [site for site in primary if site["kind"] == "compare"]
+            axes = {site["axis"] for site in primary if site["kind"] != "compare"}
+            if (
+                len(absolutes) == 1
+                and len(deltas) == 1
+                and len(compares) == 1
+                and len(axes) == 1
+                and all(site["axis"] == next(iter(axes)) for site in primary)
+            ):
+                axis = next(iter(axes))
+                start_value = absolutes[0]["value"]
+                step = deltas[0]["delta"]
+                limit = compares[0]["value"]
+                runtime = {
+                    "kind": "linear",
+                    "axis": axis,
+                    "start_hardware": start_value,
+                    "step_hardware": step,
+                    "limit_hardware": limit,
+                    "initial_offset_pixels": [
+                        start_value - BASE_OBJECT_Y if axis == "x" else 0,
+                        start_value - BASE_OBJECT_Y if axis == "y" else 0,
+                    ],
+                    "step_pixels": [step if axis == "x" else 0, step if axis == "y" else 0],
+                }
+                status = "exact"
+                reason = "absolute start, per-tick delta, and terminal compare are all retail-proven"
+            else:
+                status = "partial"
+                reason = "coordinate writes include a branch, absolute placement, or fixed-point helper"
+
+    return {
+        "status": status,
+        "reason": reason,
+        "fields": {
+            "x": "$2C(a4)",
+            "y": "$2E(a4)",
+            "fixed_point_x": "$30(a4)",
+            "fixed_point_y": "$34(a4)",
+            "shared_init": "loc_12618",
+        },
+        "writes": sites,
+        "runtime": runtime,
+    }
+
+
+def _frame_sequence_evidence(
+    rom: bytes,
+    sequence: dict[str, Any] | None,
+    bank_patterns: int | None,
+) -> tuple[dict[str, Any] | None, dict[str, int | str]]:
+    if sequence is None:
+        return None, {"status": "deferred", "reason": "no positive-duration mapping record"}
+    records = []
+    for pointer in sequence["mapping_pointers"]:
+        offset = int(pointer, 16)
+        try:
+            records.append(_mapping_record(rom, offset, bank_patterns))
+        except BattleAnimationError as exc:
+            # A pointer can be a valid in-ROM address and still be a state
+            # table, not a sprite record.  Preserve that fact as deferred
+            # evidence rather than making the whole 153-enemy extraction
+            # pretend it is renderable.
+            records.append({
+                "rom_offset": _hex(offset),
+                "record_header_bytes": MAPPING_HEADER_BYTES,
+                "entry_bytes": MAPPING_ENTRY_BYTES,
+                "sprite_count": None,
+                "entries": [],
+                "all_entries_valid": False,
+                "record_end": None,
+                "decode_error": str(exc),
+            })
+    exact = sum(record["all_entries_valid"] for record in records)
+    if exact == len(records):
+        status = "exact"
+        reason = "every selected six-byte VDP mapping resolves within the enemy art bank"
+    elif exact:
+        status = "partial"
+        reason = f"{len(records) - exact} selected mapping record(s) exceed the art bank or set palette bits"
+    else:
+        status = "deferred"
+        reason = "none of the selected mapping records resolves within the enemy art bank"
+    sequence = dict(sequence)
+    sequence["mapping_records"] = records
+    return sequence, {"status": status, "reason": reason}
+
+
 def _walk_animation(
     rom: bytes,
     root_ids: list[int],
@@ -261,6 +570,17 @@ def build_enemy_animations(rom: bytes, display: dict[int, str] | None = None) ->
     object_pointers, object_tables = _object_pointers(rom)
     object_spans = _spans(object_pointers, len(rom))
     attack_spans = _attack_spans(routines)
+    # The art table is a separate wave-1 authority, but it is needed here to
+    # classify a mapping record as exact/partial/deferred.  Import locally so
+    # the animation scout remains usable without creating an art-module import
+    # cycle during pack construction.
+    from .battle_art import build_tile_bank, enemy_art_bounds, enemy_records
+
+    art_records = enemy_records(rom)
+    art_bounds = enemy_art_bounds(art_records, len(rom))
+    art_banks: dict[int, int] = {}
+    for record in art_records:
+        art_banks[record["id"]] = len(build_tile_bank(rom, record, art_bounds)[0])
     display = display or {}
     animations: list[dict[str, Any]] = []
 
@@ -292,6 +612,12 @@ def build_enemy_animations(rom: bytes, display: dict[int, str] | None = None) ->
         )
         if frame_sequence is not None and frame_sequence["object_id"] == 0xFFFF:
             frame_sequence["object_id"] = None
+        frame_sequence, composition = _frame_sequence_evidence(
+            rom, frame_sequence, art_banks[enemy_id]
+        )
+        movement = _movement_evidence(
+            rom, objects, object_pointers, object_spans, frame_sequence
+        )
         animations.append({
             "enemy_id": enemy_id,
             "symbol": ENEMY_SYMBOLS[enemy_id],
@@ -308,14 +634,24 @@ def build_enemy_animations(rom: bytes, display: dict[int, str] | None = None) ->
             },
             "sfx_writes": writes,
             "frame_sequence": frame_sequence,
-            "movement_proven": False,
+            "movement": movement,
+            "composition": composition,
+            "movement_proven": movement["status"] == "exact",
             "flash_timing_proven": frame_sequence is not None,
-            "sprite_sheet_proven": False,
+            "sprite_sheet_proven": composition["status"] == "exact",
         })
 
     exact_count = len(animations)
     timed = sum(animation["frame_sequence"] is not None for animation in animations)
     sequence_records = sum(animation["frame_sequence"] is not None for animation in animations)
+    movement_census = {
+        status: sum(animation["movement"]["status"] == status for animation in animations)
+        for status in ("exact", "partial", "deferred")
+    }
+    composition_census = {
+        status: sum(animation["composition"]["status"] == status for animation in animations)
+        for status in ("exact", "partial", "deferred")
+    }
     return {
         "kind": "battle_enemy_animations",
         "count": len(animations),
@@ -334,6 +670,46 @@ def build_enemy_animations(rom: bytes, display: dict[int, str] | None = None) ->
             "retail_guards": {
                 "before_table": "4EBAE6024E75",
                 "after_table": "00283B403A52",
+            },
+            "enemy_art_table": {
+                "label": "loc_27F3AE",
+                "rom_offset": "0x27F3AE",
+                "entry_count": ENEMY_ATTACK_COUNT,
+                "entry_bytes": 20,
+                "fields": {
+                    "art_1": "+0x02",
+                    "art_2": "+0x06",
+                    "art_3": "+0x0A",
+                    "body_mapping": "+0x0E",
+                    "half_width": "+0x12",
+                    "height": "+0x13",
+                },
+                "bank_order": [3, 1, 2],
+                "grand_cross": 0,
+            },
+            "mapping_record": {
+                "consumer": "Battle_FillSpriteAttributes",
+                "grand_cross": 0,
+                "header_bytes": MAPPING_HEADER_BYTES,
+                "entry_bytes": MAPPING_ENTRY_BYTES,
+                "entry_fields": [
+                    "y_offset",
+                    "size",
+                    "tile_word",
+                    "x_offset",
+                    "x_offset_mirrored",
+                ],
+                "tile_index_mask": "0x07FF",
+                "h_flip_bit": "0x0800",
+                "v_flip_bit": "0x1000",
+                "palette_mask": "0x6000",
+            },
+            "movement_fields": {
+                "x": "$2C(a4)",
+                "y": "$2E(a4)",
+                "fixed_point_x": "$30(a4)",
+                "fixed_point_y": "$34(a4)",
+                "shared_init": "loc_12618",
             },
             "tables": [
                 {
@@ -355,9 +731,18 @@ def build_enemy_animations(rom: bytes, display: dict[int, str] | None = None) ->
             "frame_sequence_records": sequence_records,
             "timed_frame_sequences": timed,
             "frame_sequence_deferred": len(animations) - timed,
-            "movement_deferred": len(animations),
+            # Legacy headline retained for consumers that only knew the old
+            # boolean.  It now means anything not exact, with the detailed
+            # three-way census beside it.
+            "movement_deferred": movement_census["partial"] + movement_census["deferred"],
+            "movement_exact": movement_census["exact"],
+            "movement_partial": movement_census["partial"],
+            "movement_status_deferred": movement_census["deferred"],
             "flash_timing": timed,
-            "sprite_sheet_deferred": len(animations),
+            "sprite_sheet_deferred": composition_census["partial"] + composition_census["deferred"],
+            "sprite_sheet_exact": composition_census["exact"],
+            "sprite_sheet_partial": composition_census["partial"],
+            "sprite_sheet_status_deferred": composition_census["deferred"],
         },
     }
 
@@ -370,3 +755,212 @@ def write_enemy_animations(rom: bytes, path: str | Path, display: dict[int, str]
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+ENEMY_ATTACK_ART_DIRECTORY = "battle/art/enemy_attacks"
+ENEMY_ATTACK_ART_NAME = "battle/art/enemy_attacks.json"
+
+
+def _attack_safe(value: str) -> str:
+    return "".join(char if char.isalnum() or char in "-_" else "_" for char in value)
+
+
+def _attack_movement_pixels(movement: dict[str, Any] | None) -> dict[str, Any]:
+    """Return only the normalized motion contract the Godot layer consumes."""
+    runtime = None if movement is None else movement.get("runtime")
+    if not runtime:
+        return {
+            "kind": "static_offset",
+            "initial_offset_pixels": [0, 0],
+            "step_pixels": [0, 0],
+            "limit_offset_pixels": None,
+        }
+    limit_offset = None
+    if runtime.get("limit_hardware") is not None:
+        limit = runtime["limit_hardware"] - BASE_OBJECT_Y
+        limit_offset = [limit if runtime.get("axis") == "x" else 0,
+                        limit if runtime.get("axis") == "y" else 0]
+    return {
+        "kind": runtime["kind"],
+        "initial_offset_pixels": runtime["initial_offset_pixels"],
+        "step_pixels": runtime["step_pixels"],
+        "limit_hardware": runtime.get("limit_hardware"),
+        "limit_offset_pixels": limit_offset,
+    }
+
+
+def _attack_canvas(
+    animation: dict[str, Any],
+    art_record: dict[str, Any],
+) -> tuple[int, int, int, int]:
+    """Find one stable transparent canvas for all of an enemy's frames."""
+    body_width = 2 * art_record["half_width_cells"] * 8
+    body_top = (15 - art_record["height_cells"]) * 8
+    pivot_x = body_width
+    pivot_y = BASE_OBJECT_Y - 0x80 - body_top
+    positions: list[tuple[int, int, int, int]] = []
+    sequence = animation["frame_sequence"]
+    for record in sequence["mapping_records"]:
+        for entry in record["entries"]:
+            x = pivot_x + entry["x"]
+            y = pivot_y + entry["y"]
+            width = entry["width_tiles"] * 8
+            height = entry["height_tiles"] * 8
+            positions.append((x, y, width, height))
+    if not positions:
+        raise BattleAnimationError(
+            f"enemy {animation['enemy_id']} has an exact composition with no sprites"
+        )
+    min_x = min(0, *(x for x, _, _, _ in positions))
+    min_y = min(0, *(y for _, y, _, _ in positions))
+    max_x = max(body_width, *(x + width for x, _, width, _ in positions))
+    max_y = max(art_record["height_cells"] * 8, *(y + height for _, y, _, height in positions))
+    return min_x, min_y, max_x - min_x, max_y - min_y
+
+
+def _render_attack_mapping(
+    tiles: list[bytes],
+    record: dict[str, Any],
+    canvas: tuple[int, int, int, int],
+    pivot: tuple[int, int],
+    palette: list[tuple[int, int, int]],
+) -> bytes:
+    min_x, min_y, width, height = canvas
+    pixels = bytearray(width * height)
+    pivot_x, pivot_y = pivot
+    for entry in record["entries"]:
+        tile_word = int(entry["tile_word"], 16)
+        tile_index = entry["tile_index"]
+        width_tiles = entry["width_tiles"]
+        height_tiles = entry["height_tiles"]
+        h_flip = entry["h_flip"]
+        v_flip = entry["v_flip"]
+        sprite_x = pivot_x + entry["x"] - min_x
+        sprite_y = pivot_y + entry["y"] - min_y
+        for y in range(height_tiles * 8):
+            source_y = height_tiles * 8 - 1 - y if v_flip else y
+            tile_row, pixel_y = divmod(source_y, 8)
+            for x in range(width_tiles * 8):
+                source_x = width_tiles * 8 - 1 - x if h_flip else x
+                tile_col, pixel_x = divmod(source_x, 8)
+                tile = tiles[tile_index + tile_row * width_tiles + tile_col]
+                pixel = tile[pixel_y * 8 + pixel_x]
+                if pixel:
+                    pixels[(sprite_y + y) * width + sprite_x + x] = pixel
+    return png.encode_indexed(width, height, pixels, palette, (0,))
+
+
+def emit_enemy_attack_art(
+    rom: bytes,
+    out_dir: str | Path,
+    animations_payload: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], int, int]:
+    """Emit exact frame-index sheets and normalized movement metadata.
+
+    A frame is emitted only after the mapping record has passed the art-bank
+    and palette-bit checks in :func:`build_enemy_animations`.  The remaining
+    records stay in the index with their census reason and no PNG, so a Godot
+    consumer cannot accidentally animate a guessed tile bank.
+    """
+    from .battle_art import enemy_art_bounds, enemy_records, build_tile_bank
+    from .battle_art_pack import enemy_palette
+    payload = animations_payload or build_enemy_animations(rom)
+    records = enemy_records(rom)
+    bounds = enemy_art_bounds(records, len(rom))
+    by_id = {record["id"]: record for record in records}
+    directory = Path(out_dir)
+    attack_dir = directory / ENEMY_ATTACK_ART_DIRECTORY
+    attack_dir.mkdir(parents=True, exist_ok=True)
+    entries: list[dict[str, Any]] = []
+    total_bytes = 0
+    png_count = 0
+
+    for animation in payload["animations"]:
+        enemy_id = animation["enemy_id"]
+        composition = animation["composition"]
+        entry: dict[str, Any] = {
+            "id": enemy_id,
+            "symbol": animation["symbol"],
+            "status": composition["status"],
+            "reason": composition["reason"],
+            "movement": {
+                "status": animation["movement"]["status"],
+                "reason": animation["movement"]["reason"],
+                "runtime": _attack_movement_pixels(animation["movement"]),
+                "writes": animation["movement"]["writes"],
+            },
+            "frames": [],
+            "source": {
+                "enemy_art_record": _hex(0x27F3AE + enemy_id * 20),
+                "mapping_consumer": "Battle_FillSpriteAttributes",
+                "grand_cross": 0,
+            },
+        }
+        if composition["status"] != "exact":
+            entries.append(entry)
+            continue
+
+        art_record = by_id[enemy_id]
+        tiles, art_sources = build_tile_bank(rom, art_record, bounds)
+        canvas = _attack_canvas(animation, art_record)
+        body_width = 2 * art_record["half_width_cells"] * 8
+        body_top = (15 - art_record["height_cells"]) * 8
+        pivot = (body_width, BASE_OBJECT_Y - 0x80 - body_top)
+        palette = enemy_palette(rom, enemy_id)
+        for frame_index, record in enumerate(animation["frame_sequence"]["mapping_records"]):
+            image = _render_attack_mapping(tiles, record, canvas, pivot, palette)
+            name = (
+                f"{enemy_id:03d}_{_attack_safe(animation['symbol'])}_"
+                f"frame{frame_index:02d}.png"
+            )
+            relative = f"{ENEMY_ATTACK_ART_DIRECTORY}/{name}"
+            (directory / relative).write_bytes(image)
+            total_bytes += len(image)
+            png_count += 1
+            entry["frames"].append({
+                "index": frame_index,
+                "mapping_rom_offset": record["rom_offset"],
+                "png": relative,
+                "png_sha256": hashlib.sha256(image).hexdigest(),
+                "duration": animation["frame_sequence"]["frame_duration"],
+            })
+        entry.update({
+            "origin_pixels": [canvas[0], canvas[1]],
+            "width_pixels": canvas[2],
+            "height_pixels": canvas[3],
+            "frame_duration": animation["frame_sequence"]["frame_duration"],
+            "total_frames": animation["frame_sequence"]["total_frames"],
+            "art": [
+                {
+                    "field": source["field"],
+                    "rom_offset": source["rom_offset"],
+                    "first_pattern": source["first_pattern"],
+                    "pattern_count": source["tile_count"],
+                }
+                for source in art_sources
+            ],
+        })
+        entries.append(entry)
+
+    return {
+        "kind": "battle_enemy_attack_art",
+        "count": len(entries),
+        "source": {
+            "enemy_attack_table": "0x00D0A4",
+            "enemy_art_table": "0x27F3AE",
+            "mapping_consumer": "Battle_FillSpriteAttributes",
+            "mapping_header_bytes": MAPPING_HEADER_BYTES,
+            "mapping_entry_bytes": MAPPING_ENTRY_BYTES,
+            "art_bank_order": [3, 1, 2],
+            "rom_sha256": payload["source"]["rom_sha256"],
+            "grand_cross": 0,
+        },
+        "census": {
+            "enemies": len(entries),
+            "exact": sum(entry["status"] == "exact" for entry in entries),
+            "partial": sum(entry["status"] == "partial" for entry in entries),
+            "deferred": sum(entry["status"] == "deferred" for entry in entries),
+            "frames": png_count,
+        },
+        "enemies": entries,
+    }, total_bytes, png_count

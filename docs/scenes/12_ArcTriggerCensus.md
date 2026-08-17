@@ -1,11 +1,11 @@
-# Next-arc trigger census: Piata gate through the post-Zio retail handoff
+# Retail trigger census: Piata gate through the Dezo endgame boundary
 
-Scouted from the retail per-map event lists in `generated/maps.json` and the
-packed map records. Trigger ids below are `RunEventsJmpTbl` indices; the event
-on the right is the `Event_Index` written by the routine. The pointer table
-authority is retail `EventPtrs` at `$05A2B4` (161 entries, `$00..$A0`) and
-`CutscenePtrs` at `$05A580` (34 entries). The rows after MeetingRika are the
-retail order of the player-controlled chain, not a story-wiki ordering.
+Scouted from the retail per-map event lists in `generated/maps.json`, the
+packed map records and the ROM. Trigger ids below are `RunEventsJmpTbl`
+indices; the event on the right is the `Event_Index` written by the routine.
+The pointer table authority is retail `EventPtrs` at `$05A2B4` (161 entries,
+`$00..$A0`) and `CutscenePtrs` at `$05A580` (34 entries). The rows after
+MeetingRika are retail dispatch order, not a story-wiki ordering.
 
 ## Map lists
 
@@ -47,6 +47,134 @@ The list entries are not scene ids. For example, Zema's `$15` calls
 event routine would dispatch the wrong pointer. Birth Valley's `$00` and
 Molcum's `$00` are the retail null routine and are intentionally not
 represented by a scene.
+
+## Dezo campaign map lists
+
+These are the retail map surfaces touched by the `$33..$54` dispatch delta.
+The side entries are included so the pointer census does not imply that every
+retail body is part of the fixed chain.
+
+| Map | id | retail map events / route role |
+|---|---:|---|
+| Dezolis overworld | `$001` | `$35/$36`; Le Roof, Carnivorous Trees, Saving Kyra, Eclipse Torch |
+| Inner Sanctuary | `$16E` | entrance/guard dialogue; direct permission surface |
+| Inner Sanctuary B1 | `$16F` | Lutz, Elsydeon cave and Elsydeon landing |
+| Gumbious F1 | `$162` | Lashiec defeat landing and Bishop handoff |
+| Air Castle floors | `$170..$17A` | arrival, Xe A Thoul, fake chest and Lashiec |
+| Mota Spaceport | `$0BF` | Gumbious/late Reunion map landing |
+| Strength Tower | `$0F2..$0F6` | `$5E` top event |
+| Courage Tower | `$0F7..$0FB` | `$5F` top event and DeVars/Sa Lews route |
+| Anger Tower | `$0FC..$0FE` | `$69/$6A`; Profound Darkness approach |
+| Motavia / Rykros route | `$000/$002` | Seth/Aero/Rykros player-controlled side of the chain |
+
+## Retail `RunEventsJmpTbl[$33..$54]`
+
+This is the exact dispatch delta audited by
+`the_dezo_campaign_dispatch_delta_matches_the_retail_census` in
+`rust/psiv-core/src/trigger_table.rs`.
+
+| index | retail routine | required gate / location summary | result |
+|---:|---|---|---|
+| `$33` | `RunEvent_MeetingLeRoof` | Le Roof `$D1` clear | `EventPtrs[$48]` / `$0048` |
+| `$34` | `RunEvent_LeRoofAgain` | `$D5/$D3` set, `$D6` clear | `CutscenePtrs[$1C]` / `$801C` |
+| `$35` | `RunEvent_CarnivorousTrees` | custom Raja Sick/Saving Kyra arms | `$004C`, `$004D`, or `$8013` |
+| `$36` | `RunEvent_EclipseTorchUsed` | `$9B` set, `$9C` clear, `x=$B80..$BB0`, `y<=$E0` | `EventPtrs[$47]` / `$0047` |
+| `$37` | `RunEvent_FindDarkForce2` | `$9E` clear, `y=$100` | `EventPtrs[$4E]` / `$004E` |
+| `$38` | `RunEvent_DarkForce2Defeated` | `$9E` set, `$A1` clear | `CutscenePtrs[$17]` / `$8017` |
+| `$39` | `RunEvent_LutzRevelation` | `$97` clear, `x=$1E0..$210`, `y=$1D0..$1F0` | `CutscenePtrs[$14]` / `$8014` |
+| `$3A` | `RunEvent_MeetingSeth` | `$C1` clear, `($770,$9B0)` | `CutscenePtrs[$19]` / `$8019` |
+| `$3B` | `RunEvent_AeroPrism` | chest `$10D` set, `$C5` clear | `CutscenePtrs[$1A]` / `$801A` |
+| `$3C` | `RunEvent_DarkForce3Defeated` | `$C5` set, `$C6` clear | `EventPtrs[$50]` / `$0050` |
+| `$3D` | `RunEvent_ReshelBattle` | `$8B` clear | `EventPtrs[$53]` / `$0053` |
+| `$3E` | `RunEvent_ClmCenterForcedBattle` | `$92/$9E` clear | `EventPtrs[$54]` / `$0054` |
+| `$3F` | `RunEvent_ClmCenterAfterBattle` | `$92` set, `$A4/$9E` clear | `EventPtrs[$55]` / `$0055` |
+| `$40` | `RunEvent_FightingDElmLars` | `$93/$9E` clear, `y=$0F0` | `EventPtrs[$56]` / `$0056` |
+| `$41` | `RunEvent_DElmLarsDefeated` | `$93` set, `$A5/$9E` clear | `EventPtrs[$57]` / `$0057` |
+| `$42` | `RunEvent_FindingAirCastle` | `$98` set, `$99` clear | `CutscenePtrs[$15]` / `$8015` |
+| `$43` | `RunEvent_EnterAirCastle` | `$9F` clear | `EventPtrs[$58]` / `$0058` |
+| `$44` | `RunEvent_FindXeAThoul` | `$9A` clear, Air Castle rectangle | `EventPtrs[$59]` / `$0059` |
+| `$45` | `RunEvent_AirCstlFakeChest` | chest `$10C` set, `$A6` clear | `EventPtrs[$5A]` / `$005A` |
+| `$46` | `RunEvent_LashiecAppearing` | `$A6` set, `$9B` clear | `EventPtrs[$5D]` / `$005D` |
+| `$47` | `RunEvent_LashiecDefeated` | `$9B` set | `CutscenePtrs[$16]` / `$8016` |
+| `$48` | `RunEvent_GumbiousBishop` | Hydrofoil `$9D` clear, Gumbious rectangle | `CutscenePtrs[$18]` / `$8018` |
+| `$49` | `RunEvent_StrengthTowerTop` | `$E2` clear | `EventPtrs[$5E]` / `$005E` |
+| `$4A` | `RunEvent_CourageTowerTop` | `$E3` clear | `EventPtrs[$5F]` / `$005F` |
+| `$4B` | `RunEvent_DeVarsDefeated` | `$D4` set, `$E5` clear | `EventPtrs[$64]` / `$0064` |
+| `$4C` | `RunEvent_SaLewsDefeated` | `$D2` set, `$E6` clear | `EventPtrs[$65]` / `$0065` |
+| `$4D` | `RunEvent_Null4D` | unconditional `moveq #1,d7`, no index | `FireWithoutIndex` |
+| `$4E` | `RunEvent_ReFaze` | `$E4` set, `$E1` clear | `EventPtrs[$63]` / `$0063` |
+| `$4F` | `RunEvent_BeforeElsydeonCave` | `$D6` set, `$D8` clear | `CutscenePtrs[$1D]` / `$801D` |
+| `$50` | `RunEvent_Reunion` | `$D9` set, `$DA` clear | `CutscenePtrs[$1F]` / `$801F` |
+| `$51` | `RunEvent_AngerTowerTop` | `$E4` clear, `x=$1C0..$1D0`, `y=$250..$260` | `EventPtrs[$69]` / `$0069` |
+| `$52` | `RunEvent_AngerTowerExitTop` | `$E7` clear, `x=$1A0..$1B0`, `y=$260` | `EventPtrs[$6A]` / `$006A` |
+| `$53` | `RunEvent_ProfoundDarkness` | `$E8` clear, `y=$160` | `CutscenePtrs[$20]` / `$8020` |
+| `$54` | `RunEvent_Ending` | `$E8` set | `CutscenePtrs[$21]` / `$8021` (boundary) |
+
+## Retail pointer body ranges for the Dezo census
+
+`EventPtrs` ranges below are ROM half-open ranges shown as inclusive bytes in
+the scene documents. This table includes direct side bodies so they cannot be
+mistaken for missing pointer data.
+
+| EventPtrs | retail body | ROM range | scene record |
+|---:|---|---|---|
+| `$47` | `Event_EclipseTorchUsed` | `$07018A..$070482` | [56](56_EclipseTorchUsed.md) |
+| `$48` | `Event_MeetingLeRoof` | `$070482..$07069E` | [51](51_MeetingLeRoof.md) |
+| `$49` | `Event_MuskCatsGuarding` | `$07069E..$0706C0` | boundary [88](88_RetailBoundaries.md) |
+| `$4A` | `Event_MuskCatElder` | `$0706C0..$070702` | boundary [88](88_RetailBoundaries.md) |
+| `$4B` | `Event_PenguinOwner` | `$070702..$070774` | boundary [88](88_RetailBoundaries.md) |
+| `$4C` | `Event_CarnivorousTrees` | `$070774..$070856` | [53](53_CarnivorousTrees.md) |
+| `$4D` | `Event_SavingKyra` | `$070856..$070976` | [54](54_SavingKyra.md) |
+| `$4E` | `Event_DarkForce2` | `$070976..$0709A2` | [57](57_DarkForce2.md) |
+| `$4F` | `Event_EsperGuardPermission` | `$0709A2..$070A2A` | boundary [88](88_RetailBoundaries.md) |
+| `$50` | `Event_DarkForce3Defeated` | `$070A2A..$070A4E` | [62](62_DarkForce3Defeated.md) |
+| `$51` | `Event_InnerSanctGuard` | `$070A4E..$070A76` | boundary [88](88_RetailBoundaries.md) |
+| `$52` | `Event_InnerSanctGuardBeforeElsydeon` | `$070A76..$070A9E` | boundary [88](88_RetailBoundaries.md) |
+| `$53` | `Event_ReshelBattle` | `$070A9E..$070ABC` | [63](63_ReshelBattle.md) |
+| `$54` | `Event_ClmCenterForcedBattle` | `$070ABC..$070ADA` | [64](64_ClmCenterForcedBattle.md) |
+| `$55` | `Event_ClmCenterAfterBattle` | `$070ADA..$070AEC` | [65](65_ClmCenterAfterBattle.md) |
+| `$56` | `Event_DElmLars` | `$070AEC..$070B0C` | [66](66_DElmLars.md) |
+| `$57` | `Event_AfterDElmLarsBattle` | `$070B0C..$070B1E` | [67](67_AfterDElmLarsBattle.md) |
+| `$58` | `Event_AirCastleArrival` | `$070B1E..$070B30` | [69](69_AirCastleArrival.md) |
+| `$59` | `Event_XeAThoulBeforeBattle` | `$070B30..$070B56` | [70](70_XeAThoulBeforeBattle.md) |
+| `$5A` | `Event_AirCastleFakeChest` | `$070B56..$070C30` | [71](71_AirCastleFakeChest.md) |
+| `$5B` | `Event_RajaSick` | `$070C30..$070C82` | boundary [88](88_RetailBoundaries.md) |
+| `$5C` | `Event_Gyuna` | `$070C82..$070CB4` | boundary [88](88_RetailBoundaries.md) |
+| `$5D` | `Event_LashiecAppearance` | `$070CB4..$070E4E` | [72](72_LashiecAppearance.md) |
+| `$5E` | `Event_StrengthTowerTop` | `$070E4E..$071102` | [75](75_StrengthTowerTop.md) |
+| `$5F` | `Event_CourageTowerTop` | `$071102..$07144A` | [76](76_CourageTowerTop.md) |
+| `$60` | `Event_DeVars` | `$07144A..$07146A` | [77](77_DeVars.md) |
+| `$61` | `Event_SaLews` | `$07146A..$07148A` | [78](78_SaLews.md) |
+| `$62` | `Event_AngerTowerAlys` | `$07148A..$07157A` | boundary [88](88_RetailBoundaries.md) |
+| `$63` | `Event_ReFaze` | `$07157A..$07175A` | [79](79_ReFaze.md) |
+| `$64` | `Event_DeVarsDefeated` | `$07175A..$071822` | [80](80_DeVarsDefeated.md) |
+| `$65` | `Event_SaLewsDefeated` | `$071822..$0718E6` | [81](81_SaLewsDefeated.md) |
+| `$66` | `Event_HuntersGuild` | `$0718E6..$071E56` | boundary [88](88_RetailBoundaries.md) |
+| `$67` | `Event_RuneHealingChaz` | `$071E56..$071E66` | boundary [88](88_RetailBoundaries.md) |
+| `$68` | `Event_PickingFifthCharacter` | `$071E66..$0721CC` | boundary [88](88_RetailBoundaries.md) |
+| `$69` | `Event_AngerTowerTop` | `$0721CC..$072262` | [85](85_AngerTowerTop.md) |
+| `$6A` | `Event_AngerTowerExitTop` | `$072262..$0722D2` | [86](86_AngerTowerExitTop.md) |
+
+The corresponding cutscene bodies are:
+
+| CutscenePtrs | body | ROM range | scene record |
+|---:|---|---|---|
+| `$12` / `$8012` | `Cutscene_RajaSick` | `$07734C..$077788` | boundary [88](88_RetailBoundaries.md) |
+| `$13` / `$8013` | `Cutscene_MeetingKyra` | `$077788..$077896` | [55](55_MeetingKyra.md) |
+| `$14` / `$8014` | `Cutscene_LutzRevelation` | `$077896..$077A2E` | [58](58_LutzRevelation.md) |
+| `$15` / `$8015` | `Cutscene_FindingAirCastle` | `$077A2E..$077A68` | [68](68_FindingAirCastle.md) |
+| `$16` / `$8016` | `Cutscene_LashiecDefeated` | `$077A68..$077BDA` | [73](73_LashiecDefeated.md) |
+| `$17` / `$8017` | `Cutscene_DarkForce2Defeated` | `$077BDA..$077DC6` | [59](59_DarkForce2Defeated.md) |
+| `$18` / `$8018` | `Cutscene_GumbiousBishop` | `$077DC6..$077EAC` | [74](74_GumbiousBishop.md) |
+| `$19` / `$8019` | `Cutscene_MeetingSeth` | `$077EAC..$077F2E` | [60](60_MeetingSeth.md) |
+| `$1A` / `$801A` | `Cutscene_AeroPrism` | `$077F2E..$07818E` | [61](61_AeroPrism.md) |
+| `$1B` / `$801B` | `Cutscene_Rykros` | `$07818E..$078346` | boundary [88](88_RetailBoundaries.md) |
+| `$1C` / `$801C` | `Cutscene_LeRoofAgain` | `$078346..$0784B6` | [52](52_LeRoofAgain.md) |
+| `$1D` / `$801D` | `Cutscene_BeforeElsydeonCave` | `$0784B6..$078584` | [82](82_BeforeElsydeonCave.md) |
+| `$1E` / `$801E` | `Cutscene_Elsydeon` | `$078584..$078A7C` | [83](83_Elsydeon.md) |
+| `$1F` / `$801F` | `Cutscene_Reunion` | `$078A7C..$078D30` | [84](84_Reunion.md) |
+| `$20` / `$8020` | `Cutscene_ProfoundDarkness` | `$078D30..$078F3E` | [87](87_ProfoundDarkness.md) |
+| `$21` / `$8021` | `Cutscene_Ending` | `$078F3E..EOF` | boundary [88](88_RetailBoundaries.md) |
 
 ## Direct dialogue controls on the same route
 
@@ -173,12 +301,15 @@ labels and are excluded.
 
 ## Proven boundary
 
-After the Dark Force 1 defeat handoff, the fixed next major story gate remains
-`$50`, `RunEvent_Reunion`, which requires Elsydeon `$D9` set and Reunion `$DA`
-clear before writing `$801F`. The current slice stops at the first Dark Force
-post-battle inventory/map handoff because the next surface is the larger
-player-controlled Dezo/Kuran campaign, not an automatic continuation of the
-same scene. Molcum `$40` still has only `[0]`; `$00` dispatches
+The new typed chain runs from the Dark Force 1 post-battle handoff through
+`$8020`, including the Reunion gate: `$50`, `RunEvent_Reunion`, requires
+Elsydeon `$D9` set and Reunion `$DA` clear before writing `$801F`. The chain
+stops at the `$8020` Profound Darkness battle request. `$54` then dispatches
+`Cutscene_Ending` `$8021`, whose body is the final credits/presentation
+surface and is intentionally outside the current typed scene contract. The
+direct Raja Sick, Rykros, Alys, guild and fifth-character controls are
+enumerated in [88](88_RetailBoundaries.md), but are not hidden in the fixed
+RunEvents chain. Molcum `$40` still has only `[0]`; `$00` dispatches
 `RunEvent_Null00`, which returns without an event body.
 
 ## Fork and byte authority
@@ -192,8 +323,8 @@ bytes below are the only executable authority. The surviving `grand_cross=0`
 branches were checked against the retail pointer ranges before they were
 expressed as `SceneOp` data. No clone executable is checked in, so “byte diff”
 means retail disassembly versus the clone's surviving source branch, never a
-pretend binary comparison. Every scene in docs 31-50 cites its retail pointer
-range and the source branch; the two direct Zio Fort bodies are listed but not
+pretend binary comparison. Every scene in docs 31-87 cites its retail pointer
+range and the source branch; direct side bodies are listed but not
 misclassified as `RunEvent` writers.
 
 FortuneTeller and AfterFortuneTeller are the hard boundary: the disassembly

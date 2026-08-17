@@ -70,5 +70,40 @@ class TestBattleAnimations(unittest.TestCase):
             )
             self.assertTrue(animation["flash_timing_proven"])
 
+    def test_mapping_records_carry_the_retail_six_byte_shape(self):
+        zoran = self.payload["animations"][10]
+        sequence = zoran["frame_sequence"]
+        self.assertEqual(zoran["composition"]["status"], "exact")
+        self.assertEqual(zoran["sprite_sheet_proven"], True)
+        self.assertEqual(sequence["mapping_records"][0]["entry_bytes"], 6)
+        entry = sequence["mapping_records"][0]["entries"][0]
+        self.assertTrue(
+            set(("y", "size", "tile_word", "x", "x_mirror")) <= set(entry)
+        )
+        self.assertTrue(entry["tile_bank_valid"])
+
+    def test_three_way_census_and_two_distinct_playback_fixtures(self):
+        census = self.payload["census"]
+        self.assertEqual(
+            (census["sprite_sheet_exact"], census["sprite_sheet_partial"],
+             census["sprite_sheet_status_deferred"]),
+            (60, 15, 78),
+        )
+        self.assertEqual(
+            (census["movement_exact"], census["movement_partial"],
+             census["movement_status_deferred"]),
+            (30, 49, 74),
+        )
+        records = {record["enemy_id"]: record for record in self.payload["animations"]}
+        zoran = records[10]
+        twin_arms = records[87]
+        self.assertEqual(zoran["movement"]["runtime"]["initial_offset_pixels"], [0, 16])
+        self.assertEqual(twin_arms["movement"]["runtime"]["kind"], "linear")
+        self.assertEqual(twin_arms["movement"]["runtime"]["step_pixels"], [0, 64])
+        self.assertEqual(
+            [zoran["frame_sequence"]["frame_count"], twin_arms["frame_sequence"]["frame_count"]],
+            [8, 4],
+        )
+
     def test_extraction_is_deterministic(self):
         self.assertEqual(self.payload, build_enemy_animations(read_rom(ROM)))

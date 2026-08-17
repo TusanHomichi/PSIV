@@ -29,6 +29,8 @@ pub struct GameData {
     party_sheet_ids: Vec<String>,
     /// Vehicle selector -> sheet id, in `Vehicle_Index` order.
     vehicle_sheet_ids: Vec<String>,
+    /// Map id -> vehicle selector sheet ids for the map's CRAM line 3.
+    vehicle_map_sheet_ids: BTreeMap<u16, Vec<String>>,
     sound: crate::sound::SoundFiles,
 }
 
@@ -123,6 +125,47 @@ impl GameData {
                     });
                 }
             }
+            if is_vehicle {
+                for variant in file.palette_variants {
+                    if variant.sheet_ids.len() != vehicle_ids.len() {
+                        return Err(DataError::Sprite {
+                            who: format!("vehicle palette maps {:?}", variant.map_ids),
+                            message: format!(
+                                "has {} sheet ids; expected {}",
+                                variant.sheet_ids.len(),
+                                vehicle_ids.len()
+                            ),
+                        });
+                    }
+                    for sheet in variant.sheets {
+                        validate_sheet(&sheet)?;
+                        if !variant.sheet_ids.iter().any(|id| id == &sheet.id) {
+                            return Err(DataError::Sprite {
+                                who: sheet.id,
+                                message: "vehicle palette sheet is not named by sheet_ids".into(),
+                            });
+                        }
+                        if let Some(previous) = data.sheets.insert(sheet.id.clone(), sheet) {
+                            return Err(DataError::Sprite {
+                                who: previous.id,
+                                message: "sheet id appears in more than one index file".into(),
+                            });
+                        }
+                    }
+                    for map_id in variant.map_ids {
+                        if data
+                            .vehicle_map_sheet_ids
+                            .insert(map_id, variant.sheet_ids.clone())
+                            .is_some()
+                        {
+                            return Err(DataError::Sprite {
+                                who: format!("map {map_id:#05x}"),
+                                message: "vehicle palette is declared more than once".into(),
+                            });
+                        }
+                    }
+                }
+            }
         }
         data.party_sheet_ids = party_ids;
         data.vehicle_sheet_ids = vehicle_ids;
@@ -158,6 +201,7 @@ impl GameData {
             sheets: BTreeMap::new(),
             party_sheet_ids: Vec::new(),
             vehicle_sheet_ids: Vec::new(),
+            vehicle_map_sheet_ids: BTreeMap::new(),
             sound: crate::sound::SoundFiles::default(),
         })
     }
@@ -196,6 +240,17 @@ impl GameData {
             .checked_sub(1)
             .and_then(|slot| self.vehicle_sheet_ids.get(slot as usize))
             .and_then(|id| self.sheets.get(id))
+    }
+
+    /// The vehicle sheet for a map's CRAM line 3, falling back to the base
+    /// selector sheet when an older or filtered pack has no variant entry.
+    pub fn vehicle_sheet_for_map(&self, map_id: u16, index: u16) -> Option<&crate::sprites::Sheet> {
+        let slot = index.checked_sub(1)? as usize;
+        self.vehicle_map_sheet_ids
+            .get(&map_id)
+            .and_then(|ids| ids.get(slot))
+            .and_then(|id| self.sheets.get(id))
+            .or_else(|| self.vehicle_sheet(index))
     }
 
     /// The map with this id, if it is packed.

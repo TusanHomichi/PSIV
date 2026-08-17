@@ -393,8 +393,9 @@ mod party;
 
 pub use abilities::{AbilitiesFile, Ability, EffectTable};
 pub use animations::{
-    EnemyAnimation, EnemyAnimationCensus, EnemyAnimationDispatch, EnemyAnimationFrameSequence,
-    EnemyAnimationSfxWrite, EnemyAnimationSource, EnemyAnimationTableSource, EnemyAnimationsFile,
+    EnemyAnimation, EnemyAnimationCensus, EnemyAnimationDispatch, EnemyAnimationEvidence,
+    EnemyAnimationFrameSequence, EnemyAnimationSfxWrite, EnemyAnimationSource,
+    EnemyAnimationTableSource, EnemyAnimationsFile,
 };
 pub use enemies::{EnemiesFile, Enemy, EnemyAi, EnemyAttack, EnemyStats, Rewards};
 pub use formations::{

@@ -12,9 +12,9 @@ use crate::events::RuntimeEvent;
 use crate::{BridgeError, Runtime};
 
 /// Retail's `MotaBattleBGIndexes`, `ps4.asm:118181-118224`.
-const MOTA_BATTLE_BG_INDEXES: [u8; 43] = [
+const MOTA_BATTLE_BG_INDEXES: [u8; 42] = [
     0, 3, 3, 3, 3, 1, 1, 1, 3, 3, 0, 1, 0, 1, 0, 1, 0, 3, 0, 3, 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    0, 4, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+    0, 4, 2, 2, 2, 2, 2, 2, 2, 2,
 ];
 
 impl Runtime {
@@ -98,10 +98,18 @@ impl Runtime {
     #[must_use]
     pub fn vehicle_battle_terrain(&self) -> Option<u8> {
         let record = self.data.map(psiv_data::MapId(self.map.id().0))?;
-        let layout = match self.effects.variant {
-            Some(index) => record.layout_variants.get(index)?.vehicle_battle.as_ref()?,
-            None => record.vehicle_battle.as_ref()?,
-        };
+        // A map effect can replace the render/collision layout without
+        // replacing the raw chunk identity that mounted battle selection
+        // reads.  Older packs also legitimately have a variant with no
+        // vehicle-battle plane.  Keep the variant when it supplies one, and
+        // otherwise retain the map's base chunk grid instead of turning a
+        // valid mounted battle into the generic background-0 fallback.
+        let layout = self
+            .effects
+            .variant
+            .and_then(|index| record.layout_variants.get(index))
+            .and_then(|variant| variant.vehicle_battle.as_ref())
+            .or(record.vehicle_battle.as_ref())?;
         if layout.width_chunks == 0 || layout.height_chunks == 0 {
             return None;
         }

@@ -45,7 +45,11 @@ impl Field {
         if let Some(vehicle_state) = vehicle_state {
             let sheet_id = runtime
                 .vehicle_index()
-                .and_then(|index| runtime.data().vehicle_sheet(index))
+                .and_then(|index| {
+                    runtime
+                        .data()
+                        .vehicle_sheet_for_map(runtime.map_id().0, index)
+                })
                 .map(|sheet| sheet.id.clone());
             if let Some(sheet_id) = sheet_id {
                 if !self.sheet_views.contains_key(&sheet_id)
@@ -362,9 +366,26 @@ impl Field {
             self.transition = None;
             if kind == TransitionKind::SceneEnd {
                 self.set_letterbox(false);
+                // Every transcribed scene refreshes the map before its end,
+                // but a scene that faulted mid-blank must not strand a
+                // hidden field.
+                self.set_field_map_visible(true);
             }
         }
         self.sync_transition();
+    }
+
+    /// `InitVramAndCram` blanks the tile planes on hardware; the shell
+    /// mirrors that by hiding the map layers until a scene map redraw
+    /// (`load_map_visuals`) restores them. The overlay's restore stays with
+    /// `load_map_visuals`, which knows whether the map has one.
+    pub(super) fn set_field_map_visible(&mut self, visible: bool) {
+        if let Some(sprite) = self.map_sprite.as_mut() {
+            sprite.set_visible(visible);
+        }
+        if !visible && let Some(sprite) = self.overlay_sprite.as_mut() {
+            sprite.set_visible(false);
+        }
     }
 
     fn ensure_transition_nodes(&mut self) {

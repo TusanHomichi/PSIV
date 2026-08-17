@@ -42,7 +42,24 @@ def main() -> int:
     p_sound.add_argument("rom", type=Path)
     p_sound.add_argument("output", type=Path)
 
+    p_dialogue_census = sub.add_parser(
+        "dialogue-census", help="Census $F2 actions in extracted dialogue JSON"
+    )
+    p_dialogue_census.add_argument("dialogue_json", type=Path)
+    p_dialogue_census.add_argument(
+        "--format", choices=("json", "markdown"), default="json"
+    )
+
     args = parser.parse_args()
+    if args.command == "dialogue-census":
+        from .dialogue_census import load, markdown
+
+        result = load(args.dialogue_json)
+        if args.format == "markdown":
+            print(markdown(result))
+        else:
+            print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
     try:
         data = read_rom(args.rom)
         if args.command == "inspect":

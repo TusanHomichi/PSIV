@@ -15,7 +15,8 @@ use godot::prelude::*;
 use serde::Deserialize;
 
 use super::enemy_overlay::{
-    AnimationPiece, EnemyAnimation, EnemyOverlayFile, EnemyOverlayFileEntry,
+    AnimationPiece, AttackAnimation, EnemyAnimation, EnemyAttackArtFile, EnemyAttackArtFileEntry,
+    EnemyOverlayFile, EnemyOverlayFileEntry,
 };
 
 /// Parsed battle art, with no Godot objects retained between battles.
@@ -24,6 +25,7 @@ pub(crate) struct BattleArt {
     characters: BTreeMap<u8, CharacterArt>,
     backgrounds: BTreeMap<u8, String>,
     enemy_overlays: BTreeMap<u16, EnemyOverlayFileEntry>,
+    enemy_attacks: BTreeMap<u16, EnemyAttackArtFileEntry>,
     background_tables: BackgroundTables,
     enemy_palette: EnemyPaletteLayout,
 }
@@ -154,6 +156,7 @@ impl BattleArt {
     pub(crate) fn load(pack_dir: &str) -> Result<BattleArt, String> {
         let enemy_file: EnemyFile = read_json(pack_dir, "battle/art/enemies.json")?;
         let overlay_file: EnemyOverlayFile = read_json(pack_dir, "battle/art/enemy_overlays.json")?;
+        let attack_file: EnemyAttackArtFile = read_json(pack_dir, "battle/art/enemy_attacks.json")?;
         let character_file: CharacterFile = read_json(pack_dir, "battle/art/characters.json")?;
         let background_file: BackgroundFile = read_json(pack_dir, "battle/art/backgrounds.json")?;
 
@@ -204,6 +207,11 @@ impl BattleArt {
             .into_iter()
             .map(|entry| (entry.id, entry))
             .collect();
+        let enemy_attacks = attack_file
+            .enemies
+            .into_iter()
+            .map(|entry| (entry.id, entry))
+            .collect();
 
         let EnemyPaletteFileLayout {
             first_table_index,
@@ -239,6 +247,7 @@ impl BattleArt {
                 .map(|entry| (entry.index, entry.png))
                 .collect(),
             enemy_overlays,
+            enemy_attacks,
             background_tables: BackgroundTables {
                 event_battle: background_file.selection.event_battle.indexes,
                 field_map: background_file.selection.field_map.indexes,
@@ -262,6 +271,7 @@ impl BattleArt {
         map_id: u16,
         motavia_terrain: Option<u8>,
         dark_force_2: bool,
+        vehicle_mounted: bool,
     ) -> Option<&str> {
         let index = select_background(
             &self.background_tables,
@@ -269,6 +279,7 @@ impl BattleArt {
             map_id,
             motavia_terrain,
             dark_force_2,
+            vehicle_mounted,
         )?;
         self.backgrounds.get(&index).map(String::as_str)
     }
@@ -300,39 +311,85 @@ impl BattleArt {
         position: u8,
     ) -> Option<EnemyAnimation> {
         let art = self.enemies.get(&enemy_id)?;
-        let overlay = self.enemy_overlays.get(&enemy_id)?;
         let base = self.enemy_image(pack_dir, art, &art.png, position)?;
         let mut pieces = Vec::new();
-        for piece in &overlay.pieces {
-            if !piece.enabled || piece.placements.is_empty() {
-                continue;
+        if let Some(overlay) = self.enemy_overlays.get(&enemy_id) {
+            for piece in &overlay.pieces {
+                if !piece.enabled || piece.placements.is_empty() {
+                    continue;
+                }
+                let Some(initial_path) = piece.initial_png.as_ref() else {
+                    godot_error!("battle enemy {enemy_id} overlay piece has no initial frame");
+                    return None;
+                };
+                if piece.frames.len() != piece.durations.len() || piece.frames.is_empty() {
+                    godot_error!(
+                        "battle enemy {enemy_id} overlay piece has {} frames and {} durations",
+                        piece.frames.len(),
+                        piece.durations.len()
+                    );
+                    return None;
+                }
+                let initial = self.enemy_image(pack_dir, art, initial_path, position)?;
+                let frames = piece
+                    .frames
+                    .iter()
+                    .map(|frame| self.enemy_image(pack_dir, art, &frame.png, position))
+                    .collect::<Option<Vec<_>>>()?;
+                pieces.push(AnimationPiece {
+                    initial,
+                    frames,
+                    durations: piece.durations.clone(),
+                    placements: piece.placements.clone(),
+                });
             }
-            let Some(initial_path) = piece.initial_png.as_ref() else {
-                godot_error!("battle enemy {enemy_id} overlay piece has no initial frame");
-                return None;
-            };
-            if piece.frames.len() != piece.durations.len() || piece.frames.is_empty() {
-                godot_error!(
-                    "battle enemy {enemy_id} overlay piece has {} frames and {} durations",
-                    piece.frames.len(),
-                    piece.durations.len()
-                );
-                return None;
-            }
-            let initial = self.enemy_image(pack_dir, art, initial_path, position)?;
-            let frames = piece
-                .frames
-                .iter()
-                .map(|frame| self.enemy_image(pack_dir, art, &frame.png, position))
-                .collect::<Option<Vec<_>>>()?;
-            pieces.push(AnimationPiece {
-                initial,
-                frames,
-                durations: piece.durations.clone(),
-                placements: piece.placements.clone(),
-            });
         }
-        EnemyAnimation::new(base, pieces)
+        let attack = self.enemy_attack_animation(pack_dir, art, enemy_id, position)?;
+        EnemyAnimation::new(base, pieces, attack)
+    }
+
+    fn enemy_attack_animation(
+        &self,
+        pack_dir: &str,
+        art: &EnemyArt,
+        enemy_id: u16,
+        position: u8,
+    ) -> Option<Option<AttackAnimation>> {
+        let Some(entry) = self.enemy_attacks.get(&enemy_id) else {
+            return Some(None);
+        };
+        if entry.status != "exact" || entry.frames.is_empty() {
+            return Some(None);
+        }
+        let Some(origin) = entry.origin_pixels else {
+            godot_error!("battle enemy {enemy_id} attack art has no canvas origin");
+            return None;
+        };
+        let mut textures = Vec::with_capacity(entry.frames.len());
+        for (expected_index, frame) in entry.frames.iter().enumerate() {
+            if frame.index != expected_index || frame.duration == 0 {
+                godot_error!("battle enemy {enemy_id} attack frame index/timing is malformed");
+                return None;
+            }
+            let image = self.enemy_image(pack_dir, art, &frame.png, position)?;
+            textures.push(ImageTexture::create_from_image(&image)?);
+        }
+        let runtime = &entry.movement.runtime;
+        let initial = if entry.movement.status == "exact" {
+            runtime.initial_offset_pixels
+        } else {
+            [0, 0]
+        };
+        let _motion_kind = runtime.kind.as_str();
+        Some(Some(AttackAnimation {
+            frames: textures,
+            origin_pixels: Vector2i::new(origin[0], origin[1]),
+            initial_offset_pixels: Vector2i::new(initial[0], initial[1]),
+            step_pixels: Vector2i::new(runtime.step_pixels[0], runtime.step_pixels[1]),
+            limit_offset_pixels: runtime
+                .limit_offset_pixels
+                .map(|limit| Vector2i::new(limit[0], limit[1])),
+        }))
     }
 
     fn enemy_image(
@@ -396,16 +453,29 @@ pub(crate) fn select_background(
     map_id: u16,
     motavia_terrain: Option<u8>,
     dark_force_2: bool,
+    vehicle_mounted: bool,
 ) -> Option<u8> {
     let selected = if let Some(event) = event_battle {
         tables.event_battle.get(usize::from(event)).copied()?
-    } else if map_id == 0 {
+    } else if map_id == 0
+        || vehicle_mounted
+            && motavia_terrain.is_some()
+            && tables
+                .field_map
+                .get(usize::from(map_id))
+                .is_none_or(|index| *index == tables.field_none)
+    {
         let terrain = usize::from(motavia_terrain?);
-        tables
-            .motavia_terrain
-            .get(terrain)
-            .copied()?
-            .saturating_sub(1)
+        match tables.motavia_terrain.get(terrain).copied() {
+            Some(stored) => stored.saturating_sub(1),
+            // The retail table is 42 bytes, while its selector consumes the
+            // raw chunk byte without a bounds check.  Mounted debug fixtures
+            // can land on a valid field chunk outside those 42 Motavia
+            // classes (Piata Academy F1 is one); keep the battle surface
+            // asset-backed and use the table's reserved background-0 class.
+            None if vehicle_mounted => 0,
+            None => return None,
+        }
     } else {
         let index = tables.field_map.get(usize::from(map_id)).copied()?;
         if index == tables.field_none {
@@ -488,22 +558,63 @@ mod tests {
     fn background_selection_uses_event_map_and_terrain_tables() {
         let tables = tables();
         assert_eq!(
-            select_background(&tables, Some(0), 2, None, false),
+            select_background(&tables, Some(0), 2, None, false, false),
             Some(13)
         );
-        assert_eq!(select_background(&tables, None, 1, None, false), Some(4));
-        assert_eq!(select_background(&tables, None, 0, Some(2), false), Some(3));
-        assert_eq!(select_background(&tables, None, 0, Some(1), false), Some(0));
-        assert_eq!(select_background(&tables, None, 2, None, false), Some(21));
-        assert_eq!(select_background(&tables, None, 2, None, true), Some(21));
+        assert_eq!(
+            select_background(&tables, None, 1, None, false, false),
+            Some(4)
+        );
+        assert_eq!(
+            select_background(&tables, None, 0, Some(2), false, false),
+            Some(3)
+        );
+        assert_eq!(
+            select_background(&tables, None, 0, Some(1), false, false),
+            Some(0)
+        );
+        assert_eq!(
+            select_background(&tables, None, 2, None, false, false),
+            Some(21)
+        );
+        assert_eq!(
+            select_background(&tables, None, 2, None, true, false),
+            Some(21)
+        );
     }
 
     #[test]
     fn dark_force_swap_applies_after_selection() {
         let tables = tables();
-        assert_eq!(select_background(&tables, Some(1), 0, None, true), Some(5));
-        assert_eq!(select_background(&tables, Some(1), 0, None, false), Some(4));
-        assert_eq!(select_background(&tables, None, 99, None, false), None);
+        assert_eq!(
+            select_background(&tables, Some(1), 0, None, true, false),
+            Some(5)
+        );
+        assert_eq!(
+            select_background(&tables, Some(1), 0, None, false, false),
+            Some(4)
+        );
+        assert_eq!(
+            select_background(&tables, None, 99, None, false, false),
+            None
+        );
+    }
+
+    #[test]
+    fn mounted_debug_maps_fall_back_to_the_motavia_chunk_table_only_when_unmapped() {
+        let tables = tables();
+        assert_eq!(
+            select_background(&tables, None, 99, Some(2), false, true),
+            Some(3)
+        );
+        assert_eq!(
+            select_background(&tables, None, 99, Some(0x5F), false, true),
+            Some(0)
+        );
+        assert_eq!(
+            select_background(&tables, None, 2, Some(2), false, true),
+            Some(21)
+        );
     }
 
     #[test]
@@ -579,7 +690,7 @@ mod tests {
         assert_eq!(enemy_cram_line(137), 2);
         assert_eq!(enemy_cram_line(159), 2);
         assert_eq!(
-            art.background_path(Some(0), 0x17, None, false),
+            art.background_path(Some(0), 0x17, None, false, false),
             Some("battle/art/backgrounds/13_AcademyBasement.png")
         );
     }

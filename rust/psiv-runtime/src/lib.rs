@@ -40,9 +40,9 @@ use geometry::{bounds_of, driver_of, object_position};
 use psiv_core::battle::{Battle, BattleEvent, Lcg41, Rng2, Rolls, RoundOrders};
 use psiv_core::{
     ActorRef, Camera, Cell, CharId, Direction, Effect, EventIndex, FieldMap, FieldState, Flag,
-    GameState, Input, MapId, MemberView, Party, PixelPos, SceneInput, SceneRunner, ScriptedActor,
-    StepFrames, TRIGGERS, TriggerContext, TriggerResult, WanderSet, Wanderer, runner_for,
-    scene_for,
+    GameState, Input, MapId, MemberView, PARTY_SLOTS, Party, PixelPos, SceneInput, SceneRunner,
+    ScriptedActor, StepFrames, TRIGGERS, TriggerContext, TriggerResult, WanderSet, Wanderer,
+    runner_for, scene_for,
 };
 use psiv_data::GameData;
 
@@ -111,6 +111,10 @@ pub struct Runtime {
     effects: EffectOutcome,
     /// Mounted field state; `None` means `Vehicle_Index == 0`.
     vehicle: Option<psiv_core::VehicleState>,
+    /// Retail's transient `Saved_Char_ID_Mem_1/_5` bridge. It is deliberately
+    /// outside `GameState` and SRAM: scenes use it between dispatches, while
+    /// the cartridge never exposes it as an ordinary save field.
+    saved_party_slots: Option<[Option<CharId>; PARTY_SLOTS]>,
 }
 
 /// Everything encounters need, converted from the pack once.
@@ -861,6 +865,12 @@ impl Runtime {
     #[must_use]
     pub fn game(&self) -> &GameState {
         &self.game
+    }
+
+    /// Applies a retail dialogue `$F2` event-flag write immediately. The
+    /// renderer uses this narrow mutator instead of reaching into save state.
+    pub fn set_event_flag(&mut self, flag: u8) -> Result<(), psiv_core::MapError> {
+        self.game.set(Flag::event(u16::from(flag)))
     }
 
     /// Whether a scene is running (cinema mode, input ownership).

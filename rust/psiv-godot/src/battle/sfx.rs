@@ -119,6 +119,7 @@ mod tests {
                     frame_count: Some(8),
                     total_frames: Some(16),
                     movement_proven: false,
+                    sprite_sheet_proven: true,
                     flash_timing_proven: true,
                 },
                 BattleAnimationEvent {
@@ -130,6 +131,7 @@ mod tests {
                     frame_count: None,
                     total_frames: None,
                     movement_proven: false,
+                    sprite_sheet_proven: false,
                     flash_timing_proven: false,
                 },
             ],

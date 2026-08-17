@@ -43,6 +43,47 @@ pub(super) struct EnemyOverlayPlacementFile {
     pub(super) size_pixels: [i32; 2],
 }
 
+/// `battle/art/enemy_attacks.json`: exact attack-object frame sheets. The
+/// index also carries partial/deferred enemies with no frame paths, so a
+/// missing asset cannot silently become a guessed animation.
+#[derive(Clone, Deserialize)]
+pub(super) struct EnemyAttackArtFile {
+    pub(super) enemies: Vec<EnemyAttackArtFileEntry>,
+}
+
+#[derive(Clone, Deserialize)]
+pub(super) struct EnemyAttackArtFileEntry {
+    pub(super) id: u16,
+    pub(super) status: String,
+    pub(super) movement: EnemyAttackMovementFile,
+    #[serde(default)]
+    pub(super) origin_pixels: Option<[i32; 2]>,
+    #[serde(default)]
+    pub(super) frames: Vec<EnemyAttackFrameFile>,
+}
+
+#[derive(Clone, Deserialize)]
+pub(super) struct EnemyAttackMovementFile {
+    pub(super) status: String,
+    pub(super) runtime: EnemyAttackRuntimeMotion,
+}
+
+#[derive(Clone, Deserialize)]
+pub(super) struct EnemyAttackRuntimeMotion {
+    pub(super) kind: String,
+    pub(super) initial_offset_pixels: [i32; 2],
+    pub(super) step_pixels: [i32; 2],
+    #[serde(default)]
+    pub(super) limit_offset_pixels: Option<[i32; 2]>,
+}
+
+#[derive(Clone, Deserialize)]
+pub(super) struct EnemyAttackFrameFile {
+    pub(super) index: usize,
+    pub(super) png: String,
+    pub(super) duration: u8,
+}
+
 struct RuntimePiece {
     initial: Gd<Image>,
     frames: Vec<Gd<Image>>,
@@ -59,17 +100,34 @@ pub(super) struct AnimationPiece {
     pub(super) placements: Vec<EnemyOverlayPlacementFile>,
 }
 
+/// Godot-side attack layer. The PNGs are line-relative and are recoloured by
+/// `BattleArt`, just like the enemy body; this object owns only the texture
+/// sequence and normalized motion track.
+#[derive(Clone)]
+pub(super) struct AttackAnimation {
+    pub(super) frames: Vec<Gd<ImageTexture>>,
+    pub(super) origin_pixels: Vector2i,
+    pub(super) initial_offset_pixels: Vector2i,
+    pub(super) step_pixels: Vector2i,
+    pub(super) limit_offset_pixels: Option<Vector2i>,
+}
+
 /// The live animation state for one enemy node.
 pub(super) struct EnemyAnimation {
     base: Gd<Image>,
     pieces: Vec<RuntimePiece>,
     output: Gd<Image>,
     texture: Gd<ImageTexture>,
+    attack: Option<AttackAnimation>,
 }
 
 impl EnemyAnimation {
-    pub(super) fn new(base: Gd<Image>, pieces: Vec<AnimationPiece>) -> Option<Self> {
-        if pieces.is_empty() {
+    pub(super) fn new(
+        base: Gd<Image>,
+        pieces: Vec<AnimationPiece>,
+        attack: Option<AttackAnimation>,
+    ) -> Option<Self> {
+        if pieces.is_empty() && attack.is_none() {
             return None;
         }
         let runtime = pieces
@@ -88,6 +146,7 @@ impl EnemyAnimation {
             texture: ImageTexture::create_from_image(&base)?,
             base,
             pieces: runtime,
+            attack,
         };
         animation.rebuild()?;
         Some(animation)
@@ -95,6 +154,10 @@ impl EnemyAnimation {
 
     pub(super) fn texture(&self) -> Gd<ImageTexture> {
         self.texture.clone()
+    }
+
+    pub(super) fn attack_spec(&self) -> Option<AttackAnimation> {
+        self.attack.clone()
     }
 
     /// Advance exactly one game update.  The Python decoder records the
