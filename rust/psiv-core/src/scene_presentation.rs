@@ -29,6 +29,15 @@ pub enum PresentationOp {
     },
     /// `Map_LoadChunks` after an in-place map update.
     ReloadMapChunks,
+    /// Decompress a scene-owned field asset into the retail RAM scratch area.
+    /// The field core does not own that scratch area, but retaining the source
+    /// and destination makes the cartridge write auditable for a renderer.
+    LoadSceneAsset {
+        /// ROM source label/address.
+        source_rom_addr: u32,
+        /// Destination RAM address.
+        destination_ram: u32,
+    },
     /// `Field_LoadSprites`/`Field_BuildSprites` followed by the VInt prep used
     /// when the scene rebuilds the live sprite table.
     RebuildSprites,

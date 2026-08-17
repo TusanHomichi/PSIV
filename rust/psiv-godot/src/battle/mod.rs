@@ -8,6 +8,8 @@ mod art;
 mod chrome;
 mod enemy_overlay;
 mod layout;
+mod sfx;
+mod state;
 mod timeline;
 mod ui;
 
@@ -16,9 +18,9 @@ pub(crate) use ui::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
 use godot::prelude::*;
 
 use psiv_core::Flag;
-use psiv_core::battle::{BattleEvent, Outcome};
+use psiv_core::battle::Outcome;
 use psiv_data::BattleFiles;
-use psiv_runtime::Runtime;
+use psiv_runtime::{BattleTimeline, Runtime};
 
 use super::Field;
 
@@ -111,19 +113,19 @@ impl Field {
             return;
         }
 
-        let events = match self
+        let timeline = match self
             .runtime
             .as_mut()
             .expect("runtime was checked above")
-            .start_battle(formation, party)
+            .start_battle_timeline(formation, party)
         {
-            Ok(events) => events,
+            Ok(timeline) => timeline,
             Err(error) => {
                 godot_error!("could not start battle {formation:#05x}: {error}");
                 return;
             }
         };
-        self.begin_battle_presentation(setup, events, &format!("formation {formation:#05x}"));
+        self.begin_battle_presentation(setup, timeline, &format!("formation {formation:#05x}"));
     }
 
     /// Presents the command-idle oracle fixture used by the visual loop.
@@ -175,13 +177,22 @@ impl Field {
                 },
             ],
         };
-        self.begin_battle_presentation(setup, Vec::new(), "oracle tape-07 command idle");
+        self.begin_battle_presentation(
+            setup,
+            BattleTimeline::debug_audio_probe(),
+            "oracle tape-07 command idle with audio probe",
+        );
     }
 
     /// Starts a boss battle emitted by a running scene. Runtime owns the
     /// already-started battle; this method only selects the matching pack art
     /// and hands its initial events to the existing screen.
-    pub(crate) fn start_scene_battle(&mut self, index: u16, events: Vec<BattleEvent>) {
+    pub(crate) fn start_scene_battle(
+        &mut self,
+        index: u16,
+        events: Vec<psiv_core::battle::BattleEvent>,
+        sounds: Vec<psiv_runtime::BattleSoundEvent>,
+    ) {
         let Some(files) = self.battle_files.as_ref() else {
             godot_error!(
                 "scene requested boss event battle {index}, but battle files are not enabled"
@@ -201,13 +212,17 @@ impl Field {
             }
             return;
         };
-        self.begin_battle_presentation(setup, events, &format!("boss event {index}"));
+        self.begin_battle_presentation(
+            setup,
+            BattleTimeline { events, sounds },
+            &format!("boss event {index}"),
+        );
     }
 
     fn begin_battle_presentation(
         &mut self,
         setup: BattleSetup,
-        events: Vec<BattleEvent>,
+        timeline: BattleTimeline,
         label: &str,
     ) {
         let Some(screen) = self.battle_screen.as_mut() else {
@@ -217,7 +232,8 @@ impl Field {
             }
             return;
         };
-        screen.bind_mut().begin(setup, events);
+        screen.bind_mut().begin(setup, timeline);
+        self.service_battle_audio();
         self.hide_field_for_battle();
         // HOTFIX (live QA: the framed takeover blacked out all battle art
         // while screen-space windows survived): camera repositioning and the
@@ -262,11 +278,11 @@ impl Field {
             let result = self
                 .runtime
                 .as_mut()
-                .map(|runtime| runtime.battle_round(&order));
+                .map(|runtime| runtime.battle_round_timeline(&order));
             match result {
-                Some(Ok(events)) => {
+                Some(Ok(timeline)) => {
                     if let Some(screen) = self.battle_screen.as_mut() {
-                        screen.bind_mut().enqueue_events(events);
+                        screen.bind_mut().enqueue_timeline(timeline);
                     }
                 }
                 Some(Err(error)) => {
@@ -281,6 +297,7 @@ impl Field {
         if let Some(screen) = self.battle_screen.as_mut() {
             screen.bind_mut().advance_frame();
         }
+        self.service_battle_audio();
         self.service_battle_finish();
         self.place_letterbox();
 
@@ -298,6 +315,18 @@ impl Field {
         self.battle_screen
             .as_ref()
             .is_some_and(|screen| screen.is_visible())
+    }
+
+    fn service_battle_audio(&mut self) {
+        let sounds = self
+            .battle_screen
+            .as_mut()
+            .map(|screen| screen.bind_mut().take_sound_requests())
+            .unwrap_or_default();
+        for id in sounds {
+            godot_print!("battle SFX dispatch: {id:#04x}");
+            self.play_sound(id);
+        }
     }
 
     fn service_battle_finish(&mut self) {

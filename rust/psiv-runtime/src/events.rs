@@ -1,7 +1,83 @@
 //! Runtime events emitted for the presentation layer to consume.
 
-use psiv_core::battle::BattleEvent;
-use psiv_core::{Cell, Direction, InteractReach, MapId, SceneFault, WarpTrigger};
+use psiv_core::battle::{BattleEvent, FighterId, Verdict};
+use psiv_core::{Cell, Direction, InteractReach, MapId, SceneFault, SceneOp, WarpTrigger};
+
+/// A retail sound request attached to one ordered battle event.
+///
+/// The core resolves a round atomically, while the cartridge raises
+/// `Sound_Index` from the action/animation state machine. `event_index` keeps
+/// that boundary explicit: the Godot presentation must dispatch this id when
+/// it starts the corresponding event, not when the whole round is returned.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BattleSoundEvent {
+    /// Index into [`BattleTimeline::events`].
+    pub event_index: usize,
+    /// Retail `Sound_Index` byte.
+    pub id: u8,
+}
+
+/// One ordered battle presentation batch plus its retail SFX sidecar.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BattleTimeline {
+    /// Core events in deterministic resolution order.
+    pub events: Vec<BattleEvent>,
+    /// Sound requests keyed to the event that reaches the retail moment.
+    pub sounds: Vec<BattleSoundEvent>,
+}
+
+impl BattleTimeline {
+    /// A non-mutating sound probe used by `PSIV_DEBUG_BATTLE=0x88`.
+    ///
+    /// The oracle battle selector intentionally does not start a runtime
+    /// round. This fixture still exercises the exact Godot queue and live
+    /// `Field::play_sound` path with an attack, a second attack, and a miss.
+    #[must_use]
+    pub fn debug_audio_probe() -> BattleTimeline {
+        let actor = FighterId::new(1).expect("fighter id 1");
+        let target = FighterId::new(6).expect("fighter id 6");
+        BattleTimeline {
+            events: vec![
+                BattleEvent::Attacked {
+                    actor,
+                    targets: vec![target],
+                },
+                BattleEvent::Resolved {
+                    actor,
+                    target,
+                    verdict: Verdict::Normal,
+                    damage: Some(7),
+                    remaining_hp: 18,
+                },
+                BattleEvent::Attacked {
+                    actor,
+                    targets: vec![target],
+                },
+                BattleEvent::Resolved {
+                    actor,
+                    target,
+                    verdict: Verdict::Miss,
+                    damage: None,
+                    remaining_hp: 18,
+                },
+            ],
+            sounds: vec![
+                BattleSoundEvent {
+                    event_index: 0,
+                    id: 0xF5,
+                },
+                BattleSoundEvent {
+                    event_index: 2,
+                    id: 0xF5,
+                },
+                BattleSoundEvent {
+                    event_index: 3,
+                    id: 0xB8,
+                },
+            ],
+        }
+    }
+}
 
 /// What a [`crate::Runtime`] tick produced, for the presentation layer.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -70,6 +146,17 @@ pub enum RuntimeEvent {
     },
     /// The running scene finished successfully. Cinema off.
     SceneEnded,
+    /// One typed presentation operation emitted by the scene interpreter.
+    ///
+    /// The runtime keeps these in the exact order returned by one scene tick;
+    /// the shell consumes them on that same tick. Blocking operations such as
+    /// `WaitFrames` therefore remain interpreter semantics while the Godot
+    /// layer receives every visual/audio side effect instead of losing it at
+    /// the translation boundary.
+    ScenePresentation {
+        /// The scene operation to apply in order.
+        op: SceneOp,
+    },
     /// The scene interpreter rejected an op. A fault is never a successful
     /// scene completion; the shell can surface the exact actor/jump/write
     /// defect to the developer instead of silently dropping it.
@@ -102,6 +189,8 @@ pub enum RuntimeEvent {
         index: u16,
         /// Battle-start timeline events.
         events: Vec<BattleEvent>,
+        /// Retail SFX requests keyed to `events`.
+        sounds: Vec<BattleSoundEvent>,
     },
     /// A scene battle could not be started. The runtime resumes the scene
     /// with an escaped outcome so a malformed pack cannot deadlock it.
@@ -114,6 +203,18 @@ pub enum RuntimeEvent {
     /// The party composition changed (join, swap, leader change). The
     /// renderer refreshes party sprites.
     PartyChanged,
+    /// The scene changed the party inventory.
+    InventoryChanged,
+    /// The scene selected a different vehicle.
+    VehicleChanged {
+        /// The retail vehicle id.
+        index: u16,
+    },
+    /// The scene wrote a persistent character record.
+    RosterChanged {
+        /// The character id whose record changed.
+        who: psiv_core::CharId,
+    },
     /// A random encounter fired on this landing. The shell seats the party
     /// and calls [`crate::Runtime::start_battle`] with this formation.
     EncounterRolled {

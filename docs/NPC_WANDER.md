@@ -1,10 +1,27 @@
 # NPC wander: how the cartridge's townsfolk move
 
-Scouted 2026-08-15 (core-lane) from `reference/ps4disasm`, cross-checked
+Scouted 2026-08-16 (core-lane) from `reference/ps4disasm`, cross-checked
 against `runtime-pack/npc_commands.json` (overworld-lane's extraction of the
 same tables). Written to the `BATTLE_SCOUT.md` standard: routine labels are
 retail and load-bearing, **inline comments in the clone drift and are not
 evidence**. Everything below is the instruction stream.
+
+## Build provenance and the `grand_cross` trap
+
+The checked-in disassembly is a **Grand Cross build**: `reference/ps4disasm/
+ps4.options.asm:10` sets `grand_cross = 1`. A `grand_cross=0` branch in this
+source is therefore not evidence that the clone assembled the retail branch;
+it is conditional source text for another build. The field routines closed in
+this slice are common, unguarded instruction streams: the caller/helper blocks
+at `ps4.asm:95081-95168`, `95649-95677`, `95964-95992`, `96397-96423`,
+`98564-98602`, `98821-98847`, `99044-99066`, `99114-99135` and
+`99413-99435` contain no `grand_cross` conditional. The only conditional
+near this range is the separate Big Duck/Grand Cross presentation code at
+`ps4.asm:99147` onward, not a random-wander branch.
+
+So the parity claim below is deliberately narrow: it transcribes the common
+random routines present in the clone and validates them against the clone's
+oracle tapes. It does not silently claim a `grand_cross=0` retail body.
 
 Prompted by the comparator: from frame 7819 of tape 02 the cartridge's
 NPCType2 townsfolk have wandered off their spawn cells while ours stand still,
@@ -73,19 +90,35 @@ open will drift the other way.
 
 ## Which types wander
 
-Census over the 949 objects in all packed maps:
+Census over the 949 objects in all packed maps, with direct random callers
+checked against the disassembly:
 
-| symbol | count | routine | mover |
-|---|---:|---|---|
-| `NPCType2` | 275 | `ps4.asm:95081` | `FieldObj_GetRandomMove` |
-| `NPCType3` | 22 | `ps4.asm:95113` | `FieldObj_GetRandomMove2` |
-| `NPCType1` | 37 | `ps4.asm:95047` | `FieldObj_NPCMoveDown` — not random |
-| everything else | 615 | bespoke per symbol | — |
+| packed symbol | count | routine entry | random helper | init leash |
+|---|---:|---|---|---|
+| `NPCType2` | 275 | `ps4.asm:95081` | `FieldObj_GetRandomMove` (`96693`) | 4/4, 2/2 |
+| `NPCType3` | 22 | `ps4.asm:95113` | `FieldObj_GetRandomMove2` (`96711`) | 4/4, 2/2 |
+| `NPCType4` | 12 | `ps4.asm:95142` | `FieldObj_GetRandomMove3` (`96730`) | 4/4, 2/2 |
+| `NPCType28` | 2 | `ps4.asm:95649` | `FieldObj_GetRandomMove3` (`96730`) | 8/8, 4/4 |
+| `loc_490B8` | 1 | `ps4.asm:95964` | `FieldObj_GetRandomMove` (`96693`) | 8/8, 4/4 |
+| `loc_49746` | 3 | `ps4.asm:96397` | `FieldObj_GetRandomMove` (`96693`) | 4/4, 2/2 |
+| `Xanafalgue` | 1 | `ps4.asm:98564` | `FieldObj_GetRandomMove` (`96693`) before `$100` escape | 2/2, 1/1 |
+| `Penguin` | 4 | `ps4.asm:98821` | `FieldObj_GetRandomMove` (`96693`) | 8/8, 4/4 |
+| `loc_4B4B4` | 0 | `ps4.asm:99044` | `FieldObj_GetRandomMove` (`96693`), `d7=1` | 16/16, 8/8 |
+| `Butterfly` | 2 | `ps4.asm:99114` | `FieldObj_GetRandomMove3` (`96730`) | 16/16, 8/8 |
+| `MuskCat` | 10 | `ps4.asm:99413` | `FieldObj_GetRandomMove` (`96693`) | 16/16, 8/8 |
 
-**Types 2 and 3 are 297 objects, 31% of all placements**, and they are the two
-the comparator caught. They differ in exactly one constant. Everything else —
-`NPCType1`, `4`, `9`, `10`, `30`, `32`, `Elevator`, `Mouse`, `Statue`,
-`FireplaceFire` and 128 more symbols — is its own routine and its own scope.
+The ten packed random families above are **332 placements**. The remaining
+617 placements are not generic random walkers: `NPCType1` (37) calls
+`FieldObj_NPCMoveDown` at `ps4.asm:95047`, Pana is fixed, MileSandWorm is a
+special animation, and the rest are bespoke routines. Those are intentionally
+not registered in `WanderSet`; registering every unknown symbol as a Type2
+would corrupt the shared RNG stream.
+
+Types 2 and 3 are still 297 objects and differ in exactly one pause mask. The
+newly transcribed families share the same remap and three collision gates, but
+their helper choice and initialization leash are now explicit in the core and
+bridge. Xanafalgue's post-threshold escape is a separate branch, described
+below; it does not draw RNG.
 
 ## The decision, per frame
 
@@ -138,6 +171,24 @@ Three things worth stating plainly:
 3. The countdown is `subq.w #1` then `bpl`, so a timer of `n` waits `n + 1`
    frames before the next roll — and the roll's own value becomes the next
    pause, so an NPC's rhythm is self-similar.
+
+`FieldObj_GetRandomMove3` (`ps4.asm:96730`) is the other closed helper. It
+enters the same `UpdateRNGSeed` path only when both step durations are zero,
+then masks the seed with `& 7` and remaps it. It does **not** decrement or
+reload `$1C`; Type4, Type28 and Butterfly therefore draw on every visible idle
+frame. A mid-step object still consumes no roll, and every caller still runs
+`FieldObj_OnScreenTest` first.
+
+The named callers are not guesses based on art. Their instruction streams each
+show the same sequence — on-screen test, the helper named in the table above,
+`moveq #0,d7`, `FieldObj_NPCMove`, `FieldObj_UpdateStepDuration`, and
+`FieldObj_UpdatePosition` — at the routine entries recorded above. The one
+packed exception is Xanafalgue (`ps4.asm:98564`): while the leader's Y is at or
+below `$100` it follows that sequence; after `Character_1.$34 > $100`, it
+sets `$20 = $FFFC` and updates position without the random helper until its X
+falls below `$1A0`, then sets `TempEveFlag_Xanafalgue` and clears its object
+slot (`ps4.asm:98564-98602`). The runtime models the movement and slot clear;
+the temporary flag remains in the event-state lane.
 
 ### The direction remap
 
@@ -246,8 +297,20 @@ does not and desynchronise the shared seed for everything else.
 `d7 = 0` selects the first speed table (`$04A20E`). Its entries give a step
 duration of `$1000` (16.0 px in 8.8 fixed point) and a velocity of `$80`
 (0.5 px/frame), so **a wandering NPC takes 32 frames per cell** — four times
-slower than the party's 8. Confirmed on hardware; see the corrections above. The other two speed tables (`$04A266`, 16 frames;
-and a third) exist but Types 2 and 3 never select them.
+slower than the party's 8. Confirmed on hardware; see the corrections above.
+The extraction and core now carry all three records:
+
+| selector | ROM range | velocity | frames/cell | packed random callers |
+|---:|---|---:|---:|---|
+| 0 | `$04A20E..$04A266` | `$80` | 32 | all packed random families |
+| 1 | `$04A266..$04A2BE` | `$100` | 16 | no packed random placement; `loc_4B4B4` uses it |
+| 2 | `$04A2BE..$04A316` | `$200` | 8 | extracted and executable, no random caller in the pack |
+
+The third record is no longer an open extraction gap. `psiv_tools` already
+emitted it in `runtime-pack/npc_commands.json`; `WanderSpeed::Selector2` and
+the speed-table test pin its `$200`/8-frame contents. The random callers in
+this slice all pass `d7=0`, except the uninstantiated `loc_4B4B4` probe at
+`ps4.asm:99059`, which passes `d7=1`.
 
 ## Interaction while moving
 
@@ -333,6 +396,29 @@ freeze if every column that would move is checked in the same source.
   two duration words and does not touch it, so the timer's value at spawn is
   whatever the object slot's block-clear left — zero on a fresh map load, which
   makes an NPC roll on its first on-screen frame.
-- The third speed table's contents, unused by these two types.
-- Every non-Type2/3 wanderer. 615 objects across 130-odd symbols, each its own
-  routine.
+- Runtime event-state side effects after Xanafalgue crosses `$100`: the
+  movement and object-slot clear are modelled, but `TempEveFlag_Xanafalgue`
+  remains in the event-state lane and is not folded into save serialization.
+- The remaining 617 non-random or bespoke placements. Their routines are not
+  one shared contract: NPCType1 is fixed-facing, Pana and MileSandWorm have
+  fixed/special bodies, and the other symbols need individual transcription
+  before they can consume the shared RNG safely.
+
+## Closed parity receipts
+
+- **Random-family transcription:** `FieldObj_GetRandomMove` (`ps4.asm:96693`),
+  `GetRandomMove2` (`96711`), `GetRandomMove3` (`96730`), the remap at
+  `loc_4A150` (`97241`), and the shared move gates at `FieldObj_NPCMove`
+  (`97257`), `loc_4A3B6` (`97532`), `loc_45CA4` (`91098`) and `loc_4A316`
+  (`97461`). Tape-backed test: `oracle/tapes/02_walk_timing.tape`; the
+  deterministic profile test also exercises all ten packed families in source
+  order on that tape's parsed frame stream. The Xanafalgue escape receipt is
+  `oracle/tapes/18_flag_round_trip.tape`, whose existing oracle path already
+  covers the temporary-flag/object-slot transition.
+- **Speed table:** `loc_4A202` pointer table and records at `$04A20E`,
+  `$04A266`, `$04A2BE`, ending `$04A316`; tape-independent extraction receipt
+  is `runtime-pack/npc_commands.json`, whose selector-2 SHA is pinned by the
+  existing `tests/test_npc_commands.py` suite.
+- **Grand Cross provenance:** `reference/ps4disasm/ps4.options.asm:10`,
+  `grand_cross = 1`; no `grand_cross=0` branch is used to justify the common
+  field routines above.

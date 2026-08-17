@@ -208,16 +208,34 @@ fn restore_objects_from(
         let y_dur: u32 = read("ydur").and_then(|v| v.parse().ok()).unwrap_or(0);
         let x_bnd: u8 = read("xbnd").and_then(|v| v.parse().ok()).unwrap_or(2);
         let y_bnd: u8 = read("ybnd").and_then(|v| v.parse().ok()).unwrap_or(2);
+        let wanderer = runtime
+            .wanderers()
+            .iter()
+            .find(|wanderer| wanderer.npc_index() == slot);
+        let speed_frames = wanderer.map_or(
+            psiv_core::WANDER_STEP_FRAMES,
+            psiv_core::Wanderer::step_frames,
+        );
+        let (x_max, y_max) = wanderer.map_or((4, 4), |wanderer| {
+            let leash = wanderer.leash();
+            (leash.x_max, leash.y_max)
+        });
+        let leash = psiv_core::Leash {
+            x_max,
+            y_max,
+            x: x_bnd,
+            y: y_bnd,
+        };
 
         // A running duration says how many frames into its step the object is:
         // it counts $1000 down to 0 in $80 steps.
         const FULL: u32 = 0x1000;
-        const PER_FRAME: u32 = FULL / psiv_core::WANDER_STEP_FRAMES as u32;
+        let per_frame = FULL / u32::from(speed_frames);
         // A running duration says how many frames into its step the object is.
         // A wandering object faces the way it walks, so the facing is the
         // step's direction.
         let progress = if x_dur > 0 || y_dur > 0 {
-            Some((((FULL - x_dur.max(y_dur)) / PER_FRAME) as u8).max(1))
+            Some((((FULL - x_dur.max(y_dur)) / per_frame) as u8).max(1))
         } else {
             None
         };
@@ -230,8 +248,8 @@ fn restore_objects_from(
         let (tx, ty) = progress.map_or((0, 0), |p| {
             let n = i32::from(p) * 16;
             (
-                (dx * n).div_euclid(i32::from(psiv_core::WANDER_STEP_FRAMES)),
-                (dy * n).div_euclid(i32::from(psiv_core::WANDER_STEP_FRAMES)),
+                (dx * n).div_euclid(i32::from(speed_frames)),
+                (dy * n).div_euclid(i32::from(speed_frames)),
             )
         });
         let origin = Cell::new(
@@ -251,16 +269,7 @@ fn restore_objects_from(
                 slot,
                 cell,
                 facing,
-                psiv_core::WanderState {
-                    timer,
-                    leash: psiv_core::Leash {
-                        x_max: 4,
-                        y_max: 4,
-                        x: x_bnd,
-                        y: y_bnd,
-                    },
-                    step,
-                },
+                psiv_core::WanderState { timer, leash, step },
             )
             .map_err(|e| format!("slot {slot}: {e}"))?;
         *slot_bounds = (x_bnd, y_bnd);
@@ -500,9 +509,19 @@ fn run() -> Result<bool, String> {
             objects: &objects,
             camera: {
                 let cam = runtime.camera();
-                let (x, y) = cam.position();
-                let (sx, sy) = cam.raw_step();
+                let (x, y) = cam.position_on(psiv_core::CameraPlane::Foreground);
+                let (sx, sy) = cam.raw_step_on(psiv_core::CameraPlane::Foreground);
                 (x, y, sx, sy)
+            },
+            camera_bg: {
+                let cam = runtime.camera();
+                let (x, y) = cam.position_on(psiv_core::CameraPlane::Background);
+                let (sx, sy) = cam.raw_step_on(psiv_core::CameraPlane::Background);
+                (x, y, sx, sy)
+            },
+            camera_gates: {
+                let gates = runtime.camera().gates();
+                (gates.ec24, gates.ec25)
             },
         }));
 

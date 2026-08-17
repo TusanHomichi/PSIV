@@ -1,10 +1,11 @@
-# Next-arc trigger census: Piata gate through Birth Valley
+# Next-arc trigger census: Piata gate through the retail Zio chain
 
 Scouted from the retail per-map event lists in `generated/maps.json` and the
 packed map records. Trigger ids below are `RunEventsJmpTbl` indices; the event
 on the right is the `Event_Index` written by the routine. The pointer table
-authority is retail `EventPtrs` at `$05A2B4` (161 `$A1` entries) and
-`CutscenePtrs` at `$05A580`.
+authority is retail `EventPtrs` at `$05A2B4` (161 entries, `$00..$A0`) and
+`CutscenePtrs` at `$05A580` (34 entries). The rows after MeetingRika are the
+retail order of the player-controlled chain, not a story-wiki ordering.
 
 ## Map lists
 
@@ -24,11 +25,19 @@ authority is retail `EventPtrs` at `$05A2B4` (161 `$A1` entries) and
 | ValleyMaze parts | `$9B..$A1` / 155..161 | 7 | `$00` | null |
 | ValleyMazeOutside | `$D8` / 216 | 7 | `$30` | `$0027` / Rune Flaeli |
 | ValleyMazeOutside2 | `$D9` / 217 | 7 | `$00` | null |
+| MachineCenter B1 Part2 | `$B9` / 185 | 7 | `$1B` | `$002B` / Getting Land Rover |
+| Motavia overworld | `$00` / 0 | 5 | `$06,$3A,$3B,$3C,$5B` | `$0006`; house/old Piata controls |
+| ZioFort F4 | `$8B` / 139 | 3 | `$1C,$1D` | `$8008`, `$8009` |
+| LadeaTower F2 | `$8E` / 142 | 5 | `$19` | `$002E` / Rune reunion |
+| LadeaTower F5 | `$91` / 145 | 3 | `$2A,$1E` | `$002F`, `$800A` |
+| Nurvus B4 Part2 | `$D3` / 211 | 3 | `$1F,$20` | `$0034`, `$800B` |
+| Molcum | `$40` / 64 | 1 | `$00` | null; no retail scene body |
 
 The list entries are not scene ids. For example, Zema's `$15` calls
 `RunEvent_UsingAlshline`, which writes cutscene `$8005`; treating `$15` as an
-event routine would dispatch the wrong pointer. Birth Valley's `$00` is the
-retail null routine and is intentionally not represented by a scene.
+event routine would dispatch the wrong pointer. Birth Valley's `$00` and
+Molcum's `$00` are the retail null routine and are intentionally not
+represented by a scene.
 
 ## Direct dialogue controls on the same route
 
@@ -64,10 +73,64 @@ and GirlsCaught are clear. It is a pointer-table event `$23`, not a
 | `$26` | `RunEvent_ChazHouseRest` | temp `$18` clear | `$003B` |
 | `$27` | `RunEvent_ClrChazHouseRest` | temp `$18` set | `$003C` |
 | `$74` | `RunEvent_ZemaServantBattle` | Silver Soldier `$B1` set, servants `$B2` clear | `$008A` |
+| `$1B` | `RunEvent_GettingLandRover` | Control Key chest `$10A` set, Land Rover `$44` clear, leader Y `>=$1C0` | `$002B` |
+| `$06` | `RunEvent_MachineCenter` | Zio `$42` set, Machine Center `$43` clear, X `$710..$750`, Y `$AD0` | `$0006` |
+| `$1C` | `RunEvent_SavingDemi` | Zio `$42` clear, leader Y `$170` | `$8008` |
+| `$1D` | `RunEvent_AlysWounded` | Zio `$42` set, Demi Joined `$47` clear | `$8009` |
+| `$19` | `RunEvent_RuneLadeaTower` | Rune Joined Again `$62` clear, leader X `>=$3C0` | `$002E` |
+| `$2A` | `RunEvent_FindingPsycoWand` | Gy Laguiah `$69` clear, leader X `$1E0..$1F0`, Y `$1B0` | `$002F` |
+| `$1E` | `RunEvent_PsycoWandFound` | Psycho Wand chest `$109` set, After Alys Death 2 `$67` clear | `$800A` |
+| `$1F` | `RunEvent_ZioNurvus` | Zio Nurvus `$65` clear, leader Y `$1E0` | `$0034` |
+| `$20` | `RunEvent_ZioDefeated` | Gryz Gone `$68` clear, Zio Nurvus `$65` set | `$800B` |
 
 The formulas are covered by the focused census test in
 `rust/psiv-core/src/trigger_table.rs`. No `trigger_custom` addition was
 needed: every trigger in these maps is already a flags/position condition.
+
+`$2A` and `$1E` deliberately have different prerequisites and write different
+event indices: `$2A` is the position-gated live Psycho Wand chest/battle body
+(`$2F`), while `$1E` is the opened-chest gate that dispatches cutscene `$800A`
+after the map event loop is evaluated again. That distinction is where a flat
+story summary tends to lose the intermediate battle.
+
+## Retail pointer and dispatch audit after `$8007`
+
+`EventPtrs` is a 161-entry retail table, `$00..$A0`; the next relevant
+non-null bodies after the MeetingRika hand-off are:
+
+| EventPtrs index | Retail body | ROM bytes | How it is reached |
+|---:|---|---|---|
+| `$06` | `Event_MachineCenterAppearing` | `$06B4B2..$06B6F3` | `RunEventsJmpTbl[$06]` on Motavia |
+| `$2B` | `Event_GettingLandRover` | `$06DEBE..$06E0E9` | `RunEventsJmpTbl[$1B]` on Machine Center |
+| `$2E` | `Event_RuneLadaeTower` | `$06E930..$06EA15` | `RunEventsJmpTbl[$19]` on Ladea F2 |
+| `$2F` | `Event_PsycoWandChest` | `$06EA16..$06EC61` | `RunEventsJmpTbl[$2A]` on Ladea F5 |
+| `$30` | `Event_ZioFortBarrier` | `$06EC62..$06EE3F` | direct Zio Fort map-data path; no RunEvent writer |
+| `$31` | `Event_ZioFanatic` | `$06EE40..$06EEBD` | direct/map dialogue path; not the `$8007` chain writer |
+| `$34` | `Event_ZioNurvus` | `$06F2EA..$06F439` | `RunEventsJmpTbl[$1F]` on Nurvus |
+
+The corresponding cutscene table entries are contiguous after MeetingRika:
+
+| CutscenePtrs index | Event | ROM bytes | RunEvent writer |
+|---:|---|---|---|
+| `$07` | `Cutscene_MeetingRika` `$8007` | `$0745DE..$074A7D` | `$1A` |
+| `$08` | `Cutscene_DemiRescue` `$8008` | `$074A7E..$074B71` | `$1C` |
+| `$09` | `Cutscene_AlysWounded` `$8009` | `$074B72..$0751FF` | `$1D` |
+| `$0A` | `Cutscene_PsycoWand` `$800A` | `$075200..$075A11` | `$1E` |
+| `$0B` | `Cutscene_ZioDefeated` `$800B` | `$075A12..$075FC7` | `$20` |
+
+The user-visible retail order is therefore `$8007 → $8008 → $8009 → $2B →
+$06 → $2E → $2F → $800A → $34 → $800B`, with map travel between each
+dispatch. `EventPtrs[$A1]` and `[$A2]` do not exist in retail: FortuneTeller
+and AfterFortuneTeller are Grand Cross-only labels and are excluded.
+
+## Proven stop
+
+After `$800B`, the next `RunEventsJmpTbl` story gate is `$50`,
+`RunEvent_Reunion`, which requires Elsydeon `$D9` set and Reunion `$DA` clear
+before writing `$801F`. Its map surfaces are later Dezo Spaceport/Kuran
+records, not the immediate Zio chain. Molcum `$40` has only `[0]`; `$00`
+dispatches `RunEvent_Null00`, which returns without an event body. There is no
+retail Molcum aftermath scene to transcribe.
 
 ## Fork and byte authority
 
@@ -80,4 +143,11 @@ bytes below are the only executable authority. The surviving `grand_cross=0`
 branches were checked against the retail pointer ranges before they were
 expressed as `SceneOp` data. No clone executable is checked in, so “byte diff”
 means retail disassembly versus the clone's surviving source branch, never a
-pretend binary comparison.
+pretend binary comparison. Every scene in docs 31-39 cites its retail pointer
+range and the source branch; the two direct Zio Fort bodies are listed but not
+misclassified as `RunEvent` writers.
+
+FortuneTeller and AfterFortuneTeller are the hard boundary: the disassembly
+has `if grand_cross=1` at `ps4.asm:116594` and `:184013`, no retail body and no
+retail pointer slots. They are excluded from both the pointer census and the
+scene registry.

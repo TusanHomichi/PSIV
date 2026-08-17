@@ -61,7 +61,7 @@ pub(super) fn command(
             }
         }
         0xea => context.tempo = take_byte(state, opcode)?.max(1),
-        0xeb => context.pending_sound = Some(take_byte(state, opcode)?),
+        0xeb => context.queue_sound(take_byte(state, opcode)?),
         0xec => {
             state.psg_volume = state
                 .psg_volume

@@ -1,9 +1,17 @@
 # The field camera
 
-Transcribed 2026-08-15 from `reference/ps4disasm/ps4.asm`. Every claim here
+Transcribed 2026-08-16 from `reference/ps4disasm/ps4.asm`. Every claim here
 carries the routine and line it came from; where the cartridge states a number
 twice in independent places, both are cited, because that is the cheapest
 available proof that a transcription is right.
+
+The source build is pinned: `reference/ps4disasm/ps4.options.asm:10` sets
+`grand_cross = 1`. The camera routines at `ps4.asm:89548-90375`, the sprite
+routine at `89801`, and the map-load/placement paths at `107749` and `111050`
+contain no `grand_cross` conditional. The `grand_cross=0` branches elsewhere
+in the clone are therefore not substituted into this field-camera proof; the
+closed path is the common instruction stream of the checked-in Grand Cross
+build.
 
 ## Why this is not a rendering concern
 
@@ -54,11 +62,39 @@ position — so `Pos_before + StepCounter` is the same number as the committed
 position, and an engine that keeps the committed position must not subtract the
 step a second time.
 
-Bit 0 of `$2(a4)` selects the BG plane's camera for that object; `$FFFFEC24`
-selects it globally. Neither is implemented: oracle-lane measured FG and BG
-identical on all 1563 field-control frames of tape 02, with the 679 frames where
-they differ confined to the intro cutscene. There is no parallax to model for
-ordinary field play.
+The object bit is a separate branch: `btst #0,$2(a4)` followed by `bne` skips
+both camera subtractions for that object. It does **not** select BG. The global
+`$FFFFEC24` byte selects FG (`0`) or BG (`nonzero`) for ordinary objects. The
+core exposes the object-independent global plane and leaves the unpacked
+per-object bit-0 render flag as an explicit bridge/schema question, rather than
+assigning it the wrong meaning.
+
+## The BG path and driver gates
+
+The BG routines are parallel transcriptions, not a presentation approximation:
+
+| operation | FG routine | BG routine | driver gate |
+|---|---|---|---|
+| X latch | `FieldObj_CameraXPos_FG`, `ps4.asm:89548` | `FieldObj_CameraXPos_BG`, `89628` | `$FFFFEC25` / `$FFFFEC26` |
+| Y latch | `FieldObj_CameraYPos_FG`, `ps4.asm:89590` | `FieldObj_CameraYPos_BG`, `89670` | `$FFFFEC25` / `$FFFFEC26` |
+| X commit | `UpdateCameraXPosFG`, `ps4.asm:90288` | `UpdateCameraXPosBG`, `90346` | — |
+| Y commit | `UpdateCameraYPosFG`, `ps4.asm:90317` | `UpdateCameraYPosBG`, `90375` | — |
+| sprite subtraction | `Camera_*_Pos_FG` | `Camera_*_Pos_BG` | global `$FFFFEC24` |
+
+Both latches read the same driver's last-frame sprite coordinates (`$2C/$2E`)
+and the same velocity source, but they write independent positions and step
+counters. `psiv-core::Camera` carries both planes, `CameraGates` carries
+`EC24/EC25/EC26`, and `Camera::tick` clears a disabled plane's step before the
+commit. The normal bridge map-load state is `EC24=1`, `EC25=1`, `EC26=1`, the
+values observed after the field map path enters control.
+
+The gate bytes are read during map setup at `loc_51AB2` (`ps4.asm:107749`):
+`EC24` selects the sprite plane; each driver gate selects whether its plane
+latches and its step counters are refreshed. Placement at `loc_53854`
+(`ps4.asm:111050`) initializes both plane positions when their gates are set.
+The runtime's replay rows compare FG and BG pixel positions, both step
+counters, and the logged `gate_ec24`/`gate_ec25` columns; `EC26` is exposed in
+the camera API but is not a column in the current oracle RAM map.
 
 ## The follow rule: a one-sided latch
 
@@ -242,28 +278,29 @@ supply it.
 
 ## Open
 
-- **The `$FFFFEC25` / `$FFFFEC24` gate bytes** are transcribed but not modelled:
-  the engine assumes the party leader drives the FG camera, which is true in
-  field mode. A scene that hands the camera to another object would need them.
-  Note oracle-lane's caveat: **neither address is named in `ps4.constants.asm`**
-  — the block runs straight from `Game_Mode_Routine` (`$EC20`) to
-  `Routine_Exit_Flags` (`$EC27`). "Plane select" and "FG camera driver enable"
-  are readings of the code, not corroborated names, and should be treated as
-  hypotheses. On tape 02 both go `00 -> 01` at frame 1209 and never change
-  again, so nothing there exercises them as a dynamic gate.
-- **The BG camera** (`Camera_*_Pos_BG`, and bit 0 of `$2(a4)` per object) is
-  transcribed but not implemented. Nothing currently observed requires it: every
-  field object on tape 02 is reproduced exactly by the FG camera alone. It will
-  matter for parallax maps and for any object that sets bit 0.
-- **Sub-pixel camera positions.** The engine keeps the full 16.16 value, but
-  nothing yet exercises a driver whose velocity is not a whole number of pixels.
-  Oracle-lane measured the camera step counter taking exactly three values on
-  tape 02 — `0`, `$00020000` and `$FFFE0000` — so the camera moves in whole
-  2 px/frame steps in lockstep with the party there.
+- **Per-object bit-0 render flags.** The branch is now transcribed correctly as
+  “bypass camera subtraction,” but the current pack schema does not carry the
+  byte at `$2(a4)` independently of bit 3. A future object-render extraction
+  must feed that flag to visibility/sprite calculation before bit-0 objects can
+  be certified.
+- **Dynamic gate values outside ordinary field entry.** Core/runtime model all
+  three bytes and the bridge supplies the ordinary `EC24=1, EC25=1, EC26=1`
+  map-load state. Scene-specific writes or map records that deliberately alter
+  the bytes still need a pack field and an owner-authorized caller. The oracle
+  RAM map currently exposes only `gate_ec24` and `gate_ec25`, so `EC26` has no
+  tape column yet.
+- **Raw sub-pixel camera columns.** The engine keeps full 16.16 plane positions
+  and step counters, and the replay compares the step longwords. The current
+  oracle comparison still exposes only integer position columns, so a tape
+  with a fractional-speed camera remains un-certified at the low-word level.
 
 ## Status
 
-Tape 02 replays **clean over its full 1080 frames across 339 columns**, camera
-columns and all 32 objects included, with zero divergences. The camera's own
-`cam_x_fg_px`, `cam_y_fg_px`, `cam_step_x_fg` and `cam_step_y_fg` are compared
-directly against cartridge RAM, so the model is measured rather than inferred.
+Tape 02 is the field receipt for the closed path: its 1080 frames cover the
+FG and BG pixel columns, both step-counter pairs, `gate_ec24`/`gate_ec25`, and
+all 32 object slots. The focused core receipt is
+`camera::tests::the_existing_field_tape_replays_both_camera_planes`; the
+rebuilt `psiv-replay` receipt is **CLEAN** over 1080 frames and 345 compared
+columns. The fresh full-pack comparison has 2,957/2,957 shared files
+identical with zero differing files; the 17 runtime-only
+`presentation/*` assets are outside the `psiv_tools pack` output scope.

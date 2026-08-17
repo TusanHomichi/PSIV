@@ -72,6 +72,7 @@ from .battle_art_pack import emit_battle_art
 from .battle_pack import emit_battle
 from .shop_pack import emit_shops
 from .dialogue_pack import emit_dialogue
+from .presentation_pack import emit_presentation
 from .title_pack import emit_title
 from .newgame import extract_new_game
 from .npc_commands import extract_npc_commands
@@ -902,6 +903,11 @@ def build_pack(
     # manifest carries the small index and title/layout.json carries the
     # extraction provenance.
     title = emit_title(rom_bytes, directory)
+
+    # The cutscene renderer's Panel_Create records, opening background, and
+    # palette requests. Same contract as title: pixels stay in the ignored
+    # pack, presentation/panels.json carries the extraction provenance.
+    presentation = emit_presentation(rom_bytes, directory)
 
     # What a scene's MoveActorCommand byte means. Its own file for the same
     # reason: the provenance is bulky and it is read once, not per map.

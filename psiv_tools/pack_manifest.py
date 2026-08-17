@@ -47,6 +47,7 @@ def write_manifest(
     shops = state["shops"]
     sound = state["sound"]
     title = state["title"]
+    presentation = state["presentation"]
     skipped = state["skipped"]
     sprite_census = state["sprite_census"]
     start = state["start"]
@@ -203,6 +204,14 @@ def write_manifest(
         "sound": sound,
         "dialogue": dialogue,
         "title": title,
+        # The scene-panel census: full provenance lives in
+        # presentation/panels.json; the manifest records what was emitted.
+        "presentation": {
+            "record_table": presentation["record_table"],
+            "record_size": presentation["record_size"],
+            "panels": len(presentation["panels"]),
+            "palettes": len(presentation["palettes"]),
+        },
         # The flag-gated patches a map's MapDataManager list applies when the
         # map is built. Per-map lists live on the map records; this is the
         # census over all of them.

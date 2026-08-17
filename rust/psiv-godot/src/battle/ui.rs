@@ -12,13 +12,18 @@ use godot::prelude::*;
 
 use psiv_core::battle::{BattleEvent, FighterId, Outcome, RoundOrders};
 use psiv_data::DialogueSet;
+use psiv_runtime::BattleTimeline;
 
 use super::art::BattleArt;
 use super::chrome::{BattleChrome, WindowRect};
 use super::enemy_overlay::EnemyAnimation;
 use super::layout::{append_status_quads, tile_dest};
+use super::sfx::{BattleSoundRequests, QueuedBattleEvent, queue_timeline};
+use super::state::{ActiveEvent, DamageDraw, FinishRequest, MessageKind};
 use super::timeline::{self, Beat};
 use super::{BattleSetup, EnemyPlacement, PartyPlacement};
+
+pub(super) use super::state::PartyStatus;
 
 /// Retail `$FFFFEE66`: `12 * (Battle_Speed + 1)`, clamped to 0..4.
 pub(crate) const fn battle_dwell_frames(speed: u16) -> u16 {
@@ -175,42 +180,6 @@ struct PartySprite {
     attack: Option<Gd<ImageTexture>>,
 }
 
-struct ActiveEvent {
-    remaining: u16,
-    wait_for_confirm: bool,
-}
-
-/// A request for the field to call the runtime epilogue after playback.
-#[derive(Clone, Copy)]
-pub(crate) struct FinishRequest {
-    pub(crate) outcome: Outcome,
-    pub(crate) reward_each: u16,
-}
-
-#[derive(Clone, Copy)]
-struct DamageDraw {
-    target: FighterId,
-    amount: u16,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum MessageKind {
-    None,
-    Transient,
-    Wide,
-    Victory,
-    VictoryRewards,
-}
-
-#[derive(Clone)]
-pub(super) struct PartyStatus {
-    pub(super) fighter: u8,
-    pub(super) character: u8,
-    pub(super) name: String,
-    pub(super) hp: u16,
-    pub(super) tp: u16,
-}
-
 /// The battle presentation node owned by [`super::super::Field`].
 #[derive(GodotClass)]
 #[class(base=Node2D)]
@@ -227,7 +196,8 @@ pub(crate) struct BattleScreen {
     names: BTreeMap<u8, String>,
     character_names: BTreeMap<u8, String>,
     party_status: Vec<PartyStatus>,
-    events: VecDeque<BattleEvent>,
+    events: VecDeque<QueuedBattleEvent>,
+    sound_requests: BattleSoundRequests,
     current: Option<ActiveEvent>,
     message: String,
     message_kind: MessageKind,
@@ -260,6 +230,7 @@ impl INode2D for BattleScreen {
             character_names: BTreeMap::new(),
             party_status: Vec::new(),
             events: VecDeque::new(),
+            sound_requests: BattleSoundRequests::default(),
             current: None,
             message: String::new(),
             message_kind: MessageKind::None,
@@ -488,13 +459,14 @@ impl BattleScreen {
     }
 
     /// Rebuilds the field for one random encounter and starts its event tape.
-    pub(crate) fn begin(&mut self, setup: BattleSetup, events: Vec<BattleEvent>) {
+    pub(crate) fn begin(&mut self, setup: BattleSetup, timeline: BattleTimeline) {
         self.clear_sprites();
         self.enemy_positions.clear();
         self.names.clear();
         self.character_names.clear();
         self.party_status.clear();
         self.events.clear();
+        self.sound_requests.clear();
         self.current = None;
         self.finish_outcome = None;
         self.finish_request = None;
@@ -512,7 +484,7 @@ impl BattleScreen {
         self.build_background(&setup);
         self.build_enemies(&setup.enemies);
         self.build_party(&setup.party);
-        self.events.extend(events);
+        self.events.extend(queue_timeline(timeline));
         self.base_mut().set_visible(true);
         self.start_next_event();
         self.base_mut().queue_redraw();
@@ -586,12 +558,23 @@ impl BattleScreen {
         self.start_next_event();
     }
 
-    pub(crate) fn enqueue_events(&mut self, events: Vec<BattleEvent>) {
-        self.events.extend(events);
+    pub(crate) fn enqueue_timeline(&mut self, timeline: BattleTimeline) {
+        self.events.extend(queue_timeline(timeline));
         if self.current.is_none() {
             self.start_next_event();
         }
         self.base_mut().queue_redraw();
+    }
+
+    pub(crate) fn enqueue_events(&mut self, events: Vec<BattleEvent>) {
+        self.enqueue_timeline(BattleTimeline {
+            events,
+            sounds: Vec::new(),
+        });
+    }
+
+    pub(crate) fn take_sound_requests(&mut self) -> Vec<u8> {
+        self.sound_requests.take()
     }
 
     pub(crate) fn take_finish_request(&mut self) -> Option<FinishRequest> {
@@ -615,6 +598,7 @@ impl BattleScreen {
         self.message_kind = MessageKind::Wide;
         self.current = None;
         self.events.clear();
+        self.sound_requests.clear();
         self.finish_outcome = None;
         self.finish_request = None;
         self.command_open = true;
@@ -811,7 +795,7 @@ impl BattleScreen {
         if self.current.is_some() {
             return;
         }
-        let Some(event) = self.events.pop_front() else {
+        let Some(queued) = self.events.pop_front() else {
             if let Some(outcome) = self.finish_outcome.take() {
                 self.finish_request = Some(FinishRequest {
                     outcome,
@@ -828,6 +812,8 @@ impl BattleScreen {
             }
             return;
         };
+        self.sound_requests.extend(queued.sounds);
+        let event = queued.event;
 
         self.update_live_party_hp(&event);
         let narration = timeline::narration(&event, &self.names, &self.character_names);

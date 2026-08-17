@@ -9,7 +9,8 @@ use std::path::Path;
 
 use psiv_core::battle::{BattleEvent, Outcome, RoundOrders};
 use psiv_core::{
-    Cell, CharId, Direction, Flag, GameState, Input, RetailLocation, RetailSave, StepFrames,
+    Cell, CharId, Direction, Flag, GameState, Input, RetailLocation, RetailSave, SceneOp,
+    StepFrames,
 };
 use psiv_data::{BattleFiles, GameData};
 use psiv_runtime::{Runtime, RuntimeEvent};
@@ -38,7 +39,7 @@ fn runtime_with_battles_at(map: u16) -> Runtime {
 fn runtime_with_four_party_at(map: u16) -> Runtime {
     let data = GameData::load(Path::new(PACK)).expect("pack loads");
     let mut game = GameState::new();
-    for (slot, id) in [CharId(0), CharId(1), CharId(2), CharId(3)]
+    for (slot, id) in [CharId(0), CharId(1), CharId(2), CharId(4)]
         .into_iter()
         .enumerate()
     {
@@ -60,6 +61,41 @@ fn runtime_with_four_party_at(map: u16) -> Runtime {
         StepFrames::default(),
     )
     .expect("runtime with seeded party starts")
+}
+
+fn runtime_with_four_party_and_battles_at(map: u16) -> Runtime {
+    let data = GameData::load(Path::new(PACK)).expect("pack loads");
+    let mut game = GameState::new();
+    for (slot, id) in [CharId(0), CharId(1), CharId(2), CharId(4)]
+        .into_iter()
+        .enumerate()
+    {
+        game.set_party_slot(slot, Some(id))
+            .expect("party slot exists");
+    }
+    game.inventory_mut()
+        .add(0x99)
+        .expect("control key fits inventory");
+    game.set(Flag::chest(0x0A)).expect("control-key chest flag");
+    game.set(Flag::chest(0x09)).expect("psycho-wand chest flag");
+    let mut runtime = Runtime::from_save(
+        data,
+        RetailSave {
+            snapshot: game.snapshot(),
+            location: RetailLocation {
+                world_index: 0,
+                map_index_2: 0,
+                map_index: map,
+                char_x: 16,
+                char_y: 16,
+            },
+        },
+        StepFrames::default(),
+    )
+    .expect("runtime with seeded party starts");
+    let files = BattleFiles::load(Path::new(PACK)).expect("battle files load");
+    runtime.enable_battles(&files).expect("battles enable");
+    runtime
 }
 
 fn drive_scene(runtime: &mut Runtime, event: u16) -> Vec<RuntimeEvent> {
@@ -216,6 +252,163 @@ fn the_followup_chain_carries_alarm_through_rika_recruitment() {
     assert!(runtime.game().is_set(Flag::event(0x35)));
     assert_eq!(runtime.game().party_slot(4).map(|id| id.0), Some(5));
     assert_eq!(*runtime.game().inventory().slots(), initial_inventory);
+}
+
+#[test]
+fn the_retail_chain_runs_from_rika_to_zio_defeat() {
+    if !Path::new(PACK).join("battle").is_dir() {
+        eprintln!("pack battle section not present; skipping");
+        return;
+    }
+
+    let mut runtime = runtime_with_four_party_and_battles_at(0xAC);
+
+    let _ = drive_scene(&mut runtime, 0x8007);
+    assert!(runtime.game().is_set(Flag::event(0x34)));
+    assert!(runtime.game().is_set(Flag::event(0x35)));
+    assert_eq!(
+        runtime.game().party_members(),
+        vec![CharId(0), CharId(1), CharId(2), CharId(4), CharId(5)]
+    );
+    assert_eq!(runtime.game().inventory().get(0), Some(0x99));
+
+    let demi_rescue = drive_until_battle(&mut runtime, 0x8008);
+    assert!(
+        demi_rescue
+            .iter()
+            .any(|item| matches!(item, RuntimeEvent::SceneBattleStarted { index: 4, .. }))
+    );
+    assert_eq!(
+        resolve_scene_battle(&mut runtime),
+        Outcome::Defeat,
+        "the first Zio encounter is the cartridge's invulnerable loss"
+    );
+    assert!(runtime.game().is_set(Flag::event(0x42)));
+    assert!(runtime.game().party_members().iter().all(|id| {
+        runtime
+            .game()
+            .roster()
+            .get(*id)
+            .is_some_and(|stats| stats.curr_hp > 0)
+    }));
+
+    let _ = drive_scene(&mut runtime, 0x8009);
+    assert!(runtime.game().is_set(Flag::event(0x47)));
+    assert_eq!(
+        runtime.game().party_members(),
+        vec![CharId(0), CharId(4), CharId(5), CharId(6)]
+    );
+    assert_eq!(runtime.game().roster().get(CharId(1)).unwrap().status, 0);
+    assert_eq!(runtime.game().roster().get(CharId(2)).unwrap().status, 0);
+
+    let _ = drive_scene(&mut runtime, 0x002B);
+    assert_eq!(runtime.game().vehicle_index(), 1);
+    assert!(runtime.game().is_set(Flag::event(0x44)));
+    assert!(!runtime.game().inventory().slots().contains(&0x99));
+    assert!(runtime.game().inventory().slots().contains(&0x96));
+
+    let _ = drive_scene(&mut runtime, 0x0006);
+    assert!(runtime.game().is_set(Flag::event(0x43)));
+    assert_eq!(
+        runtime.game().party_members(),
+        vec![CharId(0), CharId(4), CharId(5), CharId(6)]
+    );
+
+    let _ = drive_scene(&mut runtime, 0x002E);
+    assert!(runtime.game().is_set(Flag::event(0x62)));
+    assert_eq!(runtime.game().party_slot(4), Some(CharId(3)));
+    assert_eq!(
+        runtime.game().roster().get(CharId(3)).unwrap().equipment,
+        [0x37, 0x00, 0x36, 0x38]
+    );
+    assert_eq!(
+        runtime.game().roster().get(CharId(3)).unwrap().curr_hp,
+        runtime.game().roster().get(CharId(3)).unwrap().max_hp
+    );
+
+    let psycho_chest = drive_until_battle(&mut runtime, 0x002F);
+    assert!(
+        psycho_chest
+            .iter()
+            .any(|item| matches!(item, RuntimeEvent::SceneBattleStarted { index: 5, .. }))
+    );
+    assert!(runtime.game().is_set(Flag::event(0x69)));
+    let _ = resolve_scene_battle(&mut runtime);
+
+    let _ = drive_scene(&mut runtime, 0x800A);
+    assert!(runtime.game().is_set(Flag::event(0x63)));
+    assert!(runtime.game().is_set(Flag::event(0x67)));
+    assert_eq!(runtime.map_id().0, 0x39);
+    assert!(runtime.game().party_members().iter().all(|id| {
+        runtime
+            .game()
+            .roster()
+            .get(*id)
+            .is_some_and(|stats| stats.curr_hp == stats.max_hp)
+    }));
+
+    let nurvus = drive_until_battle(&mut runtime, 0x0034);
+    assert!(
+        nurvus
+            .iter()
+            .any(|item| matches!(item, RuntimeEvent::SceneBattleStarted { index: 6, .. }))
+    );
+    assert!(runtime.game().is_set(Flag::event(0x65)));
+    let _ = resolve_scene_battle(&mut runtime);
+
+    let _ = drive_scene(&mut runtime, 0x800B);
+    assert!(runtime.game().is_set(Flag::event(0x68)));
+    assert!(runtime.game().is_set(Flag::event(0x66)));
+    assert!(runtime.game().is_set(Flag::event(0x61)));
+    assert_eq!(runtime.map_id().0, 0x00);
+    assert_eq!(
+        runtime.game().party_members(),
+        vec![CharId(0), CharId(5), CharId(3)]
+    );
+    assert!(runtime.game().roster().get(CharId(0)).unwrap().curr_hp > 0);
+}
+
+#[test]
+fn presentation_events_keep_scene_order_and_tick_boundaries() {
+    if !Path::new(PACK).join("manifest.json").is_file() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+
+    let mut runtime = runtime_with_four_party_at(0xAC);
+    assert!(runtime.start_event(0x8007));
+    let mut seen = Vec::new();
+    for (tick, _) in (0..20_000).enumerate() {
+        let events = runtime.tick(Input::Neutral);
+        for (position, event) in events.iter().enumerate() {
+            if let RuntimeEvent::ScenePresentation { op } = event {
+                seen.push((tick, position, *op));
+            }
+            if matches!(event, RuntimeEvent::SceneDialogue { .. }) {
+                runtime.dialogue_closed();
+            }
+        }
+        if !runtime.scene_active() {
+            break;
+        }
+    }
+
+    assert!(
+        !seen.is_empty(),
+        "the scene surfaced no presentation effects"
+    );
+    assert!(matches!(seen[0].2, SceneOp::InitVramAndCram));
+    assert!(matches!(seen[1].2, SceneOp::FadeIn));
+    assert!(matches!(
+        seen[2].2,
+        SceneOp::SetRenderSpritesInCutscene { enabled: true }
+    ));
+    assert!(
+        seen.windows(2).all(|pair| {
+            pair[0].0 <= pair[1].0 && (pair[0].0 != pair[1].0 || pair[0].1 < pair[1].1)
+        }),
+        "presentation effects lost runtime tick/order alignment"
+    );
 }
 
 #[test]

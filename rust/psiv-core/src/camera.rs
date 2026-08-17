@@ -10,9 +10,11 @@
 //!
 //! # The mechanism
 //!
-//! The camera does **not** re-centre on the party. `FieldObj_CameraYPos_FG`
-//! (`ps4.asm:89590`) and `FieldObj_CameraXPos_FG` (`ps4.asm:89548`) implement a
-//! one-sided latch:
+//! The camera does **not** re-centre on the party. The FG routines
+//! `FieldObj_CameraYPos_FG` (`ps4.asm:89590`) and `FieldObj_CameraXPos_FG`
+//! (`ps4.asm:89548`) have parallel BG routines at `89670` and `89628`; all
+//! four implement the same one-sided latch, with `$EC25`/`$EC26` as separate
+//! driver gates:
 //!
 //! ```text
 //! clr.l   Camera_Y_Step_Counter_FG        ; default: do not scroll
@@ -20,7 +22,7 @@
 //! if y_step_constant >= 0 and sprite_y >= $D8: step = y_step_constant
 //! ```
 //!
-//! The camera moves at exactly the driver's own velocity, and only while the
+//! Each enabled plane moves at exactly the driver's own velocity, and only while the
 //! driver is past the threshold in its direction of travel. There is no
 //! restoring force. While the camera follows, the driver's *screen* position is
 //! frozen wherever it happens to be — so the leader is not pinned to the centre
@@ -37,7 +39,8 @@
 //!
 //! Positions and velocities are 16.16 throughout, exactly as the cartridge
 //! stores them: `curr_x_pos` (`$30`) and `Camera_X_Pos_FG` (`$FFFFEF94`) are
-//! longwords whose high word is the integer pixel. Keeping the low word matters
+//! longwords whose high word is the integer pixel. BG has the parallel
+//! `Camera_X_Pos_BG` (`$FFFFEF9C`). Keeping the low word matters
 //! because wanderers move half a pixel per frame.
 
 use crate::geom::Cell;
@@ -80,6 +83,53 @@ pub enum CameraEdges {
     /// The overworlds. `loc_45640` / `loc_45686` add the screen size back onto
     /// the clamp maximum to recover the full map extent, then wrap into it.
     Wrapping,
+}
+
+/// The cartridge's two camera planes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum CameraPlane {
+    /// `Camera_*_Pos_FG` and `$EC25`.
+    Foreground,
+    /// `Camera_*_Pos_BG` and `$EC26`.
+    Background,
+}
+
+/// The three camera-control bytes used by the cartridge.
+///
+/// `$EC24` selects which plane `FieldObj_CalcSpritePos` subtracts globally;
+/// `$EC25` and `$EC26` independently gate the FG and BG driver latches. The
+/// map-load routine fills the bytes before the first field frame. A normal
+/// field map selects BG for sprite subtraction and enables both latches.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CameraGates {
+    /// Global sprite-plane selector: zero is FG, nonzero is BG.
+    pub ec24: u8,
+    /// FG driver gate.
+    pub ec25: u8,
+    /// BG driver gate.
+    pub ec26: u8,
+}
+
+impl CameraGates {
+    /// The ordinary map-load state used by field maps in the pack.
+    #[must_use]
+    pub const fn field_default() -> CameraGates {
+        CameraGates {
+            ec24: 1,
+            ec25: 1,
+            ec26: 1,
+        }
+    }
+
+    /// The plane selected by `$EC24` for sprite subtraction.
+    #[must_use]
+    pub const fn plane(self) -> CameraPlane {
+        if self.ec24 == 0 {
+            CameraPlane::Foreground
+        } else {
+            CameraPlane::Background
+        }
+    }
 }
 
 /// The map extent the camera lives in, in pixels.
@@ -166,11 +216,10 @@ impl Driver {
 
 /// The field camera.
 ///
-/// Holds `Camera_*_Pos_FG` and `Camera_*_Step_Counter_FG` separately because
-/// the cartridge does, and because the difference is observable: sprite
-/// positions are computed from **pos + step**, while the commit that folds step
-/// into pos happens at a different point in the frame.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// Holds both `Camera_*_Pos_FG`/`BG` and their step counters because the
+/// cartridge does. The two latches consume the same driver's sprite position,
+/// while `$EC24` chooses which plane object sprite calculation subtracts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Camera {
     /// `Camera_X_Pos_FG`, 16.16.
     pos_x: i32,
@@ -181,6 +230,14 @@ pub struct Camera {
     step_x: i32,
     /// `Camera_Y_Step_Counter_FG`, 16.16.
     step_y: i32,
+    /// `Camera_X_Pos_BG`, 16.16.
+    pos_x_bg: i32,
+    /// `Camera_Y_Pos_BG`, 16.16.
+    pos_y_bg: i32,
+    /// `Camera_X_Step_Counter_BG`, 16.16.
+    step_x_bg: i32,
+    /// `Camera_Y_Step_Counter_BG`, 16.16.
+    step_y_bg: i32,
     /// The driver's `sprite_x_pos` (`$2C`) as written by the last
     /// `FieldObj_CalcSpritePos`. The latch tests this, and it is a frame old by
     /// construction.
@@ -196,9 +253,57 @@ pub struct Camera {
     /// sprite position at all on the overworlds, where the seam is part of the
     /// arithmetic.
     bounds: CameraBounds,
+    /// BG's map extent. The cartridge carries separate row/column sizes for
+    /// the two planes even when the pack's ordinary maps make them equal.
+    bounds_bg: CameraBounds,
+    /// `$EC24`, `$EC25`, `$EC26`.
+    gates: CameraGates,
+}
+
+impl Default for Camera {
+    fn default() -> Camera {
+        Camera {
+            bounds: CameraBounds::default(),
+            bounds_bg: CameraBounds::default(),
+            gates: CameraGates::field_default(),
+            ..Camera::zeroed()
+        }
+    }
 }
 
 impl Camera {
+    const fn zeroed() -> Camera {
+        Camera {
+            pos_x: 0,
+            pos_y: 0,
+            step_x: 0,
+            step_y: 0,
+            pos_x_bg: 0,
+            pos_y_bg: 0,
+            step_x_bg: 0,
+            step_y_bg: 0,
+            driver_sprite_x: 0,
+            driver_sprite_y: 0,
+            driver_x: 0,
+            driver_y: 0,
+            bounds: CameraBounds {
+                width: 0,
+                height: 0,
+                edges: CameraEdges::Clamped,
+            },
+            bounds_bg: CameraBounds {
+                width: 0,
+                height: 0,
+                edges: CameraEdges::Clamped,
+            },
+            gates: CameraGates {
+                ec24: 0,
+                ec25: 0,
+                ec26: 0,
+            },
+        }
+    }
+
     /// The camera as a map places it: the driver at its home offset, then the
     /// map's edge rule applied.
     ///
@@ -206,10 +311,25 @@ impl Camera {
     /// also the state a replay must start from at its alignment frame.
     #[must_use]
     pub fn placed_on(driver: Driver, bounds: CameraBounds) -> Camera {
+        Self::placed_on_planes(driver, bounds, bounds, CameraGates::field_default())
+    }
+
+    /// Places both camera planes with independent map extents and gates.
+    #[must_use]
+    pub fn placed_on_planes(
+        driver: Driver,
+        bounds_fg: CameraBounds,
+        bounds_bg: CameraBounds,
+        gates: CameraGates,
+    ) -> Camera {
         let mut camera = Camera {
             pos_x: driver.x - HOME_X * ONE_PIXEL,
             pos_y: driver.y - HOME_Y * ONE_PIXEL,
-            bounds,
+            pos_x_bg: driver.x - HOME_X * ONE_PIXEL,
+            pos_y_bg: driver.y - HOME_Y * ONE_PIXEL,
+            bounds: bounds_fg,
+            bounds_bg,
+            gates,
             driver_x: driver.x,
             driver_y: driver.y,
             ..Camera::default()
@@ -222,8 +342,20 @@ impl Camera {
     /// An unplaced camera on `bounds`, at the map's origin.
     #[must_use]
     pub fn new(bounds: CameraBounds) -> Camera {
+        Self::new_planes(bounds, bounds, CameraGates::field_default())
+    }
+
+    /// Creates an origin camera with independent plane extents and gates.
+    #[must_use]
+    pub fn new_planes(
+        bounds_fg: CameraBounds,
+        bounds_bg: CameraBounds,
+        gates: CameraGates,
+    ) -> Camera {
         Camera {
-            bounds,
+            bounds: bounds_fg,
+            bounds_bg,
+            gates,
             ..Camera::default()
         }
     }
@@ -234,10 +366,47 @@ impl Camera {
         self.bounds
     }
 
+    /// The bounds for one camera plane.
+    #[must_use]
+    pub const fn bounds_on(&self, plane: CameraPlane) -> CameraBounds {
+        match plane {
+            CameraPlane::Foreground => self.bounds,
+            CameraPlane::Background => self.bounds_bg,
+        }
+    }
+
+    /// The three live camera-control bytes.
+    #[must_use]
+    pub const fn gates(&self) -> CameraGates {
+        self.gates
+    }
+
+    /// The plane selected globally by `$EC24`.
+    #[must_use]
+    pub const fn active_plane(&self) -> CameraPlane {
+        self.gates.plane()
+    }
+
+    /// Updates `$EC24`, `$EC25` and `$EC26` as a map-load routine would.
+    pub fn set_gates(&mut self, gates: CameraGates) {
+        self.gates = gates;
+        self.refresh_driver_sprite(Driver {
+            x: self.driver_x,
+            y: self.driver_y,
+        });
+    }
+
     /// The camera position in whole pixels, as the renderer wants it.
     #[must_use]
     pub const fn position(&self) -> (i32, i32) {
-        (self.pos_x >> 16, self.pos_y >> 16)
+        self.position_on(self.active_plane())
+    }
+
+    /// The camera position for one plane, in whole pixels.
+    #[must_use]
+    pub const fn position_on(&self, plane: CameraPlane) -> (i32, i32) {
+        let (x, y) = self.raw_on(plane);
+        (x >> 16, y >> 16)
     }
 
     /// The camera sprite positions are actually computed against: pos + step.
@@ -246,22 +415,50 @@ impl Camera {
     /// decides visibility, and it leads [`Camera::position`] by one commit.
     #[must_use]
     pub const fn effective(&self) -> (i32, i32) {
-        (
-            (self.pos_x + self.step_x) >> 16,
-            (self.pos_y + self.step_y) >> 16,
-        )
+        self.effective_on(self.active_plane())
+    }
+
+    /// The position plus the uncommitted step for one plane.
+    #[must_use]
+    pub const fn effective_on(&self, plane: CameraPlane) -> (i32, i32) {
+        let (x, y) = match plane {
+            CameraPlane::Foreground => (self.pos_x + self.step_x, self.pos_y + self.step_y),
+            CameraPlane::Background => (
+                self.pos_x_bg + self.step_x_bg,
+                self.pos_y_bg + self.step_y_bg,
+            ),
+        };
+        (x >> 16, y >> 16)
     }
 
     /// The raw 16.16 position, for tests and for diffing against oracle RAM.
     #[must_use]
     pub const fn raw(&self) -> (i32, i32) {
-        (self.pos_x, self.pos_y)
+        self.raw_on(self.active_plane())
+    }
+
+    /// The raw 16.16 position for one plane.
+    #[must_use]
+    pub const fn raw_on(&self, plane: CameraPlane) -> (i32, i32) {
+        match plane {
+            CameraPlane::Foreground => (self.pos_x, self.pos_y),
+            CameraPlane::Background => (self.pos_x_bg, self.pos_y_bg),
+        }
     }
 
     /// The raw 16.16 step counters.
     #[must_use]
     pub const fn raw_step(&self) -> (i32, i32) {
-        (self.step_x, self.step_y)
+        self.raw_step_on(self.active_plane())
+    }
+
+    /// The raw 16.16 step counters for one plane.
+    #[must_use]
+    pub const fn raw_step_on(&self, plane: CameraPlane) -> (i32, i32) {
+        match plane {
+            CameraPlane::Foreground => (self.step_x, self.step_y),
+            CameraPlane::Background => (self.step_x_bg, self.step_y_bg),
+        }
     }
 
     /// Places the camera without the home offset, for scenes that park it.
@@ -271,8 +468,31 @@ impl Camera {
     pub fn set_position(&mut self, x: i32, y: i32) {
         self.pos_x = x * ONE_PIXEL;
         self.pos_y = y * ONE_PIXEL;
+        self.pos_x_bg = self.pos_x;
+        self.pos_y_bg = self.pos_y;
         self.step_x = 0;
         self.step_y = 0;
+        self.step_x_bg = 0;
+        self.step_y_bg = 0;
+        self.settle();
+    }
+
+    /// Parks one camera plane at an absolute position.
+    pub fn set_position_on(&mut self, plane: CameraPlane, x: i32, y: i32) {
+        match plane {
+            CameraPlane::Foreground => {
+                self.pos_x = x * ONE_PIXEL;
+                self.pos_y = y * ONE_PIXEL;
+                self.step_x = 0;
+                self.step_y = 0;
+            }
+            CameraPlane::Background => {
+                self.pos_x_bg = x * ONE_PIXEL;
+                self.pos_y_bg = y * ONE_PIXEL;
+                self.step_x_bg = 0;
+                self.step_y_bg = 0;
+            }
+        }
         self.settle();
     }
 
@@ -290,26 +510,44 @@ impl Camera {
 
     /// One frame, in the cartridge's own order.
     ///
-    /// `Event_MoveCamera` shows the field loop's sequence plainly: the commit
-    /// (`UpdateCameraXPosFG`) runs *before* `Field_UpdateObjects`, so a frame
+    /// `Event_MoveCamera` shows the field loop's sequence plainly: the commits
+    /// (`UpdateCameraXPosFG/BG`) run *before* `Field_UpdateObjects`, so a frame
     /// folds last frame's scroll into the position first, then decides this
     /// frame's scroll from the driver's sprite position — which is itself a
     /// frame old, having been written by the previous frame's
     /// `FieldObj_CalcSpritePos`.
     pub fn tick(&mut self, driver: Driver) {
-        // 1. FieldObj_Camera*Pos_FG: latch this frame's scroll off the driver's
-        //    velocity, gated on its sprite position — a frame old, written by
-        //    the previous CalcSpritePos — being past the threshold in the
-        //    direction of travel.
+        // 1. FieldObj_Camera*Pos_FG/BG: latch this frame's scroll off the
+        //    driver's velocity, gated on its sprite position — a frame old,
+        //    written by the previous CalcSpritePos — being past the threshold
+        //    in the direction of travel. Each plane has its own gate/counter.
         let vx = driver.x - self.driver_x;
         let vy = driver.y - self.driver_y;
         self.driver_x = driver.x;
         self.driver_y = driver.y;
-        self.step_x = latch(vx, self.driver_sprite_x, THRESHOLD_X);
-        self.step_y = latch(vy, self.driver_sprite_y, THRESHOLD_Y);
+        self.step_x = if self.gates.ec25 == 0 {
+            0
+        } else {
+            latch(vx, self.driver_sprite_x, THRESHOLD_X)
+        };
+        self.step_y = if self.gates.ec25 == 0 {
+            0
+        } else {
+            latch(vy, self.driver_sprite_y, THRESHOLD_Y)
+        };
+        self.step_x_bg = if self.gates.ec26 == 0 {
+            0
+        } else {
+            latch(vx, self.driver_sprite_x, THRESHOLD_X)
+        };
+        self.step_y_bg = if self.gates.ec26 == 0 {
+            0
+        } else {
+            latch(vy, self.driver_sprite_y, THRESHOLD_Y)
+        };
 
-        // 2. UpdateCamera*PosFG: fold this frame's scroll in, then apply the
-        //    map's edge rule. The commit lands *after* the latch, not before:
+        // 2. UpdateCamera*PosFG/BG: fold this frame's scroll in, then apply the
+        //    plane's edge rule. The commit lands *after* the latch, not before:
         //    the oracle's camera columns hold `leader - camera` at exactly
         //    (152, 88) on all 1563 field-control frames of tape 02, with no
         //    frame of lag anywhere, which only the latch-then-commit order
@@ -317,6 +555,8 @@ impl Camera {
         //    that is a scene helper driving its own loop, not the field one.)
         self.pos_x += self.step_x;
         self.pos_y += self.step_y;
+        self.pos_x_bg += self.step_x_bg;
+        self.pos_y_bg += self.step_y_bg;
         self.settle();
 
         // 3. FieldObj_CalcSpritePos: every object, on screen or not, recomputes
@@ -334,16 +574,21 @@ impl Camera {
     /// the scroll.
     #[must_use]
     pub const fn sprite_pos(&self, x: i32, y: i32) -> (i32, i32) {
-        let cam_x = self.pos_x >> 16;
-        let cam_y = self.pos_y >> 16;
-        match self.bounds.edges {
+        self.sprite_pos_on(self.active_plane(), x, y)
+    }
+
+    /// The sprite-space position against one camera plane.
+    #[must_use]
+    pub const fn sprite_pos_on(&self, plane: CameraPlane, x: i32, y: i32) -> (i32, i32) {
+        let (cam_x, cam_y) = self.position_on(plane);
+        match self.bounds_on(plane).edges {
             CameraEdges::Clamped => (
                 (x >> 16) - cam_x + SPRITE_ORIGIN,
                 (y >> 16) - cam_y + SPRITE_ORIGIN,
             ),
             CameraEdges::Wrapping => (
-                across_seam(x >> 16, cam_x, self.bounds.width),
-                across_seam(y >> 16, cam_y, self.bounds.height),
+                across_seam(x >> 16, cam_x, self.bounds_on(plane).width),
+                across_seam(y >> 16, cam_y, self.bounds_on(plane).height),
             ),
         }
     }
@@ -355,38 +600,67 @@ impl Camera {
         on_screen(sx, sy)
     }
 
+    /// Whether a position is visible against one camera plane.
+    #[must_use]
+    pub const fn sees_on(&self, plane: CameraPlane, x: i32, y: i32) -> bool {
+        let (sx, sy) = self.sprite_pos_on(plane, x, y);
+        on_screen(sx, sy)
+    }
+
     /// Applies the map's edge rule to the position, zeroing the scroll on a
     /// clamp exactly as `UpdateCameraYPosFG` does.
     fn settle(&mut self) {
-        let bounds = self.bounds;
-        match bounds.edges {
-            CameraEdges::Clamped => {
-                if self.pos_x < 0 {
-                    self.pos_x = 0;
-                    self.step_x = 0;
-                } else if self.pos_x > bounds.max_x() * ONE_PIXEL {
-                    self.pos_x = bounds.max_x() * ONE_PIXEL;
-                    self.step_x = 0;
-                }
-                if self.pos_y < 0 {
-                    self.pos_y = 0;
-                    self.step_y = 0;
-                } else if self.pos_y > bounds.max_y() * ONE_PIXEL {
-                    self.pos_y = bounds.max_y() * ONE_PIXEL;
-                    self.step_y = 0;
-                }
-            }
-            CameraEdges::Wrapping => {
-                self.pos_x = self.pos_x.rem_euclid(bounds.width * ONE_PIXEL);
-                self.pos_y = self.pos_y.rem_euclid(bounds.height * ONE_PIXEL);
-            }
-        }
+        settle_plane(
+            &mut self.pos_x,
+            &mut self.pos_y,
+            &mut self.step_x,
+            &mut self.step_y,
+            self.bounds,
+        );
+        settle_plane(
+            &mut self.pos_x_bg,
+            &mut self.pos_y_bg,
+            &mut self.step_x_bg,
+            &mut self.step_y_bg,
+            self.bounds_bg,
+        );
     }
 
     fn refresh_driver_sprite(&mut self, driver: Driver) {
         let (sx, sy) = self.sprite_pos(driver.x, driver.y);
         self.driver_sprite_x = sx;
         self.driver_sprite_y = sy;
+    }
+}
+
+const fn settle_plane(
+    pos_x: &mut i32,
+    pos_y: &mut i32,
+    step_x: &mut i32,
+    step_y: &mut i32,
+    bounds: CameraBounds,
+) {
+    match bounds.edges {
+        CameraEdges::Clamped => {
+            if *pos_x < 0 {
+                *pos_x = 0;
+                *step_x = 0;
+            } else if *pos_x > bounds.max_x() * ONE_PIXEL {
+                *pos_x = bounds.max_x() * ONE_PIXEL;
+                *step_x = 0;
+            }
+            if *pos_y < 0 {
+                *pos_y = 0;
+                *step_y = 0;
+            } else if *pos_y > bounds.max_y() * ONE_PIXEL {
+                *pos_y = bounds.max_y() * ONE_PIXEL;
+                *step_y = 0;
+            }
+        }
+        CameraEdges::Wrapping => {
+            *pos_x = pos_x.rem_euclid(bounds.width * ONE_PIXEL);
+            *pos_y = pos_y.rem_euclid(bounds.height * ONE_PIXEL);
+        }
     }
 }
 
@@ -493,213 +767,5 @@ pub const fn on_screen(sprite_x: i32, sprite_y: i32) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    const ACADEMY: CameraBounds = CameraBounds {
-        width: 1024,
-        height: 512,
-        edges: CameraEdges::Clamped,
-    };
-
-    fn px(v: i32) -> i32 {
-        v * ONE_PIXEL
-    }
-
-    #[test]
-    fn the_home_offset_is_the_two_numbers_the_rom_states_twice() {
-        // FieldObj_Camera*Pos_FG thresholds, less the sprite origin.
-        assert_eq!(HOME_X, 152);
-        assert_eq!(HOME_Y, 88);
-        // Event_MoveCamera subtracts exactly these to turn a subject position
-        // into a camera position.
-        assert_eq!(HOME_X, 0x98);
-        assert_eq!(HOME_Y, 0x58);
-    }
-
-    #[test]
-    fn a_placed_camera_puts_the_driver_at_its_home_offset() {
-        let driver = Driver {
-            x: px(800),
-            y: px(240),
-        };
-        let camera = Camera::placed_on(driver, ACADEMY);
-        assert_eq!(camera.position(), (800 - HOME_X, 240 - HOME_Y));
-        assert_eq!(
-            camera.sprite_pos(driver.x, driver.y),
-            (THRESHOLD_X, THRESHOLD_Y)
-        );
-    }
-
-    #[test]
-    fn a_placed_camera_clamps_into_a_small_map_instead_of_showing_the_void() {
-        let driver = Driver::at_cell(Cell::new(1, 1));
-        let camera = Camera::placed_on(driver, ACADEMY);
-        assert_eq!(camera.position(), (0, 0), "clamped at the top-left corner");
-    }
-
-    #[test]
-    fn following_holds_the_driver_at_the_threshold_rather_than_centring_it() {
-        // y 300 keeps the camera off both clamps, so this is the latch alone.
-        let mut driver = Driver {
-            x: px(800),
-            y: px(300),
-        };
-        let mut camera = Camera::placed_on(driver, ACADEMY);
-        assert_eq!(camera.sprite_pos(driver.x, driver.y).1, THRESHOLD_Y);
-        // Move first, then tick, so the driver the assertions read is the one
-        // the last tick actually saw.
-        for _ in 0..20 {
-            driver.y -= px(2);
-            camera.tick(driver);
-        }
-        assert_eq!(
-            camera.sprite_pos(driver.x, driver.y).1,
-            THRESHOLD_Y,
-            "held at the threshold, not re-centred"
-        );
-        // It really did scroll rather than sit still.
-        assert_eq!(camera.position().1, 300 - HOME_Y - 2 * 20);
-    }
-
-    #[test]
-    fn the_camera_tracks_the_driver_with_no_frame_of_lag() {
-        // The oracle's camera columns hold `leader - camera` at exactly
-        // (152, 88) on all 1563 field-control frames of tape 02 — one distinct
-        // offset, no lag anywhere. That is only true if the commit lands after
-        // the latch inside a frame, and it is the sharpest available check on
-        // the ordering.
-        let mut driver = Driver {
-            x: px(800),
-            y: px(300),
-        };
-        let mut camera = Camera::placed_on(driver, ACADEMY);
-        for _ in 0..24 {
-            driver.y -= px(2);
-            camera.tick(driver);
-            let (cx, cy) = camera.position();
-            assert_eq!(
-                ((driver.x >> 16) - cx, (driver.y >> 16) - cy),
-                (HOME_X, HOME_Y),
-                "the offset never varies while the camera is unclamped"
-            );
-        }
-    }
-
-    #[test]
-    fn a_driver_short_of_the_threshold_walks_across_a_still_camera() {
-        // Placed at the top-left clamp, the driver is above its home offset, so
-        // walking down does not move the camera until it reaches the threshold.
-        let mut driver = Driver {
-            x: px(160),
-            y: px(16),
-        };
-        let mut camera = Camera::placed_on(driver, ACADEMY);
-        let before = camera.position();
-        for _ in 0..8 {
-            driver.y += px(2);
-            camera.tick(driver);
-        }
-        assert_eq!(camera.position(), before, "camera has not moved");
-        assert!(
-            camera.sprite_pos(driver.x, driver.y).1 > SPRITE_ORIGIN,
-            "but the driver has walked down the screen"
-        );
-    }
-
-    #[test]
-    fn a_clamped_edge_stops_the_camera_dead_however_long_the_driver_walks() {
-        let mut driver = Driver {
-            x: px(800),
-            y: px(120),
-        };
-        let mut camera = Camera::placed_on(driver, ACADEMY);
-        for _ in 0..64 {
-            camera.tick(driver);
-            driver.y -= px(2);
-        }
-        assert_eq!(camera.position().1, 0, "pinned at the top of the map");
-        // The clamp is re-applied every frame rather than latched once, so a
-        // driver that keeps walking never drags the view off the map.
-        for _ in 0..64 {
-            camera.tick(driver);
-            driver.y -= px(2);
-            assert_eq!(camera.position().1, 0);
-        }
-    }
-
-    #[test]
-    fn a_wrapping_camera_comes_back_around_the_overworld() {
-        let bounds = CameraBounds {
-            width: 2048,
-            height: 2048,
-            edges: CameraEdges::Wrapping,
-        };
-        let mut camera = Camera::new(bounds);
-        camera.set_position(16, 16);
-        let mut driver = Driver {
-            x: px(16 + HOME_X),
-            y: px(16 + HOME_Y),
-        };
-        // A camera parked rather than walked to needs its driver baseline set,
-        // or the first tick reads the whole jump as one frame of velocity.
-        camera.reseat(driver);
-        for _ in 0..20 {
-            driver.x -= px(2);
-            camera.tick(driver);
-        }
-        // Walked left off x=0 and came back around the far side.
-        assert_eq!(camera.position().0, 2024, "wrapped, never clamped");
-        assert_eq!(
-            camera.sprite_pos(driver.x, driver.y).0,
-            THRESHOLD_X,
-            "and the driver is still held at the threshold across the seam"
-        );
-    }
-
-    #[test]
-    fn the_on_screen_box_is_the_view_plus_thirty_two_pixels() {
-        // Dead centre.
-        assert!(on_screen(0x140, 0x120));
-        // The margin's four edges, inclusive.
-        assert!(on_screen(0x60, 0x100));
-        assert!(on_screen(0x1E0, 0x100));
-        assert!(on_screen(0x100, 0x60));
-        assert!(on_screen(0x100, 0x180));
-        // One step outside each.
-        assert!(!on_screen(0x5F, 0x100));
-        assert!(!on_screen(0x1E1, 0x100));
-        assert!(!on_screen(0x100, 0x5F));
-        assert!(!on_screen(0x100, 0x181));
-    }
-
-    #[test]
-    fn only_the_object_types_whose_routine_calls_the_test_are_frozen() {
-        // The generic townsfolk, including both wanderers.
-        assert!(type_tests_visibility(0x8038), "NPCType1");
-        assert!(type_tests_visibility(0x803C), "NPCType2, a wanderer");
-        assert!(
-            type_tests_visibility(0x8040),
-            "NPCType3, the other wanderer"
-        );
-        // The party and the named story NPCs never run the test, so they are
-        // updated wherever they are.
-        assert!(!type_tests_visibility(0x8004), "Chaz");
-        assert!(!type_tests_visibility(0x8008), "Alys");
-        assert!(!type_tests_visibility(0x8068), "NPCAlysPiata");
-        assert!(!type_tests_visibility(0x8070), "NPCRune");
-    }
-
-    #[test]
-    fn a_sprite_coordinate_of_exactly_zero_short_circuits_to_on_screen() {
-        // `move.w sprite_x_pos(a4), d0; beq.w .onscreen` runs before any range
-        // check, so a zero on either axis wins outright — even paired with a
-        // coordinate that is otherwise far off screen.
-        assert!(on_screen(0, 0x9999));
-        assert!(on_screen(0x100, 0));
-        assert!(on_screen(0, 0));
-        // And it really is zero that is special, not "small".
-        assert!(!on_screen(1, 0x100));
-        assert!(!on_screen(0x100, 1));
-    }
-}
+#[path = "camera_tests.rs"]
+mod tests;

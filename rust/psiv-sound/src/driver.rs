@@ -135,6 +135,17 @@ struct TickContext {
     error: Option<SequenceError>,
 }
 
+impl TickContext {
+    fn queue_sound(&mut self, id: u8) {
+        if self
+            .pending_sound
+            .is_none_or(|old| sound_priority(id) >= sound_priority(old))
+        {
+            self.pending_sound = Some(id);
+        }
+    }
+}
+
 struct ChipBus<'a> {
     tick: u64,
     ym: &'a mut Ym2612,

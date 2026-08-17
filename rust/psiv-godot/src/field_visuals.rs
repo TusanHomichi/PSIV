@@ -4,11 +4,11 @@
 use godot::classes::{ColorRect, Sprite2D};
 use godot::prelude::*;
 
-use psiv_core::{Cell, Direction};
+use psiv_core::{Cell, Direction, SCREEN_HEIGHT, SCREEN_WIDTH};
 
+use super::Field;
 use super::transitions::{Transition, TransitionKind};
 use super::view::{SheetView, sequence_name};
-use super::{CELL_PIXELS, Field};
 
 impl Field {
     /// Places and animates the party sprite, animates NPCs, moves the camera.
@@ -20,6 +20,9 @@ impl Field {
         let cell = state.cell();
         let offset = state.render_offset_16ths();
         let scene_actors = runtime.scene_actors();
+        let scene_sprites_visible = self.presentation.sprites_visible(runtime.scene_active());
+        let active_npcs: Vec<bool> = runtime.map().npcs().iter().map(|npc| npc.active).collect();
+        let camera_position = runtime.camera().position();
         let kind = if walking { "walk" } else { "idle" };
         let sequence = sequence_name(kind, state.facing());
         if sequence != self.party_sequence {
@@ -112,6 +115,7 @@ impl Field {
             facing: Direction,
             stepping: bool,
             offset: (i32, i32),
+            npc_offset: (i32, i32),
             cell: (u16, u16),
         }
         let wander_states: Vec<WanderView> = self
@@ -127,6 +131,7 @@ impl Field {
                             facing: npc.facing,
                             stepping: w.is_stepping(),
                             offset: w.render_offset_16ths(),
+                            npc_offset: (i32::from(npc.offset.x), i32::from(npc.offset.y)),
                             cell: (npc.cell.x, npc.cell.y),
                         })
                     })
@@ -146,8 +151,14 @@ impl Field {
                     // sheet's own fallback, same as the cartridge's art.
                     let frame = view.frame_at(&name, self.anim_tick);
                     view.apply(&mut entry.node, frame);
-                    let x = entry.base.0 + (i32::from(w.cell.0) - entry.spawn.0) * 16 + w.offset.0;
-                    let y = entry.base.1 + (i32::from(w.cell.1) - entry.spawn.1) * 16 + w.offset.1;
+                    let x = entry.base.0
+                        + (i32::from(w.cell.0) - entry.spawn.0) * 16
+                        + w.npc_offset.0
+                        + w.offset.0;
+                    let y = entry.base.1
+                        + (i32::from(w.cell.1) - entry.spawn.1) * 16
+                        + w.npc_offset.1
+                        + w.offset.1;
                     entry.node.set_position(Vector2::new(
                         (x - view.origin_x) as f32,
                         (y - view.origin_y + view.frame_height) as f32,
@@ -183,12 +194,46 @@ impl Field {
             }
         }
 
+        // Temporary `$C340`/`$C4C0` objects retain their literal scene slot
+        // and animation fields. When the slot corresponds to an existing
+        // map sprite, reuse that decoded retail sheet rather than fabricating
+        // art; a future asset decode can add a standalone node without
+        // changing the scene event contract.
+        for (slot, object) in self.presentation.temporary_draws() {
+            let Some(entry) = self.npc_nodes.iter_mut().find(|entry| entry.index == slot) else {
+                continue;
+            };
+            let Some(view) = self.sheet_views.get(&entry.sheet) else {
+                continue;
+            };
+            let _retail_fields = (object.object_id, object.art_tile);
+            let frame = view.frame_at("idle_down", self.anim_tick);
+            view.apply(&mut entry.node, frame);
+            if let Some((x, y)) = object.destination {
+                entry.node.set_position(Vector2::new(
+                    (x - view.origin_x) as f32,
+                    (y - view.origin_y + view.frame_height) as f32,
+                ));
+            }
+        }
+
         if let Some(camera) = self.camera.as_mut() {
+            let (x, y) = camera_position;
             let center = Vector2::new(
-                f32::from(cell.x) * CELL_PIXELS + offset.0 as f32 + CELL_PIXELS / 2.0,
-                f32::from(cell.y) * CELL_PIXELS + offset.1 as f32 + CELL_PIXELS / 2.0,
+                (x + SCREEN_WIDTH / 2) as f32,
+                (y + SCREEN_HEIGHT / 2) as f32,
             );
             camera.set_position(center);
+        }
+        if let Some(party) = self.party.as_mut() {
+            party.set_visible(scene_sprites_visible);
+        }
+        for follower in &mut self.follower_nodes {
+            follower.0.set_visible(scene_sprites_visible);
+        }
+        for npc in &mut self.npc_nodes {
+            let active = active_npcs.get(npc.index).copied().unwrap_or(false);
+            npc.node.set_visible(scene_sprites_visible && active);
         }
         self.place_letterbox();
         self.sync_transition();

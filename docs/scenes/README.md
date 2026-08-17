@@ -11,11 +11,12 @@ resolved to a name.
 done — the v1 slice `docs/RUNTIME_DESIGN.md` calls this the opening act.
 
 **Next-arc scope**: the scene set from Piata's post-gate Professor Holt beat
-through Zema, the Tonoe road, the BioPlant escape and the Rika hand-off. The
-trigger/map census is [12_ArcTriggerCensus](12_ArcTriggerCensus.md); the
-per-scene records are [13_ProfHolt](13_ProfHolt.md) through
-[30_MeetingRika](30_MeetingRika.md). The native registry and headless proof
-live beside those documents in `psiv-core` and `psiv-runtime`.
+through Zema, the Tonoe road, the BioPlant escape, the Rika hand-off and the
+retail chain that follows it through Zio's defeat. The trigger/map census is
+[12_ArcTriggerCensus](12_ArcTriggerCensus.md); the per-scene records are
+[13_ProfHolt](13_ProfHolt.md) through [39_ZioDefeated](39_ZioDefeated.md).
+The native registry and headless proof live beside those documents in
+`psiv-core` and `psiv-runtime`.
 
 ## Next-arc registry
 
@@ -39,6 +40,15 @@ live beside those documents in `psiv-core` and `psiv-runtime`.
 | `Event_ChazHouse` | `$3B` | [28](28_ChazHouse.md) | `$06FA34..$06FACB` |
 | `Event_LeavingChazHouse` | `$3C` | [29](29_LeavingChazHouse.md) | `$06FACC..$06FAD3` |
 | `Cutscene_MeetingRika` | `$8007` | [30](30_MeetingRika.md) | `$0745DE..$074A7D` |
+| `Cutscene_DemiRescue` | `$8008` | [31](31_DemiRescue.md) | `$074A7E..$074B71` |
+| `Cutscene_AlysWounded` | `$8009` | [32](32_AlysWounded.md) | `$074B72..$0751FF` |
+| `Event_GettingLandRover` | `$2B` | [33](33_GettingLandRover.md) | `$06DEBE..$06E0E9` |
+| `Event_MachineCenterAppearing` | `$06` | [34](34_MachineCenterAppearing.md) | `$06B4B2..$06B6F3` |
+| `Event_RuneLadaeTower` | `$2E` | [35](35_RuneLadeaTower.md) | `$06E930..$06EA15` |
+| `Event_PsycoWandChest` | `$2F` | [36](36_PsycoWandChest.md) | `$06EA16..$06EC61` |
+| `Cutscene_PsycoWand` | `$800A` | [37](37_PsycoWand.md) | `$075200..$075A11` |
+| `Event_ZioNurvus` | `$34` | [38](38_ZioNurvus.md) | `$06F2EA..$06F439` |
+| `Cutscene_ZioDefeated` | `$800B` | [39](39_ZioDefeated.md) | `$075A12..$075FC7` |
 
 ## Why these were disassembled and not read
 
@@ -200,10 +210,15 @@ dialogue tree (which the dialogue system owns, not the scene interpreter).
 | `ObjectAnimation{slot, object_id, art_tile, frames}` | temporary field-object construction and keyframe loops | MeetingDorin, RuneFlaeli, Alshline, Saya |
 | `RemoveItem{item}` | `GetItem` + clear slot + `ReorderInventory` | Alshline |
 | `SetMapLoadFlags{set, clear}` | raw `Map_Load_Flags` writes around `RefreshMap` | Dorin, Alshline, servant battle |
-| `RecoverStats{}` | `RecoverStats` | Alshline |
+| `RecoverStats{}` | `RecoverStats` | Alshline, PsychoWand |
 | `MoveActorToActorAxis{who, target, axis}` | copy one live coordinate before `Event_MoveSingleObject` | MeetingRika |
 | `MoveActorOffset{who, dx, dy}` | read a character's current position, add offsets, move | MeetingRika |
 | `Presentation{op}` | typed VDP/window/palette/temp-object record | BioPlantAlarm, GirlsSneakingOut, ChazHouse, MeetingRika |
+
+Post-Rika state extensions are deliberately small and state-bearing:
+`SetVehicleIndex`, `AddItem`, `ConfigureCharacter`, `RestorePartyHp`,
+`RemovePartyMember`, `ClearCharacterStatus` and `ReviveIfDead`. They are used
+by the new records rather than hidden in runtime-specific scene names.
 
 `LoadMap` is now a blocking op: the runtime responds with `MapLoaded` only
 after it has rebuilt and recast the new map. NPC `ActorMoveStarted` and
@@ -295,23 +310,48 @@ Zema aftermath
   │    temp `$18` set; Aiedo exit trigger `$27` → Event_LeavingChazHouse `$3C`
   └─ BioPlant B4 Part2 `$AC`, trigger `$1A` → Cutscene_MeetingRika `$8007`
        event `$34` set, Rika joins slot 5, event `$35` set, Motavia `$00`
+  └─ player-controlled retail traversal
+       ├─ Zio Fort F4 `$8B`, `$1C` → Cutscene_DemiRescue `$8008`
+       │    Zio `$42` set, battle index 4
+       ├─ Zio Fort F4 `$8B`, `$1D` → Cutscene_AlysWounded `$8009`
+       │    Hahn/Alys leave, Demi joins, Demi `$47` set
+       ├─ Machine Center B1 Part2 `$B9`, `$1B` → Event_GettingLandRover `$2B`
+       │    Control Key becomes Land Rover, vehicle 1, Land Rover `$44` set
+       ├─ Motavia `$00`, `$06` → Event_MachineCenterAppearing `$0006`
+       │    gated by Zio `$42`, then Machine Center `$43`
+       ├─ Ladea Tower F2 `$8E`, `$19` → Event_RuneLadaeTower `$002E`
+       │    Rune is written to slot 5 and Rune-again `$62` set
+       ├─ Ladea Tower F5 `$91`, `$2A` → Event_PsycoWandChest `$002F`
+       │    chest/battle setup sets Gy Laguiah `$69`, battle index 5
+       ├─ Ladea Tower F5 `$91`, `$1E` → Cutscene_PsycoWand `$800A`
+       │    After Alys Death `$63` and `$67` set
+       ├─ Nurvus B4 Part2 `$D3`, `$1F` → Event_ZioNurvus `$0034`
+       │    Zio Nurvus `$65`, battle index 6
+       └─ Nurvus B4 Part2 `$D3`, `$20` → Cutscene_ZioDefeated `$800B`
+            Gryz/Demi leave; Gryz Gone `$68`, Mota Spaceport `$66`, Plate Engine `$61`
 ```
 
 The order of the shop and house detours is player-controlled; the census keeps
 those dispatch surfaces separate instead of pretending they are one linear
-map-event list.
+map-event list. The post-Rika rows above are likewise trigger order, not a
+claim that the player walks from Motavia to Nurvus without the intervening
+field maps.
 
 ## Still out of scope (noticed, not transcribed)
 
 - `RunEvent_MeetingSayaUnused` (`$09`) — genuinely unreferenced: it appears
   in `RunEventsJmpTbl` but no map's event list contains `$09`.
-- `Event_MachineCenterAppearing` (`$06`) — trigger `$06` requires
-  `EventFlag_Zio`, far past this act.
+- `Event_ZioFortBarrier` (`$30`) and `Event_ZioFanatic` (`$31`) are direct
+  `EventPtrs` bodies behind the Zio Fort map-data/interaction path, not entries
+  written by the retail `RunEvent_*` chain covered here. Their `grand_cross=0`
+  bytes are recorded in the census as direct bodies; they are not silently
+  substituted with Grand Cross code.
 - `Event_FortuneTeller` and `Event_AfterFortuneTeller`: the retail
   `EventPtrs` table stops at `$A0`, so `$A1/$A2` are not retail event pointers;
   the clone only has their Grand Cross includes. There is no retail byte range
   to transcribe.
-- Later story scenes after the Rika hand-off, including the Rune/Molcum
-  reunion material, remain out of scope for this slice. Their pointer ranges
-  and trigger prerequisites need a separate byte audit rather than being
-  inferred from the Grand Cross script tree.
+- Molcum `$40` has only event index `$00`, and `RunEvent_Null00` returns
+  immediately. Its aftermath is map/NPC flag state, not a retail scene body;
+  no Molcum cutscene was invented. The later `$50`/`$801F` reunion trigger is
+  also outside this chain: it requires Elsydeon `$D9` and is reached much later
+  on Dezo Spaceport/Kuran maps.

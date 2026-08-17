@@ -110,3 +110,97 @@ fn disabled_pan_animation_consumes_only_its_count_byte() {
     let _ = machine.tick();
     assert!(machine.last_error().is_none());
 }
+
+#[test]
+fn eb_sequence_sound_dispatch_overlays_music_deterministically() {
+    let music = SoundSequence::new(
+        0x81,
+        1,
+        vec![crate::FmVoice::fixture()],
+        Vec::new(),
+        vec![SoundTrack::fm(
+            0,
+            vec![0xef, 0, 0x81, 0xeb, 0xb5, 0x20, 0x81, 0x20, 0xf2],
+        )],
+    );
+    let sfx = SoundSequence::new(
+        0xb5,
+        1,
+        vec![crate::FmVoice::fixture()],
+        Vec::new(),
+        vec![SoundTrack::fm(0, vec![0xef, 0, 0x20, 0x20, 0xf2])],
+    );
+    let bank = crate::SoundBank::new(vec![music, sfx], Vec::new());
+
+    let mut first = crate::SoundMachine::new();
+    first.load_bank(bank.clone());
+    first.play(0x81);
+    let _ = first.tick();
+    let _ = first.tick();
+    let _ = first.tick();
+    let first_log = first.take_register_log();
+
+    let mut second = crate::SoundMachine::new();
+    second.load_bank(bank);
+    second.play(0x81);
+    let _ = second.tick();
+    let _ = second.tick();
+    let _ = second.tick();
+    let second_log = second.take_register_log();
+
+    assert_eq!(first_log, second_log);
+    assert!(first_log.iter().any(|write| write.register == 0x28));
+    assert!(first_log.iter().any(|write| write.register == 0x30));
+    assert!(first.last_error().is_none());
+}
+
+#[test]
+fn battle_action_sfx_dispatch_order_is_deterministic_over_theme() {
+    let mut music_voice = crate::FmVoice::fixture();
+    music_voice.algorithm = 1;
+    let mut sword_voice = crate::FmVoice::fixture();
+    sword_voice.algorithm = 2;
+    let mut miss_voice = crate::FmVoice::fixture();
+    miss_voice.algorithm = 3;
+    let track = |voice| SoundTrack::fm(0, vec![0xef, 0, 0x81, 0x20, 0xf2]).voice(voice);
+    let bank = crate::SoundBank::new(
+        vec![
+            SoundSequence::new(0x81, 1, vec![music_voice], Vec::new(), vec![track(0)]),
+            SoundSequence::new(0xf5, 1, vec![sword_voice], Vec::new(), vec![track(0)]),
+            SoundSequence::new(0xb8, 1, vec![miss_voice], Vec::new(), vec![track(0)]),
+        ],
+        Vec::new(),
+    );
+
+    let run = |bank| {
+        let mut machine = crate::SoundMachine::new();
+        machine.load_bank(bank);
+        machine.play(0x81);
+        let _ = machine.tick();
+        machine.play(0xf5);
+        let _ = machine.tick();
+        machine.play(0xb8);
+        let _ = machine.tick();
+        (machine.take_register_log(), machine.last_error().is_none())
+    };
+
+    let (first_log, first_ok) = run(bank.clone());
+    let (second_log, second_ok) = run(bank);
+    assert_eq!(first_log, second_log);
+    assert!(first_ok && second_ok);
+    let voice_algorithms: Vec<_> = first_log
+        .iter()
+        .filter(|write| write.register == 0xb0)
+        .map(|write| write.value)
+        .collect();
+    let compressed: Vec<_> =
+        voice_algorithms
+            .into_iter()
+            .fold(Vec::new(), |mut values, algorithm| {
+                if values.last().copied() != Some(algorithm) {
+                    values.push(algorithm);
+                }
+                values
+            });
+    assert_eq!(compressed, vec![1, 2, 3]);
+}

@@ -99,8 +99,9 @@ mod trigger_table;
 mod wander;
 
 pub use camera::{
-    Camera, CameraBounds, CameraEdges, Driver, HOME_X, HOME_Y, ONE_PIXEL, SCREEN_HEIGHT,
-    SCREEN_WIDTH, SPRITE_ORIGIN, THRESHOLD_X, THRESHOLD_Y, on_screen, type_tests_visibility,
+    Camera, CameraBounds, CameraEdges, CameraGates, CameraPlane, Driver, HOME_X, HOME_Y, ONE_PIXEL,
+    SCREEN_HEIGHT, SCREEN_WIDTH, SPRITE_ORIGIN, THRESHOLD_X, THRESHOLD_Y, on_screen,
+    type_tests_visibility,
 };
 pub use chest::{CHEST_OPEN_FACING, CHEST_SHUT_FACING, Chest, ChestContents, ChestOutcome};
 pub use collision::{CollisionGrid, CollisionType, MAX_COLLISION_VALUE};
@@ -144,4 +145,6 @@ pub use trigger::{
     TriggerContext, TriggerResult, Unsupported, evaluate_list,
 };
 pub use trigger_table::TRIGGERS;
-pub use wander::{Leash, WANDER_STEP_FRAMES, WanderKind, WanderSet, WanderState, Wanderer};
+pub use wander::{
+    Leash, WANDER_STEP_FRAMES, WanderKind, WanderSet, WanderSpeed, WanderState, Wanderer,
+};

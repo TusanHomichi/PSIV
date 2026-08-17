@@ -28,7 +28,7 @@ pub use encounters::{
     EncounterClock, EncounterTable, FOOT_MASK, GRACE_STEPS, GROUP_MASK, battle_data,
     formation_record,
 };
-pub use events::RuntimeEvent;
+pub use events::{BattleSoundEvent, BattleTimeline, RuntimeEvent};
 pub use save::RuntimeSaveError;
 pub use shop::{InnResult, ShopBuyResult, ShopSellResult};
 
@@ -61,7 +61,7 @@ pub struct Runtime {
     /// layer is extracted.
     despawned: BTreeSet<(u16, usize)>,
     prev_standing: Option<u8>,
-    /// The map's wandering townsfolk (NPCType2/3), rebuilt per map load.
+    /// The map's transcribed random-wander objects, rebuilt per map load.
     wander: WanderSet,
     /// The one shared seed, ticked once per frame like the cartridge's
     /// vblank call; wander decisions draw from the same stream, as retail's
@@ -494,9 +494,9 @@ impl Runtime {
         if !self.field_suspended {
             self.tick_wander();
         }
-        // `UpdateCamera*PosFG` folds in last frame's scroll and `FieldObj_*`
-        // latches this frame's, both against the party's post-movement
-        // position.
+        // `UpdateCamera*PosFG/BG` folds in last frame's scroll and
+        // `FieldObj_*` latches this frame's, both against the party's
+        // post-movement position.
         self.camera.tick(driver_of(self.party.leader()));
         events
     }
@@ -514,6 +514,9 @@ impl Runtime {
         self.offscreen.clear();
         self.offscreen
             .extend(self.map.npcs().iter().enumerate().map(|(index, npc)| {
+                if !npc.active {
+                    return true;
+                }
                 // An object whose routine never calls the test keeps the
                 // flag its slot was initialised with and is updated
                 // wherever it is.
@@ -542,10 +545,14 @@ impl Runtime {
         }
         let party_cells: Vec<Cell> = self.party.members().iter().map(|m| m.cell).collect();
         let offscreen = &self.offscreen;
-        self.wander
-            .tick(&mut self.map, &mut self.rng, &party_cells, |i| {
-                !offscreen.get(i).copied().unwrap_or(true)
-            });
+        let driver = driver_of(self.party.leader());
+        self.wander.tick_with_driver_pixels(
+            &mut self.map,
+            &mut self.rng,
+            &party_cells,
+            (driver.x >> 16, driver.y >> 16),
+            |i| !offscreen.get(i).copied().unwrap_or(true),
+        );
     }
 
     /// The camera bounds this map imposes.
@@ -940,5 +947,8 @@ fn object_position(npc: &Npc, wanderer: Option<&Wanderer>) -> (i32, i32) {
     let base = wanderer.and_then(Wanderer::step_origin).unwrap_or(npc.cell);
     let at = PixelPos::from_cell(base);
     let (tx, ty) = wanderer.map_or((0, 0), Wanderer::travelled_px);
-    ((at.x + tx) * ONE_PIXEL, (at.y + ty) * ONE_PIXEL)
+    (
+        (at.x + i32::from(npc.offset.x) + tx) * ONE_PIXEL,
+        (at.y + i32::from(npc.offset.y) + ty) * ONE_PIXEL,
+    )
 }

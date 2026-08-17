@@ -23,6 +23,11 @@ pub(crate) enum TransitionKind {
     /// The title hand-off's centered screen wipe.  The Godot field has no
     /// title plane, so this is used as a matching black-to-field reveal.
     GameStart,
+    /// A scene's direct `Pal_FadeIn` ramp. The scene interpreter owns the
+    /// blocking/tick semantics; this is the renderer's 13-step black ramp.
+    SceneFadeIn,
+    /// A scene's direct `PalFadeOut_ClrSpriteTbl` ramp.
+    SceneFadeOut,
 }
 
 /// The solid colour used by the current palette ramp.
@@ -82,15 +87,20 @@ impl Transition {
             TransitionKind::SceneStart => self.scene_start_visual(),
             TransitionKind::SceneEnd => self.scene_end_visual(),
             TransitionKind::GameStart => self.game_start_visual(),
+            TransitionKind::SceneFadeIn => self.scene_fade_in_visual(),
+            TransitionKind::SceneFadeOut => self.scene_fade_out_visual(),
         }
     }
 
-    /// Scene fades sit below the dialogue window; battle and boot covers must
-    /// sit above the battle/field nodes.
+    /// Scene fades sit below the dialogue window but above the cutscene plane;
+    /// battle and boot covers must sit above the battle/field nodes too.
     pub(crate) fn front_layer(self) -> bool {
         matches!(
             self.kind,
-            TransitionKind::BattleEntry | TransitionKind::GameStart
+            TransitionKind::BattleEntry
+                | TransitionKind::GameStart
+                | TransitionKind::SceneFadeIn
+                | TransitionKind::SceneFadeOut
         )
     }
 
@@ -101,6 +111,7 @@ impl Transition {
             TransitionKind::SceneStart => 37,
             TransitionKind::SceneEnd => 55,
             TransitionKind::GameStart => 18,
+            TransitionKind::SceneFadeIn | TransitionKind::SceneFadeOut => 14,
         }
     }
 
@@ -165,6 +176,20 @@ impl Transition {
             level: PALETTE_LEVELS,
             opening: Some(f32::from(self.age) / 8.0),
         })
+    }
+
+    fn scene_fade_in_visual(self) -> Option<TransitionVisual> {
+        if self.finished() {
+            return None;
+        }
+        Some(black(PALETTE_LEVELS.saturating_sub(step_up(self.age))))
+    }
+
+    fn scene_fade_out_visual(self) -> Option<TransitionVisual> {
+        if self.finished() {
+            return None;
+        }
+        Some(black(step_up(self.age)))
     }
 }
 

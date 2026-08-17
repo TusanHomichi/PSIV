@@ -1,4 +1,4 @@
-//! NPC wander — `FieldObj_NPCType2` / `NPCType3`.
+//! NPC wander — the cartridge's shared random-walk families.
 //!
 //! Transcribed from the cartridge; the evidence and the retail addresses are in
 //! `docs/NPC_WANDER.md`. Two types share one walker and differ in a single
@@ -30,7 +30,66 @@ use crate::map::FieldMap;
 
 /// Frames one wander step takes: speed selector 0, `$1000` of travel at
 /// `$80` per frame. Four times slower than the party's eight.
-pub const WANDER_STEP_FRAMES: u8 = 32;
+pub const WANDER_STEP_FRAMES: u8 = WanderSpeed::Selector0.frames();
+
+/// The three records in the cartridge's `FieldObj_UpdateStepDuration` table.
+///
+/// The table starts at `ps4.asm:97404` (`$04A20E`) and its records are 88
+/// bytes apart: selectors 0, 1 and 2 are `$80/32`, `$100/16` and `$200/8`.
+/// The first two were already used by the engine; keeping all three here makes
+/// the extracted third record executable rather than merely documented data.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum WanderSpeed {
+    /// `$04A20E`, velocity `$80`, 32 frames per cell.
+    Selector0,
+    /// `$04A266`, velocity `$100`, 16 frames per cell.
+    Selector1,
+    /// `$04A2BE`, velocity `$200`, 8 frames per cell.
+    Selector2,
+}
+
+impl WanderSpeed {
+    /// The selector passed in `d7` to `FieldObj_UpdateStepDuration`.
+    #[must_use]
+    pub const fn selector(self) -> u8 {
+        match self {
+            WanderSpeed::Selector0 => 0,
+            WanderSpeed::Selector1 => 1,
+            WanderSpeed::Selector2 => 2,
+        }
+    }
+
+    /// The cartridge's 8.8 velocity word.
+    #[must_use]
+    pub const fn velocity_8_8(self) -> u16 {
+        match self {
+            WanderSpeed::Selector0 => 0x0080,
+            WanderSpeed::Selector1 => 0x0100,
+            WanderSpeed::Selector2 => 0x0200,
+        }
+    }
+
+    /// Frames for one `$1000` fixed-point cell.
+    #[must_use]
+    pub const fn frames(self) -> u8 {
+        match self {
+            WanderSpeed::Selector0 => 32,
+            WanderSpeed::Selector1 => 16,
+            WanderSpeed::Selector2 => 8,
+        }
+    }
+
+    /// Converts a disassembly selector to a table record.
+    #[must_use]
+    pub const fn from_selector(selector: u8) -> Option<WanderSpeed> {
+        match selector {
+            0 => Some(WanderSpeed::Selector0),
+            1 => Some(WanderSpeed::Selector1),
+            2 => Some(WanderSpeed::Selector2),
+            _ => None,
+        }
+    }
+}
 
 /// The command byte each of the eight roll indices maps to, from `loc_4A150`:
 /// `$00 $01 $02 $04 $08 $00 $00 $00`.
@@ -59,6 +118,23 @@ pub enum WanderKind {
     /// `NPCType3` — `FieldObj_GetRandomMove2`, pause masked `$7F`. The same
     /// walker idling about twice as long.
     Type3,
+    /// `NPCType4` — `FieldObj_GetRandomMove3`, a fresh roll every idle frame.
+    Type4,
+    /// `NPCType28` — the same no-timer random routine, with an 8-cell leash.
+    Type28,
+    /// The routine at `loc_490B8`, `FieldObj_GetRandomMove`, 8-cell leash.
+    StoreWoman,
+    /// The routine at `loc_49746`, `FieldObj_GetRandomMove`, 4-cell leash.
+    ClinicWoman,
+    /// `FieldObj_Penguin`, `FieldObj_GetRandomMove`, 8-cell leash.
+    Penguin,
+    /// `FieldObj_Butterfly`, `FieldObj_GetRandomMove3`, 16-cell leash.
+    Butterfly,
+    /// `FieldObj_MuskCat`, `FieldObj_GetRandomMove`, 16-cell leash.
+    MuskCat,
+    /// `FieldObj_Xanafalgue`, random before the leader crosses `$100`, then
+    /// its scripted leftward escape.
+    Xanafalgue,
 }
 
 impl WanderKind {
@@ -66,9 +142,68 @@ impl WanderKind {
     #[must_use]
     pub const fn pause_mask(self) -> u16 {
         match self {
-            WanderKind::Type2 => 0x3F,
+            WanderKind::Type2
+            | WanderKind::Type4
+            | WanderKind::Type28
+            | WanderKind::StoreWoman
+            | WanderKind::ClinicWoman
+            | WanderKind::Penguin
+            | WanderKind::Butterfly
+            | WanderKind::MuskCat
+            | WanderKind::Xanafalgue => 0x3F,
             WanderKind::Type3 => 0x7F,
         }
+    }
+
+    /// Whether the routine calls `UpdateRNGSeed` on every idle frame instead
+    /// of maintaining the usual `$28` pause timer.
+    #[must_use]
+    pub const fn rolls_every_idle(self) -> bool {
+        matches!(
+            self,
+            WanderKind::Type4 | WanderKind::Type28 | WanderKind::Butterfly
+        )
+    }
+
+    /// The initialization values written to `$3C..$3F` by the routine.
+    #[must_use]
+    pub const fn leash(self) -> Leash {
+        match self {
+            WanderKind::Type28 | WanderKind::StoreWoman | WanderKind::Penguin => Leash {
+                x_max: 8,
+                y_max: 8,
+                x: 4,
+                y: 4,
+            },
+            WanderKind::Butterfly | WanderKind::MuskCat => Leash {
+                x_max: 16,
+                y_max: 16,
+                x: 8,
+                y: 8,
+            },
+            WanderKind::Xanafalgue => Leash {
+                x_max: 2,
+                y_max: 2,
+                x: 1,
+                y: 1,
+            },
+            WanderKind::Type2 | WanderKind::Type3 | WanderKind::Type4 | WanderKind::ClinicWoman => {
+                Leash {
+                    x_max: 4,
+                    y_max: 4,
+                    x: 2,
+                    y: 2,
+                }
+            }
+        }
+    }
+
+    /// The speed selector used by this family. The packed random families all
+    /// pass `d7 = 0`; selectors 1 and 2 remain available through
+    /// [`WanderSpeed`] for the other field-object routines and replay data.
+    #[must_use]
+    pub const fn speed(self) -> WanderSpeed {
+        WanderSpeed::Selector0
     }
 }
 
@@ -153,13 +288,24 @@ impl Wanderer {
     /// block-cleared.
     #[must_use]
     pub fn new(npc_index: usize, kind: WanderKind) -> Wanderer {
+        Self::new_with_speed(npc_index, kind, kind.speed())
+    }
+
+    /// A wanderer with an explicit `FieldObj_UpdateStepDuration` selector.
+    ///
+    /// The packed random families all use selector 0, but the disassembly's
+    /// speed table is shared by bespoke field-object routines. Keeping this
+    /// constructor explicit lets those callers use selector 1 or 2 without
+    /// duplicating the movement implementation.
+    #[must_use]
+    pub fn new_with_speed(npc_index: usize, kind: WanderKind, speed: WanderSpeed) -> Wanderer {
         Wanderer {
             npc_index,
             kind,
-            leash: Leash::default(),
+            leash: kind.leash(),
             timer: 0,
             step: None,
-            frames: StepFrames::new(WANDER_STEP_FRAMES).unwrap_or(StepFrames::DEFAULT),
+            frames: StepFrames::new(speed.frames()).unwrap_or(StepFrames::DEFAULT),
         }
     }
 
@@ -173,6 +319,18 @@ impl Wanderer {
     #[must_use]
     pub const fn kind(&self) -> WanderKind {
         self.kind
+    }
+
+    /// The extracted speed-table record this object uses.
+    #[must_use]
+    pub const fn speed(&self) -> WanderSpeed {
+        self.kind.speed()
+    }
+
+    /// Frames in one committed step.
+    #[must_use]
+    pub const fn step_frames(&self) -> u8 {
+        self.frames.get()
     }
 
     /// Its leash state.
@@ -321,16 +479,28 @@ impl WanderSet {
     ///
     /// [`MapError::NpcIndexOutOfRange`] when a pair names no object on `map`.
     pub fn build(map: &FieldMap, objects: &[(usize, WanderKind)]) -> Result<WanderSet, MapError> {
+        let objects: Vec<(usize, WanderKind, WanderSpeed)> = objects
+            .iter()
+            .map(|&(npc_index, kind)| (npc_index, kind, kind.speed()))
+            .collect();
+        Self::build_with_speeds(map, &objects)
+    }
+
+    /// Builds a set with an explicit speed-table selector per object.
+    pub fn build_with_speeds(
+        map: &FieldMap,
+        objects: &[(usize, WanderKind, WanderSpeed)],
+    ) -> Result<WanderSet, MapError> {
         let count = map.npcs().len();
         let mut wanderers = Vec::with_capacity(objects.len());
-        for &(npc_index, kind) in objects {
+        for &(npc_index, kind, speed) in objects {
             if npc_index >= count {
                 return Err(MapError::NpcIndexOutOfRange {
                     index: npc_index,
                     count,
                 });
             }
-            wanderers.push(Wanderer::new(npc_index, kind));
+            wanderers.push(Wanderer::new_with_speed(npc_index, kind, speed));
         }
         Ok(WanderSet { wanderers })
     }
@@ -399,11 +569,62 @@ impl WanderSet {
         party: &[Cell],
         visible: impl Fn(usize) -> bool,
     ) {
+        self.tick_with_driver_pixels_opt(map, rolls, party, visible, None);
+    }
+
+    /// Advances every wanderer with the leader's cartridge pixel position.
+    ///
+    /// Xanafalgue's routine branches on `Character_1.curr_y_pos` and, after
+    /// `$100`, leaves the random walker entirely: it walks left at `$FFFC`
+    /// until `$1A0`, then sets its temporary event flag and clears its object
+    /// slot. Ordinary families ignore the extra position and use the same
+    /// shared RNG path as [`WanderSet::tick`].
+    pub fn tick_with_driver_pixels(
+        &mut self,
+        map: &mut FieldMap,
+        rolls: &mut impl Rolls,
+        party: &[Cell],
+        driver_pixels: (i32, i32),
+        visible: impl Fn(usize) -> bool,
+    ) {
+        self.tick_with_driver_pixels_opt(map, rolls, party, visible, Some(driver_pixels));
+    }
+
+    fn tick_with_driver_pixels_opt(
+        &mut self,
+        map: &mut FieldMap,
+        rolls: &mut impl Rolls,
+        party: &[Cell],
+        visible: impl Fn(usize) -> bool,
+        driver_pixels: Option<(i32, i32)>,
+    ) {
         for index in 0..self.wanderers.len() {
             if !visible(self.wanderers[index].npc_index) {
                 continue;
             }
+            if self.wanderers[index].kind == WanderKind::Xanafalgue
+                && driver_pixels.is_some_and(|(_, y)| y > 0x100)
+            {
+                self.tick_xanafalgue_escape(index, map);
+                continue;
+            }
             self.tick_one(index, map, rolls, party);
+        }
+    }
+
+    fn tick_xanafalgue_escape(&mut self, index: usize, map: &mut FieldMap) {
+        let npc_index = self.wanderers[index].npc_index;
+        let Some(npc) = map.npcs().get(npc_index).copied() else {
+            return;
+        };
+        let base = crate::trigger::PixelPos::from_cell(npc.cell);
+        let x = base.x + i32::from(npc.offset.x);
+        let y = base.y + i32::from(npc.offset.y);
+        if x < 0x1A0 {
+            let _ = map.set_npc_active(npc_index, false);
+            self.wanderers[index].step = None;
+        } else {
+            let _ = map.set_npc_pixel_position(npc_index, x - 4, y);
         }
     }
 
@@ -433,7 +654,11 @@ impl WanderSet {
 
         let roll = rolls.next_roll();
         let kind = self.wanderers[index].kind;
-        self.wanderers[index].timer = (roll & kind.pause_mask()) as i16;
+        self.wanderers[index].timer = if kind.rolls_every_idle() {
+            0
+        } else {
+            (roll & kind.pause_mask()) as i16
+        };
         let command = COMMAND_FOR_INDEX[usize::from((roll & 7) as u8)];
 
         let Some(dir) = direction_for_command(command) else {
@@ -494,506 +719,5 @@ impl WanderSet {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::battle::SliceRolls;
-    use crate::collision::CollisionGrid;
-    use crate::map::{MapId, Npc, NpcId};
-
-    fn map_with_npc(rows: &[&str], cell: Cell) -> FieldMap {
-        let height = u16::try_from(rows.len()).unwrap();
-        let width = u16::try_from(rows[0].len()).unwrap();
-        let cells: Vec<u8> = rows
-            .iter()
-            .flat_map(|row| row.chars())
-            .map(|ch| if ch == '#' { 8 } else { 0 })
-            .collect();
-        let grid = CollisionGrid::new(width, height, cells).unwrap();
-        FieldMap::new(
-            MapId(0),
-            grid,
-            vec![],
-            vec![Npc::new(NpcId(2), cell, Direction::Down)],
-        )
-        .unwrap()
-    }
-
-    /// A roll whose low three bits pick `index` and whose masked value is the
-    /// pause. Since one roll supplies both, they cannot be chosen apart.
-    const fn roll_for(index: u16) -> u16 {
-        index
-    }
-
-    #[test]
-    fn the_remap_table_is_symmetric() {
-        let mut counts = [0usize; 5]; // stand, up, down, left, right
-        for index in 0..8u8 {
-            match direction_for_command(COMMAND_FOR_INDEX[usize::from(index)]) {
-                None => counts[0] += 1,
-                Some(Direction::Up) => counts[1] += 1,
-                Some(Direction::Down) => counts[2] += 1,
-                Some(Direction::Left) => counts[3] += 1,
-                Some(Direction::Right) => counts[4] += 1,
-            }
-        }
-        assert_eq!(counts, [4, 1, 1, 1, 1], "50% stand, 12.5% each direction");
-    }
-
-    #[test]
-    fn a_wanderer_steps_and_commits_its_destination_immediately() {
-        let mut map = map_with_npc(&["....", "....", "...."], Cell::new(1, 1));
-        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
-        // index 2 -> command $02 -> down.
-        let draws = [roll_for(2)];
-        let mut rolls = SliceRolls::new(&draws);
-
-        set.tick(&mut map, &mut rolls, &[], |_| true);
-
-        assert_eq!(
-            map.npcs()[0].cell,
-            Cell::new(1, 2),
-            "the map moves on the frame the step starts"
-        );
-        assert_eq!(map.npcs()[0].facing, Direction::Down);
-        assert!(set.get(0).unwrap().is_stepping());
-        assert!(
-            map.is_walkable(Cell::new(1, 1)),
-            "and the cell it left is free at once"
-        );
-    }
-
-    #[test]
-    fn a_step_takes_thirty_two_frames() {
-        let mut map = map_with_npc(&["....", "....", "...."], Cell::new(1, 1));
-        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
-        let draws = [roll_for(2)];
-        let mut rolls = SliceRolls::new(&draws);
-
-        set.tick(&mut map, &mut rolls, &[], |_| true);
-        for frame in 1..WANDER_STEP_FRAMES {
-            assert!(set.get(0).unwrap().is_stepping(), "frame {frame}");
-            set.tick(&mut map, &mut rolls, &[], |_| true);
-        }
-        assert!(!set.get(0).unwrap().is_stepping(), "lands on frame 32");
-    }
-
-    #[test]
-    fn one_roll_supplies_both_the_pause_and_the_direction() {
-        let mut map = map_with_npc(&["....", "....", "...."], Cell::new(1, 1));
-        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
-        // $32: low three bits = 2 (down), masked with $3F = 50 (the pause).
-        let draws = [0x32u16];
-        let mut rolls = SliceRolls::new(&draws);
-
-        set.tick(&mut map, &mut rolls, &[], |_| true);
-        assert_eq!(
-            map.npcs()[0].cell,
-            Cell::new(1, 2),
-            "direction from bits 0-2"
-        );
-        assert_eq!(set.get(0).unwrap().timer(), 0x32, "pause from bits 0-5");
-        assert_eq!(rolls.drawn(), 1, "one draw, not two");
-    }
-
-    #[test]
-    fn type_three_pauses_about_twice_as_long() {
-        assert_eq!(WanderKind::Type2.pause_mask(), 0x3F);
-        assert_eq!(WanderKind::Type3.pause_mask(), 0x7F);
-
-        let mut map = map_with_npc(&["....", "....", "...."], Cell::new(1, 1));
-        let mut two = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
-        let mut three = WanderSet::build(&map, &[(0, WanderKind::Type3)]).unwrap();
-        let draws = [0x7Au16];
-        let mut a = SliceRolls::new(&draws);
-        let mut b = SliceRolls::new(&draws);
-
-        let mut copy = map.clone();
-        two.tick(&mut copy, &mut a, &[], |_| true);
-        three.tick(&mut map, &mut b, &[], |_| true);
-
-        assert_eq!(two.get(0).unwrap().timer(), 0x3A, "$7A & $3F");
-        assert_eq!(three.get(0).unwrap().timer(), 0x7A, "$7A & $7F");
-    }
-
-    #[test]
-    fn an_off_screen_wanderer_is_frozen_and_draws_no_rolls() {
-        let mut map = map_with_npc(&["....", "....", "...."], Cell::new(1, 1));
-        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
-        let draws = [roll_for(2)];
-        let mut rolls = SliceRolls::new(&draws);
-
-        for _ in 0..100 {
-            set.tick(&mut map, &mut rolls, &[], |_| false);
-        }
-
-        assert_eq!(map.npcs()[0].cell, Cell::new(1, 1), "never moved");
-        assert_eq!(set.get(0).unwrap().timer(), 0, "never counted down");
-        assert_eq!(rolls.drawn(), 0, "and never consumed the shared generator");
-    }
-
-    #[test]
-    fn the_leash_keeps_a_wanderer_within_two_cells() {
-        let rows = ["..........", "..........", "..........", ".........."];
-        let mut map = map_with_npc(&rows, Cell::new(5, 1));
-        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
-        // Always roll "left", with a zero pause so it rolls every other frame.
-        let draws = [0x08u16 | 3]; // low bits 3 -> command $04 -> left
-        let mut rolls = SliceRolls::new(&draws);
-
-        for _ in 0..400 {
-            set.tick(&mut map, &mut rolls, &[], |_| true);
-        }
-
-        assert_eq!(
-            map.npcs()[0].cell,
-            Cell::new(3, 1),
-            "two cells left of spawn and no further"
-        );
-        assert_eq!(set.get(0).unwrap().leash().x, 0, "the leash is spent");
-    }
-
-    #[test]
-    fn terrain_refuses_a_move_but_still_turns_the_object() {
-        let mut map = map_with_npc(&["....", ".#..", "...."], Cell::new(1, 2));
-        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
-        // index 1 -> command $01 -> up, into the wall at (1, 1).
-        let draws = [roll_for(1)];
-        let mut rolls = SliceRolls::new(&draws);
-
-        set.tick(&mut map, &mut rolls, &[], |_| true);
-
-        assert_eq!(map.npcs()[0].cell, Cell::new(1, 2), "did not move");
-        assert_eq!(
-            map.npcs()[0].facing,
-            Direction::Up,
-            "but turned on the spot"
-        );
-        assert!(!set.get(0).unwrap().is_stepping());
-    }
-
-    #[test]
-    fn a_terrain_refusal_still_spends_the_leash() {
-        // The cartridge commits the boundary before checking terrain, so the
-        // box drifts. Reproduced deliberately.
-        let mut map = map_with_npc(&["....", ".#..", "...."], Cell::new(1, 2));
-        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
-        let draws = [roll_for(1)];
-        let mut rolls = SliceRolls::new(&draws);
-
-        assert_eq!(set.get(0).unwrap().leash().y, 2);
-        set.tick(&mut map, &mut rolls, &[], |_| true);
-        assert_eq!(
-            set.get(0).unwrap().leash().y,
-            1,
-            "the refused move consumed leash budget anyway"
-        );
-    }
-
-    #[test]
-    fn a_wanderer_will_not_walk_into_the_party() {
-        let mut map = map_with_npc(&["....", "....", "...."], Cell::new(1, 1));
-        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
-        let draws = [roll_for(2)];
-        let mut rolls = SliceRolls::new(&draws);
-
-        set.tick(&mut map, &mut rolls, &[Cell::new(1, 2)], |_| true);
-
-        assert_eq!(map.npcs()[0].cell, Cell::new(1, 1), "the party blocks it");
-        assert_eq!(map.npcs()[0].facing, Direction::Down, "it still turns");
-    }
-
-    #[test]
-    fn two_wanderers_do_not_share_a_cell() {
-        let grid = CollisionGrid::filled(6, 4, 0).unwrap();
-        let mut map = FieldMap::new(
-            MapId(0),
-            grid,
-            vec![],
-            vec![
-                Npc::new(NpcId(2), Cell::new(1, 1), Direction::Down),
-                Npc::new(NpcId(2), Cell::new(1, 2), Direction::Down),
-            ],
-        )
-        .unwrap();
-        let mut set =
-            WanderSet::build(&map, &[(0, WanderKind::Type2), (1, WanderKind::Type2)]).unwrap();
-        // Both roll "down"; the first moves into (1,2) only if it is free, and
-        // it is not until the second moves out of it.
-        let draws = [roll_for(2)];
-        let mut rolls = SliceRolls::new(&draws);
-
-        set.tick(&mut map, &mut rolls, &[], |_| true);
-
-        let cells: Vec<Cell> = map.npcs().iter().map(|n| n.cell).collect();
-        assert_eq!(cells[0], Cell::new(1, 1), "blocked by the one below it");
-        assert_eq!(cells[1], Cell::new(1, 3), "which moved on its own tick");
-    }
-
-    #[test]
-    fn a_bit_clear_object_is_not_occupancy_for_a_wanderer_either() {
-        let grid = CollisionGrid::filled(6, 4, 0).unwrap();
-        let mut map = FieldMap::new(
-            MapId(0),
-            grid,
-            vec![],
-            vec![
-                Npc::new(NpcId(2), Cell::new(1, 1), Direction::Down),
-                Npc::new(NpcId(0x50), Cell::new(1, 2), Direction::Down).with_interactable(false),
-            ],
-        )
-        .unwrap();
-        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
-        let draws = [roll_for(2)];
-        let mut rolls = SliceRolls::new(&draws);
-
-        set.tick(&mut map, &mut rolls, &[], |_| true);
-
-        assert_eq!(
-            map.npcs()[0].cell,
-            Cell::new(1, 2),
-            "it walks onto the bit-clear object, as the party would"
-        );
-    }
-
-    #[test]
-    fn the_same_seed_gives_the_same_positions() {
-        let rows = ["........", "........", "........", "........"];
-        let replay = || {
-            let mut map = map_with_npc(&rows, Cell::new(4, 2));
-            let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
-            let mut rolls = crate::battle::Lcg41::new(0x1234_5678);
-            let mut trail = Vec::new();
-            for _ in 0..2_000 {
-                set.tick(&mut map, &mut rolls, &[], |_| true);
-                trail.push(map.npcs()[0].cell);
-            }
-            (trail, set)
-        };
-
-        let (first, set_a) = replay();
-        let (second, set_b) = replay();
-        assert_eq!(first, second, "same seed, same walk");
-        assert_eq!(set_a, set_b);
-        assert!(
-            first.windows(2).any(|pair| pair[0] != pair[1]),
-            "and it actually wandered"
-        );
-
-        // Never outside the 5x5 box around the spawn.
-        for cell in &first {
-            assert!(
-                cell.x.abs_diff(4) <= 2 && cell.y.abs_diff(2) <= 2,
-                "strayed to ({}, {})",
-                cell.x,
-                cell.y
-            );
-        }
-    }
-
-    #[test]
-    fn the_step_trace_matches_the_oracles_object_columns() {
-        // Pinned against `oracle/logs/02_walk_timing.csv` slot o00, frames
-        // 6962-6994: timer reads 0, the next frame rolls and reloads to 10
-        // (and 10 & 7 = 2 = down, which is how the remap table gets confirmed
-        // from hardware), ydur runs $0F80 down to 0 in $80 steps over exactly
-        // 32 frames, and y advances 240 -> 256 half a pixel at a time.
-        let mut map = map_with_npc(&["....", "....", "....", "....", "...."], Cell::new(1, 1));
-        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
-        let draws = [10u16];
-        let mut rolls = SliceRolls::new(&draws);
-
-        set.tick(&mut map, &mut rolls, &[], |_| true);
-        assert_eq!(
-            set.get(0).unwrap().timer(),
-            10,
-            "the reload the oracle logs"
-        );
-        assert_eq!(map.npcs()[0].facing, Direction::Down, "10 & 7 = 2 = down");
-
-        let origin = crate::trigger::PixelPos::from_cell(Cell::new(1, 1));
-        let mut durations = Vec::new();
-        let mut pixels = Vec::new();
-        // Oracle frames 6963..6993: the 31 frames with distance still to run.
-        for _ in 0..(WANDER_STEP_FRAMES - 1) {
-            let w = set.get(0).unwrap();
-            durations.push(w.step_durations().1);
-            pixels.push(origin.y + w.travelled_px().1);
-            set.tick(&mut map, &mut rolls, &[], |_| true);
-        }
-
-        assert_eq!(
-            &durations[..4],
-            &[0x0F80, 0x0F00, 0x0E80, 0x0E00],
-            "$80 a frame, the first sample already decremented"
-        );
-        assert_eq!(
-            durations.last(),
-            Some(&0x0080),
-            "the last frame with distance left"
-        );
-        // Oracle frames 6963-6967 read y = 240, 241, 241, 242, 242.
-        assert_eq!(
-            &pixels[..5],
-            &[
-                origin.y,
-                origin.y + 1,
-                origin.y + 1,
-                origin.y + 2,
-                origin.y + 2
-            ],
-            "half a pixel a frame, truncated"
-        );
-
-        // The last of those ticks is frame 6994, arrival: the duration reads
-        // zero and the timer is still the reload, because the arriving frame
-        // does no timer work.
-        assert_eq!(set.get(0).unwrap().step_durations(), (0, 0), "arrived");
-        assert_eq!(map.npcs()[0].cell, Cell::new(1, 2), "one cell down");
-        assert_eq!(
-            set.get(0).unwrap().timer(),
-            10,
-            "untouched for the whole step"
-        );
-
-        // Frame 6995: the first frame to decrement it again.
-        set.tick(&mut map, &mut rolls, &[], |_| true);
-        assert_eq!(set.get(0).unwrap().timer(), 9);
-    }
-
-    #[test]
-    fn the_pixel_offset_floors_rather_than_truncating_toward_zero() {
-        // Oracle frame 6939: slot 3 walking *down* with ydur $0F80 reads y at
-        // its origin (112), while slot 2 walking *left* with xdur $0F80 already
-        // reads x one pixel past its origin (639 from 640). Half a pixel floors
-        // to 0 going down and to -1 going left.
-        let mut map = map_with_npc(&["......", "......", "......"], Cell::new(2, 1));
-        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
-        // index 2 -> down.
-        let draws = [2u16];
-        let mut rolls = SliceRolls::new(&draws);
-        set.tick(&mut map, &mut rolls, &[], |_| true);
-        assert_eq!(
-            set.get(0).unwrap().travelled_px(),
-            (0, 0),
-            "down: floors to 0"
-        );
-
-        let mut map = map_with_npc(&["......", "......", "......"], Cell::new(2, 1));
-        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
-        // index 3 -> command $04 -> left.
-        let draws = [3u16];
-        let mut rolls = SliceRolls::new(&draws);
-        set.tick(&mut map, &mut rolls, &[], |_| true);
-        assert_eq!(
-            set.get(0).unwrap().travelled_px(),
-            (-1, 0),
-            "left: floors to -1"
-        );
-    }
-
-    #[test]
-    fn a_restored_wanderer_carries_its_timer_leash_and_step() {
-        let map = map_with_npc(&["......", "......", "......"], Cell::new(2, 1));
-        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
-
-        set.restore(
-            0,
-            WanderState {
-                timer: 23,
-                leash: Leash {
-                    x_max: 4,
-                    y_max: 4,
-                    x: 4,
-                    y: 2,
-                },
-                step: Some((Direction::Left, 1, Cell::new(2, 1))),
-            },
-        )
-        .unwrap();
-
-        let w = set.get(0).unwrap();
-        assert_eq!(w.timer(), 23);
-        assert_eq!(w.leash().x, 4, "already at the leash limit, as slot 0 is");
-        assert!(w.is_stepping());
-        assert_eq!(w.step_durations(), (0x0F80, 0), "one frame into the step");
-        assert_eq!(w.travelled_px(), (-1, 0));
-
-        assert!(matches!(
-            set.restore(
-                9,
-                WanderState {
-                    timer: 0,
-                    leash: Leash::default(),
-                    step: None
-                }
-            ),
-            Err(MapError::NpcIndexOutOfRange { .. })
-        ));
-    }
-
-    #[test]
-    fn a_roll_fires_on_the_frame_the_timer_reads_zero() {
-        // Not on an expiry edge some frames later: the countdown reaches 0,
-        // and the *next* frame rolls. A reload of 0 therefore rolls again
-        // immediately, which is the consecutive-roll case.
-        let mut map = map_with_npc(&["....", "....", "...."], Cell::new(1, 1));
-        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
-        // Roll 0: index 0 -> stand still, and a reload of 0.
-        let draws = [0u16];
-        let mut rolls = SliceRolls::new(&draws);
-
-        for frame in 0..5 {
-            set.tick(&mut map, &mut rolls, &[], |_| true);
-            assert_eq!(
-                set.get(0).unwrap().timer(),
-                0,
-                "frame {frame}: a zero reload keeps the timer at zero"
-            );
-        }
-        assert_eq!(rolls.drawn(), 5, "so it rolls every single frame");
-    }
-
-    #[test]
-    fn only_registered_wanderers_consume_rolls() {
-        // Slot 7 on PiataAcademy_F1 is NPCAlysPiata: the oracle sees her timer
-        // hold 0 for all 1563 field frames while consuming nothing, because
-        // her routine is not GetRandomMove. A set that does not register an
-        // object must never draw for it.
-        let grid = CollisionGrid::filled(6, 4, 0).unwrap();
-        let mut map = FieldMap::new(
-            MapId(0),
-            grid,
-            vec![],
-            vec![
-                Npc::new(NpcId(0x3C), Cell::new(1, 1), Direction::Down),
-                Npc::new(NpcId(0x68), Cell::new(3, 1), Direction::Down),
-            ],
-        )
-        .unwrap();
-        // Only slot 0 wanders.
-        let mut set = WanderSet::build(&map, &[(0, WanderKind::Type2)]).unwrap();
-        let draws = [0x20u16];
-        let mut rolls = SliceRolls::new(&draws);
-
-        for _ in 0..200 {
-            set.tick(&mut map, &mut rolls, &[], |_| true);
-        }
-
-        assert_eq!(
-            map.npcs()[1].cell,
-            Cell::new(3, 1),
-            "the unregistered object never moved"
-        );
-        assert!(set.get(1).is_none(), "and has no wander state at all");
-    }
-
-    #[test]
-    fn build_rejects_an_index_that_names_no_object() {
-        let map = map_with_npc(&["..", ".."], Cell::new(0, 0));
-        assert!(matches!(
-            WanderSet::build(&map, &[(1, WanderKind::Type2)]),
-            Err(MapError::NpcIndexOutOfRange { index: 1, count: 1 })
-        ));
-        assert!(WanderSet::build(&map, &[(0, WanderKind::Type2)]).is_ok());
-    }
-}
+#[path = "wander_tests.rs"]
+mod tests;

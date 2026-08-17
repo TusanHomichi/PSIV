@@ -249,6 +249,61 @@ impl SceneRunner {
                 });
                 self.pc += 1;
             }
+            SceneOp::SetVehicleIndex { index } => {
+                state.set_vehicle_index(index);
+                effects.push(SceneEffect::VehicleChanged { index });
+                self.pc += 1;
+            }
+            SceneOp::AddItem { item } => {
+                if state.inventory_mut().add(item).is_err() {
+                    return Some(SceneFault::BadWrite);
+                }
+                effects.push(SceneEffect::InventoryChanged);
+                self.pc += 1;
+            }
+            SceneOp::RestorePartyHp { amount } => {
+                let members = state.party_members();
+                for who in members {
+                    if let Some(stats) = state.roster_mut().get_mut(who) {
+                        stats.curr_hp = stats.curr_hp.saturating_add(amount).min(stats.max_hp);
+                        stats.status = 0;
+                    }
+                    effects.push(SceneEffect::RosterChanged { who });
+                }
+                self.pc += 1;
+            }
+            SceneOp::ConfigureCharacter {
+                who,
+                equipment,
+                restore_hp_tp,
+            } => {
+                if let Some(stats) = state.roster_mut().get_mut(who) {
+                    stats.equipment = equipment;
+                    if restore_hp_tp {
+                        stats.curr_hp = stats.max_hp;
+                        stats.curr_tp = stats.max_tp;
+                    }
+                }
+                effects.push(SceneEffect::RosterChanged { who });
+                self.pc += 1;
+            }
+            SceneOp::ClearCharacterStatus { who } => {
+                if let Some(stats) = state.roster_mut().get_mut(who) {
+                    stats.status = 0;
+                }
+                effects.push(SceneEffect::RosterChanged { who });
+                self.pc += 1;
+            }
+            SceneOp::ReviveIfDead { who } => {
+                if let Some(stats) = state.roster_mut().get_mut(who) {
+                    stats.status = 0;
+                    if stats.curr_hp == 0 {
+                        stats.curr_hp = stats.max_hp;
+                    }
+                }
+                effects.push(SceneEffect::RosterChanged { who });
+                self.pc += 1;
+            }
             SceneOp::PromoteNpcToChar {
                 npc,
                 char_id,
@@ -453,9 +508,20 @@ impl SceneRunner {
             | SceneOp::FadeIn
             | SceneOp::FadeOut
             | SceneOp::DmaPlanes
-            | SceneOp::RecoverStats
             | SceneOp::SetDialogueTree { .. }
             | SceneOp::SetRenderSpritesInCutscene { .. } => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+            }
+            SceneOp::RecoverStats => {
+                for who in state.party_members() {
+                    if let Some(stats) = state.roster_mut().get_mut(who) {
+                        stats.curr_hp = stats.max_hp;
+                        stats.curr_tp = stats.max_tp;
+                        stats.status = 0;
+                    }
+                    effects.push(SceneEffect::RosterChanged { who });
+                }
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }
@@ -475,6 +541,22 @@ impl SceneRunner {
             }
             SceneOp::JoinParty { slot, who } => {
                 if state.join_party(slot, who).is_err() {
+                    return Some(SceneFault::BadWrite);
+                }
+                effects.push(SceneEffect::PartyChanged);
+                self.pc += 1;
+            }
+            SceneOp::RemovePartyMember { who } => {
+                let slots = state.party();
+                let Some(remove_at) = slots.iter().position(|member| *member == Some(who)) else {
+                    return Some(SceneFault::BadWrite);
+                };
+                for slot in remove_at..slots.len().saturating_sub(1) {
+                    if state.set_party_slot(slot, slots[slot + 1]).is_err() {
+                        return Some(SceneFault::BadWrite);
+                    }
+                }
+                if state.set_party_slot(slots.len() - 1, None).is_err() {
                     return Some(SceneFault::BadWrite);
                 }
                 effects.push(SceneEffect::PartyChanged);
@@ -571,6 +653,7 @@ impl SceneRunner {
                 {
                     let _ = state.inventory_mut().remove(slot);
                 }
+                effects.push(SceneEffect::InventoryChanged);
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }

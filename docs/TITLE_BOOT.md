@@ -83,10 +83,10 @@ continue to bypass the front door.
 ## Opening cinematic boundary
 
 `rust/psiv-core/src/scenes/game_start.rs` already transcribes the opening
-event's movement/dialogue/map sequence. The missing presentation surface is
-the renderer-specific part: `InitVramAndCram`, the two prologue title-image
-loads, `DrawTextToPlane`, the 20-step colour ramps, and the two long text-page
-holds. START therefore releases the title overlay to the existing new-game
-runtime in this slice; wiring those operations and proving their timing
-against a retail tape is the next opening-cinematic slice. CONTINUE goes
-straight to the validated saved field state, as retail does.
+event's movement/dialogue/map sequence. Its renderer-specific surface is now
+consumed by the Godot cutscene layer: `InitVramAndCram`, the prologue title
+image, `DrawTextToPlane`, the 20-frame colour ramps, and the two long text-page
+holds. The ordered event seam, decoded assets, oracle tape, and current
+coverage limits are recorded in [`SCENE_PRESENTATION.md`](SCENE_PRESENTATION.md).
+CONTINUE still goes straight to the validated saved field state, as retail
+does.

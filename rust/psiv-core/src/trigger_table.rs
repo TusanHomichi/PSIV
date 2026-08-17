@@ -698,4 +698,58 @@ mod tests {
             TriggerResult::Fire(EventIndex(0x003C))
         );
     }
+
+    #[test]
+    fn the_retail_chain_after_rika_uses_its_cartridge_positions_and_banks() {
+        let mut state = GameState::new();
+
+        state.set(Flag::event(0x42)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x06].evaluate(&ctx(&state, 0x710, 0xAD0)),
+            TriggerResult::Fire(EventIndex(0x0006))
+        );
+        state.set(Flag::chest(0x0A)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x1B].evaluate(&ctx(&state, 0, 0x1C0)),
+            TriggerResult::Fire(EventIndex(0x002B))
+        );
+        state.clear(Flag::event(0x42)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x1C].evaluate(&ctx(&state, 0, 0x170)),
+            TriggerResult::Fire(EventIndex(0x8008))
+        );
+        state.set(Flag::event(0x42)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x1D].evaluate(&ctx(&state, 0, 0)),
+            TriggerResult::Fire(EventIndex(0x8009))
+        );
+        assert_eq!(
+            TRIGGERS[0x19].evaluate(&ctx(&state, 0x3C0, 0)),
+            TriggerResult::Fire(EventIndex(0x002E))
+        );
+        assert_eq!(
+            TRIGGERS[0x2A].evaluate(&ctx(&state, 0x1E0, 0x1B0)),
+            TriggerResult::Fire(EventIndex(0x002F))
+        );
+        state.set(Flag::event(0x69)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x2A].evaluate(&ctx(&state, 0x1E0, 0x1B0)),
+            TriggerResult::NoEvent
+        );
+        state.set(Flag::chest(0x09)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x1E].evaluate(&ctx(&state, 0, 0)),
+            TriggerResult::Fire(EventIndex(0x800A))
+        );
+        state.clear(Flag::event(0x65)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x1F].evaluate(&ctx(&state, 0, 0x1E0)),
+            TriggerResult::Fire(EventIndex(0x0034))
+        );
+        state.set(Flag::event(0x65)).unwrap();
+        assert_eq!(
+            TRIGGERS[0x20].evaluate(&ctx(&state, 0, 0)),
+            TriggerResult::Fire(EventIndex(0x800B))
+        );
+    }
 }

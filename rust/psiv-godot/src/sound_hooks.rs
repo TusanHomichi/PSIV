@@ -10,6 +10,31 @@ impl Field {
         }
     }
 
+    /// Scene `PlaySound` writes the same live Sound_Index consumed by the
+    /// field/battle shell. Keeping this wrapper separate makes the ownership
+    /// boundary explicit: scene audio is not routed through battle SFX.
+    pub(super) fn play_scene_sound(&mut self, id: u8) {
+        self.play_sound(id);
+        godot_print!("scene sound: {id:#04x}");
+    }
+
+    /// Retail's `Saved_Sound_Index` is a one-byte restore word, not a second
+    /// mixer. Zero means the scene cleared it; any other value is returned
+    /// when the scene/map presentation hands control back to the field.
+    pub(super) fn save_scene_music(&mut self, id: u8) {
+        self.presentation.set_saved_music(id);
+        godot_print!("scene saved music: {id:#04x}");
+    }
+
+    pub(super) fn restore_saved_music(&mut self) -> bool {
+        let Some(id) = self.presentation.take_saved_music() else {
+            return false;
+        };
+        self.play_sound(id);
+        godot_print!("scene restored saved music: {id:#04x}");
+        true
+    }
+
     pub(super) fn play_map_music(&mut self) {
         let Some((id, symbol, changes_music)) = self.runtime.as_ref().and_then(|runtime| {
             runtime.map_record().map(|record| {

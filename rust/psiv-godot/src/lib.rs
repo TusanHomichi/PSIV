@@ -15,11 +15,13 @@ mod audio;
 mod battle;
 mod boot;
 mod camp;
+mod cutscene;
 #[path = "debug.rs"]
 mod debug;
 mod dialogue;
 mod field_visuals;
 mod input;
+mod runtime_events;
 mod shop;
 #[path = "sound_hooks.rs"]
 mod sound_hooks;
@@ -28,19 +30,20 @@ mod transitions;
 mod view;
 use battle::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
 use boot::{
-    FALLBACK_SPAWN_CELL, FALLBACK_SPAWN_MAP, available_save_slots, collect_event_flags,
+    FALLBACK_SPAWN_CELL, FALLBACK_SPAWN_MAP, available_save_slots, debug_scene_runtime,
     title_bypassed,
 };
 use camp::CampMenu;
+use cutscene::{CutsceneLayer, PresentationState};
 use dialogue::DialogueWindow;
 use input::{read_input, requested_save_slot, save_directory};
 use shop::ShopWindow;
 use transitions::TransitionKind;
-use view::{NpcNode, SheetView, sequence_name};
+use view::{NpcNode, SheetView};
 
-use psiv_core::{Cell, Direction, StepFrames, WarpTrigger};
+use psiv_core::{Cell, Direction, StepFrames};
 use psiv_data::GameData;
-use psiv_runtime::{Runtime, RuntimeEvent};
+use psiv_runtime::Runtime;
 use psiv_sound::SAMPLE_RATE;
 
 struct PsivExtension;
@@ -88,6 +91,11 @@ struct Field {
     battle_screen: Option<Gd<BattleScreen>>,
     battle_files: Option<psiv_data::BattleFiles>,
     battle_field_visibility: Option<battle::FieldVisibility>,
+    /// Staged scene planes and the opening cinematic surface.
+    cutscene_layer: Option<Gd<CutsceneLayer>>,
+    /// Shell-only scene presentation state; scene control remains in the
+    /// runtime and arrives here as ordered events.
+    presentation: PresentationState,
     anim_tick: u64,
     /// Cinema-mode bars, shown while a scene or battle owns the authentic
     /// 320x224 frame. Four bars are needed in the wide field viewport: the
@@ -137,6 +145,8 @@ impl INode2D for Field {
             battle_screen: None,
             battle_files: None,
             battle_field_visibility: None,
+            cutscene_layer: None,
+            presentation: PresentationState::default(),
             anim_tick: 0,
             accept_blocked: false,
             letterbox: Vec::new(),
@@ -219,49 +229,61 @@ impl INode2D for Field {
             ),
         };
         let requested_slot = requested_save_slot();
-        let mut runtime = match requested_slot {
-            Some(slot) => match Runtime::load_slot(
-                data.clone(),
-                &save_directory(),
-                slot,
-                StepFrames::default(),
-            ) {
-                Ok(rt) => {
-                    godot_print!("save boot: loaded slot {}", slot + 1);
-                    rt
-                }
-                Err(error) => {
-                    godot_error!(
-                        "save boot for slot {} failed: {error}; starting new game",
-                        slot + 1
-                    );
-                    match Runtime::new(
-                        data,
-                        spawn_map,
-                        spawn_cell,
-                        spawn_facing,
-                        StepFrames::default(),
-                    ) {
-                        Ok(rt) => rt,
-                        Err(e) => {
-                            godot_error!("runtime failed to start: {e}");
-                            return;
+        let debug_event = std::env::var("PSIV_DEBUG_EVENT")
+            .ok()
+            .and_then(|value| u16::from_str_radix(value.trim().trim_start_matches("0x"), 16).ok());
+        let mut runtime = match debug_event
+            .and_then(|event| debug_scene_runtime(data.clone(), event, StepFrames::default()))
+        {
+            Some(Ok(runtime)) => runtime,
+            Some(Err(error)) => {
+                godot_error!("debug scene runtime failed: {error}");
+                return;
+            }
+            None => match requested_slot {
+                Some(slot) => match Runtime::load_slot(
+                    data.clone(),
+                    &save_directory(),
+                    slot,
+                    StepFrames::default(),
+                ) {
+                    Ok(rt) => {
+                        godot_print!("save boot: loaded slot {}", slot + 1);
+                        rt
+                    }
+                    Err(error) => {
+                        godot_error!(
+                            "save boot for slot {} failed: {error}; starting new game",
+                            slot + 1
+                        );
+                        match Runtime::new(
+                            data,
+                            spawn_map,
+                            spawn_cell,
+                            spawn_facing,
+                            StepFrames::default(),
+                        ) {
+                            Ok(rt) => rt,
+                            Err(e) => {
+                                godot_error!("runtime failed to start: {e}");
+                                return;
+                            }
                         }
                     }
-                }
-            },
-            None => match Runtime::new(
-                data,
-                spawn_map,
-                spawn_cell,
-                spawn_facing,
-                StepFrames::default(),
-            ) {
-                Ok(rt) => rt,
-                Err(e) => {
-                    godot_error!("runtime failed to start: {e}");
-                    return;
-                }
+                },
+                None => match Runtime::new(
+                    data,
+                    spawn_map,
+                    spawn_cell,
+                    spawn_facing,
+                    StepFrames::default(),
+                ) {
+                    Ok(rt) => rt,
+                    Err(e) => {
+                        godot_error!("runtime failed to start: {e}");
+                        return;
+                    }
+                },
             },
         };
         self.configure_battles(&mut runtime);
@@ -320,6 +342,17 @@ impl INode2D for Field {
         self.base_mut().add_child(&camp);
         self.camp_menu = Some(camp);
 
+        // Scene presentation has its own plane stack. It is intentionally
+        // separate from DialogueWindow: Panel_Create writes the VDP planes
+        // directly and only exposes a new stack on DmaPlanes.
+        let mut cutscene_layer = CutsceneLayer::new_alloc();
+        match psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
+            Ok(set) => cutscene_layer.bind_mut().configure(&self.pack_dir, &set),
+            Err(e) => godot_error!("scene presentation pack failed to load: {e}"),
+        }
+        self.base_mut().add_child(&cutscene_layer);
+        self.cutscene_layer = Some(cutscene_layer);
+
         let ready_map = runtime.map_id().0;
         let ready_cell = runtime.state().cell();
         let sound_bank = match audio::sound_bank_from_data(runtime.data().sound()) {
@@ -358,6 +391,7 @@ impl INode2D for Field {
         }
         self.anim_tick += 1;
         self.tick_transition();
+        self.tick_cutscene_presentation();
         if self.drive_title() {
             return;
         }
@@ -369,6 +403,15 @@ impl INode2D for Field {
         }
 
         if self.drive_battle_if_active() {
+            // Battle close is the other retail restore edge. Scene battles
+            // carry Saved_Sound_Index; ordinary battles fall back to the
+            // current map's music request.
+            if battle_was_active
+                && !self.battle_presentation_active()
+                && !self.restore_saved_music()
+            {
+                self.play_map_music();
+            }
             return;
         }
 
@@ -687,211 +730,6 @@ impl Field {
                 spawn,
             });
         }
-    }
-
-    /// Applies a batch of runtime events to the presentation. Returns whether
-    /// a step completed (the walk-animation bridge needs it).
-    fn process_events(&mut self, events: Vec<RuntimeEvent>) -> bool {
-        let mut stepped = false;
-        for event in events {
-            match event {
-                RuntimeEvent::StepCompleted { .. } => stepped = true,
-                RuntimeEvent::EncounterRolled { formation } => {
-                    self.play_sound(0x8f);
-                    self.start_random_battle(formation);
-                    if self.battle_presentation_active() {
-                        self.start_transition(TransitionKind::BattleEntry);
-                    }
-                }
-                RuntimeEvent::MapChanged { map, trigger } => {
-                    let kind = match trigger {
-                        WarpTrigger::MapChange => "doorway",
-                        WarpTrigger::NormalGround => "ground",
-                    };
-                    godot_print!("map change ({kind}) -> {:#05x}", map.0);
-                    self.load_map_visuals();
-                    self.play_map_music();
-                    if matches!(trigger, WarpTrigger::MapChange) {
-                        self.start_transition(TransitionKind::Doorway);
-                    }
-                }
-                RuntimeEvent::UnpackedTarget { map } => {
-                    godot_error!("transition target {:#05x} is not in the pack", map.0);
-                }
-                RuntimeEvent::WarpUnmapped { cell } => {
-                    godot_error!("type-1 cell with no doorway record at {cell:?}");
-                }
-                RuntimeEvent::Interact {
-                    npc_index,
-                    cell,
-                    reach,
-                } => {
-                    if matches!(reach, psiv_core::InteractReach::AcrossCounter) {
-                        let counter = self.shop.as_ref().and_then(|shop| {
-                            let runtime = self.runtime.as_ref()?;
-                            let object_cell =
-                                runtime.map().npcs().get(npc_index).map(|npc| npc.cell);
-                            object_cell
-                                .into_iter()
-                                .chain(std::iter::once(cell))
-                                .find_map(|at| {
-                                    shop.bind().counter_at(runtime.map_id().0, at.x, at.y)
-                                })
-                        });
-                        if let Some(counter) = counter {
-                            let opened = match (self.shop.as_mut(), self.runtime.as_ref()) {
-                                (Some(shop), Some(runtime)) => {
-                                    shop.bind_mut().open(counter, runtime)
-                                }
-                                _ => false,
-                            };
-                            if opened {
-                                self.place_shop_window();
-                                if let Some(runtime) = self.runtime.as_mut() {
-                                    let facing = runtime.state().facing().opposite();
-                                    runtime.face_npc(npc_index, facing);
-                                }
-                                continue;
-                            }
-                        }
-                        // Desks and other across-counter objects remain
-                        // ordinary dialogue when no shop-table row matches.
-                        godot_print!("counter reach at {cell:?} has no shop row; dialogue");
-                    }
-                    let binding = self.runtime.as_ref().and_then(|rt| {
-                        let record = rt.map_record()?;
-                        // Trees are 1-based; 0 means the map binds none.
-                        let tree = match record.dialogue_tree {
-                            0 => return None,
-                            tree => tree,
-                        };
-                        // The live binding: map-effect overrides included
-                        // (clinics and story rooms swap what a person says).
-                        let id = rt.npc_dialogue_id(npc_index)?;
-                        Some((tree, id))
-                    });
-                    match binding {
-                        Some((tree, id)) => {
-                            let flags = self.runtime.as_ref().map(collect_event_flags);
-                            let opened = self.dialogue.as_mut().is_some_and(|w| {
-                                let mut w = w.bind_mut();
-                                if let Some(flags) = flags {
-                                    w.set_event_flags(flags);
-                                }
-                                w.open_dialogue(tree, id)
-                            });
-                            if opened {
-                                // NPCs turn to face the speaker; the \$F3
-                                // control code exists precisely to suppress
-                                // this, which proves it is the default.
-                                let toward = self
-                                    .runtime
-                                    .as_ref()
-                                    .map(|rt| rt.state().facing().opposite());
-                                if let Some(toward) = toward {
-                                    let name = sequence_name("idle", toward);
-                                    for entry in &mut self.npc_nodes {
-                                        if entry.index == npc_index {
-                                            entry.idle = name.clone();
-                                        }
-                                    }
-                                    // The engine's facing is the wanderers'
-                                    // source of truth, so turn it there too.
-                                    if let Some(rt) = self.runtime.as_mut() {
-                                        rt.face_npc(npc_index, toward);
-                                    }
-                                }
-                            }
-                        }
-                        None => godot_print!(
-                            "talk: npc {npc_index} at {cell:?} has no dialogue binding"
-                        ),
-                    }
-                }
-                RuntimeEvent::SceneStarted { trigger } => {
-                    godot_print!("scene started (trigger {trigger})");
-                    self.set_letterbox(true);
-                }
-                RuntimeEvent::SceneStartedFromInteraction { area, event } => {
-                    godot_print!("scene started (interaction area {area}, event {event:#x})");
-                    self.set_letterbox(true);
-                    if event & 0x8000 != 0 {
-                        self.scene_transition_active = true;
-                        self.start_transition(TransitionKind::SceneStart);
-                    }
-                }
-                RuntimeEvent::SceneEnded => {
-                    godot_print!("scene ended");
-                    if self.scene_transition_active {
-                        self.scene_transition_active = false;
-                        self.start_transition(TransitionKind::SceneEnd);
-                    } else {
-                        self.set_letterbox(false);
-                    }
-                    self.load_map_visuals();
-                }
-                RuntimeEvent::SceneMissing { event } => {
-                    godot_error!("trigger fired event {event:#x} with no transcribed scene");
-                }
-                RuntimeEvent::TriggerUnsupported { trigger } => {
-                    godot_print!("trigger {trigger} is an unsupported custom check");
-                }
-                RuntimeEvent::SceneDialogue { entry } => {
-                    let tree = self
-                        .runtime
-                        .as_ref()
-                        .and_then(|rt| rt.map_record())
-                        .map(|r| r.dialogue_tree)
-                        .unwrap_or(0);
-                    let flags = self.runtime.as_ref().map(collect_event_flags);
-                    let opened = self.dialogue.as_mut().is_some_and(|w| {
-                        let mut w = w.bind_mut();
-                        if let Some(flags) = flags {
-                            w.set_event_flags(flags);
-                        }
-                        w.open_dialogue(tree, entry)
-                    });
-                    if !opened {
-                        // The scene is blocked on this window; a failed open
-                        // must not hang the story.
-                        if let Some(rt) = self.runtime.as_mut() {
-                            rt.dialogue_closed();
-                        }
-                    }
-                }
-                RuntimeEvent::SceneBattleStarted { index, events } => {
-                    if let Some(id) = event_battle_music(index) {
-                        self.play_sound(id);
-                    }
-                    self.start_scene_battle(index, events);
-                }
-                RuntimeEvent::SceneFaulted { fault } => {
-                    godot_error!("scene fault: {fault:?}");
-                }
-                RuntimeEvent::SceneBattleFailed { index, error } => {
-                    godot_error!("scene battle {index} could not start: {error}");
-                }
-                RuntimeEvent::PartyChanged => {
-                    self.refresh_party_sheets();
-                }
-                RuntimeEvent::NpcsDespawned { first, count } => {
-                    for NpcNode { node, index, .. } in &mut self.npc_nodes {
-                        if (first..first + count).contains(index) {
-                            node.set_visible(false);
-                        }
-                    }
-                }
-                RuntimeEvent::InteractNothing { .. } => {
-                    // The cartridge answers with the leader's own "Nothing
-                    // here" line — one per character. Slot 0 (Chaz) until
-                    // game-start state supplies the real leader.
-                    if let Some(window) = self.dialogue.as_mut() {
-                        window.bind_mut().open_nothing_here(0);
-                    }
-                }
-            }
-        }
-        stepped
     }
 
     /// Cinema mode: letterbox bars over the world, under the dialogue box.

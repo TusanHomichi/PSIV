@@ -242,6 +242,11 @@ class TestManifest(PackFixtureCase):
             self.assertTrue(under("dialogue"), "build_pack emits the dialogue half")
             self.assertTrue(under("title"), "build_pack emits the retail front door")
             self.assertTrue(under("sound"), "build_pack emits the raw sound half")
+            self.assertEqual(
+                len(under("presentation")),
+                # panels.json, the opening background, one PNG per panel.
+                2 + self.manifest["presentation"]["panels"],
+            )
             self.assertEqual(len(under("sound")), len(self.manifest["sound"]["files"]))
             art = self.manifest["battle"]["art"]["files"]
             self.assertEqual(
@@ -269,7 +274,15 @@ class TestManifest(PackFixtureCase):
             # Whatever is left is top-level JSON, manifest included.
             categorised = sum(
                 len(under(prefix))
-                for prefix in ("dialogue", "title", "battle", "sprites", "maps", "sound")
+                for prefix in (
+                    "dialogue",
+                    "title",
+                    "battle",
+                    "sprites",
+                    "maps",
+                    "sound",
+                    "presentation",
+                )
             )
             top_level = [f for f in first_files if len(f.parts) == 1]
             self.assertEqual(len(first_files), categorised + len(top_level))

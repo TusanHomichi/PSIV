@@ -189,8 +189,9 @@ closed and tested in the current tree:
   roster;
 - shop inventories, locations, prices, inn rules, portraits, greeting
   selectors, and the decoded-layout shop UI;
-- the field camera's FG path and NPCType2/3 wander, including the shared RNG
-  and tape-02 replay coverage;
+- the dual-plane field camera and EC24/EC25/EC26 gates, plus the packed random
+  wander families and all three extracted speed records, including shared-RNG
+  tape coverage;
 - field sprites, dialogue, and the pack/data/runtime joins that drive them;
 - event scenes through the opening act and the Zema/Tonoe arc (Holt → Rune →
   Dorin → Alshline → Zema aftermath, `docs/scenes/`), with scripted actor
@@ -222,21 +223,37 @@ closed and tested in the current tree:
   (START/CONTINUE/ERASE DATA gating from real slot state), built to the
   decoded layout numbers and RMSE-checked against oracle frames
   (`docs/TITLE_BOOT.md`), with all `PSIV_DEBUG_*`/`PSIV_LOAD_SLOT` fast
-  paths intact.
+  paths intact;
+- scene presentation consumption: ordered `ScenePresentation` events drive
+  fades, panels, palettes, sprite gating, scene audio, and saved-music
+  restore in Godot; the opening cinematic renders through the same op family
+  and a live capture matches the oracle narration frame at rmse=6.59 after
+  three placement fixes (`docs/SCENE_PRESENTATION.md`); the panel/opening
+  extraction is part of `python -m psiv_tools pack` (`presentation/`);
+- event scenes through ZioDefeated (`docs/scenes/` 31–39: Demi rescue, Alys
+  wounded, Land Rover, Machine Center, Ladea Tower, Psyco Wand, Zio's fall),
+  with roster/heal/revive/vehicle state ops and typed change events; Molcum
+  is a proven event dead end, and the next retail gate is Reunion
+  (`$50 → $801F`) on the Dezo/Kuran maps;
+- battle SFX: ordered battle-timeline events carry the retail SFX at the
+  retail moment — per-weapon attack sounds, miss, death, menu routes, EB
+  sequence sounds over music through the driver's priority arbitration
+  (`docs/SOUND_INTEGRATION.md`).
 
 The remaining backlog:
 
-1. Scene presentation consumption: scenes carry fades, panels, palette work,
-   temporary objects, and `PlaySound`/`SetSavedMusic` as typed presentation
-   effects (`scene_presentation.rs`), but nothing in the Godot layer consumes
-   them yet — cutscene visuals and cutscene audio both land when that lane
-   does. The opening cinematic renderer is the same family of work.
-2. Full-campaign event coverage past MeetingRika (next retail beat onward).
-3. Sound gaps blocked on missing runtime dispatch surfaces: vehicle battle
-   `$96`, attack/effect SFX, and sequence-internal `EB` routes
-   (`docs/SOUND_INTEGRATION.md`).
-4. Remaining field parity: BG-camera/driver gates, non-Type2/3 wanderers, and
-   the third wander speed table (`docs/CAMERA.md`, `docs/NPC_WANDER.md`).
+1. Full-campaign event coverage past ZioDefeated: the Reunion gate
+   (`$50 → $801F`) onward, on the Dezo/Kuran maps.
+2. Scene presentation leftovers: standalone Nemesis temporary objects,
+   `LoadArt`, and generic scene windows/portraits are logged-but-deferred;
+   exact-frame RMSE pairing needs a retail-paced harness mode (the debug
+   harness compresses dialogue time).
+3. Sound gaps: per-enemy attack/animation SFX (generic `$BA` fallback today)
+   and vehicle battle `$96`, which still waits on a vehicle-battle runtime
+   surface (`docs/SOUND_INTEGRATION.md`).
+4. Remaining field parity: per-object bit-0 camera flags, dynamic gate values
+   outside ordinary field entry, fractional camera low-word receipts, and the
+   remaining bespoke NPC routines (`docs/CAMERA.md`, `docs/NPC_WANDER.md`).
 5. Title fidelity details: per-frame CRAM fade replay (currently baked
    palettes with deterministic fades) and a real ERASE DATA implementation
    (currently deliberately non-destructive).

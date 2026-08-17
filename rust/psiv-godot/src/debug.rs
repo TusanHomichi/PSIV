@@ -6,8 +6,10 @@ impl Field {
     /// `--psiv-debug-battle=<formation hex>` starts that battle a few frames
     /// after boot with no play needed; `PSIV_DEBUG_SHOT=<path.png>` (with
     /// optional `PSIV_DEBUG_SHOT_FRAME=<n>`, default 180) saves a viewport
-    /// screenshot so an agent can see what a player would. `PSIV_DEBUG_CAMP=1`
-    /// opens the field camp at tick 30.
+    /// screenshot so an agent can see what a player would. `PSIV_DEBUG_EVENT`
+    /// starts a transcribed scene at tick 30; combine it with
+    /// `PSIV_DEBUG_AUTOCLOSE_SCENE=1` for deterministic headless scene runs.
+    /// `PSIV_DEBUG_CAMP=1` opens the field camp at tick 30.
     pub(super) fn debug_hooks_tick(&mut self) {
         let formation = std::env::var("PSIV_DEBUG_BATTLE").ok().or_else(|| {
             std::env::args().find_map(|argument| {
@@ -24,6 +26,7 @@ impl Field {
                 Ok(id) => {
                     godot_print!("debug: starting battle {id:#05x}");
                     if id == 0x88 {
+                        godot_print!("debug: battle theme dispatch: 0x95");
                         self.play_sound(0x95);
                         self.start_oracle_debug_battle();
                     } else {
@@ -50,6 +53,31 @@ impl Field {
             if opened {
                 godot_print!("debug: opening shop counter {index}");
                 self.place_shop_window();
+            }
+        }
+        if self.anim_tick == 30
+            && let Ok(value) = std::env::var("PSIV_DEBUG_EVENT")
+        {
+            let trimmed = value.trim().trim_start_matches("0x");
+            match u16::from_str_radix(trimmed, 16) {
+                Ok(event) => {
+                    let started = self
+                        .runtime
+                        .as_mut()
+                        .is_some_and(|runtime| runtime.start_event(event));
+                    if started {
+                        self.presentation.reset_scene();
+                        self.set_letterbox(true);
+                        if event & 0x8000 != 0 {
+                            self.scene_transition_active = true;
+                            self.start_transition(crate::transitions::TransitionKind::SceneStart);
+                        }
+                        godot_print!("debug: starting scene event {event:#06x}");
+                    } else {
+                        godot_error!("debug event {value} has no transcribed scene");
+                    }
+                }
+                Err(_) => godot_error!("debug event {value} is not a hexadecimal event id"),
             }
         }
         if let Ok(path) = std::env::var("PSIV_DEBUG_SHOT") {

@@ -340,9 +340,10 @@ mod tests {
 
     #[test]
     fn a_chest_never_wanders_and_draws_no_rolls() {
-        // Chests are types $A0/$1D4, not NPCType2/3, so nothing registers them
-        // as wanderers. The property that matters is the shared RNG: an object
-        // that drew a roll it should not would desynchronise every other
+        // Chests are types $A0/$1D4, not one of the transcribed random-wander
+        // families, so nothing registers them as wanderers. The property that
+        // matters is the shared RNG: an object that drew a roll it should not
+        // would desynchronise every other
         // consumer of the seed.
         let mut map = academy_basement(&[]);
         let mut set = WanderSet::build(&map, &[]).unwrap();

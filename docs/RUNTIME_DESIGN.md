@@ -10,7 +10,8 @@ The field-only target described in the early sections has been superseded by a
 working pack-driven Rust/Godot runtime. The current verified surface is:
 
 - **Field and persistence:** maps, collision, warps, sprites, dialogue,
-  encounters, FG camera, NPCType2/3 wander, flag-gated map effects, inventory,
+  encounters, dual-plane camera/gates, the transcribed random-wander families,
+  flag-gated map effects, inventory,
   chests, map-load clears, and the eleven-record roster are wired through
   `psiv-core`/`psiv-runtime`; the opening-act scene/event path is executable.
 - **Battle:** retail formation/data loading, the deterministic turn engine,
@@ -308,6 +309,14 @@ triangle).
   Honesty note: the comparator now reports compared-vs-unavailable
   columns explicitly; the follower group has never been verified
   against hardware and the output says so.
+- **Update (2026-08-16, field-parity slice):** the common BG camera path and
+  EC24/EC25/EC26 driver gates are now represented in `psiv-core`; replay rows
+  compare both plane pixel/step columns and the logged gate bytes. The packed
+  random families beyond Type2/3 (332 placements) and all three NPC speed
+  records are transcribed; Xanafalgue's escape branch is covered by tape 18.
+  Remaining field gaps are the per-object bit-0 camera flag, dynamic gate
+  values not present in the pack schema, fractional camera low-word receipts,
+  and bespoke non-random NPC routines.
 
 ## RNG design (ratified by Peter 2026-08-15)
 

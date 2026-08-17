@@ -231,19 +231,33 @@ pub fn field_map_patched(
         .map_err(|e| BridgeError::Rejected(e.to_string()))
 }
 
-/// The wandering objects on a map: exactly the pack NPCs whose behaviour
-/// routine is NPCType2 or NPCType3 — the two types that share the cartridge's
-/// random walker (`docs/NPC_WANDER.md`). Everything else stands still until
-/// its own routine is transcribed.
+/// The wandering objects on a map: the packed routines whose random calls have
+/// been transcribed in `docs/NPC_WANDER.md`. Fixed-position and bespoke
+/// routines remain out of this list; they are not silently approximated as
+/// generic walkers.
 pub(super) fn build_wander(map: &FieldMap, record: &MapRecord) -> Result<WanderSet, BridgeError> {
     let objects: Vec<(usize, WanderKind)> = record
         .npcs
         .iter()
         .enumerate()
-        .filter_map(|(i, npc)| match npc.symbol.as_deref() {
-            Some("NPCType2") => Some((i, WanderKind::Type2)),
-            Some("NPCType3") => Some((i, WanderKind::Type3)),
-            _ => None,
+        .filter_map(|(i, npc)| {
+            if !map.npcs().get(i).is_some_and(|object| object.active) {
+                return None;
+            }
+            let kind = match npc.symbol.as_deref() {
+                Some("NPCType2") => WanderKind::Type2,
+                Some("NPCType3") => WanderKind::Type3,
+                Some("NPCType4") => WanderKind::Type4,
+                Some("NPCType28") => WanderKind::Type28,
+                Some("loc_490B8") => WanderKind::StoreWoman,
+                Some("loc_49746") => WanderKind::ClinicWoman,
+                Some("Penguin") => WanderKind::Penguin,
+                Some("Butterfly") => WanderKind::Butterfly,
+                Some("MuskCat") => WanderKind::MuskCat,
+                Some("Xanafalgue") => WanderKind::Xanafalgue,
+                _ => return None,
+            };
+            Some((i, kind))
         })
         .collect();
     WanderSet::build(map, &objects).map_err(|e| BridgeError::Rejected(e.to_string()))

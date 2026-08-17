@@ -12,7 +12,7 @@ use psiv_core::{EventIndex, Flag, SceneInput, StepFrames, runner_for, scene_for}
 use psiv_data::BattleFiles;
 
 use crate::encounters::formation_record;
-use crate::{BridgeError, Runtime};
+use crate::{BattleTimeline, BridgeError, Runtime};
 
 /// The opening-act scene that owns event battle index zero.
 const IGGLANOVA_EVENT: u16 = 0x6B;
@@ -39,10 +39,7 @@ pub(crate) fn boss_formation_records(
 
 impl Runtime {
     /// Starts a boss formation requested by a running scene.
-    pub(crate) fn start_boss_battle(
-        &mut self,
-        index: u16,
-    ) -> Result<Vec<BattleEvent>, BridgeError> {
+    pub(crate) fn start_boss_battle(&mut self, index: u16) -> Result<BattleTimeline, BridgeError> {
         let set = self
             .battles
             .as_ref()
@@ -61,7 +58,10 @@ impl Runtime {
             .map_err(|e| BridgeError::Rejected(e.to_string()))?;
         self.battle = Some(battle);
         self.scene_battle = Some(index);
-        Ok(events)
+        Ok(BattleTimeline {
+            events,
+            sounds: Vec::new(),
+        })
     }
 
     /// Finishes either kind of battle and, for a scene battle, returns the

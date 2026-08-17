@@ -296,10 +296,39 @@ pub enum SceneOp {
         /// Who joins.
         who: CharId,
     },
+    /// Remove a character and close the resulting party-slot gap.
+    RemovePartyMember {
+        /// Who leaves.
+        who: CharId,
+    },
     /// Replace the whole party at once — the shape `Event_AlysFound` uses.
     SetParty {
         /// The five slots.
         slots: [Option<CharId>; PARTY_SLOTS],
+    },
+    /// Add `amount` HP to every occupied party record and clear its status.
+    RestorePartyHp {
+        /// The retail healing amount.
+        amount: u16,
+    },
+    /// Write a character's retail equipment and optionally restore HP/TP.
+    ConfigureCharacter {
+        /// The roster record.
+        who: CharId,
+        /// Right hand, left hand, head, body.
+        equipment: [u8; 4],
+        /// Whether the source copies max HP/TP into current HP/TP.
+        restore_hp_tp: bool,
+    },
+    /// Clear a character's status byte.
+    ClearCharacterStatus {
+        /// The roster record.
+        who: CharId,
+    },
+    /// Apply the retail bug-fix tail that revives Chaz when HP is zero.
+    ReviveIfDead {
+        /// The character to inspect.
+        who: CharId,
     },
     /// Remove one or more consecutive field objects from the map.
     ///
@@ -552,6 +581,11 @@ pub enum SceneOp {
         /// The VRAM tile number.
         tile: u16,
     },
+    /// Select the active vehicle (`Vehicle_Index`).
+    SetVehicleIndex {
+        /// Retail vehicle id.
+        index: u16,
+    },
     /// Create or replace one of the VDP panel images used by the retail
     /// presentation routines (`Panel_Create`). The panel allocator and DMA
     /// are renderer work; retaining the literal id keeps the transcription
@@ -594,6 +628,11 @@ pub enum SceneOp {
     /// Remove the first inventory slot containing `item`, matching the
     /// cartridge's item-removal loop and leaving the resulting hole intact.
     RemoveItem {
+        /// The item id.
+        item: u8,
+    },
+    /// Add an item through the first-free inventory slot.
+    AddItem {
         /// The item id.
         item: u8,
     },
@@ -708,6 +747,18 @@ pub enum SceneEffect {
     },
     /// The party composition changed.
     PartyChanged,
+    /// The inventory changed.
+    InventoryChanged,
+    /// The selected vehicle changed.
+    VehicleChanged {
+        /// The new vehicle id.
+        index: u16,
+    },
+    /// A roster record changed outside a battle.
+    RosterChanged {
+        /// The character whose record was written.
+        who: CharId,
+    },
     /// Drop objects from the map, starting at `npc_index`.
     NpcDespawned {
         /// The first object cleared.

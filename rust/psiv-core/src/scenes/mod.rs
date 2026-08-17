@@ -42,6 +42,8 @@ mod game_start;
 pub(crate) mod next_arc;
 pub(crate) mod next_arc_followup;
 pub(crate) mod opening;
+pub(crate) mod post_rika_cutscenes;
+pub(crate) mod post_rika_events;
 
 use crate::scene_runner::Scene;
 use crate::state::CharId;
@@ -59,6 +61,8 @@ pub const RUNE: CharId = CharId(3);
 pub const GRYZ: CharId = CharId(4);
 /// `CharID_Rika`, added to party slot 5 after the Bio Plant escape.
 pub const RIKA: CharId = CharId(5);
+/// `CharID_Demi`, seated after Alys and Hahn leave the party.
+pub const DEMI: CharId = CharId(6);
 
 /// Every transcribed scene, in story order.
 pub static SCENES: &[Scene] = &[
@@ -91,6 +95,15 @@ pub static SCENES: &[Scene] = &[
     next_arc_followup::CHAZ_HOUSE,
     next_arc_followup::LEAVING_CHAZ_HOUSE,
     next_arc_followup::MEETING_RIKA,
+    post_rika_cutscenes::DEMI_RESCUE,
+    post_rika_cutscenes::ALYS_WOUNDED,
+    post_rika_events::GETTING_LAND_ROVER,
+    post_rika_events::MACHINE_CENTER_APPEARING,
+    post_rika_events::RUNE_LADEA_TOWER,
+    post_rika_events::PSYCO_WAND_CHEST,
+    post_rika_cutscenes::PSYCO_WAND,
+    post_rika_events::ZIO_NURVUS,
+    post_rika_cutscenes::ZIO_DEFEATED,
 ];
 
 /// The scene an event index selects, if it has been transcribed.
@@ -150,6 +163,15 @@ mod tests {
             ("Event_ChazHouse", 13),
             ("Event_LeavingChazHouse", 1),
             ("Cutscene_MeetingRika", 107),
+            ("Cutscene_DemiRescue", 26),
+            ("Cutscene_AlysWounded", 55),
+            ("Event_GettingLandRover", 30),
+            ("Event_MachineCenterAppearing", 12),
+            ("Event_RuneLadaeTower", 9),
+            ("Event_PsycoWandChest", 20),
+            ("Cutscene_PsycoWand", 107),
+            ("Event_ZioNurvus", 17),
+            ("Cutscene_ZioDefeated", 43),
         ];
         assert_eq!(
             SCENES.len(),
@@ -229,6 +251,10 @@ mod tests {
                 "Cutscene_Alshline",
                 "Cutscene_ZemaIgglanovaDefeated",
                 "Cutscene_MeetingRika",
+                "Cutscene_DemiRescue",
+                "Cutscene_AlysWounded",
+                "Cutscene_PsycoWand",
+                "Cutscene_ZioDefeated",
             ]
         );
     }

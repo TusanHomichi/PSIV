@@ -54,9 +54,10 @@ impl Runtime {
             // The opening act asks no choices; auto-answer yes if one appears.
             SceneEffect::ChoiceRequested => self.scene_input = SceneInput::Choice(true),
             SceneEffect::BattleRequested { index } => match self.start_boss_battle(index) {
-                Ok(initial_events) => events.push(RuntimeEvent::SceneBattleStarted {
+                Ok(initial) => events.push(RuntimeEvent::SceneBattleStarted {
                     index,
-                    events: initial_events,
+                    events: initial.events,
+                    sounds: initial.sounds,
                 }),
                 Err(error) => {
                     events.push(RuntimeEvent::SceneBattleFailed {
@@ -90,6 +91,13 @@ impl Runtime {
             SceneEffect::PartyChanged | SceneEffect::CharSlotCopied { .. } => {
                 self.resize_party();
                 events.push(RuntimeEvent::PartyChanged);
+            }
+            SceneEffect::InventoryChanged => events.push(RuntimeEvent::InventoryChanged),
+            SceneEffect::VehicleChanged { index } => {
+                events.push(RuntimeEvent::VehicleChanged { index });
+            }
+            SceneEffect::RosterChanged { who } => {
+                events.push(RuntimeEvent::RosterChanged { who });
             }
             SceneEffect::MapRequested {
                 op:
@@ -128,6 +136,12 @@ impl Runtime {
             // applies the pack's Igglanova despawn gate.
             SceneEffect::FlagChanged { .. } => {}
             SceneEffect::Faulted(fault) => events.push(RuntimeEvent::SceneFaulted { fault }),
+            // Presentation is already sequenced by SceneRunner. Preserve the
+            // effect's position in this tick's Vec so the shell sees the
+            // same choreography and timing as the interpreter produced.
+            SceneEffect::Presentation { op } => {
+                events.push(RuntimeEvent::ScenePresentation { op });
+            }
             // A scripted facing is written straight into the field object slot
             // by the cartridge, so it has to reach the map's own record and not
             // only the scene's actor list.

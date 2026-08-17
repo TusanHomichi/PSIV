@@ -50,6 +50,8 @@ fn replay(tape_text: &str, from: u32) -> Vec<ReplayRow> {
             game: &game,
             objects: &[],
             camera: (0, 0, 0, 0),
+            camera_bg: (0, 0, 0, 0),
+            camera_gates: (0, 1),
         }));
         previous_standing = standing;
     }
