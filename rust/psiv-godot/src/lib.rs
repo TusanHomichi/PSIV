@@ -851,29 +851,38 @@ impl Field {
             center - Vector2::new(BATTLE_FRAME_WIDTH / 2.0, BATTLE_FRAME_HEIGHT / 2.0);
         let frame_bottom_right =
             center + Vector2::new(BATTLE_FRAME_WIDTH / 2.0, BATTLE_FRAME_HEIGHT / 2.0);
+        // The camera centre is fractional, so a bar that starts exactly at
+        // the view edge can rasterize a sub-pixel short and leak a one-pixel
+        // strip of world along the screen border. Overdraw every outward
+        // edge by a couple of world pixels; the frame-facing edges stay
+        // exact.
+        const BLEED: f32 = 2.0;
         let sizes = [
             (
-                top_left,
-                Vector2::new(view.x, (frame_top_left.y - top_left.y).max(0.0)),
-            ),
-            (
-                Vector2::new(top_left.x, frame_bottom_right.y),
+                top_left - Vector2::new(BLEED, BLEED),
                 Vector2::new(
-                    view.x,
-                    (top_left.y + view.y - frame_bottom_right.y).max(0.0),
+                    view.x + 2.0 * BLEED,
+                    (frame_top_left.y - top_left.y).max(0.0) + BLEED,
                 ),
             ),
             (
-                Vector2::new(top_left.x, frame_top_left.y),
+                Vector2::new(top_left.x - BLEED, frame_bottom_right.y),
                 Vector2::new(
-                    (frame_top_left.x - top_left.x).max(0.0),
+                    view.x + 2.0 * BLEED,
+                    (top_left.y + view.y - frame_bottom_right.y).max(0.0) + BLEED,
+                ),
+            ),
+            (
+                Vector2::new(top_left.x - BLEED, frame_top_left.y),
+                Vector2::new(
+                    (frame_top_left.x - top_left.x).max(0.0) + BLEED,
                     BATTLE_FRAME_HEIGHT,
                 ),
             ),
             (
                 Vector2::new(frame_bottom_right.x, frame_top_left.y),
                 Vector2::new(
-                    (top_left.x + view.x - frame_bottom_right.x).max(0.0),
+                    (top_left.x + view.x - frame_bottom_right.x).max(0.0) + BLEED,
                     BATTLE_FRAME_HEIGHT,
                 ),
             ),

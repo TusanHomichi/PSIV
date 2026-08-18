@@ -672,6 +672,20 @@ impl TitleScreen {
     fn tick(&mut self, input: CoreInput) -> Option<TitleChoice> {
         self.ticks = self.ticks.saturating_add(1);
         self.elapsed = self.elapsed.saturating_add(1);
+        // Debug-only fix-loop selector, same family as PSIV_DEBUG_EVENT:
+        // auto-select START once the menu is up so the new-game handoff is
+        // testable without an input device.
+        if matches!(self.phase, Phase::Menu)
+            && self.ticks > 10
+            && std::env::var("PSIV_DEBUG_TITLE_AUTOSTART").is_ok_and(|value| value == "1")
+        {
+            self.menu_index = if self.slots.iter().any(|slot| *slot) {
+                1
+            } else {
+                0
+            };
+            return Some(TitleChoice::Start);
+        }
         let accept_down = matches!(input, CoreInput::Action);
         let pressed = accept_down && !self.accept_down;
         self.accept_down = accept_down;
@@ -845,8 +859,33 @@ impl Field {
     fn finish_title_choice(&mut self, choice: TitleChoice) {
         match choice {
             TitleChoice::Start => {
-                godot_print!("title: START selected; handing off to the existing new-game runtime");
-                self.start_transition(TransitionKind::GameStart);
+                // Retail START is Event_GameStart: rebuild the runtime in the
+                // exact state the scene expects (Piata Academy, Chaz + the
+                // scripted Alys) and fire $9F — the certified opening
+                // cinematic — instead of dropping the player onto the
+                // fallback field.
+                let Some(data) = self.runtime.as_ref().map(|runtime| runtime.data().clone()) else {
+                    godot_error!("title: START selected without a runtime");
+                    return;
+                };
+                match crate::boot::new_game_runtime(data, StepFrames::default()) {
+                    Ok(mut runtime) => {
+                        godot_print!("title: START — new game, firing Event_GameStart");
+                        self.configure_battles(&mut runtime);
+                        let started = runtime.start_event(0x009F);
+                        self.runtime = Some(runtime);
+                        self.load_map_visuals();
+                        self.sync_visuals(false);
+                        if started {
+                            self.presentation.reset_scene();
+                            self.set_letterbox(true);
+                        } else {
+                            godot_error!("title: Event_GameStart did not start");
+                        }
+                        self.start_transition(TransitionKind::GameStart);
+                    }
+                    Err(error) => godot_error!("title: new game failed to build: {error}"),
+                }
             }
             TitleChoice::Continue(slot) => {
                 let Some(data) = self.runtime.as_ref().map(|runtime| runtime.data().clone()) else {

@@ -87,6 +87,14 @@ pub(crate) fn debug_scene_runtime(
     )
 }
 
+/// The retail new game: the state `Event_GameStart` (`$9F`) expects when the
+/// title menu's START fires it — Piata Academy F1 at cell (48,19) with Chaz
+/// and the scene's scripted second actor Alys seated in the party. This is
+/// the same state the `PSIV_DEBUG_EVENT=0x9f` fixture boots.
+pub(crate) fn new_game_runtime(data: GameData, step_frames: StepFrames) -> Result<Runtime, String> {
+    debug_scene_runtime(data, 0x009F, step_frames).expect("0x9F is a known fixture state")
+}
+
 /// Reproduces tape 22's `camp_root_idle` receipt without making a save file:
 /// Chaz alone at map `$13`, field position `($2F0,$140)`, with 500 MST. The
 /// location is the runtime's player coordinate; the oracle camera settles at
