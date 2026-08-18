@@ -108,6 +108,10 @@ struct PortraitRecord {
 #[derive(Debug, Default)]
 pub(crate) struct PresentationState {
     render_sprites: bool,
+    /// `InitVramAndCram` wiped the stage: no map, no actors, until a map
+    /// redraw reloads the art. Distinct from `render_sprites`, which mirrors
+    /// retail's explicit cutscene sprite toggle and survives map loads.
+    vram_blanked: bool,
     saved_music: Option<u8>,
     temporary_objects: BTreeMap<usize, TemporaryObject>,
     loaded_palettes: BTreeMap<u32, u16>,
@@ -131,6 +135,7 @@ pub(crate) struct TemporaryObject {
 impl PresentationState {
     pub(crate) fn reset_scene(&mut self) {
         self.render_sprites = true;
+        self.vram_blanked = false;
         self.temporary_objects.clear();
         self.loaded_art.clear();
         self.current_dialogue_tree = None;
@@ -138,7 +143,11 @@ impl PresentationState {
     }
 
     pub(crate) fn sprites_visible(&self, scene_active: bool) -> bool {
-        !scene_active || self.render_sprites
+        !scene_active || (self.render_sprites && !self.vram_blanked)
+    }
+
+    pub(crate) fn set_vram_blanked(&mut self, blanked: bool) {
+        self.vram_blanked = blanked;
     }
 
     pub(crate) fn set_render_sprites(&mut self, enabled: bool) {
@@ -689,11 +698,13 @@ impl Field {
                 if let Some(layer) = self.cutscene_layer.as_mut() {
                     layer.bind_mut().panel_destroy_all();
                 }
-                // On hardware this wipes the tile planes: the field map is
-                // gone until the scene's own LoadMap/RefreshMap redraws it
-                // (the oracle shows dialogue panels over black here, and the
-                // opening's first dialogue runs before its LoadMap).
+                // On hardware this wipes the tile planes AND the sprite art:
+                // map and actors are gone until the scene's own
+                // LoadMap/RefreshMap reloads them (the oracle shows the
+                // opening's first dialogue over pure black — no sprites —
+                // before its LoadMap).
                 self.set_field_map_visible(false);
+                self.presentation.set_vram_blanked(true);
             }
             SceneOp::LoadPalette { rom_addr, words } => {
                 self.presentation.loaded_palettes.insert(rom_addr, words);

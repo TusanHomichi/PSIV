@@ -673,18 +673,23 @@ impl TitleScreen {
         self.ticks = self.ticks.saturating_add(1);
         self.elapsed = self.elapsed.saturating_add(1);
         // Debug-only fix-loop selector, same family as PSIV_DEBUG_EVENT:
-        // auto-select START once the menu is up so the new-game handoff is
-        // testable without an input device.
-        if matches!(self.phase, Phase::Menu)
-            && self.ticks > 10
+        // walk the title phases with synthetic accepts and select START, so
+        // the new-game handoff is testable without an input device.
+        if self.ticks > 10
+            && matches!(
+                self.phase,
+                Phase::Sega | Phase::Reveal | Phase::PressStart | Phase::Menu
+            )
             && std::env::var("PSIV_DEBUG_TITLE_AUTOSTART").is_ok_and(|value| value == "1")
         {
-            self.menu_index = if self.slots.iter().any(|slot| *slot) {
-                1
-            } else {
-                0
-            };
-            return Some(TitleChoice::Start);
+            if matches!(self.phase, Phase::Menu) {
+                self.menu_index = if self.slots.iter().any(|slot| *slot) {
+                    1
+                } else {
+                    0
+                };
+            }
+            return self.accept();
         }
         let accept_down = matches!(input, CoreInput::Action);
         let pressed = accept_down && !self.accept_down;

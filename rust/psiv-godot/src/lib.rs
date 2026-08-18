@@ -659,8 +659,10 @@ impl Field {
                         {
                             sprite.set_texture(&texture);
                             // A scene's InitVramAndCram may have blanked the
-                            // field; a map redraw is what restores it.
+                            // field; a map redraw is what restores it — the
+                            // actor sprites ride the same reload.
                             sprite.set_visible(true);
+                            self.presentation.set_vram_blanked(false);
                         }
                     }
                     None => godot_error!("could not load map image {path}"),

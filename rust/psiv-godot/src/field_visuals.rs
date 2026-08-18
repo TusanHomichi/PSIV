@@ -382,8 +382,9 @@ impl Field {
                 self.set_letterbox(false);
                 // Every transcribed scene refreshes the map before its end,
                 // but a scene that faulted mid-blank must not strand a
-                // hidden field.
+                // hidden field or hidden actors.
                 self.set_field_map_visible(true);
+                self.presentation.set_vram_blanked(false);
             }
         }
         self.sync_transition();
