@@ -9,8 +9,17 @@ DECK_IP="${1:?usage: ./deploy-deck.sh <deck-ip> [user]}"
 DECK_USER="${2:-deck}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
-# Always ship a current build: release lib, then export.
-cargo build --release -p psiv-godot --manifest-path "$HERE/rust/Cargo.toml"
+# Always ship a current build: release lib, then export. The Deck runs
+# SteamOS glibc 2.41 while this laptop tracks Fedora's newest; a plain
+# cargo build stamps the host's glibc symbol versions and the extension
+# refuses to load on the Deck (GLIBC_2.43 not found). cargo-zigbuild links
+# against the pinned version instead (zig + cargo-zigbuild in ~/.local).
+DECK_GLIBC="2.41"
+PATH="$HOME/.local/bin:$PATH" cargo zigbuild --release -p psiv-godot \
+    --manifest-path "$HERE/rust/Cargo.toml" \
+    --target "x86_64-unknown-linux-gnu.$DECK_GLIBC"
+cp "$HERE/rust/target/x86_64-unknown-linux-gnu/release/libpsiv_godot.so" \
+   "$HERE/rust/target/release/libpsiv_godot.so"
 "$HOME/.local/bin/psiv-godot-4.7.1" --headless --path "$HERE/godot" \
     --export-release "Linux-SteamDeck" 2>&1 | tail -3
 
