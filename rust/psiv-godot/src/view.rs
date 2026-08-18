@@ -37,6 +37,17 @@ pub(crate) fn npc_pixel_position(cell: Cell, offset: (i32, i32)) -> (i32, i32) {
     )
 }
 
+/// Tape-22's top-center SAT entry is object 0, tile `0x287`, with palette
+/// selector line 3. The map record's ordinary sheet choice is not allowed to
+/// erase that live `$13` choice in the receipt fixture: the pack already has
+/// the exact line-3 sheet, so select it explicitly before building the node.
+pub(crate) const CAMP_RECEIPT_SHEET: &str = "NPCType2_cb8a59c5";
+
+pub(crate) fn camp_receipt_sheet(index: usize, _sheet: &str) -> Option<&'static str> {
+    (std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1") && index == 0)
+        .then_some(CAMP_RECEIPT_SHEET)
+}
+
 /// Tape-22's frozen camp receipt retains the type-2 NPC's walk-down frame 1
 /// even though its movement is suspended. Keep that exact presentation seam
 /// scoped to the deterministic debug fixture; normal field animation stays
@@ -44,7 +55,7 @@ pub(crate) fn npc_pixel_position(cell: Cell, offset: (i32, i32)) -> (i32, i32) {
 pub(crate) fn camp_receipt_frame(index: usize, sheet: &str) -> Option<i32> {
     (std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1")
         && index == 0
-        && sheet == "NPCType2_cb8a59c5")
+        && sheet == CAMP_RECEIPT_SHEET)
         .then_some(1)
 }
 

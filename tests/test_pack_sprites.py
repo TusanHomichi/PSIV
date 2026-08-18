@@ -262,5 +262,32 @@ class TestInteractionAgainstTheWholeTable(MapTableCase):
                 self.assertIsNone(npc["sprite"])
 
 
+class TestCampReceiptAssets(MapTableCase):
+    """The frame-7675 SAT line and the sheet selected by the camp fixture."""
+
+    def test_top_npc_uses_the_live_line_three_sheet_and_status_word(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "pack"
+            manifest = build_pack(self.data, root, map_ids=[0x13])
+            payload = json.loads((root / manifest["maps"][0]["json"]).read_text())
+            top = next(npc for npc in payload["npcs"] if npc["index"] == 0)
+            self.assertEqual(top["sprite"]["sheet"], "NPCType2_cb8a59c5")
+
+            sheets = json.loads((root / NPC_SPRITES_NAME).read_text())["sheets"]
+            sheet = next(entry for entry in sheets if entry["id"] == "NPCType2_cb8a59c5")
+            self.assertEqual(sheet["palette"]["cram_line"], 3)
+            self.assertEqual(sheet["palette"]["colors"][13], [98, 68, 172])
+
+        state_path = Path(__file__).resolve().parents[1] / (
+            "oracle/states/camp_root_idle_vdp_7675.json"
+        )
+        state = json.loads(state_path.read_text())
+        plane_a = bytes.fromhex(state["regions"]["plane_a"]["bytes_hex"])
+        screen_x, screen_y = 28, 4
+        buffer_x, buffer_y = (screen_x + 11) % 64, (screen_y + 29) % 32
+        offset = (buffer_y * 64 + buffer_x) * 2
+        self.assertEqual(int.from_bytes(plane_a[offset:offset + 2], "big"), 0xC6F9)
+
+
 if __name__ == "__main__":
     unittest.main()

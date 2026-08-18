@@ -117,8 +117,9 @@ one. The same `0x6E7` form is used by the STATE, item, target, and save-slot
 child lists. A clone that draws only the active cursor is visibly wrong even
 when its selected row is correct.
 
-The summary's `HP`/`TP` values are a split charset case. The label and colon
-use ordinary menu text, but current/max digits use source font cells 36..45
+The summary's `HP`/`TP` values are a split charset case. Their labels and
+colon use window-charset words (`HP:` is `$6F8/$6F9/$6B4`, `TP:` is
+`$6FA/$6F9/$6B4`), while current/max digits use source font cells 36..45
 (`DecimalVRAMOffset2`, patterns `$7E4..$7ED`). The separator is raw window
 byte `$77`, loaded from the window strip as pattern `0x6F7`; it is not the
 menu-font glyph `?`.
@@ -152,12 +153,18 @@ The same split is used by the STATUS character-info line at its decoded
 `$680` blank. Their values use the second numeric run and the separator uses
 the window-charset slash `$6F7`.
 
+The remaining root receipt cell at screen pixel `(224,32)` is cell `(28,4)`.
+Camera correction decodes its Plane A word as **`0xC6F9`**: tile `0x6F9`,
+palette line 2, priority set. It is the middle cell of the HP label, so the
+camp renderer must emit the window tile `$6F9` there; it is unrelated to the
+level digit's ordinary-font fix.
+
 ### Field sprites visible under the root window
 
 Tape 22's fresh SAT walk gives the visible party/NPC anchors independently of
 the Plane A menu. Chaz is `(152,86)`, 16×32, tile `$534`, attribute `$08`;
 the visible left NPC is `(-8,6)`, tile `$3E7`; and the visible top NPC is
-`(136,-8)`, tile `$287`, attribute `$0C`. The complete VDP/SAT dump is
+`(136,-8)`, tile `$287`, attribute `$6000` (palette line 3). The complete VDP/SAT dump is
 `oracle/states/camp_root_idle_vdp_7675.json`.
 
 The debug map sets those objects in runtime pixel space, so the view layer
@@ -166,6 +173,9 @@ than the packed map record's original spawn. The frozen top type-2 object is
 on walk-down frame 1 in this receipt. The camp field-party anchor likewise
 uses the live pixel position without the ordinary field renderer's one-cell
 standing subtraction; otherwise Chaz lands 16 pixels above the SAT.
+The pack already contains `NPCType2_cb8a59c5` with the map's line-3 palette and
+the fixture now selects that sheet from the live receipt object before drawing;
+no additive sheet is required.
 
 ## ITEM: empty inventory message
 

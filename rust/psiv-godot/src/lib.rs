@@ -39,7 +39,7 @@ use dialogue::DialogueWindow;
 use input::{read_input, requested_save_slot, save_directory};
 use shop::ShopWindow;
 use transitions::TransitionKind;
-use view::{NpcNode, SheetView, camp_receipt_frame, npc_pixel_position};
+use view::{NpcNode, SheetView, camp_receipt_frame, camp_receipt_sheet, npc_pixel_position};
 
 use psiv_core::{Cell, Direction, StepFrames};
 use psiv_data::GameData;
@@ -452,6 +452,10 @@ impl INode2D for Field {
         }
 
         if self.drive_battle_if_active() {
+            // The debug battle receipt is sampled after the battle drive. Its
+            // 19-tick seed plus the 170 pre-drive updates at tick 200 become
+            // the 171 elapsed clock updates the oracle receipt models.
+            self.capture_debug_shot();
             // Battle close is the other retail restore edge. Scene battles
             // carry Saved_Sound_Index; ordinary battles fall back to the
             // current map's music request.
@@ -744,9 +748,12 @@ impl Field {
                     continue;
                 }
                 let Some(sprite) = &npc.sprite else { continue };
+                let sheet = camp_receipt_sheet(index, &sprite.sheet)
+                    .filter(|receipt| runtime.data().sheet(receipt).is_some())
+                    .map_or_else(|| sprite.sheet.clone(), str::to_owned);
                 draws.push(NpcDraw {
                     index,
-                    sheet: sprite.sheet.clone(),
+                    sheet,
                     idle: sprite.idle_sequence.clone(),
                     x: npc.x_pixels as i32,
                     y: npc.y_pixels as i32,

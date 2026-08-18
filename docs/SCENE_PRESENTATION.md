@@ -54,9 +54,9 @@ cannot create the X11 display, so no missing post-change RMSE is fabricated.
 | opening page 1 | 6.587 | **0.000000** | clone t3550 ↔ opening frame 4000 | certified baseline |
 | opening page 2 | 6.578 | **0.000000** | clone t4550 ↔ opening frame 5200 | certified baseline |
 | MeetingRika | 36.3 | **0.000000** | clone t160 ↔ frame 7250 | certified baseline |
-| battle `0x88` | **12.185497** (lastpairs) | not measured after final enemy receipt fix | clone t200 ↔ frame 25000 | Xvfb listener blocked |
+| battle `0x88` | **3.982592** (152 pixels, 2026-08-17 integration) | not measured after the post-drive receipt fix | clone t200 ↔ frame 25000 | Xvfb listener blocked |
 | title | 19.408013 (wrong-phase t750) | **0.000000** baseline; post-blink recapture blocked | clone t480 ↔ title frame 450 | certified pre-prompt baseline |
-| camp root | **14.456810** (lastpairs) | not measured after final anchor/plane fix | clone t60 ↔ frame 7675 (`camp_root_idle`) | Xvfb listener blocked |
+| camp root | **7.002974** (199 pixels, 2026-08-17 integration) | not measured after the line-3 sheet/status-cell receipt fix | clone t60 ↔ frame 7675 (`camp_root_idle`) | Xvfb listener blocked |
 
 The exact commands below are the integration handoff. They must be run one
 at a time under Xvfb, with `PSIV_DEBUG_SCENE_TICKS=1` on scene captures, and
@@ -424,9 +424,9 @@ is claimed until the pairs run under the required Xvfb/X11 harness.
 
 | surface | deterministic fixture / clone tick | oracle frame and SHA-256 | RMSE | status |
 |---|---|---|---:|---|
-| battle command idle | `PSIV_DEBUG_BATTLE=0x88`, shot tick **200** | `oracle/frames/frame_25000.png`, `761fb241a2360d222fdf1538be1af89b7bfb9cd09376a6157733fd8f71e773c4` | lastpairs **12.185497**; final capture blocked | final fix is receipt-pinned in `oracle/states/battle_command_idle_vdp_25000.json` |
+| battle command idle | `PSIV_DEBUG_BATTLE=0x88`, shot tick **200** | `oracle/frames/frame_25000.png`, `761fb241a2360d222fdf1538be1af89b7bfb9cd09376a6157733fd8f71e773c4` | integration **3.982592** (152 px); post-drive capture blocked | source tuple and timing are receipt-pinned in `oracle/states/battle_command_idle_vdp_25000.json` |
 | title settled | `PSIV_DEBUG_TITLE_SHOT=1`, shot tick **480** | `oracle/frames/title/frame_450.png`, `8cebd30d62a7b5b0c3ad634ec6efc5ab6ab62e088d6166835d447c843df18c10` | prior **0.000000**; post-blink recapture blocked | expected unchanged because Press Start is invisible |
-| camp root idle | `PSIV_DEBUG_CAMP=1`, shot tick **60**; oracle mark `camp_root_idle` | `oracle/frames/frame_7675.png`, `9bf283d9f48b4c0d959eb297ca0b1a997b62f227385ec25cae921e078ceaeca0` | lastpairs **14.456810**; final capture blocked | final fix is receipt-pinned in `oracle/states/camp_root_idle_vdp_7675.json` |
+| camp root idle | `PSIV_DEBUG_CAMP=1`, shot tick **60**; oracle mark `camp_root_idle` | `oracle/frames/frame_7675.png`, `9bf283d9f48b4c0d959eb297ca0b1a997b62f227385ec25cae921e078ceaeca0` | integration **7.002974** (199 px); post-fix capture blocked | line-3 sheet and `$C6F9` status cell are receipt-pinned in `oracle/states/camp_root_idle_vdp_7675.json` |
 
 Title certification:
 

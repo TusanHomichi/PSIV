@@ -11,7 +11,9 @@ impl Field {
     /// `PSIV_DEBUG_AUTOCLOSE_SCENE=1` for deterministic headless scene runs,
     /// or add `PSIV_DEBUG_RETAIL_PACE=1` to keep the retail 3f/character
     /// typewriter and four-frame dismiss hold while using the debug selector.
-    /// `PSIV_DEBUG_CAMP=1` opens the field camp at tick 30.
+    /// `PSIV_DEBUG_CAMP=1` opens the field camp at tick 30. A screenshot of
+    /// an active battle is deferred until after that tick's battle drive so a
+    /// settled receipt observes the same update boundary as the simulation.
     pub(super) fn debug_hooks_tick(&mut self) {
         let vehicle_battle = std::env::var("PSIV_DEBUG_VEHICLE_BATTLE").ok();
         let formation = std::env::var("PSIV_DEBUG_BATTLE")
@@ -103,19 +105,31 @@ impl Field {
                 Err(_) => godot_error!("debug event {value} is not a hexadecimal event id"),
             }
         }
-        if let Ok(path) = std::env::var("PSIV_DEBUG_SHOT") {
-            let at: u64 = std::env::var("PSIV_DEBUG_SHOT_FRAME")
-                .ok()
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(180);
-            if self.anim_tick == at
-                && let Some(viewport) = self.base().get_viewport()
-                && let Some(texture) = viewport.get_texture()
-                && let Some(image) = texture.get_image()
-            {
-                let err = image.save_png(&GString::from(path.as_str()));
-                godot_print!("debug: screenshot -> {path} ({err:?})");
-            }
+        // Field/camp receipts retain the historical pre-drive capture point.
+        // Battle receipts are captured after `drive_battle_if_active`, below,
+        // because the battle clock advances in that drive.
+        if !self.battle_presentation_active() {
+            self.capture_debug_shot();
+        }
+    }
+
+    pub(super) fn capture_debug_shot(&mut self) {
+        let Ok(path) = std::env::var("PSIV_DEBUG_SHOT") else {
+            return;
+        };
+        let at: u64 = std::env::var("PSIV_DEBUG_SHOT_FRAME")
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(180);
+        if self.anim_tick != at {
+            return;
+        }
+        if let Some(viewport) = self.base().get_viewport()
+            && let Some(texture) = viewport.get_texture()
+            && let Some(image) = texture.get_image()
+        {
+            let err = image.save_png(&GString::from(path.as_str()));
+            godot_print!("debug: screenshot -> {path} ({err:?})");
         }
     }
 }

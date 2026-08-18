@@ -7,6 +7,7 @@
 mod chrome;
 mod equipment;
 mod layout;
+mod status;
 
 use godot::classes::{INode2D, Image, ImageTexture, Input, Node2D};
 use godot::global::Key;
@@ -17,13 +18,14 @@ use psiv_runtime::{CampCharacter, CampState, CampUseResult, Runtime};
 
 use crate::Field;
 
-use self::chrome::{CampChrome, Quad, STATUS_SLASH_PATTERN};
+use self::chrome::{CampChrome, Quad};
 use self::layout::{
     CHARACTER_SUMMARY, CHILD_CURSOR_PATTERN, ITEM_EMPTY_TEXT, ITEM_MESSAGE, MESETA,
     ROOT_CURSOR_CELL, ROOT_MENU, ROOT_TEXT, SAVE_SLOT_TEXT, SAVE_SLOTS_OPTIONS,
     SELECTED_CURSOR_PATTERN, STATE_CURSOR_CELL, STATE_SAVE_OPTIONS, STATE_SAVE_TEXT, STATE_TEXT,
     STATUS_EQUIPMENT, STATUS_EXP, STATUS_INFO, STATUS_PORTRAIT, STATUS_STATS, STATUS_TEXT,
 };
+use self::status::{draw_level, draw_status_pair, draw_status_text};
 
 /// Tier-1 browse geometry for inventory and target pages. The tape only
 /// decoded the empty ITEM branch; these child surfaces keep live inventory
@@ -845,129 +847,6 @@ fn draw_summary(chrome: &CampChrome, quads: &mut Vec<Quad>, character: &CampChar
         character.current_tp,
         character.max_tp,
         ROOT_TEXT[3].cell,
-    );
-}
-
-/// The retail status window emits `LV` with a blank cell before the numeric
-/// run. The colon/string representation is semantic only; drawing it as
-/// ordinary glyphs overwrites the summary window's right border.
-fn draw_level(chrome: &CampChrome, quads: &mut Vec<Quad>, level: u16, cell: (i32, i32)) {
-    draw_text(chrome, quads, "LV", cell);
-    // Level uses the ordinary menu-font decimal run ($69B onward). The
-    // second decimal run is reserved for the HP/TP values in the summary
-    // window and would render `1` as the wrong glyph at the receipt cell.
-    draw_text(chrome, quads, &level.to_string(), (cell.0 + 3, cell.1));
-}
-
-fn draw_status_pair(
-    chrome: &CampChrome,
-    quads: &mut Vec<Quad>,
-    label: &str,
-    current: u16,
-    maximum: u16,
-    cell: (i32, i32),
-) {
-    let label_patterns = match label {
-        "HP: " => Some([0x6F8, 0x6F9, 0x6B4]),
-        "TP: " => Some([0x6FA, 0x6F9, 0x6B4]),
-        _ => None,
-    };
-    if let Some(patterns) = label_patterns {
-        for (column, pattern) in patterns.into_iter().enumerate() {
-            if let Some(quad) = chrome.window_word(pattern, (cell.0 + column as i32, cell.1)) {
-                quads.push(quad);
-            }
-        }
-        if let Some(quad) = chrome.window_word(0x680, (cell.0 + 3, cell.1)) {
-            quads.push(quad);
-        }
-    } else {
-        draw_text(chrome, quads, label, cell);
-    }
-    quads.extend(chrome.number(&current.to_string(), (cell.0 + 4, cell.1)));
-    if let Some(quad) = chrome.window_word(STATUS_SLASH_PATTERN, (cell.0 + 6, cell.1)) {
-        quads.push(quad);
-    }
-    // Retail leaves the window-font blank cell immediately after the slash:
-    // `25/ 25`, not the compact `25/25` form.
-    quads.extend(chrome.number(&maximum.to_string(), (cell.0 + 8, cell.1)));
-}
-
-fn draw_status_text(
-    chrome: &CampChrome,
-    quads: &mut Vec<Quad>,
-    character: &CampCharacter,
-    money: u32,
-) {
-    let age = character
-        .age
-        .map_or_else(|| "--".to_owned(), |age| age.to_string());
-    let lines = [
-        (character.name.clone(), STATUS_TEXT[0].cell),
-        (character.profession.clone(), STATUS_TEXT[1].cell),
-        (format!("AGE : {age}"), STATUS_TEXT[3].cell),
-        (
-            format!("STRNGTH: {}", character.strength),
-            STATUS_TEXT[6].cell,
-        ),
-        (
-            format!("MENTAL : {}", character.mental),
-            STATUS_TEXT[7].cell,
-        ),
-        (
-            format!("AGILITY: {}", character.agility),
-            STATUS_TEXT[8].cell,
-        ),
-        (
-            format!("DEXTRTY: {}", character.dexterity),
-            STATUS_TEXT[9].cell,
-        ),
-        (
-            format!("ATK POW: {}", character.attack_power),
-            STATUS_TEXT[10].cell,
-        ),
-        (
-            format!("DFS POW: {}", character.defense_power),
-            STATUS_TEXT[11].cell,
-        ),
-        (character.equipment[2].clone(), STATUS_TEXT[12].cell),
-        (character.equipment[0].clone(), STATUS_TEXT[13].cell),
-        (character.equipment[1].clone(), STATUS_TEXT[14].cell),
-        (character.equipment[3].clone(), STATUS_TEXT[15].cell),
-        (
-            format!("EX: {}", character.experience),
-            STATUS_TEXT[16].cell,
-        ),
-        (
-            format!(
-                "NX: {}",
-                character
-                    .next_level_experience
-                    .map_or_else(|| "--".to_owned(), |value| value.to_string())
-            ),
-            STATUS_TEXT[17].cell,
-        ),
-        (format!("{money} MST"), STATUS_TEXT[18].cell),
-    ];
-    for (text, cell) in lines {
-        draw_text(chrome, quads, &text, cell);
-    }
-    draw_level(chrome, quads, character.level, STATUS_TEXT[2].cell);
-    draw_status_pair(
-        chrome,
-        quads,
-        "HP: ",
-        character.current_hp,
-        character.max_hp,
-        STATUS_TEXT[4].cell,
-    );
-    draw_status_pair(
-        chrome,
-        quads,
-        "TP: ",
-        character.current_tp,
-        character.max_tp,
-        STATUS_TEXT[5].cell,
     );
 }
 

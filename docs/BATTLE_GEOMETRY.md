@@ -170,11 +170,18 @@ frame. The visible enemy body is therefore the Plane A/VDP tile result, not a
 SAT sprite.
 
 Zoran Bult's three enabled overlay pieces have durations `[8,8,8,8]`,
-`[4,4,4]`, and `[20,4,4]`. The frame-25000 VDP pixels compose as piece frames
-`(2,2,1)`. The command-idle debug setup starts the clone's overlay clock at
-phase one so the settled tick-200 capture reaches that receipt state; normal
-formation setups retain phase zero. This is a deterministic fixture seam,
-not a global animation-speed adjustment.
+`[4,4,4]`, and `[20,4,4]`. In the JSON/decoded piece order (lower, middle,
+upper), the frame-25000 VDP pixels compose as `(2,2,1)`. The command-idle
+debug setup seeds the overlay clock with **19 elapsed ticks**; it does not seed
+a frame index and it does not apply the pack's optional runtime-order metadata
+to this receipt.
+
+The tick-200 debug hook runs before `drive_battle_if_active`, so the pre-drive
+state has 170 updates after the 19-tick seed and is `(1,2,1)`. The receipt
+screenshot is now taken after that drive's one final update, yielding 171
+elapsed updates and `(2,2,1)`. This is a capture-boundary correction, not a
+global animation-speed adjustment or a phase-number workaround. Normal
+formation setups retain phase zero.
 
 Enemy recolouring uses the Genesis Plus GX RGB565 ramps: red/blue
 `[0,32,65,98,139,172,205,238]` and green
