@@ -9,6 +9,7 @@ use psiv_core::Direction;
 pub(crate) fn read_input() -> psiv_core::Input {
     let input = Input::singleton();
     if input.is_action_pressed("ui_accept") {
+        debug_trace(psiv_core::Input::Action);
         return psiv_core::Input::Action;
     }
     let held = [
@@ -19,9 +20,27 @@ pub(crate) fn read_input() -> psiv_core::Input {
     ]
     .into_iter()
     .find(|(action, _)| input.is_action_pressed(*action));
-    match held {
+    let resolved = match held {
         Some((_, dir)) => psiv_core::Input::Direction(dir),
         None => psiv_core::Input::Neutral,
+    };
+    debug_trace(resolved);
+    resolved
+}
+
+/// `PSIV_DEBUG_INPUT=1`: log the resolved [`psiv_core::Input`] on every
+/// change, splitting keymap faults (nothing arrives) from field-control
+/// faults (input arrives, nothing moves). Debug-selector family.
+fn debug_trace(resolved: psiv_core::Input) {
+    use std::sync::Mutex;
+    static LAST: Mutex<Option<psiv_core::Input>> = Mutex::new(None);
+    if !std::env::var("PSIV_DEBUG_INPUT").is_ok_and(|value| value == "1") {
+        return;
+    }
+    let mut last = LAST.lock().expect("input trace lock");
+    if *last != Some(resolved) {
+        godot_print!("input: {resolved:?}");
+        *last = Some(resolved);
     }
 }
 

@@ -717,11 +717,10 @@ impl Field {
                 self.presentation.load_art(rom_addr, tile);
                 godot_print!("scene art: {rom_addr:#08x} -> VRAM tile {tile:#05x}");
             }
-            SceneOp::SetCameraPos { x, y } | SceneOp::MoveCamera { x, y, .. } => {
-                if let Some(runtime) = self.runtime.as_mut() {
-                    runtime.set_camera(x, y);
-                }
-            }
+            // Camera ops are consumed by the runtime when it translates the
+            // effect (the camera is simulation state, not presentation);
+            // nothing to do here beyond acknowledging the op.
+            SceneOp::SetCameraPos { .. } | SceneOp::MoveCamera { .. } => {}
             SceneOp::LoadTitleImage { .. } => {
                 if let Some(layer) = self.cutscene_layer.as_mut() {
                     layer.bind_mut().begin_opening();

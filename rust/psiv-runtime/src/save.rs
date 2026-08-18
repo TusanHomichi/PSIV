@@ -166,6 +166,7 @@ pub(super) fn construct_runtime(
         effects,
         vehicle: None,
         saved_party_slots: None,
+        camera_glide: None,
     };
     runtime.sync_vehicle_selector()?;
     Ok(runtime)

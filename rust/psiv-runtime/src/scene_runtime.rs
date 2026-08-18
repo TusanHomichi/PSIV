@@ -173,7 +173,17 @@ impl Runtime {
             // Presentation is already sequenced by SceneRunner. Preserve the
             // effect's position in this tick's Vec so the shell sees the
             // same choreography and timing as the interpreter produced.
+            // Camera ops are consumed here as well: the camera is runtime
+            // state (it feeds the RNG stream through the on-screen tests), so
+            // a headless run must pan exactly like a rendered one.
             SceneEffect::Presentation { op } => {
+                match op {
+                    SceneOp::SetCameraPos { x, y } => self.set_camera(x, y),
+                    SceneOp::MoveCamera { x, y, speed } => {
+                        self.scene_move_camera(x, y, i32::from(speed));
+                    }
+                    _ => {}
+                }
                 events.push(RuntimeEvent::ScenePresentation { op });
             }
             SceneEffect::GameCleared => {

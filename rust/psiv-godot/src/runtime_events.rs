@@ -163,6 +163,7 @@ impl Field {
                     godot_print!("trigger {trigger} is an unsupported custom check");
                 }
                 RuntimeEvent::SceneDialogue { entry } => {
+                    godot_print!("scene dialogue open: entry {entry:#04x}");
                     if std::env::var("PSIV_DEBUG_AUTOCLOSE_SCENE").is_ok_and(|value| value == "1")
                         && !retail_pace_enabled()
                     {

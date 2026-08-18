@@ -122,6 +122,18 @@ pub struct Runtime {
     /// outside `GameState` and SRAM: scenes use it between dispatches, while
     /// the cartridge never exposes it as an ordinary save field.
     saved_party_slots: Option<[Option<CharId>; PARTY_SLOTS]>,
+    /// An `Event_MoveCamera` pan in flight: target camera position in pixels
+    /// and speed in px/frame. Ticked every frame until arrival, scene or not,
+    /// so a scene that ends mid-pan still delivers the camera.
+    camera_glide: Option<CameraGlide>,
+}
+
+/// See [`Runtime::scene_move_camera`].
+#[derive(Debug, Clone, Copy)]
+struct CameraGlide {
+    target_x: i32,
+    target_y: i32,
+    speed: i32,
 }
 
 /// Everything encounters need, converted from the pack once.
@@ -420,6 +432,7 @@ impl Runtime {
         if self.battle.is_some() {
             return Vec::new();
         }
+        self.tick_camera_glide();
         if self.scene.is_some() {
             // The frame the mode dispatcher spends entering event mode.
             if self.scene_warmup {
@@ -569,7 +582,44 @@ impl Runtime {
     /// alignment frame inherits a camera the engine could not have produced,
     /// the opening scene having placed it.
     pub fn set_camera(&mut self, x: i32, y: i32) {
+        self.camera_glide = None;
         self.camera.set_position(x, y);
+    }
+
+    /// `Event_MoveCamera` (`ps4.asm:121468`): pan the camera to frame a world
+    /// position. The operands are a *subject*, not a scroll — the routine
+    /// subtracts the driver's home offset (`$98`/`$58`, `HOME_X`/`HOME_Y`) to
+    /// get the camera target, then steps toward it at `speed` px/frame per
+    /// axis. `AlysFound` ends on exactly this op to hand the view back to the
+    /// new leader; parking the raw operands instead left the party in the
+    /// top-left corner of the screen.
+    pub fn scene_move_camera(&mut self, x: i32, y: i32, speed: i32) {
+        let target_x = x - psiv_core::HOME_X;
+        let target_y = y - psiv_core::HOME_Y;
+        if speed <= 0 {
+            self.set_camera(target_x, target_y);
+            return;
+        }
+        self.camera_glide = Some(CameraGlide {
+            target_x,
+            target_y,
+            speed,
+        });
+    }
+
+    /// One frame of an in-flight `Event_MoveCamera` pan.
+    fn tick_camera_glide(&mut self) {
+        let Some(glide) = self.camera_glide else {
+            return;
+        };
+        let (raw_x, raw_y) = self.camera.raw();
+        let (x, y) = (raw_x >> 16, raw_y >> 16);
+        let step = |from: i32, to: i32| from + (to - from).clamp(-glide.speed, glide.speed);
+        let (next_x, next_y) = (step(x, glide.target_x), step(y, glide.target_y));
+        self.camera.set_position(next_x, next_y);
+        if next_x == glide.target_x && next_y == glide.target_y {
+            self.camera_glide = None;
+        }
     }
 
     /// Applies the packed `loc_51AB2` gate write to the current camera without

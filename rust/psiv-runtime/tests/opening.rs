@@ -96,6 +96,18 @@ fn finding_alys_runs_the_scene_and_alys_leads() {
         "EventFlag_AlysFound set"
     );
 
+    // The scene's closing Event_MoveCamera frames the new leader: subject
+    // ($260, $F0) minus the home offset ($98, $58) = camera (456, 152). The
+    // pan runs at 2 px/frame and may outlive the scene; give it room.
+    for _ in 0..300 {
+        rt.tick(Input::Neutral);
+    }
+    assert_eq!(
+        rt.camera().effective(),
+        (0x260 - 152, 0xF0 - 88),
+        "camera framed on Alys after the scene"
+    );
+
     // Trigger 3 must never re-fire; OTHER triggers may legitimately fire —
     // that's the story continuing (their conditions often require AlysFound
     // set). Record what does.

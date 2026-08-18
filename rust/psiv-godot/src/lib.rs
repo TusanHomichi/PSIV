@@ -515,6 +515,9 @@ impl INode2D for Field {
                 self.retail_dialogue_wait = 0;
                 let closed = !window.bind().is_open();
                 if closed && let Some(rt) = self.runtime.as_mut() {
+                    if rt.scene_active() {
+                        godot_print!("scene dialogue closed (t{})", self.anim_tick);
+                    }
                     rt.dialogue_closed();
                 }
             }
