@@ -132,6 +132,41 @@ The summary contains one party member:
 The numeric cells use the retail decimal tile patterns, not just the `$680`
 window font. That distinction matters for a future renderer.
 
+The camera-corrected raw Plane A words for the summary's row 2, screen
+columns 26..37 are:
+
+```text
+C6F3 C683 C6C0 C6B9 C6D2 C680 C680 C68C C696 C680 C7DB CEF3
+```
+
+The right border is column 37. `LV` is at `(33,2)`, the ordinary menu-font
+glyphs are the `$68C/$696` words, the blank at `(35,2)` is `$680`, and the
+level value at `(36,2)` uses the decimal run's `$7DB` tile. A renderer must
+compose those runs separately; drawing the semantic string `LV  : 1` with
+ordinary glyphs writes into the border and selects the wrong numeric tile
+family.
+
+The same split is used by the STATUS character-info line at its decoded
+`STATUS_TEXT[2]` anchor. The HP/TP labels are also window-charset words:
+`HP:` is `$6F8/$6F9/$6B4` and `TP:` is `$6FA/$6F9/$6B4`, followed by a
+`$680` blank. Their values use the second numeric run and the separator uses
+the window-charset slash `$6F7`.
+
+### Field sprites visible under the root window
+
+Tape 22's fresh SAT walk gives the visible party/NPC anchors independently of
+the Plane A menu. Chaz is `(152,86)`, 16×32, tile `$534`, attribute `$08`;
+the visible left NPC is `(-8,6)`, tile `$3E7`; and the visible top NPC is
+`(136,-8)`, tile `$287`, attribute `$0C`. The complete VDP/SAT dump is
+`oracle/states/camp_root_idle_vdp_7675.json`.
+
+The debug map sets those objects in runtime pixel space, so the view layer
+must initialize each NPC node from the live cell plus sub-cell offset rather
+than the packed map record's original spawn. The frozen top type-2 object is
+on walk-down frame 1 in this receipt. The camp field-party anchor likewise
+uses the live pixel position without the ordinary field renderer's one-cell
+standing subtraction; otherwise Chaz lands 16 pixels above the SAT.
+
 ## ITEM: empty inventory message
 
 Tape 22 deliberately captures the retail no-inventory branch. The inventory

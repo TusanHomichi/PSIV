@@ -126,19 +126,23 @@ impl EnemyAnimation {
         base: Gd<Image>,
         pieces: Vec<AnimationPiece>,
         attack: Option<AttackAnimation>,
+        initial_phase: usize,
     ) -> Option<Self> {
         if pieces.is_empty() && attack.is_none() {
             return None;
         }
         let runtime = pieces
             .into_iter()
-            .map(|piece| RuntimePiece {
-                initial: piece.initial,
-                frames: piece.frames,
-                durations: piece.durations,
-                placements: piece.placements,
-                frame: 0,
-                timer: 0,
+            .map(|piece| {
+                let frame = initial_phase % piece.frames.len().max(1);
+                RuntimePiece {
+                    initial: piece.initial,
+                    frames: piece.frames,
+                    durations: piece.durations,
+                    placements: piece.placements,
+                    frame,
+                    timer: 0,
+                }
             })
             .collect();
         let mut animation = Self {

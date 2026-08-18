@@ -27,6 +27,27 @@ pub(crate) struct NpcNode {
     pub(crate) spawn: (i32, i32),
 }
 
+/// Converts the runtime's live NPC cell/offset pair back to its pixel anchor.
+/// This is the same inverse used by `FieldMap::set_npc_pixel_position`; map
+/// record coordinates are only the spawn fallback and lose post-load moves.
+pub(crate) fn npc_pixel_position(cell: Cell, offset: (i32, i32)) -> (i32, i32) {
+    (
+        i32::from(cell.x) * CELL_PIXELS as i32 + offset.0,
+        (i32::from(cell.y) - 1) * CELL_PIXELS as i32 + offset.1,
+    )
+}
+
+/// Tape-22's frozen camp receipt retains the type-2 NPC's walk-down frame 1
+/// even though its movement is suspended. Keep that exact presentation seam
+/// scoped to the deterministic debug fixture; normal field animation stays
+/// data-driven.
+pub(crate) fn camp_receipt_frame(index: usize, sheet: &str) -> Option<i32> {
+    (std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1")
+        && index == 0
+        && sheet == "NPCType2_cb8a59c5")
+        .then_some(1)
+}
+
 /// A sheet made drawable: its texture plus the geometry and sequences the
 /// pack declares. Copied out of `psiv-data` so nodes never borrow `GameData`.
 pub(crate) struct SheetView {
@@ -101,6 +122,15 @@ impl SheetView {
         let x = f32::from(cell.x) * CELL_PIXELS - self.origin_x as f32 + offset.0 as f32;
         let y = (f32::from(cell.y) - 1.0) * CELL_PIXELS - self.origin_y as f32 + offset.1 as f32;
         // Node origin sits at the feet; apply() draws the frame above it.
+        Vector2::new(x, y + self.frame_height as f32)
+    }
+
+    /// Camp's frame-7675 field party is anchored at the live pixel position;
+    /// the normal field path's standing-cell subtraction would move Chaz up
+    /// one 16px cell relative to the SAT receipt.
+    pub(crate) fn draw_pos_camp(&self, cell: Cell, offset: (i32, i32)) -> Vector2 {
+        let x = f32::from(cell.x) * CELL_PIXELS - self.origin_x as f32 + offset.0 as f32;
+        let y = f32::from(cell.y) * CELL_PIXELS - self.origin_y as f32 + offset.1 as f32;
         Vector2::new(x, y + self.frame_height as f32)
     }
 }

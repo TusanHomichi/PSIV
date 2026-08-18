@@ -54,9 +54,9 @@ cannot create the X11 display, so no missing post-change RMSE is fabricated.
 | opening page 1 | 6.587 | **0.000000** | clone t3550 ↔ opening frame 4000 | certified baseline |
 | opening page 2 | 6.578 | **0.000000** | clone t4550 ↔ opening frame 5200 | certified baseline |
 | MeetingRika | 36.3 | **0.000000** | clone t160 ↔ frame 7250 | certified baseline |
-| battle `0x88` | **20.598323** (pre-slot remap) | not measured after fixture fix | clone t200 ↔ frame 25000 | Xvfb listener blocked |
+| battle `0x88` | **12.185497** (lastpairs) | not measured after final enemy receipt fix | clone t200 ↔ frame 25000 | Xvfb listener blocked |
 | title | 19.408013 (wrong-phase t750) | **0.000000** baseline; post-blink recapture blocked | clone t480 ↔ title frame 450 | certified pre-prompt baseline |
-| camp root | **48.709921** (pre-receipt NPC state) | not measured after state/chrome fix | clone t60 ↔ frame 7675 (`camp_root_idle`) | Xvfb listener blocked |
+| camp root | **14.456810** (lastpairs) | not measured after final anchor/plane fix | clone t60 ↔ frame 7675 (`camp_root_idle`) | Xvfb listener blocked |
 
 The exact commands below are the integration handoff. They must be run one
 at a time under Xvfb, with `PSIV_DEBUG_SCENE_TICKS=1` on scene captures, and
@@ -116,6 +116,30 @@ The debug camp fixture keeps the complete receipt-backed map/player/party
 setup, places all eight runtime objects at these pixel positions and facings,
 and suspends field wandering during the debug lead-in. This removes the
 non-deterministic post-spawn drift without changing normal gameplay.
+
+The fresh VDP/SAT dump is durable at
+`oracle/states/camp_root_idle_vdp_7675.json`. Its visible SAT entries decode
+as follows (8-byte entries, link-walk from index zero):
+
+| entry | screen x,y | size | tile | attr | receipt role |
+|---:|---:|---:|---:|---:|---|
+| 1 | `(152,86)` | 16×32 | `$534` | `$08` | Chaz field party |
+| 2 | `(-8,6)` | 16×32 | `$3E7` | `$08` | visible Alys |
+| 3 | `(136,-8)` | 16×32 | `$287` | `$0C` | visible type-2 NPC |
+
+The clone's map record is only a spawn fallback: the draw node is initialized
+from the runtime cell plus sub-cell offset, which preserves the receipt's
+`(136,-8)` object after the debug fixture moves it. The suspended type-2
+object retains walk-down frame 1 in this fixture. Chaz's field-party node uses
+the live camp anchor, removing the one-cell standing shift and matching SAT
+`(152,86)`.
+
+The status-window Plane A decode is also explicit. At screen row 2, columns
+26..37 are
+`C6F3 C683 C6C0 C6B9 C6D2 C680 C680 C68C C696 C680 C7DB CEF3`.
+Therefore the clone draws `LV` at cell `(33,2)`, the decimal tile run at
+`(36,2)`, leaves cell `(35,2)` as the window blank, and never writes the
+border at `(37,2)`.
 
 ## Op coverage
 
@@ -307,12 +331,14 @@ reveal-settle and the prompt/copyright draw, matching pre-prompt oracle frame
 routine; a post-change capture is blocked by this sandbox's Xvfb listener,
 but the changed prompt is not visible in this certified pair.
 
-The original open pairs were state problems, not phase problems. The battle
-fixture now uses the tape's fresh 25/25, 10/10 Chaz and two-Zoran formation;
-the camp fixture now uses 500 MST and the tape's map/position, and its three
-chrome defects are implemented: per-row selector boxes, the window-charset
-HP/TP slash, and the exact `LV  : 1` spacing. The required post-fix RMSEs are
-left unclaimed until the compliant capture can run.
+The original open pairs were state problems, not fixture selection problems.
+The battle fixture now uses the tape's fresh 25/25, 10/10 Chaz and two-Zoran
+formation; its party plane is receipt-exact, the Zoran overlay phase is pinned
+to the frame-25000 VDP words, and enemy CRAM widening uses the canonical GPGX
+ramp. The camp fixture now uses 500 MST and the tape's map/position; its
+renderer consumes live NPC pixel positions, the receipt's frozen type-2 frame,
+the camp field-party anchor, and the split `LV` label/numeric tile runs. The
+required post-fix RMSEs remain unclaimed until the compliant capture can run.
 
 Two defects were found and fixed to get there:
 
@@ -391,18 +417,16 @@ post-action hold.
 
 ## Broader exact-frame certification surface
 
-These are the deterministic fixtures and reference hashes for the next
-certification pass. The battle measurement is a real existing Xvfb artifact
-from the battle-layout work; it is recorded here as a measured reference, not
-silently upgraded to a fresh post-change capture. Title and camp have decoded
-oracle materials and exact commands, but no RMSE is claimed until they run
-under the required Xvfb/X11 harness.
+These are the deterministic fixtures and reference hashes for the final
+certification pass. The battle and camp values shown below are the lastpairs
+measurements before the receipt-driven compositor fixes; no post-final RMSE
+is claimed until the pairs run under the required Xvfb/X11 harness.
 
 | surface | deterministic fixture / clone tick | oracle frame and SHA-256 | RMSE | status |
 |---|---|---|---:|---|
-| battle command idle | `PSIV_DEBUG_BATTLE=0x88`, shot tick **200** | `oracle/frames/frame_25000.png`, `761fb241a2360d222fdf1538be1af89b7bfb9cd09376a6157733fd8f71e773c4` | not measured after state fix | old artifact used the wrong Zoran/Twin-Arms fixture; required recapture below |
+| battle command idle | `PSIV_DEBUG_BATTLE=0x88`, shot tick **200** | `oracle/frames/frame_25000.png`, `761fb241a2360d222fdf1538be1af89b7bfb9cd09376a6157733fd8f71e773c4` | lastpairs **12.185497**; final capture blocked | final fix is receipt-pinned in `oracle/states/battle_command_idle_vdp_25000.json` |
 | title settled | `PSIV_DEBUG_TITLE_SHOT=1`, shot tick **480** | `oracle/frames/title/frame_450.png`, `8cebd30d62a7b5b0c3ad634ec6efc5ab6ab62e088d6166835d447c843df18c10` | prior **0.000000**; post-blink recapture blocked | expected unchanged because Press Start is invisible |
-| camp root idle | `PSIV_DEBUG_CAMP=1`, shot tick **60**; oracle mark `camp_root_idle` | `oracle/frames/frame_7675.png`, `9bf283d9f48b4c0d959eb297ca0b1a997b62f227385ec25cae921e078ceaeca0` | not measured after state/chrome fix | required recapture below |
+| camp root idle | `PSIV_DEBUG_CAMP=1`, shot tick **60**; oracle mark `camp_root_idle` | `oracle/frames/frame_7675.png`, `9bf283d9f48b4c0d959eb297ca0b1a997b62f227385ec25cae921e078ceaeca0` | lastpairs **14.456810**; final capture blocked | final fix is receipt-pinned in `oracle/states/camp_root_idle_vdp_7675.json` |
 
 Title certification:
 

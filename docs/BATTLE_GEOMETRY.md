@@ -160,6 +160,27 @@ are columns 11..16 and 23..28, with pixel origins `(88,72)` and `(184,72)`.
 The party receipt is Chaz/Alys/Hahn at `25/10`, `53/40`, and `21/25` HP/TP;
 the settled command frame has no debug attack timeline event.
 
+### Frame-25000 VDP and idle overlay receipt
+
+The complete fresh host dump is retained at
+`oracle/states/battle_command_idle_vdp_25000.json`; its source command is
+tape 07 at frame 25000 with `--dump-state`, `--dump-frames`, and the Grand
+Cross build (`grand_cross=0`). The retail SAT region is empty at this settled
+frame. The visible enemy body is therefore the Plane A/VDP tile result, not a
+SAT sprite.
+
+Zoran Bult's three enabled overlay pieces have durations `[8,8,8,8]`,
+`[4,4,4]`, and `[20,4,4]`. The frame-25000 VDP pixels compose as piece frames
+`(2,2,1)`. The command-idle debug setup starts the clone's overlay clock at
+phase one so the settled tick-200 capture reaches that receipt state; normal
+formation setups retain phase zero. This is a deterministic fixture seam,
+not a global animation-speed adjustment.
+
+Enemy recolouring uses the Genesis Plus GX RGB565 ramps: red/blue
+`[0,32,65,98,139,172,205,238]` and green
+`[0,32,68,101,137,170,206,238]`. The old bit-replication widening was not
+the emulator's colour conversion and is not used by the battle path.
+
 ### VRAM sharing
 
 Slots 2–4 compare their enemy id against the earlier slots and, on a match,

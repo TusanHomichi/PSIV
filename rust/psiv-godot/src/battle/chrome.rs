@@ -49,7 +49,18 @@ impl BattleChrome {
     /// Uses the same pack assets and role flips as `dialogue.rs`, without
     /// borrowing the dialogue renderer or changing its >1k-line module.
     pub(super) fn build(pack_dir: &str, set: &DialogueSet) -> Option<BattleChrome> {
-        let strip = load_image(pack_dir, &set.window.png)?;
+        let mut strip = load_image(pack_dir, &set.window.png)?;
+        // The window tile art is shared with dialogue, but retail's battle
+        // palette line sets colour index 14 (the window fill) to CRAM $0600
+        // — pure blue, no green — where the field dialogue line uses $0620.
+        // Receipt: oracle/states/battle_command_idle_vdp_25000.json, slot 14
+        // of every line. The pack bakes the dialogue palette into the PNG,
+        // so the battle chrome remaps that one colour at load.
+        remap_color(
+            &mut strip,
+            Color::from_rgba8(0, 32, 98, 255),
+            Color::from_rgba8(0, 0, 98, 255),
+        );
         let mut tiles = BTreeMap::new();
         for role in Role::ALL {
             let tile = set.window.role(role)?;
@@ -71,13 +82,20 @@ impl BattleChrome {
         // dialogue font. The pack asset is preferred; the generated copy is
         // a development fallback until older packs are regenerated.
         let menu_path = format!("{pack_dir}/dialogue/menu_font.png");
-        let menu_image =
+        let mut menu_image =
             Image::load_from_file(&GString::from(menu_path.as_str())).or_else(|| {
                 let path = Path::new(pack_dir)
                     .parent()?
                     .join("generated/gfx/ArtNem_Font.png");
                 Image::load_from_file(&GString::from(path.to_string_lossy().as_ref()))
             })?;
+        // Same $0620 → $0600 battle-palette remap as the window strip: the
+        // font sheet bakes the dialogue fill behind its glyphs.
+        remap_color(
+            &mut menu_image,
+            Color::from_rgba8(0, 32, 98, 255),
+            Color::from_rgba8(0, 0, 98, 255),
+        );
         let font = ImageTexture::create_from_image(&menu_image)?;
         let window_words = retail_window_words(&strip)?;
         let damage_words = retail_damage_words()?;
@@ -603,4 +621,17 @@ fn damage_pattern(pattern: u16) -> Option<[&'static str; 8]> {
 fn load_image(pack_dir: &str, name: &str) -> Option<Gd<Image>> {
     let path = format!("{pack_dir}/{name}");
     Image::load_from_file(&GString::from(path.as_str()))
+}
+
+/// Replaces every exactly-matching opaque pixel of `from` with `to` — the
+/// baked-palette equivalent of pointing a tile at a different CRAM line.
+fn remap_color(image: &mut Gd<Image>, from: Color, to: Color) {
+    let (width, height) = (image.get_width(), image.get_height());
+    for y in 0..height {
+        for x in 0..width {
+            if image.get_pixel(x, y) == from {
+                image.set_pixel(x, y, to);
+            }
+        }
+    }
 }

@@ -319,6 +319,7 @@ impl BattleArt {
         pack_dir: &str,
         enemy_id: u16,
         position: u8,
+        initial_phase: usize,
     ) -> Option<EnemyAnimation> {
         let art = self.enemies.get(&enemy_id)?;
         let base = self.enemy_image(pack_dir, art, &art.png, position)?;
@@ -355,7 +356,7 @@ impl BattleArt {
             }
         }
         let attack = self.enemy_attack_animation(pack_dir, art, enemy_id, position)?;
-        EnemyAnimation::new(base, pieces, attack)
+        EnemyAnimation::new(base, pieces, attack, initial_phase)
     }
 
     fn enemy_attack_animation(
@@ -536,16 +537,14 @@ fn palette_index(pixel: Color, palette: &[u16; 16]) -> Option<usize> {
 }
 
 fn cram_color(word: u16) -> Color {
+    const RED_BLUE: [u8; 8] = [0, 32, 65, 98, 139, 172, 205, 238];
+    const GREEN: [u8; 8] = [0, 32, 68, 101, 137, 170, 206, 238];
     Color::from_rgba8(
-        expand_channel((word >> 1) & 7),
-        expand_channel((word >> 5) & 7),
-        expand_channel((word >> 9) & 7),
+        RED_BLUE[((word >> 1) & 7) as usize],
+        GREEN[((word >> 5) & 7) as usize],
+        RED_BLUE[((word >> 9) & 7) as usize],
         255,
     )
-}
-
-fn expand_channel(level: u16) -> u8 {
-    ((level << 5) | (level << 2) | (level >> 1)) as u8
 }
 
 #[cfg(test)]
@@ -649,6 +648,26 @@ mod tests {
     fn enemy_position_bit_selects_the_two_retail_cram_lines() {
         assert_eq!(enemy_cram_line(14), 1);
         assert_eq!(enemy_cram_line(0x80 | 14), 2);
+    }
+
+    #[test]
+    fn cram_color_uses_the_gpgx_rgb565_ramps() {
+        assert_eq!(
+            (
+                cram_color(0x0AAA).r8(),
+                cram_color(0x0AAA).g8(),
+                cram_color(0x0AAA).b8()
+            ),
+            (172, 170, 172)
+        );
+        assert_eq!(
+            (
+                cram_color(0x0620).r8(),
+                cram_color(0x0620).g8(),
+                cram_color(0x0620).b8()
+            ),
+            (0, 32, 98)
+        );
     }
 
     #[test]

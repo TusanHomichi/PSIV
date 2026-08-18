@@ -416,9 +416,8 @@ impl BattleScreen {
         self.message.clear();
         self.message_kind = MessageKind::None;
         self.damage = None;
-
         self.build_background(&setup);
-        self.build_enemies(&setup.enemies);
+        self.build_enemies(&setup.enemies, setup.enemy_animation_phase);
         self.build_party(&setup);
         self.events.extend(queue_timeline(timeline));
         self.base_mut().set_visible(true);
@@ -651,7 +650,7 @@ impl BattleScreen {
         self.background = Some(node);
     }
 
-    fn build_enemies(&mut self, enemies: &[EnemyPlacement]) {
+    fn build_enemies(&mut self, enemies: &[EnemyPlacement], animation_phase: usize) {
         if self.art.is_none() {
             return;
         }
@@ -674,7 +673,12 @@ impl BattleScreen {
             let (x, y) = enemy_sprite_origin(enemy.position, width, height);
             node.set_position(Vector2::new(x as f32, y as f32));
             let mut animation = self.art.as_ref().and_then(|art| {
-                art.enemy_animation(&self.pack_dir, enemy.enemy_id, enemy.position)
+                art.enemy_animation(
+                    &self.pack_dir,
+                    enemy.enemy_id,
+                    enemy.position,
+                    animation_phase,
+                )
             });
             let line = super::art::enemy_cram_line(enemy.position);
             let key = (enemy.enemy_id, line);

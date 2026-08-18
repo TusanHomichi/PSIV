@@ -39,7 +39,7 @@ use dialogue::DialogueWindow;
 use input::{read_input, requested_save_slot, save_directory};
 use shop::ShopWindow;
 use transitions::TransitionKind;
-use view::{NpcNode, SheetView};
+use view::{NpcNode, SheetView, camp_receipt_frame, npc_pixel_position};
 
 use psiv_core::{Cell, Direction, StepFrames};
 use psiv_data::GameData;
@@ -772,29 +772,36 @@ impl Field {
             let Some(view) = self.sheet_views.get(&draw.sheet) else {
                 continue;
             };
+            let live = self
+                .runtime
+                .as_ref()
+                .and_then(|rt| rt.map().npcs().get(draw.index))
+                .map(|npc| (npc.cell, (i32::from(npc.offset.x), i32::from(npc.offset.y))));
+            let (base, spawn) = live.map_or(((draw.x, draw.y), (0, 0)), |(cell, offset)| {
+                (
+                    npc_pixel_position(cell, offset),
+                    (i32::from(cell.x), i32::from(cell.y)),
+                )
+            });
             let mut node = Sprite2D::new_alloc();
             node.set_centered(false);
             node.set_z_index(5);
-            let frame = view.frame_at(&draw.idle, 0);
+            let frame = camp_receipt_frame(draw.index, &draw.sheet)
+                .unwrap_or_else(|| view.frame_at(&draw.idle, 0));
             view.apply(&mut node, frame);
             // "Draw a frame at (object_x - origin_x, object_y - origin_y) and
             // it lands exactly where the VDP would put it."
             node.set_position(Vector2::new(
-                (draw.x - view.origin_x) as f32,
-                (draw.y - view.origin_y + view.frame_height) as f32,
+                (base.0 - view.origin_x) as f32,
+                (base.1 - view.origin_y + view.frame_height) as f32,
             ));
             self.base_mut().add_child(&node);
-            let spawn = self
-                .runtime
-                .as_ref()
-                .and_then(|rt| rt.map().npcs().get(draw.index).map(|n| n.cell))
-                .map_or((0, 0), |c| (i32::from(c.x), i32::from(c.y)));
             self.npc_nodes.push(NpcNode {
                 node,
                 sheet: draw.sheet,
                 idle: draw.idle,
                 index: draw.index,
-                base: (draw.x, draw.y),
+                base,
                 spawn,
             });
         }

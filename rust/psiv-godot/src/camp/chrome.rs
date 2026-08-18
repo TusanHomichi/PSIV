@@ -161,7 +161,8 @@ impl CampChrome {
 
     /// The status routine's current/max HP and TP values use the second
     /// numeric run in `menu_font.png` (source cells 36..45). Level, money,
-    /// and ordinary menu strings retain the first run used by `text`.
+    /// and ordinary menu strings retain the first run used by `text`; the
+    /// status labels themselves come from the window charset.
     pub(super) fn number(&self, text: &str, cell: (i32, i32)) -> Vec<Quad> {
         let columns = (self.font.get_width() / CELL as i32).max(1);
         let mut quads = Vec::new();
@@ -228,7 +229,16 @@ fn retail_glyphs() -> BTreeMap<char, Vector2> {
 }
 
 fn retail_window_words(strip: &Gd<Image>) -> Option<BTreeMap<(u16, bool, bool), Gd<ImageTexture>>> {
-    const PATTERNS: [u16; 4] = [0x680, 0x6E7, 0x6E8, STATUS_SLASH_PATTERN];
+    const PATTERNS: [u16; 8] = [
+        0x680,
+        0x6E7,
+        0x6E8,
+        STATUS_SLASH_PATTERN,
+        0x6F8,
+        0x6F9,
+        0x6FA,
+        0x6B4,
+    ];
     let mut words = BTreeMap::new();
     for pattern in PATTERNS {
         let index = i32::from(pattern - WINDOW_BASE_TILE);

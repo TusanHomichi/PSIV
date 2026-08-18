@@ -10,7 +10,7 @@ use psiv_core::{Cell, Direction, SCREEN_HEIGHT, SCREEN_WIDTH};
 
 use super::Field;
 use super::transitions::{Transition, TransitionKind};
-use super::view::{SheetView, sequence_name};
+use super::view::{SheetView, camp_receipt_frame, sequence_name};
 
 impl Field {
     /// Places and animates the party sprite, animates NPCs, moves the camera.
@@ -27,6 +27,10 @@ impl Field {
         let camera_position = runtime.camera().position();
         let kind = if walking { "walk" } else { "idle" };
         let sequence = sequence_name(kind, state.facing());
+        let camp_field_anchor = self
+            .camp_menu
+            .as_ref()
+            .is_some_and(|menu| menu.bind().is_open());
         if sequence != self.party_sequence {
             self.party_sequence = sequence;
             self.party_seq_start = self.anim_tick;
@@ -35,7 +39,12 @@ impl Field {
         if let (Some(party), Some(view)) = (self.party.as_mut(), self.party_view.as_ref()) {
             let frame = view.frame_at(&self.party_sequence, self.anim_tick - self.party_seq_start);
             view.apply(party, frame);
-            party.set_position(view.draw_pos(cell, offset));
+            let position = if camp_field_anchor {
+                view.draw_pos_camp(cell, offset)
+            } else {
+                view.draw_pos(cell, offset)
+            };
+            party.set_position(position);
         }
 
         // A mounted vehicle owns the field draw slot. Its selector and sheet
@@ -193,7 +202,8 @@ impl Field {
                     let name = sequence_name(kind, w.facing);
                     // Not every sheet animates every way; frame 0 is the
                     // sheet's own fallback, same as the cartridge's art.
-                    let frame = view.frame_at(&name, self.anim_tick);
+                    let frame = camp_receipt_frame(entry.index, &entry.sheet)
+                        .unwrap_or_else(|| view.frame_at(&name, self.anim_tick));
                     view.apply(&mut entry.node, frame);
                     let x = entry.base.0
                         + (i32::from(w.cell.0) - entry.spawn.0) * 16
@@ -209,7 +219,8 @@ impl Field {
                     ));
                 }
                 None => {
-                    let frame = view.frame_at(&entry.idle, self.anim_tick);
+                    let frame = camp_receipt_frame(entry.index, &entry.sheet)
+                        .unwrap_or_else(|| view.frame_at(&entry.idle, self.anim_tick));
                     view.apply(&mut entry.node, frame);
                 }
             }

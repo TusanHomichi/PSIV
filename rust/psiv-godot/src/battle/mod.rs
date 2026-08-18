@@ -46,6 +46,10 @@ pub(crate) struct BattleSetup {
     /// First-frame crop size from the vehicle field sheet.
     pub(crate) vehicle_frame: Option<(u32, u32)>,
     pub(crate) dark_force_2: bool,
+    /// Initial idle overlay phase. The tape-07 command-idle receipt at frame
+    /// 25000 starts Zoran Bult's three live tile pieces at phase one; normal
+    /// encounters retain the runtime's phase-zero start.
+    pub(crate) enemy_animation_phase: usize,
     pub(crate) party: Vec<PartyPlacement>,
     pub(crate) enemies: Vec<EnemyPlacement>,
 }
@@ -157,6 +161,7 @@ impl Field {
             vehicle_png: None,
             vehicle_frame: None,
             dark_force_2: false,
+            enemy_animation_phase: 1,
             party: vec![
                 PartyPlacement {
                     // Tape 07's party is ordered Chaz/Alys/Hahn in the
@@ -616,6 +621,7 @@ fn build_setup_for_formation(
             })
             .map(|sheet| (sheet.frame_width, sheet.frame_height)),
         dark_force_2: runtime.game().is_set(Flag::event(0x9E)),
+        enemy_animation_phase: 0,
         party,
         enemies,
     })
