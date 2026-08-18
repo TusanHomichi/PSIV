@@ -20,9 +20,14 @@ mod vehicle_ui;
 pub(crate) use ui::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
 
 /// Elapsed overlay-clock ticks that align the command-idle debug fixture with
-/// the frame-25000 VDP receipt at the tick-200 screenshot. Normal formations
-/// use phase zero and therefore retain their ordinary first-frame behavior.
-const ORACLE_ENEMY_PHASE_TICKS: usize = 19;
+/// the frame-25000 VDP receipt at the tick-200 screenshot. The captured
+/// viewport texture always shows the previous render, so the pin accounts
+/// for the one update the screenshot never sees: phase 20 plus the 170
+/// rendered advances lands every piece on the receipt tuple (2,2,1) —
+/// verified against the decoded plane/VRAM cells (piece0 frame 2 matches
+/// the receipt 16x16 with zero RGB mismatches). Normal formations use
+/// phase zero and therefore retain their ordinary first-frame behavior.
+const ORACLE_ENEMY_PHASE_TICKS: usize = 20;
 
 use godot::prelude::*;
 

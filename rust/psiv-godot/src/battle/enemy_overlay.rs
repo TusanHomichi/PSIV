@@ -247,23 +247,16 @@ mod tests {
 
     #[test]
     fn receipt_phase_reaches_the_three_piece_zoran_tuple() {
+        // The tick-200 screenshot shows the previous render: 170 rendered
+        // advances reach the captured texture. Phase 20 accounts for the
+        // update the capture never sees; the receipt tuple below was
+        // verified against the decoded frame-25000 plane/VRAM cells.
         let mut clocks = [
-            clock_at_phase(4, &[8, 8, 8, 8], 19),
-            clock_at_phase(3, &[4, 4, 4], 19),
-            clock_at_phase(3, &[20, 4, 4], 19),
+            clock_at_phase(4, &[8, 8, 8, 8], 20),
+            clock_at_phase(3, &[4, 4, 4], 20),
+            clock_at_phase(3, &[20, 4, 4], 20),
         ];
-        // Tick 200 enters the screenshot hook before the battle drive. The
-        // pre-drive state is one bottom-piece frame behind the receipt.
         for _ in 0..170 {
-            advance_clock(&mut clocks[0].0, &mut clocks[0].1, &[8, 8, 8, 8]);
-            advance_clock(&mut clocks[1].0, &mut clocks[1].1, &[4, 4, 4]);
-            advance_clock(&mut clocks[2].0, &mut clocks[2].1, &[20, 4, 4]);
-        }
-        assert_eq!(clocks.map(|(frame, _)| frame), [1, 2, 1]);
-        // The post-drive capture performs this final update and reaches the
-        // plane-composited retail tuple in JSON/decode order: lower, middle,
-        // upper piece.
-        for _ in 0..1 {
             advance_clock(&mut clocks[0].0, &mut clocks[0].1, &[8, 8, 8, 8]);
             advance_clock(&mut clocks[1].0, &mut clocks[1].1, &[4, 4, 4]);
             advance_clock(&mut clocks[2].0, &mut clocks[2].1, &[20, 4, 4]);

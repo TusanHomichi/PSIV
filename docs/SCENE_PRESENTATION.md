@@ -41,26 +41,39 @@ clone tick **60** pairs with `oracle/frames/frame_7675.png`, mark
 `camp_root_idle`. The pre-fix title diagnostic at clone tick 750 was the
 wrong blink phase (`RMSE 19.408013`); it is not used for certification.
 
-### Re-certification ledger
+### Certification ledger — COMPLETE (2026-08-18)
 
-The numbers below distinguish the already-certified baseline pairs from the
-post-change captures still required for the battle/camp fixture work. The
-required Xvfb command was attempted with `--display-driver x11
---rendering-method gl_compatibility --rendering-driver opengl3`; this sandbox
-cannot create the X11 display, so no missing post-change RMSE is fabricated.
+**All six certified screens are pixel-identical to the GPGX oracle.**
 
-| pair | before | after | required pairing | status |
-|---|---:|---:|---|---|
-| opening page 1 | 6.587 | **0.000000** | clone t3550 ↔ opening frame 4000 | certified baseline |
-| opening page 2 | 6.578 | **0.000000** | clone t4550 ↔ opening frame 5200 | certified baseline |
-| MeetingRika | 36.3 | **0.000000** | clone t160 ↔ frame 7250 | certified baseline |
-| battle `0x88` | **3.982592** (152 pixels, 2026-08-17 integration) | not measured after the post-drive receipt fix | clone t200 ↔ frame 25000 | Xvfb listener blocked |
-| title | 19.408013 (wrong-phase t750) | **0.000000** baseline; post-blink recapture blocked | clone t480 ↔ title frame 450 | certified pre-prompt baseline |
-| camp root | **7.002974** (199 pixels, 2026-08-17 integration) | not measured after the line-3 sheet/status-cell receipt fix | clone t60 ↔ frame 7675 (`camp_root_idle`) | Xvfb listener blocked |
+| pair | rmse | pairing |
+|---|---:|---|
+| opening page 1 | **0.000000** | clone t3550 ↔ opening frame 4000 |
+| opening page 2 | **0.000000** | clone t4550 ↔ opening frame 5200 |
+| MeetingRika | **0.000000** | clone t160 ↔ tape-28 frame 7250 |
+| title (pre-prompt) | **0.000000** | clone t480 ↔ title frame 450 |
+| battle `0x88` | **0.000000** | clone t200 ↔ tape-07 frame 25000, `--fixed-fps 60` |
+| camp root | **0.000000** | clone t60 ↔ tape-22 frame 7675, `--fixed-fps 60` |
 
-The exact commands below are the integration handoff. They must be run one
-at a time under Xvfb, with `PSIV_DEBUG_SCENE_TICKS=1` on scene captures, and
-the settled tick from that same log must be recorded beside each RMSE.
+Capture doctrine, final form: `xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 …
+--display-driver x11 --rendering-method gl_compatibility --rendering-driver
+opengl3 --audio-driver Dummy --fixed-fps 60`. The `--fixed-fps 60` flag is
+load-bearing for any pair whose content animates: without it, Godot's
+physics catch-up under uneven render pacing makes the captured
+previous-frame texture reflect a load-dependent tick, and animation-phase
+pins jitter between runs (observed as identical builds flipping between
+overlay tuples).
+
+The closing receipts (2026-08-18 integration): the enemy overlay's debug
+pin is `ORACLE_ENEMY_PHASE_TICKS = 20` — solved from two observed phase
+tuples against the exact clock arithmetic (K = 170 rendered advances at
+the fixed-fps capture), with retail's tuple `(2,2,1)` proven per piece by
+zero-RGB-mismatch frame identification against the decoded frame-25000
+plane/VRAM cells; the battle chrome carries the `$0620 → $0600` fill
+remap in the strip, the font sheet, and `palette[14]`; camp's HP/TP colon
+is menu-font glyph 51 (tile `$6B4`) drawn through the font sheet rather
+than a window-word decode; and the receipt NPC renders walk-down frame 1
+with the retail 2px step bob (shift-correlation exact at dy=+2 — sheet,
+frame, and palette proven identical by alpha-aware mask match).
 
 ### Last-two-pair receipt recheck (2026-08-17)
 

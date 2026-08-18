@@ -289,17 +289,16 @@ animation census drained to **zero deferred** — all 153 enemies exact on
 every surface (1,355 attack PNGs, all 16 remaining routine bodies decoded
 from oracle sprite-table receipts, DarkForce1 included).
 
+**The certification is complete: all six certified screens — opening
+narration pages 1 and 2, MeetingRika, title, battle command idle, and the
+camp root — are pixel-identical to the GPGX oracle at rmse 0.000000**
+(`docs/SCENE_PRESENTATION.md`, closing receipts dated 2026-08-18).
+
 The remaining backlog:
 
-1. Final-mile placement receipts (`docs/SCENE_PRESENTATION.md`):
-   MeetingRika at 20.9 (portrait art 1–2 px inside its frame, window
-   chrome residual), battle idle at 27.1 (unanalyzed phase/content
-   variance), title and camp pairs awaiting blink-phase-matched fixtures.
-   Method is established; each item is a crop/shift probe plus a capture
-   cycle.
-2. Natural (non-fixture) vehicle oracle tapes — `31_natural_land_rover.tape`
-   now provides a 131,130-frame power-on prefix through the real Prof. Holt
-   scene, with a clean natural replay receipt. The full route to
+1. Natural (non-fixture) vehicle oracle tapes — `31_natural_land_rover.tape`
+   provides a 131,130-frame power-on prefix through the real Prof. Holt
+   scene with a clean natural replay receipt. The full route to
    `GettingLandRover` remains owed; tape 29's mount/dismount/mounted-battle
    receipt is still fixture-only.
 

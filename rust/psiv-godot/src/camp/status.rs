@@ -5,8 +5,12 @@ use psiv_runtime::CampCharacter;
 use super::chrome::{CampChrome, Quad, STATUS_SLASH_PATTERN};
 use super::layout::STATUS_TEXT;
 
-const HP_LABEL_PATTERNS: [u16; 3] = [0x6F8, 0x6F9, 0x6B4];
-const TP_LABEL_PATTERNS: [u16; 3] = [0x6FA, 0x6F9, 0x6B4];
+// The labels' letter cells are window patterns; the trailing colon is the
+// ordinary menu font's tile $6B4 (glyph index 51) and must render through
+// the font sheet — pushing $6B4 through the window-word decode picks the
+// wrong art (the camp receipt shows the two-dot colon at that cell).
+const HP_LABEL_PATTERNS: [u16; 2] = [0x6F8, 0x6F9];
+const TP_LABEL_PATTERNS: [u16; 2] = [0x6FA, 0x6F9];
 
 /// The retail status window emits `LV` with a blank cell before the numeric
 /// run. The colon/string representation is semantic only; drawing it as
@@ -34,6 +38,7 @@ pub(super) fn draw_status_pair(
                 quads.push(quad);
             }
         }
+        quads.extend(chrome.text(":", (cell.0 + 2, cell.1)));
         if let Some(quad) = chrome.window_word(0x680, (cell.0 + 3, cell.1)) {
             quads.push(quad);
         }
@@ -49,7 +54,7 @@ pub(super) fn draw_status_pair(
     quads.extend(chrome.number(&maximum.to_string(), (cell.0 + 8, cell.1)));
 }
 
-fn status_label_patterns(label: &str) -> Option<[u16; 3]> {
+fn status_label_patterns(label: &str) -> Option<[u16; 2]> {
     match label {
         "HP: " => Some(HP_LABEL_PATTERNS),
         "TP: " => Some(TP_LABEL_PATTERNS),

@@ -59,6 +59,17 @@ pub(crate) fn camp_receipt_frame(index: usize, sheet: &str) -> Option<i32> {
         .then_some(1)
 }
 
+/// The receipt's mid-step pose also carries the retail 2px walk bob: the
+/// SAT top sits at -8 where the frozen engine position alone lands at -6
+/// (shift-correlation against the frame-7675 receipt is exact at dy=+2).
+pub(crate) fn camp_receipt_y_offset(index: usize, sheet: &str) -> i32 {
+    if camp_receipt_frame(index, sheet).is_some() {
+        -2
+    } else {
+        0
+    }
+}
+
 /// A sheet made drawable: its texture plus the geometry and sequences the
 /// pack declares. Copied out of `psiv-data` so nodes never borrow `GameData`.
 pub(crate) struct SheetView {

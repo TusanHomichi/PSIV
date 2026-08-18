@@ -800,7 +800,9 @@ impl Field {
             // it lands exactly where the VDP would put it."
             node.set_position(Vector2::new(
                 (base.0 - view.origin_x) as f32,
-                (base.1 - view.origin_y + view.frame_height) as f32,
+                (base.1 - view.origin_y
+                    + view.frame_height
+                    + view::camp_receipt_y_offset(draw.index, &draw.sheet)) as f32,
             ));
             self.base_mut().add_child(&node);
             self.npc_nodes.push(NpcNode {

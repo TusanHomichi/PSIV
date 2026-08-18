@@ -104,6 +104,11 @@ impl BattleChrome {
         for (index, rgb) in set.window.palette.colors.iter().take(16).enumerate() {
             palette[index] = Color::from_rgba8(rgb[0], rgb[1], rgb[2], 255);
         }
+        // Battle's palette line sets the window fill (index 14) to CRAM
+        // $0600 — pure blue — where the dialogue set carries $0620. Same
+        // receipt as the strip/font remap above: slot 14 of every CRAM
+        // line in oracle/states/battle_command_idle_vdp_25000.json.
+        palette[14] = Color::from_rgba8(0, 0, 98, 255);
 
         Some(BattleChrome {
             tiles,
