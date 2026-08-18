@@ -297,8 +297,11 @@ The remaining backlog:
    variance), title and camp pairs awaiting blink-phase-matched fixtures.
    Method is established; each item is a crop/shift probe plus a capture
    cycle.
-2. Natural (non-fixture) vehicle oracle tapes — the lane never launched
-   (codex auth token expired); brief ready at /tmp/x8-vehicletape.txt.
+2. Natural (non-fixture) vehicle oracle tapes — `31_natural_land_rover.tape`
+   now provides a 131,130-frame power-on prefix through the real Prof. Holt
+   scene, with a clean natural replay receipt. The full route to
+   `GettingLandRover` remains owed; tape 29's mount/dismount/mounted-battle
+   receipt is still fixture-only.
 
 Maps, layouts, collision, encounter binding, all three Sega compression
 formats, and the completed items above are done and proven.

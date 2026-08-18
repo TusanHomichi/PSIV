@@ -321,6 +321,65 @@ A replay with the frame-7605 bad-terrain patches omitted dismounts by frame
 8125. That is the success-side check for the same retail `Event_GettingOffVehicle`
 path; the refusal and success cases are not inferred from the clone.
 
+### Natural tape 31: verified prefix
+
+`oracle/tapes/31_natural_land_rover.tape` is the natural-input companion to
+tape 29. It starts at power-on and contains only scheduled joypad inputs: no
+RAM patches, save-state loads, or fixture writes. The route reaches the live
+Piata inn, the Zema/Igglanova sequence, Birth Valley B1, and the real
+`Cutscene_ProfHolt` completion before returning to Motavia. Its canonical
+replay log is `oracle/logs/31_natural_land_rover.csv`.
+
+```sh
+oracle/bin/psiv_oracle \
+    --core oracle/core/genesis_plus_gx_libretro.so \
+    --rom  "Phantasy Star IV (USA).md" \
+    --map  oracle/ram_map.tsv \
+    --tape oracle/tapes/31_natural_land_rover.tape \
+    --groups core,pos,collision,party,battle,flags,chars,vehicle \
+    --out oracle/logs/31_natural_land_rover.csv
+```
+
+The replay is 131,130 frames. The route receipt is:
+
+| frame | mark | map / leader | selector | flags |
+|---:|---|---|---:|---|
+| `81,409` | `piata_inn_recovered` | `0019 / (656,496)` | `0000` | `01FF0400` |
+| `102,951` | `zema_town_warp` | `0024 / (1568,1312)` | `0000` | `01FF0400` |
+| `103,071` | `zema_town_cross` | `0024 / (496,768)` | `0000` | `01FF0C00` |
+| `103,675` | `zema_to_birth_valley` | `002B / (496,160)` | `0000` | `01FF0C00` |
+| `113,419` | `birth_valley_b1_enter` | `002C / (528,224)` | `0000` | `01FF0C00` |
+| `129,139` | `holt_scene_done` | `0024 / (480,160)` | `0000` | `01FF8C00` |
+| `131,011` | `natural_prefix_holt_world` | `0000 / (1584,1312)` | `0000` | `01FF8C00` |
+
+The selector is `0000` on all 131,130 rows. This is an honest partial, not a
+vehicle receipt: the tape stops before the later Zema/Krup/Tonoe/Rune/
+Alshline/Zio/BioPlant/Rika chain and Machine Center B1 Part2's
+`GettingLandRover`. Consequently there are no natural mount, vehicle-terrain,
+dismount-refusal, successful-dismount, or mounted-encounter marks to report;
+tape 29 remains the documented fixture for those surfaces.
+
+The stop has a concrete route reason. Holt leaves Chaz/Alys/Hahn at `27/44/13`
+HP; the shortest attempted Piata healing detour hit three natural formations
+whose retail rolls refused RUN, and ordinary combat inputs left only Alys
+alive before the inn inputs could be consumed. Zema's inn is still locked
+before `IgglanovaZemaDefeated`, so the remaining route needs a new battle-safe
+natural plan rather than a fake continuation.
+
+The clone-side `psiv-replay` check uses the same tape and starts at the
+engine-aligned `await_control` mark (frame `6,539`). It compares cleanly for
+560 frames through frame `7,098` across 33 modeled columns. The first later
+divergence, frame `7,099`, is the already-known static-NPC versus retail
+wander position; NPC/wander internals are outside this slice. The clone does
+not claim vehicle parity where the natural tape has no vehicle state.
+
+### Fixture sweep
+
+The remaining RAM-patched receipts are the MeetingRika capture (tape 28) and
+the mounted vehicle surface (tape 29). Both intentionally enter late or
+stateful surfaces that are not cheap extensions of an existing natural tape;
+the new tape 31 prefix is the only fixture debt naturalized in this slice.
+
 ## Tape format
 
 Line-oriented, one step per line:
@@ -430,6 +489,7 @@ both paths against values the cartridge itself chose (see `RESULTS.md`).
 | `21_second_chest.tape` | a second chest id, which is what pins the flag bank's bit arithmetic |
 | `28_meeting_rika_retail_probe.tape` | power-on schedule plus explicit RAM patches for deterministic MeetingRika video frames |
 | `29_vehicle_land_rover_probe.tape` | retail field boot plus a documented Land Rover movement, dismount-refusal and mounted-battle fixture |
+| `31_natural_land_rover.tape` | power-on natural route through the verified Holt prefix; full Land Rover acquisition remains downstream |
 
 `prelude_basement.tape` is a generated intermediate (`navigate.py` output) that
 both battle tapes are built from; `find_battle.py` consumes it.

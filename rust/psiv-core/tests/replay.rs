@@ -197,3 +197,17 @@ fn the_talk_button_drives_an_interaction_not_a_step() {
     assert_eq!(Buttons::parse("C").unwrap().to_tape(), "C");
     assert_eq!(rows[0].buttons, "C");
 }
+
+#[test]
+fn natural_land_rover_tape_is_input_only_and_stops_at_holt() {
+    let text = include_str!("../../../oracle/tapes/31_natural_land_rover.tape");
+    assert!(!text.contains("--ram-patch"));
+
+    let tape = Tape::parse(text).expect("natural Land Rover tape parses");
+    assert_eq!(tape.frame_count(), 131_130);
+    assert_eq!(tape.mark_frame("piata_inn_recovered"), Some(81_409));
+    assert_eq!(tape.mark_frame("birth_valley_b1_enter"), Some(113_419));
+    assert_eq!(tape.mark_frame("holt_scene_done"), Some(129_139));
+    assert_eq!(tape.mark_frame("natural_prefix_holt_world"), Some(131_011));
+    assert!(tape.mark_frame("land_rover_mounted").is_none());
+}

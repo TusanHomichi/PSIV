@@ -297,6 +297,54 @@ well as the refusal side. The mounted battle entry is intentionally a
 documented fixture after the ordinary mounted field path; it does not claim a
 natural random encounter happened at a chosen frame.
 
+## Natural route receipt: tape 31
+
+`oracle/tapes/31_natural_land_rover.tape` is the input-only naturalization
+attempt. It starts from power-on, reaches Alys and the principal confession,
+survives the Academy basement and Igglanova beats with ordinary field inputs,
+recovers the party at Piata's live inn, crosses the Motavia/Edge route into
+Zema, enters Birth Valley B1, completes the real Prof. Holt scene, and returns
+to the Motavia overworld. The replay log is
+`oracle/logs/31_natural_land_rover.csv`; it was generated with no `--ram-patch`
+and contains 131,130 rows.
+
+The stable frame marks are:
+
+| Frame | Mark | Retail state |
+|---:|---|---|
+| `81,409` | `piata_inn_recovered` | Piata inn map `0019`, live recovery complete; selector `0` |
+| `102,951` | `zema_town_warp` | Zema map `0024`, leader `(1568,1312)`; selector `0` |
+| `103,071` | `zema_town_cross` | Zema town cross `(496,768)`; event flags `01FF0C00` |
+| `103,675` | `zema_to_birth_valley` | Birth Valley load map `002B`; selector `0` |
+| `113,419` | `birth_valley_b1_enter` | Birth Valley B1 map `002C`, leader `(528,224)` |
+| `129,139` | `holt_scene_done` | return to Zema map `0024`, leader `(480,160)`, event flags `01FF8C00` |
+| `131,011` | `natural_prefix_holt_world` | Motavia map `0000`, leader `(1584,1312)`; selector `0` |
+
+`vehicle_index` is `0000` on every row. That is the important negative
+receipt: this natural prefix never mounts, so it has no honest natural marks
+for vehicle-terrain movement, dismount refusal, successful dismount, or a
+mounted encounter. The tape stops here because `GettingLandRover` is later:
+after the Zema/Krup/Tonoe/Rune/Alshline/Zio/BioPlant/Rika branch, the Control
+Key prerequisite, and Machine Center B1 Part2. Tape 29 therefore remains the
+fixture-only receipt for those vehicle behaviors; tape 31 does not overwrite it
+with invented natural evidence.
+
+The practical stop is also measured, not cosmetic: after Holt the party is
+Chaz `27`, Alys `44`, Hahn `13` HP. The shortest attempted Piata healing
+detour hit three natural formations whose retail rolls refused RUN; ordinary
+combat inputs left only Alys alive before the inn inputs could be consumed.
+The pre-`IgglanovaZemaDefeated` Zema inn is locked as well. Continuing from
+this state needs a new long, battle-safe route plan, so it is documented as
+remainder rather than smuggled into the tape as a fixture.
+
+The clone replay comparator walks the same input schedule from its first
+engine-aligned mark, `await_control` at frame `6,539`. It is clean for the
+first 560 frames through frame `7,098` (33 modeled columns, zero
+divergences). At frame `7,099` the retail party continues through a cell where
+the clone's static NPC position blocks; that is the known NPC/wander frontier,
+outside this vehicle slice and explicitly excluded from ownership. The clone
+does not claim a vehicle or encounter receipt for the unmounted prefix.
+
 ## Verification status
 
 Headless debug boots (the available Godot binary exits successfully and
@@ -329,9 +377,11 @@ Implemented and tested:
 
 Still open:
 
-1. Tape 29 uses the README-approved RAM-patch fixture after a normal retail
-   boot/map load. It does not replace a full natural playthrough to the Ice
-   Digger or Hydrofoil story routes.
+1. The full natural Land Rover route is still owed. Tape 31 closes the
+   power-on-to-Holt prefix, but it does not yet reach `GettingLandRover`; tape
+   29 remains the explicit fixture for mounted movement, dismount and battle
+   entry. The Ice Digger and Hydrofoil story routes are also still separate
+   natural runs.
 2. The Godot shell can report one non-fatal `AudioStreamGeneratorPlayback`
    ObjectDB leak at shutdown on some headless runs. The field/battle boot exits
    successfully; this is the pre-existing audio lifecycle, outside the vehicle
