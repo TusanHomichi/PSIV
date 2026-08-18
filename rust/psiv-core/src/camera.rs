@@ -444,6 +444,14 @@ impl Camera {
         });
     }
 
+    /// The driver position the latch last saw, 16.16. A caller that may hand
+    /// the latch a different driver (a scripted actor) uses this to tell a
+    /// walk from a teleport.
+    #[must_use]
+    pub const fn driver_position(&self) -> (i32, i32) {
+        (self.driver_x, self.driver_y)
+    }
+
     /// The camera position in whole pixels, as the renderer wants it.
     #[must_use]
     pub const fn position(&self) -> (i32, i32) {

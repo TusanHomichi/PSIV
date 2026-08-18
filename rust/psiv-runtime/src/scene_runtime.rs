@@ -1,7 +1,10 @@
 //! Scene execution and translation into runtime events.
 
 use psiv_core::battle::Outcome;
-use psiv_core::{ActorRef, Cell, Input, MapId, SceneEffect, SceneInput, SceneOp, WarpTrigger};
+use psiv_core::{
+    ActorRef, Cell, Driver, Input, MapId, ONE_PIXEL, PixelPos, SceneEffect, SceneInput, SceneOp,
+    WarpTrigger,
+};
 
 use crate::{Runtime, RuntimeEvent};
 
@@ -24,13 +27,48 @@ impl Runtime {
         for effect in effects {
             self.translate_scene_effect(effect, &mut events);
         }
+        self.tick_scene_camera();
         if finished {
             self.scene = None;
+            self.scene_camera_locked = false;
             if !self.retry_scene() {
                 events.push(RuntimeEvent::SceneEnded);
             }
         }
         events
+    }
+
+    /// The camera latch, driven by the scripted leader.
+    ///
+    /// Retail scene walks move the real `Character_1` object, so the field
+    /// camera follows them exactly as it follows player walking. The clone's
+    /// scripted actors are a parallel cast, so the latch has to be fed their
+    /// position explicitly — otherwise the party strolls off a frozen screen.
+    /// A scene camera lock (`SetFollowMode` bit 2) or an in-flight
+    /// `Event_MoveCamera` pan owns the camera instead, and a scripted teleport
+    /// (`PlaceActor`, a map load) reseats rather than chasing the jump as a
+    /// one-frame velocity.
+    fn tick_scene_camera(&mut self) {
+        if self.scene_camera_locked || self.camera_glide.is_some() {
+            return;
+        }
+        let Some(actor) = self.scene_party_actor(0).copied() else {
+            return;
+        };
+        let (ox, oy) = actor.render_offset_16ths(self.party.leader().step_frames());
+        let at = PixelPos::from_cell(actor.cell);
+        let driver = Driver {
+            x: (at.x + ox) * ONE_PIXEL,
+            y: (at.y + oy) * ONE_PIXEL,
+        };
+        let (last_x, last_y) = self.camera.driver_position();
+        let jumped = (driver.x - last_x).abs() > 16 * ONE_PIXEL
+            || (driver.y - last_y).abs() > 16 * ONE_PIXEL;
+        if jumped {
+            self.camera.reseat(driver);
+        } else {
+            self.camera.tick(driver);
+        }
     }
 
     fn translate_scene_effect(&mut self, effect: SceneEffect, events: &mut Vec<RuntimeEvent>) {
@@ -181,6 +219,12 @@ impl Runtime {
                     SceneOp::SetCameraPos { x, y } => self.set_camera(x, y),
                     SceneOp::MoveCamera { x, y, speed } => {
                         self.scene_move_camera(x, y, i32::from(speed));
+                    }
+                    // Bit 2 hands the camera to the scene (the opening's
+                    // walk off the screen edge); the scripted-leader follow
+                    // in `tick_scene_camera` honours it.
+                    SceneOp::SetFollowMode { bits } => {
+                        self.scene_camera_locked = bits & 0b100 != 0;
                     }
                     _ => {}
                 }

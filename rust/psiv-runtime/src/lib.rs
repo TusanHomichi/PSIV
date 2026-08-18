@@ -126,6 +126,9 @@ pub struct Runtime {
     /// and speed in px/frame. Ticked every frame until arrival, scene or not,
     /// so a scene that ends mid-pan still delivers the camera.
     camera_glide: Option<CameraGlide>,
+    /// `SetFollowMode` bit 2: the scene has locked the camera (the walk
+    /// off-screen in the opening). Cleared when a scene installs or ends.
+    scene_camera_locked: bool,
 }
 
 /// See [`Runtime::scene_move_camera`].
@@ -869,11 +872,15 @@ impl Runtime {
             return false;
         };
         let cast = self.build_cast();
-        let Ok(runner) = runner_for(scene, cast, StepFrames::default()) else {
+        // The runner walks with the party's own step timing, so scripted-walk
+        // interpolation (renderer, camera driver) shares one clock with field
+        // walking.
+        let Ok(runner) = runner_for(scene, cast, self.party.leader().step_frames()) else {
             return false;
         };
         self.scene = Some(runner);
         self.scene_input = SceneInput::None;
+        self.scene_camera_locked = false;
         self.scene_warmup = true;
         true
     }
@@ -921,18 +928,49 @@ impl Runtime {
     }
 
     /// The running scene's actors, for the renderer to draw at their scripted
-    /// positions. Empty when no scene runs.
+    /// positions — with live step state, so walks render as walks. Empty when
+    /// no scene runs.
     #[must_use]
-    pub fn scene_actors(&self) -> Vec<(ActorRef, Cell, Direction)> {
-        self.scene
-            .as_ref()
-            .map(|r| {
-                r.actors()
-                    .iter()
-                    .map(|a| (a.actor, a.cell, a.facing))
-                    .collect()
-            })
-            .unwrap_or_default()
+    pub fn scene_actors(&self) -> &[ScriptedActor] {
+        self.scene.as_ref().map(|r| r.actors()).unwrap_or(&[])
+    }
+
+    /// The step timing scene walks interpolate with.
+    #[must_use]
+    pub fn step_frames(&self) -> StepFrames {
+        self.party.leader().step_frames()
+    }
+
+    /// The scripted actor currently standing in for party slot `slot`, if the
+    /// running scene has displaced it.
+    ///
+    /// The cast names each member twice — `PartyMember(slot)` and
+    /// `Character(id)` — because retail event ops address the same field
+    /// object both ways. Whichever entry the script actually drove (walking,
+    /// or resting away from the party state) is the one to draw and follow;
+    /// a scene only ever drives one of the two names.
+    #[must_use]
+    pub fn scene_party_actor(&self, slot: usize) -> Option<&ScriptedActor> {
+        let runner = self.scene.as_ref()?;
+        let members = self.party.members();
+        let member = members.get(slot)?;
+        let refs = [
+            Some(ActorRef::PartyMember(slot)),
+            self.game.party_slot(slot).map(ActorRef::Character),
+        ];
+        let mut resting = None;
+        for actor in refs.into_iter().flatten() {
+            let Some(a) = runner.actors().iter().find(|a| a.actor == actor) else {
+                continue;
+            };
+            if a.is_walking() {
+                return Some(a);
+            }
+            if resting.is_none() && (a.cell != member.cell || a.facing != member.facing) {
+                resting = Some(a);
+            }
+        }
+        resting
     }
 
     /// Rebuilds the walking party to match the game state's composition,

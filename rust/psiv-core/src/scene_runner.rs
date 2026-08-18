@@ -46,6 +46,10 @@ pub struct SceneRunner {
     actors: Vec<ScriptedActor>,
     blocked: Blocked,
     step_frames: StepFrames,
+    /// The retail follow chain: party followers trail the member ahead of
+    /// them through scripted walks. `SetFollowMode` bit 0 turns it off for
+    /// independently scripted party moves (the wake-up in the opening).
+    follow_chain: bool,
 }
 
 impl SceneRunner {
@@ -65,6 +69,7 @@ impl SceneRunner {
             actors: cast,
             blocked: Blocked::No,
             step_frames,
+            follow_chain: true,
         }
     }
 
@@ -131,10 +136,42 @@ impl SceneRunner {
                 });
             }
         }
+        self.tick_follow_chain();
 
         self.unblock(input);
         self.run(state, &mut effects);
         effects
+    }
+
+    /// The retail caterpillar through scripted walks: while the chain is on,
+    /// each `PartyMember(n)` walks toward the cell `PartyMember(n-1)` is
+    /// vacating (its step origin — the cell only commits on completion), so
+    /// followers trail one cell behind at the shared step speed instead of
+    /// standing where the walk began.
+    fn tick_follow_chain(&mut self) {
+        if !self.follow_chain {
+            return;
+        }
+        let mut vacated: Option<Cell> = None;
+        for slot in 0..crate::PARTY_SLOTS {
+            let Some(index) = self
+                .actors
+                .iter()
+                .position(|a| a.actor == ActorRef::PartyMember(slot))
+            else {
+                break;
+            };
+            let origin = self.actors[index]
+                .is_stepping()
+                .then_some(self.actors[index].cell);
+            if slot > 0
+                && let Some(cell) = vacated
+                && self.actors[index].cell != cell
+            {
+                self.actors[index].target = Some(cell);
+            }
+            vacated = origin;
+        }
     }
 
     /// Releases a block that this tick's input or actor state has satisfied.
@@ -514,7 +551,6 @@ impl SceneRunner {
             | SceneOp::IntroTextFadeUp
             | SceneOp::IntroTextFadeDown
             | SceneOp::OverlapCharacters
-            | SceneOp::SetFollowMode { .. }
             | SceneOp::SetStepOffset { .. }
             | SceneOp::PlaySound { .. }
             | SceneOp::SetSavedMusic { .. }
@@ -523,6 +559,14 @@ impl SceneRunner {
             | SceneOp::DmaPlanes
             | SceneOp::SetDialogueTree { .. }
             | SceneOp::SetRenderSpritesInCutscene { .. } => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+            }
+            // Bit 0 turns the party follow chain off; the other bits (walk
+            // ordering, camera lock) stay presentation/runtime concerns, so
+            // the op is consumed here AND forwarded.
+            SceneOp::SetFollowMode { bits } => {
+                self.follow_chain = bits & 0b1 == 0;
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }

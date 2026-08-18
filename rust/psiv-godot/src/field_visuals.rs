@@ -21,12 +21,30 @@ impl Field {
         let state = runtime.state();
         let cell = state.cell();
         let offset = state.render_offset_16ths();
-        let scene_actors = runtime.scene_actors();
+        let scene_actors: Vec<psiv_core::ScriptedActor> = runtime.scene_actors().to_vec();
         let scene_sprites_visible = self.presentation.sprites_visible(runtime.scene_active());
         let active_npcs: Vec<bool> = runtime.map().npcs().iter().map(|npc| npc.active).collect();
         let camera_position = runtime.camera().position();
-        let kind = if walking { "walk" } else { "idle" };
-        let sequence = sequence_name(kind, state.facing());
+        let step_frames = runtime.step_frames();
+        // A scene that drives the leader displaces the party draw: position,
+        // facing, and walk state all come from the scripted actor, so the
+        // walk to the door is a walk and not a freeze-then-teleport.
+        let leader_scripted = runtime.scene_party_actor(0).copied();
+        let (kind, party_facing, party_cell, party_offset) = match &leader_scripted {
+            Some(actor) => (
+                if actor.is_stepping() { "walk" } else { "idle" },
+                actor.facing,
+                actor.cell,
+                actor.render_offset_16ths(step_frames),
+            ),
+            None => (
+                if walking { "walk" } else { "idle" },
+                state.facing(),
+                cell,
+                offset,
+            ),
+        };
+        let sequence = sequence_name(kind, party_facing);
         let camp_field_anchor = self
             .camp_menu
             .as_ref()
@@ -40,9 +58,9 @@ impl Field {
             let frame = view.frame_at(&self.party_sequence, self.anim_tick - self.party_seq_start);
             view.apply(party, frame);
             let position = if camp_field_anchor {
-                view.draw_pos_camp(cell, offset)
+                view.draw_pos_camp(party_cell, party_offset)
             } else {
-                view.draw_pos(cell, offset)
+                view.draw_pos(party_cell, party_offset)
             };
             party.set_position(position);
         }
@@ -111,16 +129,28 @@ impl Field {
                     .map(|c| c.0 as usize)
                     .unwrap_or(slot);
                 let sheet_id = runtime.data().party_sheet(char_id).map(|s| s.id.clone());
-                fdraws.push(sheet_id.map(|sheet_id| FollowerDraw {
-                    sheet_id,
+                // A scene that drives this member displaces the caterpillar
+                // draw, same as the leader above.
+                let scripted = runtime.scene_party_actor(slot).copied();
+                fdraws.push(sheet_id.map(|sheet_id| match scripted {
+                    Some(actor) => FollowerDraw {
+                        sheet_id,
+                        kind: if actor.is_stepping() { "walk" } else { "idle" },
+                        facing: actor.facing,
+                        cell: actor.cell,
+                        offset: actor.render_offset_16ths(step_frames),
+                    },
                     // The caterpillar is lockstep: followers walk exactly when
                     // the leader walks, and the leader's `walking` flag also
                     // bridges the one-tick gap between chained steps that made
                     // followers glide like the dead.
-                    kind: if walking { "walk" } else { "idle" },
-                    facing: member.facing,
-                    cell: member.cell,
-                    offset: member.render_offset_16ths,
+                    None => FollowerDraw {
+                        sheet_id,
+                        kind: if walking { "walk" } else { "idle" },
+                        facing: member.facing,
+                        cell: member.cell,
+                        offset: member.render_offset_16ths,
+                    },
                 }));
             }
             let missing: Vec<String> = fdraws
@@ -229,25 +259,23 @@ impl Field {
             }
         }
 
-        // Scene actors: scripted positions override the static NPC layout.
-        if !scene_actors.is_empty() {
-            let mut moves: Vec<(usize, Cell, Direction)> = Vec::new();
-            for (actor, acell, afacing) in &scene_actors {
-                if let psiv_core::ActorRef::Npc(i) = actor {
-                    moves.push((*i, *acell, *afacing));
-                }
-            }
-            for (index, acell, afacing) in moves {
-                for entry in &mut self.npc_nodes {
-                    if entry.index == index
-                        && let Some(view) = self.sheet_views.get(&entry.sheet)
-                    {
-                        let name = sequence_name("idle", afacing);
-                        entry.idle = name;
-                        let frame = view.frame_at(&entry.idle, self.anim_tick);
-                        view.apply(&mut entry.node, frame);
-                        entry.node.set_position(view.draw_pos(acell, (0, 0)));
-                    }
+        // Scene actors: scripted positions override the static NPC layout,
+        // with live step interpolation so scripted walks read as walks.
+        for actor in &scene_actors {
+            let psiv_core::ActorRef::Npc(index) = actor.actor else {
+                continue;
+            };
+            for entry in &mut self.npc_nodes {
+                if entry.index == index
+                    && let Some(view) = self.sheet_views.get(&entry.sheet)
+                {
+                    let kind = if actor.is_stepping() { "walk" } else { "idle" };
+                    entry.idle = sequence_name(kind, actor.facing);
+                    let frame = view.frame_at(&entry.idle, self.anim_tick);
+                    view.apply(&mut entry.node, frame);
+                    entry.node.set_position(
+                        view.draw_pos(actor.cell, actor.render_offset_16ths(step_frames)),
+                    );
                 }
             }
         }
@@ -342,15 +370,16 @@ fn temporary_position(
     field: &Field,
     slot: usize,
     destination: Option<(i32, i32)>,
-    scene_actors: &[(psiv_core::ActorRef, Cell, Direction)],
+    scene_actors: &[psiv_core::ScriptedActor],
 ) -> Option<(i32, i32)> {
     if let Some(position) = destination {
         return Some(position);
     }
-    if let Some((_, cell, _)) = scene_actors
+    if let Some(actor) = scene_actors
         .iter()
-        .find(|(actor, _, _)| matches!(actor, psiv_core::ActorRef::Npc(index) if *index == slot))
+        .find(|a| matches!(a.actor, psiv_core::ActorRef::Npc(index) if index == slot))
     {
+        let cell = actor.cell;
         return Some((i32::from(cell.x) * 16, (i32::from(cell.y) - 1) * 16));
     }
     field
