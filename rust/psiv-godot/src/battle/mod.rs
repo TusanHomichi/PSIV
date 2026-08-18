@@ -19,6 +19,11 @@ mod vehicle_ui;
 
 pub(crate) use ui::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
 
+/// Elapsed overlay-clock ticks that align the command-idle debug fixture with
+/// the frame-25000 VDP receipt at the tick-200 screenshot. Normal formations
+/// use phase zero and therefore retain their ordinary first-frame behavior.
+const ORACLE_ENEMY_PHASE_TICKS: usize = 19;
+
 use godot::prelude::*;
 
 use psiv_core::Flag;
@@ -46,10 +51,10 @@ pub(crate) struct BattleSetup {
     /// First-frame crop size from the vehicle field sheet.
     pub(crate) vehicle_frame: Option<(u32, u32)>,
     pub(crate) dark_force_2: bool,
-    /// Initial idle overlay phase. The tape-07 command-idle receipt at frame
-    /// 25000 starts Zoran Bult's three live tile pieces at phase one; normal
-    /// encounters retain the runtime's phase-zero start.
-    pub(crate) enemy_animation_phase: usize,
+    /// Initial elapsed idle-overlay ticks. The tape-07 command-idle receipt at
+    /// frame 25000 needs a non-zero fixture offset because its three live tile
+    /// pieces have different cadences; normal encounters retain phase zero.
+    pub(crate) enemy_animation_phase_ticks: usize,
     pub(crate) party: Vec<PartyPlacement>,
     pub(crate) enemies: Vec<EnemyPlacement>,
 }
@@ -161,7 +166,7 @@ impl Field {
             vehicle_png: None,
             vehicle_frame: None,
             dark_force_2: false,
-            enemy_animation_phase: 1,
+            enemy_animation_phase_ticks: ORACLE_ENEMY_PHASE_TICKS,
             party: vec![
                 PartyPlacement {
                     // Tape 07's party is ordered Chaz/Alys/Hahn in the
@@ -621,7 +626,7 @@ fn build_setup_for_formation(
             })
             .map(|sheet| (sheet.frame_width, sheet.frame_height)),
         dark_force_2: runtime.game().is_set(Flag::event(0x9E)),
-        enemy_animation_phase: 0,
+        enemy_animation_phase_ticks: 0,
         party,
         enemies,
     })

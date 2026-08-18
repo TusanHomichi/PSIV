@@ -319,7 +319,7 @@ impl BattleArt {
         pack_dir: &str,
         enemy_id: u16,
         position: u8,
-        initial_phase: usize,
+        initial_phase_ticks: usize,
     ) -> Option<EnemyAnimation> {
         let art = self.enemies.get(&enemy_id)?;
         let base = self.enemy_image(pack_dir, art, &art.png, position)?;
@@ -356,7 +356,7 @@ impl BattleArt {
             }
         }
         let attack = self.enemy_attack_animation(pack_dir, art, enemy_id, position)?;
-        EnemyAnimation::new(base, pieces, attack, initial_phase)
+        EnemyAnimation::new(base, pieces, attack, initial_phase_ticks)
     }
 
     fn enemy_attack_animation(

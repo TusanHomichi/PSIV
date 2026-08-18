@@ -126,7 +126,7 @@ impl EnemyAnimation {
         base: Gd<Image>,
         pieces: Vec<AnimationPiece>,
         attack: Option<AttackAnimation>,
-        initial_phase: usize,
+        initial_phase_ticks: usize,
     ) -> Option<Self> {
         if pieces.is_empty() && attack.is_none() {
             return None;
@@ -134,14 +134,15 @@ impl EnemyAnimation {
         let runtime = pieces
             .into_iter()
             .map(|piece| {
-                let frame = initial_phase % piece.frames.len().max(1);
+                let (frame, timer) =
+                    clock_at_phase(piece.frames.len(), &piece.durations, initial_phase_ticks);
                 RuntimePiece {
                     initial: piece.initial,
                     frames: piece.frames,
                     durations: piece.durations,
                     placements: piece.placements,
                     frame,
-                    timer: 0,
+                    timer,
                 }
             })
             .collect();
@@ -169,20 +170,7 @@ impl EnemyAnimation {
     pub(super) fn advance(&mut self) -> Option<Gd<ImageTexture>> {
         let mut changed = false;
         for piece in &mut self.pieces {
-            if piece.frames.len() <= 1 {
-                continue;
-            }
-            if piece.timer > 0 {
-                piece.timer -= 1;
-                continue;
-            }
-            piece.frame = (piece.frame + 1) % piece.frames.len();
-            piece.timer = piece
-                .durations
-                .get(piece.frame)
-                .copied()
-                .unwrap_or_default();
-            changed = true;
+            changed |= advance_clock(&mut piece.frame, &mut piece.timer, &piece.durations);
         }
         if !changed {
             return None;
@@ -213,5 +201,62 @@ impl EnemyAnimation {
         self.output = image;
         self.texture = ImageTexture::create_from_image(&self.output)?;
         Some(())
+    }
+}
+
+/// Advances one overlay piece using the retail timer-byte convention. A
+/// decoded duration of `n` keeps the current frame for `n + 1` updates: the
+/// byte is decremented to zero before the next source pattern is selected.
+fn advance_clock(frame: &mut usize, timer: &mut u8, durations: &[u8]) -> bool {
+    if durations.len() <= 1 {
+        return false;
+    }
+    if *timer > 0 {
+        *timer -= 1;
+        return false;
+    }
+    *frame = (*frame + 1) % durations.len();
+    *timer = durations.get(*frame).copied().unwrap_or_default();
+    true
+}
+
+/// Builds the live clock state after an elapsed phase offset. The phase is in
+/// overlay-clock ticks, rather than a frame index: the three Zoran pieces
+/// have different cadences, so one shared frame index cannot describe the
+/// receipt state.
+fn clock_at_phase(frame_count: usize, durations: &[u8], phase: usize) -> (usize, u8) {
+    if frame_count <= 1 || durations.len() <= 1 {
+        return (0, 0);
+    }
+    let mut frame = 0;
+    let mut timer = 0;
+    for _ in 0..phase {
+        advance_clock(&mut frame, &mut timer, durations);
+    }
+    (frame, timer)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{advance_clock, clock_at_phase};
+
+    #[test]
+    fn zero_phase_preserves_the_initial_frame() {
+        assert_eq!(clock_at_phase(4, &[8, 8, 8, 8], 0), (0, 0));
+    }
+
+    #[test]
+    fn receipt_phase_reaches_the_three_piece_zoran_tuple() {
+        let mut clocks = [
+            clock_at_phase(4, &[8, 8, 8, 8], 19),
+            clock_at_phase(3, &[4, 4, 4], 19),
+            clock_at_phase(3, &[20, 4, 4], 19),
+        ];
+        for _ in 0..171 {
+            advance_clock(&mut clocks[0].0, &mut clocks[0].1, &[8, 8, 8, 8]);
+            advance_clock(&mut clocks[1].0, &mut clocks[1].1, &[4, 4, 4]);
+            advance_clock(&mut clocks[2].0, &mut clocks[2].1, &[20, 4, 4]);
+        }
+        assert_eq!(clocks.map(|(frame, _)| frame), [2, 2, 1]);
     }
 }

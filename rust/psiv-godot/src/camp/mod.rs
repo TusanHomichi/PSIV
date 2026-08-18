@@ -853,7 +853,10 @@ fn draw_summary(chrome: &CampChrome, quads: &mut Vec<Quad>, character: &CampChar
 /// ordinary glyphs overwrites the summary window's right border.
 fn draw_level(chrome: &CampChrome, quads: &mut Vec<Quad>, level: u16, cell: (i32, i32)) {
     draw_text(chrome, quads, "LV", cell);
-    quads.extend(chrome.number(&level.to_string(), (cell.0 + 3, cell.1)));
+    // Level uses the ordinary menu-font decimal run ($69B onward). The
+    // second decimal run is reserved for the HP/TP values in the summary
+    // window and would render `1` as the wrong glyph at the receipt cell.
+    draw_text(chrome, quads, &level.to_string(), (cell.0 + 3, cell.1));
 }
 
 fn draw_status_pair(
