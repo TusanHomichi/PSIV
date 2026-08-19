@@ -32,7 +32,7 @@ impl Field {
         let leader_scripted = runtime.scene_party_actor(0).copied();
         let (kind, party_facing, party_cell, party_offset) = match &leader_scripted {
             Some(actor) => (
-                if actor.is_stepping() { "walk" } else { "idle" },
+                if actor.is_walking() { "walk" } else { "idle" },
                 actor.facing,
                 actor.cell,
                 actor.render_offset_16ths(step_frames),
@@ -135,7 +135,7 @@ impl Field {
                 fdraws.push(sheet_id.map(|sheet_id| match scripted {
                     Some(actor) => FollowerDraw {
                         sheet_id,
-                        kind: if actor.is_stepping() { "walk" } else { "idle" },
+                        kind: if actor.is_walking() { "walk" } else { "idle" },
                         facing: actor.facing,
                         cell: actor.cell,
                         offset: actor.render_offset_16ths(step_frames),
@@ -269,7 +269,7 @@ impl Field {
                 if entry.index == index
                     && let Some(view) = self.sheet_views.get(&entry.sheet)
                 {
-                    let kind = if actor.is_stepping() { "walk" } else { "idle" };
+                    let kind = if actor.is_walking() { "walk" } else { "idle" };
                     entry.idle = sequence_name(kind, actor.facing);
                     let frame = view.frame_at(&entry.idle, self.anim_tick);
                     view.apply(&mut entry.node, frame);

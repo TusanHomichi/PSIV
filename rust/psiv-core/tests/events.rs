@@ -318,7 +318,9 @@ fn a_scene_runs_end_to_end_with_a_pinned_effect_log() {
 
 #[test]
 fn an_actor_walks_x_first_then_y() {
-    // `FieldObj_GetAutoInput` closes the X gap before the Y gap by default.
+    // `FieldObj_GetAutoInput` closes the X gap before the Y gap by default;
+    // the oracle's house-exit walk (tape 27, frames 1820..1900) confirms it.
+    // `SetFollowMode` bit 1 flips to Y-first.
     let map = map_with(&["......", "......", "......", "......"], vec![], vec![]);
     let mut state = GameState::new();
     static WALK: &[SceneOp] = &[

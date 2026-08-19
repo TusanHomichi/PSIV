@@ -149,12 +149,12 @@ impl Runtime {
             SceneEffect::PartyChanged | SceneEffect::CharSlotCopied { .. } => {
                 self.resize_party();
                 // A scene may name a character immediately after joining it
-                // (the Rika cutscene does exactly that). Keep the interpreter
-                // cast in step with the persistent party, just as map loads
-                // recast it against the new map object list.
+                // (the Rika cutscene does exactly that), so the cast must
+                // grow refs with the party — but positions the script has
+                // already staged survive: sync, don't recast.
                 let cast = self.build_cast();
                 if let Some(runner) = self.scene.as_mut() {
-                    runner.recast(cast);
+                    runner.sync_cast(cast);
                 }
                 events.push(RuntimeEvent::PartyChanged);
             }

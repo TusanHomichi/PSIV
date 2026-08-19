@@ -741,6 +741,14 @@ impl ScriptedActor {
         self.step.is_some()
     }
 
+    /// Parks the actor at a cell, cancelling any walk in progress.
+    pub(crate) fn park(&mut self, cell: Cell, facing: Direction) {
+        self.cell = cell;
+        self.facing = facing;
+        self.target = None;
+        self.step = None;
+    }
+
     /// Whether it still has walking to do.
     #[must_use]
     pub const fn is_walking(&self) -> bool {
@@ -758,32 +766,42 @@ impl ScriptedActor {
         (dx * travelled, dy * travelled)
     }
 
-    /// The direction that closes the gap to `target`: X first, then Y.
-    fn direction_toward(&self, target: Cell) -> Option<Direction> {
-        if target.x != self.cell.x {
-            return Some(if target.x > self.cell.x {
+    /// The direction that closes the gap to `target`.
+    ///
+    /// `FieldObj_GetAutoInput` (`ps4.asm:93232`) closes the X gap first
+    /// unless `Char_Move_Flags` bit 1 is set — the oracle's house-exit walk
+    /// (tape 27, frames 1820..1900) confirms it: left along the wall-top
+    /// walkway, then down through the arch.
+    fn direction_toward(&self, target: Cell, y_first: bool) -> Option<Direction> {
+        let dx = (target.x != self.cell.x).then_some({
+            if target.x > self.cell.x {
                 Direction::Right
             } else {
                 Direction::Left
-            });
-        }
-        if target.y != self.cell.y {
-            return Some(if target.y > self.cell.y {
+            }
+        });
+        let dy = (target.y != self.cell.y).then_some({
+            if target.y > self.cell.y {
                 Direction::Down
             } else {
                 Direction::Up
-            });
-        }
-        None
+            }
+        });
+        if y_first { dy.or(dx) } else { dx.or(dy) }
     }
 
     /// Advances one tick. Returns the cell arrived at when a walk finishes.
     ///
     /// Crate-internal: the runner drives this, callers read the actor instead.
-    pub(crate) fn tick(&mut self, map: &FieldMap, frames: StepFrames) -> Option<Cell> {
+    pub(crate) fn tick(
+        &mut self,
+        map: &FieldMap,
+        frames: StepFrames,
+        y_first: bool,
+    ) -> Option<Cell> {
         if self.step.is_none() {
             let target = self.target?;
-            match self.direction_toward(target) {
+            match self.direction_toward(target, y_first) {
                 Some(dir) => {
                     self.facing = dir;
                     // Scene actors walk where the script says. Collision is not

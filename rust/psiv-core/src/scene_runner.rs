@@ -50,6 +50,10 @@ pub struct SceneRunner {
     /// them through scripted walks. `SetFollowMode` bit 0 turns it off for
     /// independently scripted party moves (the wake-up in the opening).
     follow_chain: bool,
+    /// `SetFollowMode` bit 1 (`Char_Move_Flags`): close the Y gap before the
+    /// X gap. Retail's default is X-first (`FieldObj_GetAutoInput`,
+    /// `ps4.asm:93232`).
+    y_first: bool,
 }
 
 impl SceneRunner {
@@ -70,6 +74,7 @@ impl SceneRunner {
             blocked: Blocked::No,
             step_frames,
             follow_chain: true,
+            y_first: false,
         }
     }
 
@@ -102,6 +107,24 @@ impl SceneRunner {
         self.actors = cast;
     }
 
+    /// Reconciles the cast with a party change **without** touching live
+    /// scripted state: refs that already exist keep their position, facing,
+    /// and any walk in progress; new refs are added at the caller's seed;
+    /// vanished refs drop.
+    ///
+    /// A full [`SceneRunner::recast`] here would re-seed every actor from
+    /// field state the scene never moved — which teleported the opening's
+    /// pair back into the bedroom mid-scene and sent the door walk through
+    /// the wall. Party mutations move object contents (the runner's own
+    /// `SwapCharSlots`/`CopyCharSlot`/`PromoteNpcToChar` arms); they never
+    /// re-place the cast.
+    pub fn sync_cast(&mut self, cast: Vec<ScriptedActor>) {
+        self.actors = cast
+            .into_iter()
+            .map(|entry| self.actor(entry.actor).copied().unwrap_or(entry))
+            .collect();
+    }
+
     /// One actor by reference.
     #[must_use]
     pub fn actor(&self, actor: ActorRef) -> Option<&ScriptedActor> {
@@ -129,7 +152,7 @@ impl SceneRunner {
         }
 
         for index in 0..self.actors.len() {
-            if let Some(at) = self.actors[index].tick(map, self.step_frames) {
+            if let Some(at) = self.actors[index].tick(map, self.step_frames, self.y_first) {
                 effects.push(SceneEffect::ActorArrived {
                     actor: self.actors[index].actor,
                     at,
@@ -364,6 +387,19 @@ impl SceneRunner {
                 if state.join_party(slot, char_id).is_err() {
                     return Some(SceneFault::BadWrite);
                 }
+                // Retail builds the new character object at the NPC's field
+                // position: the party object for `slot` is seated there.
+                let seat = self.actor(ActorRef::Npc(npc)).map(|a| a.cell);
+                if let Some(cell) = seat {
+                    match self.actor_mut(ActorRef::PartyMember(slot)) {
+                        Some(member) => member.park(cell, facing),
+                        None => self.actors.push(ScriptedActor::new(
+                            ActorRef::PartyMember(slot),
+                            cell,
+                            facing,
+                        )),
+                    }
+                }
                 effects.push(SceneEffect::NpcPromoted {
                     npc,
                     char_id,
@@ -539,8 +575,29 @@ impl SceneRunner {
                 }
                 self.pc = target;
             }
-            SceneOp::SwapCharSlots { .. }
-            | SceneOp::ReloadMapPalette
+            // The three-way `trap #1` exchanges the two character OBJECTS —
+            // positions and walk state travel with the object contents, which
+            // is how `Event_GameStart` puts Alys (and her doorstep position)
+            // in front after the party-slot rewrite.
+            SceneOp::SwapCharSlots { a, b } => {
+                let ia = self
+                    .actors
+                    .iter()
+                    .position(|x| x.actor == ActorRef::PartyMember(a));
+                let ib = self
+                    .actors
+                    .iter()
+                    .position(|x| x.actor == ActorRef::PartyMember(b));
+                if let (Some(ia), Some(ib)) = (ia, ib) {
+                    self.actors.swap(ia, ib);
+                    let name = self.actors[ia].actor;
+                    self.actors[ia].actor = self.actors[ib].actor;
+                    self.actors[ib].actor = name;
+                }
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+            }
+            SceneOp::ReloadMapPalette
             | SceneOp::InitVramAndCram
             | SceneOp::LoadPalette { .. }
             | SceneOp::LoadArt { .. }
@@ -562,11 +619,12 @@ impl SceneRunner {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }
-            // Bit 0 turns the party follow chain off; the other bits (walk
-            // ordering, camera lock) stay presentation/runtime concerns, so
-            // the op is consumed here AND forwarded.
+            // Bit 0 turns the party follow chain off, bit 1 flips walk
+            // ordering to Y-first; the camera-lock bit stays a runtime
+            // concern, so the op is consumed here AND forwarded.
             SceneOp::SetFollowMode { bits } => {
                 self.follow_chain = bits & 0b1 == 0;
+                self.y_first = bits & 0b10 != 0;
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }
@@ -723,7 +781,21 @@ impl SceneRunner {
                 self.pc = target;
             }
             SceneOp::CopyCharSlot { from, to } => {
-                // Object-level, not party-level: no GameState write here.
+                // Object-level, not party-level: no GameState write here. The
+                // 32-word `trap #1` copy carries the object's position too.
+                let source = self
+                    .actor(ActorRef::PartyMember(from))
+                    .map(|a| (a.cell, a.facing));
+                if let Some((cell, facing)) = source {
+                    match self.actor_mut(ActorRef::PartyMember(to)) {
+                        Some(dest) => dest.park(cell, facing),
+                        None => self.actors.push(ScriptedActor::new(
+                            ActorRef::PartyMember(to),
+                            cell,
+                            facing,
+                        )),
+                    }
+                }
                 effects.push(SceneEffect::CharSlotCopied { from, to });
                 self.pc += 1;
             }
