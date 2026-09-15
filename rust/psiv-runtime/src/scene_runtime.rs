@@ -9,6 +9,117 @@ use psiv_core::{
 use crate::{Runtime, RuntimeEvent};
 
 impl Runtime {
+    /// A live layout write replaces only its named chunks. Validate the whole
+    /// batch before changing collision or pixels, and retain the object cast.
+    fn write_scene_map_chunks(
+        &mut self,
+        chunks: &[(u32, u32, u16)],
+    ) -> Result<(), crate::BridgeError> {
+        let reject = |message: String| crate::BridgeError::Rejected(message);
+        let record = self
+            .map_record()
+            .ok_or(crate::BridgeError::NotPacked(self.map.id().0))?;
+        let atlas = record
+            .patch_tiles
+            .as_ref()
+            .ok_or_else(|| reject("scene chunk atlas is absent".into()))?;
+        let mut effects = self.effects.clone();
+        for &(x, y, id) in chunks {
+            if x >= record.dimensions.width_chunks || y >= record.dimensions.height_chunks {
+                return Err(reject(format!("scene chunk ({x},{y}) is outside the map")));
+            }
+            let tile = atlas
+                .tiles
+                .iter()
+                .find(|tile| tile.chunk_id == id)
+                .ok_or_else(|| reject(format!("scene chunk {id:#04x} has no atlas tile")))?;
+            let cells = tile.collision.ok_or_else(|| {
+                reject(format!("scene chunk {id:#04x} has no collision definition"))
+            })?;
+            if cells.iter().any(|cell| *cell > 15) {
+                return Err(reject(format!(
+                    "scene chunk {id:#04x} has invalid collision"
+                )));
+            }
+            effects
+                .cell_patches
+                .retain(|&(cx, cy, _)| (cx / 2, cy / 2) != (x, y));
+            effects
+                .chunk_patches
+                .retain(|&(cx, cy, _)| (cx, cy) != (x, y));
+            effects
+                .patch_blits
+                .retain(|&(cx, cy, _)| (cx, cy) != (x, y));
+            for (index, collision) in cells.into_iter().enumerate() {
+                effects.cell_patches.push((
+                    x * 2 + index as u32 % 2,
+                    y * 2 + index as u32 / 2,
+                    collision,
+                ));
+            }
+            effects.chunk_patches.push((x, y, id));
+            effects.patch_blits.push((x, y, tile.index));
+        }
+        let mut map =
+            crate::bridge::field_map_retaining_objects(record, Some(&effects), self.map.npcs())?;
+        crate::bridge::attach_chests(&mut map, record, &self.game, self.map.npcs(), &effects)?;
+        self.map = map;
+        self.effects = effects;
+        Ok(())
+    }
+
+    /// `loc_6DBAC` is an explicit live layout write, independent of the
+    /// map-load flag walk. Reveal only the named base chunks; keep NPCs,
+    /// unrelated overlays, party movement and camera state intact.
+    fn restore_scene_map_chunks(
+        &mut self,
+        chunks: &[(u32, u32, u16)],
+    ) -> Result<(), crate::BridgeError> {
+        let record = self
+            .map_record()
+            .ok_or(crate::BridgeError::NotPacked(self.map.id().0))?;
+        let base = record.vehicle_battle.as_ref().ok_or_else(|| {
+            crate::BridgeError::Rejected("scene needs the base chunk grid".into())
+        })?;
+        if self.effects.variant.is_some()
+            || chunks.iter().any(|&(x, y, id)| {
+                base.rows
+                    .get(y as usize)
+                    .and_then(|row| row.get(x as usize))
+                    != Some(&id)
+            })
+        {
+            return Err(crate::BridgeError::Rejected(
+                "scene base chunks disagree with the pack".into(),
+            ));
+        }
+        let contains = |x, y| chunks.iter().any(|&(cx, cy, _)| cx == x && cy == y);
+        let mut effects = self.effects.clone();
+        effects
+            .cell_patches
+            .retain(|&(x, y, _)| !contains(x / 2, y / 2));
+        effects.chunk_patches.retain(|&(x, y, _)| !contains(x, y));
+        effects.patch_blits.retain(|&(x, y, _)| !contains(x, y));
+        let mut map =
+            crate::bridge::field_map_retaining_objects(record, Some(&effects), self.map.npcs())?;
+        crate::bridge::attach_chests(&mut map, record, &self.game, self.map.npcs(), &effects)?;
+        self.map = map;
+        self.effects = effects;
+        Ok(())
+    }
+
+    /// Record the player's latest dialogue choice. A subsequent scene branch
+    /// consumes it; if the scene is already waiting, release that gate now.
+    pub fn dialogue_choice(&mut self, yes: bool) {
+        if self.scene_choice_pending {
+            self.scene_input = SceneInput::Choice(yes);
+            self.scene_choice_pending = false;
+            self.dialogue_answer = None;
+        } else {
+            self.dialogue_answer = Some(yes);
+        }
+    }
+
     /// One tick of a running scene: feed any pending input, translate the
     /// effects, close out the scene when the runner finishes.
     pub(crate) fn scene_tick(&mut self, input: Input) -> Vec<RuntimeEvent> {
@@ -29,11 +140,18 @@ impl Runtime {
         }
         self.tick_scene_camera();
         if finished {
+            let actors: Vec<_> = (0..self.party.len())
+                .filter_map(|slot| self.scene_party_actor(slot).copied())
+                .collect();
+            if let Err(error) = self.party.resume_scripted(&self.map, &actors) {
+                events.push(RuntimeEvent::MapRefreshFailed {
+                    error: error.to_string(),
+                });
+            }
             self.scene = None;
             self.scene_camera_locked = false;
-            if !self.retry_scene() {
-                events.push(RuntimeEvent::SceneEnded);
-            }
+            self.scene_triggers_pending = true;
+            events.push(RuntimeEvent::SceneEnded);
         }
         events
     }
@@ -74,6 +192,7 @@ impl Runtime {
     fn translate_scene_effect(&mut self, effect: SceneEffect, events: &mut Vec<RuntimeEvent>) {
         match effect {
             SceneEffect::DialogueOpen(id) => {
+                self.dialogue_answer = None;
                 events.push(RuntimeEvent::SceneDialogue { entry: id.0 });
             }
             SceneEffect::DialogueOpenFromNpc { actor } => {
@@ -91,11 +210,15 @@ impl Runtime {
                     None => self.scene_input = SceneInput::DialogueClosed,
                 }
             }
-            // Mid-conversation resumes reopen saved dialogue state the window
-            // does not model yet; auto-resume so the scene continues.
-            SceneEffect::DialogueResume => self.scene_input = SceneInput::DialogueClosed,
-            // The opening act asks no choices; auto-answer yes if one appears.
-            SceneEffect::ChoiceRequested => self.scene_input = SceneInput::Choice(true),
+            SceneEffect::DialogueResume => events.push(RuntimeEvent::SceneDialogueResume),
+            SceneEffect::ChoiceRequested => {
+                if let Some(answer) = self.dialogue_answer.take() {
+                    self.scene_input = SceneInput::Choice(answer);
+                } else {
+                    self.scene_choice_pending = true;
+                    events.push(RuntimeEvent::SceneChoiceRequested);
+                }
+            }
             SceneEffect::BattleRequested { index } => match self.start_boss_battle(index) {
                 Ok(initial) => events.push(RuntimeEvent::SceneBattleStarted {
                     index,
@@ -114,9 +237,7 @@ impl Runtime {
                 }
             },
             SceneEffect::NpcDespawned { npc_index, count } => {
-                let map = self.map.id().0;
                 for i in npc_index..npc_index + count {
-                    self.despawned.insert((map, i));
                     let _ = self.map.set_npc_active(i, false);
                 }
                 events.push(RuntimeEvent::NpcsDespawned {
@@ -125,7 +246,7 @@ impl Runtime {
                 });
             }
             SceneEffect::NpcPromoted { npc, .. } => {
-                self.despawned.insert((self.map.id().0, npc));
+                let _ = self.map.set_npc_active(npc, false);
                 events.push(RuntimeEvent::NpcsDespawned {
                     first: npc,
                     count: 1,
@@ -159,6 +280,28 @@ impl Runtime {
                 events.push(RuntimeEvent::PartyChanged);
             }
             SceneEffect::InventoryChanged => events.push(RuntimeEvent::InventoryChanged),
+            SceneEffect::MapChunksRestored { chunks } => {
+                match self.restore_scene_map_chunks(chunks) {
+                    Ok(()) => events.push(RuntimeEvent::MapRefreshed),
+                    Err(error) => events.push(RuntimeEvent::MapRefreshFailed {
+                        error: error.to_string(),
+                    }),
+                }
+            }
+            SceneEffect::MapChunksWritten { chunks } => {
+                match self.write_scene_map_chunks(&chunks) {
+                    Ok(()) => events.push(RuntimeEvent::MapRefreshed),
+                    Err(error) => {
+                        self.scene = None;
+                        events.push(RuntimeEvent::MapRefreshFailed {
+                            error: error.to_string(),
+                        });
+                        events.push(RuntimeEvent::SceneFaulted {
+                            fault: psiv_core::SceneFault::BadWrite,
+                        });
+                    }
+                }
+            }
             SceneEffect::VehicleChanged { index } => {
                 if self.set_vehicle_index(index).is_err() {
                     events.push(RuntimeEvent::SceneFaulted {
@@ -172,9 +315,15 @@ impl Runtime {
                 events.push(RuntimeEvent::RosterChanged { who });
             }
             SceneEffect::MapRequested {
+                op: SceneOp::TakeMapTransition,
+            } => {
+                self.take_scene_map_transition(events);
+            }
+            SceneEffect::MapRequested {
                 op:
                     SceneOp::LoadMap {
                         map,
+                        prev_map,
                         start_x,
                         start_y,
                         facing,
@@ -184,7 +333,7 @@ impl Runtime {
                 // Start words are 8px units; the standing shift applies on Y,
                 // as everywhere in the pack.
                 let cell = Cell::new(start_x / 2, start_y / 2 + 1);
-                match self.change_map(MapId(map), cell, facing) {
+                match self.change_map_from(MapId(map), cell, facing, prev_map) {
                     Ok(()) => {
                         let cast = self.build_cast();
                         if let Some(runner) = self.scene.as_mut() {

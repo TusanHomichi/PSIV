@@ -242,6 +242,30 @@ impl StatPair {
 }
 
 impl Stats {
+    /// Decode the saved name's retail font bytes, including renamed characters.
+    #[must_use]
+    pub fn display_name(&self) -> String {
+        self.name_bytes
+            .iter()
+            .take(5)
+            .take_while(|byte| **byte != 0xFE)
+            .map(|byte| match *byte {
+                1..=26 => char::from(b'A' + byte - 1),
+                57..=82 => char::from(b'a' + byte - 57),
+                27..=36 => char::from(b'0' + byte - 27),
+                0 => ' ',
+                0x31 => '-',
+                0x32 => '!',
+                0x33 => '?',
+                0x34 => ':',
+                0x53 => '.',
+                0x54 => '\'',
+                0x55 => ',',
+                _ => '?',
+            })
+            .collect()
+    }
+
     /// `Battle_FillEnemyStats` — `ps4.asm:11939`.
     ///
     /// Base stat bytes stay zero; the record's values go into the `mod` and

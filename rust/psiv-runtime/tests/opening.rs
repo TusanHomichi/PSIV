@@ -57,7 +57,10 @@ fn finding_alys_runs_the_scene_and_alys_leads() {
     for _ in 0..4000 {
         let events = rt.tick(Input::Neutral);
         for e in &events {
-            if matches!(e, RuntimeEvent::SceneDialogue { .. }) {
+            if matches!(
+                e,
+                RuntimeEvent::SceneDialogue { .. } | RuntimeEvent::SceneDialogueResume
+            ) {
                 dialogues += 1;
                 rt.dialogue_closed();
             }

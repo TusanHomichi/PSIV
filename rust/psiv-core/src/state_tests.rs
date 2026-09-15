@@ -176,9 +176,9 @@ fn a_meseta_chest_pays_in_hundreds() {
 }
 
 #[test]
-fn a_full_inventory_leaves_the_chest_shut_until_the_swap() {
+fn a_full_inventory_leaves_the_chest_flag_clear_until_the_swap() {
     // The grant happens before the flag is set, so a chest that could not
-    // give up its contents is still closed and can be opened again later.
+    // give up its contents remains unclaimed. The field object owns the lid.
     let mut state = GameState::new();
     for id in 1..=40 {
         state.inventory_mut().add(id).unwrap();
@@ -193,11 +193,26 @@ fn a_full_inventory_leaves_the_chest_shut_until_the_swap() {
         state.complete_chest_swap(&chest, 7).unwrap(),
         ChestOutcome::Took {
             item: 0x7D,
-            slot: 7
+            slot: 39
         }
     );
-    assert_eq!(state.inventory().get(7), Some(0x7D));
+    assert_eq!(state.inventory().get(7), Some(9));
+    assert_eq!(state.inventory().get(38), Some(40));
+    assert_eq!(state.inventory().get(39), Some(0x7D));
     assert!(state.chest_is_open(&chest));
+}
+
+#[test]
+fn an_invalid_chest_swap_does_not_remove_the_selected_item() {
+    let mut state = GameState::new();
+    for id in 1..=40 {
+        state.inventory_mut().add(id).unwrap();
+    }
+    let before = state.snapshot();
+    assert!(state.complete_chest_swap(&item_chest(24, 0), 7).is_err());
+    assert_eq!(state.snapshot(), before);
+    assert!(state.complete_chest_swap(&item_chest(24, 125), 40).is_err());
+    assert_eq!(state.snapshot(), before);
 }
 
 #[test]

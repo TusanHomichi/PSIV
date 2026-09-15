@@ -41,6 +41,7 @@ const RETAIL_SCENE_PORTRAIT_OFFSET: Vector2 = Vector2::new(-16.0, 8.0);
 /// Above the field, above the party, above anything a later overlay adds.
 const Z_INDEX: i32 = 1000;
 
+mod choice;
 mod text_flow;
 pub use text_flow::{DialogueAction, Opening, TextFlow};
 
@@ -195,6 +196,13 @@ pub struct DialogueWindow {
     portraits: HashMap<u8, Gd<ImageTexture>>,
     pack_dir: String,
     flow: Option<TextFlow>,
+    /// Retail's saved text address, including its original tree binding.
+    /// Map changes between dialogue chunks must not redirect the cursor.
+    suspended: Option<(u8, TextFlow)>,
+    choice_view: Option<choice::ChoiceView>,
+    choice_cursor: usize,
+    pending_choice: Option<bool>,
+    standalone_choice: bool,
     /// Frame width in cells while the box is opening; equals the full width
     /// once it is open.
     open_cells: i32,
@@ -208,6 +216,7 @@ pub struct DialogueWindow {
     /// Scene dialogue selects `WinGroup_Event` for its portrait window;
     /// ordinary talk keeps `WinGroup_Dialogue`.
     scene_dialogue: bool,
+    cutscene_portrait: bool,
     /// Glyphs revealed on the current page. Retail draws one character every
     /// 3 frames (oracle: logs/03_npc_talk.csv, writes to Win_Tile_Buffer on a
     /// strict 3-frame cadence — 20 chars/second); this counts revealed glyphs
@@ -226,11 +235,17 @@ impl INode2D for DialogueWindow {
             portraits: HashMap::new(),
             pack_dir: String::new(),
             flow: None,
+            suspended: None,
+            choice_view: None,
+            choice_cursor: 0,
+            pending_choice: None,
+            standalone_choice: false,
             open_cells: 0,
             event_flags: Vec::new(),
             pending_event: None,
             current_tree: 0,
             scene_dialogue: false,
+            cutscene_portrait: false,
             revealed: 0,
             reveal_tick: 0,
         }
@@ -319,6 +334,7 @@ impl DialogueWindow {
     /// Hands the window the pack. Until this is called it can only complain.
     pub fn configure(&mut self, pack_dir: &str, set: DialogueSet) {
         self.pack_dir = pack_dir.to_owned();
+        self.choice_view = choice::ChoiceView::build(pack_dir, &set);
         match WindowView::build(pack_dir, &set) {
             Some(view) => self.view = Some(view),
             None => godot_error!("dialogue: window or font art failed to load from {pack_dir}"),
@@ -329,12 +345,14 @@ impl DialogueWindow {
     /// Opens an NPC's line: the map's dialogue tree (1-based) and the object's
     /// `dialogue_id`. Returns whether a window actually opened.
     pub fn open_dialogue(&mut self, tree: u8, dialogue_id: u16) -> bool {
+        self.cutscene_portrait = false;
         self.open_dialogue_with_mode(tree, dialogue_id, false)
     }
 
-    /// Opens a scene-owned line. Retail scene dialogue uses the event window
-    /// group for its portrait, while the text map remains at `(4,21)`.
-    pub fn open_scene_dialogue(&mut self, tree: u8, dialogue_id: u16) -> bool {
+    /// Opens a scene-owned line, preserving F7 pauses regardless of whether
+    /// the original flags select the field or panel portrait position.
+    pub fn open_scene_dialogue(&mut self, tree: u8, dialogue_id: u16, panel_layout: bool) -> bool {
+        self.cutscene_portrait = panel_layout;
         self.open_dialogue_with_mode(tree, dialogue_id, true)
     }
 
@@ -344,6 +362,8 @@ impl DialogueWindow {
         dialogue_id: u16,
         scene_dialogue: bool,
     ) -> bool {
+        self.suspended = None;
+        self.standalone_choice = false;
         let Some(set) = self.set.as_ref() else {
             godot_error!("dialogue: no pack loaded; call configure() first");
             return false;
@@ -369,6 +389,7 @@ impl DialogueWindow {
 
     /// Opens an entry the caller already resolved.
     pub fn open(&mut self, entry: &DialogueEntry) -> bool {
+        self.suspended = None;
         self.scene_dialogue = false;
         let opening = TextFlow::open_with_flags(entry, &self.event_flags);
         if let Opening::Jump(next) = opening {
@@ -383,6 +404,21 @@ impl DialogueWindow {
     /// Field hands in the current event-flag bank before opening dialogue.
     pub fn set_event_flags(&mut self, flags: Vec<bool>) {
         self.event_flags = flags;
+    }
+
+    /// Resume the scene's saved stream after its movement/presentation ops.
+    pub fn resume_scene_dialogue(&mut self, panel_layout: bool) -> bool {
+        self.cutscene_portrait = panel_layout;
+        let Some((tree, flow)) = self.suspended.take() else {
+            godot_error!("dialogue: scene resume has no saved cursor");
+            return false;
+        };
+        self.current_tree = tree;
+        self.scene_dialogue = true;
+        match flow.resume_scene(&self.event_flags) {
+            Opening::Jump(entry) => self.open_scene_dialogue(tree, entry, self.cutscene_portrait),
+            opening => self.start(opening, &format!("resumed tree {tree}")),
+        }
     }
 
     /// A `$F6` event the dialogue fired, once. Field starts the scene.
@@ -438,6 +474,30 @@ impl DialogueWindow {
         self.open(&entry)
     }
 
+    /// Displays a static field-status window using the normal frame and font.
+    pub(crate) fn open_status(&mut self, lines: &[String]) -> bool {
+        let mut segments = Vec::new();
+        for (i, line) in lines.iter().enumerate() {
+            if i != 0 {
+                segments.push(psiv_data::Segment::Control(psiv_data::Ctrl::Newline {
+                    code: 0xFC,
+                    operands: Vec::new(),
+                }));
+            }
+            segments.push(psiv_data::Segment::Text(line.clone()));
+        }
+        let entry = DialogueEntry {
+            id: 0,
+            text: lines.join("\n"),
+            segments,
+            pages: Vec::new(),
+        };
+        let opened = self.open(&entry);
+        // These windows load tile strings at once, without the dialogue typewriter.
+        self.revealed = lines.iter().map(|line| line.chars().count()).sum();
+        opened
+    }
+
     /// The accept press.
     pub fn advance(&mut self) {
         if self.is_opening() {
@@ -445,6 +505,7 @@ impl DialogueWindow {
         }
         let mut reopen = false;
         let mut closed = false;
+        let mut suspended = false;
         if let Some(flow) = self.flow.as_mut() {
             reopen = flow.page_end() == Some(PageEnd::Close);
             let total: usize = flow.lines().iter().map(|l| l.chars().count()).sum();
@@ -456,13 +517,24 @@ impl DialogueWindow {
                 // assumption was wrong). Swallow the press.
                 return;
             }
-            flow.advance();
+            if flow.page_end().is_some()
+                && std::env::var("PSIV_DEBUG_INPUT").is_ok_and(|value| value == "1")
+            {
+                godot_print!("dialogue page {:?}: {:?}", flow.page_end(), flow.lines());
+            }
+            suspended = self.scene_dialogue && flow.pause_for_scene();
+            if !suspended {
+                flow.advance();
+            }
             self.revealed = 0;
             self.reveal_tick = 0;
             closed = !flow.is_open();
         }
         self.drain_log();
         if closed {
+            if suspended {
+                self.suspended = self.flow.take().map(|flow| (self.current_tree, flow));
+            }
             self.close();
             return;
         }
@@ -481,6 +553,22 @@ impl DialogueWindow {
     #[must_use]
     pub fn is_open(&self) -> bool {
         self.flow.is_some()
+    }
+
+    /// Read-only rendered page observation for native input routes.
+    pub(crate) fn debug_page(&self) -> Option<serde_json::Value> {
+        self.flow.as_ref().map(|flow| {
+            serde_json::json!({
+                "tree": self.current_tree,
+                "lines": flow.lines(),
+                "end": format!("{:?}", flow.page_end()),
+                "ready": self.is_dismissable(),
+            })
+        })
+    }
+
+    pub(crate) fn has_suspended_scene_dialogue(&self) -> bool {
+        self.suspended.is_some()
     }
 
     /// Whether the arrow is up and the window is waiting to be advanced.
@@ -514,20 +602,37 @@ impl DialogueWindow {
 
     /// Applies mid-message `$FA` jumps and `$F6` events the flow raised.
     fn service_flow_signals(&mut self) {
-        let (jump, event) = match self.flow.as_mut() {
-            Some(flow) => (flow.take_jump(), flow.take_event()),
-            None => (None, None),
-        };
-        if let Some(event) = event {
-            self.pending_event = Some(event);
-            self.close();
+        for _ in 0..16 {
+            let (jump, event) = match self.flow.as_mut() {
+                Some(flow) => (flow.take_jump(), flow.take_event()),
+                None => (None, None),
+            };
+            if let Some(event) = event {
+                self.pending_event = Some(event);
+                self.close();
+                return;
+            }
+            let Some(next) = jump else {
+                return;
+            };
+            let entry = self
+                .set
+                .as_ref()
+                .and_then(|set| set.entry(self.current_tree, next));
+            match (self.flow.as_mut(), entry) {
+                (Some(flow), Some(entry)) => flow.continue_at(entry),
+                _ => {
+                    godot_error!(
+                        "dialogue: missing branch entry {next} in tree {}",
+                        self.current_tree
+                    );
+                    self.close();
+                    return;
+                }
+            }
         }
-        if let Some(next) = jump {
-            let tree = self.current_tree;
-            let scene_dialogue = self.scene_dialogue;
-            self.close();
-            self.open_dialogue_with_mode(tree, next, scene_dialogue);
-        }
+        godot_error!("dialogue: in-stream branch chain too deep");
+        self.close();
     }
 
     fn start(&mut self, opening: Opening, who: &str) -> bool {
@@ -548,6 +653,9 @@ impl DialogueWindow {
             Opening::Window(flow) => {
                 self.flow = Some(*flow);
                 self.open_cells = 0;
+                self.revealed = 0;
+                self.reveal_tick = 0;
+                self.choice_cursor = 0;
                 self.drain_log();
                 self.sync_portrait();
                 self.place();
@@ -713,7 +821,7 @@ impl DialogueWindow {
                     texture: texture.clone(),
                     dest: Rect2::new(
                         view.portrait_offset
-                            + if self.scene_dialogue {
+                            + if self.scene_dialogue && self.cutscene_portrait {
                                 RETAIL_SCENE_PORTRAIT_OFFSET
                             } else {
                                 Vector2::ZERO
@@ -734,6 +842,11 @@ impl DialogueWindow {
             }
         }
 
+        if self.choice_ready()
+            && let Some(choice) = self.choice_view.as_ref()
+        {
+            quads.extend(choice.quads(view, self.choice_cursor));
+        }
         Some(DrawList { fill, quads, arrow })
     }
 

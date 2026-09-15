@@ -103,6 +103,30 @@ pub enum Command {
     AttackTarget(FighterId),
     /// Take physical resistance until the round ends.
     Defend,
+    /// Activate one concrete inventory/equipment item.
+    Item {
+        /// Cartridge item id, checked against the selected source on execution.
+        item: u8,
+        /// The selected copy.
+        source: super::item::ItemSource,
+        /// Recipient for a single-target effect.
+        target: Option<FighterId>,
+    },
+    /// Cast a known technique. Single-target techniques carry a fighter id;
+    /// group techniques ignore it and select their range from the data record.
+    Technique {
+        /// One-based cartridge technique id.
+        technique: u8,
+        /// Selected fighter for a single-target technique.
+        target: Option<FighterId>,
+    },
+    /// Spend one use of a character skill.
+    Skill {
+        /// One-based cartridge skill id, not its learned-slot index.
+        skill: u8,
+        /// Target for a single-target skill; group skills ignore this.
+        target: Option<FighterId>,
+    },
     /// Spend one saved vehicle skill use and resolve the turn.
     ///
     /// The skill effect itself remains a Tier-2 seam. The engine owns the
@@ -159,6 +183,8 @@ pub struct Battle {
     run_chance: Option<u8>,
     /// Whether this is the one-fighter vehicle battle surface.
     vehicle: bool,
+    /// Shared enemy-object sequence byte `$FFFFEE98`, reset at battle start.
+    zio_phase: u8,
 }
 
 impl Battle {
@@ -222,6 +248,12 @@ impl Battle {
                 enemies.push(id);
             }
         }
+        super::enemy_skill::initialize_enemies(&mut roster);
+        enemies.retain(|id| {
+            roster
+                .get(*id)
+                .is_some_and(super::fighters::Fighter::is_alive)
+        });
 
         let priority = roll_priority(
             roster.highest_party_agility(),
@@ -244,6 +276,7 @@ impl Battle {
                 last_ability_index: None,
                 run_chance: formation.can_run().then_some(formation.run_chance),
                 vehicle,
+                zio_phase: 0,
             },
             events,
         ))
@@ -285,7 +318,11 @@ impl Battle {
                 fighter.character.map(|character| PartyMember {
                     character,
                     name: fighter.name,
-                    stats: fighter.stats,
+                    stats: {
+                        let mut stats = fighter.stats;
+                        stats.refresh_battle_stats();
+                        stats
+                    },
                 })
             })
             .collect()
@@ -325,6 +362,21 @@ impl Battle {
         &mut self,
         orders: &RoundOrders,
         data: &BattleData,
+        rolls: &mut impl Rolls,
+    ) -> Result<Vec<BattleEvent>, BattleDataError> {
+        self.round_with_inventory(orders, data, &mut crate::Inventory::new(), rolls)
+    }
+
+    /// Resolves a round against the caller's live shared inventory. Item
+    /// consumption is committed on execution, including escape or defeat.
+    ///
+    /// # Errors
+    /// [`BattleDataError`] for an equipment or level-table lookup that fails.
+    pub fn round_with_inventory(
+        &mut self,
+        orders: &RoundOrders,
+        data: &BattleData,
+        inventory: &mut crate::Inventory,
         rolls: &mut impl Rolls,
     ) -> Result<Vec<BattleEvent>, BattleDataError> {
         if self.outcome.is_some() {
@@ -372,7 +424,25 @@ impl Battle {
             if self.settle_outcome().is_some() {
                 break;
             }
-            self.take_turn(entry, orders, &enemy_targets, data, rolls, &mut events)?;
+            self.take_turn(
+                entry,
+                orders,
+                &enemy_targets,
+                data,
+                rolls,
+                TurnResources {
+                    inventory,
+                    events: &mut events,
+                },
+            )?;
+            if self.outcome == Some(Outcome::ScriptedExit) {
+                // Object $914 changes Game_Mode_Index immediately. The
+                // remaining queue and end-of-round recovery never run.
+                events.push(BattleEvent::Ended {
+                    outcome: Outcome::ScriptedExit,
+                });
+                return Ok(events);
+            }
         }
 
         // `Battle_RestoreStatsAtTurnEnd` — Defend wears off here, which is why
@@ -380,6 +450,7 @@ impl Battle {
         for fighter in self.roster.iter_mut() {
             fighter.stats.restore_physical_prop();
         }
+        super::skill::recover_round_status(&mut self.roster, rolls, &mut events);
         events.push(BattleEvent::RoundEnded { round: self.round });
 
         if let Some(outcome) = self.settle_outcome() {
@@ -408,8 +479,9 @@ impl Battle {
         enemy_targets: &[Option<FighterId>],
         data: &BattleData,
         rolls: &mut impl Rolls,
-        events: &mut Vec<BattleEvent>,
+        resources: TurnResources<'_>,
     ) -> Result<(), BattleDataError> {
+        let TurnResources { inventory, events } = resources;
         let actor = entry.fighter;
         let Some(fighter) = self.roster.get(actor) else {
             return Ok(());
@@ -430,6 +502,19 @@ impl Battle {
             });
             return Ok(());
         }
+        // loc_5772 checks $EE, including transient bit 7. Keep that bit out
+        // of persistent Stats, but do not let a replaced queued fighter act.
+        if events.iter().any(|event| match event {
+            BattleEvent::Revived { target, .. } => *target == actor,
+            BattleEvent::EnemyReplenished { fighter, .. } => *fighter == actor,
+            _ => false,
+        }) {
+            events.push(BattleEvent::TurnSkipped {
+                actor,
+                reason: Skipped::JustRevived,
+            });
+            return Ok(());
+        }
 
         let intended = match actor.side() {
             Side::Party => match orders.command_for(actor.slot()) {
@@ -441,6 +526,65 @@ impl Battle {
                 }
                 Command::Attack => None,
                 Command::AttackTarget(target) => Some(target),
+                Command::Item {
+                    item,
+                    source,
+                    target,
+                } => {
+                    if self.vehicle {
+                        events.push(BattleEvent::ItemRejected {
+                            actor,
+                            item,
+                            reason: super::item::ItemRejection::Unavailable,
+                        });
+                        return Ok(());
+                    }
+                    let died = super::item::resolve_item(
+                        &mut self.roster,
+                        inventory,
+                        actor,
+                        (item, source, target),
+                        data,
+                        rolls,
+                        events,
+                    );
+                    self.reward_defeated(&died, data)?;
+                    return Ok(());
+                }
+                Command::Skill { skill, target } => {
+                    if self.vehicle {
+                        events.push(BattleEvent::SkillRejected {
+                            actor,
+                            skill,
+                            reason: super::skill::SkillRejection::Unavailable,
+                        });
+                        return Ok(());
+                    }
+                    let died = super::skill::resolve_skill(
+                        &mut self.roster,
+                        actor,
+                        skill,
+                        target,
+                        data,
+                        rolls,
+                        events,
+                    )?;
+                    self.reward_defeated(&died, data)?;
+                    return Ok(());
+                }
+                Command::Technique { technique, target } => {
+                    let died = super::technique::resolve_technique(
+                        &mut self.roster,
+                        actor,
+                        technique,
+                        target,
+                        data,
+                        rolls,
+                        events,
+                    );
+                    self.reward_defeated(&died, data)?;
+                    return Ok(());
+                }
                 Command::VehicleSkill(skill) => {
                     let valid = self.vehicle
                         && skill
@@ -483,12 +627,25 @@ impl Battle {
                 }
             },
             Side::Enemy => {
-                self.roll_enemy_ability(actor, data, rolls, events)?;
-                // Enemy slot 6..=9 maps to enemy_targets 0..=3.
-                enemy_targets
+                // loc_5A98 / loc_5ACE refresh a dead or just-revived target
+                // before Enemy_Attack's ability roll. Retargeting consumes
+                // another weighted party-target roll, including one survivor.
+                let intended = enemy_targets
                     .get(actor.slot() - super::fighters::PARTY_SLOTS)
                     .copied()
                     .flatten()
+                    .filter(|target| {
+                        self.roster.get(*target).is_some_and(|f| f.is_alive())
+                            && !events.iter().any(|e| {
+                                matches!(e,
+                                BattleEvent::Revived { target: revived, .. } if revived == target)
+                            })
+                    })
+                    .or_else(|| choose_target(&targetable_party(&self.roster), rolls));
+                if self.roll_enemy_ability(actor, intended, data, rolls, events)? {
+                    return Ok(());
+                }
+                intended
             }
         };
 
@@ -510,7 +667,9 @@ impl Battle {
 
     /// `Enemy_Attack`'s opening — the ability roll, always taken.
     ///
-    /// Tier 1 implements the plain attack (ability `0`) only. When the roll
+    /// Fission and Acid Breath dispatch after the ordinary ability roll and
+    /// empty-space condition. Unsupported abilities retain the fallback.
+    /// When the roll
     /// lands on a real ability the enemy still swings physically, and an
     /// [`BattleEvent::UnsupportedAbility`] says so rather than letting a wrong
     /// number pass for a right one. 53 of the cartridge's 153 enemies —
@@ -519,22 +678,91 @@ impl Battle {
     fn roll_enemy_ability(
         &mut self,
         actor: FighterId,
+        intended: Option<FighterId>,
         data: &BattleData,
         rolls: &mut impl Rolls,
         events: &mut Vec<BattleEvent>,
-    ) -> Result<(), BattleDataError> {
+    ) -> Result<bool, BattleDataError> {
         let enemy_id = self.roster.get(actor).map_or(0, |f| f.stats.enemy_id);
         let record = data.enemy(enemy_id)?;
-        // Tier 2 walks `condition_ids` here and can substitute a conditional
-        // ability; Tier 1's conditions never fire.
-        let (_, ability) = choose_ability(record, &mut self.last_ability_index, rolls);
+        let (_, mut ability) = choose_ability(record, &mut self.last_ability_index, rolls);
+        let replacement =
+            super::enemy_skill::fission_neighbor(&self.roster, actor, record, &mut ability, rolls);
         if let Some(fighter) = self.roster.get_mut(actor) {
             fighter.ability = ability;
+        }
+        if enemy_id == 152 {
+            // EnemyAttack_Zio3 overrides the rolled skill with its object
+            // sequence. Its final ability $70 names out-of-range effect
+            // $2C, but object $914 never dispatches that effect at all.
+            use super::FirstZioAction;
+            let (action, skill) = match self.zio_phase {
+                0 => (FirstZioAction::MagicBarrier, 0x6B),
+                1 => (FirstZioAction::Invocation, 0),
+                2 => (FirstZioAction::Pause, 0),
+                3 => (FirstZioAction::Nightmare, 0x53),
+                4 => (FirstZioAction::BlackWave, 0x70),
+                _ => (FirstZioAction::Pause, 0),
+            };
+            self.zio_phase = self.zio_phase.saturating_add(1);
+            self.roster.get_mut(actor).expect("acting enemy").ability = skill;
+            let target = if action == FirstZioAction::BlackWave {
+                self.roster
+                    .side(Side::Party)
+                    .find(|f| f.character == Some(1))
+                    .or_else(|| self.roster.side(Side::Party).next())
+                    .map(|f| f.id)
+            } else {
+                None
+            };
+            events.push(BattleEvent::FirstZioAction {
+                actor,
+                action,
+                target,
+            });
+            if action == FirstZioAction::BlackWave {
+                self.outcome = Some(Outcome::ScriptedExit);
+            }
+            return Ok(true);
+        }
+        if let Some(target) = replacement
+            && super::enemy_skill::resolve_fission(
+                &mut self.roster,
+                actor,
+                ability,
+                target,
+                data,
+                events,
+            )?
+        {
+            return Ok(true);
+        }
+        if super::enemy_skill::resolve_acid_breath(
+            &mut self.roster,
+            actor,
+            ability,
+            intended,
+            data,
+            rolls,
+            events,
+        ) {
+            return Ok(true);
+        }
+        if super::enemy_skill::resolve_thread(
+            &mut self.roster,
+            actor,
+            ability,
+            intended,
+            data,
+            rolls,
+            events,
+        ) {
+            return Ok(true);
         }
         if ability != 0 {
             events.push(BattleEvent::UnsupportedAbility { actor, ability });
         }
-        Ok(())
+        Ok(false)
     }
 
     /// `Battle_ProcessRUN` — `ps4.asm:7672`.
@@ -551,7 +779,7 @@ impl Battle {
         if priority == Priority::Preemptive {
             return Escape::Succeeded;
         }
-        if !self.roster.side(Side::Enemy).any(|f| f.stats.can_act()) {
+        if !self.roster.living(Side::Enemy).any(|f| f.stats.can_act()) {
             return Escape::Succeeded;
         }
         let Some(chance) = self.run_chance else {
@@ -575,6 +803,26 @@ impl Battle {
         }
     }
 
+    fn reward_defeated(
+        &mut self,
+        died: &[FighterId],
+        data: &BattleData,
+    ) -> Result<(), BattleDataError> {
+        for &fighter in died {
+            if fighter.side() == Side::Enemy {
+                let id = self
+                    .roster
+                    .get(fighter)
+                    .expect("target present")
+                    .stats
+                    .enemy_id;
+                let record = data.enemy(id)?;
+                self.pools.add(record.experience, record.meseta);
+            }
+        }
+        Ok(())
+    }
+
     fn settle_outcome(&self) -> Option<Outcome> {
         if !self.roster.any_alive(Side::Enemy) {
             Some(Outcome::Victory)
@@ -589,6 +837,11 @@ impl Battle {
 enum Escape {
     Succeeded,
     Failed,
+}
+
+struct TurnResources<'a> {
+    inventory: &'a mut crate::Inventory,
+    events: &'a mut Vec<BattleEvent>,
 }
 
 #[cfg(test)]

@@ -10,7 +10,8 @@ pub struct EnemiesFile {
     pub format_version: u32,
     /// How many records the file declares.
     pub count: u32,
-    /// The element-property slot names, in record order.
+    /// Census of element-property names (alphabetical in extracted packs).
+    /// This list is not the cartridge's element-id order.
     #[serde(default)]
     pub properties: Vec<String>,
     /// The records, in id order.

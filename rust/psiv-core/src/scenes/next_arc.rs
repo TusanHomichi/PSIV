@@ -8,9 +8,10 @@
 //! panel allocator. The actual field walks use ordinary `MoveActorTo` ops so
 //! their start and arrival edges reach `FieldMap`.
 
-use super::{GRYZ, RUNE};
+use super::{ALYS, CHAZ, GRYZ, HAHN, RUNE};
 use crate::geom::Direction;
-use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
+use crate::scene::{ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, SceneOp};
+use crate::scene_presentation::PresentationOp;
 use crate::scene_runner::Scene;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
@@ -156,7 +157,9 @@ pub static MEETING_RUNE: Scene = Scene {
     ops: MEETING_RUNE_OPS,
 };
 
-/// `Event_MeetingDorin` — retail `$06EEBE..$06F1A3`, 742 bytes, 20 ops.
+/// `Event_MeetingDorin` — retail `$06EEBE..$06F1A3`, 742 bytes, 36 ops.
+/// Conversation branches and party movement are implemented. Temporary
+/// punch/startle objects still need their retail staging and keyframes.
 static MEETING_DORIN_OPS: &[SceneOp] = &[
     SceneOp::PlaySound { id: MUSIC_STOP },
     SceneOp::Wait { ticks: 10 },
@@ -171,6 +174,7 @@ static MEETING_DORIN_OPS: &[SceneOp] = &[
         source: DialogueSource::Entry(DialogueId(0x18)),
         window: DialogueWindow::Standard,
     },
+    SceneOp::BranchDialogueEnd { if_ended: 32 },
     // C480/C540/C4C0 are temporary punch, anger-line and startled-Dorin
     // objects. Their frame/keyframe work is kept as literal presentation ops.
     SceneOp::ObjectAnimation {
@@ -191,14 +195,15 @@ static MEETING_DORIN_OPS: &[SceneOp] = &[
         art_tile: 0,
         frames: 0xA,
     },
+    SceneOp::SetFollowMode { bits: 1 },
     SceneOp::MoveActorTo {
-        actor: NPC_0,
+        actor: ActorRef::Character(ALYS),
         x: 0x200,
         y: 0x1E0,
         wait: true,
     },
     SceneOp::Face {
-        actor: NPC_0,
+        actor: ActorRef::Character(ALYS),
         facing: Direction::Left,
     },
     SceneOp::PlaySound { id: 0xBE }, // SFX_Foi at the punch keyframe
@@ -222,11 +227,54 @@ static MEETING_DORIN_OPS: &[SceneOp] = &[
         frames: 1,
     },
     SceneOp::RunDialogueResume,
+    // loc_6F112 compares Y again in retail: equal Y always faces right.
+    SceneOp::BranchIfAligned {
+        a: ActorRef::Character(RUNE),
+        b: NPC_0,
+        axis: Axis::Y,
+        if_aligned: 22,
+        if_not: 21,
+    },
+    SceneOp::BranchIfActorGreater {
+        a: ActorRef::Character(RUNE),
+        b: NPC_0,
+        axis: Axis::Y,
+        if_greater: 24,
+        if_not: 26,
+    },
+    SceneOp::Face {
+        actor: NPC_0,
+        facing: Direction::Right,
+    },
+    SceneOp::Jump { to: 27 },
+    SceneOp::Face {
+        actor: NPC_0,
+        facing: Direction::Down,
+    },
+    SceneOp::Jump { to: 27 },
+    SceneOp::Face {
+        actor: NPC_0,
+        facing: Direction::Up,
+    },
+    SceneOp::RunDialogueResume,
+    SceneOp::ObjectAnimation {
+        slot: 7,
+        object_id: 0,
+        art_tile: 0,
+        frames: 1,
+    },
+    SceneOp::SetFollowMode { bits: 0 },
     SceneOp::SetFlag {
         flag: Flag::event(0x36),
         value: true,
     },
-    SceneOp::Return { value: 1 },
+    SceneOp::Return { value: 1 }, // A normal FF reply exits without the punch or story flag.
+    SceneOp::PlaySound { id: MUSIC_STOP },
+    SceneOp::Wait { ticks: 10 },
+    SceneOp::PlaySound {
+        id: MUSIC_TONOE_DE_PON,
+    },
+    SceneOp::Return { value: 0 },
 ];
 
 /// Dorin's pre-cutscene conversation. It sets the trigger flag consumed by
@@ -310,7 +358,7 @@ pub static DORIN: Scene = Scene {
     ops: DORIN_OPS,
 };
 
-/// `Event_RuneFlaeli` — retail `$06D7C2..$06DBD7`, 1046 bytes, 27 ops.
+/// `Event_RuneFlaeli` — retail `$06D7C2..$06DBD7`, 1046 bytes.
 static RUNE_FLAELI_OPS: &[SceneOp] = &[
     // Four NemDecomp uploads: `$179`, `$191`, `$1FB`, `$20C`, followed by
     // the palette-line copy at `$1DE0B8`.
@@ -338,9 +386,24 @@ static RUNE_FLAELI_OPS: &[SceneOp] = &[
         source: DialogueSource::Entry(DialogueId(0x26)),
         window: DialogueWindow::Standard,
     },
+    SceneOp::SetActorDest {
+        actor: ActorRef::Character(CHAZ),
+        x: 0x1F0,
+        y: 0x260,
+    },
+    SceneOp::SetActorDest {
+        actor: ActorRef::Character(ALYS),
+        x: 0x200,
+        y: 0x260,
+    },
+    SceneOp::SetActorDest {
+        actor: ActorRef::Character(HAHN),
+        x: 0x200,
+        y: 0x270,
+    },
     SceneOp::SetFollowMode { bits: 0x05 },
     SceneOp::MoveActorTo {
-        actor: LEADER,
+        actor: ActorRef::Character(RUNE),
         x: 0x1F0,
         y: 0x240,
         wait: true,
@@ -348,28 +411,83 @@ static RUNE_FLAELI_OPS: &[SceneOp] = &[
     SceneOp::Wait { ticks: 60 },
     SceneOp::SetFollowMode { bits: 0x04 },
     SceneOp::Face {
-        actor: LEADER,
+        actor: ActorRef::Character(CHAZ),
+        facing: Direction::Up,
+    },
+    SceneOp::Face {
+        actor: ActorRef::Character(ALYS),
+        facing: Direction::Up,
+    },
+    SceneOp::Face {
+        actor: ActorRef::Character(HAHN),
         facing: Direction::Up,
     },
     SceneOp::Wait { ticks: 30 },
-    SceneOp::RunDialogueResume,
-    SceneOp::Wait { ticks: 60 },
-    SceneOp::ObjectAnimation {
-        slot: 0,
-        object_id: 0x214,
-        art_tile: 0x179,
-        frames: 60,
+    SceneOp::Face {
+        actor: ActorRef::Character(RUNE),
+        facing: Direction::Up,
     },
-    SceneOp::PlaySound { id: SFX_MEGID },
+    SceneOp::Wait { ticks: 60 },
+    SceneOp::RunDialogueResume,
+    SceneOp::Presentation {
+        op: PresentationOp::SetCharacterVisible {
+            who: RUNE,
+            visible: false,
+        },
+    },
+    // The object loop is 240 updates. Rune spawns Flaeli on update 70;
+    // Flaeli enables the debris counter 26 updates later. The live layout
+    // write is ten counter ticks after that (ECF3 == $32), before flag $13.
     SceneOp::ObjectAnimation {
         slot: 0,
         object_id: 0x214,
         art_tile: 0x179,
-        frames: 180,
+        frames: 240,
+    },
+    SceneOp::Presentation {
+        op: PresentationOp::SetObjectDestination {
+            slot: 0,
+            x: 0x1F0,
+            y: 0x240,
+        },
+    },
+    SceneOp::WaitFrames { frames: 70 },
+    SceneOp::PlaySound { id: 0xBD },
+    SceneOp::ObjectAnimation {
+        slot: 1,
+        object_id: 0x218,
+        art_tile: 0x191,
+        frames: 50,
+    },
+    SceneOp::Presentation {
+        op: PresentationOp::SetObjectDestination {
+            slot: 1,
+            x: 0x1F0,
+            y: 0x240,
+        },
+    },
+    SceneOp::WaitFrames { frames: 26 },
+    SceneOp::PlaySound { id: SFX_MEGID },
+    SceneOp::WaitFrames { frames: 10 },
+    // loc_6DBAC: BG chunks (15,14)=$0C,$0D; (15,15)=$14,$15.
+    SceneOp::RestoreMapChunks {
+        chunks: &[
+            (15, 14, 0x0C),
+            (16, 14, 0x0D),
+            (15, 15, 0x14),
+            (16, 15, 0x15),
+        ],
+    },
+    SceneOp::WaitFrames { frames: 134 },
+    SceneOp::Presentation {
+        op: PresentationOp::SetCharacterVisible {
+            who: RUNE,
+            visible: true,
+        },
     },
     SceneOp::WaitFrames { frames: 10 },
     SceneOp::Face {
-        actor: LEADER,
+        actor: ActorRef::Character(RUNE),
         facing: Direction::Down,
     },
     SceneOp::SetFollowMode { bits: 0 },
@@ -379,12 +497,14 @@ static RUNE_FLAELI_OPS: &[SceneOp] = &[
         speed: 2,
     },
     SceneOp::RunDialogueResume,
+    SceneOp::SetFollowMode { bits: 0x02 },
     SceneOp::MoveActorTo {
         actor: LEADER,
         x: 0x1F0,
         y: 0x220,
         wait: true,
     },
+    SceneOp::SetFollowMode { bits: 0 },
     SceneOp::MoveCamera {
         x: 0x1F0,
         y: 0x220,
@@ -429,7 +549,7 @@ pub static ALSHLINE_FOUND: Scene = Scene {
     ops: ALSHLINE_FOUND_OPS,
 };
 
-/// `Cutscene_Alshline` — retail `$0741E6..$074555`, 880 bytes, 85 ops.
+/// `Cutscene_Alshline` — retail `$0741E6..$074555`, 880 bytes, 86 ops.
 static ALSHLINE_OPS: &[SceneOp] = &[
     SceneOp::InitVramAndCram,
     SceneOp::PlaySound { id: MUSIC_STOP },
@@ -509,6 +629,7 @@ static ALSHLINE_OPS: &[SceneOp] = &[
     SceneOp::PanelCreate { id: 0x26 },
     SceneOp::DmaPlanes,
     SceneOp::WaitFrames { frames: 10 },
+    SceneOp::SetRenderSpritesInCutscene { enabled: true },
     SceneOp::RunDialogueResume,
     SceneOp::RecoverStats,
     SceneOp::SetMapLoadFlags {
@@ -532,11 +653,12 @@ static ALSHLINE_OPS: &[SceneOp] = &[
         rom_addr: 0x0012951A,
         tile: 0x3A5,
     },
-    SceneOp::ObjectAnimation {
+    SceneOp::CreateFieldObject {
         slot: 7,
         object_id: 0x188,
         art_tile: 0x3A5,
-        frames: 1,
+        x: 0x1E0,
+        y: 0xA0,
     },
     SceneOp::MoveActorTo {
         actor: LEADER,
@@ -551,11 +673,11 @@ static ALSHLINE_OPS: &[SceneOp] = &[
         speed: 1,
     },
     SceneOp::PlaySound { id: SFX_FUSION },
-    SceneOp::ObjectAnimation {
+    SceneOp::StepFieldObject {
         slot: 7,
-        object_id: 0x8000,
-        art_tile: 0x3A5,
-        frames: 63,
+        step_x: 0,
+        step_y: 0x8000,
+        frames: 64,
     },
     SceneOp::MoveCamera {
         x: 0x1E0,
@@ -597,7 +719,7 @@ pub static ALSHLINE: Scene = Scene {
 };
 
 /// `Cutscene_ZemaIgglanovaDefeated` — retail `$074556..$0745DD`, 136 bytes,
-/// 10 ops.
+/// 11 ops, including the original panel-dialogue flag write.
 static ZEMA_IGGLANOVA_DEFEATED_OPS: &[SceneOp] = &[
     SceneOp::PlaySound {
         id: MUSIC_MOTABIA_TOWN,
@@ -608,6 +730,7 @@ static ZEMA_IGGLANOVA_DEFEATED_OPS: &[SceneOp] = &[
     SceneOp::InitVramAndCram,
     SceneOp::FadeIn,
     SceneOp::SetDialogueTree { rom_addr: TREE_3 },
+    SceneOp::SetRenderSpritesInCutscene { enabled: true },
     SceneOp::RunDialogue {
         source: DialogueSource::Entry(DialogueId(0x69)),
         window: DialogueWindow::Cutscene,

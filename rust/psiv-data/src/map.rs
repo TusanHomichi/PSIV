@@ -129,6 +129,10 @@ pub struct PatchTile {
     /// How many of the tile's 8px cells carry the priority bit.
     #[serde(default)]
     pub priority_tiles: u32,
+    /// Row-major 2x2 collision values for live scene writes. Older atlases
+    /// only carried map-load write cells and may omit this definition.
+    #[serde(default)]
+    pub collision: Option<[u8; 4]>,
 }
 
 /// One `MapDataManager` jump-table entry as it applies to this map.
@@ -167,9 +171,39 @@ pub struct EffectPath {
     /// Recognised-but-not-modelled instructions stepped over on this path.
     #[serde(default)]
     pub deferred: Vec<String>,
+    /// Decoded palette copies with their already-extracted NPC sheet variants.
+    #[serde(default)]
+    pub deferred_effects: Vec<PaletteEffect>,
     /// The writes this path performs.
     #[serde(default)]
     pub writes: Vec<EffectWrite>,
+}
+
+/// A formerly deferred CRAM copy resolved by the asset extractor.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaletteEffect {
+    /// The extractor currently resolves `palette_write` here.
+    pub resolved_as: String,
+    /// Sprite replacements produced with the copied palette.
+    pub affects: PaletteAffectedSprites,
+}
+
+/// The NPC assets affected by a palette copy. Map pixels use other CRAM lines.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaletteAffectedSprites {
+    /// Replacements retain the object's movement and dialogue identity.
+    pub npc_sheets: Vec<PaletteSpriteReplacement>,
+}
+
+/// One NPC's base sheet and the variant baked with the copied CRAM words.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PaletteSpriteReplacement {
+    /// Index in the map's object list.
+    pub npc_index: usize,
+    /// Base sheet expected by the extraction record.
+    pub from: String,
+    /// Sheet to draw when the enclosing path's gates hold.
+    pub to: String,
 }
 
 /// One flag condition on an effect path.
@@ -796,6 +830,9 @@ pub struct Treasure {
     /// The chest object's symbol.
     #[serde(default)]
     pub object_symbol: Option<String>,
+    /// Original closed/open lid art in the shared field-object sheet index.
+    #[serde(default)]
+    pub sprite: Option<SpriteRef>,
     /// Which of [`Treasure::item_id`] and [`Treasure::meseta`] is meaningful.
     pub contents_type: ContentsType,
     /// Set when `contents_type` is [`ContentsType::Item`].
@@ -839,12 +876,12 @@ pub struct Flags {
     pub poison: u8,
     /// Non-zero where random encounters roll.
     pub random_battles: u8,
-    /// Non-zero where the town-teleport technique may be used.
+    /// Non-zero blocks town teleport. Zero still requires no dungeon exit.
     pub town_teleport: u8,
     /// Which dungeon-teleport destination this map belongs to.
     ///
     /// `None` when the stored byte has bit 7 set, which the extractor reads as
-    /// "no index" rather than as index `$80 | n`. Nine retail maps do this: the
+    /// an inherited index: map load skips the store. Nine retail maps do this: the
     /// eight `ValleyMaze*` parts and `Passageway`.
     #[serde(default)]
     pub dungeon_teleport_index: Option<u8>,
@@ -863,7 +900,7 @@ impl Flags {
 
     /// May the town-teleport technique be used here?
     pub fn allows_town_teleport(&self) -> bool {
-        self.town_teleport != 0
+        self.town_teleport == 0
     }
 }
 
@@ -908,7 +945,7 @@ mod tests {
         };
         assert!(!flags.poisons());
         assert!(flags.rolls_random_battles());
-        assert!(!flags.allows_town_teleport());
+        assert!(flags.allows_town_teleport());
     }
 
     #[test]

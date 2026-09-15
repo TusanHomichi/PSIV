@@ -258,8 +258,9 @@ class TestManifest(PackFixtureCase):
             art = self.manifest["battle"]["art"]["files"]
             self.assertEqual(
                 len(under("battle")),
-                # The seven data files, plus each art index and its PNGs.
-                7 + len(art) + sum(entry["png_count"] for entry in art.values()),
+                # Seven data files, STATUS portraits, and each battle art index/PNG.
+                7 + self.manifest["battle"]["files"]["characters"]["portrait_png_count"]
+                + len(art) + sum(entry["png_count"] for entry in art.values()),
             )
             self.assertEqual(
                 len(under("sprites")),
@@ -293,6 +294,7 @@ class TestManifest(PackFixtureCase):
                     "maps",
                     "sound",
                     "presentation",
+                    "shops",
                 )
             )
             top_level = [f for f in first_files if len(f.parts) == 1]

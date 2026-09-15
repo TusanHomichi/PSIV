@@ -178,7 +178,36 @@ research bench. The native runtime consumes its output through the Rust/Godot
 workspace below; porting fixed-width big-endian readers and structs into that
 runtime is intentionally boring once the formats are proven.
 
-## Runtime status and next useful slice (2026-08-16)
+## Current goal and verification boundary (2026-09-12)
+
+The priority is a complete, playable native game on a modern computer:
+Godot presentation, Rust game logic, and extracted JSON/assets. The emulator
+is a development reference, not part of the game at play time. Mod authoring
+comes after native playability.
+
+The live audit found substantial gameplay gaps that the historical status
+below missed. Native battles now support individual attack/defend orders,
+target selection, and damage/healing/support techniques, including every
+technique the opening Chaz/Alys/Hahn party knows, plus their EARTH, VORTEX,
+and VISION skills with persistent remaining uses, plus all 26 usable battle-item
+records with shared inventory consumption and save/continue coverage. Fission,
+scene dialogue continuations, yes/no choices, and rest refills now work. A
+continuous Godot route now completes the Academy job, six battles, the
+principal's payment and the Motavia exit, then saves. A fresh title CONTINUE
+restores it and preserves all save state through movement and another save.
+Camp TECH/SKILL now support recovery, cures and revival with real resource
+costs and target/cancel controls. That Academy save now continues through
+Mile, Zema, Birth Valley and petrified Holt in Godot, with four more battles,
+camp healing, the 500-meseta story payment, and another restart/save check.
+FlattrPlnt Acid Breath, physical-attack poison/paralysis, weighted enemy
+retargeting and android death handling have gameplay implementations.
+Remaining abilities, camp utilities, field ailments, proper Game Over, later
+scene staging, and continuous Godot campaign proof still need work.
+Six pixel-identical screens do not prove a complete campaign. See
+[Native playability](docs/NATIVE_PLAYABILITY.md) for the evidence, repaired
+new-game initialization/handoff, native combat smoke run, and the implementation order.
+
+## Historical implementation record (2026-08-16 through 2026-08-18)
 
 The runtime has moved past the original field-only vertical slice. These are
 closed and tested in the current tree:
@@ -201,6 +230,9 @@ closed and tested in the current tree:
   `PSIV_LOAD_SLOT` boot hooks;
 - equip/unequip: scouted rules (`docs/EQUIP_SCOUT.md`), transactional core
   seam, and the interactive camp EQUIP screen;
+- party order: STATE/ORDER pick, undo, cancel and automatic last-slot
+  completion, with unchanged character records and verified SAVE/CONTINUE
+  (`docs/PARTY_ORDER.md`);
 - sound extraction: all 557 tracks (music/SFX/special), 327 voices, DAC
   banks, and the full driver vocabulary as raw records in
   `runtime-pack/sound/` (`docs/SOUND_EXTRACTION.md`);
@@ -289,12 +321,13 @@ animation census drained to **zero deferred** — all 153 enemies exact on
 every surface (1,355 attack PNGs, all 16 remaining routine bodies decoded
 from oracle sprite-table receipts, DarkForce1 included).
 
-**The certification is complete: all six certified screens — opening
+**All six selected reference screens — opening
 narration pages 1 and 2, MeetingRika, title, battle command idle, and the
-camp root — are pixel-identical to the GPGX oracle at rmse 0.000000**
+camp root — were recorded pixel-identical to the GPGX oracle at rmse 0.000000**
 (`docs/SCENE_PRESENTATION.md`, closing receipts dated 2026-08-18).
+This certifies those captures, not complete gameplay or continuous playback.
 
-The remaining backlog:
+The previously recorded remaining item (superseded by the audit above):
 
 1. Natural (non-fixture) vehicle oracle tapes — `31_natural_land_rover.tape`
    provides a 131,130-frame power-on prefix through the real Prof. Holt
@@ -302,8 +335,8 @@ The remaining backlog:
    `GettingLandRover` remains owed; tape 29's mount/dismount/mounted-battle
    receipt is still fixture-only.
 
-Maps, layouts, collision, encounter binding, all three Sega compression
-formats, and the completed items above are done and proven.
+The extraction and rendering receipts above remain useful. Gameplay
+completion follows the current native-playability ledger.
 
 ## The Rust runtime
 

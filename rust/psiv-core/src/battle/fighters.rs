@@ -101,13 +101,34 @@ pub struct Fighter {
     /// The ability id the enemy AI picked this round, `0` for a plain attack.
     /// Mirrors `ability` (`$24`) of the fighter object.
     pub ability: u8,
+    /// Whether the fighter object is occupied. Dormant formation neighbors
+    /// keep their cached identity/stats but cannot act or receive attacks.
+    pub active: bool,
 }
 
 impl Fighter {
+    /// Character_Dead ($84DE): retain sealing, clear other ailments, and
+    /// distinguish android shutdown from human death. Enemy object removal
+    /// is represented by the port's existing DEAD bit.
+    pub(super) fn mark_defeated(&mut self) {
+        use super::stats::status;
+        self.stats.curr_hp = 0;
+        if self.id.side() == Side::Party {
+            self.stats.status = (self.stats.status & status::TECH_SEALED)
+                | if self.stats.is_android() {
+                    status::ANDROID_DEAD
+                } else {
+                    status::DEAD
+                };
+        } else {
+            self.stats.status |= status::DEAD;
+        }
+    }
+
     /// Whether this fighter is still standing.
     #[must_use]
     pub const fn is_alive(&self) -> bool {
-        !self.stats.is_out()
+        self.active && !self.stats.is_out()
     }
 }
 
@@ -143,6 +164,7 @@ impl Roster {
             character: Some(character),
             stats,
             ability: 0,
+            active: true,
         });
         Some(id)
     }
@@ -164,6 +186,7 @@ impl Roster {
             character: None,
             stats: Stats::from_enemy(record),
             ability: 0,
+            active: true,
         });
         Some(id)
     }

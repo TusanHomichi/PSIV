@@ -19,8 +19,10 @@ mod cutscene;
 #[path = "debug.rs"]
 mod debug;
 mod dialogue;
+mod field_status;
 mod field_visuals;
 mod input;
+mod red_palette;
 mod runtime_events;
 mod shop;
 #[path = "sound_hooks.rs"]
@@ -99,6 +101,7 @@ struct Field {
     sheet_views: HashMap<String, SheetView>,
     camera: Option<Gd<Camera2D>>,
     dialogue: Option<Gd<DialogueWindow>>,
+    status_presentation: field_status::StatusPresentation,
     shop: Option<Gd<ShopWindow>>,
     camp_menu: Option<Gd<CampMenu>>,
     title: Option<title::TitleScreen>,
@@ -119,6 +122,7 @@ struct Field {
     transition: Option<transitions::Transition>,
     /// ColorRect pieces used by the active transition cover.
     transition_nodes: Vec<Gd<ColorRect>>,
+    red_palette: red_palette::RedPalette,
     /// True only for a high-bit cutscene whose retail scene has the full
     /// palette treatment; ordinary events retain their dialogue-window motion.
     scene_transition_active: bool,
@@ -144,6 +148,19 @@ struct Field {
 }
 
 #[godot_api]
+impl Field {
+    #[func]
+    fn debug_play_state(&self) -> GString {
+        self.play_probe()
+    }
+
+    #[func]
+    fn debug_walk_map(&self) -> GString {
+        self.walk_probe()
+    }
+}
+
+#[godot_api]
 impl INode2D for Field {
     fn init(base: Base<Node2D>) -> Self {
         Field {
@@ -161,6 +178,7 @@ impl INode2D for Field {
             sheet_views: HashMap::new(),
             camera: None,
             dialogue: None,
+            status_presentation: field_status::StatusPresentation::default(),
             shop: None,
             camp_menu: None,
             title: None,
@@ -176,6 +194,7 @@ impl INode2D for Field {
             letterbox: Vec::new(),
             transition: None,
             transition_nodes: Vec::new(),
+            red_palette: red_palette::RedPalette::default(),
             scene_transition_active: false,
             leader_char: 0,
             party_sequence: String::new(),
@@ -221,14 +240,6 @@ impl INode2D for Field {
                 return;
             }
         };
-
-        // Chaz is party slot 0.
-        self.party_view = data
-            .party_sheet(0)
-            .and_then(|sheet| SheetView::build(&self.pack_dir, sheet));
-        if self.party_view.is_none() {
-            godot_error!("party sheet 0 (Chaz) failed to load; falling back to nothing visible");
-        }
 
         // Spawn where the cartridge's new game actually hands over control:
         // Chaz alone in PiataAcademy_F1, facing down (game_start.json). Alys
@@ -371,7 +382,10 @@ impl INode2D for Field {
 
         let mut window = DialogueWindow::new_alloc();
         match psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
-            Ok(set) => window.bind_mut().configure(&self.pack_dir, set),
+            Ok(set) => {
+                self.presentation.configure_dialogue_trees(&set);
+                window.bind_mut().configure(&self.pack_dir, set);
+            }
             Err(e) => godot_error!("dialogue pack failed to load: {e}"),
         }
         window.set_z_index(30);
@@ -439,9 +453,15 @@ impl INode2D for Field {
             audio.fill();
         }
         self.anim_tick += 1;
+        self.clear_poison_flash();
         self.tick_transition();
+        self.tick_red_palette();
         self.tick_cutscene_presentation();
         if self.drive_title() {
+            return;
+        }
+        self.service_field_notices();
+        if self.drive_game_over() {
             return;
         }
         let battle_was_active = self.battle_presentation_active();
@@ -461,6 +481,7 @@ impl INode2D for Field {
             // current map's music request.
             if battle_was_active
                 && !self.battle_presentation_active()
+                && !self.runtime.as_ref().is_some_and(|rt| rt.game_over())
                 && !self.restore_saved_music()
             {
                 self.play_map_music();
@@ -508,17 +529,54 @@ impl INode2D for Field {
             } else if !dismissable {
                 self.retail_dialogue_wait = 0;
             }
-            if (Input::singleton().is_action_just_pressed("ui_accept") || retail_auto_advance)
+            let choice_active = self
+                .dialogue
+                .as_mut()
+                .is_some_and(|window| window.bind_mut().handle_choice_input());
+            if !choice_active
+                && (Input::singleton().is_action_just_pressed("ui_accept")
+                    || retail_auto_advance
+                    || (self
+                        .runtime
+                        .as_ref()
+                        .is_some_and(|rt| rt.field_notice().is_some())
+                        && Input::singleton().is_action_just_pressed("ui_cancel")))
                 && let Some(window) = self.dialogue.as_mut()
             {
                 window.bind_mut().advance();
                 self.retail_dialogue_wait = 0;
-                let closed = !window.bind().is_open();
-                if closed && let Some(rt) = self.runtime.as_mut() {
+            }
+            if let Some(window) = self.dialogue.as_mut() {
+                if let Some(yes) = window.bind_mut().take_pending_choice()
+                    && let Some(rt) = self.runtime.as_mut()
+                {
+                    rt.dialogue_choice(yes);
+                }
+                if !window.bind().is_open()
+                    && let Some(rt) = self.runtime.as_mut()
+                {
                     if rt.scene_active() {
                         godot_print!("scene dialogue closed (t{})", self.anim_tick);
                     }
-                    rt.dialogue_closed();
+                    // F7 and FF both return through loc_69B00, which clears
+                    // the panel rendering byte. Keep the cursor separately.
+                    self.presentation.set_render_sprites(false);
+                    if matches!(
+                        rt.scene_dialogue_window(),
+                        Some(
+                            psiv_core::DialogueWindow::Standard
+                                | psiv_core::DialogueWindow::Cutscene
+                                | psiv_core::DialogueWindow::Cutscene5
+                        )
+                    ) && let Some(layer) = self.cutscene_layer.as_mut()
+                    {
+                        layer.bind_mut().panel_destroy_all();
+                    }
+                    if window.bind().has_suspended_scene_dialogue() {
+                        rt.dialogue_closed();
+                    } else {
+                        rt.dialogue_ended();
+                    }
                 }
             }
             let events = self
@@ -591,6 +649,7 @@ impl INode2D for Field {
 impl Field {
     /// Loads the current map's PNG and rebuilds NPC sprites.
     fn load_map_visuals(&mut self) {
+        self.refresh_party_sheets();
         let Some(runtime) = self.runtime.as_ref() else {
             return;
         };
@@ -753,15 +812,41 @@ impl Field {
                     continue;
                 }
                 let Some(sprite) = &npc.sprite else { continue };
-                let sheet = camp_receipt_sheet(index, &sprite.sheet)
+                let selected = runtime
+                    .map_effects()
+                    .sprite_overrides
+                    .get(&index)
+                    .unwrap_or(&sprite.sheet);
+                let sheet = camp_receipt_sheet(index, selected)
                     .filter(|receipt| runtime.data().sheet(receipt).is_some())
-                    .map_or_else(|| sprite.sheet.clone(), str::to_owned);
+                    .map_or_else(|| selected.clone(), str::to_owned);
                 draws.push(NpcDraw {
                     index,
                     sheet,
                     idle: sprite.idle_sequence.clone(),
                     x: npc.x_pixels as i32,
                     y: npc.y_pixels as i32,
+                });
+            }
+            for (chest_index, chest) in record.treasure_chests.iter().enumerate() {
+                let index = runtime.map().chest_slot_base() + chest_index;
+                if !runtime
+                    .map()
+                    .npcs()
+                    .get(index)
+                    .is_some_and(|npc| npc.active)
+                {
+                    continue;
+                }
+                let Some(sprite) = &chest.sprite else {
+                    continue;
+                };
+                draws.push(NpcDraw {
+                    index,
+                    sheet: sprite.sheet.clone(),
+                    idle: sprite.idle_sequence.clone(),
+                    x: chest.x_pixels as i32,
+                    y: chest.y_pixels as i32,
                 });
             }
             let missing: Vec<String> = draws
@@ -899,21 +984,23 @@ impl Field {
     }
 
     /// Reloads the leader sprite sheet from the game's party slot 0 and
-    /// refreshes follower sheets. Called on PartyChanged.
+    /// refreshes the cached view on party changes and native save/title loads.
     fn refresh_party_sheets(&mut self) {
         let Some(runtime) = self.runtime.as_ref() else {
             return;
         };
         let leader = runtime.game().party_slot(0).map(|c| c.0).unwrap_or(0);
-        if leader != self.leader_char {
+        if leader != self.leader_char || self.party_view.is_none() {
             self.leader_char = leader;
             let view = runtime
                 .data()
                 .party_sheet(leader as usize)
                 .and_then(|sheet| SheetView::build(&self.pack_dir, sheet));
-            if view.is_some() {
-                self.party_view = view;
+            self.party_view = view;
+            if self.party_view.is_some() {
                 godot_print!("party leader is now sheet {leader}");
+            } else {
+                godot_error!("party sheet {leader} failed to load");
             }
         }
     }

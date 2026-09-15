@@ -17,6 +17,10 @@ use psiv_runtime::{BattleAnimationEvent, BattleTimeline};
 use super::art::BattleArt;
 use super::attack::{EnemySprite, enemy_sprite_origin};
 use super::chrome::{BattleChrome, WindowRect};
+use super::commands::{self, CommandsMenu};
+
+#[path = "ui_input.rs"]
+mod input;
 use super::enemy_overlay::EnemyAnimation;
 use super::layout::{append_status_quads, tile_dest, transient_column};
 use super::sfx::{BattleSoundRequests, QueuedBattleEvent, queue_timeline};
@@ -187,6 +191,13 @@ pub(crate) struct BattleScreen {
     damage: Option<DamageDraw>,
     command_open: bool,
     cursor: usize,
+    orders_menu: Option<CommandsMenu>,
+    command_roster: psiv_core::battle::Roster,
+    techniques: BTreeMap<u8, psiv_core::battle::Technique>,
+    skills: BTreeMap<u8, psiv_core::battle::Skill>,
+    armed_fighters: Vec<FighterId>,
+    items: BTreeMap<u8, psiv_core::battle::BattleItem>,
+    inventory: psiv_core::Inventory,
     vehicle_index: Option<u16>,
     vehicle_skills: Vec<SkillSlot>,
     skill_open: bool,
@@ -194,6 +205,7 @@ pub(crate) struct BattleScreen {
     finish_outcome: Option<Outcome>,
     reward_each: u16,
     reward_meseta: u16,
+    defeated_name: Option<String>,
     transient_column: i32,
     finish_request: Option<FinishRequest>,
     close_when_idle: bool,
@@ -224,6 +236,13 @@ impl INode2D for BattleScreen {
             damage: None,
             command_open: false,
             cursor: 0,
+            orders_menu: None,
+            command_roster: psiv_core::battle::Roster::new(),
+            techniques: BTreeMap::new(),
+            skills: BTreeMap::new(),
+            armed_fighters: Vec::new(),
+            items: BTreeMap::new(),
+            inventory: psiv_core::Inventory::new(),
             vehicle_index: None,
             vehicle_skills: Vec::new(),
             skill_open: false,
@@ -231,6 +250,7 @@ impl INode2D for BattleScreen {
             finish_outcome: None,
             reward_each: 0,
             reward_meseta: 0,
+            defeated_name: None,
             transient_column: 11,
             finish_request: None,
             close_when_idle: false,
@@ -263,19 +283,21 @@ impl INode2D for BattleScreen {
         let mut quads = Vec::new();
         if self.command_open
             && !self.skill_open
+            && self.orders_menu.is_none()
             && let Some(frame) = chrome.frame(ENEMY_NAME_RECT)
         {
             quads.extend(frame);
             let name = self
-                .enemy_positions
-                .keys()
-                .next()
-                .and_then(|fighter| self.names.get(fighter))
+                .enemy_nodes
+                .iter()
+                .find(|enemy| enemy.node.is_visible())
+                .and_then(|enemy| self.names.get(&enemy.fighter.get()))
                 .map_or("", String::as_str);
             quads.extend(chrome.text(name, ENEMY_NAME_TEXT_RECT));
         }
         if self.command_open
             && !self.skill_open
+            && self.orders_menu.is_none()
             && let Some(frame) = chrome.frame(COMMAND_RECT)
         {
             quads.extend(frame);
@@ -288,6 +310,11 @@ impl INode2D for BattleScreen {
         }
         if self.command_open && self.skill_open {
             vehicle_ui::draw(chrome, &self.vehicle_skills, self.skill_cursor, &mut quads);
+        }
+        if self.command_open
+            && let Some(menu) = self.orders_menu.as_ref()
+        {
+            commands::draw(chrome, menu, &mut quads);
         }
         match self.message_kind {
             MessageKind::Transient | MessageKind::Wide if !self.message.is_empty() => {
@@ -336,8 +363,9 @@ impl INode2D for BattleScreen {
             };
             quads.extend(chrome.damage_quads(damage.amount, rect));
         }
-        if self.command_open && !self.skill_open {
-            for (row, pattern) in COMMAND_CURSOR_WORDS.into_iter().enumerate() {
+        if self.command_open && !self.skill_open && self.orders_menu.is_none() {
+            for row in 0..COMMAND_CURSOR_WORDS.len() {
+                let pattern = if row == self.cursor { 0x6e8 } else { 0x6e7 };
                 if let Some(quad) =
                     chrome.window_word(pattern, false, false, tile_dest(4, 6 + row as i32 * 2))
                 {
@@ -402,6 +430,7 @@ impl BattleScreen {
         self.close_ready = false;
         self.command_open = false;
         self.cursor = 0;
+        self.orders_menu = None;
         self.vehicle_index = setup.vehicle_index;
         self.vehicle_skills = setup
             .party
@@ -412,6 +441,7 @@ impl BattleScreen {
         self.skill_cursor = 0;
         self.reward_each = 0;
         self.reward_meseta = 0;
+        self.defeated_name = None;
         self.transient_column = 11;
         self.message.clear();
         self.message_kind = MessageKind::None;
@@ -423,87 +453,6 @@ impl BattleScreen {
         self.base_mut().set_visible(true);
         self.start_next_event();
         self.base_mut().queue_redraw();
-    }
-
-    /// Reads the retail command menu. The field calls Runtime after this
-    /// returns; this node never resolves a round itself.
-    pub(crate) fn take_command(&mut self) -> Option<RoundOrders> {
-        if !self.command_open
-            || self.current.is_some()
-            || !self.events.is_empty()
-            || self.finish_outcome.is_some()
-            || self.finish_request.is_some()
-        {
-            return None;
-        }
-        let input = Input::singleton();
-        if self.skill_open {
-            if input.is_action_just_pressed("ui_cancel") {
-                self.skill_open = false;
-                self.skill_cursor = 0;
-                self.base_mut().queue_redraw();
-                return None;
-            }
-            if input.is_action_just_pressed("ui_up") {
-                self.skill_cursor =
-                    vehicle_ui::move_cursor(self.skill_cursor, self.vehicle_skills.len(), -2);
-                self.base_mut().queue_redraw();
-            }
-            if input.is_action_just_pressed("ui_down") {
-                self.skill_cursor =
-                    vehicle_ui::move_cursor(self.skill_cursor, self.vehicle_skills.len(), 2);
-                self.base_mut().queue_redraw();
-            }
-            if input.is_action_just_pressed("ui_left") {
-                self.skill_cursor =
-                    vehicle_ui::move_cursor(self.skill_cursor, self.vehicle_skills.len(), -1);
-                self.base_mut().queue_redraw();
-            }
-            if input.is_action_just_pressed("ui_right") {
-                self.skill_cursor =
-                    vehicle_ui::move_cursor(self.skill_cursor, self.vehicle_skills.len(), 1);
-                self.base_mut().queue_redraw();
-            }
-            if !input.is_action_just_pressed("ui_accept") {
-                return None;
-            }
-            let skill = vehicle_ui::selected(&self.vehicle_skills, self.skill_cursor)?;
-            self.vehicle_skills[self.skill_cursor].current -= 1;
-            self.skill_open = false;
-            self.command_open = false;
-            self.base_mut().queue_redraw();
-            return Some(RoundOrders::Commands(vec![
-                psiv_core::battle::Command::VehicleSkill(skill),
-            ]));
-        }
-        if input.is_action_just_pressed("ui_up") || input.is_action_just_pressed("ui_left") {
-            self.cursor = self.cursor.saturating_sub(1);
-            self.base_mut().queue_redraw();
-        }
-        if input.is_action_just_pressed("ui_down") || input.is_action_just_pressed("ui_right") {
-            self.cursor = (self.cursor + 1).min(2);
-            self.base_mut().queue_redraw();
-        }
-        if !input.is_action_just_pressed("ui_accept") {
-            return None;
-        }
-        if self.cursor == 1 {
-            if self.vehicle_index.is_some() {
-                self.skill_open = true;
-                self.skill_cursor = 0;
-            }
-            // MACR is visible for ordinary party parity; macro execution is
-            // Tier 3. A vehicle's middle entry opens the retail OPTIN list.
-            self.base_mut().queue_redraw();
-            return None;
-        }
-        self.command_open = false;
-        self.base_mut().queue_redraw();
-        Some(if self.cursor == 0 {
-            RoundOrders::attack_all()
-        } else {
-            RoundOrders::Run
-        })
     }
 
     /// Advances one retail-default dwell frame and starts the next event when
@@ -724,13 +673,11 @@ impl BattleScreen {
             .iter()
             .map(|member| PartyStatus {
                 fighter: member.fighter_id,
-                character: member.character,
                 name: member.name.clone(),
                 hp: member.hp,
                 tp: member.tp,
             })
             .collect();
-        self.party_status.sort_by_key(|member| member.character);
         if self.art.is_none() && !vehicle_surface {
             return;
         }
@@ -816,6 +763,24 @@ impl BattleScreen {
         self.sound_requests.extend(queued.sounds);
         self.start_enemy_animations(&queued.animations);
         let event = queued.event;
+        if let BattleEvent::EnemyStatsReloaded { fighter, name, .. } = &event {
+            self.names.insert(fighter.get(), name.clone());
+        }
+
+        if let BattleEvent::Started { enemies, .. } = &event {
+            for enemy in &mut self.enemy_nodes {
+                enemy.node.set_visible(enemies.contains(&enemy.fighter));
+            }
+        }
+
+        if let BattleEvent::EnemyReplenished { fighter, .. } = &event
+            && let Some(enemy) = self
+                .enemy_nodes
+                .iter_mut()
+                .find(|enemy| enemy.fighter == *fighter)
+        {
+            enemy.node.show();
+        }
 
         self.update_live_party_hp(&event);
         let narration = timeline::narration(&event, &self.names, &self.character_names);
@@ -844,9 +809,16 @@ impl BattleScreen {
             self.reward_meseta = *meseta;
         }
         self.message = narration.line;
+        if narration.beat == Beat::End(Outcome::Defeat) {
+            self.message = format!(
+                "{} defeated...!",
+                self.defeated_name.take().unwrap_or_else(|| "Party".into())
+            );
+        }
         self.transient_column = 11;
         self.message_kind = match narration.beat {
             Beat::Start => MessageKind::None,
+            Beat::End(Outcome::ScriptedExit) => MessageKind::None,
             Beat::End(Outcome::Escaped) | Beat::Defense(_) => MessageKind::Transient,
             Beat::End(Outcome::Victory) if matches!(&event, BattleEvent::Ended { .. }) => {
                 self.message.clear();
@@ -860,6 +832,7 @@ impl BattleScreen {
             // Attack/effect captures decode only the status strip here.
             Beat::Attack(_) | Beat::Damage { .. } | Beat::Hide(_) => MessageKind::None,
             Beat::None if self.message.is_empty() => MessageKind::None,
+            Beat::None if self.message.chars().count() > 16 => MessageKind::Wide,
             Beat::None => MessageKind::Transient,
         };
         if let BattleEvent::Died { fighter } = &event
@@ -867,6 +840,7 @@ impl BattleScreen {
             && self.party_defeated()
         {
             self.message_kind = MessageKind::Wide;
+            self.defeated_name = self.names.get(&fighter.get()).cloned();
         }
         if let Beat::Defense(actor) = narration.beat {
             self.transient_column = transient_column(actor);
@@ -895,10 +869,12 @@ impl BattleScreen {
             | Beat::Damage { .. } => {}
         }
         self.current = Some(ActiveEvent {
-            remaining: if self.message_kind == MessageKind::Wide
-                && self.message.ends_with("defeated...!")
-            {
+            remaining: if narration.beat == Beat::End(Outcome::Defeat) {
                 0x78
+            } else if matches!(event, BattleEvent::Died { fighter } if fighter.side() == psiv_core::battle::Side::Party)
+                && self.party_defeated()
+            {
+                0
             } else {
                 BATTLE_DWELL_FRAMES
             },
@@ -908,21 +884,49 @@ impl BattleScreen {
     }
 
     fn update_live_party_hp(&mut self, event: &BattleEvent) {
-        let BattleEvent::Resolved {
-            target,
-            remaining_hp,
-            ..
-        } = event
-        else {
-            return;
+        let (target, hp, tp) = match event {
+            BattleEvent::Resolved {
+                target,
+                remaining_hp,
+                ..
+            }
+            | BattleEvent::Healed {
+                target,
+                remaining_hp,
+                ..
+            }
+            | BattleEvent::Revived {
+                target,
+                remaining_hp,
+                ..
+            } => (*target, Some(*remaining_hp), None),
+            BattleEvent::TechniqueUsed {
+                actor,
+                remaining_tp,
+                ..
+            } => (*actor, None, Some(*remaining_tp)),
+            _ => return,
         };
+        if matches!(event, BattleEvent::Revived { .. })
+            && let Some(party) = self
+                .party_nodes
+                .iter_mut()
+                .find(|party| party.fighter == target)
+        {
+            party.node.show();
+        }
         if target.side() == psiv_core::battle::Side::Party
             && let Some(member) = self
                 .party_status
                 .iter_mut()
                 .find(|member| member.fighter == target.get())
         {
-            member.hp = *remaining_hp;
+            if let Some(hp) = hp {
+                member.hp = hp;
+            }
+            if let Some(tp) = tp {
+                member.tp = tp;
+            }
         }
     }
 

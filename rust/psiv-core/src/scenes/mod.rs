@@ -50,6 +50,7 @@
 //! does not, so the transcriptions keep them apart. Both are `dbra` loops, so
 //! every count below is the corrected `d0 + 1`.
 
+mod bioplant;
 pub(crate) mod dezo_campaign;
 pub(crate) mod dezo_endgame;
 mod game_start;
@@ -115,6 +116,9 @@ pub static SCENES: &[Scene] = &[
     next_arc::MEETING_SAYA,
     next_arc::TONOE_BASEMENT_DOOR,
     next_arc_followup::BIO_PLANT_ALARM,
+    bioplant::BIOPLANT_DOOR,
+    bioplant::ELEVATOR_DOOR,
+    bioplant::ELEVATOR_RIDE,
     next_arc_followup::GIRLS_SNEAKING_OUT,
     next_arc_followup::CHAZ_HOUSE,
     next_arc_followup::LEAVING_CHAZ_HOUSE,
@@ -222,18 +226,21 @@ mod tests {
             ("Event_PiataGuardsReprimand", 10),
             ("Cutscene_ProfHolt", 13),
             ("Cutscene_MeetingRune", 13),
-            ("Event_MeetingDorin", 20),
+            ("Event_MeetingDorin", 36),
             ("Cutscene_Dorin", 17),
-            ("Event_RuneFlaeli", 27),
+            ("Event_RuneFlaeli", 45),
             ("Event_AlshlineFound", 2),
-            ("Cutscene_Alshline", 85),
-            ("Cutscene_ZemaIgglanovaDefeated", 10),
+            ("Cutscene_Alshline", 86),
+            ("Cutscene_ZemaIgglanovaDefeated", 11),
             ("Event_ZemaServantBattle", 4),
             ("Event_ZemaOldMan", 3),
             ("Event_ZemaOldManAfterMission", 3),
             ("Event_MeetingSaya", 12),
             ("Event_TonoeBasementDoor", 19),
             ("Event_BioPlantAlarm", 6),
+            ("Event_BioPlantDoorOpening", 8),
+            ("Event_ElevatorDoorOpening", 9),
+            ("Event_RidingElevator", 19),
             ("Event_GirlsSneakingOut", 27),
             ("Event_ChazHouse", 13),
             ("Event_LeavingChazHouse", 1),
@@ -320,6 +327,7 @@ mod tests {
             for (index, op) in scene.ops.iter().enumerate() {
                 let targets: Vec<usize> = match op {
                     SceneOp::Jump { to } => vec![*to],
+                    SceneOp::BranchDialogueEnd { if_ended } => vec![*if_ended],
                     SceneOp::BranchFlag {
                         if_set, if_clear, ..
                     } => vec![*if_set, *if_clear],

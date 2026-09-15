@@ -20,6 +20,7 @@ impl Field {
         let mut stepped = false;
         for event in events {
             match event {
+                RuntimeEvent::FieldPoisonFlash => self.flash_field_poison(),
                 RuntimeEvent::StepCompleted { .. } => stepped = true,
                 RuntimeEvent::EncounterRolled { formation } => {
                     let music = self
@@ -39,6 +40,12 @@ impl Field {
                         WarpTrigger::NormalGround => "ground",
                     };
                     godot_print!("map change ({kind}) -> {:#05x}", map.0);
+                    self.presentation.reload_field_objects();
+                    // RefreshMap replaces the VDP planes; old dialogue
+                    // panels cannot remain layered over the new field.
+                    if let Some(layer) = self.cutscene_layer.as_mut() {
+                        layer.bind_mut().panel_destroy_all();
+                    }
                     self.load_map_visuals();
                     if self.runtime.as_ref().is_some_and(|rt| rt.scene_active()) {
                         godot_print!("scene map reload retains scene music");
@@ -48,6 +55,13 @@ impl Field {
                     if matches!(trigger, WarpTrigger::MapChange) {
                         self.start_transition(TransitionKind::Doorway);
                     }
+                }
+                RuntimeEvent::MapRefreshed => {
+                    godot_print!("field map refreshed");
+                    self.load_map_visuals();
+                }
+                RuntimeEvent::MapRefreshFailed { error } => {
+                    godot_error!("field map refresh failed: {error}");
                 }
                 RuntimeEvent::UnpackedTarget { map } => {
                     godot_error!("transition target {:#05x} is not in the pack", map.0);
@@ -188,17 +202,55 @@ impl Field {
                         .and_then(|rt| rt.map_record())
                         .map(|r| r.dialogue_tree)
                         .unwrap_or(0);
-                    let tree = self.presentation.scene_dialogue_tree(tree);
+                    let Some(tree) = self.presentation.scene_dialogue_tree(tree) else {
+                        godot_error!("scene dialogue tree is absent from the loaded pack");
+                        continue;
+                    };
                     let flags = self.runtime.as_ref().map(collect_event_flags);
+                    let panel_layout = self
+                        .presentation
+                        .panel_dialogue_mode(self.runtime.as_ref().and_then(|rt| rt.scene_event()));
                     let opened = self.dialogue.as_mut().is_some_and(|w| {
                         let mut w = w.bind_mut();
                         if let Some(flags) = flags {
                             w.set_event_flags(flags);
                         }
-                        w.open_scene_dialogue(tree, entry)
+                        w.open_scene_dialogue(tree, entry, panel_layout)
                     });
                     if !opened && let Some(rt) = self.runtime.as_mut() {
                         rt.dialogue_closed();
+                    }
+                }
+                RuntimeEvent::SceneDialogueResume => {
+                    godot_print!("scene dialogue resume (t{})", self.anim_tick);
+                    if std::env::var("PSIV_DEBUG_AUTOCLOSE_SCENE").is_ok_and(|value| value == "1")
+                        && !retail_pace_enabled()
+                    {
+                        if let Some(rt) = self.runtime.as_mut() {
+                            rt.dialogue_closed();
+                        }
+                        continue;
+                    }
+                    self.retail_dialogue_wait = 0;
+                    let flags = self.runtime.as_ref().map(collect_event_flags);
+                    let panel_layout = self
+                        .presentation
+                        .panel_dialogue_mode(self.runtime.as_ref().and_then(|rt| rt.scene_event()));
+                    let opened = self.dialogue.as_mut().is_some_and(|w| {
+                        let mut w = w.bind_mut();
+                        if let Some(flags) = flags {
+                            w.set_event_flags(flags);
+                        }
+                        w.resume_scene_dialogue(panel_layout)
+                    });
+                    if !opened && let Some(rt) = self.runtime.as_mut() {
+                        rt.dialogue_closed();
+                    }
+                }
+                RuntimeEvent::SceneChoiceRequested => {
+                    godot_print!("scene awaits a dialogue choice");
+                    if let Some(window) = self.dialogue.as_mut() {
+                        window.bind_mut().open_scene_choice();
                     }
                 }
                 RuntimeEvent::SceneBattleStarted {
@@ -236,6 +288,7 @@ impl Field {
                     self.refresh_party_sheets();
                 }
                 RuntimeEvent::NpcsDespawned { first, count } => {
+                    self.presentation.despawn_objects(first, count);
                     for NpcNode { node, index, .. } in &mut self.npc_nodes {
                         if (first..first + count).contains(index) {
                             node.set_visible(false);

@@ -65,6 +65,7 @@ from .map_patches import (
     index_writes,
     patch_atlas,
     resolve_map_effects,
+    scene_patch_chunks,
 )
 from .maps import extract_maps
 from .maps.records import INTERACTION_EVENT_INDEXES
@@ -75,6 +76,7 @@ from .dialogue_pack import emit_dialogue
 from .presentation_pack import emit_presentation
 from .title_pack import emit_title
 from .newgame import extract_new_game
+from .travel import emit_travel
 from .npc_commands import extract_npc_commands
 # The two world maps' layouts are not in their records at all -- they stream
 # from paged tables -- so their decode lives in `psiv_tools.overworld`.
@@ -133,6 +135,7 @@ from .sprites.emit import (
     resolve_map_sprites,
 )
 from .symbols import ITEM_SYMBOLS
+from .chest_sprites import bind_chest_sprites
 from .warps import (  # noqa: F401
     STANDING_CELL_Y_OFFSET,
     XY_RANGE_NAMES,
@@ -466,7 +469,7 @@ def _treasure_chests(record: dict[str, Any]) -> list[dict[str, Any]]:
     out = []
     for entry in record["treasure_chests"]["entries"]:
         item_id = entry["item_id"]
-        if item_id is not None and not 0 <= item_id < len(ITEM_SYMBOLS):
+        if item_id is not None and not 1 <= item_id <= len(ITEM_SYMBOLS):
             raise PackError(
                 f"treasure chest at {entry['rom_offset']} names item {item_id}, "
                 f"outside the {len(ITEM_SYMBOLS)}-entry item table"
@@ -482,7 +485,7 @@ def _treasure_chests(record: dict[str, Any]) -> list[dict[str, Any]]:
             "object_symbol": entry["object_symbol"],
             "contents_type": entry["contents_type"],
             "item_id": item_id,
-            "item_symbol": ITEM_SYMBOLS[item_id] if item_id is not None else None,
+            "item_symbol": ITEM_SYMBOLS[item_id - 1] if item_id is not None else None,
             "meseta": entry["meseta"],
             "chest_flag": entry["chest_flag"],
         })
@@ -767,6 +770,7 @@ def build_pack(
         map_effects, patched_chunks, patch_counts = resolve_map_effects(
             decoded, effects["per_map"].get(record["id"], [])
         )
+        patched_chunks = sorted(set(patched_chunks) | set(scene_patch_chunks(rom_bytes, record)))
         # A path that copies a CRAM line repaints the NPCs drawn on it, and
         # nothing else -- map tiles cannot select the line these three copies
         # write. The alternates register as ordinary sheets.
@@ -804,6 +808,8 @@ def build_pack(
             record, decoded, png_name, sprites, overworld, png_over_name,
             map_effects, variants, patch_tiles,
         )
+        bind_chest_sprites(rom_bytes, payload["treasure_chests"], palette_48,
+                          record["general_var"], npc_sheets)
         if variants:
             variant_maps.append({**_target(record), "variants": len(variants)})
         map_payloads[record["id"]] = payload
@@ -927,6 +933,7 @@ def build_pack(
         **extract_new_game(rom_bytes, extracted["maps"]),
     }
     game_start_sha = _write_json(directory / GAME_START_NAME, game_start)
+    travel = emit_travel(rom_bytes, directory)
     start = game_start["first_control"]
 
     # Enemies, formations, level progression and the ability records the

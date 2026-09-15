@@ -20,7 +20,7 @@ pub(super) fn draw_level(chrome: &CampChrome, quads: &mut Vec<Quad>, level: u16,
     // Level uses the ordinary menu-font decimal run ($69B onward). The
     // second decimal run is reserved for the HP/TP values in the summary
     // window and would render `1` as the wrong glyph at the receipt cell.
-    draw_text(chrome, quads, &level.to_string(), (cell.0 + 3, cell.1));
+    draw_text(chrome, quads, &format!("{level:>2}"), (cell.0 + 2, cell.1));
 }
 
 pub(super) fn draw_status_pair(
@@ -45,13 +45,13 @@ pub(super) fn draw_status_pair(
     } else {
         draw_text(chrome, quads, label, cell);
     }
-    quads.extend(chrome.number(&current.to_string(), (cell.0 + 4, cell.1)));
+    quads.extend(chrome.number(&format!("{current:>3}"), (cell.0 + 3, cell.1)));
     if let Some(quad) = chrome.window_word(STATUS_SLASH_PATTERN, (cell.0 + 6, cell.1)) {
         quads.push(quad);
     }
     // Retail leaves the window-font blank cell immediately after the slash:
     // `25/ 25`, not the compact `25/25` form.
-    quads.extend(chrome.number(&maximum.to_string(), (cell.0 + 8, cell.1)));
+    quads.extend(chrome.number(&format!("{maximum:>3}"), (cell.0 + 7, cell.1)));
 }
 
 fn status_label_patterns(label: &str) -> Option<[u16; 2]> {

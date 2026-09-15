@@ -11,10 +11,10 @@ use crate::trigger::EventIndex;
 
 const LEADER: ActorRef = ActorRef::PartyMember(0);
 
-const TREE_22: u32 = 0x001F_471C;
-const TREE_38: u32 = 0x0020_9B36;
-const TREE_39: u32 = 0x0020_A650;
-const TREE_42: u32 = 0x0020_DB0E;
+const TREE_22: u32 = 0x001E_F130;
+const TREE_38: u32 = 0x001F_A480;
+const TREE_39: u32 = 0x001F_AAC0;
+const TREE_42: u32 = 0x001F_C920;
 
 const MUSIC_DEZOLIS_FIELD: u8 = 0x99;
 const MUSIC_DEZOLIS_FIELD_2: u8 = 0x9D;

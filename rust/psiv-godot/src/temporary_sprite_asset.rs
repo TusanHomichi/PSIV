@@ -15,6 +15,8 @@ pub(crate) struct TemporarySpriteAsset {
     pub(crate) origin_x: i32,
     pub(crate) origin_y: i32,
     pub(super) sequences: BTreeMap<String, (Vec<(i32, u32)>, u32)>,
+    pub(crate) playback_sequence: Option<String>,
+    pub(super) playback_once: bool,
     pub(super) load_art: Option<(u32, u16)>,
 }
 
@@ -23,7 +25,12 @@ impl TemporarySpriteAsset {
         let Some((frames, total)) = self.sequences.get(sequence) else {
             return 0;
         };
-        let mut remaining = (tick % u64::from((*total).max(1))) as u32;
+        let duration = u64::from((*total).max(1));
+        let mut remaining = if self.playback_once {
+            tick.min(duration - 1)
+        } else {
+            tick % duration
+        } as u32;
         for (index, duration) in frames {
             if remaining < *duration {
                 return *index;

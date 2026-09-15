@@ -227,6 +227,38 @@ impl Party {
         }
     }
 
+    /// Adopt a scene's live party objects without restacking them. Scripted
+    /// walks use the same cell and progress clock as ordinary field walking.
+    pub fn resume_scripted(
+        &mut self,
+        map: &FieldMap,
+        actors: &[crate::scene::ScriptedActor],
+    ) -> Result<(), MapError> {
+        let Some(leader) = actors.first() else {
+            return Ok(());
+        };
+        let mut resumed = self.clone();
+        resumed.leader.resume_scripted(map, leader)?;
+        for (follower, actor) in resumed.followers.iter_mut().zip(&actors[1..]) {
+            let cell = map
+                .normalize(actor.cell)
+                .ok_or(MapError::PartyOutOfBounds {
+                    map: map.id(),
+                    cell: actor.cell,
+                    width: map.width(),
+                    height: map.height(),
+                })?;
+            follower.cell = cell;
+            follower.facing = actor.facing;
+            follower.step =
+                actor
+                    .step
+                    .map(|(dir, to, progress)| FollowerStep { dir, to, progress });
+        }
+        *self = resumed;
+        Ok(())
+    }
+
     /// The leader, for every rule that is not the trail.
     #[must_use]
     pub const fn leader(&self) -> &FieldState {

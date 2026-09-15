@@ -40,6 +40,9 @@ const CHECKSUM_OFFSET: usize = 0x14;
 // This is outside every retail header field currently addressed by the ROM.
 // It carries occupancy for the Rust snapshot's Option<Stats> seats.
 const RUST_ROSTER_MASK_OFFSET: usize = 0x20;
+// A native-only marker and complemented byte in unused common-header space.
+// The cartridge never saves ED51; native restart preserves inherited exits.
+const RUST_DUNGEON_EXIT_OFFSET: usize = 0x22;
 const LOCATION_WORLD_OFFSET: usize = 0x300;
 const LOCATION_MAP_2_OFFSET: usize = 0x302;
 const LOCATION_MAP_OFFSET: usize = 0x304;
@@ -246,6 +249,29 @@ impl RetailSlot {
     #[must_use]
     pub const fn as_bytes(&self) -> &[u8; RETAIL_SLOT_FILE_BYTES] {
         &self.bytes
+    }
+
+    /// Preserve the live dungeon exit in the native header extension. Retail
+    /// payload bytes and their checksum stay unchanged; old slots omit it.
+    pub fn with_dungeon_exit(mut self, index: u8) -> Self {
+        let offset = RUST_DUNGEON_EXIT_OFFSET * 2 + 1;
+        for (i, byte) in [b'T', b'R', index, !index].into_iter().enumerate() {
+            self.bytes[offset + i * 2] = byte;
+        }
+        self
+    }
+
+    /// Read a valid native dungeon-exit extension. Missing or damaged metadata
+    /// falls back to the ordinary map-entry table; it never invents an exit.
+    #[must_use]
+    pub fn dungeon_exit(&self) -> Option<u8> {
+        let offset = RUST_DUNGEON_EXIT_OFFSET * 2 + 1;
+        let index = self.bytes[offset + 4];
+        (self.bytes[offset] == b'T'
+            && self.bytes[offset + 2] == b'R'
+            && self.bytes[offset + 6] == !index
+            && index < 0x80)
+            .then_some(index)
     }
 
     /// Returns the checksum recorded in this slot's header.

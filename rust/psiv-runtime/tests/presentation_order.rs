@@ -51,7 +51,13 @@ fn presentation_events_keep_scene_order_and_tick_boundaries() {
             if let RuntimeEvent::ScenePresentation { op } = event {
                 seen.push((tick, position, *op));
             }
-            if matches!(event, RuntimeEvent::SceneDialogue { .. }) {
+            if matches!(event, RuntimeEvent::SceneChoiceRequested) {
+                runtime.dialogue_choice(true);
+            }
+            if matches!(
+                event,
+                RuntimeEvent::SceneDialogue { .. } | RuntimeEvent::SceneDialogueResume
+            ) {
                 runtime.dialogue_closed();
             }
         }

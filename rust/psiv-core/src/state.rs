@@ -566,6 +566,23 @@ impl GameState {
         &mut self.vehicles
     }
 
+    /// Retail `RecoverStats`: refill the current party's HP, TP and skill
+    /// uses, clear ailments, then refill all three saved vehicle use banks.
+    /// `DoVehicleRecovery` does not write saved vehicle HP.
+    pub fn recover_stats(&mut self) {
+        for who in self.party_members() {
+            if let Some(stats) = self.roster_mut().get_mut(who) {
+                stats.curr_hp = stats.max_hp;
+                stats.curr_tp = stats.max_tp;
+                stats.status = 0;
+                stats.curr_skill_uses = stats.max_skill_uses;
+            }
+        }
+        for vehicle in self.vehicles_mut() {
+            vehicle.current_skill_uses = vehicle.max_skill_uses;
+        }
+    }
+
     /// Opens `chest`, granting its contents and setting its flag.
     ///
     /// `FieldRoutine_ItemFound` (`ps4.asm:137246`) in order: test the flag and
@@ -597,8 +614,9 @@ impl GameState {
     /// Completes a chest whose contents would not fit, by giving up whatever
     /// is in `slot`.
     ///
-    /// The player has chosen what to drop, so the grant now succeeds and the
-    /// flag is set — the same tail `open_chest` runs.
+    /// `loc_67CC6` searches from the start for the selected item ID (even
+    /// when a later duplicate was selected), compacts once, then appends the
+    /// found item to slot 39 of the full inventory and sets its chest flag.
     ///
     /// # Errors
     ///
@@ -616,7 +634,17 @@ impl GameState {
             // Meseta never needs a slot, so this is the ordinary path.
             return Ok(self.open_chest(chest));
         };
-        self.inventory.swap(slot, item)?;
+        let discard = self.inventory.get(slot).ok_or(MapError::InventoryFull)?;
+        let first = self
+            .inventory
+            .slots()
+            .iter()
+            .position(|id| *id == discard)
+            .ok_or(MapError::InventoryFull)?;
+        let mut inventory = self.inventory.clone();
+        inventory.remove_in_field(first);
+        let slot = inventory.add(item)?;
+        self.inventory = inventory;
         let _ = self.set(chest.chest_flag());
         Ok(ChestOutcome::Took { item, slot })
     }

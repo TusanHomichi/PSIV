@@ -1,10 +1,8 @@
 //! Enemy decisions: what to do, and to whom.
 //!
-//! Both are made at **ordering time**, not when the enemy's turn comes up —
-//! `Battle_OrderTurns` fills `Enemy_Command_Data` before the round runs
-//! (`ps4.asm:7928-7936`). An enemy therefore commits to a target that may be
-//! dead by the time it swings, which is the cartridge's behaviour and not a
-//! bug to fix.
+//! Battle_OrderTurns fills Enemy_Command_Data with targets before the round
+//! runs. A dead or newly revived target gets a fresh weighted draw at action
+//! time (loc_5ACE). The ability roll follows inside Enemy_Attack.
 
 use super::fighters::{FighterId, Roster, Side};
 use super::records::{EnemyRecord, REGULAR_ABILITIES};

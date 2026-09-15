@@ -47,6 +47,7 @@ from .shop_flow import (
     sell_price,
 )
 from .shops import INN_GROUP, extract_shops
+from .shop_portraits import emit_shop_portraits
 from .text import extract_names
 
 #: Where the file lands in the pack.
@@ -376,6 +377,7 @@ def emit_shops(rom: bytes, maps: dict[int, dict[str, Any]], out_dir: str | Path,
     payload = build_shops(rom, maps, complete)
     directory = Path(out_dir)
     directory.mkdir(parents=True, exist_ok=True)
+    payload["portraits"] = emit_shop_portraits(rom, directory)
     text = json.dumps({"format_version": version, **payload}, indent=2,
                       sort_keys=True) + "\n"
     data = text.encode("utf-8")

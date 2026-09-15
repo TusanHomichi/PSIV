@@ -26,6 +26,9 @@ fn the_igglanova_area_starts_the_scene_before_the_blocker() {
     .expect("runtime starts below Igglanova");
     let files = BattleFiles::load(Path::new(PACK)).expect("battle files load");
     runtime.enable_battles(&files).expect("battles enable");
+    // This fixture starts after the automatic container conversation. Map
+    // entry now checks that conversation before accepting a new action.
+    runtime.set_event_flag(0x0D).unwrap();
 
     let first = runtime.tick(Input::Action);
     assert_eq!(

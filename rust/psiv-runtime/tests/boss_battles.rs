@@ -31,7 +31,13 @@ fn drive_scene(runtime: &mut Runtime, event: u16) -> Vec<RuntimeEvent> {
     for _ in 0..10_000 {
         let events = runtime.tick(Input::Neutral);
         for item in &events {
-            if matches!(item, RuntimeEvent::SceneDialogue { .. }) {
+            if matches!(item, RuntimeEvent::SceneChoiceRequested) {
+                runtime.dialogue_choice(true);
+            }
+            if matches!(
+                item,
+                RuntimeEvent::SceneDialogue { .. } | RuntimeEvent::SceneDialogueResume
+            ) {
                 runtime.dialogue_closed();
             }
         }
@@ -66,7 +72,9 @@ fn start_igglanova(runtime: &mut Runtime) -> Vec<BattleEvent> {
                 RuntimeEvent::SceneBattleFailed { error, .. } => {
                     panic!("Igglanova battle failed to start: {error}");
                 }
-                RuntimeEvent::SceneDialogue { .. } => runtime.dialogue_closed(),
+                RuntimeEvent::SceneDialogue { .. } | RuntimeEvent::SceneDialogueResume => {
+                    runtime.dialogue_closed()
+                }
                 _ => {}
             }
         }
@@ -170,48 +178,30 @@ fn containers_unlock_igglanova_boss_and_resume_story_on_victory() {
 }
 
 #[test]
-fn igglanova_defeat_revives_and_retries_without_game_over() {
+fn igglanova_defeat_ends_play_without_reviving_or_replaying_the_scene() {
     if !Path::new(PACK).join("battle").is_dir() {
-        eprintln!("pack battle section not present; skipping");
         return;
     }
     let mut runtime = runtime_with_battles();
     let _ = start_igglanova(&mut runtime);
     let outcome = resolve_with_attacks(&mut runtime);
-    assert_eq!(
-        outcome,
-        Outcome::Defeat,
-        "Chaz alone loses the interim fight"
-    );
+    assert_eq!(outcome, Outcome::Defeat);
+    let money = runtime.game().money();
     runtime.finish_battle_for_outcome(outcome, 0);
-
-    assert!(runtime.scene_active(), "the scene remains continuable");
+    assert!(runtime.game_over());
+    assert!(!runtime.scene_active());
     assert!(!runtime.battle_active());
     assert!(
-        !runtime.game().is_set(Flag::event(0x0B)),
-        "retry clears the guard flag"
+        runtime.game().is_set(Flag::event(0x0B)),
+        "defeat does not edit story guards"
     );
-    assert_eq!(
-        runtime.battle_party()[0].stats.curr_hp,
-        1,
-        "interim revive applies"
-    );
-
-    let mut retried = false;
-    for _ in 0..20 {
-        for event in runtime.tick(Input::Neutral) {
-            if matches!(event, RuntimeEvent::SceneBattleStarted { index: 0, .. }) {
-                retried = true;
-            }
-            assert!(
-                !matches!(event, RuntimeEvent::SceneEnded),
-                "defeat must retry rather than end the story"
-            );
-        }
-        if retried {
-            break;
-        }
+    assert_eq!(runtime.battle_party()[0].stats.curr_hp, 0);
+    assert_ne!(runtime.battle_party()[0].stats.status & 0x44, 0);
+    let at = runtime.state().cell();
+    for _ in 0..120 {
+        assert!(runtime.tick(Input::Direction(Direction::Down)).is_empty());
     }
-    assert!(retried, "Igglanova defeat re-runs the trigger");
-    assert!(runtime.battle_active(), "retry starts a new boss battle");
+    assert!(runtime.return_to_field().is_empty());
+    assert_eq!(runtime.state().cell(), at);
+    assert_eq!(runtime.game().money(), money);
 }

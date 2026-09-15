@@ -30,6 +30,7 @@ from psiv_tools.map_patches import (
     patch_atlas,
     resolve_map_effects,
     resolve_write_cells,
+    scene_patch_chunks,
 )
 from psiv_tools.maps import extract_maps
 from psiv_tools.pack import build_pack, layout_spec
@@ -283,6 +284,18 @@ class TestTheCollisionPlane(unittest.TestCase):
         # One Zema write lands on the other plane and changes the picture only.
         self.assertEqual(counts["picture_only"], 1)
 
+    def test_scene_doors_extract_all_animation_chunks_and_original_collision(self):
+        record, _, decoded = _decoded(self.data, "BirthValley_B1")
+        self.assertEqual(scene_patch_chunks(self.data, record), [0x29, 0x2A, 0x42, 0x43, 0x44, 0x45])
+        self.assertEqual([v for _, _, v in chunk_collision_cells(decoded.chunks[0x29])], [8, 8, 1, 1])
+        record, _, decoded = _decoded(self.data, "BioPlant_Part3")
+        self.assertEqual(scene_patch_chunks(self.data, record), [0x4F, 0x50, 0x51, 0x52, 0x53])
+        for chunk in range(0x4F, 0x53):
+            self.assertEqual([v for _, _, v in chunk_collision_cells(decoded.chunks[chunk])], [8, 8, 8, 8])
+        self.assertEqual([v for _, _, v in chunk_collision_cells(decoded.chunks[0x53])], [8, 8, 1, 1])
+        record, _, _ = _decoded(self.data, "Zema")
+        self.assertEqual(scene_patch_chunks(self.data, record), [])
+
 
 @unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
 class TestThePackedResolution(unittest.TestCase):
@@ -369,6 +382,8 @@ class TestThePackedResolution(unittest.TestCase):
                 for write in path["writes"]
                 if write["kind"] == "layout_write"
             }
+            if payload["id"] == MAP_BIRTH_VALLEY_B1:
+                written.update((0x42, 0x44, 0x43, 0x45, 0x29, 0x2A))
             if not written:
                 self.assertIsNone(atlas)
                 continue
@@ -381,6 +396,8 @@ class TestThePackedResolution(unittest.TestCase):
                 for index, tile in enumerate(atlas["tiles"]):
                     self.assertEqual(tile["index"], index)
                     self.assertEqual(tile["x"], index * ATLAS_TILE_PIXELS)
+                    self.assertEqual(len(tile["collision"]), 4)
+                    self.assertTrue(all(0 <= cell <= 15 for cell in tile["collision"]))
 
     def test_a_map_with_no_layout_writes_has_no_atlas(self):
         # ZioFort_F1 is in the fixture precisely to be the negative case.
@@ -470,8 +487,11 @@ class TestThePackedResolution(unittest.TestCase):
                 self.assertGreaterEqual(by_id[sheet_id]["placements"], 0)
         placed = sum(sheet["placements"] for sheet in index["sheets"])
         npcs = sum(len(payload["npcs"]) for payload in self.maps.values())
+        # The shared field-object atlas also contains the extracted chests.
+        chests = sum(sum(chest.get("sprite") is not None for chest in payload["treasure_chests"])
+                     for payload in self.maps.values())
         self.assertEqual(placed, self.manifest["sprites"]["npc_placements"])
-        self.assertEqual(placed + self.manifest["sprites"]["artless_objects"], npcs)
+        self.assertEqual(placed + self.manifest["sprites"]["artless_objects"], npcs + chests)
 
     def test_the_palette_census_counts_the_copies(self):
         census = self.manifest["map_effects"]["palette_copies"]

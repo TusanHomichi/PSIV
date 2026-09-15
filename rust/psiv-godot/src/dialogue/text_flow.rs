@@ -77,6 +77,8 @@ pub struct TextFlow {
     pending_action: Option<DialogueAction>,
     /// This flow's entry id — `$FA` branch targets are relative to it.
     entry_id: u16,
+    /// Relative entry counts after `$F5`; zero continues at the current byte.
+    choice: Option<[u16; 2]>,
 }
 
 impl TextFlow {
@@ -142,6 +144,7 @@ impl TextFlow {
             event: None,
             pending_action: None,
             entry_id: entry.id,
+            choice: None,
         };
         flow.pump();
         if flow.done && flow.stop.is_none() {
@@ -221,7 +224,8 @@ impl TextFlow {
     pub fn advance(&mut self) {
         match self.stop {
             None => {}
-            Some(PageEnd::End | PageEnd::Choice) => {
+            Some(PageEnd::Choice) => {}
+            Some(PageEnd::End) => {
                 self.stop = None;
                 self.closed = true;
             }
@@ -237,6 +241,72 @@ impl TextFlow {
                 }
             }
         }
+    }
+
+    pub fn has_choice(&self) -> bool {
+        self.choice.is_some()
+    }
+
+    /// Retail counts `$FF` delimiters from the byte AFTER both operands.
+    /// Zero stays inside this entry; positive values skip to later entries.
+    pub fn answer_choice(&mut self, yes: bool) -> bool {
+        let Some(offsets) = self.choice.take() else {
+            return false;
+        };
+        let offset = offsets[usize::from(!yes)];
+        self.lines = vec![String::new()];
+        self.line = 0;
+        self.column = 0;
+        self.stop = None;
+        if offset == 0 {
+            self.pump();
+        } else {
+            self.jump = Some(self.entry_id + offset);
+        }
+        true
+    }
+
+    /// Continue a taken in-stream branch without reopening the window or
+    /// losing the portrait. Unlike interaction preambles, this executes the
+    /// destination through the retail character loop.
+    pub fn continue_at(&mut self, entry: &DialogueEntry) {
+        self.entry_id = entry.id;
+        self.segments.clone_from(&entry.segments);
+        self.index = 0;
+        self.char_offset = 0;
+        self.stop = None;
+        self.done = false;
+        self.closed = false;
+        self.pump();
+    }
+
+    /// `$F7` and the entry terminator return from `Event_RunDialogue`.
+    /// Preserve the byte cursor while the scene moves its actors. Ordinary
+    /// page waits continue inside the same call and must not release it.
+    pub fn pause_for_scene(&mut self) -> bool {
+        if !matches!(self.stop, Some(PageEnd::Close | PageEnd::End)) {
+            return false;
+        }
+        self.closed = true;
+        true
+    }
+
+    /// The scene's next `RunDialogueResume` reopens at `Saved_Dialogue_Addr`.
+    /// At `$F7` this is inside the same entry; at `$FF` it is the next entry.
+    pub fn resume_scene(mut self, flags: &[bool]) -> Opening {
+        if self.index >= self.segments.len() {
+            return Opening::Jump(self.entry_id + 1);
+        }
+        self.flags = flags.to_vec();
+        self.lines = vec![String::new()];
+        self.line = 0;
+        self.column = 0;
+        self.portrait = None;
+        self.stop = None;
+        self.closed = false;
+        self.done = false;
+        self.pump();
+        Opening::Window(Box::new(self))
     }
 
     /// A taken mid-message jump, once.
@@ -357,11 +427,11 @@ impl TextFlow {
             // only when the run ends on this character.
             let at_run_end = position + 1 == chars.len();
             if at_run_end && self.peek(0) == Some(0xF5) {
+                let Segment::Control(ctrl) = self.segments[self.index].clone() else {
+                    unreachable!()
+                };
                 self.index += 1;
-                self.log_choice();
-                self.close(PageEnd::Choice);
-                self.done = true;
-                return true;
+                return self.run_control(&ctrl);
             }
             self.line += 1;
             if at_run_end && self.peek(0) == Some(0xFC) {
@@ -406,10 +476,13 @@ impl TextFlow {
                 self.close(PageEnd::Close);
                 true
             }
-            Ctrl::YesNo { .. } => {
-                self.log_choice();
+            Ctrl::YesNo {
+                yes_entry,
+                no_entry,
+                ..
+            } => {
+                self.choice = Some([*yes_entry, *no_entry]);
                 self.close(PageEnd::Choice);
-                self.done = true;
                 true
             }
             Ctrl::Portrait { id, position, .. } => {
@@ -488,13 +561,6 @@ impl TextFlow {
                 true
             }
         }
-    }
-
-    fn log_choice(&mut self) {
-        self.log.push(
-            "yes_no: no choice window in v1, the message ends here (both branches skipped)"
-                .to_owned(),
-        );
     }
 
     fn visible_chars(&self) -> usize {

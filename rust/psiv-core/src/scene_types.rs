@@ -16,6 +16,8 @@ pub enum SceneInput {
     None,
     /// The dialogue window the runner asked for has closed.
     DialogueClosed,
+    /// The text reached its final FF terminator, rather than yielding at F7.
+    DialogueEnded,
     /// The player answered the pending choice.
     Choice(bool),
     /// The battle requested by the scene has ended.
@@ -30,7 +32,7 @@ pub enum SceneInput {
 }
 
 /// Something the runtime must act on.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SceneEffect {
     /// Open this dialogue. The runner waits for [`SceneInput::DialogueClosed`].
     DialogueOpen(DialogueId),
@@ -102,6 +104,16 @@ pub enum SceneEffect {
     PartySlotsRestored,
     /// The inventory changed.
     InventoryChanged,
+    /// A scene explicitly restores these chunks and refreshes the map plane.
+    MapChunksRestored {
+        /// (Chunk x, chunk y, expected base chunk id).
+        chunks: &'static [(u32, u32, u16)],
+    },
+    /// A scene writes the named chunks into the live map layout.
+    MapChunksWritten {
+        /// (Chunk x, chunk y, replacement chunk id).
+        chunks: Vec<(u32, u32, u16)>,
+    },
     /// The selected vehicle changed.
     VehicleChanged {
         /// The new vehicle id.

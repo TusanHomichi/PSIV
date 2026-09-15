@@ -111,6 +111,9 @@ pub enum DialogueSource {
 /// self-contained data with no labels to resolve at runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SceneOp {
+    /// Apply the normal transition record at the leader's current cell.
+    /// Elevator events own its fade, destination door and departure step.
+    TakeMapTransition,
     /// Start `actor` walking to `to`. Does **not** block; pair it with
     /// [`SceneOp::WaitForActor`] when the script should wait.
     MoveActor {
@@ -166,6 +169,22 @@ pub enum SceneOp {
     /// Re-upload the current map's palette (`Map_Palettes_Addr` ->
     /// `Palette_Table_Buffer`, 48 words in two copies).
     ReloadMapPalette,
+    /// Restore selected chunks to the baked base layout, keeping all other
+    /// live map edits and objects. Each tuple is (chunk x, chunk y, base id);
+    /// the runtime verifies the literal id before removing an overlay.
+    RestoreMapChunks {
+        /// Collision-authoritative base chunks written by the scene.
+        chunks: &'static [(u32, u32, u16)],
+    },
+    /// Write original map chunks relative to an actor's pixel position.
+    /// The pack supplies both the chunk graphics and its collision values.
+    WriteActorMapChunks {
+        /// Object whose current position locates the writes.
+        actor: ActorRef,
+        /// (Pixel X offset, pixel Y offset, chunk id), divided into 32px
+        /// chunk coordinates after adding the actor's current position.
+        chunks: &'static [(i32, i32, u16)],
+    },
     /// Clear VRAM and CRAM (`InitVRAMAndCRAM`, `$5A658`): fades out, resets a
     /// VDP register and rebuilds the Plane A buffer. Engine-visible effect is
     /// the fade; the rest is the renderer's.
@@ -182,6 +201,11 @@ pub enum SceneOp {
     Return {
         /// The `d0` value.
         value: u16,
+    },
+    /// Branch on the last text stream ending at FF rather than yielding at F7.
+    BranchDialogueEnd {
+        /// Op index for the completed-conversation return path.
+        if_ended: usize,
     },
     /// Jump on whether one actor's coordinate is greater than another's.
     ///
@@ -528,10 +552,12 @@ pub enum SceneOp {
         /// `Map_Load_Flags` bits to clear before `RefreshMap`.
         clear_load_flags: u8,
     },
-    /// Whether sprites render during a cutscene
-    /// (`Render_Sprites_In_Cutscenes`, `$ECFD`).
+    /// Write the literal `Render_Sprites_In_Cutscenes` byte (`$ECFD`). Despite
+    /// its name, nonzero suppresses field sprites during bit-15 cutscenes
+    /// and selects the panel portrait layout; zero selects ordinary field
+    /// rendering. The original text terminator clears it.
     SetRenderSpritesInCutscene {
-        /// The new value.
+        /// The literal nonzero/zero value, not a sprite visibility boolean.
         enabled: bool,
     },
     /// Wait without running a map update — `VInt_PrepareLoop` (`$5A7AC`),
@@ -646,6 +672,32 @@ pub enum SceneOp {
     PanelDestroyAll,
     /// Flush the staged planes during a panel transition (`DMAPlanes_VInt`).
     DmaPlanes,
+    /// Create a field object at literal pixel coordinates. It remains alive
+    /// until a despawn or full scene reset, independently of animation age.
+    CreateFieldObject {
+        /// Retail secondary object slot.
+        slot: usize,
+        /// Retail object id.
+        object_id: u16,
+        /// Loaded art tile.
+        art_tile: u16,
+        /// World pixel X.
+        x: i32,
+        /// World pixel Y.
+        y: i32,
+    },
+    /// `Event_StepObject`: move one object by signed 16.16 pixel increments
+    /// for the stated number of frames before advancing the scene.
+    StepFieldObject {
+        /// Retail secondary object slot.
+        slot: usize,
+        /// Signed 16.16 X increment per frame.
+        step_x: i32,
+        /// Signed 16.16 Y increment per frame.
+        step_y: i32,
+        /// Loop iterations, including the final DBRA iteration.
+        frames: u16,
+    },
     /// Animate a temporary field object. These are the small effect objects
     /// the cartridge places outside the ordinary map-NPC list for Flaeli,
     /// Saya and Igglanova's fusion sequence. The runtime carries the literal
@@ -719,7 +771,7 @@ pub struct ScriptedActor {
     pub facing: Direction,
     /// Where it is walking, if anywhere.
     pub target: Option<Cell>,
-    step: Option<(Direction, Cell, u8)>,
+    pub(crate) step: Option<(Direction, Cell, u8)>,
 }
 
 impl ScriptedActor {

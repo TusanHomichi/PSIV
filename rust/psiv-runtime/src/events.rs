@@ -206,6 +206,8 @@ impl BattleTimeline {
 /// What a [`crate::Runtime`] tick produced, for the presentation layer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RuntimeEvent {
+    /// Surviving field poison damage sets all palette entries red for one frame.
+    FieldPoisonFlash,
     /// The party finished a step.
     StepCompleted {
         /// The cell landed on.
@@ -219,6 +221,14 @@ pub enum RuntimeEvent {
         map: MapId,
         /// Which transition class fired.
         trigger: WarpTrigger,
+    },
+    /// Battle return refreshed map effects while preserving the live cast,
+    /// party trail and camera. Rebuild visuals without a doorway transition.
+    MapRefreshed,
+    /// The battle-return map refresh failed; surface the pack defect.
+    MapRefreshFailed {
+        /// Conversion failure from the current map's data.
+        error: String,
     },
     /// A transition targeted a map the pack does not contain (skipped or
     /// unpacked). The party stays put; the presentation layer should surface
@@ -305,6 +315,12 @@ pub enum RuntimeEvent {
         /// Entry index in the map's dialogue tree.
         entry: u16,
     },
+    /// Reopen the saved text cursor after the scene's intervening actions.
+    /// The renderer acknowledges this just like a new dialogue window.
+    SceneDialogueResume,
+    /// The scene needs a yes/no answer that has not yet been supplied by
+    /// dialogue. Call [`crate::Runtime::dialogue_choice`] with the choice.
+    SceneChoiceRequested,
     /// A scene requested an event battle and the runtime started it. The
     /// initial setup events are delivered with the same timeline as random
     /// encounters, so the presentation layer can use one battle screen.

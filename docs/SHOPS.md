@@ -127,12 +127,16 @@ and use the alternate greeting text.
 ### What a night restores
 
 `RecoverStats` (`$0662FE`) → `DoCharRecovery` (`$066306`), per occupied party
-slot, then the three vehicles:
+slot:
 
 - `curr_hp` ← `max_hp`
 - `curr_tp` ← `max_tp`
 - `status` ← `0` (every ailment, including death)
 - all eight `curr_skill_uses[n]` ← `max_skill_uses[n]`
+
+It then calls `DoVehicleRecovery`, which restores the eight skill-use counts
+for each of the three saved vehicles. That routine does **not** write saved
+vehicle HP. The native inn and story-rest paths share this recovery operation.
 
 Note that this is the *only* full-party revive in the game's economy: there is
 no church or clinic service (§6).

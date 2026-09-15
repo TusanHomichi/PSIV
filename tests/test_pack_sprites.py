@@ -125,6 +125,13 @@ class TestSpriteSheets(PackFixtureCase):
                     self.assertIn(npc["sprite"]["idle_sequence"], sheet["sequences"])
                     self.assertIn(npc["sprite"]["walk_sequence"], sheet["sequences"])
                     seen.add(npc["sprite"]["sheet"])
+            for chest in payload["treasure_chests"]:
+                sprite = chest["sprite"]
+                sheet = by_id[sprite["sheet"]]
+                self.assertEqual(sprite["sheets"], NPC_SPRITES_NAME)
+                self.assertIn("idle_down", sheet["sequences"])
+                self.assertIn("idle_up", sheet["sequences"])
+                seen.add(sprite["sheet"])
         # Nothing is emitted that nothing points at.
         self.assertEqual(seen, set(by_id))
 
@@ -138,7 +145,7 @@ class TestSpriteSheets(PackFixtureCase):
         self.assertEqual(placed, self.manifest["sprites"]["npc_placements"])
         self.assertEqual(
             placed + self.manifest["sprites"]["artless_objects"],
-            sum(len(payload["npcs"]) for payload in self.maps.values()),
+            sum(len(payload["npcs"]) + len(payload["treasure_chests"]) for payload in self.maps.values()),
         )
 
     def test_the_sequences_carry_per_frame_durations_in_game_frames(self):
@@ -197,6 +204,8 @@ class TestInteraction(PackFixtureCase):
 
     def test_the_interaction_census_counts_both_answers(self):
         counted = self.manifest["census"]["npc_interactable"]
+        # Chests share the sprite atlas, but this census describes only the
+        # map's NPC list. Chest interaction has its own runtime path.
         self.assertEqual(
             sum(counted.values()),
             sum(len(payload["npcs"]) for payload in self.maps.values()),

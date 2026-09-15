@@ -20,14 +20,22 @@ pub enum PresentationAsset {
 /// One renderer-owned operation preserved by a scene transcription.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PresentationOp {
-    /// `Pal_VariableFadeToRed` with the retail line count.
+    /// Hide or show a party sprite while a scene-owned object replaces it.
+    SetCharacterVisible {
+        /// Character id, independent of party order.
+        who: CharId,
+        /// Whether the ordinary sprite is drawn.
+        visible: bool,
+    },
+    /// `Pal_VariableFadeToRed`: all 64 palette entries, eight stages.
     FadeToRed {
-        /// Number of palette lines.
+        /// `$ED52` delay byte: each stage lasts this value plus one VBlanks.
+        /// The historical field name is retained for scene-data compatibility.
         lines: u8,
     },
-    /// `Pal_VariableFadeFromRed` with the retail line count.
+    /// `Pal_VariableFadeFromRed`: restore the saved green and blue components.
     FadeFromRed {
-        /// Number of palette lines.
+        /// `$ED52` delay byte, as in `FadeToRed`.
         lines: u8,
     },
     /// `Map_LoadChunks` after an in-place map update.

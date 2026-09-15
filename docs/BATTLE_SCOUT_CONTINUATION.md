@@ -37,8 +37,10 @@ A level-1 party can be ambushed but can never get a preemptive strike here.
 ### Turn order
 
 Two entries: Chaz `(id 1, agi 7)`, MonsterFly `(id 6, agi 12)`. Max agility 12,
-so `d1 = 6`, and each gets `+ (rng mod 6)`. Chaz goes first iff
-`7 + a > 12 + b` with `a, b ∈ 0..5` — 15 of 36 equally-likely pairs, ≈42%.
+so `d1 = 6`, and each gets `+ (rng mod 6)`. Chaz cannot strictly exceed
+the fly's score: `7 + a > 12 + b` has no solutions for `a, b ∈ 0..5`.
+The stable party-first tie occurs only at `a = 5, b = 0`: one of the 36
+pairs (about 2.8%, if the jitter values are treated as equally likely).
 
 ### Chaz attacks (command 1)
 

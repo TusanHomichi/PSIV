@@ -94,6 +94,69 @@ pub fn field_map_patched(
     record: &MapRecord,
     outcome: Option<&EffectOutcome>,
 ) -> Result<FieldMap, BridgeError> {
+    field_map_retaining_objects(record, outcome, &[])
+}
+
+/// LoadTreasureChests follows map NPC allocation. Keep live lids on a battle
+/// or chunk refresh; a real map entry reconstructs them from the saved flags.
+pub(super) fn attach_chests(
+    map: &mut FieldMap,
+    record: &MapRecord,
+    game: &GameState,
+    objects: &[Npc],
+    outcome: &EffectOutcome,
+) -> Result<(), BridgeError> {
+    let chests = record
+        .treasure_chests
+        .iter()
+        .enumerate()
+        .map(|(index, record)| {
+            let range = |what| BridgeError::OutOfRange(format!("chest {index}: {what}"));
+            let contents = match record.contents_type {
+                psiv_data::ContentsType::Item => psiv_core::ChestContents::Item(
+                    record
+                        .item_id
+                        .and_then(|id| u8::try_from(id).ok())
+                        .filter(|id| *id != 0)
+                        .ok_or_else(|| range("item"))?,
+                ),
+                psiv_data::ContentsType::Meseta => {
+                    psiv_core::ChestContents::Meseta(record.meseta.ok_or_else(|| range("meseta"))?)
+                }
+            };
+            Ok(psiv_core::Chest {
+                cell: cell_u16(record.x_cell, record.y_cell, "chest")?,
+                flag: u8::try_from(record.chest_flag).map_err(|_| range("flag"))?,
+                contents,
+                white: record.white_chest,
+                index,
+            })
+        })
+        .collect::<Result<Vec<_>, BridgeError>>()?;
+    let base = map.npcs().len();
+    map.with_chests(chests, |chest| {
+        objects.get(base + chest.index).map_or_else(
+            || game.chest_is_open(chest),
+            |npc| npc.facing == Direction::Up,
+        )
+    })
+    .map_err(|e| BridgeError::Rejected(e.to_string()))?;
+    for index in base..map.npcs().len() {
+        let active =
+            objects.get(index).is_none_or(|npc| npc.active) && !outcome.despawns.contains(&index);
+        map.set_npc_active(index, active)
+            .map_err(|e| BridgeError::Rejected(e.to_string()))?;
+    }
+    Ok(())
+}
+
+/// Battle return skips LoadMapObjects, but still runs MapDataManager. Retain
+/// the live object records before applying its new despawns and type writes.
+pub(super) fn field_map_retaining_objects(
+    record: &MapRecord,
+    outcome: Option<&EffectOutcome>,
+    objects: &[Npc],
+) -> Result<FieldMap, BridgeError> {
     if let Some(out) = outcome
         && !out.unknown_banks.is_empty()
     {
@@ -202,6 +265,12 @@ pub fn field_map_patched(
             psiv_core::SubCellOffset::new((npc.x_pixels % 16) as u8, (npc.y_pixels % 16) as u8);
         // Effects apply at construction: a rewritten object carries its new
         // id from the first tick, a despawned one is born inactive.
+        let mut object = objects.get(index).copied().unwrap_or_else(|| {
+            Npc::with_offset(NpcId(npc.object_id), cell, offset, facing)
+                .with_camera_bypass(npc.camera_bypass)
+                .with_interactable(npc.interactable)
+                .with_talkable(dialogue_probe_eligible(npc))
+        });
         let object_id = outcome
             .and_then(|o| {
                 o.rewrites
@@ -209,15 +278,10 @@ pub fn field_map_patched(
                     .find(|(i, _)| *i == index)
                     .map(|(_, id)| *id)
             })
-            .unwrap_or(npc.object_id);
-        let active = outcome.is_none_or(|o| !o.despawns.contains(&index));
-        npcs.push(
-            Npc::with_offset(NpcId(object_id), cell, offset, facing)
-                .with_camera_bypass(npc.camera_bypass)
-                .with_interactable(npc.interactable)
-                .with_talkable(dialogue_probe_eligible(npc))
-                .with_active(active),
-        );
+            .unwrap_or(object.id.0);
+        object.id = NpcId(object_id);
+        object.active &= outcome.is_none_or(|o| !o.despawns.contains(&index));
+        npcs.push(object);
     }
 
     // The overworlds are tori: the cartridge itself selects the paged/wrapping

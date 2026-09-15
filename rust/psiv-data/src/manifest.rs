@@ -33,6 +33,9 @@ pub struct Manifest {
     /// event's epilogue; full provenance lives in `game_start.json`).
     #[serde(default)]
     pub game_start: Option<GameStartSummary>,
+    /// Optional ROM-derived field teleport and place-entry tables.
+    #[serde(default)]
+    pub travel: Option<crate::TravelFile>,
     /// Every packed map, in id order.
     pub maps: Vec<MapEntry>,
     /// Maps deliberately not packed, and why: the `PtrMap_Null` placeholders
@@ -210,8 +213,9 @@ mod tests {
     }
 }
 
-/// The manifest's new-game headline: enough to spawn without opening
-/// `game_start.json`.
+/// The manifest's post-opening placement and flags. The separate
+/// `game_start.json` initializer also supplies money, settings, and the
+/// transient party used while the opening plays.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GameStartSummary {
     /// The first controllable map.

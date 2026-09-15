@@ -129,6 +129,11 @@ fn pages(entry: &DialogueEntry) -> Vec<(Vec<String>, PageEnd)> {
         }
         let Some(end) = flow.page_end() else { break };
         pages.push((flow.lines().to_vec(), end));
+        // Static pagination stops at a choice; branch coverage answers each
+        // alternative separately instead of inventing a default answer.
+        if end == PageEnd::Choice {
+            break;
+        }
         flow.advance();
         assert!(pages.len() < 1_000, "a message that never ends");
     }
@@ -240,6 +245,94 @@ fn close_ends_the_page_and_the_next_one_opens_fresh() {
 }
 
 #[test]
+fn scene_close_preserves_cursor_and_refreshes_flags_before_resuming() {
+    let entry = entry(vec![
+        portrait(2),
+        text("first"),
+        wait(),
+        text("pause"),
+        close(),
+        flag_check(7, 3),
+        text("unchanged"),
+    ]);
+    let mut flow = open(&entry);
+    assert!(
+        !flow.pause_for_scene(),
+        "ordinary wait stays inside the scene call"
+    );
+    flow.advance();
+    assert_eq!(flow.lines(), &["pause"]);
+    assert!(flow.pause_for_scene());
+    assert!(!flow.is_open());
+    assert_eq!(
+        flow.lines(),
+        &["pause"],
+        "next text cannot run before resume"
+    );
+    let mut flags = vec![false; 8];
+    flags[7] = true;
+    let Opening::Window(mut resumed) = flow.resume_scene(&flags) else {
+        panic!("saved middle of entry");
+    };
+    assert_eq!(resumed.take_jump(), Some(3));
+    assert_eq!(
+        resumed.portrait(),
+        None,
+        "the previous portrait was destroyed"
+    );
+}
+
+#[test]
+fn scene_resume_after_entry_terminator_opens_the_following_entry() {
+    let mut entry = entry(vec![text("finished")]);
+    entry.id = 18;
+    let mut flow = open(&entry);
+    assert!(flow.pause_for_scene());
+    assert!(matches!(flow.resume_scene(&[]), Opening::Jump(19)));
+}
+
+#[test]
+fn after_igglanova_dialogue_has_three_scene_calls_and_no_lost_pages() {
+    let dir = pack_dir();
+    if !dir.join("dialogue/trees.json").is_file() {
+        return;
+    }
+    let set = DialogueSet::load(&dir).unwrap();
+    let entry = set.entry(33, 18).unwrap();
+    let mut flow = open(entry);
+    let mut chunks = vec![Vec::new()];
+    loop {
+        chunks.last_mut().unwrap().push(flow.lines().join("\n"));
+        let end = flow.page_end();
+        if flow.pause_for_scene() {
+            if end == Some(PageEnd::End) {
+                break;
+            }
+            let Opening::Window(next) = flow.resume_scene(&[]) else {
+                panic!("F7 must resume inside the entry");
+            };
+            flow = *next;
+            chunks.push(Vec::new());
+        } else {
+            flow.advance();
+        }
+        assert!(chunks.len() <= 3);
+    }
+    assert_eq!(chunks.iter().map(Vec::len).collect::<Vec<_>>(), [2, 4, 17]);
+    assert_eq!(chunks[1][0], "What? But we destroyed the\nmonster...");
+    assert_eq!(chunks[2][0], "What?");
+    assert_eq!(chunks[2].last().unwrap(), "Hey!\nDon't leave me here!");
+    assert_eq!(
+        chunks.concat(),
+        entry
+            .pages
+            .iter()
+            .map(|p| p.lines.join("\n"))
+            .collect::<Vec<_>>()
+    );
+}
+
+#[test]
 fn a_portrait_shows_and_hides() {
     let entry = entry(vec![
         portrait(6),
@@ -269,14 +362,77 @@ fn a_delay_holds_the_message_for_its_frames() {
 }
 
 #[test]
-fn a_choice_ends_the_message_and_says_so() {
-    let entry = entry(vec![text("Well?"), yes_no(), text("unreachable in v1")]);
+fn a_choice_requires_an_answer_and_branches_relative_to_its_entry() {
+    let mut entry = entry(vec![text("Well?"), yes_no(), text("after choice")]);
+    entry.id = 24;
     let mut flow = open(&entry);
     assert_eq!(flow.page_end(), Some(PageEnd::Choice));
-    let log = flow.drain_log();
-    assert!(log.iter().any(|line| line.contains("yes_no")), "{log:?}");
     flow.advance();
-    assert!(!flow.is_open());
+    assert!(flow.is_open());
+    assert!(flow.has_choice());
+    assert!(flow.answer_choice(false));
+    assert_eq!(flow.take_jump(), Some(26));
+    assert!(!flow.answer_choice(true), "an answer is consumed once");
+}
+
+#[test]
+fn choice_zero_continues_inside_entry_and_full_line_choices_keep_the_operands() {
+    let choice = Segment::Control(Ctrl::YesNo {
+        code: 0xF5,
+        operands: vec![0, 1],
+        yes_entry: 0,
+        no_entry: 1,
+    });
+    let entry = entry(vec![
+        portrait(2),
+        text(&"Q".repeat(32)),
+        choice,
+        text("Yes response"),
+    ]);
+    let mut flow = open(&entry);
+    assert!(
+        flow.has_choice(),
+        "choice immediately after column 32 is still a choice"
+    );
+    assert!(flow.answer_choice(true));
+    assert_eq!(flow.lines(), ["Yes response"]);
+    assert_eq!(flow.portrait(), Some(2));
+    assert_eq!(flow.page_end(), Some(PageEnd::End));
+    let mut flow = open(&entry);
+    flow.answer_choice(false);
+    assert_eq!(flow.take_jump(), Some(1));
+}
+
+#[test]
+fn chaz_house_answers_reach_different_retail_responses_and_keep_alys_portrait() {
+    let dir = pack_dir();
+    if !dir.join("dialogue/trees.json").is_file() {
+        return;
+    }
+    let set = DialogueSet::load(&dir).unwrap();
+    for yes in [true, false] {
+        let mut flow = open(set.entry(10, 49).unwrap());
+        for _ in 0..10 {
+            if flow.has_choice() {
+                break;
+            }
+            flow.advance();
+        }
+        assert!(flow.answer_choice(yes));
+        if let Some(next) = flow.take_jump() {
+            assert_eq!(next, 50);
+            flow.continue_at(set.entry(10, next).unwrap());
+        }
+        assert_eq!(flow.portrait(), Some(2));
+        assert_eq!(
+            flow.lines().join("\n"),
+            if yes {
+                "OK, let's be up bright\nand early tomorrow!"
+            } else {
+                "Well, shall we keep going\na little longer?"
+            }
+        );
+    }
 }
 
 #[test]

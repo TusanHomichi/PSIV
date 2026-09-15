@@ -95,13 +95,14 @@ impl OpeningTextLayer {
     }
 
     pub(super) fn entry(&self, tree_rom_addr: Option<u32>, entry: u16) -> Option<&DialogueEntry> {
-        // The opening's SetDialogueTree points at retail DialogueTree17. The
-        // pack carries the same tree by its stable 1-based number; other
-        // scene tree addresses belong to ordinary dialogue windows.
-        if tree_rom_addr != Some(0x001E_BA90) {
-            return None;
-        }
-        self.set.as_ref()?.entry(17, entry)
+        let set = self.set.as_ref()?;
+        let address = tree_rom_addr?;
+        let tree = set
+            .trees
+            .trees
+            .iter()
+            .find(|tree| tree.rom_address() == Some(address))?;
+        tree.entry(entry)
     }
 
     pub(super) fn place(&mut self) {

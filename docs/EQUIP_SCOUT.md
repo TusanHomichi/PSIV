@@ -32,7 +32,7 @@ the shared `Stats` shape stays unchanged.
 
 ## Slot dispatch and exchange
 
-The persistent order is:
+The persistent order and default dispatch are:
 
 | byte | core slot | retail type(s) |
 |---|---|---|
@@ -47,15 +47,25 @@ the right hand (`127755-127758`); types 3 and 4 replace the right hand and
 clear the left, returning both displaced bytes (`127763-127768`); types 6
 and 7 replace head/body (`127797-127808`).
 
-Shields have the cartridge's asymmetric branch
+The default shield handler has the cartridge's asymmetric branch
 (`reference/ps4disasm/ps4.asm:127773-127793`): if the current right-hand item
 is type 3 or 4, the right hand is cleared and the shield goes left; otherwise
-the old left hand is returned and the shield occupies left. Only the shield
-handler writes the left-hand slot during normal play. `SOURCE_NOTES.md:558-562`
-therefore stands: dual wielding is initial-data-only. If Chaz or Rika removes
-their starting left-hand weapon, it is permanently gone from the left slot;
-equipping that weapon later puts it in the right hand. This is reproduced and
-covered by a core test, not corrected.
+the old left hand is returned and the shield occupies left.
+
+**Correction, 2026-09-15:** `loc_5F93A..loc_5FAEE` subsequently offers a hand
+selector for types 1, 2 and 5. It rebuilds the tentative equipment from the
+saved record on each cursor update, writes the selected hand, and commits
+only on confirmation. Left-hand selection displaces a two-handed right
+weapon; right-hand selection preserves the left. Cancel changes neither
+equipment nor inventory. The earlier initial-data-only dual-wielding claim
+missed this later routine and was wrong.
+
+The native EQUIP page now exposes that hand choice, including two slashers
+for Alys and a shield in the right hand. Core regressions cover re-equipping
+the left weapon, shield placement, two-handed displacement and rejection of
+invalid hand selectors. A real-pack runtime test verifies two slashers and
+their derived attack value through reload. The native text windows are wider
+to contain the shell's labels; their layout is not retail pixel parity.
 
 The retail equip commit counts the inventory, replaces the selected filtered
 entry with the first displaced item, compacts when that replacement is empty,

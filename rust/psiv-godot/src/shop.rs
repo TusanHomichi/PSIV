@@ -4,6 +4,9 @@
 //! `docs/SHOP_LAYOUT_DECODED.md`. The window owns cursors and text only;
 //! transaction mutations go through `psiv_runtime::Runtime`.
 
+#[path = "shop/portraits.rs"]
+mod portraits;
+
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::Path;
@@ -71,6 +74,8 @@ struct OwnedItem {
 
 #[derive(Clone, Debug, Deserialize)]
 struct ShopsFile {
+    #[serde(default)]
+    portraits: Vec<portraits::Portrait>,
     counters: Vec<ShopCounter>,
     inventories: Vec<ShopInventory>,
     inns: Vec<InnRecord>,
@@ -132,6 +137,7 @@ struct InnRecord {
 
 #[derive(Clone, Debug)]
 struct ShopCatalog {
+    portraits: HashMap<String, String>,
     counters: Vec<ShopCounter>,
     inventories: Vec<ShopInventory>,
     inns: Vec<InnRecord>,
@@ -154,6 +160,7 @@ impl ShopCatalog {
             }
         }
         Ok(ShopCatalog {
+            portraits: file.portraits.into_iter().map(|p| (p.art, p.png)).collect(),
             counters: file.counters,
             inventories: file.inventories,
             inns: file.inns,
@@ -424,6 +431,20 @@ impl ShopWindow {
 
     pub(crate) fn is_open(&self) -> bool {
         self.mode != Mode::Closed
+    }
+
+    pub(crate) fn debug_menu(&self) -> serde_json::Value {
+        serde_json::json!({
+            "mode": format!("{:?}", self.mode),
+            "root": self.root_selection,
+            "item": self.item_selection,
+            "confirm": self.confirm_selection,
+            "stock": self.buy_items().iter().map(|item| serde_json::json!({
+                "id": item.item_id, "name": item.display_name, "price": item.buy_price,
+            })).collect::<Vec<_>>(),
+            "message": self.message,
+            "money": self.snapshot.money,
+        })
     }
 
     pub(crate) fn counter_at(&self, map_id: u16, x: u16, y: u16) -> Option<ShopCounter> {
@@ -719,19 +740,15 @@ impl ShopWindow {
     }
 
     fn load_portrait(&self, raw: &str) -> Option<Gd<ImageTexture>> {
-        if self.pack_dir.is_empty() {
-            return None;
-        }
-        // The shop tables point at seven separate art blobs which are not part
-        // of the dialogue portrait pack. Baker is shared and is available;
-        // the other blobs stay an explicit asset gap until the shop-art pack
-        // is promoted.
-        if raw != "0x29FC66" {
-            godot_warn!("shop portrait {raw} has no promoted runtime PNG");
-            return None;
-        }
-        let path = format!("{}/dialogue/portraits/12_Baker.png", self.pack_dir);
-        Image::load_from_file(&GString::from(path.as_str()))
+        let relative = self
+            .catalog
+            .as_ref()?
+            .portraits
+            .get(raw)
+            .map(String::as_str)
+            .or_else(|| (raw == "0x29FC66").then_some("dialogue/portraits/12_Baker.png"))?;
+        let path = Path::new(&self.pack_dir).join(relative);
+        Image::load_from_file(&GString::from(path.to_string_lossy().as_ref()))
             .and_then(|image| ImageTexture::create_from_image(&image))
     }
 

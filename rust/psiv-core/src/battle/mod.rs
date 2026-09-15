@@ -47,7 +47,7 @@
 //!
 //! # What this tier does not do
 //!
-//! Techniques, ordinary skills, items, combos, macros, most status effects,
+//! Unimplemented technique effects, ordinary skills, items, combos, macros, most status effects,
 //! drops and boss formations are Tier 2 and later. The proven retail vehicle
 //! skill records and their damage/death dispatcher are included below; unknown
 //! future effect ids still stop at an explicit boundary. Enemy AI
@@ -59,22 +59,32 @@
 //! attack. The broader 44-entry ability-effect dispatch is absent, as is the
 //! weapon-element fallback for physical skills; [`ability_element_factor`]
 //! exists for that future dispatcher.
+//!
+//! Player damage, healing and stat-support techniques now execute through
+//! [`Technique`], including TP payment and target validation. The Godot shell
+//! selects individual commands; unsupported technique effects are rejected.
 
 mod action;
 mod ai;
 mod chances;
 mod damage;
+mod enemy_skill;
 mod engine;
 mod equipment;
 mod event;
 mod fighters;
+mod item;
 mod order;
 mod records;
 mod rewards;
 mod rng;
+mod skill;
 mod stats;
 mod tables;
+mod technique;
 mod vehicle_skill;
+
+pub use enemy_skill::EnemySkill;
 
 #[cfg(test)]
 mod fixtures;
@@ -96,12 +106,14 @@ pub use damage::{
 };
 pub use engine::{Battle, Command, PartyMember, RoundOrders};
 pub use equipment::{
-    EquipmentCandidate, EquipmentError, equip_item, equipment_candidates, unequip_item,
+    EquipmentCandidate, EquipmentError, equip_item, equip_item_in_hand, equipment_candidates,
+    unequip_item,
 };
-pub use event::{BattleEvent, Outcome, Skipped};
+pub use event::{BattleEvent, FirstZioAction, Outcome, Skipped};
 pub use fighters::{
     ENEMY_SLOTS, FIGHTER_SLOTS, Fighter, FighterId, LAST_PARTY_ID, PARTY_SLOTS, Roster, Side,
 };
+pub use item::{BattleItem, ItemRejection, ItemSource, item_targets};
 pub use order::{Priority, QueueEntry, build_queue, roll_priority};
 pub use records::{
     AI_CONDITIONS, BattleData, BattleDataError, Bonuses, CharacterRecord, ELEMENT_SLOTS,
@@ -109,8 +121,9 @@ pub use records::{
     ItemKind, ItemRecord, LevelRecord, LevelTable, REGULAR_ABILITIES, SKILL_SLOTS, TECHNIQUE_SLOTS,
     UNRUNNABLE,
 };
-pub use rewards::{MAX_LEVEL, POOL_CAP, Pools, Split, level_up, split_rewards};
+pub use rewards::{MAX_LEVEL, POOL_CAP, Pools, Split, level_up, level_up_absent, split_rewards};
 pub use rng::{HV_SURROGATE, Lcg41, RESEED, Rng2, Rolls, SliceRolls};
+pub use skill::{Skill, SkillRejection, skill_targets};
 pub use stats::{
     DEFENDING_PHYSICAL_PROP, GRANTED_RESISTANCE, PROFESSION_ANDROID, StatPair, StatTriple, Stats,
     status,
@@ -119,6 +132,7 @@ pub use tables::{
     ELEMENT_NAMES, ELEMENT_OFFSETS, STAT_INDEX_MASK, STAT_OFFSETS, StatSlot, StatWidth,
     WEAPON_ELEMENT_SENTINEL, WORD_STAT_THRESHOLD, element_name, element_offset, stat_slot,
 };
+pub use technique::{Technique, TechniqueRejection, TechniqueStat, technique_targets};
 pub use vehicle_skill::{
     VehicleSkillData, VehicleSkillEffectKind, VehicleSkillResistance, resolve_vehicle_skill,
     vehicle_skill_data,

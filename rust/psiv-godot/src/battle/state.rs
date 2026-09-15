@@ -30,7 +30,6 @@ pub(super) enum MessageKind {
 #[derive(Clone)]
 pub(super) struct PartyStatus {
     pub(super) fighter: u8,
-    pub(super) character: u8,
     pub(super) name: String,
     pub(super) hp: u16,
     pub(super) tp: u16,

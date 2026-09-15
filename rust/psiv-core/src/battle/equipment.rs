@@ -61,6 +61,8 @@ pub enum EquipmentError {
     EquipmentSlotOutOfRange(usize),
     /// The requested equipment slot is already empty.
     EmptyEquipmentSlot(EquipSlot),
+    /// Only one-handed weapons and shields support the right/left selector.
+    InvalidHandSelection,
 }
 
 impl fmt::Display for EquipmentError {
@@ -94,6 +96,7 @@ impl fmt::Display for EquipmentError {
             EquipmentError::EmptyEquipmentSlot(slot) => {
                 write!(f, "equipment slot {slot:?} is empty")
             }
+            EquipmentError::InvalidHandSelection => write!(f, "this item has no hand selection"),
         }
     }
 }
@@ -156,6 +159,48 @@ pub fn equip_item(
     item: &impl Fn(u8) -> Option<ItemRecord>,
     usable_by_mask: &impl Fn(u8) -> Option<u16>,
 ) -> Result<(), EquipmentError> {
+    equip_with_hand(
+        stats,
+        inventory,
+        character_id,
+        inventory_slot,
+        None,
+        item,
+        usable_by_mask,
+    )
+}
+
+/// Commits the hand chosen by `loc_5F966..loc_5FA24`, including left-hand
+/// weapons and right-hand shields. Preview/cancel never calls this mutation.
+pub fn equip_item_in_hand(
+    stats: &mut Stats,
+    inventory: &mut Inventory,
+    character_id: u8,
+    inventory_slot: usize,
+    hand: EquipSlot,
+    item: &impl Fn(u8) -> Option<ItemRecord>,
+    usable_by_mask: &impl Fn(u8) -> Option<u16>,
+) -> Result<(), EquipmentError> {
+    equip_with_hand(
+        stats,
+        inventory,
+        character_id,
+        inventory_slot,
+        Some(hand),
+        item,
+        usable_by_mask,
+    )
+}
+
+fn equip_with_hand(
+    stats: &mut Stats,
+    inventory: &mut Inventory,
+    character_id: u8,
+    inventory_slot: usize,
+    hand: Option<EquipSlot>,
+    item: &impl Fn(u8) -> Option<ItemRecord>,
+    usable_by_mask: &impl Fn(u8) -> Option<u16>,
+) -> Result<(), EquipmentError> {
     let Some(item_id) = inventory.slots().get(inventory_slot).copied() else {
         return Err(EquipmentError::InventorySlotOutOfRange(inventory_slot));
     };
@@ -167,6 +212,15 @@ pub fn equip_item(
         item_id,
         kind: selected.kind,
     })?;
+    let slot = match hand {
+        Some(hand @ (EquipSlot::RightHand | EquipSlot::LeftHand))
+            if selected.kind.has_hand_choice() =>
+        {
+            hand
+        }
+        Some(_) => return Err(EquipmentError::InvalidHandSelection),
+        None => slot,
+    };
     let mask = usable_by_mask(item_id).ok_or(EquipmentError::MissingUsableByMask(item_id))?;
     if u32::from(character_id) >= u16::BITS || mask & (1u16 << character_id) == 0 {
         return Err(EquipmentError::NotUsableBy {
@@ -442,7 +496,7 @@ mod tests {
     }
 
     #[test]
-    fn starting_left_hand_weapon_is_permanently_lost_from_the_left_slot() {
+    fn an_unequipped_weapon_can_be_returned_to_the_left_hand() {
         let data = data();
         let item = |id| data.item(id).ok().cloned();
         let masks = masks();
@@ -458,9 +512,79 @@ mod tests {
         assert_eq!(stats.equipment[1], 0);
         assert_eq!(inventory.get(0), Some(2));
 
-        equip_item(&mut stats, &mut inventory, 0, 0, &item, &masks).unwrap();
+        equip_item_in_hand(
+            &mut stats,
+            &mut inventory,
+            0,
+            0,
+            EquipSlot::LeftHand,
+            &item,
+            &masks,
+        )
+        .unwrap();
         assert_eq!(stats.equipment[0], 2);
-        assert_eq!(stats.equipment[1], 0);
+        assert_eq!(stats.equipment[1], 2);
+        assert_eq!(inventory.occupied(), 0);
+    }
+
+    #[test]
+    fn explicit_hand_choice_handles_weapons_shields_and_two_hand_displacement() {
+        let data = data();
+        let item = |id| data.item(id).ok().cloned();
+        let masks = masks();
+        let mut stats = chaz();
+        stats.equipment[0] = 16;
+        stats.equipment[1] = 0;
+        let mut inventory = Inventory::new();
+        inventory.add(1).unwrap();
+        equip_item_in_hand(
+            &mut stats,
+            &mut inventory,
+            0,
+            0,
+            EquipSlot::LeftHand,
+            &item,
+            &masks,
+        )
+        .unwrap();
+        assert_eq!(&stats.equipment[..2], &[0, 1]);
+        assert_eq!(inventory.occupied(), 1);
+        assert_eq!(inventory.get(0), Some(16));
+
+        inventory.add(10).unwrap();
+        equip_item_in_hand(
+            &mut stats,
+            &mut inventory,
+            0,
+            1,
+            EquipSlot::RightHand,
+            &item,
+            &masks,
+        )
+        .unwrap();
+        assert_eq!(
+            &stats.equipment[..2],
+            &[10, 1],
+            "a shield may occupy the right hand beside a left-hand weapon"
+        );
+        let before = (stats.clone(), inventory.clone());
+        assert_eq!(
+            equip_item_in_hand(
+                &mut stats,
+                &mut inventory,
+                0,
+                0,
+                EquipSlot::LeftHand,
+                &item,
+                &masks
+            ),
+            Err(EquipmentError::InvalidHandSelection)
+        );
+        assert_eq!(
+            (stats, inventory),
+            before,
+            "reject a two-handed weapon in the selector without any mutation"
+        );
     }
 
     #[test]

@@ -3,7 +3,7 @@
 use psiv_runtime::{CampEquipResult, Runtime};
 
 use super::layout::{
-    CHILD_CURSOR_PATTERN, EQUIP_ITEM_LIST, EQUIP_MESSAGE, EQUIP_STATS, EQUIPPED_ITEMS,
+    CHILD_CURSOR_PATTERN, CellRect, EQUIP_ITEM_LIST, EQUIP_MESSAGE, EQUIP_STATS, EQUIPPED_ITEMS,
 };
 use super::{CampChrome, CampMenu, DrawList, draw_text, frame};
 
@@ -38,7 +38,22 @@ impl CampMenu {
             self.message = "NO EQUIPMENT".to_owned();
             return;
         };
-        let result = runtime.equip_camp_item(character.party_slot, item.slot);
+        let has_hand_choice = runtime.camp_equipment_hand_choice(item.slot);
+        if has_hand_choice && self.mode != super::Mode::EquipHands {
+            self.equipment_hand_selection = 0;
+            self.mode = super::Mode::EquipHands;
+            return;
+        }
+        let result = if has_hand_choice {
+            let hand = if self.equipment_hand_selection == 0 {
+                psiv_core::battle::EquipSlot::RightHand
+            } else {
+                psiv_core::battle::EquipSlot::LeftHand
+            };
+            runtime.equip_camp_item_in_hand(character.party_slot, item.slot, hand)
+        } else {
+            runtime.equip_camp_item(character.party_slot, item.slot)
+        };
         self.message = equip_result_message(result);
         self.mode = super::Mode::EquipResult;
         self.sync(runtime);
@@ -73,8 +88,18 @@ impl CampMenu {
         let Some(character) = self.snapshot.party.get(self.equipment_character_selection) else {
             return;
         };
-        frame(chrome, &mut list.quads, EQUIP_STATS);
-        frame(chrome, &mut list.quads, EQUIPPED_ITEMS);
+        // Native labels and numeric fields need more room than the original
+        // tile strings. Keep oracle geometry constants intact for its fixtures.
+        frame(
+            chrome,
+            &mut list.quads,
+            CellRect::new(EQUIP_STATS.x, EQUIP_STATS.y, 28, EQUIP_STATS.h),
+        );
+        frame(
+            chrome,
+            &mut list.quads,
+            CellRect::new(EQUIPPED_ITEMS.x, EQUIPPED_ITEMS.y, 23, EQUIPPED_ITEMS.h),
+        );
         let stats = [
             (character.name.clone(), (4, 3)),
             (format!("LV: {}", character.level), (4, 5)),
@@ -82,9 +107,9 @@ impl CampMenu {
                 format!("HP:{}/{}", character.current_hp, character.max_hp),
                 (4, 7),
             ),
-            (format!("ATK: {}", character.attack_power), (12, 3)),
-            (format!("DFS: {}", character.defense_power), (12, 5)),
-            (format!("STR: {}", character.strength), (12, 7)),
+            (format!("ATK: {}", character.attack_power), (18, 3)),
+            (format!("DFS: {}", character.defense_power), (18, 5)),
+            (format!("STR: {}", character.strength), (18, 7)),
         ];
         for (text, cell) in stats {
             draw_text(chrome, &mut list.quads, &text, cell);
@@ -144,6 +169,24 @@ impl CampMenu {
         self.draw_equip_stats(chrome, list);
         frame(chrome, &mut list.quads, EQUIP_MESSAGE);
         draw_text(chrome, &mut list.quads, &self.message, (8, 22));
+    }
+
+    pub(super) fn draw_equip_hands(&self, chrome: &CampChrome, list: &mut DrawList) {
+        self.draw_equip_stats(chrome, list);
+        frame(
+            chrome,
+            &mut list.quads,
+            super::layout::CellRect::new(21, 13, 17, 7),
+        );
+        for (index, label) in ["RIGHT HAND", "LEFT HAND"].into_iter().enumerate() {
+            draw_text(chrome, &mut list.quads, label, (24, 15 + index as i32 * 2));
+        }
+        if let Some(quad) = chrome.window_word(
+            CHILD_CURSOR_PATTERN,
+            (22, 15 + self.equipment_hand_selection as i32 * 2),
+        ) {
+            list.quads.push(quad);
+        }
     }
 }
 

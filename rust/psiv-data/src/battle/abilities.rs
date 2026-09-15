@@ -46,7 +46,9 @@ impl AbilitiesFile {
     /// for a log line.
     ///
     /// Retail holds exactly one — `BLACK WAVE`, effect `$2C`, carried only by
-    /// the enemy `Zio3`, which appears in none of the 531 formations.
+    /// the enemy `Zio3` in boss formation 4. Its object $914 returns directly
+    /// to the field without dispatching that effect. The raw row is retained
+    /// for this identity; it must never enter the generic effect dispatcher.
     pub fn rejected(&self) -> impl Iterator<Item = &Ability> {
         self.all().filter(|record| record.effect_out_of_range)
     }
@@ -88,10 +90,20 @@ pub struct Ability {
     /// Byte 1, for a technique.
     #[serde(default)]
     pub tp_cost: Option<u8>,
+    /// Byte 2 for techniques/skills: usability in the high nibble, range below.
+    #[serde(default)]
+    pub targeting: Option<AbilityTargeting>,
+    /// Enemy-skill byte 2. Its meaning is dispatcher-specific; Fission's
+    /// object restores the formation's cached neighbor instead of reading it.
+    #[serde(default)]
+    pub target_id: Option<u8>,
     /// Byte 1, for an item effect. The field is named `parameter_2` in the
     /// extracted record because its meaning depends on the item effect.
     #[serde(default)]
     pub parameter_2: Option<u8>,
+    /// Item record byte 7: its battle object/gameplay dispatcher.
+    #[serde(default)]
+    pub battle_object_or_graphic_id: Option<u8>,
     /// Byte 1's low seven bits, for a skill or enemy skill: which of the
     /// actor's stats supplies the attack power.
     #[serde(default)]
@@ -115,6 +127,13 @@ pub struct Ability {
     /// Whether [`Ability::effect_id`] runs past the dispatch table. Retail has
     /// exactly one: `BLACK WAVE`, used only by the unreferenced enemy `Zio3`.
     pub effect_out_of_range: bool,
+}
+
+/// Raw cartridge targeting byte; the engine interprets the two nibbles.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AbilityTargeting {
+    /// Original byte, retained so the bridge never infers range from a name.
+    pub raw: u8,
 }
 
 impl Ability {

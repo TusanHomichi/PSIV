@@ -468,6 +468,77 @@ fn a_zero_tick_wait_does_not_block() {
 }
 
 #[test]
+fn stepping_a_field_object_blocks_the_following_scene_for_all_64_frames() {
+    let map = map_with(&["..", ".."], vec![], vec![]);
+    let mut state = GameState::new();
+    static OPS: &[SceneOp] = &[
+        SceneOp::CreateFieldObject {
+            slot: 7,
+            object_id: 0x188,
+            art_tile: 0x3A5,
+            x: 480,
+            y: 160,
+        },
+        SceneOp::StepFieldObject {
+            slot: 7,
+            step_x: 0,
+            step_y: 0x8000,
+            frames: 64,
+        },
+        SceneOp::SetFlag {
+            flag: Flag::event(1),
+            value: true,
+        },
+        SceneOp::End,
+    ];
+    let mut runner = SceneRunner::new(OPS, vec![], frames());
+    assert_eq!(
+        runner.tick(&map, &mut state, SceneInput::None),
+        vec![
+            SceneEffect::Presentation { op: OPS[0] },
+            SceneEffect::Presentation { op: OPS[1] },
+        ]
+    );
+    for tick in 1..64 {
+        assert!(
+            runner.tick(&map, &mut state, SceneInput::None).is_empty(),
+            "motion frame {tick}"
+        );
+        assert!(!state.is_set(Flag::event(1)));
+    }
+    let done = runner.tick(&map, &mut state, SceneInput::None);
+    assert!(state.is_set(Flag::event(1)));
+    assert!(done.contains(&SceneEffect::Finished));
+}
+
+#[test]
+fn dialogue_resume_retains_or_replaces_its_window_routine() {
+    use psiv_core::DialogueWindow;
+    let map = map_with(&["..", ".."], vec![], vec![]);
+    let mut state = GameState::new();
+    static OPS: &[SceneOp] = &[
+        SceneOp::RunDialogue {
+            source: DialogueSource::Entry(DialogueId(0)),
+            window: DialogueWindow::Cutscene,
+        },
+        SceneOp::RunDialogueResume,
+        SceneOp::RunDialogueResumeWithWindow {
+            window: DialogueWindow::Ending,
+        },
+        SceneOp::End,
+    ];
+    let mut runner = SceneRunner::new(OPS, vec![], frames());
+    runner.tick(&map, &mut state, SceneInput::None);
+    assert_eq!(runner.dialogue_window(), DialogueWindow::Cutscene);
+    runner.tick(&map, &mut state, SceneInput::DialogueClosed);
+    assert_eq!(runner.dialogue_window(), DialogueWindow::Cutscene);
+    runner.tick(&map, &mut state, SceneInput::DialogueClosed);
+    assert_eq!(runner.dialogue_window(), DialogueWindow::Ending);
+    runner.tick(&map, &mut state, SceneInput::DialogueEnded);
+    assert!(runner.is_finished());
+}
+
+#[test]
 fn a_flag_branch_takes_the_arm_the_state_selects() {
     let map = map_with(&["..", ".."], vec![], vec![]);
     static BRANCHING: &[SceneOp] = &[

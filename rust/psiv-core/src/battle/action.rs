@@ -17,6 +17,10 @@ use super::rng::Rolls;
 use super::stats::Stats;
 use super::tables::WEAPON_ELEMENT_SENTINEL;
 
+#[cfg(test)]
+#[path = "attack_status_tests.rs"]
+mod status_tests;
+
 /// How far an attack reaches.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Reach {
@@ -270,6 +274,7 @@ pub fn resolve_attack(
 
     let attack = roster.get(actor).map_or(0, |f| f.stats.attack.battle);
     let mut died = Vec::new();
+    let mut hit_targets = Vec::new();
 
     for (target, verdict) in pass.verdicts {
         if verdict == Verdict::Miss {
@@ -283,6 +288,7 @@ pub fn resolve_attack(
             });
             continue;
         }
+        hit_targets.push(target);
 
         let element = {
             let attacker_stats = &roster.get(actor).expect("actor present").stats;
@@ -312,7 +318,7 @@ pub fn resolve_attack(
         let remaining = fighter.stats.curr_hp;
         let killed = signed <= 0 && !fighter.stats.is_out();
         if killed {
-            fighter.stats.status |= super::stats::status::DEAD;
+            fighter.mark_defeated();
         }
 
         events.push(BattleEvent::Resolved {
@@ -328,7 +334,66 @@ pub fn resolve_attack(
         }
     }
 
+    // Battle_DoAttackEffect runs after all damage/death reactions. A plain
+    // enemy attack can inflict poison or paralysis; every extracted nonzero
+    // attack_status uses one of these two effects. Skills take another path.
+    if actor.side() == Side::Enemy {
+        for target in hit_targets {
+            resolve_enemy_attack_status(roster, actor, target, rolls, events);
+        }
+    }
+
     Ok(died)
+}
+
+fn resolve_enemy_attack_status(
+    roster: &mut Roster,
+    actor: FighterId,
+    target: FighterId,
+    rolls: &mut impl Rolls,
+    events: &mut Vec<BattleEvent>,
+) {
+    use super::stats::status;
+    let Some(attacker) = roster.get(actor) else {
+        return;
+    };
+    let effect = attacker.stats.max_tp;
+    let bit = match effect {
+        27 => status::POISONED,
+        28 => status::PARALYZED,
+        _ => return,
+    };
+    let strength = i16::from(attacker.stats.strength.battle);
+    let Some(fighter) = roster.get_mut(target).filter(|f| f.is_alive()) else {
+        return;
+    };
+    if fighter.stats.status & bit != 0 {
+        return;
+    }
+    // AbilityEffect_Poison/Paralyze both pass $48 (poison property).
+    // Effect_DoPhysicalAttack compares strength against strength, miss <=$70.
+    let verdict = calculate_chances(
+        strength,
+        i16::from(fighter.stats.strength.battle),
+        i16::from(fighter.stats.element_factor(13).unwrap_or(0)),
+        0x70,
+        effect as i16,
+        rolls,
+    );
+    if verdict == Verdict::Miss {
+        return;
+    }
+    fighter.stats.status |= bit;
+    if bit == status::PARALYZED {
+        fighter.stats.status &= !status::ASLEEP;
+        fighter.stats.agility.battle = 1;
+        fighter.stats.dexterity.battle = 1;
+    }
+    events.push(BattleEvent::StatusInflicted {
+        actor,
+        target,
+        status: bit,
+    });
 }
 
 #[cfg(test)]

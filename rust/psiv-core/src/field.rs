@@ -410,6 +410,18 @@ impl FieldState {
         Ok(())
     }
 
+    pub(crate) fn resume_scripted(
+        &mut self,
+        map: &FieldMap,
+        actor: &crate::scene::ScriptedActor,
+    ) -> Result<(), MapError> {
+        self.enter_map(map, actor.cell, actor.facing)?;
+        self.step = actor
+            .step
+            .map(|(dir, to, progress)| Step { dir, to, progress });
+        Ok(())
+    }
+
     /// Advances one tick.
     ///
     /// The rules, in the order they apply:

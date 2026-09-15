@@ -96,7 +96,7 @@ pub fn build_queue(roster: &Roster, priority: Priority, rolls: &mut impl Rolls) 
     };
     for side in sides {
         for fighter in roster.side(*side) {
-            if !fighter.stats.can_act() {
+            if !fighter.is_alive() || !fighter.stats.can_act() {
                 continue;
             }
             queue.push(QueueEntry {

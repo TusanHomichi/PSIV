@@ -143,12 +143,24 @@ impl Inventory {
         Some(held)
     }
 
+    /// Field item use removes a slot, then `ReorderInventory` shifts the
+    /// first empty slot's suffix left once. Battle removal keeps its holes.
+    /// The final byte is zero, as the following Current_Money high byte is
+    /// zero throughout the cartridge's permitted money range.
+    pub fn remove_in_field(&mut self, slot: usize) -> Option<u8> {
+        let removed = self.remove(slot)?;
+        if let Some(hole) = self.slots.iter().position(|id| *id == EMPTY) {
+            self.slots.copy_within(hole + 1..INVENTORY_SLOTS, hole);
+            self.slots[INVENTORY_SLOTS - 1] = EMPTY;
+        }
+        Some(removed)
+    }
+
     /// Closes holes from left to right.
     ///
     /// This is not the normal inventory-removal operation. It is the private
     /// `ReorderInventory` tail used by the equipment window when the selected
-    /// item is replaced by an empty displaced slot; field item use continues
-    /// to leave a hole in cartridge order.
+    /// item is replaced by an empty displaced slot.
     pub(crate) fn compact(&mut self) {
         let mut write = 0;
         for read in 0..INVENTORY_SLOTS {

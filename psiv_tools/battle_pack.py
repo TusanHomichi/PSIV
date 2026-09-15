@@ -515,6 +515,12 @@ def emit_battle(rom: bytes, out_dir: str | Path, version: int) -> dict[str, Any]
         CHARACTERS_NAME: build_characters(rom, display),
         EQUIPMENT_NAME: build_equipment(rom, display["items"]),
     }
+    from .status_portraits import character_age, emit_status_portraits
+    portraits = emit_status_portraits(rom, directory)
+    for character in payloads[CHARACTERS_NAME]["characters"]:
+        index = character["character_id"]
+        character["age"] = character_age(rom, index)
+        character["status_portrait"] = portraits[index]
     # The two record files cross-check each other: nothing a character starts
     # with may be something the equip filter would refuse them.
     refused = payloads[CHARACTERS_NAME]["census"]["equipment_the_owner_cannot_equip"]
@@ -549,7 +555,7 @@ def emit_battle(rom: bytes, out_dir: str | Path, version: int) -> dict[str, Any]
             "abilities": {"file": ABILITIES_NAME, "sha256": shas[ABILITIES_NAME],
                           **abilities["counts"]},
             "characters": {"file": CHARACTERS_NAME, "sha256": shas[CHARACTERS_NAME],
-                           "count": characters["count"]},
+                           "count": characters["count"], "portrait_png_count": len(portraits)},
             "equipment": {"file": EQUIPMENT_NAME, "sha256": shas[EQUIPMENT_NAME],
                           "count": equipment["count"],
                           "equippable": equipment["census"]["equippable"]},

@@ -248,7 +248,7 @@ fn a_well_formed_pack_loads() {
     let piata = data.map(MapId(0x010)).expect("Piata is packed");
     assert_eq!(piata.label(), "Piata");
     assert_eq!(piata.music.id, 132);
-    assert!(piata.flags.allows_town_teleport());
+    assert!(!piata.flags.allows_town_teleport());
     assert!(!piata.flags.rolls_random_battles());
     assert_eq!(piata.dialogue_tree, 2);
     assert_eq!(piata.collision.plane, Plane::Bg);
@@ -947,7 +947,7 @@ fn a_record_round_trips_through_json() {
 
 #[test]
 fn a_null_dungeon_teleport_index_is_accepted() {
-    // Bit 7 of the stored byte means "no index"; nine retail maps set it.
+    // Bit 7 preserves the live exit index; nine retail maps set it.
     let map = MapJson {
         flags: r#"{"poison": 1, "random_battles": 1, "town_teleport": 1,
                    "dungeon_teleport_index": null}"#

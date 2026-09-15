@@ -32,6 +32,8 @@ pub struct GameData {
     /// Map id -> vehicle selector sheet ids for the map's CRAM line 3.
     vehicle_map_sheet_ids: BTreeMap<u16, Vec<String>>,
     sound: crate::sound::SoundFiles,
+    new_game: Option<crate::NewGame>,
+    travel: Option<crate::TravelData>,
 }
 
 impl GameData {
@@ -82,6 +84,16 @@ impl GameData {
         }
 
         let mut data = GameData::from_parts(manifest, records)?;
+        if data.manifest.game_start.is_some() {
+            data.new_game = Some(crate::NewGame::load(pack_dir)?);
+        }
+        if let Some(file) = &data.manifest.travel {
+            data.travel = Some(crate::TravelData::load(
+                pack_dir,
+                file,
+                &data.manifest.rom.sha256,
+            )?);
+        }
         data.sound = crate::sound::SoundFiles::load(pack_dir)?;
 
         // Sprite index files (pack format 1). Loaded after the maps so NPC
@@ -203,12 +215,25 @@ impl GameData {
             vehicle_sheet_ids: Vec::new(),
             vehicle_map_sheet_ids: BTreeMap::new(),
             sound: crate::sound::SoundFiles::default(),
+            new_game: None,
+            travel: None,
         })
     }
 
     /// The pack index: the ROM hash, the inventory and the skipped maps.
     pub fn manifest(&self) -> &Manifest {
         &self.manifest
+    }
+
+    /// The title's ROM-derived initializer, before any opening scenes run.
+    /// Absent for synthetic packs built with `from_parts`.
+    pub fn new_game(&self) -> Option<&crate::NewGame> {
+        self.new_game.as_ref()
+    }
+
+    /// Field travel tables, absent in older or synthetic packs.
+    pub fn travel(&self) -> Option<&crate::TravelData> {
+        self.travel.as_ref()
     }
 
     /// All sprite sheets by id (party and NPC merged; ids never collide).
@@ -331,6 +356,72 @@ fn validate_sheet(sheet: &crate::sprites::Sheet) -> Result<(), DataError> {
 
 fn validate_sprite_refs(data: &GameData) -> Result<(), DataError> {
     for (id, record) in &data.maps {
+        for palette in record
+            .map_effects
+            .iter()
+            .flat_map(|effect| &effect.paths)
+            .flat_map(|path| &path.deferred_effects)
+        {
+            let reject = |message| DataError::Sprite {
+                who: format!("map {id} palette copy"),
+                message,
+            };
+            if palette.resolved_as != "palette_write" {
+                return Err(reject(format!(
+                    "unknown resolved effect {}",
+                    palette.resolved_as
+                )));
+            }
+            for replacement in &palette.affects.npc_sheets {
+                let sprite = record
+                    .npcs
+                    .get(replacement.npc_index)
+                    .and_then(|npc| npc.sprite.as_ref())
+                    .ok_or_else(|| {
+                        reject(format!("missing sprite for NPC {}", replacement.npc_index))
+                    })?;
+                if sprite.sheet != replacement.from {
+                    return Err(reject(format!(
+                        "NPC {} palette source disagrees with its base sheet",
+                        replacement.npc_index
+                    )));
+                }
+                let sheet = data
+                    .sheets
+                    .get(&replacement.to)
+                    .ok_or_else(|| reject(format!("missing palette sheet {}", replacement.to)))?;
+                for sequence in [&sprite.idle_sequence, &sprite.walk_sequence] {
+                    if sheet.sequence(sequence).is_none() {
+                        return Err(reject(format!(
+                            "palette sheet {} lacks {sequence}",
+                            replacement.to
+                        )));
+                    }
+                }
+            }
+        }
+        for chest in &record.treasure_chests {
+            // Older packs did not extract chest art. Present references must
+            // provide both lids; silently drawing frame zero hides open state.
+            if let Some(sprite) = &chest.sprite {
+                let who = format!("map {id} chest {}", chest.index);
+                let sheet = data
+                    .sheets
+                    .get(&sprite.sheet)
+                    .ok_or_else(|| DataError::Sprite {
+                        who: who.clone(),
+                        message: format!("missing chest sheet {}", sprite.sheet),
+                    })?;
+                for sequence in ["idle_down", "idle_up"] {
+                    if sheet.sequence(sequence).is_none() {
+                        return Err(DataError::Sprite {
+                            who,
+                            message: format!("missing chest lid {sequence}"),
+                        });
+                    }
+                }
+            }
+        }
         for npc in &record.npcs {
             let who = format!("map {id} npc {}", npc.index);
             match (&npc.sprite, &npc.sprite_reason) {

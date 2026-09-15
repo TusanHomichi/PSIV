@@ -87,12 +87,11 @@ pub(crate) fn debug_scene_runtime(
     )
 }
 
-/// The retail new game: the state `Event_GameStart` (`$9F`) expects when the
-/// title menu's START fires it — Piata Academy F1 at cell (48,19) with Chaz
-/// and the scene's scripted second actor Alys seated in the party. This is
-/// the same state the `PSIV_DEBUG_EVENT=0x9f` fixture boots.
+/// The retail title initializer. Debug scene fixtures deliberately construct
+/// their own state; a player's START must include the money and flag banks
+/// copied by `loc_44414` before the opening runs.
 pub(crate) fn new_game_runtime(data: GameData, step_frames: StepFrames) -> Result<Runtime, String> {
-    debug_scene_runtime(data, 0x009F, step_frames).expect("0x9F is a known fixture state")
+    Runtime::new_game(data, step_frames).map_err(|error| error.to_string())
 }
 
 /// Reproduces tape 22's `camp_root_idle` receipt without making a save file:
@@ -159,4 +158,45 @@ pub(crate) fn available_save_slots(data: &GameData, directory: &Path) -> [bool; 
     std::array::from_fn(|slot| {
         Runtime::load_slot(data.clone(), directory, slot, StepFrames::default()).is_ok()
     })
+}
+
+#[cfg(test)]
+mod new_game_tests {
+    use super::*;
+    use psiv_core::Flag;
+
+    #[test]
+    fn title_start_preserves_the_retail_initial_state() {
+        let pack = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("runtime pack not present; skipping");
+            return;
+        }
+        let data = GameData::load(pack).expect("pack loads");
+        let runtime = new_game_runtime(data, StepFrames::default()).expect("new game starts");
+        // Retail loc_44414, verified by psiv_tools/newgame.py's opcode pins.
+        assert_eq!(
+            runtime.game().money(),
+            500,
+            "START must keep the starting meseta"
+        );
+        assert_eq!(runtime.game().party_members(), vec![CharId(0), CharId(1)]);
+        for id in [
+            0x127, 0x128, 0x12A, 0x134, 0x138, 0x150, 0x15B, 0x15D, 0x16B, 0x178, 0x1A7,
+        ] {
+            assert!(
+                runtime.game().is_set(Flag::event(id)),
+                "initial flag {id:#x}"
+            );
+        }
+        for id in [0, 16, 25] {
+            assert!(runtime.game().is_set(Flag::town(id)), "initial town {id}");
+        }
+        for id in [7, 21] {
+            assert!(
+                runtime.game().is_clear(Flag::event(id)),
+                "opening must earn flag {id}"
+            );
+        }
+    }
 }

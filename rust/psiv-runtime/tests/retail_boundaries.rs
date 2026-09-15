@@ -39,7 +39,13 @@ fn drive_scene(runtime: &mut Runtime, event: u16) -> Vec<RuntimeEvent> {
                 !matches!(item, RuntimeEvent::SceneFaulted { .. }),
                 "{item:?}"
             );
-            if matches!(item, RuntimeEvent::SceneDialogue { .. }) {
+            if matches!(item, RuntimeEvent::SceneChoiceRequested) {
+                runtime.dialogue_choice(true);
+            }
+            if matches!(
+                item,
+                RuntimeEvent::SceneDialogue { .. } | RuntimeEvent::SceneDialogueResume
+            ) {
                 runtime.dialogue_closed();
             }
         }

@@ -224,18 +224,53 @@ TEMPORARY_OBJECT_RECORDS = (
         "load_art": (0x001289FA, 0x04A5),
     },
     {
-        "scene": "Event_Dorin",
+        "scene": "Event_RuneFlaeli",
         "object_id": 0x0214,
         "art_tile": 0x0179,
         "symbol": "RuneFlaeli",
+        "playback_sequence": "walk_down",
+        "playback_once": True,
         "source_rom_addr": 0x001D628C,
         "source_kind": "nemesis",
-        "map_id": 0x19F,
+        "map_id": 0x0D8,
         "load_art": (0x001D628C, 0x0179),
+    },
+    {
+        "scene": "Event_RuneFlaeli",
+        "object_id": 0x0218,
+        "art_tile": 0x0191,
+        "symbol": "Flaeli",
+        "playback_sequence": "walk_up",
+        "playback_once": True,
+        "source_rom_addr": 0x001D642E,
+        "source_kind": "nemesis",
+        "map_id": 0x0D8,
+        "load_art": (0x001D642E, 0x0191),
+    },
+    {
+        "scene": "Event_RuneFlaeli",
+        "object_id": 0x021C,
+        "art_tile": 0x01FB,
+        "symbol": "BlastedRock",
+        "source_rom_addr": 0x001D6A2E,
+        "source_kind": "nemesis",
+        "map_id": 0x0D8,
+        "load_art": (0x001D6A2E, 0x01FB),
+    },
+    {
+        "scene": "Event_RuneFlaeli",
+        "object_id": 0x0220,
+        "art_tile": 0x020C,
+        "symbol": "RockShock",
+        "source_rom_addr": 0x001D6BC8,
+        "source_kind": "nemesis",
+        "map_id": 0x0D8,
+        "load_art": (0x001D6BC8, 0x020C),
     },
     {
         "scene": "Event_Alshline",
         "object_id": 0x0188,
+        "playback_sequence": "walk_down",
         "art_tile": 0x03A5,
         "symbol": "Igglanova",
         "source_rom_addr": 0x0012951A,
@@ -598,6 +633,20 @@ def _emit_temporary_objects(
         else:
             art.vram.add(spec["art_tile"], raw)
         palette = _map_palette(rom, map_record)
+        if spec["scene"] == "Event_RuneFlaeli":
+            # The event uploads all four art blobs and replaces CRAM line 3
+            # before any temporary object is built. The map palette blob is
+            # ordered as lines 0,1,3; the fixed party line 2 remains separate.
+            for address, tile in ((0x1D628C, 0x179), (0x1D642E, 0x191),
+                                  (0x1D6A2E, 0x1FB), (0x1D6BC8, 0x20C)):
+                loaded, _ = nemesis_decompress(rom, address)
+                art.vram.add(tile, loaded)
+            palette[32:48] = gfx.palette_rgb(gfx.decode_palette(rom[0x1DE0B8:0x1DE0D8]))
+        elif spec["object_id"] == 0x0188:
+            # Cutscene_Alshline calls MapDataMan_PiataBasementB2_Palettes
+            # after loading the monster art: fourteen CRAM line-3 words.
+            # The last two words remain from Zema's map palette.
+            palette[32:46] = gfx.palette_rgb(gfx.decode_palette(rom[0x52848:0x52864]))
         rendered = object_sprite(
             rom,
             routine,
@@ -663,6 +712,10 @@ def _emit_temporary_objects(
             f"presentation/temporary_objects/{name}",
             image,
         ))
+        if spec["scene"] == "Event_RuneFlaeli" and sheet.palette_line == 3:
+            record["palette"]["source"] = "Event_RuneFlaeli CRAM line 3 at 0x1DE0B8"
+        elif spec["object_id"] == 0x0188:
+            record["palette"]["source"] = "Alshline Igglanova CRAM line 3: fourteen words at 0x052848, two retained map words"
         records.append(record)
     return records
 

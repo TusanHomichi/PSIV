@@ -30,12 +30,22 @@ silently dropped.
 5. Resume the final dialogue, restore Alys, step her back from the chair, set
    `EventFlag_Dorin` (`$36`) and return.
 
-The native data keeps the keyframe work literal and executable as a bounded
-presentation record. The map-facing/movement part uses ordinary scene actor
-ops, so it cannot mutate a private fake actor and disappear from the field
-state.
+The current 36-op transcription distinguishes a completed `$FF` reply from
+a suspended `$F7` conversation. A completed reply restores the town music
+and returns without setting `$36`. The punch branch moves Alys by character
+identity, resumes all four suspended sections, and then sets `$36`. Dorin
+stays in his chair. His final facing retains the retail repeated-Y-comparison
+quirk.
+
+The punch and startled temporary objects are still placeholders. Their art,
+visibility keyframes, eight-pixel creep and backstep are not yet reproduced.
+The movement and dialogue repairs do not constitute visual parity.
 
 ## Verification
 
-The runtime test drives `$0032` to completion and asserts `$36`. The arc then
-fires the `$14` census condition and runs `Cutscene_Dorin`.
+`rust/psiv-runtime/tests/dorin_dialogue.rs` checks both the completed-reply
+and four-resume branches, including flag timing, Alys movement and Dorin
+facing. Native connected verification completed in `build/native-tonoe/route`,
+including all three choices and four resumed sections. The earlier run in
+`build/native-tonoe/dorin-incomplete` exposed the dropped fourth section and
+must not be counted as a completed Tonoe route.

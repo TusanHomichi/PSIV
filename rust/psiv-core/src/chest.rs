@@ -25,7 +25,7 @@
 //! |---|---|
 //! | `0` | `$38(a4)`: zero for a normal chest, non-zero for a white one |
 //! | `1` | `item_type` (`$39`): zero means an item, non-zero means meseta |
-//! | `2` | `chest_flag` (`$3A`): the `$F140` flag id recording it as opened |
+//! | `2` | `chest_flag` (`$3A`): the `$F120` flag id recording it as opened |
 //! | `3` | `item_id` (`$3B`): the item, or the meseta amount in hundreds |
 //!
 //! # Opening one
@@ -94,7 +94,7 @@ impl ChestContents {
 pub struct Chest {
     /// Where it stands.
     pub cell: Cell,
-    /// The `$F140` flag id that records it as opened.
+    /// The `$F120` flag id that records it as opened.
     pub flag: u8,
     /// What is inside.
     pub contents: ChestContents,

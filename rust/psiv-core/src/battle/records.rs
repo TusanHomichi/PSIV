@@ -215,6 +215,16 @@ impl ItemKind {
         )
     }
 
+    /// `loc_5F93A` offers a right/left choice for types 1, 2 and 5 after
+    /// UpdateEquipment has prepared its initial placement.
+    #[must_use]
+    pub const fn has_hand_choice(&self) -> bool {
+        matches!(
+            self,
+            Self::OneHandedSingleTarget | Self::OneHandedMultiTarget | Self::Shield
+        )
+    }
+
     /// Whether this can be equipped at all.
     #[must_use]
     pub const fn is_equippable(&self) -> bool {
@@ -389,6 +399,12 @@ pub struct LevelRecord {
     pub agility: u8,
     /// New base dexterity.
     pub dexterity: u8,
+    /// Technique appended to the first empty learned slot, or zero.
+    pub new_technique: u8,
+    /// Skill appended to the first empty learned slot, or zero.
+    pub new_skill: u8,
+    /// New maxima for the eight skill positions.
+    pub skill_uses: [u8; SKILL_SLOTS],
 }
 
 /// One character's level table, reached through `CharLevelTablePtrs`.
@@ -461,9 +477,89 @@ pub struct BattleData {
     enemies: BTreeMap<u16, EnemyRecord>,
     items: BTreeMap<u8, ItemRecord>,
     level_tables: BTreeMap<u8, LevelTable>,
+    techniques: BTreeMap<u8, super::technique::Technique>,
+    skills: BTreeMap<u8, super::skill::Skill>,
+    enemy_skills: BTreeMap<u8, super::enemy_skill::EnemySkill>,
+    battle_items: BTreeMap<u8, super::item::BattleItem>,
 }
 
 impl BattleData {
+    /// Installs the enemy ability records, separate from player skills.
+    #[must_use]
+    pub fn with_enemy_skills(
+        mut self,
+        records: impl IntoIterator<Item = super::enemy_skill::EnemySkill>,
+    ) -> Self {
+        self.enemy_skills
+            .extend(records.into_iter().map(|record| (record.id, record)));
+        self
+    }
+
+    /// Enemy ability by its one-based table id.
+    #[must_use]
+    pub fn enemy_skill(&self, id: u8) -> Option<&super::enemy_skill::EnemySkill> {
+        self.enemy_skills.get(&id)
+    }
+
+    /// Installs the item-use records, distinct from equipment bonuses.
+    #[must_use]
+    pub fn with_battle_items(
+        mut self,
+        records: impl IntoIterator<Item = super::item::BattleItem>,
+    ) -> Self {
+        self.battle_items = records.into_iter().map(|item| (item.id, item)).collect();
+        self
+    }
+
+    /// The use effect associated with an inventory/equipment id.
+    #[must_use]
+    pub fn battle_item(&self, id: u8) -> Option<&super::item::BattleItem> {
+        self.battle_items.get(&id)
+    }
+
+    /// Item definitions in cartridge id order.
+    pub fn battle_items(&self) -> impl Iterator<Item = &super::item::BattleItem> {
+        self.battle_items.values()
+    }
+    /// Adds normalized character skill records, separate from vehicle skills.
+    #[must_use]
+    pub fn with_skills(mut self, records: impl IntoIterator<Item = super::skill::Skill>) -> Self {
+        self.skills
+            .extend(records.into_iter().map(|record| (record.id, record)));
+        self
+    }
+
+    /// A character skill by its one-based cartridge id.
+    #[must_use]
+    pub fn skill(&self, id: u8) -> Option<&super::skill::Skill> {
+        self.skills.get(&id)
+    }
+
+    /// Character skills in id order.
+    pub fn skills(&self) -> impl Iterator<Item = &super::skill::Skill> {
+        self.skills.values()
+    }
+    /// Adds normalized cartridge technique records.
+    #[must_use]
+    pub fn with_techniques(
+        mut self,
+        records: impl IntoIterator<Item = super::technique::Technique>,
+    ) -> Self {
+        self.techniques
+            .extend(records.into_iter().map(|record| (record.id, record)));
+        self
+    }
+
+    /// A technique by its one-based cartridge id.
+    #[must_use]
+    pub fn technique(&self, id: u8) -> Option<&super::technique::Technique> {
+        self.techniques.get(&id)
+    }
+
+    /// Technique definitions in id order.
+    pub fn techniques(&self) -> impl Iterator<Item = &super::technique::Technique> {
+        self.techniques.values()
+    }
     /// An empty set, to be filled with the `with_*` builders.
     #[must_use]
     pub fn new() -> BattleData {
@@ -592,6 +688,9 @@ mod tests {
                     mental: 13,
                     agility: 16,
                     dexterity: 14,
+                    new_technique: 0,
+                    new_skill: 0,
+                    skill_uses: [5, 0, 0, 0, 0, 0, 0, 0],
                 },
                 LevelRecord {
                     level: 9,
@@ -602,6 +701,9 @@ mod tests {
                     mental: 14,
                     agility: 17,
                     dexterity: 15,
+                    new_technique: 0,
+                    new_skill: 0,
+                    skill_uses: [5, 0, 0, 0, 0, 0, 0, 0],
                 },
             ],
         };

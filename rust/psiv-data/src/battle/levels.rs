@@ -43,12 +43,14 @@ pub struct Level {
     pub tp: u16,
     /// New base stats.
     pub stats: LevelStats,
-    /// A technique learned at this level, if any. Tier 2.
+    /// A technique appended at this level, if any.
     #[serde(default)]
     pub new_technique: Option<NamedId>,
-    /// A skill learned at this level, if any. Tier 2.
+    /// A skill appended at this level, if any.
     #[serde(default)]
     pub new_skill: Option<NamedId>,
+    /// Maximum uses for each of the eight learned-skill positions.
+    pub skill_uses: [u8; 8],
 }
 
 /// The four base stats a level record sets.

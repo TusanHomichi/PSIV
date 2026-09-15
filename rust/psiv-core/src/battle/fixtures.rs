@@ -271,6 +271,9 @@ pub fn chaz_levels() -> LevelTable {
                 mental: 7,
                 agility: 8,
                 dexterity: 6,
+                new_technique: 0,
+                new_skill: 0,
+                skill_uses: [4, 0, 0, 0, 0, 0, 0, 0],
             },
             LevelRecord {
                 level: 3,
@@ -281,6 +284,9 @@ pub fn chaz_levels() -> LevelTable {
                 mental: 8,
                 agility: 9,
                 dexterity: 7,
+                new_technique: 0,
+                new_skill: 0,
+                skill_uses: [4, 0, 0, 0, 0, 0, 0, 0],
             },
         ],
     }
@@ -301,6 +307,9 @@ pub fn alys_levels() -> LevelTable {
             mental: 13,
             agility: 16,
             dexterity: 14,
+            new_technique: 0,
+            new_skill: 0,
+            skill_uses: [5, 0, 0, 0, 0, 0, 0, 0],
         }],
     }
 }

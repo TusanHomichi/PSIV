@@ -114,6 +114,37 @@ class MapPatchError(ValueError):
     pass
 
 
+def scene_patch_chunks(rom: bytes, record: dict[str, Any]) -> list[int]:
+    """Original door-animation chunks needed by this map's interaction events.
+
+    These are live scene writes, independent of MapDataManager's load-time
+    paths. Keep them in the same atlas so each write carries pixels and its
+    four collision values. No animation or doorway is inferred from art.
+    """
+    events = {
+        area["parameter"]
+        for area in record.get("interaction_areas", {}).get("entries", ())
+        if area["interaction_type"] == 2
+    }
+    chunks: set[int] = set()
+    if 8 in events:
+        # Event_BioPlantDoorOpening: delay, upper chunk, lower chunk; FF.
+        table = rom[0x6B9A4:0x6B9AE]
+        if len(table) != 10 or table[-1] != 0xFF:
+            raise MapPatchError("BioPlant door animation table is incomplete")
+        chunks.update(table[i] for i in (1, 2, 4, 5, 7, 8))
+    if 0x13 in events:
+        # Opening and closing tables: CPU delay, chunk; FF. $4F is the
+        # original closed chunk checked by Event_ElevatorDoorOpening.
+        chunks.add(0x4F)
+        for offset in (0x6C334, 0x6C46E):
+            table = rom[offset:offset + 9]
+            if len(table) != 9 or table[-1] != 0xFF:
+                raise MapPatchError("elevator door animation table is incomplete")
+            chunks.update(table[1:8:2])
+    return sorted(chunks)
+
+
 # ---------------------------------------------------------------------------
 # Collision
 # ---------------------------------------------------------------------------
@@ -247,6 +278,7 @@ def patch_atlas(
             "x": index * ATLAS_TILE_PIXELS,
             "priority_tiles": placed,
             "priority_pixels": opaque,
+            "collision": [value for _, _, value in chunk_collision_cells(decoded.chunks[chunk_id])],
         })
     base_png = _atlas(base_tiles, palette, ())
     over_png = (

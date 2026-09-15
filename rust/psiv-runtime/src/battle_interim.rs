@@ -26,6 +26,11 @@ const BATTLE_WEAPON_INDEX: [u8; 0x90] = [
 ];
 
 impl Runtime {
+    /// Item activation definitions for the native command menu.
+    pub fn battle_items(&self) -> impl Iterator<Item = &psiv_core::battle::BattleItem> {
+        self.battles.iter().flat_map(|set| set.data.battle_items())
+    }
+
     /// Starts a battle and returns its presentation timeline with the SFX
     /// sidecar. The legacy `start_battle` API remains for non-presentation
     /// callers and tests.
@@ -109,6 +114,30 @@ fn battle_sound_events(
     let mut sounds = Vec::new();
     for (event_index, event) in events.iter().enumerate() {
         match event {
+            // BattleObj_Thread's wind-up uses EnemyAttack5; no attack damage follows.
+            BattleEvent::EnemySkillUsed { skill: 16, .. } => sounds.push(BattleSoundEvent {
+                event_index, id: 0xDA,
+            }),
+            // BattleObj_Brose and BattleObj_Rimit both start with SFX_Brose.
+            // This binds the original sound, not its still-missing animation.
+            BattleEvent::TechniqueUsed { technique: 17 | 23, .. } => sounds.push(BattleSoundEvent {
+                event_index, id: 0xCB,
+            }),
+            // AcidBreathChild starts the wind-up with MoleAttack; the main
+            // object writes EnemyAttack4 before its damage reaction. These
+            // event cues do not claim the retail 10/36-frame object timing.
+            BattleEvent::EnemySkillUsed { skill: 51, .. } => sounds.push(BattleSoundEvent {
+                event_index, id: 0xD5,
+            }),
+            BattleEvent::Resolved { actor, .. }
+                if events[..event_index].iter().rev().find(|e| matches!(e,
+                    BattleEvent::Attacked { .. } | BattleEvent::EnemySkillUsed { .. }
+                    | BattleEvent::TechniqueUsed { .. } | BattleEvent::SkillUsed { .. }
+                    | BattleEvent::ItemUsed { .. }))
+                    .is_some_and(|e| matches!(e, BattleEvent::EnemySkillUsed { actor: caster, skill: 51, .. } if caster == actor)) =>
+            {
+                sounds.push(BattleSoundEvent { event_index, id: 0xD8 });
+            }
             BattleEvent::Attacked { actor, .. } => {
                 if let Some(&id) = actor_sounds.get(actor) {
                     sounds.push(BattleSoundEvent { event_index, id });
@@ -192,24 +221,9 @@ impl Runtime {
     /// Ends the battle and re-arms the encounter grace period, as the
     /// cartridge resets `$FFFFECE4` to 10 after every fight.
     pub fn finish_battle(&mut self) {
-        self.battle = None;
+        self.battle_field_refresh_pending |= self.battle.take().is_some();
         if let Some(set) = self.battles.as_mut() {
             set.clock.reset();
-        }
-    }
-
-    /// Interim defeat policy pending the save system: put every current party
-    /// member back on their feet at 1 HP so the field can continue. This is a
-    /// runtime seam, not renderer access to `GameState`, and deliberately
-    /// clears only the two dead bits; poison, paralysis and other statuses are
-    /// still state that a later defeat/save design must adjudicate.
-    pub fn revive_interim(&mut self) {
-        let dead = psiv_core::DEAD_STATUS_MASK;
-        for id in self.game.party_members() {
-            if let Some(stats) = self.game.roster_mut().get_mut(id) {
-                stats.curr_hp = 1;
-                stats.status &= !dead;
-            }
         }
     }
 }

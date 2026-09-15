@@ -22,7 +22,8 @@ impl Field {
         let cell = state.cell();
         let offset = state.render_offset_16ths();
         let scene_actors: Vec<psiv_core::ScriptedActor> = runtime.scene_actors().to_vec();
-        let scene_sprites_visible = self.presentation.sprites_visible(runtime.scene_active());
+        let party_visible: Vec<bool> = rt_party_visibility(runtime, &self.presentation);
+        let scene_sprites_visible = self.presentation.sprites_visible(runtime.scene_event());
         let active_npcs: Vec<bool> = runtime.map().npcs().iter().map(|npc| npc.active).collect();
         let camera_position = runtime.camera().position();
         let step_frames = runtime.step_frames();
@@ -48,7 +49,7 @@ impl Field {
         let camp_field_anchor = self
             .camp_menu
             .as_ref()
-            .is_some_and(|menu| menu.bind().is_open());
+            .is_some_and(|menu| menu.bind().is_open() && !menu.bind().is_loot());
         if sequence != self.party_sequence {
             self.party_sequence = sequence;
             self.party_seq_start = self.anim_tick;
@@ -173,6 +174,12 @@ impl Field {
             node.set_z_index(5);
             self.base_mut().add_child(&node);
             self.follower_nodes.push((node, String::new(), 0));
+            // Equal feet positions still need a stable sprite priority.
+            // Followers start overlapped on save/load; the party leader must
+            // be in front instead of being covered by the last added member.
+            if let Some(party) = self.party.clone() {
+                self.base_mut().move_child(&party, -1);
+            }
         }
         for (idx, draw) in fdraws.iter().enumerate() {
             let Some(draw) = draw else { continue };
@@ -252,6 +259,12 @@ impl Field {
                     ));
                 }
                 None => {
+                    if let Some(npc) = self.runtime.as_ref().and_then(|rt| {
+                        rt.map().chest_at_slot(entry.index)?;
+                        rt.map().npcs().get(entry.index)
+                    }) {
+                        entry.idle = sequence_name("idle", npc.facing);
+                    }
                     let frame = camp_receipt_frame(entry.index, &entry.sheet)
                         .unwrap_or_else(|| view.frame_at(&entry.idle, self.anim_tick));
                     view.apply(&mut entry.node, frame);
@@ -323,7 +336,13 @@ impl Field {
                 self.temporary_nodes.insert(slot, node);
             }
             if let Some(node) = self.temporary_nodes.get_mut(&slot) {
-                let frame = asset.frame_at("idle_down", self.anim_tick);
+                let sequence = asset.playback_sequence.as_deref().unwrap_or("idle_down");
+                let age = if asset.playback_sequence.is_some() {
+                    object.elapsed
+                } else {
+                    self.anim_tick
+                };
+                let frame = asset.frame_at(sequence, age);
                 asset.apply(node, frame);
                 node.set_position(Vector2::new(
                     (position.0 - asset.origin_x) as f32,
@@ -343,12 +362,19 @@ impl Field {
             camera.set_position(center);
         }
         if let Some(party) = self.party.as_mut() {
-            party.set_visible(scene_sprites_visible && vehicle_state.is_none());
+            party.set_visible(
+                scene_sprites_visible
+                    && vehicle_state.is_none()
+                    && party_visible.first().copied().unwrap_or(true),
+            );
         }
-        for follower in &mut self.follower_nodes {
-            follower
-                .0
-                .set_visible(scene_sprites_visible && vehicle_state.is_none());
+        for (index, follower) in self.follower_nodes.iter_mut().enumerate() {
+            follower.0.set_visible(
+                scene_sprites_visible
+                    && vehicle_state.is_none()
+                    && fdraws.get(index).is_some_and(Option::is_some)
+                    && party_visible.get(index + 1).copied().unwrap_or(true),
+            );
         }
         if let Some(vehicle) = self.vehicle.as_mut() {
             vehicle.set_visible(scene_sprites_visible && vehicle_state.is_some());
@@ -364,6 +390,18 @@ impl Field {
         self.place_letterbox();
         self.sync_transition();
     }
+}
+
+fn rt_party_visibility(
+    runtime: &psiv_runtime::Runtime,
+    presentation: &super::PresentationState,
+) -> Vec<bool> {
+    runtime
+        .game()
+        .party_members()
+        .iter()
+        .map(|id| presentation.character_visible(id.0))
+        .collect()
 }
 
 fn temporary_position(

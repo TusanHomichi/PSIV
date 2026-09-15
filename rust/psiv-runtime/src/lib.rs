@@ -9,8 +9,6 @@
 #![warn(missing_docs)]
 #![deny(clippy::float_arithmetic)]
 
-use std::collections::BTreeSet;
-
 mod battle_interim;
 mod boss_battles;
 mod bridge;
@@ -18,14 +16,37 @@ mod camp;
 mod effects;
 mod encounters;
 mod events;
+#[cfg(test)]
+mod field_entry_tests;
 mod field_objects;
+mod field_status;
+mod loot;
+#[cfg(test)]
+mod loot_tests;
+pub use field_status::FieldNotice;
+pub use loot::{LootResult, LootState};
+#[cfg(test)]
+mod field_status_tests;
 mod geometry;
+mod new_game;
+mod progression;
+pub use progression::ProgressionRepair;
 mod save;
+mod scene_map;
+#[cfg(test)]
+mod scene_map_tests;
 mod scene_runtime;
 mod shop;
+mod travel;
+#[cfg(test)]
+mod travel_tests;
+pub use travel::{CampTravelMenu, ESCAPIPE, HINAS, RYUKA, TELEPIPE};
 mod vehicle;
 pub use bridge::{BridgeError, field_map, field_map_patched};
-pub use camp::{CampCharacter, CampEquipResult, CampItem, CampState, CampUseResult};
+pub use camp::{
+    CampAbility, CampAbilityKind, CampCharacter, CampEquipResult, CampItem, CampState,
+    CampUseResult,
+};
 pub use effects::{EffectOutcome, evaluate as evaluate_map_effects};
 pub use encounters::{
     EncounterClock, EncounterTable, FOOT_MASK, GRACE_STEPS, GROUP_MASK, VEHICLE_MASK, battle_data,
@@ -58,15 +79,19 @@ pub struct Runtime {
     saved_world_index: u16,
     /// Retail's saved secondary-map selector, retained across the same seam.
     saved_map_index_2: u16,
+    dungeon_exit_index: u8,
+    pending_travel: Option<travel::PendingTravel>,
+    loot: Option<loot::PendingLoot>,
     scene: Option<SceneRunner>,
     scene_input: SceneInput,
+    scene_event: EventIndex,
+    dialogue_answer: Option<bool>,
+    scene_choice_pending: bool,
     /// Volatile end-of-game latch set by the retail ending after Start.
     /// This is presentation state, not save data.
     game_cleared: bool,
-    /// Interim MapDataManager: (map id, npc index) pairs despawned this
-    /// session, applied on every map build until the real flag-gated effect
-    /// layer is extracted.
-    despawned: BTreeSet<(u16, usize)>,
+    game_over: bool,
+    field_status: field_status::FieldStatus,
     prev_standing: Option<u8>,
     /// The map's transcribed random-wander objects, rebuilt per map load.
     wander: WanderSet,
@@ -97,6 +122,9 @@ pub struct Runtime {
     /// two frames after the landing that fired it, not one. Tape 02 measures
     /// exactly that: the trigger fires at 7874 and Alys turns at 7876.
     scene_warmup: bool,
+    /// Map load and event return re-enter FieldRoutine_Controls, whose
+    /// RunEvents check precedes movement input even without a new step.
+    scene_triggers_pending: bool,
     /// `offscreen_flag` (`$12`) per object, refreshed every field frame.
     ///
     /// `FieldObj_OnScreenTest` writes it at the top of every object's routine
@@ -108,11 +136,10 @@ pub struct Runtime {
     battles: Option<BattleSet>,
     /// A battle in progress. Field input is ignored while this is `Some`.
     battle: Option<Battle>,
+    /// Battle return reloads map data without initializing live field objects.
+    battle_field_refresh_pending: bool,
     /// The event battle that owns the current scene block, if any.
     scene_battle: Option<u16>,
-    /// An interim Igglanova loss asks the scene to be installed again after
-    /// the finished runner consumes its BattleFinished input.
-    scene_retry: Option<u16>,
     /// The current map's evaluated MapDataManager outcome — dialogue
     /// overrides, the active layout variant, and the surfaced gaps.
     effects: EffectOutcome,
@@ -147,6 +174,7 @@ struct BattleSet {
     /// Display names by character id, for battle timelines.
     names: std::collections::BTreeMap<u8, String>,
     camp: camp::CampCatalog,
+    loot: std::collections::BTreeMap<u8, loot::LootItem>,
     /// Event battle index -> boss formation. Boss records have no normal id.
     boss_formations: std::collections::BTreeMap<u16, psiv_core::battle::FormationRecord>,
     /// Enemy id -> retail attack-object presentation record.
@@ -177,7 +205,13 @@ impl Runtime {
     ) -> Result<Runtime, BridgeError> {
         // Seed persistent state FIRST: map effects are evaluated against the
         // flag state at load, exactly the cartridge's MapDataManager order.
-        let mut game = GameState::new();
+        let mut game = data
+            .new_game()
+            .map(new_game::initial_state)
+            .unwrap_or_default();
+        // This constructor starts after the opening; discard its transient
+        // Chaz/Alys cast before applying the first-control summary below.
+        game.set_party([None; PARTY_SLOTS]);
         if let Some(start) = data.manifest().game_start.as_ref() {
             for flag in &start.event_flags_set {
                 let _ = game.set(Flag::event(*flag));
@@ -252,6 +286,7 @@ impl Runtime {
                 })
                 .collect(),
             camp: camp::catalog(files),
+            loot: loot::catalog(files),
             boss_formations: boss_battles::boss_formation_records(files)?,
             enemy_animations: files
                 .enemy_animations
@@ -291,12 +326,55 @@ impl Runtime {
             .collect()
     }
 
+    /// Live combatants for command selection; includes current HP, TP and status.
+    #[must_use]
+    pub fn battle_roster(&self) -> Option<&psiv_core::battle::Roster> {
+        self.battle.as_ref().map(Battle::roster)
+    }
+
+    /// Cartridge technique definitions for presentation of names and costs.
+    pub fn battle_techniques(&self) -> impl Iterator<Item = &psiv_core::battle::Technique> {
+        self.battles.iter().flat_map(|set| set.data.techniques())
+    }
+
+    /// Character skill names, targeting rules and availability for the menu.
+    pub fn battle_skills(&self) -> impl Iterator<Item = &psiv_core::battle::Skill> {
+        self.battles.iter().flat_map(|set| set.data.skills())
+    }
+
+    /// Fighters with an actual weapon in either hand. Shields do not qualify.
+    #[must_use]
+    pub fn battle_armed_fighters(&self) -> Vec<psiv_core::battle::FighterId> {
+        let Some(set) = self.battles.as_ref() else {
+            return Vec::new();
+        };
+        self.battle_roster()
+            .into_iter()
+            .flat_map(|roster| roster.side(psiv_core::battle::Side::Party))
+            .filter(|fighter| {
+                psiv_core::battle::weapon_reach(&fighter.stats, &set.data)
+                    .ok()
+                    .flatten()
+                    .is_some()
+            })
+            .map(|fighter| fighter.id)
+            .collect()
+    }
+
     /// Ends a battle by absorbing the party records back into the roster and
     /// running both award passes — the full cartridge epilogue. The caller
     /// passes the per-member award (the split the battle computed).
     pub fn finish_battle_absorbing(&mut self, each: u16) -> Vec<BattleEvent> {
         let mut timeline = Vec::new();
         if let Some(battle) = self.battle.take() {
+            self.battle_field_refresh_pending = true;
+            // Battle_VictoryMessage ($30E6): the displayed pool must reach
+            // Current_Money once, including vehicle battles. Escaping after
+            // killing an enemy does not pay its accumulated pool.
+            if battle.outcome() == Some(psiv_core::battle::Outcome::Victory) {
+                self.game.add_money(u32::from(battle.pools().meseta));
+                self.game.set_money(self.game.money().min(9_999_999));
+            }
             if battle.is_vehicle() {
                 let index = self.vehicle_index().unwrap_or(0);
                 if let Some(member) = battle.into_party().into_iter().next()
@@ -317,12 +395,44 @@ impl Runtime {
                 self.game.roster_mut().absorb(&party);
                 let (paid_party, paid_absent) = self.game.award_experience(each);
                 if let Some(set) = self.battles.as_ref() {
-                    for id in paid_party.iter().chain(&paid_absent) {
-                        if let Some(stats) = self.game.roster_mut().get_mut(*id)
-                            && let Ok(Some(event)) =
-                                psiv_core::battle::level_up(id.0, stats, &set.data)
+                    for id in &paid_party {
+                        let Some(stats) = self.game.roster_mut().get_mut(*id) else {
+                            continue;
+                        };
+                        let techniques = stats.techniques;
+                        let skills = stats.skills;
+                        if let Ok(Some(event)) = psiv_core::battle::level_up(id.0, stats, &set.data)
                         {
                             timeline.push(event);
+                            for (before, &now) in techniques.iter().zip(&stats.techniques) {
+                                if *before != now
+                                    && now != 0
+                                    && let Some(ability) = set.data.technique(now)
+                                {
+                                    timeline.push(BattleEvent::LearnedAbility {
+                                        character: id.0,
+                                        name: ability.name.clone(),
+                                    });
+                                }
+                            }
+                            for (before, &now) in skills.iter().zip(&stats.skills) {
+                                if *before != now
+                                    && now != 0
+                                    && let Some(ability) = set.data.skill(now)
+                                {
+                                    timeline.push(BattleEvent::LearnedAbility {
+                                        character: id.0,
+                                        name: ability.name.clone(),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    // The benched roster levels silently and replenishes its
+                    // skill uses, unlike the visible party's results sequence.
+                    for id in &paid_absent {
+                        if let Some(stats) = self.game.roster_mut().get_mut(*id) {
+                            let _ = psiv_core::battle::level_up_absent(id.0, stats, &set.data);
                         }
                     }
                 }
@@ -429,11 +539,17 @@ impl Runtime {
         // ps4.asm:617) — scenes included.
         self.frames = self.frames.wrapping_add(1);
         self.rng.step();
+        if self.game_over || self.field_notice().is_some() || self.loot.is_some() {
+            return Vec::new();
+        }
         // A battle owns the frame: the field is parked exactly as
         // GameMode_Battle parks it, and the shell drives rounds through
         // [`Runtime::battle_round`].
         if self.battle.is_some() {
             return Vec::new();
+        }
+        if self.battle_field_refresh_pending {
+            return self.return_to_field();
         }
         self.tick_camera_glide();
         if self.scene.is_some() {
@@ -453,18 +569,45 @@ impl Runtime {
         if !self.field_suspended {
             self.rng.step();
         }
+        if self.scene_triggers_pending && !self.field_suspended {
+            self.scene_triggers_pending = false;
+            let events = self.evaluate_triggers(self.state().cell());
+            if !events.is_empty() {
+                return events;
+            }
+        }
         if self.vehicle.is_some() {
             return self.tick_vehicle(input);
         }
         let mut events = Vec::new();
-        let mut landed: Option<Cell> = None;
+        let (mut landed, field_effects) = match self.field_status.pending.take() {
+            Some((cell, effects)) => (Some(cell), effects),
+            None => (None, self.party.tick(&self.map, input)),
+        };
+        if std::mem::take(&mut self.field_status.flash_after_notices) {
+            events.push(RuntimeEvent::FieldPoisonFlash);
+        }
         let mut map_changed = false;
         let mut interaction_started = false;
-        for effect in self.party.tick(&self.map, input) {
+        let mut field_effects = field_effects.into_iter();
+        while let Some(effect) = field_effects.next() {
             match effect {
                 Effect::StepCompleted { cell } => {
                     landed = Some(cell);
                     events.push(RuntimeEvent::StepCompleted { cell });
+                    self.update_field_status(cell, &mut events);
+                    if self.field_notice().is_some() {
+                        self.field_status.pending = Some((cell, field_effects.collect()));
+                        return events;
+                    }
+                    // RunEvents owns the opened elevator tile before the
+                    // ordinary collision/warp path can report it unmapped.
+                    if self.elevator_at(cell) {
+                        events.extend(self.evaluate_triggers(cell));
+                        if self.scene_active() {
+                            return events;
+                        }
+                    }
                 }
                 Effect::Warp {
                     trigger,
@@ -494,7 +637,9 @@ impl Runtime {
                     cell,
                     reach,
                 } => {
-                    if self.start_interaction_event(&mut events) {
+                    if self.start_chest_interaction(npc_index)
+                        || self.start_interaction_event(&mut events)
+                    {
                         interaction_started = true;
                     } else {
                         events.push(RuntimeEvent::Interact {
@@ -532,6 +677,7 @@ impl Runtime {
         if let Some(cell) = landed
             && !map_changed
             && self.scene.is_none()
+            && self.loot.is_none()
             && let Some(set) = self.battles.as_mut()
             && set.table.enabled(self.map.id().0)
             && !EncounterClock::suppressed(&self.map, cell)
@@ -708,7 +854,7 @@ impl Runtime {
             .ok_or_else(|| BridgeError::Rejected("no battle in progress".into()))?;
         let mut rng2 = Rng2::with_surrogate(&mut self.rng, self.frames);
         battle
-            .round(orders, &set.data, &mut rng2)
+            .round_with_inventory(orders, &set.data, self.game.inventory_mut(), &mut rng2)
             .map_err(|e| BridgeError::Rejected(e.to_string()))
     }
 
@@ -793,7 +939,31 @@ impl Runtime {
             standing,
             previously_standing: self.prev_standing,
         };
-        let hit = psiv_core::evaluate_list(&TRIGGERS, &indices, &ctx);
+        let mut unsupported = None;
+        let mut hit = None;
+        for &index in &indices {
+            let Some(trigger) = TRIGGERS.get(usize::from(index)) else {
+                continue;
+            };
+            let result = if index == 0x0D {
+                self.elevator_trigger(cell)
+            } else {
+                trigger.evaluate(&ctx)
+            };
+            match result {
+                TriggerResult::NoEvent => {}
+                TriggerResult::Unsupported(..) => {
+                    if unsupported.is_none() {
+                        unsupported = Some((index, result));
+                    }
+                }
+                _ => {
+                    hit = Some((index, result));
+                    break;
+                }
+            }
+        }
+        let hit = hit.or(unsupported);
         self.prev_standing = standing;
         match hit {
             Some((index, TriggerResult::Fire(event))) => {
@@ -850,6 +1020,11 @@ impl Runtime {
             });
             return true;
         };
+        // Event_ElevatorDoorOpening exits silently unless the chunk at the
+        // leader's object position is the original closed-door tile.
+        if event == 0x13 && self.map_chunk_at(PixelPos::from_cell(leader.cell())) != Some(0x4F) {
+            return true;
+        }
         if self.install_scene(EventIndex(event)) {
             events.push(RuntimeEvent::SceneStartedFromInteraction {
                 area: area_index,
@@ -879,14 +1054,16 @@ impl Runtime {
             return false;
         };
         self.scene = Some(runner);
+        self.scene_event = event;
         self.scene_input = SceneInput::None;
+        self.scene_choice_pending = false;
         self.scene_camera_locked = false;
         self.scene_warmup = true;
         true
     }
 
     /// The cast a scene may address: every party member (by slot and by
-    /// character) plus every map object by index.
+    /// character through the runner alias) plus every map object by index.
     fn build_cast(&self) -> Vec<ScriptedActor> {
         let mut cast = Vec::new();
         for (slot, member) in self.party.members().iter().enumerate() {
@@ -895,13 +1072,6 @@ impl Runtime {
                 member.cell,
                 member.facing,
             ));
-            if let Some(id) = self.game.party_slot(slot) {
-                cast.push(ScriptedActor::new(
-                    ActorRef::Character(id),
-                    member.cell,
-                    member.facing,
-                ));
-            }
         }
         for (i, npc) in self.map.npcs().iter().enumerate() {
             cast.push(ScriptedActor::new(ActorRef::Npc(i), npc.cell, npc.facing));
@@ -941,36 +1111,10 @@ impl Runtime {
         self.party.leader().step_frames()
     }
 
-    /// The scripted actor currently standing in for party slot `slot`, if the
-    /// running scene has displaced it.
-    ///
-    /// The cast names each member twice — `PartyMember(slot)` and
-    /// `Character(id)` — because retail event ops address the same field
-    /// object both ways. Whichever entry the script actually drove (walking,
-    /// or resting away from the party state) is the one to draw and follow;
-    /// a scene only ever drives one of the two names.
+    /// The live object behind a party slot, also used by Character(id) ops.
     #[must_use]
     pub fn scene_party_actor(&self, slot: usize) -> Option<&ScriptedActor> {
-        let runner = self.scene.as_ref()?;
-        let members = self.party.members();
-        let member = members.get(slot)?;
-        let refs = [
-            Some(ActorRef::PartyMember(slot)),
-            self.game.party_slot(slot).map(ActorRef::Character),
-        ];
-        let mut resting = None;
-        for actor in refs.into_iter().flatten() {
-            let Some(a) = runner.actors().iter().find(|a| a.actor == actor) else {
-                continue;
-            };
-            if a.is_walking() {
-                return Some(a);
-            }
-            if resting.is_none() && (a.cell != member.cell || a.facing != member.facing) {
-                resting = Some(a);
-            }
-        }
-        resting
+        self.scene.as_ref()?.actor(ActorRef::PartyMember(slot))
     }
 
     /// Rebuilds the walking party to match the game state's composition,
@@ -994,10 +1138,30 @@ impl Runtime {
         self.install_scene(EventIndex(event))
     }
 
+    /// Original event index while the scene is active; bit 15 distinguishes
+    /// panel cutscenes from ordinary field events in the text renderer.
+    #[must_use]
+    pub fn scene_event(&self) -> Option<EventIndex> {
+        self.scene.as_ref().map(|_| self.scene_event)
+    }
+
+    /// The active scene's selected text-window routine, including resumes.
+    #[must_use]
+    pub fn scene_dialogue_window(&self) -> Option<psiv_core::DialogueWindow> {
+        self.scene.as_ref().map(SceneRunner::dialogue_window)
+    }
+
     /// The renderer reports the scene-requested dialogue window has closed.
     pub fn dialogue_closed(&mut self) {
-        if self.scene.is_some() {
+        if self.scene.is_some() && !matches!(self.scene_input, SceneInput::Choice(_)) {
             self.scene_input = SceneInput::DialogueClosed;
+        }
+    }
+
+    /// The renderer reached FF, with no suspended F7 cursor left to resume.
+    pub fn dialogue_ended(&mut self) {
+        if self.scene.is_some() && !matches!(self.scene_input, SceneInput::Choice(_)) {
+            self.scene_input = SceneInput::DialogueEnded;
         }
     }
 
@@ -1014,11 +1178,55 @@ impl Runtime {
         self.game_cleared
     }
 
+    /// Applies the cartridge's battle-return map load before revealing the
+    /// field. Presentation calls this after results; headless callers receive
+    /// the same refresh automatically on their next field tick.
+    pub fn return_to_field(&mut self) -> Vec<RuntimeEvent> {
+        if self.battle.is_some() || !std::mem::take(&mut self.battle_field_refresh_pending) {
+            return Vec::new();
+        }
+        match self.refresh_field_after_battle() {
+            Ok(()) => vec![RuntimeEvent::MapRefreshed],
+            Err(error) => vec![RuntimeEvent::MapRefreshFailed {
+                error: error.to_string(),
+            }],
+        }
+    }
+
+    fn refresh_field_after_battle(&mut self) -> Result<(), BridgeError> {
+        let target = self.map.id();
+        let record = self
+            .data
+            .map(psiv_data::MapId(target.0))
+            .ok_or(BridgeError::NotPacked(target.0))?;
+        // GameMode_LoadFieldMap with Map_Load_Flags bit 0: the map-data
+        // walk runs, while object initialization, party placement and camera
+        // initialization do not. Keep the wander clocks and scene cast too.
+        let effects = effects::evaluate(record, &mut self.game);
+        let mut map = bridge::field_map_retaining_objects(record, Some(&effects), self.map.npcs())?;
+        bridge::attach_chests(&mut map, record, &self.game, self.map.npcs(), &effects)?;
+        self.map = map;
+        self.effects = effects;
+        self.scene_triggers_pending = true;
+        self.field_status.clock.reset();
+        Ok(())
+    }
+
     fn change_map(
         &mut self,
         target: MapId,
         cell: Cell,
         facing: Direction,
+    ) -> Result<(), BridgeError> {
+        self.change_map_from(target, cell, facing, self.map.id().0)
+    }
+
+    fn change_map_from(
+        &mut self,
+        target: MapId,
+        cell: Cell,
+        facing: Direction,
+        previous_map: u16,
     ) -> Result<(), BridgeError> {
         let record = self
             .data
@@ -1032,15 +1240,12 @@ impl Runtime {
         // the post-clear state.
         let effects = effects::evaluate(record, &mut self.game);
         let mut map = field_map_patched(record, Some(&effects))?;
+        bridge::attach_chests(&mut map, record, &self.game, &[], &effects)?;
         clear_bespoke_entry_flags(&mut self.game, record);
         self.effects = effects;
-        // Re-apply this session's scene-driven despawns (the interim ledger
-        // for despawns whose gating flag is not yet modelled).
-        for &(m, i) in &self.despawned {
-            if m == target.0 {
-                let _ = map.set_npc_active(i, false);
-            }
-        }
+        // LoadMapObjects creates a fresh cast. Scene despawns only change
+        // the live objects; persistent removals come from MapDataManager's
+        // extracted flag gates above (including recruited party members).
         self.party
             .enter_map(&map, cell, facing)
             .map_err(|e| BridgeError::Rejected(e.to_string()))?;
@@ -1061,6 +1266,16 @@ impl Runtime {
             self.camera = camera_for_record(vehicle::driver_of(vehicle), &self.map, record)
                 .map_err(BridgeError::Rejected)?;
         }
+        // The first field control tick checks RunEvents before accepting a
+        // step. loc_518D2 also resets the encounter countdown on EVERY load.
+        self.prev_standing = None;
+        self.scene_triggers_pending = true;
+        self.field_status.clock.reset();
+        if let Some(set) = self.battles.as_mut() {
+            set.clock.reset();
+        }
+        self.saved_map_index_2 = previous_map;
+        self.apply_travel_entry();
         Ok(())
     }
 }

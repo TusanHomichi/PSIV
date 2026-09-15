@@ -100,6 +100,7 @@ def build_equipment(rom: bytes, display: dict[int, str]) -> dict[str, Any]:
                 "role": rule["element_role"],
             },
             "post_attack_effect_id": record["post_attack_effect_id"],
+            "meseta_cost": record["meseta_cost"],
             "raw_hex": record["raw_hex"],
         })
 

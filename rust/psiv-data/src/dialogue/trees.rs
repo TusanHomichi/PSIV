@@ -53,6 +53,10 @@ pub struct DialogueTree {
     pub tree: u8,
     /// Disassembly label, such as `DialogueTree1`.
     pub label: String,
+    /// Original compressed-tree address used by scene `DialogueTreesToRAM`
+    /// calls. Older hand-authored fixtures may omit provenance.
+    #[serde(default)]
+    pub rom_offset: Option<String>,
     /// Talk-mode trees take a second `$F4` operand: the portrait slot.
     pub is_talk_tree: bool,
     /// 1 for field trees, 2 for talk trees.
@@ -64,6 +68,13 @@ pub struct DialogueTree {
 }
 
 impl DialogueTree {
+    /// Numeric form of the pack's hexadecimal ROM address.
+    #[must_use]
+    pub fn rom_address(&self) -> Option<u32> {
+        let text = self.rom_offset.as_deref()?;
+        u32::from_str_radix(text.strip_prefix("0x")?, 16).ok()
+    }
+
     /// One entry by id. Ids are dense, so this is an index.
     #[must_use]
     pub fn entry(&self, id: u16) -> Option<&DialogueEntry> {
@@ -246,11 +257,12 @@ pub enum Ctrl {
         /// Raw code byte, `0xF5`.
         #[serde(deserialize_with = "hex_byte")]
         code: u8,
-        /// The two entry ids.
+        /// Relative entry counts, starting after both operands.
         operands: Vec<u8>,
-        /// Entry to continue at on yes.
+        /// YES offset. Zero continues inside this entry; positive values
+        /// count following `$FF` delimiters.
         yes_entry: u16,
-        /// Entry to continue at on no.
+        /// NO offset, using the same relative cursor as YES.
         no_entry: u16,
     },
     /// `$F6`: preamble only -- fire event `id` instead of showing anything.

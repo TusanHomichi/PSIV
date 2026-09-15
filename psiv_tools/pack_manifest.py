@@ -50,6 +50,7 @@ def write_manifest(
     shops = state["shops"]
     sound = state["sound"]
     title = state["title"]
+    travel = state["travel"]
     presentation = state["presentation"]
     skipped = state["skipped"]
     sprite_census = state["sprite_census"]
@@ -210,6 +211,7 @@ def write_manifest(
         "battle": battle,
         # Counters, inventories and inn rates, in shops.json.
         "shops": shops,
+        "travel": travel,
         "sound": sound,
         "dialogue": dialogue,
         "title": title,

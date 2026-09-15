@@ -12,7 +12,7 @@ use crate::scene::{
     ActorRef, Axis, DialogueId, DialogueSource, OP_BUDGET_PER_TICK, SceneEffect, SceneFault,
     SceneInput, SceneOp, ScriptedActor,
 };
-use crate::state::GameState;
+use crate::state::{CharId, GameState, PARTY_SLOTS};
 
 /// The cell a pixel position names, undoing the standing-cell shift.
 fn pixel_cell(x: i32, y: i32) -> Cell {
@@ -44,7 +44,10 @@ pub struct SceneRunner {
     scene: &'static [SceneOp],
     pc: usize,
     actors: Vec<ScriptedActor>,
+    party_slots: [Option<CharId>; PARTY_SLOTS],
     blocked: Blocked,
+    dialogue_ended: bool,
+    dialogue_window: crate::scene::DialogueWindow,
     step_frames: StepFrames,
     /// The retail follow chain: party followers trail the member ahead of
     /// them through scripted walks. `SetFollowMode` bit 0 turns it off for
@@ -71,7 +74,10 @@ impl SceneRunner {
             scene,
             pc: 0,
             actors: cast,
+            party_slots: [None; PARTY_SLOTS],
             blocked: Blocked::No,
+            dialogue_ended: false,
+            dialogue_window: crate::scene::DialogueWindow::Standard,
             step_frames,
             follow_chain: true,
             y_first: false,
@@ -82,6 +88,12 @@ impl SceneRunner {
     #[must_use]
     pub fn is_finished(&self) -> bool {
         self.blocked == Blocked::Done
+    }
+
+    /// Window routine used by the last dialogue open or named resume.
+    #[must_use]
+    pub fn dialogue_window(&self) -> crate::scene::DialogueWindow {
+        self.dialogue_window
     }
 
     /// The cast, for the renderer.
@@ -121,18 +133,38 @@ impl SceneRunner {
     pub fn sync_cast(&mut self, cast: Vec<ScriptedActor>) {
         self.actors = cast
             .into_iter()
-            .map(|entry| self.actor(entry.actor).copied().unwrap_or(entry))
+            .map(|entry| {
+                let mut current = self.actor(entry.actor).copied().unwrap_or(entry);
+                current.actor = entry.actor;
+                current
+            })
             .collect();
     }
 
     /// One actor by reference.
     #[must_use]
     pub fn actor(&self, actor: ActorRef) -> Option<&ScriptedActor> {
-        self.actors.iter().find(|a| a.actor == actor)
+        self.actor_index(actor).map(|index| &self.actors[index])
+    }
+
+    fn actor_index(&self, actor: ActorRef) -> Option<usize> {
+        // Event_GetCharacter returns the same object as Character_1..5.
+        // Resolve names through the current party order, never a second copy
+        // of that character's position. Character-only test casts still work.
+        if let ActorRef::Character(id) = actor
+            && let Some(slot) = self.party_slots.iter().position(|&who| who == Some(id))
+            && let Some(index) = self
+                .actors
+                .iter()
+                .position(|a| a.actor == ActorRef::PartyMember(slot))
+        {
+            return Some(index);
+        }
+        self.actors.iter().position(|a| a.actor == actor)
     }
 
     fn actor_mut(&mut self, actor: ActorRef) -> Option<&mut ScriptedActor> {
-        self.actors.iter_mut().find(|a| a.actor == actor)
+        self.actor_index(actor).map(|index| &mut self.actors[index])
     }
 
     /// Advances the scene one tick.
@@ -151,7 +183,11 @@ impl SceneRunner {
             return effects;
         }
 
+        self.party_slots = state.party();
         for index in 0..self.actors.len() {
+            if self.actor_index(self.actors[index].actor) != Some(index) {
+                continue;
+            }
             if let Some(at) = self.actors[index].tick(map, self.step_frames, self.y_first) {
                 effects.push(SceneEffect::ActorArrived {
                     actor: self.actors[index].actor,
@@ -206,7 +242,15 @@ impl SceneRunner {
                 Some(a) if a.is_walking() => Blocked::Actor(actor),
                 _ => Blocked::No,
             },
-            Blocked::Dialogue if input == SceneInput::DialogueClosed => Blocked::No,
+            Blocked::Dialogue
+                if matches!(
+                    input,
+                    SceneInput::DialogueClosed | SceneInput::DialogueEnded
+                ) =>
+            {
+                self.dialogue_ended = input == SceneInput::DialogueEnded;
+                Blocked::No
+            }
             Blocked::EndingContinue if input == SceneInput::EndingContinue => Blocked::No,
             Blocked::Battle if matches!(input, SceneInput::BattleFinished { .. }) => Blocked::No,
             Blocked::Map if input == SceneInput::MapLoaded => Blocked::No,
@@ -230,6 +274,7 @@ impl SceneRunner {
     fn run(&mut self, state: &mut GameState, effects: &mut Vec<SceneEffect>) {
         let mut budget = OP_BUDGET_PER_TICK;
         while self.blocked == Blocked::No {
+            self.party_slots = state.party();
             if budget == 0 {
                 effects.push(SceneEffect::Faulted(SceneFault::Runaway));
                 self.blocked = Blocked::Done;
@@ -277,7 +322,8 @@ impl SceneRunner {
                 effects.push(SceneEffect::ActorFaced { actor, facing });
                 self.pc += 1;
             }
-            SceneOp::RunDialogue { source, .. } => {
+            SceneOp::RunDialogue { source, window } => {
+                self.dialogue_window = window;
                 let dialogue = match source {
                     DialogueSource::Entry(id) => id,
                     DialogueSource::NpcDialogueId(actor) => {
@@ -300,6 +346,9 @@ impl SceneRunner {
                 self.pc += 1;
             }
             SceneOp::RunDialogueResume | SceneOp::RunDialogueResumeWithWindow { .. } => {
+                if let SceneOp::RunDialogueResumeWithWindow { window } = op {
+                    self.dialogue_window = window;
+                }
                 effects.push(SceneEffect::DialogueResume);
                 self.blocked = Blocked::Dialogue;
                 self.pc += 1;
@@ -415,7 +464,7 @@ impl SceneRunner {
                 self.blocked = Blocked::Battle;
                 self.pc += 1;
             }
-            SceneOp::LoadMap { .. } => {
+            SceneOp::LoadMap { .. } | SceneOp::TakeMapTransition => {
                 effects.push(SceneEffect::MapRequested { op });
                 self.pc += 1;
                 // The runtime must load the new map and recast the runner
@@ -549,10 +598,41 @@ impl SceneRunner {
                 effects.push(SceneEffect::ActorMoveStarted { actor, to: cell });
                 self.pc += 1;
             }
+            SceneOp::RestoreMapChunks { chunks } => {
+                effects.push(SceneEffect::MapChunksRestored { chunks });
+                self.pc += 1;
+            }
+            SceneOp::WriteActorMapChunks { actor, chunks } => {
+                let Some(walker) = self.actor(actor) else {
+                    return Some(SceneFault::UnknownActor { actor });
+                };
+                let position = crate::PixelPos::from_cell(walker.cell);
+                let mut writes = Vec::with_capacity(chunks.len());
+                for &(dx, dy, id) in chunks {
+                    let x = position.x + dx;
+                    let y = position.y + dy;
+                    if x < 0 || y < 0 {
+                        return Some(SceneFault::BadWrite);
+                    }
+                    writes.push(((x / 32) as u32, (y / 32) as u32, id));
+                }
+                effects.push(SceneEffect::MapChunksWritten { chunks: writes });
+                self.pc += 1;
+            }
             SceneOp::Return { value } => {
                 effects.push(SceneEffect::Returned { value });
                 effects.push(SceneEffect::Finished);
                 self.blocked = Blocked::Done;
+            }
+            SceneOp::BranchDialogueEnd { if_ended } => {
+                if if_ended > self.scene.len() {
+                    return Some(SceneFault::BadJump { target: if_ended });
+                }
+                self.pc = if self.dialogue_ended {
+                    if_ended
+                } else {
+                    self.pc + 1
+                };
             }
             SceneOp::BranchIfActorGreater {
                 a,
@@ -597,6 +677,24 @@ impl SceneRunner {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }
+            SceneOp::OverlapCharacters => {
+                let Some(leader) = self.actor(ActorRef::PartyMember(0)).copied() else {
+                    return Some(SceneFault::UnknownActor {
+                        actor: ActorRef::PartyMember(0),
+                    });
+                };
+                for slot in 1..PARTY_SLOTS {
+                    if let Some(actor) = self.actor_mut(ActorRef::PartyMember(slot)) {
+                        *actor = ScriptedActor::new(
+                            ActorRef::PartyMember(slot),
+                            leader.cell,
+                            leader.facing,
+                        );
+                    }
+                }
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+            }
             SceneOp::ReloadMapPalette
             | SceneOp::InitVramAndCram
             | SceneOp::LoadPalette { .. }
@@ -607,7 +705,6 @@ impl SceneRunner {
             | SceneOp::DrawTextToPlane { .. }
             | SceneOp::IntroTextFadeUp
             | SceneOp::IntroTextFadeDown
-            | SceneOp::OverlapCharacters
             | SceneOp::SetStepOffset { .. }
             | SceneOp::PlaySound { .. }
             | SceneOp::SetSavedMusic { .. }
@@ -629,12 +726,8 @@ impl SceneRunner {
                 self.pc += 1;
             }
             SceneOp::RecoverStats => {
+                state.recover_stats();
                 for who in state.party_members() {
-                    if let Some(stats) = state.roster_mut().get_mut(who) {
-                        stats.curr_hp = stats.max_hp;
-                        stats.curr_tp = stats.max_tp;
-                        stats.status = 0;
-                    }
                     effects.push(SceneEffect::RosterChanged { who });
                 }
                 effects.push(SceneEffect::Presentation { op });
@@ -644,7 +737,7 @@ impl SceneRunner {
                 effects.push(SceneEffect::GameCleared);
                 self.pc += 1;
             }
-            SceneOp::WaitFrames { frames } => {
+            SceneOp::WaitFrames { frames } | SceneOp::StepFieldObject { frames, .. } => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
                 if frames > 0 {
@@ -819,10 +912,20 @@ impl SceneRunner {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }
+            SceneOp::Presentation {
+                op:
+                    crate::PresentationOp::FadeToRed { lines: delay }
+                    | crate::PresentationOp::FadeFromRed { lines: delay },
+            } => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+                self.blocked = Blocked::Ticks(8 * (u16::from(delay) + 1));
+            }
             SceneOp::PanelCreate { .. }
             | SceneOp::PanelDestroy { .. }
             | SceneOp::PanelDestroyLast
             | SceneOp::PanelDestroyAll
+            | SceneOp::CreateFieldObject { .. }
             | SceneOp::ObjectAnimation { .. }
             | SceneOp::Presentation { .. }
             | SceneOp::SetMapLoadFlags { .. } => {

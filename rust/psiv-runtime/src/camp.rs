@@ -7,14 +7,16 @@
 
 use std::collections::BTreeMap;
 
+mod abilities;
+mod order;
+pub use abilities::{CampAbility, CampAbilityKind};
+
 use psiv_core::battle::{self, EquipmentError};
-use psiv_core::{CharId, DEAD_STATUS_MASK, GameState};
+use psiv_core::{CharId, GameState};
 use psiv_data::BattleFiles;
 
 use crate::{BattleSet, Runtime};
 
-const STATUS_POISON: u8 = 0x01;
-const STATUS_PARALYZED: u8 = 0x02;
 const HEAL_EFFECT: u8 = 0x12;
 const CURE_POISON_EFFECT: u8 = 0x13;
 const CURE_PARALYSIS_EFFECT: u8 = 0x14;
@@ -73,9 +75,13 @@ pub(super) fn catalog(files: &BattleFiles) -> CampCatalog {
                 )
             })
             .collect(),
-        // `characters.json` does not carry an AGE field. The only decoded
-        // status capture is Chaz, whose retail record displays 16.
-        ages: [(0, 16)].into_iter().collect(),
+        ages: files
+            .characters
+            .characters
+            .iter()
+            .filter(|character| character.age != 0)
+            .map(|character| (character.character_id, character.age))
+            .collect(),
         item_names: files
             .equipment
             .items
@@ -318,6 +324,35 @@ impl Runtime {
 
     /// Equips one filtered inventory entry through the core transaction seam.
     pub fn equip_camp_item(&mut self, party_slot: usize, inventory_slot: usize) -> CampEquipResult {
+        self.equip_camp_item_selected(party_slot, inventory_slot, None)
+    }
+
+    /// Whether the selected item offers the original right/left hand choice.
+    pub fn camp_equipment_hand_choice(&self, inventory_slot: usize) -> bool {
+        self.game
+            .inventory()
+            .get(inventory_slot)
+            .and_then(|id| self.battles.as_ref()?.data.item(id).ok())
+            .is_some_and(|item| item.kind.has_hand_choice())
+    }
+
+    /// Commits the player's selected hand, using the same atomic transaction
+    /// and stat refresh as the default equipment command.
+    pub fn equip_camp_item_in_hand(
+        &mut self,
+        party_slot: usize,
+        inventory_slot: usize,
+        hand: battle::EquipSlot,
+    ) -> CampEquipResult {
+        self.equip_camp_item_selected(party_slot, inventory_slot, Some(hand))
+    }
+
+    fn equip_camp_item_selected(
+        &mut self,
+        party_slot: usize,
+        inventory_slot: usize,
+        hand: Option<battle::EquipSlot>,
+    ) -> CampEquipResult {
         let Some(set) = self.battles.as_ref() else {
             return CampEquipResult::Unavailable {
                 reason: "EQUIPMENT DATA UNAVAILABLE".to_owned(),
@@ -348,14 +383,27 @@ impl Runtime {
         let mut inventory = self.game.inventory().clone();
         let item = |id| set.data.item(id).ok().cloned();
         let mask = |id| set.camp.item_masks.get(&id).copied().flatten();
-        match battle::equip_item(
-            &mut stats,
-            &mut inventory,
-            character_id.0,
-            inventory_slot,
-            &item,
-            &mask,
-        ) {
+        let result = if let Some(hand) = hand {
+            battle::equip_item_in_hand(
+                &mut stats,
+                &mut inventory,
+                character_id.0,
+                inventory_slot,
+                hand,
+                &item,
+                &mask,
+            )
+        } else {
+            battle::equip_item(
+                &mut stats,
+                &mut inventory,
+                character_id.0,
+                inventory_slot,
+                &item,
+                &mask,
+            )
+        };
+        match result {
             Ok(()) => {
                 *self
                     .game
@@ -482,12 +530,12 @@ impl Runtime {
             .cloned()
             .unwrap_or_else(|| effect.name.clone());
         let all_party = effect.targeting == 5;
-        let target_ids: Vec<CharId> = if all_party {
-            (0..self.game.party_len())
-                .filter_map(|slot| self.game.party_slot(slot))
-                .collect()
+        let target_ids: Vec<Option<CharId>> = if all_party {
+            // ItemUsed_AllAllies rolls before testing the slot's $FF byte,
+            // including the first empty slot before its early return.
+            (0..5).map(|slot| self.game.party_slot(slot)).collect()
         } else {
-            vec![character_id]
+            vec![Some(character_id)]
         };
         let target_label = if all_party {
             "PARTY".to_owned()
@@ -496,13 +544,23 @@ impl Runtime {
         };
         let mut outcomes = Vec::with_capacity(target_ids.len());
         for target_id in target_ids {
+            let healing = match effect.effect_id {
+                HEAL_EFFECT => {
+                    psiv_core::field_healing(effect.mental_power, effect.item_power, &mut self.rng)
+                }
+                FULL_HEAL_EFFECT => 999,
+                _ => 0,
+            };
+            let Some(target_id) = target_id else { break };
             let target_name = character_name(set, target_id);
             let Some(stats) = self.game.roster_mut().get_mut(target_id) else {
                 return CampUseResult::Unavailable {
                     reason: "ROSTER RECORD MISSING".to_owned(),
                 };
             };
-            let Some(outcome) = apply_item_effect(stats, &effect, &item_name, &target_name) else {
+            let Some(outcome) =
+                apply_item_effect(stats, &effect, healing, &item_name, &target_name)
+            else {
                 return CampUseResult::Unavailable {
                     reason: "ITEM EFFECT UNSUPPORTED".to_owned(),
                 };
@@ -510,9 +568,8 @@ impl Runtime {
             outcomes.push(outcome);
         }
         // Retail consumes a recognized item even when the target is already
-        // full or the status bit is absent. Inventory::remove deliberately
-        // leaves the same hole the cartridge's forty-byte array leaves.
-        let _ = self.game.inventory_mut().remove(inventory_slot);
+        // full or the status bit is absent, then runs ReorderInventory.
+        let _ = self.game.inventory_mut().remove_in_field(inventory_slot);
         let mut amount: u16 = 0;
         let mut changed = false;
         let mut no_effect_reason = None;
@@ -615,8 +672,9 @@ fn inventory_snapshot(game: &GameState, set: &BattleSet) -> Vec<CampItem> {
                 .get(&id)
                 .cloned()
                 .unwrap_or_else(|| format!("ITEM-{id:02X}")),
-            usable: set.camp.item_kinds.get(&id).copied() == Some(8)
-                && set.camp.effects.contains_key(&id),
+            usable: matches!(id, crate::TELEPIPE | crate::ESCAPIPE)
+                || (set.camp.item_kinds.get(&id).copied() == Some(8)
+                    && set.camp.effects.contains_key(&id)),
             targeting: set
                 .camp
                 .effects
@@ -641,132 +699,64 @@ fn equipment_error_message(error: EquipmentError) -> String {
 fn apply_item_effect(
     stats: &mut psiv_core::battle::Stats,
     effect: &CampItemEffect,
+    healing: u16,
     item_name: &str,
     character_name: &str,
 ) -> Option<CampUseResult> {
-    let result = match effect.effect_id {
-        HEAL_EFFECT => {
-            if stats.status & DEAD_STATUS_MASK != 0 {
-                CampUseResult::NoEffect {
-                    item_name: item_name.to_owned(),
-                    character_name: character_name.to_owned(),
-                    reason: "TARGET IS DOWN".to_owned(),
-                }
-            } else if stats.curr_hp >= stats.max_hp {
-                CampUseResult::NoEffect {
-                    item_name: item_name.to_owned(),
-                    character_name: character_name.to_owned(),
-                    reason: "HP ALREADY FULL".to_owned(),
-                }
-            } else {
-                let amount = field_heal_amount(effect);
-                let before = stats.curr_hp;
-                stats.curr_hp = stats.curr_hp.saturating_add(amount).min(stats.max_hp);
-                CampUseResult::Used {
-                    item_name: item_name.to_owned(),
-                    character_name: character_name.to_owned(),
-                    amount: stats.curr_hp.saturating_sub(before),
-                }
-            }
-        }
-        CURE_POISON_EFFECT => {
-            cure_status(stats, STATUS_POISON, item_name, character_name, "NO POISON")
-        }
-        CURE_PARALYSIS_EFFECT => cure_status(
-            stats,
-            STATUS_PARALYZED,
-            item_name,
-            character_name,
-            "NOT PARALYZED",
-        ),
-        REVIVE_EFFECT => {
-            if stats.status & DEAD_STATUS_MASK == 0 {
-                CampUseResult::NoEffect {
-                    item_name: item_name.to_owned(),
-                    character_name: character_name.to_owned(),
-                    reason: "TARGET IS ALIVE".to_owned(),
-                }
-            } else {
-                stats.status &= !DEAD_STATUS_MASK;
-                stats.curr_hp = (stats.max_hp / 4).max(1);
-                CampUseResult::Used {
-                    item_name: item_name.to_owned(),
-                    character_name: character_name.to_owned(),
-                    amount: stats.curr_hp,
-                }
-            }
-        }
-        FULL_HEAL_EFFECT => {
-            let before = stats.curr_hp;
-            let changed = stats.curr_hp != stats.max_hp || stats.status != 0;
-            stats.curr_hp = stats.max_hp;
-            stats.status = 0;
-            if changed {
-                CampUseResult::Used {
-                    item_name: item_name.to_owned(),
-                    character_name: character_name.to_owned(),
-                    amount: stats.curr_hp.saturating_sub(before),
-                }
-            } else {
-                CampUseResult::NoEffect {
-                    item_name: item_name.to_owned(),
-                    character_name: character_name.to_owned(),
-                    reason: "TARGET ALREADY FULL".to_owned(),
-                }
-            }
-        }
+    let mask = match effect.effect_id {
+        HEAL_EFFECT => 0x0F,
+        CURE_POISON_EFFECT => 0x0E,
+        CURE_PARALYSIS_EFFECT => 0x0D,
+        REVIVE_EFFECT | FULL_HEAL_EFFECT => 0,
         _ => return None,
     };
-    Some(result)
-}
-
-fn cure_status(
-    stats: &mut psiv_core::battle::Stats,
-    bit: u8,
-    item_name: &str,
-    character_name: &str,
-    reason: &str,
-) -> CampUseResult {
-    if stats.status & bit == 0 {
-        CampUseResult::NoEffect {
+    // Win_ItemUsedMsg: Repair Kit is android-only; every other field
+    // restorative excludes androids. Target byte 6 identifies the kit.
+    let android_only = effect.targeting & 0x0F == 6;
+    let wrong_kind = stats.is_android() != android_only;
+    let dead = stats.status & battle::status::DEAD != 0;
+    let reason = if wrong_kind {
+        Some(if android_only {
+            "ANDROID TARGET REQUIRED"
+        } else {
+            "NO EFFECT ON ANDROIDS"
+        })
+    } else if effect.effect_id == REVIVE_EFFECT && !dead {
+        Some("TARGET IS ALIVE")
+    } else if dead && !matches!(effect.effect_id, REVIVE_EFFECT | FULL_HEAL_EFFECT) {
+        Some("TARGET IS DOWN")
+    } else {
+        None
+    };
+    if let Some(reason) = reason {
+        return Some(CampUseResult::NoEffect {
             item_name: item_name.to_owned(),
             character_name: character_name.to_owned(),
             reason: reason.to_owned(),
-        }
+        });
+    }
+    let before_hp = stats.curr_hp;
+    let before_status = stats.status;
+    let amount = if effect.effect_id == REVIVE_EFFECT {
+        stats.max_hp / 4
     } else {
-        stats.status &= !bit;
-        CampUseResult::Used {
-            item_name: item_name.to_owned(),
-            character_name: character_name.to_owned(),
-            amount: 0,
-        }
-    }
-}
-
-/// The field menu's healing routine uses the two item power bytes. The
-/// cartridge rolls sixteen 0..7 values; the fixed midpoint keeps a renderer
-/// action deterministic while preserving the decoded scaling and clamps.
-fn field_heal_amount(effect: &CampItemEffect) -> u16 {
-    let midpoint_roll_sum = 56u32;
-    let mental = u32::from(effect.mental_power);
-    let amount =
-        (((midpoint_roll_sum + 8) * mental) >> 7) + mental / 2 + u32::from(effect.item_power);
-    amount.min(u32::from(u16::MAX)) as u16
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn decoded_monomate_power_has_the_retail_midpoint_amount() {
-        let effect = CampItemEffect {
-            name: "MONOMATE".to_owned(),
-            effect_id: HEAL_EFFECT,
-            mental_power: 24,
-            item_power: 24,
-            targeting: 4,
-        };
-        assert_eq!(field_heal_amount(&effect), 48);
-    }
+        healing
+    };
+    stats.curr_hp = stats.curr_hp.wrapping_add(amount).min(stats.max_hp);
+    stats.status &= mask;
+    Some(
+        if stats.curr_hp != before_hp || stats.status != before_status {
+            CampUseResult::Used {
+                item_name: item_name.to_owned(),
+                character_name: character_name.to_owned(),
+                amount: stats.curr_hp.saturating_sub(before_hp),
+            }
+        } else {
+            CampUseResult::NoEffect {
+                item_name: item_name.to_owned(),
+                character_name: character_name.to_owned(),
+                reason: "NO EFFECT".to_owned(),
+            }
+        },
+    )
 }

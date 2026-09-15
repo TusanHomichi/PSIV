@@ -15,7 +15,7 @@ use crate::trigger::EventIndex;
 const LEADER: ActorRef = ActorRef::PartyMember(0);
 const KYRA_ACTOR: ActorRef = ActorRef::Character(KYRA);
 
-const TREE_37: u32 = 0x0020_80BE;
+const TREE_37: u32 = 0x001F_9580;
 
 const MUSIC_DEZOLIS_FIELD: u8 = 0x99;
 const MUSIC_TOWER: u8 = 0x9A;

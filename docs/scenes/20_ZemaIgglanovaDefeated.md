@@ -1,5 +1,10 @@
 # `Cutscene_ZemaIgglanovaDefeated`
 
+Native continuation repairs and current evidence are in
+[`SCENE_DIALOGUE.md`](../SCENE_DIALOGUE.md). The 11-op transcription now
+includes the original panel-dialogue flag write at `$074588`; the full map
+reload restores all seven residents after the temporary battle staging.
+
 - **Retail bytes:** `$074556..$0745DD` inclusive, 136 bytes.
 - **Pointer:** `CutscenePtrs[$06]` from `$05A580`; scene event `$8006`.
 - **Trigger:** Zema `$24`, trigger `$17`, flag `$33` set and `$37` clear.

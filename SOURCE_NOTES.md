@@ -5,7 +5,7 @@ The extractor is grounded against Peter's verified US retail PSIV ROM and the pu
 ## Retail bug ledger index
 
 The numbered index follows the ledger numbering established in the commit
-history. It has **12 entries** as of 2026-08-15. The detailed records below are
+history. It has **13 entries** as of 2026-09-12. The detailed records below are
 deliberately chronological and retain their corrections, retractions, and
 superseded interpretations; this index is only a map, not a replacement for
 that evidence. Classifications are kept explicit: a retail finding is not
@@ -42,6 +42,10 @@ as one.
     set/clear/respawn cycle remains in the detailed record.
 12. **RETAIL CARTRIDGE BUG — `Battle_OrderTurns`.** The max-agility scan reads
     ten words from a nine-entry table and consumes one word past its end.
+13. **RETAIL CARTRIDGE BUG — VISION reads the caster's name as its power.**
+    Stat selector zero addresses the first encoded name byte. The native
+    implementation preserves Hahn's normal +8 dexterity without depending
+    on his name; see the measured record below.
 
 ### Other classified records in the chronology
 
@@ -555,11 +559,13 @@ and the flag-set whose absence would re-fire the trigger forever.
   so armour can DOWNGRADE a character's innate immunity (0) to mere
   resistance (1). Reachable in play; the pack emits element.role per
   item and finished element_props per character as conformance vectors.
-- Dual-wielding is initial-data-only: EquipItemType_OneHanded always
-  writes the right hand and only shields ever write the left, so Chaz's
-  and Rika's starting second weapons are live in battle
-  (Battle_AttackCommand reads both hands) but can never be re-equipped
-  once removed. Cartridge design fact, not a bug.
+- Correction (2026-09-15): dual wielding is available through the normal
+  hand selector at `loc_5F93A..loc_5FAEE`. Types 1, 2 and 5 offer right/left
+  choice; `loc_5F99E` replaces the tentative default dispatch with that
+  selection before inventory commit. The earlier initial-data-only claim
+  stopped at `EquipItemType_OneHanded` and missed this later path. A left
+  weapon and a right shield are both valid. `docs/EQUIP_SCOUT.md` records
+  the repaired native flow and its verification.
 - Citation correction: UpdateCharModStats is retail $05F754, not
   $05F880 ($05F880 is the unrelated routine UpdateEquipment tail-calls).
   The behaviour transcribed everywhere is correct; two docs carried the
@@ -658,3 +664,171 @@ and the flag-set whose absence would re-fire the trigger forever.
   when pressed at on hardware. The port makes invisible no-dialogue
   objects solid-but-silent (docs/FIELD_STATE.md, invisible-blockers
   section). Hardware confirmation tape filed with the oracle.
+
+
+### 2026-09-12 — VISION and opening character skills
+
+**RETAIL CARTRIDGE BUG 13 — VISION reads the caster's name.** The verified
+US skill record 47 at `$2A9E98` uses stat selector zero and effect `$26`.
+`Effect_SetupSkillParams` resolves zero through `AbilityStatsOffs` to stats
+offset zero, then reads one byte there. `AbilityEffect_DexterityUp` adds
+that byte to each eligible target's modified dexterity. Hahn's initial
+encoded `H` is `$08`, so normal Vision adds 8, independently of his level
+or mental stat. It replaces the previous dexterity buff.
+
+Fresh oracle RAM probes on 2026-09-12 verified this on the US retail ROM.
+Starting from tape 07's battle idle at frame 25000, a patched command round
+has Alys and Chaz defend while Hahn uses Vision. At frame 26000, Chaz/Alys/
+Hahn dexterity is `13/21/13`, up from `5/13/5`; Hahn's uses fall from 5 to 4.
+Repeating with only Hahn's first name byte patched to `$1A` changes the
+results to `31/39/31`, a +26 buff. These are controlled RAM-patched oracle
+fixtures, not natural menu-input captures. The local receipts are
+`build/native-skills/{vision,renamed-vision}.ram` and the corresponding
+`oracle-*-vision.csv` logs.
+
+The native fix gives Vision a constant +8 when its stat selector is zero.
+A mod that supplies another supported stat selector uses that stat instead.
+This follows the owner's existing obvious-bug policy in
+`docs/RUNTIME_DESIGN.md`; the original JSON remains unchanged.
+
+**RETAIL FINDINGS — VORTEX and EARTH.** A second patched command round uses
+Vortex on enemy 6, Earth on enemy 7, and Vision on the party. Enemy 6's HP is
+raised to 512 to expose separate hits. It drops once to 452 at frame 25181.
+Enemy 7 gains status `$08` at frame 25284 while retaining agility 6; both
+before and after, its HP is 25. Final remaining uses are Earth 2, Vortex 4,
+Vision 4. See `build/native-skills/oracle-skills.csv`, `oracle-changes.json`,
+and `skills.ram`. Vortex's three projectile sprites culminate in one damage
+application; Earth's successful object timer sets sleep without the generic
+sleep object's agility reduction. `Battle_RestoreStatsAtTurnEnd` rolls once
+per occupied sleeping fighter, wakes on odd, restores modified agility, then
+clears enemy paralysis without a roll.
+
+**PORT BUG — alphabetical resistance census.** `psiv_tools/battle_pack.py`
+emits `enemies.properties` as sorted names. The Rust bridge incorrectly used
+that census as element-id order for both enemies and newly seated characters.
+For example, Earth (element 11, psychic) read the mechanical immunity at
+alphabetical slot 11, so ZoranBult could never be put to sleep. The bridge
+now places named values in `ELEMENT_NAMES` cartridge order, validates the
+complete name set, and checks all 153 enemy and eleven initialized character
+records. This is a port repair, not a cartridge bug or a pack format change.
+
+### 2026-09-12 — Battle items and Fission
+
+**RETAIL FINDING — revival details.** Moon-Dew restores a dead human to
+one-quarter maximum HP and preserves technique seal. A controlled US-ROM
+command probe changes Hahn from HP 0/status `$1D` to HP 5/status `$90` at
+maximum HP 21: seal plus a transient sprite flag. Sol-Dew on a living human
+restores HP without curing ailments. Repair-Kit is disposable type 8,
+although several equipment activations reuse other item-effect dispatchers.
+All 160 item activation headers and disposal types were verified against
+the ROM; local evidence is in `build/native-items/`.
+
+**PORT BUG — dormant Igglanova neighbors.** `EnemyInit_Igglanova`
+(`ps4.asm:18275`) destroys the adjacent fighter objects without clearing
+their cached stats. The old port counted and rendered those full-HP records
+as already present. A fresh, input-only retail Academy replay confirms the
+boss is initially alone (frame 40650), then grows right/left Xanafalgues
+(frames 41200/41850). See `build/native-fission/oracle-receipt.json`.
+
+**RETAIL FINDING — Fission uses cached neighbor identity.**
+`EnemyAI_EmptySpace` (`ps4.asm:23524`) uses one random parity draw only when
+both sides are empty. `BattleObj_IgglanovaFission` / `loc_14CBE` restores
+the chosen slot through `Battle_FillEnemyStats`, retaining its cached enemy
+ID. In Guilgenova's formation this restores Gicefalgue, despite the nominal
+Fission2 target byte. A replacement begins with status bit 7; the turn
+executor's `$EE` mask (`loc_5772`) prevents a newly revived fighter from
+acting on an old queued turn. The native engine uses an active-slot state
+and same-round revival events, without leaking the transient bit into saves.
+
+### 2026-09-12 — Dialogue continuations, choices and resting
+
+**PORT BUG — scene dialogue ignored its caller's yield.** Retail `$F7`
+reaches `TextCtrlCode_Terminate3` and saves the following text address before
+returning to the event. The old Godot window immediately read the next chunk,
+while the runtime automatically acknowledged `RunDialogueResume`. The
+post-Igglanova entry (tree 33, entry 18) has two such breaks: Chaz turns
+before the second chunk, and Hahn moves before the third. The native window
+now preserves the original tree and cursor while those scene ops execute.
+
+**RETAIL FINDING — choice offsets start after both operands.**
+`TextCtrlCode_YesNo` (`ps4.asm:142780`) stores the selection in `Yes_No_Option`,
+advances past both operands, and calls `GetOffsetByID`. Zero continues in
+the current entry; positive values count subsequent `$FF` delimiters. Cancel
+selects NO. `Event_ChazHouse` (`:149074`) consults that saved answer after the
+response closes. Both branches set its temporary visit flag, but only YES
+calls recovery. The port previously discarded the text branches and forced
+the scene branch to YES.
+
+**PORT BUG — rests left skills exhausted.** Both native scene recovery and
+inn recovery omitted skill uses. `RecoverStats` / `DoCharRecovery`
+(`ps4.asm:136503`) refill the current party's HP, TP and eight skill counts
+and clear status. `DoVehicleRecovery` then refills all three saved vehicle
+use banks; it does not write vehicle HP. The two native paths now share this
+core operation, with real-pack tests for YES, NO, deferred answers, and inns.
+
+### 2026-09-12 — Battle rewards across a connected Academy route
+
+**PORT BUG — displayed meseta never reached the purse.**
+`Battle_VictoryMessage` (`ps4.asm:4796..4806`, retail `$30E6` region)
+adds the zero-extended 16-bit `$FFFF41D0` pool to `Current_Money` and
+caps the result at 9,999,999. The native battle emitted that pool, and Godot
+displayed it, but the runtime only absorbed stats and awarded experience.
+The consumed battle now pays its pool on confirmed victory, including
+vehicle battles; escaping with accumulated kills pays none. Runtime tests
+cover the cap, save/reload, and duplicate result-close calls. The connected
+START-to-Motavia development route now retains all 86 meseta from its four
+battles, ending with 986 after Hahn's 100 and the principal's 300.
+
+**PORT BUG — camp healing used a fixed midpoint and battle-like masks.**
+The verified ROM contains `HealingEffectData` at `$67FA4` with exact bytes
+`120f0000130e8000140d8000150088001600000017000000180f0000`.
+`CalcHealingValue` (`$67FC0`) draws from UpdateRNGSeed, rejects repeats of
+the previous masked value (initial zero), and accepts sixteen values.
+`ItemUsed_AllAlliesLoop` calls it before inspecting a slot, including the
+first empty slot; that empty slot then ends the loop.
+Field masks therefore differ from combat: Moon Dew and Sol Dew clear all
+status on eligible humans; ordinary healing masks with `0F`. Repair Kit's
+explicit ID branch allows only Demi/Wren, while other restorative items
+reject androids. Native camp now follows those rules. `Win_ItemUseCharListMain`
+also calls `ReorderInventory` after clearing a used slot; the port had left
+the hole as if this were a battle command.
+
+
+### Native battle return and field ability recovery (2026-09-12)
+
+`GameMode_LoadFieldMap` (`ps4.asm:107505`) retains field-object RAM when
+`Map_Load_Flags` bit 0 is set, skips `LoadMapObjects` initialization
+(`110924`), and still invokes `MapDataManager` (`107597`). Native battle
+return now preserves the live cast while applying that map-data walk. The
+Academy flag-$0B boss and invisible-block despawns were verified in Godot.
+
+Field TECH/SKILL follow `loc_5FF98`, `Win_LoadTechList`, `SubtractTP`,
+`Win_TechUsedMsg`, `loc_61AD4`, `loc_620D2`, and `GetItemTechSkillEffect`.
+The field death test is bit 2, distinct from battle's combined death mask.
+Both group recovery loops calculate before checking the first `$FF` party
+slot, then return immediately. Skills read their selected modified stat;
+RECOVER uses strength, MEDICE/MIRACLE mental, MEDIC PW strength. The latter
+heals and revives humans, including living targets, while skipping androids.
+All 17 field-usable records were compared to local retail ROM bytes; the
+two teleport techniques still await implementation.
+
+### Birth Valley enemy gameplay (2026-09-12)
+
+`EnemyAttack_FlattrPlnt` selects Acid Breath for `$33`; the ROM ability at
+`$2834FC` is `01 01 08 18 06 01 00 00`. `BattleObj_AcidBreath` guards its
+single damage request with bit 1. Its child is animation-only.
+`loc_B75A` supplies a normal hit without an accuracy draw, then
+`Enemy_DamageCharacter` / `loc_26DA` / `loc_26F8` select battle strength,
+defense and physical resistance. The existing 16-draw damage formula applies.
+The objects write MoleAttack `$D5` and EnemyAttack4 `$D8`; native cues are
+event-aligned, with the original object timings/art still pending.
+
+`loc_5A98` tests target status `$C4` and `loc_5ACE` redraws from living party
+members before the enemy ability roll. `Character_Dead` at `loc_84DE` masks
+status with `$10`, then sets bit 6 for androids or bit 2 for humans.
+`Battle_DoAttackEffect` only dispatches a plain attack's status after damage
+and a successful hit. All nonzero enemy attack-status records are 27/28.
+`AbilityEffect_Poison` / `AbilityEffect_Paralyze` pass target offset `$48`;
+`Effect_DoPhysicalAttack` compares battle strength to battle strength with
+threshold `$70`. Existing poison/paralysis skips the draw, while immunity
+still runs it. Paralysis clears sleep bit 3 and sets agility/dexterity to 1.

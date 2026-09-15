@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use psiv_core::battle::{BattleEvent, FighterId, Outcome, Priority, Verdict};
+use psiv_core::battle::{BattleEvent, FighterId, FirstZioAction, Outcome, Priority, Verdict};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Beat {
@@ -58,6 +58,136 @@ pub(crate) fn narration(
     character_names: &BTreeMap<u8, String>,
 ) -> Narration {
     match event {
+        BattleEvent::EnemyStatsReloaded { .. } => Narration {
+            line: String::new(),
+            beat: Beat::None,
+        },
+        BattleEvent::FirstZioAction { action, .. } => Narration {
+            line: match action {
+                FirstZioAction::MagicBarrier => "MAG.BARRIR",
+                FirstZioAction::Nightmare => "NIGHTMARE",
+                FirstZioAction::BlackWave => "BLACK WAVE",
+                FirstZioAction::Invocation | FirstZioAction::Pause => "",
+            }
+            .into(),
+            beat: Beat::None,
+        },
+        BattleEvent::StatusInflicted { target, status, .. } => Narration {
+            line: format!(
+                "{} {}!",
+                fighter_name(*target, names),
+                if *status == psiv_core::battle::status::POISONED {
+                    "poisoned"
+                } else {
+                    "paralyzed"
+                }
+            ),
+            beat: Beat::None,
+        },
+        BattleEvent::EnemySkillUsed { name, .. } => Narration {
+            line: name.clone(),
+            beat: Beat::None,
+        },
+        BattleEvent::EnemyReplenished { name, .. } => Narration {
+            line: format!("{name} appears!"),
+            beat: Beat::None,
+        },
+        BattleEvent::ItemUsed { actor, name, .. } => Narration {
+            line: format!("{}: {name}", fighter_name(*actor, names)),
+            beat: Beat::None,
+        },
+        BattleEvent::ItemRejected { reason, .. } => Narration {
+            line: match reason {
+                psiv_core::battle::ItemRejection::Missing => "Item is gone!",
+                psiv_core::battle::ItemRejection::InvalidTarget => "Invalid target!",
+                psiv_core::battle::ItemRejection::Unavailable => "Cannot use item!",
+            }
+            .into(),
+            beat: Beat::None,
+        },
+        BattleEvent::ItemIneffective { .. } | BattleEvent::TechniqueIneffective { .. } => {
+            Narration {
+                line: "No effect!".into(),
+                beat: Beat::None,
+            }
+        }
+        BattleEvent::Revived { target, .. } => Narration {
+            line: format!("{} revived!", fighter_name(*target, names)),
+            beat: Beat::None,
+        },
+        BattleEvent::StatusRestored { target, .. } => Narration {
+            line: format!("{} cured!", fighter_name(*target, names)),
+            beat: Beat::None,
+        },
+        BattleEvent::StatsRestored { target, .. } => Narration {
+            line: format!("{} stats restored", fighter_name(*target, names)),
+            beat: Beat::None,
+        },
+        BattleEvent::SkillUsed { actor, name, .. } => Narration {
+            line: format!("{}: {name}", fighter_name(*actor, names)),
+            beat: Beat::None,
+        },
+        BattleEvent::SkillRejected { reason, .. } => Narration {
+            line: match reason {
+                psiv_core::battle::SkillRejection::Exhausted => "No uses left!",
+                psiv_core::battle::SkillRejection::Unarmed => "No weapon!",
+                _ => "Cannot use skill!",
+            }
+            .into(),
+            beat: Beat::None,
+        },
+        BattleEvent::SkillIneffective { .. } => Narration {
+            line: "No effect!".into(),
+            beat: Beat::None,
+        },
+        BattleEvent::FellAsleep { target, .. } => Narration {
+            line: format!("{} asleep!", fighter_name(*target, names)),
+            beat: Beat::None,
+        },
+        BattleEvent::WokeUp { fighter } => Narration {
+            line: format!("{} awake!", fighter_name(*fighter, names)),
+            beat: Beat::None,
+        },
+        BattleEvent::ParalysisCleared { fighter } => Narration {
+            line: format!("{} moves!", fighter_name(*fighter, names)),
+            beat: Beat::None,
+        },
+        BattleEvent::TechniqueUsed { actor, name, .. } => Narration {
+            line: format!("{}: {name}", fighter_name(*actor, names)),
+            beat: Beat::None,
+        },
+        BattleEvent::TechniqueRejected { reason, .. } => Narration {
+            line: match reason {
+                psiv_core::battle::TechniqueRejection::Sealed => "Tech sealed!",
+                psiv_core::battle::TechniqueRejection::InsufficientTp => "Not enough TP!",
+                _ => "Cannot use tech!",
+            }
+            .into(),
+            beat: Beat::None,
+        },
+        BattleEvent::Healed { target, amount, .. } => Narration {
+            line: format!("{} healed {amount}", fighter_name(*target, names)),
+            beat: Beat::None,
+        },
+        BattleEvent::StatChanged {
+            target,
+            stat,
+            value,
+            ..
+        } => Narration {
+            line: format!(
+                "{} {} {value}",
+                fighter_name(*target, names),
+                match stat {
+                    psiv_core::battle::TechniqueStat::Attack => "ATK",
+                    psiv_core::battle::TechniqueStat::Defence => "DEF",
+                    psiv_core::battle::TechniqueStat::MentalDefence => "MDF",
+                    psiv_core::battle::TechniqueStat::Agility => "AGI",
+                    psiv_core::battle::TechniqueStat::Dexterity => "DEX",
+                }
+            ),
+            beat: Beat::None,
+        },
         BattleEvent::Started {
             priority: Priority::Ambush,
             ..
@@ -138,6 +268,16 @@ pub(crate) fn narration(
             line: "Each got".into(),
             beat: Beat::Reward,
         },
+        BattleEvent::LearnedAbility { character, name } => Narration {
+            line: format!(
+                "{} learned {name}!",
+                character_names
+                    .get(character)
+                    .cloned()
+                    .unwrap_or_else(|| format!("Character {character}"))
+            ),
+            beat: Beat::LevelUp,
+        },
         BattleEvent::LevelUp { character, .. } => {
             let name = character_names
                 .get(character)
@@ -150,7 +290,9 @@ pub(crate) fn narration(
         }
         BattleEvent::Ended { outcome } => Narration {
             line: match outcome {
-                Outcome::Victory | Outcome::Defeat | Outcome::Escaped => String::new(),
+                Outcome::Victory | Outcome::Defeat | Outcome::Escaped | Outcome::ScriptedExit => {
+                    String::new()
+                }
             },
             beat: Beat::End(*outcome),
         },

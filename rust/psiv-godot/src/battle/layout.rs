@@ -8,6 +8,14 @@ use super::ui::{
 use godot::prelude::*;
 use psiv_core::battle::FighterId;
 
+/// The same center-out seats used by the combat sprites, in screen order.
+pub(super) const STATUS_FIGHTERS: [u8; 5] = [4, 2, 1, 3, 5];
+
+pub(super) fn status_member(party: &[PartyStatus], pane: usize) -> Option<&PartyStatus> {
+    let fighter = STATUS_FIGHTERS.get(pane)?;
+    party.iter().find(|member| member.fighter == *fighter)
+}
+
 pub(super) fn transient_column(fighter: FighterId) -> i32 {
     match fighter.get() {
         1 => 5,
@@ -55,10 +63,7 @@ pub(super) fn append_status_quads(
     }
 
     for (pane, start) in STATUS_PANE_START_CELLS.iter().copied().enumerate() {
-        if pane > 0
-            && pane < 4
-            && let Some(member) = party_status.get(pane - 1)
-        {
+        if let Some(member) = status_member(party_status, pane) {
             quads.extend(chrome.text(
                 &member.name,
                 WindowRect {
@@ -69,18 +74,18 @@ pub(super) fn append_status_quads(
                 },
             ));
             quads.extend(chrome.battle_number(
-                &member.hp.to_string(),
+                &format!("{:>3}", member.hp),
                 WindowRect {
-                    x: (start + 5) as f32 * BATTLE_CELL_PIXELS as f32,
+                    x: (start + 4) as f32 * BATTLE_CELL_PIXELS as f32,
                     y: STATUS_HP_Y,
                     w: 24.0,
                     h: 8.0,
                 },
             ));
             quads.extend(chrome.battle_number(
-                &member.tp.to_string(),
+                &format!("{:>3}", member.tp),
                 WindowRect {
-                    x: (start + 5) as f32 * BATTLE_CELL_PIXELS as f32,
+                    x: (start + 4) as f32 * BATTLE_CELL_PIXELS as f32,
                     y: STATUS_TP_Y,
                     w: 24.0,
                     h: 8.0,
@@ -122,6 +127,33 @@ mod tests {
             return None;
         }
         serde_json::from_str(&fs::read_to_string(path).ok()?).ok()
+    }
+
+    #[test]
+    fn status_panes_follow_fighter_seats_for_every_party_size() {
+        // Deliberately reverse the input array: neither roster order nor
+        // character ID sorting determines the pane occupied by a fighter.
+        for count in 1..=5 {
+            let party: Vec<_> = (1..=count)
+                .rev()
+                .map(|fighter| PartyStatus {
+                    fighter,
+                    name: format!("seat{fighter}"),
+                    hp: 100 + u16::from(fighter),
+                    tp: 200 + u16::from(fighter),
+                })
+                .collect();
+            let occupied: Vec<_> = (0..5)
+                .filter_map(|pane| status_member(&party, pane).map(|m| (pane, m.fighter)))
+                .collect();
+            let expected: Vec<_> = [4, 2, 1, 3, 5]
+                .into_iter()
+                .enumerate()
+                .filter(|(_, fighter)| *fighter <= count)
+                .collect();
+            assert_eq!(occupied, expected);
+            assert_eq!(occupied.len(), usize::from(count));
+        }
     }
 
     fn integer(value: &Value, field: &str) -> i32 {

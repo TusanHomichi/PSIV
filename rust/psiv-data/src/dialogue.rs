@@ -263,7 +263,19 @@ impl DialogueSet {
             ));
         }
 
+        let mut addresses = std::collections::BTreeSet::new();
         for (index, tree) in trees.iter().enumerate() {
+            if tree.rom_offset.is_some() {
+                let address = tree
+                    .rom_address()
+                    .ok_or_else(|| defect(path, format!("{}: invalid rom_offset", tree.label)))?;
+                if !addresses.insert(address) {
+                    return Err(defect(
+                        path,
+                        format!("{}: duplicate rom_offset", tree.label),
+                    ));
+                }
+            }
             let number = u8::try_from(index + 1).unwrap_or(u8::MAX);
             if tree.tree != number {
                 return Err(defect(

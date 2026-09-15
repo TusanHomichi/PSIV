@@ -122,24 +122,13 @@ pub fn stay(game: &mut GameState, rate: u32, selector: usize) -> InnResult {
         };
     }
 
-    recover_party(game, party_slots);
+    game.recover_stats();
     if selector == 6 && game.is_clear(Flag::event(0x42)) && game.is_clear(Flag::event(0x46)) {
         return InnResult::AiedoEventPending { cost, party_slots };
     }
 
     game.set_money(game.money() - cost);
     InnResult::Stayed { cost, party_slots }
-}
-
-fn recover_party(game: &mut GameState, party_slots: usize) {
-    let party = game.party();
-    for id in party.into_iter().take(party_slots).flatten() {
-        if let Some(stats) = game.roster_mut().get_mut(id) {
-            stats.curr_hp = stats.max_hp;
-            stats.curr_tp = stats.max_tp;
-            stats.status = 0;
-        }
-    }
 }
 
 impl Runtime {

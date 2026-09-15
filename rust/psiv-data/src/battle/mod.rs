@@ -380,7 +380,7 @@ pub struct NamedId {
     /// The raw id.
     pub id: u16,
     /// What it is called, when it is called anything.
-    #[serde(default)]
+    #[serde(default, alias = "display_name")]
     pub name: Option<String>,
 }
 
@@ -405,8 +405,8 @@ pub use formations::{
 pub use levels::{Level, LevelStats, LevelTable, LevelsFile};
 pub use party::{
     Character, CharactersFile, DerivedStat, ElementRef, Equipment, EquipmentBonuses, EquipmentFile,
-    EquipmentKindRef, EquipmentType, Equipped, Initialized, Loadout, SkillSlots, TechniqueSlots,
-    WeaponElements,
+    EquipmentKindRef, EquipmentType, Equipped, Initialized, Loadout, SkillSlots, StatusPortrait,
+    TechniqueSlots, WeaponElements,
 };
 
 #[cfg(test)]
@@ -423,7 +423,10 @@ mod tests {
             display_name: Some("BLACK WAVE".into()),
             effect_id,
             tp_cost: None,
+            targeting: None,
+            target_id: None,
             parameter_2: None,
+            battle_object_or_graphic_id: None,
             relevant_stat: None,
             requires_weapon: None,
             power_or_hit_chance: Some(1),

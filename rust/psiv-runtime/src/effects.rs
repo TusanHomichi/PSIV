@@ -24,6 +24,8 @@ pub struct EffectOutcome {
     /// Dialogue-id overrides by record object index. The renderer must
     /// consult these before the record's own `dialogue_id`.
     pub dialogue_overrides: BTreeMap<usize, u16>,
+    /// NPC sheets recoloured by active map-load palette copies.
+    pub sprite_overrides: BTreeMap<usize, String>,
     /// Which layout variant replaces the base layout, as an index into
     /// `record.layout_variants` — from an active `layout_replace` whose
     /// source matches the variant's changed plane.
@@ -106,6 +108,12 @@ pub fn evaluate(record: &MapRecord, game: &mut GameState) -> EffectOutcome {
                     .all(|g| gate_holds(g, game, &mut out.unknown_banks));
             if !holds {
                 continue;
+            }
+            for palette in &path.deferred_effects {
+                for replacement in &palette.affects.npc_sheets {
+                    out.sprite_overrides
+                        .insert(replacement.npc_index, replacement.to.clone());
+                }
             }
             for write in &path.writes {
                 match write.kind.as_str() {
@@ -210,6 +218,34 @@ mod tests {
     use super::*;
     use psiv_data::{EffectPath, EffectWrite, MapEffect};
 
+    #[test]
+    fn rescued_zema_and_petrified_birth_valley_select_their_actual_palette_sheets() {
+        let pack = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
+        let data = psiv_data::GameData::load(pack).expect("pack loads");
+        let zema = data.map(psiv_data::MapId(0x24)).unwrap();
+        let valley = data.map(psiv_data::MapId(0x2c)).unwrap();
+        let mut game = GameState::new();
+        assert!(evaluate(zema, &mut game).sprite_overrides.is_empty());
+        let before = evaluate(valley, &mut game);
+        assert_eq!(before.sprite_overrides.len(), 5);
+        assert_eq!(before.sprite_overrides[&0], "NPCType8_715d7d50");
+        game.set(Flag::event(0x33)).unwrap();
+        let restored = evaluate(zema, &mut game);
+        assert_eq!(restored.sprite_overrides.len(), 7);
+        assert_eq!(restored.sprite_overrides[&0], "NPCType2_cb8a59c5");
+        assert_eq!(restored.sprite_overrides[&3], "NPCType1_0e29dfdf");
+        for sheet in restored.sprite_overrides.values() {
+            assert!(data.sheet(sheet).is_some());
+        }
+        assert!(evaluate(valley, &mut game).sprite_overrides.is_empty());
+        game.clear(Flag::event(0x33)).unwrap();
+        assert!(evaluate(zema, &mut game).sprite_overrides.is_empty());
+        assert_eq!(
+            evaluate(valley, &mut game).sprite_overrides,
+            before.sprite_overrides
+        );
+    }
+
     fn write(kind: &str, index: u32) -> EffectWrite {
         EffectWrite {
             kind: kind.to_owned(),
@@ -245,6 +281,7 @@ mod tests {
                 unconditional: false,
                 aborts_remaining_entries: false,
                 deferred: Vec::new(),
+                deferred_effects: Vec::new(),
                 writes,
             }],
             reason: None,

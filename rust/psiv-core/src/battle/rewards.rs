@@ -175,6 +175,14 @@ pub fn level_up(
     stats.mental.base = record.mental;
     stats.agility.base = record.agility;
     stats.dexterity.base = record.dexterity;
+    // BattleResults_PartyExp updates maxima, never refills existing skills.
+    // loc_42BA appends the technique; loc_4358 appends the new skill and
+    // initializes only that new slot's current uses from its new maximum.
+    stats.max_skill_uses = record.skill_uses;
+    append_ability(&mut stats.techniques, record.new_technique);
+    if let Some(slot) = append_ability(&mut stats.skills, record.new_skill) {
+        stats.curr_skill_uses[slot] = stats.max_skill_uses[slot];
+    }
     // FIX 2: retail leaves the derived stats stale until the next refresh.
     let item = |id: u8| data.item(id).ok().cloned();
     stats.update_mod_stats(&item);
@@ -185,6 +193,30 @@ pub fn level_up(
         max_hp: record.hp,
         max_tp: record.tp,
     }))
+}
+
+/// The absent-roster pass (`loc_3F4C..loc_3FC0`) learns the same abilities
+/// but reloads both current and maximum skill uses on a successful level.
+/// It still grants at most one level per battle in the US cartridge.
+pub fn level_up_absent(
+    character: u8,
+    stats: &mut Stats,
+    data: &BattleData,
+) -> Result<Option<BattleEvent>, BattleDataError> {
+    let event = level_up(character, stats, data)?;
+    if event.is_some() {
+        stats.curr_skill_uses = stats.max_skill_uses;
+    }
+    Ok(event)
+}
+
+fn append_ability<const N: usize>(slots: &mut [u8; N], id: u8) -> Option<usize> {
+    if id == 0 {
+        return None;
+    }
+    let slot = slots.iter().position(|known| *known == 0)?;
+    slots[slot] = id;
+    Some(slot)
 }
 
 #[cfg(test)]
@@ -333,6 +365,45 @@ mod tests {
             .collect();
         assert_eq!(before, after, "no experience moved, no flag was set");
         assert!(before.iter().all(|(exp, flag)| *exp == 0 && !*flag));
+    }
+
+    #[test]
+    fn a_party_level_learns_in_first_empty_slots_without_refilling_existing_uses() {
+        let mut table = fixtures::chaz_levels();
+        let record = &mut table.levels[0];
+        record.new_technique = 7;
+        record.new_skill = 34;
+        record.skill_uses = [4, 9, 7, 0, 0, 0, 0, 0];
+        let data = fixtures::data().with_level_table(0, table);
+        let mut stats = Stats::from_character(&fixtures::chaz(), lookup);
+        stats.experience = 21;
+        stats.curr_hp = 1;
+        stats.curr_tp = 0;
+        stats.curr_skill_uses[0] = 1;
+        stats.techniques[2] = 4;
+        stats.skills[2] = 47;
+        stats.curr_skill_uses[2] = 3;
+        level_up(0, &mut stats, &data).unwrap().unwrap();
+        assert_eq!(&stats.techniques[..3], &[24, 7, 4]);
+        assert_eq!(&stats.skills[..3], &[31, 34, 47]);
+        assert_eq!(&stats.max_skill_uses[..3], &[4, 9, 7]);
+        assert_eq!(&stats.curr_skill_uses[..3], &[1, 9, 3]);
+        assert_eq!((stats.curr_hp, stats.curr_tp), (1, 0));
+    }
+
+    #[test]
+    fn an_absent_level_refills_skill_uses_but_leaves_hp_tp_and_single_level_limit() {
+        let data = fixtures::data();
+        let mut stats = Stats::from_character(&fixtures::chaz(), lookup);
+        stats.experience = 200;
+        stats.curr_hp = 1;
+        stats.curr_tp = 0;
+        stats.curr_skill_uses[0] = 1;
+        level_up_absent(0, &mut stats, &data).unwrap().unwrap();
+        assert_eq!(stats.level, 2);
+        assert_eq!(stats.curr_skill_uses, stats.max_skill_uses);
+        assert_eq!(stats.curr_skill_uses[0], 4);
+        assert_eq!((stats.curr_hp, stats.curr_tp), (1, 0));
     }
 
     #[test]

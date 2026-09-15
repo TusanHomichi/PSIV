@@ -276,3 +276,20 @@ corruption, and a mid-progress state with flags set, items held,
 damaged/statused HP, changed equipment, skill bytes, and vehicle state.
 `GameState::from_snapshot` equality and logical payload byte identity are
 asserted after decode.
+
+
+## Native inherited-dungeon exit extension (2026-09-13)
+
+Logical header $F022..$F025 carries `TR`, the live dungeon-exit byte and its
+complement. The original $ED51 value is outside the retail saved range; this
+native extension preserves the entrance through a restart inside Valley Maze
+or Passageway. It changes no retail payload/checksum bytes. Missing or invalid
+metadata uses the map-entry fallback, and only inherited-exit maps read it.
+See `TRAVEL.md` and `travel_native_restart_preserves_inherited_exits_and_legacy_slots_still_load`.
+
+Source review also found an older compatibility gap: `save.rs::cell_pixels`
+currently writes the core's standing-cell Y times 16, and `saved_cell` reads it
+back consistently. The original field object Y is `(standing_y - 1) * 16`.
+Existing native CONTINUE receipts prove native round trips, not retail object-Y
+interchange. Correcting that format requires identifying legacy native slots
+and migrating their Y word without moving existing saves by a cell.

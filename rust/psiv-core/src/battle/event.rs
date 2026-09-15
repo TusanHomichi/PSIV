@@ -26,6 +26,24 @@ pub enum Outcome {
     Defeat,
     /// The party ran.
     Escaped,
+    /// An enemy object returned directly to the field, without a victory,
+    /// defeat or escape epilogue (the first Zio encounter).
+    ScriptedExit,
+}
+
+/// `EnemyAttack_Zio3`'s five turns, controlled by `$FFFFEE98`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FirstZioAction {
+    /// Object $908, ability $6B.
+    MagicBarrier,
+    /// Object $90C, no ability dispatch or damage.
+    Invocation,
+    /// An empty turn between the two Nightmare objects.
+    Pause,
+    /// Object $910, ability $53; presentation only in this encounter.
+    Nightmare,
+    /// Object $914 returns to the field without invoking effect $2C.
+    BlackWave,
 }
 
 /// Why a queued fighter did nothing.
@@ -40,12 +58,216 @@ pub enum Skipped {
     /// A character with no weapon in either hand has no Attack command
     /// (`Battle_AttackCommand`'s `loc_1682`).
     Unarmed,
+    /// Revived or replenished this round: retail's transient status bit 7.
+    JustRevived,
 }
 
 /// One thing that happened, in resolution order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum BattleEvent {
+    /// Psycho Wand's object reloads the enemy records after changing the
+    /// first formation entry from invulnerable Zio to vulnerable Zio.
+    EnemyStatsReloaded {
+        /// Party member using the wand.
+        actor: FighterId,
+        /// Formation slot whose stats were reloaded.
+        fighter: FighterId,
+        /// Record now occupying that slot.
+        enemy_id: u16,
+        /// Reloaded display name.
+        name: String,
+        /// Reloaded HP. Object occupancy is unchanged by this operation.
+        hp: u16,
+    },
+    /// One stage of the first Zio encounter's object-driven sequence.
+    FirstZioAction {
+        /// Acting enemy.
+        actor: FighterId,
+        /// Object-side stage.
+        action: FirstZioAction,
+        /// Black Wave selects Alys by character identity, then falls back
+        /// to the first occupied party slot. Other stages clear the target.
+        target: Option<FighterId>,
+    },
+    /// A successful enemy physical-attack effect changed a status bit.
+    StatusInflicted {
+        /// Attacker.
+        actor: FighterId,
+        /// Recipient.
+        target: FighterId,
+        /// Newly applied status bit (poison or paralysis).
+        status: u8,
+    },
+    /// An enemy executes an implemented object-side ability.
+    EnemySkillUsed {
+        /// Acting enemy.
+        actor: FighterId,
+        /// One-based enemy skill id.
+        skill: u8,
+        /// Cartridge display name.
+        name: String,
+    },
+    /// Fission replaces a defeated neighbor from its original formation data.
+    EnemyReplenished {
+        /// Enemy using Fission.
+        actor: FighterId,
+        /// Restored formation slot.
+        fighter: FighterId,
+        /// The restored enemy's record id.
+        enemy_id: u16,
+        /// Display name.
+        name: String,
+        /// Full restored HP.
+        hp: u16,
+    },
+    /// An actor activated an item from equipment or shared inventory.
+    ItemUsed {
+        /// Acting fighter.
+        actor: FighterId,
+        /// Cartridge item id.
+        item: u8,
+        /// Display name.
+        name: String,
+        /// Whether a disposable inventory item was removed.
+        consumed: bool,
+    },
+    /// An invalid item command spent nothing and produced no effect.
+    ItemRejected {
+        /// Acting fighter.
+        actor: FighterId,
+        /// Requested item id.
+        item: u8,
+        /// Rejection reason.
+        reason: super::item::ItemRejection,
+    },
+    /// A valid item use produced no change for this recipient.
+    ItemIneffective {
+        /// Acting fighter.
+        actor: FighterId,
+        /// Selected recipient.
+        target: FighterId,
+    },
+    /// A paid technique produced no change for this recipient.
+    TechniqueIneffective {
+        /// Acting fighter.
+        actor: FighterId,
+        /// Selected recipient.
+        target: FighterId,
+    },
+    /// An effect removed one or more status flags.
+    StatusRestored {
+        /// Acting fighter.
+        actor: FighterId,
+        /// Recipient.
+        target: FighterId,
+        /// Flags removed by this effect.
+        removed: u8,
+    },
+    /// A downed fighter returned to combat.
+    Revived {
+        /// Acting fighter.
+        actor: FighterId,
+        /// Recipient.
+        target: FighterId,
+        /// HP after revival.
+        remaining_hp: u16,
+    },
+    /// An effect restored a recipient's unbuffed combat stats/resistances.
+    StatsRestored {
+        /// Acting fighter.
+        actor: FighterId,
+        /// Recipient.
+        target: FighterId,
+    },
+    /// A character spent one use of a learned skill.
+    SkillUsed {
+        /// Actor.
+        actor: FighterId,
+        /// Cartridge skill id.
+        skill: u8,
+        /// Pack display name.
+        name: String,
+        /// Uses remaining in the matching learned slot.
+        remaining: u8,
+    },
+    /// A skill could not execute; it never becomes a physical attack.
+    SkillRejected {
+        /// Actor.
+        actor: FighterId,
+        /// Requested skill id.
+        skill: u8,
+        /// Failure reason. A weapon missing at execution follows payment,
+        /// just as the retail Character_DoSkill checks it after loc_9C2C.
+        reason: super::skill::SkillRejection,
+    },
+    /// The target already has a status that excludes this skill's effect.
+    SkillIneffective {
+        /// Actor.
+        actor: FighterId,
+        /// Recipient.
+        target: FighterId,
+    },
+    /// An effect put a target to sleep.
+    FellAsleep {
+        /// Actor.
+        actor: FighterId,
+        /// Recipient.
+        target: FighterId,
+    },
+    /// End-of-round recovery cleared both sleep flags and restored agility.
+    WokeUp {
+        /// Fighter that woke.
+        fighter: FighterId,
+    },
+    /// Enemy paralysis expires at round end, without a random draw.
+    ParalysisCleared {
+        /// Enemy that recovered.
+        fighter: FighterId,
+    },
+    /// A validated technique consumed TP when its actor's turn arrived.
+    TechniqueUsed {
+        /// Caster.
+        actor: FighterId,
+        /// Cartridge technique id.
+        technique: u8,
+        /// Pack display name.
+        name: String,
+        /// TP after paying the cost.
+        remaining_tp: u16,
+    },
+    /// A technique could not execute. Invalid orders spend nothing; sealing
+    /// after selection is reported after `TechniqueUsed` has charged TP.
+    TechniqueRejected {
+        /// Caster.
+        actor: FighterId,
+        /// Requested id.
+        technique: u8,
+        /// Reason the command could not execute.
+        reason: super::technique::TechniqueRejection,
+    },
+    /// A successful healing effect, capped by the target's maximum HP.
+    Healed {
+        /// Caster.
+        actor: FighterId,
+        /// Recipient.
+        target: FighterId,
+        /// HP actually restored.
+        amount: u16,
+        /// HP after healing.
+        remaining_hp: u16,
+    },
+    /// A support technique changed a battle-only stat.
+    StatChanged {
+        /// Caster.
+        actor: FighterId,
+        /// Recipient.
+        target: FighterId,
+        /// Stat changed.
+        stat: super::technique::TechniqueStat,
+        /// New value.
+        value: u16,
+    },
     /// The battle opened. Emitted once, before any round.
     Started {
         /// What the opening roll decided.
@@ -183,6 +405,13 @@ pub enum BattleEvent {
         max_hp: u16,
         /// New maximum TP.
         max_tp: u16,
+    },
+    /// A newly learned technique or skill from the visible level-up sequence.
+    LearnedAbility {
+        /// Index into `Character_Stats`.
+        character: u8,
+        /// Display name from the runtime ability catalog.
+        name: String,
     },
     /// The battle finished.
     Ended {

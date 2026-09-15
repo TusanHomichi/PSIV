@@ -19,13 +19,17 @@ use std::collections::BTreeMap;
 
 use psiv_core::battle::Bonuses;
 use psiv_core::battle::{
-    BattleData, CharacterRecord, ELEMENT_SLOTS, EnemyRecord, FormationEnemy, FormationRecord,
-    ItemKind, ItemRecord, LevelRecord, LevelTable, Rolls,
+    BattleData, CharacterRecord, ELEMENT_NAMES, ELEMENT_SLOTS, EnemyRecord, FormationEnemy,
+    FormationRecord, ItemKind, ItemRecord, LevelRecord, LevelTable, Rolls,
 };
 use psiv_core::{Cell, CollisionType, FieldMap};
 use psiv_data::BattleFiles;
 
 use crate::BridgeError;
+
+#[cfg(test)]
+#[path = "encounters_elements_tests.rs"]
+mod element_tests;
 
 /// Steps granted after a map load or a battle before rolls begin.
 ///
@@ -91,10 +95,135 @@ pub fn battle_data(files: &BattleFiles) -> Result<BattleData, BridgeError> {
         })
         .collect();
     let mut data = BattleData::new().with_enemies(enemies).with_items(items);
+    let techniques = files
+        .abilities
+        .techniques
+        .iter()
+        .map(|record| {
+            let reject = || {
+                BridgeError::Rejected(format!(
+                    "incomplete technique record: {}",
+                    record.identity()
+                ))
+            };
+            Ok(psiv_core::battle::Technique {
+                id: u8::try_from(record.id).map_err(|_| reject())?,
+                name: record.display_name.clone().ok_or_else(reject)?,
+                effect: record.effect_id,
+                cost: record.tp_cost.ok_or_else(reject)?,
+                targeting: record.targeting.as_ref().ok_or_else(reject)?.raw,
+                power: u8::try_from(record.power_or_hit_chance.ok_or_else(reject)?)
+                    .map_err(|_| reject())?,
+                resistance: u8::try_from(record.resistance_stat.as_ref().ok_or_else(reject)?.id)
+                    .map_err(|_| reject())?,
+                element: u8::try_from(record.element.as_ref().ok_or_else(reject)?.id)
+                    .map_err(|_| reject())?,
+            })
+        })
+        .collect::<Result<Vec<_>, BridgeError>>()?;
+    data = data.with_techniques(techniques);
+    let skills = files
+        .abilities
+        .skills
+        .iter()
+        .map(|record| {
+            let reject =
+                || BridgeError::Rejected(format!("incomplete skill record: {}", record.identity()));
+            Ok(psiv_core::battle::Skill {
+                id: u8::try_from(record.id).map_err(|_| reject())?,
+                name: record.display_name.clone().ok_or_else(reject)?,
+                effect: record.effect_id,
+                power_stat: u8::try_from(record.relevant_stat.as_ref().ok_or_else(reject)?.id)
+                    .map_err(|_| reject())?,
+                requires_weapon: record.requires_weapon.ok_or_else(reject)?,
+                targeting: record.targeting.as_ref().ok_or_else(reject)?.raw,
+                power: u8::try_from(record.power_or_hit_chance.ok_or_else(reject)?)
+                    .map_err(|_| reject())?,
+                resistance: u8::try_from(record.resistance_stat.as_ref().ok_or_else(reject)?.id)
+                    .map_err(|_| reject())?,
+                element: u8::try_from(record.element.as_ref().ok_or_else(reject)?.id)
+                    .map_err(|_| reject())?,
+            })
+        })
+        .collect::<Result<Vec<_>, BridgeError>>()?;
+    data = data.with_skills(skills);
+    data = data.with_battle_items(battle_item_records(files)?);
+    data = data.with_enemy_skills(enemy_skill_records(files)?);
     for table in &files.levels.characters {
-        data = data.with_level_table(table.character_id, level_table(table));
+        data = data.with_level_table(table.character_id, level_table(table)?);
     }
     Ok(data)
+}
+
+fn enemy_skill_records(
+    files: &BattleFiles,
+) -> Result<Vec<psiv_core::battle::EnemySkill>, BridgeError> {
+    files
+        .abilities
+        .enemy_skills
+        .iter()
+        .map(|record| {
+            let reject = || {
+                BridgeError::Rejected(format!(
+                    "incomplete enemy skill record: {}",
+                    record.identity()
+                ))
+            };
+            Ok(psiv_core::battle::EnemySkill {
+                id: u8::try_from(record.id).map_err(|_| reject())?,
+                name: record.display_name.clone().ok_or_else(reject)?,
+                effect: record.effect_id,
+                power_stat: u8::try_from(record.relevant_stat.as_ref().ok_or_else(reject)?.id)
+                    .map_err(|_| reject())?,
+                target: record.target_id.ok_or_else(reject)?,
+                power: u8::try_from(record.power_or_hit_chance.ok_or_else(reject)?)
+                    .map_err(|_| reject())?,
+                resistance: u8::try_from(record.resistance_stat.as_ref().ok_or_else(reject)?.id)
+                    .map_err(|_| reject())?,
+                element: u8::try_from(record.element.as_ref().ok_or_else(reject)?.id)
+                    .map_err(|_| reject())?,
+            })
+        })
+        .collect()
+}
+
+fn battle_item_records(
+    files: &BattleFiles,
+) -> Result<Vec<psiv_core::battle::BattleItem>, BridgeError> {
+    files
+        .abilities
+        .item_effects
+        .iter()
+        .map(|record| {
+            let reject = || {
+                BridgeError::Rejected(format!("incomplete item-use record: {}", record.identity()))
+            };
+            let id = u8::try_from(record.id).map_err(|_| reject())?;
+            let kind = files
+                .equipment
+                .items
+                .iter()
+                .find(|item| item.id == id)
+                .ok_or_else(reject)?
+                .kind
+                .id;
+            Ok(psiv_core::battle::BattleItem {
+                id,
+                name: record.display_name.clone().ok_or_else(reject)?,
+                effect: record.effect_id,
+                actor_power: record.parameter_2.ok_or_else(reject)?,
+                targeting: record.targeting_or_parameter_3.ok_or_else(reject)? & 15,
+                power: u8::try_from(record.power_or_hit_chance.ok_or_else(reject)?)
+                    .map_err(|_| reject())?,
+                resistance: u8::try_from(record.resistance_stat.as_ref().ok_or_else(reject)?.id)
+                    .map_err(|_| reject())?,
+                element: u8::try_from(record.element.as_ref().ok_or_else(reject)?.id)
+                    .map_err(|_| reject())?,
+                object: record.battle_object_or_graphic_id.ok_or_else(reject)?,
+                consumable: kind == 8,
+            })
+        })
+        .collect()
 }
 
 fn enemy_record(
@@ -108,8 +237,9 @@ fn enemy_record(
             property_order.len()
         )));
     }
-    for (slot, name) in property_order.iter().enumerate() {
-        let property = enemy.properties.get(name).ok_or_else(|| {
+    validate_element_names(property_order)?;
+    for (slot, name) in ELEMENT_NAMES.iter().enumerate() {
+        let property = enemy.properties.get(*name).ok_or_else(|| {
             BridgeError::Rejected(format!("enemy {} missing property {name}", enemy.id))
         })?;
         properties[slot] = property.value;
@@ -146,6 +276,21 @@ fn enemy_record(
     })
 }
 
+fn validate_element_names(names: &[String]) -> Result<(), BridgeError> {
+    // battle_pack.py emits an alphabetical census, not byte/element-id order.
+    // Numeric ability elements always use the cartridge's ELEMENT_NAMES order.
+    if names.len() != ELEMENT_SLOTS
+        || ELEMENT_NAMES
+            .iter()
+            .any(|name| !names.iter().any(|s| s == name))
+    {
+        return Err(BridgeError::Rejected(
+            "element-property census must name all 14 cartridge elements exactly once".into(),
+        ));
+    }
+    Ok(())
+}
+
 fn fixed<const N: usize>(list: &[u8], enemy: u16, what: &str) -> Result<[u8; N], BridgeError> {
     <[u8; N]>::try_from(list).map_err(|_| {
         BridgeError::Rejected(format!(
@@ -155,13 +300,25 @@ fn fixed<const N: usize>(list: &[u8], enemy: u16, what: &str) -> Result<[u8; N],
     })
 }
 
-fn level_table(table: &psiv_data::LevelTable) -> LevelTable {
-    LevelTable {
-        starting_level: table.starting_level,
-        levels: table
-            .levels
-            .iter()
-            .map(|level| LevelRecord {
+fn level_table(table: &psiv_data::LevelTable) -> Result<LevelTable, BridgeError> {
+    let levels = table
+        .levels
+        .iter()
+        .map(|level| {
+            // Preserve the byte, including the cartridge's malformed Seth
+            // level-99 row (technique $63). Command catalogs reject unknown
+            // abilities; rejecting this row would prevent every pack loading.
+            let learned_id = |ability: Option<&psiv_data::NamedId>| {
+                ability.map_or(Ok(0), |ability| {
+                    u8::try_from(ability.id).map_err(|_| {
+                        BridgeError::Rejected(format!(
+                            "character {} level {} learned ability {} exceeds a byte",
+                            table.character_id, level.level, ability.id
+                        ))
+                    })
+                })
+            };
+            Ok(LevelRecord {
                 level: level.level,
                 experience_required: level.experience_required,
                 hp: level.hp,
@@ -170,9 +327,16 @@ fn level_table(table: &psiv_data::LevelTable) -> LevelTable {
                 mental: level.stats.mental,
                 agility: level.stats.agility,
                 dexterity: level.stats.dexterity,
+                new_technique: learned_id(level.new_technique.as_ref())?,
+                new_skill: learned_id(level.new_skill.as_ref())?,
+                skill_uses: level.skill_uses,
             })
-            .collect(),
-    }
+        })
+        .collect::<Result<Vec<_>, BridgeError>>()?;
+    Ok(LevelTable {
+        starting_level: table.starting_level,
+        levels,
+    })
 }
 
 /// Converts one pack formation into the engine's record.
@@ -449,8 +613,8 @@ impl EncounterClock {
 
 /// Converts one pack character into the engine's `Character_Init` record.
 ///
-/// `property_order` is the enemies file's 14-name list — the one canonical
-/// element-slot ordering the whole pack shares.
+/// `property_order` is the enemies file's property-name census. It does not
+/// define element ids; the cartridge's `ELEMENT_NAMES` defines slot order.
 ///
 /// # Errors
 /// [`BridgeError::Rejected`] for a missing property or a wrong-arity list.
@@ -465,8 +629,9 @@ pub fn character_record(
         )));
     }
     let mut properties = [0u8; ELEMENT_SLOTS];
-    for (slot, name) in property_order.iter().enumerate() {
-        let property = character.properties.get(name).ok_or_else(|| {
+    validate_element_names(property_order)?;
+    for (slot, name) in ELEMENT_NAMES.iter().enumerate() {
+        let property = character.properties.get(*name).ok_or_else(|| {
             BridgeError::Rejected(format!(
                 "character {} missing property {name}",
                 character.character_id

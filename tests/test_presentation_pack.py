@@ -116,7 +116,7 @@ class PresentationPackTests(unittest.TestCase):
             {
                 "panel_records": 228,
                 "load_art_records": 7,
-                "temporary_object_keys": 6,
+                "temporary_object_keys": 9,
                 "generic_portraits": 1,
             },
         )
@@ -151,10 +151,23 @@ class PresentationPackTests(unittest.TestCase):
                 (0x18, 0x55C),
                 (0x194, 0x4A5),
                 (0x214, 0x179),
+                (0x218, 0x191),
+                (0x21C, 0x1FB),
+                (0x220, 0x20C),
                 (0x188, 0x3A5),
                 (0x1FC, 0x2E6),
             },
         )
+        self.assertEqual(temporary[(0x214, 0x179)]["playback_sequence"], "walk_down")
+        self.assertEqual(temporary[(0x218, 0x191)]["playback_sequence"], "walk_up")
+        self.assertTrue(temporary[(0x218, 0x191)]["playback_once"])
+        from psiv_tools import gfx
+        expected_flame_palette = gfx.palette_rgb(gfx.decode_palette(ROM.read_bytes()[0x1DE0B8:0x1DE0D8]))
+        self.assertEqual(temporary[(0x218, 0x191)]["palette"]["colors"], [list(c) for c in expected_flame_palette])
+        igglanova = temporary[(0x188, 0x3A5)]
+        expected_igglanova_palette = gfx.palette_rgb(gfx.decode_palette(ROM.read_bytes()[0x52848:0x52864]))
+        self.assertEqual(igglanova["palette"]["colors"][:14], [list(c) for c in expected_igglanova_palette])
+        self.assertEqual(igglanova["playback_sequence"], "walk_down")
         self.assertEqual(temporary[(0x18, 0x26A)]["render_status"], "exact")
         self.assertEqual(temporary[(0x18, 0x55C)]["render_status"], "exact")
         self.assertEqual(

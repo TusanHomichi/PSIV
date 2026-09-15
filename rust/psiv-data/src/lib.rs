@@ -45,8 +45,10 @@ mod game_data;
 mod ids;
 mod manifest;
 mod map;
+mod new_game;
 mod sound;
 mod sprites;
+mod travel;
 
 pub use battle::{
     AbilitiesFile, Ability, BATTLE_DIRECTORY, BattleFiles, ELEMENT_SLOTS, EffectTable,
@@ -61,8 +63,8 @@ pub use camera::{MapScroll, ScrollCounters};
 // The seating path: `battle/characters.json` and `battle/equipment.json`.
 pub use battle::{
     Character, CharactersFile, DerivedStat, ElementRef, Equipment, EquipmentBonuses, EquipmentFile,
-    EquipmentKindRef, EquipmentType, Equipped, Initialized, Loadout, SkillSlots, TechniqueSlots,
-    WeaponElements,
+    EquipmentKindRef, EquipmentType, Equipped, Initialized, Loadout, SkillSlots, StatusPortrait,
+    TechniqueSlots, WeaponElements,
 };
 pub use collision::{Collision, CollisionGrid, CollisionType, Plane, UndefinedCollisionType};
 pub use dialogue::*;
@@ -77,8 +79,11 @@ pub use map::{
     COLLISION_CELL_PIXELS, Cell, CellPos, CellRect, ContentsType, DIALOGUE_TREE_COUNT, Dimensions,
     Direction, EffectGate, EffectPath, EffectWrite, Facing, Flags, InteractionArea,
     InteractionFlagType, InteractionSource, LayoutVariant, MapEffect, MapRecord, MapRef, Music,
-    Npc, RangeRef, ResolvedCell, SpriteFacing, SpriteRef, TransitionTable, Treasure,
-    VariantCollision, VariantPlane, VehicleBattleLayout, Warp, WarpSource,
+    Npc, PaletteAffectedSprites, PaletteEffect, PaletteSpriteReplacement, RangeRef, ResolvedCell,
+    SpriteFacing, SpriteRef, TransitionTable, Treasure, VariantCollision, VariantPlane,
+    VehicleBattleLayout, Warp, WarpSource,
 };
+pub use new_game::NewGame;
 pub use sound::{SoundFiles, SoundRecord, SoundTrackKind, SoundTrackRecord};
 pub use sprites::{Sequence, SequenceFrame, Sheet, SheetFile, VehiclePaletteVariant};
+pub use travel::{DungeonDestination, PlaceEntry, TownDestination, TravelData, TravelFile};

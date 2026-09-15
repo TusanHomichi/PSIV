@@ -52,8 +52,8 @@ pub(super) fn status_pixels(
 ) -> Vec<(Vector2, Color)> {
     let mut pixels = Vec::new();
     for (pane, start) in STATUS_PANE_START_CELLS.iter().copied().enumerate() {
-        let member = pane > 0 && pane < 4 && party_status.get(pane - 1).is_some();
-        if pane == 0 || pane == 4 || member {
+        let member = super::layout::status_member(party_status, pane).is_some();
+        {
             let origin = Vector2::new(
                 (start + 5) as f32 * BATTLE_CELL_PIXELS as f32,
                 STATUS_NAME_Y,

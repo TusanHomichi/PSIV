@@ -1,5 +1,10 @@
 # `Cutscene_Alshline`
 
+Native continuation repairs and current evidence are in
+[`SCENE_DIALOGUE.md`](../SCENE_DIALOGUE.md). The object entrance uses 64
+half-pixel steps, and field dialogue clears the preceding panel stack on
+the full map reload.
+
 - **Retail bytes:** `$0741E6..$074555` inclusive, 880 bytes.
 - **Pointer:** `CutscenePtrs[$05]` from `$05A580`; scene event `$8005`.
 - **Trigger:** Zema `$24`, trigger `$15`, Alshline flag `$32` set and Zema

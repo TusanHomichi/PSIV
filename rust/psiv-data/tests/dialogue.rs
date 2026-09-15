@@ -453,6 +453,28 @@ fn the_fixture_itself_is_valid() {
 }
 
 #[test]
+fn invalid_scene_tree_addresses_stop_the_load() {
+    rejects(
+        "dialogue_bad_rom_offset",
+        trees_json().replace(r#""tree": 1,"#, r#""tree": 1, "rom_offset": "unresolved","#),
+        "invalid rom_offset",
+    );
+    let mut fixture: serde_json::Value = serde_json::from_str(&trees_json()).unwrap();
+    fixture["trees"][0]["rom_offset"] = "0x1DF600".into();
+    let mut second = fixture["trees"][0].clone();
+    second["tree"] = 2.into();
+    second["label"] = "DialogueTree2".into();
+    fixture["trees"].as_array_mut().unwrap().push(second);
+    fixture["tree_count"] = 2.into();
+    fixture["entry_count"] = 4.into();
+    rejects(
+        "dialogue_duplicate_rom_offset",
+        fixture.to_string(),
+        "duplicate rom_offset",
+    );
+}
+
+#[test]
 fn an_unknown_control_name_stops_the_load() {
     rejects(
         "dialogue_unknown_ctrl",

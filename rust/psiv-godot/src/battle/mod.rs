@@ -7,6 +7,7 @@
 mod art;
 mod attack;
 mod chrome;
+mod commands;
 mod enemy_overlay;
 mod layout;
 mod sfx;
@@ -323,6 +324,9 @@ impl Field {
             return;
         };
         screen.bind_mut().begin(setup, timeline);
+        if let Some(runtime) = self.runtime.as_ref() {
+            screen.bind_mut().sync_commands(runtime);
+        }
         self.service_battle_audio();
         self.hide_field_for_battle();
         // HOTFIX (live QA: the framed takeover blacked out all battle art
@@ -365,13 +369,23 @@ impl Field {
             .as_mut()
             .and_then(|screen| screen.bind_mut().take_command());
         if let Some(order) = order {
+            let debug_input = std::env::var("PSIV_DEBUG_INPUT").is_ok_and(|value| value == "1");
+            if debug_input {
+                godot_print!("battle orders: {order:?}");
+            }
             let result = self
                 .runtime
                 .as_mut()
                 .map(|runtime| runtime.battle_round_timeline(&order));
             match result {
                 Some(Ok(timeline)) => {
+                    if debug_input {
+                        godot_print!("battle events: {:?}", timeline.events);
+                    }
                     if let Some(screen) = self.battle_screen.as_mut() {
+                        if let Some(runtime) = self.runtime.as_ref() {
+                            screen.bind_mut().sync_commands(runtime);
+                        }
                         screen.bind_mut().enqueue_timeline(timeline);
                     }
                 }
@@ -432,7 +446,7 @@ impl Field {
         }
         let reward = match request.outcome {
             Outcome::Victory => request.reward_each,
-            Outcome::Escaped | Outcome::Defeat => 0,
+            Outcome::Escaped | Outcome::Defeat | Outcome::ScriptedExit => 0,
         };
         let levels = self.runtime.as_mut().map_or_else(Vec::new, |runtime| {
             runtime.finish_battle_for_outcome(request.outcome, reward)
@@ -498,6 +512,10 @@ impl Field {
     }
 
     fn end_battle_presentation(&mut self) {
+        if self.runtime.as_ref().is_some_and(|rt| rt.game_over()) {
+            self.begin_game_over();
+            return;
+        }
         if let Some(screen) = self.battle_screen.as_mut() {
             screen.set_visible(false);
         }
@@ -527,6 +545,11 @@ impl Field {
             }
         }
         self.set_letterbox(false);
+        let events = self
+            .runtime
+            .as_mut()
+            .map_or_else(Vec::new, Runtime::return_to_field);
+        self.process_events(events);
         self.sync_visuals(false);
         godot_print!("battle presentation ended");
     }

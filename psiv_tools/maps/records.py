@@ -705,8 +705,8 @@ def _walk_map(
         poison=poison,
         random_battles=random_battles,
         town_teleport=town_teleport,
-        # `bmi` skips the store, so a negative byte means the map has no
-        # dungeon teleport destination at all.
+        # `bmi` skips the store: a negative byte inherits the current exit.
+        # Valley Maze uses this to remember which entrance HINAS returns to.
         dungeon_teleport_index=None if dungeon_teleport & 0x80 else dungeon_teleport,
         dungeon_teleport_raw=f"0x{dungeon_teleport:02X}",
     )

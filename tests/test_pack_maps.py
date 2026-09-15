@@ -159,7 +159,8 @@ class TestMapRecords(PackFixtureCase):
         self.assertEqual(len(chests), 1)
         chest = chests[0]
         self.assertEqual(chest["contents_type"], "item")
-        self.assertEqual(chest["item_symbol"], "SolDew")
+        self.assertEqual(chest["item_id"], 133)
+        self.assertEqual(chest["item_symbol"], "Escapipe")
         self.assertIsNone(chest["meseta"])
         self.assertEqual((chest["x_cell"], chest["y_cell"]), (82, 73))
         self.assertEqual((chest["x_pixels"], chest["y_pixels"]), (1312, 1152))

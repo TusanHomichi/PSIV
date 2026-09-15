@@ -31,6 +31,12 @@ pub struct Character {
     pub display_name: Option<String>,
     /// `ProfessionID_*`.
     pub profession: NamedId,
+    /// STATUS's original age table; zero means undisclosed.
+    #[serde(default)]
+    pub age: u16,
+    /// Original STATUS art, distinct from the smaller dialogue portrait.
+    #[serde(default)]
+    pub status_portrait: Option<StatusPortrait>,
     /// Starting level.
     pub level: u16,
     /// Starting experience. Eight of the eleven join with some already.
@@ -61,6 +67,13 @@ pub struct Character {
     pub skills: SkillSlots,
     /// What `InitializeCharStats` leaves in RAM — the conformance vector.
     pub initialized: Initialized,
+}
+
+/// Pack path for the composed 80x80 STATUS plane map, including its border.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StatusPortrait {
+    /// Path relative to the runtime pack.
+    pub png: String,
 }
 
 /// The sixteen technique slots in an `InitialCharStats` source record.
@@ -244,6 +257,9 @@ pub struct Equipment {
     /// The cartridge's own name.
     #[serde(default)]
     pub display_name: Option<String>,
+    /// Record word `$14`, also controls the necessary-item discard guard.
+    #[serde(default)]
+    pub meseta_cost: Option<u16>,
     /// Record byte `$A`.
     #[serde(rename = "type")]
     pub kind: EquipmentKindRef,

@@ -1,10 +1,8 @@
 //! Runtime file I/O and the load-at-title seam for retail-shaped saves.
 //!
-//! The title screen does not exist in the current Godot slice. These methods
-//! provide the seam it will eventually call: load a validated retail slot,
-//! rebuild `GameState`, evaluate map effects against it, and construct a
-//! normal `Runtime` at the saved map/cell. The Godot shell currently opts into
-//! that path with `PSIV_LOAD_SLOT`.
+//! Godot's title CONTINUE loads a validated retail-shaped slot, rebuilds
+//! GameState, evaluates map effects, and constructs a runtime at its saved
+//! map/cell. PSIV_LOAD_SLOT reaches the same path for isolated debug runs.
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -125,7 +123,8 @@ pub(super) fn construct_runtime(
         .map(psiv_data::MapId(placement.map_id))
         .ok_or(BridgeError::NotPacked(placement.map_id))?;
     let effects = super::effects::evaluate(record, &mut game);
-    let map = field_map_patched(record, Some(&effects))?;
+    let mut map = field_map_patched(record, Some(&effects))?;
+    crate::bridge::attach_chests(&mut map, record, &game, &[], &effects)?;
     clear_bespoke_entry_flags(&mut game, record);
     let party = Party::new(
         &map,
@@ -146,10 +145,17 @@ pub(super) fn construct_runtime(
         game,
         saved_world_index: placement.world_index,
         saved_map_index_2: placement.map_index_2,
+        dungeon_exit_index: 0,
+        pending_travel: None,
+        loot: None,
         scene: None,
         scene_input: SceneInput::None,
+        scene_event: psiv_core::EventIndex(0),
+        dialogue_answer: None,
+        scene_choice_pending: false,
         game_cleared: false,
-        despawned: std::collections::BTreeSet::new(),
+        game_over: false,
+        field_status: super::field_status::FieldStatus::default(),
         prev_standing: None,
         wander,
         bespoke,
@@ -158,11 +164,12 @@ pub(super) fn construct_runtime(
         frames: 0,
         camera,
         scene_warmup: false,
+        scene_triggers_pending: true,
         offscreen: Vec::new(),
         battles: None,
         battle: None,
+        battle_field_refresh_pending: false,
         scene_battle: None,
-        scene_retry: None,
         effects,
         vehicle: None,
         saved_party_slots: None,
@@ -170,6 +177,7 @@ pub(super) fn construct_runtime(
         scene_camera_locked: false,
     };
     runtime.sync_vehicle_selector()?;
+    runtime.apply_travel_entry();
     Ok(runtime)
 }
 
@@ -192,9 +200,8 @@ impl Runtime {
         let save = RetailSave {
             snapshot: self.game.snapshot(),
             location: RetailLocation {
-                // The current runtime has one map namespace. The other two
-                // selectors are still carried so a load/save cycle preserves
-                // their exact retail words.
+                // World_Index is the high byte of the retail word; the second
+                // map word now follows ordinary warps and explicit scene loads.
                 world_index: self.saved_world_index,
                 map_index_2: self.saved_map_index_2,
                 map_index: self.map.id().0,
@@ -202,7 +209,7 @@ impl Runtime {
                 char_y,
             },
         };
-        let encoded = RetailSlot::encode(&save, slot)?;
+        let encoded = RetailSlot::encode(&save, slot)?.with_dungeon_exit(self.dungeon_exit_index);
         std::fs::create_dir_all(directory)?;
         std::fs::write(&path, encoded.as_bytes())?;
         Ok(path)
@@ -218,8 +225,24 @@ impl Runtime {
     ) -> Result<Runtime, RuntimeSaveError> {
         let path = Self::slot_path(directory, slot)?;
         let bytes = std::fs::read(path)?;
-        let save = RetailSlot::from_bytes(&bytes, slot)?.decode()?;
-        Self::from_save(data, save, step_frames)
+        let encoded = RetailSlot::from_bytes(&bytes, slot)?;
+        let mut runtime = Self::from_save(data, encoded.decode()?, step_frames)?;
+        // Positive map bytes and explicit place-entry selectors already
+        // reconstruct the exit. Only inherited maps need native metadata.
+        if runtime
+            .data
+            .map(psiv_data::MapId(runtime.map.id().0))
+            .is_some_and(|record| record.flags.dungeon_teleport_index.is_none())
+            && let Some(index) = encoded.dungeon_exit()
+            && (index == 0
+                || runtime
+                    .data
+                    .travel()
+                    .is_some_and(|travel| travel.dungeons.iter().any(|exit| exit.index == index)))
+        {
+            runtime.dungeon_exit_index = index;
+        }
+        Ok(runtime)
     }
 
     /// Performs the retail title's destructive erase for one visible slot.

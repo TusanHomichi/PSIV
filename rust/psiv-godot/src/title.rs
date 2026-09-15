@@ -44,7 +44,7 @@ const PRESS_START_PALETTE: [u16; 32] = [
     0x020C, 0x040E, 0x042E, 0x044E, 0x046E, 0x048E, 0x04AE, 0x04CE,
 ];
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Phase {
     Sega,
     Reveal,
@@ -121,6 +121,10 @@ pub(crate) struct TitleScreen {
 }
 
 impl TitleScreen {
+    pub(crate) fn debug_menu(&self) -> serde_json::Value {
+        serde_json::json!({"phase": format!("{:?}", self.phase), "cursor": self.menu_index})
+    }
+
     pub(crate) fn build(
         pack_dir: &str,
         slots: [bool; 3],
@@ -733,6 +737,16 @@ impl TitleScreen {
             }
         }
     }
+
+    fn dispose(mut self) {
+        self.hide();
+        for visual in &mut self.visuals {
+            match &mut visual.node {
+                VisualNode::Sprite(node) => node.queue_free(),
+                VisualNode::Rect(node) => node.queue_free(),
+            }
+        }
+    }
 }
 
 fn press_start_cycle(image: &Gd<Image>) -> Option<Vec<Gd<ImageTexture>>> {
@@ -851,8 +865,13 @@ impl Field {
                     }
                 },
                 choice => {
-                    title.hide();
-                    self.finish_title_choice(choice);
+                    if self.finish_title_choice(choice) {
+                        // A later game over builds a new title. Release the
+                        // old nodes instead of accumulating hidden copies.
+                        title.dispose();
+                    } else {
+                        self.title = Some(title);
+                    }
                 }
             }
         } else {
@@ -861,23 +880,26 @@ impl Field {
         true
     }
 
-    fn finish_title_choice(&mut self, choice: TitleChoice) {
+    fn finish_title_choice(&mut self, choice: TitleChoice) -> bool {
         match choice {
             TitleChoice::Start => {
                 // Retail START is Event_GameStart: rebuild the runtime in the
-                // exact state the scene expects (Piata Academy, Chaz + the
-                // scripted Alys) and fire $9F — the certified opening
-                // cinematic — instead of dropping the player onto the
-                // fallback field.
+                // ROM-derived initial state (money, flag banks, Chaz and
+                // Alys), then fire the opening event from the pack.
                 let Some(data) = self.runtime.as_ref().map(|runtime| runtime.data().clone()) else {
                     godot_error!("title: START selected without a runtime");
-                    return;
+                    return false;
                 };
                 match crate::boot::new_game_runtime(data, StepFrames::default()) {
                     Ok(mut runtime) => {
                         godot_print!("title: START — new game, firing Event_GameStart");
                         self.configure_battles(&mut runtime);
-                        let started = runtime.start_event(0x009F);
+                        let event = runtime
+                            .data()
+                            .new_game()
+                            .expect("validated title initializer")
+                            .event_index;
+                        let started = runtime.start_event(event);
                         self.runtime = Some(runtime);
                         self.load_map_visuals();
                         self.sync_visuals(false);
@@ -888,14 +910,18 @@ impl Field {
                             godot_error!("title: Event_GameStart did not start");
                         }
                         self.start_transition(TransitionKind::GameStart);
+                        true
                     }
-                    Err(error) => godot_error!("title: new game failed to build: {error}"),
+                    Err(error) => {
+                        godot_error!("title: new game failed to build: {error}");
+                        false
+                    }
                 }
             }
             TitleChoice::Continue(slot) => {
                 let Some(data) = self.runtime.as_ref().map(|runtime| runtime.data().clone()) else {
                     godot_error!("title: CONTINUE selected without a runtime");
-                    return;
+                    return false;
                 };
                 match Runtime::load_slot(data, &save_directory(), slot, StepFrames::default()) {
                     Ok(mut runtime) => {
@@ -906,11 +932,15 @@ impl Field {
                         self.play_map_music();
                         self.sync_visuals(false);
                         self.start_transition(TransitionKind::GameStart);
+                        true
                     }
-                    Err(error) => godot_error!(
-                        "title: CONTINUE slot {} failed validation: {error}",
-                        slot + 1
-                    ),
+                    Err(error) => {
+                        godot_error!(
+                            "title: CONTINUE slot {} failed validation: {error}",
+                            slot + 1
+                        );
+                        false
+                    }
                 }
             }
             TitleChoice::Erase(_) => unreachable!("title erase is completed by drive_title"),

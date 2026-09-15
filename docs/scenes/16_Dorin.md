@@ -30,13 +30,15 @@ surviving branch over all 434 bytes before transcription.
 6. Move the camera at speed 2, set `EventFlag_GryzJoined` (`$30`) and return
    `d0 = 1`.
 
-The core transcription keeps NPC 6 as the retail invisible Rune slot and NPC 0
-as the secondary Dorin slot. The runtime now consumes both
-`ActorMoveStarted` and `ActorArrived` for those NPCs and writes their landing
-cells into `FieldMap`.
+## Current implementation limits
 
-## Verification
-
-The headless test asserts NPC 6 lands at cell `(31,49)` and NPC 0 at
-`(30,49)`, then checks flag `$30`. This is the comparator-facing proof for the
-long-flagged movement gap.
+The connected native route completes the party replacement and flag `$30`,
+and CONTINUE restores the resulting Gryz party. This proves progression only.
+The current transcription incorrectly treats map NPC 6 as the temporary Rune
+object at `$C480`; the original initializes a new `$190` object from Rune's
+actual party position. It also uses a fixed party slot and camera destination.
+The original replaces Rune in his current slot, seeds Gryz from NPC 2, waits
+for Rune's Y destination, settles the leader, and pans to the leader's current
+position. These staging differences remain to be repaired. The existing
+headless NPC landing assertion verifies the current implementation, not the
+original scene. Do not call it comparator or visual fidelity proof.
