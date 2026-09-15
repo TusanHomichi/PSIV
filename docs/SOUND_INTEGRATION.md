@@ -57,6 +57,28 @@ The music ID table is the retail `MusicPtrs` table at `$D1C40`, with IDs
 | Sequence-internal `EB` | `commands.rs` queues the payload through the same driver priority path | Wired; register-log covered |
 | Vehicle battle `$96` `CyberneticCarnival` | Mounted `EncounterRolled` and debug vehicle-battle entry dispatch `$96` through `Field::play_sound` | Wired 2026-08-16 |
 
+### Cancelled spell cues (2026-09-15)
+
+BROSE and RIMIT now suppress their `$CB` spell cue when a late seal cancels
+execution. The core emits `TechniqueUsed` when it pays TP, followed immediately
+by `TechniqueRejected` for the same actor and technique when sealed. The sound
+sidecar previously treated that payment event as a successful cast. Executed
+spells still start their cue when a target resists or the effect misses.
+
+The verified US ROM's `CharTech_Cast` at `$9208` tests status bit 4
+(`08 28 00 04 00 16`) and returns on the sealed branch before creating the
+spell object. This preserves the original paid-but-cancelled behavior;
+it does not change TP costs or implement SEALS itself.
+
+`build/sealed-spell-sound/before-fix.log` records the reproduced failure.
+The focused sound tests cover both spell IDs and successful-but-missed casts;
+the real-pack RIMIT test verifies a 10-TP payment with no sleep effect or spell
+cue. The existing successful RIMIT and four-technique recovery/save checks
+also pass: three sound tests and three integration tests in total. Logs are
+`focused-tests.log` and `integration-tests.log` in the same local directory.
+This is runtime event/cue evidence; exact audio timing and waveform parity
+remain separate work.
+
 Battle presentation now receives a `BattleTimeline`: the core event vector is
 unchanged, and `BattleSoundEvent { event_index, id }` plus
 `BattleAnimationEvent` are ordered sidecars. `psiv-runtime` captures weapon

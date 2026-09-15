@@ -21,6 +21,14 @@ The only payload change is standing Y at 0x309 (208 to 224), and both source
 slots remain unchanged. Validation is under `build/native-rimit/continued`. This raises supported battle techniques to 35 of 38; SEALS, FEEVE
 and AROWS remain.
 
+## Late-seal sound correction (2026-09-15)
+
+A paid but sealed RIMIT no longer emits its spell sound. Successful RIMIT
+still emits `$CB`, including when a target resists. The runtime regression
+and verified original seal branch are recorded in
+[SOUND_INTEGRATION.md](SOUND_INTEGRATION.md). Gameplay coverage remains 35 of
+38 battle techniques; this closes a sound-dispatch bug.
+
 ## FEEVE source trap — not implemented
 
 Do not translate power 11 into psychic resistance slot 10. The US ROM's

@@ -5,11 +5,10 @@ use psiv_data::{BattleFiles, GameData};
 use psiv_runtime::Runtime;
 use std::path::Path;
 
-#[test]
-fn original_raja_rimit_sleeps_enemies_and_preserves_paid_tp_through_victory_save() {
+fn rimit_fixture() -> Option<Runtime> {
     let pack = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
     if !pack.join("manifest.json").exists() {
-        return;
+        return None;
     }
     let files = BattleFiles::load(pack).unwrap();
     let mut initial = Runtime::new(
@@ -45,6 +44,70 @@ fn original_raja_rimit_sleeps_enemies_and_preserves_paid_tp_through_victory_save
     )
     .unwrap();
     rt.enable_battles(&files).unwrap();
+    Some(rt)
+}
+
+#[test]
+fn sealed_rimit_pays_tp_without_sleep_or_spell_sound() {
+    let Some(mut rt) = rimit_fixture() else {
+        return;
+    };
+    let mut party = rt.battle_party();
+    // Model a command already chosen before a seal lands. No native menu
+    // bypass is claimed: the fixture exercises the runtime execution boundary.
+    party[0].stats.status |= psiv_core::battle::status::TECH_SEALED;
+    let before_tp = party[0].stats.curr_tp;
+    rt.set_rng_seed(0x1234_5678);
+    rt.start_battle(0x8a, party).unwrap();
+    let turn = rt
+        .battle_round_timeline(&RoundOrders::Commands(vec![
+            Command::Technique {
+                technique: 23,
+                target: None,
+            },
+            Command::Defend,
+            Command::Defend,
+            Command::Defend,
+            Command::Defend,
+        ]))
+        .unwrap();
+    let cast_index = turn
+        .events
+        .iter()
+        .position(|event| {
+            matches!(event,
+        BattleEvent::TechniqueUsed { technique: 23, remaining_tp, .. }
+            if *remaining_tp == before_tp - 10)
+        })
+        .expect("late seal still pays original 10 TP");
+    assert!(matches!(
+        turn.events.get(cast_index + 1),
+        Some(BattleEvent::TechniqueRejected {
+            technique: 23,
+            reason: psiv_core::battle::TechniqueRejection::Sealed,
+            ..
+        })
+    ));
+    assert!(
+        !turn
+            .sounds
+            .iter()
+            .any(|sound| sound.event_index == cast_index)
+    );
+    assert!(
+        !turn
+            .events
+            .iter()
+            .any(|event| matches!(event, BattleEvent::FellAsleep { .. }))
+    );
+}
+
+#[test]
+fn original_raja_rimit_sleeps_enemies_and_preserves_paid_tp_through_victory_save() {
+    let Some(mut rt) = rimit_fixture() else {
+        return;
+    };
+    let pack = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
     if let Some(directory) = std::env::var_os("PSIV_RIMIT_SMOKE_SAVE_DIR") {
         rt.save_slot(Path::new(&directory), 0).unwrap();
     }

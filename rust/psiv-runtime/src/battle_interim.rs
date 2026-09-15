@@ -120,9 +120,17 @@ fn battle_sound_events(
             }),
             // BattleObj_Brose and BattleObj_Rimit both start with SFX_Brose.
             // This binds the original sound, not its still-missing animation.
-            BattleEvent::TechniqueUsed { technique: 17 | 23, .. } => sounds.push(BattleSoundEvent {
-                event_index, id: 0xCB,
-            }),
+            BattleEvent::TechniqueUsed { actor, technique: technique @ (17 | 23), .. } => {
+                // CharTech_Cast ($9208): a late seal returns before creating
+                // the spell object. The core records payment as TechniqueUsed
+                // immediately followed by its rejection; payment is not a cast.
+                if !matches!(events.get(event_index + 1),
+                    Some(BattleEvent::TechniqueRejected { actor: rejected_actor, technique: rejected_technique, .. })
+                        if rejected_actor == actor && rejected_technique == technique)
+                {
+                    sounds.push(BattleSoundEvent { event_index, id: 0xCB });
+                }
+            },
             // AcidBreathChild starts the wind-up with MoleAttack; the main
             // object writes EnemyAttack4 before its damage reaction. These
             // event cues do not claim the retail 10/36-frame object timing.
@@ -234,6 +242,43 @@ mod tests {
 
     fn id(value: u8) -> FighterId {
         FighterId::new(value).expect("valid fighter id")
+    }
+
+    #[test]
+    fn late_seal_cancels_brose_and_rimit_sound_but_a_miss_does_not() {
+        for technique in [17, 23] {
+            let used = BattleEvent::TechniqueUsed {
+                actor: id(1),
+                technique,
+                name: String::new(),
+                remaining_tp: 10,
+            };
+            let rejected = BattleEvent::TechniqueRejected {
+                actor: id(1),
+                technique,
+                reason: psiv_core::battle::TechniqueRejection::Sealed,
+            };
+            assert!(
+                battle_sound_events(&[used.clone(), rejected], &BTreeMap::new()).is_empty(),
+                "a paid but sealed technique {technique} must not start its spell sound"
+            );
+            let missed = BattleEvent::Resolved {
+                actor: id(1),
+                target: id(6),
+                verdict: Verdict::Miss,
+                damage: None,
+                remaining_hp: 20,
+            };
+            let sounds = battle_sound_events(&[used, missed], &BTreeMap::new());
+            assert_eq!(
+                sounds.first(),
+                Some(&BattleSoundEvent {
+                    event_index: 0,
+                    id: 0xcb
+                }),
+                "an executed spell still starts its sound when its target resists"
+            );
+        }
     }
 
     #[test]
