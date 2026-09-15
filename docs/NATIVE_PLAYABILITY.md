@@ -1,4 +1,17 @@
-# Native playability — 2026-09-13
+# Native playability — evidence ledger
+
+## Current checkpoint — 2026-09-15
+
+Connected routes now reach the Zema aftermath and a verified BioPlant `$A7`
+save. STATE/ORDER, CROSSCUT gameplay and bounded ANTI-before-healing recovery
+are implemented and verified. The onward six-fight attempt reaches `$A9`
+but loses Hahn; the connected Rika join/escape remains unfinished.
+
+The matching source passed 898 Rust tests. Code checkpoint `82de4a3` also
+passed 927 Python tests, post-commit camp checks, formatting and strict Clippy.
+See the [BioPlant ledger](BIOPLANT_NATIVE.md) for current save hashes and proof
+limits, and the [roadmap](ROADMAP.md) for the next milestones. Earlier dated
+results below retain their original counts and scope.
 
 ## Owner objective
 
@@ -13,7 +26,10 @@ validate changes before launching Godot. No editor implementation is part
 of this repair. Keep the default unmodified game usable without any editor
 or agent service.
 
-## What the audit actually found
+## Earlier audit snapshot
+
+This table records the earlier gap audit. Its open items are superseded where
+later entries below document implementation, including ORDER and CROSSCUT.
 
 The existing six pixel-identical reference screens establish specific
 rendering results. They do not establish complete gameplay. The README's
