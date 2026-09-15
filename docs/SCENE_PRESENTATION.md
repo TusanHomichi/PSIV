@@ -555,10 +555,11 @@ All three are evaluation switches and are never used by normal play.
 
 ## Remaining deferrals
 
-- **Fresh visual certification:** integration still needs the post-fix
-  MeetingRika RMSE plus the title and camp RMSEs from the commands above. The
-  oracle hashes and deterministic ticks are pinned; this sandbox cannot bind
-  the Xvfb socket needed to produce the clone images.
+- **Scene-wide fidelity:** the certification table above records completed
+  MeetingRika, title and camp frame comparisons. The earlier Xvfb-blocked
+  certification task is closed. Those frames do not certify whole scenes;
+  [BIOPLANT_NATIVE.md](BIOPLANT_NATIVE.md) records the later Rika fixture,
+  palette limits and unfinished connected join/escape.
 - **Chest splinter's 66 unmapped patterns:** retained as transparent holes
   because the retail scene mapping consumes VRAM left by another runtime load;
   no source-of-truth pixels for those slots were found in the declared upload.

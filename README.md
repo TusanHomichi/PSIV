@@ -14,6 +14,9 @@ still in progress.**
 [Current status](#where-we-are) · [Roadmap](docs/ROADMAP.md) ·
 [Build and run](docs/DEVELOPMENT.md) · [Documentation](docs/README.md) · [MIT](LICENSE)
 
+Contributing with a coding agent? Start with [AGENTS.md](AGENTS.md) and the
+[agent workflow](docs/AGENT_WORKFLOW.md).
+
 ## Where we are
 
 **Checkpoint: September 15, 2026.**
@@ -92,8 +95,8 @@ save directories, test commands and local launcher assumptions.
 | `oracle/`, `tools/` | Cartridge comparisons and native verification drivers |
 
 The [extraction reference](docs/EXTRACTION.md) preserves the table census and
-CLI details. Older implementation notes live in the
-[archive](docs/IMPLEMENTATION_HISTORY.md).
+CLI details. The [runtime architecture](docs/RUNTIME_DESIGN.md) describes the
+current layers and fidelity decisions.
 
 ## License
 

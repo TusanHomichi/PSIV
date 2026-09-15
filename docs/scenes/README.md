@@ -1,15 +1,20 @@
 # Retail scene transcriptions
 
+**Research coverage is not connected-play coverage.** These records extend
+through the ending, while the verified connected campaign is still in the
+BioPlant. Use [the roadmap](../ROADMAP.md) and [playability ledger](../NATIVE_PLAYABILITY.md)
+for current progress; an individual scene fixture does not close a campaign milestone.
+
 Opening-act material was transcribed 2026-08-14 from the retail cartridge;
 the next-arc records below were added 2026-08-16, with the Dezo campaign
 continuation added in the same wave. These documents are the
-evidence base the event-interpreter lane implements from: every scene in the
+retail research behind the implemented event interpreter: every scene in the
 opening act, disassembled from cartridge bytes, expressed as an ordered
 `SceneOp` sequence, with every RAM address, event flag and dialogue reference
 resolved to a name.
 
 **Opening-act scope**: power-on through leaving Piata with the basement quest
-done — the v1 slice `docs/RUNTIME_DESIGN.md` calls this the opening act.
+done. This names a transcription group, not the current project boundary.
 
 **Next-arc scope**: the scene set from Piata's post-gate Professor Holt beat
 through Zema, the Tonoe road, the BioPlant escape, the Rika hand-off, Zio's

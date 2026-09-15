@@ -1,6 +1,9 @@
 # Field persistence: characters, inventory, treasure
 
-Scouted and partly implemented 2026-08-15. Citations are to
+Retail research began 2026-08-15. Inventory, roster, map flags and chest
+rules are implemented, with later native integration recorded in
+[CHESTS.md](CHESTS.md), [SAVE_SCOUT.md](SAVE_SCOUT.md) and
+[PARTY_STATUS.md](PARTY_STATUS.md). Citations below are to
 `reference/ps4disasm/ps4.asm` and `ps4.constants.asm` unless stated otherwise.
 
 Status at a glance:
@@ -96,12 +99,6 @@ character at `$F500 + n * $80`, and battles read and write it **in place** —
 straight into the same records. Nothing anywhere copies a character into a
 battle-local structure and back. A projection layer would be inventing a seam
 the hardware does not have, and inventing a seam is inventing a place to drift.
-
-### Governance
-
-`psiv-core/src/battle/stats.rs` remains **battle-scout-lane's file**. `Stats` is
-a **declared shared interface type**: neither lane changes its shape without the
-lead's sign-off. Both lanes cite this section.
 
 ### The round-trip contract
 
@@ -258,10 +255,10 @@ census.
 
 ## 4. Map load clears flags — implemented
 
-Until this, the engine never cleared a flag by itself. Oracle tape 18 measured
-that it must: a clear lands 39 frames after arriving on the destination map,
-which is what respawns the Xanafalgue and turns the Piata Academy basement into
-a repeatable un-looter of the Garuberk Tower Moon Slasher chest.
+Oracle tape 18 measured a temporary-flag clear 39 frames after arriving on
+the destination map, allowing the Xanafalgue to respawn. The earlier claim
+that this also re-armed a chest was retracted: temporary flags and chest
+flags occupy different banks, as detailed below.
 
 `MapDataManager` (`0x051B38`, `ps4.asm:107815`) is called from
 `GameMode_LoadFieldMap` and walks the map record's `$FFFF`-terminated list of
@@ -314,51 +311,32 @@ are different bits in different arrays and never interact.
 What survives is the *other* sharing, which is real and deliberate: chest flags
 and extended event flags are one bank, `$F120`.
 
-### Extractor gap: the pack carries no flag-clear data
+### Flag-clear extraction
 
-The map-effects extractor already emits each map's `MapDataManager` entry list,
-which is what `map_load::apply_map_load` consumes — so the binding is available.
-But the decoder does not recognise the clears themselves:
+The extractor now recognizes `flag_clear` writes and the byte-immediate form
+used by the retail routines. `psiv_tools/map_effects.py` emits the bank and
+flag ID and includes them in its census; `tests/test_map_effects.py` covers
+the decoding. The core also retains the transcribed map-load clear table in
+`rust/psiv-core/src/map_load.rs`. The earlier missing-decoder task is closed.
 
-- The three entries that call the `$F140` clear door at `0x0576BC` (`$17`,
-  `$3D`, `$3E`) **fail to decode**, two on `opcode 0x0C6C` and one on `opcode
-  0x103C` — `move.b #id, d0`, the byte form of the immediate load. The decoder
-  knows `move.w` (`303C`) but not `move.b`.
-- The entries that *do* decode (`$14`, `$18`, `$47`) come back with
-  `kinds: []` — walked successfully, but with no vocabulary for a flag-clear
-  write, so nothing is emitted.
+## Save format
 
-Either way the pack contains no record that any flag is ever cleared. The table
-in `map_load.rs` is transcribed from the disassembly to fill that gap; adding a
-`flag_clear` kind to the decoder (and the `move.b` immediate form) would let it
-come from data instead, and is a `psiv_tools` change rather than a core one.
+The earlier JSON snapshot migration notes are obsolete. Native persistence
+uses the retail SRAM slot layout described in [SAVE_SCOUT.md](SAVE_SCOUT.md),
+including inventory, roster, flags and vehicle records. See that document
+for the current serialization contract.
 
-## Save-format deltas
+## Native integration
 
-`StateSnapshot` gained `inventory: [u8; 40]`. A snapshot written before this
-existed has no item list; loading one should treat the party as carrying
-nothing, which is what a new game holds anyway. This is the second delta of the
-day — the flag-bank merge collapsed `chest_flags`/`temp_flags` into a single
-32-byte array.
+The runtime attaches all 155 extracted chest placements to the shared object
+pool; they block movement and respond to ordinary input. See [CHESTS.md](CHESTS.md)
+for the implemented grant/discard flow and remaining fidelity limits. The old
+NPC-only object-pool gap is closed.
 
-## Open
-
-- **Character roster.** The live Tier-1 camp display is implemented in the
-  runtime camp snapshot and Godot camp menu; save/load presentation remains
-  outside this slice.
-- **Object slots on maps with chests.** The comparator's object columns index
-  the shared pool, and `psiv-core`'s object list is currently the pack's NPCs
-  only. On a map with chests the engine's slot indices would run short of the
-  oracle's by the chest count. Tape 02's map (PiataAcademy_F1) has no chests, so
-  the clean 339-column result does not exercise this. A tape on a chest-bearing
-  map would, and `Chest::object_slot` is the piece that makes it correct once
-  `FieldMap` carries chests.
-- **Equip and unequip — implemented.** [`docs/EQUIP_SCOUT.md`](EQUIP_SCOUT.md)
-  records the retail `$4C..$4F` flow, type/mask filter, immediate modified-stat
-  refresh, two-handed/shield asymmetry, and the absence of a curse guard.
-- **`InventoryData` bonus records** are `$16` bytes each and already decoded on
-  the Python side; the `_mod` derivation consumes them through `psiv-data`'s
-  `ItemRecord`.
+Camp status, equipment and SAVE/CONTINUE are implemented. Their focused ledgers
+are [PARTY_STATUS.md](PARTY_STATUS.md), [EQUIP_SCOUT.md](EQUIP_SCOUT.md) and
+[SAVE_SCOUT.md](SAVE_SCOUT.md). These integrations do not certify every route;
+use the campaign ledger for connected proof.
 
 ## The roster, as built
 
@@ -408,45 +386,3 @@ and does not refill.** Chaz walks out on 20 of 31.
 
 Computing the rise is `battle::apply_level_ups` and is tested there. What this
 pins is the half the roster owns — the award arithmetic and what persists.
-
-## Superseded: the cut proposal
-
-The roster is not deep in RE terms — the struct is transcribed above and the
-hard part, `update_mod_stats`, already exists. It is deep in *ownership* terms,
-and that is the reason to split it.
-
-`battle::Stats` is already, field for field, the cartridge's `$80` character
-record: profession, level, experience, hp, tp, status, the three-tier stat
-triples, the derived pairs, element properties, equipment, `gain_exp_flag`. The
-persistent field record and the battle record are not two structures that need
-converting between — they are the same structure, which is exactly why the
-cartridge keeps one copy at `$F500` and battles read and write it in place.
-
-So the design question is one decision: **does `battle::Stats` become the
-persistent per-character record that `GameState` owns eleven of, or does
-`GameState` own a separate record that projects into `Stats`?**
-
-The first is faithful and avoids a conversion layer that can drift. It also
-means the type lands in battle-scout-lane's file, and the round-trip contract
-(what persists out of a battle: HP, TP, exp, level, status, `gain_exp_flag`)
-becomes a shared invariant rather than one lane's. Doing that unilaterally is
-how the runtime `lib.rs` interleaving happened, so I have not.
-
-Recommendation: settle the ownership question first, then implement the roster
-against the oracle's level-up tape in one focused slice. The scout above is
-complete enough that it should be a short one.
-
-## Interaction areas precede the object probe (2026-08-15)
-
-`FieldRoutine_Interaction` checks the map's fixed interaction-area records on
-confirm before it probes field objects. The map-`$17` boss approach is the
-first record: raw coordinates `$1E,$12` (8-pixel units), range `$09`
-(`XPlus20_YPlus10`), routine type 2, parameter `$0B`. Its pack rectangle is
-collision cells `(15,10)` through `(16,10)`, so a party standing at `(15,11)`
-and facing up resolves Event `$6B` before the invisible blocker can answer
-"Nothing here". The runtime carries the explicit area record and event-index
-lookup so this ordering is preserved in the headed game as well as in tests.
-
-Only when no enabled interaction area matches does the field path continue to
-the object probe. The separate object rule still matters for ordinary NPCs
-and objects, but it is not the route that starts the Academy Basement boss.

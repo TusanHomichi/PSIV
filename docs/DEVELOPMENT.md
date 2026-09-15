@@ -2,6 +2,9 @@
 
 [Project overview](../README.md) · [Documentation index](README.md)
 
+For agent-assisted contributions, read [AGENTS.md](../AGENTS.md) and the
+[agent workflow](AGENT_WORKFLOW.md) before choosing a verification run.
+
 ## Current environment
 
 The committed GDExtension library paths target Linux x86-64. Godot 4.7.1 is

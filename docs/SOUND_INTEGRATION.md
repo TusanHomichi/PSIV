@@ -1,7 +1,8 @@
 # Sound integration
 
-Implemented 2026-08-16. This closes the runtime half of the sound slice; the
-pack remains generated and gitignored under `runtime-pack/`.
+The live sound path was introduced 2026-08-16. The ability SFX rows below were
+refreshed from the source on 2026-09-15; ability SFX coverage and exact timing
+remain partial. The pack stays generated and gitignored under `runtime-pack/`.
 
 ## Runtime path
 
@@ -51,8 +52,8 @@ The music ID table is the retail `MusicPtrs` table at `$D1C40`, with IDs
 | Miss effect `$B8` `AttackMiss` | `BattleEvent::Resolved { verdict: Miss }` | Wired |
 | Enemy death `$B9` `EnemyKilled` | `BattleEvent::Died` | Wired |
 | Enemy physical attack | `BattleEvent::Attacked` -> `BattleAnimationEvent`/exact pack SFX | Wired for all 153 retail enemy records; no generic `$BA` fallback |
-| Technique/skill/item animation SFX | No Tier-1 core command/event carries the selected ability | Deferred: no honest runtime moment yet |
-| Enemy ability/effect SFX | `UnsupportedAbility` records the roll but does not execute its animation | Deferred: no ability animation event surface yet |
+| Technique/skill/item SFX | Selected abilities have core events; BROSE (17) and RIMIT (23) request `$CB` | Partial: remaining cues and original animation timing are unfinished |
+| Enemy ability/effect SFX | THREAD (16) requests `$DA`; Acid Breath (51) requests `$D5` and `$D8` through `battle_sound_events` | Partial: these cues do not certify retail object timing or other enemy abilities |
 | Sequence-internal `EB` | `commands.rs` queues the payload through the same driver priority path | Wired; register-log covered |
 | Vehicle battle `$96` `CyberneticCarnival` | Mounted `EncounterRolled` and debug vehicle-battle entry dispatch `$96` through `Field::play_sound` | Wired 2026-08-16 |
 

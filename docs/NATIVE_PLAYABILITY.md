@@ -26,31 +26,14 @@ validate changes before launching Godot. No editor implementation is part
 of this repair. Keep the default unmodified game usable without any editor
 or agent service.
 
-## Earlier audit snapshot
+## Audit context
 
-This table records the earlier gap audit. Its open items are superseded where
-later entries below document implementation, including ORDER and CROSSCUT.
+The earlier audit established that selected matching reference screens did
+not prove complete gameplay. Its obsolete coverage table and task ordering
+have been removed; use [the roadmap](ROADMAP.md) for current gaps. The dated
+implementation and failure records below retain their original evidence.
 
-The existing six pixel-identical reference screens establish specific
-rendering results. They do not establish complete gameplay. The README's
-previous claim that only a natural vehicle tape remained was incorrect.
-
-| Surface | Current implementation | What remains |
-| --- | --- | --- |
-| Native launch | Godot loads the Rust extension and local runtime pack | Exported desktop package and fresh-install playthrough proof |
-| New game | Title, opening, maps, dialogue, party handoff | Repaired in this slice; see below |
-| Player battle commands | Godot COMD selects per-character attack/target, defend, techniques, skills and items; 35 of 38 battle techniques, EARTH/VORTEX/VISION/CRASH and all 26 usable battle-item records have gameplay effects; vehicle skills remain available | SEALS/FEEVE/AROWS and 50 ordinary skills, macros, combos; retail ability art/SFX and exact command-window layouts |
-| Enemy behavior | Physical attacks and their poison/paralysis effects, extracted attack animation/SFX, Igglanova/Guilgenova Fission, FlattrPlnt Acid Breath and crawler THREAD | Other 108 enemy skill records and other conditional AI remain unsupported; unsupported regular abilities still fall back to physical attacks |
-| Camp | All 40 inventory slots, EQUIP, STATE/status/save; TECH recovery/cures/revival, RYUKA/HINAS and all five field SKILL records with caster/target selection | MUMBL, MACRO, STATE/ORDER; exact retail child-window layouts and healing presentation |
-| Story | Many transcribed scripts, through the ending; scene text now yields/resumes at its saved cursor and yes/no answers drive dialogue and scene branches | Connected traversal, direct-event completeness, and later scene staging need verification |
-| Chests | 155 solid field objects with original closed/open art, normal grants, full-pack discard/return, necessary-item protection and persistence; isolated Godot Alshline conversation verified | Full-pack USE, remaining chest-specific scenes and exact window/input timing; connected Alshline collection/return verified; see `CHESTS.md` |
-| Field items | Restoratives use field RNG, human/android eligibility and status masks; TELEPIPE/ESCAPIPE use original travel tables and selected-slot consumption | Continuous campaign recovery/use and exact presentation; see `TRAVEL.md` |
-| Persistence | Retail-shaped slot files and load/save integration | Repeated saves, application restarts, and progression through a real campaign |
-| Level progression | Earned techniques/skills and skill-use growth now reach the roster; party spent uses remain spent, benched characters refill on a level | Native connected campaign after the repair; exact original results layout; see `PROGRESSION.md` |
-| Defeat and field ailments | Field poison, walking paralysis recovery and android healing now use the retail step rules; defeat parks the runtime and returns to the title without editing saves | Native poison and combat defeat/restart fixtures verified; first-Zio scripted exit implemented in Rust and awaiting native proof; remaining ailments and presentation need oracle checks |
-| Vehicle reference | Documented mounted fixtures; natural tape through Holt | Natural acquisition and subsequent vehicle traversal/combat |
-
-The current extracted enemy data contains 100 of 153 enemies with nonzero
+The audit's extracted enemy data contains 100 of 153 enemies with nonzero
 regular abilities and 46 with nonzero condition IDs. Complete animation
 coverage does not implement those gameplay effects.
 
@@ -660,31 +643,10 @@ scene's actual palette. Debris motion and oracle frame comparison remain
 unfinished. Native captures of the casting pose, flame and opened rock are
 in `build/native-tonoe/route`; no frame parity claim is made.
 
-## Next implementation order
+## Current implementation priorities
 
-1. **Extend the connected route.** Continue the native Holt save through
-   Tonoe storage basement and the return to Birth Valley. Add the abilities,
-   field behavior and presentation that these routes expose. The current
-   connected proof reaches Gryz joining at Tonoe, with restart/save verified.
-2. **Complete combat and field utility.** Census every reachable ability,
-   conditional AI rule, item effect, target mode, resource cost, status,
-   death/revival rule, and combo. Complete teleport utility and party ordering in
-   camp. Use retail formulas and draw counts rather than midpoint effects.
-3. **Prove the campaign continuously.** Verify resumed dialogue/choices
-   along actual scenes and implement uncovered direct events. Test map-entry and scene-return triggers,
-   progression gates, vehicles, shops, loss/retry and ending behavior along
-   actual routes. Keep fixtures labelled as fixtures.
-4. **Deliver the desktop game.** A self-contained launchable export, correct
-   persistent save location, keyboard/controller checks, audio and frame
-   pacing on the real computer, plus restart/load proof. Retain the retail
-   image comparisons throughout.
-5. **Add mod authoring.** Expose supported data changes through an editor
-   and agent API after the default game is dependable. Separate mod profiles
-   and saves, with validation and reversible activation.
-
-Completion means a continuous native playthrough with normal commands,
-progression, saves and the ending functioning. Passing a script test or
-matching a selected frame is evidence for that surface only.
+See [ROADMAP.md](ROADMAP.md). The earlier Tonoe/ORDER work list has been
+superseded by the verified BioPlant checkpoint and later entries below.
 
 ## Native Tonoe attempt and field-status repair (2026-09-13)
 

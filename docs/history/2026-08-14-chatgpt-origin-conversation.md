@@ -1,5 +1,10 @@
 # Origin conversation (ChatGPT, recovered 2026-08-14)
 
+Historical transcript only. Its proposals, task requests and download links
+describe the initial conversation and are not current contributor instructions.
+Use [the overview](../../README.md), [roadmap](../ROADMAP.md) and
+[AGENTS.md](../../AGENTS.md) for present work.
+
 The PSIV project began in a ChatGPT conversation
 (https://chatgpt.com/share/6a7f6c3a-753c-83e8-a468-ad4aee150d07). The share
 page renders via JavaScript, so this transcript was recovered by decoding the
@@ -844,7 +849,7 @@ That's basically the architecture we were hoping was possible:
 
 No ROM is included in the project zip. It expects a user-supplied copy and deliberately **fails closed on any ROM whose SHA-256 doesn't match yours**, rather than attempting clever heuristic bullshit.
 
-[Download the working psiv-tools PoC](sandbox:/mnt/data/psiv-tools-poc.zip)
+Download the working psiv-tools PoC (historical attachment; unavailable in this repository)
 
 I also included the JSON generated from your ROM in `example-output/`, the tests, source/provenance notes, and instructions. The whole thing is dependency-free Python for now purely because I could **actually execute and verify it here**; the extraction logic is simple enough that a future Rust port will be almost comically straightforward.
 
@@ -924,7 +929,7 @@ We finally hit the first actual technical boundary at battle formations. The mod
 
 So the next job is quite clear: **implement a Kosinski decoder, locate/decompress the retail formation blobs, and prove our output matches the known formation structures.** Then we'll have actual encounter composition tied directly to the enemies we've already decoded.
 
-[Download the updated psiv-tools PoC](sandbox:/mnt/data/psiv-tools-poc.zip)
+Download the updated psiv-tools PoC (historical attachment; unavailable in this repository)
 
 This has officially stopped looking like “maybe we could modernize PSIV” and started looking like **“we are methodically removing the Genesis from PSIV.”**
 

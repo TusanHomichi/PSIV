@@ -1,7 +1,7 @@
 //! Deterministic game core: `State + Input -> State + Effects`.
 //!
-//! See `docs/RUNTIME_DESIGN.md`. This crate is the field engine for the
-//! walk + warp + NPCs slice. It has no dependencies, does no I/O, knows nothing
+//! See `docs/RUNTIME_DESIGN.md`. This crate owns field, battle, event, party
+//! and persistence rules. It has no dependencies, does no I/O, knows nothing
 //! about serde, Godot, or the pack format, and never touches a float — the
 //! original is a 68000, and floats are how a reimplementation drifts off its
 //! oracle.
@@ -21,8 +21,8 @@
 //!
 //! Collision grids are supplied by the caller and never treated as immutable
 //! cartridge truth. The overworlds' event-flag-gated `layout_patches` are
-//! applied by the bridge before the map is built; this crate models no event
-//! flags and sees only the resulting grid.
+//! applied by the runtime before the map is built. `GameState` owns the event
+//! flags; the movement layer consumes the resulting grid.
 //!
 //! # Usage
 //!
@@ -63,8 +63,8 @@
 //! # Determinism
 //!
 //! The same `(state, map, input sequence)` always yields the same state and the
-//! same effect log. Nothing here reads a clock, draws a random number, uses
-//! interior mutability, or iterates a hashed container: ordered lookups go
+//! same effect log. Random draws use explicit deterministic state; nothing
+//! reads a wall clock or obtains external entropy. Ordered lookups go
 //! through `Vec` and `BTreeMap` so iteration order can never leak into
 //! behaviour.
 

@@ -1,8 +1,9 @@
-# Event engine: scouting notes for the design session
+# Event engine: retail research
 
-Scouted 2026-08-15 (Fable, solo pass while lanes ran). This is the fact base
-for the Peter+Fable design session on the event engine — the last big
-field-mode system. Nothing here is a decision.
+Research began 2026-08-15. Triggers, the SceneOp interpreter and scene
+transcriptions are now implemented; see [runtime architecture](RUNTIME_DESIGN.md)
+and [the scene registry](scenes/README.md). This document retains the retail
+structure and source-provenance warning, not a pending design session.
 
 ## The shape of the system
 
@@ -42,24 +43,10 @@ the scene begins. Any transcription lane must disassemble retail bytes for
 scene content and treat the fork's scene files as adversarial. (Dialogue tree
 17's wholesale rewrite was the same phenomenon on the data side.)
 
-## Questions for the design session
+## Implementation and verification
 
-- **Interpreter vs transcription.** Triggers want to be data (a condition
-  table). Scenes: implement the primitive vocabulary once in psiv-core, then
-  express each scene as a sequence over it — authored from retail
-  disassembly, testable headless, oracle-verified later. Effectively a scene
-  script per event, ours, checked against cartridge behavior. Alternative
-  (pure per-scene Rust transcription) is the same thing with a worse diff
-  story.
-- **Where scenes live**: psiv-core module (deterministic, effects out) with
-  the renderer consuming actor-motion effects — cinema mode hooks here.
-- **Verification**: this is the system that makes the BizHawk oracle
-  near-mandatory (scene actor paths, camera moves, timing). Suggest building
-  the oracle harness *first or alongside*, not after.
-- **Scope ladder**: v1 = flags + triggers + the ~6 opening-act scenes
-  (through Alys joining and the basement), which makes the game *playable as
-  a story* to the first dungeon. Full 162-scene coverage is a campaign, not
-  a slice.
-- **Party/event interlock**: `Current_Party_Slots` + `Event_AddMacro` are
-  the party system; the follower work core-lane is doing now is its render
-  half. Event engine owns the writes.
+Scene rules live in `rust/psiv-core/`; runtime and Godot consume their effects.
+The implemented oracle uses a headless Genesis Plus GX host; see
+[oracle setup](../oracle/README.md). Current coverage and the distinction
+between isolated scenes and connected play are recorded in
+[the playability ledger](NATIVE_PLAYABILITY.md).

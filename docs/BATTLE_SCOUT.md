@@ -1,8 +1,9 @@
-# Battle system: scouting notes for the design session
+# Battle system: retail research
 
-Scouted 2026-08-15 (Fable, solo pass). This is the fact base for the
-Peter+Fable design session on battle — the last big system. Nothing here is a
-decision.
+Research began 2026-08-15. This document records cartridge routines and
+measurements. The battle engine is implemented; current command gaps belong
+in [the roadmap](ROADMAP.md) and [playability ledger](NATIVE_PLAYABILITY.md).
+Use [runtime architecture](RUNTIME_DESIGN.md) for settled design decisions.
 
 Method note: every retail address below was **verified against the cartridge**
 (`Phantasy Star IV (USA).md`, sha256 `511f35cc…13b6a`) by matching opcode bytes,
@@ -960,26 +961,11 @@ given invented coordinates: ids **44–46, 50, 70–72, 139–140, and 152**.
 
 ---
 
-## 14. Sizing
+## Implementation scope
 
-The sizing table and scope notes continue in
-[`BATTLE_SCOUT_CONTINUATION.md`](BATTLE_SCOUT_CONTINUATION.md).
-
----
-
-## 15. A proposed scope ladder for v1
-
-The scope ladder continues in
-[`BATTLE_SCOUT_CONTINUATION.md`](BATTLE_SCOUT_CONTINUATION.md).
-
----
-
-## 16. Open questions for the design session
-
-The open-question ledger continues in
-[`BATTLE_SCOUT_CONTINUATION.md`](BATTLE_SCOUT_CONTINUATION.md).
-
----
+The original v1 sizing, proposed scope ladder and design-session questions
+are retired. Current work is tracked in [ROADMAP.md](ROADMAP.md). The worked
+example and address tables remain in [the continuation](BATTLE_SCOUT_CONTINUATION.md).
 
 ## Appendix: verified retail addresses
 

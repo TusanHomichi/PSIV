@@ -1,9 +1,9 @@
 # Battle system: scouting notes continuation
 
-This continuation holds the worked numerical example and the sizing/scope
-notes that were split out of `BATTLE_SCOUT.md` when the enemy-art extraction
-was added. Section 13 remains in the main scouting note because it is the
-presentation boundary used by the current slice.
+This companion to [battle research](BATTLE_SCOUT.md) retains the worked
+numerical example and retail address tables. Obsolete v1 estimates and
+design-session questions have been removed. Use [runtime architecture](RUNTIME_DESIGN.md)
+for the chosen RNG model and [the roadmap](ROADMAP.md) for remaining work.
 
 ## 12. Worked example — one complete basic attack, real numbers
 
@@ -110,97 +110,6 @@ Formation 0's run chance is `$00`, so escape is `v = (r + 7 − 0) * 2 > $28`
 MonsterFly gives 27 experience and 8 meseta, one living party member, so Chaz
 gets all 27 and all 8. Item drop: rate 8, so `(roll & $7F) < 8` — **8/128 =
 6.25%** chance of an Antidote.
-
-## 14. Sizing
-
-| piece | size | nature |
-|---|---|---|
-| turn engine (`BattleRoutines`) | 18 entries, ~700 lines | code, shallow |
-| UI machine (`BattleRoutines2`) | 67 entries ($01–$43), ~6,000 lines | pure presentation, replaceable |
-| damage math | 3 routines, 60 lines total | code — transcribe exactly |
-| stat/element selection | 2 tables, 8 + 16 bytes | data |
-| ability effects | 44-entry table, 21 distinct routines, <300 lines | code, formulaic |
-| effect logic dispatch | 5 entries (`EffectLogicOffs`) | code |
-| range/targeting | 10-entry table + 5 routines | data + trivial code |
-| enemy AI conditions | 20 entries, ~40 lines each | code, formulaic |
-| enemy attack animations | 154 entries → 74 routines | presentation |
-| battle objects | 574 `BattleObj_*` | presentation |
-| macro smart-targeting | 20-entry table + 7 routines | data + trivial code |
-
-**Data already extracted and sufficient**: 153 enemies (stats, 14 element
-properties, AI lists, XP/meseta), 112 enemy skills, 40 techniques, 54 skills,
-15 combos, 160 items, 504 + 27 formations, 11 × 98 level records, encounter
-group bindings. **Nothing new needs extracting for a battle v1.** The one gap is
-the remaining 87 static body-hole cells that are not covered by a decoded
-dynamic destination; the enemy overlay slice now locates and renders the
-decoded portion generically.
-
-## 15. A proposed scope ladder for v1
-
-Offered as a starting point for the session, not a decision.
-
-**Tier 0 — the math kernel (headless, no rendering).**
-`UpdateRNGSeed`, `Battle_CalculateChances`, `Battle_CalculateDamage`,
-`Battle_CalcHealing`, the two offset tables, `UpdateCharModStats`,
-`Battle_FillEnemyStats`. Pure functions over `psiv-data` records, unit-tested
-against hand-computed cases like §12. This is a day's work and it is the part
-that must be perfect.
-
-**Tier 1 — a battle you can win.**
-Encounter roll → formation selection → priority roll → turn order → command
-input (Attack / Defend / Run) → hit roll → damage → death → XP/meseta →
-level-up. Enemy AI limited to the 8-regular-ability roll with no conditions.
-No statuses, no techniques, no items. Reuses the existing pack data end to end.
-
-**Tier 2 — the full command set.**
-Techniques (TP), skills (uses), items, the 44-entry effect table, the 20 AI
-conditions, status effects and their per-turn processing, drops, multi-target
-weapons.
-
-**Tier 3 — the rest.**
-Macros with smart targeting, combos, vehicle battles, the android auto-revive
-path, boss formations and `Event_Battle_Index`.
-
-Presentation tracks separately and can stay abstract (log lines) through
-Tier 1–2.
-
-## 16. Open questions for the design session
-
-1. **The RNG question, and it is the big one.** Battle randomness reads the VDP
-   H/V counter. Bit-exact battle replay against the cartridge is not achievable
-   in a headless core. Do we (a) swap in `UpdateRNGSeed`'s LCG for battle rolls
-   — same distributions, different stream; (b) model a cycle budget to
-   synthesise an HV counter; or (c) declare battle a "statistically faithful,
-   not stream-faithful" subsystem and put the fidelity spine on formulas
-   instead? This changes what the oracle harness is for.
-2. **Which retail bugs do we reproduce?** The fidelity policy says "obvious
-   original bugs may be fixed". The battle candidates are unusually load-bearing:
-   the level-99 table desync corrupts stats, the shield-element bug changes
-   damage, the cure-restores-stats quirk is arguably a *feature* players rely on,
-   and Telepipe-in-battle consumption is a straightforward player-hostile bug.
-   Each needs its own verdict in the ledger, not a blanket rule.
-3. **Is `Battle_Speed` in scope as a setting?** It is already a cartridge option
-   and it is pure presentation — likely a free win for the enhancement pack.
-4. **Enemy art boundary — resolved for this slice.** Retail static bodies use
-   plane mappings with Enigma data, while `Enemy_Sprites` supplies the animated
-   replacement pieces. The runtime uses textured body quads and applies those
-   decoded rectangles; the remaining art question is the 87 uncovered static
-   hole cells, not the source format.
-5. **Where does the "damage lands during the animation" timing live?** On
-   hardware, HP moves inside the presentation state machine. A headless core
-   wants to resolve the whole turn atomically and emit an effect timeline. That
-   is almost certainly right — but it means the oracle must compare *end-of-turn*
-   RAM, not per-frame RAM, for battle.
-6. **`Zio3` / `BLACK WAVE`.** Do we implement effect `$2C` (as what?), reject it
-   at data-load time, or reproduce the crash? Recommend: `psiv-data` validation
-   rejects effect ids outside `$00–$2B` and records the one offender as a known
-   census anomaly, mirroring the encounter-anomaly treatment.
-7. **Verification plan.** Tier 0 can be unit-tested with no oracle at all if we
-   force seeds. Tiers 1+ need the BizHawk harness with RAM watches on
-   `Battle_Turn_Order` (`$FFFFEFB0`), `Battle_Heal_Damage_List` (`$FFFF415A`),
-   `Fighters_Hit_Flags` (`$FFFF4150`), `Battle_Ability_Effects` (`$FFFF4170`)
-   and `Enemy_Stats` (`$FFFF4200`). Worth building those watch lists while the
-   event harness is fresh.
 
 ## Appendix: verified retail addresses
 

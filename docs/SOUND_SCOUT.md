@@ -1,9 +1,12 @@
 # PSIV sound architecture scout
 
-Scouted 2026-08-16. Documentation only; no implementation is proposed by
-this document.
+Retail research recorded 2026-08-16. The native driver/core path is now
+implemented in `psiv-sound`; see [sound extraction](SOUND_EXTRACTION.md) and
+[sound integration](SOUND_INTEGRATION.md) for implementation and evidence.
+This document retains cartridge research and comparison methods. The old
+implementation estimates and alternative-product rankings have been removed.
 
-## Executive answer
+## Retail architecture
 
 PSIV uses a **modified SMPS 68k driver**, with a PSIV-specific command set and
 channel/DAC behavior. It is not stock Sonic-style SMPS data that a generic
@@ -359,157 +362,20 @@ An eventual normalized analysis format is still worthwhile, but it should be
 a view over byte-exact records, not a lossy replacement.
 
 The existing runtime rule applies here: the pack contains Sega-derived data
-and is never committed (`docs/RUNTIME_DESIGN.md:78-85`). “Gitignored” means
+and is never committed (see [runtime architecture](RUNTIME_DESIGN.md)). “Gitignored” means
 local build output, not permission to publish extracted sequences, voices,
 DAC samples, VGM logs, or rendered audio.
 
 ---
 
-## 3. Playback paths, ranked
+## 3. Selected playback path
 
-Effort estimates are engineering estimates for a first complete implementation
-of music, regular/special SFX, DAC, scene transitions, and battle overlap. A
-single song proof is much cheaper and is not completion.
-
-### Rank 1 — hybrid: live driver/core plus oracle captures (recommended)
-
-**Shape:** use the oracle first to produce fixed PCM fixtures and, after
-instrumentation, register-write traces. Build the native runtime around the
-transcribed driver and chip cores. Keep rendered audio as a local test and
-audition cache only.
-
-| Dimension | Assessment |
-|---|---|
-| First useful proof | 1-3 days for deterministic WAV capture; 1-2 weeks for a timestamped register/VGM writer |
-| First live sound | Roughly 4-8 engineering weeks after the capture harness, depending on how much driver timing is already reusable |
-| Full tuning | Roughly 8-12 weeks for all track/SFX/DAC interactions and oracle fixtures |
-| Fidelity | Highest practical option: dynamic music, live SFX overlap, DAC, fades, and scene/battle timing |
-| Main risk | Matching driver timing and chip-model configuration; the oracle makes failures localizable |
-
-This is the only option that gives both a playable live sound system and a
-strong answer when a waveform is wrong.
-
-### Rank 2 — (a) transcribed driver embedded in Rust with YM2612 + PSG cores
-
-**Shape:** implement the PSIV scheduler/interpreter in Rust; emit YM2612 and
-SN76489 writes; use a cycle/tick model that reproduces the 68k driver's
-update order and Z80 DAC behavior.
-
-**Crate/core survey, 2026-08-16:**
-
-| Candidate | What it is | Judgment |
-|---|---|---|
-| [`ym2612` in Moa](https://github.com/transistorfet/moa) | A Rust emulator component in the Moa workspace | Interesting starting material, but the project describes Genesis support as still developing and is not a PSIV-validated drop-in core |
-| [`renuked`](https://docs.rs/renuked/latest/renuked/) | Small Rust package exposing Nuked-style FM modules; version `0.1.0` in the surveyed docs | Niche integration candidate; not a complete YM2612 + PSG solution and too young to treat as an accuracy guarantee |
-| [`game-music-emu`](https://docs.rs/game-music-emu/0.3.0/features) Rust surface | Rust bindings/features for a C library with MAME and Nuked YM2612 options | Practical FFI route; review the C dependency licenses and use the oracle to choose/configure the core |
-| [`megadrive-sys`](https://docs.rs/megadrive-sys/latest/megadrive_sys/fm/index.html) | A YM2612/FM driver abstraction with channels/operators | Not a chip emulator; do not mistake it for playback silicon modeling |
-| [`soundlog`](https://docs.rs/soundlog/latest/soundlog/) | VGM/YM2612/SN76489 log parsing/building and callback tools | Useful for trace artifacts; it does not emulate the chips |
-| [Nuked OPN2](https://github.com/nukeykt/Nuked-OPN2) | C YM3438/OPN2 core based on die-shot reverse engineering, with cycle-accurate behavior claims and YM2612 compatibility | Strong accuracy baseline, but it is not a Rust crate and still requires PSIV oracle comparison plus a separate PSG path |
-
-The survey did **not** find a mature, dedicated Rust `ym2612` or `ym3438`
-crate whose reputation alone justifies the runtime. The sensible engineering
-choice is to evaluate a Nuked-based FFI/port and a separate PSG core against
-the oracle, rather than selecting by crate name. Genesis Plus GX itself
-exposes MAME/Nuked/YM3438 choices and ships at 44,100 Hz in its libretro
-surface ([core documentation](https://docs.libretro.com/library/genesis_plus_gx/));
-the exact YM mode and PSG configuration must be pinned for every fixture.
-
-The PSG half is a separate SN76489-compatible problem. None of the driver or
-logging crates above is a complete PSG playback decision: `megadrive-sys` is
-not an emulator and `soundlog` is a log tool. Check the chosen PSG core for
-latch/data semantics, tone/noise periods, attenuation, stereo routing, and
-mixing against the oracle just as rigorously as the YM core.
-
-Nuked's [upstream accuracy description](https://github.com/nukeykt/Nuked-OPN2)
-is a good reputation signal, not a PSIV proof. A YM2612-compatible core can
-still differ in DAC, ladder, busy/timing, or integrated-YM behavior. The
-oracle comparison decides.
-
-**Why this is not rank 1 by itself:** it is the canonical runtime direction,
-but without oracle captures the debugging loop is miserable. A song that is
-“almost right” can hide a one-byte parser error, an envelope off-by-one, a
-wrong PSG latch write, a channel-steal timing error, or a chip-model mismatch.
-
-### Rank 3 — (b) capture each track from the emulator and ship a baked render
-
-This divides into two technically different artifacts.
-
-#### WAV/PCM capture
-
-The existing host already registers both libretro audio callbacks, but its
-callbacks discard the samples (`oracle/host/psiv_oracle.c:340-346,
-642-645`). Libretro's batch callback is PCM: interleaved signed 16-bit stereo
-frames, not chip-register writes ([libretro core-development audio
-documentation](https://docs.libretro.com/development/cores/developing-cores/)).
-Genesis Plus GX's libretro layer currently renders at 44,100 Hz and calls the
-batch callback after `audio_update` (`oracle/gpgx-src/libretro/libretro.c:204,
-3115-3118, 3168, 3869-4013`; `oracle/gpgx-src/core/system.c:205-250`).
-
-That makes WAV capture the cheap part: fixed ROM/configuration, fixed reset
-and start procedure, fixed frame window, write the callback frames, hash the
-canonical PCM. Estimated effort: **1-3 days** for a useful fixture harness.
-
-It is a poor primary runtime because a WAV does not contain live state:
-
-- loops and fades must be baked into arbitrary decisions;
-- SFX cannot naturally overlap according to current channel state;
-- scene timing, battle entry, victory restore, and `$FF500A` priority are lost;
-- DAC direction/loop/volume variations are not reusable as one track;
-- a different core setting or resampler changes the output.
-
-For a local, gitignored developer pack, rendered audio is acceptable as an
-audition/regression cache under the existing “never commit extracted pack”
-rule. For a published pack, it is still distributed game-derived output and
-does not pass the never-distribute-extracted-content boundary merely because
-`.gitignore` hides it.
-
-#### VGM/register-stream capture
-
-VGM is the more useful capture format for debugging because it records timed
-chip writes and waits. The [VGM specification](https://vgmrips.net/wiki/VGM_Specification)
-defines the YM2612 register-write/wait and DAC command model. It is still a
-render/playback artifact, not the original PSIV sequence format.
-
-The current libretro callback does **not** expose VGM. GPGX does have internal
-timestamped sound paths: `fm_write(cycles, address, data)` is selected for
-the YM core (`oracle/gpgx-src/core/sound/sound.c:65-67, 309-326`), 68k YM
-writes pass through it (`oracle/gpgx-src/core/mem68k.c:183-186`), and PSG writes
-pass through `psg_write` (`oracle/gpgx-src/core/mem68k.c:1464-1469`). A future
-oracle-side logging hook could turn those calls into a VGM-like stream, but
-that is source instrumentation, not an existing host feature.
-
-Estimated effort: **1-2 weeks** for a robust writer, timestamp normalization,
-track isolation, and fixture metadata. It is excellent for answering “did the
-driver emit the same writes?” and for finding the first divergence. It is not
-the recommended shipped runtime artifact: it freezes a particular execution,
-still contains extracted game-derived behavior, and cannot express every
-future live interaction without generating a new capture.
-
-### Rank 4 — baked audio as the sole sound system
-
-This is the fastest demo and the wrong end state. It is static, loses the
-driver's interaction semantics, and cannot deliver the requested 1:1 emulator
-experience. It is acceptable only as a temporary private listening aid while
-the real path is being built.
-
-### License boundary
-
-The checked-out Genesis Plus GX source is non-commercial and has a
-source-distribution condition (`oracle/gpgx-src/LICENSE.txt`); its included
-Nuked OPN2 portion is LGPL-2.1. Do not embed the whole GPGX core in the native
-runtime without a separate licensing decision. It is already a useful local
-oracle. A standalone Nuked/PSG selection still needs its own dependency and
-distribution review.
-
-### Recommendation
-
-Choose **hybrid**. Make the live Rust driver/core the product path, but build
-the oracle capture surface first enough to establish trustworthy fixtures.
-Keep WAV files and VGM/register logs local and gitignored for audition,
-regression, and debugging. Do not make them the canonical pack format and do
-not ship them as extracted-content substitutes.
-
----
+The game uses the live Rust driver and chip cores. Extracted records remain
+in the local pack, and captured audio/register traces remain local verification
+artifacts. Current integration and remaining SFX coverage are recorded in
+[SOUND_INTEGRATION.md](SOUND_INTEGRATION.md). Original game content and
+third-party components retain their own rights and licenses; the project MIT
+license does not relicense them.
 
 ## 4. The oracle angle
 

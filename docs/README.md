@@ -5,6 +5,8 @@
 - [Project overview and current status](../README.md)
 - [Roadmap and completion criteria](ROADMAP.md)
 - [Build, run and verification](DEVELOPMENT.md)
+- [Repository instructions for agents](../AGENTS.md)
+- [Agent workflow and handoff template](AGENT_WORKFLOW.md)
 - [MIT License](../LICENSE)
 
 ## Current campaign evidence
@@ -26,7 +28,14 @@
 - [Runtime design](RUNTIME_DESIGN.md)
 - [ROM extraction reference](EXTRACTION.md)
 - [Source notes](../SOURCE_NOTES.md)
-- [Implementation archive](IMPLEMENTATION_HISTORY.md)
 
-Historical counts and fixture results stay in their original records. Use
-the current overview and roadmap to judge what is playable and what remains.
+## Which document answers which question?
+
+- Current playable scope: the project overview and roadmap.
+- Current architecture and commands: runtime design and development setup.
+- Retail behavior and measured evidence: subsystem ledgers and scene research.
+- Obsolete plans and removed status summaries: Git history.
+
+Keep one current work list in the roadmap. Dated measurements remain useful
+evidence for their recorded inputs; they do not automatically certify a newer
+build. Research and isolated scene fixtures do not establish campaign completion.

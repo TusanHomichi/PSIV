@@ -32,11 +32,11 @@ The decoded flow is:
 5. The success string is `-File has been saved.` (`ps4.asm:340780-340782`).
 
 Retail's system SAVE path is separate from the camp STATE chooser. The
-existing camp scout pins STATE as a two-row child window with `STATUS` and
-`ORDER` only (`docs/CAMP_MENU_LAYOUT.md`, “STATE chooser”). The current Godot
-slice has no system menu or title screen, so this wave adds a third, explicit
-SAVE row under the camp STATE screen. The retail two-row geometry remains
-oracle-pinned in `camp/layout.rs`; the added row and slot chooser are a
+camp scout pins STATE as a two-row child window with `STATUS` and
+`ORDER` only (`docs/CAMP_MENU_LAYOUT.md`, “STATE chooser”). The native game
+exposes SAVE as a third row under camp STATE. Its title screen and CONTINUE
+flow are implemented; see [TITLE_BOOT.md](TITLE_BOOT.md). The retail two-row
+geometry remains oracle-pinned in `camp/layout.rs`; the added row and slot chooser are a
 documented modern surface, not a claim that retail displayed SAVE there.
 
 ## SRAM device and slot count

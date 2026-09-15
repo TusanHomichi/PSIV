@@ -1,10 +1,9 @@
 //! What a map load does to persistent state.
 //!
-//! The engine has, until now, never cleared a flag by itself: everything that
-//! set one left it set until a scene explicitly cleared it. That is wrong, and
-//! oracle tape 18 measured the consequence — the Xanafalgue respawns and the
-//! Piata Academy basement becomes a repeatable un-looter of the Garuberk Tower
-//! Moon Slasher chest, because both are flag `$13` in the one `$F140` bank.
+//! Map-load routines clear selected temporary flags in the `$F140` bank.
+//! Oracle tape 18 measured a destination-load clear and Xanafalgue respawn.
+//! Chest flags live separately at `$F120`; the earlier claim that this clear
+//! also re-armed a chest was withdrawn, as detailed below.
 //!
 //! # The mechanism
 //!
