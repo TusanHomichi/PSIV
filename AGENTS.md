@@ -33,14 +33,8 @@ work, not a loose preference:
   relevant checks, debugging and repairs, candidate freeze, and evidence handoff.
 - `gpt-6-luna` / `max`: owns bounded exploration and routine implementation,
   test runs, log triage, receipts and routine docs through checks and closeout.
-- Claude Code host (owner decision, 2026-09-23): `claude-opus-5-5` holds the
-  orchestration role above; DeepSeek `deepseek-flash` (`deepseek-v4-flash`) at
-  `max` effort, launched through `ds-lane` (Reasonix in an isolated worktree),
-  owns implementation in the Sol/Luna roles. See the workflow's
-  [Claude Code host section](docs/AGENT_WORKFLOW.md#claude-code-host-ds-lane).
-- DeepSeek outside that route: optional supervised narrow helper, only for a
-  concrete benefit; independently verify results and record actual routing,
-  corrections and reliability.
+- DeepSeek: optional supervised narrow helper, only for a concrete benefit;
+  independently verify results and record actual routing, corrections and reliability.
 
 Delegate complete outcomes with exact inputs, observable acceptance, file and
 resource ownership, forbidden writes, and concurrency constraints. The assigned

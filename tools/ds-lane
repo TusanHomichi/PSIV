@@ -1,0 +1,483 @@
+#!/usr/bin/env python3
+"""ds-lane: run a DeepSeek worker (via Reasonix) in an isolated git worktree lane.
+
+The orchestrator (Claude) writes a brief; ds-lane runs it headless in a fresh
+worktree on branch ds/<id>, commits whatever the worker changed (the worker
+itself cannot write .git — the Reasonix OS sandbox confines writes to the
+worktree), and leaves a receipt directory with the brief, final result, full
+trajectory (tool calls + reasoning), metrics/cost and the diff.
+
+Source: PSIV tools/ds-lane (symlinked from ~/.local/bin/ds-lane). Claude Code
+host only; see CLAUDE.md.
+
+Pinned, not configurable: model deepseek-flash, reasoning effort max
+(owner decision 2026-09-23). Subagents are pinned to max in
+~/.reasonix/config.toml (subagent_effort = "max").
+
+Usage:
+  ds-lane start BRIEF.md [--repo DIR] [--base REF] [--id NAME] [--max-steps N]
+                         [--link PATH]... [--add-dir DIR]... [--read-only] [--no-wait]
+  ds-lane resume ID FOLLOWUP.md [--max-steps N] [--no-wait]
+  ds-lane wait ID
+  ds-lane list [--repo DIR]
+  ds-lane show ID [--repo DIR]
+  ds-lane rm ID [--repo DIR] [--purge]
+
+Layout:
+  worktree  ~/.cache/ds-lane/wt/<repo>/<id>        (branch ds/<id>)
+  receipts  ~/.local/state/ds-lane/<repo>/<id>/    (run-N/ per worker run)
+
+--link PATH symlinks an ignored path from the source repo into the worktree
+(e.g. runtime-pack, reference) so repo-relative tooling finds local inputs.
+Only gitignored paths may be linked, and links are excluded when the lane
+commits, so they never enter the lane diff. The
+sandbox resolves real paths, so linked inputs are readable but not writable.
+
+Each run executes under a detached supervisor (own session), so the worker and
+its commit step survive the calling shell being killed; `start`/`resume` wait
+for the result unless --no-wait, and `wait ID` reattaches. At most MAX_LANES
+workers run machine-wide (later runs queue) and each gets CARGO_BUILD_JOBS<=2.
+
+Lane rules for the worker are prepended to every brief (see PREAMBLE).
+
+BRIEF PHRASING LAW: Reasonix bans all writes for the session when the prompt
+contains negated-mutation wording outside code fences ("do not edit",
+"don't modify", "no changes", "read-only"...). In implementation briefs state
+ownership positively ("touch only X", "keep Y as-is") or put such text in a
+fenced block. ds-lane warns when a run hits that block. Use --read-only when
+you want the ban.
+"""
+import argparse
+import fcntl
+import datetime as dt
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+MODEL = "deepseek-flash"
+EFFORT = "max"
+PERMISSION_MODE = "acceptEdits"
+MAX_LANES = 3   # machine-wide concurrent workers; the 13GB laptop OOM'd at 5 (2026-08-16)
+CARGO_JOBS = 2  # per-worker cargo parallelism cap, same incident
+WT_ROOT = Path.home() / ".cache/ds-lane/wt"
+STATE_ROOT = Path.home() / ".local/state/ds-lane"
+
+# Phrasing law: Reasonix parses the prompt for constraints
+# (runtimepolicy.ParseConstraints). Negated-mutation wording outside code
+# fences ("do not edit/modify/change", "no changes", "read-only") bans EVERY
+# write for the whole session. The preamble therefore states lane rules
+# positively; --read-only opts into the ban deliberately.
+PREAMBLE = """\
+# ds-lane worker rules
+
+You are a worker in an isolated git worktree lane. An orchestrator wrote the
+brief below and will review your diff and the raw trajectory of this run.
+
+- Keep all file writes inside the current directory (the lane worktree). The
+  sandbox confines writes to it; if something is blocked, report it rather
+  than seeking an escalation.
+- Git: use only read-side commands (status, diff, log, show). The lane tooling
+  records and commits your work after you finish.
+- Follow the repository's AGENTS.md. Stay within the brief's scope and touch
+  only the files it assigns to you.
+- If you are blocked or the brief is ambiguous, stop and say so in the receipt
+  rather than guessing.
+- Claim a check passed only if you ran it in this session and saw it pass.
+  Report failures verbatim.
+
+End your final message with exactly this receipt:
+
+## Receipt
+- Status: done | blocked | partial
+- Changed files: <list>
+- Commands run: <command -> exit status, one per line>
+- Acceptance: <each acceptance item -> met/not met, with evidence>
+- Open issues: <anything unresolved, or none>
+
+---
+
+# Brief
+
+"""
+
+READ_ONLY_CLAUSE = """\
+# Lane mode: investigation
+
+This is a read-only investigation lane: do not modify any files. Deliver your
+findings in the final message.
+
+"""
+
+CONSTRAINT_BLOCK = "blocked: the current constraints forbid"
+
+
+def sh(args, cwd=None, check=True, capture=True):
+    r = subprocess.run(args, cwd=cwd, text=True,
+                       stdout=subprocess.PIPE if capture else None,
+                       stderr=subprocess.PIPE if capture else None)
+    if check and r.returncode != 0:
+        sys.exit(f"ds-lane: {' '.join(map(str, args))} failed ({r.returncode}):\n{r.stderr}")
+    return r.stdout.strip() if capture else ""
+
+
+def repo_root(path):
+    return Path(sh(["git", "-C", str(path), "rev-parse", "--show-toplevel"]))
+
+
+def lane_paths(repo, lane_id):
+    return WT_ROOT / repo.name / lane_id, STATE_ROOT / repo.name / lane_id
+
+
+def load_receipt(state):
+    f = state / "lane.json"
+    if not f.exists():
+        sys.exit(f"ds-lane: no lane at {state}")
+    return json.loads(f.read_text())
+
+
+def save_receipt(state, data):
+    (state / "lane.json").write_text(json.dumps(data, indent=2) + "\n")
+
+
+def now():
+    return dt.datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def prepare_run(lane, prompt_text, max_steps, resume_session=None):
+    """Write the run spec, then hand it to a detached supervisor.
+
+    The supervisor runs in its own session (setsid) so a host that reaps
+    background shells cannot kill a worker mid-run or skip the commit step.
+    """
+    wt, state = Path(lane["worktree"]), Path(lane["state_dir"])
+    for r in sorted(state.glob("run-*")):
+        if not (r / "run.json").exists() and supervisor_alive(r):
+            sys.exit(f"ds-lane: lane {lane['id']} {r.name} is still in flight; `ds-lane wait {lane['id']}`")
+    n = len(lane["runs"]) + 1
+    run_dir = state / f"run-{n}"
+    run_dir.mkdir(parents=True)
+    (run_dir / "prompt.md").write_text(prompt_text)
+    traj = run_dir / "trajectory.jsonl"
+    traj.touch()  # reasonix refuses to create it
+    cmd = ["reasonix", "run", "--dir", str(wt), "--model", MODEL, "--effort", EFFORT,
+           "--permission-mode", PERMISSION_MODE, "--output-format", "json",
+           "--trajectory", str(traj), "--metrics", str(run_dir / "metrics.json")]
+    if max_steps:
+        cmd += ["--max-steps", str(max_steps)]
+    for d in lane.get("add_dirs", []):
+        cmd += ["--add-dir", d]
+    if resume_session:
+        cmd += ["--resume", resume_session]
+    spec = {"run": n, "cmd": cmd, "resume_session": resume_session}
+    (run_dir / "spec.json").write_text(json.dumps(spec, indent=2) + "\n")
+    (run_dir / "command.json").write_text(json.dumps(cmd + ["<prompt.md>"], indent=2) + "\n")
+    log = open(run_dir / "supervisor.log", "w")
+    subprocess.Popen([sys.executable, os.path.realpath(__file__), "_exec", str(state), str(n)],
+                     stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
+    return run_dir
+
+
+def pid_alive(pidfile):
+    try:
+        os.kill(int(pidfile.read_text().strip()), 0)
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def supervisor_alive(run_dir):
+    return pid_alive(run_dir / "supervisor.pid")
+
+
+def acquire_slot(run_dir):
+    """Block until fewer than MAX_LANES workers run machine-wide, then claim a slot."""
+    STATE_ROOT.mkdir(parents=True, exist_ok=True)
+    announced = False
+    while True:
+        with open(STATE_ROOT / ".slots.lock", "w") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            live = [f for f in STATE_ROOT.glob("*/*/run-*/worker.slot") if pid_alive(f)]
+            if len(live) < MAX_LANES:
+                (run_dir / "worker.slot").write_text(str(os.getpid()))
+                return
+        if not announced:
+            print(f"{now()} queued: {len(live)} lanes running (cap {MAX_LANES})", flush=True)
+            announced = True
+        time.sleep(10)
+
+
+def exec_run(state, n):
+    state = Path(state)
+    run_dir = state / f"run-{n}"
+    (run_dir / "supervisor.pid").write_text(str(os.getpid()))
+    lane = load_receipt(state)
+    wt = Path(lane["worktree"])
+    spec = json.loads((run_dir / "spec.json").read_text())
+    try:
+        acquire_slot(run_dir)
+        env = dict(os.environ)
+        env["CARGO_BUILD_JOBS"] = str(min(int(env.get("CARGO_BUILD_JOBS", CARGO_JOBS)), CARGO_JOBS))
+        started, t0 = now(), time.monotonic()
+        print(f"{started} worker start", flush=True)
+        with open(run_dir / "stdout.log", "w") as out, open(run_dir / "stderr.log", "w") as err:
+            rc = subprocess.run(spec["cmd"] + [(run_dir / "prompt.md").read_text()], cwd=wt,
+                                stdout=out, stderr=err, text=True, env=env).returncode
+        duration = round(time.monotonic() - t0, 1)
+        (run_dir / "worker.slot").unlink(missing_ok=True)
+        print(f"{now()} worker exit {rc}", flush=True)
+        finalize_run(lane, run_dir, spec, rc, started, duration)
+    except BaseException as e:  # leave a terminal record whatever happens
+        (run_dir / "worker.slot").unlink(missing_ok=True)
+        (run_dir / "summary.txt").write_text(f"lane {lane['id']} run-{n}: SUPERVISOR ERROR {e!r}\n"
+                                             f"see {run_dir}/supervisor.log\n")
+        (run_dir / "failed").write_text(repr(e) + "\n")
+        raise
+
+
+def finalize_run(lane, run_dir, spec, rc, started, duration):
+    wt, state, n = Path(lane["worktree"]), Path(lane["state_dir"]), spec["run"]
+    result = {}
+    for line in reversed((run_dir / "stdout.log").read_text().strip().splitlines()):
+        try:
+            result = json.loads(line)
+            break
+        except json.JSONDecodeError:
+            continue
+    (run_dir / "result.md").write_text(result.get("result", "") + "\n")
+
+    # Commit on the worker's behalf (outside the sandbox) so each run is one reviewable commit.
+    excludes = [f":(exclude){rel}" for rel in lane.get("links", [])]
+    sh(["git", "add", "-A", "--", "."] + excludes, cwd=wt)
+    committed = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=wt).returncode != 0
+    if committed:
+        title = lane["title"][:60]
+        sh(["git", "commit", "-q", "--no-verify", "-m", f"ds-lane {lane['id']} run-{n}: {title}"], cwd=wt)
+    head = sh(["git", "rev-parse", "HEAD"], cwd=wt)
+    (run_dir / "diff.patch").write_text(sh(["git", "diff", f"{lane['base_sha']}..{head}"], cwd=wt) + "\n")
+    stat = sh(["git", "diff", "--stat", f"{lane['base_sha']}..{head}"], cwd=wt)
+
+    # `reasonix run` omits session_id from its JSON result; the trajectory has it.
+    session_id, turn_err = result.get("session_id"), None
+    constraint_blocks = sandbox_blocks = 0
+    for line in (run_dir / "trajectory.jsonl").read_text(errors="replace").splitlines():
+        try:
+            ev = json.loads(line).get("event", {})
+        except json.JSONDecodeError:
+            continue
+        session_id = session_id or ev.get("sessionId")
+        if ev.get("kind") == "tool_result":
+            err = str((ev.get("tool") or {}).get("err") or "")
+            constraint_blocks += err.startswith(CONSTRAINT_BLOCK)
+            sandbox_blocks += "outside the writable roots" in err
+        if ev.get("kind") == "turn_done" and ev.get("status") != "completed":
+            turn_err = ev.get("err") or ev.get("status")
+
+    run = {
+        "run": n, "started": started, "duration_s": duration, "exit_code": rc,
+        "model": MODEL, "effort": EFFORT, "permission_mode": PERMISSION_MODE,
+        "session_id": session_id, "turn_error": turn_err, "is_error": result.get("is_error"),
+        "num_turns": result.get("num_turns"), "cost_usd": result.get("total_cost_usd"),
+        "usage": result.get("usage"), "committed": committed, "head_sha": head,
+        "resumed_session": spec.get("resume_session"), "read_only": lane.get("read_only", False),
+        "constraint_blocks": constraint_blocks, "sandbox_blocks": sandbox_blocks,
+    }
+    lane["runs"].append(run)
+    lane["head_sha"] = head
+    lane["total_cost_usd"] = round(sum(r.get("cost_usd") or 0 for r in lane["runs"]), 6)
+    save_receipt(state, lane)
+
+    status = re.search(r"-\s*Status:\s*(\S+)", result.get("result", ""))
+    out = [f"lane {lane['id']} run-{n}: exit={rc} worker_status={status.group(1) if status else 'no-receipt'} "
+           f"cost=${run['cost_usd']} turns={run['num_turns']} time={duration}s committed={committed}"]
+    if turn_err:
+        out.append(f"turn ended: {turn_err}")
+    if constraint_blocks and not lane.get("read_only"):
+        out.append(f"WARNING: {constraint_blocks} tool call(s) hit a Reasonix prompt-constraint block "
+                   f"('{CONSTRAINT_BLOCK} ...'). Negated-mutation wording in the brief likely banned "
+                   f"writes; rephrase positively and resume.")
+    if sandbox_blocks:
+        out.append(f"note: {sandbox_blocks} sandbox block(s) (write outside worktree attempted)")
+    out.append(f"branch ds/{lane['id']} head={head[:10]} base={lane['base_sha'][:10]}")
+    out.append(stat or "(no changes)")
+    out.append(f"receipts: {run_dir}")
+    (run_dir / "summary.txt").write_text("\n".join(out) + "\n")
+    # run.json last: its presence marks the run complete.
+    (run_dir / "run.json").write_text(json.dumps(run, indent=2) + "\n")
+
+
+def wait_run(run_dir):
+    run_dir = Path(run_dir)
+    grace = 30  # supervisor needs a moment to write its pid
+    while not ((run_dir / "run.json").exists() or (run_dir / "failed").exists()):
+        if grace <= 0 and not supervisor_alive(run_dir):
+            sys.exit(f"ds-lane: supervisor for {run_dir} died without a result; see supervisor.log")
+        time.sleep(3)
+        grace -= 3
+    print((run_dir / "summary.txt").read_text(), end="")
+    if (run_dir / "failed").exists():
+        return 1
+    return json.loads((run_dir / "run.json").read_text())["exit_code"]
+
+
+def launch(lane, prompt_text, a, resume_session=None):
+    run_dir = prepare_run(lane, prompt_text, a.max_steps, resume_session)
+    if a.no_wait:
+        print(f"lane {lane['id']} {run_dir.name}: launched detached; `ds-lane wait {lane['id']}`")
+        return 0
+    return wait_run(run_dir)
+
+
+def cmd_start(a):
+    repo = repo_root(a.repo)
+    brief = Path(a.brief).read_text()
+    title = next((l.lstrip("# ").strip() for l in brief.splitlines() if l.strip()), "lane")
+    lane_id = a.id or dt.datetime.now().strftime("%m%d-%H%M%S")
+    if not re.fullmatch(r"[A-Za-z0-9._-]+", lane_id):
+        sys.exit("ds-lane: --id must be [A-Za-z0-9._-]+")
+    wt, state = lane_paths(repo, lane_id)
+    if wt.exists() or state.exists():
+        sys.exit(f"ds-lane: lane {lane_id} already exists")
+    base_sha = sh(["git", "-C", str(repo), "rev-parse", a.base])
+    dirty = sh(["git", "-C", str(repo), "status", "--porcelain", "--untracked-files=no"])
+    if dirty:
+        print(f"ds-lane: note: {repo} has uncommitted tracked changes; the lane starts from "
+              f"{a.base} ({base_sha[:10]}) and will NOT see them.", file=sys.stderr)
+
+    links = []
+    for p in a.link:
+        src = (repo / p).resolve()
+        rel = src.relative_to(repo)
+        if not src.exists():
+            sys.exit(f"ds-lane: --link {p}: does not exist")
+        if subprocess.run(["git", "-C", str(repo), "check-ignore", "-q", str(rel)]).returncode != 0:
+            sys.exit(f"ds-lane: --link {p}: only gitignored paths may be linked")
+        links.append(str(rel))
+
+    wt.parent.mkdir(parents=True, exist_ok=True)
+    state.mkdir(parents=True)
+    sh(["git", "-C", str(repo), "worktree", "add", "-q", "-b", f"ds/{lane_id}", str(wt), base_sha])
+    for rel in links:
+        dst = wt / rel
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        dst.symlink_to(repo / rel)
+    shutil.copy(a.brief, state / "brief.md")
+
+    lane = {
+        "id": lane_id, "title": title, "repo": str(repo), "base_ref": a.base, "base_sha": base_sha,
+        "branch": f"ds/{lane_id}", "worktree": str(wt), "state_dir": str(state), "links": links,
+        "add_dirs": [str(Path(d).resolve()) for d in a.add_dir], "created": now(),
+        "model": MODEL, "effort": EFFORT, "reasonix_version": sh(["reasonix", "--version"]),
+        "read_only": a.read_only, "runs": [],
+    }
+    save_receipt(state, lane)
+    print(f"lane {lane_id}: worktree {wt}")
+    head = READ_ONLY_CLAUSE if a.read_only else ""
+    return launch(lane, head + PREAMBLE + brief, a)
+
+
+def find_lane(a):
+    repo = repo_root(a.repo)
+    _, state = lane_paths(repo, a.id)
+    return load_receipt(state)
+
+
+def cmd_resume(a):
+    lane = find_lane(a)
+    session = next((r["session_id"] for r in reversed(lane["runs"]) if r.get("session_id")), None)
+    followup = "# Follow-up from the orchestrator\n\n" + Path(a.followup).read_text() + \
+        "\n\nEnd with the same ## Receipt format as before."
+    return launch(lane, followup, a, resume_session=session)
+
+
+def cmd_wait(a):
+    lane = find_lane(a)
+    runs = sorted(Path(lane["state_dir"]).glob("run-*"), key=lambda p: int(p.name.split("-")[1]))
+    if not runs:
+        sys.exit("ds-lane: lane has no runs")
+    return wait_run(runs[-1])
+
+
+def cmd_list(a):
+    repo = repo_root(a.repo)
+    root = STATE_ROOT / repo.name
+    for f in sorted(root.glob("*/lane.json")) if root.exists() else []:
+        l = json.loads(f.read_text())
+        last = l["runs"][-1] if l["runs"] else {}
+        alive = "live" if Path(l["worktree"]).exists() else "removed"
+        pending = [r for r in f.parent.glob("run-*") if not (r / "run.json").exists()
+                   and not (r / "failed").exists() and supervisor_alive(r)]
+        if pending:
+            alive = "running" if any(pid_alive(r / "worker.slot") for r in pending) else "queued"
+        print(f"{l['id']:<24} {alive:<8} runs={len(l['runs'])} cost=${l.get('total_cost_usd', 0)} "
+              f"exit={last.get('exit_code')} {l['title'][:50]}")
+
+
+def cmd_show(a):
+    print(json.dumps(find_lane(a), indent=2))
+
+
+def cmd_rm(a):
+    lane = find_lane(a)
+    repo, wt = lane["repo"], lane["worktree"]
+    if Path(wt).exists():
+        for rel in lane.get("links", []):
+            p = Path(wt) / rel
+            if p.is_symlink():
+                p.unlink()
+        sh(["git", "-C", repo, "worktree", "remove", "--force", wt])
+    subprocess.run(["git", "-C", repo, "branch", "-D", lane["branch"]], capture_output=True)
+    if a.purge:
+        shutil.rmtree(lane["state_dir"])
+    print(f"lane {lane['id']}: worktree and branch removed" + ("; receipts purged" if a.purge else
+          f"; receipts kept at {lane['state_dir']}"))
+
+
+def main():
+    p = argparse.ArgumentParser(prog="ds-lane", description=__doc__.split("\n\n")[0])
+    sub = p.add_subparsers(dest="cmd", required=True)
+    s = sub.add_parser("start")
+    s.add_argument("brief")
+    s.add_argument("--repo", default=".")
+    s.add_argument("--base", default="HEAD")
+    s.add_argument("--id")
+    s.add_argument("--max-steps", type=int, default=0)
+    s.add_argument("--link", action="append", default=[])
+    s.add_argument("--add-dir", action="append", default=[])
+    s.add_argument("--read-only", action="store_true",
+                   help="investigation lane: deliberately trigger Reasonix's session-wide write ban")
+    s.add_argument("--no-wait", action="store_true", help="return after launch; reattach with `wait`")
+    s.set_defaults(fn=cmd_start)
+    r = sub.add_parser("resume")
+    r.add_argument("id")
+    r.add_argument("followup")
+    r.add_argument("--repo", default=".")
+    r.add_argument("--max-steps", type=int, default=0)
+    r.add_argument("--no-wait", action="store_true")
+    r.set_defaults(fn=cmd_resume)
+    w = sub.add_parser("wait")
+    w.add_argument("id")
+    w.add_argument("--repo", default=".")
+    w.set_defaults(fn=cmd_wait)
+    x = sub.add_parser("_exec")  # internal: detached supervisor
+    x.add_argument("state")
+    x.add_argument("n", type=int)
+    x.set_defaults(fn=lambda a: exec_run(a.state, a.n))
+    for name, fn in (("list", cmd_list), ("show", cmd_show), ("rm", cmd_rm)):
+        c = sub.add_parser(name)
+        if name != "list":
+            c.add_argument("id")
+        c.add_argument("--repo", default=".")
+        if name == "rm":
+            c.add_argument("--purge", action="store_true")
+        c.set_defaults(fn=fn)
+    a = p.parse_args()
+    sys.exit(a.fn(a) or 0)
+
+
+if __name__ == "__main__":
+    main()
