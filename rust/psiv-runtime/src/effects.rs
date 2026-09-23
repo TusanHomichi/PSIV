@@ -1,6 +1,7 @@
-//! MapDataManager consumption: evaluating a map's flag-gated patches at
-//! build time, exactly when the cartridge does (`docs/MAP_EFFECTS.md` —
-//! load-time only, never re-evaluated on a flag change).
+//! Flag-gated map construction. `MapDataManager` entries run at load time;
+//! overworld page-loader hooks are a distinct source path folded into the
+//! native full-map build. Retail can replay those hooks on page streaming,
+//! which this full-map representation does not yet model mid-map.
 //!
 //! [`evaluate`] is pure: record + flag state in, an [`EffectOutcome`] out.
 //! The runtime applies the outcome while constructing the [`FieldMap`], so
@@ -31,16 +32,17 @@ pub struct EffectOutcome {
     /// source matches the variant's changed plane.
     pub variant: Option<usize>,
     /// Per-cell collision patches from active, collision-authoritative
-    /// `layout_write`s, applied to the (possibly variant) grid:
+    /// `layout_write`s or overworld page hooks, applied to the grid:
     /// `(x, y, collision_type)`.
     pub cell_patches: Vec<(u32, u32, u8)>,
-    /// Raw collision-plane chunk replacements from active layout writes:
+    /// Raw collision-plane chunk replacements from active layout writes or
+    /// overworld page hooks:
     /// `(chunk_x, chunk_y, chunk_id)`. Vehicle battle background selection
     /// reads this identity before collision decoding.
     pub chunk_patches: Vec<(u32, u32, u16)>,
     /// Patch tiles the renderer blits over the baked map PNG for active
-    /// `layout_write`s: `(chunk_x, chunk_y, atlas_index)`. Emitted for
-    /// picture-only writes too — the picture is the point there.
+    /// `layout_write`s and overworld page hooks: `(chunk_x, chunk_y,
+    /// atlas_index)`. Emitted for picture-only writes too.
     pub patch_blits: Vec<(u32, u32, u32)>,
     /// Active `layout_write`s the pack has not yet resolved into cells —
     /// gameplay-affecting and *unapplied*. Must be surfaced, never silent.
@@ -94,6 +96,29 @@ fn gate_holds(gate: &EffectGate, game: &GameState, unknown: &mut Vec<String>) ->
 pub fn evaluate(record: &MapRecord, game: &mut GameState) -> EffectOutcome {
     let mut out = EffectOutcome::default();
     let object_count = record.npcs.len();
+
+    // The overworld page-copy hook precedes MapDataManager in the cartridge's
+    // map load. In particular, a later flag_clear must not undo a page patch.
+    if let Some(patches) = &record.overworld_patches {
+        for patch in patches {
+            if !game.is_set(Flag::event(patch.event_flag)) {
+                continue;
+            }
+            for tile in &patch.tiles {
+                for (index, collision) in tile.collision.iter().copied().enumerate() {
+                    out.cell_patches.push((
+                        tile.chunk_x * 2 + index as u32 % 2,
+                        tile.chunk_y * 2 + index as u32 / 2,
+                        collision,
+                    ));
+                }
+                out.chunk_patches
+                    .push((tile.chunk_x, tile.chunk_y, tile.collision_chunk_id));
+                out.patch_blits
+                    .push((tile.chunk_x, tile.chunk_y, tile.patch_tile));
+            }
+        }
+    }
 
     'entries: for entry in &record.map_effects {
         if !entry.decoded {
@@ -365,6 +390,141 @@ mod tests {
         let record = record_with(vec![effect], 5);
         let out = evaluate(&record, &mut GameState::new());
         assert_eq!(out.unknown_banks, vec!["town_flags".to_string()]);
+    }
+
+    #[test]
+    fn motavia_page_hook_opens_only_with_saved_flag_and_survives_map_refreshes() {
+        let pack = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("pack absent; skipping");
+            return;
+        }
+        let data = psiv_data::GameData::load(pack).expect("current pack loads");
+        let record = data.map(psiv_data::MapId(0)).expect("Motavia");
+        let crossing = psiv_core::Cell::new(84, 66);
+        let mut game = GameState::new();
+        let closed = evaluate(record, &mut game);
+        assert!(
+            !closed
+                .patch_blits
+                .iter()
+                .any(|&(x, y, _)| (x, y) == (42, 33))
+        );
+        assert_eq!(
+            crate::field_map_patched(record, Some(&closed))
+                .unwrap()
+                .collision_at(crossing),
+            Some(psiv_core::CollisionType::Water)
+        );
+
+        game.set(Flag::event(0x35)).unwrap();
+        let opened = evaluate(record, &mut game);
+        assert!(
+            opened
+                .patch_blits
+                .iter()
+                .any(|&(x, y, _)| (x, y) == (42, 33))
+        );
+        assert!(opened.chunk_patches.contains(&(42, 33, 0x48)));
+        assert_eq!(
+            crate::field_map_patched(record, Some(&opened))
+                .unwrap()
+                .collision_at(crossing),
+            Some(psiv_core::CollisionType::Normal)
+        );
+        let saved = game.snapshot();
+        let mut restored = GameState::from_snapshot(&saved);
+        let after_continue = evaluate(record, &mut restored);
+        assert_eq!(after_continue.patch_blits, opened.patch_blits);
+        assert_eq!(after_continue.cell_patches, opened.cell_patches);
+
+        // This is an in-memory route fixture, not the connected campaign:
+        // ordinary Down input exits Zema onto Motavia. Battle return then
+        // rebuilds from the persistent event bank, not stale map pixels.
+        let mut rt = crate::Runtime::new(
+            data,
+            0,
+            psiv_core::Cell::new(84, 68),
+            psiv_core::Direction::Up,
+            psiv_core::StepFrames::default(),
+        )
+        .unwrap();
+        rt.game.set(Flag::event(0x33)).unwrap();
+        rt.game.set(Flag::event(0x34)).unwrap();
+        rt.game.set(Flag::event(0x35)).unwrap();
+        // RunEvent_ZemaIgglanovaDefeated (trigger $17) launches $8006 when
+        // $33 is set but $37 is clear. The connected post-Rika source already
+        // has $37; this in-memory fixture must retain that completed story gate.
+        rt.game.set(Flag::event(0x37)).unwrap();
+        // Establish the completed story flags before building Zema's cast.
+        rt.change_map_from(
+            psiv_core::MapId(0x24),
+            psiv_core::Cell::new(31, 49),
+            psiv_core::Direction::Down,
+            0,
+        )
+        .unwrap();
+        let arrived = (0..32).any(|_| {
+            rt.tick(psiv_core::Input::Direction(psiv_core::Direction::Down))
+                .iter()
+                .any(|event| {
+                    matches!(
+                        event,
+                        crate::RuntimeEvent::MapChanged {
+                            map: psiv_core::MapId(0),
+                            ..
+                        }
+                    )
+                })
+        });
+        assert!(
+            arrived,
+            "ordinary Zema exit input should enter Motavia; map={:?}, cell={:?}, scene={}, notice={:?}, suspended={}",
+            rt.map_id(),
+            rt.party.leader().cell(),
+            rt.scene.is_some(),
+            rt.field_notice(),
+            rt.field_suspended,
+        );
+        assert_eq!(
+            rt.map.collision_at(crossing),
+            Some(psiv_core::CollisionType::Normal)
+        );
+        assert!(
+            rt.effects
+                .patch_blits
+                .iter()
+                .any(|&(x, y, _)| (x, y) == (42, 33))
+        );
+        rt.refresh_field_after_battle().unwrap();
+        assert_eq!(
+            rt.map.collision_at(crossing),
+            Some(psiv_core::CollisionType::Normal)
+        );
+        assert!(
+            rt.effects
+                .patch_blits
+                .iter()
+                .any(|&(x, y, _)| (x, y) == (42, 33))
+        );
+        rt.game.clear(Flag::event(0x35)).unwrap();
+        rt.change_map_from(
+            psiv_core::MapId(0),
+            psiv_core::Cell::new(84, 68),
+            psiv_core::Direction::Up,
+            0x24,
+        )
+        .unwrap();
+        assert_eq!(
+            rt.map.collision_at(crossing),
+            Some(psiv_core::CollisionType::Water)
+        );
+        assert!(
+            !rt.effects
+                .patch_blits
+                .iter()
+                .any(|&(x, y, _)| (x, y) == (42, 33))
+        );
     }
 }
 

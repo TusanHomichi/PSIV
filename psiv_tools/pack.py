@@ -63,8 +63,10 @@ from .map_patches import (
     atlas_json,
     resolve_palette_effects,
     index_writes,
+    index_overworld_patches,
     patch_atlas,
     resolve_map_effects,
+    resolve_overworld_patches,
     scene_patch_chunks,
 )
 from .maps import extract_maps
@@ -502,6 +504,7 @@ def map_json(
     effects: Sequence[dict[str, Any]] = (),
     variants: Sequence[dict[str, Any]] = (),
     patch_tiles: dict[str, Any] | None = None,
+    overworld_patches: Sequence[dict[str, Any]] = (),
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """The runtime record for one map, and its warp anomalies.
 
@@ -509,12 +512,9 @@ def map_json(
     `None` when every tile it draws is below sprites. The key is always
     present, so a consumer tests its value rather than its existence.
 
-    `overworld` is set for the two paged maps and adds `layout_patches`: the
-    event-gated chunk writes their page loader performs after copying a page,
-    which is where five of their six doors come from. No other map carries the
-    key, because no other map has a loader step that writes `Map_Layout`. The
-    equivalent for interiors is `MapDataManager`, which this pack does not
-    decode for anyone.
+    `overworld` is set for the two paged maps and adds raw `layout_patches`
+    plus `overworld_patches`, their resolved flag-selected collision/composite
+    tiles. These are page-loader hooks, distinct from `MapDataManager` entries.
     """
     grid = decoded.collision
     layout = decoded.collision_layout
@@ -609,6 +609,7 @@ def map_json(
     }
     if overworld is not None:
         payload["layout_patches"] = [patch.to_json() for patch in overworld.patches]
+        payload["overworld_patches"] = list(overworld_patches)
     return payload, anomalies
 
 
@@ -770,6 +771,11 @@ def build_pack(
         map_effects, patched_chunks, patch_counts = resolve_map_effects(
             decoded, effects["per_map"].get(record["id"], [])
         )
+        overworld_patches, composite_pairs = resolve_overworld_patches(decoded, overworld)
+        if composite_pairs and overlay_image is None:
+            raise PackError(
+                f"map 0x{record['id']:03X}: overworld hook needs a base priority overlay"
+            )
         patched_chunks = sorted(set(patched_chunks) | set(scene_patch_chunks(rom_bytes, record)))
         # A path that copies a CRAM line repaints the NPCs drawn on it, and
         # nothing else -- map tiles cannot select the line these three copies
@@ -781,11 +787,12 @@ def build_pack(
         ).items():
             palette_totals[key] = palette_totals.get(key, 0) + value
         patch_tiles = None
-        if patched_chunks:
+        if patched_chunks or composite_pairs:
             patch_base, patch_over, patch_entries = patch_atlas(
-                decoded, patched_chunks, palette
+                decoded, patched_chunks, palette, composite_pairs
             )
             index_writes(map_effects, patch_entries)
+            index_overworld_patches(overworld_patches, patch_entries)
             patch_name = f"{MAPS_DIRECTORY}/{stem}{PATCH_SUFFIX}.png"
             patch_over_name = (
                 f"{MAPS_DIRECTORY}/{stem}{PATCH_SUFFIX}_over.png"
@@ -797,16 +804,17 @@ def build_pack(
             patch_tiles = atlas_json(
                 patch_entries, patch_name, patch_base, patch_over_name, patch_over
             )
-            patch_maps.append({
-                **_target(record), "writes": patch_counts["layout_writes"],
-                "chunks": len(patch_entries), "cells": patch_counts["cells"],
-                "has_overlay": patch_over is not None,
-            })
+            if patched_chunks:
+                patch_maps.append({
+                    **_target(record), "writes": patch_counts["layout_writes"],
+                    "chunks": len(patched_chunks), "cells": patch_counts["cells"],
+                    "has_overlay": patch_over is not None,
+                })
             for key, value in patch_counts.items():
                 patch_totals[key] = patch_totals.get(key, 0) + value
         payload, anomalies = map_json(
             record, decoded, png_name, sprites, overworld, png_over_name,
-            map_effects, variants, patch_tiles,
+            map_effects, variants, patch_tiles, overworld_patches,
         )
         bind_chest_sprites(rom_bytes, payload["treasure_chests"], palette_48,
                           record["general_var"], npc_sheets)

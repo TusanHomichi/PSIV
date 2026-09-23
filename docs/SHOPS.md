@@ -126,7 +126,7 @@ and use the alternate greeting text.
 
 ### What a night restores
 
-`RecoverStats` (`$0662FE`) → `DoCharRecovery` (`$066306`), per occupied party
+`RecoverStats` (`$0662DA`) → `DoCharRecovery` (`$066306`), per occupied party
 slot:
 
 - `curr_hp` ← `max_hp`

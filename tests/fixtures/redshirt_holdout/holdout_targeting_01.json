@@ -1,0 +1,26 @@
+{
+  "schema": "psiv-synthetic-battle-fixture-v1",
+  "id": "holdout_targeting_01",
+  "seed": 2263449488,
+  "party": {
+    "hp": 45,
+    "tp": 12,
+    "crosscut_uses": 1
+  },
+  "foes": [
+    {
+      "hp": 80,
+      "attack": 58,
+      "defence": 6,
+      "agility": 24,
+      "dexterity": 22
+    },
+    {
+      "hp": 170,
+      "attack": 34,
+      "defence": 8,
+      "agility": 16,
+      "dexterity": 14
+    }
+  ]
+}

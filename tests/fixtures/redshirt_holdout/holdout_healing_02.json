@@ -1,0 +1,19 @@
+{
+  "schema": "psiv-synthetic-battle-fixture-v1",
+  "id": "holdout_healing_02",
+  "seed": 3562265437,
+  "party": {
+    "hp": 20,
+    "tp": 9,
+    "crosscut_uses": 0
+  },
+  "foes": [
+    {
+      "hp": 68,
+      "attack": 34,
+      "defence": 10,
+      "agility": 16,
+      "dexterity": 18
+    }
+  ]
+}

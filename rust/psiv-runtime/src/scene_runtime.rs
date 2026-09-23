@@ -31,7 +31,7 @@ impl Runtime {
             let tile = atlas
                 .tiles
                 .iter()
-                .find(|tile| tile.chunk_id == id)
+                .find(|tile| tile.chunk_id == Some(id))
                 .ok_or_else(|| reject(format!("scene chunk {id:#04x} has no atlas tile")))?;
             let cells = tile.collision.ok_or_else(|| {
                 reject(format!("scene chunk {id:#04x} has no collision definition"))

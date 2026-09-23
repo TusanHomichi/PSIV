@@ -1,13 +1,18 @@
 # Native BioPlant progression
 
-**Verified checkpoint:** map `$A7`, cell `(68,66)`, with a fresh-process
-SAVE/CONTINUE check. The entrance, alarm and elevator route is playable.
-STATE/ORDER now works; the latest full-health checkpoint puts Gryz first
-and Hahn last, with exact save-byte and original-emulator checks below.
-The connected Rika run remains unfinished: the new formation wins six
-encounters and reaches `$A9`, but loses Hahn. All failed attempts are preserved;
-the healthy `$A7` elevator save remains the continuation source. The independent
-Rika scene fixture and its exact opening frame are separate evidence.
+**BioPlant checkpoint (2026-09-23):** the connected healthy `$A7` continuation
+reaches Rika, joins her to the original four-person party, and escapes to
+Motavia `$00 (99,83)` with everyone alive. Ordinary SAVE and fresh-process
+CONTINUE pass; one Down and SAVE 2 reach `(99,84)` with only the expected
+position and slot/checksum bytes changed. See the [current receipt](#connected-rika-continuation-2026-09-23).
+The original full-health `$A7 (68,66)` source and all failed attempts remain
+intact. Older failures and isolated visual fixtures below retain their own
+revision/input scope; they do not describe the new checkpoint.
+
+The subsequent [northern-crossing continuation](TRAVEL.md#post-rika-northern-crossing-2026-09-23)
+rests this same connected party in Zema and advances to Motavia `(84,64)`.
+It is the current campaign source; this ledger retains the unchanged BioPlant
+save and its original candidate/evidence scope.
 
 The connected campaign source is the restored-Zema save. Before the
 dungeon, `tools/native_zema_outfit.gd` uses ordinary inn, shop, equipment and
@@ -363,3 +368,176 @@ establish menu visual parity; this run verifies input, state and persistence.
 dictionary comparison rejected integer zero against JSON floating-point zero.
 The assertion now preserves the decoded numeric type; the corrected run passes.
 No Rust or pack changes were needed, and no further dungeon trial was started.
+
+## Connected Rika continuation (2026-09-23)
+
+This bounded continuation starts from the healthy Gryz-leading `$A7 (68,66)`
+save above, not the partial-health recovery fixture. Acceptance is an ordinary
+route through Rika's join and escape, the original four members alive with
+Rika added in slot 5, event flags `$34/$35`, Motavia `$00`, normal SAVE, and
+fresh-process CONTINUE with state and resources preserved. The retail basis
+is [Meeting Rika](scenes/30_MeetingRika.md): join at `$07484E..$074853`, escape
+flag at `$074890..$074899`, joined flag at `$074A2E..$074A35`, and final map
+load at `$074A36..$074A65`. This does not certify whole-scene presentation.
+
+### Candidate and preserved failure
+
+Base revision is `501fcdddb8b922f5d6001c2c4f777c955f66ab65`; the only executable
+change is normal dialogue input in `tools/native_bioplant.gd`. The frozen
+driver SHA256 is
+`aace43a6415ae300aa42274b74f17802960c24eef0268514076f4a0add832fe3`.
+The current-source extension build passed and remains SHA256
+`836f59d181658262432a59a8ff489f00c3bee5646833fd27a34e4c641ab8dc6c`.
+The full pack manifest remains `1d145dff...`; the protected source save remains
+`f3e721e6...` (full hashes above and in the input receipt).
+
+All new raw evidence lives under ignored `build/native-bioplant-20260923/`.
+`inputs.json`, `build-receipt.json`, `candidate-review.json` and per-attempt
+`source.json` record actual revisions, hashes, commands and environment.
+Driver snapshots accompany each attempt. These local inputs and receipts are
+not included in a fresh clone.
+
+`attempt-01/` won three encounters and reached Rika's first dialogue with
+HP `[73,61,53,45]`, TP `[6,22,1,24]` and 1203 meseta. The ready page never
+advanced: the shared route driver waits during dialogue and this subclass
+did not submit a normal confirm. The parent stopped only that owned process
+group after 361.642577 seconds (process status `-15`), preserving
+`dialogue-stall.json`, logs and its ordinary `$AC (25,35)` checkpoint:
+`route/saved-map-0AC.sram`, SHA256
+`7f56bf356d4843140df0fc977c3264617a6d990f9ca125144776564721d8fe30`.
+This is a preserved driver failure, not a completed route or a combat defect.
+
+The repair submits `ui_accept` only on ready, non-choice dialogue pages,
+respecting held-key release and cooldown. It logs/counts ordinary accepts in
+the final route state. No battle strategy, Rust rule or pack changed, and no
+party resources were injected. Scene auto-close and scene injection are disabled.
+The rerun starts again from the original healthy `$A7` source.
+
+The bounded helper was explicitly requested as `gpt-6-luna` / `max`; child
+executor metadata was not exposed, so the requested route is not independent
+proof of its actual model. Parent `gpt-6-astra` / `max` reviewed the source
+findings and exact diff, owns native verification and integration, and labels
+that review as self-review of the integrated candidate. Sol and DeepSeek were
+not needed. The helper's artifacts and parent parse/whitespace checks agree;
+the following native gates independently verify its substantive result.
+
+### Completed route and restart
+
+`attempt-02/route/route.json` records three victories, two ordinary ANTI cures,
+115 normal dialogue accepts and a successful SAVE. Rika joins the loaded
+party `[Gryz, Alys, Chaz, Hahn]` as its fifth member. At Motavia `$00 (99,83)`,
+the saved party has HP `[73,61,53,45,39]`, TP `[6,22,1,24,25]`, all persistent
+status bytes zero, flags `$34/$35`, and 1203 meseta. The original four members'
+status/resources and the inventory match the pre-scene `$AC` checkpoint.
+Chaz still has all six EARTH charges; this result required no tactical change.
+
+The final ordinary save is `attempt-02/saves/slot_1.sram`, SHA256
+`49dda77fae6dc79bb7a2ea8e6b249b2b3202f8e61ee9b7bb44c3626aee4d3790`.
+The completed route receipt SHA256 is
+`365cff345cd24df77161c8cfb5d14e2afa6f6510746761f1701762e5b813996c`.
+
+`continue-01/` starts a separate process and a separate copy of that save.
+Title CONTINUE preserves party/resources/inventory/flags; ordinary Down moves
+to `(99,84)`, followed by SAVE 2. `tools/verify_native_continue.py` passes:
+only logical payload byte `$309` changes, `48 -> 64`, plus header offsets
+`$13..$17` for the slot and valid checksums. Both source copies are unchanged.
+The resaved slot 2 SHA256 is
+`6f1caeda94831a3fd44354d89f71976f4b396db31cf8e2fb0640fa4a885b43f4`;
+`continue-01/flow/validation.json` is
+`7f3c0fc99dd112802ee4cb2aed3240e3eb37b689d88ca2c56af8c805708241c5`.
+
+| Local check | UTC start -> finish on 2026-09-23 | Seconds | Exit |
+| --- | --- | ---: | ---: |
+| `CARGO_BUILD_JOBS=1 cargo build --manifest-path rust/Cargo.toml -p psiv-godot` | 15:59:39.989873 -> 15:59:40.816084 | 0.826222 | 0 |
+| Godot `--headless --check-only` on the repaired BioPlant script | 16:13:13.860057 -> 16:13:14.207786 | 0.347731 | 0 |
+| Connected `attempt-02` | 16:13:19.588264 -> 16:19:57.589290 | 398.001031 | 0 |
+| Fresh `continue-01` | 16:22:03.131399 -> 16:22:21.489316 | 18.357920 | 0 |
+| Existing save-byte validator | 16:22:21.489611 -> 16:22:21.604015 | 0.114417 | 0 |
+
+Native commands use Godot `4.7.1.stable.official.a13da4feb`, Xvfb, software
+GL, Dummy audio, `--fixed-fps 8`, `--disable-vsync` and `1280x800` resolution.
+Each wrapper strips inherited `PSIV_*` variables, supplies an isolated
+`PSIV_SAVE_DIR`, and enables only the read-only `PSIV_DEBUG_ROUTE` probe and
+the driver's documented route/continue configuration. The original source is
+copied before launch, never edited. Exact argument arrays and environment
+are in the per-run receipts; local orchestration commands were:
+
+```bash
+python3 build/native-bioplant-20260923/run_attempt.py attempt-02
+python3 build/native-bioplant-20260923/run_continue.py
+```
+
+Those ignored wrappers are evidence helpers, not installed automation or
+fresh-clone prerequisites. The tracked entrypoints are
+`tools/native_bioplant.gd`, `tools/native_continue.gd` and
+`tools/verify_native_continue.py`; copy the recorded configuration to a new
+output directory when reproducing. The latter's exact invocation is in
+`continue-01/receipt.json`.
+
+Parent inspected the 1280x800 Rika-panel, FILE SAVED and fresh-continued
+field captures. The dialogue capture can land after the confirm cleared its
+text, so it is not a matched ready-page frame. No new original-game visual,
+animation-timing or audio parity is claimed. Xvfb input-method/VSync warnings
+and the Godot exit warning about one ObjectDB instance remain in the logs;
+they did not fail these gates. No Rust gameplay source changed, so the historical
+full Python/Rust/Clippy/oracle results were not rerun or relabeled. Documentation
+links/commands, whitespace, final diff and artifact read-back close this task.
+
+This closes the connected BioPlant milestone for the recorded source, driver,
+input and route. It is not a full-campaign or broad survival-rate claim.
+At this gate's closure, campaign changes were local and uncommitted; the
+docs-only PR authority did not extend to them. A later explicit owner request
+authorized integration. The original source and all attempts are retained.
+
+### Archived BioPlant task graph
+
+The owner's 2026-09-23 continuation and unlimited scoped-repair decision own
+this completed graph. The separate workflow-docs PR grant did not authorize
+campaign publication. Gates, failures and review are recorded above.
+
+```yaml
+outcome: "Continue the healthy A7 save through Rika join/escape and fresh-process CONTINUE"
+canonical_record: "docs/BIOPLANT_NATIVE.md#archived-bioplant-task-graph"
+base_revision: "501fcdddb8b922f5d6001c2c4f777c955f66ab65"
+scope: "Ordinary-input campaign continuation and scoped source-backed repairs; no debug state injection"
+effort_policy: "Owner 2026-09-23: scoped repairs until acceptance passes; no fixed cycle limit"
+common_inputs: ["docs/BIOPLANT_NATIVE.md", "docs/DEVELOPMENT.md", "tools/native_bioplant.gd"]
+next_action: "Closed; see the roadmap for the separately assigned Redshirt assessment"
+nodes:
+  - id: BP-01
+    outcome: "Re-anchor and isolate the healthy Gryz-leading A7 checkpoint"
+    depends_on: []
+    owner: "gpt-6-astra / max; bounded source acceptance audit by gpt-6-luna / max"
+    inputs: ["build/native-order/native-final/saves/slot_1.sram", "runtime-pack/manifest.json", "common_inputs"]
+    acceptance: "Expected save/ROM/pack hashes match; current-source extension builds; copied save and launch configuration are recorded"
+    state: verified
+    evidence: ["build/native-bioplant-20260923/inputs.json", "build/native-bioplant-20260923/build-receipt.json", "build/native-bioplant-20260923/attempt-01/source.json"]
+    effort_policy: inherited
+  - id: BP-02
+    outcome: "Reach Rika and escape with the campaign party alive through ordinary inputs"
+    depends_on: [BP-01]
+    owner: "gpt-6-astra / max orchestration and review; gpt-6-luna / max bounded driver repair"
+    inputs: ["BP-01 receipt", "tools/native_bioplant.gd", "retail-backed join/escape acceptance"]
+    acceptance: "Completed route receipt, expected party and story flags, surviving members and an ordinary saved checkpoint; failed attempts retained"
+    state: verified
+    evidence: ["build/native-bioplant-20260923/attempt-01/dialogue-stall.json", "build/native-bioplant-20260923/candidate-review.json", "build/native-bioplant-20260923/attempt-02/receipt.json", "build/native-bioplant-20260923/attempt-02/route/route.json"]
+    effort_policy: inherited
+  - id: BP-03
+    outcome: "Prove the escaped checkpoint persists through a fresh process"
+    depends_on: [BP-02]
+    owner: "gpt-6-astra / max (serialized native gate)"
+    inputs: ["BP-02 save/hash/route receipt", "tools/native_continue.gd", "tools/verify_native_continue.py"]
+    acceptance: "Fresh title CONTINUE retains party/resources/inventory/flags; safe ordinary movement and new-slot SAVE pass byte-level validation"
+    state: verified
+    evidence: ["build/native-bioplant-20260923/continue-01/receipt.json", "build/native-bioplant-20260923/continue-01/flow/validation.json"]
+    effort_policy: inherited
+  - id: BP-04
+    outcome: "Review applicable checks, preserve receipts and close the campaign milestone honestly"
+    depends_on: [BP-03]
+    owner: "gpt-6-astra / max"
+    inputs: ["final diff and exact inputs", "BP-01/BP-02/BP-03 receipts", "applicable source/native checks"]
+    acceptance: "Required focused/full gates for actual changes pass; captures inspected within stated scope; ledger and overview updated; graph archived and owned processes stopped"
+    state: verified
+    evidence: ["build/native-bioplant-20260923/final-receipt.json", "build/native-bioplant-20260923/readback.json"]
+    effort_policy: inherited
+```

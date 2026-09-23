@@ -36,6 +36,11 @@ coverage and is useful for development, but is not the full campaign pack.
 The ROM, disassembly checkout and generated pack are local inputs/outputs;
 they are excluded from Git.
 
+The 2026-09-23 overworld repair requires the resolved `overworld_patches` and
+composed base/priority atlas data. Older packs fail with an explicit rebuild
+message; rerun the full pack command above. Preserve any pack used by retained
+evidence before regeneration. See [map effects](MAP_EFFECTS.md#12-native-overworld-page-hook-consumption-2026-09-23).
+
 ## Launch the native game
 
 Close any running PSIV/Godot instance before rebuilding its loaded extension.
@@ -77,6 +82,31 @@ Rust tests avoid the memory pressure seen when many pack-loading cases run
 together. Tests requiring local assets may fail or explicitly skip when their
 fixtures are absent; report that distinction with the result.
 
+### Optional Redshirt adapter
+
+The [battle-decision experiment](REDSHIRT_BATTLE.md#reproduce-the-optional-adapter-checks)
+documents the pinned shared checkout, example build and focused Python checks.
+It needs Python 3.11+ and a separately built `redshirt_battle` example. Ordinary
+test discovery explicitly skips the adapter tests when these optional
+prerequisites are absent; the enabled acceptance lane must run every test.
+Neither tests nor replay make live model calls. The playable game has no
+Redshirt or model-service dependency.
+
+The [survival-pressure fixtures and portable manifest](../tests/fixtures/redshirt_pressure/manifest.json)
+are authored synthetic inputs, not extracted assets. Their
+[reproduction commands](REDSHIRT_BATTLE.md#reproduce-the-survival-pressure-trial)
+use an isolated Rust target so the first experiment's binary stays intact.
+The adapter defaults to `--briefing minimal`; `--briefing mechanics-v1` adds
+source-verified synthetic battle rules without changing the engine or menu.
+The [information-ablation receipt](REDSHIRT_BATTLE.md#mechanics-briefing-results)
+keeps both modes, exact source identity and live usage separate.
+`--baseline threat` enables the optional visible-state threat/skill heuristic;
+the default remains `projected`. The [fresh-case index](../tests/fixtures/redshirt_holdout/index.json)
+and four adjacent portable manifests preserve the 24-case follow-up recipe.
+Each manifest contains six fresh cases and two explicitly disclosed old
+calibration cases. Use `mechanics-v1` for this comparison, preserve the declared
+case set, and keep live requests separate from model-free tests and replay.
+
 ## Native and original-game comparisons
 
 `tools/native_*.gd` drives ordinary Godot input and reads runtime observations.
@@ -84,6 +114,7 @@ Some drivers use isolated fixtures; others continue a saved campaign. Their
 ledgers identify which kind of evidence each run supplies.
 
 - [BioPlant and recovery](BIOPLANT_NATIVE.md)
+- [Post-Rika crossing and current campaign save](TRAVEL.md#post-rika-northern-crossing-2026-09-23)
 - [Party ORDER](PARTY_ORDER.md)
 - [Full native playability ledger](NATIVE_PLAYABILITY.md)
 - [Cartridge oracle setup](../oracle/README.md)

@@ -18,8 +18,9 @@ Extractor: `psiv_tools/map_effects.py`. Emission: per-map `map_effects` and
 | **B. Per-object live gating** | the object's own `FieldObjectsJmpTbl` routine | every frame | 4 routines |
 | **C. Overworld page hooks** | `loc_53BDC`/`loc_53CD4` jump tables | per 1KB page copy | 12 patches, maps 0–1 |
 
-Only **A** is this slice. **C** already ships as `layout_patches` on maps 0 and
-1. **B** is `FieldObj_EsperGuard`, `FieldObj_FellowPenguin`,
+Sections 2–11 describe the original **A** slice. **C** ships its raw source
+records as `layout_patches` on maps 0 and 1; the native consumer added on
+2026-09-23 is described in section 12. **B** is `FieldObj_EsperGuard`, `FieldObj_FellowPenguin`,
 `FieldObj_InnerEsperGuards` and `FieldObj_MuskCatGuard`, which test a flag
 inside their per-frame update; a despawn set computed at map build cannot
 express them, and they are Slice 3.
@@ -247,3 +248,39 @@ Every one is derived from the image at extraction time — the dispatcher names
 its own table, the flag blocks are read door by door, and `KosDecomp` is the
 routine the layout-replace sites agree on — so a ROM that disagrees fails
 rather than decoding something else.
+
+## 12. Native overworld page-hook consumption (2026-09-23)
+
+The connected post-Rika route exposed an omitted consumer: the pack already
+decoded the page hooks, but `MapRecord` discarded them and the runtime built
+the unpatched world. With `$35` set, the party still stopped at Motavia
+`(84,68)` below a broken bridge. The retained failure is
+`build/native-post-rika-20260923/attempt-02/route/failure.json`.
+
+US retail `loc_53D16` at `$053D16..$053D39` tests event `$35`, clears FG chunk
+`(42,33)` to `$00`, and writes BG chunk `$48`. The four collision cells
+`(84..85,66..67)` change from water `$9` to normal `$0`. The inn and route
+conditions, connected input result and SAVE/CONTINUE receipts belong in the
+[travel ledger](TRAVEL.md#post-rika-northern-crossing-2026-09-23).
+
+`resolve_overworld_patches` retains the raw hook list and emits a separate
+`overworld_patches` list. Each flag group folds its ordered plane writes over
+the base FG/BG pair at every touched coordinate. The resolved tile carries
+both final chunk IDs, four collision nibbles, the collision-authoritative raw
+chunk ID and a composed atlas index. Atlas tiles for these pairs have
+`chunk_id: null`; they cannot masquerade as a raw scene/MapDataManager chunk.
+The base and priority PNGs both replace their full 32×32 area, including
+transparent priority pixels that erase the old overlay.
+
+Rust validates the raw/resolved correspondence, flag and coordinate bounds,
+collision authority, atlas references and coverage. Unsupported cross-flag
+overlaps fail explicitly; the current 9 Motavia and 3 Dezolis source records
+contain none. Old overworld packs missing the resolved data fail with rebuild
+guidance. Regenerate the **full** pack using [DEVELOPMENT.md](DEVELOPMENT.md#prepare-the-local-pack).
+
+`effects::evaluate` applies these results before MapDataManager effects on map
+construction, normal entry and battle refresh. Godot uses its existing atlas
+blitter; it owns no story flag or collision rule. This full-map representation
+does **not** reproduce retail page streaming after a flag changes while the
+same map remains loaded. Later dynamic chunk-definition writes, live object
+gating and whole-overworld visual parity remain separate work.

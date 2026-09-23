@@ -9,12 +9,14 @@
 - [Evidence-driven workflow, authority and handoff](AGENT_WORKFLOW.md)
 - [Canonical task graph handoff](ROADMAP.md#task-graph-handoff)
 - [Workflow setup evidence and archived graph](WORKFLOW_SETUP.md)
+- [Redshirt battle-decision experiment](REDSHIRT_BATTLE.md)
 - [MIT License](../LICENSE)
 
 ## Current campaign evidence
 
 - [Native playability ledger](NATIVE_PLAYABILITY.md) — connected routes, fixes and verification history.
-- [BioPlant checkpoints](BIOPLANT_NATIVE.md) — the latest saves, unsuccessful onward run and bounded poison-recovery proof.
+- [BioPlant checkpoints](BIOPLANT_NATIVE.md) — connected Rika escape, ordinary SAVE/fresh CONTINUE, poison recovery and retained failed attempts.
+- [Post-Rika northern crossing](TRAVEL.md#post-rika-northern-crossing-2026-09-23) — current Motavia north-bank save, paid recovery, repaired overworld bridge, restart bytes and bounded visual proof.
 - [Party ORDER](PARTY_ORDER.md) — original rules, native input and exact menu-region comparisons.
 - [Progression](PROGRESSION.md) — learning, skill uses and saved character growth.
 
