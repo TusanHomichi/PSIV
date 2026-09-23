@@ -1,25 +1,114 @@
-# Contributing with an LLM or coding agent
+# Evidence-driven agent workflow
 
 [Project instructions](../AGENTS.md) · [Setup and checks](DEVELOPMENT.md) ·
 [Roadmap](ROADMAP.md) · [Documentation index](README.md)
 
-Start an agent with the repository's `AGENTS.md`. If your tool does not load
-that file, explicitly ask it to read it. Keep durable instructions there;
-avoid maintaining separate, conflicting copies for individual tools.
+This is PSIV's standing default. Durable rules live in `AGENTS.md`, current
+playable scope in the project README, and the work queue and canonical graph
+pointer in the roadmap. Subsystem ledgers retain measured history. Do not
+create a second tracker or copy changing campaign status into instructions.
+The [setup ledger](WORKFLOW_SETUP.md) records adoption and host verification.
+This procedure is guidance, not an automatic dispatcher, restart service or
+enforcement system. No new framework, dashboard or CI is required.
 
-## Give it a bounded task
+## Start and select work
 
-Name a behavior, a relevant source/ledger, and an observable completion check.
-For example:
+Inspect the applicable global/project instruction chain, including overrides,
+working tree, worktrees and relevant processes. After interruption, also inspect
+the exact candidate revision and fresh receipts before restarting a job; a
+disconnected monitor does not mean its child exited. Read task-relevant source,
+architecture and ledger corrections, not every historical log.
 
-> Read AGENTS.md and docs/PARTY_ORDER.md. Investigate the reported ORDER cancel
-> regression against the existing rules and tests. Reproduce it before changing
-> behavior, keep the fix scoped, and report the checks you actually ran. Preserve
-> all local saves and unrelated edits.
+State one bounded outcome, exclusions and an observable acceptance check before
+editing. Astra selects a ready authorized task from the canonical graph. A small
+independent change needs only a short plan and receipt. Keep one next action;
+do not turn a new idea into an implicit milestone or reset the effort policy.
 
-That is an example task prompt, not a report of a known current regression.
-For current work, choose an open item from the roadmap. Include the desired
-commit/push scope and any time or compute limit in your task prompt.
+PSIV currently uses roadmap/subsystem handoffs. The setup inspection found no
+GitHub issues, PRs, templates or hosted workflows; that is a dated observation,
+not a permanent prohibition. Reuse an established issue/PR if one later owns
+the work, and link to it from the roadmap instead of duplicating its graph.
+
+## Models and delegation
+
+| Role | Explicit requested route | Responsibility |
+| --- | --- | --- |
+| Primary | `gpt-6-astra` / `max` | Conversation, planning, architecture, difficult decisions, graph selection/review and integration |
+| Implementation | `gpt-6-sol` / `max` | Complex implementation, substantial refactoring and difficult debugging |
+| Bounded work | `gpt-6-luna` / `max` | Exploration, routine edits, tests, log triage and documentation |
+| Optional helper | Record the actual DeepSeek model, effort and direct route | Narrow supervised work with a concrete benefit; never primary design/integration |
+
+These are the owner's chosen roles, not a universal ranking. A parent may handle
+a small task directly when delegation adds no value; record the actual route.
+Do not create work merely to exercise a model. Verify substantive helper results
+independently and record corrections/reliability, including rejected output.
+
+Specify model and effort in the host's launch controls. Record requested versus
+actual values from host/session metadata; a catalog proves advertisement, not
+successful execution. If a route is unavailable, report it and continue only
+independent work without silently substituting. A prompt or `AGENTS.md` cannot
+switch an already running model. Do not edit global settings to satisfy this
+project's role preferences.
+
+Each delegation names exact inputs, acceptance, owned files, forbidden writes,
+mutable resources and concurrency constraints. Tell workers to preserve others'
+changes. Use disjoint ownership or isolated worktrees when needed. The parent
+reviews artifacts and raw checks, not just completion messages. After any failed
+batch inspect all completed children before choosing scoped repairs. Stop or
+collect owned children before integration; never commit a moving shared tree.
+
+## Authority, effort and continuation
+
+Source: the owner's workflow-setup request, repair-budget reply and subsequent
+docs PR/merge/cleanup authorization on 2026-09-23, together with the existing
+PSIV input-protection rules. Later explicit
+PSIV authorization persists; record its source here or in the canonical task.
+Another repository's grants, an available tool or a permissive sandbox confer
+no project authority.
+
+| Area | Standing record |
+| --- | --- |
+| Scope | Implement and verify this documentation setup. Future assigned PSIV tasks include necessary local edits, focused checks and scoped repairs; preserve unrelated work. |
+| Local setup | Use documented prerequisites or isolated local dependencies before declaring a missing preinstalled tool unavailable. Do not modify unrelated system configuration. |
+| Git / remote writes | The owner authorized committing, publishing a PR, merging and owned cleanup for these workflow docs on 2026-09-23. This is not a standing remote-write grant for campaign changes. Reuse explicit task authorization without asking again. Remote inspection is allowed. |
+| Cleanup | Remove only owned disposable outputs/processes and, when integration includes it, owned task branches/worktrees. Retain receipts, source saves and other people's work. No broad cleanup. |
+| Deployment / publication | Releases, deployment and asset distribution are outside this setup; no standing grant recorded. |
+| Paid services | Normal requested work in the active host is in scope. No new paid service, credit purchase or external paid-provider run is authorized by this setup. |
+| Protected inputs | ROM, disassembly, packs, saves and captures remain local/ignored. Copy and hash source saves; set `PSIV_SAVE_DIR`. Never overwrite the only verified checkpoint or force-add protected assets. |
+| Effort | Owner: "Continue scoped repairs until it passes, with no fixed cycle limit." Applies to failures of accepted checks inside authorized scope. It does not waive source, permission, resource or input constraints. |
+| Continuation | The original setup graph covers local documentation acceptance; the authorized publication follow-through is recorded in the setup ledger. BioPlant continuation was assigned separately and must not be bundled into the docs PR. During an assigned outcome, continue ready authorized nodes through its agreed endpoint without repeated approval requests. |
+
+An observed failure leads to a scoped repair and rerun of affected checks. A
+missing source/input or genuine authority boundary gets a specific blocker,
+not an invented result or repeated blind retries. Complete independent
+preparation before asking for the blocking decision; any necessary approval
+should concern a concrete reviewable result. New tasks cannot silently reset a
+budget, weaken a gate, expand scope or grant permissions through graph edits.
+
+## One canonical task graph
+
+For substantive dependent work, put the graph in its existing issue or handoff;
+otherwise use the roadmap's **Task graph handoff** section. Link that location
+from the roadmap. Common inputs and policy may be inherited. Each node records:
+
+| Field | Required content |
+| --- | --- |
+| ID / outcome | Stable ID and one concrete observable result |
+| Dependencies | IDs whose verified acceptance unlocks this node |
+| Owner | Assigned person/model and effort; actual route if different |
+| Inputs | Relevant issue/design/source/ledger references and candidate identity |
+| Acceptance | Exact command or observation, expected result and evidence type |
+| State | `pending`, `ready`, `in_progress`, `blocked` or `verified` |
+| Evidence | Actual receipts, failures/skips, review and artifact references |
+| Effort | Explicit local policy or inheritance with its source |
+
+Astra reviews graph edits and selects nodes only when dependencies are verified.
+`blocked` names the missing evidence/decision. A check failure returns its node
+to repair; invalidate dependent acceptance affected by changes. Do not mark a
+node verified because its worker stopped or its budget expired. Preserve stable
+IDs and failure history. Archive a completed graph in its owning ledger/closed
+issue before advancing, remove its active duplicate, and retain one next action.
+The [setup graph](WORKFLOW_SETUP.md#setup-graph) is the first real worked example.
 
 ## Find the smallest useful verification
 
@@ -46,6 +135,20 @@ These examples do not cover every change. The full Python/Rust/format/Clippy
 commands live in the setup guide. Oracle setup and its fast/full lanes live
 in [oracle/README.md](../oracle/README.md). Do not rerun expensive suites after
 an unchanged, applicable pass without a new reason.
+
+Run the cheapest useful existing check during development. Add feedback only
+when a concrete observation is missing; introduce a new correctness check with
+a meaningful negative control. Repair real failures without rewriting evidence.
+Review and freeze a candidate (commit, or base commit plus exact patch and
+changed-file hashes) before expensive gates. A relevant code, test or gate-input
+change invalidates affected acceptance; rerun it and retain the earlier receipt
+under its original candidate identity.
+
+Full Python, Rust and oracle jobs stay serialized under PSIV's resource rules.
+When PR publication is authorized, independent local and hosted checks may run
+concurrently, with isolated outputs, databases, ports and mutable build inputs.
+Keep local/default/browser/hosted results separate. A docs check is no gameplay
+test, and a hosted pass does not replace native or cartridge evidence.
 
 ## Reproduce without damaging the checkpoint
 
@@ -77,10 +180,12 @@ Files changed and why:
 Retail basis (symbols/offsets, ledger references):
 Environment (tool versions, executable, viewport):
 Inputs (pack identity, source save hash, fixture assumptions):
-Commands actually run:
-Results (passed / failed / skipped / not run):
+Requested and actual model/effort; ownership and authority source:
+Commands actually run, cwd, UTC start/end, elapsed time and exit status:
+Results (passed / failed / skipped / not run), raw log paths and hashes:
 Evidence type (state / native input / persistence / visual comparison):
 Outputs (local paths and hashes, resulting party/map/flags where relevant):
+Review (self / independent, reviewer, candidate, findings and corrections):
 Known limits and remaining failures:
 Next concrete step:
 Git state (commit/push status and any remaining edits):
@@ -90,3 +195,36 @@ For a small docs fix, omit irrelevant gameplay fields. For a campaign milestone,
 retain enough input and save provenance to distinguish a continuation from an
 isolated fixture. Keep dated historical results intact and add corrections
 explicitly when new evidence overturns an earlier interpretation.
+
+Generate revisions, hashes, timing, statuses and receipts from actual artifacts;
+do not fill them from recollection. Read raw outputs and read back the archive.
+Claim speedups only from comparable completed measurements, with their scope.
+ROM-derived logs/captures stay ignored; commit concise provenance and reproduction
+commands. Local evidence may be absent from another checkout: say so explicitly.
+
+## Review, integration and procedure changes
+
+Review both diff and behavior, label self-review versus independent review, and
+resolve material findings before acceptance. Once permitted, continue through
+PR, merge, exact-main verification, evidence archive/read-back and owned cleanup.
+Verify affected checks against the integrated main revision; a candidate's old
+receipt is not an exact-main pass. Inspect final Git/worktree/process state and
+continue the next ready authorized node. If integration was not requested, leave
+a verified local result and report that boundary without inventing an approval gate.
+
+Improve this procedure from observed problems: record the problem, smallest
+change, review and verification in the relevant existing ledger. Do not weaken
+checks or claim automatic dispatch/restart/enforcement without a working executor
+and a verification result.
+
+## Instruction loading
+
+Codex loads its global instructions and the project chain at session startup;
+`AGENTS.override.md` takes precedence at its directory level. A linked generic
+Markdown procedure is not automatically loaded: `AGENTS.md` explicitly routes
+agents here. Check configured fallback names and instruction byte limits when
+applicable. Verify the effective chain in a fresh session when supported, and
+record any unverified host separately. Do not conflate a successful CLI check
+with every IDE or app host. See the official
+[AGENTS.md guidance](https://learn.chatgpt.com/docs/agent-configuration/agents-md)
+and [Astra instruction guidance](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra).
