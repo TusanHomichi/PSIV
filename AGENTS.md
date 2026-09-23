@@ -7,39 +7,46 @@ base-game playthrough.
 
 ## Start here
 
-1. Read [README.md](README.md) and [the roadmap](docs/ROADMAP.md) for current scope.
-2. Check `git status --short --branch` and the relevant source before editing.
-   Preserve unrelated work and identify any active build/game processes.
-3. Read [development setup](docs/DEVELOPMENT.md), then the relevant subsystem
-   ledger from [the documentation index](docs/README.md).
-4. Use [the agent workflow](docs/AGENT_WORKFLOW.md) for task selection,
-   verification and handoffs. A dated result describes its recorded revision;
-   refresh evidence before claiming it applies to your change.
+Check applicable instructions (including `AGENTS.override.md`),
+`git status --short --branch`, worktrees and relevant build/game processes before
+editing. Preserve others' changes. Use [README.md](README.md) for current scope,
+[the roadmap](docs/ROADMAP.md) for the canonical task-graph pointer, and
+[the workflow](docs/AGENT_WORKFLOW.md) for planning, authority, evidence and handoff.
+Read only the relevant [subsystem ledger](docs/README.md) and source; use
+[DEVELOPMENT.md](docs/DEVELOPMENT.md) when preparing checks and
+[RUNTIME_DESIGN.md](docs/RUNTIME_DESIGN.md) for layer boundaries.
 
-Dated research and verification ledgers retain their measurement context.
-Follow explicit corrections in the ledgers; resolve contradictions against
-source and fresh observations. Do not infer
-campaign completion from extracted data or transcribed scenes.
+Define an observable outcome and acceptance before implementation. Substantive
+dependent work uses one graph; simple changes use a short plan. Verified results
+unlock dependencies. New ideas do not change scope, permissions or acceptance.
 
-## Put changes in the right layer
+## Model roles
 
-| Layer | Responsibility |
-| --- | --- |
-| `psiv_tools/`, `tests/` | Python ROM decoding, extraction, pack generation and their tests |
-| `rust/psiv-data/` | Typed pack schema, loading and validation |
-| `rust/psiv-core/` | Deterministic game rules and state; keep engine types and presentation out |
-| `rust/psiv-runtime/` | Orchestration, persistence integration and presentation-facing API |
-| `rust/psiv-godot/`, `godot/` | Godot bridge, rendering, menus and input |
-| `rust/psiv-sound/` | Sound driver and chip emulation |
-| `oracle/`, `tools/` | Original-game comparisons, native input drivers and development fixtures |
+Select model and effort explicitly; these are the owner's defaults:
 
-Keep gameplay rules in Rust instead of duplicating them in Godot or test
-drivers. Preserve the cartridge's integer widths, signedness, flag banks,
-ordering and RNG semantics where relevant. Cite disassembly symbols/offsets
-and record discrepancies in [SOURCE_NOTES.md](SOURCE_NOTES.md). The reference
-fork contains Grand Cross rewrites: confirm retail bytes instead of copying
-hack scene bodies or treating fork build-address comments as ROM offsets.
-A plausible genre convention or ability name is not enough to establish a retail rule.
+- `gpt-6-astra` / `max`: primary conversation, planning, architecture, graph
+  selection, difficult decisions, review and integration.
+- `gpt-6-sol` / `max`: complex implementation, refactoring and difficult debugging.
+- `gpt-6-luna` / `max`: bounded exploration, routine edits, checks and documentation.
+- DeepSeek: optional supervised narrow helper, only for a concrete benefit;
+  independently verify results and record actual routing, corrections and reliability.
+
+Delegate only when useful, with exact inputs, acceptance, file ownership and
+concurrency constraints. The parent verifies artifacts and owns integration.
+Report unavailable routes; never silently substitute or claim an instruction edit
+changed a running model. See the workflow for host verification and role exceptions.
+
+## Retail and layer boundaries
+
+Keep deterministic rules in `psiv-core`, orchestration in `psiv-runtime`, pack
+decoding/schema in Python/`psiv-data`, sound in `psiv-sound`, and presentation/input
+in Godot/the bridge. Do not duplicate rules in Godot or test drivers.
+Preserve retail integer widths, signedness, flag banks, ordering and RNG semantics.
+Cite symbols/offsets and record deviations in [SOURCE_NOTES.md](SOURCE_NOTES.md).
+The reference fork contains Grand Cross rewrites: confirm US retail bytes, not
+hack scene bodies or fork build-address comments. Ability names and genre
+conventions do not establish rules. Follow ledger corrections; resolve conflicts
+against source and fresh observations.
 
 ## Protect local inputs and evidence
 
@@ -59,26 +66,33 @@ A plausible genre convention or ability name is not enough to establish a retail
 
 ## Verify the claim you intend to make
 
-- Run focused checks for the changed behavior. Add regression coverage for
-  gameplay fixes; a docs-only change needs link/command review and
-  `git diff --check`, not a fresh full gameplay run.
-- Use the exact commands and prerequisites in [DEVELOPMENT.md](docs/DEVELOPMENT.md).
-  Serialize full Rust tests with `CARGO_BUILD_JOBS=1` and `--test-threads=1`;
-  avoid overlapping expensive Rust, Python and oracle runs.
+- Use focused existing checks; add meaningful regression coverage for gameplay
+  fixes and a negative control for a new correctness check. Documentation needs
+  link/command review and `git diff --check`, not a full gameplay run.
+- Full-gate commands and prerequisites are in [DEVELOPMENT.md](docs/DEVELOPMENT.md).
+  Run Python, Rust and oracle heavy checks sequentially; full Rust tests require
+  `CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml --workspace -- --test-threads=1`.
+- Freeze a reviewed candidate before expensive gates. Relevant code, tests or
+  gate-input changes invalidate affected results. Preserve actual commands,
+  revisions, hashes, timing, exit status, failures and skips; inspect raw evidence.
 - State tests prove state. Ordinary native input proves the interaction path.
   Fresh-process CONTINUE proves persistence. Isolated debug/RAM fixtures are
-  useful, but do not prove a connected campaign route.
+  useful, but do not prove a connected campaign route. Neither extraction nor
+  scene transcription establishes campaign completion.
 - Visual parity requires inspected captures against the matching original
   state. Name the compared frame/region and viewport; an exact crop does not
   certify a whole scene. Keep state and visual results separate.
-- Record actual outcomes, including skips, failures and unrun checks. Never
-  reuse an earlier pass as a new result or alter evidence to make it pass.
+- Keep local, default, browser and hosted results distinct. Never reuse a dated
+  pass as current or alter evidence to make it pass. Label self-review honestly.
 
 ## Finish the task
 
-Update the relevant ledger when behavior or evidence changes. Update the
-overview/roadmap when a milestone closes, rather than duplicating changing
-status in this file. Report changed behavior, commands/results, remaining
-limits and the next concrete step. Before a requested commit, ensure other
-writers are idle and review the staged file list and diff. Follow the user's
-existing commit/push authorization; do not invent extra approval gates.
+Continue scoped repairs until acceptance passes, with no fixed cycle limit
+(owner decision, 2026-09-23). This does not expand scope or grant publication or
+spending authority. Reuse existing authorization; see the workflow's permission
+record. Update the relevant ledger, and the overview/roadmap when a milestone
+closes. Archive completed graphs before advancing; retain one next action.
+Continue ready authorized tasks without asking again. Before a requested commit,
+ensure writers are idle and inspect the staged list/diff. Finish through any
+authorized integration and owned cleanup; preserve unrelated work and evidence.
+Report actual checks, limits, Git state and the next concrete step.

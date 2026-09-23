@@ -1,8 +1,23 @@
 # Roadmap
 
-Updated September 15, 2026. The goal is a complete native playthrough with
+Gameplay checkpoint: September 15, 2026; workflow handoff: September 23, 2026.
+The goal is a complete native playthrough with
 the original game's behavior and presentation. Work is ordered by what
 blocks that playthrough; modding comes afterward.
+
+## Task graph handoff
+
+This is the canonical active graph location unless it links to an owning
+issue/PR. The sections below remain the campaign work queue, not a second graph.
+The [workflow](AGENT_WORKFLOW.md) defines node states, evidence and authority.
+
+No active implementation graph. The completed [workflow setup graph](WORKFLOW_SETUP.md#setup-graph)
+is archived with its checks; setup did not launch campaign work.
+
+**Next action:** when BioPlant continuation is assigned, re-anchor the healthy
+`$A7` source save, pack and driver against the [BioPlant ledger](BIOPLANT_NATIVE.md),
+then open its bounded graph here. The required connected join/escape and restart
+gates remain in milestone 1 below.
 
 ## Delivered checkpoints
 

@@ -19,7 +19,16 @@ Contributing with a coding agent? Start with [AGENTS.md](AGENTS.md) and the
 
 ## Where we are
 
-**Checkpoint: September 15, 2026.**
+**Gameplay checkpoint: September 15, 2026.** Workflow handoff updated
+September 23, 2026; no new gameplay verification is implied.
+
+**Workflow setup is complete:** the [evidence-driven workflow](docs/AGENT_WORKFLOW.md)
+is the standing default, and the [setup ledger](docs/WORKFLOW_SETUP.md) retains
+the verified graph and checks. There is no active implementation assignment.
+The [task graph handoff](docs/ROADMAP.md#task-graph-handoff) keeps the next action:
+re-anchor the healthy BioPlant checkpoint when that continuation is assigned.
+Its next gameplay gate remains connected Rika join/escape and fresh-process
+CONTINUE; this documentation setup did not run the campaign.
 
 | Area | Current evidence |
 | --- | --- |
@@ -45,6 +54,11 @@ Code checkpoint [`82de4a3`](https://github.com/TusanHomichi/PSIV/commit/82de4a37
 - Native SAVE/CONTINUE and bounded oracle comparisons have separate receipts.
 
 These are recorded local results, not a claim of CI coverage or a finished game.
+The later [`e03700b`](https://github.com/TusanHomichi/PSIV/commit/e03700be2d71fcb298a3a877c3ebdf1bfcf85aad)
+fix suppresses cancelled BROSE/RIMIT cues; its
+[focused sound receipts](docs/SOUND_INTEGRATION.md#cancelled-spell-cues-2026-09-15)
+are separate from the full-suite baseline above. The workflow setup does not
+rerun or recertify either gameplay result.
 
 ## Next milestones
 
