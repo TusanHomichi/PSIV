@@ -1,0 +1,159 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "id": "pressure_cal_03",
+      "split": "calibration",
+      "adapter": [
+        "python3",
+        "tools/redshirt_battle.py",
+        "--engine",
+        "rust/target/debug/examples/redshirt_battle",
+        "--fixture",
+        "tests/fixtures/redshirt_pressure/pressure_cal_03.json",
+        "--baseline",
+        "threat",
+        "--briefing",
+        "mechanics-v1"
+      ]
+    },
+    {
+      "id": "pressure_cal_04",
+      "split": "calibration",
+      "adapter": [
+        "python3",
+        "tools/redshirt_battle.py",
+        "--engine",
+        "rust/target/debug/examples/redshirt_battle",
+        "--fixture",
+        "tests/fixtures/redshirt_pressure/pressure_cal_04.json",
+        "--baseline",
+        "threat",
+        "--briefing",
+        "mechanics-v1"
+      ]
+    },
+    {
+      "id": "holdout_conserve_02",
+      "split": "held_out",
+      "adapter": [
+        "python3",
+        "tools/redshirt_battle.py",
+        "--engine",
+        "rust/target/debug/examples/redshirt_battle",
+        "--fixture",
+        "tests/fixtures/redshirt_holdout/holdout_conserve_02.json",
+        "--baseline",
+        "threat",
+        "--briefing",
+        "mechanics-v1"
+      ]
+    },
+    {
+      "id": "holdout_healing_02",
+      "split": "held_out",
+      "adapter": [
+        "python3",
+        "tools/redshirt_battle.py",
+        "--engine",
+        "rust/target/debug/examples/redshirt_battle",
+        "--fixture",
+        "tests/fixtures/redshirt_holdout/holdout_healing_02.json",
+        "--baseline",
+        "threat",
+        "--briefing",
+        "mechanics-v1"
+      ]
+    },
+    {
+      "id": "holdout_targeting_02",
+      "split": "held_out",
+      "adapter": [
+        "python3",
+        "tools/redshirt_battle.py",
+        "--engine",
+        "rust/target/debug/examples/redshirt_battle",
+        "--fixture",
+        "tests/fixtures/redshirt_holdout/holdout_targeting_02.json",
+        "--baseline",
+        "threat",
+        "--briefing",
+        "mechanics-v1"
+      ]
+    },
+    {
+      "id": "holdout_speed_02",
+      "split": "held_out",
+      "adapter": [
+        "python3",
+        "tools/redshirt_battle.py",
+        "--engine",
+        "rust/target/debug/examples/redshirt_battle",
+        "--fixture",
+        "tests/fixtures/redshirt_holdout/holdout_speed_02.json",
+        "--baseline",
+        "threat",
+        "--briefing",
+        "mechanics-v1"
+      ]
+    },
+    {
+      "id": "holdout_armor_02",
+      "split": "held_out",
+      "adapter": [
+        "python3",
+        "tools/redshirt_battle.py",
+        "--engine",
+        "rust/target/debug/examples/redshirt_battle",
+        "--fixture",
+        "tests/fixtures/redshirt_holdout/holdout_armor_02.json",
+        "--baseline",
+        "threat",
+        "--briefing",
+        "mechanics-v1"
+      ]
+    },
+    {
+      "id": "holdout_reserves_02",
+      "split": "held_out",
+      "adapter": [
+        "python3",
+        "tools/redshirt_battle.py",
+        "--engine",
+        "rust/target/debug/examples/redshirt_battle",
+        "--fixture",
+        "tests/fixtures/redshirt_holdout/holdout_reserves_02.json",
+        "--baseline",
+        "threat",
+        "--briefing",
+        "mechanics-v1"
+      ]
+    }
+  ],
+  "limits": {
+    "inputs": 12,
+    "requests": 12,
+    "seconds": 90.0,
+    "operation_seconds": 5.0,
+    "final_seconds": 5.0,
+    "captures": 0
+  },
+  "jev": {
+    "version": 1,
+    "request_limit": 12,
+    "questions": {},
+    "policy": {
+      "min_confidence": null
+    }
+  },
+  "max_live_calls": 96,
+  "max_reserved_usd": 1.0,
+  "thresholds": [
+    0.0,
+    0.5,
+    0.7,
+    0.9,
+    0.95,
+    1.0
+  ]
+}

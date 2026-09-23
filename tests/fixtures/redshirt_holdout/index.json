@@ -1,0 +1,232 @@
+{
+  "schema": "psiv-redshirt-holdout-index-v1",
+  "recipe_sha256": "203aa268df9920efaea3495955371b5295a9cbfc99b046a3f5c99a4870b266a3",
+  "cases": [
+    {
+      "id": "holdout_conserve_01",
+      "family": "conserve",
+      "replicate": 1,
+      "shard": 1,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_conserve_01.json",
+      "sha256": "3dbd8e103412b848a9165d2c750d4745a6feed7cfa8bfe208f4979d7269a45c6"
+    },
+    {
+      "id": "holdout_conserve_02",
+      "family": "conserve",
+      "replicate": 2,
+      "shard": 2,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_conserve_02.json",
+      "sha256": "e7d15d4ecc490f88c43603f78548fb555dbef95bebd474763bc08fdbb4ac2fca"
+    },
+    {
+      "id": "holdout_conserve_03",
+      "family": "conserve",
+      "replicate": 3,
+      "shard": 3,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_conserve_03.json",
+      "sha256": "ada16fb2a4d649a1491be362b5a91a37fc660869249fb38a25caef1d95a17aa2"
+    },
+    {
+      "id": "holdout_conserve_04",
+      "family": "conserve",
+      "replicate": 4,
+      "shard": 4,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_conserve_04.json",
+      "sha256": "afa41099c79df3103d6b502dbdbc9a98bd590866752fa15cae2ef67eb03e627e"
+    },
+    {
+      "id": "holdout_healing_01",
+      "family": "healing",
+      "replicate": 1,
+      "shard": 1,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_healing_01.json",
+      "sha256": "9b2e1ad40977c43bc12a39206e25e8fc1e898994880f29370165079b97b4e0c5"
+    },
+    {
+      "id": "holdout_healing_02",
+      "family": "healing",
+      "replicate": 2,
+      "shard": 2,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_healing_02.json",
+      "sha256": "02d68f93dfec050c4a6991d420178adf62f7744c5bd926871aa8dc871518880b"
+    },
+    {
+      "id": "holdout_healing_03",
+      "family": "healing",
+      "replicate": 3,
+      "shard": 3,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_healing_03.json",
+      "sha256": "6eee268e0215509ddb0aae3714b0f89a74fa8f4591181afdf56e46c2ecf4f5d8"
+    },
+    {
+      "id": "holdout_healing_04",
+      "family": "healing",
+      "replicate": 4,
+      "shard": 4,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_healing_04.json",
+      "sha256": "4965d98392234a5682088f505d9cc3d1a2605066af85200c48fb1b32cc2fb97c"
+    },
+    {
+      "id": "holdout_targeting_01",
+      "family": "targeting",
+      "replicate": 1,
+      "shard": 1,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_targeting_01.json",
+      "sha256": "b018faef8bca3032f816584471eb97e1e49650e7242d10eaf92d03da88de4b4c"
+    },
+    {
+      "id": "holdout_targeting_02",
+      "family": "targeting",
+      "replicate": 2,
+      "shard": 2,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_targeting_02.json",
+      "sha256": "f495846192866ce8a9306880d74165598c12b59e4e386b2aa00263b21a5fee7c"
+    },
+    {
+      "id": "holdout_targeting_03",
+      "family": "targeting",
+      "replicate": 3,
+      "shard": 3,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_targeting_03.json",
+      "sha256": "a2660dd5523df9b48ca2c1606cc7be4b79afbe673c19f9000ec6d2d4851ccd89"
+    },
+    {
+      "id": "holdout_targeting_04",
+      "family": "targeting",
+      "replicate": 4,
+      "shard": 4,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_targeting_04.json",
+      "sha256": "7f755fc84d7621505dabe27b1b1159c1b3aca09afe4776bb7f64683ff6889f4f"
+    },
+    {
+      "id": "holdout_speed_01",
+      "family": "speed",
+      "replicate": 1,
+      "shard": 1,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_speed_01.json",
+      "sha256": "c1d5a14054f76914007ee8a134f576aa290f41c16ad38852634dc716caeb78cb"
+    },
+    {
+      "id": "holdout_speed_02",
+      "family": "speed",
+      "replicate": 2,
+      "shard": 2,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_speed_02.json",
+      "sha256": "e2e6b37daa95467b76905134e847b5f6d2060e43a07e109b67b3915378575c4f"
+    },
+    {
+      "id": "holdout_speed_03",
+      "family": "speed",
+      "replicate": 3,
+      "shard": 3,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_speed_03.json",
+      "sha256": "3145697da3b89af376861321f975fa564145f3d14dfc76b8b971097904bba746"
+    },
+    {
+      "id": "holdout_speed_04",
+      "family": "speed",
+      "replicate": 4,
+      "shard": 4,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_speed_04.json",
+      "sha256": "7a65a93c3cf129d313026f778d029cd4e2db50e394cfd2b1b8db92a6a44767cb"
+    },
+    {
+      "id": "holdout_armor_01",
+      "family": "armor",
+      "replicate": 1,
+      "shard": 1,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_armor_01.json",
+      "sha256": "7e24370da907cc44a2afb8f24595a01babdaf92e27fa70d62b58a445ba8532c2"
+    },
+    {
+      "id": "holdout_armor_02",
+      "family": "armor",
+      "replicate": 2,
+      "shard": 2,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_armor_02.json",
+      "sha256": "3d08c316c63f005fb00f1426a2a53998c0a6e5cbfc9a2c54636004e34fa9b9ba"
+    },
+    {
+      "id": "holdout_armor_03",
+      "family": "armor",
+      "replicate": 3,
+      "shard": 3,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_armor_03.json",
+      "sha256": "874d611835d0d87036dc9487424f94b64d84fa1f733d55322b63b907419ddee3"
+    },
+    {
+      "id": "holdout_armor_04",
+      "family": "armor",
+      "replicate": 4,
+      "shard": 4,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_armor_04.json",
+      "sha256": "86984d0eb95cd566c58262e0d67ed99eb84030f468cc5e28256ca11f9bb8422c"
+    },
+    {
+      "id": "holdout_reserves_01",
+      "family": "reserves",
+      "replicate": 1,
+      "shard": 1,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_reserves_01.json",
+      "sha256": "e7bece7561d6edb740279c36c80a997922c1c2defa36641240ac8bfce5340f6c"
+    },
+    {
+      "id": "holdout_reserves_02",
+      "family": "reserves",
+      "replicate": 2,
+      "shard": 2,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_reserves_02.json",
+      "sha256": "70ad33a5f6af45c84e13c0342bece94c360ef410fe2405fe6c85e462a52c06c2"
+    },
+    {
+      "id": "holdout_reserves_03",
+      "family": "reserves",
+      "replicate": 3,
+      "shard": 3,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_reserves_03.json",
+      "sha256": "98fafedc869a1af57d142cd6afba3c790ec1d24171055478a1105fea922b09ea"
+    },
+    {
+      "id": "holdout_reserves_04",
+      "family": "reserves",
+      "replicate": 4,
+      "shard": 4,
+      "split": "held_out",
+      "path": "tests/fixtures/redshirt_holdout/holdout_reserves_04.json",
+      "sha256": "6812e48fc5e0a6fc8c99dea6d6d3454398c71f12de600f3e9dd5145dd8ea9148"
+    }
+  ],
+  "calibration_paths": [
+    "tests/fixtures/redshirt_pressure/pressure_cal_01.json",
+    "tests/fixtures/redshirt_pressure/pressure_cal_02.json",
+    "tests/fixtures/redshirt_pressure/pressure_cal_03.json",
+    "tests/fixtures/redshirt_pressure/pressure_cal_04.json",
+    "tests/fixtures/redshirt_pressure/pressure_eval_01.json",
+    "tests/fixtures/redshirt_pressure/pressure_eval_02.json",
+    "tests/fixtures/redshirt_pressure/pressure_eval_03.json",
+    "tests/fixtures/redshirt_pressure/pressure_eval_04.json"
+  ]
+}

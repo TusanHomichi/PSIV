@@ -22,19 +22,43 @@ unlock dependencies. New ideas do not change scope, permissions or acceptance.
 
 ## Model roles
 
-Select model and effort explicitly; these are the owner's defaults:
+Select model and effort explicitly. This is the owner's standing division of
+work, not a loose preference:
 
-- `gpt-6-astra` / `max`: primary conversation, planning, architecture, graph
-  selection, difficult decisions, review and integration.
-- `gpt-6-sol` / `max`: complex implementation, refactoring and difficult debugging.
-- `gpt-6-luna` / `max`: bounded exploration, routine edits, checks and documentation.
-- DeepSeek: optional supervised narrow helper, only for a concrete benefit;
-  independently verify results and record actual routing, corrections and reliability.
+- `gpt-6-astra` / `max`: orchestration: concise scoping, architecture and
+  permission decisions, graph selection, review and coordination. Astra does
+  not routinely write code, tests/fixtures/harnesses or docs, or run and monitor
+  repeated check loops.
+- `gpt-6-sol` / `max`: owns complex implementation end-to-end, including
+  relevant checks, debugging and repairs, candidate freeze, and evidence handoff.
+- `gpt-6-luna` / `max`: owns bounded exploration and routine implementation,
+  test runs, log triage, receipts and routine docs through checks and closeout.
+- Claude Code host (owner decision, 2026-09-23): `claude-opus-5-5` holds the
+  orchestration role above; DeepSeek `deepseek-flash` (`deepseek-v4-flash`) at
+  `max` effort, launched through `ds-lane` (Reasonix in an isolated worktree),
+  owns implementation in the Sol/Luna roles. See the workflow's
+  [Claude Code host section](docs/AGENT_WORKFLOW.md#claude-code-host-ds-lane).
+- DeepSeek outside that route: optional supervised narrow helper, only for a
+  concrete benefit; independently verify results and record actual routing,
+  corrections and reliability.
 
-Delegate only when useful, with exact inputs, acceptance, file ownership and
-concurrency constraints. The parent verifies artifacts and owns integration.
-Report unavailable routes; never silently substitute or claim an instruction edit
-changed a running model. See the workflow for host verification and role exceptions.
+Delegate complete outcomes with exact inputs, observable acceptance, file and
+resource ownership, forbidden writes, and concurrency constraints. The assigned
+worker owns implementation, relevant checks, failure repair, evidence and
+closeout; a failed check does not return routine work to Astra. Escalate concrete
+architectural or permission blockers. The parent remains accountable for
+independent review and integration, but that does not mean personally doing
+implementation or evidence plumbing. Review concise receipts with proportionate
+diff/raw-artifact spot checks; do not duplicate the worker's investigation or
+rerun passing checks without a concrete cause. Keep context packets bounded and
+results compact, with evidence paths. Long-running checks and process monitoring
+stay worker-owned; no parent busy polling. Preserve independent verification,
+serialized expensive runs, safety rules, and writers-idle integration.
+
+Only an explicit owner instruction or an actually unavailable route changes
+this division. Report unavailable routes and actual requested/observed routing;
+never silently fall back to Astra or claim an instruction edit changed a running
+model. See the workflow for host verification and role exceptions.
 
 ## Retail and layer boundaries
 

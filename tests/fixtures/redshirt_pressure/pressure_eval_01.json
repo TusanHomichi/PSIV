@@ -1,0 +1,19 @@
+{
+  "schema": "psiv-synthetic-battle-fixture-v1",
+  "id": "pressure_eval_01",
+  "seed": 1692615426,
+  "party": {
+    "hp": 30,
+    "tp": 18,
+    "crosscut_uses": 0
+  },
+  "foes": [
+    {
+      "hp": 57,
+      "attack": 40,
+      "defence": 5,
+      "agility": 9,
+      "dexterity": 18
+    }
+  ]
+}

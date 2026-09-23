@@ -10,10 +10,14 @@ import hashlib
 import json
 import tempfile
 import unittest
+from dataclasses import replace
+from io import BytesIO
 from pathlib import Path
 
+from PIL import Image
+
 from psiv_tools.core import read_rom
-from psiv_tools.layouts import ChunkTable, chunk_palette
+from psiv_tools.layouts import ChunkTable, chunk_palette, collision_at, render_layout
 from psiv_tools.map_effects import extract_map_effects
 from psiv_tools.map_patches import (
     ATLAS_TILE_PIXELS,
@@ -29,12 +33,15 @@ from psiv_tools.map_patches import (
     index_writes,
     patch_atlas,
     resolve_map_effects,
+    resolve_overworld_patches,
     resolve_write_cells,
     scene_patch_chunks,
 )
 from psiv_tools.maps import extract_maps
 from psiv_tools.pack import build_pack, layout_spec
-from psiv_tools.pack_layouts import decode_layout_section
+from psiv_tools.pack_layouts import decode_layout_section, decode_map_section
+from psiv_tools.overworld import apply_patches
+from psiv_tools.render import priority_overlay
 
 ROM = Path(__file__).resolve().parents[1] / "Phantasy Star IV (USA).md"
 
@@ -44,6 +51,8 @@ MAP_ZEMA_HOUSE2 = 0x28
 #: `ZioFort_F1`, one of the 83 maps whose collision reads the FG plane -- proof
 #: that the plane question is real and not always answered "bg".
 MAP_ZIO_FORT_F1 = 0xAF
+MAP_MOTAVIA = 0
+MAP_DEZOLIS = 1
 
 #: Every map whose effects write a layout cell. The write *total* is
 #: deliberately not pinned: it is `map_effects`' output, that decoder is another
@@ -514,6 +523,88 @@ class TestThePackedResolution(unittest.TestCase):
         # The two fixture maps that patch, and the six door cells between them.
         self.assertEqual(census["map_count"], 2)
         self.assertEqual(census["map_change_cells"], TOTAL_MAP_CHANGE_CELLS)
+
+
+@unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
+class TestOverworldPageHookResolution(unittest.TestCase):
+    """The retail page hook and a separately composed full-map reference."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.data = read_rom(ROM)
+        cls._temp = tempfile.TemporaryDirectory()
+        cls.root = Path(cls._temp.name) / "pack"
+        manifest = build_pack(cls.data, cls.root, map_ids=[MAP_MOTAVIA, MAP_DEZOLIS])
+        cls.maps = {
+            entry["id"]: json.loads((cls.root / entry["json"]).read_text())
+            for entry in manifest["maps"]
+        }
+        record = next(m for m in extract_maps(cls.data)["maps"] if m["id"] == MAP_MOTAVIA)
+        cls.record = record
+        cls.decoded, _, cls.overworld = decode_map_section(cls.data, record)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._temp.cleanup()
+
+    def test_flag_35_is_the_raw_two_plane_crossing_patch(self):
+        payload = self.maps[MAP_MOTAVIA]
+        raw = [p for p in payload["layout_patches"] if p["event_flag"]["id"] == 0x35]
+        self.assertEqual(len(raw), 1)
+        self.assertEqual(raw[0]["routine"], "0x053D16")
+        self.assertEqual(
+            [(w["plane"], w["chunk_x"], w["chunk_y"], w["chunk_ids"])
+             for w in raw[0]["writes"]],
+            [("fg", 42, 33, ["0x00"]), ("bg", 42, 33, ["0x48"])],
+        )
+        group = next(p for p in payload["overworld_patches"] if p["event_flag"] == 0x35)
+        self.assertEqual(len(group["tiles"]), 1)
+        tile = group["tiles"][0]
+        self.assertEqual((tile["chunk_x"], tile["chunk_y"]), (42, 33))
+        self.assertEqual((tile["fg_chunk_id"], tile["bg_chunk_id"]), (0, 0x48))
+        self.assertEqual(tile["collision_chunk_id"], 0x48)
+        self.assertEqual(tile["collision"], [0, 0, 0, 0])
+        self.assertEqual(
+            [payload["collision"]["rows"][y][84:86] for y in (66, 67)],
+            [[9, 9], [9, 9]],
+        )
+        atlas_tile = payload["patch_tiles"]["tiles"][tile["patch_tile"]]
+        self.assertIsNone(atlas_tile["chunk_id"])
+        self.assertEqual(
+            (atlas_tile["fg_chunk_id"], atlas_tile["bg_chunk_id"]), (0, 0x48)
+        )
+
+    def test_composed_bridge_base_and_priority_match_full_patched_render(self):
+        payload = self.maps[MAP_MOTAVIA]
+        flag35 = [p for p in self.overworld.patches if p.event_flag == 0x35]
+        fg = apply_patches(self.decoded.fg, flag35)
+        bg = apply_patches(self.decoded.bg, flag35)
+        patched = replace(self.decoded, fg=fg, bg=bg)
+        self.assertEqual(collision_at(self.decoded.chunks, self.decoded.bg, 84, 66), 9)
+        self.assertEqual(collision_at(self.decoded.chunks, bg, 84, 66), 0)
+        palette = chunk_palette(self.data, self.decoded.spec.palette)
+        full = Image.open(BytesIO(render_layout(
+            patched.chunks, bg, patched.patterns, palette, overlay=fg
+        ))).convert("RGBA")
+        over_png, _ = priority_overlay(patched, palette)
+        self.assertIsNotNone(over_png)
+        full_over = Image.open(BytesIO(over_png)).convert("RGBA")
+        group = next(p for p in payload["overworld_patches"] if p["event_flag"] == 0x35)
+        index = group["tiles"][0]["patch_tile"]
+        box = (42 * 32, 33 * 32, 43 * 32, 34 * 32)
+        atlas_box = (index * 32, 0, (index + 1) * 32, 32)
+        atlas = payload["patch_tiles"]
+        base_tile = Image.open(self.root / atlas["png"]).convert("RGBA").crop(atlas_box)
+        over_tile = Image.open(self.root / atlas["png_over"]).convert("RGBA").crop(atlas_box)
+        self.assertEqual(base_tile.tobytes(), full.crop(box).tobytes())
+        self.assertEqual(over_tile.tobytes(), full_over.crop(box).tobytes())
+
+    def test_cross_flag_overlap_is_rejected_before_an_atlas_is_emitted(self):
+        first = next(p for p in self.overworld.patches if p.event_flag == 0x35)
+        conflicting = replace(first, event_flag=0x36)
+        bad = replace(self.overworld, patches=self.overworld.patches + (conflicting,))
+        with self.assertRaisesRegex(MapPatchError, "overlapping flags"):
+            resolve_overworld_patches(self.decoded, bad)
 
 
 @unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")

@@ -22,6 +22,7 @@ var poison_caster := -1
 var poison_before
 var poison_closing := false
 var poison_cures := 0
+var ordinary_dialogue_accepts := 0
 
 func configure_route():
     route = [
@@ -44,6 +45,7 @@ func configure_route():
         left_entrance = true
 
 func before_route(state):
+    state["ordinary_dialogue_accepts"] = ordinary_dialogue_accepts
     if campaign_party.is_empty():
         campaign_party = state.party_status.map(func(p): return int(p.id))
     if leg == 0 and int(state.map) == 0 and not left_entrance:
@@ -260,6 +262,17 @@ func battle_input(battle):
     cooldown = 4
 
 func _physics_process(delta):
+    # The shared route driver deliberately waits while dialogue owns input.
+    # Snapshot readiness before it releases a held key or consumes cooldown,
+    # so a release tick cannot accidentally submit a second accept.
+    var held_before := held != ""
+    var cooldown_before := cooldown
+    var dialogue_ready_before := false
+    if game != null and not finished:
+        var before_state = JSON.parse_string(game.debug_play_state())
+        if before_state != null and before_state.get("dialogue", false) and before_state.get("dialogue_choice") == null:
+            var page = before_state.get("dialogue_page")
+            dialogue_ready_before = page != null and page.get("ready", false)
     var result = super._physics_process(delta)
     if game == null or finished: return result
     var state = JSON.parse_string(game.debug_play_state())
@@ -279,6 +292,11 @@ func _physics_process(delta):
         if not key in pages:
             pages.append(key)
             scene_shot("dialogue-%03d" % pages.size(),state)
+    if dialogue_ready_before and not held_before and cooldown_before <= 0 and held == "":
+        press("ui_accept")
+        cooldown = 4
+        ordinary_dialogue_accepts += 1
+        print("NATIVE BIOPLANT ordinary-dialogue-accept ",ordinary_dialogue_accepts)
     return result
 
 func scene_shot(label,state):

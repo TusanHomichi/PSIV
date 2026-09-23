@@ -66,9 +66,14 @@ the distinct chunks of a map are packed into one atlas row. A write then names
 an atlas index, and a renderer blits that tile over the baked PNG at
 `chunk_x * 32, chunk_y * 32`.
 
-Priority gets the same treatment as the map render: a chunk's above-sprites
-tiles go into a second atlas with the same indices, emitted only when some
-patched chunk has any, exactly as `png_over` is emitted only when a map does.
+Priority gets the same treatment as the map render: a raw chunk's
+above-sprites tiles go into a second atlas with the same indices, emitted
+when some raw patched chunk has priority pixels.
+
+Paged overworld hooks are a separate source path. Their atlas entries draw
+the final FG-over-BG pair, because either plane may change and the other must
+remain visible through transparent tiles. A fully transparent priority tile
+is still emitted so blitting can clear stale above-sprites pixels.
 """
 
 from __future__ import annotations
@@ -235,6 +240,87 @@ def compose_chunk(
     return pixels, placed
 
 
+def compose_overworld_chunk(decoded, fg_id: int, bg_id: int) -> tuple[bytearray, bytearray, int]:
+    """Draw a page-hook result, BG then transparent FG, in both VDP layers."""
+    bg, _ = compose_chunk(decoded.chunks, decoded.patterns, bg_id)
+    fg, _ = compose_chunk(decoded.chunks, decoded.patterns, fg_id)
+    base = bytearray(fg_pixel if fg_pixel & 0xF else bg_pixel
+                     for fg_pixel, bg_pixel in zip(fg, bg))
+    bg_over, bg_count = compose_chunk(
+        decoded.chunks, decoded.patterns, bg_id, priority_only=True
+    )
+    fg_over, fg_count = compose_chunk(
+        decoded.chunks, decoded.patterns, fg_id, priority_only=True
+    )
+    over = bytearray(fg_pixel if fg_pixel & 0xF else bg_pixel
+                     for fg_pixel, bg_pixel in zip(fg_over, bg_over))
+    return base, over, bg_count + fg_count
+
+
+def resolve_overworld_patches(decoded, overworld) -> tuple[list[dict[str, Any]], list[tuple[int, int]]]:
+    """Resolve paged-loader hooks separately from MapDataManager effects.
+
+    Retail replays these hooks when pages stream. The current native map is a
+    full baked layout, so this emits the same flag-selected result at map
+    construction/refresh. No mid-map flag change is implied by this record.
+    Distinct flags must not touch one chunk: otherwise a single precomposed
+    tile would conceal an unmodelled combination of active hooks.
+    """
+    if overworld is None:
+        return [], []
+    width, height = decoded.bg.width_chunks, decoded.bg.height_chunks
+    if (decoded.fg.width_chunks, decoded.fg.height_chunks) != (width, height):
+        raise MapPatchError("overworld planes have different dimensions")
+    collision_plane = decoded.spec.collision_plane_name
+    if collision_plane not in ("fg", "bg"):
+        raise MapPatchError(f"unknown overworld collision plane {collision_plane!r}")
+    by_flag: dict[int, dict[tuple[int, int], dict[str, int]]] = {}
+    owner: dict[tuple[int, int], int] = {}
+    for patch in overworld.patches:
+        flag = patch.event_flag
+        if not 0 <= flag < 512:
+            raise MapPatchError(f"overworld event flag {flag} is outside the event bank")
+        chunks = by_flag.setdefault(flag, {})
+        for write in patch.writes:
+            if write.plane not in ("fg", "bg"):
+                raise MapPatchError(f"unknown overworld write plane {write.plane!r}")
+            if not write.chunk_ids:
+                raise MapPatchError("overworld hook contains an empty chunk write")
+            for step, chunk_id in enumerate(write.chunk_ids):
+                x, y = write.chunk_x + step, write.chunk_y
+                if not (0 <= x < width and 0 <= y < height):
+                    raise MapPatchError(f"overworld patch chunk ({x},{y}) is outside {width}x{height}")
+                if not 0 <= chunk_id < len(decoded.chunks.words):
+                    raise MapPatchError(f"overworld patch chunk {chunk_id:#04x} is not loaded")
+                previous = owner.setdefault((x, y), flag)
+                if previous != flag:
+                    raise MapPatchError(
+                        f"overworld chunk ({x},{y}) has overlapping flags {previous:#x}/{flag:#x}"
+                    )
+                pair = chunks.setdefault((x, y), {
+                    "fg": decoded.fg.chunk_at(x, y),
+                    "bg": decoded.bg.chunk_at(x, y),
+                })
+                pair[write.plane] = chunk_id
+    groups: list[dict[str, Any]] = []
+    pairs: set[tuple[int, int]] = set()
+    for flag, chunks in by_flag.items():
+        tiles = []
+        for (x, y), pair in sorted(chunks.items()):
+            fg_id, bg_id = pair["fg"], pair["bg"]
+            collision_id = pair[collision_plane]
+            cells = [value for _, _, value in chunk_collision_cells(decoded.chunks[collision_id])]
+            tiles.append({
+                "chunk_x": x, "chunk_y": y,
+                "fg_chunk_id": fg_id, "bg_chunk_id": bg_id,
+                "collision_chunk_id": collision_id,
+                "collision": cells,
+            })
+            pairs.add((fg_id, bg_id))
+        groups.append({"event_flag": flag, "tiles": tiles})
+    return groups, sorted(pairs)
+
+
 def _atlas(tiles: Sequence[bytearray], palette: Sequence[RGB], transparent) -> bytes:
     width = ATLAS_TILE_PIXELS * len(tiles)
     pixels = bytearray(width * ATLAS_TILE_PIXELS)
@@ -249,17 +335,19 @@ def _atlas(tiles: Sequence[bytearray], palette: Sequence[RGB], transparent) -> b
 
 
 def patch_atlas(
-    decoded, chunk_ids: Sequence[int], palette: Sequence[RGB]
+    decoded, chunk_ids: Sequence[int], palette: Sequence[RGB],
+    composite_pairs: Sequence[tuple[int, int]] = (),
 ) -> tuple[bytes, bytes | None, list[dict[str, Any]]]:
-    """Every distinct patched chunk as one atlas row, plus its priority layer.
+    """Raw chunk tiles, then composed overworld FG/BG pairs, in one atlas row.
 
     Returns `(base png, overlay png or None, entries)`. The overlay is `None`
-    when no patched chunk has a priority tile, the same rule `png_over`
-    follows: a fully transparent file is one every consumer loads to learn
-    nothing.
+    when no raw tile has priority and there are no overworld composites.
+    Composites always get an overlay atlas, even when fully transparent, so a
+    changed chunk can clear the baked map's old above-sprites pixels.
     """
     ordered = sorted(set(chunk_ids))
-    if not ordered:
+    composite_pairs = sorted(set(composite_pairs))
+    if not ordered and not composite_pairs:
         raise MapPatchError("cannot build an atlas from no chunks")
     base_tiles, over_tiles, entries = [], [], []
     priority_pixels = 0
@@ -280,10 +368,28 @@ def patch_atlas(
             "priority_pixels": opaque,
             "collision": [value for _, _, value in chunk_collision_cells(decoded.chunks[chunk_id])],
         })
+    for fg_id, bg_id in composite_pairs:
+        index = len(entries)
+        base, over, placed = compose_overworld_chunk(decoded, fg_id, bg_id)
+        opaque = sum(1 for value in over if value & 0xF)
+        priority_pixels += opaque
+        base_tiles.append(base)
+        over_tiles.append(over)
+        collision_id = fg_id if decoded.spec.collision_plane_name == "fg" else bg_id
+        entries.append({
+            "index": index,
+            "chunk_id": None,
+            "fg_chunk_id": fg_id,
+            "bg_chunk_id": bg_id,
+            "x": index * ATLAS_TILE_PIXELS,
+            "priority_tiles": placed,
+            "priority_pixels": opaque,
+            "collision": [value for _, _, value in chunk_collision_cells(decoded.chunks[collision_id])],
+        })
     base_png = _atlas(base_tiles, palette, ())
     over_png = (
         _atlas(over_tiles, palette, OVERLAY_TRANSPARENT_INDICES)
-        if priority_pixels else None
+        if priority_pixels or composite_pairs else None
     )
     return base_png, over_png, entries
 
@@ -365,12 +471,26 @@ def atlas_json(
 
 def index_writes(effects: Sequence[dict[str, Any]], entries: Sequence[dict[str, Any]]) -> None:
     """Point each resolved write at its atlas tile, in place."""
-    by_chunk = {entry["chunk_id"]: entry["index"] for entry in entries}
+    by_chunk = {entry["chunk_id"]: entry["index"] for entry in entries
+                if entry["chunk_id"] is not None}
     for effect in effects:
         for path in effect.get("paths", ()):
             for write in path.get("writes", ()):
                 if write.get("kind") == "layout_write":
                     write["patch_tile"] = by_chunk[write["chunk_id"]]
+
+
+def index_overworld_patches(
+    patches: Sequence[dict[str, Any]], entries: Sequence[dict[str, Any]]
+) -> None:
+    """Bind composed page-hook tiles without pretending they are raw chunks."""
+    by_pair = {
+        (entry["fg_chunk_id"], entry["bg_chunk_id"]): entry["index"]
+        for entry in entries if entry["chunk_id"] is None
+    }
+    for patch in patches:
+        for tile in patch["tiles"]:
+            tile["patch_tile"] = by_pair[(tile["fg_chunk_id"], tile["bg_chunk_id"])]
 
 
 def collision_summary(cells: Sequence[dict[str, Any]]) -> dict[str, int]:

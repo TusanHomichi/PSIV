@@ -19,28 +19,38 @@ Contributing with a coding agent? Start with [AGENTS.md](AGENTS.md) and the
 
 ## Where we are
 
-**Gameplay checkpoint: September 15, 2026.** Workflow handoff updated
-September 23, 2026; no new gameplay verification is implied.
+**Gameplay checkpoint: September 23, 2026.**
 
 **Workflow setup is complete:** the [evidence-driven workflow](docs/AGENT_WORKFLOW.md)
 is the standing default, and the [setup ledger](docs/WORKFLOW_SETUP.md) retains
-the verified graph and checks. There is no active implementation assignment.
-The [task graph handoff](docs/ROADMAP.md#task-graph-handoff) keeps the next action:
-re-anchor the healthy BioPlant checkpoint when that continuation is assigned.
-Its next gameplay gate remains connected Rika join/escape and fresh-process
-CONTINUE; this documentation setup did not run the campaign.
+the verified graph and checks. The docs were merged through PR #1.
+**Latest campaign outcome:** the connected post-Rika party rested in Zema,
+crossed the newly opened northern bridge, and saved on Motavia `$00 (84,64)`
+with all five alive and 1129 meseta. Fresh-process CONTINUE and save-byte
+validation pass. See the
+[current receipt](docs/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
+and [next task handoff](docs/ROADMAP.md#task-graph-handoff).
+
+**Developer-tool result:** the [Redshirt fresh-case comparison](docs/REDSHIRT_BATTLE.md#fresh-case-results)
+tested informed Jev against a threat/skill-aware rule on 24 new synthetic cases.
+The rule won **19/24 in each pass**; Jev won **18/24, 18/24 and 17/24**, with all
+four extra non-wins caused by provider timeouts. Jev gained no extra victories;
+on shared wins it spent less TP but retained less HP. These are developer-tool
+measurements, not native campaign proof. Earlier experiments remain in the ledger.
 
 | Area | Current evidence |
 | --- | --- |
 | Connected playthrough | Ordinary-input routes complete the Academy, Tonoe/Alshline and Zema aftermath, with saved checkpoints and fresh CONTINUE checks. |
-| BioPlant | Entrance doors, alarm and elevators work. A full-health `$A7` save is verified; an onward attempt reached `$A9` but lost Hahn. The connected Rika join and escape remain unfinished. |
+| BioPlant | Connected traversal, Rika join and escape are verified with all five alive, expected story flags, an ordinary Motavia save and fresh CONTINUE. The original healthy `$A7` save and failed attempts are preserved. |
+| Post-Rika travel | Paid Zema recovery and the northern bridge crossing pass through ordinary input and SAVE/CONTINUE. The missing overworld page-hook consumer is repaired; the bridge's named 32×32 region matches retail exactly. |
 | Combat and camp | Individual commands, implemented techniques/skills, all 26 usable battle-item records, recovery, shops, equipment, chests, travel and earned progression. STATE/ORDER supports undo, cancel and persistent formation changes. Ability coverage is still incomplete. |
 | Recovery | A bounded BioPlant run wins one encounter, cures two poisoned members with ANTI, heals, saves and reloads. The playthrough driver now cures poison before HP recovery. |
 | Presentation | Selected reference frames and four ORDER-menu regions match the cartridge exactly. Whole-scene, animation and UI fidelity still need work. |
 | Data | The extractor covers all 361 real maps, character progression, dialogue, battle records, graphics and sound. Extracted records do not imply implemented gameplay. |
 
-The [BioPlant checkpoint ledger](docs/BIOPLANT_NATIVE.md) records the saves,
-hashes, successful checks and failed attempts. Save files, ROM-derived assets
+The [BioPlant checkpoint ledger](docs/BIOPLANT_NATIVE.md) and
+[travel continuation](docs/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
+record the saves, hashes, successful checks and failed attempts. Save files, ROM-derived assets
 and captures stay local; their paths in the ledgers are reproduction evidence,
 not downloads included with the repository.
 
@@ -62,8 +72,8 @@ rerun or recertify either gameplay result.
 
 ## Next milestones
 
-1. Complete the connected BioPlant route through Rika, with surviving party,
-   correct story flags and a verified save/restart.
+1. Establish the source-backed route from the verified northern Motavia bank
+   to Aiedo, then verify that bounded arrival with SAVE/CONTINUE.
 2. Close remaining battle abilities, enemy AI and camp command gaps as the
    campaign exposes them.
 3. Verify later story, vehicle and boss progression through ordinary input.

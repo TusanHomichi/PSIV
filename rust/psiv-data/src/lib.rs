@@ -79,9 +79,10 @@ pub use map::{
     COLLISION_CELL_PIXELS, Cell, CellPos, CellRect, ContentsType, DIALOGUE_TREE_COUNT, Dimensions,
     Direction, EffectGate, EffectPath, EffectWrite, Facing, Flags, InteractionArea,
     InteractionFlagType, InteractionSource, LayoutVariant, MapEffect, MapRecord, MapRef, Music,
-    Npc, PaletteAffectedSprites, PaletteEffect, PaletteSpriteReplacement, RangeRef, ResolvedCell,
-    SpriteFacing, SpriteRef, TransitionTable, Treasure, VariantCollision, VariantPlane,
-    VehicleBattleLayout, Warp, WarpSource,
+    Npc, OverworldLayoutPatch, OverworldLayoutWrite, OverworldPatch, OverworldPatchFlag,
+    OverworldPatchTile, PaletteAffectedSprites, PaletteEffect, PaletteSpriteReplacement, RangeRef,
+    ResolvedCell, SpriteFacing, SpriteRef, TransitionTable, Treasure, VariantCollision,
+    VariantPlane, VehicleBattleLayout, Warp, WarpSource,
 };
 pub use new_game::NewGame;
 pub use sound::{SoundFiles, SoundRecord, SoundTrackKind, SoundTrackRecord};

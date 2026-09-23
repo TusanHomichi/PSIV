@@ -19,7 +19,7 @@ routine                       retail     what is taken from it
                                          `lsr.w #1` -- half, rounding down
 `Win_ShopMessage`             `$065E90`  the inn rate table, and that the
                                          bill is rate x party size
-`RecoverStats`                `$0662FE`  what a night restores
+`RecoverStats`                `$0662DA`  what a night restores
 `Win_ShopMeseta`              `$065E04`  which portrait group a shop draws
                                          its keeper from
 ============================  =========  ==================================
