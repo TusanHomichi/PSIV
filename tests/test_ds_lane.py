@@ -6,12 +6,11 @@ test calls the real Reasonix, a model or the network.
 
     PYTHONPATH=. python3 -m unittest tests.test_ds_lane -v
 
-Unit-level cases load tools/ds-lane (no .py suffix) with SourceFileLoader;
-end-to-end cases drive the CLI through subprocess.
+Unit-level cases import the tools/ds_lane package (what the shim puts on
+sys.path); end-to-end cases drive tools/ds-lane, the entry-point shim, as a
+subprocess.
 """
 import datetime as dt
-import importlib.machinery
-import importlib.util
 import json
 import os
 import subprocess
@@ -25,10 +24,8 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 DS_LANE = ROOT / "tools" / "ds-lane"
 
-_loader = importlib.machinery.SourceFileLoader("ds_lane_under_test", str(DS_LANE))
-_spec = importlib.util.spec_from_loader(_loader.name, _loader)
-DS = importlib.util.module_from_spec(_spec)
-_loader.exec_module(DS)
+sys.path.insert(0, str(ROOT / "tools"))  # the ds-lane shim does this for the package
+import ds_lane as DS  # noqa: E402
 
 # ---------------------------------------------------------------- fake worker
 
@@ -36,7 +33,9 @@ FAKE_REASONIX = '''#!/usr/bin/env python3
 """Fake `reasonix` for the ds-lane test suite: no model, no network, no sandbox.
 
 Reads a JSON behaviour spec from FAKE_REASONIX_SPEC (inline JSON or a path):
-files to write, trajectory events to append, seconds to sleep, exit code.
+files to write, trajectory events to append, seconds to sleep, seconds to burn
+CPU for, exit code. `resume_spec` overrides any of those keys for a run that
+carries `--resume`, so a resumed run can behave differently from its first.
 """
 import json
 import os
@@ -75,6 +74,8 @@ def main(argv):
             prompt = arg
             i += 1
     spec = load_spec()
+    if opts.get("--resume") and isinstance(spec.get("resume_spec"), dict):
+        spec = {**spec, **spec["resume_spec"]}  # a resumed run may behave differently
     cwd = Path.cwd()
     for rel, content in sorted(spec.get("files", {}).items()):
         dest = cwd / rel
@@ -90,6 +91,10 @@ def main(argv):
                                  "time.sleep(%d)" % int(child.get("seconds", 60))])
         if child.get("pid_file"):
             Path(child["pid_file"]).write_text(str(proc.pid))
+    if spec.get("burn"):  # a silent but busy worker: CPU time, no trajectory growth
+        deadline, spin = time.monotonic() + float(spec["burn"]), 0
+        while time.monotonic() < deadline:
+            spin += 1
     if spec.get("opts_out"):
         Path(spec["opts_out"]).write_text(json.dumps({"opts": opts, "prompt": prompt}, indent=2))
     trajectory = opts.get("--trajectory")
@@ -219,6 +224,51 @@ class UnitCase(unittest.TestCase):
         self.assertEqual(DS.receipt_block("## Receipt placeholder\n\n## Receipt\n- Status: partial\n"),
                          "## Receipt\n- Status: partial")
 
+    def test_harness_prompts_pass_the_phrasing_preflight(self):
+        """Text ds-lane writes itself must never trip Reasonix's write ban.
+
+        The stall follow-up goes into the resumed session's prompt without a
+        preflight (the harness wrote it), so it is checked here instead.
+        """
+        self.assertEqual(DS.phrasing_violations(DS.STALL_FOLLOWUP.format(timeout=900)), [])
+        self.assertEqual(DS.phrasing_violations(DS.STALL_FOLLOWUP.format(timeout=1)), [])
+
+    def test_wait_run_follows_the_stall_chain(self):
+        """A waiter pinned to a stalled run reports the lane's final outcome.
+
+        Each stalled run records the number of the run the watchdog started in
+        its place, so the chain can be several stalls long.
+        """
+        with tempfile.TemporaryDirectory(prefix="ds-lane-chain-") as tmp:
+            state = Path(tmp)
+            for n, (nxt, code) in {1: (2, 125), 2: (3, 125), 3: (None, 0)}.items():
+                run = state / f"run-{n}"
+                run.mkdir()
+                (run / "run.json").write_text(json.dumps({"exit_code": code,
+                                                          "stall_resumed_run": nxt}))
+            self.assertEqual(DS.wait_run(state / "run-1"), 0)
+
+    def test_stall_watcher_needs_a_whole_quiet_window(self):
+        """Progress is trajectory growth or group CPU time; a silent idle group stalls."""
+        with tempfile.TemporaryDirectory(prefix="ds-lane-watcher-") as tmp:
+            traj = Path(tmp) / "trajectory.jsonl"
+            traj.touch()
+            now, cpu = [0.0], {7: 0.0}
+            watcher = DS.StallWatcher(pgid=7, trajectory=traj, timeout=10, poll=1,
+                                      clock=lambda: now[0], groups=lambda pgid: dict(cpu))
+            now[0] = 5.0
+            self.assertFalse(watcher.sample(), "half a quiet window is not a stall")
+            cpu[7] = 0.5  # the group gained CPU: a long silent build, not a stall
+            now[0] = 12.0
+            self.assertFalse(watcher.sample())
+            now[0] = 21.0
+            self.assertFalse(watcher.sample(), "9 s of quiet is still inside the window")
+            now[0] = 22.0
+            self.assertTrue(watcher.sample(), "a whole window with no CPU and no growth")
+            traj.write_text("x\n")  # trajectory growth is progress too, and clears the verdict
+            now[0] = 40.0
+            self.assertFalse(watcher.sample())
+
 
 class LaneCase(unittest.TestCase):
     """End-to-end cases: drive the CLI against a throwaway repo and fake worker."""
@@ -277,13 +327,13 @@ class LaneCase(unittest.TestCase):
         except (OSError, ValueError):
             pass
 
-    def cli(self, *args, spec=None, env=None, timeout=120, check=None, cwd=None):
+    def cli(self, *args, spec=None, env=None, timeout=120, check=None, cwd=None, tool=DS_LANE):
         environ = dict(os.environ)
         environ.update(self.env)
         if spec is not None:
             environ["FAKE_REASONIX_SPEC"] = json.dumps(spec) if isinstance(spec, dict) else str(spec)
         environ.update(env or {})
-        r = subprocess.run([sys.executable, str(DS_LANE)] + [str(a) for a in args], text=True,
+        r = subprocess.run([sys.executable, str(tool)] + [str(a) for a in args], text=True,
                            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=environ,
                            cwd=str(cwd or self.repo), timeout=timeout)
         if check is not None:
@@ -750,6 +800,134 @@ class LaneCase(unittest.TestCase):
                       timeout=15)
         self.wait_for(lambda: not self.pid_exists(int(child_file.read_text())), "orphan child exit",
                       timeout=15)
+
+    # -- 9. stall watchdog
+
+    def test_stalled_run_is_finalized_125_and_auto_resumed(self):
+        """A worker alive with a dead stream is stopped, then resumed by the harness.
+
+        DS_LANE_STALL_POLL only shortens the sampling interval: the detector,
+        the exit code, the resumed run and the `wait` chain are the real ones.
+        """
+        env = {"DS_LANE_MAX_LANES": "1", "DS_LANE_STALL_POLL": "0.2"}
+        spec = {"files": {},
+                "events": [{"kind": "turn_phase", "sessionId": "sess-stall"},
+                           {"kind": "turn_done", "status": "completed"}],
+                "sleep": 300,  # silent and idle: the host-suspend shape
+                "resume_spec": {"sleep": 0, "exit_code": 7,
+                                "files": {"tools/resumed.txt": "continued\n"},
+                                "result": RECEIPT_RESULT}}
+        self.start("Run long.\n", "t1", spec, env=env,
+                   extra=["--stall-timeout", "1", "--timeout", "600"])
+        # `wait` attaches before the stall and must report the final run; it can
+        # only have been blocked while run-1 stalled if it stayed for a window.
+        attached = time.monotonic()
+        r = self.cli("wait", "t1", "--repo", self.repo, check=7, timeout=120)
+        self.assertGreater(time.monotonic() - attached, 1.0)
+        self.assertIn("exit=125", r.stdout)
+        self.assertIn("auto-resumed after the stall as run-2", r.stdout)
+        self.assertIn("exit=7", r.stdout)
+
+        run1 = self.run_json("t1")
+        self.assertEqual(run1["exit_code"], 125)
+        self.assertEqual(run1["outcome"], "stalled")
+        self.assertTrue(run1["stalled"])
+        self.assertFalse(run1["timed_out"])
+        self.assertEqual(run1["turn_error"], "stalled: no progress for 1 s")
+        self.assertEqual(run1["stall_timeout_s"], 1)
+        self.assertEqual(run1["stall_retries_left"], 1)
+        self.assertFalse(run1["resumed_after_stall"])
+        self.assertEqual(run1["stall_resumed_run"], 2)
+        self.assertFalse(self.lane_state("t1", "run-1", "worker.slot").exists())
+
+        run2 = self.run_json("t1", run=2)
+        self.assertEqual(run2["exit_code"], 7)
+        self.assertEqual(run2["outcome"], "completed")
+        self.assertEqual(run2["resumed_session"], "sess-stall")
+        self.assertTrue(run2["resumed_after_stall"])
+        self.assertEqual(run2["stall_retries_left"], 0)   # the retry is spent
+        self.assertEqual(run2["stall_timeout_s"], 1)
+        self.assertEqual(run2["timeout_s"], 600)          # the budget is carried over
+        self.assertIsNone(run2["stall_resumed_run"])
+        self.assertTrue(run2["committed"])
+        self.assertIn("tools/resumed.txt", self.git("show", "--name-only", "--format=", "HEAD",
+                                                    cwd=self.lane_wt("t1")))
+        cmd = json.loads(self.lane_state("t1", "run-2", "command.json").read_text())
+        self.assertEqual(cmd[cmd.index("--resume") + 1], "sess-stall")
+        prompt = self.lane_state("t1", "run-2", "prompt.md").read_text()
+        self.assertIn("stalled", prompt)
+        self.assertIn("session context is intact", prompt)
+        self.assertIn("## Receipt", prompt)
+        self.assertEqual([r["run"] for r in self.lane_json("t1")["runs"]], [1, 2])
+        # A waiter pinned to the stalled run itself follows the same chain.
+        self.assertEqual(DS.wait_run(self.lane_state("t1", "run-1")), 7)
+
+    def test_cpu_burning_worker_is_not_stalled(self):
+        """A silent `cargo build` burns CPU: the watchdog must leave it alone."""
+        env = {"DS_LANE_STALL_POLL": "0.2"}
+        spec = {"files": {}, "burn": 3, "result": RECEIPT_RESULT}
+        self.start("Burn CPU.\n", "t1", spec, env=env,
+                   extra=["--stall-timeout", "1", "--stall-retries", "0"])
+        run = self.run_json("t1", timeout=90)
+        self.assertEqual(run["exit_code"], 0)
+        self.assertEqual(run["outcome"], "completed")
+        self.assertFalse(run["stalled"])
+        self.assertIsNone(run["stall_resumed_run"])
+        self.assertFalse(self.lane_state("t1", "run-2").exists())
+
+    def test_stall_retries_zero_finalizes_without_resume(self):
+        env = {"DS_LANE_STALL_POLL": "0.2"}
+        spec = {"files": {}, "events": [{"kind": "turn_phase", "sessionId": "sess-x"}],
+                "sleep": 300}
+        self.start("Run long.\n", "t1", spec, env=env,
+                   extra=["--stall-timeout", "1", "--stall-retries", "0"])
+        run = self.run_json("t1", timeout=90)
+        self.assertEqual(run["exit_code"], 125)
+        self.assertEqual(run["outcome"], "stalled")
+        self.assertEqual(run["turn_error"], "stalled: no progress for 1 s")
+        self.assertEqual(run["stall_retries_left"], 0)
+        self.assertIsNone(run["stall_resumed_run"])
+        self.assertIn("stalled: no progress for 1 s", self.summary("t1"))
+        # Nothing follows: no successor run appears, and `wait` returns the stall.
+        time.sleep(2)
+        self.assertFalse(self.lane_state("t1", "run-2").exists())
+        self.assertEqual([r["run"] for r in self.lane_json("t1")["runs"]], [1])
+        self.assertEqual(self.cli("wait", "t1", "--repo", self.repo, check=125).returncode, 125)
+
+    def test_stall_settings_default_and_zero_disables(self):
+        spec = {"files": {}}
+        self.start("Quick job.\n", "t1", spec)
+        run = self.run_json("t1")
+        self.assertEqual((run["stall_timeout_s"], run["stall_retries_left"]), (900, 1))
+        self.assertFalse(run["resumed_after_stall"])
+        spec_json = json.loads(self.lane_state("t1", "run-1", "spec.json").read_text())
+        self.assertEqual(spec_json["stall_timeout"], 900)
+        self.assertEqual(spec_json["stall_retries_left"], 1)
+        self.assertEqual(spec_json["timeout"], 5400)
+        self.start("Quick job two.\n", "t2", spec, extra=["--stall-timeout", "0"])
+        run2 = self.run_json("t2")
+        self.assertEqual(run2["exit_code"], 0)
+        self.assertEqual(run2["stall_timeout_s"], 0)  # watchdog off, run unaffected
+        self.assertFalse(run2["stalled"])
+
+    def test_cli_runs_through_a_symlink(self):
+        """~/.local/bin/ds-lane is a symlink: the shim resolves its own directory.
+
+        The detached supervisor re-enters the same file, so this covers the
+        whole path - launch, slot, worker, commit and receipts.
+        """
+        bindir = self.root / "bin"
+        bindir.mkdir()
+        link = bindir / "ds-lane"
+        link.symlink_to(DS_LANE)
+        brief = self.write("t1.md", "Write tools/new.txt.\n")
+        r = self.cli("start", brief, "--repo", self.repo, "--id", "t1", tool=link,
+                     spec={"files": {"tools/new.txt": "x\n"}}, check=0, timeout=120)
+        self.assertIn("worktree", r.stdout)
+        run = self.run_json("t1")
+        self.assertEqual(run["exit_code"], 0)
+        self.assertTrue(run["committed"])
+        self.assertTrue(self.lane_wt("t1", "tools", "new.txt").exists())
 
     def pid_exists(self, pid):
         try:
