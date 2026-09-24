@@ -266,7 +266,12 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
         // a swing that reaches a slot and misses leaves the same `$FF` a slot
         // the swing never touched does. The slots the log did resolve are the
         // ones it reports a flag for; the `$FF` ones are checked below against
-        // the verdict the port drew, rather than guessed at from the byte.
+        // the verdict the port drew, rather than guessed at from the byte. Each
+        // byte is the one the action's **last** pass wrote - `loc_B6A2` presets
+        // all nine before every pass (`ps4.asm:17493-17498`), so an earlier
+        // pass's verdicts are overwritten - which is the frame
+        // `oracle/fixture/observations.py`'s `sample_decisive_hits` reads and
+        // what makes the verdict comparison below a strict one.
         let entry =
             |wanted: FighterId| action.targets.iter().find(|target| id(target.id) == wanted);
         let resolved: Vec<&Target> = action

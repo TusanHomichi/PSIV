@@ -264,3 +264,190 @@ tests that ride the same shape (`a_multi_target_swing_rolls_both_hit_passes_then
 for. Restoring the pass gives 456 passed, 0 failed, 1 ignored. Logs:
 `build/lane-evidence/negative-control-second-pass-removed.txt` and
 `negative-control-restored.txt` (not committed; `build/` is ignored).
+
+## The vehicle's own attack: command 6, three hit passes (2026-09-24)
+
+A vehicle's Attack is **not** `Character_Attack`. The Attack command is command
+index 1, and `loc_5B8E` (`ps4.asm:8410-8416`) turns a command index into a
+fighter routine through its own seven-entry table (`loc_5BD4`,
+`ps4.asm:8430`): `$06, $0A, $0B, $10, $0F, $12, $13` for indices 1..7, i.e.
+`Character_Attack`, `Character_DoTech`, `Character_DoSkill`,
+`Character_DoItem`, `Character_Defend`, `loc_AF9C` and `loc_B1D4` —
+`BattleCharacterRoutinePtrs` entries 6, $A, $B, $10, $F, $12 and $13
+(`ps4.asm:1039-1052`). The vehicle menu writes **command 6** for its first
+option: `Battle_VehMainOptions` (`ps4.asm:2036-2049`) sends option 0 to
+`loc_684A` (`ps4.asm:9852-9878`), whose tail stores `#6` and then
+`($FFFFF43D).w` — the vehicle index — in `Battle_Command_Data`. So a vehicle's
+Attack is `loc_AF9C` (`ps4.asm:16810`), and the weapon check in
+`Character_Attack` (`ps4.asm:13002-13019`) never runs for it.
+
+`Character_AttackActionOffs` (`ps4.asm:13056-13068`) is not reached either, and
+its index would be out of range if it were: `loc_78EE` (`ps4.asm:11408-11414`)
+seats the vehicle's `fighter_id` as `Vehicle_Index + $B` — `$0C`, `$0D` or
+`$0E` — and the dispatch at `ps4.asm:13044-13050` indexes the table by
+`fighter_id - 1`, i.e. `$0B`..`$0D` against a table of eleven characters.
+Command 7, the menu's second option (`Battle_VehOpenSkills`/`Battle_VehSkills`,
+`ps4.asm:7386-7460` and `loc_68C0`, `ps4.asm:9889-9904`), is `loc_B1D4` — the
+vehicle skill path the port already models in `battle/vehicle_skill.rs`.
+
+**The vehicle record has no equipment, and the attack never reads it.**
+`loc_77AE` (`ps4.asm:11295-11404`) is what builds `Vehicle_Stats` (`$FFFF4700`)
+from `VehicleData` (`ps4.asm:321154-321174`), 32 bytes per record
+(`lsl.w #5, d3`): the `curr_hp`/`max_hp` word (`$02E4`, `$03C0` and `$02A8` for
+the Land Rover, Ice Digger and Hydrofoil), strength / mental / agility /
+dexterity, one byte each written to the stat, its `_mod` and its `_battle`
+copy; attack / defence / magic defence as `atk_pow+1`, `dfs_pow+1` and
+`magic_dfs+1` — the **low byte** of each word, the record holding one byte per
+stat (`$C8`/`$50`/`$32` for the Land Rover = 200/80/50) — the fourteen element
+property bytes, written to both halves of each word, and the skill mask and
+eight use counts. It writes **nothing** at `$4C`/`$4D`: `right_hand` and
+`left_hand` sit immediately past the record's element block, and the vehicle
+build leaves them at whatever the RAM held. `Battle_GetItemType` is never
+called on the vehicle, and the element a vehicle's attack uses comes from the
+*target* — see `loc_280A` below. The port's `vehicle::battle_member` leaving
+`equipment` zero is therefore not what made its swing skip; routing it through
+`Character_Attack` was.
+
+**The swing draws three `loc_B6A2` passes, and the third decides.**
+`loc_AF9C` (`ps4.asm:16810-16814`) stores the command's low byte, the vehicle
+index, in the actor's `ability` (`$24`), and runs the ten-state machine
+`loc_AFE4` (`ps4.asm:16831-16841`). The frames that call `loc_B6A2`:
+
+* **state 4** — `loc_B14C` (`ps4.asm:16957`) dispatches on the same index
+  through `loc_B15C` (`ps4.asm:16964-16967`): `1` → `loc_B166`
+  (`ps4.asm:16973`), `2` → `loc_B17E`, `3` → `loc_B184`. Each loads the
+  vehicle's attack object (`$644` `BattleObj_LandRoverAtk`, `$648`
+  `BattleObj_IceDiggerAtk`, `$64C` `BattleObj_HydrofoilAtk`, table
+  `ps4.asm:74660-74662`) with the vehicle as its parent, and then `jmp
+  loc_B6A2`.
+* **state 5** — `loc_9848` (`ps4.asm:14964-14965`): `jsr loc_B6A2`, then
+  routine 5 on the target window.
+* **state 5 again** — the object's own first state hands the vehicle back:
+  `move.w #5, $32(a0)` (`ps4.asm:82975`, `83048`, `83109`) once its wind-up has
+  run (12 frames for the Land Rover and the Hydrofoil, none for the Ice Digger),
+  so `loc_9848` runs a third time.
+
+`loc_B6A2` blanks all nine `Fighters_Hit_Flags` before every pass
+(`ps4.asm:17493-17496`), so each pass overwrites the last one's verdicts and
+the **third** pass is what the damage stage finds. The object's second state
+then sets the vehicle's `action_routine` to 7 (`ps4.asm:82986` and its two
+siblings), and state 7 `loc_B1A6` (`ps4.asm:16999-17008`) writes routine `$C`
+— `Fighter_TakeDamage` — to the target, which is the frame `loc_266C` runs
+`Battle_CalculateDamage`. The command's own check is what keeps the rolls:
+`loc_B6D4` routes command 6 to the rolling path *before* the `tst.w $24(a4)`
+that would have turned the nonzero ability into a free hit
+(`ps4.asm:17513-17516`), and `loc_B716` (`ps4.asm:17536-17554`) rolls the
+actor's `dexterity_battle` against the target's `agility_battle` with the
+physical constants, exactly as it does for a character.
+
+**The damage is the ability arm, at element 2, from the target's own
+properties.** `Figher_DamageCheckActor` (`ps4.asm:3737-3749`) reaches
+`Character_DamageEnemy` (`ps4.asm:3910`), whose `bne.w loc_27D4`
+(`ps4.asm:3917-3918`) is taken because `ability` is nonzero. `loc_27D4`
+(`ps4.asm:3988-3998`) reads `Current_Command`'s index, subtracts two and
+indexes the table at `loc_27FC` (`ps4.asm:4004-4010`); command 6 selects its
+fifth entry, `loc_280A` (`ps4.asm:4016-4018`), whose whole body is
+`moveq #0, d3 / move.b $32(a1), d3 / bra.s loc_27A4`. `a1` is the **target's**
+stats and `$32` is the second `element_props` word — `element_factor(2)`,
+energy. `loc_27A4` (`ps4.asm:3963-3969`) then supplies `atk_pow_battle` of the
+actor, `dfs_pow_battle` of the target and `atk >> 2` when the slot's flag is
+`$01`, and jumps to `loc_266C` — the same damage and the same sixteen draws as
+every other path.
+
+One target, and no critical demotion. `loc_B6A2` takes its four-enemy window
+only when `Current_Target_Index` is negative (`smi ($FFFFEE49).w`,
+`ps4.asm:17502-17511`), and a vehicle's command always carries a target index:
+`loc_1152` (`ps4.asm:1824-1844`) writes the first present enemy slot's index —
+the first enemy's word 0 is 8 (`moveq #8, d1` at `ps4.asm:11448`,
+`_move.w d1, 0(a1)` at `11456`), so its index is 6 — and
+`Battle_PickTargetEnemy` writes the cursor's when the player chose one. So one
+roll per pass, one target, `$FFFFEE49` zero, and a critical stays a critical.
+The `move.b d1, d4` before `lsr.w #2` truncates the bonus to the attack's low
+byte; every vehicle's attack is at most `$FF`, so the truncation is invisible
+here (`critical_bonus` is the shared expression).
+
+**What the capture pins.** The forced `$53` Desrt Leach capture
+([`BATTLE_ORACLE_FORCED.md`](../BATTLE_ORACLE_FORCED.md)) shows the vehicle
+swinging on its turn in all six rounds, three hit-pass frames each
+(f25059/f25060/f25072, f25209/f25210/f25222, …), and the rounds are what
+separate the passes:
+
+| round | first pass | second | third | log `hit` at the hit frame | log damage |
+|---|---|---|---|---|---|
+| 1 | normal (r 24) | normal (r 42) | normal (r 0) | `$00` | 165 |
+| 2 | critical (r 63) | normal (r 2) | critical (r 60) | `$01` | 234 |
+| 3 | **critical (r 61)** | normal (r 1) | **normal (r 2)** | `$01` | **154** |
+| 4 | normal (r 21) | normal (r 5) | normal (r 41) | `$00` | 184 |
+| 5 | normal (r 14) | normal (r 20) | normal (r 21) | `$00` | 165 |
+| 6 | **critical (r 58)** | normal (r 22) | **normal (r 6)** | `$01` | **189** |
+
+Round 3 is the discriminating case in both directions. Its damage, 154, is the
+normal hit's arithmetic — `((45+8)*200)>>6 + 200 = 365`, `365*2>>2 - 28 = 154`
+— and a critical's would be 204 (`365 + 2*50 = 465`, `465*2>>2 - 28 = 204`), so
+the flags the damage stage read were the *third* pass's. Its `hit` byte is
+`$01`, the *first* pass's, because the fixture samples that byte at the
+action's hit frame (`oracle/fixture/observations.py`'s `action_record`) and the
+cartridge only overwrites it 12 and 24 frames later. Round 2 is the other
+direction: pass 2 read normal and pass 3 critical, and the log's `$01` and 234
+are the third pass's. The same arithmetic pins the vehicle's attack and element
+against the Land Rover's own record row: with `dfs_pow_battle` 28 of the Desrt
+Leach, round 1's 165 and round 2's 234 are satisfied by exactly three
+`(attack, element)` pairs — (80, 5), (100, 4) and (200, 2) — and the record's
+`$C8` attack byte with `loc_280A`'s element 2 is the only one the cartridge can
+produce, which also shows the record's byte landed in `atk_pow_battle` with a
+zero high byte.
+
+Native. `rust/psiv-core/src/battle/vehicle_attack.rs` is the rule:
+`is_vehicle_fighter` reads the roster's own `Fighter::character` for the
+cartridge's `Vehicle_Index + $B` ids (`0x0C`, `0x0D`, `0x0E`),
+`VEHICLE_HIT_PASSES` is 3, `VEHICLE_ATTACK_ELEMENT` is 2, and
+`resolve_vehicle_attack` draws the three passes with `roll_hits` (single
+target, `multi_target` false), keeps the last, and lands
+`calculate_damage(attack, target's defence, target's element 2, atk >> 2 when
+critical)` through `clamp_damage` — the same 1..=999 clamp. `resolve_attack`
+dispatches to it for a vehicle fighter before its weapon check, which is the
+only change to the party path. The profiles it reads are `vehicle.rs`'s
+`VehicleProfile` rows, transcribed from `VehicleData` and unchanged.
+
+Tests and evidence. Core: `battle/vehicle_attack_tests.rs` (registered from
+`vehicle_attack.rs` with `#[path]`) holds thirteen tests. On the capture's own
+draws: `the_land_rover_replays_the_captures_first_swing` (165, HP 875),
+`the_land_rover_replays_the_captures_second_swing` (234, HP 806),
+`the_logs_third_round_needs_the_last_passs_verdict` (154 and *not* 204) and
+`only_the_third_passs_verdicts_survive` (round 2's first two rolls with the
+third swapped: 184). On the shape: `the_swing_costs_three_passes_then_one_damage_run`
+(three passes then sixteen draws, one `Attacked` for the cursor's target),
+`every_vehicle_swings_with_its_own_attack_byte` (the Land Rover's 200 lands 84,
+the Ice Digger's 250 lands 112, the Hydrofoil's 150 lands 56 on sixteen zero
+draws), `the_cannon_is_energy_elemental_and_reads_the_target` (the Desrt
+Leach's energy 2 lands 165, an immune 0 lands the 1-damage floor, a very weak 4
+lands 359), `a_swing_reaches_the_cursor_or_the_first_living_enemy`,
+`a_kill_is_reported_for_the_engine_to_award`,
+`a_vehicle_round_swings_instead_of_skipping` (the engine's own round),
+`the_vehicle_identity_is_loc_78ee_s_fighter_ids` and
+`the_element_is_the_targets_second_property_word`. Negative control:
+`an_unarmed_character_still_skips_its_turn` — Hahn with both hands empty is
+still `TurnSkipped { reason: Unarmed }` with no roll.
+
+Replay. `replay_fixtures/divergences.json` no longer carries an entry for
+`forced_53_desrtleach`: the data-driven test replays the capture's six rounds
+and all 285 rolls exactly, and the manifest is now **empty** — the worklist
+this machinery existed to produce is closed. The fixture records each
+swing's per-target `hit` byte at the swing's **decisive** (last) `loc_B6A2`
+pass (`oracle/fixture/observations.py`, `sample_decisive_hits`), because
+`loc_B6A2` presets every flag before each pass (`ps4.asm:17493-17498`) and the
+vehicle's three passes arrive in different frames. The comparator therefore
+checks every verdict strictly. (A first cut sampled the first hit frame and
+relaxed the comparator for multi-frame swings; review replaced that with the
+evidence fix, and pointing the sampler back at the first frame fails the strict
+test on exactly rounds 3 and 6.)
+
+The negative control for the vehicle rule is the old manifest entry's own
+finding. With `resolve_attack`'s dispatch to `vehicle_attack` removed —
+a vehicle back on `Character_Attack`'s weapon check — the data-driven test fails
+exactly where the deleted entry said it would:
+`forced_53_desrtleach: the port diverges at f25026 (round 1, no-swing): the log
+has actor FighterId(1) resolving 1 target(s), the port no swing`. Restoring the
+dispatch gives 1 passed, 0 failed. Transcripts:
+`build/lane-evidence/03-negative-control.log` and
+`04-replay-after-restore.log` (not committed; `build/` is ignored).

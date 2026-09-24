@@ -253,10 +253,11 @@ CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
 |---|---|---|
 | `$5E` two Helex | `forced_5e_helex.json` | **exact**: two rounds, 80 rolls, both FLAME BOLTs (`$02` at f25003 and f25125, and the re-rolled one at f25371) resolve damage for damage, and the party's defeat is the log's |
 | `$37` two Fanbite | `forced_37_fanbite.json` | **exact**: SPIRAL BLD (`$08` at f24903) takes all three party slots for the damage the log shows, and the wipe is the log's |
-| `$53` one Desrt Leach | `forced_53_desrtleach.json` | **not exact**: first divergence at f25026, the vehicle's turn |
+| `$53` one Desrt Leach | `forced_53_desrtleach.json` | **exact** (2026-09-24): six rounds, 285 rolls, every vehicle swing's three hit passes and sixteen damage draws, the Desrt Leach's death at f26459, and the log's 1500 exp and 1 meseta |
 
-The Desrt Leach capture is the worklist this machinery exists to produce. Its
-first divergence, as `divergences.json` carries it:
+`replay_fixtures/divergences.json` is **empty** as of 2026-09-24: the Desrt
+Leach capture was its last entry, and the worklist this machinery existed to
+produce is closed. What it carried, and what closed it:
 
 * **frame** f25026, **round** 1, **kind** `no-swing`, **action** actor 1 (the
   vehicle), f25026-25169;
@@ -266,27 +267,45 @@ first divergence, as `divergences.json` carries it:
 * the port has `TurnSkipped { reason: Unarmed }` and no swing at all, so round 1
   drew 31 of the log's 50 rolls.
 
-Best-supported cause, with the code involved:
+What the port did, and what the cartridge does instead:
 
-* The port refuses the swing at `Character_Attack`'s weapon check
+* The port refused the swing at `Character_Attack`'s weapon check
   (`ps4.asm:13002-13019`): with neither hand holding a weapon, the cartridge
   takes the `move.w #$FFFF, $32(a4)` arm and skips `jsr loc_B6A2`, and
-  `rust/psiv-core/src/battle/engine.rs` models that as `Skipped::Unarmed`.
-* The vehicle's fighter is not that path. `loc_78EE` (`ps4.asm:11408`) seats it
-  from `Vehicle_Stats` with a **character/attack-route id of its own**, and the
-  three-hit shape is `CharAttack_Seth`'s: `AttackMappings_Seth`
-  (`ps4.asm:13759-13761`) holds three mappings - `OneKnife`, `OneKnife`,
-  `TwoKnives` - and the close-range weapon it hands over to runs one
-  `loc_B6A2` pass per mapping, which is exactly three passes in three frames.
-  `rust/psiv-core/src/vehicle.rs`'s `battle_member` gives the vehicle
-  `character = 0x0B + index` (12 for the Land Rover, index 1) and
-  `rust/psiv-core/src/battle/action.rs`'s `takes_second_hit_pass` gives every
-  character but Alys and Kyra one pass, so the port's vehicle has neither the
-  route nor the pass count the log shows. The two extra rolls shift the rest of
-  the round's stream, which is why the round's draw count is 31 against 50.
-* Fixing it (the vehicle's character id, its attack route and its pass count)
-  is out of this brief's scope. It is recorded, not repaired, in
-  `replay_fixtures/divergences.json` and here.
+  `rust/psiv-core/src/battle/engine.rs` models that as `Skipped::Unarmed`. The
+  port's vehicle had no equipment - `rust/psiv-core/src/vehicle.rs`'s
+  `battle_member` leaves `equipment` zero - and so skipped. The vehicle's
+  fighter is not that path at all: `loc_5B8E` (`ps4.asm:8410-8416`) sends its
+  command-6 Attack to `loc_AF9C` (`ps4.asm:16810`), a routine of its own whose
+  three `loc_B6A2` passes (states 4, 5 and 5 again, `ps4.asm:16957-16979`,
+  `14964`, and the attack object's `move.w #5, $32(a0)` at `ps4.asm:82975`)
+  are exactly the three frames the log holds. `Character_Attack`, its weapon
+  check and its `Character_AttackActionOffs` dispatch are never reached for a
+  vehicle; the two extra rolls shifted the rest of the round's stream, which is
+  why the round's draw count was 31 against 50.
+* The correction lane's first cut read the three passes as `CharAttack_Seth`'s
+  three close-range mappings (`ps4.asm:13759-13761`) instead. That was wrong:
+  the mappings belong to fighter routine 6's *character* dispatch, which a
+  vehicle never reaches, and the three frames come from the attack object the
+  vehicle's own routine loads. `loc_9848` (`ps4.asm:14964`) is the shared
+  second pass both readings share, and the third is the object's hand-back.
+* Fixed on 2026-09-24 in `rust/psiv-core/src/battle/vehicle_attack.rs`, with
+  `resolve_attack` dispatching to it. The rule, its citations, the six rounds'
+  arithmetic and the tests are in
+  [`source-notes/battle-party.md`](source-notes/battle-party.md#the-vehicles-own-attack-command-6-three-hit-passes-2026-09-24).
+* The fixture's per-target `hit` byte is the one the swing's **last** pass
+  wrote: `loc_B6A2` presets all nine `Fighters_Hit_Flags` to `$FF` before every
+  pass (`ps4.asm:17493-17498`), so an earlier pass's verdicts are overwritten,
+  and `oracle/fixture/observations.py`'s `sample_decisive_hits` reads the byte
+  at the frame of the action's last `loc_B6A2` roll once
+  `oracle/fixture/roles.py` has labelled the rolls. Rounds 3 and 6 of this
+  capture are why it matters: their first pass came back critical (`$01`) and
+  their third normal, and their damage - 154 and 189 - is what only a normal
+  hit's arithmetic produces (`((45+8)*200)>>6 + 200 = 365`, `365*2>>2 - 28 =
+  154`; with the `atk >> 2` bonus it would be 204). The fixture was re-extracted
+  from this capture on 2026-09-24, so those two bytes are `$00` and
+  `replay/compare.rs` compares every verdict strictly again - no
+  frame-dependent relaxation.
 
 The fixture's own reading of the vehicle battle is in its `vehicle` section:
 `Vehicle_Index` 1 (the selector's patch), the fighter's HP at the battle's first
@@ -294,9 +313,14 @@ frame (`Vehicle_Stats + curr_hp`, `$FFFF470E`, logged as
 `vehicle_fighter_hp`), and the saved record behind it
 (`Saved_Vehicle_Stats`, `$FFFFFA80`), whose own current HP **equals** the
 fighter's at that frame - which is what makes its maximum (740) the battle
-copy's, and what the fixture records rather than assumes. The members' HP
-columns are the field's: nothing loads them in a vehicle battle, so the fixture
-carries no party at all and the party side's HP column *is*
+copy's, and what the fixture records rather than assumes. The 2026-09-24
+re-extraction is what put that on the record: the committed file predated
+`oracle/fixture/vehicle.py`'s `matches` reading, so its `max_hp` was `null` and
+it carried no `hp_matches_saved_record`; the regenerated file has `740` and
+`true` - the claim `rust/psiv-core/src/battle/replay/build.rs` asserts when it
+seats the vehicle - while every other vehicle cell is byte-identical. The
+members' HP columns are the field's: nothing loads them in a vehicle battle, so
+the fixture carries no party at all and the party side's HP column *is*
 `vehicle_fighter_hp`.
 
 ## 4. What this does and does not prove
@@ -336,3 +360,31 @@ Not proved, and not claimed:
 - **Formations nothing can reach.** A formation whose only groups no map byte,
   no grid cell and no vehicle table can produce is refused with the groups
   named, rather than approximated.
+
+## 5. The second vehicle, and why it is not captured here
+
+The vehicle rule is proven on one vehicle — the Land Rover of the `$53`
+capture. A capture of another vehicle table formation with a different
+`Vehicle_Index` would check the same rule against another record, and the
+mechanism is already there: `loc_77AE` (`ps4.asm:11295-11404`) rebuilds
+`Vehicle_Stats` from `VehicleData` by `Vehicle_Index` on **every** battle load,
+because `GameMode_LoadBattle` calls `FillBattleStats` (`ps4.asm:10005`), whose
+first act is `bne.w loc_77AE` for a nonzero index (`ps4.asm:11272-11274`). So a
+capture that patches only `$FFFFF43C` (`vehicle_index`) one frame after the
+formation draw gets the Ice Digger's or the Hydrofoil's own record in the
+battle — its `attack` byte 250 or 150, its agility, and its `vehicle_fighter_hp`
+of 960 or 680 rather than the Land Rover's 740 — with the same command-6
+swing the port now models and nothing else to re-derive.
+
+What is missing is the capture itself, and this lane is not provisioned for one:
+`oracle/force_battle.py`'s vehicle selector hardcodes `("vehicle_index", 1)`
+(`selector_for_group`), so a `--vehicle` value is a tool change, and the run
+then needs the pinned Genesis Plus GX core — `oracle/build_core.sh`, whose
+sources live in the ignored `oracle/gpgx-src` that a lane must have linked in
+(`--link oracle/gpgx-src`) and which is absent here, leaving a network clone and
+a from-scratch core build as the only route. The next lane that wants this
+fixture: link `oracle/gpgx-src` (or build the core from the pinned commit
+`2d7131c`), add the `--vehicle` value to the selector's patch list, and capture
+a group 8/9/10/13 formation as the `$53` capture was captured — `--formation`,
+`--out`, then `oracle/battle_fixture.py` and
+`every_fixture_replays_as_recorded`.

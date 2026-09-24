@@ -245,6 +245,40 @@ def decided_frame(log, enemy_ids, party_ids, first, last, columns=None):
     return min(seen) if seen else None
 
 
+def hit_flag_column(fighter_id):
+    """The log's `Fighters_Hit_Flags` column for a one-based fighter id.
+
+    The array is indexed by **slot** (`loc_B6A2` writes `-$1(a0,d6.w)` for a
+    one-based `d6`), so fighter id 1 reads `hit_00` and enemy slot 1 - id 6 -
+    reads `hit_05`.
+    """
+    return f"hit_{fighter_id - 1:02d}"
+
+
+def sample_decisive_hits(log, record, decisive_frame):
+    """Re-read every target's hit byte at the swing's **decisive** pass.
+
+    `loc_B6A2` presets all nine `Fighters_Hit_Flags` to `$FF` before it rolls
+    (`ps4.asm:17493-17498`, `moveq #-1, d0` over nine words) and every pass
+    walks the same window, so the byte a swing leaves behind is the one its
+    **last** pass wrote - the one `Fighter_TakeDamage` reads
+    (`ps4.asm:3569-3571`). [`action_record`] reads the byte at the first frame
+    the flags moved, which is the *first* pass's verdict; for a swing whose
+    passes arrive in different frames - `loc_AF9C`'s three, the vehicle's - the
+    two differ, and the action's own `hit_frame` is not the frame its byte came
+    from. This re-reads it at `decisive_frame`, the frame of the action's last
+    `loc_B6A2` roll.
+
+    Nothing writes `Fighters_Hit_Flags` between that pass and the action's end -
+    the next writer is another action's `loc_B6A2`, which is outside this
+    action's window - so the byte is also what the first frame at or after the
+    roll holds; `Log.require_complete` has already refused a log with a hole, so
+    the roll's own frame is always there to read.
+    """
+    for target in record["targets"]:
+        target["hit"] = log.raw(decisive_frame, hit_flag_column(target["id"]))
+
+
 def action_record(log, actor, start, end, rolls, occupied, columns=None):
     """One action: who acted, what the log shows, and the rolls it drew.
 
@@ -254,19 +288,24 @@ def action_record(log, actor, start, end, rolls, occupied, columns=None):
     (`$FF` over every slot, `$FFFF` over the first four damage words) from
     reading as an observation about the actor's own side. `columns` is the
     fighter-id to HP-column map (see `wiped_out`).
+
+    Each target's `hit` here is the byte at the first frame the flags moved,
+    the *first* pass's verdict; `assembly` re-reads it at the action's last
+    `loc_B6A2` roll with [`sample_decisive_hits`] once the rolls are labelled.
     """
     columns = HP_COLUMNS if columns is None else columns
     hit_frame = next(
         (frame for frame in range(start, end + 1)
          if frame in log.by_frame
-         and any(log.changed(frame, f"hit_{i:02d}") for i in range(0, 10))),
+         and any(log.changed(frame, hit_flag_column(index))
+                 for index in range(0, 10))),
         None)
     opposing = "enemy" if side_of(actor) == "party" else "party"
     targets = []
     for id_ in range(1, 10):
         if side_of(id_) != opposing or id_ not in occupied:
             continue
-        flag = f"hit_{id_ - 1:02d}"
+        flag = hit_flag_column(id_)
         damage = f"dmg_{id_ - 1:02d}"
 
         def stored(frame):

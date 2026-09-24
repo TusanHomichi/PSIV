@@ -29,8 +29,9 @@ from the same run (`--groups core,battle,bhit,enemy,chars,rng,vehicle`).
     outside_rolls   the calls no battle routine consumes: the encounter's
                     formation draw and the post-victory item drop
     rounds          the queue each round filled, and its actions: who acted,
-                    the frames, the calls it drew, and per target the hit flag,
-                    damage, HP after and whether it died
+                    the frames, the calls it drew, and per target the hit flag
+                    (the byte the action's last `loc_B6A2` pass wrote), damage,
+                    HP after and whether it died
     outcome         victory or defeat, who fell, and the rewards
 
 The schema is additive: a fixture written before enemy abilities or vehicle

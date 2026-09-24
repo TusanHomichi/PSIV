@@ -62,7 +62,8 @@
   "name": "Land Rover",
   "fighter_id": 1,
   "hp": 740,
-  "max_hp": null,
+  "max_hp": 740,
+  "hp_matches_saved_record": true,
   "saved_record": {
    "hp": 740,
    "max_hp": 740,
@@ -547,7 +548,7 @@
      "targets": [
       {
        "id": 6,
-       "hit": "01",
+       "hit": "00",
        "damage": 154,
        "damage_frame": 25520,
        "hp_after": 487,
@@ -786,7 +787,7 @@
      "targets": [
       {
        "id": 6,
-       "hit": "01",
+       "hit": "00",
        "damage": 189,
        "damage_frame": 26459,
        "hp_after": -51,

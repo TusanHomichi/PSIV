@@ -253,10 +253,29 @@ honest, and both directions are checked by running it:
 * **A changed roll in a captured fixture.** Flipping the sixteen damage draws of
   the Helex capture's first FLAME BOLT (`forced_5e_helex.json`, f25043) fails it
   at that action with the log's 78 against the port's 77.
+* **The vehicle's swing removed again.** Putting a vehicle back on
+  `Character_Attack`'s weapon check - `resolve_attack`'s dispatch to
+  `vehicle_attack` deleted - fails the test at exactly the finding the deleted
+  entry carried: `forced_53_desrtleach: the port diverges at f25026 (round 1,
+  no-swing)`, the log's actor 1 resolving one target against the port's no
+  swing. Restoring it passes. Transcripts in the lane's
+  `build/lane-evidence/03-negative-control.log` and
+  `04-replay-after-restore.log` (not committed).
+* **The hit byte sampled a pass early.** Pointing the extractor back at the
+  frame the flags first moved - `sample_decisive_hits` disabled, the fixture
+  re-extracted from the same capture - fails the strict comparator at the
+  DesrtLeach's own rounds: round 3 first, at f25448 (`Normal with Some(154)`
+  against the log's `hit flag 01`), and with round 3's byte put back by hand so
+  the walk reaches the next one, round 6 at f26387 (`Normal with Some(189)`
+  against `hit flag 01`) - the same defect in the other round, and the
+  comparator reports each in turn. Restoring the sampler and re-extracting
+  gives the two `$00` bytes and an empty manifest again. Transcripts: the
+  lane's `build/lane-evidence/14-negative-control-round3.log`,
+  `14c-negative-control-round6.log` and `14d-restored.log` (not committed).
 
-Both were run against the tree this ledger describes; the transcripts are in
-`build/lane-evidence/negative_controls.log` and
-`build/lane-evidence/negative_control_b.log` of the lane that wrote them.
+The manifest-entry and changed-roll controls above were run against the tree
+this ledger describes; their transcripts are in `build/lane-evidence/negative_controls.log`
+and `build/lane-evidence/negative_control_b.log` of the lane that wrote them.
 
 ### The negative control
 
@@ -309,7 +328,7 @@ The fixture schema is additive, so the tapes' fixtures were not touched:
 `animation_hit_pass_ids` and the provenance notes are new keys, and a fixture
 without them reads as a battle whose every action is a physical attack.
 
-## Two divergences, both closed
+## Three divergences, all closed
 
 ### Alys's and Kyra's second hit pass
 
@@ -346,6 +365,45 @@ has 10 - and tape 09's at f30889 (9 against 10). The other nine are `action_seco
 be that control) and `rust/psiv-core/src/battle/action.rs`'s
 `a_multi_target_swing_rolls_both_hit_passes_then_damages_each` and
 `a_multi_target_swing_can_never_crit`.
+
+### The vehicle's swing: command 6, and three hit passes
+
+A forced capture found this one: the `$53` Desrt Leach battle
+([`BATTLE_ORACLE_FORCED.md`](BATTLE_ORACLE_FORCED.md)), where the port's vehicle
+party-side fighter spent every turn as `TurnSkipped { reason: Unarmed }` while
+the log showed it swinging. The cause was route, not equipment: a vehicle's
+Attack is command 6, whose fighter routine is `loc_AF9C` (`ps4.asm:16810`)
+rather than `Character_Attack`, so the weapon check that skipped the swing never
+runs for it, and the swing draws `loc_B6A2` **three** times - state 4's
+`jmp loc_B6A2` as the attack object is created, state 5's `jsr loc_B6A2`
+(`loc_9848`, `ps4.asm:14964`), and state 5 again once that object hands the
+vehicle's `action_routine` back (`move.w #5, $32(a0)`, `ps4.asm:82975` and its
+two siblings). Its damage is not the weapon path either: `loc_280A`
+(`ps4.asm:4016`) reads the **target's** element-2 property and nothing of the
+attacker's hands.
+
+`psiv-core` models it in `rust/psiv-core/src/battle/vehicle_attack.rs`, with
+`resolve_attack` dispatching to `resolve_vehicle_attack` for a fighter whose
+`Fighter::character` is one of `loc_78EE`'s ids (`Vehicle_Index + $B`). The
+instruction-level reading, the six rounds' arithmetic and the tests are in
+[`source-notes/battle-party.md`](source-notes/battle-party.md#the-vehicles-own-attack-command-6-three-hit-passes-2026-09-24),
+"The vehicle's own attack".
+
+One reading of the fixture changed with it, and the checker did not. A
+per-target `hit` byte is the one the swing's **last** pass wrote - `loc_B6A2`
+presets all nine `Fighters_Hit_Flags` to `$FF` before every pass
+(`ps4.asm:17493-17498`), and every pass walks the same window - so
+`oracle/fixture/observations.py`'s `sample_decisive_hits` reads the byte at the
+frame of the action's last `loc_B6A2` roll, which `oracle/fixture/roles.py`'s
+labels name. Rounds 3 and 6 of the capture are the case that made it necessary:
+their first pass came back critical and their third normal, and their damage -
+154 and 189 - is what only a normal hit's arithmetic produces. The fixture was
+re-extracted on 2026-09-24, so those bytes are `$00`, and
+`replay/compare.rs` is back to comparing every verdict strictly: a byte sampled
+before the decisive pass would fail the test rather than be excused.
+`battle/vehicle_attack_tests.rs`'s
+`the_logs_third_round_needs_the_last_passs_verdict` still pins the same rolls'
+verdict inside the port.
 
 ### `$FFFFEEA8`: the ability re-roll word, and how long it lives
 
