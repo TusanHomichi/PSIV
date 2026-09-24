@@ -163,7 +163,7 @@ runs when the gate is clear.
 | `$30` (48) **Distortion**<br>DISTORTION | eff `$01` · stat $01 (strength) · tgt 9 · pow 128 · res $07 (magic_defense) · el `4` gravity | `EnemyAttack_ProfoundDarkness2` (`ps4.asm:19750`)<br>→ loc_2F1B2 (`ps4.asm:61394`) | `AbilityEffect_None` (`ps4.asm:9092`) | 134 ProfoundDarkness2<br>0/504 formations | damage | unsupported |
 | `$31` (49) **Gra**<br>GRA | eff `$01` · stat $82 (mental) · tgt 9 · pow 32 · res $07 (magic_defense) · el `4` gravity | `EnemyAttack_DimensWorm` (`ps4.asm:21892`)<br>→ loc_1C99C (`ps4.asm:39050`)<br>loc_1C73E (`ps4.asm:38879`)<br>loc_1C658 (`ps4.asm:38807`) | `AbilityEffect_None` (`ps4.asm:9092`) | 73 DimensWorm, 74 OuterBeast<br>14/504 formations | damage | unsupported |
 | `$32` (50) **Gigra**<br>GIGRA | eff `$01` · stat $82 (mental) · tgt 9 · pow 64 · res $07 (magic_defense) · el `4` gravity | `EnemyAttack_DimensWorm` (`ps4.asm:21892`)<br>→ loc_1C99C (`ps4.asm:39050`)<br>loc_1C73E (`ps4.asm:38879`)<br>loc_1C658 (`ps4.asm:38807`) | `AbilityEffect_None` (`ps4.asm:9092`) | 74 OuterBeast<br>7/504 formations | damage | unsupported |
-| `$33` (51) **AcidBreath**<br>ACIDBREATH | eff `$01` · stat $01 (strength) · tgt 8 · pow 24 · res $06 (defense) · el `1` physical | `EnemyAttack_FlattrPlnt` (`ps4.asm:21778`)<br>→ BattleObj_AcidBreath (`ps4.asm:38566`)<br>BattleObj_AcidBreathChild (`ps4.asm:38622`)<br>`EnemyAttack_Piercer` (`ps4.asm:21518`)<br>→ loc_23998 (`ps4.asm:47264`) | `AbilityEffect_None` (`ps4.asm:9092`) | 75 FlattrPlnt, 76 FlyScreamr, 85 Piercer, 86 HakenLeft<br>19/504 formations | — | implemented — `enemy_skill::resolve_acid_breath` |
+| `$33` (51) **AcidBreath**<br>ACIDBREATH | eff `$01` · stat $01 (strength) · tgt 8 · pow 24 · res $06 (defense) · el `1` physical | `EnemyAttack_FlattrPlnt` (`ps4.asm:21778`)<br>→ BattleObj_AcidBreath (`ps4.asm:38566`)<br>BattleObj_AcidBreathChild (`ps4.asm:38622`)<br>`EnemyAttack_Piercer` (`ps4.asm:21518`)<br>→ loc_23998 (`ps4.asm:47264`)<br>loc_24FD2 (`ps4.asm:48883`) | `AbilityEffect_None` (`ps4.asm:9092`) | 75 FlattrPlnt, 76 FlyScreamr, 85 Piercer, 86 HakenLeft<br>19/504 formations | — | implemented — `enemy_skill::resolve_acid_breath` for all four carriers (`ACID_BREATH_CARRIERS`); 77 TechPlant shares `EnemyAttack_FlattrPlnt` but never rolls `$33` |
 | `$34` (52) **Voice**<br>VOICE | eff `$07` · stat $01 (strength) · tgt 9 · pow 128 · res $02 (mental) · el `11` psychic | `EnemyAttack_FlattrPlnt` (`ps4.asm:21778`)<br>→ BattleObj_Voice (`ps4.asm:38465`)<br>BattleObj_AcidBreathChild (`ps4.asm:38622`) | `AbilityEffect_SleepParalyze` (`ps4.asm:9154`) | 76 FlyScreamr<br>3/504 formations | status/stat effect | unsupported |
 | `$35` (53) **Gizan**<br>GIZAN | eff `$01` · stat $82 (mental) · tgt 9 · pow 48 · res $07 (magic_defense) · el `1` physical | `EnemyAttack_DElmLars` (`ps4.asm:20222`)<br>→ loc_2912C (`ps4.asm:54326`)<br>`EnemyAttack_FlattrPlnt` (`ps4.asm:21778`)<br>→ BattleObj_EnemyGizan (`ps4.asm:38024`)<br>BattleObj_AcidBreathChild (`ps4.asm:38622`)<br>`EnemyAttack_TechUser` (`ps4.asm:21156`)<br>→ loc_21176 (`ps4.asm:44547`) | `AbilityEffect_None` (`ps4.asm:9092`) | 77 TechPlant, 101 DarkWitch, 122 DElmLars, 123 XeAThoul, 124 LeFawGan, 125 GiLeFarg<br>17/504 formations (+2 boss) | damage | unsupported |
 | `$36` (54) **StrngLight**<br>STRNGLIGHT | eff `$07` · stat $01 (strength) · tgt 8 · pow 48 · res $02 (mental) · el `11` psychic | `EnemyAttack_ToadStool` (`ps4.asm:21737`)<br>→ BattleObj_StrngLight (`ps4.asm:37778`) | `AbilityEffect_SleepParalyze` (`ps4.asm:9154`) | 79 Shrieker<br>8/504 formations | status/stat effect | unsupported |
@@ -361,9 +361,16 @@ The four implemented rows are exactly what `psiv-core` claims:
   `EnemyAttack_Crawler` (`ps4.asm:23081`) → `BattleObj_Thread` (`ps4.asm:36186`)
   for `$10`, `BattleObj_Poison` (`ps4.asm:36279`) otherwise — matching
   `docs/THREAD.md`.
-- `$33` ACIDBREATH → `enemy_skill::resolve_acid_breath`. Carrier 75 FlattrPlnt →
+- `$33` ACIDBREATH → `enemy_skill::resolve_acid_breath` for all four carriers
+  (`ACID_BREATH_CARRIERS`, `rust/psiv-core/src/battle/enemy_skill.rs`). 75
+  FlattrPlnt and 76 FlyScreamr (`EnemyAttackOffs` `$4B`/`$4C`) →
   `EnemyAttack_FlattrPlnt` (`ps4.asm:21778`) → `BattleObj_AcidBreath`
-  (`ps4.asm:38566`) + `BattleObj_AcidBreathChild` (`ps4.asm:38622`).
+  (`ps4.asm:38566`) + `BattleObj_AcidBreathChild` (`ps4.asm:38622`); 85 Piercer
+  and 86 HakenLeft (`$55`/`$56`) → `EnemyAttack_Piercer` (`ps4.asm:21518`) →
+  object `$35C` = `loc_23998` (`ps4.asm:47264`) + `$360` = `loc_24FD2`
+  (`ps4.asm:48883`). Both arms keep `Current_Target_Index`, make one reaction
+  write (`move.w #5, $2(a3)`) and one damage request (`move.w #$C, $2(a3)`), and
+  write MoleAttack `$D5` then EnemyAttack4 `$D8`.
 - `$70`/112 BLACK WAVE (Zio3) → the scripted sequence in
   `engine::roll_enemy_ability`, fed by `EnemyAttack_Zio3` (`ps4.asm:19410`):
   phase 0 writes `$6B` and loads `BattleObj_MagBarrir` (`ps4.asm:67319`), phase 1
@@ -478,10 +485,18 @@ The four implemented rows are exactly what `psiv-core` claims:
   (`engine.rs:762-764`), so those enemies still *hit* — they hit with a physical
   swing instead of their ability. Any bug report about enemy damage in a fight
   listed in §4 is this fallback.
-- **Acid Breath is implemented for one carrier of four.** `is_acid_breath`
-  (`enemy_skill.rs`) pins ability `$33` and `resolve_acid_breath` additionally
-  requires `enemy_id == 75`, so rolls by 76 FlyScreamr, 85 Piercer and 86 HakenLeft
-  (`EnemyAttack_Piercer`, `ps4.asm:21518`) still fall back.
+- **Acid Breath covers every carrier.** `is_acid_breath` (`enemy_skill.rs`) pins
+  ability `$33`, and `resolve_acid_breath`'s `ACID_BREATH_CARRIERS` gate holds
+  the four enemies whose `EnemyAttackOffs` entry is one of the two traced `$33`
+  routines: 75 FlattrPlnt and 76 FlyScreamr share `EnemyAttack_FlattrPlnt`
+  (`ps4.asm:21778`), 85 Piercer and 86 HakenLeft share `EnemyAttack_Piercer`
+  (`ps4.asm:21518`), whose `$33` arm loads object `$35C` = `loc_23998`
+  (`ps4.asm:47264`) + `$360` = `loc_24FD2` (`ps4.asm:48883`). Both arms keep
+  `Current_Target_Index`, make one reaction write and one `move.w #$C, $2(a3)`
+  damage request, and write `$D5` then `$D8`, so both resolve through the same
+  formula. 77 TechPlant shares `EnemyAttack_FlattrPlnt` but rolls only `$2A` and
+  `$2E`, so it is deliberately outside the gate; an enemy outside it still falls
+  back (the core test `an_unproven_carrier_still_reports_acid_breath_as_unsupported`).
 - **Fission2's regular roll is not covered.** The port reaches `resolve_fission`
   only through `fission_neighbor`, which returns `None` unless the record is enemy
   12 or 13, and `resolve_fission` runs only when that returns a target. Enemy 50
