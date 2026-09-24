@@ -66,8 +66,8 @@ ability work routes to DeepSeek by default, one ability per lane, from
 [the inventory](ENEMY_ABILITIES.md). Keep independent verification of every
 disassembly claim that a change rests on.
 
-`tools/ds-lane` is 956 lines. The next change to it splits it into a package
-(for example, supervisor, receipts, CLI) under the 1,000-line rule.
+`tools/ds-lane` is now a shim over the `tools/ds_lane/` package (split
+2026-09-24; every module is under 400 lines).
 
 ## Method decision: coverage-first, oracle-judged (2026-09-23)
 
