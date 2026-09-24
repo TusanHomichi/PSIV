@@ -154,6 +154,142 @@ fn flattrplnt_acid_breath_has_its_own_turn_sound_cues_and_save_handoff() {
     std::fs::remove_dir_all(dir).unwrap();
 }
 
+/// `EnemyAttackOffs` (`ps4.asm:19206`) sends 76 FlyScreamr and 85 Piercer down
+/// two different `$33` arms: `$4C` is `EnemyAttack_FlattrPlnt`
+/// (`ps4.asm:21778`), `$55` is `EnemyAttack_Piercer` (`ps4.asm:21518`). Both
+/// roll the real ability record from formation `$D5` (one FlyScreamr) and
+/// `$129` (two Piercers), and both must resolve it instead of announcing
+/// `UnsupportedAbility` and swinging.
+#[test]
+fn newly_supported_acid_breath_carriers_resolve_in_their_real_formations() {
+    let pack = Path::new(PACK);
+    if !pack.join("manifest.json").is_file() {
+        eprintln!("runtime pack absent; skipping");
+        return;
+    }
+    let files = BattleFiles::load(pack).unwrap();
+    // Fixed seeds, first round each; the loop below tolerates a later one.
+    for (formation, carrier, seed) in [
+        (0xD5u16, 76u16, 0x9E37_79B9u32),
+        (0x129u16, 85u16, 0x0101_5678u32),
+    ] {
+        let mut initial = Runtime::new(
+            GameData::load(pack).unwrap(),
+            0x2B,
+            Cell::new(17, 52),
+            Direction::Up,
+            StepFrames::default(),
+        )
+        .unwrap();
+        initial.enable_battles(&files).unwrap();
+        let mut game = GameState::from_snapshot(&initial.game().snapshot());
+        game.set_party([
+            Some(CharId(1)),
+            Some(CharId(0)),
+            Some(CharId(2)),
+            None,
+            None,
+        ]);
+        // Constructed durability fixture, unrelated to the connected native
+        // save: headroom for the round search, so no member's death ends the
+        // battle before the carrier's `$33` roll shows up.
+        for character in [1, 0, 2] {
+            let stats = game.roster_mut().get_mut(CharId(character)).unwrap();
+            stats.max_hp = 999;
+            stats.curr_hp = 999;
+        }
+        let mut runtime = Runtime::from_save(
+            GameData::load(pack).unwrap(),
+            RetailSave {
+                snapshot: game.snapshot(),
+                location: RetailLocation {
+                    world_index: 0,
+                    map_index_2: 0,
+                    map_index: 0x2B,
+                    char_x: 17 * 16,
+                    char_y: 52 * 16,
+                },
+            },
+            StepFrames::default(),
+        )
+        .unwrap();
+        runtime.enable_battles(&files).unwrap();
+        runtime
+            .start_battle_timeline(formation, runtime.battle_party())
+            .unwrap();
+        runtime.set_rng_seed(seed);
+        let mut found = false;
+        for _ in 0..4 {
+            let timeline = runtime
+                .battle_round_timeline(&RoundOrders::Commands(vec![Command::Defend; 3]))
+                .unwrap();
+            assert!(
+                !timeline
+                    .events
+                    .iter()
+                    .any(|e| matches!(e, BattleEvent::UnsupportedAbility { ability: 51, .. })),
+                "carrier {carrier}: {:?}",
+                timeline.events
+            );
+            let Some((index, actor)) =
+                timeline
+                    .events
+                    .iter()
+                    .enumerate()
+                    .find_map(|(i, e)| match e {
+                        BattleEvent::EnemySkillUsed {
+                            actor,
+                            skill: 51,
+                            name,
+                        } => {
+                            assert_eq!(name, "ACIDBREATH");
+                            Some((i, *actor))
+                        }
+                        _ => None,
+                    })
+            else {
+                continue;
+            };
+            assert!(
+                matches!(timeline.events[index + 1], BattleEvent::Resolved { actor: caster, damage: Some(_), .. } if caster == actor),
+                "carrier {carrier}: {:?}",
+                timeline.events
+            );
+            assert!(
+                !timeline.events.iter().any(
+                    |e| matches!(e, BattleEvent::Attacked { actor: attacker, .. } if *attacker == actor)
+                ),
+                "carrier {carrier}: the ability replaces the swing: {:?}",
+                timeline.events
+            );
+            assert!(
+                timeline
+                    .sounds
+                    .iter()
+                    .any(|s| s.event_index == index && s.id == 0xD5),
+                "carrier {carrier}: MoleAttack starts the wind-up"
+            );
+            assert!(
+                timeline
+                    .sounds
+                    .iter()
+                    .any(|s| s.event_index == index + 1 && s.id == 0xD8),
+                "carrier {carrier}: EnemyAttack4 precedes the damage reaction"
+            );
+            assert!(
+                !timeline.animations.iter().any(|a| a.actor == actor),
+                "carrier {carrier}: do not substitute the plain attack animation"
+            );
+            found = true;
+            break;
+        }
+        assert!(
+            found,
+            "carrier {carrier} must resolve its own $33 in formation {formation:#x}"
+        );
+    }
+}
+
 #[test]
 fn carrion_crawler_thread_replaces_its_attack_in_the_real_formation() {
     let pack = Path::new(PACK);

@@ -8,6 +8,10 @@ use super::{
 #[path = "enemy_skill_tests.rs"]
 mod tests;
 
+#[cfg(test)]
+#[path = "enemy_skill_poison_tests.rs"]
+mod poison_tests;
+
 /// An eight-byte enemy ability, independent of player skills and techniques.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnemySkill {
@@ -30,11 +34,12 @@ pub struct EnemySkill {
 }
 
 impl EnemySkill {
-    /// Fission, FlattrPlnt's Acid Breath and the crawler family's THREAD. Other routines remain
-    /// explicitly unsupported until their gameplay has been transcribed.
+    /// Fission, Acid Breath, the crawler family's THREAD and the same family's
+    /// POISON. Other routines remain explicitly unsupported until their
+    /// gameplay has been transcribed.
     #[must_use]
     pub const fn supported(&self) -> bool {
-        self.is_fission() || self.is_acid_breath() || self.is_thread()
+        self.is_fission() || self.is_acid_breath() || self.is_thread() || self.is_poison()
     }
 
     const fn is_fission(&self) -> bool {
@@ -65,6 +70,19 @@ impl EnemySkill {
             && self.power == 64
             && self.resistance == 3
             && self.element == 1
+    }
+
+    /// Record 17 at `0x2833EC` is `1b 01 08 40 01 0d 00 00`. PoisonMist (`$24`)
+    /// shares the effect byte, both stat selectors and the element; only the
+    /// hit chance separates them, so the whole record is pinned here.
+    const fn is_poison(&self) -> bool {
+        self.id == 17
+            && self.effect == 27
+            && self.power_stat == 1
+            && self.target == 8
+            && self.power == 64
+            && self.resistance == 1
+            && self.element == 13
     }
 }
 
@@ -131,11 +149,113 @@ pub(super) fn resolve_thread(
     true
 }
 
-/// EnemyAttack_FlattrPlnt keeps Current_Target_Index for ability $33. The
-/// main AcidBreath object requests one damage reaction (guarded by bit 1),
-/// while its child only animates. loc_B75A supplies a normal hit without a
-/// chance roll; Enemy_DamageCharacter reads strength, defense and physical
-/// resistance through the ability record. No physical attack/status follows.
+/// EnemyAttack_Crawler's other nonzero arm. Ability `$11` is not `$10`, so
+/// loc_10836 loads object `$138`, `BattleObj_Poison` — the same shape as
+/// BattleObj_Thread and, like it, never a damage request. Its wind-up writes
+/// `SFXID_EnemyAttack4` ($D8), then calls GetEnemySkillEffectAndRange once at
+/// the animation handoff, retaining the chosen party target.
+///
+/// Record 17's effect byte `$1B` dispatches to AbilityEffect_Poison, which
+/// returns before anything else when the target is already poisoned and
+/// otherwise runs Effect_DoEnemySkill's single chance roll: actor STR against
+/// target STR, the target's efess factor as the scale, the record's hit-chance
+/// byte as the miss threshold, the effect id as the upper threshold. Any
+/// non-negative verdict sets the poisoned bit.
+pub(super) fn resolve_poison(
+    roster: &mut Roster,
+    actor: FighterId,
+    ability: u8,
+    intended: Option<FighterId>,
+    data: &BattleData,
+    rolls: &mut impl Rolls,
+    events: &mut Vec<BattleEvent>,
+) -> bool {
+    use super::stats::status;
+    let Some(skill) = data.enemy_skill(ability).filter(|s| s.is_poison()) else {
+        return false;
+    };
+    let Some(caster) = roster.get(actor).filter(|f| {
+        f.is_alive() && f.id.side() == Side::Enemy && matches!(f.stats.enemy_id, 30..=32)
+    }) else {
+        return false;
+    };
+    let power = super::technique::stat(&caster.stats, skill.power_stat);
+    events.push(BattleEvent::EnemySkillUsed {
+        actor,
+        skill: ability,
+        name: skill.name.clone(),
+    });
+    let Some(fighter) = intended
+        .filter(|id| id.side() == Side::Party)
+        .and_then(|id| roster.get_mut(id))
+        .filter(|f| f.is_alive())
+    else {
+        return true;
+    };
+    let stats = &mut fighter.stats;
+    // AbilityEffect_Poison's first test. An already-poisoned target does not
+    // reach the chance roll at all, so it spends no draw.
+    if stats.status & status::POISONED != 0 {
+        return true;
+    }
+    if super::calculate_chances(
+        power as i16,
+        super::technique::stat(stats, skill.resistance) as i16,
+        i16::from(stats.element_factor(skill.element).unwrap_or(0)),
+        i16::from(skill.power),
+        i16::from(skill.effect),
+        rolls,
+    ) == super::Verdict::Miss
+    {
+        return true;
+    }
+    stats.status |= status::POISONED;
+    events.push(BattleEvent::StatusInflicted {
+        actor,
+        target: fighter.id,
+        status: status::POISONED,
+    });
+    true
+}
+
+/// The enemies whose `EnemyAttackOffs` entry is one of the two `$33` routines
+/// transcribed below.
+///
+/// `EnemyAttackOffs` (`ps4.asm:19206`) gives `EnemyAttack_FlattrPlnt` to enemy
+/// ids `$4B`, `$4C` and `$4D` — 75 FlattrPlnt, 76 FlyScreamr and 77 TechPlant —
+/// and `EnemyAttack_Piercer` (`ps4.asm:21518`) to `$55` and `$56`, 85 Piercer
+/// and 86 HakenLeft. The gate is the proven *carrier* set rather than the
+/// routine set: a routine can only run for an enemy that rolled `$33`, and
+/// 77 TechPlant's US ability list is `$2A`/`$2E` only
+/// (`generated/enemies.json`), so it never reaches the `$33` arm even though it
+/// shares the routine.
+const ACID_BREATH_CARRIERS: [u16; 4] = [75, 76, 85, 86];
+
+/// Ability `$33` for every carrier whose attack routine was traced.
+///
+/// `EnemyAttack_FlattrPlnt` (`ps4.asm:21778`) keeps `Current_Target_Index` for
+/// `$33`: the `loc_F5BE` arm has no write to it, while `$34` (`loc_F60A`),
+/// `$2A` (`loc_F65E`) and the fallback (`loc_F722`) all clear it. The arm
+/// converts the enemy's own attack object into `BattleObj_AcidBreath`
+/// (`ps4.asm:38566`) and loads `BattleObj_AcidBreathChild` (`ps4.asm:38622`).
+/// The child only animates and asks for the hit reaction
+/// (`move.w #5, $2(a3)` / `$1C = $E`); the main object's `loc_24AEC` exit
+/// (`ps4.asm:48507`) is the single damage request, `move.w #$C, $2(a3)` gated
+/// on the target's hit timer and waited on through `($FFFF416C)`.
+///
+/// `EnemyAttack_Piercer`'s `$33` arm (`loc_F2A0`, `ps4.asm:21532`) also leaves
+/// `Current_Target_Index` alone, but loads object `$35C` = `loc_23998`
+/// (`ps4.asm:47264`) with the chosen party target in `$38(a1)` and then spawns
+/// child `$360` = `loc_24FD2` (`ps4.asm:48883`). The child makes the same
+/// hit-reaction write, and `loc_23AB6` (`ps4.asm:47344`) makes the same single
+/// `move.w #$C, $2(a3)` damage request once the child releases
+/// `($FFFFEE80)` — no attack, no status, one reaction and one hit for both
+/// arms. Both write MoleAttack `$D5` and then EnemyAttack4 `$D8`.
+///
+/// `loc_B75A` supplies a normal hit without a chance roll and
+/// `Enemy_DamageCharacter` (`ps4.asm:3775`) reads strength, defense and
+/// physical resistance through the shared `EnemySkillData` record, so the
+/// number depends on the caster's strength and not on which arm ran.
 pub(super) fn resolve_acid_breath(
     roster: &mut Roster,
     actor: FighterId,
@@ -148,10 +268,11 @@ pub(super) fn resolve_acid_breath(
     let Some(skill) = data.enemy_skill(ability).filter(|s| s.is_acid_breath()) else {
         return false;
     };
-    let Some(caster) = roster
-        .get(actor)
-        .filter(|f| f.is_alive() && f.id.side() == Side::Enemy && f.stats.enemy_id == 75)
-    else {
+    let Some(caster) = roster.get(actor).filter(|f| {
+        f.is_alive()
+            && f.id.side() == Side::Enemy
+            && ACID_BREATH_CARRIERS.contains(&f.stats.enemy_id)
+    }) else {
         return false;
     };
     let power = super::technique::stat(&caster.stats, skill.power_stat);

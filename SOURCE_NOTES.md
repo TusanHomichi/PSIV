@@ -823,6 +823,31 @@ defense and physical resistance. The existing 16-draw damage formula applies.
 The objects write MoleAttack `$D5` and EnemyAttack4 `$D8`; native cues are
 event-aligned, with the original object timings/art still pending.
 
+Acid Breath's remaining carriers (2026-09-23). `EnemyAttackOffs` (`ps4.asm:19206`)
+routes 75 FlattrPlnt, 76 FlyScreamr and 77 TechPlant to `EnemyAttack_FlattrPlnt`
+and 85 Piercer and 86 HakenLeft to `EnemyAttack_Piercer` (`ps4.asm:21518`).
+`generated/enemies.json` holds ability 51 in the regular lists of 75, 76, 85 and
+86 only. That `$33` arm (`loc_F5BE`) has no enemy-id test and no write to
+`Current_Target_Index` — unlike its `$34`/`$2A` arms and its `loc_F722` fallback —
+so 75 and 76 run the same object chain against the drawn party target.
+`EnemyAttack_Piercer`'s `$33` arm (`loc_F2A0`, `ps4.asm:21532`) also leaves
+`Current_Target_Index` alone, but loads a different chain: object `$35C`
+(`loc_23998`, `ps4.asm:47264`) with the target in `$38(a1)`, then child `$360`
+(`loc_24FD2`, `ps4.asm:48883`), copied by `loc_24A20` (`ps4.asm:48452`). The
+child makes the reaction write (`move.w #5, $2(a3)`, `$1C = $E`) and raises
+`($FFFFEE80)` when it ends; `loc_23AB6` (`ps4.asm:47344`) then makes the same
+single damage request as `BattleObj_AcidBreath`'s `loc_24AEC` (`ps4.asm:48507`)
+exit — `move.w #$C, $2(a3)` into `Fighter_TakeDamage` (`ps4.asm:3564`), guarded
+by bit 7 so it fires once, with `($FFFF416C)` as the handshake. Piercer's arm
+writes `SFXID_MoleAttack` `$D5` and then `SFXID_EnemyAttack4` `$D8`;
+FlattrPlnt's writes the same pair. `Enemy_DamageCharacter` reads the shared
+`EnemySkillData` record, so both arms take the caster's own strength (88
+FlyScreamr, 128 Piercer, 164 HakenLeft), the target's defense and its physical
+resistance through the same formula, and neither adds a physical attack or a
+status. Native: `ACID_BREATH_CARRIERS` in `rust/psiv-core/src/battle/enemy_skill.rs`
+now covers 75/76/85/86; 77 TechPlant stays out because its US list never rolls
+`$33`, so the gate cannot be reached by an unproven carrier.
+
 `loc_5A98` tests target status `$C4` and `loc_5ACE` redraws from living party
 members before the enemy ability roll. `Character_Dead` at `loc_84DE` masks
 status with `$10`, then sets bit 6 for androids or bit 2 for humans.

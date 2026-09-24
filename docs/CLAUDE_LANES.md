@@ -50,7 +50,24 @@ output.
 
 | Date | Lane | Task | Outcome | Orchestrator corrections | Cost |
 | --- | --- | --- | --- | --- | --- |
+| 2026-09-23 | bake-D | Split `battle/engine_tests.rs` (1,002 lines) into topic child modules (routine refactor) | Accepted as delivered. Independent rerun: 41/41 tests before and after, identical names, fmt clean, zero original lines lost; largest file 392 lines | None to the code. Its cited logs were in the sandbox-private `/tmp` and gone; fixed in the harness (`build/lane-evidence/`). It noticed a stale test path outside its write set and correctly left it; fixed at integration | USD 0.029, 3.5 min |
+| 2026-09-23 | bake-A | Inventory all enemy regular abilities with dispatch/effect citations (RE exploration + ledger) | Accepted: `docs/ENEMY_ABILITIES.md`. Independent checks: 83/83 ability ids match `enemies.json`; 8 sampled `ps4.asm` citations land on their labels; all four "port gap" claims match the code; it caught the fork's `if bugfixes` substitution for effects `$13-$16` | Added the `docs/README.md` link it flagged as outside its write set | USD 0.227, 15.6 min |
+| 2026-09-23 | bake-E | Harden `ds-lane`: hermetic test suite, phrasing preflight, write sets, timeout, `verify`, `tail`, receipt in summary | Accepted. Independent: 24/24 in 20.4 s via `verify`; a trap `reasonix` on `PATH` proved no test reaches the real worker. It correctly declined a spec item that would have disarmed `--read-only` | Found a group-kill gap in its timeout path (SIGKILL skipped when the parent exits on SIGTERM); sent back with the `stop` command as run 2 | USD 0.068, 9.4 min |
+| 2026-09-23 | bake-B | Extend Acid Breath `$33` to 76/85/86 from the retail routines (RE + implementation) | Accepted. Its `EnemyAttackOffs` routing, the Piercer `$33` arm and the `loc_23AB6` versus `loc_24AEC` damage-request equivalence were read directly from `ps4.asm`; its tests reran green via `verify`; its negative control fails with the old gate | None | USD 0.133, 13.4 min |
+| 2026-09-23 | bake-C | Crawler POISON `$11` (RE + implementation + ledger) | Accepted. `Battle_CalculateChances` formula and the `d4` hit-chance threshold checked in `ps4.asm`; its choice to emit no event on a miss is grounded in `loc_6652` and matches the existing attack-poison path | Resolved an `enemy_skill.rs` merge overlap with bake-B; fixed the inventory counts and index link it flagged as outside its write set. Merged tree: psiv-core 598 passed; 11 combat/boss runtime tests; clippy and fmt clean | USD 0.139, 13.8 min |
+| 2026-09-23 | bake-E run 2 | `ds-lane stop` plus the group-kill fix from review | Accepted. Independent: 28/28 via `verify` with the trap binary unused and no orphans left behind. It found that its own first orphan test was vacuous (it passed with the fix reverted) and replaced it with a SIGTERM-ignoring child | None | USD 0.041, 5.8 min |
 
-**Next action:** a bake-off of three to five real PSIV tasks of mixed
-difficulty, each logged above, before routing complex retail-parity work to
-DeepSeek by default.
+**Bake-off result (2026-09-23):** six runs across five lanes (routine
+refactor, RE inventory, harness tooling, two retail-parity implementations),
+all accepted after independent verification, for USD 0.64 in total.
+Orchestrator corrections were integration-level only (a merge overlap, index
+links, counts) plus one harness bug found in review. Retail-parity enemy
+ability work routes to DeepSeek by default, one ability per lane, from
+[the inventory](ENEMY_ABILITIES.md). Keep independent verification of every
+disassembly claim that a change rests on.
+
+`tools/ds-lane` is 956 lines. The next change to it splits it into a package
+(for example, supervisor, receipts, CLI) under the 1,000-line rule.
+
+**Next action:** continue enemy abilities from the inventory's unsupported
+rows, prioritized by campaign reach.
