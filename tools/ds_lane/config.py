@@ -26,6 +26,14 @@ TIMEOUT_EXIT = 124
 STALL_EXIT = 125              # stalled: the worker is alive but nothing has progressed
 STOPPED_EXIT = 143            # `ds-lane stop`: SIGTERM'd on request
 STOP_WAIT = 60                # seconds `stop` waits for the run to finish finalizing
+# The owner's rule: a file over roughly this many lines is reorganized when
+# touched. The harness reports every changed file over it the way it reports a
+# write-set violation - lane ab-M grew
+# rust/psiv-core/src/battle/enemy_damage_tests.rs to 1,504 lines and review
+# missed it because nothing flagged it (2026-09-24). A changed path counts as
+# text when no NUL byte sits in its first BINARY_SNIFF_BYTES bytes.
+MAX_FILE_LINES = 1000
+BINARY_SNIFF_BYTES = 8192  # enough of a file to tell source text from a blob
 # Worker host state: directories the worker's own agent runtime writes into the
 # worktree. They are not lane output, but the finalize step's `git add -A` swept
 # `.reasonix/` (Reasonix task state, `.reasonix/tasks/<id>/events.jsonl`) into
@@ -97,6 +105,21 @@ def stall_cpu_pct():
         return float(os.environ["DS_LANE_STALL_CPU_PCT"])
     except (KeyError, ValueError):
         return DEFAULT_STALL_CPU_PCT
+
+
+def max_file_lines():
+    """Line count above which a changed file is reported (the owner's rule).
+
+    DS_LANE_MAX_FILE_LINES moves it (the suite's cases and the orchestrator's
+    own checks use the real threshold, only the knob is a seam). A value that
+    is not a number, or not positive, would flag every changed file, so it
+    falls back to the constant.
+    """
+    try:
+        value = int(os.environ["DS_LANE_MAX_FILE_LINES"])
+    except (KeyError, ValueError):
+        return MAX_FILE_LINES
+    return value if value > 0 else MAX_FILE_LINES
 
 
 def sh(args, cwd=None, check=True, capture=True):

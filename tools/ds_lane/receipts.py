@@ -1,9 +1,9 @@
-"""A finished run's record: commit, receipt, write set, summary, run.json.
+"""A finished run's record: commit, receipt, write set, size rule, summary, run.json.
 
 run.json's presence is what marks a run complete (see `run_finished`), so
 everything a reader may need - the exit code, the turn error, the write-set
-verdict and the number of the run the stall watchdog starts in this one's
-place - is written before it lands.
+verdict, the files over the line limit and the number of the run the stall
+watchdog starts in this one's place - is written before it lands.
 """
 import json
 import re
@@ -13,8 +13,8 @@ import sys
 import time
 from pathlib import Path
 
-from .config import (EFFORT, HOST_STATE_PATHS, MODEL, PERMISSION_MODE, save_receipt, sh,
-                     supervisor_alive)
+from .config import (BINARY_SNIFF_BYTES, EFFORT, HOST_STATE_PATHS, MODEL, PERMISSION_MODE,
+                     max_file_lines, save_receipt, sh, supervisor_alive)
 from .preflight import CONSTRAINT_BLOCK, write_set_violations
 
 
@@ -81,8 +81,51 @@ def result_of(run_dir):
     return {}
 
 
+def count_lines(data):
+    """Lines in file content, or None when it is binary (a NUL byte in the first 8 KiB).
+
+    Content is bytes, not text: a lane may commit any encoding and only a line
+    count is wanted. The count is the one an editor shows, so a final line
+    without a newline still counts.
+    """
+    if b"\0" in data[:BINARY_SNIFF_BYTES]:
+        return None
+    return len(data.splitlines())
+
+
+def lines_at(wt, rev, path):
+    """Lines in `path` at `rev` in the lane worktree, or None when it is gone or binary.
+
+    The count comes from the blob the revision records, so a run's numbers are
+    what it committed, not what the worktree happens to hold afterwards.
+    """
+    r = subprocess.run(["git", "show", f"{rev}:{path}"], cwd=wt, stdout=subprocess.PIPE,
+                       stderr=subprocess.DEVNULL)
+    return count_lines(r.stdout) if r.returncode == 0 else None
+
+
+def oversize_files(wt, base_sha, head, paths, limit):
+    """[{path, lines, base_lines}] for the changed paths over `limit` lines at `head`.
+
+    `paths` is a run's changed set (tracked, base..head). A path gone at the
+    new head is skipped - a deleted file has no size - and so is anything
+    binary there, since counting lines in a blob is meaningless. `base_lines`
+    is the count at the lane's base, None for a path that is new there (or was
+    binary), so a reader sees how much of the size this lane added. The base is
+    only read for a path already over the limit at the head, which keeps this
+    to one `git show` per changed file in the common case.
+    """
+    out = []
+    for path in paths:
+        lines = lines_at(wt, head, path)
+        if lines is None or lines <= limit:
+            continue
+        out.append({"path": path, "lines": lines, "base_lines": lines_at(wt, base_sha, path)})
+    return out
+
+
 def finalize_run(lane, run_dir, spec, rc, started, duration, outcome=None, stall_resume=None):
-    """Record a finished run: commit, receipt, write set, summary, run.json.
+    """Record a finished run: commit, receipt, write set, size rule, summary, run.json.
 
     `outcome` is None for a normal run, "timeout", "stopped" or "stalled"; a
     run stopped before it ever started has no stdout.log and no turn.
@@ -118,10 +161,14 @@ def finalize_run(lane, run_dir, spec, rc, started, duration, outcome=None, stall
     # replaced (lanes.adopt_write_set); the run records what it was checked
     # against, so a reader never has to reconstruct that from lane.json.
     write_set = lane.get("write_set")
-    violations = None
-    if write_set:
-        changed = sh(["git", "diff", "--name-only", f"{lane['base_sha']}..{head}"], cwd=wt).splitlines()
-        violations = write_set_violations(changed, write_set)
+    changed = sh(["git", "diff", "--name-only", f"{lane['base_sha']}..{head}"], cwd=wt).splitlines()
+    violations = write_set_violations(changed, write_set) if write_set else None
+
+    # The owner's 1,000-line rule, reported like a write-set violation: a file
+    # this lane changed and left too big to touch again. Linked inputs and the
+    # worker's host state never reach a commit, so they are never counted.
+    limit = max_file_lines()
+    oversize = oversize_files(wt, lane["base_sha"], head, changed, limit)
 
     session_id, turn_err, constraint_blocks, sandbox_blocks = scan_trajectory(
         run_dir / "trajectory.jsonl")
@@ -143,7 +190,7 @@ def finalize_run(lane, run_dir, spec, rc, started, duration, outcome=None, stall
         "constraint_blocks": constraint_blocks, "sandbox_blocks": sandbox_blocks,
         "timeout_s": spec.get("timeout"), "timed_out": outcome == "timeout",
         "outcome": outcome or "completed", "write_set_violations": violations,
-        "write_set": write_set,
+        "write_set": write_set, "oversize_files": oversize, "max_file_lines": limit,
         "stall_timeout_s": spec.get("stall_timeout"),
         "stall_retries_left": spec.get("stall_retries_left"),
         "resumed_after_stall": bool(spec.get("resumed_after_stall")),
@@ -171,6 +218,9 @@ def finalize_run(lane, run_dir, spec, rc, started, duration, outcome=None, stall
     out.append(stat or "(no changes)")
     for p in violations or []:
         out.append(f"WARNING: outside write set: {p}")
+    for f in oversize:  # one line per file, beside the write-set warnings
+        was = "new" if f["base_lines"] is None else f["base_lines"]
+        out.append(f"WARNING: over {limit} lines: {f['path']} ({f['lines']}, was {was})")
     out.append(f"receipts: {run_dir}")
     receipt = receipt_block(result.get("result", ""))
     if receipt:

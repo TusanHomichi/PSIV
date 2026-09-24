@@ -82,6 +82,24 @@ docstring.
   it into lane ab-J's commit and tripped that check (2026-09-24) - and each
   run's receipt copies what it held to `host-state/<name>/`, reviewable like
   `evidence/`.
+- **Size rule.** The owner's rule is that a file over roughly 1,000 lines is
+  reorganized when touched, and `ds-lane` flags it the way it flags a
+  write-set violation. After each run, every path changed between the lane's
+  base and the new head that still exists and is text (no NUL byte in its
+  first 8 KiB) is counted at the new head; each one over `MAX_FILE_LINES`
+  (`tools/ds_lane/config.py`, default 1,000, movable with
+  `DS_LANE_MAX_FILE_LINES`) is recorded in `run.json` as `oversize_files`
+  (`{path, lines, base_lines}`, where `base_lines` is the count at the base and
+  null for a file that is new there) and printed as
+  `WARNING: over 1000 lines: <path> (<lines>, was <base_lines>)` (`was new` for
+  a new file). Every path in a commit is counted, whatever the brief's write
+  set says; the `--link`ed inputs and the worker's host state never reach a
+  commit, so they are never counted. The preamble carries the rule to the
+  worker in positive words (keep every file you touch under 1,000 lines;
+  reorganize a file into cohesive modules when a change would take it over).
+  Why it exists: lane ab-M grew
+  `rust/psiv-core/src/battle/enemy_damage_tests.rs` to 1,504 lines and review
+  missed it, because nothing flagged it (2026-09-24).
 - **Timeout.** Each run gets `--timeout SECONDS` (default 5400). On expiry the
   worker's process group is SIGTERM'd, then SIGKILL'd after 30 s; the run
   still commits and reports `exit_code` 124 with `turn_error`
@@ -120,15 +138,17 @@ docstring.
   orchestrator's own checks instead of "the worker says it passed".
 - `DS_LANE_HOME` relocates worktrees/receipts (tests), `DS_LANE_REASONIX`
   swaps the worker binary, `DS_LANE_MAX_LANES` caps concurrency,
-  `DS_LANE_STALL_POLL` shortens the 15 s stall sampling interval and
+  `DS_LANE_STALL_POLL` shortens the 15 s stall sampling interval,
   `DS_LANE_STALL_CPU_PCT` moves the work threshold (both are test seams; the
-  defaults are 15 s and 1.0% of a core).
+  defaults are 15 s and 1.0% of a core) and `DS_LANE_MAX_FILE_LINES` moves the
+  1,000-line limit (a test seam; the default is 1,000).
   `PYTHONPATH=. python3 -m unittest discover -s tests -p 'test_ds_lane*.py' -v`
   covers the harness hermetically in under a minute (its stall cases run with a
-  lowered poll; the suite must stay under 90 s). The cases are split by
-  cohesion - `tests/ds_lane_support.py` (the fake worker, the repo and home
-  fixtures, the CLI helpers), `test_ds_lane_unit.py`, `test_ds_lane_lanes.py`
-  and `test_ds_lane_supervisor.py` - each under the line cap that applies to it
+  lowered poll and its size cases against the real limit; the suite must stay
+  under 90 s). The cases are split by cohesion - `tests/ds_lane_support.py`
+  (the fake worker, the repo and home fixtures, the CLI helpers),
+  `test_ds_lane_unit.py`, `test_ds_lane_lanes.py`, `test_ds_lane_size.py` and
+  `test_ds_lane_supervisor.py` - each under the line cap that applies to it
   (500 lines for a test module, 400 for a package module).
 - A lane that builds the whole workspace needs `--link oracle/gpgx-src`:
   `psiv-sound`'s build script compiles the ignored core sources under it.
