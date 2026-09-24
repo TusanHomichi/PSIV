@@ -26,6 +26,7 @@
 #include "frame_dump.h"
 #include "core_vdp.h"
 #include "libretro.h"
+#include "provenance.h"
 #include "ram_patch.h"
 #include "ram_dump.h"
 #include "rng_trace.h"
@@ -868,7 +869,10 @@ int main(int argc, char **argv)
 		}
 	}
 
-	/* Header carries the provenance needed to reproduce the run. */
+	/* Header carries the provenance needed to reproduce the run. Inputs are
+	 * named as given; an output of this run is named by its basename, so two
+	 * runs that differ only in where they wrote produce identical files
+	 * (oracle/host/provenance.h). */
 	fprintf(out, "# core=%s %s region=%s\n", sysinfo.library_name,
 	        sysinfo.library_version,
 	        rt_get_region() == RETRO_REGION_PAL ? "PAL" : "NTSC");
@@ -876,7 +880,7 @@ int main(int argc, char **argv)
 	fprintf(out, "# tape=%s steps=%d frames=%llu\n", tape_path,
 	        psiv_tape_count(), (unsigned long long)psiv_tape_total_frames());
 	if (rng_trace_enabled())
-		fprintf(out, "# rng-trace=%s\n", rng_trace_path);
+		fprintf(out, "# rng-trace=%s\n", path_basename(rng_trace_path));
 	fprintf(out, "frame,mark,buttons");
 	for (i = 0; i < g_nfields; i++)
 		if (g_fields[i].enabled)

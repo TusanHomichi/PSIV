@@ -4,9 +4,10 @@ The inputs are hand-built rows: a trace and a RAM log written from a few
 sentences about what happened, so the extractor's reading of them can be
 checked without the emulator. The rows carry the two seed half-words and the
 HV word a call returned, so the tests can build the *same* call twice - once
-with the roll column the trace actually writes and once with the one the
-cartridge's `sub.w (RNG_Seed).w, d0` computes - and insist the extractor takes
-the cartridge's.
+with the roll column the cartridge's `sub.w (RNG_Seed).w, d0` computes (the
+longword's high half, what the host writes now) and once with the low half the
+host wrote before it was fixed - and insist the extractor takes the first and
+refuses the second.
 """
 import json
 import os
@@ -158,31 +159,48 @@ class RollDerivation(FixtureTest):
             bf.roll_high_word(trace_row(29711, 0, hv, frame_count, seed, 0)),
             (0x2292 + 0x708F - 0x21E8) & M16,
         )
-        # The trace's own column is the other half: the two differ by the
-        # seed's halves, which is a per-frame constant.
+        # The pre-fix column is the other half: the two differ by the seed's
+        # halves, which is a per-frame constant.
         self.assertEqual(bf.roll_low_word(trace_row(29711, 0, hv, frame_count, seed, 0)),
                          0x7B2E)
         self.assertNotEqual(bf.roll_high_word(trace_row(29711, 0, hv, frame_count, seed, 0)),
                             0x7B2E)
 
-    def test_the_roll_column_report_says_which_subtraction_a_trace_used(self):
+    def test_the_roll_column_report_counts_the_rows_that_agree(self):
         seed = 0x21E817F3
         high = [trace_row(10, index, 0x2292, 0x708F, seed,
                           cartridge_roll(0x2292, 0x708F, seed))
                 for index in range(2)]
+        self.assertEqual(bf.roll_column_report(high),
+                         {"agrees": 2, "subtracts_low_word": 0, "neither": 0})
+
+    def test_a_low_word_roll_column_is_rejected_with_its_frame_and_call(self):
+        seed = 0x21E817F3
         low = [trace_row(10, index, 0x2292, 0x708F, seed,
                          trace_low_word_roll(0x2292, 0x708F, seed))
                for index in range(3)]
-        self.assertEqual(bf.roll_column_report(high),
-                         {"agrees": 2, "subtracts_low_word": 0, "neither": 0})
-        self.assertEqual(bf.roll_column_report(low),
-                         {"agrees": 0, "subtracts_low_word": 3, "neither": 0})
+        with self.assertRaises(bf.FixtureError) as caught:
+            bf.roll_column_report(low)
+        self.assertIn("f10 call 0", str(caught.exception))
+        self.assertIn("low-half subtraction", str(caught.exception))
 
     def test_a_roll_column_that_is_neither_derivation_is_rejected(self):
         row = trace_row(10, 0, 0x2292, 0x708F, 0x21E817F3, 0x0000)
         with self.assertRaises(bf.FixtureError) as caught:
             bf.roll_column_report([row])
+        self.assertIn("f10 call 0", str(caught.exception))
         self.assertIn("neither", str(caught.exception))
+
+    def test_the_report_names_the_first_row_that_is_not_the_cartridges(self):
+        # Only the second call is wrong, and the message has to say so.
+        seed = 0x21E817F3
+        rows = [trace_row(10, 0, 0x2292, 0x708F, seed,
+                          cartridge_roll(0x2292, 0x708F, seed)),
+                trace_row(10, 1, 0x23F3, 0x708F, seed,
+                          trace_low_word_roll(0x23F3, 0x708F, seed))]
+        with self.assertRaises(bf.FixtureError) as caught:
+            bf.roll_column_report(rows)
+        self.assertIn("f10 call 1", str(caught.exception))
 
     def test_rolls_are_kept_in_frame_order_and_grouped_by_frame(self):
         seed = 0x21E817F3
@@ -299,10 +317,16 @@ class FixtureAssembly(FixtureTest):
     def row(self, frame, index):
         return trace_row(frame, index, self.HV + frame, self.FRAME_COUNT,
                          self.SEED,
-                         trace_low_word_roll(self.HV + frame, self.FRAME_COUNT,
-                                             self.SEED))
+                         cartridge_roll(self.HV + frame, self.FRAME_COUNT,
+                                        self.SEED))
 
-    def build(self, trace_roll=None):
+    def build(self, trace_roll=None, column=None):
+        """The fixture for the hand-built battle.
+
+        `trace_roll` forces every row's roll column to one value (a trace that
+        carries neither derivation); `column` builds the column with another
+        function, e.g. `trace_low_word_roll` for what the host wrote before it
+        was fixed."""
         trace = []
         for frame in (10, 11, 12, 13):
             count = {10: 1, 11: 1, 12: 13, 13: 2}[frame]
@@ -310,6 +334,9 @@ class FixtureAssembly(FixtureTest):
                 row = self.row(frame, index)
                 if trace_roll is not None:
                     row["roll"] = f"{trace_roll:04X}"
+                elif column is not None:
+                    row["roll"] = f"{column(self.HV + frame, self.FRAME_COUNT,
+                                            self.SEED):04X}"
                 trace.append(row)
         log_rows = [
             Row(frame=9),
@@ -348,9 +375,12 @@ class FixtureAssembly(FixtureTest):
         outside = self.table(fixture["outside_rolls"])
         self.assertEqual([row["frame"] for row in outside], [10])
         self.assertEqual([row["role"] for row in outside], ["formation"])
-        # One call per frame: 1 + 1 + 13 + 2.
+        # One call per frame: 1 + 1 + 13 + 2. The extractor checks every row's
+        # roll column against the cartridge's derivation and reports them all
+        # as agreeing: nothing is accepted on the strength of the column
+        # alone, and the pre-fix low-half column never reaches a fixture.
         self.assertEqual(fixture["provenance"]["roll_column"],
-                         {"agrees": 0, "subtracts_low_word": 17, "neither": 0})
+                         {"agrees": 17, "subtracts_low_word": 0, "neither": 0})
         self.assertEqual(fixture["provenance"]["battle_roll_count"], 16)
         self.assertEqual(fixture["provenance"]["outside_roll_count"], 1)
         self.assertEqual(fixture["provenance"]["roll_count"], 17)
@@ -385,6 +415,14 @@ class FixtureAssembly(FixtureTest):
     def test_a_trace_whose_roll_column_is_neither_derivation_is_rejected(self):
         with self.assertRaises(bf.FixtureError):
             self.build(trace_roll=0x1234)
+
+    def test_a_trace_with_the_pre_fix_low_word_column_is_rejected(self):
+        # Lane O1's capture is exactly this trace: seeds, PCs, counter and
+        # chain all right, every roll column shifted by a per-frame constant.
+        with self.assertRaises(bf.FixtureError) as caught:
+            self.build(column=trace_low_word_roll)
+        self.assertIn("f10 call 0", str(caught.exception))
+        self.assertIn("low-half subtraction", str(caught.exception))
 
     def test_a_log_with_a_hole_is_rejected(self):
         log = self.load([Row(frame=1), Row(frame=3)])

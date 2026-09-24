@@ -1,16 +1,21 @@
 /* psiv_oracle --rng-trace: capture every roll UpdateRNGSeed2 returns.
  *
  * PSIV's battle rolls are not pseudo-random in the usual sense. UpdateRNGSeed2
- * (ps4.asm:86097, ROM $04239E) is three instructions:
+ * (ps4.asm:86097, ROM $04239E) is four instructions and an rts:
  *
- *     move.w  $8(a5), d0              ; d0 = VDP HV counter ($C00008)
- *     add.w   (Main_Frame_Count).w, d0
- *     sub.w   (RNG_Seed).w, d0        ; d0 = the roll the caller receives
- *     ror     (RNG_Seed).w            ; and the seed's high word is rotated
+ *     30 2D 00 08     move.w  $8(a5), d0      ; d0 = VDP HV counter ($C00008)
+ *     D0 78 EF 1C     add.w   (Main_Frame_Count).w, d0
+ *     90 78 EF 0C     sub.w   (RNG_Seed).w, d0   ; d0 = the roll
+ *     E6 F8 EF 0C     ror     (RNG_Seed).w       ; and the seed's high word
+ *                                                ;  ($FFFFEF0C) is rotated
  *
  * so a roll is the beam position of the 68000's read, the frame counter and
- * the seed's low word. The beam position is hardware timing that psiv-core
- * deliberately does not reproduce (docs/RUNTIME_DESIGN.md, "RNG design"), and
+ * the seed's *high* word: `(RNG_Seed).w` is an absolute-short word operand at
+ * $FFFFEF0C, where RNG_Seed (ps4.constants.asm:2328) is a longword, so the
+ * 68000 reads $FFFFEF0C/$FFFFEF0D - the same word `ror` rotates - and not the
+ * low half at $FFFFEF0E. `rng_trace_roll` (rng_trace.h) is the derivation,
+ * with the evidence for it. The beam position is hardware timing that
+ * psiv-core deliberately does not reproduce (docs/RUNTIME_DESIGN.md, "RNG design"), and
  * the port takes rolls through its Rolls trait instead: this module captures
  * the stream that trait replays.
  *
@@ -20,10 +25,12 @@
  *
  *   frame,call_index_in_frame,pc,hv,frame_count,seed_before,roll,seed_after
  *
- * roll = (hv + frame_count - seed_lo) & $FFFF, exactly the arithmetic of the
- * second and third instructions. seed_before/seed_after are the whole RNG_Seed
- * longword around the call, with seed_after = ror16(seed_before's high word)
- * and the low word carried, which is what `ror (RNG_Seed).w` leaves behind.
+ * roll = rng_trace_roll(seed, hv, frame_count) - the arithmetic of the second
+ * and third instructions, subtracting the seed longword's *high* word, which
+ * is what a 68000 word read at $FFFFEF0C returns. seed_before/seed_after are
+ * the whole RNG_Seed longword around the call, with seed_after =
+ * ror16(seed_before's high word) and the low word carried, which is what
+ * `ror (RNG_Seed).w` leaves behind.
  *
  * The seed and the counter are not in the core's records; they are read from
  * work RAM, sampled by the host before and after each frame, and each call's
@@ -59,13 +66,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* UpdateRNGSeed2's HV read: `move.w $8(a5), d0` is at ROM $04239E, and the
- * instruction after it is at $0423A4. Genesis Plus GX reports the 68000
+/* UpdateRNGSeed2's HV read: `move.w $8(a5), d0` is at ROM $04239E (four bytes,
+ * the extension word included), the instructions after it are `add.w
+ * (Main_Frame_Count).w,d0` at $0423A2, `sub.w (RNG_Seed).w,d0` at $0423A6 and
+ * `ror (RNG_Seed).w` at $0423AA; none of those other three reads the counter,
+ * so only the first can produce a record. Genesis Plus GX reports the 68000
  * program counter with the instruction's extension word already fetched, so a
- * record arrives as $0423A2; the window spans the instruction and the two bytes
- * after it so a core that reports the PC at another point inside the access
- * still matches. The PC of every matched record is written to the CSV, so which
- * point the core actually reports stays visible in the data. */
+ * record arrives as $0423A2 - the address of the instruction after it. The
+ * accepted window runs from the read itself to $0423A6, where `sub.w
+ * (RNG_Seed).w,d0` starts, so a core that reports the PC elsewhere in or just
+ * after the access still matches. The PC of every matched record is written to
+ * the CSV, so which point the core actually reports stays visible in the
+ * data. */
 #define RNG_HV_PC_FIRST 0x04239Eu
 #define RNG_HV_PC_LAST  0x0423A6u
 
@@ -162,7 +174,11 @@ static uint32_t update_rng_seed(uint32_t seed)
 	return ((((lo + hi) & 0xFFFFu) << 16) | lo);
 }
 
-/* `ror (RNG_Seed).w` on the high word, with the low word untouched. */
+/* `ror (RNG_Seed).w` at ROM $0423AA: E6F8 with the absolute-short operand
+ * $EF0C, so the word it rotates is the one at $FFFFEF0C - the RNG_Seed
+ * longword's high half, the same word the `sub.w` before it subtracts. The low
+ * half at $FFFFEF0E is carried through untouched, which is why a call's
+ * seed_after differs from its seed_before in the high word alone. */
 static uint32_t rotate_seed_high(uint32_t seed)
 {
 	uint32_t hi = (seed >> 16) & 0xFFFFu;
@@ -213,8 +229,11 @@ int rng_trace_begin(void *core, const char *path)
 	        "# rom instruction: $04239E move.w $8(a5),d0 (the (pc) column is "
 	        "the counter the core\n"
 	        "# reported for that access; the window accepts $%06X-$%06X)\n"
-	        "# roll = (hv + frame_count - seed_low) & $FFFF, "
-	        "seed_after = ror16(seed_before high word)\n"
+	        "# roll = (hv + frame_count - seed_high) & $FFFF (the word at "
+	        "$FFFFEF0C, which is\n"
+	        "# what `sub.w (RNG_Seed).w,d0` at $0423A6 reads and `ror "
+	        "(RNG_Seed).w` at $0423AA rotates),\n"
+	        "# seed_after = ror16(seed_before's high word)\n"
 	        "# frame_count is Main_Frame_Count, seed the RNG_Seed longword "
 	        "($FFFFEF0C), both from\n"
 	        "# work RAM sampled around the frame; see oracle/README.md "
@@ -266,7 +285,7 @@ int rng_trace_frame(uint64_t frame, uint32_t seed_before,
 
 	for (index = 0; index < count; index++) {
 		unsigned pc = 0, hv = 0;
-		uint32_t lo, roll, next;
+		uint32_t roll, next;
 		int after_vblank;
 
 		if (!core_trace_get(index, &pc, &hv))
@@ -290,8 +309,10 @@ int rng_trace_frame(uint64_t frame, uint32_t seed_before,
 			        (unsigned long long)frame);
 		after_vblank_seen |= after_vblank;
 
-		lo = seed & 0xFFFFu;
-		roll = (hv + frame_count_after - lo) & 0xFFFFu;
+		/* The cartridge's own roll: subtract the seed longword's high
+		 * word, the word `sub.w (RNG_Seed).w,d0` reads at $FFFFEF0C
+		 * (rng_trace.h). */
+		roll = rng_trace_roll(seed, hv, frame_count_after);
 		next = rotate_seed_high(seed);
 
 		if (fprintf(g_out, "%llu,%u,%06X,%04X,%u,%08X,%04X,%08X\n",

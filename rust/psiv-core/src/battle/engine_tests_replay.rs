@@ -663,12 +663,12 @@ fn tape07_orders_its_rounds_the_way_the_cartridge_did() {
     assert_eq!(fixture.provenance.roll_count, 136);
     assert_eq!(fixture.provenance.battle_roll_count, 134);
     assert_eq!(
-        fixture.provenance.roll_column.subtracts_low_word, 136,
-        "every trace row's own roll column is the low-word subtraction, so the \
-         fixture derives each roll from the row's raw columns; see \
+        fixture.provenance.roll_column.agrees, 136,
+        "every trace row's own roll column is the cartridge's roll, so the \
+         fixture checks each row against the raw columns; see \
          docs/BATTLE_ORACLE_REPLAY.md"
     );
-    assert_eq!(fixture.provenance.roll_column.agrees, 0);
+    assert_eq!(fixture.provenance.roll_column.subtracts_low_word, 0);
     assert_eq!(fixture.provenance.trace_sha256.len(), 64);
 
     // The two draws that are not the battle's own: the encounter's formation

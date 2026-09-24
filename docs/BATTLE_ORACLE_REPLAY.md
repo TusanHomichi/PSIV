@@ -15,28 +15,28 @@ Two things came out of it, and they are different claims:
    identically: the queue, every swing's target list, every verdict, every
    damage number, the HP left behind, the two deaths, the rewards and the
    outcome. This is the end-to-end check the RNG trace alone could not make.
-2. **A draw-count divergence, a fixed one, and a defect in the trace itself.**
-   The cartridge draws rolls no port consumer models, the trace's own `roll`
-   column is not the cartridge's roll, and the lane that first wrote this
-   ledger found two draw-count divergences. **One of the two is fixed**: the
+2. **A draw-count divergence, a fixed one, and a fixed defect in the trace.**
+   The cartridge draws rolls no port consumer models, and the lane that first
+   wrote this ledger found two draw-count divergences and a defect in the
+   trace's own `roll` column. **The column is fixed** and the capture
+   regenerated (lane P1, "The fix" below). **One divergence is fixed**: the
    second hit pass of Alys's and Kyra's swing (`loc_B6A2` run again from
    `AlysKyraAttack_Init`, `ps4.asm:13975-13976`) is modelled now, so her swing
    consumes all 36 calls the log's frames hold and round 1's Alys action matches
-   on the verbatim stream. The other — `Enemy_Attack`'s ability re-roll
-   (`$FFFFEEA8`) — is still open, and the trace's roll column is still wrong.
-   Each is pinned below with its numbers and its citations.
+   on the verbatim stream. The other, `Enemy_Attack`'s ability re-roll
+   (`$FFFFEEA8`), is still open and pinned below with its numbers and citations.
 
 ## Reproducing it
 
 ```sh
 ./oracle/build_core.sh                       # pinned core + oracle/patches
 # verify.sh reads the ROM at the repo-relative path, so a checkout without the
-# ROM needs the link; the fixture steps only need --rom.
+# ROM needs the link; the capture steps only need --rom.
 ln -sfn "/path/to/Phantasy Star IV (USA).md" "Phantasy Star IV (USA).md"
 ./oracle/verify.sh                           # builds the host, fast lane
 oracle/bin/psiv_oracle \
     --core oracle/core/genesis_plus_gx_libretro.so \
-    --rom  "Phantasy Star IV (USA).md" \
+    --rom  "/home/peter/PSIV/Phantasy Star IV (USA).md" \
     --map  oracle/ram_map.tsv \
     --tape oracle/tapes/07_first_battle.tape \
     --groups core,battle,bhit,enemy,chars,rng \
@@ -51,10 +51,18 @@ CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
 rm "Phantasy Star IV (USA).md"
 ```
 
-This lane ran it in a worktree whose ROM is the project's own checkout
+The ROM in every capture above is the project's own checkout
 (`/home/peter/PSIV/Phantasy Star IV (USA).md`, sha256
 `511f35cc11f88316f8b8940e28ab298bd75a4da193672a80172884d6eb913b6a`, the digest
-`oracle/verify.sh` insists on) and removed the link afterwards.
+`oracle/verify.sh` insists on); O1 and O2 ran the block in a worktree that had
+linked it at the repo-relative path for `verify.sh` and removed the link
+afterwards, while P1's lane worktree came with that link already made and left
+it in place. The `--rom` argument is quoted in full above because it is an
+*input*: the log records it verbatim, so the pinned log - and the fixture's
+`log_header` - reproduce under that spelling and not under a relative one.
+Output paths are not recorded that way: the log names the trace by basename
+alone (`oracle/host/provenance.h`), which is why the two captures P1 made into
+different directories are byte-identical, traces and logs alike.
 
 ## Provenance
 
@@ -63,8 +71,9 @@ This lane ran it in a worktree whose ROM is the project's own checkout
 | tape | `oracle/tapes/07_first_battle.tape`, 3145 steps, 36360 frames |
 | core | Genesis Plus GX `2d7131c5efa606f649d36e1685a8ca47c24f31b3` + `oracle/patches/0001-rng-hv-trace.patch` |
 | battle window | frames 24794-30428; the party's first action is f29489 |
-| trace | 136 calls in 15 frames, f24807-f30306, sha256 `354d3412af750f75ef0fd85f5a871a9f28a65a7f170547c14ac9efdf76324bf0` |
-| trace check | `oracle/rng_trace.py check` passes: every row is `hv + frame_count - seed_lo`, the seed chain closes on the log's `rng_seed`, and the VBlank counter step agrees |
+| trace | 136 calls in 15 frames, f24807-f30306, sha256 `0d97f6d6917c3440a211be2e0661eb8c363e04b748c2cef4e510ad32fbb9cb91` (lane P1's fixed host; the same tape and core captured with the pre-fix low-half subtraction differ in the `roll` field of all 136 rows and in no other field. O1's pin `354d3412af750f75ef0fd85f5a871a9f28a65a7f170547c14ac9efdf76324bf0` is superseded; that file was not retained, so it cannot be re-derived to compare against) |
+| RAM log | sha256 `e2ed38f191525e27c48dd1e1214ed8baace19a4cd405552d0787cc4931b3c461`; the same tape, map and `--groups` as O1/O2, and identical to the same run written to a second directory |
+| trace check | `oracle/rng_trace.py check` passes: every row is `hv + frame_count - seed_high`, the seed chain closes on the log's `rng_seed`, and the VBlank counter step agrees |
 | battle roll stream | 134 of the 136; the encounter's formation draw (f24807) and the post-victory item drop draw (f30306) are recorded outside it |
 | start state | frame 24808, the frame the formation was written into RAM |
 
@@ -78,26 +87,26 @@ The fixture carries all of this, plus the two log shas, as `provenance`.
 30 2D 00 08     move.w  $8(a5), d0        ; d0 = VDP HV counter at $C00008
 D0 78 EF 1C     add.w   (Main_Frame_Count).w, d0
 90 78 EF 0C     sub.w   (RNG_Seed).w, d0   ; d0 = the roll the caller gets
-E6 F8 EF 0C     ror     (RNG_Seed).w
+E6 F8 EF 0C     ror     (RNG_Seed).w       ; $0423AA, same word
 4E 75           rts
 ```
 
 `(RNG_Seed).w` is an absolute-short operand at `$FFFFEF0C`, where `RNG_Seed`
-is a **longword**. A 68000 word read at that address is the longword's **high**
-half, so the roll is
+(`ps4.constants.asm:2328`) is a **longword**. A 68000 word read at that address
+is the longword's **high** half, so the roll is
 
 ```text
 roll = (hv + frame_count - high_word(RNG_Seed)) & $FFFF
 ```
 
 and the word `ror` rotates is the same one - which is why the trace's
-`seed_after` column is right and its `roll` column is not: the host subtracts
-the *low* half (`$FFFFEF0E`), a word no instruction reads as the subtrahend.
-The two halves differ by a per-frame constant, so every row of the trace is a
-per-frame-constant shift of the cartridge's roll. Nothing else in the trace is
-affected: `hv`, `frame_count`, `seed_before` and `seed_after` are the values
-the emulator produced, and the trace's own 136-row seed chain still closes on
-the RAM log exactly (that is what `rng_trace.py check` proves, and it is
+`seed_after` column was right even while its `roll` column was not: O1's host
+subtracted the *low* half (`$FFFFEF0E`), a word no instruction reads as the
+subtrahend. The two halves differ by a per-frame constant, so every row of that
+capture was a per-frame-constant shift of the cartridge's roll. Nothing else in
+it was affected: `hv`, `frame_count`, `seed_before` and `seed_after` are the
+values the emulator produced, and its 136-row seed chain still closed on the
+RAM log exactly (that is what `rng_trace.py check` proves, and it is
 independent of this defect).
 
 The cartridge settles which half is right. Both derivations were run against
@@ -121,18 +130,50 @@ to that entry's ordering agility (`ps4.asm:7801`). The damages are `loc_266C` ->
 defence and element factor the log carries (`Character_DamageEnemy`,
 `ps4.asm:3910`, `loc_27A4`, `ps4.asm:3963`). Nine turn-order addends and six
 damage numbers, all of them reproduced by the high half and none of them by the
-low half, is not a coincidence: **the trace's `roll` column is wrong and the
-fixture derives the roll from the row's raw columns instead.**
+low half, is not a coincidence: **the trace's `roll` column was wrong, and the
+fixture derived the roll from the row's raw columns instead.**
 
-`oracle/battle_fixture.py` recomputes both conventions for every row and records
-which one the file carries (`provenance.roll_column`: `agrees` vs
-`subtracts_low_word`), and refuses a trace that carries neither rather than
-replaying something nobody can account for. The fix belongs in
-`oracle/host/rng_trace.c` (`roll = hv + frame_count - seed_lo` -> `seed_hi`)
-and in `oracle/rng_trace.py`'s `roll_for`, which re-derives the same
-arithmetic; neither is in this lane's write set beyond the host, and changing
-the column would change the trace's sha256, which this lane's acceptance
-requires to stay the one above. Filed as the first follow-up below.
+## The fix: the capture now carries the cartridge's roll
+
+Lane P1 fixed the derivation where it was written - `rng_trace_roll`
+(`oracle/host/rng_trace.h`, called by `oracle/host/rng_trace.c`) and
+`oracle/rng_trace.py`'s `roll_for` - regenerated the tape 07 capture, and closed
+the loop that hid it:
+
+- `oracle/battle_fixture.py` no longer accepts a column it merely recognises.
+  Every row's `roll` is checked against the derivation above and the first row
+  that disagrees aborts the extraction with its frame and call, so a capture
+  carrying the low half cannot reach a fixture at all
+  (`provenance.roll_column` is `{"agrees": 136, "subtracts_low_word": 0,
+  "neither": 0}`).
+- `tests/test_oracle_rng_trace.py` builds a probe from
+  `oracle/host/rng_trace.h` and compares what the C host computes with the
+  checker's `roll_for` against numbers written out from the disassembly, so the
+  two cannot drift into the same mistake again - which is exactly how the
+  low-half subtraction survived O1: the host wrote it, `check` re-derived it,
+  and the two agreed with each other and with nothing else.
+- The negative control is in the same lane: a scratch host built with the
+  low-half subtraction reproduces the pre-fix column, the two captures differ in
+  the `roll` field of all 136 rows and in nothing else (each shift being exactly
+  `seed_lo - seed_hi`), and `oracle/rng_trace.py check` now rejects that capture
+  at its first row - `f24807 call 0: roll 1CA6 is not (hv + frame_count -
+  seed_high) & $FFFF = 1814`.
+
+The regenerated trace keeps everything else: captured with the low-half
+subtraction by an otherwise identical host, the 136 rows differ from it in the
+`roll` field alone, each shift being exactly `seed_lo - seed_hi`, and the two
+rows the previous oracle README quoted from O1's capture come back byte for
+byte, `seed_after` included. The seed chain still closes on the RAM log
+exactly. `oracle/battle_fixture.py` produced the same fixture from it -
+`rolls`, `rounds`, `formation`, `party` and `outcome` are byte-identical to the
+one above, and `provenance` changed only where it records the capture itself
+(trace sha256, log sha256, the two headers, the `roll_column` counts). The
+replay is undisturbed:
+`tape07s_actions_match_once_the_unmodelled_rolls_are_removed` passes on the
+regenerated fixture and the pinned divergence test stays ignored. The one
+assertion that fails is the pre-fix `roll_column` pin in
+`engine_tests_replay.rs` - a three-line edit, and the last piece of the
+follow-up below.
 
 ## The verdict: exact match, once the unmodelled calls are accounted for
 
@@ -281,18 +322,21 @@ Not proved, and not claimed:
 
 ## Follow-ups
 
-1. **Fix the host's roll column** (`oracle/host/rng_trace.c`): subtract
-   `seed_hi`, and change `oracle/rng_trace.py`'s `roll_for` to match, since it
-   re-derives the same arithmetic. That changes the trace's sha256, which is
-   why this lane left the column alone: its acceptance requires the capture to
-   be O1's byte for byte. Until then, every consumer should derive rolls from
-   the raw columns the way `oracle/battle_fixture.py` does.
+1. **Fix the host's roll column** - **done** (lane P1). `oracle/host/rng_trace.h`'s
+   `rng_trace_roll` subtracts `seed_hi` and `oracle/rng_trace.py`'s `roll_for`
+   matches it, the tape 07 capture was regenerated (sha256
+   `0d97f6d6917c3440a211be2e0661eb8c363e04b748c2cef4e510ad32fbb9cb91`; the same
+   tape and core captured with the low-half subtraction differ from it in the
+   `roll` field of all 136 rows and in no other field), and
+   `oracle/battle_fixture.py` refuses any capture whose column is not the
+   cartridge's. The replay's `roll_column` assertion was updated at
+   integration to the fixed counts (`agrees` 136, `subtracts_low_word` 0).
 2. **Decide the remaining draw-count divergence.** `last_ability_index` needs
    the retail `$FFFFEEA8` semantics (a word a battle does not clear) rather
    than a fresh `None`. It is a behaviour change with its own tests to write,
    and it is visible here as a count rather than as a wrong number. (The other
-   one - `roll_hits` needing the swing's animation identity so Alys's and
-   Kyra's attacks run `loc_B6A2` twice - is done: `resolve_attack` keys on the
+   one, `roll_hits` needing the swing's animation identity so Alys's and
+   Kyra's attacks run `loc_B6A2` twice, is done: `resolve_attack` keys on the
    attacker's `Character_Stats` index, see SOURCE_NOTES.md "The second hit
    pass of Alys's and Kyra's attack".)
 3. **Fixture the other traced battle.** Tape 09's battle (`oracle` "Battle
