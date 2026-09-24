@@ -552,23 +552,17 @@ Not proved, and not claimed:
 
 ## Follow-ups still open
 
-1. **[`battle-party.md`](source-notes/battle-party.md) still carries the
-   obsolete sentence.** Its "Tests and evidence" section says the replay's first
-   divergence "moves from f29489 to f29789 (the `$FFFFEEA8` ability re-roll)"
-   (`docs/source-notes/battle-party.md:244`). That divergence is closed, so the
-   sentence should say the replay matches and name the clears. It is outside
-   this lane's write set.
-2. **Re-pin tape 07's `log_sha256`.** The committed tape 07 fixture pins
-   `e2ed38f1...`, a capture from before `enemy_ability_index` joined
-   `oracle/ram_map.json`'s `battle` group. With today's map the same run is
-   `4118ea6e...`, and re-extracting the fixture changes no data - the same
-   regeneration tape 09 just had. No test reads the field.
-3. **Fixture the remaining battle tapes.** `oracle/battle_fixture.py` needs no
+Closed at integration: `battle-party.md`'s dated "moves from f29489 to f29789"
+sentence now carries a dated correction, and tape 07's fixture was re-extracted
+against today's RAM map (same data; `log_sha256` `4118ea6e...`; trace still
+`0d97f6d6...`).
+
+1. **Fixture the remaining battle tapes.** `oracle/battle_fixture.py` needs no
    change for a new tape - `--tape`, `--battle-first`, `--battle-last` and the
    two logs are enough. Tape 10's three encounters in a row are the natural next
    one: three more battles on their own seed paths, and a chance at a second
    instance of the case tape 07 carries - a battle whose first ability draw is
    zero, against the word the load left.
-4. **Measure the save/continue path's word.** It is read from the bytes today
+2. **Measure the save/continue path's word.** It is read from the bytes today
    (see above). A tape that saves, powers off and continues would put the
    word's third edge on the same footing as the boot and the battle load.
