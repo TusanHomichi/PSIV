@@ -106,6 +106,26 @@ battle states and `engine_tests_oracle.rs`. Missing: forced formation entry by
 patch, a scripted battle-command driver, a port replay from the injected state,
 and a per-action comparator.
 
-**Next action:** after lanes F, G and H integrate, scope the differential
-battle oracle: prove forced entry and one formation's full-battle comparison
-end to end before building the sweep.
+### Scoping result: captured-roll replay (2026-09-24)
+
+Retail battle rolls come from `UpdateRNGSeed2` (`ps4.asm:86097`):
+`HV counter + Main_Frame_Count - RNG_Seed.w`, then `ror`. The VDP HV counter is
+beam timing that no headless reimplementation reproduces, so the port
+deliberately substitutes a surrogate stream, and the existing oracle battle
+tests can only assert that a value is *reachable*. A lockstep comparison would
+diverge on its first roll.
+
+The oracle therefore **captures** the cartridge's rolls instead of reproducing
+them. A tracked patch to the pinned Genesis Plus GX core logs each HV read made
+by `UpdateRNGSeed2`, and the host reconstructs every returned roll. The port
+replays those exact values through its `Rolls` trait (`SliceRolls`), so every
+number and decision must match *exactly*. Any divergence is a rules defect in
+draw count, order, mask or formula. The first proof reuses tape 07 (the first
+basement battle), so forced formation entry and a scripted driver come after
+the method is proven.
+
+Steps: O1 capture and consistency check on tape 07; O2 replay tape 07's battle
+in `psiv-core` with the captured rolls and compare every action; then forced
+formation entry, a scripted driver, and the formation sweep.
+
+**Next action:** O1 (capture) is running.
