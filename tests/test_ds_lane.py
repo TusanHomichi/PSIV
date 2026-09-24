@@ -13,6 +13,7 @@ subprocess.
 import datetime as dt
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -36,6 +37,10 @@ Reads a JSON behaviour spec from FAKE_REASONIX_SPEC (inline JSON or a path):
 files to write, trajectory events to append, seconds to sleep, seconds to burn
 CPU for, exit code. `resume_spec` overrides any of those keys for a run that
 carries `--resume`, so a resumed run can behave differently from its first.
+
+`burn` spins flat out for N seconds; `burn_low` spins in short bursts forever
+(a worker that is alive and doing a trickle of work, like a process idling on
+a 1 s timer). Both are silent: the trajectory does not grow while they run.
 """
 import json
 import os
@@ -104,6 +109,16 @@ def main(argv):
                 handle.write(json.dumps({"event": event}) + "\\n")
     if spec.get("sleep"):
         time.sleep(spec["sleep"])
+    trickle = spec.get("burn_low")
+    if trickle:  # alive and busy at a rate far below one percent of a core
+        period = float(trickle.get("period", 1.0))
+        busy = float(trickle.get("busy", 0.004))
+        while True:
+            end = time.monotonic() + busy
+            spin = 0
+            while time.monotonic() < end:
+                spin += 1
+            time.sleep(max(0.0, period - busy))
     print(json.dumps({
         "type": "result", "subtype": "success",
         "is_error": bool(spec.get("is_error", False)),
@@ -248,26 +263,46 @@ class UnitCase(unittest.TestCase):
                                                           "stall_resumed_run": nxt}))
             self.assertEqual(DS.wait_run(state / "run-1"), 0)
 
-    def test_stall_watcher_needs_a_whole_quiet_window(self):
-        """Progress is trajectory growth or group CPU time; a silent idle group stalls."""
+    def test_stall_cpu_threshold_is_read_per_call(self):
+        with mock.patch.dict(os.environ, {"DS_LANE_STALL_CPU_PCT": "2.5"}):
+            self.assertEqual(DS.stall_cpu_pct(), 2.5)
+        with mock.patch.dict(os.environ, {"DS_LANE_STALL_CPU_PCT": "junk"}):
+            self.assertEqual(DS.stall_cpu_pct(), DS.DEFAULT_STALL_CPU_PCT)
+        stripped = {k: v for k, v in os.environ.items() if k != "DS_LANE_STALL_CPU_PCT"}
+        with mock.patch.dict(os.environ, stripped, clear=True):
+            self.assertEqual(DS.DEFAULT_STALL_CPU_PCT, 1.0)
+            self.assertEqual(DS.stall_cpu_pct(), 1.0)
+
+    def test_stall_window_needs_growth_or_a_cpu_rate(self):
+        """A window of work is trajectory growth or CPU at the threshold rate.
+
+        The rate is what separates a worker from a corpse: 1 tick over 10 s is
+        0.1% of a core, which is what a process left holding a dead stream
+        gains, and it is not work.
+        """
         with tempfile.TemporaryDirectory(prefix="ds-lane-watcher-") as tmp:
             traj = Path(tmp) / "trajectory.jsonl"
             traj.touch()
-            now, cpu = [0.0], {7: 0.0}
-            watcher = DS.StallWatcher(pgid=7, trajectory=traj, timeout=10, poll=1,
-                                      clock=lambda: now[0], groups=lambda pgid: dict(cpu))
+            now, ticks = [0.0], {7: 0}
+            watcher = DS.StallWatcher(pgid=7, trajectory=traj, timeout=10, poll=1, cpu_pct=1.0,
+                                      clock=lambda: now[0], groups=lambda pgid: dict(ticks))
             now[0] = 5.0
-            self.assertFalse(watcher.sample(), "half a quiet window is not a stall")
-            cpu[7] = 0.5  # the group gained CPU: a long silent build, not a stall
-            now[0] = 12.0
-            self.assertFalse(watcher.sample())
-            now[0] = 21.0
-            self.assertFalse(watcher.sample(), "9 s of quiet is still inside the window")
-            now[0] = 22.0
-            self.assertTrue(watcher.sample(), "a whole window with no CPU and no growth")
-            traj.write_text("x\n")  # trajectory growth is progress too, and clears the verdict
+            self.assertIsNone(watcher.verdict(), "a window still open has no verdict")
+            ticks[7] = 1000  # 100 ticks over 10 s: a core's worth, a long silent build
+            now[0] = 10.0
+            self.assertIsNone(watcher.verdict())
+            ticks[7] = 1001  # 1 tick over 10 s: 0.1% of a core, an idle process
+            now[0] = 20.0
+            self.assertEqual(watcher.verdict(), (0.1, 0))
+            ticks[7] = 1011  # exactly the threshold counts as work, not as a stall
+            now[0] = 30.0
+            self.assertIsNone(watcher.verdict())
+            traj.write_text("event\n")  # growth is work even with no CPU at all
             now[0] = 40.0
-            self.assertFalse(watcher.sample())
+            self.assertIsNone(watcher.verdict())
+            ticks.clear()  # the group is gone: its recorded ticks do not vanish
+            now[0] = 50.0
+            self.assertEqual(watcher.verdict(), (0.0, 0))
 
 
 class LaneCase(unittest.TestCase):
@@ -874,6 +909,27 @@ class LaneCase(unittest.TestCase):
         self.assertFalse(run["stalled"])
         self.assertIsNone(run["stall_resumed_run"])
         self.assertFalse(self.lane_state("t1", "run-2").exists())
+
+    def test_low_cpu_worker_is_stalled(self):
+        """A process kept alive by a dead stream gains a tick every so often.
+
+        0.004 s of CPU a second is 0.4% of a core: alive, and nowhere near
+        work, so the window rate decides it is stalled. The measured rate
+        stays under the threshold, which is what the supervisor log records.
+        """
+        env = {"DS_LANE_STALL_POLL": "0.2"}
+        spec = {"files": {}, "burn_low": {"period": 1.0, "busy": 0.004}}
+        self.start("Run long.\n", "t1", spec, env=env,
+                   extra=["--stall-timeout", "3", "--stall-retries", "0", "--timeout", "20"])
+        run = self.run_json("t1", timeout=90)
+        self.assertEqual(run["exit_code"], 125)
+        self.assertEqual(run["outcome"], "stalled")
+        self.assertEqual(run["turn_error"], "stalled: no progress for 3 s")
+        log = self.lane_state("t1", "run-1", "supervisor.log").read_text()
+        self.assertIn("stalled: no progress for 3 s", log)
+        rate = float(re.search(r"group CPU ([\d.]+)% of a core", log).group(1))
+        self.assertLess(rate, 1.0, log)
+        self.assertIn("under 1%", log)
 
     def test_stall_retries_zero_finalizes_without_resume(self):
         env = {"DS_LANE_STALL_POLL": "0.2"}

@@ -17,8 +17,9 @@ import time
 from pathlib import Path
 
 from . import lanes
-from .config import (CARGO_JOBS, KILL_GRACE, STALL_EXIT, STALL_POLL, STOPPED_EXIT, TIMEOUT_EXIT,
-                     load_receipt, max_lanes, now, pid_alive, stall_poll, state_root)
+from .config import (CARGO_JOBS, DEFAULT_STALL_CPU_PCT, KILL_GRACE, STALL_EXIT, STALL_POLL,
+                     STOPPED_EXIT, TIMEOUT_EXIT, load_receipt, max_lanes, now, pid_alive,
+                     stall_cpu_pct, stall_poll, state_root)
 from .receipts import clear_stall_resume, finalize_run
 
 # ----------------------------------------------------------- stop requests
@@ -101,7 +102,7 @@ CLK_TCK = os.sysconf("SC_CLK_TCK")
 
 
 def proc_stat(pid):
-    """(process group id, utime+stime in seconds) for a live pid, else None.
+    """(process group id, utime+stime in clock ticks) for a live pid, else None.
 
     Fields are read from after the comm, which can itself hold spaces and
     parentheses: state(0) ppid(1) pgrp(2) ... utime(11) stime(12).
@@ -112,13 +113,13 @@ def proc_stat(pid):
         return None
     fields = raw.rsplit(")", 1)[-1].split()
     try:
-        return int(fields[2]), (int(fields[11]) + int(fields[12])) / CLK_TCK
+        return int(fields[2]), int(fields[11]) + int(fields[12])
     except (IndexError, ValueError):
         return None
 
 
-def group_cpu(pgid):
-    """{pid: cpu seconds} for every live member of process group `pgid`.
+def group_ticks(pgid):
+    """{pid: cpu ticks} for every live member of process group `pgid`.
 
     Group membership comes from each process's own stat, so a child that
     re-parented onto init still counts while it lives.
@@ -136,22 +137,29 @@ def group_cpu(pgid):
 class StallWatcher:
     """Decide whether a run has stopped making progress.
 
-    A stall is a whole window in which the trajectory has not grown AND no
-    member of the worker's process group has gained CPU time: the worker is
-    alive, holds a slot, and nothing is happening to it. CPU time is summed
-    from /proc/<pid>/stat, so a long silent `cargo build` (or any other busy
-    child) keeps the run alive. A process that exits cannot subtract from the
-    window: each pid keeps the high-water mark of its own CPU time.
+    Time is cut into windows of `timeout` seconds. A window saw work when the
+    trajectory grew during it, or when the worker's process group used at
+    least `cpu_pct` percent of one core across it. The rate - utime+stime
+    deltas from /proc/<pid>/stat over SC_CLK_TCK - is what tells work apart
+    from a process that is merely alive: a silent `cargo build` burns far
+    more than 1% of a core, while a worker whose stream died and whose wrapper
+    then idles on a timer gains a tick every half minute, 0.03% (measured
+    2026-09-24). Any gain at all is not enough to call a run alive.
     """
 
-    def __init__(self, pgid, trajectory, timeout, poll=STALL_POLL, clock=time.monotonic,
-                 groups=group_cpu):
+    def __init__(self, pgid, trajectory, timeout, poll=STALL_POLL,
+                 cpu_pct=DEFAULT_STALL_CPU_PCT, clock=time.monotonic, groups=group_ticks):
         self.pgid, self.trajectory = pgid, Path(trajectory)
-        self.timeout, self.poll = timeout, poll
+        self.timeout, self.poll, self.cpu_pct = timeout, poll, cpu_pct
         self.clock, self.groups = clock, groups
-        self.cpu = {}  # pid -> highest utime+stime seen for that pid
-        self.size = self._size()
-        self.since = self.clock()
+        self.cpu = {}  # pid -> highest utime+stime seen for it, in clock ticks
+        self.open_window()
+
+    def open_window(self):
+        """Start a window: the trajectory size and group CPU it begins from."""
+        self.window_at = self.clock()
+        self.size_at = self._size()
+        self.cpu_at = self.group_ticks()
 
     def _size(self):
         try:
@@ -159,20 +167,35 @@ class StallWatcher:
         except OSError:
             return 0
 
-    def sample(self):
-        """True when the run has made no progress for a whole stall window."""
-        stamp = self.clock()
-        progress = False
-        for pid, cpu in self.groups(self.pgid).items():
-            if cpu > self.cpu.get(pid, 0.0):
-                self.cpu[pid] = cpu
-                progress = True
-        size = self._size()
-        if size != self.size:
-            self.size, progress = size, True
-        if progress:
-            self.since = stamp
-        return bool(self.timeout) and stamp - self.since >= self.timeout
+    def group_ticks(self):
+        """Cumulative CPU ticks of the worker's process group.
+
+        Each pid keeps the highest value seen for it, so a member that exits
+        cannot make the group look like it lost CPU time, and a pid the kernel
+        hands out again cannot subtract from the window's delta.
+        """
+        for pid, ticks in self.groups(self.pgid).items():
+            self.cpu[pid] = max(ticks, self.cpu.get(pid, 0))
+        return sum(self.cpu.values())
+
+    def rate(self):
+        """(percent of one core, trajectory bytes grown) since the window opened."""
+        ticks = self.group_ticks() - self.cpu_at
+        return ticks / CLK_TCK / (self.clock() - self.window_at) * 100, self._size() - self.size_at
+
+    def verdict(self):
+        """None while a window is open or when it saw work, else the stall.
+
+        A stall is a whole window with no trajectory growth and a group CPU
+        rate under `cpu_pct` percent of one core; the verdict then carries
+        what was measured, for the supervisor log. The next window opens
+        either way.
+        """
+        if not self.timeout or self.clock() - self.window_at < self.timeout:
+            return None
+        rate, grew = self.rate()
+        self.open_window()
+        return (rate, grew) if grew <= 0 and rate < self.cpu_pct else None
 
 
 def run_worker(run_dir, spec, wt, env):
@@ -194,8 +217,8 @@ def run_worker(run_dir, spec, wt, env):
         p = subprocess.Popen(spec["cmd"] + [prompt], cwd=wt, stdout=out, stderr=err,
                              text=True, env=env, start_new_session=True)
         poll = stall_poll()
-        watcher = StallWatcher(p.pid, run_dir / "trajectory.jsonl", spec.get("stall_timeout"), poll) \
-            if spec.get("stall_timeout") else None
+        watcher = StallWatcher(p.pid, run_dir / "trajectory.jsonl", spec.get("stall_timeout"), poll,
+                               stall_cpu_pct()) if spec.get("stall_timeout") else None
         next_sample = t0 + poll
         while True:  # short waits so a stop request lands promptly
             try:
@@ -211,7 +234,12 @@ def run_worker(run_dir, spec, wt, env):
                 break
             if watcher and time.monotonic() >= next_sample:
                 next_sample = time.monotonic() + poll
-                if watcher.sample():
+                stall = watcher.verdict()
+                if stall:
+                    rate, grew = stall
+                    print(f"{now()} stalled: no progress for {spec.get('stall_timeout'):g} s "
+                          f"(group CPU {rate:.3f}% of a core, under {watcher.cpu_pct:g}%, "
+                          f"trajectory +{grew} bytes over the window)", flush=True)
                     outcome, rc = "stalled", STALL_EXIT
                     break
         if outcome:

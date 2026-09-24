@@ -44,6 +44,8 @@ Environment (read per call, so tests can set them per case):
   DS_LANE_MAX_LANES  machine-wide concurrent workers (default 3)
   DS_LANE_STALL_POLL seconds between stall samples (default 15; the test suite
                      lowers it so a stall case does not cost a whole window)
+  DS_LANE_STALL_CPU_PCT  percent of one core a stall window needs to count as
+                     work (default 1.0)
 
 --link PATH symlinks an ignored path from the source repo into the worktree
 (e.g. runtime-pack, reference) so repo-relative tooling finds local inputs.
@@ -65,12 +67,17 @@ survives, and the run still commits and finalizes with exit 124 and turn_error
 spawned (a `cargo test`, say) cannot outlive the run and its released slot.
 
 Every run also gets a stall watchdog (--stall-timeout SECONDS, default 900; 0
-disables it). The supervisor samples every 15 s and calls the run stalled when,
-for a whole window, trajectory.jsonl has not grown AND no member of the
-worker's process group has gained CPU time (utime+stime from /proc/<pid>/stat)
-— a long silent `cargo build` burns CPU, so it is never a stall. A stalled run
-is stopped through the same group kill as a timeout and finalizes with
-exit_code 125 and turn_error "stalled: no progress for N s". With
+disables it). The supervisor samples every 15 s and judges each whole window:
+the run is stalled when the window saw no trajectory.jsonl growth AND the
+worker's process group used less than DS_LANE_STALL_CPU_PCT percent of one
+core across it (default 1.0; utime+stime deltas from /proc/<pid>/stat over
+SC_CLK_TCK). A rate, not any gain, is what tells work from a dead stream: a
+silent `cargo build` burns far more than a percent of a core, while a worker
+left holding a dead stream gains a tick every half minute (0.03%), which is
+what a hung run looks like from here. A stalled run is stopped through the
+same group kill as a timeout and finalizes with exit_code 125 and turn_error
+"stalled: no progress for N s"; the measured rate and the threshold it was
+under are recorded in the run's supervisor.log. With
 --stall-retries N (default 1) the supervisor then starts the next run of the
 lane itself, on the same Reasonix session: that run's follow-up says the
 previous run stalled (a host suspend leaves the worker alive with a dead

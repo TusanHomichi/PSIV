@@ -19,7 +19,8 @@ CARGO_JOBS = 2  # per-worker cargo parallelism cap, same incident
 DEFAULT_TIMEOUT = 5400        # per-run wall clock, seconds
 DEFAULT_STALL_TIMEOUT = 900   # per-run silence budget, seconds (0 disables the watchdog)
 DEFAULT_STALL_RETRIES = 1     # automatic resumes of a stalled run
-STALL_POLL = 15.0             # seconds between stall samples; a whole silent window is a stall
+DEFAULT_STALL_CPU_PCT = 1.0   # a window below this percent of a core is not work
+STALL_POLL = 15.0             # seconds between stall samples; a whole quiet window is a stall
 KILL_GRACE = 30               # seconds between SIGTERM and SIGKILL on stop/timeout/stall
 TIMEOUT_EXIT = 124
 STALL_EXIT = 125              # stalled: the worker is alive but nothing has progressed
@@ -74,6 +75,21 @@ def stall_poll():
     except (KeyError, ValueError):
         return STALL_POLL
     return value if value > 0 else STALL_POLL
+
+
+def stall_cpu_pct():
+    """Percent of one core a stall window needs to count as work.
+
+    One percent is the default because that is the order of magnitude that
+    separates a worker from a corpse: a live Reasonix worker streaming a turn
+    measured 5.6% of a core (2026-09-24), a silent `cargo build` far more,
+    while a process left holding a dead stream gains a tick every half minute
+    (0.03%).
+    """
+    try:
+        return float(os.environ["DS_LANE_STALL_CPU_PCT"])
+    except (KeyError, ValueError):
+        return DEFAULT_STALL_CPU_PCT
 
 
 def sh(args, cwd=None, check=True, capture=True):
