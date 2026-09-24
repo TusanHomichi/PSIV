@@ -40,6 +40,7 @@ files to write, trajectory events to append, seconds to sleep, exit code.
 """
 import json
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -81,6 +82,14 @@ def main(argv):
         dest.write_text(content)
     if spec.get("pid_file"):
         Path(spec["pid_file"]).write_text(str(os.getpid()))
+    child = spec.get("spawn_sleep")
+    if child:  # a stand-in for `cargo test`: a group member SIGTERM alone does not stop
+        proc = subprocess.Popen([sys.executable, "-c",
+                                 "import signal, time; "
+                                 "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                                 "time.sleep(%d)" % int(child.get("seconds", 60))])
+        if child.get("pid_file"):
+            Path(child["pid_file"]).write_text(str(proc.pid))
     if spec.get("opts_out"):
         Path(spec["opts_out"]).write_text(json.dumps({"opts": opts, "prompt": prompt}, indent=2))
     trajectory = opts.get("--trajectory")
@@ -656,6 +665,98 @@ class LaneCase(unittest.TestCase):
         self.assertIn("receipts purged", r.stdout)
         self.assertFalse(self.lane_state("t2").exists())
         self.assertFalse(self.lane_wt("t2").exists())
+
+
+    # -- 8. stop (orchestrator request)
+
+    def test_stop_running_worker_finalizes_with_143(self):
+        pid_file = self.work / "t1-worker.pid"
+        child_file = self.work / "t1-child.pid"
+        spec = {"files": {"tools/half.txt": "partial\n"}, "pid_file": str(pid_file),
+                "spawn_sleep": {"seconds": 120, "pid_file": str(child_file)}, "sleep": 120}
+        env = {"DS_LANE_MAX_LANES": "1"}
+        self.start("Run long.\n", "t1", spec, env=env)
+        self.wait_for(lambda: pid_file.exists() and child_file.exists(), "worker and child pids")
+        r = self.cli("stop", "t1", "--repo", self.repo, check=0, timeout=90)
+        self.assertIn("stopping supervisor", r.stdout)
+        self.assertIn("exit=143", r.stdout)          # the run's summary is printed
+        self.assertIn("stopped by orchestrator", r.stdout)
+
+        run = self.run_json("t1")
+        self.assertEqual(run["exit_code"], 143)
+        self.assertEqual(run["outcome"], "stopped")
+        self.assertEqual(run["turn_error"], "stopped by orchestrator")
+        # The run still committed what the worker left, and released its slot.
+        self.assertTrue(run["committed"])
+        self.assertIn("tools/half.txt", self.git("show", "--name-only", "--format=", "HEAD",
+                                                 cwd=self.lane_wt("t1")))
+        self.assertFalse(self.lane_state("t1", "run-1", "worker.slot").exists())
+        self.wait_for(lambda: not self.pid_exists(int(pid_file.read_text())), "worker exit", timeout=15)
+        # The worker's group is finished too, children included.
+        self.wait_for(lambda: not self.pid_exists(int(child_file.read_text())), "child exit", timeout=15)
+        # With the cap at one lane, only a released slot lets the next lane run.
+        self.start("Quick job.\n", "t2", {"files": {}}, env=env)
+        self.assertEqual(self.run_json("t2", timeout=60)["exit_code"], 0)
+        # A second stop has nothing left to do.
+        self.assertIn("no run in flight", self.cli("stop", "t1", "--repo", self.repo, check=0).stdout)
+
+    def test_stop_queued_run_records_it_stopped(self):
+        env = {"DS_LANE_MAX_LANES": "1"}
+        self.start("Slow job.\n", "a1", {"files": {}, "sleep": 6}, env=env)
+        self.wait_for(lambda: self.lane_state("a1", "run-1", "worker.slot").exists(), "a1 slot")
+        b_pid = self.work / "b1-worker.pid"
+        self.start("Queued job.\n", "b1", {"files": {"tools/b1.txt": "x\n"},
+                                           "pid_file": str(b_pid)}, env=env)
+        log = self.lane_state("b1", "run-1", "supervisor.log")
+        self.wait_for(lambda: log.exists() and "queued: 1 lanes running (cap 1)" in log.read_text(),
+                      "b1 queue announcement", timeout=30)
+        r = self.cli("stop", "b1", "--repo", self.repo, check=0, timeout=90)
+        self.assertIn("stopped by orchestrator", r.stdout)
+        run = self.run_json("b1")
+        self.assertEqual(run["exit_code"], 143)
+        self.assertEqual(run["outcome"], "stopped")
+        self.assertEqual(run["duration_s"], 0.0)
+        self.assertFalse(run["committed"])
+        # Nothing ran: no worker process, no worker output, no file, no slot.
+        self.assertFalse(b_pid.exists())
+        self.assertFalse(self.lane_state("b1", "run-1", "stdout.log").exists())
+        self.assertFalse(self.lane_state("b1", "run-1", "worker.slot").exists())
+        self.assertFalse(self.lane_wt("b1", "tools", "b1.txt").exists())
+        # The lane that held the slot is unaffected.
+        self.assertEqual(self.run_json("a1", timeout=90)["exit_code"], 0)
+
+    def test_stop_idle_lane_exits_zero(self):
+        self.start("Touch only tools/keep.txt.\n", "t1", {"files": {"tools/keep.txt": "x\n"}})
+        self.run_json("t1")
+        for _ in range(2):
+            r = self.cli("stop", "t1", "--repo", self.repo, check=0)
+            self.assertIn("no run in flight", r.stdout)
+
+    def test_timeout_reaps_orphaned_group_members(self):
+        """A killed worker must not leave its spawned children running.
+
+        The worker itself ignores nothing (it dies on the group SIGTERM); the
+        child it spawns is the stubborn case the report describes - a member
+        that only the final group SIGKILL clears, whatever the parent did.
+        """
+        pid_file = self.work / "t1-worker.pid"
+        child_file = self.work / "t1-child.pid"
+        spec = {"files": {}, "pid_file": str(pid_file),
+                "spawn_sleep": {"seconds": 120, "pid_file": str(child_file)}, "sleep": 120}
+        self.start("Long job.\n", "t1", spec, extra=["--timeout", "2"])
+        self.assertEqual(self.run_json("t1", timeout=90)["exit_code"], 124)
+        self.wait_for(lambda: pid_file.exists() and child_file.exists(), "worker and child pids")
+        self.wait_for(lambda: not self.pid_exists(int(pid_file.read_text())), "worker exit",
+                      timeout=15)
+        self.wait_for(lambda: not self.pid_exists(int(child_file.read_text())), "orphan child exit",
+                      timeout=15)
+
+    def pid_exists(self, pid):
+        try:
+            os.kill(pid, 0)
+            return True
+        except ProcessLookupError:
+            return False
 
 
 if __name__ == "__main__":

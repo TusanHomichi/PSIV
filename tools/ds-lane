@@ -21,6 +21,7 @@ Usage:
   ds-lane resume ID FOLLOWUP.md [--max-steps N] [--timeout SECONDS]
                                 [--allow-phrasing] [--no-wait]
   ds-lane wait ID
+  ds-lane stop ID
   ds-lane tail ID [-n N]
   ds-lane verify ID -- CMD...
   ds-lane list [--repo DIR]
@@ -53,7 +54,16 @@ workers run machine-wide (later runs queue) and each gets CARGO_BUILD_JOBS<=2.
 Every run has a wall-clock budget (--timeout, default 5400 s): on expiry the
 supervisor SIGTERMs the worker's process group, SIGKILLs it 30 s later if it
 survives, and the run still commits and finalizes with exit 124 and turn_error
-"timeout after N s".
+"timeout after N s". A final SIGKILL always follows, so children the worker
+spawned (a `cargo test`, say) cannot outlive the run and its released slot.
+
+`stop ID` ends a lane's in-flight run cleanly: it SIGTERMs the supervisor
+recorded in the run directory (never a pattern match over command lines), which
+turns that into the same group kill and finalizes the run - committing whatever
+the worker left, with exit_code 143 and turn_error "stopped by orchestrator". A
+run still queued for a slot stops immediately with nothing run. `stop` waits up
+to 60 s for finalization and prints the summary; it exits 0 when the run is
+stopped (or when nothing was in flight) and 1 if finalization did not finish.
 
 Lane rules for the worker are prepended to every brief (see PREAMBLE).
 
@@ -98,8 +108,10 @@ PERMISSION_MODE = "acceptEdits"
 MAX_LANES = 3   # machine-wide concurrent workers; the 13GB laptop OOM'd at 5 (2026-08-16)
 CARGO_JOBS = 2  # per-worker cargo parallelism cap, same incident
 DEFAULT_TIMEOUT = 5400  # per-run wall clock, seconds
-KILL_GRACE = 30         # seconds between SIGTERM and SIGKILL on timeout
+KILL_GRACE = 30         # seconds between SIGTERM and SIGKILL on stop/timeout
 TIMEOUT_EXIT = 124
+STOPPED_EXIT = 143      # `ds-lane stop`: SIGTERM'd on request
+STOP_WAIT = 60          # seconds `stop` waits for the run to finish finalizing
 WT_ROOT = Path.home() / ".cache/ds-lane/wt"
 STATE_ROOT = Path.home() / ".local/state/ds-lane"
 
@@ -327,6 +339,21 @@ def write_set_violations(paths, patterns):
     return [p for p in paths if not write_set_match(p, patterns)]
 
 
+# ----------------------------------------------------------- stop requests
+
+# `ds-lane stop ID` SIGTERMs the supervisor; the handler only raises a flag so
+# the running worker (or the queue wait) can be unwound on a normal code path
+# and the run still commits and finalizes.
+STOP_REQUESTED = False
+
+
+def install_stop_handler():
+    def request_stop(signum, frame):
+        global STOP_REQUESTED
+        STOP_REQUESTED = True
+    signal.signal(signal.SIGTERM, request_stop)
+
+
 # ----------------------------------------------------------- runs & receipts
 
 def prepare_run(lane, prompt_text, max_steps, timeout, resume_session=None):
@@ -364,59 +391,94 @@ def prepare_run(lane, prompt_text, max_steps, timeout, resume_session=None):
 
 
 def acquire_slot(run_dir):
-    """Block until fewer than MAX_LANES workers run machine-wide, then claim a slot."""
+    """Block until fewer than MAX_LANES workers run machine-wide, then claim a slot.
+
+    Returns False when a `stop` request arrives while the run is still queued.
+    """
     root = state_root()
     root.mkdir(parents=True, exist_ok=True)
     announced = False
     t0 = time.monotonic()
     while True:
+        if STOP_REQUESTED:
+            return False
         with open(root / ".slots.lock", "w") as lock:
             fcntl.flock(lock, fcntl.LOCK_EX)
             live = [f for f in root.glob("*/*/run-*/worker.slot") if pid_alive(f)]
             if len(live) < max_lanes():
+                if STOP_REQUESTED:
+                    return False
                 (run_dir / "worker.slot").write_text(str(os.getpid()))
-                return
+                return True
         if not announced:
             print(f"{now()} queued: {len(live)} lanes running (cap {max_lanes()})", flush=True)
             announced = True
         time.sleep(1 if time.monotonic() - t0 < 30 else 10)
 
 
-def kill_group(pid, sig):
+def kill_group(pgid, sig):
+    """Signal a process group. The worker's pgid equals its pid (start_new_session)."""
     try:
-        os.killpg(os.getpgid(pid), sig)
-    except OSError:
+        os.killpg(pgid, sig)
+    except OSError:  # ProcessLookupError: the group is already gone
         pass
 
 
-def run_worker(run_dir, spec, wt, env):
-    """Run the worker in its own process group under a wall-clock timeout.
+def stop_group(p):
+    """Terminate a worker's whole process group, then always finish it off.
 
-    Returns (exit code, started, duration, timed out). On expiry the group gets
-    SIGTERM, then SIGKILL after KILL_GRACE seconds; the run still finalizes.
+    SIGTERM first, SIGKILL after KILL_GRACE seconds, and a final SIGKILL even
+    when the parent exited promptly: children it spawned (a `cargo test`, say)
+    would otherwise outlive the run and the slot it released. Signals go to
+    p.pid as the group id — os.getpgid() fails once the parent is reaped.
+    """
+    kill_group(p.pid, signal.SIGTERM)
+    try:
+        p.wait(timeout=KILL_GRACE)
+    except subprocess.TimeoutExpired:
+        pass
+    kill_group(p.pid, signal.SIGKILL)
+    try:
+        p.wait(timeout=KILL_GRACE)
+    except subprocess.TimeoutExpired:  # paranoia: an unkillable parent
+        p.kill()
+        p.wait()
+
+
+def run_worker(run_dir, spec, wt, env):
+    """Run the worker in its own process group under a wall-clock budget.
+
+    Returns (exit code, started, duration, outcome), where outcome is None,
+    "timeout" or "stopped". A `stop` request (SIGTERM to the supervisor) or a
+    budget expiry kills the group via stop_group(); the run still finalizes.
     """
     timeout = spec.get("timeout") or 0
     started, t0 = now(), time.monotonic()
+    if STOP_REQUESTED:  # stopped while queued, before the worker was spawned
+        return STOPPED_EXIT, started, 0.0, "stopped"
     print(f"{started} worker start", flush=True)
-    timed_out = False
+    outcome = None
     prompt = (run_dir / "prompt.md").read_text()
     with open(run_dir / "stdout.log", "w") as out, open(run_dir / "stderr.log", "w") as err:
         p = subprocess.Popen(spec["cmd"] + [prompt], cwd=wt, stdout=out, stderr=err,
                              text=True, env=env, start_new_session=True)
-        try:
-            rc = p.wait(timeout=timeout) if timeout else p.wait()
-        except subprocess.TimeoutExpired:
-            timed_out = True
-            kill_group(p.pid, signal.SIGTERM)   # the whole group: reasonix + children
+        while True:  # short waits so a stop request lands promptly
             try:
-                p.wait(timeout=KILL_GRACE)
+                rc = p.wait(timeout=0.25)
+                break
             except subprocess.TimeoutExpired:
-                kill_group(p.pid, signal.SIGKILL)
-                p.wait()
-            rc = TIMEOUT_EXIT
+                pass
+            if STOP_REQUESTED:
+                outcome, rc = "stopped", STOPPED_EXIT
+                break
+            if timeout and time.monotonic() - t0 >= timeout:
+                outcome, rc = "timeout", TIMEOUT_EXIT
+                break
+        if outcome:
+            stop_group(p)
     duration = round(time.monotonic() - t0, 1)
-    print(f"{now()} worker exit {rc}{' (timeout)' if timed_out else ''}", flush=True)
-    return rc, started, duration, timed_out
+    print(f"{now()} worker exit {rc}{f' ({outcome})' if outcome else ''}", flush=True)
+    return rc, started, duration, outcome
 
 
 def exec_run(state, n):
@@ -426,15 +488,18 @@ def exec_run(state, n):
     lane = load_receipt(state)
     wt = Path(lane["worktree"])
     spec = json.loads((run_dir / "spec.json").read_text())
+    install_stop_handler()
     try:
-        acquire_slot(run_dir)
+        if not acquire_slot(run_dir):  # `ds-lane stop` while still queued
+            finalize_run(lane, run_dir, spec, STOPPED_EXIT, now(), 0.0, outcome="stopped")
+            return
         try:
             env = dict(os.environ)
             env["CARGO_BUILD_JOBS"] = str(min(int(env.get("CARGO_BUILD_JOBS", CARGO_JOBS)), CARGO_JOBS))
-            rc, started, duration, timed_out = run_worker(run_dir, spec, wt, env)
+            rc, started, duration, outcome = run_worker(run_dir, spec, wt, env)
         finally:  # the machine-wide slot is released on every path
             (run_dir / "worker.slot").unlink(missing_ok=True)
-        finalize_run(lane, run_dir, spec, rc, started, duration, timed_out)
+        finalize_run(lane, run_dir, spec, rc, started, duration, outcome)
     except BaseException as e:  # leave a terminal record whatever happens
         (run_dir / "worker.slot").unlink(missing_ok=True)
         (run_dir / "summary.txt").write_text(f"lane {lane['id']} run-{n}: SUPERVISOR ERROR {e!r}\n"
@@ -450,15 +515,22 @@ def receipt_block(text):
     return "\n".join(lines[heads[-1]:]).strip() if heads else None
 
 
-def finalize_run(lane, run_dir, spec, rc, started, duration, timed_out=False):
+def finalize_run(lane, run_dir, spec, rc, started, duration, outcome=None):
+    """Record a finished run: commit, receipt, write set, summary, run.json.
+
+    `outcome` is None for a normal run, "timeout" or "stopped"; a run stopped
+    before it ever started has no stdout.log and no turn.
+    """
     wt, state, n = Path(lane["worktree"]), Path(lane["state_dir"]), spec["run"]
     result = {}
-    for line in reversed((run_dir / "stdout.log").read_text().strip().splitlines()):
-        try:
-            result = json.loads(line)
-            break
-        except json.JSONDecodeError:
-            continue
+    stdout_file = run_dir / "stdout.log"
+    if stdout_file.exists():
+        for line in reversed(stdout_file.read_text().strip().splitlines()):
+            try:
+                result = json.loads(line)
+                break
+            except json.JSONDecodeError:
+                continue
     (run_dir / "result.md").write_text(result.get("result", "") + "\n")
 
     # Commit on the worker's behalf (outside the sandbox) so each run is one reviewable commit.
@@ -497,8 +569,10 @@ def finalize_run(lane, run_dir, spec, rc, started, duration, timed_out=False):
             sandbox_blocks += "outside the writable roots" in err
         if ev.get("kind") == "turn_done" and ev.get("status") != "completed":
             turn_err = ev.get("err") or ev.get("status")
-    if timed_out:
+    if outcome == "timeout":
         turn_err = f"timeout after {spec.get('timeout'):g} s"
+    elif outcome == "stopped":
+        turn_err = "stopped by orchestrator"
 
     run = {
         "run": n, "started": started, "duration_s": duration, "exit_code": rc,
@@ -508,8 +582,8 @@ def finalize_run(lane, run_dir, spec, rc, started, duration, timed_out=False):
         "usage": result.get("usage"), "committed": committed, "head_sha": head,
         "resumed_session": spec.get("resume_session"), "read_only": lane.get("read_only", False),
         "constraint_blocks": constraint_blocks, "sandbox_blocks": sandbox_blocks,
-        "timeout_s": spec.get("timeout"), "timed_out": timed_out,
-        "write_set_violations": violations,
+        "timeout_s": spec.get("timeout"), "timed_out": outcome == "timeout",
+        "outcome": outcome or "completed", "write_set_violations": violations,
     }
     lane["runs"].append(run)
     lane["head_sha"] = head
@@ -540,14 +614,23 @@ def finalize_run(lane, run_dir, spec, rc, started, duration, timed_out=False):
     (run_dir / "run.json").write_text(json.dumps(run, indent=2) + "\n")
 
 
+def run_finished(run_dir):
+    return (run_dir / "run.json").exists() or (run_dir / "failed").exists()
+
+
+def print_summary(run_dir):
+    summary = Path(run_dir) / "summary.txt"
+    print(summary.read_text() if summary.exists() else f"(no summary in {run_dir})", end="")
+
+
 def wait_run(run_dir, grace=30):
     run_dir = Path(run_dir)
     t0 = time.monotonic()
-    while not ((run_dir / "run.json").exists() or (run_dir / "failed").exists()):
+    while not run_finished(run_dir):
         if time.monotonic() - t0 > grace and not supervisor_alive(run_dir):
             sys.exit(f"ds-lane: supervisor for {run_dir} died without a result; see supervisor.log")
         time.sleep(0.25 if time.monotonic() - t0 < 5 else 3)
-    print((run_dir / "summary.txt").read_text(), end="")
+    print_summary(run_dir)
     if (run_dir / "failed").exists():
         return 1
     return json.loads((run_dir / "run.json").read_text())["exit_code"]
@@ -641,6 +724,51 @@ def cmd_wait(a):
     if not runs:
         sys.exit("ds-lane: lane has no runs")
     return wait_run(runs[-1])
+
+
+def cmd_stop(a):
+    """Stop a lane's in-flight run by signalling its supervisor, then wait.
+
+    Only PIDs recorded in the run directory are used: the supervisor turns the
+    SIGTERM into a stop of the worker's process group and finalizes the run.
+    """
+    lane = find_lane(a)
+    pending = [r for r in lane_runs(lane) if not run_finished(r)]
+    if not pending:
+        print(f"lane {lane['id']}: no run in flight")
+        return 0
+    run_dir = pending[-1]
+    pid_file = run_dir / "supervisor.pid"
+    t0 = time.monotonic()  # `start --no-wait` can race the supervisor's first write
+    while not pid_file.exists() and not run_finished(run_dir) and time.monotonic() - t0 < 10:
+        time.sleep(0.1)
+    if run_finished(run_dir):
+        print_summary(run_dir)
+        return 0
+    if not pid_file.exists():
+        print(f"lane {lane['id']} {run_dir.name}: no supervisor pid recorded; nothing to signal")
+        return 0
+    try:
+        pid = int(pid_file.read_text().strip())
+    except ValueError:
+        sys.exit(f"ds-lane: {pid_file} is not a pid")
+    if not pid_alive(pid_file):
+        print(f"lane {lane['id']} {run_dir.name}: supervisor {pid} is gone; nothing to signal")
+        return 0
+    print(f"lane {lane['id']} {run_dir.name}: stopping supervisor {pid} (worker group)")
+    try:
+        os.kill(pid, signal.SIGTERM)
+    except ProcessLookupError:
+        print(f"lane {lane['id']} {run_dir.name}: supervisor {pid} exited meanwhile")
+    deadline = time.monotonic() + STOP_WAIT
+    while not run_finished(run_dir):
+        if time.monotonic() > deadline:
+            print(f"ds-lane: {run_dir} is still finalizing after {STOP_WAIT}s; "
+                  f"see {run_dir / 'supervisor.log'}")
+            return 1
+        time.sleep(0.25 if time.monotonic() - t0 < 5 else 1)
+    print_summary(run_dir)
+    return 0
 
 
 def trajectory_tail(path):
@@ -794,6 +922,10 @@ def main():
     w.add_argument("id")
     w.add_argument("--repo", default=".")
     w.set_defaults(fn=cmd_wait)
+    sp = sub.add_parser("stop")
+    sp.add_argument("id")
+    sp.add_argument("--repo", default=".")
+    sp.set_defaults(fn=cmd_stop)
     tl = sub.add_parser("tail")
     tl.add_argument("id")
     tl.add_argument("-n", type=int, default=10, help="how many recent tool calls to show")
