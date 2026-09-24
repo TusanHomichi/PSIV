@@ -57,6 +57,7 @@ oracle/
 ├── analyze_rng.py          per-frame RNG call census from a log
 ├── rng_trace.py            checks a --rng-trace capture against its log
 ├── force_battle.py         forces a chosen formation into a battle and captures it
+├── force/                  its package: tape, selectors, scout, draw, phases
 ├── fixture/                the replay-fixture extractor battle_fixture.py drives
 ├── anim_sweep.py           press-offset sweep across the dialogue open animation
 ├── damage_census.py        same-matchup damage samples across shifted seed paths
@@ -393,6 +394,8 @@ when the ability under test belongs to an enemy the tapes never reach.
 ```sh
 python3 oracle/force_battle.py --formation 0x5E --out build/forced/helex \
     --require-ability 2
+python3 oracle/force_battle.py --formation 0x53 --vehicle 2 \
+    --out build/forced/icedigger
 ```
 
 Its runs log `core,battle,bhit,enemy,chars,rng,vehicle` - the vehicle group
@@ -408,14 +411,26 @@ encounter fires, and the *entry* within the group's 32 formation ids by
 patching `RNG_Seed`'s high word - one frame before the formation draw - to the
 value that makes `UpdateRNGSeed2`'s roll land where it should.
 
+`--vehicle N` (1 Land Rover, 2 Ice Digger, 3 Hydrofoil) chooses which
+`VehicleData` record the forced battle loads, for a formation that sits in one
+of the four vehicle tables (groups 8, 9, 10, 13). Values outside the table's
+three records are refused, and so is a vehicle the table's region cannot seat:
+the Dezolis table (group `$D`, `Field_Map_Index != 0`) is the Ice Digger's -
+no item action boards a vehicle outside Motavia - while the Motavia tables take
+any of the three. Without the flag the table's own region decides (Land Rover on
+Motavia, Ice Digger on Dezolis), which is how the three older captures were
+taken. `oracle/force/selectors.py` carries the rule with its citations.
+
 Five oracle runs per capture: a scout, a probe that measures the draw, an
 untrimmed preview, the trimmed capture, and a re-run to byte-compare it, with
 `oracle/rng_trace.py check` on the result. The output directory holds the
 composed tape, the `--ram-patch` list, every run's log and trace, and a
-`report.json` with the window, the outcome, the ability ids observed and every
-sha256. [`BATTLE_ORACLE_FORCED.md`](../docs/BATTLE_ORACLE_FORCED.md) is the
-ledger: the mechanism with its citations, three captures (Helex/FLAME BOLT,
-Fanbite/SPIRAL BLD, Desrt Leach/SAND STORM) and their limits.
+`report.json` with the window, the outcome, the vehicle forced, the ability ids
+observed and every sha256. [`BATTLE_ORACLE_FORCED.md`](../docs/BATTLE_ORACLE_FORCED.md)
+is the ledger: the mechanism with its citations, four captures (Helex/FLAME
+BOLT, Fanbite/SPIRAL BLD, Desrt Leach/SAND STORM under the Land Rover and again
+under the Ice Digger), the Ice Digger's two-pass swing divergence and their
+limits.
 
 ### Deterministic scene fixtures
 

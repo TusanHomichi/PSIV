@@ -1,3 +1,17 @@
 {
-  "fixtures": {}
+  "fixtures": {
+    "forced_53_icedigger": {
+      "round": 1,
+      "frame": 25026,
+      "kind": "value",
+      "action": "round 1, actor 1 (the Ice Digger) at f25026-25153",
+      "expected": "two hit-pass calls, at f25058 and f25059, then sixteen damage draws at f25075 whose 51 sum lands 212 on the Desrt Leach - the Ice Digger's own attack byte 250 (attack 200 would land 164)",
+      "actual": "a third hit-pass call, so the damage draws start one roll late: the sixteen draws sum to 52 and land 214, and round 1 spends 50 of the stream's rolls where the log's frames hold 49",
+      "round_rolls": {
+        "log": 49,
+        "port": 50
+      },
+      "ledger": "docs/BATTLE_ORACLE_FORCED.md#51-the-ice-diggers-two-pass-swing"
+    }
+  }
 }

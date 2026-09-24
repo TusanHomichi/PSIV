@@ -1,0 +1,113 @@
+"""Reading a capture: what the log says the battle did.
+
+The log's own columns decide everything here - the battle's window
+(`Game_Mode_Index` $10/$14), the enemy slots it built (ids *and* max HP, since
+an enemy id of `0` is also what an empty slot reads), which ability each enemy
+actually ran, the party's HP, the vehicle fighter's HP in a vehicle battle, and
+the rewards the battle paid out. Nothing is inferred from what the tool asked
+for: `matches` compares the log's slots against the pack's record for the forced
+formation, and the tool stops when they disagree.
+"""
+from __future__ import annotations
+
+import dataclasses
+import pathlib
+
+from .errors import ForceError
+from .pack import Pack
+from .runs import Run, by_frame, battle_window, hp_of, read_rows, sha256
+
+
+@dataclasses.dataclass
+class Capture:
+    window: tuple[int, int]
+    outcome: str
+    enemies: list[dict]
+    party: list[dict]
+    vehicle_hp: int
+    abilities: dict[str, int]
+    rewards: dict
+    log_path: pathlib.Path
+    trace_path: pathlib.Path
+    log_sha256: str
+    trace_sha256: str
+
+
+def enemy_slots(rows: list[dict], window: tuple[int, int]) -> list[dict]:
+    """The enemy slots the battle built, as (slot, id, maxhp) at the end."""
+    first, last = window
+    count = max((int(row["enemy_count"]) for row in rows
+                 if first <= int(row["frame"]) <= last), default=0)
+    end = by_frame(rows)[last]
+    return [{"slot": slot, "id": int(end[f"e{slot}_id"]),
+             "maxhp": int(end[f"e{slot}_maxhp"])}
+            for slot in range(1, 5) if slot <= count]
+
+
+def classify(rows: list[dict], window: tuple[int, int],
+             vehicle: bool = False) -> str:
+    """What the log says the battle did, from the party's and enemies' HP.
+
+    `victory` needs every built enemy slot at or below zero HP, `defeat` every
+    party member. A battle that ends with both sides standing is reported as
+    `withdrawal` rather than guessed at - an enemy escape, or a vehicle battle
+    whose wrecked vehicle the party's own HP columns cannot show (the vehicle
+    is the party-side fighter there, and `vehicle_fighter_hp` says so).
+    """
+    if window[1] >= int(rows[-1]["frame"]):
+        return "unfinished"
+    end = by_frame(rows)[window[1]]
+    slots = enemy_slots(rows, window)
+    if slots and all(hp_of(end, f"e{entry['slot']}_hp") <= 0
+                     for entry in slots):
+        return "victory"
+    if vehicle and hp_of(end, "vehicle_fighter_hp") <= 0:
+        return "defeat"
+    if all(hp_of(end, f"{who}_hp") <= 0 for who in ("chaz", "alys", "hahn")):
+        return "defeat"
+    return "withdrawal"
+
+
+def ability_uses(rows: list[dict], window: tuple[int, int],
+                 from_frame: int) -> dict[str, int]:
+    """{"eN=0xID": first frame}: the ability each enemy actually ran."""
+    first, last = window
+    seen: dict[str, int] = {}
+    for row in rows:
+        frame = int(row["frame"])
+        if not max(first, from_frame) <= frame <= last:
+            continue
+        for slot in (1, 2, 3, 4):
+            value = int(row[f"e{slot}_ability"], 16)
+            if value:
+                seen.setdefault(f"e{slot}=0x{value:02X}", frame)
+    return seen
+
+
+def read_capture(run: Run, draw_frame: int, vehicle: bool = False) -> Capture:
+    rows = read_rows(run.log)
+    window = battle_window(rows)
+    if window is None:
+        raise ForceError(f"the run in {run.log.parent} holds no battle: "
+                         "game mode $10/$14 never appears")
+    end = by_frame(rows)[window[1]]
+    return Capture(
+        window=window,
+        outcome=classify(rows, window, vehicle),
+        enemies=enemy_slots(rows, window),
+        party=[{"who": who, "hp": hp_of(end, f"{who}_hp")}
+               for who in ("chaz", "alys", "hahn")],
+        vehicle_hp=hp_of(end, "vehicle_fighter_hp")
+        if "vehicle_fighter_hp" in end else 0,
+        abilities=ability_uses(rows, window, draw_frame + 1),
+        rewards={"experience": int(end["battle_exp_total"]),
+                 "meseta": int(end["battle_meseta_total"])},
+        log_path=run.log, trace_path=run.trace,
+        log_sha256=sha256(run.log),
+        trace_sha256=sha256(run.trace),
+    )
+
+
+def matches(capture: Capture, pack: Pack, formation: int) -> bool:
+    """Whether the log built exactly the pack's record for the formation."""
+    return capture.enemies == pack.enemies_of(formation)
