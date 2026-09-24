@@ -154,11 +154,30 @@ def cmd_start(a):
     return wait_or_detach(lane, run_dir, a.no_wait)
 
 
+def adopt_write_set(lane, followup):
+    """A follow-up's own write-set block becomes the lane's from this run on.
+
+    `resume` is the only place a lane's write set changes: a follow-up without a
+    block leaves the current one in place, so the run inherits what the brief or
+    an earlier follow-up declared. Lane ab-H run-3 was resumed with a follow-up
+    naming two new paths and the run was still checked against the brief's set
+    (orchestrator decision 2026-09-24). The new set lands in lane.json before
+    the run is launched, so the supervisor reads it when it finalizes, and that
+    run's run.json records the set it was actually checked against.
+    """
+    declared = parse_write_set(followup)
+    if declared is None:  # no block: the lane keeps the set it already has
+        return
+    lane["write_set"] = declared
+    save_receipt(lane["state_dir"], lane)
+
+
 def cmd_resume(a):
     lane = find_lane(a)
     followup = Path(a.followup).read_text()
     if not lane.get("read_only"):
         preflight_phrasing(followup, "follow-up", allow=a.allow_phrasing)
+    adopt_write_set(lane, followup)
     session = next((r["session_id"] for r in reversed(lane["runs"]) if r.get("session_id")), None)
     run_dir = launch_resume(lane, followup, session, max_steps=a.max_steps, timeout=a.timeout,
                             stall_timeout=a.stall_timeout, stall_retries_left=a.stall_retries_left)

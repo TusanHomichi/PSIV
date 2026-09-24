@@ -113,7 +113,10 @@ def finalize_run(lane, run_dir, spec, rc, started, duration, outcome=None, stall
     (run_dir / "diff.patch").write_text(sh(["git", "diff", f"{lane['base_sha']}..{head}"], cwd=wt) + "\n")
     stat = sh(["git", "diff", "--stat", f"{lane['base_sha']}..{head}"], cwd=wt)
 
-    # Write-set enforcement: every path this lane has, base..new head.
+    # Write-set enforcement: every path this lane has, base..new head. The set
+    # is the lane's current one, which a resumed run's follow-up may have
+    # replaced (lanes.adopt_write_set); the run records what it was checked
+    # against, so a reader never has to reconstruct that from lane.json.
     write_set = lane.get("write_set")
     violations = None
     if write_set:
@@ -140,6 +143,7 @@ def finalize_run(lane, run_dir, spec, rc, started, duration, outcome=None, stall
         "constraint_blocks": constraint_blocks, "sandbox_blocks": sandbox_blocks,
         "timeout_s": spec.get("timeout"), "timed_out": outcome == "timeout",
         "outcome": outcome or "completed", "write_set_violations": violations,
+        "write_set": write_set,
         "stall_timeout_s": spec.get("stall_timeout"),
         "stall_retries_left": spec.get("stall_retries_left"),
         "resumed_after_stall": bool(spec.get("resumed_after_stall")),

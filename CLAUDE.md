@@ -68,7 +68,12 @@ docstring.
   `write-set`, listing one path or glob per line (`fnmatch`, `**` crosses
   directories). `ds-lane` records paths changed between the base and the new
   head that fall outside it as `write_set_violations` in `run.json` and warns
-  in the summary. A brief without the block is unenforced.
+  in the summary. A brief without the block is unenforced. A follow-up passed
+  to `resume` may carry its own block: `resume` adopts it as the lane's write
+  set from that run on (the decision after lane ab-H run-3 was checked against
+  the brief's set, not its follow-up's, and flagged both new paths), so
+  `lane.json` always holds the current set and every `run.json` the `write_set`
+  that run was checked against. A follow-up with no block inherits.
 - **Host state.** The worker's own agent runtime writes its task state into the
   worktree (`.reasonix/tasks/<id>/events.jsonl`); that is host state, not lane
   output. The finalize commit excludes every path in `HOST_STATE_PATHS`
@@ -118,9 +123,13 @@ docstring.
   `DS_LANE_STALL_POLL` shortens the 15 s stall sampling interval and
   `DS_LANE_STALL_CPU_PCT` moves the work threshold (both are test seams; the
   defaults are 15 s and 1.0% of a core).
-  `PYTHONPATH=. python3 -m unittest tests.test_ds_lane -v` covers the harness
-  hermetically in under a minute (its stall cases run with a lowered poll; the
-  module must stay under 90 s).
+  `PYTHONPATH=. python3 -m unittest discover -s tests -p 'test_ds_lane*.py' -v`
+  covers the harness hermetically in under a minute (its stall cases run with a
+  lowered poll; the suite must stay under 90 s). The cases are split by
+  cohesion - `tests/ds_lane_support.py` (the fake worker, the repo and home
+  fixtures, the CLI helpers), `test_ds_lane_unit.py`, `test_ds_lane_lanes.py`
+  and `test_ds_lane_supervisor.py` - each under the line cap that applies to it
+  (500 lines for a test module, 400 for a package module).
 - Each lane has its own `rust/target`, so its first cargo build is cold.
   Restate the relevant `AGENTS.md` safety rules in each brief (GDExtension,
   saves, serialized expensive runs).
