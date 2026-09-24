@@ -20,8 +20,13 @@ fn tape09_replays_the_cartridges_battle_on_the_verbatim_stream() {
     // The trace's 137 calls, 135 of them the battle's own.
     assert_eq!(fixture.provenance.roll_count, 137);
     assert_eq!(fixture.provenance.battle_roll_count, 135);
-    assert_eq!(fixture.provenance.roll_column.subtracts_low_word, 137);
-    assert_eq!(fixture.provenance.roll_column.agrees, 0);
+    assert_eq!(
+        fixture.provenance.roll_column.agrees, 137,
+        "every trace row's own roll column is the cartridge's roll, so the \
+         fixture checks each row against the raw columns; see \
+         docs/BATTLE_ORACLE_REPLAY.md"
+    );
+    assert_eq!(fixture.provenance.roll_column.subtracts_low_word, 0);
     let outside = fixture.outside_rolls.rolls();
     assert_eq!(
         outside
