@@ -237,6 +237,30 @@ fn battle_sound_events(
                 event_index,
                 id: 0xD5,
             }),
+            // SPIRAL BLD `$08`, the only carrier of which is 15 Fanbite: its
+            // object writes SFXID_Slasher `$B7` once, on the first frame of the
+            // wind-up (`ps4.asm:29206`, behind the `bset #5, $4(a4)` guard).
+            BattleEvent::EnemySkillUsed { skill: 8, .. } => sounds.push(BattleSoundEvent {
+                event_index,
+                id: 0xB7,
+            }),
+            // EARTHQUAKE `$38`: both chains write SFXID_GraveOpening `$DD` into
+            // `Sound_Index` while the ground shakes — BattleObj_Earthquake at
+            // `ps4.asm:47917`, `47954` and `47961`, BattleObj_KingRappyEarthquake
+            // at `ps4.asm:67567` — so the one skill-wide cue is safe. The
+            // cartridge repeats it every fourth frame of the tremble; this event
+            // cue does not claim that cadence.
+            //
+            // KingRappy's first frame also loads sound object `$8EC` carrying
+            // SFXID_Slasher `$B7` (`ps4.asm:67541-67544`), left unmapped:
+            // SandWorm writes nothing there, and the sidecar's only per-fighter
+            // key is the plain-attack sound, so a skill-wide `$B7` would play
+            // for the carrier that never wrote it. 15 Fanbite's `$08` is the
+            // opposite case — one carrier, so its `$B7` above is exact.
+            BattleEvent::EnemySkillUsed { skill: 56, .. } => sounds.push(BattleSoundEvent {
+                event_index,
+                id: 0xDD,
+            }),
             // The damage-skill animation objects write their second cue just
             // before the one damage request: EnemyAttack4 at
             // BattleObj_AcidBreath's reaction, FireBreath at the Helex child's.
@@ -284,6 +308,23 @@ fn battle_sound_events(
                     resolving_enemy_skill(events, event_index, *actor),
                     Some(109 | 110)
                 ) =>
+            {
+                sounds.push(BattleSoundEvent {
+                    event_index,
+                    id: 0xBA,
+                });
+            }
+            // Each member SPIRAL BLD passes gets one flinch, and that flinch
+            // writes EnemyAttack1 `$BA` (`ps4.asm:29314`). The object walks the
+            // five slots in the `loc_147A0` order — 4, 2, 1, 3, 5
+            // (`ps4.asm:29334`) — while it approaches, and only after all five
+            // `$1C` timers have expired does it write the five `$C` requests at
+            // once. The sidecar carries one cue slot per event and no approach
+            // phase, so the cue rides that member's own `Resolved`: one per
+            // living member either way, in the resolver's slot order rather
+            // than the object's walking order.
+            BattleEvent::Resolved { actor, .. }
+                if resolving_enemy_skill(events, event_index, *actor) == Some(8) =>
             {
                 sounds.push(BattleSoundEvent {
                     event_index,
