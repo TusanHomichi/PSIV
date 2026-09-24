@@ -320,7 +320,7 @@ frame the log does not cover, which is counted and reported as skipped. Playing
 these rolls back through `psiv-core`'s damage path against the same battle in
 the log is the end-to-end check that closes that gap, and
 [`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md) is that check for
-tape 07.
+tapes 07 and 09.
 
 **The `roll` column, and the word it subtracts.** `sub.w (RNG_Seed).w, d0` at
 `$0423A6` reads the word at `$FFFFEF0C`, which on a big-endian 68000 is the
@@ -366,10 +366,17 @@ attackers each take a damage roll carries two of those runs (32 calls). Frame
 ```
 
 (The same two rows from a host built with the pre-fix subtraction read `7B2E`
-and `7C8F` - the scratch control in lane P1's evidence reproduces the rows this
-section quoted from O1's capture, `seed_after` included, with the low-half
-subtraction in place. The columns differ in `roll` alone: `7139` =
-`$2292 + 28815 - $21E8` and `838E` = `$23F3 + 28815 - $10F4`.)
+and `7C8F`, `seed_after` included - the low half's subtraction of the same raw
+columns, `$2292 + 28815 - $17F3` and `$23F3 + 28815 - $17F3`. The columns differ
+in `roll` alone: `7139` = `$2292 + 28815 - $21E8` and `838E` = `$23F3 + 28815 -
+$10F4`.)
+
+Tape 09's capture is the same three steps on its own tape and window: 137 rolls
+in 16 frames, between frames 25015 and 31786 of the battle at 25002-31908, all
+of them in the visible lines, with its fixture extracted by `--tape`,
+`--battle-first` and `--battle-last` and nothing else. Both traces' pins, both
+fixtures' provenance and both replays' draw accounting are in
+[`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md).
 
 ### Deterministic scene fixtures
 

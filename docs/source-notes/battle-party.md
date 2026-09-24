@@ -242,6 +242,9 @@ damage, and both targets resolve from the *second* pass's rolls),
 cartridge's 36-call shape. `engine_tests_replay.rs` counts both passes as
 modelled: Alys's swing's 36 calls, and on the verbatim stream the ledger's first
 divergence moves from f29489 to f29789 (the `$FFFFEEA8` ability re-roll).
+(Correction, later on 2026-09-24: lane P2b closed that divergence as well, so
+both tapes 07 and 09 now replay on the verbatim stream; see
+[`BATTLE_ORACLE_REPLAY.md`](../BATTLE_ORACLE_REPLAY.md).)
 `docs/BATTLE_ORACLE_REPLAY.md` carries the updated tables.
 
 Negative control. Removing the second pass (keeping the first pass's verdicts
