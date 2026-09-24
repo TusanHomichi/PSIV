@@ -107,6 +107,36 @@ impl Runtime {
     }
 }
 
+/// The enemy skill that opened the action a [`BattleEvent::Resolved`] belongs
+/// to, when that action was an enemy skill.
+///
+/// The last action-opening event before the resolution owns it, and the damage
+/// skills' objects write their second sound cue as part of that same action, so
+/// the cue is keyed on the skill rather than on the acting enemy alone.
+fn resolving_enemy_skill(
+    events: &[BattleEvent],
+    event_index: usize,
+    actor: FighterId,
+) -> Option<u8> {
+    match events[..event_index].iter().rev().find(|e| {
+        matches!(
+            e,
+            BattleEvent::Attacked { .. }
+                | BattleEvent::EnemySkillUsed { .. }
+                | BattleEvent::TechniqueUsed { .. }
+                | BattleEvent::SkillUsed { .. }
+                | BattleEvent::ItemUsed { .. }
+        )
+    }) {
+        Some(BattleEvent::EnemySkillUsed {
+            actor: caster,
+            skill,
+            ..
+        }) if *caster == actor => Some(*skill),
+        _ => None,
+    }
+}
+
 fn battle_sound_events(
     events: &[BattleEvent],
     actor_sounds: &BTreeMap<FighterId, u8>,
@@ -116,16 +146,22 @@ fn battle_sound_events(
         match event {
             // BattleObj_Thread's wind-up uses EnemyAttack5; no attack damage follows.
             BattleEvent::EnemySkillUsed { skill: 16, .. } => sounds.push(BattleSoundEvent {
-                event_index, id: 0xDA,
+                event_index,
+                id: 0xDA,
             }),
             // BattleObj_Poison writes EnemyAttack4 in the same wind-up slot,
             // and like THREAD it never requests a damage reaction.
             BattleEvent::EnemySkillUsed { skill: 17, .. } => sounds.push(BattleSoundEvent {
-                event_index, id: 0xD8,
+                event_index,
+                id: 0xD8,
             }),
             // BattleObj_Brose and BattleObj_Rimit both start with SFX_Brose.
             // This binds the original sound, not its still-missing animation.
-            BattleEvent::TechniqueUsed { actor, technique: technique @ (17 | 23), .. } => {
+            BattleEvent::TechniqueUsed {
+                actor,
+                technique: technique @ (17 | 23),
+                ..
+            } => {
                 // CharTech_Cast ($9208): a late seal returns before creating
                 // the spell object. The core records payment as TechniqueUsed
                 // immediately followed by its rejection; payment is not a cast.
@@ -133,23 +169,44 @@ fn battle_sound_events(
                     Some(BattleEvent::TechniqueRejected { actor: rejected_actor, technique: rejected_technique, .. })
                         if rejected_actor == actor && rejected_technique == technique)
                 {
-                    sounds.push(BattleSoundEvent { event_index, id: 0xCB });
+                    sounds.push(BattleSoundEvent {
+                        event_index,
+                        id: 0xCB,
+                    });
                 }
-            },
+            }
             // AcidBreathChild starts the wind-up with MoleAttack; the main
             // object writes EnemyAttack4 before its damage reaction. These
             // event cues do not claim the retail 10/36-frame object timing.
             BattleEvent::EnemySkillUsed { skill: 51, .. } => sounds.push(BattleSoundEvent {
-                event_index, id: 0xD5,
+                event_index,
+                id: 0xD5,
             }),
+            // BattleObj_HelexFlameBolt writes EnemyAttack3 as it loads and its
+            // child BattleObj_HelexFlameBolt2 writes FireBreath, again in the
+            // wind-up slot ahead of the same single damage request.
+            BattleEvent::EnemySkillUsed { skill: 2, .. } => sounds.push(BattleSoundEvent {
+                event_index,
+                id: 0xD7,
+            }),
+            // The damage-skill animation objects write their second cue just
+            // before the one damage request: EnemyAttack4 at
+            // BattleObj_AcidBreath's reaction, FireBreath at the Helex child's.
             BattleEvent::Resolved { actor, .. }
-                if events[..event_index].iter().rev().find(|e| matches!(e,
-                    BattleEvent::Attacked { .. } | BattleEvent::EnemySkillUsed { .. }
-                    | BattleEvent::TechniqueUsed { .. } | BattleEvent::SkillUsed { .. }
-                    | BattleEvent::ItemUsed { .. }))
-                    .is_some_and(|e| matches!(e, BattleEvent::EnemySkillUsed { actor: caster, skill: 51, .. } if caster == actor)) =>
+                if resolving_enemy_skill(events, event_index, *actor) == Some(51) =>
             {
-                sounds.push(BattleSoundEvent { event_index, id: 0xD8 });
+                sounds.push(BattleSoundEvent {
+                    event_index,
+                    id: 0xD8,
+                });
+            }
+            BattleEvent::Resolved { actor, .. }
+                if resolving_enemy_skill(events, event_index, *actor) == Some(2) =>
+            {
+                sounds.push(BattleSoundEvent {
+                    event_index,
+                    id: 0xC2,
+                });
             }
             BattleEvent::Attacked { actor, .. } => {
                 if let Some(&id) = actor_sounds.get(actor) {
@@ -293,6 +350,80 @@ mod tests {
         assert_eq!(weapon_sound(0x20), Some(SFX_CLAW));
         assert_eq!(weapon_sound(0x2B), Some(SFX_SHOT));
         assert_eq!(weapon_sound(4), None);
+    }
+
+    #[test]
+    fn damage_skill_cues_follow_the_object_writes_not_the_last_skill() {
+        // 51 ACIDBREATH: BattleObj_AcidBreathChild writes MoleAttack $D5,
+        // BattleObj_AcidBreath writes EnemyAttack4 $D8. 2 FLAME BOLT:
+        // BattleObj_HelexFlameBolt writes EnemyAttack3 $D7 and its child
+        // BattleObj_HelexFlameBolt2 writes FireBreath $C2. Each pair brackets the
+        // ability event and the one damage reaction.
+        for (skill, wind_up, reaction) in [(51u8, 0xD5u8, 0xD8u8), (2, 0xD7, 0xC2)] {
+            let events = vec![
+                BattleEvent::EnemySkillUsed {
+                    actor: id(6),
+                    skill,
+                    name: String::new(),
+                },
+                BattleEvent::Resolved {
+                    actor: id(6),
+                    target: id(1),
+                    verdict: Verdict::Normal,
+                    damage: Some(7),
+                    remaining_hp: 30,
+                },
+            ];
+            assert_eq!(
+                battle_sound_events(&events, &BTreeMap::new()),
+                vec![
+                    BattleSoundEvent {
+                        event_index: 0,
+                        id: wind_up,
+                    },
+                    BattleSoundEvent {
+                        event_index: 1,
+                        id: reaction,
+                    },
+                ],
+                "ability {skill}"
+            );
+        }
+
+        // The guard is the skill that opened this action, not the last enemy
+        // skill on the field: a party attack's miss after a FLAME BOLT keeps
+        // only the miss cue.
+        let events = vec![
+            BattleEvent::EnemySkillUsed {
+                actor: id(6),
+                skill: 2,
+                name: String::new(),
+            },
+            BattleEvent::Attacked {
+                actor: id(1),
+                targets: vec![id(6)],
+            },
+            BattleEvent::Resolved {
+                actor: id(1),
+                target: id(6),
+                verdict: Verdict::Miss,
+                damage: None,
+                remaining_hp: 30,
+            },
+        ];
+        assert_eq!(
+            battle_sound_events(&events, &BTreeMap::new()),
+            vec![
+                BattleSoundEvent {
+                    event_index: 0,
+                    id: 0xD7,
+                },
+                BattleSoundEvent {
+                    event_index: 2,
+                    id: SFX_ATTACK_MISS,
+                },
+            ]
+        );
     }
 
     #[test]

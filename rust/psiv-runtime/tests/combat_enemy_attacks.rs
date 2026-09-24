@@ -423,3 +423,148 @@ fn carrion_crawler_thread_replaces_its_attack_in_the_real_formation() {
     assert_eq!(loaded.game().snapshot(), before);
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+/// FLAME BOLT `$02` is real-pack reachable: `generated/enemies.json` gives 0
+/// Helex `$02` in all eight regular slots, and formation `$5E`/94 is two of
+/// them. The ability must resolve through
+/// `enemy_damage::resolve_damage_skill` — one `Resolved` with damage and no
+/// physical swing — rather than announcing `UnsupportedAbility` and swinging.
+#[test]
+fn helex_flame_bolt_resolves_in_its_real_formation() {
+    let pack = Path::new(PACK);
+    if !pack.join("manifest.json").is_file() {
+        eprintln!("runtime pack absent; skipping");
+        return;
+    }
+    let files = BattleFiles::load(pack).unwrap();
+    let mut initial = Runtime::new(
+        GameData::load(pack).unwrap(),
+        0x2B,
+        Cell::new(17, 52),
+        Direction::Up,
+        StepFrames::default(),
+    )
+    .unwrap();
+    initial.enable_battles(&files).unwrap();
+    let mut game = GameState::from_snapshot(&initial.game().snapshot());
+    game.set_party([
+        Some(CharId(1)),
+        Some(CharId(0)),
+        Some(CharId(2)),
+        None,
+        None,
+    ]);
+    // Constructed durability fixture, unrelated to the connected native save:
+    // two Helex cannot end the battle before their `$02` roll shows up.
+    for character in [1, 0, 2] {
+        let stats = game.roster_mut().get_mut(CharId(character)).unwrap();
+        stats.max_hp = 999;
+        stats.curr_hp = 999;
+    }
+    let mut runtime = Runtime::from_save(
+        GameData::load(pack).unwrap(),
+        RetailSave {
+            snapshot: game.snapshot(),
+            location: RetailLocation {
+                world_index: 0,
+                map_index_2: 0,
+                map_index: 0x2B,
+                char_x: 17 * 16,
+                char_y: 52 * 16,
+            },
+        },
+        StepFrames::default(),
+    )
+    .unwrap();
+    runtime.enable_battles(&files).unwrap();
+    runtime
+        .start_battle_timeline(0x5E, runtime.battle_party())
+        .unwrap();
+    runtime.set_rng_seed(0x1234_5678);
+    let mut found = false;
+    for _ in 0..4 {
+        let timeline = runtime
+            .battle_round_timeline(&RoundOrders::Commands(vec![Command::Defend; 3]))
+            .unwrap();
+        assert!(
+            !timeline
+                .events
+                .iter()
+                .any(|e| matches!(e, BattleEvent::UnsupportedAbility { ability: 2, .. })),
+            "{:?}",
+            timeline.events
+        );
+        let Some((index, actor)) = timeline
+            .events
+            .iter()
+            .enumerate()
+            .find_map(|(i, e)| match e {
+                BattleEvent::EnemySkillUsed {
+                    actor,
+                    skill: 2,
+                    name,
+                } => {
+                    assert_eq!(name, "FLAME BOLT");
+                    Some((i, *actor))
+                }
+                _ => None,
+            })
+        else {
+            continue;
+        };
+        assert!(
+            matches!(timeline.events[index + 1], BattleEvent::Resolved { actor: caster, damage: Some(_), .. } if caster == actor),
+            "{:?}",
+            timeline.events
+        );
+        assert!(
+            !timeline.events.iter().any(
+                |e| matches!(e, BattleEvent::Attacked { actor: attacker, .. } if *attacker == actor)
+            ),
+            "the ability replaces the swing: {:?}",
+            timeline.events
+        );
+        assert!(
+            timeline
+                .sounds
+                .iter()
+                .any(|s| s.event_index == index && s.id == 0xD7),
+            "EnemyAttack3 starts BattleObj_HelexFlameBolt"
+        );
+        assert!(
+            timeline
+                .sounds
+                .iter()
+                .any(|s| s.event_index == index + 1 && s.id == 0xC2),
+            "FireBreath precedes the damage reaction"
+        );
+        assert!(
+            !timeline.animations.iter().any(|a| a.actor == actor),
+            "do not substitute the plain attack animation"
+        );
+        found = true;
+        break;
+    }
+    assert!(found, "fixed seed must resolve a real FLAME BOLT");
+    let escaped = (0..10).any(|_| {
+        runtime
+            .battle_round(&RoundOrders::Run)
+            .unwrap()
+            .contains(&BattleEvent::Ended {
+                outcome: Outcome::Escaped,
+            })
+    });
+    assert!(escaped);
+    let before = runtime.game().snapshot();
+    let dir = std::env::temp_dir().join(format!("psiv-flame-save-{}", std::process::id()));
+    runtime.save_slot(&dir, 0).unwrap();
+    let loaded = Runtime::load_slot(
+        GameData::load(pack).unwrap(),
+        &dir,
+        0,
+        StepFrames::default(),
+    )
+    .unwrap();
+    assert_eq!(loaded.game().snapshot(), before);
+    std::fs::remove_dir_all(dir).unwrap();
+}
