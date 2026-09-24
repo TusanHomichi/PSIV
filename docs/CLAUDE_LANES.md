@@ -64,6 +64,14 @@ output.
 | 2026-09-24 | ab-L | Exclude `.reasonix/` from lane commits; honor follow-up write sets | Accepted on run 2; 41/41 with the trap binary unused | Run 1 left the test file at 1,034 lines, arguing the rule covered only the package; sent back to split it | USD 0.095 |
 | 2026-09-24 | ab-K | All-party damage class: SPIRAL BLD and EARTHQUAKE | Accepted on run 2. Slot order read from `Battle_UpdateFighters` (`ps4.asm:987`); merged-tree gate: core 626, runtime 109, godot 75 | Sent back to split `enemy_damage_tests.rs` (1,504 lines, grown by ab-J and missed in that review, which led to ab-M); doc recount at merge | USD 0.435 |
 | 2026-09-24 | ab-M | `ds-lane` flags files over 1,000 lines | Accepted; 51/51 with the trap binary unused | None | USD 0.068 |
+| 2026-09-24 | or-O1 | Oracle: capture every `UpdateRNGSeed2` roll (tracked core patch, `--rng-trace`, seed-chain check) | Accepted; trace reproduced byte-identically | Missed in review: the roll column subtracted the seed's low word, and the checker agreed because it recomputed with the same convention. O2's end-to-end replay caught it (fixed in P1) | USD 0.221 |
+| 2026-09-24 | or-O2 | Replay tape 07's battle in `psiv-core` with the captured rolls | Accepted. Every action matched with the modelled rolls; found two draw-count defects and the roll-column bug; all three read from `ps4.asm` | None | USD 0.473 |
+| 2026-09-24 | or-N | `ds-lane`: skip ignored link exclusions; record finalize failures | Accepted; 54/54 | None. Its fix lived on the branch, so P1 and P2b still hit the pre-fix crash (committed by hand) | USD 0.078 |
+| 2026-09-24 | or-P1 | Correct the trace's roll column; path-independent captures; extractor cross-check | Accepted; its checker rejects the old capture | Applied its verified two-number patch to a test outside its write set | USD 0.191 |
+| 2026-09-24 | or-P2a | Alys and Kyra's second hit pass (and the `$EE49` critical demotion) | Accepted; dispatch and demotion guard read from `ps4.asm` | None | USD 0.244 |
+| 2026-09-24 | or-P2b | `$FFFFEEA8` ability re-roll word: lifetime and rule | Accepted on run 2. It found the battle-load clear (9992-9994) that disproved the brief's per-session premise | Sent back to remove the session plumbing its own evidence made dead weight (owner decision) | USD 0.449 |
+| 2026-09-24 | or-S | Split `SOURCE_NOTES.md` (1,463 lines) into topic files plus an index | Accepted; every original line present bar one declared link-depth fix | Retargeted oracle references outside its write set | USD 0.082 |
+| 2026-09-24 | or-R | Regenerate tape 09 with the fixed tracer; one coherent replay ledger | Accepted | Re-extracted tape 07's fixture provenance; dated correction in `battle-party.md` | USD 0.196 |
 
 **Bake-off result (2026-09-23):** six runs across five lanes (routine
 refactor, RE inventory, harness tooling, two retail-parity implementations),
@@ -128,4 +136,17 @@ Steps: O1 capture and consistency check on tape 07; O2 replay tape 07's battle
 in `psiv-core` with the captured rolls and compare every action; then forced
 formation entry, a scripted driver, and the formation sweep.
 
-**Next action:** O1 (capture) is running.
+**Proof result (2026-09-24):** method proven. Tapes 07 and 09 replay on the
+verbatim captured stream with every roll consumed and every action exact. The
+replay found three defects no "reachable value" check could see: the trace's
+own roll convention (low versus high seed word), Alys and Kyra's second hit
+pass, and the `$FFFFEEA8` re-roll word zeroed at each battle load. All are
+fixed. Details: [the replay ledger](BATTLE_ORACLE_REPLAY.md).
+
+Review lesson: a consistency checker that recomputes with the same assumption
+as the producer proves nothing about that assumption. Checks must derive from
+an independent source; the fixture extractor now does.
+
+**Next action:** forced formation entry by `--ram-patch` plus a scripted
+command driver, so any formation can be captured and replayed; then the
+formation sweep that generates the worklist.
