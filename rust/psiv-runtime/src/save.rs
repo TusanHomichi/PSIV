@@ -168,12 +168,6 @@ pub(super) fn construct_runtime(
         offscreen: Vec::new(),
         battles: None,
         battle: None,
-        // `$FFFFEEA8` as the boot clear leaves it: `ps4.asm:379-402` zeroes
-        // everything but the last 256 bytes of work RAM (`$FF0000-$FFFEFF`),
-        // and the word lives at `$FFFFEEA8`. A loaded save does not restore it
-        // — it is not in the save block — so a continued session starts here
-        // too.
-        last_ability_index: 0,
         battle_field_refresh_pending: false,
         scene_battle: None,
         effects,

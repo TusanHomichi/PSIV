@@ -85,12 +85,13 @@ pub const ABILITY_ROLL_MASK: u16 = (REGULAR_ABILITIES - 1) as u16;
 /// width `cmp.w` reads it; only `0..=7` can ever be stored in it, because the
 /// only writer stores the masked index.
 ///
-/// `$FFFFEEA8` is not the port's to invent and it is not per battle either:
-/// `GameMode_LoadBattle` clears the whole `$FFFFEE00` page it sits in
-/// (`ps4.asm:9992-9994`), so a battle's first draw compares against a zero the
-/// battle load left there, and a first draw of **zero** costs a second call.
-/// Tape 07's first basement battle is exactly that case; tape 10's third
-/// battle is the measurement that pins the wipe (see
+/// `$FFFFEEA8` is not the port's to invent: `GameMode_LoadBattle` clears the
+/// whole `$FFFFEE00` page it sits in before a battle can roll anything
+/// (`ps4.asm:9992-9994`), so a battle begins with the word at zero, its first
+/// draw compares against that zero, and a first draw of **zero** costs a second
+/// call. Tape 07's first basement battle (f29789) is exactly that case; tape
+/// 10's third battle is the measurement that pins the wipe, and three
+/// `--ram-patch` probes pin the rule itself (see
 /// `docs/BATTLE_ORACLE_REPLAY.md`).
 ///
 /// An enemy whose eight slots all hold the same ability still rerolls until the

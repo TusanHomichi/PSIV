@@ -26,9 +26,9 @@
 //! `AlysKyraAttack_Init` re-runs `loc_B6A2` (`ps4.asm:13975-13976`) and
 //! `resolve_attack` draws the second pass for the two attackers the cartridge
 //! sends there; `Enemy_Attack`'s ability re-roll against `$FFFFEEA8`
-//! (`ps4.asm:19146-19151`) is modelled, so a battle that loads with the word at
-//! zero - every battle, because `GameMode_LoadBattle` wipes the page it lives
-//! in (`ps4.asm:9992-9994`) - pays a second call for a first draw of zero.
+//! (`ps4.asm:19146-19151`) is modelled, so a battle begins with the word at
+//! zero (the `GameMode_LoadBattle` wipe of the page it lives in,
+//! `ps4.asm:9992-9994`) and pays a second call for a first draw of zero.
 //! Two draws stay outside the battle's own state machine and out of its stream:
 //! the encounter's formation draw and the post-victory item drop, which the
 //! fixture keeps in `outside_rolls`.
@@ -302,7 +302,7 @@ fn start(fixture: &Fixture, data: &BattleData, rolls: &mut impl Rolls) -> Battle
         .iter()
         .map(|entry| party_member(entry, data))
         .collect();
-    let (battle, events) = Battle::start(&formation(fixture), party, data, false, 0, rolls)
+    let (battle, events) = Battle::start(&formation(fixture), party, data, false, rolls)
         .expect("the fixture's formation resolves");
 
     let started = events

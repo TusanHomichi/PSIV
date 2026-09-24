@@ -262,7 +262,7 @@ fn the_stat_selectors_read_a_word_for_attack_defense_and_magic_defense() {
 
 /// One round against one carrier, driven through `roll_enemy_ability` on a
 /// fully specified draw stream: nine ordering draws, the four enemy-target
-/// draws, the ability index (0, and every slot holds the ability) and the 16
+/// draws, the ability index (1, and every slot holds the ability) and the 16
 /// damage draws — 30 in all when the ability resolves, with no swing. Party
 /// agility 1 keeps the enemy first in the queue, so Defend has raised nobody's
 /// resistance yet.
@@ -300,16 +300,14 @@ fn motavia_round(carrier: &Carrier, ability: u8) -> (Vec<BattleEvent>, usize) {
         party.to_vec(),
         &data,
         false,
-        7,
-        // `$FFFFEEA8` loads at zero (`GameMode_LoadBattle`'s page wipe,
-        // ps4.asm:9992-9994), so a battle whose first ability draw is zero
-        // re-rolls it (ps4.asm:19146). This rig wants index zero, so the word
-        // has to start elsewhere for that draw to stand.
         &mut SliceRolls::new(&[0]),
     )
     .unwrap();
     let mut stream = vec![0; 13];
-    stream.push(0);
+    // The ability index: 1, not 0 - a battle starts the re-roll word at zero
+    // (`ps4.asm:9992-9994`), so a zero draw would spend a re-roll, and every
+    // slot holds the ability under test.
+    stream.push(1);
     stream.extend([0; 16]);
     let mut rolls = SliceRolls::new(&stream);
     let events = battle

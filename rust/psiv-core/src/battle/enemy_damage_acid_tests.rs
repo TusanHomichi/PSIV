@@ -175,7 +175,7 @@ fn acid_invalid_definition_or_dispatcher_cannot_silently_damage_or_spawn() {
 
 /// One round against a single carrier, driven through `roll_enemy_ability` on a
 /// fully specified draw stream: nine ordering draws, the four enemy-target
-/// draws, the ability index (0, and every slot holds `$33`) and the 16 damage
+/// draws, the ability index (1, and every slot holds `$33`) and the 16 damage
 /// draws — 30 in all when `$33` resolves, plus the fallback attack's accuracy
 /// roll when it does not. Party agility 1 keeps the enemy first in the queue,
 /// so Defend has not raised anyone's physical resistance yet and the numbers
@@ -207,16 +207,14 @@ fn acid_carrier_round(carrier: u16, strength: u8) -> (Vec<BattleEvent>, usize) {
         party.to_vec(),
         &data,
         false,
-        7,
-        // `$FFFFEEA8` loads at zero (`GameMode_LoadBattle`'s page wipe,
-        // ps4.asm:9992-9994), so a battle whose first ability draw is zero
-        // re-rolls it (ps4.asm:19146). This rig wants index zero, so the word
-        // has to start elsewhere for that draw to stand.
         &mut SliceRolls::new(&[0]),
     )
     .unwrap();
     let mut stream = vec![0; 13];
-    stream.push(0);
+    // The ability index: 1, not 0 - a battle starts the re-roll word at zero
+    // (`ps4.asm:9992-9994`), so a zero draw would spend a re-roll, and every
+    // slot holds the ability under test.
+    stream.push(1);
     stream.extend([0; 16]);
     let mut rolls = SliceRolls::new(&stream);
     let events = battle
@@ -414,7 +412,6 @@ fn a_second_enemy_redraws_a_dead_target_before_its_ability_roll() {
         party.to_vec(),
         &data,
         true,
-        0,
         &mut SliceRolls::new(&[0]),
     )
     .unwrap();

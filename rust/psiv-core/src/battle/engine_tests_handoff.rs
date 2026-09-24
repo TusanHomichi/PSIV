@@ -18,7 +18,6 @@ fn a_formation_the_data_cannot_resolve_is_an_error_not_a_panic() {
             Vec::new(),
             &data,
             false,
-            0,
             &mut rolls
         ),
         Err(BattleDataError::UnknownEnemy(10))
@@ -33,7 +32,7 @@ fn a_formation_the_data_cannot_resolve_is_an_error_not_a_panic() {
         enemies: Vec::new(),
     };
     assert_eq!(
-        Battle::start(&empty, Vec::new(), &data, false, 0, &mut rolls),
+        Battle::start(&empty, Vec::new(), &data, false, &mut rolls),
         Err(BattleDataError::EmptyFormation(7))
     );
 }

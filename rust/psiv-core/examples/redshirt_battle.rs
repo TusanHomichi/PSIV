@@ -512,7 +512,6 @@ impl Probe {
             party,
             &data,
             false,
-            0,
             &mut Rng2::with_surrogate(&mut rng, FRAME_START),
         )
         .expect("authored formation resolves");

@@ -261,7 +261,6 @@ fn the_engine_dispatches_poison_without_a_physical_attack() {
         vec![poison_member(&data)],
         &data,
         true,
-        0,
         &mut rolls,
     )
     .unwrap();
@@ -315,7 +314,6 @@ fn a_lookalike_poison_record_still_falls_back_to_an_unsupported_attack() {
         vec![poison_member(&data)],
         &data,
         true,
-        0,
         &mut rolls,
     )
     .unwrap();

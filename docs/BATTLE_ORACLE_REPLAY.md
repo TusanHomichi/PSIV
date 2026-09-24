@@ -26,11 +26,13 @@ Three claims, and they are different claims:
    of this ledger carried are closed: Alys's and Kyra's second hit pass
    (`loc_B6A2` run again from `AlysKyraAttack_Init`, `ps4.asm:13975-13976`) and
    `Enemy_Attack`'s ability re-roll against `$FFFFEEA8` (`ps4.asm:19146-19151`).
-3. **The re-roll word's lifetime is the cartridge's.** `$FFFFEEA8` is one word
-   per session, and every battle load clears it (`GameMode_LoadBattle`'s page
-   wipe, `ps4.asm:9992-9994`), so a battle's first ability draw of **zero**
-   costs a second call. That is the whole of the f29789 divergence in tape 07,
-   and it is measured three ways below.
+3. **The re-roll word's value is the battle load's.** `$FFFFEEA8` is one word
+   per session on the cartridge, and every battle load clears it
+   (`GameMode_LoadBattle`'s page wipe, `ps4.asm:9992-9994`), so a battle's first
+   ability draw of **zero** costs a second call. The port models exactly that,
+   and nothing more: a battle starts the word at zero and owns it for its own
+   lifetime. That is the whole of the f29789 divergence in tape 07, and both
+   clears are measured on the cartridge below.
 
 ## Reproducing it
 
@@ -270,15 +272,22 @@ and therefore what every following roll is used for.
 
 ### What the port does with it
 
-* `psiv-core` takes the word as an input: `Battle::start` and
-  `Battle::start_vehicle` require it, `choose_ability` (`ai.rs`) compares each
-  draw against it, and `Battle::last_ability_index` reads it back out.
-* `psiv-runtime` owns its lifetime: `Runtime::last_ability_index` is the
-  session's cell, cleared at every battle load (the cartridge's wipe) and taken
-  from the finished battle in `finish_battle_absorbing`. A new session starts it
-  at zero, the boot clear's value.
-* Tape 07's replay ends with the word at `3` and tape 09's at `1` - what the RAM
-  logs hold at those battles' ends - and both are asserted in the tests.
+`psiv-core` owns the whole rule, and the battle owns the word's lifetime:
+
+* `Battle::last_ability_index` is a `u16` that **starts at zero** — the value
+  the battle load's wipe leaves — with both clears cited on the field
+  (`ps4.asm:9992-9994`, and the boot's `ps4.asm:376-402`). No caller hands a
+  battle a word, `Battle::start`/`Battle::start_vehicle` take none, and nothing
+  carries one between battles.
+* `choose_ability` (`ai.rs`) compares each draw against it and stores the index
+  it settles on; `Enemy_Attack`'s dispatcher keeps it for the whole battle.
+* `psiv-runtime` has no plumbing for it at all. A session word would be dead
+  weight: the cartridge clears the cell before a battle can read it, so the only
+  value a load can pass is the zero the battle already starts with.
+* Tape 07's replay ends with the word at `3` and tape 09's at `1` — what the RAM
+  logs hold at those battles' ends — and both are asserted in the tests;
+  `Battle::last_ability_index` exists for those two assertions and for no
+  production reader.
 
 ## The verdict: both battles, on the verbatim stream
 
@@ -404,6 +413,7 @@ Not proved, and not claimed:
    paragraph should be corrected in the same pass that splits the file.
 3. **Fixture the remaining battle tapes.** `oracle/battle_fixture.py` needs no
    change for a new tape - `--tape`, `--battle-first`, `--battle-last` and the
-   two logs are enough. Tape 10's three encounters in a row would add the one
-   case these two tapes cannot show: a battle whose first ability draw happens
-   to equal the word the *previous* battle left behind, if that tape has one.
+   two logs are enough. Tape 10's three encounters in a row are the natural next
+   one: three more battles on their own seed paths, and a chance at a second
+   instance of the case tape 07 carries - a battle whose first ability draw is
+   zero, against the word the load left.

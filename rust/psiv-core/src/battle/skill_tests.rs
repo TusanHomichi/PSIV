@@ -442,7 +442,6 @@ fn vortex_retargets_a_dead_enemy_and_awards_victory_rewards() {
         vec![PartyMember::seat(&fixtures::alys(), &data).unwrap()],
         &data,
         false,
-        0,
         &mut SliceRolls::new(&[63]),
     )
     .unwrap();
@@ -482,7 +481,6 @@ fn earth_skips_a_later_enemy_turn_and_recovers_at_round_end() {
         vec![chaz],
         &data,
         true,
-        0,
         &mut SliceRolls::new(&[32]),
     )
     .unwrap();
@@ -584,7 +582,6 @@ fn crash_death_awards_enemy_rewards_and_persists_its_spent_use() {
         vec![member],
         &data,
         false,
-        0,
         &mut SliceRolls::new(&[63]),
     )
     .unwrap();
