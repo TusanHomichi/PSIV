@@ -17,21 +17,12 @@
 //!   (`ps4.asm:3640`), after every roll has been drawn, so a target that dies
 //!   cannot truncate the sequence.
 
+use super::tests::*;
 use super::*;
 use crate::battle::{
     Battle, Command, ELEMENT_SLOTS, EnemySkill, FormationEnemy, FormationRecord, PartyMember,
-    RoundOrders, SliceRolls, fixtures, status,
+    RoundOrders, SliceRolls, fixtures,
 };
-
-fn id(n: u8) -> FighterId {
-    FighterId::new(n).unwrap()
-}
-
-fn kill(r: &mut Roster, n: u8) {
-    let f = r.get_mut(id(n)).unwrap();
-    f.stats.curr_hp = 0;
-    f.stats.status = status::DEAD;
-}
 
 /// The three carriers of `docs/ENEMY_DAMAGE_ROUTES.md` §2's all-party rows,
 /// with the stat line `generated/enemies.json` gives them. `Enemy_DamageCharacter`
@@ -145,20 +136,6 @@ fn all_party_roster(data: &BattleData, carrier: &Carrier) -> Roster {
     }
     r.add_enemy(1, data.enemy(carrier.enemy_id).unwrap());
     r
-}
-
-/// `Battle_CalculateDamage` (`ps4.asm:17374`) as `Enemy_DamageCharacter`
-/// (`ps4.asm:3775`) feeds it, at 16 zero draws (so `S + 8` is 8):
-/// `(((8 * power) >> 6) + power + 2 * bonus) * element >> 2 - resistance`,
-/// every step a 16-bit word like the cartridge's.
-fn record_damage(power: u16, resistance: u16, element_factor: u8, bonus: u8) -> u16 {
-    let mut t = 8u16.wrapping_mul(power);
-    t >>= 6;
-    t = t.wrapping_add(power);
-    t = t.wrapping_add(u16::from(bonus).wrapping_mul(2));
-    t = t.wrapping_mul(u16::from(element_factor));
-    t >>= 2;
-    crate::battle::clamp_damage(t.wrapping_sub(resistance) as i16)
 }
 
 /// The three numbers `record_damage` gives this roster for one carrier: slot

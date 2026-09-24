@@ -35,6 +35,22 @@ use super::{BattleData, BattleEvent, FighterId, Rolls, Roster, Side};
 mod tests;
 
 #[cfg(test)]
+#[path = "enemy_damage_acid_tests.rs"]
+mod acid_tests;
+
+#[cfg(test)]
+#[path = "enemy_damage_flame_tests.rs"]
+mod flame_tests;
+
+#[cfg(test)]
+#[path = "enemy_damage_gate_tests.rs"]
+mod gate_tests;
+
+#[cfg(test)]
+#[path = "enemy_damage_motavia_tests.rs"]
+mod motavia_tests;
+
+#[cfg(test)]
 #[path = "enemy_damage_all_party_tests.rs"]
 mod all_party_tests;
 
