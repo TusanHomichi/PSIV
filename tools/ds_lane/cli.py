@@ -56,8 +56,14 @@ Environment (read per call, so tests can set them per case):
 e.g. `--link runtime-pack=build/snap/runtime-pack` to pin a pack snapshot that
 other agents cannot rebuild mid-run.
 Only gitignored paths may be linked, and links are excluded when the lane
-commits, so they never enter the lane diff. The
-sandbox resolves real paths, so linked inputs are readable but not writable.
+commits, so they never enter the lane diff. A linked path that git already
+ignores is left unnamed in that exclusion: naming one makes git refuse the whole
+add ("The following paths are ignored..."), while a linked directory is a
+symlink - mode 120000, which a `dir/` rule does not match - and so still needs
+its exclusion. A git step that fails during finalize is recorded as
+`finalize_error` in run.json and in the summary, with the worker's exit code,
+result and receipt kept and the run's files left in the worktree. The sandbox
+resolves real paths, so linked inputs are readable but not writable.
 
 Each run executes under a detached supervisor (own session), so the worker and
 its commit step survive the calling shell being killed; `start`/`resume` wait

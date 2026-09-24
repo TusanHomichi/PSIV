@@ -9,7 +9,9 @@ script, so no test calls the real Reasonix, a model or the network.
 This module holds what the cases share: the fake worker, the throwaway repo and
 home fixtures, and the helpers that drive `tools/ds-lane`, the entry-point shim,
 as a subprocess. The cases live in test_ds_lane_unit.py (the package's own
-units), test_ds_lane_lanes.py (the lane commands end to end) and
+units), test_ds_lane_lanes.py (the lane commands end to end),
+test_ds_lane_size.py (the 1,000-line rule), test_ds_lane_finalize.py (the
+finalize commit: link exclusions and a git failure) and
 test_ds_lane_supervisor.py (slots, kills, the stall watchdog and the entry
 point's re-entry into the detached supervisor).
 """
