@@ -82,31 +82,6 @@ Rust tests avoid the memory pressure seen when many pack-loading cases run
 together. Tests requiring local assets may fail or explicitly skip when their
 fixtures are absent; report that distinction with the result.
 
-### Optional Redshirt adapter
-
-The [battle-decision experiment](REDSHIRT_BATTLE.md#reproduce-the-optional-adapter-checks)
-documents the pinned shared checkout, example build and focused Python checks.
-It needs Python 3.11+ and a separately built `redshirt_battle` example. Ordinary
-test discovery explicitly skips the adapter tests when these optional
-prerequisites are absent; the enabled acceptance lane must run every test.
-Neither tests nor replay make live model calls. The playable game has no
-Redshirt or model-service dependency.
-
-The [survival-pressure fixtures and portable manifest](../tests/fixtures/redshirt_pressure/manifest.json)
-are authored synthetic inputs, not extracted assets. Their
-[reproduction commands](REDSHIRT_BATTLE.md#reproduce-the-survival-pressure-trial)
-use an isolated Rust target so the first experiment's binary stays intact.
-The adapter defaults to `--briefing minimal`; `--briefing mechanics-v1` adds
-source-verified synthetic battle rules without changing the engine or menu.
-The [information-ablation receipt](REDSHIRT_BATTLE.md#mechanics-briefing-results)
-keeps both modes, exact source identity and live usage separate.
-`--baseline threat` enables the optional visible-state threat/skill heuristic;
-the default remains `projected`. The [fresh-case index](../tests/fixtures/redshirt_holdout/index.json)
-and four adjacent portable manifests preserve the 24-case follow-up recipe.
-Each manifest contains six fresh cases and two explicitly disclosed old
-calibration cases. Use `mechanics-v1` for this comparison, preserve the declared
-case set, and keep live requests separate from model-free tests and replay.
-
 ## Native and original-game comparisons
 
 `tools/native_*.gd` drives ordinary Godot input and reads runtime observations.
