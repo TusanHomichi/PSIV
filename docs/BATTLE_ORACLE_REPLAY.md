@@ -50,12 +50,18 @@ log shows every action doing. Every number is transcribed from the two logs;
 nothing is fitted to `psiv-core`, so a replay that disagrees with a fixture is a
 finding about the port.
 
-`rust/psiv-core/src/battle/engine_tests_replay.rs` builds the battle that fixture
+`rust/psiv-core/src/battle/replay/` builds the battle that a fixture
 describes, checks the logged live state against the port's own derivations of it
 (the party against `Stats::from_character`, the enemies against
 `Stats::from_enemy`, both reaching the same numbers the RAM does), feeds the
 rolls through `SliceRolls` and compares the port's timeline with the log's
-action by action. Two tests per tape:
+action by action. `replay/data.rs` is the one data-driven test: it replays
+**every** fixture in `replay_fixtures/` - these two, and the forced captures of
+[`BATTLE_ORACLE_FORCED.md`](BATTLE_ORACLE_FORCED.md) - and holds each one
+against `replay_fixtures/divergences.json`, which carries the first divergence
+of every fixture that does not replay exactly. A fixture that diverges anywhere
+else fails the test, and so does an entry whose fixture replays exactly, so the
+manifest cannot go stale. Two further tests per tape walk them in more detail:
 `tape07_replays_the_cartridges_battle_on_the_verbatim_stream` /
 `tape09_replays_the_cartridges_battle_on_the_verbatim_stream` (the whole battle,
 asserting per round that nothing diverges **and** that the port drew exactly the
@@ -107,14 +113,15 @@ CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
 rm "Phantasy Star IV (USA).md"
 ```
 
-Two conventions matter when comparing a capture against these pins. Input paths
-are recorded verbatim: the log's own `# rom=` and `# tape=` lines carry what the
-run was given, so the pinned logs reproduce under the spellings above and not
-under others (both captures here name the ROM by its full path, which is what
-tape 07's fixture always carried). Output paths are not records at all - the
-log names its trace by basename alone (`oracle/host/provenance.h`), so two runs
-that differ only in their output directories are byte-identical, traces and logs
-alike.
+Two conventions matter when comparing a capture against these pins. The log
+names the ROM as it was given (`# rom=`, the full path above) and names the tape
+and the trace by their basenames (`oracle/host/provenance.h`), because a path a
+run was *handed* is not what it observed: the same capture re-run from another
+directory now produces byte-identical bytes, traces and logs alike, which is
+what makes a log's sha256 worth pinning. Both captures below were taken before
+the tape line carried its basename, so they carry an older `# tape=` spelling
+and an older `log_sha256`; their `# rom=` line is unchanged and their data is
+identical either way.
 
 ### Provenance, and the current pins
 
@@ -226,8 +233,30 @@ third makes a capture pinnable across lanes:
   `oracle/host/rng_trace.h` and compares what the C host computes with the
   checker's `roll_for` against numbers written out from the disassembly, so the
   two cannot drift into the same mistake again.
-- `oracle/host/provenance.h` writes a run's own output paths as basenames, so
-  two captures to different directories are byte-identical.
+- `oracle/host/provenance.h` writes the paths the run *names* as basenames -
+  the tape now included, not only `--rng-trace` - so two runs that differ only
+  in their directories are byte-identical. `tests/test_oracle_force_battle_provenance.py`
+  is the control: it reads the `# tape=` call site and compiles
+  `path_basename` into a probe, and the capture measurement is a copy of the
+  Helex capture's tape replayed from another directory, whose log and trace come
+  back byte-identical
+  (`docs/BATTLE_ORACLE_FORCED.md` §3a, `build/lane-evidence/group_compare/`).
+
+### The negative controls of the data-driven replay
+
+`replay_fixtures/divergences.json` is what keeps the one data-driven test
+honest, and both directions are checked by running it:
+
+* **A bogus entry for a fixture that replays exactly.** Adding
+  `tape07_first_battle` to the manifest fails the test with "carries an entry
+  for f29489 (value) but the fixture replays exactly - the manifest is stale";
+* **A changed roll in a captured fixture.** Flipping the sixteen damage draws of
+  the Helex capture's first FLAME BOLT (`forced_5e_helex.json`, f25043) fails it
+  at that action with the log's 78 against the port's 77.
+
+Both were run against the tree this ledger describes; the transcripts are in
+`build/lane-evidence/negative_controls.log` and
+`build/lane-evidence/negative_control_b.log` of the lane that wrote them.
 
 ### The negative control
 
@@ -255,6 +284,30 @@ naming the frame and call),
 probe), and
 `tests/test_oracle_battle_fixture.py::test_a_low_word_roll_column_is_rejected_with_its_frame_and_call`
 (the extractor).
+
+## The reorganization, and what stayed put
+
+The extractor and the replay harness were reorganized under the repository's
+file-size rule: `oracle/battle_fixture.py` is a thin CLI over `oracle/fixture/`,
+`oracle/force_battle.py` keeps the capture tool's CLI over its own package, and
+`rust/psiv-core/src/battle/replay/` holds the fixture's shape, the battle
+builder, the verbatim-stream driver, the comparator and the data-driven test
+(the wiring stays in `engine_tests_replay.rs`). Two measurements say nothing
+moved with it:
+
+* **The tapes' data is byte-stable.** Re-extracting tapes 07 and 09 from fresh
+  captures with the reorganized extractor reproduces every field the committed
+  fixtures already had - zero differences, provenance aside
+  (`build/lane-evidence/tape07-09-recheck.log`);
+* **Every test name survives.** The names in the two tape modules and
+  `engine_tests_replay.rs` are unchanged (the diff in
+  `build/lane-evidence/test-names.log` is additions only: the new
+  data-driven test and the new modules' constructors).
+
+The fixture schema is additive, so the tapes' fixtures were not touched:
+`kind`, `ability`, `vehicle`, `outcome.defeat`, `outcome.dead_party_ids`,
+`animation_hit_pass_ids` and the provenance notes are new keys, and a fixture
+without them reads as a battle whose every action is a physical attack.
 
 ## Two divergences, both closed
 

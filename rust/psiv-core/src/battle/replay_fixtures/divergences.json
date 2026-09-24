@@ -1,0 +1,17 @@
+{
+  "fixtures": {
+    "forced_53_desrtleach": {
+      "round": 1,
+      "frame": 25026,
+      "kind": "no-swing",
+      "action": "round 1, actor 1 (the vehicle) at f25026-25169",
+      "expected": "the vehicle swinging: three hit-pass calls in three frames (f25059, f25060, f25072) and sixteen damage draws at f25098",
+      "actual": "TurnSkipped { reason: Unarmed } and no swing, so the round drew 31 of the log's 50 rolls",
+      "round_rolls": {
+        "log": 50,
+        "port": 31
+      },
+      "ledger": "docs/BATTLE_ORACLE_FORCED.md#the-three-captures"
+    }
+  }
+}

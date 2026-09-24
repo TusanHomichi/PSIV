@@ -1,0 +1,422 @@
+{
+ "format_version": 1,
+ "provenance": {
+  "tape": "forced_5E_attack.tape (oracle/force_battle.py --formation 0x5E)",
+  "core": "Genesis Plus GX 2d7131c (libretro/Genesis-Plus-GX)",
+  "patch": "oracle/patches/0001-rng-hv-trace.patch",
+  "trace": "forced_5E_attack_rolls.csv",
+  "trace_sha256": "b1e96472d9282c9172fea59f6e93d92209189047f90887e9049ad861fac86abe",
+  "log_sha256": "b4ed383d91ea7ea7895ffbf559fd766be3d1317a80a9619b2be379442f3dd349",
+  "trace_header": [ "# PSIV rolls from UpdateRNGSeed2 (ps4.asm:86097), one row per call", "# rom instruction: $04239E move.w $8(a5),d0 (the (pc) column is the counter the core", "# reported for that access; the window accepts $04239E-$0423A6)", "# roll = (hv + frame_count - seed_high) & $FFFF (the word at $FFFFEF0C, which is", "# what `sub.w (RNG_Seed).w,d0` at $0423A6 reads and `ror (RNG_Seed).w` at $0423AA rotates),", "# seed_after = ror16(seed_before's high word)", "# frame_count is Main_Frame_Count, seed the RNG_Seed longword ($FFFFEF0C), both from", "# work RAM sampled around the frame; see oracle/README.md (\"RNG trace\")" ],
+  "log_header": [ "# core=Genesis Plus GX v1.7.4 2d7131c region=NTSC", "# rom=/home/peter/.cache/ds-lane/wt/PSIV/o2-F2b-generic-replay/Phantasy Star IV (USA).md size=3145728", "# tape=forced_5E_attack.tape steps=2295 frames=25676", "# rng-trace=forced_5E_attack_rolls.csv" ],
+  "battle_frames": [ 24794, 25616 ],
+  "start_frame": 24821,
+  "priority_frame": 24854,
+  "action_end_frame": 25452,
+  "decided_frame": 25452,
+  "rewards_frame": 25452,
+  "round_frames": [ 24997, 25365 ],
+  "roll_frames": [ 24820, 24854, 24997, 25003, 25043, 25125, 25165, 25247, 25365, 25371, 25411 ],
+  "roll_count": 81,
+  "battle_roll_count": 80,
+  "outside_roll_count": 1,
+  "outside_roll_summary": [ "formation at frame 24820" ],
+  "vehicle_battle": false,
+  "roll_convention": "roll = (hv + frame_count - the word at $FFFFEF0C) & $FFFF; the subtrahend is the seed longword's high half, which is what a 68000 reads at (RNG_Seed).w, and every row of the trace's own roll column is checked against it",
+  "roll_column": {
+   "agrees": 81,
+   "subtracts_low_word": 0,
+   "neither": 0
+  },
+  "damage_run": 16,
+  "undetermined": [ "command identity: the log has menu cursors, not the chosen commands; every party action here is a physical attack and the tape holds C, so each is recorded as `attack`", "a miss and an untargeted slot both read $FF in Fighters_Hit_Flags, so a $FF slot with an unmoved damage word is reported raw rather than guessed", "a damage word rewritten to the value it already held is invisible, so `damage_frame: null` means unobserved, not unwritten", "hp is sampled once a frame and retail subtracts inside the animation state machine, so a slot's HP reading is the value at the end of its action's window", "an enemy action's `kind` is the log's reading of the ability id and what it left behind (damage, or nothing), not the routine the cartridge ran: an ability whose effect no slot shows is `wasted` whether it spent the turn by the FloatMine fall-through or by resolving against a target the log cannot see" ]
+ },
+ "formation": {
+  "ambush_chance": 32,
+  "run_chance": 24,
+  "drop_rate": 0,
+  "drop_item": 0,
+  "enemy_count": 2,
+  "priority": 0,
+  "enemies": [
+   {
+    "formation_slot": 1,
+    "id": 6,
+    "enemy_id": 0,
+    "hp": 90,
+    "max_hp": 90,
+    "status": 0,
+    "strength": 10,
+    "mental": 7,
+    "agility": 45,
+    "dexterity": 34,
+    "attack": 160,
+    "defence": 3
+   },
+   {
+    "formation_slot": 2,
+    "id": 7,
+    "enemy_id": 0,
+    "hp": 90,
+    "max_hp": 90,
+    "status": 0,
+    "strength": 10,
+    "mental": 7,
+    "agility": 45,
+    "dexterity": 34,
+    "attack": 160,
+    "defence": 3
+   }
+  ]
+ },
+ "party": [
+  {
+   "id": 1,
+   "name": "ALYS",
+   "level": 7,
+   "hp": 53,
+   "max_hp": 53,
+   "tp": 40,
+   "max_tp": 40,
+   "status": 0,
+   "strength": 12,
+   "mental": 12,
+   "agility": 15,
+   "dexterity": 13,
+   "attack": 13,
+   "defence": 18,
+   "experience": 2457
+  },
+  {
+   "id": 2,
+   "name": "CHAZ",
+   "level": 1,
+   "hp": 25,
+   "max_hp": 25,
+   "tp": 10,
+   "max_tp": 10,
+   "status": 0,
+   "strength": 8,
+   "mental": 6,
+   "agility": 7,
+   "dexterity": 5,
+   "attack": 18,
+   "defence": 10,
+   "experience": 0
+  },
+  {
+   "id": 3,
+   "name": "HAHN",
+   "level": 1,
+   "hp": 21,
+   "max_hp": 21,
+   "tp": 25,
+   "max_tp": 25,
+   "status": 0,
+   "strength": 6,
+   "mental": 8,
+   "agility": 4,
+   "dexterity": 5,
+   "attack": 8,
+   "defence": 9,
+   "experience": 0
+  }
+ ],
+ "animation_hit_pass_ids": [ 1 ],
+ "rolls": {
+  "columns": [ "frame", "roll", "role", "target", "pass", "round", "action" ],
+  "rows": [
+   [ 24854, 35773, "priority", null, 0, 0, 0 ],
+   [ 24997, 55150, "order", null, 0, 1, 0 ],
+   [ 24997, 44853, "order", null, 0, 1, 0 ],
+   [ 24997, 39932, "order", null, 0, 1, 0 ],
+   [ 24997, 37512, "order", null, 0, 1, 0 ],
+   [ 24997, 36409, "order", null, 0, 1, 0 ],
+   [ 24997, 35892, "order", null, 0, 1, 0 ],
+   [ 24997, 2968, "order", null, 0, 1, 0 ],
+   [ 24997, 19566, "order", null, 0, 1, 0 ],
+   [ 24997, 60348, "order", null, 0, 1, 0 ],
+   [ 24997, 17233, "order", null, 0, 1, 0 ],
+   [ 24997, 27581, "order", null, 0, 1, 0 ],
+   [ 24997, 32846, "order", null, 0, 1, 0 ],
+   [ 24997, 35789, "order", null, 0, 1, 0 ],
+   [ 25003, 55611, "ability", null, 0, 1, 7 ],
+   [ 25043, 56513, "damage", 1, 0, 1, 7 ],
+   [ 25043, 44206, "damage", 1, 0, 1, 7 ],
+   [ 25043, 5437, "damage", 1, 0, 1, 7 ],
+   [ 25043, 18845, "damage", 1, 0, 1, 7 ],
+   [ 25043, 58648, "damage", 1, 0, 1, 7 ],
+   [ 25043, 45394, "damage", 1, 0, 1, 7 ],
+   [ 25043, 38921, "damage", 1, 0, 1, 7 ],
+   [ 25043, 35708, "damage", 1, 0, 1, 7 ],
+   [ 25043, 1614, "damage", 1, 0, 1, 7 ],
+   [ 25043, 49787, "damage", 1, 0, 1, 7 ],
+   [ 25043, 8468, "damage", 1, 0, 1, 7 ],
+   [ 25043, 20601, "damage", 1, 0, 1, 7 ],
+   [ 25043, 26692, "damage", 1, 0, 1, 7 ],
+   [ 25043, 30063, "damage", 1, 0, 1, 7 ],
+   [ 25043, 64135, "damage", 1, 0, 1, 7 ],
+   [ 25043, 15787, "damage", 1, 0, 1, 7 ],
+   [ 25125, 59128, "ability", null, 0, 1, 6 ],
+   [ 25165, 31890, "damage", 2, 0, 1, 6 ],
+   [ 25165, 35092, "damage", 2, 0, 1, 6 ],
+   [ 25165, 3609, "damage", 2, 0, 1, 6 ],
+   [ 25165, 20766, "damage", 2, 0, 1, 6 ],
+   [ 25165, 29368, "damage", 2, 0, 1, 6 ],
+   [ 25165, 33694, "damage", 2, 0, 1, 6 ],
+   [ 25165, 3417, "damage", 2, 0, 1, 6 ],
+   [ 25165, 20662, "damage", 2, 0, 1, 6 ],
+   [ 25165, 62206, "damage", 2, 0, 1, 6 ],
+   [ 25165, 17466, "damage", 2, 0, 1, 6 ],
+   [ 25165, 60959, "damage", 2, 0, 1, 6 ],
+   [ 25165, 49551, "damage", 2, 0, 1, 6 ],
+   [ 25165, 11233, "damage", 2, 0, 1, 6 ],
+   [ 25165, 57635, "damage", 2, 0, 1, 6 ],
+   [ 25165, 15585, "damage", 2, 0, 1, 6 ],
+   [ 25165, 27008, "damage", 2, 0, 1, 6 ],
+   [ 25247, 6863, "hit", null, 1, 1, 3 ],
+   [ 25365, 44747, "order", null, 0, 2, 0 ],
+   [ 25365, 38922, "order", null, 0, 2, 0 ],
+   [ 25365, 36048, "order", null, 0, 2, 0 ],
+   [ 25365, 1949, "order", null, 0, 2, 0 ],
+   [ 25365, 50775, "order", null, 0, 2, 0 ],
+   [ 25365, 42069, "order", null, 0, 2, 0 ],
+   [ 25365, 38198, "order", null, 0, 2, 0 ],
+   [ 25365, 3147, "order", null, 0, 2, 0 ],
+   [ 25365, 18623, "order", null, 0, 2, 0 ],
+   [ 25365, 60924, "order", null, 0, 2, 0 ],
+   [ 25365, 15993, "order", null, 0, 2, 0 ],
+   [ 25365, 25935, "order", null, 0, 2, 0 ],
+   [ 25365, 31337, "order", null, 0, 2, 0 ],
+   [ 25371, 56832, "ability", null, 0, 2, 7 ],
+   [ 25371, 49405, "ability_reroll", null, 0, 2, 7 ],
+   [ 25411, 48149, "damage", 3, 0, 2, 7 ],
+   [ 25411, 40115, "damage", 3, 0, 2, 7 ],
+   [ 25411, 36123, "damage", 3, 0, 2, 7 ],
+   [ 25411, 1426, "damage", 3, 0, 2, 7 ],
+   [ 25411, 49617, "damage", 3, 0, 2, 7 ],
+   [ 25411, 40969, "damage", 3, 0, 2, 7 ],
+   [ 25411, 3901, "damage", 3, 0, 2, 7 ],
+   [ 25411, 51231, "damage", 3, 0, 2, 7 ],
+   [ 25411, 41744, "damage", 3, 0, 2, 7 ],
+   [ 25411, 4385, "damage", 3, 0, 2, 7 ],
+   [ 25411, 18498, "damage", 3, 0, 2, 7 ],
+   [ 25411, 25835, "damage", 3, 0, 2, 7 ],
+   [ 25411, 29186, "damage", 3, 0, 2, 7 ],
+   [ 25411, 30993, "damage", 3, 0, 2, 7 ],
+   [ 25411, 31920, "damage", 3, 0, 2, 7 ],
+   [ 25411, 65177, "damage", 3, 0, 2, 7 ]
+  ]
+ },
+ "outside_rolls": {
+  "columns": [ "frame", "roll", "role", "target", "pass", "round", "action" ],
+  "rows": [
+   [ 24820, 52980, "formation", null, 0, 0, 0 ]
+  ]
+ },
+ "rounds": [
+  {
+   "round": 1,
+   "order_frame": 24997,
+   "order": [ 7, 6, 1, 2, 3 ],
+   "ordering": [ 66, 47, 33, 24, 6 ],
+   "commands": [
+    {
+     "id": 1,
+     "command": "attack"
+    },
+    {
+     "id": 2,
+     "command": "attack"
+    },
+    {
+     "id": 3,
+     "command": "attack"
+    }
+   ],
+   "roll_count": 48,
+   "actions": [
+    {
+     "actor": 7,
+     "start_frame": 25003,
+     "end_frame": 25124,
+     "hit_frame": 25003,
+     "rolls": [
+      [ 25003, 1 ],
+      [ 25043, 16 ]
+     ],
+     "roll_count": 17,
+     "targets": [
+      {
+       "id": 1,
+       "hit": "00",
+       "damage": 78,
+       "damage_frame": 25043,
+       "hp_after": 0,
+       "died": true
+      },
+      {
+       "id": 2,
+       "hit": "FF",
+       "damage": null,
+       "damage_frame": null,
+       "hp_after": 25,
+       "died": false
+      },
+      {
+       "id": 3,
+       "hit": "FF",
+       "damage": null,
+       "damage_frame": null,
+       "hp_after": 21,
+       "died": false
+      }
+     ],
+     "round": 1,
+     "living_opponents": [ 1, 2, 3 ],
+     "ability": 2,
+     "ability_frame": 25003,
+     "ability_written": true,
+     "kind": "ability"
+    },
+    {
+     "actor": 6,
+     "start_frame": 25125,
+     "end_frame": 25246,
+     "hit_frame": 25125,
+     "rolls": [
+      [ 25125, 1 ],
+      [ 25165, 16 ]
+     ],
+     "roll_count": 17,
+     "targets": [
+      {
+       "id": 1,
+       "hit": "FF",
+       "damage": null,
+       "damage_frame": null,
+       "hp_after": 0,
+       "died": true
+      },
+      {
+       "id": 2,
+       "hit": "00",
+       "damage": 83,
+       "damage_frame": 25165,
+       "hp_after": 0,
+       "died": true
+      }
+     ],
+     "round": 1,
+     "living_opponents": [ 2, 3 ],
+     "ability": 2,
+     "ability_frame": 25125,
+     "ability_written": true,
+     "kind": "ability"
+    },
+    {
+     "actor": 3,
+     "start_frame": 25247,
+     "end_frame": 25364,
+     "hit_frame": 25247,
+     "rolls": [
+      [ 25247, 1 ]
+     ],
+     "roll_count": 1,
+     "targets": [
+      {
+       "id": 6,
+       "hit": "FF",
+       "damage": null,
+       "damage_frame": null,
+       "hp_after": 90,
+       "died": false
+      },
+      {
+       "id": 7,
+       "hit": "FF",
+       "damage": null,
+       "damage_frame": null,
+       "hp_after": 90,
+       "died": false
+      }
+     ],
+     "round": 1,
+     "living_opponents": [ 6, 7 ],
+     "ability": 0,
+     "ability_frame": null,
+     "ability_written": false,
+     "kind": "attack"
+    }
+   ]
+  },
+  {
+   "round": 2,
+   "order_frame": 25365,
+   "order": [ 7, 6, 3 ],
+   "ordering": [ 57, 49, 25 ],
+   "commands": [
+    {
+     "id": 3,
+     "command": "attack"
+    }
+   ],
+   "roll_count": 31,
+   "actions": [
+    {
+     "actor": 7,
+     "start_frame": 25371,
+     "end_frame": 25452,
+     "hit_frame": 25371,
+     "rolls": [
+      [ 25371, 2 ],
+      [ 25411, 16 ]
+     ],
+     "roll_count": 18,
+     "targets": [
+      {
+       "id": 1,
+       "hit": "FF",
+       "damage": null,
+       "damage_frame": null,
+       "hp_after": 0,
+       "died": true
+      },
+      {
+       "id": 2,
+       "hit": "FF",
+       "damage": null,
+       "damage_frame": null,
+       "hp_after": 0,
+       "died": true
+      },
+      {
+       "id": 3,
+       "hit": "00",
+       "damage": 80,
+       "damage_frame": 25411,
+       "hp_after": -59,
+       "died": true
+      }
+     ],
+     "round": 2,
+     "living_opponents": [ 3 ],
+     "ability": 2,
+     "ability_frame": null,
+     "ability_written": false,
+     "kind": "ability"
+    }
+   ]
+  }
+ ],
+ "outcome": {
+  "victory": false,
+  "defeat": true,
+  "dead_enemy_ids": [],
+  "dead_party_ids": [ 1, 2, 3 ],
+  "experience_total": 0,
+  "meseta": 0,
+  "end_frame": 25452,
+  "victory_frame": 25452
+ }
+}
