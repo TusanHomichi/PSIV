@@ -121,7 +121,7 @@ The primary level-table block occupies `0x2856B0..0x28A735` (20,614 bytes). The 
 
 ## Graphics
 
-`psiv_tools/nemesis.py` is transcribed from the game's own `NemDecomp` routine, the same way `kosinski.py` was. Its three load-bearing quirks are documented in `SOURCE_NOTES.md`; the short version is that output length comes from the header alone, the routine reads one lookahead byte it may never use (so consumed length is exact-or-plus-one), and XOR mode accumulates over the whole blob.
+`psiv_tools/nemesis.py` is transcribed from the game's own `NemDecomp` routine, the same way `kosinski.py` was. Its three load-bearing quirks are documented in `docs/source-notes/formats.md`; the short version is that output length comes from the header alone, the routine reads one lookahead byte it may never use (so consumed length is exact-or-plus-one), and XOR mode accumulates over the whole blob.
 
 Located art: 12 named singletons (fonts, title/Sega art, window tiles), all 36 dialogue portraits via the pointer table at `0x06A4B0`, and 20 distinct battle backgrounds via the 32-entry table at `0x006ED4` — 68 blobs, 10,434 tiles. Battle backgrounds carry an internal length oracle: each art blob's Enigma plane mapping is stored immediately after it, so the compressed length is derivable from the cartridge alone. Portraits are 36 row-major tiles (48×48). Battle palettes are proven to occupy CRAM line 0 indices 1–13 with index 0 forced black.
 

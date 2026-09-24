@@ -48,7 +48,7 @@ buffer, no per-cell fixups.
 | size | **64 × 24 cells = 512 × 192 px** |
 | table | `BattleBGArtPtrs` at `$006ED4`, 32 entries, **20 distinct** mappings |
 | base tile | `$0000` |
-| palette | CRAM line 0, indices 1–13, index 0 forced black (SOURCE_NOTES) |
+| palette | CRAM line 0, indices 1–13, index 0 forced black (SOURCE_NOTES: [formats](source-notes/formats.md)) |
 
 The visible 320 px is the background's left 40 of 64 columns; the right 24
 columns are never shown at scroll 0. Vertically the background covers **screen

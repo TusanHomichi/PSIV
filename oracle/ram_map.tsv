@@ -182,6 +182,7 @@ alys_atk	FFFFF5A4	2	chars	-
 alys_dfs	FFFFF5A8	2	chars	-
 current_money	FFFFF438	4	chars	-
 battle_priority	FFFFEE45	1	battle	hex
+enemy_ability_index	FFFFEEA8	2	battle	hex
 turn_00	FFFFEFB0	2	battle	hex
 turn_01	FFFFEFB2	2	battle	hex
 turn_02	FFFFEFB4	2	battle	hex

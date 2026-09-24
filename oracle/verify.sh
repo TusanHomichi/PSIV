@@ -55,6 +55,7 @@ mkdir -p "$ORACLE/bin" "$OUT"
 		"$ORACLE/host/ram_patch.c" \
 		"$ORACLE/host/ram_dump.c" \
 		"$ORACLE/host/core_vdp.c" \
+		"$ORACLE/host/rng_trace.c" \
 		"$ORACLE/host/state_dump.c" \
 		"$ORACLE/host/tape.c" -ldl
 pass "host builds clean"
@@ -333,7 +334,7 @@ if late:
 ok(f"page advance is edge-triggered: holding Speak drew page 1's {len(draws)} "
    f"characters at 1/frame (ending f{draws[-1]}) and never advanced to page 2")
 
-# Where "temp" event flags land, on hardware. SOURCE_NOTES proves from ROM
+# Where "temp" event flags land, on hardware. docs/source-notes/disassembly-discrepancies.md proves from ROM
 # bytes that the clone's fifth bank at $F156 does not exist in retail and that
 # "temp" flag writes go through the door at $F140 - the one the constants file
 # labels Chest_Flags. That label is wrong about chests (tapes 20 and 21 below

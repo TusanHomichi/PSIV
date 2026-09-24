@@ -7,6 +7,19 @@
 //! (`Fighter_TakeDamage` per fighter). This module keeps that order, so a
 //! multi-target swing draws two hit rolls and then two sixteen-draw damage
 //! rolls, never interleaved.
+//!
+//! # Two attackers draw the hit pass twice
+//!
+//! `Character_Attack` (`ps4.asm:13018`) runs `loc_B6A2` as the Attack command
+//! initialises, and for Alys and Kyra that is not the pass that counts: their
+//! action routine `CharAttack_AlysKyra` (`ps4.asm:13958`) dispatches
+//! `AlysKyraAttack_Init` (`ps4.asm:13975`), whose first instruction is a second
+//! `jsr loc_B6A2` (`ps4.asm:13976`), in the same frame and still before any
+//! damage. `loc_B6A2` presets all nine flags to `$FF` and re-fills them, so the
+//! **second** pass's verdicts are the ones `Fighter_TakeDamage`
+//! (`ps4.asm:3564-3571`) reads. The first pass is drawn and thrown away — see
+//! [`takes_second_hit_pass`] for the attacker set and [`SECOND_HIT_PASS_CHARACTERS`]
+//! for why it is exactly those two.
 
 use super::chances::{PHYSICAL, Verdict, calculate_chances};
 use super::damage::{calculate_damage, clamp_damage};
@@ -20,6 +33,10 @@ use super::tables::WEAPON_ELEMENT_SENTINEL;
 #[cfg(test)]
 #[path = "attack_status_tests.rs"]
 mod status_tests;
+
+#[cfg(test)]
+#[path = "action_second_pass_tests.rs"]
+mod second_pass_tests;
 
 /// How far an attack reaches.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -194,6 +211,40 @@ pub fn roll_hits(
     HitPass { verdicts }
 }
 
+/// The `Character_Stats` indices whose Attack animation re-runs the hit pass.
+///
+/// `Character_AttackActionOffs` (`ps4.asm:13056-13068`) is indexed by
+/// `fighter_id - 1` and dispatched at `ps4.asm:13044-13050`. Two of its eleven
+/// entries point at `CharAttack_AlysKyra`: the second (Alys, `fighter_id` 2)
+/// and the tenth (Kyra, `fighter_id` 10), which are `Character_Stats` indices
+/// 1 and 9. The routine they reach forces `Current_Target_Index` to `$FFFF`
+/// (`ps4.asm:13959`) and calls `AlysKyraAttack_Init`, and it is that
+/// call — not the weapon, not the command — that runs `loc_B6A2` a second time.
+///
+/// Nothing else can reach it. A technique, skill, item or combo is a different
+/// fighter routine (`Character_DoTech`, `Character_DoSkill`, `Character_DoItem`
+/// and `Character_DoCombo`, `ps4.asm:1043-1050`), so `Character_Attack` — and
+/// with it the first pass — never runs for them; each of those chains runs
+/// `loc_B6A2` once (the shared step `loc_9848`, `ps4.asm:14964`). Weapon type
+/// picks the reach and which of `AlysKyraAttack_Init`'s animation frames load
+/// (`ps4.asm:13986-14002`), never the routine.
+pub const SECOND_HIT_PASS_CHARACTERS: [u8; 2] = [1, 9];
+
+/// Whether this attacker's swing draws `loc_B6A2` twice.
+///
+/// True for Alys and Kyra only (see [`SECOND_HIT_PASS_CHARACTERS`]), whatever
+/// weapon they hold: `AlysKyraAttack_Init`'s second `jsr loc_B6A2`
+/// (`ps4.asm:13976`) is unconditional. Enemies are never party characters, so a
+/// plain enemy attack keeps its single pass (`Enemy_Attack` → `loc_D09E`,
+/// `ps4.asm:19138`, `ps4.asm:19200-19201`).
+#[must_use]
+pub fn takes_second_hit_pass(roster: &Roster, actor: FighterId) -> bool {
+    roster
+        .get(actor)
+        .and_then(|fighter| fighter.character)
+        .is_some_and(|character| SECOND_HIT_PASS_CHARACTERS.contains(&character))
+}
+
 /// Which living fighters an attack from `actor` can reach.
 #[must_use]
 pub fn candidate_targets(
@@ -270,7 +321,17 @@ pub fn resolve_attack(
     });
 
     let multi = reach == Reach::All;
-    let pass = roll_hits(roster, actor, &targets, multi, rolls);
+    // `Character_Attack` runs the pass for every attacker; Alys's and Kyra's
+    // animation routine then runs it again and overwrites all nine flags, so
+    // the first pass is drawn for its rolls alone. Both passes are one roll per
+    // living target (`loc_B716`, `ps4.asm:17536-17554`), and they come before
+    // any damage draw.
+    let first = roll_hits(roster, actor, &targets, multi, rolls);
+    let pass = if takes_second_hit_pass(roster, actor) {
+        roll_hits(roster, actor, &targets, multi, rolls)
+    } else {
+        first
+    };
 
     let attack = roster.get(actor).map_or(0, |f| f.stats.attack.battle);
     let mut died = Vec::new();
@@ -408,14 +469,15 @@ mod tests {
         let items = fixtures::items();
         let lookup = |id: u8| items.iter().find(|i| i.id == id).cloned();
         let mut roster = Roster::new();
-        for (index, record) in [fixtures::alys(), fixtures::chaz(), fixtures::hahn()]
-            .iter()
-            .enumerate()
-        {
+        // Seated under the record's own `Character_Stats` index, which is the
+        // identity the second-pass rule reads: Alys is 1, and a test that
+        // seated her anywhere else would model an attacker the cartridge has
+        // no attack animation for.
+        for record in [fixtures::alys(), fixtures::chaz(), fixtures::hahn()] {
             roster.add_party_member(
-                index as u8,
+                record.id,
                 record.name.clone(),
-                Stats::from_character(record, lookup),
+                Stats::from_character(&record, lookup),
             );
         }
         roster.add_enemy(1, &fixtures::zoran_bult());
@@ -476,17 +538,24 @@ mod tests {
     }
 
     #[test]
-    fn a_multi_target_swing_rolls_once_per_living_enemy_then_damages_each() {
+    fn a_multi_target_swing_rolls_both_hit_passes_then_damages_each() {
         let (mut roster, data) = party_and_enemies();
-        // Roll 40: (40 + 13 - 6) * 2 = 94, a normal hit for Alys against both.
-        // Then two sixteen-draw damage rolls.
-        let draws = [40u16, 40, 7, 7, 7, 7, 7, 7, 7, 7, 0, 0, 0, 0, 0, 0, 0, 0];
+        // Roll 40: (40 + 13 - 6) * 2 = 94, a normal hit for Alys against both,
+        // and she rolls the pass twice — once from Character_Attack and once
+        // from AlysKyraAttack_Init. Then two sixteen-draw damage rolls.
+        let hits = [40u16; 4];
+        let holds = [7u16; 2 * DAMAGE_DRAWS];
+        let draws: Vec<u16> = hits.iter().chain(holds.iter()).copied().collect();
         let mut rolls = SliceRolls::new(&draws);
         let mut events = Vec::new();
         let died = resolve_attack(&mut roster, id(1), None, &data, &mut rolls, &mut events)
             .expect("resolves");
         assert!(died.is_empty());
-        assert_eq!(rolls.drawn(), 2 + 2 * DAMAGE_DRAWS, "two hits, two damages");
+        assert_eq!(
+            rolls.drawn(),
+            4 + 2 * DAMAGE_DRAWS,
+            "two hits and two more hits, then two damages"
+        );
 
         let attacked = events
             .iter()
@@ -525,11 +594,15 @@ mod tests {
             "the demotion in loc_B754"
         );
 
-        // And it shows in the damage: no critical bonus.
-        let draws = [63u16, 63, 3];
+        // And it shows in the damage: no critical bonus. Four hit rolls,
+        // because her animation runs the pass twice, then two damage runs.
+        let hits = [63u16; 4];
+        let holds = [3u16; 2 * DAMAGE_DRAWS];
+        let draws: Vec<u16> = hits.iter().chain(holds.iter()).copied().collect();
         let mut rolls = SliceRolls::new(&draws);
         let mut events = Vec::new();
         resolve_attack(&mut roster, id(1), None, &data, &mut rolls, &mut events).expect("resolves");
+        assert_eq!(rolls.drawn(), 4 + 2 * DAMAGE_DRAWS);
         assert!(events.iter().all(|e| !matches!(
             e,
             BattleEvent::Resolved {

@@ -117,6 +117,9 @@ mod handoff;
 #[path = "engine_tests_oracle.rs"]
 mod oracle;
 
+#[path = "engine_tests_replay.rs"]
+mod replay;
+
 #[path = "engine_tests_tail.rs"]
 mod tail;
 

@@ -175,9 +175,22 @@ pub struct Battle {
     pending_priority: Priority,
     pools: Pools,
     outcome: Option<Outcome>,
-    /// `$FFFFEEA8`, the shared "previous ability index" every enemy rerolls
-    /// against.
-    last_ability_index: Option<u8>,
+    /// `$FFFFEEA8`: the word every enemy's ability reroll is compared against
+    /// (`ps4.asm:19146-19151`). One cell, shared by every enemy in the battle,
+    /// at the width `cmp.w` reads it; only `0..=7` can ever be stored, because
+    /// the only writer stores the masked index.
+    ///
+    /// A battle starts it at **zero**, which is not a choice: `GameMode_LoadBattle`
+    /// clears the whole `$FFFFEE00` page the word sits in before the battle can
+    /// roll anything (`lea ($FFFFEE00).w,a0 / move.w #$3F,d7 / trap #0`,
+    /// `ps4.asm:9992-9994`, covering `$FFFFEE00-$FFFFEEFF`), and the boot's own
+    /// clears leave the same zero at power-on (`ps4.asm:376-402`: the last 256
+    /// bytes at `$FFFFFF00-$FFFFFFFF` on a cold boot, everything else at
+    /// `$FF0000-$FFFEFF` on every entry to `MainGameProgram_Continue`). So a
+    /// battle's first ability draw of zero costs a second call — tape 07's
+    /// first basement battle (f29789) is exactly that case, and
+    /// `docs/BATTLE_ORACLE_REPLAY.md` measures the wipe on the cartridge.
+    last_ability_index: u16,
     /// `Enemy_Run_Chance`, or `None` for a formation at or above `$F0` that
     /// cannot be escaped at all.
     run_chance: Option<u8>,
@@ -273,7 +286,7 @@ impl Battle {
                 pending_priority: priority,
                 pools: Pools::default(),
                 outcome: None,
-                last_ability_index: None,
+                last_ability_index: 0,
                 run_chance: formation.can_run().then_some(formation.run_chance),
                 vehicle,
                 zio_phase: 0,
@@ -286,6 +299,19 @@ impl Battle {
     #[must_use]
     pub const fn roster(&self) -> &Roster {
         &self.roster
+    }
+
+    /// `$FFFFEEA8` as the battle holds it: `0` until an enemy draws an ability
+    /// index, then that index — the one the next enemy's draw is rerolled
+    /// against (`ps4.asm:19146-19151`).
+    ///
+    /// Test-only: nothing in the port reads it in play; the tape replays assert it against
+    /// the RAM log's own column at the end of the battle, which is where the
+    /// cartridge's word is read from (`docs/BATTLE_ORACLE_REPLAY.md`).
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) const fn last_ability_index(&self) -> u16 {
+        self.last_ability_index
     }
 
     /// The party's live stats, keyed by `Character_Stats` index.

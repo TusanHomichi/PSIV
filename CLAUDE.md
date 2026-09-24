@@ -82,6 +82,18 @@ docstring.
   it into lane ab-J's commit and tripped that check (2026-09-24) - and each
   run's receipt copies what it held to `host-state/<name>/`, reviewable like
   `evidence/`.
+- **Exclusions name only paths git does not already ignore.** A path the
+  worktree's rules cover needs no `:(exclude)` pathspec (`git add -A` skips it
+  by itself), and naming one makes git refuse the whole add with "The following
+  paths are ignored by one of your .gitignore files": that is how lane
+  `or-O1`'s finalize died on a linked ROM matching `Phantasy Star IV*.md`. A
+  file link's own name is what such a pattern matches, while a directory link
+  is a symlink (mode 120000), which a `dir/` rule does not match - so the
+  directory link still needs its exclusion. Each path is tested with
+  `git check-ignore -q --no-index` before it is named. A git step that fails
+  anyway is recorded as `finalize_error` in `run.json` and printed in the
+  summary, with the worker's exit code, result and receipt preserved and its
+  files left in the worktree, instead of a bare supervisor error (2026-09-24).
 - **Size rule.** The owner's rule is that a file over roughly 1,000 lines is
   reorganized when touched, and `ds-lane` flags it the way it flags a
   write-set violation. After each run, every path changed between the lane's
@@ -147,9 +159,10 @@ docstring.
   lowered poll and its size cases against the real limit; the suite must stay
   under 90 s). The cases are split by cohesion - `tests/ds_lane_support.py`
   (the fake worker, the repo and home fixtures, the CLI helpers),
-  `test_ds_lane_unit.py`, `test_ds_lane_lanes.py`, `test_ds_lane_size.py` and
-  `test_ds_lane_supervisor.py` - each under the line cap that applies to it
-  (500 lines for a test module, 400 for a package module).
+  `test_ds_lane_unit.py`, `test_ds_lane_lanes.py`, `test_ds_lane_size.py`,
+  `test_ds_lane_finalize.py` and `test_ds_lane_supervisor.py` - each under the
+  line cap that applies to it (500 lines for a test module, 400 for a package
+  module).
 - A lane that builds the whole workspace needs `--link oracle/gpgx-src`:
   `psiv-sound`'s build script compiles the ignored core sources under it.
 - Each lane has its own `rust/target`, so its first cargo build is cold.

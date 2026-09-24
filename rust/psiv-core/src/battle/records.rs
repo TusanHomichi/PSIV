@@ -108,7 +108,7 @@ impl EquipSlot {
 /// What an item's element byte (`$12`) means for that item.
 ///
 /// The byte has two jobs and the type decides which — the dual role
-/// SOURCE_NOTES records. `UpdateCharElems` (`$0005FD2A`) is where the split
+/// docs/source-notes/disassembly-discrepancies.md records. `UpdateCharElems` (`$0005FD2A`) is where the split
 /// happens.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ElementRole {

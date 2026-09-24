@@ -36,6 +36,27 @@ fn an_unimplemented_ability_is_announced_rather_than_faked() {
 }
 
 #[test]
+fn a_battle_starts_with_the_ability_reroll_word_at_zero() {
+    // `$FFFFEEA8` is zero when a battle begins: `GameMode_LoadBattle` clears the
+    // page the word lives in (`ps4.asm:9992-9994`) and the boot's own clears
+    // leave the same zero (`ps4.asm:376-402`). No caller hands a battle a word,
+    // so this is where the rule's starting value is pinned - and it is
+    // load-bearing: a first ability draw of zero costs a second call because of
+    // it (tape 07's f29789, `docs/BATTLE_ORACLE_REPLAY.md`).
+    let data = fixtures::data();
+    let mut rolls = SliceRolls::new(&[0]);
+    let (battle, _) = Battle::start(
+        &fixtures::formation_two_zoran_bults(),
+        basement_party(&data),
+        &data,
+        false,
+        &mut rolls,
+    )
+    .expect("the fixture resolves");
+    assert_eq!(battle.last_ability_index(), 0);
+}
+
+#[test]
 fn a_vehicle_skill_consumes_a_use_and_runs_its_retail_dispatcher() {
     let data = fixtures::data();
     let vehicle = crate::vehicle::battle_member(

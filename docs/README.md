@@ -31,7 +31,13 @@
 
 - [Runtime design](RUNTIME_DESIGN.md)
 - [ROM extraction reference](EXTRACTION.md)
-- [Source notes](../SOURCE_NOTES.md)
+- [Source notes](../SOURCE_NOTES.md) — the provenance and deviation ledger's index; its records live in:
+  - [Cartridge formats](source-notes/formats.md)
+  - [Oracle methodology](source-notes/oracle-methodology.md)
+  - [Disassembly discrepancies](source-notes/disassembly-discrepancies.md)
+  - [Enemy abilities and damage routes](source-notes/battle-enemy-abilities.md)
+  - [Party actions, items and battle flow](source-notes/battle-party.md)
+  - [Dialogue and field travel](source-notes/field-and-dialogue.md)
 
 ## Which document answers which question?
 

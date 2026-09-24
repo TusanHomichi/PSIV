@@ -47,12 +47,15 @@ oracle/
 ├── host/psiv_oracle.c      the headless libretro host runner
 ├── host/frame_dump.c       negotiated-format PNG video sink
 ├── host/ram_dump.c         raw work-RAM snapshot sink
+├── host/rng_trace.c/.h     battle-roll capture (included by psiv_oracle.c)
 ├── host/ram_patch.c/.h     explicit per-frame retail-RAM fixture writes
 ├── host/libretro.h         minimal libretro ABI subset
 ├── build_core.sh           fetches + builds the pinned emulation core
+├── patches/*.patch         our patches to that checkout, applied in order
 ├── route.py                plans a walking route over the pack's collision data
 ├── navigate.py             closed-loop tape authoring (route + observe + re-plan)
 ├── analyze_rng.py          per-frame RNG call census from a log
+├── rng_trace.py            checks a --rng-trace capture against its log
 ├── anim_sweep.py           press-offset sweep across the dialogue open animation
 ├── damage_census.py        same-matchup damage samples across shifted seed paths
 ├── checks.py               shared helpers for verify.sh's two lanes
@@ -203,6 +206,177 @@ the generated `$FFFF60E0` H-scroll buffer zero. The `$FFFF6000` bytes are
 reported as an inactive `Chunk_Table`/VSRAM-shadow source, not falsely called
 live VSRAM. The window-region report is scanlines 160..223 and the placement
 provenance records `grand_cross=0` plus the measured `(1,1)` plane residue.
+
+### RNG trace: the cartridge's own battle rolls
+
+PSIV's battle rolls are not pseudo-random in the usual sense. `UpdateRNGSeed2`
+(`ps4.asm:86097`, ROM `$04239E`) is four instructions:
+
+```
+	move.w	$8(a5), d0		; the VDP HV counter at $C00008
+	add.w	(Main_Frame_Count).w, d0
+	sub.w	(RNG_Seed).w, d0	; d0 = the roll the caller receives
+	ror	(RNG_Seed).w		; and the seed's high word rotates
+```
+
+so every roll is a function of *where the beam was* when the 68000 read the
+counter. That is hardware timing `psiv-core` deliberately does not reproduce
+(see `docs/RUNTIME_DESIGN.md`, "RNG design"); the port takes rolls through its
+`Rolls` trait instead, and this flag captures the stream that trait replays.
+
+```sh
+oracle/bin/psiv_oracle \
+    --core oracle/core/genesis_plus_gx_libretro.so \
+    --rom  "Phantasy Star IV (USA).md" \
+    --map  oracle/ram_map.tsv \
+    --tape oracle/tapes/07_first_battle.tape \
+    --groups core,battle,bhit,enemy,chars,rng \
+    --rng-trace oracle/logs/tape07_rolls.csv \
+    --out  oracle/logs/tape07_battle.csv
+python3 oracle/rng_trace.py check oracle/logs/tape07_rolls.csv \
+    oracle/logs/tape07_battle.csv
+python3 oracle/battle_fixture.py --trace oracle/logs/tape07_rolls.csv \
+    --log oracle/logs/tape07_battle.csv \
+    --out rust/psiv-core/src/battle/replay_fixtures/tape07_first_battle.json
+CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
+    -- tape07
+```
+
+The last two steps are the replay: `oracle/battle_fixture.py` writes the
+battle's start state, its rolls with the frame and role of each, and what the
+RAM log shows every action doing, and `psiv-core` replays it -
+`rust/psiv-core/src/battle/engine_tests_replay.rs`, with the verdict in
+[`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md).
+
+The host writes one row per call, in frame order:
+
+| column | meaning |
+|---|---|
+| `frame` | emulated frame the call happened in (1-based, `retro_run()` count) |
+| `call_index_in_frame` | 0-based index of this call within its frame |
+| `pc` | 68000 program counter the core reported for the HV read |
+| `hv` | the HV word the counter returned for that read |
+| `frame_count` | `Main_Frame_Count` (`$FFFFEF1C`) the instructions saw |
+| `seed_before` | `RNG_Seed` (`$FFFFEF0C`) longword the instructions saw |
+| `roll` | `(hv + frame_count - seed_high) & $FFFF`, the value left in `d0`: the subtrahend is the word at `$FFFFEF0C`, the longword's high half |
+| `seed_after` | the seed after `ror (RNG_Seed).w`, low word carried |
+
+**The core patch.** `oracle/patches/0001-rng-hv-trace.patch` is ours; upstream
+Genesis Plus GX has no such hook. It makes `vdp_hvc_r()` record `(pc, hv)` for
+every HV counter read and exports
+`psiv_hv_trace_enable/reset/count/dropped/get`, which the host resolves with
+`dlsym` and drains once per frame. With tracing off the record is one
+predictable branch and the value is returned unchanged, so emulation is
+identical - `verify.sh` runs against the patched core and still passes.
+`build_core.sh` applies every `oracle/patches/*.patch` after the pinned
+checkout, in file-name order; re-applying is a no-op, and a tree that is not
+the pinned revision fails loudly instead of building something unreproducible.
+See [`patches/README.md`](patches/README.md) for what those patches must obey.
+A checkout shipped without `gpgx-src/.git` (how a built one travels) is used as
+it stands, so the build works offline: the patches are then what pins the files
+this project depends on, and any other revision fails the build rather than
+producing numbers nothing was measured against.
+
+**Which reads are calls.** The trace keeps the reads the PC says came from
+`move.w $8(a5),d0` at `$04239E`. Genesis Plus GX reports the counter with the
+instruction's extension word already fetched, so the access arrives as
+`$0423A2` - the address of the `add.w` that follows it. The accepted window is
+`$04239E-$0423A6`, from the read itself to the start of the `sub.w (RNG_Seed).w`
+two instructions later, so a core that reports the PC at another point inside
+or just after the access still matches; neither of the other two instructions
+reads the counter, so the window cannot admit a record that is not one of
+these. Every matched row carries the PC it matched on, which keeps the choice
+visible in the data. Tape 07 has no other HV reader at all - all 136 records
+match - so nothing there rests on the window's width.
+
+**Why those are the seeds.** `RNG_Seed` and `Main_Frame_Count` are not in the
+core's records: the host reads them from work RAM around each frame and chains
+the frame's calls, because `UpdateRNGSeed2` only rotates the high word, so the
+next call starts from the word the previous one left. Two things can move the
+seed between calls, and both are accounted for:
+
+- The VBlank handler (`ps4.asm:612-625`) applies `UpdateRNGSeed` (the 41x
+  multiply) and bumps `Main_Frame_Count` in one block, so a frame whose counter
+  steps by exactly one is a frame whose rolls chain from the multiplied seed.
+  That is the whole rule, and it is what the log's counter column says.
+- Genesis Plus GX triggers VINT at the top of the emulated frame
+  (`core/system.c`, `system_frame_gen`: the VCount is set to
+  `bitmap.viewport.h` and the interrupt is taken before the vblank and visible
+  lines run), so that block precedes every read of the frame rather than
+  following the frame's last call. Tape 07's rolls sit in the visible lines
+  (V counter `$14-$55`), where the game's attack code runs.
+
+**What `rng_trace.py check` proves.** It re-derives each row's `seed_after` and
+insists that a frame's calls chain into each other, that its first call starts
+from the log's seed for the frame before it or from that seed after one
+`UpdateRNGSeed`, that its last `seed_after` is the log's `rng_seed` for the
+frame, and that every row's `frame_count` is that frame's logged
+`Main_Frame_Count`; the anchor and the counter step must agree. It prints the
+first mismatch and exits non-zero, and the host refuses to call the run
+trustworthy for the same reason before that. What stays unproven is the
+`frame_count` column's *timing* - it is the frame's value sampled after the
+frame, justified by the frame order above rather than by the chain - and any
+frame the log does not cover, which is counted and reported as skipped. Playing
+these rolls back through `psiv-core`'s damage path against the same battle in
+the log is the end-to-end check that closes that gap, and
+[`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md) is that check for
+tapes 07 and 09.
+
+**The `roll` column, and the word it subtracts.** `sub.w (RNG_Seed).w, d0` at
+`$0423A6` reads the word at `$FFFFEF0C`, which on a big-endian 68000 is the
+**high** half of the `RNG_Seed` longword (`ps4.constants.asm:2328`) - the same
+word `ror (RNG_Seed).w` at `$0423AA` rotates. The host's `rng_trace_roll`
+(`oracle/host/rng_trace.h`) subtracts that word, and `oracle/rng_trace.py`'s
+`roll_for` re-derives the same arithmetic, as `oracle/battle_fixture.py`
+insists row by row: a capture whose column subtracts the low half at
+`$FFFFEF0E` is rejected with the frame and call of the first row that does,
+rather than replayed.
+
+That was not always so, and the capture was wrong for a while. O1 built the
+host with `seed_lo`, O2 found the column was a per-frame-constant shift of the
+cartridge's rolls, and `rng_trace.py check` could not see it because its own
+`roll_for` repeated the same subtraction - the two agreed with each other and
+with nothing else. The cartridge settled it against tape 07's RAM log: the
+high-half derivation reproduces the battle's nine turn-order addends and all
+six of its damage values, the low-half one reproduces none of them
+([`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md)). The fix landed
+in the host and in the checker, the capture was regenerated, and the two can no
+longer drift apart unnoticed: `tests/test_oracle_rng_trace.py` compiles
+`oracle/host/rng_trace.h` into a probe and compares it with the checker's
+`roll_for` against numbers written out from the disassembly, and
+`oracle/battle_fixture.py` refuses a trace whose column is not the cartridge's.
+
+Captured with the low-half subtraction by an otherwise identical host, the same
+tape and core differ in the `roll` column alone, and in all 136 rows: `hv`,
+`pc`, `frame_count`, `seed_before` and `seed_after` come out the same in both,
+each roll's shift is exactly `seed_lo - seed_hi`, and the seed chain still
+closes on the RAM log exactly.
+
+The capture on tape 07: 136 rolls in 15 frames, between frames 24807 and 30306
+of the battle at 24794-30428, every one of them in the visible lines. The
+counts line up with the disassembly: single rolls are `Battle_CalculateChances`
+(`ps4.asm:17339`, one call), runs of 16 are `Battle_CalculateDamage`'s loop
+(`ps4.asm:17381`, `moveq #$F,d7` with `dbf d7,-`), and the frame where two
+attackers each take a damage roll carries two of those runs (32 calls). Frame
+29711, first two of its sixteen rows:
+
+```
+29711,0,0423A2,2292,28815,21E817F3,7139,10F417F3
+29711,1,0423A2,23F3,28815,10F417F3,838E,087A17F3
+```
+
+(The same two rows from a host built with the pre-fix subtraction read `7B2E`
+and `7C8F`, `seed_after` included - the low half's subtraction of the same raw
+columns, `$2292 + 28815 - $17F3` and `$23F3 + 28815 - $17F3`. The columns differ
+in `roll` alone: `7139` = `$2292 + 28815 - $21E8` and `838E` = `$23F3 + 28815 -
+$10F4`.)
+
+Tape 09's capture is the same three steps on its own tape and window: 137 rolls
+in 16 frames, between frames 25015 and 31786 of the battle at 25002-31908, all
+of them in the visible lines, with its fixture extracted by `--tape`,
+`--battle-first` and `--battle-last` and nothing else. Both traces' pins, both
+fixtures' provenance and both replays' draw accounting are in
+[`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md).
 
 ### Deterministic scene fixtures
 
@@ -429,18 +603,32 @@ host handles; tapes are written in Mega Drive letters.
 
 ## Log format
 
-CSV with three provenance comment lines, then `frame,mark,buttons` and one
-column per enabled RAM field. `frame` is 1-based and counts `retro_run()`
+CSV with three provenance comment lines (four with `--rng-trace`, which adds
+`# rng-trace=<name>`), then `frame,mark,buttons` and one column per enabled RAM
+field. `frame` is 1-based and counts `retro_run()`
 calls from power-on. Values are decimal, or fixed-width hex for fields flagged
 `hex` in the map.
+
+Input paths are written as given; the `# rng-trace=` line is the one line that
+names an *output* of the run, so it carries the trace's basename and not the
+path it was written to (`oracle/host/provenance.h`). Two runs that differ only
+in their output directories therefore produce byte-identical traces and
+byte-identical logs, which is what lets the ledger pin a capture by sha256 and
+compare it against another run.
 
 ## RAM map
 
 `ram_map.json` is the source of truth; **every address is transcribed from
-`reference/ps4disasm/ps4.constants.asm` and carries the line it came from**.
-Nothing was inferred by watching memory. Struct fields are recorded as base +
-offset with both citations so the arithmetic is auditable — for example
-`c1_facing` is `Character_1` (`constants:2086`, `$FFFFC000`) plus `facing_dir`
+`reference/ps4disasm/ps4.constants.asm` and carries the line it came from**,
+except where a field's `source` names `ps4.asm` instead: an address the
+constants file does not name, recovered from the operand the code itself uses.
+`enemy_ability_index` (`$FFFFEEA8`) is the only such field so far - it is
+`Enemy_Attack`'s ability re-roll word, read at `ps4.asm:19149` and written at
+`ps4.asm:19151` - and the clears that reach it, the oracle measurements and what
+the port does with it are in `docs/BATTLE_ORACLE_REPLAY.md`. Nothing was
+inferred by watching memory. Struct fields are recorded as base + offset with
+both citations so the arithmetic is auditable — for example `c1_facing` is
+`Character_1` (`constants:2086`, `$FFFFC000`) plus `facing_dir`
 (`constants:107`, `+6`).
 
 `gen_ram_map.py` emits the flat `ram_map.tsv` the C host parses, validating
