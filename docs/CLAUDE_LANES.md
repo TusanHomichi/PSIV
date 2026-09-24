@@ -62,6 +62,8 @@ output.
 | 2026-09-24 | ab-J | Route-class gate and the 21 Motavia single-target routes | Accepted. TechUser WAT and Rappy ROUND EYES were read from `ps4.asm`; 614 core tests, 5/5 real-pack | Stripped `.reasonix/` host state that the lane commit swept in (fixed in the harness by ab-L) | USD 0.245 |
 | 2026-09-24 | ab-H | FloatMine2 `$07` / `$17` wasted turns | Accepted on run 3. `loc_10406` read from `ps4.asm`; merged-tree gate: core 617, runtime 108, godot 75 | Sent back: test file over 1,000 lines, and a native gap (Godot timeline wildcard), fixed by making `BattleEvent` exhaustive. Resolved merge overlaps; removed a dead `ui.rs` check | USD 0.319 |
 | 2026-09-24 | ab-L | Exclude `.reasonix/` from lane commits; honor follow-up write sets | Accepted on run 2; 41/41 with the trap binary unused | Run 1 left the test file at 1,034 lines, arguing the rule covered only the package; sent back to split it | USD 0.095 |
+| 2026-09-24 | ab-K | All-party damage class: SPIRAL BLD and EARTHQUAKE | Accepted on run 2. Slot order read from `Battle_UpdateFighters` (`ps4.asm:987`); merged-tree gate: core 626, runtime 109, godot 75 | Sent back to split `enemy_damage_tests.rs` (1,504 lines, grown by ab-J and missed in that review, which led to ab-M); doc recount at merge | USD 0.435 |
+| 2026-09-24 | ab-M | `ds-lane` flags files over 1,000 lines | Accepted; 51/51 with the trap binary unused | None | USD 0.068 |
 
 **Bake-off result (2026-09-23):** six runs across five lanes (routine
 refactor, RE inventory, harness tooling, two retail-parity implementations),
