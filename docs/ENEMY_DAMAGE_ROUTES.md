@@ -386,7 +386,7 @@ are recorded here, each from the instruction that decides it.
 
 The resolver implements exactly that: `DamageClass::AllParty` resolves each
 occupied, living party slot in slot order, one `Resolved` per slot, and
-`SOURCE_NOTES.md` has the change's own section.
+`docs/source-notes/battle-enemy-abilities.md` has the change's own section.
 
 ### Single rows re-read at the resolver gate (2026-09-24)
 
@@ -400,7 +400,7 @@ for 82 Leviathan) are what settled the gate: the nibble picks the effect
 handler's range, effect `$01` is `AbilityEffect_None` (`ps4.asm:9092`) so the
 nibble multiplies nothing, and each chain still makes exactly one request in
 `loc_24B64`. The resolver now requires the record's effect byte to be `$01`
-instead of the old `byte 2 == 8` check; `SOURCE_NOTES.md` has the change's own
+instead of the old `byte 2 == 8` check; `docs/source-notes/battle-enemy-abilities.md` has the change's own
 section.
 
 Two conventions to read this file's citations with, both checked against the

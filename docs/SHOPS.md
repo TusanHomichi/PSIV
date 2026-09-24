@@ -50,7 +50,7 @@ group, low byte (`$FFFFECD1`) the index within it.
 
 ### Finding 1 — the counter tile is not the trigger
 
-`SOURCE_NOTES` currently says a shop-location entry "lands on a type-`$C`
+`docs/source-notes/formats.md` currently says a shop-location entry "lands on a type-`$C`
 cell". **That is a correlation, not the rule.** The scan never touches the
 collision grid; its caller (`loc_59148`) has already matched an object and
 passes that object's `$30`/`$34` position. The table is keyed by **the
@@ -164,7 +164,7 @@ rows can never match. **Shop inventories 9, 10 and 11 are unreachable in
 play**; Tonoe's only live counter is its inn.
 
 This qualifies the existing 49-shop proof rather than breaking it. The claim in
-`SOURCE_NOTES` that the location table's entries "cover indexes `0..$30` with
+`docs/source-notes/disassembly-discrepancies.md` that the location table's entries "cover indexes `0..$30` with
 no gaps" is still true of the *bytes* — but three of those references are dead,
 so the reachable set is 46. `census.unreachable_inventories` records it.
 

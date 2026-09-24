@@ -63,7 +63,7 @@ did for the chest sites.
 
 ### Where the "temp" event flags land, on hardware
 
-`SOURCE_NOTES` proves from ROM bytes that retail has **four** flag banks, not
+`docs/source-notes/disassembly-discrepancies.md` proves from ROM bytes that retail has **four** flag banks, not
 five: nothing addresses the clone's `Temp_Event_Flags` at `$FFFFF156`, and the
 "TempEveFlags" calls dispatch through the door at `$FFFFF140`. That part holds —
 it is only the name on that door that was wrong. Tape 17 measures the write.

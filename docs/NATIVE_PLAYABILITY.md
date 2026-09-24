@@ -240,7 +240,7 @@ restores modified agility. Enemy paralysis then clears without a roll.
 Vision replaces its previous buff and clears on battle exit. The native
 implementation fixes the cartridge's dependence on Hahn's first encoded
 name byte while retaining his normal +8 effect. The controlled retail
-comparisons and exact source routines are recorded in `SOURCE_NOTES.md`,
+comparisons and exact source routines are recorded in `docs/source-notes/battle-party.md`,
 including an oracle run showing a renamed Hahn produces +26 in retail.
 
 The real-pack skill test exposed a pre-existing resistance mapping error:

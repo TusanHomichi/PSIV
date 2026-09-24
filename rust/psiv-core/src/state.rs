@@ -92,7 +92,7 @@
 //!    `ItemFound+10`, with `$F140`-`$F17F` untouched — measured before the
 //!    prediction reached them.
 //!
-//! `SOURCE_NOTES.md`'s "FLAG MODEL FINAL" entry is the record; entries it
+//! `docs/source-notes/disassembly-discrepancies.md`'s "FLAG MODEL FINAL" entry is the record; entries it
 //! supersedes are marked in place with their measurements preserved.
 //!
 //! ## Nothing ever clears a `$F120` bit

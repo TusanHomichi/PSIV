@@ -311,7 +311,7 @@ def build_formations(rom: bytes) -> dict[str, Any]:
         "table": encounters["table"],
         "census": {
             # The ROM's own inconsistency: one formation declares more enemies
-            # than it lists. `SOURCE_NOTES` has the blast radius -- the count
+            # than it lists. `docs/source-notes/disassembly-discrepancies.md` has the blast radius -- the count
             # byte's only reader is the Slasher hit effect's positioning.
             "count_mismatches": mismatched,
             "enemies_per_formation": _range(len(f["enemies"]) for f in normal + bosses),

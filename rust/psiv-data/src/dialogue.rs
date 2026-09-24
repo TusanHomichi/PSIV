@@ -12,7 +12,7 @@
 //! pointing at a portrait the table does not have, a character with no glyph, a
 //! missing window role or a page wider than the window all stop the load. The
 //! extractor proves "zero unknown control bytes and zero unmapped glyphs across
-//! all trees" against the ROM (SOURCE_NOTES) -- this side re-proves it against
+//! all trees" against the ROM (docs/source-notes/formats.md) -- this side re-proves it against
 //! the pack, so a hand-edited or half-written pack cannot reach the renderer.
 //!
 //! ```no_run

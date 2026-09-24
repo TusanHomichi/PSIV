@@ -597,7 +597,7 @@ The seventeen implemented rows are exactly what `psiv-core` claims:
   deliberately carry no `ps4.asm:` prefix.
 - **Classes.** The verdicts come from the object-chain rule in §1. Three of them can
   be cross-read against existing documents and agree: THREAD (`no damage`,
-  `docs/THREAD.md`), Acid Breath (`damage`, `SOURCE_NOTES.md`) and Fission
+  `docs/THREAD.md`), Acid Breath (`damage`, `docs/source-notes/battle-enemy-abilities.md`) and Fission
   (`no damage`, the resolver's comments).
 - Nothing here was produced by a build run: it is static reading of the disassembly
   plus the ROM-extracted tables. No emulator or hardware capture backs a class
