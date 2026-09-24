@@ -283,11 +283,18 @@ fn dormant_neighbors_keep_stats_but_are_absent_from_targets_and_turns() {
 }
 
 fn acid_data() -> BattleData {
+    acid_carrier_data(75, 1)
+}
+
+/// The one shared `$33` record, on whichever carrier the caller is testing.
+/// Strength is per-carrier because `Enemy_DamageCharacter` reads it from the
+/// acting enemy's stats, not from the record.
+fn acid_carrier_data(enemy_id: u16, strength: u8) -> BattleData {
     let mut plant = fixtures::zoran_bult();
-    plant.id = 75;
-    plant.name = "FLATTRPLNT".into();
+    plant.id = enemy_id;
+    plant.name = format!("CARRIER-{enemy_id}");
     plant.hp = 32;
-    plant.strength = 1;
+    plant.strength = strength;
     plant.attack = 22;
     plant.agility = 100;
     plant.regular_abilities = [51; 8];
@@ -306,7 +313,7 @@ fn acid_data() -> BattleData {
         }])
 }
 
-fn acid_roster(data: &BattleData) -> Roster {
+fn acid_carrier_roster(data: &BattleData, enemy_id: u16) -> Roster {
     let mut r = Roster::new();
     for record in [fixtures::alys(), fixtures::chaz(), fixtures::hahn()] {
         let mut member = PartyMember::seat(&record, data).unwrap();
@@ -316,8 +323,12 @@ fn acid_roster(data: &BattleData) -> Roster {
         member.stats.agility.battle = 255;
         r.add_party_member(member.character, member.name, member.stats);
     }
-    r.add_enemy(1, data.enemy(75).unwrap());
+    r.add_enemy(1, data.enemy(enemy_id).unwrap());
     r
+}
+
+fn acid_roster(data: &BattleData) -> Roster {
+    acid_carrier_roster(data, 75)
 }
 
 #[test]
@@ -419,6 +430,211 @@ fn acid_invalid_definition_or_dispatcher_cannot_silently_damage_or_spawn() {
     let mut r = acid_roster(&data);
     kill(&mut r, 6);
     assert!(!resolve_fission(&mut r, id(6), 51, id(6), &data, &mut Vec::new()).unwrap());
+}
+
+/// One round against a single carrier, driven through `roll_enemy_ability` on a
+/// fully specified draw stream: nine ordering draws, the four enemy-target
+/// draws, the ability index (0, and every slot holds `$33`) and the 16 damage
+/// draws — 30 in all when `$33` resolves, plus the fallback attack's accuracy
+/// roll when it does not. Party agility 1 keeps the enemy first in the queue,
+/// so Defend has not raised anyone's physical resistance yet and the numbers
+/// below are the undefended ones.
+fn acid_carrier_round(carrier: u16, strength: u8) -> (Vec<BattleEvent>, usize) {
+    let data = acid_carrier_data(carrier, strength);
+    let formation = FormationRecord {
+        id: 0,
+        ambush_chance: 0,
+        run_chance: 254,
+        drop_rate: 0,
+        drop_item: None,
+        enemies: vec![FormationEnemy {
+            slot: 1,
+            enemy_id: carrier,
+            position: 20,
+        }],
+    };
+    let party = [fixtures::alys(), fixtures::chaz(), fixtures::hahn()].map(|record| {
+        let mut member = PartyMember::seat(&record, &data).unwrap();
+        member.stats.curr_hp = 400;
+        member.stats.max_hp = 400;
+        member.stats.defence.battle = 7;
+        member.stats.agility.battle = 1;
+        member
+    });
+    let (mut battle, _) = Battle::start(
+        &formation,
+        party.to_vec(),
+        &data,
+        false,
+        &mut SliceRolls::new(&[0]),
+    )
+    .unwrap();
+    let mut stream = vec![0; 13];
+    stream.push(0);
+    stream.extend([0; 16]);
+    let mut rolls = SliceRolls::new(&stream);
+    let events = battle
+        .round(
+            &RoundOrders::Commands(vec![Command::Defend; 3]),
+            &data,
+            &mut rolls,
+        )
+        .unwrap();
+    (events, rolls.drawn())
+}
+
+#[test]
+fn every_proven_carrier_resolves_acid_breath_through_its_own_routine() {
+    // `EnemyAttackOffs` (`ps4.asm:19206`): `$4B`/`$4C` = EnemyAttack_FlattrPlnt
+    // for 75 FlattrPlnt and 76 FlyScreamr, `$55`/`$56` = EnemyAttack_Piercer
+    // (`ps4.asm:21518`) for 85 Piercer and 86 HakenLeft. The expected number is
+    // `Battle_CalculateDamage` (`ps4.asm:17374`) on `EnemySkillData` `$33` as
+    // `Enemy_DamageCharacter` reads it: the caster's own strength as the power,
+    // the target's modified defense and its physical resistance, with 16 zero
+    // draws and the shared fixture's defense of 7 —
+    // `(((8*str)>>6) + str + 48) * 2 >> 2 - 7`.
+    for (carrier, strength, expected) in [
+        (75u16, 1u8, 17u16),
+        (76, 88, 66),
+        (85, 128, 89),
+        (86, 164, 109),
+    ] {
+        let data = acid_carrier_data(carrier, strength);
+        let mut r = acid_carrier_roster(&data, carrier);
+        // Raised off the 100 the shared fixture uses: HakenLeft's strength of
+        // 164 deals 109, and a death would add a third event to the pair this
+        // test pins.
+        for member in [id(1), id(2), id(3)] {
+            let stats = &mut r.get_mut(member).unwrap().stats;
+            stats.curr_hp = 200;
+            stats.max_hp = 200;
+        }
+        let mut rolls = SliceRolls::new(&[0]);
+        let mut events = Vec::new();
+        assert!(
+            resolve_acid_breath(
+                &mut r,
+                id(6),
+                51,
+                Some(id(2)),
+                &data,
+                &mut rolls,
+                &mut events
+            ),
+            "carrier {carrier} owns a traced `$33` arm"
+        );
+        assert_eq!(rolls.drawn(), 16, "carrier {carrier}: one damage request");
+        assert_eq!(
+            events.len(),
+            2,
+            "carrier {carrier}: ability and damage only"
+        );
+        assert_eq!(
+            events[1],
+            BattleEvent::Resolved {
+                actor: id(6),
+                target: id(2),
+                verdict: crate::battle::Verdict::Normal,
+                damage: Some(expected),
+                remaining_hp: 200 - expected,
+            },
+            "carrier {carrier}"
+        );
+        assert!(
+            !events.iter().any(|e| matches!(
+                e,
+                BattleEvent::Attacked { .. } | BattleEvent::UnsupportedAbility { .. }
+            )),
+            "carrier {carrier}: no physical swing and no unsupported notice"
+        );
+        assert_eq!(r.get(id(1)).unwrap().stats.curr_hp, 200);
+        assert_eq!(r.get(id(3)).unwrap().stats.curr_hp, 200);
+    }
+}
+
+#[test]
+fn every_proven_carrier_dispatches_acid_breath_without_a_physical_swing() {
+    for (carrier, strength, expected) in [(76u16, 88u8, 66u16), (85, 128, 89), (86, 164, 109)] {
+        let (events, drawn) = acid_carrier_round(carrier, strength);
+        assert_eq!(drawn, 30, "carrier {carrier}: one damage request, no swing");
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                BattleEvent::EnemySkillUsed { actor, skill: 51, name }
+                    if *actor == id(6) && name == "ACIDBREATH"
+            )),
+            "carrier {carrier}: {:?}",
+            events
+        );
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                BattleEvent::Resolved { actor, damage: Some(damage), remaining_hp, .. }
+                    if *actor == id(6)
+                        && *damage == expected
+                        && *remaining_hp == 400 - expected
+            )),
+            "carrier {carrier}: {:?}",
+            events
+        );
+        assert!(
+            !events.iter().any(|e| matches!(
+                e,
+                BattleEvent::Attacked { .. } | BattleEvent::UnsupportedAbility { .. }
+            )),
+            "carrier {carrier}: dispatched, so nothing falls back: {:?}",
+            events
+        );
+    }
+}
+
+#[test]
+fn an_unproven_carrier_still_reports_acid_breath_as_unsupported() {
+    // 77 TechPlant shares EnemyAttack_FlattrPlnt but rolls only `$2A`/`$2E`, so
+    // its `$33` arm is unproven; 10 ZoranBult is outside both routines.
+    for carrier in [77u16, 10u16] {
+        let data = acid_carrier_data(carrier, 88);
+        let mut r = acid_carrier_roster(&data, carrier);
+        let before = r.clone();
+        let mut rolls = SliceRolls::new(&[0]);
+        let mut events = Vec::new();
+        assert!(
+            !resolve_acid_breath(
+                &mut r,
+                id(6),
+                51,
+                Some(id(2)),
+                &data,
+                &mut rolls,
+                &mut events
+            ),
+            "carrier {carrier} is outside the proven set"
+        );
+        assert_eq!(r, before, "carrier {carrier}");
+        assert_eq!(rolls.drawn(), 0, "carrier {carrier}");
+        assert!(events.is_empty(), "carrier {carrier}");
+
+        let (events, drawn) = acid_carrier_round(carrier, 88);
+        assert_eq!(
+            drawn, 31,
+            "carrier {carrier}: the fallback attack adds its accuracy roll"
+        );
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                BattleEvent::UnsupportedAbility { actor, ability: 51 } if *actor == id(6)
+            )),
+            "carrier {carrier}: {:?}",
+            events
+        );
+        assert!(
+            events
+                .iter()
+                .any(|e| matches!(e, BattleEvent::Attacked { actor, .. } if *actor == id(6))),
+            "carrier {carrier}: the ordinary attack path is the fallback: {:?}",
+            events
+        );
+    }
 }
 
 #[test]

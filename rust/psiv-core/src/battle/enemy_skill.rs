@@ -30,8 +30,8 @@ pub struct EnemySkill {
 }
 
 impl EnemySkill {
-    /// Fission, FlattrPlnt's Acid Breath and the crawler family's THREAD. Other routines remain
-    /// explicitly unsupported until their gameplay has been transcribed.
+    /// Fission, Acid Breath and the crawler family's THREAD. Other routines
+    /// remain explicitly unsupported until their gameplay has been transcribed.
     #[must_use]
     pub const fn supported(&self) -> bool {
         self.is_fission() || self.is_acid_breath() || self.is_thread()
@@ -131,11 +131,44 @@ pub(super) fn resolve_thread(
     true
 }
 
-/// EnemyAttack_FlattrPlnt keeps Current_Target_Index for ability $33. The
-/// main AcidBreath object requests one damage reaction (guarded by bit 1),
-/// while its child only animates. loc_B75A supplies a normal hit without a
-/// chance roll; Enemy_DamageCharacter reads strength, defense and physical
-/// resistance through the ability record. No physical attack/status follows.
+/// The enemies whose `EnemyAttackOffs` entry is one of the two `$33` routines
+/// transcribed below.
+///
+/// `EnemyAttackOffs` (`ps4.asm:19206`) gives `EnemyAttack_FlattrPlnt` to enemy
+/// ids `$4B`, `$4C` and `$4D` — 75 FlattrPlnt, 76 FlyScreamr and 77 TechPlant —
+/// and `EnemyAttack_Piercer` (`ps4.asm:21518`) to `$55` and `$56`, 85 Piercer
+/// and 86 HakenLeft. The gate is the proven *carrier* set rather than the
+/// routine set: a routine can only run for an enemy that rolled `$33`, and
+/// 77 TechPlant's US ability list is `$2A`/`$2E` only
+/// (`generated/enemies.json`), so it never reaches the `$33` arm even though it
+/// shares the routine.
+const ACID_BREATH_CARRIERS: [u16; 4] = [75, 76, 85, 86];
+
+/// Ability `$33` for every carrier whose attack routine was traced.
+///
+/// `EnemyAttack_FlattrPlnt` (`ps4.asm:21778`) keeps `Current_Target_Index` for
+/// `$33`: the `loc_F5BE` arm has no write to it, while `$34` (`loc_F60A`),
+/// `$2A` (`loc_F65E`) and the fallback (`loc_F722`) all clear it. The arm
+/// converts the enemy's own attack object into `BattleObj_AcidBreath`
+/// (`ps4.asm:38566`) and loads `BattleObj_AcidBreathChild` (`ps4.asm:38622`).
+/// The child only animates and asks for the hit reaction
+/// (`move.w #5, $2(a3)` / `$1C = $E`); the main object's `loc_24AEC` exit
+/// (`ps4.asm:48507`) is the single damage request, `move.w #$C, $2(a3)` gated
+/// on the target's hit timer and waited on through `($FFFF416C)`.
+///
+/// `EnemyAttack_Piercer`'s `$33` arm (`loc_F2A0`, `ps4.asm:21532`) also leaves
+/// `Current_Target_Index` alone, but loads object `$35C` = `loc_23998`
+/// (`ps4.asm:47264`) with the chosen party target in `$38(a1)` and then spawns
+/// child `$360` = `loc_24FD2` (`ps4.asm:48883`). The child makes the same
+/// hit-reaction write, and `loc_23AB6` (`ps4.asm:47344`) makes the same single
+/// `move.w #$C, $2(a3)` damage request once the child releases
+/// `($FFFFEE80)` — no attack, no status, one reaction and one hit for both
+/// arms. Both write MoleAttack `$D5` and then EnemyAttack4 `$D8`.
+///
+/// `loc_B75A` supplies a normal hit without a chance roll and
+/// `Enemy_DamageCharacter` (`ps4.asm:3775`) reads strength, defense and
+/// physical resistance through the shared `EnemySkillData` record, so the
+/// number depends on the caster's strength and not on which arm ran.
 pub(super) fn resolve_acid_breath(
     roster: &mut Roster,
     actor: FighterId,
@@ -148,10 +181,11 @@ pub(super) fn resolve_acid_breath(
     let Some(skill) = data.enemy_skill(ability).filter(|s| s.is_acid_breath()) else {
         return false;
     };
-    let Some(caster) = roster
-        .get(actor)
-        .filter(|f| f.is_alive() && f.id.side() == Side::Enemy && f.stats.enemy_id == 75)
-    else {
+    let Some(caster) = roster.get(actor).filter(|f| {
+        f.is_alive()
+            && f.id.side() == Side::Enemy
+            && ACID_BREATH_CARRIERS.contains(&f.stats.enemy_id)
+    }) else {
         return false;
     };
     let power = super::technique::stat(&caster.stats, skill.power_stat);
