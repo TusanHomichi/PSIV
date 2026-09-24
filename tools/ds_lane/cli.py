@@ -111,7 +111,11 @@ WRITE SET: a brief may carry one fenced block whose info string is `write-set`,
 listing one path or glob per line (fnmatch semantics, `**` matching across
 directories). After each run, the paths changed between the lane base and the
 new head are compared with it; violations are recorded in run.json as
-`write_set_violations` and printed as `WARNING: outside write set: ...`.
+`write_set_violations` and printed as `WARNING: outside write set: ...`. A
+follow-up passed to `resume` may carry its own block: it replaces the lane's
+write set from that run on (lane.json records the current set, and every run's
+run.json records the `write_set` it was actually checked against). A follow-up
+without a block inherits the set the brief or an earlier follow-up declared.
 
 `verify ID -- CMD...` runs CMD in the lane worktree (CARGO_BUILD_JOBS=2),
 streams its output, saves a header (command, UTC start, lane head, exit code,
@@ -156,7 +160,7 @@ def main():
     s.set_defaults(fn=cmd_start)
     r = sub.add_parser("resume")
     r.add_argument("id")
-    r.add_argument("followup")
+    r.add_argument("followup", help="follow-up brief; its own write-set block replaces the lane's")
     r.add_argument("--repo", default=".")
     r.add_argument("--max-steps", type=int, default=0)
     r.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)

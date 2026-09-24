@@ -26,6 +26,13 @@ TIMEOUT_EXIT = 124
 STALL_EXIT = 125              # stalled: the worker is alive but nothing has progressed
 STOPPED_EXIT = 143            # `ds-lane stop`: SIGTERM'd on request
 STOP_WAIT = 60                # seconds `stop` waits for the run to finish finalizing
+# Worker host state: directories the worker's own agent runtime writes into the
+# worktree. They are not lane output, but the finalize step's `git add -A` swept
+# `.reasonix/` (Reasonix task state, `.reasonix/tasks/<id>/events.jsonl`) into
+# lane ab-J's commit and the write-set check flagged it (2026-09-24). The commit
+# step now excludes these paths, and the run's receipt keeps whatever they held
+# under `host-state/`.
+HOST_STATE_PATHS = (".reasonix",)
 WT_ROOT = Path.home() / ".cache/ds-lane/wt"
 STATE_ROOT = Path.home() / ".local/state/ds-lane"
 
