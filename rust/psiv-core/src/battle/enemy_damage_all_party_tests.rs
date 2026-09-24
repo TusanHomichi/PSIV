@@ -484,7 +484,7 @@ fn an_unlisted_pair_for_the_same_two_records_is_refused() {
 
 /// One round against one carrier, driven through `roll_enemy_ability` on a
 /// fully specified draw stream: nine ordering draws, the four enemy-target
-/// draws, the ability index (0, and every slot holds the ability) and three
+/// draws, the ability index (1, and every slot holds the ability) and three
 /// times the 16 damage draws — 62 in all, with no swing. Party agility 1 keeps
 /// the enemy first in the queue, so Defend has raised nobody's resistance yet.
 fn all_party_round(carrier: &Carrier, ability: u8) -> (Vec<BattleEvent>, usize) {
@@ -525,7 +525,10 @@ fn all_party_round(carrier: &Carrier, ability: u8) -> (Vec<BattleEvent>, usize) 
     )
     .unwrap();
     let mut stream = vec![0; 13];
-    stream.push(0);
+    // The ability index: 1, not 0 - a battle starts the re-roll word at zero
+    // (`ps4.asm:9992-9994`), so a zero draw would spend a re-roll, and every
+    // slot holds the ability under test.
+    stream.push(1);
     stream.extend([0; 48]);
     let mut rolls = SliceRolls::new(&stream);
     let events = battle

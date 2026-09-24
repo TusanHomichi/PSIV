@@ -1,0 +1,501 @@
+{
+ "format_version": 1,
+ "provenance": {
+  "tape": "oracle/tapes/09_second_battle.tape",
+  "core": "Genesis Plus GX 2d7131c (libretro/Genesis-Plus-GX)",
+  "patch": "oracle/patches/0001-rng-hv-trace.patch",
+  "trace": "tape09_rolls.csv",
+  "trace_sha256": "6dff4e323963e2d047ee6894e5e4a81ca3c6945b472b65742b981218171035d0",
+  "log_sha256": "babcb7ebb80143fb124b4fce4f65fc76d5945e4305e2417599d84dbfcaf5847d",
+  "trace_header": [ "# PSIV rolls from UpdateRNGSeed2 (ps4.asm:86097), one row per call", "# rom instruction: $04239E move.w $8(a5),d0 (the (pc) column is the counter the core", "# reported for that access; the window accepts $04239E-$0423A6)", "# roll = (hv + frame_count - seed_low) & $FFFF, seed_after = ror16(seed_before high word)", "# frame_count is Main_Frame_Count, seed the RNG_Seed longword ($FFFFEF0C), both from", "# work RAM sampled around the frame; see oracle/README.md (\"RNG trace\")" ],
+  "log_header": [ "# core=Genesis Plus GX v1.7.4 2d7131c region=NTSC", "# rom=Phantasy Star IV (USA).md size=3145728", "# tape=oracle/tapes/09_second_battle.tape steps=3147 frames=37760", "# rng-trace=build/lane-evidence/tape09_rolls.csv" ],
+  "battle_frames": [ 25002, 31908 ],
+  "start_frame": 25016,
+  "action_end_frame": 31728,
+  "rewards_frame": 31761,
+  "round_frames": [ 30883, 31571 ],
+  "roll_frames": [ 25015, 25052, 30883, 30889, 30999, 31044, 31094, 31148, 31216, 31294, 31336, 31381, 31571, 31577, 31687, 31786 ],
+  "roll_count": 137,
+  "battle_roll_count": 135,
+  "outside_roll_count": 2,
+  "outside_roll_summary": [ "formation at frame 25015", "item_drop at frame 31786" ],
+  "roll_convention": "roll = (hv + frame_count - the word at $FFFFEF0C) & $FFFF; the subtrahend is the seed longword's high half, which is what a 68000 reads at (RNG_Seed).w",
+  "roll_column": {
+   "agrees": 0,
+   "subtracts_low_word": 137,
+   "neither": 0
+  },
+  "damage_run": 16,
+  "undetermined": [ "command identity: the log has menu cursors, not the chosen commands; every party action here is a physical attack and the tape holds C, so each is recorded as `attack`", "a miss and an untargeted slot both read $FF in Fighters_Hit_Flags, so a $FF slot with an unmoved damage word is reported raw rather than guessed", "a damage word rewritten to the value it already held is invisible, so `damage_frame: null` means unobserved, not unwritten", "hp is sampled once a frame and retail subtracts inside the animation state machine, so a slot's HP reading is the value at the end of its action's window" ]
+ },
+ "formation": {
+  "ambush_chance": 15,
+  "run_chance": 5,
+  "drop_rate": 0,
+  "drop_item": 0,
+  "enemy_count": 2,
+  "priority": 0,
+  "enemies": [
+   {
+    "formation_slot": 1,
+    "id": 6,
+    "enemy_id": 9,
+    "hp": 16,
+    "max_hp": 16,
+    "status": 0,
+    "strength": 6,
+    "mental": 0,
+    "agility": 5,
+    "dexterity": 7,
+    "attack": 13,
+    "defence": 0
+   },
+   {
+    "formation_slot": 2,
+    "id": 7,
+    "enemy_id": 10,
+    "hp": 25,
+    "max_hp": 25,
+    "status": 0,
+    "strength": 18,
+    "mental": 4,
+    "agility": 6,
+    "dexterity": 8,
+    "attack": 16,
+    "defence": 2
+   }
+  ]
+ },
+ "party": [
+  {
+   "id": 1,
+   "name": "ALYS",
+   "level": 7,
+   "hp": 53,
+   "max_hp": 53,
+   "tp": 40,
+   "max_tp": 40,
+   "status": 0,
+   "strength": 12,
+   "mental": 12,
+   "agility": 15,
+   "dexterity": 13,
+   "attack": 13,
+   "defence": 18,
+   "experience": 2457
+  },
+  {
+   "id": 2,
+   "name": "CHAZ",
+   "level": 1,
+   "hp": 25,
+   "max_hp": 25,
+   "tp": 10,
+   "max_tp": 10,
+   "status": 0,
+   "strength": 8,
+   "mental": 6,
+   "agility": 7,
+   "dexterity": 5,
+   "attack": 18,
+   "defence": 10,
+   "experience": 0
+  },
+  {
+   "id": 3,
+   "name": "HAHN",
+   "level": 1,
+   "hp": 21,
+   "max_hp": 21,
+   "tp": 25,
+   "max_tp": 25,
+   "status": 0,
+   "strength": 6,
+   "mental": 8,
+   "agility": 4,
+   "dexterity": 5,
+   "attack": 8,
+   "defence": 9,
+   "experience": 0
+  }
+ ],
+ "rolls": {
+  "columns": [ "frame", "roll", "role", "target", "pass", "round", "action" ],
+  "rows": [
+   [ 25052, 5667, "priority", null, 0, 0, 0 ],
+   [ 30883, 25766, "order", null, 0, 1, 0 ],
+   [ 30883, 32719, "order", null, 0, 1, 0 ],
+   [ 30883, 3665, "order", null, 0, 1, 0 ],
+   [ 30883, 54711, "order", null, 0, 1, 0 ],
+   [ 30883, 14798, "order", null, 0, 1, 0 ],
+   [ 30883, 27650, "order", null, 0, 1, 0 ],
+   [ 30883, 1407, "order", null, 0, 1, 0 ],
+   [ 30883, 54119, "order", null, 0, 1, 0 ],
+   [ 30883, 14650, "order", null, 0, 1, 0 ],
+   [ 30883, 62360, "order", null, 0, 1, 0 ],
+   [ 30883, 52678, "order", null, 0, 1, 0 ],
+   [ 30883, 47870, "order", null, 0, 1, 0 ],
+   [ 30883, 12801, "order", null, 0, 1, 0 ],
+   [ 30889, 49535, "hit", 6, 1, 1, 1 ],
+   [ 30889, 48981, "hit", 7, 1, 1, 1 ],
+   [ 30889, 18216, "hit", 6, 2, 1, 1 ],
+   [ 30889, 34847, "hit", 7, 2, 1, 1 ],
+   [ 30999, 20578, "damage", 6, 0, 1, 1 ],
+   [ 30999, 29029, "damage", 6, 0, 1, 1 ],
+   [ 30999, 33577, "damage", 6, 0, 1, 1 ],
+   [ 30999, 2703, "damage", 6, 0, 1, 1 ],
+   [ 30999, 20185, "damage", 6, 0, 1, 1 ],
+   [ 30999, 28951, "damage", 6, 0, 1, 1 ],
+   [ 30999, 892, "damage", 6, 0, 1, 1 ],
+   [ 30999, 19246, "damage", 6, 0, 1, 1 ],
+   [ 30999, 61345, "damage", 6, 0, 1, 1 ],
+   [ 30999, 49651, "damage", 6, 0, 1, 1 ],
+   [ 30999, 11315, "damage", 6, 0, 1, 1 ],
+   [ 30999, 24598, "damage", 6, 0, 1, 1 ],
+   [ 30999, 31371, "damage", 6, 0, 1, 1 ],
+   [ 30999, 34782, "damage", 6, 0, 1, 1 ],
+   [ 30999, 36512, "damage", 6, 0, 1, 1 ],
+   [ 30999, 4932, "damage", 6, 0, 1, 1 ],
+   [ 30999, 23063, "damage", 7, 0, 1, 1 ],
+   [ 30999, 31514, "damage", 7, 0, 1, 1 ],
+   [ 30999, 35764, "damage", 7, 0, 1, 1 ],
+   [ 30999, 5448, "damage", 7, 0, 1, 1 ],
+   [ 30999, 22671, "damage", 7, 0, 1, 1 ],
+   [ 30999, 31437, "damage", 7, 0, 1, 1 ],
+   [ 30999, 3076, "damage", 7, 0, 1, 1 ],
+   [ 30999, 21944, "damage", 7, 0, 1, 1 ],
+   [ 30999, 63830, "damage", 7, 0, 1, 1 ],
+   [ 30999, 52136, "damage", 7, 0, 1, 1 ],
+   [ 30999, 13545, "damage", 7, 0, 1, 1 ],
+   [ 30999, 27042, "damage", 7, 0, 1, 1 ],
+   [ 30999, 34113, "damage", 7, 0, 1, 1 ],
+   [ 30999, 37267, "damage", 7, 0, 1, 1 ],
+   [ 30999, 38997, "damage", 7, 0, 1, 1 ],
+   [ 30999, 7119, "damage", 7, 0, 1, 1 ],
+   [ 31044, 8084, "ability", null, 0, 1, 6 ],
+   [ 31044, 60139, "hit", 1, 1, 1, 6 ],
+   [ 31094, 63859, "damage", 1, 0, 1, 6 ],
+   [ 31094, 17933, "damage", 1, 0, 1, 6 ],
+   [ 31094, 60786, "damage", 1, 0, 1, 6 ],
+   [ 31094, 16359, "damage", 1, 0, 1, 6 ],
+   [ 31094, 27045, "damage", 1, 0, 1, 6 ],
+   [ 31094, 65181, "damage", 1, 0, 1, 6 ],
+   [ 31094, 18737, "damage", 1, 0, 1, 6 ],
+   [ 31094, 61123, "damage", 1, 0, 1, 6 ],
+   [ 31094, 49548, "damage", 1, 0, 1, 6 ],
+   [ 31094, 11017, "damage", 1, 0, 1, 6 ],
+   [ 31094, 24544, "damage", 1, 0, 1, 6 ],
+   [ 31094, 31632, "damage", 1, 0, 1, 6 ],
+   [ 31094, 2025, "damage", 1, 0, 1, 6 ],
+   [ 31094, 52911, "damage", 1, 0, 1, 6 ],
+   [ 31094, 12842, "damage", 1, 0, 1, 6 ],
+   [ 31094, 25860, "damage", 1, 0, 1, 6 ],
+   [ 31148, 40216, "hit", 6, 1, 1, 2 ],
+   [ 31216, 11518, "damage", 6, 0, 1, 2 ],
+   [ 31216, 24697, "damage", 6, 0, 1, 2 ],
+   [ 31216, 31311, "damage", 6, 0, 1, 2 ],
+   [ 31216, 2180, "damage", 6, 0, 1, 2 ],
+   [ 31216, 19996, "damage", 6, 0, 1, 2 ],
+   [ 31216, 61826, "damage", 6, 0, 1, 2 ],
+   [ 31216, 17228, "damage", 6, 0, 1, 2 ],
+   [ 31216, 27978, "damage", 6, 0, 1, 2 ],
+   [ 31216, 268, "damage", 6, 0, 1, 2 ],
+   [ 31216, 19312, "damage", 6, 0, 1, 2 ],
+   [ 31216, 61627, "damage", 6, 0, 1, 2 ],
+   [ 31216, 50041, "damage", 6, 0, 1, 2 ],
+   [ 31216, 11806, "damage", 6, 0, 1, 2 ],
+   [ 31216, 25074, "damage", 6, 0, 1, 2 ],
+   [ 31216, 64629, "damage", 6, 0, 1, 2 ],
+   [ 31216, 51663, "damage", 6, 0, 1, 2 ],
+   [ 31294, 39165, "hit", 7, 1, 1, 3 ],
+   [ 31336, 42889, "damage", 7, 0, 1, 3 ],
+   [ 31336, 40160, "damage", 7, 0, 1, 3 ],
+   [ 31336, 6180, "damage", 7, 0, 1, 3 ],
+   [ 31336, 54751, "damage", 7, 0, 1, 3 ],
+   [ 31336, 46595, "damage", 7, 0, 1, 3 ],
+   [ 31336, 9362, "damage", 7, 0, 1, 3 ],
+   [ 31336, 23668, "damage", 7, 0, 1, 3 ],
+   [ 31336, 63613, "damage", 7, 0, 1, 3 ],
+   [ 31336, 18330, "damage", 7, 0, 1, 3 ],
+   [ 31336, 28140, "damage", 7, 0, 1, 3 ],
+   [ 31336, 33176, "damage", 7, 0, 1, 3 ],
+   [ 31336, 2951, "damage", 7, 0, 1, 3 ],
+   [ 31336, 53399, "damage", 7, 0, 1, 3 ],
+   [ 31336, 13410, "damage", 7, 0, 1, 3 ],
+   [ 31336, 58569, "damage", 7, 0, 1, 3 ],
+   [ 31336, 48534, "damage", 7, 0, 1, 3 ],
+   [ 31381, 19569, "ability", null, 0, 1, 7 ],
+   [ 31381, 33419, "hit", null, 1, 1, 7 ],
+   [ 31571, 48312, "order", null, 0, 2, 0 ],
+   [ 31571, 11348, "order", null, 0, 2, 0 ],
+   [ 31571, 58121, "order", null, 0, 2, 0 ],
+   [ 31571, 16439, "order", null, 0, 2, 0 ],
+   [ 31571, 60788, "order", null, 0, 2, 0 ],
+   [ 31571, 17650, "order", null, 0, 2, 0 ],
+   [ 31571, 28886, "order", null, 0, 2, 0 ],
+   [ 31571, 1841, "order", null, 0, 2, 0 ],
+   [ 31571, 21123, "order", null, 0, 2, 0 ],
+   [ 31571, 32608, "order", null, 0, 2, 0 ],
+   [ 31571, 37527, "order", null, 0, 2, 0 ],
+   [ 31571, 7315, "order", null, 0, 2, 0 ],
+   [ 31571, 57777, "order", null, 0, 2, 0 ],
+   [ 31577, 16796, "hit", 7, 1, 2, 1 ],
+   [ 31577, 37008, "hit", 7, 2, 2, 1 ],
+   [ 31687, 59870, "damage", 7, 0, 2, 1 ],
+   [ 31687, 48621, "damage", 7, 0, 2, 1 ],
+   [ 31687, 10554, "damage", 7, 0, 2, 1 ],
+   [ 31687, 56672, "damage", 7, 0, 2, 1 ],
+   [ 31687, 47117, "damage", 7, 0, 2, 1 ],
+   [ 31687, 42364, "damage", 7, 0, 2, 1 ],
+   [ 31687, 40273, "damage", 7, 0, 2, 1 ],
+   [ 31687, 6138, "damage", 7, 0, 2, 1 ],
+   [ 31687, 54739, "damage", 7, 0, 2, 1 ],
+   [ 31687, 46296, "damage", 7, 0, 2, 1 ],
+   [ 31687, 42099, "damage", 7, 0, 2, 1 ],
+   [ 31687, 40323, "damage", 7, 0, 2, 1 ],
+   [ 31687, 6286, "damage", 7, 0, 2, 1 ],
+   [ 31687, 22188, "damage", 7, 0, 2, 1 ],
+   [ 31687, 62932, "damage", 7, 0, 2, 1 ],
+   [ 31687, 18097, "damage", 7, 0, 2, 1 ]
+  ]
+ },
+ "outside_rolls": {
+  "columns": [ "frame", "roll", "role", "target", "pass", "round", "action" ],
+  "rows": [
+   [ 25015, 9311, "formation", null, 0, 0, 0 ],
+   [ 31786, 52265, "item_drop", null, 0, 0, 0 ]
+  ]
+ },
+ "rounds": [
+  {
+   "round": 1,
+   "order_frame": 30883,
+   "order": [ 1, 6, 2, 3, 7 ],
+   "ordering": [ 21, 11, 8, 8, 6 ],
+   "commands": [
+    {
+     "id": 1,
+     "command": "attack"
+    },
+    {
+     "id": 2,
+     "command": "attack"
+    },
+    {
+     "id": 3,
+     "command": "attack"
+    }
+   ],
+   "roll_count": 103,
+   "actions": [
+    {
+     "actor": 1,
+     "start_frame": 30889,
+     "end_frame": 31043,
+     "hit_frame": 30889,
+     "rolls": [
+      [ 30889, 4 ],
+      [ 30999, 32 ]
+     ],
+     "roll_count": 36,
+     "targets": [
+      {
+       "id": 6,
+       "hit": "00",
+       "damage": 13,
+       "damage_frame": 30999,
+       "hp_after": 3,
+       "died": false
+      },
+      {
+       "id": 7,
+       "hit": "00",
+       "damage": 10,
+       "damage_frame": 30999,
+       "hp_after": 15,
+       "died": false
+      }
+     ],
+     "round": 1,
+     "living_opponents": [ 6, 7 ]
+    },
+    {
+     "actor": 6,
+     "start_frame": 31044,
+     "end_frame": 31147,
+     "hit_frame": 31044,
+     "rolls": [
+      [ 31044, 2 ],
+      [ 31094, 16 ]
+     ],
+     "roll_count": 18,
+     "targets": [
+      {
+       "id": 1,
+       "hit": "00",
+       "damage": 1,
+       "damage_frame": 31094,
+       "hp_after": 52,
+       "died": false
+      }
+     ],
+     "round": 1,
+     "living_opponents": [ 1, 2, 3 ]
+    },
+    {
+     "actor": 2,
+     "start_frame": 31148,
+     "end_frame": 31293,
+     "hit_frame": 31148,
+     "rolls": [
+      [ 31148, 1 ],
+      [ 31216, 16 ]
+     ],
+     "roll_count": 17,
+     "targets": [
+      {
+       "id": 6,
+       "hit": "00",
+       "damage": 18,
+       "damage_frame": 31216,
+       "hp_after": -15,
+       "died": true
+      }
+     ],
+     "round": 1,
+     "living_opponents": [ 6, 7 ]
+    },
+    {
+     "actor": 3,
+     "start_frame": 31294,
+     "end_frame": 31380,
+     "hit_frame": 31294,
+     "rolls": [
+      [ 31294, 1 ],
+      [ 31336, 16 ]
+     ],
+     "roll_count": 17,
+     "targets": [
+      {
+       "id": 6,
+       "hit": "FF",
+       "damage": null,
+       "damage_frame": null,
+       "hp_after": -15,
+       "died": true
+      },
+      {
+       "id": 7,
+       "hit": "01",
+       "damage": 7,
+       "damage_frame": 31336,
+       "hp_after": 8,
+       "died": false
+      }
+     ],
+     "round": 1,
+     "living_opponents": [ 7 ]
+    },
+    {
+     "actor": 7,
+     "start_frame": 31381,
+     "end_frame": 31570,
+     "hit_frame": 31381,
+     "rolls": [
+      [ 31381, 2 ]
+     ],
+     "roll_count": 2,
+     "targets": [
+      {
+       "id": 1,
+       "hit": "FF",
+       "damage": null,
+       "damage_frame": null,
+       "hp_after": 52,
+       "died": false
+      },
+      {
+       "id": 2,
+       "hit": "FF",
+       "damage": null,
+       "damage_frame": null,
+       "hp_after": 25,
+       "died": false
+      },
+      {
+       "id": 3,
+       "hit": "FF",
+       "damage": null,
+       "damage_frame": null,
+       "hp_after": 21,
+       "died": false
+      }
+     ],
+     "round": 1,
+     "living_opponents": [ 1, 2, 3 ]
+    }
+   ]
+  },
+  {
+   "round": 2,
+   "order_frame": 31571,
+   "order": [ 1, 7, 2, 3 ],
+   "ordering": [ 20, 9, 8, 4 ],
+   "commands": [
+    {
+     "id": 1,
+     "command": "attack"
+    },
+    {
+     "id": 2,
+     "command": "attack"
+    },
+    {
+     "id": 3,
+     "command": "attack"
+    }
+   ],
+   "roll_count": 31,
+   "actions": [
+    {
+     "actor": 1,
+     "start_frame": 31577,
+     "end_frame": 31728,
+     "hit_frame": 31577,
+     "rolls": [
+      [ 31577, 2 ],
+      [ 31687, 16 ]
+     ],
+     "roll_count": 18,
+     "targets": [
+      {
+       "id": 6,
+       "hit": "FF",
+       "damage": null,
+       "damage_frame": null,
+       "hp_after": -15,
+       "died": true
+      },
+      {
+       "id": 7,
+       "hit": "00",
+       "damage": 10,
+       "damage_frame": 31687,
+       "hp_after": -2,
+       "died": true
+      }
+     ],
+     "round": 2,
+     "living_opponents": [ 7 ]
+    }
+   ]
+  }
+ ],
+ "outcome": {
+  "victory": true,
+  "dead_enemy_ids": [ 6, 7 ],
+  "experience_total": 21,
+  "meseta": 5,
+  "victory_frame": 31728
+ }
+}

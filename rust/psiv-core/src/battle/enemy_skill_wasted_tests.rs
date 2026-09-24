@@ -67,7 +67,7 @@ fn float_mine_data(enemy_id: u16, slots: [u8; 8], skills: Vec<EnemySkill>) -> Ba
 }
 
 /// One round against that lone carrier, on a fully specified draw stream: nine
-/// ordering draws, the four enemy-target draws, then the ability index, slot 0.
+/// ordering draws, the four enemy-target draws, then the ability index.
 /// Party agility 1 keeps the enemy first in the queue, so the round's roll count
 /// is the assertion; 400 party HP keeps a fallback swing from ending it early.
 fn float_mine_round(
@@ -105,7 +105,10 @@ fn float_mine_round(
     )
     .unwrap();
     let mut stream = vec![0; 13];
-    stream.push(0);
+    // The ability index: 1, not 0 - a battle starts the re-roll word at zero
+    // (`ps4.asm:9992-9994`), so a zero draw would spend a re-roll, and every
+    // slot holds the ability under test.
+    stream.push(1);
     stream.extend([0; 40]);
     let mut rolls = SliceRolls::new(&stream);
     let events = battle

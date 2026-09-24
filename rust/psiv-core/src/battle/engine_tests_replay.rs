@@ -1,12 +1,16 @@
-//! Tape 07's first battle, replayed against the cartridge's own rolls.
+//! Replaying an oracle tape's battle against the cartridge's own rolls.
 //!
-//! `oracle/battle_fixture.py` turns the oracle's RNG trace and RAM log into
-//! `replay_fixtures/tape07_first_battle.json`: the battle's start state, the
-//! rolls the cartridge drew between its first round's queue build and the party
-//! wiping the field out - each with the frame it was drawn in and the role it
-//! played - and what the log shows every action doing. This module builds the
-//! battle the fixture describes, feeds those rolls through [`SliceRolls`], and
-//! compares the port's timeline with the cartridge's, action by action.
+//! `oracle/battle_fixture.py` turns one oracle run's RNG trace and RAM log into
+//! a fixture under `replay_fixtures/`: the battle's start state, the rolls the
+//! cartridge drew (each with the frame it was drawn in and the role it played)
+//! and what the log shows every action doing. This module is the harness the
+//! tapes' replays share: it builds the battle a fixture describes, feeds those
+//! rolls through [`SliceRolls`], and compares the port's timeline with the
+//! cartridge's, action by action. One child module per tape:
+//!
+//! * `tape07` - the first basement battle of `oracle/tapes/07_first_battle.tape`.
+//! * `tape09` - the second encounter, on its own seed path, with a critical
+//!   (`oracle/tapes/09_second_battle.tape`).
 //!
 //! A roll is `hv + frame_count - high_word(RNG_Seed)`: `UpdateRNGSeed2`
 //! (`ps4.asm:86097`) subtracts the word at `$FFFFEF0C`, which on a big-endian
@@ -14,36 +18,31 @@
 //! the trace's raw columns for that reason; `docs/BATTLE_ORACLE_REPLAY.md` has
 //! the proof, the trace's own `roll` column being the low-half subtraction.
 //!
-//! # Two ways to feed one stream
+//! # One stream, and what it costs
 //!
-//! The cartridge draws rolls the port has no consumer for: `Enemy_Attack`
-//! re-rolls its ability while the draw equals `$FFFFEEA8` (`ps4.asm:19146`),
-//! and the encounter's formation draw and the post-victory item drop draw
-//! happen outside the battle's own state machine. Feeding the cartridge's
-//! stream verbatim therefore puts the port one roll behind at the enemy's turn.
-//! (The other divergence the ledger's first cut held — `AlysKyraAttack_Init`
-//! running `loc_B6A2` a second time, `ps4.asm:13975-13976`) is modelled now:
-//! `resolve_attack` draws both hit passes for Alys and Kyra, so her swing
-//! consumes the 36 calls the log's own frames hold.)
+//! The cartridge's stream is replayed verbatim: every call the battle's frames
+//! hold, in the order it drew them. The two draw-count divergences this port
+//! used to carry are closed, so no roll has to be filtered out any more.
+//! `AlysKyraAttack_Init` re-runs `loc_B6A2` (`ps4.asm:13975-13976`) and
+//! `resolve_attack` draws the second pass for the two attackers the cartridge
+//! sends there; `Enemy_Attack`'s ability re-roll against `$FFFFEEA8`
+//! (`ps4.asm:19146-19151`) is modelled, so a battle begins with the word at
+//! zero (the `GameMode_LoadBattle` wipe of the page it lives in,
+//! `ps4.asm:9992-9994`) and pays a second call for a first draw of zero.
+//! Two draws stay outside the battle's own state machine and out of its stream:
+//! the encounter's formation draw and the post-victory item drop, which the
+//! fixture keeps in `outside_rolls`.
 //!
-//! So the same rolls are replayed two ways:
+//! What the harness asserts, per tape:
 //!
-//! * [`tape07_orders_its_rounds_the_way_the_cartridge_did`] feeds each round
-//!   the cartridge's rolls in order and asserts the part that has to line up
-//!   before any divergence, then pins the divergence itself.
-//! * [`tape07s_actions_match_once_the_unmodelled_rolls_are_removed`] feeds each
-//!   round the rolls of the roles the port models and asserts the whole battle,
-//!   plus that the port consumed exactly those rolls.
-//!
-//! [`tape07_full_battle_diverges_at_alyss_swing_draw_count`] is the full-battle
-//! assertion on the verbatim stream, parked behind `#[ignore]`.
-
+//! * [`replay_verbatim`] - the port resolves what the log resolved, action for
+//!   action, and consumes the cartridge's rolls and no more;
+//! * [`account_for_every_roll`] - every call the log's frames hold is one the
+//!   port's own consumers account for, down to the ability re-roll.
 use super::*;
 
 use crate::battle::FormationEnemy;
 use serde::Deserialize;
-
-const FIXTURE: &str = include_str!("replay_fixtures/tape07_first_battle.json");
 
 // ---------------------------------------------------------------------------
 // The fixture's shape
@@ -200,9 +199,10 @@ struct OutcomeEntry {
     dead_enemy_ids: Vec<u8>,
 }
 
-fn fixture() -> Fixture {
+/// The tape's fixture, parsed and checked for the version this harness reads.
+fn fixture(json: &str) -> Fixture {
     let parsed: Fixture =
-        serde_json::from_str(FIXTURE).expect("the fixture is the extractor's output");
+        serde_json::from_str(json).expect("the fixture is the extractor's output");
     assert_eq!(
         parsed.format_version, 1,
         "a fixture version this test reads"
@@ -360,11 +360,11 @@ fn orders(fixture: &Fixture, round: &Round) -> RoundOrders {
 }
 
 // ---------------------------------------------------------------------------
-// The two streams
+// The stream
 // ---------------------------------------------------------------------------
 
 /// The cartridge's rolls for a round, in the order it drew them.
-fn verbatim(fixture: &Fixture, round: u16) -> Vec<u16> {
+fn verbatim_round(fixture: &Fixture, round: u16) -> Vec<u16> {
     fixture
         .rolls
         .rolls()
@@ -374,21 +374,18 @@ fn verbatim(fixture: &Fixture, round: u16) -> Vec<u16> {
         .collect()
 }
 
-/// The same rolls, minus the ones no port consumer models.
+/// The battle's whole stream, in the order the cartridge drew it - what a
+/// replay is fed once its rounds start.
 ///
-/// Kept: the round's order pass, **both** hit passes per action (the second is
-/// `AlysKyraAttack_Init`'s, and `resolve_attack` draws it — see
-/// `takes_second_hit_pass`), the enemy ability roll, and every damage run.
-/// Dropped: the ability re-roll, and - in the fixture's separate
-/// `outside_rolls` - the encounter's formation draw and the post-victory item
-/// drop.
-fn modelled(fixture: &Fixture, round: u16) -> Vec<u16> {
+/// The priority draw is [`started`]'s, not a round's: `Battle::start` takes it
+/// as part of setting the battle up, exactly as the cartridge resolves
+/// `loc_B62A` while loading the battle rather than inside a round.
+fn verbatim_all(fixture: &Fixture) -> Vec<u16> {
     fixture
         .rolls
         .rolls()
         .iter()
-        .filter(|roll| roll.round == round)
-        .filter(|roll| matches!(roll.role.as_str(), "order" | "hit" | "ability" | "damage"))
+        .filter(|roll| roll.role != "priority")
         .map(|roll| roll.roll)
         .collect()
 }
@@ -485,8 +482,15 @@ fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Divergence> {
 
     for action in &round.actions {
         let actor = id(action.actor);
-        // Only the targets the log resolved are compared: a `$FF` hit flag
-        // cannot say whether the swing missed or never reached the slot.
+        // The log's reading of this action, slot by slot. `$FF` in
+        // `Fighters_Hit_Flags` means "this slot was not resolved as a hit" and
+        // nothing more: `loc_B6A2` blanks all nine flags before every pass, so
+        // a swing that reaches a slot and misses leaves the same `$FF` a slot
+        // the swing never touched does. The slots the log did resolve are the
+        // ones it reports a flag for; the `$FF` ones are checked below against
+        // the verdict the port drew, rather than guessed at from the byte.
+        let entry =
+            |wanted: FighterId| action.targets.iter().find(|target| id(target.id) == wanted);
         let resolved: Vec<&Target> = action
             .targets
             .iter()
@@ -514,8 +518,18 @@ fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Divergence> {
                 log_targets: resolved.len(),
             });
         };
+        // The port's swing, minus the slots it missed, is the log's target
+        // list: same slots, same order. A slot the log left at `$FF` because
+        // the port missed it is not part of that list - but a slot the log
+        // *hit* that the port missed, or an extra slot the port hit, shows up
+        // here.
+        let hits: Vec<FighterId> = targets
+            .iter()
+            .copied()
+            .filter(|target| entry(*target).is_some_and(|entry| entry.hit != "FF"))
+            .collect();
         let log: Vec<FighterId> = resolved.iter().map(|target| id(target.id)).collect();
-        if targets != log {
+        if hits != log {
             return Some(Divergence::Targets {
                 frame: action.start_frame,
                 actor,
@@ -524,8 +538,12 @@ fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Divergence> {
             });
         }
 
-        for target in &resolved {
-            let wanted = id(target.id);
+        // The port's resolutions, in the order it made them: one per slot it
+        // swung at, misses included. A slot the log left at `$FF` - or never
+        // listed at all, because neither its flag nor its damage word moved -
+        // has to be one of those misses; a hit there would have written both.
+        for swung in &targets {
+            let wanted = *swung;
             let mut seen = None;
             for event in events.by_ref() {
                 match event {
@@ -550,29 +568,53 @@ fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Divergence> {
                     target: wanted,
                 });
             };
-            let want_verdict = verdict_of(&target.hit);
-            if verdict != want_verdict || damage != target.damage {
-                return Some(Divergence::Value {
-                    frame: action.start_frame,
-                    actor,
-                    target: wanted,
-                    port: verdict,
-                    port_damage: damage,
-                    log_hit: u8::from_str_radix(&target.hit, 16).expect("a hex hit flag"),
-                    log_damage: target.damage,
-                });
+            let logged = entry(wanted);
+            match logged.map(|entry| entry.hit.as_str()) {
+                Some(flag) if flag != "FF" => {
+                    let target = logged.expect("just matched");
+                    let want_verdict = verdict_of(flag);
+                    if verdict != want_verdict || damage != target.damage {
+                        return Some(Divergence::Value {
+                            frame: action.start_frame,
+                            actor,
+                            target: wanted,
+                            port: verdict,
+                            port_damage: damage,
+                            log_hit: u8::from_str_radix(&target.hit, 16).expect("a hex hit flag"),
+                            log_damage: target.damage,
+                        });
+                    }
+                }
+                _ => {
+                    // The log resolved nothing here, so the port must have
+                    // missed: a `Normal`/`Critical` verdict with damage is a
+                    // divergence even though the log has no flag to compare.
+                    if verdict != Verdict::Miss || damage.is_some() {
+                        return Some(Divergence::Value {
+                            frame: action.start_frame,
+                            actor,
+                            target: wanted,
+                            port: verdict,
+                            port_damage: damage,
+                            log_hit: 0xFF,
+                            log_damage: None,
+                        });
+                    }
+                }
             }
             // The cartridge lets stored HP go negative; the port floors at
             // zero, which is what a player sees either way.
-            let want_hp = target.hp_after.max(0) as u16;
-            if remaining_hp != want_hp {
-                return Some(Divergence::Hp {
-                    frame: action.start_frame,
-                    actor,
-                    target: wanted,
-                    port: remaining_hp,
-                    log: target.hp_after,
-                });
+            if let Some(target) = logged {
+                let want_hp = target.hp_after.max(0) as u16;
+                if remaining_hp != want_hp {
+                    return Some(Divergence::Hp {
+                        frame: action.start_frame,
+                        actor,
+                        target: wanted,
+                        port: remaining_hp,
+                        log: target.hp_after,
+                    });
+                }
             }
         }
 
@@ -620,16 +662,121 @@ fn play(
     (timeline, rolls.drawn())
 }
 
-/// The rolls of one action the port has a consumer for.
-fn modelled_rolls(fixture: &Fixture, round: &Round, action: &Action) -> Vec<Roll> {
+/// Every roll the log's frames attribute to one action.
+///
+/// The roles are the ones an action's own frames hold: the hit pass (both
+/// passes of it, `AlysKyraAttack_Init`'s included), the ability roll, the
+/// ability **re-roll** that follows a draw equal to `$FFFFEEA8`, and the
+/// damage runs. The order pass is the round's, not an action's, and comes from
+/// the fixture's own `roll_count` for the round.
+fn action_rolls(fixture: &Fixture, round: &Round, action: &Action) -> Vec<Roll> {
     fixture
         .rolls
         .rolls()
         .iter()
         .filter(|roll| roll.round == round.round && roll.action == action.actor)
-        .filter(|roll| matches!(roll.role.as_str(), "hit" | "ability" | "damage"))
+        .filter(|roll| {
+            matches!(
+                roll.role.as_str(),
+                "hit" | "ability" | "ability_reroll" | "damage"
+            )
+        })
         .cloned()
         .collect()
+}
+
+/// Replays every round of `fixture` on the cartridge's own stream.
+///
+/// Per round it asserts both halves of the claim: the timeline is the log's,
+/// action for action, and the port drew exactly the rolls the log's frames
+/// hold - no slack and no surplus. Returns the finished battle and each round's
+/// timeline.
+fn replay_verbatim(
+    fixture: &Fixture,
+    data: &BattleData,
+    tape: &str,
+) -> (Battle, Vec<Vec<BattleEvent>>) {
+    let mut battle = started(fixture, data);
+    let stream = verbatim_all(fixture);
+    let mut rolls = SliceRolls::new(&stream);
+    let mut timelines = Vec::new();
+    let mut consumed = 0;
+    for round in &fixture.rounds {
+        let timeline = battle
+            .round(&orders(fixture, round), data, &mut rolls)
+            .expect("the fixture's battle resolves");
+        assert_eq!(
+            divergence(round, &timeline),
+            None,
+            "{tape}: round {} is the cartridge's, action for action",
+            round.round
+        );
+        consumed += round.roll_count as usize;
+        assert_eq!(
+            rolls.drawn(),
+            consumed,
+            "{tape}: round {} consumes the cartridge's rolls, and no more",
+            round.round
+        );
+        timelines.push(timeline);
+    }
+    (battle, timelines)
+}
+
+/// Every call the log's frames hold is one the port accounts for.
+///
+/// The count is per action, against the roles that action's frames carry: the
+/// round's own order pass is the difference between the round's `roll_count`
+/// and the sum over its actions. A roll with no consumer - the divergence this
+/// test exists to catch - shows up as an action whose log count is larger than
+/// the port's, and a consumer with no roll in the log shows up in the other
+/// direction.
+fn account_for_every_roll(fixture: &Fixture, tape: &str) {
+    let rolls = fixture.rolls.rolls();
+    for round in &fixture.rounds {
+        let order = rolls
+            .iter()
+            .filter(|roll| roll.round == round.round && roll.role == "order")
+            .count();
+        let mut actions = 0;
+        for action in &round.actions {
+            let port = action_rolls(fixture, round, action);
+            assert_eq!(
+                action.roll_count as usize,
+                port.len(),
+                "{tape}: actor {} at f{} draws the log's {} calls",
+                action.actor,
+                action.start_frame,
+                action.roll_count
+            );
+            for roll in &port {
+                if roll.role == "damage" {
+                    let target = roll.target.expect("a damage run has a target");
+                    let resolved: Vec<u8> = action
+                        .targets
+                        .iter()
+                        .filter(|target| target.hit != "FF")
+                        .map(|target| target.id)
+                        .collect();
+                    assert!(
+                        resolved.contains(&target),
+                        "{tape}: actor {} at f{}: a damage run is labelled {} but the \
+                         log resolves {resolved:?}",
+                        action.actor,
+                        roll.frame,
+                        target
+                    );
+                }
+            }
+            actions += port.len();
+        }
+        assert_eq!(
+            round.roll_count as usize,
+            actions + order,
+            "{tape}: round {}'s frames hold the order pass and its actions, nothing else",
+            round.round
+        );
+    }
 }
 
 fn priority_roll(fixture: &Fixture) -> Vec<u16> {
@@ -652,331 +799,12 @@ fn started(fixture: &Fixture, data: &BattleData) -> Battle {
     battle
 }
 
-#[test]
-fn tape07_orders_its_rounds_the_way_the_cartridge_did() {
-    let fixture = fixture();
-    let data = fixtures::data();
+// ---------------------------------------------------------------------------
+// The tapes
+// ---------------------------------------------------------------------------
 
-    // The trace carries 136 calls; the battle's own stream is 134 of them: the
-    // encounter's formation draw (f24807) and the post-victory item drop draw
-    // (f30306) sit outside every battle routine.
-    assert_eq!(fixture.provenance.roll_count, 136);
-    assert_eq!(fixture.provenance.battle_roll_count, 134);
-    assert_eq!(
-        fixture.provenance.roll_column.agrees, 136,
-        "every trace row's own roll column is the cartridge's roll, so the \
-         fixture checks each row against the raw columns; see \
-         docs/BATTLE_ORACLE_REPLAY.md"
-    );
-    assert_eq!(fixture.provenance.roll_column.subtracts_low_word, 0);
-    assert_eq!(fixture.provenance.trace_sha256.len(), 64);
+#[path = "engine_tests_replay_tape07.rs"]
+mod tape07;
 
-    // The two draws that are not the battle's own: the encounter's formation
-    // draw, before the enemies existed in RAM, and the item drop draw after the
-    // victory. They are recorded, and they are not replayed.
-    let outside = fixture.outside_rolls.rolls();
-    assert_eq!(
-        outside
-            .iter()
-            .map(|roll| (roll.role.as_str(), roll.frame))
-            .collect::<Vec<(&str, u32)>>(),
-        vec![("formation", 24807), ("item_drop", 30306)]
-    );
-
-    let priority = priority_roll(&fixture);
-    assert_eq!(priority.len(), 1, "the battle opens on one draw");
-    let mut start_rolls = SliceRolls::new(&priority);
-    let mut battle = start(&fixture, &data, &mut start_rolls);
-    assert_eq!(
-        start_rolls.drawn(),
-        1,
-        "Battle::start draws loc_B62A's roll"
-    );
-
-    let mut first_round = true;
-    for round in &fixture.rounds {
-        let stream = verbatim(&fixture, round.round);
-        assert_eq!(
-            stream.len() as u32,
-            round.roll_count,
-            "round {}: the fixture's own roll count",
-            round.round
-        );
-        let (timeline, drawn) = play(&mut battle, &fixture, &data, round, &stream);
-        let first = divergence(round, &timeline);
-
-        if first_round {
-            first_round = false;
-            // The queue build is the last thing both sides do before an action
-            // resolves, so a queue that matches is every roll of
-            // `Battle_OrderTurns` matching: nine jitter draws and one target
-            // draw per enemy slot, in the log's own order.
-            assert!(
-                !matches!(first, Some(Divergence::Queue { .. })),
-                "round 1's queue is the log's Battle_Turn_Order at f{}: {first:?}",
-                round.order_frame
-            );
-            // The log's own pair list says the same thing: sorting the
-            // fighters by the ordering value it recorded, stable, reproduces
-            // the order it recorded them in.
-            let mut by_ordering: Vec<(u8, u16)> = round
-                .order
-                .iter()
-                .copied()
-                .zip(round.ordering.iter().copied())
-                .collect();
-            by_ordering.sort_by_key(|entry| std::cmp::Reverse(entry.1));
-            assert_eq!(
-                by_ordering
-                    .iter()
-                    .map(|(fighter, _)| *fighter)
-                    .collect::<Vec<u8>>(),
-                round.order,
-                "f{}: Battle_Turn_Order's ids and ordering values agree",
-                round.order_frame
-            );
-            // And this is where the two sides part. Everything the comparator
-            // walks before it - the queue, Alys's swing at both enemies (both
-            // passes of it), Chaz's swing and its kill, the enemy's ability,
-            // hit and damage - is asserted by the comparator having returned
-            // this instead of an earlier one. Only `Enemy_Attack`'s ability
-            // re-roll is left: the port spends 18 rolls on the enemy's turn
-            // where the log's frames hold 19, so its hit roll reads the
-            // re-roll's value and the damage window is one early.
-            assert_eq!(
-                first,
-                Some(Divergence::Value {
-                    frame: 29789,
-                    actor: id(7),
-                    target: id(3),
-                    port: Verdict::Critical,
-                    port_damage: Some(10),
-                    log_hit: 0x00,
-                    log_damage: Some(6),
-                }),
-                "the ledger's first divergence now: the enemy ability re-roll, f29789"
-            );
-            // The counts behind it. Alys's swing's frames hold 36 calls and the
-            // port models all of them now - four hit rolls at f29489 (two passes
-            // over two enemies) and thirty-two damage draws at f29599.
-            let alys = &round.actions[0];
-            assert_eq!(alys.actor, 1);
-            assert_eq!(alys.roll_count, 36);
-            assert_eq!(modelled_rolls(&fixture, round, alys).len(), 36);
-            // The enemy's turn is the one that still does not add up:
-            // `Enemy_Attack` re-rolls an ability that equals $FFFFEEA8
-            // (ps4.asm:19146), which this battle starts at zero, so it burns one
-            // call the port does not model.
-            let enemy = &round.actions[2];
-            assert_eq!(enemy.actor, 7);
-            assert_eq!(enemy.roll_count, 19);
-            assert_eq!(modelled_rolls(&fixture, round, enemy).len(), 18);
-            // On the cartridge's own stream the port reads 85 of the round's
-            // 102 calls: thirteen for the order pass, thirty-six for Alys (both
-            // passes), seventeen for Chaz, eighteen at the enemy's turn - one
-            // short of the log's nineteen - and one for Hahn's swing, which the
-            // shifted stream turns into a miss where the log has it landing 5
-            // on Enemy2.
-            assert_eq!(drawn, 85);
-
-            // The fixture's own windows: each action sits inside the battle and
-            // the actions follow each other.
-            for pair in round.actions.windows(2) {
-                assert!(
-                    pair[0].end_frame < pair[1].start_frame,
-                    "f{} closes before f{} opens",
-                    pair[0].end_frame,
-                    pair[1].start_frame
-                );
-            }
-            assert!(round.actions[0].start_frame > round.order_frame);
-        }
-    }
-
-    // A battle that went differently is still a battle: the engine carries the
-    // divergence to an outcome instead of stalling.
-    assert!(battle.outcome().is_some(), "the replay finishes");
-}
-
-#[test]
-fn tape07s_actions_match_once_the_unmodelled_rolls_are_removed() {
-    let fixture = fixture();
-    let data = fixtures::data();
-
-    let mut battle = started(&fixture, &data);
-
-    for round in &fixture.rounds {
-        let stream = modelled(&fixture, round.round);
-        let (timeline, drawn) = play(&mut battle, &fixture, &data, round, &stream);
-
-        // The port takes exactly the rolls the roles name: nothing left in the
-        // slice and no draw beyond it. That is what makes the port's
-        // consumption the modelled counts compared below.
-        assert_eq!(
-            drawn,
-            stream.len(),
-            "round {}: the port consumes the modelled rolls exactly",
-            round.round
-        );
-        assert_eq!(
-            divergence(round, &timeline),
-            None,
-            "round {} is the cartridge's, action for action",
-            round.round
-        );
-
-        // And the counts, action by action: the log's frames against the rolls
-        // the port models for the same action. What is left over is exactly
-        // the one call the port has no consumer for - `Enemy_Attack` re-rolling
-        // an ability equal to $FFFFEEA8 (ps4.asm:19146) - and nothing else.
-        // Alys's two hit passes are modelled, so her swing's extra two calls
-        // are the port's own now.
-        let mut modelled_total = 0;
-        for action in &round.actions {
-            let modelled = modelled_rolls(&fixture, round, action);
-            modelled_total += modelled.len() as u32;
-            // The damage runs are labelled with the target the log shows them
-            // landing on, so every one of them has to be a slot the action
-            // resolved.
-            let resolved: Vec<u8> = action
-                .targets
-                .iter()
-                .filter(|target| target.hit != "FF")
-                .map(|target| target.id)
-                .collect();
-            for roll in &modelled {
-                if roll.role == "damage" {
-                    let target = roll.target.expect("a damage run has a target");
-                    assert!(
-                        resolved.contains(&target),
-                        "actor {} at f{}: a damage run is labelled {} but the \
-                         log resolves {resolved:?}",
-                        action.actor,
-                        roll.frame,
-                        target
-                    );
-                }
-            }
-            let rolls = fixture.rolls.rolls();
-            let unmodelled: Vec<&Roll> = rolls
-                .iter()
-                .filter(|roll| roll.round == round.round && roll.action == action.actor)
-                .filter(|roll| roll.role == "ability_reroll")
-                .collect();
-            assert_eq!(
-                action.roll_count as usize,
-                modelled.len() + unmodelled.len(),
-                "actor {} at f{}: the log's rolls are the port's plus the \
-                 calls it has no consumer for",
-                action.actor,
-                action.start_frame
-            );
-            for roll in unmodelled {
-                assert_eq!(
-                    roll.role, "ability_reroll",
-                    "the one call left over is Enemy_Attack's ability re-roll"
-                );
-                assert_eq!(roll.pass_number, 0);
-            }
-        }
-        assert_eq!(
-            modelled_total + 13,
-            modelled(&fixture, round.round).len() as u32,
-            "round {}: the order pass plus the port's rolls",
-            round.round
-        );
-
-        if let Some(BattleEvent::Rewarded {
-            experience_total,
-            experience_each,
-            meseta,
-            recipients,
-        }) = timeline.last().and_then(|last| {
-            timeline
-                .iter()
-                .rev()
-                .find(|event| matches!(event, BattleEvent::Rewarded { .. }))
-                .filter(|_| matches!(last, BattleEvent::Ended { .. }))
-        }) {
-            assert_eq!(*experience_total, fixture.outcome.experience_total);
-            assert_eq!(*meseta, fixture.outcome.meseta);
-            assert_eq!(recipients.len(), fixture.party.len());
-            assert_eq!(
-                *experience_each,
-                fixture.outcome.experience_total / fixture.party.len() as u16,
-                "the log's divisor rule: the pool over the living"
-            );
-        } else {
-            assert_ne!(round.round, fixture.rounds.last().unwrap().round);
-        }
-    }
-
-    assert_eq!(battle.outcome(), Some(Outcome::Victory));
-    let outcome = &fixture.outcome;
-    assert!(outcome.victory, "the log has every enemy down");
-    assert_eq!(
-        outcome.dead_enemy_ids,
-        fixture
-            .formation
-            .enemies
-            .iter()
-            .map(|enemy| enemy.id)
-            .collect::<Vec<u8>>(),
-        "and the log has each of them at zero HP or below"
-    );
-
-    // The rewards the port computed, against the log's own accumulators: 24
-    // experience over the three who lived (the log shows Chaz 0 -> 8, Hahn
-    // 0 -> 8 and Alys 2457 -> 2465) and 6 meseta (600 -> 606).
-    assert_eq!(outcome.experience_total, 24);
-    assert_eq!(outcome.meseta, 6);
-
-    let timeline = battle
-        .round(&RoundOrders::attack_all(), &data, &mut SliceRolls::new(&[]))
-        .expect("a battle that has ended resolves to nothing");
-    assert!(timeline.is_empty(), "the battle is over: no third round");
-}
-
-#[test]
-#[ignore = "the ledger's first divergence: AlysKyraAttack_Init re-runs loc_B6A2 \
-            (ps4.asm:13975) and Enemy_Attack re-rolls an ability equal to \
-            $FFFFEEA8 (ps4.asm:19146), so the verbatim stream drifts by two \
-            rolls at Alys's first swing and one at the enemy's turn and every \
-            later window is shifted. See docs/BATTLE_ORACLE_REPLAY.md."]
-fn tape07_full_battle_diverges_at_alyss_swing_draw_count() {
-    let fixture = fixture();
-    let data = fixtures::data();
-
-    let mut battle = started(&fixture, &data);
-
-    // One stream for the whole battle, exactly as the trace holds it, with the
-    // two outside draws left out: the port reads the cartridge's rolls and
-    // nothing else.
-    let stream: Vec<u16> = fixture.rolls.rolls().iter().map(|roll| roll.roll).collect();
-    let mut rolls = SliceRolls::new(&stream);
-    let mut consumed = 0;
-    for round in &fixture.rounds {
-        let timeline = battle
-            .round(&orders(&fixture, round), &data, &mut rolls)
-            .expect("resolves");
-        assert_eq!(
-            divergence(round, &timeline),
-            None,
-            "round {} on the cartridge's own stream",
-            round.round
-        );
-        consumed += fixture
-            .rolls
-            .rolls()
-            .iter()
-            .filter(|roll| roll.round == round.round)
-            .count();
-        assert_eq!(
-            rolls.drawn(),
-            consumed,
-            "round {}: the port consumed the cartridge's rolls",
-            round.round
-        );
-    }
-    assert_eq!(battle.outcome(), Some(Outcome::Victory));
-}
+#[path = "engine_tests_replay_tape09.rs"]
+mod tape09;

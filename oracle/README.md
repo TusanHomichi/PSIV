@@ -612,10 +612,16 @@ compare it against another run.
 ## RAM map
 
 `ram_map.json` is the source of truth; **every address is transcribed from
-`reference/ps4disasm/ps4.constants.asm` and carries the line it came from**.
-Nothing was inferred by watching memory. Struct fields are recorded as base +
-offset with both citations so the arithmetic is auditable — for example
-`c1_facing` is `Character_1` (`constants:2086`, `$FFFFC000`) plus `facing_dir`
+`reference/ps4disasm/ps4.constants.asm` and carries the line it came from**,
+except where a field's `source` names `ps4.asm` instead: an address the
+constants file does not name, recovered from the operand the code itself uses.
+`enemy_ability_index` (`$FFFFEEA8`) is the only such field so far - it is
+`Enemy_Attack`'s ability re-roll word, read at `ps4.asm:19149` and written at
+`ps4.asm:19151` - and the clears that reach it, the oracle measurements and what
+the port does with it are in `docs/BATTLE_ORACLE_REPLAY.md`. Nothing was
+inferred by watching memory. Struct fields are recorded as base + offset with
+both citations so the arithmetic is auditable — for example `c1_facing` is
+`Character_1` (`constants:2086`, `$FFFFC000`) plus `facing_dir`
 (`constants:107`, `+6`).
 
 `gen_ram_map.py` emits the flat `ram_map.tsv` the C host parses, validating
