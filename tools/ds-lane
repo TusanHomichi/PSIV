@@ -89,6 +89,9 @@ brief below and will review your diff and the raw trajectory of this run.
   rather than guessing.
 - Claim a check passed only if you ran it in this session and saw it pass.
   Report failures verbatim.
+- Save any log or scratch output you cite under `build/lane-evidence/` in this
+  worktree (git ignores `build/`). Your `/tmp` is private to the sandbox and
+  vanishes when the run ends, so evidence cited there cannot be reviewed.
 
 End your final message with exactly this receipt:
 
@@ -258,6 +261,9 @@ def finalize_run(lane, run_dir, spec, rc, started, duration):
         title = lane["title"][:60]
         sh(["git", "commit", "-q", "--no-verify", "-m", f"ds-lane {lane['id']} run-{n}: {title}"], cwd=wt)
     head = sh(["git", "rev-parse", "HEAD"], cwd=wt)
+    evidence = wt / "build/lane-evidence"
+    if evidence.is_dir():
+        shutil.copytree(evidence, run_dir / "evidence", dirs_exist_ok=True)
     (run_dir / "diff.patch").write_text(sh(["git", "diff", f"{lane['base_sha']}..{head}"], cwd=wt) + "\n")
     stat = sh(["git", "diff", "--stat", f"{lane['base_sha']}..{head}"], cwd=wt)
 
