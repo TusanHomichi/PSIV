@@ -11,9 +11,9 @@ and the RAM log of the same run has the seed and the frame counter the host
 sampled around every frame (`--groups rng`). This command re-derives the
 trace's own columns and chains every frame's calls, then insists that
 
-  * each row is the cartridge's arithmetic: roll = (hv + frame_count - seed_low)
-    & $FFFF and seed_after = ror16(seed_before's high word) with the low word
-    carried;
+  * each row is the cartridge's arithmetic:
+    roll = (hv + frame_count - seed_high) & $FFFF, and
+    seed_after = ror16(seed_before's high word) with the low word carried;
   * each frame's calls chain, i.e. the next call starts from the word the
     previous one left;
   * a frame's first call starts from the seed the frame opened with, or from
@@ -72,8 +72,25 @@ def rotate_seed(seed):
 
 
 def roll_for(hv, frame_count, seed):
-    """`move.w $8(a5),d0`, `add.w Main_Frame_Count,d0`, `sub.w RNG_Seed.w,d0`."""
-    return (hv + frame_count - (seed & M16)) & M16
+    """UpdateRNGSeed2's roll (ps4.asm:86097, ROM $04239E):
+
+        move.w  $8(a5), d0              ; the VDP HV counter
+        add.w   (Main_Frame_Count).w, d0
+        sub.w   (RNG_Seed).w, d0        ; d0 = the roll
+
+    `(RNG_Seed).w` is an absolute-short word operand at $FFFFEF0C, where
+    `RNG_Seed` (ps4.constants.asm:2328) is a longword, so the 68000 subtracts
+    the word at $FFFFEF0C/$FFFFEF0D - the longword's *high* half, and the word
+    `ror (RNG_Seed).w` (ROM $0423AA) rotates next. Subtracting the low half at
+    $FFFFEF0E gives a per-frame-constant shift of this, not a roll
+    (docs/BATTLE_ORACLE_REPLAY.md settles it against the cartridge).
+
+    The host computes the same thing once, in `rng_trace_roll`
+    (oracle/host/rng_trace.h); tests/test_oracle_rng_trace.py builds a program
+    against that header and compares it with this function, so this file
+    cannot quietly re-derive a convention of its own - which is how the
+    low-half roll went unnoticed when both sides made the same mistake."""
+    return (hv + frame_count - ((seed >> 16) & M16)) & M16
 
 
 def roll_arithmetic(row):
@@ -120,7 +137,7 @@ def check_frame(frame, rows, log, state):
         want_roll, want_after = roll_arithmetic(row)
         if int(row["roll"], 16) != want_roll:
             raise Mismatch(f"f{frame} call {index}: roll {row['roll']} is not "
-                           f"(hv + frame_count - seed_low) & $FFFF = "
+                           f"(hv + frame_count - seed_high) & $FFFF = "
                            f"{want_roll:04X}")
         if int(row["seed_after"], 16) != want_after:
             raise Mismatch(f"f{frame} call {index}: seed_after "

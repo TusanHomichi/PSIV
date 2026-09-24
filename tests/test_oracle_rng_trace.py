@@ -4,10 +4,24 @@ The fixtures are hand-built rows: the arithmetic those rows are built with is
 written out here (and cross-checked against the transcription in
 oracle/checks.py) instead of being borrowed from the module under test, so a
 wrong rotation, a wrong roll or a broken chain has to fail the checker rather
-than agree with it.
+than agree with it. The roll column in particular is built by
+`cartridge_roll`, spelled out from the disassembly of `UpdateRNGSeed2`
+(ps4.asm:86097) - the word `sub.w (RNG_Seed).w,d0` subtracts is the one at
+$FFFFEF0C, the `RNG_Seed` longword's *high* half, because `RNG_Seed`
+(ps4.constants.asm:2328) is a longword and the 68000 reads big-endian.
+
+`HostAgreement` closes the loop the other way: it compiles
+oracle/host/rng_trace.h and oracle/host/provenance.h into a probe and runs
+them, so the derivation the C host writes into a trace and the derivation this
+module checks are the same one, and neither can drift into a convention of its
+own. That is how the low-half roll survived: the host computed it and `check`
+re-derived it with the same mistake, so only an outside anchor could see it.
 """
 import io
 import os
+import re
+import shutil
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -20,6 +34,7 @@ HEADER = ("frame,call_index_in_frame,pc,hv,frame_count,seed_before,roll,"
 COLUMNS = HEADER.split(",")
 M16 = 0xFFFF
 M32 = 0xFFFFFFFF
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def cartridge_multiply(seed):
@@ -34,6 +49,19 @@ def ror_high(seed):
     """`ror RNG_Seed.w` written out again, independently."""
     hi, lo = (seed >> 16) & M16, seed & M16
     return (((hi >> 1) | ((hi & 1) << 15)) << 16) | lo
+
+
+def cartridge_roll(hv, frame_count, seed):
+    """The trace's `roll` column, written out again from the disassembly.
+
+    `sub.w (RNG_Seed).w, d0` reads the word at $FFFFEF0C: the high half of the
+    longword there, and the word `ror (RNG_Seed).w` rotates next."""
+    return (hv + frame_count - ((seed >> 16) & M16)) & M16
+
+
+def low_word_roll(hv, frame_count, seed):
+    """The subtraction the host wrote before it was fixed ($FFFFEF0E)."""
+    return (hv + frame_count - (seed & M16)) & M16
 
 
 class Fixture:
@@ -77,7 +105,7 @@ class Fixture:
             "hv": f"{hv:04X}",
             "frame_count": str(frame_count),
             "seed_before": f"{seed:08X}",
-            "roll": f"{roll_for(hv, frame_count, seed):04X}",
+            "roll": f"{cartridge_roll(hv, frame_count, seed):04X}",
             "seed_after": f"{ror_high(seed):08X}",
         }
 
@@ -96,7 +124,7 @@ class Fixture:
         """Rewrite a row so it starts from `seed` and stays self-consistent."""
         entry = self.find(frame, index)
         entry["seed_before"] = f"{seed:08X}"
-        entry["roll"] = f"{roll_for(int(entry['hv'], 16), int(
+        entry["roll"] = f"{cartridge_roll(int(entry['hv'], 16), int(
             entry['frame_count']), seed):04X}"
         entry["seed_after"] = f"{ror_high(seed):08X}"
         entry.update(changes)
@@ -115,10 +143,18 @@ class Fixture:
                 hv = int(entry["hv"], 16)
                 seed = int(entry["seed_before"], 16)
                 entry["frame_count"] = str(count)
-                entry["roll"] = f"{roll_for(hv, count, seed):04X}"
+                entry["roll"] = f"{cartridge_roll(hv, count, seed):04X}"
         for entry in self.log:
             if entry["frame"] == frame:
                 entry["main_frame_count"] = count
+        return self
+
+    def low_word_rolls(self):
+        """Every row's roll column as the pre-fix host wrote it: low half."""
+        for entry in self.rows:
+            entry["roll"] = f"{low_word_roll(
+                int(entry['hv'], 16), int(entry['frame_count']),
+                int(entry['seed_before'], 16)):04X}"
         return self
 
     def drop_log_frame(self, frame):
@@ -169,10 +205,29 @@ class TestArithmetic(unittest.TestCase):
         self.assertEqual(seed, 0x9E3779B9)
 
     def test_roll_is_the_three_instructions_written_out(self):
-        # move.w $8(a5),d0 / add.w Main_Frame_Count,d0 / sub.w RNG_Seed.w,d0
-        self.assertEqual(roll_for(0x293E, 23931, 0x6EA56A13), 0x1CA6)
+        # move.w $8(a5),d0 / add.w Main_Frame_Count,d0 / sub.w RNG_Seed.w,d0,
+        # with the word $FFFFEF0C being the seed longword's high half.
+        self.assertEqual(roll_for(0x293E, 23931, 0x6EA56A13), 0x1814)
         self.assertEqual(roll_for(0x0000, 0, 0x00000000), 0x0000)
-        self.assertEqual(roll_for(0x0000, 0, 0x00000001), 0xFFFF)
+        self.assertEqual(roll_for(0x0000, 0, 0x00010000), 0xFFFF)
+
+    def test_the_subtrahend_is_the_seeds_high_half_not_its_low_half(self):
+        # A seed whose halves differ: 0x00010000 subtracts 1 (high) or 0
+        # (low); 0x0000FFFF subtracts 0 (high) or 65535 (low).
+        self.assertEqual(roll_for(0x1000, 0x0010, 0x00010000), 0x100F)
+        self.assertEqual(low_word_roll(0x1000, 0x0010, 0x00010000), 0x1010)
+        self.assertEqual(roll_for(0x1000, 0x0010, 0x0000FFFF), 0x1010)
+        self.assertEqual(low_word_roll(0x1000, 0x0010, 0x0000FFFF), 0x1011)
+        self.assertNotEqual(roll_for(0x1000, 0x0010, 0x00010000),
+                            low_word_roll(0x1000, 0x0010, 0x00010000))
+
+    def test_the_traces_own_first_row_derives_to_the_cartridges_roll(self):
+        # Tape 07 frame 29711, call 0: hv 2292, Main_Frame_Count 28815, seed
+        # 21E817F3. The pre-fix column read 7B2E, which is the low half's
+        # subtraction; the high half's is 7139 and is what the ledger's
+        # damage table resolves against (docs/BATTLE_ORACLE_REPLAY.md).
+        self.assertEqual(roll_for(0x2292, 28815, 0x21E817F3), 0x7139)
+        self.assertEqual(low_word_roll(0x2292, 28815, 0x21E817F3), 0x7B2E)
 
     def test_the_multiply_matches_checks_py(self):
         for seed in (0x00000000, 0x00010000, 0x12345678, 0x6EA56A13,
@@ -306,6 +361,27 @@ class TestCheckRejects(TraceCase):
         self.assertEqual(status, 1)
         self.assertIn("call 1 is numbered 7", out)
 
+    def test_a_low_word_roll_column_is_rejected(self):
+        # What oracle/host/rng_trace.c wrote before it was fixed: the seeds,
+        # the chain and the frame counter are all exactly right, and only the
+        # roll column subtracts the longword's low half. That is why the
+        # checker re-deriving its own `roll_for` could not see it, and why the
+        # column has to be the disassembly's arithmetic and nothing else.
+        fixture = self.fixture().low_word_rolls()
+        status, out = self.run_check(fixture)
+        self.assertEqual(status, 1)
+        self.assertIn("f50 call 0: roll", out)
+        self.assertIn("seed_high", out)
+
+    def test_the_low_word_column_is_rejected_at_the_row_that_uses_it(self):
+        fixture = self.fixture()
+        entry = fixture.find(51, 1)
+        entry["roll"] = f"{low_word_roll(int(entry['hv'], 16), int(
+            entry['frame_count']), int(entry['seed_before'], 16)):04X}"
+        status, out = self.run_check(fixture)
+        self.assertEqual(status, 1)
+        self.assertIn("f51 call 1: roll", out)
+
 
 class TestCheckInput(TraceCase):
     def test_an_empty_trace_is_rejected(self):
@@ -336,6 +412,160 @@ class TestCheckInput(TraceCase):
         out = io.StringIO()
         self.assertEqual(check(trace, log, out=out), 2)
         self.assertIn("no roll column", out.getvalue())
+
+
+#: A probe built from the host's own headers. Its two modes print what the C
+#: side computes, so the Python side can be compared with the code that
+#: actually writes a trace instead of with a description of it.
+PROBE_SOURCE = r'''
+#include <stdio.h>
+#include <string.h>
+
+#include "oracle/host/provenance.h"
+#include "oracle/host/rng_trace.h"
+
+int main(int argc, char **argv)
+{
+	char line[256];
+	int i;
+
+	if (argc < 2)
+		return 2;
+	if (strcmp(argv[1], "roll") == 0) {
+		/* seed hv frame_count, one per line */
+		while (fgets(line, sizeof line, stdin)) {
+			unsigned long seed, hv, count;
+
+			if (sscanf(line, "%lx %lx %lx", &seed, &hv, &count) != 3)
+				return 2;
+			printf("%04X\n", (unsigned)rng_trace_roll((uint32_t)seed,
+			                                          (unsigned)hv,
+			                                          (unsigned)count));
+		}
+		return 0;
+	}
+	if (strcmp(argv[1], "basename") == 0) {
+		for (i = 2; i < argc; i++)
+			printf("%s\n", path_basename(argv[i]));
+		return 0;
+	}
+	return 2;
+}
+'''
+
+#: What the C probe should answer. Written out here from the disassembly, so a
+#: host and a checker that drift into the same wrong convention together still
+#: fail: the numbers do not come from either implementation.
+PROBE_ROWS = [
+    # tape 07, frame 29711, calls 0 and 1 (docs/BATTLE_ORACLE_REPLAY.md)
+    (0x21E817F3, 0x2292, 28815),
+    (0x10F417F3, 0x23F3, 28815),
+    # seeds whose halves differ, so the two conventions cannot coincide
+    (0x00010000, 0x1000, 0x0010),
+    (0x0000FFFF, 0x1000, 0x0010),
+    (0x6EA56A13, 0x293E, 23931),
+    (0x00000000, 0x0000, 0x0000),
+]
+
+#: Where a run wrote its trace is not part of what it observed, so the
+#: provenance line names the file: (path given, what the log must say).
+PROBE_PATHS = [
+    ("build/tape07_rolls.csv", "tape07_rolls.csv"),
+    ("/tmp/somewhere/else/first-battle.csv", "first-battle.csv"),
+    ("trace.csv", "trace.csv"),
+    ("./nested/trace-final.csv", "trace-final.csv"),
+    ("oracle/logs/tape07_rolls.csv", "tape07_rolls.csv"),
+]
+
+#: The `--rng-trace` provenance line, and the argument it must hand to fprintf.
+RNG_TRACE_LINE = re.compile(
+    r'fprintf\(out,\s*"# rng-trace=%s\\n"\s*,\s*(.+?)\)\s*;')
+
+
+class HostAgreement(unittest.TestCase):
+    """oracle/host and this module must derive the same roll.
+
+    oracle/host/rng_trace.c and `oracle/rng_trace.py check` re-derive the
+    cartridge's roll independently, and a mistake they share is invisible to
+    both: that is exactly how the low-half subtraction survived in the trace.
+    This case compiles the host's `rng_trace_roll` and `path_basename` and runs
+    them, comparing against numbers written out here from the disassembly.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        cls.compiler = (shutil.which("cc") or shutil.which("gcc")
+                        or shutil.which("clang"))
+        if not cls.compiler:
+            raise unittest.SkipTest("no C compiler for the oracle/host probe")
+        cls.tmp = tempfile.mkdtemp(prefix="psiv-oracle-probe-")
+        source = os.path.join(cls.tmp, "probe.c")
+        with open(source, "w") as handle:
+            handle.write(PROBE_SOURCE)
+        cls.binary = os.path.join(cls.tmp, "probe")
+        built = subprocess.run(
+            [cls.compiler, "-O0", "-Wall", "-Wextra", "-I", ROOT,
+             "-o", cls.binary, source],
+            capture_output=True, text=True, cwd=ROOT)
+        if built.returncode != 0:
+            shutil.rmtree(cls.tmp, ignore_errors=True)
+            raise AssertionError(
+                f"the oracle/host probe did not build:\n{built.stderr}")
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def probe(self, *arguments, stdin=""):
+        result = subprocess.run([self.binary, *arguments], input=stdin,
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout.split()
+
+    def test_the_host_computes_the_cartridges_roll(self):
+        out = self.probe("roll", stdin="".join(
+            f"{seed:x} {hv:x} {count:x}\n" for seed, hv, count in PROBE_ROWS))
+        self.assertEqual(len(out), len(PROBE_ROWS))
+        for (seed, hv, count), text in zip(PROBE_ROWS, out):
+            roll = int(text, 16)
+            self.assertEqual(
+                roll, roll_for(hv, count, seed),
+                f"the host's roll for seed {seed:08X} is {text}, "
+                f"oracle/rng_trace.py check derives "
+                f"{roll_for(hv, count, seed):04X}")
+
+    def test_the_host_does_not_subtract_the_seeds_low_half(self):
+        # The negative control for the defect this file was fixed for: for
+        # every seed whose halves differ, the host must answer the high half's
+        # roll and not the low half's.
+        rows = [(seed, hv, count) for seed, hv, count in PROBE_ROWS
+                if (seed >> 16) != (seed & M16)]
+        self.assertTrue(rows, "the probe table needs unequal seed halves")
+        out = self.probe("roll", stdin="".join(
+            f"{seed:x} {hv:x} {count:x}\n" for seed, hv, count in rows))
+        for (seed, hv, count), text in zip(rows, out):
+            self.assertEqual(int(text, 16), cartridge_roll(hv, count, seed))
+            self.assertNotEqual(int(text, 16), low_word_roll(hv, count, seed))
+
+    def test_the_hosts_basename_drops_every_directory(self):
+        out = self.probe("basename", *[path for path, _ in PROBE_PATHS])
+        self.assertEqual(out, [name for _, name in PROBE_PATHS])
+
+    def test_the_host_names_the_rng_trace_by_basename_in_the_log(self):
+        """Two runs to different output paths must produce identical bytes.
+
+        The `# rng-trace=` provenance line is the one place a run writes one of
+        its own output paths into a file, so it has to name the file alone. The
+        line itself needs the emulator core and the ROM to produce, so its call
+        site is read here and its helper is what the probe above runs.
+        """
+        with open(os.path.join(ROOT, "oracle", "host",
+                               "psiv_oracle.c")) as handle:
+            source = handle.read()
+        line = RNG_TRACE_LINE.search(source)
+        self.assertIsNotNone(line, "no `# rng-trace=` provenance line")
+        self.assertEqual(line.group(1).strip(),
+                         "path_basename(rng_trace_path)")
 
 
 if __name__ == "__main__":

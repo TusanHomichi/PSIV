@@ -21,7 +21,7 @@ frame counter and the seed longword around each call.
 chars,rng`). Its columns are read through `oracle/ram_map.json`, which is the
 single source of truth for their width, address and hex/dec rendering.
 
-# How a roll is derived, and why not from the trace's own roll column
+# How a roll is derived, and how the trace's own roll column is checked
 
 `UpdateRNGSeed2` is:
 
@@ -37,25 +37,22 @@ there: a 68000 word operand at that address reads bytes `$EF0C`/`$EF0D`, and
 
     roll = (hv + frame_count - high_word(seed)) & $FFFF
 
-The trace's own `roll` column instead subtracts the *low* half (`$FFFFEF0E`),
-which is the word `ror` never touches and no instruction reads as the
-subtrahend - while the same file's `seed_after` column does rotate the high
-half. The two halves differ by a per-frame constant, so that column is a
-per-frame-constant shift of the cartridge's rolls, not the rolls.
+This module derives every roll from the trace's raw `hv`, `frame_count` and
+`seed_before` columns, which are not in doubt (the seed chain and the HV reads
+were verified by `oracle/rng_trace.py check`), and **insists** that the trace's
+own `roll` column is that same derivation - row by row, naming the frame and
+call of the first one that is not:
 
-This module therefore derives every roll from the trace's raw `hv`,
-`frame_count` and `seed_before` columns, which are not in doubt (the seed
-chain and the HV reads were verified by `oracle/rng_trace.py check`), and
-*reports* how the `roll` column relates to that derivation:
+    "roll_column": {"agrees": n, "subtracts_low_word": 0, "neither": 0}
 
-    "roll_column": {"agrees": n, "subtracts_low_word": n}
-
-Both conventions are recomputed, so a trace that carries either one is
-accepted and a trace that carries neither is rejected rather than replayed.
-The reading is settled by the cartridge, not by preference: the high-word
-derivation reproduces the battle's turn order (`turn_XX` in the log) and all
-six of its damage values exactly, and the low-word one reproduces none of
-them. See `docs/BATTLE_ORACLE_REPLAY.md`.
+A trace that carries the *low* half instead (what
+`oracle/host/rng_trace.c` wrote before it was fixed, and what
+`oracle/rng_trace.py`'s `roll_for` used to re-derive, so neither could see it)
+is rejected rather than replayed, because its column is a per-frame-constant
+shift of the cartridge's rolls. The reading is settled by the cartridge, not by
+preference: the high-word derivation reproduces the battle's turn order
+(`turn_XX` in the log) and all six of its damage values exactly, and the
+low-word one reproduces none of them. See `docs/BATTLE_ORACLE_REPLAY.md`.
 
 # What the log can and cannot decide
 
@@ -219,33 +216,58 @@ def roll_high_word(row):
 
 
 def roll_low_word(row):
-    """The subtraction the trace's own `roll` column performs ($FFFFEF0E)."""
+    """The low-half subtraction `oracle/host/rng_trace.c` wrote before it was
+    fixed (`$FFFFEF0E`, the word `ror` never touches and no instruction reads
+    as the subtrahend). Kept so a stale trace is named for what it carries
+    instead of being replayed or called random."""
     seed = int(row["seed_before"], 16)
     return (int(row["hv"], 16) + int(row["frame_count"])
             - (seed & M16)) & M16
 
 
 def roll_column_report(rows):
-    """How the trace's `roll` column relates to both derivations."""
+    """How the trace's `roll` column relates to the cartridge's derivation.
+
+    The column is *checked*, not merely counted: every row must carry the
+    cartridge's roll (`roll_high_word`), and the first row that does not is
+    reported with its frame and call index. A trace whose column is the
+    low-half subtraction is rejected here rather than replayed - the two
+    conventions differ by a per-frame constant, so a fixture built on the
+    column would replay rolls the cartridge never drew.
+
+    Returns the counts for a trace that passes: every row agrees, so
+    `subtracts_low_word` and `neither` are zero."""
     report = {"agrees": 0, "subtracts_low_word": 0, "neither": 0}
     for row in rows:
         logged = int(row["roll"], 16)
         if logged == roll_high_word(row):
             report["agrees"] += 1
-        elif logged == roll_low_word(row):
+            continue
+        low = roll_low_word(row)
+        if logged == low:
             report["subtracts_low_word"] += 1
+            convention = (f"the low-half subtraction (hv + frame_count - "
+                          f"seed_low) & $FFFF = {low:04X}, which "
+                          f"oracle/host/rng_trace.c wrote before it was "
+                          f"fixed")
         else:
             report["neither"] += 1
-    if report["neither"]:
+            convention = ("neither the cartridge's roll nor the low-half "
+                          "subtraction")
         raise FixtureError(
-            f"{report['neither']} trace row(s) carry a roll that is neither "
-            f"(hv + frame_count - high word) nor (hv + frame_count - low word); "
-            f"the trace does not describe UpdateRNGSeed2")
+            f"trace f{row.get('frame', '?')} call "
+            f"{row.get('call_index_in_frame', '?')}: the roll column reads "
+            f"{logged:04X}, {convention}; the cartridge's roll is "
+            f"(hv + frame_count - seed_high) & $FFFF = "
+            f"{roll_high_word(row):04X}")
     return report
 
 
 def rolls_in_window(rows, first, last):
-    """[(frame, roll)] for the trace rows inside the battle's frame window."""
+    """[(frame, roll)] for the trace rows inside the battle's frame window.
+
+    Every row's own `roll` column has been checked against this derivation
+    (`roll_column_report`), so the value here is the file's column too."""
     return [(int(row["frame"]), roll_high_word(row)) for row in rows
             if first <= int(row["frame"]) <= last]
 
@@ -719,7 +741,8 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta):
             "roll_convention": (
                 "roll = (hv + frame_count - the word at $FFFFEF0C) & $FFFF; "
                 "the subtrahend is the seed longword's high half, which is "
-                "what a 68000 reads at (RNG_Seed).w"),
+                "what a 68000 reads at (RNG_Seed).w, and every row of the "
+                "trace's own roll column is checked against it"),
             "roll_column": roll_column,
             "damage_run": DAMAGE_RUN,
             "undetermined": [
@@ -818,7 +841,9 @@ def main(argv=None):
     print(f"  rounds          {len(fixture['rounds'])} "
           f"at {fixture['provenance']['round_frames']}")
     print(f"  rolls           {len(fixture['rolls']['rows'])} kept, "
-          f"{fixture['provenance']['roll_column']}")
+          f"{len(fixture['outside_rolls']['rows'])} outside the battle, "
+          f"{fixture['provenance']['roll_column']['agrees']} row(s) whose "
+          f"roll column agrees with the cartridge's derivation")
     for round_ in fixture["rounds"]:
         print(f"    round {round_['round']}: order {round_['order']} "
               f"({round_['roll_count']} rolls) "

@@ -258,7 +258,7 @@ The host writes one row per call, in frame order:
 | `hv` | the HV word the counter returned for that read |
 | `frame_count` | `Main_Frame_Count` (`$FFFFEF1C`) the instructions saw |
 | `seed_before` | `RNG_Seed` (`$FFFFEF0C`) longword the instructions saw |
-| `roll` | `(hv + frame_count - seed_low) & $FFFF`, the value left in `d0` |
+| `roll` | `(hv + frame_count - seed_high) & $FFFF`, the value left in `d0`: the subtrahend is the word at `$FFFFEF0C`, the longword's high half |
 | `seed_after` | the seed after `ror (RNG_Seed).w`, low word carried |
 
 **The core patch.** `oracle/patches/0001-rng-hv-trace.patch` is ours; upstream
@@ -280,11 +280,14 @@ producing numbers nothing was measured against.
 **Which reads are calls.** The trace keeps the reads the PC says came from
 `move.w $8(a5),d0` at `$04239E`. Genesis Plus GX reports the counter with the
 instruction's extension word already fetched, so the access arrives as
-`$0423A2`; the accepted window is `$04239E-$0423A6`, that instruction plus the
-two bytes after it, so a core that reports the PC elsewhere inside the access
-still matches. Every matched row carries the PC it matched on, which keeps the
-choice visible in the data. Tape 07 has no other HV reader at all - all 136
-records match - so nothing there rests on the window's width.
+`$0423A2` - the address of the `add.w` that follows it. The accepted window is
+`$04239E-$0423A6`, from the read itself to the start of the `sub.w (RNG_Seed).w`
+two instructions later, so a core that reports the PC at another point inside
+or just after the access still matches; neither of the other two instructions
+reads the counter, so the window cannot admit a record that is not one of
+these. Every matched row carries the PC it matched on, which keeps the choice
+visible in the data. Tape 07 has no other HV reader at all - all 136 records
+match - so nothing there rests on the window's width.
 
 **Why those are the seeds.** `RNG_Seed` and `Main_Frame_Count` are not in the
 core's records: the host reads them from work RAM around each frame and chains
@@ -319,21 +322,35 @@ the log is the end-to-end check that closes that gap, and
 [`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md) is that check for
 tape 07.
 
-**The `roll` column subtracts the wrong seed word.** `sub.w (RNG_Seed).w, d0`
-reads the word at `$FFFFEF0C`, which on a big-endian 68000 is the **high** half
-of the `RNG_Seed` longword - the same word `ror (RNG_Seed).w` rotates, and the
-word the host's own `rng_hi` describes. The host computes the column with
-`seed_lo` (`$FFFFEF0E`) instead, so every row is a per-frame-constant shift of
-the cartridge's roll. `seed_before`, `seed_after`, `hv` and `frame_count` are
-unaffected, and `rng_trace.py check`'s own `roll_for` repeats the same
-subtraction, so the check cannot see it; the cartridge can, and does: the two
-derivations were run against tape 07's RAM log, and the high-half one
-reproduces the battle's nine turn-order addends and all six of its damage
-values while the low-half one reproduces none of them. The evidence, and the
-one-line fix, are in
-[`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md) - and
-`oracle/battle_fixture.py` derives its rolls from the raw columns and records
-which convention a trace carried, so a fixture never depends on the column.
+**The `roll` column, and the word it subtracts.** `sub.w (RNG_Seed).w, d0` at
+`$0423A6` reads the word at `$FFFFEF0C`, which on a big-endian 68000 is the
+**high** half of the `RNG_Seed` longword (`ps4.constants.asm:2328`) - the same
+word `ror (RNG_Seed).w` at `$0423AA` rotates. The host's `rng_trace_roll`
+(`oracle/host/rng_trace.h`) subtracts that word, and `oracle/rng_trace.py`'s
+`roll_for` re-derives the same arithmetic, as `oracle/battle_fixture.py`
+insists row by row: a capture whose column subtracts the low half at
+`$FFFFEF0E` is rejected with the frame and call of the first row that does,
+rather than replayed.
+
+That was not always so, and the capture was wrong for a while. O1 built the
+host with `seed_lo`, O2 found the column was a per-frame-constant shift of the
+cartridge's rolls, and `rng_trace.py check` could not see it because its own
+`roll_for` repeated the same subtraction - the two agreed with each other and
+with nothing else. The cartridge settled it against tape 07's RAM log: the
+high-half derivation reproduces the battle's nine turn-order addends and all
+six of its damage values, the low-half one reproduces none of them
+([`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md)). The fix landed
+in the host and in the checker, the capture was regenerated, and the two can no
+longer drift apart unnoticed: `tests/test_oracle_rng_trace.py` compiles
+`oracle/host/rng_trace.h` into a probe and compares it with the checker's
+`roll_for` against numbers written out from the disassembly, and
+`oracle/battle_fixture.py` refuses a trace whose column is not the cartridge's.
+
+Captured with the low-half subtraction by an otherwise identical host, the same
+tape and core differ in the `roll` column alone, and in all 136 rows: `hv`,
+`pc`, `frame_count`, `seed_before` and `seed_after` come out the same in both,
+each roll's shift is exactly `seed_lo - seed_hi`, and the seed chain still
+closes on the RAM log exactly.
 
 The capture on tape 07: 136 rolls in 15 frames, between frames 24807 and 30306
 of the battle at 24794-30428, every one of them in the visible lines. The
@@ -344,9 +361,15 @@ attackers each take a damage roll carries two of those runs (32 calls). Frame
 29711, first two of its sixteen rows:
 
 ```
-29711,0,0423A2,2292,28815,21E817F3,7B2E,10F417F3
-29711,1,0423A2,23F3,28815,10F417F3,7C8F,087A17F3
+29711,0,0423A2,2292,28815,21E817F3,7139,10F417F3
+29711,1,0423A2,23F3,28815,10F417F3,838E,087A17F3
 ```
+
+(The same two rows from a host built with the pre-fix subtraction read `7B2E`
+and `7C8F` - the scratch control in lane P1's evidence reproduces the rows this
+section quoted from O1's capture, `seed_after` included, with the low-half
+subtraction in place. The columns differ in `roll` alone: `7139` =
+`$2292 + 28815 - $21E8` and `838E` = `$23F3 + 28815 - $10F4`.)
 
 ### Deterministic scene fixtures
 
@@ -574,10 +597,17 @@ host handles; tapes are written in Mega Drive letters.
 ## Log format
 
 CSV with three provenance comment lines (four with `--rng-trace`, which adds
-`# rng-trace=<path>`), then `frame,mark,buttons` and one column per enabled RAM
+`# rng-trace=<name>`), then `frame,mark,buttons` and one column per enabled RAM
 field. `frame` is 1-based and counts `retro_run()`
 calls from power-on. Values are decimal, or fixed-width hex for fields flagged
 `hex` in the map.
+
+Input paths are written as given; the `# rng-trace=` line is the one line that
+names an *output* of the run, so it carries the trace's basename and not the
+path it was written to (`oracle/host/provenance.h`). Two runs that differ only
+in their output directories therefore produce byte-identical traces and
+byte-identical logs, which is what lets the ledger pin a capture by sha256 and
+compare it against another run.
 
 ## RAM map
 
