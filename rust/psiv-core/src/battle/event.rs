@@ -63,8 +63,11 @@ pub enum Skipped {
 }
 
 /// One thing that happened, in resolution order.
+///
+/// Deliberately not `#[non_exhaustive]`: downstream presentation matches are
+/// exhaustive on purpose so that a new event has to be narrated where it is
+/// rendered, instead of quietly becoming a runtime "unhandled event" string.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum BattleEvent {
     /// Psycho Wand's object reloads the enemy records after changing the
     /// first formation entry from invulnerable Zio to vulnerable Zio.

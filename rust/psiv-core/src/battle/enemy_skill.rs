@@ -12,6 +12,10 @@ mod tests;
 #[path = "enemy_skill_poison_tests.rs"]
 mod poison_tests;
 
+#[cfg(test)]
+#[path = "enemy_skill_wasted_tests.rs"]
+mod wasted_tests;
+
 /// An eight-byte enemy ability, independent of player skills and techniques.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnemySkill {
