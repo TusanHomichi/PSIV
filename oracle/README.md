@@ -235,7 +235,18 @@ oracle/bin/psiv_oracle \
     --out  oracle/logs/tape07_battle.csv
 python3 oracle/rng_trace.py check oracle/logs/tape07_rolls.csv \
     oracle/logs/tape07_battle.csv
+python3 oracle/battle_fixture.py --trace oracle/logs/tape07_rolls.csv \
+    --log oracle/logs/tape07_battle.csv \
+    --out rust/psiv-core/src/battle/replay_fixtures/tape07_first_battle.json
+CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
+    -- tape07
 ```
+
+The last two steps are the replay: `oracle/battle_fixture.py` writes the
+battle's start state, its rolls with the frame and role of each, and what the
+RAM log shows every action doing, and `psiv-core` replays it -
+`rust/psiv-core/src/battle/engine_tests_replay.rs`, with the verdict in
+[`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md).
 
 The host writes one row per call, in frame order:
 
@@ -292,19 +303,37 @@ seed between calls, and both are accounted for:
   following the frame's last call. Tape 07's rolls sit in the visible lines
   (V counter `$14-$55`), where the game's attack code runs.
 
-**What `rng_trace.py check` proves.** It re-derives each row from its own
-columns (`roll`, `seed_after`), insists that a frame's calls chain into each
-other, that its first call starts from the log's seed for the frame before it
-or from that seed after one `UpdateRNGSeed`, that its last `seed_after` is the
-log's `rng_seed` for the frame, and that every row's `frame_count` is that
-frame's logged `Main_Frame_Count`; the anchor and the counter step must agree.
-It prints the first mismatch and exits non-zero, and the host refuses to call
-the run trustworthy for the same reason before that. What stays unproven is the
+**What `rng_trace.py check` proves.** It re-derives each row's `seed_after` and
+insists that a frame's calls chain into each other, that its first call starts
+from the log's seed for the frame before it or from that seed after one
+`UpdateRNGSeed`, that its last `seed_after` is the log's `rng_seed` for the
+frame, and that every row's `frame_count` is that frame's logged
+`Main_Frame_Count`; the anchor and the counter step must agree. It prints the
+first mismatch and exits non-zero, and the host refuses to call the run
+trustworthy for the same reason before that. What stays unproven is the
 `frame_count` column's *timing* - it is the frame's value sampled after the
 frame, justified by the frame order above rather than by the chain - and any
 frame the log does not cover, which is counted and reported as skipped. Playing
 these rolls back through `psiv-core`'s damage path against the same battle in
-the log is the end-to-end check that closes that gap.
+the log is the end-to-end check that closes that gap, and
+[`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md) is that check for
+tape 07.
+
+**The `roll` column subtracts the wrong seed word.** `sub.w (RNG_Seed).w, d0`
+reads the word at `$FFFFEF0C`, which on a big-endian 68000 is the **high** half
+of the `RNG_Seed` longword - the same word `ror (RNG_Seed).w` rotates, and the
+word the host's own `rng_hi` describes. The host computes the column with
+`seed_lo` (`$FFFFEF0E`) instead, so every row is a per-frame-constant shift of
+the cartridge's roll. `seed_before`, `seed_after`, `hv` and `frame_count` are
+unaffected, and `rng_trace.py check`'s own `roll_for` repeats the same
+subtraction, so the check cannot see it; the cartridge can, and does: the two
+derivations were run against tape 07's RAM log, and the high-half one
+reproduces the battle's nine turn-order addends and all six of its damage
+values while the low-half one reproduces none of them. The evidence, and the
+one-line fix, are in
+[`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md) - and
+`oracle/battle_fixture.py` derives its rolls from the raw columns and records
+which convention a trace carried, so a fixture never depends on the column.
 
 The capture on tape 07: 136 rolls in 15 frames, between frames 24807 and 30306
 of the battle at 24794-30428, every one of them in the visible lines. The
