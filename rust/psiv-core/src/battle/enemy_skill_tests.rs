@@ -170,7 +170,8 @@ fn a_killed_and_replaced_queued_enemy_waits_until_the_next_round() {
             .to_vec(),
     };
     let mut rolls = SliceRolls::new(&[0, 1, 2, 3, 4, 5, 6, 7]);
-    let (mut battle, _) = Battle::start(&formation, vec![member], &data, true, &mut rolls).unwrap();
+    let (mut battle, _) =
+        Battle::start(&formation, vec![member], &data, true, 0, &mut rolls).unwrap();
     assert_eq!(
         battle
             .roster()

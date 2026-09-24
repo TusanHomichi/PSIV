@@ -261,6 +261,7 @@ fn a_dead_enemy_target_retargets_and_kills_with_rewards() {
         party,
         &data,
         false,
+        0,
         &mut SliceRolls::new(&[63]),
     )
     .unwrap();
@@ -334,6 +335,7 @@ fn battle_exit_removes_support_buffs_but_keeps_tp_spent() {
         party,
         &data,
         false,
+        0,
         &mut SliceRolls::new(&[63]),
     )
     .unwrap();
@@ -438,6 +440,7 @@ fn savol_kills_award_the_whole_formation_once_and_skip_enemy_turns() {
         vec![member],
         &data,
         false,
+        0,
         &mut SliceRolls::new(&[63]),
     )
     .unwrap();

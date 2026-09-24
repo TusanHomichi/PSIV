@@ -453,8 +453,15 @@ fn damaging_item_consumption_and_rewards_flow_through_a_real_round() {
     let mut formation = fixtures::formation_two_zoran_bults();
     formation.enemies.truncate(1);
     let party = vec![PartyMember::seat(&fixtures::alys(), &data).unwrap()];
-    let (mut battle, _) =
-        Battle::start(&formation, party, &data, false, &mut SliceRolls::new(&[63])).unwrap();
+    let (mut battle, _) = Battle::start(
+        &formation,
+        party,
+        &data,
+        false,
+        0,
+        &mut SliceRolls::new(&[63]),
+    )
+    .unwrap();
     let mut inventory = Inventory::new();
     inventory.add(139).unwrap();
     let mut rolls = SliceRolls::new(&[0]);

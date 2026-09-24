@@ -521,6 +521,11 @@ fn all_party_round(carrier: &Carrier, ability: u8) -> (Vec<BattleEvent>, usize) 
         party.to_vec(),
         &data,
         false,
+        7,
+        // `$FFFFEEA8` loads at zero (`GameMode_LoadBattle`'s page wipe,
+        // ps4.asm:9992-9994), so a battle whose first ability draw is zero
+        // re-rolls it (ps4.asm:19146). This rig wants index zero, so the word
+        // has to start elsewhere for that draw to stand.
         &mut SliceRolls::new(&[0]),
     )
     .unwrap();

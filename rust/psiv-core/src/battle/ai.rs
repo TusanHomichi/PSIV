@@ -79,9 +79,19 @@ pub const ABILITY_ROLL_MASK: u16 = (REGULAR_ABILITIES - 1) as u16;
 ///     move.b  $58(a3,d0.w), ability+1(a4)
 /// ```
 ///
-/// The reroll is on the **index**, not the ability, and the "previous" index is
-/// a single global (`$FFFFEEA8`) shared by every enemy in the battle — so one
-/// enemy's pick constrains the next enemy's. `last_index` is that global.
+/// The reroll is on the **index**, not the ability, and the word it compares
+/// against is one 16-bit cell (`$FFFFEEA8`) shared by every enemy — so one
+/// enemy's pick constrains the next enemy's. `last_index` is that cell, at the
+/// width `cmp.w` reads it; only `0..=7` can ever be stored in it, because the
+/// only writer stores the masked index.
+///
+/// `$FFFFEEA8` is not the port's to invent and it is not per battle either:
+/// `GameMode_LoadBattle` clears the whole `$FFFFEE00` page it sits in
+/// (`ps4.asm:9992-9994`), so a battle's first draw compares against a zero the
+/// battle load left there, and a first draw of **zero** costs a second call.
+/// Tape 07's first basement battle is exactly that case; tape 10's third
+/// battle is the measurement that pins the wipe (see
+/// `docs/BATTLE_ORACLE_REPLAY.md`).
 ///
 /// An enemy whose eight slots all hold the same ability still rerolls until the
 /// index differs, burning rolls to reach the same answer. That is faithful and
@@ -96,18 +106,18 @@ pub const ABILITY_ROLL_MASK: u16 = (REGULAR_ABILITIES - 1) as u16;
 /// with any generator whose low three bits vary.
 pub fn choose_ability(
     record: &EnemyRecord,
-    last_index: &mut Option<u8>,
+    last_index: &mut u16,
     rolls: &mut impl Rolls,
 ) -> (u8, u8) {
     const REROLL_BOUND: usize = 64;
     let mut index = 0u8;
     for _ in 0..REROLL_BOUND {
         index = (rolls.next_roll() & ABILITY_ROLL_MASK) as u8;
-        if *last_index != Some(index) {
+        if *last_index != u16::from(index) {
             break;
         }
     }
-    *last_index = Some(index);
+    *last_index = u16::from(index);
     (index, record.regular_abilities[usize::from(index)])
 }
 
@@ -235,7 +245,7 @@ mod tests {
         // Two identical draws in a row: the second must be rerolled away.
         let draws = [3u16, 3, 3, 5];
         let mut rolls = SliceRolls::new(&draws);
-        let mut last = None;
+        let mut last = 0u16;
 
         let (index, ability) = choose_ability(&record, &mut last, &mut rolls);
         assert_eq!((index, ability), (3, 13));
@@ -244,7 +254,24 @@ mod tests {
         let (index, ability) = choose_ability(&record, &mut last, &mut rolls);
         assert_eq!((index, ability), (5, 15), "rerolled past the repeats");
         assert_eq!(rolls.drawn(), 4, "and it cost three more draws");
-        assert_eq!(last, Some(5));
+        assert_eq!(last, 5);
+    }
+
+    #[test]
+    fn a_first_draw_of_zero_rerolls_against_the_battles_opening_word() {
+        // `$FFFFEEA8` is zero at every battle's first ability roll: the
+        // battle-load wipe covers the page it lives in (`ps4.asm:9992-9994`),
+        // so a first draw of zero costs a second call. Tape 07's first
+        // basement battle is that case - the ledger's f29789.
+        let mut record = fixtures::zoran_bult();
+        record.regular_abilities = [10, 11, 12, 13, 14, 15, 16, 17];
+
+        let draws = [0u16, 3];
+        let mut rolls = SliceRolls::new(&draws);
+        let mut last = 0u16;
+        assert_eq!(choose_ability(&record, &mut last, &mut rolls), (3, 13));
+        assert_eq!(rolls.drawn(), 2, "the zero was rerolled away");
+        assert_eq!(last, 3, "and the word now holds the answer");
     }
 
     #[test]
@@ -256,7 +283,7 @@ mod tests {
 
         let draws = [2u16, 2, 6];
         let mut rolls = SliceRolls::new(&draws);
-        let mut last = None;
+        let mut last = 0u16;
         assert_eq!(choose_ability(&record, &mut last, &mut rolls).1, 0);
         assert_eq!(choose_ability(&record, &mut last, &mut rolls), (6, 0));
         assert_eq!(rolls.drawn(), 3, "the repeat was rerolled anyway");
@@ -268,7 +295,7 @@ mod tests {
         for raw in [0u16, 7, 8, 0xFFFF, 0x1234] {
             let draws = [raw];
             let mut rolls = SliceRolls::new(&draws);
-            let mut last = None;
+            let mut last = 0u16;
             let (index, _) = choose_ability(&record, &mut last, &mut rolls);
             assert!(usize::from(index) < REGULAR_ABILITIES, "raw {raw:#X}");
         }
@@ -281,7 +308,7 @@ mod tests {
         let draws = [4u16];
         let mut rolls = SliceRolls::new(&draws);
         let record = fixtures::zoran_bult();
-        let mut last = Some(4);
+        let mut last = 4u16;
         let (index, _) = choose_ability(&record, &mut last, &mut rolls);
         assert_eq!(index, 4);
     }

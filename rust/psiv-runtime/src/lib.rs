@@ -136,6 +136,22 @@ pub struct Runtime {
     battles: Option<BattleSet>,
     /// A battle in progress. Field input is ignored while this is `Some`.
     battle: Option<Battle>,
+    /// `$FFFFEEA8`, the ability-index word the last enemy ability roll settled
+    /// on — one cell per session, shared by every enemy, exactly as the
+    /// cartridge's one RAM word is.
+    ///
+    /// It is written only by `Enemy_Attack` (`ps4.asm:19151`) and read only by
+    /// its own reroll loop (`ps4.asm:19149`), so its life is: whatever a battle
+    /// leaves, until the next battle loads — `GameMode_LoadBattle` clears the
+    /// whole `$FFFFEE00` page it sits in (`lea ($FFFFEE00).w,a0 / move.w
+    /// #$3F,d7 / trap #0`, `ps4.asm:9992-9994`, covering
+    /// `$FFFFEE00-$FFFFEEFF`). See [`Runtime::start_battle`], which models that
+    /// wipe.
+    ///
+    /// Not save data: retail's save block is `Event_Flags` through
+    /// `Vehicle_Stats` (`$FFFFF100`+`$A00` = `$FFFFF100-$FFFFFAFF`,
+    /// `ps4.asm:134830-134849`, `constants:2362`), and this cell is below it.
+    last_ability_index: u16,
     /// Battle return reloads map data without initializing live field objects.
     battle_field_refresh_pending: bool,
     /// The event battle that owns the current scene block, if any.
@@ -368,6 +384,11 @@ impl Runtime {
         let mut timeline = Vec::new();
         if let Some(battle) = self.battle.take() {
             self.battle_field_refresh_pending = true;
+            // The cartridge leaves `$FFFFEEA8` holding the last ability index
+            // any enemy drew until the next battle load wipes the page
+            // (`ps4.asm:9992-9994`); the session keeps it in between, which is
+            // what `Runtime::start_battle` then clears.
+            self.last_ability_index = battle.last_ability_index();
             // Battle_VictoryMessage ($30E6): the displayed pool must reach
             // Current_Money once, including vehicle battles. Escaping after
             // killing an enemy does not pay its accumulated pool.
@@ -806,6 +827,13 @@ impl Runtime {
     /// `battle/characters.json` + `battle/equipment.json`; then the runtime
     /// seats its own party from game state and this takes only the formation.
     ///
+    /// This is the port's `GameMode_LoadBattle`, and it performs that routine's
+    /// page wipe: `lea ($FFFFEE00).w,a0 / move.w #$3F,d7 / trap #0`
+    /// (`ps4.asm:9992-9994`) zeroes `$FFFFEE00-$FFFFEEFF`, `$FFFFEEA8`
+    /// included, so the ability-index word a battle inherits is **always zero**
+    /// however the last battle ended. The word the battle leaves behind is read
+    /// back in [`Runtime::finish_battle_absorbing`].
+    ///
     /// # Errors
     /// [`BridgeError::Rejected`] when battles are not enabled, the formation
     /// id is unknown, or the engine refuses the setup.
@@ -823,15 +851,37 @@ impl Runtime {
             .formation(formation)
             .ok_or_else(|| BridgeError::Rejected(format!("unknown formation {formation}")))?;
         let mut rng2 = Rng2::with_surrogate(&mut self.rng, self.frames);
+        // `GameMode_LoadBattle`'s page wipe (`ps4.asm:9992-9994`) clears
+        // `$FFFFEEA8`, so the word a battle inherits is always zero, whatever
+        // the last battle left there.
+        self.last_ability_index = 0;
         let (battle, events) = if self.vehicle.is_some() {
-            Battle::start_vehicle(record, party, &set.data, &mut rng2)
+            Battle::start_vehicle(record, party, &set.data, self.last_ability_index, &mut rng2)
         } else {
-            Battle::start(record, party, &set.data, false, &mut rng2)
+            Battle::start(
+                record,
+                party,
+                &set.data,
+                false,
+                self.last_ability_index,
+                &mut rng2,
+            )
         }
         .map_err(|e| BridgeError::Rejected(e.to_string()))?;
         self.battle = Some(battle);
         self.scene_battle = None;
         Ok(events)
+    }
+
+    /// `$FFFFEEA8` as the session holds it: the index the last enemy ability
+    /// roll of the last battle settled on, zero after a battle load and after
+    /// boot.
+    ///
+    /// Nothing outside `Enemy_Attack` reads it in the cartridge, so this is
+    /// inspection, not a rules input; the next battle load clears it.
+    #[must_use]
+    pub const fn last_ability_index(&self) -> u16 {
+        self.last_ability_index
     }
 
     /// Resolves one battle round with the party's orders.

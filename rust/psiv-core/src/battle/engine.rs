@@ -175,9 +175,15 @@ pub struct Battle {
     pending_priority: Priority,
     pools: Pools,
     outcome: Option<Outcome>,
-    /// `$FFFFEEA8`, the shared "previous ability index" every enemy rerolls
-    /// against.
-    last_ability_index: Option<u8>,
+    /// `$FFFFEEA8`: the word every enemy's ability reroll is compared against,
+    /// as the session left it when this battle loaded. One cell shared by every
+    /// enemy, at the width `cmp.w` reads (`ps4.asm:19149`).
+    ///
+    /// The battle does not choose it. `GameMode_LoadBattle` clears the whole
+    /// `$FFFFEE00` page this word sits in (`ps4.asm:9992-9994`), so a battle
+    /// loaded the way the cartridge loads one begins at zero whatever the
+    /// session held; see [`Battle::start`].
+    last_ability_index: u16,
     /// `Enemy_Run_Chance`, or `None` for a formation at or above `$F0` that
     /// cannot be escaped at all.
     run_chance: Option<u8>,
@@ -193,6 +199,15 @@ impl Battle {
     ///
     /// Draws exactly one roll, for `loc_B62A`.
     ///
+    /// `last_ability_index` is the session's `$FFFFEEA8` — the word the battle
+    /// inherits, not one it invents. The cartridge always loads a battle with
+    /// the word at zero, because `GameMode_LoadBattle` wipes the page it lives
+    /// in (`ps4.asm:9992-9994`); the caller that models that load passes the
+    /// zero it leaves, and one that does not (a replay resuming mid-session)
+    /// can pass the word it measured. [`Battle::last_ability_index`] reads it
+    /// back out at the end, which is what the session keeps until the next
+    /// battle loads over it.
+    ///
     /// # Errors
     /// [`BattleDataError`] for a formation naming an unknown enemy, an empty
     /// formation, or more enemies than there are slots.
@@ -201,22 +216,42 @@ impl Battle {
         party: Vec<PartyMember>,
         data: &BattleData,
         boss: bool,
+        last_ability_index: u16,
         rolls: &mut impl Rolls,
     ) -> Result<(Battle, Vec<BattleEvent>), BattleDataError> {
-        Self::start_inner(formation, party, data, boss, false, rolls)
+        Self::start_inner(
+            formation,
+            party,
+            data,
+            boss,
+            false,
+            last_ability_index,
+            rolls,
+        )
     }
 
     /// Sets up the retail vehicle battle surface: one saved vehicle fighter,
     /// the ordinary formation expansion and the vehicle reward halving.
     /// `loc_78EE` replaces the party with one fighter; the runtime supplies
     /// that member from `VehicleRecord`.
+    ///
+    /// Inherits the session's `$FFFFEEA8` exactly as [`Battle::start`] does.
     pub fn start_vehicle(
         formation: &FormationRecord,
         party: Vec<PartyMember>,
         data: &BattleData,
+        last_ability_index: u16,
         rolls: &mut impl Rolls,
     ) -> Result<(Battle, Vec<BattleEvent>), BattleDataError> {
-        Self::start_inner(formation, party, data, false, true, rolls)
+        Self::start_inner(
+            formation,
+            party,
+            data,
+            false,
+            true,
+            last_ability_index,
+            rolls,
+        )
     }
 
     fn start_inner(
@@ -225,6 +260,7 @@ impl Battle {
         data: &BattleData,
         boss: bool,
         vehicle: bool,
+        last_ability_index: u16,
         rolls: &mut impl Rolls,
     ) -> Result<(Battle, Vec<BattleEvent>), BattleDataError> {
         if formation.enemies.is_empty() {
@@ -273,7 +309,7 @@ impl Battle {
                 pending_priority: priority,
                 pools: Pools::default(),
                 outcome: None,
-                last_ability_index: None,
+                last_ability_index,
                 run_chance: formation.can_run().then_some(formation.run_chance),
                 vehicle,
                 zio_phase: 0,
@@ -286,6 +322,17 @@ impl Battle {
     #[must_use]
     pub const fn roster(&self) -> &Roster {
         &self.roster
+    }
+
+    /// `$FFFFEEA8` as this battle leaves it: the index its last enemy ability
+    /// roll settled on, or the word it was handed if no enemy has rolled one.
+    ///
+    /// The session keeps this after the battle and the next battle load clears
+    /// it (`ps4.asm:9992-9994`), which is exactly the cartridge's lifetime; see
+    /// [`Battle::start`].
+    #[must_use]
+    pub const fn last_ability_index(&self) -> u16 {
+        self.last_ability_index
     }
 
     /// The party's live stats, keyed by `Character_Stats` index.

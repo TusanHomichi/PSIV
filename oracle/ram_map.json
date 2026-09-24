@@ -7,7 +7,9 @@
     "it so the two cannot drift apart silently.",
     "",
     "Every address below is transcribed from",
-    "reference/ps4disasm/ps4.constants.asm and carries the line it came from.",
+    "reference/ps4disasm/ps4.constants.asm and carries the line it came from,",
+    "except where a source cites ps4.asm instead: an address the constants file",
+    "does not name, recovered from the operand the code itself uses.",
     "Nothing here was inferred by watching memory. Struct fields are recorded",
     "as base + offset with both line numbers so the arithmetic is auditable.",
     "",
@@ -1424,6 +1426,14 @@
       "group": "battle",
       "hex": true,
       "source": "Battle_Priority, constants:2302; 0 normal, 1 surprise attack, $FF ambush"
+    },
+    {
+      "name": "enemy_ability_index",
+      "addr": "FFFFEEA8",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Enemy_Attack's ability reroll word; read at ps4.asm:19149 (cmp.w ($FFFFEEA8).w,d0) and written at ps4.asm:19151, unnamed in ps4.constants.asm. It sits inside the $FFFFEE00 page the battle-load wipe clears (lea ($FFFFEE00).w,a0 / move.w #$3F,d7 / trap #0, ps4.asm:9992-9994), so it reads zero at every battle's first ability roll and holds the last index drawn until the next battle loads"
     },
     {
       "name": "turn_00",

@@ -36,6 +36,29 @@ fn an_unimplemented_ability_is_announced_rather_than_faked() {
 }
 
 #[test]
+fn the_ability_index_word_is_an_input_the_battle_hands_back() {
+    // `$FFFFEEA8` is the session's cell, not the battle's: `Battle::start`
+    // takes the word a battle load left there and `Battle::last_ability_index`
+    // returns what the battle leaves in it. Every battle the cartridge loads
+    // starts at zero (`ps4.asm:9992-9994`), so the parent harness's `start`
+    // passes zero; this one hands over a mid-battle value to show that the word
+    // the caller passes is the word the battle carries. What the reroll does
+    // with a non-zero word is `choose_ability`'s own unit test's subject.
+    let data = fixtures::data();
+    let mut rolls = SliceRolls::new(&[0]);
+    let (battle, _) = Battle::start(
+        &fixtures::formation_two_zoran_bults(),
+        basement_party(&data),
+        &data,
+        false,
+        5,
+        &mut rolls,
+    )
+    .expect("the fixture resolves");
+    assert_eq!(battle.last_ability_index(), 5);
+}
+
+#[test]
 fn a_vehicle_skill_consumes_a_use_and_runs_its_retail_dispatcher() {
     let data = fixtures::data();
     let vehicle = crate::vehicle::battle_member(
@@ -55,6 +78,7 @@ fn a_vehicle_skill_consumes_a_use_and_runs_its_retail_dispatcher() {
         &fixtures::formation_two_zoran_bults(),
         vec![vehicle],
         &data,
+        0,
         &mut setup_rolls,
     )
     .expect("vehicle battle starts");

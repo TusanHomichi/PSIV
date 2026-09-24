@@ -53,7 +53,7 @@ fn start(
     data: &BattleData,
     rolls: &mut impl Rolls,
 ) -> Battle {
-    Battle::start(formation, party, data, false, rolls)
+    Battle::start(formation, party, data, false, 0, rolls)
         .expect("the fixtures resolve")
         .0
 }
