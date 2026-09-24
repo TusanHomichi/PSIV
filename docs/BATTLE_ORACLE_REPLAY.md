@@ -261,10 +261,21 @@ honest, and both directions are checked by running it:
   swing. Restoring it passes. Transcripts in the lane's
   `build/lane-evidence/03-negative-control.log` and
   `04-replay-after-restore.log` (not committed).
+* **The hit byte sampled a pass early.** Pointing the extractor back at the
+  frame the flags first moved - `sample_decisive_hits` disabled, the fixture
+  re-extracted from the same capture - fails the strict comparator at the
+  DesrtLeach's own rounds: round 3 first, at f25448 (`Normal with Some(154)`
+  against the log's `hit flag 01`), and with round 3's byte put back by hand so
+  the walk reaches the next one, round 6 at f26387 (`Normal with Some(189)`
+  against `hit flag 01`) - the same defect in the other round, and the
+  comparator reports each in turn. Restoring the sampler and re-extracting
+  gives the two `$00` bytes and an empty manifest again. Transcripts: the
+  lane's `build/lane-evidence/14-negative-control-round3.log`,
+  `14c-negative-control-round6.log` and `14d-restored.log` (not committed).
 
-Both were run against the tree this ledger describes; the transcripts are in
-`build/lane-evidence/negative_controls.log` and
-`build/lane-evidence/negative_control_b.log` of the lane that wrote them.
+The manifest-entry and changed-roll controls above were run against the tree
+this ledger describes; their transcripts are in `build/lane-evidence/negative_controls.log`
+and `build/lane-evidence/negative_control_b.log` of the lane that wrote them.
 
 ### The negative control
 
@@ -378,16 +389,21 @@ instruction-level reading, the six rounds' arithmetic and the tests are in
 [`source-notes/battle-party.md`](source-notes/battle-party.md#the-vehicles-own-attack-command-6-three-hit-passes-2026-09-24),
 "The vehicle's own attack".
 
-One reading of the fixture changed with it. A per-target `hit` byte is the
-value at the action's **hit frame** (`oracle/fixture/observations.py`), so for a
-swing whose passes arrive in three frames it holds the *first* pass's verdict,
-while the damage holds the last one's: round 3 of the capture is a `$01` over a
-154 that only a normal hit's arithmetic produces. `replay/compare.rs`'s
-`flag_lags_the_swing` reads such a byte as a reach claim instead of a verdict,
-and the damage stays the thing the verdict is checked through. The case the byte
-can no longer check is pinned by
+One reading of the fixture changed with it, and the checker did not. A
+per-target `hit` byte is the one the swing's **last** pass wrote - `loc_B6A2`
+presets all nine `Fighters_Hit_Flags` to `$FF` before every pass
+(`ps4.asm:17493-17498`), and every pass walks the same window - so
+`oracle/fixture/observations.py`'s `sample_decisive_hits` reads the byte at the
+frame of the action's last `loc_B6A2` roll, which `oracle/fixture/roles.py`'s
+labels name. Rounds 3 and 6 of the capture are the case that made it necessary:
+their first pass came back critical and their third normal, and their damage -
+154 and 189 - is what only a normal hit's arithmetic produces. The fixture was
+re-extracted on 2026-09-24, so those bytes are `$00`, and
+`replay/compare.rs` is back to comparing every verdict strictly: a byte sampled
+before the decisive pass would fail the test rather than be excused.
 `battle/vehicle_attack_tests.rs`'s
-`the_logs_third_round_needs_the_last_passs_verdict` on round 3's own rolls.
+`the_logs_third_round_needs_the_last_passs_verdict` still pins the same rolls'
+verdict inside the port.
 
 ### `$FFFFEEA8`: the ability re-roll word, and how long it lives
 

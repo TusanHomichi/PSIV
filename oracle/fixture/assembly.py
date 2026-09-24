@@ -36,7 +36,12 @@ Fields it does not, recorded here as `"undetermined"` notes:
   command phase, so the fixture says `attack` for each member and says so.
 * **A miss versus an untargeted slot.** `Fighters_Hit_Flags` is `$FF` for
   both, so a slot whose flag is `$FF` and whose damage word did not move is
-  reported as `"ff"` rather than guessed.
+  reported as `"ff"` rather than guessed. Which `$FF` - and which verdict - is
+  the one the action's **last** `loc_B6A2` pass wrote: the routine presets all
+  nine flags before every pass, so an earlier pass's reading is overwritten,
+  and a swing whose passes arrive in different frames is read at the last
+  pass's own frame (`observations.sample_decisive_hits`), not at the first
+  frame the flags moved.
 * **A damage word rewritten to the same value.** A slot's damage is only
   visible as a change; an action that rewrote the previous value is
   indistinguishable from one that skipped the slot.
@@ -52,7 +57,8 @@ from . import enemies as enemy_readings, roles, vehicle as vehicles
 from .errors import FixtureError
 from .observations import (ROLL_COLUMNS, action_record, action_windows,
                            battle_start, decided_frame, enemies_loaded,
-                           round_frames, side_of, turn_order)
+                           round_frames, sample_decisive_hits, side_of,
+                           turn_order)
 from .rolls import (DAMAGE_RUN, HIT_NOT_TARGETED, group_by_frame,
                     roll_column_report, rolls_in_window)
 
@@ -192,6 +198,13 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta):
                     record["passes_done"],
                     max((pass_number for _, _, pass_number in labels),
                         default=0))
+                # The action's last `loc_B6A2` roll: the pass whose flags
+                # `Fighter_TakeDamage` reads. `loc_B6A2` presets all nine
+                # `Fighters_Hit_Flags` before each pass (`ps4.asm:17493-17498`),
+                # so every earlier pass's verdicts are overwritten.
+                if any(role == "hit" for role, _, _ in labels):
+                    record["decisive_hit_frame"] = max(
+                        record.get("decisive_hit_frame", 0), frame)
                 labelled.append((frame, values, labels,
                                  record["round"], record["actor"]))
                 break
@@ -199,6 +212,16 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta):
             labelled.append((frame, values,
                              [("order", None, 0)] * len(values),
                              round_of(frame), 0))
+
+    # The byte each swing left behind is its last pass's, so a swing whose
+    # passes arrive in more than one frame records its decisive pass's verdict
+    # rather than the first's. A swing whose passes all land in its first hit
+    # frame - every character's single pass, Alys's and Kyra's two - already
+    # holds that byte, and is left alone.
+    for record in records:
+        decisive = record.get("decisive_hit_frame")
+        if decisive is not None and decisive != record["hit_frame"]:
+            sample_decisive_hits(log, record, decisive)
 
     rolls, outside = [], []
     for frame, values, labels, number, actor in labelled:
@@ -213,7 +236,8 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta):
             if record["round"] != number:
                 continue
             written = {key: value for key, value in record.items()
-                       if key not in ("animation_pass", "passes_done")}
+                       if key not in ("animation_pass", "passes_done",
+                                      "decisive_hit_frame")}
             written["rolls"] = [[frame, count]
                                 for frame, count in record["rolls"]]
             actions.append(written)

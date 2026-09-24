@@ -293,14 +293,19 @@ What the port did, and what the cartridge does instead:
   `resolve_attack` dispatching to it. The rule, its citations, the six rounds'
   arithmetic and the tests are in
   [`source-notes/battle-party.md`](source-notes/battle-party.md#the-vehicles-own-attack-command-6-three-hit-passes-2026-09-24).
-* One shape of the fixture needed reading rather than a model change: a
-  per-target `hit` byte is sampled at the action's **hit frame**
-  (`oracle/fixture/observations.py`), so for a swing whose passes arrive in
-  three frames it holds the *first* pass's verdict. Rounds 3 and 6 of the
-  capture are exactly that - `$01` over a 154 and a 189 that only a normal
-  hit's arithmetic produces - and `replay/compare.rs`'s `flag_lags_the_swing`
-  now reads such a byte as a reach claim, leaving the damage to pin the verdict
-  the port reports.
+* The fixture's per-target `hit` byte is the one the swing's **last** pass
+  wrote: `loc_B6A2` presets all nine `Fighters_Hit_Flags` to `$FF` before every
+  pass (`ps4.asm:17493-17498`), so an earlier pass's verdicts are overwritten,
+  and `oracle/fixture/observations.py`'s `sample_decisive_hits` reads the byte
+  at the frame of the action's last `loc_B6A2` roll once
+  `oracle/fixture/roles.py` has labelled the rolls. Rounds 3 and 6 of this
+  capture are why it matters: their first pass came back critical (`$01`) and
+  their third normal, and their damage - 154 and 189 - is what only a normal
+  hit's arithmetic produces (`((45+8)*200)>>6 + 200 = 365`, `365*2>>2 - 28 =
+  154`; with the `atk >> 2` bonus it would be 204). The fixture was re-extracted
+  from this capture on 2026-09-24, so those two bytes are `$00` and
+  `replay/compare.rs` compares every verdict strictly again - no
+  frame-dependent relaxation.
 
 The fixture's own reading of the vehicle battle is in its `vehicle` section:
 `Vehicle_Index` 1 (the selector's patch), the fighter's HP at the battle's first
@@ -308,9 +313,14 @@ frame (`Vehicle_Stats + curr_hp`, `$FFFF470E`, logged as
 `vehicle_fighter_hp`), and the saved record behind it
 (`Saved_Vehicle_Stats`, `$FFFFFA80`), whose own current HP **equals** the
 fighter's at that frame - which is what makes its maximum (740) the battle
-copy's, and what the fixture records rather than assumes. The members' HP
-columns are the field's: nothing loads them in a vehicle battle, so the fixture
-carries no party at all and the party side's HP column *is*
+copy's, and what the fixture records rather than assumes. The 2026-09-24
+re-extraction is what put that on the record: the committed file predated
+`oracle/fixture/vehicle.py`'s `matches` reading, so its `max_hp` was `null` and
+it carried no `hp_matches_saved_record`; the regenerated file has `740` and
+`true` - the claim `rust/psiv-core/src/battle/replay/build.rs` asserts when it
+seats the vehicle - while every other vehicle cell is byte-identical. The
+members' HP columns are the field's: nothing loads them in a vehicle battle, so
+the fixture carries no party at all and the party side's HP column *is*
 `vehicle_fighter_hp`.
 
 ## 4. What this does and does not prove
