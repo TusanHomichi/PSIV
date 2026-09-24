@@ -27,8 +27,14 @@ outcomes in the [lane ledger](docs/CLAUDE_LANES.md).
   its commit survive a reaped shell; `ds-lane wait ID` reattaches. Send
   repairs with `ds-lane resume ID FOLLOWUP.md`, which continues the same
   session. Peek at a run in flight with `ds-lane tail ID [-n N]` (state,
-  elapsed, recent tool calls). Clean up with `ds-lane rm ID`; receipts stay
-  unless `--purge`.
+  elapsed, recent tool calls). End a run early with `ds-lane stop ID`: it
+  SIGTERMs the supervisor recorded in the run directory (PIDs only, never a
+  command-line pattern), which kills the worker's process group and finalizes
+  the run — committing what the worker left, with `exit_code` 143 and
+  `turn_error` `stopped by orchestrator`. A run still queued stops with
+  nothing run. `stop` waits up to 60 s, prints the summary, and exits 0 when
+  the run is stopped or idle (1 if it is still finalizing). Clean up with
+  `ds-lane rm ID`; receipts stay unless `--purge`.
 - Model and effort are pinned: `--effort max` for the worker and
   `subagent_effort = "max"` in `~/.reasonix/config.toml`. Take the route
   from `run.json` or the trajectory. The model's self-description is not
@@ -62,7 +68,10 @@ outcomes in the [lane ledger](docs/CLAUDE_LANES.md).
 - **Timeout.** Each run gets `--timeout SECONDS` (default 5400). On expiry the
   worker's process group is SIGTERM'd, then SIGKILL'd after 30 s; the run
   still commits and reports `exit_code` 124 with `turn_error`
-  `timeout after N s`.
+  `timeout after N s`. A final SIGKILL always follows the parent's exit, so
+  children the worker spawned (a `cargo test`, say) cannot outlive the run and
+  its released slot. `run.json` records `outcome`:
+  `completed` | `timeout` | `stopped`.
 - **Independent checks.** `ds-lane verify ID -- CMD...` runs CMD in the lane
   worktree with `CARGO_BUILD_JOBS=2`, streams its output, saves it with the
   command, UTC start, lane head, exit code and duration under
