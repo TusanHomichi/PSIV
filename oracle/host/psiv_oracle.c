@@ -28,14 +28,9 @@
 #include "libretro.h"
 #include "ram_patch.h"
 #include "ram_dump.h"
+#include "rng_trace.h"
 #include "state_dump.h"
 #include "tape.h"
-
-/* The RNG roll trace is a module of its own (host/rng_trace.c), included rather
- * than linked because oracle/verify.sh builds this host from one fixed list of
- * host sources: a --rng-trace that worked in only some builds would be worse
- * than a textual include. Build with that list; do not add rng_trace.c to it. */
-#include "rng_trace.c"
 
 #define MAX_FIELDS 1024
 
