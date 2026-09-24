@@ -5,7 +5,9 @@ under a wall-clock timeout and a stall watchdog, kills the group on `stop`,
 timeout or stall, and hands the result to the receipts. Its last act can be to
 start the next run of the lane itself when a stall costs the worker its turn -
 a host suspend leaves the process alive with a dead stream, and the run would
-otherwise hold a slot for hours (observed 2026-09-24).
+otherwise hold a slot for hours (observed 2026-09-24). A run that raises before
+its record lands is recorded anyway (receipts.record_crashed_run) and then
+re-raised, so the lane keeps its numbering and the session a resume continues.
 """
 import fcntl
 import json
@@ -20,7 +22,7 @@ from . import lanes
 from .config import (CARGO_JOBS, DEFAULT_STALL_CPU_PCT, KILL_GRACE, STALL_EXIT, STALL_POLL,
                      STOPPED_EXIT, TIMEOUT_EXIT, load_receipt, max_lanes, now, pid_alive,
                      stall_cpu_pct, stall_poll, state_root)
-from .receipts import clear_stall_resume, finalize_run
+from .receipts import clear_stall_resume, finalize_run, record_crashed_run
 
 # ----------------------------------------------------------- stop requests
 
@@ -295,6 +297,7 @@ def exec_run(state, n):
     wt = Path(lane["worktree"])
     spec = json.loads((run_dir / "spec.json").read_text())
     install_stop_handler()
+    rc, started, duration, outcome = None, None, None, None  # what a crash still gets to report
     try:
         if not acquire_slot(run_dir):  # `ds-lane stop` while still queued
             finalize_run(lane, run_dir, spec, STOPPED_EXIT, now(), 0.0, outcome="stopped")
@@ -316,7 +319,14 @@ def exec_run(state, n):
             stall_resume(lane, run_dir, spec, successor)
     except BaseException as e:  # leave a terminal record whatever happens
         (run_dir / "worker.slot").unlink(missing_ok=True)
-        (run_dir / "summary.txt").write_text(f"lane {lane['id']} run-{n}: SUPERVISOR ERROR {e!r}\n"
-                                             f"see {run_dir}/supervisor.log\n")
+        try:
+            record_crashed_run(lane, run_dir, spec, repr(e), started=started, duration=duration,
+                               exit_code=rc)
+        except BaseException as record_error:  # best effort: the run failed either way
+            (run_dir / "summary.txt").write_text(
+                f"lane {lane['id']} run-{n}: SUPERVISOR ERROR {e!r}\n"
+                f"recording the run in lane.json failed too: {record_error!r}\n"
+                f"see {run_dir / 'supervisor.log'}\n")
+        # Last, so a reader that sees it finds the record and the summary already there.
         (run_dir / "failed").write_text(repr(e) + "\n")
         raise

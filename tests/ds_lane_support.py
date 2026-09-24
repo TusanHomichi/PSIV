@@ -10,10 +10,11 @@ This module holds what the cases share: the fake worker, the throwaway repo and
 home fixtures, and the helpers that drive `tools/ds-lane`, the entry-point shim,
 as a subprocess. The cases live in test_ds_lane_unit.py (the package's own
 units), test_ds_lane_lanes.py (the lane commands end to end),
-test_ds_lane_size.py (the 1,000-line rule), test_ds_lane_finalize.py (the
-finalize commit: link exclusions and a git failure) and
-test_ds_lane_supervisor.py (slots, kills, the stall watchdog and the entry
-point's re-entry into the detached supervisor).
+test_ds_lane_size.py (the 1,000-line rule and the data-file exemption),
+test_ds_lane_finalize.py (the finalize commit: link exclusions and a git
+failure), test_ds_lane_crash.py (run numbering and the record a crashed run
+leaves) and test_ds_lane_supervisor.py (slots, kills, the stall watchdog and the
+entry point's re-entry into the detached supervisor).
 """
 import json
 import os
@@ -196,8 +197,14 @@ class LaneFixture(unittest.TestCase):
 
     def kill_pid(self, pidfile):
         try:
-            os.kill(int(pidfile.read_text().strip()), 9)
+            pid = int(pidfile.read_text().strip())
         except (OSError, ValueError):
+            return
+        if pid == os.getpid():
+            return  # a case that drives exec_run in process writes its own pid there
+        try:
+            os.kill(pid, 9)
+        except OSError:
             pass
 
     def pid_exists(self, pid):
