@@ -1,0 +1,141 @@
+Our patch to the pinned Genesis Plus GX checkout: an HV counter read trace.
+Applied by oracle/build_core.sh after the pinned commit is checked out, in
+file-name order, idempotently. See oracle/README.md ("RNG") for what it is for
+and oracle/patches/README.md for the rules it follows.
+
+Upstream source: https://github.com/libretro/Genesis-Plus-GX (see
+gpgx-src/LICENSE.txt). This modification is ours; it is inert unless the host
+enables it.
+diff --git a/core/vdp_ctrl.c b/core/vdp_ctrl.c
+index bd454f6..dc9ae59 100644
+--- a/core/vdp_ctrl.c
++++ b/core/vdp_ctrl.c
+@@ -1444,7 +1444,98 @@ unsigned int vdp_z80_ctrl_r(unsigned int cycles)
+ /* HV Counters                                                              */
+ /*--------------------------------------------------------------------------*/
+ 
+-unsigned int vdp_hvc_r(unsigned int cycles)
++/*--------------------------------------------------------------------------*/
++/* PSIV oracle addition: HV counter read trace                              */
++/*                                                                          */
++/* PSIV's battle rolls mix the HV counter into the seed (UpdateRNGSeed2,    */
++/* ps4.asm:86097: d0 = $8(a5) + Main_Frame_Count - RNG_Seed.w), and the     */
++/* beam timing that produces it cannot be reproduced by a port. The oracle  */
++/* records every value this counter returns, tagged with the 68000 program  */
++/* counter that asked for it, so the rolls can be replayed exactly.         */
++/*                                                                          */
++/* This addition comes from the PSIV project (see oracle/README.md), not    */
++/* upstream Genesis Plus GX, and is inert until psiv_hv_trace_enable() is   */
++/* called: with tracing off the only cost is one predictable branch, and    */
++/* every read returns exactly the value it returned before.                 */
++/*--------------------------------------------------------------------------*/
++
++#define PSIV_HV_TRACE_CAPACITY (1 << 16)
++
++struct psiv_hv_trace_record
++{
++  unsigned int pc;  /* 68000 program counter during the access */
++  unsigned int hv;  /* value vdp_hvc_r() returned */
++};
++
++static struct psiv_hv_trace_record psiv_hv_trace_buffer[PSIV_HV_TRACE_CAPACITY];
++static unsigned int psiv_hv_trace_records;
++static unsigned int psiv_hv_trace_dropped_records;
++static int psiv_hv_trace_on;
++
++void psiv_hv_trace_enable(int on)
++{
++  psiv_hv_trace_on = on ? 1 : 0;
++}
++
++void psiv_hv_trace_reset(void)
++{
++  psiv_hv_trace_records = 0;
++  psiv_hv_trace_dropped_records = 0;
++}
++
++unsigned int psiv_hv_trace_count(void)
++{
++  return psiv_hv_trace_records;
++}
++
++unsigned int psiv_hv_trace_dropped(void)
++{
++  return psiv_hv_trace_dropped_records;
++}
++
++int psiv_hv_trace_get(unsigned int index, unsigned int *pc, unsigned int *hv)
++{
++  if (index >= psiv_hv_trace_records)
++  {
++    return 0;
++  }
++
++  if (pc)
++  {
++    *pc = psiv_hv_trace_buffer[index].pc;
++  }
++
++  if (hv)
++  {
++    *hv = psiv_hv_trace_buffer[index].hv;
++  }
++
++  return 1;
++}
++
++/* Called for every HV read while tracing is on. Dropping records is not an
++ * option for a trace that has to be complete, so the buffer is large enough
++ * for the whole tape and the host drains it every frame; a full buffer is
++ * counted so the host can refuse to trust a run that lost records. */
++static void psiv_hv_trace_append(unsigned int data)
++{
++  if (!psiv_hv_trace_on)
++  {
++    return;
++  }
++
++  if (psiv_hv_trace_records >= PSIV_HV_TRACE_CAPACITY)
++  {
++    psiv_hv_trace_dropped_records++;
++    return;
++  }
++
++  psiv_hv_trace_buffer[psiv_hv_trace_records].pc = m68k_get_reg(M68K_REG_PC);
++  psiv_hv_trace_buffer[psiv_hv_trace_records].hv = data & 0xffff;
++  psiv_hv_trace_records++;
++}
++
++static unsigned int vdp_hvc_read(unsigned int cycles)
+ {
+   int vc;
+   unsigned int data = hvc_latch;
+@@ -1505,6 +1596,17 @@ unsigned int vdp_hvc_r(unsigned int cycles)
+   return (data);
+ }
+ 
++/* Every exit of the counter path funnels through here, so a record exists for
++ * each value the 68000 can observe whatever branch produced it. */
++unsigned int vdp_hvc_r(unsigned int cycles)
++{
++  unsigned int data = vdp_hvc_read(cycles);
++
++  psiv_hv_trace_append(data);
++
++  return (data);
++}
++
+ 
+ /*--------------------------------------------------------------------------*/
+ /* Test registers                                                           */
+diff --git a/libretro/link.T b/libretro/link.T
+index b0c262d..a9219a4 100644
+--- a/libretro/link.T
++++ b/libretro/link.T
+@@ -1,5 +1,5 @@
+ {
+-   global: retro_*;
++   global: retro_*; psiv_*;
+    local: *;
+ };
+ 

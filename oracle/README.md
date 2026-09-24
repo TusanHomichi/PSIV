@@ -47,12 +47,15 @@ oracle/
 ├── host/psiv_oracle.c      the headless libretro host runner
 ├── host/frame_dump.c       negotiated-format PNG video sink
 ├── host/ram_dump.c         raw work-RAM snapshot sink
+├── host/rng_trace.c/.h     battle-roll capture (included by psiv_oracle.c)
 ├── host/ram_patch.c/.h     explicit per-frame retail-RAM fixture writes
 ├── host/libretro.h         minimal libretro ABI subset
 ├── build_core.sh           fetches + builds the pinned emulation core
+├── patches/*.patch         our patches to that checkout, applied in order
 ├── route.py                plans a walking route over the pack's collision data
 ├── navigate.py             closed-loop tape authoring (route + observe + re-plan)
 ├── analyze_rng.py          per-frame RNG call census from a log
+├── rng_trace.py            checks a --rng-trace capture against its log
 ├── anim_sweep.py           press-offset sweep across the dialogue open animation
 ├── damage_census.py        same-matchup damage samples across shifted seed paths
 ├── checks.py               shared helpers for verify.sh's two lanes
@@ -203,6 +206,118 @@ the generated `$FFFF60E0` H-scroll buffer zero. The `$FFFF6000` bytes are
 reported as an inactive `Chunk_Table`/VSRAM-shadow source, not falsely called
 live VSRAM. The window-region report is scanlines 160..223 and the placement
 provenance records `grand_cross=0` plus the measured `(1,1)` plane residue.
+
+### RNG trace: the cartridge's own battle rolls
+
+PSIV's battle rolls are not pseudo-random in the usual sense. `UpdateRNGSeed2`
+(`ps4.asm:86097`, ROM `$04239E`) is four instructions:
+
+```
+	move.w	$8(a5), d0		; the VDP HV counter at $C00008
+	add.w	(Main_Frame_Count).w, d0
+	sub.w	(RNG_Seed).w, d0	; d0 = the roll the caller receives
+	ror	(RNG_Seed).w		; and the seed's high word rotates
+```
+
+so every roll is a function of *where the beam was* when the 68000 read the
+counter. That is hardware timing `psiv-core` deliberately does not reproduce
+(see `docs/RUNTIME_DESIGN.md`, "RNG design"); the port takes rolls through its
+`Rolls` trait instead, and this flag captures the stream that trait replays.
+
+```sh
+oracle/bin/psiv_oracle \
+    --core oracle/core/genesis_plus_gx_libretro.so \
+    --rom  "Phantasy Star IV (USA).md" \
+    --map  oracle/ram_map.tsv \
+    --tape oracle/tapes/07_first_battle.tape \
+    --groups core,battle,bhit,enemy,chars,rng \
+    --rng-trace oracle/logs/tape07_rolls.csv \
+    --out  oracle/logs/tape07_battle.csv
+python3 oracle/rng_trace.py check oracle/logs/tape07_rolls.csv \
+    oracle/logs/tape07_battle.csv
+```
+
+The host writes one row per call, in frame order:
+
+| column | meaning |
+|---|---|
+| `frame` | emulated frame the call happened in (1-based, `retro_run()` count) |
+| `call_index_in_frame` | 0-based index of this call within its frame |
+| `pc` | 68000 program counter the core reported for the HV read |
+| `hv` | the HV word the counter returned for that read |
+| `frame_count` | `Main_Frame_Count` (`$FFFFEF1C`) the instructions saw |
+| `seed_before` | `RNG_Seed` (`$FFFFEF0C`) longword the instructions saw |
+| `roll` | `(hv + frame_count - seed_low) & $FFFF`, the value left in `d0` |
+| `seed_after` | the seed after `ror (RNG_Seed).w`, low word carried |
+
+**The core patch.** `oracle/patches/0001-rng-hv-trace.patch` is ours; upstream
+Genesis Plus GX has no such hook. It makes `vdp_hvc_r()` record `(pc, hv)` for
+every HV counter read and exports
+`psiv_hv_trace_enable/reset/count/dropped/get`, which the host resolves with
+`dlsym` and drains once per frame. With tracing off the record is one
+predictable branch and the value is returned unchanged, so emulation is
+identical - `verify.sh` runs against the patched core and still passes.
+`build_core.sh` applies every `oracle/patches/*.patch` after the pinned
+checkout, in file-name order; re-applying is a no-op, and a tree that is not
+the pinned revision fails loudly instead of building something unreproducible.
+See [`patches/README.md`](patches/README.md) for what those patches must obey.
+A checkout shipped without `gpgx-src/.git` (how a built one travels) is used as
+it stands, so the build works offline: the patches are then what pins the files
+this project depends on, and any other revision fails the build rather than
+producing numbers nothing was measured against.
+
+**Which reads are calls.** The trace keeps the reads the PC says came from
+`move.w $8(a5),d0` at `$04239E`. Genesis Plus GX reports the counter with the
+instruction's extension word already fetched, so the access arrives as
+`$0423A2`; the accepted window is `$04239E-$0423A6`, that instruction plus the
+two bytes after it, so a core that reports the PC elsewhere inside the access
+still matches. Every matched row carries the PC it matched on, which keeps the
+choice visible in the data. Tape 07 has no other HV reader at all - all 136
+records match - so nothing there rests on the window's width.
+
+**Why those are the seeds.** `RNG_Seed` and `Main_Frame_Count` are not in the
+core's records: the host reads them from work RAM around each frame and chains
+the frame's calls, because `UpdateRNGSeed2` only rotates the high word, so the
+next call starts from the word the previous one left. Two things can move the
+seed between calls, and both are accounted for:
+
+- The VBlank handler (`ps4.asm:612-625`) applies `UpdateRNGSeed` (the 41x
+  multiply) and bumps `Main_Frame_Count` in one block, so a frame whose counter
+  steps by exactly one is a frame whose rolls chain from the multiplied seed.
+  That is the whole rule, and it is what the log's counter column says.
+- Genesis Plus GX triggers VINT at the top of the emulated frame
+  (`core/system.c`, `system_frame_gen`: the VCount is set to
+  `bitmap.viewport.h` and the interrupt is taken before the vblank and visible
+  lines run), so that block precedes every read of the frame rather than
+  following the frame's last call. Tape 07's rolls sit in the visible lines
+  (V counter `$14-$55`), where the game's attack code runs.
+
+**What `rng_trace.py check` proves.** It re-derives each row from its own
+columns (`roll`, `seed_after`), insists that a frame's calls chain into each
+other, that its first call starts from the log's seed for the frame before it
+or from that seed after one `UpdateRNGSeed`, that its last `seed_after` is the
+log's `rng_seed` for the frame, and that every row's `frame_count` is that
+frame's logged `Main_Frame_Count`; the anchor and the counter step must agree.
+It prints the first mismatch and exits non-zero, and the host refuses to call
+the run trustworthy for the same reason before that. What stays unproven is the
+`frame_count` column's *timing* - it is the frame's value sampled after the
+frame, justified by the frame order above rather than by the chain - and any
+frame the log does not cover, which is counted and reported as skipped. Playing
+these rolls back through `psiv-core`'s damage path against the same battle in
+the log is the end-to-end check that closes that gap.
+
+The capture on tape 07: 136 rolls in 15 frames, between frames 24807 and 30306
+of the battle at 24794-30428, every one of them in the visible lines. The
+counts line up with the disassembly: single rolls are `Battle_CalculateChances`
+(`ps4.asm:17339`, one call), runs of 16 are `Battle_CalculateDamage`'s loop
+(`ps4.asm:17381`, `moveq #$F,d7` with `dbf d7,-`), and the frame where two
+attackers each take a damage roll carries two of those runs (32 calls). Frame
+29711, first two of its sixteen rows:
+
+```
+29711,0,0423A2,2292,28815,21E817F3,7B2E,10F417F3
+29711,1,0423A2,23F3,28815,10F417F3,7C8F,087A17F3
+```
 
 ### Deterministic scene fixtures
 
@@ -429,8 +544,9 @@ host handles; tapes are written in Mega Drive letters.
 
 ## Log format
 
-CSV with three provenance comment lines, then `frame,mark,buttons` and one
-column per enabled RAM field. `frame` is 1-based and counts `retro_run()`
+CSV with three provenance comment lines (four with `--rng-trace`, which adds
+`# rng-trace=<path>`), then `frame,mark,buttons` and one column per enabled RAM
+field. `frame` is 1-based and counts `retro_run()`
 calls from power-on. Values are decimal, or fixed-width hex for fields flagged
 `hex` in the map.
 
