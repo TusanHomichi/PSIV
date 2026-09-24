@@ -118,6 +118,11 @@ fn battle_sound_events(
             BattleEvent::EnemySkillUsed { skill: 16, .. } => sounds.push(BattleSoundEvent {
                 event_index, id: 0xDA,
             }),
+            // BattleObj_Poison writes EnemyAttack4 in the same wind-up slot,
+            // and like THREAD it never requests a damage reaction.
+            BattleEvent::EnemySkillUsed { skill: 17, .. } => sounds.push(BattleSoundEvent {
+                event_index, id: 0xD8,
+            }),
             // BattleObj_Brose and BattleObj_Rimit both start with SFX_Brose.
             // This binds the original sound, not its still-missing animation.
             BattleEvent::TechniqueUsed { actor, technique: technique @ (17 | 23), .. } => {

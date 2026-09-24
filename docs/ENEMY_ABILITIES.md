@@ -7,8 +7,8 @@ out of the disassembly, and whether `psiv-core` implements it. Read
 finished dispatch (THREAD). Nothing here changes code; it is the map for doing so
 one ability at a time.
 
-**83 distinct nonzero regular ability ids.** 4 implemented,
-79 unsupported: 57 damage, 5 scripted/custom, 17 status/stat effect.
+**83 distinct nonzero regular ability ids.** 5 implemented,
+78 unsupported: 57 damage, 5 scripted/custom, 16 status/stat effect.
 
 ## 1. Method
 
@@ -137,7 +137,7 @@ runs when the gate is clear.
 | `$0E` (14) **MicroMissl**<br>MICROMISSL | eff `$01` · stat $05 (attack) · tgt 9 · pow 0 · res $06 (defense) · el `1` physical | `EnemyAttack_BalDuel` (`ps4.asm:23316`)<br>→ loc_378FC (`ps4.asm:72007`)<br>`EnemyAttack_LifeDeletr` (`ps4.asm:23124`)<br>→ BattleObj_LifeDeletrMicroMissl (`ps4.asm:52229`) | `AbilityEffect_None` (`ps4.asm:9092`) | 26 LifeDeletr, 28 DragerDuel, 29 JurafaDuel<br>13/504 formations | damage | unsupported |
 | `$0F` (15) **FlamLaunch**<br>FLAMLAUNCH | eff `$01` · stat $01 (strength) · tgt 8 · pow 64 · res $07 (magic_defense) · el `3` fire | `EnemyAttack_BalDuel` (`ps4.asm:23316`)<br>→ loc_37704 (`ps4.asm:71820`) | `AbilityEffect_None` (`ps4.asm:9092`) | 29 JurafaDuel<br>4/504 formations | damage | unsupported |
 | `$10` (16) **Thread**<br>THREAD | eff `$06` · stat $01 (strength) · tgt 8 · pow 64 · res $03 (agility) · el `1` physical | `EnemyAttack_Crawler` (`ps4.asm:23081`)<br>→ BattleObj_Thread (`ps4.asm:36186`) | `AbilityEffect_AgilityDown` (`ps4.asm:9139`) | 31 CarrionCr<br>3/504 formations | — | implemented — `enemy_skill::resolve_thread` |
-| `$11` (17) **Poison**<br>POISON | eff `$1B` · stat $01 (strength) · tgt 8 · pow 64 · res $01 (strength) · el `13` efess | `EnemyAttack_Crawler` (`ps4.asm:23081`)<br>→ BattleObj_Poison (`ps4.asm:36279`) | `AbilityEffect_Poison` (`ps4.asm:9410`) | 32 Caterpillr<br>7/504 formations | status/stat effect | unsupported |
+| `$11` (17) **Poison**<br>POISON | eff `$1B` · stat $01 (strength) · tgt 8 · pow 64 · res $01 (strength) · el `13` efess | `EnemyAttack_Crawler` (`ps4.asm:23081`)<br>→ BattleObj_Poison (`ps4.asm:36279`) | `AbilityEffect_Poison` (`ps4.asm:9410`) | 32 Caterpillr<br>7/504 formations | status/stat effect | implemented — `enemy_skill::resolve_poison` ([ENEMY_POISON.md](ENEMY_POISON.md)) |
 | `$13` (19) **CellSplit**<br>CELL SPLIT | eff `$01` · stat $01 (strength) · tgt 9 · pow 80 · res $06 (defense) · el `1` physical | `EnemyAttack_MetaSlug` (`ps4.asm:22931`)<br>→ BattleObj_CellSplit (`ps4.asm:35240`)<br>BattleObj_CellSplit2 (`ps4.asm:35344`)<br>BattleObj_CellSplit3 (`ps4.asm:35392`)<br>BattleObj_CellSplit4 (`ps4.asm:35445`)<br>BattleObj_CellSplit5 (`ps4.asm:35493`) | `AbilityEffect_None` (`ps4.asm:9092`) | 37 SnowSlug, 38 FractOoze, 137 FractOoze2<br>5/504 formations (+1 boss) | damage | unsupported |
 | `$16` (22) **Flash**<br>FLASH | eff `$21` · stat $01 (strength) · tgt 9 · pow 64 · res $02 (mental) · el `11` psychic | `EnemyAttack_ArmDrone` (`ps4.asm:22789`)<br>→ loc_1886C (`ps4.asm:33905`) | `AbilityEffect_DexterityDown` (`ps4.asm:9457`) | 43 StarDrone<br>7/504 formations | damage | unsupported |
 | `$17` (23) **Waiting**<br>WAITING | eff `$22` · stat $00 (none) · tgt 0 · pow 0 · res $00 (none) · el `0` none | `EnemyAttack_FloatMine` (`ps4.asm:22675`) — no object; the routine clears `$24(a4)` | `AbilityEffect_None` (`ps4.asm:9092`) | 44 FloatMine, 46 VopalSphre, 50 FloatMine2<br>10/504 formations | scripted/custom | unsupported |
@@ -339,15 +339,15 @@ Map ids whose encounter table can roll a formation carrying the ability, with th
 | | |
 |---|---|
 | distinct nonzero regular ability ids (§2) | 83 |
-| implemented | 4 |
-| unsupported | 79 |
+| implemented | 5 |
+| unsupported | 78 |
 | — `damage` | 57 |
-| — `status/stat effect` | 17 |
+| — `status/stat effect` | 16 |
 | — `scripted/custom` | 5 (`$17` WAITING, `$54` BLACK WAVE, `$63` BURSTROC, `$64` SHDWBREATH, `$6C` BLACK WAVE) |
 | — `unknown` | 0 |
 | conditional-only ids (§3) | 24, one of them implemented (`$06` FISSION) |
 
-The four implemented rows are exactly what `psiv-core` claims:
+The five implemented rows are exactly what `psiv-core` claims:
 
 - `$07` Fission2 → `enemy_skill::resolve_fission` (`rust/psiv-core/src/battle/enemy_skill.rs`),
   reached from `roll_enemy_ability` through `fission_neighbor`; the same predicate
@@ -361,6 +361,9 @@ The four implemented rows are exactly what `psiv-core` claims:
   `EnemyAttack_Crawler` (`ps4.asm:23081`) → `BattleObj_Thread` (`ps4.asm:36186`)
   for `$10`, `BattleObj_Poison` (`ps4.asm:36279`) otherwise — matching
   `docs/THREAD.md`.
+- `$11` POISON → `enemy_skill::resolve_poison`. Carrier 32 Caterpillr →
+  `EnemyAttack_Crawler` → `BattleObj_Poison`; effect `$1B` →
+  `AbilityEffect_Poison`. See [`ENEMY_POISON.md`](ENEMY_POISON.md).
 - `$33` ACIDBREATH → `enemy_skill::resolve_acid_breath` for all four carriers
   (`ACID_BREATH_CARRIERS`, `rust/psiv-core/src/battle/enemy_skill.rs`). 75
   FlattrPlnt and 76 FlyScreamr (`EnemyAttackOffs` `$4B`/`$4C`) →

@@ -759,6 +759,17 @@ impl Battle {
         ) {
             return Ok(true);
         }
+        if super::enemy_skill::resolve_poison(
+            &mut self.roster,
+            actor,
+            ability,
+            intended,
+            data,
+            rolls,
+            events,
+        ) {
+            return Ok(true);
+        }
         if ability != 0 {
             events.push(BattleEvent::UnsupportedAbility { actor, ability });
         }
