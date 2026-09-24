@@ -5,11 +5,14 @@
 The owner's rule is that a file over roughly 1,000 lines is reorganized when
 touched. Lane ab-M grew `rust/psiv-core/src/battle/enemy_damage_tests.rs` to
 1,504 lines and review missed it, because nothing flagged it (2026-09-24), so
-the harness reports it the way it reports a write-set violation. These cases
-cover the count and its binary sniff, the deletion and environment branches, the
-preamble line, and a lane that grows a file end to end: one past the limit
-(flagged with its counts at both ends), one already over it that the run left
-alone, a binary, and the worker's own host state.
+the harness reports it the way it reports a write-set violation. Generated and
+data files are exempt from the rule (also an owner decision): a manifest or a
+replay transcript grows with its content, and splitting one is not a
+reorganization. These cases cover the count and its binary sniff, the deletion
+and environment branches, the preamble line, the exemption list and its knob,
+and lanes that grow files end to end: one past the limit (flagged with its
+counts at both ends), one already over it that the run left alone, a binary, an
+exempt data file beside a source file, and the worker's own host state.
 """
 import os
 import subprocess
@@ -88,6 +91,25 @@ class SizeUnitCase(unittest.TestCase):
             self.assertEqual(DS.oversize_files(wt, base, head, ["tools/gone.txt"], 1000), [])
             self.assertEqual(DS.oversize_files(wt, base, base, ["tools/gone.txt"], 1000),
                              [{"path": "tools/gone.txt", "lines": 1500, "base_lines": 1500}])
+
+    def test_size_exempt_list_defaults_and_moves(self):
+        """The exemption is a list of globs, with the write set's semantics."""
+        self.assertEqual(DS.DEFAULT_SIZE_EXEMPT,
+                         ("*.json", "*.tsv", "*.csv", "*.lock", "**/replay_fixtures/**"))
+        stripped = {k: v for k, v in os.environ.items() if k != "DS_LANE_SIZE_EXEMPT"}
+        with mock.patch.dict(os.environ, stripped, clear=True):
+            self.assertEqual(DS.size_exempt(), list(DS.DEFAULT_SIZE_EXEMPT))
+        with mock.patch.dict(os.environ, {"DS_LANE_SIZE_EXEMPT": "*.rs, docs/*.md"}):
+            self.assertEqual(DS.size_exempt(), ["*.rs", "docs/*.md"])
+        with mock.patch.dict(os.environ, {"DS_LANE_SIZE_EXEMPT": ""}):  # the exemption, off
+            self.assertEqual(DS.size_exempt(), [])
+        with mock.patch.dict(os.environ, {"DS_LANE_SIZE_EXEMPT": "*.rs,"}):  # a trailing comma
+            self.assertEqual(DS.size_exempt(), ["*.rs"])
+        # `**` crosses directories, so one glob covers a fixture tree at any depth.
+        exempt = [p for p in DS.DEFAULT_SIZE_EXEMPT if "**" in p]
+        for path in ("a/b/replay_fixtures/tape.jsonl", "replay_fixtures/tape.jsonl"):
+            self.assertTrue(DS.write_set_match(path, exempt), path)
+        self.assertFalse(DS.write_set_match("a/b/replay_fixtures.md", exempt))
 
     def test_preamble_states_the_rule_positively(self):
         """Every brief carries the rule, so it must never trip the phrasing preflight."""
@@ -193,3 +215,60 @@ class SizeCase(LaneFixture):
         self.assertEqual(run2["max_file_lines"], DS.MAX_FILE_LINES)
         self.assertEqual(run2["oversize_files"], [])
         self.assertEqual(self.oversize_warnings("t2"), [])
+
+
+    # -- generated and data files are exempt (owner decision)
+
+    def test_data_files_are_exempt_while_source_text_is_flagged(self):
+        """The rule is for source a worker edits: data grows with its content.
+
+        Identical content, one flagged and two exempt, so the pair is its own
+        control - and the three paths are all in the commit, which is what
+        makes the two silences a decision rather than an absent change.
+        """
+        body = lines_text(1400)
+        spec = {"files": {"data/manifest.json": body,
+                          "tests/replay_fixtures/tape_09.jsonl": body,
+                          "src/deep/grown.rs": body}}
+        self.start("Touch the owned files.\n", "t1", spec)
+        run = self.run_json("t1")
+        self.assertEqual(run["size_exempt"], list(DS.DEFAULT_SIZE_EXEMPT))
+        self.assertEqual(run["oversize_files"],
+                         [{"path": "src/deep/grown.rs", "lines": 1400, "base_lines": None}])
+        self.assertEqual(self.oversize_warnings("t1"),
+                         ["WARNING: over 1000 lines: src/deep/grown.rs (1400, was new)"])
+        changed = self.git("diff", "--name-only", f"{self.base_sha}..{run['head_sha']}",
+                           cwd=self.lane_wt("t1"))
+        self.assertEqual(sorted(changed.splitlines()),
+                         ["data/manifest.json", "src/deep/grown.rs",
+                          "tests/replay_fixtures/tape_09.jsonl"])
+        # A run whose only growth is data reports nothing at all.
+        self.start("Touch only data/tables.tsv.\n", "t2", {"files": {"data/tables.tsv": body}})
+        run2 = self.run_json("t2")
+        self.assertEqual(run2["oversize_files"], [])
+        self.assertEqual(self.oversize_warnings("t2"), [])
+
+    def test_exemption_moves_with_the_environment(self):
+        """DS_LANE_SIZE_EXEMPT replaces the default list in the supervisor too."""
+        spec = {"files": {"data/manifest.json": lines_text(1300),
+                          "src/grown.rs": lines_text(1200)}}
+        self.start("Touch the owned files.\n", "t1", spec, env={"DS_LANE_SIZE_EXEMPT": "*.rs"})
+        run = self.run_json("t1")
+        self.assertEqual(run["size_exempt"], ["*.rs"])
+        self.assertEqual(run["oversize_files"],
+                         [{"path": "data/manifest.json", "lines": 1300, "base_lines": None}])
+        self.assertEqual(self.oversize_warnings("t1"),
+                         ["WARNING: over 1000 lines: data/manifest.json (1300, was new)"])
+        # The same files under the default list flag the other one: the knob is
+        # what decides, not the file type alone.
+        self.start("Touch the owned files.\n", "t2", spec)
+        run2 = self.run_json("t2")
+        self.assertEqual(run2["size_exempt"], list(DS.DEFAULT_SIZE_EXEMPT))
+        self.assertEqual(run2["oversize_files"],
+                         [{"path": "src/grown.rs", "lines": 1200, "base_lines": None}])
+        # An empty list exempts nothing at all.
+        self.start("Touch the owned files.\n", "t3", spec, env={"DS_LANE_SIZE_EXEMPT": ""})
+        run3 = self.run_json("t3")
+        self.assertEqual(run3["size_exempt"], [])
+        self.assertEqual([f["path"] for f in run3["oversize_files"]],
+                         ["data/manifest.json", "src/grown.rs"])

@@ -32,8 +32,8 @@ Usage:
 
 Layout:
   entry     tools/ds-lane                       (symlinked as ~/.local/bin/ds-lane)
-  package   tools/ds_lane/                      (config, preflight, receipts, lanes,
-                                                 supervisor, cli)
+  package   tools/ds_lane/                      (config, preflight, trajectory, receipts,
+                                                 lanes, supervisor, cli)
   worktree  $DS_LANE_HOME/wt/<repo>/<id>        (branch ds/<id>)
   receipts  $DS_LANE_HOME/state/<repo>/<id>/    (run-N/ per worker run)
 
@@ -49,6 +49,9 @@ Environment (read per call, so tests can set them per case):
   DS_LANE_MAX_FILE_LINES  line count above which a changed file is reported
                      (default 1000: the owner's rule that a file over roughly
                      1,000 lines is reorganized when touched)
+  DS_LANE_SIZE_EXEMPT  comma-separated globs the line rule skips, replacing
+                     DEFAULT_SIZE_EXEMPT (default *.json, *.tsv, *.csv, *.lock,
+                     **/replay_fixtures/**: generated and data files)
 
 --link PATH symlinks an ignored path from the source repo into the worktree
 (e.g. runtime-pack, reference) so repo-relative tooling finds local inputs.
@@ -137,7 +140,27 @@ at the lane base and null for a file that is new there - and printed as
 `WARNING: over 1000 lines: <path> (<lines>, was <base_lines>)` (`was new` for a
 new file). Every path in a commit is counted, whatever the brief's write set
 says; linked inputs and worker host state are excluded from the commit, so they
-are never counted. The worker preamble states the rule positively.
+are never counted. Generated and data files are exempt (owner decision): a path
+matching the globs in DEFAULT_SIZE_EXEMPT (`*.json`, `*.tsv`, `*.csv`, `*.lock`,
+`**/replay_fixtures/**`, config.py) is skipped, and DS_LANE_SIZE_EXEMPT replaces
+that list with a comma-separated one (an empty value leaves nothing exempt). The
+rule is for source text a worker edits; data grows with its content. The list a
+run used is recorded as `size_exempt` in run.json, beside `max_file_lines`. The
+worker preamble states the rule positively.
+
+RUN NUMBERING: a run's number is one more than the highest `run-N` directory in
+the lane's receipts, never the length of lane.json's `runs`. A run whose
+supervisor died before it recorded itself leaves its directory behind with no
+entry there, and counting from the record made `resume` try to create that same
+directory again (FileExistsError), which left the lane stuck until an
+orchestrator cleared it by hand. A supervisor that raises - inside the run, or
+inside finalize before run.json landed - is still recorded in lane.json with
+what is known of it: the `error`, the session id read from its trajectory, and
+its turn error, exit code and cost when the worker's result arrived. Such a run
+is marked `failed`, never run.json, so `wait ID` reports it as failed and prints
+the error, and `resume ID` continues the session its trajectory holds - which
+is also what a `resume` falls back to when a supervisor was killed outright (a
+host crash, an OOM kill) and could record nothing at all.
 
 `verify ID -- CMD...` runs CMD in the lane worktree (CARGO_BUILD_JOBS=2),
 streams its output, saves a header (command, UTC start, lane head, exit code,

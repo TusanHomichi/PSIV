@@ -34,6 +34,13 @@ STOP_WAIT = 60                # seconds `stop` waits for the run to finish final
 # text when no NUL byte sits in its first BINARY_SNIFF_BYTES bytes.
 MAX_FILE_LINES = 1000
 BINARY_SNIFF_BYTES = 8192  # enough of a file to tell source text from a blob
+# Owner decision (2026-09-24): generated and data files are exempt from that
+# line rule. A pack manifest, a replay transcript or a lock file grows with its
+# content, not with anyone's editing, and splitting one is not a reorganization
+# a worker can do by hand. Entries are globs for the matcher a write set uses -
+# fnmatch, with `**` also crossing directories - compared with the path the
+# commit reports (repo-relative), and DS_LANE_SIZE_EXEMPT replaces the list.
+DEFAULT_SIZE_EXEMPT = ("*.json", "*.tsv", "*.csv", "*.lock", "**/replay_fixtures/**")
 # Worker host state: directories the worker's own agent runtime writes into the
 # worktree. They are not lane output, but the finalize step's `git add -A` swept
 # `.reasonix/` (Reasonix task state, `.reasonix/tasks/<id>/events.jsonl`) into
@@ -120,6 +127,20 @@ def max_file_lines():
     except (KeyError, ValueError):
         return MAX_FILE_LINES
     return value if value > 0 else MAX_FILE_LINES
+
+
+def size_exempt():
+    """The globs that rule skips, generated and data files (owner decision).
+
+    DS_LANE_SIZE_EXEMPT replaces them with a comma-separated list, so a run can
+    measure exactly the paths it means to: an unset value uses
+    DEFAULT_SIZE_EXEMPT and an empty one leaves nothing exempt. Blank entries
+    are dropped, since a trailing comma is not a path.
+    """
+    raw = os.environ.get("DS_LANE_SIZE_EXEMPT")
+    if raw is None:
+        return list(DEFAULT_SIZE_EXEMPT)
+    return [p.strip() for p in raw.split(",") if p.strip()]
 
 
 def sh(args, cwd=None, check=True, capture=True):
