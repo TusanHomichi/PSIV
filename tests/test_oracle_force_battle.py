@@ -1,11 +1,12 @@
-"""Tests for oracle/force_battle.py, the forced-battle capture harness.
+"""Tests for the forced-battle capture harness, `oracle/force/`.
 
 Everything here is a hand-built input: a tape written as a few steps, a pack of
 two formations, a probe trace with one roll in it, and a RAM log carrying the
-frames the tool reads. The emulator is never started - `run_oracle` is replaced
-- so what these tests pin is the composition the tool would hand the oracle:
-which frames get padded, which RAM cells are patched at which frames, and what
-the report says about the log that comes back.
+frames the tool reads. The emulator is never started - `oracle.force.runs`'s
+`run_oracle` is replaced, which every phase calls through the module - so what
+these tests pin is the composition the tool would hand the oracle: which frames
+get padded, which RAM cells are patched at which frames, which vehicle the
+forced battle loads, and what the report says about the log that comes back.
 
 Where a number can be, it is re-derived here instead of being read from the
 module under test: `cartridge_seed` writes out the roll's arithmetic from the
@@ -19,7 +20,8 @@ import tempfile
 import unittest
 from unittest import mock
 
-from oracle import force_battle as fb
+from oracle import force as fb
+from oracle.force import runs
 
 #: A pack with three groups: 0 is drawn by a map, 1 by the Motavia position
 #: grid, 2 is a vehicle table. Formation 5 sits in 0 and 2, formation 6 in 1.
@@ -134,6 +136,9 @@ class PackFixture(unittest.TestCase):
         write_json(self.ram_map, RAM_MAP)
         self.layout = fb.field_layout(pathlib.Path(self.ram_map))
         self.pack = fb.Pack.load(pathlib.Path(self.data))
+        #: The pack directory the latest `pack_from` built, for a run's
+        #: `--data-dir` (the default pack's own directory until then).
+        self.pack_dir = self.data
 
     def pack_from(self, groups, encounters):
         """A pack built from just these groups and encounters."""
@@ -144,6 +149,7 @@ class PackFixture(unittest.TestCase):
                    {"groups": [{"group": group, "formation_ids": ids}
                                for group, ids in sorted(groups.items())]})
         write_json(os.path.join(root, "encounters.json"), encounters)
+        self.pack_dir = root
         return fb.Pack.load(pathlib.Path(root))
 
 
@@ -246,6 +252,110 @@ class Selectors(PackFixture):
         with self.assertRaises(fb.ForceError) as caught:
             fb.choose_selector(pack, 5)
         self.assertIn("group(s) [3]", str(caught.exception))
+
+
+class VehicleChoice(PackFixture):
+    """`--vehicle`: which `VehicleData` record a forced battle loads.
+
+    The group is what picks the record's *region* (`ps4.asm:11825-11839`), and
+    the region is what decides which of the three records that table can seat;
+    the values themselves are `VehicleData`'s three records, which `loc_77AE`
+    indexes without a bounds check (`ps4.asm:11295-11307`).
+    """
+
+    def vehicle_pack(self, group: int):
+        """A pack whose only group is one vehicle table."""
+        return self.pack_from({group: [5] * 32},
+                              {"maps": [], "position_grids": []})
+
+    def draw(self):
+        """The draw the fake probe's trace holds, for the patch list."""
+        return fb.Draw(frame=48, hv=0x293E, frame_count=23931,
+                       seed_before=0x6EA56A13, roll=0x1805, index=5, k=25,
+                       rows_in_frame=1)
+
+    def test_a_motavia_table_defaults_to_the_land_rover(self):
+        selector = fb.choose_selector(self.vehicle_pack(8), 5)
+        self.assertEqual((selector.kind, selector.group, selector.vehicle),
+                         ("vehicle", 8, 1))
+        self.assertEqual(selector.vehicle_name, "Land Rover")
+        self.assertIn(("vehicle_index", 1), selector.cells)
+        self.assertIn("Land Rover", selector.label)
+
+    def test_the_dezolis_table_defaults_to_the_ice_digger(self):
+        selector = fb.choose_selector(self.vehicle_pack(13), 5)
+        self.assertEqual(selector.vehicle, 2)
+        # The Dezolis table is the one `Field_Map_Index != 0` picks.
+        self.assertIn(("map_index", 1), selector.cells)
+
+    def test_the_vehicle_the_capture_asks_for_is_the_one_patched(self):
+        selector = fb.choose_selector(self.vehicle_pack(8), 5, 2)
+        self.assertEqual(selector.vehicle, 2)
+        self.assertEqual(selector.cells[1], ("vehicle_index", 2))
+        self.assertEqual(selector.cells[2], ("mota_battle_bg_index", 0))
+        self.assertNotIn("vehicle_index", selector.restore)
+        facts = dict(SCOUT, cells=dict(SCOUT["cells"]))
+        specs = fb.patch_specs(selector, facts, self.layout, self.draw(),
+                               index=0)
+        self.assertEqual(specs[1], "41:FFFFF43C:0002")
+        # The vehicle index stays set for the whole run (`loc_78EE` and the
+        # battle's own UI read it every frame), so nothing writes it back.
+        self.assertEqual([spec for spec in specs if "FFFFF43C" in spec],
+                         ["41:FFFFF43C:0002"])
+
+    def test_the_hydrofoil_is_a_motavia_machine_too(self):
+        self.assertEqual(fb.choose_selector(self.vehicle_pack(9), 5, 3).vehicle,
+                         3)
+        self.assertIn(("mota_battle_bg_index", 1),
+                      fb.choose_selector(self.vehicle_pack(9), 5, 3).cells)
+
+    def test_a_value_vehicle_data_has_no_record_for_is_rejected(self):
+        for value in (0, 4, 5, 0x100):
+            with self.assertRaises(fb.ForceError) as caught:
+                fb.choose_selector(self.vehicle_pack(8), 5, value)
+            message = str(caught.exception)
+            self.assertIn(f"--vehicle {value}", message)
+            self.assertIn("VehicleData record", message)
+        self.assertIn("on-foot", str(self.rejected(0)))
+        self.assertIn("no bounds check", str(self.rejected(4)))
+
+    def rejected(self, value: int) -> fb.ForceError:
+        with self.assertRaises(fb.ForceError) as caught:
+            fb.check_vehicle(value)
+        return caught.exception
+
+    def test_the_dezolis_table_refuses_the_motavia_machines(self):
+        for value in (1, 3):
+            with self.assertRaises(fb.ForceError) as caught:
+                fb.choose_selector(self.vehicle_pack(13), 5, value)
+            message = str(caught.exception)
+            self.assertIn(f"--vehicle {value}", message)
+            self.assertIn("Dezolis", message)
+            self.assertIn("Ice Digger", message)
+        # The Ice Digger itself is the one it can seat, and is the default.
+        self.assertEqual(fb.choose_selector(self.vehicle_pack(13), 5, 2).vehicle,
+                         2)
+        self.assertEqual(fb.choose_selector(self.vehicle_pack(13), 5).vehicle, 2)
+
+    def test_a_formation_outside_the_vehicle_tables_has_no_vehicle(self):
+        # Formation 5's groups are 0 (a map's) and 2, and no vehicle table.
+        with self.assertRaises(fb.ForceError) as caught:
+            fb.choose_selector(self.pack, 5, 2)
+        message = str(caught.exception)
+        self.assertIn("--vehicle 2", message)
+        self.assertIn("vehicle-table formation", message)
+        self.assertIn("[0, 2]", message)
+
+    def test_a_refused_vehicle_is_the_runs_own_exit_status(self):
+        with mock.patch.object(runs, "run_oracle",
+                               side_effect=AssertionError("no oracle run")):
+            status = fb.main(["--formation", "5", "--out",
+                              os.path.join(self.dir.name, "o"),
+                              "--data-dir", self.pack_dir, "--ram-map",
+                              self.ram_map, "--base-tape",
+                              os.path.join(self.dir.name, "missing.tape"),
+                              "--vehicle", "4"])
+        self.assertEqual(status, 2)
 
 
 class DrawAndPatches(PackFixture):
@@ -382,8 +492,14 @@ class LogReading(PackFixture):
                           {"slot": 2, "id": 10, "maxhp": 25}])
 
 
-class WholeRun(PackFixture):
-    """The whole flow, with `run_oracle` replaced by hand-built logs."""
+class WholeRunBase(PackFixture):
+    """The whole flow's helpers: a base tape, a scout cache, fake logs.
+
+    `run_oracle` is replaced by hand-built logs that carry one roll at the draw
+    and the frames the tool reads, so a test can drive every phase without the
+    emulator. `WholeRun` is the flow on a map-drawn formation and
+    `WholeVehicleRun` the same flow forcing a vehicle table.
+    """
 
     def setUp(self):
         super().setUp()
@@ -490,9 +606,12 @@ class WholeRun(PackFixture):
         with open(os.path.join(self.out, "report.json")) as handle:
             return json.load(handle)
 
+class WholeRun(WholeRunBase):
+    """The whole flow, with `run_oracle` replaced by hand-built logs."""
+
     def test_the_formation_is_forced_to_the_entry_the_seed_patch_names(self):
         self.scout_cache()
-        with mock.patch.object(fb, "run_oracle", self.fake_oracle()):
+        with mock.patch.object(runs, "run_oracle", self.fake_oracle()):
             self.assertEqual(fb.main(self.argv()), 0)
         report = self.report()
         self.assertEqual(report["formation"], 5)
@@ -517,7 +636,7 @@ class WholeRun(PackFixture):
 
     def test_the_capture_and_its_re_run_take_the_same_tape_and_patches(self):
         self.scout_cache()
-        with mock.patch.object(fb, "run_oracle", self.fake_oracle()):
+        with mock.patch.object(runs, "run_oracle", self.fake_oracle()):
             fb.main(self.argv())
         by_dir = {call["dir"]: call for call in self.calls}
         self.assertEqual(by_dir["capture"]["patches"],
@@ -529,7 +648,7 @@ class WholeRun(PackFixture):
 
     def test_the_trimmed_capture_is_the_tape_the_report_names(self):
         self.scout_cache()
-        with mock.patch.object(fb, "run_oracle", self.fake_oracle()):
+        with mock.patch.object(runs, "run_oracle", self.fake_oracle()):
             fb.main(self.argv())
         report = self.report()
         self.assertTrue(report["tape"].endswith("forced_05_attack.tape"))
@@ -544,7 +663,7 @@ class WholeRun(PackFixture):
 
     def test_an_ability_that_never_fires_fails_the_run(self):
         self.scout_cache()
-        with mock.patch.object(fb, "run_oracle", self.fake_oracle()):
+        with mock.patch.object(runs, "run_oracle", self.fake_oracle()):
             self.assertEqual(fb.main(self.argv("--require-ability", "0x37")), 1)
         report = self.report()
         self.assertEqual(report["require_ability"], ["0x37"])
@@ -553,13 +672,13 @@ class WholeRun(PackFixture):
 
     def test_a_probe_the_group_table_does_not_explain_is_rejected(self):
         self.scout_cache()
-        with mock.patch.object(fb, "run_oracle",
+        with mock.patch.object(runs, "run_oracle",
                                self.fake_oracle(probe_ids=("99", "10"))):
             self.assertEqual(fb.main(self.argv()), 2)
 
     def test_a_dry_run_writes_the_tape_and_the_selector_patches_only(self):
         self.scout_cache()
-        with mock.patch.object(fb, "run_oracle",
+        with mock.patch.object(runs, "run_oracle",
                                side_effect=AssertionError("no oracle run")):
             self.assertEqual(fb.main(self.argv("--dry-run")), 0)
         with open(os.path.join(self.out,
@@ -575,13 +694,59 @@ class WholeRun(PackFixture):
 
     def test_the_scout_cache_is_reused_rather_than_run_again(self):
         self.scout_cache()
-        with mock.patch.object(fb, "run_oracle",
+        with mock.patch.object(runs, "run_oracle",
                                side_effect=AssertionError("no oracle run")):
             facts = fb.scout(pathlib.Path(self.tape), BASE_TAPE,
                              pathlib.Path(self.out),
                              pathlib.Path(self.out, "scout.json"), False,
                              True, self.layout)
         self.assertEqual(facts["battle_first"], 40)
+
+
+class WholeVehicleRun(WholeRunBase):
+    """The whole flow again, forcing a vehicle table on the fake oracle.
+
+    The pack holds one group - the Motavia vehicle table 8 - so `--vehicle`
+    reaches the run, the patch list and the report exactly as it does on the
+    cartridge; the fake oracle's logs are the same hand-built ones.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.pack_from({8: [5] * 32}, {"maps": [], "position_grids": []})
+
+    def argv(self, *extra):
+        return ["--formation", "5", "--out", self.out, "--base-tape", self.tape,
+                "--data-dir", self.pack_dir, "--ram-map", self.ram_map,
+                "--scout", os.path.join(self.out, "scout.json"), *extra]
+
+    def test_the_report_names_the_vehicle_the_capture_was_told_to_use(self):
+        self.scout_cache()
+        with mock.patch.object(runs, "run_oracle", self.fake_oracle()):
+            self.assertEqual(fb.main(self.argv("--vehicle", "2")), 0)
+        report = self.report()
+        self.assertEqual(report["selector"]["kind"], "vehicle")
+        self.assertEqual(report["selector"]["group"], 8)
+        self.assertEqual(report["selector"]["cells"][1],
+                         ["vehicle_index", 2])
+        self.assertEqual(report["vehicle"],
+                         {"index": 2, "name": "Ice Digger", "table": 8,
+                          "fighter_hp_at_end": report["vehicle_fighter_hp"]})
+        # The capture's own files say which vehicle fought it, so two captures
+        # of one formation cannot overwrite each other.
+        self.assertTrue(report["tape"].endswith("forced_05_attack_v2.tape"))
+        self.assertEqual(report["patches"][1], "41:FFFFF43C:0002")
+        self.assertNotIn("FFFFF43C", report["patches"][-1])
+
+    def test_without_the_flag_the_tables_own_machine_is_the_default(self):
+        self.scout_cache()
+        with mock.patch.object(runs, "run_oracle", self.fake_oracle()):
+            self.assertEqual(fb.main(self.argv()), 0)
+        report = self.report()
+        self.assertEqual(report["vehicle"]["index"], 1)
+        self.assertEqual(report["selector"]["cells"][1],
+                         ["vehicle_index", 1])
+        self.assertTrue(report["tape"].endswith("forced_05_attack.tape"))
 
 
 class Arguments(PackFixture):
