@@ -3,25 +3,27 @@
 //! `Enemy_Attack` (`ps4.asm:19138`) loads one attack object per enemy turn,
 //! stores the drawn `Current_Target_Index` in that object's `$38(a1)`
 //! (lines 19170-19172) and hands the object to `EnemyAttackOffs[enemy_id]`
-//! (`ps4.asm:19206`). A traced arm then ends in one `move.w #$C, $2(a3)` —
+//! (`ps4.asm:19206`). A traced arm then ends in `move.w #$C, $2(target)` —
 //! routine `$C`, `Fighter_TakeDamage` (`ps4.asm:3564`) — aimed at the stored
-//! target. When an arm makes exactly one such request, the ability's
-//! `EnemySkillData` record alone decides the number: the request reaches
-//! `Enemy_DamageCharacter`'s enemy-skill branch (`ps4.asm:3775`), reads the
-//! caster's stat through record byte 1, the target's stat through byte 4, the
-//! target's element factor through byte 5 and the record's byte 3 as the bonus,
-//! and calls `Battle_CalculateDamage` (`ps4.asm:17374`) once.
+//! target, or in a five-slot loop that writes the same word to every party
+//! slot. Either way the ability's `EnemySkillData` record decides the number:
+//! the request reaches `Enemy_DamageCharacter`'s enemy-skill branch
+//! (`ps4.asm:3775`), reads the caster's stat through record byte 1, the
+//! target's stat through byte 4, the target's element factor through byte 5 and
+//! the record's byte 3 as the bonus, and calls `Battle_CalculateDamage`
+//! (`ps4.asm:17374`) once per target.
 //!
 //! [`DAMAGE_SKILL_ROUTES`] is therefore the whole gate: one `(enemy, ability)`
-//! pair per arm whose single request has been read out of the disassembly. The
-//! pair proves the *route* and its [`DamageClass`]; the record still drives the
-//! arithmetic, and no record-byte predicate is part of the proof beyond the
-//! effect handler: a record whose effect is not `$01`
-//! (`AbilityEffect_None`, `ps4.asm:9092`) would need that handler modelled as
-//! well, so it stays on the explicit [`BattleEvent::UnsupportedAbility`] path.
-//! Byte 2's target nibble is *not* a gate — it picks the
-//! `Ability_ProcessRange` (`ps4.asm:8975`) handler for the effect, and the
-//! damage request the object makes comes from the object chain alone.
+//! pair per arm whose request shape has been read out of the disassembly. The
+//! pair proves the *route* and its [`DamageClass`] — one `$38` request, or the
+//! five-slot all-party loop; the record still drives the arithmetic, and no
+//! record-byte predicate is part of the proof beyond the effect handler: a
+//! record whose effect is not `$01` (`AbilityEffect_None`, `ps4.asm:9092`)
+//! would need that handler modelled as well, so it stays on the explicit
+//! [`BattleEvent::UnsupportedAbility`] path. Byte 2's target nibble is *not* a
+//! gate — it picks the `Ability_ProcessRange` (`ps4.asm:8975`) handler for the
+//! effect, and the damage request the object makes comes from the object chain
+//! alone.
 //!
 //! Anything outside the table keeps the explicit
 //! [`BattleEvent::UnsupportedAbility`] path.
@@ -31,6 +33,26 @@ use super::{BattleData, BattleEvent, FighterId, Rolls, Roster, Side};
 #[cfg(test)]
 #[path = "enemy_damage_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "enemy_damage_acid_tests.rs"]
+mod acid_tests;
+
+#[cfg(test)]
+#[path = "enemy_damage_flame_tests.rs"]
+mod flame_tests;
+
+#[cfg(test)]
+#[path = "enemy_damage_gate_tests.rs"]
+mod gate_tests;
+
+#[cfg(test)]
+#[path = "enemy_damage_motavia_tests.rs"]
+mod motavia_tests;
+
+#[cfg(test)]
+#[path = "enemy_damage_all_party_tests.rs"]
+mod all_party_tests;
 
 /// An `AbilityEffectsOffs` (`ps4.asm:9036`) index whose handler does nothing
 /// but return: `$01` is `AbilityEffect_None` (`ps4.asm:9092`), a bare `rts`.
@@ -59,25 +81,45 @@ const EFFECT_NONE: u8 = 0x01;
 enum DamageClass {
     /// Exactly one `move.w #$C, $2(aX)` in the whole chain, against the
     /// object's `$38`: the drawn `Current_Target_Index`, one party member.
-    ///
-    /// Every route in [`DAMAGE_SKILL_ROUTES`] carries this class today. An
-    /// all-party chain — five requests in the `Obj_Fighters` loop of
-    /// `loc_24A9E` (`ps4.asm:48483`) or `loc_24BB6` (`ps4.asm:48562`) — needs
-    /// its own class and its own resolution, not a fallthrough into this one.
     Single,
-}
-
-/// One `(enemy, ability)` pair whose `EnemyAttack_*` arm has been traced to
-/// exactly one damage request against the chosen party target.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct DamageRoute {
-    /// `stats.enemy_id` of the carrier: the `fighter_id` `Enemy_Attack`
-    /// (`ps4.asm:19173`) indexes `EnemyAttackOffs` with.
-    enemy_id: u16,
-    /// Raw ability byte the arm runs for, as `$24(a4)` holds it.
-    ability: u8,
-    /// What the traced chain does with `move.w #$C`.
-    class: DamageClass,
+    /// Five requests, one per party slot, from a `moveq #4, dN` loop over
+    /// `Obj_Fighters`: the shared tails `loc_24A9E` (`ps4.asm:48483`) and
+    /// `loc_24BB6` (`ps4.asm:48562`), plus the two objects that inline the same
+    /// loop — `BattleObj_LocustaSpiralBld` (`ps4.asm:29275-29280`) and
+    /// `BattleObj_Earthquake` (`ps4.asm:47995-48000`).
+    ///
+    /// What the loop proves, and why the resolution below is its shape:
+    ///
+    /// - **Which slots.** The write reaches all five, empty and dead included.
+    ///   `Battle_UpdateFighters` (`ps4.asm:987`) skips a slot whose object word
+    ///   is zero, and `Fighter_TakeDamage` (`ps4.asm:3564`) skips a slot whose
+    ///   `Fighters_Hit_Flags` byte (`ps4.constants.asm:2019`) is negative. That
+    ///   byte is filled by `loc_B6A2` (`ps4.asm:17492`) *after* the arm has
+    ///   run: these arms clear `Current_Target_Index` (see the route
+    ///   comments), so `d7 = 4, d6 = 1` (lines 17510-17511) covers slots 1-5 and
+    ///   `loc_B75A` (line 17559) writes 0 for a slot whose status carries
+    ///   neither `StatusDead_Mask` nor `StatusAndroidDead_Mask` (`$04` and
+    ///   `$40`, `ps4.constants.asm:77-81`) and `$FF` for one that does. So
+    ///   every occupied, living party slot takes one hit, and an empty or out
+    ///   slot takes none and draws nothing.
+    /// - **Order.** `Battle_UpdateFighters` walks `Obj_Fighters` upward by
+    ///   `obj_size` `$40` for 12 slots with one routine call each, i.e. slot
+    ///   order 1-5. The object writes all five requests in one frame, so all
+    ///   five `$C` routines run in the **same** frame in that order, and each
+    ///   draws its own [`super::calculate_damage`] rolls through
+    ///   `Enemy_DamageCharacter` (`ps4.asm:3775`, reached from
+    ///   `Figher_DamageCheckActor`'s enemy branch at line 3744) — the same 16
+    ///   draws a single-target request takes.
+    /// - **Deaths.** `Fighter_TakeDamage` only *computes*: hit points come off
+    ///   in `FighterShowDamage_DecreaseHP` (`ps4.asm:3640`), three window
+    ///   phases later (`loc_24BE`, line 3622, drops routine `$E` to `$D`), and
+    ///   every fighter advances one phase per frame. All five targets
+    ///   therefore reach that phase in the same frame, after every roll has
+    ///   been drawn, so a target that empties its HP there cannot stop a later
+    ///   target's computation. The `$1C` gate in `loc_24A9E`/`loc_24BB6`
+    ///   (lines 48489, 48568) postpones the whole five-slot write, never one
+    ///   member of it, so it cannot skip a target either.
+    AllParty,
 }
 
 /// `EnemySkillData` `$33` ACIDBREATH, record `01 01 08 18 06 01 00 00` at
@@ -104,6 +146,16 @@ const SAND_STORM: u8 = 0x37;
 /// (defense), el `1` (physical).
 const MAELSTROM: u8 = 0x39;
 
+/// `EnemySkillData` `$08` SPIRAL BLD, record `01 05 09 00 06 01 00 00` at
+/// `$2833A4`: effect `$01`, stat `$05` (attack, a word), tgt 9, pow 0, res
+/// `$06` (defense), el `1` (physical).
+const SPIRAL_BLD: u8 = 0x08;
+
+/// `EnemySkillData` `$38` EARTHQUAKE, record `01 05 09 00 06 01 00 00` at
+/// `$283524`: effect `$01`, stat `$05` (attack), tgt 9, pow 0, res `$06`
+/// (defense), el `1` (physical).
+const EARTHQUAKE: u8 = 0x38;
+
 /// `EnemySkillData` `$3F` FLODBREATH, record `01 05 08 14 06 01 00 00` at
 /// `$28355C`: effect `$01`, stat `$05` (attack), tgt 8, pow 20, res `$06`
 /// (defense), el `1` (physical).
@@ -129,8 +181,24 @@ const ROUND_EYES: u8 = 0x6D;
 /// (defense), el `1` (physical).
 const LOVEL_EYES: u8 = 0x6E;
 
+/// One `(enemy, ability)` pair whose `EnemyAttack_*` arm has been traced to a
+/// proven damage-request shape.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct DamageRoute {
+    /// `stats.enemy_id` of the carrier: the `fighter_id` `Enemy_Attack`
+    /// (`ps4.asm:19173`) indexes `EnemyAttackOffs` with.
+    enemy_id: u16,
+    /// Raw ability byte the arm runs for, as `$24(a4)` holds it.
+    ability: u8,
+    /// What the traced chain does with `move.w #$C`.
+    class: DamageClass,
+}
+
 /// Every `(enemy, ability)` pair whose arm has been traced, with the class the
-/// trace established.
+/// trace established. The `Single` entries make one `$38` request, the three
+/// `AllParty` entries at the end of the table make the five-slot one; the class
+/// decides how the resolver above walks its targets, and both classes share the
+/// per-target arithmetic.
 ///
 /// **Acid Breath `$33`.** `EnemyAttackOffs` (`ps4.asm:19206`) gives
 /// `EnemyAttack_FlattrPlnt` to enemy ids `$4B`, `$4C` and `$4D` — 75 FlattrPlnt,
@@ -514,6 +582,72 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         ability: LOVEL_EYES,
         class: DamageClass::Single,
     },
+    // 15 Fanbite, `$08` SPIRAL BLD — the first all-party route.
+    // `EnemyAttackOffs` `$0F` (`ps4.asm:19222`) → `EnemyAttack_Locusta`
+    // (`ps4.asm:23472`). The arm has no ability-id test: it loads the three
+    // approach objects (`$98`/`$9C`/`$A4`), then `tst.w ability(a4)` at line
+    // 23486 picks the nonzero-ability body, which clears
+    // `Current_Target_Index` (line 23488), loads object `$A0` into the second
+    // object bank (`ps4.asm:26770`) = `BattleObj_LocustaSpiralBld`
+    // (`ps4.asm:29175`) and copies the stored target pointer into its `$38`
+    // (line 23491). Fanbite's regular list is `$08` in slots 7-8 and zeros
+    // elsewhere, so every nonzero roll runs this body.
+    //
+    // The object's state 4 (`loc_1468A`, `ps4.asm:29259`) walks in until
+    // `$2C(a4) >= $1BF` and then ORs the five party slots' `$1C` timers
+    // (lines 29266-29274); only when all of them read zero does it write
+    // `#$C` to the five slots from `$FF4400` (lines 29275-29280) and set
+    // `($FFFF416C)`. While it walks, `loc_146F2` also flinches each live
+    // member it passes (`$1C = $C`, routine 5, line 14756) in the `loc_147A0`
+    // order, which is what the `$1C` gate is waiting for; the flinch is not a
+    // damage request.
+    DamageRoute {
+        enemy_id: 15,
+        ability: SPIRAL_BLD,
+        class: DamageClass::AllParty,
+    },
+    // 80 SandWorm, `$38` EARTHQUAKE. `EnemyAttackOffs` `$50`
+    // (`ps4.asm:19287`) → `EnemyAttack_SandWorm` (`ps4.asm:21658`); `loc_F4D4`
+    // (`ps4.asm:21710`) tests `$38` (line 21711), clears
+    // `Current_Target_Index` (line 21713) and writes object `$330` into the
+    // attack object itself (line 21718) — `BattleObjsGroup5Ptrs` line 43704 =
+    // `BattleObj_Earthquake` (`ps4.asm:47884`). SandWorm lists `$38` in slots
+    // 6-8 only, and `loc_F48A` owns `$37` and `loc_F4FA` the else arm, so this
+    // body is `$38`'s alone.
+    //
+    // The object's state table (`loc_2427A`, `ps4.asm:47901`) reaches
+    // `loc_243C8` (line 47992) for the request: it writes `#$C` to the five
+    // slots from `Obj_Fighters` (lines 47995-48000) and sets `($FFFF416C)`,
+    // then waits for the flag to clear (line 48003) before its follow-through
+    // phase. Unlike the two tails and the Fanbite object it does not
+    // test the `$1C` timers, and `Enemy_Attack` cleared them for all five
+    // slots at line 19143 anyway.
+    DamageRoute {
+        enemy_id: 80,
+        ability: EARTHQUAKE,
+        class: DamageClass::AllParty,
+    },
+    // 149 KingRappy, `$38` EARTHQUAKE. `EnemyAttackOffs` `$95`
+    // (`ps4.asm:19356`) → `EnemyAttack_KingRappy` (`ps4.asm:19596`), whose
+    // nonzero arm `loc_D516` (line 19608) clears `Current_Target_Index`
+    // (line 19609) and writes object `$904` (line 19610) —
+    // `BattleObjsGroup10Ptrs` line 66419 = `BattleObj_KingRappyEarthquake`
+    // (`ps4.asm:67513`). KingRappy's regular list is `$38` in slots 3-4 and
+    // zeros elsewhere, so every nonzero roll takes that arm.
+    //
+    // The object's state table (`loc_34428`, `ps4.asm:67523`) sends states 0,
+    // 4 and 8 through its own wind-up — which loads sound object `$8EC`
+    // (line 67541, with `SFXID_Slasher` at line 67544), writes
+    // `SFXID_GraveOpening` (line 67567) and clears the party's `$1C` timers
+    // (lines 67603-67607) — and state `$C` straight to `jmp (loc_24BB6).l`
+    // (line 67527), the shared all-party tail at `ps4.asm:48562`: its `$1C`
+    // gate at lines 48565-48571, the five `#$C` writes at lines 48572-48577 and
+    // `($FFFF416C)` at line 48578.
+    DamageRoute {
+        enemy_id: 149,
+        ability: EARTHQUAKE,
+        class: DamageClass::AllParty,
+    },
 ];
 
 /// The class the table has proven for this exact pair, if any.
@@ -524,22 +658,27 @@ fn proven(enemy_id: u16, ability: u8) -> Option<DamageClass> {
         .map(|route| route.class)
 }
 
-/// One damage request against the chosen party target, for every pair in
-/// [`DAMAGE_SKILL_ROUTES`].
+/// The traced damage requests of one route, for every pair in
+/// [`DAMAGE_SKILL_ROUTES`]: one request against the chosen party target
+/// ([`DamageClass::Single`]) or one per party slot ([`DamageClass::AllParty`]).
 ///
 /// Returns `false`, leaving the ability to
 /// [`BattleEvent::UnsupportedAbility`], when the `(enemy, ability)` pair is not
-/// in the table, when the route's class is not one this function resolves, when
-/// the ability has no record, when the record's effect byte is not `$01`
-/// (`AbilityEffect_None`, so its handler would do more than the request this
-/// models), or when the actor is not a living enemy. Nothing is drawn and no
-/// event is emitted on any of those paths, so the caller's fallback starts from
-/// the state the ability roll left behind.
+/// in the table, when the ability has no record, when the record's effect byte
+/// is not `$01` (`AbilityEffect_None`, so its handler would do more than the
+/// request this models), or when the actor is not a living enemy. Nothing is
+/// drawn and no event is emitted on any of those paths, so the caller's
+/// fallback starts from the state the ability roll left behind.
 ///
-/// A resolved skill emits [`BattleEvent::EnemySkillUsed`] first and then, when
-/// the target is on the party side and alive, exactly one
-/// [`BattleEvent::Resolved`] carrying the clamped damage and the fighter's
-/// remaining hit points — plus [`BattleEvent::Died`] when that reaches zero.
+/// A resolved skill emits [`BattleEvent::EnemySkillUsed`] first and then one
+/// [`BattleEvent::Resolved`] per target that is on the party side and alive,
+/// each carrying its own clamped damage and the fighter's remaining hit points
+/// — plus [`BattleEvent::Died`] when that reaches zero. The `Single` class
+/// resolves the `intended` target alone; the `AllParty` class ignores
+/// `intended` (its arm cleared `Current_Target_Index` before loading the
+/// object) and walks every occupied, living party slot in slot order, which is
+/// the order `Battle_UpdateFighters` (`ps4.asm:987`) runs their `$C` routines
+/// in.
 pub(super) fn resolve_damage_skill(
     roster: &mut Roster,
     actor: FighterId,
@@ -561,14 +700,11 @@ pub(super) fn resolve_damage_skill(
     else {
         return false;
     };
-    // The table's class selects the shape resolved below, and `Single` is the
-    // only class it carries: exactly one `move.w #$C` against the drawn
-    // target. An `AllParty` route needs its own branch here — the match is
-    // exhaustive so that adding the variant fails to compile until it has one.
-    match proven(caster.stats.enemy_id, ability) {
-        Some(DamageClass::Single) => {}
-        None => return false,
-    }
+    // The table's class selects the shape resolved below. The match is
+    // exhaustive, so a new class fails to compile until it has a branch here.
+    let Some(class) = proven(caster.stats.enemy_id, ability) else {
+        return false;
+    };
     // `Effect_SetupSkillParams` (`ps4.asm:9576`) masks the record's stat byte
     // with `$7F` (line 9580) before indexing `AbilityStatsOffs`, which is how a
     // record written as `$82` selects mental. Byte 4 is read raw there (line
@@ -582,11 +718,50 @@ pub(super) fn resolve_damage_skill(
         skill: ability,
         name: skill.name.clone(),
     });
-    let Some(target) = intended.filter(|id| id.side() == Side::Party) else {
-        return true;
-    };
+    match class {
+        // One request against the object's `$38`, the drawn
+        // `Current_Target_Index`.
+        DamageClass::Single => {
+            if let Some(target) = intended.filter(|id| id.side() == Side::Party) {
+                damage_one_target(roster, actor, skill, power, target, rolls, events);
+            }
+        }
+        // Five requests in one frame, one per occupied party slot that is
+        // still standing, in slot order. `intended` plays no part: the arm
+        // cleared `Current_Target_Index` before loading its object and the
+        // loop runs over `Obj_Fighters` itself.
+        DamageClass::AllParty => {
+            let targets: Vec<FighterId> = roster
+                .side(Side::Party)
+                .filter(|f| f.is_alive())
+                .map(|f| f.id)
+                .collect();
+            for target in targets {
+                damage_one_target(roster, actor, skill, power, target, rolls, events);
+            }
+        }
+    }
+    true
+}
+
+/// One target's `Enemy_DamageCharacter` call: its own defense, its own element
+/// factor and its own sixteen draws, then the hit points and the events.
+///
+/// The single-target branch reaches this through the `$38` request and the
+/// all-party branch through one of the five writes; both compute the same
+/// number for the same target, because neither the request nor the loop carries
+/// any state the formula reads.
+fn damage_one_target(
+    roster: &mut Roster,
+    actor: FighterId,
+    skill: &super::EnemySkill,
+    power: u16,
+    target: FighterId,
+    rolls: &mut impl Rolls,
+    events: &mut Vec<BattleEvent>,
+) {
     let Some(fighter) = roster.get_mut(target).filter(|f| f.is_alive()) else {
-        return true;
+        return;
     };
     let damage = super::clamp_damage(super::calculate_damage(
         power,
@@ -607,5 +782,4 @@ pub(super) fn resolve_damage_skill(
         fighter.mark_defeated();
         events.push(BattleEvent::Died { fighter: target });
     }
-    true
 }

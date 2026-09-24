@@ -1,5 +1,5 @@
 //! Real pack enemy dispatch, presentation cues and persistent battle handoff.
-use psiv_core::battle::{BattleEvent, Command, Outcome, RoundOrders};
+use psiv_core::battle::{BattleEvent, Command, FighterId, Outcome, RoundOrders};
 use psiv_core::{Cell, CharId, Direction, GameState, RetailLocation, RetailSave, StepFrames};
 use psiv_data::{BattleFiles, GameData};
 use psiv_runtime::Runtime;
@@ -699,5 +699,190 @@ fn motavia_single_target_abilities_resolve_in_their_real_formations() {
             found,
             "carrier {carrier} must roll its own ability in formation {formation:#x}"
         );
+    }
+}
+
+/// The Motavia all-party routes are real-pack reachable. `generated/enemies.json`
+/// gives 15 Fanbite `$08` SPIRAL BLD in regular slots 7-8 and formation `$37` is
+/// two of them; 80 SandWorm has `$38` EARTHQUAKE in slots 6-8 and formation
+/// `$3B` is one of them. Both must resolve through
+/// `enemy_damage::resolve_damage_skill`'s all-party class: one `Resolved` on
+/// every living party member, in slot order, after one `EnemySkillUsed`, with
+/// no `UnsupportedAbility` for the ability and no physical swing by that caster.
+/// 149 KingRappy's `$38` is the third pair of the class; its only formation is a
+/// boss one (`EnemyAttack_KingRappy`, `ps4.asm:19596`), and boss formations are
+/// started by scenes, so it is covered by the core tests alone.
+#[test]
+fn motavia_all_party_abilities_resolve_in_their_real_formations() {
+    let pack = Path::new(PACK);
+    if !pack.join("manifest.json").is_file() {
+        eprintln!("runtime pack absent; skipping");
+        return;
+    }
+    let files = BattleFiles::load(pack).unwrap();
+    for (formation, carrier, ability, display, seed) in [
+        (0x37u16, 15u16, 8u8, "SPIRAL BLD", 0x9E37_79B9u32),
+        (0x3Bu16, 80u16, 56u8, "EARTHQUAKE", 0x0101_5678u32),
+    ] {
+        let mut initial = Runtime::new(
+            GameData::load(pack).unwrap(),
+            0x2B,
+            Cell::new(17, 52),
+            Direction::Up,
+            StepFrames::default(),
+        )
+        .unwrap();
+        initial.enable_battles(&files).unwrap();
+        let mut game = GameState::from_snapshot(&initial.game().snapshot());
+        game.set_party([
+            Some(CharId(1)),
+            Some(CharId(0)),
+            Some(CharId(2)),
+            None,
+            None,
+        ]);
+        // Constructed durability fixture, unrelated to the connected native
+        // save: SPIRAL BLD and EARTHQUAKE take more than a hundred hit points
+        // off each member per use, so a realistic defense would let the round
+        // search lose a member — and with it a target of the whole-party case —
+        // before the ability roll showed up. `battle_party` hands these stats to
+        // the battle unchanged, and a defense word this large clamps both
+        // records to `loc_266C`'s minimum damage, so every member is still in
+        // the fight for the whole search. The numbers themselves are pinned by
+        // the core tests.
+        for character in [1, 0, 2] {
+            let stats = game.roster_mut().get_mut(CharId(character)).unwrap();
+            stats.max_hp = 999;
+            stats.curr_hp = 999;
+            stats.defence.battle = 5000;
+        }
+        let mut runtime = Runtime::from_save(
+            GameData::load(pack).unwrap(),
+            RetailSave {
+                snapshot: game.snapshot(),
+                location: RetailLocation {
+                    world_index: 0,
+                    map_index_2: 0,
+                    map_index: 0x2B,
+                    char_x: 17 * 16,
+                    char_y: 52 * 16,
+                },
+            },
+            StepFrames::default(),
+        )
+        .unwrap();
+        runtime.enable_battles(&files).unwrap();
+        runtime
+            .start_battle_timeline(formation, runtime.battle_party())
+            .unwrap();
+        runtime.set_rng_seed(seed);
+        let mut found = false;
+        for _ in 0..12 {
+            let timeline = runtime
+                .battle_round_timeline(&RoundOrders::Commands(vec![Command::Defend; 3]))
+                .unwrap();
+            assert!(
+                !timeline.events.iter().any(|e| matches!(
+                    e,
+                    BattleEvent::UnsupportedAbility { ability: reported, .. }
+                        if *reported == ability
+                )),
+                "carrier {carrier} formation {formation:#x} ability {ability}: {:?}",
+                timeline.events
+            );
+            // Every occurrence is checked, not just the first.
+            for (index, event) in timeline.events.iter().enumerate() {
+                let BattleEvent::EnemySkillUsed { actor, skill, name } = event else {
+                    continue;
+                };
+                if *skill != ability {
+                    continue;
+                }
+                let (actor, skill) = (*actor, *skill);
+                assert_eq!(name, display, "carrier {carrier}");
+                found = true;
+                // The class puts one `Resolved` on every living party member,
+                // in `Battle_UpdateFighters` order, and a `Died` between them
+                // would belong to a member that just emptied its HP.
+                let mut hits = Vec::new();
+                for (offset, event) in timeline.events[index + 1..].iter().enumerate() {
+                    match event {
+                        BattleEvent::Resolved {
+                            actor: caster,
+                            target,
+                            damage: Some(damage),
+                            remaining_hp,
+                            ..
+                        } if *caster == actor => {
+                            assert!(*damage > 0, "carrier {carrier}");
+                            assert!(
+                                u32::from(*remaining_hp) + u32::from(*damage) <= 999,
+                                "carrier {carrier}: hit points cannot grow"
+                            );
+                            hits.push((index + 1 + offset, *target));
+                        }
+                        BattleEvent::Died { .. } => {}
+                        _ => break,
+                    }
+                }
+                assert_eq!(
+                    hits.iter().map(|(_, target)| *target).collect::<Vec<_>>(),
+                    vec![
+                        FighterId::new(1).unwrap(),
+                        FighterId::new(2).unwrap(),
+                        FighterId::new(3).unwrap()
+                    ],
+                    "carrier {carrier} ability {skill}: the whole party, in slot order: {:?}",
+                    timeline.events
+                );
+                assert!(
+                    !timeline.events.iter().any(
+                        |e| matches!(e, BattleEvent::Attacked { actor: attacker, .. } if *attacker == actor)
+                    ),
+                    "carrier {carrier} ability {skill}: the ability replaces the swing: {:?}",
+                    timeline.events
+                );
+                assert!(
+                    timeline
+                        .sounds
+                        .iter()
+                        .any(|s| s.event_index == index && s.id == wind_up_sound(skill)),
+                    "carrier {carrier} ability {skill}: the object's wind-up cue is mapped"
+                );
+                if skill == 8 {
+                    // Fanbite's object flinches each member it passes with
+                    // EnemyAttack1 (`ps4.asm:29314`); the port attaches that cue
+                    // to the member's own `Resolved`.
+                    for (hit_index, target) in &hits {
+                        assert!(
+                            timeline
+                                .sounds
+                                .iter()
+                                .any(|s| s.event_index == *hit_index && s.id == 0xBA),
+                            "carrier {carrier} ability {skill}: member {target:?} keeps its flinch cue"
+                        );
+                    }
+                }
+                assert!(
+                    !timeline.animations.iter().any(|a| a.actor == actor),
+                    "carrier {carrier} ability {skill}: do not substitute the plain attack animation"
+                );
+            }
+        }
+        assert!(
+            found,
+            "carrier {carrier} must roll its own ability in formation {formation:#x}"
+        );
+    }
+}
+
+/// The wind-up sound each all-party chain writes into `Sound_Index`:
+/// `SFXID_Slasher` `$B7` for `BattleObj_LocustaSpiralBld` (`ps4.asm:29206`),
+/// `SFXID_GraveOpening` `$DD` for `BattleObj_Earthquake` (`ps4.asm:47917`).
+fn wind_up_sound(skill: u8) -> u8 {
+    match skill {
+        8 => 0xB7,
+        56 => 0xDD,
+        other => panic!("no all-party cue for {other}"),
     }
 }

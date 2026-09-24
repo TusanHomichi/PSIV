@@ -134,9 +134,10 @@ the ability `damage`, and §5 of this file lists them by name.
 
 `single` — exactly one `move.w #$C` request against the chosen target: this is the
 class that a generic resolver can take over. `all-party` — one request per party
-slot. `multi-hit` — several requests that are not a single five-slot loop (mixed
-chains). `other` — no `move.w #$C` request at all, or a scripted route; the note
-says what runs instead.
+slot; 15 Fanbite's `$08` and the two `$38` carriers are implemented from this
+class (§3). `multi-hit` — several requests that are not a single five-slot loop
+(mixed chains). `other` — no `move.w #$C` request at all, or a scripted route; the
+note says what runs instead.
 
 | enemy | ability | `EnemyAttack_*` arm | object chain | damage request(s) | target selection | class |
 |---|---|---|---|---|---|---|
@@ -149,7 +150,7 @@ says what runs instead.
 | 51 Loader | `$04` LASRCANNON | `loc_FF86` (`ps4.asm:22470`) — `bne.s loc_FFBE` at line 22471 | `$20C` `loc_16C04` (`ps4.asm:31936`) | 1 × `move.w #$C, $2(a3)` at line 31985 | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` |
 | 52 Debugger | `$04` LASRCANNON | `loc_FF86` (`ps4.asm:22470`) — `bne.s loc_FFBE` at line 22471 | `$20C` `loc_16C04` (`ps4.asm:31936`) | 1 × `move.w #$C, $2(a3)` at line 31985 | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` |
 | 8 Sweeper | `$05` LIGHTNING | `EnemyAttack_Sweeper` (`ps4.asm:23676`) — else arm, taken when the routine's tested ids do not match (test branch at line 23678) | `$70` `BattleObj_SweeperAtk` (`ps4.asm:30911`) | 1 × `move.w #$C, $2(a3)` at line 30818 | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` |
-| 15 Fanbite | `$08` SPIRAL BLD | `EnemyAttack_Locusta` (`ps4.asm:23472`) — else arm, taken when the routine's tested ids do not match (test branch at line 23487) | `$A0` `BattleObj_LocustaSpiralBld` (`ps4.asm:29175`) | 1 × `move.w #$C, $2(a1)` at line 29278 | all five party slots (loop from `Obj_Fighters`) | `all-party` |
+| 15 Fanbite | `$08` SPIRAL BLD | `EnemyAttack_Locusta` (`ps4.asm:23472`) — the nonzero-ability body of `tst.w ability(a4)` (line 23486); it is not an id test | `$A0` `BattleObj_LocustaSpiralBld` (`ps4.asm:29175`) | 1 × `move.w #$C, $2(a1)` at line 29278 | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented**, `enemy_damage::resolve_damage_skill` for 15 Fanbite (`DAMAGE_SKILL_ROUTES`) |
 | 18 Servant | `$09` MOTRCANNON | `EnemyAttack_Slave` (`ps4.asm:23451`) — else arm, taken when the routine's tested ids do not match (test branch at line 23453) | `$AC` `BattleObj_SlaveMotrCannon` (`ps4.asm:28736`) + `$B0` `BattleObj_SlaveMotrCannon2` (`ps4.asm:28957`) | 1 × `move.w #$C, $2(a1)` at line 28921 | all five party slots (loop from `Obj_Fighters`) | `all-party` |
 | 26 LifeDeletr | `$0E` MICROMISSL | `.ability` (local label at line 23141) — `beq.s .micromissl` at line 23141 | `$80C` `BattleObj_LifeDeletrMicroMissl` (`ps4.asm:52229`) | 1 × `move.w #$C, $2(a3)` at line 48496 (tail `loc_24A9E` (`ps4.asm:48483`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` |
 | 28 DragerDuel | `$0E` MICROMISSL | `EnemyAttack_BalDuel` (`ps4.asm:23316`) — `beq.s loc_10AD2` at line 23317 | `$E8` `loc_378FC` (`ps4.asm:72007`) + `$E8` `loc_378FC` (`ps4.asm:72007`) | 1 × `move.w #$C, $2(a1)` at line 72120; 1 × `move.w #$C, $2(a3)` at line 48529 (tail `loc_24B20` (`ps4.asm:48523`)) | all five party slots (loop from `Obj_Fighters`); the stored target pointer `target` = `$38(a4)` (the chosen party target) | `multi-hit` — mixed chain: the object's own state 5 (`loc_37A40`, line 72112) requests one hit on each of the five party slots (`movea.l #$FF4400, a1` loop, line 72120), and the child it spawns, `BattleObj_AbeFrogAtk` (`ps4.asm:41843`), reaches the single-target tail `loc_24B20` (line 48529). Both requests use the actor's ability record. |
@@ -210,8 +211,8 @@ says what runs instead.
 | 124 LeFawGan | `$35` GIZAN | `loc_DF22` (`ps4.asm:20263`) — `bne.s loc_DF74` at line 20264 | `$7B0` `loc_2912C` (`ps4.asm:54326`) | 1 × `move.w #$C, $2(a3)` at line 48496 (tail `loc_24A9E` (`ps4.asm:48483`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` |
 | 125 GiLeFarg | `$35` GIZAN | `loc_DF22` (`ps4.asm:20263`) — `bne.s loc_DF74` at line 20264 | `$7B0` `loc_2912C` (`ps4.asm:54326`) | 1 × `move.w #$C, $2(a3)` at line 48496 (tail `loc_24A9E` (`ps4.asm:48483`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` |
 | 81 DesrtLeach | `$37` SAND STORM | `loc_F48A` (`ps4.asm:21692`) — `bne.s loc_F4D4` at line 21693 | `$328` `BattleObj_SandStorm` (`ps4.asm:48204`) | 1 × `move.w #$C, $2(a3)` at line 48547 (tail `loc_24B64` (`ps4.asm:48541`)) | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` |
-| 80 SandWorm | `$38` EARTHQUAKE | `loc_F4D4` (`ps4.asm:21710`) — `bne.s loc_F4FA` at line 21711 | `$330` `BattleObj_Earthquake` (`ps4.asm:47884`) | 1 × `move.w #$C, $2(a3)` at line 47998 | all five party slots (loop from `Obj_Fighters`) | `all-party` |
-| 149 KingRappy | `$38` EARTHQUAKE | `loc_D516` (`ps4.asm:19608`) — else arm, taken when the routine's tested ids do not match (test branch at line 19608) | `$904` `BattleObj_KingRappyEarthquake` (`ps4.asm:67513`) | 1 × `move.w #$C, $2(a3)` at line 48575 (tail `loc_24BB6` (`ps4.asm:48562`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` |
+| 80 SandWorm | `$38` EARTHQUAKE | `loc_F4D4` (`ps4.asm:21710`) — `bne.s loc_F4FA` at line 21711 | `$330` `BattleObj_Earthquake` (`ps4.asm:47884`) | 1 × `move.w #$C, $2(a3)` at line 47998 | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented**, `enemy_damage::resolve_damage_skill` for 80 SandWorm (`DAMAGE_SKILL_ROUTES`) |
+| 149 KingRappy | `$38` EARTHQUAKE | `loc_D516` (`ps4.asm:19608`) — the nonzero-ability body of `tst.w $24(a4)` (line 19597) | `$904` `BattleObj_KingRappyEarthquake` (`ps4.asm:67513`) | 1 × `move.w #$C, $2(a3)` at line 48575 (tail `loc_24BB6` (`ps4.asm:48562`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented**, `enemy_damage::resolve_damage_skill` for 149 KingRappy (`DAMAGE_SKILL_ROUTES`) |
 | 82 Leviathan | `$39` MAELSTROM | `loc_F4FA` (`ps4.asm:21720`) — else arm, taken when the routine's tested ids do not match (test branch at line 21720) | `$338` `BattleObj_Maelstrom` (`ps4.asm:47766`) | 1 × `move.w #$C, $2(a3)` at line 48547 (tail `loc_24B64` (`ps4.asm:48541`)) | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` |
 | 87 TwinArms | `$3C` BLADESHINE | `EnemyAttack_TwinArms` (`ps4.asm:21455`) — `bne.s loc_F1A2` at line 21456 | `$364` `loc_237AA` (`ps4.asm:47129`) | 1 × `move.w #$C, $2(a3)` at line 47237 | all five party slots (loop from `Obj_Fighters`) | `all-party` |
 | 88 SoldrFiend | `$3C` BLADESHINE | `EnemyAttack_TwinArms` (`ps4.asm:21455`) — `bne.s loc_F1A2` at line 21456 | `$364` `loc_237AA` (`ps4.asm:47129`) | 1 × `move.w #$C, $2(a3)` at line 47237 | all five party slots (loop from `Obj_Fighters`) | `all-party` |
@@ -333,6 +334,59 @@ touches a formation.
 `$11` POISON and the other `status/stat effect` abilities are outside this table;
 ACIDBREATH (`$33`) is implemented and §4 lists only unsupported rows, so it does
 not appear above even though FlattrPlnt is a Motavia enemy.
+
+### All-party rows read from the bytes (2026-09-24)
+
+The three `all-party` rows this class was written for — 15 Fanbite `$08` SPIRAL
+BLD, 80 SandWorm `$38` EARTHQUAKE and 149 KingRappy `$38` EARTHQUAKE — were read
+again from their own citations while the resolver's `AllParty` branch was
+written, and the survey's rows stand. Four questions the class needs answered
+are recorded here, each from the instruction that decides it.
+
+- **Which slots take damage.** All five get the `move.w #$C` write, empty and
+  dead included, but two gates answer for real: `Battle_UpdateFighters`
+  (`ps4.asm:987`) runs no routine for a slot whose object word is zero, and
+  `Fighter_TakeDamage` (`ps4.asm:3564`) returns early (`move.w #4, $2(a4)`,
+  line 3603) when the slot's `Fighters_Hit_Flags` byte
+  (`ps4.constants.asm:2019`) is negative. That array is filled by `loc_B6A2`
+  (`ps4.asm:17492`) *after* the arm ran: with `Current_Target_Index` cleared —
+  which all three arms do (`ps4.asm:23488`, `21713`, `19609`) — the loop covers
+  `d6 = 1..5` (line 17511, the enemy-actor branch), and `loc_B75A`
+  (line 17559) writes 0 for a slot whose status carries neither
+  `StatusDead_Mask` `$04` nor `StatusAndroidDead_Mask` `$40` and `st` (`$FF`)
+  for one that does. So: every occupied, living party slot takes one hit; an
+  empty or out slot takes none. The `$1C` gate the two shared tails and the
+  Fanbite object run (lines 48489, 48568, 29266-29274) postpones the whole
+  five-slot write, never one member of it, so it cannot skip a target either.
+- **Order and frames.** `Battle_UpdateFighters` walks `Obj_Fighters` upward by
+  `obj_size` `$40` for twelve slots, one routine call each, once per frame
+  (`GameMode_Battle`, `ps4.asm:947`, calls it at line 953;
+  `GameMode_LoadBattle`, `ps4.asm:9911`, at line 10027).
+  The request phase writes all five slots in a *single* frame, so all five `$C`
+  routines — and so all five `Enemy_DamageCharacter` (`ps4.asm:3775`) calls and
+  their RNG draws — run in the same frame, in slot order 1-5. Each target takes
+  the full `Battle_CalculateDamage` path: sixteen draws. No accuracy roll is
+  involved, because `loc_B6D4` reaches `loc_B75A` for a nonzero `$24(a4)`
+  (line 17516) and the party's command word holds the enemy's own `$0100` entry
+  by then (`Battle_Command_Data`'s ninth slot; `loc_56A8`, `ps4.asm:7928`,
+  writes its `$0100` entry at line 7932, and `loc_576A`'s
+  `move.w d1, ($FFFF4146).l` at line 8051 copies it into `Current_Command`), so
+  the `cmpi.b #6` combo escape at line 17513 tests the command index in a high
+  byte that reads 1 here and the flags take `loc_B75A`.
+- **Per target.** Defense and element factor are the target's own —
+  `Enemy_DamageCharacter` reads both from `a1`, the stats of the fighter whose
+  routine is running — and Defend is that fighter's own physical property, so one
+  member defending changes one number.
+- **Deaths.** `Fighter_TakeDamage` only *computes*: the hit points come off in
+  `FighterShowDamage_DecreaseHP` (`ps4.asm:3640`), three window phases later
+  (`loc_24BE`, line 3622, drops routine `$E` to `$D`), and every fighter advances
+  one phase per frame — so all five reach it in the same frame, after every roll
+  has been drawn. A member that empties its HP there cannot truncate a later
+  member's computation.
+
+The resolver implements exactly that: `DamageClass::AllParty` resolves each
+occupied, living party slot in slot order, one `Resolved` per slot, and
+`SOURCE_NOTES.md` has the change's own section.
 
 ### Single rows re-read at the resolver gate (2026-09-24)
 

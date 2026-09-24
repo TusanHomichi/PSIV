@@ -1156,3 +1156,171 @@ the unimplemented object-timing layer (`docs/BATTLE_ANIMATIONS.md`), not a rule.
 action has its rolled `$07` replaced in retail by the `$18` Explosion conditional
 (`$54(a3)`), an arm whose object is still untraced, so the port spends the turn
 there too. `docs/ENEMY_ABILITIES.md` records both limits under Port gaps.
+
+### All-party enemy damage routes: SPIRAL BLD `$08` and EARTHQUAKE `$38` (2026-09-24)
+
+`resolve_damage_skill` (`rust/psiv-core/src/battle/enemy_damage.rs`) resolved one
+`move.w #$C` request against the object's `$38`. `docs/ENEMY_DAMAGE_ROUTES.md` §2
+classes 58 of its 146 pairs `all-party` — one request per party slot from a
+`moveq #4, dN` loop over `Obj_Fighters` — and this change adds that class and the
+three Motavia pairs of it: 15 Fanbite `$08` SPIRAL BLD, 80 SandWorm `$38`
+EARTHQUAKE and 149 KingRappy `$38` EARTHQUAKE.
+
+Records. Both abilities share the eight bytes `01 05 09 00 06 01 00 00`:
+effect `$01` (`AbilityEffect_None`, `ps4.asm:9092`), stat `$05` (attack, which
+both readers take as a word), target nibble 9, power byte 0, resistance `$06`
+(defense), element `1` (physical). `$08` is at `$2833A4` and `$38` at `$283524`
+(`EnemySkillData` at `ps4.asm:319311`, `generated/enemy_skills.json`). Power byte
+0 means the doubled bonus term of `Battle_CalculateDamage` (`ps4.asm:17374`) is
+zero: the number is the carrier's attack word through the element multiply minus
+the target's defense.
+
+Carriers and arms. `generated/enemies.json` gives ability 8 to 15 Fanbite alone
+(slots 7-8, 6 of the 504 regular formations: 54, 55, 63, 64, 65, 66) and ability
+56 to 80 SandWorm (slots 6-8, regular formation 59) and 149 KingRappy (slots 3-4,
+one boss formation). Each pair's arm clears `Current_Target_Index` before
+loading its object, which is what makes the five-slot loop lethal to more than
+the drawn target:
+
+- 15 Fanbite: `EnemyAttackOffs` `$0F` (`ps4.asm:19222`) →
+  `EnemyAttack_Locusta` (`ps4.asm:23472`) has no ability-id test at all — after
+  the three approach objects, `tst.w ability(a4)` (line 23486) picks the
+  nonzero-ability body, which writes `$FFFF` to `Current_Target_Index`
+  (line 23488), loads object `$A0` into the second object bank (line 23492,
+  `BattleObjsGroup2Ptrs` line 26770) = `BattleObj_LocustaSpiralBld`
+  (`ps4.asm:29175`) and copies the stored target pointer into its `$38`
+  (line 23491). Its state 4 (`loc_1468A`, `ps4.asm:29255`) walks in until
+  `$2C(a4) >= $1BF`, then ORs the five party slots' `$1C` timers (lines
+  29266-29274) and, only when all of them read zero, writes `#$C` to the five
+  slots from `$FF4400` (lines 29275-29280) and sets `($FFFF416C)`. On the way it
+  flinches each living member it passes (`$1C = $C`, routine 5, line 29316) in
+  the `loc_147A0` walking order (line 29334: slots 4, 2, 1, 3, 5) and writes
+  `SFXID_EnemyAttack1` `$BA` per flinch (line 29314); the wind-up wrote
+  `SFXID_Slasher` `$B7` once (line 29206).
+- 80 SandWorm: `EnemyAttackOffs` `$50` (`ps4.asm:19287`) →
+  `EnemyAttack_SandWorm` (`ps4.asm:21658`), arm `loc_F4D4` (line 21710) tests
+  `$38` (line 21711), clears the index (line 21713) and writes object `$330` into
+  the attack object itself (line 21718; `BattleObjsGroup5Ptrs` line 43704 =
+  `BattleObj_Earthquake`, `ps4.asm:47884`). Its state table `loc_2427A`
+  (`ps4.asm:47901`) reaches `loc_243C8` (line 47992) for the request: five
+  `#$C` writes from `Obj_Fighters` (lines 47995-48000) plus `($FFFF416C)`, then a
+  wait for that flag before the follow-through. It writes `SFXID_GraveOpening`
+  `$DD` every fourth frame while the ground shakes (lines 47917, 47954, 47961).
+- 149 KingRappy: `EnemyAttackOffs` `$95` (`ps4.asm:19356`) →
+  `EnemyAttack_KingRappy` (`ps4.asm:19596`), arm `loc_D516` (line 19608) clears
+  the index (line 19609) and writes `$904` (line 19610;
+  `BattleObjsGroup10Ptrs` line 66419 = `BattleObj_KingRappyEarthquake`,
+  `ps4.asm:67513`). Its state table `loc_34428` (line 67523) sends state `$C`
+  straight to `jmp (loc_24BB6).l` (line 67527) — the shared all-party tail at
+  `ps4.asm:48562`, whose `$1C` gate (lines 48565-48571) the object has just
+  satisfied by clearing all five party timers itself (lines 67603-67607). The
+  tail's five `#$C` writes are at lines 48572-48577 and its flag at line 48578.
+  The wind-up writes `SFXID_GraveOpening` (line 67567) and loads sound object
+  `$8EC` carrying `SFXID_Slasher` (lines 67541-67544).
+
+What the class means, each from the instruction that decides it. The survey's
+three rows are unchanged; `docs/ENEMY_DAMAGE_ROUTES.md` §3 now records these four
+readings in full.
+
+- **Slots.** All five party slots get the `$C` write, empty and dead included,
+  but `Battle_UpdateFighters` (`ps4.asm:987`) runs no routine for a slot whose
+  object word is zero, and `Fighter_TakeDamage` (`ps4.asm:3564`) returns early
+  (`move.w #4, $2(a4)`, line 3603) on a negative `Fighters_Hit_Flags` byte
+  (`ps4.constants.asm:2019`). `loc_B6A2` (`ps4.asm:17492`) fills that array
+  after the arm ran: with the index cleared, the enemy-actor branch takes
+  `d7 = 4, d6 = 1` (lines 17510-17511) so the loop covers slots 1-5, and
+  `loc_B75A` (line 17559) writes 0 for a slot whose status carries neither
+  `StatusDead_Mask` `$04` nor `StatusAndroidDead_Mask` `$40`
+  (`ps4.constants.asm:77-81`) and `$FF` for one that does. `loc_B6D4`'s
+  `cmpi.b #6` combo escape (line 17513) does not divert an enemy turn: the
+  command word is the enemy's own `$0100` entry by then (`loc_56A8`,
+  `ps4.asm:7928`, writes it at line 7932, and `loc_576A`'s
+  `move.w d1, ($FFFF4146)` at line 8051 copies it into `Current_Command`), so its
+  high byte — the command index the `cmpi.b` reads — is 1, and
+  `tst.w $24(a4)` (line 17515) sends every nonzero ability to no-roll
+  `loc_B75A`. An empty or out slot therefore takes no hit and draws nothing.
+- **Order and frames.** `Battle_UpdateFighters` walks `Obj_Fighters` upward by
+  `obj_size` `$40` for twelve slots, one routine call each, once per frame
+  (`GameMode_Battle`, `ps4.asm:947`, calls it at line 953;
+  `GameMode_LoadBattle`, `ps4.asm:9911`, at line 10027). The request phase writes all five slots in one frame, so all
+  five `$C` routines — and with them all five `Enemy_DamageCharacter`
+  (`ps4.asm:3775`) calls and their sixteen `Battle_CalculateDamage` draws each —
+  run in the same frame in slot order 1-5.
+- **Per target.** `Enemy_DamageCharacter` reads the resistance stat and the
+  element factor from `a1`, the taking fighter's own stats
+  (`Figher_DamageCheckActor`, line 3737), and Defend is that fighter's own
+  physical property; one member defending changes one number.
+- **Deaths.** `Fighter_TakeDamage` only computes. The hit points come off in
+  `FighterShowDamage_DecreaseHP` (`ps4.asm:3640`), which routine `$D` reaches
+  through `loc_295C`'s third phase, three window phases after the request
+  (`Fighter_OpenDamageWindow`, `ps4.asm:3587`, and `loc_24BE`, line 3622, which
+  drops routine `$E` to `$D`). Every fighter advances one phase per frame, so
+  all five reach the subtraction in a later, single frame, after every roll has
+  been drawn: a member that empties its HP there cannot stop a later member's
+  computation.
+
+Native. `DamageClass::AllParty` joins `Single` in `DAMAGE_SKILL_ROUTES`, and
+`resolve_damage_skill` splits into a class dispatch plus one per-target helper
+that both classes share — so an all-party hit computes exactly what a
+single-target hit computes for the same target. `AllParty` ignores `intended`
+(the arm cleared the index) and walks every occupied, living party slot in
+`Roster::side(Side::Party)` order, which is `Battle_UpdateFighters` order, one
+`Resolved` per slot after one `EnemySkillUsed`. The effect-`$01` requirement is
+unchanged and is tested for the new class too.
+
+Deviations, all recorded rather than silent. (1) The cartridge defers all five
+hit-point subtractions to the show-damage frame and the port applies each
+target's damage as it resolves it; the draws, the order and the target set are
+identical, and no later target's computation reads an earlier target's hit
+points, so nothing observable changes. (2) The port has no per-frame object
+timeline, so each object's cues are attached to the event: SPIRAL BLD's
+`SFXID_Slasher` `$B7` and EARTHQUAKE's `SFXID_GraveOpening` `$DD` ride
+`EnemySkillUsed` (the GraveOpening repeat every fourth frame of the tremble is
+not reproduced), and SPIRAL BLD's per-flinch `SFXID_EnemyAttack1` `$BA` rides
+that member's own `Resolved` — one cue per living member either way, but in the
+resolver's slot order rather than the object's walking order (4, 2, 1, 3, 5).
+(3) KingRappy's `SFXID_Slasher` is left unmapped: only that chain loads sound
+object `$8EC`, SandWorm writes nothing there, and the sidecar's only per-fighter
+key is the plain-attack sound, so a skill-wide `$B7` would play for a carrier
+that never wrote it — the same reason WAT's TechCast is unmapped. (4) `$08`'s
+`$B7` is safe as a skill-wide cue because 15 Fanbite is that ability's only
+carrier.
+
+No question in this class was left open: the three pairs are implemented, and
+`docs/ENEMY_DAMAGE_ROUTES.md` §3 carries the same four readings with their
+citations.
+
+Tests and evidence. Core: `enemy_damage_all_party_tests.rs` (registered from
+`enemy_damage.rs` with `#[path]`, so `enemy_damage_tests.rs` gains nothing and is
+otherwise untouched) holds nine tests —
+`spiral_bld_hits_every_living_party_slot_with_its_own_roll_and_order` (three
+targets, three different defense words and three different physical factors,
+48 draws, one `Resolved` per slot in slot order),
+`the_drawn_target_does_not_narrow_the_all_party_loop`,
+`a_dead_party_slot_takes_no_hit_and_draws_nothing` (32 draws, no event for the
+dead slot), `defending_one_member_changes_that_members_number_only`,
+`a_death_mid_loop_leaves_later_targets_computed` (48 draws, `Died` between the
+first and second `Resolved`), `every_all_party_pair_deals_its_own_record_number`,
+`a_listed_all_party_route_with_an_effect_handler_is_refused`,
+`an_unlisted_pair_for_the_same_two_records_is_refused` and
+`every_all_party_route_resolves_in_an_ordinary_round` (62 draws for three living
+members: 13 ordering and target draws, the ability index, 48 damage draws; no
+`Attacked` and no `UnsupportedAbility`). Runtime
+(`rust/psiv-runtime/tests/combat_enemy_attacks.rs`):
+`motavia_all_party_abilities_resolve_in_their_real_formations` drives formation
+`$37` (two Fanbites, `$08`) and formation `$3B` (one SandWorm, `$38`) through
+`start_battle_timeline` at fixed seeds, checks every ability use in twelve
+rounds, and requires one `Resolved` per party member in slot order with the
+object's wind-up cue (`$B7` / `$DD`) on the `EnemySkillUsed` event and no swing
+by the caster. KingRappy's `$38` has no regular formation (its only one is a boss
+formation, which scenes start), so it is covered by the core tests alone.
+
+Negative control. Reversing the target order inside the `AllParty` branch (a
+one-line `targets.reverse()`) fails seven of the nine core tests, led by
+`spiral_bld_hits_every_living_party_slot_with_its_own_roll_and_order`
+("Fanbite: slot order, left `FighterId(3)`, right `FighterId(1)`") and
+`every_all_party_route_resolves_in_an_ordinary_round` ("the whole party, in slot
+order, left `[3, 2, 1]`"). Restoring the order passes all nine again. The two
+refusal tests pass in both states, which is what they are for: they draw nothing.
+Logs: `build/lane-evidence/negative-control-reversed-order.txt` and
+`negative-control-restored.txt` (not committed; `build/` is ignored).
