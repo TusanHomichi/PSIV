@@ -31,13 +31,6 @@ validation pass. See the
 [current receipt](docs/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
 and [next task handoff](docs/ROADMAP.md#task-graph-handoff).
 
-**Developer-tool result:** the [Redshirt fresh-case comparison](docs/REDSHIRT_BATTLE.md#fresh-case-results)
-tested informed Jev against a threat/skill-aware rule on 24 new synthetic cases.
-The rule won **19/24 in each pass**; Jev won **18/24, 18/24 and 17/24**, with all
-four extra non-wins caused by provider timeouts. Jev gained no extra victories;
-on shared wins it spent less TP but retained less HP. These are developer-tool
-measurements, not native campaign proof. Earlier experiments remain in the ledger.
-
 | Area | Current evidence |
 | --- | --- |
 | Connected playthrough | Ordinary-input routes complete the Academy, Tonoe/Alshline and Zema aftermath, with saved checkpoints and fresh CONTINUE checks. |

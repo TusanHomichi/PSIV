@@ -9,7 +9,7 @@
 - [Evidence-driven workflow, authority and handoff](AGENT_WORKFLOW.md)
 - [Canonical task graph handoff](ROADMAP.md#task-graph-handoff)
 - [Workflow setup evidence and archived graph](WORKFLOW_SETUP.md)
-- [Redshirt battle-decision experiment](REDSHIRT_BATTLE.md)
+- [Redshirt battle-decision experiment (archived)](REDSHIRT_BATTLE.md) — archived 2026-09-24; a record of closed developer-tool experiments, not instructions.
 - [MIT License](../LICENSE)
 
 ## Current campaign evidence
