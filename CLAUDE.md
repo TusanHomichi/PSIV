@@ -113,6 +113,8 @@ docstring.
   `PYTHONPATH=. python3 -m unittest tests.test_ds_lane -v` covers the harness
   hermetically in under a minute (its stall cases run with a lowered poll; the
   module must stay under 90 s).
+- A lane that builds the whole workspace needs `--link oracle/gpgx-src`:
+  `psiv-sound`'s build script compiles the ignored core sources under it.
 - Each lane has its own `rust/target`, so its first cargo build is cold.
   Restate the relevant `AGENTS.md` safety rules in each brief (GDExtension,
   saves, serialized expensive runs).

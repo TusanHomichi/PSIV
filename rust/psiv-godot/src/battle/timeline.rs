@@ -49,9 +49,9 @@ fn first_party_name(names: &BTreeMap<u8, String>) -> String {
         .unwrap_or_else(|| "Someone".into())
 }
 
-/// Every current [`BattleEvent`] variant gets one line and one beat. The
-/// wildcard is required by the core's `non_exhaustive` promise and is kept as
-/// a loud renderer error by the caller.
+/// Every current [`BattleEvent`] variant gets one line and one beat, and the
+/// match is deliberately exhaustive: the core event enum is not
+/// `non_exhaustive`, so a new event fails to compile here until it is narrated.
 pub(crate) fn narration(
     event: &BattleEvent,
     names: &BTreeMap<u8, String>,
@@ -296,8 +296,13 @@ pub(crate) fn narration(
             },
             beat: Beat::End(*outcome),
         },
-        _ => Narration {
-            line: "Unhandled battle event.".into(),
+        // `EnemyAttack_FloatMine`'s fall-through (`loc_10406`,
+        // `ps4.asm:22781`) spends the actor's turn with nothing to show: no
+        // message window, no `Sound_Index` write and no battle object. The
+        // 16-frame `$FFFF418A` pause `loc_6672` sets for the empty ability slot
+        // is not modelled; the turn simply passes.
+        BattleEvent::EnemyAbilityWasted { .. } => Narration {
+            line: String::new(),
             beat: Beat::None,
         },
     }

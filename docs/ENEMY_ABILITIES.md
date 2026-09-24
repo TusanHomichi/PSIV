@@ -7,8 +7,8 @@ out of the disassembly, and whether `psiv-core` implements it. Read
 finished dispatch (THREAD). Nothing here changes code; it is the map for doing so
 one ability at a time.
 
-**83 distinct nonzero regular ability ids.** 14 implemented,
-69 unsupported: 48 damage, 5 scripted/custom, 16 status/stat effect.
+**83 distinct nonzero regular ability ids.** 15 implemented,
+68 unsupported: 48 damage, 4 scripted/custom, 16 status/stat effect.
 
 ## 1. Method
 
@@ -130,7 +130,7 @@ runs when the gate is clear.
 | `$03` (3) **RailGun**<br>RAIL-GUN | eff `$01` · stat $05 (attack) · tgt 8 · pow 0 · res $06 (defense) · el `1` physical | `EnemyAttack_GunnerBit` (`ps4.asm:23604`)<br>→ BattleObj_GunnerBitAtk (`ps4.asm:30361`)<br>BattleObj_GunnerBitAtk2 (`ps4.asm:30450`) | `AbilityEffect_None` (`ps4.asm:9092`) | 2 GunnerBit<br>6/504 formations | damage | unsupported |
 | `$04` (4) **LasrCannon**<br>LASRCANNON | eff `$01` · stat $05 (attack) · tgt 8 · pow 0 · res $06 (defense) · el `2` energy | `EnemyAttack_Loader` (`ps4.asm:22448`)<br>→ loc_16C04 (`ps4.asm:31936`)<br>`EnemyAttack_ProtectBit` (`ps4.asm:23637`)<br>→ BattleObj_ProtectBitAtk (`ps4.asm:30592`)<br>BattleObj_ProtectBitAtk2 (`ps4.asm:30706`)<br>`EnemyAttack_Seeker` (`ps4.asm:23663`)<br>→ BattleObj_SeekerAtk (`ps4.asm:30851`)<br>`EnemyAttack_Sweeper` (`ps4.asm:23676`)<br>→ BattleObj_SeekerAtk (`ps4.asm:30851`) | `AbilityEffect_None` (`ps4.asm:9092`) | 4 ProtectBit, 7 Seeker, 8 Sweeper, 51 Loader, 52 Debugger<br>30/504 formations | damage | unsupported |
 | `$05` (5) **Lightning**<br>LIGHTNING | eff `$01` · stat $01 (strength) · tgt 8 · pow 40 · res $07 (magic_defense) · el `7` electric | `EnemyAttack_Sweeper` (`ps4.asm:23676`)<br>→ BattleObj_SweeperAtk (`ps4.asm:30911`) | `AbilityEffect_None` (`ps4.asm:9092`) | 8 Sweeper<br>6/504 formations | damage | unsupported |
-| `$07` (7) **Fission2**<br>FISSION | eff `$1E` · stat $00 (none) · tgt 10 · pow 0 · res $00 (none) · el `0` none | `EnemyAttack_FloatMine` (`ps4.asm:22675`) — no object; the routine clears `$24(a4)` | `AbilityEffect_None` (`ps4.asm:9092`) | 50 FloatMine2<br>2/504 formations | — | implemented — `enemy_skill::resolve_fission` (`rust/psiv-core/src/battle/enemy_skill.rs`), reached through `fission_neighbor` + `resolve_fission` |
+| `$07` (7) **Fission2**<br>FISSION | eff `$1E` · stat $00 (none) · tgt 10 · pow 0 · res $00 (none) · el `0` none | `EnemyAttack_FloatMine` (`ps4.asm:22675`) — no object; the routine clears `$24(a4)` | `AbilityEffect_None` (`ps4.asm:9092`) | 50 FloatMine2<br>2/504 formations | — | implemented — two different paths, the id alone is not the dispatch: `enemy_skill::resolve_fission` for 12 Igglanova / 13 Guilgenova (§3, reached through `fission_neighbor`), and `enemy_skill::resolve_no_effect_turn` for 50 FloatMine2, whose own `EnemyAttack_FloatMine` has no `$07` arm and spends the turn at `loc_10406` (`ps4.asm:22781`, `BattleEvent::EnemyAbilityWasted`) |
 | `$08` (8) **SpiralBld**<br>SPIRAL BLD | eff `$01` · stat $05 (attack) · tgt 9 · pow 0 · res $06 (defense) · el `1` physical | `EnemyAttack_Locusta` (`ps4.asm:23472`)<br>→ BattleObj_LocustaAtk (`ps4.asm:29448`)<br>BattleObj_LocustaAtk2 (`ps4.asm:29506`)<br>BattleObj_LocustaAtk3 (`ps4.asm:29541`)<br>BattleObj_LocustaSpiralBld (`ps4.asm:29175`) | `AbilityEffect_None` (`ps4.asm:9092`) | 15 Fanbite<br>6/504 formations | damage | unsupported |
 | `$09` (9) **MotrCannon**<br>MOTRCANNON | eff `$01` · stat $05 (attack) · tgt 9 · pow 0 · res $06 (defense) · el `1` physical | `EnemyAttack_Slave` (`ps4.asm:23451`)<br>→ BattleObj_SlaveMotrCannon (`ps4.asm:28736`)<br>BattleObj_SlaveMotrCannon2 (`ps4.asm:28957`) | `AbilityEffect_None` (`ps4.asm:9092`) | 18 Servant<br>6/504 formations (+1 boss) | damage | unsupported |
 | `$0B` (11) **StasisBall**<br>STASISBALL | eff `$1C` · stat $01 (strength) · tgt 8 · pow 64 · res $01 (strength) · el `13` efess | `EnemyAttack_Blauzen` (`ps4.asm:23346`)<br>→ BattleObj_BlauzenStasisBall (`ps4.asm:28127`)<br>BattleObj_BlauzenStasisBall5 (`ps4.asm:27819`)<br>BattleObj_BlauzenStasisBall4 (`ps4.asm:27928`)<br>BattleObj_BlauzenStasisBall3 (`ps4.asm:27983`)<br>BattleObj_BlauzenStasisBall2 (`ps4.asm:28057`)<br>`EnemyAttack_LifeDeletr` (`ps4.asm:23124`)<br>→ BattleObj_LifeDeletrStasisBall (`ps4.asm:26956`)<br>BattleObj_LifeDeletrStasisBall2 (`ps4.asm:26855`)<br>BattleObj_LifeDeletrStasisBall3 (`ps4.asm:26823`) | `AbilityEffect_Paralyze` (`ps4.asm:9424`) | 19 Blauzen, 21 Goldine, 26 LifeDeletr<br>11/504 formations | status/stat effect | unsupported |
@@ -140,7 +140,7 @@ runs when the gate is clear.
 | `$11` (17) **Poison**<br>POISON | eff `$1B` · stat $01 (strength) · tgt 8 · pow 64 · res $01 (strength) · el `13` efess | `EnemyAttack_Crawler` (`ps4.asm:23081`)<br>→ BattleObj_Poison (`ps4.asm:36279`) | `AbilityEffect_Poison` (`ps4.asm:9410`) | 32 Caterpillr<br>7/504 formations | status/stat effect | implemented — `enemy_skill::resolve_poison` ([ENEMY_POISON.md](ENEMY_POISON.md)) |
 | `$13` (19) **CellSplit**<br>CELL SPLIT | eff `$01` · stat $01 (strength) · tgt 9 · pow 80 · res $06 (defense) · el `1` physical | `EnemyAttack_MetaSlug` (`ps4.asm:22931`)<br>→ BattleObj_CellSplit (`ps4.asm:35240`)<br>BattleObj_CellSplit2 (`ps4.asm:35344`)<br>BattleObj_CellSplit3 (`ps4.asm:35392`)<br>BattleObj_CellSplit4 (`ps4.asm:35445`)<br>BattleObj_CellSplit5 (`ps4.asm:35493`) | `AbilityEffect_None` (`ps4.asm:9092`) | 37 SnowSlug, 38 FractOoze, 137 FractOoze2<br>5/504 formations (+1 boss) | damage | unsupported |
 | `$16` (22) **Flash**<br>FLASH | eff `$21` · stat $01 (strength) · tgt 9 · pow 64 · res $02 (mental) · el `11` psychic | `EnemyAttack_ArmDrone` (`ps4.asm:22789`)<br>→ loc_1886C (`ps4.asm:33905`) | `AbilityEffect_DexterityDown` (`ps4.asm:9457`) | 43 StarDrone<br>7/504 formations | damage | unsupported |
-| `$17` (23) **Waiting**<br>WAITING | eff `$22` · stat $00 (none) · tgt 0 · pow 0 · res $00 (none) · el `0` none | `EnemyAttack_FloatMine` (`ps4.asm:22675`) — no object; the routine clears `$24(a4)` | `AbilityEffect_None` (`ps4.asm:9092`) | 44 FloatMine, 46 VopalSphre, 50 FloatMine2<br>10/504 formations | scripted/custom | unsupported |
+| `$17` (23) **Waiting**<br>WAITING | eff `$22` · stat $00 (none) · tgt 0 · pow 0 · res $00 (none) · el `0` none | `EnemyAttack_FloatMine` (`ps4.asm:22675`) — no object; the routine clears `$24(a4)` | `AbilityEffect_None` (`ps4.asm:9092`) | 44 FloatMine, 46 VopalSphre, 50 FloatMine2<br>10/504 formations | — | implemented — `enemy_skill::resolve_no_effect_turn` (`rust/psiv-core/src/battle/enemy_skill.rs`): all three carriers are `EnemyAttack_FloatMine` entries (`$2C`/`$2E`/`$32`) whose routine has no `$17` arm, so `loc_10406` (`ps4.asm:22781`) spends the turn about to happen, exactly as the name says. `rust/psiv-godot/src/battle/timeline.rs` narrates `BattleEvent::EnemyAbilityWasted` as an empty line with no beat — which is what retail shows — and its `narration` match now names every variant, so a new core event fails to compile there until it is given its line |
 | `$19` (25) **Detonation**<br>DETONATION | eff `$24` · stat $05 (attack) · tgt 9 · pow 24 · res $06 (defense) · el `1` physical | `EnemyAttack_FloatMine` (`ps4.asm:22675`)<br>→ loc_17B5E (`ps4.asm:33029`)<br>loc_17DA6 (`ps4.asm:33183`)<br>loc_17E1A (`ps4.asm:33211`)<br>loc_17F6C (`ps4.asm:33295`)<br>loc_1804A (`ps4.asm:33351`)<br>loc_18144 (`ps4.asm:33412`)<br>loc_1816A (`ps4.asm:33424`)<br>loc_1824A (`ps4.asm:33483`)<br>loc_18270 (`ps4.asm:33495`)<br>loc_18344 (`ps4.asm:33550`) | `AbilityEffect_None` (`ps4.asm:9092`) | 45 CommndBall<br>2/504 formations | damage | unsupported |
 | `$1C` (28) **FlareShot**<br>FLARE SHOT | eff `$01` · stat $05 (attack) · tgt 8 · pow 16 · res $06 (defense) · el `2` energy | `EnemyAttack_DarkForce1` (`ps4.asm:20030`)<br>→ loc_31F60 (`ps4.asm:64584`)<br>`EnemyAttack_Warren286` (`ps4.asm:22515`)<br>→ loc_1786E (`ps4.asm:32828`) | `AbilityEffect_None` (`ps4.asm:9092`) | 47 Warren286, 48 Siren386, 49 Browren486, 130 DarkForce1<br>13/504 formations (+1 boss) | damage † | unsupported |
 | `$1D` (29) **Barrier**<br>BARRIER | eff `$0B` · stat $01 (strength) · tgt 2 · pow 0 · res $00 (none) · el `0` none | `EnemyAttack_Warren286` (`ps4.asm:22515`)<br>→ loc_1769E (`ps4.asm:32706`)<br>loc_175A2 (`ps4.asm:32636`)<br>loc_174BE (`ps4.asm:32575`)<br>loc_1740E (`ps4.asm:32526`)<br>loc_17364 (`ps4.asm:32478`)<br>loc_172CA (`ps4.asm:32429`)<br>loc_171D0 (`ps4.asm:32358`) | `AbilityEffect_MagicDefenseUp` (`ps4.asm:9220`) | 49 Browren486<br>5/504 formations | status/stat effect | unsupported |
@@ -262,7 +262,6 @@ Map ids whose encounter table can roll a formation carrying the ability, with th
 | `$0F` FLAMLAUNCH | damage | 4 | 0C8 VahalFort, 0C9 VahalFort_F1, 0CA VahalFort_F2, 0CB VahalFort_F3 |
 | `$13` CELL SPLIT | damage | 9 (+1 boss) | 001 Dezolis, 092 IslandCave, 093 IslandCave_F1, 094 IslandCave_F1_Part2, 095 IslandCave_Part2, 096 IslandCave_B1, 097 IslandCave_F2, 098 IslandCave_F3, 15F Hangar |
 | `$16` FLASH | damage | 4 | 0C4 WeaponPlant, 0C5 WeaponPlant_F1, 0C6 WeaponPlant_F2, 0C7 WeaponPlant_F3 |
-| `$17` WAITING | scripted/custom | 19 | 0C8 VahalFort, 0C9 VahalFort_F1, 0CA VahalFort_F2, 0CB VahalFort_F3, 0CC Nurvus_Part2, 0CD Nurvus_Part3, 0CE Nurvus_B1, 0CF Nurvus_B2, 0D0 Nurvus_B3, 0D2 Nurvus_B4, 0D5 Nurvus_B5, 190 Kuran, 191 Kuran_F1, 192 Kuran_F2, 193 Kuran_F1_Part2, 194 Kuran_F1_Part3, 195 Kuran_F1_Part5, 196 Kuran_F2_Part2, 197 Kuran_F1_Part4 |
 | `$19` DETONATION | damage | 8 | 190 Kuran, 191 Kuran_F1, 192 Kuran_F2, 193 Kuran_F1_Part2, 194 Kuran_F1_Part3, 195 Kuran_F1_Part5, 196 Kuran_F2_Part2, 197 Kuran_F1_Part4 |
 | `$1C` FLARE SHOT | damage | 20 (+1 boss) | 0AE Wreckage, 0AF Wreckage_Part2, 0B0 Wreckage_Part3, 0B1 Wreckage_F1, 0B2 Wreckage_F1_Part2, 0B3 Wreckage_F2, 0B4 Wreckage_F2_Part2, 0B5 Wreckage_F2_Part3, 0C8 VahalFort, 0C9 VahalFort_F1, 0CA VahalFort_F2, 0CB VahalFort_F3, 190 Kuran, 191 Kuran_F1, 192 Kuran_F2, 193 Kuran_F1_Part2, 194 Kuran_F1_Part3, 195 Kuran_F1_Part5, 196 Kuran_F2_Part2, 197 Kuran_F1_Part4 |
 | `$1D` BARRIER | status/stat effect | 4 | 0C8 VahalFort, 0C9 VahalFort_F1, 0CA VahalFort_F2, 0CB VahalFort_F3 |
@@ -329,15 +328,15 @@ Map ids whose encounter table can roll a formation carrying the ability, with th
 | | |
 |---|---|
 | distinct nonzero regular ability ids (§2) | 83 |
-| implemented | 14 |
-| unsupported | 69 |
+| implemented | 15 |
+| unsupported | 68 |
 | — `damage` | 48 |
 | — `status/stat effect` | 16 |
-| — `scripted/custom` | 5 (`$17` WAITING, `$54` BLACK WAVE, `$63` BURSTROC, `$64` SHDWBREATH, `$6C` BLACK WAVE) |
+| — `scripted/custom` | 4 (`$54` BLACK WAVE, `$63` BURSTROC, `$64` SHDWBREATH, `$6C` BLACK WAVE) |
 | — `unknown` | 0 |
 | conditional-only ids (§3) | 24, one of them implemented (`$06` FISSION) |
 
-The fourteen implemented rows are exactly what `psiv-core` claims:
+The fifteen implemented rows are exactly what `psiv-core` claims:
 
 - `$02` FLAME BOLT → `enemy_damage::resolve_damage_skill` for both carriers
   (`DAMAGE_SKILL_ROUTES`, `rust/psiv-core/src/battle/enemy_damage.rs`). 0 Helex
@@ -357,7 +356,14 @@ The fourteen implemented rows are exactly what `psiv-core` claims:
   by `EnemyAttack_Igglanova` (`ps4.asm:23505`), whose `tst.b ability+1(a4)` picks
   `BattleObj_IgglanovaFission` (`ps4.asm:29571`) + `BattleObj_IgglanovaFission2`
   (`ps4.asm:29796`) — no damage request, as the resolver assumes. §2's row for
-  `$07` is the *other* carrier, enemy 50 FloatMine2, which is a gap (see below).
+  `$07` is the *other* carrier, enemy 50 FloatMine2, whose own routine has no
+  `$07` arm at all — `enemy_skill::resolve_no_effect_turn` (below).
+- `$17` Waiting → the same `enemy_skill::resolve_no_effect_turn`, on the three
+  carriers whose `EnemyAttackOffs` entry is `EnemyAttack_FloatMine`
+  (`ps4.asm:22675`): 44 FloatMine (`$2C`), 46 VopalSphre (`$2E`) and 50
+  FloatMine2 (`$32`). `loc_10406` (`ps4.asm:22781`) loads no object and clears
+  `$24(a4)`, so those turns pass with nothing happening (see the Port gaps
+  bullet for the draws and the one unmodelled override).
 - `$10` THREAD → `enemy_skill::resolve_thread`. Carrier 31 CarrionCr →
   `EnemyAttack_Crawler` (`ps4.asm:23081`) → `BattleObj_Thread` (`ps4.asm:36186`)
   for `$10`, `BattleObj_Poison` (`ps4.asm:36279`) otherwise — matching
@@ -424,7 +430,8 @@ The fourteen implemented rows are exactly what `psiv-core` claims:
   `$354`), `EnemyAttack_Piercer` (`loc_F2E4`, `ps4.asm:21549` → `$354`),
   `EnemyAttack_ArmDrone`'s `$17` branch (`loc_10468`, `ps4.asm:22806`, no object
   at all) and `EnemyAttack_FloatMine`'s fall-through (`loc_10406`,
-  `ps4.asm:22781`, no object).
+  `ps4.asm:22781`, no object). That last one is the `$07`/`$17` "nothing happens"
+  turn the port now implements (§2); the other four still need their objects.
 - **The Zio family rewrites the ability it rolled** (`move.w #$ID, $24(a4)`) rather
   than dispatching it: `EnemyAttack_Zio3` (`ps4.asm:19410`), `EnemyAttack_Zio`
   (`ps4.asm:19483`) and `EnemyAttack_Zio2` (`ps4.asm:19519`) drive objects from a
@@ -499,9 +506,10 @@ The fourteen implemented rows are exactly what `psiv-core` claims:
 
 - `engine::roll_enemy_ability` (`rust/psiv-core/src/battle/engine.rs`) handles
   Fission/Fission2, the record-driven damage skills (`enemy_damage`: `$33`,
-  `$02` and the eight Motavia single-target abilities), THREAD and Zio3. Every other nonzero id emits
+  `$02` and the eight Motavia single-target abilities), THREAD, Zio3 and the
+  FloatMine carriers' `$07`/`$17` no-effect turn. Every other nonzero id emits
   `BattleEvent::UnsupportedAbility` and then takes the ordinary attack path
-  (`engine.rs:774-776`), so those enemies still *hit* — they hit with a physical
+  (the fallback at the end of `roll_enemy_ability` in `engine.rs`), so those enemies still *hit* — they hit with a physical
   swing instead of their ability. Any bug report about enemy damage in a fight
   listed in §4 is this fallback.
 - **Acid Breath covers every carrier.** The `$33` `DAMAGE_SKILL_ROUTES` entries
@@ -526,12 +534,32 @@ The fourteen implemented rows are exactly what `psiv-core` claims:
   *not* a gate — it picks the `Ability_ProcessRange` (`ps4.asm:8975`) handler for
   that effect — and the record's stat byte is masked with `$7F` as
   `Effect_SetupSkillParams` (`ps4.asm:9576`) masks it at line 9580.
-- **Fission2's regular roll is not covered.** The port reaches `resolve_fission`
-  only through `fission_neighbor`, which returns `None` unless the record is enemy
-  12 or 13, and `resolve_fission` runs only when that returns a target. Enemy 50
-  FloatMine2 rolls `$07` as a regular ability, and the cartridge's
-  `EnemyAttack_FloatMine` fall-through clears `$24(a4)` and loads no object (a
-  "nothing happens" turn); the port emits `UnsupportedAbility` and swings.
+- **Fission2's regular roll is a spent turn, not a physical attack.** The port
+  reaches `resolve_fission` only through `fission_neighbor`, which returns `None`
+  unless the record is enemy 12 or 13, and `resolve_fission` runs only when that
+  returns a target. Enemy 50 FloatMine2 rolls `$07` as a regular ability, and the
+  cartridge's `EnemyAttack_FloatMine` fall-through (`loc_10406`, `ps4.asm:22781`)
+  clears `$24(a4)` and loads no object, so the turn passes with nothing happening
+  — no damage, no sound, no message, no status — and the actor still counts as
+  having acted. `enemy_skill::resolve_no_effect_turn` now emits
+  `BattleEvent::EnemyAbilityWasted` for that and for `$17` Waiting instead of
+  `UnsupportedAbility` + a swing. Two limits are deliberate: the port emits one
+  event for the turn and models no per-frame timing (retail's `loc_6672` sets the
+  `$FFFF418A` wait to `$F` because the ability slot is empty, so the turn advances
+  sixteen frames later than an attack's — a pacing detail of the unimplemented
+  object-timing layer), and `EnemyAI_PhysicalAtkReceived` (instruction 7, the
+  only `condition_ids` entry these carriers have) is not modelled, so a FloatMine2
+  that was hit physically since its last action would in retail have its `$07`
+  replaced by the `$18` Explosion conditional; the port spends the turn instead of
+  firing an untraced object. The draw accounting is exact: 9 ordering rolls, 4
+  enemy-target rolls and the ability index, then nothing — `loc_B6A2` runs with
+  `Current_Target_Index` 0, whose phantom slot (`$FFFF43C0`, wiped by the battle
+  start's `trap #0` at `ps4.asm:9989`) is empty, so no chance roll is taken and
+  all nine `Fighters_Hit_Flags` stay `$FF`. `BattleEvent::EnemyAbilityWasted` is
+  narrated as an empty line and no beat (see the `$17` row); `BattleEvent` is no
+  longer `non_exhaustive`, so the renderer's exhaustive narration match fails to
+  compile when a new event appears instead of showing an "unhandled event" line
+  at runtime.
 - **The AI condition block is unimplemented.** Only `fission_neighbor` (condition 1
   for enemies 12/13) reads `condition_ids` / `conditional_abilities`; the other 19
   `EnemyAIInstructionsOffs` entries are not modelled, so all 24 §3 ids and every
@@ -546,7 +574,7 @@ The fourteen implemented rows are exactly what `psiv-core` claims:
 - **Completeness.** §2 holds one row per id in the union of
   `ai.regular_ability_ids` over the 153 records of `generated/enemies.json`
   (83 ids, each exactly once); the same set re-derived from `raw_hex` bytes 36..43
-  is identical. §4 holds the §2 rows whose status is `unsupported` (69 rows).
+  is identical. §4 holds the §2 rows whose status is `unsupported` (68 rows).
 - **Citations.** Every `ps4.asm:NNNN` citation in this file points at a label that
   begins on that line, and every backticked label next to such a citation is the
   label found there. Statement-level references are written as "line NNNN" and

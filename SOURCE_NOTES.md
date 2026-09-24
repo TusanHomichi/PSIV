@@ -1063,3 +1063,96 @@ are untouched. (2) `docs/ENEMY_DAMAGE_ROUTES.md`'s parenthetical notes of the
 form "`bne.s loc_X` at line N" cite the test line (`cmpi.w`/`tst.w`) rather than
 the branch line, one line later; the code comments here cite label lines and
 request lines, which were verified against the file.
+
+### FloatMine2's regular Fission2 roll (2026-09-24)
+
+**RETAIL FINDING — `EnemyAttack_FloatMine`'s fall-through spends the turn.**
+`EnemyAttackOffs` `$32` (line 19257) sends 50 FloatMine2 to
+`EnemyAttack_FloatMine` (`ps4.asm:22675`), whose only arms test `$24(a4)` for
+`$14` (line 22677), `$18` (22690), `$19` (22707) and `$1A` (22766). Its eight
+regular slots are `07 07 07 07 17 17 17 17` (`$58(a3,d0.w)`, line 19153 in
+`Enemy_Attack`, `ps4.asm:19138`; `generated/enemies.json` id 50): the index roll
+always lands on one of those two, neither of which is an arm, so this enemy
+never loads an attack object at all and reaches the fall-through `loc_10406`
+(`ps4.asm:22781`) every time:
+
+```
+	movea.l	$38(a1), a0
+	clr.w	(Current_Target_Index).l
+	clr.w	$24(a4)
+	move.w	#$16, (Battle_Routine).l
+	subq.w	#2, $2(a4)
+	rts
+```
+
+No object, no `LoadPLC1`, no palette write, no `Sound_Index`, no message window.
+`$16` is `Battle_DoAttackEffect` (`ps4.asm:8553`; table entry at line 7536,
+`BattleRoutines` `ps4.asm:7524`); the ability word it reads is the one just
+cleared and `loc_B6A2` (`ps4.asm:17492`) left all nine `Fighters_Hit_Flags`
+(`$FFFF4150`, `ps4.constants.asm:2019`) at `$FF`, so it takes `loc_5DD2`
+(`ps4.asm:8625`) → `Battle_Routine` `$12` = `loc_6672` (`ps4.asm:9689`) → `$1E` =
+`loc_66B8` (`ps4.asm:9709`). `Ability_GetEffectAndRange` is never called for that
+turn: no damage, no status, no ailment, and the `$12`/`$1E` pair does the ordinary
+end-of-action wait and advances the turn order. The actor's `fighter_routine`
+drops 6 → 4 (`Fighter_DoNothing`) exactly as the shared `loc_D200`
+(`ps4.asm:19395`) tail does after a real attack, so the turn is *spent*, not
+skipped. `$17` Waiting is the same path for 44 FloatMine, 46 VopalSphre and 50
+FloatMine2 — which is what the ability's name says — while `$19` on 45 CommndBall
+(the routine's fourth carrier) has an arm and is unaffected.
+
+**Draw accounting — nothing after the ability index.** `Enemy_Attack` spends the
+index roll (`loc_CFE6`, rerolling the index only), then the AI instruction block
+at `$50(a3)`..`$53(a3)`; all four of FloatMine2's bytes are 7 =
+`EnemyAI_PhysicalAtkReceived` (`ps4.asm:22816`, table `ps4.asm:19364`), which
+draws nothing and only replaces the rolled id when `reaction_flags` bit 0 is set.
+Back in `Enemy_Attack`, `loc_B6A2` clears the flags and, with
+`Current_Target_Index` now 0, runs its slot loop **once** for `d6 = 0`
+(`moveq #0, d7` then `bpl.s loc_B6D4`): `Battle_GetFighterAddr(0)` is
+`Obj_Fighters - $40` = `$FFFF43C0`, the phantom slot 0 of the 1-based shadow
+array `loc_5C04` (line 8454) indexes into. The battle start wipes
+`$FFFF4000`-`$FFFF47FF` (lines 9989-9993; `Trap00Exception`, line 161, clears
+`d7+1` longwords), and every write to that array in the disassembly lands at
+`$FFFF43C0 + n*$40` with n ≥ 1 (`loc_2515C`, line 49017, pre-increments;
+`loc_2A88`, line 4241, starts at `$40(a1)`), so the phantom slot reads 0: empty
+slots consume no chance roll, and the verdict byte lands in
+`Fighters_Hit_Flags[-1]` (`$FFFF414F`), which nothing reads. Nine ordering rolls,
+four enemy-target rolls, the ability index — then nothing.
+
+**Fork check.** No `if bugfixes`/`if grand_cross` arm exists between line 18356
+and the routine at 22675, nor inside it: the body above is the disassembly's one
+unconditional body, so there is no alternative arm a retail build would take and
+no fork-only branch to strip. The enemy ability bytes and the routine's arm ids
+agree with the ROM-extracted `generated/` tables. No emulator, tape or hardware
+capture backs this entry, and none is claimed: it is a static read of the
+disassembly plus the extracted records.
+
+**PORT CHANGE.** `enemy_skill::resolve_no_effect_turn` now witnesses that
+fall-through: it requires the record to be `$07` Fission2 (`is_fission`) or `$17`
+Waiting (`is_waiting`, record 23 = `22 00 00 00 00 00 00 00` at `0x28341C`) and
+the actor's enemy id to be one of the four `EnemyAttack_FloatMine` carriers (44,
+45, 46, 50), emits `BattleEvent::EnemyAbilityWasted { actor, ability, name }` and
+clears the actor's ability slot (`clr.w $24(a4)`), so the physical fallback no
+longer runs for those two ids. 12/13 Fission and everything else keep their
+existing path, `fission_neighbor` included. Evidence: core
+`enemy_skill_tests::floatmine2_rolling_fission2_spends_the_turn_without_an_effect`
+(14 draws for the round; no `Attacked`, `Resolved` or `UnsupportedAbility`),
+`waiting_spends_the_turn_for_every_float_mine_carrier` (44/46/50),
+`the_no_effect_witness_needs_the_traced_record_and_carrier`, and the negative
+controls `an_unproven_float_mine_arm_still_falls_back_to_a_physical_attack` and
+`a_non_carrier_keeps_the_fallback_for_the_fission2_roll`; runtime
+`combat_fission::floatmine2_formations_spend_fission2_and_waiting_turns_without_a_swing`
+drives pack formation 263 (FloatMine2, Tower, FloatMine2 — Tower's slots are all
+zero) and sees both `$07` and `$17` in the trace, and
+`a_float_mine_arm_on_a_real_formation_keeps_the_physical_fallback` pins formation
+292 (45 CommndBall's `$19`).
+
+**Two deliberate limits.** (1) The port emits one event per turn and models no
+per-frame timing; `loc_6672` also sets the `$FFFF418A` wait to `$F` when the
+ability slot is empty, and `loc_66B8` decrements it once a frame, so retail
+advances the turn sixteen frames later than after an attack. That is pacing from
+the unimplemented object-timing layer (`docs/BATTLE_ANIMATIONS.md`), not a rule.
+(2) `EnemyAI_PhysicalAtkReceived` and
+`reaction_flags` are not modelled: a FloatMine2 hit physically since its last
+action has its rolled `$07` replaced in retail by the `$18` Explosion conditional
+(`$54(a3)`), an arm whose object is still untraced, so the port spends the turn
+there too. `docs/ENEMY_ABILITIES.md` records both limits under Port gaps.

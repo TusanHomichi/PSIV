@@ -63,8 +63,11 @@ pub enum Skipped {
 }
 
 /// One thing that happened, in resolution order.
+///
+/// Deliberately not `#[non_exhaustive]`: downstream presentation matches are
+/// exhaustive on purpose so that a new event has to be narrated where it is
+/// rendered, instead of quietly becoming a runtime "unhandled event" string.
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum BattleEvent {
     /// Psycho Wand's object reloads the enemy records after changing the
     /// first formation entry from invulnerable Zio to vulnerable Zio.
@@ -373,6 +376,37 @@ pub enum BattleEvent {
         actor: FighterId,
         /// The enemy-skill id.
         ability: u8,
+    },
+    /// The rolled ability left the actor's attack routine with nothing to
+    /// load, so the actor's turn is spent and nothing happens.
+    ///
+    /// `EnemyAttack_FloatMine` (`ps4.asm:22675`) has an arm for `$14`
+    /// Warning, `$18` Explosion, `$19` Detonation and `$1A` CyanicBomb only.
+    /// Every other id reaches the fall-through at `loc_10406`
+    /// (`ps4.asm:22781`), which loads no battle object, clears
+    /// `Current_Target_Index` and `$24(a4)` — the ability the effect dispatcher
+    /// reads — sets `Battle_Routine` to `$16` and drops the actor's
+    /// `fighter_routine` from `Enemy_Attack` to `Fighter_DoNothing`
+    /// (`subq.w #2, $2(a4)`; the shared `loc_D200` tail does the same for a
+    /// real attack).
+    ///
+    /// `loc_B6A2` then leaves every `Fighters_Hit_Flags` entry at `$FF` ("not
+    /// being targeted or miss"), and `Battle_DoAttackEffect` (`ps4.asm:8553`)
+    /// finds ability 0 with no hit flag set, so it never reaches
+    /// `Ability_GetEffectAndRange` and hands over to `Battle_Routine` `$12`:
+    /// no object, no palette or PLC upload, no sound, no message window, no
+    /// damage and no status. The `$12`/`$1E` pair spends the usual wait and
+    /// advances the turn order, so the actor has acted. Only the two ids the
+    /// carriers of that routine can roll without an arm are reachable here:
+    /// `$07` Fission2 (50 FloatMine2) and `$17` Waiting (44 FloatMine, 46
+    /// VopalSphre, 50 FloatMine2).
+    EnemyAbilityWasted {
+        /// Who rolled it.
+        actor: FighterId,
+        /// The enemy-skill id, as rolled.
+        ability: u8,
+        /// Cartridge display name of the record the roll landed on.
+        name: String,
     },
     /// A fighter's HP reached zero or below.
     Died {
