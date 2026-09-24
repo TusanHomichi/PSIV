@@ -154,6 +154,10 @@ e4_agi_bat	FFFF43A0	1	enemy	-
 e4_dex	FFFF43A1	1	enemy	-
 e4_atk	FFFF43A4	2	enemy	-
 e4_dfs	FFFF43A8	2	enemy	-
+e1_ability	FFFF4565	1	enemy	hex
+e2_ability	FFFF45A5	1	enemy	hex
+e3_ability	FFFF45E5	1	enemy	hex
+e4_ability	FFFF4625	1	enemy	hex
 chaz_level	FFFFF508	2	chars	-
 chaz_exp	FFFFF50A	4	chars	-
 chaz_hp	FFFFF50E	2	chars	-
@@ -183,6 +187,8 @@ alys_dfs	FFFFF5A8	2	chars	-
 current_money	FFFFF438	4	chars	-
 battle_priority	FFFFEE45	1	battle	hex
 enemy_ability_index	FFFFEEA8	2	battle	hex
+mota_battle_bg_index	FFFFECEF	1	battle	hex
+vehicle_fighter_hp	FFFF470E	2	battle	-
 turn_00	FFFFEFB0	2	battle	hex
 turn_01	FFFFEFB2	2	battle	hex
 turn_02	FFFFEFB4	2	battle	hex

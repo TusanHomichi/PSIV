@@ -1231,6 +1231,38 @@
       "source": "Enemy_Stats_4 (constants:2053) + dfs_pow, constants:31"
     },
     {
+      "name": "e1_ability",
+      "addr": "FFFF4565",
+      "size": 1,
+      "group": "enemy",
+      "hex": true,
+      "source": "the ability id enemy 1 executes on its turn: `move.b $58(a3,d0.w), ability+1(a4)` (Enemy_Attack's ability roll, ps4.asm:19153) writes it into the acting fighter object's ability word (ability = $24, constants:151). Enemy slot 1 is Obj_Fighters (constants:2055) + 5*$40 = Fighter_Enemy_1 = $FFFF4540 (constants:2061, index n+5 by Battle_GetFighterAddr ps4.asm:315652), so the id byte is at +$25. EnemyAI_* condition routines overwrite the same byte (ps4.asm:20386). $00 means no ability was written and the enemy is making its basic attack"
+    },
+    {
+      "name": "e2_ability",
+      "addr": "FFFF45A5",
+      "size": 1,
+      "group": "enemy",
+      "hex": true,
+      "source": "the ability id enemy 2 executes on its turn: `move.b $58(a3,d0.w), ability+1(a4)` (Enemy_Attack's ability roll, ps4.asm:19153) writes it into the acting fighter object's ability word (ability = $24, constants:151). Enemy slot 2 is Obj_Fighters (constants:2055) + 6*$40 = Fighter_Enemy_2 = $FFFF4580 (constants:2061, index n+5 by Battle_GetFighterAddr ps4.asm:315652), so the id byte is at +$25. EnemyAI_* condition routines overwrite the same byte (ps4.asm:20386). $00 means no ability was written and the enemy is making its basic attack"
+    },
+    {
+      "name": "e3_ability",
+      "addr": "FFFF45E5",
+      "size": 1,
+      "group": "enemy",
+      "hex": true,
+      "source": "the ability id enemy 3 executes on its turn: `move.b $58(a3,d0.w), ability+1(a4)` (Enemy_Attack's ability roll, ps4.asm:19153) writes it into the acting fighter object's ability word (ability = $24, constants:151). Enemy slot 3 is Obj_Fighters (constants:2055) + 7*$40 = Fighter_Enemy_3 = $FFFF45C0 (constants:2061, index n+5 by Battle_GetFighterAddr ps4.asm:315652), so the id byte is at +$25. EnemyAI_* condition routines overwrite the same byte (ps4.asm:20386). $00 means no ability was written and the enemy is making its basic attack"
+    },
+    {
+      "name": "e4_ability",
+      "addr": "FFFF4625",
+      "size": 1,
+      "group": "enemy",
+      "hex": true,
+      "source": "the ability id enemy 4 executes on its turn: `move.b $58(a3,d0.w), ability+1(a4)` (Enemy_Attack's ability roll, ps4.asm:19153) writes it into the acting fighter object's ability word (ability = $24, constants:151). Enemy slot 4 is Obj_Fighters (constants:2055) + 8*$40 = Fighter_Enemy_4 = $FFFF4600 (constants:2061, index n+5 by Battle_GetFighterAddr ps4.asm:315652), so the id byte is at +$25. EnemyAI_* condition routines overwrite the same byte (ps4.asm:20386). $00 means no ability was written and the enemy is making its basic attack"
+    },
+    {
       "name": "chaz_level",
       "addr": "FFFFF508",
       "size": 2,
@@ -1434,6 +1466,21 @@
       "group": "battle",
       "hex": true,
       "source": "Enemy_Attack's ability reroll word; read at ps4.asm:19149 (cmp.w ($FFFFEEA8).w,d0) and written at ps4.asm:19151, unnamed in ps4.constants.asm. It sits inside the $FFFFEE00 page the battle-load wipe clears (lea ($FFFFEE00).w,a0 / move.w #$3F,d7 / trap #0, ps4.asm:9992-9994), so it reads zero at every battle's first ability roll and holds the last index drawn until the next battle loads"
+    },
+    {
+      "name": "mota_battle_bg_index",
+      "addr": "FFFFECEF",
+      "size": 1,
+      "group": "battle",
+      "hex": true,
+      "source": "Mota_Battle_BG_Index, constants:2251; computed by GetMotaBattleBGIndex for the tile the party stands on (FieldRoutine_Battle, ps4.asm:117932) and read by Battle_SetupBackground (ps4.asm:10124) and by the vehicle branch of Battle_SetupEnemyData's group choice (ps4.asm:11827)"
+    },
+    {
+      "name": "vehicle_fighter_hp",
+      "addr": "FFFF470E",
+      "size": 2,
+      "group": "battle",
+      "source": "Vehicle_Stats (constants:2068) + curr_hp (constants:12): the party-side fighter's HP in a vehicle battle, where loc_78EE (ps4.asm:11408) gives the fighter slot to the vehicle (FillBattleStats loads Vehicle_Stats instead of the party's stats, ps4.asm:11287). Meaningless outside a vehicle battle, where nothing loads it"
     },
     {
       "name": "turn_00",
