@@ -16,7 +16,7 @@ Pinned, not configurable: model deepseek-flash, reasoning effort max
 
 Usage:
   ds-lane start BRIEF.md [--repo DIR] [--base REF] [--id NAME] [--max-steps N]
-                         [--link PATH]... [--add-dir DIR]... [--read-only] [--no-wait]
+                         [--link PATH[=SOURCE]]... [--add-dir DIR]... [--read-only] [--no-wait]
   ds-lane resume ID FOLLOWUP.md [--max-steps N] [--no-wait]
   ds-lane wait ID
   ds-lane list [--repo DIR]
@@ -29,6 +29,9 @@ Layout:
 
 --link PATH symlinks an ignored path from the source repo into the worktree
 (e.g. runtime-pack, reference) so repo-relative tooling finds local inputs.
+--link PATH=SOURCE links worktree PATH to SOURCE (repo-relative or absolute),
+e.g. `--link runtime-pack=build/snap/runtime-pack` to pin a pack snapshot that
+other agents cannot rebuild mid-run.
 Only gitignored paths may be linked, and links are excluded when the lane
 commits, so they never enter the lane diff. The
 sandbox resolves real paths, so linked inputs are readable but not writable.
@@ -354,28 +357,30 @@ def cmd_start(a):
         print(f"ds-lane: note: {repo} has uncommitted tracked changes; the lane starts from "
               f"{a.base} ({base_sha[:10]}) and will NOT see them.", file=sys.stderr)
 
-    links = []
-    for p in a.link:
-        src = (repo / p).resolve()
-        rel = src.relative_to(repo)
+    links = {}  # worktree-relative path -> absolute source
+    for spec in a.link:
+        rel, _, src = spec.partition("=")
+        src = (repo / (src or rel)).resolve()
         if not src.exists():
-            sys.exit(f"ds-lane: --link {p}: does not exist")
-        if subprocess.run(["git", "-C", str(repo), "check-ignore", "-q", str(rel)]).returncode != 0:
-            sys.exit(f"ds-lane: --link {p}: only gitignored paths may be linked")
-        links.append(str(rel))
+            sys.exit(f"ds-lane: --link {spec}: {src} does not exist")
+        if Path(rel).is_absolute() or ".." in Path(rel).parts:
+            sys.exit(f"ds-lane: --link {spec}: PATH must be repo-relative")
+        if subprocess.run(["git", "-C", str(repo), "check-ignore", "-q", "--no-index", rel.rstrip("/") + "/"]).returncode != 0:
+            sys.exit(f"ds-lane: --link {spec}: only gitignored paths may be linked")
+        links[rel.rstrip("/")] = str(src)
 
     wt.parent.mkdir(parents=True, exist_ok=True)
     state.mkdir(parents=True)
     sh(["git", "-C", str(repo), "worktree", "add", "-q", "-b", f"ds/{lane_id}", str(wt), base_sha])
-    for rel in links:
+    for rel, src in links.items():
         dst = wt / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
-        dst.symlink_to(repo / rel)
+        dst.symlink_to(src)
     shutil.copy(a.brief, state / "brief.md")
 
     lane = {
         "id": lane_id, "title": title, "repo": str(repo), "base_ref": a.base, "base_sha": base_sha,
-        "branch": f"ds/{lane_id}", "worktree": str(wt), "state_dir": str(state), "links": links,
+        "branch": f"ds/{lane_id}", "worktree": str(wt), "state_dir": str(state), "links": list(links), "link_sources": links,
         "add_dirs": [str(Path(d).resolve()) for d in a.add_dir], "created": now(),
         "model": MODEL, "effort": EFFORT, "reasonix_version": sh(["reasonix", "--version"]),
         "read_only": a.read_only, "runs": [],
