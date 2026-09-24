@@ -69,5 +69,33 @@ disassembly claim that a change rests on.
 `tools/ds-lane` is 956 lines. The next change to it splits it into a package
 (for example, supervisor, receipts, CLI) under the 1,000-line rule.
 
-**Next action:** continue enemy abilities from the inventory's unsupported
-rows, prioritized by campaign reach.
+## Method decision: coverage-first, oracle-judged (2026-09-23)
+
+Owner-approved direction for battle-rule parity. Gaps were previously found one
+at a time by playing next to an emulator. Instead:
+
+1. **Enumerate** the finite rule surface from the disassembly (for example
+   [the enemy ability inventory](ENEMY_ABILITIES.md): 83 abilities, 44 effect
+   handlers, 74 attack routines, 504 formations), so gaps are known before play.
+2. **Build shared mechanisms** with verified route tables (for example a
+   record-driven damage-skill resolver whose table rows each cite their retail
+   route) instead of one resolver per ability.
+3. **Judge in bulk with a differential battle oracle.** Inject the same
+   formation, party and RNG seed into the headless emulator (`oracle/`,
+   `--ram-patch`) and into `psiv-core`, run scripted turns, and compare
+   per-action battle state (HP, status, RNG) to locate the first divergence.
+   Sweep formations and seeds to generate the gap worklist, and make "zero
+   divergence on formations carrying X" each ability lane's acceptance.
+
+Side-by-side emulator play remains for presentation (timing, palettes, feel),
+which needs eyes. Rule parity is a number comparison.
+
+Existing capability: headless libretro host, tapes, per-frame named-RAM logs
+(782-entry map with battle groups), `--ram-patch` fixture injection, saved
+battle states and `engine_tests_oracle.rs`. Missing: forced formation entry by
+patch, a scripted battle-command driver, a port replay from the injected state,
+and a per-action comparator.
+
+**Next action:** after lanes F, G and H integrate, scope the differential
+battle oracle: prove forced entry and one formation's full-battle comparison
+end to end before building the sweep.
