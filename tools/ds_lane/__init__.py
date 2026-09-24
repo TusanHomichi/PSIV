@@ -20,6 +20,7 @@ from .config import (BINARY_SNIFF_BYTES, CARGO_JOBS, DEFAULT_STALL_CPU_PCT,
 from .preflight import (CONSTRAINT_BLOCK, PREAMBLE, READ_ONLY_CLAUSE, parse_write_set,
                         phrasing_violations, preflight_phrasing, strip_code, write_set_match,
                         write_set_violations)
-from .receipts import (count_lines, finalize_run, lines_at, oversize_files, print_summary,
+from .receipts import (FinalizeError, commit_excludes, commit_run, count_lines, finalize_run,
+                       git_step, head_sha, is_ignored, lines_at, oversize_files, print_summary,
                        receipt_block, run_finished, scan_trajectory, wait_run)
 from .supervisor import STALL_FOLLOWUP, StallWatcher, exec_run, group_ticks, run_worker
