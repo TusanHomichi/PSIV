@@ -234,7 +234,36 @@ where
     EnemyTurn::Nothing
 }
 
-pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Divergence> {
+/// Whether this action's `hit` byte was sampled before the swing's last
+/// `loc_B6A2` pass.
+///
+/// `Fighters_Hit_Flags` is read once a frame, and the fixture's per-target
+/// `hit` is the byte at the action's **hit frame** — the first frame the flags
+/// moved (`oracle/fixture/observations.py`'s `action_record`). A swing whose
+/// passes all arrive in that frame leaves the swing's own last write there:
+/// every character's single pass, and the two Alys's and Kyra's animation runs
+/// in one frame (`CharAttack_AlysKyra`, `ps4.asm:13958`). A swing whose passes
+/// arrive in *different* frames leaves only its first pass's verdict: the
+/// vehicle's three-pass command-6 swing is the case, and rounds 3 and 6 of
+/// `forced_53_desrtleach` are exactly that — a `$01` first pass over a 154 and
+/// a 189 that only a normal hit's arithmetic produces (`(45+8)*200)>>6 + 200 =
+/// 365`, `365*2>>2 - 28 = 154`; with the `atk >> 2` bonus it would be 204).
+fn flag_lags_the_swing(rolls: &[Roll], round: u16, actor: FighterId) -> bool {
+    let frames: Vec<u32> = rolls
+        .iter()
+        .filter(|roll| roll.round == round && roll.action == actor.get() && roll.role == "hit")
+        .map(|roll| roll.frame)
+        .collect();
+    frames
+        .first()
+        .is_some_and(|first| frames.iter().any(|frame| frame != first))
+}
+
+pub(crate) fn divergence(
+    round: &Round,
+    timeline: &[BattleEvent],
+    rolls: &[Roll],
+) -> Option<Divergence> {
     let mut events = timeline.iter();
     let mut began = false;
     for event in events.by_ref() {
@@ -260,6 +289,9 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
 
     for action in &round.actions {
         let actor = id(action.actor);
+        // Whether the log's `hit` byte for this action predates the swing's
+        // last pass: see [`flag_lags_the_swing`].
+        let lagged = flag_lags_the_swing(rolls, round.round, actor);
         // The log's reading of this action, slot by slot. `$FF` in
         // `Fighters_Hit_Flags` means "this slot was not resolved as a hit" and
         // nothing more: `loc_B6A2` blanks all nine flags before every pass, so
@@ -395,7 +427,13 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
                 Some(flag) if flag != "FF" => {
                     let target = logged.expect("just matched");
                     let want_verdict = verdict_of(flag);
-                    if verdict != want_verdict || damage != target.damage {
+                    // A flag that lags the swing's last pass names an earlier
+                    // pass, so it is only a claim that the swing reached this
+                    // slot; the verdict the port reports is the one the damage
+                    // carries, and the damage is what is compared here. A flag
+                    // that is the swing's own last write is compared as the
+                    // verdict itself.
+                    if damage != target.damage || (!lagged && verdict != want_verdict) {
                         return Some(Divergence::Value {
                             frame: action.start_frame,
                             actor,

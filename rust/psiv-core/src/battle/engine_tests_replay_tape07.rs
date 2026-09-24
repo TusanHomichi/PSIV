@@ -49,6 +49,7 @@ fn tape07_orders_its_rounds_the_way_the_cartridge_did() {
         vec![("formation", 24807), ("item_drop", 30306)]
     );
 
+    let logged_rolls = fixture.rolls.rolls();
     let priority = priority_roll(&fixture);
     assert_eq!(priority.len(), 1, "the battle opens on one draw");
     let mut start_rolls = SliceRolls::new(&priority);
@@ -69,7 +70,7 @@ fn tape07_orders_its_rounds_the_way_the_cartridge_did() {
             round.round
         );
         let (timeline, drawn) = play(&mut battle, &fixture, &data, round, &stream);
-        let first = divergence(round, &timeline);
+        let first = divergence(round, &timeline, &logged_rolls);
 
         if first_round {
             first_round = false;

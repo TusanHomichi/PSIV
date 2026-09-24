@@ -130,6 +130,9 @@ pub(crate) fn replay_verbatim(
 pub(crate) fn replay_inner(fixture: &Fixture, data: &BattleData) -> Replay {
     let mut battle = started(fixture, data);
     let stream = verbatim_all(fixture);
+    // The log's own rows, for the comparator's reading of each action's
+    // `hit` byte (see `compare::flag_lags_the_swing`).
+    let logged_rolls = fixture.rolls.rolls();
     let mut rolls = SliceRolls::new(&stream);
     let mut timelines = Vec::new();
     let mut draws = Vec::new();
@@ -141,7 +144,7 @@ pub(crate) fn replay_inner(fixture: &Fixture, data: &BattleData) -> Replay {
             .expect("the fixture's battle resolves");
         let drawn = rolls.drawn() - before;
         if finding.is_none() {
-            finding = match divergence(round, &timeline) {
+            finding = match divergence(round, &timeline, &logged_rolls) {
                 Some(divergence) => Some(Finding::Action {
                     round: round.round,
                     divergence,

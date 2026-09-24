@@ -277,6 +277,11 @@ pub fn candidate_targets(
 ///
 /// Appends to `events` and returns the fighters that died, in resolution order.
 ///
+/// A vehicle fighter's Attack is command 6, whose routine is `loc_AF9C` rather
+/// than `Character_Attack`; it resolves through
+/// [`resolve_vehicle_attack`](super::vehicle_attack::resolve_vehicle_attack) and
+/// never reaches the weapon check below. See that module for the rule.
+///
 /// # Errors
 /// Propagates equipment lookups.
 pub fn resolve_attack(
@@ -287,6 +292,15 @@ pub fn resolve_attack(
     rolls: &mut impl Rolls,
     events: &mut Vec<BattleEvent>,
 ) -> Result<Vec<FighterId>, BattleDataError> {
+    if actor.side() == Side::Party
+        && roster
+            .get(actor)
+            .is_some_and(super::vehicle_attack::is_vehicle_fighter)
+    {
+        return Ok(super::vehicle_attack::resolve_vehicle_attack(
+            roster, actor, intended, rolls, events,
+        ));
+    }
     let reach = match actor.side() {
         Side::Party => {
             let stats = &roster.get(actor).expect("the actor is present").stats;
