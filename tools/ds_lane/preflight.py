@@ -27,6 +27,9 @@ brief below and will review your diff and the raw trajectory of this run.
   records and commits your work after you finish.
 - Follow the repository's AGENTS.md. Stay within the brief's scope and touch
   only the files it assigns to you.
+- Keep every file you touch under 1,000 lines. When your change would take a
+  file over that, reorganize it into cohesive modules as part of the work; the
+  harness reports each changed file over the limit in the run summary.
 - If you are blocked or the brief is ambiguous, stop and say so in the receipt
   rather than guessing.
 - Claim a check passed only if you ran it in this session and saw it pass.

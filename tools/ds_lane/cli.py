@@ -46,6 +46,9 @@ Environment (read per call, so tests can set them per case):
                      lowers it so a stall case does not cost a whole window)
   DS_LANE_STALL_CPU_PCT  percent of one core a stall window needs to count as
                      work (default 1.0)
+  DS_LANE_MAX_FILE_LINES  line count above which a changed file is reported
+                     (default 1000: the owner's rule that a file over roughly
+                     1,000 lines is reorganized when touched)
 
 --link PATH symlinks an ignored path from the source repo into the worktree
 (e.g. runtime-pack, reference) so repo-relative tooling finds local inputs.
@@ -116,6 +119,19 @@ follow-up passed to `resume` may carry its own block: it replaces the lane's
 write set from that run on (lane.json records the current set, and every run's
 run.json records the `write_set` it was actually checked against). A follow-up
 without a block inherits the set the brief or an earlier follow-up declared.
+
+SIZE RULE: the owner's rule is that a file over roughly 1,000 lines is
+reorganized when touched, so `ds-lane` flags it the way it flags a write-set
+violation. After each run, every path changed between the lane base and the new
+head that still exists and is text (no NUL byte in its first 8 KiB) is counted
+at the new head; each one over DS_LANE_MAX_FILE_LINES (default 1000, the
+constant MAX_FILE_LINES in config.py) is recorded in run.json as
+`oversize_files` - `{path, lines, base_lines}`, where `base_lines` is the count
+at the lane base and null for a file that is new there - and printed as
+`WARNING: over 1000 lines: <path> (<lines>, was <base_lines>)` (`was new` for a
+new file). Every path in a commit is counted, whatever the brief's write set
+says; linked inputs and worker host state are excluded from the commit, so they
+are never counted. The worker preamble states the rule positively.
 
 `verify ID -- CMD...` runs CMD in the lane worktree (CARGO_BUILD_JOBS=2),
 streams its output, saves a header (command, UTC start, lane head, exit code,
