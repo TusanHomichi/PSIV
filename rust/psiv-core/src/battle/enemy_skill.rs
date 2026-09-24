@@ -72,6 +72,20 @@ impl EnemySkill {
             && self.element == 1
     }
 
+    /// Record 23 at `0x28341C` is `22 00 00 00 00 00 00 00` — effect `$22`,
+    /// every selector and the element zero. `resolve_no_effect_turn` reads none
+    /// of those bytes; the id is pinned here so a pack whose `$17` became
+    /// something else cannot pass for the traced WAITING record.
+    const fn is_waiting(&self) -> bool {
+        self.id == 23
+            && self.effect == 34
+            && self.power_stat == 0
+            && self.target == 0
+            && self.power == 0
+            && self.resistance == 0
+            && self.element == 0
+    }
+
     /// Record 17 at `0x2833EC` is `1b 01 08 40 01 0d 00 00`. PoisonMist (`$24`)
     /// shares the effect byte, both stat selectors and the element; only the
     /// hit chance separates them, so the whole record is pinned here.
@@ -413,4 +427,79 @@ pub(super) fn resolve_fission(
         hp: original.hp,
     });
     Ok(true)
+}
+
+/// The `EnemyAttackOffs` entries that point at `EnemyAttack_FloatMine`
+/// (`ps4.asm:22675`): `$2C` 44 FloatMine, `$2D` 45 CommndBall, `$2E` 46
+/// VopalSphre and `$32` 50 FloatMine2. Their eight regular slots hold `$07`
+/// Fission2 (50 only) and `$17` Waiting (44, 46, 50), plus `$19` Detonation
+/// (45), which the routine has an arm for; the conditional ids their records
+/// name — `$18` Explosion (44, 50), `$1A` CyanicBomb (46) and `$14` Warning
+/// (45) — are arms too.
+const FLOAT_MINE_CARRIERS: [u16; 4] = [44, 45, 46, 50];
+
+/// The roll this routine has nothing to load for: `$07` Fission2 on 50
+/// FloatMine2 and `$17` Waiting on 44 FloatMine, 46 VopalSphre and 50
+/// FloatMine2 spend the turn without an effect.
+///
+/// `EnemyAttack_FloatMine` tests `$24(a4)` for `$14` (`ps4.asm:22677`), `$18`
+/// (`22690`), `$19` (`22707`) and `$1A` (`22766`) and has no other arm, so
+/// every remaining id — the two above are the only ones these four enemies can
+/// roll — reaches `loc_10406` (`ps4.asm:22781`):
+///
+/// ```text
+/// loc_10406:
+///     movea.l $38(a1), a0
+///     clr.w   (Current_Target_Index).l
+///     clr.w   $24(a4)
+///     move.w  #$16, (Battle_Routine).l
+///     subq.w  #2, $2(a4)
+///     rts
+/// ```
+///
+/// No object, no `LoadPLC1`, no palette write, no `Sound_Index`. `$16` is
+/// `Battle_DoAttackEffect` (`ps4.asm:8553`); the ability it reads is now 0 and
+/// `loc_B6A2` left all nine `Fighters_Hit_Flags` at `$FF`, so it takes
+/// `loc_5DD2` (`ps4.asm:8625`) — `Battle_Routine` `$12` — without ever calling
+/// `Ability_GetEffectAndRange`. No damage, no status, no message: the `$12`/
+/// `$1E` pair only waits and advances the turn order. Emitting this instead of
+/// a physical swing is the whole point: the actor really does act and do
+/// nothing.
+///
+/// `$18`/`$19`/`$14`/`$1A` on these carriers still fall back — their objects
+/// are outside this transcription — which is what the negative control in
+/// `enemy_skill_tests` pins with 45 CommndBall's own `$19`.
+pub(super) fn resolve_no_effect_turn(
+    roster: &mut Roster,
+    actor: FighterId,
+    ability: u8,
+    data: &BattleData,
+    events: &mut Vec<BattleEvent>,
+) -> bool {
+    let Some(skill) = data
+        .enemy_skill(ability)
+        .filter(|skill| skill.is_fission() || skill.is_waiting())
+    else {
+        return false;
+    };
+    let carrier = roster.get(actor).is_some_and(|fighter| {
+        fighter.is_alive()
+            && fighter.id.side() == Side::Enemy
+            && FLOAT_MINE_CARRIERS.contains(&fighter.stats.enemy_id)
+    });
+    if !carrier {
+        return false;
+    }
+    if let Some(fighter) = roster.get_mut(actor) {
+        // `clr.w $24(a4)`. `loc_6672` reads this slot back when it decides how
+        // long the end-of-action wait is; an ability still in it means the
+        // ordinary attack wait instead of the longer empty one.
+        fighter.ability = 0;
+    }
+    events.push(BattleEvent::EnemyAbilityWasted {
+        actor,
+        ability: skill.id,
+        name: skill.name.clone(),
+    });
+    true
 }
