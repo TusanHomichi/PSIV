@@ -66,7 +66,7 @@ fn gate_holds(gate: &EffectGate, game: &GameState, unknown: &mut Vec<String>) ->
     let flag = match gate.bank.as_str() {
         "event_flags" => Flag::event(gate.flag),
         // The $F140 door: the corrected flag model identifies it as the
-        // TEMP bank (SOURCE_NOTES, FLAG MODEL FINAL). The pack's historical
+        // TEMP bank (docs/source-notes/disassembly-discrepancies.md, FLAG MODEL FINAL). The pack's historical
         // label was "chest_flags" (the clone's fiction); the renamed
         // emission says "temp_flags". Both accepted so either side can
         // deploy first; mapping either to Flag::chest would read $F120 —

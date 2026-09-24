@@ -15,7 +15,7 @@ was confirmed from ROM bytes and is the one transcribed here.
 `0x00266C`, `loc_B716` at `0x00B716`, `loc_27F3BC` at `0x0027F3BC` — all
 byte-verified). The auto-generated `;0x0 (0x0000....)` *inline comments* are
 the fork's build addresses and drift (this is the ~0x552 discrepancy
-SOURCE_NOTES already records near `0x8000`). Cite labels, never the comments.
+docs/source-notes/disassembly-discrepancies.md already records near `0x8000`). Cite labels, never the comments.
 
 ---
 
@@ -798,7 +798,7 @@ against cartridge bytes; **retail always takes the `else` branch.**
 `if revision=0` gates in the battle region (`1869, 1879, 2004, 4670, 4786, 5243,
 5448, 6154, 6189, 6224, 6270, 6420, 12779`) are Japanese-build variants; retail
 US is `revision != 0`, consistent with the Enigma finding already in
-SOURCE_NOTES.
+docs/source-notes/disassembly-discrepancies.md.
 
 ### New retail cartridge findings
 

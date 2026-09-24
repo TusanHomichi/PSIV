@@ -5346,7 +5346,7 @@
       "size": 1,
       "group": "flagbytes",
       "hex": true,
-      "source": "the clone's Temp_Event_Flags byte 0 (constants:2365, $FFFFF156). SOURCE_NOTES finds no retail code addressing this bank; logged to show whether it stays dead while the chest bank takes the writes"
+      "source": "the clone's Temp_Event_Flags byte 0 (constants:2365, $FFFFF156). docs/source-notes/disassembly-discrepancies.md finds no retail code addressing this bank; logged to show whether it stays dead while the chest bank takes the writes"
     },
     {
       "name": "tempb1",
@@ -5354,7 +5354,7 @@
       "size": 1,
       "group": "flagbytes",
       "hex": true,
-      "source": "the clone's Temp_Event_Flags byte 1 (constants:2365, $FFFFF156). SOURCE_NOTES finds no retail code addressing this bank; logged to show whether it stays dead while the chest bank takes the writes"
+      "source": "the clone's Temp_Event_Flags byte 1 (constants:2365, $FFFFF156). docs/source-notes/disassembly-discrepancies.md finds no retail code addressing this bank; logged to show whether it stays dead while the chest bank takes the writes"
     },
     {
       "name": "tempb2",
@@ -5362,7 +5362,7 @@
       "size": 1,
       "group": "flagbytes",
       "hex": true,
-      "source": "the clone's Temp_Event_Flags byte 2 (constants:2365, $FFFFF156). SOURCE_NOTES finds no retail code addressing this bank; logged to show whether it stays dead while the chest bank takes the writes"
+      "source": "the clone's Temp_Event_Flags byte 2 (constants:2365, $FFFFF156). docs/source-notes/disassembly-discrepancies.md finds no retail code addressing this bank; logged to show whether it stays dead while the chest bank takes the writes"
     },
     {
       "name": "tempb3",
@@ -5370,7 +5370,7 @@
       "size": 1,
       "group": "flagbytes",
       "hex": true,
-      "source": "the clone's Temp_Event_Flags byte 3 (constants:2365, $FFFFF156). SOURCE_NOTES finds no retail code addressing this bank; logged to show whether it stays dead while the chest bank takes the writes"
+      "source": "the clone's Temp_Event_Flags byte 3 (constants:2365, $FFFFF156). docs/source-notes/disassembly-discrepancies.md finds no retail code addressing this bank; logged to show whether it stays dead while the chest bank takes the writes"
     },
     {
       "name": "eventb0",

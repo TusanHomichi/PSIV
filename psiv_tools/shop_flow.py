@@ -40,7 +40,7 @@ rather than data:
 The counter is not a collision type
 -----------------------------------
 
-`SOURCE_NOTES` records that a shop-location entry "lands on a type-$C cell".
+`docs/source-notes/formats.md` records that a shop-location entry "lands on a type-$C cell".
 Reading `loc_65D12` and its one caller, that is a correlation, not the rule:
 the caller reaches the scan only after `Interaction_ChkObjects` has already
 matched an *object*, and passes that object's `$30`/`$34` position. The scan

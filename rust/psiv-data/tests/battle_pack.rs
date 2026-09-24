@@ -397,7 +397,7 @@ fn every_item_agrees_with_its_own_type_entry() {
 
 #[test]
 fn the_element_byte_really_does_have_two_jobs() {
-    // The dual role SOURCE_NOTES records: the same byte is an attack element on
+    // The dual role docs/source-notes/disassembly-discrepancies.md records: the same byte is an attack element on
     // a weapon and a granted resistance on armour.
     let Some(dir) = require_battle() else { return };
     let files = BattleFiles::load(&dir).expect("battle/ loads");

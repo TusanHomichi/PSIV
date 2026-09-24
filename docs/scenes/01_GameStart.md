@@ -109,7 +109,7 @@ epilogue.
 
 `Event_GameStart` calls `DialogueTreesToRAM` with **`$1EBA90`** four separate
 times. That address is **`DialogueTree17`**. Tree 17 is the tree
-`SOURCE_NOTES.md` already records as *"wholesale rewritten by the fork (84
+`docs/source-notes/disassembly-discrepancies.md` already records as *"wholesale rewritten by the fork (84
 edits)"* on the data side — 66 entries in retail against the clone's 80.
 
 So the intro is doubly fork-damaged: its code is deleted from `ps4.asm` *and*

@@ -198,7 +198,7 @@ all nine to `$FF` before every pass). In round 2 only one enemy is left standing
 so the two passes cost one roll each. `psiv-core`'s `resolve_attack` drew that
 pass once until this lane; it now draws both, for the two attackers the
 cartridge sends to `CharAttack_AlysKyra` and for nobody else — see
-SOURCE_NOTES.md, "The second hit pass of Alys's and Kyra's attack".
+docs/source-notes/battle-party.md, "The second hit pass of Alys's and Kyra's attack".
 The roll left over at the enemy's turn is `Enemy_Attack` (`ps4.asm:19138`):
 `loc_CFE6` (`ps4.asm:19146-19151`) re-rolls the ability while it equals
 `$FFFFEEA8`, a word nothing clears (`grep` finds it written nowhere else), so a
@@ -337,7 +337,7 @@ Not proved, and not claimed:
    and it is visible here as a count rather than as a wrong number. (The other
    one, `roll_hits` needing the swing's animation identity so Alys's and
    Kyra's attacks run `loc_B6A2` twice, is done: `resolve_attack` keys on the
-   attacker's `Character_Stats` index, see SOURCE_NOTES.md "The second hit
+   attacker's `Character_Stats` index, see docs/source-notes/battle-party.md "The second hit
    pass of Alys's and Kyra's attack".)
 3. **Fixture the other traced battle.** Tape 09's battle (`oracle` "Battle
    ground truth") has a different formation, a critical and a different seed

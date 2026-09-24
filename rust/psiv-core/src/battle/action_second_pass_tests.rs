@@ -30,7 +30,7 @@
 //! command's target for those — so in the cartridge both passes always walk all
 //! four enemy slots (`ps4.asm:17504-17511`), which is the set the
 //! port's `Reach::All` produces. A single-target weapon in either hand is
-//! unreachable; SOURCE_NOTES.md records what the cartridge's window would do
+//! unreachable; docs/source-notes/battle-party.md records what the cartridge's window would do
 //! with one, and [`a_one_target_alys_swing_draws_the_pass_twice`] drives the
 //! port's own `Reach::Single` to make the count visible.
 

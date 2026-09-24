@@ -48,7 +48,7 @@ fn the_real_pack_loads_and_validates() {
         return;
     };
 
-    // 43 Kosinski trees from 0x1DF600 to 0x1FE655 (SOURCE_NOTES).
+    // 43 Kosinski trees from 0x1DF600 to 0x1FE655 (docs/source-notes/formats.md).
     assert_eq!(set.trees.trees.len(), 43);
     assert_eq!(set.trees.tree_count, 43);
     let entries: usize = set.trees.trees.iter().map(|t| t.entries.len()).sum();

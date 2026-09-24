@@ -1,6 +1,6 @@
 //! The 4-bit collision grid.
 //!
-//! Ground truth (README.md / SOURCE_NOTES.md, "Map layouts and collision"):
+//! Ground truth (README.md / docs/source-notes/formats.md, "Map layouts and collision"):
 //! bit 14 of each pattern-name word is a collision flag, and the four flags of
 //! a 2x2-tile cell form a 4-bit collision type per 16-pixel cell. Types are
 //! 0 normal, 1 map change, 2 recovery, 8 solid, 9 water, $A sand, $B ice,
