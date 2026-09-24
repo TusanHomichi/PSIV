@@ -31,6 +31,12 @@
 #include "state_dump.h"
 #include "tape.h"
 
+/* The RNG roll trace is a module of its own (host/rng_trace.c), included rather
+ * than linked because oracle/verify.sh builds this host from one fixed list of
+ * host sources: a --rng-trace that worked in only some builds would be worse
+ * than a textual include. Build with that list; do not add rng_trace.c to it. */
+#include "rng_trace.c"
+
 #define MAX_FIELDS 1024
 
 /* ------------------------------------------------------------------ */
@@ -445,6 +451,36 @@ static uint32_t ram_read(const struct field *f)
 	}
 }
 
+static const struct field *find_field(const char *name)
+{
+	int i;
+
+	for (i = 0; i < g_nfields; i++)
+		if (strcmp(g_fields[i].name, name) == 0)
+			return &g_fields[i];
+	return NULL;
+}
+
+/* --rng-trace reads the seed and the counter straight from work RAM: the
+ * core's records only carry the PC and the HV word (host/rng_trace.c). */
+static uint32_t g_rng_seed_addr;
+static uint32_t g_rng_frame_count_addr;
+
+static int rng_trace_bind_ram(void)
+{
+	const struct field *seed = find_field("rng_seed");
+	const struct field *count = find_field("main_frame_count");
+
+	if (!seed || seed->size != 4 || !count || count->size != 2) {
+		fprintf(stderr, "psiv_oracle: --rng-trace needs rng_seed (longword) "
+		        "and main_frame_count (word) in the RAM map\n");
+		return -1;
+	}
+	g_rng_seed_addr = seed->addr;
+	g_rng_frame_count_addr = count->addr;
+	return 0;
+}
+
 /* ------------------------------------------------------------------ */
 /* Parsing helpers                                                    */
 /* ------------------------------------------------------------------ */
@@ -566,6 +602,7 @@ static void usage(void)
 		"                   [--ram-patch <frame>:<address>:<hex-bytes>]\n"
 		"                   [--dump-ram <frame>:<path>]\n"
 	        "                   [--dump-state <frame>:<path>]\n"
+	        "                   [--rng-trace <path.csv>]\n"
 	        "                   [--load-sram <path>]\n");
 }
 
@@ -575,6 +612,7 @@ int main(int argc, char **argv)
 	const char *map_path = NULL, *out_path = NULL, *groups = NULL;
 	const char *dump_frames = NULL, *dump_frames_dir = NULL;
 	const char *load_sram_path = NULL;
+	const char *rng_trace_path = NULL;
 	int probe_endian = 0;
 	FILE *out = stdout;
 	struct retro_system_info sysinfo;
@@ -618,6 +656,8 @@ int main(int argc, char **argv)
 		}
 		else if (!strcmp(argv[i], "--load-sram") && i + 1 < argc)
 			load_sram_path = argv[++i];
+		else if (!strcmp(argv[i], "--rng-trace") && i + 1 < argc)
+			rng_trace_path = argv[++i];
 		else if (!strcmp(argv[i], "--probe-endian")) probe_endian = 1;
 		else { usage(); return 2; }
 	}
@@ -807,6 +847,14 @@ int main(int argc, char **argv)
 		return 1;
 	if (groups)
 		enable_groups(groups);
+	if (rng_trace_path) {
+		if (rng_trace_bind_ram() != 0)
+			return 2;
+		if (rng_trace_begin(g_core, rng_trace_path) != 0) {
+			fprintf(stderr, "psiv_oracle: %s\n", rng_trace_error());
+			return 2;
+		}
+	}
 	if (psiv_tape_load(tape_path) != 0) {
 		fprintf(stderr, "psiv_oracle: %s\n", psiv_tape_error());
 		return 1;
@@ -832,6 +880,8 @@ int main(int argc, char **argv)
 	fprintf(out, "# rom=%s size=%zu\n", rom_path, rom_size);
 	fprintf(out, "# tape=%s steps=%d frames=%llu\n", tape_path,
 	        psiv_tape_count(), (unsigned long long)psiv_tape_total_frames());
+	if (rng_trace_enabled())
+		fprintf(out, "# rng-trace=%s\n", rng_trace_path);
 	fprintf(out, "frame,mark,buttons");
 	for (i = 0; i < g_nfields; i++)
 		if (g_fields[i].enabled)
@@ -845,11 +895,23 @@ int main(int argc, char **argv)
 		for (k = 0; k < tape_step->frames; k++) {
 			char btn[16];
 			int n = 0;
+			uint32_t seed_before = 0, count_before = 0;
 
 			ram_patch_apply(frame + 1, (uint8_t *)g_ram, g_ram_size);
+			if (rng_trace_enabled()) {
+				seed_before = ram_u32(g_rng_seed_addr);
+				count_before = ram_u16(g_rng_frame_count_addr);
+			}
 			frame_dump_begin_frame(frame + 1);
 			rt_run();
 			frame++;
+			if (rng_trace_enabled() &&
+			    rng_trace_frame(frame, seed_before, count_before,
+			                    ram_u32(g_rng_seed_addr),
+			                    ram_u16(g_rng_frame_count_addr)) != 0) {
+				fprintf(stderr, "psiv_oracle: %s\n", rng_trace_error());
+				return 1;
+			}
 			if (frame_dump_failed()) {
 				fprintf(stderr, "psiv_oracle: %s\n", frame_dump_error());
 				return 1;
@@ -908,6 +970,10 @@ int main(int argc, char **argv)
 	frame_dump_status = frame_dump_finish();
 	if (frame_dump_status != 0)
 		fprintf(stderr, "psiv_oracle: %s\n", frame_dump_error());
+	if (rng_trace_enabled() && rng_trace_finish() != 0) {
+		fprintf(stderr, "psiv_oracle: %s\n", rng_trace_error());
+		frame_dump_status = 1;
+	}
 	if (out != stdout)
 		fclose(out);
 	rt_unload_game();
