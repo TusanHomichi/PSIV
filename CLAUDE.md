@@ -20,7 +20,11 @@ outcomes in the [lane ledger](docs/CLAUDE_LANES.md).
 
 ## ds-lane
 
-`ds-lane` is on `PATH` through `~/.local/bin`. Usage is in the script header.
+`ds-lane` is on `PATH` through `~/.local/bin`. `tools/ds-lane` is the
+executable entry point (a shim that resolves its own symlink) for the
+stdlib-only `tools/ds_lane/` package (`config`, `preflight`, `receipts`,
+`lanes`, `supervisor`, `cli`). Usage: `ds-lane --help`, or the `cli` module
+docstring.
 
 - Launch with `ds-lane start BRIEF.md` in a background shell; the host wakes
   the orchestrator on exit. Runs use a detached supervisor, so the worker and
@@ -71,16 +75,44 @@ outcomes in the [lane ledger](docs/CLAUDE_LANES.md).
   `timeout after N s`. A final SIGKILL always follows the parent's exit, so
   children the worker spawned (a `cargo test`, say) cannot outlive the run and
   its released slot. `run.json` records `outcome`:
-  `completed` | `timeout` | `stopped`.
+  `completed` | `timeout` | `stopped` | `stalled`.
+- **Stall watchdog.** Each run gets `--stall-timeout SECONDS` (default 900; 0
+  disables it; in the run spec). The supervisor samples every 15 s and judges
+  each whole window: the run is **stalled** when the window saw no
+  `trajectory.jsonl` growth *and* the worker's process group used less than
+  `DS_LANE_STALL_CPU_PCT` percent of one core across it (default 1.0;
+  `utime+stime` deltas from `/proc/<pid>/stat` over `SC_CLK_TCK`). The rate,
+  not any gain, is what separates work from a corpse: a long silent
+  `cargo build` burns far more than a percent of a core and a live Reasonix
+  worker streaming a turn measured 5.6%, while a worker whose stream died and
+  whose wrapper then idles on a timer gains a tick every half minute - 0.03%
+  (measured 2026-09-24). A stalled run is killed through the same group path
+  and finalizes with `exit_code` 125 and `turn_error`
+  `stalled: no progress for N s`; the measured rate and the threshold it fell
+  under are recorded in that run's `supervisor.log`. `--stall-retries N`
+  (default 1) then has the supervisor start the next run of the lane itself,
+  on the same Reasonix session, through the `resume` code path: that follow-up
+  says the previous
+  run stalled (a host suspend leaves the worker alive with a dead stream -
+  observed 2026-09-24), that the session context is intact, and to continue
+  through acceptance and the Receipt; it keeps the timeout, the stall timeout
+  and the retries left. `stall_retries_left` and `resumed_after_stall` are in
+  the run spec and in `run.json`, and `wait ID` follows the chain to the
+  lane's final run, so a waiter that attached before the stall still returns
+  the final outcome. Stopping the resumed run is an ordinary `stop ID`.
 - **Independent checks.** `ds-lane verify ID -- CMD...` runs CMD in the lane
   worktree with `CARGO_BUILD_JOBS=2`, streams its output, saves it with the
   command, UTC start, lane head, exit code and duration under
   `<state>/verify/NNN.log`, and exits with CMD's code. Use it for the
   orchestrator's own checks instead of "the worker says it passed".
 - `DS_LANE_HOME` relocates worktrees/receipts (tests), `DS_LANE_REASONIX`
-  swaps the worker binary, `DS_LANE_MAX_LANES` caps concurrency.
+  swaps the worker binary, `DS_LANE_MAX_LANES` caps concurrency,
+  `DS_LANE_STALL_POLL` shortens the 15 s stall sampling interval and
+  `DS_LANE_STALL_CPU_PCT` moves the work threshold (both are test seams; the
+  defaults are 15 s and 1.0% of a core).
   `PYTHONPATH=. python3 -m unittest tests.test_ds_lane -v` covers the harness
-  hermetically in about 20 s.
+  hermetically in under a minute (its stall cases run with a lowered poll; the
+  module must stay under 90 s).
 - Each lane has its own `rust/target`, so its first cargo build is cold.
   Restate the relevant `AGENTS.md` safety rules in each brief (GDExtension,
   saves, serialized expensive runs).
