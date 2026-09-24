@@ -50,6 +50,8 @@ output.
 
 | Date | Lane | Task | Outcome | Orchestrator corrections | Cost |
 | --- | --- | --- | --- | --- | --- |
+| 2026-09-23 | bake-D | Split `battle/engine_tests.rs` (1,002 lines) into topic child modules (routine refactor) | Accepted as delivered. Independent rerun: 41/41 tests before and after, identical names, fmt clean, zero original lines lost; largest file 392 lines | None to the code. Its cited logs were in the sandbox-private `/tmp` and gone; fixed in the harness (`build/lane-evidence/`). It noticed a stale test path outside its write set and correctly left it; fixed at integration | USD 0.029, 3.5 min |
+| 2026-09-23 | bake-A | Inventory all enemy regular abilities with dispatch/effect citations (RE exploration + ledger) | Accepted: `docs/ENEMY_ABILITIES.md`. Independent checks: 83/83 ability ids match `enemies.json`; 8 sampled `ps4.asm` citations land on their labels; all four "port gap" claims match the code; it caught the fork's `if bugfixes` substitution for effects `$13-$16` | Added the `docs/README.md` link it flagged as outside its write set | USD 0.227, 15.6 min |
 
 **Next action:** a bake-off of three to five real PSIV tasks of mixed
 difficulty, each logged above, before routing complex retail-parity work to
