@@ -22,7 +22,7 @@
 
 ## Gameplay and presentation
 
-- [Battle recovery](BATTLE_RECOVERY.md), [instant death](INSTANT_DEATH.md), [THREAD](THREAD.md), [RIMIT](RIMIT.md).
+- [Battle recovery](BATTLE_RECOVERY.md), [instant death](INSTANT_DEATH.md), [THREAD](THREAD.md), [RIMIT](RIMIT.md), [enemy ability inventory](ENEMY_ABILITIES.md).
 - [Chests](CHESTS.md), [equipment](EQUIP_SCOUT.md), [travel and pipes](TRAVEL.md), [party status](PARTY_STATUS.md).
 - [Scene dialogue](SCENE_DIALOGUE.md), [scene presentation](SCENE_PRESENTATION.md), [battle animations](BATTLE_ANIMATIONS.md).
 - [Sound integration](SOUND_INTEGRATION.md), [vehicles](VEHICLES.md), [save format](SAVE_SCOUT.md).

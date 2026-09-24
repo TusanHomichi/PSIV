@@ -89,7 +89,7 @@ pub const DEFENDING_PHYSICAL_PROP: u8 = 1;
 /// A battle must leave `curr_hp`, `curr_tp`, `experience`, `level`, `status`
 /// and `gain_exp_flag` in a state the field can carry straight on with.
 /// [`Battle::into_party`](crate::battle::Battle::into_party) is the handoff,
-/// and `battle::engine_tests` pins the invariant. Everything a battle mutates
+/// and `battle::engine::tests::handoff` pins the invariant. Everything a battle mutates
 /// temporarily — the `battle` copies, [`Stats::element_props`] under a Defend —
 /// is restored or recomputed before the battle ends, so no caller has to know
 /// which fields were transient.
