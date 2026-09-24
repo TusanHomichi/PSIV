@@ -6,7 +6,7 @@
   "patch": "oracle/patches/0001-rng-hv-trace.patch",
   "trace": "tape07_rolls.csv",
   "trace_sha256": "0d97f6d6917c3440a211be2e0661eb8c363e04b748c2cef4e510ad32fbb9cb91",
-  "log_sha256": "e2ed38f191525e27c48dd1e1214ed8baace19a4cd405552d0787cc4931b3c461",
+  "log_sha256": "4118ea6efda4cb1a2c5ce74cb04b66323eb26da37f39698a9e1a016156fe9ea4",
   "trace_header": [ "# PSIV rolls from UpdateRNGSeed2 (ps4.asm:86097), one row per call", "# rom instruction: $04239E move.w $8(a5),d0 (the (pc) column is the counter the core", "# reported for that access; the window accepts $04239E-$0423A6)", "# roll = (hv + frame_count - seed_high) & $FFFF (the word at $FFFFEF0C, which is", "# what `sub.w (RNG_Seed).w,d0` at $0423A6 reads and `ror (RNG_Seed).w` at $0423AA rotates),", "# seed_after = ror16(seed_before's high word)", "# frame_count is Main_Frame_Count, seed the RNG_Seed longword ($FFFFEF0C), both from", "# work RAM sampled around the frame; see oracle/README.md (\"RNG trace\")" ],
   "log_header": [ "# core=Genesis Plus GX v1.7.4 2d7131c region=NTSC", "# rom=/home/peter/PSIV/Phantasy Star IV (USA).md size=3145728", "# tape=oracle/tapes/07_first_battle.tape steps=3145 frames=36360", "# rng-trace=tape07_rolls.csv" ],
   "battle_frames": [ 24794, 30428 ],
