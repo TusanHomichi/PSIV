@@ -667,9 +667,10 @@ impl Battle {
 
     /// `Enemy_Attack`'s opening — the ability roll, always taken.
     ///
-    /// Fission and Acid Breath dispatch after the ordinary ability roll and
-    /// empty-space condition. Unsupported abilities retain the fallback.
-    /// When the roll
+    /// Fission and the traced damage-skill routes
+    /// ([`super::enemy_damage::resolve_damage_skill`]) dispatch after the
+    /// ordinary ability roll and empty-space condition. Unsupported abilities
+    /// retain the fallback. When the roll
     /// lands on a real ability the enemy still swings physically, and an
     /// [`BattleEvent::UnsupportedAbility`] says so rather than letting a wrong
     /// number pass for a right one. 53 of the cartridge's 153 enemies —
@@ -737,7 +738,7 @@ impl Battle {
         {
             return Ok(true);
         }
-        if super::enemy_skill::resolve_acid_breath(
+        if super::enemy_damage::resolve_damage_skill(
             &mut self.roster,
             actor,
             ability,

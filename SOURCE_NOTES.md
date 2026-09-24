@@ -846,7 +846,11 @@ FlyScreamr, 128 Piercer, 164 HakenLeft), the target's defense and its physical
 resistance through the same formula, and neither adds a physical attack or a
 status. Native: `ACID_BREATH_CARRIERS` in `rust/psiv-core/src/battle/enemy_skill.rs`
 now covers 75/76/85/86; 77 TechPlant stays out because its US list never rolls
-`$33`, so the gate cannot be reached by an unproven carrier.
+`$33`, so the gate cannot be reached by an unproven carrier. (2026-09-24: that
+constant and the per-record predicate are gone — the gate is now the
+`$33`/`$02` `DAMAGE_SKILL_ROUTES` table in
+`rust/psiv-core/src/battle/enemy_damage.rs`, with the same four carriers; see
+the FLAME BOLT section below.)
 
 `loc_5A98` tests target status `$C4` and `loc_5ACE` redraws from living party
 members before the enemy ability roll. `Character_Dead` at `loc_84DE` masks
@@ -882,3 +886,56 @@ Raw byte receipts and the retained native failure live under
 explicitly isolated SRAM position fixtures, not connected cartridge play.
 Their Y word is `(standing_y-1)*16`, accounting for the separately documented
 legacy native save-coordinate gap without modifying any campaign save.
+
+### Enemy damage-skill routes and FLAME BOLT `$02` (2026-09-24)
+
+`EnemySkillData` `$02` FLAME BOLT is `01 01 08 50 07 03 00 00` at `$283374`:
+effect `$01`, stat `$01` (strength), tgt 8, pow 80, res `$07` (magic defense),
+el `3` (fire). `EnemyAttackOffs` (`ps4.asm:19206`) gives it two carriers with
+their own entries, `$00` (`ps4.asm:19207`) and `$05` (`ps4.asm:19212`);
+`generated/enemies.json` holds `$02` in all eight regular slots of 0 Helex and
+in slots 5-8 of 5 ForcedFly, and nowhere else, so 14 of the 504 regular
+formations can roll it.
+
+`EnemyAttack_ForcedFly` (`ps4.asm:23567`) branches to
+`EnemyAttack_MonsterFly` (`ps4.asm:23591`) only for ability 0 and otherwise
+falls through into `EnemyAttack_Helex` (`ps4.asm:23574`), which writes object
+`$48` (line 23575) — `BattleObj_HelexFlameBolt` (`ps4.asm:30279`). Neither arm
+writes `Current_Target_Index`; `Enemy_Attack` (lines 19168-19172) had stored the
+drawn target in the attack object's `$38(a1)` before dispatching, so both run
+against the chosen party member. The parent only animates: at `$10(a4) == 2`
+it loads `BattleObj_HelexFlameBolt2` (`ps4.asm:30315`) and copies `$38`/`$3C`
+into it (lines 30301-30302). The child waits out `$2E` = `$110`, makes the
+hit-reaction write (`move.w #5, $2(a3)`, `$1C = $C`, lines 30334-30335) and
+then the object's only damage request, `move.w #$C, $2(a3)` (`ps4.asm:30342`),
+behind a `btst #1, $4(a4)` / `bset #1, $4(a4)` once-guard with `($FFFF416C)` as
+the handshake — one reaction and one hit, the shape of
+`BattleObj_AcidBreath`'s `loc_24AEC` exit (`ps4.asm:48507`). The arm writes
+`SFXID_EnemyAttack3` `$D7` at the parent's load (line 30285) and
+`SFXID_FireBreath` `$C2` at the child's (line 30321); the port maps them to the
+ability event and the reaction, like Acid Breath's `$D5`/`$D8`.
+
+That request enters `Fighter_TakeDamage` (`ps4.asm:3564`) and
+`Figher_DamageCheckActor`, which takes `Enemy_DamageCharacter`'s
+`$24(a3) != 0` branch (`ps4.asm:3775`, `loc_26D2`): record byte 1 masked with
+`$7F` (`Effect_SetupSkillParams`, `ps4.asm:9580`) selects the caster's stat,
+byte 4 is read raw (line 9605) as the target's stat, byte 5 indexes `loc_276A`'s
+element offsets for the target's factor, and byte 3 becomes the doubled bonus
+of `Battle_CalculateDamage` (`ps4.asm:17374`) under `loc_266C`'s `1..=999`
+clamp. No accuracy roll, no status, no extra physical attack — the same
+pipeline `$33` uses, so Helex's strength 10 and ForcedFly's 154 are the only
+carrier-specific terms.
+
+Native: `resolve_damage_skill` and `DAMAGE_SKILL_ROUTES` in
+`rust/psiv-core/src/battle/enemy_damage.rs` replace the `is_acid_breath` record
+predicate and the `ACID_BREATH_CARRIERS` gate that used to live in
+`enemy_skill.rs`; `engine::roll_enemy_ability` calls the new resolver. The gate
+is now the exact `(enemy, ability)` pair, with each table entry citing the
+`EnemyAttackOffs` line, the arm, the object and the single damage-request line
+that prove it: `$33` for 75/76/85/86 and `$02` for 0/5. The record supplies the
+arithmetic, byte 1 is masked with `$7F` as the cartridge masks it, and a record
+whose byte 2 is not the proven single-target range (`AbilityRangeOffs`,
+`ps4.asm:8903`, index 8 = `AbilityRange_Single`, `ps4.asm:8938`) is refused
+even when its pair is listed, so it keeps the explicit `UnsupportedAbility`
+path. Acid Breath's behaviour is unchanged: same events in the same order and
+the same 16 damage draws.

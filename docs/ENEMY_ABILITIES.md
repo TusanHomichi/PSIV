@@ -7,8 +7,8 @@ out of the disassembly, and whether `psiv-core` implements it. Read
 finished dispatch (THREAD). Nothing here changes code; it is the map for doing so
 one ability at a time.
 
-**83 distinct nonzero regular ability ids.** 5 implemented,
-78 unsupported: 57 damage, 5 scripted/custom, 16 status/stat effect.
+**83 distinct nonzero regular ability ids.** 6 implemented,
+77 unsupported: 56 damage, 5 scripted/custom, 16 status/stat effect.
 
 ## 1. Method
 
@@ -126,7 +126,7 @@ runs when the gate is clear.
 
 | ability | record | `EnemyAttack_*` → object | `AbilityEffect_*` | carriers | class | status |
 |---|---|---|---|---|---|---|
-| `$02` (2) **FlameBolt**<br>FLAME BOLT | eff `$01` · stat $01 (strength) · tgt 8 · pow 80 · res $07 (magic_defense) · el `3` fire | `EnemyAttack_ForcedFly` (`ps4.asm:23567`)<br>→ BattleObj_HelexFlameBolt (`ps4.asm:30279`)<br>`EnemyAttack_Helex` (`ps4.asm:23574`)<br>→ BattleObj_HelexFlameBolt (`ps4.asm:30279`) | `AbilityEffect_None` (`ps4.asm:9092`) | 0 Helex, 5 ForcedFly<br>14/504 formations | damage | unsupported |
+| `$02` (2) **FlameBolt**<br>FLAME BOLT | eff `$01` · stat $01 (strength) · tgt 8 · pow 80 · res $07 (magic_defense) · el `3` fire | `EnemyAttack_ForcedFly` (`ps4.asm:23567`)<br>→ BattleObj_HelexFlameBolt (`ps4.asm:30279`)<br>`EnemyAttack_Helex` (`ps4.asm:23574`)<br>→ BattleObj_HelexFlameBolt (`ps4.asm:30279`) | `AbilityEffect_None` (`ps4.asm:9092`) | 0 Helex, 5 ForcedFly<br>14/504 formations | — | implemented — `enemy_damage::resolve_damage_skill` for both carriers (`DAMAGE_SKILL_ROUTES`); the child object holds the one damage request |
 | `$03` (3) **RailGun**<br>RAIL-GUN | eff `$01` · stat $05 (attack) · tgt 8 · pow 0 · res $06 (defense) · el `1` physical | `EnemyAttack_GunnerBit` (`ps4.asm:23604`)<br>→ BattleObj_GunnerBitAtk (`ps4.asm:30361`)<br>BattleObj_GunnerBitAtk2 (`ps4.asm:30450`) | `AbilityEffect_None` (`ps4.asm:9092`) | 2 GunnerBit<br>6/504 formations | damage | unsupported |
 | `$04` (4) **LasrCannon**<br>LASRCANNON | eff `$01` · stat $05 (attack) · tgt 8 · pow 0 · res $06 (defense) · el `2` energy | `EnemyAttack_Loader` (`ps4.asm:22448`)<br>→ loc_16C04 (`ps4.asm:31936`)<br>`EnemyAttack_ProtectBit` (`ps4.asm:23637`)<br>→ BattleObj_ProtectBitAtk (`ps4.asm:30592`)<br>BattleObj_ProtectBitAtk2 (`ps4.asm:30706`)<br>`EnemyAttack_Seeker` (`ps4.asm:23663`)<br>→ BattleObj_SeekerAtk (`ps4.asm:30851`)<br>`EnemyAttack_Sweeper` (`ps4.asm:23676`)<br>→ BattleObj_SeekerAtk (`ps4.asm:30851`) | `AbilityEffect_None` (`ps4.asm:9092`) | 4 ProtectBit, 7 Seeker, 8 Sweeper, 51 Loader, 52 Debugger<br>30/504 formations | damage | unsupported |
 | `$05` (5) **Lightning**<br>LIGHTNING | eff `$01` · stat $01 (strength) · tgt 8 · pow 40 · res $07 (magic_defense) · el `7` electric | `EnemyAttack_Sweeper` (`ps4.asm:23676`)<br>→ BattleObj_SweeperAtk (`ps4.asm:30911`) | `AbilityEffect_None` (`ps4.asm:9092`) | 8 Sweeper<br>6/504 formations | damage | unsupported |
@@ -163,7 +163,7 @@ runs when the gate is clear.
 | `$30` (48) **Distortion**<br>DISTORTION | eff `$01` · stat $01 (strength) · tgt 9 · pow 128 · res $07 (magic_defense) · el `4` gravity | `EnemyAttack_ProfoundDarkness2` (`ps4.asm:19750`)<br>→ loc_2F1B2 (`ps4.asm:61394`) | `AbilityEffect_None` (`ps4.asm:9092`) | 134 ProfoundDarkness2<br>0/504 formations | damage | unsupported |
 | `$31` (49) **Gra**<br>GRA | eff `$01` · stat $82 (mental) · tgt 9 · pow 32 · res $07 (magic_defense) · el `4` gravity | `EnemyAttack_DimensWorm` (`ps4.asm:21892`)<br>→ loc_1C99C (`ps4.asm:39050`)<br>loc_1C73E (`ps4.asm:38879`)<br>loc_1C658 (`ps4.asm:38807`) | `AbilityEffect_None` (`ps4.asm:9092`) | 73 DimensWorm, 74 OuterBeast<br>14/504 formations | damage | unsupported |
 | `$32` (50) **Gigra**<br>GIGRA | eff `$01` · stat $82 (mental) · tgt 9 · pow 64 · res $07 (magic_defense) · el `4` gravity | `EnemyAttack_DimensWorm` (`ps4.asm:21892`)<br>→ loc_1C99C (`ps4.asm:39050`)<br>loc_1C73E (`ps4.asm:38879`)<br>loc_1C658 (`ps4.asm:38807`) | `AbilityEffect_None` (`ps4.asm:9092`) | 74 OuterBeast<br>7/504 formations | damage | unsupported |
-| `$33` (51) **AcidBreath**<br>ACIDBREATH | eff `$01` · stat $01 (strength) · tgt 8 · pow 24 · res $06 (defense) · el `1` physical | `EnemyAttack_FlattrPlnt` (`ps4.asm:21778`)<br>→ BattleObj_AcidBreath (`ps4.asm:38566`)<br>BattleObj_AcidBreathChild (`ps4.asm:38622`)<br>`EnemyAttack_Piercer` (`ps4.asm:21518`)<br>→ loc_23998 (`ps4.asm:47264`)<br>loc_24FD2 (`ps4.asm:48883`) | `AbilityEffect_None` (`ps4.asm:9092`) | 75 FlattrPlnt, 76 FlyScreamr, 85 Piercer, 86 HakenLeft<br>19/504 formations | — | implemented — `enemy_skill::resolve_acid_breath` for all four carriers (`ACID_BREATH_CARRIERS`); 77 TechPlant shares `EnemyAttack_FlattrPlnt` but never rolls `$33` |
+| `$33` (51) **AcidBreath**<br>ACIDBREATH | eff `$01` · stat $01 (strength) · tgt 8 · pow 24 · res $06 (defense) · el `1` physical | `EnemyAttack_FlattrPlnt` (`ps4.asm:21778`)<br>→ BattleObj_AcidBreath (`ps4.asm:38566`)<br>BattleObj_AcidBreathChild (`ps4.asm:38622`)<br>`EnemyAttack_Piercer` (`ps4.asm:21518`)<br>→ loc_23998 (`ps4.asm:47264`)<br>loc_24FD2 (`ps4.asm:48883`) | `AbilityEffect_None` (`ps4.asm:9092`) | 75 FlattrPlnt, 76 FlyScreamr, 85 Piercer, 86 HakenLeft<br>19/504 formations | — | implemented — `enemy_damage::resolve_damage_skill` for all four carriers (`DAMAGE_SKILL_ROUTES`); 77 TechPlant shares `EnemyAttack_FlattrPlnt` but never rolls `$33` |
 | `$34` (52) **Voice**<br>VOICE | eff `$07` · stat $01 (strength) · tgt 9 · pow 128 · res $02 (mental) · el `11` psychic | `EnemyAttack_FlattrPlnt` (`ps4.asm:21778`)<br>→ BattleObj_Voice (`ps4.asm:38465`)<br>BattleObj_AcidBreathChild (`ps4.asm:38622`) | `AbilityEffect_SleepParalyze` (`ps4.asm:9154`) | 76 FlyScreamr<br>3/504 formations | status/stat effect | unsupported |
 | `$35` (53) **Gizan**<br>GIZAN | eff `$01` · stat $82 (mental) · tgt 9 · pow 48 · res $07 (magic_defense) · el `1` physical | `EnemyAttack_DElmLars` (`ps4.asm:20222`)<br>→ loc_2912C (`ps4.asm:54326`)<br>`EnemyAttack_FlattrPlnt` (`ps4.asm:21778`)<br>→ BattleObj_EnemyGizan (`ps4.asm:38024`)<br>BattleObj_AcidBreathChild (`ps4.asm:38622`)<br>`EnemyAttack_TechUser` (`ps4.asm:21156`)<br>→ loc_21176 (`ps4.asm:44547`) | `AbilityEffect_None` (`ps4.asm:9092`) | 77 TechPlant, 101 DarkWitch, 122 DElmLars, 123 XeAThoul, 124 LeFawGan, 125 GiLeFarg<br>17/504 formations (+2 boss) | damage | unsupported |
 | `$36` (54) **StrngLight**<br>STRNGLIGHT | eff `$07` · stat $01 (strength) · tgt 8 · pow 48 · res $02 (mental) · el `11` psychic | `EnemyAttack_ToadStool` (`ps4.asm:21737`)<br>→ BattleObj_StrngLight (`ps4.asm:37778`) | `AbilityEffect_SleepParalyze` (`ps4.asm:9154`) | 79 Shrieker<br>8/504 formations | status/stat effect | unsupported |
@@ -252,7 +252,6 @@ Map ids whose encounter table can roll a formation carrying the ability, with th
 
 | ability | class | maps | ids |
 |---|---|---|---|
-| `$02` FLAME BOLT | damage | 3 | 000 Motavia, 001 Dezolis, 15F Hangar |
 | `$03` RAIL-GUN | damage | 5 | 0BA PlateSystem, 0BB PlateSystem_F1, 0BC PlateSystem_F2, 0BD PlateSystem_F3, 0BE PlateSystem_F4 |
 | `$04` LASRCANNON | damage | 14 | 001 Dezolis, 0BA PlateSystem, 0BB PlateSystem_F1, 0BC PlateSystem_F2, 0BD PlateSystem_F3, 0BE PlateSystem_F4, 0C0 ClimCenter, 0C1 ClimCenter_F1, 0C2 ClimCenter_F2, 0C3 ClimCenter_F3, 0C4 WeaponPlant, 0C5 WeaponPlant_F1, 0C6 WeaponPlant_F2, 0C7 WeaponPlant_F3 |
 | `$05` LIGHTNING | damage | 4 | 0C4 WeaponPlant, 0C5 WeaponPlant_F1, 0C6 WeaponPlant_F2, 0C7 WeaponPlant_F3 |
@@ -261,7 +260,6 @@ Map ids whose encounter table can roll a formation carrying the ability, with th
 | `$0B` STASISBALL | status/stat effect | 9 | 0C8 VahalFort, 0C9 VahalFort_F1, 0CA VahalFort_F2, 0CB VahalFort_F3, 0CE Nurvus_B1, 0CF Nurvus_B2, 0D0 Nurvus_B3, 0D2 Nurvus_B4, 0D5 Nurvus_B5 |
 | `$0E` MICROMISSL | damage | 8 | 0C0 ClimCenter, 0C1 ClimCenter_F1, 0C2 ClimCenter_F2, 0C3 ClimCenter_F3, 0C8 VahalFort, 0C9 VahalFort_F1, 0CA VahalFort_F2, 0CB VahalFort_F3 |
 | `$0F` FLAMLAUNCH | damage | 4 | 0C8 VahalFort, 0C9 VahalFort_F1, 0CA VahalFort_F2, 0CB VahalFort_F3 |
-| `$11` POISON | status/stat effect | 1 | 000 Motavia |
 | `$13` CELL SPLIT | damage | 9 (+1 boss) | 001 Dezolis, 092 IslandCave, 093 IslandCave_F1, 094 IslandCave_F1_Part2, 095 IslandCave_Part2, 096 IslandCave_B1, 097 IslandCave_F2, 098 IslandCave_F3, 15F Hangar |
 | `$16` FLASH | damage | 4 | 0C4 WeaponPlant, 0C5 WeaponPlant_F1, 0C6 WeaponPlant_F2, 0C7 WeaponPlant_F3 |
 | `$17` WAITING | scripted/custom | 19 | 0C8 VahalFort, 0C9 VahalFort_F1, 0CA VahalFort_F2, 0CB VahalFort_F3, 0CC Nurvus_Part2, 0CD Nurvus_Part3, 0CE Nurvus_B1, 0CF Nurvus_B2, 0D0 Nurvus_B3, 0D2 Nurvus_B4, 0D5 Nurvus_B5, 190 Kuran, 191 Kuran_F1, 192 Kuran_F2, 193 Kuran_F1_Part2, 194 Kuran_F1_Part3, 195 Kuran_F1_Part5, 196 Kuran_F2_Part2, 197 Kuran_F1_Part4 |
@@ -339,16 +337,27 @@ Map ids whose encounter table can roll a formation carrying the ability, with th
 | | |
 |---|---|
 | distinct nonzero regular ability ids (§2) | 83 |
-| implemented | 5 |
-| unsupported | 78 |
-| — `damage` | 57 |
+| implemented | 6 |
+| unsupported | 77 |
+| — `damage` | 56 |
 | — `status/stat effect` | 16 |
 | — `scripted/custom` | 5 (`$17` WAITING, `$54` BLACK WAVE, `$63` BURSTROC, `$64` SHDWBREATH, `$6C` BLACK WAVE) |
 | — `unknown` | 0 |
 | conditional-only ids (§3) | 24, one of them implemented (`$06` FISSION) |
 
-The five implemented rows are exactly what `psiv-core` claims:
+The six implemented rows are exactly what `psiv-core` claims:
 
+- `$02` FLAME BOLT → `enemy_damage::resolve_damage_skill` for both carriers
+  (`DAMAGE_SKILL_ROUTES`, `rust/psiv-core/src/battle/enemy_damage.rs`). 0 Helex
+  (`EnemyAttackOffs` `$00`) → `EnemyAttack_Helex` (`ps4.asm:23574`) → object
+  `$48` = `BattleObj_HelexFlameBolt` (`ps4.asm:30279`); 5 ForcedFly (`$05`) →
+  `EnemyAttack_ForcedFly` (`ps4.asm:23567`), which falls through into that same
+  body for a nonzero ability. The parent object only animates and hands
+  `$38`/`$3C` to `BattleObj_HelexFlameBolt2` (`ps4.asm:30315`, lines
+  30301-30302), whose single `move.w #$C, $2(a3)` (`ps4.asm:30342`) is guarded
+  by bit 1 and handshaken through `($FFFF416C)`. No arm clears
+  `Current_Target_Index`, and `Enemy_Attack` had already stored the drawn target
+  in the object, so the one request lands on the chosen party member.
 - `$07` Fission2 → `enemy_skill::resolve_fission` (`rust/psiv-core/src/battle/enemy_skill.rs`),
   reached from `roll_enemy_ability` through `fission_neighbor`; the same predicate
   (`is_fission`) covers `$06` Fission, which appears only in §3. That implemented
@@ -364,8 +373,8 @@ The five implemented rows are exactly what `psiv-core` claims:
 - `$11` POISON → `enemy_skill::resolve_poison`. Carrier 32 Caterpillr →
   `EnemyAttack_Crawler` → `BattleObj_Poison`; effect `$1B` →
   `AbilityEffect_Poison`. See [`ENEMY_POISON.md`](ENEMY_POISON.md).
-- `$33` ACIDBREATH → `enemy_skill::resolve_acid_breath` for all four carriers
-  (`ACID_BREATH_CARRIERS`, `rust/psiv-core/src/battle/enemy_skill.rs`). 75
+- `$33` ACIDBREATH → `enemy_damage::resolve_damage_skill` for all four carriers
+  (`DAMAGE_SKILL_ROUTES`, `rust/psiv-core/src/battle/enemy_damage.rs`). 75
   FlattrPlnt and 76 FlyScreamr (`EnemyAttackOffs` `$4B`/`$4C`) →
   `EnemyAttack_FlattrPlnt` (`ps4.asm:21778`) → `BattleObj_AcidBreath`
   (`ps4.asm:38566`) + `BattleObj_AcidBreathChild` (`ps4.asm:38622`); 85 Piercer
@@ -373,7 +382,8 @@ The five implemented rows are exactly what `psiv-core` claims:
   object `$35C` = `loc_23998` (`ps4.asm:47264`) + `$360` = `loc_24FD2`
   (`ps4.asm:48883`). Both arms keep `Current_Target_Index`, make one reaction
   write (`move.w #5, $2(a3)`) and one damage request (`move.w #$C, $2(a3)`), and
-  write MoleAttack `$D5` then EnemyAttack4 `$D8`.
+  write MoleAttack `$D5` then EnemyAttack4 `$D8`. The same resolver's `$02`
+  entries cover FLAME BOLT for 0 Helex and 5 ForcedFly.
 - `$70`/112 BLACK WAVE (Zio3) → the scripted sequence in
   `engine::roll_enemy_ability`, fed by `EnemyAttack_Zio3` (`ps4.asm:19410`):
   phase 0 writes `$6B` and loads `BattleObj_MagBarrir` (`ps4.asm:67319`), phase 1
@@ -390,7 +400,8 @@ The five implemented rows are exactly what `psiv-core` claims:
   only animates; its child `BattleObj_HelexFlameBolt2` (`ps4.asm:30315`) is where
   `move.w #5, $2(a3)` lives. Same for `BattleObj_MonsterflyAtk` (`ps4.asm:30205`)
   → `BattleObj_MonsterflyAtk2` (`ps4.asm:30241`). Reading only the object the
-  routine loads would wrongly call FlameBolt a non-damaging ability.
+  routine loads would wrongly call FlameBolt a non-damaging ability; `$02` is
+  implemented from that child (see its §2 row).
 - **Six shared tails apply damage to the whole side or to one target**:
   `loc_24A6C` (`ps4.asm:48468`), `loc_24A9E` (`ps4.asm:48483`), `loc_24AEC`
   (`ps4.asm:48507`), `loc_24B20` (`ps4.asm:48523`), `loc_24B64` (`ps4.asm:48541`)
@@ -483,15 +494,16 @@ The five implemented rows are exactly what `psiv-core` claims:
 ### Port gaps
 
 - `engine::roll_enemy_ability` (`rust/psiv-core/src/battle/engine.rs`) handles
-  Fission/Fission2, Acid Breath, THREAD and Zio3. Every other nonzero id emits
+  Fission/Fission2, the record-driven damage skills (`enemy_damage`, `$33` and
+  `$02`), THREAD and Zio3. Every other nonzero id emits
   `BattleEvent::UnsupportedAbility` and then takes the ordinary attack path
-  (`engine.rs:762-764`), so those enemies still *hit* — they hit with a physical
+  (`engine.rs:774-776`), so those enemies still *hit* — they hit with a physical
   swing instead of their ability. Any bug report about enemy damage in a fight
   listed in §4 is this fallback.
-- **Acid Breath covers every carrier.** `is_acid_breath` (`enemy_skill.rs`) pins
-  ability `$33`, and `resolve_acid_breath`'s `ACID_BREATH_CARRIERS` gate holds
-  the four enemies whose `EnemyAttackOffs` entry is one of the two traced `$33`
-  routines: 75 FlattrPlnt and 76 FlyScreamr share `EnemyAttack_FlattrPlnt`
+- **Acid Breath covers every carrier.** The `$33` `DAMAGE_SKILL_ROUTES` entries
+  (`enemy_damage.rs`) hold the four enemies whose `EnemyAttackOffs` entry is one
+  of the two traced `$33` routines: 75 FlattrPlnt and 76 FlyScreamr share
+  `EnemyAttack_FlattrPlnt`
   (`ps4.asm:21778`), 85 Piercer and 86 HakenLeft share `EnemyAttack_Piercer`
   (`ps4.asm:21518`), whose `$33` arm loads object `$35C` = `loc_23998`
   (`ps4.asm:47264`) + `$360` = `loc_24FD2` (`ps4.asm:48883`). Both arms keep
@@ -499,7 +511,13 @@ The five implemented rows are exactly what `psiv-core` claims:
   damage request, and write `$D5` then `$D8`, so both resolve through the same
   formula. 77 TechPlant shares `EnemyAttack_FlattrPlnt` but rolls only `$2A` and
   `$2E`, so it is deliberately outside the gate; an enemy outside it still falls
-  back (the core test `an_unproven_carrier_still_reports_acid_breath_as_unsupported`).
+  back (the core tests `an_unproven_carrier_still_reports_acid_breath_as_unsupported`
+  and `an_unproven_carrier_still_reports_flame_bolt_as_unsupported`). FLAME BOLT
+  is the same shape: 0 Helex and 5 ForcedFly are the only enemies whose regular
+  list holds `$02`, and both `EnemyAttackOffs` entries (`$00`, `$05`) run the
+  traced object chain. `$33` itself now also refuses any record whose byte 2 is
+  not the proven single-target range 8, and the record's stat byte is masked with
+  `$7F` as `Effect_SetupSkillParams` (`ps4.asm:9580`) masks it.
 - **Fission2's regular roll is not covered.** The port reaches `resolve_fission`
   only through `fission_neighbor`, which returns `None` unless the record is enemy
   12 or 13, and `resolve_fission` runs only when that returns a target. Enemy 50
@@ -520,7 +538,7 @@ The five implemented rows are exactly what `psiv-core` claims:
 - **Completeness.** §2 holds one row per id in the union of
   `ai.regular_ability_ids` over the 153 records of `generated/enemies.json`
   (83 ids, each exactly once); the same set re-derived from `raw_hex` bytes 36..43
-  is identical. §4 holds the §2 rows whose status is `unsupported` (79 rows).
+  is identical. §4 holds the §2 rows whose status is `unsupported` (77 rows).
 - **Citations.** Every `ps4.asm:NNNN` citation in this file points at a label that
   begins on that line, and every backticked label next to such a citation is the
   label found there. Statement-level references are written as "line NNNN" and
