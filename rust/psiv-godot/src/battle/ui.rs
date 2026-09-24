@@ -784,9 +784,6 @@ impl BattleScreen {
 
         self.update_live_party_hp(&event);
         let narration = timeline::narration(&event, &self.names, &self.character_names);
-        if narration.line == "Unhandled battle event." {
-            godot_error!("battle renderer: unhandled BattleEvent: {event:?}");
-        }
         if let BattleEvent::UnsupportedAbility { actor, ability } = &event {
             godot_error!(
                 "battle renderer: engine emitted unsupported ability {ability} for fighter {}",

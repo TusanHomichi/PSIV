@@ -667,9 +667,11 @@ impl Battle {
 
     /// `Enemy_Attack`'s opening — the ability roll, always taken.
     ///
-    /// Fission and Acid Breath dispatch after the ordinary ability roll and
-    /// empty-space condition. Unsupported abilities retain the fallback.
-    /// When the roll
+    /// Fission and the traced damage-skill routes
+    /// ([`super::enemy_damage::resolve_damage_skill`]) dispatch after the
+    /// ordinary ability roll and empty-space condition, and so do FloatMine-carrier
+    /// rolls of `$07` and `$17`, which spend the turn without an effect. Unsupported abilities
+    /// retain the fallback. When the roll
     /// lands on a real ability the enemy still swings physically, and an
     /// [`BattleEvent::UnsupportedAbility`] says so rather than letting a wrong
     /// number pass for a right one. 53 of the cartridge's 153 enemies —
@@ -737,7 +739,7 @@ impl Battle {
         {
             return Ok(true);
         }
-        if super::enemy_skill::resolve_acid_breath(
+        if super::enemy_damage::resolve_damage_skill(
             &mut self.roster,
             actor,
             ability,
@@ -766,6 +768,18 @@ impl Battle {
             intended,
             data,
             rolls,
+            events,
+        ) {
+            return Ok(true);
+        }
+        // `EnemyAttack_FloatMine`'s fall-through (`loc_10406`): the roll has
+        // nothing to load, so the turn is spent rather than turned into a
+        // physical attack. Last, because it is the absence of an arm.
+        if super::enemy_skill::resolve_no_effect_turn(
+            &mut self.roster,
+            actor,
+            ability,
+            data,
             events,
         ) {
             return Ok(true);

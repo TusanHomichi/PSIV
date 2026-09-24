@@ -20,7 +20,11 @@ outcomes in the [lane ledger](docs/CLAUDE_LANES.md).
 
 ## ds-lane
 
-`ds-lane` is on `PATH` through `~/.local/bin`. Usage is in the script header.
+`ds-lane` is on `PATH` through `~/.local/bin`. `tools/ds-lane` is the
+executable entry point (a shim that resolves its own symlink) for the
+stdlib-only `tools/ds_lane/` package (`config`, `preflight`, `receipts`,
+`lanes`, `supervisor`, `cli`). Usage: `ds-lane --help`, or the `cli` module
+docstring.
 
 - Launch with `ds-lane start BRIEF.md` in a background shell; the host wakes
   the orchestrator on exit. Runs use a detached supervisor, so the worker and
@@ -64,23 +68,90 @@ outcomes in the [lane ledger](docs/CLAUDE_LANES.md).
   `write-set`, listing one path or glob per line (`fnmatch`, `**` crosses
   directories). `ds-lane` records paths changed between the base and the new
   head that fall outside it as `write_set_violations` in `run.json` and warns
-  in the summary. A brief without the block is unenforced.
+  in the summary. A brief without the block is unenforced. A follow-up passed
+  to `resume` may carry its own block: `resume` adopts it as the lane's write
+  set from that run on (the decision after lane ab-H run-3 was checked against
+  the brief's set, not its follow-up's, and flagged both new paths), so
+  `lane.json` always holds the current set and every `run.json` the `write_set`
+  that run was checked against. A follow-up with no block inherits.
+- **Host state.** The worker's own agent runtime writes its task state into the
+  worktree (`.reasonix/tasks/<id>/events.jsonl`); that is host state, not lane
+  output. The finalize commit excludes every path in `HOST_STATE_PATHS`
+  (`tools/ds_lane/config.py`) alongside the `--link`ed inputs, so it never
+  reaches a lane commit or the write-set check - the plain `git add -A` swept
+  it into lane ab-J's commit and tripped that check (2026-09-24) - and each
+  run's receipt copies what it held to `host-state/<name>/`, reviewable like
+  `evidence/`.
+- **Size rule.** The owner's rule is that a file over roughly 1,000 lines is
+  reorganized when touched, and `ds-lane` flags it the way it flags a
+  write-set violation. After each run, every path changed between the lane's
+  base and the new head that still exists and is text (no NUL byte in its
+  first 8 KiB) is counted at the new head; each one over `MAX_FILE_LINES`
+  (`tools/ds_lane/config.py`, default 1,000, movable with
+  `DS_LANE_MAX_FILE_LINES`) is recorded in `run.json` as `oversize_files`
+  (`{path, lines, base_lines}`, where `base_lines` is the count at the base and
+  null for a file that is new there) and printed as
+  `WARNING: over 1000 lines: <path> (<lines>, was <base_lines>)` (`was new` for
+  a new file). Every path in a commit is counted, whatever the brief's write
+  set says; the `--link`ed inputs and the worker's host state never reach a
+  commit, so they are never counted. The preamble carries the rule to the
+  worker in positive words (keep every file you touch under 1,000 lines;
+  reorganize a file into cohesive modules when a change would take it over).
+  Why it exists: lane ab-M grew
+  `rust/psiv-core/src/battle/enemy_damage_tests.rs` to 1,504 lines and review
+  missed it, because nothing flagged it (2026-09-24).
 - **Timeout.** Each run gets `--timeout SECONDS` (default 5400). On expiry the
   worker's process group is SIGTERM'd, then SIGKILL'd after 30 s; the run
   still commits and reports `exit_code` 124 with `turn_error`
   `timeout after N s`. A final SIGKILL always follows the parent's exit, so
   children the worker spawned (a `cargo test`, say) cannot outlive the run and
   its released slot. `run.json` records `outcome`:
-  `completed` | `timeout` | `stopped`.
+  `completed` | `timeout` | `stopped` | `stalled`.
+- **Stall watchdog.** Each run gets `--stall-timeout SECONDS` (default 900; 0
+  disables it; in the run spec). The supervisor samples every 15 s and judges
+  each whole window: the run is **stalled** when the window saw no
+  `trajectory.jsonl` growth *and* the worker's process group used less than
+  `DS_LANE_STALL_CPU_PCT` percent of one core across it (default 1.0;
+  `utime+stime` deltas from `/proc/<pid>/stat` over `SC_CLK_TCK`). The rate,
+  not any gain, is what separates work from a corpse: a long silent
+  `cargo build` burns far more than a percent of a core and a live Reasonix
+  worker streaming a turn measured 5.6%, while a worker whose stream died and
+  whose wrapper then idles on a timer gains a tick every half minute - 0.03%
+  (measured 2026-09-24). A stalled run is killed through the same group path
+  and finalizes with `exit_code` 125 and `turn_error`
+  `stalled: no progress for N s`; the measured rate and the threshold it fell
+  under are recorded in that run's `supervisor.log`. `--stall-retries N`
+  (default 1) then has the supervisor start the next run of the lane itself,
+  on the same Reasonix session, through the `resume` code path: that follow-up
+  says the previous
+  run stalled (a host suspend leaves the worker alive with a dead stream -
+  observed 2026-09-24), that the session context is intact, and to continue
+  through acceptance and the Receipt; it keeps the timeout, the stall timeout
+  and the retries left. `stall_retries_left` and `resumed_after_stall` are in
+  the run spec and in `run.json`, and `wait ID` follows the chain to the
+  lane's final run, so a waiter that attached before the stall still returns
+  the final outcome. Stopping the resumed run is an ordinary `stop ID`.
 - **Independent checks.** `ds-lane verify ID -- CMD...` runs CMD in the lane
   worktree with `CARGO_BUILD_JOBS=2`, streams its output, saves it with the
   command, UTC start, lane head, exit code and duration under
   `<state>/verify/NNN.log`, and exits with CMD's code. Use it for the
   orchestrator's own checks instead of "the worker says it passed".
 - `DS_LANE_HOME` relocates worktrees/receipts (tests), `DS_LANE_REASONIX`
-  swaps the worker binary, `DS_LANE_MAX_LANES` caps concurrency.
-  `PYTHONPATH=. python3 -m unittest tests.test_ds_lane -v` covers the harness
-  hermetically in about 20 s.
+  swaps the worker binary, `DS_LANE_MAX_LANES` caps concurrency,
+  `DS_LANE_STALL_POLL` shortens the 15 s stall sampling interval,
+  `DS_LANE_STALL_CPU_PCT` moves the work threshold (both are test seams; the
+  defaults are 15 s and 1.0% of a core) and `DS_LANE_MAX_FILE_LINES` moves the
+  1,000-line limit (a test seam; the default is 1,000).
+  `PYTHONPATH=. python3 -m unittest discover -s tests -p 'test_ds_lane*.py' -v`
+  covers the harness hermetically in under a minute (its stall cases run with a
+  lowered poll and its size cases against the real limit; the suite must stay
+  under 90 s). The cases are split by cohesion - `tests/ds_lane_support.py`
+  (the fake worker, the repo and home fixtures, the CLI helpers),
+  `test_ds_lane_unit.py`, `test_ds_lane_lanes.py`, `test_ds_lane_size.py` and
+  `test_ds_lane_supervisor.py` - each under the line cap that applies to it
+  (500 lines for a test module, 400 for a package module).
+- A lane that builds the whole workspace needs `--link oracle/gpgx-src`:
+  `psiv-sound`'s build script compiles the ignored core sources under it.
 - Each lane has its own `rust/target`, so its first cargo build is cold.
   Restate the relevant `AGENTS.md` safety rules in each brief (GDExtension,
   saves, serialized expensive runs).

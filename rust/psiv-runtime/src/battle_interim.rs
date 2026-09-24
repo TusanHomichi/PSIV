@@ -107,6 +107,36 @@ impl Runtime {
     }
 }
 
+/// The enemy skill that opened the action a [`BattleEvent::Resolved`] belongs
+/// to, when that action was an enemy skill.
+///
+/// The last action-opening event before the resolution owns it, and the damage
+/// skills' objects write their second sound cue as part of that same action, so
+/// the cue is keyed on the skill rather than on the acting enemy alone.
+fn resolving_enemy_skill(
+    events: &[BattleEvent],
+    event_index: usize,
+    actor: FighterId,
+) -> Option<u8> {
+    match events[..event_index].iter().rev().find(|e| {
+        matches!(
+            e,
+            BattleEvent::Attacked { .. }
+                | BattleEvent::EnemySkillUsed { .. }
+                | BattleEvent::TechniqueUsed { .. }
+                | BattleEvent::SkillUsed { .. }
+                | BattleEvent::ItemUsed { .. }
+        )
+    }) {
+        Some(BattleEvent::EnemySkillUsed {
+            actor: caster,
+            skill,
+            ..
+        }) if *caster == actor => Some(*skill),
+        _ => None,
+    }
+}
+
 fn battle_sound_events(
     events: &[BattleEvent],
     actor_sounds: &BTreeMap<FighterId, u8>,
@@ -116,16 +146,22 @@ fn battle_sound_events(
         match event {
             // BattleObj_Thread's wind-up uses EnemyAttack5; no attack damage follows.
             BattleEvent::EnemySkillUsed { skill: 16, .. } => sounds.push(BattleSoundEvent {
-                event_index, id: 0xDA,
+                event_index,
+                id: 0xDA,
             }),
             // BattleObj_Poison writes EnemyAttack4 in the same wind-up slot,
             // and like THREAD it never requests a damage reaction.
             BattleEvent::EnemySkillUsed { skill: 17, .. } => sounds.push(BattleSoundEvent {
-                event_index, id: 0xD8,
+                event_index,
+                id: 0xD8,
             }),
             // BattleObj_Brose and BattleObj_Rimit both start with SFX_Brose.
             // This binds the original sound, not its still-missing animation.
-            BattleEvent::TechniqueUsed { actor, technique: technique @ (17 | 23), .. } => {
+            BattleEvent::TechniqueUsed {
+                actor,
+                technique: technique @ (17 | 23),
+                ..
+            } => {
                 // CharTech_Cast ($9208): a late seal returns before creating
                 // the spell object. The core records payment as TechniqueUsed
                 // immediately followed by its rejection; payment is not a cast.
@@ -133,23 +169,167 @@ fn battle_sound_events(
                     Some(BattleEvent::TechniqueRejected { actor: rejected_actor, technique: rejected_technique, .. })
                         if rejected_actor == actor && rejected_technique == technique)
                 {
-                    sounds.push(BattleSoundEvent { event_index, id: 0xCB });
+                    sounds.push(BattleSoundEvent {
+                        event_index,
+                        id: 0xCB,
+                    });
                 }
-            },
+            }
             // AcidBreathChild starts the wind-up with MoleAttack; the main
             // object writes EnemyAttack4 before its damage reaction. These
             // event cues do not claim the retail 10/36-frame object timing.
             BattleEvent::EnemySkillUsed { skill: 51, .. } => sounds.push(BattleSoundEvent {
-                event_index, id: 0xD5,
+                event_index,
+                id: 0xD5,
             }),
+            // BattleObj_HelexFlameBolt writes EnemyAttack3 as it loads and its
+            // child BattleObj_HelexFlameBolt2 writes FireBreath, again in the
+            // wind-up slot ahead of the same single damage request.
+            BattleEvent::EnemySkillUsed { skill: 2, .. } => sounds.push(BattleSoundEvent {
+                event_index,
+                id: 0xD7,
+            }),
+            // SAND STORM `$37` and MAELSTROM `$39`: BattleObj_SandStorm and
+            // BattleObj_Maelstrom write MoleAttack on the first frame of their
+            // wind-up phase (`ps4.asm:48228`, `ps4.asm:47800`) and make their
+            // one request in the phase after it, with no second cue.
+            BattleEvent::EnemySkillUsed { skill: 55 | 57, .. } => sounds.push(BattleSoundEvent {
+                event_index,
+                id: 0xD5,
+            }),
+            // FLODBREATH `$3F`: BattleObj_FlodBreath (`ps4.asm:46343`) and
+            // loc_22A90 (`ps4.asm:46220`) write MoleAttack as their wind-up
+            // starts, then EnemyAttack4 (`ps4.asm:46366`, `ps4.asm:46234`)
+            // before the damage phase — the same pair of cues for all three
+            // carriers.
+            BattleEvent::EnemySkillUsed { skill: 63, .. } => sounds.push(BattleSoundEvent {
+                event_index,
+                id: 0xD5,
+            }),
+            // WAT `$40`: all five carriers' chains write MoleAttack as the
+            // wind-up starts (`ps4.asm:46002` BattleObj_EnemyWat,
+            // `ps4.asm:45056` loc_218D6, `ps4.asm:56445` loc_2B006).
+            //
+            // BattleObj_EnemyWat's second cue, TechCast at `ps4.asm:46016`, is
+            // left unmapped: loc_218D6 and loc_2B006 write nothing there, a
+            // skill-wide cue would invent it for those three carriers, and the
+            // sound context carries no per-carrier identity to key it on.
+            BattleEvent::EnemySkillUsed { skill: 64, .. } => sounds.push(BattleSoundEvent {
+                event_index,
+                id: 0xD5,
+            }),
+            // FOI `$44`: both chains write MoleAttack at the wind-up
+            // (`ps4.asm:45238` loc_21BF0, `ps4.asm:56485` loc_2B08E) and
+            // TechCast when the request phase starts (`ps4.asm:45261`,
+            // `ps4.asm:56509`).
+            BattleEvent::EnemySkillUsed { skill: 68, .. } => sounds.push(BattleSoundEvent {
+                event_index,
+                id: 0xD5,
+            }),
+            // ROUND EYES `$6D` and LOVEL EYES `$6E`: the phase that flinches
+            // the target writes MoleAttack as its wind-up starts
+            // (`ps4.asm:67787`) and EnemyAttack1 as it hands the request on
+            // (`ps4.asm:67795`). Both objects run that same shared phase
+            // (`loc_347BE`, `ps4.asm:67776`).
+            BattleEvent::EnemySkillUsed {
+                skill: 109 | 110, ..
+            } => sounds.push(BattleSoundEvent {
+                event_index,
+                id: 0xD5,
+            }),
+            // SPIRAL BLD `$08`, the only carrier of which is 15 Fanbite: its
+            // object writes SFXID_Slasher `$B7` once, on the first frame of the
+            // wind-up (`ps4.asm:29206`, behind the `bset #5, $4(a4)` guard).
+            BattleEvent::EnemySkillUsed { skill: 8, .. } => sounds.push(BattleSoundEvent {
+                event_index,
+                id: 0xB7,
+            }),
+            // EARTHQUAKE `$38`: both chains write SFXID_GraveOpening `$DD` into
+            // `Sound_Index` while the ground shakes — BattleObj_Earthquake at
+            // `ps4.asm:47917`, `47954` and `47961`, BattleObj_KingRappyEarthquake
+            // at `ps4.asm:67567` — so the one skill-wide cue is safe. The
+            // cartridge repeats it every fourth frame of the tremble; this event
+            // cue does not claim that cadence.
+            //
+            // KingRappy's first frame also loads sound object `$8EC` carrying
+            // SFXID_Slasher `$B7` (`ps4.asm:67541-67544`), left unmapped:
+            // SandWorm writes nothing there, and the sidecar's only per-fighter
+            // key is the plain-attack sound, so a skill-wide `$B7` would play
+            // for the carrier that never wrote it. 15 Fanbite's `$08` is the
+            // opposite case — one carrier, so its `$B7` above is exact.
+            BattleEvent::EnemySkillUsed { skill: 56, .. } => sounds.push(BattleSoundEvent {
+                event_index,
+                id: 0xDD,
+            }),
+            // The damage-skill animation objects write their second cue just
+            // before the one damage request: EnemyAttack4 at
+            // BattleObj_AcidBreath's reaction, FireBreath at the Helex child's.
             BattleEvent::Resolved { actor, .. }
-                if events[..event_index].iter().rev().find(|e| matches!(e,
-                    BattleEvent::Attacked { .. } | BattleEvent::EnemySkillUsed { .. }
-                    | BattleEvent::TechniqueUsed { .. } | BattleEvent::SkillUsed { .. }
-                    | BattleEvent::ItemUsed { .. }))
-                    .is_some_and(|e| matches!(e, BattleEvent::EnemySkillUsed { actor: caster, skill: 51, .. } if caster == actor)) =>
+                if resolving_enemy_skill(events, event_index, *actor) == Some(51) =>
             {
-                sounds.push(BattleSoundEvent { event_index, id: 0xD8 });
+                sounds.push(BattleSoundEvent {
+                    event_index,
+                    id: 0xD8,
+                });
+            }
+            BattleEvent::Resolved { actor, .. }
+                if resolving_enemy_skill(events, event_index, *actor) == Some(2) =>
+            {
+                sounds.push(BattleSoundEvent {
+                    event_index,
+                    id: 0xC2,
+                });
+            }
+            // FLODBREATH's EnemyAttack4, written by both objects as the damage
+            // phase begins — the same cue for all three carriers, so unlike
+            // WAT's it is safe to key on the skill alone.
+            BattleEvent::Resolved { actor, .. }
+                if resolving_enemy_skill(events, event_index, *actor) == Some(63) =>
+            {
+                sounds.push(BattleSoundEvent {
+                    event_index,
+                    id: 0xD8,
+                });
+            }
+            // FOI's TechCast, written as the request phase starts in both
+            // chains.
+            BattleEvent::Resolved { actor, .. }
+                if resolving_enemy_skill(events, event_index, *actor) == Some(68) =>
+            {
+                sounds.push(BattleSoundEvent {
+                    event_index,
+                    id: 0xBB,
+                });
+            }
+            // The eyes' EnemyAttack1, written at the flinch that hands the one
+            // request on.
+            BattleEvent::Resolved { actor, .. }
+                if matches!(
+                    resolving_enemy_skill(events, event_index, *actor),
+                    Some(109 | 110)
+                ) =>
+            {
+                sounds.push(BattleSoundEvent {
+                    event_index,
+                    id: 0xBA,
+                });
+            }
+            // Each member SPIRAL BLD passes gets one flinch, and that flinch
+            // writes EnemyAttack1 `$BA` (`ps4.asm:29314`). The object walks the
+            // five slots in the `loc_147A0` order — 4, 2, 1, 3, 5
+            // (`ps4.asm:29334`) — while it approaches, and only after all five
+            // `$1C` timers have expired does it write the five `$C` requests at
+            // once. The sidecar carries one cue slot per event and no approach
+            // phase, so the cue rides that member's own `Resolved`: one per
+            // living member either way, in the resolver's slot order rather
+            // than the object's walking order.
+            BattleEvent::Resolved { actor, .. }
+                if resolving_enemy_skill(events, event_index, *actor) == Some(8) =>
+            {
+                sounds.push(BattleSoundEvent {
+                    event_index,
+                    id: 0xBA,
+                });
             }
             BattleEvent::Attacked { actor, .. } => {
                 if let Some(&id) = actor_sounds.get(actor) {
@@ -293,6 +473,80 @@ mod tests {
         assert_eq!(weapon_sound(0x20), Some(SFX_CLAW));
         assert_eq!(weapon_sound(0x2B), Some(SFX_SHOT));
         assert_eq!(weapon_sound(4), None);
+    }
+
+    #[test]
+    fn damage_skill_cues_follow_the_object_writes_not_the_last_skill() {
+        // 51 ACIDBREATH: BattleObj_AcidBreathChild writes MoleAttack $D5,
+        // BattleObj_AcidBreath writes EnemyAttack4 $D8. 2 FLAME BOLT:
+        // BattleObj_HelexFlameBolt writes EnemyAttack3 $D7 and its child
+        // BattleObj_HelexFlameBolt2 writes FireBreath $C2. Each pair brackets the
+        // ability event and the one damage reaction.
+        for (skill, wind_up, reaction) in [(51u8, 0xD5u8, 0xD8u8), (2, 0xD7, 0xC2)] {
+            let events = vec![
+                BattleEvent::EnemySkillUsed {
+                    actor: id(6),
+                    skill,
+                    name: String::new(),
+                },
+                BattleEvent::Resolved {
+                    actor: id(6),
+                    target: id(1),
+                    verdict: Verdict::Normal,
+                    damage: Some(7),
+                    remaining_hp: 30,
+                },
+            ];
+            assert_eq!(
+                battle_sound_events(&events, &BTreeMap::new()),
+                vec![
+                    BattleSoundEvent {
+                        event_index: 0,
+                        id: wind_up,
+                    },
+                    BattleSoundEvent {
+                        event_index: 1,
+                        id: reaction,
+                    },
+                ],
+                "ability {skill}"
+            );
+        }
+
+        // The guard is the skill that opened this action, not the last enemy
+        // skill on the field: a party attack's miss after a FLAME BOLT keeps
+        // only the miss cue.
+        let events = vec![
+            BattleEvent::EnemySkillUsed {
+                actor: id(6),
+                skill: 2,
+                name: String::new(),
+            },
+            BattleEvent::Attacked {
+                actor: id(1),
+                targets: vec![id(6)],
+            },
+            BattleEvent::Resolved {
+                actor: id(1),
+                target: id(6),
+                verdict: Verdict::Miss,
+                damage: None,
+                remaining_hp: 30,
+            },
+        ];
+        assert_eq!(
+            battle_sound_events(&events, &BTreeMap::new()),
+            vec![
+                BattleSoundEvent {
+                    event_index: 0,
+                    id: 0xD7,
+                },
+                BattleSoundEvent {
+                    event_index: 2,
+                    id: SFX_ATTACK_MISS,
+                },
+            ]
+        );
     }
 
     #[test]
