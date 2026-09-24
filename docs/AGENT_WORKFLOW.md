@@ -39,8 +39,6 @@ the work, and link to it from the roadmap instead of duplicating its graph.
 | Complex delivery | `gpt-6-sol` / `max` | Complex implementation/refactoring through relevant checks, debugging/repairs, candidate freeze and evidence handoff |
 | Bounded delivery | `gpt-6-luna` / `max` | Bounded exploration/routine implementation, test runs, log triage, receipts and routine docs through checks and closeout |
 | Optional helper | Record the actual DeepSeek model, effort and direct route | Narrow supervised work with a concrete benefit; never primary design/integration |
-| Orchestration (Claude Code host) | `claude-opus-5-5` | Astra's responsibilities when the host is Claude Code |
-| Delivery (Claude Code host) | `deepseek-flash` (`deepseek-v4-flash`) / `max`, via `ds-lane` | Sol and Luna responsibilities when the host is Claude Code; see below |
 
 This is the owner's strict PSIV role split. Small routine
 tasks go to Luna and complex work to Sol; Astra does not absorb implementation
@@ -55,48 +53,6 @@ implementation or evidence plumbing. Use compact receipts and proportionate
 direct diff/raw-artifact spot checks; do not duplicate worker investigations or
 rerun passing checks absent a concrete cause. Verify substantive helper results
 independently and record corrections/reliability, including rejected output.
-
-### Claude Code host: ds-lane
-
-Owner decision, 2026-09-23: under Claude Code, Opus orchestrates and DeepSeek
-delivers. `ds-lane` (installed at `~/.local/bin/ds-lane`; usage in its header)
-runs one Reasonix worker per brief in a worktree at
-`~/.cache/ds-lane/wt/PSIV/<id>` on branch `ds/<id>` and keeps receipts under
-`~/.local/state/ds-lane/PSIV/<id>/run-N/`: prompt, final result, full
-trajectory (tool calls and reasoning), metrics/cost and `diff.patch`.
-
-- Model and effort are pinned: `deepseek-flash` with `--effort max`; Reasonix
-  subagents use `subagent_effort = "max"` in `~/.reasonix/config.toml`.
-  Record the route from `run.json`/trajectory metadata. The model's
-  self-description is not evidence (it has claimed to be Claude).
-- Launch with `ds-lane start BRIEF.md` in a background shell; the host wakes
-  the orchestrator on exit. Each run executes under a detached supervisor, so
-  the worker and its commit survive the calling shell being reaped;
-  `ds-lane wait ID` reattaches. At most three workers run machine-wide (later
-  runs queue) and each gets `CARGO_BUILD_JOBS=2`, from the 2026-08-16 OOM on
-  this 13 GB machine. Send repairs with `ds-lane resume ID FOLLOWUP.md`, which
-  continues the same Reasonix session. Remove with `ds-lane rm ID` (receipts
-  are kept unless `--purge`).
-- A lane starts from a committed ref (`--base`, default `HEAD`). Uncommitted
-  work in the main tree is invisible to it; commit first or choose the base.
-- The Reasonix OS sandbox confines writes to the worktree and makes `.git`
-  read-only, so the worker cannot commit; `ds-lane` commits each run on the
-  lane branch. Integrate by reviewing and then merging or cherry-picking.
-- Ignored local inputs (`runtime-pack`, `reference`, `generated`, ...) can be
-  symlinked in with `--link PATH`. They are readable but not writable by the
-  worker, so a lane that regenerates packs must write them inside its worktree
-  (for example with `PSIV_RUNTIME_PACK` pointing there).
-- Brief phrasing law: Reasonix parses the prompt for constraints. Negated
-  mutation wording outside code fences (for example "do not edit", "no
-  changes", "read-only") bans every write for the whole session. State file
-  ownership positively in implementation briefs; use `--read-only` for an
-  investigation lane. `ds-lane` warns when a run hits that block.
-- Each lane has its own `rust/target`, so the first cargo build in a lane is
-  cold. The GDExtension, serialized-expensive-run and saves rules in
-  `AGENTS.md` apply to lanes unchanged; state them in the brief.
-- Log each lane's outcome, the orchestrator's corrections and any rejected
-  output in the [setup ledger](WORKFLOW_SETUP.md#claude-code-host-adoption) until
-  DeepSeek's reliability on PSIV work is established.
 
 Specify model and effort in the host's launch controls. Record requested versus
 actual values from host/session metadata; a catalog proves advertisement, not
