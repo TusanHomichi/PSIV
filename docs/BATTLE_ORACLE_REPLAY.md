@@ -15,10 +15,16 @@ Two things came out of it, and they are different claims:
    identically: the queue, every swing's target list, every verdict, every
    damage number, the HP left behind, the two deaths, the rewards and the
    outcome. This is the end-to-end check the RNG trace alone could not make.
-2. **Two draw-count divergences, and one defect in the trace itself.** The
-   cartridge draws rolls no port consumer models, and the trace's own `roll`
-   column is not the cartridges's roll. Neither is fixed here (out of scope for
-   this lane); both are pinned below with their numbers and their citations.
+2. **A draw-count divergence, a fixed one, and a defect in the trace itself.**
+   The cartridge draws rolls no port consumer models, the trace's own `roll`
+   column is not the cartridge's roll, and the lane that first wrote this
+   ledger found two draw-count divergences. **One of the two is fixed**: the
+   second hit pass of Alys's and Kyra's swing (`loc_B6A2` run again from
+   `AlysKyraAttack_Init`, `ps4.asm:13975-13976`) is modelled now, so her swing
+   consumes all 36 calls the log's frames hold and round 1's Alys action matches
+   on the verbatim stream. The other — `Enemy_Attack`'s ability re-roll
+   (`$FFFFEEA8`) — is still open, and the trace's roll column is still wrong.
+   Each is pinned below with its numbers and its citations.
 
 ## Reproducing it
 
@@ -135,19 +141,23 @@ requires to stay the one above. Filed as the first follow-up below.
 | round | action | frame | cartridge drew | roles the port models | left over |
 |---:|---|---:|---:|---:|---:|
 | 1 | order pass | 29483 | 13 | 13 (9 jitter + 4 `Enemy_TargetCharacter`) | 0 |
-| 1 | Alys -> both enemies | 29489 | 36 | 34 (2 hit + 32 damage) | **2** |
+| 1 | Alys -> both enemies | 29489 | 36 | 36 (4 hit + 32 damage) | 0 |
 | 1 | Chaz -> Enemy1 | 29644 | 17 | 17 (1 hit + 16 damage) | 0 |
 | 1 | Enemy2 -> Hahn | 29789 | 19 | 18 (1 ability + 1 hit + 16 damage) | **1** |
 | 1 | Hahn -> Enemy2 | 29885 | 17 | 17 | 0 |
 | 2 | order pass | 30091 | 13 | 13 | 0 |
-| 2 | Alys -> Enemy2 | 30097 | 18 | 17 (1 hit + 16 damage) | **1** |
+| 2 | Alys -> Enemy2 | 30097 | 18 | 18 (2 hit + 16 damage) | 0 |
 
-The two rolls left over at Alys's first swing are `AlysKyraAttack_Init`
+The four hit rolls at Alys's first swing are `AlysKyraAttack_Init`
 (`ps4.asm:13975-13976`) calling `loc_B6A2` a second time: `Character_Attack`
 (`ps4.asm:13018`) runs the hit pass, and the swing's animation routine runs it
 again, so a two-enemy swing rolls `Battle_CalculateChances` twice per target
-and the later pair is what survives in `Fighters_Hit_Flags`. `psiv-core`'s
-`resolve_attack` -> `roll_hits` models the single pass, which is the first one.
+and the later pair is what survives in `Fighters_Hit_Flags` (`loc_B6A2` presets
+all nine to `$FF` before every pass). In round 2 only one enemy is left standing,
+so the two passes cost one roll each. `psiv-core`'s `resolve_attack` drew that
+pass once until this lane; it now draws both, for the two attackers the
+cartridge sends to `CharAttack_AlysKyra` and for nobody else — see
+SOURCE_NOTES.md, "The second hit pass of Alys's and Kyra's attack".
 The roll left over at the enemy's turn is `Enemy_Attack` (`ps4.asm:19138`):
 `loc_CFE6` (`ps4.asm:19146-19151`) re-rolls the ability while it equals
 `$FFFFEEA8`, a word nothing clears (`grep` finds it written nowhere else), so a
@@ -155,17 +165,17 @@ first draw of zero in a battle whose RAM holds zero burns a second call.
 `psiv-core` starts `last_ability_index` at `None`, so it never re-rolls the
 first draw.
 
-Both are draw-count divergences in the port, not in the fixture: the engine's
-own documentation says the *values* may be substituted but the *count* must not
-change (`rust/psiv-core/src/battle/engine.rs`, "Roll accounting"). Fixing them
-is a rules change with its own consequences (`roll_hits` would need the swing's
-animation identity, and `last_ability_index` would have to carry the retail
-word across battles), so this lane only pins them.
+The remaining one is a draw-count divergence in the port, not in the fixture:
+the engine's own documentation says the *values* may be substituted but the
+*count* must not change (`rust/psiv-core/src/battle/engine.rs`, "Roll
+accounting"). Fixing it is a rules change with its own consequences
+(`last_ability_index` would have to carry the retail word across battles), so
+this lane only pins it.
 
 ### Values, action by action
 
 With each round fed the rolls of the roles the port models - the order pass,
-one hit pass, the ability roll, the damage runs - every action matches:
+both hit passes, the ability roll, the damage runs - every action matches:
 `tape07s_actions_match_once_the_unmodelled_rolls_are_removed` asserts the whole
 battle and that the port consumes exactly those rolls, no slack and no surplus.
 The comparison covers, for every action: the actor, the target list, the
@@ -195,43 +205,57 @@ failed on its own:
 ## The first divergence on the verbatim stream
 
 Feeding each round the cartridge's rolls **as the trace holds them**, in the
-order and with the surplus the log has, the port stops matching inside Alys's
-first swing:
+order and with the surplus the log has, the port now matches Alys's whole swing
+- both passes, both targets - and stops one action later, inside Enemy2's:
 
 | | cartridge (log) | port, verbatim stream |
 |---|---|---|
 | Alys -> Enemy1 | normal, 12, HP 13 | normal, 12, HP 13 |
-| Alys -> Enemy2 | normal, **10**, HP 15 | normal, **11**, HP 14 |
-| rolls for the swing | 36 (f29489 x4, f29599 x32) | 34 (2 hit + 32 damage) |
+| Alys -> Enemy2 | normal, 10, HP 15 | normal, 10, HP 15 |
+| rolls for the swing | 36 (f29489 x4, f29599 x32) | 36 (4 hit + 32 damage) |
+| Chaz -> Enemy1 | normal, 15, kill | normal, 15, kill |
+| Enemy2 -> Hahn | normal, **6**, HP 15 | **critical**, **10**, HP 11 |
+| rolls for that action | 19 (f29789) | 18 (1 ability + 1 hit + 16 damage) |
+| Hahn -> Enemy2 | normal, **5**, HP 10 | **miss**, HP 15 |
 | rolls for round 1 | 102 | 85 |
 
 `tape07_orders_its_rounds_the_way_the_cartridge_did` asserts everything before
 that point - the priority draw, the round-1 queue, Alys's swing at both
-enemies, and the first target's verdict, damage and HP - and then asserts this
-divergence itself, so the ledger's first row is executable.
+enemies, Chaz's swing and its kill, and the enemy's target list - and then
+asserts this divergence itself, so the ledger's first row is executable. The
+Hahn row is the knock-on: one call missing at f29789 leaves the port's stream
+one ahead from there on, so his hit roll reads what the log draws for damage.
 
 **Reading, and what settles it.** The cause is the draw-count divergence above,
-not a damage-formula error: the extra two calls at f29489 push the port's
-sixteen-draw window for each target two rolls early, so Enemy1 still lands on
-12 by coincidence and Enemy2 reads 10's window one step off (sums 66 and 60
-where the cartridge's two runs sum 71 and 50). The evidence that the formula
-itself is right is the same table twice over: with the modelled stream, every
-damage in the battle matches, and on the verbatim stream the round's count comes
-out 85 rather than 102, because the shift makes Chaz's and Hahn's hit rolls
-miss where the log has them killing - a *value* consequence of a *count*
-divergence, which is exactly what the port's own roll-accounting rule forbids.
+not a damage-formula error: the missing call at f29789 leaves the port one roll
+ahead, so the enemy's hit roll reads the value the log drew for the *re-roll* —
+`58235 & $3F` = 59 where the cartridge's own roll is `52339 & $3F` = 51. With
+the enemy's dexterity of 8 against Hahn's agility of 4 that is `(59 + 4) * 2` =
+126, past the `$74` critical threshold the cartridge's 110 stays under, so the
+verdict changes as well as the sixteen-draw window, which starts one early
+(sums 52 and 51). The evidence that the formula itself is right is the same
+table twice over: with the modelled stream, every damage in the battle matches —
+Alys's swing included, now that both passes are drawn — and on the verbatim
+stream the round's count comes out 85 rather than 102, because the shift turns
+Hahn's hit roll into a miss where the log has it landing 5. A *value*
+consequence of a *count* divergence is exactly what the port's own
+roll-accounting rule forbids.
 
 `tape07_full_battle_diverges_at_alyss_swing_draw_count` is the same full-battle
-assertion on one verbatim stream, parked behind `#[ignore]` with this section
-as its reason: it is the test that passes once the port draws the second hit
-pass and the ability re-roll.
+assertion on one verbatim stream, parked behind `#[ignore]`. Its name and its
+`#[ignore]` reason are the lane-before-this-one's: they name both causes, and
+Alys's swing is no longer one of them — what it waits for now is the
+`$FFFFEEA8` ability re-roll alone. Relabelling it belongs to whichever lane
+closes that one out.
 
 ## What this does and does not prove
 
 Proved: on the cartridge's own rolls, the port's battle resolution is exact -
 queue, targets, verdicts, damages, HP, deaths, rewards - for the whole of tape
-07's first basement battle, with the two draw-count divergences narrowed to
-named routines.
+07's first basement battle, with the single remaining draw-count divergence
+narrowed to a named routine (`Enemy_Attack`'s `$FFFFEEA8` re-roll). The second
+one, Alys's hit pass, is drawn now: her swing is asserted on the *verbatim*
+stream, not only on the modelled one.
 
 Not proved, and not claimed:
 
@@ -263,12 +287,14 @@ Not proved, and not claimed:
    why this lane left the column alone: its acceptance requires the capture to
    be O1's byte for byte. Until then, every consumer should derive rolls from
    the raw columns the way `oracle/battle_fixture.py` does.
-2. **Decide the two draw-count divergences.** `roll_hits` needs the swing's
-   animation identity to know that Alys's and Kyra's weapons run `loc_B6A2`
-   twice, and `last_ability_index` needs the retail `$FFFFEEA8` semantics (a
-   word a battle does not clear) rather than a fresh `None`. Both are behaviour
-   changes with their own tests to write, and both are visible here as counts
-   rather than as wrong numbers.
+2. **Decide the remaining draw-count divergence.** `last_ability_index` needs
+   the retail `$FFFFEEA8` semantics (a word a battle does not clear) rather
+   than a fresh `None`. It is a behaviour change with its own tests to write,
+   and it is visible here as a count rather than as a wrong number. (The other
+   one - `roll_hits` needing the swing's animation identity so Alys's and
+   Kyra's attacks run `loc_B6A2` twice - is done: `resolve_attack` keys on the
+   attacker's `Character_Stats` index, see SOURCE_NOTES.md "The second hit
+   pass of Alys's and Kyra's attack".)
 3. **Fixture the other traced battle.** Tape 09's battle (`oracle` "Battle
    ground truth") has a different formation, a critical and a different seed
    path; the same three steps - trace, extractor, replay - would widen this

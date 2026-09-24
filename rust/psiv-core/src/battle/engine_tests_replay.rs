@@ -16,13 +16,15 @@
 //!
 //! # Two ways to feed one stream
 //!
-//! The cartridge draws rolls the port has no consumer for: `loc_B6A2`'s hit
-//! pass runs a second time for the swing `AlysKyraAttack_Init` animates
-//! (`ps4.asm:13975`), `Enemy_Attack` re-rolls its ability while the draw equals
-//! `$FFFFEEA8` (`ps4.asm:19146`), and the encounter's formation draw and the
-//! post-victory item drop draw happen outside the battle's own state machine.
-//! Feeding the cartridge's stream verbatim therefore puts the port two rolls
-//! behind at Alys's first swing and one behind at the enemy's turn.
+//! The cartridge draws rolls the port has no consumer for: `Enemy_Attack`
+//! re-rolls its ability while the draw equals `$FFFFEEA8` (`ps4.asm:19146`),
+//! and the encounter's formation draw and the post-victory item drop draw
+//! happen outside the battle's own state machine. Feeding the cartridge's
+//! stream verbatim therefore puts the port one roll behind at the enemy's turn.
+//! (The other divergence the ledger's first cut held — `AlysKyraAttack_Init`
+//! running `loc_B6A2` a second time, `ps4.asm:13975-13976`) is modelled now:
+//! `resolve_attack` draws both hit passes for Alys and Kyra, so her swing
+//! consumes the 36 calls the log's own frames hold.)
 //!
 //! So the same rolls are replayed two ways:
 //!
@@ -374,24 +376,19 @@ fn verbatim(fixture: &Fixture, round: u16) -> Vec<u16> {
 
 /// The same rolls, minus the ones no port consumer models.
 ///
-/// Kept: the round's order pass, one hit pass per action, the enemy ability
-/// roll, and every damage run. Dropped: `AlysKyraAttack_Init`'s second hit
-/// pass (`pass_number == 2`), the ability re-roll, and - in the fixture's
-/// separate `outside_rolls` - the encounter's formation draw and the
-/// post-victory item drop.
+/// Kept: the round's order pass, **both** hit passes per action (the second is
+/// `AlysKyraAttack_Init`'s, and `resolve_attack` draws it — see
+/// `takes_second_hit_pass`), the enemy ability roll, and every damage run.
+/// Dropped: the ability re-roll, and - in the fixture's separate
+/// `outside_rolls` - the encounter's formation draw and the post-victory item
+/// drop.
 fn modelled(fixture: &Fixture, round: u16) -> Vec<u16> {
     fixture
         .rolls
         .rolls()
         .iter()
         .filter(|roll| roll.round == round)
-        .filter(|roll| match roll.role.as_str() {
-            "order" => true,
-            "hit" => roll.pass_number == 1,
-            "ability" => true,
-            "damage" => true,
-            _ => false,
-        })
+        .filter(|roll| matches!(roll.role.as_str(), "order" | "hit" | "ability" | "damage"))
         .map(|roll| roll.roll)
         .collect()
 }
@@ -630,11 +627,7 @@ fn modelled_rolls(fixture: &Fixture, round: &Round, action: &Action) -> Vec<Roll
         .rolls()
         .iter()
         .filter(|roll| roll.round == round.round && roll.action == action.actor)
-        .filter(|roll| match roll.role.as_str() {
-            "hit" => roll.pass_number == 1,
-            "ability" | "damage" => true,
-            _ => false,
-        })
+        .filter(|roll| matches!(roll.role.as_str(), "hit" | "ability" | "damage"))
         .cloned()
         .collect()
 }
@@ -743,40 +736,47 @@ fn tape07_orders_its_rounds_the_way_the_cartridge_did() {
                 round.order_frame
             );
             // And this is where the two sides part. Everything the comparator
-            // walks before it - the queue, Alys's swing at both enemies, the
-            // first target's verdict, damage and HP - is asserted by the
-            // comparator having returned this instead of an earlier one.
+            // walks before it - the queue, Alys's swing at both enemies (both
+            // passes of it), Chaz's swing and its kill, the enemy's ability,
+            // hit and damage - is asserted by the comparator having returned
+            // this instead of an earlier one. Only `Enemy_Attack`'s ability
+            // re-roll is left: the port spends 18 rolls on the enemy's turn
+            // where the log's frames hold 19, so its hit roll reads the
+            // re-roll's value and the damage window is one early.
             assert_eq!(
                 first,
                 Some(Divergence::Value {
-                    frame: 29489,
-                    actor: id(1),
-                    target: id(7),
-                    port: Verdict::Normal,
-                    port_damage: Some(11),
+                    frame: 29789,
+                    actor: id(7),
+                    target: id(3),
+                    port: Verdict::Critical,
+                    port_damage: Some(10),
                     log_hit: 0x00,
-                    log_damage: Some(10),
+                    log_damage: Some(6),
                 }),
-                "the ledger's first divergence: Alys's second target, f29599"
+                "the ledger's first divergence now: the enemy ability re-roll, f29789"
             );
-            // The count behind it. Her swing's frames hold 36 calls; the roles
-            // the port models are 34 of them, and the two left over are
-            // `AlysKyraAttack_Init` re-running loc_B6A2 (ps4.asm:13975).
+            // The counts behind it. Alys's swing's frames hold 36 calls and the
+            // port models all of them now - four hit rolls at f29489 (two passes
+            // over two enemies) and thirty-two damage draws at f29599.
             let alys = &round.actions[0];
             assert_eq!(alys.actor, 1);
             assert_eq!(alys.roll_count, 36);
-            assert_eq!(modelled_rolls(&fixture, round, alys).len(), 34);
-            // The same at the enemy's turn: `Enemy_Attack` re-rolls an ability
-            // that equals $FFFFEEA8 (ps4.asm:19146), which this battle starts
-            // at zero, so it burns one call the port does not model.
+            assert_eq!(modelled_rolls(&fixture, round, alys).len(), 36);
+            // The enemy's turn is the one that still does not add up:
+            // `Enemy_Attack` re-rolls an ability that equals $FFFFEEA8
+            // (ps4.asm:19146), which this battle starts at zero, so it burns one
+            // call the port does not model.
             let enemy = &round.actions[2];
             assert_eq!(enemy.actor, 7);
             assert_eq!(enemy.roll_count, 19);
             assert_eq!(modelled_rolls(&fixture, round, enemy).len(), 18);
-            // On the cartridge's own stream the port reads 85 rolls for the
-            // round where the log's frames hold 102: two short at her swing
-            // and one at the enemy's turn, and the shifted stream then makes
-            // Chaz's and Hahn's swings miss where the log has them killing.
+            // On the cartridge's own stream the port reads 85 of the round's
+            // 102 calls: thirteen for the order pass, thirty-six for Alys (both
+            // passes), seventeen for Chaz, eighteen at the enemy's turn - one
+            // short of the log's nineteen - and one for Hahn's swing, which the
+            // shifted stream turns into a miss where the log has it landing 5
+            // on Enemy2.
             assert_eq!(drawn, 85);
 
             // The fixture's own windows: each action sits inside the battle and
@@ -827,9 +827,10 @@ fn tape07s_actions_match_once_the_unmodelled_rolls_are_removed() {
 
         // And the counts, action by action: the log's frames against the rolls
         // the port models for the same action. What is left over is exactly
-        // the calls the port has no consumer for - `AlysKyraAttack_Init`
-        // running loc_B6A2 again (ps4.asm:13975) and `Enemy_Attack` re-rolling
+        // the one call the port has no consumer for - `Enemy_Attack` re-rolling
         // an ability equal to $FFFFEEA8 (ps4.asm:19146) - and nothing else.
+        // Alys's two hit passes are modelled, so her swing's extra two calls
+        // are the port's own now.
         let mut modelled_total = 0;
         for action in &round.actions {
             let modelled = modelled_rolls(&fixture, round, action);
@@ -860,11 +861,7 @@ fn tape07s_actions_match_once_the_unmodelled_rolls_are_removed() {
             let unmodelled: Vec<&Roll> = rolls
                 .iter()
                 .filter(|roll| roll.round == round.round && roll.action == action.actor)
-                .filter(|roll| match roll.role.as_str() {
-                    "hit" => roll.pass_number == 2,
-                    "ability_reroll" => true,
-                    _ => false,
-                })
+                .filter(|roll| roll.role == "ability_reroll")
                 .collect();
             assert_eq!(
                 action.roll_count as usize,
@@ -875,14 +872,11 @@ fn tape07s_actions_match_once_the_unmodelled_rolls_are_removed() {
                 action.start_frame
             );
             for roll in unmodelled {
-                match roll.role.as_str() {
-                    "hit" => assert_eq!(
-                        roll.pass_number, 2,
-                        "the unmodelled hit rolls are the second pass"
-                    ),
-                    "ability_reroll" => assert_eq!(roll.pass_number, 0),
-                    other => panic!("f{}: role {other} is modelled", roll.frame),
-                }
+                assert_eq!(
+                    roll.role, "ability_reroll",
+                    "the one call left over is Enemy_Attack's ability re-roll"
+                );
+                assert_eq!(roll.pass_number, 0);
             }
         }
         assert_eq!(
