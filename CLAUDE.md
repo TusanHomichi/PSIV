@@ -69,6 +69,14 @@ docstring.
   directories). `ds-lane` records paths changed between the base and the new
   head that fall outside it as `write_set_violations` in `run.json` and warns
   in the summary. A brief without the block is unenforced.
+- **Host state.** The worker's own agent runtime writes its task state into the
+  worktree (`.reasonix/tasks/<id>/events.jsonl`); that is host state, not lane
+  output. The finalize commit excludes every path in `HOST_STATE_PATHS`
+  (`tools/ds_lane/config.py`) alongside the `--link`ed inputs, so it never
+  reaches a lane commit or the write-set check - the plain `git add -A` swept
+  it into lane ab-J's commit and tripped that check (2026-09-24) - and each
+  run's receipt copies what it held to `host-state/<name>/`, reviewable like
+  `evidence/`.
 - **Timeout.** Each run gets `--timeout SECONDS` (default 5400). On expiry the
   worker's process group is SIGTERM'd, then SIGKILL'd after 30 s; the run
   still commits and reports `exit_code` 124 with `turn_error`

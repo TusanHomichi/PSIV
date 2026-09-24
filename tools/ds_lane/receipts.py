@@ -13,7 +13,8 @@ import sys
 import time
 from pathlib import Path
 
-from .config import EFFORT, MODEL, PERMISSION_MODE, save_receipt, sh, supervisor_alive
+from .config import (EFFORT, HOST_STATE_PATHS, MODEL, PERMISSION_MODE, save_receipt, sh,
+                     supervisor_alive)
 from .preflight import CONSTRAINT_BLOCK, write_set_violations
 
 
@@ -94,7 +95,8 @@ def finalize_run(lane, run_dir, spec, rc, started, duration, outcome=None, stall
     (run_dir / "result.md").write_text(result.get("result", "") + "\n")
 
     # Commit on the worker's behalf (outside the sandbox) so each run is one reviewable commit.
-    excludes = [f":(exclude){rel}" for rel in lane.get("links", [])]
+    # The linked local inputs and the worker's own host state are excluded: neither is lane output.
+    excludes = [f":(exclude){rel}" for rel in list(lane.get("links", [])) + list(HOST_STATE_PATHS)]
     sh(["git", "add", "-A", "--", "."] + excludes, cwd=wt)
     committed = subprocess.run(["git", "diff", "--cached", "--quiet"], cwd=wt).returncode != 0
     if committed:
@@ -104,6 +106,10 @@ def finalize_run(lane, run_dir, spec, rc, started, duration, outcome=None, stall
     evidence = wt / "build/lane-evidence"
     if evidence.is_dir():
         shutil.copytree(evidence, run_dir / "evidence", dirs_exist_ok=True)
+    for rel in HOST_STATE_PATHS:  # excluded from the commit, kept reviewable in the receipt
+        host_state = wt / rel
+        if host_state.is_dir():
+            shutil.copytree(host_state, run_dir / "host-state" / host_state.name, dirs_exist_ok=True)
     (run_dir / "diff.patch").write_text(sh(["git", "diff", f"{lane['base_sha']}..{head}"], cwd=wt) + "\n")
     stat = sh(["git", "diff", "--stat", f"{lane['base_sha']}..{head}"], cwd=wt)
 

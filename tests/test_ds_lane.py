@@ -579,6 +579,43 @@ class LaneCase(unittest.TestCase):
         self.assertEqual(run["write_set_violations"], [])
         self.assertNotIn("outside write set", self.summary("t1"))
 
+    # -- 3b. worker host state (.reasonix/) is filed, not committed
+
+    def test_worker_host_state_stays_out_of_the_commit_and_is_filed(self):
+        """`.reasonix/` is the worker's own agent runtime, not lane output.
+
+        The finalize `git add -A` swept it into lane ab-J's commit and the
+        write-set check flagged it (2026-09-24); the commit step now excludes
+        it at the source and the receipt keeps a copy under host-state/.
+        """
+        host_state = DS.HOST_STATE_PATHS[0]
+        brief = ("# Brief\n\nTouch only tools/new.txt.\n\n"
+                 "```write-set\ntools/new.txt\n```\n")
+        spec = {"files": {"tools/new.txt": "owned\n",
+                          f"{host_state}/tasks/x/events.jsonl": '{"kind": "task"}\n'}}
+        self.start(brief, "t1", spec)
+        run = self.run_json("t1")
+        self.assertEqual(run["exit_code"], 0)
+        self.assertTrue(run["committed"])
+        self.assertEqual(run["write_set_violations"], [])
+
+        wt = self.lane_wt("t1")
+        self.assertEqual(self.git("show", "--name-only", "--format=", "HEAD", cwd=wt).splitlines(),
+                         ["tools/new.txt"])
+        self.assertEqual(self.git("diff", "--name-only", f"{self.base_sha}..{run['head_sha']}",
+                                  cwd=wt).splitlines(), ["tools/new.txt"])
+        self.assertIn(f"?? {host_state}/", self.git("status", "--porcelain", cwd=wt))
+        # Untouched on disk in the worktree, and reviewable in the receipt.
+        self.assertTrue((wt / host_state / "tasks/x/events.jsonl").exists())
+        filed = self.lane_state("t1", "run-1", "host-state", host_state, "tasks", "x", "events.jsonl")
+        self.assertTrue(filed.exists(), "host state is filed with the run's receipts")
+        self.assertEqual(filed.read_text(), '{"kind": "task"}\n')
+
+        # A worker that wrote no host state has no host-state/ receipt either.
+        self.start("Write tools/new.txt.\n", "t2", {"files": {"tools/new.txt": "x\n"}})
+        self.run_json("t2")
+        self.assertFalse(self.lane_state("t2", "run-1", "host-state").exists())
+
     # -- blocks are counted from tool results, not prose
 
     def test_block_counts_come_from_tool_result_errors_only(self):
