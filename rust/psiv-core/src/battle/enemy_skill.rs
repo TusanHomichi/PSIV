@@ -8,6 +8,10 @@ use super::{
 #[path = "enemy_skill_tests.rs"]
 mod tests;
 
+#[cfg(test)]
+#[path = "enemy_skill_poison_tests.rs"]
+mod poison_tests;
+
 /// An eight-byte enemy ability, independent of player skills and techniques.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnemySkill {
@@ -30,11 +34,12 @@ pub struct EnemySkill {
 }
 
 impl EnemySkill {
-    /// Fission, FlattrPlnt's Acid Breath and the crawler family's THREAD. Other routines remain
-    /// explicitly unsupported until their gameplay has been transcribed.
+    /// Fission, FlattrPlnt's Acid Breath, the crawler family's THREAD and the
+    /// same family's POISON. Other routines remain explicitly unsupported
+    /// until their gameplay has been transcribed.
     #[must_use]
     pub const fn supported(&self) -> bool {
-        self.is_fission() || self.is_acid_breath() || self.is_thread()
+        self.is_fission() || self.is_acid_breath() || self.is_thread() || self.is_poison()
     }
 
     const fn is_fission(&self) -> bool {
@@ -65,6 +70,19 @@ impl EnemySkill {
             && self.power == 64
             && self.resistance == 3
             && self.element == 1
+    }
+
+    /// Record 17 at `0x2833EC` is `1b 01 08 40 01 0d 00 00`. PoisonMist (`$24`)
+    /// shares the effect byte, both stat selectors and the element; only the
+    /// hit chance separates them, so the whole record is pinned here.
+    const fn is_poison(&self) -> bool {
+        self.id == 17
+            && self.effect == 27
+            && self.power_stat == 1
+            && self.target == 8
+            && self.power == 64
+            && self.resistance == 1
+            && self.element == 13
     }
 }
 
@@ -128,6 +146,75 @@ pub(super) fn resolve_thread(
             value: stats.agility.battle.into(),
         });
     }
+    true
+}
+
+/// EnemyAttack_Crawler's other nonzero arm. Ability `$11` is not `$10`, so
+/// loc_10836 loads object `$138`, `BattleObj_Poison` — the same shape as
+/// BattleObj_Thread and, like it, never a damage request. Its wind-up writes
+/// `SFXID_EnemyAttack4` ($D8), then calls GetEnemySkillEffectAndRange once at
+/// the animation handoff, retaining the chosen party target.
+///
+/// Record 17's effect byte `$1B` dispatches to AbilityEffect_Poison, which
+/// returns before anything else when the target is already poisoned and
+/// otherwise runs Effect_DoEnemySkill's single chance roll: actor STR against
+/// target STR, the target's efess factor as the scale, the record's hit-chance
+/// byte as the miss threshold, the effect id as the upper threshold. Any
+/// non-negative verdict sets the poisoned bit.
+pub(super) fn resolve_poison(
+    roster: &mut Roster,
+    actor: FighterId,
+    ability: u8,
+    intended: Option<FighterId>,
+    data: &BattleData,
+    rolls: &mut impl Rolls,
+    events: &mut Vec<BattleEvent>,
+) -> bool {
+    use super::stats::status;
+    let Some(skill) = data.enemy_skill(ability).filter(|s| s.is_poison()) else {
+        return false;
+    };
+    let Some(caster) = roster.get(actor).filter(|f| {
+        f.is_alive() && f.id.side() == Side::Enemy && matches!(f.stats.enemy_id, 30..=32)
+    }) else {
+        return false;
+    };
+    let power = super::technique::stat(&caster.stats, skill.power_stat);
+    events.push(BattleEvent::EnemySkillUsed {
+        actor,
+        skill: ability,
+        name: skill.name.clone(),
+    });
+    let Some(fighter) = intended
+        .filter(|id| id.side() == Side::Party)
+        .and_then(|id| roster.get_mut(id))
+        .filter(|f| f.is_alive())
+    else {
+        return true;
+    };
+    let stats = &mut fighter.stats;
+    // AbilityEffect_Poison's first test. An already-poisoned target does not
+    // reach the chance roll at all, so it spends no draw.
+    if stats.status & status::POISONED != 0 {
+        return true;
+    }
+    if super::calculate_chances(
+        power as i16,
+        super::technique::stat(stats, skill.resistance) as i16,
+        i16::from(stats.element_factor(skill.element).unwrap_or(0)),
+        i16::from(skill.power),
+        i16::from(skill.effect),
+        rolls,
+    ) == super::Verdict::Miss
+    {
+        return true;
+    }
+    stats.status |= status::POISONED;
+    events.push(BattleEvent::StatusInflicted {
+        actor,
+        target: fighter.id,
+        status: status::POISONED,
+    });
     true
 }
 
