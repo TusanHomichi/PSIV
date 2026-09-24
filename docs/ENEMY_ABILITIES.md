@@ -7,8 +7,8 @@ out of the disassembly, and whether `psiv-core` implements it. Read
 finished dispatch (THREAD). Nothing here changes code; it is the map for doing so
 one ability at a time.
 
-**83 distinct nonzero regular ability ids.** 6 implemented,
-77 unsupported: 56 damage, 5 scripted/custom, 16 status/stat effect.
+**83 distinct nonzero regular ability ids.** 14 implemented,
+69 unsupported: 48 damage, 5 scripted/custom, 16 status/stat effect.
 
 ## 1. Method
 
@@ -158,7 +158,7 @@ runs when the gate is clear.
 | `$2A` (42) **Rimit**<br>RIMIT | eff `$07` · stat $82 (mental) · tgt 9 · pow 32 · res $02 (mental) · el `11` psychic | `EnemyAttack_FlattrPlnt` (`ps4.asm:21778`)<br>→ BattleObj_EnemyRimit (`ps4.asm:38366`)<br>BattleObj_AcidBreathChild (`ps4.asm:38622`)<br>`EnemyAttack_Juza` (`ps4.asm:20575`)<br>→ loc_2ACD6 (`ps4.asm:56212`) | `AbilityEffect_SleepParalyze` (`ps4.asm:9154`) | 77 TechPlant, 115 Greneris<br>3/504 formations | damage | unsupported |
 | `$2B` (43) **Needle**<br>NEEDLE | eff `$01` · stat $05 (attack) · tgt 8 · pow 16 · res $06 (defense) · el `1` physical | `EnemyAttack_Scorpirus` (`ps4.asm:22062`)<br>→ BattleObj_Needle (`ps4.asm:40740`)<br>`EnemyAttack_SnowMole` (`ps4.asm:19620`)<br>→ BattleObj_MoleNeedle (`ps4.asm:68370`) | `AbilityEffect_None` (`ps4.asm:9092`) | 68 Rajago, 69 BiterFly, 146 HungryMole<br>13/504 formations | damage | unsupported |
 | `$2D` (45) **Deban**<br>DEBAN | eff `$0A` · stat $82 (mental) · tgt 2 · pow 0 · res $00 (none) · el `0` none | `EnemyAttack_Juza` (`ps4.asm:20575`)<br>→ loc_2A660 (`ps4.asm:55760`) | `AbilityEffect_DefenseUp` (`ps4.asm:9203`) | 116 Radhin<br>4/504 formations | status/stat effect | unsupported |
-| `$2E` (46) **Giwat**<br>GIWAT | eff `$01` · stat $82 (mental) · tgt 8 · pow 88 · res $07 (magic_defense) · el `5` water_ice | `EnemyAttack_DElmLars` (`ps4.asm:20222`)<br>→ loc_28F76 (`ps4.asm:54226`)<br>`EnemyAttack_FlattrPlnt` (`ps4.asm:21778`)<br>→ BattleObj_EnemyGiwat (`ps4.asm:38195`)<br>BattleObj_AcidBreathChild (`ps4.asm:38622`)<br>`EnemyAttack_HewGilla` (`ps4.asm:21395`)<br>→ loc_22670 (`ps4.asm:45925`)<br>`EnemyAttack_ShadowSabr` (`ps4.asm:21933`)<br>→ loc_1D5AA (`ps4.asm:39951`)<br>`EnemyAttack_TechUser` (`ps4.asm:21156`)<br>→ loc_21852 (`ps4.asm:45013`) | `AbilityEffect_None` (`ps4.asm:9092`) | 71 FrostSaber, 77 TechPlant, 91 HewGilla, 101 DarkWitch, 122 DElmLars, 123 XeAThoul<br>27/504 formations (+2 boss) | damage | unsupported |
+| `$2E` (46) **Giwat**<br>GIWAT | eff `$01` · stat $82 (mental) · tgt 8 · pow 88 · res $07 (magic_defense) · el `5` water_ice | `EnemyAttack_DElmLars` (`ps4.asm:20222`)<br>→ loc_28F76 (`ps4.asm:54226`)<br>`EnemyAttack_FlattrPlnt` (`ps4.asm:21778`)<br>→ BattleObj_EnemyGiwat (`ps4.asm:38195`)<br>BattleObj_AcidBreathChild (`ps4.asm:38622`)<br>`EnemyAttack_HewGilla` (`ps4.asm:21395`)<br>→ loc_22670 (`ps4.asm:45925`)<br>`EnemyAttack_ShadowSabr` (`ps4.asm:21933`)<br>→ loc_1D5AA (`ps4.asm:39951`)<br>`EnemyAttack_TechUser` (`ps4.asm:21156`)<br>→ loc_21852 (`ps4.asm:45013`) | `AbilityEffect_None` (`ps4.asm:9092`) | 71 FrostSaber, 77 TechPlant, 91 HewGilla, 101 DarkWitch, 122 DElmLars, 123 XeAThoul<br>27/504 formations (+2 boss) | — | implemented — `enemy_damage::resolve_damage_skill` for all six carriers (`DAMAGE_SKILL_ROUTES`); each chain makes one guarded `move.w #$C` against `$38` (lines 40042, 48513, 48529, 45310, 48474) |
 | `$2F` (47) **Vol**<br>VOL | eff `$02` · stat $82 (mental) · tgt 8 · pow 80 · res $02 (mental) · el `10` biological | `EnemyAttack_Juza` (`ps4.asm:20575`)<br>→ loc_2AE8E (`ps4.asm:56333`)<br>`EnemyAttack_ShadowSabr` (`ps4.asm:21933`)<br>→ loc_1D2F4 (`ps4.asm:39774`)<br>`EnemyAttack_TwinArms` (`ps4.asm:21455`)<br>→ loc_23216 (`ps4.asm:46736`) | `AbilityEffect_Death` (`ps4.asm:9098`) | 72 BloodSaber, 88 SoldrFiend, 115 Greneris<br>8/504 formations | damage | unsupported |
 | `$30` (48) **Distortion**<br>DISTORTION | eff `$01` · stat $01 (strength) · tgt 9 · pow 128 · res $07 (magic_defense) · el `4` gravity | `EnemyAttack_ProfoundDarkness2` (`ps4.asm:19750`)<br>→ loc_2F1B2 (`ps4.asm:61394`) | `AbilityEffect_None` (`ps4.asm:9092`) | 134 ProfoundDarkness2<br>0/504 formations | damage | unsupported |
 | `$31` (49) **Gra**<br>GRA | eff `$01` · stat $82 (mental) · tgt 9 · pow 32 · res $07 (magic_defense) · el `4` gravity | `EnemyAttack_DimensWorm` (`ps4.asm:21892`)<br>→ loc_1C99C (`ps4.asm:39050`)<br>loc_1C73E (`ps4.asm:38879`)<br>loc_1C658 (`ps4.asm:38807`) | `AbilityEffect_None` (`ps4.asm:9092`) | 73 DimensWorm, 74 OuterBeast<br>14/504 formations | damage | unsupported |
@@ -167,17 +167,17 @@ runs when the gate is clear.
 | `$34` (52) **Voice**<br>VOICE | eff `$07` · stat $01 (strength) · tgt 9 · pow 128 · res $02 (mental) · el `11` psychic | `EnemyAttack_FlattrPlnt` (`ps4.asm:21778`)<br>→ BattleObj_Voice (`ps4.asm:38465`)<br>BattleObj_AcidBreathChild (`ps4.asm:38622`) | `AbilityEffect_SleepParalyze` (`ps4.asm:9154`) | 76 FlyScreamr<br>3/504 formations | status/stat effect | unsupported |
 | `$35` (53) **Gizan**<br>GIZAN | eff `$01` · stat $82 (mental) · tgt 9 · pow 48 · res $07 (magic_defense) · el `1` physical | `EnemyAttack_DElmLars` (`ps4.asm:20222`)<br>→ loc_2912C (`ps4.asm:54326`)<br>`EnemyAttack_FlattrPlnt` (`ps4.asm:21778`)<br>→ BattleObj_EnemyGizan (`ps4.asm:38024`)<br>BattleObj_AcidBreathChild (`ps4.asm:38622`)<br>`EnemyAttack_TechUser` (`ps4.asm:21156`)<br>→ loc_21176 (`ps4.asm:44547`) | `AbilityEffect_None` (`ps4.asm:9092`) | 77 TechPlant, 101 DarkWitch, 122 DElmLars, 123 XeAThoul, 124 LeFawGan, 125 GiLeFarg<br>17/504 formations (+2 boss) | damage | unsupported |
 | `$36` (54) **StrngLight**<br>STRNGLIGHT | eff `$07` · stat $01 (strength) · tgt 8 · pow 48 · res $02 (mental) · el `11` psychic | `EnemyAttack_ToadStool` (`ps4.asm:21737`)<br>→ BattleObj_StrngLight (`ps4.asm:37778`) | `AbilityEffect_SleepParalyze` (`ps4.asm:9154`) | 79 Shrieker<br>8/504 formations | status/stat effect | unsupported |
-| `$37` (55) **SandStorm**<br>SAND STORM | eff `$01` · stat $05 (attack) · tgt 9 · pow 96 · res $06 (defense) · el `1` physical | `EnemyAttack_SandWorm` (`ps4.asm:21658`)<br>→ BattleObj_SandStorm (`ps4.asm:48204`) | `AbilityEffect_None` (`ps4.asm:9092`) | 81 DesrtLeach<br>1/504 formations | damage | unsupported |
+| `$37` (55) **SandStorm**<br>SAND STORM | eff `$01` · stat $05 (attack) · tgt 9 · pow 96 · res $06 (defense) · el `1` physical | `EnemyAttack_SandWorm` (`ps4.asm:21658`)<br>→ BattleObj_SandStorm (`ps4.asm:48204`) | `AbilityEffect_None` (`ps4.asm:9092`) | 81 DesrtLeach<br>1/504 formations | — | implemented — `enemy_damage::resolve_damage_skill` for 81 DesrtLeach (`DAMAGE_SKILL_ROUTES`); byte 2 is 9, the all-party *nibble*, but the chain makes one request at line 48547 |
 | `$38` (56) **Earthquake**<br>EARTHQUAKE | eff `$01` · stat $05 (attack) · tgt 9 · pow 0 · res $06 (defense) · el `1` physical | `EnemyAttack_KingRappy` (`ps4.asm:19596`)<br>→ BattleObj_KingRappyEarthquake (`ps4.asm:67513`)<br>`EnemyAttack_SandWorm` (`ps4.asm:21658`)<br>→ BattleObj_Earthquake (`ps4.asm:47884`) | `AbilityEffect_None` (`ps4.asm:9092`) | 80 SandWorm, 149 KingRappy<br>1/504 formations (+1 boss) | damage | unsupported |
-| `$39` (57) **Maelstrom**<br>MAELSTROM | eff `$01` · stat $05 (attack) · tgt 9 · pow 32 · res $06 (defense) · el `1` physical | `EnemyAttack_SandWorm` (`ps4.asm:21658`)<br>→ BattleObj_Maelstrom (`ps4.asm:47766`) | `AbilityEffect_None` (`ps4.asm:9092`) | 82 Leviathan<br>1/504 formations | damage | unsupported |
+| `$39` (57) **Maelstrom**<br>MAELSTROM | eff `$01` · stat $05 (attack) · tgt 9 · pow 32 · res $06 (defense) · el `1` physical | `EnemyAttack_SandWorm` (`ps4.asm:21658`)<br>→ BattleObj_Maelstrom (`ps4.asm:47766`) | `AbilityEffect_None` (`ps4.asm:9092`) | 82 Leviathan<br>1/504 formations | — | implemented — `enemy_damage::resolve_damage_skill` for 82 Leviathan (`DAMAGE_SKILL_ROUTES`); byte 2 is 9, but the chain makes one request at line 48547 |
 | `$3C` (60) **BladeShine**<br>BLADESHINE | eff `$01` · stat $05 (attack) · tgt 9 · pow 0 · res $06 (defense) · el `1` physical | `EnemyAttack_TwinArms` (`ps4.asm:21455`)<br>→ loc_237AA (`ps4.asm:47129`) | `AbilityEffect_None` (`ps4.asm:9092`) | 87 TwinArms, 88 SoldrFiend<br>7/504 formations | damage | unsupported |
 | `$3D` (61) **HakenBolt**<br>HAKEN BOLT | eff `$01` · stat $05 (attack) · tgt 8 · pow 36 · res $06 (defense) · el `1` physical | `EnemyAttack_TwinArms` (`ps4.asm:21455`)<br>→ loc_23544 (`ps4.asm:46959`) | `AbilityEffect_None` (`ps4.asm:9092`) | 87 TwinArms, 88 SoldrFiend<br>7/504 formations | damage | unsupported |
 | `$3E` (62) **Gires**<br>GIRES | eff `$12` · stat $82 (mental) · tgt 1 · pow 64 · res $00 (none) · el `0` none | `EnemyAttack_TechUser` (`ps4.asm:21156`)<br>→ loc_213DC (`ps4.asm:44701`) | `AbilityEffect_NormalLogic` (`ps4.asm:9282`) | 100 TechMaster<br>6/504 formations | status/stat effect | unsupported |
-| `$3F` (63) **FlodBreath**<br>FLODBREATH | eff `$01` · stat $05 (attack) · tgt 8 · pow 20 · res $06 (defense) · el `1` physical | `EnemyAttack_HewGilla` (`ps4.asm:21395`)<br>→ loc_22A90 (`ps4.asm:46199`)<br>`EnemyAttack_Ismounos` (`ps4.asm:21434`)<br>→ BattleObj_FlodBreath (`ps4.asm:46319`) | `AbilityEffect_None` (`ps4.asm:9092`) | 90 Depcen, 91 HewGilla, 92 Elmelew<br>11/504 formations | damage | unsupported |
-| `$40` (64) **Wat**<br>WAT | eff `$01` · stat $82 (mental) · tgt 8 · pow 24 · res $07 (magic_defense) · el `5` water_ice | `EnemyAttack_HewGilla` (`ps4.asm:21395`)<br>→ BattleObj_EnemyWat (`ps4.asm:45978`)<br>`EnemyAttack_Juza` (`ps4.asm:20575`)<br>→ loc_2B006 (`ps4.asm:56437`)<br>`EnemyAttack_TechUser` (`ps4.asm:21156`)<br>→ loc_218D6 (`ps4.asm:45047`) | `AbilityEffect_None` (`ps4.asm:9092`) | 91 HewGilla, 92 Elmelew, 99 TechUser, 100 TechMaster, 114 Juza<br>27/504 formations (+1 boss) | damage | unsupported |
+| `$3F` (63) **FlodBreath**<br>FLODBREATH | eff `$01` · stat $05 (attack) · tgt 8 · pow 20 · res $06 (defense) · el `1` physical | `EnemyAttack_HewGilla` (`ps4.asm:21395`)<br>→ loc_22A90 (`ps4.asm:46199`)<br>`EnemyAttack_Ismounos` (`ps4.asm:21434`)<br>→ BattleObj_FlodBreath (`ps4.asm:46319`) | `AbilityEffect_None` (`ps4.asm:9092`) | 90 Depcen, 91 HewGilla, 92 Elmelew<br>11/504 formations | — | implemented — `enemy_damage::resolve_damage_skill` for all three carriers (`DAMAGE_SKILL_ROUTES`); one request at line 48529 in `loc_24B20` |
+| `$40` (64) **Wat**<br>WAT | eff `$01` · stat $82 (mental) · tgt 8 · pow 24 · res $07 (magic_defense) · el `5` water_ice | `EnemyAttack_HewGilla` (`ps4.asm:21395`)<br>→ BattleObj_EnemyWat (`ps4.asm:45978`)<br>`EnemyAttack_Juza` (`ps4.asm:20575`)<br>→ loc_2B006 (`ps4.asm:56437`)<br>`EnemyAttack_TechUser` (`ps4.asm:21156`)<br>→ loc_218D6 (`ps4.asm:45047`) | `AbilityEffect_None` (`ps4.asm:9092`) | 91 HewGilla, 92 Elmelew, 99 TechUser, 100 TechMaster, 114 Juza<br>27/504 formations (+1 boss) | — | implemented — `enemy_damage::resolve_damage_skill` for all five carriers (`DAMAGE_SKILL_ROUTES`); one request each, at line 48529 (91/92), 45310 (99/100) or 56553 (114) |
 | `$42` (66) **RaySpear**<br>RAY-SPEAR | eff `$01` · stat $05 (attack) · tgt 8 · pow 16 · res $06 (defense) · el `2` energy | `EnemyAttack_Centaur` (`ps4.asm:21343`)<br>→ loc_220B8 (`ps4.asm:45533`) | `AbilityEffect_None` (`ps4.asm:9092`) | 97 KingSaber, 98 DarkRider<br>9/504 formations | damage | unsupported |
 | `$43` (67) **ThrowLancr**<br>THROWLANCR | eff `$01` · stat $01 (strength) · tgt 9 · pow 136 · res $06 (defense) · el `2` energy | `EnemyAttack_Centaur` (`ps4.asm:21343`)<br>→ loc_21ED2 (`ps4.asm:45414`) | `AbilityEffect_None` (`ps4.asm:9092`) | 98 DarkRider<br>5/504 formations | damage | unsupported |
-| `$44` (68) **Foi**<br>FOI | eff `$01` · stat $82 (mental) · tgt 8 · pow 20 · res $07 (magic_defense) · el `3` fire | `EnemyAttack_Juza` (`ps4.asm:20575`)<br>→ loc_2B08E (`ps4.asm:56477`)<br>`EnemyAttack_TechUser` (`ps4.asm:21156`)<br>→ loc_21BF0 (`ps4.asm:45229`) | `AbilityEffect_None` (`ps4.asm:9092`) | 99 TechUser, 100 TechMaster, 114 Juza<br>18/504 formations (+1 boss) | damage | unsupported |
+| `$44` (68) **Foi**<br>FOI | eff `$01` · stat $82 (mental) · tgt 8 · pow 20 · res $07 (magic_defense) · el `3` fire | `EnemyAttack_Juza` (`ps4.asm:20575`)<br>→ loc_2B08E (`ps4.asm:56477`)<br>`EnemyAttack_TechUser` (`ps4.asm:21156`)<br>→ loc_21BF0 (`ps4.asm:45229`) | `AbilityEffect_None` (`ps4.asm:9092`) | 99 TechUser, 100 TechMaster, 114 Juza<br>18/504 formations (+1 boss) | — | implemented — `enemy_damage::resolve_damage_skill` for all three carriers (`DAMAGE_SKILL_ROUTES`); one request each, at line 45310 (99/100) or 56553 (114) |
 | `$47` (71) **Zan**<br>ZAN | eff `$01` · stat $82 (mental) · tgt 9 · pow 16 · res $07 (magic_defense) · el `1` physical | `EnemyAttack_Juza` (`ps4.asm:20575`)<br>→ loc_2AF18 (`ps4.asm:56372`)<br>`EnemyAttack_TechUser` (`ps4.asm:21156`)<br>→ loc_215D6 (`ps4.asm:44836`) | `AbilityEffect_None` (`ps4.asm:9092`) | 100 TechMaster, 114 Juza<br>6/504 formations (+1 boss) | damage | unsupported |
 | `$48` (72) **Gifoi**<br>GIFOI | eff `$01` · stat $82 (mental) · tgt 8 · pow 56 · res $07 (magic_defense) · el `3` fire | `EnemyAttack_DElmLars` (`ps4.asm:20222`)<br>→ loc_2900E (`ps4.asm:54263`)<br>`EnemyAttack_TechUser` (`ps4.asm:21156`)<br>→ loc_21960 (`ps4.asm:45087`) | `AbilityEffect_None` (`ps4.asm:9092`) | 101 DarkWitch, 124 LeFawGan<br>9/504 formations | damage | unsupported |
 | `$4A` (74) **StarDust**<br>STAR DUST | eff `$01` · stat $02 (mental) · tgt 9 · pow 72 · res $07 (magic_defense) · el `2` energy | `EnemyAttack_Acacia` (`ps4.asm:21092`)<br>→ loc_20B96 (`ps4.asm:44101`) | `AbilityEffect_None` (`ps4.asm:9092`) | 105 ShadMirage<br>3/504 formations | damage | unsupported |
@@ -206,8 +206,8 @@ runs when the gate is clear.
 | `$69` (105) **Canceling**<br>CANCELING | eff `$27` · stat $00 (none) · tgt 9 · pow 0 · res $00 (none) · el `0` none | `EnemyAttack_ProfoundDarkness3` (`ps4.asm:19692`)<br>→ loc_2E2DE (`ps4.asm:60310`) | `AbilityEffect_RestoreStats` (`ps4.asm:9472`) | 135 ProfoundDarkness3<br>0/504 formations | damage | unsupported |
 | `$6A` (106) **WindStorm**<br>WIND STORM | eff `$01` · stat $05 (attack) · tgt 9 · pow 32 · res $06 (defense) · el `1` physical | `EnemyAttack_DezoOwl` (`ps4.asm:19658`)<br>→ loc_3526A (`ps4.asm:68568`) | `AbilityEffect_None` (`ps4.asm:9092`) | 143 Owltalon<br>2/504 formations | damage | unsupported |
 | `$6C` (108) **BlackWave2**<br>BLACK WAVE | eff `$01` · stat $02 (mental) · tgt 8 · pow 112 · res $07 (magic_defense) · el `1` physical | `EnemyAttack_Zio2` (`ps4.asm:19519`) — phase counter rewrites `$24(a4)`; with the counter clear the rolled id is dispatched.<br>`$6B`/phase 0 → BattleObj_MagBarrir (`ps4.asm:67319`)<br>`$00` → loc_338E0 (`ps4.asm:66735`)<br>`$6C` → BattleObj_BlackWave2 (`ps4.asm:66922`)<br>`$4D` → loc_33646 (`ps4.asm:66537`)<br>else → loc_335A6 (`ps4.asm:66498`) | `AbilityEffect_None` (`ps4.asm:9092`) | 140 Zio2<br>0/504 formations | scripted/custom | unsupported |
-| `$6D` (109) **RoundEyes**<br>ROUND EYES | eff `$01` · stat $01 (strength) · tgt 8 · pow 0 · res $06 (defense) · el `1` physical | `EnemyAttack_Rappy` (`ps4.asm:19578`)<br>→ BattleObj_RoundEyes (`ps4.asm:67760`) | `AbilityEffect_None` (`ps4.asm:9092`) | 147 Rappy<br>3/504 formations | damage | unsupported |
-| `$6E` (110) **LovelEyes**<br>LOVEL EYES | eff `$01` · stat $05 (attack) · tgt 8 · pow 32 · res $06 (defense) · el `1` physical | `EnemyAttack_Rappy` (`ps4.asm:19578`)<br>→ BattleObj_LovelEyes (`ps4.asm:67729`) | `AbilityEffect_None` (`ps4.asm:9092`) | 148 BlueRappy<br>2/504 formations | damage | unsupported |
+| `$6D` (109) **RoundEyes**<br>ROUND EYES | eff `$01` · stat $01 (strength) · tgt 8 · pow 0 · res $06 (defense) · el `1` physical | `EnemyAttack_Rappy` (`ps4.asm:19578`)<br>→ BattleObj_RoundEyes (`ps4.asm:67760`) | `AbilityEffect_None` (`ps4.asm:9092`) | 147 Rappy<br>3/504 formations | — | implemented — `enemy_damage::resolve_damage_skill` for 147 Rappy (`DAMAGE_SKILL_ROUTES`); the attack object becomes `BattleObj_RoundEyes`, whose phase 8 jumps to `loc_24B20` (line 67775) for the one request at line 48529 |
+| `$6E` (110) **LovelEyes**<br>LOVEL EYES | eff `$01` · stat $05 (attack) · tgt 8 · pow 32 · res $06 (defense) · el `1` physical | `EnemyAttack_Rappy` (`ps4.asm:19578`)<br>→ BattleObj_LovelEyes (`ps4.asm:67729`) | `AbilityEffect_None` (`ps4.asm:9092`) | 148 BlueRappy<br>2/504 formations | — | implemented — `enemy_damage::resolve_damage_skill` for 148 BlueRappy (`DAMAGE_SKILL_ROUTES`); the attack object becomes `BattleObj_LovelEyes`, whose phase 8 jumps to `loc_24B20` (line 67744) for the one request at line 48529 |
 | `$70` (112) **BlackWave3**<br>BLACK WAVE | eff `$2C` · stat $00 (none) · tgt 0 · pow 0 · res $00 (none) · el `0` none | `EnemyAttack_Zio3` (`ps4.asm:19410`) — phase counter `$FFFFEE98` rewrites `$24(a4)`; it never dispatches the rolled id.<br>phase 0 → `$6B` + BattleObj_MagBarrir (`ps4.asm:67319`)<br>phase 1 → clear + BattleObj_NightmarePart1 (`ps4.asm:67253`)<br>phase 2 → turn ends, no object<br>phase 3 → `$53` + BattleObj_NightmarePart2 (`ps4.asm:67107`)<br>phase 4 → `$70` + BattleObj_BlackWave1 (`ps4.asm:67019`) | **out of range** (`$2C` > table max `$2B`) — §5 | 152 Zio3<br>0/504 formations (+1 boss) | — | implemented — scripted sequence in `engine::roll_enemy_ability` (`BattleEvent::FirstZioAction`) |
 
 ## 3. Abilities reachable only through the conditional-ability path
@@ -280,7 +280,6 @@ Map ids whose encounter table can roll a formation carrying the ability, with th
 | `$2A` RIMIT | damage | 9 | 0CE Nurvus_B1, 0CF Nurvus_B2, 0D0 Nurvus_B3, 0D2 Nurvus_B4, 0D5 Nurvus_B5, 158 MystVale, 159 MystVale_Part2, 15A MystVale_Part3, 15B MystVale_Part4 |
 | `$2B` NEEDLE | damage | 5 | 001 Dezolis, 158 MystVale, 159 MystVale_Part2, 15A MystVale_Part3, 15B MystVale_Part4 |
 | `$2D` DEBAN | status/stat effect | 5 | 19B GaruberkTower_Part3, 19C GaruberkTower_Part4, 19D GaruberkTower_Part5, 19E GaruberkTower_Part6, 19F GaruberkTower_Part7 |
-| `$2E` GIWAT | damage | 43 (+2 boss) | 000 Motavia, 0F2 StrengthTower, 0F3 StrengthTower_F1, 0F7 CourageTower, 0F8 CourageTower_F1, 0FC AngerTower, 0FD AngerTower_F1, 158 MystVale, 159 MystVale_Part2, 15A MystVale_Part3, 15B MystVale_Part4, 172 AirCastle_Part2, 173 AirCastle_Part3, 174 AirCastle_Part4, 175 AirCastle_Part5, 176 AirCastle_F1_Part9, 177 AirCastle_F1_Part5, 178 AirCastle_F1_Part2, 179 AirCastle_F1_Part10, 17A AirCastleInner, 17B AirCastle_F1_Part11, 17C AirCastle_F1_Part12, 17D AirCastle_F1_Part13, 17E AirCastle_Part8, 17F AirCastle_Part7, 180 AirCastle_F1_Part4, 181 AirCastle_F1, 182 AirCastle_F1_Part3, 183 AirCastle_F2, 184 AirCastleXeAThoulRoom, 185 AirCastleInner_B1, 186 AirCastleInner_B1_Part2, 188 AirCastleInner_B2, 189 AirCastleInner_B3, 18A AirCastleInner_B4, 18B AirCastleInner_B5, 199 GaruberkTower, 19A GaruberkTower_Part2, 19B GaruberkTower_Part3, 19C GaruberkTower_Part4, 19D GaruberkTower_Part5, 19E GaruberkTower_Part6, 19F GaruberkTower_Part7 |
 | `$2F` VOL | damage | 19 | 0CE Nurvus_B1, 0CF Nurvus_B2, 0D0 Nurvus_B3, 0D2 Nurvus_B4, 0D5 Nurvus_B5, 0F2 StrengthTower, 0F3 StrengthTower_F1, 0F7 CourageTower, 0F8 CourageTower_F1, 0FC AngerTower, 0FD AngerTower_F1, 100 TheEdge, 101 TheEdge_Part2, 102 TheEdge_Part3, 103 TheEdge_Part4, 104 TheEdge_Part5, 105 TheEdge_Part6, 106 TheEdge_Part7, 107 TheEdge_Part8 |
 | `$30` DISTORTION | damage | 0 | — |
 | `$31` GRA | damage | 30 | 100 TheEdge, 101 TheEdge_Part2, 102 TheEdge_Part3, 103 TheEdge_Part4, 104 TheEdge_Part5, 172 AirCastle_Part2, 173 AirCastle_Part3, 174 AirCastle_Part4, 175 AirCastle_Part5, 176 AirCastle_F1_Part9, 177 AirCastle_F1_Part5, 178 AirCastle_F1_Part2, 179 AirCastle_F1_Part10, 17A AirCastleInner, 17B AirCastle_F1_Part11, 17C AirCastle_F1_Part12, 17D AirCastle_F1_Part13, 17E AirCastle_Part8, 17F AirCastle_Part7, 180 AirCastle_F1_Part4, 181 AirCastle_F1, 182 AirCastle_F1_Part3, 183 AirCastle_F2, 184 AirCastleXeAThoulRoom, 185 AirCastleInner_B1, 186 AirCastleInner_B1_Part2, 188 AirCastleInner_B2, 189 AirCastleInner_B3, 18A AirCastleInner_B4, 18B AirCastleInner_B5 |
@@ -288,17 +287,12 @@ Map ids whose encounter table can roll a formation carrying the ability, with th
 | `$34` VOICE | status/stat effect | 4 | 08C LadeaTower, 08D LadeaTower_F1, 08E LadeaTower_F2, 08F LadeaTower_F3 |
 | `$35` GIZAN | damage | 25 (+2 boss) | 0F2 StrengthTower, 0F3 StrengthTower_F1, 0F4 StrengthTower_F2, 0F5 StrengthTower_F3, 0F7 CourageTower, 0F8 CourageTower_F1, 0F9 CourageTower_F2, 0FA CourageTower_F3, 0FC AngerTower, 0FD AngerTower_F1, 102 TheEdge_Part3, 103 TheEdge_Part4, 104 TheEdge_Part5, 105 TheEdge_Part6, 106 TheEdge_Part7, 107 TheEdge_Part8, 158 MystVale, 159 MystVale_Part2, 15A MystVale_Part3, 15B MystVale_Part4, 19B GaruberkTower_Part3, 19C GaruberkTower_Part4, 19D GaruberkTower_Part5, 19E GaruberkTower_Part6, 19F GaruberkTower_Part7 |
 | `$36` STRNGLIGHT | status/stat effect | 7 | 092 IslandCave, 093 IslandCave_F1, 094 IslandCave_F1_Part2, 095 IslandCave_Part2, 096 IslandCave_B1, 097 IslandCave_F2, 098 IslandCave_F3 |
-| `$37` SAND STORM | damage | 1 | 000 Motavia |
 | `$38` EARTHQUAKE | damage | 1 (+1 boss) | 000 Motavia |
-| `$39` MAELSTROM | damage | 1 | 000 Motavia |
 | `$3C` BLADESHINE | damage | 18 | 0F2 StrengthTower, 0F3 StrengthTower_F1, 0F4 StrengthTower_F2, 0F5 StrengthTower_F3, 0F7 CourageTower, 0F8 CourageTower_F1, 0F9 CourageTower_F2, 0FA CourageTower_F3, 0FC AngerTower, 0FD AngerTower_F1, 100 TheEdge, 101 TheEdge_Part2, 102 TheEdge_Part3, 103 TheEdge_Part4, 104 TheEdge_Part5, 105 TheEdge_Part6, 106 TheEdge_Part7, 107 TheEdge_Part8 |
 | `$3D` HAKEN BOLT | damage | 18 | 0F2 StrengthTower, 0F3 StrengthTower_F1, 0F4 StrengthTower_F2, 0F5 StrengthTower_F3, 0F7 CourageTower, 0F8 CourageTower_F1, 0F9 CourageTower_F2, 0FA CourageTower_F3, 0FC AngerTower, 0FD AngerTower_F1, 100 TheEdge, 101 TheEdge_Part2, 102 TheEdge_Part3, 103 TheEdge_Part4, 104 TheEdge_Part5, 105 TheEdge_Part6, 106 TheEdge_Part7, 107 TheEdge_Part8 |
 | `$3E` GIRES | status/stat effect | 7 | 0CC Nurvus_Part2, 0CD Nurvus_Part3, 0CE Nurvus_B1, 0CF Nurvus_B2, 0D0 Nurvus_B3, 0D2 Nurvus_B4, 0D5 Nurvus_B5 |
-| `$3F` FLODBREATH | damage | 1 | 000 Motavia |
-| `$40` WAT | damage | 14 (+1 boss) | 000 Motavia, 082 ZioFort, 083 ZioFort_Part2, 084 ZioFort_F1, 085 ZioFort_F2West, 087 ZioFortJuzaRoom, 089 ZioFort_F2East, 0CC Nurvus_Part2, 0CD Nurvus_Part3, 0CE Nurvus_B1, 0CF Nurvus_B2, 0D0 Nurvus_B3, 0D2 Nurvus_B4, 0D5 Nurvus_B5 |
 | `$42` RAY-SPEAR | damage | 11 | 102 TheEdge_Part3, 103 TheEdge_Part4, 104 TheEdge_Part5, 105 TheEdge_Part6, 106 TheEdge_Part7, 107 TheEdge_Part8, 19B GaruberkTower_Part3, 19C GaruberkTower_Part4, 19D GaruberkTower_Part5, 19E GaruberkTower_Part6, 19F GaruberkTower_Part7 |
 | `$43` THROWLANCR | damage | 6 | 102 TheEdge_Part3, 103 TheEdge_Part4, 104 TheEdge_Part5, 105 TheEdge_Part6, 106 TheEdge_Part7, 107 TheEdge_Part8 |
-| `$44` FOI | damage | 14 (+1 boss) | 000 Motavia, 082 ZioFort, 083 ZioFort_Part2, 084 ZioFort_F1, 085 ZioFort_F2West, 087 ZioFortJuzaRoom, 089 ZioFort_F2East, 0CC Nurvus_Part2, 0CD Nurvus_Part3, 0CE Nurvus_B1, 0CF Nurvus_B2, 0D0 Nurvus_B3, 0D2 Nurvus_B4, 0D5 Nurvus_B5 |
 | `$47` ZAN | damage | 7 (+1 boss) | 0CC Nurvus_Part2, 0CD Nurvus_Part3, 0CE Nurvus_B1, 0CF Nurvus_B2, 0D0 Nurvus_B3, 0D2 Nurvus_B4, 0D5 Nurvus_B5 |
 | `$48` GIFOI | damage | 10 | 0F2 StrengthTower, 0F3 StrengthTower_F1, 0F4 StrengthTower_F2, 0F5 StrengthTower_F3, 0F7 CourageTower, 0F8 CourageTower_F1, 0F9 CourageTower_F2, 0FA CourageTower_F3, 0FC AngerTower, 0FD AngerTower_F1 |
 | `$4A` STAR DUST | damage | 0 | — |
@@ -327,8 +321,6 @@ Map ids whose encounter table can roll a formation carrying the ability, with th
 | `$69` CANCELING | damage | 0 | — |
 | `$6A` WIND STORM | damage | 1 | 001 Dezolis |
 | `$6C` BLACK WAVE | scripted/custom | 0 | — |
-| `$6D` ROUND EYES | damage | 2 | 000 Motavia, 0ED RappyCave |
-| `$6E` LOVEL EYES | damage | 2 | 000 Motavia, 0ED RappyCave |
 
 ## 5. Findings
 
@@ -337,15 +329,15 @@ Map ids whose encounter table can roll a formation carrying the ability, with th
 | | |
 |---|---|
 | distinct nonzero regular ability ids (§2) | 83 |
-| implemented | 6 |
-| unsupported | 77 |
-| — `damage` | 56 |
+| implemented | 14 |
+| unsupported | 69 |
+| — `damage` | 48 |
 | — `status/stat effect` | 16 |
 | — `scripted/custom` | 5 (`$17` WAITING, `$54` BLACK WAVE, `$63` BURSTROC, `$64` SHDWBREATH, `$6C` BLACK WAVE) |
 | — `unknown` | 0 |
 | conditional-only ids (§3) | 24, one of them implemented (`$06` FISSION) |
 
-The six implemented rows are exactly what `psiv-core` claims:
+The fourteen implemented rows are exactly what `psiv-core` claims:
 
 - `$02` FLAME BOLT → `enemy_damage::resolve_damage_skill` for both carriers
   (`DAMAGE_SKILL_ROUTES`, `rust/psiv-core/src/battle/enemy_damage.rs`). 0 Helex
@@ -384,6 +376,18 @@ The six implemented rows are exactly what `psiv-core` claims:
   write (`move.w #5, $2(a3)`) and one damage request (`move.w #$C, $2(a3)`), and
   write MoleAttack `$D5` then EnemyAttack4 `$D8`. The same resolver's `$02`
   entries cover FLAME BOLT for 0 Helex and 5 ForcedFly.
+- `$2E` GIWAT, `$37` SAND STORM, `$39` MAELSTROM, `$3F` FLODBREATH, `$40`
+  WAT, `$44` FOI, `$6D` ROUND EYES and `$6E` LOVEL EYES → the same
+  `enemy_damage::resolve_damage_skill`. Every carrier of each of the eight is
+  covered, so none of those rows is partial: `$2E` for 71/77/91/101/122/123,
+  `$3F` for 90/91/92, `$40` for 91/92/99/100/114, `$44` for 99/100/114, and one
+  carrier each for `$37` (81), `$39` (82), `$6D` (147) and `$6E` (148). Each
+  `(enemy, ability)` entry cites its `EnemyAttackOffs` line, its arm, its object
+  chain and the single `move.w #$C` request; the per-pair readings are in
+  [ENEMY_DAMAGE_ROUTES.md](ENEMY_DAMAGE_ROUTES.md) §3. The gate no longer tests
+  record byte 2, which is why `$37` and `$39` — both tgt 9, the all-party
+  *nibble* — are in the table: their chains make one request against the
+  object's `$38`.
 - `$70`/112 BLACK WAVE (Zio3) → the scripted sequence in
   `engine::roll_enemy_ability`, fed by `EnemyAttack_Zio3` (`ps4.asm:19410`):
   phase 0 writes `$6B` and loads `BattleObj_MagBarrir` (`ps4.asm:67319`), phase 1
@@ -494,8 +498,8 @@ The six implemented rows are exactly what `psiv-core` claims:
 ### Port gaps
 
 - `engine::roll_enemy_ability` (`rust/psiv-core/src/battle/engine.rs`) handles
-  Fission/Fission2, the record-driven damage skills (`enemy_damage`, `$33` and
-  `$02`), THREAD and Zio3. Every other nonzero id emits
+  Fission/Fission2, the record-driven damage skills (`enemy_damage`: `$33`,
+  `$02` and the eight Motavia single-target abilities), THREAD and Zio3. Every other nonzero id emits
   `BattleEvent::UnsupportedAbility` and then takes the ordinary attack path
   (`engine.rs:774-776`), so those enemies still *hit* — they hit with a physical
   swing instead of their ability. Any bug report about enemy damage in a fight
@@ -515,9 +519,13 @@ The six implemented rows are exactly what `psiv-core` claims:
   and `an_unproven_carrier_still_reports_flame_bolt_as_unsupported`). FLAME BOLT
   is the same shape: 0 Helex and 5 ForcedFly are the only enemies whose regular
   list holds `$02`, and both `EnemyAttackOffs` entries (`$00`, `$05`) run the
-  traced object chain. `$33` itself now also refuses any record whose byte 2 is
-  not the proven single-target range 8, and the record's stat byte is masked with
-  `$7F` as `Effect_SetupSkillParams` (`ps4.asm:9580`) masks it.
+  traced object chain. The gate is the `(enemy, ability)` pair plus the
+  record's effect byte: `$01` (`AbilityEffect_None`, `ps4.asm:9092`) means the
+  one damage request is the record's whole effect, and a record with any other
+  effect stays on the `UnsupportedAbility` path. Record byte 2 is deliberately
+  *not* a gate — it picks the `Ability_ProcessRange` (`ps4.asm:8975`) handler for
+  that effect — and the record's stat byte is masked with `$7F` as
+  `Effect_SetupSkillParams` (`ps4.asm:9576`) masks it at line 9580.
 - **Fission2's regular roll is not covered.** The port reaches `resolve_fission`
   only through `fission_neighbor`, which returns `None` unless the record is enemy
   12 or 13, and `resolve_fission` runs only when that returns a target. Enemy 50
@@ -538,7 +546,7 @@ The six implemented rows are exactly what `psiv-core` claims:
 - **Completeness.** §2 holds one row per id in the union of
   `ai.regular_ability_ids` over the 153 records of `generated/enemies.json`
   (83 ids, each exactly once); the same set re-derived from `raw_hex` bytes 36..43
-  is identical. §4 holds the §2 rows whose status is `unsupported` (77 rows).
+  is identical. §4 holds the §2 rows whose status is `unsupported` (69 rows).
 - **Citations.** Every `ps4.asm:NNNN` citation in this file points at a label that
   begins on that line, and every backticked label next to such a citation is the
   label found there. Statement-level references are written as "line NNNN" and

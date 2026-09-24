@@ -568,3 +568,136 @@ fn helex_flame_bolt_resolves_in_its_real_formation() {
     assert_eq!(loaded.game().snapshot(), before);
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+/// The Motavia single-target routes are real-pack reachable.
+/// `generated/enemies.json` gives 81 DesrtLeach `$37` SAND STORM in its last
+/// three regular slots and formation `$53` is one of them; 99 TechUser has
+/// `$40` WAT in slots 1-4 and `$44` FOI in 5-8, and formation `$2A` is two of
+/// them. Each must resolve through `enemy_damage::resolve_damage_skill` — one
+/// `Resolved` with damage, the object's wind-up cue, no `UnsupportedAbility`
+/// for the ability and no physical swing by that caster.
+#[test]
+fn motavia_single_target_abilities_resolve_in_their_real_formations() {
+    let pack = Path::new(PACK);
+    if !pack.join("manifest.json").is_file() {
+        eprintln!("runtime pack absent; skipping");
+        return;
+    }
+    let files = BattleFiles::load(pack).unwrap();
+    for (formation, carrier, abilities, seed) in [
+        (0x53u16, 81u16, &[55u8][..], 0x9E37_79B9u32),
+        (0x2Au16, 99u16, &[64u8, 68][..], 0x0101_5678u32),
+    ] {
+        let mut initial = Runtime::new(
+            GameData::load(pack).unwrap(),
+            0x2B,
+            Cell::new(17, 52),
+            Direction::Up,
+            StepFrames::default(),
+        )
+        .unwrap();
+        initial.enable_battles(&files).unwrap();
+        let mut game = GameState::from_snapshot(&initial.game().snapshot());
+        game.set_party([
+            Some(CharId(1)),
+            Some(CharId(0)),
+            Some(CharId(2)),
+            None,
+            None,
+        ]);
+        // Constructed durability fixture, unrelated to the connected native
+        // save: headroom for the round search, so no member's death ends the
+        // battle before the carrier's roll shows up. DesrtLeach's SAND STORM
+        // is the strongest of these records.
+        for character in [1, 0, 2] {
+            let stats = game.roster_mut().get_mut(CharId(character)).unwrap();
+            stats.max_hp = 999;
+            stats.curr_hp = 999;
+        }
+        let mut runtime = Runtime::from_save(
+            GameData::load(pack).unwrap(),
+            RetailSave {
+                snapshot: game.snapshot(),
+                location: RetailLocation {
+                    world_index: 0,
+                    map_index_2: 0,
+                    map_index: 0x2B,
+                    char_x: 17 * 16,
+                    char_y: 52 * 16,
+                },
+            },
+            StepFrames::default(),
+        )
+        .unwrap();
+        runtime.enable_battles(&files).unwrap();
+        runtime
+            .start_battle_timeline(formation, runtime.battle_party())
+            .unwrap();
+        runtime.set_rng_seed(seed);
+        let mut found = false;
+        for _ in 0..8 {
+            let timeline = runtime
+                .battle_round_timeline(&RoundOrders::Commands(vec![Command::Defend; 3]))
+                .unwrap();
+            for ability in abilities {
+                assert!(
+                    !timeline.events.iter().any(|e| matches!(
+                        e,
+                        BattleEvent::UnsupportedAbility { ability: reported, .. }
+                            if reported == ability
+                    )),
+                    "carrier {carrier} formation {formation:#x} ability {ability}: {:?}",
+                    timeline.events
+                );
+            }
+            // Every occurrence is checked, not just the first: a later round
+            // may roll the other ability of the same carrier's list.
+            for (index, event) in timeline.events.iter().enumerate() {
+                let BattleEvent::EnemySkillUsed { actor, skill, .. } = event else {
+                    continue;
+                };
+                if !abilities.contains(skill) {
+                    continue;
+                }
+                let (actor, skill) = (*actor, *skill);
+                found = true;
+                assert!(
+                    matches!(timeline.events[index + 1], BattleEvent::Resolved { actor: caster, damage: Some(_), .. } if caster == actor),
+                    "carrier {carrier} ability {skill}: {:?}",
+                    timeline.events
+                );
+                assert!(
+                    !timeline.events.iter().any(
+                        |e| matches!(e, BattleEvent::Attacked { actor: attacker, .. } if *attacker == actor)
+                    ),
+                    "carrier {carrier} ability {skill}: the ability replaces the swing: {:?}",
+                    timeline.events
+                );
+                assert!(
+                    timeline
+                        .sounds
+                        .iter()
+                        .any(|s| s.event_index == index && s.id == 0xD5),
+                    "carrier {carrier} ability {skill}: MoleAttack starts every one of these wind-ups"
+                );
+                if skill == 68 {
+                    assert!(
+                        timeline
+                            .sounds
+                            .iter()
+                            .any(|s| s.event_index == index + 1 && s.id == 0xBB),
+                        "FOI's chain writes TechCast as the request phase starts"
+                    );
+                }
+                assert!(
+                    !timeline.animations.iter().any(|a| a.actor == actor),
+                    "carrier {carrier} ability {skill}: do not substitute the plain attack animation"
+                );
+            }
+        }
+        assert!(
+            found,
+            "carrier {carrier} must roll its own ability in formation {formation:#x}"
+        );
+    }
+}

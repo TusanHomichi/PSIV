@@ -25,9 +25,9 @@ An enemy skill is an eight-byte record at `EnemySkillData` (`ps4.asm:319311`); i
 | 0 | effect id → `AbilityEffectsOffs` (`ps4.asm:9036`) | `GetEnemySkillEffectAndRange` (`ps4.asm:8687`, reads it at line 8692) |
 | 1 | power stat selector; **bit 7 is a flag, masked off before use** | `Effect_SetupSkillParams` (`ps4.asm:9576`; read at line 9579, masked at line 9580), `Enemy_DamageCharacter` (`ps4.asm:3775`; read at line 3797, masked at line 3798) |
 | 2 | target/range byte; the **low nibble** picks the range | `GetEnemySkillEffectAndRange` (`ps4.asm:8687`; stored at line 8691, masked with `andi.b #$F` at line 8694) |
-| 3 | hit chance (the "power" of a damage record) | `Effect_SetupSkillParams`, line 9597 |
-| 4 | resistance stat selector | `Effect_SetupSkillParams`, line 9598 |
-| 5 | element | `Effect_SetupSkillParams`, line 9594 |
+| 3 | hit chance (the "power" of a damage record) | `Effect_SetupSkillParams`, line 9602 |
+| 4 | resistance stat selector | `Effect_SetupSkillParams`, line 9604 |
+| 5 | element | `Effect_SetupSkillParams`, line 9597 |
 | 6-7 | always zero | — |
 
 ### Byte 2: the target nibble
@@ -333,6 +333,32 @@ touches a formation.
 `$11` POISON and the other `status/stat effect` abilities are outside this table;
 ACIDBREATH (`$33`) is implemented and §4 lists only unsupported rows, so it does
 not appear above even though FlattrPlnt is a Motavia enemy.
+
+### Single rows re-read at the resolver gate (2026-09-24)
+
+Every `single` pair above was read again from its own citations while the
+resolver's table was built — the `EnemyAttackOffs` entry, the arm, the object
+chain, exactly one guarded `move.w #$C` and the target loaded from `$38` — and
+none of them disagreed with this survey: all 21 pairs are in
+`DAMAGE_SKILL_ROUTES` (`rust/psiv-core/src/battle/enemy_damage.rs`), and none was
+dropped. The two tgt-9 rows (`$37` SAND STORM for 81 DesrtLeach, `$39` MAELSTROM
+for 82 Leviathan) are what settled the gate: the nibble picks the effect
+handler's range, effect `$01` is `AbilityEffect_None` (`ps4.asm:9092`) so the
+nibble multiplies nothing, and each chain still makes exactly one request in
+`loc_24B64`. The resolver now requires the record's effect byte to be `$01`
+instead of the old `byte 2 == 8` check; `SOURCE_NOTES.md` has the change's own
+section.
+
+Two conventions to read this file's citations with, both checked against the
+file while the resolver's table was built. A note of the form "`bne.s loc_X` at
+line N" names the line of the *test* (`cmpi.w #$ID, $24(a4)` or
+`tst.w $24(a4)`), and the branch is the line after it. And §1's row for
+`Effect_SetupSkillParams` now points byte 3 at line 9602
+(`move.b $3(a0,d0.w), d4`), byte 4 at line 9604
+(`move.b $4(a0,d0.w), d2`) and byte 5 at line 9597
+(`move.b $5(a0,d0.w), d3`): the earlier 9597/9598/9594 named the element
+lookup and the resistance test instead of those three reads. The resolver's
+table cites label lines and the request lines themselves.
 
 ## 4. Implemented abilities outside the damage universe
 
