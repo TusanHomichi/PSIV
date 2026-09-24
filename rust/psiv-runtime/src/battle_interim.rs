@@ -189,6 +189,54 @@ fn battle_sound_events(
                 event_index,
                 id: 0xD7,
             }),
+            // SAND STORM `$37` and MAELSTROM `$39`: BattleObj_SandStorm and
+            // BattleObj_Maelstrom write MoleAttack on the first frame of their
+            // wind-up phase (`ps4.asm:48228`, `ps4.asm:47800`) and make their
+            // one request in the phase after it, with no second cue.
+            BattleEvent::EnemySkillUsed { skill: 55 | 57, .. } => sounds.push(BattleSoundEvent {
+                event_index,
+                id: 0xD5,
+            }),
+            // FLODBREATH `$3F`: BattleObj_FlodBreath (`ps4.asm:46343`) and
+            // loc_22A90 (`ps4.asm:46220`) write MoleAttack as their wind-up
+            // starts, then EnemyAttack4 (`ps4.asm:46366`, `ps4.asm:46234`)
+            // before the damage phase — the same pair of cues for all three
+            // carriers.
+            BattleEvent::EnemySkillUsed { skill: 63, .. } => sounds.push(BattleSoundEvent {
+                event_index,
+                id: 0xD5,
+            }),
+            // WAT `$40`: all five carriers' chains write MoleAttack as the
+            // wind-up starts (`ps4.asm:46002` BattleObj_EnemyWat,
+            // `ps4.asm:45056` loc_218D6, `ps4.asm:56445` loc_2B006).
+            //
+            // BattleObj_EnemyWat's second cue, TechCast at `ps4.asm:46016`, is
+            // left unmapped: loc_218D6 and loc_2B006 write nothing there, a
+            // skill-wide cue would invent it for those three carriers, and the
+            // sound context carries no per-carrier identity to key it on.
+            BattleEvent::EnemySkillUsed { skill: 64, .. } => sounds.push(BattleSoundEvent {
+                event_index,
+                id: 0xD5,
+            }),
+            // FOI `$44`: both chains write MoleAttack at the wind-up
+            // (`ps4.asm:45238` loc_21BF0, `ps4.asm:56485` loc_2B08E) and
+            // TechCast when the request phase starts (`ps4.asm:45261`,
+            // `ps4.asm:56509`).
+            BattleEvent::EnemySkillUsed { skill: 68, .. } => sounds.push(BattleSoundEvent {
+                event_index,
+                id: 0xD5,
+            }),
+            // ROUND EYES `$6D` and LOVEL EYES `$6E`: the phase that flinches
+            // the target writes MoleAttack as its wind-up starts
+            // (`ps4.asm:67787`) and EnemyAttack1 as it hands the request on
+            // (`ps4.asm:67795`). Both objects run that same shared phase
+            // (`loc_347BE`, `ps4.asm:67776`).
+            BattleEvent::EnemySkillUsed {
+                skill: 109 | 110, ..
+            } => sounds.push(BattleSoundEvent {
+                event_index,
+                id: 0xD5,
+            }),
             // The damage-skill animation objects write their second cue just
             // before the one damage request: EnemyAttack4 at
             // BattleObj_AcidBreath's reaction, FireBreath at the Helex child's.
@@ -206,6 +254,40 @@ fn battle_sound_events(
                 sounds.push(BattleSoundEvent {
                     event_index,
                     id: 0xC2,
+                });
+            }
+            // FLODBREATH's EnemyAttack4, written by both objects as the damage
+            // phase begins — the same cue for all three carriers, so unlike
+            // WAT's it is safe to key on the skill alone.
+            BattleEvent::Resolved { actor, .. }
+                if resolving_enemy_skill(events, event_index, *actor) == Some(63) =>
+            {
+                sounds.push(BattleSoundEvent {
+                    event_index,
+                    id: 0xD8,
+                });
+            }
+            // FOI's TechCast, written as the request phase starts in both
+            // chains.
+            BattleEvent::Resolved { actor, .. }
+                if resolving_enemy_skill(events, event_index, *actor) == Some(68) =>
+            {
+                sounds.push(BattleSoundEvent {
+                    event_index,
+                    id: 0xBB,
+                });
+            }
+            // The eyes' EnemyAttack1, written at the flinch that hands the one
+            // request on.
+            BattleEvent::Resolved { actor, .. }
+                if matches!(
+                    resolving_enemy_skill(events, event_index, *actor),
+                    Some(109 | 110)
+                ) =>
+            {
+                sounds.push(BattleSoundEvent {
+                    event_index,
+                    id: 0xBA,
                 });
             }
             BattleEvent::Attacked { actor, .. } => {

@@ -939,3 +939,127 @@ whose byte 2 is not the proven single-target range (`AbilityRangeOffs`,
 even when its pair is listed, so it keeps the explicit `UnsupportedAbility`
 path. Acid Breath's behaviour is unchanged: same events in the same order and
 the same 16 damage draws.
+
+### The damage-skill gate and the Motavia single-target routes (2026-09-24)
+
+`resolve_damage_skill` (`rust/psiv-core/src/battle/enemy_damage.rs`) used to
+accept a listed `(enemy, ability)` pair only when the record's byte 2 was 8. That
+was the wrong criterion. Byte 2's low nibble is read by
+`Ability_GetEffectAndRange` (`ps4.asm:8886`; the nibble at line 8895), stored in
+`Battle_Ability_Range` and dispatched through `AbilityRangeOffs`
+(`ps4.asm:8903`) to `AbilityRange_Varied`/`Single`/`Self`/`MultiEnemies`/
+`MultiChars` (`ps4.asm:8920-8962`). `Ability_ProcessRange` (`ps4.asm:8975`)
+calls the **effect handler** once per fighter the chosen handler selects — and
+these records' handler is `$01`, `AbilityEffect_None` (`ps4.asm:9092`), a bare
+`rts`. The nibble therefore multiplies nothing, while the HP change comes from
+one place only: the arm's object writing `move.w #$C, $2(target)`
+(`Fighter_TakeDamage`, `ps4.asm:1033`), which for an enemy actor reaches
+`Enemy_DamageCharacter` (`ps4.asm:3775`) and reads the actor's own ability slot
+plus the record. That is why 25 nibble-8 records and 33 nibble-9 records are both
+`single` when their chains make one request, and why the gate is now the traced
+route rather than a record byte.
+
+The replacement gate has two parts. `(enemy, ability)` must be in
+`DAMAGE_SKILL_ROUTES`, and the record's effect byte must be `$01`: the resolver
+models the one damage request, so a record whose handler would also do something
+(effect `$02` is `AbilityEffect_Death`, `ps4.asm:9098`) stays on the caller's
+`BattleEvent::UnsupportedAbility` path, drawing nothing and emitting nothing.
+Each `DamageRoute` also carries a `DamageClass`; `Single` — exactly one `#$C`
+request against the object's `$38`, i.e. the drawn `Current_Target_Index` that
+`Enemy_Attack` stored at line 19172 — is the only class the table carries and the
+only one the resolver implements. An all-party chain (five requests in
+`loc_24A9E`, `ps4.asm:48483`, or `loc_24BB6`, `ps4.asm:48562`) needs its own
+class and its own branch; the resolver's `match` is exhaustive so adding the
+variant fails to compile until it has one.
+
+Twenty-one Motavia pairs were read from scratch for this change, each from its
+`EnemyAttackOffs` entry through the arm, the object chain and the single guarded
+request, and none disagreed with `docs/ENEMY_DAMAGE_ROUTES.md` §3 — no pair was
+dropped. `$2E` GIWAT: 71 FrostSaber `loc_F8F2` (`ps4.asm:21987`, object `$2B4` =
+`loc_1D5AA`, request at line 40042), 77 TechPlant `loc_F6C4`
+(`ps4.asm:21846`, `$2FC` = `BattleObj_EnemyGiwat` + the visual `$2F0`, request at
+48513), 91 HewGilla (the else arm `loc_F108`, `ps4.asm:21426`, `$390` =
+`loc_22670`, request at 48529), 101 DarkWitch `loc_EE0E` (`ps4.asm:21229`,
+`$3C4` = `loc_21852`, request at 45310 in the shared `loc_21D08`), 122 DElmLars
+and 123 XeAThoul `loc_DFBE` (`ps4.asm:20300`, `$7B8` = `loc_28F76`, request at
+48474). `$37` SAND STORM 81 DesrtLeach and `$39` MAELSTROM 82 Leviathan:
+`EnemyAttack_SandWorm`'s `loc_F48A` (`ps4.asm:21692`, `$328` =
+`BattleObj_SandStorm`) and else arm `loc_F4FA` (`ps4.asm:21720`, `$338` =
+`BattleObj_Maelstrom`), both reaching `loc_24B64` (request at 48547) — one
+request each despite tgt 9. `$3F` FLODBREATH: 90 Depcen `loc_F13C`
+(`ps4.asm:21443`, `$380` = `BattleObj_FlodBreath`), 91 HewGilla and 92 Elmelew
+the `$3F` arm of `EnemyAttack_HewGilla` (`ps4.asm:21395`, `$384` = `loc_22A90`),
+all reaching `loc_24B20` (request at 48529), each chain writing MoleAttack `$D5`
+then EnemyAttack4 `$D8`. `$40` WAT: 91/92 `loc_F0CC` (`ps4.asm:21412`, `$388` =
+`BattleObj_EnemyWat`, request at 48529), 99 TechUser and 100 TechMaster
+`loc_EDC4` (`ps4.asm:21211`, `$3C0` = `loc_218D6`, request at 45310), 114 Juza
+`loc_E3DE` (`ps4.asm:20593`, `$744` = `loc_2B006`, request at 56553).
+`$44` FOI: 99/100 `EnemyAttack_TechUser`'s first arm (`ps4.asm:21156`, `$3B0` =
+`loc_21BF0`, request at 45310), 114 `EnemyAttack_Juza`'s first arm
+(`ps4.asm:20575`, `$740` = `loc_2B08E`, request at 56553). `$6D` ROUND EYES 147
+Rappy and `$6E` LOVEL EYES 148 BlueRappy: `EnemyAttack_Rappy`
+(`ps4.asm:19578`) turns the attack object itself into `BattleObj_RoundEyes`
+(`ps4.asm:67760`, the `$6D` arm at line 19590) or `BattleObj_LovelEyes`
+(`ps4.asm:67729`, the else arm at line 19593) and reaches `loc_D200`
+(`ps4.asm:19395`) for the parent pointer; phase 8 jumps to `loc_24B20` (lines
+67775 and 67744) for the one request at 48529. All eight records are effect
+`$01`, so every pair passes the new gate.
+
+Stat width, confirmed rather than changed: the two readers of record byte 1 —
+`Enemy_DamageCharacter`'s enemy-skill branch (`ps4.asm:3775`, table `loc_275A`
+at `ps4.asm:3892`) and `Effect_SetupSkillParams` (`ps4.asm:9576`, table
+`AbilityStatsOffs` at `ps4.asm:9619`) — mask the byte with `$7F` and then compare
+the selected offset against `$26`: `atk_pow_battle` `$26`, `dfs_pow_battle` `$2A`
+and `magic_dfs_battle` `$2E` are words, `$01`..`$04` (strength, mental, agility,
+dexterity at `$1A`, `$1D`, `$20`, `$23`, `ps4.constants.asm:19-34`) are bytes.
+The ROM's table at `$275A` is `00 00 00 1a 00 1d 00 20 00 23 00 26 00 2a 00 2e`,
+which is the same selection. `technique::stat` already returns the whole word
+(`StatPair::battle`, a `u16`) for selectors 5-7 and a byte zero-extended for 1-4,
+so it needed no change; the resolver masks byte 1 with `STAT_INDEX_MASK` (`$7F`)
+and reads byte 4 raw, and both are now pinned by tests — 81 DesrtLeach's attack
+286 is the selector-5 case, and it produces a different number if read as a byte.
+
+Sound: the objects' explicit writes are mapped in
+`rust/psiv-runtime/src/battle_interim.rs` the way FLAME BOLT's and Acid Breath's
+are. Mapped — MoleAttack `$D5` as the wind-up cue for `$37` (line 48228), `$39`
+(line 47800), `$3F` (lines 46343 and 46220), `$40` (lines 46002, 45056, 56445),
+`$44` (lines 45238, 56485) and `$6D`/`$6E` (line 67787, the shared `loc_347BE`);
+EnemyAttack4 `$D8` at the `$3F` reaction (lines 46366, 46234); TechCast `$BB` at
+FOI's request phase (lines 45261, 56509); EnemyAttack1 `$BA` at the eyes' flinch
+(line 67795). Left unmapped, listed here rather than invented: every cue of
+`$2E`, because its carriers' chains disagree — `$D5` for 71/101/122/123
+(lines 39973, 45022, 54235), TechCast `$BB` for 71 and 77 (lines 39987, 38234)
+and nothing at all for 91 (`loc_22670`, `ps4.asm:45925`); and WAT's `$BB` at
+`BattleObj_EnemyWat` (line 46016), which 91/92 write but `loc_218D6` and
+`loc_2B006` do not. The cue table is keyed on the skill and keyed per acting
+fighter only for the plain-attack sound, so a skill-wide cue would play for a
+carrier whose object writes nothing; a per-carrier cue needs the carrier's
+identity in the sound context first.
+
+Tests and evidence. Core: `enemy_damage_tests.rs` gains one test per ability
+pinning the exact damage from the record (`giwat_reads_the_masked_mental_selector_for_every_carrier`
+through `lovel_eyes_reads_the_attack_word`), the stat-width test
+`the_stat_selectors_read_a_word_for_attack_defense_and_magic_defense`, the
+round-level `every_motavia_route_resolves_in_an_ordinary_round` (all 21 pairs,
+30 draws, no swing), the flipped refusal control
+`a_listed_route_resolves_with_its_record_on_the_nibble_9_target` and the new
+refusal `a_listed_route_with_an_effect_handler_is_refused`. Runtime
+(`rust/psiv-runtime/tests/combat_enemy_attacks.rs`):
+`motavia_single_target_abilities_resolve_in_their_real_formations` drives
+formation `$53` (one DesrtLeach, which resolves `$37`) and formation `$2A` (two
+TechUsers, which resolve `$40` and `$44`, both seen in the eight-round search at
+the fixed seed) with no `UnsupportedAbility` for those abilities and no swing by
+the caster. The negative control for the gate: deleting one new route entry
+(81 DesrtLeach's `$37`) fails `sand_storm_reads_the_attack_word_on_a_nibble_9_record`,
+`every_motavia_route_resolves_in_an_ordinary_round` and the runtime formation
+test, and restoring it passes all three again.
+
+Deviations worth recording. (1) One pre-existing test changed with the gate:
+`acid_invalid_definition_or_dispatcher_cannot_silently_damage_or_spawn` used
+`skill.target = 9` as its "invalid definition" case, which is exactly the check
+this change removes, so that case now moves the effect byte instead (`$02`). Its
+other case (an unlisted carrier) and every other Acid Breath and FLAME BOLT test
+are untouched. (2) `docs/ENEMY_DAMAGE_ROUTES.md`'s parenthetical notes of the
+form "`bne.s loc_X` at line N" cite the test line (`cmpi.w`/`tst.w`) rather than
+the branch line, one line later; the code comments here cite label lines and
+request lines, which were verified against the file.
