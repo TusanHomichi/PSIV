@@ -11,7 +11,10 @@
 //! * [`every_roll_the_frames_hold_is_one_the_port_consumes`] - the per-action
 //!   draw accounting the first two rest on.
 
-use super::*;
+use super::replay::*;
+
+use crate::battle::fixtures;
+use crate::battle::*;
 
 const FIXTURE: &str = include_str!("replay_fixtures/tape07_first_battle.json");
 

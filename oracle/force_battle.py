@@ -70,10 +70,14 @@ DEFAULT_RAM_MAP_TSV = ORACLE / "ram_map.tsv"
 
 #: What every evidence run logs: the fight's own columns plus the RNG chain
 #: `oracle/rng_trace.py check` re-derives.
-GROUPS = "core,battle,bhit,enemy,chars,rng"
+#: What every evidence run logs: the fight's own columns, the RNG chain
+#: `oracle/rng_trace.py check` re-derives, and the vehicle cells a vehicle
+#: battle's party-side fighter is built from (`Vehicle_Index` and the saved
+#: `Vehicle_Stats` record), which a fixture's `vehicle` section reads.
+GROUPS = "core,battle,bhit,enemy,chars,rng,vehicle"
 #: The scout adds the field cells a selector patches, so the values it writes
 #: back after the draw are read from the run rather than assumed.
-SCOUT_GROUPS = GROUPS + ",pos,vehicle"
+SCOUT_GROUPS = GROUPS + ",pos"
 #: Cells a selector may need; `Field_Map_Index` and `Main_Frame_Count`'s frame
 #: come from the core group, the party position from pos, the vehicle from
 #: vehicle, and the Motavia background from battle.

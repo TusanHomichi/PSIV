@@ -14,7 +14,7 @@ import os
 import tempfile
 import unittest
 
-from oracle import battle_fixture as bf
+from oracle import fixture as bf
 
 M16 = 0xFFFF
 
@@ -135,9 +135,14 @@ class FixtureTest(unittest.TestCase):
         self.tmpdir = tempfile.mkdtemp(prefix="psiv-battle-fixture-")
         self.addCleanup(lambda: None)
 
-    def load(self, rows, header=None):
-        """A Log over hand-built rows; the default carries every column."""
+    def load(self, rows, header=None, ram_map=None):
+        """A Log over hand-built rows; the default carries every column.
+
+        `ram_map` is for a test that needs a column this file's map does not
+        carry, e.g. the forced captures' ability and vehicle cells
+        (`tests/test_oracle_battle_fixture_forced.py`)."""
         header = header or list(Row().values)
+        ram_map = ram_map or RAM_MAP
         path = os.path.join(self.tmpdir, "log.csv")
         with open(path, "w") as handle:
             handle.write("# provenance\n")
@@ -146,7 +151,7 @@ class FixtureTest(unittest.TestCase):
                 handle.write(",".join(row[column] for column in header) + "\n")
         map_path = os.path.join(self.tmpdir, "ram_map.json")
         with open(map_path, "w") as handle:
-            json.dump(RAM_MAP, handle)
+            json.dump(ram_map, handle)
         return bf.Log(bf.load_rows(path), bf.load_ram_map(map_path))
 
 

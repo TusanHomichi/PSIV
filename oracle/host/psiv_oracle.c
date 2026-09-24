@@ -877,7 +877,12 @@ int main(int argc, char **argv)
 	        sysinfo.library_version,
 	        rt_get_region() == RETRO_REGION_PAL ? "PAL" : "NTSC");
 	fprintf(out, "# rom=%s size=%zu\n", rom_path, rom_size);
-	fprintf(out, "# tape=%s steps=%d frames=%llu\n", tape_path,
+	/* The tape is this run's *input*, but its path is not what the run
+	 * observed: a capture re-run from another directory replays the same
+	 * tape and must produce the same bytes, so the line names the file
+	 * alone, as `# rng-trace=` below does. `# rom=` and the rest of an
+	 * input's spelling stay verbatim. */
+	fprintf(out, "# tape=%s steps=%d frames=%llu\n", path_basename(tape_path),
 	        psiv_tape_count(), (unsigned long long)psiv_tape_total_frames());
 	if (rng_trace_enabled())
 		fprintf(out, "# rng-trace=%s\n", path_basename(rng_trace_path));

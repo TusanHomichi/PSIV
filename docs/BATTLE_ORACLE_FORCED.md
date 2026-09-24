@@ -168,7 +168,7 @@ logs).
 | outcome | defeat (Alys, Chaz, Hahn all at 0 HP) | defeat (all three at 0 HP) | **victory**: the Desrt Leach at 0 HP, the vehicle at 378 HP, +1500 exp, +1 meseta |
 | ability id used | `$02` FLAME BOLT - enemy 2 at f25003, enemy 1 at f25125 | `$08` SPIRAL BLD - enemy 2 at f24903 | `$37` SAND STORM - enemy 1 at f25839 |
 | trace sha256 | `b1e96472d9282c9172fea59f6e93d92209189047f90887e9049ad861fac86abe` | `e74f0d6645295ec4ec1296ba2b6687262ba547595c96db70d5b325cbdcc09257` | `aa133d61288c886b34af14572a4ef9080fc59e47bd20bbce02a011daf06a214b` |
-| log sha256 | `b1b0d057121b85a8cd999e690da2b36fd9a0e7c2099576d3525a599724b62731` | `9f2086d23c880f828ada3b1d86f7af8332a0540799dde145eec992d5aa4459d2` | `ba14d6643a967ecd54997e755d31563adea9a155462125d494bdb356ff787dc3` |
+| log sha256 | `b4ed383d91ea7ea7895ffbf559fd766be3d1317a80a9619b2be379442f3dd349` | `86c6e5e7e41a324d2c4a68a720c78e4dc9de9f1609ee46331a521172655b1a30` | `33f19744e8fd485c625a81b302c8a979af567463ce46c731a028b98afe13a0c3` |
 
 "the captured battle is that formation" is the tool's own check, not a reading
 of the report: the ids *and* the HP per enemy slot must equal
@@ -217,6 +217,87 @@ never fired, two runs of the capture differ, or `rng_trace.py check` fails.
 A single capture is ~90 seconds of wall clock (five oracle runs over ~40k frames
 of tape). The scout is cached in the output directory, so a re-run of the same
 capture skips it, and `--scout` can point several captures at one cache.
+
+The logs are pinned by sha256 above, and two measurements back the pins. First,
+the traces are byte-identical to the ones the capture tool's own lane recorded
+in a *different* worktree; the logs differ from those earlier pins only in the
+`# tape=` line (a basename now) and in the seven columns the `vehicle` group
+adds, which is what re-running the Helex capture's tape and patches with the
+pre-change group set shows: 25,676 rows, every shared column identical. Second,
+the tape's *directory* is not part of the capture: with the tape copied to
+another directory and replayed from there, with the same patches, groups and
+ROM spelling, the log comes back byte-identical to the capture's
+(`b4ed383d91ea7ea7895ffbf559fd766be3d1317a80a9619b2be379442f3dd349`) and so does
+the trace (`build/lane-evidence/group_compare/`).
+
+## 3a. The captures' replay verdicts
+
+Each capture is extracted into a fixture
+(`rust/psiv-core/src/battle/replay_fixtures/forced_*.json`) and replayed by the
+one data-driven test of [`BATTLE_ORACLE_REPLAY.md`](BATTLE_ORACLE_REPLAY.md),
+which compares every action and every round's draw count against the log and
+holds a fixture that does not match to its entry in
+`replay_fixtures/divergences.json`:
+
+```sh
+python3 oracle/battle_fixture.py --trace build/forced/helex/capture/forced_5E_attack_rolls.csv \
+    --log build/forced/helex/capture/forced_5E_attack.csv \
+    --tape "forced_5E_attack.tape (oracle/force_battle.py --formation 0x5E)" \
+    --battle-first 24794 --battle-last 25616 \
+    --out rust/psiv-core/src/battle/replay_fixtures/forced_5e_helex.json
+CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
+    -- --test-threads=1 every_fixture_replays_as_recorded
+```
+
+| capture | fixture | verdict |
+|---|---|---|
+| `$5E` two Helex | `forced_5e_helex.json` | **exact**: two rounds, 80 rolls, both FLAME BOLTs (`$02` at f25003 and f25125, and the re-rolled one at f25371) resolve damage for damage, and the party's defeat is the log's |
+| `$37` two Fanbite | `forced_37_fanbite.json` | **exact**: SPIRAL BLD (`$08` at f24903) takes all three party slots for the damage the log shows, and the wipe is the log's |
+| `$53` one Desrt Leach | `forced_53_desrtleach.json` | **not exact**: first divergence at f25026, the vehicle's turn |
+
+The Desrt Leach capture is the worklist this machinery exists to produce. Its
+first divergence, as `divergences.json` carries it:
+
+* **frame** f25026, **round** 1, **kind** `no-swing`, **action** actor 1 (the
+  vehicle), f25026-25169;
+* the log has the vehicle swinging: `loc_B6A2`'s pass runs in **three separate
+  frames** (f25059, f25060, f25072, one call each) and then the sixteen
+  `Battle_CalculateDamage` draws at f25098 land 165 on the Desrt Leach;
+* the port has `TurnSkipped { reason: Unarmed }` and no swing at all, so round 1
+  drew 31 of the log's 50 rolls.
+
+Best-supported cause, with the code involved:
+
+* The port refuses the swing at `Character_Attack`'s weapon check
+  (`ps4.asm:13002-13019`): with neither hand holding a weapon, the cartridge
+  takes the `move.w #$FFFF, $32(a4)` arm and skips `jsr loc_B6A2`, and
+  `rust/psiv-core/src/battle/engine.rs` models that as `Skipped::Unarmed`.
+* The vehicle's fighter is not that path. `loc_78EE` (`ps4.asm:11408`) seats it
+  from `Vehicle_Stats` with a **character/attack-route id of its own**, and the
+  three-hit shape is `CharAttack_Seth`'s: `AttackMappings_Seth`
+  (`ps4.asm:13759-13761`) holds three mappings - `OneKnife`, `OneKnife`,
+  `TwoKnives` - and the close-range weapon it hands over to runs one
+  `loc_B6A2` pass per mapping, which is exactly three passes in three frames.
+  `rust/psiv-core/src/vehicle.rs`'s `battle_member` gives the vehicle
+  `character = 0x0B + index` (12 for the Land Rover, index 1) and
+  `rust/psiv-core/src/battle/action.rs`'s `takes_second_hit_pass` gives every
+  character but Alys and Kyra one pass, so the port's vehicle has neither the
+  route nor the pass count the log shows. The two extra rolls shift the rest of
+  the round's stream, which is why the round's draw count is 31 against 50.
+* Fixing it (the vehicle's character id, its attack route and its pass count)
+  is out of this brief's scope. It is recorded, not repaired, in
+  `replay_fixtures/divergences.json` and here.
+
+The fixture's own reading of the vehicle battle is in its `vehicle` section:
+`Vehicle_Index` 1 (the selector's patch), the fighter's HP at the battle's first
+frame (`Vehicle_Stats + curr_hp`, `$FFFF470E`, logged as
+`vehicle_fighter_hp`), and the saved record behind it
+(`Saved_Vehicle_Stats`, `$FFFFFA80`), whose own current HP **equals** the
+fighter's at that frame - which is what makes its maximum (740) the battle
+copy's, and what the fixture records rather than assumes. The members' HP
+columns are the field's: nothing loads them in a vehicle battle, so the fixture
+carries no party at all and the party side's HP column *is*
+`vehicle_fighter_hp`.
 
 ## 4. What this does and does not prove
 

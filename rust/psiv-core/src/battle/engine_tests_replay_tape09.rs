@@ -8,7 +8,10 @@
 //! fixtures adds up to; the fixture itself carries the trace's sha256 so the
 //! numbers below can be traced back to one oracle run.
 
-use super::*;
+use super::replay::*;
+
+use crate::battle::fixtures;
+use crate::battle::*;
 
 const FIXTURE: &str = include_str!("replay_fixtures/tape09_second_battle.json");
 
