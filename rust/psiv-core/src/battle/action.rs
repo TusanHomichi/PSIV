@@ -148,13 +148,23 @@ pub fn enemy_element_factor(attacker: &Stats, target: &Stats) -> u16 {
     u16::from(target.element_factor(element).unwrap_or(0))
 }
 
-/// The bonus a critical hit adds: `move.b d1, d4 / lsr.w #2, d4`.
+/// The bonus a critical hit adds: `moveq #0, d4 / move.b d1, d4 / lsr.w #2, d4`.
+///
+/// The `moveq` clears `d4` and the `move.b` writes only its low byte, so the
+/// quarter is taken on the attack power's **low byte**:
+/// `(attack & 0x00FF) >> 2`. An attack power of 279 contributes 5, not 69 —
+/// the high byte is dropped before the shift, not after it.
+///
+/// Both paths that can land a critical transcribe those three instructions —
+/// `Enemy_DamageCharacter` (`ps4.asm:3789-3790`) and the party's `loc_27A4`
+/// (`ps4.asm:3970-3971`) — which is why this one function owns the rule and
+/// both damage paths call it.
 ///
 /// Note it is the **attack power**, not the damage, that gets quartered — and
 /// the damage formula then doubles it before the element multiply.
 #[must_use]
 pub const fn critical_bonus(attack: u16) -> u16 {
-    attack >> 2
+    (attack & 0x00FF) >> 2
 }
 
 /// Who an attack lands on, and what the hit roll said about each.
@@ -756,6 +766,16 @@ mod tests {
         assert_eq!(critical_bonus(8), 2, "Hahn");
         assert_eq!(critical_bonus(16), 4, "ZoranBult");
         assert_eq!(critical_bonus(3), 0, "rounded down, and it can vanish");
+    }
+
+    #[test]
+    fn a_critical_bonus_quarters_the_attack_powers_low_byte() {
+        // `formation_3B` f25003: attack 279, and the cartridge's damage is the
+        // one `(279 & $FF) >> 2 = 5` gives, not `279 >> 2 = 69`.
+        assert_eq!(critical_bonus(279), 5, "279 & $FF = 23, >> 2 = 5");
+        assert_eq!(critical_bonus(255), 63, "the widest byte still quarters");
+        assert_eq!(critical_bonus(256), 0, "the high byte is dropped, not kept");
+        assert_eq!(critical_bonus(511), 63, "511 & $FF = 255, >> 2 = 63");
     }
 
     #[test]

@@ -209,29 +209,16 @@
       }
     },
     "sweep_motavia/formation_3B": {
-      "action": "round 1: actor 6 (attack), 18 roll(s), 1 target(s)",
-      "actual": "Critical with Some(312)",
-      "expected": "FighterId(1): hit flag 01, damage Some(248)",
-      "frame": 25003,
+      "action": "round 3: actor 6 (ability $38), 77 roll(s), 3 target(s)",
+      "actual": "Normal with Some(276)",
+      "expected": "FighterId(1): hit flag 00, damage Some(241)",
+      "frame": 26155,
       "kind": "value",
-      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w3-the-critical-bonus",
-      "round": 1,
+      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w4-the-tiebreak-draw",
+      "round": 3,
       "round_rolls": {
-        "log": 83,
-        "port": 83
-      }
-    },
-    "sweep_motavia/formation_4F": {
-      "action": "round 2: actor 7 (attack), 19 roll(s), 1 target(s)",
-      "actual": "Critical with Some(103)",
-      "expected": "FighterId(1): hit flag 01, damage Some(71)",
-      "frame": 25240,
-      "kind": "value",
-      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w3-the-critical-bonus",
-      "round": 2,
-      "round_rolls": {
-        "log": 51,
-        "port": 51
+        "log": 126,
+        "port": 82
       }
     }
   }

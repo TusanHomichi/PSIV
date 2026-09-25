@@ -226,10 +226,14 @@ ones the first pass guessed:
   cluster that looked like a fourth port rule turned out to be the harness too
   (§4.4).
 
-18 findings remain, in 4 causes. The method per cluster was the same: read the
-RAM log's own rows around the divergent action - not the fixture built from
-them - read the fixture's record, run the port and read what it resolved, and
-then read the routine the row points at in `reference/ps4disasm/ps4.asm`.
+18 findings remained, in 4 causes, when this triage was written. W3's rule has
+since been implemented (§4.4 W3), and the manifest regenerated from the port's
+own dump holds **17** entries - 10 `party-retarget`, 4 `enemy-ai-conditional`,
+3 `retarget-tiebreak` and none in `critical-bonus` - one of them a finding this
+triage has not seen. The method per cluster was the same: read the RAM log's own
+rows around the divergent action - not the fixture built from them - read the
+fixture's record, run the port and read what it resolved, and then read the
+routine the row points at in `reference/ps4disasm/ps4.asm`.
 
 Every verdict below rests on those three sources and cites them: log rows by
 frame, routines by `ps4.asm` line, the port by file. **Nothing is left as a
@@ -246,7 +250,7 @@ would have to re-take.
 | 2. a window the port narrows to one slot | 13 | **harness artifact** | `formation_10` f25693: the pass's own verdicts are one resolved slot (`hit_05` = `$00`, everything else `$FF`), and the extra three "targets" came from f25808, where `battle_actor` reads **1541** and the bytes `00 00 03 06 04 ...` land in `$FFFF4150` - battle scratch the round's tail reuses. `03`/`06`/`04` are not bytes `loc_B6A2` writes. | fixed (§4.2 H3): the flags are read on the action's own pass frame. The port's one-slot swing was right; the "window" never existed. |
 | 3. an ability that spends the turn | 10 | **split** | `$11` carries (5): `formation_38` f25019 writes the ability byte, presets the flags and resolves **FighterId(1)** - the pass's own coverage - then rolls the poison's chance once at f25082; `alys_status` never moves, so the arm ran and missed, and the port's `EnemySkillUsed` was right. `$45` carries (4): `formation_2A` f26539 rolls index 1, whose regular entry is `$40`, yet `e1_ability` reads **`$45`** and `e1_hp` rises 38 -> 75 - enemy 99's *conditional* ability, written by its AI instruction. `$02` (1): `formation_4B` f25680 is a window on a **dead** actor (see cluster 6). | harness for the `$11`/`$02` findings (fixed, §4.2 H4/H2); port for the `$45` four (§4.4 W2: the AI instruction block, `ps4.asm:19157-19168` and `21320-21338`). |
 | 4. the round's queue | 7 | **harness artifact** | `formation_13` f24821: `enemy_count` reads 2 and **one** SandNewt record is written; f24822 holds both. The fixture started at f24821, so it seated one enemy where the cartridge fought two, and the port's queue (and every later round) was a different battle. The log's own queue at f25013 is `[1, 6, 7, 2, 3]` - five entries, not the port's four. | fixed (§4.2 H1): the start frame is the first frame whose intact records are all of `enemy_count`. The port's queue was right for the formation it was given. |
-| 5. a verdict or a damage value | 5 | **split** | `formation_37` f25397 (2): Alys had just hit enemy 6 with verdict `$00`; Hahn's pass writes the same byte for the same slot, so *nothing changes*, and the old change-based target list lost the hit and kept a phantom `$FF` from the preset. The log's damage word was already 1, so the rewrite is invisible too. `formation_07` f25542 (1) and `formation_08` (round 1, 120 vs 119 rolls): the round draws **one** roll the port does not - the retarget scan's tiebreak, with the two slots' deficits tied at 13. `formation_3B` f25003 / `formation_4F` f25240 (2): a critical's damage, 248 vs 312 and 71 vs 103. | harness for `formation_36`/`37` (fixed, §4.2 H3/H5); port for `formation_07`/`08` (§4.4 W4) and for the criticals (§4.4 W3). |
+| 5. a verdict or a damage value | 5 | **split** | `formation_37` f25397 (2): Alys had just hit enemy 6 with verdict `$00`; Hahn's pass writes the same byte for the same slot, so *nothing changes*, and the old change-based target list lost the hit and kept a phantom `$FF` from the preset. The log's damage word was already 1, so the rewrite is invisible too. `formation_07` f25542 (1) and `formation_08` (round 1, 120 vs 119 rolls): the round draws **one** roll the port does not - the retarget scan's tiebreak, with the two slots' deficits tied at 13. `formation_3B` f25003 / `formation_4F` f25240 (2): a critical's damage, 248 vs 312 and 71 vs 103. | harness for `formation_36`/`37` (fixed, §4.2 H3/H5); port for `formation_07`/`08` (§4.4 W4) and for the criticals (fixed, §4.4 W3). |
 | 6. a turn that never swings | 4 | **harness artifact** | `formation_4C` f26205, `formation_4E` f25586, `formation_55` f25250, `formation_56` f25496 (`formation_4B` f25680 is the same): the window holds **no call at all**, and the actor the field names is **dead** - `formation_55` f25250's slot reads HP -45 (`e1_hp` 65491) with status `$04` (`StatusDead`), and the round killed it before its turn came. `loc_576A` writes the queue entry into `$FFFF4142` and only then tests the fighter's status (`ps4.asm:8033-8043`), so the field keeps a skipped actor's id until the next queue build. | fixed (§4.2 H2): a window opens only where the action's own calls are. The port had no turn there because there was none. |
 | 7. a target the port leaves alone | 2 | **harness artifact** | `formation_3F` f25035: the pass resolves **FighterId(3)**, the poison's own roll lands at f25099, and `hahn_status` goes 0 -> 1 in the same frame - the cartridge poisoned Hahn, and so did the port (`StatusInflicted`). The old finding came from the comparator, which demanded a `Resolved` swing event per resolved slot: a status arm resolves one and reports the *status*. | fixed (§4.2 H5): the ability path walks the slots the log shows **damage** on, and checks the log's status movements against the port's own status events - a weaker claim than "a swing resolved this slot", and one the log can support. |
 | 8. a round's roll count | 1 | **port rule** | `formation_08` round 1: the log's frames hold 120 calls, the port draws 119. The missing one is at f25374 (Hahn's turn): two calls where his single-target swing rolls once - the retarget scan's tiebreak (deficits tied), which the port never makes because it never scans. | port: the same scan as cluster 1 (§4.4 W1/W4). |
@@ -383,8 +387,10 @@ her round-2 turn at f25950: the whole-side window the Boomerang's command opens
 
 Four causes, 18 findings, each one entry per fixture in
 `rust/psiv-core/src/battle/replay_fixtures/divergences.json` under the heading
-below. Every one is a *rule*: the evidence is the log's, the cartridge's routine
-is cited, and the port's own code is where the fix goes.
+below - 17 in the manifest as regenerated: `critical-bonus` holds none of them,
+`formation_4F`'s entry is gone with W3's fix and `formation_3B`'s has moved to a
+finding of its own (§4.4 W3). Every one is a *rule*: the evidence is the log's,
+the cartridge's routine is cited, and the port's own code is where the fix goes.
 
 **W1. A swing whose commanded enemy has fallen lands on another slot**
 (`party-retarget`, 10 fixtures: `formation_02`, `04`, `05`, `0B`, `0C`, `17`,
@@ -434,13 +440,62 @@ defence 18, element 2, the 16 damage draws summing to 48 - the cartridge's 248
 is exactly `bonus = (279 & $FF) >> 2 = 5`, and the port's 312 is
 `bonus = 279 >> 2 = 69`. `formation_4F` f25240 is the same 32-point gap with
 the Land Rover's defence 80 and element 1. The port's
-`action::critical_bonus(attack) = attack >> 2`.
+`action::critical_bonus(attack)` was `attack >> 2`.
 
 Fix scope: `>> 2` on the low byte, in `critical_bonus` and wherever the same
 bonus is computed for party swings.
 
+**Implemented.** `action::critical_bonus` is `(attack & 0x00FF) >> 2`, and it
+was already the rule's one owner: `git grep critical_bonus` finds two call sites
+outside the tests, and both are callers - `resolve_attack`'s damage stage, which
+every party and enemy swing goes through
+(`rust/psiv-core/src/battle/action.rs:388`), and the vehicle path's
+(`vehicle_attack.rs:355`) - so no other place quarters an attack power.
+`a_critical_bonus_quarters_the_attack_powers_low_byte` pins 279 -> 5, 255 -> 63,
+256 -> 0 and 511 -> 63 beside the five small values
+`a_critical_bonus_is_a_quarter_of_the_attack_power` already held.
+
+The manifest, regenerated with §2's procedure from the port's own dump, holds
+**17 entries**, and `critical-bonus` is empty:
+
+* `formation_4F`'s entry is **gone** - the fixture replays exactly, f25240's 71
+  included.
+* `formation_3B`'s f25003 critical is 248, as the log has it; the entry has
+  moved to a *different* finding and is not this cluster's - below.
+
+Negative control: with the mask reverted (`attack >> 2`) the new test fails at
+279 (`left: 69, right: 5`) and the data-driven test's assertion reads
+`left: (1, 25003, "value")` against the regenerated entry's
+`right: (3, 26155, "value")` - the deleted entry's own finding, at its own
+frame, exactly where it said it was. With the mask restored,
+`every_fixture_replays_as_recorded` passes: 484 passed, 0 failed, 1 ignored in
+the lib's own run. Transcripts:
+`build/lane-evidence/negative-control-mask-removed.txt` and
+`core-tests-restored.txt` (not committed; `build/` is ignored).
+
+**The entry `formation_3B` now carries is a new finding, not W3's.** The
+manifest's cluster assignment files it under `retarget-tiebreak`, whose
+signature accepts a `value` divergence whose round draws fewer rolls than the
+log; the cause is not the retarget scan's tiebreak. f26155 opens round 3, where
+the log runs the enemy's `$38` EARTHQUAKE (77 rolls, three slots: 241/223/265)
+and the port's `enemy_damage::resolve_damage_skill` AllParty arm resolves
+276/247/237 - the port's own round-3 timeline and per-round draw counts are in
+`build/lane-evidence/probe-3B-round3.txt`, one scratch probe of `replay_inner`
+that is not part of the change. Rounds 1 and 2 replay exactly, draws included
+(83/83, 67/67), so the state and the stream position the round starts from are
+the log's own: the round's first wrong number is the port's arithmetic on the
+wrong sixteen draws, not a state difference. The cartridge's action holds **29**
+calls the extractor labels `ability`/`ability_reroll` outside its three damage
+windows - one at f26155, then two a frame over f26541-f26593
+(`oracle/fixture/roles.py`) - where the port's model draws **one**, the ability
+roll itself, so its three windows start 28 draws early. The log's hit flag there
+is `00` and the port's verdict is `Normal`: no critical bonus is involved, on
+either side. What the cartridge is doing in those 29 calls is unsettled here,
+and it is a worklist item of its own.
+
 **W4. The retarget scan's tiebreak draw is missing from the round**
-(`retarget-tiebreak`, 2 fixtures: `formation_07`, `08`).
+(`retarget-tiebreak`, 2 fixtures: `formation_07`, `08` - and a third entry the
+manifest files here by signature; see the note at the end of this section).
 
 The scan draws `UpdateRNGSeed2` once whenever two slots' HP deficits are equal
 (`ps4.asm:8364-8374`, `btst #0, d1`). `formation_08`'s round 1 draws 120 calls
@@ -449,6 +504,12 @@ twice (f25374); `formation_07` f25542 draws it in the same place, so the port's
 hit roll is the *tiebreak* value and its damage comes out 8 where the log has 9.
 It is the same rule as W1, seen from the RNG stream's side: fixing W1 without
 the draw would leave the counts wrong.
+
+W3's regenerated manifest also files `formation_3B` under this cluster, because
+its signature reads a `value` divergence whose round draws fewer rolls than the
+log. That fixture's finding is *not* this cluster's: it is a `$38` EARTHQUAKE
+whose arm draws 28 rolls short, where this cluster's fixtures are one draw short
+inside a swing's own frames (§4.4 W3).
 
 ## 5. Every re-extracted fixture
 
@@ -459,14 +520,18 @@ fixture's `log_sha256` still matches the hash the sweep's record pins for each
 capture). The first divergence each one has now, against the one it had in the
 sweep's own manifest:
 
-* **34 are now exact** - every cluster 2, 4, 6 and 7 fixture, plus the three
-  `value`/`not-wasted` ones the reading itself had produced.
+* **35 are now exact** - every cluster 2, 4, 6 and 7 fixture, plus the three
+  `value`/`not-wasted` ones the reading itself had produced, plus
+  `formation_4F`, whose entry W3's fix closed (§4.4 W3).
 * **4 moved** - the `$45` fixtures, whose finding is now the ability the
   cartridge ran rather than "an effect where the log shows a spent turn".
-* **14 are the same finding at the same frame** - the ten retarget fixtures, the
-  two criticals, and the two tiebreak ones. Their entries' own text changed
-  (the action now reports the slots the pass really resolved), which is why the
-  manifest was regenerated rather than edited.
+* **12 are the same finding at the same frame** - the ten retarget fixtures and
+  the two tiebreak ones. Their entries' own text changed (the action now reports
+  the slots the pass really resolved), which is why the manifest was regenerated
+  rather than edited.
+* **1 diverges at a different finding** - `formation_3B`, the other critical:
+  W3's fix takes f25003 with it, and the fixture's next divergence is f26155 in
+  round 3, the `$38` EARTHQUAKE's draws (§4.4 W3).
 
 | fixture | first divergence before | after | |
 |---|---|---|---|
@@ -486,8 +551,8 @@ sweep's own manifest:
 | `formation_19` | `targets` at f26223 | `targets` at f26223 | same |
 | `formation_1B` | `targets` at f26964 | `targets` at f26964 | same |
 | `formation_1D` | `targets` at f26667 | `targets` at f26667 | same |
-| `formation_3B` | `value` at f25003 | `value` at f25003 | same |
-| `formation_4F` | `value` at f25240 | `value` at f25240 | same |
+| `formation_3B` | `value` at f25003 | `value` at **f26155** | moved (§4.4 W3) |
+| `formation_4F` | `value` at f25240 | **now exact** | now exact |
 | `formation_10` | `targets` at f25693 | **now exact** | now exact |
 | `formation_13` | `queue` at f25013 | **now exact** | now exact |
 | `formation_14` | `queue` at f25013 | **now exact** | now exact |

@@ -350,9 +350,10 @@ fifth entry, `loc_280A` (`ps4.asm:4016-4018`), whose whole body is
 `moveq #0, d3 / move.b $32(a1), d3 / bra.s loc_27A4`. `a1` is the **target's**
 stats and `$32` is the second `element_props` word — `element_factor(2)`,
 energy. `loc_27A4` (`ps4.asm:3963-3969`) then supplies `atk_pow_battle` of the
-actor, `dfs_pow_battle` of the target and `atk >> 2` when the slot's flag is
-`$01`, and jumps to `loc_266C` — the same damage and the same sixteen draws as
-every other path.
+actor, `dfs_pow_battle` of the target and `(atk & $FF) >> 2` when the slot's
+flag is `$01` — `moveq #0, d4 / move.b d1, d4` (`ps4.asm:3970`) drops the power's
+high byte, `lsr.w #2, d4` (`3971`) quarters what is left — and jumps to
+`loc_266C`, the same damage and the same sixteen draws as every other path.
 
 One target, and no critical demotion. `loc_B6A2` takes its four-enemy window
 only when `Current_Target_Index` is negative (`smi ($FFFFEE49).w`,
@@ -363,8 +364,11 @@ the first enemy's word 0 is 8 (`moveq #8, d1` at `ps4.asm:11448`,
 `Battle_PickTargetEnemy` writes the cursor's when the player chose one. So one
 roll per pass, one target, `$FFFFEE49` zero, and a critical stays a critical.
 The `move.b d1, d4` before `lsr.w #2` truncates the bonus to the attack's low
-byte; every vehicle's attack is at most `$FF`, so the truncation is invisible
-here (`critical_bonus` is the shared expression).
+byte — `action::critical_bonus(attack)` is `(attack & 0x00FF) >> 2`
+(`rust/psiv-core/src/battle/action.rs`), the one expression both other damage
+paths call: the party's own `loc_27A4` (`ps4.asm:3970-3971`) and
+`Enemy_DamageCharacter` (`ps4.asm:3789-3790`). Every vehicle's attack is at most
+`$FF`, so the truncation is invisible here.
 
 **What the capture pins.** The forced `$53` Desrt Leach capture
 ([`BATTLE_ORACLE_FORCED.md`](../oracle/BATTLE_ORACLE_FORCED.md)) shows the vehicle
