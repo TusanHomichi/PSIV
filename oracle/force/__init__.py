@@ -1,6 +1,6 @@
 """Force a chosen formation into a battle and capture it with the oracle.
 
-    oracle/force_battle.py --formation 0x5E --out build/forced/helex
+    python3 -m oracle.force --formation 0x5E --out build/forced/helex
 
 The oracle can replay a battle exactly, but only battles an existing tape
 happens to reach. This makes any formation reachable on demand: take a base tape
@@ -24,8 +24,8 @@ excepted: the battle reads it every frame). The entry is forced by patching
 `RNG_Seed`'s high word to `K - entry`, where `K` is the roll's unpatched
 `hv + frame_count` sum, measured by a probe run - the draw is the first
 `UpdateRNGSeed2` call of its frame. That patch lands one frame *before* the
-draw, because `oracle/rng_trace.py check` insists a frame's first call start
-from the seed the log holds for the frame before it.
+draw, because `python3 -m oracle.rng_trace check` insists a frame's first
+call start from the seed the log holds for the frame before it.
 
 `attack` (default) is tape 07's own fight input - one `C` press every 16 frames,
 which takes COMD -> ATTACK -> the default target per member - and `defend` is

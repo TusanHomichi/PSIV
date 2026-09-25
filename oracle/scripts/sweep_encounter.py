@@ -6,7 +6,7 @@ step after the first ten on a map, so a long walk is 1/32 per step of losing
 the tape. Idling does not consume a step but does advance the seed, so varying
 one wait re-rolls every check downstream without changing the route at all.
 
-Usage: sweep_encounter.py <tape> <mark> <lo> <hi> <step> [--jobs N]
+Usage: python3 -m oracle.scripts.sweep_encounter <tape> <mark> <lo> <hi> <step> [--jobs N]
 where <mark> names the `N . <mark>` line whose frame count is swept.
 """
 import argparse
@@ -15,8 +15,10 @@ import re
 import subprocess
 import sys
 
-ORACLE = pathlib.Path(__file__).resolve().parent
-ROOT = ORACLE.parent
+from oracle.checks import load
+
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+ORACLE = ROOT / "oracle"
 
 
 def variant(text, mark, frames):
@@ -38,8 +40,6 @@ def run(tape, out):
 
 
 def verdict(csv, want_cell):
-    sys.path.insert(0, str(ORACLE))
-    from checks import load
     battles = []
     rows = load(csv)
     for row in rows:

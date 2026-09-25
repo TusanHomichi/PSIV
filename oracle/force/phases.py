@@ -31,7 +31,7 @@ from .capture import (Capture, battle_shape, cap_rounds,
 from .draw import Draw, find_draw, patch_specs
 from .errors import ForceError
 from .pack import Pack, describe, field_layout, parse_formation
-from .runs import ORACLE, battle_window, by_frame, read_rows, seed_of, sha256
+from .runs import (ROOT, battle_window, by_frame, read_rows, seed_of, sha256)
 from .scout import scout
 from .selectors import Selector, choose_selector
 from .tape import (PROBE_REPEATS, TAIL_FRAMES, Step, compose, emit_tape,
@@ -46,7 +46,7 @@ def plan(args, pack: Pack, layout: dict, selector: Selector, formation: int,
         + (f"_d{args.delay}" if args.delay else "") \
         + (f"_v{args.vehicle}" if args.vehicle else "")
     header = (
-        f"# Forced battle capture written by oracle/force_battle.py\n"
+        f"# Forced battle capture written by python3 -m oracle.force\n"
         f"# {describe(pack, formation)}\n"
         f"# group {selector.group} ({selector.kind}) forced via "
         f"{selector.label}\n"
@@ -358,13 +358,16 @@ def run(args) -> int:
                                          selector, formation, args, layout,
                                          durable)
     checked = subprocess.run(
-        [sys.executable, str(ORACLE / "rng_trace.py"), "check",
+        # `python3 -m oracle.rng_trace`, from the repository root the tools are
+        # modules of - the same convention the sweep's own commands use
+        # (`oracle/sweep/jobs.py`'s `run`).
+        [sys.executable, "-m", "oracle.rng_trace", "check",
          str(final.trace_path), str(final.log_path)],
-        capture_output=True, text=True)
+        cwd=ROOT, capture_output=True, text=True)
     sys.stdout.write(checked.stdout)
     if checked.returncode != 0:
         sys.stderr.write(checked.stderr)
-        print("force_battle: rng_trace.py check failed", file=sys.stderr)
+        print("force_battle: rng_trace check failed", file=sys.stderr)
         return 1
 
     missing = [f"0x{value:02X}" for value in args.require_ability

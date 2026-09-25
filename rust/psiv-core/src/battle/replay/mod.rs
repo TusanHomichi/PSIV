@@ -1,6 +1,6 @@
 //! Replaying a captured battle against the cartridge's own rolls.
 //!
-//! `oracle/battle_fixture.py` turns one oracle run's RNG trace and RAM log into
+//! `oracle.fixture` turns one oracle run's RNG trace and RAM log into
 //! a fixture under `replay_fixtures/`: the battle's start state, the rolls the
 //! cartridge drew (each with the frame it was drawn in and the role it played)
 //! and what the log shows every action doing. This directory is the harness the

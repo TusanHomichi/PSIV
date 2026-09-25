@@ -64,10 +64,12 @@ pass "host builds clean"
 # generated file were allowed to drift, the logs would silently describe the
 # wrong addresses, so regenerate and demand no diff.
 cp "$ORACLE/ram_map.tsv" "$ORACLE/ram_map.tsv.check"
-python3 "$ORACLE/gen_ram_map.py" >/dev/null
+# Every oracle entry point is a module run from the repository root: this
+# script already `cd`s to it above, so the package resolves without PYTHONPATH.
+python3 -m oracle.gen_ram_map >/dev/null
 if ! diff -q "$ORACLE/ram_map.tsv" "$ORACLE/ram_map.tsv.check" >/dev/null; then
 	mv "$ORACLE/ram_map.tsv.check" "$ORACLE/ram_map.tsv"
-	fail "ram_map.tsv is stale; regenerate it with gen_ram_map.py and re-run"
+	fail "ram_map.tsv is stale; regenerate it with oracle/gen_ram_map.py and re-run"
 fi
 rm -f "$ORACLE/ram_map.tsv.check"
 pass "ram_map.tsv matches ram_map.json"
@@ -114,10 +116,9 @@ run "$ORACLE/tapes/21_second_chest.tape" "$OUT/verify_chest2.csv" \
     --groups core,pos,window,objects,flagbytes,chars,party
 
 echo "== findings =="
-PYTHONPATH="$ORACLE" python3 - "$OUT" <<'PY'
+python3 - "$OUT" <<'PY'
 import pathlib, sys
-sys.path.insert(0, 'oracle')
-from checks import load, by_frame, ok, bad, rng_calls
+from oracle.checks import load, by_frame, ok, bad, rng_calls
 OUT = pathlib.Path(sys.argv[1])
 
 rows = load(OUT/'verify_run1.csv')
@@ -538,10 +539,9 @@ run "$ORACLE/tapes/14_defend.tape" "$OUT/verify_defend.csv" \
     --groups core,battle,bcmd,chars
 
 echo "== battle findings =="
-PYTHONPATH="$ORACLE" python3 - "$OUT" <<'PY'
+python3 - "$OUT" <<'PY'
 import pathlib, sys
-sys.path.insert(0, 'oracle')
-from checks import load, by_frame, ok, bad
+from oracle.checks import load, by_frame, ok, bad
 OUT = pathlib.Path(sys.argv[1])
 
 # Battle ground truth. These numbers are what the damage-formula work is fitted

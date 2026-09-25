@@ -3,7 +3,7 @@
 //! Every piece of the harness - the fixture's shape, the battle it builds, the
 //! verbatim-stream driver and the comparator - sits in
 //! [`replay`](replay/index.html), the directory beside this file, so a new
-//! capture is data: `oracle/battle_fixture.py` writes it under
+//! capture is data: `oracle.fixture` writes it under
 //! `replay_fixtures/` and [`replay`]'s data-driven test replays it. This module
 //! is the wiring, and the two basement tapes' walks through it:
 //!

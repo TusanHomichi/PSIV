@@ -1,6 +1,6 @@
 # Forcing a formation: capturing any battle on demand
 
-What this ledger records: how `oracle/force_battle.py` makes a *chosen*
+What this ledger records: how `python3 -m oracle.force` makes a *chosen*
 formation reachable in the battle oracle, the four captures it produced (three
 for the enemy abilities `psiv-core` now implements, one for a second vehicle
 record), and what those captures do and do not prove. The replay side of the
@@ -90,9 +90,10 @@ of its frame (the load calls nothing else), and the run's `--rng-trace` carries
 Three details the tool insists on, because each was found the hard way:
 
 1. **The patch lands one frame *before* the draw**, not on it.
-   `oracle/rng_trace.py check` requires a frame's first call to start from the
-   seed the log holds for the frame before, so a patch applied at the draw's own
-   frame fails the check that proves the trace is the cartridge's arithmetic.
+   `python3 -m oracle.rng_trace check` requires a frame's first call to start
+   from the seed the log holds for the frame before, so a patch applied at the
+   draw's own frame fails the check that proves the trace is the cartridge's
+   arithmetic.
    Patching one frame earlier is sound only because nothing advances the seed
    during the load - the VBlank's `UpdateRNGSeed` and every `UpdateRNGSeed2` are
    quiet, which is also why `Main_Frame_Count` stands still there. The tool
@@ -125,8 +126,8 @@ battle runs to f25760 - longer than the attack policy's f25616, as defending
 should be - and the defender's `physical_prop` goes `514 -> 258` for the
 surviving member at f25439, which is the same retail DEFEND clobber
 `verify.sh`'s full lane measures for tape 14. FLAME BOLT still fires
-(`e2=0x02` at f25269), `rng_trace.py check` passes and the two runs are
-byte-identical.
+(`e2=0x02` at f25269), `python3 -m oracle.rng_trace check` passes and the two
+runs are byte-identical.
 
 `--delay N` inserts N idle frames between the field prefix and the policy. The
 encounter has already fired, so the formation stays forced, while every roll in
@@ -144,11 +145,11 @@ the knob is measured rather than assumed.
 
 ## 2. The four captures
 
-Each capture is a full run of `oracle/force_battle.py`: scout, probe, preview,
+Each capture is a full run of `python3 -m oracle.force`: scout, probe, preview,
 capture, verify. All four start from tape 07's own field prefix - frames
 1..24794, i.e. everything up to and including the frame its encounter fires on -
 then the attack policy; each was checked with
-`python3 oracle/rng_trace.py check` (passed) and the capture was run twice with
+`python3 -m oracle.rng_trace check` (passed) and the capture was run twice with
 the same tape path and output basenames, byte-identical both times (traces and
 logs). Three of them force a formation under the Land Rover; the fourth is the
 same formation as the third, forced with `--vehicle 2` so the battle loads the
@@ -198,13 +199,13 @@ From a checkout with the ROM linked in and the core built
 by `oracle/verify.sh`:
 
 ```sh
-python3 oracle/force_battle.py --formation 0x5E \
+python3 -m oracle.force --formation 0x5E \
     --out build/forced/helex --require-ability 2
-python3 oracle/force_battle.py --formation 0x37 \
+python3 -m oracle.force --formation 0x37 \
     --out build/forced/fanbite --require-ability 8
-python3 oracle/force_battle.py --formation 0x53 \
+python3 -m oracle.force --formation 0x53 \
     --out build/forced/desrtleach --require-ability 0x37
-python3 oracle/force_battle.py --formation 0x53 --vehicle 2 \
+python3 -m oracle.force --formation 0x53 --vehicle 2 \
     --out build/forced/icedigger
 ```
 
@@ -219,7 +220,8 @@ too when one was asked for (`forced_53_attack_v2.tape`), so two captures of one
 formation cannot overwrite each other. The tool prints the same summary and
 exits non-zero if any of its checks fails: the probe's formation does not match
 the group table, a required ability never fired, two runs of the capture differ,
-an unreachable vehicle/group pair was asked for, or `rng_trace.py check` fails.
+an unreachable vehicle/group pair was asked for, or
+`python3 -m oracle.rng_trace check` fails.
 
 A single capture is ~90 seconds of wall clock (five oracle runs over ~40k frames
 of tape). The scout is cached in the output directory, so a re-run of the same
@@ -249,8 +251,8 @@ to its pin (`aa133d61…`), the log differed in that one line
 (`<lane>/Phantasy Star IV (USA).md` rather than the pinning lane's), and
 substituting the pinning lane's ROM path into the re-run's log reproduces
 `33f19744…` exactly. The tool's own two-run byte comparison is unaffected - both
-runs share the path - and `oracle/rng_trace.py check` reads the log's rows, not
-its header.
+runs share the path - and `python3 -m oracle.rng_trace check` reads the log's
+rows, not its header.
 
 ## 3a. The captures' replay verdicts
 
@@ -262,14 +264,19 @@ holds a fixture that does not match to its entry in
 `replay_fixtures/divergences.json`:
 
 ```sh
-python3 oracle/battle_fixture.py --trace build/forced/helex/capture/forced_5E_attack_rolls.csv \
+python3 -m oracle.fixture --trace build/forced/helex/capture/forced_5E_attack_rolls.csv \
     --log build/forced/helex/capture/forced_5E_attack.csv \
-    --tape "forced_5E_attack.tape (oracle/force_battle.py --formation 0x5E)" \
+    --tape "forced_5E_attack.tape (python3 -m oracle.force --formation 0x5E)" \
     --battle-first 24794 --battle-last 25616 \
     --out rust/psiv-core/src/battle/replay_fixtures/forced_5e_helex.json
 CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
     -- --test-threads=1 every_fixture_replays_as_recorded
 ```
+
+The four committed forced fixtures were extracted before the oracle entry
+points became package modules, so the tape label each records in its own
+`provenance` is the spelling of the time; everything else this recipe produces
+is byte-identical to what they hold.
 
 | capture | fixture | verdict |
 |---|---|---|

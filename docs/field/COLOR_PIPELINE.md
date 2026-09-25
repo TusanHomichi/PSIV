@@ -112,7 +112,7 @@ oracle/bin/psiv_oracle \
   --dump-ram 7250:/tmp/psiv-scroll-check.ram \
   --dump-state 7250:/tmp/psiv-scroll-check.json
 
-PYTHONPATH=. python3 oracle/decode_layout.py \
+python3 -m oracle.decode_layout \
   /tmp/psiv-scroll-check.json \
   --label meeting-rika-7250 \
   --output /tmp/psiv-scroll-check-layout.json \

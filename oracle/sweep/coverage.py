@@ -1,10 +1,11 @@
 """What the sweep covered, as the ledger's coverage section.
 
-`oracle/sweep.py`'s record is per-formation evidence; this reads it and prints
-the census `docs/oracle/BATTLE_ORACLE_SWEEP.md` carries: which formations were captured
-(and which failed, why), which enemies they seated, which enemy abilities they
-were seen to run, and how each of those abilities stands in
-`docs/battle/ENEMY_ABILITIES.md` - implemented, or unsupported and of which class.
+`python3 -m oracle.sweep`'s record is per-formation evidence; this reads it and
+prints the census `docs/oracle/BATTLE_ORACLE_SWEEP.md` carries: which formations
+were captured (and which failed, why), which enemies they seated, which enemy
+abilities they were seen to run, and how each of those abilities stands in
+`docs/battle/ENEMY_ABILITIES.md` - implemented, or unsupported and of which
+class.
 
     python3 -m oracle.sweep.coverage --record build/lane-evidence/sweep/sweep_motavia.json
 

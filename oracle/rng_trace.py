@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Check an RNG trace from `psiv_oracle --rng-trace` against its RAM log.
 
-    python3 oracle/rng_trace.py check <trace.csv> <ram-log.csv>
+    python3 -m oracle.rng_trace check <trace.csv> <ram-log.csv>
 
 The trace has one row per call of UpdateRNGSeed2 (ps4.asm:86097):
 
@@ -37,10 +37,7 @@ import argparse
 import csv
 import sys
 
-try:  # imported as oracle.rng_trace, or run as oracle/rng_trace.py
-    from oracle.checks import update_rng_seed
-except ImportError:  # pragma: no cover - depends on how this file is invoked
-    from checks import update_rng_seed
+from oracle.checks import update_rng_seed
 
 M16 = 0xFFFF
 M32 = 0xFFFFFFFF

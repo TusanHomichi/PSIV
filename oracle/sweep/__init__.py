@@ -1,9 +1,9 @@
 """The Motavia sweep: every formation, captured and extracted in one run.
 
-    python3 oracle/sweep.py --out build/lane-evidence/sweep
-    python3 oracle/sweep.py --out build/lane-evidence/sweep --jobs 3
+    python3 -m oracle.sweep --out build/lane-evidence/sweep
+    python3 -m oracle.sweep --out build/lane-evidence/sweep --jobs 3
 
-`oracle/force_battle.py` captures *one* formation on request; this runs it over
+`python3 -m oracle.force` captures *one* formation on request; this runs it over
 a list of them - the sweep's own list is the distinct formation ids in
 `generated/formation_indexes.json` groups 0-7 (Motavia on foot) and 8, 9, 10
 (Motavia's vehicle tables), computed from the data rather than typed in - and

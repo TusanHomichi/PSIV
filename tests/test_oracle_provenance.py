@@ -16,8 +16,8 @@ import shutil
 import tempfile
 import unittest
 
-from oracle import battle_fixture as cli
 from oracle import fixture as fx
+from oracle.fixture.__main__ import main as extractor
 from tests.test_oracle_battle_fixture import cartridge_roll, trace_row
 from tests.test_oracle_battle_fixture_forced import (FORCED_MAP, ForcedLog,
                                                      ForcedFixture)
@@ -121,7 +121,7 @@ class ExtractionIsPathFree(ForcedFixture):
 
     def extract(self, out, tape, capture, root):
         log_path, trace_path, ram_map, _ = capture
-        status = cli.main([
+        status = extractor([
             "--trace", trace_path, "--log", log_path, "--out", out,
             "--ram-map", ram_map, "--tape", tape, "--battle-first", "20",
             "--battle-last", "23", "--minified", "--core", "c", "--patch", "p",

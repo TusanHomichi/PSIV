@@ -9,8 +9,9 @@ action by action with what the oracle's RAM log shows the cartridge doing.
 | `oracle/tapes/07_first_battle.tape` | frames 24794-30428 | `rust/psiv-core/src/battle/engine_tests_replay_tape07.rs` |
 | `oracle/tapes/09_second_battle.tape` | frames 25002-31908 | `rust/psiv-core/src/battle/engine_tests_replay_tape09.rs` |
 
-Each tape replays a fixture [`oracle/battle_fixture.py`](../../oracle/battle_fixture.py)
-extracted from one oracle run's RNG trace and RAM log
+Each tape replays a fixture extracted from one oracle run's RNG trace and RAM
+log by [`oracle/fixture/__main__.py`](../../oracle/fixture/__main__.py), run as
+`python3 -m oracle.fixture`
 ([`tape07_first_battle.json`](../../rust/psiv-core/src/battle/replay_fixtures/tape07_first_battle.json)
 and
 [`tape09_second_battle.json`](../../rust/psiv-core/src/battle/replay_fixtures/tape09_second_battle.json));
@@ -42,7 +43,7 @@ Three claims, and they are different claims:
 ## Method: a captured-roll replay
 
 The oracle replays a tape on the pinned core and logs the cartridge's work RAM
-frame by frame (`oracle/README.md`). `oracle/battle_fixture.py` turns one such
+frame by frame (`oracle/README.md`). `python3 -m oracle.fixture` turns one such
 run into a fixture: the battle's start state - the frame the formation was
 written into RAM - the rolls in the order the cartridge drew them, each with
 the frame and the role it played, the commands the party issued, and what the
@@ -87,8 +88,8 @@ oracle/bin/psiv_oracle \
     --groups core,battle,bhit,enemy,chars,rng \
     --rng-trace build/tape07_rolls.csv \
     --out  build/tape07_battle.csv
-python3 oracle/rng_trace.py check build/tape07_rolls.csv build/tape07_battle.csv
-python3 oracle/battle_fixture.py --trace build/tape07_rolls.csv \
+python3 -m oracle.rng_trace check build/tape07_rolls.csv build/tape07_battle.csv
+python3 -m oracle.fixture --trace build/tape07_rolls.csv \
     --log build/tape07_battle.csv \
     --out rust/psiv-core/src/battle/replay_fixtures/tape07_first_battle.json
 
@@ -102,8 +103,8 @@ oracle/bin/psiv_oracle \
     --groups core,battle,bhit,enemy,chars,rng \
     --rng-trace build/tape09_rolls.csv \
     --out  build/tape09_battle.csv
-python3 oracle/rng_trace.py check build/tape09_rolls.csv build/tape09_battle.csv
-python3 oracle/battle_fixture.py --trace build/tape09_rolls.csv \
+python3 -m oracle.rng_trace check build/tape09_rolls.csv build/tape09_battle.csv
+python3 -m oracle.fixture --trace build/tape09_rolls.csv \
     --log build/tape09_battle.csv --tape oracle/tapes/09_second_battle.tape \
     --battle-first 25002 --battle-last 31908 \
     --out rust/psiv-core/src/battle/replay_fixtures/tape09_second_battle.json
@@ -133,7 +134,7 @@ identical either way.
 | start state | frame 24808, the frame the formation was written into RAM | frame 25016 |
 | trace | 136 calls in 15 frames, f24807-f30306, sha256 `0d97f6d6917c3440a211be2e0661eb8c363e04b748c2cef4e510ad32fbb9cb91` | 137 calls in 16 frames, f25015-f31786, sha256 `fbe5fa26f02a159108caf46670f546061debc5fdda6e13b869941576d82e0675` |
 | RAM log | sha256 `4118ea6efda4cb1a2c5ce74cb04b66323eb26da37f39698a9e1a016156fe9ea4` | sha256 `1c40b5f2967496d4dc6aa472d03957bf965b0db9b2b5f8ce8d9f8d0c9ea55513` |
-| trace check | `oracle/rng_trace.py check` passes: every row is `hv + frame_count - seed_high`, the seed chain closes on the log's `rng_seed`, and the VBlank counter step agrees | passes |
+| trace check | `python3 -m oracle.rng_trace check` passes: every row is `hv + frame_count - seed_high`, the seed chain closes on the log's `rng_seed`, and the VBlank counter step agrees | passes |
 | battle roll stream | 134 of the 136; the encounter's formation draw (f24807) and the post-victory item drop draw (f30306) are recorded outside it | 135 of the 137; formation f25015, item drop f31786 |
 | formation | two ZoranBult (enemy id 10) | Xanafalgue (id 9) and ZoranBult (id 10) |
 | party | Alys lvl 7, Chaz lvl 1, Hahn lvl 1 | same |
@@ -217,13 +218,14 @@ which no instruction reads as the subtrahend) until lane P1 fixed it where it
 was written, in `rng_trace_roll` (`oracle/host/rng_trace.h`, called by
 `oracle/host/rng_trace.c`), and in `oracle/rng_trace.py`'s `roll_for`. The two
 halves differ by a per-frame constant, so every row of the pre-fix column was a
-per-frame-constant shift of the cartridge's roll - and `rng_trace.py check` could
-not see it, because its own `roll_for` repeated the same subtraction: the host
-wrote it, `check` re-derived it, and the two agreed with each other and with
-nothing else. That is the shape of failure two of lane P1's changes block, and a
-third makes a capture pinnable across lanes:
+per-frame-constant shift of the cartridge's roll - and
+`python3 -m oracle.rng_trace check` could not see it, because its own `roll_for`
+repeated the same subtraction: the host wrote it, `check` re-derived it, and the
+two agreed with each other and with nothing else. That is the shape of failure
+two of lane P1's changes block, and a third makes a capture pinnable across
+lanes:
 
-- `oracle/battle_fixture.py` no longer accepts a column it merely recognises.
+- `oracle.fixture` no longer accepts a column it merely recognises.
   Every row's `roll` is checked against the derivation above, and the first row
   that disagrees aborts the extraction with its frame and call, so a capture
   carrying the low half cannot reach a fixture at all
@@ -286,9 +288,9 @@ alone, which is the whole of the difference the defect made; the two commands
 below then run against that flipped file:
 
 ```text
-$ python3 oracle/rng_trace.py check build/tape07_rolls_lowword.csv build/tape07_battle.csv
+$ python3 -m oracle.rng_trace check build/tape07_rolls_lowword.csv build/tape07_battle.csv
   FAIL  f24807 call 0: roll 1CA6 is not (hv + frame_count - seed_high) & $FFFF = 1814
-$ python3 oracle/battle_fixture.py --trace build/tape07_rolls_lowword.csv --log build/tape07_battle.csv --out /tmp/f.json
+$ python3 -m oracle.fixture --trace build/tape07_rolls_lowword.csv --log build/tape07_battle.csv --out /tmp/f.json
 FixtureError: trace f24807 call 0: the roll column reads 1CA6, the low-half
 subtraction (hv + frame_count - seed_low) & $FFFF = 1CA6, ... the cartridge's
 roll is (hv + frame_count - seed_high) & $FFFF = 1814
@@ -307,8 +309,8 @@ probe), and
 ## The reorganization, and what stayed put
 
 The extractor and the replay harness were reorganized under the repository's
-file-size rule: `oracle/battle_fixture.py` is a thin CLI over `oracle/fixture/`,
-`oracle/force_battle.py` keeps the capture tool's CLI over its own package, and
+file-size rule: `oracle/fixture/__main__.py` is a thin CLI over `oracle/fixture/`,
+`oracle/force/__main__.py` keeps the capture tool's CLI over its own package, and
 `rust/psiv-core/src/battle/replay/` holds the fixture's shape, the battle
 builder, the verbatim-stream driver, the comparator and the data-driven test
 (the wiring stays in `engine_tests_replay.rs`). Two measurements say nothing
@@ -680,7 +682,7 @@ sentence now carries a dated correction, and tape 07's fixture was re-extracted
 against today's RAM map (same data; `log_sha256` `4118ea6e...`; trace still
 `0d97f6d6...`).
 
-1. **Fixture the remaining battle tapes.** `oracle/battle_fixture.py` needs no
+1. **Fixture the remaining battle tapes.** `python3 -m oracle.fixture` needs no
    change for a new tape - `--tape`, `--battle-first`, `--battle-last` and the
    two logs are enough. Tape 10's three encounters in a row are the natural next
    one: three more battles on their own seed paths, and a chance at a second

@@ -130,7 +130,7 @@ class Sweep:
 
     def document(self) -> dict:
         return {
-            "generated_by": "oracle/sweep.py",
+            "generated_by": "oracle/sweep/__main__.py",
             "source": self.source,
             "options": {
                 "base_tape": str(self.options.base_tape),

@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """Turn a tape's RNG trace and RAM log into a replay fixture for psiv-core.
 
-    python3 oracle/battle_fixture.py --trace build/tape07_rolls.csv \
-                                     --log   build/tape07_battle.csv \
-                                     --out   rust/psiv-core/src/battle/replay_fixtures/tape07_first_battle.json
+    python3 -m oracle.fixture --trace build/tape07_rolls.csv \
+                              --log   build/tape07_battle.csv \
+                              --out   rust/psiv-core/src/battle/replay_fixtures/tape07_first_battle.json
 
-This is the CLI; [`oracle/fixture/`](fixture/__init__.py) is the extractor, and
-its package docstring is the account of the two inputs, the roll derivation,
-what the log decides and what it does not, and the fixture's shape. Nothing in
-this file decides anything about the battle: it parses the arguments, reads the
-two CSVs, calls `oracle.fixture.build_fixture` and writes what comes back.
+The CLI of [`oracle.fixture`](__init__.py), run from the repository root. That
+package is the extractor, and its package docstring is the account of the two
+inputs, the roll derivation, what the log decides and what it does not, and the
+fixture's shape. Nothing in this file decides anything about the battle: it
+parses the arguments, reads the two CSVs, calls `oracle.fixture.build_fixture`
+and writes what comes back.
 """
 import argparse
 import json
@@ -17,19 +18,14 @@ import os
 import pathlib
 import sys
 
-if __package__ in (None, ""):
-    # `python3 oracle/battle_fixture.py` runs with `oracle/` on sys.path, and
-    # the extractor is a package beside it, under the repository root.
-    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
-
 from oracle.fixture import (BATTLE_FIRST, BATTLE_LAST, FixtureError,
                             build_fixture, compact_leaf_arrays, load_ram_map,
                             load_rows, Log, provenance_lines, sha256)
 
 
 def default_ram_map():
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                        "ram_map.json")
+    """`oracle/ram_map.json`: the map above this package, the extractor's own."""
+    return str(pathlib.Path(__file__).resolve().parents[1] / "ram_map.json")
 
 
 def main(argv=None):
