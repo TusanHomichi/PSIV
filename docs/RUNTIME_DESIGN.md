@@ -42,18 +42,18 @@ The final flag model is four banks, with chest flags sharing extended events:
 
 There is no separate `$F156` flag bank. Earlier disassembly-label readings were
 wrong; the correction and measured evidence remain in
-[SOURCE_NOTES.md](../SOURCE_NOTES.md).
+[docs/source-notes/README.md](source-notes/README.md).
 
 Triggers select retail scene transcriptions. The core's `SceneOp` interpreter
 updates state and emits effects; runtime/Godot handle dialogue continuation,
 actor motion and presentation. Fork-rewritten scene bodies require validation
 against the retail bytes. See [scene research](scenes/README.md),
-[dialogue](SCENE_DIALOGUE.md) and [presentation](SCENE_PRESENTATION.md).
+[dialogue](scenes/SCENE_DIALOGUE.md) and [presentation](scenes/SCENE_PRESENTATION.md).
 
 Save serialization uses the retail SRAM layout with three local slot files.
-Normal title CONTINUE and camp SAVE are implemented. See [save format](SAVE_SCOUT.md),
-[field state](FIELD_STATE.md), [party ORDER](PARTY_ORDER.md) and the
-[BioPlant ledger](BIOPLANT_NATIVE.md) for state and restart evidence.
+Normal title CONTINUE and camp SAVE are implemented. See [save format](camp/SAVE_SCOUT.md),
+[field state](field/FIELD_STATE.md), [party ORDER](camp/PARTY_ORDER.md) and the
+[BioPlant ledger](campaign/BIOPLANT_NATIVE.md) for state and restart evidence.
 
 ## RNG design
 
@@ -71,14 +71,14 @@ checks have distinct oracle fixtures.
 
 The retail cartridge is the behavioral reference. Preserve intentional quirks;
 deliberate fixes to demonstrable original bugs need explicit source evidence
-and a discrepancy record in [SOURCE_NOTES.md](../SOURCE_NOTES.md). Existing
+and a discrepancy record in [docs/source-notes/README.md](source-notes/README.md). Existing
 fixes do not authorize arbitrary balance changes or guessed ability effects.
 
 Presentation uses extracted art and decoded layouts. The current desktop
 viewport is 1280×800; selected comparisons use the original 320×224 surface.
 Viewport, camera, timing and matched game state are part of a visual result.
-See [camera](CAMERA.md), [color pipeline](COLOR_PIPELINE.md),
-[battle UI](BATTLE_ORACLE_UI.md) and [sound integration](SOUND_INTEGRATION.md).
+See [camera](field/CAMERA.md), [color pipeline](field/COLOR_PIPELINE.md),
+[battle UI](oracle/BATTLE_ORACLE_UI.md) and [sound integration](sound/SOUND_INTEGRATION.md).
 
 ## Verification
 

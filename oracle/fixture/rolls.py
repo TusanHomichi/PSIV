@@ -29,7 +29,7 @@ its column is a per-frame-constant shift of the cartridge's rolls. The reading
 is settled by the cartridge, not by preference: the high-word derivation
 reproduces the battle's turn order (`turn_XX` in the log) and all six of its
 damage values exactly, and the low-word one reproduces none of them. See
-`docs/BATTLE_ORACLE_REPLAY.md`.
+`docs/oracle/BATTLE_ORACLE_REPLAY.md`.
 """
 from .errors import FixtureError
 

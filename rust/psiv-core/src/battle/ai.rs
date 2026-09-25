@@ -92,7 +92,7 @@ pub const ABILITY_ROLL_MASK: u16 = (REGULAR_ABILITIES - 1) as u16;
 /// call. Tape 07's first basement battle (f29789) is exactly that case; tape
 /// 10's third battle is the measurement that pins the wipe, and three
 /// `--ram-patch` probes pin the rule itself (see
-/// `docs/BATTLE_ORACLE_REPLAY.md`).
+/// `docs/oracle/BATTLE_ORACLE_REPLAY.md`).
 ///
 /// An enemy whose eight slots all hold the same ability still rerolls until the
 /// index differs, burning rolls to reach the same answer. That is faithful and

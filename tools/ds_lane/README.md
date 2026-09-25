@@ -4,7 +4,7 @@
 supervisor that commits each run and writes reviewable receipts. It drives the
 Reasonix CLI with DeepSeek `deepseek-flash` (API id `deepseek-v4-flash`). Which
 host uses it, and for which role, is host-local configuration; outcomes are
-recorded in the [lane ledger](../../docs/CLAUDE_LANES.md).
+recorded in the [lane ledger](../../docs/records/CLAUDE_LANES.md).
 
 ## Reference
 

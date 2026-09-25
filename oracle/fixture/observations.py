@@ -114,7 +114,7 @@ def turn_order(log, frame):
 
     The queue, as far as the log's own columns go: a capture with seven or more
     fighters needs the window past `turn_11`, or the entries it cannot see are
-    simply missing from the fixture (`docs/BATTLE_ORACLE_SWEEP.md`).
+    simply missing from the fixture (`docs/oracle/BATTLE_ORACLE_SWEEP.md`).
     """
     order = []
     for index in range(0, 2 * ORDER_ENTRIES, 2):
@@ -170,7 +170,7 @@ def action_windows(log, first, last, cuts=(), roll_frames=()):
 
     The distinction is not bookkeeping: the port has no turn there either, and
     a window built on one asks it to resolve an action the cartridge never ran
-    (`docs/BATTLE_ORACLE_SWEEP.md`'s no-swing and phantom clusters).
+    (`docs/oracle/BATTLE_ORACLE_SWEEP.md`'s no-swing and phantom clusters).
     """
     cuts = set(cuts)
     rolls = set(roll_frames)
@@ -234,7 +234,7 @@ def enemies_loaded(log, first, last):
     f24821, that frame holds one SandNewt record and f24822 holds both. The
     fixture built on f24821 seated one enemy, so its port-side queue, its rolls
     and its whole round were a different battle from the cartridge's
-    (`docs/BATTLE_ORACLE_SWEEP.md`, the queue cluster).
+    (`docs/oracle/BATTLE_ORACLE_SWEEP.md`, the queue cluster).
 
     A log with no such frame is a capture this extractor cannot start: the
     count and the records never agreed, and guessing between them would seat a
@@ -464,8 +464,8 @@ def action_effects(log, start, end, occupied, columns=None):
 
     The target list is the acting side's opponents, which is what a swing can
     touch; an enemy ability can touch its own side instead - the sweep's
-    TechUser casts RES on itself and its HP rises by 37 - and `docs/
-    ENEMY_ABILITIES.md`'s status arms leave their mark in a status byte rather
+    TechUser casts RES on itself and its HP rises by 37 - and
+    `docs/battle/ENEMY_ABILITIES.md`'s status arms leave their mark in a status byte rather
     than in a damage word. An action's *effect* is therefore read off every
     fighter the formation seated, on both sides, in the cells the log carries:
     HP, the status byte, and the battle stat cells the fixtures' stat blocks

@@ -184,7 +184,7 @@ class TestNewGameAgainstTheRom(unittest.TestCase):
 
     def test_character_stats_are_a_separate_system(self):
         stats = self.payload["new_game_init"]["character_stats"]
-        # `InitialCharStats`, the offset SOURCE_NOTES already documents, applied
+        # `InitialCharStats`, the offset the source notes already document, applied
         # to all eleven characters rather than just the party.
         self.assertEqual(stats["source"], "0x2A8ACA")
         self.assertEqual(stats["characters"], len(CHARACTER_SYMBOLS))

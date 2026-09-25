@@ -5,8 +5,8 @@
                                      --out   rust/psiv-core/src/battle/replay_fixtures/tape07_first_battle.json
 
 This package is the extractor behind that command; `oracle/battle_fixture.py`
-is the CLI, and the two logs are the only inputs. `docs/BATTLE_ORACLE_REPLAY.md`
-is the ledger for the party battles and `docs/BATTLE_ORACLE_FORCED.md` for the
+is the CLI, and the two logs are the only inputs. `docs/oracle/BATTLE_ORACLE_REPLAY.md`
+is the ledger for the party battles and `docs/oracle/BATTLE_ORACLE_FORCED.md` for the
 forced ones, whose enemy abilities and vehicle battle this package grew to
 read.
 

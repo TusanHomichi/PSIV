@@ -1,7 +1,7 @@
 """The sweep's command line: the arguments, and the process exit status.
 
 `oracle/sweep.py` is the entry point; `oracle/sweep/__init__.py` is the account
-of what a capture is, and `docs/BATTLE_ORACLE_SWEEP.md` of what came out of
+of what a capture is, and `docs/oracle/BATTLE_ORACLE_SWEEP.md` of what came out of
 this sweep.
 """
 from __future__ import annotations

@@ -83,7 +83,7 @@ def roll_for(hv, frame_count, seed):
     the word at $FFFFEF0C/$FFFFEF0D - the longword's *high* half, and the word
     `ror (RNG_Seed).w` (ROM $0423AA) rotates next. Subtracting the low half at
     $FFFFEF0E gives a per-frame-constant shift of this, not a roll
-    (docs/BATTLE_ORACLE_REPLAY.md settles it against the cartridge).
+    (docs/oracle/BATTLE_ORACLE_REPLAY.md settles it against the cartridge).
 
     The host computes the same thing once, in `rng_trace_roll`
     (oracle/host/rng_trace.h); tests/test_oracle_rng_trace.py builds a program

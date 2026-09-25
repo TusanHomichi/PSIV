@@ -189,7 +189,7 @@ pub struct Battle {
     /// `$FF0000-$FFFEFF` on every entry to `MainGameProgram_Continue`). So a
     /// battle's first ability draw of zero costs a second call — tape 07's
     /// first basement battle (f29789) is exactly that case, and
-    /// `docs/BATTLE_ORACLE_REPLAY.md` measures the wipe on the cartridge.
+    /// `docs/oracle/BATTLE_ORACLE_REPLAY.md` measures the wipe on the cartridge.
     last_ability_index: u16,
     /// `Enemy_Run_Chance`, or `None` for a formation at or above `$F0` that
     /// cannot be escaped at all.
@@ -307,7 +307,7 @@ impl Battle {
     ///
     /// Test-only: nothing in the port reads it in play; the tape replays assert it against
     /// the RAM log's own column at the end of the battle, which is where the
-    /// cartridge's word is read from (`docs/BATTLE_ORACLE_REPLAY.md`).
+    /// cartridge's word is read from (`docs/oracle/BATTLE_ORACLE_REPLAY.md`).
     #[cfg(test)]
     #[must_use]
     pub(crate) const fn last_ability_index(&self) -> u16 {

@@ -1,6 +1,6 @@
 //! Random encounters and the battle data bridge.
 //!
-//! Three things live here, all transcribed from `docs/BATTLE_SCOUT.md` §9:
+//! Three things live here, all transcribed from `docs/battle/BATTLE_SCOUT.md` §9:
 //!
 //! - [`battle_data`] converts the pack's `battle/` files into the engine's
 //!   in-memory [`BattleData`].

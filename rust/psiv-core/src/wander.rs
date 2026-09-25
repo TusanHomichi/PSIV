@@ -1,7 +1,7 @@
 //! NPC wander — the cartridge's shared random-walk families.
 //!
 //! Transcribed from the cartridge; the evidence and the retail addresses are in
-//! `docs/NPC_WANDER.md`. Two types share one walker and differ in a single
+//! `docs/field/NPC_WANDER.md`. Two types share one walker and differ in a single
 //! constant, and between them they are 297 of the 949 objects in the packed
 //! maps.
 //!
@@ -249,7 +249,7 @@ impl Leash {
     /// **Commits on success**, which is what the cartridge does — and it does
     /// so *before* the terrain and object checks run, so a move refused later
     /// has still spent its leash budget and the box drifts. Reproduced
-    /// deliberately; see `docs/NPC_WANDER.md`.
+    /// deliberately; see `docs/field/NPC_WANDER.md`.
     fn accepts(&mut self, dx: i8, dy: i8) -> bool {
         let Some(x) = self.x.checked_add_signed(dx) else {
             return false;

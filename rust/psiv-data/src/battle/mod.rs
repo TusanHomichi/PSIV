@@ -95,7 +95,7 @@ impl BattleFiles {
     /// `EventFlag_Zio` (`ps4.asm:154200`) — with 16383 HP, agility 255 and
     /// defence 255, so it is a battle the player is not meant to win. That is
     /// not the same as unreachable, and an earlier note in
-    /// `docs/BATTLE_SCOUT.md` §11 saying Zio3 appears in no formation is wrong:
+    /// `docs/battle/BATTLE_SCOUT.md` §11 saying Zio3 appears in no formation is wrong:
     /// it searched the 504 normal formations and not the 27 boss ones.
     #[must_use]
     pub fn fielded_rejected_abilities(&self) -> Vec<(&str, u16)> {

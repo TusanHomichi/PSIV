@@ -317,7 +317,7 @@ fn dump_manifest_entries() {
             "expected": expected,
             "actual": actual,
             "round_rolls": {"log": log, "port": port},
-            "ledger": "docs/BATTLE_ORACLE_SWEEP.md (fill in the cluster)",
+            "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md (fill in the cluster)",
         });
         let line = serde_json::to_string(&entry).expect("the entry serialises");
         assert!(

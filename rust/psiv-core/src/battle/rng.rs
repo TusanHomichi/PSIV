@@ -91,7 +91,7 @@ pub const RESEED: u32 = 0x2A6D_365B;
 ///
 /// # A correction to the scout's summary
 ///
-/// `docs/BATTLE_SCOUT.md` §2 renders the result as
+/// `docs/battle/BATTLE_SCOUT.md` §2 renders the result as
 /// `(lo+hi) << 16 | hi(41x)`. Tracing the instructions gives
 /// `(lo+hi) << 16 | **lo**(41x)`: after `swap d1` the register holds
 /// `lo:hi`, so `move.w d0,d1` overwrites the *low* half (the `hi` word) with

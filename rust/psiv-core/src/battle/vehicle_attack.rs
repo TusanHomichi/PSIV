@@ -61,7 +61,7 @@
 //!   `addq`, on the value `$32` is about to hold anyway: state 5 runs once, and
 //!   the swing draws **two** passes. The Ice Digger's capture has them at
 //!   f25058 and f25059, and the third pass the port used to draw is what
-//!   `docs/BATTLE_ORACLE_FORCED.md` §5.1 recorded as a divergence.
+//!   `docs/oracle/BATTLE_ORACLE_FORCED.md` §5.1 recorded as a divergence.
 //!
 //! `loc_B6A2` blanks all nine `Fighters_Hit_Flags` before every pass
 //! (`ps4.asm:17493-17496`), so each pass overwrites the last one's verdicts;

@@ -1,5 +1,8 @@
 # Documentation
 
+The top level keeps this index and the documents the project reads first; every
+other document sits in the folder for its area.
+
 ## Start here
 
 - [Project overview and current status](../README.md)
@@ -8,30 +11,63 @@
 - [Repository instructions for agents](../AGENTS.md)
 - [Evidence-driven workflow, authority and handoff](AGENT_WORKFLOW.md)
 - [Canonical task graph handoff](ROADMAP.md#task-graph-handoff)
-- [Workflow setup evidence and archived graph](WORKFLOW_SETUP.md)
-- [Redshirt battle-decision experiment (archived)](REDSHIRT_BATTLE.md) — archived 2026-09-24; a record of closed developer-tool experiments, not instructions.
-- [MIT License](../LICENSE)
-
-## Current campaign evidence
-
-- [Native playability ledger](NATIVE_PLAYABILITY.md) — connected routes, fixes and verification history.
-- [BioPlant checkpoints](BIOPLANT_NATIVE.md) — connected Rika escape, ordinary SAVE/fresh CONTINUE, poison recovery and retained failed attempts.
-- [Post-Rika northern crossing](TRAVEL.md#post-rika-northern-crossing-2026-09-23) — current Motavia north-bank save, paid recovery, repaired overworld bridge, restart bytes and bounded visual proof.
-- [Party ORDER](PARTY_ORDER.md) — original rules, native input and exact menu-region comparisons.
-- [Progression](PROGRESSION.md) — learning, skill uses and saved character growth.
-
-## Gameplay and presentation
-
-- [Battle recovery](BATTLE_RECOVERY.md), [instant death](INSTANT_DEATH.md), [THREAD](THREAD.md), [RIMIT](RIMIT.md), [enemy ability inventory](ENEMY_ABILITIES.md), [enemy POISON](ENEMY_POISON.md).
-- [Chests](CHESTS.md), [equipment](EQUIP_SCOUT.md), [travel and pipes](TRAVEL.md), [party status](PARTY_STATUS.md).
-- [Scene dialogue](SCENE_DIALOGUE.md), [scene presentation](SCENE_PRESENTATION.md), [battle animations](BATTLE_ANIMATIONS.md).
-- [Sound integration](SOUND_INTEGRATION.md), [vehicles](VEHICLES.md), [save format](SAVE_SCOUT.md).
-
-## Architecture and source research
-
 - [Runtime design](RUNTIME_DESIGN.md)
 - [ROM extraction reference](EXTRACTION.md)
-- [Source notes](../SOURCE_NOTES.md) — the provenance and deviation ledger's index; its records live in:
+- [MIT License](../LICENSE)
+
+## battle — battle rules and retail research
+
+- [Battle research](battle/BATTLE_SCOUT.md) and its [worked continuation](battle/BATTLE_SCOUT_CONTINUATION.md).
+- [Enemy ability inventory](battle/ENEMY_ABILITIES.md), [enemy damage routes](battle/ENEMY_DAMAGE_ROUTES.md), [enemy POISON](battle/ENEMY_POISON.md).
+- [Battle animations](battle/BATTLE_ANIMATIONS.md), [battle geometry](battle/BATTLE_GEOMETRY.md), [battle recovery](battle/BATTLE_RECOVERY.md), [instant death](battle/INSTANT_DEATH.md).
+- [THREAD](battle/THREAD.md), [RIMIT](battle/RIMIT.md).
+
+## oracle — cartridge-comparison ledgers
+
+- [Forced battles](oracle/BATTLE_ORACLE_FORCED.md), [replay](oracle/BATTLE_ORACLE_REPLAY.md), [sweep](oracle/BATTLE_ORACLE_SWEEP.md), [battle UI](oracle/BATTLE_ORACLE_UI.md).
+- [Results](oracle/RESULTS.md) and [results continued](oracle/RESULTS_CONTINUED.md).
+- Method, tapes, harness and captures: the [oracle guide](../oracle/README.md).
+
+## field — field, map and travel behavior
+
+- [Field state](field/FIELD_STATE.md), [map effects](field/MAP_EFFECTS.md), [chests](field/CHESTS.md).
+- [Travel and pipes](field/TRAVEL.md), [vehicles](field/VEHICLES.md), [NPC wander](field/NPC_WANDER.md).
+- [Camera](field/CAMERA.md), [transitions](field/TRANSITIONS_DECODED.md), [color pipeline](field/COLOR_PIPELINE.md).
+
+## camp — menus, party, shops and saves
+
+- [Camp menu layout](camp/CAMP_MENU_LAYOUT.md), [shop layout](camp/SHOP_LAYOUT_DECODED.md), [shops](camp/SHOPS.md).
+- [Party ORDER](camp/PARTY_ORDER.md), [party status](camp/PARTY_STATUS.md), [equipment](camp/EQUIP_SCOUT.md), [progression](camp/PROGRESSION.md).
+- [Save format](camp/SAVE_SCOUT.md).
+
+## scenes — scenes, dialogue and boot
+
+- [Scene registry](scenes/README.md) and the numbered scene records beside it.
+- [Scene dialogue](scenes/SCENE_DIALOGUE.md), [dialogue actions](scenes/DIALOGUE_ACTIONS.md), [scene presentation](scenes/SCENE_PRESENTATION.md).
+- [Event engine scout](scenes/EVENT_ENGINE_SCOUT.md), [title boot](scenes/TITLE_BOOT.md).
+
+## sound — sound extraction and integration
+
+- [Sound scout](sound/SOUND_SCOUT.md), [sound extraction](sound/SOUND_EXTRACTION.md), [sound integration](sound/SOUND_INTEGRATION.md).
+
+## campaign — connected campaign evidence
+
+- [Native playability ledger](campaign/NATIVE_PLAYABILITY.md) — connected routes, fixes and verification history.
+- [BioPlant checkpoints](campaign/BIOPLANT_NATIVE.md) — connected Rika escape, ordinary SAVE/fresh CONTINUE, poison recovery and retained failed attempts.
+- [Post-Rika northern crossing](field/TRAVEL.md#post-rika-northern-crossing-2026-09-23) — current Motavia north-bank save, paid recovery, repaired overworld bridge, restart bytes and bounded visual proof.
+- [Party ORDER](camp/PARTY_ORDER.md) — original rules, native input and exact menu-region comparisons.
+- [Progression](camp/PROGRESSION.md) — learning, skill uses and saved character growth.
+
+## records — workflow records and closed experiments
+
+- [Workflow setup evidence and archived graph](records/WORKFLOW_SETUP.md)
+- [Claude Code lane ledger](records/CLAUDE_LANES.md) — adoption record and reliability log for the lane routing.
+- [Redshirt battle-decision experiment (archived)](records/REDSHIRT_BATTLE.md) — archived 2026-09-24; a record of closed developer-tool experiments, not instructions.
+- [Origin conversation (ChatGPT, 2026-08-14)](records/history/2026-08-14-chatgpt-origin-conversation.md) — historical transcript only.
+
+## source-notes — provenance and deviation records
+
+- [Source notes](source-notes/README.md) — the provenance and deviation ledger's index; its records live in:
   - [Cartridge formats](source-notes/formats.md)
   - [Oracle methodology](source-notes/oracle-methodology.md)
   - [Disassembly discrepancies](source-notes/disassembly-discrepancies.md)
@@ -56,7 +92,7 @@ Add a row here when a new rule gets an owner.
 | Rule | Owner |
 | --- | --- |
 | Retail fidelity, integer semantics and layer boundaries | [AGENTS.md](../AGENTS.md#retail-and-layer-boundaries); layers in detail: [runtime design](RUNTIME_DESIGN.md) |
-| Retail deviations and provenance | [Source notes](../SOURCE_NOTES.md) |
+| Retail deviations and provenance | [Source notes](source-notes/README.md) |
 | Protected inputs, saves and evidence safety | [AGENTS.md](../AGENTS.md#protect-local-inputs-and-evidence) |
 | Evidence types and what a claim needs | [AGENTS.md](../AGENTS.md#verify-the-claim-you-intend-to-make) |
 | Roles, delegation, authority and task graphs | [Agent workflow](AGENT_WORKFLOW.md#roles-and-delegation) |

@@ -2,7 +2,7 @@
 //!
 //! Transcribed instruction for instruction, because every truncation in them
 //! is load-bearing. Two things a port must not "clean up", both called out by
-//! `docs/BATTLE_SCOUT.md` §4.5:
+//! `docs/battle/BATTLE_SCOUT.md` §4.5:
 //!
 //! - The `lsr.w` after `muls.w` throws the product's high word away. The
 //!   multiply is 16×16→32, the shift touches only the low word, and nothing

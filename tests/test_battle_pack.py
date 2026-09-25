@@ -25,7 +25,7 @@ from psiv_tools.pack import PACK_FORMAT_VERSION
 ROM = Path(__file__).resolve().parents[1] / "Phantasy Star IV (USA).md"
 REFERENCE = Path(__file__).resolve().parents[1] / "reference" / "ps4disasm"
 
-#: `docs/BATTLE_SCOUT.md` section 11 finding 2.
+#: `docs/battle/BATTLE_SCOUT.md` section 11 finding 2.
 BLACK_WAVE_ID = 112
 BLACK_WAVE_EFFECT = 0x2C
 BLACK_WAVE_TARGET = "0x00B033"

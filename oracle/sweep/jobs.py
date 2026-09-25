@@ -3,7 +3,7 @@
 Two subprocesses per formation - `oracle/force_battle.py` and
 `oracle/battle_fixture.py`, each with the exact command recorded - and a record
 entry either way: a formation whose capture or extraction fails is part of the
-sweep's result, not an exception out of it (`docs/BATTLE_ORACLE_SWEEP.md` reads
+sweep's result, not an exception out of it (`docs/oracle/BATTLE_ORACLE_SWEEP.md` reads
 those failures as their own worklist clusters).
 
 Both tools run as subprocesses rather than in-process, for two reasons that

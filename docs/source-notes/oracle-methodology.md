@@ -5,7 +5,7 @@ against the retail ROM — the exact-length oracles, the visual
 identifications, and the uncompressed disassembly sources used as
 acceptance criteria.
 
-Index: [source and provenance notes](../../SOURCE_NOTES.md).
+Index: [source and provenance notes](README.md).
 
 ## Oracle methodology for graphics
 

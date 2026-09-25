@@ -12,8 +12,8 @@
 //! * `engine_tests_replay_tape09.rs` - the second encounter, on its own seed
 //!   path, with a critical (`oracle/tapes/09_second_battle.tape`).
 //!
-//! `docs/BATTLE_ORACLE_REPLAY.md` is the ledger for both tapes,
-//! `docs/BATTLE_ORACLE_FORCED.md` for the forced captures whose enemy abilities
+//! `docs/oracle/BATTLE_ORACLE_REPLAY.md` is the ledger for both tapes,
+//! `docs/oracle/BATTLE_ORACLE_FORCED.md` for the forced captures whose enemy abilities
 //! and vehicle battle the same machinery replays.
 
 // The directory is named after this module's own subject; the lint against a

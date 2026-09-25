@@ -564,7 +564,7 @@ impl Runtime {
         // UpdateRNGSeed before dispatching (ps4.asm:107638). It vanishes
         // while a window is up because window loops never return to the
         // mode dispatcher — hence the suspension gate, which also parks the
-        // wander draws further down. docs/NPC_WANDER.md, "per-frame tick
+        // wander draws further down. docs/field/NPC_WANDER.md, "per-frame tick
         // structure".
         if !self.field_suspended {
             self.rng.step();

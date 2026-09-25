@@ -1,4 +1,4 @@
-# Run with the opening smoke-test command in docs/NATIVE_PLAYABILITY.md.
+# Run with the opening smoke-test command in docs/campaign/NATIVE_PLAYABILITY.md.
 # The real Field node owns the game. This script only supplies one Up press
 # after the auto-acknowledged opening has returned control.
 extends SceneTree

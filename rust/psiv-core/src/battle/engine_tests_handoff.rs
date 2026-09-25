@@ -69,7 +69,7 @@ fn a_battle_hands_back_the_same_records_it_was_given() {
 
 #[test]
 fn the_fields_the_field_carries_away_survive_a_battle() {
-    // The invariant `docs/FIELD_STATE.md` records: HP spent, experience and
+    // The invariant `docs/field/FIELD_STATE.md` records: HP spent, experience and
     // levels won, and death all persist in the record the battle gives back.
     let data = fixtures::data();
     let mut rolls = SliceRolls::new(&[20]);

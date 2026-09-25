@@ -48,7 +48,7 @@ immediately after the table, so the entry count falls out as
 One retail record is past that end. Enemy skill 112 `BLACK WAVE` declares
 effect `$2C`, and reading the word one entry past the table gives `$4E75`,
 which as an offset points at the odd address `$00B033` -- an address error, as
-`docs/BATTLE_SCOUT.md` section 11 finding 2 records. It is dormant because the
+`docs/battle/BATTLE_SCOUT.md` section 11 finding 2 records. It is dormant because the
 only enemy that uses it appears in none of the 531 formations. The record is
 emitted with `effect_out_of_range: true` so a consumer rejects it deliberately
 rather than jumping where the cartridge would have.
@@ -78,7 +78,7 @@ from .text import extract_names
 
 #: `extract_all` attaches the cartridge's own display names to the records the
 #: symbols came from; the pack does the same rather than shipping records that
-#: only a disassembly reader can identify. See SOURCE_NOTES on the boundary:
+#: only a disassembly reader can identify. See docs/source-notes/README.md on the boundary:
 #: the symbol disambiguates duplicates the display text does not.
 DISPLAY_NAME_TABLES = {
     "enemies": "enemy_names",

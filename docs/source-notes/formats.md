@@ -5,7 +5,7 @@ image — the two font encodings, Kosinski, Nemesis and Enigma
 decompression, palette encoding, plane mappings, and map records,
 layouts and collision.
 
-Index: [source and provenance notes](../../SOURCE_NOTES.md).
+Index: [source and provenance notes](README.md).
 
 ## Two font encodings
 

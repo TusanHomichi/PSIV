@@ -46,7 +46,7 @@ they are excluded from Git.
 The 2026-09-23 overworld repair requires the resolved `overworld_patches` and
 composed base/priority atlas data. Older packs fail with an explicit rebuild
 message; rerun the full pack command above. Preserve any pack used by retained
-evidence before regeneration. See [map effects](MAP_EFFECTS.md#12-native-overworld-page-hook-consumption-2026-09-23).
+evidence before regeneration. See [map effects](field/MAP_EFFECTS.md#12-native-overworld-page-hook-consumption-2026-09-23).
 
 ## Launch the native game
 
@@ -143,10 +143,10 @@ over it.
 Some drivers use isolated fixtures; others continue a saved campaign. Their
 ledgers identify which kind of evidence each run supplies.
 
-- [BioPlant and recovery](BIOPLANT_NATIVE.md)
-- [Post-Rika crossing and current campaign save](TRAVEL.md#post-rika-northern-crossing-2026-09-23)
-- [Party ORDER](PARTY_ORDER.md)
-- [Full native playability ledger](NATIVE_PLAYABILITY.md)
+- [BioPlant and recovery](campaign/BIOPLANT_NATIVE.md)
+- [Post-Rika crossing and current campaign save](field/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
+- [Party ORDER](camp/PARTY_ORDER.md)
+- [Full native playability ledger](campaign/NATIVE_PLAYABILITY.md)
 - [Cartridge oracle setup](../oracle/README.md)
 
 Receipts under `build/` contain local logs, captures and saves; they are not

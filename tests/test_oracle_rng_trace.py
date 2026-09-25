@@ -225,7 +225,7 @@ class TestArithmetic(unittest.TestCase):
         # Tape 07 frame 29711, call 0: hv 2292, Main_Frame_Count 28815, seed
         # 21E817F3. The pre-fix column read 7B2E, which is the low half's
         # subtraction; the high half's is 7139 and is what the ledger's
-        # damage table resolves against (docs/BATTLE_ORACLE_REPLAY.md).
+        # damage table resolves against (docs/oracle/BATTLE_ORACLE_REPLAY.md).
         self.assertEqual(roll_for(0x2292, 28815, 0x21E817F3), 0x7139)
         self.assertEqual(low_word_roll(0x2292, 28815, 0x21E817F3), 0x7B2E)
 
@@ -457,7 +457,7 @@ int main(int argc, char **argv)
 #: host and a checker that drift into the same wrong convention together still
 #: fail: the numbers do not come from either implementation.
 PROBE_ROWS = [
-    # tape 07, frame 29711, calls 0 and 1 (docs/BATTLE_ORACLE_REPLAY.md)
+    # tape 07, frame 29711, calls 0 and 1 (docs/oracle/BATTLE_ORACLE_REPLAY.md)
     (0x21E817F3, 0x2292, 28815),
     (0x10F417F3, 0x23F3, 28815),
     # seeds whose halves differ, so the two conventions cannot coincide

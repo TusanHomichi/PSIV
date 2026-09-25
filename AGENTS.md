@@ -49,7 +49,7 @@ Keep deterministic rules in `psiv-core`, orchestration in `psiv-runtime`, pack
 decoding/schema in Python/`psiv-data`, sound in `psiv-sound`, and presentation/input
 in Godot/the bridge. Do not duplicate rules in Godot or test drivers.
 Preserve retail integer widths, signedness, flag banks, ordering and RNG semantics.
-Cite symbols/offsets and record deviations in [SOURCE_NOTES.md](SOURCE_NOTES.md).
+Cite symbols/offsets and record deviations in [docs/source-notes/README.md](docs/source-notes/README.md).
 The reference fork contains Grand Cross rewrites: confirm US retail bytes, not
 hack scene bodies or fork build-address comments. Ability names and genre
 conventions do not establish rules. Follow ledger corrections; resolve conflicts

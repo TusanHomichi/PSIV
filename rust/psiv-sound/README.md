@@ -1,7 +1,7 @@
 # PSIV sound runtime
 
 This crate is the live product path for the hybrid sound plan in
-`docs/SOUND_SCOUT.md`. It deliberately does not read JSON or ROM bytes. The
+`docs/sound/SOUND_SCOUT.md`. It deliberately does not read JSON or ROM bytes. The
 future extraction lane maps its `runtime-pack/sound/` records into
 `SoundSequence`:
 
