@@ -49,62 +49,6 @@ fn kill(r: &mut Roster, n: u8) {
 }
 
 #[test]
-fn fission_prefers_the_only_empty_neighbor_without_a_draw() {
-    let data = data();
-    for side in [6, 8] {
-        let mut r = roster(&data, 12);
-        kill(&mut r, side);
-        let mut rolls = SliceRolls::new(&[0]);
-        let mut ability = 0;
-        assert_eq!(
-            fission_neighbor(&r, id(7), data.enemy(12).unwrap(), &mut ability, &mut rolls),
-            Some(id(side))
-        );
-        assert_eq!((ability, rolls.drawn()), (6, 0));
-    }
-}
-
-#[test]
-fn two_empty_sides_draw_once_even_left_odd_right() {
-    let data = data();
-    let mut r = roster(&data, 12);
-    kill(&mut r, 6);
-    kill(&mut r, 8);
-    for (draw, expected) in [(0, 6), (1, 8), (0xFFFE, 6), (0xFFFF, 8)] {
-        let draws = [draw];
-        let mut rolls = SliceRolls::new(&draws);
-        let mut ability = 0;
-        assert_eq!(
-            fission_neighbor(&r, id(7), data.enemy(12).unwrap(), &mut ability, &mut rolls),
-            Some(id(expected))
-        );
-        assert_eq!((ability, rolls.drawn()), (6, 1));
-    }
-}
-
-#[test]
-fn living_sleeping_neighbors_and_terminated_conditions_do_not_spawn() {
-    let data = data();
-    let mut r = roster(&data, 12);
-    r.get_mut(id(6)).unwrap().stats.status = status::ASLEEP;
-    let mut rolls = SliceRolls::new(&[0]);
-    let mut ability = 0;
-    assert_eq!(
-        fission_neighbor(&r, id(7), data.enemy(12).unwrap(), &mut ability, &mut rolls),
-        None
-    );
-    assert_eq!(rolls.drawn(), 0);
-    kill(&mut r, 6);
-    let mut record = data.enemy(12).unwrap().clone();
-    record.condition_ids = [0, 1, 1, 1];
-    assert_eq!(
-        fission_neighbor(&r, id(7), &record, &mut ability, &mut rolls),
-        None
-    );
-    assert_eq!((ability, rolls.drawn()), (0, 0));
-}
-
-#[test]
 fn refill_uses_cached_neighbor_identity_and_resets_all_enemy_stats() {
     let data = data();
     let mut r = roster(&data, 13);

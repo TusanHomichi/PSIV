@@ -274,6 +274,14 @@ impl Battle {
             boss,
             rolls,
         );
+        if priority == Priority::Ambush {
+            // `loc_B62A`'s tail (`ps4.asm:17456-17463`): a negative priority
+            // sets bit 3 on every *occupied* enemy slot, once, off this roll.
+            // The bit survives until an arm that reads it clears the byte.
+            for fighter in roster.iter_mut().filter(|f| f.id.side() == Side::Enemy) {
+                fighter.reaction_flags |= super::fighters::reaction::AMBUSH;
+            }
+        }
 
         let events = vec![BattleEvent::Started {
             priority,
@@ -714,8 +722,30 @@ impl Battle {
         let enemy_id = self.roster.get(actor).map_or(0, |f| f.stats.enemy_id);
         let record = data.enemy(enemy_id)?;
         let (_, mut ability) = choose_ability(record, &mut self.last_ability_index, rolls);
-        let replacement =
-            super::enemy_skill::fission_neighbor(&self.roster, actor, record, &mut ability, rolls);
+        // The instruction block runs *after* the roll and before the routine
+        // dispatch, so it can replace the ability the roll picked
+        // (`ps4.asm:19157-19168`).
+        let outcome = super::enemy_ai::instruction_block(&mut self.roster, actor, record, rolls)?;
+        let mut replacement = None;
+        match outcome {
+            super::enemy_ai::AiOutcome::Rolled => {}
+            super::enemy_ai::AiOutcome::Replaced { slot, neighbour } => {
+                ability = record.conditional_abilities[slot];
+                replacement = neighbour;
+            }
+            super::enemy_ai::AiOutcome::Unsupported { .. } => {
+                // The port cannot tell whether the arm held, so it must not run
+                // the roll: reporting the ability that arm would have written
+                // and falling back to the swing is the only honest answer
+                // (`docs/battle/ENEMY_ABILITIES.md`, Port gaps).
+                let ability = outcome.unreported_ability(record).expect("unsupported arm");
+                if let Some(fighter) = self.roster.get_mut(actor) {
+                    fighter.ability = ability;
+                }
+                events.push(BattleEvent::UnsupportedAbility { actor, ability });
+                return Ok(false);
+            }
+        }
         if let Some(fighter) = self.roster.get_mut(actor) {
             fighter.ability = ability;
         }
@@ -796,6 +826,9 @@ impl Battle {
             rolls,
             events,
         ) {
+            return Ok(true);
+        }
+        if super::enemy_skill::resolve_res(&mut self.roster, actor, ability, data, rolls, events) {
             return Ok(true);
         }
         // `EnemyAttack_FloatMine`'s fall-through (`loc_10406`): the roll has

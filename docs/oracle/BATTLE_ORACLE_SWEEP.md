@@ -404,14 +404,16 @@ the twelve captures show is
 
 ### 4.4 The port rules that remain (the worklist)
 
-Four causes, 18 findings when this worklist was written; five entries now, after
-two of the rules were implemented. Each entry is one fixture in
-`rust/psiv-core/src/battle/replay_fixtures/divergences.json` under the heading
-below: `enemy-ai-conditional` holds the four W2 findings, `party-retarget` and
-`critical-bonus` hold none (W1 and W3 are implemented), and the single
-`retarget-tiebreak` entry is the `formation_3B` finding that is not that
-cluster's (§4.4 W3). Every one is a *rule*: the evidence is the log's,
-the cartridge's routine is cited, and the port's own code is where the fix goes.
+Four causes, 18 findings as triaged. All four rules were implemented on
+2026-09-25 (W3 by lane b21-crit, W1 and W4 by b22-retarget, W2 by b23-ai), and
+each keeps its heading, because the fixtures it names remain the evidence for
+the rule it states. One entry remains in
+`rust/psiv-core/src/battle/replay_fixtures/divergences.json`: `formation_3B`'s
+round-3 finding, uncovered once W3 landed. The clusterer files it under
+`retarget-tiebreak` by signature, but that is not its cause (§4.4 W3; issue
+[#33](https://github.com/TusanHomichi/PSIV/issues/33)). Every entry is a *rule*:
+the evidence is the log's, the cartridge's routine is cited, and the port's own
+code is where the fix goes.
 
 **W1. A swing whose commanded enemy has fallen lands on another slot**
 (`party-retarget`, 10 fixtures: `formation_02`, `04`, `05`, `0B`, `0C`, `17`,
@@ -473,8 +475,9 @@ for its one draw. Transcripts:
 `build/lane-evidence/core-tests-restored.txt` (not committed; `build/` is
 ignored).
 
-**W2. The enemy's AI instruction, not the ability roll, picks the ability**
-(`enemy-ai-conditional`, 4 fixtures: `formation_2A`, `2B`, `32`, `34`).
+**W2 (closed 2026-09-25). The enemy's AI instruction, not the ability roll,
+picks the ability** (`enemy-ai-conditional`, 4 fixtures: `formation_2A`, `2B`,
+`32`, `34`).
 
 `Enemy_Attack` rolls a regular ability and writes it
 (`move.b $58(a3,d0.w), ability+1(a4)`, `ps4.asm:19153`), and then runs the
@@ -493,6 +496,23 @@ Fix scope: model the instruction block (the condition ids at `$50(a3)`, the
 dispatch table, and the arms the sweep's carriers need) and the RES arm's own
 effect; `ai.rs` is where the ability choice lives, `enemy_skill.rs` where an
 arm's effect goes.
+
+**CLOSED (2026-09-25).** All four entries are gone from
+`replay_fixtures/divergences.json`, and the other fourteen are unchanged — same
+frame, same kind, same numbers: this fix moved nothing but its own cluster. The
+dispatch is `enemy_ai::instruction_block`
+(`rust/psiv-core/src/battle/enemy_ai.rs`), one typed `EnemyAiCondition` arm per
+`EnemyAIInstructionsOffs` entry with no catch-all, and the `$45` effect is
+`enemy_skill::resolve_res`. The four fixtures' rounds pin it exactly: the
+`$0F` arm fires at 38 of 80, 34 of 80 and 22 of 80 (and at 39 of 80 twice), and
+`Battle_CalcHealing` on the caster's MEN reproduces every heal - 38→75, 39→79,
+38→79, 34→78, 22→61 and 39→80 (the last one capped at the 80-point maximum) -
+which the rounds after each heal then re-check slot by slot. `fission_neighbor`
+is gone: condition 1 is arm `$01` of the same dispatch now, which is what the
+Fission runtime tests exercise. Two arms of the twenty cannot be evaluated and
+say so (`$10` `EnemyAI_Unknown`, `$11` `EnemyAI_HP25PercentOrLower`, whose flag
+is Lashiec's battle object `$7EC`); `docs/battle/ENEMY_ABILITIES.md` §1 is the
+per-arm table and §5 the port gaps. No fixture reaches either arm.
 
 **W3. A critical reads the attack power's low byte, not the word**
 (`critical-bonus`, 2 fixtures: `formation_3B`, `4F`).

@@ -163,6 +163,20 @@ pub(super) fn resolve_skill(
     }
     let mut died = Vec::new();
     for target in targets {
+        // `loc_27D4` / `loc_2836` (`ps4.asm:3989` and `4031`): a skill sets bit 1
+        // on the enemy it reaches — and bit 4 with it when the command covered
+        // the whole side. The skill arm sets no bit 2: that is the technique
+        // and combo arm only.
+        if target.side() == Side::Enemy
+            && let Some(fighter) = roster.get_mut(target)
+        {
+            fighter.reaction_flags |= super::fighters::reaction::MAGIC
+                | if skill.single_target() {
+                    0
+                } else {
+                    super::fighters::reaction::MULTI_TARGET
+                };
+        }
         match id {
             1 | 6 => {
                 // Crosscut's loc_3B684 reaches loc_9848 twice, 25 animation

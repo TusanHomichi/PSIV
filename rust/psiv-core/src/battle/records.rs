@@ -447,6 +447,14 @@ pub enum BattleDataError {
         /// How many it named.
         named: usize,
     },
+    /// An enemy's AI condition byte is not one of `EnemyAIInstructionsOffs`'
+    /// twenty entries.
+    ///
+    /// Retail doubles the byte and dispatches through it with no bound check
+    /// (`ps4.asm:19160-19162`), so an id past `$13` jumps into whatever word
+    /// follows the table. The port refuses the turn instead of picking a
+    /// behaviour the cartridge does not have.
+    UnknownAiCondition(u8),
 }
 
 impl fmt::Display for BattleDataError {
@@ -461,6 +469,10 @@ impl fmt::Display for BattleDataError {
             BattleDataError::TooManyEnemies { formation, named } => write!(
                 f,
                 "formation {formation} names {named} enemies; the cartridge has four slots"
+            ),
+            BattleDataError::UnknownAiCondition(id) => write!(
+                f,
+                "AI condition {id} is past EnemyAIInstructionsOffs' twenty entries"
             ),
         }
     }

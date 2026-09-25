@@ -452,6 +452,17 @@ pub fn resolve_attack(
     let mut hit_targets = Vec::new();
 
     for (target, verdict) in pass.verdicts {
+        // `Character_DamageEnemy`'s ability test (`ps4.asm:3945-3946`, the
+        // retail arm of its `if bugfixes` pair; the bugfix arm is `3915-3916`):
+        // a plain party attack marks the enemy, and it marks every slot the pass
+        // covers — a miss included, because the flag is set before the hit byte
+        // is read.
+        if actor.side() == Side::Party
+            && target.side() == Side::Enemy
+            && let Some(fighter) = roster.get_mut(target)
+        {
+            fighter.reaction_flags |= super::fighters::reaction::PHYSICAL;
+        }
         if verdict == Verdict::Miss {
             let remaining = roster.get(target).map_or(0, |f| f.stats.curr_hp);
             events.push(BattleEvent::Resolved {
