@@ -60,6 +60,19 @@ HOST_STATE_PATHS = (".reasonix",)
 DEFAULT_COMPRESS_MIN_BYTES = 1 << 20  # 1 MiB
 DEFAULT_COMPRESS_EXTS = ("csv", "log", "jsonl", "txt", "tsv")
 COMPRESS_PRESET = 6  # lzma preset: the usual CPU/ratio trade-off, stdlib default level
+# A worker gets an allowlisted environment, never a copy of the caller's
+# (owner decision 2026-09-25). Lane re-B-tools printed its environment while
+# debugging, and two GitHub tokens exported in the orchestrator's shell reached
+# the model provider through its trajectory. Only these names, the LC_*
+# locale variables and any name listed in DS_LANE_WORKER_ENV_PASS reach the
+# worker; everything else - tokens, SSH_AUTH_SOCK, display and bus sockets - is
+# dropped. Reasonix reads its API key from its own config file, not from here.
+WORKER_ENV_ALLOW = (
+    "PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LANGUAGE", "TERM", "TZ",
+    "TMPDIR", "XDG_RUNTIME_DIR", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME",
+    "XDG_DATA_DIRS", "CARGO_HOME", "RUSTUP_HOME", "RUSTUP_TOOLCHAIN",
+)
+WORKER_ENV_ALLOW_PREFIXES = ("LC_",)
 WT_ROOT = Path.home() / ".cache/ds-lane/wt"
 STATE_ROOT = Path.home() / ".local/state/ds-lane"
 
@@ -232,3 +245,20 @@ def pid_alive(pidfile):
 
 def supervisor_alive(run_dir):
     return pid_alive(Path(run_dir) / "supervisor.pid")
+
+
+def worker_env(environ=None):
+    """The environment a worker runs with: the allowlist, plus the cargo cap.
+
+    `DS_LANE_WORKER_ENV_PASS` (comma-separated names) passes extra variables
+    explicitly; the hermetic suite uses it for its fake worker's spec. A name
+    has to be listed to pass, so nothing the caller happens to export does.
+    """
+    environ = os.environ if environ is None else environ
+    extra = {name.strip() for name in environ.get("DS_LANE_WORKER_ENV_PASS", "").split(",")
+             if name.strip()}
+    env = {name: value for name, value in environ.items()
+           if name in WORKER_ENV_ALLOW or name in extra
+           or name.startswith(WORKER_ENV_ALLOW_PREFIXES)}
+    env["CARGO_BUILD_JOBS"] = str(min(int(environ.get("CARGO_BUILD_JOBS", CARGO_JOBS)), CARGO_JOBS))
+    return env

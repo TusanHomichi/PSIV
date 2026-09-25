@@ -20,10 +20,10 @@ from .config import (BINARY_SNIFF_BYTES, CARGO_JOBS, COMPRESS_PRESET, DEFAULT_CO
                      DEFAULT_STALL_RETRIES, DEFAULT_STALL_TIMEOUT, DEFAULT_TIMEOUT, EFFORT, ENTRY,
                      HOST_STATE_PATHS, KILL_GRACE, MAX_FILE_LINES, MAX_LANES, MODEL,
                      PERMISSION_MODE, STALL_EXIT, STALL_POLL, STATE_ROOT, STOPPED_EXIT, STOP_WAIT,
-                     TIMEOUT_EXIT, WT_ROOT, compress_exts, compress_min_bytes, ds_lane_home,
+                     TIMEOUT_EXIT, WORKER_ENV_ALLOW, WT_ROOT, compress_exts, compress_min_bytes, ds_lane_home,
                      lane_paths, load_receipt, max_file_lines, max_lanes, now, pid_alive,
                      reasonix_bin, repo_root, save_receipt, sh, size_exempt, stall_cpu_pct,
-                     stall_poll, state_root, supervisor_alive, wt_root)
+                     stall_poll, state_root, supervisor_alive, worker_env, wt_root)
 from .evidence import (INDEX_NAME, PART_SUFFIX, XZ_SUFFIX, compress_file, content_of,
                        evidence_files, link_file, read_index, same_file, write_index,
                        xz_content, xz_size)

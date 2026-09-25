@@ -118,7 +118,8 @@ def main(argv):
             spin += 1
     if spec.get("opts_out"):
         Path(spec["opts_out"]).write_text(
-            json.dumps({"opts": opts, "argv": sys.argv, "prompt": prompt}, indent=2))
+            json.dumps({"opts": opts, "argv": sys.argv, "prompt": prompt,
+                        "env": sorted(os.environ)}, indent=2))
     trajectory = opts.get("--trajectory")
     if trajectory:
         with open(trajectory, "a") as handle:
@@ -177,7 +178,8 @@ class LaneFixture(unittest.TestCase):
         self.fake.write_text(FAKE_REASONIX)
         self.fake.chmod(0o755)
         self.init_repo()
-        self.env = {"DS_LANE_HOME": str(self.home), "DS_LANE_REASONIX": str(self.fake)}
+        self.env = {"DS_LANE_HOME": str(self.home), "DS_LANE_REASONIX": str(self.fake),
+                    "DS_LANE_WORKER_ENV_PASS": "FAKE_REASONIX_SPEC"}
         self.base_sha = self.git("rev-parse", "HEAD")
         self.addCleanup(self.reap_workers)
 

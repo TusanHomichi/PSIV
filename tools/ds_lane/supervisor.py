@@ -21,9 +21,9 @@ from pathlib import Path
 
 from . import lanes
 from .compaction import compact_finished_run
-from .config import (CARGO_JOBS, DEFAULT_STALL_CPU_PCT, KILL_GRACE, STALL_EXIT, STALL_POLL,
+from .config import (DEFAULT_STALL_CPU_PCT, KILL_GRACE, STALL_EXIT, STALL_POLL,
                      STOPPED_EXIT, TIMEOUT_EXIT, load_receipt, max_lanes, now, pid_alive,
-                     stall_cpu_pct, stall_poll, state_root)
+                     stall_cpu_pct, stall_poll, state_root, worker_env)
 from .receipts import clear_stall_resume, finalize_run, record_crashed_run
 
 # ----------------------------------------------------------- stop requests
@@ -328,9 +328,7 @@ def exec_run(state, n):
             finalize_run(lane, run_dir, spec, STOPPED_EXIT, now(), 0.0, outcome="stopped")
             return
         try:
-            env = dict(os.environ)
-            env["CARGO_BUILD_JOBS"] = str(min(int(env.get("CARGO_BUILD_JOBS", CARGO_JOBS)), CARGO_JOBS))
-            rc, started, duration, outcome = run_worker(run_dir, spec, wt, env)
+            rc, started, duration, outcome = run_worker(run_dir, spec, wt, worker_env())
         finally:  # the machine-wide slot is released on every path
             (run_dir / "worker.slot").unlink(missing_ok=True)
         successor = None  # a stalled run continues the lane by itself, retries permitting
