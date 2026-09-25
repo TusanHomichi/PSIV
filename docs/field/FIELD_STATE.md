@@ -314,7 +314,7 @@ and extended event flags are one bank, `$F120`.
 ### Flag-clear extraction
 
 The extractor now recognizes `flag_clear` writes and the byte-immediate form
-used by the retail routines. `psiv_tools/map_effects.py` emits the bank and
+used by the retail routines. `psiv_tools/map_effects/` emits the bank and
 flag ID and includes them in its census; `tests/test_map_effects.py` covers
 the decoding. The core also retains the transcribed map-load clear table in
 `rust/psiv-core/src/map_load.rs`. The earlier missing-decoder task is closed.

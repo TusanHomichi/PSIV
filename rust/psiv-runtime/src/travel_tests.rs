@@ -1,5 +1,6 @@
 //! Real table coverage for entry state, costs, destinations and save words.
 use super::*;
+use psiv_core::MapId;
 use psiv_core::battle::status;
 use std::path::Path;
 

@@ -254,7 +254,7 @@ different “field audio” or “battle audio” engine.
 
 **Field and map arrival.** The runtime pack already carries each map's
 `music.id`, symbol, and `changes_music` flag
-(`psiv_tools/pack.py:538-542`; `rust/psiv-data/src/map.rs:790-800`). ID `0`
+(`psiv_tools/pack.py:538-542`; `rust/psiv-data/src/map/settings.rs` (`Music`)). ID `0`
 means keep the current track. A nonzero arrival ID is the equivalent of a
 retail `move.b #MusicID_..., (Sound_Index).l` request. The map data is
 therefore the correct input to the ID table above, not a second sequence

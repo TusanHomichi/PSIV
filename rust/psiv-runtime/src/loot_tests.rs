@@ -1,5 +1,6 @@
 //! Real-pack field input and transaction boundaries, including story loot.
 use super::*;
+use psiv_core::Input;
 use psiv_core::{ChestOutcome, Inventory};
 use std::path::Path;
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");

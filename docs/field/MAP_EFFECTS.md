@@ -5,7 +5,7 @@ Zema's doors open, Alys no longer standing in the academy. Findings are cited
 to retail addresses; the disassembly clone is an orientation source only, and
 where the two disagree the cartridge wins (§7).
 
-Extractor: `psiv_tools/map_effects.py`. Emission: per-map `map_effects` and
+Extractor: `psiv_tools/map_effects/`. Emission: per-map `map_effects` and
 `layout_variants` on each map record, census under `manifest.map_effects`.
 
 ---
