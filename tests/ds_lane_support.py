@@ -14,8 +14,10 @@ test_ds_lane_size.py (the 1,000-line rule and the data-file exemption),
 test_ds_lane_compaction.py (deduplicating and compressing a run's evidence),
 test_ds_lane_finalize.py (the finalize commit: link exclusions and a git
 failure), test_ds_lane_crash.py (run numbering and the record a crashed run
-leaves) and test_ds_lane_supervisor.py (slots, kills, the stall watchdog and the
-entry point's re-entry into the detached supervisor).
+leaves), test_ds_lane_supervisor.py (slots, kills, the stall watchdog and the
+entry point's re-entry into the detached supervisor) and test_ds_lane_confine.py
+(the read boundary: every worker here runs under it, and the fixture's home is
+the one it masks).
 """
 import json
 import os
@@ -49,12 +51,18 @@ carries `--resume`, so a resumed run can behave differently from its first.
 included) and the prompt it read, so a case can check what the harness put
 where.
 
+`probe` is the confinement cases' eyes inside the worker's own view: it reads
+and writes the paths it is given, lists directories, and can re-run the sandbox
+Reasonix puts around its own bash tool inside this one; everything it found is
+recorded as JSON in `probe["out"]`.
+
 `burn` spins flat out for N seconds; `burn_low` spins in short bursts forever
 (a worker that is alive and doing a trickle of work, like a process idling on
 a 1 s timer). Both are silent: the trajectory does not grow while they run.
 """
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -69,6 +77,66 @@ def load_spec():
     raw = os.environ.get("FAKE_REASONIX_SPEC", "{}")
     path = Path(raw)
     return json.loads(path.read_text()) if path.exists() else json.loads(raw)
+
+
+def nested_sandbox():
+    """Reasonix's own bash-tool sandbox, run inside ds-lane's boundary.
+
+    The argv is the one observed on this host for a real worker (2026-09-25):
+    a read-only root, a private /tmp taken from the session's own tmp
+    directory, the worktree bound writable, and /dev/null bound over the
+    Reasonix home's .env. The last one can only work when that file exists -
+    bubblewrap cannot create it inside a read-only tree - which is why the
+    lane's seeded Reasonix home carries an empty .env.
+    """
+    home = Path(os.environ.get("HOME") or "/")
+    tmp = home / ".claude" / "tmp" / "nested-probe"
+    cwd = str(Path.cwd())
+    argv = [shutil.which("bwrap") or "/usr/bin/bwrap",
+            "--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc",
+            "--bind", str(tmp), "/tmp", "--bind", cwd, cwd,
+            "--ro-bind", "/dev/null", str(home / ".reasonix" / ".env"),
+            "--", "/bin/bash", "-c", "echo nested-ok; touch /tmp/nested.txt"]
+    try:
+        tmp.mkdir(parents=True, exist_ok=True)
+        done = subprocess.run(argv, text=True, capture_output=True, timeout=60)
+        return {"argv": argv, "rc": done.returncode, "stdout": done.stdout.strip(),
+                "stderr": done.stderr.strip()}
+    except (OSError, subprocess.SubprocessError) as e:  # no bwrap, no nesting
+        return {"argv": argv, "error": repr(e)}
+
+
+def run_probe(spec):
+    """Record what this worker's own filesystem view holds, into probe["out"]."""
+    probe = spec.get("probe")
+    if not probe:
+        return
+    report = {"cwd": str(Path.cwd()), "home": os.environ.get("HOME"),
+              "reads": {}, "writes": {}, "lists": {}}
+    for name, path in sorted(probe.get("read", {}).items()):
+        entry = {"path": str(path), "exists": Path(path).exists()}
+        try:
+            entry["content"] = Path(path).read_text()
+        except OSError as e:
+            entry["error"] = "%s: %s" % (type(e).__name__, e.strerror)
+        report["reads"][name] = entry
+    for name, path in sorted(probe.get("list", {}).items()):
+        try:
+            report["lists"][name] = sorted(os.listdir(path))
+        except OSError as e:
+            report["lists"][name] = "%s: %s" % (type(e).__name__, e.strerror)
+    for name, pair in sorted(probe.get("write", {}).items()):
+        path, text = pair
+        try:
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            Path(path).write_text(text)
+            report["writes"][name] = {"ok": True, "path": str(path)}
+        except OSError as e:
+            report["writes"][name] = {"ok": False, "path": str(path),
+                                      "error": "%s: %s" % (type(e).__name__, e.strerror)}
+    if probe.get("nested"):
+        report["nested"] = nested_sandbox()
+    Path(probe["out"]).write_text(json.dumps(report, indent=2))
 
 
 def main(argv):
@@ -102,6 +170,7 @@ def main(argv):
         dest = cwd / rel
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(content)
+    run_probe(spec)
     if spec.get("pid_file"):
         Path(spec["pid_file"]).write_text(str(os.getpid()))
     child = spec.get("spawn_sleep")
@@ -158,6 +227,10 @@ RECEIPT_RESULT = ("Wrote the owned file.\n\n"
                   "## Receipt\n- Status: done\n- Changed files: `tools/new.txt`\n"
                   "- Commands run: `true` -> exit 0\n- Acceptance: met\n- Open issues: none\n")
 
+# A stand-in for a credential the worker must not find. The confinement cases
+# plant it in the home the lane masks and have the fake worker look for it.
+CANARY = "canary-credential\n"
+
 
 class LaneFixture(unittest.TestCase):
     """A throwaway repo, home and fake worker, plus the helpers that drive the CLI."""
@@ -179,7 +252,13 @@ class LaneFixture(unittest.TestCase):
         self.fake.chmod(0o755)
         self.init_repo()
         self.env = {"DS_LANE_HOME": str(self.home), "DS_LANE_REASONIX": str(self.fake),
-                    "DS_LANE_WORKER_ENV_PASS": "FAKE_REASONIX_SPEC"}
+                    "DS_LANE_WORKER_ENV_PASS": "FAKE_REASONIX_SPEC",
+                    # The worker's HOME is the throwaway home, so the lane masks
+                    # that one (and only that one): a case never touches the
+                    # owner's real home, and the seeded Reasonix home is built
+                    # from the fixture's own config. DS_LANE_CONFINE_HOME names
+                    # the same path explicitly (confine.py).
+                    "HOME": str(self.home), "DS_LANE_CONFINE_HOME": str(self.home)}
         self.base_sha = self.git("rev-parse", "HEAD")
         self.addCleanup(self.reap_workers)
 
@@ -208,7 +287,7 @@ class LaneFixture(unittest.TestCase):
         """Kill any supervisor or fake worker a failed test left behind."""
         for pidfile in self.work.glob("*.pid"):
             self.kill_pid(pidfile)
-        for pidfile in self.home.glob("state/*/*/run-*/supervisor.pid"):
+        for pidfile in self.home.glob("state/*/*/run-*/*.pid"):  # supervisor, worker, child
             self.kill_pid(pidfile)
 
     def kill_pid(self, pidfile):
@@ -256,6 +335,38 @@ class LaneFixture(unittest.TestCase):
     def lane_wt(self, lane_id, *more):
         path = self.home / "wt" / self.repo.name / lane_id
         return path.joinpath(*more) if more else path
+
+    # -- confinement helpers
+
+    def worker_path(self, lane_id, name, run=1):
+        """A file the worker writes, inside the one directory it may write.
+
+        The supervisor binds exactly three writable paths - the worktree, the
+        run directory and the lane's own Reasonix home - so a pid file, an
+        options dump or a probe report has to live in one of them, or the
+        worker cannot leave it behind at all. The run directory is the right
+        one: it is the harness's own per-run scratch, and it never reaches the
+        lane's commit.
+        """
+        return self.lane_state(lane_id, f"run-{run}", name)
+
+    def canary(self, rel=".ssh/id_canary", text=CANARY):
+        """Plant a credential-shaped file in the home the lane masks.
+
+        `~/.ssh/id_*` is the file the issue names first; the point is that it
+        is unreachable from the worker and untouched afterwards.
+        """
+        path = self.home / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+        return path
+
+    def probe_out(self, lane_id, run=1):
+        """Where a case tells the fake worker to record what it could see."""
+        return self.worker_path(lane_id, "probe.json", run)
+
+    def probe_report(self, lane_id, run=1, timeout=60):
+        return self.read_json(self.probe_out(lane_id, run), timeout=timeout)
 
     def wait_for(self, predicate, what, timeout=60, interval=0.1):
         deadline = time.monotonic() + timeout

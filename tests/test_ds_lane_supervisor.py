@@ -24,7 +24,7 @@ class SupervisorCase(LaneFixture):
     # -- 1. wall clock, queueing under the lane cap
 
     def test_timeout_kills_worker_and_still_finalizes(self):
-        pid_file = self.work / "t1-worker.pid"
+        pid_file = self.worker_path("t1", "worker.pid")
         spec = {"files": {"tools/half.txt": "partial\n"}, "pid_file": str(pid_file), "sleep": 120}
         env = {"DS_LANE_MAX_LANES": "1"}
         started = time.monotonic()
@@ -55,8 +55,8 @@ class SupervisorCase(LaneFixture):
         child it spawns is the stubborn case the report describes - a member
         that only the final group SIGKILL clears, whatever the parent did.
         """
-        pid_file = self.work / "t1-worker.pid"
-        child_file = self.work / "t1-child.pid"
+        pid_file = self.worker_path("t1", "worker.pid")
+        child_file = self.worker_path("t1", "child.pid")
         spec = {"files": {}, "pid_file": str(pid_file),
                 "spawn_sleep": {"seconds": 120, "pid_file": str(child_file)}, "sleep": 120}
         self.start("Long job.\n", "t1", spec, extra=["--timeout", "2"])
@@ -87,8 +87,8 @@ class SupervisorCase(LaneFixture):
     # -- 2. stop (orchestrator request)
 
     def test_stop_running_worker_finalizes_with_143(self):
-        pid_file = self.work / "t1-worker.pid"
-        child_file = self.work / "t1-child.pid"
+        pid_file = self.worker_path("t1", "worker.pid")
+        child_file = self.worker_path("t1", "child.pid")
         spec = {"files": {"tools/half.txt": "partial\n"}, "pid_file": str(pid_file),
                 "spawn_sleep": {"seconds": 120, "pid_file": str(child_file)}, "sleep": 120}
         env = {"DS_LANE_MAX_LANES": "1"}
@@ -121,7 +121,7 @@ class SupervisorCase(LaneFixture):
         env = {"DS_LANE_MAX_LANES": "1"}
         self.start("Slow job.\n", "a1", {"files": {}, "sleep": 6}, env=env)
         self.wait_for(lambda: self.lane_state("a1", "run-1", "worker.slot").exists(), "a1 slot")
-        b_pid = self.work / "b1-worker.pid"
+        b_pid = self.worker_path("b1", "worker.pid")
         self.start("Queued job.\n", "b1", {"files": {"tools/b1.txt": "x\n"},
                                            "pid_file": str(b_pid)}, env=env)
         log = self.lane_state("b1", "run-1", "supervisor.log")

@@ -66,11 +66,18 @@ COMPRESS_PRESET = 6  # lzma preset: the usual CPU/ratio trade-off, stdlib defaul
 # the model provider through its trajectory. Only these names, the LC_*
 # locale variables and any name listed in DS_LANE_WORKER_ENV_PASS reach the
 # worker; everything else - tokens, SSH_AUTH_SOCK, display and bus sockets - is
-# dropped. Reasonix reads its API key from its own config file, not from here.
+# dropped. Reasonix reads its API key from its own Reasonix home, not from
+# here: `config.toml` names the key with `api_key_env` and the value lives in
+# that home's `.env` (see `confine.SEED_FILES`).
+# NVM_DIR is a path, in the same family as CARGO_HOME/RUSTUP_HOME: `reasonix`
+# on PATH is the nvm shim `~/.local/bin/reasonix`, which sources
+# `$NVM_DIR/nvm.sh` and execs `$NVM_DIR/versions/node/*/bin/reasonix`, and the
+# read boundary binds exactly the nvm directory the worker is told about
+# (`confine.nvm_paths`), so the two have to agree.
 WORKER_ENV_ALLOW = (
     "PATH", "HOME", "USER", "LOGNAME", "SHELL", "LANG", "LANGUAGE", "TERM", "TZ",
     "TMPDIR", "XDG_RUNTIME_DIR", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME",
-    "XDG_DATA_DIRS", "CARGO_HOME", "RUSTUP_HOME", "RUSTUP_TOOLCHAIN",
+    "XDG_DATA_DIRS", "CARGO_HOME", "RUSTUP_HOME", "RUSTUP_TOOLCHAIN", "NVM_DIR",
 )
 WORKER_ENV_ALLOW_PREFIXES = ("LC_",)
 WT_ROOT = Path.home() / ".cache/ds-lane/wt"
