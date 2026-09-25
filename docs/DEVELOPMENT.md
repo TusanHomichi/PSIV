@@ -137,9 +137,7 @@ owns the rule; this document names the same globs.
 `python3 tools/size_guard.py` scans every file `git ls-files` lists that is text
 (no NUL byte in its first 8 KiB) and fails on a non-exempt file over the limit.
 It runs inside the Python suite the gate runs (`tests/test_size_guard.py`), so
-the limit is a gate check rather than a reviewer's memory, and the
-[lane harness](../tools/ds_lane/README.md) reports the same limit on its own
-commits.
+the limit is a gate check rather than a reviewer's memory.
 
 `tools/size_baseline.txt` is the ratchet: one `<lines> <path>` per line, sorted
 by path, for the files that were already over the limit when the guard landed.

@@ -2,7 +2,8 @@
 
 Adoption record and reliability log for the Claude Code routing: Opus
 orchestrates, and DeepSeek `deepseek-flash` at max reasoning delivers through
-`tools/ds-lane` ([reference](../../tools/ds_lane/README.md)).
+`ds-lane`, which lived in `tools/ds-lane` until 2026-09-25 and is now its own
+repository (`TusanHomichi/ds-lane`, private), extracted with its history.
 
 ## Adoption
 

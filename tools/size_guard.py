@@ -50,11 +50,10 @@ from pathlib import Path
 
 MAX_LINES = 1000
 BINARY_SNIFF_BYTES = 8192
-# Generated and data files (owner decision, 2026-09-24; the same list the lane
-# harness uses, tools/ds_lane/config.py): a manifest, a transcript or a lock
+# Generated and data files (owner decision, 2026-09-24): a manifest, a transcript or a lock
 # file grows with its content, and splitting one is not the reorganization the
 # rule asks a change to make. Globs are fnmatch patterns, with `**` also
-# crossing directories - the matcher a write set uses (tools/ds_lane/preflight).
+# crossing directories.
 EXEMPT = ("*.json", "*.tsv", "*.csv", "*.lock", "**/replay_fixtures/**")
 BASELINE = Path("tools") / "size_baseline.txt"
 BASELINE_RE = re.compile(r"\A(?P<lines>\d+) (?P<path>\S.*)\Z")
