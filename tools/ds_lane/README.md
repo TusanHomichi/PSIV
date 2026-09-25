@@ -76,6 +76,15 @@ docstring.
   refuse to launch, naming the offending lines; `--read-only` (investigation
   lanes) and `--allow-phrasing` skip that check. Runs that still hit the ban
   are reported in the summary.
+- **Investigation briefs bound what may be inspected.** A brief that asks a
+  worker to find out how a tool behaves names the method: list names, check
+  existence, run with synthetic inputs. It never leaves the worker free to open
+  a file that may hold a credential or to dump the environment. Anything a
+  worker reads enters its trajectory and reaches the model provider. Lane
+  `h1-confine` (2026-09-25) was told to establish what Reasonix reads under
+  `~/.reasonix`; it ran `cat ~/.reasonix/config.json`, and the provider key
+  left the machine. The read boundary now masks the owner's home, but the
+  lane's own Reasonix home still holds its key, so the rule stands.
 - **Write set.** Give each brief one fenced block whose info string is
   `write-set`, listing one path or glob per line (`fnmatch`, `**` crosses
   directories). `ds-lane` records paths changed between the base and the new
