@@ -1,15 +1,18 @@
 # Claude Code lane ledger
 
-Adoption record and reliability log for the Claude Code routing in
-[CLAUDE.md](../CLAUDE.md): Opus orchestrates, and DeepSeek `deepseek-flash`
-at max reasoning delivers through `tools/ds-lane`.
+Adoption record and reliability log for the Claude Code routing: Opus
+orchestrates, and DeepSeek `deepseek-flash` at max reasoning delivers through
+`tools/ds-lane` ([reference](../tools/ds_lane/README.md)).
 
 ## Adoption
 
 Owner instruction, 2026-09-23. The owner asked for the route to stay
 confined to Claude Code sessions. It first landed in the shared
 `AGENTS.md`/workflow docs (swept into PR #2 while uncommitted) and was moved
-here and to `CLAUDE.md` on the same day.
+here and to `CLAUDE.md` on the same day. On 2026-09-25 tracked guidance
+became model- and vendor-neutral: the routing moved to host-local, untracked
+configuration, the `ds-lane` manual to its tool README, and `CLAUDE.md` to a
+bare import of `AGENTS.md`.
 
 Route choice: Reasonix was chosen over Claude Code pointed at DeepSeek's
 Anthropic-compatible endpoint. Reasonix validates the effort level
@@ -79,6 +82,9 @@ output.
 | 2026-09-24 | o2-W | `oracle/force/` package, `--vehicle`, a second vehicle capture | Accepted; found the Ice Digger's two-pass swing, a timer race (object `$1C` start) read and confirmed from `ps4.asm` | None | USD 0.257 |
 | 2026-09-24 | o2-Y | Per-vehicle hit-pass count from each attack object's timer | Accepted; manifest empty again | None | USD 0.206 |
 | 2026-09-24 | x-redshirt-exit | Remove Redshirt from PSIV (owner decision); archived summary | Accepted and merged as PR #8; shared-doc removals were Redshirt-only and the roadmap campaign queue byte-identical | None | USD 0.090 |
+| 2026-09-24 | sw-Z-prompt-stdin | Pass the worker prompt on stdin, not argv | Accepted. Independent: 64/64 via `verify` with the trap `reasonix` never invoked; a probe confirmed the real `reasonix` reads its task from stdin | None. Root cause came from sw-S1 run 1, whose `pkill -f` pattern sat in its argv-borne brief and killed its own worker | USD 0.136, 6.7 min |
+| 2026-09-24 | sw-S1-motavia | Sweep all 83 Motavia overworld formations; `--durable`/`--max-rounds`; resumable batch runner; clustered worklist | Accepted after run 2 (run 1 killed its own worker, fixed by sw-Z). 81 fixtures replay as recorded; 2 capture failures (0x27, 0x28) recorded as data; 52 first divergences in 8 clusters. Independent: psiv-core suite green (659 + 1 ignored); re-sweeping 0x0A/0x3B/0x53 reproduced identical fixture data | Provenance still path-dependent (tape path, log hash); handed to sw-T2 | USD 0.640, 73.6 min |
+| 2026-09-24 | sw-H2-compaction | Deduplicate (hardlink) and xz-compress lane evidence; `ds-lane compact` | Accepted. Independent: 73/73 via `verify`, trap binary unused. Demo: 16.2 MiB of duplicated captures became 267 KiB | None | USD 0.474, 28.2 min |
 
 **Bake-off result (2026-09-23):** six runs across five lanes (routine
 refactor, RE inventory, harness tooling, two retail-parity implementations),

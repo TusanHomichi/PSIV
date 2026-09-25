@@ -8,7 +8,7 @@ trajectory (tool calls + reasoning), metrics/cost and the diff.
 
 Source: PSIV tools/ds-lane, symlinked from ~/.local/bin/ds-lane. That file is
 the executable entry point; the implementation is the stdlib-only package
-tools/ds_lane/ next to it. Claude Code host only; see CLAUDE.md.
+tools/ds_lane/ next to it. Reference: tools/ds_lane/README.md.
 
 Pinned, not configurable: model deepseek-flash, reasoning effort max
 (owner decision 2026-09-23). Subagents are pinned to max in

@@ -87,6 +87,7 @@ supported US ROM. The ROM and generated assets are not distributed here.
 git clone https://github.com/TusanHomichi/PSIV.git
 cd PSIV
 git clone --depth 1 https://github.com/alechenninger/ps4disasm reference/ps4disasm
+./oracle/build_core.sh   # pinned core sources; the sound crate builds from them
 python3 -m psiv_tools pack "/path/to/Phantasy Star IV (USA).md" runtime-pack
 cargo build --manifest-path rust/Cargo.toml -p psiv-godot
 PSIV_SAVE_DIR="$PWD/saves" godot --path godot
