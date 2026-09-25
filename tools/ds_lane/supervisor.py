@@ -15,6 +15,7 @@ import os
 import signal
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -200,13 +201,35 @@ class StallWatcher:
         return (rate, grew) if grew <= 0 and rate < self.cpu_pct else None
 
 
+def feed_stdin(p, prompt):
+    """Give the worker its prompt on stdin, from a thread of its own.
+
+    Reasonix reads the task from stdin when argv carries none, which is the
+    whole point: a prompt on the command line is argv words the worker's own
+    process matching can hit - lane sw-S1-motavia ran a `pkill -f` whose
+    pattern sat in its brief and SIGTERM'd the harness that started it
+    (2026-09-24) - and it is also text the kernel's argument limit applies to
+    and `ps` shows to anyone. The write is the run's own `prompt.md`, byte for
+    byte; it can block on a full pipe and it fails once the worker exits
+    without reading it, and neither may stall or raise into the wait loop, so
+    it happens here and its pipe errors stop at this thread.
+    """
+    try:
+        p.stdin.write(prompt)
+        p.stdin.close()  # EOF: the prompt can only be read once stdin ends
+    except OSError:  # BrokenPipeError: the worker exited without reading it
+        pass
+
+
 def run_worker(run_dir, spec, wt, env):
     """Run the worker in its own process group under a wall-clock budget.
 
-    Returns (exit code, started, duration, outcome), where outcome is None,
-    "timeout", "stopped" or "stalled". A `stop` request (SIGTERM to the
-    supervisor), a budget expiry or the stall watchdog kills the group via
-    stop_group(); the run still finalizes.
+    The run's `prompt.md` reaches the worker on its stdin (feed_stdin), so the
+    command line it runs with carries no brief text. Returns (exit code,
+    started, duration, outcome), where outcome is None, "timeout", "stopped" or
+    "stalled". A `stop` request (SIGTERM to the supervisor), a budget expiry or
+    the stall watchdog kills the group via stop_group(); the run still
+    finalizes.
     """
     timeout = spec.get("timeout") or 0
     started, t0 = now(), time.monotonic()
@@ -214,10 +237,11 @@ def run_worker(run_dir, spec, wt, env):
         return STOPPED_EXIT, started, 0.0, "stopped"
     print(f"{started} worker start", flush=True)
     outcome = None
-    prompt = (run_dir / "prompt.md").read_text()
+    prompt = (run_dir / "prompt.md").read_bytes()
     with open(run_dir / "stdout.log", "w") as out, open(run_dir / "stderr.log", "w") as err:
-        p = subprocess.Popen(spec["cmd"] + [prompt], cwd=wt, stdout=out, stderr=err,
-                             text=True, env=env, start_new_session=True)
+        p = subprocess.Popen(spec["cmd"], cwd=wt, stdin=subprocess.PIPE, stdout=out, stderr=err,
+                             env=env, start_new_session=True)
+        threading.Thread(target=feed_stdin, args=(p, prompt), daemon=True).start()
         poll = stall_poll()
         watcher = StallWatcher(p.pid, run_dir / "trajectory.jsonl", spec.get("stall_timeout"), poll,
                                stall_cpu_pct()) if spec.get("stall_timeout") else None

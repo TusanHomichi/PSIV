@@ -77,6 +77,25 @@ class UnitCase(unittest.TestCase):
         self.assertEqual(DS.phrasing_violations(DS.PREAMBLE + "# Brief\n\nTouch only a.py.\n"), [])
         self.assertIsNone(DS.preflight_phrasing(DS.PREAMBLE, "brief"))
 
+    def test_preamble_stop_rule_passes_the_phrasing_preflight(self):
+        """The rule that keeps a worker from killing its own harness is positive.
+
+        Reasonix parses the prompt for constraints, so the same rule written as
+        a negation would ban every write for the session; it has to survive the
+        preflight the way it is written (lane sw-S1-motavia ran a `pkill -f`
+        whose pattern sat in its own brief and SIGTERM'd the harness that
+        started it, 2026-09-24).
+        """
+        start = DS.PREAMBLE.index("Stop processes only by the PID")
+        rule = DS.PREAMBLE[start:DS.PREAMBLE.index(".", start) + 1]
+        # Whitespace is free (the bullet wraps); the wording is not.
+        self.assertEqual(" ".join(rule.split()),
+                         "Stop processes only by the PID you recorded or the job id "
+                         "your tools returned.")
+        self.assertEqual(DS.phrasing_violations(rule), [])
+        self.assertIsNone(DS.preflight_phrasing(rule, "preamble rule"))  # no SystemExit
+        self.assertEqual(DS.phrasing_violations(DS.PREAMBLE), [])
+
     def test_preflight_exits_nonzero_with_line_and_hint(self):
         brief = "# Brief\n\nTouch only a.py. Do not touch b.py.\n"
         with self.assertRaises(SystemExit) as ctx:

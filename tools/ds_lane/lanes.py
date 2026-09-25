@@ -84,6 +84,12 @@ def followup_prompt(followup):
             "\n\nEnd with the same ## Receipt format as before.")
 
 
+# What a run's command line holds in the prompt's place. The supervisor feeds
+# the run's `prompt.md` to the worker's stdin, so no brief text is an argv word
+# and `command.json` names the file instead of quoting it.
+STDIN_PROMPT = "<stdin: prompt.md>"
+
+
 # ----------------------------------------------------------- runs & receipts
 
 def prepare_run(lane, prompt_text, *, max_steps=0, timeout=DEFAULT_TIMEOUT,
@@ -122,7 +128,7 @@ def prepare_run(lane, prompt_text, *, max_steps=0, timeout=DEFAULT_TIMEOUT,
             "max_steps": max_steps, "stall_timeout": stall_timeout,
             "stall_retries_left": stall_retries_left, "resumed_after_stall": bool(resumed_after_stall)}
     (run_dir / "spec.json").write_text(json.dumps(spec, indent=2) + "\n")
-    (run_dir / "command.json").write_text(json.dumps(cmd + ["<prompt.md>"], indent=2) + "\n")
+    (run_dir / "command.json").write_text(json.dumps(cmd + [STDIN_PROMPT], indent=2) + "\n")
     log = open(run_dir / "supervisor.log", "w")
     subprocess.Popen([sys.executable, str(ENTRY), "_exec", str(state), str(n)],
                      stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
