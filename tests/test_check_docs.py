@@ -17,9 +17,9 @@ what the checker deliberately lets through: a duplicate heading's `-1` anchor,
 a link written inside a fenced block or inline code, an external URL, and
 git-ignored local inputs, as a link target and as a command path.
 
-Every case builds its own repository: the checker answers from `git ls-files`
-and `git check-ignore`, so it needs a real repository and a clean Git
-environment to be tested hermetically.
+Every case builds its own repository: the checker answers from
+`tools/repo_files.py` and `git check-ignore`, so it needs a real repository and
+a clean Git environment to be tested hermetically.
 """
 import os
 import re
@@ -83,7 +83,7 @@ class RepoCase(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text, encoding="utf-8")
         self.git("init", "-q", "-b", "main")
-        self.git("add", "-A")  # staged is enough: git ls-files reads the index
+        self.git("add", "-A")  # the tracked files are the change the checker reads
         return run_checker(self.root, self.home)
 
 

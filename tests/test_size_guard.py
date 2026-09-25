@@ -5,10 +5,12 @@
 docs/DEVELOPMENT.md says source files stay under 1,000 lines. Until this guard
 existed only the lane harness flagged the limit, and only on its own commits,
 so 11 tracked files sat over it on `main` (issue #11). The guard scans every
-file `git ls-files` lists that is text, and `tools/size_baseline.txt` records
-the files that were already over the limit when it landed: the ratchet that
-makes the rule a gate check without reorganizing 11 files inside the change
-that adds the check, with #12 tracking the cleanup.
+file of the change that is text - the paths `tools/repo_files.py` lists, what a
+commit made with `git add -A` would contain, so a new unstaged file is counted
+too - and `tools/size_baseline.txt` records the files that were already over
+the limit when it landed: the ratchet that makes the rule a gate check without
+reorganizing 11 files inside the change that adds the check, with #12 tracking
+the cleanup.
 
 Every case runs the tool the gate runs. `RealTree` runs it against this
 repository, and every other class runs it in a throwaway git repository built
@@ -18,7 +20,7 @@ now at or under the limit, a baselined path that is gone, and a baselined path
 the rule skips. The positive cases pin what the rule deliberately passes over:
 an exempt `*.json`, a binary file (and a NUL past the 8 KiB sniff window, which
 is text), `**/replay_fixtures/**` at any depth, a file at exactly the limit, an
-untracked file, and a baselined file that shrank while staying over the limit.
+ignored file, and a baselined file that shrank while staying over the limit.
 `WriteBaseline` covers the last entry point: `--write-baseline` seeds a baseline
 no tree had yet and may lower a count, and it refuses to record growth, so the
 ratchet cannot be reset by running it. `Documentation` pins
@@ -59,15 +61,6 @@ def run_guard(cwd, home, *args):
         text=True, env=git_env(home),
     )
     return proc.returncode, proc.stdout + proc.stderr
-
-
-def tracked_in(root):
-    """The tracked paths of `root`, read the way the guard reads them."""
-    proc = subprocess.run(
-        ["git", "-C", str(root), "ls-files", "-z"], capture_output=True, text=True,
-        check=True,
-    )
-    return [record for record in proc.stdout.split("\0") if record]
 
 
 def size_section(text):
@@ -128,7 +121,7 @@ class RepoCase(HomeCase):
         if baseline is not None:
             self.write("tools/size_baseline.txt", baseline)
         self.git("init", "-q", "-b", "main")
-        self.git("add", "-A")  # staged is enough: the guard reads `git ls-files`
+        self.git("add", "-A")  # the tracked files are the change the guard reads
 
     def guard(self, *args):
         return run_guard(self.root, self.home, *args)
@@ -154,7 +147,7 @@ class RealTree(HomeCase):
         entries, exists, problems = read_baseline(ROOT)
         self.assertTrue(exists)
         self.assertEqual(problems, [])
-        sizes, skipped = scan(ROOT, tracked_in(ROOT))
+        sizes, skipped = scan(ROOT)
         self.assertEqual(sorted(entries.items()), over_limit(sizes))
         self.assertGreater(len(entries), 0)
         self.assertGreater(skipped["exempt"], 0)  # generated data is really passed over
@@ -274,13 +267,13 @@ class PassedOver(RepoCase):
             self.assertNotIn(f"{path}: ", out)
         self.assertIn("3 exempt", out)
 
-    def test_an_untracked_file_is_not_scanned(self):
-        """The rule is about what the repository holds, not what a tree holds."""
-        self.repository({"src/keep.py": text_lines(5)})
-        self.write("src/untracked.py", text_lines(2000))
+    def test_an_ignored_file_is_not_scanned(self):
+        """An ignored file is a local input: not what a commit would hold."""
+        self.repository({".gitignore": "local/\n", "src/keep.py": text_lines(5)})
+        self.write("local/rom.bin", text_lines(2000))
         code, out = self.guard()
         self.assertEqual(code, 0, out)
-        self.assertNotIn("src/untracked.py", out)
+        self.assertNotIn("local/rom.bin", out)
 
 
 class WriteBaseline(RepoCase):

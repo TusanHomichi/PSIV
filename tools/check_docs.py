@@ -5,8 +5,9 @@ Run from the repository root:
 
     python3 tools/check_docs.py
 
-Every Markdown file `git ls-files '*.md'` lists is scanned, and fenced code
-blocks and inline code are skipped as content:
+Every Markdown file of the change - the paths `tools/repo_files.py` lists, what
+a commit made with `git add -A` would contain, a new unstaged file included -
+is scanned, and fenced code blocks and inline code are skipped as content:
 
 - a relative `[text](target)` link, `target#anchor` included, must resolve to an
   existing file or directory; a bare `#anchor` points at the current file;
@@ -19,13 +20,13 @@ blocks and inline code are skipped as content:
 - inside a `bash`, `sh`, `shell` or `console` block, every token naming a path
   under `docs/`, `godot/`, `oracle/`, `psiv_tools/`, `rust/`, `tests/` or
   `tools/` (optionally behind `./` or `$PWD/`) must exist, and a token with a
-  `*` must match at least one tracked file.
+  `*` must match at least one file of the change.
 
 A path git ignores is a local input (`AGENTS.md`, "Protect local inputs and
-evidence"), not repository content: the ROM, `reference/`, generated packs,
-saves and captures live outside Git, so a link or a command path naming one
-resolves only in a prepared checkout. The checker skips those wherever it meets
-them, and stays green in a fresh clone.
+evidence"), not repository content - and not a file of the change either: the
+ROM, `reference/`, generated packs, saves and captures live outside Git, so a
+link or a command path naming one resolves only in a prepared checkout. The
+checker skips those wherever it meets them, and stays green in a fresh clone.
 
 Problems print one per line as `path:line: message`, followed by a summary
 count. The counts are of the links, anchors and paths inspected; a link with a
@@ -44,6 +45,11 @@ import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import unquote
+
+try:  # imported as `tools.check_docs`: the suite, and the gate's `PYTHONPATH=.`
+    from tools.repo_files import repo_files
+except ModuleNotFoundError:  # `python3 tools/check_docs.py` puts `tools/` itself on sys.path
+    from repo_files import repo_files
 
 CHECKED_PATH_PREFIXES = (
     "docs/",
@@ -81,11 +87,6 @@ def git_stdout(*args: str) -> str:
         print(failure, file=sys.stderr)
         raise SystemExit(2)
     return proc.stdout
-
-
-def git_lines(*args: str) -> list[str]:
-    """Non-empty NUL-separated records from a git command run at the root."""
-    return [record for record in git_stdout(*args).split("\0") if record]
 
 
 def is_ignored(path: str) -> bool:
@@ -226,10 +227,10 @@ def command_paths(line: str) -> list[str]:
     return found
 
 
-def check_path(path: str, tracked: list[str]) -> str | None:
-    """A message when `path` names nothing in the repository, else None."""
+def check_path(path: str, files: list[str]) -> str | None:
+    """A message when `path` names nothing in the change, else None."""
     if "*" in path or "?" in path:
-        if any(fnmatch.fnmatchcase(name, path) for name in tracked):
+        if any(fnmatch.fnmatchcase(name, path) for name in files):
             return None
         if is_ignored(path):
             return None
@@ -262,15 +263,20 @@ def check_link(
 
 
 def check_tree() -> tuple[list[str], list[int]]:
-    """Every problem in the tree, and the files/links/anchors/paths counts."""
-    markdown = git_lines("ls-files", "-z", "--", "*.md")
-    tracked = git_lines("ls-files", "-z")
+    """Every problem in the tree, and the files/links/anchors/paths counts.
+
+    The tree is the working directory, which `main` has checked is the
+    repository root; `repo_files` lists the files of the change there.
+    """
+    root = Path.cwd()
+    markdown = repo_files(root, ("*.md",))
+    files = repo_files(root)
     texts = {}
     for name in markdown:
         try:
             texts[name] = Path(name).read_text(encoding="utf-8").splitlines()
         except (OSError, UnicodeDecodeError):
-            continue  # a path staged but absent, or not text
+            continue  # not readable text: a binary blob, or a permission
     slugs = {name: heading_slugs(lines) for name, lines in texts.items()}
 
     problems: list[str] = []
@@ -287,7 +293,7 @@ def check_tree() -> tuple[list[str], list[int]]:
             elif fence_language(info) in COMMAND_FENCE_LANGS:
                 for path in command_paths(text):
                     counts[3] += 1
-                    message = check_path(path, tracked)
+                    message = check_path(path, files)
                     if message:
                         problems.append(f"{name}:{line}: {message}")
     return problems, counts
