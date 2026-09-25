@@ -73,17 +73,39 @@ def ability_used(log, slot, start, end):
     }
 
 
-def kind_of(ability, targets):
+def kind_of(ability, targets, effects=None):
     """What the log's readings make of one enemy action.
 
-    `ability` is the id the byte held, `targets` the slots the action resolved
-    anything on. An id of zero is the basic attack; a nonzero id with no target
-    movement is a spent turn; a nonzero id with movement is a resolved ability.
-    A *damage* ability whose every target was already down would read the same
-    way as a spent turn, and that is a limit of the log rather than a claim:
-    the battle is over as soon as one side is wiped, so an enemy able to act
-    still has a living target to aim at.
+    `ability` is the id the byte held when the turn opened - `Enemy_Attack`
+    writes it (`move.b $58(a3,d0.w), ability+1(a4)`, `ps4.asm:19153`) before
+    anything else, so the byte at the action's own first frame is this turn's
+    roll and not the last one's - `targets` the slots the pass resolved, and
+    `effects` what moved on any fighter (`observations.action_effects`).
+
+    An id of zero is the basic attack. For a nonzero one the log decides
+    whether the ability *did* anything - a resolved slot, a moved damage word,
+    or any fighter's HP, status or battle stat cell moving inside the action -
+    and says `wasted` when nothing did.
+
+    That last word is the honest one and no more: the draws are no help, since
+    `loc_10406` spends an id whose arm does not exist, and an arm that runs and
+    finds nothing to do - a status the target already carries, which
+    `AbilityEffect_Poison` returns on before its roll - draws no more than the
+    roll itself. The two are the same log, so a fixture says `wasted` for both
+    and the comparator takes either arm for it; what the comparator refuses is
+    a turn that ran a *different* ability, resolved damage the log does not
+    show, or never reached an arm at all
+    (`rust/psiv-core/src/battle/replay/compare.rs`).
     """
     if not ability:
         return "attack"
-    return "ability" if targets else "wasted"
+    if targets or _moved(effects):
+        return "ability"
+    return "wasted"
+
+
+def _moved(effects):
+    """Whether any fighter's HP, status or battle stat cell moved."""
+    if not effects:
+        return False
+    return any(effects.get(key) for key in ("hp", "status", "stats"))

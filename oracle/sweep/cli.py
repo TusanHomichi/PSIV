@@ -13,6 +13,7 @@ import sys
 from ..force.errors import ForceError
 from ..force.pack import Pack
 from . import jobs as sweep_jobs
+from . import reextract
 from .batch import Sweep
 from .jobs import Options
 from .plan import list_formations, write_list
@@ -56,6 +57,10 @@ def parser() -> argparse.ArgumentParser:
     parsed.add_argument("--force", action="store_true",
                         help="capture every formation again, ignoring what the "
                              "record already holds")
+    parsed.add_argument("--reextract", default="",
+                        help="do not capture: re-run the extraction over the "
+                             "captures a sweep's working directory already "
+                             "holds (the directory itself), and stop")
     return parsed
 
 
@@ -71,6 +76,9 @@ def main(argv: list[str] | None = None) -> int:
         data_dir=pathlib.Path(args.data_dir),
         ram_map=pathlib.Path(args.ram_map))
     try:
+        if args.reextract:
+            return reextract.main(pathlib.Path(args.reextract), options,
+                                  args.jobs)
         return sweep(args, options)
     except ForceError as error:
         print(f"sweep: {error}", file=sys.stderr)

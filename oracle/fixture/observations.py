@@ -145,7 +145,7 @@ def action_windows(log, first, last, cuts=(), roll_frames=()):
     driving an action; the command phase leaves other numbers in it, so a
     window opens only on a value that names a fighter slot.
 
-    Two things the field alone cannot say, and the caller's `cuts` and
+    Three things the field alone cannot say, and the caller's `cuts` and
     `roll_frames` are what settle them:
 
     * **A round's queue build is a boundary.** An actor that acts last in one
@@ -158,16 +158,24 @@ def action_windows(log, first, last, cuts=(), roll_frames=()):
       id of whoever acted last, so a window must not open on that value - the
       Desrt Leach capture's rounds 3-5 read `6` for five frames before the
       vehicle's turn, and an ability byte the enemy had left behind made one of
-      them look like a wasted ability. A window opens on that id only when the
-      action's own calls show up in it (`roll_frames` are the frames the trace
-      drew in), which is also what says a turn that nothing happened in is not
-      an action at all.
+      them look like a wasted ability.
+    * **A turn that draws nothing is not an action.** `loc_576A` writes the
+      queue entry into `$FFFF4142` and only then tests the fighter's status
+      (`ps4.asm:8033-8043`), so an actor that fell before its turn arrived
+      leaves the field holding *its* id for the rest of the round - a dead
+      enemy from f25680 to the next queue build, with no call and no flag
+      written in any of those frames. A window opens only where the action's
+      own calls show up (`roll_frames` are the frames the trace drew in), which
+      is what makes those frames the round's tail rather than a turn.
+
+    The distinction is not bookkeeping: the port has no turn there either, and
+    a window built on one asks it to resolve an action the cartridge never ran
+    (`docs/BATTLE_ORACLE_SWEEP.md`'s no-swing and phantom clusters).
     """
     cuts = set(cuts)
     rolls = set(roll_frames)
     windows = []
     actor = None
-    stale = None
     for frame in range(first, last + 1):
         row = log.by_frame.get(frame)
         if row is None:
@@ -176,14 +184,13 @@ def action_windows(log, first, last, cuts=(), roll_frames=()):
             if windows:
                 windows[-1][2] = min(windows[-1][2], frame - 1)
             actor = None
-            stale = log.num(frame, "battle_actor")
             continue
         current = log.num(frame, "battle_actor")
         if not 1 <= current <= 9:
             continue
         if current == actor:
             continue
-        if current != stale or frame in rolls:
+        if frame in rolls:
             if windows:
                 windows[-1][2] = min(windows[-1][2], frame - 1)
             windows.append([current, frame, last])
@@ -211,16 +218,51 @@ def enemy_slots(log, frame):
 
 
 def enemies_loaded(log, first, last):
-    """The frame the formation was written into RAM: the enemies' first HP.
+    """The frame the whole formation was written into RAM.
 
     Before it the enemy slots hold whatever the field left there - tape 07's
     slot 1 read 12063 over a maximum of 46 - so the test is a full, occupied
-    record, not a nonzero byte (`enemy_slots`).
+    record, not a nonzero byte (`enemy_slots`). That alone is not enough: the
+    formation is written **one slot per frame** from `Fighter_Enemy_1`
+    (`ps4.asm:11952`), so the frame the *first* record lands on holds a
+    one-enemy formation that the cartridge never fought. `enemy_count` is the
+    number the load wrote for the whole formation, and it is written before the
+    records are: the start frame is the first one whose occupied slots are all
+    of them.
+
+    The sweep's formation `$13` is the shape: `enemy_count` reads 2 from
+    f24821, that frame holds one SandNewt record and f24822 holds both. The
+    fixture built on f24821 seated one enemy, so its port-side queue, its rolls
+    and its whole round were a different battle from the cartridge's
+    (`docs/BATTLE_ORACLE_SWEEP.md`, the queue cluster).
+
+    A log with no such frame is a capture this extractor cannot start: the
+    count and the records never agreed, and guessing between them would seat a
+    formation the cartridge did not fight.
     """
+    seen = None
     for frame in range(first, last + 1):
-        if frame in log.by_frame and log.num(frame, "enemy_count") > 0 \
-                and enemy_slots(log, frame):
+        if frame not in log.by_frame:
+            continue
+        count = log.num(frame, "enemy_count")
+        if count <= 0:
+            # A frame before the load holds no records to read: the cells are
+            # the field's leftovers, and a capture that does not carry them at
+            # all would raise on the read.
+            continue
+        slots = enemy_slots(log, frame)
+        if not slots:
+            continue
+        if seen is None or len(slots) > seen[2]:
+            seen = (frame, count, len(slots))
+        if len(slots) == count:
             return frame
+    if seen is not None:
+        frame, count, occupied = seen
+        raise FixtureError(
+            f"the formation never loads whole between {first} and {last}: "
+            f"enemy_count reads {count} from f{frame} but no frame holds more "
+            f"than {occupied} intact record(s)")
     raise FixtureError(f"no formation is loaded between {first} and {last}")
 
 
@@ -272,32 +314,74 @@ def hit_flag_column(fighter_id):
     return f"hit_{fighter_id - 1:02d}"
 
 
-def sample_decisive_hits(log, record, decisive_frame):
-    """Re-read every target's hit byte at the swing's **decisive** pass.
+#: The three bytes `loc_B6A2` can leave in a slot: `$00` and `$01` are the
+#: verdicts of its chance roll, `$FF` is "not targeted, or missed". Anything
+#: else is not a hit flag at all, which is how a frame whose bytes were written
+#: by something else - `$FFFF4150` is battle scratch that the round's tail
+#: reuses - is told apart from a pass.
+HIT_FLAG_VALUES = ("00", "01")
+NOT_TARGETED = "FF"
 
-    `loc_B6A2` presets all nine `Fighters_Hit_Flags` to `$FF` before it rolls
-    (`ps4.asm:17493-17498`, `moveq #-1, d0` over nine words) and every pass
-    walks the same window, so the byte a swing leaves behind is the one its
-    **last** pass wrote - the one `Fighter_TakeDamage` reads
-    (`ps4.asm:3569-3571`). [`action_record`] reads the byte at the first frame
-    the flags moved, which is the *first* pass's verdict; for a swing whose
-    passes arrive in different frames - `loc_AF9C`'s vehicle swing, which draws
-    one pass per frame (two for the Ice Digger, three for the Land Rover and
-    the Hydrofoil) - the two differ, and the action's own `hit_frame` is not the
-    frame its byte came from. This re-reads it at `decisive_frame`, the frame of
-    the action's last `loc_B6A2` roll.
+#: How many `Fighters_Hit_Flags` slots the log carries: ids 1..=9 are `d6`
+#: 1..=9 in `st -$1(a0,d6.w)`, i.e. `hit_00`..`hit_08`.
+HIT_FLAGS = 9
 
-    Nothing writes `Fighters_Hit_Flags` between that pass and the action's end -
-    the next writer is another action's `loc_B6A2`, which is outside this
-    action's window - so the byte is also what the first frame at or after the
-    roll holds; `Log.require_complete` has already refused a log with a hole, so
-    the roll's own frame is always there to read.
+
+def hit_flags(log, frame):
+    """The nine `Fighters_Hit_Flags` bytes, in slot order, at `frame`."""
+    return [log.raw(frame, f"hit_{index:02d}") for index in range(HIT_FLAGS)]
+
+
+def pass_frame(log, start, end, roll_frames):
+    """The frame the action's last `loc_B6A2` pass left its verdicts on.
+
+    `loc_B6A2` (`ps4.asm:17492`) presets all nine `Fighters_Hit_Flags` to `$FF`
+    and then writes one byte per slot in the acting window
+    (`st -$1(a0,d6.w)`), so everything a slot's byte can mean is decided by the
+    action's **last** pass - the one `Fighter_TakeDamage` (`ps4.asm:3564-3571`)
+    reads. A swing whose passes all land in one frame already holds that state;
+    a vehicle swing draws one pass per frame (`loc_AF9C`: two for the Ice
+    Digger, three for the others) and the later frames overwrite the earlier
+    ones, which is why this is the *last* frame the flags moved on rather than
+    the first.
+
+    Not every frame the flags move on is a pass. `$FFFF4150` is battle scratch:
+    when a round runs out of actors the bytes above `$FFFF4100` are reused, and
+    the sweep's formation `$10` writes `$0605` over `$FFFF4142` and `03 06 04`
+    into three hit slots at f25808. A pass is a frame that also **drew**: it
+    rolls once per living slot in its window (`loc_B716`), or - for an ability,
+    whose arm loads its own object - is the frame the action's own ability roll
+    is on. So a frame counts only when it is one of the action's `roll_frames`
+    *and* its nine bytes are all verdicts.
+
+    Reading the state rather than the change is what makes a repeat visible: a
+    pass that resolves the same slot with the verdict the previous action left
+    there changes nothing (`formation_37`'s Hahn hits enemy 6 for 1 where Alys
+    had just done the same), and a change-based read loses the target entirely.
+    A window whose pass drew nothing - every slot in it already down - falls
+    back to its own first roll frame, which for an ability is the frame its
+    `Enemy_Attack` roll is on.
     """
-    for target in record["targets"]:
-        target["hit"] = log.raw(decisive_frame, hit_flag_column(target["id"]))
+    rolls = set(roll_frames)
+    verdicts = HIT_FLAG_VALUES + (NOT_TARGETED,)
+    found = None
+    previous = hit_flags(log, start - 1) if start - 1 in log.by_frame else None
+    for frame in range(start, end + 1):
+        if frame not in log.by_frame:
+            continue
+        values = hit_flags(log, frame)
+        if frame in rolls and previous is not None and values != previous \
+                and all(value in verdicts for value in values):
+            found = frame
+        previous = values
+    if found is not None:
+        return found
+    return next((frame for frame in range(start, end + 1)
+                 if frame in rolls), start)
 
 
-def action_record(log, actor, start, end, rolls, occupied, columns=None):
+def action_record(log, actor, start, end, rolls, occupied, columns=None,
+                  roll_frames=()):
     """One action: who acted, what the log shows, and the rolls it drew.
 
     Only the acting side's opponents can be its targets - and only the ones
@@ -307,16 +391,29 @@ def action_record(log, actor, start, end, rolls, occupied, columns=None):
     reading as an observation about the actor's own side. `columns` is the
     fighter-id to HP-column map (see `wiped_out`).
 
-    Each target's `hit` here is the byte at the first frame the flags moved,
-    the *first* pass's verdict; `assembly` re-reads it at the action's last
-    `loc_B6A2` roll with [`sample_decisive_hits`] once the rolls are labelled.
+    A target is a slot the action's **pass** resolved - its byte at
+    [`pass_frame`] is `$00` or `$01` - or one whose damage word moved, which is
+    the same claim read the other way round (the damage routine writes only the
+    slots `Fighter_TakeDamage` applies to). The `hit` is that byte: the last
+    pass's verdict, which is the byte `Character_Attack`'s second pass and the
+    animation's own pass leave behind, not the first frame's.
+
+    `damage` stays the *change* a slot's word shows - the honest reading, since
+    a word rewritten to the value it already held cannot be told from one that
+    was not written at all - so a resolved slot can carry `damage: null`. What
+    the action did to that slot is still pinned by `hp_after`, which is the
+    live cell.
     """
     columns = HP_COLUMNS if columns is None else columns
+    verdict_frame = pass_frame(log, start, end, roll_frames)
+    flags = hit_flags(log, verdict_frame)
+    # The frame the flags first moved on, kept for a reader: it is where the
+    # pass's own clears and writes become visible.
     hit_frame = next(
         (frame for frame in range(start, end + 1)
          if frame in log.by_frame
-         and any(log.changed(frame, hit_flag_column(index))
-                 for index in range(0, 10))),
+         and any(log.changed(frame, f"hit_{slot:02d}")
+                 for slot in range(HIT_FLAGS))),
         None)
     opposing = "enemy" if side_of(actor) == "party" else "party"
     targets = []
@@ -330,19 +427,17 @@ def action_record(log, actor, start, end, rolls, occupied, columns=None):
             value = log.signed(frame, damage)
             return value if DAMAGE_STORED[0] <= value <= DAMAGE_STORED[1] else None
 
-        moved_flag = any(log.changed(frame, flag)
-                         for frame in range(start, end + 1)
-                         if frame in log.by_frame)
         damage_frame = next(
             (frame for frame in range(start, end + 1)
              if frame in log.by_frame and stored(frame) is not None
              and stored(frame - 1) != stored(frame)), None)
-        if not moved_flag and damage_frame is None:
+        resolved = flags[id_ - 1] in HIT_FLAG_VALUES
+        if not resolved and damage_frame is None:
             continue
         hp = log.signed(end, columns[id_])
         targets.append({
             "id": id_,
-            "hit": log.raw(hit_frame or start, flag),
+            "hit": flags[id_ - 1],
             "damage": stored(damage_frame) if damage_frame else None,
             "damage_frame": damage_frame,
             "hp_after": hp,
@@ -353,10 +448,100 @@ def action_record(log, actor, start, end, rolls, occupied, columns=None):
         "start_frame": start,
         "end_frame": end,
         "hit_frame": hit_frame,
+        "verdict_frame": verdict_frame,
         "rolls": [list(entry) for entry in rolls],
         "roll_count": sum(count for _, count in rolls),
         "targets": targets,
     }
+
+
+def action_effects(log, start, end, occupied, columns=None):
+    """What the action moved on **any** fighter, either side.
+
+    The target list is the acting side's opponents, which is what a swing can
+    touch; an enemy ability can touch its own side instead - the sweep's
+    TechUser casts RES on itself and its HP rises by 37 - and `docs/
+    ENEMY_ABILITIES.md`'s status arms leave their mark in a status byte rather
+    than in a damage word. An action's *effect* is therefore read off every
+    fighter the formation seated, on both sides, in the cells the log carries:
+    HP, the status byte, and the battle stat cells the fixtures' stat blocks
+    read.
+
+    Returns `{"hp": [[id, before, after], ...], "status": [...], "stats":
+    [[id, field, before, after], ...]}`, each list holding only what moved, so
+    an empty fixture key means "nothing moved" rather than "nothing observed".
+
+    A vehicle battle's party side is the vehicle (`columns` maps its HP cell),
+    which has no status or stat columns of its own.
+    """
+    columns = HP_COLUMNS if columns is None else columns
+    effects = {"hp": [], "status": [], "stats": []}
+    for id_ in sorted(occupied):
+        hp_column_ = columns.get(id_)
+        if hp_column_ is None or not log.has(hp_column_):
+            continue
+        before, after = log.signed(start, hp_column_), log.signed(end, hp_column_)
+        if before != after:
+            effects["hp"].append([id_, before, after])
+        names = _effect_fields(id_, columns)
+        for name in names:
+            column = f"{names[name]}_{name}"
+            if not log.has(column):
+                continue
+            was, now = log.signed(start, column), log.signed(end, column)
+            if name == "status":
+                # The dead and android-dead bits are a *death*, not an effect:
+                # the cartridge sets them when the HP cell goes non-positive
+                # (`Battle_KillFighter`), the port reports the same thing as a
+                # `Died` event, and a fixture that called the bit a status
+                # would ask the comparator for a status the log never had.
+                was, now = was & STATUS_EFFECT_BITS, now & STATUS_EFFECT_BITS
+            if was == now:
+                continue
+            if name == "status":
+                effects["status"].append([id_, was, now])
+            else:
+                effects["stats"].append([id_, name, was, now])
+    return effects
+
+
+#: The status bits an *effect* can set: everything the status byte holds except
+#: the two death bits (`StatusDead` `$04` and `StatusAndroidDead` `$40`,
+#: `ps4.constants.asm:66-81`). Those two are a death, which the fixture records
+#: as the target's `died`, and the port answers with a `Died` event.
+STATUS_EFFECT_BITS = 0xFF & ~(0x04 | 0x40)
+
+#: The stat cells an action's effect is read from, per fighter: the battle
+#: values the fixtures' own stat blocks carry (`PARTY_NAMES`, `ENEMY_NAMES`),
+#: plus the status byte. HP is read through `columns`, because a vehicle
+#: battle's party side keeps its HP in a cell of its own.
+EFFECT_FIELDS = {
+    "party": ["status", "str", "agi_bat", "dex", "atk", "dfs", "men"],
+    "enemy": ["status", "agi_bat", "atk", "dfs", "str_bat", "men_bat",
+              "dex_bat"],
+}
+
+
+def _effect_fields(fighter_id, columns):
+    """{field: log column prefix} for one fighter, or {} where it has none.
+
+    A vehicle battle's party-side fighter has no status or stat cells of its
+    own: the members' columns are the field's, and `columns` is what says the
+    id is the vehicle (`vehicle_fighter_hp`).
+    """
+    if columns.get(fighter_id) == "vehicle_fighter_hp":
+        return {}
+    prefix = None
+    for name, index in PARTY_IDS:
+        if index == fighter_id:
+            prefix = name
+            break
+    if prefix is None and 6 <= fighter_id <= 9:
+        prefix = f"e{fighter_id - 5}"
+    if prefix is None:
+        return {}
+    side = "party" if fighter_id <= 5 else "enemy"
+    return {name: prefix for name in EFFECT_FIELDS[side]}
 
 
 def compact_leaf_arrays(text):

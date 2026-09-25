@@ -240,6 +240,8 @@ hahn_dex	FFFFF621	1	chars	-
 hahn_atk	FFFFF624	2	chars	-
 hahn_dfs	FFFFF628	2	chars	-
 battle_actor	FFFF4142	2	battle	-
+current_target	FFFF4144	2	battle	hex
+current_command	FFFF4146	2	battle	hex
 o00_id	FFFFC300	2	objects	hex
 o00_rflags	FFFFC302	1	objects	hex
 o00_facing	FFFFC306	2	objects	-

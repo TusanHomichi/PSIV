@@ -537,3 +537,29 @@ class Arguments(PackFixture):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CaptureGroups(unittest.TestCase):
+    """What every capture logs, and why the command cells are in it.
+
+    `bcmd` is `Character_Command_Data`: the command each member chose and the
+    fighter it was aimed at. A replay needs it because a swing's target is not
+    the command's own whenever the commanded enemy has fallen - the cartridge
+    moves `Current_Target_Index` off it (`ps4.asm:8345-8409`) - so the command
+    is the only record of what the *player* asked for, and the sweep's captures
+    predate it (`docs/BATTLE_ORACLE_SWEEP.md`, the retarget cluster).
+    """
+
+    def groups(self):
+        return fb.GROUPS.split(",")
+
+    def test_every_capture_logs_the_command_cells(self):
+        self.assertIn("bcmd", self.groups())
+
+    def test_every_group_a_capture_logs_is_one_the_ram_map_carries(self):
+        layout = json.loads((pathlib.Path(fb.__file__).resolve().parent.parent
+                             / "ram_map.json").read_text())
+        known = {field["group"] for field in layout["fields"]}
+        unknown = sorted(set(self.groups()) - known)
+        self.assertEqual(unknown, [], "a capture logs a group the map has no "
+                                      "fields for")

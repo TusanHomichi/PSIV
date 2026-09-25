@@ -92,6 +92,13 @@ pub(crate) enum Divergence {
         actor: FighterId,
         log_ability: u8,
     },
+    /// The log's action moved a fighter's status byte; the port did not.
+    Status {
+        frame: u32,
+        actor: FighterId,
+        target: FighterId,
+        log_status: u32,
+    },
 }
 
 impl Divergence {
@@ -106,6 +113,7 @@ impl Divergence {
             | Divergence::NoDeath { frame, .. }
             | Divergence::Ability { frame, .. }
             | Divergence::Unsupported { frame, .. }
+            | Divergence::Status { frame, .. }
             | Divergence::NotWasted { frame, .. } => *frame,
         }
     }
@@ -123,6 +131,7 @@ impl Divergence {
             Divergence::Ability { .. } => "ability",
             Divergence::Unsupported { .. } => "unsupported",
             Divergence::NotWasted { .. } => "not-wasted",
+            Divergence::Status { .. } => "status",
         }
     }
 
@@ -180,6 +189,12 @@ impl Divergence {
             Divergence::NotWasted { log_ability, .. } => (
                 format!("ability ${log_ability:02X} spending the turn"),
                 "an effect".to_owned(),
+            ),
+            Divergence::Status {
+                target, log_status, ..
+            } => (
+                format!("{target:?} at status {log_status:02X}"),
+                "no status".to_owned(),
             ),
         }
     }
@@ -279,6 +294,14 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
             .iter()
             .filter(|target| target.hit != "FF")
             .collect();
+        // The slots the log shows a *damage* on: the ability branch's own
+        // list, because a resolved slot and a damaged slot are not the same
+        // claim (an ability's pass covers its whole range).
+        let damaged: Vec<&Target> = action
+            .targets
+            .iter()
+            .filter(|target| target.damage.is_some())
+            .collect();
 
         let swung: Vec<FighterId> = if action.kind == Kind::Attack {
             let mut swing = None;
@@ -325,7 +348,12 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
         } else {
             // The log's action ran the ability roll, so the port's own arm has
             // to be what answers it. `Wasted` is the log's reading of an
-            // ability that left nothing behind.
+            // ability that left nothing behind - and `oracle/fixture/
+            // enemies.py` says why that reading cannot be a strict one: a turn
+            // whose arm ran and found nothing to do (a status the target
+            // already carries) is the same log as a turn whose arm does not
+            // exist, so the port may answer either way. What it may not do is
+            // run a *different* ability, or none at all.
             let port = enemy_turn(&mut events, actor);
             match (&action.kind, &port) {
                 (_, EnemyTurn::Unsupported(ability)) => {
@@ -337,10 +365,36 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
                 }
                 (Kind::Ability, EnemyTurn::Ability(skill)) if Some(*skill) == action.ability => {}
                 (Kind::Wasted, EnemyTurn::Wasted(ability)) if Some(*ability) == action.ability => {}
-                (Kind::Wasted, _) => {
-                    // The log's ability spent the turn: the port giving it an
-                    // effect is a divergence, and a different one from the
-                    // port never reaching the arm at all.
+                (Kind::Wasted, EnemyTurn::Ability(skill)) if Some(*skill) == action.ability => {
+                    // The log cannot tell this turn from one the arm spent:
+                    // both draw the ability roll and nothing else, and neither
+                    // leaves a cell behind (`oracle/fixture/enemies.py`). What
+                    // it *can* say is that nothing was resolved - so the arm is
+                    // accepted only if nothing was.
+                    let resolved = events
+                        .clone()
+                        .take_while(|event| {
+                            !matches!(
+                                event,
+                                BattleEvent::Attacked { .. } | BattleEvent::RoundEnded { .. }
+                            )
+                        })
+                        .any(|event| {
+                            matches!(event, BattleEvent::Resolved { actor: who, .. }
+                                     if *who == actor)
+                        });
+                    if resolved {
+                        return Some(Divergence::NotWasted {
+                            frame: action.start_frame,
+                            actor,
+                            log_ability: action.ability.expect("the extractor records the id"),
+                        });
+                    }
+                }
+                (Kind::Ability, EnemyTurn::Wasted(_)) => {
+                    // The log's ability resolved something - a slot, a damage
+                    // word, a status or a stat cell - and the port spent the
+                    // turn instead: the arm it took differs.
                     return Some(Divergence::NotWasted {
                         frame: action.start_frame,
                         actor,
@@ -360,9 +414,43 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
                     });
                 }
             }
-            // The slots the ability resolved on: the port's own list, checked
-            // below slot by slot against the log's.
-            resolved.iter().map(|target| id(target.id)).collect()
+            // The status bytes the action moved: the effect the log sees that
+            // the port reports as an event of its own, checked before the
+            // slot-by-slot walk below - which only reads the slots the log
+            // resolved, and an ability's status arm resolves a slot with no
+            // damage word at all.
+            for (target, _before, after) in &action.effect.status {
+                let target = id(*target);
+                let inflicted = events
+                    .clone()
+                    .take_while(|event| {
+                        !matches!(
+                            event,
+                            BattleEvent::Attacked { .. } | BattleEvent::RoundEnded { .. }
+                        )
+                    })
+                    .any(|event| {
+                        matches!(event, BattleEvent::StatusInflicted { target: hit, .. }
+                                 if *hit == target)
+                    });
+                if !inflicted {
+                    return Some(Divergence::Status {
+                        frame: action.start_frame,
+                        actor,
+                        target,
+                        log_status: *after,
+                    });
+                }
+            }
+            // The slots the ability *damaged*: the log's own list, checked
+            // below slot by slot. Not the pass's coverage - an ability marks
+            // every slot in its range as resolved whether or not its effect
+            // reaches them (a status arm that misses, or finds the status
+            // already set, writes no damage and no status), and a resolution
+            // the log has no evidence for is not one to demand. What the port
+            // may not do is resolve damage the log does not show: that is the
+            // `_ =>` arm below, which reads every slot the port swung at.
+            damaged.iter().map(|target| id(target.id)).collect()
         };
 
         // The port's resolutions, in the order it made them: one per slot it
@@ -400,7 +488,14 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
                 Some(flag) if flag != "FF" => {
                     let target = logged.expect("just matched");
                     let want_verdict = verdict_of(flag);
-                    if verdict != want_verdict || damage != target.damage {
+                    // The verdict is always compared; the damage word only
+                    // where the log shows one moving. A word rewritten to the
+                    // value it already held is invisible
+                    // (`oracle/fixture/assembly.py`'s undetermined list), and
+                    // the HP left on the slot below is what pins the number
+                    // either way.
+                    let matches_damage = target.damage.is_none_or(|d| damage == Some(d));
+                    if verdict != want_verdict || !matches_damage {
                         return Some(Divergence::Value {
                             frame: action.start_frame,
                             actor,

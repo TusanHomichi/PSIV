@@ -401,9 +401,18 @@ python3 oracle/force_battle.py --formation 0x53 --vehicle 2 \
     --out build/forced/icedigger
 ```
 
-Its runs log `core,battle,bhit,enemy,chars,rng,vehicle` - the vehicle group
-because a vehicle battle's party side is built from `Vehicle_Stats` and its
-saved record, which a fixture's `vehicle` section reads. It takes a base tape
+Its runs log `core,battle,bhit,enemy,chars,rng,vehicle,bcmd`
+(`oracle/force/runs.py`'s `GROUPS`) - the vehicle group because a vehicle
+battle's party side is built from `Vehicle_Stats` and its saved record, which a
+fixture's `vehicle` section reads, and `bcmd` (`Character_Command_Data`,
+`constants:2005-2011`) because the command a member chose is the only record of
+what a swing was *aimed* at: the cartridge moves `Current_Target_Index` off a
+commanded enemy that has fallen (`ps4.asm:8345-8409`), so the cell is what tells
+a swing that kept its aim from one the retarget scan re-aimed. A capture carries
+`current_target`/`current_command` (`$FFFF4144`/`$FFFF4146`) and
+`cmd0_target`..`cmd4_target` with it; the extractor records the command's target
+per party action (`assembly.command_entry`) and no target at all for a capture
+taken before the group existed. It takes a base tape
 whose field prefix walks into an encounter (tape 07's, by default), cuts it at
 the frame that encounter fires on, and drives the fight with a fixed input
 policy (`attack`: one `C` press every 16 frames, tape 07's
@@ -449,9 +458,16 @@ python3 oracle/sweep.py --out build/lane-evidence/sweep --jobs 3
 
 Three captures run at once (the machine's memory cap), a formation that fails
 is recorded rather than fatal, and re-running the command resumes: a formation
-whose fixture is on disk is skipped. Every capture takes `--durable` (the
-party's HP cells patched to 999 so a level-1 tape party survives long enough to
-show a strong formation's later actions; `oracle/force/durable.py`) and
+whose fixture is on disk is skipped. `--reextract DIR` is the other half on its
+own - no emulator, no tape: every `formation_XX/` under a sweep's working
+directory that holds a capture is extracted again, with the numbers its own
+`report.json` recorded, into `--fixtures`. That is how a change in the
+extractor's reading reaches a sweep that has already been taken
+(`python3 oracle/sweep.py --reextract build/lane-evidence/sweep`).
+
+Every capture takes `--durable` (the party's HP cells patched to 999 so a
+level-1 tape party survives long enough to show a strong formation's later
+actions; `oracle/force/durable.py`) and
 `--max-rounds 5` (stop at round 5's end, with the fixture's outcome saying
 `truncated` and how many rounds it kept; `oracle/fixture/assembly.py`). The
 record is `<out>/sweep_motavia.json` - per formation the group, the selector,
@@ -691,12 +707,14 @@ field. `frame` is 1-based and counts `retro_run()`
 calls from power-on. Values are decimal, or fixed-width hex for fields flagged
 `hex` in the map.
 
-Input paths are written as given; the `# rng-trace=` line is the one line that
-names an *output* of the run, so it carries the trace's basename and not the
-path it was written to (`oracle/host/provenance.h`). Two runs that differ only
-in their output directories therefore produce byte-identical traces and
-byte-identical logs, which is what lets the ledger pin a capture by sha256 and
-compare it against another run.
+Every input is named by its file and not by the path the run was given:
+`# rom=`, `# tape=` and `# rng-trace=` all carry a basename
+(`oracle/host/provenance.h`), and a fixture stores them that way too
+(`oracle/fixture/logs.py`'s `provenance_lines`). Two runs that differ only in
+their directories - where the ROM or the tape sits, where the run wrote -
+therefore produce byte-identical traces and byte-identical logs, which is what
+lets a ledger pin a capture by sha256 and compare it against another run
+(`tests/test_oracle_provenance.py`).
 
 ## RAM map
 

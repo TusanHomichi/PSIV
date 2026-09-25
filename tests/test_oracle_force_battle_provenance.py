@@ -2,9 +2,9 @@
 
 A capture is only reproducible if its log says what the run was given *and*
 nothing about where the run happened to write: `tests/test_oracle_rng_trace.py`
-pins that for `--rng-trace`, and this file pins it for the tape - the same
-capture re-run from another directory has to produce the same bytes, which is
-what makes a capture's sha256 worth pinning in a ledger.
+pins that for `--rng-trace`, and this file pins it for the ROM and the tape -
+the same capture re-run from another directory has to produce the same bytes,
+which is what makes a capture's sha256 worth pinning in a ledger.
 
 The line itself needs the emulator core and the ROM to produce, so its call
 site is read out of `oracle/host/psiv_oracle.c` and the helper it hands to
@@ -19,9 +19,10 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-#: The tape paths a capture is composed with, and what the line must say.
-#: `oracle/force_battle.py` writes its tape inside its own output directory,
-#: so the same capture run twice differs only here.
+#: The paths a capture is composed with, and what the lines must say. The ROM
+#: is named by the file alone as well - what identifies it is the size the line
+#: carries, not the directory it was read from - and its name carries spaces,
+#: which is why the line keeps its value and its own fields apart.
 PROBE_PATHS = [
     ("build/forced/helex/forced_5E_attack.tape", "forced_5E_attack.tape"),
     ("/tmp/somewhere/else/forced_53_attack.tape", "forced_53_attack.tape"),
@@ -29,10 +30,15 @@ PROBE_PATHS = [
     ("./nested/dir/forced_5E_attack_d5.tape", "forced_5E_attack_d5.tape"),
     ("build/lane-evidence/f94/forced_5E_attack.tape",
      "forced_5E_attack.tape"),
+    ("/home/peter/PSIV/Phantasy Star IV (USA).md",
+     "Phantasy Star IV (USA).md"),
 ]
 
-#: The `# tape=` provenance line, and the argument it must hand to fprintf.
+#: The `# tape=` and `# rom=` provenance lines, and the argument each must hand
+#: to fprintf.
 TAPE_LINE = re.compile(r'fprintf\(out,\s*"# tape=%s steps=%d frames=%llu\\n"\s*,\s*(.+?),')
+ROM_LINE = re.compile(
+    r'fprintf\(out,\s*"# rom=%s size=%zu\\n"\s*,\s*(.+?)\);')
 
 PROBE_SOURCE = """
 #include <stdio.h>
@@ -83,7 +89,9 @@ class TapeProvenance(unittest.TestCase):
             [self.binary, "basename", *[path for path, _ in PROBE_PATHS]],
             capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.split(),
+        # One name per line: a ROM's name carries spaces, so the probe's
+        # output cannot be split on whitespace.
+        self.assertEqual(result.stdout.splitlines(),
                          [name for _, name in PROBE_PATHS])
 
     def test_the_host_names_the_tape_by_basename_in_the_log(self):
@@ -101,20 +109,18 @@ class TapeProvenance(unittest.TestCase):
         self.assertIsNotNone(line, "no `# tape=` provenance line")
         self.assertEqual(line.group(1).strip(), "path_basename(tape_path)")
 
-    def test_the_rom_is_still_recorded_as_it_was_given(self):
-        """The one input whose spelling stays verbatim.
-
-        A capture is taken against a ROM at a path, and the ledgers pin that
-        spelling; only the tape and the trace, which are this project's own
-        files, are named by their basename.
+    def test_the_host_names_the_rom_by_basename_in_the_log(self):
+        """The ROM too is named by its file, and the size beside it is what
+        identifies the dump: a capture taken against the same ROM from another
+        directory has the same bytes, so its sha256 can be pinned in a ledger
+        regardless of where the ROM sits.
         """
         with open(os.path.join(ROOT, "oracle", "host",
                                "psiv_oracle.c")) as handle:
             source = handle.read()
-        line = re.search(r'fprintf\(out,\s*"# rom=%s size=%zu\\n"\s*,\s*(.+?)\);',
-                         source)
+        line = ROM_LINE.search(source)
         self.assertIsNotNone(line, "no `# rom=` provenance line")
-        self.assertEqual(line.group(1).strip(), "rom_path, rom_size")
+        self.assertEqual(line.group(1).strip(), "path_basename(rom_path), rom_size")
 
 
 if __name__ == "__main__":

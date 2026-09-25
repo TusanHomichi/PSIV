@@ -232,16 +232,19 @@ class ActionWindows(ForcedFixture):
         # throughout, and still two actions.
         rows = self.rows_for({1: 1, 2: 1, 3: 1, 4: 1, 5: 1, 6: 1})
         windows = fx.action_windows(self.log(rows), 1, 6, cuts=[3],
-                                    roll_frames=[2, 5])
+                                    roll_frames=[1, 5])
         self.assertEqual(windows, [(1, 1, 2), (1, 5, 6)])
 
     def test_a_stale_actor_id_opens_no_window_without_calls_of_its_own(self):
-        # Frames 3-4 still read the *previous* round's last actor; the next
-        # action is the other fighter's, and only its calls say so.
-        rows = self.rows_for({1: 6, 2: 6, 3: 6, 4: 6, 5: 1, 6: 1})
+        # Frames 3-5 still read the *previous* round's last actor, and the
+        # turn engine wrote it before testing whether the fighter could act
+        # (`ps4.asm:8033-8043`): with nothing drawn there, they are the round's
+        # tail. The next action is the other fighter's, and its own call is
+        # what says so.
+        rows = self.rows_for({1: 6, 2: 6, 3: 6, 4: 6, 5: 6, 6: 1})
         windows = fx.action_windows(self.log(rows), 1, 6, cuts=[3],
-                                    roll_frames=[6])
-        self.assertEqual(windows, [(6, 1, 2), (1, 5, 6)])
+                                    roll_frames=[1, 6])
+        self.assertEqual(windows, [(6, 1, 2), (1, 6, 6)])
 
 
 class Outcome(ForcedFixture):
@@ -377,3 +380,78 @@ class TruncatedCapture(ForcedFixture):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ActionEffects(ForcedFixture):
+    """What an action moved, read off every fighter - either side.
+
+    An enemy ability need not touch its opponents: the sweep's TechUser casts
+    RES on itself, and the status arms leave their mark in a status byte rather
+    than a damage word, which is what decides whether the log calls the turn an
+    ability at all (`oracle/fixture/enemies.py`'s `kind_of`).
+    """
+
+    def action(self, rows, frames):
+        fixture = self.build(rows, frames, 20, 23)
+        return fixture["rounds"][0]["actions"][0]
+
+    def test_a_self_heal_is_an_ability_and_shows_on_the_casters_own_cell(self):
+        # 99 TechUser's `$45` RES: the enemy's own HP rises by the damage run's
+        # value, and no opposing slot moves at all.
+        builder = ForcedLog()
+        builder.frame(20, enemy_count=1, e1_id=99, e1_hp=38, e1_maxhp=80)
+        builder.frame(21, turn_00=6, turn_01=20, turn_02=1, turn_03=9)
+        builder.frame(22, battle_actor=6, e1_ability="45")
+        builder.frame(23, e1_hp=75)
+        action = self.action(builder.rows, {20: 1, 21: 14, 22: 1, 23: 16})
+        self.assertEqual(action["kind"], "ability")
+        self.assertEqual(action["ability"], 0x45)
+        self.assertEqual(action["targets"], [])
+        self.assertEqual(action["effect"]["hp"], [[6, 38, 75]])
+
+    def test_a_status_that_moves_is_an_ability(self):
+        # 32 Caterpillr's `$11` POISON: the effect is a status byte, and every
+        # damage word stays where it was.
+        builder = ForcedLog()
+        builder.frame(20, enemy_count=1, e1_id=32, e1_hp=195, e1_maxhp=195)
+        builder.frame(21, turn_00=7, turn_01=20, turn_02=1, turn_03=9)
+        builder.frame(22, battle_actor=7, e2_ability="11", hahn_status="0",
+                      hit_02="00")
+        builder.frame(23, hahn_status="1", hit_02="00")
+        action = self.action(builder.rows, {20: 1, 21: 14, 22: 1, 23: 1})
+        self.assertEqual(action["kind"], "ability")
+        self.assertEqual(action["effect"]["status"], [[3, 0, 1]])
+
+    def test_the_death_bit_is_a_death_and_not_a_status_effect(self):
+        # `Battle_KillFighter` sets StatusDead (`$04`) when a HP cell goes
+        # non-positive; the port reports that as a `Died` event, so a fixture
+        # that called the bit an effect would ask it for a status the log never
+        # had.
+        builder = ForcedLog()
+        builder.frame(20, enemy_count=1, e1_id=15, e1_hp=261, e1_maxhp=261)
+        builder.frame(21, turn_00=6, turn_01=20, turn_02=1, turn_03=9)
+        builder.frame(22, battle_actor=6, alys_hp=900, alys_status="0")
+        builder.frame(23, alys_hp=0, alys_status="04")
+        action = self.action(builder.rows, {20: 1, 21: 14, 22: 2, 23: 16})
+        self.assertEqual(action["effect"]["status"], [])
+        self.assertEqual(action["effect"]["hp"], [[1, 900, 0]])
+
+    def test_the_pass_frame_follows_the_last_pass_a_swing_drew(self):
+        # A vehicle swing draws one pass per frame (`loc_AF9C`): the bytes the
+        # later frames leave are the ones `Fighter_TakeDamage` reads.
+        rows = [ForcedRow(frame=1, battle_actor="1", hit_05="01"),
+                ForcedRow(frame=2, battle_actor="1", hit_05="00"),
+                ForcedRow(frame=3, battle_actor="1", hit_05="00")]
+        log = self.log(rows)
+        self.assertEqual(fx.pass_frame(log, 1, 3, [1, 2]), 2)
+
+    def test_a_frame_that_drew_nothing_is_not_a_pass(self):
+        # The battle scratch above `$FFFF4100` is reused when a round runs out
+        # of actors, and the bytes it leaves are not verdicts.
+        rows = [ForcedRow(frame=1, battle_actor="1", hit_05="00"),
+                ForcedRow(frame=2, battle_actor="1541", hit_02="03",
+                          hit_03="06", hit_05="FF"),
+                ForcedRow(frame=3, battle_actor="1541", hit_02="03",
+                          hit_03="06", hit_05="FF")]
+        log = self.log(rows)
+        self.assertEqual(fx.pass_frame(log, 1, 3, [1]), 1)
