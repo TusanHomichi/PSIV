@@ -74,39 +74,6 @@ failed batch, review all completed workers' receipts before selecting repair
 scope without repeating their investigations. Integrate only after writers are
 idle. Do not commit a moving shared tree.
 
-## Shared Redshirt experiments
-
-The owner identified [Redshirt](https://github.com/FieldmouseWorks/redshirt)
-as shared cross-project tooling on 2026-09-23. Assess it when a concrete PSIV
-task benefits from bounded exploration or repeated action selection. Reuse its
-controller/evidence/replay interfaces instead of copying a runner into PSIV.
-Keep a thin consumer adapter responsible for legal game actions, isolated
-local saves, retail constraints and independent outcome checks. This is
-integration guidance; the [battle experiment ledger](REDSHIRT_BATTLE.md)
-records the implemented boundary and actual results separately.
-
-The optional TypeSafe/Jev provider may choose from code-generated candidates.
-It does not own game rules, permission decisions, exact byte verification,
-acceptance or architecture. Preserve the three default GPT roles. Begin with
-the existing deterministic policy and model-free execution/replay; compare
-the same bounded cases before claiming quality, coverage or efficiency gains.
-Confidence is not a measured correctness result. Retain malformed/refused
-responses and failed trials without silent fallback or normalization.
-
-A live trial needs explicit owner authorization and a reviewed input boundary.
-For the assigned PSIV adapter experiment, the owner authorized actual model use
-and then said, "don't worry about limiting it by requests or budget at this
-point" (2026-09-23). This waives an additional task-level request/cost cap;
-retain Redshirt's implemented per-run bounds, pin the model, and record calls,
-reservations, usage, timing and failures across runs. It does not authorize
-unrelated services or purchases. Unlimited scoped repairs alone would not
-authorize paid calls or reset an allowance. Keep ROMs, source saves, extracted packs,
-dialogue and unrestricted captures local; any external observation must be an
-explicitly reviewed minimal representation. Search existing Redshirt issues
-before filing a demonstrated shared need. Shared changes get their own scoped
-issue/PR and generic or synthetic evidence; PSIV's rules and private evidence
-stay here. A nonblocking platform idea must not delay the assigned game gate.
-
 ## Authority, effort and continuation
 
 Source: the owner's workflow-setup request, repair-budget reply and subsequent
@@ -123,15 +90,15 @@ no project authority.
 | Git / remote writes | The owner authorized committing, publishing a PR, merging and owned cleanup for these workflow docs on 2026-09-23. This is not a standing remote-write grant for campaign changes. Reuse explicit task authorization without asking again. Remote inspection is allowed. |
 | Cleanup | Remove only owned disposable outputs/processes and, when integration includes it, owned task branches/worktrees. Retain receipts, source saves and other people's work. No broad cleanup. |
 | Deployment / publication | Releases, deployment and asset distribution are outside this setup; no standing grant recorded. |
-| Paid services | The completed Redshirt experiment had task-specific authority for TypeSafe/Jev calls, with no additional task-level request/cost cap by owner reply on 2026-09-23; its per-run safeguards and measured usage remain in the ledger. A future live batch needs a new explicit assignment. This integration authorizes no further paid calls, unrelated service or credit purchase. |
+| Paid services | No paid model service is currently authorized in PSIV; the completed Redshirt/TypeSafe/Jev experiments are summarized in their [archived record](REDSHIRT_BATTLE.md). Any future live batch needs a new explicit assignment, and nothing here authorizes unrelated service or credit purchase. |
 | Protected inputs | ROM, disassembly, packs, saves and captures remain local/ignored. Copy and hash source saves; set `PSIV_SAVE_DIR`. Never overwrite the only verified checkpoint or force-add protected assets. |
 | Effort | Owner: "Continue scoped repairs until it passes, with no fixed cycle limit." Applies to failures of accepted checks inside authorized scope. It does not waive source, permission, resource or input constraints. |
 | Continuation | The original setup graph covers local documentation acceptance; the authorized publication follow-through is recorded in the setup ledger. BioPlant continuation was assigned separately and must not be bundled into the docs PR. During an assigned outcome, continue ready authorized nodes through its agreed endpoint without repeated approval requests. |
 
 On 2026-09-23 the owner separately requested committing the pending intentional
 PSIV work, creating a PR, merging it and cleaning up owned integration state.
-This authorizes the reviewed BioPlant, Redshirt adapter/fixture and post-Rika
-crossing integration. It is not a standing grant for later campaign work,
+This authorizes the reviewed BioPlant and post-Rika crossing
+integration. It is not a standing grant for later campaign work,
 deployment or additional paid calls.
 
 An observed failure leads to a scoped repair and rerun of affected checks. A
