@@ -16,187 +16,15 @@ use super::*;
 
 use crate::battle::*;
 
+#[cfg(test)]
+#[path = "compare_tests.rs"]
+mod tests;
+
 pub(crate) fn verdict_of(hit: &str) -> Verdict {
     match hit {
         "00" => Verdict::Normal,
         "01" => Verdict::Critical,
         other => panic!("a resolved target with hit flag {other} is not a hit"),
-    }
-}
-
-/// The first place a round's timeline disagrees with the log.
-#[derive(Debug, PartialEq)]
-pub(crate) enum Divergence {
-    /// The queue build.
-    Queue {
-        round: u16,
-        port: Vec<FighterId>,
-        log: Vec<FighterId>,
-    },
-    /// A fighter the log shows resolving targets never swung.
-    NoSwing {
-        frame: u32,
-        actor: FighterId,
-        log_targets: usize,
-    },
-    /// A swing's target list.
-    Targets {
-        frame: u32,
-        actor: FighterId,
-        port: Vec<FighterId>,
-        log: Vec<FighterId>,
-    },
-    /// A target resolved for the log was never resolved by the port.
-    NoResolution {
-        frame: u32,
-        actor: FighterId,
-        target: FighterId,
-    },
-    /// A verdict or a damage value.
-    Value {
-        frame: u32,
-        actor: FighterId,
-        target: FighterId,
-        port: Verdict,
-        port_damage: Option<u16>,
-        log_hit: u8,
-        log_damage: Option<u16>,
-    },
-    /// HP left on the target.
-    Hp {
-        frame: u32,
-        actor: FighterId,
-        target: FighterId,
-        port: u16,
-        log: i32,
-    },
-    /// A death the port did not report.
-    NoDeath { frame: u32, target: FighterId },
-    /// The log's action ran an ability; the port ran something else.
-    Ability {
-        frame: u32,
-        actor: FighterId,
-        log_ability: u8,
-        port: Option<u8>,
-    },
-    /// The log's action ran an ability the port does not implement, so it fell
-    /// back to a physical swing.
-    Unsupported {
-        frame: u32,
-        actor: FighterId,
-        ability: u8,
-    },
-    /// The log's action spent the turn without an effect; the port did not.
-    NotWasted {
-        frame: u32,
-        actor: FighterId,
-        log_ability: u8,
-    },
-    /// The log's action moved a fighter's status byte; the port did not.
-    Status {
-        frame: u32,
-        actor: FighterId,
-        target: FighterId,
-        log_status: u32,
-    },
-}
-
-impl Divergence {
-    pub(crate) fn frame(&self) -> u32 {
-        match self {
-            Divergence::Queue { .. } => 0,
-            Divergence::NoSwing { frame, .. }
-            | Divergence::Targets { frame, .. }
-            | Divergence::NoResolution { frame, .. }
-            | Divergence::Value { frame, .. }
-            | Divergence::Hp { frame, .. }
-            | Divergence::NoDeath { frame, .. }
-            | Divergence::Ability { frame, .. }
-            | Divergence::Unsupported { frame, .. }
-            | Divergence::Status { frame, .. }
-            | Divergence::NotWasted { frame, .. } => *frame,
-        }
-    }
-
-    /// The name `replay_fixtures/divergences.json` carries for this finding.
-    pub(crate) fn kind(&self) -> &'static str {
-        match self {
-            Divergence::Queue { .. } => "queue",
-            Divergence::NoSwing { .. } => "no-swing",
-            Divergence::Targets { .. } => "targets",
-            Divergence::NoResolution { .. } => "no-resolution",
-            Divergence::Value { .. } => "value",
-            Divergence::Hp { .. } => "hp",
-            Divergence::NoDeath { .. } => "no-death",
-            Divergence::Ability { .. } => "ability",
-            Divergence::Unsupported { .. } => "unsupported",
-            Divergence::NotWasted { .. } => "not-wasted",
-            Divergence::Status { .. } => "status",
-        }
-    }
-
-    /// What the log says, and what the port did: the pair a reader needs to
-    /// judge the finding without re-running anything.
-    pub(crate) fn expectation(&self) -> (String, String) {
-        match self {
-            Divergence::Queue { round, port, log } => (
-                format!("round {round}'s queue {log:?}"),
-                format!("queue {port:?}"),
-            ),
-            Divergence::NoSwing {
-                actor, log_targets, ..
-            } => (
-                format!("actor {actor:?} resolving {log_targets} target(s)"),
-                "no swing".to_owned(),
-            ),
-            Divergence::Targets { port, log, .. } => {
-                (format!("targets {log:?}"), format!("targets {port:?}"))
-            }
-            Divergence::NoResolution { actor, target, .. } => (
-                format!("{actor:?} resolving {target:?}"),
-                "no resolution".to_owned(),
-            ),
-            Divergence::Value {
-                target,
-                port,
-                port_damage,
-                log_hit,
-                log_damage,
-                ..
-            } => (
-                format!("{target:?}: hit flag {log_hit:02X}, damage {log_damage:?}"),
-                format!("{port:?} with {port_damage:?}"),
-            ),
-            Divergence::Hp {
-                target, port, log, ..
-            } => (format!("{target:?} at {log} HP"), format!("{port} HP")),
-            Divergence::NoDeath { target, .. } => {
-                (format!("{target:?} dying"), "no Died event".to_owned())
-            }
-            Divergence::Ability {
-                log_ability, port, ..
-            } => (
-                format!("ability ${log_ability:02X}"),
-                match port {
-                    Some(ability) => format!("ability ${ability:02X}"),
-                    None => "a physical swing".to_owned(),
-                },
-            ),
-            Divergence::Unsupported { ability, .. } => (
-                format!("ability ${ability:02X} resolving"),
-                format!("UnsupportedAbility ${ability:02X} and a physical swing"),
-            ),
-            Divergence::NotWasted { log_ability, .. } => (
-                format!("ability ${log_ability:02X} spending the turn"),
-                "an effect".to_owned(),
-            ),
-            Divergence::Status {
-                target, log_status, ..
-            } => (
-                format!("{target:?} at status {log_status:02X}"),
-                "no status".to_owned(),
-            ),
-        }
     }
 }
 
@@ -442,15 +270,35 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
                     });
                 }
             }
-            // The slots the ability *damaged*: the log's own list, checked
-            // below slot by slot. Not the pass's coverage - an ability marks
+            // The slots the ability **damaged**: the log's own list, walked
+            // slot by slot below. Not the pass's coverage - an ability marks
             // every slot in its range as resolved whether or not its effect
             // reaches them (a status arm that misses, or finds the status
-            // already set, writes no damage and no status), and a resolution
-            // the log has no evidence for is not one to demand. What the port
-            // may not do is resolve damage the log does not show: that is the
-            // `_ =>` arm below, which reads every slot the port swung at.
+            // already set, writes no damage and no status), so the coverage is
+            // evidence of a range and not of a resolution. What the walk can
+            // check is that each damaged slot was resolved; every *other* slot
+            // the port resolves is checked by the scan that follows it, which
+            // is what keeps a port damage on a slot the log left clean from
+            // passing unread.
             damaged.iter().map(|target| id(target.id)).collect()
+        };
+
+        // This actor's whole turn, captured before the walk below: the walk
+        // steps over events that belong to slots it is not looking for, and an
+        // ability's own check has to see them all. Empty for a swing, whose
+        // target list *is* the walk.
+        let turn: Vec<&BattleEvent> = if action.kind == Kind::Attack {
+            Vec::new()
+        } else {
+            events
+                .clone()
+                .take_while(|event| {
+                    !matches!(
+                        event,
+                        BattleEvent::Attacked { .. } | BattleEvent::RoundEnded { .. }
+                    )
+                })
+                .collect()
         };
 
         // The port's resolutions, in the order it made them: one per slot it
@@ -561,6 +409,50 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
                         });
                     }
                 }
+            }
+        }
+
+        // The ability branch's second half. The walk above read only the slots
+        // the log shows damage on - an ability's pass marks every slot in its
+        // range as resolved whether or not its effect reaches them, so the
+        // coverage cannot be what a port resolution is demanded for - and that
+        // leaves the other direction unread: a port resolution on a slot the
+        // log left clean. A bare miss there is still accepted (the range's own
+        // slots, reached and missed), and anything else is not: a port that
+        // deals damage, or lands a non-miss, on a slot whose log shows neither
+        // has diverged, and this is the only place it can be seen - the walk
+        // steps over events for slots it is not looking for, and nothing else
+        // compares a slot's HP at the round's end.
+        if action.kind != Kind::Attack {
+            for event in &turn {
+                let BattleEvent::Resolved {
+                    actor: who,
+                    target: hit,
+                    verdict,
+                    damage,
+                    ..
+                } = event
+                else {
+                    continue;
+                };
+                if *who != actor || (*verdict == Verdict::Miss && damage.is_none()) {
+                    continue;
+                }
+                if damaged.iter().any(|target| id(target.id) == *hit) {
+                    continue;
+                }
+                let logged = entry(*hit);
+                return Some(Divergence::Value {
+                    frame: action.start_frame,
+                    actor,
+                    target: *hit,
+                    port: *verdict,
+                    port_damage: *damage,
+                    log_hit: logged.map_or(0xFF, |target| {
+                        u8::from_str_radix(&target.hit, 16).expect("a hex hit flag")
+                    }),
+                    log_damage: logged.and_then(|target| target.damage),
+                });
             }
         }
     }

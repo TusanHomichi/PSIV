@@ -14,6 +14,7 @@
 //!   roll.
 //! * [`stream`] - the verbatim stream: the cartridge's rolls, in its order, and
 //!   the per-action accounting that says the port consumed them.
+//! * [`divergence`] - the finding itself: what a comparator can report.
 //! * [`compare`] - the comparator: the first place a round's timeline disagrees
 //!   with the log.
 //! * [`pack`] - the pack records the forced captures' enemies and abilities
@@ -56,11 +57,13 @@
 mod build;
 mod compare;
 mod data;
+mod divergence;
 mod fixture;
 mod pack;
 mod stream;
 
 pub(crate) use build::*;
 pub(crate) use compare::*;
+pub(crate) use divergence::*;
 pub(crate) use fixture::*;
 pub(crate) use stream::*;

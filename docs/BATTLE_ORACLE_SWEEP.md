@@ -322,6 +322,19 @@ either: the word was rewritten to the value it already held
 `test_oracle_battle_fixture_forced.ActionEffects`; the comparator itself is
 exercised by the data-driven test. Clusters 7 (2 fixtures) and `formation_36`.
 
+Walking only the damaged slots left the other direction unread: a port ability
+that dealt damage, or landed a non-miss, on a slot the log shows no damage for
+would have gone uncompared while the walk stepped over its event, and nothing
+else compares a slot's HP at the round's end. The ability branch now scans its
+actor's **whole turn** for those resolutions and returns a `value` divergence
+with the log's own flag for the slot (a bare miss stays accepted, since an
+ability's pass covers its range); the scan's tests are
+`rust/psiv-core/src/battle/replay/compare_tests.rs`, with the negative control -
+the scan removed, the damage test failing on "the port damaged a slot the log
+shows no damage on" - in this lane's evidence. It surfaced **no new finding** in
+any of the 87 fixtures (the manifest dump is byte-identical with and without
+it), which is the honest reading: the earlier comparator hid nothing here.
+
 **H6. A fixture named directories.**
 The fixture recorded `--tape` as it was given - a sweep's own working path - and
 stored the capture's header lines verbatim, `# rom=` included, so the same

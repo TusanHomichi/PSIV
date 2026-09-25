@@ -224,8 +224,8 @@ fn the_logs_third_round_needs_the_last_passs_verdict() {
     // demoted a critical: 365 + 2*50 = 465, 465*2>>2 - 28 = 204.
     //
     // The fixture's own `hit` byte for this action is the decisive pass's:
-    // `oracle/fixture/observations.py`'s `sample_decisive_hits` reads it at the
-    // action's last `loc_B6A2` roll, so the replay's strict comparison sees the
+    // `oracle/fixture/observations.py`'s `pass_frame` picks the last frame the
+    // flags moved on that also drew, so the replay's strict comparison sees the
     // same `$00` this test asserts.
     let (roster, events) = swing(1, &[64381, 49153, 43906], &ROUND_3_DRAWS);
     assert_eq!(ROUND_3_DRAWS.iter().map(|r| r & 7).sum::<u16>(), 45);

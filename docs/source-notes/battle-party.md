@@ -434,7 +434,7 @@ Replay. `replay_fixtures/divergences.json` no longer carries an entry for
 and all 285 rolls exactly, and the manifest is now **empty** — the worklist
 this machinery existed to produce is closed. The fixture records each
 swing's per-target `hit` byte at the swing's **decisive** (last) `loc_B6A2`
-pass (`oracle/fixture/observations.py`, `sample_decisive_hits`), because
+pass (`oracle/fixture/observations.py`, `pass_frame`), because
 `loc_B6A2` presets every flag before each pass (`ps4.asm:17493-17498`) and the
 vehicle's three passes arrive in different frames. The comparator therefore
 checks every verdict strictly. (A first cut sampled the first hit frame and
