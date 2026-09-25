@@ -1,11 +1,12 @@
 """ds-lane: a DeepSeek worker (via Reasonix) in an isolated git worktree lane.
 
 The implementation is split by cohesion - `config` (paths, environment,
-constants), `preflight` (brief phrasing and write sets), `trajectory` (what a
-run left to read), `receipts` (a finished run's record and the wait chain),
-`evidence` (how a receipt's evidence is stored and described), `compaction`
-(deduplicating and compressing it), `report` (the lines and the run.json block a
-pass leaves), `lanes` (the lane commands and the run-launch path), `verify` (the
+constants), `confine` (the read boundary a worker and its children run under),
+`preflight` (brief phrasing and write sets), `trajectory` (what a run left to
+read), `receipts` (a finished run's record and the wait chain), `evidence` (how
+a receipt's evidence is stored and described), `compaction` (deduplicating and
+compressing it), `report` (the lines and the run.json block a pass leaves),
+`lanes` (the lane commands and the run-launch path), `verify` (the
 orchestrator's own checks as evidence), `supervisor` (slot, worker process
 group, watchdog, exec) and `cli` (arguments) - and is stdlib-only.
 `tools/ds-lane`, the executable entry point, exposes `main`. Usage:
@@ -15,6 +16,9 @@ This module also re-exports the pieces the test suite and ad-hoc tooling use as
 `ds_lane.<name>`, so they need not know the module split.
 """
 from .compaction import compact_finished_run, compact_run, compact_runs, scan_run
+from .confine import (bwrap_argv, bwrap_path, confine_home, lane_reasonix_home, local_bin_targets,
+                      node_prefix, read_paths, require_bwrap, seed_names, seed_reasonix_home, summary,
+                      wrap, worker_roots)
 from .config import (BINARY_SNIFF_BYTES, CARGO_JOBS, COMPRESS_PRESET, DEFAULT_COMPRESS_EXTS,
                      DEFAULT_COMPRESS_MIN_BYTES, DEFAULT_SIZE_EXEMPT, DEFAULT_STALL_CPU_PCT,
                      DEFAULT_STALL_RETRIES, DEFAULT_STALL_TIMEOUT, DEFAULT_TIMEOUT, EFFORT, ENTRY,

@@ -10,9 +10,10 @@ recorded in the [lane ledger](../../docs/records/CLAUDE_LANES.md).
 
 `ds-lane` is on `PATH` through `~/.local/bin`. `tools/ds-lane` is the
 executable entry point (a shim that resolves its own symlink) for the
-stdlib-only `tools/ds_lane/` package (`config`, `preflight`, `trajectory`,
-`receipts`, `evidence`, `compaction`, `report`, `lanes`, `verify`,
-`supervisor`, `cli`). Usage: `ds-lane --help`, or the `cli` module docstring.
+stdlib-only `tools/ds_lane/` package (`config`, `confine`, `preflight`,
+`trajectory`, `receipts`, `evidence`, `compaction`, `report`, `lanes`,
+`verify`, `supervisor`, `cli`). Usage: `ds-lane --help`, or the `cli` module
+docstring.
 
 - Launch with `ds-lane start BRIEF.md` in a background shell; the host wakes
   the orchestrator on exit. Runs use a detached supervisor, so the worker and
@@ -46,15 +47,19 @@ stdlib-only `tools/ds_lane/` package (`config`, `preflight`, `trajectory`,
   inside its worktree (for example with `PSIV_RUNTIME_PACK` pointing there).
 - **The worker's environment is an allowlist.** The supervisor starts the
   worker with `worker_env()` (`config.py`): `WORKER_ENV_ALLOW` (path, home,
-  user, locale, temp and XDG directories, cargo/rustup), the `LC_*` variables,
+  user, locale, temp and XDG directories, cargo/rustup/nvm), the `LC_*`
+  variables,
   a capped `CARGO_BUILD_JOBS`, and any name listed in
   `DS_LANE_WORKER_ENV_PASS` - nothing else. A copy of the caller's environment
   sent two GitHub tokens to the model provider when lane `re-B-tools` printed
   its environment while debugging (2026-09-25); it also exposed
   `SSH_AUTH_SOCK`, the display and bus sockets and every other exported
-  secret. Reasonix reads its own API key from its config file. The sandbox
-  still confines only writes, so files a worker can read (credentials under
-  `HOME`) remain a known gap, tracked in its own issue.
+  secret. Reasonix reads its own API key from its config file.
+- **The worker's filesystem is an allowlist too** (the read boundary below).
+  The environment was only half of it: a worker could still read any file under
+  the owner's home - `~/.ssh/id_*`, `~/.config/gh/hosts.yml`, another project's
+  session - and what it reads reaches the provider through its trajectory. Lane
+  `h1-confine` closed that with bubblewrap; issue #26 was the record.
 - **The prompt travels on stdin.** The supervisor writes the run's `prompt.md`
   to the worker's stdin and puts nothing of it on the command line: a brief in
   argv is text the worker's own process matching can hit, and lane
@@ -211,8 +216,7 @@ stdlib-only `tools/ds_lane/` package (`config`, `preflight`, `trajectory`,
   `<state>/verify/NNN.log`, and exits with CMD's code. Use it for the
   orchestrator's own checks instead of "the worker says it passed".
 - `DS_LANE_HOME` relocates worktrees/receipts (tests), `DS_LANE_REASONIX`
-  swaps the worker binary, `DS_LANE_MAX_LANES` caps concurrency,
-  `DS_LANE_STALL_POLL` shortens the 15 s stall sampling interval,
+  swaps the worker binary, `DS_LANE_MAX_LANES` caps concurrency,  `DS_LANE_STALL_POLL` shortens the 15 s stall sampling interval,
   `DS_LANE_STALL_CPU_PCT` moves the work threshold (both are test seams; the
   defaults are 15 s and 1.0% of a core), `DS_LANE_MAX_FILE_LINES` moves the
   1,000-line limit and `DS_LANE_SIZE_EXEMPT` replaces the globs that limit
@@ -220,17 +224,26 @@ stdlib-only `tools/ds_lane/` package (`config`, `preflight`, `trajectory`,
   data-file list above), and `DS_LANE_COMPRESS_MIN_BYTES` /
   `DS_LANE_COMPRESS_EXTS` move what a receipt's pass compresses (test seams as
   well; the defaults are 1 MiB and the five extensions above).
+  `DS_LANE_BWRAP` points at another bubblewrap - a value that does not resolve
+  is a refusal, never a way to run unconfined - and `DS_LANE_CONFINE_HOME`
+  names the home the boundary masks (the test seam; the default is the worker's
+  own `HOME`).
   `PYTHONPATH=. python3 -m unittest discover -s tests -p 'test_ds_lane*.py' -v`
-  covers the harness hermetically in under a minute (its stall cases run with a
-  lowered poll, its size cases against the real limit and its compaction cases
-  against the real 1 MiB threshold; the suite must stay under 90 s). The cases
+  covers the harness hermetically in under a minute and a half (its stall cases
+  run with a lowered poll, its size cases against the real limit and its
+  compaction cases against the real 1 MiB threshold; the suite must stay under
+  90 s). The cases
   are split by cohesion - `tests/ds_lane_support.py` (the fake worker, the repo
   and home fixtures, the CLI helpers), `test_ds_lane_unit.py`,
   `test_ds_lane_lanes.py`, `test_ds_lane_size.py`,
   `test_ds_lane_compaction.py`, `test_ds_lane_finalize.py`,
-  `test_ds_lane_crash.py` and `test_ds_lane_supervisor.py` - each under the
+  `test_ds_lane_crash.py`, `test_ds_lane_supervisor.py` and
+  `test_ds_lane_confine.py` (the read boundary: the generated argv, the masked
+  home and a canary the worker cannot reach) - each under the
   line cap that applies to it (500 lines for a test module, 400 for a package
-  module).
+  module). The confinement cases run the real `bwrap`, so a host that cannot
+  create a user namespace cannot run the whole suite; the rest of the suite
+  needs it too, because every run in the suite is confined.
 - A lane that builds the whole workspace needs `--link oracle/gpgx-src`:
   `psiv-sound`'s build script compiles the ignored core sources under it.
 - Each lane has its own `rust/target`, so its first cargo build is cold.
@@ -238,3 +251,104 @@ stdlib-only `tools/ds_lane/` package (`config`, `preflight`, `trajectory`,
   saves, serialized expensive runs).
 - Other agents may commit in the main tree. Keep uncommitted Claude-side
   edits short-lived and scoped, and check `git log` before committing.
+
+## The read boundary
+
+`ds-lane` owns what a worker can read, the way it owns what a worker can write.
+The supervisor starts every worker under bubblewrap (`confine.py`, called from
+`supervisor.run_worker`), and the boundary applies to the worker and everything
+it spawns - Reasonix, its bash tool, cargo, Godot. There is no switch that turns
+it off: `lanes.prepare_run` refuses to launch (`start`, `resume`, and the
+watchdog's automatic resume) when bubblewrap is missing, so a run either happens
+under the boundary or does not happen at all. Each run's `supervisor.log`
+records the boundary it used: `confined: masked <paths>; readable <n>: ...;
+writable: ...; seeded lane home: <files>`.
+
+**Visible.** The root filesystem, read-only, minus the two masks below. Inside
+the sandbox the worker sees the toolchain and its own inputs, all read-only:
+
+- `~/.cargo`, `~/.rustup`, `~/.local/bin` and the resolved target of every
+  symlink in it (`local_bin_targets`: `ds-lane`, `claude`, a Godot build);
+- the Node that runs Reasonix (`worker_roots`): `reasonix` on this host is the
+  nvm shim `~/.local/bin/reasonix`, which sources `$NVM_DIR/nvm.sh`, resolves
+  `$NVM_DIR/alias/default` and execs `$NVM_DIR/versions/node/<v>/bin/reasonix`,
+  so those three pieces are bound - not the rest of `$NVM_DIR`, which also
+  holds nvm's own checkout, a tarball cache and a `.npmrc`. A worker binary
+  that is already a Node install's entry point resolves to its prefix instead,
+  and the directory holding the binary is always readable;
+- the main repository's `.git`: a linked worktree keeps its objects there, and
+  it stays read-only, as it is today;
+- the resolved sources of every `--link` and `--add-dir`.
+
+**Masked.** The worker's home is replaced by a tmpfs (`--tmpfs "$HOME"`, or
+`DS_LANE_CONFINE_HOME`), and `/tmp` is a private tmpfs of its own. Nothing
+under either is in view: `~/.ssh`, `~/.config/gh/hosts.yml`, `~/.claude`
+(including its credentials), `~/.gnupg`, `~/.gitconfig` and any credential
+helper it points at, `~/.npmrc`, the rest of `~/.nvm`, `~/.cache/reasonix`,
+and - the case that started this - the owner's own `~/.reasonix`. The home is
+writable as a tmpfs, so a program that writes `$HOME/.cache` or a session tmp
+directory still works; what it writes there is private to the run and gone
+when it ends. A write aimed at the masked home never reaches the owner's disk,
+which is the `test_canary_is_unreadable_and_absent_from_the_workers_view` case.
+
+**Writable, and only these three.** The lane worktree, the run directory
+(trajectory, metrics, logs) and the lane's own Reasonix home. Everything else
+in the sandbox is read-only, so the worker's toolchain and its linked inputs
+cannot be modified either.
+
+**The per-lane Reasonix home.** Each lane gets `<state>/reasonix-home`, bound
+at `~/.reasonix` for every run of that lane, so a `resume` finds the session
+the previous run left and no other project's sessions are in view. It is seeded
+once (and refreshed on later runs) with the config Reasonix needs, and with
+nothing else:
+
+- `.env`, copied as-is when it is a regular file: this is the credential store
+  the worker authenticates from, because a `config.toml` provider table names
+  each key with `api_key_env` and does not fall back to the legacy store. The
+  real CLI was measured on this host (2026-09-25): with the owner's
+  `config.toml` shape seeded and no `.env`, a run fails at once with
+  `missing_credential`; with `.env` seeded it reaches the provider API. It is
+  also created empty when there is nothing to copy, because Reasonix's own
+  sandbox binds `/dev/null` over it on every bash call and bubblewrap cannot
+  create that destination under a read-only tree;
+- `config.toml`, what the lanes depend on: `sandbox.bash = "enforce"` is what
+  confines the worker's *own* bash tool, `subagent_effort = "max"` is pinned
+  there, and the provider table is what resolves `--model deepseek-flash`;
+- `config.json`, the legacy config and settings store.
+
+Every seeded copy is mode 0600, like the files it comes from: the supervisor
+reads the real home from outside the sandbox, and the copies live in the lane's
+state directory, never in the worktree or a receipt. Deliberately not seeded:
+global skills, another project's sessions and stats, MCP state, and the rest of
+the toolchain state under the home. A lane that needs any of it should get it
+bound explicitly, in `confine.read_paths`.
+
+A run that predates this boundary keeps its session in the real home, so a
+later `resume` of such a lane fails at once - `error: no session matches
+"<id>"`, measured with the real CLI on 2026-09-25, and no API call is made -
+instead of continuing that conversation. Nothing needs migrating before the
+change lands: finish such a lane under the old code, or start a new lane, or
+copy its session out of the real home into `<state>/reasonix-home` first.
+
+**Nesting.** Reasonix runs its own bash tool under bubblewrap, and that works
+inside this boundary (user namespaces nest on this host; the case
+`test_reasonix_sandbox_nests_inside_the_boundary` re-runs the real inner argv
+inside the outer sandbox and requires `nested-ok`). Two things make it work,
+and both were found the hard way: the per-lane home must contain `.env` (see
+above), and the outer sandbox must bind the worktree writable, because the
+inner one re-binds it and fails on a read-only source.
+
+**What it does not cover.** The boundary masks the home and `/tmp`, not the
+whole filesystem: anything readable outside them - `/etc`, `/var`, another
+user's directories - is still readable, read-only. The three writable paths are
+the only ones the supervisor grants, but a lane worktree is shared with the
+worker's own runtime, so a worker can still write what a lane normally
+produces. The network stays shared: the worker needs its provider API, and
+nothing here limits what it can reach.
+
+**Process lifetime.** The worker runs with `--die-with-parent`: if the
+supervisor dies outright (a host crash, an OOM kill, a SIGKILL), the worker and
+its children go down with it instead of lingering as orphans - the `stop`,
+timeout and stall paths still kill the whole process group, and bubblewrap
+passes the worker's exit code through (`124`, `125`, `137`, `143` are the
+values the receipts record).

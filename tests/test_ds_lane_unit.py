@@ -41,12 +41,13 @@ class UnitCase(unittest.TestCase):
 
     def test_worker_env_is_an_allowlist(self):
         caller = {"PATH": "/usr/bin", "HOME": "/h", "LC_ALL": "C.UTF-8", "CARGO_BUILD_JOBS": "8",
+                  "NVM_DIR": "/nvm",
                   "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_x", "GH_TOKEN": "x", "SSH_AUTH_SOCK": "/s",
                   "REMI_ADMIN_TOKEN": "x", "DISPLAY": ":0", "DS_LANE_HOME": "/d",
                   "FAKE_REASONIX_SPEC": "{}"}
         env = DS.worker_env(caller)
         self.assertEqual(env, {"PATH": "/usr/bin", "HOME": "/h", "LC_ALL": "C.UTF-8",
-                               "CARGO_BUILD_JOBS": "2"})
+                               "CARGO_BUILD_JOBS": "2", "NVM_DIR": "/nvm"})
         passed = DS.worker_env({**caller, "DS_LANE_WORKER_ENV_PASS": " FAKE_REASONIX_SPEC ,"})
         self.assertEqual(passed["FAKE_REASONIX_SPEC"], "{}")
         self.assertNotIn("GH_TOKEN", passed)

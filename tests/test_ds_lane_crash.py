@@ -74,9 +74,11 @@ class CrashCase(LaneFixture):
         again, so `resume` died on FileExistsError. The next number is one past
         the highest run directory, and the session comes from the trajectory
         the dead run left, so the resumed worker continues the same
-        conversation.
+        conversation. The worker goes down with its supervisor: it runs under
+        bubblewrap with `--die-with-parent`, so a SIGKILLed harness leaves no
+        orphan behind (this case used to kill that orphan by hand).
         """
-        worker_pid = self.work / "t1-worker.pid"
+        worker_pid = self.worker_path("t1", "worker.pid")
         spec = {"files": {"tools/keep.txt": "one\n"},
                 "events": [{"kind": "turn_phase", "sessionId": "sess-killed"},
                            {"kind": "turn_done", "status": "completed"}],
@@ -88,7 +90,8 @@ class CrashCase(LaneFixture):
         supervisor = int(self.lane_state("t1", "run-1", "supervisor.pid").read_text())
         os.kill(supervisor, signal.SIGKILL)  # a crash, not a `stop`
         self.wait_for(lambda: not self.pid_exists(supervisor), "supervisor exit")
-        os.kill(int(worker_pid.read_text()), signal.SIGKILL)  # the orphan the kill left
+        orphan = int(worker_pid.read_text())
+        self.wait_for(lambda: not self.pid_exists(orphan), "worker exit with its supervisor")
         self.assertFalse(self.lane_state("t1", "run-1", "run.json").exists())
         self.assertFalse(self.lane_state("t1", "run-1", "failed").exists())
         self.assertEqual(self.lane_json("t1")["runs"], [], "nothing recorded the run")

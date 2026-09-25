@@ -20,6 +20,7 @@ import time
 from pathlib import Path
 
 from .compaction import compact_runs
+from .confine import require_bwrap
 from .config import (DEFAULT_STALL_RETRIES, DEFAULT_STALL_TIMEOUT, DEFAULT_TIMEOUT, EFFORT, ENTRY,
                      MODEL, PERMISSION_MODE, STOP_WAIT, lane_paths, load_receipt, now, pid_alive,
                      reasonix_bin, repo_root, save_receipt, sh, state_root, supervisor_alive,
@@ -110,7 +111,12 @@ def prepare_run(lane, prompt_text, *, max_steps=0, timeout=DEFAULT_TIMEOUT,
     leaves its directory without an entry there); the watchdog passes its
     successor's number explicitly rather than lean on the lane record it has
     just updated.
+
+    The launch refuses here, before the run directory exists, when bubblewrap is
+    missing: a worker runs only under its read boundary, and a refusal the
+    orchestrator sees beats a run that dies in the detached supervisor.
     """
+    require_bwrap()
     wt, state = Path(lane["worktree"]), Path(lane["state_dir"])
     busy = inflight_runs(state)
     if busy:
