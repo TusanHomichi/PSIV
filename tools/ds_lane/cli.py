@@ -26,6 +26,7 @@ Usage:
   ds-lane stop ID
   ds-lane tail ID [-n N]
   ds-lane verify ID -- CMD...
+  ds-lane compact ID [--repo DIR] [--dry-run]
   ds-lane list [--repo DIR]
   ds-lane show ID [--repo DIR]
   ds-lane rm ID [--repo DIR] [--purge]
@@ -33,7 +34,8 @@ Usage:
 Layout:
   entry     tools/ds-lane                       (symlinked as ~/.local/bin/ds-lane)
   package   tools/ds_lane/                      (config, preflight, trajectory, receipts,
-                                                 lanes, supervisor, cli)
+                                                 evidence, compaction, report, lanes, verify,
+                                                 supervisor, cli)
   worktree  $DS_LANE_HOME/wt/<repo>/<id>        (branch ds/<id>)
   receipts  $DS_LANE_HOME/state/<repo>/<id>/    (run-N/ per worker run)
 
@@ -52,6 +54,12 @@ Environment (read per call, so tests can set them per case):
   DS_LANE_SIZE_EXEMPT  comma-separated globs the line rule skips, replacing
                      DEFAULT_SIZE_EXEMPT (default *.json, *.tsv, *.csv, *.lock,
                      **/replay_fixtures/**: generated and data files)
+  DS_LANE_COMPRESS_MIN_BYTES  size at which a receipt's evidence file is stored
+                     compressed (default 1048576, 1 MiB)
+  DS_LANE_COMPRESS_EXTS  comma-separated extensions that compression applies to,
+                     replacing DEFAULT_COMPRESS_EXTS (default csv, log, jsonl,
+                     txt, tsv); a leading dot is optional and an empty value
+                     leaves nothing to compress
 
 --link PATH symlinks an ignored path from the source repo into the worktree
 (e.g. runtime-pack, reference) so repo-relative tooling finds local inputs.
@@ -167,14 +175,37 @@ streams its output, saves a header (command, UTC start, lane head, exit code,
 duration) plus the output under <state>/verify/NNN.log, and exits with CMD's
 code: this is how the orchestrator records its own independent checks as
 evidence. `tail ID [-n N]` peeks at the latest run, in flight or finished.
+
+COMPACTION: every run's receipt keeps a copy of the worktree's
+`build/lane-evidence/`, so a lane's receipts repeat each other and the raw
+captures in them are large repetitive text. After a run's record has landed and
+its machine-wide slot is released - so it never delays another lane's start -
+that run's evidence is deduplicated against the lane's earlier runs (a file
+byte-identical to one they already keep becomes a hardlink to it, so every path
+stays readable exactly as before) and files at or over
+DS_LANE_COMPRESS_MIN_BYTES whose extension is in DS_LANE_COMPRESS_EXTS are
+stored as `name.ext.xz` with lzma preset 6, the original removed. A compressed
+file an earlier run already keeps is hardlinked too, and nothing is compressed
+that an earlier run can share instead. `evidence/INDEX.json` in each run
+records every file's path, the size and sha256 of its content as captured,
+whether it is stored plain, as `.xz` or as a hardlink (and where that storage
+comes from), so a reader can verify a decompressed file: `xz -dc name.ext.xz`,
+or Python's `lzma.open`. Failures land in `run.json` as `compaction_error`; the
+evidence stays readable either way. `ds-lane compact ID` applies the same
+passes to a lane's existing receipts, including lanes finalized before
+compaction existed, oldest run first; it is idempotent, refuses a lane with a
+run in flight, and `--dry-run` reports what it would do and the bytes it would
+save without touching a file. There is deliberately no `--all`: which lanes are
+finished with their evidence is the orchestrator's call.
 """
 import argparse
 import sys
 
 from .config import DEFAULT_STALL_RETRIES, DEFAULT_STALL_TIMEOUT, DEFAULT_TIMEOUT
-from .lanes import (cmd_list, cmd_rm, cmd_resume, cmd_show, cmd_start, cmd_stop, cmd_tail,
-                    cmd_verify, cmd_wait)
+from .lanes import (cmd_compact, cmd_list, cmd_rm, cmd_resume, cmd_show, cmd_start, cmd_stop,
+                    cmd_tail, cmd_wait)
 from .supervisor import exec_run
+from .verify import cmd_verify
 
 
 def main():
@@ -233,6 +264,12 @@ def main():
     v.add_argument("cmd", nargs="*", help="command to run in the lane worktree, after `--`")
     v.add_argument("--repo", default=".")
     v.set_defaults(fn=cmd_verify)
+    cp = sub.add_parser("compact")
+    cp.add_argument("id")
+    cp.add_argument("--repo", default=".")
+    cp.add_argument("--dry-run", action="store_true",
+                    help="report what a pass would deduplicate and compress, and change nothing")
+    cp.set_defaults(fn=cmd_compact)
     x = sub.add_parser("_exec")  # internal: detached supervisor
     x.add_argument("state")
     x.add_argument("n", type=int)

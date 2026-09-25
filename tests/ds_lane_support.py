@@ -11,6 +11,7 @@ home fixtures, and the helpers that drive `tools/ds-lane`, the entry-point shim,
 as a subprocess. The cases live in test_ds_lane_unit.py (the package's own
 units), test_ds_lane_lanes.py (the lane commands end to end),
 test_ds_lane_size.py (the 1,000-line rule and the data-file exemption),
+test_ds_lane_compaction.py (deduplicating and compressing a run's evidence),
 test_ds_lane_finalize.py (the finalize commit: link exclusions and a git
 failure), test_ds_lane_crash.py (run numbering and the record a crashed run
 leaves) and test_ds_lane_supervisor.py (slots, kills, the stall watchdog and the

@@ -20,6 +20,7 @@ import time
 from pathlib import Path
 
 from . import lanes
+from .compaction import compact_finished_run
 from .config import (CARGO_JOBS, DEFAULT_STALL_CPU_PCT, KILL_GRACE, STALL_EXIT, STALL_POLL,
                      STOPPED_EXIT, TIMEOUT_EXIT, load_receipt, max_lanes, now, pid_alive,
                      stall_cpu_pct, stall_poll, state_root)
@@ -341,6 +342,10 @@ def exec_run(state, n):
         finalize_run(lane, run_dir, spec, rc, started, duration, outcome, stall_resume=successor)
         if successor:
             stall_resume(lane, run_dir, spec, successor)
+        # Last, and only now that the record has landed and the machine-wide slot
+        # is released: dedupe and compress the run's evidence, which can take
+        # minutes on a large capture and must never hold up another lane.
+        compact_finished_run(lane, run_dir, lanes.lane_runs(lane))
     except BaseException as e:  # leave a terminal record whatever happens
         (run_dir / "worker.slot").unlink(missing_ok=True)
         try:
