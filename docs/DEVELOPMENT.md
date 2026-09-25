@@ -75,9 +75,10 @@ the commands above let you use another executable path.
 
 For the complete Python suite, place the supported image at the repository
 root as `Phantasy Star IV (USA).md` and prepare the disassembly and full pack.
-From the root:
+The documentation check needs no local inputs. From the root:
 
 ```bash
+python3 tools/check_docs.py
 PYTHONPATH=. python3 -m unittest discover -s tests
 cargo fmt --manifest-path rust/Cargo.toml --all --check
 CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml --workspace -- --test-threads=1
@@ -92,7 +93,7 @@ fixtures are absent; report that distinction with the result.
 ### Gate and coverage
 
 PSIV has no hosted CI yet ([#15](https://github.com/TusanHomichi/PSIV/issues/15)).
-The gate is exactly the four commands above, run from the root with the flags
+The gate is exactly the five commands above, run from the root with the flags
 shown. Reporting a gate result means those commands; a subset, a different
 `CARGO_BUILD_JOBS`, parallel test threads or a per-crate run is a focused check
 and is reported as one. The gate does not cover:
@@ -103,8 +104,6 @@ and is reported as one. The gate does not cover:
   anything visual: their ledgers own those runs;
 - cartridge comparisons: `./oracle/verify.sh` (fast) and `--full` are separate
   lanes, described in the [oracle guide](../oracle/README.md);
-- documentation links and paths: checked by review and `git diff --check` until
-  [#10](https://github.com/TusanHomichi/PSIV/issues/10) lands;
 - the file-size rule below ([#11](https://github.com/TusanHomichi/PSIV/issues/11)).
 
 Verify through repository entry points: these commands, the oracle lanes, the
