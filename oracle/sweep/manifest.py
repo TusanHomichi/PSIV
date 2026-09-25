@@ -3,15 +3,23 @@
 `every_fixture_replays_as_recorded` needs one entry per diverging fixture, and
 its panic is one fixture at a time: harvesting a directory's entries by hand
 would take a test run each. `replay/data.rs`'s `dump_manifest_entries` - an
-`#[ignore]`d test - prints every diverging fixture's first divergence as one
-JSON object per line; this reads that dump, assigns each finding to a
-**cluster**, and writes `replay_fixtures/divergences.json`.
+`#[ignore]`d test - writes every diverging fixture's first divergence as one
+JSON object per line to the file `PSIV_MANIFEST_DUMP` names; this reads that
+dump, assigns each finding to a **cluster**, and writes
+`replay_fixtures/divergences.json`.
 
-    CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \\
-        -- --ignored --nocapture dump_manifest_entries \\
-        > build/lane-evidence/findings.txt
-    python3 -m oracle.sweep.manifest --dump build/lane-evidence/findings.txt \\
+    PSIV_MANIFEST_DUMP=build/lane-evidence/findings.jsonl \\
+        CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \\
+        -- --ignored --nocapture dump_manifest_entries
+    python3 -m oracle.sweep.manifest --dump build/lane-evidence/findings.jsonl \\
         --manifest rust/psiv-core/src/battle/replay_fixtures/divergences.json
+
+The dump is a file and not stdout because `--nocapture` prints libtest's own
+`test <name> ... ` progress text without a newline, so the first finding used to
+come out sharing that line - and one JSON object per line is the only shape this
+module reads, so that finding was dropped without a word. `load_dump` reads a
+dump as the tool's whole output: every non-empty line has to be a JSON object,
+or the run fails and names the line.
 
 A cluster is the worklist's unit: one cause, its fixtures and its fix scope. The
 clusters below are a reading of the evidence, not a computation - which is why
@@ -55,16 +63,37 @@ class Cluster:
 
 
 def load_dump(path: pathlib.Path) -> list[dict]:
-    """The finding lines `dump_manifest_entries` printed, in file order."""
+    """The finding lines `dump_manifest_entries` wrote, in file order.
+
+    The dump is that tool's **whole** output - one JSON object per line - so a
+    line it did not write is a corrupt dump rather than a line to skip: with
+    the findings captured from stdout, libtest's own `test <name> ... `
+    progress text landed on the first finding's line and the skip dropped that
+    finding without a word. Every non-empty line must be a JSON object, and the
+    dump must hold at least one: an empty dump is a tool that never ran.
+    """
     findings = []
-    for line in path.read_text().splitlines():
-        line = line.strip()
-        if not line.startswith("{"):
+    for number, line in enumerate(path.read_text().splitlines(), start=1):
+        if not line.strip():
             continue
-        findings.append(json.loads(line))
+        try:
+            finding = json.loads(line)
+        except json.JSONDecodeError as error:
+            raise SystemExit(
+                f"{path}:{number}: not JSON ({error}), and the dump is what "
+                f"`dump_manifest_entries` wrote, one object per line - a line "
+                f"it did not write is an error, never a line to skip"
+            ) from error
+        if not isinstance(finding, dict):
+            raise SystemExit(f"{path}:{number}: a JSON "
+                             f"{type(finding).__name__}, not a JSON object: "
+                             f"the dump holds one finding per line")
+        findings.append(finding)
     if not findings:
-        raise SystemExit(f"{path}: no finding lines (run the #[ignore]d "
-                         f"dump_manifest_entries test first)")
+        raise SystemExit(f"{path}: no finding lines (set PSIV_MANIFEST_DUMP and "
+                         f"run the #[ignore]d dump_manifest_entries test first: "
+                         f"docs/oracle/BATTLE_ORACLE_SWEEP.md, \"Reproducing this "
+                         f"ledger\")")
     return findings
 
 
@@ -160,7 +189,9 @@ def print_clusters(grouped: dict[str, list[dict]],
 def main(argv: list[str] | None = None) -> int:
     parsed = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parsed.add_argument("--dump", default=str(ROOT / "build" / "lane-evidence"
-                                              / "findings.txt"))
+                                              / "findings.jsonl"),
+                        help="the dump `dump_manifest_entries` wrote (the file "
+                             "PSIV_MANIFEST_DUMP named)")
     parsed.add_argument("--manifest", default=str(MANIFEST))
     parsed.add_argument("--fixtures", default=str(FIXTURES))
     parsed.add_argument("--clusters", action="store_true",
