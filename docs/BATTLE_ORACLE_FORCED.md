@@ -591,3 +591,9 @@ FighterId(6): hit flag 00, damage Some(212), the port Normal with Some(214)`
 (`build/lane-evidence/10-negative-control-uniform-three.log`; the restored run is
 `11-replay-after-restore.log`). The Hydrofoil's twelve-frame wind-up is still a
 disassembly reading: no capture has been fought by it.
+
+The sweep's own two options - `--durable` (the party-side HP patch,
+[`oracle/force/durable.py`](../oracle/force/durable.py)) and `--max-rounds N`
+(stop at round N's end; the extractor records `outcome.truncated`) - and what a
+whole region's captures found with them are
+[`BATTLE_ORACLE_SWEEP.md`](BATTLE_ORACLE_SWEEP.md)'s.

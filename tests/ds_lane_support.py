@@ -11,6 +11,7 @@ home fixtures, and the helpers that drive `tools/ds-lane`, the entry-point shim,
 as a subprocess. The cases live in test_ds_lane_unit.py (the package's own
 units), test_ds_lane_lanes.py (the lane commands end to end),
 test_ds_lane_size.py (the 1,000-line rule and the data-file exemption),
+test_ds_lane_compaction.py (deduplicating and compressing a run's evidence),
 test_ds_lane_finalize.py (the finalize commit: link exclusions and a git
 failure), test_ds_lane_crash.py (run numbering and the record a crashed run
 leaves) and test_ds_lane_supervisor.py (slots, kills, the stall watchdog and the
@@ -36,10 +37,17 @@ import ds_lane as DS  # noqa: E402
 FAKE_REASONIX = '''#!/usr/bin/env python3
 """Fake `reasonix` for the ds-lane test suite: no model, no network, no sandbox.
 
+Reads the task from stdin, the way `reasonix run` does when argv carries none,
+and refuses a prompt handed to it as an argument: that refusal is what turns a
+regression to the old `cmd + [prompt]` shape into a failed run.
+
 Reads a JSON behaviour spec from FAKE_REASONIX_SPEC (inline JSON or a path):
 files to write, trajectory events to append, seconds to sleep, seconds to burn
 CPU for, exit code. `resume_spec` overrides any of those keys for a run that
 carries `--resume`, so a resumed run can behave differently from its first.
+`opts_out` records the flags it was given, its whole argv (program name
+included) and the prompt it read, so a case can check what the harness put
+where.
 
 `burn` spins flat out for N seconds; `burn_low` spins in short bursts forever
 (a worker that is alive and doing a trickle of work, like a process idling on
@@ -70,7 +78,7 @@ def main(argv):
     if argv[0] != "run":
         print("fake-reasonix: unsupported command " + argv[0], file=sys.stderr)
         return 2
-    opts, prompt, i = {}, "", 1
+    opts, positional, i = {}, [], 1
     while i < len(argv):
         arg = argv[i]
         if arg in VALUE_FLAGS:
@@ -79,8 +87,13 @@ def main(argv):
         elif arg.startswith("--"):
             i += 1
         else:
-            prompt = arg
+            positional.append(arg)  # the task belongs on stdin, never in argv
             i += 1
+    if positional:
+        print("fake-reasonix: unexpected argument(s), the prompt arrives on stdin: "
+              + " ".join(positional), file=sys.stderr)
+        return 2
+    prompt = sys.stdin.read()
     spec = load_spec()
     if opts.get("--resume") and isinstance(spec.get("resume_spec"), dict):
         spec = {**spec, **spec["resume_spec"]}  # a resumed run may behave differently
@@ -104,7 +117,8 @@ def main(argv):
         while time.monotonic() < deadline:
             spin += 1
     if spec.get("opts_out"):
-        Path(spec["opts_out"]).write_text(json.dumps({"opts": opts, "prompt": prompt}, indent=2))
+        Path(spec["opts_out"]).write_text(
+            json.dumps({"opts": opts, "argv": sys.argv, "prompt": prompt}, indent=2))
     trajectory = opts.get("--trajectory")
     if trajectory:
         with open(trajectory, "a") as handle:

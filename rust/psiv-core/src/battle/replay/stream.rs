@@ -62,6 +62,12 @@ pub(crate) fn play(
 /// ability **re-roll** that follows a draw equal to `$FFFFEEA8`, and the
 /// damage runs. The order pass is the round's, not an action's, and comes from
 /// the fixture's own `roll_count` for the round.
+///
+/// `"action"` is the extractor's own marker for a call it could not attribute
+/// to a slot - a party swing whose frame holds a number of calls that is not a
+/// whole number of passes over the slots the log resolved
+/// (`oracle/fixture/roles.py`) - and it counts as the action's: the call is in
+/// the action's frames, and the tally below is what says so.
 pub(crate) fn action_rolls(fixture: &Fixture, round: &Round, action: &Action) -> Vec<Roll> {
     fixture
         .rolls
@@ -71,7 +77,7 @@ pub(crate) fn action_rolls(fixture: &Fixture, round: &Round, action: &Action) ->
         .filter(|roll| {
             matches!(
                 roll.role.as_str(),
-                "hit" | "ability" | "ability_reroll" | "damage"
+                "hit" | "ability" | "ability_reroll" | "damage" | "action"
             )
         })
         .cloned()
@@ -261,7 +267,13 @@ pub(crate) fn account_for_every_roll(fixture: &Fixture, tape: &str) {
             );
             for roll in &port {
                 if roll.role == "damage" {
-                    let target = roll.target.expect("a damage run has a target");
+                    // A run the extractor could not attribute to a slot - more
+                    // runs in the action's frames than slots it resolved - is
+                    // written with no target (`oracle/fixture/roles.py`), and
+                    // there is nothing to check it against; it still counts.
+                    let Some(target) = roll.target else {
+                        continue;
+                    };
                     let resolved: Vec<u8> = action
                         .targets
                         .iter()

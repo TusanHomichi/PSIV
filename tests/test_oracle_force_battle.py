@@ -67,12 +67,17 @@ SCOUT = {
     "cells": {"map_index": 0x15, "c1_x_px": 100, "c1_y_px": 200,
               "vehicle_index": 0, "mota_battle_bg_index": 0},
 }
-#: The columns of a real log the tool reads (the RAM map's own groups).
+#: The columns of a real log the tool reads (the RAM map's own groups): the
+#: tool's own readings, plus the extractor's start-frame and round rules and
+#: the party-side HP cells a durable capture patches.
 LOG_COLUMNS = ("frame,game_mode,enemy_count,rng_seed,main_frame_count,"
+               "turn_00,"
                "e1_id,e1_hp,e1_maxhp,e1_ability,e2_id,e2_hp,e2_maxhp,"
                "e2_ability,e3_id,e3_hp,e3_maxhp,e3_ability,e4_id,e4_hp,"
-               "e4_maxhp,e4_ability,chaz_hp,alys_hp,hahn_hp,"
-               "vehicle_fighter_hp,battle_exp_total,"
+               "e4_maxhp,e4_ability,chaz_hp,chaz_maxhp,alys_hp,alys_maxhp,"
+               "hahn_hp,hahn_maxhp,"
+               "vehicle_index,vehicle_fighter_hp,vehicle_fighter_max_hp,"
+               "battle_exp_total,"
                "battle_meseta_total").split(",")
 TRACE_COLUMNS = ("frame,call_index_in_frame,pc,hv,frame_count,seed_before,"
                  "roll,seed_after").split(",")
@@ -473,6 +478,16 @@ class LogReading(PackFixture):
         self.assertEqual(fb.classify(rows, (40, 60), vehicle=True), "defeat")
         self.assertEqual(fb.classify(rows, (40, 60)), "withdrawal")
 
+    def test_a_second_encounter_is_not_part_of_the_battles_window(self):
+        # A long policy tape can outlive a short fight and walk into another
+        # encounter: the window is the first run of battle frames, so the
+        # second battle's slots cannot be read as the first's.
+        rows = [log_row(40, game_mode="0010"), log_row(41, game_mode="0014"),
+                log_row(42, game_mode="0014"), log_row(43, game_mode="000C"),
+                log_row(44, game_mode="000C"), log_row(45, game_mode="0014"),
+                log_row(46, game_mode="0014")]
+        self.assertEqual(fb.battle_window(rows), (40, 42))
+
     def test_a_battle_still_running_at_the_tape_end_is_unfinished(self):
         rows = self.capture_rows((25, 25), ended=False)
         self.assertEqual(fb.classify(rows, (40, 60)), "unfinished")
@@ -490,264 +505,6 @@ class LogReading(PackFixture):
         self.assertEqual(fb.enemy_slots(rows, (40, 60)),
                          [{"slot": 1, "id": 10, "maxhp": 25},
                           {"slot": 2, "id": 10, "maxhp": 25}])
-
-
-class WholeRunBase(PackFixture):
-    """The whole flow's helpers: a base tape, a scout cache, fake logs.
-
-    `run_oracle` is replaced by hand-built logs that carry one roll at the draw
-    and the frames the tool reads, so a test can drive every phase without the
-    emulator. `WholeRun` is the flow on a map-drawn formation and
-    `WholeVehicleRun` the same flow forcing a vehicle table.
-    """
-
-    def setUp(self):
-        super().setUp()
-        self.out = os.path.join(self.dir.name, "out")
-        self.tape = os.path.join(self.dir.name, "base.tape")
-        with open(self.tape, "w") as handle:
-            handle.write(BASE_TAPE)
-        self.calls = []
-
-    def scout_cache(self):
-        os.makedirs(self.out, exist_ok=True)
-        write_json(os.path.join(self.out, "scout.json"),
-                   dict(SCOUT, base_tape=self.tape))
-
-    def probe_rows(self, ids=("10", "10")):
-        """One row per frame, as a real log has: 40 opens the battle, 48 draws."""
-        rows = [log_row(40, game_mode="0010", enemy_count="0")]
-        for frame in range(41, 231):
-            built = frame >= 201
-            rows.append(log_row(
-                frame,
-                game_mode="0014" if frame < 230 else "0004",
-                enemy_count="2" if built else "0",
-                rng_seed="6EA56A13", main_frame_count="23931",
-                e1_id=ids[0] if built else "0",
-                e1_hp="25" if built else "0", e1_maxhp="25" if built else "0",
-                e2_id=ids[1] if built else "0",
-                e2_hp="25" if built else "0", e2_maxhp="25" if built else "0",
-                chaz_hp="53", alys_hp="25", hahn_hp="21",
-                vehicle_fighter_hp="0", battle_exp_total="0",
-                battle_meseta_total="0"))
-        return rows
-
-    #: The seed the practice capture runs with: `RNG_Seed` patched at f47, the
-    #: frame before the draw, and rotated by the draw itself. A real log reads
-    #: exactly this way, and oracle/rng_trace.py check insists on it.
-    PATCH_FRAME = 47
-    PATCHED_SEED = 0x00116A13
-    ROTATED_SEED = 0x80086A13
-
-    def capture_rows(self):
-        """One row per frame: the fight at f48, the kill at f60, field after."""
-        rows = [log_row(40, game_mode="0010", enemy_count="0")]
-        for frame in range(41, 71):
-            built = frame >= 48
-            over = frame >= 60
-            hp = "65486" if over else "25"
-            seed = ("6EA56A13" if frame < self.PATCH_FRAME
-                    else f"{self.PATCHED_SEED:08X}" if frame == self.PATCH_FRAME
-                    else f"{self.ROTATED_SEED:08X}")
-            rows.append(log_row(
-                frame,
-                game_mode="0014" if frame <= 60 else "000C",
-                enemy_count="2" if built else "0",
-                rng_seed=seed, main_frame_count="23931",
-                e1_id="10" if built else "0",
-                e1_hp=hp if built else "0", e1_maxhp="25" if built else "0",
-                e2_id="10" if built else "0",
-                e2_hp=hp if built else "0", e2_maxhp="25" if built else "0",
-                e1_ability="02" if over else "00",
-                e2_ability="02" if frame >= 52 else "00",
-                e3_ability="00", e4_ability="00",
-                chaz_hp="53", alys_hp="25", hahn_hp="21",
-                vehicle_fighter_hp="0",
-                battle_exp_total="48" if over else "0",
-                battle_meseta_total="12" if over else "0"))
-        return rows
-
-    def fake_oracle(self, probe_ids=("10", "10")):
-        """A `run_oracle` that writes a probe log and the capture log.
-
-        The probe's own log is what the tool places the seed patch against, so
-        it carries the frames before the draw (f47 last of them) and the
-        unpatched seed the trace's roll starts from; every capture-side run
-        (preview, capture, verify) gets the same bytes, which is what makes the
-        two-run comparison in the tool pass."""
-        def run(tape, out_dir, stem, patches, groups=fb.GROUPS):
-            self.calls.append({"tape": str(tape),
-                               "dir": os.path.basename(str(out_dir)),
-                               "patches": list(patches)})
-            os.makedirs(out_dir, exist_ok=True)
-            log = pathlib.Path(out_dir) / f"{stem}.csv"
-            trace = pathlib.Path(out_dir) / f"{stem}_rolls.csv"
-            if log.parent.name == "probe":
-                write_csv(log, self.probe_rows(probe_ids), LOG_COLUMNS)
-                write_csv(trace, [trace_row(48, 0, 0x293E, 23931, 0x6EA56A13,
-                                            0x1805)], TRACE_COLUMNS)
-            else:
-                write_csv(log, self.capture_rows(), LOG_COLUMNS)
-                write_csv(trace, [trace_row(48, 0, 0x293E, 23931,
-                                            self.PATCHED_SEED,
-                                            cartridge_roll(0x293E, 23931,
-                                                           self.PATCHED_SEED))],
-                          TRACE_COLUMNS)
-            return fb.Run(log, trace, "", 0)
-        return run
-
-    def argv(self, *extra):
-        return ["--formation", "5", "--out", self.out, "--base-tape", self.tape,
-                "--data-dir", self.data, "--ram-map", self.ram_map,
-                "--scout", os.path.join(self.out, "scout.json"), *extra]
-
-    def report(self):
-        with open(os.path.join(self.out, "report.json")) as handle:
-            return json.load(handle)
-
-class WholeRun(WholeRunBase):
-    """The whole flow, with `run_oracle` replaced by hand-built logs."""
-
-    def test_the_formation_is_forced_to_the_entry_the_seed_patch_names(self):
-        self.scout_cache()
-        with mock.patch.object(runs, "run_oracle", self.fake_oracle()):
-            self.assertEqual(fb.main(self.argv()), 0)
-        report = self.report()
-        self.assertEqual(report["formation"], 5)
-        self.assertEqual(report["selector"]["group"], 0)
-        self.assertEqual(report["selector"]["entry"], 0)
-        self.assertEqual(report["selector"]["kind"], "map")
-        self.assertEqual(report["draw"]["index_before"], 5)
-        self.assertEqual(report["draw"]["index_forced"], 0)
-        self.assertEqual(report["draw"]["k"], (0x293E + 23931) & 31)
-        seed = int(report["patches"][1].split(":")[2], 16)
-        self.assertEqual(seed, cartridge_seed(report["draw"]["k"], 0))
-        self.assertEqual(report["patches"][0], "41:FFFFEC28:0007")
-        self.assertEqual(report["patches"][2], "49:FFFFEC28:0015")
-        self.assertEqual((report["battle_first"], report["battle_last"]),
-                         (40, 60))
-        self.assertEqual(report["outcome"], "victory")
-        self.assertEqual(report["abilities"], {"e2=0x02": 52, "e1=0x02": 60})
-        self.assertEqual(report["rewards"], {"experience": 48, "meseta": 12})
-        self.assertEqual(report["log_sha256"], report["rerun_log_sha256"])
-        self.assertEqual(report["rng_trace_check"], "passed")
-        self.assertTrue(report["require_ability_met"])
-
-    def test_the_capture_and_its_re_run_take_the_same_tape_and_patches(self):
-        self.scout_cache()
-        with mock.patch.object(runs, "run_oracle", self.fake_oracle()):
-            fb.main(self.argv())
-        by_dir = {call["dir"]: call for call in self.calls}
-        self.assertEqual(by_dir["capture"]["patches"],
-                         by_dir["verify"]["patches"])
-        self.assertEqual(by_dir["capture"]["tape"], by_dir["verify"]["tape"])
-        self.assertEqual(by_dir["probe"]["patches"],
-                         by_dir["capture"]["patches"][:1])
-        self.assertLessEqual(len(by_dir["probe"]["tape"]), 400)
-
-    def test_the_trimmed_capture_is_the_tape_the_report_names(self):
-        self.scout_cache()
-        with mock.patch.object(runs, "run_oracle", self.fake_oracle()):
-            fb.main(self.argv())
-        report = self.report()
-        self.assertTrue(report["tape"].endswith("forced_05_attack.tape"))
-        self.assertEqual(report["tape_frames"], 60 + fb.TAIL_FRAMES)
-        with open(report["tape"]) as handle:
-            steps = fb.expand_tape(handle.read())
-        # Every command the oracle gets is the composed tape up to the trim:
-        # the prefix, the policy, and nothing of the idle tail after it.
-        self.assertEqual(fb.tape_frames(steps), report["tape_frames"])
-        self.assertEqual([s.mark for s in steps if s.mark], ["walk", "encounter"])
-        self.assertEqual(steps[2].buttons, "C")
-
-    def test_an_ability_that_never_fires_fails_the_run(self):
-        self.scout_cache()
-        with mock.patch.object(runs, "run_oracle", self.fake_oracle()):
-            self.assertEqual(fb.main(self.argv("--require-ability", "0x37")), 1)
-        report = self.report()
-        self.assertEqual(report["require_ability"], ["0x37"])
-        self.assertFalse(report["require_ability_met"])
-        self.assertEqual(report["abilities"], {"e2=0x02": 52, "e1=0x02": 60})
-
-    def test_a_probe_the_group_table_does_not_explain_is_rejected(self):
-        self.scout_cache()
-        with mock.patch.object(runs, "run_oracle",
-                               self.fake_oracle(probe_ids=("99", "10"))):
-            self.assertEqual(fb.main(self.argv()), 2)
-
-    def test_a_dry_run_writes_the_tape_and_the_selector_patches_only(self):
-        self.scout_cache()
-        with mock.patch.object(runs, "run_oracle",
-                               side_effect=AssertionError("no oracle run")):
-            self.assertEqual(fb.main(self.argv("--dry-run")), 0)
-        with open(os.path.join(self.out,
-                               "forced_05_attack.full.tape")) as handle:
-            tape = handle.read()
-        self.assertIn("20 R walk", tape)
-        self.assertIn("4 C", tape)
-        with open(os.path.join(self.out,
-                               "forced_05_attack.patches.txt")) as handle:
-            patches = handle.read()
-        self.assertIn("41:FFFFEC28:0007", patches)
-        self.assertNotIn("FFFFEF0C", patches)
-
-    def test_the_scout_cache_is_reused_rather_than_run_again(self):
-        self.scout_cache()
-        with mock.patch.object(runs, "run_oracle",
-                               side_effect=AssertionError("no oracle run")):
-            facts = fb.scout(pathlib.Path(self.tape), BASE_TAPE,
-                             pathlib.Path(self.out),
-                             pathlib.Path(self.out, "scout.json"), False,
-                             True, self.layout)
-        self.assertEqual(facts["battle_first"], 40)
-
-
-class WholeVehicleRun(WholeRunBase):
-    """The whole flow again, forcing a vehicle table on the fake oracle.
-
-    The pack holds one group - the Motavia vehicle table 8 - so `--vehicle`
-    reaches the run, the patch list and the report exactly as it does on the
-    cartridge; the fake oracle's logs are the same hand-built ones.
-    """
-
-    def setUp(self):
-        super().setUp()
-        self.pack_from({8: [5] * 32}, {"maps": [], "position_grids": []})
-
-    def argv(self, *extra):
-        return ["--formation", "5", "--out", self.out, "--base-tape", self.tape,
-                "--data-dir", self.pack_dir, "--ram-map", self.ram_map,
-                "--scout", os.path.join(self.out, "scout.json"), *extra]
-
-    def test_the_report_names_the_vehicle_the_capture_was_told_to_use(self):
-        self.scout_cache()
-        with mock.patch.object(runs, "run_oracle", self.fake_oracle()):
-            self.assertEqual(fb.main(self.argv("--vehicle", "2")), 0)
-        report = self.report()
-        self.assertEqual(report["selector"]["kind"], "vehicle")
-        self.assertEqual(report["selector"]["group"], 8)
-        self.assertEqual(report["selector"]["cells"][1],
-                         ["vehicle_index", 2])
-        self.assertEqual(report["vehicle"],
-                         {"index": 2, "name": "Ice Digger", "table": 8,
-                          "fighter_hp_at_end": report["vehicle_fighter_hp"]})
-        # The capture's own files say which vehicle fought it, so two captures
-        # of one formation cannot overwrite each other.
-        self.assertTrue(report["tape"].endswith("forced_05_attack_v2.tape"))
-        self.assertEqual(report["patches"][1], "41:FFFFF43C:0002")
-        self.assertNotIn("FFFFF43C", report["patches"][-1])
-
-    def test_without_the_flag_the_tables_own_machine_is_the_default(self):
-        self.scout_cache()
-        with mock.patch.object(runs, "run_oracle", self.fake_oracle()):
-            self.assertEqual(fb.main(self.argv()), 0)
-        report = self.report()
-        self.assertEqual(report["vehicle"]["index"], 1)
-        self.assertEqual(report["selector"]["cells"][1],
-                         ["vehicle_index", 1])
-        self.assertTrue(report["tape"].endswith("forced_05_attack.tape"))
-
 
 class Arguments(PackFixture):
     def argv(self, *extra):

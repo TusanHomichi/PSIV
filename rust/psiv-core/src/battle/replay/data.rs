@@ -77,27 +77,17 @@ fn manifest() -> (Manifest, PathBuf) {
     (manifest, path)
 }
 
-/// Every fixture in the directory, by file name, without the manifest.
+/// Every fixture under the directory, without the manifest.
+///
+/// Subdirectories are fixtures too: a sweep keeps its captures in one of its
+/// own (`sweep_motavia/`), and the name a fixture is known by - in the panic
+/// messages here and as the manifest's key - is its path relative to the
+/// directory without the extension (`sweep_motavia/formation_05`), so one
+/// directory's fixture cannot shadow another's.
 fn fixture_files() -> Vec<(String, PathBuf)> {
     let dir = fixtures_dir();
-    let entries = std::fs::read_dir(&dir)
-        .unwrap_or_else(|error| panic!("cannot read {}: {error}", dir.display()));
-    let mut files: Vec<(String, PathBuf)> = entries
-        .map(|entry| entry.expect("a readable directory entry").path())
-        .filter(|path| path.extension().is_some_and(|ext| ext == "json"))
-        .filter(|path| {
-            path.file_name()
-                .is_some_and(|name| name != "divergences.json")
-        })
-        .map(|path| {
-            let stem = path
-                .file_stem()
-                .expect("a file stem")
-                .to_string_lossy()
-                .into_owned();
-            (stem, path)
-        })
-        .collect();
+    let mut files: Vec<(String, PathBuf)> = Vec::new();
+    collect_fixtures(&dir, &dir, &mut files);
     files.sort();
     assert!(
         files.len() >= 2,
@@ -105,6 +95,39 @@ fn fixture_files() -> Vec<(String, PathBuf)> {
         files.len()
     );
     files
+}
+
+/// The directory's own data files: the manifest, and the swept records
+/// [`super::pack`] reads (`oracle/sweep/replay_pack.py`). Everything else
+/// under the directory is a fixture - a file that is not one fails the walk
+/// with the extractor's own parse error, which is the honest way to find out.
+fn not_a_fixture(name: &std::ffi::OsStr) -> bool {
+    name == "divergences.json" || name == "motavia_pack.json"
+}
+
+fn collect_fixtures(root: &Path, dir: &Path, files: &mut Vec<(String, PathBuf)>) {
+    let entries = std::fs::read_dir(dir)
+        .unwrap_or_else(|error| panic!("cannot read {}: {error}", dir.display()));
+    for entry in entries {
+        let path = entry.expect("a readable directory entry").path();
+        if path.is_dir() {
+            collect_fixtures(root, &path, files);
+            continue;
+        }
+        if !path.extension().is_some_and(|ext| ext == "json") {
+            continue;
+        }
+        if path.file_name().is_some_and(not_a_fixture) {
+            continue;
+        }
+        let name = path
+            .strip_prefix(root)
+            .expect("a path inside the fixture directory")
+            .with_extension("")
+            .to_string_lossy()
+            .replace('\\', "/");
+        files.push((name, path));
+    }
 }
 
 /// Every captured battle in `replay_fixtures/`, on the cartridge's own stream.
@@ -202,9 +225,11 @@ fn every_fixture_replays_as_recorded() {
         // The rewards and the outcome: what the port computed has to be what
         // the log shows, unless the fixture diverges (a finding can leave the
         // battle in another state, and carrying it to *an* outcome is the
-        // engine's own contract).
+        // engine's own contract) or the capture was capped (a truncated
+        // fixture's rounds end where its tape did, with both sides standing,
+        // so the outcome is not something it states).
         let outcome = replay.battle.outcome();
-        if finding.is_none() {
+        if finding.is_none() && !fixture.outcome.truncated {
             assert!(
                 outcome.is_some(),
                 "{name}: a fixture the port replays exactly ends the way the log does,                  not mid-battle"
@@ -235,4 +260,77 @@ fn every_fixture_replays_as_recorded() {
         checked += 1;
     }
     assert_eq!(checked, files.len(), "every fixture was replayed");
+}
+
+/// Prints the manifest entry every diverging fixture needs, one JSON object per
+/// line, starting with the fixture's own name.
+///
+/// The test above is one fixture at a time: a missing entry is a panic, so
+/// harvesting a whole directory's entries would take one test run per fixture.
+/// This is that walk with the panic replaced by a line on stdout - a new
+/// directory's manifest is generated with
+/// `cargo test -p psiv-core -- --ignored --nocapture dump_manifest_entries`,
+/// the entries are pasted into `divergences.json`, and `ledger` (and a clearer
+/// `action`) are written by hand, because those are a reader's and not the
+/// harness's. It is off by default for that reason: the walk above is the
+/// check, this is the tool.
+///
+/// The one claim it does make is that a fixture's name is a line's own
+/// `fixture` field, and that every entry the manifest already carries still
+/// names a fixture that exists.
+#[test]
+#[ignore = "harvesting tool: prints the manifest entries a new directory needs"]
+fn dump_manifest_entries() {
+    let (manifest, manifest_path) = manifest();
+    let data = pack::data();
+    let files = fixture_files();
+    for (name, path) in &files {
+        let text = std::fs::read_to_string(path)
+            .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
+        let fixture = fixture(&text);
+        let replay = replay_inner(&fixture, &data);
+        let Some(finding) = &replay.finding else {
+            continue;
+        };
+        let round = fixture
+            .rounds
+            .iter()
+            .find(|round| round.round == finding.round())
+            .expect("the finding's round is one of the fixture's");
+        let frame = if finding.kind() == "queue" {
+            round.order_frame
+        } else {
+            finding.frame()
+        };
+        let (expected, actual) = finding.expectation();
+        let (log, port) = replay
+            .draws
+            .iter()
+            .find(|(number, _, _)| *number == finding.round())
+            .map(|(_, log, port)| (*log, *port))
+            .expect("the finding's round was replayed");
+        let entry = serde_json::json!({
+            "fixture": name,
+            "round": finding.round(),
+            "frame": frame,
+            "kind": finding.kind(),
+            "expected": expected,
+            "actual": actual,
+            "round_rolls": {"log": log, "port": port},
+            "ledger": "docs/BATTLE_ORACLE_SWEEP.md (fill in the cluster)",
+        });
+        let line = serde_json::to_string(&entry).expect("the entry serialises");
+        assert!(
+            serde_json::from_str::<serde_json::Value>(&line).is_ok(),
+            "{name}: the line on stdout parses"
+        );
+        println!("{line}");
+    }
+    for name in manifest.fixtures.keys() {
+        assert!(
+            files.iter().any(|(file, _)| file == name),
+            "{} carries an entry for {name}, which is not a fixture here",
+            manifest_path.display()
+        );
+    }
 }

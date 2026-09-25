@@ -1,0 +1,824 @@
+{
+ "source": {
+  "formations": "generated/formation_indexes.json",
+  "groups": {
+   "foot": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+   ],
+   "vehicle_tables": [
+    8,
+    9,
+    10
+   ]
+  },
+  "note": "one entry per distinct formation id in those groups, ascending",
+  "count": 83
+ },
+ "count": 83,
+ "formations": [
+  {
+   "formation": 0,
+   "hex": "0x00",
+   "groups": [
+    0
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 1,
+   "hex": "0x01",
+   "groups": [
+    0
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 2,
+   "hex": "0x02",
+   "groups": [
+    0
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 3,
+   "hex": "0x03",
+   "groups": [
+    0
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 4,
+   "hex": "0x04",
+   "groups": [
+    0,
+    1
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 5,
+   "hex": "0x05",
+   "groups": [
+    0,
+    1
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 6,
+   "hex": "0x06",
+   "groups": [
+    0
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 7,
+   "hex": "0x07",
+   "groups": [
+    0
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 8,
+   "hex": "0x08",
+   "groups": [
+    0
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 9,
+   "hex": "0x09",
+   "groups": [
+    0
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 10,
+   "hex": "0x0A",
+   "groups": [
+    0
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 11,
+   "hex": "0x0B",
+   "groups": [
+    0
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 12,
+   "hex": "0x0C",
+   "groups": [
+    0
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 13,
+   "hex": "0x0D",
+   "groups": [
+    0
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 14,
+   "hex": "0x0E",
+   "groups": [
+    0
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 15,
+   "hex": "0x0F",
+   "groups": [
+    0
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 16,
+   "hex": "0x10",
+   "groups": [
+    0
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 17,
+   "hex": "0x11",
+   "groups": [
+    1,
+    2
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 18,
+   "hex": "0x12",
+   "groups": [
+    1,
+    2
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 19,
+   "hex": "0x13",
+   "groups": [
+    1
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 20,
+   "hex": "0x14",
+   "groups": [
+    1
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 21,
+   "hex": "0x15",
+   "groups": [
+    1
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 22,
+   "hex": "0x16",
+   "groups": [
+    1
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 23,
+   "hex": "0x17",
+   "groups": [
+    1
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 24,
+   "hex": "0x18",
+   "groups": [
+    1
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 25,
+   "hex": "0x19",
+   "groups": [
+    1
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 26,
+   "hex": "0x1A",
+   "groups": [
+    1
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 27,
+   "hex": "0x1B",
+   "groups": [
+    1
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 28,
+   "hex": "0x1C",
+   "groups": [
+    1
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 29,
+   "hex": "0x1D",
+   "groups": [
+    1
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 30,
+   "hex": "0x1E",
+   "groups": [
+    1
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 31,
+   "hex": "0x1F",
+   "groups": [
+    1,
+    2
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 32,
+   "hex": "0x20",
+   "groups": [
+    1,
+    2
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 33,
+   "hex": "0x21",
+   "groups": [
+    2,
+    3
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 34,
+   "hex": "0x22",
+   "groups": [
+    2,
+    3
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 35,
+   "hex": "0x23",
+   "groups": [
+    2,
+    3
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 36,
+   "hex": "0x24",
+   "groups": [
+    2
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 37,
+   "hex": "0x25",
+   "groups": [
+    2,
+    6
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 38,
+   "hex": "0x26",
+   "groups": [
+    2,
+    6
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 39,
+   "hex": "0x27",
+   "groups": [
+    3
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 40,
+   "hex": "0x28",
+   "groups": [
+    3
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 42,
+   "hex": "0x2A",
+   "groups": [
+    3
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 43,
+   "hex": "0x2B",
+   "groups": [
+    3
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 45,
+   "hex": "0x2D",
+   "groups": [
+    3
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 46,
+   "hex": "0x2E",
+   "groups": [
+    3
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 50,
+   "hex": "0x32",
+   "groups": [
+    3
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 52,
+   "hex": "0x34",
+   "groups": [
+    3
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 54,
+   "hex": "0x36",
+   "groups": [
+    4,
+    5,
+    6,
+    7
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 55,
+   "hex": "0x37",
+   "groups": [
+    4,
+    5,
+    6,
+    7
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 56,
+   "hex": "0x38",
+   "groups": [
+    4,
+    5,
+    6,
+    7
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 57,
+   "hex": "0x39",
+   "groups": [
+    4,
+    5,
+    6,
+    7
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 58,
+   "hex": "0x3A",
+   "groups": [
+    4,
+    5,
+    6,
+    7
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 59,
+   "hex": "0x3B",
+   "groups": [
+    4
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 60,
+   "hex": "0x3C",
+   "groups": [
+    4
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 61,
+   "hex": "0x3D",
+   "groups": [
+    4
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 62,
+   "hex": "0x3E",
+   "groups": [
+    4
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 63,
+   "hex": "0x3F",
+   "groups": [
+    4,
+    5,
+    6,
+    7
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 64,
+   "hex": "0x40",
+   "groups": [
+    4,
+    5,
+    6,
+    7
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 65,
+   "hex": "0x41",
+   "groups": [
+    4,
+    5,
+    6,
+    7
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 66,
+   "hex": "0x42",
+   "groups": [
+    4,
+    5,
+    6,
+    7
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 67,
+   "hex": "0x43",
+   "groups": [
+    5
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 68,
+   "hex": "0x44",
+   "groups": [
+    5
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 69,
+   "hex": "0x45",
+   "groups": [
+    7
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 70,
+   "hex": "0x46",
+   "groups": [
+    7
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 71,
+   "hex": "0x47",
+   "groups": [
+    7
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 72,
+   "hex": "0x48",
+   "groups": [
+    7
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 73,
+   "hex": "0x49",
+   "groups": [
+    7
+   ],
+   "kind": "foot",
+   "vehicle": null
+  },
+  {
+   "formation": 74,
+   "hex": "0x4A",
+   "groups": [
+    8,
+    9,
+    10
+   ],
+   "kind": "vehicle",
+   "vehicle": 1
+  },
+  {
+   "formation": 75,
+   "hex": "0x4B",
+   "groups": [
+    8,
+    9,
+    10
+   ],
+   "kind": "vehicle",
+   "vehicle": 1
+  },
+  {
+   "formation": 76,
+   "hex": "0x4C",
+   "groups": [
+    8,
+    9,
+    10
+   ],
+   "kind": "vehicle",
+   "vehicle": 1
+  },
+  {
+   "formation": 77,
+   "hex": "0x4D",
+   "groups": [
+    8,
+    9
+   ],
+   "kind": "vehicle",
+   "vehicle": 1
+  },
+  {
+   "formation": 78,
+   "hex": "0x4E",
+   "groups": [
+    8,
+    9
+   ],
+   "kind": "vehicle",
+   "vehicle": 1
+  },
+  {
+   "formation": 79,
+   "hex": "0x4F",
+   "groups": [
+    8,
+    9
+   ],
+   "kind": "vehicle",
+   "vehicle": 1
+  },
+  {
+   "formation": 80,
+   "hex": "0x50",
+   "groups": [
+    8,
+    9
+   ],
+   "kind": "vehicle",
+   "vehicle": 1
+  },
+  {
+   "formation": 81,
+   "hex": "0x51",
+   "groups": [
+    8,
+    9
+   ],
+   "kind": "vehicle",
+   "vehicle": 1
+  },
+  {
+   "formation": 82,
+   "hex": "0x52",
+   "groups": [
+    8,
+    9
+   ],
+   "kind": "vehicle",
+   "vehicle": 1
+  },
+  {
+   "formation": 83,
+   "hex": "0x53",
+   "groups": [
+    8
+   ],
+   "kind": "vehicle",
+   "vehicle": 1
+  },
+  {
+   "formation": 84,
+   "hex": "0x54",
+   "groups": [
+    10
+   ],
+   "kind": "vehicle",
+   "vehicle": 1
+  },
+  {
+   "formation": 85,
+   "hex": "0x55",
+   "groups": [
+    10
+   ],
+   "kind": "vehicle",
+   "vehicle": 1
+  },
+  {
+   "formation": 86,
+   "hex": "0x56",
+   "groups": [
+    10
+   ],
+   "kind": "vehicle",
+   "vehicle": 1
+  },
+  {
+   "formation": 87,
+   "hex": "0x57",
+   "groups": [
+    10
+   ],
+   "kind": "vehicle",
+   "vehicle": 1
+  },
+  {
+   "formation": 88,
+   "hex": "0x58",
+   "groups": [
+    10
+   ],
+   "kind": "vehicle",
+   "vehicle": 1
+  },
+  {
+   "formation": 89,
+   "hex": "0x59",
+   "groups": [
+    10
+   ],
+   "kind": "vehicle",
+   "vehicle": 1
+  }
+ ]
+}

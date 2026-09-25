@@ -66,10 +66,27 @@ def by_frame(rows: list[dict]) -> dict[int, dict]:
 
 
 def battle_window(rows: list[dict]) -> tuple[int, int] | None:
-    """The first and last frame of `Game_Mode_Index` $10/$14, as verify.sh."""
+    """The first **contiguous** run of `Game_Mode_Index` $10/$14 frames.
+
+    A run that holds one battle - every capture and every tape here - reads the
+    same as "the first and last frame in battle mode" (what `oracle/verify.sh`
+    checks). A *long* run can hold two: the preview tape's policy outlives a
+    short fight, the party walks on and a second encounter fires, and the two
+    battles are separated by field frames but share the mode. Taking the first
+    and last frames of the mode would then read the *second* battle's slots as
+    the first's (formation `$3C`'s sweep capture, 2026-09-24), so the window
+    stops where the mode does.
+    """
     frames = [int(r["frame"]) for r in rows
               if r["game_mode"] in ("0010", "0014")]
-    return (frames[0], frames[-1]) if frames else None
+    if not frames:
+        return None
+    end = frames[0]
+    for frame in frames[1:]:
+        if frame != end + 1:
+            break
+        end = frame
+    return (frames[0], end)
 
 
 def seed_of(row: dict) -> int:

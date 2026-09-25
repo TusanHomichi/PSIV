@@ -48,6 +48,18 @@ DEFAULT_SIZE_EXEMPT = ("*.json", "*.tsv", "*.csv", "*.lock", "**/replay_fixtures
 # step now excludes these paths, and the run's receipt keeps whatever they held
 # under `host-state/`.
 HOST_STATE_PATHS = (".reasonix",)
+# Owner decision (2026-09-24): a lane's receipts are deduplicated and
+# compressed. The finalize step copies `build/lane-evidence/` into every run's
+# receipt, the copies overlap heavily and the raw captures in them are large
+# repetitive text; one sweep lane's receipts alone reached 8.7 GB. A file at
+# least DEFAULT_COMPRESS_MIN_BYTES large whose extension is in
+# DEFAULT_COMPRESS_EXTS is stored as `.xz` (preset COMPRESS_PRESET), and a file
+# an earlier run of the same lane already keeps is stored as a hardlink to it.
+# Both knobs are read per call, so a test can compress a small file or turn
+# compression off entirely without touching the defaults.
+DEFAULT_COMPRESS_MIN_BYTES = 1 << 20  # 1 MiB
+DEFAULT_COMPRESS_EXTS = ("csv", "log", "jsonl", "txt", "tsv")
+COMPRESS_PRESET = 6  # lzma preset: the usual CPU/ratio trade-off, stdlib default level
 WT_ROOT = Path.home() / ".cache/ds-lane/wt"
 STATE_ROOT = Path.home() / ".local/state/ds-lane"
 
@@ -141,6 +153,35 @@ def size_exempt():
     if raw is None:
         return list(DEFAULT_SIZE_EXEMPT)
     return [p.strip() for p in raw.split(",") if p.strip()]
+
+
+def compress_min_bytes():
+    """Size at which evidence is worth compressing, in bytes.
+
+    DS_LANE_COMPRESS_MIN_BYTES moves it (the suite's cases use a few bytes, the
+    real threshold is 1 MiB). A value that is not a number, or negative, would
+    make every file a compression candidate or none of them, so it falls back
+    to the constant.
+    """
+    try:
+        value = int(os.environ["DS_LANE_COMPRESS_MIN_BYTES"])
+    except (KeyError, ValueError):
+        return DEFAULT_COMPRESS_MIN_BYTES
+    return value if value >= 0 else DEFAULT_COMPRESS_MIN_BYTES
+
+
+def compress_exts():
+    """The extensions compression applies to, lowercased and without dots.
+
+    DS_LANE_COMPRESS_EXTS replaces the default list with a comma-separated one,
+    so a lane can keep its own captures plain; a leading dot is optional
+    (`.csv` and `csv` are the same entry), blank entries are dropped, and an
+    empty value leaves nothing to compress.
+    """
+    raw = os.environ.get("DS_LANE_COMPRESS_EXTS")
+    if raw is None:
+        return list(DEFAULT_COMPRESS_EXTS)
+    return [e.strip().lower().lstrip(".") for e in raw.split(",") if e.strip().strip(".")]
 
 
 def sh(args, cwd=None, check=True, capture=True):

@@ -57,7 +57,10 @@ oracle/
 ├── analyze_rng.py          per-frame RNG call census from a log
 ├── rng_trace.py            checks a --rng-trace capture against its log
 ├── force_battle.py         forces a chosen formation into a battle and captures it
-├── force/                  its package: tape, selectors, scout, draw, phases
+├── force/                  its package: tape, selectors, scout, draw, phases,
+│                           durable (the sustained-party patch)
+├── sweep.py                captures every Motavia formation and extracts each
+├── sweep/                  its package: the list, one formation's run, the batch
 ├── fixture/                the replay-fixture extractor battle_fixture.py drives
 ├── anim_sweep.py           press-offset sweep across the dialogue open animation
 ├── damage_census.py        same-matchup damage samples across shifted seed paths
@@ -431,6 +434,31 @@ is the ledger: the mechanism with its citations, four captures (Helex/FLAME
 BOLT, Fanbite/SPIRAL BLD, Desrt Leach/SAND STORM under the Land Rover and again
 under the Ice Digger), the Ice Digger's two-pass swing divergence and their
 limits.
+
+### Sweeping a region: `oracle/sweep.py`
+
+`oracle/force_battle.py` captures one formation; `oracle/sweep.py` runs it over
+a region's whole list - the distinct formation ids in
+`generated/formation_indexes.json` groups 0-7 (Motavia on foot) and 8, 9, 10
+(the vehicle tables), computed from the pack and committed as
+`oracle/sweep/motavia_formations.json` - and extracts a fixture for each:
+
+```sh
+python3 oracle/sweep.py --out build/lane-evidence/sweep --jobs 3
+```
+
+Three captures run at once (the machine's memory cap), a formation that fails
+is recorded rather than fatal, and re-running the command resumes: a formation
+whose fixture is on disk is skipped. Every capture takes `--durable` (the
+party's HP cells patched to 999 so a level-1 tape party survives long enough to
+show a strong formation's later actions; `oracle/force/durable.py`) and
+`--max-rounds 5` (stop at round 5's end, with the fixture's outcome saying
+`truncated` and how many rounds it kept; `oracle/fixture/assembly.py`). The
+record is `<out>/sweep_motavia.json` - per formation the group, the selector,
+the capture's hashes, the outcome, the rounds, the abilities observed and the
+fixture's hash, plus a census - and
+[`BATTLE_ORACLE_SWEEP.md`](../docs/BATTLE_ORACLE_SWEEP.md) is what came out of
+this sweep: coverage, and every divergence the manifest holds, clustered.
 
 ### Deterministic scene fixtures
 
