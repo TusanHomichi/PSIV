@@ -142,16 +142,10 @@ this guard, for `tools/check_docs.py` and for the feature map's checks. The
 scan runs inside the Python suite the gate runs (`tests/test_size_guard.py`),
 so the limit is a gate check rather than a reviewer's memory.
 
-`tools/size_baseline.txt` is the ratchet: one `<lines> <path>` per line, sorted
-by path, for the files that were already over the limit when the guard landed.
-The guard fails a new over-limit file, a baselined file that grew past its
-count, a baselined file now at or under the limit, and a baselined path that is
-gone; a baselined file that shrank while staying over the limit passes, with a
-suggestion to lower its count. `--write-baseline` seeds that file and may lower
-a count; it refuses to record growth, because a file over the limit is
-reorganized, not baselined.
-[#12](https://github.com/TusanHomichi/PSIV/issues/12) tracks the files still
-listed there.
+The rule has one form and no exceptions list: `EXEMPT` is the only carve-out,
+and any other file over the limit fails, so the way past it is to reorganize the
+file into cohesive modules. The guard takes no argument that could record a
+file the rule should pass.
 
 ## Native and original-game comparisons
 
