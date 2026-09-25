@@ -20,39 +20,28 @@ Define an observable outcome and acceptance before implementation. Substantive
 dependent work uses one graph; simple changes use a short plan. Verified results
 unlock dependencies. New ideas do not change scope, permissions or acceptance.
 
-## Model roles
+## Roles
 
-Select model and effort explicitly. This is the owner's standing division of
-work, not a loose preference:
+An orchestrator scopes, decides architecture and permissions, reviews and
+integrates; delivery workers own implementation through checks, repair,
+evidence and closeout. The split, delegation contract and routing honesty
+rules are in [the workflow](docs/AGENT_WORKFLOW.md#roles-and-delegation).
+Which model or tool fills a role is host-local configuration, never tracked
+guidance.
 
-- `gpt-6-astra` / `max`: orchestration: concise scoping, architecture and
-  permission decisions, graph selection, review and coordination. Astra does
-  not routinely write code, tests/fixtures/harnesses or docs, or run and monitor
-  repeated check loops.
-- `gpt-6-sol` / `max`: owns complex implementation end-to-end, including
-  relevant checks, debugging and repairs, candidate freeze, and evidence handoff.
-- `gpt-6-luna` / `max`: owns bounded exploration and routine implementation,
-  test runs, log triage, receipts and routine docs through checks and closeout.
-- DeepSeek: optional supervised narrow helper, only for a concrete benefit;
-  independently verify results and record actual routing, corrections and reliability.
+## Fix the class, not the instance
 
-Delegate complete outcomes with exact inputs, observable acceptance, file and
-resource ownership, forbidden writes, and concurrency constraints. The assigned
-worker owns implementation, relevant checks, failure repair, evidence and
-closeout; a failed check does not return routine work to Astra. Escalate concrete
-architectural or permission blockers. The parent remains accountable for
-independent review and integration, but that does not mean personally doing
-implementation or evidence plumbing. Review concise receipts with proportionate
-diff/raw-artifact spot checks; do not duplicate the worker's investigation or
-rerun passing checks without a concrete cause. Keep context packets bounded and
-results compact, with evidence paths. Long-running checks and process monitoring
-stay worker-owned; no parent busy polling. Preserve independent verification,
-serialized expensive runs, safety rules, and writers-idle integration.
-
-Only an explicit owner instruction or an actually unavailable route changes
-this division. Report unavailable routes and actual requested/observed routing;
-never silently fall back to Astra or claim an instruction edit changed a running
-model. See the workflow for host verification and role exceptions.
+- A defect, review finding or correction that exposes a recurring mistake is
+  fixed as a class, at the strongest rung of the
+  [correction ladder](docs/AGENT_WORKFLOW.md#correction-ladder). The PR names
+  the rung it used.
+- The codebase is memory: keep
+  [one paved path per concern](docs/AGENT_WORKFLOW.md#the-codebase-is-memory).
+  A known gap is an issue link, not a code comment.
+- Verify through the repository's own entry points; a check needed twice is
+  promoted into the repo ([DEVELOPMENT.md](docs/DEVELOPMENT.md#gate-and-coverage)).
+- Each rule has one [owning document](docs/README.md#rule-owners); link to it
+  instead of restating it.
 
 ## Retail and layer boundaries
 
@@ -84,12 +73,13 @@ against source and fresh observations.
 
 ## Verify the claim you intend to make
 
-- Use focused existing checks; add meaningful regression coverage for gameplay
-  fixes and a negative control for a new correctness check. Documentation needs
-  link/command review and `git diff --check`, not a full gameplay run.
-- Full-gate commands and prerequisites are in [DEVELOPMENT.md](docs/DEVELOPMENT.md).
-  Run Python, Rust and oracle heavy checks sequentially; full Rust tests require
-  `CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml --workspace -- --test-threads=1`.
+- Start from the smallest useful check for the change
+  ([workflow table](docs/AGENT_WORKFLOW.md#find-the-smallest-useful-verification));
+  add meaningful regression coverage for gameplay fixes and a negative control
+  for a new correctness check.
+- The gate's commands, prerequisites and coverage limits are in
+  [DEVELOPMENT.md](docs/DEVELOPMENT.md#run-checks). Run Python, Rust and oracle
+  heavy checks sequentially; parallel pack-loading runs exhaust memory.
 - Freeze a reviewed candidate before expensive gates. Relevant code, tests or
   gate-input changes invalidate affected results. Preserve actual commands,
   revisions, hashes, timing, exit status, failures and skips; inspect raw evidence.

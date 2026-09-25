@@ -1,15 +1,18 @@
 # Claude Code lane ledger
 
-Adoption record and reliability log for the Claude Code routing in
-[CLAUDE.md](../CLAUDE.md): Opus orchestrates, and DeepSeek `deepseek-flash`
-at max reasoning delivers through `tools/ds-lane`.
+Adoption record and reliability log for the Claude Code routing: Opus
+orchestrates, and DeepSeek `deepseek-flash` at max reasoning delivers through
+`tools/ds-lane` ([reference](../tools/ds_lane/README.md)).
 
 ## Adoption
 
 Owner instruction, 2026-09-23. The owner asked for the route to stay
 confined to Claude Code sessions. It first landed in the shared
 `AGENTS.md`/workflow docs (swept into PR #2 while uncommitted) and was moved
-here and to `CLAUDE.md` on the same day.
+here and to `CLAUDE.md` on the same day. On 2026-09-25 tracked guidance
+became model- and vendor-neutral: the routing moved to host-local, untracked
+configuration, the `ds-lane` manual to its tool README, and `CLAUDE.md` to a
+bare import of `AGENTS.md`.
 
 Route choice: Reasonix was chosen over Claude Code pointed at DeepSeek's
 Anthropic-compatible endpoint. Reasonix validates the effort level

@@ -3,13 +3,15 @@
 [Project instructions](../AGENTS.md) · [Setup and checks](DEVELOPMENT.md) ·
 [Roadmap](ROADMAP.md) · [Documentation index](README.md)
 
-This is PSIV's standing default. Durable rules live in `AGENTS.md`, current
-playable scope in the project README, and the work queue and canonical graph
+This is PSIV's standing default. Each standing rule has one owner, listed in the
+[documentation index](README.md#rule-owners); current playable scope lives in
+the project README, and the work queue and canonical graph
 pointer in the roadmap. Subsystem ledgers retain measured history. Do not
 create a second tracker or copy changing campaign status into instructions.
 The [setup ledger](WORKFLOW_SETUP.md) records adoption and host verification.
 This procedure is guidance, not an automatic dispatcher, restart service or
-enforcement system. No new framework, dashboard or CI is required.
+enforcement system; enforcement belongs to the
+[gate](DEVELOPMENT.md#gate-and-coverage).
 
 ## Start and select work
 
@@ -20,46 +22,49 @@ disconnected monitor does not mean its child exited. Read task-relevant source,
 architecture and ledger corrections, not every historical log.
 
 State one bounded outcome, exclusions and an observable acceptance check before
-editing. Astra selects a ready authorized task from the canonical graph and
-orchestrates its ownership; implementation remains with Sol or Luna. A small
-independent change needs only a short plan and receipt, not an Astra exception.
-Keep one next action; do not turn a new idea into an implicit milestone or reset
-the effort policy.
+editing. The orchestrator selects a ready authorized task from the canonical
+graph and orchestrates its ownership; implementation remains with a delivery
+worker. A small independent change needs only a short plan and receipt, not an
+orchestrator exception. Keep one next action; do not turn a new idea into an
+implicit milestone or reset the effort policy.
 
-PSIV currently uses roadmap/subsystem handoffs. The setup inspection found no
-GitHub issues, PRs, templates or hosted workflows; that is a dated observation,
-not a permanent prohibition. Reuse an established issue/PR if one later owns
-the work, and link to it from the roadmap instead of duplicating its graph.
+Changes land on `main` through a branch and a GitHub pull request. Known gaps,
+deferred cleanups and candidate guards are GitHub issues, linked from the code
+review, ledger or roadmap that needs them rather than tracked in a second list.
+Campaign graphs stay in the roadmap handoff or the issue that owns the work.
 
-## Models and delegation
+## Roles and delegation
 
-| Role | Explicit requested route | Responsibility |
-| --- | --- | --- |
-| Orchestration | `gpt-6-astra` / `max` | Concise scoping, architecture and permission decisions, graph selection, coordination, review and acceptance; no routine implementation or repeated check loops |
-| Complex delivery | `gpt-6-sol` / `max` | Complex implementation/refactoring through relevant checks, debugging/repairs, candidate freeze and evidence handoff |
-| Bounded delivery | `gpt-6-luna` / `max` | Bounded exploration/routine implementation, test runs, log triage, receipts and routine docs through checks and closeout |
-| Optional helper | Record the actual DeepSeek model, effort and direct route | Narrow supervised work with a concrete benefit; never primary design/integration |
+| Role | Responsibility |
+| --- | --- |
+| Orchestrator | Concise scoping, architecture and permission decisions, graph selection, coordination, review and acceptance; no routine implementation or repeated check loops |
+| Complex delivery | Complex implementation/refactoring through relevant checks, debugging/repairs, candidate freeze and evidence handoff |
+| Bounded delivery | Bounded exploration/routine implementation, test runs, log triage, receipts and routine docs through checks and closeout |
+| Optional helper | Narrow supervised work with a concrete benefit; never primary design/integration |
 
-This is the owner's strict PSIV role split. Small routine
-tasks go to Luna and complex work to Sol; Astra does not absorb implementation
-because a task is small or a check failed. Astra does not routinely write code,
-tests, fixtures, harnesses or docs, or run/monitor repeated checks. Exceptions
-require an explicit owner instruction or an actually unavailable route, which
-must be reported honestly; never silently substitute Astra. Do not create work
-merely to exercise a model. Workers own their outcomes through acceptance,
-including relevant checks, repair, evidence and closeout. The parent independently
-reviews the result and remains accountable for integration, without taking over
-implementation or evidence plumbing. Use compact receipts and proportionate
-direct diff/raw-artifact spot checks; do not duplicate worker investigations or
-rerun passing checks absent a concrete cause. Verify substantive helper results
-independently and record corrections/reliability, including rejected output.
+This is the owner's strict PSIV role split. Small routine tasks go to bounded
+delivery and complex work to complex delivery; the orchestrator does not absorb
+implementation because a task is small or a check failed. The orchestrator does
+not routinely write code, tests, fixtures, harnesses or docs, or run/monitor
+repeated checks. Exceptions require an explicit owner instruction or an actually
+unavailable route, which must be reported honestly; never silently substitute
+the orchestrator. Do not create work merely to exercise a model. Workers own
+their outcomes through acceptance, including relevant checks, repair, evidence
+and closeout. The parent independently reviews the result and remains
+accountable for integration, without taking over implementation or evidence
+plumbing. Use compact receipts and proportionate direct diff/raw-artifact spot
+checks; do not duplicate worker investigations or rerun passing checks absent a
+concrete cause. Verify substantive helper results independently and record
+corrections/reliability, including rejected output.
 
-Specify model and effort in the host's launch controls. Record requested versus
-actual values from host/session metadata; a catalog proves advertisement, not
-successful execution. If a route is unavailable, report it and continue only
-independent work without silently substituting. A prompt or `AGENTS.md` cannot
-switch an already running model. Do not edit global settings to satisfy this
-project's role preferences.
+Which model, tool and effort fill each role is host-local configuration in
+untracked files (a host's global instructions or a git-excluded local
+instruction file), never tracked guidance; the same goes for personal and
+machine-specific preferences. Specify model and effort in the host's launch
+controls. Record requested versus actual values from host/session metadata; a
+catalog proves advertisement, not successful execution. If a route is
+unavailable, report it and continue only independent work without silently
+substituting. A prompt or `AGENTS.md` cannot switch an already running model.
 
 Each delegation names exact inputs, acceptance, owned files, forbidden writes,
 mutable resources and concurrency constraints. Include a bounded context packet;
@@ -87,11 +92,11 @@ no project authority.
 | --- | --- |
 | Scope | Implement and verify this documentation setup. Future assigned PSIV tasks include necessary local edits, focused checks and scoped repairs; preserve unrelated work. |
 | Local setup | Use documented prerequisites or isolated local dependencies before declaring a missing preinstalled tool unavailable. Do not modify unrelated system configuration. |
-| Git / remote writes | The owner authorized committing, publishing a PR, merging and owned cleanup for these workflow docs on 2026-09-23. This is not a standing remote-write grant for campaign changes. Reuse explicit task authorization without asking again. Remote inspection is allowed. |
+| Git / remote writes | The owner authorized committing, publishing a PR, merging and owned cleanup for these workflow docs on 2026-09-23, and on 2026-09-25 the contributor-guidance change through issues, a branch and a PR. Neither is a standing remote-write grant for campaign changes. Reuse explicit task authorization without asking again. Remote inspection is allowed. |
 | Cleanup | Remove only owned disposable outputs/processes and, when integration includes it, owned task branches/worktrees. Retain receipts, source saves and other people's work. No broad cleanup. |
 | Deployment / publication | Releases, deployment and asset distribution are outside this setup; no standing grant recorded. |
-| Paid services | No paid model service is currently authorized in PSIV; the completed Redshirt/TypeSafe/Jev experiments are summarized in their [archived record](REDSHIRT_BATTLE.md). Any future live batch needs a new explicit assignment, and nothing here authorizes unrelated service or credit purchase. |
-| Protected inputs | ROM, disassembly, packs, saves and captures remain local/ignored. Copy and hash source saves; set `PSIV_SAVE_DIR`. Never overwrite the only verified checkpoint or force-add protected assets. |
+| Paid services | No paid model service is currently authorized in PSIV; the completed battle-decision experiments are summarized in their [archived record](REDSHIRT_BATTLE.md). Any future live batch needs a new explicit assignment, and nothing here authorizes unrelated service or credit purchase. |
+| Protected inputs | Owned by [AGENTS.md](../AGENTS.md#protect-local-inputs-and-evidence); no task grant relaxes them. |
 | Effort | Owner: "Continue scoped repairs until it passes, with no fixed cycle limit." Applies to failures of accepted checks inside authorized scope. It does not waive source, permission, resource or input constraints. |
 | Continuation | The original setup graph covers local documentation acceptance; the authorized publication follow-through is recorded in the setup ledger. BioPlant continuation was assigned separately and must not be bundled into the docs PR. During an assigned outcome, continue ready authorized nodes through its agreed endpoint without repeated approval requests. |
 
@@ -125,7 +130,7 @@ from the roadmap. Common inputs and policy may be inherited. Each node records:
 | Evidence | Actual receipts, failures/skips, review and artifact references |
 | Effort | Explicit local policy or inheritance with its source |
 
-Astra reviews graph edits and selects nodes only when dependencies are verified.
+The orchestrator reviews graph edits and selects nodes only when dependencies are verified.
 `blocked` names the missing evidence/decision. A check failure returns its node
 to repair; invalidate dependent acceptance affected by changes. Do not mark a
 node verified because its worker stopped or its budget expired. Preserve stable
@@ -235,19 +240,59 @@ receipt is not an exact-main pass. Inspect final Git/worktree/process state and
 continue the next ready authorized node. If integration was not requested, leave
 a verified local result and report that boundary without inventing an approval gate.
 
-Improve this procedure from observed problems: record the problem, smallest
+Improve this procedure from observed problems the same way code is corrected:
+climb the [correction ladder](#correction-ladder), and record the problem,
 change, review and verification in the relevant existing ledger. Do not weaken
 checks or claim automatic dispatch/restart/enforcement without a working executor
 and a verification result.
 
+## Correction ladder
+
+When a defect, review finding or correction exposes a recurring class of
+mistake, fix the class, not the instance, at the strongest rung that applies:
+
+1. **Make it unrepresentable.** Types, exhaustive matches without catch-all
+   arms, one owning API or module, a data structure that cannot hold the bad
+   state. The pack's explicit rebuild error for stale schemas is an example.
+2. **Enforce it statically.** Compiler or lint settings (the crates'
+   `forbid(unsafe_code)` and `deny(clippy::float_arithmetic)`), strict Clippy,
+   or a guard test or script that the [gate](DEVELOPMENT.md#gate-and-coverage)
+   runs.
+3. **Guidance.** `AGENTS.md`, module docs or the routing docs, placed where the
+   next contributor will read it before repeating the mistake.
+4. **Review only.** A last resort and a known gap: file an issue for the guard
+   that would close it.
+
+The PR description states which rung the fix used and, below rung 1, why no
+stronger rung applied. A rung-3 or rung-4 fix for a mistake that has already
+recurred needs a linked issue for the stronger rung.
+
+## The codebase is memory
+
+Contributors and agents extend whatever patterns they read, so the tree must
+only contain patterns worth copying.
+
+- One paved path per concern: one owning module or API, reached through the
+  layer that owns it in the [runtime design](RUNTIME_DESIGN.md). A second
+  implementation of the same concern is a defect, even when both agree today.
+- No workarounds, duplicate code paths, or comments that justify a deviation.
+  A known gap is a GitHub issue link. Comments state contracts and invariants;
+  retail deviations are recorded in [SOURCE_NOTES.md](../SOURCE_NOTES.md).
+- An anti-pattern that cannot be removed in the current change is first stopped
+  from spreading: add a guard (lint setting or guard test, with a baseline of
+  the existing instances if needed) that fails on new ones, then file the
+  cleanup as an issue.
+
 ## Instruction loading
 
-Codex loads its global instructions and the project chain at session startup;
-`AGENTS.override.md` takes precedence at its directory level. A linked generic
-Markdown procedure is not automatically loaded: `AGENTS.md` explicitly routes
-agents here. Check configured fallback names and instruction byte limits when
-applicable. Verify the effective chain in a fresh session when supported, and
-record any unverified host separately. Do not conflate a successful CLI check
-with every IDE or app host. See the official
-[AGENTS.md guidance](https://learn.chatgpt.com/docs/agent-configuration/agents-md)
-and [Astra instruction guidance](https://developers.openai.com/blog/rethinking-skills-and-prompts-for-gpt-6-astra).
+`AGENTS.md` is the only always-loaded project instruction file. It holds policy
+and pointers; detailed knowledge lives in owned documents that it and the
+[documentation index](README.md) route to, and linked documents are not loaded
+automatically. A host that reads a different entry file gets a tracked file that
+only imports `AGENTS.md`; host-local routing and preferences live in untracked
+files (see [roles and delegation](#roles-and-delegation)). `AGENTS.override.md`,
+where a host supports it, replaces `AGENTS.md` at its directory level rather
+than extending it. Check configured fallback names and instruction byte limits
+when applicable. Verify the effective chain in a fresh session when supported,
+and record any unverified host separately. Do not conflate a successful CLI
+check with every IDE or app host.

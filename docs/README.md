@@ -48,6 +48,27 @@
 - Workflow adoption, instruction loading and model-route evidence: the setup ledger.
 - Obsolete plans and removed status summaries: Git history.
 
+## Rule owners
+
+Each standing rule lives in exactly one document; everything else links to it.
+Add a row here when a new rule gets an owner.
+
+| Rule | Owner |
+| --- | --- |
+| Retail fidelity, integer semantics and layer boundaries | [AGENTS.md](../AGENTS.md#retail-and-layer-boundaries); layers in detail: [runtime design](RUNTIME_DESIGN.md) |
+| Retail deviations and provenance | [Source notes](../SOURCE_NOTES.md) |
+| Protected inputs, saves and evidence safety | [AGENTS.md](../AGENTS.md#protect-local-inputs-and-evidence) |
+| Evidence types and what a claim needs | [AGENTS.md](../AGENTS.md#verify-the-claim-you-intend-to-make) |
+| Roles, delegation, authority and task graphs | [Agent workflow](AGENT_WORKFLOW.md#roles-and-delegation) |
+| Correction ladder | [Agent workflow](AGENT_WORKFLOW.md#correction-ladder) |
+| One paved path; gaps as issues; guard before cleanup | [Agent workflow](AGENT_WORKFLOW.md#the-codebase-is-memory) |
+| Receipts and handoff | [Agent workflow](AGENT_WORKFLOW.md#receipt-and-handoff-template) |
+| Gate commands, prerequisites, coverage and repository-owned checks | [Development guide](DEVELOPMENT.md#gate-and-coverage) |
+| File size | [Development guide](DEVELOPMENT.md#file-size) |
+| Cartridge comparison method and lanes | [Oracle guide](../oracle/README.md) |
+| Lane harness operation | [ds-lane reference](../tools/ds_lane/README.md) |
+| Current scope; work queue and active graph | [Overview](../README.md); [roadmap](ROADMAP.md#task-graph-handoff) |
+
 Keep one current work list in the roadmap. Dated measurements remain useful
 evidence for their recorded inputs; they do not automatically certify a newer
 build. Research and isolated scene fixtures do not establish campaign completion.
