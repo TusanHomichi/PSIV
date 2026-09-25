@@ -124,14 +124,16 @@ class WholeRunBase(PackFixture):
         return rows
 
     def capture_rows(self, frames=70, ended=True, rounds=2, party=None,
-                     vehicle_hp="0"):
+                     vehicle_hp="0", ended_at=None):
         """The capture-side log: the fight from f48, a round boundary per
-        `rounds`, the kill at f60 when the battle ends."""
+        `rounds`, the kill at `ended_at` (f60 by default) when the battle
+        ends."""
+        end = self.ENDED if ended_at is None else ended_at
         party = party or {"alys_hp": "25", "chaz_hp": "53", "hahn_hp": "21"}
         rows = [log_row(self.BATTLE_FIRST, game_mode="0010", enemy_count="0")]
         for frame in range(self.BATTLE_FIRST + 1, frames + 1):
             built = frame >= self.ENEMIES_LOADED
-            over = ended and frame >= self.ENDED
+            over = ended and frame >= end
             hp = "65486" if over else "25"
             turns = len([start for start in self.ROUND_FRAMES[:rounds]
                          if frame >= start])
@@ -140,7 +142,7 @@ class WholeRunBase(PackFixture):
                     else f"{self.ROTATED_SEED:08X}")
             rows.append(log_row(
                 frame,
-                game_mode="000C" if (ended and frame > self.ENDED) else "0014",
+                game_mode="000C" if (ended and frame > end) else "0014",
                 enemy_count="2" if built else "0",
                 rng_seed=seed, main_frame_count="23931",
                 turn_00=f"{turns:04X}",
@@ -160,7 +162,7 @@ class WholeRunBase(PackFixture):
         return rows
 
     def fake_oracle(self, probe=None, frames=70, ended=True, rounds=2,
-                    party=None, vehicle_hp="0"):
+                    party=None, vehicle_hp="0", ended_at=None):
         """A `run_oracle` that writes the probe's log and the capture's.
 
         The probe's own log is what the tool places the seed patch against, so
@@ -187,7 +189,8 @@ class WholeRunBase(PackFixture):
             else:
                 length = fb.tape_frames(fb.expand_tape(tape.read_text()))
                 write_csv(log, self.capture_rows(min(frames, length), ended,
-                                                 rounds, party, vehicle_hp),
+                                                 rounds, party, vehicle_hp,
+                                                 ended_at),
                           LOG_COLUMNS)
                 write_csv(trace, [trace_row(48, 0, 0x293E, 23931,
                                             self.PATCHED_SEED,
@@ -400,6 +403,21 @@ class WholeCappedRun(WholeRunBase):
         self.assertEqual(report["rounds_captured"], 2)
         self.assertEqual((report["battle_first"], report["battle_last"]),
                          (40, 60))
+
+    def test_a_battle_that_outlasts_the_cap_is_capped_anyway(self):
+        # The fight ends in round 3, but the cap is 2: the capture stops at
+        # round 2's end, exactly as the extractor's own cut does, and the
+        # report says truncated rather than victory.
+        self.scout_cache()
+        with mock.patch.object(runs, "run_oracle",
+                               self.fake_oracle(ended=True, rounds=3,
+                                                ended_at=70)):
+            self.assertEqual(fb.main(self.argv("--max-rounds", "2")), 0)
+        report = self.report()
+        self.assertEqual(report["outcome"], "truncated")
+        self.assertEqual(report["rounds_captured"], 2)
+        self.assertEqual(report["cut_frame"], 65)
+        self.assertEqual(report["tape_frames"], 66)
 
     def test_a_cap_the_tape_never_reaches_is_refused(self):
         # The battle runs out of tape inside round 1: there is no boundary to

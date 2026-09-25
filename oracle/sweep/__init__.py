@@ -39,9 +39,11 @@ from .plan import (FOOT_GROUPS, MOTAVIA_GROUPS, VEHICLE_GROUPS, Formation,
                    list_formations, write_list)
 from .jobs import Options, extractor_argv, force_argv, run_formation
 from .batch import Sweep, record_path
+from .cli import main
 
 __all__ = [
     "FOOT_GROUPS", "MOTAVIA_GROUPS", "Options", "Sweep", "VEHICLE_GROUPS",
     "Formation", "extractor_argv", "force_argv", "list_formations",
+    "main",
     "record_path", "run_formation", "write_list",
 ]

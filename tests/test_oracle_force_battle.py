@@ -478,6 +478,16 @@ class LogReading(PackFixture):
         self.assertEqual(fb.classify(rows, (40, 60), vehicle=True), "defeat")
         self.assertEqual(fb.classify(rows, (40, 60)), "withdrawal")
 
+    def test_a_second_encounter_is_not_part_of_the_battles_window(self):
+        # A long policy tape can outlive a short fight and walk into another
+        # encounter: the window is the first run of battle frames, so the
+        # second battle's slots cannot be read as the first's.
+        rows = [log_row(40, game_mode="0010"), log_row(41, game_mode="0014"),
+                log_row(42, game_mode="0014"), log_row(43, game_mode="000C"),
+                log_row(44, game_mode="000C"), log_row(45, game_mode="0014"),
+                log_row(46, game_mode="0014")]
+        self.assertEqual(fb.battle_window(rows), (40, 42))
+
     def test_a_battle_still_running_at_the_tape_end_is_unfinished(self):
         rows = self.capture_rows((25, 25), ended=False)
         self.assertEqual(fb.classify(rows, (40, 60)), "unfinished")

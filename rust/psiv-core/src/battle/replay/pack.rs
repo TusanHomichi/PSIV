@@ -15,14 +15,151 @@
 //! | `$37` two Fanbite | 15 FANBITE | six empty, two $08 SPIRAL BLD | same |
 //! | `$53` one Desrt Leach | 81 DESRTLEACH | five empty, three $37 SAND STORM | same |
 
+use serde::Deserialize;
+
 use crate::battle::fixtures;
 use crate::battle::*;
 
-/// The hand-built fixtures' data plus the forced captures' records.
+/// The hand-built fixtures' data, the forced captures' records, and the swept
+/// fixtures' own (`replay_fixtures/motavia_pack.json`).
+///
+/// The swept records are added first so the three hand-transcribed enemies
+/// above keep exactly the values their captures' tests were written against;
+/// both come from the same pack, and `oracle/sweep/replay_pack.py` is what
+/// keeps the file's copy honest.
 pub(crate) fn data() -> BattleData {
+    let sweep = sweep_pack();
     fixtures::data()
+        .with_enemies(sweep.enemies)
+        .with_enemy_skills(sweep.enemy_skills)
         .with_enemies([helex(), fanbite(), desrt_leach()])
         .with_enemy_skills([flame_bolt(), spiral_bld(), sand_storm()])
+}
+
+/// The swept fixtures' records, as `oracle/sweep/replay_pack.py` writes them.
+///
+/// A data file rather than transcribed Rust: a sweep meets dozens of enemies,
+/// and the file is the project's own pack read out under the field names below.
+fn sweep_pack() -> SweepPack {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("src/battle/replay_fixtures/motavia_pack.json");
+    let text = std::fs::read_to_string(&path)
+        .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
+    let parsed: SweepJson = serde_json::from_str(&text)
+        .unwrap_or_else(|error| panic!("{} does not parse: {error}", path.display()));
+    SweepPack {
+        enemies: parsed.enemies.into_iter().map(Into::into).collect(),
+        enemy_skills: parsed.enemy_skills.into_iter().map(Into::into).collect(),
+    }
+}
+
+struct SweepPack {
+    enemies: Vec<EnemyRecord>,
+    enemy_skills: Vec<EnemySkill>,
+}
+
+#[derive(Deserialize)]
+struct SweepJson {
+    enemies: Vec<EnemyJson>,
+    enemy_skills: Vec<SkillJson>,
+}
+
+#[derive(Deserialize)]
+struct EnemyJson {
+    id: u16,
+    name: String,
+    hp: u16,
+    strength: u8,
+    mental: u8,
+    agility: u8,
+    dexterity: u8,
+    attack: u16,
+    defence: u16,
+    mental_defence: u16,
+    attack_element: u8,
+    attack_status: u8,
+    properties: Vec<u8>,
+    regular_abilities: Vec<u8>,
+    condition_ids: Vec<u8>,
+    conditional_abilities: Vec<u8>,
+    experience: u16,
+    meseta: u16,
+}
+
+#[derive(Deserialize)]
+struct SkillJson {
+    id: u8,
+    name: String,
+    effect: u8,
+    power_stat: u8,
+    target: u8,
+    power: u8,
+    resistance: u8,
+    element: u8,
+}
+
+impl From<EnemyJson> for EnemyRecord {
+    fn from(json: EnemyJson) -> Self {
+        let fixed = |values: Vec<u8>, length: usize, what: &str| -> Vec<u8> {
+            assert_eq!(
+                values.len(),
+                length,
+                "the swept pack's {what} is the record's own length"
+            );
+            values
+        };
+        EnemyRecord {
+            id: json.id,
+            name: json.name,
+            hp: json.hp,
+            strength: json.strength,
+            mental: json.mental,
+            agility: json.agility,
+            dexterity: json.dexterity,
+            attack: json.attack,
+            defence: json.defence,
+            mental_defence: json.mental_defence,
+            attack_element: json.attack_element,
+            attack_status: json.attack_status,
+            properties: fixed(json.properties, ELEMENT_SLOTS, "properties")
+                .try_into()
+                .expect("the properties' length"),
+            regular_abilities: fixed(
+                json.regular_abilities,
+                REGULAR_ABILITIES,
+                "regular abilities",
+            )
+            .try_into()
+            .expect("the ability list's length"),
+            condition_ids: fixed(json.condition_ids, AI_CONDITIONS, "condition ids")
+                .try_into()
+                .expect("the condition list's length"),
+            conditional_abilities: fixed(
+                json.conditional_abilities,
+                AI_CONDITIONS,
+                "conditional abilities",
+            )
+            .try_into()
+            .expect("the conditional list's length"),
+            experience: json.experience,
+            meseta: json.meseta,
+        }
+    }
+}
+
+impl From<SkillJson> for EnemySkill {
+    fn from(json: SkillJson) -> Self {
+        EnemySkill {
+            id: json.id,
+            name: json.name,
+            effect: json.effect,
+            power_stat: json.power_stat,
+            target: json.target,
+            power: json.power,
+            resistance: json.resistance,
+            element: json.element,
+        }
+    }
 }
 
 fn enemy(record: EnemyRecord, attack_status: u8, regular_abilities: [u8; 8]) -> EnemyRecord {

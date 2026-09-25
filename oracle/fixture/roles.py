@@ -57,9 +57,24 @@ def animation_hit_pass_actors(party):
 
 
 def resolved_targets(record):
-    """The slots the log shows this action resolving something on, in order."""
+    """The slots the log shows this action resolving something on, in order.
+
+    A slot whose **damage word moved** is one the action damaged, and that is
+    the direct evidence of where its damage run belongs. The hit byte is the
+    fallback for an action that damaged nobody (a swing that missed every slot
+    it covered), because it is not always readable: `loc_B6A2` presets all nine
+    flags before each pass, and between two actions the array carries what the
+    last reader left there - formation `$03`'s second Crawler (sweep capture
+    2026-09-24) reads `00`, `00` and `03` in slots 1-3 on the frame its swing
+    opens, one of which is not even a verdict byte. Labelling that swing's
+    damage run from the bytes gave the first slot while the damage landed on
+    the second, which `account_for_every_roll` refused.
+    """
+    damaged = [target for target in record["targets"] if target["damage"]]
+    if damaged:
+        return damaged
     return [target for target in record["targets"]
-            if target["hit"] != HIT_NOT_TARGETED or target["damage"]]
+            if target["hit"] != HIT_NOT_TARGETED]
 
 
 def hit_pass_labels(count, known, first_pass):

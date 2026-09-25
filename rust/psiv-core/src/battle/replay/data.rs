@@ -97,6 +97,14 @@ fn fixture_files() -> Vec<(String, PathBuf)> {
     files
 }
 
+/// The directory's own data files: the manifest, and the swept records
+/// [`super::pack`] reads (`oracle/sweep/replay_pack.py`). Everything else
+/// under the directory is a fixture - a file that is not one fails the walk
+/// with the extractor's own parse error, which is the honest way to find out.
+fn not_a_fixture(name: &std::ffi::OsStr) -> bool {
+    name == "divergences.json" || name == "motavia_pack.json"
+}
+
 fn collect_fixtures(root: &Path, dir: &Path, files: &mut Vec<(String, PathBuf)>) {
     let entries = std::fs::read_dir(dir)
         .unwrap_or_else(|error| panic!("cannot read {}: {error}", dir.display()));
@@ -109,10 +117,7 @@ fn collect_fixtures(root: &Path, dir: &Path, files: &mut Vec<(String, PathBuf)>)
         if !path.extension().is_some_and(|ext| ext == "json") {
             continue;
         }
-        if path
-            .file_name()
-            .is_some_and(|name| name == "divergences.json")
-        {
+        if path.file_name().is_some_and(|name| not_a_fixture(name)) {
             continue;
         }
         let name = path

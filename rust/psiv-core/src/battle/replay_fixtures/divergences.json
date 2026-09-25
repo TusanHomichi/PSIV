@@ -1,3 +1,680 @@
 {
-  "fixtures": {}
+  "fixtures": {
+    "sweep_motavia/formation_02": {
+      "action": "round 1: actor 3 (attack), 17 roll(s), 4 target(s)",
+      "actual": "targets [FighterId(7)]",
+      "expected": "targets [FighterId(8)]",
+      "frame": 25669,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-1-a-swing-whose-commanded-enemy-has-fallen",
+      "round": 1,
+      "round_rolls": {
+        "log": 195,
+        "port": 195
+      }
+    },
+    "sweep_motavia/formation_04": {
+      "action": "round 2: actor 2 (attack), 17 roll(s), 3 target(s)",
+      "actual": "targets [FighterId(7)]",
+      "expected": "targets [FighterId(8)]",
+      "frame": 26055,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-1-a-swing-whose-commanded-enemy-has-fallen",
+      "round": 2,
+      "round_rolls": {
+        "log": 103,
+        "port": 103
+      }
+    },
+    "sweep_motavia/formation_05": {
+      "action": "round 2: actor 2 (attack), 17 roll(s), 4 target(s)",
+      "actual": "targets [FighterId(7)]",
+      "expected": "targets [FighterId(8)]",
+      "frame": 26151,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-1-a-swing-whose-commanded-enemy-has-fallen",
+      "round": 2,
+      "round_rolls": {
+        "log": 156,
+        "port": 155
+      }
+    },
+    "sweep_motavia/formation_07": {
+      "action": "round 1: actor 3 (attack), 18 roll(s), 3 target(s)",
+      "actual": "Normal with Some(8)",
+      "expected": "FighterId(7): hit flag 00, damage Some(9)",
+      "frame": 25542,
+      "kind": "value",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-5-a-verdict-or-a-damage-value",
+      "round": 1,
+      "round_rolls": {
+        "log": 125,
+        "port": 124
+      }
+    },
+    "sweep_motavia/formation_08": {
+      "action": "round 1's queue build",
+      "actual": "119 roll(s) drawn",
+      "expected": "120 roll(s) in the round's frames",
+      "frame": 25061,
+      "kind": "draws",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-8-a-round-s-roll-count",
+      "round": 1,
+      "round_rolls": {
+        "log": 120,
+        "port": 119
+      }
+    },
+    "sweep_motavia/formation_0B": {
+      "action": "round 1: actor 2 (attack), 17 roll(s), 4 target(s)",
+      "actual": "targets [FighterId(7)]",
+      "expected": "targets [FighterId(8)]",
+      "frame": 25661,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-1-a-swing-whose-commanded-enemy-has-fallen",
+      "round": 1,
+      "round_rolls": {
+        "log": 177,
+        "port": 177
+      }
+    },
+    "sweep_motavia/formation_0C": {
+      "action": "round 1: actor 3 (attack), 18 roll(s), 2 target(s)",
+      "actual": "targets [FighterId(7)]",
+      "expected": "targets [FighterId(8)]",
+      "frame": 25512,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-1-a-swing-whose-commanded-enemy-has-fallen",
+      "round": 1,
+      "round_rolls": {
+        "log": 140,
+        "port": 139
+      }
+    },
+    "sweep_motavia/formation_10": {
+      "action": "round 1: actor 3 (attack), 17 roll(s), 4 target(s)",
+      "actual": "targets [FighterId(6)]",
+      "expected": "targets [FighterId(6), FighterId(7), FighterId(8), FighterId(9)]",
+      "frame": 25693,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-2-a-window-the-port-narrows-to-one-slot",
+      "round": 1,
+      "round_rolls": {
+        "log": 194,
+        "port": 194
+      }
+    },
+    "sweep_motavia/formation_13": {
+      "action": "round 1's queue build",
+      "actual": "queue [FighterId(1), FighterId(6), FighterId(2), FighterId(3)]",
+      "expected": "round 1's queue [FighterId(1), FighterId(6), FighterId(7), FighterId(2), FighterId(3)]",
+      "frame": 25013,
+      "kind": "queue",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-4-the-round-s-queue",
+      "round": 1,
+      "round_rolls": {
+        "log": 120,
+        "port": 83
+      }
+    },
+    "sweep_motavia/formation_14": {
+      "action": "round 1's queue build",
+      "actual": "queue [FighterId(1), FighterId(6), FighterId(2), FighterId(3)]",
+      "expected": "round 1's queue [FighterId(1), FighterId(6), FighterId(7), FighterId(8), FighterId(2), FighterId(3)]",
+      "frame": 25013,
+      "kind": "queue",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-4-the-round-s-queue",
+      "round": 1,
+      "round_rolls": {
+        "log": 123,
+        "port": 67
+      }
+    },
+    "sweep_motavia/formation_15": {
+      "action": "round 1's queue build",
+      "actual": "queue [FighterId(1), FighterId(6), FighterId(2), FighterId(3)]",
+      "expected": "round 1's queue [FighterId(7), FighterId(1), FighterId(8), FighterId(6), FighterId(9), FighterId(2), FighterId(3)]",
+      "frame": 25013,
+      "kind": "queue",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-4-the-round-s-queue",
+      "round": 1,
+      "round_rolls": {
+        "log": 176,
+        "port": 84
+      }
+    },
+    "sweep_motavia/formation_16": {
+      "action": "round 1: actor 2 (attack), 17 roll(s), 2 target(s)",
+      "actual": "targets [FighterId(6)]",
+      "expected": "targets [FighterId(6), FighterId(7)]",
+      "frame": 25488,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-2-a-window-the-port-narrows-to-one-slot",
+      "round": 1,
+      "round_rolls": {
+        "log": 119,
+        "port": 119
+      }
+    },
+    "sweep_motavia/formation_17": {
+      "action": "round 2: actor 2 (attack), 17 roll(s), 1 target(s)",
+      "actual": "targets [FighterId(7)]",
+      "expected": "targets [FighterId(8)]",
+      "frame": 26168,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-1-a-swing-whose-commanded-enemy-has-fallen",
+      "round": 2,
+      "round_rolls": {
+        "log": 138,
+        "port": 138
+      }
+    },
+    "sweep_motavia/formation_18": {
+      "action": "round 2: actor 2 (attack), 18 roll(s), 1 target(s)",
+      "actual": "targets [FighterId(7)]",
+      "expected": "targets [FighterId(8)]",
+      "frame": 26280,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-1-a-swing-whose-commanded-enemy-has-fallen",
+      "round": 2,
+      "round_rolls": {
+        "log": 156,
+        "port": 155
+      }
+    },
+    "sweep_motavia/formation_19": {
+      "action": "round 2: actor 3 (attack), 17 roll(s), 1 target(s)",
+      "actual": "targets [FighterId(7)]",
+      "expected": "targets [FighterId(8)]",
+      "frame": 26223,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-1-a-swing-whose-commanded-enemy-has-fallen",
+      "round": 2,
+      "round_rolls": {
+        "log": 122,
+        "port": 122
+      }
+    },
+    "sweep_motavia/formation_1B": {
+      "action": "round 3: actor 2 (attack), 17 roll(s), 1 target(s)",
+      "actual": "targets [FighterId(7)]",
+      "expected": "targets [FighterId(8)]",
+      "frame": 26964,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-1-a-swing-whose-commanded-enemy-has-fallen",
+      "round": 3,
+      "round_rolls": {
+        "log": 120,
+        "port": 138
+      }
+    },
+    "sweep_motavia/formation_1D": {
+      "action": "round 2: actor 3 (attack), 19 roll(s), 4 target(s)",
+      "actual": "targets [FighterId(7)]",
+      "expected": "targets [FighterId(9)]",
+      "frame": 26667,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-1-a-swing-whose-commanded-enemy-has-fallen",
+      "round": 2,
+      "round_rolls": {
+        "log": 193,
+        "port": 191
+      }
+    },
+    "sweep_motavia/formation_22": {
+      "action": "round 2: actor 3 (attack), 17 roll(s), 2 target(s)",
+      "actual": "targets [FighterId(6)]",
+      "expected": "targets [FighterId(6), FighterId(7)]",
+      "frame": 26271,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-2-a-window-the-port-narrows-to-one-slot",
+      "round": 2,
+      "round_rolls": {
+        "log": 120,
+        "port": 120
+      }
+    },
+    "sweep_motavia/formation_23": {
+      "action": "round 2: actor 3 (attack), 17 roll(s), 3 target(s)",
+      "actual": "targets [FighterId(6)]",
+      "expected": "targets [FighterId(6), FighterId(7), FighterId(8)]",
+      "frame": 26516,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-2-a-window-the-port-narrows-to-one-slot",
+      "round": 2,
+      "round_rolls": {
+        "log": 156,
+        "port": 156
+      }
+    },
+    "sweep_motavia/formation_25": {
+      "action": "round 1's queue build",
+      "actual": "queue [FighterId(1), FighterId(6), FighterId(7), FighterId(2), FighterId(3)]",
+      "expected": "round 1's queue [FighterId(8), FighterId(1), FighterId(6), FighterId(7), FighterId(2), FighterId(3)]",
+      "frame": 25013,
+      "kind": "queue",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-4-the-round-s-queue",
+      "round": 1,
+      "round_rolls": {
+        "log": 107,
+        "port": 103
+      }
+    },
+    "sweep_motavia/formation_26": {
+      "action": "round 1's queue build",
+      "actual": "queue [FighterId(1), FighterId(6), FighterId(7), FighterId(2), FighterId(3)]",
+      "expected": "round 1's queue [FighterId(8), FighterId(1), FighterId(6), FighterId(7), FighterId(9), FighterId(2), FighterId(3)]",
+      "frame": 25013,
+      "kind": "queue",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-4-the-round-s-queue",
+      "round": 1,
+      "round_rolls": {
+        "log": 160,
+        "port": 103
+      }
+    },
+    "sweep_motavia/formation_2A": {
+      "action": "round 3: actor 6 (wasted $45), 17 roll(s), 3 target(s)",
+      "actual": "an effect",
+      "expected": "ability $45 spending the turn",
+      "frame": 26539,
+      "kind": "not-wasted",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-3-an-ability-that-spends-the-turn",
+      "round": 3,
+      "round_rolls": {
+        "log": 101,
+        "port": 101
+      }
+    },
+    "sweep_motavia/formation_2B": {
+      "action": "round 4: actor 8 (wasted $45), 17 roll(s), 3 target(s)",
+      "actual": "an effect",
+      "expected": "ability $45 spending the turn",
+      "frame": 27707,
+      "kind": "not-wasted",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-3-an-ability-that-spends-the-turn",
+      "round": 4,
+      "round_rolls": {
+        "log": 152,
+        "port": 152
+      }
+    },
+    "sweep_motavia/formation_2D": {
+      "action": "round 2: actor 3 (attack), 17 roll(s), 2 target(s)",
+      "actual": "targets [FighterId(6)]",
+      "expected": "targets [FighterId(6), FighterId(7)]",
+      "frame": 25766,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-2-a-window-the-port-narrows-to-one-slot",
+      "round": 2,
+      "round_rolls": {
+        "log": 118,
+        "port": 118
+      }
+    },
+    "sweep_motavia/formation_2E": {
+      "action": "round 2: actor 2 (attack), 17 roll(s), 3 target(s)",
+      "actual": "targets [FighterId(6)]",
+      "expected": "targets [FighterId(6), FighterId(7), FighterId(8)]",
+      "frame": 25927,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-2-a-window-the-port-narrows-to-one-slot",
+      "round": 2,
+      "round_rolls": {
+        "log": 154,
+        "port": 154
+      }
+    },
+    "sweep_motavia/formation_32": {
+      "action": "round 4: actor 6 (wasted $45), 18 roll(s), 3 target(s)",
+      "actual": "an effect",
+      "expected": "ability $45 spending the turn",
+      "frame": 27115,
+      "kind": "not-wasted",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-3-an-ability-that-spends-the-turn",
+      "round": 4,
+      "round_rolls": {
+        "log": 87,
+        "port": 87
+      }
+    },
+    "sweep_motavia/formation_34": {
+      "action": "round 4: actor 6 (wasted $45), 17 roll(s), 1 target(s)",
+      "actual": "an effect",
+      "expected": "ability $45 spending the turn",
+      "frame": 27629,
+      "kind": "not-wasted",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-3-an-ability-that-spends-the-turn",
+      "round": 4,
+      "round_rolls": {
+        "log": 138,
+        "port": 138
+      }
+    },
+    "sweep_motavia/formation_36": {
+      "action": "round 3: actor 3 (attack), 17 roll(s), 1 target(s)",
+      "actual": "Normal with Some(1)",
+      "expected": "FighterId(6): hit flag 00, damage None",
+      "frame": 26009,
+      "kind": "value",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-5-a-verdict-or-a-damage-value",
+      "round": 3,
+      "round_rolls": {
+        "log": 68,
+        "port": 68
+      }
+    },
+    "sweep_motavia/formation_37": {
+      "action": "round 1: actor 3 (attack), 17 roll(s), 1 target(s)",
+      "actual": "Normal with Some(1)",
+      "expected": "FighterId(6): hit flag FF, damage None",
+      "frame": 25397,
+      "kind": "value",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-5-a-verdict-or-a-damage-value",
+      "round": 1,
+      "round_rolls": {
+        "log": 151,
+        "port": 151
+      }
+    },
+    "sweep_motavia/formation_38": {
+      "action": "round 1: actor 7 (wasted $11), 2 roll(s), 2 target(s)",
+      "actual": "an effect",
+      "expected": "ability $11 spending the turn",
+      "frame": 25019,
+      "kind": "not-wasted",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-3-an-ability-that-spends-the-turn",
+      "round": 1,
+      "round_rolls": {
+        "log": 72,
+        "port": 72
+      }
+    },
+    "sweep_motavia/formation_39": {
+      "action": "round 1: actor 7 (wasted $11), 2 roll(s), 0 target(s)",
+      "actual": "an effect",
+      "expected": "ability $11 spending the turn",
+      "frame": 25153,
+      "kind": "not-wasted",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-3-an-ability-that-spends-the-turn",
+      "round": 1,
+      "round_rolls": {
+        "log": 92,
+        "port": 92
+      }
+    },
+    "sweep_motavia/formation_3A": {
+      "action": "round 1: actor 6 (wasted $11), 2 roll(s), 2 target(s)",
+      "actual": "an effect",
+      "expected": "ability $11 spending the turn",
+      "frame": 24887,
+      "kind": "not-wasted",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-3-an-ability-that-spends-the-turn",
+      "round": 1,
+      "round_rolls": {
+        "log": 19,
+        "port": 19
+      }
+    },
+    "sweep_motavia/formation_3B": {
+      "action": "round 1: actor 6 (attack), 18 roll(s), 3 target(s)",
+      "actual": "Critical with Some(312)",
+      "expected": "FighterId(1): hit flag 01, damage Some(248)",
+      "frame": 25003,
+      "kind": "value",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-5-a-verdict-or-a-damage-value",
+      "round": 1,
+      "round_rolls": {
+        "log": 83,
+        "port": 83
+      }
+    },
+    "sweep_motavia/formation_3C": {
+      "action": "round 1: actor 2 (attack), 17 roll(s), 2 target(s)",
+      "actual": "targets [FighterId(6)]",
+      "expected": "targets [FighterId(6), FighterId(7)]",
+      "frame": 25421,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-2-a-window-the-port-narrows-to-one-slot",
+      "round": 1,
+      "round_rolls": {
+        "log": 103,
+        "port": 103
+      }
+    },
+    "sweep_motavia/formation_3E": {
+      "action": "round 1's queue build",
+      "actual": "queue [FighterId(7), FighterId(6), FighterId(8)]",
+      "expected": "round 1's queue [FighterId(9), FighterId(7), FighterId(6), FighterId(8)]",
+      "frame": 24882,
+      "kind": "queue",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-4-the-round-s-queue",
+      "round": 1,
+      "round_rolls": {
+        "log": 87,
+        "port": 68
+      }
+    },
+    "sweep_motavia/formation_3F": {
+      "action": "round 1: actor 7 (ability $11), 2 roll(s), 3 target(s)",
+      "actual": "no resolution",
+      "expected": "FighterId(7) resolving FighterId(3)",
+      "frame": 25035,
+      "kind": "no-resolution",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-7-a-target-the-port-leaves-alone",
+      "round": 1,
+      "round_rolls": {
+        "log": 134,
+        "port": 134
+      }
+    },
+    "sweep_motavia/formation_40": {
+      "action": "round 2: actor 7 (ability $11), 3 roll(s), 3 target(s)",
+      "actual": "no resolution",
+      "expected": "FighterId(7) resolving FighterId(3)",
+      "frame": 25835,
+      "kind": "no-resolution",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-7-a-target-the-port-leaves-alone",
+      "round": 2,
+      "round_rolls": {
+        "log": 140,
+        "port": 140
+      }
+    },
+    "sweep_motavia/formation_41": {
+      "action": "round 1: actor 6 (wasted $11), 2 roll(s), 2 target(s)",
+      "actual": "an effect",
+      "expected": "ability $11 spending the turn",
+      "frame": 24902,
+      "kind": "not-wasted",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-3-an-ability-that-spends-the-turn",
+      "round": 1,
+      "round_rolls": {
+        "log": 34,
+        "port": 34
+      }
+    },
+    "sweep_motavia/formation_42": {
+      "action": "round 1: actor 6 (wasted $11), 2 roll(s), 2 target(s)",
+      "actual": "an effect",
+      "expected": "ability $11 spending the turn",
+      "frame": 25051,
+      "kind": "not-wasted",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-3-an-ability-that-spends-the-turn",
+      "round": 1,
+      "round_rolls": {
+        "log": 75,
+        "port": 75
+      }
+    },
+    "sweep_motavia/formation_43": {
+      "action": "round 5: actor 3 (attack), 17 roll(s), 2 target(s)",
+      "actual": "targets [FighterId(6)]",
+      "expected": "targets [FighterId(6), FighterId(7)]",
+      "frame": 27819,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-2-a-window-the-port-narrows-to-one-slot",
+      "round": 5,
+      "round_rolls": {
+        "log": 118,
+        "port": 118
+      }
+    },
+    "sweep_motavia/formation_44": {
+      "action": "round 3: actor 3 (attack), 17 roll(s), 3 target(s)",
+      "actual": "targets [FighterId(6)]",
+      "expected": "targets [FighterId(6), FighterId(7), FighterId(8)]",
+      "frame": 27201,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-2-a-window-the-port-narrows-to-one-slot",
+      "round": 3,
+      "round_rolls": {
+        "log": 154,
+        "port": 154
+      }
+    },
+    "sweep_motavia/formation_45": {
+      "action": "round 2: actor 3 (attack), 1 roll(s), 2 target(s)",
+      "actual": "targets [FighterId(6)]",
+      "expected": "targets [FighterId(6), FighterId(7)]",
+      "frame": 25927,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-2-a-window-the-port-narrows-to-one-slot",
+      "round": 2,
+      "round_rolls": {
+        "log": 70,
+        "port": 70
+      }
+    },
+    "sweep_motavia/formation_46": {
+      "action": "round 2: actor 3 (attack), 1 roll(s), 3 target(s)",
+      "actual": "targets [FighterId(6)]",
+      "expected": "targets [FighterId(6), FighterId(7), FighterId(8)]",
+      "frame": 26189,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-2-a-window-the-port-narrows-to-one-slot",
+      "round": 2,
+      "round_rolls": {
+        "log": 89,
+        "port": 89
+      }
+    },
+    "sweep_motavia/formation_47": {
+      "action": "round 1's queue build",
+      "actual": "queue [FighterId(8), FighterId(7), FighterId(6), FighterId(1), FighterId(3), FighterId(2)]",
+      "expected": "round 1's queue [FighterId(8), FighterId(7), FighterId(6), FighterId(9), FighterId(1), FighterId(3), FighterId(2)]",
+      "frame": 25013,
+      "kind": "queue",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-4-the-round-s-queue",
+      "round": 1,
+      "round_rolls": {
+        "log": 109,
+        "port": 73
+      }
+    },
+    "sweep_motavia/formation_48": {
+      "action": "round 3: actor 3 (attack), 1 roll(s), 2 target(s)",
+      "actual": "targets [FighterId(6)]",
+      "expected": "targets [FighterId(6), FighterId(7)]",
+      "frame": 26564,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-2-a-window-the-port-narrows-to-one-slot",
+      "round": 3,
+      "round_rolls": {
+        "log": 86,
+        "port": 86
+      }
+    },
+    "sweep_motavia/formation_49": {
+      "action": "round 3: actor 2 (attack), 1 roll(s), 3 target(s)",
+      "actual": "targets [FighterId(6)]",
+      "expected": "targets [FighterId(6), FighterId(7), FighterId(8)]",
+      "frame": 26931,
+      "kind": "targets",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-2-a-window-the-port-narrows-to-one-slot",
+      "round": 3,
+      "round_rolls": {
+        "log": 73,
+        "port": 73
+      }
+    },
+    "sweep_motavia/formation_4B": {
+      "action": "round 2: actor 7 (wasted $02), 0 roll(s), 0 target(s)",
+      "actual": "an effect",
+      "expected": "ability $02 spending the turn",
+      "frame": 25680,
+      "kind": "not-wasted",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-3-an-ability-that-spends-the-turn",
+      "round": 2,
+      "round_rolls": {
+        "log": 49,
+        "port": 49
+      }
+    },
+    "sweep_motavia/formation_4C": {
+      "action": "round 3: actor 8 (attack), 0 roll(s), 0 target(s)",
+      "actual": "no swing",
+      "expected": "actor FighterId(8) resolving 0 target(s)",
+      "frame": 26205,
+      "kind": "no-swing",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-6-a-turn-that-never-swings",
+      "round": 3,
+      "round_rolls": {
+        "log": 34,
+        "port": 34
+      }
+    },
+    "sweep_motavia/formation_4E": {
+      "action": "round 2: actor 6 (attack), 0 roll(s), 0 target(s)",
+      "actual": "no swing",
+      "expected": "actor FighterId(6) resolving 0 target(s)",
+      "frame": 25586,
+      "kind": "no-swing",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-6-a-turn-that-never-swings",
+      "round": 2,
+      "round_rolls": {
+        "log": 51,
+        "port": 51
+      }
+    },
+    "sweep_motavia/formation_4F": {
+      "action": "round 2: actor 7 (attack), 19 roll(s), 1 target(s)",
+      "actual": "Critical with Some(103)",
+      "expected": "FighterId(1): hit flag 01, damage Some(71)",
+      "frame": 25240,
+      "kind": "value",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-5-a-verdict-or-a-damage-value",
+      "round": 2,
+      "round_rolls": {
+        "log": 51,
+        "port": 51
+      }
+    },
+    "sweep_motavia/formation_55": {
+      "action": "round 1: actor 6 (attack), 0 roll(s), 0 target(s)",
+      "actual": "no swing",
+      "expected": "actor FighterId(6) resolving 0 target(s)",
+      "frame": 25250,
+      "kind": "no-swing",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-6-a-turn-that-never-swings",
+      "round": 1,
+      "round_rolls": {
+        "log": 49,
+        "port": 49
+      }
+    },
+    "sweep_motavia/formation_56": {
+      "action": "round 1: actor 6 (attack), 0 roll(s), 0 target(s)",
+      "actual": "no swing",
+      "expected": "actor FighterId(6) resolving 0 target(s)",
+      "frame": 25496,
+      "kind": "no-swing",
+      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#cluster-6-a-turn-that-never-swings",
+      "round": 1,
+      "round_rolls": {
+        "log": 66,
+        "port": 66
+      }
+    }
+  }
 }

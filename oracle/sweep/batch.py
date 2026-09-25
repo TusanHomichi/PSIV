@@ -138,7 +138,7 @@ class Sweep:
                 "repeats": self.options.repeats,
                 "max_rounds": self.options.max_rounds,
                 "durable": self.options.durable,
-                "fixtures": str(self.options.fixtures.relative_to(jobs.ROOT)),
+                "fixtures": jobs.relative(self.options.fixtures),
             },
             "formations": [self.records[entry.formation]
                            for entry in self.formations

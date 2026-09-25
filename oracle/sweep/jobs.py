@@ -109,6 +109,20 @@ def tail(path: pathlib.Path, lines: int = 12) -> str:
     return "\n".join(text[-lines:])
 
 
+def relative(path: pathlib.Path, root: pathlib.Path = ROOT) -> str:
+    """`path` under `root` where it is, and its own path where it is not.
+
+    A sweep's fixture directory defaults to the repository's
+    (`rust/psiv-core/src/battle/replay_fixtures/sweep_motavia`), and `--fixtures`
+    may point anywhere - including a scratch tree the tests use - so the record
+    names the path it can: relative when that is meaningful.
+    """
+    try:
+        return str(path.relative_to(root))
+    except ValueError:
+        return str(path)
+
+
 def sha256(path: pathlib.Path) -> str:
     digest = hashlib.sha256()
     with open(path, "rb") as handle:
@@ -152,7 +166,14 @@ def run_formation(entry: Formation, options: Options) -> dict:
 
 
 def captured(report: dict, fixture: pathlib.Path, document: dict) -> dict:
-    """What the record says about a formation the sweep did capture."""
+    """What the record says about a formation the sweep did capture.
+
+    The fixture is the authority on the battle's shape - it is what the replay
+    reads - so the outcome and the round count are the fixture's, with the
+    report's own reading beside them (`report_outcome`) rather than in place of
+    it: a capture whose battle outlasted the round cap is `truncated` in the
+    fixture even when the fight, run further, ended.
+    """
     outcome = document["outcome"]
     return {
         "status": "captured",
@@ -164,7 +185,8 @@ def captured(report: dict, fixture: pathlib.Path, document: dict) -> dict:
                      "label": report["selector"]["label"]},
         "durable": report["durable"],
         "max_rounds": report["max_rounds"],
-        "outcome": report["outcome"],
+        "outcome": "truncated" if outcome.get("truncated") else report["outcome"],
+        "report_outcome": report["outcome"],
         "truncated": bool(outcome.get("truncated")),
         "rounds": len(document["rounds"]),
         "rounds_captured": outcome.get("rounds_captured"),
@@ -176,7 +198,7 @@ def captured(report: dict, fixture: pathlib.Path, document: dict) -> dict:
                     "start_frame": report["start_frame"],
                     "log_sha256": report["log_sha256"],
                     "trace_sha256": report["trace_sha256"]},
-        "fixture": {"path": str(fixture.relative_to(ROOT)),
+        "fixture": {"path": relative(fixture),
                     "sha256": sha256(fixture),
                     "bytes": fixture.stat().st_size},
     }

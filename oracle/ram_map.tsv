@@ -194,6 +194,7 @@ battle_priority	FFFFEE45	1	battle	hex
 enemy_ability_index	FFFFEEA8	2	battle	hex
 mota_battle_bg_index	FFFFECEF	1	battle	hex
 vehicle_fighter_hp	FFFF470E	2	battle	-
+vehicle_fighter_max_hp	FFFF4710	2	battle	-
 turn_00	FFFFEFB0	2	battle	hex
 turn_01	FFFFEFB2	2	battle	hex
 turn_02	FFFFEFB4	2	battle	hex

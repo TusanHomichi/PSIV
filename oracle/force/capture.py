@@ -54,6 +54,23 @@ class Capture:
         return self.cut_frame is not None
 
 
+def enemies_at(rows: list[dict], frame: int) -> list[dict]:
+    """The enemy slots the log shows at `frame`, as (slot, id, maxhp).
+
+    The frame is the one the extractor reads the battle's start state from
+    (`oracle/fixture/observations.py`'s `enemies_loaded`), because a formation's
+    enemies are what it *seated*: a battle whose enemies change while it runs -
+    formation `$3C`'s InfantWorms grow into a SandWorm at f28969 in this sweep's
+    capture - would otherwise be reported as whatever the last frame holds, and
+    the formation check would refuse a capture the cartridge played correctly.
+    """
+    row = by_frame(rows)[frame]
+    count = int(row["enemy_count"])
+    return [{"slot": slot, "id": int(row[f"e{slot}_id"]),
+             "maxhp": int(row[f"e{slot}_maxhp"])}
+            for slot in range(1, 5) if slot <= count]
+
+
 def enemy_slots(rows: list[dict], window: tuple[int, int]) -> list[dict]:
     """The enemy slots the battle built, as (slot, id, maxhp) at the end."""
     first, last = window
@@ -149,6 +166,8 @@ def battle_shape(capture: Capture, rows: list[dict],
     first, last = capture.window
     capture.start_frame = fixture.enemies_loaded(log, first, last)
     capture.round_frames = fixture.round_frames(log, capture.start_frame, last)
+    # The formation's own enemies, as the fixture's start state will read them.
+    capture.enemies = enemies_at(rows, capture.start_frame)
 
 
 def cap_rounds(capture: Capture, max_rounds: int) -> None:
@@ -157,20 +176,27 @@ def cap_rounds(capture: Capture, max_rounds: int) -> None:
     `Battle_Turn_Order`'s next change *is* the round boundary (`round_frames`),
     so round N's last captured frame is the one before it; that frame is what a
     fixture window is cut at, and the tape is trimmed to the boundary itself so
-    the extractor can see it. A battle the log shows ending inside the cap is
-    left alone - a battle that ends simply ends.
+    the extractor can see it.
+
+    A log that holds no more rounds than the cap is left alone: a battle that
+    ends inside the cap simply ends, and its outcome is the battle's. One that
+    holds *more* is capped whether or not the fight ended later - a battle that
+    outlasts the cap is exactly what the cap is for - and the fixture's
+    `outcome.truncated` is the same cut (`oracle/fixture/assembly.py`).
     """
-    if max_rounds <= 0 or capture.outcome != "unfinished":
+    if max_rounds <= 0:
         return
-    if len(capture.round_frames) <= max_rounds:
+    if len(capture.round_frames) > max_rounds:
+        capture.cut_frame = capture.round_frames[max_rounds] - 1
+        capture.rounds_captured = max_rounds
+        capture.outcome = "truncated"
+        return
+    if capture.outcome == "unfinished":
         raise ForceError(
             f"the capture's log holds {len(capture.round_frames)} round(s) "
             f"and the battle is still running: --max-rounds {max_rounds} "
             "cannot be placed against a boundary the tape never reaches "
             "(re-run with more --repeats)")
-    capture.cut_frame = capture.round_frames[max_rounds] - 1
-    capture.rounds_captured = max_rounds
-    capture.outcome = "truncated"
 
 
 def matches(capture: Capture, pack: Pack, formation: int) -> bool:

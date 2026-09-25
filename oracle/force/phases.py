@@ -26,8 +26,8 @@ import sys
 from .. import fixture
 from . import durable as durable_patch
 from . import runs
-from .capture import (Capture, battle_shape, cap_rounds, enemy_slots, matches,
-                      read_capture)
+from .capture import (Capture, battle_shape, cap_rounds,
+                      enemies_at as enemy_slots_at, matches, read_capture)
 from .draw import Draw, find_draw, patch_specs
 from .errors import ForceError
 from .pack import Pack, describe, field_layout, parse_formation
@@ -101,12 +101,6 @@ def probe_phase(plan_facts: dict, args, selector: Selector, pack: Pack,
     if tape_frames(steps) < draw.frame:
         raise ForceError(f"the probe tape ({tape_frames(steps)} frames) does "
                          f"not reach the draw at f{draw.frame}")
-    built = enemy_slots(rows, window)
-    if built != pack.enemies_of(drawn):
-        raise ForceError(
-            f"the probe built {built}, but group {selector.group}"
-            f"[{draw.index}] is formation {drawn} = {pack.enemies_of(drawn)}: "
-            "the forcing model does not explain this run")
     # The seed patch must land where nothing else moves the seed, or the trace
     # it produces cannot be checked.
     before = by_frame(rows).get(draw.frame_before)
@@ -121,10 +115,16 @@ def probe_phase(plan_facts: dict, args, selector: Selector, pack: Pack,
         raise ForceError(
             f"f{draw.frame_before} has an UpdateRNGSeed2 call of its own, so "
             "the seed patch would break the trace's chain")
+    log = fixture.Log(rows, layout)
+    start = fixture.enemies_loaded(log, window[0], window[1])
+    built = enemy_slots_at(rows, start)
+    if built != pack.enemies_of(drawn):
+        raise ForceError(
+            f"the probe built {built}, but group {selector.group}"
+            f"[{draw.index}] is formation {drawn} = {pack.enemies_of(drawn)}: "
+            "the forcing model does not explain this run")
     durable = None
     if args.durable:
-        log = fixture.Log(rows, layout)
-        start = fixture.enemies_loaded(log, window[0], window[1])
         durable = durable_patch.plan_patch(log, layout, start, selector.vehicle)
         who = "the vehicle" if selector.vehicle else ", ".join(
             cell.split("_hp")[0] for cell in durable.cells[::2])
