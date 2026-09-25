@@ -22,6 +22,18 @@ class LaneCase(LaneFixture):
 
     # -- 1. start, worktree and commit
 
+    def test_worker_never_sees_the_callers_secrets(self):
+        opts_out = self.write("env-opts.json", "stale\n")
+        spec = {"files": {}, "opts_out": str(opts_out), "result": RECEIPT_RESULT}
+        self.start("Record the environment.\n", "tenv", spec,
+                   env={"GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_leak", "SSH_AUTH_SOCK": "/tmp/agent"})
+        self.assertEqual(self.run_json("tenv")["exit_code"], 0)
+        names = json.loads(opts_out.read_text())["env"]
+        self.assertNotIn("GITHUB_PERSONAL_ACCESS_TOKEN", names)
+        self.assertNotIn("SSH_AUTH_SOCK", names)
+        self.assertIn("PATH", names)
+        self.assertIn("CARGO_BUILD_JOBS", names)
+
     def test_start_creates_worktree_branch_and_commits(self):
         prompt_out = self.write("opts.json", "stale\n")
         spec = {"files": {"tools/new.txt": "written by the worker\n"},

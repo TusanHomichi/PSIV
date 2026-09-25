@@ -44,6 +44,17 @@ stdlib-only `tools/ds_lane/` package (`config`, `preflight`, `trajectory`,
   symlinked in with `--link PATH` (or `--link PATH=SOURCE`). The worker can
   read them but not write them, so a lane that regenerates packs must write
   inside its worktree (for example with `PSIV_RUNTIME_PACK` pointing there).
+- **The worker's environment is an allowlist.** The supervisor starts the
+  worker with `worker_env()` (`config.py`): `WORKER_ENV_ALLOW` (path, home,
+  user, locale, temp and XDG directories, cargo/rustup), the `LC_*` variables,
+  a capped `CARGO_BUILD_JOBS`, and any name listed in
+  `DS_LANE_WORKER_ENV_PASS` - nothing else. A copy of the caller's environment
+  sent two GitHub tokens to the model provider when lane `re-B-tools` printed
+  its environment while debugging (2026-09-25); it also exposed
+  `SSH_AUTH_SOCK`, the display and bus sockets and every other exported
+  secret. Reasonix reads its own API key from its config file. The sandbox
+  still confines only writes, so files a worker can read (credentials under
+  `HOME`) remain a known gap, tracked in its own issue.
 - **The prompt travels on stdin.** The supervisor writes the run's `prompt.md`
   to the worker's stdin and puts nothing of it on the command line: a brief in
   argv is text the worker's own process matching can hit, and lane
