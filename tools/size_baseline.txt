@@ -1,5 +1,3 @@
-1024 psiv_tools/map_effects.py
-1067 rust/psiv-core/tests/events.rs
 1028 rust/psiv-data/src/game_data.rs
 1048 rust/psiv-data/src/game_data_tests.rs
 1077 rust/psiv-data/src/map.rs
