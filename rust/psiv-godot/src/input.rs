@@ -44,12 +44,6 @@ fn debug_trace(resolved: psiv_core::Input) {
     }
 }
 
-pub(crate) fn save_directory() -> std::path::PathBuf {
-    std::env::var_os("PSIV_SAVE_DIR")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(|| std::path::PathBuf::from("saves"))
-}
-
 pub(crate) fn requested_save_slot() -> Option<usize> {
     let value = std::env::var("PSIV_LOAD_SLOT").ok().or_else(|| {
         std::env::args().find_map(|argument| {

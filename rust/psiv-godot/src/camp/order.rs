@@ -1,6 +1,7 @@
 //! Original ORDER: choose each front slot, undo picks, auto-append the last.
+use super::draw::{draw_text, frame};
 use super::layout::{CHILD_CURSOR_PATTERN, CellRect, ITEM_MESSAGE, SELECTED_CURSOR_PATTERN};
-use super::{CampChrome, CampMenu, DrawList, Mode, draw_text, frame, wrap};
+use super::{CampChrome, CampMenu, DrawList, Mode, wrap};
 use psiv_runtime::Runtime;
 
 #[derive(Default)]

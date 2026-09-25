@@ -14,9 +14,9 @@ use godot::obj::BaseMut;
 use godot::prelude::*;
 use psiv_core::Input as CoreInput;
 use psiv_data::{DialogueSet, Role};
-use psiv_runtime::Runtime;
 
-use super::{Field, StepFrames, TransitionKind, read_input, save_directory};
+use super::save_dir::{erase_slot, load_slot};
+use super::{Field, StepFrames, TransitionKind, read_input};
 
 const SCREEN_WIDTH: f32 = 320.0;
 const SCREEN_HEIGHT: f32 = 224.0;
@@ -846,7 +846,7 @@ impl Field {
         title_debug_shot(self, self.anim_tick, title.ticks);
         if let Some(choice) = choice {
             match choice {
-                TitleChoice::Erase(slot) => match Runtime::erase_slot(&save_directory(), slot) {
+                TitleChoice::Erase(slot) => match erase_slot(slot) {
                     Ok(path) => {
                         godot_print!("title: erased save slot {} ({})", slot + 1, path.display());
                         title.slots[slot] = false;
@@ -923,7 +923,7 @@ impl Field {
                     godot_error!("title: CONTINUE selected without a runtime");
                     return false;
                 };
-                match Runtime::load_slot(data, &save_directory(), slot, StepFrames::default()) {
+                match load_slot(data, slot) {
                     Ok(mut runtime) => {
                         godot_print!("title: CONTINUE loaded slot {}", slot + 1);
                         self.configure_battles(&mut runtime);

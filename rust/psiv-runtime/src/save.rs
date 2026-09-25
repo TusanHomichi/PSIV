@@ -190,9 +190,10 @@ impl Runtime {
 
     /// Writes the current state to a retail-shaped slot file.
     ///
-    /// `directory` is normally `saves/` in the repository checkout. The
-    /// Godot shell can override it with `PSIV_SAVE_DIR`, and tests can pass a
-    /// temporary directory without changing runtime state.
+    /// `directory` is the caller's run directory, never a repository default:
+    /// the Godot shell resolves `PSIV_SAVE_DIR` for it and refuses a scripted
+    /// run without that variable (`rust/psiv-godot/src/save_dir.rs`), while
+    /// tests pass a temporary directory without changing runtime state.
     pub fn save_slot(&self, directory: &Path, slot: usize) -> Result<PathBuf, RuntimeSaveError> {
         let path = Self::slot_path(directory, slot)?;
         let cell = self.vehicle_cell().unwrap_or_else(|| self.state().cell());
@@ -249,8 +250,10 @@ impl Runtime {
     ///
     /// The selected file's interleaved common header survives; only its
     /// physical payload is zeroed, matching `loc_64DC0` on the shared SRAM
-    /// device. The directory is caller-owned so Godot and tests can use the
-    /// same `PSIV_SAVE_DIR` boundary.
+    /// device. The directory is the caller's run directory — the Godot shell
+    /// resolves `PSIV_SAVE_DIR` for it (`rust/psiv-godot/src/save_dir.rs`) and
+    /// refuses a scripted run without that variable — so an erase never falls
+    /// back to a repository default.
     pub fn erase_slot(directory: &Path, slot: usize) -> Result<PathBuf, RuntimeSaveError> {
         let path = Self::slot_path(directory, slot)?;
         let bytes = std::fs::read(&path)?;
