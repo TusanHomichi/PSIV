@@ -231,7 +231,7 @@ class NegativeControl(RepoCase):
         self.start({"src/kept.py": text_lines(5)})
         self.write("src/new.py", text_lines(1001))
         with patch("tools.size_guard.repo_files", self.index_only):
-            problems, _, counts = size_guard.check(self.root)
+            problems, counts = size_guard.check(self.root)
         self.assertEqual(problems, [])
         self.assertEqual(counts["files"], 1, "only the tracked file is counted")
 
