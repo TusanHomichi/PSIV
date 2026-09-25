@@ -123,8 +123,11 @@ The dump is a **file** and never stdout because `--nocapture` prints libtest's
 own `test <name> ... ` progress text with no newline of its own, so the first
 finding used to come back as `test <name> ... {"fixture":...}` - and a reader
 that takes one JSON object per line drops a line it cannot read. `load_dump`
-fails on any line that is not a JSON object, naming its line number, and on an
-empty dump: a corrupt dump can no longer pass for a shorter one.
+fails on any line that is not a JSON object, naming its line number, and on a
+dump that is not there at all: a corrupt dump can no longer pass for a shorter
+one. A dump with **no** findings is not that mistake - it is this ledger's own
+closing state, once every fixture replays exactly, and the manifest it builds is
+`{"fixtures": {}}`.
 
 ```sh
 PSIV_MANIFEST_DUMP=build/lane-evidence/findings.jsonl \

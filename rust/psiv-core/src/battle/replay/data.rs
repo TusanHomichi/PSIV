@@ -396,6 +396,9 @@ fn manifest_dump_path() -> PathBuf {
 ///
 /// All of them or none: the file is written in one go, so a run that fails
 /// halfway through the walk leaves the previous dump rather than a short one.
+/// No findings at all still writes a dump - an empty file is a tree whose every
+/// fixture replays exactly, which is what `oracle/sweep/manifest.py` builds the
+/// empty manifest from, while a *missing* dump is the error it reports.
 fn write_manifest_dump(path: &Path, lines: &[String]) {
     if let Some(parent) = path
         .parent()
@@ -410,4 +413,23 @@ fn write_manifest_dump(path: &Path, lines: &[String]) {
     }
     std::fs::write(path, body)
         .unwrap_or_else(|error| panic!("cannot write {}: {error}", path.display()));
+}
+
+/// An empty dump is an empty file, not a missing one.
+///
+/// The reader tells the two apart: no file at all is a run that never wrote the
+/// dump, and an empty one is a tree with nothing left to record - so the walk
+/// above always writes, however many findings it found.
+#[test]
+fn an_empty_dump_is_still_written() {
+    let dir = std::env::temp_dir().join("psiv-empty-manifest-dump");
+    let _ = std::fs::remove_dir_all(&dir);
+    let path = dir.join("lane-evidence/findings.jsonl");
+    write_manifest_dump(&path, &[]);
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("an empty dump is written"),
+        "",
+        "an empty dump is an empty file, not a missing one"
+    );
+    std::fs::remove_dir_all(&dir).expect("the scratch directory goes away");
 }

@@ -19,7 +19,9 @@ The dump is a file and not stdout because `--nocapture` prints libtest's own
 come out sharing that line - and one JSON object per line is the only shape this
 module reads, so that finding was dropped without a word. `load_dump` reads a
 dump as the tool's whole output: every non-empty line has to be a JSON object,
-or the run fails and names the line.
+or the run fails and names the line, and a dump that is not there at all fails
+too - while a dump with no findings in it is a tree with nothing left to
+record, and writes `{"fixtures": {}}`.
 
 A cluster is the worklist's unit: one cause, its fixtures and its fix scope. The
 clusters below are a reading of the evidence, not a computation - which is why
@@ -69,11 +71,25 @@ def load_dump(path: pathlib.Path) -> list[dict]:
     line it did not write is a corrupt dump rather than a line to skip: with
     the findings captured from stdout, libtest's own `test <name> ... `
     progress text landed on the first finding's line and the skip dropped that
-    finding without a word. Every non-empty line must be a JSON object, and the
-    dump must hold at least one: an empty dump is a tool that never ran.
+    finding without a word. Every non-empty line must be a JSON object.
+
+    No findings at all is not that kind of mistake: a tree whose every fixture
+    replays exactly has an empty dump, and the manifest it builds is
+    `{"fixtures": {}}` - the closing state once the worklist is empty. A dump
+    that is **not there** is the mistake - the file is the tool's whole output,
+    so a missing one is a run that never wrote it, not a tree with nothing to
+    say.
     """
+    try:
+        text = path.read_text()
+    except FileNotFoundError as error:
+        raise SystemExit(
+            f"{path}: no such dump: run `dump_manifest_entries` with "
+            f"PSIV_MANIFEST_DUMP set to this path first "
+            f"(docs/oracle/BATTLE_ORACLE_SWEEP.md, \"Reproducing this ledger\")"
+        ) from error
     findings = []
-    for number, line in enumerate(path.read_text().splitlines(), start=1):
+    for number, line in enumerate(text.splitlines(), start=1):
         if not line.strip():
             continue
         try:
@@ -89,11 +105,6 @@ def load_dump(path: pathlib.Path) -> list[dict]:
                              f"{type(finding).__name__}, not a JSON object: "
                              f"the dump holds one finding per line")
         findings.append(finding)
-    if not findings:
-        raise SystemExit(f"{path}: no finding lines (set PSIV_MANIFEST_DUMP and "
-                         f"run the #[ignore]d dump_manifest_entries test first: "
-                         f"docs/oracle/BATTLE_ORACLE_SWEEP.md, \"Reproducing this "
-                         f"ledger\")")
     return findings
 
 
