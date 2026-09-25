@@ -46,6 +46,20 @@ def main(argv=None):
     parser.add_argument("--patch", default="oracle/patches/0001-rng-hv-trace.patch")
     parser.add_argument("--battle-first", type=int, default=BATTLE_FIRST)
     parser.add_argument("--battle-last", type=int, default=BATTLE_LAST)
+    parser.add_argument("--max-rounds", type=int, default=0,
+                        help="cap the extraction at this many rounds: the "
+                             "fixture holds rounds 1..N and its outcome says "
+                             "`truncated` (0 = every round the log holds)")
+    parser.add_argument("--minified", action="store_true",
+                        help="write the fixture as one line with no padding "
+                             "spaces: a sweep's 83 fixtures are ~40%% smaller "
+                             "that way, and the two hand-checked ones keep the "
+                             "layout meant for reading")
+    parser.add_argument("--hp-patch", type=int, default=0,
+                        help="the HP the capture patched every living "
+                             "fighter's two HP cells to (oracle/force/"
+                             "durable.py); recorded in the provenance so a "
+                             "replay knows the start state is the capture's")
     arguments = parser.parse_args(argv)
 
     trace_rows = load_rows(arguments.trace)
@@ -61,10 +75,16 @@ def main(argv=None):
         "log_header": header_lines(arguments.log),
     }
     fixture = build_fixture(trace_rows, log, load_ram_map(arguments.ram_map),
-                            arguments.battle_first, arguments.battle_last, meta)
+                            arguments.battle_first, arguments.battle_last, meta,
+                            max_rounds=arguments.max_rounds,
+                            hp_patch=arguments.hp_patch or None)
     with open(arguments.out, "w") as handle:
-        handle.write(compact_leaf_arrays(
-            json.dumps(fixture, indent=1, sort_keys=False)))
+        if arguments.minified:
+            handle.write(json.dumps(fixture, separators=(",", ":"),
+                                    sort_keys=False))
+        else:
+            handle.write(compact_leaf_arrays(
+                json.dumps(fixture, indent=1, sort_keys=False)))
         handle.write("\n")
     # Re-read what was written: the layout pass must not have changed the data.
     with open(arguments.out) as handle:
@@ -87,7 +107,9 @@ def main(argv=None):
               f"{vehicle['hp']} HP at the battle's start")
     outcome = fixture["outcome"]
     print(f"  outcome         "
-          + ("victory" if outcome["victory"]
+          + ("truncated at round " + str(outcome["rounds_captured"])
+             if outcome["truncated"]
+             else "victory" if outcome["victory"]
              else "defeat" if outcome["defeat"] else "the battle did not end")
           + f", {outcome['experience_total']} exp, {outcome['meseta']} meseta")
     for round_ in fixture["rounds"]:

@@ -37,8 +37,28 @@ pub(crate) struct Provenance {
     pub(crate) roll_count: u32,
     pub(crate) battle_roll_count: u32,
     pub(crate) roll_column: RollColumn,
+    /// The capture's own durable party patch, when it had one: the party-side
+    /// fighter's two HP cells were written the same value at the battle's start
+    /// (`oracle/force/durable.py`), so the start state the fixture carries is
+    /// the capture's rather than the tape's.
+    #[serde(default)]
+    pub(crate) hp_patch: Option<HpPatch>,
     #[allow(dead_code)]
     pub(crate) undetermined: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct HpPatch {
+    /// The HP the capture wrote to both cells.
+    pub(crate) hp: u16,
+    /// The members (or, in a vehicle battle, the vehicle) the extractor saw
+    /// reading that HP; which entry a patch landed on is read off its cells.
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub(crate) members: Vec<String>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub(crate) vehicle: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -239,6 +259,14 @@ pub(crate) struct OutcomeEntry {
     pub(crate) victory: bool,
     #[serde(default)]
     pub(crate) defeat: bool,
+    /// The capture stopped at `--max-rounds` with the battle still running:
+    /// neither side fell inside the fixture's rounds, and the replay compares
+    /// exactly those rounds rather than expecting an outcome.
+    #[serde(default)]
+    pub(crate) truncated: bool,
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub(crate) rounds_captured: u32,
     pub(crate) dead_enemy_ids: Vec<u8>,
     #[serde(default)]
     #[allow(dead_code)]

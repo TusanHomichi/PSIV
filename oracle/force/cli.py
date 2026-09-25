@@ -33,6 +33,18 @@ def parser() -> argparse.ArgumentParser:
                              "policy; shifts every roll in the fight")
     parsed.add_argument("--repeats", type=int, default=900,
                         help="policy blocks (attack: one 16-frame press)")
+    parsed.add_argument("--max-rounds", type=int, default=0,
+                        help="capture up to this many rounds and stop: the "
+                             "fixture records outcome `truncated` with the "
+                             "rounds captured, and a battle that ends inside "
+                             "the cap simply ends (0 = capture the whole "
+                             "battle)")
+    parsed.add_argument("--durable", action="store_true",
+                        help="patch each living party-side fighter's current "
+                             "and maximum HP to 999 at the battle's start, so "
+                             "a weak tape party survives long enough to show "
+                             "the formation's later actions; every other stat "
+                             "stays the tape's")
     parsed.add_argument("--vehicle", type=int, default=None,
                         help="which VehicleData record fights the forced "
                              "battle: 1 Land Rover, 2 Ice Digger, "

@@ -100,10 +100,26 @@ def battle_start(log, frame):
     return party, enemies
 
 
+#: The fighters `Battle_Turn_Order` holds: one id/agility pair per
+#: `Obj_Fighters` slot. `Battle_OrderTurns` runs its insertion loop and its
+#: agility passes over nine slots (`moveq #8, d7`, ps4.asm:7757 and 7789) and
+#: sorts nine entries (ps4.asm:7793-7801), and `oracle/ram_map.json` logs all
+#: nine pairs as `turn_00`..`turn_17`. A log written before that window existed
+#: carries six pairs, and `turn_order` reads exactly the ones it has.
+ORDER_ENTRIES = 9
+
+
 def turn_order(log, frame):
-    """`Battle_Turn_Order` at `frame`: [(fighter id, ordering value)]."""
+    """`Battle_Turn_Order` at `frame`: [(fighter id, ordering value)].
+
+    The queue, as far as the log's own columns go: a capture with seven or more
+    fighters needs the window past `turn_11`, or the entries it cannot see are
+    simply missing from the fixture (`docs/BATTLE_ORACLE_SWEEP.md`).
+    """
     order = []
-    for index in range(0, 12, 2):
+    for index in range(0, 2 * ORDER_ENTRIES, 2):
+        if not log.has(f"turn_{index:02d}"):
+            break
         fighter = log.num(frame, f"turn_{index:02d}")
         if fighter:
             order.append((fighter, log.num(frame, f"turn_{index + 1:02d}")))
@@ -113,10 +129,11 @@ def turn_order(log, frame):
 def round_frames(log, first, last):
     """The frames where `Battle_Turn_Order` is (re)filled: the round starts."""
     starts = []
+    columns = [f"turn_{index:02d}" for index in range(2 * ORDER_ENTRIES)]
     for frame in range(first, last + 1):
         if frame not in log.by_frame:
             continue
-        if any(log.changed(frame, f"turn_{i:02d}") for i in range(0, 12)):
+        if any(log.changed(frame, column) for column in columns):
             starts.append(frame)
     return starts
 

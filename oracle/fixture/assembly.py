@@ -63,14 +63,32 @@ from .rolls import (DAMAGE_RUN, HIT_NOT_TARGETED, group_by_frame,
                     roll_column_report, rolls_in_window)
 
 
-def build_fixture(trace_rows, log, ram_map, first, last, meta):
-    """The whole fixture, from the two logs and the extraction's metadata."""
+def build_fixture(trace_rows, log, ram_map, first, last, meta, max_rounds=0,
+                  hp_patch=None):
+    """The whole fixture, from the two logs and the extraction's metadata.
+
+    `max_rounds` caps the extraction at round N: the rounds the log holds past
+    it are dropped and the window is cut at the frame before round N+1's queue
+    is built, which is where a capped capture's tape ends. `hp_patch` records
+    the capture's own durable party patch (see `oracle/force/durable.py`), so a
+    reader knows the start state's HP is the capture's and not the tape's.
+    """
     log.require_complete(first, last)
     roll_column = roll_column_report(trace_rows)
+    start_frame = enemies_loaded(log, first, last)
+    starts = round_frames(log, start_frame, last)
+    if not starts:
+        raise FixtureError("Battle_Turn_Order never changes: no round was found")
+    truncated = bool(max_rounds) and len(starts) > max_rounds
+    if truncated:
+        # Round N+1's queue build (`Battle_Turn_Order`'s next change) is the
+        # boundary: the frame before it is round N's last, and that is what the
+        # fixture compares its rounds up to.
+        last = starts[max_rounds] - 1
+        starts = starts[:max_rounds]
     frames = group_by_frame(rolls_in_window(trace_rows, first, last))
     if not frames:
         raise FixtureError(f"the trace has no rolls in {first}..{last}")
-    start_frame = enemies_loaded(log, first, last)
     party, enemies = battle_start(log, start_frame)
     vehicle = vehicles.vehicle_of(log, start_frame)
     if vehicle is not None:
@@ -79,9 +97,6 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta):
         # side instead.
         party = []
     columns = vehicles.hp_columns(vehicle)
-    starts = round_frames(log, start_frame, last)
-    if not starts:
-        raise FixtureError("Battle_Turn_Order never changes: no round was found")
     # The opening draw - `loc_B62A`'s, between the formation load and the first
     # round. Its frame is what says what `Battle_Priority` ended up as: the cell
     # is written *by* that draw, so the frame the formation was loaded on still
@@ -282,6 +297,8 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta):
             "outside_roll_summary": [
                 f"{row[2]} at frame {row[0]}" for row in outside],
             "vehicle_battle": vehicle is not None,
+            **({} if hp_patch is None else {
+                "hp_patch": _hp_patch_note(party, vehicle, hp_patch)}),
             "roll_convention": (
                 "roll = (hv + frame_count - the word at $FFFFEF0C) & $FFFF; "
                 "the subtrahend is the seed longword's high half, which is "
@@ -335,6 +352,11 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta):
         "outcome": {
             "victory": won,
             "defeat": bool(party_side) and len(party_side_dead) == len(party_side),
+            # A capture that stopped at `--max-rounds` with the battle still
+            # running: `rounds_captured` is where the fixture's rounds end, and
+            # neither side fell inside them.
+            "truncated": truncated,
+            "rounds_captured": len(rounds),
             "dead_enemy_ids": [entry["id"] for entry in enemies if
                                log.signed(action_end,
                                           columns[entry["id"]]) <= 0],
@@ -346,6 +368,30 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta):
             # one to read, because a defeat's end is not a victory.
             "victory_frame": action_end,
         },
+    }
+
+
+def _hp_patch_note(party, vehicle, hp):
+    """Which fighters read the capture's own durable HP patch.
+
+    An observation rather than an assumption: the members (or, in a vehicle
+    battle, the vehicle fighter) whose two HP cells both read the patch value
+    at the frame the start state was taken from. A member the tape left down is
+    not written `$hp` and is not in the list.
+    """
+    members = [entry["name"].lower() for entry in party
+               if entry["hp"] == hp and entry["max_hp"] == hp]
+    on_vehicle = vehicle is not None and vehicle["hp"] == hp
+    return {
+        "hp": hp,
+        "members": members,
+        "vehicle": on_vehicle,
+        "source": (
+            "oracle/force/durable.py: the capture patched `alys_hp`/"
+            "`alys_maxhp` (and the other members', $FFFFF50E + $80k) - or the "
+            "vehicle's `vehicle_fighter_hp`/`vehicle_fighter_max_hp` "
+            "($FFFF470E/$FFFF4710) in a vehicle battle - so the battle's start "
+            "state in this fixture is 999 HP, not the tape's"),
     }
 
 

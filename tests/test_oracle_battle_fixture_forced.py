@@ -277,5 +277,103 @@ class Outcome(ForcedFixture):
         self.assertIn("after the battle was decided", str(raised.exception))
 
 
+class TruncatedCapture(ForcedFixture):
+    """`--max-rounds` and `--hp-patch`: the two readings a sweep needs.
+
+    The sweep's captures stop at a round boundary and start from a party the
+    capture itself patched to 999 HP (`oracle/force/durable.py`), so a fixture
+    has to say both: how many rounds it holds and that the battle was still
+    running at the end, and that its start state's HP is the capture's rather
+    than the tape's.
+    """
+
+    def build(self, rows, frames, first, last, meta=None, **extra):
+        return fx.build_fixture(
+            self.trace(frames), self.log(rows), dict(FORCED_MAP), first, last,
+            meta or {"tape": "t", "core": "c", "patch": "p", "trace": "x",
+                     "trace_sha256": "0" * 64, "log_sha256": "1" * 64},
+            **extra)
+
+    def hand_built(self, rounds=3, party=None):
+        """`rounds` rounds: each opens with a queue build, then the party's
+        swing at slot 1 and the enemy's reply at Alys."""
+        party = party or {}
+        builder = ForcedLog()
+        builder.frame(20, enemy_count=0, **party)
+        builder.frame(21, enemy_count=2, e1_id=10, e1_hp=25, e1_maxhp=25,
+                      e2_id=10, e2_hp=25, e2_maxhp=25, **party)
+        frame = 22
+        for number in range(1, rounds + 1):
+            builder.frame(frame, turn_00=number, turn_01=20, turn_02=1,
+                          turn_03=9, **party)
+            builder.frame(frame + 1, battle_actor=1, hit_05="00", dmg_05=3,
+                          e1_hp=25 - number, **party)
+            builder.frame(frame + 2, battle_actor=6, hit_00="00", dmg_00=2,
+                          **party)
+            frame += 3
+        return builder.rows, frame
+
+    def frames_for(self, rounds):
+        """The trace: one draw before the battle, one for the queue build, and
+        a hit plus sixteen damage draws per action."""
+        frames = {20: 1, 21: 1}
+        frame = 22
+        for _ in range(rounds):
+            frames[frame] = 13
+            frames[frame + 1] = 17
+            frames[frame + 2] = 17
+            frame += 3
+        return frames
+
+    def test_a_capped_capture_holds_the_rounds_it_reached_and_says_so(self):
+        rows, last = self.hand_built(rounds=3)
+        fixture = self.build(rows, self.frames_for(3), 20, last - 1, None,
+                             max_rounds=1)
+        outcome = fixture["outcome"]
+        self.assertTrue(outcome["truncated"])
+        self.assertEqual(outcome["rounds_captured"], 1)
+        self.assertFalse(outcome["victory"])
+        self.assertFalse(outcome["defeat"])
+        self.assertEqual([round_["round"] for round_ in fixture["rounds"]], [1])
+        # Round 2's queue build is at f25; the fixture stops at f24, and the
+        # rolls drawn after it are not part of the capture.
+        self.assertEqual(fixture["provenance"]["battle_frames"], [20, 24])
+        self.assertEqual(fixture["provenance"]["round_frames"], [22])
+        self.assertEqual({row[0] for row in fixture["rolls"]["rows"]},
+                         {21, 22, 23, 24})
+
+    def test_a_cap_the_log_never_reaches_captures_every_round(self):
+        rows, last = self.hand_built(rounds=2)
+        fixture = self.build(rows, self.frames_for(2), 20, last - 1, None,
+                             max_rounds=5)
+        outcome = fixture["outcome"]
+        self.assertFalse(outcome["truncated"])
+        self.assertEqual(outcome["rounds_captured"], 2)
+        self.assertEqual(len(fixture["rounds"]), 2)
+
+    def test_the_patch_records_which_fighters_read_it(self):
+        patched = {"alys_hp": 999, "alys_maxhp": 999, "chaz_hp": 999,
+                   "chaz_maxhp": 999, "hahn_hp": 999, "hahn_maxhp": 999}
+        rows, last = self.hand_built(rounds=1, party=patched)
+        note = self.build(rows, self.frames_for(1), 20, last - 1, None,
+                          hp_patch=999)["provenance"]["hp_patch"]
+        self.assertEqual(note["hp"], 999)
+        self.assertEqual(note["members"], ["alys", "chaz", "hahn"])
+        self.assertFalse(note["vehicle"])
+
+    def test_a_member_the_tape_left_down_is_not_in_the_patch(self):
+        patched = {"alys_hp": 999, "alys_maxhp": 999, "chaz_hp": 999,
+                   "chaz_maxhp": 999, "hahn_hp": 0, "hahn_maxhp": 21}
+        rows, last = self.hand_built(rounds=1, party=patched)
+        note = self.build(rows, self.frames_for(1), 20, last - 1, None,
+                          hp_patch=999)["provenance"]["hp_patch"]
+        self.assertEqual(note["members"], ["alys", "chaz"])
+
+    def test_a_capture_without_the_patch_says_nothing_about_one(self):
+        rows, last = self.hand_built(rounds=1)
+        fixture = self.build(rows, self.frames_for(1), 20, last - 1)
+        self.assertNotIn("hp_patch", fixture["provenance"])
+
+
 if __name__ == "__main__":
     unittest.main()
