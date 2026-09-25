@@ -1,6 +1,6 @@
 # Continue the connected post-Rika save through Zema's inn and the opened
 # northern Motavia crossing using ordinary field, menu, battle, and save input.
-extends "res://../tools/native_bioplant.gd"
+extends "res://../tools/native/native_bioplant.gd"
 
 const EXPECTED_PARTY = [4, 1, 0, 2, 5]
 const SOURCE_KEYS = ["map", "cell", "money", "flags", "party_status",

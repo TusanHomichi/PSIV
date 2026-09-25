@@ -15,7 +15,7 @@ It is the current campaign source; this ledger retains the unchanged BioPlant
 save and its original candidate/evidence scope.
 
 The connected campaign source is the restored-Zema save. Before the
-dungeon, `tools/native_zema_outfit.gd` uses ordinary inn, shop, equipment and
+dungeon, `tools/native/native_zema_outfit.gd` uses ordinary inn, shop, equipment and
 save input. The driver checks exact prices and inventory changes. Its seven
 purchases cost 2470 meseta; the four-person Zema inn costs 80. This driver
 also checks the right/left hand selector and cancellation without inventory
@@ -128,7 +128,7 @@ against an emulator recording of the whole scene.
 Reproduce this check with:
 
 ```sh
-python tools/verify_native_alarm.py build/native-bioplant/campaign-retreat/route
+python tools/native/verify_native_alarm.py build/native-bioplant/campaign-retreat/route
 ```
 
 ## Preserved traversal failure
@@ -161,7 +161,7 @@ formation `$C2`, four Gicefalgues on `$A7`. Chaz and Hahn die; Alys and Gryz
 win with 15 and 44 HP. Neither this failure nor the earlier RUN attempt is
 used as a successful campaign checkpoint.
 
-`tools/native_zema_training.gd` prepares a connected save using ordinary
+`tools/native/native_zema_training.gd` prepares a connected save using ordinary
 Birth Valley battles, level-up awards, RES, a paid Zema inn and SAVE. Its
 default minimum is level six for each party member, plus enough earned
 meseta for two carbon suits and the final rest. The patrol caches walking
@@ -169,7 +169,7 @@ directions but still submits every step through normal input and re-reads
 collision after battles. This preparation captures at 320×224 and renders
 eight frames per simulated second; the game still receives its ordinary
 60 physics ticks. It does not establish animation-frame parity.
-`native_zema_armour.gd` then buys and equips the suits for Alys and Chaz,
+`tools/native/native_zema_armour.gd` then buys and equips the suits for Alys and Chaz,
 using the same checked purchase/equipment menu helpers as the first outfit.
 
 ## Fresh Rika opening comparison
@@ -350,7 +350,7 @@ Each cast asserts that only its target's poison bit clears, HP stays unchanged,
 and exactly 2 TP leaves the caster. It then closes the cure menu before RES.
 This changes the automated play strategy; the existing game rules are unchanged.
 
-`tools/native_bioplant_recovery.gd` limits the connected proof to one encounter,
+`tools/native/native_bioplant_recovery.gd` limits the connected proof to one encounter,
 two cures, ordinary healing and SAVE. It passes in `build/native-order/recovery/`:
 Gryz and Chaz are cured, Hahn spends 4 TP, and all four survive. The save is at
 `$A7 (75,61)`, tick 3093, with 627 meseta; HP `[70,61,53,45]`, TP `[6,34,19,38]`,
@@ -383,7 +383,7 @@ load at `$074A36..$074A65`. This does not certify whole-scene presentation.
 ### Candidate and preserved failure
 
 Base revision is `501fcdddb8b922f5d6001c2c4f777c955f66ab65`; the only executable
-change is normal dialogue input in `tools/native_bioplant.gd`. The frozen
+change is normal dialogue input in `tools/native/native_bioplant.gd`. The frozen
 driver SHA256 is
 `aace43a6415ae300aa42274b74f17802960c24eef0268514076f4a0add832fe3`.
 The current-source extension build passed and remains SHA256
@@ -438,7 +438,7 @@ The completed route receipt SHA256 is
 
 `continue-01/` starts a separate process and a separate copy of that save.
 Title CONTINUE preserves party/resources/inventory/flags; ordinary Down moves
-to `(99,84)`, followed by SAVE 2. `tools/verify_native_continue.py` passes:
+to `(99,84)`, followed by SAVE 2. `tools/native/verify_native_continue.py` passes:
 only logical payload byte `$309` changes, `48 -> 64`, plus header offsets
 `$13..$17` for the slot and valid checksums. Both source copies are unchanged.
 The resaved slot 2 SHA256 is
@@ -469,8 +469,8 @@ python3 build/native-bioplant-20260923/run_continue.py
 
 Those ignored wrappers are evidence helpers, not installed automation or
 fresh-clone prerequisites. The tracked entrypoints are
-`tools/native_bioplant.gd`, `tools/native_continue.gd` and
-`tools/verify_native_continue.py`; copy the recorded configuration to a new
+`tools/native/native_bioplant.gd`, `tools/native/native_continue.gd` and
+`tools/native/verify_native_continue.py`; copy the recorded configuration to a new
 output directory when reproducing. The latter's exact invocation is in
 `continue-01/receipt.json`.
 
@@ -501,7 +501,7 @@ canonical_record: "docs/campaign/BIOPLANT_NATIVE.md#archived-bioplant-task-graph
 base_revision: "501fcdddb8b922f5d6001c2c4f777c955f66ab65"
 scope: "Ordinary-input campaign continuation and scoped source-backed repairs; no debug state injection"
 effort_policy: "Owner 2026-09-23: scoped repairs until acceptance passes; no fixed cycle limit"
-common_inputs: ["docs/campaign/BIOPLANT_NATIVE.md", "docs/DEVELOPMENT.md", "tools/native_bioplant.gd"]
+common_inputs: ["docs/campaign/BIOPLANT_NATIVE.md", "docs/DEVELOPMENT.md", "tools/native/native_bioplant.gd"]
 next_action: "Closed; see the roadmap for the separately assigned Redshirt assessment"
 nodes:
   - id: BP-01
@@ -517,7 +517,7 @@ nodes:
     outcome: "Reach Rika and escape with the campaign party alive through ordinary inputs"
     depends_on: [BP-01]
     owner: "gpt-6-astra / max orchestration and review; gpt-6-luna / max bounded driver repair"
-    inputs: ["BP-01 receipt", "tools/native_bioplant.gd", "retail-backed join/escape acceptance"]
+    inputs: ["BP-01 receipt", "tools/native/native_bioplant.gd", "retail-backed join/escape acceptance"]
     acceptance: "Completed route receipt, expected party and story flags, surviving members and an ordinary saved checkpoint; failed attempts retained"
     state: verified
     evidence: ["build/native-bioplant-20260923/attempt-01/dialogue-stall.json", "build/native-bioplant-20260923/candidate-review.json", "build/native-bioplant-20260923/attempt-02/receipt.json", "build/native-bioplant-20260923/attempt-02/route/route.json"]
@@ -526,7 +526,7 @@ nodes:
     outcome: "Prove the escaped checkpoint persists through a fresh process"
     depends_on: [BP-02]
     owner: "gpt-6-astra / max (serialized native gate)"
-    inputs: ["BP-02 save/hash/route receipt", "tools/native_continue.gd", "tools/verify_native_continue.py"]
+    inputs: ["BP-02 save/hash/route receipt", "tools/native/native_continue.gd", "tools/native/verify_native_continue.py"]
     acceptance: "Fresh title CONTINUE retains party/resources/inventory/flags; safe ordinary movement and new-slot SAVE pass byte-level validation"
     state: verified
     evidence: ["build/native-bioplant-20260923/continue-01/receipt.json", "build/native-bioplant-20260923/continue-01/flow/validation.json"]

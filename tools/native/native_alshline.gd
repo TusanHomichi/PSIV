@@ -1,6 +1,6 @@
 # Continue the input-verified Tonoe campaign: paid inn, Gryz's door,
 # basement traversal, Alshline chest, and an ordinary save back in town.
-extends "res://../tools/native_tonoe.gd"
+extends "res://../tools/native/native_tonoe.gd"
 
 func configure_route():
     route = [

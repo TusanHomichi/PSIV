@@ -1,5 +1,5 @@
 # Isolated pre-level fixture; normal attacks, learned-ability messages and SAVE.
-extends "res://../tools/native_camp_abilities.gd"
+extends "res://../tools/native/native_camp_abilities.gd"
 var saw_battle := false
 var learned := []
 

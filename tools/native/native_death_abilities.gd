@@ -1,5 +1,5 @@
 # Isolated original Gryz fixture. CRASH/BROSE commands and SAVE use normal input.
-extends "res://../tools/native_camp_abilities.gd"
+extends "res://../tools/native/native_camp_abilities.gd"
 var submitted := 0
 var menu_open := false
 var selected_skill := -1

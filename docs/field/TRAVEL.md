@@ -182,7 +182,7 @@ old 4783-file pack and old extension are preserved under `pre-repair/`, with
 per-file hashes. Earlier healthy `$A7` saves, BioPlant evidence and inherited
 adapter/example/tests/fixtures/Cargo changes are untouched.
 
-`tools/native_post_rika.gd` adds a bounded ordinary-input route to the existing
+`tools/native/native_post_rika.gd` adds a bounded ordinary-input route to the existing
 BioPlant driver. It verifies the source before moving, accepts one paid inn
 purchase, checks full recovery, walks through `(84,67)` to the north bank,
 and requires `FILE SAVED`. It reuses the existing fixed battle and ANTI/RES
@@ -296,8 +296,8 @@ python3 build/native-post-rika-20260923/compare_native_bridge.py continue-01
 
 These ignored helpers have fixed evidence/source paths: inspect them and use
 new output names before reuse. The tracked entrypoints are
-`tools/native_post_rika.gd`, `tools/native_continue.gd` and
-`tools/verify_native_continue.py`. Native runs use Godot 4.7.1, Xvfb, software
+`tools/native/native_post_rika.gd`, `tools/native/native_continue.gd` and
+`tools/native/verify_native_continue.py`. Native runs use Godot 4.7.1, Xvfb, software
 GL, Dummy audio, `--fixed-fps 8`, `--disable-vsync` and a 1280×800 viewport.
 The wrapper strips inherited `PSIV_*` variables and enables only the read-only
 route probe and explicit route/save configuration; no scene auto-close.
@@ -372,7 +372,7 @@ nodes:
     outcome: "Prepare a frozen, reviewed ordinary-input driver and current-source extension"
     depends_on: [NR-01]
     owner: "gpt-6-astra / max integration; gpt-6-luna / max bounded driver implementation"
-    inputs: ["NR-01", "tools/native_bioplant.gd", "tools/native_zema_outfit.gd", "tools/native_continue.gd"]
+    inputs: ["NR-01", "tools/native/native_bioplant.gd", "tools/native/native_zema_outfit.gd", "tools/native/native_continue.gd"]
     acceptance: "No fixture/debug mutation; exact rest/resource/party/flag/inventory checks; Godot parse and applicable focused checks pass; candidate files and binary hashed"
     state: verified
     evidence: ["build/native-post-rika-20260923/candidate-03.json", "build/native-post-rika-20260923/driver-parse-04.json", "build/native-post-rika-20260923/negative-control-03/receipt.json"]
@@ -399,7 +399,7 @@ nodes:
     outcome: "Prove fresh-process persistence, review receipts and close the gate"
     depends_on: [NR-03]
     owner: "gpt-6-astra / max review/integration"
-    inputs: ["NR-03 save and route", "tools/native_continue.gd", "tools/verify_native_continue.py"]
+    inputs: ["NR-03 save and route", "tools/native/native_continue.gd", "tools/native/verify_native_continue.py"]
     acceptance: "Fresh title CONTINUE matches party/resources/inventory/flags/money; Down to84,65 and SAVE2 pass byte validator; artifacts read back, scoped captures inspected, ledger/overview updated, graph archived and owned processes stopped"
     state: verified
     evidence: ["build/native-post-rika-20260923/continue-01/receipt.json", "build/native-post-rika-20260923/continue-01/flow/validation.json", "build/native-post-rika-20260923/run-readback.json", "build/native-post-rika-20260923/native-oracle-bridge.json", "build/native-post-rika-20260923/final-audit.json"]

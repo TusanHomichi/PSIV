@@ -1,6 +1,6 @@
 # Actual CONTINUE from the native Holt save, paid rest, Rune, the mountain
 # pass and Dorin. All changes to the game come through ordinary input.
-extends "res://../tools/native_motavia.gd"
+extends "res://../tools/native/native_motavia.gd"
 
 var inn_phase := 0
 var inn_money := 0

@@ -1,13 +1,15 @@
 #!/bin/bash
-# Package and push PSIV to a Steam Deck. Usage: ./deploy-deck.sh <deck-ip> [user]
+# Package and push PSIV to a Steam Deck. Usage, from the repository root:
+# ./tools/package/deploy-deck.sh <deck-ip> [user]
 # The Deck user is almost always `deck`. Requires key auth (same setup as
 # MiraCraft's account). After the push: on the Deck, add
 # ~/psiv/psiv.x86_64 as a non-Steam game (Desktop Mode > Steam > Add a Game),
 # or run it straight from Desktop Mode.
 set -e
-DECK_IP="${1:?usage: ./deploy-deck.sh <deck-ip> [user]}"
+DECK_IP="${1:?usage: ./tools/package/deploy-deck.sh <deck-ip> [user]}"
 DECK_USER="${2:-deck}"
-HERE="$(cd "$(dirname "$0")" && pwd)"
+# tools/package/deploy-deck.sh: the repository root is two levels up.
+HERE="$(cd "$(dirname "$0")/../.." && pwd)"
 
 # Always ship a current build: release lib, then export. The Deck runs
 # SteamOS glibc 2.41 while this laptop tracks Fedora's newest; a plain

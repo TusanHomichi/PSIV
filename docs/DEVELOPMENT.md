@@ -113,7 +113,7 @@ cover:
 
 - tests skipped for a missing ROM, disassembly or full pack: a checkout without
   them yields a partial gate, and the report says which inputs were absent;
-- native Godot drivers (`tools/native_*.gd`, `tools/verify_native_*.py`) and
+- native Godot drivers (`tools/native/native_*.gd`, `tools/native/verify_native_*.py`) and
   anything visual: their ledgers own those runs;
 - cartridge comparisons: `./oracle/verify.sh` (fast) and `--full` are separate
   lanes, described in the [oracle guide](../oracle/README.md);
@@ -139,7 +139,7 @@ over it.
 
 ## Native and original-game comparisons
 
-`tools/native_*.gd` drives ordinary Godot input and reads runtime observations.
+`tools/native/native_*.gd` drives ordinary Godot input and reads runtime observations.
 Some drivers use isolated fixtures; others continue a saved campaign. Their
 ledgers identify which kind of evidence each run supplies.
 

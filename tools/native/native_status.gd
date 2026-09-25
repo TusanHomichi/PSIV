@@ -1,5 +1,5 @@
 # Isolated reordered five-person party, normal combat and camp/status input.
-extends "res://../tools/native_camp_abilities.gd"
+extends "res://../tools/native/native_camp_abilities.gd"
 var battle_recorded := false
 var portraits_recorded := 0
 func _physics_process(_delta):

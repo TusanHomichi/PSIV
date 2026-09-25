@@ -1,6 +1,6 @@
 # The connected Alshline quest using ordinary RUN for random encounters.
 # A retrieval mission can retreat while retaining normal encounter costs.
-extends "res://../tools/native_alshline.gd"
+extends "res://../tools/native/native_alshline.gd"
 
 func battle_input(battle):
     if not should_retreat(battle):

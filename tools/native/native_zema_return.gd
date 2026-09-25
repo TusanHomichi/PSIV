@@ -1,6 +1,6 @@
 # Connected Alshline save: paid rest, return through the pass, rescue Zema,
 # ordinary boss commands, post-battle conversation and save outside town.
-extends "res://../tools/native_alshline_retreat.gd"
+extends "res://../tools/native/native_alshline_retreat.gd"
 
 var zema_pages := []
 

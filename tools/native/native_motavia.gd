@@ -1,6 +1,6 @@
 # Actual title CONTINUE from the input-verified Academy save. Camp recovery,
 # movement, battles and Holt's conversation all use ordinary Godot input.
-extends "res://../tools/native_route.gd"
+extends "res://../tools/native/native_route.gd"
 
 var healing := true
 var healing_done := false
