@@ -1,4 +1,2 @@
 1024 psiv_tools/map_effects.py
 1067 rust/psiv-core/tests/events.rs
-1192 rust/psiv-godot/src/cutscene.rs
-1009 rust/psiv-godot/src/shop.rs
