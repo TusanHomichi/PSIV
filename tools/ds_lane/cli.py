@@ -60,6 +60,18 @@ Environment (read per call, so tests can set them per case):
                      replacing DEFAULT_COMPRESS_EXTS (default csv, log, jsonl,
                      txt, tsv); a leading dot is optional and an empty value
                      leaves nothing to compress
+  DS_LANE_BWRAP      bubblewrap to run the worker under (default `bwrap` on
+                     PATH). A value that does not resolve is a refusal: a run
+                     happens under the read boundary or not at all
+  DS_LANE_CONFINE_HOME  the home the boundary masks, for a run whose worker
+                     HOME is not the one to mask (the test seam; the default is
+                     the worker's own HOME)
+
+The worker runs under bubblewrap with its home replaced by a tmpfs and an
+explicit allowlist bound back in - read-only for the toolchain, the worker
+binary and the lane's inputs, writable for the worktree, the run directory and
+the lane's own Reasonix home. What that covers and what it does not is in
+README.md under "The read boundary"; the module is `confine`.
 
 --link PATH symlinks an ignored path from the source repo into the worktree
 (e.g. runtime-pack, reference) so repo-relative tooling finds local inputs.
@@ -73,7 +85,7 @@ add ("The following paths are ignored..."), while a linked directory is a
 symlink - mode 120000, which a `dir/` rule does not match - and so still needs
 its exclusion. A git step that fails during finalize is recorded as
 `finalize_error` in run.json and in the summary, with the worker's exit code,
-result and receipt kept and the run's files left in the worktree. The sandbox
+result and receipt kept and the run's files left in the worktree. The boundary
 resolves real paths, so linked inputs are readable but not writable.
 
 Each run executes under a detached supervisor (own session), so the worker and

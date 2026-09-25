@@ -1,8 +1,7 @@
 //! Ordinary field chest windows using the cartridge's font and window tiles.
-use super::{
-    CHILD_CURSOR_PATTERN, CampMenu, DrawList, Mode, chrome::CampChrome, draw_text, frame,
-    layout::CellRect,
-};
+use super::draw::{draw_text, frame};
+use super::layout::{CHILD_CURSOR_PATTERN, CellRect};
+use super::{CampMenu, DrawList, Mode, chrome::CampChrome};
 use godot::classes::Input;
 use godot::prelude::*;
 use psiv_core::ChestOutcome;

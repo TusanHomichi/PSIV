@@ -23,7 +23,7 @@ class LaneCase(LaneFixture):
     # -- 1. start, worktree and commit
 
     def test_worker_never_sees_the_callers_secrets(self):
-        opts_out = self.write("env-opts.json", "stale\n")
+        opts_out = self.worker_path("tenv", "opts.json")
         spec = {"files": {}, "opts_out": str(opts_out), "result": RECEIPT_RESULT}
         self.start("Record the environment.\n", "tenv", spec,
                    env={"GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_leak", "SSH_AUTH_SOCK": "/tmp/agent"})
@@ -35,7 +35,7 @@ class LaneCase(LaneFixture):
         self.assertIn("CARGO_BUILD_JOBS", names)
 
     def test_start_creates_worktree_branch_and_commits(self):
-        prompt_out = self.write("opts.json", "stale\n")
+        prompt_out = self.worker_path("t1", "opts.json")
         spec = {"files": {"tools/new.txt": "written by the worker\n"},
                 "opts_out": str(prompt_out), "result": RECEIPT_RESULT}
         self.start("Write tools/new.txt.\n", "t1", spec)
@@ -134,10 +134,11 @@ class LaneCase(LaneFixture):
 
     def test_preflight_skipped_for_read_only_and_allow_phrasing(self):
         bad = "# Brief\n\nDo not edit anything without writing a report.\n"
-        spec = {"files": {}, "opts_out": str(self.work / "read-only-opts.json")}
+        opts_out = self.worker_path("t1", "opts.json")
+        spec = {"files": {}, "opts_out": str(opts_out)}
         self.start(bad, "t1", spec, extra=["--read-only"])
         self.assertEqual(self.run_json("t1")["exit_code"], 0)
-        prompt = json.loads((self.work / "read-only-opts.json").read_text())["prompt"]
+        prompt = json.loads(opts_out.read_text())["prompt"]
         self.assertIn(DS.READ_ONLY_CLAUSE.strip(), prompt)
         self.assertTrue(self.lane_json("t1")["read_only"])
 
@@ -296,7 +297,7 @@ class LaneCase(LaneFixture):
     # -- 7. session id / resume
 
     def test_session_id_comes_from_the_trajectory_and_resume_passes_it(self):
-        opts_out = self.write("t1-opts.json", "stale\n")
+        opts_out = self.worker_path("t1", "opts.json")
         self.start("Touch only tools/keep.txt.\n", "t1",
                    {"files": {}, "opts_out": str(opts_out),
                     "events": [{"kind": "turn_phase", "sessionId": "sess-abc123"},
@@ -305,7 +306,7 @@ class LaneCase(LaneFixture):
         self.assertEqual(run1["session_id"], "sess-abc123")
 
         follow = self.write("follow.md", "# Repair\n\nTouch only tools/keep.txt again.\n")
-        resume_opts = self.write("t1-resume-opts.json", "stale\n")
+        resume_opts = self.worker_path("t1", "resume-opts.json", run=2)
         r = self.cli("resume", "t1", follow, "--repo", self.repo, "--no-wait", check=0,
                      spec={"files": {"tools/keep.txt": "second\n"},
                            "opts_out": str(resume_opts)})
@@ -407,7 +408,7 @@ class LaneCase(LaneFixture):
         an argv prompt, so a regression here shows up as a failed run.
         """
         token = "MOTAVIA-ARGV-TOKEN"
-        first = self.write("t1-opts.json", "stale\n")
+        first = self.worker_path("t1", "opts.json")
         brief = f"# Brief\n\nTouch only tools/keep.txt and name {token} once.\n"
         self.start(brief, "t1", {"files": {"tools/keep.txt": "one\n"},
                                  "opts_out": str(first), "result": RECEIPT_RESULT})
@@ -428,7 +429,7 @@ class LaneCase(LaneFixture):
 
         # A resumed run gets the same treatment with its follow-up prompt.
         token2 = "MOTAVIA-RESUME-TOKEN"
-        second = self.write("t1-resume-opts.json", "stale\n")
+        second = self.worker_path("t1", "resume-opts.json", run=2)
         follow = f"# Repair\n\nTouch only tools/keep.txt and name {token2} once.\n"
         self.resume("t1", follow, spec={"files": {}, "opts_out": str(second)}, check=0)
         self.assertEqual(self.run_json("t1", run=2)["exit_code"], 0)

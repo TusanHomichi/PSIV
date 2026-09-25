@@ -2,10 +2,11 @@
 
 use psiv_runtime::{CampEquipResult, Runtime};
 
+use super::draw::{draw_text, frame};
 use super::layout::{
     CHILD_CURSOR_PATTERN, CellRect, EQUIP_ITEM_LIST, EQUIP_MESSAGE, EQUIP_STATS, EQUIPPED_ITEMS,
 };
-use super::{CampChrome, CampMenu, DrawList, draw_text, frame};
+use super::{CampChrome, CampMenu, DrawList};
 
 impl CampMenu {
     pub(super) fn confirm_equipment_slot(&mut self, runtime: &mut Runtime) {

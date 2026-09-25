@@ -21,6 +21,7 @@ from pathlib import Path
 
 from . import lanes
 from .compaction import compact_finished_run
+from .confine import REASONIX_DIR, confine_home, seed_names, summary, wrap
 from .config import (DEFAULT_STALL_CPU_PCT, KILL_GRACE, STALL_EXIT, STALL_POLL,
                      STOPPED_EXIT, TIMEOUT_EXIT, load_receipt, max_lanes, now, pid_alive,
                      stall_cpu_pct, stall_poll, state_root, worker_env)
@@ -222,12 +223,16 @@ def feed_stdin(p, prompt):
         pass
 
 
-def run_worker(run_dir, spec, wt, env):
+def run_worker(run_dir, spec, lane, env):
     """Run the worker in its own process group under a wall-clock budget.
 
-    The run's `prompt.md` reaches the worker on its stdin (feed_stdin), so the
-    command line it runs with carries no brief text. Returns (exit code,
-    started, duration, outcome), where outcome is None, "timeout", "stopped" or
+    The worker runs under the lane's read boundary (`confine.wrap`), which the
+    supervisor owns: the command in the spec is the worker's own argv, and the
+    bubblewrap prefix that masks the home, restricts `/tmp` and binds the
+    allowlist is added here, at the one point a process is spawned. The run's
+    `prompt.md` reaches the worker on its stdin (feed_stdin), so the command
+    line it runs with carries no brief text. Returns (exit code, started,
+    duration, outcome), where outcome is None, "timeout", "stopped" or
     "stalled". A `stop` request (SIGTERM to the supervisor), a budget expiry or
     the stall watchdog kills the group via stop_group(); the run still
     finalizes.
@@ -238,9 +243,12 @@ def run_worker(run_dir, spec, wt, env):
         return STOPPED_EXIT, started, 0.0, "stopped"
     print(f"{started} worker start", flush=True)
     outcome = None
+    wt = Path(lane["worktree"])
+    cmd = wrap(spec["cmd"], lane, run_dir, env)
+    print(f"{now()} {summary(cmd, seed_names(confine_home(env) / REASONIX_DIR))}", flush=True)
     prompt = (run_dir / "prompt.md").read_bytes()
     with open(run_dir / "stdout.log", "w") as out, open(run_dir / "stderr.log", "w") as err:
-        p = subprocess.Popen(spec["cmd"], cwd=wt, stdin=subprocess.PIPE, stdout=out, stderr=err,
+        p = subprocess.Popen(cmd, cwd=wt, stdin=subprocess.PIPE, stdout=out, stderr=err,
                              env=env, start_new_session=True)
         threading.Thread(target=feed_stdin, args=(p, prompt), daemon=True).start()
         poll = stall_poll()
@@ -319,7 +327,6 @@ def exec_run(state, n):
     run_dir = state / f"run-{n}"
     (run_dir / "supervisor.pid").write_text(str(os.getpid()))
     lane = load_receipt(state)
-    wt = Path(lane["worktree"])
     spec = json.loads((run_dir / "spec.json").read_text())
     install_stop_handler()
     rc, started, duration, outcome = None, None, None, None  # what a crash still gets to report
@@ -328,7 +335,7 @@ def exec_run(state, n):
             finalize_run(lane, run_dir, spec, STOPPED_EXIT, now(), 0.0, outcome="stopped")
             return
         try:
-            rc, started, duration, outcome = run_worker(run_dir, spec, wt, worker_env())
+            rc, started, duration, outcome = run_worker(run_dir, spec, lane, worker_env())
         finally:  # the machine-wide slot is released on every path
             (run_dir / "worker.slot").unlink(missing_ok=True)
         successor = None  # a stalled run continues the lane by itself, retries permitting

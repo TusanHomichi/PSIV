@@ -15,6 +15,7 @@ editing. Preserve others' changes. Use [README.md](README.md) for current scope,
 Read only the relevant [subsystem ledger](docs/README.md) and source; use
 [DEVELOPMENT.md](docs/DEVELOPMENT.md) when preparing checks and
 [RUNTIME_DESIGN.md](docs/RUNTIME_DESIGN.md) for layer boundaries.
+Find a feature's owning paths and focused test in the [feature map](docs/FEATURE_MAP.md).
 
 Define an observable outcome and acceptance before implementation. Substantive
 dependent work uses one graph; simple changes use a short plan. Verified results
@@ -64,7 +65,9 @@ against source and fresh observations.
   contain irreplaceable checkpoint evidence. Remove only known disposable
   outputs created for your task.
 - Copy a source save to a separate run directory, set `PSIV_SAVE_DIR`
-  explicitly, and retain its hash. Never overwrite the only verified save.
+  explicitly, and retain its hash. Never overwrite the only verified save: the
+  extension refuses a `--script` run without that variable, before it touches
+  a save directory, so a driver cannot fall back to the checkout's `saves/`.
 - Inspect a native driver's configuration before running it. Existing drivers
   can contain local paths, special fixtures or long campaign routes. Missing
   `build/` evidence on a fresh clone is expected; report that limitation.

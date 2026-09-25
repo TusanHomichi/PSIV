@@ -2,7 +2,7 @@
 use godot::prelude::*;
 use psiv_runtime::FieldNotice;
 
-use crate::{Field, save_directory, title, transitions::TransitionKind};
+use crate::{Field, save_dir::presented_save_slots, title, transitions::TransitionKind};
 
 #[derive(Default)]
 pub(super) struct StatusPresentation {
@@ -129,7 +129,7 @@ impl Field {
         let slots = self
             .runtime
             .as_ref()
-            .map(|rt| crate::boot::available_save_slots(rt.data(), &save_directory()))
+            .map(|rt| presented_save_slots(rt.data()))
             .unwrap_or([false; 3]);
         let pack_dir = self.pack_dir.clone();
         self.title = title::TitleScreen::build(&pack_dir, slots, self.base_mut());
