@@ -215,7 +215,7 @@ runs when the gate is clear.
 | `$35` (53) **Gizan**<br>GIZAN | eff `$01` · stat $82 (mental) · tgt 9 · pow 48 · res $07 (magic_defense) · el `1` physical | `EnemyAttack_DElmLars` (`ps4.asm:20222`)<br>→ loc_2912C (`ps4.asm:54326`)<br>`EnemyAttack_FlattrPlnt` (`ps4.asm:21778`)<br>→ BattleObj_EnemyGizan (`ps4.asm:38024`)<br>BattleObj_AcidBreathChild (`ps4.asm:38622`)<br>`EnemyAttack_TechUser` (`ps4.asm:21156`)<br>→ loc_21176 (`ps4.asm:44547`) | `AbilityEffect_None` (`ps4.asm:9092`) | 77 TechPlant, 101 DarkWitch, 122 DElmLars, 123 XeAThoul, 124 LeFawGan, 125 GiLeFarg<br>17/504 formations (+2 boss) | damage | unsupported |
 | `$36` (54) **StrngLight**<br>STRNGLIGHT | eff `$07` · stat $01 (strength) · tgt 8 · pow 48 · res $02 (mental) · el `11` psychic | `EnemyAttack_ToadStool` (`ps4.asm:21737`)<br>→ BattleObj_StrngLight (`ps4.asm:37778`) | `AbilityEffect_SleepParalyze` (`ps4.asm:9154`) | 79 Shrieker<br>8/504 formations | status/stat effect | unsupported |
 | `$37` (55) **SandStorm**<br>SAND STORM | eff `$01` · stat $05 (attack) · tgt 9 · pow 96 · res $06 (defense) · el `1` physical | `EnemyAttack_SandWorm` (`ps4.asm:21658`)<br>→ BattleObj_SandStorm (`ps4.asm:48204`) | `AbilityEffect_None` (`ps4.asm:9092`) | 81 DesrtLeach<br>1/504 formations | — | implemented — `enemy_damage::resolve_damage_skill` for 81 DesrtLeach (`DAMAGE_SKILL_ROUTES`); byte 2 is 9, the all-party *nibble*, but the chain makes one request at line 48547 |
-| `$38` (56) **Earthquake**<br>EARTHQUAKE | eff `$01` · stat $05 (attack) · tgt 9 · pow 0 · res $06 (defense) · el `1` physical | `EnemyAttack_KingRappy` (`ps4.asm:19596`)<br>→ BattleObj_KingRappyEarthquake (`ps4.asm:67513`)<br>`EnemyAttack_SandWorm` (`ps4.asm:21658`)<br>→ BattleObj_Earthquake (`ps4.asm:47884`) | `AbilityEffect_None` (`ps4.asm:9092`) | 80 SandWorm, 149 KingRappy<br>1/504 formations (+1 boss) | — | implemented — `enemy_damage::resolve_damage_skill` for both carriers (`DAMAGE_SKILL_ROUTES`), the `AllParty` class: both arms clear `Current_Target_Index` (lines 21713, 19609), `BattleObj_Earthquake` writes `#$C` to the five party slots (lines 47995-48000) and `BattleObj_KingRappyEarthquake` reaches the shared tail `loc_24BB6` (line 48575) |
+| `$38` (56) **Earthquake**<br>EARTHQUAKE | eff `$01` · stat $05 (attack) · tgt 9 · pow 0 · res $06 (defense) · el `1` physical | `EnemyAttack_KingRappy` (`ps4.asm:19596`)<br>→ BattleObj_KingRappyEarthquake (`ps4.asm:67513`)<br>`EnemyAttack_SandWorm` (`ps4.asm:21658`)<br>→ BattleObj_Earthquake (`ps4.asm:47884`) | `AbilityEffect_None` (`ps4.asm:9092`) | 80 SandWorm, 149 KingRappy<br>1/504 formations (+1 boss) | — | implemented — `enemy_damage::resolve_damage_skill` for both carriers (`DAMAGE_SKILL_ROUTES`), the `AllParty` class: both arms clear `Current_Target_Index` (lines 21713, 19609), `BattleObj_Earthquake` writes `#$C` to the five party slots (lines 47995-48000) and `BattleObj_KingRappyEarthquake` reaches the shared tail `loc_24BB6` (line 48575); the objects' own calls are part of the turn — `BattleObj_Earthquake`'s shake takes **28 `UpdateRNGSeed2` calls** (lines 47976, 47983) before the request and `BattleObj_KingRappyEarthquake` takes none (`docs/source-notes/battle-enemy-abilities.md`, 2026-09-25) |
 | `$39` (57) **Maelstrom**<br>MAELSTROM | eff `$01` · stat $05 (attack) · tgt 9 · pow 32 · res $06 (defense) · el `1` physical | `EnemyAttack_SandWorm` (`ps4.asm:21658`)<br>→ BattleObj_Maelstrom (`ps4.asm:47766`) | `AbilityEffect_None` (`ps4.asm:9092`) | 82 Leviathan<br>1/504 formations | — | implemented — `enemy_damage::resolve_damage_skill` for 82 Leviathan (`DAMAGE_SKILL_ROUTES`); byte 2 is 9, but the chain makes one request at line 48547 |
 | `$3C` (60) **BladeShine**<br>BLADESHINE | eff `$01` · stat $05 (attack) · tgt 9 · pow 0 · res $06 (defense) · el `1` physical | `EnemyAttack_TwinArms` (`ps4.asm:21455`)<br>→ loc_237AA (`ps4.asm:47129`) | `AbilityEffect_None` (`ps4.asm:9092`) | 87 TwinArms, 88 SoldrFiend<br>7/504 formations | damage | unsupported |
 | `$3D` (61) **HakenBolt**<br>HAKEN BOLT | eff `$01` · stat $05 (attack) · tgt 8 · pow 36 · res $06 (defense) · el `1` physical | `EnemyAttack_TwinArms` (`ps4.asm:21455`)<br>→ loc_23544 (`ps4.asm:46959`) | `AbilityEffect_None` (`ps4.asm:9092`) | 87 TwinArms, 88 SoldrFiend<br>7/504 formations | damage | unsupported |
@@ -477,6 +477,21 @@ The seventeen implemented rows are exactly what `psiv-core` claims:
   → `BattleObj_MonsterflyAtk2` (`ps4.asm:30241`). Reading only the object the
   routine loads would wrongly call FlameBolt a non-damaging ability; `$02` is
   implemented from that child (see its §2 row).
+- **An ability object's animation can take RNG calls of its own.** The damage
+  rolls are not the whole of an enemy turn's draw: the object an arm loads runs
+  for as many frames as its state table says before its last phase writes the
+  request, and an object that shakes the screen reads `UpdateRNGSeed2` to do it.
+  `BattleObj_Earthquake` (`ps4.asm:47884`) takes 28 calls during its shake
+  (`loc_2438E`, `ps4.asm:47972` — two on each of frames 4, 8 … 56 of sixty),
+  all of them *before* the five-slot request, and they move every later roll in
+  the battle. They are the route's, not the ability's: 149 KingRappy's `$38`
+  loads an object that shakes the camera from a byte table and takes none. Other
+  chains draw too — `loc_1C73E` (`$31` GRA's own object list),
+  `BattleObj_SlaveMotrCannon`, `BattleObj_BlizzardChild`, `BattleObj_Legeon` and
+  the rest of the census — so a lane implementing one reads its chain's
+  `jsr (UpdateRNGSeed2).l` sites as part of the route. The file's 43 sites, and
+  which of them a proven damage route reaches, are enumerated in
+  `docs/source-notes/battle-enemy-abilities.md`'s 2026-09-25 record.
 - **Six shared tails apply damage to the whole side or to one target**:
   `loc_24A6C` (`ps4.asm:48468`), `loc_24A9E` (`ps4.asm:48483`), `loc_24AEC`
   (`ps4.asm:48507`), `loc_24B20` (`ps4.asm:48523`), `loc_24B64` (`ps4.asm:48541`)

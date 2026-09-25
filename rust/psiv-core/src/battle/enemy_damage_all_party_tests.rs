@@ -148,9 +148,29 @@ fn expected_triple(carrier: &Carrier) -> [u16; 3] {
     ]
 }
 
+/// What a carrier's own object chain takes off the stream before its damage
+/// request, as `enemy_damage::ObjectDraws` records it for the route.
+///
+/// The two `$38` carriers differ here and nowhere else. SandWorm's arm loads
+/// `BattleObj_Earthquake` (`ps4.asm:47884`), whose state 4 shake calls
+/// `UpdateRNGSeed2` twice on every fourth frame of its sixty (`loc_2438E`,
+/// `ps4.asm:47972`, the calls at lines 47976 and 47983). KingRappy's loads
+/// `BattleObj_KingRappyEarthquake` (`ps4.asm:67513`), whose state 4
+/// (`loc_344AC`, line 67554) shakes the camera from a fixed byte table
+/// (`loc_3451C`, line 67590) and calls nothing; Fanbite's
+/// `BattleObj_LocustaSpiralBld` (`ps4.asm:29175`) calls nothing either.
+fn object_draws(carrier: &Carrier) -> usize {
+    if carrier.enemy_id == SAND_WORM.enemy_id {
+        EARTHQUAKE_SHAKE_DRAWS as usize
+    } else {
+        0
+    }
+}
+
 /// Resolves one listed pair once and pins the request it makes: one
 /// `EnemySkillUsed`, then one `Resolved` per living party slot in slot order,
-/// sixteen draws each, and nothing else.
+/// sixteen draws each, plus the calls the carrier's own object chain takes
+/// before them ([`object_draws`]), and nothing else.
 fn resolve_all_party(carrier: &Carrier, ability: u8, intended: Option<FighterId>) -> Vec<u16> {
     let data = all_party_data(&[*carrier], &[ability]);
     let mut r = all_party_roster(&data, carrier);
@@ -171,7 +191,7 @@ fn resolve_all_party(carrier: &Carrier, ability: u8, intended: Option<FighterId>
     );
     assert_eq!(
         rolls.drawn(),
-        48,
+        48 + object_draws(carrier),
         "{}: three living slots, one damage request each",
         carrier.symbol
     );
@@ -485,8 +505,10 @@ fn an_unlisted_pair_for_the_same_two_records_is_refused() {
 /// One round against one carrier, driven through `roll_enemy_ability` on a
 /// fully specified draw stream: nine ordering draws, the four enemy-target
 /// draws, the ability index (1, and every slot holds the ability) and three
-/// times the 16 damage draws — 62 in all, with no swing. Party agility 1 keeps
-/// the enemy first in the queue, so Defend has raised nobody's resistance yet.
+/// times the 16 damage draws — 62 in all, plus whatever the carrier's own
+/// object chain takes before the runs ([`object_draws`]) — with no swing.
+/// Party agility 1 keeps the enemy first in the queue, so Defend has raised
+/// nobody's resistance yet.
 fn all_party_round(carrier: &Carrier, ability: u8) -> (Vec<BattleEvent>, usize) {
     // Every regular slot holds the ability under test, so the index roll lands
     // on it. The real list above is what the gate is proven against; a zero
@@ -530,6 +552,10 @@ fn all_party_round(carrier: &Carrier, ability: u8) -> (Vec<BattleEvent>, usize) 
     // slot holds the ability under test.
     stream.push(1);
     stream.extend([0; 48]);
+    // The carrier's own object calls sit between the ability roll and the
+    // first damage run, so the stream needs them where the resolver takes
+    // them rather than only where the runs do.
+    stream.extend(vec![0; object_draws(carrier)]);
     let mut rolls = SliceRolls::new(&stream);
     let events = battle
         .round(
@@ -554,7 +580,8 @@ fn every_all_party_route_resolves_in_an_ordinary_round() {
     ] {
         let (events, drawn) = all_party_round(&carrier, ability);
         assert_eq!(
-            drawn, 62,
+            drawn,
+            62 + object_draws(&carrier),
             "{} {ability:#04X}: three requests, no swing",
             carrier.symbol
         );
@@ -588,5 +615,142 @@ fn every_all_party_route_resolves_in_an_ordinary_round() {
             "{} {ability:#04X}: dispatched, so nothing falls back: {events:?}",
             carrier.symbol
         );
+    }
+}
+
+/// One carrier's `$38` (or `$08`) on a caller-supplied stream: the damage per
+/// living party slot, in slot order, and the draws the run took.
+fn resolve_on(carrier: &Carrier, ability: u8, stream: &[u16]) -> (Vec<u16>, usize) {
+    let data = all_party_data(&[*carrier], &[ability]);
+    let mut r = all_party_roster(&data, carrier);
+    let mut rolls = SliceRolls::new(stream);
+    let mut events = Vec::new();
+    assert!(resolve_damage_skill(
+        &mut r,
+        id(6),
+        ability,
+        None,
+        &data,
+        &mut rolls,
+        &mut events
+    ));
+    let damage = events
+        .iter()
+        .filter_map(|event| match event {
+            BattleEvent::Resolved {
+                damage: Some(d), ..
+            } => Some(*d),
+            _ => None,
+        })
+        .collect();
+    (damage, rolls.drawn())
+}
+
+/// The arithmetic behind [`EARTHQUAKE_SHAKE_DRAWS`], and the two `$38`
+/// carriers side by side: same ability, same class, same three numbers, and 28
+/// calls between the ability roll and the first damage run for one of them and
+/// none for the other.
+///
+/// The count is the cartridge's, not the port's invention. `loc_24308`
+/// (`ps4.asm:47943-47945`) enters the shake with `$11(a4) = $3C` frames and
+/// `$10(a4) = 0`; `loc_2436A` (`ps4.asm:47963`) counts `$11` down and leaves
+/// the state on the frame that empties it; `loc_2438E` (`ps4.asm:47972`) bumps
+/// `$10`, masks it to two bits and reaches the two `jsr (UpdateRNGSeed2).l`
+/// calls (lines 47976, 47983) only on the frame that masks to zero. Frames
+/// 4, 8 … 56 draw, twice each — 14 × 2. The capture that settled it measured
+/// exactly that: `build/sweep-3B/capture/forced_3B_attack_rolls.csv` holds two
+/// calls a frame at f26541, f26545 … f26593 of SandWorm's round-3 `$38`.
+#[test]
+fn earthquakes_shake_draws_twice_every_fourth_frame() {
+    assert_eq!(EARTHQUAKE_SHAKE_FRAMES, 0x3C, "sixty frames of shake");
+    assert_eq!(EARTHQUAKE_SHAKE_PERIOD, 4, "the $10(a4) mask");
+    assert_eq!(
+        EARTHQUAKE_SHAKE_DRAWS, 28,
+        "the frame that empties $11(a4) leaves the state instead of drawing"
+    );
+
+    // SandWorm: the shake, then one run per living slot.
+    let (damage, drawn) = resolve_on(&SAND_WORM, EARTHQUAKE, &[0]);
+    assert_eq!(drawn, 28 + 48, "the shake, then three runs of sixteen");
+    assert_eq!(damage, expected_triple(&SAND_WORM));
+
+    // KingRappy: the same shape with no object calls at all. 28 of the draws
+    // are SandWorm's object, which is why the route carries them and the
+    // ability cannot.
+    let (king, drawn) = resolve_on(&KING_RAPPY, EARTHQUAKE, &[0]);
+    assert_eq!(drawn, 48, "no object calls: three runs of sixteen");
+    assert_eq!(king, expected_triple(&KING_RAPPY));
+
+    // Fanbite's SPIRAL BLD is the third all-party route and draws none either.
+    let (_, fanbite) = resolve_on(&FANBITE, SPIRAL_BLD, &[0]);
+    assert_eq!(fanbite, 48);
+}
+
+/// The shake's calls are behind the request, so they come *first*: a stream
+/// whose opening 28 words have nothing to add to `S` and whose next sixteen
+/// mask to seven has to give the maximum-roll number for the first slot, not
+/// the mean-roll one. Reading the 28 as the first slot's damage — the shape the
+/// missing calls produced (issue #33) — gives the mean number instead.
+#[test]
+fn the_shake_draws_sit_before_the_first_damage_run() {
+    let mut stream = vec![0u16; EARTHQUAKE_SHAKE_DRAWS as usize];
+    stream.extend([7u16; 16]);
+    let (damage, drawn) = resolve_on(&SAND_WORM, EARTHQUAKE, &stream);
+    assert_eq!(drawn, 28 + 48);
+
+    // Slot 1, defense 7, factor 2, at S = 112 rather than S = 0.
+    let mut sixteen_max = SliceRolls::new(&[7u16; 16]);
+    let max_roll = crate::battle::clamp_damage(crate::battle::calculate_damage(
+        279,
+        7,
+        2,
+        0,
+        &mut sixteen_max,
+    ));
+    assert_eq!(damage[0], max_roll, "the sixteen words after the shake");
+    assert_ne!(
+        damage[0],
+        record_damage(279, 7, 2, 0),
+        "which is the number the shake's own words would have produced"
+    );
+}
+
+/// The object's calls depend on nothing the resolution finds: the arm loads it
+/// on the ability roll, so the shake runs its frames and takes its calls before
+/// the five-slot write and the target walk behind it. A party with one slot
+/// left takes the 16 of that slot; a party with none still takes the 28.
+#[test]
+fn the_shake_is_drawn_whatever_the_target_walk_finds() {
+    for (dead, expected) in [(&[1u8, 3][..], 28 + 16), (&[1, 2, 3][..], 28)] {
+        let data = all_party_data(&[SAND_WORM], &[EARTHQUAKE]);
+        let mut r = all_party_roster(&data, &SAND_WORM);
+        for slot in dead {
+            kill(&mut r, *slot);
+        }
+        let mut rolls = SliceRolls::new(&[0]);
+        let mut events = Vec::new();
+        assert!(resolve_damage_skill(
+            &mut r,
+            id(6),
+            EARTHQUAKE,
+            None,
+            &data,
+            &mut rolls,
+            &mut events
+        ));
+        assert_eq!(rolls.drawn(), expected, "dead slots {dead:?}");
+        let resolved = events
+            .iter()
+            .filter(|event| matches!(event, BattleEvent::Resolved { .. }))
+            .count();
+        assert_eq!(
+            resolved,
+            3 - dead.len(),
+            "one per living slot, the skill event always: {events:?}"
+        );
+        assert!(matches!(
+            events.first(),
+            Some(BattleEvent::EnemySkillUsed { .. })
+        ));
     }
 }
