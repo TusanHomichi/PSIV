@@ -16,6 +16,11 @@ vehicle_land_max_hp	FFFFFA82	2	vehicle	-
 vehicle_land_skill_mask	FFFFFA84	1	vehicle	hex
 vehicle_land_skill1_current	FFFFFA86	1	vehicle	-
 vehicle_land_skill1_max	FFFFFA87	1	vehicle	-
+vehicle_ice_hp	FFFFFAA0	2	vehicle	-
+vehicle_ice_max_hp	FFFFFAA2	2	vehicle	-
+vehicle_ice_skill_mask	FFFFFAA4	1	vehicle	hex
+vehicle_ice_skill1_current	FFFFFAA6	1	vehicle	-
+vehicle_ice_skill1_max	FFFFFAA7	1	vehicle	-
 joy_held	FFFFEF02	1	input	hex
 joy_pressed	FFFFEF03	1	input	hex
 btn_held_frames	FFFFEF04	1	input	-

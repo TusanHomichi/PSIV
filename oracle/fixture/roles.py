@@ -45,8 +45,11 @@ def animation_hit_pass_actors(party):
     """The one-based slot ids whose swings take `loc_B6A2`'s second pass.
 
     A vehicle battle's party list is empty and its single party-side fighter is
-    the vehicle, which is neither Alys nor Kyra, so it takes one pass - the
-    port's own rule keys on the roster's character index the same way
+    the vehicle, which is neither Alys nor Kyra, so it never takes the
+    *animation's* second pass - the passes its own swing draws are its attack
+    object's (`rust/psiv-core/src/battle/vehicle_attack.rs`'s `hit_passes`, two
+    for the Ice Digger and three for the others). The port's own rule keys on
+    the roster's character index the same way
     (`rust/psiv-core/src/battle/action.rs`'s `takes_second_hit_pass`).
     """
     return {entry["id"] for entry in party

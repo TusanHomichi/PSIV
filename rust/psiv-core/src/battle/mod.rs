@@ -136,8 +136,8 @@ pub use tables::{
 };
 pub use technique::{Technique, TechniqueRejection, TechniqueStat, technique_targets};
 pub use vehicle_attack::{
-    VEHICLE_ATTACK_ELEMENT, VEHICLE_FIGHTER_IDS, VEHICLE_HIT_PASSES, is_vehicle_fighter,
-    resolve_vehicle_attack,
+    VEHICLE_ATTACK_ELEMENT, VEHICLE_ATTACK_OBJECTS, VEHICLE_FIGHTER_IDS, VehicleAttackObject,
+    attack_object, hit_passes, is_vehicle_fighter, resolve_vehicle_attack, vehicle_index,
 };
 pub use vehicle_skill::{
     VehicleSkillData, VehicleSkillEffectKind, VehicleSkillResistance, resolve_vehicle_skill,

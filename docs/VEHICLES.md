@@ -146,6 +146,40 @@ The runtime uses `Battle::start_vehicle`, keeps the saved member's current
 uses in the battle copy, halves the vehicle reward surface, and copies current
 HP/current uses back to the selected record on exit.
 
+The plain Attack is the vehicle's **own** swing, not `Character_Attack`. The
+vehicle menu's first option writes command 6 (`loc_684A`, `ps4.asm:9852-9878`),
+and `loc_5B8E`'s seven-entry table (`ps4.asm:8410-8416`) sends command 6 to
+`loc_AF9C` (`ps4.asm:16810`), so `Character_Attack`'s weapon check and its
+`Character_AttackActionOffs` dispatch are never reached. `psiv-core`'s
+`resolve_attack` routes a vehicle fighter to `battle/vehicle_attack.rs`'s
+`resolve_vehicle_attack` before that check: one target (`loc_1152`), the hit
+passes its attack object's wind-up decides (below), and the damage from
+`loc_280A` — the **target's** energy property (`element_factor(2)`), with the
+actor's hands never read.
+
+How many `loc_B6A2` passes a swing draws is the vehicle's own, and the attack
+object state 4 creates is what says so (`loc_B15C`, `ps4.asm:16964-16968`; the
+object ids name routines in the table at `ps4.asm:74660-74662`):
+
+| `Vehicle_Index` | record | attack object | `$1C` wind-up | hit passes |
+|---:|---|---|---:|---:|
+| 1 | Land Rover | `$644` `BattleObj_LandRoverAtk` (`ps4.asm:82940`) | `#$C` (`82945`) | 3 |
+| 2 | Ice Digger | `$648` `BattleObj_IceDiggerAtk` (`ps4.asm:82991`) | `0` (`82996`) | 2 |
+| 3 | Hydrofoil | `$64C` `BattleObj_HydrofoilAtk` (`ps4.asm:83066`) | `#$C` (`83071`) | 3 |
+
+The object's first state hands the vehicle's `action_routine` back to 5
+(`move.w #5, $32(a0)`) once its wind-up expires, and only a **nonzero** wind-up
+adds a pass: a `#$C` wind-up counts down for thirteen frames and lands the write
+after state 5 has already moved the vehicle on to 6, so state 5 runs again
+(three passes), while a zero wind-up expires in the creation frame, before state
+4's own `addq.w #1, $32(a4)` — the write changes nothing and state 5 runs once
+(two passes). `hit_passes` is that rule, one entry per `VehicleData` record; the
+last pass decides either way, because `loc_B6A2` blanks all nine hit flags
+before each one. Both captures measure it: the Land Rover's swing has passes at
+f25059, f25060 and f25072 landing 165, the Ice Digger's at f25058 and f25059
+landing 212 from its own 250 attack byte
+([`BATTLE_ORACLE_FORCED.md`](BATTLE_ORACLE_FORCED.md) §5.1).
+
 ### Vehicle skill menu
 
 Retail's main battle options are `ATTAC`, `OPTIN`, `RUN`

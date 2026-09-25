@@ -220,6 +220,42 @@
       "source": "Saved_Vehicle_Stats, constants:2412 + skill 1 max-use offset 7"
     },
     {
+      "name": "vehicle_ice_hp",
+      "addr": "FFFFFAA0",
+      "size": 2,
+      "group": "vehicle",
+      "source": "Ice_Digger_Stats, constants:2413 + current HP offset 0"
+    },
+    {
+      "name": "vehicle_ice_max_hp",
+      "addr": "FFFFFAA2",
+      "size": 2,
+      "group": "vehicle",
+      "source": "Ice_Digger_Stats, constants:2413 + max HP offset 2"
+    },
+    {
+      "name": "vehicle_ice_skill_mask",
+      "addr": "FFFFFAA4",
+      "size": 1,
+      "group": "vehicle",
+      "hex": true,
+      "source": "Ice_Digger_Stats, constants:2413 + skill mask offset 4"
+    },
+    {
+      "name": "vehicle_ice_skill1_current",
+      "addr": "FFFFFAA6",
+      "size": 1,
+      "group": "vehicle",
+      "source": "Ice_Digger_Stats, constants:2413 + skill 1 current-use offset 6"
+    },
+    {
+      "name": "vehicle_ice_skill1_max",
+      "addr": "FFFFFAA7",
+      "size": 1,
+      "group": "vehicle",
+      "source": "Ice_Digger_Stats, constants:2413 + skill 1 max-use offset 7"
+    },
+    {
       "name": "joy_held",
       "addr": "FFFFEF02",
       "size": 1,

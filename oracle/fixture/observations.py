@@ -264,10 +264,11 @@ def sample_decisive_hits(log, record, decisive_frame):
     **last** pass wrote - the one `Fighter_TakeDamage` reads
     (`ps4.asm:3569-3571`). [`action_record`] reads the byte at the first frame
     the flags moved, which is the *first* pass's verdict; for a swing whose
-    passes arrive in different frames - `loc_AF9C`'s three, the vehicle's - the
-    two differ, and the action's own `hit_frame` is not the frame its byte came
-    from. This re-reads it at `decisive_frame`, the frame of the action's last
-    `loc_B6A2` roll.
+    passes arrive in different frames - `loc_AF9C`'s vehicle swing, which draws
+    one pass per frame (two for the Ice Digger, three for the Land Rover and
+    the Hydrofoil) - the two differ, and the action's own `hit_frame` is not the
+    frame its byte came from. This re-reads it at `decisive_frame`, the frame of
+    the action's last `loc_B6A2` roll.
 
     Nothing writes `Fighters_Hit_Flags` between that pass and the action's end -
     the next writer is another action's `loc_B6A2`, which is outside this
