@@ -3,9 +3,7 @@
 1028 rust/psiv-data/src/game_data.rs
 1048 rust/psiv-data/src/game_data_tests.rs
 1077 rust/psiv-data/src/map.rs
-1122 rust/psiv-godot/src/camp/mod.rs
 1192 rust/psiv-godot/src/cutscene.rs
-1007 rust/psiv-godot/src/lib.rs
 1009 rust/psiv-godot/src/shop.rs
 1281 rust/psiv-runtime/src/lib.rs
 1190 rust/psiv-runtime/tests/next_arc.rs

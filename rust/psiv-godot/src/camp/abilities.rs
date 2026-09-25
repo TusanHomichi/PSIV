@@ -1,8 +1,7 @@
 //! Camp TECH/SKILL browse and confirmation. Runtime owns every state change.
-use super::{
-    CHILD_CURSOR_PATTERN, CampChrome, CampMenu, DrawList, ITEM_LIST, ITEM_TARGET, Mode, draw_text,
-    frame, wrap,
-};
+use super::draw::{draw_text, frame};
+use super::layout::CHILD_CURSOR_PATTERN;
+use super::{CampChrome, CampMenu, DrawList, ITEM_LIST, ITEM_TARGET, Mode, wrap};
 use psiv_runtime::{CampAbilityKind, CampUseResult, Runtime};
 
 impl CampMenu {

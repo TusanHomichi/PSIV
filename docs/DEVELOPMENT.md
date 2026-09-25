@@ -156,7 +156,10 @@ listed there.
 
 `tools/native/native_*.gd` drives ordinary Godot input and reads runtime observations.
 Some drivers use isolated fixtures; others continue a saved campaign. Their
-ledgers identify which kind of evidence each run supplies.
+ledgers identify which kind of evidence each run supplies. A driver runs under
+Godot's `--script`, so it must name its run directory with `PSIV_SAVE_DIR`; the
+extension refuses to resolve one without the variable
+([repository instructions](../AGENTS.md#protect-local-inputs-and-evidence)).
 
 - [BioPlant and recovery](campaign/BIOPLANT_NATIVE.md)
 - [Post-Rika crossing and current campaign save](field/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
