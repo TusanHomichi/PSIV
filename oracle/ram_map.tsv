@@ -206,6 +206,12 @@ turn_08	FFFFEFC0	2	battle	hex
 turn_09	FFFFEFC2	2	battle	hex
 turn_10	FFFFEFC4	2	battle	hex
 turn_11	FFFFEFC6	2	battle	hex
+turn_12	FFFFEFC8	2	battle	hex
+turn_13	FFFFEFCA	2	battle	hex
+turn_14	FFFFEFCC	2	battle	hex
+turn_15	FFFFEFCE	2	battle	hex
+turn_16	FFFFEFD0	2	battle	hex
+turn_17	FFFFEFD2	2	battle	hex
 battle_exp_total	FFFF41CE	2	battle	-
 e1_str_bat	FFFF421A	1	enemy	-
 e1_men_bat	FFFF421D	1	enemy	-

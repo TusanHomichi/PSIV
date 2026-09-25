@@ -23,8 +23,11 @@ import pathlib
 import subprocess
 import sys
 
+from .. import fixture
+from . import durable as durable_patch
 from . import runs
-from .capture import Capture, enemy_slots, matches, read_capture
+from .capture import (Capture, battle_shape, cap_rounds, enemy_slots, matches,
+                      read_capture)
 from .draw import Draw, find_draw, patch_specs
 from .errors import ForceError
 from .pack import Pack, describe, field_layout, parse_formation
@@ -64,12 +67,17 @@ def plan(args, pack: Pack, layout: dict, selector: Selector, formation: int,
 
 
 def probe_phase(plan_facts: dict, args, selector: Selector, pack: Pack,
-                base_steps: list[Step]) -> Draw:
+                base_steps: list[Step],
+                layout: dict[str, dict]
+                ) -> tuple[Draw, durable_patch.Durable | None]:
     """Run the probe and hand back the draw, with the model's own checks.
 
     The probe forces the group and leaves the seed alone, so its log says which
     formation the group's draw produced - which must be the group table's entry
     - and its trace says where the draw is and what `hv + frame_count` was.
+    With `--durable`, its log is also where the durable patch is planned: the
+    frame the extractor will read the battle's start state from is in it, and
+    so is each fighter's HP there.
     """
     out, stem = plan_facts["out"], plan_facts["stem"]
     steps = compose(base_steps, plan_facts["cut"], args.delay,
@@ -113,11 +121,25 @@ def probe_phase(plan_facts: dict, args, selector: Selector, pack: Pack,
         raise ForceError(
             f"f{draw.frame_before} has an UpdateRNGSeed2 call of its own, so "
             "the seed patch would break the trace's chain")
-    return draw
+    durable = None
+    if args.durable:
+        log = fixture.Log(rows, layout)
+        start = fixture.enemies_loaded(log, window[0], window[1])
+        durable = durable_patch.plan_patch(log, layout, start, selector.vehicle)
+        who = "the vehicle" if selector.vehicle else ", ".join(
+            cell.split("_hp")[0] for cell in durable.cells[::2])
+        print(f"durable: {durable.hp} HP to {who or 'nobody'} at f{start} "
+              f"(the frame the start state is read from), "
+              f"{len(durable.cells)} cell(s)"
+              + (f"; left alone: {', '.join(durable.skipped)}"
+                 if durable.skipped else ""))
+    return draw, durable
 
 
 def capture_phase(plan_facts: dict, specs: list[str], draw: Draw, pack: Pack,
-                  selector: Selector, formation: int) -> tuple[Capture, int]:
+                  selector: Selector, formation: int, args,
+                  layout: dict[str, dict],
+                  durable) -> tuple[Capture, int]:
     """Preview, trim, capture and re-run; hand back the capture and the trim.
 
     The preview is the untrimmed run: it says when the battle ended, which is
@@ -133,8 +155,11 @@ def capture_phase(plan_facts: dict, specs: list[str], draw: Draw, pack: Pack,
         print(f"note: the untrimmed preview run ended with exit "
               f"{preview.status} (post-battle game-over sequence); the trimmed "
               "capture is the evidence", file=sys.stderr)
+    preview_rows = read_rows(preview.log)
     preview_capture = read_capture(preview, draw.frame,
-                                  selector.kind == "vehicle")
+                                  selector.kind == "vehicle", preview_rows)
+    battle_shape(preview_capture, preview_rows, layout)
+    cap_rounds(preview_capture, args.max_rounds)
     window = preview_capture.window
     if not matches(preview_capture, pack, formation):
         raise ForceError(
@@ -150,7 +175,17 @@ def capture_phase(plan_facts: dict, specs: list[str], draw: Draw, pack: Pack,
         raise ForceError("the battle had not ended when the tape ran out; "
                          "re-run with more --repeats")
 
-    trim_to = min(tape_frames(plan_facts["steps"]), window[1] + TAIL_FRAMES)
+    # A capped capture ends where round `--max-rounds` does: the tape runs to
+    # the frame the next round's queue is built on, so the extractor can see
+    # that boundary in the log and cut the fixture's window at the frame before
+    # it. Otherwise the tape keeps the battle's own end and its tail.
+    trim_to = window[1] + TAIL_FRAMES
+    if preview_capture.truncated:
+        trim_to = preview_capture.round_frames[args.max_rounds]
+        print(f"cap: round {args.max_rounds} ends at f{preview_capture.cut_frame}"
+              f"; the tape stops at f{trim_to}, where round "
+              f"{args.max_rounds + 1}'s queue is built")
+    trim_to = min(tape_frames(plan_facts["steps"]), trim_to)
     tape.write_text(emit_tape(trim_tape(plan_facts["steps"], trim_to),
                               plan_facts["header"]))
     capture = runs.run_oracle(tape, out / "capture", stem, specs)
@@ -159,13 +194,32 @@ def capture_phase(plan_facts: dict, specs: list[str], draw: Draw, pack: Pack,
         if run.status != 0:
             raise ForceError(f"the {label} run failed (exit {run.status}):\n"
                              f"{run.stderr.strip()}")
-    final = read_capture(capture, draw.frame, selector.kind == "vehicle")
-    if final.window != window:
+    final_rows = read_rows(capture.log)
+    final = read_capture(capture, draw.frame, selector.kind == "vehicle",
+                         final_rows)
+    battle_shape(final, final_rows, layout)
+    cap_rounds(final, args.max_rounds)
+    if final.window[0] != window[0] \
+            or final.window[1] != (trim_to if preview_capture.truncated
+                                   else window[1]):
         raise ForceError(f"trimming the tape moved the battle, {window} -> "
-                         f"{final.window}")
+                         f"{final.window} (the tape ends at f{trim_to})")
+    if final.outcome != preview_capture.outcome \
+            or final.cut_frame != preview_capture.cut_frame:
+        raise ForceError(
+            f"the trimmed capture reads {final.outcome}"
+            + (f" to f{final.cut_frame}" if final.truncated else "")
+            + f", but the untrimmed preview reads {preview_capture.outcome}"
+            + (f" to f{preview_capture.cut_frame}" if preview_capture.truncated
+               else ""))
     if not matches(final, pack, formation):
         raise ForceError(f"the trimmed capture built {final.enemies}, not "
                          f"{pack.enemies_of(formation)}")
+    if durable is not None:
+        durable_patch.verify(durable, fixture.Log(final_rows, layout),
+                             final.start_frame)
+        print(f"durable: verified at f{final.start_frame} - "
+              f"{', '.join(durable.cells)} read {durable.hp}")
     if final.log_sha256 != sha256(rerun.log) \
             or final.trace_sha256 != sha256(rerun.trace):
         raise ForceError("two runs of the same tape and patches differ")
@@ -175,7 +229,7 @@ def capture_phase(plan_facts: dict, specs: list[str], draw: Draw, pack: Pack,
 def build_report(args, pack: Pack, selector: Selector, formation: int,
                  forced_index: int, facts: dict, plan_facts: dict, draw: Draw,
                  specs: list[str], final: Capture, preview_status: int,
-                 cut: int, missing: list[str]) -> dict:
+                 cut: int, missing: list[str], durable=None) -> dict:
     """Everything a reader needs to re-run the capture and judge it."""
     entries = pack.entries_for(formation)
     return {
@@ -209,6 +263,13 @@ def build_report(args, pack: Pack, selector: Selector, formation: int,
         "tape": str(plan_facts["tape"]),
         "tape_frames": tape_frames(expand_tape(plan_facts["tape"].read_text())),
         "battle_first": final.window[0], "battle_last": final.window[1],
+        "start_frame": final.start_frame,
+        "max_rounds": args.max_rounds,
+        "truncated": final.truncated,
+        "cut_frame": final.cut_frame,
+        "rounds_captured": (final.rounds if not final.truncated
+                            else final.rounds_captured),
+        "durable": durable.report() if durable is not None else None,
         "outcome": final.outcome, "enemies": final.enemies,
         "party": final.party, "vehicle_fighter_hp": final.vehicle_hp,
         "abilities": final.abilities, "rewards": final.rewards,
@@ -233,6 +294,9 @@ def run(args) -> int:
     selector = choose_selector(pack, formation, args.vehicle)
     if args.delay < 0 or args.repeats < 1:
         raise ForceError("--delay must be >= 0 and --repeats >= 1")
+    if args.max_rounds < 0:
+        raise ForceError("--max-rounds must be >= 0 (0 = capture the whole "
+                         "battle)")
     base_tape = pathlib.Path(args.base_tape)
     try:
         base_text = base_tape.read_text()
@@ -267,20 +331,32 @@ def run(args) -> int:
               f"{' '.join(plan_facts['selector_specs'])}")
         return 0
 
-    draw = probe_phase(plan_facts, args, selector, pack, base_steps)
+    draw, durable = probe_phase(plan_facts, args, selector, pack, base_steps,
+                                layout)
     specs = patch_specs(selector, facts, layout, draw, forced_index)
-    (plan_facts["out"] / f"{stem}.patches.txt").write_text(
-        f"# --ram-patch list for {stem}\n"
+    lines = [
+        f"# --ram-patch list for {stem}",
         f"# f{facts['battle_first'] + 1}: the group selector, one frame after "
-        f"the encounter fires\n"
+        f"the encounter fires",
         f"# f{draw.frame_before}: RNG_Seed's high word, one frame before the "
-        f"formation draw (K = {draw.k}, entry {forced_index})\n"
-        f"# f{draw.frame + 1}: the selector cells written back\n"
-        + "\n".join(specs) + "\n")
+        f"formation draw (K = {draw.k}, entry {forced_index})",
+        f"# f{draw.frame + 1}: the selector cells written back",
+    ]
+    if durable is not None:
+        specs += durable.specs(layout)
+        lines.append(
+            f"# f{durable.frame}: the durable party patch, {durable.hp} HP to "
+            f"{', '.join(durable.cells)} - the frame the extractor reads the "
+            f"battle's start state from"
+            + (f"; left alone: {', '.join(durable.skipped)}"
+               if durable.skipped else ""))
+    (plan_facts["out"] / f"{stem}.patches.txt").write_text(
+        "\n".join(lines) + "\n" + "\n".join(specs) + "\n")
     print("patches: " + "  ".join(specs))
 
     final, preview_status = capture_phase(plan_facts, specs, draw, pack,
-                                         selector, formation)
+                                         selector, formation, args, layout,
+                                         durable)
     checked = subprocess.run(
         [sys.executable, str(ORACLE / "rng_trace.py"), "check",
          str(final.trace_path), str(final.log_path)],
@@ -296,7 +372,7 @@ def run(args) -> int:
                           for key in final.abilities)]
     report = build_report(args, pack, selector, formation, forced_index, facts,
                           plan_facts, draw, specs, final, preview_status,
-                          plan_facts["cut"], missing)
+                          plan_facts["cut"], missing, durable)
     (plan_facts["out"] / "report.json").write_text(
         json.dumps(report, indent=2, sort_keys=True) + "\n")
     print(f"capture: f{report['battle_first']}-{report['battle_last']}, "

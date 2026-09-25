@@ -27,8 +27,7 @@ RAM_MAP = {"fields": [
         "frame", "battle_actor", "battle_priority", "battle_exp_total",
         "battle_meseta_total", "enemy_count", "enemy_ambush_chance",
         "enemy_run_chance", "item_drop_rate", "dropped_item",
-        "turn_00", "turn_01", "turn_02", "turn_03", "turn_04", "turn_05",
-        "turn_06", "turn_07", "turn_08", "turn_09", "turn_10", "turn_11",
+        *[f"turn_{index:02d}" for index in range(18)],
         "chaz_level", "chaz_hp", "chaz_maxhp", "chaz_tp", "chaz_maxtp",
         "chaz_status", "chaz_str", "chaz_agi", "chaz_agi_bat", "chaz_dex",
         "chaz_atk", "chaz_dfs", "chaz_men", "chaz_exp",
@@ -39,9 +38,8 @@ RAM_MAP = {"fields": [
         "hahn_status", "hahn_str", "hahn_agi", "hahn_agi_bat", "hahn_dex",
         "hahn_atk", "hahn_dfs", "hahn_men", "hahn_exp",
     )
-    for HEX in [("battle_priority", "turn_00", "turn_01", "turn_02", "turn_03",
-                 "turn_04", "turn_05", "turn_06", "turn_07", "turn_08",
-                 "turn_09", "turn_10", "turn_11")]
+    for HEX in [("battle_priority", *[f"turn_{index:02d}"
+                                      for index in range(18)])]
 ] + [
     {"name": f"{prefix}_{suffix}", "hex": suffix in ("id", "status")}
     for prefix in ("e1", "e2", "e3", "e4")
@@ -91,7 +89,7 @@ class Row:
             "enemy_count": "0", "enemy_ambush_chance": "0",
             "enemy_run_chance": "0", "item_drop_rate": "0",
             "dropped_item": "0",
-            **{f"turn_{index:02d}": "0000" for index in range(12)},
+            **{f"turn_{index:02d}": "0000" for index in range(18)},
             **{f"hit_{index:02d}": "FF" for index in range(10)},
             **{f"dmg_{index:02d}": "0" for index in range(10)},
             **{f"e{slot}_{suffix}": "0"

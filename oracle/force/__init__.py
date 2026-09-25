@@ -64,12 +64,15 @@ the game-over sequence, where a new game re-initializes `Main_Frame_Count` and
 the host refuses to close the trace: its status is reported, not required.
 """
 
-from .capture import (Capture, ability_uses, classify, enemy_slots, matches,
-                      read_capture)
+from .capture import (Capture, ability_uses, battle_shape, cap_rounds,
+                      classify, enemy_slots, matches, read_capture)
 from .cli import main
 from .draw import GROUP_ENTRIES, Draw, find_draw, patch_specs
+from .durable import (DURABLE_HP, MEMBERS, VEHICLE_CELLS, Durable, plan_patch,
+                      verify as verify_durable)
 from .errors import ForceError
-from .pack import Pack, cell_from_row, describe, field_layout, parse_formation
+from .pack import (Pack, cell_from_row, describe, field_layout,
+                   parse_formation, patch_spec)
 from .phases import (build_report, capture_phase, plan, probe_phase, run)
 from .runs import (GROUPS, ORACLE, ROOT, Run, battle_window, by_frame, hp_of,
                    read_rows, run_oracle, seed_of, sha256)
@@ -82,16 +85,20 @@ from .tape import (PRESS_FRAMES, PROBE_REPEATS, RELEASE_FRAMES, TAIL_FRAMES,
                    tape_frames, trim_tape)
 
 __all__ = [
-    "Capture", "Draw", "ForceError", "GROUPS", "GROUP_ENTRIES", "ORACLE",
+    "Capture", "DURABLE_HP", "Draw", "Durable", "ForceError", "GROUPS",
+    "GROUP_ENTRIES", "MEMBERS", "ORACLE",
     "PRESS_FRAMES", "PROBE_REPEATS", "Pack", "REGION_VEHICLES",
     "RELEASE_FRAMES", "ROOT", "Run", "SCOUT_GROUPS", "SELECTOR_CELLS",
-    "Selector", "Step", "TAIL_FRAMES", "VEHICLE_NAMES", "VEHICLE_TABLES",
-    "ability_uses", "battle_window", "build_report", "by_frame",
-    "capture_phase", "cell_from_row", "check_vehicle",
+    "Selector", "Step", "TAIL_FRAMES", "VEHICLE_CELLS", "VEHICLE_NAMES",
+    "VEHICLE_TABLES",
+    "ability_uses", "battle_shape", "battle_window", "build_report", "by_frame",
+    "cap_rounds", "capture_phase", "cell_from_row", "check_vehicle",
     "check_vehicle_for_group", "choose_selector", "classify", "compose",
     "describe", "emit_tape", "enemy_slots", "expand_tape", "field_layout",
     "find_draw", "hp_of", "main", "matches", "parse_formation", "patch_specs",
-    "plan", "policy_steps", "probe_phase", "read_capture", "read_rows", "run",
+    "plan", "plan_patch", "policy_steps", "probe_phase", "read_capture",
+    "read_rows", "run",
     "run_oracle", "scout", "seed_of", "selector_for_group", "sha256",
+    "verify_durable",
     "tape_frames", "trim_tape",
 ]

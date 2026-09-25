@@ -27,6 +27,24 @@ def field_layout(ram_map: pathlib.Path) -> dict[str, dict]:
     return {field["name"]: field for field in document["fields"]}
 
 
+def patch_spec(frame: int, layout: dict[str, dict], name: str,
+               value: int) -> str:
+    """One `--ram-patch` spec (`<frame>:<address>:<hex>`) for a named cell.
+
+    The one place a patch is spelled, so a cell's address, width and rendering
+    are decided once, from `oracle/ram_map.json`: the group selector, the seed
+    word and the durable party patch all write through it.
+    """
+    field = layout.get(name)
+    if field is None:
+        raise ForceError(f"oracle/ram_map.json has no field {name}: the patch "
+                         "needs it")
+    size = int(field["size"])
+    if not 0 <= value < 1 << (size * 8):
+        raise ForceError(f"{name} = {value} does not fit {size} byte(s)")
+    return f"{frame}:{field['addr']}:{value:0{size * 2}X}"
+
+
 def cell_from_row(row: dict, layout: dict[str, dict], name: str) -> int:
     """One selector cell as the log renders it (ram_map's hex/decimal flag)."""
     field = layout.get(name)

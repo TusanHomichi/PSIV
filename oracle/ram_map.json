@@ -1524,7 +1524,7 @@
       "size": 2,
       "group": "battle",
       "hex": true,
-      "source": "Battle_Turn_Order+0 (constants:2351); index/agility pairs, 4 bytes per fighter"
+      "source": "Battle_Turn_Order+0 (constants:2351); index/agility pairs, 4 bytes per fighter. The array holds one entry per Obj_Fighters slot: Battle_OrderTurns runs its insertion loop and its agility passes over nine of them (moveq #8, d7; ps4.asm:7757, 7789) and sorts nine (ps4.asm:7793-7801), so the window is turn_00..turn_17. A seven-fighter battle (three members, four enemies) puts its seventh at +$18. Measured 2026-09-24 at f25014 of a forced four-enemy battle: (7,18) (9,18) (1,15) (8,13) (6,12) (2,9) (3,7) - the last pair the party's third member, which a six-fighter window cannot see"
     },
     {
       "name": "turn_01",
@@ -1613,6 +1613,54 @@
       "group": "battle",
       "hex": true,
       "source": "Battle_Turn_Order+22 (constants:2351); index/agility pairs, 4 bytes per fighter"
+    },
+    {
+      "name": "turn_12",
+      "addr": "FFFFEFC8",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Turn_Order+24 (constants:2351) = the index word of entry 6 of the nine the array holds (see turn_00)"
+    },
+    {
+      "name": "turn_13",
+      "addr": "FFFFEFCA",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Turn_Order+26 (constants:2351) = the agility word of entry 6 of the nine the array holds (see turn_00)"
+    },
+    {
+      "name": "turn_14",
+      "addr": "FFFFEFCC",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Turn_Order+28 (constants:2351) = the index word of entry 7 of the nine the array holds (see turn_00)"
+    },
+    {
+      "name": "turn_15",
+      "addr": "FFFFEFCE",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Turn_Order+30 (constants:2351) = the agility word of entry 7 of the nine the array holds (see turn_00)"
+    },
+    {
+      "name": "turn_16",
+      "addr": "FFFFEFD0",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Turn_Order+32 (constants:2351) = the index word of entry 8 of the nine the array holds (see turn_00)"
+    },
+    {
+      "name": "turn_17",
+      "addr": "FFFFEFD2",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Battle_Turn_Order+34 (constants:2351) = the agility word of entry 8 of the nine the array holds (see turn_00)"
     },
     {
       "name": "battle_exp_total",

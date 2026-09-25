@@ -37,16 +37,29 @@ pub(crate) fn member(record: &CharacterRecord, data: &BattleData) -> PartyMember
 ///
 /// `fixtures::alys()` and friends are the pack's numbers; the fixture's are
 /// the oracle's live RAM. They have to agree, and this is where a drift in
-/// either shows up.
-pub(crate) fn party_member(entry: &PartyEntry, data: &BattleData) -> PartyMember {
+/// either shows up. The one exception is a **durable** capture: when the
+/// fixture's provenance says the capture patched the party-side HP
+/// (`oracle/force/durable.py`), the entry whose two HP cells both read that
+/// value is the patch rather than the record, and every other number is still
+/// held to the record's.
+pub(crate) fn party_member(
+    entry: &PartyEntry,
+    data: &BattleData,
+    hp_patch: Option<&HpPatch>,
+) -> PartyMember {
     let record = match entry.id {
         1 => fixtures::alys(),
         2 => fixtures::chaz(),
         3 => fixtures::hahn(),
         other => panic!("no fixture record for character {other}"),
     };
+    let patched = hp_patch
+        .filter(|patch| patch.hp == entry.hp && patch.hp == entry.max_hp)
+        .is_some();
     assert_eq!(record.name, entry.name, "character {0}", entry.id);
-    assert_eq!(record.hp, entry.max_hp, "character {} max_hp", entry.id);
+    if !patched {
+        assert_eq!(record.hp, entry.max_hp, "character {} max_hp", entry.id);
+    }
     assert_eq!(record.tp, entry.max_tp, "character {} max_tp", entry.id);
     let member = member(&record, data);
     let stats = &member.stats;
@@ -72,11 +85,13 @@ pub(crate) fn party_member(entry: &PartyEntry, data: &BattleData) -> PartyMember
     }
     // The log's live HP, TP and status are what the battle starts with.
     let mut member = member;
-    assert_eq!(
-        member.stats.curr_hp, entry.hp,
-        "character {}: HP the log shows at the battle's start",
-        entry.id
-    );
+    if !patched {
+        assert_eq!(
+            member.stats.curr_hp, entry.hp,
+            "character {}: HP the log shows at the battle's start",
+            entry.id
+        );
+    }
     assert_eq!(member.stats.curr_tp, entry.tp, "character {} TP", entry.id);
     assert_eq!(
         member.stats.status, entry.status,
@@ -84,6 +99,9 @@ pub(crate) fn party_member(entry: &PartyEntry, data: &BattleData) -> PartyMember
         entry.id
     );
     member.stats.curr_hp = entry.hp;
+    // The log's maximum is the record's for every capture but a durable one,
+    // which is exactly what the provenance above declares.
+    member.stats.max_hp = entry.max_hp;
     member.stats.curr_tp = entry.tp;
     member
 }
@@ -176,10 +194,11 @@ pub(crate) fn start(fixture: &Fixture, data: &BattleData, rolls: &mut impl Rolls
                 .expect("the fixture's formation resolves")
         }
         None => {
+            let hp_patch = fixture.provenance.hp_patch.as_ref();
             let party = fixture
                 .party
                 .iter()
-                .map(|entry| party_member(entry, data))
+                .map(|entry| party_member(entry, data, hp_patch))
                 .collect();
             Battle::start(&formation, party, data, false, rolls)
                 .expect("the fixture's formation resolves")

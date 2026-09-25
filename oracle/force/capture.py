@@ -13,6 +13,7 @@ from __future__ import annotations
 import dataclasses
 import pathlib
 
+from .. import fixture
 from .errors import ForceError
 from .pack import Pack
 from .runs import Run, by_frame, battle_window, hp_of, read_rows, sha256
@@ -31,6 +32,26 @@ class Capture:
     trace_path: pathlib.Path
     log_sha256: str
     trace_sha256: str
+    #: The frame the extractor reads the battle's start state from
+    #: (`oracle/fixture/observations.py`'s `enemies_loaded`), and the frames the
+    #: log's own `Battle_Turn_Order` changes on: its rounds. Both are read only
+    #: when the run asked for them - `--durable` and `--max-rounds` - because
+    #: they need the log's battle columns and nothing else does.
+    start_frame: int = 0
+    round_frames: list[int] = dataclasses.field(default_factory=list)
+    #: A capped capture: the frame its last captured round ends on, and the
+    #: round the cap sits at.
+    cut_frame: int | None = None
+    rounds_captured: int | None = None
+
+    @property
+    def rounds(self) -> int:
+        """The rounds the log holds, once they have been read."""
+        return len(self.round_frames)
+
+    @property
+    def truncated(self) -> bool:
+        return self.cut_frame is not None
 
 
 def enemy_slots(rows: list[dict], window: tuple[int, int]) -> list[dict]:
@@ -84,8 +105,14 @@ def ability_uses(rows: list[dict], window: tuple[int, int],
     return seen
 
 
-def read_capture(run: Run, draw_frame: int, vehicle: bool = False) -> Capture:
-    rows = read_rows(run.log)
+def read_capture(run: Run, draw_frame: int, vehicle: bool = False,
+                 rows: list[dict] | None = None) -> Capture:
+    """What the log says the battle did.
+
+    `rows` is the run's log when the caller has already read it - one parse per
+    run, since these logs are tens of megabytes - and `None` reads it here.
+    """
+    rows = read_rows(run.log) if rows is None else rows
     window = battle_window(rows)
     if window is None:
         raise ForceError(f"the run in {run.log.parent} holds no battle: "
@@ -106,6 +133,44 @@ def read_capture(run: Run, draw_frame: int, vehicle: bool = False) -> Capture:
         log_sha256=sha256(run.log),
         trace_sha256=sha256(run.trace),
     )
+
+
+def battle_shape(capture: Capture, rows: list[dict],
+                 layout: dict[str, dict]) -> None:
+    """Fill in the capture's start frame and rounds, from the extractor's own
+    readings of the same log - `enemies_loaded` and `round_frames`.
+
+    Both are the extractor's rules, not this tool's: the start frame is the
+    frame a fixture takes the battle's start state from (what `--durable`'s
+    patch has to land on and be verified at), and the round frames are
+    `Battle_Turn_Order`'s own changes (what `--max-rounds` counts).
+    """
+    log = fixture.Log(rows, layout)
+    first, last = capture.window
+    capture.start_frame = fixture.enemies_loaded(log, first, last)
+    capture.round_frames = fixture.round_frames(log, capture.start_frame, last)
+
+
+def cap_rounds(capture: Capture, max_rounds: int) -> None:
+    """Apply `--max-rounds`: the capture ends one frame before round N+1 opens.
+
+    `Battle_Turn_Order`'s next change *is* the round boundary (`round_frames`),
+    so round N's last captured frame is the one before it; that frame is what a
+    fixture window is cut at, and the tape is trimmed to the boundary itself so
+    the extractor can see it. A battle the log shows ending inside the cap is
+    left alone - a battle that ends simply ends.
+    """
+    if max_rounds <= 0 or capture.outcome != "unfinished":
+        return
+    if len(capture.round_frames) <= max_rounds:
+        raise ForceError(
+            f"the capture's log holds {len(capture.round_frames)} round(s) "
+            f"and the battle is still running: --max-rounds {max_rounds} "
+            "cannot be placed against a boundary the tape never reaches "
+            "(re-run with more --repeats)")
+    capture.cut_frame = capture.round_frames[max_rounds] - 1
+    capture.rounds_captured = max_rounds
+    capture.outcome = "truncated"
 
 
 def matches(capture: Capture, pack: Pack, formation: int) -> bool:
