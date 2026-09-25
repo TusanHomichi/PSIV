@@ -123,14 +123,15 @@ def counted_lines(path: Path) -> int | None:
 
 
 def scan(root: Path, files: list[str] | None = None):
-    """`(oversize, skipped)` over `files` (default: `git ls-files`), sorted.
+    """`(sizes, skipped)` over `files` (default: `git ls-files`).
 
-    `oversize` is the `(path, lines)` of every non-exempt text file over
-    `MAX_LINES`; `skipped` counts the paths the rule passes over by reason.
+    `sizes` holds one entry per non-exempt text file, `path` -> lines; a tree's
+    over-limit files are `over_limit(sizes)`. `skipped` counts the paths the
+    rule passes over, by reason, so a report can show what it never looked at.
     """
     if files is None:
         files = git_lines("ls-files", "-z")
-    oversize: list[tuple[str, int]] = []
+    sizes: dict[str, int] = {}
     skipped = {"files": len(files), "exempt": 0, "not_text": 0}
     for path in sorted(files):
         if exempt(path):
@@ -139,9 +140,16 @@ def scan(root: Path, files: list[str] | None = None):
         lines = counted_lines(root / path)
         if lines is None:
             skipped["not_text"] += 1  # a binary file, or a path staged but gone
-        elif lines > MAX_LINES:
-            oversize.append((path, lines))
-    return oversize, skipped
+        else:
+            sizes[path] = lines
+    return sizes, skipped
+
+
+def over_limit(sizes: dict[str, int]) -> list[tuple[str, int]]:
+    """The `(path, lines)` of every file in `sizes` over `MAX_LINES`, sorted."""
+    return sorted(
+        (path, lines) for path, lines in sizes.items() if lines > MAX_LINES
+    )
 
 
 def parse_baseline(text: str) -> tuple[dict[str, int], list[str]]:
@@ -185,10 +193,9 @@ def check(root: Path) -> tuple[list[str], list[str], dict[str, int]]:
     """`(problems, notes, counts)` for the tree at `root`."""
     baseline, _, problems = read_baseline(root)
     files = git_lines("ls-files", "-z")
-    oversize, counts = scan(root, files)
-    counted = {path for path, _ in oversize}
+    sizes, counts = scan(root, files)
     notes: list[str] = []
-    for path, lines in oversize:
+    for path, lines in over_limit(sizes):
         recorded = baseline.get(path)
         if recorded is None:
             problems.append(f"{path}: {lines} lines (limit {MAX_LINES})")
@@ -197,6 +204,21 @@ def check(root: Path) -> tuple[list[str], list[str], dict[str, int]]:
                 f"{path}: {lines} lines, over its baseline of {recorded} "
                 f"(limit {MAX_LINES})"
             )
+    tracking = set(files)
+    for path, recorded in sorted(baseline.items()):
+        lines = sizes.get(path)
+        if lines is None:  # the rule counts no lines for the path at all
+            if path in tracking:
+                problems.append(
+                    f"{path}: recorded as {recorded} lines but the rule counts no "
+                    "lines for it (exempt, binary or missing); "
+                    "remove it from the baseline"
+                )
+            else:
+                problems.append(
+                    f"{path}: in the baseline but not tracked; "
+                    "remove it from the baseline"
+                )
         elif lines <= MAX_LINES:
             problems.append(
                 f"{path}: {lines} lines, at or under the limit; "
@@ -204,20 +226,7 @@ def check(root: Path) -> tuple[list[str], list[str], dict[str, int]]:
             )
         elif lines < recorded:  # still over the limit, but closer: suggest a lower count
             notes.append(f"{path}: {lines} lines, down from {recorded}; lower its count")
-    tracked = set(files)
-    for path, recorded in baseline.items():
-        if path in counted:
-            continue
-        if path in tracked:
-            problems.append(
-                f"{path}: recorded as {recorded} lines but the rule does not count "
-                "it (exempt or binary); remove it from the baseline"
-            )
-        else:
-            problems.append(
-                f"{path}: in the baseline but not tracked; remove it from the baseline"
-            )
-    counts["over"] = len(oversize)
+    counts["over"] = len(over_limit(sizes))
     counts["baselined"] = len(baseline)
     return problems, notes, counts
 
@@ -263,23 +272,24 @@ def refusals(
 def rewrite(root: Path) -> int:
     """`--write-baseline`: write the current tree's over-limit files, or refuse."""
     previous, exists, problems = read_baseline(root)
-    oversize, _ = scan(root)
+    sizes, _ = scan(root)
+    entries = over_limit(sizes)
     if problems:
         for problem in problems:
             print(problem)
         return EXIT_PROBLEMS
-    refused = refusals(oversize, previous, seeding=not exists)
+    refused = refusals(entries, previous, seeding=not exists)
     if refused:
         for line in refused:
             print(line)
         return EXIT_PROBLEMS
     path = root / BASELINE
-    text = baseline_text(oversize)
+    text = baseline_text(entries)
     if exists and path.read_text(encoding="utf-8") == text:
-        print(f"{BASELINE} is unchanged: {len(oversize)} entries")
+        print(f"{BASELINE} is unchanged: {len(entries)} entries")
         return EXIT_OK
     path.write_text(text, encoding="utf-8")
-    print(f"wrote {BASELINE}: {len(oversize)} entries")
+    print(f"wrote {BASELINE}: {len(entries)} entries")
     return EXIT_OK
 
 

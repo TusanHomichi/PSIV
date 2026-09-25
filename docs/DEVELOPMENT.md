@@ -116,8 +116,7 @@ cover:
 - native Godot drivers (`tools/native_*.gd`, `tools/verify_native_*.py`) and
   anything visual: their ledgers own those runs;
 - cartridge comparisons: `./oracle/verify.sh` (fast) and `--full` are separate
-  lanes, described in the [oracle guide](../oracle/README.md);
-- the file-size rule below ([#11](https://github.com/TusanHomichi/PSIV/issues/11)).
+  lanes, described in the [oracle guide](../oracle/README.md).
 
 Verify through repository entry points: these commands, the oracle lanes, the
 native drivers and their verifiers. A check needed a second time is promoted
@@ -131,11 +130,27 @@ evidence.
 
 Source files stay under 1,000 lines. A change that touches a file over the limit
 reorganizes it into cohesive modules in the same change. Generated and data
-files are exempt: `*.json`, `*.tsv`, `*.csv`, `*.lock` and `**/replay_fixtures/**`.
-The [lane harness](../tools/ds_lane/README.md) is the only tool that flags the
-limit today, and only on its own commits;
-[#12](https://github.com/TusanHomichi/PSIV/issues/12) tracks the files already
-over it.
+files are exempt: `*.json`, `*.tsv`, `*.csv`, `*.lock` and
+`**/replay_fixtures/**`. That list is `EXEMPT` in `tools/size_guard.py`, which
+owns the rule; this document names the same globs.
+
+`python3 tools/size_guard.py` scans every file `git ls-files` lists that is text
+(no NUL byte in its first 8 KiB) and fails on a non-exempt file over the limit.
+It runs inside the Python suite the gate runs (`tests/test_size_guard.py`), so
+the limit is a gate check rather than a reviewer's memory, and the
+[lane harness](../tools/ds_lane/README.md) reports the same limit on its own
+commits.
+
+`tools/size_baseline.txt` is the ratchet: one `<lines> <path>` per line, sorted
+by path, for the files that were already over the limit when the guard landed.
+The guard fails a new over-limit file, a baselined file that grew past its
+count, a baselined file now at or under the limit, and a baselined path that is
+gone; a baselined file that shrank while staying over the limit passes, with a
+suggestion to lower its count. `--write-baseline` seeds that file and may lower
+a count; it refuses to record growth, because a file over the limit is
+reorganized, not baselined.
+[#12](https://github.com/TusanHomichi/PSIV/issues/12) tracks the files still
+listed there.
 
 ## Native and original-game comparisons
 
