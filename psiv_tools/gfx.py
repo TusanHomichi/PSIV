@@ -64,7 +64,7 @@ CRAM_DEFINED_MASK = 0x0EEE
 RGB = tuple[int, int, int]
 
 # Measured from same-frame CRAM-shadow/PNG receipts; see
-# ``docs/COLOR_PIPELINE.md``.  Green has the six-bit RGB565 quantizer, so its
+# ``docs/field/COLOR_PIPELINE.md``.  Green has the six-bit RGB565 quantizer, so its
 # ramp is not identical to red and blue.
 GPGX_RGB565_RAMP: dict[str, tuple[int, ...]] = {
     "r": (0, 32, 65, 98, 139, 172, 205, 238),
@@ -480,7 +480,7 @@ def extract_palettes(data: bytes) -> dict[str, Any]:
     return {
         "format": "megadrive_cram",
         "color_word_layout": "%0000BBB0GGG0RRR0, big-endian",
-        "channel_expansion": "receipt-backed GPGX RGB565 ramp; see docs/COLOR_PIPELINE.md",
+        "channel_expansion": "receipt-backed GPGX RGB565 ramp; see docs/field/COLOR_PIPELINE.md",
         "pal_init_line_3_mirrors_pal_init_line": PAL_INIT_MIRRORED_LINE,
         "palettes": entries,
         "_lines_by_label": by_label,

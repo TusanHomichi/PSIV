@@ -6,7 +6,7 @@
       "expected": "targets [FighterId(8)]",
       "frame": 25669,
       "kind": "targets",
-      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#w1-a-swing-whose-commanded-enemy-has-fallen",
+      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w1-a-swing-whose-commanded-enemy-has-fallen",
       "round": 1,
       "round_rolls": {
         "log": 195,
@@ -19,7 +19,7 @@
       "expected": "targets [FighterId(8)]",
       "frame": 26055,
       "kind": "targets",
-      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#w1-a-swing-whose-commanded-enemy-has-fallen",
+      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w1-a-swing-whose-commanded-enemy-has-fallen",
       "round": 2,
       "round_rolls": {
         "log": 103,
@@ -32,7 +32,7 @@
       "expected": "targets [FighterId(8)]",
       "frame": 26151,
       "kind": "targets",
-      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#w1-a-swing-whose-commanded-enemy-has-fallen",
+      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w1-a-swing-whose-commanded-enemy-has-fallen",
       "round": 2,
       "round_rolls": {
         "log": 156,
@@ -45,7 +45,7 @@
       "expected": "FighterId(7): hit flag 00, damage Some(9)",
       "frame": 25542,
       "kind": "value",
-      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#w4-the-tiebreak-draw",
+      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w4-the-tiebreak-draw",
       "round": 1,
       "round_rolls": {
         "log": 125,
@@ -58,7 +58,7 @@
       "expected": "120 roll(s) in the round's frames",
       "frame": 25061,
       "kind": "draws",
-      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#w4-the-tiebreak-draw",
+      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w4-the-tiebreak-draw",
       "round": 1,
       "round_rolls": {
         "log": 120,
@@ -71,7 +71,7 @@
       "expected": "targets [FighterId(8)]",
       "frame": 25661,
       "kind": "targets",
-      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#w1-a-swing-whose-commanded-enemy-has-fallen",
+      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w1-a-swing-whose-commanded-enemy-has-fallen",
       "round": 1,
       "round_rolls": {
         "log": 177,
@@ -84,7 +84,7 @@
       "expected": "targets [FighterId(8)]",
       "frame": 25512,
       "kind": "targets",
-      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#w1-a-swing-whose-commanded-enemy-has-fallen",
+      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w1-a-swing-whose-commanded-enemy-has-fallen",
       "round": 1,
       "round_rolls": {
         "log": 140,
@@ -97,7 +97,7 @@
       "expected": "targets [FighterId(8)]",
       "frame": 26168,
       "kind": "targets",
-      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#w1-a-swing-whose-commanded-enemy-has-fallen",
+      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w1-a-swing-whose-commanded-enemy-has-fallen",
       "round": 2,
       "round_rolls": {
         "log": 138,
@@ -110,7 +110,7 @@
       "expected": "targets [FighterId(8)]",
       "frame": 26280,
       "kind": "targets",
-      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#w1-a-swing-whose-commanded-enemy-has-fallen",
+      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w1-a-swing-whose-commanded-enemy-has-fallen",
       "round": 2,
       "round_rolls": {
         "log": 156,
@@ -123,7 +123,7 @@
       "expected": "targets [FighterId(8)]",
       "frame": 26223,
       "kind": "targets",
-      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#w1-a-swing-whose-commanded-enemy-has-fallen",
+      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w1-a-swing-whose-commanded-enemy-has-fallen",
       "round": 2,
       "round_rolls": {
         "log": 122,
@@ -136,7 +136,7 @@
       "expected": "targets [FighterId(8)]",
       "frame": 26964,
       "kind": "targets",
-      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#w1-a-swing-whose-commanded-enemy-has-fallen",
+      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w1-a-swing-whose-commanded-enemy-has-fallen",
       "round": 3,
       "round_rolls": {
         "log": 120,
@@ -149,7 +149,7 @@
       "expected": "targets [FighterId(9)]",
       "frame": 26667,
       "kind": "targets",
-      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#w1-a-swing-whose-commanded-enemy-has-fallen",
+      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w1-a-swing-whose-commanded-enemy-has-fallen",
       "round": 2,
       "round_rolls": {
         "log": 193,
@@ -162,7 +162,7 @@
       "expected": "ability $45",
       "frame": 26539,
       "kind": "ability",
-      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#w2-the-enemys-ai-instruction",
+      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w2-the-enemys-ai-instruction",
       "round": 3,
       "round_rolls": {
         "log": 101,
@@ -175,7 +175,7 @@
       "expected": "ability $45",
       "frame": 27707,
       "kind": "ability",
-      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#w2-the-enemys-ai-instruction",
+      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w2-the-enemys-ai-instruction",
       "round": 4,
       "round_rolls": {
         "log": 152,
@@ -188,7 +188,7 @@
       "expected": "ability $45",
       "frame": 27115,
       "kind": "ability",
-      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#w2-the-enemys-ai-instruction",
+      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w2-the-enemys-ai-instruction",
       "round": 4,
       "round_rolls": {
         "log": 87,
@@ -201,7 +201,7 @@
       "expected": "ability $45",
       "frame": 27629,
       "kind": "ability",
-      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#w2-the-enemys-ai-instruction",
+      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w2-the-enemys-ai-instruction",
       "round": 4,
       "round_rolls": {
         "log": 138,
@@ -214,7 +214,7 @@
       "expected": "FighterId(1): hit flag 01, damage Some(248)",
       "frame": 25003,
       "kind": "value",
-      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#w3-the-critical-bonus",
+      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w3-the-critical-bonus",
       "round": 1,
       "round_rolls": {
         "log": 83,
@@ -227,7 +227,7 @@
       "expected": "FighterId(1): hit flag 01, damage Some(71)",
       "frame": 25240,
       "kind": "value",
-      "ledger": "docs/BATTLE_ORACLE_SWEEP.md#w3-the-critical-bonus",
+      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w3-the-critical-bonus",
       "round": 2,
       "round_rolls": {
         "log": 51,

@@ -1,7 +1,7 @@
 //! Retail shop and inn windows.
 //!
 //! The rectangles here are the camera-remapped Piata decode in
-//! `docs/SHOP_LAYOUT_DECODED.md`. The window owns cursors and text only;
+//! `docs/camp/SHOP_LAYOUT_DECODED.md`. The window owns cursors and text only;
 //! transaction mutations go through `psiv_runtime::Runtime`.
 
 #[path = "shop/portraits.rs"]

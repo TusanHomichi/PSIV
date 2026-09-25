@@ -81,7 +81,7 @@ pub struct MapRecord {
     /// `LoadTreasureChests` entries.
     pub treasure_chests: Vec<Treasure>,
     /// `MapDataManager` entries for this map: flag-gated load-time patches
-    /// (`docs/MAP_EFFECTS.md`). Absent on packs predating the extraction.
+    /// (`docs/field/MAP_EFFECTS.md`). Absent on packs predating the extraction.
     #[serde(default)]
     pub map_effects: Vec<MapEffect>,
     /// Decoded whole-layout replacements referenced by `layout_replace`

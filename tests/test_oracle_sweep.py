@@ -16,6 +16,7 @@ import json
 import os
 import pathlib
 import subprocess
+import sys
 import unittest
 from unittest import mock
 
@@ -80,7 +81,7 @@ class SweepFixture(PackFixture):
             stem = pathlib.Path(argv[argv.index("--out") + 1])
             formation = int(stem.name.split("_")[1].split(".")[0], 16)
             log.parent.mkdir(parents=True, exist_ok=True)
-            if "force_battle.py" in argv[1]:
+            if "oracle.force" in argv:
                 if formation in force_fail:
                     log.write_text("force_battle: the probe built something "
                                    "else\n")
@@ -149,7 +150,9 @@ class Commands(SweepFixture):
     def test_the_capture_runs_the_force_tool_with_the_sweeps_own_options(self):
         entry = list_formations(self.pack_of())[0]
         argv = sweep_jobs.force_argv(entry, self.options)
-        self.assertTrue(argv[1].endswith("oracle/force_battle.py"))
+        # The paved invocation: a module of the `oracle` package, run from the
+        # repository root (`oracle/README.md`, "Layout").
+        self.assertEqual(argv[:3], [sys.executable, "-m", "oracle.force"])
         self.assertEqual(argv[argv.index("--formation") + 1], "0x05")
         self.assertIn("--durable", argv)
         self.assertEqual(argv[argv.index("--max-rounds") + 1], "5")
@@ -161,7 +164,7 @@ class Commands(SweepFixture):
         entry = list_formations(self.pack_of())[0]
         argv = sweep_jobs.extractor_argv(self.report(entry.formation), entry,
                                         self.options)
-        self.assertTrue(argv[1].endswith("oracle/battle_fixture.py"))
+        self.assertEqual(argv[:3], [sys.executable, "-m", "oracle.fixture"])
         self.assertEqual(argv[argv.index("--max-rounds") + 1], "5")
         self.assertEqual(argv[argv.index("--hp-patch") + 1], "999")
         self.assertIn("--minified", argv)
@@ -243,7 +246,7 @@ class Recording(SweepFixture):
                                "rounds_captured": 5}}
 
         def run(argv, log):
-            if "force_battle.py" in argv[1]:
+            if "oracle.force" in argv:
                 return self.fake_run()(argv, log)
             out = pathlib.Path(argv[argv.index("--out") + 1])
             out.parent.mkdir(parents=True, exist_ok=True)

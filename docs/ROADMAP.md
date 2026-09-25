@@ -11,20 +11,20 @@ This is the canonical active graph location unless it links to an owning
 issue/PR. The sections below remain the campaign work queue, not a second graph.
 The [workflow](AGENT_WORKFLOW.md) defines node states, evidence and authority.
 
-The [post-Rika northern-crossing graph](TRAVEL.md#archived-northern-crossing-task-graph)
+The [post-Rika northern-crossing graph](field/TRAVEL.md#archived-northern-crossing-task-graph)
 is complete and archived. Ordinary Zema recovery, the Rika-opened bridge,
 SAVE and fresh-process CONTINUE pass on the frozen repaired candidate.
 There is no active implementation graph. The one next action is in
 [section 1](#1-continue-from-the-post-rika-checkpoint).
 
-The [workflow setup graph](WORKFLOW_SETUP.md#setup-graph) and
-[connected BioPlant graph](BIOPLANT_NATIVE.md#archived-bioplant-task-graph)
+The [workflow setup graph](records/WORKFLOW_SETUP.md#setup-graph) and
+[connected BioPlant graph](campaign/BIOPLANT_NATIVE.md#archived-bioplant-task-graph)
 are archived. Workflow docs were merged through PR #1. The verified BioPlant
 driver repair and campaign ledger are included in this revision; their raw
 saves and captures remain local.
 
 The Redshirt battle-decision experiments closed on 2026-09-23 and are now
-[archived](REDSHIRT_BATTLE.md); the project moved on from Redshirt and its
+[archived](records/REDSHIRT_BATTLE.md); the project moved on from Redshirt and its
 TypeSafe/Jev provider, and the campaign queue below is unchanged.
 
 ## Delivered checkpoints
@@ -40,11 +40,11 @@ TypeSafe/Jev provider, and the campaign queue below is unchanged.
 
 These describe the recorded native routes and targeted checks, not complete
 coverage of every branch or every mechanic. Details are in the
-[playability ledger](NATIVE_PLAYABILITY.md) and [BioPlant ledger](BIOPLANT_NATIVE.md).
+[playability ledger](campaign/NATIVE_PLAYABILITY.md) and [BioPlant ledger](campaign/BIOPLANT_NATIVE.md).
 
 ## 1. Continue from the post-Rika checkpoint
 
-The [northern-crossing gate](TRAVEL.md#post-rika-northern-crossing-2026-09-23)
+The [northern-crossing gate](field/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
 is complete. The current campaign source is Motavia `$00 (84,64)`, party
 Gryz/Alys/Chaz/Hahn/Rika, all alive with persistent statuses zero, original
 inventory/event flags retained and 1129 meseta. Paid Zema recovery, one victory,

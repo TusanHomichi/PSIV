@@ -1,4 +1,4 @@
-"""Tests for oracle/battle_fixture.py, the replay-fixture extractor.
+"""Tests for `oracle.fixture`, the replay-fixture extractor, and its CLI.
 
 The inputs are hand-built rows: a trace and a RAM log written from a few
 sentences about what happened, so the extractor's reading of them can be

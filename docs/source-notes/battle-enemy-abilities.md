@@ -4,7 +4,7 @@ Scope: enemy damage skills and their targeting arms — which
 records carry which effect, what the resolver does with them, and
 the measured routes that settled each decision.
 
-Index: [source and provenance notes](../../SOURCE_NOTES.md).
+Index: [source and provenance notes](README.md).
 
 ## Birth Valley enemy gameplay (2026-09-12)
 
@@ -143,7 +143,7 @@ variant fails to compile until it has one.
 
 Twenty-one Motavia pairs were read from scratch for this change, each from its
 `EnemyAttackOffs` entry through the arm, the object chain and the single guarded
-request, and none disagreed with `docs/ENEMY_DAMAGE_ROUTES.md` §3 — no pair was
+request, and none disagreed with `docs/battle/ENEMY_DAMAGE_ROUTES.md` §3 — no pair was
 dropped. `$2E` GIWAT: 71 FrostSaber `loc_F8F2` (`ps4.asm:21987`, object `$2B4` =
 `loc_1D5AA`, request at line 40042), 77 TechPlant `loc_F6C4`
 (`ps4.asm:21846`, `$2FC` = `BattleObj_EnemyGiwat` + the visual `$2F0`, request at
@@ -228,7 +228,7 @@ Deviations worth recording. (1) One pre-existing test changed with the gate:
 `skill.target = 9` as its "invalid definition" case, which is exactly the check
 this change removes, so that case now moves the effect byte instead (`$02`). Its
 other case (an unlisted carrier) and every other Acid Breath and FLAME BOLT test
-are untouched. (2) `docs/ENEMY_DAMAGE_ROUTES.md`'s parenthetical notes of the
+are untouched. (2) `docs/battle/ENEMY_DAMAGE_ROUTES.md`'s parenthetical notes of the
 form "`bne.s loc_X` at line N" cite the test line (`cmpi.w`/`tst.w`) rather than
 the branch line, one line later; the code comments here cite label lines and
 request lines, which were verified against the file.
@@ -319,17 +319,17 @@ zero) and sees both `$07` and `$17` in the trace, and
 per-frame timing; `loc_6672` also sets the `$FFFF418A` wait to `$F` when the
 ability slot is empty, and `loc_66B8` decrements it once a frame, so retail
 advances the turn sixteen frames later than after an attack. That is pacing from
-the unimplemented object-timing layer (`docs/BATTLE_ANIMATIONS.md`), not a rule.
+the unimplemented object-timing layer (`docs/battle/BATTLE_ANIMATIONS.md`), not a rule.
 (2) `EnemyAI_PhysicalAtkReceived` and
 `reaction_flags` are not modelled: a FloatMine2 hit physically since its last
 action has its rolled `$07` replaced in retail by the `$18` Explosion conditional
 (`$54(a3)`), an arm whose object is still untraced, so the port spends the turn
-there too. `docs/ENEMY_ABILITIES.md` records both limits under Port gaps.
+there too. `docs/battle/ENEMY_ABILITIES.md` records both limits under Port gaps.
 
 ## All-party enemy damage routes: SPIRAL BLD `$08` and EARTHQUAKE `$38` (2026-09-24)
 
 `resolve_damage_skill` (`rust/psiv-core/src/battle/enemy_damage.rs`) resolved one
-`move.w #$C` request against the object's `$38`. `docs/ENEMY_DAMAGE_ROUTES.md` §2
+`move.w #$C` request against the object's `$38`. `docs/battle/ENEMY_DAMAGE_ROUTES.md` §2
 classes 58 of its 146 pairs `all-party` — one request per party slot from a
 `moveq #4, dN` loop over `Obj_Fighters` — and this change adds that class and the
 three Motavia pairs of it: 15 Fanbite `$08` SPIRAL BLD, 80 SandWorm `$38`
@@ -388,7 +388,7 @@ the drawn target:
   `$8EC` carrying `SFXID_Slasher` (lines 67541-67544).
 
 What the class means, each from the instruction that decides it. The survey's
-three rows are unchanged; `docs/ENEMY_DAMAGE_ROUTES.md` §3 now records these four
+three rows are unchanged; `docs/battle/ENEMY_DAMAGE_ROUTES.md` §3 now records these four
 readings in full.
 
 - **Slots.** All five party slots get the `$C` write, empty and dead included,
@@ -456,7 +456,7 @@ that never wrote it — the same reason WAT's TechCast is unmapped. (4) `$08`'s
 carrier.
 
 No question in this class was left open: the three pairs are implemented, and
-`docs/ENEMY_DAMAGE_ROUTES.md` §3 carries the same four readings with their
+`docs/battle/ENEMY_DAMAGE_ROUTES.md` §3 carries the same four readings with their
 citations.
 
 Tests and evidence. Core: `enemy_damage_all_party_tests.rs` (registered from

@@ -1,14 +1,15 @@
 """What the sweep covered, as the ledger's coverage section.
 
-`oracle/sweep.py`'s record is per-formation evidence; this reads it and prints
-the census `docs/BATTLE_ORACLE_SWEEP.md` carries: which formations were captured
-(and which failed, why), which enemies they seated, which enemy abilities they
-were seen to run, and how each of those abilities stands in
-`docs/ENEMY_ABILITIES.md` - implemented, or unsupported and of which class.
+`python3 -m oracle.sweep`'s record is per-formation evidence; this reads it and
+prints the census `docs/oracle/BATTLE_ORACLE_SWEEP.md` carries: which formations
+were captured (and which failed, why), which enemies they seated, which enemy
+abilities they were seen to run, and how each of those abilities stands in
+`docs/battle/ENEMY_ABILITIES.md` - implemented, or unsupported and of which
+class.
 
     python3 -m oracle.sweep.coverage --record build/lane-evidence/sweep/sweep_motavia.json
 
-The ability status is read out of `docs/ENEMY_ABILITIES.md`'s own table rather
+The ability status is read out of `docs/battle/ENEMY_ABILITIES.md`'s own table rather
 than restated here: the ledger's job is to say whether the sweep exercised a
 finished ability or an unfinished one, and that document is where "finished"
 is written down.
@@ -23,10 +24,10 @@ import re
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 RECORD = ROOT / "build" / "lane-evidence" / "sweep" / "sweep_motavia.json"
-ABILITIES = ROOT / "docs" / "ENEMY_ABILITIES.md"
+ABILITIES = ROOT / "docs" / "battle" / "ENEMY_ABILITIES.md"
 ENEMIES = ROOT / "generated" / "enemies.json"
 
-#: One row of `docs/ENEMY_ABILITIES.md`'s regular-ability table: the id in its
+#: One row of `docs/battle/ENEMY_ABILITIES.md`'s regular-ability table: the id in its
 #: first cell, and the two status cells at the end.
 ROW = re.compile(r"^\| `\$([0-9A-F]{2})` \((\d+)\) \*\*(\w+)\*\*.*"
                  r"\| ([^|]*)\| ([^|]*)\|$")

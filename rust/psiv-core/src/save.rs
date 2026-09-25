@@ -11,7 +11,7 @@
 //! 0xA00-byte logical payload interleaved into its 0x1400-byte retail block.
 //! The common physical SRAM device is therefore represented by three files,
 //! rather than by one shared 0x4000-byte device. The remaining file-level
-//! divergence is recorded in `docs/SAVE_SCOUT.md`.
+//! divergence is recorded in `docs/camp/SAVE_SCOUT.md`.
 
 use core::fmt;
 

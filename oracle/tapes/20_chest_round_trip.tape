@@ -206,7 +206,8 @@ end
 # 40 rolls at 1/32 and an untuned tape loses this coin flip more often than
 # not. The `300 . control_back2` wait above is the tuning knob: idle frames
 # shift the seed those rolls read without consuming a single step.
-# sweep_encounter.py swept it; 300 walks both legs clean.
+# `python3 -m oracle.scripts.sweep_encounter` swept it; 300 walks both legs
+# clean.
 72 D
 48 L
 32 U

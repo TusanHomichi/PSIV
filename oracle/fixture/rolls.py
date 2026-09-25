@@ -16,9 +16,9 @@ there: a 68000 word operand at that address reads bytes `$EF0C`/`$EF0D`, and
 
 This module derives every roll from the trace's raw `hv`, `frame_count` and
 `seed_before` columns, which are not in doubt (the seed chain and the HV reads
-were verified by `oracle/rng_trace.py check`), and **insists** that the trace's
-own `roll` column is that same derivation - row by row, naming the frame and
-call of the first one that is not:
+were verified by `python3 -m oracle.rng_trace check`), and **insists** that the
+trace's own `roll` column is that same derivation - row by row, naming the
+frame and call of the first one that is not:
 
     "roll_column": {"agrees": n, "subtracts_low_word": 0, "neither": 0}
 
@@ -29,7 +29,7 @@ its column is a per-frame-constant shift of the cartridge's rolls. The reading
 is settled by the cartridge, not by preference: the high-word derivation
 reproduces the battle's turn order (`turn_XX` in the log) and all six of its
 damage values exactly, and the low-word one reproduces none of them. See
-`docs/BATTLE_ORACLE_REPLAY.md`.
+`docs/oracle/BATTLE_ORACLE_REPLAY.md`.
 """
 from .errors import FixtureError
 

@@ -1,6 +1,6 @@
 //! Replaying a captured battle against the cartridge's own rolls.
 //!
-//! `oracle/battle_fixture.py` turns one oracle run's RNG trace and RAM log into
+//! `oracle.fixture` turns one oracle run's RNG trace and RAM log into
 //! a fixture under `replay_fixtures/`: the battle's start state, the rolls the
 //! cartridge drew (each with the frame it was drawn in and the role it played)
 //! and what the log shows every action doing. This directory is the harness the
@@ -27,7 +27,7 @@
 //! A roll is `hv + frame_count - high_word(RNG_Seed)`: `UpdateRNGSeed2`
 //! (`ps4.asm:86097`) subtracts the word at `$FFFFEF0C`, which on a big-endian
 //! 68000 is the seed longword's *high* half. The fixture derives each roll from
-//! the trace's raw columns for that reason; `docs/BATTLE_ORACLE_REPLAY.md` has
+//! the trace's raw columns for that reason; `docs/oracle/BATTLE_ORACLE_REPLAY.md` has
 //! the proof, the trace's own `roll` column being the low-half subtraction.
 //!
 //! # One stream, and what it costs

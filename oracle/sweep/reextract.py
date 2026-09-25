@@ -1,7 +1,7 @@
 """Re-extracting a sweep's fixtures from the captures it already took.
 
 A sweep's captures are the expensive half: every one is an emulator run over
-tens of thousands of frames, and `docs/BATTLE_ORACLE_SWEEP.md`'s clusters are
+tens of thousands of frames, and `docs/oracle/BATTLE_ORACLE_SWEEP.md`'s clusters are
 fixed by re-reading them, not by re-taking them. This is that run: for every
 `formation_XX/` directory under a sweep's working directory that holds a
 capture, the extraction stage is run again, with the same numbers the capture
@@ -12,7 +12,7 @@ Nothing here touches the tapes, the emulator or the capture: the inputs are the
 `capture/forced_*.csv` pair the sweep left behind, and a formation whose
 capture is not there is reported and skipped rather than guessed at.
 
-    python3 oracle/sweep.py --reextract build/lane-evidence/sweep
+    python3 -m oracle.sweep --reextract build/lane-evidence/sweep
 """
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ def extractor_argv(work: pathlib.Path, directory: pathlib.Path,
     report = json.loads((directory / "report.json").read_text())
     log, trace = captures(directory)
     formation = int(report["formation"])
-    argv = [sys.executable, str(jobs.FX), "--trace", str(trace),
+    argv = [sys.executable, "-m", jobs.FX, "--trace", str(trace),
             "--log", str(log),
             "--out", str(jobs.fixture_path(options, formation)),
             "--tape", pathlib.Path(report["tape"]).name,

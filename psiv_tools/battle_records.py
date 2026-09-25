@@ -24,7 +24,7 @@ finished with it: base and modified stats, `atk_pow` / `dfs_pow` / `magic_dfs`,
 the fourteen element properties and the two weapon-element slots. It is
 derived, not stored -- the point is that a runtime implementing the two update
 routines has a conformance vector per character to check itself against.
-`docs/BATTLE_SCOUT.md` section 12 works the first two by hand and gets Chaz
+`docs/battle/BATTLE_SCOUT.md` section 12 works the first two by hand and gets Chaz
 `atk_pow` 18 / `dfs_pow` 10 and Alys 13 / 18, which is what this emits.
 """
 

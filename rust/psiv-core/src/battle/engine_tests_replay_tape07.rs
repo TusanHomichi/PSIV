@@ -1,7 +1,7 @@
 //! Tape 07's first basement battle, replayed against the cartridge's own rolls.
 //!
 //! `oracle/tapes/07_first_battle.tape`, frames 24794-30428; the capture, the
-//! trace and what it proves are in `docs/BATTLE_ORACLE_REPLAY.md`. Three
+//! trace and what it proves are in `docs/oracle/BATTLE_ORACLE_REPLAY.md`. Three
 //! claims, one test each:
 //!
 //! * [`tape07_orders_its_rounds_the_way_the_cartridge_did`] - the fixture's own
@@ -32,7 +32,7 @@ fn tape07_orders_its_rounds_the_way_the_cartridge_did() {
         fixture.provenance.roll_column.agrees, 136,
         "every trace row's own roll column is the cartridge's roll, so the \
          fixture checks each row against the raw columns; see \
-         docs/BATTLE_ORACLE_REPLAY.md"
+         docs/oracle/BATTLE_ORACLE_REPLAY.md"
     );
     assert_eq!(fixture.provenance.roll_column.subtracts_low_word, 0);
     assert_eq!(fixture.provenance.trace_sha256.len(), 64);
@@ -157,7 +157,7 @@ fn tape07_orders_its_rounds_the_way_the_cartridge_did() {
                 reroll.roll & 7,
                 3,
                 "and the re-roll is the index the RAM log's word moves to at \
-                 f29789 (docs/BATTLE_ORACLE_REPLAY.md)"
+                 f29789 (docs/oracle/BATTLE_ORACLE_REPLAY.md)"
             );
 
             // Thirteen order draws, then 36 + 17 + 19 + 17: the port reads the
@@ -192,7 +192,7 @@ fn tape07_replays_the_cartridges_battle_on_the_verbatim_stream() {
     assert_eq!(battle.outcome(), Some(Outcome::Victory));
     // The word the battle leaves behind is the RAM log's: `$FFFFEEA8` reads
     // `0003` from f29789 to the end of the tape, and the fixture's re-roll of
-    // `58235 & 7` is that 3 (see docs/BATTLE_ORACLE_REPLAY.md).
+    // `58235 & 7` is that 3 (see docs/oracle/BATTLE_ORACLE_REPLAY.md).
     assert_eq!(battle.last_ability_index(), 3);
     let outcome = &fixture.outcome;
     assert!(outcome.victory, "the log has every enemy down");

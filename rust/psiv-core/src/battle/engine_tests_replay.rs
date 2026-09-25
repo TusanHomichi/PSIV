@@ -3,7 +3,7 @@
 //! Every piece of the harness - the fixture's shape, the battle it builds, the
 //! verbatim-stream driver and the comparator - sits in
 //! [`replay`](replay/index.html), the directory beside this file, so a new
-//! capture is data: `oracle/battle_fixture.py` writes it under
+//! capture is data: `oracle.fixture` writes it under
 //! `replay_fixtures/` and [`replay`]'s data-driven test replays it. This module
 //! is the wiring, and the two basement tapes' walks through it:
 //!
@@ -12,8 +12,8 @@
 //! * `engine_tests_replay_tape09.rs` - the second encounter, on its own seed
 //!   path, with a critical (`oracle/tapes/09_second_battle.tape`).
 //!
-//! `docs/BATTLE_ORACLE_REPLAY.md` is the ledger for both tapes,
-//! `docs/BATTLE_ORACLE_FORCED.md` for the forced captures whose enemy abilities
+//! `docs/oracle/BATTLE_ORACLE_REPLAY.md` is the ledger for both tapes,
+//! `docs/oracle/BATTLE_ORACLE_FORCED.md` for the forced captures whose enemy abilities
 //! and vehicle battle the same machinery replays.
 
 // The directory is named after this module's own subject; the lint against a

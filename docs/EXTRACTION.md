@@ -97,7 +97,7 @@ generated/
 | Shop inventories | `0x0681A4` | variable, `$FF`-terminated | 49 |
 | Shop locations | `0x068394` | 8 | 68 entries incl. 18 inns |
 | Map pointer table (`FieldMapPtrs`) | `0x100000` | 4 | 417 |
-| Map→encounter-group table | `0x008050` | 1 | 416 (sic — see SOURCE_NOTES) |
+| Map→encounter-group table | `0x008050` | 1 | 416 (sic — see the source notes) |
 
 The 937 level records are split across 11 per-character tables. Their start addresses and starting levels are read from the pointer table at `0x004074`; the extractor does not hard-code each individual table address.
 

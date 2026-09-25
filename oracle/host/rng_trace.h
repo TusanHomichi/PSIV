@@ -15,7 +15,7 @@
  * the word at $FFFFEF0C/$FFFFEF0D, the longword's HIGH half - the same word
  * the next instruction, `ror (RNG_Seed).w` (ROM $0423AA), rotates. Subtracting
  * the low half at $FFFFEF0E yields this roll shifted by a per-frame constant;
- * docs/BATTLE_ORACLE_REPLAY.md settles which one the cartridge uses against
+ * docs/oracle/BATTLE_ORACLE_REPLAY.md settles which one the cartridge uses against
  * tape 07's own turn order and damage numbers.
  *
  * `seed` is the RNG_Seed longword the call started from, `hv` and

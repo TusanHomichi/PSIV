@@ -35,19 +35,19 @@ pub(super) struct TextAnchor {
 }
 
 /// The root ITEM/TECH/SKILL/EQUIP/STATE/MUMBL/MACRO window.
-// docs/CAMP_MENU_LAYOUT.md § Root; oracle/layouts/camp_menu_camera_decode.json camp_root.menu_root
+// docs/camp/CAMP_MENU_LAYOUT.md § Root; oracle/layouts/camp_menu_camera_decode.json camp_root.menu_root
 pub(super) const ROOT_MENU: CellRect = CellRect::new(4, 2, 9, 15);
 /// The one-member summary retained beside the root options.
-// docs/CAMP_MENU_LAYOUT.md § Root; oracle/layouts/camp_menu_camera_decode.json camp_root.character_summary
+// docs/camp/CAMP_MENU_LAYOUT.md § Root; oracle/layouts/camp_menu_camera_decode.json camp_root.character_summary
 pub(super) const CHARACTER_SUMMARY: CellRect = CellRect::new(26, 1, 12, 6);
 /// The root/state meseta strip.
-// docs/CAMP_MENU_LAYOUT.md § Root and § STATE chooser; oracle/... camp_root.meseta
+// docs/camp/CAMP_MENU_LAYOUT.md § Root and § STATE chooser; oracle/... camp_root.meseta
 pub(super) const MESETA: CellRect = CellRect::new(3, 23, 13, 3);
 /// The decoded empty-inventory ITEM message.
-// docs/CAMP_MENU_LAYOUT.md § ITEM: empty inventory; oracle/... camp_item_empty_inventory.item_message
+// docs/camp/CAMP_MENU_LAYOUT.md § ITEM: empty inventory; oracle/... camp_item_empty_inventory.item_message
 pub(super) const ITEM_MESSAGE: CellRect = CellRect::new(7, 21, 26, 5);
 /// The decoded STATE child chooser.
-// docs/CAMP_MENU_LAYOUT.md § STATE chooser; oracle/... camp_state_chooser.state_options
+// docs/camp/CAMP_MENU_LAYOUT.md § STATE chooser; oracle/... camp_state_chooser.state_options
 #[cfg(test)]
 pub(super) const STATE_OPTIONS: CellRect = CellRect::new(2, 5, 10, 5);
 /// Modern STATE chooser geometry with the save action added below the two
@@ -57,19 +57,19 @@ pub(super) const STATE_SAVE_OPTIONS: CellRect = CellRect::new(2, 5, 10, 7);
 /// on the system-menu path; this is the explicit camp-owned seam.
 pub(super) const SAVE_SLOTS_OPTIONS: CellRect = CellRect::new(7, 5, 26, 9);
 /// The STATUS portrait tile block.
-// docs/CAMP_MENU_LAYOUT.md § STATUS; oracle/... camp_status.portrait
+// docs/camp/CAMP_MENU_LAYOUT.md § STATUS; oracle/... camp_status.portrait
 pub(super) const STATUS_PORTRAIT: CellRect = CellRect::new(3, 2, 10, 10);
 /// The STATUS character-info window.
-// docs/CAMP_MENU_LAYOUT.md § STATUS; oracle/... camp_status.character_info
+// docs/camp/CAMP_MENU_LAYOUT.md § STATUS; oracle/... camp_status.character_info
 pub(super) const STATUS_INFO: CellRect = CellRect::new(13, 2, 12, 12);
 /// The STATUS combat-statistics window.
-// docs/CAMP_MENU_LAYOUT.md § STATUS; oracle/... camp_status.combat_stats
+// docs/camp/CAMP_MENU_LAYOUT.md § STATUS; oracle/... camp_status.combat_stats
 pub(super) const STATUS_STATS: CellRect = CellRect::new(25, 2, 13, 13);
 /// The STATUS read-only equipment window.
-// docs/CAMP_MENU_LAYOUT.md § STATUS; oracle/... camp_status.equipment
+// docs/camp/CAMP_MENU_LAYOUT.md § STATUS; oracle/... camp_status.equipment
 pub(super) const STATUS_EQUIPMENT: CellRect = CellRect::new(3, 14, 12, 9);
 /// The STATUS experience/next-level window.
-// docs/CAMP_MENU_LAYOUT.md § STATUS; oracle/... camp_status.exp_next
+// docs/camp/CAMP_MENU_LAYOUT.md § STATUS; oracle/... camp_status.exp_next
 pub(super) const STATUS_EXP: CellRect = CellRect::new(25, 21, 12, 5);
 
 /// The retail EQUIP character chooser groups `$93..$96`, decoded from
@@ -101,7 +101,7 @@ pub(super) const EQUIP_ITEM_LIST: CellRect = CellRect::new(20, 2, 14, 18);
 pub(super) const EQUIP_MESSAGE: CellRect = ITEM_MESSAGE;
 
 /// Root menu strings and their decoded origins.
-// docs/CAMP_MENU_LAYOUT.md § Root; oracle/... camp_root.text_runs
+// docs/camp/CAMP_MENU_LAYOUT.md § Root; oracle/... camp_root.text_runs
 pub(super) const ROOT_TEXT: &[TextAnchor] = &[
     TextAnchor {
         text: "Chaz",
@@ -154,25 +154,25 @@ pub(super) const ROOT_TEXT: &[TextAnchor] = &[
 ];
 
 /// Root cursor: a one-cell red plane/SAT cursor.
-// docs/CAMP_MENU_LAYOUT.md § Root cursor; oracle/layouts/camp_root.json sprites.entries[0]
+// docs/camp/CAMP_MENU_LAYOUT.md § Root cursor; oracle/layouts/camp_root.json sprites.entries[0]
 pub(super) const ROOT_CURSOR_CELL: (i32, i32) = (5, 3);
 /// The decoded selected cursor word.
 pub(super) const SELECTED_CURSOR_PATTERN: u16 = 0x6E8;
 /// Hollow child cursor in the STATE chooser.
-// docs/CAMP_MENU_LAYOUT.md § STATE chooser cursor; oracle/... camp_state_chooser.cursor.child_selection
+// docs/camp/CAMP_MENU_LAYOUT.md § STATE chooser cursor; oracle/... camp_state_chooser.cursor.child_selection
 pub(super) const STATE_CURSOR_CELL: (i32, i32) = (3, 6);
 /// The decoded hollow child cursor word.
 pub(super) const CHILD_CURSOR_PATTERN: u16 = 0x6E7;
 
 /// Text in the empty ITEM child.
-// docs/CAMP_MENU_LAYOUT.md § ITEM: empty inventory; oracle/... camp_item_empty_inventory.text_runs
+// docs/camp/CAMP_MENU_LAYOUT.md § ITEM: empty inventory; oracle/... camp_item_empty_inventory.text_runs
 pub(super) const ITEM_EMPTY_TEXT: TextAnchor = TextAnchor {
     text: "Can't have any items!",
     cell: (8, 22),
 };
 
 /// Text in the STATE chooser child.
-// docs/CAMP_MENU_LAYOUT.md § STATE chooser; oracle/... camp_state_chooser.text_runs
+// docs/camp/CAMP_MENU_LAYOUT.md § STATE chooser; oracle/... camp_state_chooser.text_runs
 pub(super) const STATE_TEXT: &[TextAnchor] = &[
     TextAnchor {
         text: "STATUS",
@@ -211,7 +211,7 @@ pub(super) const SAVE_SLOT_TEXT: &[TextAnchor] = &[
 ];
 
 /// Text in the decoded one-member STATUS screen.
-// docs/CAMP_MENU_LAYOUT.md § STATUS; oracle/... camp_status.text_runs
+// docs/camp/CAMP_MENU_LAYOUT.md § STATUS; oracle/... camp_status.text_runs
 pub(super) const STATUS_TEXT: &[TextAnchor] = &[
     TextAnchor {
         text: "Chaz",

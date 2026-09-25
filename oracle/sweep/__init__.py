@@ -1,9 +1,9 @@
 """The Motavia sweep: every formation, captured and extracted in one run.
 
-    python3 oracle/sweep.py --out build/lane-evidence/sweep
-    python3 oracle/sweep.py --out build/lane-evidence/sweep --jobs 3
+    python3 -m oracle.sweep --out build/lane-evidence/sweep
+    python3 -m oracle.sweep --out build/lane-evidence/sweep --jobs 3
 
-`oracle/force_battle.py` captures *one* formation on request; this runs it over
+`python3 -m oracle.force` captures *one* formation on request; this runs it over
 a list of them - the sweep's own list is the distinct formation ids in
 `generated/formation_indexes.json` groups 0-7 (Motavia on foot) and 8, 9, 10
 (Motavia's vehicle tables), computed from the data rather than typed in - and
@@ -32,7 +32,7 @@ The shape of one formation's run, and the reason for each part:
 `oracle/sweep_motavia.json` (or `--out`'s own name) is the record: per
 formation the group, the selector, the capture's hashes, the outcome, the
 rounds and the abilities observed, and the fixture's own hash - plus a summary
-census. `docs/BATTLE_ORACLE_SWEEP.md` is where the divergences that record
+census. `docs/oracle/BATTLE_ORACLE_SWEEP.md` is where the divergences that record
 produces are worked up.
 """
 from .plan import (FOOT_GROUPS, MOTAVIA_GROUPS, VEHICLE_GROUPS, Formation,

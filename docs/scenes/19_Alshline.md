@@ -1,7 +1,7 @@
 # `Cutscene_Alshline`
 
 Native continuation repairs and current evidence are in
-[`SCENE_DIALOGUE.md`](../SCENE_DIALOGUE.md). The object entrance uses 64
+[`SCENE_DIALOGUE.md`](SCENE_DIALOGUE.md). The object entrance uses 64
 half-pixel steps, and field dialogue clears the preceding panel stack on
 the full map reload.
 

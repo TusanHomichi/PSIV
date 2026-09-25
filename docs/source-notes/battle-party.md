@@ -4,7 +4,7 @@ Scope: party-side battle behaviour — skills and items, rewards,
 entering and leaving a battle, field ability recovery, and the
 attack passes' draw counts.
 
-Index: [source and provenance notes](../../SOURCE_NOTES.md).
+Index: [source and provenance notes](README.md).
 
 ## 2026-09-12 — VISION and opening character skills
 
@@ -244,8 +244,8 @@ modelled: Alys's swing's 36 calls, and on the verbatim stream the ledger's first
 divergence moves from f29489 to f29789 (the `$FFFFEEA8` ability re-roll).
 (Correction, later on 2026-09-24: lane P2b closed that divergence as well, so
 both tapes 07 and 09 now replay on the verbatim stream; see
-[`BATTLE_ORACLE_REPLAY.md`](../BATTLE_ORACLE_REPLAY.md).)
-`docs/BATTLE_ORACLE_REPLAY.md` carries the updated tables.
+[`BATTLE_ORACLE_REPLAY.md`](../oracle/BATTLE_ORACLE_REPLAY.md).)
+`docs/oracle/BATTLE_ORACLE_REPLAY.md` carries the updated tables.
 
 Negative control. Removing the second pass (keeping the first pass's verdicts
 for every attacker) fails ten tests: both replay tests — the verbatim stream's
@@ -367,7 +367,7 @@ byte; every vehicle's attack is at most `$FF`, so the truncation is invisible
 here (`critical_bonus` is the shared expression).
 
 **What the capture pins.** The forced `$53` Desrt Leach capture
-([`BATTLE_ORACLE_FORCED.md`](../BATTLE_ORACLE_FORCED.md)) shows the vehicle
+([`BATTLE_ORACLE_FORCED.md`](../oracle/BATTLE_ORACLE_FORCED.md)) shows the vehicle
 swinging on its turn in all six rounds, three hit-pass frames each
 (f25059/f25060/f25072, f25209/f25210/f25222, …), and the rounds are what
 separate the passes:
@@ -458,7 +458,7 @@ The section above is the Land Rover's reading, and "three hit passes" is that
 vehicle's count rather than every vehicle's. The second `--vehicle` capture
 (the Ice Digger, same formation `$53` and the same draw) has **two** passes at
 f25058/f25059 and lands its sixteen draws at f25075, 212 from its own 250 attack
-byte; `BATTLE_ORACLE_FORCED.md` §5.1 is that capture's write-up, and
+byte; `../oracle/BATTLE_ORACLE_FORCED.md` §5.1 is that capture's write-up, and
 `rust/psiv-core/src/battle/vehicle_attack.rs`'s `hit_passes` is the rule now —
 two for `Vehicle_Index` 2, three for 1 and 3 — derived from the `$1C` timer each
 vehicle's attack object is created with (`#$C` for `BattleObj_LandRoverAtk`

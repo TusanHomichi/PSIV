@@ -41,7 +41,7 @@ pub(crate) const fn battle_dwell_frames(speed: u16) -> u16 {
 
 pub(crate) const BATTLE_DWELL_FRAMES: u16 = battle_dwell_frames(2);
 
-/// Plane cells are 8x8 pixels, per `docs/BATTLE_GEOMETRY.md` §1.
+/// Plane cells are 8x8 pixels, per `docs/battle/BATTLE_GEOMETRY.md` §1.
 pub(super) const BATTLE_CELL_PIXELS: i32 = 8;
 
 /// Party columns in fighter-id order. The retail layout is center-out, so the
@@ -57,7 +57,7 @@ const PARTY_DAMAGE_Y: f32 = 144.0;
 const DAMAGE_WIDTH: f32 = 40.0;
 const DAMAGE_HEIGHT: f32 = 16.0;
 
-/// The authentic Genesis battle frame, `BATTLE_GEOMETRY.md` §1.
+/// The authentic Genesis battle frame, `docs/battle/BATTLE_GEOMETRY.md` §1.
 pub(crate) const BATTLE_FRAME_WIDTH: f32 = 320.0;
 pub(crate) const BATTLE_FRAME_HEIGHT: f32 = 224.0;
 const BATTLE_BACKGROUND_WIDTH: i32 = 512;

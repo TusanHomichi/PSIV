@@ -29,7 +29,7 @@ from psiv_tools.pack import PACK_FORMAT_VERSION
 ROM = Path(__file__).resolve().parents[1] / "Phantasy Star IV (USA).md"
 REFERENCE = Path(__file__).resolve().parents[1] / "reference" / "ps4disasm"
 
-#: `docs/BATTLE_SCOUT.md` section 12 works the opening party's derived stats by
+#: `docs/battle/BATTLE_SCOUT.md` section 12 works the opening party's derived stats by
 #: hand. Reproducing them is the end-to-end check on the whole module.
 OPENING_DERIVED = {0: (18, 10), 1: (13, 18)}
 #: The one inventory record carrying an equip mask its type can never reach.

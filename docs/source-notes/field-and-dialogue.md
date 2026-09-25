@@ -4,7 +4,7 @@ Scope: dialogue continuations, choices and resting, and field
 travel beyond them, including the post-Rika overworld crossing
 and its recovery.
 
-Index: [source and provenance notes](../../SOURCE_NOTES.md).
+Index: [source and provenance notes](README.md).
 
 ## 2026-09-12 — Dialogue continuations, choices and resting
 
@@ -42,13 +42,13 @@ The prior native runtime ignored the extracted hook list. The repaired pack
 and Rust consumer retain the source records, compose both planes and apply
 flag-gated collision, raw chunk identity and render patches on map build.
 Same-map live page streaming after a flag change remains unimplemented; see
-[MAP_EFFECTS.md](../MAP_EFFECTS.md#12-native-overworld-page-hook-consumption-2026-09-23).
+[MAP_EFFECTS.md](../field/MAP_EFFECTS.md#12-native-overworld-page-hook-consumption-2026-09-23).
 
 Zema's inn row `$068116` is `01 14`, rate 20 per occupied party slot; its
 keeper row is `$0683A4`. Five members pay 100. `RecoverStats` starts at
 `$0662DA`, not `$0662FE`: the latter is its call to `DoVehicleRecovery`.
 `DoCharRecovery` at `$066306` restores HP, TP, persistent status and all eight
-skill-use counters. The older address in SHOPS.md and shop_flow.py's docstring
+skill-use counters. The older address in `../camp/SHOPS.md` and shop_flow.py's docstring
 is corrected; no recovery rule changed.
 
 Raw byte receipts and the retained native failure live under

@@ -255,7 +255,7 @@ fn durable_runtime(pack: &Path) -> Runtime {
 ///
 /// Formation 263 of the pack is a real one — FloatMine2, Tower, FloatMine2, the
 /// only kind of formation that carries the id (`2/504` in
-/// `docs/ENEMY_ABILITIES.md`) — and Tower's eight slots are all zero, so every
+/// `docs/battle/ENEMY_ABILITIES.md`) — and Tower's eight slots are all zero, so every
 /// ability event in this battle belongs to a FloatMine2.
 #[test]
 fn floatmine2_formations_spend_fission2_and_waiting_turns_without_a_swing() {

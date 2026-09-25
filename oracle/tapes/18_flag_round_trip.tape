@@ -14,10 +14,10 @@
 #      the Xanafalgue itself - so watching object slot 0 across the round trip
 #      says whether the scene is repeatable.
 #
-# The route out is navigate.py's. The re-entry is hand-written: the party comes
-# up standing ON the stairs cell, and the cartridge's anti-ping-pong rule means
-# a warp will not fire from the cell you were placed on, so the tape steps off
-# and back on deliberately.
+# The route out is `python3 -m oracle.scripts.navigate`'s. The re-entry is
+# hand-written: the party comes up standing ON the stairs cell, and the
+# cartridge's anti-ping-pong rule means a warp will not fire from the cell you
+# were placed on, so the tape steps off and back on deliberately.
 # ---------------------------------------------------------------------------
 # Tape A - power-on to the first player-controllable frame of a new game.
 #

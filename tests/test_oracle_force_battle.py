@@ -547,7 +547,7 @@ class CaptureGroups(unittest.TestCase):
     the command's own whenever the commanded enemy has fallen - the cartridge
     moves `Current_Target_Index` off it (`ps4.asm:8345-8409`) - so the command
     is the only record of what the *player* asked for, and the sweep's captures
-    predate it (`docs/BATTLE_ORACLE_SWEEP.md`, the retarget cluster).
+    predate it (`docs/oracle/BATTLE_ORACLE_SWEEP.md`, the retarget cluster).
     """
 
     def groups(self):

@@ -22,13 +22,13 @@ Contributing with a coding agent? Start with [AGENTS.md](AGENTS.md) and the
 **Gameplay checkpoint: September 23, 2026.**
 
 **Workflow setup is complete:** the [evidence-driven workflow](docs/AGENT_WORKFLOW.md)
-is the standing default, and the [setup ledger](docs/WORKFLOW_SETUP.md) retains
+is the standing default, and the [setup ledger](docs/records/WORKFLOW_SETUP.md) retains
 the verified graph and checks. The docs were merged through PR #1.
 **Latest campaign outcome:** the connected post-Rika party rested in Zema,
 crossed the newly opened northern bridge, and saved on Motavia `$00 (84,64)`
 with all five alive and 1129 meseta. Fresh-process CONTINUE and save-byte
 validation pass. See the
-[current receipt](docs/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
+[current receipt](docs/field/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
 and [next task handoff](docs/ROADMAP.md#task-graph-handoff).
 
 | Area | Current evidence |
@@ -41,8 +41,8 @@ and [next task handoff](docs/ROADMAP.md#task-graph-handoff).
 | Presentation | Selected reference frames and four ORDER-menu regions match the cartridge exactly. Whole-scene, animation and UI fidelity still need work. |
 | Data | The extractor covers all 361 real maps, character progression, dialogue, battle records, graphics and sound. Extracted records do not imply implemented gameplay. |
 
-The [BioPlant checkpoint ledger](docs/BIOPLANT_NATIVE.md) and
-[travel continuation](docs/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
+The [BioPlant checkpoint ledger](docs/campaign/BIOPLANT_NATIVE.md) and
+[travel continuation](docs/field/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
 record the saves, hashes, successful checks and failed attempts. Save files, ROM-derived assets
 and captures stay local; their paths in the ledgers are reproduction evidence,
 not downloads included with the repository.
@@ -59,7 +59,7 @@ Code checkpoint [`82de4a3`](https://github.com/TusanHomichi/PSIV/commit/82de4a37
 These are recorded local results, not a claim of CI coverage or a finished game.
 The later [`e03700b`](https://github.com/TusanHomichi/PSIV/commit/e03700be2d71fcb298a3a877c3ebdf1bfcf85aad)
 fix suppresses cancelled BROSE/RIMIT cues; its
-[focused sound receipts](docs/SOUND_INTEGRATION.md#cancelled-spell-cues-2026-09-15)
+[focused sound receipts](docs/sound/SOUND_INTEGRATION.md#cancelled-spell-cues-2026-09-15)
 are separate from the full-suite baseline above. The workflow setup does not
 rerun or recertify either gameplay result.
 

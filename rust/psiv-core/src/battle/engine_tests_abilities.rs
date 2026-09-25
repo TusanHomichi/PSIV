@@ -42,7 +42,7 @@ fn a_battle_starts_with_the_ability_reroll_word_at_zero() {
     // leave the same zero (`ps4.asm:376-402`). No caller hands a battle a word,
     // so this is where the rule's starting value is pinned - and it is
     // load-bearing: a first ability draw of zero costs a second call because of
-    // it (tape 07's f29789, `docs/BATTLE_ORACLE_REPLAY.md`).
+    // it (tape 07's f29789, `docs/oracle/BATTLE_ORACLE_REPLAY.md`).
     let data = fixtures::data();
     let mut rolls = SliceRolls::new(&[0]);
     let (battle, _) = Battle::start(

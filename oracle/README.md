@@ -52,18 +52,28 @@ oracle/
 ├── host/libretro.h         minimal libretro ABI subset
 ├── build_core.sh           fetches + builds the pinned emulation core
 ├── patches/*.patch         our patches to that checkout, applied in order
+├── scripts/                the analysis tools, one module each: navigate
+│                           (closed-loop tape authoring over `route.py`),
+│                           analyze_rng (per-frame RNG call census from a log),
+│                           analyze_battle (battle ground truth from a log),
+│                           anim_sweep (press offsets across the dialogue open
+│                           animation), damage_census (same-matchup damage
+│                           samples across shifted seed paths), find_battle,
+│                           sweep_encounter
 ├── route.py                plans a walking route over the pack's collision data
-├── navigate.py             closed-loop tape authoring (route + observe + re-plan)
-├── analyze_rng.py          per-frame RNG call census from a log
 ├── rng_trace.py            checks a --rng-trace capture against its log
-├── force_battle.py         forces a chosen formation into a battle and captures it
-├── force/                  its package: tape, selectors, scout, draw, phases,
-│                           durable (the sustained-party patch)
-├── sweep.py                captures every Motavia formation and extracts each
-├── sweep/                  its package: the list, one formation's run, the batch
-├── fixture/                the replay-fixture extractor battle_fixture.py drives
-├── anim_sweep.py           press-offset sweep across the dialogue open animation
-├── damage_census.py        same-matchup damage samples across shifted seed paths
+├── force/                  forces a chosen formation into a battle and captures
+│                           it (tape, selectors, scout, draw, phases, durable,
+│                           the sustained-party patch); `__main__.py` is
+│                           `python3 -m oracle.force`
+├── sweep/                  captures every Motavia formation and extracts each
+│                           (the list, one formation's run, the batch);
+│                           `__main__.py` is `python3 -m oracle.sweep`
+├── fixture/                the replay-fixture extractor (the two CSVs, the roll
+│                           derivation, the observations, the fixture's shape);
+│                           `__main__.py` is `python3 -m oracle.fixture`
+├── decode_layout.py        decodes a --dump-state receipt into a layout
+├── scroll_state.py         the camera and VDP scroll receipt that reads
 ├── checks.py               shared helpers for verify.sh's two lanes
 ├── core/…_libretro.so      built core (not committed)
 ├── gpgx-src/               core source checkout (not committed)
@@ -74,6 +84,16 @@ oracle/
 ├── logs/*.csv              output logs (not committed)
 └── verify.sh               the verification run
 ```
+
+`oracle/` is a package, and there is one way into it: **every entry point is a
+module run from the repository root** - `python3 -m oracle.force`,
+`python3 -m oracle.sweep`, `python3 -m oracle.fixture`,
+`python3 -m oracle.rng_trace`, `python3 -m oracle.decode_layout`, and
+`python3 -m oracle.scripts.<name>` for the analysis tools - so no tool needs
+`oracle/` or the repository root on `PYTHONPATH`, and every oracle import is
+absolute (`from oracle import route`). Running a module by its file path is not
+supported: no module under `oracle/` rewrites the interpreter's import path, so
+an import of a sibling oracle module resolves only through the package.
 
 ### `.gitignore`
 
@@ -200,7 +220,7 @@ For the MeetingRika receipt, add this flag to the Tape 28 command below:
 ```sh
 --dump-ram 7250:/tmp/psiv-scroll-check.ram \
 --dump-state 7250:/tmp/psiv-scroll-check.json
-PYTHONPATH=. python3 oracle/decode_layout.py \
+python3 -m oracle.decode_layout \
   /tmp/psiv-scroll-check.json --label meeting-rika-7250 \
   --output /tmp/psiv-scroll-check-layout.json --grand-cross 0
 ```
@@ -239,24 +259,24 @@ oracle/bin/psiv_oracle \
     --groups core,battle,bhit,enemy,chars,rng,vehicle \
     --rng-trace oracle/logs/tape07_rolls.csv \
     --out  oracle/logs/tape07_battle.csv
-python3 oracle/rng_trace.py check oracle/logs/tape07_rolls.csv \
+python3 -m oracle.rng_trace check oracle/logs/tape07_rolls.csv \
     oracle/logs/tape07_battle.csv
-python3 oracle/battle_fixture.py --trace oracle/logs/tape07_rolls.csv \
+python3 -m oracle.fixture --trace oracle/logs/tape07_rolls.csv \
     --log oracle/logs/tape07_battle.csv \
     --out rust/psiv-core/src/battle/replay_fixtures/tape07_first_battle.json
 CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
     -- tape07
 ```
 
-The last two steps are the replay: `oracle/battle_fixture.py` (the CLI of the
+The last two steps are the replay: `python3 -m oracle.fixture` (the CLI of the
 `oracle/fixture/` package) writes the battle's start state, its rolls with the
 frame and role of each, and what the RAM log shows every action doing, and
 `psiv-core` replays it - `rust/psiv-core/src/battle/replay/`, whose
 `data.rs` is the one test that replays **every** fixture in
 `rust/psiv-core/src/battle/replay_fixtures/` and holds each one that does not
 match to its entry in `divergences.json`; the verdicts are in
-[`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md) and
-[`BATTLE_ORACLE_FORCED.md`](../docs/BATTLE_ORACLE_FORCED.md).
+[`BATTLE_ORACLE_REPLAY.md`](../docs/oracle/BATTLE_ORACLE_REPLAY.md) and
+[`BATTLE_ORACLE_FORCED.md`](../docs/oracle/BATTLE_ORACLE_FORCED.md).
 
 The host writes one row per call, in frame order:
 
@@ -316,11 +336,11 @@ seed between calls, and both are accounted for:
   following the frame's last call. Tape 07's rolls sit in the visible lines
   (V counter `$14-$55`), where the game's attack code runs.
 
-**What `rng_trace.py check` proves.** It re-derives each row's `seed_after` and
-insists that a frame's calls chain into each other, that its first call starts
-from the log's seed for the frame before it or from that seed after one
-`UpdateRNGSeed`, that its last `seed_after` is the log's `rng_seed` for the
-frame, and that every row's `frame_count` is that frame's logged
+**What `python3 -m oracle.rng_trace check` proves.** It re-derives each row's
+`seed_after` and insists that a frame's calls chain into each other, that its
+first call starts from the log's seed for the frame before it or from that seed
+after one `UpdateRNGSeed`, that its last `seed_after` is the log's `rng_seed`
+for the frame, and that every row's `frame_count` is that frame's logged
 `Main_Frame_Count`; the anchor and the counter step must agree. It prints the
 first mismatch and exits non-zero, and the host refuses to call the run
 trustworthy for the same reason before that. What stays unproven is the
@@ -329,7 +349,7 @@ frame, justified by the frame order above rather than by the chain - and any
 frame the log does not cover, which is counted and reported as skipped. Playing
 these rolls back through `psiv-core`'s damage path against the same battle in
 the log is the end-to-end check that closes that gap, and
-[`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md) is that check for
+[`BATTLE_ORACLE_REPLAY.md`](../docs/oracle/BATTLE_ORACLE_REPLAY.md) is that check for
 tapes 07 and 09.
 
 **The `roll` column, and the word it subtracts.** `sub.w (RNG_Seed).w, d0` at
@@ -337,24 +357,25 @@ tapes 07 and 09.
 **high** half of the `RNG_Seed` longword (`ps4.constants.asm:2328`) - the same
 word `ror (RNG_Seed).w` at `$0423AA` rotates. The host's `rng_trace_roll`
 (`oracle/host/rng_trace.h`) subtracts that word, and `oracle/rng_trace.py`'s
-`roll_for` re-derives the same arithmetic, as `oracle/battle_fixture.py`
-insists row by row: a capture whose column subtracts the low half at
+`roll_for` re-derives the same arithmetic, as `oracle.fixture`'s `--trace`
+reading insists row by row: a capture whose column subtracts the low half at
 `$FFFFEF0E` is rejected with the frame and call of the first row that does,
 rather than replayed.
 
 That was not always so, and the capture was wrong for a while. O1 built the
 host with `seed_lo`, O2 found the column was a per-frame-constant shift of the
-cartridge's rolls, and `rng_trace.py check` could not see it because its own
-`roll_for` repeated the same subtraction - the two agreed with each other and
-with nothing else. The cartridge settled it against tape 07's RAM log: the
-high-half derivation reproduces the battle's nine turn-order addends and all
-six of its damage values, the low-half one reproduces none of them
-([`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md)). The fix landed
+cartridge's rolls, and `python3 -m oracle.rng_trace check` could not see it
+because its own `roll_for` repeated the same subtraction - the two agreed with
+each other and with nothing else. The cartridge settled it against tape 07's
+RAM log: the high-half derivation reproduces the battle's nine turn-order
+addends and all six of its damage values, the low-half one reproduces none of
+them
+([`BATTLE_ORACLE_REPLAY.md`](../docs/oracle/BATTLE_ORACLE_REPLAY.md)). The fix landed
 in the host and in the checker, the capture was regenerated, and the two can no
 longer drift apart unnoticed: `tests/test_oracle_rng_trace.py` compiles
 `oracle/host/rng_trace.h` into a probe and compares it with the checker's
 `roll_for` against numbers written out from the disassembly, and
-`oracle/battle_fixture.py` refuses a trace whose column is not the cartridge's.
+`oracle.fixture` refuses a trace whose column is not the cartridge's.
 
 Captured with the low-half subtraction by an otherwise identical host, the same
 tape and core differ in the `roll` column alone, and in all 136 rows: `hv`,
@@ -386,18 +407,18 @@ in 16 frames, between frames 25015 and 31786 of the battle at 25002-31908, all
 of them in the visible lines, with its fixture extracted by `--tape`,
 `--battle-first` and `--battle-last` and nothing else. Both traces' pins, both
 fixtures' provenance and both replays' draw accounting are in
-[`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md).
+[`BATTLE_ORACLE_REPLAY.md`](../docs/oracle/BATTLE_ORACLE_REPLAY.md).
 
 ### Forced battles: capturing any formation on demand
 
 A tape can only meet the formations its own RNG path draws, which is a problem
 when the ability under test belongs to an enemy the tapes never reach.
-`oracle/force_battle.py` forces one:
+`python3 -m oracle.force` forces one:
 
 ```sh
-python3 oracle/force_battle.py --formation 0x5E --out build/forced/helex \
+python3 -m oracle.force --formation 0x5E --out build/forced/helex \
     --require-ability 2
-python3 oracle/force_battle.py --formation 0x53 --vehicle 2 \
+python3 -m oracle.force --formation 0x53 --vehicle 2 \
     --out build/forced/icedigger
 ```
 
@@ -435,25 +456,25 @@ taken. `oracle/force/selectors.py` carries the rule with its citations.
 
 Five oracle runs per capture: a scout, a probe that measures the draw, an
 untrimmed preview, the trimmed capture, and a re-run to byte-compare it, with
-`oracle/rng_trace.py check` on the result. The output directory holds the
-composed tape, the `--ram-patch` list, every run's log and trace, and a
+`python3 -m oracle.rng_trace check` on the result. The output directory holds
+the composed tape, the `--ram-patch` list, every run's log and trace, and a
 `report.json` with the window, the outcome, the vehicle forced, the ability ids
-observed and every sha256. [`BATTLE_ORACLE_FORCED.md`](../docs/BATTLE_ORACLE_FORCED.md)
+observed and every sha256. [`BATTLE_ORACLE_FORCED.md`](../docs/oracle/BATTLE_ORACLE_FORCED.md)
 is the ledger: the mechanism with its citations, four captures (Helex/FLAME
 BOLT, Fanbite/SPIRAL BLD, Desrt Leach/SAND STORM under the Land Rover and again
 under the Ice Digger), the Ice Digger's two-pass swing divergence and their
 limits.
 
-### Sweeping a region: `oracle/sweep.py`
+### Sweeping a region: `python3 -m oracle.sweep`
 
-`oracle/force_battle.py` captures one formation; `oracle/sweep.py` runs it over
-a region's whole list - the distinct formation ids in
+`python3 -m oracle.force` captures one formation; `python3 -m oracle.sweep`
+runs it over a region's whole list - the distinct formation ids in
 `generated/formation_indexes.json` groups 0-7 (Motavia on foot) and 8, 9, 10
 (the vehicle tables), computed from the pack and committed as
 `oracle/sweep/motavia_formations.json` - and extracts a fixture for each:
 
 ```sh
-python3 oracle/sweep.py --out build/lane-evidence/sweep --jobs 3
+python3 -m oracle.sweep --out build/lane-evidence/sweep --jobs 3
 ```
 
 Three captures run at once (the machine's memory cap), a formation that fails
@@ -463,7 +484,7 @@ own - no emulator, no tape: every `formation_XX/` under a sweep's working
 directory that holds a capture is extracted again, with the numbers its own
 `report.json` recorded, into `--fixtures`. That is how a change in the
 extractor's reading reaches a sweep that has already been taken
-(`python3 oracle/sweep.py --reextract build/lane-evidence/sweep`).
+(`python3 -m oracle.sweep --reextract build/lane-evidence/sweep`).
 
 Every capture takes `--durable` (the party's HP cells patched to 999 so a
 level-1 tape party survives long enough to show a strong formation's later
@@ -473,7 +494,7 @@ actions; `oracle/force/durable.py`) and
 record is `<out>/sweep_motavia.json` - per formation the group, the selector,
 the capture's hashes, the outcome, the rounds, the abilities observed and the
 fixture's hash, plus a census - and
-[`BATTLE_ORACLE_SWEEP.md`](../docs/BATTLE_ORACLE_SWEEP.md) is what came out of
+[`BATTLE_ORACLE_SWEEP.md`](../docs/oracle/BATTLE_ORACLE_SWEEP.md) is what came out of
 this sweep: coverage, and every divergence the manifest holds, clustered.
 
 ### Deterministic scene fixtures
@@ -725,7 +746,7 @@ constants file does not name, recovered from the operand the code itself uses.
 `enemy_ability_index` (`$FFFFEEA8`) is the only such field so far - it is
 `Enemy_Attack`'s ability re-roll word, read at `ps4.asm:19149` and written at
 `ps4.asm:19151` - and the clears that reach it, the oracle measurements and what
-the port does with it are in `docs/BATTLE_ORACLE_REPLAY.md`. Nothing was
+the port does with it are in `docs/oracle/BATTLE_ORACLE_REPLAY.md`. Nothing was
 inferred by watching memory. Struct fields are recorded as base + offset with
 both citations so the arithmetic is auditable — for example `c1_facing` is
 `Character_1` (`constants:2086`, `$FFFFC000`) plus `facing_dir`
@@ -748,7 +769,7 @@ So:
 - long at even `A` → `word(A) << 16 | word(A + 2)`
 
 Get this backwards and every log line is quietly wrong, so `verify.sh` proves
-both paths against values the cartridge itself chose (see `RESULTS.md`).
+both paths against values the cartridge itself chose (see `../docs/oracle/RESULTS.md`).
 
 ## Tapes
 
@@ -779,8 +800,9 @@ both paths against values the cartridge itself chose (see `RESULTS.md`).
 | `29_vehicle_land_rover_probe.tape` | retail field boot plus a documented Land Rover movement, dismount-refusal and mounted-battle fixture |
 | `31_natural_land_rover.tape` | power-on natural route through the verified Holt prefix; full Land Rover acquisition remains downstream |
 
-`prelude_basement.tape` is a generated intermediate (`navigate.py` output) that
-both battle tapes are built from; `find_battle.py` consumes it.
+`prelude_basement.tape` is a generated intermediate (the output of
+`python3 -m oracle.scripts.navigate`) that both battle tapes are built from;
+`python3 -m oracle.scripts.find_battle` consumes it.
 
 Tape A's presses are placed from the disassembly, not by trial: `GameMode_Title`
 begins at f226; `TitleRoutine_FadingText` takes a START to skip; then
@@ -800,9 +822,9 @@ The operational README stays short enough to audit at a glance. The detailed
 oracle findings are split into two reference ledgers so each file remains
 under the repository's 1,000-line maintenance limit:
 
-- [`RESULTS.md`](RESULTS.md) — determinism, field/talk/RNG/battle evidence,
+- [`RESULTS.md`](../docs/oracle/RESULTS.md) — determinism, field/talk/RNG/battle evidence,
   and the chest/object findings through the second chest.
-- [`RESULTS_CONTINUED.md`](RESULTS_CONTINUED.md) — the retracted flag-bank
+- [`RESULTS_CONTINUED.md`](../docs/oracle/RESULTS_CONTINUED.md) — the retracted flag-bank
   note, camera/object observations, story gates, RAM notes, tape-authoring
   guidance, open questions, and comparator feeding.
 

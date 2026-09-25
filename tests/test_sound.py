@@ -19,7 +19,7 @@ from psiv_tools.sound import (
 
 
 ROM = Path(__file__).resolve().parents[1] / "Phantasy Star IV (USA).md"
-DOC = Path(__file__).resolve().parents[1] / "docs" / "SOUND_EXTRACTION.md"
+DOC = Path(__file__).resolve().parents[1] / "docs" / "sound" / "SOUND_EXTRACTION.md"
 
 
 @unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")

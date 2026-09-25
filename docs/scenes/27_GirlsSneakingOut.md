@@ -5,7 +5,7 @@
 - **Trigger surface:** not a map `RunEventsJmpTbl` entry. At the Aiedo
   supermarket inn selector `$06`, the shop routine calls this event directly
   when `EventFlag_Zio` (`$42`) and `EventFlag_GirlsCaught` (`$46`) are both
-  clear. See [SHOPS.md](../SHOPS.md), §4.
+  clear. See [SHOPS.md](../camp/SHOPS.md), §4.
 - **Data:** `next_arc_followup.rs`, `GIRLS_SNEAKING_OUT` (27 ops).
 
 ## Clone audit

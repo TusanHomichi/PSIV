@@ -16,10 +16,11 @@ draw on any entry. `K` is not computed: the probe run measures it, and the draw
 is the first call at or after the battle's first frame (`Battle_SetupEnemyData`
 draws the formation before it builds anything, `ps4.asm:11858-11862`).
 
-The patch lands one frame *before* that call, because `oracle/rng_trace.py
-check` insists a frame's first call start from the seed the log holds for the
-frame before it; `phases.probe_phase` verifies from the probe's own log that
-nothing advances the seed during the load before anything is written.
+The patch lands one frame *before* that call, because
+`python3 -m oracle.rng_trace check` insists a frame's first call start from
+the seed the log holds for the frame before it; `phases.probe_phase` verifies
+from the probe's own log that nothing advances the seed during the load
+before anything is written.
 """
 from __future__ import annotations
 
