@@ -235,19 +235,6 @@ class Segmentation(FixtureTest):
         self.assertEqual(bf.action_windows(log, 1, 6, roll_frames=[3, 6]),
                          [(1, 3, 5), (9, 6, 6)])
 
-    def test_a_frame_the_queue_wrote_and_nothing_drew_is_no_window(self):
-        """A skipped turn reads as the actor's id for the rest of the round.
-
-        `loc_576A` writes the entry into `$FFFF4142` and only then tests the
-        fighter's status, so an enemy that fell before its turn arrived leaves
-        its id there until the next queue build - with no call behind it. That
-        is the sweep's no-swing cluster: the port has no turn there either.
-        """
-        rows = [Row(frame=1, battle_actor="1"), Row(frame=2, battle_actor="7"),
-                Row(frame=3, battle_actor="7"), Row(frame=4, battle_actor="7")]
-        log = self.load(rows)
-        self.assertEqual(bf.action_windows(log, 1, 4, roll_frames=[1]), [(1, 1, 4)])
-
     def test_a_round_opens_where_the_turn_order_is_filled(self):
         log = self.load([Row(frame=1), Row(frame=2, turn_00="0001"),
                          Row(frame=3, turn_00="0001"), Row(frame=4, turn_00="0002")])
@@ -288,31 +275,6 @@ class Segmentation(FixtureTest):
         log = self.load([Row(frame=1)])
         with self.assertRaises(bf.FixtureError):
             bf.enemies_loaded(log, 1, 1)
-
-
-class Commands(FixtureTest):
-    """The commanded target, when the capture logs the command cells."""
-
-    COMMAND_MAP = {"fields": RAM_MAP["fields"] + [
-        {"name": "cmd0_target", "hex": False},
-    ]}
-
-    def test_the_commanded_target_is_recorded_when_the_log_carries_it(self):
-        # 6 is enemy slot 1; 65535 is `$FFFF`, the -1 a whole-side attack
-        # writes (`ps4.asm:8464`), which the fixture keeps as the sign it is.
-        log = self.load([Row(frame=1, cmd0_target="6"),
-                         Row(frame=2, cmd0_target="65535")],
-                        header=[entry["name"] for entry in self.COMMAND_MAP["fields"]],
-                        ram_map=self.COMMAND_MAP)
-        self.assertEqual(bf.command_entry(log, 1, 1),
-                         {"id": 1, "command": "attack", "target": 6})
-        self.assertEqual(bf.command_entry(log, 1, 2),
-                         {"id": 1, "command": "attack", "target": -1})
-
-    def test_a_log_without_the_command_cells_names_no_target(self):
-        log = self.load([Row(frame=1)])
-        self.assertEqual(bf.command_entry(log, 1, 1),
-                         {"id": 1, "command": "attack"})
 
 
 class Observations(FixtureTest):

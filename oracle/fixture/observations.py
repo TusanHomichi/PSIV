@@ -328,8 +328,13 @@ HIT_FLAGS = 9
 
 
 def hit_flags(log, frame):
-    """The nine `Fighters_Hit_Flags` bytes, in slot order, at `frame`."""
-    return [log.raw(frame, f"hit_{index:02d}") for index in range(HIT_FLAGS)]
+    """The nine `Fighters_Hit_Flags` bytes, by fighter id, at `frame`.
+
+    Slot 0 of the array is fighter id 1 (`hit_flag_column`), which is also how
+    the log's columns are numbered: `hit_00` is id 1 and `hit_05` is id 6.
+    """
+    return [log.raw(frame, hit_flag_column(id_))
+            for id_ in range(1, HIT_FLAGS + 1)]
 
 
 def pass_frame(log, start, end, roll_frames):
@@ -420,7 +425,6 @@ def action_record(log, actor, start, end, rolls, occupied, columns=None,
     for id_ in range(1, 10):
         if side_of(id_) != opposing or id_ not in occupied:
             continue
-        flag = hit_flag_column(id_)
         damage = f"dmg_{id_ - 1:02d}"
 
         def stored(frame):

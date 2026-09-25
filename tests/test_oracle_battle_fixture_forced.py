@@ -235,6 +235,18 @@ class ActionWindows(ForcedFixture):
                                     roll_frames=[1, 5])
         self.assertEqual(windows, [(1, 1, 2), (1, 5, 6)])
 
+    def test_a_frame_the_queue_wrote_and_nothing_drew_is_no_window(self):
+        """A skipped turn reads as the actor's id for the rest of the round.
+
+        `loc_576A` writes the entry into `$FFFF4142` and only then tests the
+        fighter's status, so an enemy that fell before its turn arrived leaves
+        its id there until the next queue build - with no call behind it. That
+        is the sweep's no-swing cluster: the port has no turn there either.
+        """
+        rows = self.rows_for({1: 1, 2: 7, 3: 7, 4: 7})
+        windows = fx.action_windows(self.log(rows), 1, 4, roll_frames=[1])
+        self.assertEqual(windows, [(1, 1, 4)])
+
     def test_a_stale_actor_id_opens_no_window_without_calls_of_its_own(self):
         # Frames 3-5 still read the *previous* round's last actor, and the
         # turn engine wrote it before testing whether the fighter could act
@@ -380,6 +392,41 @@ class TruncatedCapture(ForcedFixture):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Commands(ForcedFixture):
+    """The commanded target, when the capture logs the command cells.
+
+    `Character_Command_Data` is what the command phase wrote, and the one record
+    of what a member's swing was *aimed* at: the cartridge moves
+    `Current_Target_Index` off a commanded enemy that has fallen
+    (`ps4.asm:8345-8409`), so the cell is what tells a swing that kept its aim
+    from one the retarget scan re-aimed (`docs/BATTLE_ORACLE_SWEEP.md`, the
+    retarget cluster). A capture carries it only from the point `bcmd` joined
+    `oracle/force/runs.py`'s `GROUPS`.
+    """
+
+    COMMAND_MAP = {"fields": FORCED_MAP["fields"] + [
+        {"name": "cmd0_target", "hex": False},
+    ]}
+
+    def test_the_commanded_target_is_recorded_when_the_log_carries_it(self):
+        # 6 is enemy slot 1; 65535 is `$FFFF`, the -1 a whole-side attack
+        # writes (`ps4.asm:8464`), which the fixture keeps as the sign it is.
+        log = self.load([ForcedRow(frame=1, cmd0_target="6"),
+                         ForcedRow(frame=2, cmd0_target="65535")],
+                        header=[entry["name"]
+                                for entry in self.COMMAND_MAP["fields"]],
+                        ram_map=self.COMMAND_MAP)
+        self.assertEqual(fx.command_entry(log, 1, 1),
+                         {"id": 1, "command": "attack", "target": 6})
+        self.assertEqual(fx.command_entry(log, 1, 2),
+                         {"id": 1, "command": "attack", "target": -1})
+
+    def test_a_log_without_the_command_cells_names_no_target(self):
+        log = self.load([ForcedRow(frame=1)])
+        self.assertEqual(fx.command_entry(log, 1, 1),
+                         {"id": 1, "command": "attack"})
 
 
 class ActionEffects(ForcedFixture):
