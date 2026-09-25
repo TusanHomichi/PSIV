@@ -1,5 +1,6 @@
 //! Real map chunks, ordinary interaction and both directions of a ride.
 use super::*;
+use psiv_core::{Input, MapId};
 use std::path::Path;
 
 fn fixture(map: u16, cell: Cell) -> Runtime {

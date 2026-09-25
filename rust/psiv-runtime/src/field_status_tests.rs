@@ -1,5 +1,6 @@
 use super::*;
 use psiv_core::battle::status;
+use psiv_core::{Input, MapId};
 use std::path::Path;
 
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");

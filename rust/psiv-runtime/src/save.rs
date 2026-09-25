@@ -15,7 +15,8 @@ use psiv_core::{
 use psiv_data::GameData;
 
 use super::bridge::{build_bespoke, build_wander, clear_bespoke_entry_flags};
-use super::{BridgeError, Runtime, camera_for_record, driver_of, field_map_patched};
+use super::{BridgeError, Runtime, field_map_patched};
+use crate::geometry::{camera_for_record, driver_of};
 
 /// An error while reading, writing or constructing a runtime save.
 #[derive(Debug)]

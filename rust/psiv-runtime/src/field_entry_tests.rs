@@ -1,5 +1,6 @@
 //! Map-entry checks use the loaded map before movement or encounter rolls.
 use super::*;
+use psiv_core::{Input, MapId};
 use psiv_data::BattleFiles;
 use std::path::Path;
 

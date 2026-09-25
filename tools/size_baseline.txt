@@ -5,5 +5,3 @@
 1077 rust/psiv-data/src/map.rs
 1192 rust/psiv-godot/src/cutscene.rs
 1009 rust/psiv-godot/src/shop.rs
-1281 rust/psiv-runtime/src/lib.rs
-1190 rust/psiv-runtime/tests/next_arc.rs
