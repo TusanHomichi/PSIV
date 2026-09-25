@@ -405,6 +405,18 @@ before the decisive pass would fail the test rather than be excused.
 `the_logs_third_round_needs_the_last_passs_verdict` still pins the same rolls'
 verdict inside the port.
 
+**Correction, later on 2026-09-24: that "three" is the Land Rover's count, not
+every vehicle's.** The second `--vehicle` capture (the Ice Digger, same
+formation and the same draw) shows two `loc_B6A2` passes, because its attack
+object's `$1C` wind-up is zero (`clr.w $1C(a4)`, `ps4.asm:82996`) and the
+hand-back `move.w #5, $32(a0)` therefore lands in the creation frame, before
+state 4's own advance — see
+[`BATTLE_ORACLE_FORCED.md`](BATTLE_ORACLE_FORCED.md) §5.1. The rule is now
+`vehicle_attack.rs`'s `hit_passes`: three for the Land Rover and the Hydrofoil
+(both created with `#$C`, `ps4.asm:82945`/`83071`) and two for the Ice Digger.
+`replay_fixtures/divergences.json` is empty again and
+`every_fixture_replays_as_recorded` passes for every fixture.
+
 ### `$FFFFEEA8`: the ability re-roll word, and how long it lives
 
 `Enemy_Attack` picks an enemy's regular ability by drawing an index and

@@ -2,11 +2,13 @@
 //!
 //! What the tests here pin:
 //!
-//! * the draw count: three `loc_B6A2` passes and one sixteen-draw
-//!   `Battle_CalculateDamage` per swing, in that order, then nothing else;
-//! * which pass decides — the first two are drawn for their rolls alone
+//! * the draw count: one `loc_B6A2` pass per `hit_passes` of the vehicle plus
+//!   one sixteen-draw `Battle_CalculateDamage`, in that order, then nothing
+//!   else — the per-vehicle counts and the Ice Digger's two-pass swing are in
+//!   `vehicle_attack_passes_tests.rs`;
+//! * which pass decides — every earlier pass is drawn for its rolls alone
 //!   (`loc_B6A2` blanks all nine flags before each pass), so a critical on the
-//!   third pass is the one that carries a bonus and a critical on an earlier
+//!   last pass is the one that carries a bonus and a critical on an earlier
 //!   one is discarded;
 //! * the damage: the `$53` capture's own frames, replayed to the log's 165 and
 //!   234, and each vehicle's own attack byte through the same formula;
@@ -30,7 +32,7 @@ use crate::battle::{
 use crate::state::VehicleRecord;
 use crate::vehicle;
 
-fn id(n: u8) -> FighterId {
+pub(super) fn id(n: u8) -> FighterId {
     FighterId::new(n).expect("a valid id")
 }
 
@@ -48,7 +50,7 @@ const ROUND_2_DRAWS: [u16; DAMAGE_DRAWS] = [
 ];
 
 /// Enemy 81, the Desrt Leach the `$53` capture fought.
-fn desrt_leach() -> EnemyRecord {
+pub(super) fn desrt_leach() -> EnemyRecord {
     EnemyRecord {
         id: 81,
         name: "DESRTLEACH".into(),
@@ -71,7 +73,7 @@ fn desrt_leach() -> EnemyRecord {
     }
 }
 
-fn data() -> BattleData {
+pub(super) fn data() -> BattleData {
     fixtures::data().with_enemies([desrt_leach()])
 }
 
@@ -97,7 +99,7 @@ fn roster_against(index: u16, hp: u16, enemy: &EnemyRecord) -> (Roster, FighterI
 }
 
 /// The same, against the capture's own Desrt Leach.
-fn roster(index: u16, hp: u16) -> (Roster, FighterId) {
+pub(super) fn roster(index: u16, hp: u16) -> (Roster, FighterId) {
     roster_against(index, hp, &desrt_leach())
 }
 
@@ -118,7 +120,7 @@ fn formation(enemy_id: u16) -> FormationRecord {
 }
 
 /// The port's resolution for `target`.
-fn resolution(events: &[BattleEvent], target: FighterId) -> (Verdict, Option<u16>) {
+pub(super) fn resolution(events: &[BattleEvent], target: FighterId) -> (Verdict, Option<u16>) {
     events
         .iter()
         .find_map(|event| match event {
@@ -133,13 +135,19 @@ fn resolution(events: &[BattleEvent], target: FighterId) -> (Verdict, Option<u16
         .expect("the swing resolved its target")
 }
 
-fn hp(roster: &Roster, target: FighterId) -> u16 {
+pub(super) fn hp(roster: &Roster, target: FighterId) -> u16 {
     roster.get(target).expect("present").stats.curr_hp
 }
 
-/// One whole swing of `index`'s vehicle: `hits` (one per pass), then `draws`.
-fn swing(index: u16, hits: &[u16], draws: &[u16]) -> (Roster, Vec<BattleEvent>) {
-    let (mut roster, actor) = roster(index, 740);
+/// One whole swing of `index`'s vehicle at `hp`: `hits` (one per pass, in pass
+/// order), then `draws` — and nothing else, which the draw count asserts.
+pub(super) fn swing_at(
+    index: u16,
+    hp: u16,
+    hits: &[u16],
+    draws: &[u16],
+) -> (Roster, Vec<BattleEvent>) {
+    let (mut roster, actor) = roster(index, hp);
     let stream: Vec<u16> = hits.iter().chain(draws.iter()).copied().collect();
     let mut rolls = SliceRolls::new(&stream);
     let mut events = Vec::new();
@@ -152,6 +160,11 @@ fn swing(index: u16, hits: &[u16], draws: &[u16]) -> (Roster, Vec<BattleEvent>) 
         "one roll per pass plus the damage run, and nothing else"
     );
     (roster, events)
+}
+
+/// One whole swing of `index`'s vehicle: `hits` (one per pass), then `draws`.
+fn swing(index: u16, hits: &[u16], draws: &[u16]) -> (Roster, Vec<BattleEvent>) {
+    swing_at(index, 740, hits, draws)
 }
 
 #[test]
@@ -221,9 +234,10 @@ fn the_logs_third_round_needs_the_last_passs_verdict() {
 }
 
 #[test]
-fn the_swing_costs_three_passes_then_one_damage_run() {
+fn the_land_rovers_swing_costs_three_passes_then_one_damage_run() {
     let (mut roster, actor) = roster(1, 740);
-    let mut rolls = SliceRolls::new(&[0; VEHICLE_HIT_PASSES + DAMAGE_DRAWS]);
+    let stream = vec![0u16; hit_passes(1) + DAMAGE_DRAWS];
+    let mut rolls = SliceRolls::new(&stream);
     let mut events = Vec::new();
     resolve_attack(&mut roster, actor, None, &data(), &mut rolls, &mut events).expect("resolves");
     let targets = events
@@ -241,7 +255,7 @@ fn the_swing_costs_three_passes_then_one_damage_run() {
     assert_eq!(resolution(&events, id(6)), (Verdict::Normal, Some(84)));
     assert_eq!(
         rolls.drawn(),
-        VEHICLE_HIT_PASSES + DAMAGE_DRAWS,
+        hit_passes(1) + DAMAGE_DRAWS,
         "three loc_B6A2 passes and one Battle_CalculateDamage, in that order"
     );
 }
@@ -250,7 +264,8 @@ fn the_swing_costs_three_passes_then_one_damage_run() {
 fn every_vehicle_swings_with_its_own_attack_byte() {
     // Sixteen zero draws give S = 0, so ((8*ATK)>>6 + ATK) * 2 >> 2 - 28:
     // the Land Rover's 200 lands 84, the Ice Digger's 250 lands 112 and the
-    // Hydrofoil's 150 lands 56. All three draw the same three passes.
+    // Hydrofoil's 150 lands 56. Each draws its own pass count — two for the
+    // Ice Digger, three for the others.
     for (index, attack, damage) in [(1u16, 200u16, 84u16), (2, 250, 112), (3, 150, 56)] {
         let profile = vehicle::profile(index).expect("a retail vehicle");
         assert_eq!(
@@ -258,7 +273,8 @@ fn every_vehicle_swings_with_its_own_attack_byte() {
             "{}'s VehicleData attack",
             profile.name
         );
-        let (roster, events) = swing(index, &[0, 0, 0], &[0; DAMAGE_DRAWS]);
+        let hits = vec![0; hit_passes(index)];
+        let (roster, events) = swing(index, &hits, &[0; DAMAGE_DRAWS]);
         let actor = id(1);
         assert_eq!(
             roster.get(actor).expect("present").stats.attack.battle,
@@ -320,7 +336,8 @@ fn a_swing_reaches_the_cursor_or_the_first_living_enemy() {
 
     // The command's target word is one slot (loc_1152), so a swing at the
     // cursor's enemy leaves the other one alone.
-    let mut rolls = SliceRolls::new(&[0; VEHICLE_HIT_PASSES + DAMAGE_DRAWS]);
+    let stream = vec![0u16; hit_passes(1) + DAMAGE_DRAWS];
+    let mut rolls = SliceRolls::new(&stream);
     let mut events = Vec::new();
     resolve_attack(
         &mut roster,
@@ -335,14 +352,15 @@ fn a_swing_reaches_the_cursor_or_the_first_living_enemy() {
     assert_eq!(hp(&roster, id(6)), 1040, "the cursor chose the other slot");
     assert_eq!(
         rolls.drawn(),
-        VEHICLE_HIT_PASSES + DAMAGE_DRAWS,
+        hit_passes(1) + DAMAGE_DRAWS,
         "one target, one roll per pass"
     );
 
     // A cursor left on a corpse falls to the first survivor, exactly as the
     // party's own single-target swing does.
     roster.get_mut(id(6)).expect("present").stats.status = status::DEAD;
-    let mut rolls = SliceRolls::new(&[0; VEHICLE_HIT_PASSES + DAMAGE_DRAWS]);
+    let stream = vec![0u16; hit_passes(1) + DAMAGE_DRAWS];
+    let mut rolls = SliceRolls::new(&stream);
     let mut events = Vec::new();
     resolve_attack(
         &mut roster,
@@ -360,7 +378,8 @@ fn a_swing_reaches_the_cursor_or_the_first_living_enemy() {
 fn a_kill_is_reported_for_the_engine_to_award() {
     let (mut roster, actor) = roster(1, 740);
     roster.get_mut(id(6)).expect("present").stats.curr_hp = 50;
-    let mut rolls = SliceRolls::new(&[0; VEHICLE_HIT_PASSES + DAMAGE_DRAWS]);
+    let stream = vec![0u16; hit_passes(1) + DAMAGE_DRAWS];
+    let mut rolls = SliceRolls::new(&stream);
     let mut events = Vec::new();
     let died = resolve_attack(&mut roster, actor, None, &data(), &mut rolls, &mut events)
         .expect("resolves");

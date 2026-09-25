@@ -230,7 +230,11 @@ the traces are byte-identical to the ones the capture tool's own lane recorded
 in a *different* worktree; the logs differ from those earlier pins only in the
 `# tape=` line (a basename now) and in the seven columns the `vehicle` group
 adds, which is what re-running the Helex capture's tape and patches with the
-pre-change group set shows: 25,676 rows, every shared column identical. Second,
+pre-change group set shows: 25,676 rows, every shared column identical. (Later
+on 2026-09-24 the group grew by five more - the Ice Digger's saved record, section
+5 - so a re-run against *those* pins now also carries
+`vehicle_ice_hp`/`_max_hp`/`_skill_mask`/`_skill1_current`/`_skill1_max`, which
+is a change to the log's column set and not to any pinned capture's log.) Second,
 the tape's *directory* is not part of the capture: with the tape copied to
 another directory and replayed from there, with the same patches, groups and
 ROM spelling, the log comes back byte-identical to the capture's
@@ -272,13 +276,14 @@ CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
 | `$5E` two Helex | `forced_5e_helex.json` | **exact**: two rounds, 80 rolls, both FLAME BOLTs (`$02` at f25003 and f25125, and the re-rolled one at f25371) resolve damage for damage, and the party's defeat is the log's |
 | `$37` two Fanbite | `forced_37_fanbite.json` | **exact**: SPIRAL BLD (`$08` at f24903) takes all three party slots for the damage the log shows, and the wipe is the log's |
 | `$53` one Desrt Leach, Land Rover | `forced_53_desrtleach.json` | **exact** (2026-09-24): six rounds, 285 rolls, every vehicle swing's three hit passes and sixteen damage draws, the Desrt Leach's death at f26459, and the log's 1500 exp and 1 meseta |
-| `$53` one Desrt Leach, Ice Digger | `forced_53_icedigger.json` | **diverges, recorded**: round 1's swing draws one hit pass too many, so the damage draws start one roll late (`divergences.json`, and section 5.1) |
+| `$53` one Desrt Leach, Ice Digger | `forced_53_icedigger.json` | **exact** (later on 2026-09-24): five rounds, 245 battle rolls, every swing's **two** hit passes and sixteen damage draws, and the Desrt Leach's death at f26253 — the one-pass-too-many this capture first recorded is fixed by `hit_passes` (section 5.1) |
 
 `replay_fixtures/divergences.json` carried one entry per recorded divergence.
 It was **empty** as of 2026-09-24, when the Desrt Leach capture closed the
 vehicle-rule worklist; the Ice Digger's capture (section 5) reopened it with a
-finding of its own, and it holds exactly that entry now. What the old entry
-carried, and what closed it:
+finding of its own, and **later the same day a per-vehicle pass count closed it
+again** — the manifest is empty once more. Section 5.1 says what the finding was
+and what fixed it. What the old entry carried, and what closed it:
 
 * **frame** f25026, **round** 1, **kind** `no-swing`, **action** actor 1 (the
   vehicle), f25026-25169;
@@ -358,6 +363,18 @@ when the fixture claims it, so the replay seats the fighter on the log's own
 column set in `oracle/ram_map.json` (`$FFFFFAA0`), and that file is outside this
 lane's write set - the reading above is what it can say without it.
 
+**Added later on 2026-09-24:** the second record's columns now exist
+(`vehicle_ice_hp`/`_max_hp`/`_skill_mask`/`_skill1_current`/`_skill1_max` at
+`$FFFFFAA0`+0/2/4/6/7, `Ice_Digger_Stats` `constants:2413`), and
+`oracle/fixture/vehicle.py` reads the record its `Vehicle_Index` names - index 1
+through the columns the fixtures already carry, index 2 through these, and an
+index with no logged record (the Hydrofoil's 3) through the first record's, with
+a note saying so. Nothing in the two committed fixtures changes: no capture has
+logged the new columns, so the Ice Digger's still reads `max_hp: null` beside
+`hp: 960`, and re-reading its log finds all five cells absent rather than wrong.
+Filling it needs a re-capture of `$53 --vehicle 2`, which is out of this lane's
+scope.
+
 ## 4. What this does and does not prove
 
 Proved, for the four captures above: the formation in RAM is the one asked
@@ -396,7 +413,11 @@ Not proved, and not claimed:
   two where the rule says three (section 5.1): that is a recorded divergence in
   `replay_fixtures/divergences.json`, not a verified rule, and the Hydrofoil's
   12-frame wind-up is read from the disassembly rather than measured - no
-  capture has been fought by the Hydrofoil.
+  capture has been fought by the Hydrofoil. **Corrected later on 2026-09-24:**
+  the rule *is* per vehicle now (three for the Land Rover and the Hydrofoil, two
+  for the Ice Digger, from each attack object's own `$1C` timer), the entry is
+  gone and the manifest is empty; the Hydrofoil's wind-up is still a
+  disassembly reading rather than a measurement.
 - **A vehicle battle against the other vehicle tables.** The Dezolis table
   (group `$D`) and the capture a second table would prove are still open: its
   formations' enemies (ProtectBit, LwAddmer, Owltalon) are not in
@@ -550,3 +571,23 @@ what this capture's manifest entry exists to record - the fixed rule, its
 citations and its tests are
 [`source-notes/battle-party.md`](source-notes/battle-party.md#the-vehicles-own-attack-command-6-three-hit-passes-2026-09-24)'s,
 and they were not changed here.
+
+**Done, later on 2026-09-24.** `VEHICLE_HIT_PASSES` is gone: the rule is
+`vehicle_attack.rs`'s `hit_passes(vehicle)`, 3 for the Land Rover and the
+Hydrofoil (their objects are created with `#$C`, `ps4.asm:82945`/`83071`) and 2
+for the Ice Digger (`clr.w $1C(a4)`, `ps4.asm:82996`), with
+`VEHICLE_ATTACK_OBJECTS` carrying each object's id, routine, timer and both
+citing lines. `resolve_vehicle_attack` derives the vehicle from the actor's
+`character` (`Vehicle_Index + $B`) and draws that many passes; the last pass
+still decides. Two tests now pin this capture's own swing - it replays to the
+log's 212 and HP 828 on the rows of this fixture, and the pre-change uniform
+three-pass rule is reproduced beside it at 214 (19 rolls against the log's 18) -
+in `battle/vehicle_attack_passes_tests.rs`. The `forced_53_icedigger` entry is
+**gone** from `replay_fixtures/divergences.json`, which is empty again, and
+`every_fixture_replays_as_recorded` passes. Forcing `hit_passes` back to 3 fails
+it at exactly the entry's finding:
+`forced_53_icedigger: the port diverges at f25026 (round 1, value): the log has
+FighterId(6): hit flag 00, damage Some(212), the port Normal with Some(214)`
+(`build/lane-evidence/10-negative-control-uniform-three.log`; the restored run is
+`11-replay-after-restore.log`). The Hydrofoil's twelve-frame wind-up is still a
+disassembly reading: no capture has been fought by it.

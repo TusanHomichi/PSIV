@@ -451,3 +451,42 @@ has actor FighterId(1) resolving 1 target(s), the port no swing`. Restoring the
 dispatch gives 1 passed, 0 failed. Transcripts:
 `build/lane-evidence/03-negative-control.log` and
 `04-replay-after-restore.log` (not committed; `build/` is ignored).
+
+### Correction, later on 2026-09-24: the pass count is per vehicle
+
+The section above is the Land Rover's reading, and "three hit passes" is that
+vehicle's count rather than every vehicle's. The second `--vehicle` capture
+(the Ice Digger, same formation `$53` and the same draw) has **two** passes at
+f25058/f25059 and lands its sixteen draws at f25075, 212 from its own 250 attack
+byte; `BATTLE_ORACLE_FORCED.md` §5.1 is that capture's write-up, and
+`rust/psiv-core/src/battle/vehicle_attack.rs`'s `hit_passes` is the rule now —
+two for `Vehicle_Index` 2, three for 1 and 3 — derived from the `$1C` timer each
+vehicle's attack object is created with (`#$C` for `BattleObj_LandRoverAtk`
+(`ps4.asm:82945`) and `BattleObj_HydrofoilAtk` (`83071`), `clr.w` for
+`BattleObj_IceDiggerAtk` (`82996`)). Only a nonzero wind-up adds the pass: the
+hand-back `move.w #5, $32(a0)` (`82975`, `83109`) lands thirteen countdown
+frames later and re-enters state 5, while the Digger's zero timer expires in
+the creation frame — before state 4's own `addq.w #1, $32(a4)`
+(`ps4.asm:16961`) — so the write lands on the value `$32` is about to hold
+anyway. Fighters run before battle objects inside a frame
+(`Battle_UpdateFighters`, `ps4.asm:953`, then `Battle_RunObjects`, `956`),
+which is what makes that ordering the cartridge's and not the port's.
+
+Two things the section above still says in the old terms: the test it names as
+`the_swing_costs_three_passes_then_one_damage_run` is now
+`the_land_rovers_swing_costs_three_passes_then_one_damage_run` (`hit_passes(1)`
+where the constant used to be), and `every_vehicle_swings_with_its_own_attack_byte`
+now gives each vehicle its own pass count on the same sixteen zero draws. The
+new tests are in `battle/vehicle_attack_passes_tests.rs`: the object table's
+timers and counts, the per-vehicle draw count through the engine's own path, the
+Digger's capture replayed to 212 and HP 828 on its own rolls, the Digger's
+last-pass rule (a critical on pass 1 is discarded, one on pass 2 gives 274), and
+the negative control — the pre-change uniform three-pass rule reproduced on the
+Digger's own stream, 19 rolls and 214, which is exactly the entry
+`replay_fixtures/divergences.json` carried until this correction. With the rule
+in place that manifest is **empty** again and
+`every_fixture_replays_as_recorded` passes; with `hit_passes` forced back to 3
+it fails at `forced_53_icedigger`, f25026:
+`the log has FighterId(6): hit flag 00, damage Some(212), the port Normal with
+Some(214)`. Transcripts: `build/lane-evidence/10-negative-control-uniform-three.log`
+and `11-replay-after-restore.log` (not committed; `build/` is ignored).
