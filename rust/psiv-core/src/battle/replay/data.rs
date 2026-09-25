@@ -117,7 +117,7 @@ fn collect_fixtures(root: &Path, dir: &Path, files: &mut Vec<(String, PathBuf)>)
         if !path.extension().is_some_and(|ext| ext == "json") {
             continue;
         }
-        if path.file_name().is_some_and(|name| not_a_fixture(name)) {
+        if path.file_name().is_some_and(not_a_fixture) {
             continue;
         }
         let name = path
