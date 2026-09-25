@@ -260,7 +260,9 @@ divergence is the disk representation:
 
 * The disk uses three per-slot files instead of one shared SRAM device. Files
   are `saves/slot_1.sram` through `saves/slot_3.sram`; `saves/` is ignored by
-  the repository. `PSIV_SAVE_DIR` overrides that directory for a run or test.
+  the repository. `PSIV_SAVE_DIR` overrides that directory for a run or test,
+  and a scripted run (`--script`, every native driver) refuses to touch saves
+  without it (`rust/psiv-godot/src/save_dir.rs`).
 
 The following are runtime-surface notes, not save-payload divergences: the
 current runtime has one active map namespace and therefore consumes the
