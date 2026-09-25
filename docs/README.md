@@ -52,7 +52,11 @@ other document sits in the folder for its area.
 
 ## campaign — connected campaign evidence
 
-- [Native playability ledger](campaign/NATIVE_PLAYABILITY.md) — connected routes, fixes and verification history.
+- [Native playability ledger](campaign/NATIVE_PLAYABILITY.md) — entry point: current checkpoint, owner objective and the segment index.
+  - [Foundations and audit](campaign/PLAYABILITY_FOUNDATIONS.md) — audit context, the opening slice's repairs and evidence, and the implementation priorities.
+  - [Academy](campaign/PLAYABILITY_ACADEMY.md) — command menus and technique/skill/item combat, the opening resistance repair, the first-boss Fission, dialogue and choices, the connected Academy route, camp restorative rules and battle return reload.
+  - [Holt and Tonoe](campaign/PLAYABILITY_HOLT_TONOE.md) — field TECH and SKILL recovery, the connected route through Holt, Acid Breath and attack ailments, map entry and rock removal, field status, the first Zio encounter, field travel and chest input.
+  - [Alshline and Zema](campaign/PLAYABILITY_ALSHLINE_ZEMA.md) — the connected Alshline progression and completion, instant-death commands, battle recovery, STATUS and RIMIT, the THREAD correction, the Zema restarts and the BioPlant elevator checkpoint.
 - [BioPlant checkpoints](campaign/BIOPLANT_NATIVE.md) — connected Rika escape, ordinary SAVE/fresh CONTINUE, poison recovery and retained failed attempts.
 - [Post-Rika northern crossing](field/TRAVEL.md#post-rika-northern-crossing-2026-09-23) — current Motavia north-bank save, paid recovery, repaired overworld bridge, restart bytes and bounded visual proof.
 - [Party ORDER](camp/PARTY_ORDER.md) — original rules, native input and exact menu-region comparisons.
