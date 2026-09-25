@@ -150,7 +150,7 @@ from [DEVELOPMENT.md](DEVELOPMENT.md) before running asset-dependent tests.
 | Camp / persistence | Relevant `psiv-runtime/tests/` target | Ordinary input, SAVE, fresh process, CONTINUE and state comparison |
 | Godot UI / scenes | Build the extension and run the affected interaction | Inspect matching original/native captures; record viewport and region |
 | Sound | Relevant `psiv-sound` tests | Register/timing comparisons and playback checks for the affected path |
-| Documentation | Verify paths and commands, then `git diff --check` | Code tests only if source also changes |
+| Documentation | `python3 tools/check_docs.py` and `git diff --check` | Code tests only if source also changes |
 
 Examples of selecting existing test targets:
 

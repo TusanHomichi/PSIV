@@ -4,7 +4,7 @@
 
 Hermetic and quick: every case builds a throwaway git repo in a temp directory
 and hands `run_gate` its own fake commands, so nothing here runs the real
-four-command gate, cargo, or the game. The two guards get both halves: a held
+gate commands, cargo, or the game. The two guards get both halves: a held
 lock and a mapped extension must refuse the run (exit 2, nothing run), and each
 must let the same run through once the holder is gone.
 
@@ -29,7 +29,7 @@ from tools.gate import (GATE_COMMANDS, GateRefused, command_slug, lock_path, mai
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEVELOPMENT = REPO_ROOT / "docs" / "DEVELOPMENT.md"
 
-UNITTEST_COMMAND, FMT_COMMAND, CARGO_TEST_COMMAND, CLIPPY_COMMAND = GATE_COMMANDS
+DOCS_COMMAND, UNITTEST_COMMAND, FMT_COMMAND, CARGO_TEST_COMMAND, CLIPPY_COMMAND = GATE_COMMANDS
 
 # Captured: `python3 -m unittest gate_sample_skip` (build/lane-evidence/capture/
 # unittest-skip.capture.txt), minus the shell prompt line.
@@ -155,7 +155,7 @@ class UnitCase(unittest.TestCase):
 
     def test_command_slugs_name_the_real_commands(self):
         self.assertEqual([command_slug(command) for command in GATE_COMMANDS],
-                         ["python3-unittest", "cargo-fmt", "cargo-test", "cargo-clippy"])
+                         ["python3-tools-check_docs.py", "python3-unittest", "cargo-fmt", "cargo-test", "cargo-clippy"])
 
 
 class CountParserCase(unittest.TestCase):

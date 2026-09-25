@@ -47,6 +47,7 @@ EXIT_REFUSED = 2
 
 #: docs/DEVELOPMENT.md's `## Run checks` block, in order, verbatim.
 GATE_COMMANDS = [
+    "python3 tools/check_docs.py",
     "PYTHONPATH=. python3 -m unittest discover -s tests",
     "cargo fmt --manifest-path rust/Cargo.toml --all --check",
     "CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml --workspace -- --test-threads=1",
