@@ -156,58 +156,6 @@
         "port": 191
       }
     },
-    "sweep_motavia/formation_2A": {
-      "action": "round 3: actor 6 (ability $45), 17 roll(s), 0 target(s)",
-      "actual": "ability $40",
-      "expected": "ability $45",
-      "frame": 26539,
-      "kind": "ability",
-      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w2-the-enemys-ai-instruction",
-      "round": 3,
-      "round_rolls": {
-        "log": 101,
-        "port": 101
-      }
-    },
-    "sweep_motavia/formation_2B": {
-      "action": "round 4: actor 8 (ability $45), 17 roll(s), 0 target(s)",
-      "actual": "ability $40",
-      "expected": "ability $45",
-      "frame": 27707,
-      "kind": "ability",
-      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w2-the-enemys-ai-instruction",
-      "round": 4,
-      "round_rolls": {
-        "log": 152,
-        "port": 152
-      }
-    },
-    "sweep_motavia/formation_32": {
-      "action": "round 4: actor 6 (ability $45), 18 roll(s), 0 target(s)",
-      "actual": "ability $44",
-      "expected": "ability $45",
-      "frame": 27115,
-      "kind": "ability",
-      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w2-the-enemys-ai-instruction",
-      "round": 4,
-      "round_rolls": {
-        "log": 87,
-        "port": 87
-      }
-    },
-    "sweep_motavia/formation_34": {
-      "action": "round 4: actor 6 (ability $45), 17 roll(s), 0 target(s)",
-      "actual": "ability $40",
-      "expected": "ability $45",
-      "frame": 27629,
-      "kind": "ability",
-      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w2-the-enemys-ai-instruction",
-      "round": 4,
-      "round_rolls": {
-        "log": 138,
-        "port": 138
-      }
-    },
     "sweep_motavia/formation_3B": {
       "action": "round 1: actor 6 (attack), 18 roll(s), 1 target(s)",
       "actual": "Critical with Some(312)",

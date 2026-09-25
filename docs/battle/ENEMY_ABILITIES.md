@@ -39,6 +39,53 @@ branch. Three independent checks were run:
    cited `EnemyAttack_*` routine has an entry in `EnemyAttackOffs`
    (`ps4.asm:19206`, 153 entries, ids `$00-$98`).
 
+### The AI instruction block
+
+`Enemy_Attack` rolls one of the eight regular ids at `ps4.asm:19146-19154` and
+then runs the enemy's own **instruction block** over four condition bytes at
+`$50(a3)`..`$53(a3)` (`ps4.asm:19157-19168`). A nonzero byte selects an arm of
+`EnemyAIInstructionsOffs` (`ps4.asm:19364`, 20 entries, ids `$00`..`$13`), and
+an arm whose condition holds overwrites the rolled ability with the matching
+`conditional_ability_ids` byte at `$54(a3)`.. before the `EnemyAttack_*` routine
+runs. `rust/psiv-core/src/battle/enemy_ai.rs` owns that dispatch — one typed
+`EnemyAiCondition` arm per table entry, no catch-all — and the per-arm table
+below is its status.
+
+| # | arm | what it reads | port |
+|---|---|---|---|
+| `$00` | `EnemyAI_Nothing` | nothing (`rts`) | unreachable: a `0` condition byte ends the scan before the table (line 19159) |
+| `$01` | `EnemyAI_EmptySpace` | `$FFFFEE81`: bit 0 = the object word at `prev_obj` reads zero, bit 1 = `next_obj`; one parity draw when both sides are empty | implemented — it also carries the slot the fission object refills |
+| `$02` | `EnemyAI_HalfHPOrLower` | the actor's own `curr_hp <= max_hp >> 1` | implemented |
+| `$03` | `EnemyAI_WiredineExists` | slot 2 holds Wiredine and the slot two back reads zero | implemented |
+| `$04` | `EnemyAI_ArthroPodExists` | ArthroPod in slot 1 or 3 with the other of those two slots empty | implemented |
+| `$05` | `EnemyAI_CRayTubeNearSatMinion` | slots 1/2/3 hold SatMinion, CRayTube, SatMinion | implemented (the routine writes `d0`, not `d1` — see the note below the table) |
+| `$06` | `EnemyAI_ZolSlugs` | every occupied enemy slot holds a ZolSlug, and there are exactly two of them | implemented |
+| `$07` | `EnemyAI_PhysicalAtkReceived` | `reaction_flags` bit 0, then clears the byte | implemented |
+| `$08` | `EnemyAI_MagicDamageReceived` | bit 1, then clears the byte | implemented |
+| `$09` | `EnemyAI_Alone` | exactly one occupied enemy slot | implemented |
+| `$0A` | `EnemyAI_TechDamageReceived` | bit 2, then clears the byte | implemented |
+| `$0B` | `EnemyAI_Ambush` | bit 3, then clears the byte | implemented |
+| `$0C` | `EnemyAI_TechSealed` | the actor's `status` bit 4 | implemented |
+| `$0D` | `EnemyAI_HakenLeftExists` | no other object is BladeRight or HakenLeft | implemented |
+| `$0E` | `EnemyAI_BladeRightExists` | the same test with the two ids swapped | implemented |
+| `$0F` | `EnemyAI_HalfHPOrLower_AllEnemies` | any occupied enemy at or below **its own** half | implemented |
+| `$10` | `EnemyAI_Unknown` | bit 0 of `$FFFFEEA4` | **Unsupported** — no routine in the disassembly writes that word, and no record names the entry |
+| `$11` | `EnemyAI_HP25PercentOrLower` | `$FFFFEE86` clear **and** the actor at or below a quarter of its maximum | **Unsupported** — `$FFFFEE86` is Lashiec's own battle-object flag (`EnemyInit_Lashiec` clears it at line 18114; object `$7EC` sets it at line 53102), and the port models no battle objects |
+| `$12` | `EnemyAI_ThreeXeAThouls` | bit 4, then slots 1/2/3 all hold XeAThoul | implemented — it also clears bit 4 on slots 1..3 |
+| `$13` | `EnemyAI_Nothing` | nothing (`rts`) | implemented as a no-fire |
+
+Two arms never write `d1`, which is what the scan tests: `EnemyAI_Nothing` is a
+bare `rts` (`ps4.asm:19389`) and `EnemyAI_CRayTubeNearSatMinion` writes `d0` on
+both of its paths (lines 22921 and 22925). For those, whether the scan stopped
+depends on the register residue of unrelated frame code rather than on battle
+state, so the port assumes it was zero and keeps scanning; the census test in
+`enemy_ai_tests.rs` asserts that no shipped record places a *different* arm after
+one of them, which is what makes the assumption unobservable.
+
+An `Unsupported` arm emits `BattleEvent::UnsupportedAbility` naming the ability
+the arm would have written and falls back to the physical swing: the port cannot
+tell whether the condition held, so it must not run the roll either.
+
 ### Dispatch (the `EnemyAttack_*` → object column)
 
 - `EnemyAttack` (`ps4.asm:19138`) rolls one of the eight regular ids at
@@ -216,7 +263,9 @@ runs when the gate is clear.
 with the matching `conditional_ability_ids` entry (`EnemyAIInstructionsOffs`,
 `ps4.asm:19364`; 20 entries, ids 0-15 and 17-19). The ids below appear in no
 regular list, so they are outside §2 — but they share the same routines and
-objects, and `Fission` is implemented, so they belong in the same ledger.
+objects, and the arms that reach them are implemented, so they belong in the
+same ledger. The mechanism itself is §1's arm table; `status` here is the
+*ability's* own dispatch, which is a separate piece of work either way.
 
 | ability | record | carriers (conditional) | condition | class | status |
 |---|---|---|---|---|---|
@@ -235,7 +284,7 @@ objects, and `Fission` is implemented, so they belong in the same ledger.
 | `$3A` (58) **Combine3**<br>COMBINE | eff `$1F` · stat $00 (none) · tgt 86 · pow 87 · res $00 (none) · el `0` none | 84 BladeRight | 13 HakenLeftExists | unknown | unsupported |
 | `$3B` (59) **Combine4**<br>COMBINE | eff `$1F` · stat $00 (none) · tgt 84 · pow 87 · res $00 (none) · el `0` none | 86 HakenLeft | 14 BladeRightExists | unknown | unsupported |
 | `$41` (65) **Nothing2**<br>NOTHING | eff `$1F` · stat $00 (none) · tgt 0 · pow 80 · res $00 (none) · el `0` none | 94 InfantWorm | 9 Alone | unknown | unsupported |
-| `$45` (69) **Res**<br>RES | eff `$12` · stat $82 (mental) · tgt 1 · pow 16 · res $00 (none) · el `0` none | 99 TechUser | 15 HalfHPOrLower_AllEnemies | status/stat effect | unsupported |
+| `$45` (69) **Res**<br>RES | eff `$12` · stat $82 (mental) · tgt 1 · pow 16 · res $00 (none) · el `0` none | 99 TechUser | 15 HalfHPOrLower_AllEnemies | status/stat effect | implemented |
 | `$46` (70) **Sar**<br>SAR | eff `$12` · stat $82 (mental) · tgt 2 · pow 16 · res $00 (none) · el `0` none | 100 TechMaster | 15 HalfHPOrLower_AllEnemies | status/stat effect | unsupported |
 | `$49` (73) **Gisar**<br>GISAR | eff `$12` · stat $82 (mental) · tgt 2 · pow 16 · res $00 (none) · el `0` none | 101 DarkWitch, 116 Radhin | 15 HalfHPOrLower_AllEnemies | status/stat effect | unsupported |
 | `$53` (83) **Nightmare**<br>NIGHTMARE | eff `$29` · stat $00 (none) · tgt 0 · pow 0 · res $00 (none) · el `0` none | 140 Zio2 | 19 Nothing | scripted/custom | unsupported |
@@ -332,7 +381,7 @@ Map ids whose encounter table can roll a formation carrying the ability, with th
 | — `status/stat effect` | 16 |
 | — `scripted/custom` | 4 (`$54` BLACK WAVE, `$63` BURSTROC, `$64` SHDWBREATH, `$6C` BLACK WAVE) |
 | — `unknown` | 0 |
-| conditional-only ids (§3) | 24, one of them implemented (`$06` FISSION) |
+| conditional-only ids (§3) | 24, two of them implemented (`$06` FISSION, `$45` RES) |
 
 The seventeen implemented rows are exactly what `psiv-core` claims:
 
@@ -348,7 +397,7 @@ The seventeen implemented rows are exactly what `psiv-core` claims:
   `Current_Target_Index`, and `Enemy_Attack` had already stored the drawn target
   in the object, so the one request lands on the chosen party member.
 - `$07` Fission2 → `enemy_skill::resolve_fission` (`rust/psiv-core/src/battle/enemy_skill.rs`),
-  reached from `roll_enemy_ability` through `fission_neighbor`; the same predicate
+  reached from `roll_enemy_ability` through `enemy_ai`'s `$01` arm; the same predicate
   (`is_fission`) covers `$06` Fission, which appears only in §3. That implemented
   path is the conditional one (enemies 12 Igglanova and 13 Guilgenova), dispatched
   by `EnemyAttack_Igglanova` (`ps4.asm:23505`), whose `tst.b ability+1(a4)` picks
@@ -551,9 +600,9 @@ The seventeen implemented rows are exactly what `psiv-core` claims:
   that effect — and the record's stat byte is masked with `$7F` as
   `Effect_SetupSkillParams` (`ps4.asm:9576`) masks it at line 9580.
 - **Fission2's regular roll is a spent turn, not a physical attack.** The port
-  reaches `resolve_fission` only through `fission_neighbor`, which returns `None`
-  unless the record is enemy 12 or 13, and `resolve_fission` runs only when that
-  returns a target. Enemy 50 FloatMine2 rolls `$07` as a regular ability, and the
+  reaches `resolve_fission` only through the `$01` `EnemyAI_EmptySpace` arm's
+  neighbour, and `resolve_fission` runs only when the ability the arm wrote is
+  the Fission record (`is_fission`) and the neighbour is not alive. Enemy 50 FloatMine2 rolls `$07` as a regular ability, and the
   cartridge's `EnemyAttack_FloatMine` fall-through (`loc_10406`, `ps4.asm:22781`)
   clears `$24(a4)` and loads no object, so the turn passes with nothing happening
   — no damage, no sound, no message, no status — and the actor still counts as
@@ -576,11 +625,29 @@ The seventeen implemented rows are exactly what `psiv-core` claims:
   longer `non_exhaustive`, so the renderer's exhaustive narration match fails to
   compile when a new event appears instead of showing an "unhandled event" line
   at runtime.
-- **The AI condition block is unimplemented.** Only `fission_neighbor` (condition 1
-  for enemies 12/13) reads `condition_ids` / `conditional_abilities`; the other 19
-  `EnemyAIInstructionsOffs` entries are not modelled, so all 24 §3 ids and every
-  conditional override are unreachable in the port regardless of what §2
-  implements.
+- **The AI condition block is modelled, with two arms explicitly unavailable.**
+  `enemy_ai::instruction_block` (`rust/psiv-core/src/battle/enemy_ai.rs`) owns the
+  scan and all twenty table entries; §1's arm table is the status of each. The
+  two arms that cannot be evaluated are `$10` `EnemyAI_Unknown` (`$FFFFEEA4` bit
+  0, which no routine writes and no record names) and `$11`
+  `EnemyAI_HP25PercentOrLower` (`$FFFFEE86`, Lashiec's own battle-object flag —
+  128 Lashiec is its only carrier). Neither runs the roll: `roll_enemy_ability`
+  reports `BattleEvent::UnsupportedAbility` with the ability the arm would have
+  written and takes the ordinary fallback, so a divergence a comparator finds
+  there is explicit rather than a silent regular-ability answer. Every other arm
+  the 153 records name is implemented, and the `$45` RES heal those arms reach is
+  `enemy_skill::resolve_res` (below).
+- **RES `$45` is a heal, and it is the only §3 ability with an effect.**
+  `EnemyAttack_TechUser`'s `$45` arm (line 21292, from `loc_EEAA` at `ps4.asm:21266`) clears
+  `Current_Target_Index` and loads object `$3D4` (`loc_213DC`, `ps4.asm:44701`),
+  whose `loc_21504` (`ps4.asm:44774`) picks the occupied enemy slot with the
+  lowest `curr_hp` — the earlier slot on a tie — and hands it to
+  `GetEnemySkillEffectAndRange`. Record 69 (`12 82 01 10 00 00 00 00`) is effect
+  `$12` with byte 4 zero, so `Effect_SetupSkillParams` skips the chance roll
+  (lines 9594-9595) and `Battle_CalcHealing` (`ps4.asm:17411`) runs on the
+  caster's MEN with byte 3 as `d3`: sixteen draws, capped at the target's
+  maximum. `resolve_res` reproduces exactly that, including the tie rule, and
+  four swept fixtures (`formation_2A`, `2B`, `32`, `34`) pin the numbers.
 - The two `scripted/custom` bosses that are *not* implemented (`$54` Zio, `$6C`
   Zio2) share Zio3's structure — a phase counter driving `move.w #$ID, $24(a4)` —
   so the `FirstZioAction` shape should carry over.

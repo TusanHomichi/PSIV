@@ -493,3 +493,126 @@ order, left `[3, 2, 1]`"). Restoring the order passes all nine again. The two
 refusal tests pass in both states, which is what they are for: they draw nothing.
 Logs: `build/lane-evidence/negative-control-reversed-order.txt` and
 `negative-control-restored.txt` (not committed; `build/` is ignored).
+
+## The enemy AI instruction block: the dispatch, its arms, and RES `$45` (2026-09-25)
+
+`Enemy_Attack` rolls one of the eight regular abilities and then runs the
+enemy's own instruction block over `$50(a3)`..`$53(a3)` before its
+`EnemyAttack_*` routine is dispatched (`ps4.asm:19157-19168`). A nonzero byte
+selects an arm of `EnemyAIInstructionsOffs` (`ps4.asm:19364-19384`, twenty
+`dc.w` entries), and an arm whose condition holds writes the paired **conditional**
+ability from `$54(a3)`.. over the roll (`move.b $3(a0), ability+1(a4)`; `a0` was
+post-incremented, so `$3(a0)` is `$54 + k` for the slot `k` the scan is on). The
+port had one special case of this (`fission_neighbor`, condition 1 for enemies
+12/13); it is now one owning dispatch, `enemy_ai::instruction_block`
+(`rust/psiv-core/src/battle/enemy_ai.rs`), a typed `EnemyAiCondition` per table
+entry with an exhaustive `match` and no catch-all arm.
+
+Records. Each arm's reads were re-read from the disassembly, and three of them
+carry details that are easy to get wrong:
+
+1. **The "occupied" test is the object's own word 0**, not a health check
+   (nor `fighter_id`, which sits at `$12` and survives a cleared object — which
+   is what the fission refill rebuilds from):
+   `_tst.w 0(a2)` in `EnemyAI_Alone` (`ps4.asm:22328`), the partner pair
+   (`ps4.asm:21557`, `21628`), `ZolSlugs` (`23017`), the pod and drone arms
+   (`22905`, `23288`, `23259`) and `ThreeXeAThouls` (`20365`). The cartridge
+   zeroes that word in two places — `loc_2D960` (`ps4.asm:59630`), which runs as
+   a dead enemy's animation ends and also sets the dead bit, and `loc_BFE8`
+   (`ps4.asm:18290`), which `EnemyInit_Igglanova` calls on both formation
+   neighbours — so the port's `Fighter::is_alive()` (neither the `active` flag
+   cleared nor the dead bit set) is exactly that word being nonzero.
+2. **`EmptySpace` reads raw addresses.** `prev_obj`/`next_obj` are `±$40`, so
+   the first enemy's left neighbour is the **fifth party slot** (`$FFFF4500`,
+   `Fighter_Enemy_1` = `$FFFF4540`) and the fourth enemy's right neighbour is
+   `$FFFF4640`, one slot past the nine `Obj_Fighters` holds. The battle start
+   wipes `$FFFF4000`-`$FFFF47FF` (`ps4.asm:9989-9993`) and nothing writes that
+   word, so the last enemy always has an empty right side. One empty side costs
+   no draw; both cost one, even keeping the left and odd the right
+   (`ps4.asm:23541-23548`).
+3. **Two arms never write `d1`.** `EnemyAI_Nothing` is a bare `rts`
+   (`ps4.asm:19389`) and `EnemyAI_CRayTubeNearSatMinion` writes `d0` on both
+   paths (lines 22921 and 22925), so the scan's `tst.b d1` at `ps4.asm:19164`
+   reads a register the frame's other code owns (`Battle_UpdateFighters` is
+   called from `loc_9A4` after `Battle_UpdatePaletteObjs`, and neither writes
+   it). The port treats that residue as zero and keeps scanning. The census test
+   asserts the assumption is unobservable: over the pack's 153 records, no
+   record places a *different* arm after one of these two (Zio2's four slots are
+   all `$13`, and 40 CRayTube's and 42 SatMinion's are all `$05`).
+
+The `reaction_flags` byte (`$2A` of the fighter object) is new battle state.
+Retail sets it from five places, all cited in `fighters::reaction`: bit 0 in
+`Character_DamageEnemy`'s two arms (`ps4.asm:3916`, `3946`), bit 1 and bit 4 in
+`loc_27D4` (`3989`, `3992`, the ability command's entry, where a negative
+`Current_Target_Index` means the whole side), bit 2 in `loc_281E` (`4025`, the
+technique arm) and the combo path (`8817`), and bit 3 for every enemy slot in
+`loc_B62A`'s tail (`17456-17463`), which runs once off the opening priority roll.
+The four arms that test a bit clear the **whole byte**, not just their own —
+`clr.b reaction_flags(a4)` — which is why a bit survives exactly until the arm
+that reads it fires.
+
+Two arms cannot be evaluated and say so instead of running the roll:
+
+- `$10` `EnemyAI_Unknown` (`ps4.asm:20803`) tests bit 0 of `$FFFFEEA4`. That
+  word is read and cleared in that routine and written nowhere in the
+  disassembly, so there is no writer to read the bit from; no record names the
+  entry either (the census test asserts both).
+- `$11` `EnemyAI_HP25PercentOrLower` (`ps4.asm:20491`) tests `$FFFFEE86` before
+  the quarter-HP test. `EnemyInit_Lashiec` clears it (line 18114) and battle
+  object `$7EC` (`loc_27ED0`, `ps4.asm:53099-53104`) sets it — the object
+  Lashiec's own `$62` arm loads (`ps4.asm:20172`) — so its value depends on the
+  object-timing layer the port does not model. 128 Lashiec is the only record
+  naming this entry.
+
+Both report `BattleEvent::UnsupportedAbility` carrying the ability the arm would
+have written (the conditional byte of the slot the scan stopped at) and then take
+the ordinary physical fallback: the port cannot tell whether the condition held,
+so it must not run the regular ability either. The four swept fixtures do not
+reach either arm, and `docs/battle/ENEMY_ABILITIES.md` §1 carries the per-arm
+table.
+
+RES `$45`. `EnemyAttack_TechUser`'s `$45` arm (line 21292, reached from
+`loc_EEAA` at `ps4.asm:21266`) clears `Current_Target_Index` and loads object `$3D4`
+(`loc_213DC`, `ps4.asm:44701`). Its `loc_21504` (`ps4.asm:44774`) walks enemy
+slots 1-4 comparing `curr_hp` (`$E` of the stats record), keeping the earlier
+slot on a tie, and writes `6 + index` — the lowest-HP enemy, the first on a tie —
+into `Current_Target_Index` for `GetEnemySkillEffectAndRange`. Record 69
+(`12 82 01 10 00 00 00 00`, `0x28358C`) is effect `$12`
+(`AbilityEffect_NormalLogic`) with byte 4 zero, so `Effect_SetupSkillParams`
+skips its chance roll (`tst.b $4(a0,d0.w) / beq.s loc_6564`, `ps4.asm:9594-9595`)
+and `loc_2E68` (`ps4.asm:4572`) reaches `Battle_CalcHealing` (`ps4.asm:17411`)
+with `d2` = `AbilityStatsOffs[$82 & $7F]` = MEN read from the **actor** and `d3` =
+record byte 3, then adds the result to the target's HP capped at its maximum
+(`loc_2F3A`). `enemy_skill::resolve_res` is that transcription, on the port's
+existing `calc_healing`, and `EnemySkill::is_res` pins all eight record bytes the
+way `is_thread` and `is_poison` do.
+
+Drop accounting. The block itself draws nothing except arm `$01`'s parity draw.
+The `$45` turn draws the ability index and then sixteen `Battle_CalcHealing`
+draws, which is what `formation_2A`'s round-3 action records (`[[26539, 1],
+[26639, 16]]`).
+
+Evidence. Four swept fixtures close: `formation_2A` (rounds 3 and 5),
+`formation_2B` (round 4), `formation_32` (round 4) and `formation_34` (rounds 4
+and 5) now replay exactly, where before the port ran `$40` WAT or `$44` FOI on a
+slot whose log shows a heal. The heals are 38→75, 39→79, 38→79, 34→78, 22→61 and
+39→80 — the last one hitting the 80-point maximum — and each round after a heal
+re-checks the same slot's HP against the log's own absolute readings, so the
+amounts are pinned by rounds the heal does not belong to. The manifest diff is
+exactly those four entries removed: the other fourteen findings are byte-for-byte
+unchanged, and no fixture gains a new or earlier divergence
+(`build/lane-evidence/manifest.diff`). Unit level: `enemy_ai_tests.rs` holds 36
+tests — a holds/does-not-hold pair per implemented arm, the HalfHP boundary at
+exactly half (40 of 80 and of 81), the parity draw's two side cases, the two
+`d1`-less arms, both `Unsupported` arms, and the pack census. Runtime: the
+Fission and FloatMine tests in `combat_fission.rs` keep passing, which is what
+pins the `$01` arm's neighbour reading and the FloatMine2 carriers' `$07` arm not
+firing while the party only defends.
+
+Negative control. Disabling the block at its call site (`let outcome =
+AiOutcome::Rolled;` in place of `instruction_block(...)`) fails the
+`formation_2A` replay with the ledger's own first divergence ("ability $40" at
+f26539) and fails `half_hp_or_lower_holds_at_exactly_half` at 40 of 80; the
+dispatch restored, both pass again. The eight fixtures listed here are the
+accepted behavior change: `formation_2A` f26539 and f28075, `2B` f27707, `32`
+f27115, `34` f27629 and f28299. Nothing else moved.

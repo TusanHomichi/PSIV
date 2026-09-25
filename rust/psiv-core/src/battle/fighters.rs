@@ -86,6 +86,36 @@ impl FighterId {
     }
 }
 
+/// `reaction_flags` (`$2A` of the fighter object) — mainly for enemies.
+///
+/// The AI's memory of what was done to it since its last action, read by the
+/// `EnemyAIInstructionsOffs` arms (see `super::enemy_ai`) and written by the
+/// party's damage routines. The four arms that fire on a bit clear the **whole
+/// byte**, so a bit survives exactly until the arm that reads it runs.
+pub mod reaction {
+    /// Bit 0 — hit by a plain physical attack: `bset #0, $2A(a4)` in
+    /// `Character_DamageEnemy`, on both arms of its `if bugfixes` pair
+    /// (`ps4.asm:3916`, the fork's; `3946`, retail's).
+    pub const PHYSICAL: u8 = 1 << 0;
+    /// Bit 1 — hit by a character's ability: `bset #1, $2A(a4)` at
+    /// `ps4.asm:3989`, on the arms of `Character_DamageEnemy` that run when the
+    /// actor's `ability(a3)` is nonzero — a technique, skill, item or combo.
+    pub const MAGIC: u8 = 1 << 1;
+    /// Bit 2 — hit by a technique or a combo: `bset #2, $2A(a4)` at
+    /// `ps4.asm:4025` (`loc_281E`, the technique arm) and `ps4.asm:8817` (the
+    /// combo path). A plain *skill* sets bit 1 only.
+    pub const TECHNIQUE: u8 = 1 << 2;
+    /// Bit 3 — this battle opened with an ambush: `bset #3, $2A(a0)` for every
+    /// enemy slot in `loc_B62A`'s tail (`ps4.asm:17456-17463`), which runs once,
+    /// off the opening priority roll. A failed escape sets `Battle_Priority` to
+    /// `$FF` without touching this bit (`Battle_RunFailMsg`).
+    pub const AMBUSH: u8 = 1 << 3;
+    /// Bit 4 — hit by a multi-target ability: `bset #4, $2A(a4)` at
+    /// `ps4.asm:3992`, beside bit 1, when the command's `Current_Target_Index`
+    /// is negative (the whole side).
+    pub const MULTI_TARGET: u8 = 1 << 4;
+}
+
 /// One occupied fighter slot.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Fighter {
@@ -101,6 +131,10 @@ pub struct Fighter {
     /// The ability id the enemy AI picked this round, `0` for a plain attack.
     /// Mirrors `ability` (`$24`) of the fighter object.
     pub ability: u8,
+    /// What has been done to this fighter since its last action. Mirrors
+    /// `reaction_flags` (`$2A`) of the fighter object; see [`reaction`] for the
+    /// bits and where retail sets them.
+    pub reaction_flags: u8,
     /// Whether the fighter object is occupied. Dormant formation neighbors
     /// keep their cached identity/stats but cannot act or receive attacks.
     pub active: bool,
@@ -164,6 +198,7 @@ impl Roster {
             character: Some(character),
             stats,
             ability: 0,
+            reaction_flags: 0,
             active: true,
         });
         Some(id)
@@ -186,6 +221,7 @@ impl Roster {
             character: None,
             stats: Stats::from_enemy(record),
             ability: 0,
+            reaction_flags: 0,
             active: true,
         });
         Some(id)

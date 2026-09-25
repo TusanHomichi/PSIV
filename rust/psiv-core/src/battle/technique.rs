@@ -196,6 +196,21 @@ pub(super) fn resolve_technique(
     }
     let mut died = Vec::new();
     for target in targets {
+        // `loc_27D4` (`ps4.asm:3989-3992`) on the way into
+        // `Character_DamageEnemy`: a technique marks the enemy it reaches, and
+        // bit 4 joins it when the command covered the whole side rather than a
+        // named fighter (`Current_Target_Index` negative).
+        if target.side() == Side::Enemy
+            && let Some(fighter) = roster.get_mut(target)
+        {
+            fighter.reaction_flags |= super::fighters::reaction::MAGIC
+                | super::fighters::reaction::TECHNIQUE
+                | if tech.single_target() {
+                    0
+                } else {
+                    super::fighters::reaction::MULTI_TARGET
+                };
+        }
         let stats = &mut roster.get_mut(target).expect("selected").stats;
         match tech.effect {
             1 => {
