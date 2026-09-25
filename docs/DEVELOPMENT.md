@@ -84,18 +84,31 @@ CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml --workspace -- --t
 CARGO_BUILD_JOBS=1 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
 ```
 
-Run these sequentially. Full map/pack tests can take several minutes. Serial
-Rust tests avoid the memory pressure seen when many pack-loading cases run
-together. Tests requiring local assets may fail or explicitly skip when their
-fixtures are absent; report that distinction with the result.
+Run these sequentially: `python3 tools/gate.py` runs exactly this list, in
+order, from one entry point and writes a receipt
+([Gate and coverage](#gate-and-coverage)). Full map/pack tests can take several
+minutes. Serial Rust tests avoid the memory pressure seen when many
+pack-loading cases run together. Tests requiring local assets may fail or
+explicitly skip when their fixtures are absent; report that distinction with
+the result.
 
 ### Gate and coverage
 
 PSIV has no hosted CI yet ([#15](https://github.com/TusanHomichi/PSIV/issues/15)).
-The gate is exactly the four commands above, run from the root with the flags
-shown. Reporting a gate result means those commands; a subset, a different
-`CARGO_BUILD_JOBS`, parallel test threads or a per-crate run is a focused check
-and is reported as one. The gate does not cover:
+The gate is `python3 tools/gate.py`, run from the root. It runs exactly the four
+commands above, in order, with the env prefixes and flags written there, and
+writes one log per command plus `receipt.json` under
+`build/gate/<UTC stamp>-<short sha>/`: the candidate SHA, whether the tree was
+dirty and its `git status --porcelain` paths, and each command's string, UTC
+start and end, duration, exit code, log path and parsed counts. Report a gate
+result from that receipt, not from a retyped summary. The gate refuses to start
+- exit 2, nothing run - while another gate holds `build/gate/.lock` or while a
+process has the debug PSIV extension mapped
+(`rust/target/debug/libpsiv_godot.so`, which its cargo commands rebuild);
+`--list` prints the commands without running them. Reporting a gate result means
+those commands; a subset, a different `CARGO_BUILD_JOBS`, parallel test threads
+or a per-crate run is a focused check and is reported as one. The gate does not
+cover:
 
 - tests skipped for a missing ROM, disassembly or full pack: a checkout without
   them yields a partial gate, and the report says which inputs were absent;
