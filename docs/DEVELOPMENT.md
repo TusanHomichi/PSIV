@@ -140,9 +140,7 @@ change is what a commit made with `git add -A` would contain - a new unstaged
 file included - and its one owner is `tools/repo_files.py`, which lists it for
 this guard, for `tools/check_docs.py` and for the feature map's checks. The
 scan runs inside the Python suite the gate runs (`tests/test_size_guard.py`),
-so the limit is a gate check rather than a reviewer's memory, and the
-[lane harness](../tools/ds_lane/README.md) reports the same limit on its own
-commits.
+so the limit is a gate check rather than a reviewer's memory.
 
 `tools/size_baseline.txt` is the ratchet: one `<lines> <path>` per line, sorted
 by path, for the files that were already over the limit when the guard landed.

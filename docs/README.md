@@ -107,7 +107,6 @@ Add a row here when a new rule gets an owner.
 | Gate commands, prerequisites, coverage and repository-owned checks | [Development guide](DEVELOPMENT.md#gate-and-coverage) |
 | File size | [Development guide](DEVELOPMENT.md#file-size) |
 | Cartridge comparison method and lanes | [Oracle guide](../oracle/README.md) |
-| Lane harness operation | [ds-lane reference](../tools/ds_lane/README.md) |
 | Current scope; work queue and active graph | [Overview](../README.md); [roadmap](ROADMAP.md#task-graph-handoff) |
 
 Keep one current work list in the roadmap. Dated measurements remain useful

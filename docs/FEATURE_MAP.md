@@ -144,7 +144,6 @@ How to read a row:
 | Motavia formation sweep | `oracle/sweep/`, `psiv_tools/formations.py` | Nothing player-facing: it walks the overworld until every formation is captured | `PYTHONPATH=. python3 -m unittest tests.test_oracle_sweep` | [Sweeping the Motavia overworld](oracle/BATTLE_ORACLE_SWEEP.md) |
 | Determinism and the shared RNG seed | `rust/psiv-core/src/state.rs`, `rust/psiv-core/src/battle/rng.rs`, `oracle/rng_trace.py` | The same walk, the same battle rolls and the same save, every run | `CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml -p psiv-core --test determinism -- --test-threads=1` | [Oracle methodology](source-notes/oracle-methodology.md) |
 | Repository checks: docs links, file size and the gate | `tools/check_docs.py`, `tools/size_guard.py`, `tools/size_baseline.txt`, `tools/gate.py`, `tools/pack_diff.py` | Nothing player-facing: it keeps the documented commands and paths honest | `PYTHONPATH=. python3 -m unittest tests.test_check_docs`, `PYTHONPATH=. python3 -m unittest tests.test_size_guard` | [Gate and coverage](DEVELOPMENT.md#gate-and-coverage) |
-| Lane harness and worktree supervision | `tools/ds_lane/`, `tools/ds-lane` | Nothing player-facing: it runs and records the agent lanes that build this port | `PYTHONPATH=. python3 -m unittest tests.test_ds_lane_unit` | [Claude Code lane ledger](records/CLAUDE_LANES.md) |
 
 ## Gaps this map does not close
 
