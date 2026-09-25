@@ -72,6 +72,13 @@ output.
 | 2026-09-24 | or-P2b | `$FFFFEEA8` ability re-roll word: lifetime and rule | Accepted on run 2. It found the battle-load clear (9992-9994) that disproved the brief's per-session premise | Sent back to remove the session plumbing its own evidence made dead weight (owner decision) | USD 0.449 |
 | 2026-09-24 | or-S | Split `SOURCE_NOTES.md` (1,463 lines) into topic files plus an index | Accepted; every original line present bar one declared link-depth fix | Retargeted oracle references outside its write set | USD 0.082 |
 | 2026-09-24 | or-R | Regenerate tape 09 with the fixed tracer; one coherent replay ledger | Accepted | Re-extracted tape 07's fixture provenance; dated correction in `battle-party.md` | USD 0.196 |
+| 2026-09-24 | o2-T | `ds-lane`: numbering from directories, crashed-run records, data-file size exemption | Accepted; 62/62 with the trap binary unused | None | USD 0.139 |
+| 2026-09-24 | o2-F2a | Forced formation entry (group cells plus a seed patch so the cartridge's own roll picks the formation) and a scripted policy | Accepted; the `$37` capture re-run reproduced the trace hash | None (log path header noted, fixed in F2b) | USD 0.339 |
+| 2026-09-24 | o2-F2b | Extractor and replay generalized (enemy skills, vehicle battles); one data-driven test; divergence manifest | Accepted. Helex FLAME BOLT and Fanbite SPIRAL BLD exact on the cartridge; found the vehicle-attack bug | None | USD 0.295 |
+| 2026-09-24 | o2-V | Vehicles attack as the cartridge does | Accepted on run 2 | Run 1 relaxed the replay comparator for multi-frame swings; sent back to fix the evidence instead (sample the decisive pass) and keep the checker strict. Rewrote two stale references at merge | USD 0.437 |
+| 2026-09-24 | o2-W | `oracle/force/` package, `--vehicle`, a second vehicle capture | Accepted; found the Ice Digger's two-pass swing, a timer race (object `$1C` start) read and confirmed from `ps4.asm` | None | USD 0.257 |
+| 2026-09-24 | o2-Y | Per-vehicle hit-pass count from each attack object's timer | Accepted; manifest empty again | None | USD 0.206 |
+| 2026-09-24 | x-redshirt-exit | Remove Redshirt from PSIV (owner decision); archived summary | Accepted and merged as PR #8; shared-doc removals were Redshirt-only and the roadmap campaign queue byte-identical | None | USD 0.090 |
 
 **Bake-off result (2026-09-23):** six runs across five lanes (routine
 refactor, RE inventory, harness tooling, two retail-parity implementations),
@@ -147,6 +154,19 @@ Review lesson: a consistency checker that recomputes with the same assumption
 as the producer proves nothing about that assumption. Checks must derive from
 an independent source; the fixture extractor now does.
 
-**Next action:** forced formation entry by `--ram-patch` plus a scripted
-command driver, so any formation can be captured and replayed; then the
-formation sweep that generates the worklist.
+**Forced entry and generic replay (2026-09-24):** any formation can now be
+captured on demand (`oracle/force/`, `docs/BATTLE_ORACLE_FORCED.md`), and one
+data-driven test replays every fixture with a checked-in divergence manifest
+that fails when stale. Captures confirmed FLAME BOLT and the all-party slot
+order on the cartridge, and found two vehicle rules: vehicles attack (they were
+skipped as unarmed), and a vehicle's hit-pass count comes from its attack
+object's timer (2 for the Ice Digger, 3 for the others). Seven fixtures replay
+exactly and the manifest is empty.
+
+Review lesson: capture more than one instance of a rule. The first vehicle
+capture produced a plausible universal constant that the second disproved.
+
+**Next action:** the formation sweep. Capture every formation reachable from
+the current campaign region (starting with Motavia's encounter groups) under the
+attack policy, extract, and let the manifest collect the worklist; then fix by
+cluster.
