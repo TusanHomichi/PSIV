@@ -355,6 +355,18 @@ def run_finished(run_dir):
     return (run_dir / "run.json").exists() or (run_dir / "failed").exists()
 
 
+def inflight_runs(state):
+    """Run directories that are still going: no record yet, supervisor alive.
+
+    One predicate for `start`/`resume`, which refuse to add a run to a lane
+    that already has one, and for `compact`, which refuses to touch receipts a
+    run is still writing. A run whose supervisor died leaves no run.json either
+    and is not in flight: nothing is writing to that directory.
+    """
+    return [r for r in sorted(Path(state).glob("run-*"))
+            if not run_finished(r) and supervisor_alive(r)]
+
+
 def print_summary(run_dir):
     summary = Path(run_dir) / "summary.txt"
     print(summary.read_text() if summary.exists() else f"(no summary in {run_dir})", end="")

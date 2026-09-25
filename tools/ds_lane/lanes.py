@@ -3,6 +3,10 @@
 `prepare_run` is the one way a run is created - the CLI's `start` and `resume`
 and the watchdog's automatic resume after a stall all go through it, so every
 run gets the same spec, the same detached supervisor and the same receipts.
+The commands that only read a lane's receipts (`list`, `show`, `tail`) live
+here too; `verify`, which runs the orchestrator's own checks in the lane's
+worktree, is its own module, and the pass `compact` runs over a lane's evidence
+is in `compaction`.
 """
 import datetime as dt
 import json
@@ -15,12 +19,14 @@ import sys
 import time
 from pathlib import Path
 
-from .config import (CARGO_JOBS, DEFAULT_STALL_RETRIES, DEFAULT_STALL_TIMEOUT, DEFAULT_TIMEOUT,
-                     EFFORT, ENTRY, MODEL, PERMISSION_MODE, STOP_WAIT, lane_paths, load_receipt,
-                     now, pid_alive, reasonix_bin, repo_root, save_receipt, sh, state_root,
-                     supervisor_alive, wt_root)
+from .compaction import compact_runs
+from .config import (DEFAULT_STALL_RETRIES, DEFAULT_STALL_TIMEOUT, DEFAULT_TIMEOUT, EFFORT, ENTRY,
+                     MODEL, PERMISSION_MODE, STOP_WAIT, lane_paths, load_receipt, now, pid_alive,
+                     reasonix_bin, repo_root, save_receipt, sh, state_root, supervisor_alive,
+                     wt_root)
 from .preflight import PREAMBLE, READ_ONLY_CLAUSE, parse_write_set, preflight_phrasing
-from .receipts import print_summary, run_finished, wait_run
+from .report import print_report
+from .receipts import inflight_runs, print_summary, run_finished, wait_run
 from .trajectory import scan_trajectory, trajectory_tail
 
 
@@ -106,9 +112,10 @@ def prepare_run(lane, prompt_text, *, max_steps=0, timeout=DEFAULT_TIMEOUT,
     just updated.
     """
     wt, state = Path(lane["worktree"]), Path(lane["state_dir"])
-    for r in sorted(state.glob("run-*")):
-        if not (r / "run.json").exists() and supervisor_alive(r):
-            sys.exit(f"ds-lane: lane {lane['id']} {r.name} is still in flight; `ds-lane wait {lane['id']}`")
+    busy = inflight_runs(state)
+    if busy:
+        sys.exit(f"ds-lane: lane {lane['id']} {busy[-1].name} is still in flight; "
+                 f"`ds-lane wait {lane['id']}`")
     n = run_number or next_run_number(state)
     run_dir = state / f"run-{n}"
     run_dir.mkdir(parents=True)
@@ -290,6 +297,26 @@ def cmd_stop(a):
     return 0
 
 
+def cmd_compact(a):
+    """Deduplicate and compress one lane's receipts: nothing in flight, one lane.
+
+    Deliberately no `--all`: which lanes are finished with their evidence is
+    the orchestrator's call, not the harness's. The pass is idempotent, so a
+    lane can be compacted again whenever it has grown, and `--dry-run` reports
+    what it would do and the bytes it would save without touching a file.
+    """
+    lane = find_lane(a)
+    busy = inflight_runs(lane["state_dir"])
+    if busy:
+        sys.exit(f"ds-lane: lane {lane['id']} {busy[-1].name} is still in flight; "
+                 f"`ds-lane wait {lane['id']}` or `ds-lane stop {lane['id']}` first")
+    runs = lane_runs(lane)
+    if not runs:
+        sys.exit("ds-lane: lane has no runs")
+    report = print_report(compact_runs(lane, runs, dry_run=a.dry_run))
+    return 1 if report["errors"] else 0
+
+
 def cmd_tail(a):
     lane = find_lane(a)
     runs = lane_runs(lane)
@@ -313,43 +340,6 @@ def cmd_tail(a):
     print(f"tool calls (last {min(a.n, len(calls))} of {len(calls)}):")
     for i, (name, args, st) in enumerate(calls[-max(a.n, 0):], start=max(1, len(calls) - a.n + 1)):
         print(f"  {i}. {name} [{st}] {' '.join(str(args).split())[:100]}")
-
-
-def cmd_verify(a):
-    lane = find_lane(a)
-    cmd = list(a.cmd)
-    if cmd and cmd[0] == "--":
-        cmd = cmd[1:]
-    if not cmd:
-        sys.exit("ds-lane: verify needs a command, e.g. `ds-lane verify ID -- cargo test`")
-    wt = Path(lane["worktree"])
-    if not wt.is_dir():
-        sys.exit(f"ds-lane: worktree {wt} is gone")
-    vdir = Path(lane["state_dir"]) / "verify"
-    vdir.mkdir(parents=True, exist_ok=True)
-    n = max([int(p.stem) for p in vdir.glob("*.log") if p.stem.isdigit()] or [0]) + 1
-    log = vdir / f"{n:03d}.log"
-    head = sh(["git", "-C", str(wt), "rev-parse", "HEAD"])
-    started, t0 = dt.datetime.now(dt.timezone.utc), time.monotonic()
-    env = dict(os.environ)
-    env["CARGO_BUILD_JOBS"] = str(CARGO_JOBS)
-    body = []
-    p = subprocess.Popen(cmd, cwd=wt, env=env, text=True,
-                         stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    for line in p.stdout:
-        sys.stdout.write(line)
-        sys.stdout.flush()
-        body.append(line)
-    rc = p.wait()
-    duration = round(time.monotonic() - t0, 1)
-    log.write_text("\n".join([f"command: {' '.join(cmd)}",
-                              f"utc_start: {started.isoformat(timespec='seconds')}",
-                              f"lane: {lane['id']}  head: {head}",
-                              f"exit_code: {rc}",
-                              f"duration_s: {duration}",
-                              ""]) + "\n" + "".join(body))
-    print(f"ds-lane: verify {log} exit={rc} duration={duration}s")
-    return rc
 
 
 def cmd_list(a):
