@@ -35,6 +35,8 @@
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
+// Retail records are integers: a float anywhere here is a decoding bug, so the compiler denies it.
+#![deny(clippy::float_arithmetic)]
 
 mod battle;
 mod camera;
