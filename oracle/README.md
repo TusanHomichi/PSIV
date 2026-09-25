@@ -56,6 +56,9 @@ oracle/
 ├── navigate.py             closed-loop tape authoring (route + observe + re-plan)
 ├── analyze_rng.py          per-frame RNG call census from a log
 ├── rng_trace.py            checks a --rng-trace capture against its log
+├── force_battle.py         forces a chosen formation into a battle and captures it
+├── force/                  its package: tape, selectors, scout, draw, phases
+├── fixture/                the replay-fixture extractor battle_fixture.py drives
 ├── anim_sweep.py           press-offset sweep across the dialogue open animation
 ├── damage_census.py        same-matchup damage samples across shifted seed paths
 ├── checks.py               shared helpers for verify.sh's two lanes
@@ -230,7 +233,7 @@ oracle/bin/psiv_oracle \
     --rom  "Phantasy Star IV (USA).md" \
     --map  oracle/ram_map.tsv \
     --tape oracle/tapes/07_first_battle.tape \
-    --groups core,battle,bhit,enemy,chars,rng \
+    --groups core,battle,bhit,enemy,chars,rng,vehicle \
     --rng-trace oracle/logs/tape07_rolls.csv \
     --out  oracle/logs/tape07_battle.csv
 python3 oracle/rng_trace.py check oracle/logs/tape07_rolls.csv \
@@ -242,11 +245,15 @@ CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
     -- tape07
 ```
 
-The last two steps are the replay: `oracle/battle_fixture.py` writes the
-battle's start state, its rolls with the frame and role of each, and what the
-RAM log shows every action doing, and `psiv-core` replays it -
-`rust/psiv-core/src/battle/engine_tests_replay.rs`, with the verdict in
-[`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md).
+The last two steps are the replay: `oracle/battle_fixture.py` (the CLI of the
+`oracle/fixture/` package) writes the battle's start state, its rolls with the
+frame and role of each, and what the RAM log shows every action doing, and
+`psiv-core` replays it - `rust/psiv-core/src/battle/replay/`, whose
+`data.rs` is the one test that replays **every** fixture in
+`rust/psiv-core/src/battle/replay_fixtures/` and holds each one that does not
+match to its entry in `divergences.json`; the verdicts are in
+[`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md) and
+[`BATTLE_ORACLE_FORCED.md`](../docs/BATTLE_ORACLE_FORCED.md).
 
 The host writes one row per call, in frame order:
 
@@ -377,6 +384,53 @@ of them in the visible lines, with its fixture extracted by `--tape`,
 `--battle-first` and `--battle-last` and nothing else. Both traces' pins, both
 fixtures' provenance and both replays' draw accounting are in
 [`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md).
+
+### Forced battles: capturing any formation on demand
+
+A tape can only meet the formations its own RNG path draws, which is a problem
+when the ability under test belongs to an enemy the tapes never reach.
+`oracle/force_battle.py` forces one:
+
+```sh
+python3 oracle/force_battle.py --formation 0x5E --out build/forced/helex \
+    --require-ability 2
+python3 oracle/force_battle.py --formation 0x53 --vehicle 2 \
+    --out build/forced/icedigger
+```
+
+Its runs log `core,battle,bhit,enemy,chars,rng,vehicle` - the vehicle group
+because a vehicle battle's party side is built from `Vehicle_Stats` and its
+saved record, which a fixture's `vehicle` section reads. It takes a base tape
+whose field prefix walks into an encounter (tape 07's, by default), cuts it at
+the frame that encounter fires on, and drives the fight with a fixed input
+policy (`attack`: one `C` press every 16 frames, tape 07's
+own; `defend` is tape 14's menu walk). Two things decide which formation the
+load builds, and the tool forces both: the *group* (the map's encounter byte, a
+position-grid cell, or a vehicle table) with one patch a frame after the
+encounter fires, and the *entry* within the group's 32 formation ids by
+patching `RNG_Seed`'s high word - one frame before the formation draw - to the
+value that makes `UpdateRNGSeed2`'s roll land where it should.
+
+`--vehicle N` (1 Land Rover, 2 Ice Digger, 3 Hydrofoil) chooses which
+`VehicleData` record the forced battle loads, for a formation that sits in one
+of the four vehicle tables (groups 8, 9, 10, 13). Values outside the table's
+three records are refused, and so is a vehicle the table's region cannot seat:
+the Dezolis table (group `$D`, `Field_Map_Index != 0`) is the Ice Digger's -
+no item action boards a vehicle outside Motavia - while the Motavia tables take
+any of the three. Without the flag the table's own region decides (Land Rover on
+Motavia, Ice Digger on Dezolis), which is how the three older captures were
+taken. `oracle/force/selectors.py` carries the rule with its citations.
+
+Five oracle runs per capture: a scout, a probe that measures the draw, an
+untrimmed preview, the trimmed capture, and a re-run to byte-compare it, with
+`oracle/rng_trace.py check` on the result. The output directory holds the
+composed tape, the `--ram-patch` list, every run's log and trace, and a
+`report.json` with the window, the outcome, the vehicle forced, the ability ids
+observed and every sha256. [`BATTLE_ORACLE_FORCED.md`](../docs/BATTLE_ORACLE_FORCED.md)
+is the ledger: the mechanism with its citations, four captures (Helex/FLAME
+BOLT, Fanbite/SPIRAL BLD, Desrt Leach/SAND STORM under the Land Rover and again
+under the Ice Digger), the Ice Digger's two-pass swing divergence and their
+limits.
 
 ### Deterministic scene fixtures
 

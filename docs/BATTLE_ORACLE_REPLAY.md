@@ -50,12 +50,18 @@ log shows every action doing. Every number is transcribed from the two logs;
 nothing is fitted to `psiv-core`, so a replay that disagrees with a fixture is a
 finding about the port.
 
-`rust/psiv-core/src/battle/engine_tests_replay.rs` builds the battle that fixture
+`rust/psiv-core/src/battle/replay/` builds the battle that a fixture
 describes, checks the logged live state against the port's own derivations of it
 (the party against `Stats::from_character`, the enemies against
 `Stats::from_enemy`, both reaching the same numbers the RAM does), feeds the
 rolls through `SliceRolls` and compares the port's timeline with the log's
-action by action. Two tests per tape:
+action by action. `replay/data.rs` is the one data-driven test: it replays
+**every** fixture in `replay_fixtures/` - these two, and the forced captures of
+[`BATTLE_ORACLE_FORCED.md`](BATTLE_ORACLE_FORCED.md) - and holds each one
+against `replay_fixtures/divergences.json`, which carries the first divergence
+of every fixture that does not replay exactly. A fixture that diverges anywhere
+else fails the test, and so does an entry whose fixture replays exactly, so the
+manifest cannot go stale. Two further tests per tape walk them in more detail:
 `tape07_replays_the_cartridges_battle_on_the_verbatim_stream` /
 `tape09_replays_the_cartridges_battle_on_the_verbatim_stream` (the whole battle,
 asserting per round that nothing diverges **and** that the port drew exactly the
@@ -107,14 +113,15 @@ CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
 rm "Phantasy Star IV (USA).md"
 ```
 
-Two conventions matter when comparing a capture against these pins. Input paths
-are recorded verbatim: the log's own `# rom=` and `# tape=` lines carry what the
-run was given, so the pinned logs reproduce under the spellings above and not
-under others (both captures here name the ROM by its full path, which is what
-tape 07's fixture always carried). Output paths are not records at all - the
-log names its trace by basename alone (`oracle/host/provenance.h`), so two runs
-that differ only in their output directories are byte-identical, traces and logs
-alike.
+Two conventions matter when comparing a capture against these pins. The log
+names the ROM as it was given (`# rom=`, the full path above) and names the tape
+and the trace by their basenames (`oracle/host/provenance.h`), because a path a
+run was *handed* is not what it observed: the same capture re-run from another
+directory now produces byte-identical bytes, traces and logs alike, which is
+what makes a log's sha256 worth pinning. Both captures below were taken before
+the tape line carried its basename, so they carry an older `# tape=` spelling
+and an older `log_sha256`; their `# rom=` line is unchanged and their data is
+identical either way.
 
 ### Provenance, and the current pins
 
@@ -226,8 +233,49 @@ third makes a capture pinnable across lanes:
   `oracle/host/rng_trace.h` and compares what the C host computes with the
   checker's `roll_for` against numbers written out from the disassembly, so the
   two cannot drift into the same mistake again.
-- `oracle/host/provenance.h` writes a run's own output paths as basenames, so
-  two captures to different directories are byte-identical.
+- `oracle/host/provenance.h` writes the paths the run *names* as basenames -
+  the tape now included, not only `--rng-trace` - so two runs that differ only
+  in their directories are byte-identical. `tests/test_oracle_force_battle_provenance.py`
+  is the control: it reads the `# tape=` call site and compiles
+  `path_basename` into a probe, and the capture measurement is a copy of the
+  Helex capture's tape replayed from another directory, whose log and trace come
+  back byte-identical
+  (`docs/BATTLE_ORACLE_FORCED.md` §3a, `build/lane-evidence/group_compare/`).
+
+### The negative controls of the data-driven replay
+
+`replay_fixtures/divergences.json` is what keeps the one data-driven test
+honest, and both directions are checked by running it:
+
+* **A bogus entry for a fixture that replays exactly.** Adding
+  `tape07_first_battle` to the manifest fails the test with "carries an entry
+  for f29489 (value) but the fixture replays exactly - the manifest is stale";
+* **A changed roll in a captured fixture.** Flipping the sixteen damage draws of
+  the Helex capture's first FLAME BOLT (`forced_5e_helex.json`, f25043) fails it
+  at that action with the log's 78 against the port's 77.
+* **The vehicle's swing removed again.** Putting a vehicle back on
+  `Character_Attack`'s weapon check - `resolve_attack`'s dispatch to
+  `vehicle_attack` deleted - fails the test at exactly the finding the deleted
+  entry carried: `forced_53_desrtleach: the port diverges at f25026 (round 1,
+  no-swing)`, the log's actor 1 resolving one target against the port's no
+  swing. Restoring it passes. Transcripts in the lane's
+  `build/lane-evidence/03-negative-control.log` and
+  `04-replay-after-restore.log` (not committed).
+* **The hit byte sampled a pass early.** Pointing the extractor back at the
+  frame the flags first moved - `sample_decisive_hits` disabled, the fixture
+  re-extracted from the same capture - fails the strict comparator at the
+  DesrtLeach's own rounds: round 3 first, at f25448 (`Normal with Some(154)`
+  against the log's `hit flag 01`), and with round 3's byte put back by hand so
+  the walk reaches the next one, round 6 at f26387 (`Normal with Some(189)`
+  against `hit flag 01`) - the same defect in the other round, and the
+  comparator reports each in turn. Restoring the sampler and re-extracting
+  gives the two `$00` bytes and an empty manifest again. Transcripts: the
+  lane's `build/lane-evidence/14-negative-control-round3.log`,
+  `14c-negative-control-round6.log` and `14d-restored.log` (not committed).
+
+The manifest-entry and changed-roll controls above were run against the tree
+this ledger describes; their transcripts are in `build/lane-evidence/negative_controls.log`
+and `build/lane-evidence/negative_control_b.log` of the lane that wrote them.
 
 ### The negative control
 
@@ -256,7 +304,31 @@ probe), and
 `tests/test_oracle_battle_fixture.py::test_a_low_word_roll_column_is_rejected_with_its_frame_and_call`
 (the extractor).
 
-## Two divergences, both closed
+## The reorganization, and what stayed put
+
+The extractor and the replay harness were reorganized under the repository's
+file-size rule: `oracle/battle_fixture.py` is a thin CLI over `oracle/fixture/`,
+`oracle/force_battle.py` keeps the capture tool's CLI over its own package, and
+`rust/psiv-core/src/battle/replay/` holds the fixture's shape, the battle
+builder, the verbatim-stream driver, the comparator and the data-driven test
+(the wiring stays in `engine_tests_replay.rs`). Two measurements say nothing
+moved with it:
+
+* **The tapes' data is byte-stable.** Re-extracting tapes 07 and 09 from fresh
+  captures with the reorganized extractor reproduces every field the committed
+  fixtures already had - zero differences, provenance aside
+  (`build/lane-evidence/tape07-09-recheck.log`);
+* **Every test name survives.** The names in the two tape modules and
+  `engine_tests_replay.rs` are unchanged (the diff in
+  `build/lane-evidence/test-names.log` is additions only: the new
+  data-driven test and the new modules' constructors).
+
+The fixture schema is additive, so the tapes' fixtures were not touched:
+`kind`, `ability`, `vehicle`, `outcome.defeat`, `outcome.dead_party_ids`,
+`animation_hit_pass_ids` and the provenance notes are new keys, and a fixture
+without them reads as a battle whose every action is a physical attack.
+
+## Three divergences, all closed
 
 ### Alys's and Kyra's second hit pass
 
@@ -293,6 +365,57 @@ has 10 - and tape 09's at f30889 (9 against 10). The other nine are `action_seco
 be that control) and `rust/psiv-core/src/battle/action.rs`'s
 `a_multi_target_swing_rolls_both_hit_passes_then_damages_each` and
 `a_multi_target_swing_can_never_crit`.
+
+### The vehicle's swing: command 6, and three hit passes
+
+A forced capture found this one: the `$53` Desrt Leach battle
+([`BATTLE_ORACLE_FORCED.md`](BATTLE_ORACLE_FORCED.md)), where the port's vehicle
+party-side fighter spent every turn as `TurnSkipped { reason: Unarmed }` while
+the log showed it swinging. The cause was route, not equipment: a vehicle's
+Attack is command 6, whose fighter routine is `loc_AF9C` (`ps4.asm:16810`)
+rather than `Character_Attack`, so the weapon check that skipped the swing never
+runs for it, and the swing draws `loc_B6A2` **three** times - state 4's
+`jmp loc_B6A2` as the attack object is created, state 5's `jsr loc_B6A2`
+(`loc_9848`, `ps4.asm:14964`), and state 5 again once that object hands the
+vehicle's `action_routine` back (`move.w #5, $32(a0)`, `ps4.asm:82975` and its
+two siblings). Its damage is not the weapon path either: `loc_280A`
+(`ps4.asm:4016`) reads the **target's** element-2 property and nothing of the
+attacker's hands.
+
+`psiv-core` models it in `rust/psiv-core/src/battle/vehicle_attack.rs`, with
+`resolve_attack` dispatching to `resolve_vehicle_attack` for a fighter whose
+`Fighter::character` is one of `loc_78EE`'s ids (`Vehicle_Index + $B`). The
+instruction-level reading, the six rounds' arithmetic and the tests are in
+[`source-notes/battle-party.md`](source-notes/battle-party.md#the-vehicles-own-attack-command-6-three-hit-passes-2026-09-24),
+"The vehicle's own attack".
+
+One reading of the fixture changed with it, and the checker did not. A
+per-target `hit` byte is the one the swing's **last** pass wrote - `loc_B6A2`
+presets all nine `Fighters_Hit_Flags` to `$FF` before every pass
+(`ps4.asm:17493-17498`), and every pass walks the same window - so
+`oracle/fixture/observations.py`'s `sample_decisive_hits` reads the byte at the
+frame of the action's last `loc_B6A2` roll, which `oracle/fixture/roles.py`'s
+labels name. Rounds 3 and 6 of the capture are the case that made it necessary:
+their first pass came back critical and their third normal, and their damage -
+154 and 189 - is what only a normal hit's arithmetic produces. The fixture was
+re-extracted on 2026-09-24, so those bytes are `$00`, and
+`replay/compare.rs` is back to comparing every verdict strictly: a byte sampled
+before the decisive pass would fail the test rather than be excused.
+`battle/vehicle_attack_tests.rs`'s
+`the_logs_third_round_needs_the_last_passs_verdict` still pins the same rolls'
+verdict inside the port.
+
+**Correction, later on 2026-09-24: that "three" is the Land Rover's count, not
+every vehicle's.** The second `--vehicle` capture (the Ice Digger, same
+formation and the same draw) shows two `loc_B6A2` passes, because its attack
+object's `$1C` wind-up is zero (`clr.w $1C(a4)`, `ps4.asm:82996`) and the
+hand-back `move.w #5, $32(a0)` therefore lands in the creation frame, before
+state 4's own advance — see
+[`BATTLE_ORACLE_FORCED.md`](BATTLE_ORACLE_FORCED.md) §5.1. The rule is now
+`vehicle_attack.rs`'s `hit_passes`: three for the Land Rover and the Hydrofoil
+(both created with `#$C`, `ps4.asm:82945`/`83071`) and two for the Ice Digger.
+`replay_fixtures/divergences.json` is empty again and
+`every_fixture_replays_as_recorded` passes for every fixture.
 
 ### `$FFFFEEA8`: the ability re-roll word, and how long it lives
 

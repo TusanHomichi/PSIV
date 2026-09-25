@@ -3,7 +3,8 @@
 run.json's presence is what marks a run complete (see `run_finished`), so
 everything a reader may need - the exit code, the turn error, the write-set
 verdict, the files over the line limit and the number of the run the stall
-watchdog starts in this one's place - is written before it lands.
+watchdog starts in this one's place - is written before it lands. What the
+worker left to read (its trajectory and result) is `trajectory`.
 """
 import json
 import re
@@ -14,71 +15,9 @@ import time
 from pathlib import Path
 
 from .config import (BINARY_SNIFF_BYTES, EFFORT, HOST_STATE_PATHS, MODEL, PERMISSION_MODE,
-                     max_file_lines, save_receipt, supervisor_alive)
-from .preflight import CONSTRAINT_BLOCK, write_set_violations
-
-
-def scan_trajectory(path):
-    """(session_id, turn_error, constraint_blocks, sandbox_blocks) from a trajectory.
-
-    `reasonix run` omits session_id from its JSON result; the trajectory has it.
-    """
-    session_id, turn_err, constraint_blocks, sandbox_blocks = None, None, 0, 0
-    for line in Path(path).read_text(errors="replace").splitlines():
-        try:
-            ev = json.loads(line).get("event", {})
-        except json.JSONDecodeError:
-            continue
-        session_id = session_id or ev.get("sessionId")
-        if ev.get("kind") == "tool_result":
-            err = str((ev.get("tool") or {}).get("err") or "")
-            constraint_blocks += err.startswith(CONSTRAINT_BLOCK)
-            sandbox_blocks += "outside the writable roots" in err
-        if ev.get("kind") == "turn_done" and ev.get("status") != "completed":
-            turn_err = ev.get("err") or ev.get("status")
-    return session_id, turn_err, constraint_blocks, sandbox_blocks
-
-
-def receipt_block(text):
-    """The worker's final `## Receipt` block, when its result carries one."""
-    lines = (text or "").splitlines()
-    heads = [i for i, l in enumerate(lines) if re.match(r"^#{1,6}\s*Receipt\b", l.strip())]
-    return "\n".join(lines[heads[-1]:]).strip() if heads else None
-
-
-def trajectory_tail(path):
-    """(tool calls, latest assistant message text) from a trajectory.jsonl."""
-    started, calls, message = {}, [], ""
-    if not Path(path).exists():
-        return calls, message
-    for line in Path(path).read_text(errors="replace").splitlines():
-        try:
-            ev = json.loads(line).get("event", {})
-        except json.JSONDecodeError:
-            continue
-        kind, tool = ev.get("kind"), ev.get("tool") or {}
-        if kind == "tool_started":
-            started[tool.get("id")] = tool.get("name")
-        elif kind == "tool_result":
-            state = tool.get("runState") or ("err" if tool.get("err") else "ok")
-            calls.append((tool.get("name") or started.get(tool.get("id")) or "?",
-                          tool.get("args") or "", state))
-        elif kind == "message" and ev.get("text"):
-            message = ev["text"]
-    return calls, message
-
-
-def result_of(run_dir):
-    """The last JSON line `reasonix run` printed, or {}."""
-    stdout_file = Path(run_dir) / "stdout.log"
-    if not stdout_file.exists():
-        return {}
-    for line in reversed(stdout_file.read_text().strip().splitlines()):
-        try:
-            return json.loads(line)
-        except json.JSONDecodeError:
-            continue
-    return {}
+                     max_file_lines, save_receipt, size_exempt, supervisor_alive)
+from .preflight import CONSTRAINT_BLOCK, write_set_match, write_set_violations
+from .trajectory import receipt_block, result_of, scan_trajectory
 
 
 def count_lines(data):
@@ -104,19 +43,23 @@ def lines_at(wt, rev, path):
     return count_lines(r.stdout) if r.returncode == 0 else None
 
 
-def oversize_files(wt, base_sha, head, paths, limit):
+def oversize_files(wt, base_sha, head, paths, limit, exempt=()):
     """[{path, lines, base_lines}] for the changed paths over `limit` lines at `head`.
 
     `paths` is a run's changed set (tracked, base..head). A path gone at the
     new head is skipped - a deleted file has no size - and so is anything
-    binary there, since counting lines in a blob is meaningless. `base_lines`
-    is the count at the lane's base, None for a path that is new there (or was
-    binary), so a reader sees how much of the size this lane added. The base is
-    only read for a path already over the limit at the head, which keeps this
-    to one `git show` per changed file in the common case.
+    binary there, since counting lines in a blob is meaningless; `exempt` is
+    the size rule's skip list (generated and data files), matched the way a
+    write set matches a path. `base_lines` is the count at the lane's base,
+    None for a path that is new there (or was binary), so a reader sees how
+    much of the size this lane added. The base is only read for a path already
+    over the limit at the head, which keeps this to one `git show` per changed
+    file in the common case.
     """
     out = []
     for path in paths:
+        if write_set_match(path, exempt):
+            continue
         lines = lines_at(wt, head, path)
         if lines is None or lines <= limit:
             continue
@@ -254,10 +197,13 @@ def finalize_run(lane, run_dir, spec, rc, started, duration, outcome=None, stall
     violations = write_set_violations(changed, write_set) if write_set else None
 
     # The owner's 1,000-line rule, reported like a write-set violation: a file
-    # this lane changed and left too big to touch again. Linked inputs and the
-    # worker's host state never reach a commit, so they are never counted.
+    # this lane changed and left too big to touch again. Generated and data
+    # files are exempt (size_exempt), and the run records the list it used, so
+    # a reader can tell a skipped path from an unflagged one. Linked inputs and
+    # the worker's host state never reach a commit, so they are never counted.
     limit = max_file_lines()
-    oversize = oversize_files(wt, lane["base_sha"], head, changed, limit)
+    exempt = size_exempt()
+    oversize = oversize_files(wt, lane["base_sha"], head, changed, limit, exempt)
 
     session_id, turn_err, constraint_blocks, sandbox_blocks = scan_trajectory(
         run_dir / "trajectory.jsonl")
@@ -281,6 +227,7 @@ def finalize_run(lane, run_dir, spec, rc, started, duration, outcome=None, stall
         "timeout_s": spec.get("timeout"), "timed_out": outcome == "timeout",
         "outcome": outcome or "completed", "write_set_violations": violations,
         "write_set": write_set, "oversize_files": oversize, "max_file_lines": limit,
+        "size_exempt": exempt,
         "stall_timeout_s": spec.get("stall_timeout"),
         "stall_retries_left": spec.get("stall_retries_left"),
         "resumed_after_stall": bool(spec.get("resumed_after_stall")),
@@ -322,6 +269,71 @@ def finalize_run(lane, run_dir, spec, rc, started, duration, outcome=None, stall
     (run_dir / "summary.txt").write_text("\n".join(out) + "\n")
     # run.json last: its presence marks the run complete.
     (run_dir / "run.json").write_text(json.dumps(run, indent=2) + "\n")
+
+
+def record_crashed_run(lane, run_dir, spec, error, *, started=None, duration=None, exit_code=None):
+    """Record a run whose supervisor died before run.json could land.
+
+    A supervisor that raises - inside the run, or inside finalize before the
+    record was written - left the run directory in place with nothing in
+    lane.json to say it had happened: `resume` then numbered the next run from
+    `len(lane["runs"])` and tried to create that same directory again
+    (FileExistsError), and the session id the dead run's trajectory holds was
+    lost with it (2026-09-24). Whatever is known is recorded here instead - the
+    error, the session id read from the trajectory, and the worker's turn
+    error, exit code and cost when its result arrived - so a later `resume`
+    continues that session.
+
+    This never writes run.json: its presence is what marks a run complete.
+    `failed` is the terminal marker instead, so `wait` reports the run as
+    failed and prints the error from the summary written here. A run finalize
+    had already appended to lane.json is updated in place, so a failure after
+    that point cannot list one run twice.
+    """
+    run_dir = Path(run_dir)
+    result = result_of(run_dir)
+    session_id, turn_err, constraint_blocks, sandbox_blocks = scan_trajectory(
+        run_dir / "trajectory.jsonl")
+    run = {
+        "run": spec.get("run"), "started": started, "duration_s": duration,
+        "exit_code": exit_code if exit_code is not None else result.get("exit_code"),
+        "model": MODEL, "effort": EFFORT, "permission_mode": PERMISSION_MODE,
+        "session_id": result.get("session_id") or session_id, "turn_error": turn_err,
+        "is_error": result.get("is_error"), "num_turns": result.get("num_turns"),
+        "cost_usd": result.get("total_cost_usd"), "usage": result.get("usage"),
+        "resumed_session": spec.get("resume_session"), "read_only": lane.get("read_only", False),
+        "constraint_blocks": constraint_blocks, "sandbox_blocks": sandbox_blocks,
+        "timeout_s": spec.get("timeout"), "timed_out": False,
+        "stall_timeout_s": spec.get("stall_timeout"),
+        "stall_retries_left": spec.get("stall_retries_left"),
+        "resumed_after_stall": bool(spec.get("resumed_after_stall")),
+        "stalled": False, "stall_resumed_run": None, "outcome": "error", "error": error,
+    }
+    recorded = next((r for r in lane["runs"] if r.get("run") == run["run"]), None)
+    if recorded is None:
+        lane["runs"].append(run)
+    else:  # finalize reached its record first: its fields stand, only fill the gaps
+        for key, value in run.items():
+            if key not in recorded and value is not None:
+                recorded[key] = value
+        run = recorded
+    run["outcome"] = "error"  # no run.json, so no run this reader can call completed
+    run["error"] = error
+    lane["total_cost_usd"] = round(sum(r.get("cost_usd") or 0 for r in lane["runs"]), 6)
+    save_receipt(lane["state_dir"], lane)
+
+    known = [f"exit={run['exit_code']}" if run["exit_code"] is not None else "exit unknown",
+             f"cost=${run['cost_usd']}" if run["cost_usd"] is not None else "cost unknown",
+             f"session={run['session_id'] or 'unknown'}"]
+    (run_dir / "summary.txt").write_text("\n".join([
+        f"lane {lane['id']} run-{run['run']}: FAILED supervisor error ({' '.join(known)})",
+        f"SUPERVISOR ERROR {error}",
+        "the run has no run.json: what the supervisor knew of it before it died is in "
+        f"{Path(lane['state_dir']) / 'lane.json'}, and its files stay in the worktree",
+        f"see {run_dir / 'supervisor.log'}",
+        f"receipts: {run_dir}",
+    ]) + "\n")
+    return run
 
 
 def clear_stall_resume(run_dir, error):

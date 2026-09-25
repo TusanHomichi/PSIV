@@ -14,7 +14,7 @@ import os
 import tempfile
 import unittest
 
-from oracle import battle_fixture as bf
+from oracle import fixture as bf
 
 M16 = 0xFFFF
 
@@ -135,9 +135,14 @@ class FixtureTest(unittest.TestCase):
         self.tmpdir = tempfile.mkdtemp(prefix="psiv-battle-fixture-")
         self.addCleanup(lambda: None)
 
-    def load(self, rows, header=None):
-        """A Log over hand-built rows; the default carries every column."""
+    def load(self, rows, header=None, ram_map=None):
+        """A Log over hand-built rows; the default carries every column.
+
+        `ram_map` is for a test that needs a column this file's map does not
+        carry, e.g. the forced captures' ability and vehicle cells
+        (`tests/test_oracle_battle_fixture_forced.py`)."""
         header = header or list(Row().values)
+        ram_map = ram_map or RAM_MAP
         path = os.path.join(self.tmpdir, "log.csv")
         with open(path, "w") as handle:
             handle.write("# provenance\n")
@@ -146,7 +151,7 @@ class FixtureTest(unittest.TestCase):
                 handle.write(",".join(row[column] for column in header) + "\n")
         map_path = os.path.join(self.tmpdir, "ram_map.json")
         with open(map_path, "w") as handle:
-            json.dump(RAM_MAP, handle)
+            json.dump(ram_map, handle)
         return bf.Log(bf.load_rows(path), bf.load_ram_map(map_path))
 
 
@@ -433,6 +438,109 @@ class FixtureAssembly(FixtureTest):
                               "trace": "x", "trace_sha256": "0" * 64,
                               "log_sha256": "1" * 64})
         self.assertIn("missing", str(caught.exception))
+
+
+class DecisiveHitByte(FixtureTest):
+    """The frame an action's per-target `hit` byte is read at.
+
+    `loc_B6A2` presets all nine `Fighters_Hit_Flags` to `$FF` before it rolls
+    (`ps4.asm:17493-17498`) and every pass walks the same window, so the byte a
+    swing leaves behind is the one its **last** pass wrote - the byte
+    `Fighter_TakeDamage` reads (`ps4.asm:3569-3571`). A swing whose passes all
+    arrive in one frame leaves that byte at the frame the flags first moved; a
+    swing whose passes arrive in *different* frames leaves the first pass's
+    there, and the decisive pass's only later, so the fixture reads the last
+    pass's frame. Rounds 3 and 6 of the `$53` Desrt Leach capture are the case
+    the second test stands in for: a `$01` first pass over a swing whose third
+    pass read `$00`, and a damage number that only a normal hit produces.
+    """
+
+    HV, FRAME_COUNT, SEED = 0x2292, 0x708F, 0x21E817F3
+
+    def row(self, frame, index):
+        return trace_row(frame, index, self.HV + frame, self.FRAME_COUNT,
+                         self.SEED,
+                         cartridge_roll(self.HV + frame, self.FRAME_COUNT,
+                                        self.SEED))
+
+    def swing(self, frames):
+        """The fixture for one swing against one enemy.
+
+        `frames` is `(frame, calls, flag)` per frame the swing drew in: how
+        many of the trace's calls that frame held - one per pass it ran - and
+        what the target's `hit_05` reads from that frame on. The frames follow
+        the formation and the queue build, which the `FixtureAssembly` battle
+        above supplies the shape of.
+        """
+        trace = []
+        for frame, calls, _ in [(10, 1, None), (11, 1, None), (12, 13, None),
+                                *frames]:
+            for index in range(calls):
+                trace.append(self.row(frame, index))
+        rows = [
+            Row(frame=9),
+            Row(frame=10, e1_id="7963", e1_hp="12063", e1_maxhp="46"),
+            Row(frame=11, e1_id="000A", e1_hp="25", e1_maxhp="25",
+                e2_id="000A", e2_hp="25", e2_maxhp="25", enemy_count="2",
+                enemy_ambush_chance="15", enemy_run_chance="5",
+                item_drop_rate="0", battle_priority="00"),
+            Row(frame=12, turn_00="0001", turn_01="0014", turn_02="0002",
+                turn_03="000B", battle_actor="0"),
+        ]
+        for index, (frame, _, flag) in enumerate(frames):
+            rows.append(Row(frame=frame, battle_actor="1", hit_05=flag,
+                            turn_00="0001", turn_01="0014", turn_02="0002",
+                            turn_03="000B", e1_hp="13",
+                            battle_exp_total="12" if index else "0",
+                            battle_meseta_total="3" if index else "0"))
+        log = self.load(rows)
+        return bf.build_fixture(trace, log, {**RAM_MAP}, 9, frames[-1][0],
+                                {"tape": "t", "core": "c", "patch": "p",
+                                 "trace": "x", "trace_sha256": "0" * 64,
+                                 "log_sha256": "1" * 64})
+
+    @staticmethod
+    def action(fixture):
+        action = fixture["rounds"][0]["actions"][0]
+        return action, action["targets"][0]
+
+    @staticmethod
+    def passes(fixture):
+        """The `pass` column of the action's hit rolls, in the trace's order."""
+        table = fixture["rolls"]
+        rows = [dict(zip(table["columns"], row)) for row in table["rows"]]
+        return [row["pass"] for row in rows if row["role"] == "hit"]
+
+    def test_a_single_frame_swing_reads_the_byte_where_the_flags_moved(self):
+        # Both of the swing's passes ran in f13 - the shape every character's
+        # attack has, and Alys's and Kyra's two - so the byte the flags first
+        # moved to *is* the decisive pass's, and the fixture reads it there.
+        fixture = self.swing([(13, 2, "01")])
+        action, target = self.action(fixture)
+        self.assertEqual(action["hit_frame"], 13)
+        self.assertEqual(target["hit"], "01")
+        self.assertEqual(self.passes(fixture), [1, 2])
+
+    def test_a_swing_whose_passes_span_frames_reads_the_last_passs_byte(self):
+        fixture = self.swing([(13, 1, "01"), (14, 1, "00"), (15, 1, "00")])
+        action, target = self.action(fixture)
+        # The flags first moved at f13, to the *first* pass's critical - what
+        # this fixture used to record. The swing's byte is the third pass's.
+        self.assertEqual(action["hit_frame"], 13)
+        self.assertEqual(target["hit"], "00")
+        self.assertEqual(self.passes(fixture), [1, 2, 3])
+
+    def test_a_swing_whose_last_pass_missed_records_the_miss(self):
+        # A miss writes `$FF` over the slot (`loc_B704`, `ps4.asm:17528-17530`),
+        # so a swing whose first pass hit and whose second missed resolves
+        # nothing: the slot is still listed - its flag moved in the window -
+        # and its byte is the decisive pass's `$FF`, not the first pass's hit.
+        fixture = self.swing([(13, 1, "00"), (14, 1, "FF")])
+        action, target = self.action(fixture)
+        self.assertEqual(action["hit_frame"], 13)
+        self.assertEqual(target["hit"], "FF")
+        self.assertIsNone(target["damage"])
+        self.assertEqual(self.passes(fixture), [1, 2])
 
 
 if __name__ == "__main__":

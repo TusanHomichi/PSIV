@@ -22,9 +22,9 @@ outcomes in the [lane ledger](docs/CLAUDE_LANES.md).
 
 `ds-lane` is on `PATH` through `~/.local/bin`. `tools/ds-lane` is the
 executable entry point (a shim that resolves its own symlink) for the
-stdlib-only `tools/ds_lane/` package (`config`, `preflight`, `receipts`,
-`lanes`, `supervisor`, `cli`). Usage: `ds-lane --help`, or the `cli` module
-docstring.
+stdlib-only `tools/ds_lane/` package (`config`, `preflight`, `trajectory`,
+`receipts`, `lanes`, `supervisor`, `cli`). Usage: `ds-lane --help`, or the
+`cli` module docstring.
 
 - Launch with `ds-lane start BRIEF.md` in a background shell; the host wakes
   the orchestrator on exit. Runs use a detached supervisor, so the worker and
@@ -106,12 +106,18 @@ docstring.
   `WARNING: over 1000 lines: <path> (<lines>, was <base_lines>)` (`was new` for
   a new file). Every path in a commit is counted, whatever the brief's write
   set says; the `--link`ed inputs and the worker's host state never reach a
-  commit, so they are never counted. The preamble carries the rule to the
-  worker in positive words (keep every file you touch under 1,000 lines;
-  reorganize a file into cohesive modules when a change would take it over).
-  Why it exists: lane ab-M grew
-  `rust/psiv-core/src/battle/enemy_damage_tests.rs` to 1,504 lines and review
-  missed it, because nothing flagged it (2026-09-24).
+  commit, so they are never counted. **Generated and data files are exempt**
+  (owner decision 2026-09-24): the rule is for source text a worker edits,
+  while a manifest or a replay transcript grows with its content, so paths
+  matching `DEFAULT_SIZE_EXEMPT` in `config.py` (`*.json`, `*.tsv`, `*.csv`,
+  `*.lock`, `**/replay_fixtures/**`) are skipped, and `DS_LANE_SIZE_EXEMPT`
+  replaces that list with a comma-separated one (an empty value exempts
+  nothing). The list a run used is recorded as `size_exempt` in its `run.json`,
+  beside `max_file_lines`. The preamble carries the rule to the worker in
+  positive words (keep every file you touch under 1,000 lines; reorganize a
+  file into cohesive modules when a change would take it over). Why it exists:
+  lane ab-M grew `rust/psiv-core/src/battle/enemy_damage_tests.rs` to 1,504
+  lines and review missed it, because nothing flagged it (2026-09-24).
 - **Timeout.** Each run gets `--timeout SECONDS` (default 5400). On expiry the
   worker's process group is SIGTERM'd, then SIGKILL'd after 30 s; the run
   still commits and reports `exit_code` 124 with `turn_error`
@@ -143,6 +149,22 @@ docstring.
   the run spec and in `run.json`, and `wait ID` follows the chain to the
   lane's final run, so a waiter that attached before the stall still returns
   the final outcome. Stopping the resumed run is an ordinary `stop ID`.
+- **Run numbering and crashed runs.** A run's number is one more than the
+  highest `run-N` directory in the lane's receipts, not the length of
+  `lane.json`'s `runs`: a run whose supervisor died before it recorded itself
+  leaves its directory behind with no entry there, and counting from the
+  record made `resume` try to create that same directory again
+  (`FileExistsError`), which left the lane stuck until an orchestrator cleared
+  it by hand (2026-09-24). A supervisor that raises - inside the run, or inside
+  finalize before `run.json` landed - is recorded in `lane.json` anyway, with
+  the `error`, the session id read from its trajectory, and its turn error,
+  exit code and cost when the worker's result arrived. Such a run gets
+  `outcome` `error`, keeps no `run.json` (that file's presence is what marks a
+  run complete) and is marked `failed`, so `wait ID` reports it as failed and
+  prints the error. `resume ID` continues the session that record holds, and
+  falls back to the newest leftover run's trajectory when a supervisor was
+  killed outright - a host crash, an OOM kill - and could record nothing at
+  all.
 - **Independent checks.** `ds-lane verify ID -- CMD...` runs CMD in the lane
   worktree with `CARGO_BUILD_JOBS=2`, streams its output, saves it with the
   command, UTC start, lane head, exit code and duration under
@@ -152,17 +174,19 @@ docstring.
   swaps the worker binary, `DS_LANE_MAX_LANES` caps concurrency,
   `DS_LANE_STALL_POLL` shortens the 15 s stall sampling interval,
   `DS_LANE_STALL_CPU_PCT` moves the work threshold (both are test seams; the
-  defaults are 15 s and 1.0% of a core) and `DS_LANE_MAX_FILE_LINES` moves the
-  1,000-line limit (a test seam; the default is 1,000).
+  defaults are 15 s and 1.0% of a core), `DS_LANE_MAX_FILE_LINES` moves the
+  1,000-line limit and `DS_LANE_SIZE_EXEMPT` replaces the globs that limit
+  skips (both are test seams too; the defaults are 1,000 lines and the
+  data-file list above).
   `PYTHONPATH=. python3 -m unittest discover -s tests -p 'test_ds_lane*.py' -v`
   covers the harness hermetically in under a minute (its stall cases run with a
   lowered poll and its size cases against the real limit; the suite must stay
   under 90 s). The cases are split by cohesion - `tests/ds_lane_support.py`
   (the fake worker, the repo and home fixtures, the CLI helpers),
   `test_ds_lane_unit.py`, `test_ds_lane_lanes.py`, `test_ds_lane_size.py`,
-  `test_ds_lane_finalize.py` and `test_ds_lane_supervisor.py` - each under the
-  line cap that applies to it (500 lines for a test module, 400 for a package
-  module).
+  `test_ds_lane_finalize.py`, `test_ds_lane_crash.py` and
+  `test_ds_lane_supervisor.py` - each under the line cap that applies to it
+  (500 lines for a test module, 400 for a package module).
 - A lane that builds the whole workspace needs `--link oracle/gpgx-src`:
   `psiv-sound`'s build script compiles the ignored core sources under it.
 - Each lane has its own `rust/target`, so its first cargo build is cold.

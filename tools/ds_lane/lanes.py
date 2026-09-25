@@ -20,11 +20,56 @@ from .config import (CARGO_JOBS, DEFAULT_STALL_RETRIES, DEFAULT_STALL_TIMEOUT, D
                      now, pid_alive, reasonix_bin, repo_root, save_receipt, sh, state_root,
                      supervisor_alive, wt_root)
 from .preflight import PREAMBLE, READ_ONLY_CLAUSE, parse_write_set, preflight_phrasing
-from .receipts import print_summary, run_finished, trajectory_tail, wait_run
+from .receipts import print_summary, run_finished, wait_run
+from .trajectory import scan_trajectory, trajectory_tail
+
+
+def run_dirs(state):
+    """A lane's run directories, oldest first.
+
+    Only `run-<digits>` counts as a run; the number is what orders them, so a
+    name that is not one (a stray file, `run-x`) is not a run and does not
+    decide what follows it.
+    """
+    dirs = [p for p in Path(state).glob("run-*") if p.name.split("-", 1)[1].isdigit()]
+    return sorted(dirs, key=lambda p: int(p.name.split("-", 1)[1]))
 
 
 def lane_runs(lane):
-    return sorted(Path(lane["state_dir"]).glob("run-*"), key=lambda p: int(p.name.split("-")[1]))
+    return run_dirs(lane["state_dir"])
+
+
+def next_run_number(state):
+    """One more than the highest existing run directory.
+
+    `len(lane["runs"])` is not the same thing: a run whose supervisor died
+    before it recorded itself leaves its directory behind with no entry in
+    lane.json, and numbering from the record made `resume` try to create that
+    same directory again (FileExistsError), which left the lane stuck until an
+    orchestrator cleared it by hand (2026-09-24).
+    """
+    dirs = run_dirs(state)
+    return int(dirs[-1].name.split("-", 1)[1]) + 1 if dirs else 1
+
+
+def latest_session(lane):
+    """The session a `resume` continues: the last one recorded, else a leftover run's.
+
+    Every run that finalizes records its session in lane.json, and so does a
+    crashed one (receipts.record_crashed_run). A supervisor killed outright -
+    a host crash, an OOM kill - writes nothing at all, and the only remaining
+    word on that conversation is the trajectory it left behind. Resuming
+    without it would start a fresh session and lose the lane's context, which
+    is half of what a resume is for.
+    """
+    recorded = next((r["session_id"] for r in reversed(lane["runs"]) if r.get("session_id")), None)
+    if recorded:
+        return recorded
+    for run_dir in reversed(lane_runs(lane)):
+        session_id = scan_trajectory(run_dir / "trajectory.jsonl")[0]
+        if session_id:
+            return session_id
+    return None
 
 
 def find_lane(a):
@@ -48,15 +93,17 @@ def prepare_run(lane, prompt_text, *, max_steps=0, timeout=DEFAULT_TIMEOUT,
 
     The supervisor runs in its own session (setsid) so a host that reaps
     background shells cannot kill a worker mid-run or skip the commit step.
-    `run_number` normally defaults to the next free one; the watchdog passes
-    its successor's number explicitly rather than lean on the lane record it
-    has just updated.
+    `run_number` normally defaults to the next free one, counted from the run
+    directories rather than the lane record (next_run_number: a crashed run
+    leaves its directory without an entry there); the watchdog passes its
+    successor's number explicitly rather than lean on the lane record it has
+    just updated.
     """
     wt, state = Path(lane["worktree"]), Path(lane["state_dir"])
     for r in sorted(state.glob("run-*")):
         if not (r / "run.json").exists() and supervisor_alive(r):
             sys.exit(f"ds-lane: lane {lane['id']} {r.name} is still in flight; `ds-lane wait {lane['id']}`")
-    n = run_number or len(lane["runs"]) + 1
+    n = run_number or next_run_number(state)
     run_dir = state / f"run-{n}"
     run_dir.mkdir(parents=True)
     (run_dir / "prompt.md").write_text(prompt_text)
@@ -178,9 +225,9 @@ def cmd_resume(a):
     if not lane.get("read_only"):
         preflight_phrasing(followup, "follow-up", allow=a.allow_phrasing)
     adopt_write_set(lane, followup)
-    session = next((r["session_id"] for r in reversed(lane["runs"]) if r.get("session_id")), None)
-    run_dir = launch_resume(lane, followup, session, max_steps=a.max_steps, timeout=a.timeout,
-                            stall_timeout=a.stall_timeout, stall_retries_left=a.stall_retries_left)
+    run_dir = launch_resume(lane, followup, latest_session(lane), max_steps=a.max_steps,
+                            timeout=a.timeout, stall_timeout=a.stall_timeout,
+                            stall_retries_left=a.stall_retries_left)
     return wait_or_detach(lane, run_dir, a.no_wait)
 
 
