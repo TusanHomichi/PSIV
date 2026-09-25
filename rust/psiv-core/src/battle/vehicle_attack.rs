@@ -100,7 +100,7 @@
 //! by `loc_77AE` (`$4C`/`$4D` are equipment; `ps4.asm:11295-11404` writes none)
 //! cannot change it. `loc_27A4` (`ps4.asm:3963-3969`) then supplies
 //! `atk_pow_battle` of the actor, `dfs_pow_battle` of the target and the
-//! critical bonus `atk >> 2` when the hit flag is `$01`, and jumps to `loc_266C`
+//! critical bonus `(atk & $FF) >> 2` (`critical_bonus`) when the hit flag is `$01`, and jumps to `loc_266C`
 //! — `Battle_CalculateDamage` (`ps4.asm:17374`) and the 1..=999 clamp, the same
 //! sixteen draws every other damage path spends.
 //!
@@ -290,8 +290,10 @@ pub fn resolve_vehicle_attack(
     rolls: &mut impl Rolls,
     events: &mut Vec<BattleEvent>,
 ) -> Vec<FighterId> {
-    // `loc_1152` / the target cursor: one slot, never a window.
-    let targets = candidate_targets(roster, actor, intended, Reach::Single);
+    // `loc_1152` / the target cursor: one slot, never a window. The aim comes
+    // from the same command window a party swing's does, so the retarget scan
+    // applies here too (`action::candidate_targets`).
+    let targets = candidate_targets(roster, actor, intended, Reach::Single, rolls);
     if targets.is_empty() {
         events.push(BattleEvent::TurnSkipped {
             actor,

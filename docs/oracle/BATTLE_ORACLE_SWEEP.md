@@ -226,30 +226,37 @@ ones the first pass guessed:
   cluster that looked like a fourth port rule turned out to be the harness too
   (§4.4).
 
-18 findings remain, in 4 causes. The method per cluster was the same: read the
-RAM log's own rows around the divergent action - not the fixture built from
-them - read the fixture's record, run the port and read what it resolved, and
-then read the routine the row points at in `reference/ps4disasm/ps4.asm`.
+18 findings remained, in 4 causes, when this triage was written. Two of those
+rules have since been implemented - W3's (§4.4 W3) and the retarget scan's
+(§4.4 W1/W4, 2026-09-25) - and each time the manifest was regenerated from the
+port's own dump. It now holds **5** entries: 4 `enemy-ai-conditional` and the
+one `retarget-tiebreak` entry that is *not* that cluster's (`formation_3B`,
+f26155, §4.4 W3), with `party-retarget` and `critical-bonus` empty. The method
+per cluster was the same: read the RAM log's own rows around the divergent
+action - not the fixture built from them - read the fixture's record, run the
+port and read what it resolved, and then read the routine the row points at in
+`reference/ps4disasm/ps4.asm`.
 
 Every verdict below rests on those three sources and cites them: log rows by
 frame, routines by `ps4.asm` line, the port by file. **Nothing is left as a
-hypothesis** - the one question the sweep's own captures cannot answer at all
-(the fighter a member's command actually named) is §4.3, which says what is
+hypothesis** - the one question the sweep's own captures could not answer at all
+(the fighter a member's command actually named) was §4.3, which says what was
 missing, what a capture with it looks like, and what a lane that fixes the rule
-would have to re-take.
+would have to re-take; the retarget lane re-took them, and §4.3 records that
+below.
 
 ### 4.1 The verdicts
 
 | cluster | findings | verdict | evidence | fix scope |
 |---|---|---|---|---|
-| 1. a swing whose commanded enemy has fallen | 10 | **port rule** | `formation_02` f25669: enemy slot 1 is down (-12 HP), slots 2-4 read 9/8/9 of 20, and the log's own flash pin `hit_07` (the byte `st -$1(a0,d6.w)` writes for slot 8, `ps4.asm:17528`) is `$00` - the swing went to slot **8**, the enemy with the largest `max_hp - curr_hp`. The port swings at slot **7**, `candidate_targets`' `roster.first_living` (`rust/psiv-core/src/battle/action.rs`). | the rule is `loc_5A98` -> `loc_5AE6` (`ps4.asm:8331-8410`): when the commanded target's slot is empty or the fighter is dead/paralyzed/absent, scan the enemy slots 6-9 for the largest HP deficit, break a tie with one `UpdateRNGSeed2` draw (`btst #0, d1`, `ps4.asm:8371`), and write the winner into `Current_Target_Index` (`move.w d3, (Current_Target_Index).l`, `ps4.asm:8409`) - which `loc_B6A2` then swings at. Port scope: model the scan, and read the command's own target (§4.3). No rule may be changed from the port's side alone: the scan fires only when the commanded target is already down. |
+| 1. a swing whose commanded enemy has fallen | 10 | **port rule, fixed (§4.4 W1)** | `formation_02` f25669: enemy slot 1 is down (-12 HP), slots 2-4 read 9/8/9 of 20, and the log's own flash pin `hit_07` (the byte `st -$1(a0,d6.w)` writes for slot 8, `ps4.asm:17528`) is `$00` - the swing went to slot **8**, the enemy with the largest `max_hp - curr_hp`. The port swings at slot **7**, `candidate_targets`' `roster.first_living` (`rust/psiv-core/src/battle/action.rs`). | the rule is `loc_5A98` -> `loc_5AE6` (`ps4.asm:8323-8410`): when the commanded target's slot is empty or the fighter is dead/paralyzed/absent, scan the enemy slots 6-9 for the largest HP deficit, break a tie with one `UpdateRNGSeed2` draw (`btst #0, d1`, `ps4.asm:8399` in the loop a swing takes), and write the winner into `Current_Target_Index` (`move.w d3, (Current_Target_Index).l`, `ps4.asm:8409`) - which `loc_B6A2` then swings at. Port scope: model the scan, and read the command's own target (§4.3). No rule may be changed from the port's side alone: the scan fires only when the commanded target is already down. |
 | 2. a window the port narrows to one slot | 13 | **harness artifact** | `formation_10` f25693: the pass's own verdicts are one resolved slot (`hit_05` = `$00`, everything else `$FF`), and the extra three "targets" came from f25808, where `battle_actor` reads **1541** and the bytes `00 00 03 06 04 ...` land in `$FFFF4150` - battle scratch the round's tail reuses. `03`/`06`/`04` are not bytes `loc_B6A2` writes. | fixed (§4.2 H3): the flags are read on the action's own pass frame. The port's one-slot swing was right; the "window" never existed. |
 | 3. an ability that spends the turn | 10 | **split** | `$11` carries (5): `formation_38` f25019 writes the ability byte, presets the flags and resolves **FighterId(1)** - the pass's own coverage - then rolls the poison's chance once at f25082; `alys_status` never moves, so the arm ran and missed, and the port's `EnemySkillUsed` was right. `$45` carries (4): `formation_2A` f26539 rolls index 1, whose regular entry is `$40`, yet `e1_ability` reads **`$45`** and `e1_hp` rises 38 -> 75 - enemy 99's *conditional* ability, written by its AI instruction. `$02` (1): `formation_4B` f25680 is a window on a **dead** actor (see cluster 6). | harness for the `$11`/`$02` findings (fixed, §4.2 H4/H2); port for the `$45` four (§4.4 W2: the AI instruction block, `ps4.asm:19157-19168` and `21320-21338`). |
 | 4. the round's queue | 7 | **harness artifact** | `formation_13` f24821: `enemy_count` reads 2 and **one** SandNewt record is written; f24822 holds both. The fixture started at f24821, so it seated one enemy where the cartridge fought two, and the port's queue (and every later round) was a different battle. The log's own queue at f25013 is `[1, 6, 7, 2, 3]` - five entries, not the port's four. | fixed (§4.2 H1): the start frame is the first frame whose intact records are all of `enemy_count`. The port's queue was right for the formation it was given. |
-| 5. a verdict or a damage value | 5 | **split** | `formation_37` f25397 (2): Alys had just hit enemy 6 with verdict `$00`; Hahn's pass writes the same byte for the same slot, so *nothing changes*, and the old change-based target list lost the hit and kept a phantom `$FF` from the preset. The log's damage word was already 1, so the rewrite is invisible too. `formation_07` f25542 (1) and `formation_08` (round 1, 120 vs 119 rolls): the round draws **one** roll the port does not - the retarget scan's tiebreak, with the two slots' deficits tied at 13. `formation_3B` f25003 / `formation_4F` f25240 (2): a critical's damage, 248 vs 312 and 71 vs 103. | harness for `formation_36`/`37` (fixed, §4.2 H3/H5); port for `formation_07`/`08` (§4.4 W4) and for the criticals (§4.4 W3). |
+| 5. a verdict or a damage value | 5 | **split** | `formation_37` f25397 (2): Alys had just hit enemy 6 with verdict `$00`; Hahn's pass writes the same byte for the same slot, so *nothing changes*, and the old change-based target list lost the hit and kept a phantom `$FF` from the preset. The log's damage word was already 1, so the rewrite is invisible too. `formation_07` f25542 (1) and `formation_08` (round 1, 120 vs 119 rolls): the round draws **one** roll the port does not - the retarget scan's tiebreak, with the two slots' deficits tied at 13. `formation_3B` f25003 / `formation_4F` f25240 (2): a critical's damage, 248 vs 312 and 71 vs 103. | harness for `formation_36`/`37` (fixed, §4.2 H3/H5); port for `formation_07`/`08` (§4.4 W4) and for the criticals (fixed, §4.4 W3). |
 | 6. a turn that never swings | 4 | **harness artifact** | `formation_4C` f26205, `formation_4E` f25586, `formation_55` f25250, `formation_56` f25496 (`formation_4B` f25680 is the same): the window holds **no call at all**, and the actor the field names is **dead** - `formation_55` f25250's slot reads HP -45 (`e1_hp` 65491) with status `$04` (`StatusDead`), and the round killed it before its turn came. `loc_576A` writes the queue entry into `$FFFF4142` and only then tests the fighter's status (`ps4.asm:8033-8043`), so the field keeps a skipped actor's id until the next queue build. | fixed (§4.2 H2): a window opens only where the action's own calls are. The port had no turn there because there was none. |
 | 7. a target the port leaves alone | 2 | **harness artifact** | `formation_3F` f25035: the pass resolves **FighterId(3)**, the poison's own roll lands at f25099, and `hahn_status` goes 0 -> 1 in the same frame - the cartridge poisoned Hahn, and so did the port (`StatusInflicted`). The old finding came from the comparator, which demanded a `Resolved` swing event per resolved slot: a status arm resolves one and reports the *status*. | fixed (§4.2 H5): the ability path walks the slots the log shows **damage** on, and checks the log's status movements against the port's own status events - a weaker claim than "a swing resolved this slot", and one the log can support. |
-| 8. a round's roll count | 1 | **port rule** | `formation_08` round 1: the log's frames hold 120 calls, the port draws 119. The missing one is at f25374 (Hahn's turn): two calls where his single-target swing rolls once - the retarget scan's tiebreak (deficits tied), which the port never makes because it never scans. | port: the same scan as cluster 1 (§4.4 W1/W4). |
+| 8. a round's roll count | 1 | **port rule, fixed (§4.4 W4)** | `formation_08` round 1: the log's frames hold 120 calls, the port draws 119. The missing one is at f25374 (Hahn's turn): two calls where his single-target swing rolls once - the retarget scan's tiebreak (deficits tied), which the port never makes because it never scans. | port: the same scan as cluster 1 (§4.4 W1/W4). |
 
 ### 4.2 Harness artifacts, and what they read now
 
@@ -379,16 +386,38 @@ slot 8. Later in the same capture, Alys's `current_target` reads `$FFFF` (-1) on
 her round-2 turn at f25950: the whole-side window the Boomerang's command opens
 (`ps4.asm:8464`, and the reason her swings cover four slots).
 
+**Closed on 2026-09-25.** The gap above was the worklist entry, and the retarget
+lane took the first route: all twelve formations that need the cells
+(`formation_02`, `04`, `05`, `07`, `08`, `0B`, `0C`, `17`, `18`, `19`, `1B`,
+`1D` - the ten `party-retarget` and the two `retarget-tiebreak` ones) were
+captured again with the group in place
+(`python3 -m oracle.sweep --only 0x02,0x04,0x05,0x07,0x08,0x0B,0x0C,0x17,0x18,0x19,0x1B,0x1D --jobs 3`,
+receipts under `build/lane-evidence/sweep/`) and their fixtures replaced under
+`replay_fixtures/sweep_motavia/`, so every one of them now carries a `target`
+per party action and the replay reads it (`replay/build.rs`'s `orders`). The
+other 69 fixtures keep their captures - they were taken before the group existed
+and their entries carry no target, which is a different claim from `-1` and is
+why the extracted field is optional. The port rule that reads it is §4.4 W1; what
+the twelve captures show is
+[`../source-notes/battle-party.md`](../source-notes/battle-party.md)'s
+2026-09-25 record.
+
 ### 4.4 The port rules that remain (the worklist)
 
-Four causes, 18 findings, each one entry per fixture in
-`rust/psiv-core/src/battle/replay_fixtures/divergences.json` under the heading
-below. Every one is a *rule*: the evidence is the log's, the cartridge's routine
-is cited, and the port's own code is where the fix goes.
+Four causes, 18 findings as triaged. All four rules were implemented on
+2026-09-25 (W3 by lane b21-crit, W1 and W4 by b22-retarget, W2 by b23-ai), and
+each keeps its heading, because the fixtures it names remain the evidence for
+the rule it states. One entry remains in
+`rust/psiv-core/src/battle/replay_fixtures/divergences.json`: `formation_3B`'s
+round-3 finding, uncovered once W3 landed. The clusterer files it under
+`retarget-tiebreak` by signature, but that is not its cause (§4.4 W3; issue
+[#33](https://github.com/TusanHomichi/PSIV/issues/33)). Every entry is a *rule*:
+the evidence is the log's, the cartridge's routine is cited, and the port's own
+code is where the fix goes.
 
 **W1. A swing whose commanded enemy has fallen lands on another slot**
 (`party-retarget`, 10 fixtures: `formation_02`, `04`, `05`, `0B`, `0C`, `17`,
-`18`, `19`, `1B`, `1D`).
+`18`, `19`, `1B`, `1D`). **Implemented 2026-09-25; the cluster is empty.**
 
 The cartridge re-aims the swing at the enemy with the **largest**
 `max_hp - curr_hp`, scanning slots 6-9, tie broken by one RNG draw
@@ -403,8 +432,52 @@ drawing the tiebreak through the same `Rolls` stream the cartridge does, and
 read the commanded target from the fixture's `commands` (§4.3). Closing the
 entries is the acceptance.
 
-**W2. The enemy's AI instruction, not the ability roll, picks the ability**
-(`enemy-ai-conditional`, 4 fixtures: `formation_2A`, `2B`, `32`, `34`).
+**Implemented.** `candidate_targets`
+(`rust/psiv-core/src/battle/action.rs`) now takes the stream and resolves a
+party-side single-target swing with `retarget_scan` when its commanded enemy is
+no longer standing: the enemy slots are walked in order, the empty and the out
+(`status & $44`) are skipped, the largest `max_hp - curr_hp` wins, and one
+`UpdateRNGSeed2` - `rolls.next_roll() & 1` - is drawn **only** when a slot ties
+the running maximum, which the `d4 = -1` sentinel cannot do in this port
+(`curr_hp` is floored at zero and every heal is capped at `max_hp`, so no live
+slot presents a negative deficit). A kept aim, a unique maximum, a whole-side
+swing and the caller's own "nobody left" turn all draw nothing.
+
+The command is read where the capture recorded it: the replay's `orders`
+(`rust/psiv-core/src/battle/replay/build.rs`) maps a party action's `target` to
+`Command::AttackTarget`, while `-1` and an absent cell stay
+`Command::Attack` - the port's own default cursor, which names the first living
+enemy and is kept by the same early return. That is what makes the twelve
+re-captured fixtures reach the scan and leaves the other 69 replaying as they
+did.
+
+**One citation in the paragraph above is off.** `ps4.asm:8356-8361` is the
+scan's own liveness check, not the early return that keeps a living commanded
+enemy; that return is `ps4.asm:8330-8337` (`status & $C4` clear, then
+`beq.w loc_5B8E`), and the tiebreak draw a swing takes is the loop at
+`loc_5B42`, `ps4.asm:8395-8400` (`8371` is the *other* loop's copy of the same
+`btst #0, d1`). The retail bytes of both loops, and what the twelve captures
+show in the cells, are
+[`../source-notes/battle-party.md`](../source-notes/battle-party.md)'s
+2026-09-25 record.
+
+Unit tests: `battle/action_retarget_tests.rs` - the kept aim with no draw; the
+unique maximum with no draw; a tie costing exactly one draw, even keeping the
+earlier slot and odd taking the later; a tie below the maximum drawing nothing;
+a third slot equal to the maximum drawing again; the empty enemy side; and an
+enemy attacker keeping the port's first-survivor fallback. Negative control:
+with the fallback restored (`Side::Party => None`), the data-driven test fails
+at `sweep_motavia/formation_02` f25669 - `the log has targets [FighterId(8)],
+the port targets [FighterId(7)]` - and the tie test fails on `left: 0, right: 1`
+for its one draw. Transcripts:
+`build/lane-evidence/negative-control-replay.txt`,
+`build/lane-evidence/negative-control-tie.txt` and
+`build/lane-evidence/core-tests-restored.txt` (not committed; `build/` is
+ignored).
+
+**W2 (closed 2026-09-25). The enemy's AI instruction, not the ability roll,
+picks the ability** (`enemy-ai-conditional`, 4 fixtures: `formation_2A`, `2B`,
+`32`, `34`).
 
 `Enemy_Attack` rolls a regular ability and writes it
 (`move.b $58(a3,d0.w), ability+1(a4)`, `ps4.asm:19153`), and then runs the
@@ -424,6 +497,23 @@ dispatch table, and the arms the sweep's carriers need) and the RES arm's own
 effect; `ai.rs` is where the ability choice lives, `enemy_skill.rs` where an
 arm's effect goes.
 
+**CLOSED (2026-09-25).** All four entries are gone from
+`replay_fixtures/divergences.json`, and the other fourteen are unchanged — same
+frame, same kind, same numbers: this fix moved nothing but its own cluster. The
+dispatch is `enemy_ai::instruction_block`
+(`rust/psiv-core/src/battle/enemy_ai.rs`), one typed `EnemyAiCondition` arm per
+`EnemyAIInstructionsOffs` entry with no catch-all, and the `$45` effect is
+`enemy_skill::resolve_res`. The four fixtures' rounds pin it exactly: the
+`$0F` arm fires at 38 of 80, 34 of 80 and 22 of 80 (and at 39 of 80 twice), and
+`Battle_CalcHealing` on the caster's MEN reproduces every heal - 38→75, 39→79,
+38→79, 34→78, 22→61 and 39→80 (the last one capped at the 80-point maximum) -
+which the rounds after each heal then re-check slot by slot. `fission_neighbor`
+is gone: condition 1 is arm `$01` of the same dispatch now, which is what the
+Fission runtime tests exercise. Two arms of the twenty cannot be evaluated and
+say so (`$10` `EnemyAI_Unknown`, `$11` `EnemyAI_HP25PercentOrLower`, whose flag
+is Lashiec's battle object `$7EC`); `docs/battle/ENEMY_ABILITIES.md` §1 is the
+per-arm table and §5 the port gaps. No fixture reaches either arm.
+
 **W3. A critical reads the attack power's low byte, not the word**
 (`critical-bonus`, 2 fixtures: `formation_3B`, `4F`).
 
@@ -434,21 +524,88 @@ defence 18, element 2, the 16 damage draws summing to 48 - the cartridge's 248
 is exactly `bonus = (279 & $FF) >> 2 = 5`, and the port's 312 is
 `bonus = 279 >> 2 = 69`. `formation_4F` f25240 is the same 32-point gap with
 the Land Rover's defence 80 and element 1. The port's
-`action::critical_bonus(attack) = attack >> 2`.
+`action::critical_bonus(attack)` was `attack >> 2`.
 
 Fix scope: `>> 2` on the low byte, in `critical_bonus` and wherever the same
 bonus is computed for party swings.
 
+**Implemented.** `action::critical_bonus` is `(attack & 0x00FF) >> 2`, and it
+was already the rule's one owner: `git grep critical_bonus` finds two call sites
+outside the tests, and both are callers - `resolve_attack`'s damage stage, which
+every party and enemy swing goes through
+(`rust/psiv-core/src/battle/action.rs:388`), and the vehicle path's
+(`vehicle_attack.rs:355`) - so no other place quarters an attack power.
+`a_critical_bonus_quarters_the_attack_powers_low_byte` pins 279 -> 5, 255 -> 63,
+256 -> 0 and 511 -> 63 beside the five small values
+`a_critical_bonus_is_a_quarter_of_the_attack_power` already held.
+
+The manifest, regenerated with §2's procedure from the port's own dump, holds
+**17 entries**, and `critical-bonus` is empty:
+
+* `formation_4F`'s entry is **gone** - the fixture replays exactly, f25240's 71
+  included.
+* `formation_3B`'s f25003 critical is 248, as the log has it; the entry has
+  moved to a *different* finding and is not this cluster's - below.
+
+Negative control: with the mask reverted (`attack >> 2`) the new test fails at
+279 (`left: 69, right: 5`) and the data-driven test's assertion reads
+`left: (1, 25003, "value")` against the regenerated entry's
+`right: (3, 26155, "value")` - the deleted entry's own finding, at its own
+frame, exactly where it said it was. With the mask restored,
+`every_fixture_replays_as_recorded` passes: 484 passed, 0 failed, 1 ignored in
+the lib's own run. Transcripts:
+`build/lane-evidence/negative-control-mask-removed.txt` and
+`core-tests-restored.txt` (not committed; `build/` is ignored).
+
+**The entry `formation_3B` now carries is a new finding, not W3's.** The
+manifest's cluster assignment files it under `retarget-tiebreak`, whose
+signature accepts a `value` divergence whose round draws fewer rolls than the
+log; the cause is not the retarget scan's tiebreak. f26155 opens round 3, where
+the log runs the enemy's `$38` EARTHQUAKE (77 rolls, three slots: 241/223/265)
+and the port's `enemy_damage::resolve_damage_skill` AllParty arm resolves
+276/247/237 - the port's own round-3 timeline and per-round draw counts are in
+`build/lane-evidence/probe-3B-round3.txt`, one scratch probe of `replay_inner`
+that is not part of the change. Rounds 1 and 2 replay exactly, draws included
+(83/83, 67/67), so the state and the stream position the round starts from are
+the log's own: the round's first wrong number is the port's arithmetic on the
+wrong sixteen draws, not a state difference. The cartridge's action holds **29**
+calls the extractor labels `ability`/`ability_reroll` outside its three damage
+windows - one at f26155, then two a frame over f26541-f26593
+(`oracle/fixture/roles.py`) - where the port's model draws **one**, the ability
+roll itself, so its three windows start 28 draws early. The log's hit flag there
+is `00` and the port's verdict is `Normal`: no critical bonus is involved, on
+either side. What the cartridge is doing in those 29 calls is unsettled here,
+and it is a worklist item of its own.
+
 **W4. The retarget scan's tiebreak draw is missing from the round**
-(`retarget-tiebreak`, 2 fixtures: `formation_07`, `08`).
+(`retarget-tiebreak`, 2 fixtures: `formation_07`, `08` - and a third entry the
+manifest files here by signature; see the note at the end of this section).
+**Implemented 2026-09-25 with W1; the two fixtures are exact.**
 
 The scan draws `UpdateRNGSeed2` once whenever two slots' HP deficits are equal
-(`ps4.asm:8364-8374`, `btst #0, d1`). `formation_08`'s round 1 draws 120 calls
+(`ps4.asm:8395-8400` in the loop a swing takes, `btst #0, d1`).
+`formation_08`'s round 1 draws 120 calls
 to the port's 119, and the missing one is where Hahn's single-target swing rolls
 twice (f25374); `formation_07` f25542 draws it in the same place, so the port's
 hit roll is the *tiebreak* value and its damage comes out 8 where the log has 9.
 It is the same rule as W1, seen from the RNG stream's side: fixing W1 without
 the draw would leave the counts wrong.
+
+**Implemented.** `retarget_scan` draws that call through the caller's own
+`Rolls`, so `formation_07` f25542 and `formation_08` f25374 replay exactly - in
+both, the commanded slot 6 is down and slots 7/8 are level at the maximum
+deficit (12 of 25 HP left in both in `formation_07`, 13 of 25 in `formation_08`,
+where slot 9's 14 leaves it the smaller candidate); the frame
+holds two calls (the tiebreak, then the hit roll) and the even draw keeps the
+earlier slot. `formation_08`'s round 1 now draws the log's 120. The re-captured
+fixtures carry the commanded target that makes the scan reachable (`orders`
+reads each round's `commands`), which is what §4.3 records.
+
+W3's regenerated manifest also files `formation_3B` under this cluster, because
+its signature reads a `value` divergence whose round draws fewer rolls than the
+log. That fixture's finding is *not* this cluster's: it is a `$38` EARTHQUAKE
+whose arm draws 28 rolls short, where this cluster's fixtures are one draw short
+inside a swing's own frames (§4.4 W3).
 
 ## 5. Every re-extracted fixture
 
@@ -456,17 +613,23 @@ All 81 captured formations were re-extracted from the sweep's own preserved
 captures after the harness fixes above
 (`python3 -m oracle.sweep --reextract build/lane-evidence/sweep`, and the
 fixture's `log_sha256` still matches the hash the sweep's record pins for each
-capture). The first divergence each one has now, against the one it had in the
-sweep's own manifest:
+capture). The twelve retarget fixtures are the one exception, and the reason is
+§4.3: their captures lacked the `bcmd` group, so they were captured again on
+2026-09-25 and the rows below are that run's. The first divergence each one has,
+against the one it had in the sweep's own manifest:
 
-* **34 are now exact** - every cluster 2, 4, 6 and 7 fixture, plus the three
-  `value`/`not-wasted` ones the reading itself had produced.
+* **35 are now exact** - every cluster 2, 4, 6 and 7 fixture, plus the three
+  `value`/not-wasted ones the reading itself had produced, plus
+  `formation_4F`, whose entry W3's fix closed (§4.4 W3).
 * **4 moved** - the `$45` fixtures, whose finding is now the ability the
   cartridge ran rather than "an effect where the log shows a spent turn".
-* **14 are the same finding at the same frame** - the ten retarget fixtures, the
-  two criticals, and the two tiebreak ones. Their entries' own text changed
-  (the action now reports the slots the pass really resolved), which is why the
-  manifest was regenerated rather than edited.
+* **12 are now exact too** - the ten retarget fixtures and the two tiebreak
+  ones, which had the same finding at the same frame through W3's fix and were
+  closed by W1/W4 (§4.4). Their captures were re-taken with the command cells,
+  so they are the twelve rows below whose `after` column reads **now exact**.
+* **1 diverges at a different finding** - `formation_3B`, the other critical:
+  W3's fix takes f25003 with it, and the fixture's next divergence is f26155 in
+  round 3, the `$38` EARTHQUAKE's draws (§4.4 W3).
 
 | fixture | first divergence before | after | |
 |---|---|---|---|
@@ -474,20 +637,20 @@ sweep's own manifest:
 | `formation_2B` | `not-wasted` at f27707 | `ability` at f27707 | moved |
 | `formation_32` | `not-wasted` at f27115 | `ability` at f27115 | moved |
 | `formation_34` | `not-wasted` at f27629 | `ability` at f27629 | moved |
-| `formation_02` | `targets` at f25669 | `targets` at f25669 | same |
-| `formation_04` | `targets` at f26055 | `targets` at f26055 | same |
-| `formation_05` | `targets` at f26151 | `targets` at f26151 | same |
-| `formation_07` | `value` at f25542 | `value` at f25542 | same |
-| `formation_08` | `draws` at f25061 | `draws` at f25061 | same |
-| `formation_0B` | `targets` at f25661 | `targets` at f25661 | same |
-| `formation_0C` | `targets` at f25512 | `targets` at f25512 | same |
-| `formation_17` | `targets` at f26168 | `targets` at f26168 | same |
-| `formation_18` | `targets` at f26280 | `targets` at f26280 | same |
-| `formation_19` | `targets` at f26223 | `targets` at f26223 | same |
-| `formation_1B` | `targets` at f26964 | `targets` at f26964 | same |
-| `formation_1D` | `targets` at f26667 | `targets` at f26667 | same |
-| `formation_3B` | `value` at f25003 | `value` at f25003 | same |
-| `formation_4F` | `value` at f25240 | `value` at f25240 | same |
+| `formation_02` | `targets` at f25669 | **now exact** | now exact (W1) |
+| `formation_04` | `targets` at f26055 | **now exact** | now exact (W1) |
+| `formation_05` | `targets` at f26151 | **now exact** | now exact (W1) |
+| `formation_07` | `value` at f25542 | **now exact** | now exact (W4) |
+| `formation_08` | `draws` at f25061 | **now exact** | now exact (W4) |
+| `formation_0B` | `targets` at f25661 | **now exact** | now exact (W1) |
+| `formation_0C` | `targets` at f25512 | **now exact** | now exact (W1) |
+| `formation_17` | `targets` at f26168 | **now exact** | now exact (W1) |
+| `formation_18` | `targets` at f26280 | **now exact** | now exact (W1) |
+| `formation_19` | `targets` at f26223 | **now exact** | now exact (W1) |
+| `formation_1B` | `targets` at f26964 | **now exact** | now exact (W1) |
+| `formation_1D` | `targets` at f26667 | **now exact** | now exact (W1) |
+| `formation_3B` | `value` at f25003 | `value` at **f26155** | moved (§4.4 W3) |
+| `formation_4F` | `value` at f25240 | **now exact** | now exact |
 | `formation_10` | `targets` at f25693 | **now exact** | now exact |
 | `formation_13` | `queue` at f25013 | **now exact** | now exact |
 | `formation_14` | `queue` at f25013 | **now exact** | now exact |

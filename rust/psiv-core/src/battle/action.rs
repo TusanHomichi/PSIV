@@ -38,6 +38,10 @@ mod status_tests;
 #[path = "action_second_pass_tests.rs"]
 mod second_pass_tests;
 
+#[cfg(test)]
+#[path = "action_retarget_tests.rs"]
+mod retarget_tests;
+
 /// How far an attack reaches.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Reach {
@@ -148,13 +152,23 @@ pub fn enemy_element_factor(attacker: &Stats, target: &Stats) -> u16 {
     u16::from(target.element_factor(element).unwrap_or(0))
 }
 
-/// The bonus a critical hit adds: `move.b d1, d4 / lsr.w #2, d4`.
+/// The bonus a critical hit adds: `moveq #0, d4 / move.b d1, d4 / lsr.w #2, d4`.
+///
+/// The `moveq` clears `d4` and the `move.b` writes only its low byte, so the
+/// quarter is taken on the attack power's **low byte**:
+/// `(attack & 0x00FF) >> 2`. An attack power of 279 contributes 5, not 69 —
+/// the high byte is dropped before the shift, not after it.
+///
+/// Both paths that can land a critical transcribe those three instructions —
+/// `Enemy_DamageCharacter` (`ps4.asm:3789-3790`) and the party's `loc_27A4`
+/// (`ps4.asm:3970-3971`) — which is why this one function owns the rule and
+/// both damage paths call it.
 ///
 /// Note it is the **attack power**, not the damage, that gets quartered — and
 /// the damage formula then doubles it before the element multiply.
 #[must_use]
 pub const fn critical_bonus(attack: u16) -> u16 {
-    attack >> 2
+    (attack & 0x00FF) >> 2
 }
 
 /// Who an attack lands on, and what the hit roll said about each.
@@ -246,31 +260,117 @@ pub fn takes_second_hit_pass(roster: &Roster, actor: FighterId) -> bool {
 }
 
 /// Which living fighters an attack from `actor` can reach.
+///
+/// # A swing whose commanded enemy has fallen
+///
+/// A party member's swing is aimed at command time: the round's own turn pass
+/// copies `Character_Command_Data`'s target cell into `Current_Target_Index`
+/// (`ps4.asm:8050-8053`) before the attack routine runs. `loc_5A98` then checks
+/// the aimed slot. An occupied slot whose `status & $C4` is clear keeps the aim
+/// and returns **without a roll** (`ps4.asm:8330-8337`); a whole-side attack is
+/// left at the `$FFFF` `Battle_AttackCommand` writes for it
+/// (`ps4.asm:8464`, and the negative index short-circuits at
+/// `ps4.asm:8326-8327`); anything else - the slot empty, or the fighter dead,
+/// android-dead or transient - re-aims the swing with [`retarget_scan`], whose
+/// winner `loc_5B88` writes back into `Current_Target_Index` (`ps4.asm:8409`).
+///
+/// The scan is the party's own arm: `d1 > 5` selects it (`ps4.asm:8339-8340`)
+/// because the aim is an enemy slot, and the character-target arm an enemy
+/// attacker uses is the weighted party draw [`crate::battle::take_turn`]
+/// already models (`loc_56F0` / `Enemy_TargetCharacter`, `ps4.asm:8341-8343`).
+///
+/// An `intended` of `None` is this port's own default cursor, not a cartridge
+/// state: it names the first living enemy, which is alive by construction and
+/// therefore kept exactly as a commanded one would be.
 #[must_use]
 pub fn candidate_targets(
     roster: &Roster,
     actor: FighterId,
     intended: Option<FighterId>,
     reach: Reach,
+    rolls: &mut impl Rolls,
 ) -> Vec<FighterId> {
     let opposing = actor.side().opposing();
     match reach {
         Reach::All => roster.living(opposing).map(|f| f.id).collect(),
         Reach::Single => {
             // The cursor holds whatever was chosen at command time; if that
-            // fighter has died since, the swing falls on the first survivor.
-            let still_valid = intended.filter(|id| {
+            // fighter is no longer standing, a party swing is re-aimed by the
+            // cartridge's own scan.
+            let commanded = intended.or_else(|| roster.first_living(opposing));
+            let kept = commanded.filter(|id| {
                 id.side() == opposing
                     && roster
                         .get(*id)
                         .is_some_and(super::fighters::Fighter::is_alive)
             });
-            still_valid
+            let chosen = kept.or_else(|| match actor.side() {
+                Side::Party => retarget_scan(roster, rolls),
+                // An enemy's fallen target is re-drawn by the arm named above,
+                // so this is only the "nobody left standing" case.
+                Side::Enemy => None,
+            });
+            chosen
                 .or_else(|| roster.first_living(opposing))
                 .into_iter()
                 .collect()
         }
     }
+}
+
+/// The enemy slot a party swing lands on when its commanded enemy has fallen.
+///
+/// `loc_5AE6`'s arm, reached from [`candidate_targets`]'s citation above. The
+/// four enemy slots are walked in order (`addq.w #1, d5` / `cmpi.w #9, d5` /
+/// `ble.s loc_5B42`, `ps4.asm:8404-8407`); a slot holding
+/// no fighter (`tst.w (a0)`, `ps4.asm:8384-8385`) or one whose `status & $44`
+/// is set (`ps4.asm:8387-8389`) is passed over, so only living fighters take
+/// part. Each survivor's deficit is the word at `$10` minus the word at `$E`
+/// (`move.w $10(a0), d0` / `sub.w $E(a0), d0`, `ps4.asm:8390-8391`), and the
+/// scan keeps the **largest** one: `d4` starts at `-1` (`ps4.asm:8346`),
+/// `cmp.w d0, d4` is a signed word comparison, so a strictly larger deficit
+/// takes the slot (`blt.s loc_5B7C`, `ps4.asm:8394`) and a smaller one leaves
+/// it (`bgt.s loc_5B80`, `ps4.asm:8393`).
+///
+/// **Equal** deficits draw `UpdateRNGSeed2` once (`ps4.asm:8395-8400`): the
+/// later slot wins when the draw's low bit is set (`btst #0, d1`), the earlier
+/// one when it is clear. That call comes out of the caller's own stream, which
+/// is why a round whose frames hold one call more than a port that never scans
+/// is this rule seen from the RNG's side (`docs/oracle/BATTLE_ORACLE_SWEEP.md`
+/// §4.4 W4). No other case draws.
+///
+/// `loc_5C8A` reads the command word (`ps4.asm:8349-8351`) and returns `1` for
+/// command index 1, which is `Command_Attack`, so a swing takes this loop
+/// (`loc_5B42`). A technique, skill or item's command falls through to
+/// `loc_5AFA`, the mirror of it: `move.w #$7000, d4` (`ps4.asm:8352`) and the
+/// comparisons swapped, so it keeps the *smallest* deficit. Nothing in this
+/// module resolves those commands; `loc_5C8A`'s own table
+/// (`ps4.asm:8514-8521`) is what picks between the two.
+///
+/// The `-1` `d4` starts at cannot tie with a fighter in this port: deficits are
+/// `max_hp - curr_hp` with HP floored at zero and every heal capped at the
+/// maximum, so no live slot can present a negative one. `None` means no slot in
+/// 6..=9 holds a living fighter, which the caller's own fallback already
+/// answers.
+fn retarget_scan(roster: &Roster, rolls: &mut impl Rolls) -> Option<FighterId> {
+    let mut best: Option<(FighterId, i32)> = None;
+    for fighter in roster.side(Side::Enemy) {
+        if !fighter.is_alive() {
+            continue;
+        }
+        let deficit = i32::from(fighter.stats.max_hp) - i32::from(fighter.stats.curr_hp);
+        let take = match best {
+            None => true,
+            Some((_, held)) if held < deficit => true,
+            Some((_, held)) if held > deficit => false,
+            // A tie: one draw, and the later slot only on an odd one.
+            Some(_) => rolls.next_roll() & 1 == 1,
+        };
+        if take {
+            best = Some((fighter.id, deficit));
+        }
+    }
+    best.map(|(fighter, _)| fighter)
 }
 
 /// Resolves one attack end to end, mutating the roster.
@@ -320,7 +420,7 @@ pub fn resolve_attack(
         Side::Enemy => Reach::Single,
     };
 
-    let targets = candidate_targets(roster, actor, intended, reach);
+    let targets = candidate_targets(roster, actor, intended, reach, rolls);
     if targets.is_empty() {
         events.push(BattleEvent::TurnSkipped {
             actor,
@@ -352,6 +452,17 @@ pub fn resolve_attack(
     let mut hit_targets = Vec::new();
 
     for (target, verdict) in pass.verdicts {
+        // `Character_DamageEnemy`'s ability test (`ps4.asm:3945-3946`, the
+        // retail arm of its `if bugfixes` pair; the bugfix arm is `3915-3916`):
+        // a plain party attack marks the enemy, and it marks every slot the pass
+        // covers — a miss included, because the flag is set before the hit byte
+        // is read.
+        if actor.side() == Side::Party
+            && target.side() == Side::Enemy
+            && let Some(fighter) = roster.get_mut(target)
+        {
+            fighter.reaction_flags |= super::fighters::reaction::PHYSICAL;
+        }
         if verdict == Verdict::Miss {
             let remaining = roster.get(target).map_or(0, |f| f.stats.curr_hp);
             events.push(BattleEvent::Resolved {
@@ -635,11 +746,14 @@ mod tests {
         assert_eq!(pass.verdicts.len(), 1, "only the survivor rolls");
         assert_eq!(rolls.drawn(), 1);
 
-        // And the target set skips it in the first place.
+        // And the target set skips it in the first place. A whole-side swing
+        // never scans, so the stream is untouched.
+        let mut target_rolls = SliceRolls::new(&[40]);
         assert_eq!(
-            candidate_targets(&roster, id(1), None, Reach::All),
+            candidate_targets(&roster, id(1), None, Reach::All, &mut target_rolls),
             vec![id(7)]
         );
+        assert_eq!(target_rolls.drawn(), 0, "a whole-side swing draws nothing");
         let _ = data;
     }
 
@@ -647,14 +761,33 @@ mod tests {
     fn a_single_target_swing_falls_through_to_a_survivor() {
         let (mut roster, data) = party_and_enemies();
         roster.get_mut(id(6)).expect("enemy 1").stats.status = crate::battle::stats::status::DEAD;
-        // The cursor still points at the corpse; the swing lands on the next.
+        // The cursor still points at the corpse; the scan moves the swing to
+        // the only slot still standing, and a lone candidate needs no draw.
+        let mut target_rolls = SliceRolls::new(&[0]);
         assert_eq!(
-            candidate_targets(&roster, id(2), Some(id(6)), Reach::Single),
+            candidate_targets(
+                &roster,
+                id(2),
+                Some(id(6)),
+                Reach::Single,
+                &mut target_rolls
+            ),
             vec![id(7)]
         );
+        assert_eq!(target_rolls.drawn(), 0);
         // With nobody left it reaches nothing at all.
         roster.get_mut(id(7)).expect("enemy 2").stats.status = crate::battle::stats::status::DEAD;
-        assert!(candidate_targets(&roster, id(2), Some(id(6)), Reach::Single).is_empty());
+        assert!(
+            candidate_targets(
+                &roster,
+                id(2),
+                Some(id(6)),
+                Reach::Single,
+                &mut target_rolls
+            )
+            .is_empty()
+        );
+        assert_eq!(target_rolls.drawn(), 0, "no living slot draws nothing");
 
         let mut events = Vec::new();
         resolve_attack(
@@ -678,17 +811,21 @@ mod tests {
     #[test]
     fn an_attack_cannot_reach_its_own_side() {
         let (roster, _) = party_and_enemies();
-        for target in candidate_targets(&roster, id(1), None, Reach::All) {
+        let mut rolls = SliceRolls::new(&[0]);
+        for target in candidate_targets(&roster, id(1), None, Reach::All, &mut rolls) {
             assert_eq!(target.side(), Side::Enemy);
         }
-        for target in candidate_targets(&roster, id(6), None, Reach::All) {
+        for target in candidate_targets(&roster, id(6), None, Reach::All, &mut rolls) {
             assert_eq!(target.side(), Side::Party);
         }
-        // A cursor pointing at a friend is discarded rather than obeyed.
+        // A cursor pointing at a friend is discarded rather than obeyed: the
+        // scan runs and, with both enemies untouched, its tie keeps the
+        // earlier slot on this (even) draw.
         assert_eq!(
-            candidate_targets(&roster, id(1), Some(id(2)), Reach::Single),
+            candidate_targets(&roster, id(1), Some(id(2)), Reach::Single, &mut rolls),
             vec![id(6)]
         );
+        assert_eq!(rolls.drawn(), 1, "the tie is what drew");
     }
 
     #[test]
@@ -756,6 +893,16 @@ mod tests {
         assert_eq!(critical_bonus(8), 2, "Hahn");
         assert_eq!(critical_bonus(16), 4, "ZoranBult");
         assert_eq!(critical_bonus(3), 0, "rounded down, and it can vanish");
+    }
+
+    #[test]
+    fn a_critical_bonus_quarters_the_attack_powers_low_byte() {
+        // `formation_3B` f25003: attack 279, and the cartridge's damage is the
+        // one `(279 & $FF) >> 2 = 5` gives, not `279 >> 2 = 69`.
+        assert_eq!(critical_bonus(279), 5, "279 & $FF = 23, >> 2 = 5");
+        assert_eq!(critical_bonus(255), 63, "the widest byte still quarters");
+        assert_eq!(critical_bonus(256), 0, "the high byte is dropped, not kept");
+        assert_eq!(critical_bonus(511), 63, "511 & $FF = 255, >> 2 = 63");
     }
 
     #[test]

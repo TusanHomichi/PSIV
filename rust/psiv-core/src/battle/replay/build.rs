@@ -263,23 +263,52 @@ pub(crate) fn start(fixture: &Fixture, data: &BattleData, rolls: &mut impl Rolls
     battle
 }
 
+/// The round's orders, from the fixture's own command cells.
+///
+/// The fixture records one `attack` per party-side fighter the round's queue
+/// held, with the target the cartridge's `Character_Command_Data` cell named
+/// (`assembly.command_entry`). A command with no target cell - a capture taken
+/// before the `bcmd` group existed - is [`Command::Attack`], this port's own
+/// default cursor, and `-1` is the same thing by another route: it is the
+/// whole-side command `Battle_AttackCommand` writes (`ps4.asm:8464`), whose
+/// negative index widens the window instead of naming a slot
+/// (`ps4.asm:17501`). A target is [`Command::AttackTarget`], which is what lets
+/// `candidate_targets` tell a swing that kept its aim from one the cartridge's
+/// retarget scan moved (`docs/oracle/BATTLE_ORACLE_SWEEP.md` §4.4 W1).
 pub(crate) fn orders(fixture: &Fixture, round: &Round) -> RoundOrders {
-    // The fixture records one `attack` per party slot the round drew up; the
-    // engine's own default for an absent slot is the same command, so this is
-    // also what `RoundOrders::attack_all()` would say.
-    let commands: Vec<Command> = fixture
-        .party
-        .iter()
-        .map(|_| Command::Attack)
-        .chain(fixture.vehicle.iter().map(|_| Command::Attack))
-        .collect();
     let party_side = fixture.party.len() + usize::from(fixture.vehicle.is_some());
+    let mut commands = vec![Command::Attack; party_side];
     assert_eq!(
-        commands.len(),
-        party_side,
-        "round {}: one command per party-side fighter",
+        round.commands.len(),
+        round
+            .order
+            .iter()
+            .filter(|fighter| **fighter <= LAST_PARTY_ID)
+            .count(),
+        "round {}: one command per party-side fighter the queue held",
         round.round
     );
+    for entry in &round.commands {
+        let Some(slot) = usize::from(entry.id)
+            .checked_sub(1)
+            .filter(|slot| *slot < usize::from(LAST_PARTY_ID))
+        else {
+            panic!(
+                "round {}: a command names a party-side fighter, not {}",
+                round.round, entry.id
+            );
+        };
+        if slot >= commands.len() {
+            commands.resize(slot + 1, Command::Attack);
+        }
+        commands[slot] = match entry.target {
+            Some(target) if target > 0 => {
+                Command::AttackTarget(id(u8::try_from(target).expect("the cell is one byte")))
+            }
+            // `-1`, and a capture with no cell at all: no single target.
+            _ => Command::Attack,
+        };
+    }
     RoundOrders::Commands(commands)
 }
 

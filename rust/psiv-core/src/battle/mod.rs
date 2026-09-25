@@ -41,6 +41,7 @@
 //! | [`build_queue`] | `ps4.asm:7723` | §3 |
 //! | [`choose_target`] | `ps4.asm:7978` | §3 |
 //! | [`choose_ability`] | `ps4.asm:19146` | §7 |
+//! | [`EnemyAiCondition`] | `ps4.asm:19364` | §7 |
 //! | [`roll_hits`] | `$00B6A2` | §5 |
 //! | [`split_rewards`] | `ps4.asm:4705` | §10 |
 //! | [`level_up`] | `ps4.asm:5993` | §10 |
@@ -68,6 +69,7 @@ mod action;
 mod ai;
 mod chances;
 mod damage;
+mod enemy_ai;
 mod enemy_damage;
 mod enemy_skill;
 mod engine;
@@ -106,6 +108,7 @@ pub use damage::{
     DAMAGE_DRAWS, DAMAGE_ROLL_MASK, MAX_DAMAGE, MIN_DAMAGE, calc_healing, calculate_damage,
     clamp_damage,
 };
+pub use enemy_ai::{CONDITION_SLOTS, CONDITIONS, EnemyAiCondition};
 pub use engine::{Battle, Command, PartyMember, RoundOrders};
 pub use equipment::{
     EquipmentCandidate, EquipmentError, equip_item, equip_item_in_hand, equipment_candidates,

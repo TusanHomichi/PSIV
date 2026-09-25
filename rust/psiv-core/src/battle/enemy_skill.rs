@@ -1,8 +1,6 @@
 //! Enemy object-side effects, enabled only after their dispatch is traced.
 
-use super::{
-    BattleData, BattleDataError, BattleEvent, EnemyRecord, FighterId, Rolls, Roster, Side, Stats,
-};
+use super::{BattleData, BattleDataError, BattleEvent, FighterId, Rolls, Roster, Side, Stats};
 
 #[cfg(test)]
 #[path = "enemy_skill_tests.rs"]
@@ -38,13 +36,13 @@ pub struct EnemySkill {
 }
 
 impl EnemySkill {
-    /// Fission, the crawler family's THREAD and the same family's POISON.
+    /// Fission, the crawler family's THREAD and POISON, and TechUser's RES.
     /// Enemy skills that make one damage request live in
     /// [`super::enemy_damage`]; other routines remain explicitly unsupported
     /// until their gameplay has been transcribed.
     #[must_use]
     pub const fn supported(&self) -> bool {
-        self.is_fission() || self.is_thread() || self.is_poison()
+        self.is_fission() || self.is_thread() || self.is_poison() || self.is_res()
     }
 
     const fn is_fission(&self) -> bool {
@@ -92,6 +90,20 @@ impl EnemySkill {
             && self.power == 64
             && self.resistance == 1
             && self.element == 13
+    }
+
+    /// Record 69 at `0x28358C` is `12 82 01 10 00 00 00 00`: effect `$12`
+    /// (`AbilityEffect_NormalLogic`), the MEN selector `$82`, target nibble 1,
+    /// hit chance 16, and neither a resistance selector nor an element. The
+    /// whole record is pinned because the effect byte alone covers 44 ids.
+    const fn is_res(&self) -> bool {
+        self.id == 69
+            && self.effect == 18
+            && self.power_stat == 130
+            && self.target == 1
+            && self.power == 16
+            && self.resistance == 0
+            && self.element == 0
     }
 }
 
@@ -249,57 +261,14 @@ pub(super) fn initialize_enemies(roster: &mut Roster) {
     }
 }
 
-/// `EnemyAI_EmptySpace`: only the adjacent formation slots can be replaced.
-/// Two empty sides cost one parity draw, even left and odd right; one side
-/// costs none. Dead fighters retain their formation metadata in the port.
-pub(super) fn fission_neighbor(
-    roster: &Roster,
-    actor: FighterId,
-    record: &EnemyRecord,
-    ability: &mut u8,
-    rolls: &mut impl Rolls,
-) -> Option<FighterId> {
-    if !matches!(record.id, 12 | 13) {
-        return None;
-    }
-    for (&condition, &replacement) in record
-        .condition_ids
-        .iter()
-        .zip(&record.conditional_abilities)
-    {
-        if condition == 0 {
-            break;
-        }
-        if condition != 1 {
-            continue;
-        }
-        let eligible = |id: u8| {
-            FighterId::new(id).filter(|id| {
-                id.side() == Side::Enemy
-                    && roster.get(*id).is_some_and(|fighter| !fighter.is_alive())
-            })
-        };
-        let left = actor.get().checked_sub(1).and_then(eligible);
-        let right = actor.get().checked_add(1).and_then(eligible);
-        let slot = match (left, right) {
-            (Some(left), Some(right)) => Some(if rolls.next_roll() & 1 == 0 {
-                left
-            } else {
-                right
-            }),
-            (left, right) => left.or(right),
-        };
-        if slot.is_some() {
-            *ability = replacement;
-            return slot;
-        }
-    }
-    None
-}
-
 /// `loc_14CBE` calls Battle_FillEnemyStats using the chosen neighbor's cached
 /// enemy id, NOT the ability's target byte. Thus Guilgenova recreates the
 /// Gicefalgue its formation contains, despite Fission2's byte naming ZoranBult.
+///
+/// The target comes from the AI instruction block's own `$01` arm
+/// (`enemy_ai::instruction_block`), which is where `$FFFFEE81` and the parity
+/// draw now live: `EnemyAttack_Igglanova` clears `Current_Target_Index` and
+/// hands the object the slot the arm named.
 pub(super) fn resolve_fission(
     roster: &mut Roster,
     actor: FighterId,
@@ -404,6 +373,80 @@ pub(super) fn resolve_no_effect_turn(
         actor,
         ability: skill.id,
         name: skill.name.clone(),
+    });
+    true
+}
+
+/// The `EnemyAttackOffs` entries that point at `EnemyAttack_TechUser`
+/// (`ps4.asm:21156`): `$63` 99 TechUser, `$64` 100 TechMaster and `$65` 101
+/// DarkWitch. Only 99 TechUser carries the record below, and only
+/// `EnemyAttack_TechUser` has the `$45` arm that loads the object doing the
+/// work.
+const TECH_USER_CARRIERS: [u16; 3] = [99, 100, 101];
+
+/// RES `$45` — the one conditional ability TechUser's own AI instruction picks,
+/// written when any enemy is at or below half HP
+/// (`EnemyAI_HalfHPOrLower_AllEnemies`, `ps4.asm:21320`).
+///
+/// `EnemyAttack_TechUser` reaches `loc_EEAA` (`ps4.asm:21266`) for it: it
+/// clears `Current_Target_Index` and loads object `$3D4` (`loc_213DC`,
+/// `ps4.asm:44701`), whose `loc_21504` (`ps4.asm:44774`) picks the **enemy with
+/// the lowest current HP**, slot 1 upwards, keeping the earlier slot on a tie,
+/// then hands that id to `GetEnemySkillEffectAndRange`. In the swept fixtures
+/// the caster is that slot — 38 of 80 against its neighbour's 65 — which is why
+/// their logs show the heal landing on the caster itself.
+///
+/// The record (`12 82 01 10 00 00 00 00`, `0x28358C`) is effect `$12`
+/// (`AbilityEffect_NormalLogic`, `ps4.asm:9282`) with the target nibble `1` and
+/// byte 4 zero, so `Effect_SetupSkillParams` skips the chance roll entirely
+/// (`tst.b $4(a0,d0.w) / beq.s loc_6564`, `ps4.asm:9594-9595`) and the heal is
+/// `Battle_CalcHealing` (`ps4.asm:17411`) on the caster's MEN with byte 3 as
+/// `d3` — the same 16-draw formula `technique` effects use, via
+/// [`super::calc_healing`] — added to the target's HP and capped at its
+/// maximum (`loc_2F3A`).
+pub(super) fn resolve_res(
+    roster: &mut Roster,
+    actor: FighterId,
+    ability: u8,
+    data: &BattleData,
+    rolls: &mut impl Rolls,
+    events: &mut Vec<BattleEvent>,
+) -> bool {
+    let Some(skill) = data.enemy_skill(ability).filter(|s| s.is_res()) else {
+        return false;
+    };
+    let Some(caster) = roster.get(actor).filter(|f| {
+        f.is_alive() && f.id.side() == Side::Enemy && TECH_USER_CARRIERS.contains(&f.stats.enemy_id)
+    }) else {
+        return false;
+    };
+    // `AbilityStatsOffs[$82 & $7F]` is `mental_battle`; the mask is
+    // `Effect_SetupSkillParams`' own (`ps4.asm:9580`).
+    let power = super::technique::stat(&caster.stats, skill.power_stat & 0x7F);
+    events.push(BattleEvent::EnemySkillUsed {
+        actor,
+        skill: ability,
+        name: skill.name.clone(),
+    });
+    // `loc_21504`: the occupied enemy slot with the lowest `curr_hp`, the
+    // earlier one on a tie — an unoccupied slot never wins.
+    let Some(target) = roster
+        .side(Side::Enemy)
+        .filter(|f| f.is_alive())
+        .min_by_key(|f| f.stats.curr_hp)
+        .map(|f| f.id)
+    else {
+        return true;
+    };
+    let heal = super::calc_healing(power, u16::from(skill.power), rolls);
+    let fighter = roster.get_mut(target).expect("just selected");
+    let before = fighter.stats.curr_hp;
+    fighter.stats.curr_hp = before.saturating_add(heal).min(fighter.stats.max_hp);
+    events.push(BattleEvent::Healed {
+        actor,
+        target,
+        amount: fighter.stats.curr_hp - before,
+        remaining_hp: fighter.stats.curr_hp,
     });
     true
 }

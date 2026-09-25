@@ -350,9 +350,10 @@ fifth entry, `loc_280A` (`ps4.asm:4016-4018`), whose whole body is
 `moveq #0, d3 / move.b $32(a1), d3 / bra.s loc_27A4`. `a1` is the **target's**
 stats and `$32` is the second `element_props` word — `element_factor(2)`,
 energy. `loc_27A4` (`ps4.asm:3963-3969`) then supplies `atk_pow_battle` of the
-actor, `dfs_pow_battle` of the target and `atk >> 2` when the slot's flag is
-`$01`, and jumps to `loc_266C` — the same damage and the same sixteen draws as
-every other path.
+actor, `dfs_pow_battle` of the target and `(atk & $FF) >> 2` when the slot's
+flag is `$01` — `moveq #0, d4 / move.b d1, d4` (`ps4.asm:3970`) drops the power's
+high byte, `lsr.w #2, d4` (`3971`) quarters what is left — and jumps to
+`loc_266C`, the same damage and the same sixteen draws as every other path.
 
 One target, and no critical demotion. `loc_B6A2` takes its four-enemy window
 only when `Current_Target_Index` is negative (`smi ($FFFFEE49).w`,
@@ -363,8 +364,11 @@ the first enemy's word 0 is 8 (`moveq #8, d1` at `ps4.asm:11448`,
 `Battle_PickTargetEnemy` writes the cursor's when the player chose one. So one
 roll per pass, one target, `$FFFFEE49` zero, and a critical stays a critical.
 The `move.b d1, d4` before `lsr.w #2` truncates the bonus to the attack's low
-byte; every vehicle's attack is at most `$FF`, so the truncation is invisible
-here (`critical_bonus` is the shared expression).
+byte — `action::critical_bonus(attack)` is `(attack & 0x00FF) >> 2`
+(`rust/psiv-core/src/battle/action.rs`), the one expression both other damage
+paths call: the party's own `loc_27A4` (`ps4.asm:3970-3971`) and
+`Enemy_DamageCharacter` (`ps4.asm:3789-3790`). Every vehicle's attack is at most
+`$FF`, so the truncation is invisible here.
 
 **What the capture pins.** The forced `$53` Desrt Leach capture
 ([`BATTLE_ORACLE_FORCED.md`](../oracle/BATTLE_ORACLE_FORCED.md)) shows the vehicle
@@ -490,3 +494,85 @@ it fails at `forced_53_icedigger`, f25026:
 `the log has FighterId(6): hit flag 00, damage Some(212), the port Normal with
 Some(214)`. Transcripts: `build/lane-evidence/10-negative-control-uniform-three.log`
 and `11-replay-after-restore.log` (not committed; `build/` is ignored).
+
+## The retarget scan: a swing whose commanded enemy has fallen (2026-09-25)
+
+**RETAIL FINDING — a swing whose commanded enemy has fallen scans the enemy
+slots for the largest HP deficit, and a tie costs one roll.** A party member's
+swing is aimed by `Character_Command_Data` (`$FFFF410A`, four bytes per
+character: index, id, target; `constants:2005-2011`). The round's turn pass
+copies the entry's target cell into `Current_Target_Index`
+(`ps4.asm:8050-8053`) and then runs `loc_5BDC` (`ps4.asm:8434-8443`), the
+pre-swing command hook: it dispatches on the command index over `loc_5BF6`'s
+table, and the attack arm `loc_5C04` (`ps4.asm:8454-8468`) reads the attacker's
+weapon type and, when it is 4, writes `$FFFF` — the whole-side window — into
+`Current_Target_Index` (`ps4.asm:8464`), returning `d1 = 1`. That return is what
+makes the caller's `subq.w #1, d1 / cmpi.w #2, d1 / bls.w loc_5A98`
+(`ps4.asm:8055-8057`) enter `loc_5A98` for an attack.
+
+`loc_5A98` (`ps4.asm:8323-8344`) then checks the aim: a slot holding a fighter
+whose `status & $C4` is clear keeps it and returns **without a roll**
+(`ps4.asm:8330-8337`), and a negative aim has already widened the window
+(`ps4.asm:8325-8327`). Anything else re-aims, and which loop does so depends on
+the command: `loc_5AE6` sets `d4 = -1`, `d5 = d3 = 6` (`ps4.asm:8346-8348`) and
+asks `loc_5C8A` (`ps4.asm:8504-8512`), which dispatches on the command **index**
+out of `Current_Command` over `loc_5CA2`'s table (`ps4.asm:8514-8521`). Index 1
+(attack) and index 6 (the vehicle's own attack; see the vehicle section above)
+reach `loc_5CB0`'s `moveq #1, d0`, so those two run the loop at `loc_5B42`;
+every other command — a technique, skill or item — runs the mirrored loop at
+`loc_5AFA` with `d4 = $7000`, which keeps the **smallest** deficit.
+
+`loc_5B42` (`ps4.asm:8381-8407`) walks slots 6-9 (`addq.w #1, d5 / cmpi.w #9, d5
+/ ble.s`, `ps4.asm:8404-8407`), skipping a slot that holds no fighter
+(`tst.w (a0)`, `ps4.asm:8384-8385`) or one whose `status & $44` is set
+(`ps4.asm:8387-8389`). For each survivor it computes `max_hp - curr_hp`
+(`move.w $10(a0), d0 / sub.w $E(a0), d0`, `ps4.asm:8390-8391`) and compares it
+with the running best `d4`: a strictly larger deficit takes the slot
+(`blt.s loc_5B7C`, `ps4.asm:8394`), a smaller one leaves it (`bgt.s loc_5B80`,
+`ps4.asm:8393`), and an **equal** one draws `UpdateRNGSeed2`
+(`ps4.asm:8395-8400`), keeping the later slot only when the draw's low bit is
+set (`btst #0, d1`). `loc_5B88` writes the winner — slot 6 when nothing was
+taken — into `Current_Target_Index` (`ps4.asm:8408-8409`), which `loc_B6A2`
+then swings at.
+
+Twelve Motavia formations were captured again with the `bcmd` RAM group
+(`python3 -m oracle.sweep --only 0x02,0x04,0x05,0x07,0x08,0x0B,0x0C,0x17,0x18,
+0x19,0x1B,0x1D --jobs 3`; receipts under `build/lane-evidence/sweep/`), and the
+cells read the rule back:
+
+- `formation_02` f25665 — Chaz, `cmd1_target` 6, `current_target` `0006`: the
+  aim was kept, and his own swing is what killed slot 6 (`e1_hp` 65524 =
+  -12, status `$04`). f25669 — Hahn, `cmd2_target` 6, `current_target`
+  **`0008`**: slots 7/8/9 read 9/8/9 of 20, so the deficits are 11/**12**/11 and
+  the scan takes the unique maximum. f25947 — Alys, `cmd0_target` `$FFFF`,
+  `current_target` `$FFFF`: the whole-side window, left alone.
+- `formation_07` f25542 and `formation_08` f25374 — both Hahn, both with the
+  commanded 6 down and slots 7/8 level at the maximum deficit: 12 of 25 HP left
+  in both (13 each) in `formation_07`, 13 of 25 (12 each) in `formation_08`,
+  where slot 9 still holds 14 and is therefore the smaller candidate. Each frame
+  holds **two** calls where a single-target swing rolls once, and the even draw
+  keeps the earlier slot (`current_target` `0007` in both). `formation_08`'s
+  round 1 is the 120-call round that a port which never scans draws 119 of.
+
+**PORT BUG — `candidate_targets` fell back to the lowest living id.** It now
+resolves a party-side single-target swing whose commanded enemy is no longer
+standing with the scan and draws the tiebreak from the same `Rolls` stream the
+cartridge does (`rust/psiv-core/src/battle/action.rs`'s `retarget_scan`). The
+command is what makes that reachable: the replay's `orders`
+(`rust/psiv-core/src/battle/replay/build.rs`) reads each round's `commands` and
+maps a target cell to `Command::AttackTarget`, while `-1` and an absent cell
+both stay `Command::Attack` — the port's own default cursor, which names the
+first living enemy and is kept by the same early return. A capture with no
+`bcmd` group (every fixture except the twelve) therefore replays as it did. The
+native game's own path was already right: the command menu's enemy picker
+returns `Command::AttackTarget` for the chosen slot
+(`rust/psiv-godot/src/battle/commands.rs`), so a played battle re-aims exactly
+where the cartridge does.
+
+Unit tests in `rust/psiv-core/src/battle/action_retarget_tests.rs`: a kept aim
+costs no draw; a unique maximum costs none either; a tie costs exactly one, an
+even draw keeping the earlier slot and an odd one taking the later; a tie below
+the maximum draws nothing; a third slot equal to the maximum draws again; an
+empty enemy side leaves the caller's own "no target" outcome; and an enemy
+attacker keeps the port's first-survivor fallback, because the character-target
+arm is `take_turn`'s weighted `loc_56F0` draw and not this scan.
