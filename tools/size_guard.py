@@ -6,14 +6,16 @@ Run from the repository root:
     python3 tools/size_guard.py
     python3 tools/size_guard.py --write-baseline
 
-Every file `git ls-files` lists that is text - no NUL byte in its first 8 KiB -
-is counted the way an editor counts it, a final line without a newline
-included, and a file over `MAX_LINES` fails the run. Files matching `EXEMPT`,
-the generated and data files that grow with their content rather than with
-anyone's editing, are passed over; the list is the rule's own, and
-docs/DEVELOPMENT.md names the same globs. The rule is checked inside the Python
-suite the gate runs (tests/test_size_guard.py), so it is a gate check and not a
-reviewer's memory; the lane harness reports the same limit on its own commits.
+Every file of the change that is text - the paths `tools/repo_files.py` lists,
+what a commit made with `git add -A` would contain, a new unstaged file
+included, and no NUL byte in the first 8 KiB - is counted the way an editor
+counts it, a final line without a newline included, and a file over `MAX_LINES`
+fails the run. Files matching `EXEMPT`, the generated and data files that grow
+with their content rather than with anyone's editing, are passed over; the list
+is the rule's own, and docs/DEVELOPMENT.md names the same globs. The rule is
+checked inside the Python suite the gate runs (tests/test_size_guard.py), so it
+is a gate check and not a reviewer's memory; the lane harness reports the same
+limit on its own commits.
 
 `tools/size_baseline.txt` is the ratchet: the files that were already over the
 limit when the guard landed, one `<lines> <path>` per line, sorted by path.
@@ -48,6 +50,11 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:  # imported as `tools.size_guard`: the suite, and the gate's `PYTHONPATH=.`
+    from tools.repo_files import repo_files
+except ModuleNotFoundError:  # `python3 tools/size_guard.py` puts `tools/` itself on sys.path
+    from repo_files import repo_files
+
 MAX_LINES = 1000
 BINARY_SNIFF_BYTES = 8192
 # Generated and data files (owner decision, 2026-09-24; the same list the lane
@@ -68,11 +75,6 @@ def git(*args: str) -> tuple[bool, str]:
     """`(ok, stdout)` of `git args` run in the working directory."""
     proc = subprocess.run(["git", *args], capture_output=True, text=True, check=False)
     return proc.returncode == 0, proc.stdout
-
-
-def git_lines(*args: str) -> list[str]:
-    """Non-empty NUL-separated records from a git command run at the root."""
-    return [record for record in git(*args)[1].split("\0") if record]
 
 
 def glob_re(pattern: str) -> re.Pattern:
@@ -123,14 +125,14 @@ def counted_lines(path: Path) -> int | None:
 
 
 def scan(root: Path, files: list[str] | None = None):
-    """`(sizes, skipped)` over `files` (default: `git ls-files`).
+    """`(sizes, skipped)` over `files` (default: the change at `root`).
 
     `sizes` holds one entry per non-exempt text file, `path` -> lines; a tree's
     over-limit files are `over_limit(sizes)`. `skipped` counts the paths the
     rule passes over, by reason, so a report can show what it never looked at.
     """
     if files is None:
-        files = git_lines("ls-files", "-z")
+        files = repo_files(root)
     sizes: dict[str, int] = {}
     skipped = {"files": len(files), "exempt": 0, "not_text": 0}
     for path in sorted(files):
@@ -192,7 +194,7 @@ def baseline_text(entries: list[tuple[str, int]]) -> str:
 def check(root: Path) -> tuple[list[str], list[str], dict[str, int]]:
     """`(problems, notes, counts)` for the tree at `root`."""
     baseline, _, problems = read_baseline(root)
-    files = git_lines("ls-files", "-z")
+    files = repo_files(root)
     sizes, counts = scan(root, files)
     notes: list[str] = []
     for path, lines in over_limit(sizes):

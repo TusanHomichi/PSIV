@@ -134,10 +134,13 @@ files are exempt: `*.json`, `*.tsv`, `*.csv`, `*.lock` and
 `**/replay_fixtures/**`. That list is `EXEMPT` in `tools/size_guard.py`, which
 owns the rule; this document names the same globs.
 
-`python3 tools/size_guard.py` scans every file `git ls-files` lists that is text
-(no NUL byte in its first 8 KiB) and fails on a non-exempt file over the limit.
-It runs inside the Python suite the gate runs (`tests/test_size_guard.py`), so
-the limit is a gate check rather than a reviewer's memory, and the
+`python3 tools/size_guard.py` scans every file of the change that is text (no
+NUL byte in its first 8 KiB) and fails on a non-exempt file over the limit. The
+change is what a commit made with `git add -A` would contain - a new unstaged
+file included - and its one owner is `tools/repo_files.py`, which lists it for
+this guard, for `tools/check_docs.py` and for the feature map's checks. The
+scan runs inside the Python suite the gate runs (`tests/test_size_guard.py`),
+so the limit is a gate check rather than a reviewer's memory, and the
 [lane harness](../tools/ds_lane/README.md) reports the same limit on its own
 commits.
 

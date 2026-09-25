@@ -9,8 +9,10 @@ this module parses its tables and fails on every way they can go stale:
 
 - a table whose columns are not the five the map defines, or a row with an
   empty cell;
-- an owning path no longer in the repository - a glob must still match at least
-  one tracked file, and a directory must still hold one;
+- an owning path no longer of the change - the paths `tools/repo_files.py`
+  lists, tracked and unstaged files alike, so a new file nobody has staged
+  counts - where a glob must still match at least one of them and a directory
+  must still hold one;
 - a focused-test command naming a crate that is not a `rust/Cargo.toml`
   workspace member, a `--test` target with no `rust/<crate>/tests/<name>.rs`,
   a `tests.test_x` module with no `tests/test_x.py`, or a `--lib <module>::`
@@ -29,10 +31,11 @@ from __future__ import annotations
 
 import fnmatch
 import re
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+
+from tools.repo_files import repo_files
 
 ROOT = Path(__file__).resolve().parents[1]
 FEATURE_MAP = ROOT / "docs" / "FEATURE_MAP.md"
@@ -55,15 +58,6 @@ MEMBERS_RE = re.compile(r"members\s*=\s*\[(?P<list>[^\]]*)\]")
 
 
 # --------------------------------------------------------------------- inputs
-
-def git_paths(*patterns: str) -> list[str]:
-    """Tracked paths at the repository root, optionally filtered by pattern."""
-    proc = subprocess.run(
-        ["git", "ls-files", "-z", *patterns],
-        cwd=ROOT, capture_output=True, text=True, check=True,
-    )
-    return [name for name in proc.stdout.split("\0") if name]
-
 
 def workspace_members() -> set[str]:
     """The `members` list of `rust/Cargo.toml`, as crate directory names."""
@@ -225,7 +219,7 @@ def ledger_root(path: Path) -> Path:
 def check_map(path: Path = FEATURE_MAP, tracked: list[str] | None = None) -> list[str]:
     """`(problems)` for the feature tables in `path`, empty when the map is true."""
     if tracked is None:
-        tracked = git_paths()
+        tracked = repo_files(ROOT)
     names = set(tracked)
     text = Path(path).read_text(encoding="utf-8")
     documents = ledger_root(path)
@@ -288,7 +282,7 @@ class RealMap(unittest.TestCase):
             targets |= set(TARGET_RE.findall(cells["Focused test"]))
         expected = {
             Path(name).stem
-            for name in git_paths(f"{RUNTIME_TESTS_PREFIX}*.rs")
+            for name in repo_files(ROOT, (f"{RUNTIME_TESTS_PREFIX}*.rs",))
         }
         self.assertTrue(expected, "no psiv-runtime integration targets found")
         self.assertEqual(expected - targets, set())
