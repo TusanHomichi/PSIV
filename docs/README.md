@@ -7,6 +7,7 @@ other document sits in the folder for its area.
 
 - [Project overview and current status](../README.md)
 - [Roadmap and completion criteria](ROADMAP.md)
+- [Feature map: a feature's owning paths and focused test](FEATURE_MAP.md)
 - [Build, run and verification](DEVELOPMENT.md)
 - [Repository instructions for agents](../AGENTS.md)
 - [Evidence-driven workflow, authority and handoff](AGENT_WORKFLOW.md)

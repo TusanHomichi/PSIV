@@ -15,6 +15,7 @@ editing. Preserve others' changes. Use [README.md](README.md) for current scope,
 Read only the relevant [subsystem ledger](docs/README.md) and source; use
 [DEVELOPMENT.md](docs/DEVELOPMENT.md) when preparing checks and
 [RUNTIME_DESIGN.md](docs/RUNTIME_DESIGN.md) for layer boundaries.
+Find a feature's owning paths and focused test in the [feature map](docs/FEATURE_MAP.md).
 
 Define an observable outcome and acceptance before implementation. Substantive
 dependent work uses one graph; simple changes use a short plan. Verified results
