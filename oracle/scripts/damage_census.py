@@ -17,7 +17,7 @@ import pathlib
 import subprocess
 from collections import defaultdict
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 O = ROOT / "oracle"
 BIN = O / "bin" / "psiv_oracle"
 CORE = O / "core" / "genesis_plus_gx_libretro.so"

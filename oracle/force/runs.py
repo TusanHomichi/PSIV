@@ -23,9 +23,9 @@ ROM = ROOT / "Phantasy Star IV (USA).md"
 DEFAULT_RAM_MAP_TSV = ORACLE / "ram_map.tsv"
 
 #: What every evidence run logs: the fight's own columns, the RNG chain
-#: `oracle/rng_trace.py check` re-derives, and the vehicle cells a vehicle
-#: battle's party-side fighter is built from (`Vehicle_Index` and the saved
-#: `Vehicle_Stats` record), which a fixture's `vehicle` section reads.
+#: `python3 -m oracle.rng_trace check` re-derives, and the vehicle cells a
+#: vehicle battle's party-side fighter is built from (`Vehicle_Index` and the
+#: saved `Vehicle_Stats` record), which a fixture's `vehicle` section reads.
 #: The groups every capture logs. `bcmd` is `Character_Command_Data` /
 #: `Enemy_Command_Data` - what each fighter was told to do and *whom* to do it
 #: to (`constants:2005-2011`) - and it is here because the party's command is
@@ -105,6 +105,6 @@ def hp_of(row: dict, column: str) -> int:
     """One fighter's HP as the cartridge stores it: a signed 16-bit word.
 
     The log renders the columns unsigned, so a dead fighter reads 65511, not
-    -25; `oracle/battle_fixture.py` applies the same rule (`log.signed`)."""
+    -25; `oracle.fixture` applies the same rule (`log.signed`)."""
     value = int(row[column])
     return value - 0x10000 if value > 0x7FFF else value

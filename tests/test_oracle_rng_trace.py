@@ -485,8 +485,8 @@ RNG_TRACE_LINE = re.compile(
 class HostAgreement(unittest.TestCase):
     """oracle/host and this module must derive the same roll.
 
-    oracle/host/rng_trace.c and `oracle/rng_trace.py check` re-derive the
-    cartridge's roll independently, and a mistake they share is invisible to
+    oracle/host/rng_trace.c and `python3 -m oracle.rng_trace check` re-derive
+    the cartridge's roll independently, and a mistake they share is invisible to
     both: that is exactly how the low-half subtraction survived in the trace.
     This case compiles the host's `rng_trace_roll` and `path_basename` and runs
     them, comparing against numbers written out here from the disassembly.
@@ -531,7 +531,7 @@ class HostAgreement(unittest.TestCase):
             self.assertEqual(
                 roll, roll_for(hv, count, seed),
                 f"the host's roll for seed {seed:08X} is {text}, "
-                f"oracle/rng_trace.py check derives "
+                f"python3 -m oracle.rng_trace derives "
                 f"{roll_for(hv, count, seed):04X}")
 
     def test_the_host_does_not_subtract_the_seeds_low_half(self):

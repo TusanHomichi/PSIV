@@ -51,12 +51,12 @@ One command, from a checkout with the ROM linked in and the core built
 (`./oracle/build_core.sh`):
 
 ```sh
-python3 oracle/sweep.py --out build/lane-evidence/sweep --jobs 3 \
+python3 -m oracle.sweep --out build/lane-evidence/sweep --jobs 3 \
     --list oracle/sweep/motavia_formations.json
 ```
 
-Per formation that runs `oracle/force_battle.py` with two options this sweep
-exists to exercise, and then `oracle/battle_fixture.py` on the capture:
+Per formation that runs `python3 -m oracle.force` with two options this sweep
+exists to exercise, and then `python3 -m oracle.fixture` on the capture:
 
 | option | what it does | where |
 |---|---|---|
@@ -129,7 +129,7 @@ every formation directory that holds a capture is extracted again, with the
 numbers its own `report.json` recorded, into `--fixtures`.
 
 ```sh
-python3 oracle/sweep.py --reextract build/lane-evidence/sweep --jobs 3
+python3 -m oracle.sweep --reextract build/lane-evidence/sweep --jobs 3
 ```
 
 Everything a fixture records about a capture is path-free - the tape by its file
@@ -255,7 +255,7 @@ would have to re-take.
 
 Every fix below is in a committed file with its own test, and the affected
 fixtures were re-extracted from the sweep's preserved captures
-(`python3 oracle/sweep.py --reextract build/lane-evidence/sweep`; §5). The
+(`python3 -m oracle.sweep --reextract build/lane-evidence/sweep`; §5). The
 captures themselves were not re-taken - nothing here is about the emulator.
 
 **H1. The start state was a half-written formation.**
@@ -366,11 +366,11 @@ then moves it (`loc_5AE6`), and the sweep's captures do not carry the group:
 
 The sweep's 81 fixtures cannot show it - their captures were taken before the
 group existed - so a lane that fixes the retarget rule should re-capture the ten
-affected formations (`python3 oracle/sweep.py --only 0x02,...`) or take the
+affected formations (`python3 -m oracle.sweep --only 0x02,...`) or take the
 test's evidence from `tests/test_oracle_battle_fixture.Commands`.
 
 A capture taken with the group, of cluster 1's own anchor fixtures, is what the
-rule looks like in the cells: `python3 oracle/sweep.py --only 0x02` (this lane
+rule looks like in the cells: `python3 -m oracle.sweep --only 0x02` (this lane
 ran it) writes a `formation_02` capture whose `current_target` reads `0006` on
 Chaz's turn at f25665 - his own `cmd1_target`, so no retarget - and **`0008`**
 on Hahn's at f25669 while `cmd2_target` reads `0006`: the enemy slots read
@@ -454,7 +454,7 @@ the draw would leave the counts wrong.
 
 All 81 captured formations were re-extracted from the sweep's own preserved
 captures after the harness fixes above
-(`python3 oracle/sweep.py --reextract build/lane-evidence/sweep`, and the
+(`python3 -m oracle.sweep --reextract build/lane-evidence/sweep`, and the
 fixture's `log_sha256` still matches the hash the sweep's record pins for each
 capture). The first divergence each one has now, against the one it had in the
 sweep's own manifest:

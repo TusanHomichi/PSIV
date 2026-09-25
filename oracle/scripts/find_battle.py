@@ -16,7 +16,7 @@ import csv
 import pathlib
 import subprocess
 
-ROOT = pathlib.Path(__file__).resolve().parent.parent
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 ORACLE = ROOT / "oracle"
 BIN = ORACLE / "bin" / "psiv_oracle"
 CORE = ORACLE / "core" / "genesis_plus_gx_libretro.so"

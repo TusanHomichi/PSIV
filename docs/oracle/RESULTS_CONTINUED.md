@@ -153,8 +153,9 @@ times as the player likes.
 (The re-entry in the tape is hand-written rather than routed: coming up the
 stairs leaves the party standing *on* the stairs cell, and the cartridge's
 anti-ping-pong rule will not fire a warp from the cell you were placed on, so
-the tape steps off and back on. `navigate.py` cannot plan from a warp cell it
-is already standing on — noted as a tooling limit, not a cartridge one.)
+the tape steps off and back on. `python3 -m oracle.scripts.navigate` cannot plan
+from a warp cell it is already standing on — noted as a tooling limit, not a
+cartridge one.)
 
 For `psiv-core`: model **four** banks, not five and not three. The `$F156` bank
 does not exist and must never be written. The `$F140` bank takes the "temp"
@@ -245,7 +246,7 @@ Two independent confirmations beyond the first report:
 
 - An NPC standing at pixel row R blocks a character trying to enter pixel
   row R+1, so **objects occupy a two-row footprint**, not one cell.
-  `navigate.py` encodes this as `OBJ_FOOTPRINT`.
+  `python3 -m oracle.scripts.navigate` encodes this as `OBJ_FOOTPRINT`.
 - Object blocking is invisible to the terrain grid. Walking west along the
   map-$13 corridor stops dead with `coll_left` reading `00`.
 
@@ -296,9 +297,10 @@ into each character's `exp` field, so the award is observed as a delta on
 `chaz_exp` / `alys_exp`. Meseta accumulates in `$FFFF41D0` and is added to
 `Current_Money` at `ps4.asm:4801`.
 
-`analyze_battle.py` reads a battle log and reports the formation and stats, the
-routine timeline, the turn order, every HP change with the hit flags, damage
-list and RNG seed at that frame, and the EXP/meseta deltas.
+`python3 -m oracle.scripts.analyze_battle` reads a battle log and reports the
+formation and stats, the routine timeline, the turn order, every HP change
+with the hit flags, damage list and RNG seed at that frame, and the
+EXP/meseta deltas.
 
 ### The encounter clock, and why long tapes need tuning
 
@@ -315,12 +317,12 @@ pre-walk idle over 14 values produced exactly 3 clean runs — 21%, against 22%
 predicted. That is a behavioural confirmation of the rule, and incidentally of
 `psiv-runtime`'s `GRACE_STEPS = 10` and `FOOT_MASK = 0x1F`, which match.
 
-The dodge is `sweep_encounter.py`: idle frames advance the seed without
-consuming a step, so varying one `N . <mark>` wait re-rolls every check
-downstream while leaving the route byte-identical. It runs the variants in
-parallel and reports which values walk clean. Tapes 20 and 21 both carry a
-tuned wait, noted as such in their comments — a tape that walks far and has no
-tuned wait in it is a tape that has not been re-run since it was written.
+The dodge is `python3 -m oracle.scripts.sweep_encounter`: idle frames advance
+the seed without consuming a step, so varying one `N . <mark>` wait re-rolls
+every check downstream while leaving the route byte-identical. It runs the
+variants in parallel and reports which values walk clean. Tapes 20 and 21 both
+carry a tuned wait, noted as such in their comments — a tape that walks far and
+has no tuned wait in it is a tape that has not been re-run since it was written.
 
 ### Tape authoring tools
 
@@ -331,12 +333,12 @@ pong rule (`GameMode_LoadFieldMap` initialising `Tile_Collision_Standing` to 1,
 so a doorway never fires on the frame you are placed on its destination) — the
 planner walks straight back through the door it came from without it.
 
-`navigate.py` closes the loop, because terrain is not the whole story: it plans
-a short leg, runs it, reads where the character actually ended up, marks
-observed object footprints and cells the cartridge refused to enter, and
-re-plans. **The feedback is at authoring time only** — the artifact it writes is
-an ordinary static tape with no runtime feedback in it, so it still replays
-byte-identically like every other tape here.
+`python3 -m oracle.scripts.navigate` closes the loop, because terrain is not
+the whole story: it plans a short leg, runs it, reads where the character
+actually ended up, marks observed object footprints and cells the cartridge
+refused to enter, and re-plans. **The feedback is at authoring time only** — the
+artifact it writes is an ordinary static tape with no runtime feedback in it, so
+it still replays byte-identically like every other tape here.
 
 ## Still open
 

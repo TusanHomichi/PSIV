@@ -53,8 +53,8 @@
  * A frame's chain has to land exactly on the seed the frame ended with. When
  * it does not, the derivation is not a description of that frame and the run
  * fails instead of quietly writing rows nobody can replay. That failure is a
- * count on stderr, and oracle/rng_trace.py check re-derives the same thing
- * from the CSV and the RAM log of the same run.
+ * count on stderr, and python3 -m oracle.rng_trace check re-derives the same
+ * thing from the CSV and the RAM log of the same run.
  */
 #define _GNU_SOURCE
 #include "rng_trace.h"

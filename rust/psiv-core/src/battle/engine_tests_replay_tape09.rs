@@ -1,7 +1,7 @@
 //! Tape 09's second basement battle: the same replay on a second data point.
 //!
 //! `oracle/tapes/09_second_battle.tape`, frames 25002-31908. A different
-//! formation (`oracle/battle_fixture.py` extracted it with nothing but
+//! formation (`oracle.fixture` extracted it with nothing but
 //! `--battle-first`/`--battle-last` and `--tape`, exactly as it extracted tape
 //! 07's), a different seed path, and a round order that puts an enemy between
 //! Alys and Chaz. `docs/oracle/BATTLE_ORACLE_REPLAY.md` records what the pair of

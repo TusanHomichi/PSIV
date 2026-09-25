@@ -1,7 +1,7 @@
 """One formation's run: the forced capture, then the fixture's extraction.
 
-Two subprocesses per formation - `oracle/force_battle.py` and
-`oracle/battle_fixture.py`, each with the exact command recorded - and a record
+Two subprocesses per formation - `python3 -m oracle.force` and
+`python3 -m oracle.fixture`, each with the exact command recorded - and a record
 entry either way: a formation whose capture or extraction fails is part of the
 sweep's result, not an exception out of it (`docs/oracle/BATTLE_ORACLE_SWEEP.md` reads
 those failures as their own worklist clusters).
@@ -25,8 +25,10 @@ from ..force.errors import ForceError
 from .plan import Formation
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
-FX = ROOT / "oracle" / "battle_fixture.py"
-FORCE = ROOT / "oracle" / "force_battle.py"
+#: The two tools a formation's run is, as modules run from the repository root
+#: (`oracle/README.md`, "Layout"): the sweep builds `python3 -m <name>` commands.
+FX = "oracle.fixture"
+FORCE = "oracle.force"
 FIXTURES = (ROOT / "rust" / "psiv-core" / "src" / "battle"
             / "replay_fixtures" / "sweep_motavia")
 
@@ -59,7 +61,7 @@ def fixture_path(options: Options, formation: int) -> pathlib.Path:
 
 def force_argv(entry: Formation, options: Options) -> list[str]:
     """The capture command: the force tool, with this sweep's own options."""
-    argv = [sys.executable, str(FORCE), "--formation", entry.hex,
+    argv = [sys.executable, "-m", FORCE, "--formation", entry.hex,
             "--out", str(options.work / f"formation_{entry.formation:02X}"),
             "--base-tape", str(options.base_tape),
             "--data-dir", str(options.data_dir),
@@ -77,7 +79,7 @@ def force_argv(entry: Formation, options: Options) -> list[str]:
 def extractor_argv(report: dict, entry: Formation,
                    options: Options) -> list[str]:
     """The extraction command, for the log the capture just wrote."""
-    argv = [sys.executable, str(FX), "--trace", report["trace"],
+    argv = [sys.executable, "-m", FX, "--trace", report["trace"],
             "--log", report["log"],
             "--out", str(fixture_path(options, entry.formation)),
             "--tape", report["tape"],
@@ -92,11 +94,16 @@ def extractor_argv(report: dict, entry: Formation,
 
 
 def run(argv: list[str], log: pathlib.Path) -> subprocess.CompletedProcess:
-    """Run one tool, keeping its whole output beside the formation's receipt."""
+    """Run one tool, keeping its whole output beside the formation's receipt.
+
+    `cwd` is the repository root, the directory the tools are modules of: the
+    command `python3 -m oracle.force` resolves its package from there, whatever
+    directory the sweep itself was started in.
+    """
     log.parent.mkdir(parents=True, exist_ok=True)
     with open(log, "w") as handle:
-        proc = subprocess.run(argv, stdout=handle, stderr=subprocess.STDOUT,
-                              text=True)
+        proc = subprocess.run(argv, cwd=ROOT, stdout=handle,
+                              stderr=subprocess.STDOUT, text=True)
     return proc
 
 

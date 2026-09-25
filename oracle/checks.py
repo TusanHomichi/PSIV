@@ -31,7 +31,10 @@ def bad(msg):
 
 
 def update_rng_seed(seed):
-    """UpdateRNGSeed, ps4.asm:86066-86092. See analyze_rng.py for the notes."""
+    """UpdateRNGSeed, ps4.asm:86066-86092.
+
+    See `oracle/scripts/analyze_rng.py` for the notes.
+    """
     d1 = seed
     if (d1 & 0xFFFF) == 0:
         d1 = 0x2A6D365B

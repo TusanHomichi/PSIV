@@ -1,10 +1,10 @@
 """ROM-backed assertions for the scene presentation extraction."""
 
 import json
-import runpy
 import unittest
 from pathlib import Path
 
+from oracle.decode_layout import decode_layout
 from psiv_tools.enigma import decompress as enigma_decompress
 from psiv_tools.presentation_pack import (
     DIALOGUE_ACTION_PANEL_IDS,
@@ -97,8 +97,7 @@ class PresentationPackTests(unittest.TestCase):
         )
 
     def test_opening_oracle_state_passes_decoded_layout_contract(self):
-        decoder = runpy.run_path(str(ROOT / "oracle/decode_layout.py"))
-        layout = decoder["decode_layout"](
+        layout = decode_layout(
             ROOT / "oracle/states/opening/frame_4000.json",
             [],
             "opening-4000",

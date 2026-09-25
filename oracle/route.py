@@ -72,8 +72,8 @@ def plan(maps, start, goal_map, blocked=frozenset()):
     """BFS over (map, x, y). Returns a list of ((map, x, y), step_letter).
 
     `blocked` is a set of (map, x, y) the search must not enter - used by
-    navigate.py to route around field objects and cells the cartridge has
-    refused to admit the character to.
+    `oracle.scripts.navigate` to route around field objects and cells the
+    cartridge has refused to admit the character to.
     """
     # A node carries whether the character arrived here through a warp. The
     # cartridge initialises Tile_Collision_Standing to 1 on placement

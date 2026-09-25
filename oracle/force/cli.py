@@ -3,8 +3,8 @@
 `--formation` and `--out` are required; everything else has a default that the
 ledger's captures were taken with. The exit status is the tool's own verdict:
 `0` when every check passed, `1` when a required ability never fired or
-`oracle/rng_trace.py check` failed on the capture, `2` when the request itself
-was refused (`ForceError`) or the parser rejected it.
+`python3 -m oracle.rng_trace check` failed on the capture, `2` when the
+request itself was refused (`ForceError`) or the parser rejected it.
 """
 from __future__ import annotations
 

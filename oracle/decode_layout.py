@@ -13,14 +13,9 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable
-
-ROOT = Path(__file__).resolve().parent.parent
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
 
 from psiv_tools.text import WINDOW_CHARSET
 from oracle.scroll_state import (

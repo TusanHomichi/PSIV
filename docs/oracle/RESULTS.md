@@ -130,7 +130,8 @@ generators are two *algorithms* over the same 32-bit word.
 - **`UpdateRNGSeed`** (`ps4.asm:86066-86092`) rewrites the whole longword.
   Substitute `$2A6D365B` when the low word is zero, multiply the longword by
   41, then store `(low16 + high16)` of the product in the high word and the
-  product's low word in the low word. Transcribed in `analyze_rng.py`.
+  product's low word in the low word. Transcribed in
+  `python3 -m oracle.scripts.analyze_rng`.
 - **`UpdateRNGSeed2`** (`ps4.asm:86098-86102`) is not a generator at all in the
   usual sense: it `ror`s the *high word* by one bit and returns a value mixed
   from `Main_Frame_Count` and the pre-rotation seed.
@@ -295,7 +296,8 @@ silent correction.
 
 #### Miss and critical samples
 
-The action-level view (`analyze_battle.py <log> --actions`) enumerates each
+The action-level view
+(`python3 -m oracle.scripts.analyze_battle <log> --actions`) enumerates each
 acting fighter and then checks whether any HP moved, which is what makes a miss
 visible at all — a miss produces no HP change and is invisible to HP-change
 scanning.
@@ -402,8 +404,9 @@ C every 16 frames. `Battle_Total_Comd_Input` counts commands entered and
 whose character is dead, paralysed or asleep.
 
 `Battle_Routine` values decoded from `BattleRoutines` (`ps4.asm:7524`) are in
-`analyze_battle.py`; the observed fight ran init -> ProcessCOMD (three times,
-once per living member) -> OrderTurns -> the action routines -> victory.
+`python3 -m oracle.scripts.analyze_battle`; the observed fight ran init ->
+ProcessCOMD (three times, once per living member) -> OrderTurns -> the action
+routines -> victory.
 
 ### Field object columns, and the wander RNG rule
 
@@ -502,8 +505,9 @@ moved into the faced cell, turning the "beside" test into a facing test.
 
 **This supersedes an earlier reading in this document.** A single press offset
 suggested "the press is consumed and produces two extra draws". Sweeping the
-offset across the animation (`anim_sweep.py`) and then holding the button
-(tape 15) shows what is really happening, and it is simpler.
+offset across the animation (`python3 -m oracle.scripts.anim_sweep`) and then
+holding the button (tape 15) shows what is really happening, and it is
+simpler.
 
 Speak lands at f7185, `Window_Render_Mode` goes `$0600` at f7187, and the
 window opens at f7196. Draws are counted as `Text_Buffer` writes, relative to

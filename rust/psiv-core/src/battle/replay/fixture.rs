@@ -1,4 +1,4 @@
-//! The fixture's shape, as `oracle/battle_fixture.py` writes it.
+//! The fixture's shape, as `oracle.fixture` writes it.
 //!
 //! The schema is additive: everything the forced captures added - an action's
 //! `kind` and `ability`, the `vehicle` section, an outcome's `defeat` and

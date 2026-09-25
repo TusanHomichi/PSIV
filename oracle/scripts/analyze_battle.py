@@ -39,7 +39,9 @@ HEX_FIELDS = set()
 
 def load_hex_fields():
     import json
-    doc = json.loads((pathlib.Path(__file__).parent / 'ram_map.json').read_text())
+    # This file is `oracle/scripts/analyze_battle.py`; `oracle/` is two up.
+    doc = json.loads((pathlib.Path(__file__).resolve().parents[2]
+                      / 'oracle' / 'ram_map.json').read_text())
     return {f['name'] for f in doc['fields'] if f.get('hex')}
 
 
