@@ -205,8 +205,33 @@ pub(crate) struct Round {
     pub(crate) order: Vec<u8>,
     #[allow(dead_code)]
     pub(crate) ordering: Vec<u16>,
+    /// What each party-side fighter was told to do this round, one entry per
+    /// fighter the queue held (`oracle/fixture/assembly.py`'s `command_entry`).
+    ///
+    /// The entries are the cartridge's own `Character_Command_Data` cells
+    /// (`constants:2005-2011`): the `id` is the party-side fighter id and
+    /// `target` the cell the command phase left, `-1` for an attack whose reach
+    /// is the whole side (`ps4.asm:8464`). A capture taken before the `bcmd`
+    /// group existed carries no `target` at all, which is not the same claim as
+    /// `-1` and is why the field is an `Option`.
+    #[serde(default)]
+    pub(crate) commands: Vec<CommandEntry>,
     pub(crate) roll_count: u32,
     pub(crate) actions: Vec<Action>,
+}
+
+/// One party member's round command, as `Character_Command_Data` held it.
+#[derive(Debug, Deserialize)]
+pub(crate) struct CommandEntry {
+    /// The one-based party-side fighter id the command belongs to.
+    pub(crate) id: u8,
+    /// The command's name. Every capture these fixtures replay is the attack
+    /// policy's, so the extractor writes `attack`; nothing here reads it.
+    #[allow(dead_code)]
+    pub(crate) command: String,
+    /// The command's target cell, absent for a capture with no `bcmd` columns.
+    #[serde(default)]
+    pub(crate) target: Option<i16>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]

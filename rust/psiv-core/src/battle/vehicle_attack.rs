@@ -290,8 +290,10 @@ pub fn resolve_vehicle_attack(
     rolls: &mut impl Rolls,
     events: &mut Vec<BattleEvent>,
 ) -> Vec<FighterId> {
-    // `loc_1152` / the target cursor: one slot, never a window.
-    let targets = candidate_targets(roster, actor, intended, Reach::Single);
+    // `loc_1152` / the target cursor: one slot, never a window. The aim comes
+    // from the same command window a party swing's does, so the retarget scan
+    // applies here too (`action::candidate_targets`).
+    let targets = candidate_targets(roster, actor, intended, Reach::Single, rolls);
     if targets.is_empty() {
         events.push(BattleEvent::TurnSkipped {
             actor,

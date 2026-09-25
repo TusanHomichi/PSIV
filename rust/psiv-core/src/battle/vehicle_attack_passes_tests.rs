@@ -155,7 +155,7 @@ fn the_uniform_three_pass_rule_diverges_on_the_ice_digger() {
     // Three passes, the pre-change rule: the third pass eats the first damage
     // draw, so the sixteen draws start one roll late and pick up round 2's
     // first — `& 7` sum 52 instead of 51, and 214 instead of 212.
-    let targets = candidate_targets(&roster, actor, None, Reach::Single);
+    let targets = candidate_targets(&roster, actor, None, Reach::Single, &mut rolls);
     let mut rolls = SliceRolls::new(&stream);
     let mut pass = roll_hits(&roster, actor, &targets, false, &mut rolls);
     for _ in 1..3 {
