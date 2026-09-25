@@ -21,9 +21,16 @@ From the repository root:
 
 ```bash
 git clone --depth 1 https://github.com/alechenninger/ps4disasm reference/ps4disasm
+./oracle/build_core.sh
 python3 -m psiv_tools inspect "/path/to/Phantasy Star IV (USA).md"
 python3 -m psiv_tools pack "/path/to/Phantasy Star IV (USA).md" runtime-pack
 ```
+
+`./oracle/build_core.sh` fetches the pinned emulation core into the ignored
+`oracle/gpgx-src/` (it needs `git`, GNU `patch` and a C toolchain).
+`psiv-sound`'s build script compiles the core's sound-chip sources from there,
+so every Rust build that includes `psiv-godot` or the whole workspace needs it
+first.
 
 The accepted US ROM SHA-256 is:
 
@@ -81,6 +88,42 @@ Run these sequentially. Full map/pack tests can take several minutes. Serial
 Rust tests avoid the memory pressure seen when many pack-loading cases run
 together. Tests requiring local assets may fail or explicitly skip when their
 fixtures are absent; report that distinction with the result.
+
+### Gate and coverage
+
+PSIV has no hosted CI yet ([#15](https://github.com/TusanHomichi/PSIV/issues/15)).
+The gate is exactly the four commands above, run from the root with the flags
+shown. Reporting a gate result means those commands; a subset, a different
+`CARGO_BUILD_JOBS`, parallel test threads or a per-crate run is a focused check
+and is reported as one. The gate does not cover:
+
+- tests skipped for a missing ROM, disassembly or full pack: a checkout without
+  them yields a partial gate, and the report says which inputs were absent;
+- native Godot drivers (`tools/native_*.gd`, `tools/verify_native_*.py`) and
+  anything visual: their ledgers own those runs;
+- cartridge comparisons: `./oracle/verify.sh` (fast) and `--full` are separate
+  lanes, described in the [oracle guide](../oracle/README.md);
+- documentation links and paths: checked by review and `git diff --check` until
+  [#10](https://github.com/TusanHomichi/PSIV/issues/10) lands;
+- the file-size rule below ([#11](https://github.com/TusanHomichi/PSIV/issues/11)).
+
+Verify through repository entry points: these commands, the oracle lanes, the
+native drivers and their verifiers. A check needed a second time is promoted
+into the repository (a script under `tools/` or `oracle/`, or a test in
+`tests/` or a crate's `tests/`), with a negative control that proves it can fail
+and a line in this guide or the owning ledger. A script under `build/` or a
+session's scratch space is not a repeatable check, and its result is not gate
+evidence.
+
+### File size
+
+Source files stay under 1,000 lines. A change that touches a file over the limit
+reorganizes it into cohesive modules in the same change. Generated and data
+files are exempt: `*.json`, `*.tsv`, `*.csv`, `*.lock` and `**/replay_fixtures/**`.
+The [lane harness](../tools/ds_lane/README.md) is the only tool that flags the
+limit today, and only on its own commits;
+[#12](https://github.com/TusanHomichi/PSIV/issues/12) tracks the files already
+over it.
 
 ## Native and original-game comparisons
 
