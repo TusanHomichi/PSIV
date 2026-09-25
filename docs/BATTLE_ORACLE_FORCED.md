@@ -322,9 +322,9 @@ What the port did, and what the cartridge does instead:
 * The fixture's per-target `hit` byte is the one the swing's **last** pass
   wrote: `loc_B6A2` presets all nine `Fighters_Hit_Flags` to `$FF` before every
   pass (`ps4.asm:17493-17498`), so an earlier pass's verdicts are overwritten,
-  and `oracle/fixture/observations.py`'s `sample_decisive_hits` reads the byte
-  at the frame of the action's last `loc_B6A2` roll once
-  `oracle/fixture/roles.py` has labelled the rolls. Rounds 3 and 6 of this
+  and `oracle/fixture/observations.py`'s `pass_frame` reads the byte on the
+  last frame the flags moved on that also drew - the action's own last
+  `loc_B6A2` pass, an ability's auto-hit pass included. Rounds 3 and 6 of this
   capture are why it matters: their first pass came back critical (`$01`) and
   their third normal, and their damage - 154 and 189 - is what only a normal
   hit's arithmetic produces (`((45+8)*200)>>6 + 200 = 365`, `365*2>>2 - 28 =

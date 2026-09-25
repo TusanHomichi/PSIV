@@ -10,6 +10,8 @@ provenance) and skipped when the rows are read.
 import csv
 import hashlib
 import json
+import os
+import re
 
 from .errors import FixtureError
 
@@ -22,10 +24,48 @@ def load_rows(path):
 
 
 def header_lines(path):
-    """The `#` provenance lines an oracle CSV opens with."""
+    """The `#` provenance lines an oracle CSV opens with, verbatim."""
     with open(path) as handle:
         return [line.rstrip("\n") for line in handle
                 if line.startswith("#")]
+
+
+#: The header fields that name a file the capture was *given*, with the tail
+#: the host writes after each value. A capture's own bytes are the same
+#: wherever it was taken, so `provenance_lines` cuts each of these values to
+#: the file's name: a fixture is then reproducible from another directory, and
+#: the two captures' logs are byte-identical. The tail is matched by the exact
+#: shape `oracle/host/psiv_oracle.c` writes - a value that does not match is
+#: kept whole, because then the line is not one this extractor knows.
+PATH_FIELDS = {
+    "rom": re.compile(r"^(?P<path>.*?)(?P<tail>\s+size=\d+)?$"),
+    "tape": re.compile(
+        r"^(?P<path>.*?)(?P<tail>\s+steps=\d+ frames=\d+)?$"),
+    "rng-trace": re.compile(r"^(?P<path>.*?)(?P<tail>)?$"),
+}
+
+
+def provenance_lines(path):
+    """A log's `#` lines, with every input named by its file and not its path.
+
+    `header_lines` reads the log as the host wrote it; this is what a fixture
+    stores. `# rom=/somewhere/Phantasy Star IV (USA).md size=3145728` becomes
+    `# rom=Phantasy Star IV (USA).md size=3145728`, and likewise for the tape
+    and the roll trace, so a fixture does not depend on the directory the
+    capture was swept into. A value that already carries no directory - every
+    log the host writes today - reads back exactly as it stands.
+    """
+    lines = []
+    for line in header_lines(path):
+        field, separator, rest = line.lstrip("# ").partition("=")
+        pattern = PATH_FIELDS.get(field)
+        if not separator or pattern is None:
+            lines.append(line)
+            continue
+        match = pattern.match(rest)
+        named = os.path.basename(match.group("path"))
+        lines.append(f"# {field}={named}{match.group('tail') or ''}")
+    return lines
 
 
 def sha256(path):

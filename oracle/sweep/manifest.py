@@ -20,6 +20,12 @@ they are written down here, in a committed file, rather than guessed at from a
 the assignment is asserted to be exactly one cluster per entry. `--clusters`
 prints the table the ledger (`docs/BATTLE_ORACLE_SWEEP.md`) carries: the slug,
 its title, and each fixture with the divergence that put it there.
+
+Every cluster here is a **port rule** the cartridge has and `psiv-core` does
+not: the ledger's §4 is the triage that settled which findings those are, and
+the harness artifacts it found were fixed rather than listed
+(`docs/BATTLE_ORACLE_SWEEP.md` §4-§5; `oracle/fixture/*` and `replay/compare.rs`
+are where they were).
 """
 from __future__ import annotations
 
@@ -196,10 +202,37 @@ def _targets_single(finding: dict, fixture: dict) -> bool:
             and finding["expected"].count("FighterId") == 1)
 
 
-def _targets_many(finding: dict, fixture: dict) -> bool:
-    """The log resolves several slots and the port swings at one."""
-    return (finding["kind"] == "targets"
-            and finding["expected"].count("FighterId") > 1)
+def _ability_mismatch(finding: dict, fixture: dict) -> bool:
+    """The log ran one ability and the port another.
+
+    The action's own byte is the ability the cartridge *executed*, which for a
+    carrier with a nonzero `condition_ids` entry is the conditional ability its
+    AI instruction picked - not the one the regular roll landed on
+    (`ps4.asm:19158-19168`; `generated/enemies.json`'s `ai`).
+    """
+    return (finding["kind"] == "ability"
+            and finding["expected"].startswith("ability $"))
+
+
+def _critical_value(finding: dict, fixture: dict) -> bool:
+    """A critical's damage differs, with the round's draws agreeing."""
+    rolls = finding.get("round_rolls") or {}
+    return (finding["kind"] == "value" and "hit flag 01" in finding["expected"]
+            and rolls.get("log") == rolls.get("port"))
+
+
+def _missing_draw(finding: dict, fixture: dict) -> bool:
+    """The round draws one roll fewer than the log's frames hold.
+
+    Either the count is the whole finding (`draws`) or the stream is shifted by
+    the missing roll and the first thing it moves is a damage word (`value`) -
+    `formation_07`'s swing reads the tiebreak draw as its hit roll.
+    """
+    rolls = finding.get("round_rolls") or {}
+    if finding["kind"] == "draws":
+        return True
+    return (finding["kind"] == "value"
+            and rolls.get("port", 0) < rolls.get("log", 0))
 
 
 #: The clusters, in the order the ledger lists them. A finding belongs to the
@@ -211,45 +244,24 @@ CLUSTERS: list[Cluster] = [
     Cluster(
         slug="party-retarget",
         title="A swing whose commanded enemy has fallen lands on another slot",
-        anchor="cluster-1-a-swing-whose-commanded-enemy-has-fallen",
+        anchor="w1-a-swing-whose-commanded-enemy-has-fallen",
         signature=_targets_single),
     Cluster(
-        slug="party-window",
-        title="The port swings at one slot where the log's window covered "
-              "several",
-        anchor="cluster-2-a-window-the-port-narrows-to-one-slot",
-        signature=_targets_many),
+        slug="enemy-ai-conditional",
+        title="The enemy's AI instruction, not the ability roll, picks the "
+              "ability",
+        anchor="w2-the-enemys-ai-instruction",
+        signature=_ability_mismatch),
     Cluster(
-        slug="ability-spends-the-turn",
-        title="An ability the port resolves as an effect spends the turn in "
-              "the log",
-        anchor="cluster-3-an-ability-that-spends-the-turn",
-        signature=_kind("not-wasted")),
+        slug="critical-bonus",
+        title="A critical reads the attack power's low byte, not the word",
+        anchor="w3-the-critical-bonus",
+        signature=_critical_value),
     Cluster(
-        slug="queue",
-        title="The round's queue is not the log's",
-        anchor="cluster-4-the-round-s-queue",
-        signature=_kind("queue")),
-    Cluster(
-        slug="value",
-        title="A verdict or a damage value differs",
-        anchor="cluster-5-a-verdict-or-a-damage-value",
-        signature=_kind("value")),
-    Cluster(
-        slug="no-swing",
-        title="The log resolves targets and the port's actor never swings",
-        anchor="cluster-6-a-turn-that-never-swings",
-        signature=_kind("no-swing")),
-    Cluster(
-        slug="no-resolution",
-        title="The log resolves a target the port leaves alone",
-        anchor="cluster-7-a-target-the-port-leaves-alone",
-        signature=_kind("no-resolution")),
-    Cluster(
-        slug="draws",
-        title="A round draws a different number of rolls",
-        anchor="cluster-8-a-round-s-roll-count",
-        signature=_kind("draws")),
+        slug="retarget-tiebreak",
+        title="The retarget scan's tiebreak draw is missing from the round",
+        anchor="w4-the-tiebreak-draw",
+        signature=_missing_draw),
 ]
 
 

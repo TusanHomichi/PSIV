@@ -26,7 +26,15 @@ DEFAULT_RAM_MAP_TSV = ORACLE / "ram_map.tsv"
 #: `oracle/rng_trace.py check` re-derives, and the vehicle cells a vehicle
 #: battle's party-side fighter is built from (`Vehicle_Index` and the saved
 #: `Vehicle_Stats` record), which a fixture's `vehicle` section reads.
-GROUPS = "core,battle,bhit,enemy,chars,rng,vehicle"
+#: The groups every capture logs. `bcmd` is `Character_Command_Data` /
+#: `Enemy_Command_Data` - what each fighter was told to do and *whom* to do it
+#: to (`constants:2005-2011`) - and it is here because the party's command is
+#: the one input a replay cannot otherwise recover: `Current_Target_Index` moves
+#: off a commanded enemy that has fallen (`ps4.asm:8345-8409`), so a swing's
+#: target is the command's own only when the command's target is still alive.
+#: `oracle/ram_map.json` carries the cells; `docs/BATTLE_ORACLE_SWEEP.md`'s
+#: retarget cluster is what needs them.
+GROUPS = "core,battle,bhit,enemy,chars,rng,vehicle,bcmd"
 
 
 @dataclasses.dataclass

@@ -1859,6 +1859,22 @@
       "source": "acting fighter index; Battle_DoAttackEffect reads it at ps4.asm:5D48 (move.w ($FFFF4142).l,d0 then Battle_GetFighterAddr). Overlaps Battle_Skill_List (constants:2015) in the constants file"
     },
     {
+      "name": "current_target",
+      "addr": "FFFF4144",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Current_Target_Index, constants:2017 (word). Written from Battle_Command_Data's target at ps4.asm:8053, refreshed at the turn's start by the retarget scan (ps4.asm:8409), -1 for an attack whose reach is the whole side (ps4.asm:8464), and read by loc_B6A2 at ps4.asm:17501: a negative value widens the window to the four enemy slots (party actor) or the five character slots (enemy actor). Recorded so a fixture can say what the swing was aimed at"
+    },
+    {
+      "name": "current_command",
+      "addr": "FFFF4146",
+      "size": 2,
+      "group": "battle",
+      "hex": true,
+      "source": "Current_Command, constants:2018 (word); the same word Battle_Command_Data holds for the acting fighter (ps4.asm:8051). Its high byte selects the fighter routine (ps4.asm:8402-8407) and its low byte is the command index loc_B6A2 tests against 6 at ps4.asm:17509"
+    },
+    {
       "name": "o00_id",
       "addr": "FFFFC300",
       "size": 2,
