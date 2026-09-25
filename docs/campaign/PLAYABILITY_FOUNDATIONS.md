@@ -117,4 +117,4 @@ not a passing receipt. Headless opening/save coverage is
 ## Current implementation priorities
 
 See [ROADMAP.md](../ROADMAP.md). The earlier Tonoe/ORDER work list has been
-superseded by the verified BioPlant checkpoint and later entries below.
+superseded by the verified BioPlant checkpoint and the later segment ledgers ([index](NATIVE_PLAYABILITY.md)).

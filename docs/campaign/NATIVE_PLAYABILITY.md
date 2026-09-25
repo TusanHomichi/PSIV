@@ -11,7 +11,8 @@ The matching source passed 898 Rust tests. Code checkpoint `82de4a3` also
 passed 927 Python tests, post-commit camp checks, formatting and strict Clippy.
 See the [BioPlant ledger](BIOPLANT_NATIVE.md) for current save hashes and proof
 limits, and the [roadmap](../ROADMAP.md) for the next milestones. Earlier dated
-results below retain their original counts and scope.
+results, in the segment ledgers indexed below, retain their original counts
+and scope.
 
 ## Owner objective
 
