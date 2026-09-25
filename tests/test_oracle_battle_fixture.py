@@ -223,13 +223,17 @@ class Segmentation(FixtureTest):
     """The extractor's reading of the RAM log's own shape."""
 
     def test_an_action_opens_on_a_fighter_id_and_ignores_menu_state(self):
-        # The command phase leaves non-fighter numbers in $FFFF4142.
+        # The command phase leaves non-fighter numbers in $FFFF4142, and the
+        # turn engine writes a queue entry - even one it then skips because the
+        # fighter is down - before it tests anything (`ps4.asm:8033-8043`), so
+        # what opens a window is the action's own calls: frames 2-3 read the
+        # fighter's id but drew nothing, and are not a turn.
         rows = [Row(frame=1, battle_actor="12037"), Row(frame=2, battle_actor="1"),
                 Row(frame=3, battle_actor="1"), Row(frame=4, battle_actor="0"),
                 Row(frame=5, battle_actor="7"), Row(frame=6, battle_actor="9")]
         log = self.load(rows)
-        self.assertEqual(bf.action_windows(log, 1, 6),
-                         [(1, 2, 4), (7, 5, 5), (9, 6, 6)])
+        self.assertEqual(bf.action_windows(log, 1, 6, roll_frames=[3, 6]),
+                         [(1, 3, 5), (9, 6, 6)])
 
     def test_a_round_opens_where_the_turn_order_is_filled(self):
         log = self.load([Row(frame=1), Row(frame=2, turn_00="0001"),
@@ -245,8 +249,27 @@ class Segmentation(FixtureTest):
         loaded = [Row(frame=3, e1_id="000A", e1_hp="25", e1_maxhp="25",
                       enemy_count="2")]
         log = self.load(stale + loaded)
-        self.assertEqual(bf.enemies_loaded(log, 1, 3), 3)
         self.assertEqual(bf.enemy_slots(log, 3), [6])
+        # One record where the count says two: the load is half done, and a
+        # fixture started here would fight a formation the cartridge did not.
+        with self.assertRaises(bf.FixtureError):
+            bf.enemies_loaded(log, 1, 3)
+
+    def test_a_half_written_formation_is_not_the_start_frame(self):
+        """The load writes one slot per frame; `enemy_count` is the tell.
+
+        The sweep's formation `$13`: f24821 holds one SandNewt record over a
+        count of 2, f24822 holds both. Starting at f24821 seated one enemy, and
+        the port's round was then a different battle from the cartridge's.
+        """
+        log = self.load([Row(frame=1, e1_id="0038", e1_hp="41", e1_maxhp="41",
+                             enemy_count="2"),
+                         Row(frame=2, e1_id="0038", e1_hp="41", e1_maxhp="41",
+                             e2_id="0038", e2_hp="41", e2_maxhp="41",
+                             enemy_count="2")])
+        self.assertEqual(bf.enemy_slots(log, 1), [6])
+        self.assertEqual(bf.enemy_slots(log, 2), [6, 7])
+        self.assertEqual(bf.enemies_loaded(log, 1, 2), 2)
 
     def test_a_battle_with_no_formation_is_rejected(self):
         log = self.load([Row(frame=1)])
@@ -261,14 +284,16 @@ class Observations(FixtureTest):
                                      [(30207, 16), (30207, 32)],
                                      {1, 2, 3, 6, 7})
 
-    def test_a_slot_is_a_target_when_its_flag_or_damage_moves(self):
+    def test_a_slot_is_a_target_when_the_pass_resolved_it(self):
         log, record = self.observation([
             Row(frame=30206, e1_hp="25", e2_hp="25", dmg_05="0", dmg_06="0"),
-            # The hit pass rewrites the flags; the damage routine fills the
-            # damage list; the HP moves later, in the animation.
+            # The hit pass presets every flag and then writes the window's
+            # verdicts; the damage routine fills the damage list; the HP moves
+            # later, in the animation.
             Row(frame=30207, battle_actor="1", hit_05="00", hit_06="00",
                 dmg_05="12", dmg_06="10", e1_hp="25", e2_hp="25"),
-            Row(frame=30208, battle_actor="1", e1_hp="13", e2_hp="15"),
+            Row(frame=30208, battle_actor="1", hit_05="00", hit_06="00",
+                e1_hp="13", e2_hp="15"),
         ])
         self.assertEqual([target["id"] for target in record["targets"]], [6, 7])
         self.assertEqual([target["hit"] for target in record["targets"]],
@@ -278,6 +303,27 @@ class Observations(FixtureTest):
         self.assertEqual([target["died"] for target in record["targets"]],
                          [False, False])
         self.assertEqual(record["roll_count"], 48)
+
+    def test_a_slot_the_pass_left_at_ff_is_not_a_target(self):
+        """A preset that rewrites a previous action's verdict is not a target.
+
+        The sweep's formation `$10`: the round's last actor's window reaches
+        the frames where the battle scratch above `$FFFF4150` is reused, and the
+        bytes that land there are not verdicts at all. A slot whose flag reads
+        `$FF` at the action's own pass is unresolved, whatever moves later.
+        """
+        log, record = self.observation([
+            Row(frame=30206, e1_hp="25", e2_hp="25"),
+            Row(frame=30207, battle_actor="1", hit_05="00", dmg_05="12",
+                e1_hp="25", e2_hp="25"),
+            # The scratch's own write, after the action's pass: three bytes
+            # `loc_B6A2` never writes, and `$FF` again for the slot it hit.
+            Row(frame=30208, battle_actor="1541", hit_02="03", hit_03="06",
+                hit_05="FF", e1_hp="13", e2_hp="25"),
+        ])
+        self.assertEqual([target["id"] for target in record["targets"]], [6])
+        self.assertEqual(record["targets"][0]["hit"], "00")
+        self.assertEqual(record["verdict_frame"], 30207)
 
     def test_the_actors_own_side_is_never_a_target(self):
         # `loc_B6A2` blanks every slot, so a party slot reading $FF (and its
@@ -528,16 +574,16 @@ class DecisiveHitByte(FixtureTest):
         self.assertEqual(target["hit"], "00")
         self.assertEqual(self.passes(fixture), [1, 2, 3])
 
-    def test_a_swing_whose_last_pass_missed_records_the_miss(self):
+    def test_a_swing_whose_last_pass_missed_resolves_nothing(self):
         # A miss writes `$FF` over the slot (`loc_B704`, `ps4.asm:17528-17530`),
         # so a swing whose first pass hit and whose second missed resolves
-        # nothing: the slot is still listed - its flag moved in the window -
-        # and its byte is the decisive pass's `$FF`, not the first pass's hit.
+        # nothing: the slot is read at the decisive pass's frame and left out of
+        # the target list, which is what the port's own swing has to match.
         fixture = self.swing([(13, 1, "00"), (14, 1, "FF")])
-        action, target = self.action(fixture)
+        action = fixture["rounds"][0]["actions"][0]
         self.assertEqual(action["hit_frame"], 13)
-        self.assertEqual(target["hit"], "FF")
-        self.assertIsNone(target["damage"])
+        self.assertEqual(action["verdict_frame"], 14)
+        self.assertEqual(action["targets"], [])
         self.assertEqual(self.passes(fixture), [1, 2])
 
 

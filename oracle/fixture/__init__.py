@@ -54,15 +54,18 @@ optional (`kind`, `ability`, `vehicle`, `outcome.defeat`).
 Every name the older top-level module exposed is re-exported here, so
 `from oracle.fixture import Log, build_fixture` is the whole public surface.
 """
-from .assembly import build_fixture
+from .assembly import build_fixture, command_entry
 from .enemies import ability_used, ability_column, kind_of, KINDS
 from .errors import FixtureError
-from .logs import Log, header_lines, load_ram_map, load_rows, sha256
-from .observations import (DAMAGE_STORED, ENEMY_NAMES, HP_COLUMNS,
-                           PARTY_IDS, PARTY_NAMES, ROLL_COLUMNS, action_record,
-                           action_windows, battle_start, compact_leaf_arrays,
-                           decided_frame, enemies_loaded, enemy_slots,
-                           hp_column, round_frames, side_of, stat_block,
+from .logs import (Log, header_lines, load_ram_map, load_rows,
+                   provenance_lines, sha256)
+from .observations import (DAMAGE_STORED, ENEMY_NAMES, HIT_FLAG_VALUES,
+                           HIT_FLAGS, HP_COLUMNS, NOT_TARGETED, PARTY_IDS,
+                           PARTY_NAMES, ROLL_COLUMNS, STATUS_EFFECT_BITS,
+                           action_effects, action_record, action_windows,
+                           battle_start, compact_leaf_arrays, decided_frame,
+                           enemies_loaded, enemy_slots, hit_flags, hp_column,
+                           pass_frame, round_frames, side_of, stat_block,
                            turn_order, wiped_out)
 from .rolls import (DAMAGE_RUN, HIT_NOT_TARGETED, M16, group_by_frame,
                     roll_column_report, roll_high_word, roll_low_word,
@@ -77,12 +80,15 @@ BATTLE_LAST = 30428
 
 __all__ = [
     "BATTLE_FIRST", "BATTLE_LAST", "DAMAGE_RUN", "DAMAGE_STORED",
-    "ENEMY_NAMES", "FixtureError", "HIT_NOT_TARGETED", "HP_COLUMNS", "KINDS",
-    "Log", "M16", "PARTY_IDS", "PARTY_NAMES", "ROLL_COLUMNS",
+    "ENEMY_NAMES", "FixtureError", "HIT_FLAGS", "HIT_FLAG_VALUES",
+    "HIT_NOT_TARGETED", "HP_COLUMNS", "KINDS", "Log", "M16", "NOT_TARGETED",
+    "PARTY_IDS", "PARTY_NAMES", "ROLL_COLUMNS", "STATUS_EFFECT_BITS",
     "VEHICLE_FIGHTER_ID", "VEHICLE_HP_COLUMN", "ability_column",
-    "ability_used", "action_record", "action_windows", "battle_start",
-    "build_fixture", "compact_leaf_arrays", "decided_frame",
+    "ability_used", "action_effects", "action_record", "action_windows",
+    "battle_start", "build_fixture", "command_entry", "compact_leaf_arrays",
+    "decided_frame",
     "enemies_loaded", "enemy_slots", "group_by_frame", "header_lines",
+    "hit_flags", "pass_frame", "provenance_lines",
     "hp_column", "hp_columns", "kind_of", "load_ram_map", "load_rows",
     "roll_column_report", "roll_high_word", "roll_low_word",
     "rolls_in_window", "round_frames", "sha256", "side_of", "stat_block",

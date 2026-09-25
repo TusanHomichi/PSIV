@@ -35,30 +35,39 @@ Fields it does not, recorded here as `"undetermined"` notes:
   slots with no status or TP movement), and the tapes hold C through the
   command phase, so the fixture says `attack` for each member and says so.
 * **A miss versus an untargeted slot.** `Fighters_Hit_Flags` is `$FF` for
-  both, so a slot whose flag is `$FF` and whose damage word did not move is
-  reported as `"ff"` rather than guessed. Which `$FF` - and which verdict - is
-  the one the action's **last** `loc_B6A2` pass wrote: the routine presets all
-  nine flags before every pass, so an earlier pass's reading is overwritten,
-  and a swing whose passes arrive in different frames is read at the last
-  pass's own frame (`observations.sample_decisive_hits`), not at the first
-  frame the flags moved.
+  both, so a slot the action's pass left at `$FF` is reported unresolved and
+  not guessed at. The byte is the **last** `loc_B6A2` pass's: the routine
+  presets all nine flags before every pass (`ps4.asm:17493-17498`), so an
+  earlier pass's verdicts are overwritten, and a swing whose passes arrive in
+  different frames is read on the last frame the flags moved on
+  (`observations.pass_frame`) - the frame `Fighter_TakeDamage` reads. A target
+  is a slot that pass *resolved* (`$00` or `$01`), which keeps a verdict that
+  repeats the previous action's visible where a change-based reading lost it,
+  and a frame whose bytes are not verdicts at all - the battle scratch above
+  `$FFFF4100`, reused when a round runs out of actors - is not a pass.
 * **A damage word rewritten to the same value.** A slot's damage is only
   visible as a change; an action that rewrote the previous value is
-  indistinguishable from one that skipped the slot.
+  indistinguishable from one that skipped the slot. `hp_after` is what pins
+  such a slot: it is the live cell, either way.
 * **Frame of the HP write.** `Battle_Heal_Damage_List` is filled by the
   damage routine and applied later, inside the animation state machine, so
   the fixtures' `hp_after` is the HP at the *end* of the action.
 * **The ability's class.** The log names the id an enemy executed and what it
-  left behind - damage on one slot, on every slot, or nothing at all - but not
-  the arm that produced it; `kind` is that reading and nothing more
-  (`oracle/fixture/enemies.py`).
+  left behind - on either side: a damage word, a fighter's HP, a status byte or
+  a battle stat cell - and whether the action drew anything after its own
+  ability roll; `kind` is that reading and nothing more
+  (`oracle/fixture/enemies.py`). A turn whose arm ran and found nothing to do
+  is the same log as a turn whose arm does not exist, and is recorded as
+  `wasted` for that reason.
+* **The act's own side.** An action's `targets` are its opponents' slots; an
+  ability that touches the acting side - the sweep's TechUser heals itself with
+  RES - shows up in `effect` instead, which is read off every seated fighter.
 """
 from . import enemies as enemy_readings, roles, vehicle as vehicles
 from .errors import FixtureError
-from .observations import (ROLL_COLUMNS, action_record, action_windows,
-                           battle_start, decided_frame, enemies_loaded,
-                           round_frames, sample_decisive_hits, side_of,
-                           turn_order)
+from .observations import (ROLL_COLUMNS, action_effects, action_record,
+                           action_windows, battle_start, decided_frame,
+                           enemies_loaded, round_frames, side_of, turn_order)
 from .rolls import (DAMAGE_RUN, HIT_NOT_TARGETED, group_by_frame,
                     roll_column_report, rolls_in_window)
 
@@ -165,12 +174,14 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta, max_rounds=0,
         action_rolls = [(frame, len(values)) for frame, values in frames
                         if start <= frame <= end]
         record = action_record(log, actor, start, end, action_rolls, occupied,
-                              columns)
+                              columns,
+                              roll_frames=[frame for frame, _ in action_rolls])
         record["round"] = round_of(start)
         record["living_opponents"] = [
             id_ for id_ in sorted(occupied)
             if side_of(id_) != side_of(actor)
             and log.signed(start, columns[id_]) > 0]
+        record["effect"] = action_effects(log, start, end, occupied, columns)
         record["animation_pass"] = animation_pass
         record["passes_done"] = 0
         if side_of(actor) == "enemy":
@@ -186,7 +197,8 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta, max_rounds=0,
             record["ability_frame"] = None
             record["ability_written"] = False
         record["kind"] = (enemy_readings.kind_of(
-            record["ability"], roles.resolved_targets(record))
+            record["ability"], roles.resolved_targets(record),
+            record["effect"])
                           if side_of(actor) == "enemy" else "attack")
         records.append(record)
 
@@ -213,13 +225,6 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta, max_rounds=0,
                     record["passes_done"],
                     max((pass_number for _, _, pass_number in labels),
                         default=0))
-                # The action's last `loc_B6A2` roll: the pass whose flags
-                # `Fighter_TakeDamage` reads. `loc_B6A2` presets all nine
-                # `Fighters_Hit_Flags` before each pass (`ps4.asm:17493-17498`),
-                # so every earlier pass's verdicts are overwritten.
-                if any(role == "hit" for role, _, _ in labels):
-                    record["decisive_hit_frame"] = max(
-                        record.get("decisive_hit_frame", 0), frame)
                 labelled.append((frame, values, labels,
                                  record["round"], record["actor"]))
                 break
@@ -227,16 +232,6 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta, max_rounds=0,
             labelled.append((frame, values,
                              [("order", None, 0)] * len(values),
                              round_of(frame), 0))
-
-    # The byte each swing left behind is its last pass's, so a swing whose
-    # passes arrive in more than one frame records its decisive pass's verdict
-    # rather than the first's. A swing whose passes all land in its first hit
-    # frame - every character's single pass, Alys's and Kyra's two - already
-    # holds that byte, and is left alone.
-    for record in records:
-        decisive = record.get("decisive_hit_frame")
-        if decisive is not None and decisive != record["hit_frame"]:
-            sample_decisive_hits(log, record, decisive)
 
     rolls, outside = [], []
     for frame, values, labels, number, actor in labelled:
@@ -251,8 +246,7 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta, max_rounds=0,
             if record["round"] != number:
                 continue
             written = {key: value for key, value in record.items()
-                       if key not in ("animation_pass", "passes_done",
-                                      "decisive_hit_frame")}
+                       if key not in ("animation_pass", "passes_done")}
             written["rolls"] = [[frame, count]
                                 for frame, count in record["rolls"]]
             actions.append(written)
@@ -262,8 +256,8 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta, max_rounds=0,
             "order_frame": round_frame,
             "order": [fighter for fighter, _ in order],
             "ordering": [value for _, value in order],
-            "commands": [{"id": fighter, "command": "attack"}
-                         for fighter, _ in order if fighter <= 3],
+            "commands": [command_entry(log, fighter, round_frame)
+                         for fighter, _ in order if fighter <= 5],
             "roll_count": sum(len(values) for _, values, _, n, _
                               in labelled if n == number),
             "actions": actions,
@@ -369,6 +363,40 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta, max_rounds=0,
             "victory_frame": action_end,
         },
     }
+
+
+#: The log's `Character_Command_Data` target cell per party fighter id
+#: (`oracle/ram_map.json`'s `cmdN_target`, `constants:2005-2011`): the fighter
+#: a member was told to attack, as the command phase left it.
+COMMAND_TARGET_COLUMNS = {1: "cmd0_target", 2: "cmd1_target",
+                          3: "cmd2_target", 4: "cmd3_target",
+                          5: "cmd4_target"}
+
+#: `$FFFF` in a target cell is -1: `Battle_AttackCommand` writes it for an
+#: attack whose reach is the whole side (`ps4.asm:8464`), and `loc_B6A2` reads
+#: the sign as "widen the window" (`ps4.asm:17501-17508`).
+NO_TARGET = -1
+
+
+def command_entry(log, fighter, frame):
+    """One party member's round command, and its target when the log has it.
+
+    Every party action in these captures is a physical attack (`assembly`'s
+    "command identity" note), so the command is `attack`; what the capture can
+    add is *whom* it was aimed at. A capture that logs the `bcmd` group
+    (`oracle/force/runs.py`'s `GROUPS`) carries `Character_Command_Data`, and
+    the target a member chose is what the replay needs to tell a swing that
+    kept its aim from one the cartridge moved off a fallen enemy
+    (`docs/BATTLE_ORACLE_SWEEP.md`, the retarget cluster). Older captures, and
+    the sweep's own, do not carry the group: the entry then names no target
+    rather than guessing one.
+    """
+    entry = {"id": fighter, "command": "attack"}
+    column = COMMAND_TARGET_COLUMNS.get(fighter)
+    if column is not None and log.has(column):
+        value = log.num(frame, column)
+        entry["target"] = value - 0x10000 if value > 0x7FFF else value
+    return entry
 
 
 def _hp_patch_note(party, vehicle, hp):

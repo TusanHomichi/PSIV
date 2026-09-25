@@ -393,8 +393,8 @@ One reading of the fixture changed with it, and the checker did not. A
 per-target `hit` byte is the one the swing's **last** pass wrote - `loc_B6A2`
 presets all nine `Fighters_Hit_Flags` to `$FF` before every pass
 (`ps4.asm:17493-17498`), and every pass walks the same window - so
-`oracle/fixture/observations.py`'s `sample_decisive_hits` reads the byte at the
-frame of the action's last `loc_B6A2` roll, which `oracle/fixture/roles.py`'s
+`oracle/fixture/observations.py`'s `sample_decisive_hits` (since replaced by
+`pass_frame`) reads the byte at the frame of the action's last `loc_B6A2` roll, which `oracle/fixture/roles.py`'s
 labels name. Rounds 3 and 6 of the capture are the case that made it necessary:
 their first pass came back critical and their third normal, and their damage -
 154 and 189 - is what only a normal hit's arithmetic produces. The fixture was

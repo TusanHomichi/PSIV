@@ -241,6 +241,29 @@ pub(crate) struct Action {
     /// what the log had to aim at.
     #[allow(dead_code)]
     pub(crate) living_opponents: Vec<u8>,
+    /// What the action moved on any fighter, either side. `targets` is the
+    /// acting side's opponents, which is what a swing can touch; an enemy
+    /// ability can touch its own side, and a status or stat effect leaves its
+    /// mark in a byte rather than in a damage word
+    /// (`oracle/fixture/observations.py`'s `action_effects`).
+    #[serde(default)]
+    pub(crate) effect: Effect,
+}
+
+/// An action's effects, as the log shows them.
+///
+/// Only the status bytes are compared: they are the one effect the fixtures
+/// cover that the port reports as its own event (the engine's
+/// `StatusInflicted`). `hp` and `stats` are recorded for a reader and for the
+/// extractor's own reading of *whether* an ability resolved
+/// (`oracle/fixture/enemies.py`); the HP a resolution leaves is already
+/// compared through each target's `hp_after`.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub(crate) struct Effect {
+    /// `[fighter id, status before, status after]` for every fighter whose
+    /// status byte the action moved.
+    #[serde(default)]
+    pub(crate) status: Vec<(u8, u32, u32)>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

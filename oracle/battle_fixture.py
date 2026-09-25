@@ -23,8 +23,8 @@ if __package__ in (None, ""):
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 from oracle.fixture import (BATTLE_FIRST, BATTLE_LAST, FixtureError,
-                            build_fixture, compact_leaf_arrays, header_lines,
-                            load_ram_map, load_rows, Log, sha256)
+                            build_fixture, compact_leaf_arrays, load_ram_map,
+                            load_rows, Log, provenance_lines, sha256)
 
 
 def default_ram_map():
@@ -40,7 +40,10 @@ def main(argv=None):
                         help="RAM log CSV from the same run")
     parser.add_argument("--out", required=True, help="fixture JSON to write")
     parser.add_argument("--ram-map", default=default_ram_map())
-    parser.add_argument("--tape", default="oracle/tapes/07_first_battle.tape")
+    parser.add_argument("--tape", default="oracle/tapes/07_first_battle.tape",
+                        help="the tape the capture replayed; recorded by its "
+                             "file name, so a fixture does not depend on "
+                             "where the sweep kept it")
     parser.add_argument("--core", default="Genesis Plus GX 2d7131c "
                                          "(libretro/Genesis-Plus-GX)")
     parser.add_argument("--patch", default="oracle/patches/0001-rng-hv-trace.patch")
@@ -64,15 +67,19 @@ def main(argv=None):
 
     trace_rows = load_rows(arguments.trace)
     log = Log(load_rows(arguments.log), load_ram_map(arguments.ram_map))
+    # Every name a fixture records is the file's own, never the path this run
+    # was given: the same capture extracted into another directory, or from
+    # another directory, has to yield the same bytes (`oracle/fixture/logs.py`
+    # `provenance_lines`, and `oracle/host/provenance.h` on the host's side).
     meta = {
-        "tape": arguments.tape,
+        "tape": os.path.basename(arguments.tape),
         "core": arguments.core,
         "patch": arguments.patch,
         "trace": os.path.basename(arguments.trace),
         "trace_sha256": sha256(arguments.trace),
         "log_sha256": sha256(arguments.log),
-        "trace_header": header_lines(arguments.trace),
-        "log_header": header_lines(arguments.log),
+        "trace_header": provenance_lines(arguments.trace),
+        "log_header": provenance_lines(arguments.log),
     }
     fixture = build_fixture(trace_rows, log, load_ram_map(arguments.ram_map),
                             arguments.battle_first, arguments.battle_last, meta,

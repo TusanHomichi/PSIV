@@ -869,19 +869,16 @@ int main(int argc, char **argv)
 		}
 	}
 
-	/* Header carries the provenance needed to reproduce the run. Inputs are
-	 * named as given; an output of this run is named by its basename, so two
-	 * runs that differ only in where they wrote produce identical files
-	 * (oracle/host/provenance.h). */
+	/* Header carries the provenance needed to reproduce the run. Every input
+	 * is named by its basename, so two runs that differ only in their
+	 * directories - where the ROM or the tape happens to sit, where this run
+	 * wrote - produce identical files and can be pinned by sha256
+	 * (oracle/host/provenance.h). What identifies the ROM is its size, which
+	 * the line carries, not the path it was read from. */
 	fprintf(out, "# core=%s %s region=%s\n", sysinfo.library_name,
 	        sysinfo.library_version,
 	        rt_get_region() == RETRO_REGION_PAL ? "PAL" : "NTSC");
-	fprintf(out, "# rom=%s size=%zu\n", rom_path, rom_size);
-	/* The tape is this run's *input*, but its path is not what the run
-	 * observed: a capture re-run from another directory replays the same
-	 * tape and must produce the same bytes, so the line names the file
-	 * alone, as `# rng-trace=` below does. `# rom=` and the rest of an
-	 * input's spelling stay verbatim. */
+	fprintf(out, "# rom=%s size=%zu\n", path_basename(rom_path), rom_size);
 	fprintf(out, "# tape=%s steps=%d frames=%llu\n", path_basename(tape_path),
 	        psiv_tape_count(), (unsigned long long)psiv_tape_total_frames());
 	if (rng_trace_enabled())
