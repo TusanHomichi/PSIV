@@ -25,6 +25,9 @@ brief below and will review your diff and the raw trajectory of this run.
   than seeking an escalation.
 - Git: use only read-side commands (status, diff, log, show). The lane tooling
   records and commits your work after you finish.
+- Stop processes only by the PID you recorded or the job id your tools
+  returned. A command-line pattern match can hit the harness that started you
+  and end the run (lane sw-S1-motavia SIGTERM'd its own worker that way).
 - Follow the repository's AGENTS.md. Stay within the brief's scope and touch
   only the files it assigns to you.
 - Keep every file you touch under 1,000 lines. When your change would take a

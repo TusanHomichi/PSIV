@@ -2,8 +2,9 @@
 
     PYTHONPATH=. python3 -m unittest discover -s tests -p 'test_ds_lane*.py' -v
 
-`start` and `resume`, the phrasing and write-set preflights, worker host state,
-the write set each run is checked against, `verify`, `tail` and `rm`.
+`start` and `resume`, the phrasing and write-set preflights, the prompt's trip
+to the worker on stdin, worker host state, the write set each run is checked
+against, `verify`, `tail` and `rm`.
 """
 import json
 import os
@@ -381,3 +382,54 @@ class LaneCase(LaneFixture):
         self.assertFalse(self.lane_state("t2").exists())
         self.assertFalse(self.lane_wt("t2").exists())
 
+    # -- 9. the prompt reaches the worker on stdin, not on the command line
+
+    def test_prompt_travels_on_stdin_and_never_as_an_argument(self):
+        """No brief text is ever an argv word of the worker's command line.
+
+        A prompt in argv is text the worker's own process matching can hit -
+        lane sw-S1-motavia ran a `pkill -f` whose pattern sat in its brief and
+        SIGTERM'd the harness that started it (2026-09-24) - so the supervisor
+        feeds the run's `prompt.md` to the worker's stdin, and the recorded
+        command names that file instead of quoting it. The fake worker refuses
+        an argv prompt, so a regression here shows up as a failed run.
+        """
+        token = "MOTAVIA-ARGV-TOKEN"
+        first = self.write("t1-opts.json", "stale\n")
+        brief = f"# Brief\n\nTouch only tools/keep.txt and name {token} once.\n"
+        self.start(brief, "t1", {"files": {"tools/keep.txt": "one\n"},
+                                 "opts_out": str(first), "result": RECEIPT_RESULT})
+        self.assertEqual(self.run_json("t1")["exit_code"], 0)
+        run1 = self.lane_state("t1", "run-1")
+        seen = json.loads(first.read_text())
+        self.assertEqual(seen["prompt"], (run1 / "prompt.md").read_text(),
+                         "the worker read the run's own prompt.md")
+        self.assertIn(token, seen["prompt"])
+        self.assertIn("# ds-lane worker rules", seen["prompt"])
+
+        cmd = json.loads((run1 / "command.json").read_text())
+        self.assertEqual(cmd[-1], "<stdin: prompt.md>")
+        self.assertEqual(cmd[:-1], seen["argv"], "the recorded command is the worker's argv")
+        self.assertNotIn(token, json.dumps(cmd))
+        self.assertNotIn(token, " ".join(seen["argv"]))
+        self.assertNotIn(token, (run1 / "spec.json").read_text())
+
+        # A resumed run gets the same treatment with its follow-up prompt.
+        token2 = "MOTAVIA-RESUME-TOKEN"
+        second = self.write("t1-resume-opts.json", "stale\n")
+        follow = f"# Repair\n\nTouch only tools/keep.txt and name {token2} once.\n"
+        self.resume("t1", follow, spec={"files": {}, "opts_out": str(second)}, check=0)
+        self.assertEqual(self.run_json("t1", run=2)["exit_code"], 0)
+        run2 = self.lane_state("t1", "run-2")
+        seen2 = json.loads(second.read_text())
+        self.assertEqual(seen2["prompt"], (run2 / "prompt.md").read_text())
+        self.assertIn("# Follow-up from the orchestrator", seen2["prompt"])
+        self.assertIn(token2, seen2["prompt"])
+
+        cmd2 = json.loads((run2 / "command.json").read_text())
+        self.assertEqual(cmd2[-1], "<stdin: prompt.md>")
+        self.assertEqual(cmd2[:-1], seen2["argv"])
+        for text in (json.dumps(cmd2), " ".join(seen2["argv"])):
+            self.assertNotIn(token2, text)
+            self.assertNotIn(token, text)  # the brief's own text neither
+        self.assertNotIn(token2, (run2 / "spec.json").read_text())

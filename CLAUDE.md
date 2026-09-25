@@ -56,6 +56,14 @@ stdlib-only `tools/ds_lane/` package (`config`, `preflight`, `trajectory`,
   symlinked in with `--link PATH` (or `--link PATH=SOURCE`). The worker can
   read them but not write them, so a lane that regenerates packs must write
   inside its worktree (for example with `PSIV_RUNTIME_PACK` pointing there).
+- **The prompt travels on stdin.** The supervisor writes the run's `prompt.md`
+  to the worker's stdin and puts nothing of it on the command line: a brief in
+  argv is text the worker's own process matching can hit, and lane
+  `sw-S1-motavia` killed its own worker with a `pkill -f` pattern that sat in
+  its brief (2026-09-24). `command.json` records `<stdin: prompt.md>` in the
+  prompt's place, the run's `prompt.md` is what the worker read byte for byte,
+  and the worker preamble states the rule in positive words (stop a process
+  only by the PID you recorded or the job id your tools returned).
 - **Brief phrasing law.** Reasonix parses the prompt for constraints.
   Negated-mutation wording outside code fences ("do not edit", "no changes",
   "read-only", ...) bans every write for the whole session. State file
