@@ -93,7 +93,7 @@ SFX_NAMES = (
 SPECIAL_NAMES = ("SpaceshipRadar", "LandRover", "Hydrofoil")
 
 
-# Structural sentinels from SOUND_SCOUT.md.  They are checked before any
+# Structural sentinels from docs/sound/SOUND_SCOUT.md.  They are checked before any
 # pointer is trusted, so a different clone cannot silently produce a pack.
 ANCHORS = (
     (0xD0008, "4D F9 00 FF 50 00 42 2E 00 0E 4A 2E 00 07 66 00"),

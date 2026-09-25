@@ -309,7 +309,7 @@ pub struct FormationEnemy {
 /// A `$FF`-terminated battle formation.
 ///
 /// The header is the record's first four bytes plus the count and the two group
-/// masks; see `docs/BATTLE_SCOUT.md` §9.
+/// masks; see `docs/battle/BATTLE_SCOUT.md` §9.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FormationRecord {
     /// The formation's index across all four data blocks.

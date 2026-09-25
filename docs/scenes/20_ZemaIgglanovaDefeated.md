@@ -1,7 +1,7 @@
 # `Cutscene_ZemaIgglanovaDefeated`
 
 Native continuation repairs and current evidence are in
-[`SCENE_DIALOGUE.md`](../SCENE_DIALOGUE.md). The 11-op transcription now
+[`SCENE_DIALOGUE.md`](SCENE_DIALOGUE.md). The 11-op transcription now
 includes the original panel-dialogue flag write at `$074588`; the full map
 reload restores all seven residents after the temporary battle staging.
 

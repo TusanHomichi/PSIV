@@ -17,7 +17,7 @@
 //! So the persistent record and the battle record are the same structure, and
 //! this module stores [`Stats`] directly. A conversion layer would be inventing
 //! a seam the hardware does not have, and every seam is somewhere to drift.
-//! `docs/FIELD_STATE.md` carries the adjudication and the round-trip contract.
+//! `docs/field/FIELD_STATE.md` carries the adjudication and the round-trip contract.
 //!
 //! # What survives a battle
 //!

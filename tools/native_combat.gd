@@ -1,4 +1,4 @@
-# A real battle from an isolated native save. See NATIVE_PLAYABILITY.md.
+# A real battle from an isolated native save. See docs/campaign/NATIVE_PLAYABILITY.md.
 # Chaz -> RES -> Chaz; Alys -> FOI -> second enemy; Hahn -> GELUN.
 extends SceneTree
 

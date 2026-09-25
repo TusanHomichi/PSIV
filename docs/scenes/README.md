@@ -2,7 +2,7 @@
 
 **Research coverage is not connected-play coverage.** These records extend
 through the ending, while the verified connected campaign is still in the
-BioPlant. Use [the roadmap](../ROADMAP.md) and [playability ledger](../NATIVE_PLAYABILITY.md)
+BioPlant. Use [the roadmap](../ROADMAP.md) and [playability ledger](../campaign/NATIVE_PLAYABILITY.md)
 for current progress; an individual scene fixture does not close a campaign milestone.
 
 Opening-act material was transcribed 2026-08-14 from the retail cartridge;
@@ -140,7 +140,7 @@ checked in cannot assemble (`script/eventptrs.asm`, `script/cutsceneptrs.asm`
 and `script/runeventsjmptbl.asm` are missing too), so "build it and diff" was
 never an option either.
 
-> **Correction to `docs/EVENT_ENGINE_SCOUT.md`.** The scout records "17 scene
+> **Correction to `docs/scenes/EVENT_ENGINE_SCOUT.md`.** The scout records "17 scene
 > routines include `script/scenes/*/event.asm` **ungated**". The count of 17 is
 > right; the *ungated* part is not. Walking the conditional nesting, only
 > **7 of the 17 are ungated**:

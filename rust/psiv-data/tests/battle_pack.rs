@@ -132,7 +132,7 @@ fn the_formation_the_scouts_worked_example_uses_is_what_it_says_it_is() {
 
 #[test]
 fn the_one_formation_whose_count_lies_is_the_one_the_notes_name() {
-    // SOURCE_NOTES: formation 0x177 declares four enemies and lists three.
+    // docs/source-notes/README.md: formation 0x177 declares four enemies and lists three.
     let Some(dir) = require_battle() else { return };
     let files = BattleFiles::load(&dir).expect("battle/ loads");
 

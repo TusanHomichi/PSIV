@@ -62,7 +62,7 @@ class TestPiataShopOracle(unittest.TestCase):
                 self.assertTrue(layout["self_check"]["passed"])
 
     def test_decode_record_pins_camera_remap_and_windows(self):
-        document = (ROOT / "docs/SHOP_LAYOUT_DECODED.md").read_text()
+        document = (ROOT / "docs/camp/SHOP_LAYOUT_DECODED.md").read_text()
         for text in (
             "`(47,51)`",
             "`(63,51)`",

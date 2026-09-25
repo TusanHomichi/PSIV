@@ -192,7 +192,7 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta, max_rounds=0,
         else:
             # The command the member chose is not in the log; every party
             # action here is a physical attack and the tape holds C
-            # (`docs/BATTLE_ORACLE_REPLAY.md`).
+            # (`docs/oracle/BATTLE_ORACLE_REPLAY.md`).
             record["ability"] = 0
             record["ability_frame"] = None
             record["ability_written"] = False
@@ -387,7 +387,7 @@ def command_entry(log, fighter, frame):
     (`oracle/force/runs.py`'s `GROUPS`) carries `Character_Command_Data`, and
     the target a member chose is what the replay needs to tell a swing that
     kept its aim from one the cartridge moved off a fallen enemy
-    (`docs/BATTLE_ORACLE_SWEEP.md`, the retarget cluster). Older captures, and
+    (`docs/oracle/BATTLE_ORACLE_SWEEP.md`, the retarget cluster). Older captures, and
     the sweep's own, do not carry the group: the entry then names no target
     rather than guessing one.
     """

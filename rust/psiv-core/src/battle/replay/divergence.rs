@@ -1,7 +1,7 @@
 //! One finding: the first place a round's timeline disagrees with the log.
 //!
 //! These are the shapes `every_fixture_replays_as_recorded` reads, and the
-//! names `replay_fixtures/divergences.json` carries; `docs/BATTLE_ORACLE_SWEEP.md`
+//! names `replay_fixtures/divergences.json` carries; `docs/oracle/BATTLE_ORACLE_SWEEP.md`
 //! §4 is where each one is triaged, as a port rule or as the harness's own
 //! misreading. [`super::compare::divergence`] is what produces them.
 

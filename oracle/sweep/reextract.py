@@ -1,7 +1,7 @@
 """Re-extracting a sweep's fixtures from the captures it already took.
 
 A sweep's captures are the expensive half: every one is an emulator run over
-tens of thousands of frames, and `docs/BATTLE_ORACLE_SWEEP.md`'s clusters are
+tens of thousands of frames, and `docs/oracle/BATTLE_ORACLE_SWEEP.md`'s clusters are
 fixed by re-reading them, not by re-taking them. This is that run: for every
 `formation_XX/` directory under a sweep's working directory that holds a
 capture, the extraction stage is run again, with the same numbers the capture

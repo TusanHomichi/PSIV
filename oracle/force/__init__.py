@@ -6,7 +6,7 @@ The oracle can replay a battle exactly, but only battles an existing tape
 happens to reach. This makes any formation reachable on demand: take a base tape
 that walks into an encounter, force the formation that encounter will use, drive
 the fight with a scripted input policy, and write the RNG trace and RAM log the
-replay machinery consumes. `docs/BATTLE_ORACLE_FORCED.md` is the ledger: the
+replay machinery consumes. `docs/oracle/BATTLE_ORACLE_FORCED.md` is the ledger: the
 mechanism with its citations, the captures and their limits.
 
 `Battle_SetupEnemyData` (`ps4.asm:11813`) picks the formation in one pass inside

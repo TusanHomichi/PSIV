@@ -45,7 +45,7 @@ pub(super) fn record_damage(power: u16, resistance: u16, element_factor: u8, bon
     crate::battle::clamp_damage(t.wrapping_sub(resistance) as i16)
 }
 
-/// The carriers of `docs/ENEMY_DAMAGE_ROUTES.md` §3's single-target pairs, with
+/// The carriers of `docs/battle/ENEMY_DAMAGE_ROUTES.md` §3's single-target pairs, with
 /// the stat line `generated/enemies.json` gives them. `Enemy_DamageCharacter`
 /// (`ps4.asm:3775`) reads the caster's stat through record byte 1, so each
 /// expected number below is that carrier's own stat.

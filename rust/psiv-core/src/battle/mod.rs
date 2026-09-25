@@ -1,4 +1,4 @@
-//! The battle engine — Tiers 0 and 1 of `docs/BATTLE_SCOUT.md` §15.
+//! The battle engine — Tiers 0 and 1 of `docs/battle/BATTLE_SCOUT.md` §15.
 //!
 //! Integer-only and I/O-free like the rest of the crate. Tier 0 is the math
 //! kernel: damage, healing, the chance roll, the two selection tables. Tier 1

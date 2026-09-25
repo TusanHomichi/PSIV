@@ -401,7 +401,7 @@ class Commands(ForcedFixture):
     of what a member's swing was *aimed* at: the cartridge moves
     `Current_Target_Index` off a commanded enemy that has fallen
     (`ps4.asm:8345-8409`), so the cell is what tells a swing that kept its aim
-    from one the retarget scan re-aimed (`docs/BATTLE_ORACLE_SWEEP.md`, the
+    from one the retarget scan re-aimed (`docs/oracle/BATTLE_ORACLE_SWEEP.md`, the
     retarget cluster). A capture carries it only from the point `bcmd` joined
     `oracle/force/runs.py`'s `GROUPS`.
     """

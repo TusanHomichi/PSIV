@@ -8,7 +8,7 @@ This is PSIV's standing default. Each standing rule has one owner, listed in the
 the project README, and the work queue and canonical graph
 pointer in the roadmap. Subsystem ledgers retain measured history. Do not
 create a second tracker or copy changing campaign status into instructions.
-The [setup ledger](WORKFLOW_SETUP.md) records adoption and host verification.
+The [setup ledger](records/WORKFLOW_SETUP.md) records adoption and host verification.
 This procedure is guidance, not an automatic dispatcher, restart service or
 enforcement system; enforcement belongs to the
 [gate](DEVELOPMENT.md#gate-and-coverage).
@@ -95,7 +95,7 @@ no project authority.
 | Git / remote writes | The owner authorized committing, publishing a PR, merging and owned cleanup for these workflow docs on 2026-09-23, and on 2026-09-25 the contributor-guidance change through issues, a branch and a PR. Neither is a standing remote-write grant for campaign changes. Reuse explicit task authorization without asking again. Remote inspection is allowed. |
 | Cleanup | Remove only owned disposable outputs/processes and, when integration includes it, owned task branches/worktrees. Retain receipts, source saves and other people's work. No broad cleanup. |
 | Deployment / publication | Releases, deployment and asset distribution are outside this setup; no standing grant recorded. |
-| Paid services | No paid model service is currently authorized in PSIV; the completed battle-decision experiments are summarized in their [archived record](REDSHIRT_BATTLE.md). Any future live batch needs a new explicit assignment, and nothing here authorizes unrelated service or credit purchase. |
+| Paid services | No paid model service is currently authorized in PSIV; the completed battle-decision experiments are summarized in their [archived record](records/REDSHIRT_BATTLE.md). Any future live batch needs a new explicit assignment, and nothing here authorizes unrelated service or credit purchase. |
 | Protected inputs | Owned by [AGENTS.md](../AGENTS.md#protect-local-inputs-and-evidence); no task grant relaxes them. |
 | Effort | Owner: "Continue scoped repairs until it passes, with no fixed cycle limit." Applies to failures of accepted checks inside authorized scope. It does not waive source, permission, resource or input constraints. |
 | Continuation | The original setup graph covers local documentation acceptance; the authorized publication follow-through is recorded in the setup ledger. BioPlant continuation was assigned separately and must not be bundled into the docs PR. During an assigned outcome, continue ready authorized nodes through its agreed endpoint without repeated approval requests. |
@@ -136,7 +136,7 @@ to repair; invalidate dependent acceptance affected by changes. Do not mark a
 node verified because its worker stopped or its budget expired. Preserve stable
 IDs and failure history. Archive a completed graph in its owning ledger/closed
 issue before advancing, remove its active duplicate, and retain one next action.
-The [setup graph](WORKFLOW_SETUP.md#setup-graph) is the first real worked example.
+The [setup graph](records/WORKFLOW_SETUP.md#setup-graph) is the first real worked example.
 
 ## Find the smallest useful verification
 
@@ -277,7 +277,7 @@ only contain patterns worth copying.
   implementation of the same concern is a defect, even when both agree today.
 - No workarounds, duplicate code paths, or comments that justify a deviation.
   A known gap is a GitHub issue link. Comments state contracts and invariants;
-  retail deviations are recorded in [SOURCE_NOTES.md](../SOURCE_NOTES.md).
+  retail deviations are recorded in [docs/source-notes/README.md](source-notes/README.md).
 - An anti-pattern that cannot be removed in the current change is first stopped
   from spreading: add a guard (lint setting or guard test, with a baseline of
   the existing instances if needed) that fails on new ones, then file the

@@ -299,7 +299,7 @@ pub(super) fn field_map_retaining_objects(
 }
 
 /// The wandering objects on a map: the packed routines whose random calls have
-/// been transcribed in `docs/NPC_WANDER.md`. Fixed-position and bespoke
+/// been transcribed in `docs/field/NPC_WANDER.md`. Fixed-position and bespoke
 /// routines remain out of this list; they are not silently approximated as
 /// generic walkers.
 pub(super) fn build_wander(map: &FieldMap, record: &MapRecord) -> Result<WanderSet, BridgeError> {

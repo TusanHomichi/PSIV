@@ -6,7 +6,7 @@ chronological retail-bug records that follow from them — flags,
 shops, encounter tables, layouts — with their corrections and
 retractions kept in place.
 
-Index: [source and provenance notes](../../SOURCE_NOTES.md).
+Index: [source and provenance notes](README.md).
 
 ## Discrepancies found against the disassembly's annotations
 
@@ -188,7 +188,7 @@ and the flag-set whose absence would re-fire the trigger forever.
   `Zio3` (16383 HP, all-255 defences — a debug/leftover boss) which appears
   in zero of the 504+27 formations. Verdict for the port: reject effect ids
   outside `$00-$2B` at data-load time and record the one offender as a
-  census anomaly. Full battle fact base: `docs/BATTLE_SCOUT.md`.
+  census anomaly. Full battle fact base: `docs/battle/BATTLE_SCOUT.md`.
 - RETAIL CARTRIDGE BUG: Wren's battle pose 3 (Charge) decompresses 42 words
   into a 36-word plane buffer. The per-slot buffers (`loc_9A80`) are `$48`
   bytes apart and the draw loop (`loc_86D6`) stamps 6x6, so the surplus 6
@@ -215,7 +215,7 @@ and the flag-set whose absence would re-fire the trigger forever.
   set-on-trigger / clear-on-exit plausibly re-arms or force-loots the
   Alshline chest on hardware. psiv-core's five-bank model must merge temp
   into the $F140 bank (one 256-id space) to reproduce retail. Found by the map-effects decoder
-  (docs/MAP_EFFECTS.md finding 5); ROM byte sweeps re-verified
+  (docs/field/MAP_EFFECTS.md finding 5); ROM byte sweeps re-verified
   independently by the lead.
 - RETAIL CARTRIDGE BUG (a second instance of a known one):
   `Battle_BackgroundIndexes` (0x006CA8) is 416 bytes for the 417-map id
@@ -287,7 +287,7 @@ and the flag-set whose absence would re-fire the trigger forever.
   choice; `loc_5F99E` replaces the tentative default dispatch with that
   selection before inventory commit. The earlier initial-data-only claim
   stopped at `EquipItemType_OneHanded` and missed this later path. A left
-  weapon and a right shield are both valid. `docs/EQUIP_SCOUT.md` records
+  weapon and a right shield are both valid. `docs/camp/EQUIP_SCOUT.md` records
   the repaired native flow and its verification.
 - Citation correction: UpdateCharModStats is retail $05F754, not
   $05F880 ($05F880 is the unrelated routine UpdateEquipment tail-calls).
@@ -368,7 +368,7 @@ and the flag-set whose absence would re-fire the trigger forever.
   unreachable in play. The location table's 0..$30 coverage stands as
   bytes; the REACHABLE shop set is 46, not 49. Tonoe's only live
   counter is its inn.
-- Shop economy facts (docs/SHOPS.md): sell price is exactly half,
+- Shop economy facts (docs/camp/SHOPS.md): sell price is exactly half,
   rounding down (read from the lsr, not assumed); stock is structurally
   unlimited (buy lists re-read from ROM, nothing decrements); the inn
   bill is rate x occupied party slots, DEAD MEMBERS BILLED, and a night
@@ -385,5 +385,5 @@ and the flag-set whose absence would re-fire the trigger forever.
   stacked on the Academy Basement bosses (type $74, bit 3 set, dialogue
   id 0) plausibly open dialogue tree entry 0 — the principal's chain —
   when pressed at on hardware. The port makes invisible no-dialogue
-  objects solid-but-silent (docs/FIELD_STATE.md, invisible-blockers
+  objects solid-but-silent (docs/field/FIELD_STATE.md, invisible-blockers
   section). Hardware confirmation tape filed with the oracle.

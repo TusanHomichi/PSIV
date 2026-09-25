@@ -24,7 +24,7 @@ use crate::battle::{
     RoundOrders, SliceRolls, fixtures,
 };
 
-/// The three carriers of `docs/ENEMY_DAMAGE_ROUTES.md` §2's all-party rows,
+/// The three carriers of `docs/battle/ENEMY_DAMAGE_ROUTES.md` §2's all-party rows,
 /// with the stat line `generated/enemies.json` gives them. `Enemy_DamageCharacter`
 /// (`ps4.asm:3775`) reads the caster's stat through record byte 1, so each
 /// expected number below is that carrier's own attack word.

@@ -18,13 +18,13 @@ clusters below are a reading of the evidence, not a computation - which is why
 they are written down here, in a committed file, rather than guessed at from a
 `kind` string: `signature` decides which finding belongs to which cluster, and
 the assignment is asserted to be exactly one cluster per entry. `--clusters`
-prints the table the ledger (`docs/BATTLE_ORACLE_SWEEP.md`) carries: the slug,
+prints the table the ledger (`docs/oracle/BATTLE_ORACLE_SWEEP.md`) carries: the slug,
 its title, and each fixture with the divergence that put it there.
 
 Every cluster here is a **port rule** the cartridge has and `psiv-core` does
 not: the ledger's §4 is the triage that settled which findings those are, and
 the harness artifacts it found were fixed rather than listed
-(`docs/BATTLE_ORACLE_SWEEP.md` §4-§5; `oracle/fixture/*` and `replay/compare.rs`
+(`docs/oracle/BATTLE_ORACLE_SWEEP.md` §4-§5; `oracle/fixture/*` and `replay/compare.rs`
 are where they were).
 """
 from __future__ import annotations
@@ -39,7 +39,7 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 FIXTURES = (ROOT / "rust" / "psiv-core" / "src" / "battle" / "replay_fixtures")
 MANIFEST = FIXTURES / "divergences.json"
-LEDGER = "docs/BATTLE_ORACLE_SWEEP.md"
+LEDGER = "docs/oracle/BATTLE_ORACLE_SWEEP.md"
 
 
 @dataclasses.dataclass(frozen=True)

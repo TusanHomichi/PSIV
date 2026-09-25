@@ -32,7 +32,7 @@ DEFAULT_RAM_MAP_TSV = ORACLE / "ram_map.tsv"
 #: the one input a replay cannot otherwise recover: `Current_Target_Index` moves
 #: off a commanded enemy that has fallen (`ps4.asm:8345-8409`), so a swing's
 #: target is the command's own only when the command's target is still alive.
-#: `oracle/ram_map.json` carries the cells; `docs/BATTLE_ORACLE_SWEEP.md`'s
+#: `oracle/ram_map.json` carries the cells; `docs/oracle/BATTLE_ORACLE_SWEEP.md`'s
 #: retarget cluster is what needs them.
 GROUPS = "core,battle,bhit,enemy,chars,rng,vehicle,bcmd"
 

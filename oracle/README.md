@@ -255,8 +255,8 @@ frame and role of each, and what the RAM log shows every action doing, and
 `data.rs` is the one test that replays **every** fixture in
 `rust/psiv-core/src/battle/replay_fixtures/` and holds each one that does not
 match to its entry in `divergences.json`; the verdicts are in
-[`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md) and
-[`BATTLE_ORACLE_FORCED.md`](../docs/BATTLE_ORACLE_FORCED.md).
+[`BATTLE_ORACLE_REPLAY.md`](../docs/oracle/BATTLE_ORACLE_REPLAY.md) and
+[`BATTLE_ORACLE_FORCED.md`](../docs/oracle/BATTLE_ORACLE_FORCED.md).
 
 The host writes one row per call, in frame order:
 
@@ -329,7 +329,7 @@ frame, justified by the frame order above rather than by the chain - and any
 frame the log does not cover, which is counted and reported as skipped. Playing
 these rolls back through `psiv-core`'s damage path against the same battle in
 the log is the end-to-end check that closes that gap, and
-[`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md) is that check for
+[`BATTLE_ORACLE_REPLAY.md`](../docs/oracle/BATTLE_ORACLE_REPLAY.md) is that check for
 tapes 07 and 09.
 
 **The `roll` column, and the word it subtracts.** `sub.w (RNG_Seed).w, d0` at
@@ -349,7 +349,7 @@ cartridge's rolls, and `rng_trace.py check` could not see it because its own
 with nothing else. The cartridge settled it against tape 07's RAM log: the
 high-half derivation reproduces the battle's nine turn-order addends and all
 six of its damage values, the low-half one reproduces none of them
-([`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md)). The fix landed
+([`BATTLE_ORACLE_REPLAY.md`](../docs/oracle/BATTLE_ORACLE_REPLAY.md)). The fix landed
 in the host and in the checker, the capture was regenerated, and the two can no
 longer drift apart unnoticed: `tests/test_oracle_rng_trace.py` compiles
 `oracle/host/rng_trace.h` into a probe and compares it with the checker's
@@ -386,7 +386,7 @@ in 16 frames, between frames 25015 and 31786 of the battle at 25002-31908, all
 of them in the visible lines, with its fixture extracted by `--tape`,
 `--battle-first` and `--battle-last` and nothing else. Both traces' pins, both
 fixtures' provenance and both replays' draw accounting are in
-[`BATTLE_ORACLE_REPLAY.md`](../docs/BATTLE_ORACLE_REPLAY.md).
+[`BATTLE_ORACLE_REPLAY.md`](../docs/oracle/BATTLE_ORACLE_REPLAY.md).
 
 ### Forced battles: capturing any formation on demand
 
@@ -438,7 +438,7 @@ untrimmed preview, the trimmed capture, and a re-run to byte-compare it, with
 `oracle/rng_trace.py check` on the result. The output directory holds the
 composed tape, the `--ram-patch` list, every run's log and trace, and a
 `report.json` with the window, the outcome, the vehicle forced, the ability ids
-observed and every sha256. [`BATTLE_ORACLE_FORCED.md`](../docs/BATTLE_ORACLE_FORCED.md)
+observed and every sha256. [`BATTLE_ORACLE_FORCED.md`](../docs/oracle/BATTLE_ORACLE_FORCED.md)
 is the ledger: the mechanism with its citations, four captures (Helex/FLAME
 BOLT, Fanbite/SPIRAL BLD, Desrt Leach/SAND STORM under the Land Rover and again
 under the Ice Digger), the Ice Digger's two-pass swing divergence and their
@@ -473,7 +473,7 @@ actions; `oracle/force/durable.py`) and
 record is `<out>/sweep_motavia.json` - per formation the group, the selector,
 the capture's hashes, the outcome, the rounds, the abilities observed and the
 fixture's hash, plus a census - and
-[`BATTLE_ORACLE_SWEEP.md`](../docs/BATTLE_ORACLE_SWEEP.md) is what came out of
+[`BATTLE_ORACLE_SWEEP.md`](../docs/oracle/BATTLE_ORACLE_SWEEP.md) is what came out of
 this sweep: coverage, and every divergence the manifest holds, clustered.
 
 ### Deterministic scene fixtures
@@ -725,7 +725,7 @@ constants file does not name, recovered from the operand the code itself uses.
 `enemy_ability_index` (`$FFFFEEA8`) is the only such field so far - it is
 `Enemy_Attack`'s ability re-roll word, read at `ps4.asm:19149` and written at
 `ps4.asm:19151` - and the clears that reach it, the oracle measurements and what
-the port does with it are in `docs/BATTLE_ORACLE_REPLAY.md`. Nothing was
+the port does with it are in `docs/oracle/BATTLE_ORACLE_REPLAY.md`. Nothing was
 inferred by watching memory. Struct fields are recorded as base + offset with
 both citations so the arithmetic is auditable — for example `c1_facing` is
 `Character_1` (`constants:2086`, `$FFFFC000`) plus `facing_dir`
@@ -748,7 +748,7 @@ So:
 - long at even `A` → `word(A) << 16 | word(A + 2)`
 
 Get this backwards and every log line is quietly wrong, so `verify.sh` proves
-both paths against values the cartridge itself chose (see `RESULTS.md`).
+both paths against values the cartridge itself chose (see `../docs/oracle/RESULTS.md`).
 
 ## Tapes
 
@@ -800,9 +800,9 @@ The operational README stays short enough to audit at a glance. The detailed
 oracle findings are split into two reference ledgers so each file remains
 under the repository's 1,000-line maintenance limit:
 
-- [`RESULTS.md`](RESULTS.md) — determinism, field/talk/RNG/battle evidence,
+- [`RESULTS.md`](../docs/oracle/RESULTS.md) — determinism, field/talk/RNG/battle evidence,
   and the chest/object findings through the second chest.
-- [`RESULTS_CONTINUED.md`](RESULTS_CONTINUED.md) — the retracted flag-bank
+- [`RESULTS_CONTINUED.md`](../docs/oracle/RESULTS_CONTINUED.md) — the retracted flag-bank
   note, camera/object observations, story gates, RAM notes, tape-authoring
   guidance, open questions, and comparator feeding.
 

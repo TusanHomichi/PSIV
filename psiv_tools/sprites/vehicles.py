@@ -50,7 +50,7 @@ def vehicle_sprites(rom: bytes, map_palette: Sequence[RGB]) -> list[VehicleSprit
     Vehicle routines write ``$60`` to the sprite palette selector, which is
     CRAM line 3. The caller supplies the current pack's map palette blob in
     the retail ``0,1,3`` order; a runtime pack has one baked sheet, so the
-    palette source is the first selected map (recorded in ``VEHICLES.md``).
+    palette source is the first selected map (recorded in ``docs/field/VEHICLES.md``).
     """
 
     if len(map_palette) < 48:

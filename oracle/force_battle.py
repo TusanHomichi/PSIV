@@ -9,7 +9,7 @@ This is the CLI entry point: it puts the repository root on `sys.path`, hands
 its arguments to [`oracle.force`](force/__init__.py) - the package that holds
 the mechanism, the citations and the phases - and turns a refused request into
 exit status 2. The package docstring is the account of what a capture is; the
-ledger is `docs/BATTLE_ORACLE_FORCED.md`.
+ledger is `docs/oracle/BATTLE_ORACLE_FORCED.md`.
 """
 import pathlib
 import sys

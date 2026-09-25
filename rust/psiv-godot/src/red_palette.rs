@@ -1,5 +1,5 @@
 //! CRAM component fades. Keep red; step green/blue on the measured RGB565
-//! ramps in docs/COLOR_PIPELINE.md. The core owns the eight blocking stages.
+//! ramps in docs/field/COLOR_PIPELINE.md. The core owns the eight blocking stages.
 use crate::Field;
 use godot::classes::{ColorRect, Shader, ShaderMaterial};
 use godot::prelude::*;

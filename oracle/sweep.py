@@ -11,7 +11,7 @@ the list, the per-formation run and the record - and turns a refused request
 into exit status 2. Re-running is the resume: a formation whose fixture is on
 disk and whose recorded hash still matches is skipped, and `--force` runs them
 all again. The record is `<out>/sweep_motavia.json`; the ledger of what this
-sweep found is `docs/BATTLE_ORACLE_SWEEP.md`.
+sweep found is `docs/oracle/BATTLE_ORACLE_SWEEP.md`.
 """
 import pathlib
 import sys

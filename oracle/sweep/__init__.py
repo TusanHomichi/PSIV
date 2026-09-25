@@ -32,7 +32,7 @@ The shape of one formation's run, and the reason for each part:
 `oracle/sweep_motavia.json` (or `--out`'s own name) is the record: per
 formation the group, the selector, the capture's hashes, the outcome, the
 rounds and the abilities observed, and the fixture's own hash - plus a summary
-census. `docs/BATTLE_ORACLE_SWEEP.md` is where the divergences that record
+census. `docs/oracle/BATTLE_ORACLE_SWEEP.md` is where the divergences that record
 produces are worked up.
 """
 from .plan import (FOOT_GROUPS, MOTAVIA_GROUPS, VEHICLE_GROUPS, Formation,
