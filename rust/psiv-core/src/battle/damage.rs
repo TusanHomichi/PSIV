@@ -191,7 +191,7 @@ mod tests {
 
     #[test]
     fn a_critical_bonus_enters_before_the_element_multiply() {
-        // A crit adds `attack >> 2` as the bonus: 14 >> 2 = 3.
+        // A crit adds `critical_bonus(attack)`, the low byte quartered: 14 >> 2 = 3.
         //   (56+8)*14 = 896 ; >>6 = 14 ; +14 = 28 ; +2*3 = 34 ;
         //   *2 = 68 ; >>2 = 17 ; -10 = 7
         //

@@ -100,7 +100,7 @@
 //! by `loc_77AE` (`$4C`/`$4D` are equipment; `ps4.asm:11295-11404` writes none)
 //! cannot change it. `loc_27A4` (`ps4.asm:3963-3969`) then supplies
 //! `atk_pow_battle` of the actor, `dfs_pow_battle` of the target and the
-//! critical bonus `atk >> 2` when the hit flag is `$01`, and jumps to `loc_266C`
+//! critical bonus `(atk & $FF) >> 2` (`critical_bonus`) when the hit flag is `$01`, and jumps to `loc_266C`
 //! — `Battle_CalculateDamage` (`ps4.asm:17374`) and the 1..=999 clamp, the same
 //! sixteen draws every other damage path spends.
 //!

@@ -305,7 +305,7 @@ weapon's, so equipping a shield can change your other hand's damage.
     tst.b   (a0,d6.w)
     ble.s   loc_26D0
     move.b  d1, d4
-    lsr.w   #2, d4                 ; crit bonus = attack / 4
+    lsr.w   #2, d4                 ; crit bonus = (attack & $FF) / 4: byte move into a cleared d4
 loc_26D0:
     bra.s   loc_266C
 ```
