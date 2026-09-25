@@ -1,5 +1,5 @@
 # Bounded connected proof: one encounter, normal recovery, then ordinary SAVE.
-extends "res://../tools/native_bioplant.gd"
+extends "res://../tools/native/native_bioplant.gd"
 
 func configure_route():
     super.configure_route()

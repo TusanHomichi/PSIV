@@ -1,5 +1,5 @@
 # Isolated pipe fixture. Only ordinary ITEM, cancel, destination and SAVE input.
-extends "res://../tools/native_camp_abilities.gd"
+extends "res://../tools/native/native_camp_abilities.gd"
 var initial_inventory := []
 
 func inventory_is(state, ids):

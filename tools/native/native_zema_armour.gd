@@ -1,6 +1,6 @@
 # Spend battle-earned meseta on carbon suits through the existing shop and
 # equipment menus. The party already paid for its final training rest.
-extends "res://../tools/native_zema_outfit.gd"
+extends "res://../tools/native/native_zema_outfit.gd"
 
 func configure_route():
     route = [[0,99,82,0x24],[0x24,26,31,0x26],[0x26,35,32,0x26],

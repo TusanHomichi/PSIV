@@ -1,5 +1,5 @@
 # STATE/ORDER through ordinary input, including undo, cancel and SAVE.
-extends "res://../tools/native_motavia.gd"
+extends "res://../tools/native/native_motavia.gd"
 var order_phase := 0
 var before_order
 const WANTED = [4,1,0,2]

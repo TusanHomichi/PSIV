@@ -1,6 +1,6 @@
 # Connected equipped-Zema save to Rika, via ordinary doors, elevator input,
 # random encounters and dialogue. The probes are read-only.
-extends "res://../tools/native_motavia.gd"
+extends "res://../tools/native/native_motavia.gd"
 
 const ELEVATORS = {0xA4:[[32,17]],0xA6:[[24,43],[40,43]],0xA7:[[70,11]],0xAA:[[28,27]]}
 var left_entrance := false

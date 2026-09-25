@@ -129,7 +129,7 @@ xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 \
   PSIV_DEBUG_SHOT="$PWD/build/native-opening/field.png" \
   PSIV_DEBUG_SHOT_FRAME=3360 \
   "$HOME/.local/bin/psiv-godot-4.7.1" --path godot \
-  --script "$PWD/tools/native_opening.gd" --display-driver x11 \
+  --script "$PWD/tools/native/native_opening.gd" --display-driver x11 \
   --rendering-method gl_compatibility --audio-driver Dummy \
   --fixed-fps 60 --quit-after 3370 \
   --log-file "$PWD/build/native-opening/godot.log"
@@ -173,7 +173,7 @@ extractor baseline; this continuation changes no Python extraction code.
 
 The Godot smoke fixture loads an isolated native save with Chaz/Alys/Hahn
 and Chaz at 20/25 HP, then starts real formation `$8A` in Academy Basement B3
-(map `$17`). `tools/native_combat.gd` supplies actual menu input: RES on Chaz,
+(map `$17`). `tools/native/native_combat.gd` supplies actual menu input: RES on Chaz,
 FOI on enemy slot 7, GELUN on the enemy group. This is a constructed combat
 fixture, not a claim that the route from START was traversed. The test can
 create its save without touching the player's normal saves:
@@ -191,7 +191,7 @@ xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 \
   PSIV_DEBUG_SHOT="$PWD/build/native-combat/round.png" \
   PSIV_DEBUG_SHOT_FRAME=1000 \
   "$HOME/.local/bin/psiv-godot-4.7.1" --path godot \
-  --script "$PWD/tools/native_combat.gd" --display-driver x11 \
+  --script "$PWD/tools/native/native_combat.gd" --display-driver x11 \
   --rendering-method gl_compatibility --audio-driver Dummy \
   --fixed-fps 60 --quit-after 1010 \
   --log-file "$PWD/build/native-combat/godot.log"
@@ -281,7 +281,7 @@ xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 \
   PSIV_DEBUG_SHOT="$PWD/build/native-skills/remaining.png" \
   PSIV_DEBUG_SHOT_FRAME=1100 \
   "$HOME/.local/bin/psiv-godot-4.7.1" --path godot \
-  --script "$PWD/tools/native_skills.gd" --display-driver x11 \
+  --script "$PWD/tools/native/native_skills.gd" --display-driver x11 \
   --rendering-method gl_compatibility --audio-driver Dummy \
   --fixed-fps 60 --quit-after 1110 \
   --log-file "$PWD/build/native-skills/godot.log"
@@ -334,14 +334,14 @@ the cartridge's transient sprite flag. The native engine expresses the
 transient part as a revival event instead of persisting it in saves.
 
 `build/native-items/receipt.json` records the native smoke and artifact
-hashes. `tools/native_items.gd` selects Chaz's Dynamite on enemy 7, Alys's
+hashes. `tools/native/native_items.gd` selects Chaz's Dynamite on enemy 7, Alys's
 Monomate on Hahn, and Hahn's Antidote on himself. The inspected screens show
 all five actions, reserved copies, and the inventory after consumption.
 Hahn ends at 21 HP without poison, enemy 7 is dead, TP remains 10/40/25,
 and only the unused Moon-Dew and Repair-Kit remain in inventory slots 3/4.
 Generate the isolated save with `PSIV_ITEM_SMOKE_SAVE_DIR` and the
 `combat_items` runtime test. Run the Godot smoke like the skill recipe, with
-`PSIV_ITEM_SHOTS`, `tools/native_items.gd`, shot frame 1320 and quit frame
+`PSIV_ITEM_SHOTS`, `tools/native/native_items.gd`, shot frame 1320 and quit frame
 1330. The usual software-rendering/dummy-audio and constructed-fixture
 limitations apply; retail item animation and casting sounds remain pending.
 
@@ -373,7 +373,7 @@ workspace passes **796 Rust tests** and Clippy with warnings denied.
 save: two all-defend rounds grow the neighbors; Alys then uses Dynamite on
 the left creature and the boss replaces it. The inspected native captures
 show the initial solitary boss, its first creature, and both full-health
-creatures after replacement. `tools/native_fission.gd` drives the commands;
+creatures after replacement. `tools/native/native_fission.gd` drives the commands;
 the `combat_fission` test creates its save with `PSIV_FISSION_SMOKE_SAVE_DIR`.
 Run it with `PSIV_DEBUG_EVENT=0x6B`, `PSIV_DEBUG_AUTOCLOSE_SCENE=1`,
 `PSIV_FISSION_SHOTS`, screenshot frame 2400 and quit frame 2410.
@@ -414,9 +414,9 @@ vehicle skill-use banks refill. Off-party characters and saved vehicle HP
 remain unchanged, as in the retail routine. Both house answers set its
 temporary visit flag; only YES performs recovery.
 
-`tools/native_dialogue.gd` drives the constructed post-boss fixture with
+`tools/native/native_dialogue.gd` drives the constructed post-boss fixture with
 normal text timing and automatic dismissal only after complete pages.
-`tools/native_choices.gd` separately supplies YES, NO, or Cancel at Chaz's
+`tools/native/native_choices.gd` separately supplies YES, NO, or Cancel at Chaz's
 house, starting with Chaz/Alys at 1 HP, 1 TP, and zero skill uses. Receipts
 and inspected screenshots belong under `build/native-dialogue/` and
 `build/native-choices/`. These are scene fixtures, not a continuous campaign.
@@ -454,7 +454,7 @@ now pays the actual battle pool once when results finish, capped at the
 retail 9,999,999. An escape after a kill pays no partial pool. Three real-pack
 regressions verify normal payout/save persistence, the cap, and that escape.
 
-`tools/native_route.gd` exercises the corresponding Godot route with actual
+`tools/native/native_route.gd` exercises the corresponding Godot route with actual
 button inputs and read-only collision/menu probes. The completed run at
 `build/native-route/verified-return/route.json` starts at the real title,
 traverses all 22 legs, wins six battles, completes the full conversations
@@ -555,7 +555,7 @@ relocation, edited stats, free healing, or direct combat API calls occur in
 this Godot route. The driver uses read-only observations and normal input;
 scene dialogue still uses the documented retail-paced automatic dismissal.
 
-`tools/native_motavia.gd` shares the Academy driver's movement/menu helpers.
+`tools/native/native_motavia.gd` shares the Academy driver's movement/menu helpers.
 It healed twice outside Piata and twice after a dungeon fight, using the
 camp TECH caster/target menus. Four random battles completed. Holt's actual
 dialogue interaction set flag `$10`, returned the party to Zema, and paid
@@ -605,7 +605,7 @@ separately; workspace/all-target Clippy passed with warnings denied.
 The connected Godot route killed its FlattrPlnt before Acid Breath executed,
 so it does not count as a native Acid Breath execution check.
 
-The separate native fixture `tools/native_enemy_attacks.gd` uses retail
+The separate native fixture `tools/native/native_enemy_attacks.gd` uses retail
 formation `$96` and a labelled party durability fixture. It selects DEFEND
 through COMD, observes FlattrPlnt use Acid Breath in its first round, and
 then wins through the attack menu. Chaz drops from 400 to 385 HP from one

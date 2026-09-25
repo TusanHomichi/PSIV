@@ -1,13 +1,12 @@
-# Isolated original five-person records. RIMIT, attacks and SAVE use input.
-extends "res://../tools/native_camp_abilities.gd"
+# Isolated injured original-record party. All casts, attacks and SAVE use input.
+extends "res://../tools/native/native_camp_abilities.gd"
 var rounds := 0
 var menu_open := false
 var saw_battle := false
 var initial_tp := -1
 var initial_money := -1
 var seen := []
-var saw_sleep := false
-var plan := [[23,-1,"RIMIT"]]
+var plan := [[34,2,"ANTI"],[35,2,"RIMPA"],[36,3,"REVER"],[37,3,"REGEN"]]
 
 func _physics_process(_delta):
     tick += 1
@@ -25,7 +24,7 @@ func _physics_process(_delta):
         initial_tp = int(raja[0].tp)
         initial_money = int(state.money)
     if tick > 18000:
-        fail("RIMIT fixture timed out",state)
+        fail("battle recovery fixture timed out",state)
         return false
     if cooldown > 0:
         cooldown -= 1
@@ -33,11 +32,6 @@ func _physics_process(_delta):
     if state.battle != null:
         saw_battle = true
         var battle = state.battle
-        if battle.message.ends_with(" asleep!") and not saw_sleep:
-            saw_sleep = true
-            record("enemy-asleep",state)
-            cooldown = 15
-            return false
         for ability in plan:
             if battle.message.ends_with(": " + ability[2]) and not ability[0] in seen:
                 seen.append(ability[0])
@@ -63,22 +57,22 @@ func _physics_process(_delta):
         elif menu.page == "Techniques":
             var wanted = menu.techniques.map(func(t): return int(t.id)).find(plan[rounds][0])
             if wanted < 0 or not menu.techniques[wanted].available:
-                fail("RIMIT unavailable",state)
+                fail("recovery technique unavailable",state)
                 return false
             choose(menu.cursor,wanted)
         elif menu.page.begins_with("Targets"):
             if casting:
                 var wanted = menu.targets.map(func(id): return int(id)).find(plan[rounds][1])
                 if wanted < 0:
-                    fail("RIMIT recipient missing",state)
+                    fail("recovery recipient missing",state)
                     return false
                 choose(menu.cursor,wanted)
             else: press("ui_accept")
-        else: fail("unexpected RIMIT battle menu",state)
+        else: fail("unexpected recovery battle menu",state)
         return false
     if not saw_battle or state.scene or state.dialogue or state.transition: return false
     if state.title or state.game_over:
-        fail("RIMIT fixture was defeated",state)
+        fail("recovery fixture was defeated",state)
         return false
     var camp = state.camp
     if camp == null:
@@ -87,10 +81,12 @@ func _physics_process(_delta):
     match phase:
         0:
             var raja = state.party_resources.filter(func(p): return int(p.id) == 8)[0]
-            if not saw_sleep or seen != [23] or int(raja.tp) != initial_tp-10 or int(state.money) != initial_money+6:
-                fail("RIMIT cast or paid resources wrong",state)
+            var chaz = camp.party.filter(func(p): return int(p.id) == 0)[0]
+            var hahn = camp.party.filter(func(p): return int(p.id) == 2)[0]
+            if seen.size() != 4 or int(raja.tp) != initial_tp-55 or int(chaz.status) != 0 or int(hahn.status) != 16 or hahn.hp <= 0 or int(state.money) != initial_money+6:
+                fail("recovery effects or paid resources wrong",state)
                 return false
-            record("after-RIMIT-victory",state)
+            record("recovered-party",state)
             phase = 1
             cooldown = 20
         1:
@@ -100,7 +96,7 @@ func _physics_process(_delta):
                 "SaveSlots": choose(camp.save,1)
                 "SaveResult":
                     if camp.message != "FILE SAVED":
-                        fail("RIMIT save failed",state)
+                        fail("recovery save failed",state)
                         return false
                     record("saved",state)
                     phase = 2

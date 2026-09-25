@@ -1,6 +1,6 @@
 # Continue the rescued-Zema campaign, buy equipment with earned meseta,
 # equip it through the camp menus, rest, and save outside town.
-extends "res://../tools/native_motavia.gd"
+extends "res://../tools/native/native_motavia.gd"
 
 const PURCHASES = {
     5: {"facing":"ui_left", "items":[[9,160],[9,160],[8,280],[22,1000]]},

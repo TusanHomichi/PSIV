@@ -50,13 +50,13 @@ commit, unchanged roster and field positions, SAVE/load, battle slot order,
 the complete target-roll distribution, and rejection during battle.
 The UI unit test checks nontrivial pick/undo restoration and auto-completion.
 
-`tools/native_party_order.gd` loads the connected map `$A7` SAVE, performs
+`tools/native/native_party_order.gd` loads the connected map `$A7` SAVE, performs
 pick/undo/cancel, commits Gryz/Alys/Chaz/Hahn and saves through the menu.
 The original emulator can load the very same native SRAM without RAM
 patches; `build/native-order/oracle/order.tape` performs the matching ORDER
 sequence. Its RAM dump at frame 1985 contains `[4,1,0,2,255]` at `$F40A`.
 
-`tools/verify_native_order.py` compares the ordinary-input receipt, exact
+`tools/native/verify_native_order.py` compares the ordinary-input receipt, exact
 save bytes and original RAM. It also compares native captures with original
 frames, allowing their independently timed cursors to reach the same phase.
 No pixels inside the compared rectangles are masked. This is a bounded

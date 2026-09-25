@@ -1,5 +1,5 @@
 # Isolated chest fixtures. Read-only probes, ordinary field/menu/save input.
-extends "res://../tools/native_camp_abilities.gd"
+extends "res://../tools/native/native_camp_abilities.gd"
 var scenario := OS.get_environment("PSIV_CHEST_SCENARIO")
 var initial_inventory := []
 var initial_money := 0

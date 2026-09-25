@@ -1,5 +1,5 @@
 # Isolated spell fixture. All casts, cancellations and saves use normal input.
-extends "res://../tools/native_camp_abilities.gd"
+extends "res://../tools/native/native_camp_abilities.gd"
 
 func _physics_process(_delta):
     tick += 1

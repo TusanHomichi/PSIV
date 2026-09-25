@@ -1,5 +1,5 @@
 # Ordinary Birth Valley battles and paid Zema rests. No generated XP or stats.
-extends "res://../tools/native_bioplant.gd"
+extends "res://../tools/native/native_bioplant.gd"
 
 var training_phase := "outbound"
 var inn_phase := 0
