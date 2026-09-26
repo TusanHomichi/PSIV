@@ -176,15 +176,20 @@ fn no_living_enemy_reads_an_empty_target_set_and_draws_nothing() {
 }
 
 #[test]
-fn an_enemy_attacker_keeps_the_ports_own_fallback() {
+fn an_enemy_attackers_character_side_aim_is_not_this_functions_to_move() {
     // The character-target arm of `loc_5A98` is the weighted draw
-    // `engine::take_turn` makes (`loc_56F0` / `Enemy_TargetCharacter`), so a
-    // fallen character leaves this port's first-survivor fallback in place and
-    // the scan - which is the party's arm - never runs for an enemy.
+    // `engine::take_turn` makes (`loc_56F0` / `Enemy_TargetCharacter`), and it
+    // runs before the action does; a swing's own reach is living enemies, so a
+    // stale character-side aim reaches nobody here and the swing's turn is the
+    // caller's own "no target". `take_turn`'s draw is what the engine tests and
+    // the sweep's fixtures pin.
     let mut roster = battlefield([15, 9, 4]);
     fall(&mut roster, id(1));
     let mut rolls = SliceRolls::new(&[1]);
     let targets = candidate_targets(&roster, id(6), Some(id(1)), Reach::Single, &mut rolls);
-    assert_eq!(targets, vec![id(2)]);
+    assert!(
+        targets.is_empty(),
+        "a character's slot is not an attack's aim"
+    );
     assert_eq!(rolls.drawn(), 0, "not this function's draw to make");
 }

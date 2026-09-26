@@ -1,6 +1,7 @@
 //! Inventory/equipment activation: Character_DoItem and CharItem_ItemObjOffs.
 //! Gameplay uses the item's power bytes, never the user's mental stat.
 
+use super::retarget;
 use super::technique::{in_range, stat};
 use super::{
     BattleData, BattleEvent, FighterId, Rolls, Roster, Side, Stats, TechniqueStat, Verdict,
@@ -183,12 +184,24 @@ pub(super) fn resolve_item(
     });
     let mut targets = item_targets(roster, actor, item);
     if item.single_target() {
-        let target = intended.filter(|t| targets.contains(t)).or_else(|| {
-            (item.targeting == 1)
-                .then(|| targets.first().copied())
-                .flatten()
-        });
-        targets = target.into_iter().collect();
+        // The same one owner: a living aim is kept with no draw, and a fallen
+        // enemy is re-aimed by the loop this record's own effect id selects
+        // (`loc_5C8A` -> `loc_5CA2` index 3, `ps4.asm:8518`, `8540-8544`). A
+        // party-side item's target nibble never enters `loc_5A98`
+        // (`ps4.asm:8055-8057`), so a dead recipient keeps the aim and the
+        // effect's own eligibility reports the use ineffective.
+        targets = intended
+            .and_then(|commanded| {
+                retarget::single_target(
+                    roster,
+                    commanded,
+                    retarget::deficit_for_effect(item.effect),
+                    rolls,
+                )
+            })
+            .filter(|chosen| targets.contains(chosen))
+            .into_iter()
+            .collect();
     }
     let mut died = Vec::new();
     for target in targets {

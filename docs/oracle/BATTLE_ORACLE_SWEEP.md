@@ -501,6 +501,57 @@ for its one draw. Transcripts:
 `build/lane-evidence/core-tests-restored.txt` (not committed; `build/` is
 ignored).
 
+**The routine's other arm: techniques, skills and items (2026-09-25).**
+`loc_5A98`'s enemy-slot branch has a **mirror** loop. `loc_5AFA`
+(`ps4.asm:8353-8380`) walks the same slots 6-9 with the same `status & $44`
+skip, but from `d4 = $7000` (`ps4.asm:8352`) and with the comparisons swapped,
+so it keeps the **smallest** `max_hp - curr_hp`; a tie costs the same one
+`UpdateRNGSeed2` and the later slot wins on the same `btst #0, d1`
+(`ps4.asm:8371`, the copy the citation note above points at). Which loop a
+command takes is `loc_5C8A` -> `loc_5CA2` (`ps4.asm:8504-8521`): a swing (kind
+1) and the vehicle's own attack (kind 6) take the largest-deficit loop
+(`ps4.asm:8523-8524`), and a technique, skill, item or vehicle skill reads
+**byte 0 of its own record** - the `AbilityEffectsOffs` effect id - and takes
+the mirror for any low nibble but `1` (`ps4.asm:8529-8548`, `8350-8351`). What
+enters either loop is the *record's target nibble*, not the command's kind
+(`ps4.asm:8055-8057`), so an ability aimed at the party never reaches them and a
+fallen ally keeps the aim.
+
+The port now has **one owner** for all four single-target paths -
+`rust/psiv-core/src/battle/retarget.rs`'s `single_target`, parameterized by
+`Deficit::Largest`/`Smallest` - replacing `action::retarget_scan` (whose loop is
+the `Largest` arm), `technique.rs`'s "first eligible" fallback and `item.rs`'s
+version of it, and `skill.rs`'s unconditional `targets.first()`, which also
+re-aimed a *party-side* aim the cartridge never moves. Tests:
+`battle/retarget_tests.rs` - both loops' kept aim with no draw, the unique
+extreme with no draw, a tie with each of its outcomes, a repeated tie, the empty
+side, the effect-nibble dispatch, and one real command of each kind that enters
+the loop (a swing, FOI, VOL, Crosscut, Earth and DYNAMITE, plus the vehicle's
+own attack in `vehicle_attack_tests.rs`). Negative control:
+with the technique path's old fallback restored, its tie test fails on the draw.
+
+**Transcribed from `ps4.asm`, not yet oracle-verified - and the capture is what
+is missing.** None of the 87 fixtures can show this rule: they carry 819 party
+commands, all `attack` (the sweep's own input policy and the forced captures'
+is mash-C, and `oracle/fixture/assembly.py`'s `command_entry` writes `"attack"`
+for every party action), and `python3 -m oracle.force --policy` offers only
+`attack` and `defend` (`oracle/force/tape.py`'s `policy_steps`), so no input
+opens the TECH list. A capture of the *mirror* additionally needs a member who
+knows a single-target non-damaging technique: the tape party's starting lists
+are FOI/SHIFT/SANER, RES/GELUN and RES (`generated/characters.json`), of which
+only FOI is single-enemy and its effect id 1 takes the largest loop.
+[`../source-notes/battle-party.md`](../source-notes/battle-party.md)'s
+2026-09-25 record carries the full finding, its citations and two fidelity
+notes (the `$C4` transient bit the port's keep test cannot see, and the `$7000`
+sentinel).
+
+**Correction to W1's unit-test paragraph above.** Its last clause - "an enemy
+attacker keeping the port's first-survivor fallback" - no longer describes the
+code: the character-side arm is `engine::take_turn`'s weighted draw
+(`loc_56F0` / `Enemy_TargetCharacter`, `ps4.asm:8341-8343`), so a swing's reach
+discards a character-side aim rather than falling back to the first survivor,
+and `action_retarget_tests.rs`'s case says so.
+
 **W2 (closed 2026-09-25). The enemy's AI instruction, not the ability roll,
 picks the ability** (`enemy-ai-conditional`, 4 fixtures: `formation_2A`, `2B`,
 `32`, `34`).
