@@ -262,28 +262,39 @@ fn every_fixture_replays_as_recorded() {
     assert_eq!(checked, files.len(), "every fixture was replayed");
 }
 
-/// Prints the manifest entry every diverging fixture needs, one JSON object per
-/// line, starting with the fixture's own name.
+/// Writes the manifest entry every diverging fixture needs - one JSON object
+/// per line, naming its fixture in the line's own `fixture` field - to the file
+/// `PSIV_MANIFEST_DUMP` names, and prints a one-line summary of what it wrote.
 ///
 /// The test above is one fixture at a time: a missing entry is a panic, so
 /// harvesting a whole directory's entries would take one test run per fixture.
-/// This is that walk with the panic replaced by a line on stdout - a new
-/// directory's manifest is generated with
-/// `cargo test -p psiv-core -- --ignored --nocapture dump_manifest_entries`,
-/// the entries are pasted into `divergences.json`, and `ledger` (and a clearer
-/// `action`) are written by hand, because those are a reader's and not the
-/// harness's. It is off by default for that reason: the walk above is the
-/// check, this is the tool.
+/// This is that walk with the panic replaced by a line in the dump -
+/// `oracle/sweep/manifest.py` reads the dump, assigns each finding to its
+/// cluster and writes `divergences.json`, and `ledger` (and a clearer `action`)
+/// are a reading of the evidence rather than something the harness can derive,
+/// which is why the manifest module carries those and not this. It is off by
+/// default for that reason: the walk above is the check, this is the tool.
+///
+/// A **file** and never stdout: with `--nocapture` libtest prints
+/// `test <name> ... ` without a newline before the test's own output, so the
+/// first finding used to come back as `test <name> ... {"fixture":...}`, and a
+/// reader that takes one JSON object per line drops a line it cannot read.
+/// The dump is written whole (a run that panics leaves the previous one, not
+/// half of this one), the summary is printed after it, and the path is not
+/// optional: an unset `PSIV_MANIFEST_DUMP` fails the run rather than putting
+/// findings somewhere nobody named.
 ///
 /// The one claim it does make is that a fixture's name is a line's own
 /// `fixture` field, and that every entry the manifest already carries still
 /// names a fixture that exists.
 #[test]
-#[ignore = "harvesting tool: prints the manifest entries a new directory needs"]
+#[ignore = "harvesting tool: writes the manifest entries a new directory needs"]
 fn dump_manifest_entries() {
+    let dump_path = manifest_dump_path();
     let (manifest, manifest_path) = manifest();
     let data = pack::data();
     let files = fixture_files();
+    let mut lines: Vec<String> = Vec::new();
     for (name, path) in &files {
         let text = std::fs::read_to_string(path)
             .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
@@ -322,9 +333,9 @@ fn dump_manifest_entries() {
         let line = serde_json::to_string(&entry).expect("the entry serialises");
         assert!(
             serde_json::from_str::<serde_json::Value>(&line).is_ok(),
-            "{name}: the line on stdout parses"
+            "{name}: the line written for it parses"
         );
-        println!("{line}");
+        lines.push(line);
     }
     for name in manifest.fixtures.keys() {
         assert!(
@@ -333,4 +344,92 @@ fn dump_manifest_entries() {
             manifest_path.display()
         );
     }
+    write_manifest_dump(&dump_path, &lines);
+    println!(
+        "{} finding(s) written to {}",
+        lines.len(),
+        dump_path.display()
+    );
+}
+
+/// The environment variable `dump_manifest_entries` writes its dump to.
+const MANIFEST_DUMP: &str = "PSIV_MANIFEST_DUMP";
+
+/// The repository root, which this crate lives at `rust/psiv-core` of.
+fn repository_root() -> &'static Path {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(Path::parent)
+        .expect("psiv-core is a workspace member at rust/psiv-core")
+}
+
+/// The dump's path, which the tool insists on being told.
+///
+/// A relative path is the repository root's, not the test process's own
+/// working directory: cargo runs a test binary from its package's directory
+/// (`rust/psiv-core`), so the documented
+/// `PSIV_MANIFEST_DUMP=build/lane-evidence/findings.jsonl` would otherwise
+/// leave the dump under `rust/psiv-core/build/`, where the reader - run from the
+/// root, as `docs/oracle/BATTLE_ORACLE_SWEEP.md` shows - does not look for it.
+fn manifest_dump_path() -> PathBuf {
+    let value = match std::env::var_os(MANIFEST_DUMP) {
+        Some(value) if !value.is_empty() => value,
+        _ => panic!(
+            "{MANIFEST_DUMP} is not set: this tool writes its findings to the file \
+             that variable names - one JSON object per line, so that libtest's own \
+             progress text can never share a finding's line - and prints only a \
+             summary. Set it to the dump's path (docs/oracle/BATTLE_ORACLE_SWEEP.md, \
+             \"Reproducing this ledger\"):\n\n    {MANIFEST_DUMP}=build/lane-evidence/\
+             findings.jsonl cargo test --manifest-path rust/Cargo.toml -p psiv-core \
+             -- --ignored --nocapture dump_manifest_entries\n"
+        ),
+    };
+    let path = PathBuf::from(value);
+    if path.is_absolute() {
+        path
+    } else {
+        repository_root().join(path)
+    }
+}
+
+/// Writes `lines` to `path`, one per line, creating the directory above it.
+///
+/// All of them or none: the file is written in one go, so a run that fails
+/// halfway through the walk leaves the previous dump rather than a short one.
+/// No findings at all still writes a dump - an empty file is a tree whose every
+/// fixture replays exactly, which is what `oracle/sweep/manifest.py` builds the
+/// empty manifest from, while a *missing* dump is the error it reports.
+fn write_manifest_dump(path: &Path, lines: &[String]) {
+    if let Some(parent) = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+    {
+        std::fs::create_dir_all(parent)
+            .unwrap_or_else(|error| panic!("cannot create {}: {error}", parent.display()));
+    }
+    let mut body = lines.join("\n");
+    if !lines.is_empty() {
+        body.push('\n');
+    }
+    std::fs::write(path, body)
+        .unwrap_or_else(|error| panic!("cannot write {}: {error}", path.display()));
+}
+
+/// An empty dump is an empty file, not a missing one.
+///
+/// The reader tells the two apart: no file at all is a run that never wrote the
+/// dump, and an empty one is a tree with nothing left to record - so the walk
+/// above always writes, however many findings it found.
+#[test]
+fn an_empty_dump_is_still_written() {
+    let dir = std::env::temp_dir().join("psiv-empty-manifest-dump");
+    let _ = std::fs::remove_dir_all(&dir);
+    let path = dir.join("lane-evidence/findings.jsonl");
+    write_manifest_dump(&path, &[]);
+    assert_eq!(
+        std::fs::read_to_string(&path).expect("an empty dump is written"),
+        "",
+        "an empty dump is an empty file, not a missing one"
+    );
+    std::fs::remove_dir_all(&dir).expect("the scratch directory goes away");
 }

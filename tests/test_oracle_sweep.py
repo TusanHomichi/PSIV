@@ -11,18 +11,27 @@ The list is checked against a hand-built pack here; the real one's 83
 formations are computed from `generated/formation_indexes.json` and recorded in
 `sweep_motavia.json` (`oracle/sweep/motavia_formations.json` is the committed
 list).
+
+`oracle/sweep/manifest.py` turns those fixtures' findings into the manifest the
+replay test reads, and its `load_dump` reads the dump `dump_manifest_entries`
+wrote as that tool's whole output: `ManifestDump` at the end pins that a line
+the tool did not write - libtest's own `test <name> ... ` progress text, which
+landed on the first finding's line when the findings were captured from stdout
+- fails the run instead of being skipped.
 """
 import json
 import os
 import pathlib
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest import mock
 
 from oracle.force.pack import Pack
 from oracle.sweep import Options, Sweep, list_formations, main, record_path
 from oracle.sweep import jobs as sweep_jobs
+from oracle.sweep import manifest
 from oracle.sweep.plan import write_list
 from tests.test_oracle_force_battle import ENCOUNTERS, PackFixture
 
@@ -329,6 +338,84 @@ class Resume(SweepFixture):
         with mock.patch.object(sweep_jobs, "run", self.fake_run()):
             self.sweep().run(jobs_count=1, limit=1)
         self.assertEqual(len(self.calls), 2)
+
+
+class ManifestDump(unittest.TestCase):
+    """`load_dump` reads the tool's whole output, or it fails.
+
+    The dump is one JSON object per line and is everything
+    `dump_manifest_entries` writes, so a line it did not write is a corrupt
+    dump: reading it as a shorter list of findings is how the first finding
+    (libtest's progress text sharing its line) was lost without a word.
+
+    The other two ends of that rule are the tests below: a dump with no
+    findings is a tree whose fixtures all replay exactly, and builds the empty
+    manifest; a dump that is not there at all is the error, because the file is
+    the tool's whole output and a missing one is a run that never wrote it.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.path = pathlib.Path(self.tmp.name) / "findings.jsonl"
+
+    def finding(self, fixture="sweep_motavia/formation_3B") -> dict:
+        """One finding as the Rust tool writes it: the entry's own fields."""
+        return {"fixture": fixture, "round": 3, "frame": 26155,
+                "kind": "value",
+                "expected": "FighterId(1): hit flag 00, damage Some(241)",
+                "actual": "Normal with Some(276)",
+                "round_rolls": {"log": 126, "port": 82}}
+
+    def written(self, *lines: str) -> pathlib.Path:
+        self.path.write_text("".join(line + "\n" for line in lines))
+        return self.path
+
+    def manifest(self) -> pathlib.Path:
+        return pathlib.Path(self.tmp.name) / "divergences.json"
+
+    def test_a_clean_dump_is_every_finding_it_holds(self):
+        first = self.finding("tape07_first_battle")
+        second = self.finding()
+        # A blank line holds no finding, so it is not an error either.
+        self.assertEqual(
+            manifest.load_dump(
+                self.written(json.dumps(first), "", json.dumps(second))),
+            [first, second])
+
+    def test_the_progress_line_libtest_prefixed_a_finding_with_fails(self):
+        # The shape a captured stdout dump had: libtest prints `test <name>
+        # ... ` with no newline of its own, then the test's own output.
+        line = ("test battle::engine::tests::replay::replay::data::"
+                "dump_manifest_entries ... " + json.dumps(self.finding()))
+        with self.assertRaises(SystemExit) as raised:
+            manifest.load_dump(self.written(line))
+        self.assertIn(f"{self.path}:1", str(raised.exception))
+
+    def test_a_line_that_is_not_a_json_object_fails(self):
+        with self.assertRaises(SystemExit) as raised:
+            manifest.load_dump(self.written(json.dumps(self.finding()),
+                                           "[1, 2]"))
+        self.assertIn(f"{self.path}:2", str(raised.exception))
+
+    def test_a_dump_that_is_not_there_fails(self):
+        # The dump is the tool's whole output: no file is a run that never
+        # wrote it, and the message says how to write it.
+        with self.assertRaises(SystemExit) as raised:
+            manifest.load_dump(self.path)
+        self.assertIn(str(self.path), str(raised.exception))
+        self.assertIn("PSIV_MANIFEST_DUMP", str(raised.exception))
+
+    def test_a_dump_with_no_findings_is_the_empty_manifest(self):
+        # Every fixture replays exactly (the sweep's own closing state): the
+        # dump holds no line, and what it builds is `{"fixtures": {}}`.
+        self.assertEqual(manifest.load_dump(self.written()), [])
+        argv = ["--dump", str(self.written()),
+                "--manifest", str(self.manifest())]
+        self.assertEqual(manifest.main(argv), 0)
+        self.assertEqual(json.loads(self.manifest().read_text()),
+                         {"fixtures": {}})
+        self.assertEqual(manifest.main(argv + ["--check"]), 0)
 
 
 if __name__ == "__main__":

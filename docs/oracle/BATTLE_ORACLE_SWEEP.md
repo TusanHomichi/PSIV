@@ -112,17 +112,31 @@ CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
     -- --test-threads=1 every_fixture_replays_as_recorded
 ```
 
-The manifest this ledger describes is generated, not typed: the Rust side prints
-each diverging fixture's first divergence and
-[`oracle/sweep/manifest.py`](../../oracle/sweep/manifest.py) assigns it to a
-cluster and writes `divergences.json`.
+The manifest this ledger describes is generated, not typed: the Rust side writes
+each diverging fixture's first divergence to the file `PSIV_MANIFEST_DUMP` names
+(one JSON object per line, with a one-line summary of the count and the path on
+stdout), and [`oracle/sweep/manifest.py`](../../oracle/sweep/manifest.py) reads
+that dump, assigns each finding to a cluster and writes `divergences.json`. A
+relative path is the repository root's, so the dump and the reader below name the
+same file; the directory above it is created if it is missing.
+
+The dump is a **file** and never stdout because `--nocapture` prints libtest's
+own `test <name> ... ` progress text with no newline of its own, so the first
+finding used to come back as `test <name> ... {"fixture":...}` - and a reader
+that takes one JSON object per line drops a line it cannot read. `load_dump`
+fails on any line that is not a JSON object, naming its line number, and on a
+dump that is not there at all: a corrupt dump can no longer pass for a shorter
+one. A dump with **no** findings is not that mistake - it is this ledger's own
+closing state, once every fixture replays exactly, and the manifest it builds is
+`{"fixtures": {}}`.
 
 ```sh
-CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
-    -- --ignored --nocapture dump_manifest_entries > build/lane-evidence/findings.txt
-python3 -m oracle.sweep.manifest --dump build/lane-evidence/findings.txt \
+PSIV_MANIFEST_DUMP=build/lane-evidence/findings.jsonl \
+    CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
+    -- --ignored --nocapture dump_manifest_entries
+python3 -m oracle.sweep.manifest --dump build/lane-evidence/findings.jsonl \
     --manifest rust/psiv-core/src/battle/replay_fixtures/divergences.json
-python3 -m oracle.sweep.manifest --dump build/lane-evidence/findings.txt --clusters
+python3 -m oracle.sweep.manifest --dump build/lane-evidence/findings.jsonl --clusters
 ```
 
 Two things about that pair of commands. The dump's own first line shares
