@@ -79,6 +79,7 @@ mod fighters;
 mod item;
 mod order;
 mod records;
+mod retarget;
 mod rewards;
 mod rng;
 mod skill;

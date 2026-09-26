@@ -271,17 +271,25 @@ pub fn takes_second_hit_pass(roster: &Roster, actor: FighterId) -> bool {
 /// left at the `$FFFF` `Battle_AttackCommand` writes for it
 /// (`ps4.asm:8464`, and the negative index short-circuits at
 /// `ps4.asm:8326-8327`); anything else - the slot empty, or the fighter dead,
-/// android-dead or transient - re-aims the swing with [`retarget_scan`], whose
-/// winner `loc_5B88` writes back into `Current_Target_Index` (`ps4.asm:8409`).
+/// android-dead or transient - re-aims the swing at the enemy with the largest
+/// `max_hp - curr_hp`, which is the loop a swing's own kind selects
+/// (`loc_5C8A` -> `loc_5CA2` index 0, `ps4.asm:8515`, `8523-8524`). That whole
+/// rule is [`retarget::single_target`], which every single-target command in
+/// this module, `technique`, `skill`, `item` and `vehicle_attack` shares; see
+/// its module note for the mirrored smallest-deficit loop the abilities take.
 ///
-/// The scan is the party's own arm: `d1 > 5` selects it (`ps4.asm:8339-8340`)
-/// because the aim is an enemy slot, and the character-target arm an enemy
-/// attacker uses is the weighted party draw [`crate::battle::take_turn`]
-/// already models (`loc_56F0` / `Enemy_TargetCharacter`, `ps4.asm:8341-8343`).
+/// A swing is the one command whose aim can be absent: an `intended` of `None`
+/// is this port's own default cursor, not a cartridge state, and it names the
+/// first living enemy - alive by construction, so the owner keeps it exactly as
+/// a commanded one would be.
 ///
-/// An `intended` of `None` is this port's own default cursor, not a cartridge
-/// state: it names the first living enemy, which is alive by construction and
-/// therefore kept exactly as a commanded one would be.
+/// The character-target arm an enemy attacker uses is not here: `loc_5ACE`'s
+/// `d1 <= 5` branch is the weighted party draw
+/// (`loc_56F0` / `Enemy_TargetCharacter`, `ps4.asm:8341-8343`), which
+/// [`crate::battle::take_turn`] makes before the action runs, so this function
+/// sees an enemy's target already alive. A stale character-side aim that still
+/// reaches it is not a swing's to hit, and the reach filter below answers
+/// "nothing".
 #[must_use]
 pub fn candidate_targets(
     roster: &Roster,
@@ -295,82 +303,27 @@ pub fn candidate_targets(
         Reach::All => roster.living(opposing).map(|f| f.id).collect(),
         Reach::Single => {
             // The cursor holds whatever was chosen at command time; if that
-            // fighter is no longer standing, a party swing is re-aimed by the
-            // cartridge's own scan.
-            let commanded = intended.or_else(|| roster.first_living(opposing));
-            let kept = commanded.filter(|id| {
-                id.side() == opposing
-                    && roster
-                        .get(*id)
-                        .is_some_and(super::fighters::Fighter::is_alive)
-            });
-            let chosen = kept.or_else(|| match actor.side() {
-                Side::Party => retarget_scan(roster, rolls),
-                // An enemy's fallen target is re-drawn by the arm named above,
-                // so this is only the "nobody left standing" case.
-                Side::Enemy => None,
-            });
-            chosen
+            // fighter is no longer standing, the cartridge's own scan re-aims.
+            intended
                 .or_else(|| roster.first_living(opposing))
+                .and_then(|commanded| {
+                    super::retarget::single_target(
+                        roster,
+                        commanded,
+                        super::retarget::Deficit::Largest,
+                        rolls,
+                    )
+                })
+                .filter(|chosen| {
+                    chosen.side() == opposing
+                        && roster
+                            .get(*chosen)
+                            .is_some_and(super::fighters::Fighter::is_alive)
+                })
                 .into_iter()
                 .collect()
         }
     }
-}
-
-/// The enemy slot a party swing lands on when its commanded enemy has fallen.
-///
-/// `loc_5AE6`'s arm, reached from [`candidate_targets`]'s citation above. The
-/// four enemy slots are walked in order (`addq.w #1, d5` / `cmpi.w #9, d5` /
-/// `ble.s loc_5B42`, `ps4.asm:8404-8407`); a slot holding
-/// no fighter (`tst.w (a0)`, `ps4.asm:8384-8385`) or one whose `status & $44`
-/// is set (`ps4.asm:8387-8389`) is passed over, so only living fighters take
-/// part. Each survivor's deficit is the word at `$10` minus the word at `$E`
-/// (`move.w $10(a0), d0` / `sub.w $E(a0), d0`, `ps4.asm:8390-8391`), and the
-/// scan keeps the **largest** one: `d4` starts at `-1` (`ps4.asm:8346`),
-/// `cmp.w d0, d4` is a signed word comparison, so a strictly larger deficit
-/// takes the slot (`blt.s loc_5B7C`, `ps4.asm:8394`) and a smaller one leaves
-/// it (`bgt.s loc_5B80`, `ps4.asm:8393`).
-///
-/// **Equal** deficits draw `UpdateRNGSeed2` once (`ps4.asm:8395-8400`): the
-/// later slot wins when the draw's low bit is set (`btst #0, d1`), the earlier
-/// one when it is clear. That call comes out of the caller's own stream, which
-/// is why a round whose frames hold one call more than a port that never scans
-/// is this rule seen from the RNG's side (`docs/oracle/BATTLE_ORACLE_SWEEP.md`
-/// §4.4 W4). No other case draws.
-///
-/// `loc_5C8A` reads the command word (`ps4.asm:8349-8351`) and returns `1` for
-/// command index 1, which is `Command_Attack`, so a swing takes this loop
-/// (`loc_5B42`). A technique, skill or item's command falls through to
-/// `loc_5AFA`, the mirror of it: `move.w #$7000, d4` (`ps4.asm:8352`) and the
-/// comparisons swapped, so it keeps the *smallest* deficit. Nothing in this
-/// module resolves those commands; `loc_5C8A`'s own table
-/// (`ps4.asm:8514-8521`) is what picks between the two.
-///
-/// The `-1` `d4` starts at cannot tie with a fighter in this port: deficits are
-/// `max_hp - curr_hp` with HP floored at zero and every heal capped at the
-/// maximum, so no live slot can present a negative one. `None` means no slot in
-/// 6..=9 holds a living fighter, which the caller's own fallback already
-/// answers.
-fn retarget_scan(roster: &Roster, rolls: &mut impl Rolls) -> Option<FighterId> {
-    let mut best: Option<(FighterId, i32)> = None;
-    for fighter in roster.side(Side::Enemy) {
-        if !fighter.is_alive() {
-            continue;
-        }
-        let deficit = i32::from(fighter.stats.max_hp) - i32::from(fighter.stats.curr_hp);
-        let take = match best {
-            None => true,
-            Some((_, held)) if held < deficit => true,
-            Some((_, held)) if held > deficit => false,
-            // A tie: one draw, and the later slot only on an odd one.
-            Some(_) => rolls.next_roll() & 1 == 1,
-        };
-        if take {
-            best = Some((fighter.id, deficit));
-        }
-    }
-    best.map(|(fighter, _)| fighter)
 }
 
 /// Resolves one attack end to end, mutating the roster.
@@ -818,14 +771,19 @@ mod tests {
         for target in candidate_targets(&roster, id(6), None, Reach::All, &mut rolls) {
             assert_eq!(target.side(), Side::Party);
         }
-        // A cursor pointing at a friend is discarded rather than obeyed: the
-        // scan runs and, with both enemies untouched, its tie keeps the
-        // earlier slot on this (even) draw.
-        assert_eq!(
-            candidate_targets(&roster, id(1), Some(id(2)), Reach::Single, &mut rolls),
-            vec![id(6)]
+        // A cursor pointing at a friend is not an aim an attack resolves
+        // against, and it is not this function's to move either: `loc_5A98`
+        // keeps a character-side aim (`retarget`'s party-slot arm), so the
+        // swing's own reach - living enemies - leaves it with no target, and
+        // the reach filter is not a scan, so nothing is drawn. The native enemy
+        // picker cannot produce such a cursor (`psiv-godot/src/battle/commands.rs`
+        // offers enemy slots only), and the port's own default is
+        // `Command::Attack`'s `None`, asserted above.
+        assert!(
+            candidate_targets(&roster, id(1), Some(id(2)), Reach::Single, &mut rolls).is_empty(),
+            "a friend is not a swing's target"
         );
-        assert_eq!(rolls.drawn(), 1, "the tie is what drew");
+        assert_eq!(rolls.drawn(), 0, "a discarded aim draws nothing");
     }
 
     #[test]

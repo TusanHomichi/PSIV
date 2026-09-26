@@ -143,6 +143,39 @@ f25003/f25125) and the battle ends at f25621 instead of f25616. None of the
 three captures needed it - every ability fired on the first delay tried - but
 the knob is measured rather than assumed.
 
+**There is no policy that commands a technique, a skill or an item (recorded
+2026-09-25).** `--policy` takes `attack` or `defend` and nothing else
+(`oracle/force/cli.py`; the frame patterns are `oracle/force/tape.py`'s
+`policy_steps`), so no run of this tool can open the TECH or SKILL list, pick an
+ability and pick its target - which is what a capture of the retarget rule's
+**mirror** loop would need (a single-target technique ordered at an enemy that
+falls before it resolves; `docs/source-notes/battle-party.md`, 2026-09-25).
+Three pieces are missing, in the order a lane would add them:
+
+* a `tech` policy: the frame arithmetic for COMD -> Right (the per-character
+  command menu is horizontal, which is what `defend`'s four Right presses
+  measure) -> C on TECHNIQUE -> the ability's own row in `Battle_Tech_List` ->
+  C -> the target cursor a target nibble of 1 opens when more than one enemy
+  lives (`Battle_ComdTechTarget_SingleEnemy` -> `Battle_PickTargetEnemy`,
+  `ps4.asm:2666-2684`). The policy is a fixed frame pattern with no feedback, so
+  each menu's own timing has to be measured the way `defend`'s was;
+* a party that knows the ability. The tape's three members start with
+  FOI/SHIFT/SANER, RES/GELUN and RES (`generated/characters.json`'s
+  `initial_techniques`); FOI is the only single-enemy one of those, and its
+  effect id 1 takes the *largest*-deficit loop. The mirror needs a
+  single-target non-damaging technique - VOL (effect 2, target nibble 1) is the
+  shortest route - so the policy alone is not enough: the run would need a party
+  that has learned one (`--ram-patch`, or a patch in the shape of
+  `oracle/force/durable.py`'s HP one);
+* the capture's *verdict*, which is not this tool's: `oracle/fixture/assembly.py`'s
+  `command_entry` writes `"command": "attack"` for every party action (it reads
+  the target cell only) and `rust/psiv-core/src/battle/replay/build.rs`'s
+  `orders` builds `Command::AttackTarget` from it, so a technique capture needs
+  both to carry the kind and id that `$FFFF4146` already logs
+  (`current_command`).
+
+Until then the rule is transcribed from `ps4.asm` and not oracle-verified.
+
 ## 2. The four captures
 
 Each capture is a full run of `python3 -m oracle.force`: scout, probe, preview,

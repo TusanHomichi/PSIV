@@ -5,6 +5,7 @@
 //! Damage techniques do not take physical hit/critical rolls ($B75A).
 //! Unsupported effects fail before payment; they never become an attack.
 
+use super::retarget;
 use super::{BattleData, BattleEvent, FighterId, Roster, Side, Stats, Verdict};
 use super::{Rolls, calc_healing, calculate_chances, calculate_damage, clamp_damage, status};
 
@@ -184,15 +185,24 @@ pub(super) fn resolve_technique(
     }
     let mut targets = technique_targets(roster, actor, tech);
     if tech.single_target() {
-        let selected = intended.filter(|id| targets.contains(id));
-        // An enemy killed earlier in the queue gets the same first-living
-        // retarget as an attack. A dead healing recipient is never replaced.
-        let selected = selected.or_else(|| {
-            (tech.targeting & 15 == 1)
-                .then(|| targets.first().copied())
-                .flatten()
-        });
-        targets = selected.into_iter().collect();
+        // `loc_5A98`: a living aim is kept and a fallen enemy is re-aimed by
+        // the loop this record's own effect id selects. A technique whose
+        // target nibble is 4, 6 or 8 — a heal or a revival aimed at an ally —
+        // never enters the routine at all (`ps4.asm:8055-8057`), so a dead
+        // healing recipient is never replaced and the effect's own eligibility
+        // decides what a paid cast on one does.
+        targets = intended
+            .and_then(|commanded| {
+                retarget::single_target(
+                    roster,
+                    commanded,
+                    retarget::deficit_for_effect(tech.effect),
+                    rolls,
+                )
+            })
+            .filter(|chosen| targets.contains(chosen))
+            .into_iter()
+            .collect();
     }
     let mut died = Vec::new();
     for target in targets {

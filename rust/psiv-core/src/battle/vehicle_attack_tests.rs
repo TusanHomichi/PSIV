@@ -14,6 +14,9 @@
 //!   234, and each vehicle's own attack byte through the same formula;
 //! * the element: `loc_280A`'s `$32(a1)` — the **target's** energy property —
 //!   with the actor's hands never read;
+//! * the re-aim: the vehicle's own attack is command kind 6, which takes the
+//!   same largest-deficit loop a swing does, so a fallen cursor lands on the
+//!   enemy that has taken the most damage (`retarget::single_target`);
 //! * the negative control: a fighter that is not a vehicle keeps
 //!   `Character_Attack`'s weapon check and still spends an unarmed turn with
 //!   `TurnSkipped { reason: Unarmed }`.
@@ -356,8 +359,8 @@ fn a_swing_reaches_the_cursor_or_the_first_living_enemy() {
         "one target, one roll per pass"
     );
 
-    // A cursor left on a corpse falls to the first survivor, exactly as the
-    // party's own single-target swing does.
+    // A cursor left on a corpse is re-aimed to a survivor, exactly as the
+    // party's own single-target swing is.
     roster.get_mut(id(6)).expect("present").stats.status = status::DEAD;
     let stream = vec![0u16; hit_passes(1) + DAMAGE_DRAWS];
     let mut rolls = SliceRolls::new(&stream);
@@ -372,6 +375,49 @@ fn a_swing_reaches_the_cursor_or_the_first_living_enemy() {
     )
     .expect("resolves");
     assert_eq!(resolution(&events, second), (Verdict::Normal, Some(84)));
+}
+
+#[test]
+fn a_fallen_cursor_lands_on_the_largest_hp_deficit() {
+    // The vehicle's own attack is command kind 6, and `loc_5CA2`'s index 5
+    // sends it to the same `loc_5CB0` arm a swing takes (`ps4.asm:8520`,
+    // `8523-8524`), so its re-aim is by the largest deficit rather than by
+    // slot order: slot 6 is down, slot 7 has taken 40 of its 1040 and slot 8
+    // has taken 100.
+    let (mut roster, actor) = roster(1, 740);
+    assert!(roster.add_enemy(2, &desrt_leach()).is_some());
+    assert!(roster.add_enemy(3, &desrt_leach()).is_some());
+    roster.get_mut(id(6)).expect("present").stats.status = status::DEAD;
+    roster.get_mut(id(7)).expect("present").stats.curr_hp = 1000;
+    roster.get_mut(id(8)).expect("present").stats.curr_hp = 940;
+
+    let stream = vec![0u16; hit_passes(1) + DAMAGE_DRAWS];
+    let mut rolls = SliceRolls::new(&stream);
+    let mut events = Vec::new();
+    resolve_attack(
+        &mut roster,
+        actor,
+        Some(id(6)),
+        &data(),
+        &mut rolls,
+        &mut events,
+    )
+    .expect("resolves");
+    assert_eq!(
+        resolution(&events, id(8)).0,
+        Verdict::Normal,
+        "the largest deficit took the swing"
+    );
+    assert_eq!(
+        hp(&roster, id(7)),
+        1000,
+        "the smaller deficit was left alone"
+    );
+    assert_eq!(
+        rolls.drawn(),
+        hit_passes(1) + DAMAGE_DRAWS,
+        "the re-aim cost no roll: the deficits differ"
+    );
 }
 
 #[test]
