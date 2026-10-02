@@ -344,8 +344,18 @@ impl Battle {
     /// construction.
     ///
     /// Enemies are discarded; they exist only for the length of the fight.
+    ///
+    /// **Sleep and tech-seal end with the battle.** Every exit that shows the
+    /// results - victory and escape both - ends in `Battle_LastMessage`
+    /// (`ps4.asm:6350`, routine `$2F`), which on the press that closes it walks
+    /// the five party slots with `andi.b #$E7, $16(a0)` (line 6366) - clearing
+    /// bit 3 (asleep) and bit 4 (tech sealed), and nothing else - before it loads
+    /// the field (`Game_Mode_Index` 8, line 6390). Poison and paralysis go out
+    /// with the party. The first Zio's `BattleObj` `$914` returns to the field
+    /// without that routine, so a [`Outcome::ScriptedExit`] keeps every bit.
     #[must_use]
     pub fn into_party(self) -> Vec<PartyMember> {
+        let last_message = self.outcome != Some(Outcome::ScriptedExit);
         self.roster
             .into_iter_fighters()
             .filter_map(|fighter| {
@@ -355,6 +365,10 @@ impl Battle {
                     stats: {
                         let mut stats = fighter.stats;
                         stats.refresh_battle_stats();
+                        if last_message {
+                            stats.status &=
+                                !(super::stats::status::ASLEEP | super::stats::status::TECH_SEALED);
+                        }
                         stats
                     },
                 })
@@ -481,10 +495,17 @@ impl Battle {
 
         // `Battle_RestoreStatsAtTurnEnd` — Defend wears off here, which is why
         // it only protects against attacks that land after the defender's turn.
-        for fighter in self.roster.iter_mut() {
-            fighter.stats.restore_physical_prop();
+        //
+        // It is reached only when the queue runs out (`loc_5366`,
+        // `ps4.asm:7597`). The check after every action (`loc_66B8`) has already
+        // sent a decided battle to its victory or defeat routine, so the wake
+        // rolls of a sleeper are never drawn in the round that ended it.
+        if self.settle_outcome().is_none() {
+            for fighter in self.roster.iter_mut() {
+                fighter.stats.restore_physical_prop();
+            }
+            super::skill::recover_round_status(&mut self.roster, rolls, &mut events);
         }
-        super::skill::recover_round_status(&mut self.roster, rolls, &mut events);
         events.push(BattleEvent::RoundEnded { round: self.round });
 
         if let Some(outcome) = self.settle_outcome() {
@@ -540,7 +561,8 @@ impl Battle {
         // of persistent Stats, but do not let a replaced queued fighter act.
         if events.iter().any(|event| match event {
             BattleEvent::Revived { target, .. } => *target == actor,
-            BattleEvent::EnemyReplenished { fighter, .. } => *fighter == actor,
+            BattleEvent::EnemyReplenished { fighter, .. }
+            | BattleEvent::EnemiesFused { fighter, .. } => *fighter == actor,
             _ => false,
         }) {
             events.push(BattleEvent::TurnSkipped {
@@ -795,6 +817,9 @@ impl Battle {
         {
             return Ok(true);
         }
+        if super::enemy_fusion::resolve_fusion(&mut self.roster, actor, ability, data, events)? {
+            return Ok(true);
+        }
         if super::enemy_damage::resolve_damage_skill(
             &mut self.roster,
             actor,
@@ -805,6 +830,20 @@ impl Battle {
             events,
         ) {
             return Ok(true);
+        }
+        match super::enemy_effect::resolve_effect_skill(
+            &mut self.roster,
+            actor,
+            ability,
+            intended,
+            data,
+            rolls,
+            events,
+        ) {
+            super::enemy_effect::EffectTurn::Resolved => return Ok(true),
+            // The arm's guard sent the turn to the ordinary attack objects.
+            super::enemy_effect::EffectTurn::Swing => return Ok(false),
+            super::enemy_effect::EffectTurn::NotMine => {}
         }
         if super::enemy_skill::resolve_thread(
             &mut self.roster,
@@ -907,11 +946,23 @@ impl Battle {
         Ok(())
     }
 
+    /// The check after every action (`loc_66B8`, `ps4.asm:9709`), in the
+    /// cartridge's order. The party is beaten when **every occupied party
+    /// slot** carries a bit of `$46` - paralyzed, dead or android-dead
+    /// (`loc_674E`, `andi.b #$46` at line 9752; `Battle_Routine` `$1A` at line
+    /// 9757) - so a party that is entirely paralyzed loses with nobody at zero
+    /// HP, and a sleeping member keeps the fight going. Only then is the enemy
+    /// side tested, for `$44` (`loc_6772`, line 9767; `$18` at line 9772).
     fn settle_outcome(&self) -> Option<Outcome> {
-        if !self.roster.any_alive(Side::Enemy) {
-            Some(Outcome::Victory)
-        } else if !self.roster.any_alive(Side::Party) {
+        use super::stats::status;
+        if self
+            .roster
+            .side(Side::Party)
+            .all(|f| f.stats.status & (status::PARALYZED | status::OUT) != 0)
+        {
             Some(Outcome::Defeat)
+        } else if !self.roster.any_alive(Side::Enemy) {
+            Some(Outcome::Victory)
         } else {
             None
         }

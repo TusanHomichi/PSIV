@@ -405,17 +405,6 @@ pub fn resolve_attack(
     let mut hit_targets = Vec::new();
 
     for (target, verdict) in pass.verdicts {
-        // `Character_DamageEnemy`'s ability test (`ps4.asm:3945-3946`, the
-        // retail arm of its `if bugfixes` pair; the bugfix arm is `3915-3916`):
-        // a plain party attack marks the enemy, and it marks every slot the pass
-        // covers — a miss included, because the flag is set before the hit byte
-        // is read.
-        if actor.side() == Side::Party
-            && target.side() == Side::Enemy
-            && let Some(fighter) = roster.get_mut(target)
-        {
-            fighter.reaction_flags |= super::fighters::reaction::PHYSICAL;
-        }
         if verdict == Verdict::Miss {
             let remaining = roster.get(target).map_or(0, |f| f.stats.curr_hp);
             events.push(BattleEvent::Resolved {
@@ -428,6 +417,22 @@ pub fn resolve_attack(
             continue;
         }
         hit_targets.push(target);
+        // `Character_DamageEnemy`'s ability test (`ps4.asm:3945-3946`, the
+        // retail arm of its `if bugfixes` pair; the bugfix arm is `3915-3916`):
+        // a plain party attack that lands marks the enemy. It is a *hit* that
+        // reaches it: `Fighter_TakeDamage` returns before
+        // `Figher_DamageCheckActor` when the slot's `Fighters_Hit_Flags` byte is
+        // negative (`tst.b (a0,d0.w) / bmi.s`, `ps4.asm:3571-3572`), and a
+        // missed slot's byte is `$FF`. Two BloodSaber captures
+        // (`replay_fixtures/arc_motavia/formation_1C6_*`) are the evidence: the
+        // party misses it for rounds and its `PhysicalAtkReceived` DEBAN never
+        // fires.
+        if actor.side() == Side::Party
+            && target.side() == Side::Enemy
+            && let Some(fighter) = roster.get_mut(target)
+        {
+            fighter.reaction_flags |= super::fighters::reaction::PHYSICAL;
+        }
 
         let element = {
             let attacker_stats = &roster.get(actor).expect("actor present").stats;
@@ -649,6 +654,55 @@ mod tests {
             .filter(|e| matches!(e, BattleEvent::Resolved { .. }))
             .collect();
         assert_eq!(resolutions.len(), 2);
+    }
+
+    #[test]
+    fn only_a_swing_that_lands_marks_the_enemy_as_physically_attacked() {
+        // `Fighter_TakeDamage` skips a slot whose hit byte is negative
+        // (`ps4.asm:3571-3572`), so `Character_DamageEnemy`'s `bset #0, $2A(a4)`
+        // (`ps4.asm:3946`) is reached by a hit and never by a miss.
+        use crate::battle::fighters::reaction;
+        let (mut roster, data) = party_and_enemies();
+        // Chaz (DEX 5 against AGI 6): `v = (r - 1) * 2`, a miss up to r = 5.
+        let mut rolls = SliceRolls::new(&[0]);
+        let mut events = Vec::new();
+        resolve_attack(
+            &mut roster,
+            id(2),
+            Some(id(6)),
+            &data,
+            &mut rolls,
+            &mut events,
+        )
+        .expect("resolves");
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                BattleEvent::Resolved {
+                    verdict: Verdict::Miss,
+                    ..
+                }
+            )),
+            "{events:?}"
+        );
+        assert_eq!(roster.get(id(6)).expect("enemy 1").reaction_flags, 0);
+
+        let hit = [40u16; 1 + DAMAGE_DRAWS];
+        let mut rolls = SliceRolls::new(&hit);
+        resolve_attack(
+            &mut roster,
+            id(2),
+            Some(id(6)),
+            &data,
+            &mut rolls,
+            &mut Vec::new(),
+        )
+        .expect("resolves");
+        assert_eq!(
+            roster.get(id(6)).expect("enemy 1").reaction_flags,
+            reaction::PHYSICAL
+        );
+        assert_eq!(roster.get(id(7)).expect("enemy 2").reaction_flags, 0);
     }
 
     #[test]

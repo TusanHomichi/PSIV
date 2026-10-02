@@ -71,6 +71,8 @@ mod chances;
 mod damage;
 mod enemy_ai;
 mod enemy_damage;
+mod enemy_effect;
+mod enemy_fusion;
 mod enemy_skill;
 mod engine;
 mod equipment;

@@ -20,6 +20,7 @@ mod camp_recovery;
 mod camp_status;
 mod combat_death;
 mod combat_enemy_attacks;
+mod combat_enemy_effects;
 mod combat_enemy_poison;
 mod combat_fission;
 mod combat_items;

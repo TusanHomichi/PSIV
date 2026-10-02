@@ -10,7 +10,8 @@ of a `generated/` dependency.
 
     python3 -m oracle.sweep.replay_pack
 
-Which records: exactly what the committed fixtures under `sweep_motavia/` need -
+Which records: exactly what the committed fixtures under `sweep_motavia/` and
+`arc_motavia/` (the Motavia-arc status and stat abilities) need -
 every `enemy_id` one of them seats, and every ability id either an enemy's AI
 can roll (the eight regular ids and the four conditional ones: the port's own
 `choose_ability` picks among them, so a missing record would make it pick blind)
@@ -27,6 +28,9 @@ import pathlib
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 FIXTURES = ROOT / "rust" / "psiv-core" / "src" / "battle" / "replay_fixtures"
 SWEEP = FIXTURES / "sweep_motavia"
+#: The forced captures of the Motavia arc's status and stat abilities
+#: (`docs/oracle/BATTLE_ORACLE_ARC.md`).
+ARC = FIXTURES / "arc_motavia"
 #: The property names in `generated/enemies.json`, in `ELEMENT_SLOTS` order
 #: (the order `psiv_tools/battle_pack.py` emits them in).
 ELEMENTS = ("physical", "energy", "fire", "gravity", "water", "anti_evil",
@@ -34,11 +38,21 @@ ELEMENTS = ("physical", "energy", "fire", "gravity", "water", "anti_evil",
             "mechanical", "efess", "destroy")
 
 
-def fixture_enemies(fixtures: pathlib.Path) -> tuple[set[int], set[int]]:
+#: Enemies a fixture's own enemy brings in mid-battle, by the enemy that does:
+#: Fusion (`BattleObj_Fusion`, `ps4.asm:35832`) replaces both Zol slugs
+#: (enemy 34) with the MetaSlug its formation data names (enemy 36), which no
+#: formation seats at the start.
+SPAWNED = {34: 36}
+
+
+def fixture_enemies(
+        fixtures: list[pathlib.Path]) -> tuple[set[int], set[int]]:
     """The enemy ids the fixtures seat, and the ability ids their logs show."""
     enemies: set[int] = set()
     abilities: set[int] = set()
-    for path in sorted(fixtures.glob("*.json")):
+    paths = sorted(path for directory in fixtures
+                   for path in directory.glob("*.json"))
+    for path in paths:
         document = json.loads(path.read_text())
         for entry in document["formation"]["enemies"]:
             enemies.add(entry["enemy_id"])
@@ -94,13 +108,15 @@ def skill_record(record: dict) -> dict:
     }
 
 
-def build(pack: pathlib.Path, fixtures: pathlib.Path) -> dict:
+def build(pack: pathlib.Path, fixtures: list[pathlib.Path]) -> dict:
     enemies = {record["id"]: record for record in json.loads(
         (pack / "enemies.json").read_text())}
     skills = {record["id"]: record for record in json.loads(
         (pack / "enemy_skills.json").read_text())}
     wanted_enemies, shown = fixture_enemies(fixtures)
     wanted_abilities = set(shown)
+    wanted_enemies |= {SPAWNED[enemy_id] for enemy_id in wanted_enemies
+                       if enemy_id in SPAWNED}
     for enemy_id in sorted(wanted_enemies):
         record = enemies[enemy_id]
         wanted_abilities.update(
@@ -111,7 +127,8 @@ def build(pack: pathlib.Path, fixtures: pathlib.Path) -> dict:
         "generated_by": "oracle/sweep/replay_pack.py",
         "source": {"enemies": "generated/enemies.json",
                    "enemy_skills": "generated/enemy_skills.json"},
-        "note": "every record the fixtures under sweep_motavia/ need, by the "
+        "note": "every record the fixtures under sweep_motavia/ and arc_motavia/ "
+                "need, by the "
                 "enemy id they seat and the ability ids those enemies can "
                 "roll; field names are replay/pack.rs's mirror structs'",
         "enemies": [enemy_record(enemies[enemy_id])
@@ -125,11 +142,14 @@ def build(pack: pathlib.Path, fixtures: pathlib.Path) -> dict:
 def main(argv: list[str] | None = None) -> int:
     parsed = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parsed.add_argument("--pack", default=str(ROOT / "generated"))
-    parsed.add_argument("--fixtures", default=str(SWEEP))
+    parsed.add_argument("--fixtures", action="append",
+                        help="a fixture directory (repeatable; default: the "
+                        "sweep's and the arc's)")
     parsed.add_argument("--out", default=str(FIXTURES / "motavia_pack.json"))
     arguments = parsed.parse_args(argv)
-    document = build(pathlib.Path(arguments.pack),
-                     pathlib.Path(arguments.fixtures))
+    directories = ([pathlib.Path(path) for path in arguments.fixtures]
+                   if arguments.fixtures else [SWEEP, ARC])
+    document = build(pathlib.Path(arguments.pack), directories)
     out = pathlib.Path(arguments.out)
     out.write_text(json.dumps(document, separators=(",", ":")) + "\n")
     print(f"wrote {out}: {len(document['enemies'])} enemy record(s), "
