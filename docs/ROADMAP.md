@@ -63,12 +63,10 @@ The new code requires the rebuilt full pack; exact candidate, pack, binary and
 check receipts are in the travel ledger. The pack, saves and captures remain
 local and ignored.
 
-**Next action:** the Zio-arc port defects the runner diagnosed
-([run log](campaign/RUNNER_LOG.md) H17 revision-gated dialogue-tree loads, H18
-`Event_ZioFortBarrier`, H19 live-map collision after story flags), then extend
-the route through Nurvus to Zio's defeat. The runner plays New Game through
-Juza, the Demi rescue battle and on to `Cutscene_AlysWounded` with pad presses
-only (about 1.02M frames); the Motavia-arc enemy abilities (#58) are in.
+**Next action:** extend the route from the Zio-fort barrier through Nurvus to
+Zio's defeat (route chapter C3). The runner plays New Game through the Zio-fort
+barrier with pad presses only: 27 chapters, about 1.72M frames
+([run log](campaign/RUNNER_LOG.md)).
 
 The exact 32×32 bridge match does not establish whole-scene visual parity,
 retail/native save-coordinate interchange, or later campaign progression.

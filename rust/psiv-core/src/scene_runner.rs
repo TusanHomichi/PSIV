@@ -619,6 +619,12 @@ impl SceneRunner {
                 effects.push(SceneEffect::MapChunksWritten { chunks: writes });
                 self.pc += 1;
             }
+            SceneOp::WriteMapChunks { chunks } => {
+                effects.push(SceneEffect::MapChunksWritten {
+                    chunks: chunks.to_vec(),
+                });
+                self.pc += 1;
+            }
             SceneOp::Return { value } => {
                 effects.push(SceneEffect::Returned { value });
                 effects.push(SceneEffect::Finished);
@@ -920,6 +926,18 @@ impl SceneRunner {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
                 self.blocked = Blocked::Ticks(8 * (u16::from(delay) + 1));
+            }
+            // The barrier ramp's own `dbra` waits are inside the loop, so the
+            // op blocks for the whole ramp exactly as the cartridge does.
+            SceneOp::Presentation {
+                op:
+                    crate::PresentationOp::PaletteRampFromTable {
+                        steps, frame_delay, ..
+                    },
+            } => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+                self.blocked = Blocked::Ticks(u16::from(steps) * frame_delay);
             }
             SceneOp::PanelCreate { .. }
             | SceneOp::PanelDestroy { .. }

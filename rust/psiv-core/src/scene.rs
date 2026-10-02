@@ -185,6 +185,21 @@ pub enum SceneOp {
         /// chunk coordinates after adding the actor's current position.
         chunks: &'static [(i32, i32, u16)],
     },
+    /// Write original map chunks at absolute chunk coordinates.
+    ///
+    /// The other live-layout primitive: `GetMapLayoutOffset` (`$53514`) or
+    /// `GetMapLayoutChunkBG` (`$53EEC`) resolves an address from *literal*
+    /// column and row operands, the routine writes chunk ids into it, and a
+    /// `RefreshPlaneBG` follows. The overworld "appearing" events are this
+    /// shape, as is `Cutscene_PsycoWand`'s Krup patch. Collision reads the
+    /// layout the plane holds, so these writes reach the live map the moment
+    /// they run. When the row a scene's table ends on is the map's *own* layout
+    /// at those chunks, [`SceneOp::RestoreMapChunks`] is the exact op instead.
+    /// See `docs/scenes/LIVE_LAYOUT_WRITES.md`.
+    WriteMapChunks {
+        /// (Chunk x, chunk y, replacement chunk id) in chunk coordinates.
+        chunks: &'static [(u32, u32, u16)],
+    },
     /// Clear VRAM and CRAM (`InitVRAMAndCRAM`, `$5A658`): fades out, resets a
     /// VDP register and rebuilds the Plane A buffer. Engine-visible effect is
     /// the fade; the rest is the renderer's.

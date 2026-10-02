@@ -233,6 +233,21 @@ pub enum PresentationOp {
         /// `dbra` delays, already corrected to frame counts.
         delays: &'static [u8],
     },
+    /// Zio Fort's barrier ramp: `steps` writes of three consecutive palette
+    /// words taken from one ROM table, `frame_delay` frames apart. The
+    /// cartridge's loop reads `(a2)+`, `$C(a2)` and `$1A(a2)` with `a2`
+    /// advancing two bytes per step (`Event_ZioFortBarrier`, `$06ED4E`), so
+    /// the table holds the three interleaved series one after another.
+    PaletteRampFromTable {
+        /// ROM table the three series come from.
+        source_rom_addr: u32,
+        /// Palette buffer line the writes land in.
+        destination_ram: u32,
+        /// Table rows, one palette write each.
+        steps: u8,
+        /// `DoMapUpdateLoop` delay per step, already corrected to frames.
+        frame_delay: u16,
+    },
     /// Move the camera to an actor's live position. This is the dynamic form
     /// of `Event_MoveCamera` used by the Raja Sick return beat.
     CameraToActor {

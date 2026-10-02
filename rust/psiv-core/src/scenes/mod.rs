@@ -130,6 +130,7 @@ pub static SCENES: &[Scene] = &[
     post_rika_events::RUNE_LADEA_TOWER,
     post_rika_events::PSYCO_WAND_CHEST,
     post_rika_cutscenes::PSYCO_WAND,
+    post_rika_events::ZIO_FORT_BARRIER,
     post_rika_events::ZIO_NURVUS,
     post_rika_cutscenes::ZIO_DEFEATED,
     post_zio_cutscenes::MEETING_WREN,
@@ -246,14 +247,15 @@ mod tests {
             ("Event_LeavingChazHouse", 1),
             ("Cutscene_MeetingRika", 107),
             ("Cutscene_DemiRescue", 26),
-            ("Cutscene_AlysWounded", 55),
+            ("Cutscene_AlysWounded", 57),
             ("Event_GettingLandRover", 30),
-            ("Event_MachineCenterAppearing", 12),
+            ("Event_MachineCenterAppearing", 14),
             ("Event_RuneLadaeTower", 9),
             ("Event_PsycoWandChest", 20),
-            ("Cutscene_PsycoWand", 107),
+            ("Cutscene_PsycoWand", 110),
+            ("Event_ZioFortBarrier", 35),
             ("Event_ZioNurvus", 17),
-            ("Cutscene_ZioDefeated", 43),
+            ("Cutscene_ZioDefeated", 45),
             ("Cutscene_MeetingWren", 16),
             ("Cutscene_InsideSpaceship", 12),
             ("Cutscene_SpaceshipSabotage", 40),
@@ -264,7 +266,7 @@ mod tests {
             ("Event_DarkForce1", 5),
             ("Cutscene_DarkForce1Defeated", 27),
             ("Event_Juza", 5),
-            ("Event_JuzaDefeated", 6),
+            ("Event_JuzaDefeated", 3),
             ("Event_MeetingLeRoof", 17),
             ("Cutscene_LeRoofAgain", 35),
             ("Event_CarnivorousTrees", 13),
@@ -297,7 +299,7 @@ mod tests {
             ("Event_DeVarsDefeated", 6),
             ("Event_SaLewsDefeated", 6),
             ("Cutscene_BeforeElsydeonCave", 16),
-            ("Cutscene_Elsydeon", 46),
+            ("Cutscene_Elsydeon", 47),
             ("Cutscene_Reunion", 35),
             ("Event_AngerTowerTop", 12),
             ("Event_AngerTowerExitTop", 10),
@@ -352,6 +354,63 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    #[test]
+    fn every_scene_loads_the_trees_its_retail_bytes_load() {
+        // `DialogueTreesToRAM` calls per transcribed scene, counted in the US
+        // retail image's own byte range for that scene
+        // (`docs/scenes/REVISION_AUDIT.md`; `tests/test_scene_trees.py`
+        // re-derives this column from the ROM, so the table cannot rot in
+        // silence). A scene absent from this list loads no tree.
+        //
+        // This is the H17 guard. `Cutscene_AlysWounded` and `Cutscene_PsycoWand`
+        // reached dialogue `$2C`/`$2D`/`$2E` on Krup Inn F1's bound tree 5
+        // because the four `move.l #DialogueTree6, d0` calls before them sit
+        // under `if revision>0` and were dropped together. Op counts and map
+        // state both looked right; only a per-scene tree-load census sees it.
+        const RETAIL_TREE_LOADS: &[(&str, usize)] = &[
+            ("Event_GameStart", 4),
+            ("Event_PiataGuardsReprimand", 2),
+            ("Cutscene_Alshline", 3),
+            ("Cutscene_AlysWounded", 3),
+            ("Cutscene_ZemaIgglanovaDefeated", 1),
+            ("Cutscene_MeetingRika", 1),
+            ("Cutscene_PsycoWand", 3),
+            ("Cutscene_ZioDefeated", 1),
+            ("Cutscene_CrashLaanding", 2),
+            ("Cutscene_LashiecDefeated", 2),
+            ("Cutscene_GumbiousBishop", 1),
+            ("Cutscene_MeetingSeth", 1),
+            ("Cutscene_Rykros", 1),
+            ("Cutscene_Ending", 1),
+            ("Cutscene_MeetingKyra", 1),
+            ("Event_CarnivorousTrees", 1),
+            ("Event_SavingKyra", 2),
+            ("Event_EclipseTorchUsed", 1),
+        ];
+        for scene in SCENES {
+            let ported = scene
+                .ops
+                .iter()
+                .filter(|op| matches!(op, SceneOp::SetDialogueTree { .. }))
+                .count();
+            let retail = RETAIL_TREE_LOADS
+                .iter()
+                .find(|(name, _)| *name == scene.name)
+                .map_or(0, |(_, loads)| *loads);
+            assert_eq!(
+                ported, retail,
+                "{} loads {retail} dialogue tree(s) in the cartridge",
+                scene.name
+            );
+        }
+        for (name, _) in RETAIL_TREE_LOADS {
+            assert!(
+                SCENES.iter().any(|scene| scene.name == *name),
+                "{name} is missing from the registry"
+            );
         }
     }
 
