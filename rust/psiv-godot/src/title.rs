@@ -14,6 +14,7 @@ use godot::obj::BaseMut;
 use godot::prelude::*;
 use psiv_core::Input as CoreInput;
 use psiv_data::{DialogueSet, Role};
+use psiv_runtime::Runtime;
 
 use super::save_dir::{erase_slot, load_slot};
 use super::{Field, StepFrames, TransitionKind, read_input};
@@ -880,6 +881,18 @@ impl Field {
         true
     }
 
+    /// Everything `ready` gives the boot runtime that a title-built runtime
+    /// (START's new game, CONTINUE's loaded slot) must also have: the battle
+    /// seam and the dialogue pack the runtime's runner resolves entries
+    /// through. Without the pack, the opening's first `SetDialogueTree` is an
+    /// unknown tree and the scene's dialogue barrier never clears (#44).
+    fn prepare_runtime(&mut self, runtime: &mut Runtime) {
+        self.configure_battles(runtime);
+        if let Err(error) = runtime.load_dialogue(std::path::Path::new(&self.pack_dir)) {
+            godot_error!("title: dialogue pack failed to load into the new runtime: {error}");
+        }
+    }
+
     fn finish_title_choice(&mut self, choice: TitleChoice) -> bool {
         match choice {
             TitleChoice::Start => {
@@ -893,7 +906,7 @@ impl Field {
                 match crate::boot::new_game_runtime(data, StepFrames::default()) {
                     Ok(mut runtime) => {
                         godot_print!("title: START — new game, firing Event_GameStart");
-                        self.configure_battles(&mut runtime);
+                        self.prepare_runtime(&mut runtime);
                         let event = runtime
                             .data()
                             .new_game()
@@ -926,7 +939,7 @@ impl Field {
                 match load_slot(data, slot) {
                     Ok(mut runtime) => {
                         godot_print!("title: CONTINUE loaded slot {}", slot + 1);
-                        self.configure_battles(&mut runtime);
+                        self.prepare_runtime(&mut runtime);
                         self.runtime = Some(runtime);
                         self.load_map_visuals();
                         self.play_map_music();

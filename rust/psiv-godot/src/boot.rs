@@ -2,7 +2,7 @@
 
 use std::path::Path;
 
-use psiv_core::{CharId, Direction, GameState, RetailLocation, RetailSave, StepFrames};
+use psiv_core::{CharId, Direction, Flag, GameState, RetailLocation, RetailSave, StepFrames};
 use psiv_data::GameData;
 use psiv_runtime::Runtime;
 
@@ -28,22 +28,18 @@ pub(crate) fn title_bypassed() -> bool {
         || (std::env::var_os("PSIV_DEBUG_SHOT").is_some() && !title_shot)
 }
 
-/// Builds the two deterministic scene fixtures used by the shell's oracle
-/// harness. These are in-memory retail saves, not files and not a product
-/// boot path: GameStart needs its scripted second actor present, while
-/// MeetingRika's map is the BioPlant B4 entry used by the runtime tests.
+/// Builds the deterministic MeetingRika scene fixture used by the shell's
+/// oracle harness: an in-memory retail save, not a file and not a product boot
+/// path (the map is the BioPlant B4 entry used by the runtime tests). The
+/// opening is not a fixture: it is certified through the title's real START
+/// (`new_game_runtime`), because a hand-built opening state rotted when
+/// map-entry triggers changed (#44).
 pub(crate) fn debug_scene_runtime(
     data: GameData,
     event: u16,
     step_frames: StepFrames,
 ) -> Option<Result<Runtime, String>> {
     let (map, char_x, char_y, party) = match event {
-        0x009F => (
-            0x0013,
-            48 * 16,
-            19 * 16,
-            [Some(CharId(0)), Some(CharId(1)), None, None, None],
-        ),
         0x8007 => (
             0x00AC,
             // The oracle's tape-28 fixture: leader at pixel ($1F0,$1A0) —
@@ -88,6 +84,21 @@ pub(crate) fn new_game_runtime(data: GameData, step_frames: StepFrames) -> Resul
     Runtime::new_game(data, step_frames).map_err(|error| error.to_string())
 }
 
+/// The game state tape 22 holds at its camp frame: the retail new-game banks
+/// (`Runtime::new_game`) plus the two flags the opening earns before control
+/// (`EventFlag 7` from Event_GameStart, `EventFlag_PiataChazControl` `$15`
+/// from Event_PiataChazAlone). A blank `GameState::new()` has `$15` clear, so
+/// the map-entry trigger 124 replays PiataChazAlone on load and pre-empts the
+/// fixture (#44).
+fn post_opening_game(data: &GameData, step_frames: StepFrames) -> Result<GameState, String> {
+    let mut game = new_game_runtime(data.clone(), step_frames)?.game().clone();
+    for id in [7, 21] {
+        game.set(Flag::event(id))
+            .map_err(|error| format!("post-opening flag {id}: {error}"))?;
+    }
+    Ok(game)
+}
+
 /// Reproduces tape 22's `camp_root_idle` receipt without making a save file:
 /// Chaz alone at map `$13`, field position `($2F0,$140)`, with 500 MST. The
 /// location is the runtime's player coordinate; the oracle camera settles at
@@ -99,7 +110,10 @@ pub(crate) fn debug_camp_runtime(
     if !std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1") {
         return None;
     }
-    let mut game = GameState::new();
+    let mut game = match post_opening_game(&data, step_frames) {
+        Ok(game) => game,
+        Err(error) => return Some(Err(error)),
+    };
     game.set_party([Some(CharId(0)), None, None, None, None]);
     game.set_money(500);
     // Tape 22, mark `camp_root_idle`, frame 7675. These are live RAM object
@@ -158,6 +172,50 @@ pub(crate) fn available_save_slots(data: &GameData, directory: &Path) -> [bool; 
 mod new_game_tests {
     use super::*;
     use psiv_core::Flag;
+
+    fn academy_f1_scene_starts(data: GameData, game: &GameState) -> bool {
+        let mut runtime = Runtime::from_save(
+            data,
+            RetailSave {
+                snapshot: game.snapshot(),
+                location: RetailLocation {
+                    world_index: 0,
+                    map_index_2: 0xFFFF,
+                    map_index: 0x13,
+                    char_x: 0x2F0,
+                    char_y: 0x140,
+                },
+            },
+            StepFrames::default(),
+        )
+        .expect("runtime builds");
+        // The shell's first ticks dispatch the map-entry trigger.
+        (0..3).any(|_| {
+            runtime.tick(psiv_core::Input::Neutral);
+            runtime.scene_active()
+        })
+    }
+
+    /// #44: the camp fixture rotted because PiataChazAlone's map-entry trigger
+    /// fired on a state with `$15` clear. The post-opening state must load
+    /// Academy F1 quietly; the blank state is the negative control showing the
+    /// trigger really does pre-empt.
+    #[test]
+    fn post_opening_state_does_not_replay_piata_chaz_alone() {
+        let pack = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("runtime pack not present; skipping");
+            return;
+        }
+        let data = GameData::load(pack).expect("pack loads");
+        assert!(
+            academy_f1_scene_starts(data.clone(), &GameState::new()),
+            "negative control: with $15 clear the map-entry trigger must fire"
+        );
+        let game = post_opening_game(&data, StepFrames::default()).expect("state builds");
+        assert!(game.is_set(Flag::event(21)));
+        assert!(!academy_f1_scene_starts(data, &game));
+    }
 
     #[test]
     fn title_start_preserves_the_retail_initial_state() {
