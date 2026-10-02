@@ -14,7 +14,14 @@ shortcut, a state edit or a skip to get past one.
 
 ## Current state
 
-`routes/main.json` has 27 chapters: New Game, the post-Rika north bank, Aiedo,
+**C3 (2026-10-02, base `5c62765`): the route has 29 chapters and halts in the
+last, `nurvus-zio`, on a port defect with no legitimate alternative
+([H22](#h22-zio-at-nurvus-resumes-a-dialogue-instead-of-running-entry-0b-and-the-zio-phase-counter-is-unmodelled)).**
+Everything before it passes from New Game: `nurvus-descent` (Zio Fort to
+Nurvus B4, six elevator doors, the B1 tunnel, B5 and the stairs) runs in 5,028 frames,
+and the halt is at Zio's trigger, frame 1,730,441 (run C3-F1, below).
+
+`routes/main.json` had 27 chapters before C3: New Game, the post-Rika north bank, Aiedo,
 the Zio Fort's Juza room (C1) and, since lane C2, Juza's battle, the first
 Motavia arc's Demi rescue, the Machine Center and the Land Rover, the Ladea
 Tower with Rune and the Psycho Wand, and the walk to the Zio Fort's barrier
@@ -190,6 +197,65 @@ Draws matter. Training at levels 16, 17 and 21 halts in the tower on
 EVIL EYE, and the Gy-Laguiah fight is close at level 16: the passes above are
 those of the route as committed, and a change upstream shifts the draws (the
 same as H15's note).
+
+## C3 runs: the Zio Fort barrier to Zio
+
+Base revision: `5c62765` (main after PR #69, lane F1: H17 to H19 fixed), lane C3
+runner code on top. Release builds. Evidence is under the git-ignored
+`build/c1/` of the lane's worktree (`evidence/` holds the halt reports); the
+commands regenerate it. "Probe" below means a throwaway change to `rust/psiv-core`
+made to see what lies behind a defect and reverted before the commit; no route
+step depends on one.
+
+| Run | Command | Result |
+| --- | --- | --- |
+| C3-0 | `psiv-campaign run rust/psiv-campaign/routes/main.json --save-dir build/c1/run-0 --tape build/c1/run-0/run.tape --report build/c1/run-0/report.json` (the route as F1 left it) | **completed**, exit 0, 1,724,673 frames, digest `6381311acb90c052`: identical to F1-A |
+| C3-1 | `nurvus-descent` authored in four steps, each with `--from-chapter nurvus-descent --save-dir build/c1/iter` | four route claims, [N1 to N4](#n1-to-n4-route-claims-in-nurvus) below; the chapter then completes in 4,592 frames |
+| C3-2 | a chapter `nurvus-zio` (`go_to_map 211`, `go_to` the corridor's row 30, `fight_scripted`), the committed engine, `--from-chapter nurvus-zio` | **halted** at the `go_to`, frame 739: `scene_fault: dialogue fault: scene resume has no saved cursor` ([H22](#h22-zio-at-nurvus-resumes-a-dialogue-instead-of-running-entry-0b-and-the-zio-phase-counter-is-unmodelled), part 1) |
+| C3-3 | probe: `Event_ZioNurvus`'s op 11 as `RunDialogue Entry(0x0B)` (one op), `--from-chapter nurvus-zio` | the scene plays and event battle 6 starts; the new `psycho_wand_then_win` policy opens round 1 with PSYCO-WAND (trace: `battle actor 1 Item { name: "PSYCO-WAND", target: None }`, the rest attack); **halted** at frame 1,441: `unsupported_ability: engine emitted unsupported ability 84 for fighter 6` (H22, part 2) |
+| C3-4 | the same probe, the full route from New Game, `--save-dir build/c1/probe-d1` | **halted** the same way, frame 1,731,142, digest `42ab96d0933ea942`: `build/c1/evidence/c3-zio-black-wave-report.json` |
+| C3-5 | probe on top of C3-3: enemies 139 and 140 forced to the plain attack (ability 0) so the engine runs them, `--from-chapter nurvus-zio` | Zio's fight runs 5,858 frames and the party (Gryz L23, Chaz L23, Rika L24, Demi L19, Rune L23) is **defeated**: `build/c1/evidence/c3-probe-zio-lost-battle-report.json`. Not a fidelity claim: ability 0 is not what Zio does, and the cartridge's Zio2 opens with a barrier and casts CORRSION, HEWN and BLACK WAVE |
+| C3-F1 | `psiv-campaign run rust/psiv-campaign/routes/main.json --save-dir build/c1/run-1 --tape build/c1/run-1/run.tape --report build/c1/run-1/report.json` (the committed engine) | **halted**, exit 2, chapter `nurvus-zio` objective 1 (`go_to`), frame 1,730,441: `scene_fault: dialogue event 0x0 has no transcribed scene`; digest `6eb19b166ed24d2f`, tape sha256 `e3cff60eaf31dacac06bfeb8819d983ad3a848da042d37108a5c73cc9d121402`; report `build/c1/evidence/c3-zio-nurvus-resume-report.json` |
+| C3-F2 | the same with `run-2` | identical frames, digest and tape sha256; `psiv-campaign replay build/c1/run-2/run.tape` replays 1,730,441 frames and reproduces the digest |
+
+The full run's halt differs from C3-2's because the full run has a dialogue
+cursor to resume (the Zio Fort barrier's, from `tree 13` entry `$45`) and the
+`--from-chapter` run, whose session was loaded from a save, has none: the resume
+reads `tree 13` entry 70 (`$46`) and that entry "fires event 0x0". Both are the
+same defect.
+
+Per chapter, full run C3-F1 (the chapters before are unchanged frame for frame):
+
+| Chapter | Frames | Battles | Party at the end |
+| --- | --- | --- | --- |
+| nurvus-descent | 5,028 | 7 | Gryz L23 155/195, Chaz L23 150/150, Rika L24 164/164, Demi L19 144/144, Rune L23 115/115; Nurvus B4 `$D2` |
+
+### N1 to N4: route claims in Nurvus
+
+Four runner or route problems, fixed in the route while authoring
+`nurvus-descent`. The H18 forecast was right about the elevator doors and the
+stairs and wrong about the route between them.
+
+- **N1.** `go_to_map 206` from the Part3 elevator, after `interact`: `unreachable`.
+  The door cells open as collision 1 and the planner only crosses a warp it is
+  told to take, so the objective names it (`via_warp 2`), as every BioPlant
+  elevator does.
+- **N2.** The H18 forecast has B3 `$D0`'s stairs in a region the elevators do not
+  reach "first". Flooding each map's collision (doors treated as walls until
+  opened) gives the whole chain, and B1's ground floor does not join its east door
+  to the arrival: arrival (46,12) reaches only B1's west half. The route is B1
+  west door (22..23,11) to B3 region 1; B3's door (14..15,67) back to B1's
+  south-west room; B1 warp 4 (28,73) into the B1 tunnel `$D1`; the tunnel's east
+  warp (48,32) to B1's south-east room; up that room's corridor (72..73,34..57) to
+  the east door (70..71,11); B3 region 2; the door (78..79,11) to B5 `$D5`; B5's
+  other elevator (30..31,36) to B3 (78,23), which is the stairs' region. Every
+  hop is a warp of the pack's own records and every door an `interact` on its
+  type-2 interaction area.
+- **N3.** The tunnel's two warps both return to B1: `go_to_map 206` from the
+  tunnel takes warp 0 (the way it came); the route names `via_warp 1`.
+- **N4.** B3's stairs (76..77,79) are a closed door like the others: `interact`
+  at (76,80) first, or `go_to_map 210` halts `unreachable: no walk from (78,23)
+  reaches warp 5`.
 
 ## Halts and their diagnoses
 
@@ -640,6 +706,84 @@ training targets 16, 17 and 21 of the C2 experiment (`ladea-tower-rune` objectiv
 4, `go_to_map 143`), not at 18 to 20 or in the final route, whose passes depend on
 draws. Per the lane brief it is recorded and not routed around.
 
+### H22: Zio at Nurvus resumes a dialogue instead of running entry `$0B`, and the Zio phase counter is unmodelled
+
+**Open port defects on the critical path, no legitimate alternative: the route
+stops at Zio's trigger.** Two defects, one behind the other, both met in chapter
+`nurvus-zio` (Nurvus B4 Part2 `$D3`, crossing row 30). The committed engine halts
+on the first; with the first patched (a probe, C3-3 and C3-4) the second halts it.
+
+**Part 1: `Event_ZioNurvus` op 11.**
+
+- **Halt (committed engine):** full run, frame 1,730,441,
+  `scene_fault: dialogue event 0x0 has no transcribed scene`
+  (`build/c1/evidence/c3-zio-nurvus-resume-report.json`); a `--from-chapter` run
+  (a session loaded from a save) halts earlier, frame 739, `dialogue fault: scene
+  resume has no saved cursor`.
+- **Cause (port):** `rust/psiv-core/src/scenes/post_rika_events.rs:344` ends the
+  scene's presentation with `SceneOp::RunDialogueResume`, which reopens the
+  cursor `Saved_Dialogue_Addr` holds. In a played game that cursor is whatever
+  dialogue ran last (the Zio Fort barrier's `$45`, so the resume opens the
+  barrier tree's next entry, `$46`, whose text fires event 0) and after a load
+  there is none. `docs/scenes/38_ZioNurvus.md` row 8-11 and the arc test
+  (`rust/psiv-runtime/src/suites/next_arc.rs`, which dispatches the event with
+  no dialogue pack, so a resume is silent) hide it.
+- **Cartridge:** `Event_ZioNurvus`, `ps4.asm:148573-148629`: the call at
+  `ps4.asm:148622-148623` is `moveq #$B, d0` / `jsr (Event_GetAndRunDialogue2)`,
+  which is `GetDialogueByID` (`:119345`, entry `$0B` of the *current map's* tree:
+  Nurvus B4 Part2's `dialogue_tree` is 36) followed by the window routine
+  (`:121634`). It is not a resume. `Event_DarkForce1` (`ps4.asm:149134`) calls
+  the same routine with entry 6 and the port transcribes that as
+  `RunDialogue { Entry(6), Standard }` (`post_zio_cutscenes.rs:653`).
+- **Smallest change:** replace the op with
+  `SceneOp::RunDialogue { source: DialogueSource::Entry(DialogueId(0x0B)), window: DialogueWindow::Standard }`,
+  correct row 8-11 of `38_ZioNurvus.md`, and give the arc test a Session-level
+  assertion (a headless event with no dialogue pack cannot see this class).
+  **Verified by experiment (C3-3):** that one op makes the scene open
+  `SceneDialogue { entry: 11 }`, set `$65` and start event battle 6.
+- **Class:** `Event_GetAndRunDialogue2` has 14 callers
+  (`ps4.asm:148623, 149136, 149154, 150038, 150056, 150173, 150182, 150364,
+  150750, 152563, 152871, 152977, 153841, 157969`: Zio Nurvus, DarkForce1, Juza,
+  DarkForce2, XeAThoul, AirCastleFakeChest, AngerTowerAlys, FractOozeFound,
+  KingRappy, DaughterTerminal, ProfoundDarkness and three local labels,
+  `loc_70908`, `loc_70D2E`, `loc_7442E`). This lane audited none of the others
+  for a `RunDialogueResume` transcription; a fix lane should.
+
+**Part 2: the Zio phase counter.**
+
+- **Halt (probe, part 1 patched):** `unsupported_ability: battle renderer: engine
+  emitted unsupported ability 84 for fighter 6`, in round 1 of event battle 6,
+  from a `--from-chapter` run (frame 1,441) and from the full run (frame
+  1,731,142, `build/c1/evidence/c3-zio-black-wave-report.json`).
+- **Cause (port):** the first form (enemy 139 `ZIO`, 16,383 HP, agility 255, so
+  it acts before anyone) has `regular_ability_ids` `[84 x 8]`
+  (`runtime-pack/battle/enemies.json`), and `engine::roll_enemy_ability`
+  (`rust/psiv-core/src/battle/engine.rs:746`) dispatches the rolled id, which is
+  BLACK WAVE, unsupported. Only enemy 152 (Zio3) has its phase counter
+  (`engine.rs:774`, `zio_phase`).
+- **Cartridge:** `EnemyAttack_Zio` (`ps4.asm:19483-19517`) ignores the roll and
+  advances the counter `$FFFFEE98` (cleared by `EnemyInit_Zio`, `:17895`): phase 0
+  writes `$6B` and `BattleObj_MagBarrir` (`:67319`), phase 1 writes `$53` and
+  `BattleObj_NightmareFull` (`:66960`), later phases `$54` and
+  `BattleObj_BlackWave3` (`:66897`). `EnemyAttack_Zio2` (`:19519`), the form the
+  Psycho Wand reloads (enemy 140, 2,889 HP), shares the counter and rewrites
+  `$24(a4)` from it: the same family as issue #62 (Zio2 CORRSION). The brief's
+  `$54`/`$6C` BLACK WAVE are these two arms. The engine's doc
+  (`docs/battle/ENEMY_ABILITIES.md:245`, `:261`) lists both as `scripted/custom`,
+  unsupported.
+- **Smallest change:** model `EnemyAttack_Zio` and `EnemyAttack_Zio2` as the
+  engine models Zio3: a counter on the battle, reset at battle start, with the
+  phase's ability and (for `$6B`) the barrier; this is #62's work extended to
+  enemy 139's three arms.
+- **No legitimate alternative:** the trigger is the corridor itself (`RunEvent_ZioNurvus`,
+  `ps4.asm:115720`: Zio Nurvus `$65` clear and leader Y exactly `$1E0`), the only
+  way north in Part2, and the fight is the story's.
+- **What lies behind (not claimed):** C3-5, a probe that makes the engine run
+  Zio as a plain attacker, lost to Zio2 at levels 19 to 24 with the boss policy
+  after a round-1 Psycho Wand. Whether the party can win the fight the cartridge
+  gives (CORRSION, HEWN, BLACK WAVE `$6C`) is open; the route has not been
+  built past it, and `Cutscene_ZioDefeated` (`$800B`, Motavia) has not been run.
+
 ## `verify` items resolved by playing
 
 R0 left 12 objectives marked `"verify": true`. All are resolved and the flags
@@ -670,8 +814,9 @@ dropped; the run that settled each is in the route's `note`.
   cartridge's formula at its mean roll. A player reads the same ranking from the
   damage numbers; the policy skips the experiment. Skills other than Crosscut
   and Vortex are not chosen because the engine does not run them.
-- **Past the barrier.** Nurvus, the Zio fights and `Cutscene_ZioDefeated` are not
-  authored; see the forecast in [H18](#h18-event_ziofortbarrier-30-is-not-transcribed).
+- **Past Zio's trigger.** Nurvus down to B4 is played (`nurvus-descent`); the Zio
+  fights and `Cutscene_ZioDefeated` have not run, and whether the trained party
+  wins them is open; see [H22](#h22-zio-at-nurvus-resumes-a-dialogue-instead-of-running-entry-0b-and-the-zio-phase-counter-is-unmodelled).
 - **Balance.** Members fall in `bioplant-rika` (ten command windows open with a
   member down; Gryz, Alys and Hahn stand at 0 HP when the Rika scene ends); the
   inn restores them (`north-bank` rests at Zema before the crossing). The policy

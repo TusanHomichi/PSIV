@@ -31,15 +31,18 @@
 //!
 //! # Route names
 //!
-//! The route files name seven policies. `run_unless_boss` is its own behaviour;
+//! The route files name nine names. `run_unless_boss` is its own behaviour;
 //! `fight_to_win` and `run_then_win` are the boss policy of
 //! [`crate::policy_boss`] (the second runs from random encounters);
+//! `psycho_wand_then_win` is `run_then_win` with an item used in the first
+//! round of a scripted battle ([`crate::policy_opening`]);
 //! `attack_all`, `heal_then_attack`, `train_with_inn` and `bioplant_survival`
 //! resolve to `default` (the walk, the patrol and the inn they were named for
 //! are route objectives, not battle decisions). A route that needs another
 //! behaviour gets a type here first.
 
 use crate::policy_boss::BossPolicy;
+use crate::policy_opening::OpeningItemPolicy;
 use psiv_core::battle::status;
 use psiv_runtime::{CommandMenuView, PartyStatus, Runtime};
 
@@ -82,6 +85,10 @@ pub trait Policy {
     /// The name a route gives it.
     fn name(&self) -> &'static str;
 
+    /// A battle begins; `boss` is true for a scripted (event) battle. Called
+    /// once, before the first window opens.
+    fn battle_begins(&mut self, _boss: bool) {}
+
     /// The actor's choice. Called while their command window is open; the same
     /// answer is returned until [`Policy::end_round`].
     fn choose(&mut self, menu: &CommandMenuView, runtime: &Runtime) -> Intent;
@@ -107,13 +114,14 @@ pub trait Policy {
 }
 
 /// Policy names the route files use, with the policy each resolves to.
-pub const NAMES: [(&str, &str); 8] = [
+pub const NAMES: [(&str, &str); 9] = [
     ("default", "default"),
     ("attack_all", "default"),
     ("heal_then_attack", "default"),
     ("run_unless_boss", "run_unless_boss"),
     ("fight_to_win", "fight_to_win"),
     ("run_then_win", "run_then_win"),
+    ("psycho_wand_then_win", "psycho_wand_then_win"),
     ("train_with_inn", "default"),
     ("bioplant_survival", "default"),
 ];
@@ -125,6 +133,10 @@ pub fn by_name(name: &str) -> Option<Box<dyn Policy>> {
     Some(match *policy {
         "fight_to_win" => Box::new(BossPolicy::default()),
         "run_then_win" => Box::new(BossPolicy::running()),
+        "psycho_wand_then_win" => Box::new(OpeningItemPolicy::new(
+            "psycho_wand_then_win",
+            crate::policy_opening::PSYCHO_WAND,
+        )),
         "run_unless_boss" => Box::new(DefaultPolicy {
             run_encounters: true,
             ..DefaultPolicy::default()

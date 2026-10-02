@@ -331,6 +331,81 @@ fn using_an_item_the_pack_no_longer_holds_halts() {
     );
 }
 
+fn menu_window(actor: u8) -> psiv_runtime::CommandMenuView {
+    psiv_runtime::CommandMenuView {
+        title: String::new(),
+        page: psiv_runtime::MenuPage::Actions,
+        rows: Vec::new(),
+        cursor: 0,
+        actor: Some(actor),
+        character: Some(actor - 1),
+        party: Vec::new(),
+        enemies: vec![6],
+        techniques: Vec::new(),
+        skills: Vec::new(),
+        targets: Vec::new(),
+    }
+}
+
+/// The opening-item policy (`psycho_wand_then_win`'s type) over a pack that
+/// holds an item, bought at the Piata shop as a player does: round 1 of a
+/// scripted battle, the first actor takes ITEM and the rest fight; the next
+/// round and the next battle start from the boss policy. Negative controls: a
+/// random encounter and a pack without the item get no opening.
+#[test]
+fn the_first_actor_of_a_scripted_battle_opens_with_the_item() {
+    use psiv_campaign::policy::{Intent, Policy};
+    use psiv_campaign::policy_opening::OpeningItemPolicy;
+
+    let Some(result) =
+        shop_trip_result(r#"{"do": "buy", "item": "MONOMATE", "count": 1, "face": "up"}"#)
+    else {
+        return;
+    };
+    assert!(result.completed, "report: {:#?}", result.report);
+    let save = result.chapters.last().expect("the trip saved").save.clone();
+    let (session, _) = open_session(PACK.as_ref(), &StartPoint::Save(save)).unwrap();
+    let runtime = session.runtime();
+    let item = runtime
+        .battle_items()
+        .find(|item| item.name == "MONOMATE")
+        .expect("MONOMATE has battle data");
+    assert!(runtime.game().inventory().contains(item.id));
+    let opening = Intent::Item {
+        name: item.name.clone(),
+        target: None,
+    };
+
+    let mut policy = OpeningItemPolicy::new("test_opening", item.id);
+    policy.battle_begins(true);
+    assert_eq!(policy.choose(&menu_window(1), runtime), opening);
+    assert_eq!(
+        policy.choose(&menu_window(1), runtime),
+        opening,
+        "the same actor's window reopens on the same choice"
+    );
+    assert_eq!(
+        policy.choose(&menu_window(2), runtime),
+        Intent::Attack,
+        "the opening is spent: everyone else fights"
+    );
+    policy.end_round();
+    assert_eq!(policy.choose(&menu_window(1), runtime), Intent::Attack);
+    policy.battle_begins(true);
+    assert_eq!(
+        policy.choose(&menu_window(1), runtime),
+        opening,
+        "the next scripted battle opens again"
+    );
+
+    let mut random = OpeningItemPolicy::new("test_opening", item.id);
+    random.battle_begins(false);
+    assert_eq!(random.choose(&menu_window(1), runtime), Intent::Attack);
+    let mut missing = OpeningItemPolicy::new("test_opening", 0xFE);
+    missing.battle_begins(true);
+    assert_eq!(missing.choose(&menu_window(1), runtime), Intent::Attack);
+}
+
 fn bin() -> Command {
     Command::new(env!("CARGO_BIN_EXE_psiv-campaign"))
 }
@@ -512,13 +587,13 @@ fn an_arrival_prompt_is_the_next_objectives_to_answer() {
 
 /// The whole route from New Game, pads only. Run it in release.
 ///
-/// The route runs on the engine as it stands, and two port defects stop it:
-/// `Cutscene_AlysWounded` faults in `zio-fort-demi` (RUNNER_LOG.md H17) and
-/// `Event_ZioFortBarrier` is not transcribed (H18, `zio-fort-barrier`). The
-/// test pins what is true today and stays honest when they are fixed: every
-/// chapter before the first defect passes, the run either completes (last
-/// chapter `zio-fort-barrier`) or halts in one of the two chapters the log
-/// names, and its tape replays to the digest the run printed.
+/// Two port defects stop the route at Zio's fight in `nurvus-zio`
+/// (RUNNER_LOG.md H22: `Event_ZioNurvus` resumes a dialogue instead of running
+/// entry `$0B`, and the Zio phase counter is unmodelled, so BLACK WAVE is
+/// rolled in round 1). The test pins what is true today and stays honest when
+/// they are fixed: every chapter before them passes, the run either completes
+/// (last chapter `nurvus-zio`) or halts in that chapter, and its tape replays
+/// to the digest the run printed.
 #[test]
 #[ignore = "plays the whole route: cargo test --release -p psiv-campaign --test runner -- --ignored"]
 fn the_whole_route_plays_to_its_documented_defect_and_replays() {
@@ -529,17 +604,16 @@ fn the_whole_route_plays_to_its_documented_defect_and_replays() {
     let result = run(&config).expect("the route sets up");
     let done: Vec<&str> = result.chapters.iter().map(|c| c.id.as_str()).collect();
     assert!(
-        done.contains(&"zio-fort-juza"),
-        "Juza's battle is won: {done:?}"
+        done.contains(&"nurvus-descent"),
+        "Nurvus is climbed to B4: {done:?}"
     );
     if result.completed {
-        assert_eq!(done.last(), Some(&"zio-fort-barrier"));
+        assert_eq!(done.last(), Some(&"nurvus-zio"));
         assert_eq!(result.chapters.len(), config.route.chapters.len());
     } else {
         let report = result.report.as_ref().expect("a halted run has a report");
-        let chapter = report["chapter"].as_str().unwrap_or_default();
-        assert!(
-            ["zio-fort-demi", "zio-fort-barrier"].contains(&chapter),
+        assert_eq!(
+            report["chapter"], "nurvus-zio",
             "an undocumented halt: {report:#}"
         );
     }
