@@ -16,7 +16,7 @@ use psiv_core::Input as CoreInput;
 use psiv_data::{DialogueSet, Role};
 
 use super::save_dir::{erase_slot, load_slot};
-use super::{Field, Session, StepFrames, TransitionKind, read_input};
+use super::{Field, StepFrames, TransitionKind, read_input};
 
 const SCREEN_WIDTH: f32 = 320.0;
 const SCREEN_HEIGHT: f32 = 224.0;
@@ -900,7 +900,7 @@ impl Field {
                             .expect("validated title initializer")
                             .event_index;
                         let started = runtime.start_event(event);
-                        self.session = Some(Session::new(runtime));
+                        self.session = Some(crate::new_session(runtime));
                         self.load_map_visuals();
                         self.sync_visuals(false);
                         if started {
@@ -927,7 +927,7 @@ impl Field {
                     Ok(mut runtime) => {
                         godot_print!("title: CONTINUE loaded slot {}", slot + 1);
                         self.configure_battles(&mut runtime);
-                        self.session = Some(Session::new(runtime));
+                        self.session = Some(crate::new_session(runtime));
                         self.load_map_visuals();
                         self.play_map_music();
                         self.sync_visuals(false);

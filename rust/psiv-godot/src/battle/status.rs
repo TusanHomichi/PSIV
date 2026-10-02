@@ -5,7 +5,8 @@
 
 use godot::prelude::*;
 
-use super::state::PartyStatus;
+use psiv_runtime::PartyStatus;
+
 use super::ui::{BATTLE_CELL_PIXELS, STATUS_NAME_Y, STATUS_PANE_START_CELLS};
 
 const QUESTION: [&str; 16] = [

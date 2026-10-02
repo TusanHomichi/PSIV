@@ -39,7 +39,7 @@ func _physics_process(_delta):
                 return false
             record("telepipe-arrived",state)
             phase = 9
-        press("ui_cancel")
+        press("psiv_camp")
         return false
     if phase > 0 and camp.party != baseline:
         fail("pipes changed party HP, TP or status",state)

@@ -6,7 +6,7 @@
 
 use godot::prelude::*;
 
-use psiv_runtime::CampCharacter;
+use psiv_runtime::{CampCharacter, CampPage, CampView, ROOT_OPTIONS};
 
 use super::chrome::{CampChrome, Quad};
 use super::layout::{
@@ -16,73 +16,81 @@ use super::layout::{
     STATUS_EQUIPMENT, STATUS_EXP, STATUS_INFO, STATUS_PORTRAIT, STATUS_STATS, STATUS_TEXT,
 };
 use super::status::{draw_level, draw_status_pair, draw_status_text};
-use super::{CampMenu, DrawList, ITEM_LIST, ITEM_TARGET, Mode, ROOT_OPTIONS};
+use super::{CampMenu, DrawList, ITEM_LIST, ITEM_TARGET};
 
 impl CampMenu {
     pub(super) fn draw_list(&self) -> Option<DrawList> {
         let chrome = self.chrome.as_ref()?;
+        let view = self.view.as_ref()?;
         let mut list = DrawList {
             quads: Vec::new(),
             portrait: None,
         };
-        match self.mode {
-            Mode::TravelTowns | Mode::TravelReady if self.travel_item_slot.is_some() => {
-                self.draw_item_list(chrome, &mut list);
-                self.draw_travel_overlay(chrome, &mut list);
+        match view.page {
+            CampPage::TravelTowns | CampPage::TravelReady if view.travel_item_slot.is_some() => {
+                self.draw_item_list(view, chrome, &mut list);
+                self.draw_travel_overlay(view, chrome, &mut list);
             }
-            Mode::AbilityCharacters
-            | Mode::AbilityList
-            | Mode::AbilityTarget
-            | Mode::AbilityResult
-            | Mode::TravelTowns
-            | Mode::TravelReady => self.draw_abilities(chrome, &mut list),
-            Mode::LootMessage
-            | Mode::LootItems
-            | Mode::LootDiscardConfirm
-            | Mode::LootReturnConfirm
-            | Mode::LootBlocked => self.draw_loot(chrome, &mut list),
-            Mode::Root => self.draw_root(chrome, &mut list, true),
-            Mode::ItemEmpty => self.draw_item_empty(chrome, &mut list),
-            Mode::ItemList => self.draw_item_list(chrome, &mut list),
-            Mode::ItemTarget => self.draw_item_target(chrome, &mut list),
-            Mode::ItemResult => self.draw_item_result(chrome, &mut list),
-            Mode::EquipCharacters => self.draw_equip_characters(chrome, &mut list),
-            Mode::EquipStats => self.draw_equip_stats(chrome, &mut list),
-            Mode::EquipItems => self.draw_equip_items(chrome, &mut list),
-            Mode::EquipHands => self.draw_equip_hands(chrome, &mut list),
-            Mode::EquipResult => self.draw_equip_result(chrome, &mut list),
-            Mode::State => self.draw_state(chrome, &mut list),
-            Mode::Order | Mode::OrderDone | Mode::OrderAlone => self.draw_order(chrome, &mut list),
-            Mode::SaveSlots => self.draw_save_slots(chrome, &mut list),
-            Mode::SaveResult => self.draw_save_result(chrome, &mut list),
-            Mode::Status => self.draw_status(chrome, &mut list),
-            Mode::Unsupported => self.draw_unsupported(chrome, &mut list),
-            Mode::Closed => return None,
+            CampPage::AbilityCharacters
+            | CampPage::AbilityList
+            | CampPage::AbilityTarget
+            | CampPage::AbilityResult
+            | CampPage::TravelTowns
+            | CampPage::TravelReady => self.draw_abilities(view, chrome, &mut list),
+            CampPage::LootMessage
+            | CampPage::LootItems
+            | CampPage::LootDiscardConfirm
+            | CampPage::LootReturnConfirm
+            | CampPage::LootBlocked => self.draw_loot(view, chrome, &mut list),
+            CampPage::Root => self.draw_root(view, chrome, &mut list, true),
+            CampPage::ItemEmpty => self.draw_item_empty(view, chrome, &mut list),
+            CampPage::ItemList => self.draw_item_list(view, chrome, &mut list),
+            CampPage::ItemTarget => self.draw_item_target(view, chrome, &mut list),
+            CampPage::ItemResult => self.draw_item_result(view, chrome, &mut list),
+            CampPage::EquipCharacters => self.draw_equip_characters(view, chrome, &mut list),
+            CampPage::EquipStats => self.draw_equip_stats(view, chrome, &mut list),
+            CampPage::EquipItems => self.draw_equip_items(view, chrome, &mut list),
+            CampPage::EquipHands => self.draw_equip_hands(view, chrome, &mut list),
+            CampPage::EquipResult => self.draw_equip_result(view, chrome, &mut list),
+            CampPage::State => self.draw_state(view, chrome, &mut list),
+            CampPage::Order | CampPage::OrderDone | CampPage::OrderAlone => {
+                self.draw_order(view, chrome, &mut list)
+            }
+            CampPage::SaveSlots => self.draw_save_slots(view, chrome, &mut list),
+            CampPage::SaveResult => self.draw_save_result(view, chrome, &mut list),
+            CampPage::Status => self.draw_status(view, chrome, &mut list),
+            CampPage::Unsupported => self.draw_unsupported(view, chrome, &mut list),
         }
         Some(list)
     }
 
-    pub(super) fn draw_root(&self, chrome: &CampChrome, list: &mut DrawList, meseta: bool) {
+    pub(super) fn draw_root(
+        &self,
+        view: &CampView,
+        chrome: &CampChrome,
+        list: &mut DrawList,
+        meseta: bool,
+    ) {
         frame(chrome, &mut list.quads, ROOT_MENU);
         frame(chrome, &mut list.quads, CHARACTER_SUMMARY);
         if meseta {
-            draw_meseta(chrome, &mut list.quads, self.snapshot.money);
+            draw_meseta(chrome, &mut list.quads, view.snapshot.money);
         }
         draw_root_options(chrome, &mut list.quads);
         let cursor = (
             ROOT_CURSOR_CELL.0,
-            ROOT_CURSOR_CELL.1 + self.root_selection as i32 * 2,
+            ROOT_CURSOR_CELL.1 + view.root_selection as i32 * 2,
         );
         if let Some(quad) = chrome.window_word(SELECTED_CURSOR_PATTERN, cursor) {
             list.quads.push(quad);
         }
-        if let Some(character) = self.snapshot.party.first() {
+        if let Some(character) = view.snapshot.party.first() {
             draw_summary(chrome, &mut list.quads, character);
         }
     }
 
-    fn draw_item_empty(&self, chrome: &CampChrome, list: &mut DrawList) {
-        self.draw_root(chrome, list, false);
+    fn draw_item_empty(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
+        self.draw_root(view, chrome, list, false);
         frame(chrome, &mut list.quads, ITEM_MESSAGE);
         draw_text(
             chrome,
@@ -92,11 +100,11 @@ impl CampMenu {
         );
     }
 
-    fn draw_item_list(&self, chrome: &CampChrome, list: &mut DrawList) {
-        self.draw_root(chrome, list, false);
+    fn draw_item_list(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
+        self.draw_root(view, chrome, list, false);
         frame(chrome, &mut list.quads, ITEM_LIST);
-        let page = self.item_selection / 8;
-        for (row, item) in self
+        let page = view.item_selection / 8;
+        for (row, item) in view
             .snapshot
             .inventory
             .iter()
@@ -111,32 +119,32 @@ impl CampMenu {
                 (16, 3 + row as i32 * 2),
             );
         }
-        if self.snapshot.inventory.len() > 8 {
+        if view.snapshot.inventory.len() > 8 {
             draw_text(
                 chrome,
                 &mut list.quads,
                 &format!(
                     "PAGE {}/{}",
                     page + 1,
-                    self.snapshot.inventory.len().div_ceil(8)
+                    view.snapshot.inventory.len().div_ceil(8)
                 ),
                 (16, 20),
             );
         }
-        if !self.snapshot.inventory.is_empty()
+        if !view.snapshot.inventory.is_empty()
             && let Some(quad) = chrome.window_word(
                 CHILD_CURSOR_PATTERN,
-                (15, 3 + (self.item_selection % 8) as i32 * 2),
+                (15, 3 + (view.item_selection % 8) as i32 * 2),
             )
         {
             list.quads.push(quad);
         }
     }
 
-    fn draw_item_target(&self, chrome: &CampChrome, list: &mut DrawList) {
-        self.draw_item_list(chrome, list);
+    fn draw_item_target(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
+        self.draw_item_list(view, chrome, list);
         frame(chrome, &mut list.quads, ITEM_TARGET);
-        for (row, character) in self.snapshot.party.iter().enumerate() {
+        for (row, character) in view.snapshot.party.iter().enumerate() {
             draw_text(
                 chrome,
                 &mut list.quads,
@@ -144,22 +152,22 @@ impl CampMenu {
                 (20, 7 + row as i32),
             );
         }
-        if !self.snapshot.party.is_empty()
+        if !view.snapshot.party.is_empty()
             && let Some(quad) =
-                chrome.window_word(CHILD_CURSOR_PATTERN, (19, 7 + self.target_selection as i32))
+                chrome.window_word(CHILD_CURSOR_PATTERN, (19, 7 + view.target_selection as i32))
         {
             list.quads.push(quad);
         }
     }
 
-    fn draw_item_result(&self, chrome: &CampChrome, list: &mut DrawList) {
-        self.draw_root(chrome, list, false);
+    fn draw_item_result(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
+        self.draw_root(view, chrome, list, false);
         frame(chrome, &mut list.quads, ITEM_MESSAGE);
-        draw_text(chrome, &mut list.quads, &self.message, (8, 22));
+        draw_text(chrome, &mut list.quads, &view.message, (8, 22));
     }
 
-    pub(super) fn draw_state(&self, chrome: &CampChrome, list: &mut DrawList) {
-        self.draw_root(chrome, list, true);
+    pub(super) fn draw_state(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
+        self.draw_root(view, chrome, list, true);
         // STATE_OPTIONS is the oracle-pinned retail two-row rectangle. This
         // modern branch adds SAVE without rewriting that retail constant.
         frame(chrome, &mut list.quads, STATE_SAVE_OPTIONS);
@@ -174,35 +182,35 @@ impl CampMenu {
         );
         let cursor = (
             STATE_CURSOR_CELL.0,
-            STATE_CURSOR_CELL.1 + self.state_selection as i32 * 2,
+            STATE_CURSOR_CELL.1 + view.state_selection as i32 * 2,
         );
         if let Some(quad) = chrome.window_word(CHILD_CURSOR_PATTERN, cursor) {
             list.quads.push(quad);
         }
     }
 
-    fn draw_save_slots(&self, chrome: &CampChrome, list: &mut DrawList) {
-        self.draw_root(chrome, list, true);
+    fn draw_save_slots(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
+        self.draw_root(view, chrome, list, true);
         frame(chrome, &mut list.quads, SAVE_SLOTS_OPTIONS);
         for text in SAVE_SLOT_TEXT {
             draw_text(chrome, &mut list.quads, text.text, text.cell);
         }
         if let Some(quad) = chrome.window_word(
             CHILD_CURSOR_PATTERN,
-            (10, 8 + self.save_selection as i32 * 2),
+            (10, 8 + view.save_selection as i32 * 2),
         ) {
             list.quads.push(quad);
         }
     }
 
-    fn draw_save_result(&self, chrome: &CampChrome, list: &mut DrawList) {
-        self.draw_save_slots(chrome, list);
+    fn draw_save_result(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
+        self.draw_save_slots(view, chrome, list);
         frame(chrome, &mut list.quads, ITEM_MESSAGE);
-        draw_text(chrome, &mut list.quads, &self.message, (8, 22));
+        draw_text(chrome, &mut list.quads, &view.message, (8, 22));
     }
 
-    fn draw_status(&self, chrome: &CampChrome, list: &mut DrawList) {
-        let Some(character) = self.snapshot.party.get(self.status_selection) else {
+    fn draw_status(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
+        let Some(character) = view.snapshot.party.get(view.status_selection) else {
             return;
         };
         for rect in [
@@ -221,7 +229,7 @@ impl CampMenu {
             STATUS_TEXT[19].text,
             STATUS_TEXT[19].cell,
         );
-        draw_status_text(chrome, &mut list.quads, character, self.snapshot.money);
+        draw_status_text(chrome, &mut list.quads, character, view.snapshot.money);
         if let Some(portrait) = self.portraits.get(&character.id) {
             list.portrait = Some((
                 portrait.clone(),
@@ -230,10 +238,10 @@ impl CampMenu {
         }
     }
 
-    fn draw_unsupported(&self, chrome: &CampChrome, list: &mut DrawList) {
-        self.draw_root(chrome, list, true);
+    fn draw_unsupported(&self, view: &CampView, chrome: &CampChrome, list: &mut DrawList) {
+        self.draw_root(view, chrome, list, true);
         frame(chrome, &mut list.quads, ITEM_MESSAGE);
-        draw_text(chrome, &mut list.quads, &self.message, (8, 22));
+        draw_text(chrome, &mut list.quads, &view.message, (8, 22));
     }
 }
 

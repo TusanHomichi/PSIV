@@ -14,12 +14,7 @@ fn main() {
     rt.enable_battles(&BattleFiles::load(pack).unwrap())
         .unwrap();
     assert!(rt.start_event(opening));
-    let mut route = Walk {
-        session: Session::new(rt),
-        ticks: 0,
-        battles: 0,
-        heal_in_battle: false,
-    };
+    let mut route = Walk::new(Session::new(rt), false);
     route.settle();
     route.settle(); // The first-control trigger runs before movement.
     route.checkpoint("START opening");

@@ -162,6 +162,7 @@ pub(super) fn construct_runtime(
         scene_choice_pending: false,
         dialogue: super::dialogue::DialogueRunner::with_pack(dialogue_pack),
         scene_tree_address: None,
+        scene_panel_sprites: false,
         game_cleared: false,
         game_over: false,
         field_status: super::field_status::FieldStatus::default(),

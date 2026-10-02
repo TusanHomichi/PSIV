@@ -63,9 +63,9 @@ The new code requires the rebuilt full pack; exact candidate, pack, binary and
 check receipts are in the travel ledger. The pack, saves and captures remain
 local and ignored.
 
-**Next action:** `S3` (battle) and `S4` (shop, inn, camp, loot) in the
-[campaign runner graph](campaign/CAMPAIGN_RUNNER.md#task-graph), in parallel:
-each moves one Godot-driven mode into the runtime `Session`.
+**Next action:** `S5` (title and game over into the `Session`; runtime mutators
+become crate-private) and `R1` (the campaign runner plays `routes/main.json`
+with pad presses only) in the [campaign runner graph](campaign/CAMPAIGN_RUNNER.md#task-graph), in parallel.
 
 The exact 32×32 bridge match does not establish whole-scene visual parity,
 retail/native save-coordinate interchange, or later campaign progression.

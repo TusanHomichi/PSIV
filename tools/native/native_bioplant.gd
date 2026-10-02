@@ -122,7 +122,7 @@ func field_poison_input(state):
         poison_target = target
         poison_caster = caster
         poison_before = state.duplicate(true)
-    if camp == null: press("ui_cancel")
+    if camp == null: press("psiv_camp")
     else:
         match camp.mode:
             "Root": choose(camp.root,1)
@@ -160,7 +160,7 @@ func field_poison_input(state):
 
 func save_checkpoint_input(state):
     var camp = state.camp
-    if camp == null: press("ui_cancel")
+    if camp == null: press("psiv_camp")
     else:
         match camp.mode:
             "Root": choose(camp.root,4)

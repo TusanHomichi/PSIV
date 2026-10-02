@@ -1,10 +1,10 @@
 //! Teleport selection, paid message and ordinary map-change delivery.
 
-use psiv_runtime::{CampTravelMenu, Runtime};
+use crate::{CampTravelMenu, Runtime};
 
-use super::{CampMenu, Mode};
+use super::{CampPage, CampView};
 
-impl CampMenu {
+impl CampView {
     pub(super) fn begin_selected_travel(&mut self, runtime: &mut Runtime) {
         self.travel_item_slot = None;
         let Some(caster) = self.snapshot.party.get(self.ability_character_selection) else {
@@ -46,7 +46,7 @@ impl CampMenu {
             Ok(CampTravelMenu::Towns(towns)) => {
                 self.travel_towns = towns;
                 self.travel_selection = 0;
-                self.mode = Mode::TravelTowns;
+                self.page = CampPage::TravelTowns;
             }
             Ok(CampTravelMenu::Ready { name }) => {
                 self.message = format!("{name}: READY TO TELEPORT");
@@ -55,15 +55,11 @@ impl CampMenu {
                 if self.travel_item_slot.is_none() {
                     self.sound_request = Some(0xBD);
                 }
-                self.mode = Mode::TravelReady;
+                self.page = CampPage::TravelReady;
             }
             Err(reason) => {
                 self.message = reason;
-                self.mode = if self.travel_item_slot.is_some() {
-                    Mode::ItemResult
-                } else {
-                    Mode::AbilityResult
-                };
+                self.page = self.travel_failure_page();
             }
         }
     }
@@ -77,12 +73,18 @@ impl CampMenu {
             }
             Err(error) => {
                 self.message = format!("TRAVEL ERROR: {error}");
-                self.mode = if self.travel_item_slot.is_some() {
-                    Mode::ItemResult
-                } else {
-                    Mode::AbilityResult
-                };
+                self.page = self.travel_failure_page();
             }
+        }
+    }
+
+    /// Where a refused travel shows its reason: over the pack for a pipe, over
+    /// the ability list for a spell.
+    fn travel_failure_page(&self) -> CampPage {
+        if self.travel_item_slot.is_some() {
+            CampPage::ItemResult
+        } else {
+            CampPage::AbilityResult
         }
     }
 }

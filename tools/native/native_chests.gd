@@ -104,7 +104,7 @@ func _physics_process(_delta):
             record("alshline-scene-completed",state)
             phase = 16
         16:
-            if menu == null: press("ui_cancel")
+            if menu == null: press("psiv_camp")
             elif menu.mode == "Root": choose(menu.root,0)
             elif menu.mode == "ItemList":
                 if menu.item != 39: choose(menu.item,39)
@@ -113,7 +113,7 @@ func _physics_process(_delta):
                     press("ui_cancel")
                     phase = 20
         20:
-            if menu == null: press("ui_cancel")
+            if menu == null: press("psiv_camp")
             elif menu.mode == "Root": choose(menu.root,4)
             elif menu.mode == "State": choose(menu.state,2)
             elif menu.mode == "SaveSlots": choose(menu.save,1)

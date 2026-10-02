@@ -106,6 +106,21 @@ impl Runtime {
         self.battles.iter().flat_map(|set| set.data.skills())
     }
 
+    /// The cartridge's display name for an enemy record, which is what the
+    /// battle narration and the enemy-name window print.
+    ///
+    /// The shell's art setup used to carry this name; the battle mode needs it
+    /// for every line it composes, so it reads the same record the engine's
+    /// `EnemyRecord::name` was built from (`encounters::battle_data`).
+    #[must_use]
+    pub fn battle_enemy_name(&self, enemy_id: u16) -> Option<&str> {
+        let set = self.battles.as_ref()?;
+        set.data
+            .enemy(enemy_id)
+            .ok()
+            .map(|record| record.name.as_str())
+    }
+
     /// Fighters with an actual weapon in either hand. Shields do not qualify.
     #[must_use]
     pub fn battle_armed_fighters(&self) -> Vec<psiv_core::battle::FighterId> {

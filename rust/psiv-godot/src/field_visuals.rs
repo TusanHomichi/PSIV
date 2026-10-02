@@ -23,7 +23,9 @@ impl Field {
         let offset = state.render_offset_16ths();
         let scene_actors: Vec<psiv_core::ScriptedActor> = runtime.scene_actors().to_vec();
         let party_visible: Vec<bool> = rt_party_visibility(runtime, &self.presentation);
-        let scene_sprites_visible = self.presentation.sprites_visible(runtime.scene_event());
+        let scene_sprites_visible = self
+            .presentation
+            .sprites_visible(runtime.scene_event(), runtime.panel_dialogue_mode());
         let active_npcs: Vec<bool> = runtime.map().npcs().iter().map(|npc| npc.active).collect();
         let camera_position = runtime.camera().position();
         let step_frames = runtime.step_frames();
