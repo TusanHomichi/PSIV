@@ -4,6 +4,7 @@
 //! Matching an effect byte alone is insufficient (e.g. DblSlash hits twice).
 //! Crosscut, Vortex, Earth, Crash and Vision have transcribed dispatchers here.
 
+use super::retarget;
 use super::technique::{in_range, stat};
 use super::{
     BattleData, BattleDataError, BattleEvent, FighterId, Rolls, Roster, Side, TechniqueStat,
@@ -156,10 +157,24 @@ pub(super) fn resolve_skill(
     }
     let mut targets = skill_targets(roster, actor, skill);
     if skill.single_target() {
-        let target = intended
-            .filter(|t| targets.contains(t))
-            .or_else(|| targets.first().copied());
-        targets = target.into_iter().collect();
+        // The same one owner a swing and a technique use: a living aim is kept
+        // with no draw, and a fallen enemy is re-aimed by the loop this
+        // record's own effect id selects (`loc_5C8A` -> `loc_5CA2` index 2,
+        // `ps4.asm:8517`, `8533-8537`). A party-side skill's target nibble
+        // never enters `loc_5A98` (`ps4.asm:8055-8057`), so a fallen ally keeps
+        // the aim rather than handing it to another member.
+        targets = intended
+            .and_then(|commanded| {
+                retarget::single_target(
+                    roster,
+                    commanded,
+                    retarget::deficit_for_effect(skill.effect),
+                    rolls,
+                )
+            })
+            .filter(|chosen| targets.contains(chosen))
+            .into_iter()
+            .collect();
     }
     let mut died = Vec::new();
     for target in targets {

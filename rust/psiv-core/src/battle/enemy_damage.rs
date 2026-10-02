@@ -15,9 +15,10 @@
 //!
 //! [`DAMAGE_SKILL_ROUTES`] is therefore the whole gate: one `(enemy, ability)`
 //! pair per arm whose request shape has been read out of the disassembly. The
-//! pair proves the *route* and its [`DamageClass`] — one `$38` request, or the
-//! five-slot all-party loop; the record still drives the arithmetic, and no
-//! record-byte predicate is part of the proof beyond the effect handler: a
+//! pair proves the *route*: its [`DamageClass`] — one `$38` request, or the
+//! five-slot all-party loop — and the [`ObjectDraws`] its chain takes off the
+//! shared stream while it animates; the record still drives the arithmetic, and
+//! no record-byte predicate is part of the proof beyond the effect handler: a
 //! record whose effect is not `$01` (`AbilityEffect_None`, `ps4.asm:9092`)
 //! would need that handler modelled as well, so it stays on the explicit
 //! [`BattleEvent::UnsupportedAbility`] path. Byte 2's target nibble is *not* a
@@ -122,6 +123,55 @@ enum DamageClass {
     AllParty,
 }
 
+/// The calls a route's object chain makes on the shared stream *before* its
+/// damage request.
+///
+/// Damage rolls are not the whole of what an ability takes from
+/// `UpdateRNGSeed2` (`ps4.asm:86097`). An enemy skill's arm loads a battle
+/// object and hands it the turn; that object animates for as long as it likes
+/// before its last phase writes the `move.w #$C` the class above describes, and
+/// an object that shakes the screen reads the generator to do it — the raster
+/// H/V counter is its entropy, so a shake is exactly the kind of thing that
+/// draws. The calls land on the *same* 32-bit seed as every other battle and
+/// field roll, so they move every later draw whether or not the port models
+/// them: a missing one shifts every subsequent roll by one, and the port reads
+/// another action's numbers as its own (issue
+/// [#33](https://github.com/TusanHomichi/PSIV/issues/33)).
+///
+/// So the count is part of the route, read out of the chain the same way the
+/// class is, and the resolver takes the calls where the object does: after the
+/// ability roll and before the first damage run. It depends on nothing the
+/// battle state holds — the object runs its fixed frame count whatever the
+/// target count, the party's HP or the fight's outcome — which is why it is a
+/// per-route constant and not a function.
+///
+/// The file's every `jsr (UpdateRNGSeed2).l` call site was enumerated for this
+/// (43 of them, `docs/source-notes/battle-enemy-abilities.md`, 2026-09-25):
+/// `BattleObj_Earthquake` is the only object a proven route's chain reaches
+/// that owns one, and no proven arm routine owns one either. Every route below
+/// that lists [`ObjectDraws::None`] was checked against that list: its arm, its
+/// own region and the objects it loads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ObjectDraws {
+    /// Nothing in the chain calls the generator: the route's whole draw is the
+    /// ability roll and the damage runs.
+    None,
+    /// `BattleObj_Earthquake`'s shake (`ps4.asm:47884`), the one chain read to
+    /// call `UpdateRNGSeed2` — [`EARTHQUAKE_SHAKE_DRAWS`] calls, all of them
+    /// before the five-slot request at `ps4.asm:47998`.
+    EarthquakeShake,
+}
+
+impl ObjectDraws {
+    /// How many calls the chain makes before its damage request.
+    const fn count(self) -> u16 {
+        match self {
+            ObjectDraws::None => 0,
+            ObjectDraws::EarthquakeShake => EARTHQUAKE_SHAKE_DRAWS,
+        }
+    }
+}
+
 /// `EnemySkillData` `$33` ACIDBREATH, record `01 01 08 18 06 01 00 00` at
 /// `$2834FC`.
 const ACID_BREATH: u8 = 0x33;
@@ -155,6 +205,30 @@ const SPIRAL_BLD: u8 = 0x08;
 /// `$283524`: effect `$01`, stat `$05` (attack), tgt 9, pow 0, res `$06`
 /// (defense), el `1` (physical).
 const EARTHQUAKE: u8 = 0x38;
+
+/// The length in frames of `BattleObj_Earthquake`'s shake:
+/// `move.b #$3C, $11(a4)` (`ps4.asm:47944`, in the handover at `loc_24308`,
+/// line 47935), counted down once a frame by `subq.b #1, $11(a4)`
+/// (`ps4.asm:47963`, in `loc_2436A`, line 47962).
+const EARTHQUAKE_SHAKE_FRAMES: u16 = 0x3C;
+
+/// How often the shake draws: `loc_2438E` (`ps4.asm:47972`) bumps `$10(a4)` and
+/// masks it to two bits, and only the frame that masks to zero reaches the two
+/// `jsr (UpdateRNGSeed2).l` calls (lines 47976 and 47983) — one for
+/// `Camera_X_Pos_FG` and one for `Camera_X_Pos_BG`.
+const EARTHQUAKE_SHAKE_PERIOD: u16 = 4;
+
+/// The calls one `BattleObj_Earthquake` run makes: two, every fourth frame of
+/// the shake.
+///
+/// The frame that empties `$11(a4)` takes the `bne` at `ps4.asm:47964` out of
+/// the shake instead, so 59 of the 60 frames run the shake body and the last
+/// drawing frame is the 56th: `4, 8, … 56` is fourteen frames, two calls each.
+/// The captured Motavia battle that settled this measured exactly that — 28
+/// calls, two a frame over f26541–f26593 of
+/// `build/sweep-3B/capture/forced_3B_attack_rolls.csv`
+/// (`docs/source-notes/battle-enemy-abilities.md`, 2026-09-25).
+const EARTHQUAKE_SHAKE_DRAWS: u16 = 2 * ((EARTHQUAKE_SHAKE_FRAMES - 1) / EARTHQUAKE_SHAKE_PERIOD);
 
 /// `EnemySkillData` `$3F` FLODBREATH, record `01 05 08 14 06 01 00 00` at
 /// `$28355C`: effect `$01`, stat `$05` (attack), tgt 8, pow 20, res `$06`
@@ -192,6 +266,8 @@ struct DamageRoute {
     ability: u8,
     /// What the traced chain does with `move.w #$C`.
     class: DamageClass,
+    /// What the same chain takes off the shared stream before it does that.
+    draws: ObjectDraws,
 }
 
 /// Every `(enemy, ability)` pair whose arm has been traced, with the class the
@@ -350,6 +426,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 75,
         ability: ACID_BREATH,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // `EnemyAttackOffs` `$4C` (`ps4.asm:19283`) → the same
     // `EnemyAttack_FlattrPlnt` arm and object.
@@ -357,6 +434,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 76,
         ability: ACID_BREATH,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // `EnemyAttackOffs` `$55` (`ps4.asm:19292`) → `EnemyAttack_Piercer`
     // (`ps4.asm:21518`), `$33` arm `loc_F2A0` → object `$35C` = `loc_23998`
@@ -365,6 +443,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 85,
         ability: ACID_BREATH,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // `EnemyAttackOffs` `$56` (`ps4.asm:19293`) → the same
     // `EnemyAttack_Piercer` arm and object.
@@ -372,6 +451,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 86,
         ability: ACID_BREATH,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // `EnemyAttackOffs` `$00` (`ps4.asm:19207`) → `EnemyAttack_Helex`
     // (`ps4.asm:23574`) → object `$48` = BattleObj_HelexFlameBolt
@@ -381,6 +461,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 0,
         ability: FLAME_BOLT,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // `EnemyAttackOffs` `$05` (`ps4.asm:19212`) → `EnemyAttack_ForcedFly`
     // (`ps4.asm:23567`) falls through into `EnemyAttack_Helex` for a nonzero
@@ -389,6 +470,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 5,
         ability: FLAME_BOLT,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 71 FrostSaber, `$2E` GIWAT: `EnemyAttackOffs` `$47` (`ps4.asm:19278`) →
     // `EnemyAttack_ShadowSabr` (`ps4.asm:21933`), arm `loc_F8F2`
@@ -399,6 +481,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 71,
         ability: GIWAT,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 77 TechPlant, `$2E` GIWAT: `EnemyAttackOffs` `$4D` (`ps4.asm:19284`) →
     // `EnemyAttack_FlattrPlnt` arm `loc_F6C4` (`ps4.asm:21846`), writing `$2FC`
@@ -409,6 +492,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 77,
         ability: GIWAT,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 91 HewGilla, `$2E` GIWAT: `EnemyAttackOffs` `$5B` (`ps4.asm:19298`) →
     // `EnemyAttack_HewGilla` (`ps4.asm:21395`); `$2E` is the else arm
@@ -419,6 +503,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 91,
         ability: GIWAT,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 101 DarkWitch, `$2E` GIWAT: `EnemyAttackOffs` `$65` (`ps4.asm:19308`) →
     // `EnemyAttack_TechUser` (`ps4.asm:21156`), arm `loc_EE0E`
@@ -429,6 +514,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 101,
         ability: GIWAT,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 122 DElmLars, `$2E` GIWAT: `EnemyAttackOffs` `$7A` (`ps4.asm:19329`) →
     // `EnemyAttack_DElmLars` (`ps4.asm:20222`), arm `loc_DFBE`
@@ -439,6 +525,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 122,
         ability: GIWAT,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 123 XeAThoul, `$2E` GIWAT: `EnemyAttackOffs` `$7B` (`ps4.asm:19330`) →
     // the same `EnemyAttack_DElmLars` arm, object and request.
@@ -446,6 +533,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 123,
         ability: GIWAT,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 81 DesrtLeach, `$37` SAND STORM: `EnemyAttackOffs` `$51`
     // (`ps4.asm:19288`) → `EnemyAttack_SandWorm` (`ps4.asm:21658`), arm
@@ -456,6 +544,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 81,
         ability: SAND_STORM,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 82 Leviathan, `$39` MAELSTROM: `EnemyAttackOffs` `$52`
     // (`ps4.asm:19289`) → `EnemyAttack_SandWorm`'s else arm `loc_F4FA`
@@ -466,6 +555,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 82,
         ability: MAELSTROM,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 90 Depcen, `$3F` FLODBREATH: `EnemyAttackOffs` `$5A`
     // (`ps4.asm:19297`) → `EnemyAttack_Ismounos` (`ps4.asm:21434`), whose
@@ -476,6 +566,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 90,
         ability: FLODBREATH,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 91 HewGilla, `$3F` FLODBREATH: `EnemyAttackOffs` `$5B`
     // (`ps4.asm:19298`) → `EnemyAttack_HewGilla`'s `$3F` arm (test at line
@@ -485,6 +576,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 91,
         ability: FLODBREATH,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 92 Elmelew, `$3F` FLODBREATH: `EnemyAttackOffs` `$5C`
     // (`ps4.asm:19299`) → the same `EnemyAttack_HewGilla` arm, object and
@@ -493,6 +585,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 92,
         ability: FLODBREATH,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 91 HewGilla, `$40` WAT: `EnemyAttack_HewGilla`'s `$40` arm `loc_F0CC`
     // (`ps4.asm:21412`, test at line 21418) writes `$388` (line 21423) =
@@ -502,6 +595,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 91,
         ability: WAT,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 92 Elmelew, `$40` WAT: `EnemyAttackOffs` `$5C` (`ps4.asm:19299`) → the
     // same arm and object.
@@ -509,6 +603,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 92,
         ability: WAT,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 99 TechUser, `$40` WAT: `EnemyAttackOffs` `$63` (`ps4.asm:19306`) →
     // `EnemyAttack_TechUser`'s `$40` arm `loc_EDC4` (`ps4.asm:21211`), writing
@@ -518,6 +613,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 99,
         ability: WAT,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 100 TechMaster, `$40` WAT: `EnemyAttackOffs` `$64` (`ps4.asm:19307`) →
     // the same `EnemyAttack_TechUser` arm and object.
@@ -525,6 +621,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 100,
         ability: WAT,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 114 Juza, `$40` WAT: `EnemyAttackOffs` `$72` (`ps4.asm:19321`) →
     // `EnemyAttack_Juza` (`ps4.asm:20575`), arm `loc_E3DE` (`ps4.asm:20593`)
@@ -534,6 +631,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 114,
         ability: WAT,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 99 TechUser, `$44` FOI: `EnemyAttack_TechUser`'s first arm (test at
     // line 21157) writes `$3B0` (line 21171) = `loc_21BF0`
@@ -543,6 +641,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 99,
         ability: FOI,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 100 TechMaster, `$44` FOI: `EnemyAttackOffs` `$64` (`ps4.asm:19307`) →
     // the same `EnemyAttack_TechUser` arm and object.
@@ -550,6 +649,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 100,
         ability: FOI,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 114 Juza, `$44` FOI: `EnemyAttack_Juza`'s first arm (`ps4.asm:20575`,
     // test at line 20576) writes `$740` (line 20590) = `loc_2B08E`
@@ -559,6 +659,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 114,
         ability: FOI,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 147 Rappy, `$6D` ROUND EYES: `EnemyAttackOffs` `$93`
     // (`ps4.asm:19354`) → `EnemyAttack_Rappy` (`ps4.asm:19578`), whose
@@ -571,6 +672,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 147,
         ability: ROUND_EYES,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 148 BlueRappy, `$6E` LOVEL EYES: `EnemyAttackOffs` `$94`
     // (`ps4.asm:19355`) → the same routine's else arm `loc_D4DE`
@@ -581,6 +683,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 148,
         ability: LOVEL_EYES,
         class: DamageClass::Single,
+        draws: ObjectDraws::None,
     },
     // 15 Fanbite, `$08` SPIRAL BLD — the first all-party route.
     // `EnemyAttackOffs` `$0F` (`ps4.asm:19222`) → `EnemyAttack_Locusta`
@@ -605,6 +708,7 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
         enemy_id: 15,
         ability: SPIRAL_BLD,
         class: DamageClass::AllParty,
+        draws: ObjectDraws::None,
     },
     // 80 SandWorm, `$38` EARTHQUAKE. `EnemyAttackOffs` `$50`
     // (`ps4.asm:19287`) → `EnemyAttack_SandWorm` (`ps4.asm:21658`); `loc_F4D4`
@@ -615,17 +719,24 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
     // 6-8 only, and `loc_F48A` owns `$37` and `loc_F4FA` the else arm, so this
     // body is `$38`'s alone.
     //
-    // The object's state table (`loc_2427A`, `ps4.asm:47901`) reaches
+    // The object's state table (`loc_2427A`, `ps4.asm:47897`) reaches
     // `loc_243C8` (line 47992) for the request: it writes `#$C` to the five
     // slots from `Obj_Fighters` (lines 47995-48000) and sets `($FFFF416C)`,
     // then waits for the flag to clear (line 48003) before its follow-through
     // phase. Unlike the two tails and the Fanbite object it does not
     // test the `$1C` timers, and `Enemy_Attack` cleared them for all five
     // slots at line 19143 anyway.
+    //
+    // Before that request it shakes the screen: state 4 (`loc_24356`, line
+    // 47957) is entered from state 0 with `$11(a4) = $3C` and `$10(a4) = 0`
+    // (lines 47943-47945), and `loc_2438E` (line 47972) draws twice on every
+    // fourth frame of the sixty — 28 calls, all of them before the `#$C`
+    // writes. That is the route's `draws`, and the only one in the table.
     DamageRoute {
         enemy_id: 80,
         ability: EARTHQUAKE,
         class: DamageClass::AllParty,
+        draws: ObjectDraws::EarthquakeShake,
     },
     // 149 KingRappy, `$38` EARTHQUAKE. `EnemyAttackOffs` `$95`
     // (`ps4.asm:19356`) → `EnemyAttack_KingRappy` (`ps4.asm:19596`), whose
@@ -643,19 +754,26 @@ const DAMAGE_SKILL_ROUTES: &[DamageRoute] = &[
     // (line 67527), the shared all-party tail at `ps4.asm:48562`: its `$1C`
     // gate at lines 48565-48571, the five `#$C` writes at lines 48572-48577 and
     // `($FFFF416C)` at line 48578.
+    //
+    // KingRappy's object shakes the camera too, but from a table rather than
+    // the generator: state 4 (`loc_344AC`, line 67554) walks a fixed byte list
+    // of eight camera offsets (`loc_3451C`, line 67590) and calls nothing, so
+    // this route takes no call the damage runs do not. It is the control for
+    // SandWorm's above: same ability, same class, one object that draws and one
+    // that does not.
     DamageRoute {
         enemy_id: 149,
         ability: EARTHQUAKE,
         class: DamageClass::AllParty,
+        draws: ObjectDraws::None,
     },
 ];
 
-/// The class the table has proven for this exact pair, if any.
-fn proven(enemy_id: u16, ability: u8) -> Option<DamageClass> {
+/// The route the table has proven for this exact pair, if any.
+fn proven(enemy_id: u16, ability: u8) -> Option<&'static DamageRoute> {
     DAMAGE_SKILL_ROUTES
         .iter()
         .find(|route| route.enemy_id == enemy_id && route.ability == ability)
-        .map(|route| route.class)
 }
 
 /// The traced damage requests of one route, for every pair in
@@ -670,15 +788,22 @@ fn proven(enemy_id: u16, ability: u8) -> Option<DamageClass> {
 /// drawn and no event is emitted on any of those paths, so the caller's
 /// fallback starts from the state the ability roll left behind.
 ///
-/// A resolved skill emits [`BattleEvent::EnemySkillUsed`] first and then one
-/// [`BattleEvent::Resolved`] per target that is on the party side and alive,
-/// each carrying its own clamped damage and the fighter's remaining hit points
-/// — plus [`BattleEvent::Died`] when that reaches zero. The `Single` class
-/// resolves the `intended` target alone; the `AllParty` class ignores
+/// A resolved skill emits [`BattleEvent::EnemySkillUsed`] first, then draws the
+/// route's [`ObjectDraws`] — the calls its object makes while it animates —
+/// and then one [`BattleEvent::Resolved`] per target that is on the party side
+/// and alive, each carrying its own clamped damage and the fighter's remaining
+/// hit points — plus [`BattleEvent::Died`] when that reaches zero. The `Single`
+/// class resolves the `intended` target alone; the `AllParty` class ignores
 /// `intended` (its arm cleared `Current_Target_Index` before loading the
 /// object) and walks every occupied, living party slot in slot order, which is
 /// the order `Battle_UpdateFighters` (`ps4.asm:987`) runs their `$C` routines
 /// in.
+///
+/// The object's calls are drawn whatever the battle state: the arm loads the
+/// object on the ability roll alone, so the shake runs its sixty frames and
+/// takes its 28 calls even in a round where no party slot is left to damage.
+/// They sit before every damage run, never between them — the request is the
+/// object's last phase, and all of its draws are behind it.
 pub(super) fn resolve_damage_skill(
     roster: &mut Roster,
     actor: FighterId,
@@ -702,9 +827,10 @@ pub(super) fn resolve_damage_skill(
     };
     // The table's class selects the shape resolved below. The match is
     // exhaustive, so a new class fails to compile until it has a branch here.
-    let Some(class) = proven(caster.stats.enemy_id, ability) else {
+    let Some(route) = proven(caster.stats.enemy_id, ability) else {
         return false;
     };
+    let class = route.class;
     // `Effect_SetupSkillParams` (`ps4.asm:9576`) masks the record's stat byte
     // with `$7F` (line 9580) before indexing `AbilityStatsOffs`, which is how a
     // record written as `$82` selects mental. Byte 4 is read raw there (line
@@ -718,6 +844,14 @@ pub(super) fn resolve_damage_skill(
         skill: ability,
         name: skill.name.clone(),
     });
+    // The chain's own calls come here, between the ability roll the caller made
+    // and the first damage run below: they are the frames the object spends
+    // animating before its request, and they move the shared seed like any
+    // other draw, so a port that skips them reads another action's numbers as
+    // its own. See [`ObjectDraws`] for what makes them a per-route constant.
+    for _ in 0..route.draws.count() {
+        rolls.next_roll();
+    }
     match class {
         // One request against the object's `$38`, the drawn
         // `Current_Target_Index`.

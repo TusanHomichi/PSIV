@@ -17,7 +17,7 @@ that pack; it does not run the emulator. The Cargo workspace has five crates:
 | [psiv-core](../rust/psiv-core/) | Deterministic field, battle, event, party and save rules; no dependencies or engine types |
 | [psiv-runtime](../rust/psiv-runtime/) | Pack-to-core conversion, game orchestration, persistence integration and presentation snapshots |
 | [psiv-sound](../rust/psiv-sound/) | Live PSIV driver, FM/PSG/DAC playback and register traces |
-| [psiv-godot](../rust/psiv-godot/) and [godot](../godot/) | Desktop bridge, rendering, menus, input and audio output |
+| [psiv-godot](../rust/psiv-godot/) and [godot](../godot/) | Desktop bridge: rendering, pad input and audio output. Menus and game flow are moving into a runtime `Session` ([campaign runner](campaign/CAMPAIGN_RUNNER.md)) |
 
 Game rules belong in the core; the runtime coordinates them, and Godot presents
 results and sends input. Keep ROM decoding in Python. Pack schema changes need

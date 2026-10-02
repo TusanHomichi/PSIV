@@ -616,3 +616,237 @@ f26539) and fails `half_hp_or_lower_holds_at_exactly_half` at 40 of 80; the
 dispatch restored, both pass again. The eight fixtures listed here are the
 accepted behavior change: `formation_2A` f26539 and f28075, `2B` f27707, `32`
 f27115, `34` f27629 and f28299. Nothing else moved.
+
+## The ability object's own RNG calls: EARTHQUAKE `$38` and issue #33 (2026-09-25)
+
+The sweep's last divergence (`docs/oracle/BATTLE_ORACLE_SWEEP.md` §4.4 W5) was
+`formation_3B` round 3: the log draws 126 calls in the round, the port 82, and
+the first thing the missing 28 move is SandWorm's `$38` damage (the log resolves
+241/223/265 on the three party slots, the port 276/247/237). The 28 are not a
+damage-route rule at all. They are `BattleObj_Earthquake`'s screen shake, and the
+mechanism, the count and the capture evidence are recorded here.
+
+### The arm, and the object it loads
+
+`EnemyAttack_SandWorm` (`ps4.asm:21658`) dispatches on `$24(a4)`, the rolled
+ability. `loc_F4D4` (`ps4.asm:21710`) is the `$38` arm: `cmpi.w #$38, $24(a4)`
+(line 21711), then `move.w #$FFFF, (Current_Target_Index).l` (line 21713), a PLC
+load (line 21716) and `move.w #$330, (a1)` (line 21718) — the object id goes into
+the *attack object itself*, and the arm tail-calls `loc_D200` (`ps4.asm:19395`)
+to set its parent. `# $330` is the group-5 offset whose entry is
+`BattleObj_Earthquake` (`BattleObjsGroup5Ptrs` line 43704, object at
+`ps4.asm:47884`). `$37` is `loc_F48A`'s and everything else `loc_F4FA`'s, so the
+body belongs to `$38`.
+
+The object's state table is `loc_2427A` (`ps4.asm:47897`), indexed by `$14(a4)`
+in steps of 4: state 0 (`loc_2428A`, line 47902) winds up, state 4
+(`loc_24356`, line 47957) shakes, state 8 (`loc_243C8`, line 47992) flashes and
+makes the five-slot damage request, state 12 (`loc_243FC`, line 48008) follows
+through and clears itself. (The all-party record below and the route comment
+both cite the table as `ps4.asm:47901`, which is its fourth entry `bra.w
+loc_243FC`, not the label; corrected here against the source.)
+
+### The 28 calls, instruction by instruction
+
+State 0 hands over to the shake at `loc_24308` (line 47935):
+
+```text
+    cmpi.b  #$1E, $11(a4)      ; ps4.asm:47940 - 30 frames of wind-up after the
+    bne.s   loc_2433E          ;   $6(a4) crack countdown has run out
+    move.w  #$8B00, (VDP_Control_Port).l
+    move.w  #4, $14(a4)        ; ps4.asm:47943 - state 4
+    move.b  #$3C, $11(a4)      ; ps4.asm:47944 - 60 shake frames
+    clr.b   $10(a4)            ; ps4.asm:47945 - the draw counter starts at 0
+```
+
+State 4's body is:
+
+```text
+loc_24356:
+    addq.b  #1, ($FFFFEEE2).w  ; ps4.asm:47958 - sound timer, 1 in 4 frames
+    andi.b  #3, ($FFFFEEE2).w
+    bne.s   loc_2436A
+    move.b  #SFXID_GraveOpening, (Sound_Index&$FFFFFF).l
+loc_2436A:
+    subq.b  #1, $11(a4)        ; ps4.asm:47963 - the shake's own countdown
+    bne.s   loc_2438E          ;   taken on every frame but the one that empties it
+    clr.l   (Camera_X_Pos_FG).w
+    clr.l   (Camera_X_Pos_BG).w
+    move.w  #8, $14(a4)        ; ps4.asm:47968 - state 8: the flash and the request
+    ...
+loc_2438E:
+    addq.b  #1, $10(a4)        ; ps4.asm:47973
+    andi.b  #3, $10(a4)        ; ps4.asm:47974 - two bits: a period of four
+    bne.s   loc_243C6          ;   every frame but the fourth returns here
+    jsr     (UpdateRNGSeed2).l ; ps4.asm:47976 -> Camera_X_Pos_FG
+    ...
+    jsr     (UpdateRNGSeed2).l ; ps4.asm:47983 -> Camera_X_Pos_BG
+```
+
+So the shake body runs on frames 1..59 of the sixty (the 60th empties `$11(a4)`
+and takes state 8 instead), `$10(a4)` walks `1,2,3,0,1,2,3,0,…`, and frames
+4, 8, 12 … 56 reach the two `jsr` calls: **fourteen frames, two calls each, 28
+calls in all**, every one of them before the request. The calls are a camera
+shake, not a decision: each value is masked with `#$1F`, given a sign by
+`btst #0` and stored in `Camera_X_Pos_FG` / `Camera_X_Pos_BG` — but they come off
+the shared `RNG_Seed` through the same `ror (RNG_Seed).w`, so they move every
+later roll in the battle.
+
+They are not conditional on anything the battle holds. `$6(a4)` (the crack
+countdown that gates the wind-up) belongs to state 0, and the harness object
+`loc_244D0` (`ps4.asm:48065`) that loads the three `$334` crack children runs
+without drawing; `loc_255FA`, `loc_25518`, `loc_256AE`, `PlaneMapToRAM` and
+`Battle_LoadObject` — everything else the chain calls — make no generator call at
+all (see the call-site census below). The frame count is a literal: 60 frames,
+28 calls, whatever the target count, the party's HP or the fight's outcome.
+
+### What the capture shows
+
+`build/sweep-3B/capture/forced_3B_attack_rolls.csv` (the preserved capture the
+fixture was extracted from) holds exactly those calls. SandWorm's action opens at
+f26155 with one call, then:
+
+```text
+frame,call,pc,hv,frame_count,seed_before,roll,seed_after
+26541,0,0423A2,58AB,25595,3DA6C613,7F00,1ED3C613
+26541,1,0423A2,580F,25595,1ED3C613,9D37,8F69C613
+26545,0,0423A2,5C9A,25599,30D5C273,8FC4,986AC273
+26545,1,0423A2,5D03,25599,986AC273,2898,4C35C273
+...
+26593,0,0423A2,624E,25647,CC1CBEF3,FA61,660EBEF3
+26593,1,0423A2,6287,25647,660EBEF3,60A8,3307BEF3
+26599,0,0423A2,26F0,25653,316C2803,59B9,18B62803   <- the 48 damage calls
+```
+
+Two calls a frame, every fourth frame, from f26541 to f26593 — fourteen frames,
+28 calls, and the damage runs at f26599, 48 calls (16 per slot, three slots).
+The extractor's own labels (`oracle/fixture/roles.py`) read those 28 as
+`ability` + `ability_reroll` because it has no other shape for an enemy action's
+non-16-multiple frame; the routine they come from is the one above, and the
+frame spacing is what says so: f26541 - f26155 = 386 frames of wind-up, then 4
+frames a step to the last call at f26593, with the request six frames later
+(state 8's flash, which waits for `($FFFF416C)` — line 47993 sets it, line 48003
+waits on it). The round's tally follows: 13 order draws + 1 ability roll + 28 +
+48 + 2 + 17 + 17 = 126.
+
+### The damage is the same rule, read 28 words late
+
+Both blocks run through `Battle_CalculateDamage` (`ps4.asm:17374`) with the same
+record (`01 05 09 00 06 01 00 00`, power byte 0), so the only difference is
+which sixteen words land in `S`:
+
+| slot | `S` (aligned) | raw | stored | `S` (28 words early) | raw | stored |
+|---|---|---|---|---|---|---|
+| 1 Alys (def 18) | 47 | 241 | 241 | 63 | 276 | 276 |
+| 2 Chaz (def 10) | 35 | 223 | 223 | 46 | 247 | 247 |
+| 3 Hahn (def 9) | 54 | 265 | 265 | 41 | 237 | 237 |
+
+`(((S + 8) * 279) >> 6) + 279) * 2 >> 2 - defence` in 16-bit words, element 1 =
+physical resolved to the target's factor 2. The log's own `damage` column for
+the round is 241/223/265 and the port's old numbers were 276/247/237 — the
+misaligned read, not a second rule in the route. The port's formula, its record
+read, its element factor and its slot order were already right; nothing in
+`Enemy_DamageCharacter` (`ps4.asm:3775`) changes.
+
+### The census: which chain objects draw
+
+`jsr (UpdateRNGSeed2).l` appears at 43 call sites in the file. Mapped to the
+object that owns each (label to the next object-table entry):
+`BattleObj_SlaveMotrCannon` (28770), `loc_1C58E` (38778), `loc_1C73E` (38990),
+**`BattleObj_Earthquake` (47976, 47983)**, `loc_25032` (48981), `loc_27094`
+(52107), `loc_27C80` (52962, 52967), `loc_2DAC6` (59824, 59832, 59918),
+`loc_2DD5E` (59955, 59960), `loc_2DF4A` (60128), `loc_2E260` (60282),
+`loc_320C2` (64847), `BattleObj_Nazan` (73477, 73488), `BattleObj_NazanChild2`
+(73600), `BattleObj_GraChild` (73782), `BattleObj_GraChild2` (73811),
+`BattleObj_MegidChild` (73951, 73955), `BattleObj_Legeon` (75562, 75566),
+`BattleObj_PosiboltChild` (75958), `BattleObj_BlizzardChild` (80603) and
+`BattleObj_XBurstChild` (114422, 158017) — plus the non-object routines
+(`Enemy_TargetCharacter`, `Battle_CalculateChances`, `Battle_CalculateDamage`,
+`Battle_CalcHealing`, `Battle_RestoreStatsAtTurnEnd`, `Enemy_Attack`'s
+`loc_CFE6`, the encounter and item-drop draws), which the port models separately.
+
+Read against `DAMAGE_SKILL_ROUTES`' 30 pairs, `BattleObj_Earthquake` is the only
+chain object in the table that owns one: 80 SandWorm's `$38`. The thirteen
+sites outside object code are the battle's own consumers, which the port models
+where they belong: `Battle_CheckItemDrop` (4837, the post-victory drop),
+`Battle_OrderTurns` (7796, the round's order pass), `Enemy_TargetCharacter`
+(7979, the party-target draw), the retarget scan's two loops (8368, 8396),
+`Battle_RestoreStatsAtTurnEnd` (9810), `loc_7E8A` (11870, the encounter's
+formation draw), `Battle_CalculateChances` (17339), `Battle_CalculateDamage`
+(17381), `Battle_CalcHealing` (17416), `Enemy_Attack`'s `loc_CFE6` (19147, the
+ability roll and its re-roll) — and two that belong to arms no proven route
+takes: 47 Warren286's `$1D` arm (22632, `loc_101AC` drawing to pick between two
+candidate party slots; the proven `$1C` pair takes `loc_1006E`, line 22545, and
+never reaches it) and `EnemyAttack_Igglanova`'s empty-space choice (23537,
+`loc_10D32`, which draws only when the enemy's row has empty space on both
+sides). Neither of those arms is in the table, so no proven route's arm owns a
+call site either. In particular
+149 KingRappy's `$38` — the same ability, the same `AllParty` class — loads
+`BattleObj_KingRappyEarthquake` (`ps4.asm:67513`), whose state 4 (`loc_344AC`,
+line 67554) shakes the camera from the fixed byte table `loc_3451C` (line 67590)
+and calls nothing, so that route takes no such calls. The census was taken with a
+throwaway walk of the file (call sites, their owning labels, each route object's
+region and the objects it loads, recursively); its input and output are in
+`build/lane-evidence/eq-object-rng/object-rng-chain-audit.txt` and
+`object-id-loaders.txt` (not committed; `build/` is ignored).
+
+The rest of the object-owned sites are the same phenomenon in chains this
+table does not reach, and a lane that implements one of them inherits the
+question: `loc_1C73E` (38990) is cited in `$31` GRA's own object list and
+`loc_1C58E` (38778) is its neighbour in group 4, `loc_25032` (48981),
+`loc_27094` (52107), `loc_27C80` (52962, 52967), `loc_2DAC6` (59824, 59832,
+59918), `loc_2DD5E` (59955, 59960), `loc_2DF4A` (60128), `loc_2E260` (60282) and
+`loc_320C2` (64847) are object-tail effects with no proven enemy arm, and
+`BattleObj_SlaveMotrCannon` (28770) belongs to `EnemyAttack_Slave` (23451),
+whose pairs are not in the table. `BattleObj_Nazan`/`NazanChild2`,
+`GraChild`, `GraChild2`, `MegidChild`, `Legeon`, `PosiboltChild`,
+`BlizzardChild` and `XBurstChild` are the same shape in chains loaded from
+`Battle_LoadAbilityAnim2` (`ps4.asm:79033`) and its neighbours — ability
+art, not enemy attack arms — which is a reading, not a claim about which side
+casts them.
+
+### The port's change
+
+`enemy_damage::DamageRoute` gained a `draws: ObjectDraws` field:
+`ObjectDraws::None` (nothing in the chain calls the generator) or
+`ObjectDraws::EarthquakeShake`, whose count is
+`2 * ((EARTHQUAKE_SHAKE_FRAMES - 1) / EARTHQUAKE_SHAKE_PERIOD)` = `2 * (59 / 4)`
+= 28, so the literal 60 and the period 4 stay the citation they came from.
+`resolve_damage_skill` draws `route.draws.count()` after the ability roll and
+before the first `damage_one_target`, which is where the object makes them: the
+shake is state 4, the request is state 8. KingRappy's route is
+`ObjectDraws::None`, which is what keeps this a route's count rather than the
+ability's.
+
+Unit tests (`rust/psiv-core/src/battle/enemy_damage_all_party_tests.rs`):
+`earthquakes_shake_draws_twice_every_fourth_frame` (the three constants, 28 + 48
+draws for SandWorm against 48 for KingRappy and Fanbite),
+`the_shake_draws_sit_before_the_first_damage_run` (a stream whose first 28 words
+add nothing to `S` and whose next sixteen mask to 7 — slot 1 must read the
+maximum-roll number, not the mean one) and
+`the_shake_is_drawn_whatever_the_target_walk_finds` (28 + 16 with one slot
+living, 28 with none). The three helpers that used to pin 48 and 62 draws now
+add the route's own count.
+
+Negative control. Commenting the draw loop out (and reading `route.draws` to keep
+the build clean) reproduces the ledger's finding exactly: the dump prints
+`sweep_motavia/formation_3B` at f26155, `round_rolls {"log": 126, "port": 82}`,
+`actual "Normal with Some(276)"` — byte-identical to the entry that was in
+`divergences.json` — and the data-driven test passes against that entry. With the
+loop restored the dump has **no finding lines at all** and the same test passes
+against an empty manifest, and `manifest.py` on the dump of the disabled state
+rebuilds the committed `divergences.json` byte for byte. Transcripts, all under
+`build/lane-evidence/eq-object-rng/` (not committed; `build/` is ignored):
+`before-and-after.txt`, `negative-control-dump-raw.txt`,
+`negative-control-findings.txt`, `negative-control-entry.json`,
+`negative-control-data-test.txt`, `manifest-regenerated-before.txt`,
+`after-dump-raw.txt`, `after-findings.txt`, `after-data-test.txt`,
+`final-core-runtime-tests.txt`, `probe-3B-after-fix.txt` and the two census
+files.
+
+Replay check, per round (`build/lane-evidence/eq-object-rng/probe-3B-after-fix.txt`):
+rounds 1 and 2 were already exact (83/83, 67/67) and stay so; round 3 is now
+126/126 with the log's 241/223/265 on slots 1-3; rounds 4 and 5 are 83 and 126 on
+both sides. Every one of the 87 fixtures in `replay_fixtures/` replays exactly -
+the six hand-built ones and the 81 swept ones together, which the directory has
+not managed before (`divergences.json` was empty at times when it held six).

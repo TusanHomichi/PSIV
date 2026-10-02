@@ -211,8 +211,8 @@ note says what runs instead.
 | 124 LeFawGan | `$35` GIZAN | `loc_DF22` (`ps4.asm:20263`) — `bne.s loc_DF74` at line 20264 | `$7B0` `loc_2912C` (`ps4.asm:54326`) | 1 × `move.w #$C, $2(a3)` at line 48496 (tail `loc_24A9E` (`ps4.asm:48483`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` |
 | 125 GiLeFarg | `$35` GIZAN | `loc_DF22` (`ps4.asm:20263`) — `bne.s loc_DF74` at line 20264 | `$7B0` `loc_2912C` (`ps4.asm:54326`) | 1 × `move.w #$C, $2(a3)` at line 48496 (tail `loc_24A9E` (`ps4.asm:48483`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` |
 | 81 DesrtLeach | `$37` SAND STORM | `loc_F48A` (`ps4.asm:21692`) — `bne.s loc_F4D4` at line 21693 | `$328` `BattleObj_SandStorm` (`ps4.asm:48204`) | 1 × `move.w #$C, $2(a3)` at line 48547 (tail `loc_24B64` (`ps4.asm:48541`)) | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` |
-| 80 SandWorm | `$38` EARTHQUAKE | `loc_F4D4` (`ps4.asm:21710`) — `bne.s loc_F4FA` at line 21711 | `$330` `BattleObj_Earthquake` (`ps4.asm:47884`) | 1 × `move.w #$C, $2(a3)` at line 47998 | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented**, `enemy_damage::resolve_damage_skill` for 80 SandWorm (`DAMAGE_SKILL_ROUTES`) |
-| 149 KingRappy | `$38` EARTHQUAKE | `loc_D516` (`ps4.asm:19608`) — the nonzero-ability body of `tst.w $24(a4)` (line 19597) | `$904` `BattleObj_KingRappyEarthquake` (`ps4.asm:67513`) | 1 × `move.w #$C, $2(a3)` at line 48575 (tail `loc_24BB6` (`ps4.asm:48562`)) | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented**, `enemy_damage::resolve_damage_skill` for 149 KingRappy (`DAMAGE_SKILL_ROUTES`) |
+| 80 SandWorm | `$38` EARTHQUAKE | `loc_F4D4` (`ps4.asm:21710`) — `bne.s loc_F4FA` at line 21711 | `$330` `BattleObj_Earthquake` (`ps4.asm:47884`) | 1 × `move.w #$C, $2(a3)` at line 47998; **28 `UpdateRNGSeed2` calls first**, the shake (`loc_2438E`, lines 47976, 47983; §3) | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented**, `enemy_damage::resolve_damage_skill` for 80 SandWorm (`DAMAGE_SKILL_ROUTES`) |
+| 149 KingRappy | `$38` EARTHQUAKE | `loc_D516` (`ps4.asm:19608`) — the nonzero-ability body of `tst.w $24(a4)` (line 19597) | `$904` `BattleObj_KingRappyEarthquake` (`ps4.asm:67513`) | 1 × `move.w #$C, $2(a3)` at line 48575 (tail `loc_24BB6` (`ps4.asm:48562`)); no `UpdateRNGSeed2` calls in the chain (§3) | all five party slots (loop from `Obj_Fighters`) | `all-party` — **implemented**, `enemy_damage::resolve_damage_skill` for 149 KingRappy (`DAMAGE_SKILL_ROUTES`) |
 | 82 Leviathan | `$39` MAELSTROM | `loc_F4FA` (`ps4.asm:21720`) — else arm, taken when the routine's tested ids do not match (test branch at line 21720) | `$338` `BattleObj_Maelstrom` (`ps4.asm:47766`) | 1 × `move.w #$C, $2(a3)` at line 48547 (tail `loc_24B64` (`ps4.asm:48541`)) | the stored target pointer `target` = `$38(a4)` (the chosen party target) | `single` |
 | 87 TwinArms | `$3C` BLADESHINE | `EnemyAttack_TwinArms` (`ps4.asm:21455`) — `bne.s loc_F1A2` at line 21456 | `$364` `loc_237AA` (`ps4.asm:47129`) | 1 × `move.w #$C, $2(a3)` at line 47237 | all five party slots (loop from `Obj_Fighters`) | `all-party` |
 | 88 SoldrFiend | `$3C` BLADESHINE | `EnemyAttack_TwinArms` (`ps4.asm:21455`) — `bne.s loc_F1A2` at line 21456 | `$364` `loc_237AA` (`ps4.asm:47129`) | 1 × `move.w #$C, $2(a3)` at line 47237 | all five party slots (loop from `Obj_Fighters`) | `all-party` |
@@ -387,6 +387,30 @@ are recorded here, each from the instruction that decides it.
 The resolver implements exactly that: `DamageClass::AllParty` resolves each
 occupied, living party slot in slot order, one `Resolved` per slot, and
 `docs/source-notes/battle-enemy-abilities.md` has the change's own section.
+
+### The chain's own RNG calls, read for the `$38` pair (2026-09-25)
+
+A row's `damage request(s)` column says what the chain writes and where; it does
+not say what the chain *takes off the RNG stream* on the way there, and for one
+row that is now known to matter. `BattleObj_Earthquake` (`ps4.asm:47884`) shakes
+the screen in its state 4 between the arm and the request, and the shake's
+`loc_2438E` (`ps4.asm:47972`) calls `UpdateRNGSeed2` **twice on every fourth
+frame of its sixty** — 28 calls, all of them before the five-slot write. 149
+KingRappy's `BattleObj_KingRappyEarthquake` (`ps4.asm:67513`) shakes the camera
+from a fixed byte table (`loc_344AC` -> `loc_3451C`, lines 67554, 67590) and takes
+none. The 28 move every later roll in a battle, so they are modeled: the two rows
+below carry the fact, and the mechanism, the capture evidence and the census of
+the file's 43 `jsr (UpdateRNGSeed2).l` sites are in
+`docs/source-notes/battle-enemy-abilities.md`'s 2026-09-25 record.
+
+| row | the chain's own `UpdateRNGSeed2` calls before its request |
+|---|---|
+| 80 SandWorm `$38` | **28** — `loc_2438E` (line 47972): two calls on each of the shake's frames 4, 8 … 56 (`ps4.asm:47976`, `47983`) |
+| 149 KingRappy `$38` | 0 — `loc_344AC` (line 67554) reads `loc_3451C` (line 67590), a byte table, and calls nothing |
+
+The same reading was applied to all 30 pairs of the resolver's
+`DAMAGE_SKILL_ROUTES` table: no other proven pair's arm or object chain owns a
+call site.
 
 ### Single rows re-read at the resolver gate (2026-09-24)
 

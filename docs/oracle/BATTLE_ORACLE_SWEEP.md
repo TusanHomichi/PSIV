@@ -14,7 +14,8 @@ fixture that had to be re-extracted because of the first. The capture tooling is
 [`BATTLE_ORACLE_REPLAY.md`](BATTLE_ORACLE_REPLAY.md).
 
 Fixing these divergences is **not** this lane's work: this is the list, its
-evidence and the scope each fix would need. The manifest
+evidence and the scope each fix would need. (It is history now: every rule the
+list names was implemented, the last one on 2026-09-25, §4.4 W5.) The manifest
 ([`divergences.json`](../../rust/psiv-core/src/battle/replay_fixtures/divergences.json))
 is the same list in the form the test reads.
 
@@ -111,18 +112,41 @@ CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
     -- --test-threads=1 every_fixture_replays_as_recorded
 ```
 
-The manifest this ledger describes is generated, not typed: the Rust side prints
-each diverging fixture's first divergence and
-[`oracle/sweep/manifest.py`](../../oracle/sweep/manifest.py) assigns it to a
-cluster and writes `divergences.json`.
+The manifest this ledger describes is generated, not typed: the Rust side writes
+each diverging fixture's first divergence to the file `PSIV_MANIFEST_DUMP` names
+(one JSON object per line, with a one-line summary of the count and the path on
+stdout), and [`oracle/sweep/manifest.py`](../../oracle/sweep/manifest.py) reads
+that dump, assigns each finding to a cluster and writes `divergences.json`. A
+relative path is the repository root's, so the dump and the reader below name the
+same file; the directory above it is created if it is missing.
+
+The dump is a **file** and never stdout because `--nocapture` prints libtest's
+own `test <name> ... ` progress text with no newline of its own, so the first
+finding used to come back as `test <name> ... {"fixture":...}` - and a reader
+that takes one JSON object per line drops a line it cannot read. `load_dump`
+fails on any line that is not a JSON object, naming its line number, and on a
+dump that is not there at all: a corrupt dump can no longer pass for a shorter
+one. A dump with **no** findings is not that mistake - it is this ledger's own
+closing state, once every fixture replays exactly, and the manifest it builds is
+`{"fixtures": {}}`.
 
 ```sh
-CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
-    -- --ignored --nocapture dump_manifest_entries > build/lane-evidence/findings.txt
-python3 -m oracle.sweep.manifest --dump build/lane-evidence/findings.txt \
+PSIV_MANIFEST_DUMP=build/lane-evidence/findings.jsonl \
+    CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
+    -- --ignored --nocapture dump_manifest_entries
+python3 -m oracle.sweep.manifest --dump build/lane-evidence/findings.jsonl \
     --manifest rust/psiv-core/src/battle/replay_fixtures/divergences.json
-python3 -m oracle.sweep.manifest --dump build/lane-evidence/findings.txt --clusters
+python3 -m oracle.sweep.manifest --dump build/lane-evidence/findings.jsonl --clusters
 ```
+
+Two things about that pair of commands. The dump's own first line shares
+libtest's `test ... ` prefix ([#35](https://github.com/TusanHomichi/PSIV/issues/35)),
+so filter it before `--manifest` if the file is read by anything but
+`manifest.py` itself: `sed 's/^test .*\.\.\. //' findings.txt | grep '^{'`. And
+when there is nothing left to record the dump prints **no** finding lines, which
+`load_dump` refuses as a mistake (`no finding lines`); the empty document is
+`{"fixtures": {}}`, and the manifest holds exactly that as of 2026-09-25 (§4.4
+W5).
 
 A sweep's captures are the expensive half, so the extraction is its own run:
 every formation directory that holds a capture is extracted again, with the
@@ -226,12 +250,13 @@ ones the first pass guessed:
   cluster that looked like a fourth port rule turned out to be the harness too
   (§4.4).
 
-18 findings remained, in 4 causes, when this triage was written. Two of those
-rules have since been implemented - W3's (§4.4 W3) and the retarget scan's
-(§4.4 W1/W4, 2026-09-25) - and each time the manifest was regenerated from the
-port's own dump. It now holds **5** entries: 4 `enemy-ai-conditional` and the
-one `retarget-tiebreak` entry that is *not* that cluster's (`formation_3B`,
-f26155, §4.4 W3), with `party-retarget` and `critical-bonus` empty. The method
+18 findings remained, in 4 causes, when this triage was written. Every one of
+those rules has since been implemented - W3's (§4.4 W3), the retarget scan's
+(§4.4 W1/W4, 2026-09-25), the AI instruction block's (§4.4 W2, 2026-09-25) and
+the `$38` object's own draws (§4.4 W5, 2026-09-25) - and each time the manifest
+was regenerated from the port's own dump. It held **5** entries when this
+paragraph was written; it is **empty** now, and every one of the 87 fixtures in
+`replay_fixtures/` replays exactly, the 81 swept ones included. The method
 per cluster was the same: read the RAM log's own rows around the divergent
 action - not the fixture built from them - read the fixture's record, run the
 port and read what it resolved, and then read the routine the row points at in
@@ -407,13 +432,14 @@ the twelve captures show is
 Four causes, 18 findings as triaged. All four rules were implemented on
 2026-09-25 (W3 by lane b21-crit, W1 and W4 by b22-retarget, W2 by b23-ai), and
 each keeps its heading, because the fixtures it names remain the evidence for
-the rule it states. One entry remains in
-`rust/psiv-core/src/battle/replay_fixtures/divergences.json`: `formation_3B`'s
-round-3 finding, uncovered once W3 landed. The clusterer files it under
-`retarget-tiebreak` by signature, but that is not its cause (§4.4 W3; issue
-[#33](https://github.com/TusanHomichi/PSIV/issues/33)). Every entry is a *rule*:
-the evidence is the log's, the cartridge's routine is cited, and the port's own
-code is where the fix goes.
+the rule it states. A fifth cause, W5, was uncovered once W3 landed: the
+`formation_3B` round-3 finding, which the clusterer files under
+`retarget-tiebreak` by signature but which is not that cluster's rule (§4.4 W3;
+issue [#33](https://github.com/TusanHomichi/PSIV/issues/33)). It is implemented
+too, and with it `rust/psiv-core/src/battle/replay_fixtures/divergences.json` is
+**empty**: all 87 fixtures replay exactly. Every entry is a *rule*: the evidence
+is the log's, the cartridge's routine is cited, and the port's own code is where
+the fix goes.
 
 **W1. A swing whose commanded enemy has fallen lands on another slot**
 (`party-retarget`, 10 fixtures: `formation_02`, `04`, `05`, `0B`, `0C`, `17`,
@@ -474,6 +500,57 @@ for its one draw. Transcripts:
 `build/lane-evidence/negative-control-tie.txt` and
 `build/lane-evidence/core-tests-restored.txt` (not committed; `build/` is
 ignored).
+
+**The routine's other arm: techniques, skills and items (2026-09-25).**
+`loc_5A98`'s enemy-slot branch has a **mirror** loop. `loc_5AFA`
+(`ps4.asm:8353-8380`) walks the same slots 6-9 with the same `status & $44`
+skip, but from `d4 = $7000` (`ps4.asm:8352`) and with the comparisons swapped,
+so it keeps the **smallest** `max_hp - curr_hp`; a tie costs the same one
+`UpdateRNGSeed2` and the later slot wins on the same `btst #0, d1`
+(`ps4.asm:8371`, the copy the citation note above points at). Which loop a
+command takes is `loc_5C8A` -> `loc_5CA2` (`ps4.asm:8504-8521`): a swing (kind
+1) and the vehicle's own attack (kind 6) take the largest-deficit loop
+(`ps4.asm:8523-8524`), and a technique, skill, item or vehicle skill reads
+**byte 0 of its own record** - the `AbilityEffectsOffs` effect id - and takes
+the mirror for any low nibble but `1` (`ps4.asm:8529-8548`, `8350-8351`). What
+enters either loop is the *record's target nibble*, not the command's kind
+(`ps4.asm:8055-8057`), so an ability aimed at the party never reaches them and a
+fallen ally keeps the aim.
+
+The port now has **one owner** for all four single-target paths -
+`rust/psiv-core/src/battle/retarget.rs`'s `single_target`, parameterized by
+`Deficit::Largest`/`Smallest` - replacing `action::retarget_scan` (whose loop is
+the `Largest` arm), `technique.rs`'s "first eligible" fallback and `item.rs`'s
+version of it, and `skill.rs`'s unconditional `targets.first()`, which also
+re-aimed a *party-side* aim the cartridge never moves. Tests:
+`battle/retarget_tests.rs` - both loops' kept aim with no draw, the unique
+extreme with no draw, a tie with each of its outcomes, a repeated tie, the empty
+side, the effect-nibble dispatch, and one real command of each kind that enters
+the loop (a swing, FOI, VOL, Crosscut, Earth and DYNAMITE, plus the vehicle's
+own attack in `vehicle_attack_tests.rs`). Negative control:
+with the technique path's old fallback restored, its tie test fails on the draw.
+
+**Transcribed from `ps4.asm`, not yet oracle-verified - and the capture is what
+is missing.** None of the 87 fixtures can show this rule: they carry 819 party
+commands, all `attack` (the sweep's own input policy and the forced captures'
+is mash-C, and `oracle/fixture/assembly.py`'s `command_entry` writes `"attack"`
+for every party action), and `python3 -m oracle.force --policy` offers only
+`attack` and `defend` (`oracle/force/tape.py`'s `policy_steps`), so no input
+opens the TECH list. A capture of the *mirror* additionally needs a member who
+knows a single-target non-damaging technique: the tape party's starting lists
+are FOI/SHIFT/SANER, RES/GELUN and RES (`generated/characters.json`), of which
+only FOI is single-enemy and its effect id 1 takes the largest loop.
+[`../source-notes/battle-party.md`](../source-notes/battle-party.md)'s
+2026-09-25 record carries the full finding, its citations and two fidelity
+notes (the `$C4` transient bit the port's keep test cannot see, and the `$7000`
+sentinel).
+
+**Correction to W1's unit-test paragraph above.** Its last clause - "an enemy
+attacker keeping the port's first-survivor fallback" - no longer describes the
+code: the character-side arm is `engine::take_turn`'s weighted draw
+(`loc_56F0` / `Enemy_TargetCharacter`, `ps4.asm:8341-8343`), so a swing's reach
+discards a character-side aim rather than falling back to the first survivor,
+and `action_retarget_tests.rs`'s case says so.
 
 **W2 (closed 2026-09-25). The enemy's AI instruction, not the ability roll,
 picks the ability** (`enemy-ai-conditional`, 4 fixtures: `formation_2A`, `2B`,
@@ -574,8 +651,9 @@ windows - one at f26155, then two a frame over f26541-f26593
 (`oracle/fixture/roles.py`) - where the port's model draws **one**, the ability
 roll itself, so its three windows start 28 draws early. The log's hit flag there
 is `00` and the port's verdict is `Normal`: no critical bonus is involved, on
-either side. What the cartridge is doing in those 29 calls is unsettled here,
-and it is a worklist item of its own.
+either side. What the cartridge is doing in those 29 calls was unsettled when
+this paragraph was written; §4.4 W5 settles it - they are `BattleObj_Earthquake`'s
+shake - and closes the entry.
 
 **W4. The retarget scan's tiebreak draw is missing from the round**
 (`retarget-tiebreak`, 2 fixtures: `formation_07`, `08` - and a third entry the
@@ -601,11 +679,113 @@ earlier slot. `formation_08`'s round 1 now draws the log's 120. The re-captured
 fixtures carry the commanded target that makes the scan reachable (`orders`
 reads each round's `commands`), which is what §4.3 records.
 
-W3's regenerated manifest also files `formation_3B` under this cluster, because
+W3's regenerated manifest also filed `formation_3B` under this cluster, because
 its signature reads a `value` divergence whose round draws fewer rolls than the
-log. That fixture's finding is *not* this cluster's: it is a `$38` EARTHQUAKE
+log. That fixture's finding was *not* this cluster's: it is a `$38` EARTHQUAKE
 whose arm draws 28 rolls short, where this cluster's fixtures are one draw short
-inside a swing's own frames (§4.4 W3).
+inside a swing's own frames (§4.4 W3). W5 closed it, so the two fixtures named
+above are this cluster's whole membership and the manifest is empty.
+
+**W5. An ability's object takes its own calls off the shared stream**
+(`retarget-tiebreak` by signature only: one fixture, `formation_3B`; issue
+[#33](https://github.com/TusanHomichi/PSIV/issues/33)). **Implemented
+2026-09-25; the entry is gone and the manifest is empty.**
+
+An enemy turn's draws are not only its damage rolls. The arm `EnemyAttackOffs`
+dispatches loads a battle object and the object animates for as many frames as
+its state table says before its last phase writes the `move.w #$C` the class
+describes - and an object that shakes the screen reads `UpdateRNGSeed2` to do
+it. `formation_3B`'s round 3 is 80 SandWorm's `$38`: `loc_F4D4`
+(`ps4.asm:21710`) tests `$38` (line 21711), clears `Current_Target_Index`
+(line 21713) and writes object `$330` into the attack object itself (line 21718)
+- `BattleObjsGroup5Ptrs` line 43704 = `BattleObj_Earthquake`
+(`ps4.asm:47884`).
+
+Its state 0 enters the shake with `$11(a4) = $3C` frames and `$10(a4) = 0`
+(`loc_24308`, lines 47943-47945); `loc_2436A` (line 47963) counts `$11` down and
+leaves the state on the frame that empties it; `loc_2438E` (line 47972) bumps
+`$10`, masks it to two bits, and reaches the two `jsr (UpdateRNGSeed2).l` calls
+(lines 47976 and 47983, one for `Camera_X_Pos_FG` and one for `Camera_X_Pos_BG`)
+only on the frame that masks to zero. **Frames 4, 8 … 56 of the sixty draw,
+twice each: 28 calls**, every one of them before the five-slot write at
+`loc_243C8` (lines 47998-48000).
+
+The capture holds exactly that. `build/sweep-3B/capture/forced_3B_attack_rolls.csv`
+(the preserved capture this fixture came from) has SandWorm's action open at
+f26155 with **one** call and then, from f26541 to f26593, **two calls every
+fourth frame** - `26541,0`, `26541,1`, `26545,0`, `26545,1`, … `26593,1`,
+fourteen frames, 28 calls - with the action's 48 damage calls at f26599 (16 per
+slot, three slots). The round's tally is 13 order draws + 1 ability roll + 28 +
+48 + 2 + 17 + 17 = **126**, the log's own count. The extractor labels those 28
+`ability`/`ability_reroll` because an enemy action's non-16-multiple frame has no
+other shape (`oracle/fixture/roles.py`); the frame spacing is what identifies the
+routine, 386 frames of wind-up after f26155 and four frames a step after that.
+
+The port drew one (the ability roll) and went straight to its three damage
+windows, so each window read the words the cartridge had used for the shake. The
+numbers say that is stream alignment and nothing else. Aligned, the log's first
+window (16 draws, `S = 47`) through `(((S + 8) * 279) >> 6) + 279) * 2 >> 2 - 18`
+is **241** for FighterId(1), and the second and third (`S = 35`, `S = 54`) are
+**223** and **265** - the log's own three numbers; read 28 draws early (the
+shake's words, `S = 63` for slot 1) the same formula gives **276/247/237**, the
+port's old numbers. The record (`01 05 09 00 06 01 00 00`), its attack selector,
+the element factor and the slot order were already right: `Enemy_DamageCharacter`
+(`ps4.asm:3775`) needed no change.
+
+Fix scope: the calls are the route's, so they live where the route does - the
+`(enemy, ability)` table `enemy_damage::DAMAGE_SKILL_ROUTES` - and the resolver
+takes them where the object makes them.
+
+**Implemented.** `DamageRoute` gained `draws: ObjectDraws`
+(`rust/psiv-core/src/battle/enemy_damage.rs`): `ObjectDraws::None`, or
+`ObjectDraws::EarthquakeShake` whose count is
+`2 * ((EARTHQUAKE_SHAKE_FRAMES - 1) / EARTHQUAKE_SHAKE_PERIOD)` = `2 * (59 / 4)`
+= 28, so the state's own frame count and mask stay the citation.
+`resolve_damage_skill` draws `route.draws.count()` after the ability roll and
+before the first `damage_one_target`, which is where retail takes them. The field
+is per *route* and not per ability, and the table says why: 149 KingRappy's `$38`
+is the same ability and the same `AllParty` class, and its
+`BattleObj_KingRappyEarthquake` (`ps4.asm:67513`) shakes the camera from the byte
+table `loc_3451C` (line 67590) without calling anything, so it lists
+`ObjectDraws::None`. Every other route was checked the same way: the file's 43
+`jsr (UpdateRNGSeed2).l` call sites were enumerated, mapped to the object that
+owns each, and read against the 30 chains - `BattleObj_Earthquake`'s pair is the
+only one a proven route reaches, and no proven arm routine owns a site either
+(the `docs/source-notes/battle-enemy-abilities.md` 2026-09-25 record has the
+census and the two sites that belong to arms no proven pair takes).
+
+Unit tests: `earthquakes_shake_draws_twice_every_fourth_frame` (28 + 48 draws for
+SandWorm against 48 for KingRappy and Fanbite, and the three constants),
+`the_shake_draws_sit_before_the_first_damage_run` (a stream whose first 28 words
+add nothing to `S` and whose next sixteen mask to seven: slot 1 must read the
+maximum-roll number, not the mean one) and
+`the_shake_is_drawn_whatever_the_target_walk_finds` (28 + 16 with one slot
+living, 28 with none - the object runs its frames whatever the walk finds), in
+`rust/psiv-core/src/battle/enemy_damage_all_party_tests.rs`.
+
+Negative control: with the draw loop out, the dump prints
+`sweep_motavia/formation_3B` at f26155 with `round_rolls {"log": 126, "port":
+82}` and `actual "Normal with Some(276)"` - the same finding fields the entry
+this manifest held carries, and `manifest.py` on that dump reproduces the
+committed `divergences.json` byte for byte
+(`build/lane-evidence/eq-object-rng/manifest-regenerated-before.txt`), which is
+the before state rebuilt from the recipe in §2. Restored, the dump has **no
+finding lines at all** and the data-driven test passes against
+`{"fixtures": {}}`.
+
+Manifest and rounds, after the fix: each round of `formation_3B` draws the log's
+own count - 83, 67, 126, 83, 126 - and the whole fixture replays exactly, with
+round 3's 241/223/265 resolved on slots 1-3
+(`build/lane-evidence/eq-object-rng/probe-3B-after-fix.txt`). The 86 others are
+unchanged: not one gains a divergence, and the manifest is empty for the first
+time since the sweep was written. Transcripts, all under `build/lane-evidence/eq-object-rng/` (not committed;
+`build/` is ignored): `before-and-after.txt` (the two dumps side by side),
+`negative-control-dump-raw.txt`, `negative-control-findings.txt`,
+`negative-control-entry.json`, `negative-control-data-test.txt`,
+`manifest-regenerated-before.txt`, `after-dump-raw.txt`, `after-findings.txt`,
+`after-data-test.txt`, `after-data-test-stale-manifest.txt`,
+`probe-3B-after-fix.txt`, `final-core-runtime-tests.txt`,
+`object-rng-chain-audit.txt` and `object-id-loaders.txt` (the census).
 
 ## 5. Every re-extracted fixture
 
@@ -629,7 +809,9 @@ against the one it had in the sweep's own manifest:
   so they are the twelve rows below whose `after` column reads **now exact**.
 * **1 diverges at a different finding** - `formation_3B`, the other critical:
   W3's fix takes f25003 with it, and the fixture's next divergence is f26155 in
-  round 3, the `$38` EARTHQUAKE's draws (§4.4 W3).
+  round 3, the `$38` EARTHQUAKE's draws (§4.4 W3) - which W5 closed on
+  2026-09-25, so this row's `after` column is history too and the fixture is
+  **now exact**.
 
 | fixture | first divergence before | after | |
 |---|---|---|---|
@@ -649,7 +831,7 @@ against the one it had in the sweep's own manifest:
 | `formation_19` | `targets` at f26223 | **now exact** | now exact (W1) |
 | `formation_1B` | `targets` at f26964 | **now exact** | now exact (W1) |
 | `formation_1D` | `targets` at f26667 | **now exact** | now exact (W1) |
-| `formation_3B` | `value` at f25003 | `value` at **f26155** | moved (§4.4 W3) |
+| `formation_3B` | `value` at f25003 | `value` at **f26155**, then **now exact** | moved (§4.4 W3); closed by W5 |
 | `formation_4F` | `value` at f25240 | **now exact** | now exact |
 | `formation_10` | `targets` at f25693 | **now exact** | now exact |
 | `formation_13` | `queue` at f25013 | **now exact** | now exact |

@@ -14,8 +14,12 @@ The [workflow](AGENT_WORKFLOW.md) defines node states, evidence and authority.
 The [post-Rika northern-crossing graph](field/TRAVEL.md#archived-northern-crossing-task-graph)
 is complete and archived. Ordinary Zema recovery, the Rika-opened bridge,
 SAVE and fresh-process CONTINUE pass on the frozen repaired candidate.
-There is no active implementation graph. The one next action is in
-[section 1](#1-continue-from-the-post-rika-checkpoint).
+
+The active graph is the [campaign runner graph](campaign/CAMPAIGN_RUNNER.md#task-graph),
+opened 2026-10-01 when the owner replaced per-segment native drivers with one
+headless runner over a runtime-owned `Session`. It supersedes the
+[Aiedo arrival graph](campaign/AIEDO.md#5-aiedo-arrival-task-graph), which never
+started. Its one next action, `S1`, is in [section 1](#1-continue-from-the-post-rika-checkpoint).
 
 The [workflow setup graph](records/WORKFLOW_SETUP.md#setup-graph) and
 [connected BioPlant graph](campaign/BIOPLANT_NATIVE.md#archived-bioplant-task-graph)
@@ -59,11 +63,12 @@ The new code requires the rebuilt full pack; exact candidate, pack, binary and
 check receipts are in the travel ledger. The pack, saves and captures remain
 local and ignored.
 
-**Next action:** establish the retail-backed ordinary-input route from this
-north-bank checkpoint to **Aiedo `$54`**, including its entry/story conditions
-and resource budget, then open one bounded graph for that arrival and normal
-SAVE/fresh CONTINUE. Do not advance into the Fort or restart archived model
-experiments as part of that gate.
+**Next action:** `S1` in the [campaign runner graph](campaign/CAMPAIGN_RUNNER.md#task-graph) —
+move the dialogue interpreter out of `psiv-godot` into the runtime, the first
+step toward a runtime `Session::frame(pad)`.
+Campaign progress after this checkpoint is driven by the runner's route file;
+the [Aiedo ledger](campaign/AIEDO.md)'s route, condition and budget research is
+input for its first chapters.
 
 The exact 32×32 bridge match does not establish whole-scene visual parity,
 retail/native save-coordinate interchange, or later campaign progression.

@@ -1,17 +1,3 @@
 {
-  "fixtures": {
-    "sweep_motavia/formation_3B": {
-      "action": "round 3: actor 6 (ability $38), 77 roll(s), 3 target(s)",
-      "actual": "Normal with Some(276)",
-      "expected": "FighterId(1): hit flag 00, damage Some(241)",
-      "frame": 26155,
-      "kind": "value",
-      "ledger": "docs/oracle/BATTLE_ORACLE_SWEEP.md#w4-the-tiebreak-draw",
-      "round": 3,
-      "round_rolls": {
-        "log": 126,
-        "port": 82
-      }
-    }
-  }
+  "fixtures": {}
 }

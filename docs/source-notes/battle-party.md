@@ -576,3 +576,162 @@ the maximum draws nothing; a third slot equal to the maximum draws again; an
 empty enemy side leaves the caller's own "no target" outcome; and an enemy
 attacker keeps the port's first-survivor fallback, because the character-target
 arm is `take_turn`'s weighted `loc_56F0` draw and not this scan.
+
+## The mirror loop: a technique, skill or item whose enemy has fallen (2026-09-25)
+
+**RETAIL FINDING — `loc_5A98` has a second loop, and it keeps the *smallest*
+HP deficit.** The routine the section above transcribes ends in `loc_5AE6`
+(`ps4.asm:8345-8352`), which is reached only for a command whose aim is an
+**enemy** slot (`cmpi.w #5, d1 / bgt.s loc_5AE6`, `ps4.asm:8339-8340`). Which of
+its two loops then runs is the command's own kind out of `loc_5C8A`
+(`ps4.asm:8504-8512`) over `loc_5CA2`'s table (`ps4.asm:8514-8521`):
+
+* a swing (kind 1) and the vehicle's own attack (kind 6) reach `loc_5CB0`'s
+  `moveq #1, d0` (`ps4.asm:8523-8524`) and scan for the **largest**
+  `max_hp - curr_hp` — the loop the section above already models;
+* a technique, skill, item or vehicle skill reads **byte 0 of its own record**
+  (`TechniqueData`, `SkillData`, the item record and `VehicleSkillData`,
+  `ps4.asm:8529-8548`), masks it with `$F`, and takes `loc_5AFA` — `d4 =
+  $7000`, `ps4.asm:8352` — for anything but `1` (`cmpi.w #1, d0 / beq.s
+  loc_5B42`, `ps4.asm:8350-8351`).
+
+Byte 0 of an ability record is its `AbilityEffectsOffs` effect id, so the test
+is on the **effect's low nibble**: `$01` (and `$11`, which shares it) is re-aimed
+like a swing, and every other effect — the cures, the status effects, SEALS,
+RIMIT — takes the mirrored loop.
+
+`loc_5AFA` (`ps4.asm:8353-8380`) is `loc_5B42` mirrored instruction for
+instruction: the four enemy slots in order (`addq.w #1, d5 / cmpi.w #9, d5 /
+ble.s`, `ps4.asm:8377-8379`), a slot holding no fighter or one whose
+`status & $44` is set skipped (`ps4.asm:8356-8361`), `max_hp - curr_hp` per
+survivor (`ps4.asm:8362-8363`), a **strictly smaller** deficit taking the slot
+(`bgt.s loc_5B34`, `ps4.asm:8366`) and a larger one leaving it
+(`blt.s loc_5B38`, `ps4.asm:8365`). The tiebreak is the same rule at the other
+address — the `btst #0, d1` copy §4.4 W1's own note pointed at: an **equal**
+deficit draws `UpdateRNGSeed2` once (`ps4.asm:8367-8372`) and the later slot
+wins only when the draw's low bit is set (`ps4.asm:8371`).
+
+**Which commands reach either loop at all is the target the command declared,
+not its kind.** `loc_5BDC` (`ps4.asm:8434-8443`) returns `1` for a swing and the
+vehicle's attack (`ps4.asm:8466`), `2` for a vehicle skill (`ps4.asm:8502`) and
+the record's **target nibble** for a technique, skill or item
+(`ps4.asm:8479-8480`, `8492-8493`); the caller enters `loc_5A98` only when that
+value is 1, 2 or 3 (`subq.w #1, d1 / cmpi.w #2, d1 / bls.w loc_5A98`,
+`ps4.asm:8055-8057`). So:
+
+* an ability aimed at the **party** — a heal's or a revival's target nibble 4, 6
+  or 8 — never enters the routine, and a fallen recipient keeps the aim; the
+  effect's own range is what then decides a cast on one. `technique.rs`'s
+  "a dead healing recipient is never replaced" was right, and so is the item
+  path's paid `ItemIneffective` on a dead recipient;
+* `d1 <= 5`, the character-side arm inside `loc_5ACE`, is the **weighted
+  character draw** (`loc_56F0` / `Enemy_TargetCharacter`, `ps4.asm:8341-8343`),
+  and the cell it writes is the low byte of `Current_Target_Index`
+  (`$FFFF4145`). That arm belongs to an enemy attacker's own command — its cell
+  is kind 1 (`ps4.asm:7932`) with a character slot as the aim
+  (`ps4.asm:7935`) — and `engine::take_turn` already makes exactly that draw,
+  with exactly that `$44` list, before the enemy's action;
+* an AUTO battle's command skips `loc_5A98` altogether and re-aims out of
+  `MacroSpecialActionTable` / `MacroSpecialActionOffs` (`ps4.asm:8078-8104`),
+  which is a rule of its own and is not modelled here.
+
+**PORT BUG — three paths each invented their own fallback, and none of them was
+this rule.** `technique.rs` replaced a fallen enemy with the first *eligible*
+one and only for a nibble-1 record; `skill.rs` replaced any fallen aim —
+including a party-side one — with `targets.first()`, which for a heal aimed at a
+fallen ally *invented* a recipient the cartridge never picks; `item.rs` did the
+technique's version keyed on `targeting == 1`. All four single-target paths now
+resolve through **one owner**,
+[`rust/psiv-core/src/battle/retarget.rs`](../../rust/psiv-core/src/battle/retarget.rs):
+`retarget::single_target` keeps a living aim with no draw (`status & $C4` clear,
+`ps4.asm:8330-8337`), re-aims an enemy-side aim with its `scan` and the loop the
+command's kind and record select (`Deficit::Largest` for `action`'s swing and
+`vehicle_attack`'s, `deficit_for_effect(record.effect)` for `technique`,
+`skill` and `item`), and leaves a character-side aim where it is. The private
+`action::retarget_scan` is gone; its loop is the owner's `Deficit::Largest`.
+
+Two fidelity notes, both stated rather than papered over:
+
+* the keep test is this port's `Fighter::is_alive` (occupied and not `$44`),
+  where the cartridge asks `status & $C4`. Bit 7 is not in `Stats` — it is the
+  transient sprite bit the port represents as a `Revived` event — so a command
+  aimed at a fighter who was revived earlier in the same round is kept here and
+  re-aimed by the cartridge. `engine::take_turn`'s enemy arm does apply that
+  mask (its just-revived filter), because it can see the events; the scan paths
+  cannot, and no fixture reaches that state with a single-target command;
+* `loc_5AFA`'s `d4 = $7000` sentinel is transcribed as-is, and no fighter in the
+  pack can present a deficit that large, so in this port it never rejects a
+  living slot. A scan that takes no slot is `None` here where the cartridge
+  leaves `d3`'s initial slot 6 in `Current_Target_Index` (`ps4.asm:8348`,
+  `8409`) — the walk has just shown that slot holds no fighter or an out one, so
+  the caller's own "no target" turn is the same battle outcome without an aim at
+  an empty slot.
+
+**Corrections to the record above.** Two of its sentences are now stale. The
+first is its loop rule: "every other command — a technique, skill or item —
+runs the mirrored loop at `loc_5AFA`" is not what the dispatch says. What enters
+the routine at all is the record's *target* nibble, and which loop it then takes
+is the record's *effect* id: a damaging technique, skill or item (effect `$01`)
+takes the largest-deficit loop exactly as a swing does, and only the other
+effects take the mirror. The second is its last sentence about the unit tests —
+"an enemy attacker keeps the port's first-survivor fallback" — which no longer
+holds: `candidate_targets`' character-side answer is now the owner's own "the
+aim stays", and a swing's reach (living enemies) discards it, so
+`action_retarget_tests.rs`'s case is
+`an_enemy_attackers_character_side_aim_is_not_this_functions_to_move` and an
+attack pointed at a friend resolves nothing instead of swinging at the first
+enemy. Likewise `an_attack_cannot_reach_its_own_side` (`action.rs`) no longer
+expects that scan to draw.
+
+Unit tests: `battle/retarget_tests.rs` — a living aim kept by **both** loops with
+no draw; the unique minimum and the unique maximum taken with no draw; a tie in
+either loop costing exactly one draw, even keeping the earlier slot and odd
+taking the later; a second pair equal to the running extreme drawing again; the
+scan that takes no slot reporting nothing to re-aim at (and the technique path's
+own paid but empty outcome); the effect-nibble dispatch (`$01`/`$11`/`$21` →
+largest, everything else → smallest); and one real command of each kind that
+enters the loop — a swing (largest), FOI (largest), VOL (smallest), Crosscut
+(largest), Earth (smallest) and DYNAMITE (largest), plus the vehicle's own
+attack, kind 6, in `vehicle_attack_tests.rs` — each with the *other* extreme out
+of the old fallback's reach so the assertion discriminates. Negative
+control: with `technique.rs`'s old `targets.first()` fallback restored, three of
+those tests fail —
+`a_damaging_technique_re_aims_by_the_largest_deficit` and
+`a_non_damaging_technique_re_aims_by_the_smallest_deficit` on
+`left: Some(FighterId(7)), right: Some(FighterId(8))` (the old fallback's first
+living enemy), and `a_technique_tie_costs_one_draw_and_the_draw_picks_the_slot`
+on `left: 16, right: 17` for the tiebreak draw it never makes. Transcripts:
+`build/lane-evidence/negative-control-technique-tie.txt`,
+`build/lane-evidence/negative-control-technique-all.txt` and
+`build/lane-evidence/core-tests-restored.txt` (not committed; `build/` is
+ignored).
+
+**TRANSCRIBED FROM `ps4.asm`, NOT YET ORACLE-VERIFIED.** No capture shows this
+rule, and the tooling cannot yet take one:
+
+* the 87 fixtures carry **819 party commands in all, every one of them
+  `attack`** — the sweep's own policy and the forced captures' is the mash-C
+  attack pattern
+  (`oracle/force/tape.py`'s `policy_steps`), and `oracle/fixture/assembly.py`'s
+  `command_entry` writes `"command": "attack"` for every party action by
+  construction, reading only the target cell;
+* `python3 -m oracle.force --policy` offers `{attack, defend}` and nothing else
+  (`oracle/force/cli.py`; `oracle/force/tape.py`'s `policy_steps`), so the tool
+  has no input that opens the TECH list, picks a technique and picks its target.
+  A `tech` policy would need the frame arithmetic for COMD → Right → TECH →
+  the technique's row → the enemy cursor, and — for the mirror loop — a party
+  that knows a single-target non-damaging technique: the tape party's own
+  starting lists are FOI/SHIFT/SANER (Alys), RES/GELUN (Hahn) and RES (Chaz)
+  (`generated/characters.json`'s `initial_techniques`), of which only FOI is
+  single-enemy, and its effect id 1 takes the *largest* loop. VOL (effect 2,
+  single enemy) is the shortest route to the mirror, and nobody in that party
+  has it;
+* a committed fixture would also need the extractor to name the command kind and
+  id (`$FFFF4146`'s two bytes are already logged as `current_command`) and
+  `replay/build.rs`'s `orders` to build `Command::Technique` — both outside this
+  change's scope, and both are what a capture lane would extend.
+
+The one oracle-shaped check available today is on the attack side and already
+passes: the twelve re-captured formations replay exactly with the
+largest-deficit loop, tiebreak draws included
+(`docs/oracle/BATTLE_ORACLE_SWEEP.md` §4.4 W1/W4).
