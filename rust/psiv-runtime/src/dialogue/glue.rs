@@ -13,9 +13,7 @@
 //! (a `$F2` flag write must land after the field tick that precedes it, not
 //! before).
 
-use std::path::Path;
-
-use psiv_data::{DataError, DialogueSet};
+use psiv_data::DialogueSet;
 
 use crate::Runtime;
 use crate::dialogue::{DialogueSignal, DialogueView};
@@ -58,23 +56,19 @@ pub enum SceneDialogueOpen {
 }
 
 impl Runtime {
-    /// Loads the dialogue pack the runner resolves entries through, and the
-    /// window geometry its open animation counts in. Loading is the schema
-    /// layer's ([`DialogueSet::load`]); the runtime only consumes it.
-    ///
-    /// # Errors
-    ///
-    /// Whatever [`DialogueSet::load`] finds wrong with the pack.
-    pub fn load_dialogue(&mut self, pack_dir: &Path) -> Result<(), DataError> {
-        self.dialogue.set_pack(DialogueSet::load(pack_dir)?);
-        Ok(())
-    }
-
-    /// The loaded dialogue pack, for the renderer's art paths and its own
+    /// The pack's dialogue, for the renderer's art paths and its own
     /// panel-text tree lookup.
+    ///
+    /// Every runtime has one: the constructors take it from the data they are
+    /// built from, which carries it because [`GameData::load`] read it with the
+    /// rest of the pack, and a runtime refuses to build from data without it.
+    ///
+    /// [`GameData::load`]: psiv_data::GameData::load
     #[must_use]
-    pub fn dialogue_pack(&self) -> Option<&DialogueSet> {
-        self.dialogue.pack()
+    pub fn dialogue_pack(&self) -> &DialogueSet {
+        self.dialogue
+            .pack()
+            .expect("a runtime is constructed with its dialogue pack")
     }
 
     /// Whether a dialogue window is on screen. The shell gates its input on
@@ -201,7 +195,7 @@ impl Runtime {
         match self.scene_tree_address {
             None => self.map_record().map(|record| record.dialogue_tree),
             Some(address) => self
-                .dialogue_pack()?
+                .dialogue_pack()
                 .trees
                 .trees
                 .iter()
@@ -242,8 +236,9 @@ impl Runtime {
 
 #[cfg(test)]
 mod tests {
-    use crate::Runtime;
-    use psiv_core::StepFrames;
+    use crate::dialogue::DialogueRunner;
+    use crate::{Runtime, SceneDialogueOpen};
+    use psiv_core::{GameState, StepFrames};
     use psiv_data::GameData;
     use std::path::{Path, PathBuf};
 
@@ -262,7 +257,7 @@ mod tests {
             return None;
         }
         let data = GameData::load(Path::new(&dir)).ok()?;
-        let mut rt = Runtime::new(
+        let rt = Runtime::new(
             data,
             0x010,
             psiv_core::Cell::new(31, 8),
@@ -270,7 +265,6 @@ mod tests {
             StepFrames::default(),
         )
         .ok()?;
-        rt.load_dialogue(&dir).ok()?;
         Some(rt)
     }
 
@@ -293,6 +287,41 @@ mod tests {
         assert_eq!(rt.scene_dialogue_tree(), None);
     }
 
+    /// The negative control for the acceptance case in
+    /// `tests/session_opening.rs`: the pack is the whole difference between a
+    /// message box that opens and one that cannot. A runner with no pack — the
+    /// state every runtime used to start in, because the title's START and
+    /// CONTINUE never called the separate loader — cannot resolve the opening's
+    /// first line (academy tree 17, entry `$36`, "Chaz, we have work to do!"),
+    /// so the scene waits on a barrier that never clears.
+    ///
+    /// The loader is gone and the constructors install the pack, so the
+    /// control drives the runner's own pack-less default with the same call the
+    /// runtime makes for a scene dialogue, then repeats it with the pack in
+    /// place.
+    #[test]
+    fn a_runner_without_the_pack_cannot_open_the_openings_first_line() {
+        let mut bare = DialogueRunner::new();
+        let game = GameState::new();
+        assert!(
+            !bare.open_scene_entry(17, 0x36, false, &game),
+            "no pack, no window"
+        );
+        assert!(!bare.is_open());
+        assert!(bare.view().is_none());
+
+        let Some(mut rt) = runtime() else {
+            return;
+        };
+        rt.scene_tree_address = Some(0x1EB_A90);
+        assert_eq!(rt.scene_dialogue_tree(), Some(17));
+        assert_eq!(
+            rt.open_scene_dialogue(0x36, false),
+            SceneDialogueOpen::Opened
+        );
+        assert!(rt.dialogue_open(), "the pack opens the same line");
+    }
+
     #[test]
     fn every_scene_dialogue_tree_address_resolves_from_the_pack() {
         let Some(mut rt) = runtime() else {
@@ -303,7 +332,6 @@ mod tests {
         // tree.
         let trees: Vec<(u8, Option<u32>)> = rt
             .dialogue_pack()
-            .expect("the pack is loaded")
             .trees
             .trees
             .iter()

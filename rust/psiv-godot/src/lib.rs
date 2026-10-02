@@ -392,19 +392,14 @@ impl INode2D for Field {
         }
 
         let mut window = DialogueWindow::new_alloc();
-        // The pack loads once, through `psiv-data`, and goes to the runtime:
-        // the dialogue rules (the trees, the window geometry the open
-        // animation counts in) are the runtime's, the art is the node's.
-        match runtime.load_dialogue(std::path::Path::new(&self.pack_dir)) {
-            Ok(()) => {
-                let set = runtime
-                    .dialogue_pack()
-                    .expect("the pack that just loaded is still loaded");
-                self.presentation.configure_dialogue_trees(set);
-                window.bind_mut().configure(&self.pack_dir, set);
-            }
-            Err(e) => godot_error!("dialogue pack failed to load: {e}"),
-        }
+        // The pack loads once, through `psiv-data`, and rides in the data the
+        // runtime is built from: the dialogue rules (the trees, the window
+        // geometry the open animation counts in) are the runtime's, the art is
+        // the node's. Every runtime has the pack, so there is nothing to load
+        // or check here.
+        let set = runtime.dialogue_pack();
+        self.presentation.configure_dialogue_trees(set);
+        window.bind_mut().configure(&self.pack_dir, set);
         window.set_z_index(30);
         self.base_mut().add_child(&window);
         self.dialogue = Some(window);

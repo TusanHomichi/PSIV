@@ -75,7 +75,10 @@ presses before the field tick, the `$F2` actions and the typewriter after it —
 because that is the cartridge's node order, and the split is what keeps a flag
 write on the correct side of a field tick. Its input is one `Pad` (the joypad
 byte of `ps4.constants.asm:1877-1884`); its outputs are presentation signals and
-a `DialogueView` snapshot the window node draws. Fork-rewritten scene bodies
+a `DialogueView` snapshot the window node draws. The pack it walks is part of the
+loaded data (`GameData::dialogue`, read by `GameData::load` with the maps and the
+sound) and every runtime constructor installs it, so a runtime whose message box
+cannot resolve an entry is not a state a caller can build. Fork-rewritten scene bodies
 require validation against the retail bytes. See [scene research](scenes/README.md),
 [dialogue](scenes/SCENE_DIALOGUE.md) and [presentation](scenes/SCENE_PRESENTATION.md).
 

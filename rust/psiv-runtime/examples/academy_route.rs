@@ -14,7 +14,6 @@ fn main() {
     rt.enable_battles(&BattleFiles::load(pack).unwrap())
         .unwrap();
     assert!(rt.start_event(opening));
-    rt.load_dialogue(pack).unwrap();
     let mut route = Walk {
         session: Session::new(rt),
         ticks: 0,

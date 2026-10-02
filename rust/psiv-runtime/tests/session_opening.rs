@@ -117,8 +117,9 @@ fn new_game() -> Player {
     let pack = Path::new(PACK);
     let data = GameData::load(pack).expect("pack loads");
     let event = data.new_game().expect("title initializer").event_index;
+    // No second step: the loaded data carries the dialogue pack, so the
+    // runtime can open a window the moment it exists.
     let mut runtime = Runtime::new_game(data, StepFrames::default()).expect("START");
-    runtime.load_dialogue(pack).expect("dialogue pack loads");
     assert!(runtime.start_event(event), "the opening event starts");
     Player {
         session: Session::new(runtime),
@@ -128,6 +129,55 @@ fn new_game() -> Player {
 
 fn pack_present() -> bool {
     Path::new(PACK).join("manifest.json").is_file()
+}
+
+/// The defect this follow-up fixes, pinned from the runtime's own side: a
+/// runtime built by the title's START has to be able to open the opening's
+/// first scene dialogue with no other setup. It could not before — the pack
+/// arrived through a separate `load_dialogue` step that START and CONTINUE
+/// never called, so `open_scene_dialogue` answered `UnknownTree` and the scene
+/// waited forever for a window that never opened (the black screen).
+///
+/// The negative control lives beside the runner
+/// (`src/dialogue/glue.rs`, `stripping_the_pack_leaves_the_scene_dialogue_unresolved`),
+/// where the pack can be taken away from a runtime to show the same call then
+/// fails.
+#[test]
+fn a_new_game_runtime_opens_the_openings_first_scene_dialogue() {
+    if !pack_present() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+    let pack = Path::new(PACK);
+    let data = GameData::load(pack).expect("pack loads");
+    let event = data.new_game().expect("title initializer").event_index;
+    // The title's own construction, and nothing else: no dialogue step.
+    let mut runtime = Runtime::new_game(data, StepFrames::default()).expect("START");
+    assert!(runtime.start_event(event), "the opening event starts");
+
+    // The first scene dialogue the opening asks for, found the way the shell
+    // finds it: tick until the scene raises one.
+    let entry = loop {
+        if let Some(RuntimeEvent::SceneDialogue { entry }) = runtime
+            .tick(psiv_core::Input::Neutral)
+            .into_iter()
+            .find(|event| matches!(event, RuntimeEvent::SceneDialogue { .. }))
+        {
+            break entry;
+        }
+    };
+    assert_eq!(
+        runtime.open_scene_dialogue(entry, false),
+        SceneDialogueOpen::Opened,
+        "the loaded pack opens the opening's entry {entry:#04x}"
+    );
+    assert!(runtime.dialogue_open(), "a window is up");
+    let view = runtime.dialogue_view().expect("the window has a view");
+    assert!(
+        view.lines.iter().any(|line| !line.is_empty()),
+        "the box has text: {:?}",
+        view.lines
+    );
 }
 
 #[test]
