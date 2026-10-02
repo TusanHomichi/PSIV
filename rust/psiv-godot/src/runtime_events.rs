@@ -24,15 +24,15 @@ impl Field {
                 RuntimeEvent::FieldPoisonFlash => self.flash_field_poison(),
                 RuntimeEvent::StepCompleted { .. } => stepped = true,
                 RuntimeEvent::EncounterRolled { formation } => {
+                    // The session has already started this battle; the shell's
+                    // share is the theme. The stage arrives with the frame's
+                    // battle view, and the transition with it.
                     let music = self
                         .runtime()
                         .filter(|runtime| runtime.vehicle_active())
                         .map_or(0x8f, |_| 0x96);
                     self.play_sound(music);
-                    self.start_random_battle(formation);
-                    if self.battle_presentation_active() {
-                        self.start_transition(TransitionKind::BattleEntry);
-                    }
+                    godot_print!("encounter rolled: formation {formation:#05x}");
                 }
                 RuntimeEvent::MapChanged { map, trigger } => {
                     let kind = match trigger {
@@ -99,16 +99,14 @@ impl Field {
                 RuntimeEvent::TriggerUnsupported { trigger } => {
                     godot_print!("trigger {trigger} is an unsupported custom check");
                 }
-                RuntimeEvent::SceneBattleStarted {
-                    index,
-                    events,
-                    sounds,
-                    animations,
-                } => {
+                RuntimeEvent::SceneBattleStarted { index, .. } => {
+                    // The runtime started this battle inside the scene and the
+                    // frame's battle view carries the stage; the timeline the
+                    // event names is the runtime's own copy.
                     if let Some(id) = event_battle_music(index) {
                         self.play_sound(id);
                     }
-                    self.start_scene_battle(index, events, sounds, animations);
+                    godot_print!("scene battle {index} started");
                 }
                 RuntimeEvent::SceneFaulted { fault } => {
                     godot_error!("scene fault: {fault:?}");
@@ -368,6 +366,20 @@ impl Field {
         self.present_routed(&frame.routed);
         let stepped = self.process_events(frame.events);
         self.present_shop();
+
+        // A battle this frame's events started: the runtime has already begun
+        // it, so the shell builds the art, shows the stage and — for an
+        // encounter — runs the battle transition its entry always ran.
+        if let Some(battle) = frame.battle {
+            let encounter = matches!(
+                battle.started,
+                Some(psiv_runtime::BattleStart::Encounter(_))
+            );
+            self.present_battle_frame(battle);
+            if encounter {
+                self.start_transition(TransitionKind::BattleEntry);
+            }
+        }
 
         // The window's own half of the frame ran last in the session, after the
         // events that open the window: the box took its first open-animation

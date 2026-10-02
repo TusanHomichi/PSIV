@@ -2,11 +2,17 @@
 
 use super::chrome::{BattleChrome, Quad, WindowRect};
 use super::ui::{
-    BATTLE_CELL_PIXELS, PartyStatus, STATUS_HP_Y, STATUS_NAME_Y, STATUS_PANE_START_CELLS,
-    STATUS_RECT, STATUS_SEPARATOR_COLUMNS, STATUS_TP_Y,
+    BATTLE_CELL_PIXELS, STATUS_HP_Y, STATUS_NAME_Y, STATUS_PANE_START_CELLS, STATUS_RECT,
+    STATUS_SEPARATOR_COLUMNS, STATUS_TP_Y,
 };
 use godot::prelude::*;
 use psiv_core::battle::FighterId;
+use psiv_runtime::PartyStatus;
+
+/// The column the transient narration uses when the beat names no fighter:
+/// the shell's own default, which the runtime's view spells as `transient:
+/// None` (`BattleView::transient`).
+pub(super) const DEFAULT_TRANSIENT_COLUMN: i32 = 11;
 
 /// The same center-out seats used by the combat sprites, in screen order.
 pub(super) const STATUS_FIGHTERS: [u8; 5] = [4, 2, 1, 3, 5];
@@ -113,7 +119,6 @@ pub(super) fn append_status_quads(
 #[cfg(test)]
 mod tests {
     use super::super::attack::enemy_sprite_origin;
-    use super::super::ui::battle_dwell_frames;
     use super::*;
     use serde_json::Value;
     use std::fs;
@@ -140,7 +145,9 @@ mod tests {
                     fighter,
                     name: format!("seat{fighter}"),
                     hp: 100 + u16::from(fighter),
+                    max_hp: 100 + u16::from(fighter),
                     tp: 200 + u16::from(fighter),
+                    status: 0,
                 })
                 .collect();
             let occupied: Vec<_> = (0..5)
@@ -340,14 +347,5 @@ mod tests {
         assert_eq!(enemy_sprite_origin(137, 3, 6), (48, 72));
         assert_eq!(enemy_sprite_origin(159, 3, 6), (224, 72));
         assert_eq!(enemy_sprite_origin(20 | 0x80, 10, 10), (80, 40));
-    }
-
-    #[test]
-    fn battle_speed_uses_the_retail_dwell_table() {
-        assert_eq!(
-            (0..=4).map(battle_dwell_frames).collect::<Vec<_>>(),
-            [12, 24, 36, 48, 60]
-        );
-        assert_eq!(battle_dwell_frames(99), 60);
     }
 }

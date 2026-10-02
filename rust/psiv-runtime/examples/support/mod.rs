@@ -6,11 +6,11 @@
 //! presses Speak, and whatever dialogue opens is pressed through with Speak.
 //! This remains traversal evidence, not a Godot presentation or full-campaign
 //! acceptance test.
-use psiv_core::battle::{BattleEvent, Command, Outcome, RoundOrders, Side};
+use psiv_core::battle::Side;
 use psiv_core::{Cell, Direction};
 use psiv_runtime::{
-    Button, CampAbilityKind, CampPage, CampView, DialogueSignal, NpcDialogueOpen, Pad, Routed,
-    Runtime, RuntimeEvent, SceneDialogueOpen, Session,
+    Button, CampAbilityKind, CampPage, CampView, CommandMenuView, DialogueSignal, MenuView,
+    NpcDialogueOpen, Pad, Routed, Runtime, RuntimeEvent, SceneDialogueOpen, Session,
 };
 use std::collections::{BTreeMap, VecDeque};
 
@@ -19,17 +19,47 @@ use std::collections::{BTreeMap, VecDeque};
 /// oracle tapes use (a held button never advances a finished page).
 const PRESS_PERIOD: u64 = 4;
 
+/// The technique the route's policy fights with when it heals: RES, the first
+/// cure the Academy party knows.
+const HEAL_TECHNIQUE: u8 = 24;
+
 pub struct Walk {
     pub session: Session,
     pub ticks: u64,
     pub battles: usize,
+    /// Whether the battle policy spends the first eligible actor's turn on
+    /// [`HEAL_TECHNIQUE`] when somebody is hurt.
     pub heal_in_battle: bool,
+    /// The last battle view the session produced: what the policy navigates.
+    battle_view: Option<psiv_runtime::BattleView>,
+    /// Set while the policy's previous press is still held. A held button is
+    /// not a second press, so the policy releases before it presses again.
+    held_press: bool,
+    /// The actor that healed this round, so one healer answers per round.
+    healer: Option<u8>,
+    /// The actor of the previous command window, for the round boundary.
+    previous_actor: Option<u8>,
 }
 
 impl Walk {
+    /// A walk over `session`, with the battle policy's healing turned on or
+    /// off. The policy's own state is the harness's; every press it makes goes
+    /// through the session's battle menu.
+    pub fn new(session: Session, heal_in_battle: bool) -> Walk {
+        Walk {
+            session,
+            ticks: 0,
+            battles: 0,
+            heal_in_battle,
+            battle_view: None,
+            held_press: false,
+            healer: None,
+            previous_actor: None,
+        }
+    }
+
     /// The runtime, for the route's own assertions and for the modes this
-    /// harness still drives itself (battles) until the campaign runner owns
-    /// them.
+    /// harness asserts on; every mode it plays goes through the session.
     pub fn runtime(&self) -> &Runtime {
         self.session.runtime()
     }
@@ -44,8 +74,17 @@ impl Walk {
     pub fn tick(&mut self, pad: Pad) {
         self.ticks += 1;
         assert!(self.ticks < 100_000, "route exceeded its tick budget");
+        // A battle is the session's now. While one owns the frame the route's
+        // battle policy is the only thing pressing buttons, exactly as a player
+        // would: the caller's pad describes the field, not the fight.
+        let pad = if self.session.battle_active() {
+            self.battle_pad()
+        } else {
+            pad
+        };
         let pad = self.with_dialogue_press(pad);
         let frame = self.session.frame(pad);
+        self.battle_view = frame.battle.and_then(|battle| battle.view);
         self.present(frame.signals);
         if let Some(start) = frame.scene_started {
             println!(
@@ -86,15 +125,12 @@ impl Walk {
                 | RuntimeEvent::UnpackedTarget { .. }
                 | RuntimeEvent::WarpUnmapped { .. } => panic!("{event:?}"),
                 RuntimeEvent::EncounterRolled { formation } => {
-                    let party = self.session.runtime().battle_party();
-                    self.session
-                        .runtime_mut()
-                        .start_battle_timeline(formation, party)
-                        .unwrap();
-                    self.fight();
+                    self.battles += 1;
+                    println!("BATTLE {}: encounter {formation:#05x}", self.battles);
                 }
-                RuntimeEvent::SceneBattleStarted { .. } => {
-                    self.fight();
+                RuntimeEvent::SceneBattleStarted { index, .. } => {
+                    self.battles += 1;
+                    println!("BATTLE {}: event battle {index}", self.battles);
                 }
                 RuntimeEvent::MapChanged { .. }
                 | RuntimeEvent::SceneStarted { .. }
@@ -108,98 +144,120 @@ impl Walk {
         self.present(frame.window_signals);
     }
 
-    fn fight(&mut self) {
-        self.battles += 1;
-        let purse = self.session.runtime().game().money();
-        println!(
-            "BATTLE {}: {:?}",
-            self.battles,
-            self.session
-                .runtime()
-                .battle_roster()
-                .unwrap()
-                .living(Side::Enemy)
-                .map(|f| (&f.name, f.stats.curr_hp))
-                .collect::<Vec<_>>()
-        );
-        for round in 1..=100 {
-            let roster = self.session.runtime().battle_roster().unwrap();
-            let target = roster
-                .living(Side::Enemy)
-                .max_by_key(|f| f.stats.curr_hp)
-                .unwrap()
-                .id;
-            let injured = roster
-                .living(Side::Party)
-                .filter(|f| u32::from(f.stats.curr_hp) * 3 < u32::from(f.stats.max_hp))
-                .min_by_key(|f| f.stats.curr_hp)
-                .map(|f| f.id);
-            let mut healer_assigned = false;
-            let commands = roster
-                .side(Side::Party)
-                .map(|fighter| {
-                    if self.heal_in_battle
-                        && !healer_assigned
-                        && injured.is_some()
-                        && fighter.is_alive()
-                        && fighter.stats.can_act()
-                        && fighter.stats.status & psiv_core::battle::status::TECH_SEALED == 0
-                        && fighter.stats.techniques.contains(&24)
-                        && fighter.stats.curr_tp >= 3
-                    {
-                        healer_assigned = true;
-                        Command::Technique {
-                            technique: 24,
-                            target: injured,
-                        }
-                    } else {
-                        Command::AttackTarget(target)
-                    }
-                })
-                .collect();
-            let events = self
-                .session
-                .runtime_mut()
-                .battle_round(&RoundOrders::Commands(commands))
-                .unwrap();
-            let mut reward = 0;
-            let mut meseta = 0;
-            let mut outcome = None;
-            for event in events {
-                println!("B{} R{round} {event:?}", self.battles);
-                match event {
-                    BattleEvent::UnsupportedAbility { .. } => {
-                        panic!("unimplemented enemy ability: {event:?}")
-                    }
-                    BattleEvent::Rewarded {
-                        experience_each,
-                        meseta: paid,
-                        ..
-                    } => {
-                        reward = experience_each;
-                        meseta = paid;
-                    }
-                    BattleEvent::Ended { outcome: result } => outcome = Some(result),
-                    _ => {}
-                }
-            }
-            if let Some(outcome) = outcome {
-                assert_eq!(outcome, Outcome::Victory, "route lost a battle");
-                for event in self
-                    .session
-                    .runtime_mut()
-                    .finish_battle_for_outcome(outcome, reward)
-                {
-                    println!("B{} {event:?}", self.battles);
-                }
-                assert_eq!(
-                    self.session.runtime().game().money(),
-                    purse + u32::from(meseta)
-                );
-                return;
-            }
+    /// One frame of the battle policy's pad: the buttons a player would press
+    /// in the session's own battle menu.
+    fn battle_pad(&mut self) -> Pad {
+        // Release the last press first: holding a button is not a second
+        // press, and every accept and every cursor step is an edge.
+        if std::mem::take(&mut self.held_press) {
+            return Pad::NEUTRAL;
         }
-        panic!("battle exceeded 100 rounds");
+        let Some(button) = self.battle_button() else {
+            return Pad::NEUTRAL;
+        };
+        self.held_press = true;
+        Pad::new(button)
+    }
+
+    /// The button this frame's menu state asks for.
+    fn battle_button(&mut self) -> Option<Button> {
+        let view = self.battle_view.clone()?;
+        if !view.ready {
+            // A beat owns the frame. The victory and level-up pages take any
+            // face button (`Battle_VictoryMessage`, `ps4.asm:4706`).
+            if view.finishing || view.current.is_some() {
+                return Some(Button::Speak);
+            }
+            return None;
+        }
+        match view.menu? {
+            // The main options: row 0 is COMD for a party and ATTAC for a
+            // mounted surface; both lead to an ordinary attack round.
+            MenuView::Top { cursor } => match cursor {
+                0 => Some(Button::Speak),
+                _ => Some(Button::Up),
+            },
+            // The mounted surface's own window: the first slot with uses left.
+            MenuView::VehicleSkills { cursor, slots } => {
+                let wanted = slots.iter().position(|slot| slot.current > 0)?;
+                move_cursor(cursor, wanted)
+            }
+            MenuView::Commands(menu) => self.command_button(&menu),
+        }
+    }
+
+    /// The button the per-character command window asks for.
+    fn command_button(&mut self, menu: &CommandMenuView) -> Option<Button> {
+        let actor = menu.actor?;
+        if self.previous_actor != Some(actor) && (actor == 1 || self.previous_actor.is_none()) {
+            // The actors answer from the first slot again: a new round.
+            self.healer = None;
+        }
+        self.previous_actor = Some(actor);
+        let healing = self.wants_to_heal(menu, actor);
+        match menu.page {
+            psiv_runtime::MenuPage::Actions => {
+                let wanted = usize::from(healing);
+                move_cursor(menu.cursor, wanted)
+            }
+            psiv_runtime::MenuPage::Techniques => {
+                let wanted = menu
+                    .techniques
+                    .iter()
+                    .position(|technique| technique.id == HEAL_TECHNIQUE && technique.available)?;
+                move_cursor(menu.cursor, wanted)
+            }
+            psiv_runtime::MenuPage::Targets(_) => {
+                let wanted = if healing {
+                    let injured = self
+                        .session
+                        .runtime()
+                        .battle_roster()?
+                        .living(Side::Party)
+                        .filter(|fighter| fighter.stats.curr_hp * 3 < fighter.stats.max_hp)
+                        .min_by_key(|fighter| fighter.stats.curr_hp)?;
+                    menu.targets.iter().position(|id| *id == injured.id.get())?
+                } else {
+                    // The strongest enemy, the target the auto-battle policy
+                    // always took.
+                    let enemy = self
+                        .session
+                        .runtime()
+                        .battle_roster()?
+                        .living(Side::Enemy)
+                        .max_by_key(|fighter| fighter.stats.curr_hp)?;
+                    menu.targets.iter().position(|id| *id == enemy.id.get())?
+                };
+                move_cursor(menu.cursor, wanted)
+            }
+            // The policy fights with ATTACK and one cure; anything else is a
+            // page it backs out of.
+            _ => Some(Button::Cancel),
+        }
+    }
+
+    /// Whether this actor should spend the round healing, and whether it is
+    /// the one healer of the round.
+    fn wants_to_heal(&mut self, menu: &CommandMenuView, actor: u8) -> bool {
+        if !self.heal_in_battle || self.healer.is_some() {
+            return false;
+        }
+        let Some(roster) = self.session.runtime().battle_roster() else {
+            return false;
+        };
+        let hurt = roster
+            .living(Side::Party)
+            .any(|fighter| fighter.stats.curr_hp * 3 < fighter.stats.max_hp);
+        let knows = menu
+            .techniques
+            .iter()
+            .any(|technique| technique.id == HEAL_TECHNIQUE && technique.available);
+        if hurt && knows {
+            self.healer = Some(actor);
+            true
+        } else {
+            false
+        }
     }
 
     /// A frame's pad: the caller's buttons plus the route's own dialogue
@@ -329,7 +387,12 @@ impl Walk {
         let mut idle = 0;
         for _ in 0..20_000 {
             self.tick(Pad::NEUTRAL);
-            if !self.runtime().scene_active() && !self.runtime().state().is_stepping() {
+            // A battle the route walked into is still the session's: the
+            // policy keeps pressing until it releases the field.
+            if !self.session.battle_active()
+                && !self.runtime().scene_active()
+                && !self.runtime().state().is_stepping()
+            {
                 idle += 1;
                 if idle == 2 {
                     return;
@@ -411,6 +474,16 @@ impl Walk {
             self.runtime().game().party_members(),
             self.runtime().game().money()
         );
+    }
+}
+
+/// The button that steps this port's one-list windows from `current` to
+/// `wanted`: up or down one row, or the accept when the cursor is there.
+fn move_cursor(current: usize, wanted: usize) -> Option<Button> {
+    match current.cmp(&wanted) {
+        std::cmp::Ordering::Less => Some(Button::Down),
+        std::cmp::Ordering::Greater => Some(Button::Up),
+        std::cmp::Ordering::Equal => Some(Button::Speak),
     }
 }
 

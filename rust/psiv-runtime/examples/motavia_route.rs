@@ -49,12 +49,7 @@ fn main() {
     .unwrap();
     rt.enable_battles(&BattleFiles::load(pack).unwrap())
         .unwrap();
-    let mut route = Walk {
-        session: Session::new(rt),
-        ticks: 0,
-        battles: 0,
-        heal_in_battle: true,
-    };
+    let mut route = Walk::new(Session::new(rt), true);
     route.checkpoint("continued native Academy save");
     heal(&mut route);
     // The Edge's late-story warp is absent at this point in the campaign.

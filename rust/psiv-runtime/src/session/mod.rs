@@ -9,6 +9,7 @@
 //! ```text
 //! shop or inn window   the counter's pages own the pad            (shop.rs)
 //! camp menu, a chest   the camp's pages own the pad               (camp/)
+//! a battle             the menu, the beats, the epilogue          (battle/)
 //! the field            1. the dialogue window's input half
 //!                      2. a pending `$F6`
 //!                      3. the field, or the scene — starved of input while a
@@ -22,9 +23,19 @@
 //! the field opened pre-empts the camp, as the shell's old dispatcher ordered
 //! them. The shell that draws the game sends the pad and presents what comes
 //! back: it decides nothing about game state. The modes that are still the
-//! shell's — title, game over and battle — are checked in front of this frame
-//! and named in `psiv-godot/src/lib.rs`; `docs/campaign/CAMPAIGN_RUNNER.md`'s
-//! nodes S3 and S5 move them in.
+//! shell's — title and game over — are checked in front of this frame and named
+//! in `psiv-godot/src/lib.rs`; `docs/campaign/CAMPAIGN_RUNNER.md`'s node S5
+//! moves them in.
+//!
+//! # The battle
+//!
+//! A battle is a mode, not a script the shell plays: `EncounterRolled` or a
+//! scene's `SceneBattleStarted` starts the runtime's own battle inside this
+//! frame, and from the next frame on [`Session::frame`] runs the battle loop
+//! (`session/battle/`) instead of the field until the presentation closes.
+//! [`Frame::battle`] carries that loop's view, its retail sound cues, and the
+//! two edges the shell needs: the battle that began, and the battle that is
+//! over.
 //!
 //! # One frame, one call
 //!
@@ -50,19 +61,28 @@
 //!
 //! [`DialogueRunner`]: crate::dialogue::DialogueRunner
 
+mod battle;
 mod camp;
 mod route;
 mod shop;
 
+pub use battle::{
+    BATTLE_DWELL_FRAMES, BattleBeat, BattleFrame, BattleStart, BattleView, BeatView,
+    CommandMenuView, DamageView, EnemyStatus, MenuPage, MenuRow, MenuView, MessageKind,
+    PartyStatus, SkillEntry, SkillSlotView, TargetKind, TechniqueEntry, battle_dwell_frames,
+};
+
 use psiv_core::{Cell, Input};
 
 use crate::dialogue::DialogueSignal;
+use crate::events::BattleTimeline;
 use crate::pad::{Button, Pad};
 use crate::{NpcDialogueOpen, Runtime, RuntimeEvent, SceneDialogueOpen};
 
 pub use camp::{CampPage, CampView, OrderDraft, ROOT_OPTIONS};
 pub use shop::{ShopCounterView, ShopOwnedItem, ShopPage, ShopStock, ShopView};
 
+use battle::BattleMode;
 use camp::MenuInput;
 
 /// A `$F6` the dialogue fired, and whether its scene began.
@@ -86,6 +106,16 @@ pub enum FrameMode {
     Shop,
     /// The camp menu or a chest window, including the frame that closed it.
     Camp,
+    /// The battle loop, including the frame it began and the frame it closed.
+    Battle,
+}
+
+/// Which loop owns the frame.
+enum Mode {
+    /// The field, its scenes, the message box and the menus over them.
+    Field,
+    /// The battle loop, with its own menu, beats and epilogue.
+    Battle(Box<BattleMode>),
 }
 
 /// A window the session opened this frame, for the shell's diagnostics and the
@@ -173,6 +203,9 @@ pub struct Frame {
     /// shell's (it owns the save directory and its policy); it answers with
     /// [`Session::finish_camp_save`], which sets the result line the page shows.
     pub save_request: Option<usize>,
+    /// The battle's own frame while a battle owns the session, including the
+    /// frame one began on.
+    pub battle: Option<BattleFrame>,
 }
 
 /// The cartridge's main loop: the runtime, the latches, the modes and one frame.
@@ -191,6 +224,9 @@ pub struct Session {
     camp: Option<CampView>,
     /// The debug harness's switch: scene lines are acknowledged unseen.
     scene_dialogue_autoclose: bool,
+    /// Which loop owns the frame. A battle is entered by the frame that starts
+    /// it and left by the frame its presentation closes on.
+    mode: Mode,
 }
 
 impl Session {
@@ -204,6 +240,7 @@ impl Session {
             shop: None,
             camp: None,
             scene_dialogue_autoclose: false,
+            mode: Mode::Field,
         }
     }
 
@@ -225,6 +262,9 @@ impl Session {
     pub fn frame(&mut self, pad: Pad) -> Frame {
         let pressed = pad.pressed(self.prev_pad);
         self.prev_pad = pad;
+        if let Mode::Battle(_) = self.mode {
+            return self.battle_frame(pad);
+        }
         // A window that is already up owns the frame, so neither menu runs
         // under one — the old dispatcher reached them only after the window
         // branch had returned.
@@ -237,6 +277,40 @@ impl Session {
             }
         }
         self.field_frame(pad)
+    }
+
+    /// One frame of the battle loop.
+    fn battle_frame(&mut self, pad: Pad) -> Frame {
+        let Mode::Battle(mut mode) = std::mem::replace(&mut self.mode, Mode::Field) else {
+            unreachable!("battle_frame runs only in battle mode");
+        };
+        let battle = mode.frame(&mut self.runtime, pad);
+        let close_ready = battle.view.as_ref().is_some_and(|view| view.close_ready);
+        if !close_ready {
+            self.mode = Mode::Battle(mode);
+            return Frame {
+                mode: FrameMode::Battle,
+                battle: Some(battle),
+                ..Frame::default()
+            };
+        }
+        // The battle is over: the field takes the next frame back. A finished
+        // battle returns through the map refresh the cartridge runs before
+        // revealing the field; a defeat leaves it pending, because the
+        // game-over fade owns every frame from here.
+        let events = if self.runtime.game_over() {
+            Vec::new()
+        } else {
+            self.runtime.return_to_field()
+        };
+        let (events, routed) = self.route(events);
+        Frame {
+            mode: FrameMode::Battle,
+            events,
+            routed,
+            battle: Some(battle),
+            ..Frame::default()
+        }
     }
 
     /// The field, a scene and the message box.
@@ -287,19 +361,96 @@ impl Session {
         };
         let events = self.runtime.tick(field_input);
         let (events, routed) = self.route(events);
+        // An encounter or a scene battle this frame's events asked for starts
+        // inside the frame; the battle loop owns the frames after it.
+        let battle = self.begin_battle(&events);
         // The window's own half of the same frame, after the events above may
         // have opened it.
         let window_signals = self.runtime.dialogue_tick();
         Frame {
-            mode: FrameMode::Field,
+            mode: if battle.is_some() {
+                FrameMode::Battle
+            } else {
+                FrameMode::Field
+            },
             events,
             routed,
             signals,
             scene_started,
             field_input: (!window_was_open).then_some(field_input),
             window_signals,
+            battle,
             ..Frame::default()
         }
+    }
+
+    /// Starts the battle this frame's events asked for, if they asked for one.
+    ///
+    /// An `EncounterRolled` is the runtime's own battle to start; a
+    /// `SceneBattleStarted` is one the scene runner already started, and the
+    /// event carries its opening timeline. A battle that cannot start leaves
+    /// the field in control and reports the reason as a fault for the shell to
+    /// log — the same "no battle this frame" the shell's own error paths
+    /// produced.
+    fn begin_battle(&mut self, events: &[RuntimeEvent]) -> Option<BattleFrame> {
+        let start = events.iter().find_map(|event| match event {
+            RuntimeEvent::EncounterRolled { formation } => Some(BattleStart::Encounter(*formation)),
+            RuntimeEvent::SceneBattleStarted { index, .. } => {
+                Some(BattleStart::EventBattle(*index))
+            }
+            _ => None,
+        })?;
+        let timeline = match start {
+            BattleStart::Encounter(formation) => match self.start_encounter(formation) {
+                Ok(timeline) => timeline,
+                Err(fault) => {
+                    return Some(BattleFrame {
+                        view: None,
+                        started: None,
+                        fault: Some(fault),
+                    });
+                }
+            },
+            BattleStart::EventBattle(_) => {
+                let Some(RuntimeEvent::SceneBattleStarted {
+                    events,
+                    sounds,
+                    animations,
+                    ..
+                }) = events
+                    .iter()
+                    .find(|event| matches!(event, RuntimeEvent::SceneBattleStarted { .. }))
+                else {
+                    return None;
+                };
+                BattleTimeline {
+                    events: events.clone(),
+                    sounds: sounds.clone(),
+                    animations: animations.clone(),
+                }
+            }
+        };
+        let mut mode = BattleMode::begin(&self.runtime, timeline, start);
+        let frame = mode.start_frame(&self.runtime);
+        self.mode = Mode::Battle(Box::new(mode));
+        Some(frame)
+    }
+
+    /// Starts an encounter battle, or says why it cannot.
+    ///
+    /// The empty-party refusal is the shell's own (`encounter rolled formation
+    /// {formation:#05x} with an empty party`): a battle with nobody in it can
+    /// never end, so it must not start.
+    fn start_encounter(&mut self, formation: u16) -> Result<BattleTimeline, String> {
+        let party = self.runtime.battle_party();
+        if party.is_empty() {
+            return Err(format!(
+                "encounter rolled formation {formation:#05x} with an empty party"
+            ));
+        }
+        self.runtime
+            .start_battle_timeline(formation, party)
+            .map_err(|error| format!("could not start battle {formation:#05x}: {error}"))
     }
 
     /// One frame of the shop or inn window.
@@ -417,6 +568,84 @@ impl Session {
         self.accept_blocked = true;
     }
 
+    /// Whether the battle loop owns this session's frames.
+    #[must_use]
+    pub fn battle_active(&self) -> bool {
+        matches!(self.mode, Mode::Battle(_))
+    }
+
+    /// Ends the current battle as escaped and gives the field the next frame.
+    ///
+    /// The presentation's own failure seam: a shell that cannot build a battle's
+    /// art must not leave the fight running unseen, and the shell's error paths
+    /// answered exactly this way (`finish_battle_for_outcome(Escaped, 0)`).
+    /// Everything else about a battle's end is the battle mode's own decision.
+    pub fn abort_battle(&mut self) {
+        if self.battle_active() {
+            let _ = self
+                .runtime
+                .finish_battle_for_outcome(psiv_core::battle::Outcome::Escaped, 0);
+            self.mode = Mode::Field;
+        }
+    }
+
+    /// Debug-selector family: starts `formation` as an ordinary encounter
+    /// battle from outside the field frame, which is what
+    /// `PSIV_DEBUG_BATTLE=<formation>` and `PSIV_DEBUG_VEHICLE_BATTLE` do.
+    ///
+    /// A real battle starts, so the capture that follows plays the same rounds
+    /// a player would; nothing about it is a fixture.
+    pub fn debug_battle(&mut self, formation: u16) -> BattleFrame {
+        match self.start_encounter(formation) {
+            Ok(timeline) => {
+                let mut mode =
+                    BattleMode::begin(&self.runtime, timeline, BattleStart::Encounter(formation));
+                let frame = mode.start_frame(&self.runtime);
+                self.mode = Mode::Battle(Box::new(mode));
+                frame
+            }
+            Err(error) => BattleFrame {
+                view: None,
+                started: None,
+                fault: Some(format!("debug battle {formation:#05x} refused: {error}")),
+            },
+        }
+    }
+
+    /// Debug-selector family: the newly-exact probe of `PSIV_DEBUG_BATTLE=0x89`.
+    ///
+    /// A real `formation` battle starts and its opening timeline is replaced by
+    /// `timeline`, so a decoded enemy attack can be watched on the live screen
+    /// without a command menu. The battle is real, which means the shared RNG
+    /// advances here where the old fixture's did not; no certified capture
+    /// covers this selector.
+    pub fn debug_battle_probe(&mut self, formation: u16, timeline: BattleTimeline) -> BattleFrame {
+        let party = self.runtime.battle_party();
+        if party.is_empty() {
+            return BattleFrame {
+                view: None,
+                started: None,
+                fault: Some(format!(
+                    "debug probe {formation:#05x} refused: the battle party is empty"
+                )),
+            };
+        }
+        match self.runtime.start_battle(formation, party) {
+            Ok(_) => {
+                let mut mode =
+                    BattleMode::begin(&self.runtime, timeline, BattleStart::Encounter(formation));
+                let frame = mode.start_frame(&self.runtime);
+                self.mode = Mode::Battle(Box::new(mode));
+                frame
+            }
+            Err(error) => BattleFrame {
+                view: None,
+                started: None,
+                fault: Some(format!("debug probe {formation:#05x} refused: {error}")),
+            },
+        }
+    }
+
     /// The runtime, for presentation views.
     ///
     /// This is the read-only half of the session: what to draw, what to play,
@@ -426,10 +655,10 @@ impl Session {
         &self.runtime
     }
 
-    /// The runtime, mutably, for the modes that are still the shell's — title,
-    /// game over and battle. Each of them drives its own runtime calls today (a
-    /// slot load, a battle round), and the S3 and S5 nodes move them into this
-    /// session, at which point this accessor and its callers go away.
+    /// The runtime, mutably, for the modes that are still the shell's — title
+    /// and game over. Each drives its own runtime calls today (a slot load, the
+    /// fade's reset), and node S5 moves them into this session, at which point
+    /// this accessor and its callers go away.
     pub fn runtime_mut(&mut self) -> &mut Runtime {
         &mut self.runtime
     }

@@ -49,9 +49,29 @@ The directions and the talk button resolve in the cartridge's order
 sixteen d-pad masks — an opposing pair cancels, a horizontal beats a vertical —
 and `FieldControls_GetInput`'s talk press taking the frame); the menus read
 presses as edges against the previous frame's pad. Godot sends the pad and
-presents the frame; the modes it still owns (title, game over and battle) are
-checked in front of the call, and the [campaign runner](campaign/CAMPAIGN_RUNNER.md)
-nodes S3 and S5 move them in.
+presents the frame; the modes it still owns (title and game over) are checked
+in front of the call, and the [campaign runner](campaign/CAMPAIGN_RUNNER.md)
+node S5 moves them in.
+
+## The battle frame
+
+A battle is a mode of the same session, not a script the shell plays
+(`rust/psiv-runtime/src/session/battle/`). `EncounterRolled` or a scene's
+`SceneBattleStarted` starts the runtime's own battle inside the field frame, and
+from the next frame `Session::frame(pad)` runs the battle loop instead of the
+field: the shared vblank/RNG tick, the command menu (the main options, the
+per-character window, the target lists, the mounted skill window), beat playback
+with the retail dwell of `12 * (Battle_Speed + 1)` frames and the post-battle
+pages' confirm waits, the epilogue that pays the pools and levels the party, and
+the frame the map refresh returns on. `Frame::battle` carries the loop's
+read-only `BattleView` — the menu and its cursor, the narration window, the
+damage block, the party strip, the enemies with their visibility, the beat and
+its progress, plus the retail sound cues the frame raised — and Godot draws it,
+deciding nothing. The buttons are the cartridge's own where its routines name
+them (`Battle_MainOptions`, `Battle_CharCommand`, the tech/skill/item windows,
+`Battle_VehSkills`; `ps4.asm:1123` onward), and the per-character window's
+one-list layout keeps the shell's four-direction mapping with that difference
+recorded in `session/battle/menu/`.
 
 ## State, events and persistence
 

@@ -127,10 +127,11 @@ fn load_requested_slot(data: &GameData, slot: usize) -> Option<Runtime> {
 #[class(base=Node2D)]
 struct Field {
     base: Base<Node2D>,
-    /// The game frame: the runtime, the dialogue window and the field's own
-    /// input rules. The shell sends it one pad per frame and presents what
-    /// comes back (`Session::frame`); the modes still listed below reach the
-    /// runtime through `runtime_mut` until their graph nodes move them in.
+    /// The game frame: the runtime, the dialogue window, the field's own input
+    /// rules and the battle loop. The shell sends it one pad per frame and
+    /// presents what comes back (`Session::frame`); the modes still listed
+    /// below reach the runtime through `runtime_mut` until their graph nodes
+    /// move them in.
     session: Option<Session>,
     pack_dir: String,
     map_sprite: Option<Gd<Sprite2D>>,
@@ -487,7 +488,9 @@ impl INode2D for Field {
         self.tick_cutscene_presentation();
         // The modes that are still the shell's are checked in front of the
         // game frame, in the order the old dispatcher checked them. Each one
-        // names the campaign-runner node that moves it into the session.
+        // names the campaign-runner node that moves it into the session; the
+        // battle is not among them any more (S3), so `drive_battle_if_active`
+        // below is the stage, not the fight.
         if self.drive_title() {
             return; // S5
         }
@@ -503,10 +506,12 @@ impl INode2D for Field {
         }
 
         if self.drive_battle_if_active() {
-            // S3.  The debug battle receipt is sampled after the battle
-            // drive. Its 19-tick seed plus the 170 pre-drive updates at tick
-            // 200 become the 171 elapsed clock updates the oracle receipt
-            // models.
+            // The battle stage owns the frame: the session ran the fight
+            // inside `drive_game_frame`, and this pass advanced the art clocks
+            // and closed the stage if the runtime said so. The debug battle
+            // receipt is sampled after it: the 19-tick seed plus the 170
+            // updates before tick 200 become the 171 elapsed clock updates the
+            // oracle receipt models.
             self.capture_debug_shot();
             // Battle close is the other retail restore edge. Scene battles
             // carry Saved_Sound_Index; ordinary battles fall back to the
@@ -532,8 +537,8 @@ impl Field {
     }
 
     /// The runtime behind the session, for the modes that are still the
-    /// shell's — title (S5), game over (S5), battle (S3), shop and camp (S4).
-    /// A gameplay frame goes through `Session::frame` instead.
+    /// shell's — title and game over (S5). A gameplay
+    /// frame goes through `Session::frame` instead, battle included.
     pub(crate) fn runtime_mut(&mut self) -> Option<&mut Runtime> {
         self.session.as_mut().map(Session::runtime_mut)
     }
@@ -550,7 +555,8 @@ impl Field {
     /// The game frame: everything the shell does not own.
     ///
     /// `Session::frame` owns the whole frame — the dialogue window, a pending
-    /// `$F6`, the field or the scene, the shop and inn, the camp and a chest —
+    /// `$F6`, the field or the scene, the shop and inn, the camp, a chest and
+    /// the battle a frame starts —
     /// in the cartridge's own order. This method sends it the pad and presents
     /// what comes back.
     fn drive_game_frame(&mut self) {
@@ -566,7 +572,9 @@ impl Field {
             return;
         };
         match frame.mode {
-            FrameMode::Field => self.present_frame(frame),
+            // A battle-mode frame here is the field frame a battle began on;
+            // the battle loop's own frames go through `drive_battle_if_active`.
+            FrameMode::Field | FrameMode::Battle => self.present_frame(frame),
             FrameMode::Shop | FrameMode::Camp => self.present_menu_frame(frame),
         }
     }
