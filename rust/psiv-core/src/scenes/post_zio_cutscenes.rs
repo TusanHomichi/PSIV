@@ -753,6 +753,16 @@ pub static JUZA: Scene = Scene {
 };
 
 /// `$0041`, `Event_JuzaDefeated`, retail `$06FB5E..$06FBED`.
+///
+/// The stairs at chunks `(12,9)`, `(13,9)`, `(12,10)`, `(13,10)` — cells
+/// `(24..27,18..21)` — are *rewritten live*: `GetMapLayoutOffset(12,9,1)`
+/// resolves the BG layout address (`$06FB74`) and the table at `$06FBC4`
+/// alternates the closed chunk `$16` with the open set `$23,$1A,$19,$1B`
+/// eight times, each group followed by `RefreshPlaneBG` and a seven-frame
+/// `DMAPlane_B_VInt` loop. Collision reads the layout the plane holds, so the
+/// stairway's map-change tiles are live the moment the event ends; the map's
+/// own effect entry `$38` writes the closed chunk back only while Juza
+/// Defeated `$48` is clear.
 pub static JUZA_DEFEATED: Scene = Scene {
     name: "Event_JuzaDefeated",
     event: EventIndex(0x0041),
@@ -760,30 +770,16 @@ pub static JUZA_DEFEATED: Scene = Scene {
         SceneOp::PlaySound {
             id: SFX_DOOR_OPENED,
         },
-        // Four tile groups, each with six map-update iterations in the source.
-        SceneOp::ObjectAnimation {
-            slot: 0,
-            object_id: 0x16,
-            art_tile: 0x16,
-            frames: 6,
-        },
-        SceneOp::ObjectAnimation {
-            slot: 1,
-            object_id: 0x23,
-            art_tile: 0x1A,
-            frames: 6,
-        },
-        SceneOp::ObjectAnimation {
-            slot: 2,
-            object_id: 0x16,
-            art_tile: 0x16,
-            frames: 6,
-        },
-        SceneOp::ObjectAnimation {
-            slot: 3,
-            object_id: 0x23,
-            art_tile: 0x1A,
-            frames: 6,
+        // `$06FBC4`: eight five-byte rows — delay, then four chunk ids —
+        // written to the same four chunks, alternating the closed chunk `$16`
+        // with `$23,$1A,$19,$1B`, each row followed by a plane refresh and a
+        // seven-frame `DMAPlane_B_VInt`. The row the table ends on is the map's
+        // *own* layout at those chunks, so the live state the cartridge leaves
+        // is exactly "these chunks are their baked selves again" — which is
+        // what `RestoreMapChunks` asserts and applies. The alternating frames
+        // change nothing the party can reach mid-scene.
+        SceneOp::RestoreMapChunks {
+            chunks: &[(12, 9, 0x23), (13, 9, 0x1A), (12, 10, 0x19), (13, 10, 0x1B)],
         },
         SceneOp::SetFlag {
             flag: Flag::event(0x48),

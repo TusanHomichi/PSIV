@@ -32,6 +32,29 @@ impl Runtime {
                 .tiles
                 .iter()
                 .find(|tile| tile.chunk_id == Some(id))
+                .or_else(|| {
+                    // The overworlds compose some chunks they never carry as a
+                    // raw atlas tile: a page hook writes them, and the pack
+                    // keeps the resolved form as an `overworld_patches` entry
+                    // whose `collision_chunk_id` is that raw id. A scene write
+                    // of the same id at the same coordinate is that chunk —
+                    // `Event_MachineCenterAppearing`'s `$D3` at (57,90) is the
+                    // twin of the hook gated on Machine Center `$43`.
+                    let composed = record
+                        .overworld_patches
+                        .as_ref()?
+                        .iter()
+                        .flat_map(|patch| &patch.tiles)
+                        .find(|entry| {
+                            entry.chunk_x == x
+                                && entry.chunk_y == y
+                                && entry.collision_chunk_id == id
+                        })?;
+                    atlas
+                        .tiles
+                        .iter()
+                        .find(|tile| tile.index == composed.patch_tile)
+                })
                 .ok_or_else(|| reject(format!("scene chunk {id:#04x} has no atlas tile")))?;
             let cells = tile.collision.ok_or_else(|| {
                 reject(format!("scene chunk {id:#04x} has no collision definition"))
@@ -387,6 +410,24 @@ impl Runtime {
                     }
                     SceneOp::SetRenderSpritesInCutscene { enabled } => {
                         self.scene_panel_sprites = enabled;
+                    }
+                    // `Event_MoveCamera` reading a live object rather than
+                    // literals (`PresentationOp::CameraToActor`). The camera is
+                    // runtime state because the on-screen tests feed the RNG
+                    // stream, so a headless run must pan exactly like a
+                    // rendered one.
+                    SceneOp::Presentation {
+                        op: psiv_core::PresentationOp::CameraToActor { actor, speed },
+                    } => {
+                        if let Some(walker) = self
+                            .scene
+                            .as_ref()
+                            .and_then(|runner| runner.actor(actor))
+                            .copied()
+                        {
+                            let at = psiv_core::PixelPos::from_cell(walker.cell);
+                            self.scene_move_camera(at.x, at.y, i32::from(speed));
+                        }
                     }
                     _ => {}
                 }

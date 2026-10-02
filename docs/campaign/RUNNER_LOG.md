@@ -18,28 +18,27 @@ shortcut, a state edit or a skip to get past one.
 the Zio Fort's Juza room (C1) and, since lane C2, Juza's battle, the first
 Motavia arc's Demi rescue, the Machine Center and the Land Rover, the Ladea
 Tower with Rune and the Psycho Wand, and the walk to the Zio Fort's barrier
-(scenes 31 to 37, `zio-fort-barrier` last). **On the engine as it stands the
-run halts at its first port defect:** chapter `zio-fort-demi`, objective 2,
-`Cutscene_AlysWounded` reads the wrong dialogue tree
-([H17](#h17-cutscene_alyswounded-and-cutscene_psycowand-read-the-wrong-dialogue-tree)).
-Everything before it passes: 20 chapters, 1,023,474 frames, digest
-`49f5c47df7971428` (run C2-F1, exit 2, identical on a second run).
+(scenes 31 to 37, `zio-fort-barrier` last). **The route completes.** Lane F1 fixed the four defects the runs below found
+on the critical path — H17 (the two revision-gated `DialogueTree6` loads), H18
+(`Event_ZioFortBarrier` `$30`) and H19 (live map tile writes) — and the 27
+chapters now run end to end: **run F1-A, exit 0, 1,724,673 frames, digest
+`6381311acb90c052`**, tape sha256
+`eb12090d6400ae95a38977ba917f457ca46382845707f060fe08d84cc4d826df`. The
+workarounds H19's report added to the route (Juza's east-door round trip, the
+Krup detour before the Machine Center) are now redundant; they still work and
+are left in place.
 
-Past H17 the route is written and was played on an engine with a four-line
-experimental patch for H17: it runs 26 chapters to `zio-fort-barrier`'s talk,
-where `Event_ZioFortBarrier` (`$30`) is not transcribed
-([H18](#h18-event_ziofortbarrier-30-is-not-transcribed)), a defect with no
-in-game alternative (the barrier is the only road to Nurvus and Zio). With a
-stub standing in for that scene the 27 chapters complete (run C2-E3, below). The
-experiment is evidence of what lies past each defect, not a pass: the engine
-the route is committed against does not carry either patch.
+The engine these runs were committed against carried neither fix: H17 halted
+the route at chapter 20 and, with a four-line experimental patch for H17, H18
+halted it at `zio-fort-barrier`'s talk. Both are transcribed now, and F1-A
+carries no patch.
 
-Three more port defects were met and are not blockers here:
-[H19](#h19-story-flags-and-scene-tile-writes-do-not-reach-the-live-maps-collision)
-(the live map does not learn a story flag; the route leaves and re-enters),
+Two more port defects were met and are not blockers here:
 [H20](#h20-the-vehicle-is-not-parked-at-a-map-load-and-boarding-is-missing) (the
 Land Rover) and [H21](#h21-evil-eye-ability-76-in-the-ladea-tower-58) (an
-unsupported enemy ability in the tower, issue #58). The run is a traversal
+unsupported enemy ability in the tower, issue #58).
+[H19](#h19-story-flags-and-scene-tile-writes-do-not-reach-the-live-maps-collision)
+is fixed. The run is a traversal
 proof, not a balance proof (see "Not claimed").
 
 H16 (Juza's ZAN and FORCEFLASH) is resolved: lane a1-damage implemented them
@@ -160,6 +159,7 @@ except where stated.
 | C2-E2 | the same with `run-8` | identical |
 | C2-E3 | experimental engine (H17 patch and a stub for `$30` that runs dialogue `$44` and sets `$64`), `run-3` | completes, exit 0, 1,723,576 frames, digest `e77a7b9cf1f5fa37`, tape sha256 `e566844935aba65f75a0f6084f6d6e338636617dab336b40744c8073012b3c3a` |
 | C2-E4 | the same with `run-4` | identical frames, digest and tape sha256; `psiv-campaign replay build/c1/run-4/run.tape` reproduces the digest |
+| F1-A | `psiv-campaign run rust/psiv-campaign/routes/main.json --save-dir build/f1/run --tape build/f1/run/run.tape --report build/f1/run/report.json` (lane F1: H17, H18 and H19 transcribed, no patch, no route edit) | **completed**, exit 0, 1,724,673 frames, digest `6381311acb90c052`, tape sha256 `eb12090d6400ae95a38977ba917f457ca46382845707f060fe08d84cc4d826df`; route file sha256 `234b50fc832f3abce6762ec8212673ecaa1c7e936f2cebd069ab2ff58a8716df`, unchanged from the base. 251 frames longer than C2-E3: the real barrier scene runs where the stub skipped it, and the route's two H19 workarounds (Juza's east-door round trip, the Krup detour) are still performed |
 
 Per new chapter on the experimental engine (C2-E3; frames, battles, party at the
 chapter's end):
@@ -178,6 +178,13 @@ chapter's end):
 | ladea-tower-rune | 5,452 | 6 | + Rune L23 115/115 |
 | ladea-tower-psycho-wand | 14,415 | 3 | Gryz L23 195/195, Chaz L23 150/150, Rika L24 164/164, Demi L19 144/144, Rune L23 115/115; Krup `$39` (20,15), PSYCO-WAND in the pack |
 | zio-fort-barrier (stub) | 4,498 | 6 | the same; Zio Fort `$82` (47,56), `$64` set |
+
+Per chapter on the fixed engine (F1-A; the chapters C2-E3's table above already
+lists are unchanged frame for frame):
+
+| Chapter | Frames | Battles | Party at the end |
+| --- | --- | --- | --- |
+| zio-fort-barrier | 5,595 | 6 | Gryz L23 195/195, Chaz L23 150/150, Rika L24 164/164, Demi L19 144/144, Rune L23 115/115; the courtyard open, `$64` set |
 
 Draws matter. Training at levels 16, 17 and 21 halts in the tower on
 EVIL EYE, and the Gy-Laguiah fight is close at level 16: the passes above are
@@ -434,6 +441,16 @@ below is kept as it was written.**
 
 ### H17: Cutscene_AlysWounded and Cutscene_PsycoWand read the wrong dialogue tree
 
+**Resolved by lane F1.** The four revision-gated loads are transcribed, and the
+class is guarded: `psiv-core`'s
+`every_scene_loads_the_trees_its_retail_bytes_load` holds the retail
+`DialogueTreesToRAM` census and `tests/test_scene_trees.py` re-derives it from
+the image, so a scene whose tree ops drift from its byte range fails a test.
+The audit also found a fifth load the diagnosis had not named —
+`Cutscene_ZioDefeated`'s `DialogueTree36` at `$075D84`, which is *not* under a
+revision block — and fixed it in the same pass. The audit table is
+[docs/scenes/REVISION_AUDIT.md](../scenes/REVISION_AUDIT.md).
+
 **Open port defect on the critical path. It is the route's first halt:** run
 C2-F1, chapter `zio-fort-demi` objective 2 (`go_to` Zio Fort F4), frame
 1,023,474. The Demi rescue (`$8008`) and event battle 4 pass, trigger `$1D`
@@ -477,6 +494,15 @@ starts `Cutscene_AlysWounded` (`$8009`) as the next frame's scene, and it faults
   `[Chaz, Gryz, Rika, Demi]` starts from the native order).
 
 ### H18: Event_ZioFortBarrier ($30) is not transcribed
+
+**Resolved by lane F1.** `Event_ZioFortBarrier` is transcribed from the US
+bytes as `ZIO_FORT_BARRIER` (35 ops, `EventPtrs[$30]`) — the `$63` test, both
+dialogues, the five ring destinations in the cartridge's order with the
+leader's closing walk to `(47,54)`, the eight-object clear and the `$64` write
+— with its scene doc [90_ZioFortBarrier.md](../scenes/90_ZioFortBarrier.md),
+the route's Ptrs $30 row updated in the census, and
+`the_zio_fort_barrier_walks_its_ring_and_opens_the_courtyard` asserting the
+ring, the flag, the despawns and the courtyard walk to Nurvus `$D7`.
 
 **Open port defect on the critical path, no legitimate alternative: the route
 stops at the barrier.** Seen on the experimental engine only (H17 patched): run
@@ -523,6 +549,18 @@ C2-E1, chapter `zio-fort-barrier` objective 2, frame 1,723,422
   ledger lists BLACK WAVE (ability 84) as unsupported with no formation.
 
 ### H19: story flags and scene tile writes do not reach the live map's collision
+
+**Resolved by lane F1.** The cartridge's mechanism is the first of the three
+the diagnosis offered: both scenes write the layout themselves
+(`GetMapLayoutOffset` + `RefreshPlaneBG`, `$06FB74` and `$06B5CE`), which is why
+they are live without any map reload and why neither calls `RefreshMap`. The
+port now transcribes those writes as state (`RestoreMapChunks` for Juza's own
+base chunks, `WriteMapChunks` for the overworld chunk), and seven scenes were
+audited for the same shape — `Cutscene_PsycoWand` and `Cutscene_ZioDefeated`
+were dropping two more. The census is
+[docs/scenes/LIVE_LAYOUT_WRITES.md](../scenes/LIVE_LAYOUT_WRITES.md), the tests
+are `scene_map_tests`, and issue #59 (the camera-gate reload) is untouched:
+the refresh path is not the mechanism either case uses.
 
 **Port defect with a legitimate alternative; routed around (leave the map and
 come back).** Two instances.

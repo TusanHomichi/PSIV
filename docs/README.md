@@ -45,7 +45,9 @@ other document sits in the folder for its area.
 
 - [Scene registry](scenes/README.md) and the numbered scene records beside it.
 - [Scene dialogue](scenes/SCENE_DIALOGUE.md), [dialogue actions](scenes/DIALOGUE_ACTIONS.md), [scene presentation](scenes/SCENE_PRESENTATION.md).
-- [Event engine scout](scenes/EVENT_ENGINE_SCOUT.md), [title boot](scenes/TITLE_BOOT.md).
+- [Event engine scout](scenes/EVENT_ENGINE_SCOUT.md), [title boot](scenes/TITLE_BOOT.md),
+  [revision-conditional op audit](scenes/REVISION_AUDIT.md),
+  [live-layout write census](scenes/LIVE_LAYOUT_WRITES.md).
 
 ## sound — sound extraction and integration
 

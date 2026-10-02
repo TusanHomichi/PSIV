@@ -18,7 +18,19 @@ use crate::trigger::EventIndex;
 
 const LEADER: ActorRef = ActorRef::PartyMember(0);
 
+/// `DialogueTree5`, the tree Krup Inn F1 binds. Both scenes restore it at the
+/// end so the next field dialogue reads the map's own tree again.
 const TREE_5: u32 = 0x001E2680;
+/// `DialogueTree6`, Alys's deathbed lines. `Cutscene_AlysWounded` and
+/// `Cutscene_PsycoWand` each load it twice, immediately before the Krup
+/// conversations (`$074D5A`, `$075044`, `$07533C`, `$0758EA`). All four loads
+/// sit under `if revision>0` (`ps4.asm:154305`, `:154465`, `:154633`,
+/// `:154938`), and this build is English: `revision = 1`.
+const TREE_6: u32 = 0x001E32A0;
+/// `DialogueTree36`: the Motavia aftermath of Zio's fall. `Cutscene_ZioDefeated`
+/// loads it at `$075D84` before the `$73`/`$74`/`$75` panels and the resume
+/// that follows them.
+const TREE_36: u32 = 0x001F9020;
 
 const MUSIC_HER_LAST_BREATH: u8 = 0xA4;
 const MUSIC_PAIN: u8 = 0xA5;
@@ -127,6 +139,9 @@ pub static ALYS_WOUNDED: Scene = Scene {
             art_tile: 0x02B8,
             frames: 1,
         },
+        // `$074D5A` (`ps4.asm:154305`, inside `if revision>0`): dialogue `$2C`
+        // is tree 6's, not Krup Inn F1's map binding.
+        SceneOp::SetDialogueTree { rom_addr: TREE_6 },
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(0x2C)),
             window: DialogueWindow::Standard,
@@ -162,6 +177,9 @@ pub static ALYS_WOUNDED: Scene = Scene {
             y: 0x1E0,
             speed: 2,
         },
+        // `$075044` (`ps4.asm:154465`, inside `if revision>0`): the second
+        // tree-6 load, before dialogue `$2D`.
+        SceneOp::SetDialogueTree { rom_addr: TREE_6 },
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(0x2D)),
             window: DialogueWindow::Standard,
@@ -234,6 +252,9 @@ pub static PSYCO_WAND: Scene = Scene {
         },
         SceneOp::FadeIn,
         SceneOp::SetFollowMode { bits: 1 },
+        // `$07533C` (`ps4.asm:154633`, inside `if revision>0`): dialogue `$2E`
+        // reads tree 6, not Krup Inn F1's map binding.
+        SceneOp::SetDialogueTree { rom_addr: TREE_6 },
         SceneOp::RunDialogue {
             source: DialogueSource::Entry(DialogueId(0x2E)),
             window: DialogueWindow::Standard,
@@ -341,6 +362,16 @@ pub static PSYCO_WAND: Scene = Scene {
             align: 0x10,
             clear_load_flags: 0x08,
         },
+        // `$075800`: two more live layout writes right after the Krup load —
+        // FG chunk (9,5) to `$8F` and BG chunk (9,6) to `$90`, each through
+        // `GetMapLayoutOffset`, with the `RefreshPlaneBG` at `$07582E`. The BG
+        // write is the one collision reads on Krup (`$90`'s four cells are
+        // `8,8,0,0`); the map's own effect entry `$39` repeats both writes on
+        // the next load, gated on flag `$67` — which this scene sets at its
+        // end.
+        SceneOp::WriteMapChunks {
+            chunks: &[(9, 5, 0x8F), (9, 6, 0x90)],
+        },
         SceneOp::Presentation {
             op: PresentationOp::ReloadMapChunks,
         },
@@ -358,6 +389,9 @@ pub static PSYCO_WAND: Scene = Scene {
         },
         SceneOp::PlaySound { id: 0x83 },
         SceneOp::FadeIn,
+        // `$0758EA` (`ps4.asm:154938`, inside `if revision>0`): the late
+        // resume's lines are tree 6's too.
+        SceneOp::SetDialogueTree { rom_addr: TREE_6 },
         SceneOp::RunDialogueResume,
         SceneOp::SetFlag {
             flag: Flag::event(0x63),
@@ -414,6 +448,20 @@ pub static ZIO_DEFEATED: Scene = Scene {
             id: MUSIC_FIELD_MOTABIA,
         },
         SceneOp::FadeIn,
+        // `jsr (Event_MotaSpaceportAppearing).l` — the routine's `loc_6B7FA`
+        // writes BG chunk (26,45) to `$3F` and refreshes the plane, which is
+        // the spaceport building appearing on the live Motavia (its own
+        // page-hook twin is the one gated on Mota Spaceport `$66`, which the
+        // subroutine sets on the way out). The subroutine's objects and
+        // countdown are presentation and are covered by the panels below.
+        SceneOp::WriteMapChunks {
+            chunks: &[(26, 45, 0x3F)],
+        },
+        // `$075D84`: the Motavia aftermath speaks tree 36, which the routine
+        // loads unguarded after `Event_MotaSpaceportAppearing` (revision
+        // independent, so it is a plain transcription gap rather than a
+        // revision one).
+        SceneOp::SetDialogueTree { rom_addr: TREE_36 },
         SceneOp::PanelCreate { id: 0x73 },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 30 },

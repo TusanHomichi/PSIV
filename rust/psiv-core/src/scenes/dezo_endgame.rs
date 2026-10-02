@@ -26,6 +26,10 @@ const SFX_BARRIER_BROKEN: u8 = 0xE6;
 const SFX_DOOR_OPENED: u8 = 0xE2;
 const SFX_STAIRS: u8 = 0xDF;
 const SFX_TELEPORT: u8 = 0xDE;
+/// `SFXID_Deban` (`ps4.constants.asm:1016`). `Cutscene_Elsydeon` plays it
+/// under `if revision>0` (`ps4.asm:157483`), between the `$31` dialogue's
+/// wait and the `$12B` panel.
+const SFX_DEBAN: u8 = 0xDC;
 
 const ITEM_ELSYDEON: u8 = 0x77;
 const ITEM_MAHLAY_DAGGER: u8 = 0x71;
@@ -384,6 +388,7 @@ pub static ELSYDEON: Scene = Scene {
         SceneOp::WaitFrames { frames: 160 },
         cutscene(0x31),
         SceneOp::WaitFrames { frames: 120 },
+        SceneOp::PlaySound { id: SFX_DEBAN },
         SceneOp::PanelCreate { id: 0x12B },
         SceneOp::DmaPlanes,
         SceneOp::WaitFrames { frames: 30 },

@@ -35,3 +35,14 @@ Temple loads, `RajaTemple=$85`, Raja in slot 5 (zero-based slot 4), and
 The headless arc ends this beat at Raja Temple with party
 `[Chaz,Rika,Rune,Wren,Raja]`. The next movement to Hangar/Dezo Spaceport is
 player-controlled; the next fixed cutscene is `Landale` (`$8010`).
+
+## Live layout writes not transcribed
+
+The helper at `$076E00` — reached by `bsr.w` from `$076AE6` — resolves
+`GetMapLayoutOffset($2F,9,BG)` and writes the five table rows at `$076E58`
+into chunks (47,9), (48,9), (111,9) and (112,9), the last row
+`$56,$57,$5E,$5F`. Dezolis `$001` reads collision from the BG layout, so this
+is a live collision change, and it is **not** transcribed here: those chunk ids
+have no plain atlas tile on Dezolis and this lane could not rebuild the pack.
+The [live-layout census](LIVE_LAYOUT_WRITES.md) carries it as the one
+collision-bearing row still open.
