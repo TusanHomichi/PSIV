@@ -9,7 +9,8 @@ impl Field {
         let Some(rt) = self.runtime.as_ref() else {
             return GString::new();
         };
-        let dialogue = self.dialogue.as_ref().is_some_and(|w| w.bind().is_open());
+        let dialogue = rt.dialogue_open();
+        let dialogue_view = rt.dialogue_view();
         let state = serde_json::json!({
             "tick": self.anim_tick, "map": rt.map_id().0,
             "previous_map": rt.previous_map_id(), "world": rt.world_index(),
@@ -18,8 +19,17 @@ impl Field {
             "stepping": rt.state().is_stepping(), "scene": rt.scene_active(),
             "dialogue": dialogue, "title": self.title.is_some(),
             "title_menu": self.title.as_ref().map(|title| title.debug_menu()),
-            "dialogue_choice": self.dialogue.as_ref().and_then(|window| window.bind().debug_choice()),
-            "dialogue_page": self.dialogue.as_ref().and_then(|window| window.bind().debug_page()),
+            "dialogue_choice": dialogue_view.as_ref().filter(|view| view.choice.is_some()).map(|view| serde_json::json!({
+                "ready": view.choice.is_some_and(|choice| choice.ready),
+                "cursor": view.choice.map(|choice| choice.cursor),
+                "lines": view.lines,
+            })),
+            "dialogue_page": dialogue_view.as_ref().map(|view| serde_json::json!({
+                "tree": view.tree,
+                "lines": view.lines,
+                "end": format!("{:?}", view.page_end),
+                "ready": view.dismissable,
+            })),
             "game_over": rt.game_over(),
             "poison_flash": self.poison_flash_visible(),
             "field_notice": rt.field_notice().map(|notice| format!("{notice:?}")),

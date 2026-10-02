@@ -154,6 +154,8 @@ pub(super) fn construct_runtime(
         scene_event: psiv_core::EventIndex(0),
         dialogue_answer: None,
         scene_choice_pending: false,
+        dialogue: super::dialogue::DialogueRunner::new(),
+        scene_tree_address: None,
         game_cleared: false,
         game_over: false,
         field_status: super::field_status::FieldStatus::default(),

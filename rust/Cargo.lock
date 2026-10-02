@@ -198,6 +198,7 @@ version = "0.1.0"
 dependencies = [
  "psiv-core",
  "psiv-data",
+ "serde_json",
 ]
 
 [[package]]

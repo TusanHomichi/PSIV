@@ -6,8 +6,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use godot::classes::{
-    Camera2D, ColorRect, INode2D, Input, Node2D, ProjectSettings, Sprite2D,
-    notify::CanvasItemNotification,
+    Camera2D, ColorRect, INode2D, Node2D, ProjectSettings, Sprite2D, notify::CanvasItemNotification,
 };
 use godot::prelude::*;
 
@@ -40,7 +39,7 @@ use boot::{
 use camp::CampMenu;
 use cutscene::{CutsceneLayer, PresentationState};
 use dialogue::DialogueWindow;
-use input::{read_input, requested_save_slot};
+use input::{read_input, read_pad, requested_save_slot};
 use save_dir::{presented_save_slots, save_directory};
 use shop::ShopWindow;
 use transitions::TransitionKind;
@@ -48,7 +47,7 @@ use view::{NpcNode, SheetView};
 
 use psiv_core::{Cell, Direction, StepFrames};
 use psiv_data::GameData;
-use psiv_runtime::Runtime;
+use psiv_runtime::{Pad, Runtime};
 use psiv_sound::SAMPLE_RATE;
 
 struct PsivExtension;
@@ -168,6 +167,10 @@ struct Field {
     /// debug autoclose harness is explicitly put back on retail cadence.
     retail_dialogue_wait: u16,
     retail_pace_logged: bool,
+    /// The pad handed to the runtime's dialogue frame: the debug retail pace
+    /// folds a synthetic Speak press into it, and the press edges drive the
+    /// `PSIV_DEBUG_INPUT` page trace.
+    dialogue_pad: Pad,
     /// The party's active sequence and the tick it started, so animation
     /// phase restarts at frame 0 on a sequence change — matching
     /// `FieldObj_Move`'s reset-to-frame-0 rather than free-phase modulo.
@@ -222,6 +225,7 @@ impl INode2D for Field {
             accept_blocked: false,
             retail_dialogue_wait: 0,
             retail_pace_logged: false,
+            dialogue_pad: Pad::NEUTRAL,
             letterbox: Vec::new(),
             transition: None,
             transition_nodes: Vec::new(),
@@ -390,9 +394,15 @@ impl INode2D for Field {
         }
 
         let mut window = DialogueWindow::new_alloc();
-        match psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
-            Ok(set) => {
-                self.presentation.configure_dialogue_trees(&set);
+        // The pack loads once, through `psiv-data`, and goes to the runtime:
+        // the dialogue rules (the trees, the window geometry the open
+        // animation counts in) are the runtime's, the art is the node's.
+        match runtime.load_dialogue(std::path::Path::new(&self.pack_dir)) {
+            Ok(()) => {
+                let set = runtime
+                    .dialogue_pack()
+                    .expect("the pack that just loaded is still loaded");
+                self.presentation.configure_dialogue_trees(set);
                 window.bind_mut().configure(&self.pack_dir, set);
             }
             Err(e) => godot_error!("dialogue pack failed to load: {e}"),
@@ -498,11 +508,17 @@ impl INode2D for Field {
             return;
         }
 
+        // The dialogue window's input half. The pad reaches the runtime every
+        // frame — that latch is what makes a press read as fresh exactly once
+        // — and with a window up the accept/choice press and the close are
+        // decided here, before the field tick below.
+        let dialogue_was_open = self.drive_dialogue_input();
+
         // A `$F6` the dialogue fired becomes a running scene.
         let pending = self
-            .dialogue
+            .runtime
             .as_mut()
-            .and_then(|w| w.bind_mut().take_pending_event());
+            .and_then(|runtime| runtime.take_dialogue_event());
         if let Some(event) = pending {
             let started = self
                 .runtime
@@ -520,81 +536,20 @@ impl INode2D for Field {
             }
         }
 
-        // An open dialogue owns the input: accept advances the window, the
-        // engine gets Neutral (the cartridge swaps Game_Mode_Routine to
-        // FieldRoutine_Interaction; we model it by starving the field of
-        // input, per the engine's documented non-modal contract).
-        if self.dialogue.as_ref().is_some_and(|w| w.bind().is_open()) {
+        // An open dialogue owns the input: the runtime already took the
+        // press, and the engine gets Neutral (the cartridge swaps
+        // Game_Mode_Routine to FieldRoutine_Interaction; we model it by
+        // starving the field of input, per the engine's documented non-modal
+        // contract).
+        if dialogue_was_open {
             self.accept_blocked = true;
-            let dismissable = self
-                .dialogue
-                .as_ref()
-                .is_some_and(|window| window.bind().is_dismissable());
-            let retail_auto_advance = retail_pace_enabled()
-                && dismissable
-                && self.retail_dialogue_wait >= RETAIL_DISMISS_HOLD_FRAMES;
-            if retail_pace_enabled() && dismissable {
-                self.retail_dialogue_wait = self.retail_dialogue_wait.saturating_add(1);
-            } else if !dismissable {
-                self.retail_dialogue_wait = 0;
-            }
-            let choice_active = self
-                .dialogue
-                .as_mut()
-                .is_some_and(|window| window.bind_mut().handle_choice_input());
-            if !choice_active
-                && (Input::singleton().is_action_just_pressed("ui_accept")
-                    || retail_auto_advance
-                    || (self
-                        .runtime
-                        .as_ref()
-                        .is_some_and(|rt| rt.field_notice().is_some())
-                        && Input::singleton().is_action_just_pressed("ui_cancel")))
-                && let Some(window) = self.dialogue.as_mut()
-            {
-                window.bind_mut().advance();
-                self.retail_dialogue_wait = 0;
-            }
-            if let Some(window) = self.dialogue.as_mut() {
-                if let Some(yes) = window.bind_mut().take_pending_choice()
-                    && let Some(rt) = self.runtime.as_mut()
-                {
-                    rt.dialogue_choice(yes);
-                }
-                if !window.bind().is_open()
-                    && let Some(rt) = self.runtime.as_mut()
-                {
-                    if rt.scene_active() {
-                        godot_print!("scene dialogue closed (t{})", self.anim_tick);
-                    }
-                    // F7 and FF both return through loc_69B00, which clears
-                    // the panel rendering byte. Keep the cursor separately.
-                    self.presentation.set_render_sprites(false);
-                    if matches!(
-                        rt.scene_dialogue_window(),
-                        Some(
-                            psiv_core::DialogueWindow::Standard
-                                | psiv_core::DialogueWindow::Cutscene
-                                | psiv_core::DialogueWindow::Cutscene5
-                        )
-                    ) && let Some(layer) = self.cutscene_layer.as_mut()
-                    {
-                        layer.bind_mut().panel_destroy_all();
-                    }
-                    if window.bind().has_suspended_scene_dialogue() {
-                        rt.dialogue_closed();
-                    } else {
-                        rt.dialogue_ended();
-                    }
-                }
-            }
             let events = self
                 .runtime
                 .as_mut()
                 .map(|rt| {
-                    // A window is up: the cartridge suspends field-object
-                    // updates (the wanderers freeze mid-town).
-                    rt.set_field_suspended(true);
+                    // The runtime set the window-up suspension in
+                    // `dialogue_frame`, at the point this branch used to set
+                    // it, so the shared RNG stream is where it was.
                     rt.tick(psiv_core::Input::Neutral)
                 })
                 .unwrap_or_default();
@@ -603,7 +558,7 @@ impl INode2D for Field {
             // processed here too — dropping them was a live bug: Alys stayed
             // standing and the leader never swapped.
             self.process_events(events);
-            self.service_dialogue_actions();
+            self.tick_dialogue_window();
             self.sync_visuals(false);
             return;
         }
@@ -641,7 +596,9 @@ impl INode2D for Field {
         runtime.set_field_suspended(false);
         let events = runtime.tick(input);
         let stepped = self.process_events(events);
-        self.service_dialogue_actions();
+        // A window the scene opened during that tick owns its own half of the
+        // frame, exactly as the window node's `physics_process` did.
+        self.tick_dialogue_window();
         // A landing tick with the key still held is mid-stride, not rest:
         // without this, the idle frame flashes for one tick every step (the
         // cartridge's animation free-runs and never sees such a gap).
@@ -656,6 +613,71 @@ impl INode2D for Field {
 }
 
 impl Field {
+    /// The dialogue window's input half of a frame, and whether a window was
+    /// up when the frame began.
+    ///
+    /// The runtime owns every rule; this builds this frame's pad, folds the
+    /// debug retail pace's synthetic Speak press into it, and hands it over.
+    /// The return value is the state *before* the press, because that is the
+    /// state the frame's branch on "is a window up" has to use: the frame a
+    /// window shuts still ticked the suspended field.
+    fn drive_dialogue_input(&mut self) -> bool {
+        let Some(runtime) = self.runtime.as_mut() else {
+            return false;
+        };
+        let open = runtime.dialogue_open();
+        let dismissable = runtime.dialogue_view().is_some_and(|view| view.dismissable);
+        // Retail pacing holds a completed page for the oracle tapes' four
+        // frames and then dismisses it; that press is an ordinary Speak press
+        // in the pad, so the runtime's own edge and swallow rules decide it.
+        let synthetic_speak = retail_pace_enabled()
+            && dismissable
+            && self.retail_dialogue_wait >= RETAIL_DISMISS_HOLD_FRAMES;
+        if retail_pace_enabled() && dismissable {
+            self.retail_dialogue_wait = self.retail_dialogue_wait.saturating_add(1);
+        } else if !dismissable {
+            self.retail_dialogue_wait = 0;
+        }
+        let pad = read_pad(synthetic_speak);
+        let pressed = pad.pressed(self.dialogue_pad);
+        self.dialogue_pad = pad;
+        if std::env::var("PSIV_DEBUG_INPUT").is_ok_and(|value| value == "1")
+            && pressed.held(psiv_runtime::Button::Speak)
+            && let Some(view) = runtime.dialogue_view()
+            && view.page_end.is_some()
+        {
+            godot_print!("dialogue page {:?}: {:?}", view.page_end, view.lines);
+        }
+        let signals = runtime.dialogue_frame(pad);
+        if synthetic_speak {
+            self.retail_dialogue_wait = 0;
+        }
+        self.present_dialogue_signals(signals);
+        open
+    }
+
+    /// The dialogue window's own half of a frame: the retail `$F2` actions,
+    /// the open animation, the typewriter and the flow's signals, followed by
+    /// the view the node draws.
+    fn tick_dialogue_window(&mut self) {
+        let signals = self
+            .runtime
+            .as_mut()
+            .map(|runtime| runtime.dialogue_tick())
+            .unwrap_or_default();
+        self.present_dialogue_signals(signals);
+        self.sync_dialogue_view();
+    }
+
+    /// Hands the window this frame's runtime view. The runtime owns the
+    /// window's state; the node owns its pixels.
+    fn sync_dialogue_view(&mut self) {
+        let view = self.runtime.as_ref().and_then(|rt| rt.dialogue_view());
+        if let Some(window) = self.dialogue.as_mut() {
+            window.bind_mut().set_view(view);
+        }
+    }
+
     /// Cinema mode: letterbox bars over the world, under the dialogue box.
     fn set_letterbox(&mut self, on: bool) {
         if on && self.letterbox.is_empty() {

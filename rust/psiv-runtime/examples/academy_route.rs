@@ -1,7 +1,7 @@
 //! One new game through the Academy job, using ordinary runtime commands.
 mod support;
 use psiv_core::{Cell, Direction, Flag, Input, StepFrames};
-use psiv_data::{BattleFiles, DialogueSet, GameData};
+use psiv_data::{BattleFiles, GameData};
 use psiv_runtime::Runtime;
 use std::path::Path;
 use support::Walk;
@@ -14,9 +14,9 @@ fn main() {
     rt.enable_battles(&BattleFiles::load(pack).unwrap())
         .unwrap();
     assert!(rt.start_event(opening));
+    rt.load_dialogue(pack).unwrap();
     let mut route = Walk {
         rt,
-        dialogue: DialogueSet::load(pack).unwrap(),
         ticks: 0,
         battles: 0,
         heal_in_battle: false,

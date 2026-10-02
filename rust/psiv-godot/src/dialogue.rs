@@ -1,30 +1,26 @@
-//! The dialogue window: the cartridge's message box, assembled from the pack.
+//! The dialogue window: the cartridge's message box, drawn from the pack.
 //!
-//! Two halves, deliberately separated. [`TextFlow`] is the cartridge's text
-//! loop with no engine types in it at all -- `RunText_CharacterLoop`'s column
-//! and line counters, its wrap, its interrupt, its page ends -- so it can be
-//! tested against the extractor's own pagination for all 2,736 retail entries.
-//! [`DialogueWindow`] is the Node2D that draws whatever the flow is showing:
-//! frame tiles, glyphs, portrait, and the animation that opens the box.
+//! The node draws and nothing else. Every rule — the byte walk, the open
+//! animation's frame count, the typewriter clock, the choices, the flags —
+//! lives in `psiv-runtime`'s dialogue runner, which hands this node a
+//! [`DialogueView`] once per frame. The node keeps the art: nine frame tiles
+//! laid out by `window.json`'s geometry rule, the pack's glyph strip at 32
+//! characters on two lines, the portrait each entry asks for, and the
+//! byte-verified retail scroll-arrow sprite (not a guessed triangle; its
+//! screen position is the text-side `scroll_arrow` record).
 //!
-//! Nothing here invents presentation. The frame is nine tiles laid out by
-//! `window.json`'s geometry rule, the text is the pack's glyph strip at 32
-//! characters on two lines, and the box sits where `text_window.rect` says
-//! (272x48 at (24, 160) of the Genesis's 320x224 frame). The waiting sprite
-//! is the pack's byte-verified retail `ArtNem_Font` slice, not a guessed
-//! triangle; its screen position remains the text-side `scroll_arrow` record.
-//!
-//! `TextFlow` is game logic living in the presentation crate, which is the
-//! wrong side of the line in docs/RUNTIME_DESIGN.md. It is here because
-//! `psiv-core` has no dialogue module yet; when one lands, this half moves
-//! there unchanged and the node keeps calling it.
+//! Nothing here invents presentation either: the box sits where
+//! `text_window.rect` says (272x48 at (24, 160) of the Genesis's 320x224
+//! frame), and the scene-dialogue portrait applies the measured event-mode
+//! delta rather than a second coordinate system.
 
 use std::collections::{BTreeMap, HashMap};
 
 use godot::classes::{INode2D, Image, ImageTexture, Node2D};
 use godot::prelude::*;
 
-use psiv_data::{CHARS_PER_LINE, DialogueEntry, DialogueSet, LINES_PER_WINDOW, PageEnd, Role};
+use psiv_data::{CHARS_PER_LINE, DialogueSet, LINES_PER_WINDOW, Role};
+use psiv_runtime::DialogueView;
 
 /// The Genesis's visible frame. The pack states window positions in it, so a
 /// wider viewport keeps the box's margins rather than its coordinates.
@@ -42,8 +38,6 @@ const RETAIL_SCENE_PORTRAIT_OFFSET: Vector2 = Vector2::new(-16.0, 8.0);
 const Z_INDEX: i32 = 1000;
 
 mod choice;
-mod text_flow;
-pub use text_flow::{DialogueAction, Opening, TextFlow};
 
 // The pack, made drawable
 // ---------------------------------------------------------------------------
@@ -75,8 +69,6 @@ struct WindowView {
     /// Margins of the box inside the Genesis frame, kept when the viewport is
     /// wider or taller than 320x224.
     bottom_margin: f32,
-    /// Cells the frame grows per animation step.
-    step_cells: i32,
     /// Portrait id -> its PNG, pack-root-relative.
     portrait_pngs: BTreeMap<u8, String>,
 }
@@ -138,7 +130,6 @@ impl WindowView {
             arrow: arrow_texture,
             arrow_size: Vector2::new(arrow.width as f32, arrow.height as f32),
             bottom_margin: SCREEN.1 - (text.rect.y + text.rect.height) as f32,
-            step_cells: set.window.geometry.open_animation.step_cells as i32,
             portrait_pngs: set
                 .portraits
                 .portraits
@@ -185,44 +176,18 @@ struct DrawList {
 // The node
 // ---------------------------------------------------------------------------
 
-/// The message box. `Field` owns one, opens it on an interaction, and feeds it
-/// the accept press.
+/// The message box. `Field` owns one, hands it the runtime's view every frame,
+/// and the runtime owns everything else.
 #[derive(GodotClass)]
 #[class(base=Node2D)]
 pub struct DialogueWindow {
     base: Base<Node2D>,
     view: Option<WindowView>,
-    set: Option<DialogueSet>,
     portraits: HashMap<u8, Gd<ImageTexture>>,
     pack_dir: String,
-    flow: Option<TextFlow>,
-    /// Retail's saved text address, including its original tree binding.
-    /// Map changes between dialogue chunks must not redirect the cursor.
-    suspended: Option<(u8, TextFlow)>,
+    /// What the runtime says to draw this frame; `None` with no window up.
+    snapshot: Option<DialogueView>,
     choice_view: Option<choice::ChoiceView>,
-    choice_cursor: usize,
-    pending_choice: Option<bool>,
-    standalone_choice: bool,
-    /// Frame width in cells while the box is opening; equals the full width
-    /// once it is open.
-    open_cells: i32,
-    /// The live event-flag bank, copied in by Field before each open so the
-    /// `$FA` chains take their real branches.
-    event_flags: Vec<bool>,
-    /// A `$F6` the dialogue fired; Field forwards it to the runtime.
-    pending_event: Option<u16>,
-    /// The tree of the currently open dialogue, for mid-message jumps.
-    current_tree: u8,
-    /// Scene dialogue selects `WinGroup_Event` for its portrait window;
-    /// ordinary talk keeps `WinGroup_Dialogue`.
-    scene_dialogue: bool,
-    cutscene_portrait: bool,
-    /// Glyphs revealed on the current page. Retail draws one character every
-    /// 3 frames (oracle: logs/03_npc_talk.csv, writes to Win_Tile_Buffer on a
-    /// strict 3-frame cadence — 20 chars/second); this counts revealed glyphs
-    /// and `reveal_tick` counts frames toward the next one.
-    revealed: usize,
-    reveal_tick: u8,
 }
 
 #[godot_api]
@@ -231,23 +196,10 @@ impl INode2D for DialogueWindow {
         DialogueWindow {
             base,
             view: None,
-            set: None,
             portraits: HashMap::new(),
             pack_dir: String::new(),
-            flow: None,
-            suspended: None,
+            snapshot: None,
             choice_view: None,
-            choice_cursor: 0,
-            pending_choice: None,
-            standalone_choice: false,
-            open_cells: 0,
-            event_flags: Vec::new(),
-            pending_event: None,
-            current_tree: 0,
-            scene_dialogue: false,
-            cutscene_portrait: false,
-            revealed: 0,
-            reveal_tick: 0,
         }
     }
 
@@ -258,58 +210,11 @@ impl INode2D for DialogueWindow {
     }
 
     fn physics_process(&mut self, _delta: f64) {
-        if self.flow.is_none() {
+        if self.snapshot.is_none() {
             return;
         }
         self.place();
-        let full = self.view.as_ref().map_or(0, |view| view.cells().0);
-        let mut redraw = false;
-        if self.open_cells < full {
-            // Oracle: the box opens in 9 frames; the pack's step_cells is
-            // per SIDE, so the width grows by twice that each frame.
-            let step = self.view.as_ref().map_or(2, |view| view.step_cells) * 2;
-            self.open_cells = (self.open_cells + step).min(full);
-            redraw = true;
-        } else {
-            if let Some(flow) = self.flow.as_mut() {
-                // Delays only run once the box is open; the cartridge's
-                // animation holds the text loop the same way.
-                redraw = flow.tick();
-            }
-            // The typewriter: one glyph per 3 frames released, one per frame
-            // while Speak is held — hold-to-accelerate, measured off hardware
-            // (oracle tapes 13/15: 39 draws in a 40-frame held span vs 13
-            // released; an early press inside the open animation is dropped,
-            // which the swallow above already models). Page advance is
-            // EDGE-triggered and acceleration is LEVEL-driven — measured
-            // independently (tape 16): a held button never advances a
-            // finished page (58 chars at 1/frame, then a dead stop with the
-            // button down), but a fresh press with the hold maintained
-            // starts the next page already accelerated. Reading the held
-            // state per tick here gives exactly that pairing.
-            let total = self.flow.as_ref().map_or(0, |flow| {
-                flow.lines().iter().map(|l| l.chars().count()).sum()
-            });
-            if self.revealed < total {
-                let cadence = if godot::classes::Input::singleton().is_action_pressed("ui_accept") {
-                    1
-                } else {
-                    3
-                };
-                self.reveal_tick += 1;
-                if self.reveal_tick >= cadence {
-                    self.reveal_tick = 0;
-                    self.revealed += 1;
-                    redraw = true;
-                }
-            }
-        }
-        self.drain_log();
-        self.service_flow_signals();
-        if redraw {
-            self.sync_portrait();
-            self.base_mut().queue_redraw();
-        }
+        self.base_mut().queue_redraw();
     }
 
     fn draw(&mut self) {
@@ -331,365 +236,34 @@ impl INode2D for DialogueWindow {
 }
 
 impl DialogueWindow {
-    /// Hands the window the pack. Until this is called it can only complain.
-    pub fn configure(&mut self, pack_dir: &str, set: DialogueSet) {
+    /// Hands the window the pack's art. Until this is called it can only
+    /// complain.
+    pub fn configure(&mut self, pack_dir: &str, set: &DialogueSet) {
         self.pack_dir = pack_dir.to_owned();
-        self.choice_view = choice::ChoiceView::build(pack_dir, &set);
-        match WindowView::build(pack_dir, &set) {
+        self.choice_view = choice::ChoiceView::build(pack_dir, set);
+        match WindowView::build(pack_dir, set) {
             Some(view) => self.view = Some(view),
             None => godot_error!("dialogue: window or font art failed to load from {pack_dir}"),
         }
-        self.set = Some(set);
     }
 
-    /// Opens an NPC's line: the map's dialogue tree (1-based) and the object's
-    /// `dialogue_id`. Returns whether a window actually opened.
-    pub fn open_dialogue(&mut self, tree: u8, dialogue_id: u16) -> bool {
-        self.cutscene_portrait = false;
-        self.open_dialogue_with_mode(tree, dialogue_id, false)
-    }
-
-    /// Opens a scene-owned line, preserving F7 pauses regardless of whether
-    /// the original flags select the field or panel portrait position.
-    pub fn open_scene_dialogue(&mut self, tree: u8, dialogue_id: u16, panel_layout: bool) -> bool {
-        self.cutscene_portrait = panel_layout;
-        self.open_dialogue_with_mode(tree, dialogue_id, true)
-    }
-
-    fn open_dialogue_with_mode(
-        &mut self,
-        tree: u8,
-        dialogue_id: u16,
-        scene_dialogue: bool,
-    ) -> bool {
-        self.suspended = None;
-        self.standalone_choice = false;
-        let Some(set) = self.set.as_ref() else {
-            godot_error!("dialogue: no pack loaded; call configure() first");
-            return false;
-        };
-        // Follow `$FA` preamble jumps against the live flags, bounded so a
-        // cyclic chain (a data bug) cannot hang.
-        self.current_tree = tree;
-        self.scene_dialogue = scene_dialogue;
-        let mut id = dialogue_id;
-        for _ in 0..16 {
-            let Some(entry) = set.entry(tree, id) else {
-                godot_error!("dialogue: tree {tree} has no entry {id}");
-                return false;
-            };
-            match TextFlow::open_with_flags(entry, &self.event_flags) {
-                Opening::Jump(next) => id = next,
-                opening => return self.start(opening, &format!("tree {tree} entry {id}")),
-            }
+    /// Takes this frame's runtime view. `None` hides the window.
+    pub fn set_view(&mut self, snapshot: Option<DialogueView>) {
+        if let Some(portrait) = snapshot.as_ref().and_then(|view| view.portrait) {
+            self.cache_portrait(portrait);
         }
-        godot_error!("dialogue: tree {tree} entry {dialogue_id}: preamble jump chain too deep");
-        false
-    }
-
-    /// Opens an entry the caller already resolved.
-    pub fn open(&mut self, entry: &DialogueEntry) -> bool {
-        self.suspended = None;
-        self.scene_dialogue = false;
-        let opening = TextFlow::open_with_flags(entry, &self.event_flags);
-        if let Opening::Jump(next) = opening {
-            // System messages never jump; a jump here means a caller fed a
-            // tree entry through the pre-resolved path.
-            godot_error!("dialogue: pre-resolved entry {} jumps to {next}", entry.id);
-            return false;
-        }
-        self.start(opening, &format!("entry {}", entry.id))
-    }
-
-    /// Field hands in the current event-flag bank before opening dialogue.
-    pub fn set_event_flags(&mut self, flags: Vec<bool>) {
-        self.event_flags = flags;
-    }
-
-    /// Resume the scene's saved stream after its movement/presentation ops.
-    pub fn resume_scene_dialogue(&mut self, panel_layout: bool) -> bool {
-        self.cutscene_portrait = panel_layout;
-        let Some((tree, flow)) = self.suspended.take() else {
-            godot_error!("dialogue: scene resume has no saved cursor");
-            return false;
-        };
-        self.current_tree = tree;
-        self.scene_dialogue = true;
-        match flow.resume_scene(&self.event_flags) {
-            Opening::Jump(entry) => self.open_scene_dialogue(tree, entry, self.cutscene_portrait),
-            opening => self.start(opening, &format!("resumed tree {tree}")),
-        }
-    }
-
-    /// A `$F6` event the dialogue fired, once. Field starts the scene.
-    pub fn take_pending_event(&mut self) -> Option<u16> {
-        self.pending_event.take()
-    }
-
-    /// Returns the next embedded action only after the preceding glyphs have
-    /// been revealed. This is the shell-side timing gate for retail `$F2`.
-    pub fn take_ready_action(&mut self) -> Option<DialogueAction> {
-        let ready = self
-            .flow
-            .as_ref()
-            .is_some_and(|flow| flow.action_ready(self.revealed));
-        ready
-            .then(|| self.flow.as_mut().and_then(TextFlow::take_pending_action))
-            .flatten()
-    }
-
-    /// Lets the pure text loop continue after Field has applied one action.
-    pub fn resume_after_action(&mut self) {
-        if let Some(flow) = self.flow.as_mut() {
-            flow.resume_after_action();
-        }
-        self.service_flow_signals();
-        self.sync_portrait();
+        let visible = snapshot.is_some();
+        self.snapshot = snapshot;
+        self.base_mut().set_visible(visible);
         self.base_mut().queue_redraw();
     }
 
-    /// Applies a flag written by an embedded action to both the shell's live
-    /// bank and the currently running flow.
-    pub fn set_event_flag(&mut self, flag: u8) {
-        let index = usize::from(flag);
-        if self.event_flags.len() <= index {
-            self.event_flags.resize(index + 1, false);
-        }
-        self.event_flags[index] = true;
-        if let Some(flow) = self.flow.as_mut() {
-            flow.set_event_flag(flag);
-        }
-    }
-
-    /// The leader's "Nothing here" line (one per character slot).
-    pub fn open_nothing_here(&mut self, character_slot: usize) -> bool {
-        let Some(set) = self.set.as_ref() else {
-            godot_error!("dialogue: no pack loaded; call configure() first");
-            return false;
-        };
-        let Some(entry) = set.nothing_here(character_slot).cloned() else {
-            godot_print!("dialogue: pack carries no system messages");
-            return false;
-        };
-        self.open(&entry)
-    }
-
-    /// Displays a static field-status window using the normal frame and font.
-    pub(crate) fn open_status(&mut self, lines: &[String]) -> bool {
-        let mut segments = Vec::new();
-        for (i, line) in lines.iter().enumerate() {
-            if i != 0 {
-                segments.push(psiv_data::Segment::Control(psiv_data::Ctrl::Newline {
-                    code: 0xFC,
-                    operands: Vec::new(),
-                }));
-            }
-            segments.push(psiv_data::Segment::Text(line.clone()));
-        }
-        let entry = DialogueEntry {
-            id: 0,
-            text: lines.join("\n"),
-            segments,
-            pages: Vec::new(),
-        };
-        let opened = self.open(&entry);
-        // These windows load tile strings at once, without the dialogue typewriter.
-        self.revealed = lines.iter().map(|line| line.chars().count()).sum();
-        opened
-    }
-
-    /// The accept press.
-    pub fn advance(&mut self) {
-        if self.is_opening() {
-            return;
-        }
-        let mut reopen = false;
-        let mut closed = false;
-        let mut suspended = false;
-        if let Some(flow) = self.flow.as_mut() {
-            reopen = flow.page_end() == Some(PageEnd::Close);
-            let total: usize = flow.lines().iter().map(|l| l.chars().count()).sum();
-            if self.revealed < total {
-                // A press mid-typewriter neither completes the page nor
-                // advances it: retail accelerates only while Speak is HELD
-                // (tick's cadence), and a tap adds exactly its held frames
-                // (oracle tapes 13/15 — the earlier complete-the-page
-                // assumption was wrong). Swallow the press.
-                return;
-            }
-            if flow.page_end().is_some()
-                && std::env::var("PSIV_DEBUG_INPUT").is_ok_and(|value| value == "1")
-            {
-                godot_print!("dialogue page {:?}: {:?}", flow.page_end(), flow.lines());
-            }
-            suspended = self.scene_dialogue && flow.pause_for_scene();
-            if !suspended {
-                flow.advance();
-            }
-            self.revealed = 0;
-            self.reveal_tick = 0;
-            closed = !flow.is_open();
-        }
-        self.drain_log();
-        if closed {
-            if suspended {
-                self.suspended = self.flow.take().map(|flow| (self.current_tree, flow));
-            }
-            self.close();
-            return;
-        }
-        self.sync_portrait();
-        if reopen {
-            // $F7 destroys the window; the next page opens a new one, so the
-            // animation runs again.
-            self.open_cells = 0;
-            self.revealed = 0;
-            self.reveal_tick = 0;
-        }
-        self.base_mut().queue_redraw();
-    }
-
-    /// Whether a window is on screen. `Field` gates input on this.
+    /// Whether a window is on screen. The shell gates input on the runtime's
+    /// own view; this is only here so the node and the runtime cannot drift.
     #[must_use]
+    #[allow(dead_code)] // For a renderer-side assertion in a later node.
     pub fn is_open(&self) -> bool {
-        self.flow.is_some()
-    }
-
-    /// Read-only rendered page observation for native input routes.
-    pub(crate) fn debug_page(&self) -> Option<serde_json::Value> {
-        self.flow.as_ref().map(|flow| {
-            serde_json::json!({
-                "tree": self.current_tree,
-                "lines": flow.lines(),
-                "end": format!("{:?}", flow.page_end()),
-                "ready": self.is_dismissable(),
-            })
-        })
-    }
-
-    pub(crate) fn has_suspended_scene_dialogue(&self) -> bool {
-        self.suspended.is_some()
-    }
-
-    /// Whether the arrow is up and the window is waiting to be advanced.
-    #[must_use]
-    #[allow(dead_code)] // For a renderer that styles the waiting state itself.
-    pub fn is_waiting(&self) -> bool {
-        self.flow.as_ref().is_some_and(TextFlow::is_waiting)
-    }
-
-    /// Whether an accept press would advance or dismiss the current page,
-    /// including the entry's final `End` page. The retail-pace harness uses
-    /// this; the arrow keeps using [`DialogueWindow::is_waiting`].
-    pub fn is_dismissable(&self) -> bool {
-        // The flow reaches its page end before the typewriter has revealed
-        // the glyphs; the retail-pace hold must not start (or spam no-op
-        // advances, each of which adds accelerated frames) until the page is
-        // actually on screen.
-        let total: usize = self.flow.as_ref().map_or(0, |flow| {
-            flow.lines().iter().map(|l| l.chars().count()).sum()
-        });
-        self.revealed >= total
-            && !self.is_opening()
-            && self.flow.as_ref().is_some_and(TextFlow::is_dismissable)
-    }
-
-    fn is_opening(&self) -> bool {
-        self.view
-            .as_ref()
-            .is_some_and(|view| self.open_cells < view.cells().0)
-    }
-
-    /// Applies mid-message `$FA` jumps and `$F6` events the flow raised.
-    fn service_flow_signals(&mut self) {
-        for _ in 0..16 {
-            let (jump, event) = match self.flow.as_mut() {
-                Some(flow) => (flow.take_jump(), flow.take_event()),
-                None => (None, None),
-            };
-            if let Some(event) = event {
-                self.pending_event = Some(event);
-                self.close();
-                return;
-            }
-            let Some(next) = jump else {
-                return;
-            };
-            let entry = self
-                .set
-                .as_ref()
-                .and_then(|set| set.entry(self.current_tree, next));
-            match (self.flow.as_mut(), entry) {
-                (Some(flow), Some(entry)) => flow.continue_at(entry),
-                _ => {
-                    godot_error!(
-                        "dialogue: missing branch entry {next} in tree {}",
-                        self.current_tree
-                    );
-                    self.close();
-                    return;
-                }
-            }
-        }
-        godot_error!("dialogue: in-stream branch chain too deep");
-        self.close();
-    }
-
-    fn start(&mut self, opening: Opening, who: &str) -> bool {
-        match opening {
-            Opening::Jump(next) => {
-                godot_error!("dialogue: {who}: unresolved jump to {next} reached start()");
-                false
-            }
-            Opening::Event(event) => {
-                godot_print!("dialogue: {who} fires event {event:#x}");
-                self.pending_event = Some(event);
-                false
-            }
-            Opening::Silent => {
-                godot_print!("dialogue: {who} is empty; nothing to show");
-                false
-            }
-            Opening::Window(flow) => {
-                self.flow = Some(*flow);
-                self.open_cells = 0;
-                self.revealed = 0;
-                self.reveal_tick = 0;
-                self.choice_cursor = 0;
-                self.drain_log();
-                self.sync_portrait();
-                self.place();
-                self.base_mut().set_visible(true);
-                self.base_mut().queue_redraw();
-                true
-            }
-        }
-    }
-
-    fn close(&mut self) {
-        self.flow = None;
-        self.open_cells = 0;
-        self.scene_dialogue = false;
-        self.base_mut().set_visible(false);
-        self.base_mut().queue_redraw();
-    }
-
-    /// Loads whatever portrait the flow is asking for.
-    fn sync_portrait(&mut self) {
-        if let Some(id) = self.flow.as_ref().and_then(TextFlow::portrait) {
-            self.cache_portrait(id);
-        }
-    }
-
-    fn drain_log(&mut self) {
-        let lines = self
-            .flow
-            .as_mut()
-            .map(TextFlow::drain_log)
-            .unwrap_or_default();
-        for line in lines {
-            godot_print!("dialogue: {line}");
-        }
+        self.snapshot.is_some()
     }
 
     /// Puts the node where the box belongs on screen: the pack's position in
@@ -724,9 +298,9 @@ impl DialogueWindow {
     /// Everything to draw this frame.
     fn draw_list(&self) -> Option<DrawList> {
         let view = self.view.as_ref()?;
-        let flow = self.flow.as_ref()?;
+        let snapshot = self.snapshot.as_ref()?;
         let (full_cells, height_cells) = view.cells();
-        let width_cells = self.open_cells.clamp(0, full_cells);
+        let width_cells = snapshot.open_cells.clamp(0, full_cells);
         if width_cells < 2 {
             return None;
         }
@@ -779,8 +353,8 @@ impl DialogueWindow {
             // generic centre-in-window guess: screen tile (4,21), 8x16
             // glyphs, and a 16-pixel line pitch.
             let origin = view.text_origin;
-            let mut budget = self.revealed;
-            'lines: for (row, line) in flow.lines().iter().enumerate().take(LINES_PER_WINDOW) {
+            let mut budget = snapshot.revealed;
+            'lines: for (row, line) in snapshot.lines.iter().enumerate().take(LINES_PER_WINDOW) {
                 for (column, ch) in line.chars().enumerate().take(CHARS_PER_LINE) {
                     if budget == 0 {
                         break 'lines;
@@ -807,7 +381,7 @@ impl DialogueWindow {
                 }
             }
 
-            if let Some(id) = flow.portrait()
+            if let Some(id) = snapshot.portrait
                 && let Some(texture) = self.portraits.get(&id)
             {
                 // The portrait art covers its own frame completely: the PNGs
@@ -821,7 +395,7 @@ impl DialogueWindow {
                     texture: texture.clone(),
                     dest: Rect2::new(
                         view.portrait_offset
-                            + if self.scene_dialogue && self.cutscene_portrait {
+                            + if snapshot.scene_dialogue && snapshot.cutscene_portrait {
                                 RETAIL_SCENE_PORTRAIT_OFFSET
                             } else {
                                 Vector2::ZERO
@@ -832,8 +406,7 @@ impl DialogueWindow {
                 });
             }
 
-            let total: usize = flow.lines().iter().map(|l| l.chars().count()).sum();
-            if flow.is_waiting() && self.revealed >= total {
+            if snapshot.waiting && snapshot.revealed >= snapshot.total {
                 arrow = Some(Quad {
                     texture: view.arrow.clone(),
                     dest: Rect2::new(view.arrow_offset, view.arrow_size),
@@ -842,16 +415,20 @@ impl DialogueWindow {
             }
         }
 
-        if self.choice_ready()
+        if let Some(cursor) = snapshot
+            .choice
+            .as_ref()
+            .filter(|choice| choice.ready)
+            .map(|choice| choice.cursor)
             && let Some(choice) = self.choice_view.as_ref()
         {
-            quads.extend(choice.quads(view, self.choice_cursor));
+            quads.extend(choice.quads(view, cursor));
         }
         Some(DrawList { fill, quads, arrow })
     }
 
-    /// Loads the portraits an entry needs. Called when a window opens, so the
-    /// 39 PNGs are never all in memory at once.
+    /// Loads the portraits an entry needs. Called when a view asks for one, so
+    /// the 39 PNGs are never all in memory at once.
     fn cache_portrait(&mut self, id: u8) {
         if self.portraits.contains_key(&id) {
             return;
@@ -885,6 +462,3 @@ fn load_image(pack_dir: &str, png: &str) -> Option<Gd<Image>> {
     let path = format!("{pack_dir}/{png}");
     Image::load_from_file(&GString::from(path.as_str()))
 }
-
-#[cfg(test)]
-mod tests;

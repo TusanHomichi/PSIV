@@ -1,31 +1,83 @@
-//! Development route driver: one new game, ordinary movement/interactions.
-//! Dialogue is acknowledged headlessly. This is traversal evidence, not a
-//! Godot presentation or full-campaign acceptance test.
+//! Development route driver: one new game, ordinary movement, ordinary
+//! dialogue.
+//!
+//! The dialogue is the shipped runtime's: the route builds a pad, hands it to
+//! `Runtime::dialogue_frame` once per frame and presses Speak through the
+//! pages the way a player does, so a route's dialogue is the game's dialogue
+//! and not a second implementation of it. This remains traversal evidence,
+//! not a Godot presentation or full-campaign acceptance test.
 use psiv_core::battle::{BattleEvent, Command, Outcome, RoundOrders, Side};
-use psiv_core::{Cell, Direction, Flag, Input};
-use psiv_data::{Ctrl, DialogueSet, Segment};
-use psiv_runtime::{Runtime, RuntimeEvent};
+use psiv_core::{Cell, Direction, Input};
+use psiv_runtime::{
+    Button, DialogueSignal, NpcDialogueOpen, Pad, Runtime, RuntimeEvent, SceneDialogueOpen,
+};
 use std::collections::{BTreeMap, VecDeque};
+
+/// Frames between the route's dialogue presses: a fresh press every four
+/// frames, with the three released frames in between, which is the shape the
+/// oracle tapes use (a held button never advances a finished page).
+const PRESS_PERIOD: u64 = 4;
 
 pub struct Walk {
     pub rt: Runtime,
-    pub dialogue: DialogueSet,
     pub ticks: u64,
     pub battles: usize,
     pub heal_in_battle: bool,
 }
 
 impl Walk {
+    /// One frame, in the shipped shell's order: the dialogue's input half with
+    /// this frame's pad, the field tick (neutral while a window is up), then
+    /// the dialogue's own half.
     pub fn tick(&mut self, input: Input) {
         self.ticks += 1;
         assert!(self.ticks < 100_000, "route exceeded its tick budget");
-        for event in self.rt.tick(input) {
+        let dialogue_open = self.rt.dialogue_open();
+        let pad = self.pad(dialogue_open);
+        let signals = self.rt.dialogue_frame(pad);
+        self.present(signals);
+        if let Some(event) = self.rt.take_dialogue_event() {
+            println!("{} dialogue fires {event:#x}", self.ticks);
+            self.rt.start_event(event);
+        }
+        // A window is up: the field is suspended and gets a neutral input, as
+        // the cartridge's interaction mode does. With no window the route
+        // releases the suspension itself, exactly where the shipped shell
+        // does — a leftover suspension would starve the field's trigger
+        // checks (`RunEvents` runs only on an unsuspended tick).
+        let events = if dialogue_open {
+            self.rt.tick(Input::Neutral)
+        } else {
+            self.rt.set_field_suspended(false);
+            self.rt.tick(input)
+        };
+        let signals = self.rt.dialogue_tick();
+        self.present(signals);
+        for event in events {
             match event {
-                RuntimeEvent::SceneDialogue { .. } | RuntimeEvent::SceneDialogueResume => {
-                    println!("{} {event:?}", self.ticks);
-                    self.rt.dialogue_closed();
+                RuntimeEvent::SceneDialogue { entry } => {
+                    println!("{} scene dialogue entry {entry:#04x}", self.ticks);
+                    // The runtime resolves the entry against whichever tree
+                    // the scene selected, so the headless route needs no scene
+                    // presentation state of its own.
+                    match self.rt.open_scene_dialogue(entry, false) {
+                        SceneDialogueOpen::Empty => self.rt.dialogue_closed(),
+                        SceneDialogueOpen::UnknownTree => {
+                            panic!("scene dialogue tree is absent from the pack")
+                        }
+                        SceneDialogueOpen::Opened => {}
+                    }
                 }
-                RuntimeEvent::SceneChoiceRequested => panic!("route needs an explicit answer"),
+                RuntimeEvent::SceneDialogueResume => {
+                    println!("{} {event:?}", self.ticks);
+                    if !self.rt.resume_scene_dialogue(false) {
+                        self.rt.dialogue_closed();
+                    }
+                }
+                RuntimeEvent::SceneChoiceRequested => {
+                    println!("{} scene awaits a choice", self.ticks);
+                    self.rt.open_scene_choice();
+                }
                 RuntimeEvent::Interact { npc_index, .. } => self.talk(npc_index),
                 RuntimeEvent::SceneFaulted { .. }
                 | RuntimeEvent::SceneMissing { .. }
@@ -138,45 +190,54 @@ impl Walk {
         panic!("battle exceeded 100 rounds");
     }
 
+    /// Talks to an object: the runtime resolves the map's tree and the
+    /// object's dialogue id, and the route presses through whatever opens.
     fn talk(&mut self, npc: usize) {
-        let tree = self.rt.map_record().unwrap().dialogue_tree;
-        let mut id = self.rt.npc_dialogue_id(npc).unwrap();
-        for _ in 0..16 {
-            let entry = self.dialogue.entry(tree, id).unwrap();
-            let mut jumped = false;
-            for segment in &entry.segments {
-                match segment {
-                    Segment::Control(Ctrl::FlagCheck {
-                        flag, then_entry, ..
-                    }) => {
-                        if self.rt.game().is_set(Flag::event(u16::from(*flag))) {
-                            id += then_entry;
-                            jumped = true;
-                            break;
-                        }
-                    }
-                    Segment::Control(Ctrl::Event { id: event, .. }) => {
-                        println!(
-                            "{} NPC {npc}, tree {tree} entry {id} starts {event:#x}",
-                            self.ticks
-                        );
-                        assert!(self.rt.start_event(*event));
-                        return;
-                    }
-                    _ => {
-                        println!(
-                            "{} NPC {npc}, tree {tree} entry {id}: ordinary dialogue",
-                            self.ticks
-                        );
-                        return;
-                    }
-                }
+        match self.rt.open_npc_dialogue(npc) {
+            NpcDialogueOpen::Opened => {}
+            NpcDialogueOpen::NoBinding => {
+                println!("{} NPC {npc} has no dialogue binding", self.ticks)
             }
-            if !jumped {
-                return;
+            NpcDialogueOpen::Nothing => println!("{} NPC {npc} has nothing to say", self.ticks),
+        }
+    }
+
+    /// This frame's pad: Speak on every `PRESS_PERIOD`-th frame while the
+    /// window is ready for it, and nothing otherwise — the released frames
+    /// between presses are what make each press fresh. A prompt is answered
+    /// YES; a route that needs NO would press Cancel instead.
+    fn pad(&self, dialogue_open: bool) -> Pad {
+        let ready = dialogue_open
+            && self.rt.dialogue_view().is_some_and(|view| {
+                view.dismissable || view.choice.is_some_and(|choice| choice.ready)
+            });
+        if ready && self.ticks.is_multiple_of(PRESS_PERIOD) {
+            Pad::new(Button::Speak)
+        } else {
+            Pad::NEUTRAL
+        }
+    }
+
+    /// Reports what the dialogue did. A fault is a route failure: the shipped
+    /// runtime could not present a line.
+    fn present(&mut self, signals: Vec<DialogueSignal>) {
+        for signal in signals {
+            match signal {
+                DialogueSignal::Fault(line) => panic!("dialogue fault: {line}"),
+                DialogueSignal::Log(line) => println!("{} dialogue: {line}", self.ticks),
+                DialogueSignal::Closed { suspended } => {
+                    println!("{} dialogue closed (suspended {suspended})", self.ticks);
+                }
+                DialogueSignal::ChoiceAnswered(yes) => {
+                    println!(
+                        "{} dialogue choice: {}",
+                        self.ticks,
+                        if yes { "YES" } else { "NO" }
+                    );
+                }
+                DialogueSignal::Action(_) => {}
             }
         }
-        panic!("NPC preamble did not resolve");
     }
 
     pub fn settle(&mut self) {

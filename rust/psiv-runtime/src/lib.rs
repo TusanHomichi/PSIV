@@ -15,6 +15,7 @@ mod boss_battles;
 mod bridge;
 mod camera;
 mod camp;
+mod dialogue;
 mod effects;
 mod encounters;
 mod events;
@@ -34,6 +35,7 @@ mod field_status_tests;
 mod geometry;
 mod map_change;
 mod new_game;
+mod pad;
 mod progression;
 pub use progression::ProgressionRepair;
 mod runtime_seams;
@@ -55,12 +57,15 @@ pub use camp::{
     CampAbility, CampAbilityKind, CampCharacter, CampEquipResult, CampItem, CampState,
     CampUseResult,
 };
+pub use dialogue::glue::{NpcDialogueOpen, SceneDialogueOpen};
+pub use dialogue::{DialogueAction, DialogueChoiceView, DialogueSignal, DialogueView};
 pub use effects::{EffectOutcome, evaluate as evaluate_map_effects};
 pub use encounters::{
     EncounterClock, EncounterTable, FOOT_MASK, GRACE_STEPS, GROUP_MASK, VEHICLE_MASK, battle_data,
     formation_record,
 };
 pub use events::{BattleAnimationEvent, BattleSoundEvent, BattleTimeline, RuntimeEvent};
+pub use pad::{Button, Pad};
 pub use save::RuntimeSaveError;
 pub use shop::{InnResult, ShopBuyResult, ShopSellResult};
 
@@ -92,6 +97,11 @@ pub struct Runtime {
     scene_event: EventIndex,
     dialogue_answer: Option<bool>,
     scene_choice_pending: bool,
+    /// The message box: the retail text loop, its clock and its signals.
+    dialogue: dialogue::DialogueRunner,
+    /// The tree a running scene's dialogue entries index into, from its
+    /// `SetDialogueTree` (`$53F00`) op. `None` means the map's own binding.
+    scene_tree_address: Option<u32>,
     /// Volatile end-of-game latch set by the retail ending after Start.
     /// This is presentation state, not save data.
     game_cleared: bool,

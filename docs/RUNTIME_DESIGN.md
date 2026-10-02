@@ -45,9 +45,20 @@ wrong; the correction and measured evidence remain in
 [docs/source-notes/README.md](source-notes/README.md).
 
 Triggers select retail scene transcriptions. The core's `SceneOp` interpreter
-updates state and emits effects; runtime/Godot handle dialogue continuation,
-actor motion and presentation. Fork-rewritten scene bodies require validation
-against the retail bytes. See [scene research](scenes/README.md),
+updates state and emits effects; the runtime owns the dialogue continuation —
+the byte walk, the yes/no answers, the `$FA`/`$F2`/`$F6`/`$F7` codes and every
+frame count that gates them — while Godot handles actor motion and pixels.
+The runtime's `DialogueRunner` (`rust/psiv-runtime/src/dialogue/`) owns the
+message box: the open animation (nine frames, derived from the pack's window
+geometry), the typewriter (one glyph per three frames, one per frame while
+Speak is held), the choices, and the branches, which read the live `GameState`
+at the moment they are evaluated. It runs in two halves per frame — the pad's
+presses before the field tick, the `$F2` actions and the typewriter after it —
+because that is the cartridge's node order, and the split is what keeps a flag
+write on the correct side of a field tick. Its input is one `Pad` (the joypad
+byte of `ps4.constants.asm:1877-1884`); its outputs are presentation signals and
+a `DialogueView` snapshot the window node draws. Fork-rewritten scene bodies
+require validation against the retail bytes. See [scene research](scenes/README.md),
 [dialogue](scenes/SCENE_DIALOGUE.md) and [presentation](scenes/SCENE_PRESENTATION.md).
 
 Save serialization uses the retail SRAM layout with three local slot files.

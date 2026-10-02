@@ -29,6 +29,9 @@ impl Runtime {
         };
         self.scene = Some(runner);
         self.scene_event = event;
+        // Entry indices are relative to whichever tree the scene points the
+        // dialogue system at; a new scene starts on the map's own binding.
+        self.scene_tree_address = None;
         self.scene_input = SceneInput::None;
         self.scene_choice_pending = false;
         self.scene_camera_locked = false;

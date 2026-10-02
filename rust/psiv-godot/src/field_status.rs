@@ -1,6 +1,6 @@
 //! Retail field ailment windows, poison flash, and defeat-to-title handoff.
 use godot::prelude::*;
-use psiv_runtime::FieldNotice;
+use psiv_runtime::{FieldNotice, Runtime};
 
 use crate::{Field, save_dir::presented_save_slots, title, transitions::TransitionKind};
 
@@ -47,11 +47,7 @@ impl Field {
     /// dismisses the notice. The runtime owns the queue and stays parked.
     pub(super) fn service_field_notices(&mut self) {
         if self.status_presentation.notice_open {
-            if self
-                .dialogue
-                .as_ref()
-                .is_some_and(|window| window.bind().is_open())
-            {
+            if self.runtime.as_ref().is_some_and(Runtime::dialogue_open) {
                 return;
             }
             self.status_presentation.notice_open = false;
@@ -81,8 +77,8 @@ impl Field {
             }
         };
         godot_print!("field status: {}", lines.join(" "));
-        if let Some(window) = self.dialogue.as_mut() {
-            self.status_presentation.notice_open = window.bind_mut().open_status(&lines);
+        if let Some(runtime) = self.runtime.as_mut() {
+            self.status_presentation.notice_open = runtime.open_status_dialogue(&lines);
         }
     }
 

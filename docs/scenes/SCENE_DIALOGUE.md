@@ -109,3 +109,55 @@ gate selects the replacements, and Godot uses those selected sheets when
 building map objects. The same path gives Birth Valley's NPCs their petrified
 palette before the rescue. A regression checks both flag directions and all
 seven restored Zema assets. Native re-entry proof is pending in the outfit run.
+
+## The interpreter moved into the runtime (2026-10-01, node S1)
+
+The dialogue rules used to live in the Godot crate: `psiv-godot`'s
+`dialogue/text_flow.rs` walked the bytes, `dialogue.rs` owned the window's
+clock and a *copy* of the 512-entry event-flag bank, and `dialogue/choice.rs`
+read the pad inside the node. Its own header admitted the flow was on the
+wrong side of the layer line.
+
+They now live in `rust/psiv-runtime/src/dialogue/`:
+
+- `text_flow.rs`: the retail byte walk (`RunText_CharacterLoop`), unchanged,
+  except that every `$FA` reads the live `GameState` at the moment the branch
+  is evaluated and `$F2` 11 writes it. There is no flag copy left.
+- `mod.rs`: the `DialogueRunner` — the open animation, the typewriter, the
+  yes/no window, the `$F7` cursor, `$F6`, the pending event, the tree — and
+  the presentation signals it produces.
+- `choice.rs`: the cursor and answer rules (`Cancel` is NO, `Speak` answers
+  the cursor's row).
+- `open.rs`: the pack's trees, the preamble `$FA` chains, the system messages
+  and the scene resumes. A scene's line resolves against the tree its
+  `SetDialogueTree` op selected (the map's own binding until then), so the
+  entry index means what the cartridge meant it to mean — and a headless run
+  resolves it without a presentation layer. The renderer keeps its own copy of
+  that address for the panel-text path (`DrawTextToPlane`).
+- `glue.rs`: the runtime API the shell calls, including the two frame halves.
+
+Next to it, `rust/psiv-runtime/src/pad.rs` is the joypad byte
+(`ButtonUp`=0 … `ButtonStart`=7, `ps4.constants.asm:1877-1884`), the runtime's
+only input type.
+
+`RuntimeEvent::SceneDialogue`'s handler no longer resolves a tree; it calls
+`Runtime::open_scene_dialogue(entry, panel_layout)`, whose three answers are
+`Opened`, `Empty` (acknowledge the scene and run on) and `UnknownTree` (the
+scene recorded an address no packed tree claims; the dialogue barrier stays
+pending, as before).
+
+`psiv-godot/src/dialogue.rs` is a renderer now: it takes a `DialogueView` per
+frame and draws the pack's nine frame tiles, the glyph strip, the portrait and
+the arrow. `Field::physics_process` builds the `Pad`, hands it to
+`Runtime::dialogue_frame` before the field tick, runs the field, and calls
+`Runtime::dialogue_tick` afterwards — the order two nodes had before, kept
+because a `$F2` flag write must land after the field tick that precedes it.
+
+Evidence: `build/lane-evidence/` (the pre/post test-name lists and their diff,
+the `Ctrl::` grep over `psiv-godot`, the negative controls for the new runner
+tests, and the gate output). The pagination census over all 2,736 entries
+moved with the flow and still matches the extractor exactly. Two behaviour
+differences are recorded in the node's receipt: the debug `PSIV_DEBUG_RETAIL_PACE`
+harness now dismisses a page with a synthetic `ButtonSpeak` press in the pad
+(so the accelerated-frame cadence applies on that frame), and the
+field-status window's text is built in the shell and opened by the runtime.
