@@ -75,12 +75,32 @@ pub(crate) enum Divergence {
         actor: FighterId,
         log_ability: u8,
     },
-    /// The log's action moved a fighter's status byte; the port did not.
+    /// The status bits the log's action gained on a fighter are not the bits
+    /// the port's turn inflicted on it.
     Status {
         frame: u32,
         actor: FighterId,
         target: FighterId,
         log_status: u32,
+        port_status: u32,
+    },
+    /// The fighters the log's action took from positive HP to zero are not the
+    /// ones the port's turn reports as dead.
+    Deaths {
+        frame: u32,
+        actor: FighterId,
+        log: Vec<FighterId>,
+        port: Vec<FighterId>,
+    },
+    /// The log's action moved a fighter's battle agility to a value the port's
+    /// turn did not set.
+    Stat {
+        frame: u32,
+        actor: FighterId,
+        target: FighterId,
+        field: String,
+        log_value: i32,
+        port_value: Option<u16>,
     },
 }
 
@@ -97,6 +117,8 @@ impl Divergence {
             | Divergence::Ability { frame, .. }
             | Divergence::Unsupported { frame, .. }
             | Divergence::Status { frame, .. }
+            | Divergence::Stat { frame, .. }
+            | Divergence::Deaths { frame, .. }
             | Divergence::NotWasted { frame, .. } => *frame,
         }
     }
@@ -115,6 +137,8 @@ impl Divergence {
             Divergence::Unsupported { .. } => "unsupported",
             Divergence::NotWasted { .. } => "not-wasted",
             Divergence::Status { .. } => "status",
+            Divergence::Stat { .. } => "stat",
+            Divergence::Deaths { .. } => "deaths",
         }
     }
 
@@ -174,10 +198,28 @@ impl Divergence {
                 "an effect".to_owned(),
             ),
             Divergence::Status {
-                target, log_status, ..
+                target,
+                log_status,
+                port_status,
+                ..
             } => (
-                format!("{target:?} at status {log_status:02X}"),
-                "no status".to_owned(),
+                format!("{target:?} gaining status {log_status:02X}"),
+                format!("status {port_status:02X} inflicted"),
+            ),
+            Divergence::Deaths { log, port, .. } => (
+                format!("{log:?} taken to zero HP"),
+                format!("{port:?} reported dead"),
+            ),
+            Divergence::Stat {
+                target,
+                field,
+                log_value,
+                port_value,
+                ..
+            } => (
+                format!("{target:?} {field} set to {log_value}"),
+                port_value
+                    .map_or_else(|| "no change".to_owned(), |value| format!("set to {value}")),
             ),
         }
     }

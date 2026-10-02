@@ -77,6 +77,177 @@ where
     EnemyTurn::Nothing
 }
 
+/// The transient status bit 7 a freshly seated fighter carries (`$80`).
+const SEATED: u32 = 0x80;
+
+/// Whether `event` opens another actor's turn, which is where the previous
+/// actor's events end.
+fn opens_turn(event: &BattleEvent) -> bool {
+    matches!(
+        event,
+        BattleEvent::Attacked { .. }
+            | BattleEvent::EnemySkillUsed { .. }
+            | BattleEvent::EnemyAbilityWasted { .. }
+            | BattleEvent::UnsupportedAbility { .. }
+            | BattleEvent::TurnSkipped { .. }
+            | BattleEvent::Defended { .. }
+            | BattleEvent::TechniqueUsed { .. }
+            | BattleEvent::SkillUsed { .. }
+            | BattleEvent::ItemUsed { .. }
+            | BattleEvent::FirstZioAction { .. }
+            | BattleEvent::RoundEnded { .. }
+    )
+}
+
+/// The events one enemy ability emitted, from the cursor to the next turn.
+fn turn_of<'a, I>(events: &I) -> Vec<&'a BattleEvent>
+where
+    I: Iterator<Item = &'a BattleEvent> + Clone,
+{
+    events
+        .clone()
+        .take_while(|event| !opens_turn(event))
+        .collect()
+}
+
+/// The status and agility comparison for an ability action: the first
+/// fighter whose logged gain differs from what the port's turn did.
+fn effect_divergence(
+    action: &Action,
+    actor: FighterId,
+    turn: &[&BattleEvent],
+) -> Option<Divergence> {
+    let inflicted = |target: FighterId| -> u32 {
+        turn.iter()
+            .filter_map(|event| match event {
+                BattleEvent::StatusInflicted {
+                    target: hit,
+                    status,
+                    ..
+                } if *hit == target => Some(u32::from(*status)),
+                _ => None,
+            })
+            .fold(0, |bits, status| bits | status)
+    };
+    let mut targets: Vec<FighterId> = action
+        .effect
+        .status
+        .iter()
+        .map(|(target, _, _)| id(*target))
+        .collect();
+    for event in turn {
+        if let BattleEvent::StatusInflicted { target, .. } = event
+            && !targets.contains(target)
+        {
+            targets.push(*target);
+        }
+    }
+    for target in targets {
+        // Bit 7 is not a status: `loc_14D46` (`ps4.asm:29735`) and `loc_14CBE`
+        // set it on a fighter seated mid-battle so that the queue's `$EE` test
+        // (`loc_5772`) skips it this round. The port keeps that out of `Stats`
+        // and answers it with the turn skip instead (`take_turn`), which the
+        // round's draw count checks.
+        let gained = action
+            .effect
+            .status
+            .iter()
+            .filter(|(who, _, _)| id(*who) == target)
+            .fold(0, |bits, (_, before, after)| {
+                bits | (after & !before & !SEATED)
+            });
+        let port = inflicted(target);
+        if gained != port {
+            return Some(Divergence::Status {
+                frame: action.start_frame,
+                actor,
+                target,
+                log_status: gained,
+                port_status: port,
+            });
+        }
+    }
+    // Deaths. A fighter the action took from positive HP to zero is one the
+    // port's turn reports as `Died`, and no other is. Only for an action that
+    // dealt no damage: a damage ability's HP drops across frames after the
+    // action's window (an all-party hit shows no death at its end frame), and
+    // the per-slot walk below already checks each damaged slot's HP and death.
+    let damaging = action.targets.iter().any(|target| target.damage.is_some());
+    let mut log_dead: Vec<FighterId> = action
+        .effect
+        .hp
+        .iter()
+        .filter(|(_, before, after)| *before > 0 && *after <= 0)
+        .map(|(who, _, _)| id(*who))
+        .collect();
+    let mut port_dead: Vec<FighterId> = turn
+        .iter()
+        .filter_map(|event| match event {
+            BattleEvent::Died { fighter } => Some(*fighter),
+            _ => None,
+        })
+        .collect();
+    log_dead.sort();
+    port_dead.sort();
+    if !damaging && log_dead != port_dead {
+        return Some(Divergence::Deaths {
+            frame: action.start_frame,
+            actor,
+            log: log_dead,
+            port: port_dead,
+        });
+    }
+    for (who, field, _before, after) in &action.effect.stats {
+        // The cells a port event reports: battle agility (`agi_bat`, both
+        // sides' fixtures) and the party's battle attack and defence
+        // (`atk_bat`, `dfs_bat`, which `oracle/sweep/arc.py` adds because the
+        // extractor reads the derived cells instead).
+        let stat = match field.as_str() {
+            "agi_bat" => TechniqueStat::Agility,
+            "atk_bat" => TechniqueStat::Attack,
+            "dfs_bat" => TechniqueStat::Defence,
+            _ => continue,
+        };
+        let target = id(*who);
+        let set = turn.iter().rev().find_map(|event| match event {
+            BattleEvent::StatChanged {
+                target: hit,
+                stat: changed,
+                value,
+                ..
+            } if *hit == target && *changed == stat => Some(*value),
+            _ => None,
+        });
+        // `AbilityEffect_Paralyze` sets `agility_battle` to 1 beside the
+        // status bit (`ps4.asm:9431-9434`), and a fighter seated mid-battle
+        // (Fusion) starts from its record.
+        let implied = if stat == TechniqueStat::Agility {
+            let paralysed = inflicted(target) & u32::from(status::PARALYZED) != 0;
+            let seated = turn.iter().rev().find_map(|event| match event {
+                BattleEvent::EnemiesFused {
+                    fighter, agility, ..
+                } if *fighter == target => Some(u16::from(*agility)),
+                _ => None,
+            });
+            seated.or(paralysed.then_some(1))
+        } else {
+            None
+        };
+        let port_value = set.or(implied);
+        if port_value.map(i32::from) != Some(*after) {
+            return Some(Divergence::Stat {
+                frame: action.start_frame,
+                actor,
+                target,
+                field: field.clone(),
+                log_value: *after,
+                port_value,
+            });
+        }
+    }
+    None
+}
+
 pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Divergence> {
     let mut events = timeline.iter();
     let mut began = false;
@@ -140,6 +311,19 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
                         targets,
                     } if *who == actor => {
                         swing = Some(targets.clone());
+                        break;
+                    }
+                    // A queued fighter that cannot act - asleep, paralyzed -
+                    // swings at nothing. The log's window for it is not a swing
+                    // at all: `loc_576A` leaves the skipped actor's id in the
+                    // actor field (`ps4.asm:8033`), so the calls that follow -
+                    // the round's tail, one wake roll per sleeper
+                    // (`Battle_RestoreStatsAtTurnEnd`, `ps4.asm:9792`) - open a
+                    // window on it. The walk accepts it only when the log
+                    // resolved nothing there, and the round's draw count checks
+                    // that the port made the same calls.
+                    BattleEvent::TurnSkipped { actor: who, .. } if *who == actor => {
+                        swing = Some(Vec::new());
                         break;
                     }
                     BattleEvent::RoundEnded { .. } => break,
@@ -242,33 +426,15 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
                     });
                 }
             }
-            // The status bytes the action moved: the effect the log sees that
-            // the port reports as an event of its own, checked before the
-            // slot-by-slot walk below - which only reads the slots the log
-            // resolved, and an ability's status arm resolves a slot with no
-            // damage word at all.
-            for (target, _before, after) in &action.effect.status {
-                let target = id(*target);
-                let inflicted = events
-                    .clone()
-                    .take_while(|event| {
-                        !matches!(
-                            event,
-                            BattleEvent::Attacked { .. } | BattleEvent::RoundEnded { .. }
-                        )
-                    })
-                    .any(|event| {
-                        matches!(event, BattleEvent::StatusInflicted { target: hit, .. }
-                                 if *hit == target)
-                    });
-                if !inflicted {
-                    return Some(Divergence::Status {
-                        frame: action.start_frame,
-                        actor,
-                        target,
-                        log_status: *after,
-                    });
-                }
+            // The status bits the action gave and the battle agility it set:
+            // the effects the log sees that the port reports as events of
+            // their own, checked before the slot-by-slot walk below - which
+            // only reads the slots the log resolved, and an ability's status
+            // arm resolves a slot with no damage word at all. Both
+            // directions: a status the port inflicts that the log never
+            // gained is as much a divergence as one it does not.
+            if let Some(found) = effect_divergence(action, actor, &turn_of(&events)) {
+                return Some(found);
             }
             // The slots the ability **damaged**: the log's own list, walked
             // slot by slot below. Not the pass's coverage - an ability marks

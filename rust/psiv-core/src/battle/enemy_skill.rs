@@ -42,7 +42,7 @@ impl EnemySkill {
     /// until their gameplay has been transcribed.
     #[must_use]
     pub const fn supported(&self) -> bool {
-        self.is_fission() || self.is_thread() || self.is_poison() || self.is_res()
+        self.is_fission() || self.is_thread() || self.is_poison() || self.is_tech_heal()
     }
 
     const fn is_fission(&self) -> bool {
@@ -92,16 +92,19 @@ impl EnemySkill {
             && self.element == 13
     }
 
-    /// Record 69 at `0x28358C` is `12 82 01 10 00 00 00 00`: effect `$12`
+    /// The two records `EnemyAttack_TechUser`'s object `$3D4` heals with.
+    ///
+    /// Record 69 `$45` RES at `0x28358C` is `12 82 01 10 00 00 00 00` and record
+    /// 62 `$3E` GIRES at `0x283554` is `12 82 01 40 00 00 00 00`: effect `$12`
     /// (`AbilityEffect_NormalLogic`), the MEN selector `$82`, target nibble 1,
-    /// hit chance 16, and neither a resistance selector nor an element. The
-    /// whole record is pinned because the effect byte alone covers 44 ids.
-    const fn is_res(&self) -> bool {
-        self.id == 69
+    /// a power byte (16 and 64) and neither a resistance selector nor an
+    /// element. The whole records are pinned because the effect byte alone
+    /// covers 44 ids.
+    const fn is_tech_heal(&self) -> bool {
+        matches!((self.id, self.power), (69, 16) | (62, 64))
             && self.effect == 18
             && self.power_stat == 130
             && self.target == 1
-            && self.power == 16
             && self.resistance == 0
             && self.element == 0
     }
@@ -384,9 +387,13 @@ pub(super) fn resolve_no_effect_turn(
 /// work.
 const TECH_USER_CARRIERS: [u16; 3] = [99, 100, 101];
 
-/// RES `$45` — the one conditional ability TechUser's own AI instruction picks,
-/// written when any enemy is at or below half HP
-/// (`EnemyAI_HalfHPOrLower_AllEnemies`, `ps4.asm:21320`).
+/// RES `$45` and GIRES `$3E` - the two heals of `EnemyAttack_TechUser`'s
+/// fall-through. RES is the conditional ability TechUser's own AI instruction
+/// picks, written when any enemy is at or below half HP
+/// (`EnemyAI_HalfHPOrLower_AllEnemies`, `ps4.asm:21320`); GIRES is TechMaster's
+/// regular first slot. The arm compares `$3E` and `$45` one after the other
+/// (`ps4.asm:21272`, `21281`) and both load the same object, so one
+/// implementation serves both records (id 69 power 16, id 62 power 64).
 ///
 /// `EnemyAttack_TechUser` reaches `loc_EEAA` (`ps4.asm:21266`) for it: it
 /// clears `Current_Target_Index` and loads object `$3D4` (`loc_213DC`,
@@ -412,7 +419,7 @@ pub(super) fn resolve_res(
     rolls: &mut impl Rolls,
     events: &mut Vec<BattleEvent>,
 ) -> bool {
-    let Some(skill) = data.enemy_skill(ability).filter(|s| s.is_res()) else {
+    let Some(skill) = data.enemy_skill(ability).filter(|s| s.is_tech_heal()) else {
         return false;
     };
     let Some(caster) = roster.get(actor).filter(|f| {

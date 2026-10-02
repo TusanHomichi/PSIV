@@ -382,6 +382,25 @@ impl BattleMode {
         {
             enemy.visible = true;
         }
+        if let BattleEvent::EnemiesFused {
+            removed,
+            fighter,
+            name,
+            ..
+        } = &event
+        {
+            // Fusion clears every enemy slot and seats one new enemy in slot 1.
+            for enemy in &mut self.enemies {
+                enemy.visible = enemy.fighter == fighter.get();
+                if enemy.fighter == fighter.get() {
+                    enemy.name.clone_from(name);
+                }
+            }
+            self.names.insert(fighter.get(), name.clone());
+            for gone in removed.iter().filter(|gone| *gone != fighter) {
+                self.names.remove(&gone.get());
+            }
+        }
         self.update_live_party(&event);
         let narrate = narration::narration(&event, &self.names, &self.character_names);
         if let BattleEvent::UnsupportedAbility { actor, ability } = &event {
@@ -499,6 +518,35 @@ impl BattleMode {
                 remaining_tp,
                 ..
             } => (*actor, None, Some(*remaining_tp)),
+            BattleEvent::StatusInflicted { target, status, .. } => {
+                self.update_live_status(*target, |word| {
+                    // `AbilityEffect_Paralyze` clears the sleep bit it finds.
+                    let kept = if *status == psiv_core::battle::status::PARALYZED {
+                        word & !psiv_core::battle::status::ASLEEP
+                    } else {
+                        word
+                    };
+                    kept | *status
+                });
+                return;
+            }
+            BattleEvent::FellAsleep { target, .. } => {
+                self.update_live_status(*target, |word| word | psiv_core::battle::status::ASLEEP);
+                return;
+            }
+            BattleEvent::WokeUp { fighter } => {
+                self.update_live_status(*fighter, |word| {
+                    word & !(psiv_core::battle::status::ASLEEP
+                        | psiv_core::battle::status::ASLEEP_2)
+                });
+                return;
+            }
+            BattleEvent::StatusRestored {
+                target, removed, ..
+            } => {
+                self.update_live_status(*target, |word| word & !*removed);
+                return;
+            }
             _ => return,
         };
         if target.side() != Side::Party {
@@ -511,6 +559,18 @@ impl BattleMode {
             if let Some(tp) = tp {
                 member.tp = tp;
             }
+        }
+    }
+
+    /// The strip's retail status word follows the beats like its HP does, so a
+    /// sleeping, paralyzed or sealed member shows the status the battle has
+    /// reached and not the one it opened with.
+    fn update_live_status(&mut self, target: FighterId, change: impl FnOnce(u8) -> u8) {
+        if target.side() != Side::Party {
+            return;
+        }
+        if let Some(member) = self.party.iter_mut().find(|m| m.fighter == target.get()) {
+            member.status = change(member.status);
         }
     }
 

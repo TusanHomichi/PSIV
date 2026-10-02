@@ -35,7 +35,10 @@ recipients. Raja's REGEN is earned from the real level-31 row. This is not
 connected campaign progress. `build/native-battle-recovery/route/receipt.json`
 completes all four casts through normal Godot menus, victory and SAVE 2.
 Raja spends exactly 55 TP (204 to 149); Chaz is cured and Hahn revives,
-reaches full 55 HP through REGEN, and retains tech seal. A fresh process
+reaches full 55 HP through REGEN, and keeps tech seal for the rest of the
+fight (*corrected 2026-10-02:* the seal does not leave the battle with him -
+`Battle_LastMessage` clears bits 3 and 4 of every party slot on the way out,
+`andi.b #$E7, $16(a0)`, `ps4.asm:6366`; the receipt below predates that fix). A fresh process
 uses title CONTINUE 2 and re-saves after one normal step; only standing Y
 changes in the payload, and both source slots remain unchanged.
 

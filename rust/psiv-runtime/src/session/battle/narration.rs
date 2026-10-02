@@ -76,10 +76,11 @@ pub(crate) fn narration(
             line: format!(
                 "{} {}!",
                 fighter_name(*target, names),
-                if *status == psiv_core::battle::status::POISONED {
-                    "poisoned"
-                } else {
-                    "paralyzed"
+                match *status {
+                    psiv_core::battle::status::POISONED => "poisoned",
+                    psiv_core::battle::status::ASLEEP => "asleep",
+                    psiv_core::battle::status::TECH_SEALED => "sealed",
+                    _ => "paralyzed",
                 }
             ),
             beat: BattleBeat::None,
@@ -89,6 +90,10 @@ pub(crate) fn narration(
             beat: BattleBeat::None,
         },
         BattleEvent::EnemyReplenished { name, .. } => Narration {
+            line: format!("{name} appears!"),
+            beat: BattleBeat::None,
+        },
+        BattleEvent::EnemiesFused { name, .. } => Narration {
             line: format!("{name} appears!"),
             beat: BattleBeat::None,
         },

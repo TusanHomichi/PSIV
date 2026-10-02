@@ -746,3 +746,23 @@ number at all.
 - **Anything about the deferred carriers.** 133 ProfoundDarkness1's `$21` and
   140 Zio2's `$4D` are behind gates this port does not model
   (`$FFFFEE87` and the `$FFFFEE98` phase counter) and have no capture.
+
+## 7. The durable patch's frame, corrected (2026-10-02)
+
+`--durable` writes the party's HP on the frame the extractor reads the battle's
+start state from. The tool used to take that frame from the **probe's** log, but
+the probe leaves the seed alone and so builds whatever formation the group's own
+draw names, not the one being forced - and the load writes one enemy slot per
+frame (`loc_7F2E`, `ps4.asm:11911`). Forcing a two-enemy formation out of a
+three-enemy draw therefore put the patch one frame after the start state:
+`--durable wrote 999 to alys_hp at f24818, but the capture reads 53 at f24817`
+(TechMaster, `$110`). `oracle/force/durable.py`'s `forced_start_frame` derives the
+forced formation's own frame (`probe_start - (probe_enemies - 1) + (forced_enemies
+- 1)`), `oracle/force/phases.py` passes the formation to `probe_phase`, and the
+existing `durable.verify` of the capture's start state is the guard: the formations
+that failed now capture. A formation whose probe draw happens to have the same
+enemy count gets the frame it always did.
+
+The Motavia arc's twelve captures
+([`BATTLE_ORACLE_ARC.md`](BATTLE_ORACLE_ARC.md)) were taken with it; their
+recipe is `python3 -m oracle.sweep.arc`.

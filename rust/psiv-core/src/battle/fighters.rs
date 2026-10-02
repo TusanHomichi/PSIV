@@ -227,6 +227,14 @@ impl Roster {
         Some(id)
     }
 
+    /// Empties all four enemy slots - Fusion's `clr.w (a0)` loop over
+    /// `Fighter_Enemy_1`..`4` (`ps4.asm:35826-35831`).
+    pub(super) fn clear_enemies(&mut self) {
+        for slot in &mut self.slots[PARTY_SLOTS..] {
+            *slot = None;
+        }
+    }
+
     /// The fighter in a slot, if any.
     #[must_use]
     pub fn get(&self, id: FighterId) -> Option<&Fighter> {
