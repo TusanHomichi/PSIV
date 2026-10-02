@@ -70,6 +70,9 @@ fn load_reads_a_directory_of_files() {
     let data = pack.load().expect("a valid pack directory loads");
     assert_eq!(data.len(), 2);
     assert_eq!(data.map(MapId(0x011)).unwrap().label(), "PiataAcademy");
+    // The fixture writes no `dialogue/`, so this pack has none: the runtime
+    // refuses to build from it rather than opening no window.
+    assert!(data.dialogue().is_none());
 }
 
 #[test]

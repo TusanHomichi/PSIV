@@ -49,6 +49,7 @@ use crate::pad::{Button, Pad};
 use choice::ChoiceState;
 use psiv_core::GameState;
 use psiv_data::{DialogueSet, PageEnd};
+use std::sync::Arc;
 
 /// Something the dialogue did that the shell has to present.
 ///
@@ -82,8 +83,11 @@ pub enum DialogueSignal {
 /// The dialogue window's state machine: the flow, its clock and its signals.
 pub struct DialogueRunner {
     /// The pack: the trees the flow walks, and the window geometry the open
-    /// animation counts in.
-    set: Option<DialogueSet>,
+    /// animation counts in. Shared with the loaded [`GameData`] it came from,
+    /// so a runtime hands the same set to its window instead of copying it.
+    ///
+    /// [`GameData`]: psiv_data::GameData
+    set: Option<Arc<DialogueSet>>,
     /// The window's stream, while one is on screen.
     flow: Option<TextFlow>,
     /// Retail's saved text address, including its original tree binding. Map
@@ -146,8 +150,16 @@ impl DialogueRunner {
         }
     }
 
+    /// A runner whose window resolves entries through `set`.
+    #[must_use]
+    pub(crate) fn with_pack(set: Arc<DialogueSet>) -> DialogueRunner {
+        let mut runner = DialogueRunner::new();
+        runner.set_pack(set);
+        runner
+    }
+
     /// Hands the runner the dialogue pack it resolves entries through.
-    pub(crate) fn set_pack(&mut self, set: DialogueSet) {
+    pub(crate) fn set_pack(&mut self, set: Arc<DialogueSet>) {
         self.set = Some(set);
     }
 
@@ -155,7 +167,7 @@ impl DialogueRunner {
     /// tree table.
     #[must_use]
     pub(crate) fn pack(&self) -> Option<&DialogueSet> {
-        self.set.as_ref()
+        self.set.as_deref()
     }
 
     /// Whether a window is on screen. The shell gates its input on this.

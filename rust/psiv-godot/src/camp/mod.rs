@@ -301,20 +301,13 @@ impl Field {
             .camp_menu
             .as_ref()
             .is_some_and(|menu| menu.bind().is_open());
-        let loot_waiting = self
-            .runtime
-            .as_ref()
-            .is_some_and(|rt| rt.loot_state().is_some());
+        let loot_waiting = self.runtime().is_some_and(|rt| rt.loot_state().is_some());
         if !is_open && loot_waiting {
-            if let (Some(menu), Some(runtime)) = (self.camp_menu.as_mut(), self.runtime.as_ref()) {
-                menu.bind_mut().open_loot(runtime);
+            if let (Some(menu), Some(session)) = (self.camp_menu.as_mut(), self.session.as_ref()) {
+                menu.bind_mut().open_loot(session.runtime());
             }
         } else if !is_open {
-            if self
-                .runtime
-                .as_ref()
-                .is_some_and(|runtime| runtime.scene_active())
-            {
+            if self.runtime().is_some_and(|runtime| runtime.scene_active()) {
                 return false;
             }
             if !self
@@ -324,16 +317,15 @@ impl Field {
             {
                 return false;
             }
-            let Some(runtime) = self.runtime.as_ref() else {
+            let Some(session) = self.session.as_ref() else {
                 return false;
             };
             if let Some(menu) = self.camp_menu.as_mut() {
-                menu.bind_mut().open(runtime);
+                menu.bind_mut().open(session.runtime());
             }
-        } else if let Some(runtime) = self.runtime.as_mut()
-            && let Some(menu) = self.camp_menu.as_mut()
+        } else if let (Some(session), Some(menu)) = (self.session.as_mut(), self.camp_menu.as_mut())
         {
-            menu.bind_mut().handle_input(runtime);
+            menu.bind_mut().handle_input(session.runtime_mut());
         }
         let menu_events = self.camp_menu.as_mut().map_or_else(Vec::new, |menu| {
             std::mem::take(&mut menu.bind_mut().runtime_events)
@@ -352,22 +344,22 @@ impl Field {
             .as_ref()
             .is_some_and(|menu| !menu.bind().is_open())
         {
-            if let Some(runtime) = self.runtime.as_mut() {
+            if let Some(runtime) = self.runtime_mut() {
                 runtime.set_field_suspended(false);
             }
-            self.accept_blocked = true;
+            self.block_accept();
             self.sync_visuals(false);
             return true;
         }
-        let events = if let Some(runtime) = self.runtime.as_mut() {
+        let events = if let Some(runtime) = self.runtime_mut() {
             runtime.set_field_suspended(true);
             runtime.tick(psiv_core::Input::Neutral)
         } else {
             Vec::new()
         };
         self.process_events(events);
-        if let (Some(runtime), Some(menu)) = (self.runtime.as_ref(), self.camp_menu.as_mut()) {
-            menu.bind_mut().sync(runtime);
+        if let (Some(session), Some(menu)) = (self.session.as_ref(), self.camp_menu.as_mut()) {
+            menu.bind_mut().sync(session.runtime());
         }
         self.place_camp_menu();
         self.sync_visuals(false);
@@ -376,18 +368,14 @@ impl Field {
 
     /// Debug hook entry point used by `PSIV_DEBUG_CAMP=1`.
     pub(crate) fn open_camp_menu(&mut self) {
-        if self
-            .runtime
-            .as_ref()
-            .is_none_or(|runtime| runtime.scene_active())
-        {
+        if self.runtime().is_none_or(|runtime| runtime.scene_active()) {
             return;
         }
         let Some(menu) = self.camp_menu.as_mut() else {
             return;
         };
-        if let Some(runtime) = self.runtime.as_ref() {
-            menu.bind_mut().open(runtime);
+        if let Some(session) = self.session.as_ref() {
+            menu.bind_mut().open(session.runtime());
         }
     }
 

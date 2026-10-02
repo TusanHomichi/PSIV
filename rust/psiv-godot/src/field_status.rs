@@ -47,26 +47,21 @@ impl Field {
     /// dismisses the notice. The runtime owns the queue and stays parked.
     pub(super) fn service_field_notices(&mut self) {
         if self.status_presentation.notice_open {
-            if self.runtime.as_ref().is_some_and(Runtime::dialogue_open) {
+            if self.runtime().is_some_and(Runtime::dialogue_open) {
                 return;
             }
             self.status_presentation.notice_open = false;
-            if let Some(runtime) = self.runtime.as_mut() {
+            if let Some(runtime) = self.runtime_mut() {
                 runtime.acknowledge_field_notice();
             }
         }
-        let Some(notice) = self
-            .runtime
-            .as_ref()
-            .and_then(|runtime| runtime.field_notice())
-        else {
+        let Some(notice) = self.runtime().and_then(|runtime| runtime.field_notice()) else {
             return;
         };
         let lines = match notice {
             FieldNotice::Fallen(who) => {
                 let name = self
-                    .runtime
-                    .as_ref()
+                    .runtime()
                     .and_then(|rt| rt.game().roster().get(who))
                     .map(|stats| stats.display_name())
                     .unwrap_or_default();
@@ -77,7 +72,7 @@ impl Field {
             }
         };
         godot_print!("field status: {}", lines.join(" "));
-        if let Some(runtime) = self.runtime.as_mut() {
+        if let Some(runtime) = self.runtime_mut() {
             self.status_presentation.notice_open = runtime.open_status_dialogue(&lines);
         }
     }
@@ -92,7 +87,7 @@ impl Field {
     /// Battle defeat waits for its last message first; field defeat has
     /// already waited for the Perished acknowledgement.
     pub(super) fn drive_game_over(&mut self) -> bool {
-        if !self.runtime.as_ref().is_some_and(|rt| rt.game_over()) {
+        if !self.runtime().is_some_and(|rt| rt.game_over()) {
             return false;
         }
         if self.status_presentation.defeat_fade.is_none() {
@@ -123,14 +118,13 @@ impl Field {
         self.set_letterbox(false);
         self.play_sound(0xFB);
         let slots = self
-            .runtime
-            .as_ref()
+            .runtime()
             .map(|rt| presented_save_slots(rt.data()))
             .unwrap_or([false; 3]);
         let pack_dir = self.pack_dir.clone();
         self.title = title::TitleScreen::build(&pack_dir, slots, self.base_mut());
         self.status_presentation.defeat_fade = None;
-        self.accept_blocked = true;
+        self.block_accept();
         godot_print!("game over: title restored; saved slots unchanged");
         true
     }

@@ -14,10 +14,9 @@ use godot::obj::BaseMut;
 use godot::prelude::*;
 use psiv_core::Input as CoreInput;
 use psiv_data::{DialogueSet, Role};
-use psiv_runtime::Runtime;
 
 use super::save_dir::{erase_slot, load_slot};
-use super::{Field, StepFrames, TransitionKind, read_input};
+use super::{Field, Session, StepFrames, TransitionKind, read_input};
 
 const SCREEN_WIDTH: f32 = 320.0;
 const SCREEN_HEIGHT: f32 = 224.0;
@@ -881,39 +880,27 @@ impl Field {
         true
     }
 
-    /// Everything `ready` gives the boot runtime that a title-built runtime
-    /// (START's new game, CONTINUE's loaded slot) must also have: the battle
-    /// seam and the dialogue pack the runtime's runner resolves entries
-    /// through. Without the pack, the opening's first `SetDialogueTree` is an
-    /// unknown tree and the scene's dialogue barrier never clears (#44).
-    fn prepare_runtime(&mut self, runtime: &mut Runtime) {
-        self.configure_battles(runtime);
-        if let Err(error) = runtime.load_dialogue(std::path::Path::new(&self.pack_dir)) {
-            godot_error!("title: dialogue pack failed to load into the new runtime: {error}");
-        }
-    }
-
     fn finish_title_choice(&mut self, choice: TitleChoice) -> bool {
         match choice {
             TitleChoice::Start => {
                 // Retail START is Event_GameStart: rebuild the runtime in the
                 // ROM-derived initial state (money, flag banks, Chaz and
                 // Alys), then fire the opening event from the pack.
-                let Some(data) = self.runtime.as_ref().map(|runtime| runtime.data().clone()) else {
+                let Some(data) = self.runtime().map(|runtime| runtime.data().clone()) else {
                     godot_error!("title: START selected without a runtime");
                     return false;
                 };
                 match crate::boot::new_game_runtime(data, StepFrames::default()) {
                     Ok(mut runtime) => {
                         godot_print!("title: START — new game, firing Event_GameStart");
-                        self.prepare_runtime(&mut runtime);
+                        self.configure_battles(&mut runtime);
                         let event = runtime
                             .data()
                             .new_game()
                             .expect("validated title initializer")
                             .event_index;
                         let started = runtime.start_event(event);
-                        self.runtime = Some(runtime);
+                        self.session = Some(Session::new(runtime));
                         self.load_map_visuals();
                         self.sync_visuals(false);
                         if started {
@@ -932,15 +919,15 @@ impl Field {
                 }
             }
             TitleChoice::Continue(slot) => {
-                let Some(data) = self.runtime.as_ref().map(|runtime| runtime.data().clone()) else {
+                let Some(data) = self.runtime().map(|runtime| runtime.data().clone()) else {
                     godot_error!("title: CONTINUE selected without a runtime");
                     return false;
                 };
                 match load_slot(data, slot) {
                     Ok(mut runtime) => {
                         godot_print!("title: CONTINUE loaded slot {}", slot + 1);
-                        self.prepare_runtime(&mut runtime);
-                        self.runtime = Some(runtime);
+                        self.configure_battles(&mut runtime);
+                        self.session = Some(Session::new(runtime));
                         self.load_map_visuals();
                         self.play_map_music();
                         self.sync_visuals(false);

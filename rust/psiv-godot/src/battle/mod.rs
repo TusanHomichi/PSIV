@@ -129,7 +129,7 @@ impl Field {
             );
             return;
         };
-        let Some(runtime) = self.runtime.as_ref() else {
+        let Some(runtime) = self.runtime() else {
             godot_error!("encounter rolled formation {formation:#05x} without a runtime");
             return;
         };
@@ -143,8 +143,7 @@ impl Field {
         }
 
         let timeline = match self
-            .runtime
-            .as_mut()
+            .runtime_mut()
             .expect("runtime was checked above")
             .start_battle_timeline(formation, party)
         {
@@ -240,7 +239,7 @@ impl Field {
             godot_error!("newly-exact debug battle needs battle files");
             return;
         };
-        let Some(runtime) = self.runtime.as_ref() else {
+        let Some(runtime) = self.runtime() else {
             godot_error!("newly-exact debug battle needs a runtime");
             return;
         };
@@ -284,17 +283,17 @@ impl Field {
             godot_error!(
                 "scene requested boss event battle {index}, but battle files are not enabled"
             );
-            if let Some(runtime) = self.runtime.as_mut() {
+            if let Some(runtime) = self.runtime_mut() {
                 let _ = runtime.finish_battle_for_outcome(Outcome::Escaped, 0);
             }
             return;
         };
-        let Some(runtime) = self.runtime.as_ref() else {
+        let Some(runtime) = self.runtime() else {
             godot_error!("scene boss event battle {index} started without a runtime");
             return;
         };
         let Some(setup) = build_boss_setup(files, runtime, index) else {
-            if let Some(runtime) = self.runtime.as_mut() {
+            if let Some(runtime) = self.runtime_mut() {
                 let _ = runtime.finish_battle_for_outcome(Outcome::Escaped, 0);
             }
             return;
@@ -318,14 +317,14 @@ impl Field {
     ) {
         let Some(screen) = self.battle_screen.as_mut() else {
             godot_error!("battle started without a BattleScreen node");
-            if let Some(runtime) = self.runtime.as_mut() {
+            if let Some(runtime) = self.runtime_mut() {
                 let _ = runtime.finish_battle_for_outcome(Outcome::Escaped, 0);
             }
             return;
         };
         screen.bind_mut().begin(setup, timeline);
-        if let Some(runtime) = self.runtime.as_ref() {
-            screen.bind_mut().sync_commands(runtime);
+        if let Some(session) = self.session.as_ref() {
+            screen.bind_mut().sync_commands(session.runtime());
         }
         self.service_battle_audio();
         self.hide_field_for_battle();
@@ -356,8 +355,8 @@ impl Field {
             return false;
         }
 
-        if self.runtime.as_ref().is_some_and(Runtime::battle_active)
-            && let Some(runtime) = self.runtime.as_mut()
+        if self.runtime().is_some_and(|rt| rt.battle_active())
+            && let Some(runtime) = self.runtime_mut()
         {
             // Battles still consume the shared vblank/RNG stream. No field
             // input reaches Runtime while GameMode_Battle owns the frame.
@@ -374,8 +373,7 @@ impl Field {
                 godot_print!("battle orders: {order:?}");
             }
             let result = self
-                .runtime
-                .as_mut()
+                .runtime_mut()
                 .map(|runtime| runtime.battle_round_timeline(&order));
             match result {
                 Some(Ok(timeline)) => {
@@ -383,8 +381,8 @@ impl Field {
                         godot_print!("battle events: {:?}", timeline.events);
                     }
                     if let Some(screen) = self.battle_screen.as_mut() {
-                        if let Some(runtime) = self.runtime.as_ref() {
-                            screen.bind_mut().sync_commands(runtime);
+                        if let Some(session) = self.session.as_ref() {
+                            screen.bind_mut().sync_commands(session.runtime());
                         }
                         screen.bind_mut().enqueue_timeline(timeline);
                     }
@@ -448,7 +446,7 @@ impl Field {
             Outcome::Victory => request.reward_each,
             Outcome::Escaped | Outcome::Defeat | Outcome::ScriptedExit => 0,
         };
-        let levels = self.runtime.as_mut().map_or_else(Vec::new, |runtime| {
+        let levels = self.runtime_mut().map_or_else(Vec::new, |runtime| {
             runtime.finish_battle_for_outcome(request.outcome, reward)
         });
         if let Some(screen) = self.battle_screen.as_mut() {
@@ -512,7 +510,7 @@ impl Field {
     }
 
     fn end_battle_presentation(&mut self) {
-        if self.runtime.as_ref().is_some_and(|rt| rt.game_over()) {
+        if self.runtime().is_some_and(|rt| rt.game_over()) {
             self.begin_game_over();
             return;
         }
@@ -546,8 +544,7 @@ impl Field {
         }
         self.set_letterbox(false);
         let events = self
-            .runtime
-            .as_mut()
+            .runtime_mut()
             .map_or_else(Vec::new, Runtime::return_to_field);
         self.process_events(events);
         self.sync_visuals(false);

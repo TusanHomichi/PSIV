@@ -247,19 +247,18 @@ impl crate::Field {
         if !self.shop.as_ref().is_some_and(|shop| shop.bind().is_open()) {
             return false;
         }
-        if let (Some(runtime), Some(shop)) = (self.runtime.as_mut(), self.shop.as_mut()) {
-            shop.bind_mut().handle_input(runtime);
+        if let (Some(session), Some(shop)) = (self.session.as_mut(), self.shop.as_mut()) {
+            shop.bind_mut().handle_input(session.runtime_mut());
         }
         if !self.shop.as_ref().is_some_and(|shop| shop.bind().is_open()) {
-            if let Some(runtime) = self.runtime.as_mut() {
+            if let Some(runtime) = self.runtime_mut() {
                 runtime.set_field_suspended(false);
             }
             self.sync_visuals(false);
             return true;
         }
         let events = self
-            .runtime
-            .as_mut()
+            .runtime_mut()
             .map(|runtime| {
                 runtime.set_field_suspended(true);
                 runtime.tick(psiv_core::Input::Neutral)

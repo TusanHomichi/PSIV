@@ -24,6 +24,24 @@ results and sends input. Keep ROM decoding in Python. Pack schema changes need
 matching extraction and consumer validation. ROM-derived packs remain local
 and excluded from Git; see [extraction](EXTRACTION.md) and [setup](DEVELOPMENT.md).
 
+## The session frame
+
+One `Session` (`rust/psiv-runtime/src/session.rs`) owns the runtime and turns a
+joypad byte into a frame of game: `Session::frame(pad)` runs the dialogue
+window's input half, a pending `$F6` and then the field or the scene, and
+returns a `Frame` of runtime events, dialogue signals, the scene a `$F6` started
+and the field input it resolved. `Session::window_tick()` is the window's own
+half of that frame, and the caller runs it after applying the events, because an
+event can open the window — a talk the shell routes, a scene's own dialogue —
+and the box takes its first open-animation step on the frame it opens. The
+directions and the talk button resolve in the cartridge's order
+(`Pad::field_input`, `rust/psiv-runtime/src/pad.rs`: `FieldObj_MovementsTbl`'s
+sixteen d-pad masks — an opposing pair cancels, a horizontal beats a vertical —
+and `FieldControls_GetInput`'s talk press taking the frame). Godot sends the pad
+and presents the frame; the modes it still owns (title, game over, battle, shop
+and camp) are checked in front of the call, and the
+[campaign runner](campaign/CAMPAIGN_RUNNER.md) nodes S3 to S5 move them in.
+
 ## State, events and persistence
 
 The field uses 16-pixel collision cells with integer step progress. Map data,
@@ -57,7 +75,10 @@ presses before the field tick, the `$F2` actions and the typewriter after it —
 because that is the cartridge's node order, and the split is what keeps a flag
 write on the correct side of a field tick. Its input is one `Pad` (the joypad
 byte of `ps4.constants.asm:1877-1884`); its outputs are presentation signals and
-a `DialogueView` snapshot the window node draws. Fork-rewritten scene bodies
+a `DialogueView` snapshot the window node draws. The pack it walks is part of the
+loaded data (`GameData::dialogue`, read by `GameData::load` with the maps and the
+sound) and every runtime constructor installs it, so a runtime whose message box
+cannot resolve an entry is not a state a caller can build. Fork-rewritten scene bodies
 require validation against the retail bytes. See [scene research](scenes/README.md),
 [dialogue](scenes/SCENE_DIALOGUE.md) and [presentation](scenes/SCENE_PRESENTATION.md).
 

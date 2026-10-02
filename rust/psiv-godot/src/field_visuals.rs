@@ -8,14 +8,14 @@ use godot::prelude::*;
 
 use psiv_core::{Cell, Direction, SCREEN_HEIGHT, SCREEN_WIDTH};
 
-use super::Field;
 use super::transitions::{Transition, TransitionKind};
 use super::view::{SheetView, camp_receipt_frame, sequence_name};
+use super::{Field, Session};
 
 impl Field {
     /// Places and animates the party sprite, animates NPCs, moves the camera.
     pub(super) fn sync_visuals(&mut self, walking: bool) {
-        let Some(runtime) = self.runtime.as_ref() else {
+        let Some(runtime) = self.session.as_ref().map(Session::runtime) else {
             return;
         };
         let state = runtime.state();
@@ -209,8 +209,7 @@ impl Field {
             cell: (u16, u16),
         }
         let wander_states: Vec<WanderView> = self
-            .runtime
-            .as_ref()
+            .runtime()
             .map(|rt| {
                 rt.wanderers()
                     .iter()
@@ -259,10 +258,12 @@ impl Field {
                     ));
                 }
                 None => {
-                    if let Some(npc) = self.runtime.as_ref().and_then(|rt| {
+                    let npc = self.session.as_ref().and_then(|session| {
+                        let rt = session.runtime();
                         rt.map().chest_at_slot(entry.index)?;
                         rt.map().npcs().get(entry.index)
-                    }) {
+                    });
+                    if let Some(npc) = npc {
                         entry.idle = sequence_name("idle", npc.facing);
                     }
                     let frame = camp_receipt_frame(entry.index, &entry.sheet)
