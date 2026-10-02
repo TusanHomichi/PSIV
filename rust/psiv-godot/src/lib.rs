@@ -32,22 +32,21 @@ mod title;
 mod transitions;
 mod view;
 use battle::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
-use boot::{
-    FALLBACK_SPAWN_CELL, FALLBACK_SPAWN_MAP, debug_camp_runtime, debug_scene_runtime,
-    title_bypassed,
-};
+use boot::{FALLBACK_SPAWN_CELL, FALLBACK_SPAWN_MAP, title_bypassed};
 use camp::CampMenu;
 use cutscene::{CutsceneLayer, PresentationState};
 use dialogue::DialogueWindow;
-use input::{read_input, requested_save_slot};
-use save_dir::{presented_save_slots, save_directory};
+use input::requested_save_slot;
+use save_dir::save_directory;
 use shop::ShopWindow;
 use transitions::TransitionKind;
 use view::{NpcNode, SheetView};
 
 use psiv_core::{Cell, Direction, StepFrames};
 use psiv_data::GameData;
-use psiv_runtime::{FrameMode, Pad, Runtime, Session};
+use psiv_runtime::{
+    FrameMode, GameOverFrame, Pad, Runtime, SaveStore, Session, TitleEntry, TitleFrame,
+};
 use psiv_sound::SAMPLE_RATE;
 
 struct PsivExtension;
@@ -57,12 +56,32 @@ unsafe impl ExtensionLibrary for PsivExtension {}
 
 pub(crate) const CELL_PIXELS: f32 = 16.0;
 
-/// A session over `runtime`, configured the way the shell runs every session:
-/// the title's START and CONTINUE build theirs through here too.
+/// A session over `runtime`, configured the way the shell runs every session.
 pub(crate) fn new_session(runtime: Runtime) -> Session {
-    let mut session = Session::new(runtime);
+    configure_session(Session::new(runtime))
+}
+
+/// The shell's configuration of a session it did not build itself: the run's
+/// save directory, and the debug switches.
+///
+/// The runtime's fixtures (`psiv_runtime::camp_fixture`, `scene_fixture`) hand
+/// back a session of their own, and the title's START and CONTINUE build their
+/// runtime inside the session: the directory policy and the harness switches
+/// are the shell's, so they are applied here, once, and the session keeps them.
+pub(crate) fn configure_session(mut session: Session) -> Session {
+    match save_directory() {
+        Ok(directory) => session.set_save_store(SaveStore::new(directory)),
+        Err(error) => godot_error!("save slot scan refused: {error}"),
+    }
     session.set_scene_dialogue_autoclose(scene_dialogue_autoclose());
+    session.set_title_autostart(title_autostart());
     session
+}
+
+/// `PSIV_DEBUG_TITLE_AUTOSTART=1`: the title walks its own phases to START, so
+/// the new-game handoff is testable without an input device.
+fn title_autostart() -> bool {
+    std::env::var("PSIV_DEBUG_TITLE_AUTOSTART").is_ok_and(|value| value == "1")
 }
 
 /// Oracle tapes hold Speak for four frames for a dismissal edge.  Retail
@@ -96,18 +115,19 @@ fn event_battle_music(index: u16) -> Option<u8> {
 
 /// Loads the slot named by `PSIV_LOAD_SLOT` for the field boot path.
 ///
-/// A scripted run without `PSIV_SAVE_DIR` is refused before any filesystem
-/// access; the caller starts a new game instead of reading a directory the
+/// The load goes through the same [`SaveStore`] the session's CONTINUE uses;
+/// a scripted run without `PSIV_SAVE_DIR` is refused before any filesystem
+/// access, and the caller starts a new game instead of reading a directory the
 /// run did not name.
 fn load_requested_slot(data: &GameData, slot: usize) -> Option<Runtime> {
-    let directory = match save_directory() {
-        Ok(directory) => directory,
+    let store = match save_directory() {
+        Ok(directory) => SaveStore::new(directory),
         Err(error) => {
             godot_error!("save boot for slot {} refused: {error}", slot + 1);
             return None;
         }
     };
-    match Runtime::load_slot(data.clone(), &directory, slot, StepFrames::default()) {
+    match store.load(data.clone(), slot, StepFrames::default()) {
         Ok(runtime) => {
             godot_print!("save boot: loaded slot {}", slot + 1);
             Some(runtime)
@@ -128,10 +148,10 @@ fn load_requested_slot(data: &GameData, slot: usize) -> Option<Runtime> {
 struct Field {
     base: Base<Node2D>,
     /// The game frame: the runtime, the dialogue window, the field's own input
-    /// rules and the battle loop. The shell sends it one pad per frame and
-    /// presents what comes back (`Session::frame`); the modes still listed
-    /// below reach the runtime through `runtime_mut` until their graph nodes
-    /// move them in.
+    /// rules, the battle loop, the title and a defeat's fade. The shell sends
+    /// it one pad per frame and presents what comes back (`Session::frame`);
+    /// nothing here can reach the runtime's mutators — the session's read-only
+    /// view is the whole surface a shell gets.
     session: Option<Session>,
     pack_dir: String,
     map_sprite: Option<Gd<Sprite2D>>,
@@ -319,41 +339,45 @@ impl INode2D for Field {
         let debug_event = std::env::var("PSIV_DEBUG_EVENT")
             .ok()
             .and_then(|value| u16::from_str_radix(value.trim().trim_start_matches("0x"), 16).ok());
-        let mut runtime =
-            match debug_camp_runtime(data.clone(), StepFrames::default()).or_else(|| {
-                debug_event.and_then(|event| {
-                    debug_scene_runtime(data.clone(), event, StepFrames::default())
-                })
-            }) {
-                Some(Ok(runtime)) => runtime,
-                Some(Err(error)) => {
+        let debug_camp = std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1");
+        // The fixtures are the runtime's (`psiv_runtime::camp_fixture`,
+        // `scene_fixture`): they build their own session from the retail
+        // initializer, so no shell ever needs a mutable runtime for one. The
+        // slot load stays the fallback behind them, and it stays lazy: a debug
+        // run must not touch a save directory it never asked for.
+        let mut session = if debug_camp {
+            match psiv_runtime::camp_fixture(data.clone(), StepFrames::default()) {
+                Ok(session) => configure_session(session),
+                Err(error) => {
                     godot_error!("debug scene runtime failed: {error}");
                     return;
                 }
-                None => {
-                    // The slot load is the fallback behind both debug
-                    // runtimes, so it stays lazy: a debug run must not touch
-                    // a save directory it never asked for.
-                    let booted_slot =
-                        requested_slot.and_then(|slot| load_requested_slot(&data, slot));
-                    match booted_slot {
-                        Some(runtime) => runtime,
-                        None => match Runtime::new(
-                            data,
-                            spawn_map,
-                            spawn_cell,
-                            spawn_facing,
-                            StepFrames::default(),
-                        ) {
-                            Ok(rt) => rt,
-                            Err(e) => {
-                                godot_error!("runtime failed to start: {e}");
-                                return;
-                            }
-                        },
+            }
+        } else if let Some(Ok(session)) = debug_event.and_then(|event| {
+            psiv_runtime::scene_fixture(data.clone(), event, StepFrames::default())
+        }) {
+            configure_session(session)
+        } else {
+            let booted_slot = requested_slot
+                .and_then(|slot| load_requested_slot(&data, slot))
+                .map(new_session);
+            match booted_slot {
+                Some(session) => session,
+                None => match Runtime::new(
+                    data,
+                    spawn_map,
+                    spawn_cell,
+                    spawn_facing,
+                    StepFrames::default(),
+                ) {
+                    Ok(rt) => new_session(rt),
+                    Err(e) => {
+                        godot_error!("runtime failed to start: {e}");
+                        return;
                     }
-                }
-            };
+                },
+            }
+        };
         let debug_vehicle = std::env::var("PSIV_DEBUG_VEHICLE_INDEX")
             .ok()
             .or_else(|| std::env::var("PSIV_DEBUG_VEHICLE").ok())
@@ -361,14 +385,14 @@ impl INode2D for Field {
             .filter(|index| (1..=3).contains(index))
             .or_else(|| std::env::var_os("PSIV_DEBUG_VEHICLE_BATTLE").map(|_| 1));
         if let Some(index) = debug_vehicle {
-            if let Err(error) = runtime.set_vehicle_index(index) {
+            if let Err(error) = session.debug_mount_vehicle(index) {
                 godot_error!("debug vehicle selector {index} failed: {error}");
                 return;
             }
             let name = psiv_core::profile(index).map_or("UNKNOWN", |profile| profile.name);
             godot_print!("debug: {name} mounted (Vehicle_Index={index})");
         }
-        self.configure_battles(&mut runtime);
+        self.configure_battles(&mut session);
 
         let mut map_sprite = Sprite2D::new_alloc();
         map_sprite.set_centered(false);
@@ -399,13 +423,14 @@ impl INode2D for Field {
         camera.make_current();
         self.camera = Some(camera);
 
-        // The title is additive presentation over the existing runtime. All
-        // explicit save/debug selectors keep their fast paths and never pay
-        // the retail front-door delay.
+        // The title is additive presentation over the existing runtime, and
+        // the session owns its flow: this only puts the session at the front
+        // door and builds the nodes. All explicit save/debug selectors keep
+        // their fast paths and never pay the retail front-door delay.
         if !title_bypassed() {
-            let slots = presented_save_slots(runtime.data());
+            session.start_title();
             let pack_dir = self.pack_dir.clone();
-            self.title = title::TitleScreen::build(&pack_dir, slots, self.base_mut());
+            self.title = title::TitleScreen::build(&pack_dir, self.base_mut());
         }
 
         let mut window = DialogueWindow::new_alloc();
@@ -414,7 +439,7 @@ impl INode2D for Field {
         // geometry the open animation counts in) are the runtime's, the art is
         // the node's. Every runtime has the pack, so there is nothing to load
         // or check here.
-        let set = runtime.dialogue_pack();
+        let set = session.runtime().dialogue_pack();
         self.presentation.configure_dialogue_trees(set);
         window.bind_mut().configure(&self.pack_dir, set);
         window.set_z_index(30);
@@ -445,16 +470,16 @@ impl INode2D for Field {
         self.base_mut().add_child(&cutscene_layer);
         self.cutscene_layer = Some(cutscene_layer);
 
-        let ready_map = runtime.map_id().0;
-        let ready_cell = runtime.state().cell();
-        let sound_bank = match audio::sound_bank_from_data(runtime.data().sound()) {
+        let ready_map = session.runtime().map_id().0;
+        let ready_cell = session.runtime().state().cell();
+        let sound_bank = match audio::sound_bank_from_data(session.runtime().data().sound()) {
             Ok(bank) => bank,
             Err(error) => {
                 godot_error!("sound records failed to resolve: {error}");
                 psiv_sound::SoundBank::default()
             }
         };
-        self.session = Some(new_session(runtime));
+        self.session = Some(session);
         let mut audio = audio::AudioOutput::new(sound_bank);
         let debug_audio = audio.has_debug_override();
         self.base_mut().add_child(audio.node());
@@ -486,17 +511,18 @@ impl INode2D for Field {
         self.tick_transition();
         self.tick_red_palette();
         self.tick_cutscene_presentation();
-        // The modes that are still the shell's are checked in front of the
-        // game frame, in the order the old dispatcher checked them. Each one
-        // names the campaign-runner node that moves it into the session; the
-        // battle is not among them any more (S3), so `drive_battle_if_active`
-        // below is the stage, not the fight.
-        if self.drive_title() {
-            return; // S5
-        }
-        self.service_field_notices();
-        if self.drive_game_over() {
-            return; // S5
+        // The modes the session owns are presented in the order the shell's own
+        // dispatcher ran them: the title first (its driver ran before the field
+        // notices, the battle stage and the field), then the battle stage, then
+        // the field frame — which may itself be the defeat fade or the frame a
+        // defeated game's title comes back on.
+        if self
+            .session
+            .as_ref()
+            .is_some_and(|session| session.title().is_some())
+        {
+            self.drive_title_frame();
+            return;
         }
         let battle_was_active = self.battle_presentation_active();
         self.debug_hooks_tick();
@@ -505,13 +531,19 @@ impl INode2D for Field {
             self.start_transition(TransitionKind::BattleEntry);
         }
 
-        if self.drive_battle_if_active() {
+        // The stage is driven unless a defeat's fade owns the frames: the
+        // screen stays visible through it, and the session's game-over mode is
+        // what says so — not the screen's own visibility. The static debug
+        // fixtures (no session battle behind the screen) keep their stage.
+        let fade_owns_frame = self.session.as_ref().is_some_and(Session::game_over_active);
+        if self.battle_presentation_active() && !fade_owns_frame {
+            self.drive_battle_if_active();
             // The battle stage owns the frame: the session ran the fight
-            // inside `drive_game_frame`, and this pass advanced the art clocks
-            // and closed the stage if the runtime said so. The debug battle
-            // receipt is sampled after it: the 19-tick seed plus the 170
-            // updates before tick 200 become the 171 elapsed clock updates the
-            // oracle receipt models.
+            // inside `drive_battle_frame`, and this pass advanced the art
+            // clocks and closed the stage if the runtime said so. The debug
+            // battle receipt is sampled after it: the 19-tick seed plus the
+            // 170 updates before tick 200 become the 171 elapsed clock updates
+            // the oracle receipt models.
             self.capture_debug_shot();
             // Battle close is the other retail restore edge. Scene battles
             // carry Saved_Sound_Index; ordinary battles fall back to the
@@ -531,25 +563,131 @@ impl INode2D for Field {
 }
 
 impl Field {
+    /// One frame of the front door: the session's title mode, presented.
+    ///
+    /// The session owns the phases, the rows and the slot rules; this rebuilds
+    /// the nodes when the title appears (a power-on or a defeat) and applies
+    /// what came back: the view, the erase's log line, the failure's, and the
+    /// handoff when START or CONTINUE entered the game.
+    fn drive_title_frame(&mut self) {
+        let pad = self.frame_pad();
+        let Some(frame) = self.session.as_mut().map(|session| session.frame(pad)) else {
+            return;
+        };
+        let Some(title) = frame.title else {
+            return;
+        };
+        self.present_title(title);
+    }
+
+    /// Presents one title frame.
+    fn present_title(&mut self, frame: TitleFrame) {
+        if self.title.is_none() {
+            let pack_dir = self.pack_dir.clone();
+            self.title = title::TitleScreen::build(&pack_dir, self.base_mut());
+        }
+        if let Some(view) = frame.view {
+            let camera = self.camera.as_ref().map(|node| node.get_position());
+            if let Some(screen) = self.title.as_mut() {
+                if let Some(center) = camera {
+                    screen.reposition(center);
+                }
+                screen.present(&view);
+            }
+            let ticks = view.ticks;
+            let anim_tick = self.anim_tick;
+            title::title_debug_shot(self, anim_tick, ticks);
+        }
+        if let Some(erased) = frame.erased {
+            match erased {
+                psiv_runtime::TitleErase::Erased { slot, path } => {
+                    godot_print!("title: erased save slot {} ({path})", slot + 1);
+                }
+                psiv_runtime::TitleErase::Failed { slot, error } => {
+                    godot_error!("title: ERASE DATA slot {} failed: {error}", slot + 1);
+                }
+            }
+        }
+        if let Some(failure) = frame.failure {
+            match failure {
+                psiv_runtime::TitleFailure::NewGame(error) => {
+                    godot_error!("title: new game failed to build: {error}");
+                }
+                psiv_runtime::TitleFailure::Continue { slot, error } => {
+                    godot_error!(
+                        "title: CONTINUE slot {} failed validation: {error}",
+                        slot + 1
+                    );
+                }
+            }
+        }
+        if let Some(entry) = frame.entered {
+            self.finish_title_entry(entry);
+        }
+    }
+
+    /// START or CONTINUE entered the game: the session already built the
+    /// runtime and armed the battle pack, so this only takes the front door
+    /// down and shows the field, in the order the shell's own title driver had.
+    fn finish_title_entry(&mut self, entry: TitleEntry) {
+        match entry {
+            TitleEntry::Started { event_started } => {
+                godot_print!("title: START — new game, firing Event_GameStart");
+                self.load_map_visuals();
+                self.sync_visuals(false);
+                if event_started {
+                    self.presentation.reset_scene();
+                    self.set_letterbox(true);
+                } else {
+                    godot_error!("title: Event_GameStart did not start");
+                }
+            }
+            TitleEntry::Continued { slot } => {
+                godot_print!("title: CONTINUE loaded slot {}", slot + 1);
+                self.load_map_visuals();
+                self.play_map_music();
+                self.sync_visuals(false);
+            }
+        }
+        self.start_transition(TransitionKind::GameStart);
+        // A later game over builds a new title. Release the old nodes instead
+        // of accumulating hidden copies.
+        if let Some(screen) = self.title.take() {
+            screen.dispose();
+        }
+    }
+
+    /// Presents the defeat fade and, on its last frame, the title it restores.
+    fn present_game_over(&mut self, game_over: Option<GameOverFrame>) {
+        let Some(fade) = game_over else {
+            return;
+        };
+        if fade.frames == 0 {
+            self.start_transition(TransitionKind::SceneFadeOut);
+            return;
+        }
+        if !fade.title_restored {
+            return;
+        }
+        if let Some(screen) = self.battle_screen.as_mut() {
+            screen.hide();
+        }
+        self.battle_field_visibility = None;
+        self.presentation.reset_scene();
+        if let Some(layer) = self.cutscene_layer.as_mut() {
+            layer.bind_mut().end_opening();
+            layer.bind_mut().panel_destroy_all();
+        }
+        self.set_letterbox(false);
+        self.play_sound(0xFB);
+        godot_print!("game over: title restored; saved slots unchanged");
+    }
+}
+
+impl Field {
     /// The runtime behind the session, for what the shell reads.
     pub(crate) fn runtime(&self) -> Option<&Runtime> {
         self.session.as_ref().map(Session::runtime)
-    }
-
-    /// The runtime behind the session, for the modes that are still the
-    /// shell's — title and game over (S5). A gameplay
-    /// frame goes through `Session::frame` instead, battle included.
-    pub(crate) fn runtime_mut(&mut self) -> Option<&mut Runtime> {
-        self.session.as_mut().map(Session::runtime_mut)
-    }
-
-    /// Blocks the field's confirm press until the pad releases it, for the
-    /// shell modes that hand the field back: the press that closed a camp menu
-    /// or left the game-over fade must not read as a talk.
-    pub(crate) fn block_accept(&mut self) {
-        if let Some(session) = self.session.as_mut() {
-            session.block_accept();
-        }
     }
 
     /// The game frame: everything the shell does not own.
@@ -571,11 +709,32 @@ impl Field {
         let Some(frame) = self.session.as_mut().map(|session| session.frame(pad)) else {
             return;
         };
+        // A field-status window the session opened this frame: its own retail
+        // lines, logged where the shell's notice service logged them.
+        if let Some(notice) = &frame.notice {
+            godot_print!("field status: {}", notice.lines.join(" "));
+        }
         match frame.mode {
             // A battle-mode frame here is the field frame a battle began on;
             // the battle loop's own frames go through `drive_battle_if_active`.
             FrameMode::Field | FrameMode::Battle => self.present_frame(frame),
             FrameMode::Shop | FrameMode::Camp => self.present_menu_frame(frame),
+            // The defeat fade, and the frame its last count hands the title
+            // back on: the picture comes down and the front door's nodes go up
+            // in the same frame the shell's own game-over driver did it.
+            FrameMode::GameOver => {
+                self.present_game_over(frame.game_over);
+                if let Some(title) = frame.title {
+                    self.present_title(title);
+                }
+            }
+            // Unreachable while the title owns its frames — the dispatcher
+            // drives those above — but the frame still carries the view.
+            FrameMode::Title => {
+                if let Some(title) = frame.title {
+                    self.present_title(title);
+                }
+            }
         }
     }
 

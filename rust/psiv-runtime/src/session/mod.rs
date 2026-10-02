@@ -1,31 +1,45 @@
 //! The session: the cartridge's main loop, one 60 Hz frame at a time.
 //!
 //! [`Session`] owns the [`Runtime`] and the frame's own state — the dismiss
-//! latch, the previous pad and the menu modes — and its whole input surface is
-//! one joypad byte per frame: [`Session::frame`]. Everything the field, a scene,
-//! the message box, a shop and the camp do to a frame is decided here, in the
-//! cartridge's order. A frame belongs to one mode:
+//! latch, the previous pad, the save store and the modes — and its whole input
+//! surface is one joypad byte per frame: [`Session::frame`]. Everything the
+//! field, a scene, the message box, a shop, the camp, the title and a defeat
+//! do to a frame is decided here, in the cartridge's order. A frame belongs to
+//! one mode:
 //!
 //! ```text
+//! the title            the front door's phases and its rows       (title.rs)
+//! the defeat fade      fourteen frames that gate the title's return
 //! shop or inn window   the counter's pages own the pad            (shop.rs)
 //! camp menu, a chest   the camp's pages own the pad               (camp/)
 //! a battle             the menu, the beats, the epilogue          (battle/)
-//! the field            1. the dialogue window's input half
-//!                      2. a pending `$F6`
-//!                      3. the field, or the scene — starved of input while a
+//! the field            1. the field-status windows a defeat queues
+//!                      2. the dialogue window's input half
+//!                      3. a pending `$F6`
+//!                      4. the field, or the scene — starved of input while a
 //!                         window is up, or while the story owns the party
-//!                      4. the events that open windows: a talk, a counter, a
+//!                      5. the events that open windows: a talk, a counter, a
 //!                         scene's line, a choice, "nothing here"
-//!                      5. the window's own half
+//!                      6. the window's own half
 //! ```
 //!
 //! A window that is up owns the frame before either menu may open, and a chest
 //! the field opened pre-empts the camp, as the shell's old dispatcher ordered
 //! them. The shell that draws the game sends the pad and presents what comes
-//! back: it decides nothing about game state. The modes that are still the
-//! shell's — title and game over — are checked in front of this frame and named
-//! in `psiv-godot/src/lib.rs`; `docs/campaign/CAMPAIGN_RUNNER.md`'s node S5
-//! moves them in.
+//! back: it decides nothing about game state, and it has no way to reach one —
+//! [`Session::runtime`] hands out a `&Runtime` and the runtime's mutators are
+//! crate-private.
+//!
+//! # The front door
+//!
+//! Retail powers on into the title (`MainGameProgram`, `ps4.asm:86190`), so a
+//! session that starts at the front door is put there by the shell
+//! ([`Session::start_title`]), and START, CONTINUE and ERASE DATA complete
+//! here: the title's own module owns the rows, the slot rules and the erase
+//! confirmation, and the session builds the runtime each choice asks for
+//! through [`Session::new_game`] and [`Session::continue_save`]. A defeat ends
+//! the same way: [`Runtime::game_over`] hands the session to the fade and the
+//! fade hands it back to the title.
 //!
 //! # The battle
 //!
@@ -47,7 +61,10 @@
 //! half before those events were applied would move the box one frame later — a
 //! timing change the presentation certification would see. The session applies
 //! the opening events itself (`route.rs`) for that reason, and reports
-//! what it opened in [`Frame::routed`] for the shell's diagnostics.
+//! what it opened in [`Frame::routed`] for the shell's diagnostics. The
+//! field-status windows a defeat queues open at the *top* of the frame for the
+//! same reason: the shell's old dispatcher serviced them before everything
+//! else, and the box's first input half lands on the frame it opened.
 //!
 //! # What is not here
 //!
@@ -59,31 +76,69 @@
 //! comes to rest (`psiv-core/src/field.rs`, `FieldState::tick`). A second latch
 //! for those two would be a second answer to a question both already answer.
 //!
+//! # The boundary
+//!
+//! `psiv-godot` presents and sends input; it decides nothing about game state.
+//! Every path a shell once had into the runtime's mutators goes through this
+//! session or is gone: the session's own save store replaces the shell's slot
+//! writes, the debug fixtures build their sessions here (`session/debug.rs`),
+//! and the runtime's mutators are crate-private. A shell that tries to mutate
+//! a frame of game fails to build:
+//!
+//! ```compile_fail
+//! # fn shell(session: &mut psiv_runtime::Session) {
+//! session.runtime().tick(psiv_core::Input::Neutral);
+//! # }
+//! ```
+//!
+//! The same reference cannot reach any other state-changing method either:
+//!
+//! ```compile_fail
+//! # fn shell(session: &mut psiv_runtime::Session) {
+//! session.runtime().close_dialogue();
+//! # }
+//! ```
+//!
 //! [`DialogueRunner`]: crate::dialogue::DialogueRunner
 
 mod battle;
 mod camp;
+mod debug;
+#[cfg(test)]
+mod debug_tests;
+mod game_over;
+mod notices;
 mod route;
+mod saves;
 mod shop;
+mod title;
 
 pub use battle::{
     BATTLE_DWELL_FRAMES, BattleBeat, BattleFrame, BattleStart, BattleView, BeatView,
     CommandMenuView, DamageView, EnemyStatus, MenuPage, MenuRow, MenuView, MessageKind,
     PartyStatus, SkillEntry, SkillSlotView, TargetKind, TechniqueEntry, battle_dwell_frames,
 };
+pub use debug::{camp_fixture, scene_fixture};
+pub use game_over::{GAME_OVER_FADE_FRAMES, GameOverFrame};
+pub use notices::FieldNoticeOpened;
+pub use title::{
+    TitleEntry, TitleErase, TitleFailure, TitleFrame, TitlePhase, TitleView, TitleWindow,
+};
 
 use psiv_core::{Cell, Input};
+use psiv_data::BattleFiles;
 
 use crate::dialogue::DialogueSignal;
-use crate::events::BattleTimeline;
-use crate::pad::{Button, Pad};
+use crate::pad::Pad;
+use crate::save::SaveStore;
 use crate::{NpcDialogueOpen, Runtime, RuntimeEvent, SceneDialogueOpen};
 
 pub use camp::{CampPage, CampView, OrderDraft, ROOT_OPTIONS};
 pub use shop::{ShopCounterView, ShopOwnedItem, ShopPage, ShopStock, ShopView};
 
 use battle::BattleMode;
-use camp::MenuInput;
+use game_over::GameOverMode;
+use title::TitleMode;
 
 /// A `$F6` the dialogue fired, and whether its scene began.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,6 +163,10 @@ pub enum FrameMode {
     Camp,
     /// The battle loop, including the frame it began and the frame it closed.
     Battle,
+    /// The title, including the frame a defeat's fade restored it on.
+    Title,
+    /// The defeat fade, before the title comes back.
+    GameOver,
 }
 
 /// Which loop owns the frame.
@@ -116,6 +175,10 @@ enum Mode {
     Field,
     /// The battle loop, with its own menu, beats and epilogue.
     Battle(Box<BattleMode>),
+    /// Retail's front door: the phases, the option rows and the slot lists.
+    Title(Box<TitleMode>),
+    /// The defeat fade that gates the title's return.
+    GameOver(Box<GameOverMode>),
 }
 
 /// A window the session opened this frame, for the shell's diagnostics and the
@@ -168,6 +231,15 @@ pub enum Routed {
     SceneChoice,
 }
 
+/// The camp's SAVE failure, on the frame the write failed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CampSaveFailure {
+    /// The visible slot the SAVE page picked, zero-based.
+    pub slot: usize,
+    /// Why the write failed.
+    pub error: String,
+}
+
 /// What one frame produced, in the order the frame produced it.
 #[derive(Debug, Default)]
 pub struct Frame {
@@ -199,18 +271,32 @@ pub struct Frame {
     pub menu_events: Vec<RuntimeEvent>,
     /// The sound effect a menu asked for this frame.
     pub sound: Option<u8>,
-    /// The save slot the camp's SAVE picked this frame. Writing a file is the
-    /// shell's (it owns the save directory and its policy); it answers with
-    /// [`Session::finish_camp_save`], which sets the result line the page shows.
-    pub save_request: Option<usize>,
+    /// The field-status window the session opened this frame, which the shell
+    /// logs.
+    pub notice: Option<FieldNoticeOpened>,
+    /// The camp's SAVE when its write failed this frame. The session owns the
+    /// store, so the write is no longer a request the shell answers; this is
+    /// its only report, and it carries what the shell's log line said.
+    pub camp_save_error: Option<CampSaveFailure>,
     /// The battle's own frame while a battle owns the session, including the
     /// frame one began on.
     pub battle: Option<BattleFrame>,
+    /// The title's own frame while the title owns the session.
+    pub title: Option<TitleFrame>,
+    /// The defeat fade's frame, with the title on the frame it restores it.
+    pub game_over: Option<GameOverFrame>,
 }
 
 /// The cartridge's main loop: the runtime, the latches, the modes and one frame.
 pub struct Session {
     runtime: Runtime,
+    /// The run's save store, when the shell resolved a directory for it. A
+    /// session without one refuses every slot operation (`saves.rs`).
+    save_store: Option<SaveStore>,
+    /// The battle pack, once the shell enabled it: a START or CONTINUE that
+    /// builds a fresh runtime enables it on the new one, so a session never
+    /// silently loses battles across a front-door choice.
+    battle_files: Option<BattleFiles>,
     /// Set while a dialogue is open and until the confirm press is released
     /// after it closes.
     ///
@@ -224,8 +310,13 @@ pub struct Session {
     camp: Option<CampView>,
     /// The debug harness's switch: scene lines are acknowledged unseen.
     scene_dialogue_autoclose: bool,
+    /// The debug harness's switch: the title walks itself to START.
+    title_autostart: bool,
+    /// The field-status window that has been shown and is waiting to be read.
+    notice_open: bool,
     /// Which loop owns the frame. A battle is entered by the frame that starts
-    /// it and left by the frame its presentation closes on.
+    /// it and left by the frame its presentation closes on; the title is
+    /// entered by the shell or by the fade that follows a defeat.
     mode: Mode,
 }
 
@@ -233,22 +324,33 @@ impl Session {
     /// A session over `runtime`, ready for its first frame.
     #[must_use]
     pub fn new(runtime: Runtime) -> Session {
+        Session::over(runtime, None)
+    }
+
+    /// A session whose save I/O goes through `store`: the run directory the
+    /// shell resolved (`rust/psiv-godot/src/save_dir.rs`).
+    ///
+    /// The store is not a convenience: a session without one refuses CONTINUE,
+    /// ERASE DATA and the camp's SAVE rather than falling back to a directory
+    /// the run never named.
+    #[must_use]
+    pub fn with_saves(runtime: Runtime, store: SaveStore) -> Session {
+        Session::over(runtime, Some(store))
+    }
+
+    fn over(runtime: Runtime, save_store: Option<SaveStore>) -> Session {
         Session {
             runtime,
+            save_store,
+            battle_files: None,
             accept_blocked: false,
             prev_pad: Pad::NEUTRAL,
             shop: None,
             camp: None,
             scene_dialogue_autoclose: false,
+            title_autostart: false,
+            notice_open: false,
             mode: Mode::Field,
-        }
-    }
-
-    /// Answers a [`Frame::save_request`]: the camp's SAVE page shows the
-    /// result line.
-    pub fn finish_camp_save(&mut self, result: Result<(), String>) {
-        if let Some(camp) = self.camp.as_mut() {
-            camp.finish_save(result);
         }
     }
 
@@ -258,25 +360,47 @@ impl Session {
         self.scene_dialogue_autoclose = on;
     }
 
+    /// The debug harness's switch: with it on, the title walks its phases with
+    /// synthetic accepts and selects START, so the new-game handoff is
+    /// testable without an input device (`PSIV_DEBUG_TITLE_AUTOSTART`).
+    pub fn set_title_autostart(&mut self, on: bool) {
+        self.title_autostart = on;
+    }
+
     /// Advances one frame with this frame's joypad byte.
     pub fn frame(&mut self, pad: Pad) -> Frame {
         let pressed = pad.pressed(self.prev_pad);
         self.prev_pad = pad;
-        if let Mode::Battle(_) = self.mode {
-            return self.battle_frame(pad);
+        // The title owns every frame it is up: the shell's own title driver
+        // ran in front of the field-status windows and the battle stage too.
+        if let Mode::Title(_) = self.mode {
+            return self.title_frame(pad);
         }
-        // A window that is already up owns the frame, so neither menu runs
-        // under one — the old dispatcher reached them only after the window
-        // branch had returned.
-        if !self.runtime.dialogue_open() {
-            if self.shop.is_some() {
-                return self.shop_frame(pad, pressed);
-            }
-            if let Some(frame) = self.camp_frame(pressed) {
-                return frame;
-            }
-        }
-        self.field_frame(pad)
+        // The field-status windows a defeat queues are serviced before
+        // everything else, the point the shell's own service ran at: the box
+        // that opens here takes its first input half on this same frame.
+        let notice = self.serve_field_notice();
+        let mut frame = if let Mode::GameOver(_) = self.mode {
+            self.game_over_frame()
+        } else if let Mode::Battle(_) = self.mode {
+            self.battle_frame(pad)
+        } else if self.runtime.game_over() {
+            // A defeat's boundary. The runtime cleared the scene and the
+            // notices when it ended, so nothing else runs until the title is
+            // back — not the field, not the shared seed.
+            self.mode = Mode::GameOver(Box::new(GameOverMode::new()));
+            self.game_over_frame()
+        } else if !self.runtime.dialogue_open() && self.shop.is_some() {
+            self.shop_frame(pad, pressed)
+        } else if !self.runtime.dialogue_open()
+            && let Some(frame) = self.camp_frame(pressed)
+        {
+            frame
+        } else {
+            self.field_frame(pad)
+        };
+        frame.notice = notice;
+        frame
     }
 
     /// One frame of the battle loop.
@@ -297,12 +421,19 @@ impl Session {
         // The battle is over: the field takes the next frame back. A finished
         // battle returns through the map refresh the cartridge runs before
         // revealing the field; a defeat leaves it pending, because the
-        // game-over fade owns every frame from here.
-        let events = if self.runtime.game_over() {
-            Vec::new()
-        } else {
-            self.runtime.return_to_field()
-        };
+        // game-over fade owns every frame from here — it begins on this frame,
+        // the frame the defeated message's stage closes on, exactly as the
+        // shell's own battle driver began it.
+        if self.runtime.game_over() {
+            self.mode = Mode::GameOver(Box::new(GameOverMode::new()));
+            return Frame {
+                mode: FrameMode::Battle,
+                battle: Some(battle),
+                game_over: Some(self.game_over_frame_first()),
+                ..Frame::default()
+            };
+        }
+        let events = self.runtime.return_to_field();
         let (events, routed) = self.route(events);
         Frame {
             mode: FrameMode::Battle,
@@ -310,6 +441,15 @@ impl Session {
             routed,
             battle: Some(battle),
             ..Frame::default()
+        }
+    }
+
+    /// The fade's first frame, taken without running the mode: the frame the
+    /// battle's defeat ended on carries it beside the battle's own frame.
+    fn game_over_frame_first(&mut self) -> GameOverFrame {
+        match &mut self.mode {
+            Mode::GameOver(mode) => mode.frame(),
+            _ => unreachable!("the fade was just installed"),
         }
     }
 
@@ -384,147 +524,6 @@ impl Session {
         }
     }
 
-    /// Starts the battle this frame's events asked for, if they asked for one.
-    ///
-    /// An `EncounterRolled` is the runtime's own battle to start; a
-    /// `SceneBattleStarted` is one the scene runner already started, and the
-    /// event carries its opening timeline. A battle that cannot start leaves
-    /// the field in control and reports the reason as a fault for the shell to
-    /// log — the same "no battle this frame" the shell's own error paths
-    /// produced.
-    fn begin_battle(&mut self, events: &[RuntimeEvent]) -> Option<BattleFrame> {
-        let start = events.iter().find_map(|event| match event {
-            RuntimeEvent::EncounterRolled { formation } => Some(BattleStart::Encounter(*formation)),
-            RuntimeEvent::SceneBattleStarted { index, .. } => {
-                Some(BattleStart::EventBattle(*index))
-            }
-            _ => None,
-        })?;
-        let timeline = match start {
-            BattleStart::Encounter(formation) => match self.start_encounter(formation) {
-                Ok(timeline) => timeline,
-                Err(fault) => {
-                    return Some(BattleFrame {
-                        view: None,
-                        started: None,
-                        fault: Some(fault),
-                    });
-                }
-            },
-            BattleStart::EventBattle(_) => {
-                let Some(RuntimeEvent::SceneBattleStarted {
-                    events,
-                    sounds,
-                    animations,
-                    ..
-                }) = events
-                    .iter()
-                    .find(|event| matches!(event, RuntimeEvent::SceneBattleStarted { .. }))
-                else {
-                    return None;
-                };
-                BattleTimeline {
-                    events: events.clone(),
-                    sounds: sounds.clone(),
-                    animations: animations.clone(),
-                }
-            }
-        };
-        let mut mode = BattleMode::begin(&self.runtime, timeline, start);
-        let frame = mode.start_frame(&self.runtime);
-        self.mode = Mode::Battle(Box::new(mode));
-        Some(frame)
-    }
-
-    /// Starts an encounter battle, or says why it cannot.
-    ///
-    /// The empty-party refusal is the shell's own (`encounter rolled formation
-    /// {formation:#05x} with an empty party`): a battle with nobody in it can
-    /// never end, so it must not start.
-    fn start_encounter(&mut self, formation: u16) -> Result<BattleTimeline, String> {
-        let party = self.runtime.battle_party();
-        if party.is_empty() {
-            return Err(format!(
-                "encounter rolled formation {formation:#05x} with an empty party"
-            ));
-        }
-        self.runtime
-            .start_battle_timeline(formation, party)
-            .map_err(|error| format!("could not start battle {formation:#05x}: {error}"))
-    }
-
-    /// One frame of the shop or inn window.
-    fn shop_frame(&mut self, pad: Pad, pressed: Pad) -> Frame {
-        let shop = self.shop.as_mut().expect("a shop frame has a shop");
-        if shop.frame(&mut self.runtime, pad, pressed) == shop::ShopOutcome::Closed {
-            self.shop = None;
-            self.runtime.set_field_suspended(false);
-            return Frame {
-                mode: FrameMode::Shop,
-                ..Frame::default()
-            };
-        }
-        self.runtime.set_field_suspended(true);
-        let events = self.runtime.tick(Input::Neutral);
-        let (events, routed) = self.route(events);
-        Frame {
-            mode: FrameMode::Shop,
-            events,
-            routed,
-            ..Frame::default()
-        }
-    }
-
-    /// One frame of the camp menu or a chest window; `None` when neither is up
-    /// or opens, and the field has the frame.
-    fn camp_frame(&mut self, pressed: Pad) -> Option<Frame> {
-        match self.camp.as_mut() {
-            None => {
-                self.camp = Some(if self.runtime.loot_state().is_some() {
-                    CampView::open_loot(&self.runtime)
-                } else if self.runtime.scene_active() || !pressed.held(Button::Camp) {
-                    return None;
-                } else {
-                    CampView::open(&self.runtime)
-                });
-            }
-            Some(camp) => {
-                camp.frame(&mut self.runtime, MenuInput::of(pressed));
-            }
-        }
-        let camp = self.camp.as_mut().expect("the camp is up");
-        let save_request = camp.take_save_request();
-        let drained = camp.finish_frame();
-        if drained.closed {
-            self.camp = None;
-            self.runtime.set_field_suspended(false);
-            // The press that closed the menu must not read as a talk.
-            self.accept_blocked = true;
-            return Some(Frame {
-                mode: FrameMode::Camp,
-                menu_events: drained.events,
-                sound: drained.sound,
-                save_request,
-                ..Frame::default()
-            });
-        }
-        self.runtime.set_field_suspended(true);
-        let events = self.runtime.tick(Input::Neutral);
-        let (events, routed) = self.route(events);
-        if let Some(camp) = self.camp.as_mut() {
-            camp.sync(&self.runtime);
-        }
-        Some(Frame {
-            mode: FrameMode::Camp,
-            events,
-            routed,
-            menu_events: drained.events,
-            sound: drained.sound,
-            save_request,
-            ..Frame::default()
-        })
-    }
-
     /// Opens the camp menu as the debug hook does, with no button. Refused
     /// while a scene runs, as the Camp button is.
     pub fn open_camp_menu(&mut self) -> bool {
@@ -554,20 +553,6 @@ impl Session {
         self.shop.as_ref()
     }
 
-    /// The camp menu or chest window, while it is up.
-    #[must_use]
-    pub fn camp_view(&self) -> Option<&CampView> {
-        self.camp.as_ref()
-    }
-
-    /// Blocks the confirm press until the pad releases it.
-    ///
-    /// The shell's own modes hand the field back this way: the press that left
-    /// the game-over fade must not read as a talk on the next field frame.
-    pub fn block_accept(&mut self) {
-        self.accept_blocked = true;
-    }
-
     /// Whether the battle loop owns this session's frames.
     #[must_use]
     pub fn battle_active(&self) -> bool {
@@ -589,77 +574,31 @@ impl Session {
         }
     }
 
-    /// Debug-selector family: starts `formation` as an ordinary encounter
-    /// battle from outside the field frame, which is what
-    /// `PSIV_DEBUG_BATTLE=<formation>` and `PSIV_DEBUG_VEHICLE_BATTLE` do.
-    ///
-    /// A real battle starts, so the capture that follows plays the same rounds
-    /// a player would; nothing about it is a fixture.
-    pub fn debug_battle(&mut self, formation: u16) -> BattleFrame {
-        match self.start_encounter(formation) {
-            Ok(timeline) => {
-                let mut mode =
-                    BattleMode::begin(&self.runtime, timeline, BattleStart::Encounter(formation));
-                let frame = mode.start_frame(&self.runtime);
-                self.mode = Mode::Battle(Box::new(mode));
-                frame
-            }
-            Err(error) => BattleFrame {
-                view: None,
-                started: None,
-                fault: Some(format!("debug battle {formation:#05x} refused: {error}")),
-            },
-        }
+    /// The camp menu or chest window, while it is up.
+    #[must_use]
+    pub fn camp_view(&self) -> Option<&CampView> {
+        self.camp.as_ref()
     }
 
-    /// Debug-selector family: the newly-exact probe of `PSIV_DEBUG_BATTLE=0x89`.
+    /// Blocks the confirm press until the pad releases it.
     ///
-    /// A real `formation` battle starts and its opening timeline is replaced by
-    /// `timeline`, so a decoded enemy attack can be watched on the live screen
-    /// without a command menu. The battle is real, which means the shared RNG
-    /// advances here where the old fixture's did not; no certified capture
-    /// covers this selector.
-    pub fn debug_battle_probe(&mut self, formation: u16, timeline: BattleTimeline) -> BattleFrame {
-        let party = self.runtime.battle_party();
-        if party.is_empty() {
-            return BattleFrame {
-                view: None,
-                started: None,
-                fault: Some(format!(
-                    "debug probe {formation:#05x} refused: the battle party is empty"
-                )),
-            };
-        }
-        match self.runtime.start_battle(formation, party) {
-            Ok(_) => {
-                let mut mode =
-                    BattleMode::begin(&self.runtime, timeline, BattleStart::Encounter(formation));
-                let frame = mode.start_frame(&self.runtime);
-                self.mode = Mode::Battle(Box::new(mode));
-                frame
-            }
-            Err(error) => BattleFrame {
-                view: None,
-                started: None,
-                fault: Some(format!("debug probe {formation:#05x} refused: {error}")),
-            },
-        }
+    /// The session's own modes hand the field back this way: the press that
+    /// closed a camp menu, left the game-over fade or opened the title must not
+    /// read as a talk on the next field frame. A driver that answers a window
+    /// outside the session's own flow — a replay harness handing the field back
+    /// after a fixture — uses it the same way.
+    pub fn block_accept(&mut self) {
+        self.accept_blocked = true;
     }
 
     /// The runtime, for presentation views.
     ///
     /// This is the read-only half of the session: what to draw, what to play,
-    /// where the party is. A frame of game goes through [`Session::frame`].
+    /// where the party is. A frame of game goes through [`Session::frame`], and
+    /// the runtime's mutators are crate-private, so a shell cannot reach one
+    /// through this reference (see the module's boundary doctests).
     #[must_use]
     pub fn runtime(&self) -> &Runtime {
         &self.runtime
-    }
-
-    /// The runtime, mutably, for the modes that are still the shell's — title
-    /// and game over. Each drives its own runtime calls today (a slot load, the
-    /// fade's reset), and node S5 moves them into this session, at which point
-    /// this accessor and its callers go away.
-    pub fn runtime_mut(&mut self) -> &mut Runtime {
-        &mut self.runtime
     }
 }

@@ -77,22 +77,28 @@ tracked.
 The empty SRAM capture opens a `14x3` window at `(13,12)` and decodes one
 option: `START` at `(16,13)`. A valid slot-0 SRAM capture opens the retail
 `14x7` window at `(13,10)` and decodes `CONTINUE`, `START`, and `ERASE DATA`
-at rows 11, 13, and 15 respectively. The title code gates `CONTINUE` on the
-same validated `Runtime::load_slot` path used by boot and exposes a three-slot
-picker that refuses empty slots. `ERASE DATA` opens the selected populated slot
-picker, asks `ARE YOU SURE?`, and on YES calls the retail-equivalent
-`Runtime::erase_slot` operation. It clears only that file's 0x1400-byte
-physical payload and leaves the 0x200-byte common header untouched; the erased
-slot is then removed from the title's available-slot view. The exact retail
-flow and byte boundary are recorded in [`SAVE_SCOUT.md`](../camp/SAVE_SCOUT.md).
+at rows 11, 13, and 15 respectively.
 
-`rust/psiv-godot/src/title.rs` renders the decoded assets at the 3x camera
-scale and drives Sega -> reveal -> Press Start -> menu. `boot.rs` preserves
-the fast paths for `PSIV_LOAD_SLOT`, `PSIV_DEBUG_BATTLE`, `PSIV_DEBUG_CAMP`,
-`PSIV_DEBUG_SHOP`, and `PSIV_DEBUG_SHOT`; those selectors never wait behind the
-retail front door. For visual QA only, `PSIV_DEBUG_TITLE_SHOT=1` opts an
-existing `PSIV_DEBUG_SHOT` capture into the title; ordinary debug screenshots
-continue to bypass the front door.
+The flow itself is the runtime's (`rust/psiv-runtime/src/session/title.rs`,
+node S5 of the [campaign runner](../campaign/CAMPAIGN_RUNNER.md)): the phases
+and their frame counts, the option rows and their buttons
+(`TitleRoutine_PickOption`, `ps4.asm:87455`), the three-row slot lists, the
+`ARE YOU SURE?` confirmation and the frames the winner-returns list keeps its
+default cursor. `CONTINUE` loads through the session's `SaveStore`, which is
+the same validated path the boot's `PSIV_LOAD_SLOT` uses; an empty row is
+refused with no state change at all (`ps4.asm:87678`). `ERASE DATA` asks about
+the selected populated slot and on YES zeroes only that file's 0x1400-byte
+physical payload, leaving the 0x200-byte common header untouched; the erased
+row then leaves the title's slot list. The exact retail flow and byte boundary
+are recorded in [`SAVE_SCOUT.md`](../camp/SAVE_SCOUT.md).
+
+`rust/psiv-godot/src/title.rs` is presentation only: it builds the decoded
+assets at the 3x camera scale and applies each frame's `TitleView`, which the
+session returns. `boot.rs` preserves the fast paths for `PSIV_LOAD_SLOT`,
+`PSIV_DEBUG_BATTLE`, `PSIV_DEBUG_CAMP`, `PSIV_DEBUG_SHOP`, and `PSIV_DEBUG_SHOT`;
+those selectors never wait behind the retail front door. For visual QA only,
+`PSIV_DEBUG_TITLE_SHOT=1` opts an existing `PSIV_DEBUG_SHOT` capture into the
+title; ordinary debug screenshots continue to bypass the front door.
 
 ## Exact-frame certification
 
@@ -101,7 +107,10 @@ the PSIV logo and subtitle are present, and the capture is within the fixed
 title hold. The oracle reference is
 `oracle/frames/title/frame_450.png`, SHA-256
 `8cebd30d62a7b5b0c3ad634ec6efc5ab6ab62e088d6166835d447c843df18c10`.
-The deterministic clone tick is **480** with `PSIV_DEBUG_TITLE_SHOT=1`:
+The deterministic clone tick is **480** with `PSIV_DEBUG_TITLE_SHOT=1` — the
+title's own 480th frame, which is 279 frames into the reveal's 300 (node S5
+moved that clock into the session and pins it in
+`rust/psiv-runtime/tests/session_title.rs`):
 
 ```sh
 GODOT=/home/peter/.local/bin/psiv-godot-4.7.1

@@ -24,8 +24,12 @@
 
 use psiv_data::{ShopCounter, ShopData};
 
+use psiv_core::Input;
+
 use crate::pad::{Button, Pad};
 use crate::{InnResult, Runtime, ShopBuyResult, ShopSellResult};
+
+use super::{Frame, FrameMode, Session};
 
 /// The page the shop window shows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -416,5 +420,29 @@ pub(crate) fn wrap(current: usize, count: usize, forward: bool) -> usize {
         count - 1
     } else {
         current - 1
+    }
+}
+
+impl Session {
+    /// One frame of the shop or inn window.
+    pub(crate) fn shop_frame(&mut self, pad: Pad, pressed: Pad) -> Frame {
+        let shop = self.shop.as_mut().expect("a shop frame has a shop");
+        if shop.frame(&mut self.runtime, pad, pressed) == ShopOutcome::Closed {
+            self.shop = None;
+            self.runtime.set_field_suspended(false);
+            return Frame {
+                mode: FrameMode::Shop,
+                ..Frame::default()
+            };
+        }
+        self.runtime.set_field_suspended(true);
+        let events = self.runtime.tick(Input::Neutral);
+        let (events, routed) = self.route(events);
+        Frame {
+            mode: FrameMode::Shop,
+            events,
+            routed,
+            ..Frame::default()
+        }
     }
 }

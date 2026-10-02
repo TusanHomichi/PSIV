@@ -2,8 +2,12 @@
 
 Scouted from the USA retail disassembly and the existing oracle tape on
 2026-08-16. The implementation lives in `rust/psiv-core/src/save.rs` and
-`rust/psiv-runtime/src/save.rs`; camp presentation owns only the modern STATE
-screen's SAVE row and slot chooser.
+`rust/psiv-runtime/src/save.rs`; the camp presentation owns only the modern
+STATE screen's SAVE row and slot chooser. Every slot operation — the title's
+slot list, CONTINUE, ERASE DATA and the camp's SAVE — runs inside the session
+through one `SaveStore` (`rust/psiv-runtime/src/session/saves.rs`), which the
+shell constructs with the directory its policy resolved
+(`rust/psiv-godot/src/save_dir.rs`, `PSIV_SAVE_DIR`).
 
 ## Evidence and menu flow
 

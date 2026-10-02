@@ -85,12 +85,14 @@ pub(super) struct FieldVisibility {
 }
 
 impl Field {
-    /// Enables the runtime battle seam and creates the presentation node.
+    /// Enables the session's battle seam and creates the presentation node.
+    ///
     /// Battle art is loaded by the node; battle data is loaded once here and
-    /// retained for formation names and positions when a battle starts.
-    pub(crate) fn configure_battles(&mut self, runtime: &mut Runtime) {
+    /// retained for formation names and positions when a battle starts, and the
+    /// session keeps it for every runtime its front door builds afterwards.
+    pub(crate) fn configure_battles(&mut self, session: &mut Session) {
         match BattleFiles::load(std::path::Path::new(&self.pack_dir)) {
-            Ok(files) => match runtime.enable_battles(&files) {
+            Ok(files) => match session.enable_battles(&files) {
                 Ok(()) => self.battle_files = Some(files),
                 Err(error) => godot_error!("battle pack failed to enable: {error}"),
             },
@@ -258,6 +260,11 @@ impl Field {
         if let Some(battle) = frame.battle {
             self.present_battle_frame(battle);
         }
+        // The frame a defeat's battle closes on is also the fade's first
+        // frame: the same frame the shell's own battle driver began it on.
+        if let Some(game_over) = frame.game_over {
+            self.present_game_over(Some(game_over));
+        }
         frame.events
     }
 
@@ -328,8 +335,11 @@ impl Field {
     /// takes the frame back, with the events the session returned
     /// `MapRefreshed` through.
     fn end_battle_presentation(&mut self, events: Vec<RuntimeEvent>) {
+        // A defeat's fade owns the picture from here: the session entered its
+        // game-over mode on the frame the stage closed, and this stage keeps
+        // its last page on screen until the frame the title comes back
+        // (`present_game_over` takes it down there).
         if self.runtime().is_some_and(|rt| rt.game_over()) {
-            self.begin_game_over();
             return;
         }
         if let Some(screen) = self.battle_screen.as_mut() {
