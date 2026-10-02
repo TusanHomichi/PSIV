@@ -14,8 +14,10 @@ The [workflow](AGENT_WORKFLOW.md) defines node states, evidence and authority.
 The [post-Rika northern-crossing graph](field/TRAVEL.md#archived-northern-crossing-task-graph)
 is complete and archived. Ordinary Zema recovery, the Rika-opened bridge,
 SAVE and fresh-process CONTINUE pass on the frozen repaired candidate.
-There is no active implementation graph. The one next action is in
-[section 1](#1-continue-from-the-post-rika-checkpoint).
+
+The active graph is the [Aiedo arrival graph](campaign/AIEDO.md#5-aiedo-arrival-task-graph),
+opened 2026-09-25 from that ledger's route, condition and budget research. Its
+one next action, `AI-01`, is in [section 1](#1-continue-from-the-post-rika-checkpoint).
 
 The [workflow setup graph](records/WORKFLOW_SETUP.md#setup-graph) and
 [connected BioPlant graph](campaign/BIOPLANT_NATIVE.md#archived-bioplant-task-graph)
@@ -59,11 +61,12 @@ The new code requires the rebuilt full pack; exact candidate, pack, binary and
 check receipts are in the travel ledger. The pack, saves and captures remain
 local and ignored.
 
-**Next action:** establish the retail-backed ordinary-input route from this
-north-bank checkpoint to **Aiedo `$54`**, including its entry/story conditions
-and resource budget, then open one bounded graph for that arrival and normal
-SAVE/fresh CONTINUE. Do not advance into the Fort or restart archived model
-experiments as part of that gate.
+**Next action:** `AI-01` in the [Aiedo arrival graph](campaign/AIEDO.md#5-aiedo-arrival-task-graph) —
+freeze the ordinary-input driver and its run directory. The research that opened
+the graph is in the [Aiedo ledger](campaign/AIEDO.md): one unconditional warp,
+67 walking steps, no scene on the way or on arrival, no readiness gap that
+blocks the route, and a budget that needs no shopping or grinding. Do not
+advance into the Fort or restart archived model experiments as part of that gate.
 
 The exact 32×32 bridge match does not establish whole-scene visual parity,
 retail/native save-coordinate interchange, or later campaign progression.
