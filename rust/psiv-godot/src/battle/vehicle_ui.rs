@@ -1,54 +1,18 @@
 //! Retail vehicle command-menu data and drawing.
 
-use super::PartyPlacement;
+use psiv_runtime::SkillSlotView;
+
 use super::chrome::{BattleChrome, Quad, WindowRect};
 use super::layout::tile_dest;
 
 /// `VehicleAttackNames`, `ps4.asm:321193-321201`.
+///
+/// The name table is presentation: the runtime counts the record's slots
+/// (`SkillSlotView { id, current, max }`) and this module prints the id the
+/// cartridge's own table names.
 pub(super) const SKILL_NAMES: [&str; 8] = [
     "CLUSTER", "GRAVITN", "TH.GRID", "X-BURST", "NAPALM", "NOTHING", "N-SPHER", "NOTHING",
 ];
-
-#[derive(Clone, Copy)]
-pub(super) struct SkillSlot {
-    pub(super) id: u8,
-    pub(super) current: u8,
-    pub(super) max: u8,
-}
-
-pub(super) fn slots_for(party: &PartyPlacement) -> Vec<SkillSlot> {
-    party
-        .skills
-        .iter()
-        .copied()
-        .enumerate()
-        .filter(|(_, id)| *id != 0)
-        .map(|(slot, id)| SkillSlot {
-            id,
-            current: party.skill_uses[slot],
-            max: party.max_skill_uses[slot],
-        })
-        .collect()
-}
-
-pub(super) fn move_cursor(cursor: usize, count: usize, delta: isize) -> usize {
-    if count == 0 {
-        return 0;
-    }
-    let last = count - 1;
-    if delta.is_negative() {
-        cursor.saturating_sub(delta.unsigned_abs()).min(last)
-    } else {
-        cursor.saturating_add(delta as usize).min(last)
-    }
-}
-
-pub(super) fn selected(slots: &[SkillSlot], cursor: usize) -> Option<u8> {
-    slots
-        .get(cursor)
-        .filter(|slot| slot.current > 0)
-        .map(|slot| slot.id)
-}
 
 /// Draws the retail 14x6 `Battle_VehOpenSkills` window. The cartridge lays
 /// the available slots into two columns; current/max uses remain visible even
@@ -56,7 +20,7 @@ pub(super) fn selected(slots: &[SkillSlot], cursor: usize) -> Option<u8> {
 /// unselectable.
 pub(super) fn draw(
     chrome: &BattleChrome,
-    slots: &[SkillSlot],
+    slots: &[SkillSlotView],
     cursor: usize,
     quads: &mut Vec<Quad>,
 ) {

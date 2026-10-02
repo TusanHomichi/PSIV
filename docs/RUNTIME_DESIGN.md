@@ -26,7 +26,7 @@ and excluded from Git; see [extraction](EXTRACTION.md) and [setup](DEVELOPMENT.m
 
 ## The session frame
 
-One `Session` (`rust/psiv-runtime/src/session.rs`) owns the runtime and turns a
+One `Session` (`rust/psiv-runtime/src/session/mod.rs`) owns the runtime and turns a
 joypad byte into a frame of game: `Session::frame(pad)` runs the dialogue
 window's input half, a pending `$F6` and then the field or the scene, and
 returns a `Frame` of runtime events, dialogue signals, the scene a `$F6` started
@@ -38,9 +38,29 @@ directions and the talk button resolve in the cartridge's order
 (`Pad::field_input`, `rust/psiv-runtime/src/pad.rs`: `FieldObj_MovementsTbl`'s
 sixteen d-pad masks — an opposing pair cancels, a horizontal beats a vertical —
 and `FieldControls_GetInput`'s talk press taking the frame). Godot sends the pad
-and presents the frame; the modes it still owns (title, game over, battle, shop
-and camp) are checked in front of the call, and the
-[campaign runner](campaign/CAMPAIGN_RUNNER.md) nodes S3 to S5 move them in.
+and presents the frame; the modes it still owns (title, game over, shop and
+camp) are checked in front of the call, and the
+[campaign runner](campaign/CAMPAIGN_RUNNER.md) nodes S4 and S5 move them in.
+
+## The battle frame
+
+A battle is a mode of the same session, not a script the shell plays
+(`rust/psiv-runtime/src/session/battle/`). `EncounterRolled` or a scene's
+`SceneBattleStarted` starts the runtime's own battle inside the field frame, and
+from the next frame `Session::frame(pad)` runs the battle loop instead of the
+field: the shared vblank/RNG tick, the command menu (the main options, the
+per-character window, the target lists, the mounted skill window), beat playback
+with the retail dwell of `12 * (Battle_Speed + 1)` frames and the post-battle
+pages' confirm waits, the epilogue that pays the pools and levels the party, and
+the frame the map refresh returns on. `Frame::battle` carries the loop's
+read-only `BattleView` — the menu and its cursor, the narration window, the
+damage block, the party strip, the enemies with their visibility, the beat and
+its progress, plus the retail sound cues the frame raised — and Godot draws it,
+deciding nothing. The buttons are the cartridge's own where its routines name
+them (`Battle_MainOptions`, `Battle_CharCommand`, the tech/skill/item windows,
+`Battle_VehSkills`; `ps4.asm:1123` onward), and the per-character window's
+one-list layout keeps the shell's four-direction mapping with that difference
+recorded in `session/battle/menu/`.
 
 ## State, events and persistence
 

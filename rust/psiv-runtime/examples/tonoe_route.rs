@@ -19,12 +19,7 @@ fn main() {
     .unwrap();
     rt.enable_battles(&BattleFiles::load(pack).unwrap())
         .unwrap();
-    let mut route = Walk {
-        session: Session::new(rt),
-        ticks: 0,
-        battles: 0,
-        heal_in_battle: true,
-    };
+    let mut route = Walk::new(Session::new(rt), true);
     route.checkpoint("continued native Holt save");
     assert!(route.runtime().game().is_set(Flag::event(16)));
     route.walk_to(Cell::new(82, 158));

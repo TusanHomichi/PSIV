@@ -1,41 +1,34 @@
 //! Battle presentation bridge.
 //!
-//! `Field` owns the runtime and this module owns the Godot battle node. The
-//! only crossing is the documented Runtime battle API: setup party, start,
-//! resolve a `RoundOrders`, absorb the result, and resume the field.
+//! The runtime owns the battle: its menu, its beats, its epilogue and its end
+//! (`psiv-runtime/src/session/battle/`). This module builds the art for the
+//! battle the session started, hands the node the session's view every frame,
+//! and advances the two clocks that are pure presentation — the enemy overlay
+//! animation and the decoded attack layers.
+//!
+//! The only crossing is [`Frame::battle`](psiv_runtime::Frame::battle): a view
+//! to draw, the retail sound cues the frame raised, the battle that began and
+//! the frame the presentation closes on.
 
 mod art;
 mod attack;
 mod chrome;
-mod commands;
 mod enemy_overlay;
+mod fixtures;
 mod layout;
-mod sfx;
-mod state;
+mod menu_draw;
 mod status;
-mod timeline;
 mod ui;
 mod vehicle;
 mod vehicle_ui;
 
 pub(crate) use ui::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
 
-/// Elapsed overlay-clock ticks that align the command-idle debug fixture with
-/// the frame-25000 VDP receipt at the tick-200 screenshot. The captured
-/// viewport texture always shows the previous render, so the pin accounts
-/// for the one update the screenshot never sees: phase 20 plus the 170
-/// rendered advances lands every piece on the receipt tuple (2,2,1) —
-/// verified against the decoded plane/VRAM cells (piece0 frame 2 matches
-/// the receipt 16x16 with zero RGB mismatches). Normal formations use
-/// phase zero and therefore retain their ordinary first-frame behavior.
-const ORACLE_ENEMY_PHASE_TICKS: usize = 20;
-
 use godot::prelude::*;
 
 use psiv_core::Flag;
-use psiv_core::battle::Outcome;
 use psiv_data::BattleFiles;
-use psiv_runtime::{BattleTimeline, Runtime};
+use psiv_runtime::{BattleStart, BattleView, Runtime, RuntimeEvent, Session};
 
 use super::Field;
 
@@ -72,9 +65,6 @@ pub(crate) struct PartyPlacement {
     pub(crate) name: String,
     pub(crate) hp: u16,
     pub(crate) tp: u16,
-    pub(crate) skills: [u8; 8],
-    pub(crate) skill_uses: [u8; 8],
-    pub(crate) max_skill_uses: [u8; 8],
 }
 
 pub(crate) struct EnemyPlacement {
@@ -83,11 +73,6 @@ pub(crate) struct EnemyPlacement {
     pub(crate) position: u8,
     pub(crate) name: String,
 }
-
-/// Tape 07 RAM receipt at frame 25000 (`0x41F0`) carries two Zoran Bults at
-/// positions `$0E` and `$1A`. Their generated art record has half-width 3,
-/// producing the decoded six-cell body runs at columns 11 and 23.
-const ORACLE_ENEMY_POSITIONS: [u8; 2] = [0x0E, 0x1A];
 
 pub(super) struct FieldVisibility {
     map: bool,
@@ -102,7 +87,7 @@ pub(super) struct FieldVisibility {
 impl Field {
     /// Enables the runtime battle seam and creates the presentation node.
     /// Battle art is loaded by the node; battle data is loaded once here and
-    /// retained for formation names/positions when an encounter starts.
+    /// retained for formation names and positions when a battle starts.
     pub(crate) fn configure_battles(&mut self, runtime: &mut Runtime) {
         match BattleFiles::load(std::path::Path::new(&self.pack_dir)) {
             Ok(files) => match runtime.enable_battles(&files) {
@@ -121,212 +106,92 @@ impl Field {
         self.battle_screen = Some(screen);
     }
 
-    /// Starts a random encounter through the shared battle presentation path.
-    pub(crate) fn start_random_battle(&mut self, formation: u16) {
-        let Some(files) = self.battle_files.as_ref() else {
-            godot_error!(
-                "encounter rolled formation {formation:#05x}, but battle files are not enabled"
-            );
-            return;
+    /// Presents the battle the session just started.
+    ///
+    /// The session decided *that* a battle runs and what it rolls; this method
+    /// only selects the pack's art for it — the formation table for an
+    /// encounter, the boss table for a scene-owned event battle.
+    pub(crate) fn present_battle_start(&mut self, start: BattleStart) -> bool {
+        let (setup, label) = match start {
+            BattleStart::Encounter(formation) => {
+                let label = format!("formation {formation:#05x}");
+                let (Some(files), Some(runtime)) = (self.battle_files.as_ref(), self.runtime())
+                else {
+                    godot_error!("encounter {formation:#05x} started with no battle pack");
+                    return false;
+                };
+                (build_setup(files, runtime, formation), label)
+            }
+            BattleStart::EventBattle(index) => {
+                let label = format!("boss event {index}");
+                let (Some(files), Some(runtime)) = (self.battle_files.as_ref(), self.runtime())
+                else {
+                    godot_error!("boss event battle {index} started with no battle pack");
+                    return false;
+                };
+                (build_boss_setup(files, runtime, index), label)
+            }
         };
-        let Some(runtime) = self.runtime() else {
-            godot_error!("encounter rolled formation {formation:#05x} without a runtime");
-            return;
+        let Some(setup) = setup else {
+            return false;
         };
-        let Some(setup) = build_setup(files, runtime, formation) else {
-            return;
-        };
-        let party = runtime.battle_party();
-        if party.is_empty() {
-            godot_error!("encounter rolled formation {formation:#05x} with an empty party");
-            return;
-        }
+        self.begin_battle_presentation(setup, &label);
+        true
+    }
 
-        let timeline = match self
-            .runtime_mut()
-            .expect("runtime was checked above")
-            .start_battle_timeline(formation, party)
+    /// Presents what a battle frame produced: its faults, the retail sound
+    /// cues it raised, the battle it began, and the view to draw.
+    ///
+    /// The transition an encounter's screen entry runs is *not* here: the
+    /// field frame that starts one runs it where the shell's own encounter
+    /// handler did (`present_frame`), so the debug selectors' tick-30 entry
+    /// keeps its single transition from the frame top.
+    pub(crate) fn present_battle_frame(&mut self, battle: psiv_runtime::BattleFrame) {
+        if let Some(fault) = &battle.fault {
+            godot_error!("{fault}");
+        }
+        if let Some(view) = battle.view.as_ref() {
+            for id in &view.sounds {
+                godot_print!("battle SFX dispatch: {id:#04x}");
+                self.play_sound(*id);
+            }
+        }
+        if let Some(start) = battle.started
+            && !self.present_battle_start(start)
         {
-            Ok(timeline) => timeline,
-            Err(error) => {
-                godot_error!("could not start battle {formation:#05x}: {error}");
-                return;
+            // The shell cannot draw this battle at all, so it must not leave
+            // the fight running unseen: the session ends it the way the
+            // shell's own error paths did, and the field keeps the frame.
+            if let Some(session) = self.session.as_mut() {
+                session.abort_battle();
             }
-        };
-        self.begin_battle_presentation(setup, timeline, &format!("formation {formation:#05x}"));
-    }
-
-    /// Presents the command-idle oracle fixture used by the visual loop.
-    /// `PSIV_DEBUG_BATTLE=0x88` is intentionally a capture selector, not a
-    /// raw formation id: the retail frame is tape 07's post-opening party
-    /// (Chaz/Alys/Hahn) against two Zoran Bults on the Academy Basement art.
-    /// The RAM receipt has no live animation event at the settled shot.
-    /// No runtime round is started, so this path cannot mutate game state.
-    pub(crate) fn start_oracle_debug_battle(&mut self) {
-        let setup = BattleSetup {
-            map_id: 0x17,
-            event_battle: Some(0),
-            motavia_terrain: None,
-            vehicle_index: None,
-            vehicle_png: None,
-            vehicle_frame: None,
-            dark_force_2: false,
-            enemy_animation_phase_ticks: ORACLE_ENEMY_PHASE_TICKS,
-            party: vec![
-                PartyPlacement {
-                    // Tape 07's party is ordered Chaz/Alys/Hahn in the
-                    // status strip, but the retail fighter slots are the
-                    // independent center-out layout: Alys is slot 1 at the
-                    // center, Chaz slot 2 at the left, Hahn slot 3 at the
-                    // right.  Keep the character ids attached to those
-                    // receipt-backed slots rather than the status order.
-                    fighter_id: 2,
-                    character: 0,
-                    name: "Chaz".into(),
-                    hp: 25,
-                    tp: 10,
-                    ..Default::default()
-                },
-                PartyPlacement {
-                    fighter_id: 1,
-                    character: 1,
-                    name: "Alys".into(),
-                    hp: 53,
-                    tp: 40,
-                    ..Default::default()
-                },
-                PartyPlacement {
-                    fighter_id: 3,
-                    character: 2,
-                    name: "Hahn".into(),
-                    hp: 21,
-                    tp: 25,
-                    ..Default::default()
-                },
-            ],
-            enemies: vec![
-                EnemyPlacement {
-                    fighter_id: 6,
-                    enemy_id: 10,
-                    position: ORACLE_ENEMY_POSITIONS[0],
-                    name: "ZORAN BULT".into(),
-                },
-                EnemyPlacement {
-                    fighter_id: 7,
-                    enemy_id: 10,
-                    position: ORACLE_ENEMY_POSITIONS[1],
-                    name: "ZORAN BULT".into(),
-                },
-            ],
-        };
-        self.begin_battle_presentation(
-            setup,
-            BattleTimeline {
-                events: Vec::new(),
-                sounds: Vec::new(),
-                animations: Vec::new(),
-            },
-            "oracle tape-07 command idle receipt",
-        );
-    }
-
-    /// Presents real formation `$0F7` with the newly exact Worker Pod attack
-    /// injected as an ordered probe.  The formation and enemy placement come
-    /// from the pack; only the command result is deterministic debug tape.
-    pub(crate) fn start_newly_exact_debug_battle(&mut self) {
-        const FORMATION: u16 = 0x00F7;
-        let Some(files) = self.battle_files.as_ref() else {
-            godot_error!("newly-exact debug battle needs battle files");
-            return;
-        };
-        let Some(runtime) = self.runtime() else {
-            godot_error!("newly-exact debug battle needs a runtime");
-            return;
-        };
-        let Some(mut setup) = build_setup(files, runtime, FORMATION) else {
-            return;
-        };
-        // Keep the live proof on the already verified Academy battle
-        // background. The enemy identities and positions still come from
-        // formation $0F7; this only avoids making the screenshot depend on
-        // the current field map's random-battle background binding.
-        setup.map_id = 0x17;
-        setup.event_battle = Some(0);
-        let enemy_specs: Vec<_> = setup
-            .enemies
-            .iter()
-            .map(|enemy| (enemy.fighter_id, enemy.enemy_id))
-            .collect();
-        let timeline = BattleTimeline::debug_newly_exact_probe(&enemy_specs);
-        if timeline.animations.is_empty() {
-            godot_error!("formation {FORMATION:#05x} has no newly-exact debug member");
-            return;
         }
-        self.begin_battle_presentation(
-            setup,
-            timeline,
-            "formation 0x0f7 newly-exact Worker Pod attack probe",
-        );
+        if let Some(view) = battle.view {
+            self.set_battle_view(view);
+        }
     }
 
-    /// Starts a boss battle emitted by a running scene. Runtime owns the
-    /// already-started battle; this method only selects the matching pack art
-    /// and hands its initial events to the existing screen.
-    pub(crate) fn start_scene_battle(
-        &mut self,
-        index: u16,
-        events: Vec<psiv_core::battle::BattleEvent>,
-        sounds: Vec<psiv_runtime::BattleSoundEvent>,
-        animations: Vec<psiv_runtime::BattleAnimationEvent>,
-    ) {
-        let Some(files) = self.battle_files.as_ref() else {
-            godot_error!(
-                "scene requested boss event battle {index}, but battle files are not enabled"
-            );
-            if let Some(runtime) = self.runtime_mut() {
-                let _ = runtime.finish_battle_for_outcome(Outcome::Escaped, 0);
-            }
+    /// The debug selectors' entry: starts `formation` as an ordinary encounter
+    /// battle through the session (`PSIV_DEBUG_BATTLE=<formation>`,
+    /// `PSIV_DEBUG_VEHICLE_BATTLE`). A real battle starts, and the runtime owns
+    /// everything about it.
+    pub(crate) fn start_random_battle(&mut self, formation: u16) {
+        let Some(frame) = self
+            .session
+            .as_mut()
+            .map(|session| session.debug_battle(formation))
+        else {
             return;
         };
-        let Some(runtime) = self.runtime() else {
-            godot_error!("scene boss event battle {index} started without a runtime");
-            return;
-        };
-        let Some(setup) = build_boss_setup(files, runtime, index) else {
-            if let Some(runtime) = self.runtime_mut() {
-                let _ = runtime.finish_battle_for_outcome(Outcome::Escaped, 0);
-            }
-            return;
-        };
-        self.begin_battle_presentation(
-            setup,
-            BattleTimeline {
-                events,
-                sounds,
-                animations,
-            },
-            &format!("boss event {index}"),
-        );
+        self.present_battle_frame(frame);
     }
 
-    fn begin_battle_presentation(
-        &mut self,
-        setup: BattleSetup,
-        timeline: BattleTimeline,
-        label: &str,
-    ) {
+    fn begin_battle_presentation(&mut self, setup: BattleSetup, label: &str) {
         let Some(screen) = self.battle_screen.as_mut() else {
             godot_error!("battle started without a BattleScreen node");
-            if let Some(runtime) = self.runtime_mut() {
-                let _ = runtime.finish_battle_for_outcome(Outcome::Escaped, 0);
-            }
             return;
         };
-        screen.bind_mut().begin(setup, timeline);
-        if let Some(session) = self.session.as_ref() {
-            screen.bind_mut().sync_commands(session.runtime());
-        }
-        self.service_battle_audio();
+        screen.bind_mut().begin(setup);
         self.hide_field_for_battle();
         // HOTFIX (live QA: the framed takeover blacked out all battle art
         // while screen-space windows survived): camera repositioning and the
@@ -344,118 +209,68 @@ impl Field {
         godot_print!("battle started: {label}");
     }
 
+    /// Hands the node this frame's view.
+    pub(crate) fn set_battle_view(&mut self, view: BattleView) {
+        if let Some(screen) = self.battle_screen.as_mut() {
+            screen.bind_mut().set_view(view);
+        }
+    }
+
     /// Drives one presentation frame while a battle owns the field.
-    /// Returns `true` when the normal field tick must be skipped.
+    /// Returns `true` when the normal field frame must be skipped.
+    ///
+    /// The battle's own frame — the RNG tick, the menu, the round, the beats
+    /// and the epilogue — runs inside [`Session::frame`], which the field's
+    /// frame path calls while the session is in its battle mode. What is left
+    /// here is the stage: the art clock, the sound cues the frame raised, and
+    /// the frame the presentation closes on.
     pub(crate) fn drive_battle_if_active(&mut self) -> bool {
-        let visible = self
-            .battle_screen
-            .as_ref()
-            .is_some_and(|screen| screen.is_visible());
-        if !visible {
+        if !self.battle_presentation_active() {
             return false;
         }
-
-        if self.runtime().is_some_and(|rt| rt.battle_active())
-            && let Some(runtime) = self.runtime_mut()
-        {
-            // Battles still consume the shared vblank/RNG stream. No field
-            // input reaches Runtime while GameMode_Battle owns the frame.
-            let _ = runtime.tick(psiv_core::Input::Neutral);
+        let mut events = Vec::new();
+        if self.session.as_ref().is_some_and(Session::battle_active) {
+            events = self.drive_battle_frame();
+            // The shell's own fixtures never reach this point: they draw a
+            // static view with no session battle behind it.
         }
-
-        let order = self
-            .battle_screen
-            .as_mut()
-            .and_then(|screen| screen.bind_mut().take_command());
-        if let Some(order) = order {
-            let debug_input = std::env::var("PSIV_DEBUG_INPUT").is_ok_and(|value| value == "1");
-            if debug_input {
-                godot_print!("battle orders: {order:?}");
-            }
-            let result = self
-                .runtime_mut()
-                .map(|runtime| runtime.battle_round_timeline(&order));
-            match result {
-                Some(Ok(timeline)) => {
-                    if debug_input {
-                        godot_print!("battle events: {:?}", timeline.events);
-                    }
-                    if let Some(screen) = self.battle_screen.as_mut() {
-                        if let Some(session) = self.session.as_ref() {
-                            screen.bind_mut().sync_commands(session.runtime());
-                        }
-                        screen.bind_mut().enqueue_timeline(timeline);
-                    }
-                }
-                Some(Err(error)) => {
-                    if let Some(screen) = self.battle_screen.as_mut() {
-                        screen.bind_mut().fail_round(&error.to_string());
-                    }
-                }
-                None => godot_error!("battle command selected without a runtime"),
-            }
-        }
-
         if let Some(screen) = self.battle_screen.as_mut() {
-            screen.bind_mut().advance_frame();
+            // The art clocks this frame: the idle overlay animation and any
+            // live attack layer. Both carry presentation only.
+            screen.bind_mut().advance_animation();
         }
-        self.service_battle_audio();
-        self.service_battle_finish();
         self.place_letterbox();
-
-        let close = self
-            .battle_screen
-            .as_mut()
-            .is_some_and(|screen| screen.bind_mut().take_close_ready());
-        if close {
-            self.end_battle_presentation();
+        if self.battle_close_ready() {
+            self.end_battle_presentation(events);
         }
         true
+    }
+
+    /// One battle frame from the session, presented in the frame's own order.
+    ///
+    /// Returns the field events the frame carried — a finished battle returns
+    /// its map refresh with the frame that closes it.
+    fn drive_battle_frame(&mut self) -> Vec<RuntimeEvent> {
+        let pad = self.frame_pad();
+        let Some(frame) = self.session.as_mut().map(|session| session.frame(pad)) else {
+            return Vec::new();
+        };
+        if let Some(battle) = frame.battle {
+            self.present_battle_frame(battle);
+        }
+        frame.events
+    }
+
+    fn battle_close_ready(&self) -> bool {
+        self.battle_screen
+            .as_ref()
+            .is_some_and(|screen| screen.bind().view().is_some_and(|view| view.close_ready))
     }
 
     pub(crate) fn battle_presentation_active(&self) -> bool {
         self.battle_screen
             .as_ref()
             .is_some_and(|screen| screen.is_visible())
-    }
-
-    fn service_battle_audio(&mut self) {
-        let sounds = self
-            .battle_screen
-            .as_mut()
-            .map(|screen| screen.bind_mut().take_sound_requests())
-            .unwrap_or_default();
-        for id in sounds {
-            godot_print!("battle SFX dispatch: {id:#04x}");
-            self.play_sound(id);
-        }
-    }
-
-    fn service_battle_finish(&mut self) {
-        let Some(request) = self
-            .battle_screen
-            .as_mut()
-            .and_then(|screen| screen.bind_mut().take_finish_request())
-        else {
-            return;
-        };
-        if request.outcome == Outcome::Victory {
-            self.play_sound(0x8b);
-        }
-        let reward = match request.outcome {
-            Outcome::Victory => request.reward_each,
-            Outcome::Escaped | Outcome::Defeat | Outcome::ScriptedExit => 0,
-        };
-        let levels = self.runtime_mut().map_or_else(Vec::new, |runtime| {
-            runtime.finish_battle_for_outcome(request.outcome, reward)
-        });
-        if let Some(screen) = self.battle_screen.as_mut() {
-            // Queue level-up narration before marking idle-close, otherwise
-            // an empty level-up vector could close the node one frame early.
-            let mut screen = screen.bind_mut();
-            screen.enqueue_events(levels);
-            screen.set_close_when_idle();
-        }
     }
 
     fn hide_field_for_battle(&mut self) {
@@ -509,7 +324,10 @@ impl Field {
         self.battle_field_visibility = Some(visibility);
     }
 
-    fn end_battle_presentation(&mut self) {
+    /// The frame the presentation closes on: the stage goes away and the field
+    /// takes the frame back, with the events the session returned
+    /// `MapRefreshed` through.
+    fn end_battle_presentation(&mut self, events: Vec<RuntimeEvent>) {
         if self.runtime().is_some_and(|rt| rt.game_over()) {
             self.begin_game_over();
             return;
@@ -543,16 +361,17 @@ impl Field {
             }
         }
         self.set_letterbox(false);
-        let events = self
-            .runtime_mut()
-            .map_or_else(Vec::new, Runtime::return_to_field);
         self.process_events(events);
         self.sync_visuals(false);
         godot_print!("battle presentation ended");
     }
 }
 
-fn build_setup(files: &BattleFiles, runtime: &Runtime, formation_id: u16) -> Option<BattleSetup> {
+pub(super) fn build_setup(
+    files: &BattleFiles,
+    runtime: &Runtime,
+    formation_id: u16,
+) -> Option<BattleSetup> {
     let Some(formation) = files
         .formations
         .formations
@@ -598,9 +417,6 @@ fn build_setup_for_formation(
             name: member.name,
             hp: member.stats.curr_hp,
             tp: member.stats.curr_tp,
-            skills: member.stats.skills,
-            skill_uses: member.stats.curr_skill_uses,
-            max_skill_uses: member.stats.max_skill_uses,
         })
         .collect();
     let enemies = formation

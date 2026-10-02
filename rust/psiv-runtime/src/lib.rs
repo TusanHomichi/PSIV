@@ -69,7 +69,12 @@ pub use encounters::{
 pub use events::{BattleAnimationEvent, BattleSoundEvent, BattleTimeline, RuntimeEvent};
 pub use pad::{Button, Pad};
 pub use save::RuntimeSaveError;
-pub use session::{Frame, SceneStart, Session};
+pub use session::{
+    BATTLE_DWELL_FRAMES, BattleBeat, BattleFrame, BattleStart, BattleView, BeatView,
+    CommandMenuView, DamageView, EnemyStatus, Frame, MenuPage, MenuRow, MenuView, MessageKind,
+    PartyStatus, SceneStart, Session, SkillEntry, SkillSlotView, TargetKind, TechniqueEntry,
+    battle_dwell_frames,
+};
 pub use shop::{InnResult, ShopBuyResult, ShopSellResult};
 
 use bridge::char_id_by_symbol;
