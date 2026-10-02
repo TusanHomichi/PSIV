@@ -6,6 +6,10 @@ the single seam the tests replace - it is called as a module attribute
 (`runs.run_oracle`) so a test can stand in hand-built logs for the emulator -
 and the readers below turn a run's RAM log and RNG trace into the values the
 tool decides on.
+
+The binary is not named here: every run asks `oracle/host_binary.py` for a host
+compiled from `oracle/host/` as those sources stand, so a capture can no longer
+be taken with a host older than the tree it was taken in (issue #61).
 """
 from __future__ import annotations
 
@@ -15,9 +19,10 @@ import hashlib
 import pathlib
 import subprocess
 
+from oracle import host_binary
+
 ORACLE = pathlib.Path(__file__).resolve().parent.parent
 ROOT = ORACLE.parent
-BIN = ORACLE / "bin" / "psiv_oracle"
 CORE = ORACLE / "core" / "genesis_plus_gx_libretro.so"
 ROM = ROOT / "Phantasy Star IV (USA).md"
 DEFAULT_RAM_MAP_TSV = ORACLE / "ram_map.tsv"
@@ -50,7 +55,7 @@ def run_oracle(tape: pathlib.Path, out_dir: pathlib.Path, stem: str,
     out_dir.mkdir(parents=True, exist_ok=True)
     log = out_dir / f"{stem}.csv"
     trace = out_dir / f"{stem}_rolls.csv"
-    argv = [str(BIN), "--core", str(CORE), "--rom", str(ROM),
+    argv = [str(host_binary.ensure()), "--core", str(CORE), "--rom", str(ROM),
             "--map", str(DEFAULT_RAM_MAP_TSV), "--tape", str(tape),
             "--groups", groups, "--rng-trace", str(trace), "--out", str(log)]
     for spec in patches:

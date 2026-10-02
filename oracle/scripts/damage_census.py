@@ -17,9 +17,10 @@ import pathlib
 import subprocess
 from collections import defaultdict
 
+from oracle import host_binary
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 O = ROOT / "oracle"
-BIN = O / "bin" / "psiv_oracle"
 CORE = O / "core" / "genesis_plus_gx_libretro.so"
 ROM = ROOT / "Phantasy Star IV (USA).md"
 MAP = O / "ram_map.tsv"
@@ -49,7 +50,8 @@ def run(shift, tag, head, tail):
     tape = O / 'tmp_census.tape'
     tape.write_text(f"{head}{120 + shift} . battle_start{tail}")
     out = O / 'logs' / 'census.csv'
-    subprocess.run([str(BIN), '--core', str(CORE), '--rom', str(ROM),
+    subprocess.run([str(host_binary.ensure()), '--core', str(CORE),
+                    '--rom', str(ROM),
                     '--map', str(MAP), '--tape', str(tape),
                     '--groups', 'core,battle,bhit,enemy,chars', '--out', str(out)],
                    check=True, capture_output=True)
