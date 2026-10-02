@@ -70,7 +70,12 @@ const DIALOGUE_DIR: &str = "dialogue";
 // ---------------------------------------------------------------------------
 
 /// The whole dialogue pack, loaded and cross-validated.
-#[derive(Debug, Clone)]
+///
+/// A pack read from a directory always has one ([`GameData::load`] reads it
+/// with the rest), and the runtime refuses to build without it; only a
+/// synthetic pack built with [`GameData::from_parts`](crate::GameData::from_parts)
+/// carries none.
+#[derive(Debug, Clone, PartialEq)]
 pub struct DialogueSet {
     /// `dialogue/trees.json`: the 43 trees and their entries.
     pub trees: TreeFile,

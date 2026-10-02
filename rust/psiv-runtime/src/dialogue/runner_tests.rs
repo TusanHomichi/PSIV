@@ -96,7 +96,9 @@ fn packed_runner() -> Option<DialogueRunner> {
         return None;
     }
     let mut runner = DialogueRunner::new();
-    runner.set_pack(DialogueSet::load(&dir).expect("the dialogue pack loads"));
+    runner.set_pack(std::sync::Arc::new(
+        DialogueSet::load(&dir).expect("the dialogue pack loads"),
+    ));
     Some(runner)
 }
 

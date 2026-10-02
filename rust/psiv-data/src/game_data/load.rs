@@ -72,6 +72,14 @@ impl GameData {
             )?);
         }
         data.sound = crate::sound::SoundFiles::load(pack_dir)?;
+        // The message box walks these files, so a pack that has them carries
+        // the whole set and a broken one fails here, where the error names the
+        // file. A synthetic pack built from parts has no `dialogue/` directory
+        // at all; the runtime refuses to build from data like that rather than
+        // silently opening no window.
+        if pack_dir.join("dialogue").join("trees.json").is_file() {
+            data.dialogue = Some(std::sync::Arc::new(crate::DialogueSet::load(pack_dir)?));
+        }
 
         // Sprite index files (pack format 1). Loaded after the maps so NPC
         // sprite references can be validated against real sheets.

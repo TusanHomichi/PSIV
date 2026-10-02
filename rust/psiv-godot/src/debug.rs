@@ -6,7 +6,7 @@ impl Field {
         if std::env::var("PSIV_DEBUG_ROUTE").as_deref() != Ok("1") {
             return GString::new();
         }
-        let Some(rt) = self.runtime.as_ref() else {
+        let Some(rt) = self.runtime() else {
             return GString::new();
         };
         let dialogue = rt.dialogue_open();
@@ -61,7 +61,7 @@ impl Field {
         if std::env::var("PSIV_DEBUG_ROUTE").as_deref() != Ok("1") {
             return GString::new();
         }
-        let Some(rt) = self.runtime.as_ref() else {
+        let Some(rt) = self.runtime() else {
             return GString::new();
         };
         let map = rt.map();
@@ -118,8 +118,7 @@ impl Field {
                         self.start_newly_exact_debug_battle();
                     } else {
                         let music = self
-                            .runtime
-                            .as_ref()
+                            .runtime()
                             .filter(|runtime| runtime.vehicle_active())
                             .map_or(0x8f, |_| 0x96);
                         godot_print!("debug: battle theme dispatch: {music:#04x}");
@@ -132,7 +131,7 @@ impl Field {
         }
         if self.anim_tick == 30 && std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1")
         {
-            if self.runtime.as_ref().is_some_and(|rt| rt.scene_active()) {
+            if self.runtime().is_some_and(|rt| rt.scene_active()) {
                 godot_error!(
                     "debug camp refused: a map-entry trigger already started a scene; \
                      the fixture state does not match retail at this point"
@@ -145,7 +144,7 @@ impl Field {
             // ($258,$E8), 16px below the fixture's player-centred default
             // (the receipt reflects the walk history the fixture does not
             // replay). Field-only correlation confirmed dy=16 exactly.
-            if let Some(rt) = self.runtime.as_mut() {
+            if let Some(rt) = self.runtime_mut() {
                 rt.set_camera(0x258, 0xE8);
             }
         }
@@ -153,8 +152,8 @@ impl Field {
             && let Ok(value) = std::env::var("PSIV_DEBUG_SHOP")
             && let Ok(index) = value.parse::<usize>()
         {
-            let opened = match (self.shop.as_mut(), self.runtime.as_ref()) {
-                (Some(shop), Some(runtime)) => shop.bind_mut().open_index(index, runtime),
+            let opened = match (self.shop.as_mut(), self.session.as_ref()) {
+                (Some(shop), Some(session)) => shop.bind_mut().open_index(index, session.runtime()),
                 _ => false,
             };
             if opened {
@@ -171,7 +170,7 @@ impl Field {
                     // A map-entry trigger that already started a scene would
                     // make `start_event` refuse and the capture show the wrong
                     // scene (#44): say so instead of blaming the event.
-                    if self.runtime.as_ref().is_some_and(|rt| rt.scene_active()) {
+                    if self.runtime().is_some_and(|rt| rt.scene_active()) {
                         godot_error!(
                             "debug event {value} refused: a map-entry trigger already started a scene; \
                              the fixture state does not match retail at this point"
@@ -179,8 +178,7 @@ impl Field {
                         return;
                     }
                     let started = self
-                        .runtime
-                        .as_mut()
+                        .runtime_mut()
                         .is_some_and(|runtime| runtime.start_event(event));
                     if started {
                         self.presentation.reset_scene();
@@ -218,7 +216,7 @@ impl Field {
         if self.anim_tick != at {
             return;
         }
-        let Some(runtime) = self.runtime.as_ref() else {
+        let Some(runtime) = self.runtime() else {
             return;
         };
         let state = runtime.game().snapshot();

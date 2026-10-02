@@ -270,7 +270,7 @@ impl Field {
             && Input::singleton().is_action_just_pressed("ui_accept")
         {
             self.presentation.ending_waiting_for_start = false;
-            if let Some(runtime) = self.runtime.as_mut() {
+            if let Some(runtime) = self.runtime_mut() {
                 runtime.ending_continue();
             }
         }
@@ -296,7 +296,7 @@ impl Field {
     }
 
     pub(super) fn apply_scene_sprite_visibility(&mut self) {
-        let event = self.runtime.as_ref().and_then(|rt| rt.scene_event());
+        let event = self.runtime().and_then(|rt| rt.scene_event());
         let visible = self.presentation.sprites_visible(event);
         if let Some(party) = self.party.as_mut() {
             party.set_visible(visible);

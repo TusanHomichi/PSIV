@@ -20,6 +20,7 @@ use crate::ids::MapId;
 use crate::manifest::{Manifest, PACK_FORMAT_VERSION};
 use crate::map::MapRecord;
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 /// A loaded, validated runtime pack.
 ///
@@ -43,6 +44,10 @@ pub struct GameData {
     /// Map id -> vehicle selector sheet ids for the map's CRAM line 3.
     vehicle_map_sheet_ids: BTreeMap<u16, Vec<String>>,
     sound: crate::sound::SoundFiles,
+    /// The pack's dialogue: trees, font, window geometry and portraits, shared
+    /// with every runtime built from this data. `None` only for a synthetic
+    /// pack built with [`GameData::from_parts`].
+    dialogue: Option<Arc<crate::DialogueSet>>,
     new_game: Option<crate::NewGame>,
     travel: Option<crate::TravelData>,
 }
@@ -78,6 +83,7 @@ impl GameData {
             vehicle_sheet_ids: Vec::new(),
             vehicle_map_sheet_ids: BTreeMap::new(),
             sound: crate::sound::SoundFiles::default(),
+            dialogue: None,
             new_game: None,
             travel: None,
         })
@@ -86,6 +92,18 @@ impl GameData {
     /// The pack index: the ROM hash, the inventory and the skipped maps.
     pub fn manifest(&self) -> &Manifest {
         &self.manifest
+    }
+
+    /// The pack's dialogue, loaded with the rest of it: the trees the message
+    /// box walks, the font, the window geometry its open animation counts in
+    /// and the `$F4` portraits.
+    ///
+    /// `None` only for a synthetic pack built with [`GameData::from_parts`];
+    /// a pack read from a directory always has it, and the runtime refuses to
+    /// build from data that does not.
+    #[must_use]
+    pub fn dialogue(&self) -> Option<Arc<crate::DialogueSet>> {
+        self.dialogue.clone()
     }
 
     /// The title's ROM-derived initializer, before any opening scenes run.

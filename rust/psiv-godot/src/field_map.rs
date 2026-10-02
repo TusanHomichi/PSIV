@@ -7,16 +7,16 @@
 use godot::classes::{Image, ImageTexture, Sprite2D};
 use godot::prelude::*;
 
-use super::Field;
 use super::view::{
     self, NpcNode, SheetView, camp_receipt_frame, camp_receipt_sheet, npc_pixel_position,
 };
+use super::{Field, Session};
 
 impl Field {
     /// Loads the current map's PNG and rebuilds NPC sprites.
     pub(crate) fn load_map_visuals(&mut self) {
         self.refresh_party_sheets();
-        let Some(runtime) = self.runtime.as_ref() else {
+        let Some(runtime) = self.session.as_ref().map(Session::runtime) else {
             return;
         };
         let id = runtime.map_id().0;
@@ -236,8 +236,7 @@ impl Field {
                 continue;
             };
             let live = self
-                .runtime
-                .as_ref()
+                .runtime()
                 .and_then(|rt| rt.map().npcs().get(draw.index))
                 .map(|npc| (npc.cell, (i32::from(npc.offset.x), i32::from(npc.offset.y))));
             let (base, spawn) = live.map_or(((draw.x, draw.y), (0, 0)), |(cell, offset)| {

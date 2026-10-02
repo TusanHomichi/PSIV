@@ -36,7 +36,7 @@ impl Field {
     }
 
     pub(super) fn play_map_music(&mut self) {
-        let Some((id, symbol, changes_music)) = self.runtime.as_ref().and_then(|runtime| {
+        let Some((id, symbol, changes_music)) = self.runtime().and_then(|runtime| {
             runtime.map_record().map(|record| {
                 (
                     record.music.id,

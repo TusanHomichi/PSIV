@@ -1,16 +1,16 @@
 //! Scout the next connected route from the native Academy save. No relocations
 //! or edited stats: field recovery and combat are ordinary runtime commands.
 mod support;
-use psiv_core::{Cell, Direction, Input, StepFrames};
+use psiv_core::{Cell, Direction, StepFrames};
 use psiv_data::{BattleFiles, GameData};
-use psiv_runtime::{CampAbilityKind, CampUseResult, Runtime};
+use psiv_runtime::{Button, CampAbilityKind, CampUseResult, Pad, Runtime, Session};
 use std::path::Path;
-use support::Walk;
+use support::{Walk, press};
 
 fn heal(route: &mut Walk) {
-    for target in 0..route.rt.camp_state().party.len() {
+    for target in 0..route.runtime().camp_state().party.len() {
         for _ in 0..20 {
-            let party = route.rt.camp_state().party;
+            let party = route.runtime().camp_state().party;
             let member = &party[target];
             if member.current_hp * 4 >= member.max_hp * 3 {
                 break;
@@ -20,13 +20,13 @@ fn heal(route: &mut Walk) {
                 .filter(|c| c.status & 6 == 0)
                 .find(|c| {
                     route
-                        .rt
+                        .runtime()
                         .camp_abilities(c.party_slot, CampAbilityKind::Technique)
                         .iter()
                         .any(|a| a.id == 24 && a.remaining >= u16::from(a.cost))
                 })
                 .expect("route needs a healer or an inn");
-            let result = route.rt.use_camp_ability(
+            let result = route.runtime_mut().use_camp_ability(
                 CampAbilityKind::Technique,
                 caster.party_slot,
                 24,
@@ -51,9 +51,8 @@ fn main() {
     .unwrap();
     rt.enable_battles(&BattleFiles::load(pack).unwrap())
         .unwrap();
-    rt.load_dialogue(pack).unwrap();
     let mut route = Walk {
-        rt,
+        session: Session::new(rt),
         ticks: 0,
         battles: 0,
         heal_in_battle: true,
@@ -62,27 +61,27 @@ fn main() {
     heal(&mut route);
     // The Edge's late-story warp is absent at this point in the campaign.
     route.walk_to(Cell::new(61, 100));
-    assert_eq!(route.rt.map_id().0, 0x1D);
+    assert_eq!(route.runtime().map_id().0, 0x1D);
     route.checkpoint("Mile");
     route.walk_to(Cell::new(20, 50));
-    assert_eq!(route.rt.map_id().0, 0);
+    assert_eq!(route.runtime().map_id().0, 0);
     route.walk_to(Cell::new(99, 82));
-    assert_eq!(route.rt.map_id().0, 0x24);
+    assert_eq!(route.runtime().map_id().0, 0x24);
     route.checkpoint("Zema");
     heal(&mut route);
     route.walk_to(Cell::new(31, 11));
-    assert_eq!(route.rt.map_id().0, 0x2B);
+    assert_eq!(route.runtime().map_id().0, 0x2B);
     route.checkpoint("Birth Valley");
     route.walk_to(Cell::new(33, 15));
-    assert_eq!(route.rt.map_id().0, 0x2C);
+    assert_eq!(route.runtime().map_id().0, 0x2C);
     route.checkpoint("Birth Valley B1");
     route.walk_to(Cell::new(23, 17));
-    route.tick(Input::Direction(Direction::Up));
-    route.tick(Input::Neutral);
-    route.tick(Input::Action);
+    route.tick(press(Direction::Up));
+    route.tick(Pad::NEUTRAL);
+    route.tick(Pad::new(Button::Speak));
     route.settle();
     route.checkpoint("Professor Holt");
     if let Some(dir) = std::env::var_os("PSIV_ROUTE_SAVE_DIR") {
-        route.rt.save_slot(Path::new(&dir), 0).unwrap();
+        route.runtime_mut().save_slot(Path::new(&dir), 0).unwrap();
     }
 }

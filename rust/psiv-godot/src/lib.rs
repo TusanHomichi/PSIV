@@ -39,7 +39,7 @@ use boot::{
 use camp::CampMenu;
 use cutscene::{CutsceneLayer, PresentationState};
 use dialogue::DialogueWindow;
-use input::{read_input, read_pad, requested_save_slot};
+use input::{read_input, requested_save_slot};
 use save_dir::{presented_save_slots, save_directory};
 use shop::ShopWindow;
 use transitions::TransitionKind;
@@ -47,7 +47,7 @@ use view::{NpcNode, SheetView};
 
 use psiv_core::{Cell, Direction, StepFrames};
 use psiv_data::GameData;
-use psiv_runtime::{Pad, Runtime};
+use psiv_runtime::{Pad, Runtime, Session};
 use psiv_sound::SAMPLE_RATE;
 
 struct PsivExtension;
@@ -111,7 +111,11 @@ fn load_requested_slot(data: &GameData, slot: usize) -> Option<Runtime> {
 #[class(base=Node2D)]
 struct Field {
     base: Base<Node2D>,
-    runtime: Option<Runtime>,
+    /// The game frame: the runtime, the dialogue window and the field's own
+    /// input rules. The shell sends it one pad per frame and presents what
+    /// comes back (`Session::frame`); the modes still listed below reach the
+    /// runtime through `runtime_mut` until their graph nodes move them in.
+    session: Option<Session>,
     pack_dir: String,
     map_sprite: Option<Gd<Sprite2D>>,
     /// Priority tiles — what the VDP draws above sprites (palm crowns,
@@ -158,18 +162,13 @@ struct Field {
     scene_transition_active: bool,
     /// The character id whose sheet the leader sprite currently uses.
     leader_char: u8,
-    /// Set while a dialogue is open and until accept is released after it
-    /// closes — the press that dismisses a window must not immediately
-    /// re-open it (the engine's own press latch resets while we starve it
-    /// with Neutral, so the still-held key would read as a fresh press).
-    accept_blocked: bool,
     /// Auto-paced scene dialogue hold counter.  This is only used when the
     /// debug autoclose harness is explicitly put back on retail cadence.
     retail_dialogue_wait: u16,
     retail_pace_logged: bool,
-    /// The pad handed to the runtime's dialogue frame: the debug retail pace
-    /// folds a synthetic Speak press into it, and the press edges drive the
-    /// `PSIV_DEBUG_INPUT` page trace.
+    /// Last frame's pad, for the `PSIV_DEBUG_INPUT` page trace, which logs the
+    /// pages a Speak press dismissed and so has to read the view before the
+    /// frame spends the press. The session's own presses are the runtime's.
     dialogue_pad: Pad,
     /// The party's active sequence and the tick it started, so animation
     /// phase restarts at frame 0 on a sequence change — matching
@@ -199,7 +198,7 @@ impl INode2D for Field {
     fn init(base: Base<Node2D>) -> Self {
         Field {
             base,
-            runtime: None,
+            session: None,
             pack_dir: String::new(),
             map_sprite: None,
             overlay_sprite: None,
@@ -222,7 +221,6 @@ impl INode2D for Field {
             cutscene_layer: None,
             presentation: PresentationState::default(),
             anim_tick: 0,
-            accept_blocked: false,
             retail_dialogue_wait: 0,
             retail_pace_logged: false,
             dialogue_pad: Pad::NEUTRAL,
@@ -394,19 +392,14 @@ impl INode2D for Field {
         }
 
         let mut window = DialogueWindow::new_alloc();
-        // The pack loads once, through `psiv-data`, and goes to the runtime:
-        // the dialogue rules (the trees, the window geometry the open
-        // animation counts in) are the runtime's, the art is the node's.
-        match runtime.load_dialogue(std::path::Path::new(&self.pack_dir)) {
-            Ok(()) => {
-                let set = runtime
-                    .dialogue_pack()
-                    .expect("the pack that just loaded is still loaded");
-                self.presentation.configure_dialogue_trees(set);
-                window.bind_mut().configure(&self.pack_dir, set);
-            }
-            Err(e) => godot_error!("dialogue pack failed to load: {e}"),
-        }
+        // The pack loads once, through `psiv-data`, and rides in the data the
+        // runtime is built from: the dialogue rules (the trees, the window
+        // geometry the open animation counts in) are the runtime's, the art is
+        // the node's. Every runtime has the pack, so there is nothing to load
+        // or check here.
+        let set = runtime.dialogue_pack();
+        self.presentation.configure_dialogue_trees(set);
+        window.bind_mut().configure(&self.pack_dir, set);
         window.set_z_index(30);
         self.base_mut().add_child(&window);
         self.dialogue = Some(window);
@@ -444,7 +437,7 @@ impl INode2D for Field {
                 psiv_sound::SoundBank::default()
             }
         };
-        self.runtime = Some(runtime);
+        self.session = Some(Session::new(runtime));
         let mut audio = audio::AudioOutput::new(sound_bank);
         let debug_audio = audio.has_debug_override();
         self.base_mut().add_child(audio.node());
@@ -476,12 +469,15 @@ impl INode2D for Field {
         self.tick_transition();
         self.tick_red_palette();
         self.tick_cutscene_presentation();
+        // The modes that are still the shell's are checked in front of the
+        // game frame, in the order the old dispatcher checked them. Each one
+        // names the campaign-runner node that moves it into the session.
         if self.drive_title() {
-            return;
+            return; // S5
         }
         self.service_field_notices();
         if self.drive_game_over() {
-            return;
+            return; // S5
         }
         let battle_was_active = self.battle_presentation_active();
         self.debug_hooks_tick();
@@ -491,16 +487,17 @@ impl INode2D for Field {
         }
 
         if self.drive_battle_if_active() {
-            // The debug battle receipt is sampled after the battle drive. Its
-            // 19-tick seed plus the 170 pre-drive updates at tick 200 become
-            // the 171 elapsed clock updates the oracle receipt models.
+            // S3.  The debug battle receipt is sampled after the battle
+            // drive. Its 19-tick seed plus the 170 pre-drive updates at tick
+            // 200 become the 171 elapsed clock updates the oracle receipt
+            // models.
             self.capture_debug_shot();
             // Battle close is the other retail restore edge. Scene battles
             // carry Saved_Sound_Index; ordinary battles fall back to the
             // current map's music request.
             if battle_was_active
                 && !self.battle_presentation_active()
-                && !self.runtime.as_ref().is_some_and(|rt| rt.game_over())
+                && !self.runtime().is_some_and(|rt| rt.game_over())
                 && !self.restore_saved_music()
             {
                 self.play_map_music();
@@ -508,171 +505,66 @@ impl INode2D for Field {
             return;
         }
 
-        // The dialogue window's input half. The pad reaches the runtime every
-        // frame — that latch is what makes a press read as fresh exactly once
-        // — and with a window up the accept/choice press and the close are
-        // decided here, before the field tick below.
-        let dialogue_was_open = self.drive_dialogue_input();
-
-        // A `$F6` the dialogue fired becomes a running scene.
-        let pending = self
-            .runtime
-            .as_mut()
-            .and_then(|runtime| runtime.take_dialogue_event());
-        if let Some(event) = pending {
-            let started = self
-                .runtime
-                .as_mut()
-                .is_some_and(|rt| rt.start_event(event));
-            if started {
-                godot_print!("dialogue event {event:#x} starts its scene");
-                self.set_letterbox(true);
-                if event & 0x8000 != 0 {
-                    self.scene_transition_active = true;
-                    self.start_transition(TransitionKind::SceneStart);
-                }
-            } else {
-                godot_error!("dialogue fired event {event:#x} with no transcribed scene");
-            }
-        }
-
-        // An open dialogue owns the input: the runtime already took the
-        // press, and the engine gets Neutral (the cartridge swaps
-        // Game_Mode_Routine to FieldRoutine_Interaction; we model it by
-        // starving the field of input, per the engine's documented non-modal
-        // contract).
-        if dialogue_was_open {
-            self.accept_blocked = true;
-            let events = self
-                .runtime
-                .as_mut()
-                .map(|rt| {
-                    // The runtime set the window-up suspension in
-                    // `dialogue_frame`, at the point this branch used to set
-                    // it, so the shared RNG stream is where it was.
-                    rt.tick(psiv_core::Input::Neutral)
-                })
-                .unwrap_or_default();
-            // The scene's post-dialogue ops run on exactly this tick, so
-            // their events (party changes, despawns, SceneEnded) must be
-            // processed here too — dropping them was a live bug: Alys stayed
-            // standing and the leader never swapped.
-            self.process_events(events);
-            self.tick_dialogue_window();
-            self.sync_visuals(false);
-            return;
-        }
-        self.retail_dialogue_wait = 0;
-
-        if self.drive_shop_if_active() {
-            return;
-        }
-
-        if self.drive_camp_if_active() {
-            return;
-        }
-
-        // While a scene runs the field gets Neutral: the story owns the
-        // party. (Dialogue windows opened by scenes are handled above.)
-        let scene_active = self.runtime.as_ref().is_some_and(|rt| rt.scene_active());
-        let mut input = if scene_active {
-            psiv_core::Input::Neutral
-        } else {
-            read_input()
-        };
-        // The press that dismissed a window stays swallowed until released —
-        // otherwise the engine (whose press latch reset during the Neutral
-        // starvation) reads the still-held key as fresh and reopens the NPC.
-        if self.accept_blocked {
-            if matches!(input, psiv_core::Input::Action) {
-                input = psiv_core::Input::Neutral;
-            } else {
-                self.accept_blocked = false;
-            }
-        }
-        let Some(runtime) = self.runtime.as_mut() else {
-            return;
-        };
-        runtime.set_field_suspended(false);
-        let events = runtime.tick(input);
-        let stepped = self.process_events(events);
-        // A window the scene opened during that tick owns its own half of the
-        // frame, exactly as the window node's `physics_process` did.
-        self.tick_dialogue_window();
-        // A landing tick with the key still held is mid-stride, not rest:
-        // without this, the idle frame flashes for one tick every step (the
-        // cartridge's animation free-runs and never sees such a gap).
-        let walking = {
-            let state = self.runtime.as_ref().map(|rt| rt.state());
-            state.is_some_and(|s| s.is_stepping()) || (stepped && input.direction().is_some())
-        };
-        if !self.battle_presentation_active() {
-            self.sync_visuals(walking);
-        }
+        self.drive_game_frame();
     }
 }
 
 impl Field {
-    /// The dialogue window's input half of a frame, and whether a window was
-    /// up when the frame began.
-    ///
-    /// The runtime owns every rule; this builds this frame's pad, folds the
-    /// debug retail pace's synthetic Speak press into it, and hands it over.
-    /// The return value is the state *before* the press, because that is the
-    /// state the frame's branch on "is a window up" has to use: the frame a
-    /// window shuts still ticked the suspended field.
-    fn drive_dialogue_input(&mut self) -> bool {
-        let Some(runtime) = self.runtime.as_mut() else {
-            return false;
-        };
-        let open = runtime.dialogue_open();
-        let dismissable = runtime.dialogue_view().is_some_and(|view| view.dismissable);
-        // Retail pacing holds a completed page for the oracle tapes' four
-        // frames and then dismisses it; that press is an ordinary Speak press
-        // in the pad, so the runtime's own edge and swallow rules decide it.
-        let synthetic_speak = retail_pace_enabled()
-            && dismissable
-            && self.retail_dialogue_wait >= RETAIL_DISMISS_HOLD_FRAMES;
-        if retail_pace_enabled() && dismissable {
-            self.retail_dialogue_wait = self.retail_dialogue_wait.saturating_add(1);
-        } else if !dismissable {
-            self.retail_dialogue_wait = 0;
-        }
-        let pad = read_pad(synthetic_speak);
-        let pressed = pad.pressed(self.dialogue_pad);
-        self.dialogue_pad = pad;
-        if std::env::var("PSIV_DEBUG_INPUT").is_ok_and(|value| value == "1")
-            && pressed.held(psiv_runtime::Button::Speak)
-            && let Some(view) = runtime.dialogue_view()
-            && view.page_end.is_some()
-        {
-            godot_print!("dialogue page {:?}: {:?}", view.page_end, view.lines);
-        }
-        let signals = runtime.dialogue_frame(pad);
-        if synthetic_speak {
-            self.retail_dialogue_wait = 0;
-        }
-        self.present_dialogue_signals(signals);
-        open
+    /// The runtime behind the session, for what the shell reads.
+    pub(crate) fn runtime(&self) -> Option<&Runtime> {
+        self.session.as_ref().map(Session::runtime)
     }
 
-    /// The dialogue window's own half of a frame: the retail `$F2` actions,
-    /// the open animation, the typewriter and the flow's signals, followed by
-    /// the view the node draws.
-    fn tick_dialogue_window(&mut self) {
-        let signals = self
-            .runtime
-            .as_mut()
-            .map(|runtime| runtime.dialogue_tick())
-            .unwrap_or_default();
-        self.present_dialogue_signals(signals);
-        self.sync_dialogue_view();
+    /// The runtime behind the session, for the modes that are still the
+    /// shell's — title (S5), game over (S5), battle (S3), shop and camp (S4).
+    /// A gameplay frame goes through `Session::frame` instead.
+    pub(crate) fn runtime_mut(&mut self) -> Option<&mut Runtime> {
+        self.session.as_mut().map(Session::runtime_mut)
+    }
+
+    /// Blocks the field's confirm press until the pad releases it, for the
+    /// shell modes that hand the field back: the press that closed a camp menu
+    /// or left the game-over fade must not read as a talk.
+    pub(crate) fn block_accept(&mut self) {
+        if let Some(session) = self.session.as_mut() {
+            session.block_accept();
+        }
+    }
+
+    /// The game frame: everything the shell does not own.
+    ///
+    /// `Session::frame` owns the dialogue window's input half, a pending `$F6`
+    /// and the field or the scene; this method owns the order around it, in
+    /// which the two remaining shell modes sit where the old dispatcher put
+    /// them: after the window's half is known, before the field's.
+    fn drive_game_frame(&mut self) {
+        let window_open = self
+            .session
+            .as_ref()
+            .is_some_and(|session| session.runtime().dialogue_open());
+        let pad = self.frame_pad();
+        if !window_open {
+            // S4. A window that is already up owns the frame, so neither mode
+            // runs under one — the old dispatcher reached them only after the
+            // window branch had returned.
+            self.retail_dialogue_wait = 0;
+            if self.drive_shop_if_active() {
+                return;
+            }
+            if self.drive_camp_if_active() {
+                return;
+            }
+        }
+        let Some(frame) = self.session.as_mut().map(|session| session.frame(pad)) else {
+            return;
+        };
+        self.present_frame(frame);
     }
 
     /// Hands the window this frame's runtime view. The runtime owns the
     /// window's state; the node owns its pixels.
     fn sync_dialogue_view(&mut self) {
-        let view = self.runtime.as_ref().and_then(|rt| rt.dialogue_view());
+        let view = self.runtime().and_then(|rt| rt.dialogue_view());
         if let Some(window) = self.dialogue.as_mut() {
             window.bind_mut().set_view(view);
         }
@@ -758,15 +650,16 @@ impl Field {
     /// Reloads the leader sprite sheet from the game's party slot 0 and
     /// refreshes the cached view on party changes and native save/title loads.
     fn refresh_party_sheets(&mut self) {
-        let Some(runtime) = self.runtime.as_ref() else {
-            return;
-        };
-        let leader = runtime.game().party_slot(0).map(|c| c.0).unwrap_or(0);
+        let leader = self
+            .runtime()
+            .and_then(|runtime| runtime.game().party_slot(0))
+            .map(|c| c.0)
+            .unwrap_or(0);
         if leader != self.leader_char || self.party_view.is_none() {
             self.leader_char = leader;
-            let view = runtime
-                .data()
-                .party_sheet(leader as usize)
+            let view = self
+                .runtime()
+                .and_then(|runtime| runtime.data().party_sheet(leader as usize))
                 .and_then(|sheet| SheetView::build(&self.pack_dir, sheet));
             self.party_view = view;
             if self.party_view.is_some() {

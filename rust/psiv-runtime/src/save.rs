@@ -123,6 +123,13 @@ pub(super) fn construct_runtime(
     let record = data
         .map(psiv_data::MapId(placement.map_id))
         .ok_or(BridgeError::NotPacked(placement.map_id))?;
+    // The message box is part of the runtime, not a second step a caller can
+    // forget: the dialogue comes from the loaded data, and data without it
+    // (a synthetic pack built from parts) is refused here, where the error can
+    // name the problem instead of failing on the first window a scene opens.
+    let dialogue_pack = data
+        .dialogue()
+        .ok_or_else(|| BridgeError::Rejected("pack has no dialogue set".to_owned()))?;
     let effects = super::effects::evaluate(record, &mut game);
     let map = crate::bridge::field_map_entered(record, &effects, &game)?;
     clear_bespoke_entry_flags(&mut game, record);
@@ -153,7 +160,7 @@ pub(super) fn construct_runtime(
         scene_event: psiv_core::EventIndex(0),
         dialogue_answer: None,
         scene_choice_pending: false,
-        dialogue: super::dialogue::DialogueRunner::new(),
+        dialogue: super::dialogue::DialogueRunner::with_pack(dialogue_pack),
         scene_tree_address: None,
         game_cleared: false,
         game_over: false,
