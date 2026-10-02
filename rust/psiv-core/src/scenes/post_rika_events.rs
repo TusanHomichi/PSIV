@@ -7,7 +7,7 @@
 //! These records keep the cartridge's state writes in the core and carry the
 //! RAM/VDP choreography as typed presentation operations.
 
-use super::RUNE;
+use super::{CHAZ, DEMI, GRYZ, RIKA, RUNE};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_presentation::PresentationOp;
@@ -22,6 +22,8 @@ const MUSIC_LAND_MASTER: u8 = 0x8D;
 const MUSIC_ENEMY_APPEARANCE: u8 = 0xA3;
 const MUSIC_THE_BLACK_BLOOD: u8 = 0xA8;
 const SFX_GRAVE_OPENING: u8 = 0xDD;
+/// `SFXID_Tandle` (`ps4.constants.asm`), the barrier's arc sound.
+const SFX_TANDLE: u8 = 0xCE;
 const SFX_BARRIER_BROKEN: u8 = 0xE6;
 const SFX_CONVEYOR_BELT: u8 = 0xE7;
 const SFX_SPACESHIP_RADAR: u8 = 0xF8;
@@ -63,8 +65,18 @@ pub static MACHINE_CENTER_APPEARING: Scene = Scene {
         SceneOp::PlaySound {
             id: SFX_GRAVE_OPENING,
         },
-        // `moveq #$170` + `dbf`: 369 map-update iterations.
-        SceneOp::Wait { ticks: 369 },
+        // `moveq #$170` + `dbf`: 369 map-update iterations. The countdown's own
+        // beats are inside it — the grave objects at d7 `$F8`, and, at d7
+        // `$3D` (the 308th iteration), `loc_6B5C0` resolving BG chunk (57,90)
+        // with `GetMapLayoutChunkBG($39,$5A)`, writing chunk `$D3` into it and
+        // refreshing the plane. That write is what puts the Machine Center's
+        // *door* on the live overworld: cells (114..115,180..181) read
+        // collision `$1` from that chunk, and warp 21 at (114,180) needs it.
+        SceneOp::Wait { ticks: 308 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(57, 90, 0xD3)],
+        },
+        SceneOp::Wait { ticks: 61 },
         SceneOp::ObjectAnimation {
             slot: 1,
             object_id: 0x78,
@@ -341,5 +353,179 @@ pub static ZIO_NURVUS: Scene = Scene {
         },
         SceneOp::StartBattle { index: 6 },
         SceneOp::Return { value: 1 },
+    ],
+};
+
+/// `Event_ZioFortBarrier`, `EventPtrs[$30]`, retail `$06EC62..$06EE3F`
+/// (477 bytes) — the invisible barrier across Zio Fort's central courtyard.
+///
+/// Decoded from the image rather than from the clone's `if grand_cross=0`
+/// body; every operand below is the byte at the address in the comment. The
+/// last write is Zio Fort Barrier `$64`, which the same map's effect entry
+/// `$42` gates its eight-object despawn on (`BarrierBeam1..4` and the four
+/// `InvisibleBlock` trigger objects at indices 4 to 11), so the courtyard's
+/// warp 8 to Nurvus becomes usable.
+pub static ZIO_FORT_BARRIER: Scene = Scene {
+    name: "Event_ZioFortBarrier",
+    event: EventIndex(0x0030),
+    ops: &[
+        // `$06EC62`: `moveq #EventFlag_AfterAlysDeath, d0 / jsr EventFlags_Test
+        // / beq.w $6EE0E` — without the Alys-death flag this event is dialogue
+        // `$4A` and nothing else.
+        SceneOp::BranchFlag {
+            flag: Flag::event(0x63),
+            if_set: 1,
+            if_clear: 33,
+        },
+        // `$06EC6E`: dialogue `$44` on the map's own tree.
+        SceneOp::RunDialogue {
+            source: DialogueSource::Entry(DialogueId(0x44)),
+            window: DialogueWindow::Standard,
+        },
+        // `$06EC76..$06ECD9`: five `Event_GetCharacter` /
+        // `move.w #x,$38(a4)` / `move.w #y,$3A(a4)` destination pairs in the
+        // cartridge's own order — Chaz, Rune, Gryz, Rika, Demi. These are
+        // *destinations*, walked below once the follow chain is off.
+        SceneOp::MoveActorTo {
+            actor: ActorRef::Character(CHAZ),
+            x: 0x2F0,
+            y: 0x380,
+            wait: false,
+        },
+        SceneOp::MoveActorTo {
+            actor: ActorRef::Character(RUNE),
+            x: 0x2F0,
+            y: 0x370,
+            wait: false,
+        },
+        SceneOp::MoveActorTo {
+            actor: ActorRef::Character(GRYZ),
+            x: 0x310,
+            y: 0x380,
+            wait: false,
+        },
+        SceneOp::MoveActorTo {
+            actor: ActorRef::Character(RIKA),
+            x: 0x2E0,
+            y: 0x380,
+            wait: false,
+        },
+        SceneOp::MoveActorTo {
+            actor: ActorRef::Character(DEMI),
+            x: 0x300,
+            y: 0x380,
+            wait: false,
+        },
+        SceneOp::SetStepOffset { value: 0 },
+        // `$06ECE0`: `bset #0` (follow chain off, so each member walks its own
+        // destination) and `bset #2` (the scene owns the camera).
+        SceneOp::SetFollowMode { bits: 0b101 },
+        // `$06ECFC`: `Event_MoveObjectStatic` on Rune spins every field object
+        // until he arrives, which is how the other four walk with him.
+        SceneOp::MoveActorTo {
+            actor: ActorRef::Character(RUNE),
+            x: 0x2F0,
+            y: 0x370,
+            wait: true,
+        },
+        // `$06ED02`: `loc_5A97C` with d0 = 4 — face each character object up.
+        SceneOp::Face {
+            actor: ActorRef::Character(CHAZ),
+            facing: Direction::Up,
+        },
+        SceneOp::Face {
+            actor: ActorRef::Character(RUNE),
+            facing: Direction::Up,
+        },
+        SceneOp::Face {
+            actor: ActorRef::Character(GRYZ),
+            facing: Direction::Up,
+        },
+        SceneOp::Face {
+            actor: ActorRef::Character(RIKA),
+            facing: Direction::Up,
+        },
+        SceneOp::Face {
+            actor: ActorRef::Character(DEMI),
+            facing: Direction::Up,
+        },
+        // `$06ED0A`: `DoMainUpdatesLoop` with d0 = $27.
+        SceneOp::Wait { ticks: 40 },
+        SceneOp::PlaySound { id: SFX_TANDLE },
+        // `$06ED42`: `Palette_Line_4` ramped from `loc_6EE16` over seven
+        // steps, each waiting `DoMapUpdateLoop($1D)` = 30 frames. The four
+        // beam objects' render-flag bit is cleared in the same beat
+        // (`$06ED12`); the scene despawns those same objects 60 frames later,
+        // so the write is transient presentation with no collision effect.
+        SceneOp::Presentation {
+            op: PresentationOp::PaletteRampFromTable {
+                source_rom_addr: 0x0006_EE16,
+                destination_ram: 0xFFFF_FB60,
+                steps: 7,
+                frame_delay: 30,
+            },
+        },
+        SceneOp::Wait { ticks: 60 },
+        // `$06ED76`: `clr.w` over eight objects from `$FFFFC400` — this map's
+        // record objects 4 to 11, the four BarrierBeams and the four
+        // InvisibleBlocks.
+        SceneOp::DespawnNpc {
+            npc_index: 4,
+            count: 8,
+        },
+        SceneOp::Face {
+            actor: ActorRef::Character(RUNE),
+            facing: Direction::Down,
+        },
+        // `$06EDA4`: `Event_MoveSingleObject` on Demi to ($300,$370).
+        SceneOp::MoveActorTo {
+            actor: ActorRef::Character(DEMI),
+            x: 0x300,
+            y: 0x370,
+            wait: true,
+        },
+        SceneOp::Face {
+            actor: ActorRef::Character(DEMI),
+            facing: Direction::Down,
+        },
+        // `$06EDBA`: `DoMapUpdateLoop($1D)`.
+        SceneOp::Wait { ticks: 30 },
+        SceneOp::RunDialogue {
+            source: DialogueSource::Entry(DialogueId(0x45)),
+            window: DialogueWindow::Standard,
+        },
+        // `$06EDCA`: `bclr #0`, then `Character_1` — the leader — to
+        // ($2F0,$350), then `bclr #2`.
+        SceneOp::SetFollowMode { bits: 0b100 },
+        SceneOp::MoveActorTo {
+            actor: LEADER,
+            x: 0x2F0,
+            y: 0x350,
+            wait: true,
+        },
+        SceneOp::SetFollowMode { bits: 0b000 },
+        // `$06EDE8`: `DoMainUpdatesLoop($3B)`.
+        SceneOp::Wait { ticks: 60 },
+        // `$06EDF0`: the camera reads the leader's live position.
+        SceneOp::Presentation {
+            op: PresentationOp::CameraToActor {
+                actor: LEADER,
+                speed: 1,
+            },
+        },
+        SceneOp::SetStepOffset { value: 1 },
+        SceneOp::SetFlag {
+            flag: Flag::event(0x64),
+            value: true,
+        },
+        // `EventFlags_Set` restores d0, so the event returns the flag id: a
+        // non-zero return, the ordinary event hand-off.
+        SceneOp::Return { value: 1 },
+        // `loc_6EE0E`: dialogue `$4A` for a party that has not seen Alys die.
+        SceneOp::RunDialogue {
+            source: DialogueSource::Entry(DialogueId(0x4A)),
+            window: DialogueWindow::Standard,
+        },
+        SceneOp::Return { value: 0 },
     ],
 };

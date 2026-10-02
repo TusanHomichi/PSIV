@@ -260,7 +260,7 @@ non-null bodies after the MeetingRika hand-off are:
 | `$2B` | `Event_GettingLandRover` | `$06DEBE..$06E0E9` | `RunEventsJmpTbl[$1B]` on Machine Center |
 | `$2E` | `Event_RuneLadaeTower` | `$06E930..$06EA15` | `RunEventsJmpTbl[$19]` on Ladea F2 |
 | `$2F` | `Event_PsycoWandChest` | `$06EA16..$06EC61` | `RunEventsJmpTbl[$2A]` on Ladea F5 |
-| `$30` | `Event_ZioFortBarrier` | `$06EC62..$06EE3F` | direct Zio Fort map-data path; no RunEvent writer |
+| `$30` | `Event_ZioFortBarrier` | `$06EC62..$06EE3F` | direct Zio Fort path: dialogue tree 13 entry 73's action [90](90_ZioFortBarrier.md) |
 | `$31` | `Event_ZioFanatic` | `$06EE40..$06EEBD` | direct/map dialogue path; not the `$8007` chain writer |
 | `$34` | `Event_ZioNurvus` | `$06F2EA..$06F439` | `RunEventsJmpTbl[$1F]` on Nurvus |
 

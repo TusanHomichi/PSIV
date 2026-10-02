@@ -403,3 +403,146 @@ fn the_arc_walks_from_holt_through_tonoe_to_birth_valley() {
     assert_eq!(runtime.map_id().0, 0x24);
     assert!(runtime.game().is_set(Flag::event(0x37)));
 }
+
+/// `Event_ZioFortBarrier` (`$30`) against Zio Fort `$82`: the ring walk, the
+/// two dialogues, and the map state the event leaves behind.
+///
+/// This is the H18 acceptance. The party is the campaign's post-Psycho-Wand
+/// roster (Chaz, Gryz, Rika, Demi and Rune), and `$63` — After Alys Death —
+/// must be set for the event's main path; with it clear the cartridge plays
+/// dialogue `$4A` and stops.
+#[test]
+fn the_zio_fort_barrier_walks_its_ring_and_opens_the_courtyard() {
+    if !Path::new(PACK).join("manifest.json").is_file() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+
+    let data = GameData::load(Path::new(PACK)).expect("pack loads");
+    let mut game = GameState::new();
+    // The campaign's own roster order at this point: Gryz leads, and Rune
+    // has joined from the Ladea Tower pair.
+    for (slot, id) in [CharId(4), CharId(0), CharId(5), CharId(6), CharId(3)]
+        .into_iter()
+        .enumerate()
+    {
+        game.set_party_slot(slot, Some(id))
+            .expect("party slot exists");
+    }
+    game.set(Flag::event(0x63)).expect("flag exists");
+    let mut runtime = Runtime::from_save(
+        data,
+        RetailSave {
+            snapshot: game.snapshot(),
+            location: RetailLocation {
+                world_index: 0,
+                map_index_2: 0,
+                map_index: 0x82,
+                char_x: 47 * 16,
+                char_y: 56 * 16,
+            },
+        },
+        StepFrames::default(),
+    )
+    .expect("runtime at Zio Fort");
+
+    // The barrier's eight objects stand before the event and are gone after.
+    for index in 4..12 {
+        assert!(
+            runtime.map.npcs()[index].active,
+            "object {index} is a barrier blocker before the scene"
+        );
+    }
+
+    // Drive the scene by hand: the ring is complete when dialogue `$45`
+    // opens, and the event's last moves come after it.
+    assert!(runtime.start_event(0x0030), "the barrier event starts");
+    let mut log = Vec::new();
+    let mut ring = None;
+    let mut entries = Vec::new();
+    for _ in 0..50_000 {
+        let events = runtime.tick(Input::Neutral);
+        for item in &events {
+            assert!(
+                !matches!(item, RuntimeEvent::SceneFaulted { .. }),
+                "the barrier event faulted: {item:?}"
+            );
+            if let RuntimeEvent::SceneDialogue { entry } = item {
+                entries.push(*entry);
+                if *entry == 0x45 {
+                    // The scene's own cast, not the field party: a running
+                    // scene owns the cast's positions until it hands them back
+                    // on its last tick.
+                    ring = Some(
+                        runtime
+                            .scene_actors()
+                            .iter()
+                            .filter_map(|actor| match actor.actor {
+                                psiv_core::ActorRef::PartyMember(slot) => Some((slot, actor.cell)),
+                                _ => None,
+                            })
+                            .collect::<Vec<_>>(),
+                    );
+                }
+            }
+            if matches!(
+                item,
+                RuntimeEvent::SceneDialogue { .. } | RuntimeEvent::SceneDialogueResume
+            ) {
+                runtime.dialogue_closed();
+            }
+        }
+        log.extend(events);
+        if !runtime.scene_active() {
+            break;
+        }
+    }
+    assert_eq!(entries, vec![0x44, 0x45], "both barrier dialogues open");
+
+    // The ring, complete when `$45` opens: each destination is that
+    // character's own `move.w #x,$38(a4) / move.w #y,$3A(a4)` pair, and the
+    // standing cell is the pixel target's cell plus the one-row shift every
+    // field walk uses.
+    let mut ring = ring.expect("dialogue $45 opens after the ring walk");
+    ring.sort_unstable();
+    for (slot, who, x, y, cell) in [
+        (0, "Gryz", 0x310, 0x380, Cell::new(49, 57)),
+        (1, "Chaz", 0x2F0, 0x380, Cell::new(47, 57)),
+        (2, "Rika", 0x2E0, 0x380, Cell::new(46, 57)),
+        (3, "Demi", 0x300, 0x370, Cell::new(48, 56)),
+        (4, "Rune", 0x2F0, 0x370, Cell::new(47, 56)),
+    ] {
+        assert_eq!(
+            ring[slot].1, cell,
+            "{who} should stand at its retail destination (${x:X},${y:X}); ring {ring:?}"
+        );
+    }
+
+    // The event's last move walks the leader — `Character_1` — to
+    // ($2F0,$350), cell (47,54), with the follow chain restored, so the rest
+    // of the ring trails him.
+    assert_eq!(runtime.state().cell(), Cell::new(47, 54));
+    assert!(runtime.game().is_set(Flag::event(0x64)));
+
+    for index in 4..12 {
+        assert!(
+            !runtime.map.npcs()[index].active,
+            "object {index} is cleared by the event"
+        );
+    }
+
+    // The courtyard's warp 8 at (47,49) is the only way to Nurvus $D7.
+    let mut arrived = None;
+    for _ in 0..40 {
+        for event in runtime.tick(Input::Direction(Direction::Up)) {
+            if let RuntimeEvent::MapChanged { map, .. } = event {
+                arrived = Some(map);
+            }
+        }
+        if arrived.is_some() {
+            break;
+        }
+    }
+    assert_eq!(arrived, Some(psiv_core::MapId(0xD7)), "the courtyard opens");
+    assert_eq!(runtime.state().cell(), Cell::new(32, 35));
+}

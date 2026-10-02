@@ -251,6 +251,7 @@ impl Field {
             | PresentationOp::ClearPaletteLine { .. }
             | PresentationOp::VariablePaletteFade { .. }
             | PresentationOp::RykrosPaletteCycle { .. }
+            | PresentationOp::PaletteRampFromTable { .. }
             | PresentationOp::CameraToActor { .. }
             | PresentationOp::RajaSickTemporaryObject { .. }
             | PresentationOp::RajaSickResetRaja { .. }

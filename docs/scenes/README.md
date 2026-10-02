@@ -26,6 +26,18 @@ Reunion gate and the Profound Darkness battle request. The trigger/map census is
 The native registry and headless proof live beside those documents in
 `psiv-core` and `psiv-runtime`.
 
+**Live layout writes are audited.** Every scene that writes map chunks while
+the party stands on the map — the mechanism the cartridge uses instead of a
+map reload — is listed with its port status in
+[the live-layout census](LIVE_LAYOUT_WRITES.md), which is H19's class fix.
+
+**Revision-conditional ops are audited.** Every transcribed scene's
+`if revision>0` / `else` blocks and its retail `DialogueTreesToRAM` calls are
+counted in [the revision audit](REVISION_AUDIT.md), which is what caught the
+four tree-6 loads H17 records. Guarded by
+[`tests/test_scene_trees.py`](../../tests/test_scene_trees.py) and
+`psiv-core`'s `every_scene_loads_the_trees_its_retail_bytes_load`.
+
 ## Next-arc registry
 
 | Scene | Event | Doc | Retail bytes |
@@ -55,6 +67,7 @@ The native registry and headless proof live beside those documents in
 | `Event_RuneLadaeTower` | `$2E` | [35](35_RuneLadeaTower.md) | `$06E930..$06EA15` |
 | `Event_PsycoWandChest` | `$2F` | [36](36_PsycoWandChest.md) | `$06EA16..$06EC61` |
 | `Cutscene_PsycoWand` | `$800A` | [37](37_PsycoWand.md) | `$075200..$075A11` |
+| `Event_ZioFortBarrier` | `$30` | [90](90_ZioFortBarrier.md) | `$06EC62..$06EE3F` |
 | `Event_ZioNurvus` | `$34` | [38](38_ZioNurvus.md) | `$06F2EA..$06F439` |
 | `Cutscene_ZioDefeated` | `$800B` | [39](39_ZioDefeated.md) | `$075A12..$075FC7` |
 | `Cutscene_MeetingWren` | `$800C` | [40](40_MeetingWren.md) | `$075FC8..$07606B` |
@@ -268,6 +281,7 @@ dialogue tree (which the dialogue system owns, not the scene interpreter).
 | `SetSavedMusic{id}` | `move.b #id, (Saved_Sound_Index).w` | GuardsReprimand, GameStart |
 | `FadeIn{}` / `FadeOut{}` | `Pal_FadeIn $421D4` / `PalFadeOut_ClrSpriteTbl $4223E` | GameStart, PiataPrincipal, GuardsReprimand |
 | `LoadMap{map, prev_map, start_x, start_y, facing, align}` | `Field_Map_Index`/`Map_Start_*`/`Map_Load_Flags` + `RefreshMap $5AE98` | GameStart (×4), GuardsReprimand |
+| `WriteMapChunks{chunks}` | `GetMapLayoutOffset $53514` / `GetMapLayoutChunkBG $53EEC` + `RefreshPlaneBG $540FA` | see the [live-layout census](LIVE_LAYOUT_WRITES.md) |
 | `SetDialogueTree{rom_addr}` | `DialogueTreesToRAM $53F00` | GameStart, GuardsReprimand |
 | `RunDialogueResume{}` | `popdlg` + `Event_RunDialogue $5AC6C` | AfterIgglanova (×2) |
 | `MoveActorTo{who, x, y}` | `Event_MoveCharacters $5AA84` (party, follows) / `Event_MoveSingleObject $5A9FC` (one object) | GameStart, AfterIgglanova |
@@ -451,11 +465,13 @@ field maps.
 
 - `RunEvent_MeetingSayaUnused` (`$09`) — genuinely unreferenced: it appears
   in `RunEventsJmpTbl` but no map's event list contains `$09`.
-- `Event_ZioFortBarrier` (`$30`) and `Event_ZioFanatic` (`$31`) are direct
-  `EventPtrs` bodies behind the Zio Fort map-data/interaction path, not entries
-  written by the retail `RunEvent_*` chain covered here. Their `grand_cross=0`
-  bytes are recorded in the census as direct bodies; they are not silently
-  substituted with Grand Cross code.
+- `Event_ZioFanatic` (`$31`) is a direct `EventPtrs` body behind the Zio Fort
+  map-data/interaction path, not an entry the retail `RunEvent_*` chain covered
+  here writes. Its `grand_cross=0` bytes are recorded in the census as a direct
+  body; it is not silently substituted with Grand Cross code.
+  (`Event_ZioFortBarrier` `$30` was in this list until H18: the Zio Fort
+  courtyard's barrier is reached by a dialogue action, and it is transcribed
+  now — see [90](90_ZioFortBarrier.md).)
 - `Event_FortuneTeller` and `Event_AfterFortuneTeller`: the retail
   `EventPtrs` table stops at `$A0`, so `$A1/$A2` are not retail event pointers;
   the clone only has their Grand Cross includes. There is no retail byte range
