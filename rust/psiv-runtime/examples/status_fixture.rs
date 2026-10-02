@@ -1,7 +1,7 @@
 //! Five original starting records, deliberately reordered to expose UI seat bugs.
-use psiv_core::{Cell, CharId, Direction, GameState, RetailLocation, RetailSave, StepFrames};
+use psiv_core::{CharId, GameState, RetailLocation, RetailSave};
 use psiv_data::{BattleFiles, GameData};
-use psiv_runtime::Runtime;
+use psiv_runtime::{SaveStore, Session};
 use std::path::Path;
 fn main() {
     let output = std::env::args()
@@ -13,17 +13,14 @@ fn main() {
         "output slot must be new"
     );
     let pack = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
+    let data = GameData::load(pack).unwrap();
     let files = BattleFiles::load(pack).unwrap();
-    let mut initial = Runtime::new(
-        GameData::load(pack).unwrap(),
-        0x47,
-        Cell::new(30, 45),
-        Direction::Down,
-        StepFrames::default(),
-    )
-    .unwrap();
-    initial.enable_battles(&files).unwrap();
-    let mut game = GameState::from_snapshot(&initial.game().snapshot());
+    // The records are the retail boot's own (`field`), reordered in the party.
+    let initial = Session::start(data.clone())
+        .with_battles(files.clone())
+        .field()
+        .unwrap();
+    let mut game = GameState::from_snapshot(&initial.runtime().game().snapshot());
     game.set_party([
         Some(CharId(8)),
         Some(CharId(0)),
@@ -31,9 +28,10 @@ fn main() {
         Some(CharId(4)),
         Some(CharId(3)),
     ]);
-    let rt = Runtime::from_save(
-        GameData::load(pack).unwrap(),
-        RetailSave {
+    let session = Session::start(data)
+        .with_battles(files)
+        .with_saves(SaveStore::new(output))
+        .from_save(RetailSave {
             snapshot: game.snapshot(),
             location: RetailLocation {
                 world_index: 0,
@@ -42,12 +40,10 @@ fn main() {
                 char_x: 480,
                 char_y: 720,
             },
-        },
-        StepFrames::default(),
-    )
-    .unwrap();
+        })
+        .unwrap();
     println!(
         "isolated five-character original-stat fixture: {}",
-        rt.save_slot(output, 0).unwrap().display()
+        session.save_slot(0).unwrap().display()
     );
 }

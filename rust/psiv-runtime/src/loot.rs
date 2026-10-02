@@ -99,7 +99,7 @@ impl Runtime {
     }
 
     /// Acknowledge a completed grant. Full packs require an explicit decision.
-    pub fn acknowledge_loot(&mut self) -> bool {
+    pub(crate) fn acknowledge_loot(&mut self) -> bool {
         if self
             .loot_state()
             .is_none_or(|loot| matches!(loot.outcome, ChestOutcome::Full { .. }))
@@ -113,7 +113,7 @@ impl Runtime {
     }
 
     /// Return the waiting item to its chest, closing the lid without a flag.
-    pub fn return_loot(&mut self) -> bool {
+    pub(crate) fn return_loot(&mut self) -> bool {
         let Some(loot) = self.loot.as_ref() else {
             return false;
         };
@@ -129,7 +129,7 @@ impl Runtime {
 
     /// loc_67ABA / loc_67C5C: protect plot items, discard the first matching
     /// inventory byte, compact once, then put the found item at the end.
-    pub fn discard_for_loot(&mut self, slot: usize) -> LootResult {
+    pub(crate) fn discard_for_loot(&mut self, slot: usize) -> LootResult {
         let Some(loot) = self.loot.as_ref() else {
             return LootResult::Invalid;
         };

@@ -26,30 +26,55 @@ and excluded from Git; see [extraction](EXTRACTION.md) and [setup](DEVELOPMENT.m
 
 ## The public runtime API
 
-After the S5 node the crate's public surface is the session, its views and the
-constructors: `Session::frame(pad)` is a frame of game, `Session::runtime()`
-hands out the readonly runtime for presentation, the frame carries the views a
-shell draws (`Frame::battle`, `Frame::title`, `Frame::game_over`,
-`Frame::notice` and the open menus' `ShopView`/`CampView`), the constructors
-build what a session starts over (`Runtime::new`, `Runtime::new_game`,
-`Runtime::from_save`, `Runtime::load_slot`, `SaveStore`), and the fixtures a
-certification needs are `psiv-runtime/src/session/debug.rs` plus the
-`Session::debug_*` selectors. Everything that changes game state is
-`pub(crate)`: `psiv-godot` cannot name one, and the module doctests on
-`Session` (`rust/psiv-runtime/src/session/mod.rs`) fail to compile if a shell
-tries. The exceptions are the seams the crate's own harness still drives — the
-battle engine's `enable_battles`, `battle_round`, `finish_battle_for_outcome`,
-the field's `tick`, the dialogue's `open_scene_dialogue`/`dialogue_closed` and
-the save writer `save_slot` — which the runtime's own integration tests and
-examples drive directly. They stay `pub` until those harnesses move onto the
-session, because a `pub(crate)` mutator is invisible to an integration test that
-lives outside the crate; the S5 node of the
-[campaign runner](campaign/CAMPAIGN_RUNNER.md#task-graph) records the list and
-the reason. What remains of the shell is pictures, input mapping and the
-directory policy: `rust/psiv-godot/src/save_dir.rs` resolves
-`PSIV_SAVE_DIR` (refusing a scripted run that names none) and hands
-`psiv_runtime::SaveStore` to the session, which owns every slot read, write and
-erase from then on.
+A game is a `Session` (`rust/psiv-runtime/src/session/mod.rs`). After the S6
+node that is the whole of the runtime's public surface: `Session::frame(pad)` is
+a frame of game, `Session::runtime()` hands out the read-only runtime for
+presentation, the frame carries the views a shell draws (`Frame::battle`,
+`Frame::title`, `Frame::game_over`, `Frame::notice` and the open menus'
+`ShopView`/`CampView`), and `Session::start(data)` is the only way to build one
+(`rust/psiv-runtime/src/session/start.rs`):
+
+| Start | What it is |
+| --- | --- |
+| `with_battles(files)` | the run's battle pack: without it no encounter rolls |
+| `with_saves(store)` | the run's save directory, as a `SaveStore` |
+| `with_step_frames(frames)` | a harness that walks at a different pace |
+| `power_on()` | retail's boot: the pack's own first control, at the title |
+| `field()` | the same boot with no front door (the debug selectors) |
+| `new_game()` | the title's START: the initializer, battles armed, the opening fired |
+| `continue_slot(n)` | the title's CONTINUE: slot `n` through the store |
+| `from_slot_bytes(bytes, slot)` | a slot file's bytes, without a directory |
+| `from_save(save)` | one decoded save: the fixtures' and tests' hand-built state |
+
+The certification fixtures are the other documented way in
+(`rust/psiv-runtime/src/session/debug.rs` plus the `Session::debug_*`
+selectors), and they hand back sessions too.
+
+`Runtime` — the engine's state — is crate-private in both directions: no
+constructor and no method that takes `&mut self` is `pub`. A shell that tries to
+build one, or to call a mutator through `Session::runtime()`, fails to compile
+for the right reason, and the crate carries the proof: a `compile_fail` doctest
+on `Runtime` (`rust/psiv-runtime/src/lib.rs`), the two on `Session`'s module,
+and a source check (`rust/psiv-runtime/src/suites/visibility.rs`,
+`no_runtime_mutator_is_public`) that fails when a new `pub fn (&mut self)` lands
+in an `impl Runtime` block. The runtime's own rule tests moved inside the crate
+with the mutators (`rust/psiv-runtime/src/suites/`, formerly
+`rust/psiv-runtime/tests/`), because a gameplay rule that ticks the field with
+an `Input` is not a pad-driven session; the pad-driven ones stayed integration
+tests.
+
+Two entry points in the crate are deliberately not games
+(`rust/psiv-runtime/src/tools/`): the oracle-tape replay driver
+(`psiv-runtime/src/bin/psiv-replay.rs`) and the legacy-save repair
+(`psiv-runtime/examples/repair_progression.rs`). Both need the seams above to do
+one whole documented job — replay a recorded tape and hand back a row per frame,
+repair a copied slot in and a repaired slot out — and neither hands out a
+`&mut Runtime`.
+
+What remains of the shell is pictures, input mapping and the directory policy:
+`rust/psiv-godot/src/save_dir.rs` resolves `PSIV_SAVE_DIR` (refusing a scripted
+run that names none) and hands `psiv_runtime::SaveStore` to the constructor,
+which owns every slot read, write and erase from then on.
 
 ## The session frame
 

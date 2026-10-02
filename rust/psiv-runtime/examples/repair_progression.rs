@@ -1,7 +1,5 @@
 //! Repair a copied pre-learning native slot without modifying its source file.
-use psiv_core::StepFrames;
-use psiv_data::{BattleFiles, GameData};
-use psiv_runtime::Runtime;
+use psiv_runtime::tools::repair_legacy_progression;
 use std::path::Path;
 
 fn main() {
@@ -19,28 +17,16 @@ fn main() {
     );
     let original = std::fs::read(source.join("slot_1.sram")).unwrap();
     let pack = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
-    let mut rt = Runtime::load_slot(
-        GameData::load(pack).unwrap(),
-        source,
-        0,
-        StepFrames::default(),
-    )
-    .unwrap();
-    rt.enable_battles(&BattleFiles::load(pack).unwrap())
-        .unwrap();
-    let repairs = rt.repair_legacy_progression().unwrap();
-    for repair in &repairs {
+    // The whole operation is the runtime's (`psiv_runtime::tools`): this
+    // example only names the two directories and shows the report.
+    let report = repair_legacy_progression(pack, source, output, 0).unwrap();
+    for repair in &report.repairs {
         println!("{repair:?}");
     }
-    assert!(
-        rt.repair_legacy_progression().unwrap().is_empty(),
-        "repair must be idempotent"
-    );
-    let saved = rt.save_slot(output, 0).unwrap();
     assert_eq!(std::fs::read(source.join("slot_1.sram")).unwrap(), original);
     println!(
         "repaired {} characters into {}",
-        repairs.len(),
-        saved.display()
+        report.repairs.len(),
+        report.saved.display()
     );
 }

@@ -10,10 +10,11 @@
 use std::path::Path;
 use std::sync::OnceLock;
 
-use psiv_core::{CharId, GameState, RetailLocation, RetailSave, StepFrames};
+use psiv_core::{CharId, GameState, RetailLocation, RetailSave};
 use psiv_data::{BattleFiles, GameData};
 use psiv_runtime::{
-    Button, CampPage, FrameMode, Pad, Routed, Runtime, RuntimeEvent, SaveStore, Session, ShopPage,
+    Button, CampPage, Frame, FrameMode, Pad, Routed, Runtime, RuntimeEvent, SaveStore, Session,
+    ShopPage,
 };
 
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
@@ -44,14 +45,14 @@ fn pack() -> &'static (GameData, BattleFiles) {
 }
 
 /// A session standing at `(map, x, y)` with `game`'s party, battle data loaded
-/// (the camp needs the item and ability tables).
+/// (the camp needs the item and ability tables) — a game from an in-memory
+/// save, which is what the session's own constructors take.
 fn session_at(place: (u16, u16, u16), game: &GameState) -> Session {
     let (data, files) = pack();
-    let data = data.clone();
     let (map, x, y) = place;
-    let mut runtime = Runtime::from_save(
-        data,
-        RetailSave {
+    Session::start(data.clone())
+        .with_battles(files.clone())
+        .from_save(RetailSave {
             snapshot: game.snapshot(),
             location: RetailLocation {
                 world_index: 0,
@@ -60,20 +61,18 @@ fn session_at(place: (u16, u16, u16), game: &GameState) -> Session {
                 char_x: x * 16,
                 char_y: y * 16,
             },
-        },
-        StepFrames::default(),
-    )
-    .expect("runtime builds");
-    runtime.enable_battles(files).expect("battles enable");
-    Session::new(runtime)
+        })
+        .expect("the session starts")
 }
 
 /// A new game's state: the roster the title's initializer builds.
 fn fresh_game() -> GameState {
     let (data, files) = pack();
-    let mut initial = Runtime::new_game(data.clone(), StepFrames::default()).expect("START");
-    initial.enable_battles(files).expect("battles enable");
-    GameState::from_snapshot(&initial.game().snapshot())
+    let initial = Session::start(data.clone())
+        .with_battles(files.clone())
+        .new_game()
+        .expect("START");
+    GameState::from_snapshot(&initial.runtime().game().snapshot())
 }
 
 /// Chaz alone with `money` meseta.
@@ -98,7 +97,7 @@ impl Player {
 
     /// One frame; the frame's events are only checked for faults, since the
     /// session has already opened every window itself.
-    fn tick(&mut self, pad: Pad) -> psiv_runtime::Frame {
+    fn tick(&mut self, pad: Pad) -> Frame {
         let frame = self.session.frame(pad);
         for event in &frame.events {
             assert!(
@@ -115,7 +114,7 @@ impl Player {
     }
 
     /// A fresh press: the button down for a frame, released for the next.
-    fn press(&mut self, button: Button) -> psiv_runtime::Frame {
+    fn press(&mut self, button: Button) -> Frame {
         let frame = self.tick(Pad::new(button));
         self.tick(Pad::NEUTRAL);
         frame
@@ -127,7 +126,7 @@ impl Player {
 
     /// Faces the shopkeeper across the counter and presses Speak; returns the
     /// frame the window opened on.
-    fn talk_up(&mut self) -> psiv_runtime::Frame {
+    fn talk_up(&mut self) -> Frame {
         // The counter is solid: walking into it turns the party to face it.
         for _ in 0..4 {
             self.tick(Pad::new(Button::Up));
@@ -689,12 +688,14 @@ fn the_camp_menu_saves_through_the_session_store() {
     );
     // The written slot is the state the session is in: a fresh session over the
     // same store loads the same party and purse.
-    let (data, _) = pack();
-    let loaded = SaveStore::new(&directory)
-        .load(data.clone(), 1, StepFrames::default())
+    let (data, files) = pack();
+    let loaded = Session::start(data.clone())
+        .with_battles(files.clone())
+        .with_saves(SaveStore::new(&directory))
+        .continue_slot(1)
         .expect("the slot loads");
     assert_eq!(
-        loaded.game().snapshot(),
+        loaded.runtime().game().snapshot(),
         player.runtime().game().snapshot(),
         "camp SAVE wrote the live state"
     );
@@ -808,12 +809,12 @@ fn camp_pressed_while_a_scene_runs_does_not_open_the_menu() {
         eprintln!("runtime pack not present; skipping");
         return;
     }
-    let data = pack().0.clone();
-    let event = data.new_game().expect("title initializer").event_index;
-    let mut runtime = Runtime::new_game(data, StepFrames::default()).expect("START");
-    assert!(runtime.start_event(event), "the opening event starts");
+    let (data, files) = pack();
     let mut player = Player {
-        session: Session::new(runtime),
+        session: Session::start(data.clone())
+            .with_battles(files.clone())
+            .new_game()
+            .expect("START"),
     };
     assert!(player.runtime().scene_active());
     for _ in 0..6 {

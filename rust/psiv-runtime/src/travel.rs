@@ -178,7 +178,11 @@ impl Runtime {
 
     /// Select a learned travel technique. HINAS pays when its message opens;
     /// RYUKA first opens its free-to-cancel destination list.
-    pub fn begin_camp_travel(&mut self, slot: usize, id: u8) -> Result<CampTravelMenu, String> {
+    pub(crate) fn begin_camp_travel(
+        &mut self,
+        slot: usize,
+        id: u8,
+    ) -> Result<CampTravelMenu, String> {
         let (who, cost, name) = self.travel_caster(slot, id)?;
         if id == RYUKA {
             let towns = self.town_destinations();
@@ -220,7 +224,11 @@ impl Runtime {
 
     /// Confirm one RYUKA table index, rechecking membership and caster state
     /// before spending TP. Passing an unvisited town cannot teleport there.
-    pub fn select_camp_town(&mut self, slot: usize, index: u8) -> Result<CampTravelMenu, String> {
+    pub(crate) fn select_camp_town(
+        &mut self,
+        slot: usize,
+        index: u8,
+    ) -> Result<CampTravelMenu, String> {
         let (who, cost, name) = self.travel_caster(slot, RYUKA)?;
         let destination = self.town_destination(index)?;
         self.prepare_travel(TravelPayment::Technique(who, cost), name, destination)
@@ -259,7 +267,7 @@ impl Runtime {
     /// Field ITEM USE bypasses character selection for both pipes. ESCAPIPE
     /// removes the selected slot when the valid exit message opens. TELEPIPE
     /// only browses here; cancelling the town window keeps the entire inventory.
-    pub fn begin_camp_item_travel(&mut self, slot: usize) -> Result<CampTravelMenu, String> {
+    pub(crate) fn begin_camp_item_travel(&mut self, slot: usize) -> Result<CampTravelMenu, String> {
         let (id, name) = self.travel_item(slot)?;
         if id == TELEPIPE {
             let towns = self.town_destinations();
@@ -276,7 +284,7 @@ impl Runtime {
     /// Confirm a TELEPIPE destination. Recheck the exact selected inventory
     /// slot and town before removing that item and shifting the first hole.
     /// This is GetInventoryOffset, not the chest swap's first matching ID.
-    pub fn select_camp_item_town(
+    pub(crate) fn select_camp_item_town(
         &mut self,
         slot: usize,
         index: u8,
@@ -291,7 +299,7 @@ impl Runtime {
 
     /// Acknowledge the paid teleport message. It is consumed once; the shell
     /// closes camp and processes the ordinary map-change event for art/music.
-    pub fn complete_camp_travel(&mut self) -> Result<Vec<RuntimeEvent>, BridgeError> {
+    pub(crate) fn complete_camp_travel(&mut self) -> Result<Vec<RuntimeEvent>, BridgeError> {
         let Some(destination) = self.pending_travel.take() else {
             return Ok(Vec::new());
         };

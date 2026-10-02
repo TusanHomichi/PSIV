@@ -98,7 +98,7 @@ impl Runtime {
 
     /// Confirm one learned field command. Invalid commands spend no resource
     /// or RNG; an eligible no-effect target still costs the confirmed use.
-    pub fn use_camp_ability(
+    pub(crate) fn use_camp_ability(
         &mut self,
         kind: CampAbilityKind,
         caster_slot: usize,

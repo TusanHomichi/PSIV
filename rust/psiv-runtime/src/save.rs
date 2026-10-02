@@ -267,7 +267,7 @@ impl SaveStore {
     }
 
     /// Loads one visible slot: the title's CONTINUE.
-    pub fn load(
+    pub(crate) fn load(
         &self,
         data: GameData,
         slot: usize,
@@ -277,7 +277,11 @@ impl SaveStore {
     }
 
     /// Writes one visible slot: the camp's SAVE.
-    pub fn write(&self, runtime: &Runtime, slot: usize) -> Result<PathBuf, RuntimeSaveError> {
+    pub(crate) fn write(
+        &self,
+        runtime: &Runtime,
+        slot: usize,
+    ) -> Result<PathBuf, RuntimeSaveError> {
         runtime.save_slot(&self.directory, slot)
     }
 
@@ -289,7 +293,7 @@ impl SaveStore {
 
 impl Runtime {
     /// Returns the deterministic disk path for a visible save slot.
-    pub fn slot_path(directory: &Path, slot: usize) -> Result<PathBuf, RuntimeSaveError> {
+    pub(crate) fn slot_path(directory: &Path, slot: usize) -> Result<PathBuf, RuntimeSaveError> {
         validate_slot(slot)?;
         Ok(directory.join(format!("slot_{}.sram", slot + 1)))
     }
@@ -300,6 +304,11 @@ impl Runtime {
     /// the Godot shell resolves `PSIV_SAVE_DIR` for it and refuses a scripted
     /// run without that variable (`rust/psiv-godot/src/save_dir.rs`), while
     /// tests pass a temporary directory without changing runtime state.
+    ///
+    /// Read-only on the runtime (`&self`), which is why it is public under the
+    /// S6 boundary: a caller holding a session's `&Runtime` may record the game
+    /// it is looking at — the campaign runner writes each chapter's boundary
+    /// save this way — but cannot change it.
     pub fn save_slot(&self, directory: &Path, slot: usize) -> Result<PathBuf, RuntimeSaveError> {
         let path = Self::slot_path(directory, slot)?;
         let cell = self.vehicle_cell().unwrap_or_else(|| self.state().cell());
@@ -324,32 +333,14 @@ impl Runtime {
 
     /// Loads a slot and constructs the same runtime seam the title continue
     /// path will use once a title screen exists.
-    pub fn load_slot(
+    pub(crate) fn load_slot(
         data: GameData,
         directory: &Path,
         slot: usize,
         step_frames: StepFrames,
     ) -> Result<Runtime, RuntimeSaveError> {
         let path = Self::slot_path(directory, slot)?;
-        let bytes = std::fs::read(path)?;
-        let encoded = RetailSlot::from_bytes(&bytes, slot)?;
-        let mut runtime = Self::from_save(data, encoded.decode()?, step_frames)?;
-        // Positive map bytes and explicit place-entry selectors already
-        // reconstruct the exit. Only inherited maps need native metadata.
-        if runtime
-            .data
-            .map(psiv_data::MapId(runtime.map.id().0))
-            .is_some_and(|record| record.flags.dungeon_teleport_index.is_none())
-            && let Some(index) = encoded.dungeon_exit()
-            && (index == 0
-                || runtime
-                    .data
-                    .travel()
-                    .is_some_and(|travel| travel.dungeons.iter().any(|exit| exit.index == index)))
-        {
-            runtime.dungeon_exit_index = index;
-        }
-        Ok(runtime)
+        slot_runtime(&data, &std::fs::read(path)?, slot, step_frames)
     }
 
     /// Performs the retail title's destructive erase for one visible slot.
@@ -360,7 +351,7 @@ impl Runtime {
     /// resolves `PSIV_SAVE_DIR` for it (`rust/psiv-godot/src/save_dir.rs`) and
     /// refuses a scripted run without that variable — so an erase never falls
     /// back to a repository default.
-    pub fn erase_slot(directory: &Path, slot: usize) -> Result<PathBuf, RuntimeSaveError> {
+    pub(crate) fn erase_slot(directory: &Path, slot: usize) -> Result<PathBuf, RuntimeSaveError> {
         let path = Self::slot_path(directory, slot)?;
         let bytes = std::fs::read(&path)?;
         let erased = RetailSlot::erase_physical_payload(&bytes, slot)?;
@@ -369,7 +360,7 @@ impl Runtime {
     }
 
     /// Constructs a runtime from an already decoded retail save.
-    pub fn from_save(
+    pub(crate) fn from_save(
         data: GameData,
         save: RetailSave,
         step_frames: StepFrames,
@@ -396,6 +387,38 @@ impl Runtime {
         )
         .map_err(RuntimeSaveError::Runtime)
     }
+}
+
+/// Builds the runtime a slot's own bytes describe.
+///
+/// One path for both readers of a slot file — the title's CONTINUE, which has a
+/// directory, and `Session::start(...).from_slot_bytes`, which has the bytes —
+/// so a slot a run resumes from and a slot a player continues from are the same
+/// game.
+pub(super) fn slot_runtime(
+    data: &GameData,
+    bytes: &[u8],
+    slot: usize,
+    step_frames: StepFrames,
+) -> Result<Runtime, RuntimeSaveError> {
+    let encoded = RetailSlot::from_bytes(bytes, slot)?;
+    let mut runtime = Runtime::from_save(data.clone(), encoded.decode()?, step_frames)?;
+    // Positive map bytes and explicit place-entry selectors already
+    // reconstruct the exit. Only inherited maps need native metadata.
+    if runtime
+        .data
+        .map(psiv_data::MapId(runtime.map.id().0))
+        .is_some_and(|record| record.flags.dungeon_teleport_index.is_none())
+        && let Some(index) = encoded.dungeon_exit()
+        && (index == 0
+            || runtime
+                .data
+                .travel()
+                .is_some_and(|travel| travel.dungeons.iter().any(|exit| exit.index == index)))
+    {
+        runtime.dungeon_exit_index = index;
+    }
+    Ok(runtime)
 }
 
 fn validate_slot(slot: usize) -> Result<(), RuntimeSaveError> {

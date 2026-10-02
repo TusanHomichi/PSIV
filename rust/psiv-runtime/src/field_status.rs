@@ -31,7 +31,7 @@ impl Runtime {
     }
 
     /// Dismisses exactly the visible window; the final perished message ends play.
-    pub fn acknowledge_field_notice(&mut self) {
+    pub(crate) fn acknowledge_field_notice(&mut self) {
         if self.field_status.notices.pop_front() == Some(FieldNotice::Perished) {
             self.end_game();
         }

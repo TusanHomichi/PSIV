@@ -1,16 +1,13 @@
-//! Field boot data and the debug selectors that bypass the front door.
+//! The debug selectors that bypass the front door.
 //!
-//! The fixtures themselves are the runtime's (`psiv-runtime/src/session/debug.rs`):
-//! a shell that wants one of them asks the runtime for a session, so no shell
-//! needs a mutable runtime. What stays here is the shell's own half — the
-//! fallback spawn and the list of selectors that must not wait behind the
-//! retail front door.
+//! Both halves of a boot are the runtime's now: the fixtures
+//! (`psiv-runtime/src/session/debug.rs`) and the shell's own field boot
+//! (`Session::start(...).power_on()`/`field()`,
+//! `psiv-runtime/src/session/start.rs`, the fallback spawn included), each of
+//! which hands back a session. What stays here is the shell's own half: the
+//! list of selectors that must not wait behind the retail front door.
 
 use crate::input::requested_save_slot;
-
-/// Fallback spawn when the pack predates game-start extraction.
-pub(crate) const FALLBACK_SPAWN_MAP: u16 = 0x010;
-pub(crate) const FALLBACK_SPAWN_CELL: (u16, u16) = (31, 8);
 
 /// Title-screen bypasses used by save/debug fix loops. These are deliberately
 /// checked before the title is started: a screenshot or a battle/camp/shop
@@ -30,15 +27,16 @@ pub(crate) fn title_bypassed() -> bool {
 
 #[cfg(test)]
 mod new_game_tests {
-    use psiv_core::{CharId, Flag, StepFrames};
+    use psiv_core::{CharId, Flag};
     use psiv_data::GameData;
-    use psiv_runtime::Runtime;
+    use psiv_runtime::Session;
     use std::path::Path;
 
-    /// The retail title initializer: `Runtime::new_game` copies the money and
-    /// flag banks `loc_44414` writes before the opening runs. Debug scene
-    /// fixtures deliberately construct their own state, so this is the only
-    /// place the shipped START state is pinned.
+    /// The retail title initializer: the session's own `new_game` — the call
+    /// the title's START makes — copies the money and flag banks `loc_44414`
+    /// writes before the opening runs. Debug scene fixtures deliberately
+    /// construct their own state, so this is the only place the shipped START
+    /// state is pinned.
     #[test]
     fn title_start_preserves_the_retail_initial_state() {
         let pack = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
@@ -47,7 +45,8 @@ mod new_game_tests {
             return;
         }
         let data = GameData::load(pack).expect("pack loads");
-        let runtime = Runtime::new_game(data, StepFrames::default()).expect("new game starts");
+        let session = Session::start(data).new_game().expect("new game starts");
+        let runtime = session.runtime();
         // Retail loc_44414, verified by psiv_tools/newgame.py's opcode pins.
         assert_eq!(
             runtime.game().money(),
