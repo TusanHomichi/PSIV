@@ -228,8 +228,10 @@ into the run's own exit status.
 ## 3. Reproducing one of them
 
 From a checkout with the ROM linked in and the core built
-(`oracle/build_core.sh`), and working from a lane whose `psiv_oracle` was built
-by `oracle/verify.sh`:
+(`oracle/build_core.sh`). The host needs no preparation: `oracle.force` asks
+`oracle/host_binary.py` for a `psiv_oracle` compiled from `oracle/host/` as it
+stands, and rebuilds it when it is not
+([`oracle/README.md`](../../oracle/README.md#building-the-host-and-why-it-cannot-be-stale)):
 
 ```sh
 python3 -m oracle.force --formation 0x5E \

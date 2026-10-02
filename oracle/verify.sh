@@ -33,7 +33,6 @@ ORACLE=oracle
 CORE=$ORACLE/core/genesis_plus_gx_libretro.so
 ROM="Phantasy Star IV (USA).md"
 ROM_SHA=511f35cc11f88316f8b8940e28ab298bd75a4da193672a80172884d6eb913b6a
-BIN=$ORACLE/bin/psiv_oracle
 OUT=$ORACLE/logs
 pass() { printf '  ok    %s\n' "$1"; }
 fail() { printf '  FAIL  %s\n' "$1" >&2; exit 1; }
@@ -49,16 +48,13 @@ pass "Genesis Plus GX core present"
 
 echo "== build =="
 mkdir -p "$ORACLE/bin" "$OUT"
-	gcc -O2 -Wall -Wextra -o "$BIN" \
-		"$ORACLE/host/psiv_oracle.c" \
-		"$ORACLE/host/frame_dump.c" \
-		"$ORACLE/host/ram_patch.c" \
-		"$ORACLE/host/ram_dump.c" \
-		"$ORACLE/host/core_vdp.c" \
-		"$ORACLE/host/rng_trace.c" \
-		"$ORACLE/host/state_dump.c" \
-		"$ORACLE/host/tape.c" -ldl
-pass "host builds clean"
+# The host is compiled by its own entry point, and the path every run below
+# uses comes from the helper that compares that binary with the sources in
+# front of it (issue #61: nothing tied the two together, so a checkout could
+# run a host that predated the flags its own tapes need).
+python3 -m oracle.build_host
+BIN=$(python3 -m oracle.host_binary --path)
+pass "host builds clean; build-id $(python3 -m oracle.host_binary --build-id)"
 
 # The C host reads ram_map.tsv, but ram_map.json is the source of truth. If the
 # generated file were allowed to drift, the logs would silently describe the

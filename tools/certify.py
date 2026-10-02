@@ -34,6 +34,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from gate import EXTENSION_PATH, git_info, loaded_extension_pids, utc_stamp  # noqa: E402
 
+# `oracle` is a package of the repository root, not of `tools/`, so the root
+# goes on the path too. The one thing this module takes from there is the host
+# it regenerates a frame with: `oracle/host_binary.py` hands back a binary
+# built from `oracle/host/` as it stands, so certification cannot compare
+# against frames a stale host produced (issue #61).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from oracle import host_binary  # noqa: E402
+
 GODOT = os.environ.get("PSIV_GODOT", str(Path.home() / ".local/bin/psiv-godot-4.7.1"))
 ROM = "Phantasy Star IV (USA).md"
 GODOT_FLAGS = ["--display-driver", "x11", "--rendering-method", "gl_compatibility",
@@ -100,7 +108,8 @@ def sha256(path):
 def regenerate(recipe, frame_path, log):
     out_dir = frame_path.parent
     out_dir.mkdir(parents=True, exist_ok=True)
-    command = ["oracle/bin/psiv_oracle", "--core", "oracle/core/genesis_plus_gx_libretro.so",
+    command = [str(host_binary.ensure()),
+               "--core", "oracle/core/genesis_plus_gx_libretro.so",
                "--rom", ROM, "--map", "oracle/ram_map.tsv", "--tape", recipe["tape"],
                "--out", "/dev/null", "--dump-frames", ",".join(str(f) for f in recipe["frames"]),
                "--dump-frames-dir", str(out_dir)]

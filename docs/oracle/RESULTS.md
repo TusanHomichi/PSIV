@@ -12,7 +12,7 @@ map gains a column and a stale value here would look like a regression.
 Core: **Genesis Plus GX v1.7.4**, libretro build, commit
 `2d7131c5efa606f649d36e1685a8ca47c24f31b3`, region NTSC.
 
-Core options are pinned explicitly in `host/psiv_oracle.c` and **validated
+Core options are pinned explicitly in `host/core_options.c` and **validated
 against the core's declared value list at startup, aborting on a mismatch**.
 That guard exists because a wrong value is otherwise silent: Genesis Plus GX
 parses its overclock option with `atoi()`, so an invalid `"1x"` became a 1%

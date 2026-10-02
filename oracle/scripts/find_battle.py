@@ -16,9 +16,10 @@ import csv
 import pathlib
 import subprocess
 
+from oracle import host_binary
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 ORACLE = ROOT / "oracle"
-BIN = ORACLE / "bin" / "psiv_oracle"
 CORE = ORACLE / "core" / "genesis_plus_gx_libretro.so"
 ROM = ROOT / "Phantasy Star IV (USA).md"
 MAP = ORACLE / "ram_map.tsv"
@@ -34,7 +35,8 @@ def patrol(cells, reps):
 def run(tape_text, out, groups="core,pos,battle,rng"):
     tape = ORACLE / "tmp_findbattle.tape"
     tape.write_text(tape_text)
-    subprocess.run([str(BIN), "--core", str(CORE), "--rom", str(ROM),
+    subprocess.run([str(host_binary.ensure()), "--core", str(CORE),
+                    "--rom", str(ROM),
                     "--map", str(MAP), "--tape", str(tape), "--groups", groups,
                     "--out", str(out)], check=True, capture_output=True)
     return list(csv.DictReader([l for l in open(out) if not l.startswith('#')]))
