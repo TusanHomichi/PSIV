@@ -1,4 +1,4 @@
-"""The records the swept fixtures need, as the replay's own data file.
+"""The records the committed fixtures need, as the replay's own data file.
 
 `rust/psiv-core/src/battle/replay/pack.rs` builds its `BattleData` from
 hand-transcribed records (`fixtures::zoran_bult()` and the forced captures'
@@ -10,11 +10,12 @@ of a `generated/` dependency.
 
     python3 -m oracle.sweep.replay_pack
 
-Which records: exactly what the committed fixtures under `sweep_motavia/` need -
-every `enemy_id` one of them seats, and every ability id either an enemy's AI
-can roll (the eight regular ids and the four conditional ones: the port's own
-`choose_ability` picks among them, so a missing record would make it pick blind)
-or one the fixture's log shows an enemy running. The values are copied from
+Which records: exactly what the committed fixtures need — the sweep's under
+`sweep_motavia/` and the forced captures beside it — every `enemy_id` one of
+them seats, and every ability id either an enemy's AI can roll (the eight
+regular ids and the four conditional ones: the port's own `choose_ability`
+picks among them, so a missing record would make it pick blind) or one the
+fixture's log shows an enemy running. The values are copied from
 `generated/enemies.json` and `generated/enemy_skills.json` unchanged, in the
 field names `Rust`'s mirror structs read.
 """
@@ -26,7 +27,6 @@ import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 FIXTURES = ROOT / "rust" / "psiv-core" / "src" / "battle" / "replay_fixtures"
-SWEEP = FIXTURES / "sweep_motavia"
 #: The property names in `generated/enemies.json`, in `ELEMENT_SLOTS` order
 #: (the order `psiv_tools/battle_pack.py` emits them in).
 ELEMENTS = ("physical", "energy", "fire", "gravity", "water", "anti_evil",
@@ -35,16 +35,27 @@ ELEMENTS = ("physical", "energy", "fire", "gravity", "water", "anti_evil",
 
 
 def fixture_enemies(fixtures: pathlib.Path) -> tuple[set[int], set[int]]:
-    """The enemy ids the fixtures seat, and the ability ids their logs show."""
+    """The enemy ids the fixtures seat, and the ability ids their logs show.
+
+    Every fixture under the directory, subdirectories included (a sweep keeps
+    its own in `sweep_motavia/`), and the data files beside them skipped: a
+    fixture is the file with a `formation`, and the pack itself is not one.
+    """
     enemies: set[int] = set()
     abilities: set[int] = set()
-    for path in sorted(fixtures.glob("*.json")):
+    for path in sorted(fixtures.rglob("*.json")):
         document = json.loads(path.read_text())
+        if "formation" not in document:
+            continue
         for entry in document["formation"]["enemies"]:
             enemies.add(entry["enemy_id"])
         for round_ in document["rounds"]:
             for action in round_["actions"]:
-                if action["kind"] != "attack" and action.get("ability"):
+                # The taped fixtures' actions predate the `kind` key (they are
+                # the two tapes' own replay, whose enemy turns the hand-written
+                # records beside this file carry), so they are read with
+                # `get`: an action with no `kind` is not an ability here.
+                if action.get("kind", "attack") != "attack" and action.get("ability"):
                     abilities.add(action["ability"])
     return enemies, abilities
 
@@ -111,7 +122,8 @@ def build(pack: pathlib.Path, fixtures: pathlib.Path) -> dict:
         "generated_by": "oracle/sweep/replay_pack.py",
         "source": {"enemies": "generated/enemies.json",
                    "enemy_skills": "generated/enemy_skills.json"},
-        "note": "every record the fixtures under sweep_motavia/ need, by the "
+        "note": "every record the committed fixtures need - the sweep under "
+                "sweep_motavia/ and the forced captures beside it - by the "
                 "enemy id they seat and the ability ids those enemies can "
                 "roll; field names are replay/pack.rs's mirror structs'",
         "enemies": [enemy_record(enemies[enemy_id])
@@ -125,7 +137,9 @@ def build(pack: pathlib.Path, fixtures: pathlib.Path) -> dict:
 def main(argv: list[str] | None = None) -> int:
     parsed = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parsed.add_argument("--pack", default=str(ROOT / "generated"))
-    parsed.add_argument("--fixtures", default=str(SWEEP))
+    # The whole fixture directory, not only the sweep's: the pack beside it is
+    # what every committed fixture reads, the forced captures included.
+    parsed.add_argument("--fixtures", default=str(FIXTURES))
     parsed.add_argument("--out", default=str(FIXTURES / "motavia_pack.json"))
     arguments = parsed.parse_args(argv)
     document = build(pathlib.Path(arguments.pack),

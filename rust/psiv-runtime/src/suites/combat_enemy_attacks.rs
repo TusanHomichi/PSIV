@@ -5,6 +5,10 @@ use psiv_core::{Cell, CharId, Direction, GameState, RetailLocation, RetailSave, 
 use psiv_data::{BattleFiles, GameData};
 use std::path::Path;
 
+#[cfg(test)]
+#[path = "combat_enemy_attacks/zio.rs"]
+mod zio;
+
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
 
 #[test]

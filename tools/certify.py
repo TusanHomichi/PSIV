@@ -13,7 +13,10 @@ recipe (MeetingRika, tape 28) is regenerated through the oracle host; every
 frame is hash-checked before use, so a regenerated or edited frame that
 differs from the certified one fails instead of silently re-baselining.
 
-Usage: `python3 tools/certify.py [--build] [--only NAME ...] [--list]`.
+Usage: `python3 tools/certify.py [--no-build] [--only NAME ...] [--list]`.
+The debug extension is rebuilt first by default, so a capture always comes from
+the checked-out sources; `--no-build` skips that only when the caller has just
+built this exact tree (a stale extension once certified the wrong code).
 Receipts land in `build/certify/<UTC>-<sha>/`. Exit 0 only when every
 selected pair is 0.000000. Refuses while a process has the debug extension
 mapped (rebuilding or loading under a live Godot can crash it).
@@ -146,12 +149,19 @@ def compare(shot, frame):
     return (match.group(1) if match else None), (completed.stdout + completed.stderr).strip()
 
 
-def main(argv=None):
+def build_parser():
+    """The command line: build by default, opt out with `--no-build`."""
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--build", action="store_true", help="cargo build -p psiv-godot first")
+    parser.add_argument("--no-build", action="store_true",
+                        help="skip `cargo build -p psiv-godot` (only when this tree was just built)")
+    parser.add_argument("--build", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--only", nargs="+", metavar="NAME", help="run only these pairs")
     parser.add_argument("--list", action="store_true", help="print the pairs and exit")
-    args = parser.parse_args(argv)
+    return parser
+
+
+def main(argv=None):
+    args = build_parser().parse_args(argv)
     root = Path(__file__).resolve().parent.parent
     os.chdir(root)
     pairs = [p for p in PAIRS if not args.only or p[0] in args.only]
@@ -163,7 +173,7 @@ def main(argv=None):
     if users:
         print(f"certify: refused, {EXTENSION_PATH} is mapped by PIDs {users}; close Godot first")
         return 3
-    if args.build:
+    if not args.no_build:
         built = subprocess.run(["cargo", "build", "-p", "psiv-godot", "--manifest-path",
                                 "rust/Cargo.toml"])
         if built.returncode != 0:
