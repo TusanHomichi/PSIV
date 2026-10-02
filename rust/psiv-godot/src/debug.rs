@@ -132,6 +132,13 @@ impl Field {
         }
         if self.anim_tick == 30 && std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1")
         {
+            if self.runtime.as_ref().is_some_and(|rt| rt.scene_active()) {
+                godot_error!(
+                    "debug camp refused: a map-entry trigger already started a scene; \
+                     the fixture state does not match retail at this point"
+                );
+                return;
+            }
             godot_print!("debug: opening camp menu");
             self.open_camp_menu();
             // The tape-22 frame-7675 receipt: retail's camera settled at
@@ -161,6 +168,16 @@ impl Field {
             let trimmed = value.trim().trim_start_matches("0x");
             match u16::from_str_radix(trimmed, 16) {
                 Ok(event) => {
+                    // A map-entry trigger that already started a scene would
+                    // make `start_event` refuse and the capture show the wrong
+                    // scene (#44): say so instead of blaming the event.
+                    if self.runtime.as_ref().is_some_and(|rt| rt.scene_active()) {
+                        godot_error!(
+                            "debug event {value} refused: a map-entry trigger already started a scene; \
+                             the fixture state does not match retail at this point"
+                        );
+                        return;
+                    }
                     let started = self
                         .runtime
                         .as_mut()

@@ -44,7 +44,19 @@ TAPE_28 = {
     "patches": ["7000:FFFFEC28:00AC", "7000:FFFFEC2A:0000", "7000:FFFFEC4E:02",
                 "7000:FFFFEF00:0008", "7000:FFFFF406:01F0", "7000:FFFFF408:01A0",
                 "7000:FFFFF40A:00010203", "7200:FFFFECA8:8007", "7200:FFFFEF00:000C"],
-    "frame": 7250,
+    "frames": [7250],
+}
+
+# The opening is certified through the title's real START (`Runtime::new_game`
+# then Event_GameStart), not a hand-built fixture: a fixture builds its own
+# state and rots when the map-entry triggers or the new-game state change
+# (#44). Tape 27 is the power-on-to-first-control schedule that produced both
+# frames (tape 01 is the same schedule and yields byte-identical frames).
+OPENING = {"PSIV_DEBUG_TITLE_SHOT": "1", "PSIV_DEBUG_TITLE_AUTOSTART": "1", **SCENE}
+TAPE_27 = {
+    "tape": "oracle/tapes/27_opening_scene_presentation.tape",
+    "patches": [],
+    "frames": [4000, 5200],
 }
 
 # name, clone env, shot tick, oracle frame, frame SHA-256, regeneration recipe.
@@ -52,12 +64,12 @@ TAPE_28 = {
 # 2026-08-17 certification recorded no hash for them); the others are the
 # hashes recorded in SCENE_PRESENTATION.md and oracle/README.md.
 PAIRS = [
-    ("opening-p1", {"PSIV_DEBUG_EVENT": "0x9f", **SCENE}, 3550,
+    ("opening-p1", OPENING, 3550,
      "oracle/frames/opening/frame_4000.png",
-     "4df2ef0f63697bdb0cb7be6bd80c6e23a6ac91942e150b0763ea0d865b890455", None),
-    ("opening-p2", {"PSIV_DEBUG_EVENT": "0x9f", **SCENE}, 4550,
+     "4df2ef0f63697bdb0cb7be6bd80c6e23a6ac91942e150b0763ea0d865b890455", TAPE_27),
+    ("opening-p2", OPENING, 4550,
      "oracle/frames/opening/frame_5200.png",
-     "d80b93dbd866e990b611ee358380622531d007d9b9b3873d58318225182e2b74", None),
+     "d80b93dbd866e990b611ee358380622531d007d9b9b3873d58318225182e2b74", TAPE_27),
     ("meeting-rika", {"PSIV_DEBUG_EVENT": "0x8007", **SCENE}, 160,
      "build/certify/oracle/meeting-rika/frame_7250.png",
      "d8fc26ae6987e416ee75c02cd10ea4975e9be22485b8feeda84161aa489888c9", TAPE_28),
@@ -87,7 +99,7 @@ def regenerate(recipe, frame_path, log):
     out_dir.mkdir(parents=True, exist_ok=True)
     command = ["oracle/bin/psiv_oracle", "--core", "oracle/core/genesis_plus_gx_libretro.so",
                "--rom", ROM, "--map", "oracle/ram_map.tsv", "--tape", recipe["tape"],
-               "--out", "/dev/null", "--dump-frames", str(recipe["frame"]),
+               "--out", "/dev/null", "--dump-frames", ",".join(str(f) for f in recipe["frames"]),
                "--dump-frames-dir", str(out_dir)]
     for patch in recipe["patches"]:
         command += ["--ram-patch", patch]
@@ -111,7 +123,12 @@ def oracle_frame(name, frame, digest, recipe, receipt):
 
 def capture(name, env, tick, receipt):
     shot = receipt / f"{name}-t{tick}.png"
+    # A fresh, empty save directory per run: the title shows CONTINUE (and the
+    # autostart picks a different row) when any slot is valid.
+    saves = receipt / f"{name}-saves"
+    saves.mkdir(parents=True, exist_ok=True)
     full_env = {**os.environ, "LIBGL_ALWAYS_SOFTWARE": "1", "PSIV_DEBUG_SCENE_TICKS": "1",
+                "PSIV_SAVE_DIR": str(saves),
                 "PSIV_DEBUG_SHOT": str(shot), "PSIV_DEBUG_SHOT_FRAME": str(tick), **env}
     command = ["xvfb-run", "-a", "timeout", "300s", GODOT,
                "--log-file", str(receipt / f"{name}-godot.log"), *GODOT_FLAGS,

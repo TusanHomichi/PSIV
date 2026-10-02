@@ -41,14 +41,14 @@ clone tick **60** pairs with `oracle/frames/frame_7675.png`, mark
 `camp_root_idle`. The pre-fix title diagnostic at clone tick 750 was the
 wrong blink phase (`RMSE 19.408013`); it is not used for certification.
 
-### Certification ledger — COMPLETE (2026-08-18)
+### Certification ledger — COMPLETE (restored 2026-10-02, #44)
 
 **All six certified screens are pixel-identical to the GPGX oracle.**
 
 | pair | rmse | pairing |
 |---|---:|---|
-| opening page 1 | **0.000000** | clone t3550 ↔ opening frame 4000 |
-| opening page 2 | **0.000000** | clone t4550 ↔ opening frame 5200 |
+| opening page 1 | **0.000000** | clone t3550 (real title START) ↔ opening frame 4000, tape 27 |
+| opening page 2 | **0.000000** | clone t4550 (real title START) ↔ opening frame 5200, tape 27 |
 | MeetingRika | **0.000000** | clone t160 ↔ tape-28 frame 7250 |
 | title (pre-prompt) | **0.000000** | clone t480 ↔ title frame 450 |
 | battle `0x88` | **0.000000** | clone t200 ↔ tape-07 frame 25000, `--fixed-fps 60` |
@@ -56,10 +56,44 @@ wrong blink phase (`RMSE 19.408013`); it is not used for certification.
 
 Run every pair with `python3 tools/certify.py --build`; it pins each pair's
 clone tick and oracle-frame hash and writes a receipt under `build/certify/`.
-The snippets further down are the historical derivations. On 2026-10-01 the
-tool showed the opening and camp pairs had rotted on main
-([#44](https://github.com/TusanHomichi/PSIV/issues/44)); their rows above are the
-2026-08-18 result, not current.
+The 2026-10-02 run that restored all six is
+`build/certify/20261002T063239Z-64d9d7b` (local, ignored). The snippets
+further down are the historical derivations.
+
+On 2026-10-01 the tool showed the opening and camp pairs had rotted on main
+([#44](https://github.com/TusanHomichi/PSIV/issues/44)). Three causes:
+
+- **Camp root and the old opening fixture**: both built a blank
+  `GameState::new()` on Academy F1 with `EventFlag_PiataChazControl ($15)`
+  clear, so the map-entry trigger 124 (PiataChazAlone) pre-empted them. The
+  trigger check on scene return and map entry arrived in `82de4a3`
+  (2026-09-15); the pairs last passed 2026-08-18. The camp fixture now starts
+  from the retail new-game banks plus the two flags the opening earns
+  (`post_opening_game`, regression test
+  `post_opening_state_does_not_replay_piata_chaz_alone` with a blank-state
+  negative control). The debug event and camp selectors now refuse with a
+  clear error when a map-entry scene is already running.
+- **Opening through the real path**: the opening is certified through the
+  title's real START (`PSIV_DEBUG_TITLE_SHOT=1 PSIV_DEBUG_TITLE_AUTOSTART=1`,
+  `Runtime::new_game`), not a fixture; the hand-built `PSIV_DEBUG_EVENT=0x9f`
+  arm is deleted. Driving the real path exposed a product bug: since the
+  dialogue runner moved into the runtime (`75c7507`, S1), a runtime built by
+  title START or CONTINUE never had the dialogue pack loaded, so the opening's
+  first `SetDialogueTree` was an unknown tree and the scene hung on a black
+  screen (`Field::prepare_runtime` in `title.rs` now loads it).
+- **Regenerable frames**: `oracle/frames/opening/frame_4000.png` and
+  `frame_5200.png` come from `oracle/tapes/27_opening_scene_presentation.tape`
+  (`--dump-frames 4000,5200`); tape 01 yields byte-identical frames. The
+  `TAPE_27` recipe in `tools/certify.py` rebuilds both, and the pinned SHA-256
+  was reproduced exactly from a fresh `psiv_oracle` run (2026-10-02).
+
+Opening settled windows on the real-START timeline (`PSIV_DEBUG_SCENE_TICKS=1`;
+the scene starts at t46): page 1 text ramps up at t3018 and holds to t3918,
+page 2 ramps up at t4008 and holds to t4908. The pinned ticks 3550 and 4550
+sit inside them (the page-1 settled edge was probed: t3017 and t3018, the
+ramp's first frames, are `rmse=31.137426`; t3060, t3093 and t3550 are
+`0.000000`; the upper edges were not probed, so the window ends are the op
+log's `IntroTextFadeDown`, not a pixel measurement).
 
 Since the dialogue runner moved into the runtime (campaign runner node S1),
 `PSIV_DEBUG_RETAIL_PACE` dismisses a page with a one-frame `ButtonSpeak`
@@ -239,7 +273,8 @@ boring and explicit:
 
 ```sh
 xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 \
-  PSIV_DEBUG_EVENT=0x9f \
+  PSIV_DEBUG_TITLE_SHOT=1 PSIV_DEBUG_TITLE_AUTOSTART=1 \
+  PSIV_SAVE_DIR=/tmp/psiv-opening-saves \
   PSIV_DEBUG_AUTOCLOSE_SCENE=1 \
   PSIV_DEBUG_RETAIL_PACE=1 \
   PSIV_DEBUG_SCENE_TICKS=1 \
@@ -316,12 +351,12 @@ that term only to scene panel planes and portraits. Dialogue window chrome,
 glyphs, arrows, and the opening background retain their independent retail
 origins.
 
-**Known certified pairs (integration, 2026-08-17, post-COLOR_PIPELINE ramp):**
+**Known certified pairs (2026-10-02, #44; receipt `build/certify/20261002T063239Z-64d9d7b`):**
 
 | Pair | Clone tick | Oracle frame | RMSE |
 |---|---:|---:|---:|
-| Opening narration page 1 | 3550 | `opening/frame_4000.png` | **0.000000** |
-| Opening narration page 2 | 4550 | `opening/frame_5200.png` | **0.000000** |
+| Opening narration page 1 (real title START) | 3550 | `opening/frame_4000.png` (`4df2ef0f…`, tape 27) | **0.000000** |
+| Opening narration page 2 (real title START) | 4550 | `opening/frame_5200.png` (`d80b93db…`, tape 27) | **0.000000** |
 | MeetingRika settled Chaz page | 160 | tape-28 `frame_7250` (`d8fc26ae…`) | **0.000000** |
 | Title settled, pre-prompt | 480 | `title/frame_450.png` | **0.000000** |
 
@@ -331,9 +366,11 @@ the Xvfb listener and are listed separately below.
 
 The opening narration is **pixel-identical to the emulator** — the entire
 pre-ramp ~6.58 residual was the linear-vs-GPGX palette widening, not the
-flying sprite. Hold ticks shifted to 3550/4550 with the wave-6 dialogue
-timeline (holds now t3093–3993 and t4083–4983; re-derive from
-`PSIV_DEBUG_SCENE_TICKS=1` whenever scene content changes). Capture
+flying sprite. Hold ticks were 3550/4550 on the 2026-08 fixture timeline
+(holds t3093–3993 and t4083–4983); on the real-START timeline (scene starts
+t46, one-frame Speak dismissal) the holds are t3018–3918 and t4008–4908 and
+the same ticks still fall inside them. Re-derive from
+`PSIV_DEBUG_SCENE_TICKS=1` whenever scene content changes. Capture
 doctrine addition: export `LIBGL_ALWAYS_SOFTWARE=1` for Xvfb captures —
 without it, Mesa's amdgpu probe can fail in a background session and Godot
 silently falls back to the live Wayland desktop, whose real input corrupts
@@ -561,10 +598,13 @@ screen y=40, leaving the oracle's 40-pixel top and 56-pixel bottom black bars
 40..167 in the 320x224 surface).
 The motion/map/dialogue state remains in the existing runtime scene.
 
-The shell-only selectors `PSIV_DEBUG_EVENT=0x9f` and
+The shell-only selectors `PSIV_DEBUG_TITLE_AUTOSTART=1` (real title START) and
 `PSIV_DEBUG_AUTOCLOSE_SCENE=1` provide a deterministic harness; adding
 `PSIV_DEBUG_RETAIL_PACE=1` preserves retail dialogue cadence for frame pairing.
-All three are evaluation switches and are never used by normal play.
+All are evaluation switches and are never used by normal play. The old
+`PSIV_DEBUG_EVENT=0x9f` fixture is gone (#44); `PSIV_DEBUG_EVENT` still serves
+MeetingRika (`0x8007`) and refuses to boot a scene a map-entry trigger has
+already pre-empted.
 
 ## Remaining deferrals
 
