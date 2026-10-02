@@ -114,3 +114,18 @@ class OracleFrameHashCase(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BuildByDefaultTest(unittest.TestCase):
+    """A capture must come from the checked-out sources (a stale extension once
+    certified the wrong code), so building is the default."""
+
+    def test_default_builds(self):
+        self.assertFalse(certify.build_parser().parse_args([]).no_build)
+
+    def test_no_build_is_explicit(self):
+        self.assertTrue(certify.build_parser().parse_args(["--no-build"]).no_build)
+
+    def test_legacy_build_flag_still_parses(self):
+        self.assertFalse(certify.build_parser().parse_args(["--build"]).no_build)
+

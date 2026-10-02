@@ -54,7 +54,7 @@ wrong blink phase (`RMSE 19.408013`); it is not used for certification.
 | battle `0x88` | **0.000000** | clone t200 ↔ tape-07 frame 25000, `--fixed-fps 60` |
 | camp root | **0.000000** | clone t60 ↔ tape-22 frame 7675, `--fixed-fps 60` |
 
-Run every pair with `python3 tools/certify.py --build`; it pins each pair's
+Run every pair with `python3 tools/certify.py` (it rebuilds the debug extension first); it pins each pair's
 clone tick and oracle-frame hash and writes a receipt under `build/certify/`.
 The 2026-10-02 run that restored all six is
 `build/certify/20261002T063239Z-64d9d7b` (local, ignored). The snippets

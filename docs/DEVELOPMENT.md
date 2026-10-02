@@ -107,7 +107,7 @@ result from that receipt, not from a retyped summary. The gate refuses to start
 process has the debug PSIV extension mapped
 (`rust/target/debug/libpsiv_godot.so`, which its cargo commands rebuild);
 `--list` prints the commands without running them. Presentation certification
-is a separate entry point, `python3 tools/certify.py --build` (Godot, Xvfb and
+is a separate entry point, `python3 tools/certify.py` (Godot, Xvfb and
 the local oracle frames required; pairs and doctrine in
 [scene presentation](scenes/SCENE_PRESENTATION.md)); run it for any change to
 Godot-visible paths and report it apart from the gate. Reporting a gate result means
