@@ -218,6 +218,11 @@ nodes:
     acceptance: "Motavia (84,64) to Aiedo plans one warp (0x100706), arrival (47,83), 67 steps, matching docs/campaign/AIEDO.md's independent oracle/route.py result; validator accepts routes/main.json and rejects mutated copies"
     state: verified
     evidence: ["psiv-campaign 27/27 and psiv-runtime suites green at bf763ee", "validate routes/main.json: 13 chapters, 196 objectives, 100 warps, 3672 steps, 0 errors", "review: the planner's attach_chests copy replaced by one public fresh-entry builder, field_map_entered, also used by map_change and save", "12 objectives marked verify:true (R1 resolves them by running)"]
+  - id: S6
+    outcome: "Every state-changing Runtime method is crate-private: the runtime's integration tests, examples and the campaign runner build and drive games only through Session constructors and Session::frame"
+    depends_on: [S5, R1]
+    acceptance: "Session constructors cover new game (with battles armed and the opening started), CONTINUE from a store or a slot file, and the debug fixtures; psiv-runtime tests/examples and rust/psiv-campaign use only them, Session::frame and &self views; no pub fn on Runtime takes &mut self (grep proof); a compile_fail doctest builds a Runtime outside the crate and calls a mutator; the full route digest is unchanged; certify 6/6 byte-identical"
+    state: ready
   - id: R1
     outcome: "Campaign runner binary driving a Session from routes/main.json; chapters through the post-Rika checkpoint"
     depends_on: [S5, R0]
