@@ -1,0 +1,276 @@
+//! Cell-level planner: the pad directions that walk the party across one map.
+//!
+//! Everything here asks `psiv_core::FieldMap` and re-implements nothing:
+//! walkability is [`FieldMap::is_walkable`], adjacency is
+//! [`FieldMap::neighbor`] (so an overworld torus wraps), and whether a step
+//! fires a warp is the field engine's own rule, read through
+//! [`FieldMap::warp_at`] and [`FieldMap::collision_at`].
+//!
+//! # The firing rule
+//!
+//! A step from `at` into `next` fires a warp exactly when the field tick would
+//! (`psiv-core/src/field.rs`, the landing branch of `FieldState::tick`):
+//!
+//! * `next` is collision type 1 (map change) and `at` is not: the first
+//!   [`WarpTrigger::MapChange`] warp covering `next` fires. Walking along a
+//!   doorway several cells wide fires once, not per cell.
+//! * `next` is any other walkable cell: the first [`WarpTrigger::NormalGround`]
+//!   warp covering `next` fires (map edges, cave mouths, doormats).
+//!
+//! A step that fires a warp leaves the map, so it is never traversed *through*.
+//! It is a terminal. During a leg only the intended terminal may be taken;
+//! every other firing step is simply not an edge (the generalised rule of the
+//! single-map `first_step` in `psiv-runtime/examples/support/mod.rs`, which
+//! avoided every cell of another warp's rectangle).
+//!
+//! # Determinism
+//!
+//! Breadth-first search, a FIFO frontier, and neighbours expanded in
+//! [`Direction::ALL`] order (Up, Down, Left, Right). The first time a cell or
+//! a warp is reached fixes its parent, so ties between equally short paths
+//! always resolve the same way: the path found first by that search order.
+
+use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::fmt;
+
+use psiv_core::{Cell, CellRect, CollisionType, Direction, FieldMap, WarpTrigger};
+
+/// Where a leg ends.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Goal {
+    /// Stand on this cell without firing any warp.
+    Cell(Cell),
+    /// Stand on the nearest cell of this rectangle without firing any warp.
+    Rect(CellRect),
+    /// Take the warp at this index in [`FieldMap::warps`]: the leg's last step
+    /// is the one that fires it.
+    Warp(usize),
+}
+
+/// A planned walk across one map.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CellPlan {
+    /// One pad direction per step, in order.
+    pub steps: Vec<Direction>,
+    /// Where the party stands after the last step. For a [`Goal::Warp`] leg
+    /// this is the cell the last step moves onto, which fires the warp.
+    pub end: Cell,
+    /// The warp the last step fires, for a [`Goal::Warp`] leg.
+    pub fires: Option<usize>,
+}
+
+/// Why a cell plan could not be made.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CellPlanError {
+    /// The start cell is not on the map.
+    StartOffMap(Cell),
+    /// The goal cell is not walkable or not on the map.
+    GoalNotWalkable(Cell),
+    /// A warp goal named an index the map does not have.
+    NoSuchWarp(usize),
+    /// No walk reaches the goal without firing a different warp.
+    Unreachable,
+}
+
+impl fmt::Display for CellPlanError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CellPlanError::StartOffMap(c) => {
+                write!(f, "start cell ({},{}) is off the map", c.x, c.y)
+            }
+            CellPlanError::GoalNotWalkable(c) => write!(
+                f,
+                "goal cell ({},{}) is off the map or not walkable",
+                c.x, c.y
+            ),
+            CellPlanError::NoSuchWarp(i) => write!(f, "the map has no warp index {i}"),
+            CellPlanError::Unreachable => {
+                write!(f, "no walk reaches the goal without firing another warp")
+            }
+        }
+    }
+}
+
+impl std::error::Error for CellPlanError {}
+
+/// The warp, if any, that stepping `at` -> `next` fires. `next` must already be
+/// walkable. Returns the index into [`FieldMap::warps`].
+#[must_use]
+pub fn firing_warp(map: &FieldMap, at: Cell, next: Cell) -> Option<usize> {
+    let trigger = if map
+        .collision_at(next)
+        .is_some_and(CollisionType::is_map_change)
+    {
+        // A doorway fires once on entering type 1, never when already on it.
+        if map
+            .collision_at(at)
+            .is_some_and(CollisionType::is_map_change)
+        {
+            return None;
+        }
+        WarpTrigger::MapChange
+    } else {
+        WarpTrigger::NormalGround
+    };
+    let found = map.warp_at(next, trigger)?;
+    map.warps().iter().position(|w| std::ptr::eq(w, found))
+}
+
+/// One breadth-first flood from a start cell: the shortest walk to every
+/// reachable cell and to every warp it can fire, never passing through a
+/// firing step.
+#[derive(Debug, Clone)]
+pub struct Flood {
+    start: Cell,
+    /// Cell -> (parent, step that reached it). The start has no entry.
+    parent: HashMap<Cell, (Cell, Direction)>,
+    /// Cells in discovery order (start first).
+    order: Vec<Cell>,
+    /// Warp index -> (cell stepped from, direction, cell stepped onto); the
+    /// first (shortest) firing step found.
+    terminals: BTreeMap<usize, (Cell, Direction, Cell)>,
+}
+
+impl Flood {
+    /// Floods `map` from `start`.
+    ///
+    /// # Errors
+    ///
+    /// [`CellPlanError::StartOffMap`] when `start` is not a cell of `map`.
+    pub fn new(map: &FieldMap, start: Cell) -> Result<Flood, CellPlanError> {
+        let start = map
+            .normalize(start)
+            .ok_or(CellPlanError::StartOffMap(start))?;
+        let mut flood = Flood {
+            start,
+            parent: HashMap::new(),
+            order: vec![start],
+            terminals: BTreeMap::new(),
+        };
+        let mut queue = VecDeque::from([start]);
+        while let Some(at) = queue.pop_front() {
+            for direction in Direction::ALL {
+                let Some(next) = map.neighbor(at, direction) else {
+                    continue;
+                };
+                if !map.is_walkable(next) {
+                    continue;
+                }
+                // Firing depends on where the step comes from, not only on the
+                // cell, so a cell already reached (the start included) is
+                // still checked: a doorway entered from a doorway does not
+                // fire, but the same doorway entered from open ground does.
+                if let Some(warp) = firing_warp(map, at, next) {
+                    flood.terminals.entry(warp).or_insert((at, direction, next));
+                    continue;
+                }
+                if next == start || flood.parent.contains_key(&next) {
+                    continue;
+                }
+                flood.parent.insert(next, (at, direction));
+                flood.order.push(next);
+                queue.push_back(next);
+            }
+        }
+        Ok(flood)
+    }
+
+    /// The flood's start cell.
+    #[must_use]
+    pub const fn start(&self) -> Cell {
+        self.start
+    }
+
+    /// Whether `cell` is reachable without firing a warp (the start counts).
+    #[must_use]
+    pub fn reaches(&self, cell: Cell) -> bool {
+        cell == self.start || self.parent.contains_key(&cell)
+    }
+
+    /// Cells reachable without firing a warp, in discovery order.
+    #[must_use]
+    pub fn cells(&self) -> &[Cell] {
+        &self.order
+    }
+
+    /// The warps the flood can fire, ascending by index.
+    pub fn warps(&self) -> impl Iterator<Item = usize> + '_ {
+        self.terminals.keys().copied()
+    }
+
+    fn path_to(&self, cell: Cell) -> Option<Vec<Direction>> {
+        if !self.reaches(cell) {
+            return None;
+        }
+        let mut steps = Vec::new();
+        let mut at = cell;
+        while at != self.start {
+            let (from, direction) = self.parent[&at];
+            steps.push(direction);
+            at = from;
+        }
+        steps.reverse();
+        Some(steps)
+    }
+
+    /// The plan that ends standing on `cell`.
+    #[must_use]
+    pub fn cell_plan(&self, cell: Cell) -> Option<CellPlan> {
+        Some(CellPlan {
+            steps: self.path_to(cell)?,
+            end: cell,
+            fires: None,
+        })
+    }
+
+    /// The plan whose last step fires `warp`.
+    #[must_use]
+    pub fn warp_plan(&self, warp: usize) -> Option<CellPlan> {
+        let &(from, direction, onto) = self.terminals.get(&warp)?;
+        let mut steps = self.path_to(from)?;
+        steps.push(direction);
+        Some(CellPlan {
+            steps,
+            end: onto,
+            fires: Some(warp),
+        })
+    }
+
+    /// The plan to the first-discovered cell of `rect`.
+    #[must_use]
+    pub fn rect_plan(&self, map: &FieldMap, rect: CellRect) -> Option<CellPlan> {
+        let cell = self
+            .order
+            .iter()
+            .copied()
+            .find(|c| map.rect_contains(rect, *c))?;
+        self.cell_plan(cell)
+    }
+}
+
+/// Plans a walk on `map` from `start` to `goal`.
+///
+/// # Errors
+///
+/// [`CellPlanError`]: the start is off the map, the goal is not a walkable
+/// cell (or names a warp the map lacks), or no walk reaches it without firing
+/// another warp.
+pub fn plan_cells(map: &FieldMap, start: Cell, goal: Goal) -> Result<CellPlan, CellPlanError> {
+    let flood = Flood::new(map, start)?;
+    match goal {
+        Goal::Cell(cell) => {
+            let cell = map
+                .normalize(cell)
+                .filter(|c| map.is_walkable(*c))
+                .ok_or(CellPlanError::GoalNotWalkable(cell))?;
+            flood.cell_plan(cell).ok_or(CellPlanError::Unreachable)
+        }
+        Goal::Rect(rect) => flood.rect_plan(map, rect).ok_or(CellPlanError::Unreachable),
+        Goal::Warp(index) => {
+            if index >= map.warps().len() {
+                return Err(CellPlanError::NoSuchWarp(index));
+            }
+            flood.warp_plan(index).ok_or(CellPlanError::Unreachable)
+        }
+    }
+}
