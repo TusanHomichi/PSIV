@@ -159,6 +159,16 @@ fights scripted ones this way. Juza (event battle 3) and Gy-Laguiah (event battl
 5) are won with it; with the default policy Juza kills a level 12 party in four
 rounds (run C2-1).
 
+`psycho_wand_then_win` (`policy_opening.rs`) is `run_then_win` with an opening
+item: in round 1 of a scripted battle the first actor takes ITEM and picks the
+Psycho Wand (item `$39`, when the pack holds it), everyone else fights, and from
+round 2 it is the boss policy. It decides an item intent only; `battle.rs`
+steers the ITEM page to the row, as for a healing item. The driver tells every
+policy when a battle begins and whether it is scripted (`Policy::battle_begins`),
+which is how a random encounter gets no opening. The Zio fight at Nurvus is the
+chapter that names it (`nurvus-zio`); `tests/runner.rs` pins the policy's
+choices over a pack that holds an item bought at the Piata shop.
+
 **Halts and the report.** Each objective has a frame budget. The run stops at
 the first of: a missed `expect` or closing assertion, an exhausted budget, an
 unsupported enemy ability, a scene fault (a faulted or missing scene, an
@@ -206,7 +216,7 @@ canonical_record: "docs/campaign/CAMPAIGN_RUNNER.md#task-graph"
 authority: "Owner 2026-10-01: campaign runner approach; commit, push, PR and merge once the full gate is green (docs/AGENT_WORKFLOW.md#authority-effort-and-continuation)"
 effort_policy: "Continue scoped repairs until acceptance passes; no fixed cycle limit (inherited)"
 exclusions: ["modding", "visual-parity claims beyond existing certifications", "gameplay changes that are not cartridge behavior"]
-next_action: "C3: route from the Zio-fort barrier through Nurvus to Zio defeated"
+next_action: "Fix H22 (RUNNER_LOG.md): Event_ZioNurvus op 11 as RunDialogue entry $0B and the Zio/Zio2 phase counters (#62's family), then rerun nurvus-zio and route the rest of the Zio arc"
 nodes:
   - id: S1
     outcome: "Dialogue interpreter in psiv-runtime: control codes, branches, choices, actions, $F2/$F6/$F7, live flags, typewriter and open-animation gates, driven by a cartridge-layout Pad"
@@ -271,6 +281,6 @@ nodes:
     outcome: "Route chapters to the Ending, one lane per blocker class"
     depends_on: [R1]
     acceptance: "The runner reaches Game_Cleared_Flag from New Game; each blocker it hit is fixed with a regression test or filed as an issue with a link from the route"
-    evidence: ["lane c1-motavia (base 8c19769): routes/main.json grows to 18 chapters and reaches the Zio Fort's Juza room (map $87, (32,21)) with all five alive at level 12 to 13: 457,356 frames, digest 96d2835a8633def8, tape sha256 53adf11f092bb99982c299aa2620b75a4078f6a4fe3ba69f0adae0a3d749bd57, identical on three runs, replay reproduces the digest; scenes 28 and 29 pass in-route; RUNNER_LOG.md H13 to H16", "the route stops at Juza: H16, enemy 114's ZAN and FORCEFLASH are not run by the engine, and the stairs to F3 and F4 open only after his battle; H15 lists the unsupported abilities on the way (FUSION, FIREBREATH, DEBAN) that the route passes only by running; H13 (#39) does not block the story", "lane c2-zio (base 0c6ae8b): routes/main.json grows to 27 chapters through scenes 31 to 37 (Juza's battle, the Demi rescue and Alys's wounding, the Machine Center and Land Rover, Ladea Tower with Rune, the Psycho Wand, the walk to the Zio Fort barrier); the runner learns to ride a vehicle (a two-cell lattice planner, `vehicle` assertions, `dismount`, `plan --vehicle`) and to fight a boss (`fight_to_win`, `run_then_win`). On the committed engine the run halts at its first port defect, `Cutscene_AlysWounded` reading the wrong dialogue tree (H17): 1,023,474 frames, exit 2, digest 49f5c47df7971428, identical on two runs, replay reproduces it. An experimental four-line patch for H17 plays on to `Event_ZioFortBarrier` (H18, not transcribed, no alternative); a stub for it completes all 27 chapters (digest e77a7b9cf1f5fa37, identical on two runs). H19 to H21 recorded (live map ignores story flags, vehicle parking and boarding, EVIL EYE in the tower)"]
+    evidence: ["lane c1-motavia (base 8c19769): routes/main.json grows to 18 chapters and reaches the Zio Fort's Juza room (map $87, (32,21)) with all five alive at level 12 to 13: 457,356 frames, digest 96d2835a8633def8, tape sha256 53adf11f092bb99982c299aa2620b75a4078f6a4fe3ba69f0adae0a3d749bd57, identical on three runs, replay reproduces the digest; scenes 28 and 29 pass in-route; RUNNER_LOG.md H13 to H16", "the route stops at Juza: H16, enemy 114's ZAN and FORCEFLASH are not run by the engine, and the stairs to F3 and F4 open only after his battle; H15 lists the unsupported abilities on the way (FUSION, FIREBREATH, DEBAN) that the route passes only by running; H13 (#39) does not block the story", "lane c2-zio (base 0c6ae8b): routes/main.json grows to 27 chapters through scenes 31 to 37 (Juza's battle, the Demi rescue and Alys's wounding, the Machine Center and Land Rover, Ladea Tower with Rune, the Psycho Wand, the walk to the Zio Fort barrier); the runner learns to ride a vehicle (a two-cell lattice planner, `vehicle` assertions, `dismount`, `plan --vehicle`) and to fight a boss (`fight_to_win`, `run_then_win`). On the committed engine the run halts at its first port defect, `Cutscene_AlysWounded` reading the wrong dialogue tree (H17): 1,023,474 frames, exit 2, digest 49f5c47df7971428, identical on two runs, replay reproduces it. An experimental four-line patch for H17 plays on to `Event_ZioFortBarrier` (H18, not transcribed, no alternative); a stub for it completes all 27 chapters (digest e77a7b9cf1f5fa37, identical on two runs). H19 to H21 recorded (live map ignores story flags, vehicle parking and boarding, EVIL EYE in the tower)", "lane c3-nurvus (base 5c62765): routes/main.json grows to 29 chapters; nurvus-descent plays Zio Fort to Nurvus B4 (six elevator doors, the B1 tunnel, B5 and the stairs; RUNNER_LOG.md N1 to N4) and nurvus-zio names the new psycho_wand_then_win policy (round-1 Psycho Wand through the battle ITEM menu, then fight_to_win). The full run halts at Zio's trigger on port defects H22 (Event_ZioNurvus op 11 resumes a dialogue instead of running entry $0B; the Zio and Zio2 phase counters are unmodelled, so BLACK WAVE is rolled in round 1): 1,730,441 frames, exit 2, digest 6eb19b166ed24d2f, tape sha256 e3cff60eaf31dacac06bfeb8819d983ad3a848da042d37108a5c73cc9d121402, identical on two runs, replay reproduces it"]
     state: pending
 ```

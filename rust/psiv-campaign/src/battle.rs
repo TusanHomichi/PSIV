@@ -20,6 +20,7 @@ use crate::policy::{Intent, Policy};
 /// A [`crate::halt::Halt`] from the driver: a fault, an unsupported ability, a
 /// defeat, or the budget.
 pub fn fight(driver: &mut Driver, policy: &mut dyn Policy) -> Res {
+    policy.battle_begins(driver.battles().last().is_some_and(|b| b.kind == "event"));
     let mut released = true;
     let mut idle_frames = 0_u32;
     while driver.session().battle_active() {

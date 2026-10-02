@@ -609,6 +609,50 @@
       "closing": [
         {"flags_set": ["event:0x64"]}
       ]
+    },
+    {
+      "id": "nurvus-descent",
+      "title": "Nurvus: the ascent, the elevators and the stairs to B4",
+      "source": "docs/scenes/38_ZioNurvus.md (trigger Nurvus B4 Part2 $D3); runtime-pack/maps/0D7_Nurvus.json, 0CC_Nurvus_Part2.json, 0CD_Nurvus_Part3.json, 0CE_Nurvus_B1.json, 0D0_Nurvus_B3.json, 0D2_Nurvus_B4.json (warps, type-2 interaction areas with event $13); psiv-campaign plan --from-map 130 --from-cell 47,54 --to-map 205 --flag event:0x64",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 215, "note": "Nurvus $D7 by Zio Fort warp 8 (47,49)"},
+        {"do": "go_to_map", "map": 204, "note": "Nurvus Part2 $CC by $D7 warp 0"},
+        {"do": "go_to_map", "map": 205, "via_warp": 2, "note": "Part3 $CD by Part2 warp 2 at (44,19): the corridor that reaches the elevator (warp 1 leads to a dead end)"},
+        {"do": "interact", "cell": [30, 14], "face": "up", "opens": [[30, 13], [31, 13]], "note": "the Part3 elevator door, event $13 on the type-2 interaction area (30..31,13)"},
+        {"do": "go_to_map", "map": 206, "via_warp": 2, "note": "B1 $CE by Part3 warp 2 (30..31,13)"},
+        {"do": "interact", "cell": [22, 12], "face": "up", "opens": [[22, 11], [23, 11]], "note": "B1's west elevator door, interaction area 1 (22..23,11); the east door (70,11) is in a region B1's ground floor does not join to the arrival's"},
+        {"do": "go_to_map", "map": 208, "via_warp": 1, "note": "B3 $D0 region 1 by B1 warp 1 (22,11)"},
+        {"do": "interact", "cell": [14, 68], "face": "up", "opens": [[14, 67], [15, 67]], "note": "B3's door to B1's south-west room, interaction area 2 (14..15,67)"},
+        {"do": "go_to_map", "map": 206, "via_warp": 2, "note": "B1 south-west room by B3 warp 2 (14,67)"},
+        {"do": "go_to_map", "map": 209, "via_warp": 4, "note": "the B1 tunnel $D1 by B1 warp 4 (28,73)"},
+        {"do": "go_to_map", "map": 206, "via_warp": 1, "note": "B1 south-east room by the tunnel's east warp (48,32)"},
+        {"do": "interact", "cell": [70, 12], "face": "up", "opens": [[70, 11], [71, 11]], "note": "B1's east elevator door, interaction area 2 (70..71,11)"},
+        {"do": "go_to_map", "map": 208, "via_warp": 2, "note": "B3 region 2 by B1 warp 2 (70,11): the region holding warp 4 to B5"},
+        {"do": "interact", "cell": [78, 12], "face": "up", "opens": [[78, 11], [79, 11]], "note": "B3's door to B5, interaction area 4 (78..79,11)"},
+        {"do": "go_to_map", "map": 213, "via_warp": 4, "note": "B5 $D5 by B3 warp 4 (78,11)"},
+        {"do": "go_to_map", "map": 208, "via_warp": 1, "note": "back to B3 by B5 warp 1 (30..31,36) arriving at (78,23): the region that holds the stairs"},
+        {"do": "interact", "cell": [76, 80], "face": "up", "opens": [[76, 79], [77, 79]], "note": "B3's door to the B4 stairs, interaction area 5 (76..77,79)"},
+        {"do": "go_to_map", "map": 210, "via_warp": 5, "note": "B4 $D2 by the stairs at B3 warp 5 (76,79)"}
+      ],
+      "closing": [
+        {"map": 210}
+      ]
+    },
+    {
+      "id": "nurvus-zio",
+      "title": "Nurvus B4: Zio, the Psycho Wand and Zio defeated",
+      "source": "docs/scenes/38_ZioNurvus.md (RunEvent_ZioNurvus $1F, Nurvus B4 Part2 $D3: Zio Nurvus $65 clear and leader Y exactly $1E0 = row 30; sets $65 and starts event battle 6) and docs/scenes/39_ZioDefeated.md (RunEvent_ZioDefeated $20: $65 set and Gryz Gone $68 clear; Cutscene_ZioDefeated $800B sets $68, $66, $61); rust/psiv-runtime/src/suites/next_arc.rs use_psycho_wand (the Psycho Wand, item $39, in the battle's first round); runtime-pack/maps/0D2_Nurvus_B4.json and 0D3_Nurvus_B4_Part2.json (the corridor at columns 30..31, rows 30..43)",
+      "random_battle_policy": "psycho_wand_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 211, "note": "Nurvus B4 Part2 $D3 by B4 warp 1 (16,27), west along the corridor"},
+        {"do": "go_to", "map": 211, "cell": [30, 30], "note": "up the corridor; crossing row 30 starts event $34 and event battle 6. Halts today on port defects H22 (RUNNER_LOG.md): the scene resumes a dialogue instead of running entry $0B, and the Zio phase counter is unmodelled"},
+        {"do": "fight_scripted", "note": "event battle 6: Zio, opened with the Psycho Wand"},
+        {"do": "expect", "flags_set": ["event:0x65", "event:0x68", "event:0x66", "event:0x61"], "note": "38_ZioNurvus.md op 12 ($65) and 39_ZioDefeated.md ops 38-43 ($68, $66, $61)"}
+      ],
+      "closing": [
+        {"flags_set": ["event:0x65", "event:0x68", "event:0x66", "event:0x61"]}
+      ]
     }
   ]
 }
