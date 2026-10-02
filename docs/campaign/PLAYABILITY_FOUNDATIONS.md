@@ -112,7 +112,7 @@ xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 \
 Run with other `PSIV_DEBUG_*` selectors and `PSIV_LOAD_SLOT` unset. The
 expected state is specified above; a process exiting successfully alone is
 not a passing receipt. Headless opening/save coverage is
-`cargo test -p psiv-runtime --test new_game` from `rust/`.
+`cargo test -p psiv-runtime --lib suites::new_game::` from `rust/`.
 
 ## Current implementation priorities
 

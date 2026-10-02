@@ -156,7 +156,7 @@ Examples of selecting existing test targets:
 
 ```bash
 PYTHONPATH=. python3 -m unittest discover -s tests -p 'test_psiv_tools.py'
-CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml -p psiv-runtime --test camp_order -- --test-threads=1
+CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml -p psiv-runtime --lib suites::camp_order:: -- --test-threads=1
 ```
 
 These examples do not cover every change. The full Python/Rust/format/Clippy

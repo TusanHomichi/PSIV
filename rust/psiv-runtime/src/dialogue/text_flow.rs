@@ -108,8 +108,8 @@ impl TextFlow {
     /// `entry := $FA* ( $F6 event | $F3? text... )`. The `$FA` run is followed
     /// on its not-set branch — event flags do not exist yet — and every skip
     /// is logged.
+    #[cfg(test)]
     #[must_use]
-    #[allow(dead_code)] // The flag-free form, kept for tests and future callers.
     pub fn open(entry: &DialogueEntry) -> Opening {
         TextFlow::open_at(entry, &GameState::new())
     }
@@ -225,8 +225,8 @@ impl TextFlow {
     }
 
     /// Whether a `$F9` delay is running.
+    #[cfg(test)]
     #[must_use]
-    #[allow(dead_code)] // Field will want this when scenes gate on hold state.
     pub fn is_holding(&self) -> bool {
         self.hold > 0
     }

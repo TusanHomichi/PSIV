@@ -4,7 +4,7 @@
 //! write.
 
 use psiv_core::battle::Lcg41;
-use psiv_core::{Cell, Direction, Flag};
+use psiv_core::{Cell, Direction};
 
 use crate::Runtime;
 
@@ -88,8 +88,8 @@ impl Runtime {
     /// The dialogue's own `$F2` handling writes game state where it runs
     /// (`dialogue/mod.rs`), so no product path calls this today; a test
     /// fixture does.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub(crate) fn set_event_flag(&mut self, flag: u8) -> Result<(), psiv_core::MapError> {
-        self.game.set(Flag::event(u16::from(flag)))
+        self.game.set(psiv_core::Flag::event(u16::from(flag)))
     }
 }

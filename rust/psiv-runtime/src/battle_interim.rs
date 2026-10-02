@@ -410,22 +410,6 @@ fn weapon_sound(raw_id: u8) -> Option<u8> {
     })
 }
 
-impl Runtime {
-    /// Ends the battle and re-arms the encounter grace period, as the
-    /// cartridge resets `$FFFFECE4` to 10 after every fight.
-    ///
-    /// No caller today: the battle's own end runs this inline
-    /// (`battle_lifecycle.rs`). Kept as a named seam, and crate-private like
-    /// every other runtime mutator.
-    #[allow(dead_code)]
-    pub(crate) fn finish_battle(&mut self) {
-        self.battle_field_refresh_pending |= self.battle.take().is_some();
-        if let Some(set) = self.battles.as_mut() {
-            set.clock.reset();
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

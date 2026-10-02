@@ -70,7 +70,7 @@ impl Runtime {
     /// Applies the packed `loc_51AB2` gate write to the current camera without
     /// repositioning the view. This is the runtime seam for `RefreshMap` calls
     /// made after a scene or warp has already entered the map
-    /// (`docs/field/CAMERA.md`); no caller uses it today.
+    /// (`docs/field/CAMERA.md`); the refresh paths do not call it yet (#59).
     #[allow(dead_code)]
     pub(crate) fn refresh_map_camera_gates(&mut self) -> Result<(), BridgeError> {
         let record = self
