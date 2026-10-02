@@ -1,6 +1,6 @@
 //! The cell planner on hand-built maps: no pack needed, so these always run.
 
-use psiv_campaign::{CellPlanError, Flood, Goal, plan_cells};
+use psiv_campaign::{CellPlanError, Flood, Goal, Mover, plan_cells, plan_cells_for};
 use psiv_core::{
     Cell, CellRect, CollisionGrid, Direction, FieldMap, MapId, Npc, NpcId, Warp, WarpTrigger,
 };
@@ -171,4 +171,58 @@ fn a_rect_goal_stops_on_its_nearest_cell() {
     let plan = plan_cells(&m, Cell::new(0, 0), Goal::Rect(CellRect::new(3, 0, 2, 2))).unwrap();
     assert_eq!(plan.steps.len(), 3);
     assert_eq!(plan.end, Cell::new(3, 0));
+}
+
+/// A mounted party moves two cells a press and crosses the sand (`$A`) a walker
+/// cannot; the standing cells it reaches are on one lattice.
+#[test]
+fn a_land_rover_crosses_sand_in_two_cell_steps() {
+    let rows = ["AAAAAAAAAA", "AAAAAAAAAA", "AAAAAAAAAA", "AAAAAAAAAA"];
+    let m = map(&rows, vec![], vec![]);
+    let on_foot = Flood::for_mover(&m, Cell::new(2, 1), Mover::Foot).unwrap();
+    assert_eq!(on_foot.cells().len(), 1, "sand blocks a walker");
+    let mounted = Flood::for_mover(&m, Cell::new(2, 1), Mover::Vehicle(1)).unwrap();
+    assert!(mounted.reaches(Cell::new(4, 1)));
+    assert!(mounted.reaches(Cell::new(6, 1)));
+    assert!(!mounted.reaches(Cell::new(3, 1)), "the other lattice");
+    let plan = plan_cells_for(
+        &m,
+        Mover::Vehicle(1),
+        Cell::new(2, 1),
+        Goal::Cell(Cell::new(6, 1)),
+    )
+    .unwrap();
+    assert_eq!(plan.steps, [Direction::Right, Direction::Right]);
+}
+
+/// The vehicle samples a 2x2 footprint, so a one-cell gap a walker passes is
+/// closed to it.
+#[test]
+fn a_land_rover_cannot_pass_a_one_cell_gap() {
+    let rows = ["0000800000", "0000800000", "0000000000", "0000800000"];
+    let m = map(&rows, vec![], vec![]);
+    let walker = plan_cells(&m, Cell::new(2, 2), Goal::Cell(Cell::new(6, 2))).unwrap();
+    assert_eq!(walker.steps.len(), 4);
+    assert_eq!(
+        plan_cells_for(
+            &m,
+            Mover::Vehicle(1),
+            Cell::new(2, 2),
+            Goal::Cell(Cell::new(6, 2)),
+        ),
+        Err(CellPlanError::Unreachable)
+    );
+}
+
+/// `VehicleState::transition_effect`: landing with a type-1 cell under the
+/// footprint fires the map-change warp covering the landing cell.
+#[test]
+fn a_mounted_landing_on_a_doorway_footprint_fires_its_warp() {
+    let rows = ["0000000000", "0000110000", "0000000000", "0000000000"];
+    let door = door_warp(CellRect::new(4, 1, 2, 1), 5);
+    let m = map(&rows, vec![door], vec![]);
+    let plan = plan_cells_for(&m, Mover::Vehicle(1), Cell::new(2, 1), Goal::Warp(0)).unwrap();
+    assert_eq!(plan.steps, [Direction::Right]);
+    assert_eq!(plan.end, Cell::new(4, 1));
+    assert_eq!(plan.fires, Some(0));
 }

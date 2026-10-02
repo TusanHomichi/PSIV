@@ -33,7 +33,7 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
     let route = Route::parse(&main_text()).expect("main.json parses");
     let ids: Vec<&str> = route.chapters.iter().map(|c| c.id.as_str()).collect();
     assert_eq!(ids.first(), Some(&"academy"));
-    assert_eq!(ids.last(), Some(&"zio-fort-approach"));
+    assert_eq!(ids.last(), Some(&"zio-fort-barrier"));
     assert!(ids.contains(&"aiedo"));
     assert!(ids.contains(&"north-bank"));
     for chapter in &route.chapters {
@@ -131,8 +131,8 @@ fn bad_object_chest_flag_and_slot_ids_are_rejected() {
     let base = main_text();
     for (from, to, needle) in [
         (
-            "{\"do\": \"open_chest\", \"chest\": ",
-            "{\"do\": \"open_chest\", \"chest\": 90",
+            "{\"do\": \"open_chest\", \"chest\": 0, \"note\": \"native leg walks to (40,33)",
+            "{\"do\": \"open_chest\", \"chest\": 90, \"note\": \"native leg walks to (40,33)",
             "chest",
         ),
         (
@@ -191,4 +191,53 @@ fn a_patrol_refuge_that_ends_on_another_map_is_rejected() {
         return;
     };
     assert!(!report.is_ok(), "a refuge must return to the patrol's map");
+}
+
+/// The Ladea Tower's corridors are closed to the Land Rover. Take the
+/// dismount out and the walk into the tower is no longer statically possible.
+#[test]
+fn the_tower_walk_needs_the_dismount() {
+    let text = mutate(
+        &main_text(),
+        "        {\"do\": \"dismount\", \"note\": \"the Land Rover cannot pass the tower's one-cell corridors (psiv_core::can_enter)\"},\n        {\"do\": \"expect\", \"map\": 140, \"vehicle\": 0},\n",
+        "",
+    );
+    let Some(report) = run(&text) else { return };
+    assert!(
+        report
+            .errors
+            .iter()
+            .any(|e| e.chapter == "ladea-tower-rune"),
+        "a mounted party cannot walk the tower: {:?}",
+        report.errors
+    );
+}
+
+#[test]
+fn dismounting_on_foot_and_a_bad_vehicle_are_rejected() {
+    let on_foot = mutate(
+        &main_text(),
+        "{\"do\": \"expect\", \"map\": 140, \"vehicle\": 0},",
+        "{\"do\": \"expect\", \"map\": 140, \"vehicle\": 0}, {\"do\": \"dismount\"},",
+    );
+    let Some(report) = run(&on_foot) else { return };
+    assert!(
+        report
+            .errors
+            .iter()
+            .any(|e| e.reason.contains("the party on foot")),
+        "{:?}",
+        report.errors
+    );
+    let bad = mutate(
+        &main_text(),
+        "\"vehicle\": 1, \"flags_set\": [\"event:0x44\"], \"note\"",
+        "\"vehicle\": 9, \"flags_set\": [\"event:0x44\"], \"note\"",
+    );
+    let report = run(&bad).unwrap();
+    assert!(
+        report.errors.iter().any(|e| e.reason.contains("vehicle 9")),
+        "{:?}",
+        report.errors
+    );
 }

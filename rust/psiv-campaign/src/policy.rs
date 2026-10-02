@@ -31,12 +31,15 @@
 //!
 //! # Route names
 //!
-//! The route files name five policies. `run_unless_boss` is its own behaviour;
+//! The route files name seven policies. `run_unless_boss` is its own behaviour;
+//! `fight_to_win` and `run_then_win` are the boss policy of
+//! [`crate::policy_boss`] (the second runs from random encounters);
 //! `attack_all`, `heal_then_attack`, `train_with_inn` and `bioplant_survival`
 //! resolve to `default` (the walk, the patrol and the inn they were named for
 //! are route objectives, not battle decisions). A route that needs another
 //! behaviour gets a type here first.
 
+use crate::policy_boss::BossPolicy;
 use psiv_core::battle::status;
 use psiv_runtime::{CommandMenuView, PartyStatus, Runtime};
 
@@ -61,6 +64,13 @@ pub enum Intent {
         /// The item's display name, as the item page's row shows it.
         name: String,
         /// The fighter to use it on, for a single-target item.
+        target: Option<u8>,
+    },
+    /// SKILL: use skill `id`, on `target` (a fighter id) when it takes one.
+    Skill {
+        /// One-based skill id.
+        id: u8,
+        /// The fighter to use it on, for a single-target skill.
         target: Option<u8>,
     },
     /// DEFEND.
@@ -97,11 +107,13 @@ pub trait Policy {
 }
 
 /// Policy names the route files use, with the policy each resolves to.
-pub const NAMES: [(&str, &str); 6] = [
+pub const NAMES: [(&str, &str); 8] = [
     ("default", "default"),
     ("attack_all", "default"),
     ("heal_then_attack", "default"),
     ("run_unless_boss", "run_unless_boss"),
+    ("fight_to_win", "fight_to_win"),
+    ("run_then_win", "run_then_win"),
     ("train_with_inn", "default"),
     ("bioplant_survival", "default"),
 ];
@@ -111,6 +123,8 @@ pub const NAMES: [(&str, &str); 6] = [
 pub fn by_name(name: &str) -> Option<Box<dyn Policy>> {
     let (_, policy) = NAMES.iter().find(|(route_name, _)| *route_name == name)?;
     Some(match *policy {
+        "fight_to_win" => Box::new(BossPolicy::default()),
+        "run_then_win" => Box::new(BossPolicy::running()),
         "run_unless_boss" => Box::new(DefaultPolicy {
             run_encounters: true,
             ..DefaultPolicy::default()
@@ -123,6 +137,25 @@ pub fn by_name(name: &str) -> Option<Box<dyn Policy>> {
 #[must_use]
 pub fn is_known(name: &str) -> bool {
     NAMES.iter().any(|(route_name, _)| *route_name == name)
+}
+
+/// Prints one actor's choice and the party's state when `PSIV_CAMPAIGN_TRACE`
+/// is set.
+pub(crate) fn trace_choice(menu: &CommandMenuView, actor: u8, intent: &Intent) {
+    if std::env::var_os("PSIV_CAMPAIGN_TRACE").is_none() {
+        return;
+    }
+    let party: Vec<String> = menu
+        .party
+        .iter()
+        .map(|m| {
+            format!(
+                "{} {}/{} tp{} st{:#x}",
+                m.name, m.hp, m.max_hp, m.tp, m.status
+            )
+        })
+        .collect();
+    eprintln!("  battle actor {actor} {intent:?} | {}", party.join(" | "));
 }
 
 /// Attack with everyone; heal the hurt.
@@ -143,7 +176,7 @@ fn hurt(member: &PartyStatus) -> bool {
 }
 
 /// The most hurt member: the lowest share of their maximum HP.
-fn most_hurt(party: &[PartyStatus]) -> Option<&PartyStatus> {
+pub(crate) fn most_hurt(party: &[PartyStatus]) -> Option<&PartyStatus> {
     party.iter().filter(|m| hurt(m)).min_by(|a, b| {
         (u32::from(a.hp) * u32::from(b.max_hp)).cmp(&(u32::from(b.hp) * u32::from(a.max_hp)))
     })
@@ -151,12 +184,15 @@ fn most_hurt(party: &[PartyStatus]) -> Option<&PartyStatus> {
 
 impl DefaultPolicy {
     fn decide(&mut self, menu: &CommandMenuView, runtime: &Runtime) -> Intent {
+        self.heal(menu, runtime).unwrap_or(Intent::Attack)
+    }
+
+    /// The healing this actor does now, if the round still needs one.
+    pub(crate) fn heal(&mut self, menu: &CommandMenuView, runtime: &Runtime) -> Option<Intent> {
         if self.healed_this_round {
-            return Intent::Attack;
+            return None;
         }
-        let Some(patient) = most_hurt(&menu.party) else {
-            return Intent::Attack;
-        };
+        let patient = most_hurt(&menu.party)?;
         // A healing technique first: effect 18 is "heal HP".
         let healing = runtime
             .battle_techniques()
@@ -174,10 +210,10 @@ impl DefaultPolicy {
                 .find(|technique| technique.id == cure.id)
                 .is_some_and(psiv_core::battle::Technique::single_target);
             self.healed_this_round = true;
-            return Intent::Technique {
+            return Some(Intent::Technique {
                 id: cure.id,
                 target: single.then_some(patient.fighter),
-            };
+            });
         }
         // Then a healing item the pack holds.
         let held = runtime.game().inventory();
@@ -187,12 +223,12 @@ impl DefaultPolicy {
             .find(|item| held.contains(item.id));
         if let Some(item) = item {
             self.healed_this_round = true;
-            return Intent::Item {
+            return Some(Intent::Item {
                 name: item.name.clone(),
                 target: item.single_target().then_some(patient.fighter),
-            };
+            });
         }
-        Intent::Attack
+        None
     }
 }
 
@@ -215,19 +251,7 @@ impl Policy for DefaultPolicy {
             return intent.clone();
         }
         let intent = self.decide(menu, runtime);
-        if std::env::var_os("PSIV_CAMPAIGN_TRACE").is_some() {
-            let party: Vec<String> = menu
-                .party
-                .iter()
-                .map(|m| {
-                    format!(
-                        "{} {}/{} tp{} st{:#x}",
-                        m.name, m.hp, m.max_hp, m.tp, m.status
-                    )
-                })
-                .collect();
-            eprintln!("  battle actor {actor} {intent:?} | {}", party.join(" | "));
-        }
+        trace_choice(menu, actor, &intent);
         self.current = Some((actor, intent.clone()));
         intent
     }

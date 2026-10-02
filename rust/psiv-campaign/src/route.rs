@@ -55,8 +55,9 @@
 //! | `reorder` | `order` | set party order, first to last |
 //! | `save` | `slot` | ordinary SAVE to slot `0..3` |
 //! | `fight_scripted` | none | win the scripted battle that starts |
+//! | `dismount` | none | press Action in the vehicle the party rides; halts when the standing cell is not open ground |
 //! | `patrol` | `map`, `a`, `b`, `until`, optional `refuge` | walk between cells `a` and `b` of `map`, fighting what the chapter's policy says, until `until` (`party_level_at_least`, `money_at_least`) holds; `refuge` is an out-and-back list of steps run when a member has fallen or is below half HP after the camp cure; the validator takes the party to end on `b` |
-//! | `expect` | any of `flags_set`, `flags_clear`, `map`, `cell`, `party`, `money_at_least` | halt unless all hold |
+//! | `expect` | any of `flags_set`, `flags_clear`, `map`, `cell`, `party`, `money_at_least`, `vehicle` | halt unless all hold |
 //!
 //! Names and ids: an item, technique or member is either its number or its
 //! cartridge display name (`"RES"`, `"Chaz"`), compared case-insensitively. A
@@ -257,6 +258,10 @@ pub struct Expectation {
     /// A minimum purse in meseta.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub money_at_least: Option<u32>,
+    /// The vehicle the party rides: `0` on foot, `1` Land Rover, `2` Ice
+    /// Digger, `3` Hydrofoil. The validator plans every later walk for it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub vehicle: Option<u16>,
 }
 
 /// What a step asks of the runner.
@@ -366,6 +371,9 @@ pub enum Objective {
     },
     /// Win the scripted battle that starts.
     FightScripted,
+    /// Get out of the vehicle the party rides (the Action press on open
+    /// ground).
+    Dismount,
     /// Walk between two cells, fighting random battles, until a condition
     /// holds: the route's honest form of grinding.
     Patrol {

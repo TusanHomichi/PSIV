@@ -124,6 +124,7 @@ fn command_button(
             let row = match intent {
                 Intent::Attack => 0,
                 Intent::Technique { .. } => 1,
+                Intent::Skill { .. } => 2,
                 Intent::Item { .. } => 3,
                 Intent::Defend => 4,
             };
@@ -158,11 +159,29 @@ fn command_button(
                 Some(Button::Cancel)
             }
         }
-        MenuPage::Skills => Some(Button::Cancel),
+        MenuPage::Skills => {
+            let Intent::Skill { id, .. } = intent else {
+                return Some(Button::Cancel);
+            };
+            match menu.skills.iter().position(|entry| entry.id == id) {
+                Some(row) if menu.rows.get(row).is_some_and(|r| r.enabled) => {
+                    Some(toward(menu.cursor, row))
+                }
+                _ => {
+                    policy.refuse();
+                    Some(Button::Cancel)
+                }
+            }
+        }
         MenuPage::Targets(kind) => {
             let wanted = match (kind, &intent) {
                 (TargetKind::Attack, _) => menu.targets.first().copied(),
-                (_, Intent::Technique { target, .. } | Intent::Item { target, .. }) => *target,
+                (
+                    _,
+                    Intent::Technique { target, .. }
+                    | Intent::Item { target, .. }
+                    | Intent::Skill { target, .. },
+                ) => *target,
                 _ => None,
             };
             let row = wanted

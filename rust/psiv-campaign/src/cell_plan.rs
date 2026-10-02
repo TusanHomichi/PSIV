@@ -23,6 +23,16 @@
 //! single-map `first_step` in `psiv-runtime/examples/support/mod.rs`, which
 //! avoided every cell of another warp's rectangle).
 //!
+//! # Mounted
+//!
+//! A party in a vehicle (the Land Rover from the Machine Center on) moves on a
+//! 32-pixel grid: one press is a step of two cells, allowed when the whole
+//! four-cell footprint ahead is a terrain the vehicle crosses
+//! (`psiv_core::can_enter`), and the warp rule reads the footprint's
+//! collision (`psiv_core::standing_collision`), exactly as
+//! `VehicleState::tick` does. [`Mover::Vehicle`] plans with those rules, so the
+//! sand a Land Rover crosses and a person cannot is part of the graph.
+//!
 //! # Determinism
 //!
 //! Breadth-first search, a FIFO frontier, and neighbours expanded in
@@ -33,7 +43,45 @@
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::fmt;
 
-use psiv_core::{Cell, CellRect, CollisionType, Direction, FieldMap, WarpTrigger};
+use psiv_core::{
+    Cell, CellRect, CollisionType, Direction, FieldMap, WarpTrigger, can_enter, standing_collision,
+};
+
+/// How the party moves across a map.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Mover {
+    /// On foot: one cell a step, over walkable collision.
+    Foot,
+    /// Mounted: the vehicle with this `Vehicle_Index`, two cells a step.
+    Vehicle(u16),
+}
+
+impl Mover {
+    /// The cell a press of `direction` lands on from `at`, when the engine
+    /// would move that way (the landing is not yet checked for a warp).
+    #[must_use]
+    pub fn landing(self, map: &FieldMap, at: Cell, direction: Direction) -> Option<Cell> {
+        match self {
+            Mover::Foot => map
+                .neighbor(at, direction)
+                .filter(|next| map.is_walkable(*next)),
+            Mover::Vehicle(index) => {
+                let anchor = map.neighbor(at, direction)?;
+                let next = map.neighbor(anchor, direction)?;
+                can_enter(index, map, at, direction).then_some(next)
+            }
+        }
+    }
+
+    /// The warp, if any, that landing on `next` from `at` fires.
+    #[must_use]
+    pub fn firing_warp(self, map: &FieldMap, at: Cell, next: Cell) -> Option<usize> {
+        match self {
+            Mover::Foot => firing_warp(map, at, next),
+            Mover::Vehicle(_) => vehicle_firing_warp(map, at, next),
+        }
+    }
+}
 
 /// Where a leg ends.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -116,6 +164,26 @@ pub fn firing_warp(map: &FieldMap, at: Cell, next: Cell) -> Option<usize> {
     map.warps().iter().position(|w| std::ptr::eq(w, found))
 }
 
+/// `VehicleState::transition_effect`: a landing whose footprint reads collision
+/// 1 fires the map-change warp unless the footprint already read 1 at the last
+/// stop; any other landing that does not block fires the ground warp.
+#[must_use]
+pub fn vehicle_firing_warp(map: &FieldMap, at: Cell, next: Cell) -> Option<usize> {
+    let raw = standing_collision(map, next);
+    let trigger = if raw == 1 {
+        if standing_collision(map, at) == 1 {
+            return None;
+        }
+        WarpTrigger::MapChange
+    } else if CollisionType::from_raw(raw).is_blocking() {
+        return None;
+    } else {
+        WarpTrigger::NormalGround
+    };
+    let found = map.warp_at(next, trigger)?;
+    map.warps().iter().position(|w| std::ptr::eq(w, found))
+}
+
 /// One breadth-first flood from a start cell: the shortest walk to every
 /// reachable cell and to every warp it can fire, never passing through a
 /// firing step.
@@ -138,6 +206,15 @@ impl Flood {
     ///
     /// [`CellPlanError::StartOffMap`] when `start` is not a cell of `map`.
     pub fn new(map: &FieldMap, start: Cell) -> Result<Flood, CellPlanError> {
+        Flood::for_mover(map, start, Mover::Foot)
+    }
+
+    /// Floods `map` from `start` for a party that moves as `mover`.
+    ///
+    /// # Errors
+    ///
+    /// [`CellPlanError::StartOffMap`] when `start` is not a cell of `map`.
+    pub fn for_mover(map: &FieldMap, start: Cell, mover: Mover) -> Result<Flood, CellPlanError> {
         let start = map
             .normalize(start)
             .ok_or(CellPlanError::StartOffMap(start))?;
@@ -150,17 +227,14 @@ impl Flood {
         let mut queue = VecDeque::from([start]);
         while let Some(at) = queue.pop_front() {
             for direction in Direction::ALL {
-                let Some(next) = map.neighbor(at, direction) else {
+                let Some(next) = mover.landing(map, at, direction) else {
                     continue;
                 };
-                if !map.is_walkable(next) {
-                    continue;
-                }
                 // Firing depends on where the step comes from, not only on the
                 // cell, so a cell already reached (the start included) is
                 // still checked: a doorway entered from a doorway does not
                 // fire, but the same doorway entered from open ground does.
-                if let Some(warp) = firing_warp(map, at, next) {
+                if let Some(warp) = mover.firing_warp(map, at, next) {
                     flood.terminals.entry(warp).or_insert((at, direction, next));
                     continue;
                 }
@@ -256,12 +330,27 @@ impl Flood {
 /// cell (or names a warp the map lacks), or no walk reaches it without firing
 /// another warp.
 pub fn plan_cells(map: &FieldMap, start: Cell, goal: Goal) -> Result<CellPlan, CellPlanError> {
-    let flood = Flood::new(map, start)?;
+    plan_cells_for(map, Mover::Foot, start, goal)
+}
+
+/// [`plan_cells`] for a party that moves as `mover`.
+///
+/// # Errors
+///
+/// As [`plan_cells`]; a mounted party's goal cell must be one its flood
+/// reaches, which a cell off the vehicle's two-cell grid is not.
+pub fn plan_cells_for(
+    map: &FieldMap,
+    mover: Mover,
+    start: Cell,
+    goal: Goal,
+) -> Result<CellPlan, CellPlanError> {
+    let flood = Flood::for_mover(map, start, mover)?;
     match goal {
         Goal::Cell(cell) => {
             let cell = map
                 .normalize(cell)
-                .filter(|c| map.is_walkable(*c))
+                .filter(|c| mover != Mover::Foot || map.is_walkable(*c))
                 .ok_or(CellPlanError::GoalNotWalkable(cell))?;
             flood.cell_plan(cell).ok_or(CellPlanError::Unreachable)
         }
