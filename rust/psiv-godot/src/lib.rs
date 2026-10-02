@@ -47,7 +47,7 @@ use view::{NpcNode, SheetView};
 
 use psiv_core::{Cell, Direction, StepFrames};
 use psiv_data::GameData;
-use psiv_runtime::{Pad, Runtime, Session};
+use psiv_runtime::{FrameMode, Pad, Runtime, Session};
 use psiv_sound::SAMPLE_RATE;
 
 struct PsivExtension;
@@ -65,6 +65,15 @@ pub(crate) const RETAIL_DISMISS_HOLD_FRAMES: u16 = 4;
 pub(crate) fn retail_pace_enabled() -> bool {
     std::env::var("PSIV_DEBUG_AUTOCLOSE_SCENE").is_ok_and(|value| value == "1")
         && std::env::var("PSIV_DEBUG_RETAIL_PACE").is_ok_and(|value| value == "1")
+}
+
+/// `PSIV_DEBUG_AUTOCLOSE_SCENE=1` without the retail pace: scene dialogue
+/// lines are acknowledged unseen, for deterministic headless scene runs. The
+/// shell sets it on the session every frame, because the title builds its own
+/// sessions for START and CONTINUE.
+fn scene_dialogue_autoclose() -> bool {
+    std::env::var("PSIV_DEBUG_AUTOCLOSE_SCENE").is_ok_and(|value| value == "1")
+        && !retail_pace_enabled()
 }
 
 /// `EventBattleMusicData` (`ps4.asm:120820`): music id per event-battle
@@ -533,10 +542,10 @@ impl Field {
 
     /// The game frame: everything the shell does not own.
     ///
-    /// `Session::frame` owns the dialogue window's input half, a pending `$F6`
-    /// and the field or the scene; this method owns the order around it, in
-    /// which the two remaining shell modes sit where the old dispatcher put
-    /// them: after the window's half is known, before the field's.
+    /// `Session::frame` owns the whole frame — the dialogue window, a pending
+    /// `$F6`, the field or the scene, the shop and inn, the camp and a chest —
+    /// in the cartridge's own order. This method sends it the pad and presents
+    /// what comes back.
     fn drive_game_frame(&mut self) {
         let window_open = self
             .session
@@ -544,21 +553,22 @@ impl Field {
             .is_some_and(|session| session.runtime().dialogue_open());
         let pad = self.frame_pad();
         if !window_open {
-            // S4. A window that is already up owns the frame, so neither mode
-            // runs under one — the old dispatcher reached them only after the
-            // window branch had returned.
             self.retail_dialogue_wait = 0;
-            if self.drive_shop_if_active() {
-                return;
-            }
-            if self.drive_camp_if_active() {
-                return;
-            }
         }
-        let Some(frame) = self.session.as_mut().map(|session| session.frame(pad)) else {
+        // The debug selector's counter opens in the session, then the frame
+        // runs: the window is up on the frame it was asked for.
+        self.open_debug_shop();
+        let autoclose = scene_dialogue_autoclose();
+        let Some(frame) = self.session.as_mut().map(|session| {
+            session.set_scene_dialogue_autoclose(autoclose);
+            session.frame(pad)
+        }) else {
             return;
         };
-        self.present_frame(frame);
+        match frame.mode {
+            FrameMode::Field => self.present_frame(frame),
+            FrameMode::Shop | FrameMode::Camp => self.present_menu_frame(frame),
+        }
     }
 
     /// Hands the window this frame's runtime view. The runtime owns the

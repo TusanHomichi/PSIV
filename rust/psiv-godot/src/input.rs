@@ -8,17 +8,21 @@ use crate::{Field, RETAIL_DISMISS_HOLD_FRAMES, retail_pace_enabled};
 
 /// This frame's joypad byte, from the engine's actions.
 ///
-/// `ui_accept` is Genesis C — `ButtonSpeak`, the talk and confirm button —
-/// and `ui_cancel` is B. Camp (A) and Start have no binding of their own: the
-/// field's camp opens on cancel and the title reads confirm, so nothing here
-/// invents one, and those two bits stay clear. `synthetic_speak` is the debug
-/// retail pace's own press; it is a press in the pad, not a private path into
-/// the dialogue.
+/// `ui_accept` is Genesis C — `ButtonSpeak`, the talk and confirm button — and
+/// `ui_cancel` is B, `ButtonCancel`. `psiv_camp` is Genesis A, `ButtonCamp`,
+/// the button that opens the field's camp menu (`FieldControls_GetInput`,
+/// `ps4.asm:114890`). The keyboard has always opened the camp on its cancel key
+/// (X, Escape, pad B) and every native driver still does, so `ui_cancel` also
+/// presses `ButtonCamp`: in the field that opens the camp, in a menu the session
+/// reads only `ButtonCancel` and backs out. Start has no binding; the title
+/// reads confirm. `synthetic_speak` is the debug retail pace's own press; it is
+/// a press in the pad, not a private path into the dialogue.
 ///
 /// This is the shell's whole output as an input device: the pad goes to
 /// `Session::frame`, which resolves the field's direction and confirm
-/// (`Pad::field_input`, in the cartridge's own order) and hands the byte to the
-/// dialogue runner, whose presses are its own edges.
+/// (`Pad::field_input`, in the cartridge's own order), reads the menus' presses
+/// as edges and hands the byte to the dialogue runner, whose presses are its
+/// own edges.
 pub(crate) fn read_pad(synthetic_speak: bool) -> Pad {
     let input = Input::singleton();
     let mut pad = Pad::NEUTRAL;
@@ -29,10 +33,14 @@ pub(crate) fn read_pad(synthetic_speak: bool) -> Pad {
         ("ui_right", Button::Right),
         ("ui_cancel", Button::Cancel),
         ("ui_accept", Button::Speak),
+        ("psiv_camp", Button::Camp),
     ] {
         if input.is_action_pressed(action) {
             pad = pad.with(button);
         }
+    }
+    if pad.held(Button::Cancel) {
+        pad = pad.with(Button::Camp);
     }
     if synthetic_speak {
         pad = pad.with(Button::Speak);

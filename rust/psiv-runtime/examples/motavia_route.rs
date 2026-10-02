@@ -3,7 +3,7 @@
 mod support;
 use psiv_core::{Cell, Direction, StepFrames};
 use psiv_data::{BattleFiles, GameData};
-use psiv_runtime::{Button, CampAbilityKind, CampUseResult, Pad, Runtime, Session};
+use psiv_runtime::{Button, CampAbilityKind, Pad, Runtime, Session};
 use std::path::Path;
 use support::{Walk, press};
 
@@ -26,14 +26,12 @@ fn heal(route: &mut Walk) {
                         .any(|a| a.id == 24 && a.remaining >= u16::from(a.cost))
                 })
                 .expect("route needs a healer or an inn");
-            let result = route.runtime_mut().use_camp_ability(
-                CampAbilityKind::Technique,
-                caster.party_slot,
-                24,
-                member.party_slot,
-            );
-            println!("CAMP {result:?}");
-            assert!(matches!(result, CampUseResult::Used { .. }));
+            // The camp menu, through the pad: Camp, TECH, the caster, the
+            // technique, the target. The menu's own line is the evidence.
+            let (caster, target_slot) = (caster.party_slot, member.party_slot);
+            let line = route.camp_technique(caster, 24, target_slot);
+            println!("CAMP {line}");
+            assert!(line.ends_with(" HP"), "the heal did not land: {line}");
         }
     }
 }

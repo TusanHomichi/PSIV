@@ -1,22 +1,17 @@
 //! Retail shop and inn windows.
 //!
 //! The rectangles here are the camera-remapped Piata decode in
-//! `docs/camp/SHOP_LAYOUT_DECODED.md`. The window owns cursors and text only;
-//! transaction mutations go through `psiv_runtime::Runtime`.
+//! `docs/camp/SHOP_LAYOUT_DECODED.md`. The window draws a [`ShopView`]: the
+//! counter, the stock, the cursors and the result line all come from the
+//! runtime's session, which owns the pages, the rules and every transaction.
 //!
-//! [`ShopWindow`] is the node the field shell drives. The decoded tables, the
-//! window art, the retail rectangles and the input/draw halves live in the
-//! submodules, one concern each; this file owns the node's lifecycle, the
-//! runtime snapshots it reads from and the shell that drives it.
+//! [`ShopWindow`] is the node the field shell hands that view to. The window
+//! art and the retail rectangles live in the submodules, one concern each;
+//! this file owns the node's lifecycle and the shell's per-frame hook.
 
-mod catalog;
 mod chrome;
 mod draw;
-mod input;
 mod layout;
-
-#[path = "shop/portraits.rs"]
-mod portraits;
 
 use std::path::Path;
 
@@ -24,38 +19,9 @@ use godot::classes::{INode2D, Image, ImageTexture, Node2D};
 use godot::prelude::*;
 
 use psiv_data::DialogueSet;
-use psiv_runtime::Runtime;
+use psiv_runtime::{Runtime, ShopView};
 
-use catalog::{ShopCatalog, ShopCounter, ShopItem};
 use chrome::ShopChrome;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Mode {
-    Closed,
-    Greeting,
-    InnGreeting,
-    Root,
-    BuyList,
-    BuyConfirm,
-    SellList,
-    SellConfirm,
-    InnConfirm,
-    Message,
-}
-
-#[derive(Clone, Debug, Default)]
-struct Snapshot {
-    money: u32,
-    party_slots: usize,
-    items: Vec<OwnedItem>,
-}
-
-#[derive(Clone, Debug)]
-struct OwnedItem {
-    slot: usize,
-    id: u8,
-    name: String,
-}
 
 /// A modal shop/inn window owned by the field shell.
 #[derive(GodotClass)]
@@ -64,17 +30,14 @@ pub(crate) struct ShopWindow {
     base: Base<Node2D>,
     pack_dir: String,
     chrome: Option<ShopChrome>,
-    catalog: Option<ShopCatalog>,
-    counter: Option<ShopCounter>,
+    /// The session's window, as of the last frame; `None` while closed.
+    view: Option<ShopView>,
     portrait: Option<Gd<ImageTexture>>,
-    mode: Mode,
-    root_selection: usize,
-    item_selection: usize,
-    confirm_selection: usize,
-    snapshot: Snapshot,
-    message: String,
-    accept_blocked: bool,
-    cancel_down: bool,
+    /// The counter the portrait was loaded for.
+    portrait_for: Option<usize>,
+    /// A counter the debug selector asked for, handed to the session by the
+    /// field's next frame.
+    debug_open: Option<usize>,
 }
 
 #[godot_api]
@@ -84,17 +47,10 @@ impl INode2D for ShopWindow {
             base,
             pack_dir: String::new(),
             chrome: None,
-            catalog: None,
-            counter: None,
+            view: None,
             portrait: None,
-            mode: Mode::Closed,
-            root_selection: 0,
-            item_selection: 0,
-            confirm_selection: 0,
-            snapshot: Snapshot::default(),
-            message: String::new(),
-            accept_blocked: false,
-            cancel_down: false,
+            portrait_for: None,
+            debug_open: None,
         }
     }
 
@@ -119,7 +75,7 @@ impl INode2D for ShopWindow {
 }
 
 impl ShopWindow {
-    /// Loads the shared window art and the shop tables.
+    /// Loads the shared window art.
     pub(crate) fn configure(&mut self, pack_dir: &str) {
         self.pack_dir = pack_dir.to_owned();
         match DialogueSet::load(Path::new(pack_dir)) {
@@ -131,111 +87,78 @@ impl ShopWindow {
             }
             Err(error) => godot_error!("shop: dialogue art failed to load: {error}"),
         }
-        match ShopCatalog::load(pack_dir) {
-            Ok(catalog) => self.catalog = Some(catalog),
-            Err(error) => godot_error!("shop: {error}"),
-        }
     }
 
     pub(crate) fn is_open(&self) -> bool {
-        self.mode != Mode::Closed
+        self.view.is_some()
     }
 
     pub(crate) fn debug_menu(&self) -> serde_json::Value {
+        let Some(view) = self.view.as_ref() else {
+            return serde_json::Value::Null;
+        };
         serde_json::json!({
-            "mode": format!("{:?}", self.mode),
-            "root": self.root_selection,
-            "item": self.item_selection,
-            "confirm": self.confirm_selection,
-            "stock": self.buy_items().iter().map(|item| serde_json::json!({
-                "id": item.item_id, "name": item.display_name, "price": item.buy_price,
+            "mode": format!("{:?}", view.page),
+            "root": view.root_selection,
+            "item": view.item_selection,
+            "confirm": view.confirm_selection,
+            "stock": view.stock.iter().map(|item| serde_json::json!({
+                "id": item.item_id, "name": item.name, "price": item.price,
             })).collect::<Vec<_>>(),
-            "message": self.message,
-            "money": self.snapshot.money,
+            "message": view.message,
+            "money": view.money,
         })
     }
 
-    pub(crate) fn counter_at(&self, map_id: u16, x: u16, y: u16) -> Option<ShopCounter> {
-        self.catalog.as_ref()?.counter_at(map_id, x, y)
-    }
-
+    /// The `PSIV_DEBUG_SHOP` selector: asks for counter row `index` to open on
+    /// the field's next frame. Whether the row exists is answered now.
     pub(crate) fn open_index(&mut self, index: usize, runtime: &Runtime) -> bool {
-        let Some(counter) = self.catalog.as_ref().and_then(|c| c.counter_index(index)) else {
+        if runtime
+            .data()
+            .shops()
+            .and_then(|shops| shops.counter_index(index))
+            .is_none()
+        {
             godot_error!("shop debug selector {index} did not name a live counter");
             return false;
-        };
-        self.open(counter, runtime)
-    }
-
-    pub(crate) fn open(&mut self, counter: ShopCounter, runtime: &Runtime) -> bool {
-        self.root_selection = 0;
-        self.item_selection = 0;
-        self.confirm_selection = 0;
-        self.message.clear();
-        self.snapshot = self.snapshot(runtime);
-        self.portrait = self.load_portrait(&counter.portrait);
-        self.mode = if counter.is_inn() {
-            Mode::InnGreeting
-        } else {
-            Mode::Greeting
-        };
-        self.accept_blocked = true;
-        self.counter = Some(counter);
-        self.base_mut().set_visible(true);
-        self.base_mut().queue_redraw();
+        }
+        self.debug_open = Some(index);
         true
     }
 
-    pub(crate) fn close(&mut self) {
-        self.mode = Mode::Closed;
-        self.counter = None;
-        self.portrait = None;
-        self.message.clear();
-        self.base_mut().set_visible(false);
-        self.base_mut().queue_redraw();
+    /// The counter the debug selector asked for, once.
+    pub(crate) fn take_debug_open(&mut self) -> Option<usize> {
+        self.debug_open.take()
     }
 
-    fn snapshot(&self, runtime: &Runtime) -> Snapshot {
-        let inventory = runtime.game().inventory();
-        let names = self.catalog.as_ref();
-        Snapshot {
-            money: runtime.game().money(),
-            party_slots: runtime.game().party_len(),
-            items: inventory
-                .slots()
-                .iter()
-                .enumerate()
-                .filter(|&(_, &id)| id != 0)
-                .map(|(slot, &id)| OwnedItem {
-                    slot,
-                    id,
-                    name: names.map_or_else(|| format!("ITEM {id}"), |c| c.item_name(id)),
-                })
-                .collect(),
+    /// Shows the session's window, or hides the node when there is none.
+    pub(crate) fn sync(&mut self, view: Option<&ShopView>) {
+        match view {
+            Some(view) => {
+                if self.portrait_for != Some(view.counter.id) {
+                    self.portrait = view
+                        .counter
+                        .portrait_png
+                        .as_deref()
+                        .and_then(|png| self.load_portrait(png));
+                    self.portrait_for = Some(view.counter.id);
+                }
+                self.view = Some(view.clone());
+                self.base_mut().set_visible(true);
+                self.base_mut().queue_redraw();
+            }
+            None => {
+                if self.view.take().is_some() {
+                    self.portrait = None;
+                    self.portrait_for = None;
+                    self.base_mut().set_visible(false);
+                    self.base_mut().queue_redraw();
+                }
+            }
         }
     }
 
-    fn buy_items(&self) -> Vec<ShopItem> {
-        let Some(counter) = self.counter.as_ref() else {
-            return Vec::new();
-        };
-        let Some(index) = counter.shop_inventory_index else {
-            return Vec::new();
-        };
-        self.catalog
-            .as_ref()
-            .and_then(|catalog| catalog.inventory(index))
-            .map_or_else(Vec::new, |inventory| inventory.items.clone())
-    }
-
-    fn load_portrait(&self, raw: &str) -> Option<Gd<ImageTexture>> {
-        let relative = self
-            .catalog
-            .as_ref()?
-            .portraits
-            .get(raw)
-            .map(String::as_str)
-            .or_else(|| (raw == "0x29FC66").then_some("dialogue/portraits/12_Baker.png"))?;
+    fn load_portrait(&self, relative: &str) -> Option<Gd<ImageTexture>> {
         let path = Path::new(&self.pack_dir).join(relative);
         Image::load_from_file(&GString::from(path.to_string_lossy().as_ref()))
             .and_then(|image| ImageTexture::create_from_image(&image))
@@ -243,31 +166,34 @@ impl ShopWindow {
 }
 
 impl crate::Field {
-    pub(crate) fn drive_shop_if_active(&mut self) -> bool {
-        if !self.shop.as_ref().is_some_and(|shop| shop.bind().is_open()) {
-            return false;
+    /// Hands the shop window what the session shows, and places it. Run after
+    /// the session's frame, whichever mode owned it.
+    pub(crate) fn present_shop(&mut self) {
+        let view = self
+            .session
+            .as_ref()
+            .and_then(|session| session.shop_view())
+            .cloned();
+        if let Some(shop) = self.shop.as_mut() {
+            shop.bind_mut().sync(view.as_ref());
         }
-        if let (Some(session), Some(shop)) = (self.session.as_mut(), self.shop.as_mut()) {
-            shop.bind_mut().handle_input(session.runtime_mut());
+        if view.is_some() {
+            self.place_shop_window();
         }
-        if !self.shop.as_ref().is_some_and(|shop| shop.bind().is_open()) {
-            if let Some(runtime) = self.runtime_mut() {
-                runtime.set_field_suspended(false);
-            }
-            self.sync_visuals(false);
-            return true;
+    }
+
+    /// Opens a counter the debug selector asked for, in the session.
+    pub(crate) fn open_debug_shop(&mut self) {
+        let Some(index) = self
+            .shop
+            .as_mut()
+            .and_then(|shop| shop.bind_mut().take_debug_open())
+        else {
+            return;
+        };
+        if let Some(session) = self.session.as_mut() {
+            session.open_shop_counter(index);
         }
-        let events = self
-            .runtime_mut()
-            .map(|runtime| {
-                runtime.set_field_suspended(true);
-                runtime.tick(psiv_core::Input::Neutral)
-            })
-            .unwrap_or_default();
-        self.process_events(events);
-        self.place_shop_window();
-        self.sync_visuals(false);
-        true
     }
 
     pub(crate) fn place_shop_window(&mut self) {

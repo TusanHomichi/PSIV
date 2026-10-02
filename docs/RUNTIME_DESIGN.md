@@ -17,7 +17,7 @@ that pack; it does not run the emulator. The Cargo workspace has five crates:
 | [psiv-core](../rust/psiv-core/) | Deterministic field, battle, event, party and save rules; no dependencies or engine types |
 | [psiv-runtime](../rust/psiv-runtime/) | Pack-to-core conversion, game orchestration, persistence integration and presentation snapshots |
 | [psiv-sound](../rust/psiv-sound/) | Live PSIV driver, FM/PSG/DAC playback and register traces |
-| [psiv-godot](../rust/psiv-godot/) and [godot](../godot/) | Desktop bridge: rendering, pad input and audio output. Menus and game flow are moving into a runtime `Session` ([campaign runner](campaign/CAMPAIGN_RUNNER.md)) |
+| [psiv-godot](../rust/psiv-godot/) and [godot](../godot/) | Desktop bridge: rendering, pad input and audio output. Title, game over and battle are moving into the runtime `Session`, which already runs the field, scenes, dialogue, shops and camp ([campaign runner](campaign/CAMPAIGN_RUNNER.md)) |
 
 Game rules belong in the core; the runtime coordinates them, and Godot presents
 results and sends input. Keep ROM decoding in Python. Pack schema changes need
@@ -26,21 +26,32 @@ and excluded from Git; see [extraction](EXTRACTION.md) and [setup](DEVELOPMENT.m
 
 ## The session frame
 
-One `Session` (`rust/psiv-runtime/src/session.rs`) owns the runtime and turns a
-joypad byte into a frame of game: `Session::frame(pad)` runs the dialogue
-window's input half, a pending `$F6` and then the field or the scene, and
-returns a `Frame` of runtime events, dialogue signals, the scene a `$F6` started
-and the field input it resolved. `Session::window_tick()` is the window's own
-half of that frame, and the caller runs it after applying the events, because an
-event can open the window — a talk the shell routes, a scene's own dialogue —
-and the box takes its first open-animation step on the frame it opens. The
-directions and the talk button resolve in the cartridge's order
+One `Session` (`rust/psiv-runtime/src/session/mod.rs`) owns the runtime and
+turns a joypad byte into a frame of game: `Session::frame(pad)` is the one call
+per 60 Hz frame. A window that is up owns the frame; otherwise an open shop or
+inn window (`session/shop.rs`) or camp menu and chest window (`session/camp/`)
+does, and the Camp button or a chest the field opened starts them. Everything
+else is the field's frame: the dialogue window's input half, a pending `$F6`,
+then the field or the scene, then the events that open windows (a talk, a
+counter, a scene's own line, a choice, "nothing here", applied in
+`session/route.rs`), then the window's own half — the cartridge's node order, so
+the box takes its first open-animation step on the frame it opens. The `Frame`
+carries the runtime events left for the shell, what the session opened
+(`Frame::routed`), the dialogue signals, the scene a `$F6` started, the field
+input it resolved and, for a menu frame, the camp's events, sound and save
+request. The menus' windows are views the shell draws (`ShopView`, `CampView`):
+pages, cursors, the roster snapshot and the line a command answered with. The
+shop catalog (counters, stock, inn rates) is `shops.json` read through
+`psiv-data`; equip against unequip is decided from the equipment bytes, and a
+sale pays half the item record's price word (`ps4.asm:135570`) for any item.
+The directions and the talk button resolve in the cartridge's order
 (`Pad::field_input`, `rust/psiv-runtime/src/pad.rs`: `FieldObj_MovementsTbl`'s
 sixteen d-pad masks — an opposing pair cancels, a horizontal beats a vertical —
-and `FieldControls_GetInput`'s talk press taking the frame). Godot sends the pad
-and presents the frame; the modes it still owns (title, game over, battle, shop
-and camp) are checked in front of the call, and the
-[campaign runner](campaign/CAMPAIGN_RUNNER.md) nodes S3 to S5 move them in.
+and `FieldControls_GetInput`'s talk press taking the frame); the menus read
+presses as edges against the previous frame's pad. Godot sends the pad and
+presents the frame; the modes it still owns (title, game over and battle) are
+checked in front of the call, and the [campaign runner](campaign/CAMPAIGN_RUNNER.md)
+nodes S3 and S5 move them in.
 
 ## State, events and persistence
 

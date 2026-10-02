@@ -71,6 +71,11 @@ impl GameData {
                 &data.manifest.rom.sha256,
             )?);
         }
+        // A pack extracted from a ROM carries its shops; a broken file fails
+        // here and names itself. A synthetic pack has none.
+        if pack_dir.join(crate::SHOPS_FILE).is_file() {
+            data.shops = Some(crate::ShopData::load(pack_dir)?);
+        }
         data.sound = crate::sound::SoundFiles::load(pack_dir)?;
         // The message box walks these files, so a pack that has them carries
         // the whole set and a broken one fails here, where the error names the

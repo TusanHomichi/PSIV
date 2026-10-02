@@ -240,3 +240,14 @@ plumbing":
   index takes it.
 
 None of these change what a shop sells or charges.
+
+## 10. Who reads it in the port
+
+`psiv-data` loads `shops.json` with the rest of the pack (`ShopData`), and the
+runtime session owns the shop and inn window
+(`rust/psiv-runtime/src/session/shop.rs`): which counter a talk across a `$C`
+cell opens, the buy list, the "nothing to sell" refusal, the inn bill and the
+page order. Godot draws the view. A sale pays half the item record's price word
+(`ps4.asm:135570`, `InventoryData` `$14`) for **any** item the party holds, read
+from `battle/equipment.json`'s `meseta_cost`; the shell used to read it only from
+the stock lists, so an item no shop stocks paid nothing.

@@ -354,3 +354,31 @@ fn piata_looks_like_piata() {
         );
     }
 }
+
+/// `shops.json` loads with the rest of the pack, and its tables answer the
+/// questions the runtime asks: the Piata inn's counter by cell, its rate, a
+/// stock list's price. The census counts are the packer's own
+/// (`docs/camp/SHOPS.md`).
+#[test]
+fn the_real_pack_carries_its_shops() {
+    let Some(dir) = require_pack() else { return };
+    let data = GameData::load(&dir).expect("the runtime pack should load");
+    let shops = data.shops().expect("a ROM-derived pack carries shops.json");
+
+    assert_eq!(shops.counters().len(), 68, "ShopCounters rows");
+    let inn = shops
+        .counter_at(0x19, 41, 30)
+        .expect("the Piata inn's shopkeeper stands at (41,30)");
+    assert!(inn.is_inn());
+    let rate = shops.inn(inn.inn_index.expect("an inn row")).expect("rate");
+    assert_eq!(rate.rate_per_character, 5);
+    let monomate = shops
+        .inventory(0)
+        .expect("the first stock list")
+        .items
+        .iter()
+        .find(|item| item.item_id == 125)
+        .expect("Piata's Monomate");
+    assert_eq!(monomate.buy_price, 20);
+    assert_eq!(shops.listed_price(125), Some(20));
+}

@@ -31,6 +31,8 @@ pub(super) struct CampCatalog {
     item_names: BTreeMap<u8, String>,
     item_kinds: BTreeMap<u8, u8>,
     item_masks: BTreeMap<u8, Option<u16>>,
+    /// The record's price word (`InventoryData` `$14`), by item id.
+    item_prices: BTreeMap<u8, u16>,
     effects: BTreeMap<u8, CampItemEffect>,
     levels: BTreeMap<u8, Vec<(u16, u32)>>,
 }
@@ -106,6 +108,12 @@ pub(super) fn catalog(files: &BattleFiles) -> CampCatalog {
             .items
             .iter()
             .map(|item| (item.id, item.usable_by_mask()))
+            .collect(),
+        item_prices: files
+            .equipment
+            .items
+            .iter()
+            .filter_map(|item| Some((item.id, item.meseta_cost?)))
             .collect(),
         effects: files
             .abilities
@@ -199,6 +207,10 @@ pub struct CampCharacter {
     pub defense_power: u16,
     /// Read-only equipment names in right-hand, left-hand, head, body order.
     pub equipment: [String; 4],
+    /// The equipment bytes (`$4C..$4F`) behind those names, in the same order;
+    /// `0` is an empty slot. A menu decides equip against unequip from these,
+    /// never from the display text.
+    pub equipment_ids: [u8; 4],
     /// Experience required for the next level, when a next level exists.
     pub next_level_experience: Option<u32>,
 }
@@ -288,6 +300,35 @@ impl Runtime {
             party: party_snapshot(&self.game, set),
             inventory: inventory_snapshot(&self.game, set),
         }
+    }
+
+    /// The item record's price word (`InventoryData` offset `$14`), which the
+    /// cartridge halves for a sale (`ps4.asm:135570`), for any item id.
+    #[must_use]
+    pub fn item_price(&self, item: u8) -> Option<u32> {
+        self.battles
+            .as_ref()?
+            .camp
+            .item_prices
+            .get(&item)
+            .map(|price| u32::from(*price))
+    }
+
+    /// The cartridge's name for an item: the battle pack's, else the name a
+    /// shop lists it under, else a placeholder.
+    #[must_use]
+    pub fn item_name(&self, item: u8) -> String {
+        self.battles
+            .as_ref()
+            .and_then(|set| set.camp.item_names.get(&item).cloned())
+            .or_else(|| {
+                self.data()
+                    .shops()?
+                    .inventory_items()
+                    .find(|candidate| candidate.item_id == item)
+                    .map(|candidate| candidate.display_name.clone())
+            })
+            .unwrap_or_else(|| format!("ITEM {item}"))
     }
 
     /// Returns the cartridge-filtered equipment list for one party slot.
@@ -651,6 +692,7 @@ fn party_snapshot(game: &GameState, set: &BattleSet) -> Vec<CampCharacter> {
                 attack_power: stats.attack.derived,
                 defense_power: stats.defence.derived,
                 equipment,
+                equipment_ids: stats.equipment,
                 next_level_experience,
             })
         })
