@@ -8,6 +8,7 @@
 //! psiv-campaign run <route.json> [--from-chapter ID] [--until-chapter ID]
 //!                   [--save-dir DIR] [--tape OUT] [--report OUT] [--pack DIR]
 //! psiv-campaign replay <tape> [--from-save FILE] [--pack DIR]
+//! psiv-campaign inspect <slot.sram> [--pack DIR]
 //! ```
 //!
 //! Map ids are decimal or `0x` hex. The pack defaults to `$PSIV_PACK`, then
@@ -40,6 +41,7 @@ fn main() -> ExitCode {
     match args.first().map(String::as_str) {
         Some("run") => return run_cmd::cmd_run(&args[1..]),
         Some("replay") => return run_cmd::cmd_replay(&args[1..]),
+        Some("inspect") => return run_cmd::cmd_inspect(&args[1..]),
         _ => {}
     }
     match run(&args) {

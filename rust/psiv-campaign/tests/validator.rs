@@ -33,7 +33,8 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
     let route = Route::parse(&main_text()).expect("main.json parses");
     let ids: Vec<&str> = route.chapters.iter().map(|c| c.id.as_str()).collect();
     assert_eq!(ids.first(), Some(&"academy"));
-    assert_eq!(ids.last(), Some(&"aiedo"));
+    assert_eq!(ids.last(), Some(&"zio-fort-approach"));
+    assert!(ids.contains(&"aiedo"));
     assert!(ids.contains(&"north-bank"));
     for chapter in &route.chapters {
         assert!(!chapter.source.is_empty(), "{} cites no source", chapter.id);
@@ -184,8 +185,8 @@ fn the_route_visits_mile_before_zema_and_again_for_the_inn() {
 fn a_patrol_refuge_that_ends_on_another_map_is_rejected() {
     let Some(report) = run(&mutate(
         &main_text(),
-        "{\"do\": \"go_to_map\", \"map\": 0, \"via_warp\": 3}\n        ], \"note\"",
-        "{\"do\": \"go_to_map\", \"map\": 70, \"via_warp\": 8}\n        ], \"note\"",
+        "{\"do\": \"go_to_map\", \"map\": 65, \"via_warp\": 0},\n          {\"do\": \"go_to_map\", \"map\": 0, \"via_warp\": 3}\n        ], \"note\"",
+        "{\"do\": \"go_to_map\", \"map\": 65, \"via_warp\": 0},\n          {\"do\": \"go_to_map\", \"map\": 70, \"via_warp\": 8}\n        ], \"note\"",
     )) else {
         return;
     };

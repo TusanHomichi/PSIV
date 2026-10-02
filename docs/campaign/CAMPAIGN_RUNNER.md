@@ -115,7 +115,7 @@ producing pads from views only:
 
 | Objective | Module | What it presses |
 | --- | --- | --- |
-| `go_to`, `go_to_map`, `patrol` | `walk.rs` | a direction for a step, re-planned from the real cell whenever the party comes to rest somewhere the plan did not expect; R0's planner over the live map, and a warp graph built from the flags the game holds |
+| `go_to`, `go_to_map`, `patrol` | `walk.rs` | a direction for a step, re-planned from the real cell whenever the party comes to rest somewhere the plan did not expect; R0's planner over the live map, and a warp graph built from the flags the game holds; a yes/no prompt that a scene opens on the target map (Chaz's house offers a rest on arrival) ends `go_to_map` with the prompt open, for the next `answer` |
 | `talk`, `open_chest`, `interact`, `answer` | `talk.rs` | walks next to the object (or across its counter), turns, presses Speak, and reads what opened; Cancel is retail's direct NO |
 | `buy`, `sell`, `rest_inn` | `shopping.rs` | the shop view's pages, rows and cursors |
 | `equip`, `use_technique`, `use_item`, `reorder`, `save` | `camping.rs` | the camp view's pages; SAVE is answered by the driver with the file the runner writes |
@@ -157,7 +157,10 @@ hash. Route `save` objectives write `<save-dir>/route/slot_N.sram` through the
 camp's SAVE page. `replay <tape> [--from-save FILE]` plays the tape back and
 prints the digest of the final state (map, cell, facing, purse, party and the
 whole persistent snapshot), which a run printed too and a replay must
-reproduce. A save loaded mid-route restarts the frame counter and RNG, so a
+reproduce. `inspect <slot.sram>` prints a save's
+position, purse, party (levels, HP, stats, equipment), pack and set event flags
+through the runtime's own views: the question a route author asks of every
+chapter save. A save loaded mid-route restarts the frame counter and RNG, so a
 `--from-chapter` run is the same game from there but not the same frames as the
 full run; only the full run from New Game is the route's evidence.
 
@@ -242,5 +245,6 @@ nodes:
     outcome: "Route chapters to the Ending, one lane per blocker class"
     depends_on: [R1]
     acceptance: "The runner reaches Game_Cleared_Flag from New Game; each blocker it hit is fixed with a regression test or filed as an issue with a link from the route"
+    evidence: ["lane c1-motavia (base 8c19769): routes/main.json grows to 18 chapters and reaches the Zio Fort's Juza room (map $87, (32,21)) with all five alive at level 12 to 13: 457,356 frames, digest 96d2835a8633def8, tape sha256 53adf11f092bb99982c299aa2620b75a4078f6a4fe3ba69f0adae0a3d749bd57, identical on three runs, replay reproduces the digest; scenes 28 and 29 pass in-route; RUNNER_LOG.md H13 to H16", "the route stops at Juza: H16, enemy 114's ZAN and FORCEFLASH are not run by the engine, and the stairs to F3 and F4 open only after his battle; H15 lists the unsupported abilities on the way (FUSION, FIREBREATH, DEBAN) that the route passes only by running; H13 (#39) does not block the story"]
     state: pending
 ```
