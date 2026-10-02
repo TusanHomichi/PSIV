@@ -54,6 +54,19 @@ wrong blink phase (`RMSE 19.408013`); it is not used for certification.
 | battle `0x88` | **0.000000** | clone t200 ↔ tape-07 frame 25000, `--fixed-fps 60` |
 | camp root | **0.000000** | clone t60 ↔ tape-22 frame 7675, `--fixed-fps 60` |
 
+Run every pair with `python3 tools/certify.py --build`; it pins each pair's
+clone tick and oracle-frame hash and writes a receipt under `build/certify/`.
+The snippets further down are the historical derivations. On 2026-10-01 the
+tool showed the opening and camp pairs had rotted on main
+([#44](https://github.com/TusanHomichi/PSIV/issues/44)); their rows above are the
+2026-08-18 result, not current.
+
+Since the dialogue runner moved into the runtime (campaign runner node S1),
+`PSIV_DEBUG_RETAIL_PACE` dismisses a page with a one-frame `ButtonSpeak`
+press in the pad rather than an advance with no button held, so the next
+page's first glyph frame types at the held cadence. Auto-dismissed pages
+settle about two frames earlier each; re-derive clone ticks on that timeline.
+
 Capture doctrine, final form: `xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 …
 --display-driver x11 --rendering-method gl_compatibility --rendering-driver
 opengl3 --audio-driver Dummy --fixed-fps 60`. The `--fixed-fps 60` flag is

@@ -84,14 +84,14 @@ canonical_record: "docs/campaign/CAMPAIGN_RUNNER.md#task-graph"
 authority: "Owner 2026-10-01: campaign runner approach; commit, push, PR and merge once the full gate is green (docs/AGENT_WORKFLOW.md#authority-effort-and-continuation)"
 effort_policy: "Continue scoped repairs until acceptance passes; no fixed cycle limit (inherited)"
 exclusions: ["modding", "visual-parity claims beyond existing certifications", "gameplay changes that are not cartridge behavior"]
-next_action: "S1 (lane s1-dialogue)"
+next_action: "S2"
 nodes:
   - id: S1
     outcome: "Dialogue interpreter in psiv-runtime: control codes, branches, choices, actions, $F2/$F6/$F7, live flags, typewriter and open-animation gates, driven by a cartridge-layout Pad"
     depends_on: []
     acceptance: "psiv-godot no longer matches on Ctrl::; the window renders a runtime view; the TextFlow pagination test still matches all 2,736 entries; mid-message branch, $F2 and live-flag regression tests; the headless example harness's own dialogue walk is deleted; opening p1/p2 and MeetingRika certifications stay 0.000000"
-    evidence: ["build/lane-evidence/workspace-tests.txt", "build/lane-evidence/clippy.txt", "build/lane-evidence/fmt.txt", "build/lane-evidence/examples-build.txt", "build/lane-evidence/python-checks.txt", "build/lane-evidence/testnames-psiv-godot.diff", "build/lane-evidence/testnames-psiv-runtime.diff", "build/lane-evidence/ctrl-grep.txt", "build/lane-evidence/negative-controls.md"]
-    state: in_progress
+    evidence: ["build/lane-evidence/workspace-tests.txt", "build/lane-evidence/clippy.txt", "build/lane-evidence/fmt.txt", "build/lane-evidence/examples-build.txt", "build/lane-evidence/python-checks.txt", "build/lane-evidence/testnames-psiv-godot.diff", "build/lane-evidence/testnames-psiv-runtime.diff", "build/lane-evidence/ctrl-grep.txt", "build/lane-evidence/negative-controls.md", "integration: tools/certify.py on candidate 46810a3 vs main e9e58a2 baseline: meeting-rika, title, battle 0.000000 on both; opening-p2 and camp-root captures byte-identical to baseline; opening-p1 differs by the expected two-frame retail-pace shift (dialogue close t278 -> t276); opening and camp pairs had already rotted on main (#44), so their 0.000000 is restored there, not here", "integration: native opening smoke (title START, trigger 124, Up) reaches map $13 (48,18), Chaz alone, 500 meseta, town 80008040"]
+    state: verified
   - id: S2
     outcome: "Session::frame(pad) owns mode dispatch, field, scenes, dialogue, pending $F6 and field suspension; Godot's lib.rs dispatcher calls it"
     depends_on: [S1]
