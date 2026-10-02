@@ -63,11 +63,11 @@ The new code requires the rebuilt full pack; exact candidate, pack, binary and
 check receipts are in the travel ledger. The pack, saves and captures remain
 local and ignored.
 
-**Next action:** `S6` (lock every state-changing `Runtime` method behind the
-`Session`) and `C1` (extend `routes/main.json` from Aiedo through Zio's
-defeat) in the [campaign runner graph](campaign/CAMPAIGN_RUNNER.md#task-graph),
-in parallel. The runner already plays New Game to Aiedo with pad presses only
-([run log](campaign/RUNNER_LOG.md)).
+**Next action:** the Motavia-arc enemy abilities
+([#58](https://github.com/TusanHomichi/PSIV/issues/58)) that stop the runner at
+Juza in Zio's fort, then the next route chapter from Juza through Zio's defeat.
+The runner plays New Game to Juza with pad presses only
+([run log](campaign/RUNNER_LOG.md)); the runtime boundary is closed (S1-S6).
 
 The exact 32×32 bridge match does not establish whole-scene visual parity,
 retail/native save-coordinate interchange, or later campaign progression.

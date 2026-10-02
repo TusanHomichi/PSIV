@@ -440,6 +440,76 @@ fn the_runner_reaches_no_runtime_mutator() {
     }
 }
 
+/// Chapter one's save, read back by the `inspect` subcommand: position, party
+/// with equipment and flags come out of the runtime's own views.
+#[test]
+fn inspect_reads_a_chapter_save_and_refuses_a_missing_one() {
+    let Some((_, result)) = academy() else {
+        return;
+    };
+    let bin = env!("CARGO_BIN_EXE_psiv-campaign");
+    let out = Command::new(bin)
+        .arg("inspect")
+        .arg(&result.chapters[0].save)
+        .output()
+        .unwrap();
+    assert_eq!(out.status.code(), Some(0));
+    let text = String::from_utf8(out.stdout).unwrap();
+    assert!(text.contains("map 0x0 "), "{text}");
+    for line in ["party 0 Alys L7", "wears", "inventory", "event flags"] {
+        assert!(text.contains(line), "{line}: {text}");
+    }
+    let missing = Command::new(bin)
+        .args(["inspect", "no-such-file.sram"])
+        .output()
+        .unwrap();
+    assert_eq!(missing.status.code(), Some(1));
+}
+
+/// A scene that asks a question on arrival (Chaz's house offers a rest) ends the
+/// walk with the prompt open, and the next objective answers it. Negative
+/// control: with the `answer` replaced the next objective halts on the open
+/// prompt instead of walking through it.
+#[test]
+#[ignore = "plays the route to Aiedo: cargo test --release -p psiv-campaign --test runner -- --ignored"]
+fn an_arrival_prompt_is_the_next_objectives_to_answer() {
+    if pack().is_none() {
+        return;
+    }
+    let text = main_text();
+    let ok = run(&config(
+        &text,
+        "chaz-prompt",
+        Some("aiedo-chaz-house"),
+        None,
+    ))
+    .unwrap();
+    assert!(ok.completed, "report: {:#?}", ok.report);
+    let broken = mutate(
+        &text,
+        "{\"do\": \"answer\", \"yes\": true, \"note\": \"yes: RecoverStats",
+        "{\"do\": \"expect\", \"map\": 94, \"note\": \"yes: RecoverStats",
+    );
+    let halted = run(&config(
+        &broken,
+        "chaz-no-answer",
+        Some("aiedo-chaz-house"),
+        None,
+    ))
+    .unwrap();
+    assert!(!halted.completed);
+    let report = halted.report.expect("a halt writes a report");
+    assert_eq!(report["chapter"], "aiedo-chaz-house");
+    assert_eq!(report["halt"]["kind"], "unexpected_state");
+    assert!(
+        report["halt"]["detail"]
+            .as_str()
+            .unwrap()
+            .contains("yes/no prompt"),
+        "{report}"
+    );
+}
+
 /// The whole route from New Game, pads only. Run it in release.
 #[test]
 #[ignore = "plays the whole route: cargo test --release -p psiv-campaign --test runner -- --ignored"]
@@ -452,7 +522,7 @@ fn the_whole_route_completes_from_new_game_and_replays() {
     assert!(result.completed, "report: {:#?}", result.report);
     assert_eq!(result.chapters.len(), config.route.chapters.len());
     let last = result.chapters.last().unwrap();
-    assert_eq!(last.id, "aiedo");
+    assert_eq!(last.id, "zio-fort-approach");
     let replayed = replay(PACK.as_ref(), &result.tape, None).unwrap();
     assert_eq!(replayed.digest, result.digest);
 }

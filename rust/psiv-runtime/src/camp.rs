@@ -364,7 +364,11 @@ impl Runtime {
     }
 
     /// Equips one filtered inventory entry through the core transaction seam.
-    pub fn equip_camp_item(&mut self, party_slot: usize, inventory_slot: usize) -> CampEquipResult {
+    pub(crate) fn equip_camp_item(
+        &mut self,
+        party_slot: usize,
+        inventory_slot: usize,
+    ) -> CampEquipResult {
         self.equip_camp_item_selected(party_slot, inventory_slot, None)
     }
 
@@ -379,7 +383,7 @@ impl Runtime {
 
     /// Commits the player's selected hand, using the same atomic transaction
     /// and stat refresh as the default equipment command.
-    pub fn equip_camp_item_in_hand(
+    pub(crate) fn equip_camp_item_in_hand(
         &mut self,
         party_slot: usize,
         inventory_slot: usize,
@@ -464,7 +468,7 @@ impl Runtime {
     }
 
     /// Unequips a raw `$4C..$4F` equipment slot through the core seam.
-    pub fn unequip_camp_item(
+    pub(crate) fn unequip_camp_item(
         &mut self,
         party_slot: usize,
         equipment_slot: usize,
@@ -526,7 +530,11 @@ impl Runtime {
     /// inventory and roster APIs. Target mode `5` is the decoded all-party
     /// form used by Star Dew; single-target items use the requested party
     /// slot.
-    pub fn use_camp_item(&mut self, inventory_slot: usize, party_slot: usize) -> CampUseResult {
+    pub(crate) fn use_camp_item(
+        &mut self,
+        inventory_slot: usize,
+        party_slot: usize,
+    ) -> CampUseResult {
         let Some(item_id) = self.game.inventory().get(inventory_slot) else {
             return CampUseResult::Unavailable {
                 reason: "ITEM SLOT EMPTY".to_owned(),

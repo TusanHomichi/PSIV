@@ -110,7 +110,7 @@ impl Runtime {
 
     /// Record the player's latest dialogue choice. A subsequent scene branch
     /// consumes it; if the scene is already waiting, release that gate now.
-    pub fn dialogue_choice(&mut self, yes: bool) {
+    pub(crate) fn dialogue_choice(&mut self, yes: bool) {
         if self.scene_choice_pending {
             self.scene_input = SceneInput::Choice(yes);
             self.scene_choice_pending = false;

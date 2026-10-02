@@ -15,7 +15,10 @@ impl Runtime {
     ///
     /// # Errors
     /// [`BridgeError::Rejected`] when a record does not fit the engine.
-    pub fn enable_battles(&mut self, files: &psiv_data::BattleFiles) -> Result<(), BridgeError> {
+    pub(crate) fn enable_battles(
+        &mut self,
+        files: &psiv_data::BattleFiles,
+    ) -> Result<(), BridgeError> {
         let data = battle_data(files)?;
         // Seat all eleven characters, exactly as InitializeCharStats does
         // whether or not they are in the party. The roster refuses a second
@@ -143,7 +146,7 @@ impl Runtime {
     /// Ends a battle by absorbing the party records back into the roster and
     /// running both award passes — the full cartridge epilogue. The caller
     /// passes the per-member award (the split the battle computed).
-    pub fn finish_battle_absorbing(&mut self, each: u16) -> Vec<BattleEvent> {
+    pub(crate) fn finish_battle_absorbing(&mut self, each: u16) -> Vec<BattleEvent> {
         let mut timeline = Vec::new();
         if let Some(battle) = self.battle.take() {
             self.battle_field_refresh_pending = true;
@@ -238,7 +241,7 @@ impl Runtime {
     /// # Errors
     /// [`BridgeError::Rejected`] when battles are not enabled, the formation
     /// id is unknown, or the engine refuses the setup.
-    pub fn start_battle(
+    pub(crate) fn start_battle(
         &mut self,
         formation: u16,
         party: Vec<psiv_core::battle::PartyMember>,
@@ -272,7 +275,10 @@ impl Runtime {
     /// # Errors
     /// [`BridgeError::Rejected`] when no battle is active or a data lookup
     /// fails mid-round.
-    pub fn battle_round(&mut self, orders: &RoundOrders) -> Result<Vec<BattleEvent>, BridgeError> {
+    pub(crate) fn battle_round(
+        &mut self,
+        orders: &RoundOrders,
+    ) -> Result<Vec<BattleEvent>, BridgeError> {
         let set = self
             .battles
             .as_ref()

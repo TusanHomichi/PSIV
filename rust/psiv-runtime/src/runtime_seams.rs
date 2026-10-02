@@ -4,7 +4,7 @@
 //! write.
 
 use psiv_core::battle::Lcg41;
-use psiv_core::{Cell, Direction, Flag};
+use psiv_core::{Cell, Direction};
 
 use crate::Runtime;
 
@@ -23,7 +23,7 @@ impl Runtime {
     /// # Errors
     ///
     /// Whatever [`FieldMap`] or [`psiv_core::WanderSet`] rejects.
-    pub fn restore_object(
+    pub(crate) fn restore_object(
         &mut self,
         npc_index: usize,
         cell: Cell,
@@ -41,7 +41,7 @@ impl Runtime {
     /// Turns an object to face a direction — the cartridge's default when
     /// spoken to (`$F3` exists to suppress it). Out-of-range indices are the
     /// renderer's bug to log, not the engine's to crash on.
-    pub fn face_npc(&mut self, index: usize, facing: Direction) {
+    pub(crate) fn face_npc(&mut self, index: usize, facing: Direction) {
         let _ = self.map.set_npc_facing(index, facing);
     }
 
@@ -56,7 +56,7 @@ impl Runtime {
     ///
     /// [`psiv_core::MapError`] when the object index or pixel position is not
     /// valid for the loaded map.
-    pub fn set_npc_pixel_position(
+    pub(crate) fn set_npc_pixel_position(
         &mut self,
         index: usize,
         x: i32,
@@ -67,7 +67,7 @@ impl Runtime {
 
     /// Mirrors the cartridge's window-up suspension of field-object updates.
     /// The renderer sets this while a dialogue window is open.
-    pub fn set_field_suspended(&mut self, suspended: bool) {
+    pub(crate) fn set_field_suspended(&mut self, suspended: bool) {
         self.field_suspended = suspended;
     }
 
@@ -78,13 +78,18 @@ impl Runtime {
     }
 
     /// Seeds the shared RNG word — for replays that align to an oracle log.
-    pub fn set_rng_seed(&mut self, seed: u32) {
+    pub(crate) fn set_rng_seed(&mut self, seed: u32) {
         self.rng = Lcg41::new(seed);
     }
 
     /// Applies a retail dialogue `$F2` event-flag write immediately. The
     /// renderer uses this narrow mutator instead of reaching into save state.
-    pub fn set_event_flag(&mut self, flag: u8) -> Result<(), psiv_core::MapError> {
-        self.game.set(Flag::event(u16::from(flag)))
+    ///
+    /// The dialogue's own `$F2` handling writes game state where it runs
+    /// (`dialogue/mod.rs`), so no product path calls this today; a test
+    /// fixture does.
+    #[cfg(test)]
+    pub(crate) fn set_event_flag(&mut self, flag: u8) -> Result<(), psiv_core::MapError> {
+        self.game.set(psiv_core::Flag::event(u16::from(flag)))
     }
 }

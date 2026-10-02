@@ -13,10 +13,10 @@
 
 use std::path::Path;
 
-use psiv_core::{Cell, CharId, Flag, StepFrames};
+use psiv_core::{Cell, CharId, Flag};
 use psiv_data::GameData;
 use psiv_runtime::{
-    Button, NpcDialogueOpen, Pad, Routed, Runtime, RuntimeEvent, SceneDialogueOpen, Session,
+    Button, Frame, NpcDialogueOpen, Pad, Routed, Runtime, RuntimeEvent, SceneDialogueOpen, Session,
 };
 
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
@@ -39,8 +39,9 @@ struct Player {
 
 impl Player {
     /// One frame: [`Session::frame`] and a look at what it opened and what went
-    /// wrong.
-    fn tick(&mut self, pad: Pad) {
+    /// wrong. The frame comes back for a case that has to read what the
+    /// session routed.
+    fn tick(&mut self, pad: Pad) -> Frame {
         self.ticks += 1;
         assert!(self.ticks < 20_000, "the opening exceeded its frame budget");
         let frame = self.session.frame(pad);
@@ -76,6 +77,7 @@ impl Player {
                 _ => {}
             }
         }
+        frame
     }
 
     /// This frame's pad: a Speak press while the window is ready for one — a
@@ -99,17 +101,13 @@ impl Player {
 }
 
 /// A new game armed the way the title arms it: the pack's initializer, the
-/// dialogue pack, and the title's own opening event.
+/// dialogue pack, and the title's own opening event — one call, because the
+/// session's own `new_game` is what the title's START does.
 fn new_game() -> Player {
     let pack = Path::new(PACK);
     let data = GameData::load(pack).expect("pack loads");
-    let event = data.new_game().expect("title initializer").event_index;
-    // No second step: the loaded data carries the dialogue pack, so the
-    // runtime can open a window the moment it exists.
-    let mut runtime = Runtime::new_game(data, StepFrames::default()).expect("START");
-    assert!(runtime.start_event(event), "the opening event starts");
     Player {
-        session: Session::new(runtime),
+        session: Session::start(data).new_game().expect("START"),
         ticks: 0,
     }
 }
@@ -135,31 +133,34 @@ fn a_new_game_runtime_opens_the_openings_first_scene_dialogue() {
         eprintln!("runtime pack not present; skipping");
         return;
     }
-    let pack = Path::new(PACK);
-    let data = GameData::load(pack).expect("pack loads");
-    let event = data.new_game().expect("title initializer").event_index;
     // The title's own construction, and nothing else: no dialogue step.
-    let mut runtime = Runtime::new_game(data, StepFrames::default()).expect("START");
-    assert!(runtime.start_event(event), "the opening event starts");
+    let mut player = new_game();
 
     // The first scene dialogue the opening asks for, found the way the shell
-    // finds it: tick until the scene raises one.
-    let entry = loop {
-        if let Some(RuntimeEvent::SceneDialogue { entry }) = runtime
-            .tick(psiv_core::Input::Neutral)
-            .into_iter()
-            .find(|event| matches!(event, RuntimeEvent::SceneDialogue { .. }))
+    // finds it: the session routes the scene's line and reports what opening
+    // it did.
+    let mut opened = None;
+    for _ in 0..2_000 {
+        let frame = player.tick(player.auto_pad());
+        if let Some(Routed::SceneDialogue { entry, outcome }) = frame
+            .routed
+            .iter()
+            .find(|routed| matches!(routed, Routed::SceneDialogue { .. }))
         {
-            break entry;
+            opened = Some((*entry, *outcome));
+            break;
         }
-    };
+    }
+    let (entry, outcome) = opened.expect("the opening asks for a scene dialogue");
     assert_eq!(
-        runtime.open_scene_dialogue(entry, false),
+        outcome,
         SceneDialogueOpen::Opened,
         "the loaded pack opens the opening's entry {entry:#04x}"
     );
-    assert!(runtime.dialogue_open(), "a window is up");
-    let view = runtime.dialogue_view().expect("the window has a view");
+    let view = player
+        .runtime()
+        .dialogue_view()
+        .expect("the window has a view");
     assert!(
         view.lines.iter().any(|line| !line.is_empty()),
         "the box has text: {:?}",

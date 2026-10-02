@@ -1,7 +1,7 @@
 //! Isolated original-map chest fixtures, derived from an untouched campaign save.
-use psiv_core::{Flag, GameState, Inventory, RetailLocation, RetailSave, RetailSlot, StepFrames};
-use psiv_data::GameData;
-use psiv_runtime::Runtime;
+use psiv_core::{Flag, GameState, Inventory, RetailLocation, RetailSave, RetailSlot};
+use psiv_data::{BattleFiles, GameData};
+use psiv_runtime::{SaveStore, Session};
 use std::path::Path;
 
 fn main() {
@@ -35,9 +35,13 @@ fn main() {
     };
     game.clear(Flag::chest(flag)).unwrap();
     let pack = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
-    let runtime = Runtime::from_save(
-        GameData::load(pack).unwrap(),
-        RetailSave {
+    let output = Path::new(&args[2]);
+    // The fixture is a game over a hand-built state; the session owns it from
+    // `from_save` on, and writes its slot 1 through the store it was given.
+    let session = Session::start(GameData::load(pack).unwrap())
+        .with_battles(BattleFiles::load(pack).unwrap())
+        .with_saves(SaveStore::new(output))
+        .from_save(RetailSave {
             snapshot: game.snapshot(),
             location: RetailLocation {
                 world_index: 0,
@@ -46,12 +50,7 @@ fn main() {
                 char_x: x * 16,
                 char_y: y * 16,
             },
-        },
-        StepFrames::default(),
-    )
-    .unwrap();
-    println!(
-        "{}",
-        runtime.save_slot(Path::new(&args[2]), 0).unwrap().display()
-    );
+        })
+        .unwrap();
+    println!("{}", session.save_slot(0).unwrap().display());
 }

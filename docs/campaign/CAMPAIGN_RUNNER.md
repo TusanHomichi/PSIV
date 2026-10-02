@@ -28,10 +28,12 @@ complete game loop lives in `psiv-godot`:
 Progression timing also lives there: the dialogue open animation and
 typewriter gate page advance, battle dwell beats decide when the menu
 reopens, and ORDER auto-closes on a frame count. A headless driver therefore
-re-implements a subset (`rust/psiv-runtime/examples/support/mod.rs` copies
-the dialogue preamble walk, skips mid-message branches and `$F2` writes, and
-diverges from Godot's RNG stream). That is why each hop needed a Godot
-driver, and why a headless route is not evidence for the shipped game.
+re-implements a subset (the runtime's own test harnesses ticked the field with
+an `Input`, walked the dialogue preamble themselves, skipped mid-message
+branches and `$F2` writes, and diverged from Godot's RNG stream; node S6 moved
+those rule tests inside the crate, `rust/psiv-runtime/src/suites/`). That is why
+each hop needed a Godot driver, and why a headless route is not evidence for the
+shipped game.
 
 ## Target architecture
 
@@ -100,22 +102,22 @@ written), 1 a usage or setup error. Release builds play the whole route in
 about half a second; a debug build is an order of magnitude slower and plays
 chapter one in three seconds.
 
-**The boundary.** The runner calls `Session::frame(pad)`, answers the camp's
-SAVE with `Session::finish_camp_save`, and reads `Session::runtime()` and its
-`&self` methods. It never calls `Session::runtime_mut` or a `&mut Runtime`
-method, and a test greps for it (`the_runner_reaches_no_runtime_mutator`). The
-one exception is construction, in `src/start.rs`: `Runtime::new_game`,
-`enable_battles` and `start_event` for START, `Runtime::from_save` for a chapter
-save, all on a runtime nobody has played yet. Node S5 owns title and
-construction; when it makes those crate-private, the runner needs a `Session`
-constructor that takes the pack and the battle files and does exactly this.
+**The boundary.** The runner calls `Session::frame(pad)` and reads
+`Session::runtime()` and its `&self` methods. It never names a `&mut Runtime`
+member, and a test greps for it (`the_runner_reaches_no_runtime_mutator`).
+Construction goes through the runtime's own constructors
+(`rust/psiv-runtime/src/session/start.rs`, node S6): `Session::start(data)
+.with_battles(files)` then `new_game()` for START — the retail initializer with
+the opening fired — and `from_slot_bytes(bytes, slot)` for a chapter save. Those
+are the only two calls in `src/start.rs` that are not pads, and everything after
+them is a session.
 
 **Controllers**, one per objective kind, each in its own module and each
 producing pads from views only:
 
 | Objective | Module | What it presses |
 | --- | --- | --- |
-| `go_to`, `go_to_map`, `patrol` | `walk.rs` | a direction for a step, re-planned from the real cell whenever the party comes to rest somewhere the plan did not expect; R0's planner over the live map, and a warp graph built from the flags the game holds |
+| `go_to`, `go_to_map`, `patrol` | `walk.rs` | a direction for a step, re-planned from the real cell whenever the party comes to rest somewhere the plan did not expect; R0's planner over the live map, and a warp graph built from the flags the game holds; a yes/no prompt that a scene opens on the target map (Chaz's house offers a rest on arrival) ends `go_to_map` with the prompt open, for the next `answer` |
 | `talk`, `open_chest`, `interact`, `answer` | `talk.rs` | walks next to the object (or across its counter), turns, presses Speak, and reads what opened; Cancel is retail's direct NO |
 | `buy`, `sell`, `rest_inn` | `shopping.rs` | the shop view's pages, rows and cursors |
 | `equip`, `use_technique`, `use_item`, `reorder`, `save` | `camping.rs` | the camp view's pages; SAVE is answered by the driver with the file the runner writes |
@@ -157,7 +159,10 @@ hash. Route `save` objectives write `<save-dir>/route/slot_N.sram` through the
 camp's SAVE page. `replay <tape> [--from-save FILE]` plays the tape back and
 prints the digest of the final state (map, cell, facing, purse, party and the
 whole persistent snapshot), which a run printed too and a replay must
-reproduce. A save loaded mid-route restarts the frame counter and RNG, so a
+reproduce. `inspect <slot.sram>` prints a save's
+position, purse, party (levels, HP, stats, equipment), pack and set event flags
+through the runtime's own views: the question a route author asks of every
+chapter save. A save loaded mid-route restarts the frame counter and RNG, so a
 `--from-chapter` run is the same game from there but not the same frames as the
 full run; only the full run from New Game is the route's evidence.
 
@@ -179,7 +184,7 @@ canonical_record: "docs/campaign/CAMPAIGN_RUNNER.md#task-graph"
 authority: "Owner 2026-10-01: campaign runner approach; commit, push, PR and merge once the full gate is green (docs/AGENT_WORKFLOW.md#authority-effort-and-continuation)"
 effort_policy: "Continue scoped repairs until acceptance passes; no fixed cycle limit (inherited)"
 exclusions: ["modding", "visual-parity claims beyond existing certifications", "gameplay changes that are not cartridge behavior"]
-next_action: "S6 and C (C1: Aiedo through Zio defeated) in parallel"
+next_action: "#58 enemy abilities (A1 damage, A2 status/conditional), then C2 from Juza"
 nodes:
   - id: S1
     outcome: "Dialogue interpreter in psiv-runtime: control codes, branches, choices, actions, $F2/$F6/$F7, live flags, typewriter and open-animation gates, driven by a cartridge-layout Pad"
@@ -225,7 +230,9 @@ nodes:
     outcome: "Every state-changing Runtime method is crate-private: the runtime's integration tests, examples and the campaign runner build and drive games only through Session constructors and Session::frame"
     depends_on: [S5, R1]
     acceptance: "Session constructors cover new game (with battles armed and the opening started), CONTINUE from a store or a slot file, and the debug fixtures; psiv-runtime tests/examples and rust/psiv-campaign use only them, Session::frame and &self views; no pub fn on Runtime takes &mut self (grep proof); a compile_fail doctest builds a Runtime outside the crate and calls a mutator; the full route digest is unchanged; certify 6/6 byte-identical"
-    state: ready
+    evidence: ["lane s6-lock (base 8c19769), 2026-10-02: the runtime's public surface is the session and its views. `Session::start(data)` (rust/psiv-runtime/src/session/start.rs) is the only way to a game: `with_battles`/`with_saves`/`with_step_frames` and the two harness switches configure the run, and `power_on` (retail's front door), `field` (the same boot, the debug selectors' fast path), `new_game` (the title's START: initializer + battles + opening event), `continue_slot(n)` (CONTINUE through the store), `from_slot_bytes(bytes, slot)` (a slot file's bytes, the runner's `--from-chapter`) and `from_save` (one decoded save, what the fixtures and the tests build) start it. The switches are setters on `Start`, not calls after construction, because the title reads its slot rows and its autostart switch as it installs; the shell passes the run's store the same way (rust/psiv-godot/src/lib.rs, `session_store`)", "boundary: **54 `pub fn (&mut self)` methods on `Runtime` before, 0 after** (build/lane-evidence/mutator-grep.txt scans both trees the same way). Every constructor is crate-private with them (`Runtime::new`, `new_game`, `from_save`, `load_slot`, `erase_slot`, `slot_path`; `Session::new`/`with_saves` and `SaveStore::load`/`write` too), `Runtime::save_slot` stays `pub` because it is `&self`: a caller holding a session's `&Runtime` may record the game it is looking at — the runner writes each chapter save that way — and cannot change it. Proof for a caller: three out-of-crate files compiled by rustc against the built rlibs fail with E0624 (build/lane-evidence/compile-fail/), and the new `compile_fail` doctest on `Runtime` (rust/psiv-runtime/src/lib.rs) plus the two on `Session` run in `cargo test --doc`. Proof for the source: `suites::visibility::no_runtime_mutator_is_public` fails when a new `pub fn (&mut self)` lands in an `impl Runtime` block (negative control: one mutator flipped back to `pub` names camera.rs:29 in the failure, then reverted — build/lane-evidence/negative-control-visibility.txt)", "rule tests moved inside the crate: 32 files from `rust/psiv-runtime/tests/` became `rust/psiv-runtime/src/suites/*.rs` (`#[cfg(test)] mod suites`, next to `encounters_elements_tests` and `dialogue/runner_tests`), because a test that ticks the field with an `Input`, builds `RoundOrders`, seeds the RNG or acknowledges a scene's dialogue is a test of a rule, and a `pub(crate)` rule is invisible to a target outside the crate. Nothing was removed or weakened: **61 test names moved file, 0 disappeared, 1 added** (build/lane-evidence/testnames-before-after.txt; psiv-core, psiv-data and psiv-sound unchanged, psiv-godot's `title_start_preserves_the_retail_initial_state` keeps its name and now asks `Session::start(data).new_game()`). The pad-driven suites stayed integration tests (`tests/session_{opening,menus,battle,title}.rs`, `tests/chest_slots.rs`) and were converted to the constructors: session_title's `power_on()` helper is now `Session::start(data).with_saves(store).power_on()`, session_menus' `session_at`/`fresh_game` are `from_save`/`new_game`, session_battle's `field_session` is `from_save`, and session_opening's opening-dialogue case reads `Frame::routed` instead of calling `open_scene_dialogue` itself", "examples: `academy_route`, `motavia_route`, `tonoe_route` and their `support` harness are deleted — the runner plays START through Aiedo (`academy`, `holt`, `rune-dorin`, … , `aiedo`), so they duplicated it and needed native saves to run at all. The fixtures stay and build through the constructors (`chest_fixture`, `pipe_fixture`, `travel_fixture`, `status_fixture`, `field_status_fixture` → `Session::start(..).with_battles(..).with_saves(..).from_save(..)` + `Session::save_slot`). Two jobs are not games and keep a whole operation inside the crate (rust/psiv-runtime/src/tools/): `oracle_replay` (the `psiv-replay` driver, whose bin is now a command line over it) and `repair` (`psiv-runtime::tools::repair_legacy_progression`, the body of the `repair_progression` example, idempotence check included). Neither hands out a `&mut Runtime`", "play is identical: the full route's digest is `5e80a50e50dad15c` over 168,843 frames before and after, with the tape byte-identical (sha256 24ad3ae3…, build/lane-evidence/route-digest.txt). The oracle replay tool is the other moved driver, compared directly against the base revision's own binary on tape 02 with and without inherited state (--seed/--camera): `cmp` is byte-identical, sha256 d115506c… (build/lane-evidence/replay-parity.txt). Native smokes through the shipped shell, headless: the opening (title autostart → START → first control) reaches map $13 (48,18), Chaz alone, 500 meseta, no scene, town flags 80008040 with 0 ERROR lines, and `PSIV_LOAD_SLOT=1` over the runner's own 00-academy chapter save logs `save boot: loaded slot 1` and loads it (build/lane-evidence/native-{opening,continue}.txt)", "gate (lane, one heavy command at a time): `cargo test --workspace -- --test-threads=1` 35 targets, 1179 passed / 0 failed / 2 ignored, doctests included (build/lane-evidence/workspace-tests.txt); `cargo clippy --workspace --all-targets -- -D warnings` and `cargo fmt --all --check` clean (clippy.txt, fmt.txt); psiv-campaign's suite green (campaign-tests.txt); python3 tools/size_guard.py, python3 tools/check_docs.py and PYTHONPATH=. python3 -m unittest tests.test_feature_map exit 0; git diff --check clean", "open: three documents outside this lane's write set still show the pre-S6 command for moved tests — docs/AGENT_WORKFLOW.md (`-p psiv-runtime --test camp_order`), docs/campaign/PLAYABILITY_ACADEMY.md (`--test combat_skills`, `--test combat_techniques`) and docs/campaign/PLAYABILITY_FOUNDATIONS.md (`--test new_game`); each is now `--lib suites::<name>::`. docs/campaign/PLAYABILITY_*.md and rust/psiv-campaign/routes/main.json also cite the deleted route examples as their source notes. `Runtime::finish_battle` and `Runtime::refresh_map_camera_gates` (+geometry::refresh_camera_gates) have no caller at all and carry `#[allow(dead_code)]` with the reason; `set_event_flag` is used by one suite only", "open: the certified captures are the integration step. oracle/frames is absent in the lane, so no capture was compared here; tools/certify.py runs at integration"]
+    integration_evidence: ["merged with C1 at 2f4e608: route digest 96d2835a8633def8 and tape 53adf11f... identical", "certify 20261002T161600Z-2f4e608: 6/6 0.000000, captures byte-identical", "gate 20261002T162144Z-2f4e608: 1191 Python, 1180 Rust passed", "dead code: finish_battle deleted, TextFlow::open/is_holding and set_event_flag test-scoped; the camera refresh seam is a real gap, #59"]
+    state: verified
   - id: R1
     outcome: "Campaign runner binary driving a Session from routes/main.json; chapters through the post-Rika checkpoint"
     depends_on: [S5, R0]
@@ -242,5 +249,6 @@ nodes:
     outcome: "Route chapters to the Ending, one lane per blocker class"
     depends_on: [R1]
     acceptance: "The runner reaches Game_Cleared_Flag from New Game; each blocker it hit is fixed with a regression test or filed as an issue with a link from the route"
+    evidence: ["lane c1-motavia (base 8c19769): routes/main.json grows to 18 chapters and reaches the Zio Fort's Juza room (map $87, (32,21)) with all five alive at level 12 to 13: 457,356 frames, digest 96d2835a8633def8, tape sha256 53adf11f092bb99982c299aa2620b75a4078f6a4fe3ba69f0adae0a3d749bd57, identical on three runs, replay reproduces the digest; scenes 28 and 29 pass in-route; RUNNER_LOG.md H13 to H16", "the route stops at Juza: H16, enemy 114's ZAN and FORCEFLASH are not run by the engine, and the stairs to F3 and F4 open only after his battle; H15 lists the unsupported abilities on the way (FUSION, FIREBREATH, DEBAN) that the route passes only by running; H13 (#39) does not block the story"]
     state: pending
 ```

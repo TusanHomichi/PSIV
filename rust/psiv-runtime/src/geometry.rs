@@ -52,6 +52,11 @@ pub(super) fn camera_for_record(
 /// Applies `loc_51AB2` to a live camera without re-positioning it. This is the
 /// part of `RefreshMap` that ordinary field state can observe after a scene or
 /// warp-time map refresh.
+///
+/// Reached through `Runtime::refresh_map_camera_gates`, which the post-entry
+/// refresh paths do not call yet (#59); the map-load path applies the same write through
+/// `camera_for_record`.
+#[allow(dead_code)]
 pub(super) fn refresh_camera_gates(camera: &mut Camera, record: &MapRecord) -> Result<(), String> {
     let counters = |value: Option<&psiv_data::ScrollCounters>| -> Result<(i32, i32), String> {
         let Some(value) = value else {

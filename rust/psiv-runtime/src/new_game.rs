@@ -26,7 +26,7 @@ impl Runtime {
     /// Constructs the state handed from retail START to `Event_GameStart`.
     /// Call `start_event` after arming battles. Unlike `new`, this does not
     /// pre-set the flags or party that the opening itself must establish.
-    pub fn new_game(data: GameData, step_frames: StepFrames) -> Result<Self, BridgeError> {
+    pub(crate) fn new_game(data: GameData, step_frames: StepFrames) -> Result<Self, BridgeError> {
         let init = data.new_game().ok_or_else(|| {
             BridgeError::Rejected("pack has no title initializer (game_start.json)".into())
         })?;

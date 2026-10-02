@@ -31,7 +31,7 @@ impl Runtime {
 
     /// Sets `Vehicle_Index` (`$F43C`): zero dismounts, 1/2/3 mount the saved
     /// Land Rover/Ice Digger/Hydrofoil record at the party's current anchor.
-    pub fn set_vehicle_index(&mut self, index: u16) -> Result<(), BridgeError> {
+    pub(crate) fn set_vehicle_index(&mut self, index: u16) -> Result<(), BridgeError> {
         if index > psiv_core::VEHICLE_INDEX_MAX {
             return Err(BridgeError::Rejected(format!(
                 "vehicle selector {index} is outside 0..={} ",

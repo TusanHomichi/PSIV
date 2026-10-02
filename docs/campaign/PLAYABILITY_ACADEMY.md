@@ -41,7 +41,7 @@ create its save without touching the player's normal saves:
 ```sh
 mkdir -p build/native-combat/saves
 PSIV_COMBAT_SMOKE_SAVE_DIR="$PWD/build/native-combat/saves" \
-  cargo test --manifest-path rust/Cargo.toml -p psiv-runtime --test combat_techniques
+  cargo test --manifest-path rust/Cargo.toml -p psiv-runtime --lib suites::combat_techniques::
 cargo build --manifest-path rust/Cargo.toml -p psiv-godot
 xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 \
   PSIV_SAVE_DIR="$PWD/build/native-combat/saves" PSIV_LOAD_SLOT=1 \
@@ -131,7 +131,7 @@ Reproduce the native Godot smoke test from the repository root:
 ```sh
 mkdir -p build/native-skills/saves
 PSIV_SKILL_SMOKE_SAVE_DIR="$PWD/build/native-skills/saves" \
-  cargo test --manifest-path rust/Cargo.toml -p psiv-runtime --test combat_skills
+  cargo test --manifest-path rust/Cargo.toml -p psiv-runtime --lib suites::combat_skills::
 cargo build --manifest-path rust/Cargo.toml -p psiv-godot
 xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 \
   PSIV_SAVE_DIR="$PWD/build/native-skills/saves" PSIV_LOAD_SLOT=1 \

@@ -32,7 +32,7 @@ mod title;
 mod transitions;
 mod view;
 use battle::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
-use boot::{FALLBACK_SPAWN_CELL, FALLBACK_SPAWN_MAP, title_bypassed};
+use boot::title_bypassed;
 use camp::CampMenu;
 use cutscene::{CutsceneLayer, PresentationState};
 use dialogue::DialogueWindow;
@@ -42,11 +42,9 @@ use shop::ShopWindow;
 use transitions::TransitionKind;
 use view::{NpcNode, SheetView};
 
-use psiv_core::{Cell, Direction, StepFrames};
+use psiv_core::StepFrames;
 use psiv_data::GameData;
-use psiv_runtime::{
-    FrameMode, GameOverFrame, Pad, Runtime, SaveStore, Session, TitleEntry, TitleFrame,
-};
+use psiv_runtime::{FrameMode, GameOverFrame, Pad, SaveStore, Session, TitleEntry, TitleFrame};
 use psiv_sound::SAMPLE_RATE;
 
 struct PsivExtension;
@@ -56,22 +54,33 @@ unsafe impl ExtensionLibrary for PsivExtension {}
 
 pub(crate) const CELL_PIXELS: f32 = 16.0;
 
-/// A session over `runtime`, configured the way the shell runs every session.
-pub(crate) fn new_session(runtime: Runtime) -> Session {
-    configure_session(Session::new(runtime))
+/// The run's save directory as a store, or the logged refusal.
+///
+/// The policy is the shell's (`save_dir.rs`): a scripted run that named no
+/// directory gets no store, and the session refuses every slot operation
+/// instead of falling back to a default path. Resolved once per boot, so the
+/// fixtures and the constructors share one answer.
+pub(crate) fn session_store() -> Option<SaveStore> {
+    match save_directory() {
+        Ok(directory) => Some(SaveStore::new(directory)),
+        Err(error) => {
+            godot_error!("save slot scan refused: {error}");
+            None
+        }
+    }
 }
 
-/// The shell's configuration of a session it did not build itself: the run's
-/// save directory, and the debug switches.
+/// The shell's configuration of a session it did not build itself — a runtime
+/// fixture (`psiv_runtime::camp_fixture`, `scene_fixture`): the run's store and
+/// the harness switches.
 ///
-/// The runtime's fixtures (`psiv_runtime::camp_fixture`, `scene_fixture`) hand
-/// back a session of their own, and the title's START and CONTINUE build their
-/// runtime inside the session: the directory policy and the harness switches
-/// are the shell's, so they are applied here, once, and the session keeps them.
-pub(crate) fn configure_session(mut session: Session) -> Session {
-    match save_directory() {
-        Ok(directory) => session.set_save_store(SaveStore::new(directory)),
-        Err(error) => godot_error!("save slot scan refused: {error}"),
+/// A session the shell builds through `psiv_runtime::Session::start` gets the
+/// same configuration from the constructor
+/// (`with_saves`, `with_title_autostart`, `with_scene_dialogue_autoclose`),
+/// because the title reads its switch and its slot rows as it installs.
+pub(crate) fn configure_session(mut session: Session, store: Option<SaveStore>) -> Session {
+    if let Some(store) = store {
+        session.set_save_store(store);
     }
     session.set_scene_dialogue_autoclose(scene_dialogue_autoclose());
     session.set_title_autostart(title_autostart());
@@ -96,7 +105,8 @@ pub(crate) fn retail_pace_enabled() -> bool {
 
 /// `PSIV_DEBUG_AUTOCLOSE_SCENE=1` without the retail pace: scene dialogue
 /// lines are acknowledged unseen, for deterministic headless scene runs. Every
-/// session the shell builds gets it once, at construction ([`new_session`]).
+/// session the shell builds gets it once, at construction
+/// ([`configure_session`], or the constructor's own setter).
 fn scene_dialogue_autoclose() -> bool {
     std::env::var("PSIV_DEBUG_AUTOCLOSE_SCENE").is_ok_and(|value| value == "1")
         && !retail_pace_enabled()
@@ -113,24 +123,24 @@ fn event_battle_music(index: u16) -> Option<u8> {
     EVENT_BATTLE_MUSIC.get(usize::from(index)).copied()
 }
 
-/// Loads the slot named by `PSIV_LOAD_SLOT` for the field boot path.
+/// Opens the slot named by `PSIV_LOAD_SLOT` for the field boot path.
 ///
-/// The load goes through the same [`SaveStore`] the session's CONTINUE uses;
-/// a scripted run without `PSIV_SAVE_DIR` is refused before any filesystem
-/// access, and the caller starts a new game instead of reading a directory the
-/// run did not name.
-fn load_requested_slot(data: &GameData, slot: usize) -> Option<Runtime> {
-    let store = match save_directory() {
-        Ok(directory) => SaveStore::new(directory),
-        Err(error) => {
-            godot_error!("save boot for slot {} refused: {error}", slot + 1);
-            return None;
-        }
+/// The load is the session's own CONTINUE over the same [`SaveStore`]
+/// (`Session::start(...).continue_slot`): a scripted run without
+/// `PSIV_SAVE_DIR` is refused before any filesystem access, and the caller
+/// starts a new game instead of reading a directory the run did not name.
+fn load_requested_slot(data: &GameData, slot: usize, store: Option<SaveStore>) -> Option<Session> {
+    let Some(store) = store else {
+        godot_error!("save boot for slot {} refused: no save directory", slot + 1);
+        return None;
     };
-    match store.load(data.clone(), slot, StepFrames::default()) {
-        Ok(runtime) => {
+    match Session::start(data.clone())
+        .with_saves(store)
+        .continue_slot(slot)
+    {
+        Ok(session) => {
             godot_print!("save boot: loaded slot {}", slot + 1);
-            Some(runtime)
+            Some(session)
         }
         Err(error) => {
             godot_error!(
@@ -311,30 +321,11 @@ impl INode2D for Field {
             }
         };
 
-        // Spawn where the cartridge's new game actually hands over control:
-        // Chaz alone in PiataAcademy_F1, facing down (game_start.json). Alys
-        // is the NPC he walks over to find, exactly as retail opens.
-        let (spawn_map, spawn_cell, spawn_facing) = match data.manifest().game_start.as_ref() {
-            Some(start) => (
-                start.map.id,
-                Cell::new(start.x_cell as u16, start.y_cell as u16),
-                start
-                    .facing
-                    .name
-                    .map(|d| match d {
-                        psiv_data::Direction::Up => Direction::Up,
-                        psiv_data::Direction::Down => Direction::Down,
-                        psiv_data::Direction::Left => Direction::Left,
-                        psiv_data::Direction::Right => Direction::Right,
-                    })
-                    .unwrap_or(Direction::Down),
-            ),
-            None => (
-                FALLBACK_SPAWN_MAP,
-                Cell::new(FALLBACK_SPAWN_CELL.0, FALLBACK_SPAWN_CELL.1),
-                Direction::Up,
-            ),
-        };
+        // Where the pack's own first control is — Chaz alone in
+        // PiataAcademy_F1, facing down (game_start.json), the cell the
+        // cartridge hands over on — is the runtime's own business now:
+        // `Session::start(...).power_on()`/`field()` derive it, with the
+        // runtime's fallback for a pack that predates game-start extraction.
         let requested_slot = requested_save_slot();
         let debug_event = std::env::var("PSIV_DEBUG_EVENT")
             .ok()
@@ -345,9 +336,13 @@ impl INode2D for Field {
         // initializer, so no shell ever needs a mutable runtime for one. The
         // slot load stays the fallback behind them, and it stays lazy: a debug
         // run must not touch a save directory it never asked for.
+        // The run's directory policy, resolved once: every session below gets
+        // the store the policy answered with.
+        let store = session_store();
+        let starts_at_title = !title_bypassed();
         let mut session = if debug_camp {
             match psiv_runtime::camp_fixture(data.clone(), StepFrames::default()) {
-                Ok(session) => configure_session(session),
+                Ok(session) => configure_session(session, store.clone()),
                 Err(error) => {
                     godot_error!("debug scene runtime failed: {error}");
                     return;
@@ -356,26 +351,35 @@ impl INode2D for Field {
         } else if let Some(Ok(session)) = debug_event.and_then(|event| {
             psiv_runtime::scene_fixture(data.clone(), event, StepFrames::default())
         }) {
-            configure_session(session)
+            configure_session(session, store.clone())
+        } else if let Some(session) =
+            requested_slot.and_then(|slot| load_requested_slot(&data, slot, store.clone()))
+        {
+            configure_session(session, store.clone())
         } else {
-            let booted_slot = requested_slot
-                .and_then(|slot| load_requested_slot(&data, slot))
-                .map(new_session);
-            match booted_slot {
-                Some(session) => session,
-                None => match Runtime::new(
-                    data,
-                    spawn_map,
-                    spawn_cell,
-                    spawn_facing,
-                    StepFrames::default(),
-                ) {
-                    Ok(rt) => new_session(rt),
-                    Err(e) => {
-                        godot_error!("runtime failed to start: {e}");
-                        return;
-                    }
-                },
+            // The shell's own boot, through the runtime's constructors: retail
+            // powers on into the title (`MainGameProgram`, ps4.asm:86190), and
+            // a selector that must reach its surface now takes the same boot
+            // with no front door. The run's configuration rides on the
+            // constructor, because the title reads its slot rows and its
+            // autostart switch as it installs.
+            let mut start = Session::start(data)
+                .with_title_autostart(title_autostart())
+                .with_scene_dialogue_autoclose(scene_dialogue_autoclose());
+            if let Some(store) = store.clone() {
+                start = start.with_saves(store);
+            }
+            let built = if starts_at_title {
+                start.power_on()
+            } else {
+                start.field()
+            };
+            match built {
+                Ok(session) => session,
+                Err(error) => {
+                    godot_error!("runtime failed to start: {error}");
+                    return;
+                }
             }
         };
         let debug_vehicle = std::env::var("PSIV_DEBUG_VEHICLE_INDEX")
@@ -424,11 +428,10 @@ impl INode2D for Field {
         self.camera = Some(camera);
 
         // The title is additive presentation over the existing runtime, and
-        // the session owns its flow: this only puts the session at the front
-        // door and builds the nodes. All explicit save/debug selectors keep
-        // their fast paths and never pay the retail front-door delay.
-        if !title_bypassed() {
-            session.start_title();
+        // the session owns its flow (`Session::power_on` put it at the front
+        // door above); this builds the nodes. All explicit save/debug
+        // selectors keep their fast paths and never pay the front-door delay.
+        if starts_at_title {
             let pack_dir = self.pack_dir.clone();
             self.title = title::TitleScreen::build(&pack_dir, self.base_mut());
         }
@@ -686,7 +689,7 @@ impl Field {
 
 impl Field {
     /// The runtime behind the session, for what the shell reads.
-    pub(crate) fn runtime(&self) -> Option<&Runtime> {
+    pub(crate) fn runtime(&self) -> Option<&psiv_runtime::Runtime> {
         self.session.as_ref().map(Session::runtime)
     }
 

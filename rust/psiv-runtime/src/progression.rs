@@ -23,7 +23,9 @@ impl Runtime {
     /// HP, TP, EXP, level, existing spent uses and all world state are preserved.
     /// New skill slots receive their original learning-level uses. The operation
     /// is idempotent and atomic; it does not write any file.
-    pub fn repair_legacy_progression(&mut self) -> Result<Vec<ProgressionRepair>, BridgeError> {
+    pub(crate) fn repair_legacy_progression(
+        &mut self,
+    ) -> Result<Vec<ProgressionRepair>, BridgeError> {
         if self.battle.is_some() || self.scene_active() {
             return Err(BridgeError::Rejected(
                 "progression repair requires idle field".into(),

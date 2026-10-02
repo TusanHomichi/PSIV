@@ -38,6 +38,7 @@ pub mod exec;
 pub mod expect;
 pub mod field;
 pub mod halt;
+pub mod inspect;
 pub mod map_plan;
 pub mod menu;
 pub mod policy;

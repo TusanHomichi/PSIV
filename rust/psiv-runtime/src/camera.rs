@@ -26,7 +26,7 @@ impl Runtime {
     /// Scenes do this (`SceneOp::SetCameraPos`), and so does a replay whose
     /// alignment frame inherits a camera the engine could not have produced,
     /// the opening scene having placed it.
-    pub fn set_camera(&mut self, x: i32, y: i32) {
+    pub(crate) fn set_camera(&mut self, x: i32, y: i32) {
         self.camera_glide = None;
         self.camera.set_position(x, y);
     }
@@ -38,7 +38,7 @@ impl Runtime {
     /// axis. `AlysFound` ends on exactly this op to hand the view back to the
     /// new leader; parking the raw operands instead left the party in the
     /// top-left corner of the screen.
-    pub fn scene_move_camera(&mut self, x: i32, y: i32, speed: i32) {
+    pub(crate) fn scene_move_camera(&mut self, x: i32, y: i32, speed: i32) {
         let target_x = x - psiv_core::HOME_X;
         let target_y = y - psiv_core::HOME_Y;
         if speed <= 0 {
@@ -69,8 +69,10 @@ impl Runtime {
 
     /// Applies the packed `loc_51AB2` gate write to the current camera without
     /// repositioning the view. This is the runtime seam for `RefreshMap` calls
-    /// made after a scene or warp has already entered the map.
-    pub fn refresh_map_camera_gates(&mut self) -> Result<(), BridgeError> {
+    /// made after a scene or warp has already entered the map
+    /// (`docs/field/CAMERA.md`); the refresh paths do not call it yet (#59).
+    #[allow(dead_code)]
+    pub(crate) fn refresh_map_camera_gates(&mut self) -> Result<(), BridgeError> {
         let record = self
             .map_record()
             .cloned()

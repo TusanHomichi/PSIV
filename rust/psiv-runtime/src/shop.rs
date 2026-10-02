@@ -133,17 +133,17 @@ pub fn stay(game: &mut GameState, rate: u32, selector: usize) -> InnResult {
 
 impl Runtime {
     /// Runs one shop purchase against the persistent game state.
-    pub fn shop_buy(&mut self, item: u8, price: u32) -> ShopBuyResult {
+    pub(crate) fn shop_buy(&mut self, item: u8, price: u32) -> ShopBuyResult {
         buy(&mut self.game, item, price)
     }
 
     /// Runs one shop sale against the persistent game state.
-    pub fn shop_sell(&mut self, slot: usize, buy_price: u32) -> ShopSellResult {
+    pub(crate) fn shop_sell(&mut self, slot: usize, buy_price: u32) -> ShopSellResult {
         sell(&mut self.game, slot, buy_price)
     }
 
     /// Runs one inn stay against the persistent game state.
-    pub fn shop_stay(&mut self, rate: u32, selector: usize) -> InnResult {
+    pub(crate) fn shop_stay(&mut self, rate: u32, selector: usize) -> InnResult {
         stay(&mut self.game, rate, selector)
     }
 }

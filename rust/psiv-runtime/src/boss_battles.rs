@@ -71,7 +71,7 @@ impl Runtime {
 
     /// Finishes either kind of battle and, for a scene battle, returns the
     /// scene's completion edge to the interpreter.
-    pub fn finish_battle_for_outcome(
+    pub(crate) fn finish_battle_for_outcome(
         &mut self,
         outcome: Outcome,
         reward_each: u16,

@@ -1,7 +1,7 @@
 //! Isolated spell verification fixture derived from a native campaign save.
-use psiv_core::{CharId, Flag, GameState, RetailLocation, RetailSave, RetailSlot, StepFrames};
-use psiv_data::GameData;
-use psiv_runtime::{HINAS, RYUKA, Runtime};
+use psiv_core::{CharId, Flag, GameState, RetailLocation, RetailSave, RetailSlot};
+use psiv_data::{BattleFiles, GameData};
+use psiv_runtime::{HINAS, RYUKA, SaveStore, Session};
 use std::path::Path;
 
 fn main() {
@@ -19,9 +19,10 @@ fn main() {
     chaz.status = 0;
     game.set(Flag::town(1)).unwrap();
     let pack = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
-    let rt = Runtime::from_save(
-        GameData::load(pack).unwrap(),
-        RetailSave {
+    let session = Session::start(GameData::load(pack).unwrap())
+        .with_battles(BattleFiles::load(pack).unwrap())
+        .with_saves(SaveStore::new(&output))
+        .from_save(RetailSave {
             snapshot: game.snapshot(),
             location: RetailLocation {
                 world_index: 0,
@@ -30,10 +31,8 @@ fn main() {
                 char_x: 30 * 16,
                 char_y: 45 * 16,
             },
-        },
-        StepFrames::default(),
-    )
-    .unwrap();
-    let path = rt.save_slot(Path::new(&output), 0).unwrap();
+        })
+        .unwrap();
+    let path = session.save_slot(0).unwrap();
     println!("isolated travel fixture: {}", path.display());
 }

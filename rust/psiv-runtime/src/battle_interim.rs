@@ -34,7 +34,7 @@ impl Runtime {
     /// Starts a battle and returns its presentation timeline with the SFX
     /// sidecar. The legacy `start_battle` API remains for non-presentation
     /// callers and tests.
-    pub fn start_battle_timeline(
+    pub(crate) fn start_battle_timeline(
         &mut self,
         formation: u16,
         party: Vec<psiv_core::battle::PartyMember>,
@@ -50,7 +50,7 @@ impl Runtime {
     /// Resolves one round and attaches sounds in the same order as the core
     /// events. The actor sound context is captured before mutation because a
     /// lethal resolution changes the roster before `Died` is emitted.
-    pub fn battle_round_timeline(
+    pub(crate) fn battle_round_timeline(
         &mut self,
         orders: &RoundOrders,
     ) -> Result<BattleTimeline, BridgeError> {
@@ -408,17 +408,6 @@ fn weapon_sound(raw_id: u8) -> Option<u8> {
         0x16..=0x1C => SFX_SHOT,
         _ => return None,
     })
-}
-
-impl Runtime {
-    /// Ends the battle and re-arms the encounter grace period, as the
-    /// cartridge resets `$FFFFECE4` to 10 after every fight.
-    pub fn finish_battle(&mut self) {
-        self.battle_field_refresh_pending |= self.battle.take().is_some();
-        if let Some(set) = self.battles.as_mut() {
-            set.clock.reset();
-        }
-    }
 }
 
 #[cfg(test)]

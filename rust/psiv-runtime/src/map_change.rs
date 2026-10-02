@@ -13,7 +13,7 @@ impl Runtime {
     /// Applies the cartridge's battle-return map load before revealing the
     /// field. Presentation calls this after results; headless callers receive
     /// the same refresh automatically on their next field tick.
-    pub fn return_to_field(&mut self) -> Vec<RuntimeEvent> {
+    pub(crate) fn return_to_field(&mut self) -> Vec<RuntimeEvent> {
         if self.battle.is_some() || !std::mem::take(&mut self.battle_field_refresh_pending) {
             return Vec::new();
         }

@@ -20,10 +20,10 @@
 use std::path::{Path, PathBuf};
 
 use psiv_core::battle::status;
-use psiv_core::{CharId, Flag, GameState, RetailLocation, RetailSave, StepFrames};
+use psiv_core::{CharId, Flag, GameState, RetailLocation, RetailSave};
 use psiv_data::GameData;
 use psiv_runtime::{
-    Button, CampPage, FrameMode, GAME_OVER_FADE_FRAMES, GameOverFrame, Pad, Runtime, RuntimeEvent,
+    Button, CampPage, FrameMode, GAME_OVER_FADE_FRAMES, GameOverFrame, Pad, RuntimeEvent,
     SaveStore, Session, TitleEntry, TitleFrame, TitlePhase, TitleView, TitleWindow,
 };
 
@@ -64,21 +64,24 @@ fn run_dir(name: &str) -> PathBuf {
 /// nothing in them yet).
 fn new_game_state() -> GameState {
     let data = GameData::load(pack()).expect("pack loads");
-    let mut initial = Runtime::new_game(data, StepFrames::default()).expect("START");
-    initial
-        .enable_battles(&psiv_data::BattleFiles::load(pack()).expect("battle files load"))
-        .expect("battles enable");
-    GameState::from_snapshot(&initial.game().snapshot())
+    let files = psiv_data::BattleFiles::load(pack()).expect("battle files load");
+    let initial = Session::start(data)
+        .with_battles(files)
+        .new_game()
+        .expect("START");
+    GameState::from_snapshot(&initial.runtime().game().snapshot())
 }
 
 /// A session standing at `(map, x, y)` with `game`'s party, saving through
 /// `directory`.
 fn session_at(place: (u16, u16, u16), game: &GameState, directory: &Path) -> Session {
     let data = GameData::load(pack()).expect("pack loads");
+    let files = psiv_data::BattleFiles::load(pack()).expect("battle files load");
     let (map, x, y) = place;
-    let runtime = Runtime::from_save(
-        data,
-        RetailSave {
+    Session::start(data)
+        .with_battles(files)
+        .with_saves(SaveStore::new(directory))
+        .from_save(RetailSave {
             snapshot: game.snapshot(),
             location: RetailLocation {
                 world_index: 0,
@@ -87,29 +90,28 @@ fn session_at(place: (u16, u16, u16), game: &GameState, directory: &Path) -> Ses
                 char_x: x * 16,
                 char_y: y * 16,
             },
-        },
-        StepFrames::default(),
-    )
-    .expect("runtime builds");
-    Session::with_saves(runtime, SaveStore::new(directory))
+        })
+        .expect("the session starts")
 }
 
 /// The power-on session the shell builds before the title: a runtime at the
 /// pack's own spawn, with the title owning its frames.
 fn power_on(directory: &Path) -> Session {
     let data = GameData::load(pack()).expect("pack loads");
-    let start = data.manifest().game_start.clone().expect("first control");
-    let runtime = Runtime::new(
-        data,
-        start.map.id,
-        psiv_core::Cell::new(start.x_cell as u16, start.y_cell as u16),
-        psiv_core::Direction::Down,
-        StepFrames::default(),
-    )
-    .expect("the spawn runtime builds");
-    let mut session = Session::with_saves(runtime, SaveStore::new(directory));
-    session.start_title();
-    session
+    // The shell's own boot: the pack's first control, at the title.
+    Session::start(data)
+        .with_saves(SaveStore::new(directory))
+        .power_on()
+        .expect("the spawn runtime builds")
+}
+
+/// CONTINUE through the session's own constructor: the load a player's row
+/// performs, over this test's run directory.
+fn continue_slot(directory: &Path, slot: usize) -> Result<Session, String> {
+    let data = GameData::load(pack()).expect("pack loads");
+    Session::start(data)
+        .with_saves(SaveStore::new(directory))
+        .continue_slot(slot)
 }
 
 /// One frame of the title, as the shell presents it.
@@ -391,23 +393,11 @@ fn erase_data_clears_the_picked_slot() {
 
     // The erased slot no longer loads; the untouched one still does.
     assert!(
-        SaveStore::new(&directory)
-            .load(
-                GameData::load(pack()).expect("pack loads"),
-                0,
-                StepFrames::default()
-            )
-            .is_err(),
+        continue_slot(&directory, 0).is_err(),
         "an erased slot does not continue"
     );
     assert!(
-        SaveStore::new(&directory)
-            .load(
-                GameData::load(pack()).expect("pack loads"),
-                1,
-                StepFrames::default()
-            )
-            .is_ok(),
+        continue_slot(&directory, 1).is_ok(),
         "the other slot is untouched"
     );
     std::fs::remove_dir_all(&directory).expect("the run directory is ours");
