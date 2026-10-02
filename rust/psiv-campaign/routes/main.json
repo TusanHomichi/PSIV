@@ -1,6 +1,6 @@
 {
   "format": 1,
-  "title": "PSIV campaign: New Game to Aiedo",
+  "title": "PSIV campaign: New Game to the Zio Fort",
   "chapters": [
     {
       "id": "academy",
@@ -365,6 +365,77 @@
       ],
       "closing": [
         {"map": 84, "cell": [47, 83]}
+      ]
+    },
+    {
+      "id": "aiedo-chaz-house",
+      "title": "Aiedo: Chaz's house offers a rest",
+      "source": "docs/scenes/28_ChazHouse.md and 29_LeavingChazHouse.md (ChazHouse $5E lists RunEventsJmpTbl[$26], Aiedo $54 lists [$27]); docs/campaign/RUNNER_LOG.md H13 (the Aiedo inn is #39 and is not used)",
+      "random_battle_policy": "attack_all",
+      "objectives": [
+        {"do": "go_to_map", "map": 94, "via_warp": 10, "note": "Aiedo warp 10 at (22,37); Event_ChazHouse ($3B) fires on arrival with temp $18 clear and asks Yes/No; the walk ends with the prompt open"},
+        {"do": "answer", "yes": true, "note": "yes: RecoverStats, reload ChazHouse $5E, set temp flag $18 (28_ChazHouse.md ops 3-11); a free rest, which the route uses as its inn while the Aiedo inn is #39"},
+        {"do": "expect", "map": 94, "flags_set": ["temp:0x18"], "note": "28_ChazHouse.md op 11"},
+        {"do": "go_to_map", "map": 84, "via_warp": 0, "note": "ChazHouse exit to Aiedo (22,37)"},
+        {"do": "expect", "map": 84, "flags_clear": ["temp:0x18"], "note": "RunEvent_ClrChazHouseRest writes event $3C, which clears temp $18 (29_LeavingChazHouse.md)"},
+        {"do": "save", "slot": 0}
+      ],
+      "closing": [
+        {"map": 84, "flags_clear": ["temp:0x18"]}
+      ]
+    },
+    {
+      "id": "aiedo-training",
+      "title": "Motavia plain outside Aiedo: training before the Zio Fort",
+      "source": "docs/campaign/RUNNER_LOG.md run C1-3 (H14): a level 8 to 11 party dies in the Zio Fort's first corridors; no native driver trains here",
+      "random_battle_policy": "train_with_inn",
+      "objectives": [
+        {"do": "go_to_map", "map": 0, "via_warp": 3, "note": "Aiedo's south exit, arrival Motavia (36,61)"},
+        {"do": "patrol", "map": 0, "a": [40, 56], "b": [50, 56], "until": {"party_level_at_least": 12}, "refuge": [
+          {"do": "go_to_map", "map": 84, "note": "Aiedo's gate is the nearest warp on this map"},
+          {"do": "go_to_map", "map": 94, "via_warp": 10},
+          {"do": "answer", "yes": true, "note": "Chaz's house rest is free (28_ChazHouse.md)"},
+          {"do": "go_to_map", "map": 84, "via_warp": 0},
+          {"do": "go_to_map", "map": 0, "via_warp": 3}
+        ], "note": "the open ground east of Aiedo's gate; the party trains on it and rests at Chaz's house when a member falls or the healers run dry"},
+        {"do": "go_to_map", "map": 84, "note": "the patrol ends wherever the last fight left the party, often with a member down"},
+        {"do": "go_to_map", "map": 94, "via_warp": 10},
+        {"do": "answer", "yes": true, "note": "Chaz's house rest: the party leaves Aiedo whole"},
+        {"do": "go_to_map", "map": 84, "via_warp": 0},
+        {"do": "save", "slot": 0}
+      ],
+      "closing": [
+        {"map": 84}
+      ]
+    },
+    {
+      "id": "passage-to-zio-fort",
+      "title": "Aiedo to the Zio Fort by the passageway and Kadary",
+      "source": "psiv-campaign plan --from-map 84 --from-cell 47,83 --to-map 130 --flag event:0x35 (the only chain: Aiedo, Motavia, Passageway Near Aiedo $DA, Passageway $81, $DB, Motavia, Kadary $68, Motavia, Zio Fort $82); docs/campaign/RUNNER_LOG.md H15",
+      "random_battle_policy": "run_unless_boss",
+      "objectives": [
+        {"do": "go_to_map", "map": 130, "note": "run from every random encounter: the passageway's ZolSlugs use FUSION (ability 18), unsupported (RUNNER_LOG.md H15)"},
+        {"do": "save", "slot": 0}
+      ],
+      "closing": [
+        {"map": 130}
+      ]
+    },
+    {
+      "id": "zio-fort-approach",
+      "title": "Zio Fort: the east wing to Juza's room",
+      "source": "docs/scenes/49_Juza.md and 50_JuzaDefeated.md (ZioFortJuzaRoom $87 object 0 starts event $40; its trigger $2F opens the stairs); psiv-campaign plan from map 130 (the west door of $87 opens on a closed box, the east tunnel $88 reaches the floor)",
+      "random_battle_policy": "run_unless_boss",
+      "objectives": [
+        {"do": "go_to_map", "map": 137, "note": "ZioFort_F2East; the planner's chain through ZioFort_Part2 and F1"},
+        {"do": "go_to_map", "map": 136, "note": "the east tunnel; entering the Juza room from its west door lands in a box with no way to the stairs"},
+        {"do": "go_to_map", "map": 135, "note": "arrive at the room's east door (47,31)"},
+        {"do": "go_to", "map": 135, "cell": [32, 21], "note": "below Juza (object 0 at (32,19)); the next objective is the talk that starts the Juza battle, which halts on an unsupported ability (RUNNER_LOG.md H16)"},
+        {"do": "expect", "map": 135, "cell": [32, 21], "flags_clear": ["event:0x41", "event:0x42"]},
+        {"do": "save", "slot": 0}
+      ],
+      "closing": [
+        {"map": 135, "cell": [32, 21], "flags_clear": ["event:0x41", "event:0x42"]}
       ]
     }
   ]

@@ -14,15 +14,25 @@ shortcut, a state edit or a skip to get past one.
 
 ## Current state
 
-`routes/main.json` completes from New Game with pads only: 14 chapters, New
-Game to the post-Rika north-bank checkpoint and the Aiedo arrival, 168,843
-frames, exit 0, digest `5e80a50e50dad15c` (run R1-5, with Mile restored). The
-run is a traversal proof, not a balance proof: the default policy lets members
-fall in the BioPlant and relies on an inn to restore them (see "Not claimed").
+`routes/main.json` completes from New Game with pads only: 18 chapters, New
+Game to the post-Rika north-bank checkpoint, the Aiedo arrival and, since lane
+C1, Chaz's house rest, training, the passageway and the Zio Fort's east wing:
+the party stands on Zio Fort's Juza room (map `$87`, cell (32,21)), all five
+alive and whole at level 12 to 13. 457,356 frames, exit 0, digest
+`96d2835a8633def8` (run C1-5). The run is a traversal proof, not a balance
+proof (see "Not claimed").
 
-The one port defect the runner found, [H1](#h1-the-mile-sand-worm-trigger-halts-every-visit-to-mile),
-is fixed (issue #54): `RunEvent_MileSandWorm` and the three other custom
-triggers are transcribed, and the route visits Mile again.
+The route stops there because the next objective, talking to Juza, halts on a
+port defect with no in-game alternative:
+[H16](#h16-juzas-battle-rolls-zan-and-forceflash-which-the-engine-does-not-run).
+Three more unsupported abilities sit on the way and are only passed by running
+from every encounter: [H15](#h15-passageway-and-zio-fort-encounters-roll-unsupported-abilities).
+The Aiedo inn defect [#39](https://github.com/TusanHomichi/PSIV/issues/39) does
+not block the story: [H13](#h13-the-aiedo-inn-returns-aiedoeventpending-39).
+
+The one port defect the first runner lane found,
+[H1](#h1-the-mile-sand-worm-trigger-halts-every-visit-to-mile), is fixed
+(issue #54).
 
 ## Runs
 
@@ -68,6 +78,37 @@ Acceptance target: after `north-bank` the party stands on Motavia `$00` at
 (84,64) with Gryz, Alys, Chaz, Hahn and Rika, all alive, flag `$35` set (the
 chapter's `expect` and `closing` hold), and `aiedo` arrives at map `$54`
 (47,83), one warp, as R0 planned.
+
+## C1 runs: Aiedo to the Zio Fort
+
+Base revision: `8c19769` (main after PR #57), lane C1 runner code on top.
+Release builds. The branch is `worktree-agent-a03b13906c10bc1e3`. Evidence is
+under the git-ignored `build/c1/` of the lane's worktree; the commands below
+regenerate it.
+
+| Run | Command | Result |
+| --- | --- | --- |
+| C1-0 | `psiv-campaign run rust/psiv-campaign/routes/main.json --save-dir build/c1/run-0 --tape build/c1/run-0/run.tape --report build/c1/run-0/report.json` (the route as C1 found it) | completed, exit 0, 168,843 frames, digest `5e80a50e50dad15c`: identical to R1-5 |
+| C1-1 | the same route plus a scratch chapter at the Aiedo supermarket inn counter (50,32), `rest_inn`, `expect event:0x46` | halted at `rest_inn`: `the counter refused: "Aiedo rest event pending."` ([H13](#h13-the-aiedo-inn-returns-aiedoeventpending-39)); `build/c1/evidence/h-inn-39-report.json` |
+| C1-2 | `--save-dir build/c1/s1`, scratch chapters: Chaz's house, then `go_to_map 130` with `attack_all` | halted at the passageway: `unsupported ability 18 for fighter 7` (map `$81`, formation 211, frame 171,935); re-recorded as `build/c1/evidence/h15-fusion-report.json` ([H15](#h15-passageway-and-zio-fort-encounters-roll-unsupported-abilities)) |
+| C1-3 | the same with `run_unless_boss` through the passageway and the fort, no training | the passageway passed; the fort's F1 killed a level 8 to 11 party (`lost_battle`, map `$84`), and a variant halted on ability 33 (`build/c1/evidence/h14-untrained-report.json`): [H14](#h14-the-fort-needs-a-trained-party-and-a-rest-that-is-not-the-aiedo-inn) |
+| C1-4 | `aiedo-training` (patrol until level 10, then 12), passage and approach chapters with `attack_all` in the fort | halted on ability 33 (FIREBREATH, `build/c1/evidence/h16a-airslash-report.json`) and, in an earlier draw, on ability 45 ([H15](#h15-passageway-and-zio-fort-encounters-roll-unsupported-abilities)); with `run_unless_boss` the same walk completes |
+| C1-5 | `psiv-campaign run rust/psiv-campaign/routes/main.json --save-dir build/c1/run-5 --tape build/c1/run-5/run.tape --report build/c1/run-5/report.json` | **completed**, exit 0. 457,356 frames, digest `96d2835a8633def8`, tape sha256 `53adf11f092bb99982c299aa2620b75a4078f6a4fe3ba69f0adae0a3d749bd57` |
+| C1-6 | the same command with `run-6` | **completed**, exit 0, identical frames, digest and tape sha256 (and the same Zio Fort chapter save, `71e15b109ef788ed4f215fa76409d56fd43b4b4d370f32b8e85e9fbf127a20a3`); a third run (`run-7`) printed the same tape sha256. `psiv-campaign replay build/c1/run-5/run.tape` reproduces the digest |
+| C1-7 | the full route plus a scratch chapter `talk npc 0` at Juza (`build/c1/run-4/`) | halted at the talk: `unsupported ability 71 for fighter 6` (Juza's ZAN), frame 458,343; `build/c1/run-4/halt-juza.json` ([H16](#h16-juzas-battle-rolls-zan-and-forceflash-which-the-engine-does-not-run)). The earlier draw halted on ability 86 |
+
+C1-5 per new chapter (frames, battles, party at the chapter's end):
+
+| Chapter | Frames | Battles | Party at the end |
+| --- | --- | --- | --- |
+| aiedo-chaz-house | 1,130 | 0 | Gryz L8 84/84, Alys L8 61/61, Chaz L7 62/62, Hahn L7 51/51, Rika L3 47/47 |
+| aiedo-training | 281,447 | 171 | Gryz L13 121/121, Alys L12 92/92, Chaz L12 93/93, Hahn L12 81/81, Rika L12 105/105 |
+| passage-to-zio-fort | 3,144 | 6 | the same, all full |
+| zio-fort-approach | 2,792 | 5 | the same, all full; standing at map `$87` (32,21), purse 21,832 meseta |
+
+Not exercised by these chapters: scenes 27 (blocked by H13) and 31 to 39, which
+all lie past Juza. Scenes 28 and 29 (Chaz's house) are exercised and assert
+their temp flag `$18`.
 
 ## Halts and their diagnoses
 
@@ -190,6 +231,125 @@ cure (`Driver::needs_refuge`), here an inn trip out and back, after which the
 patrol resumes. Without it the first patrol attempt trained until the healers
 ran dry and the party died on the strip. R1-5 trains in 22 battles with one
 refuge and enters the basement at Alys L8, Chaz L6, Hahn L6, Gryz L7.
+
+### H13: the Aiedo inn returns `AiedoEventPending` (#39)
+
+**Open port defect (issue #39), not on the critical path.**
+
+- **Halt:** C1-1, `rest_inn` at the supermarket counter (50,32) facing up:
+  `unexpected_state -- the counter refused: "Aiedo rest event pending."`
+  (`build/c1/evidence/h-inn-39-report.json`).
+- **Cause (port):** `rust/psiv-runtime/src/shop.rs:126-127` returns
+  `InnResult::AiedoEventPending` when selector 6 is rested at with `$42` and
+  `$46` clear, after `RecoverStats` and before the bill; the shop window shows
+  the placeholder at `rust/psiv-runtime/src/session/shop.rs:397`; nothing runs
+  `Event_GirlsSneakingOut`, whose transcription is registered
+  (`docs/scenes/27_GirlsSneakingOut.md`).
+- **Cartridge:** `loc_66122`, `reference/ps4disasm/ps4.asm:136380`; after
+  `RecoverStats` it tests selector 6, `EventFlag_Zio` and `EventFlag_GirlsCaught`
+  and calls `Event_GirlsSneakingOut` (`ps4.asm:136406`, body `:146949`), which
+  sets `$46`; the bill is taken after the scene (`loc_661B6`, `ps4.asm:136411`).
+- **Smallest change:** make `shop_stay` hand the scene to the session: run
+  event `$23` in the shop context (the scene tests already start it on map
+  `$63`) and settle the bill when the scene ends.
+- **Does it block the story?** No. `$46` is read only by Aiedo's own map data
+  (`MapDataMan_AiedoSupermarket`, `MapDataMan_AiedoPrison`,
+  `ps4.asm:109146-109178`, which show or hide the two girls) and by this inn.
+  No trigger the next arc uses reads it (`RunEvent_SavingDemi` tests `$42`
+  only, `docs/scenes/31_DemiRescue.md`). The route rests at Chaz's house
+  instead, which is a free rest the cartridge offers (scenes 28 and 29, passing
+  in `aiedo-chaz-house`). When #39 is fixed a chapter that rests at the inn
+  should assert `$46` and the prison map should show the girls.
+
+### H14: the fort needs a trained party and a rest that is not the Aiedo inn
+
+Route and runner, fixed in this lane.
+
+- C1-3 walked the fort's first corridors at level 8 to 11 with Rika at level 3:
+  `lost_battle` on map `$84` (Zio Fort F1), the party wiped inside three
+  encounters even with `run_unless_boss` (a failed RUN is another round of
+  enemy attacks).
+- Fix: a new chapter `aiedo-training` patrols the open ground east of Aiedo's
+  gate (Motavia (40,56) to (50,56)) until every member is level 12, with a
+  `refuge` that rests at Chaz's house (a free rest) when a member falls or the
+  healers run dry, and rests there once more before leaving so the party enters
+  the passageway whole. 171 battles, 281,447 frames. The first draft stopped at
+  level 10 and arrived at Juza with three members down (C1-5 draft).
+- Runner: `walk.rs` now ends `go_to_map` at once when a scene's yes/no prompt
+  opens on the target map (Chaz's house asks on arrival), leaving the prompt
+  for the next `answer` objective; any other prompt still halts as before.
+  `tests/runner.rs::an_arrival_prompt_is_the_next_objectives_to_answer`
+  (ignored, release) passes and halts when the `answer` is removed.
+- A refuge bug found on the way: a `go_to_map` with `via_warp` names a warp of
+  the *current* map. The refuge's first leg runs on Motavia, where warp 3 is
+  not Aiedo's gate, so it walked the party across the continent into poison
+  and a defeat (one draft run). The route names no `via_warp` there now.
+
+### H15: passageway and Zio Fort encounters roll unsupported abilities
+
+**Open port defects.** Random battles on the only road to the Zio Fort fault
+the battle presentation when an enemy rolls an ability the engine does not run
+(`BattleEvent::UnsupportedAbility`, emitted at
+`rust/psiv-core/src/battle/engine.rs:745` and `:847`; the session turns it into
+a fault at `rust/psiv-runtime/src/session/battle/mod.rs:386-391`).
+
+| Ability | Carrier and where | Halt | Cartridge |
+| --- | --- | --- | --- |
+| 18 FUSION (`$12`) | 34 ZolSlug, formation 211 (three ZolSlugs), Passageway `$81`, the condition `EnemyAI_ZolSlugs` holds once exactly two remain (`rust/psiv-core/src/battle/enemy_ai.rs:106,463-466`) | `unsupported ability 18 for fighter 7`, frame 171,935 (C1-2); `build/c1/evidence/h15-fusion-report.json` | `ps4.asm:23017` (the condition); the routine is `EnemyAttack_Blob` (`ps4.asm:19241`, label `:23043`); ledger row `docs/battle/ENEMY_ABILITIES.md:276` (class unknown) |
+| 33 FIREBREATH (`$21`) | 83 Ripper (regular list `[0,0,0,0,0,33,33,33]`), formations 219, 220 and 226 in the Zio Fort (`$82`, `$84`); 25 formations in all | `unsupported ability 33` (C1-3 variant, C1-4); `build/c1/evidence/h14-untrained-report.json`, `h16a-airslash-report.json` | `EnemyAttack_Ripper` `ps4.asm:21587` to `loc_23D0A` `ps4.asm:47507`; ledger row `ENEMY_ABILITIES.md:196` (damage, †) |
+| 45 DEBAN (`$2D`) | 70 ShadowSabr, conditional slots `[45,45,44,44]` under conditions `[7,7,2,2]`, formation 226 (F1) | `unsupported ability 45 for fighter 7` (C1-4, first draft) | `EnemyAttack_ShadowSabr` `ps4.asm:21933`: arm `$2C` at `loc_F85E`, arm `$2D` at `loc_F89A`; the ledger lists only `$2C` (Airslash) for these carriers and `$2D` for 116 Radhin, so its conditional-ability table omits ShadowSabr's `$2D` |
+
+- **Disposition:** the route runs from every encounter on the way
+  (`run_unless_boss`, chapters `passage-to-zio-fort` and `zio-fort-approach`),
+  which a player can choose. It is not a fix: with the draws of C1-3 and C1-4
+  the same walk halts, and run C1-5 passes only because every fight in it
+  ended by RUN before such an ability rolled. A change to the route anywhere
+  upstream shifts the draws.
+- **Smallest change:** one `DamageRoute` entry each in
+  `rust/psiv-core/src/battle/enemy_damage.rs` (`DAMAGE_SKILL_ROUTES`, line 421)
+  for FIREBREATH on 83 and its sibling carriers and for the two ShadowSabr arms,
+  transcribed from the routines above; FUSION is not a damage ability (effect
+  `$1F`) and needs its own transcription. FIREBREATH is the largest class: the
+  ledger counts 54 formations (+3 boss) across the Zio Fort, Ladea Tower, Island
+  Cave and later maps, so every dungeon on this arc meets it.
+
+### H16: Juza's battle rolls ZAN and FORCEFLASH, which the engine does not run
+
+**Open port defect on the critical path, no legitimate alternative: the route
+stops here.**
+
+- **Halt:** C1-7, chapter `zio-fort-juza` (scratch), objective 0 (`talk npc 0`
+  at Juza, `$87` (32,19)): the dialogue fires event `$40`, event battle 3
+  begins, and Juza's first action faults: `unsupported ability 71 for fighter 6`
+  (frame 458,343; `build/c1/run-4/halt-juza.json`). An earlier draw halted on
+  ability 86 for the same fighter.
+- **Cause (port):** event battle 3 is one JUZA (enemy 114, 1,523 HP) with the
+  regular list `[64,64,68,68,71,71,86,86]`. `DAMAGE_SKILL_ROUTES` carries 114's
+  WAT `$40` (`rust/psiv-core/src/battle/enemy_damage.rs:626`) and FOI `$44`
+  (`:654`) and nothing for ZAN `$47` or FORCEFLASH `$56`, which are half of
+  his draws. A fight of more than a couple of rounds cannot avoid them.
+- **Cartridge:** `EnemyAttack_Juza` `ps4.asm:20575`; ZAN `loc_2AF18`
+  (`ps4.asm:56372`); FORCEFLASH `loc_2A300` (`ps4.asm:55527`); ledger rows
+  `ENEMY_ABILITIES.md:228` and `:241` (both damage, unsupported; FORCEFLASH
+  is also carried by 115 Greneris and 116 Radhin, ZAN by 100 TechMaster).
+- **Why no alternative:** the stairs to F3 are patched shut until `$41` and
+  `$48` are set (`ZioFortJuzaRoom` map effect entry `$38`: with both clear the
+  four cells at (24,18) are written to collision 0), `$41` is set by talking to
+  Juza, `$48` by the trigger after his battle (`docs/scenes/50_JuzaDefeated.md`),
+  and F3 and F4 (the Demi rescue) are reachable only from that room (the
+  planner finds no other chain to `$8A` or `$8B`).
+- **Smallest change:** two `DamageRoute` entries for enemy 114 (ZAN, FORCEFLASH),
+  traced to the routines above, with the regression test that fights event
+  battle 3 to its end.
+- **Forecast, not evidence:** the scripted battles ahead are event battle 4
+  (enemy 152, ZIO, ability 112, "implemented" in the ledger), 5 (117
+  GY-LAGUIAH, abilities 33 and `[0,0,0,0]`; FIREBREATH is unsupported) and 6
+  (139 ZIO, ability 84 BLACK WAVE, the ledger lists it unsupported with 0
+  formations); Ladea Tower's carriers include VOICE `$34` and FIREBREATH.
+  The next lane should expect those halts after H16 is fixed. The party also
+  arrives rich (21,832 meseta) with Hahn holding a shield and no weapon; shopping
+  at Aiedo's weapon shop (`$5B`) and supermarket is a legitimate step before
+  the fight, and Chaz's house is the rest.
 
 ## `verify` items resolved by playing
 

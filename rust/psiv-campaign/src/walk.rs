@@ -14,6 +14,7 @@ use psiv_runtime::Runtime;
 use crate::cell_plan::{Flood, Goal, plan_cells};
 use crate::driver::{Driver, dir_pad};
 use crate::exec::{Memory, execute};
+use crate::field::Settled;
 use crate::halt::{Halt, HaltKind, Res};
 use crate::map_plan::{MapGraph, Position, Target};
 use crate::route::{Step, Until};
@@ -54,10 +55,13 @@ impl Driver {
         let began_on_target_map = self.map() == map;
         let scenes_before = self.scenes_ended();
         for _ in 0..REPLAN_LIMIT {
-            self.settle(false)?;
+            let prompt = self.settle(true)? == Settled::Choice;
             let here = (self.map(), self.cell());
             if here == (map, target) {
                 return Ok(());
+            }
+            if prompt {
+                return Err(unanswered_prompt());
             }
             if began_on_target_map && here.0 != map && self.scenes_ended() > scenes_before {
                 // A scene fired on the way and carried the party off the map:
@@ -96,8 +100,17 @@ impl Driver {
         let mut first = via_warp;
         let start_map = self.map();
         for _ in 0..REPLAN_LIMIT {
-            self.settle(false)?;
+            let prompt = self.settle(true)? == Settled::Choice;
             let here = (self.map(), self.cell());
+            if prompt {
+                // A scene that fires on arrival and asks a question (a house
+                // that offers a rest) has delivered the party: the prompt is
+                // the next objective's to answer.
+                if here.0 == map {
+                    return Ok(());
+                }
+                return Err(unanswered_prompt());
+            }
             if first.is_some() && here.0 != start_map {
                 first = None;
             }
@@ -301,6 +314,13 @@ fn progress(stalled: &mut u32, before: (u16, Cell), after: (u16, Cell)) -> Res<u
         *stalled = 0;
     }
     Ok(*stalled)
+}
+
+fn unanswered_prompt() -> Halt {
+    Halt::new(
+        HaltKind::UnexpectedState,
+        "a yes/no prompt opened and the route does not answer it here",
+    )
 }
 
 fn unreachable_halt(map: u16, target: Cell, why: &str) -> Halt {

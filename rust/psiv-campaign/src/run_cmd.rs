@@ -125,6 +125,27 @@ fn replay_inner(args: &[String]) -> Result<ExitCode, String> {
     Ok(ExitCode::SUCCESS)
 }
 
+/// `inspect <slot.sram> [--pack DIR]`: the save's position, party, pack and flags.
+pub fn cmd_inspect(args: &[String]) -> ExitCode {
+    let result = Args::parse(args).and_then(|args| {
+        let [path] = args.positional.as_slice() else {
+            return Err(super::USAGE.to_owned());
+        };
+        psiv_campaign::inspect::inspect(&pack_dir(&args), Path::new(path))
+            .map_err(|e| e.to_string())
+    });
+    match result {
+        Ok(report) => {
+            print!("{report}");
+            ExitCode::SUCCESS
+        }
+        Err(message) => {
+            eprintln!("{message}");
+            ExitCode::from(1)
+        }
+    }
+}
+
 fn write_file(path: &Path, text: &str) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)
