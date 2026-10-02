@@ -303,11 +303,6 @@ pub enum RuntimeEvent {
         /// The event index that has no scene.
         event: u16,
     },
-    /// A trigger hit one of the four honestly-unsupported custom checks.
-    TriggerUnsupported {
-        /// The trigger index.
-        trigger: u8,
-    },
     /// The scene asks for a dialogue entry (within the current map's bound
     /// tree). The renderer opens the window and calls
     /// [`crate::Runtime::dialogue_closed`] when it shuts.

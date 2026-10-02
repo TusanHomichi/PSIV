@@ -56,8 +56,10 @@ use std::collections::BTreeMap;
 use psiv_core::Input;
 use psiv_core::battle::{BattleEvent, FighterId, Outcome, RoundOrders, Side};
 
-use crate::Runtime;
 use crate::events::{BattleAnimationEvent, BattleTimeline};
+use crate::{Runtime, RuntimeEvent};
+
+use super::{Mode, Session};
 use crate::pad::{Button, Pad};
 
 /// Retail `$FFFFEE66`: `12 * (Battle_Speed + 1)`, clamped to `0..4`.
@@ -543,6 +545,77 @@ impl BattleMode {
         if self.current.is_none() && self.queue.is_empty() {
             self.start_next_event();
         }
+    }
+}
+
+impl Session {
+    /// Starts the battle this frame's events asked for, if they asked for one.
+    ///
+    /// An `EncounterRolled` is the runtime's own battle to start; a
+    /// `SceneBattleStarted` is one the scene runner already started, and the
+    /// event carries its opening timeline. A battle that cannot start leaves
+    /// the field in control and reports the reason as a fault for the shell to
+    /// log — the same "no battle this frame" the shell's own error paths
+    /// produced.
+    pub(crate) fn begin_battle(&mut self, events: &[RuntimeEvent]) -> Option<BattleFrame> {
+        let start = events.iter().find_map(|event| match event {
+            RuntimeEvent::EncounterRolled { formation } => Some(BattleStart::Encounter(*formation)),
+            RuntimeEvent::SceneBattleStarted { index, .. } => {
+                Some(BattleStart::EventBattle(*index))
+            }
+            _ => None,
+        })?;
+        let timeline = match start {
+            BattleStart::Encounter(formation) => match self.start_encounter(formation) {
+                Ok(timeline) => timeline,
+                Err(fault) => {
+                    return Some(BattleFrame {
+                        view: None,
+                        started: None,
+                        fault: Some(fault),
+                    });
+                }
+            },
+            BattleStart::EventBattle(_) => {
+                let Some(RuntimeEvent::SceneBattleStarted {
+                    events,
+                    sounds,
+                    animations,
+                    ..
+                }) = events
+                    .iter()
+                    .find(|event| matches!(event, RuntimeEvent::SceneBattleStarted { .. }))
+                else {
+                    return None;
+                };
+                BattleTimeline {
+                    events: events.clone(),
+                    sounds: sounds.clone(),
+                    animations: animations.clone(),
+                }
+            }
+        };
+        let mut mode = BattleMode::begin(&self.runtime, timeline, start);
+        let frame = mode.start_frame(&self.runtime);
+        self.mode = Mode::Battle(Box::new(mode));
+        Some(frame)
+    }
+
+    /// Starts an encounter battle, or says why it cannot.
+    ///
+    /// The empty-party refusal is the shell's own (`encounter rolled formation
+    /// {formation:#05x} with an empty party`): a battle with nobody in it can
+    /// never end, so it must not start.
+    pub(crate) fn start_encounter(&mut self, formation: u16) -> Result<BattleTimeline, String> {
+        let party = self.runtime.battle_party();
+        if party.is_empty() {
+            return Err(format!(
+                "encounter rolled formation {formation:#05x} with an empty party"
+            ));
+        }
+        self.runtime
+            .start_battle_timeline(formation, party)
+            .map_err(|error| format!("could not start battle {formation:#05x}: {error}"))
     }
 }
 

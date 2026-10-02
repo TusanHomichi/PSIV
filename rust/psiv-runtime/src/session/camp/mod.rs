@@ -38,11 +38,14 @@ mod loot;
 mod order;
 mod travel;
 
+use psiv_core::Input;
 use psiv_data::TownDestination;
 
 use crate::{
     CampAbility, CampAbilityKind, CampItem, CampState, Pad, Runtime, RuntimeEvent, pad::Button,
 };
+
+use super::{Frame, FrameMode, Session};
 
 pub use order::OrderDraft;
 
@@ -314,3 +317,62 @@ impl CampView {
 }
 
 pub(crate) use crate::session::shop::wrap;
+
+impl Session {
+    /// One frame of the camp menu or a chest window; `None` when neither is up
+    /// or opens, and the field has the frame.
+    pub(crate) fn camp_frame(&mut self, pressed: Pad) -> Option<Frame> {
+        match self.camp.as_mut() {
+            None => {
+                self.camp = Some(if self.runtime.loot_state().is_some() {
+                    CampView::open_loot(&self.runtime)
+                } else if self.runtime.scene_active() || !pressed.held(Button::Camp) {
+                    return None;
+                } else {
+                    CampView::open(&self.runtime)
+                });
+            }
+            Some(camp) => {
+                camp.frame(&mut self.runtime, MenuInput::of(pressed));
+            }
+        }
+        let camp = self.camp.as_mut().expect("the camp is up");
+        // The camp's SAVE completes here: the session owns the store, so the
+        // page's result line is written by the same frame that asked for it,
+        // with no round trip through the shell.
+        let mut save_error = None;
+        if let Some(slot) = camp.take_save_request() {
+            save_error = self.finish_camp_save(slot);
+        }
+        let camp = self.camp.as_mut().expect("the camp is up");
+        let drained = camp.finish_frame();
+        if drained.closed {
+            self.camp = None;
+            self.runtime.set_field_suspended(false);
+            // The press that closed the menu must not read as a talk.
+            self.accept_blocked = true;
+            return Some(Frame {
+                mode: FrameMode::Camp,
+                menu_events: drained.events,
+                sound: drained.sound,
+                camp_save_error: save_error,
+                ..Frame::default()
+            });
+        }
+        self.runtime.set_field_suspended(true);
+        let events = self.runtime.tick(Input::Neutral);
+        let (events, routed) = self.route(events);
+        if let Some(camp) = self.camp.as_mut() {
+            camp.sync(&self.runtime);
+        }
+        Some(Frame {
+            mode: FrameMode::Camp,
+            events,
+            routed,
+            menu_events: drained.events,
+            sound: drained.sound,
+            camp_save_error: save_error,
+            ..Frame::default()
+        })
+    }
+}

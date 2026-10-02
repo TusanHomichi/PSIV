@@ -13,7 +13,7 @@ use std::path::PathBuf;
 
 use psiv_core::Direction;
 use psiv_runtime::{
-    BattleStart, BattleView, Button, DialogueSignal, Frame, Pad, Routed, RuntimeEvent,
+    BattleStart, BattleView, Button, DialogueSignal, Frame, Pad, Routed, RuntimeEvent, SaveStore,
     SceneDialogueOpen, Session,
 };
 use serde_json::{Value, json};
@@ -62,8 +62,8 @@ pub struct Driver {
     in_battle: bool,
     /// Where the route's `save` objectives write, or `None` while replaying
     /// (a replay answers the request without touching the disk).
-    save_dir: Option<PathBuf>,
-    saves_written: Vec<PathBuf>,
+    /// The scratch save directory a driver without a save directory owns.
+    scratch: Option<PathBuf>,
     policy: Option<Box<dyn Policy>>,
     recovery_due: bool,
     trace: bool,
@@ -84,7 +84,18 @@ impl Driver {
     /// A driver over `session`. `save_dir` is where the route's own `save`
     /// objectives write (`None` for a replay).
     #[must_use]
-    pub fn new(session: Session, save_dir: Option<PathBuf>) -> Driver {
+    pub fn new(mut session: Session, save_dir: Option<PathBuf>) -> Driver {
+        // The session owns save I/O. A route's `save` objective must behave
+        // the same in a run and a replay, so a driver with no directory (a
+        // replay, a test) gets a private scratch store it removes on drop.
+        let (store_dir, scratch) = match &save_dir {
+            Some(dir) => (dir.join(ROUTE_SAVE_DIR), None),
+            None => {
+                let dir = scratch_dir();
+                (dir.clone(), Some(dir))
+            }
+        };
+        session.set_save_store(SaveStore::new(store_dir));
         Driver {
             session,
             pads: Vec::new(),
@@ -97,8 +108,7 @@ impl Driver {
             scenes_ended: 0,
             battles: Vec::new(),
             in_battle: false,
-            save_dir,
-            saves_written: Vec::new(),
+            scratch,
             policy: None,
             recovery_due: false,
             trace: std::env::var_os("PSIV_CAMPAIGN_TRACE").is_some(),
@@ -208,12 +218,6 @@ impl Driver {
         self.battle_view.as_ref()
     }
 
-    /// Paths of the route-save files written so far.
-    #[must_use]
-    pub fn saves_written(&self) -> &[PathBuf] {
-        &self.saves_written
-    }
-
     /// Adds a line to the event ring.
     pub fn note(&mut self, line: impl Into<String>) {
         let mut line: String = line.into();
@@ -317,8 +321,7 @@ impl Driver {
                 | RuntimeEvent::SceneBattleFailed { .. }
                 | RuntimeEvent::MapRefreshFailed { .. }
                 | RuntimeEvent::UnpackedTarget { .. }
-                | RuntimeEvent::WarpUnmapped { .. }
-                | RuntimeEvent::TriggerUnsupported { .. } => {
+                | RuntimeEvent::WarpUnmapped { .. } => {
                     raise(HaltKind::SceneFault, format!("{event:?}"));
                 }
                 _ => {}
@@ -365,8 +368,14 @@ impl Driver {
                 raise(kind, text);
             }
         }
-        if let Some(slot) = frame.save_request {
-            self.answer_save(slot, &mut raise);
+        if let Some(failure) = &frame.camp_save_error {
+            raise(
+                HaltKind::SaveFailed,
+                format!(
+                    "camp SAVE to slot {} failed: {}",
+                    failure.slot, failure.error
+                ),
+            );
         }
         let active = self.session.battle_active();
         if self.in_battle && !active {
@@ -395,27 +404,6 @@ impl Driver {
             }
             if view.reward_each != 0 {
                 record.experience = view.reward_each;
-            }
-        }
-    }
-
-    /// The camp's SAVE picked a slot: writing the file is the shell's job, and
-    /// the runner is the shell here.
-    fn answer_save(&mut self, slot: usize, raise: &mut impl FnMut(HaltKind, String)) {
-        let Some(dir) = self.save_dir.clone() else {
-            self.session.finish_camp_save(Ok(()));
-            return;
-        };
-        let dir = dir.join(ROUTE_SAVE_DIR);
-        match self.session.runtime().save_slot(&dir, slot) {
-            Ok(path) => {
-                self.note(format!("saved slot {slot} to {}", path.display()));
-                self.saves_written.push(path);
-                self.session.finish_camp_save(Ok(()));
-            }
-            Err(error) => {
-                raise(HaltKind::SaveFailed, error.to_string());
-                self.session.finish_camp_save(Err(error.to_string()));
             }
         }
     }
@@ -571,4 +559,21 @@ impl Driver {
         }
         Value::Object(view)
     }
+}
+
+impl Drop for Driver {
+    fn drop(&mut self) {
+        if let Some(dir) = self.scratch.take() {
+            // Only the directory this driver created; ignore a failed cleanup.
+            let _ = std::fs::remove_dir_all(dir);
+        }
+    }
+}
+
+/// A fresh, private directory for a driver's scratch save store.
+fn scratch_dir() -> PathBuf {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let n = NEXT.fetch_add(1, Ordering::Relaxed);
+    std::env::temp_dir().join(format!("psiv-campaign-{}-{n}", std::process::id()))
 }

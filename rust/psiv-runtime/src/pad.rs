@@ -198,7 +198,7 @@ impl Pad {
     /// So an opposing pair cancels the whole mask — including a perfectly good
     /// horizontal or vertical held with it — and a held horizontal otherwise
     /// beats a vertical. That is not "Up first", which is what the shell's own
-    /// `read_input` did before this resolution moved here.
+    /// field reader used before this resolution moved here (S2).
     #[must_use]
     pub const fn field_input(self) -> Input {
         if self.held(Button::Speak) {

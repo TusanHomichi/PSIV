@@ -96,9 +96,6 @@ impl Field {
                 RuntimeEvent::SceneMissing { event } => {
                     godot_error!("trigger fired event {event:#x} with no transcribed scene");
                 }
-                RuntimeEvent::TriggerUnsupported { trigger } => {
-                    godot_print!("trigger {trigger} is an unsupported custom check");
-                }
                 RuntimeEvent::SceneBattleStarted { index, .. } => {
                     // The runtime started this battle inside the scene and the
                     // frame's battle view carries the stage; the timeline the

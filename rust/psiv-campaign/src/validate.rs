@@ -270,7 +270,13 @@ impl<'a> Run<'a> {
                 }
                 Ok(())
             }
-            Objective::Patrol { map, a, b, until } => {
+            Objective::Patrol {
+                map,
+                a,
+                b,
+                until,
+                refuge,
+            } => {
                 self.require_map(*map)?;
                 if until.party_level_at_least.is_none() && until.money_at_least.is_none() {
                     return Err("patrol has no stop condition".into());
@@ -279,6 +285,18 @@ impl<'a> Run<'a> {
                     map: *map,
                     cell: a.cell(),
                 })?;
+                // A refuge is an out-and-back trip: it must leave from and
+                // return to the patrol's map.
+                if !refuge.is_empty() {
+                    let before = self.here("patrol refuge")?;
+                    for step in refuge {
+                        self.objective(&step.objective)?;
+                    }
+                    if self.here("patrol refuge")?.map != *map {
+                        return Err(format!("the refuge does not end on map {map:#x}"));
+                    }
+                    self.move_to(before);
+                }
                 // Battles and rests decide where a patrol really ends; the
                 // runner plans from the actual cell. The validator ends it on
                 // `b`.

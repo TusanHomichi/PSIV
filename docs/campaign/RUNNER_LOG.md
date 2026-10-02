@@ -14,14 +14,15 @@ shortcut, a state edit or a skip to get past one.
 
 ## Current state
 
-`routes/main.json` completes from New Game with pads only: 13 chapters, New
-Game to the post-Rika north-bank checkpoint and the Aiedo arrival, 175,497
-frames, 92 random battles and 2 scripted ones, exit 0. The run is a traversal
-proof, not a balance proof: the default policy lets members fall in the
-BioPlant and relies on an inn to restore them (see "Not claimed").
+`routes/main.json` completes from New Game with pads only: 14 chapters, New
+Game to the post-Rika north-bank checkpoint and the Aiedo arrival, 168,843
+frames, exit 0, digest `5e80a50e50dad15c` (run R1-5, with Mile restored). The
+run is a traversal proof, not a balance proof: the default policy lets members
+fall in the BioPlant and relies on an inn to restore them (see "Not claimed").
 
-One port defect is diagnosed and the route works past it with a legitimate
-alternative: [H1](#h1-the-mile-sand-worm-trigger-halts-every-visit-to-mile).
+The one port defect the runner found, [H1](#h1-the-mile-sand-worm-trigger-halts-every-visit-to-mile),
+is fixed (issue #54): `RunEvent_MileSandWorm` and the three other custom
+triggers are transcribed, and the route visits Mile again.
 
 ## Runs
 
@@ -36,6 +37,7 @@ build gives the same tape byte for byte (checked on chapter one).
 | R1-2 | `... --from-chapter holt` while the route and the runner were repaired | `holt` completed once Mile was left out (H1) and the `expect` cell corrected (H2); `rune-dorin` halted on the Zema inn (H3), then lost a battle in the Valley Maze (H4) until the runner cured the party between battles |
 | R1-3 | `... --from-chapter alshline` | storage door object settled (H5); lost a battle in the Alshline basement until `run_unless_boss` existed (H6); then chest (H7), equipment with every slot full (H8), the BioPlant elevator doors (H9) and the Rika scene's `go_to` (H10) |
 | R1-4 | `psiv-campaign run rust/psiv-campaign/routes/main.json --save-dir build/campaign/full4` | **completed**, exit 0. 175,497 frames, digest `52ccbf8d9a7de61a`; `psiv-campaign replay build/campaign/full4/run.tape` reproduces the digest. A second full run (`full3`, after H11) printed the same digest |
+| R1-5 | `psiv-campaign run rust/psiv-campaign/routes/main.json --save-dir build/c54-route --tape build/c54-route/run.tape --report build/c54-route/report.json` (release; issue #54: sand worm transcribed, Mile restored, `basement-training` added) | **completed**, exit 0. 168,843 frames, digest `5e80a50e50dad15c`, tape sha256 `24ad3ae31b58bc574cf76f9c2e727887c69c6575b32d6588f4f1da5f64ae67d5`; `psiv-campaign replay` reproduces the digest. Before the training chapter existed the same route halted in `alshline` objective 13 (`lost_battle`, [H12](#h12-the-alshline-basement-kills-an-under-levelled-party-after-the-walk-shifted)) |
 
 R1-4 per chapter (frames, battles, party at the chapter's end):
 
@@ -73,6 +75,8 @@ H1 is a port defect. H2 to H11 are route claims or runner gaps, each fixed in
 this lane; they are here so the next runner author does not rediscover them.
 
 ### H1: the Mile sand worm trigger halts every visit to Mile
+
+**Fixed (issue #54, run R1-5).** `trigger_custom.rs` now transcribes `RunEvent_MileSandWorm` with the field RNG supplied through `TriggerContext` (one draw only when the flag and box pass), and the three other formerly unsupported custom triggers (`RidingElevator`, `EnterGrbkTwDoor`, `PenguFeedStolen`); the `Unsupported` variants are gone. The route visits Mile again, in `holt` and in `rune-dorin` (the Mile inn). Arrival at pixel y `$310` is outside the worm's box, so no RNG draw and no event. Event `$71`'s scene (`Event_MileSandWormBattle`, `ps4.asm:152222`) is not registered in `rust/psiv-core/src/scenes/mod.rs`; a player who walks into the box and rolls `& $1F == 0` meets `SceneMissing`. The same holds for `$37`/`$38` (Garuberk tower door) and `$96` (Pengu Feed stolen). The diagnosis below is kept as found.
 
 - **Halt:** R1-1, chapter `holt`, objective 0 (`go_to_map 29 via_warp 1`), on the
   frame the party arrives in Mile (map `$1D`, cell (20,49)):
@@ -166,6 +170,27 @@ An earlier gap, found on the first academy run: `Igglanova: talk` presses Speak
 and the engine starts interaction area 0 of map 23 (event `$6B`), not an object's
 dialogue; the controller accepts an area event as what the press opened.
 
+### H12: the Alshline basement kills an under-levelled party after the walk shifted
+
+Restoring Mile moved the frame at which every later random battle rolls (the
+RNG stream is a function of the frame count and the pad history), so R1-5's
+first attempt met a different basement sequence: formation 177 on map `$48` took
+Chaz to 11/39 and Hahn to 8/30 in one round, `run_unless_boss` kept pressing RUN
+(each failed run is another round), and the party was wiped inside five
+encounters (`lost_battle`, chapter `alshline`, objective 13, frame 74,971).
+R1-4's six-battle basement walk was a lucky draw, not a margin: Chaz was L4 and
+Hahn L3 entering it. Not a port defect.
+
+Fix, in `rust/psiv-campaign`: a new chapter `basement-training` between
+`rune-dorin` and `alshline` rests at the Tonoe inn and then patrols the strip of
+Motavia outside Tonoe's gate (the only ground reachable from it without a warp)
+until the party is level 6. `patrol` gained an optional `refuge`: objectives run
+when a member has fallen or a living member is below half HP after the camp
+cure (`Driver::needs_refuge`), here an inn trip out and back, after which the
+patrol resumes. Without it the first patrol attempt trained until the healers
+ran dry and the party died on the strip. R1-5 trains in 22 battles with one
+refuge and enters the basement at Alys L8, Chaz L6, Hahn L6, Gryz L7.
+
 ## `verify` items resolved by playing
 
 R0 left 12 objectives marked `"verify": true`. All are resolved and the flags
@@ -175,7 +200,7 @@ dropped; the run that settled each is in the route's `note`.
 | --- | --- | --- |
 | academy 10 | Hahn: object 0 or 1 | object 0 |
 | academy 16 | Igglanova: which object | none: the press starts interaction area 0 (event `$6B`); object 0 only places the party |
-| holt 0 | the Mile detour | not needed; removed (H1) |
+| holt 0 | the Mile detour | restored once the sand worm trigger was transcribed (H1); arrival is outside the worm's box |
 | holt 7 | Zema cell after the Holt scene | (30,11), not (60,21) (H2) |
 | rune-dorin 20 | Dorin: object 0, 5 or 8 | object 0 |
 | alshline 7 | Gryz's storage door | object 1 (H5) |

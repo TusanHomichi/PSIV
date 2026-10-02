@@ -1,4 +1,7 @@
 //! Input and save-slot boot helpers for the field node.
+//!
+//! The pad is the shell's whole output as an input device; the title's own
+//! reading of it is the runtime's (`psiv-runtime/src/session/title.rs`).
 
 use godot::classes::Input;
 use godot::prelude::*;
@@ -41,24 +44,6 @@ pub(crate) fn read_pad(synthetic_speak: bool) -> Pad {
         pad = pad.with(Button::Speak);
     }
     pad
-}
-
-/// The title menu's input, while the title is still a shell mode (S5 moves it
-/// into the session).
-///
-/// It resolves through the runtime's own `Pad::field_input`, so the menu and
-/// the field agree on the cartridge's direction order, and it keeps the
-/// `PSIV_DEBUG_INPUT` trace the field's path had.
-pub(crate) fn read_input() -> psiv_core::Input {
-    let pad = read_pad(false);
-    // The title confirms on Start as well as on the talk button.
-    let input = if pad.held(Button::Start) {
-        psiv_core::Input::Action
-    } else {
-        pad.field_input()
-    };
-    debug_trace(input);
-    input
 }
 
 /// `PSIV_DEBUG_INPUT=1`: log the resolved field input on every change,

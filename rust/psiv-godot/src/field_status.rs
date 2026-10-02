@@ -1,14 +1,17 @@
-//! Retail field ailment windows, poison flash, and defeat-to-title handoff.
-use godot::prelude::*;
-use psiv_runtime::{FieldNotice, Runtime};
+//! Retail field ailment flash.
+//!
+//! The ailment windows a defeat queues and the fade that ends play are the
+//! session's (`psiv-runtime/src/session/notices.rs`, `session/game_over.rs`):
+//! this file keeps the one thing they are not — the red poison flash the
+//! presentation draws over the field.
 
-use crate::{Field, save_dir::presented_save_slots, title, transitions::TransitionKind};
+use godot::prelude::*;
+
+use crate::Field;
 
 #[derive(Default)]
 pub(super) struct StatusPresentation {
-    notice_open: bool,
     flash: Option<Gd<godot::classes::ColorRect>>,
-    defeat_fade: Option<u8>,
 }
 
 impl Field {
@@ -41,91 +44,5 @@ impl Field {
         flash.set_size(end - start + Vector2::new(8.0, 8.0));
         flash.show();
         self.status_presentation.flash = Some(flash);
-    }
-
-    /// Runs before ordinary windows; their existing input loop displays and
-    /// dismisses the notice. The runtime owns the queue and stays parked.
-    pub(super) fn service_field_notices(&mut self) {
-        if self.status_presentation.notice_open {
-            if self.runtime().is_some_and(Runtime::dialogue_open) {
-                return;
-            }
-            self.status_presentation.notice_open = false;
-            if let Some(runtime) = self.runtime_mut() {
-                runtime.acknowledge_field_notice();
-            }
-        }
-        let Some(notice) = self.runtime().and_then(|runtime| runtime.field_notice()) else {
-            return;
-        };
-        let lines = match notice {
-            FieldNotice::Fallen(who) => {
-                let name = self
-                    .runtime()
-                    .and_then(|rt| rt.game().roster().get(who))
-                    .map(|stats| stats.display_name())
-                    .unwrap_or_default();
-                vec![format!("{name} is on the verge"), "of Death.".into()]
-            }
-            FieldNotice::Perished => {
-                vec!["Chaz and his Companions".into(), "have perished.".into()]
-            }
-        };
-        godot_print!("field status: {}", lines.join(" "));
-        if let Some(runtime) = self.runtime_mut() {
-            self.status_presentation.notice_open = runtime.open_status_dialogue(&lines);
-        }
-    }
-
-    pub(super) fn begin_game_over(&mut self) {
-        if self.status_presentation.defeat_fade.is_none() {
-            self.status_presentation.defeat_fade = Some(0);
-            self.start_transition(TransitionKind::SceneFadeOut);
-        }
-    }
-
-    /// Battle defeat waits for its last message first; field defeat has
-    /// already waited for the Perished acknowledgement.
-    pub(super) fn drive_game_over(&mut self) -> bool {
-        if !self.runtime().is_some_and(|rt| rt.game_over()) {
-            return false;
-        }
-        if self.status_presentation.defeat_fade.is_none() {
-            if self.battle_presentation_active() {
-                return false;
-            }
-            self.begin_game_over();
-            return true;
-        }
-        let frames = self
-            .status_presentation
-            .defeat_fade
-            .as_mut()
-            .expect("fade begun");
-        *frames += 1;
-        if *frames < 14 {
-            return true;
-        }
-        if let Some(screen) = self.battle_screen.as_mut() {
-            screen.hide();
-        }
-        self.battle_field_visibility = None;
-        self.presentation.reset_scene();
-        if let Some(layer) = self.cutscene_layer.as_mut() {
-            layer.bind_mut().end_opening();
-            layer.bind_mut().panel_destroy_all();
-        }
-        self.set_letterbox(false);
-        self.play_sound(0xFB);
-        let slots = self
-            .runtime()
-            .map(|rt| presented_save_slots(rt.data()))
-            .unwrap_or([false; 3]);
-        let pack_dir = self.pack_dir.clone();
-        self.title = title::TitleScreen::build(&pack_dir, slots, self.base_mut());
-        self.status_presentation.defeat_fade = None;
-        self.block_accept();
-        godot_print!("game over: title restored; saved slots unchanged");
-        true
     }
 }
