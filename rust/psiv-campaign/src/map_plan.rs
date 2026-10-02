@@ -16,7 +16,7 @@
 //! Flag-gated map patches (`MapDataManager` writes, overworld page hooks) change
 //! collision. A [`MapGraph`] takes the flag set as input and builds every map
 //! through `psiv_runtime::evaluate_map_effects` and
-//! `psiv_runtime::field_map_patched`, so a bridge that opens when
+//! `psiv_runtime::field_map_entered`, so a bridge that opens when
 //! `EventFlag_RikaJoined` is set is open exactly when the caller says the flag
 //! is. Flags are static for one plan; a route that changes flags mid-way plans
 //! each objective with the flags it claims at that point.
@@ -26,9 +26,9 @@ use std::collections::{BinaryHeap, HashMap};
 use std::fmt;
 use std::rc::Rc;
 
-use psiv_core::{Cell, Chest, ChestContents, Direction, FieldMap, Flag, GameState, MapError};
-use psiv_data::{ContentsType, GameData, MapRecord};
-use psiv_runtime::{BridgeError, evaluate_map_effects, field_map_patched};
+use psiv_core::{Cell, Direction, FieldMap, Flag, GameState, MapError};
+use psiv_data::{GameData, MapRecord};
+use psiv_runtime::{BridgeError, evaluate_map_effects, field_map_entered};
 
 use crate::cell_plan::{CellPlanError, Flood};
 
@@ -237,9 +237,7 @@ impl<'a> MapGraph<'a> {
                 .cell_patches
                 .push((u32::from(cell.x), u32::from(cell.y), 0));
         }
-        let mut map = field_map_patched(record, Some(&outcome))?;
-        attach_chests(&mut map, record, &game)?;
-        Ok(map)
+        field_map_entered(record, &outcome, &game)
     }
 
     fn flood(&mut self, at: Position) -> Result<Rc<Flood>, PlanError> {
@@ -296,45 +294,6 @@ impl<'a> MapGraph<'a> {
     pub fn plan(&mut self, from: Position, target: Target) -> Result<Plan, PlanError> {
         self.search(from, target)
     }
-}
-
-/// Chests are solid field objects the bridge's public builders omit
-/// (`attach_chests` in `psiv-runtime/src/bridge.rs` is crate-private), so the
-/// planner attaches them the same way or it would route through a lid.
-fn attach_chests(
-    map: &mut FieldMap,
-    record: &MapRecord,
-    game: &GameState,
-) -> Result<(), BridgeError> {
-    let mut chests = Vec::with_capacity(record.treasure_chests.len());
-    for (index, chest) in record.treasure_chests.iter().enumerate() {
-        let range = |what: &str| BridgeError::OutOfRange(format!("chest {index}: {what}"));
-        let contents = match chest.contents_type {
-            ContentsType::Item => ChestContents::Item(
-                chest
-                    .item_id
-                    .and_then(|id| u8::try_from(id).ok())
-                    .filter(|id| *id != 0)
-                    .ok_or_else(|| range("item"))?,
-            ),
-            ContentsType::Meseta => {
-                ChestContents::Meseta(chest.meseta.ok_or_else(|| range("meseta"))?)
-            }
-        };
-        let cell = Cell::new(
-            u16::try_from(chest.x_cell).map_err(|_| range("x"))?,
-            u16::try_from(chest.y_cell).map_err(|_| range("y"))?,
-        );
-        chests.push(Chest {
-            cell,
-            flag: u8::try_from(chest.chest_flag).map_err(|_| range("flag"))?,
-            contents,
-            white: chest.white_chest,
-            index,
-        });
-    }
-    map.with_chests(chests, |chest| game.chest_is_open(chest))
-        .map_err(|e| BridgeError::Rejected(e.to_string()))
 }
 
 /// The provenance of `FieldMap` warp `index` of `record`'s map.

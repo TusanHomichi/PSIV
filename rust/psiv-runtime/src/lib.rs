@@ -50,7 +50,7 @@ mod travel_tests;
 pub use travel::{CampTravelMenu, ESCAPIPE, HINAS, RYUKA, TELEPIPE};
 mod vehicle;
 mod view;
-pub use bridge::{BridgeError, field_map, field_map_patched};
+pub use bridge::{BridgeError, field_map, field_map_entered, field_map_patched};
 pub use camp::{
     CampAbility, CampAbilityKind, CampCharacter, CampEquipResult, CampItem, CampState,
     CampUseResult,
