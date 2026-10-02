@@ -86,7 +86,7 @@ impl Runtime {
 
     /// A `$F6` the dialogue fired, once. The shell starts the scene with
     /// [`Runtime::start_event`], on the frame after the flow raised it.
-    pub fn take_dialogue_event(&mut self) -> Option<u16> {
+    pub(crate) fn take_dialogue_event(&mut self) -> Option<u16> {
         self.dialogue.take_event()
     }
 
@@ -98,7 +98,7 @@ impl Runtime {
     /// mirrors the cartridge's suspension of field-object updates, set at the
     /// same point the shell set it before, which is what keeps the shared RNG
     /// stream identical.
-    pub fn dialogue_frame(&mut self, pad: Pad) -> Vec<DialogueSignal> {
+    pub(crate) fn dialogue_frame(&mut self, pad: Pad) -> Vec<DialogueSignal> {
         if self.dialogue.is_open() {
             self.field_suspended = true;
         }
@@ -136,7 +136,7 @@ impl Runtime {
     /// The shell calls it after it has run the field and applied the frame's
     /// events — the point the window node's `physics_process` held before the
     /// window moved here. It is a no-op with no window up.
-    pub fn dialogue_tick(&mut self) -> Vec<DialogueSignal> {
+    pub(crate) fn dialogue_tick(&mut self) -> Vec<DialogueSignal> {
         self.dialogue.window(&mut self.game);
         let signals = self.dialogue.drain_signals();
         if signals
@@ -167,7 +167,7 @@ impl Runtime {
     /// The map-effect dialogue override is what this uses, not the map
     /// record's own binding: clinics and story rooms change what a person
     /// says.
-    pub fn open_npc_dialogue(&mut self, npc_index: usize) -> NpcDialogueOpen {
+    pub(crate) fn open_npc_dialogue(&mut self, npc_index: usize) -> NpcDialogueOpen {
         let Some(tree) = self
             .map_record()
             .map(|record| record.dialogue_tree)
@@ -189,7 +189,11 @@ impl Runtime {
     /// Opens a scene-owned line: the entry is resolved against the tree the
     /// scene is reading (its `SetDialogueTree` op, or the map's own binding).
     /// `panel_layout` selects the panel cutscene's portrait placement.
-    pub fn open_scene_dialogue(&mut self, entry: u16, panel_layout: bool) -> SceneDialogueOpen {
+    pub(crate) fn open_scene_dialogue(
+        &mut self,
+        entry: u16,
+        panel_layout: bool,
+    ) -> SceneDialogueOpen {
         let Some(tree) = self.scene_dialogue_tree() else {
             return SceneDialogueOpen::UnknownTree;
         };
@@ -227,30 +231,30 @@ impl Runtime {
 
     /// Reopens the scene's saved text cursor (`Saved_Dialogue_Addr`) after its
     /// movement and presentation ops.
-    pub fn resume_scene_dialogue(&mut self, panel_layout: bool) -> bool {
+    pub(crate) fn resume_scene_dialogue(&mut self, panel_layout: bool) -> bool {
         self.dialogue.resume_scene(panel_layout, &self.game)
     }
 
     /// The leader's "Nothing here" line for `character_slot` (0 = Chaz): the
     /// cartridge's answer to an empty-handed confirm.
-    pub fn open_nothing_here(&mut self, character_slot: usize) -> bool {
+    pub(crate) fn open_nothing_here(&mut self, character_slot: usize) -> bool {
         self.dialogue.open_nothing_here(character_slot, &self.game)
     }
 
     /// A scene's yes/no branch, with no text choice in front of it.
-    pub fn open_scene_choice(&mut self) -> bool {
+    pub(crate) fn open_scene_choice(&mut self) -> bool {
         self.dialogue.open_standalone_choice(&self.game)
     }
 
     /// Displays a static field-status window (a fallen or perished notice)
     /// over the normal frame and font, without the dialogue typewriter.
-    pub fn open_status_dialogue(&mut self, lines: &[String]) -> bool {
+    pub(crate) fn open_status_dialogue(&mut self, lines: &[String]) -> bool {
         self.dialogue.open_status(lines, &self.game)
     }
 
     /// Closes the window without answering anything or telling the scene: the
     /// debug harness's instant-close path for scene dialogue.
-    pub fn close_dialogue(&mut self) {
+    pub(crate) fn close_dialogue(&mut self) {
         self.dialogue.close_window();
     }
 }

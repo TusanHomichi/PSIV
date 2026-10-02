@@ -99,7 +99,7 @@ impl Runtime {
 
     /// Starts an event's scene directly — the `$F6` dialogue path (the
     /// principal's briefing). Returns whether a transcribed scene began.
-    pub fn start_event(&mut self, event: u16) -> bool {
+    pub(crate) fn start_event(&mut self, event: u16) -> bool {
         self.install_scene(EventIndex(event))
     }
 
@@ -117,21 +117,21 @@ impl Runtime {
     }
 
     /// The renderer reports the scene-requested dialogue window has closed.
-    pub fn dialogue_closed(&mut self) {
+    pub(crate) fn dialogue_closed(&mut self) {
         if self.scene.is_some() && !matches!(self.scene_input, SceneInput::Choice(_)) {
             self.scene_input = SceneInput::DialogueClosed;
         }
     }
 
     /// The renderer reached FF, with no suspended F7 cursor left to resume.
-    pub fn dialogue_ended(&mut self) {
+    pub(crate) fn dialogue_ended(&mut self) {
         if self.scene.is_some() && !matches!(self.scene_input, SceneInput::Choice(_)) {
             self.scene_input = SceneInput::DialogueEnded;
         }
     }
 
     /// Releases the retail ending's final Start gate.
-    pub fn ending_continue(&mut self) {
+    pub(crate) fn ending_continue(&mut self) {
         if self.scene.is_some() {
             self.scene_input = SceneInput::EndingContinue;
         }

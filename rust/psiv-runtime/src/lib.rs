@@ -48,6 +48,9 @@ mod scene_map_tests;
 mod scene_runtime;
 mod session;
 mod shop;
+#[cfg(test)]
+mod suites;
+pub mod tools;
 mod travel;
 #[cfg(test)]
 mod travel_tests;
@@ -71,12 +74,12 @@ pub use pad::{Button, Pad};
 pub use save::{RuntimeSaveError, SaveStore, SessionSaveError};
 pub use session::{
     BATTLE_DWELL_FRAMES, BattleBeat, BattleFrame, BattleStart, BattleView, BeatView, CampPage,
-    CampSaveFailure, CampView, CommandMenuView, DamageView, EnemyStatus, FieldNoticeOpened, Frame,
-    FrameMode, GAME_OVER_FADE_FRAMES, GameOverFrame, MenuPage, MenuRow, MenuView, MessageKind,
-    OrderDraft, PartyStatus, ROOT_OPTIONS, Routed, SceneStart, Session, ShopCounterView,
-    ShopOwnedItem, ShopPage, ShopStock, ShopView, SkillEntry, SkillSlotView, TargetKind,
-    TechniqueEntry, TitleEntry, TitleErase, TitleFailure, TitleFrame, TitlePhase, TitleView,
-    TitleWindow, battle_dwell_frames, camp_fixture, scene_fixture,
+    CampSaveFailure, CampView, CommandMenuView, DamageView, EnemyStatus, FALLBACK_SPAWN,
+    FieldNoticeOpened, Frame, FrameMode, GAME_OVER_FADE_FRAMES, GameOverFrame, MenuPage, MenuRow,
+    MenuView, MessageKind, OrderDraft, PartyStatus, ROOT_OPTIONS, Routed, SceneStart, Session,
+    ShopCounterView, ShopOwnedItem, ShopPage, ShopStock, ShopView, SkillEntry, SkillSlotView,
+    Start, TargetKind, TechniqueEntry, TitleEntry, TitleErase, TitleFailure, TitleFrame,
+    TitlePhase, TitleView, TitleWindow, battle_dwell_frames, camp_fixture, scene_fixture,
 };
 pub use shop::{InnResult, ShopBuyResult, ShopSellResult};
 
@@ -90,6 +93,36 @@ use psiv_core::{
 use psiv_data::GameData;
 
 /// The game shell: pack data, the current engine map, and the field state.
+///
+/// This is the engine's state, not a game. **No crate outside this one can
+/// build a `Runtime` or change one**: every constructor is crate-private, every
+/// method that takes `&mut self` is crate-private with it, and the only public
+/// way to a game is a [`Session`] — one pad per frame in
+/// ([`Session::frame`]), views out. The constructors a session starts over are
+/// [`Session::start`] and its `start_*` methods
+/// (`rust/psiv-runtime/src/session/start.rs`).
+///
+/// A shell that tries to build its own runtime and drive the field fails to
+/// compile:
+///
+/// ```compile_fail
+/// # fn shell(pack: std::path::PathBuf) {
+/// let data = psiv_data::GameData::load(&pack).unwrap();
+/// let mut runtime = psiv_runtime::Runtime::new(
+///     data,
+///     0x13,
+///     psiv_core::Cell::new(48, 19),
+///     psiv_core::Direction::Down,
+///     psiv_core::StepFrames::default(),
+/// )
+/// .unwrap();
+/// runtime.tick(psiv_core::Input::Neutral);
+/// # }
+/// ```
+///
+/// The same file cannot reach a mutator through a session's read-only runtime
+/// either; the two `compile_fail` cases on [`Session`]'s module cover that
+/// half.
 pub struct Runtime {
     data: GameData,
     map: FieldMap,
@@ -214,7 +247,7 @@ struct BattleSet {
 
 impl Runtime {
     /// Starts on `map_id` at `spawn`, facing `facing`.
-    pub fn new(
+    pub(crate) fn new(
         data: GameData,
         map_id: u16,
         spawn: Cell,

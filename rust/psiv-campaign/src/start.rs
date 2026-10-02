@@ -1,15 +1,14 @@
 //! Starting a session: power-on, or a slot file.
 //!
-//! Both build the runtime the way the title does (`Runtime::new_game` plus the
-//! opening event for START, `Runtime::from_save` for CONTINUE) and arm its
-//! battles. The runtime is then handed to a [`Session`], and from there on
-//! the run is pads only.
+//! Both ask the runtime for the game the title would build (`Session::start`
+//! with the pack and the battle files: `new_game` for START, `from_slot_bytes`
+//! for a chapter save) and are handed a [`Session`]. From there on the run is
+//! pads only — the session, not this crate, owns every runtime mutator.
 
 use std::path::{Path, PathBuf};
 
-use psiv_core::{RetailSlot, StepFrames};
 use psiv_data::{BattleFiles, GameData};
-use psiv_runtime::{Runtime, Session};
+use psiv_runtime::Session;
 
 use crate::tape::{TapeStart, fnv1a64};
 
@@ -45,45 +44,29 @@ pub fn open_session(pack: &Path, start: &StartPoint) -> Result<(Session, TapeSta
         .map_err(|e| SetupError(format!("cannot load pack {}: {e}", pack.display())))?;
     let files = BattleFiles::load(pack)
         .map_err(|e| SetupError(format!("cannot load battle files: {e}")))?;
-    let (mut runtime, tape_start) = match start {
+    let start_pack = Session::start(data).with_battles(files);
+    match start {
         StartPoint::NewGame => {
-            let event = data
+            let session = start_pack
                 .new_game()
-                .ok_or_else(|| SetupError("pack has no title initializer".into()))?
-                .event_index;
-            let mut runtime = Runtime::new_game(data, StepFrames::default())
                 .map_err(|e| SetupError(format!("new game: {e}")))?;
-            runtime
-                .enable_battles(&files)
-                .map_err(|e| SetupError(format!("battles: {e}")))?;
-            if !runtime.start_event(event) {
-                return Err(SetupError(format!(
-                    "the opening event {event:#x} has no scene"
-                )));
-            }
-            return Ok((Session::new(runtime), TapeStart::NewGame));
+            Ok((session, TapeStart::NewGame))
         }
         StartPoint::Save(path) => {
             let bytes = std::fs::read(path)
                 .map_err(|e| SetupError(format!("cannot read save {}: {e}", path.display())))?;
             let slot = slot_of(path);
-            let decoded = RetailSlot::from_bytes(&bytes, slot)
-                .and_then(|encoded| encoded.decode())
-                .map_err(|e| SetupError(format!("bad save {}: {e}", path.display())))?;
-            let runtime = Runtime::from_save(data, decoded, StepFrames::default())
+            let session = start_pack
+                .from_slot_bytes(&bytes, slot)
                 .map_err(|e| SetupError(format!("save {}: {e}", path.display())))?;
-            (
-                runtime,
+            Ok((
+                session,
                 TapeStart::Save {
                     hash: fnv1a64(&bytes),
                 },
-            )
+            ))
         }
-    };
-    runtime
-        .enable_battles(&files)
-        .map_err(|e| SetupError(format!("battles: {e}")))?;
-    Ok((Session::new(runtime), tape_start))
+    }
 }
 
 /// The slot a file `slot_N.sram` holds (zero-based); slot 0 for any other name.

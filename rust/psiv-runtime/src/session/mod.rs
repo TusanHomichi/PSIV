@@ -111,6 +111,7 @@ mod notices;
 mod route;
 mod saves;
 mod shop;
+mod start;
 mod title;
 
 pub use battle::{
@@ -121,6 +122,7 @@ pub use battle::{
 pub use debug::{camp_fixture, scene_fixture};
 pub use game_over::{GAME_OVER_FADE_FRAMES, GameOverFrame};
 pub use notices::FieldNoticeOpened;
+pub use start::{FALLBACK_SPAWN, Start};
 pub use title::{
     TitleEntry, TitleErase, TitleFailure, TitleFrame, TitlePhase, TitleView, TitleWindow,
 };
@@ -322,20 +324,12 @@ pub struct Session {
 
 impl Session {
     /// A session over `runtime`, ready for its first frame.
-    #[must_use]
-    pub fn new(runtime: Runtime) -> Session {
-        Session::over(runtime, None)
-    }
-
-    /// A session whose save I/O goes through `store`: the run directory the
-    /// shell resolved (`rust/psiv-godot/src/save_dir.rs`).
     ///
-    /// The store is not a convenience: a session without one refuses CONTINUE,
-    /// ERASE DATA and the camp's SAVE rather than falling back to a directory
-    /// the run never named.
+    /// Crate-private: a runtime outside the crate can only be a session that
+    /// one of [`super::Start`]'s constructors built.
     #[must_use]
-    pub fn with_saves(runtime: Runtime, store: SaveStore) -> Session {
-        Session::over(runtime, Some(store))
+    pub(crate) fn new(runtime: Runtime) -> Session {
+        Session::over(runtime, None)
     }
 
     fn over(runtime: Runtime, save_store: Option<SaveStore>) -> Session {

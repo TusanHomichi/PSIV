@@ -6,7 +6,10 @@ impl Runtime {
     /// Commit the ORDER chooser's complete list. Partial choices are UI state.
     /// Character records and the walking slots' positions remain untouched:
     /// loc_5E6DE replaces each slot's art, not its field coordinates.
-    pub fn order_camp_party(&mut self, order: &[u8]) -> Result<Vec<RuntimeEvent>, BridgeError> {
+    pub(crate) fn order_camp_party(
+        &mut self,
+        order: &[u8],
+    ) -> Result<Vec<RuntimeEvent>, BridgeError> {
         if self.battle.is_some() || self.scene_active() || self.party.leader().is_stepping() {
             return Err(BridgeError::Rejected(
                 "party order requires idle field".into(),

@@ -22,11 +22,9 @@
 use std::path::Path;
 
 use psiv_core::battle::Side;
-use psiv_core::{Cell, CharId, Direction, GameState, RetailLocation, RetailSave, StepFrames};
+use psiv_core::{Cell, CharId, Direction, GameState, RetailLocation, RetailSave};
 use psiv_data::{BattleFiles, GameData};
-use psiv_runtime::{
-    BattleView, Button, Frame, MenuPage, MenuView, Pad, Runtime, RuntimeEvent, Session,
-};
+use psiv_runtime::{BattleView, Button, Frame, MenuPage, MenuView, Pad, RuntimeEvent, Session};
 
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
 
@@ -55,20 +53,16 @@ fn basement_session(pack: &Path) -> Session {
     field_session(pack, BASEMENT, BASEMENT_SPAWN)
 }
 
-/// The same party on `map` at `cell`, battles armed.
+/// The same party on `map` at `cell`, battles armed — a game over an in-memory
+/// save, through the session's own constructor.
 fn field_session(pack: &Path, map: u16, cell: Cell) -> Session {
     let files = BattleFiles::load(pack).expect("battle files load");
     let data = GameData::load(pack).expect("pack loads");
-    let mut initial = Runtime::new(
-        data.clone(),
-        map,
-        cell,
-        Direction::Down,
-        StepFrames::default(),
-    )
-    .expect("the map spawns");
-    initial.enable_battles(&files).expect("battles arm");
-    let mut game = GameState::from_snapshot(&initial.game().snapshot());
+    let initial = Session::start(data.clone())
+        .with_battles(files.clone())
+        .field()
+        .expect("the pack boots");
+    let mut game = GameState::from_snapshot(&initial.runtime().game().snapshot());
     game.set_party([
         Some(CharId(0)),
         Some(CharId(1)),
@@ -77,9 +71,9 @@ fn field_session(pack: &Path, map: u16, cell: Cell) -> Session {
         None,
     ]);
     game.roster_mut().get_mut(CharId(0)).unwrap().curr_hp = 20;
-    let mut runtime = Runtime::from_save(
-        data,
-        RetailSave {
+    Session::start(data)
+        .with_battles(files)
+        .from_save(RetailSave {
             snapshot: game.snapshot(),
             location: RetailLocation {
                 world_index: 0,
@@ -88,12 +82,8 @@ fn field_session(pack: &Path, map: u16, cell: Cell) -> Session {
                 char_x: cell.x * 16,
                 char_y: cell.y * 16,
             },
-        },
-        StepFrames::default(),
-    )
-    .expect("the basement save loads");
-    runtime.enable_battles(&files).expect("battles arm");
-    Session::new(runtime)
+        })
+        .expect("the basement save loads")
 }
 
 /// One frame the way the shipped shell runs it: one call, the session's
