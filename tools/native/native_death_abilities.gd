@@ -86,7 +86,7 @@ func _physics_process(_delta):
         return false
     var camp = state.camp
     if camp == null:
-        press("ui_cancel")
+        press("psiv_camp")
         return false
     if camp.party.size() != 1 or int(camp.party[0].id) != 4 or int(camp.party[0].tp) != 4 or int(state.money) != initial_money + 6:
         fail("Gryz resources or victory reward wrong",state)

@@ -152,6 +152,7 @@ impl Runtime {
             self.scene_camera_locked = false;
             self.scene_triggers_pending = true;
             self.scene_tree_address = None;
+            self.scene_panel_sprites = false;
             events.push(RuntimeEvent::SceneEnded);
         }
         events
@@ -383,6 +384,9 @@ impl Runtime {
                     // ids are only meaningful against the current tree.
                     SceneOp::SetDialogueTree { rom_addr } => {
                         self.scene_tree_address = Some(rom_addr);
+                    }
+                    SceneOp::SetRenderSpritesInCutscene { enabled } => {
+                        self.scene_panel_sprites = enabled;
                     }
                     _ => {}
                 }

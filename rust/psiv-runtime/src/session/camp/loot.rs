@@ -49,6 +49,7 @@ impl CampView {
             right,
             accept,
             cancel,
+            ..
         } = input;
         match self.page {
             CampPage::LootMessage if accept || cancel => {

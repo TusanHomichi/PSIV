@@ -153,7 +153,7 @@ func equip_input(state):
         cooldown = 8
         return
     if camp == null:
-        press("ui_cancel")
+        press("psiv_camp")
         cooldown = 8
         return
     var plan = plans[equipped]

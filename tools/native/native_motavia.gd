@@ -53,7 +53,7 @@ func field_healing_input(state):
             healing_done = false
         return true
     if camp == null:
-        press("ui_cancel")
+        press("psiv_camp")
         cooldown = 8
         return true
     if camp.mode == "AbilityResult":

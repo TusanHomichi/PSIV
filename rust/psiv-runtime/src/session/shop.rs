@@ -6,11 +6,17 @@
 //! sell" refusal, what a sale pays, the bill an inn presents, and the order of
 //! the pages. The window the shell draws is the [`ShopView`].
 //!
-//! Buttons are the shell's mapping from before this moved, kept as it was: the
-//! d-pad moves the cursor, `Speak` confirms, `Cancel` backs out. The cartridge
-//! also confirms on `Camp` (`ps4.asm:135157`, `andi.b #ButtonSpeak_Mask|ButtonCamp_Mask`);
-//! the shell binds the camp key to the same physical keys as cancel, so reading
-//! `Camp` as a confirm here would make one key both answers.
+//! Buttons are the cartridge's. The shop routines confirm on
+//! `ButtonSpeak_Mask|ButtonCamp_Mask` and back out on `ButtonCancel`: the
+//! BUY/SELL menu (`ps4.asm:134986`, `135010`) and the inn's confirmation
+//! (`ps4.asm:136334-136339`, which tests Cancel first); the buy list, sell list
+//! and their confirmations carry the same two tests (`ps4.asm:135155-135695`,
+//! read for the masks, not page by page). A result line and the greeting's
+//! scroll arrow wait for any of `Cancel|Speak|Camp` (`ps4.asm:135029`,
+//! `136246`). No shop routine reads `ButtonStart`. Two port page-graph
+//! differences remain, listed in `docs/camp/SHOPS.md`: Cancel on a greeting
+//! leaves where the cartridge advances, and Cancel at the BUY/SELL menu leaves
+//! without the cartridge's farewell line.
 //!
 //! The money and inventory changes themselves are `shop.rs`'s transactions
 //! (`ps4.asm:135153` buy, `ps4.asm:135570` sell): the price word spent
@@ -217,7 +223,7 @@ impl ShopView {
         }
         let up = pressed.held(Button::Up);
         let down = pressed.held(Button::Down);
-        let accept = pressed.held(Button::Speak);
+        let accept = pressed.held(Button::Speak) || pressed.held(Button::Camp);
         match self.page {
             ShopPage::Greeting => {
                 if accept {
@@ -326,7 +332,14 @@ impl ShopView {
     fn go_back(&mut self) -> bool {
         match self.page {
             ShopPage::Greeting | ShopPage::InnGreeting | ShopPage::Root => return true,
-            ShopPage::BuyList | ShopPage::SellList => self.page = ShopPage::Root,
+            ShopPage::BuyList | ShopPage::SellList => {
+                // Both lists share the cartridge's `Window_Option_Index_3`,
+                // and leaving either by Cancel zeroes it (`ps4.asm:135182`
+                // from the buy list, `ps4.asm:135508` from the sell list): the
+                // next list opens on its first row.
+                self.item_selection = 0;
+                self.page = ShopPage::Root;
+            }
             ShopPage::BuyConfirm => self.page = ShopPage::BuyList,
             ShopPage::SellConfirm => self.page = ShopPage::SellList,
             ShopPage::InnConfirm => self.page = ShopPage::InnGreeting,

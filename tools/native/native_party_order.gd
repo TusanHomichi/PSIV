@@ -20,7 +20,7 @@ func before_route(state):
     if order_phase == 5:
         if camp == null: order_phase = 6
         else: press("ui_cancel")
-    elif camp == null: press("ui_cancel")
+    elif camp == null: press("psiv_camp")
     elif camp.mode == "Root": choose(camp.root,4)
     elif camp.mode == "State":
         if order_phase == 3:

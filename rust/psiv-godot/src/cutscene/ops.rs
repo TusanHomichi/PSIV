@@ -82,8 +82,8 @@ impl Field {
             }
             SceneOp::PlaySound { id } => self.play_scene_sound(id),
             SceneOp::SetSavedMusic { id } => self.save_scene_music(id),
-            SceneOp::SetRenderSpritesInCutscene { enabled } => {
-                self.presentation.set_render_sprites(enabled);
+            SceneOp::SetRenderSpritesInCutscene { .. } => {
+                // The runtime owns the panel byte; the sprites follow it.
                 self.apply_scene_sprite_visibility();
             }
             SceneOp::WaitFrames { frames } => {
@@ -297,7 +297,8 @@ impl Field {
 
     pub(super) fn apply_scene_sprite_visibility(&mut self) {
         let event = self.runtime().and_then(|rt| rt.scene_event());
-        let visible = self.presentation.sprites_visible(event);
+        let panel = self.runtime().is_some_and(|rt| rt.panel_dialogue_mode());
+        let visible = self.presentation.sprites_visible(event, panel);
         if let Some(party) = self.party.as_mut() {
             party.set_visible(visible);
         }

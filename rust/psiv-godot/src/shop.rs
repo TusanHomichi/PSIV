@@ -19,7 +19,7 @@ use godot::classes::{INode2D, Image, ImageTexture, Node2D};
 use godot::prelude::*;
 
 use psiv_data::DialogueSet;
-use psiv_runtime::{Runtime, ShopView};
+use psiv_runtime::ShopView;
 
 use chrome::ShopChrome;
 
@@ -35,9 +35,6 @@ pub(crate) struct ShopWindow {
     portrait: Option<Gd<ImageTexture>>,
     /// The counter the portrait was loaded for.
     portrait_for: Option<usize>,
-    /// A counter the debug selector asked for, handed to the session by the
-    /// field's next frame.
-    debug_open: Option<usize>,
 }
 
 #[godot_api]
@@ -50,7 +47,6 @@ impl INode2D for ShopWindow {
             view: None,
             portrait: None,
             portrait_for: None,
-            debug_open: None,
         }
     }
 
@@ -110,27 +106,6 @@ impl ShopWindow {
         })
     }
 
-    /// The `PSIV_DEBUG_SHOP` selector: asks for counter row `index` to open on
-    /// the field's next frame. Whether the row exists is answered now.
-    pub(crate) fn open_index(&mut self, index: usize, runtime: &Runtime) -> bool {
-        if runtime
-            .data()
-            .shops()
-            .and_then(|shops| shops.counter_index(index))
-            .is_none()
-        {
-            godot_error!("shop debug selector {index} did not name a live counter");
-            return false;
-        }
-        self.debug_open = Some(index);
-        true
-    }
-
-    /// The counter the debug selector asked for, once.
-    pub(crate) fn take_debug_open(&mut self) -> Option<usize> {
-        self.debug_open.take()
-    }
-
     /// Shows the session's window, or hides the node when there is none.
     pub(crate) fn sync(&mut self, view: Option<&ShopView>) {
         match view {
@@ -179,20 +154,6 @@ impl crate::Field {
         }
         if view.is_some() {
             self.place_shop_window();
-        }
-    }
-
-    /// Opens a counter the debug selector asked for, in the session.
-    pub(crate) fn open_debug_shop(&mut self) {
-        let Some(index) = self
-            .shop
-            .as_mut()
-            .and_then(|shop| shop.bind_mut().take_debug_open())
-        else {
-            return;
-        };
-        if let Some(session) = self.session.as_mut() {
-            session.open_shop_counter(index);
         }
     }
 

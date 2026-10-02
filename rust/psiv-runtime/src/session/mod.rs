@@ -189,9 +189,6 @@ pub struct Session {
     prev_pad: Pad,
     shop: Option<ShopView>,
     camp: Option<CampView>,
-    /// The cutscene panel flag a scene's `SetRenderSpritesInCutscene` writes:
-    /// with it up, a panel cutscene's dialogue takes the panel layout.
-    panel_sprites_suppressed: bool,
     /// The debug harness's switch: scene lines are acknowledged unseen.
     scene_dialogue_autoclose: bool,
 }
@@ -206,7 +203,6 @@ impl Session {
             prev_pad: Pad::NEUTRAL,
             shop: None,
             camp: None,
-            panel_sprites_suppressed: false,
             scene_dialogue_autoclose: false,
         }
     }
@@ -251,7 +247,6 @@ impl Session {
         // here, before the field tick below.
         let window_was_open = self.runtime.dialogue_open();
         let signals = self.runtime.dialogue_frame(pad);
-        self.note_window_signals(&signals);
         // A `$F6` the dialogue fired becomes a running scene. The window half
         // of the frame it was fired in already shut the box, so the field sees
         // it on this frame and spends one tick entering the scene.
@@ -295,7 +290,6 @@ impl Session {
         // The window's own half of the same frame, after the events above may
         // have opened it.
         let window_signals = self.runtime.dialogue_tick();
-        self.note_window_signals(&window_signals);
         Frame {
             mode: FrameMode::Field,
             events,

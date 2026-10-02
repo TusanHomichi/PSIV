@@ -12,9 +12,23 @@ impl CampView {
             return;
         }
         if self.page == CampPage::TravelReady {
-            if input.cancel || input.accept {
+            if input.cancel || input.accept || input.start {
                 self.complete_travel(runtime);
             }
+            return;
+        }
+        // Start dismisses a result line like any button; on a cursor page it
+        // closes the whole menu.
+        let input = if input.start && self.is_result_page() {
+            MenuInput {
+                accept: true,
+                ..input
+            }
+        } else {
+            input
+        };
+        if input.start && !self.is_result_page() {
+            self.close();
             return;
         }
         if input.cancel {
@@ -154,6 +168,21 @@ impl CampView {
             | CampPage::LootBlocked => {}
         }
         self.sync(runtime);
+    }
+
+    /// A page that only shows a result line, which any button dismisses.
+    fn is_result_page(&self) -> bool {
+        matches!(
+            self.page,
+            CampPage::ItemEmpty
+                | CampPage::ItemResult
+                | CampPage::AbilityResult
+                | CampPage::EquipResult
+                | CampPage::SaveResult
+                | CampPage::OrderDone
+                | CampPage::OrderAlone
+                | CampPage::Unsupported
+        )
     }
 
     /// Backs one page out; `true` when the camp closes.

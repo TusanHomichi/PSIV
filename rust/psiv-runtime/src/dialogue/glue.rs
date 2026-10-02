@@ -114,6 +114,9 @@ impl Runtime {
                 // Retail's two closes: `$F7` saves the text cursor for the
                 // scene, an entry terminator ends the message.
                 DialogueSignal::Closed { suspended } => {
+                    // `$F7` and `$FF` both return through `loc_69B00`, which
+                    // clears the panel rendering byte.
+                    self.scene_panel_sprites = false;
                     if *suspended {
                         self.dialogue_closed();
                     } else {
@@ -135,7 +138,25 @@ impl Runtime {
     /// window moved here. It is a no-op with no window up.
     pub fn dialogue_tick(&mut self) -> Vec<DialogueSignal> {
         self.dialogue.window(&mut self.game);
-        self.dialogue.drain_signals()
+        let signals = self.dialogue.drain_signals();
+        if signals
+            .iter()
+            .any(|signal| matches!(signal, DialogueSignal::Closed { .. }))
+        {
+            self.scene_panel_sprites = false;
+        }
+        signals
+    }
+
+    /// Whether the running scene is a high-bit panel cutscene whose panel byte
+    /// is up: its dialogue takes the panel layout and the field sprites are
+    /// hidden.
+    #[must_use]
+    pub fn panel_dialogue_mode(&self) -> bool {
+        self.scene_panel_sprites
+            && self
+                .scene_event()
+                .is_some_and(|event| event.0 & 0x8000 != 0)
     }
 
     /// Opens the dialogue an object owns at `npc_index`: the current map's

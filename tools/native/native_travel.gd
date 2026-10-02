@@ -35,7 +35,7 @@ func _physics_process(_delta):
                 return false
             record("ryuka-arrived", state)
             phase = 7
-        press("ui_cancel")
+        press("psiv_camp")
         return false
     match phase:
         0:

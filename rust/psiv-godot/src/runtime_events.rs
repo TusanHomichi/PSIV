@@ -169,9 +169,6 @@ impl Field {
                     if self.runtime().is_some_and(|rt| rt.scene_active()) {
                         godot_print!("scene dialogue closed (t{})", self.anim_tick);
                     }
-                    // F7 and FF both return through loc_69B00, which clears
-                    // the panel rendering byte. Keep the cursor separately.
-                    self.presentation.set_render_sprites(false);
                     if matches!(
                         self.runtime().and_then(|rt| rt.scene_dialogue_window()),
                         Some(

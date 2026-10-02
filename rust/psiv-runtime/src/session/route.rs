@@ -8,10 +8,9 @@
 //! own requests — a line, a resumed line, a yes/no branch — and an empty hand's
 //! "nothing here" open the box the same way.
 
-use psiv_core::{InteractReach, SceneOp};
+use psiv_core::InteractReach;
 use psiv_data::ShopCounter;
 
-use crate::dialogue::DialogueSignal;
 use crate::{RuntimeEvent, SceneDialogueOpen};
 
 use super::shop::ShopView;
@@ -90,16 +89,6 @@ impl Session {
                     self.runtime.open_scene_choice();
                     routed.push(Routed::SceneChoice);
                 }
-                RuntimeEvent::ScenePresentation {
-                    op: SceneOp::SetRenderSpritesInCutscene { enabled },
-                } => {
-                    self.panel_sprites_suppressed = enabled;
-                    kept.push(event);
-                }
-                RuntimeEvent::SceneEnded => {
-                    self.panel_sprites_suppressed = false;
-                    kept.push(event);
-                }
                 other => kept.push(other),
             }
         }
@@ -126,23 +115,8 @@ impl Session {
     }
 
     /// Whether a scene line takes the panel cutscene's portrait layout: the
-    /// panel flag is up and the running scene is a high-bit cutscene.
+    /// runtime's panel byte is up and the running scene is a high-bit cutscene.
     fn panel_layout(&self) -> bool {
-        self.panel_sprites_suppressed
-            && self
-                .runtime
-                .scene_event()
-                .is_some_and(|event| event.0 & 0x8000 != 0)
-    }
-
-    /// Keeps the panel flag honest across a window closing: the cartridge's
-    /// `$F7` and `$FF` closes both clear the panel rendering byte.
-    pub(super) fn note_window_signals(&mut self, signals: &[DialogueSignal]) {
-        if signals
-            .iter()
-            .any(|signal| matches!(signal, DialogueSignal::Closed { .. }))
-        {
-            self.panel_sprites_suppressed = false;
-        }
+        self.runtime.panel_dialogue_mode()
     }
 }

@@ -8,15 +8,12 @@ use crate::{Field, RETAIL_DISMISS_HOLD_FRAMES, retail_pace_enabled};
 
 /// This frame's joypad byte, from the engine's actions.
 ///
-/// `ui_accept` is Genesis C — `ButtonSpeak`, the talk and confirm button — and
-/// `ui_cancel` is B, `ButtonCancel`. `psiv_camp` is Genesis A, `ButtonCamp`,
-/// the button that opens the field's camp menu (`FieldControls_GetInput`,
-/// `ps4.asm:114890`). The keyboard has always opened the camp on its cancel key
-/// (X, Escape, pad B) and every native driver still does, so `ui_cancel` also
-/// presses `ButtonCamp`: in the field that opens the camp, in a menu the session
-/// reads only `ButtonCancel` and backs out. Start has no binding; the title
-/// reads confirm. `synthetic_speak` is the debug retail pace's own press; it is
-/// a press in the pad, not a private path into the dialogue.
+/// Each cartridge button has its own action: `ui_accept` is Genesis C,
+/// `ButtonSpeak`; `ui_cancel` is B, `ButtonCancel`; `psiv_camp` is A,
+/// `ButtonCamp`, which opens the field's camp menu (`FieldControls_GetInput`,
+/// `ps4.asm:114890`) and confirms in the menus; `psiv_start` is `ButtonStart`.
+/// `synthetic_speak` is the debug retail pace's own press; it is a press in the
+/// pad, not a private path into the dialogue.
 ///
 /// This is the shell's whole output as an input device: the pad goes to
 /// `Session::frame`, which resolves the field's direction and confirm
@@ -34,13 +31,11 @@ pub(crate) fn read_pad(synthetic_speak: bool) -> Pad {
         ("ui_cancel", Button::Cancel),
         ("ui_accept", Button::Speak),
         ("psiv_camp", Button::Camp),
+        ("psiv_start", Button::Start),
     ] {
         if input.is_action_pressed(action) {
             pad = pad.with(button);
         }
-    }
-    if pad.held(Button::Cancel) {
-        pad = pad.with(Button::Camp);
     }
     if synthetic_speak {
         pad = pad.with(Button::Speak);
@@ -55,7 +50,13 @@ pub(crate) fn read_pad(synthetic_speak: bool) -> Pad {
 /// the field agree on the cartridge's direction order, and it keeps the
 /// `PSIV_DEBUG_INPUT` trace the field's path had.
 pub(crate) fn read_input() -> psiv_core::Input {
-    let input = read_pad(false).field_input();
+    let pad = read_pad(false);
+    // The title confirms on Start as well as on the talk button.
+    let input = if pad.held(Button::Start) {
+        psiv_core::Input::Action
+    } else {
+        pad.field_input()
+    };
     debug_trace(input);
     input
 }

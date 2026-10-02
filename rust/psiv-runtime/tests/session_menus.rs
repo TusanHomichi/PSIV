@@ -286,6 +286,35 @@ fn selling_pays_half_the_record_price_for_any_item() {
     );
 }
 
+/// Leaving the sell list by Cancel zeroes the shared list cursor
+/// (`ps4.asm:135508`), so the buy list does not open on a stale row.
+#[test]
+fn the_buy_list_opens_on_its_first_row_after_a_sell_visit() {
+    if !pack_present() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+    let mut game = chaz_alone(100);
+    game.inventory_mut().add(125).unwrap();
+    game.inventory_mut().add(1).unwrap();
+    let mut player = Player::new(ITEM_SHOP, &game);
+    player.talk_up();
+    player.tick(Pad::NEUTRAL);
+    player.press(Button::Speak); // greeting
+    player.press(Button::Down); // SELL
+    player.press(Button::Speak);
+    player.press(Button::Down); // the second item
+    assert_eq!(player.session.shop_view().unwrap().item_selection, 1);
+    player.press(Button::Cancel);
+    assert_eq!(shop_page(&player), ShopPage::Root);
+    player.press(Button::Up); // BUY
+    player.press(Button::Speak);
+    assert_eq!(shop_page(&player), ShopPage::BuyList);
+    assert_eq!(player.session.shop_view().unwrap().item_selection, 0);
+    player.press(Button::Speak);
+    assert_eq!(shop_page(&player), ShopPage::BuyConfirm);
+}
+
 #[test]
 fn an_empty_pack_has_nothing_to_sell() {
     if !pack_present() {
@@ -656,6 +685,70 @@ fn the_camp_menu_asks_the_shell_to_save_the_picked_slot() {
     player.tick(Pad::NEUTRAL);
     player.press(Button::Speak);
     assert_eq!(camp_page(&player), CampPage::State);
+}
+
+/// The cartridge's menus confirm on Speak or Camp (`ps4.asm:134986`,
+/// `117260-117281`): Camp advances a shop greeting and picks a camp option.
+#[test]
+fn the_camp_button_confirms_in_shops_and_the_camp() {
+    if !pack_present() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+    let mut player = Player::new(ITEM_SHOP, &chaz_alone(100));
+    player.talk_up();
+    player.tick(Pad::NEUTRAL);
+    player.press(Button::Camp);
+    assert_eq!(
+        shop_page(&player),
+        ShopPage::Root,
+        "Camp confirms the greeting"
+    );
+    player.press(Button::Cancel);
+    assert!(player.session.shop_view().is_none());
+
+    player.press(Button::Camp);
+    assert_eq!(camp_page(&player), CampPage::Root, "Camp opens the menu");
+    player.press(Button::Down); // TECH
+    player.press(Button::Camp);
+    assert_eq!(
+        camp_page(&player),
+        CampPage::AbilityCharacters,
+        "Camp picks the highlighted option"
+    );
+}
+
+/// Start closes the whole camp from a cursor page and dismisses a result line
+/// like any other button (`ps4.asm:117260`, `122511`, `123286`).
+#[test]
+fn start_closes_the_camp_from_a_cursor_page_and_dismisses_a_result() {
+    if !pack_present() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+    let mut player = Player::new(ITEM_SHOP, &camp_game());
+    player.press(Button::Camp);
+    player.down_to(|s| s.camp_view().unwrap().root_selection, 4); // STATE
+    player.press(Button::Speak);
+    assert_eq!(camp_page(&player), CampPage::State);
+    player.press(Button::Start);
+    assert!(
+        player.session.camp_view().is_none(),
+        "Start closed every page"
+    );
+
+    // A result line: ITEM on a pack with nothing usable reports "NOT USABLE".
+    player.press(Button::Camp);
+    player.press(Button::Speak); // ITEM
+    assert_eq!(camp_page(&player), CampPage::ItemList);
+    player.press(Button::Speak); // the Dagger
+    assert_eq!(camp_page(&player), CampPage::ItemResult);
+    player.press(Button::Start);
+    assert!(
+        player.session.camp_view().is_some(),
+        "Start dismissed the result, not the menu"
+    );
+    assert_ne!(camp_page(&player), CampPage::ItemResult);
 }
 
 /// The negative control for the Camp button: while a scene runs, the button

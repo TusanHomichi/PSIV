@@ -57,6 +57,14 @@ unsafe impl ExtensionLibrary for PsivExtension {}
 
 pub(crate) const CELL_PIXELS: f32 = 16.0;
 
+/// A session over `runtime`, configured the way the shell runs every session:
+/// the title's START and CONTINUE build theirs through here too.
+pub(crate) fn new_session(runtime: Runtime) -> Session {
+    let mut session = Session::new(runtime);
+    session.set_scene_dialogue_autoclose(scene_dialogue_autoclose());
+    session
+}
+
 /// Oracle tapes hold Speak for four frames for a dismissal edge.  Retail
 /// pacing deliberately waits those frames after the typewriter reports a
 /// complete page; it does not use the compressed debug autoclose path.
@@ -68,9 +76,8 @@ pub(crate) fn retail_pace_enabled() -> bool {
 }
 
 /// `PSIV_DEBUG_AUTOCLOSE_SCENE=1` without the retail pace: scene dialogue
-/// lines are acknowledged unseen, for deterministic headless scene runs. The
-/// shell sets it on the session every frame, because the title builds its own
-/// sessions for START and CONTINUE.
+/// lines are acknowledged unseen, for deterministic headless scene runs. Every
+/// session the shell builds gets it once, at construction ([`new_session`]).
 fn scene_dialogue_autoclose() -> bool {
     std::env::var("PSIV_DEBUG_AUTOCLOSE_SCENE").is_ok_and(|value| value == "1")
         && !retail_pace_enabled()
@@ -446,7 +453,7 @@ impl INode2D for Field {
                 psiv_sound::SoundBank::default()
             }
         };
-        self.session = Some(Session::new(runtime));
+        self.session = Some(new_session(runtime));
         let mut audio = audio::AudioOutput::new(sound_bank);
         let debug_audio = audio.has_debug_override();
         self.base_mut().add_child(audio.node());
@@ -555,14 +562,7 @@ impl Field {
         if !window_open {
             self.retail_dialogue_wait = 0;
         }
-        // The debug selector's counter opens in the session, then the frame
-        // runs: the window is up on the frame it was asked for.
-        self.open_debug_shop();
-        let autoclose = scene_dialogue_autoclose();
-        let Some(frame) = self.session.as_mut().map(|session| {
-            session.set_scene_dialogue_autoclose(autoclose);
-            session.frame(pad)
-        }) else {
+        let Some(frame) = self.session.as_mut().map(|session| session.frame(pad)) else {
             return;
         };
         match frame.mode {

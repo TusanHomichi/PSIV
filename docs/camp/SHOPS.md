@@ -251,3 +251,21 @@ page order. Godot draws the view. A sale pays half the item record's price word
 (`ps4.asm:135570`, `InventoryData` `$14`) for **any** item the party holds, read
 from `battle/equipment.json`'s `meseta_cost`; the shell used to read it only from
 the stock lists, so an item no shop stocks paid nothing.
+
+Buttons are the cartridge's: every shop routine confirms on
+`ButtonSpeak_Mask|ButtonCamp_Mask` and backs out on `ButtonCancel`
+(`ps4.asm:134986`/`135010` for the BUY/SELL menu, `136334-136339` for the inn,
+which tests Cancel first, and the same two tests through `135155-135695`); a
+result line or greeting waits for any of Cancel, Speak or Camp
+(`ps4.asm:135029`, `136246`); no shop routine reads Start.
+
+Retail resets the list cursor: the buy and sell lists share
+`Window_Option_Index_3`, and Cancel out of either writes zero to it
+(`ps4.asm:135182`, `135508`), so a SELL visit never leaves BUY on a stale row.
+The port had kept the sell cursor; it now zeroes it on the same exit, pinned by
+`session_menus.rs` (`the_buy_list_opens_on_its_first_row_after_a_sell_visit`).
+
+Two page-graph differences from the cartridge remain, both in how a visit
+ends: Cancel on a greeting leaves the window where the cartridge advances to the
+menu, and Cancel at the BUY/SELL menu (or NO at the inn) leaves without the
+cartridge's farewell line (`ps4.asm:135014-135060`).

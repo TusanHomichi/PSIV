@@ -16,12 +16,19 @@
 //! loot       the chest windows: the discard and give-up confirmations
 //! ```
 //!
-//! Buttons are the shell's mapping from before this moved: the d-pad moves the
-//! cursor, `Speak` confirms and `Cancel` backs out. The cartridge's menu
-//! routines confirm on `Speak` or `Camp` and back out on `Cancel`
-//! (`ps4.asm:114930` onward, `andi.b #ButtonSpeak_Mask|ButtonCamp_Mask`); `Camp`
-//! only opens the menu here, because the shell's key for it is the cancel key
-//! too. The `Camp` press that opens the menu is
+//! Buttons are the cartridge's. Its menu routines test `ButtonSpeak_Mask|ButtonCamp_Mask`
+//! to confirm and `ButtonCancel` to back out (`Win_MenuOptionsMain`,
+//! `ps4.asm:117255-117281`; `Win_ItemActionMain`, `ps4.asm:122507-122520`;
+//! `Win_EquipCharListMain`, `ps4.asm:126658-126680`; the TECH and SKILL lists at
+//! `ps4.asm:128511` and `ps4.asm:130572`), and `ButtonStart` on a cursor page
+//! closes the whole menu (`DestroyAllWindows`, the same lines). A result line is
+//! dismissed by any of `Cancel|Speak|Camp|Start` (`Win_ItemUsedMsgMain`,
+//! `ps4.asm:123286`). The chest windows confirm on Speak or Camp and back out on
+//! Cancel with no Start (`FieldRoutine_ItemFound`, `ps4.asm:137584-137599`; its
+//! result lines `ps4.asm:137478`). The routines were read at those
+//! representatives; every other camp page uses the same rule and is not
+//! individually verified: STATUS, ORDER, SAVE, the town list, the ability
+//! target and the hand choice. The `Camp` press that opens the menu is
 //! `FieldControls_GetInput`'s (`ps4.asm:114890`, table `loc_56014`).
 
 mod abilities;
@@ -181,6 +188,7 @@ pub(crate) struct MenuInput {
     pub(crate) right: bool,
     pub(crate) accept: bool,
     pub(crate) cancel: bool,
+    pub(crate) start: bool,
 }
 
 impl MenuInput {
@@ -190,8 +198,9 @@ impl MenuInput {
             down: pressed.held(Button::Down),
             left: pressed.held(Button::Left),
             right: pressed.held(Button::Right),
-            accept: pressed.held(Button::Speak),
+            accept: pressed.held(Button::Speak) || pressed.held(Button::Camp),
             cancel: pressed.held(Button::Cancel),
+            start: pressed.held(Button::Start),
         }
     }
 }
