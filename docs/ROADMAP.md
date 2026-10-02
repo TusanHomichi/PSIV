@@ -63,12 +63,9 @@ The new code requires the rebuilt full pack; exact candidate, pack, binary and
 check receipts are in the travel ledger. The pack, saves and captures remain
 local and ignored.
 
-**Next action:** `S2` in the [campaign runner graph](campaign/CAMPAIGN_RUNNER.md#task-graph) —
-build the runtime `Session::frame(pad)` on the dialogue runner S1 moved out of
-`psiv-godot`.
-Campaign progress after this checkpoint is driven by the runner's route file;
-the [Aiedo ledger](campaign/AIEDO.md)'s route, condition and budget research is
-input for its first chapters.
+**Next action:** `S3` (battle) and `S4` (shop, inn, camp, loot) in the
+[campaign runner graph](campaign/CAMPAIGN_RUNNER.md#task-graph), in parallel:
+each moves one Godot-driven mode into the runtime `Session`.
 
 The exact 32×32 bridge match does not establish whole-scene visual parity,
 retail/native save-coordinate interchange, or later campaign progression.
