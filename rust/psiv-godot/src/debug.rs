@@ -131,7 +131,7 @@ impl Field {
         }
         if self.anim_tick == 30 && std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1")
         {
-            if self.runtime.as_ref().is_some_and(|rt| rt.scene_active()) {
+            if self.runtime().is_some_and(|rt| rt.scene_active()) {
                 godot_error!(
                     "debug camp refused: a map-entry trigger already started a scene; \
                      the fixture state does not match retail at this point"
@@ -170,7 +170,7 @@ impl Field {
                     // A map-entry trigger that already started a scene would
                     // make `start_event` refuse and the capture show the wrong
                     // scene (#44): say so instead of blaming the event.
-                    if self.runtime.as_ref().is_some_and(|rt| rt.scene_active()) {
+                    if self.runtime().is_some_and(|rt| rt.scene_active()) {
                         godot_error!(
                             "debug event {value} refused: a map-entry trigger already started a scene; \
                              the fixture state does not match retail at this point"
