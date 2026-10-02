@@ -5,13 +5,15 @@
 //! case that pins one room's coordinates pins the decode. One case drives every
 //! `AxisPredicate` variant through a `Condition` the table has no room for, and
 //! the list cases cover `evaluate_list`'s ordering rule, including the
-//! undecidable entries that must surface rather than read as "no event".
+//! RNG draws a scan makes, which depend on the list order.
 
 use crate::fixtures::ctx;
+use psiv_core::battle::Lcg41;
 use psiv_core::{
-    AxisPredicate, Cell, Condition, CustomTrigger, EventIndex, Flag, GameState, PixelPos,
-    PositionPredicate, TRIGGERS, Trigger, TriggerResult, Unsupported, evaluate_list,
+    AxisPredicate, Cell, Condition, EventIndex, Flag, GameState, PixelPos, PositionPredicate,
+    TRIGGERS, Trigger, TriggerResult, evaluate_list,
 };
+use std::cell::RefCell;
 
 #[test]
 fn the_alys_trigger_fires_from_the_cell_the_pixel_literals_name() {
@@ -119,23 +121,40 @@ fn a_list_of_misses_returns_nothing() {
 }
 
 #[test]
-fn undecidable_entries_are_reported_never_silently_skipped() {
+fn list_order_decides_how_many_rng_draws_a_scan_makes() {
+    // $70 is RunEvent_MileSandWorm. Inside its box a scan that reaches it
+    // draws exactly once; a scan that an earlier entry ends does not.
     let state = GameState::new();
-    let at = PixelPos { x: 0, y: 0 };
+    let at = PixelPos { x: 0x100, y: 0x200 };
+    let seed = Lcg41::new(0x1234_5678);
+    let mut once = seed.clone();
+    once.step();
 
-    // $7B needs an inventory. It must surface rather than read as "no event".
-    let hit = evaluate_list(&TRIGGERS, &[0x7B], &ctx(&state, at));
-    assert_eq!(
-        hit,
-        Some((
-            0x7B,
-            TriggerResult::Unsupported(CustomTrigger::PenguFeedStolen, Unsupported::Inventory)
-        ))
-    );
+    let rng = RefCell::new(seed.clone());
+    let mut c = ctx(&state, at);
+    c.rng = &rng;
+    let _ = evaluate_list(&TRIGGERS, &[0x70], &c);
+    assert_eq!(rng.into_inner(), once, "the worm drew exactly once");
 
-    // A real hit later in the list still wins over an earlier undecidable one.
-    let hit = evaluate_list(&TRIGGERS, &[0x7B, 0x08], &ctx(&state, at));
+    // $08 (flags only, fires on a fresh state) ends the scan first.
+    let rng = RefCell::new(seed.clone());
+    let mut c = ctx(&state, at);
+    c.rng = &rng;
+    let hit = evaluate_list(&TRIGGERS, &[0x08, 0x70], &c);
     assert_eq!(hit, Some((0x08, TriggerResult::Fire(EventIndex(0x0C)))));
+    assert_eq!(rng.into_inner(), seed, "entries after a hit never run");
+}
+
+#[test]
+fn the_pengu_feed_trigger_is_decided_from_the_inventory() {
+    let mut state = GameState::new();
+    let at = PixelPos { x: 0, y: 0x260 };
+    assert_eq!(
+        evaluate_list(&TRIGGERS, &[0x7B], &ctx(&state, at)),
+        Some((0x7B, TriggerResult::Fire(EventIndex(0x96))))
+    );
+    state.inventory_mut().add(0x92).unwrap();
+    assert_eq!(evaluate_list(&TRIGGERS, &[0x7B], &ctx(&state, at)), None);
 }
 
 #[test]

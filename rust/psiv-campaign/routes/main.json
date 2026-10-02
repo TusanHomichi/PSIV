@@ -47,10 +47,12 @@
     },
     {
       "id": "holt",
-      "title": "Zema, Birth Valley and Professor Holt",
+      "title": "Mile, Zema, Birth Valley and Professor Holt",
       "source": "tools/native/native_motavia.gd route; rust/psiv-runtime/examples/motavia_route.rs; docs/campaign/PLAYABILITY_HOLT_TONOE.md \"Connected native route through Holt\"; docs/scenes/13_ProfHolt.md",
       "random_battle_policy": "heal_then_attack",
       "objectives": [
+        {"do": "go_to_map", "map": 29, "via_warp": 1, "note": "native leg: walk to (61,100) on map 0x00; Mile first, as both source drivers do. RunEvent_MileSandWorm (ps4.asm:116449) is transcribed (#54): arrival at y $310 is outside its box, so no RNG draw and no event"},
+        {"do": "go_to_map", "map": 0, "via_warp": 2, "note": "native leg: walk to (20,50) on map 0x1d"},
         {"do": "go_to_map", "map": 36, "via_warp": 2, "note": "native leg: walk to (99,82) on map 0x00"},
         {"do": "go_to_map", "map": 43, "via_warp": 1, "note": "native leg: walk to (31,11) on map 0x24"},
         {"do": "go_to_map", "map": 44, "via_warp": 1, "note": "native leg: walk to (33,15) on map 0x2b"},
@@ -66,14 +68,16 @@
     },
     {
       "id": "rune-dorin",
-      "title": "Piata inn, Rune, the Valley Maze and Dorin at Tonoe",
+      "title": "Mile inn, Rune, the Valley Maze and Dorin at Tonoe",
       "source": "tools/native/native_tonoe.gd route; rust/psiv-runtime/examples/tonoe_route.rs; docs/campaign/PLAYABILITY_HOLT_TONOE.md \"Connected native Tonoe completion\"; docs/scenes/14_MeetingRune.md, 15_MeetingDorin.md, 16_Dorin.md",
       "random_battle_policy": "heal_then_attack",
       "objectives": [
-        {"do": "go_to_map", "map": 25, "note": "Piata inn: the Mile inn is out (its RunEvent_MileSandWorm trigger is unsupported in the port, RUNNER_LOG.md run R1-1) and the Zema inn is shut until the residents are restored; the cheapest chain is Motavia to Piata to the inn"},
-        {"do": "go_to", "map": 25, "cell": [41, 32], "note": "party stands two cells below the innkeeper at (41,30), the counter between (tests/session_menus.rs INN)"},
-        {"do": "rest_inn", "face": "up"},
-        {"do": "go_to_map", "map": 0},
+        {"do": "go_to_map", "map": 29, "via_warp": 1, "note": "native leg: walk to (61,100) on map 0x00"},
+        {"do": "go_to_map", "map": 35, "via_warp": 8, "note": "native leg: walk to (38,43) on map 0x1d"},
+        {"do": "go_to", "map": 35, "cell": [21, 34]},
+        {"do": "rest_inn", "face": "up", "note": "native receipt: Mile inn costs 30 meseta for the party"},
+        {"do": "go_to_map", "map": 29, "via_warp": 0, "note": "native leg: walk to (21,46) on map 0x23"},
+        {"do": "go_to_map", "map": 0, "via_warp": 2, "note": "native leg: walk to (20,50) on map 0x1d"},
         {"do": "go_to_map", "map": 64, "via_warp": 4, "note": "native leg: walk to (82,158) on map 0x00"},
         {"do": "go_to", "map": 64, "cell": [30, 22]},
         {"do": "talk", "npc": 4, "note": "Rune: face Up, Action"},
@@ -102,12 +106,38 @@
       ]
     },
     {
+      "id": "basement-training",
+      "title": "Motavia plain outside Tonoe: training before the Alshline basement",
+      "source": "docs/campaign/RUNNER_LOG.md run R1-5 (H12); no native driver trains here",
+      "random_battle_policy": "train_with_inn",
+      "objectives": [
+        {"do": "go_to_map", "map": 65, "via_warp": 0, "note": "native leg: walk to (30,40) on map 0x43"},
+        {"do": "go_to_map", "map": 70, "via_warp": 8, "note": "native leg: walk to (19,41) on map 0x41"},
+        {"do": "go_to", "map": 70, "cell": [20, 32]},
+        {"do": "rest_inn", "face": "up", "note": "rune-dorin ends with the party fallen; rest before training"},
+        {"do": "go_to_map", "map": 65, "via_warp": 0, "note": "native leg: walk to (22,40) on map 0x46"},
+        {"do": "go_to_map", "map": 0, "via_warp": 3, "note": "native leg: walk to (22,56) on map 0x41; arrival (151,89)"},
+        {"do": "patrol", "map": 0, "a": [145, 89], "b": [151, 95], "until": {"party_level_at_least": 6}, "refuge": [
+          {"do": "go_to_map", "map": 65, "via_warp": 5, "note": "Tonoe's gate is on the strip"},
+          {"do": "go_to_map", "map": 70, "via_warp": 8},
+          {"do": "go_to", "map": 70, "cell": [20, 32]},
+          {"do": "rest_inn", "face": "up", "note": "60 meseta; the party rests when a member falls or the healers run dry"},
+          {"do": "go_to_map", "map": 65, "via_warp": 0},
+          {"do": "go_to_map", "map": 0, "via_warp": 3}
+        ], "note": "the basement's fights take most of a level-3 member's HP in one round (RUNNER_LOG.md H12); the only ground reachable from Tonoe's gate without a warp is this strip, so the party trains on it to the level zema-training later reaches"},
+        {"do": "save", "slot": 0}
+      ],
+      "closing": [
+        {"map": 0}
+      ]
+    },
+    {
       "id": "alshline",
       "title": "Tonoe inn, the storage door, the basement and the Alshline chest",
       "source": "tools/native/native_alshline.gd route; docs/campaign/PLAYABILITY_ALSHLINE_ZEMA.md \"Connected Alshline completion\"; docs/scenes/18_AlshlineFound.md, 19_Alshline.md",
       "random_battle_policy": "run_unless_boss",
       "objectives": [
-        {"do": "go_to_map", "map": 65, "via_warp": 0, "note": "native leg: walk to (30,40) on map 0x43"},
+        {"do": "go_to_map", "map": 65, "via_warp": 5, "note": "Motavia to Tonoe (after basement-training; the native leg came from Dorin's map 0x43)"},
         {"do": "go_to_map", "map": 70, "via_warp": 8, "note": "native leg: walk to (19,41) on map 0x41"},
         {"do": "go_to", "map": 70, "cell": [20, 32]},
         {"do": "rest_inn", "face": "up", "note": "native receipt: Tonoe inn costs 60 meseta (15 per member)"},

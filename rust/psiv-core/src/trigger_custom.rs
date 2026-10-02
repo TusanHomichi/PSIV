@@ -1,8 +1,10 @@
 //! The `RunEvent_*` routines that are not a flags-plus-position formula.
 //!
-//! Ten labels, covering thirty of the table's 128 slots. Six are transcribed
-//! exactly here; four need state this crate does not carry and say so instead
-//! of guessing.
+//! Ten labels, covering thirty of the table's 128 slots, all transcribed
+//! exactly here. The four that read more than flags and position take it from
+//! [`TriggerContext`]: the live layout bytes (`RidingElevator`,
+//! `EnterGrbkTwDoor`), the field RNG (`MileSandWorm`) and the inventory
+//! (`PenguFeedStolen`).
 //!
 //! Four of them share the `XYRangeJmpTbl` helper (`ps4.asm:112576`), whose
 //! rectangles are **half-open** — `cmp.w d2,d0 / bhi` fails the test unless
@@ -11,9 +13,7 @@
 //! which are closed intervals, and the two must not be merged.
 
 use crate::state::Flag;
-use crate::trigger::{
-    CustomTrigger, EventIndex, PixelPos, TriggerContext, TriggerResult, Unsupported,
-};
+use crate::trigger::{CustomTrigger, EventIndex, PixelPos, TriggerContext, TriggerResult};
 
 /// `XYRange_XYPlus20`: `tx <= px < tx+$20 && ty <= py < ty+$20`.
 const SPAN_20: (i32, i32) = (0x20, 0x20);
@@ -37,14 +37,112 @@ pub fn evaluate(custom: CustomTrigger, ctx: &TriggerContext<'_>) -> TriggerResul
         CustomTrigger::VahFortConveyorBelt => vah_fort_conveyor(ctx),
         CustomTrigger::WpnPlntConveyorBelt => wpn_plnt_conveyor(ctx),
         CustomTrigger::CarnivorousTrees => carnivorous_trees(ctx),
-        CustomTrigger::RidingElevator | CustomTrigger::EnterGrbkTwDoor => {
-            TriggerResult::Unsupported(custom, Unsupported::MapLayoutBytes)
-        }
-        CustomTrigger::MileSandWorm => TriggerResult::Unsupported(custom, Unsupported::Rng),
-        CustomTrigger::PenguFeedStolen => {
-            TriggerResult::Unsupported(custom, Unsupported::Inventory)
-        }
+        CustomTrigger::RidingElevator => riding_elevator(ctx),
+        CustomTrigger::EnterGrbkTwDoor => enter_grbk_tw_door(ctx),
+        CustomTrigger::MileSandWorm => mile_sand_worm(ctx),
+        CustomTrigger::PenguFeedStolen => pengu_feed_stolen(ctx),
     }
+}
+
+/// `$0D RunEvent_RidingElevator` (`ps4.asm:115250`).
+///
+/// ```text
+///     move.w  curr_y_pos(a4), d2
+///     addi.w  #$10, d2            ; the standing cell is one row below y
+///     ...  jsr GetMapLayoutOffset  ; chunk = (x >> 5, (y + $10) >> 5)
+///     cmpi.b  #$53, (a1)
+///     bne.w   RunEvent_NoEvent
+///     move.w  #$14, (Event_Index).w
+/// ```
+///
+/// No flags and no position box: standing on the open elevator door chunk is
+/// the whole test, read from the *live* layout (patches included).
+fn riding_elevator(ctx: &TriggerContext<'_>) -> TriggerResult {
+    const OPEN_ELEVATOR_CHUNK: u16 = 0x53;
+    if ctx.layout_below == Some(OPEN_ELEVATOR_CHUNK) {
+        TriggerResult::Fire(EventIndex(0x14))
+    } else {
+        TriggerResult::NoEvent
+    }
+}
+
+/// `$22 RunEvent_EnterGrbkTwDoor` (`ps4.asm:115755`).
+///
+/// ```text
+///     ... (y + $10) >> 5 ...  cmpi.b #$3C, (a1) / bne.w RunEvent_NoEvent
+///     move.w  #$37, (Event_Index).w
+///     ... (y - $10) >> 5 ...  cmpi.b #$3E, (a1) / bne.s  done
+///     move.w  #$38, (Event_Index).w
+/// ```
+///
+/// The first read gates the routine; the second only upgrades `$37` to `$38`.
+/// An above-row read that falls off the plane cannot equal `$3E` here, so it
+/// leaves `$37` (retail would read whatever byte the wrapped offset lands on).
+fn enter_grbk_tw_door(ctx: &TriggerContext<'_>) -> TriggerResult {
+    const DOOR_CHUNK: u16 = 0x3C;
+    const DOOR_ABOVE_CHUNK: u16 = 0x3E;
+    if ctx.layout_below != Some(DOOR_CHUNK) {
+        return TriggerResult::NoEvent;
+    }
+    let event = if ctx.layout_above == Some(DOOR_ABOVE_CHUNK) {
+        0x38
+    } else {
+        0x37
+    };
+    TriggerResult::Fire(EventIndex(event))
+}
+
+/// `$5C..$70 RunEvent_MileSandWorm` (`ps4.asm:116449`).
+///
+/// ```text
+///     EventFlag_MileSandWorm ($1B) set      -> no event
+///     cmpi.w #$170, curr_x_pos / bhi        -> no event   (x <= $170)
+///     cmpi.w #$150, curr_y_pos / bcs        -> no event   (y >= $150)
+///     cmpi.w #$2B0, curr_y_pos / bhi        -> no event   (y <= $2B0)
+///     jsr     UpdateRNGSeed
+///     (RNG_Seed).w & $1F != 0               -> no event
+///     move.w  #$71, (Event_Index).w
+/// ```
+///
+/// Comparisons are unsigned and inclusive. The draw happens **only** once the
+/// flag and the box pass, and then exactly once — a draw on any other path
+/// would shift every later battle roll.
+fn mile_sand_worm(ctx: &TriggerContext<'_>) -> TriggerResult {
+    const SAND_WORM_FOUGHT: Flag = Flag::event(0x1B);
+
+    if ctx.state.is_set(SAND_WORM_FOUGHT) {
+        return TriggerResult::NoEvent;
+    }
+    let in_box = ctx.at.x <= 0x170 && ctx.at.y >= 0x150 && ctx.at.y <= 0x2B0;
+    if !in_box {
+        return TriggerResult::NoEvent;
+    }
+    let word = ctx.rng.borrow_mut().step();
+    if word & 0x1F == 0 {
+        TriggerResult::Fire(EventIndex(0x71))
+    } else {
+        TriggerResult::NoEvent
+    }
+}
+
+/// `$7B RunEvent_PenguFeedStolen` (`ps4.asm:116572`).
+///
+/// ```text
+///     move.b  #ItemID_PenguFeed ($92), d0 / jsr GetItem
+///     bne.w   RunEvent_NoEvent        ; GetItem returns 0 when FOUND
+///     cmpi.w  #$260, curr_y_pos(a4)
+///     bne.w   RunEvent_NoEvent
+///     move.w  #$96, (Event_Index).w
+/// ```
+///
+/// Fires when the Feed is *not* in the inventory, by `GetItem`'s own scan
+/// ([`Inventory::get_item`](crate::inventory::Inventory::get_item)).
+fn pengu_feed_stolen(ctx: &TriggerContext<'_>) -> TriggerResult {
+    const PENGU_FEED: u8 = 0x92;
+    if ctx.state.inventory().get_item(PENGU_FEED) || ctx.at.y != 0x260 {
+        return TriggerResult::NoEvent;
+    }
+    TriggerResult::Fire(EventIndex(0x96))
 }
 
 /// `$12 RunEvent_Recovery` (`ps4.asm:115574`).
@@ -307,14 +405,30 @@ fn carnivorous_trees(ctx: &TriggerContext<'_>) -> TriggerResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::battle::Lcg41;
     use crate::state::GameState;
+    use std::cell::RefCell;
 
+    /// A context whose RNG the test does not look at.
     fn ctx<'a>(state: &'a GameState, x: i32, y: i32) -> TriggerContext<'a> {
+        let rng: &'static RefCell<Lcg41> = Box::leak(Box::new(RefCell::new(Lcg41::new(1))));
+        with_rng(state, x, y, rng)
+    }
+
+    fn with_rng<'a>(
+        state: &'a GameState,
+        x: i32,
+        y: i32,
+        rng: &'a RefCell<Lcg41>,
+    ) -> TriggerContext<'a> {
         TriggerContext {
             state,
             at: PixelPos { x, y },
             standing: None,
             previously_standing: None,
+            layout_below: None,
+            layout_above: None,
+            rng,
         }
     }
 
@@ -425,20 +539,169 @@ mod tests {
     }
 
     #[test]
-    fn the_four_undecidable_routines_say_so() {
+    fn riding_elevator_needs_the_open_door_chunk_under_the_leader() {
         let state = GameState::new();
-        let c = ctx(&state, 0, 0);
-        for (custom, why) in [
-            (CustomTrigger::RidingElevator, Unsupported::MapLayoutBytes),
-            (CustomTrigger::EnterGrbkTwDoor, Unsupported::MapLayoutBytes),
-            (CustomTrigger::MileSandWorm, Unsupported::Rng),
-            (CustomTrigger::PenguFeedStolen, Unsupported::Inventory),
-        ] {
+        let mut c = ctx(&state, 0, 0);
+        c.layout_below = Some(0x53);
+        assert_eq!(riding_elevator(&c), TriggerResult::Fire(EventIndex(0x14)));
+        for other in [0x52, 0x54, 0x4F] {
+            c.layout_below = Some(other);
+            assert_eq!(riding_elevator(&c), TriggerResult::NoEvent);
+        }
+        c.layout_below = None;
+        assert_eq!(riding_elevator(&c), TriggerResult::NoEvent, "off the plane");
+        // The row above is not consulted.
+        c.layout_below = Some(0x4F);
+        c.layout_above = Some(0x53);
+        assert_eq!(riding_elevator(&c), TriggerResult::NoEvent);
+    }
+
+    #[test]
+    fn grbk_tower_door_gates_on_3c_below_and_upgrades_on_3e_above() {
+        let state = GameState::new();
+        let mut c = ctx(&state, 0, 0);
+        c.layout_below = Some(0x3C);
+        assert_eq!(
+            enter_grbk_tw_door(&c),
+            TriggerResult::Fire(EventIndex(0x37)),
+            "no chunk above: plain door"
+        );
+        c.layout_above = Some(0x3D);
+        assert_eq!(
+            enter_grbk_tw_door(&c),
+            TriggerResult::Fire(EventIndex(0x37))
+        );
+        c.layout_above = Some(0x3E);
+        assert_eq!(
+            enter_grbk_tw_door(&c),
+            TriggerResult::Fire(EventIndex(0x38))
+        );
+        for other in [Some(0x3B), Some(0x3D), None] {
+            c.layout_below = other;
             assert_eq!(
-                evaluate(custom, &c),
-                TriggerResult::Unsupported(custom, why),
-                "{custom:?} must not silently read as NoEvent"
+                enter_grbk_tw_door(&c),
+                TriggerResult::NoEvent,
+                "the second read cannot rescue a failed first read"
             );
         }
+    }
+
+    /// The seed in `cell`, without disturbing it.
+    fn peek(cell: &RefCell<Lcg41>) -> Lcg41 {
+        cell.borrow().clone()
+    }
+
+    /// A seed whose first `UpdateRNGSeed` draw has exactly `low_five` in its
+    /// low five bits, found by search so the tests stay tied to
+    /// `Lcg41::step`.
+    fn seed_drawing(low_five: u16) -> Lcg41 {
+        (1u32..)
+            .map(Lcg41::new)
+            .find(|seed| {
+                let mut probe = seed.clone();
+                probe.step() & 0x1F == low_five
+            })
+            .unwrap()
+    }
+
+    #[test]
+    fn sand_worm_draws_once_and_fires_only_on_a_zero_low_five() {
+        let state = GameState::new();
+
+        let hit = RefCell::new(seed_drawing(0));
+        let before = peek(&hit);
+        assert_eq!(
+            mile_sand_worm(&with_rng(&state, 0x170, 0x150, &hit)),
+            TriggerResult::Fire(EventIndex(0x71))
+        );
+        let mut expected = before.clone();
+        expected.step();
+        assert_eq!(peek(&hit), expected, "exactly one draw");
+
+        // Bit 4 set and bits 0..3 clear: a mask of $0F would wrongly fire.
+        let miss = RefCell::new(seed_drawing(0x10));
+        let before = peek(&miss);
+        assert_eq!(
+            mile_sand_worm(&with_rng(&state, 0x170, 0x2B0, &miss)),
+            TriggerResult::NoEvent
+        );
+        let mut expected = before.clone();
+        expected.step();
+        assert_eq!(peek(&miss), expected, "a miss still consumed one draw");
+    }
+
+    #[test]
+    fn sand_worm_box_boundaries_use_the_cartridges_comparisons() {
+        let state = GameState::new();
+        // Every cell in the box fires with a seed that draws zero, so the
+        // draw itself is the observable: untouched seed means "rejected".
+        let probe = |x: i32, y: i32| {
+            let rng = RefCell::new(seed_drawing(0));
+            let before = peek(&rng);
+            let result = mile_sand_worm(&with_rng(&state, x, y, &rng));
+            let drew = peek(&rng) != before;
+            (result, drew)
+        };
+        let fire = (TriggerResult::Fire(EventIndex(0x71)), true);
+        let reject = (TriggerResult::NoEvent, false);
+        assert_eq!(probe(0x170, 0x150), fire, "x <= $170, y >= $150");
+        assert_eq!(probe(0x171, 0x150), reject, "x = $171 is out (bhi)");
+        assert_eq!(probe(0x170, 0x14F), reject, "y = $14F is out (bcs)");
+        assert_eq!(probe(0x170, 0x2B0), fire, "y <= $2B0");
+        assert_eq!(probe(0x170, 0x2B1), reject, "y = $2B1 is out (bhi)");
+        assert_eq!(probe(0, 0x200), fire, "x has no lower bound");
+        assert_eq!(probe(0xA0, 0x310), reject, "Mile's arrival row is outside");
+    }
+
+    #[test]
+    fn sand_worm_flag_blocks_before_any_draw() {
+        let mut state = GameState::new();
+        state.set(Flag::event(0x1B)).unwrap();
+        let rng = RefCell::new(seed_drawing(0));
+        let before = peek(&rng);
+        assert_eq!(
+            mile_sand_worm(&with_rng(&state, 0x100, 0x200, &rng)),
+            TriggerResult::NoEvent
+        );
+        assert_eq!(
+            peek(&rng),
+            before,
+            "the fought flag short-circuits the draw"
+        );
+    }
+
+    #[test]
+    fn pengu_feed_stolen_fires_when_the_feed_is_missing_at_y_260() {
+        let mut state = GameState::new();
+        let at = |state: &GameState, y: i32| pengu_feed_stolen(&ctx(state, 0x100, y));
+
+        assert_eq!(at(&state, 0x260), TriggerResult::Fire(EventIndex(0x96)));
+        assert_eq!(at(&state, 0x25F), TriggerResult::NoEvent, "bne: exact y");
+        assert_eq!(at(&state, 0x261), TriggerResult::NoEvent);
+
+        state.inventory_mut().add(0x92).unwrap();
+        assert_eq!(
+            at(&state, 0x260),
+            TriggerResult::NoEvent,
+            "the Feed is still in the bag"
+        );
+    }
+
+    #[test]
+    fn pengu_feed_stolen_uses_get_items_count_limited_scan() {
+        // Slot 0 emptied by a battle removal: one item left past the hole.
+        // GetItem counts 2 non-empty slots and scans only slots 0..2, so the
+        // Feed in slot 2 is missed and the trigger fires.
+        let mut state = GameState::new();
+        let inv = state.inventory_mut();
+        inv.add(0x01).unwrap();
+        inv.add(0x02).unwrap();
+        inv.add(0x92).unwrap();
+        inv.remove(0);
+        assert!(inv.contains(0x92));
+        assert_eq!(
+            pengu_feed_stolen(&ctx(&state, 0, 0x260)),
+            TriggerResult::Fire(EventIndex(0x96))
+        );
     }
 }

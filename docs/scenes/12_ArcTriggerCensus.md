@@ -221,7 +221,7 @@ and GirlsCaught are clear. It is a pointer-table event `$23`, not a
 | `$1F` | `RunEvent_ZioNurvus` | Zio Nurvus `$65` clear, leader Y `$1E0` | `$0034` |
 | `$20` | `RunEvent_ZioDefeated` | Gryz Gone `$68` clear, Zio Nurvus `$65` set | `$800B` |
 | `$21` | `RunEvent_EnterSpaceship` | Mota Spaceport rectangle `x=$1E0..$1F0,y=$120` | `$800D` |
-| `$22` | `RunEvent_EnterGrbkTwDoor` | map-layout custom check | `$0038` (not in this slice) |
+| `$22` | `RunEvent_EnterGrbkTwDoor` | layout `$3C` below, `$3E` above (custom check, table below) | `$0037` / `$0038` (not in this slice) |
 | `$23` | `RunEvent_KuranEnterSpaceship` | leader Y `$2F0` | `$800D` |
 | `$24` | `RunEvent_AirCstlEnterSpaceship` | leader Y `$370` | `$800D` |
 | `$25` | `RunEvent_SilenceTmEnterSpaceship` | leader Y `$120` | `$800D` |
@@ -334,3 +334,20 @@ FortuneTeller and AfterFortuneTeller are the hard boundary: the disassembly
 has `if grand_cross=1` at `ps4.asm:116594` and `:184013`, no retail body and no
 retail pointer slots. They are excluded from both the pointer census and the
 scene registry.
+
+## Custom triggers transcribed with the live reads (issue #54)
+
+The four `RunEvent_*` routines that read more than flags and position are
+transcribed in `rust/psiv-core/src/trigger_custom.rs`, with the extra reads
+supplied through `TriggerContext` (live layout bytes at `y + $10` and `y - $10`,
+the field RNG cell) and `GameState::inventory`:
+
+| Slot | Routine | Condition | Event | Scene registered |
+| --- | --- | --- | --- | --- |
+| `$0D` | `RunEvent_RidingElevator` (`ps4.asm:115250`) | live layout byte at `y + $10` is `$53` | `$0014` | yes |
+| `$22` | `RunEvent_EnterGrbkTwDoor` (`ps4.asm:115755`) | layout at `y + $10` is `$3C`; `$0038` when the byte at `y - $10` is `$3E`, else `$0037` | `$0037` / `$0038` | no: `Event_GaruberkTwDoorEntered1` / `2` (`ps4.asm:120629`, `:120630`) |
+| `$5C..$70` | `RunEvent_MileSandWorm` (`ps4.asm:116449`) | `$1B` clear, `x <= $170`, `$150 <= y <= $2B0`, then one `UpdateRNGSeed` draw with `(seed word & $1F) == 0` | `$0071` | no: `Event_MileSandWormBattle` (`ps4.asm:152222`) |
+| `$7B` | `RunEvent_PenguFeedStolen` (`ps4.asm:116572`) | `GetItem($92)` finds nothing (the count-limited scan, `ps4.asm:121975`) and `y == $260` | `$0096` | no: `Event_PenguinFeedStolen` (`ps4.asm:120724`) |
+
+The sand worm draws only when its flag and box pass, and exactly once; entries
+listed after a firing entry never run, so list order is also RNG order.
