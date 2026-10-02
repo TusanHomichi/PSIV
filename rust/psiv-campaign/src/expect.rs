@@ -39,7 +39,7 @@ impl Driver {
             misses.push(format!("map is {map:#x}, expected {want:#x}"));
         }
         if let Some(want) = expect.cell {
-            let cell = runtime.state().cell();
+            let cell = crate::driver::standing_cell(runtime);
             if cell != want.cell() {
                 misses.push(format!(
                     "cell is ({},{}), expected ({},{})",
@@ -75,6 +75,12 @@ impl Driver {
             let money = game.money();
             if money < want {
                 misses.push(format!("money is {money}, expected at least {want}"));
+            }
+        }
+        if let Some(want) = expect.vehicle {
+            let riding = runtime.vehicle_index().unwrap_or(0);
+            if riding != want {
+                misses.push(format!("vehicle is {riding}, expected {want}"));
             }
         }
         if misses.is_empty() {

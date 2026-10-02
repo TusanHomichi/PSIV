@@ -42,6 +42,7 @@ pub mod inspect;
 pub mod map_plan;
 pub mod menu;
 pub mod policy;
+pub mod policy_boss;
 pub mod recovery;
 pub mod replay;
 pub mod route;
@@ -53,5 +54,5 @@ pub mod tape;
 pub mod validate;
 pub mod walk;
 
-pub use cell_plan::{CellPlan, CellPlanError, Flood, Goal, plan_cells};
+pub use cell_plan::{CellPlan, CellPlanError, Flood, Goal, Mover, plan_cells, plan_cells_for};
 pub use map_plan::{Hop, Leg, MapGraph, Plan, PlanError, Position, Target};

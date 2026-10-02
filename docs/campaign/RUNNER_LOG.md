@@ -14,21 +14,39 @@ shortcut, a state edit or a skip to get past one.
 
 ## Current state
 
-`routes/main.json` completes from New Game with pads only: 18 chapters, New
-Game to the post-Rika north-bank checkpoint, the Aiedo arrival and, since lane
-C1, Chaz's house rest, training, the passageway and the Zio Fort's east wing:
-the party stands on Zio Fort's Juza room (map `$87`, cell (32,21)), all five
-alive and whole at level 12 to 13. 457,356 frames, exit 0, digest
-`96d2835a8633def8` (run C1-5). The run is a traversal proof, not a balance
-proof (see "Not claimed").
+`routes/main.json` has 27 chapters: New Game, the post-Rika north bank, Aiedo,
+the Zio Fort's Juza room (C1) and, since lane C2, Juza's battle, the first
+Motavia arc's Demi rescue, the Machine Center and the Land Rover, the Ladea
+Tower with Rune and the Psycho Wand, and the walk to the Zio Fort's barrier
+(scenes 31 to 37, `zio-fort-barrier` last). **On the engine as it stands the
+run halts at its first port defect:** chapter `zio-fort-demi`, objective 2,
+`Cutscene_AlysWounded` reads the wrong dialogue tree
+([H17](#h17-cutscene_alyswounded-and-cutscene_psycowand-read-the-wrong-dialogue-tree)).
+Everything before it passes: 20 chapters, 1,023,474 frames, digest
+`49f5c47df7971428` (run C2-F1, exit 2, identical on a second run).
 
-The route stops there because the next objective, talking to Juza, halts on a
-port defect with no in-game alternative:
-[H16](#h16-juzas-battle-rolls-zan-and-forceflash-which-the-engine-does-not-run).
-Three more unsupported abilities sit on the way and are only passed by running
-from every encounter: [H15](#h15-passageway-and-zio-fort-encounters-roll-unsupported-abilities).
-The Aiedo inn defect [#39](https://github.com/TusanHomichi/PSIV/issues/39) does
-not block the story: [H13](#h13-the-aiedo-inn-returns-aiedoeventpending-39).
+Past H17 the route is written and was played on an engine with a four-line
+experimental patch for H17: it runs 26 chapters to `zio-fort-barrier`'s talk,
+where `Event_ZioFortBarrier` (`$30`) is not transcribed
+([H18](#h18-event_ziofortbarrier-30-is-not-transcribed)), a defect with no
+in-game alternative (the barrier is the only road to Nurvus and Zio). With a
+stub standing in for that scene the 27 chapters complete (run C2-E3, below). The
+experiment is evidence of what lies past each defect, not a pass: the engine
+the route is committed against does not carry either patch.
+
+Three more port defects were met and are not blockers here:
+[H19](#h19-story-flags-and-scene-tile-writes-do-not-reach-the-live-maps-collision)
+(the live map does not learn a story flag; the route leaves and re-enters),
+[H20](#h20-the-vehicle-is-not-parked-at-a-map-load-and-boarding-is-missing) (the
+Land Rover) and [H21](#h21-evil-eye-ability-76-in-the-ladea-tower-58) (an
+unsupported enemy ability in the tower, issue #58). The run is a traversal
+proof, not a balance proof (see "Not claimed").
+
+H16 (Juza's ZAN and FORCEFLASH) is resolved: lane a1-damage implemented them
+and the route fights Juza. H15 still lists FUSION and DEBAN open; C2's walks
+ran from every encounter on the way, as C1 did. The Aiedo inn defect
+[#39](https://github.com/TusanHomichi/PSIV/issues/39) does not block the story:
+[H13](#h13-the-aiedo-inn-returns-aiedoeventpending-39).
 
 The one port defect the first runner lane found,
 [H1](#h1-the-mile-sand-worm-trigger-halts-every-visit-to-mile), is fixed
@@ -109,6 +127,62 @@ C1-5 per new chapter (frames, battles, party at the chapter's end):
 Not exercised by these chapters: scenes 27 (blocked by H13) and 31 to 39, which
 all lie past Juza. Scenes 28 and 29 (Chaz's house) are exercised and assert
 their temp flag `$18`.
+
+## C2 runs: Juza to Zio
+
+Base revision: `0c6ae8b` (main after PR #63, which carries lane a1-damage's
+ZAN, FORCEFLASH, FIREBREATH and CORRSION), lane C2 runner code on top. Release
+builds. The branch is `worktree-agent-a27a7d1adcde1d92a`. Evidence is under the
+git-ignored `build/c1/` of the lane's worktree (`evidence/` holds the halt
+reports); the commands regenerate it.
+
+"Experimental engine" below means `rust/psiv-core` with the patches of
+[H17](#h17-cutscene_alyswounded-and-cutscene_psycowand-read-the-wrong-dialogue-tree)
+(four lines) and, where said, a stub scene for `$30`
+([H18](#h18-event_ziofortbarrier-30-is-not-transcribed)). They exist to see what
+lies behind a defect; they are not committed and no route step depends on them
+except where stated.
+
+| Run | Command (`--save-dir build/c1/run-N --tape build/c1/run-N/run.tape`) | Result |
+| --- | --- | --- |
+| C2-0 | `psiv-campaign run rust/psiv-campaign/routes/main.json` (the route as C1 left it, run-1) | **completed**, exit 0, 457,356 frames, digest `96d2835a8633def8`: identical to C1-5 |
+| C2-1 | a chapter `zio-fort-juza` (`talk npc 0` at Juza, `fight_scripted`), `--from-chapter zio-fort-juza` | halted at the talk: `lost_battle`. Event battle 3 killed a level 12 to 13 party in four rounds with the default policy (everyone attacks); after the third round every member was under half HP |
+| C2-2 | the same after a shopping chapter at Aiedo's weapon shop (Crimson sword, knife, two Saber claws, three mails, a helm: 21,500 of 21,832 meseta) | still `lost_battle`: the party's damage is an estimated 330 a round against his 1,523 HP, and his group techniques take about 50 from everyone a round |
+| C2-3 | the boss policy `fight_to_win` (strongest estimated action per member, a cure that covers the damage) on the same fight | won Juza at level 12 with Alys down and Gryz as low as 4 of 121 HP: no margin, and a `--from-chapter` run of the same fight (a different draw) lost; the training target was raised (below) |
+| C2-4 | `--from-chapter zio-fort-demi` | the Demi rescue and event battle 4 passed; `Cutscene_AlysWounded` faulted: [H17](#h17-cutscene_alyswounded-and-cutscene_psycowand-read-the-wrong-dialogue-tree) |
+| C2-5 | experimental engine (H17 patch), `--from-chapter motavia-machine-center` and on | the Machine Center appears ($43), the Land Rover is won; `go_to_map 183` stuck on the door: [H19](#h19-story-flags-and-scene-tile-writes-do-not-reach-the-live-maps-collision) |
+| C2-6 | `plan --from-map 0 --from-cell 109,153 --to-map 142` | no plan on foot (64 positions): the tower lies across the sand; `--vehicle 1` plans it (126 steps to the tower's door). The runner learned to drive: [Mounted walks](CAMPAIGN_RUNNER.md#the-runner) |
+| C2-7 | `ladea-tower-psycho-wand` with the default policy, level 12 to 13 party plus Rune at level 18 | `lost_battle` to Gy-Laguiah (event battle 5): a member falls about every round |
+| C2-8 | a `krup-training` patrol (foot ground south of Krup, the Krup inn as refuge) before the Machine Center, a cure that casts enough, and the boss policy | training levels 18, 19 and 20 pass the tower and Gy-Laguiah; levels 16, 17 and 21 halt on EVIL EYE in the tower ([H21](#h21-evil-eye-ability-76-in-the-ladea-tower-58)) before reaching him. Target 19 kept |
+| C2-F1 | `psiv-campaign run rust/psiv-campaign/routes/main.json --save-dir build/c1/run-5 --tape build/c1/run-5/run.tape --report build/c1/run-5/report.json` (the committed engine) | **halted**, exit 2, chapter `zio-fort-demi` objective 2: `scene_fault: dialogue fault: scene resume has no saved cursor`. 1,023,474 frames, digest `49f5c47df7971428`, tape sha256 `83f96cf4287581717d22fc8272cb65248e1d4d2493e91b0b32fa6a0ccc3d75b6`; `build/c1/evidence/h17-halt-report.json` ([H17](#h17-cutscene_alyswounded-and-cutscene_psycowand-read-the-wrong-dialogue-tree)) |
+| C2-F2 | the same with `run-6` | identical frames, digest and tape sha256. `psiv-campaign replay build/c1/run-6/run.tape` replays 1,023,474 frames and reproduces the digest |
+| C2-E1 | experimental engine (H17 patch), the same command with `run-7`, `--report build/c1/evidence/h18-halt-report.json` | **halted**, chapter `zio-fort-barrier` objective 2 (`talk`): `scene_fault: dialogue event 0x30 has no transcribed scene`. 1,723,422 frames, digest `dd1a7757ab42acf6`, tape sha256 `3c3c8df72b58732a655be40fd15a4495459e93b1f553d3a76766c84507b1bcdd` ([H18](#h18-event_ziofortbarrier-30-is-not-transcribed)) |
+| C2-E2 | the same with `run-8` | identical |
+| C2-E3 | experimental engine (H17 patch and a stub for `$30` that runs dialogue `$44` and sets `$64`), `run-3` | completes, exit 0, 1,723,576 frames, digest `e77a7b9cf1f5fa37`, tape sha256 `e566844935aba65f75a0f6084f6d6e338636617dab336b40744c8073012b3c3a` |
+| C2-E4 | the same with `run-4` | identical frames, digest and tape sha256; `psiv-campaign replay build/c1/run-4/run.tape` reproduces the digest |
+
+Per new chapter on the experimental engine (C2-E3; frames, battles, party at the
+chapter's end):
+
+| Chapter | Frames | Battles | Party at the end |
+| --- | --- | --- | --- |
+| aiedo-training (level 17) | 832,603 | 615 | Gryz L18 160/160, Alys L17 129/129, Chaz L18 123/123, Hahn L17 100/100, Rika L19 143/143 |
+| aiedo-shopping | 1,116 | 0 | the same; purse 332 meseta |
+| passage-to-zio-fort | 2,888 | 4 | the same, all full |
+| zio-fort-approach | 2,904 | 6 | the same, all full |
+| zio-fort-juza | 3,134 | 2 | Gryz L19 146/168, Alys L17 120/129, Chaz L18 118/123, Hahn L17 76/100, Rika L19 135/143 |
+| zio-fort-demi | 18,422 | 3 | Gryz L19 168/168, Chaz L18 123/123, Rika L19 143/143, Demi L12 96/96 (Krup Inn F1 `$3F` (33,35)) |
+| krup-training (level 19) | 661,909 | 803 | Gryz L23 195/195, Chaz L22 146/146, Rika L24 164/164, Demi L19 144/144 |
+| motavia-machine-center | 1,313 | 2 | the same |
+| machine-center-control-key | 4,949 | 1 | the same; Motavia (114,177), Vehicle 1 |
+| ladea-tower-rune | 5,452 | 6 | + Rune L23 115/115 |
+| ladea-tower-psycho-wand | 14,415 | 3 | Gryz L23 195/195, Chaz L23 150/150, Rika L24 164/164, Demi L19 144/144, Rune L23 115/115; Krup `$39` (20,15), PSYCO-WAND in the pack |
+| zio-fort-barrier (stub) | 4,498 | 6 | the same; Zio Fort `$82` (47,56), `$64` set |
+
+Draws matter. Training at levels 16, 17 and 21 halts in the tower on
+EVIL EYE, and the Gy-Laguiah fight is close at level 16: the passes above are
+those of the route as committed, and a change upstream shifts the draws (the
+same as H15's note).
 
 ## Halts and their diagnoses
 
@@ -313,10 +387,17 @@ a fault at `rust/psiv-runtime/src/session/battle/mod.rs:386-391`).
   ledger counts 54 formations (+3 boss) across the Zio Fort, Ladea Tower, Island
   Cave and later maps, so every dungeon on this arc meets it.
 
+**C2 update.** FIREBREATH (83 Ripper and its siblings) is implemented, so the
+fort's and the tower's FIREBREATH encounters are fought. FUSION and DEBAN are
+still open: the passageway and fort walks run from every encounter, and C2's
+final runs never rolled them. C2 met EVIL EYE (ability 76) in the Ladea Tower:
+[H21](#h21-evil-eye-ability-76-in-the-ladea-tower-58).
+
 ### H16: Juza's battle rolls ZAN and FORCEFLASH, which the engine does not run
 
-**Open port defect on the critical path, no legitimate alternative: the route
-stops here.**
+**Resolved by lane a1-damage (ZAN, FORCEFLASH, FIREBREATH and CORRSION are run
+and oracle-verified); the route fights Juza from lane C2 on. The diagnosis
+below is kept as it was written.**
 
 - **Halt:** C1-7, chapter `zio-fort-juza` (scratch), objective 0 (`talk npc 0`
   at Juza, `$87` (32,19)): the dialogue fires event `$40`, event battle 3
@@ -351,6 +432,176 @@ stops here.**
   at Aiedo's weapon shop (`$5B`) and supermarket is a legitimate step before
   the fight, and Chaz's house is the rest.
 
+### H17: Cutscene_AlysWounded and Cutscene_PsycoWand read the wrong dialogue tree
+
+**Open port defect on the critical path. It is the route's first halt:** run
+C2-F1, chapter `zio-fort-demi` objective 2 (`go_to` Zio Fort F4), frame
+1,023,474. The Demi rescue (`$8008`) and event battle 4 pass, trigger `$1D`
+starts `Cutscene_AlysWounded` (`$8009`) as the next frame's scene, and it faults
+(`build/c1/evidence/h17-halt-report.json`).
+
+- **Halt:** `scene_fault: dialogue fault: scene resume has no saved cursor`,
+  after the trace line `tree 5 entry 44 is empty; nothing to show`.
+- **Cause (port):** in the Saya branch the scene loads Krup Inn F1 (`$3F`),
+  whose map binds dialogue tree 5 (`MapRecord::dialogue_tree`, 1-based; pack
+  `trees.json` index 4), then runs dialogue `$2C`
+  (`rust/psiv-core/src/scenes/post_rika_cutscenes.rs:130`). Entries 44 to 46 of
+  that tree are empty (`trees.json`, tree 5; its NPC lines are entries 41 to 43),
+  so the window never opens, nothing is suspended, and the following
+  `RunDialogueResume` has no cursor. The scene text lives in tree 6
+  (`DialogueTree6`, pack `label: DialogueTree6`, `rom_offset 0x1E32A0`: entries
+  44 to 46 are "Hahn! You've come home!", "Alys...I have no idea what these
+  symptoms are...", "Chaz! Alys's condition has suddenly taken a turn for the
+  worse!"). The same omission is in `$2D` (`:165`) and, in
+  `Cutscene_PsycoWand`, in `$2E` (`:237`).
+- **Cartridge:** `Cutscene_AlysWounded` runs `move.l #DialogueTree6, d0 /
+  jsr DialogueTreesToRAM` before dialogue `$2C` (`ps4.asm:154305-154307`) and
+  before `$2D` (`:154465`); `Cutscene_PsycoWand` before `$2E` (`:154633`) and
+  before its late `popdlg` resume (`:154938`). All four sit under `if
+  revision>0`, and this project builds `revision = 1` (English,
+  `reference/ps4disasm/ps4.options.asm:4`), so they run. The scene docs record
+  the end-of-scene `SetDialogueTree` of tree 5 only (`docs/scenes/32_AlysWounded.md`
+  op 52 to 54, `37_PsycoWand.md` op 104 to 106).
+- **Why no alternative:** trigger `$1D` fires on Zio F4 as soon as Zio `$42` is
+  set and Demi Joined `$47` is clear; the rescue itself is the only way to set
+  `$42`, and the rescue's scene hands the party straight to it.
+- **Smallest change:** `const TREE_6: u32 = 0x001E_32A0;` and
+  `SceneOp::SetDialogueTree { rom_addr: TREE_6 }` immediately before the
+  `RunDialogue` ops for `$2C`, `$2D` and `$2E` in `post_rika_cutscenes.rs`,
+  with the arc test asserting the Saya branch's dialogue opens.
+- **Verified by experiment:** exactly those four added lines make
+  `zio-fort-demi`, the Machine Center chapters, the tower and
+  `ladea-tower-psycho-wand` pass in the route (runs C2-E1 to C2-E4); the scene
+  ends in Krup `$3F` at (33,35) with `[Gryz, Chaz, Rika, Demi]` (Hahn and Alys
+  removed from the party the route reordered earlier: the doc's
+  `[Chaz, Gryz, Rika, Demi]` starts from the native order).
+
+### H18: Event_ZioFortBarrier ($30) is not transcribed
+
+**Open port defect on the critical path, no legitimate alternative: the route
+stops at the barrier.** Seen on the experimental engine only (H17 patched): run
+C2-E1, chapter `zio-fort-barrier` objective 2, frame 1,723,422
+(`build/c1/evidence/h18-halt-report.json`).
+
+- **Halt:** the party stands at Zio Fort `$82` (47,57) and talks to the
+  InvisibleBlock object 9 at (47,55): `dialogue tree 13 entry 73 fires event
+  0x30`, then `scene_fault: dialogue event 0x30 has no transcribed scene`.
+- **Cause (port):** `docs/scenes/README.md:454` and
+  `docs/scenes/12_ArcTriggerCensus.md:263` list `Event_ZioFortBarrier` (`$30`) as
+  "direct, not transcribed"; no scene is registered for `EventIndex(0x30)`
+  (`rust/psiv-core/src/scenes/mod.rs`).
+- **Cartridge:** `Event_ZioFortBarrier`, `ps4.asm:148155-148251`: it tests After
+  Alys Death `$63` (set after the Psycho Wand scene), runs dialogue `$44`, walks
+  the party into a ring (Chaz, Rune, Gryz, Rika and Demi each to a pixel target,
+  the leader to ($2F0,$350), standing cell (47,54)), runs dialogue `$45`, and ends
+  with `EventFlags_Set` of `EventFlag_ZioFortBarrier` `$64` (`ps4.asm:148251`,
+  `ps4.constants.asm:1551`: "Set after breaking the invisible barrier blocking
+  the way to Nurvus"). The Zio Fort map's effect entry `$42` despawns objects 4
+  to 9 (BarrierBeam1 to 4 and the InvisibleBlocks, the four `dialogue 73`
+  blockers at (46..49,55)) when `$64` is set, which opens the central courtyard
+  whose warp 8 at (47,49) leads to Nurvus `$D7` (`ZioFort warp 8`; no other map
+  warps to Nurvus).
+- **Why no alternative:** `$64` is written only by this event, the courtyard is
+  walled on every other side (`flood`: 922 reachable cells, none inside), and
+  Nurvus is reached only through it.
+- **Smallest change:** transcribe `$06EC62..$06EE3F` as a scene (dialogues `$44`
+  and `$45`, the five party moves, the final `SetFlag($64)`), register it as
+  `EventPtrs[$30]`, and let the despawn take effect on the live map (H19).
+- **Forecast, not evidence:** with a two-op stub (dialogue `$44`, `$64`) the
+  barrier opens and the route reaches Nurvus (run C2-E3). Nurvus is not authored:
+  the planner chain is Zio Fort `$82` (47,56), Nurvus `$D7`, Part2 `$CC`; Part2
+  warp 2 at (44,19) arrives in the right corridor of Part3 `$CD` (warp 1 leads to
+  a dead-end corridor with chest 0); the Part3 elevator door at (30..31,13) needs
+  `interact` at (30,14) face up; B1 `$CE` arrives at (46,12); its west door
+  (22..23,11) opens from (22,12); B3 `$D0` then splits into elevator-linked
+  regions (doors at (14,11), (14,23), (70,11), (78,11), (78,23), (14,67)) and the
+  stairs down to B4 `$D2` at (76,79) are not in the first region. The scenes
+  ahead are `Event_ZioNurvus` (`$34`, trigger Nurvus B4 Part2 `$D3`, standing row
+  31) and event battle 6: the arc test uses the Psycho Wand in the battle's first
+  round (`rust/psiv-runtime/src/suites/next_arc.rs`, `use_psycho_wand`, enemy
+  140), which the policy would have to do (an opening item), and the
+  ledger lists BLACK WAVE (ability 84) as unsupported with no formation.
+
+### H19: story flags and scene tile writes do not reach the live map's collision
+
+**Port defect with a legitimate alternative; routed around (leave the map and
+come back).** Two instances.
+
+- **Juza's stairs.** After event battle 3 and `Event_JuzaDefeated` (`$41`) the
+  stairs at (24..25,18..19) are open on a map built with `$41` and `$48` set, and
+  shut on the live map the party stands in. Without the workaround
+  `zio-fort-demi` objective 0 (`go_to_map 138`) halts `stuck`: the party stands in
+  the stairs' warp rectangle `CellRect { x: 24, y: 18, width: 2, height: 2 }` and
+  steps from one map-change cell to the next do not fire it
+  (`build/c1/evidence/h19-juza-report.json`, a full run with the `go_to_map 136`
+  and `go_to_map 135` objectives removed, frame 1,012,340).
+- **The Machine Center's door.** After `Event_MachineCenterAppearing` (`$43`)
+  the door cells (114..115,180..181) read collision 0 on the live overworld
+  (`surroundings` of `build/c1/evidence/h19-machine-report.json`, the chapter
+  without the Krup detour, `--from-chapter motavia-machine-center`, stuck at
+  (115,180) with warp 21 listed). Draw-dependent: a random battle on the way
+  rebuilds the map (`MapRefreshed`) and the door works, which is why only some
+  draws showed it.
+- **Cause (port):** the map's effects (flag-gated layout and collision writes)
+  are evaluated when a map loads (`rust/psiv-runtime/src/map_change.rs:70`) and
+  after a battle (`refresh_field_after_battle`, `:30`), not when a scene sets a
+  flag. A scene can write chunks live (`SceneEffect::MapChunksWritten`,
+  `rust/psiv-runtime/src/scene_runtime.rs:292`), but `Event_JuzaDefeated` records
+  its four tile groups as "presentation-owned" (`docs/scenes/50_JuzaDefeated.md`
+  ops 1 to 4) and `Event_MachineCenterAppearing` writes none (`34_...md`).
+- **Cartridge:** the retail field reads its collision from the layout it just
+  rewrote, so the stairs and the door are usable the moment the event ends
+  (`ps4.asm:149162` onward for Juza; the building rises in
+  `Event_MachineCenterAppearing`, `:115178` trigger, `$06B4B2..$06B6F3`).
+- **Smallest change:** write the scene's tile groups as chunk writes, or
+  re-evaluate the current map's effects when a scene ends after setting a flag
+  (`refresh_field_after_battle`'s body without the battle).
+- **Disposition:** `zio-fort-juza` leaves by the east door and re-enters
+  (`go_to_map 136`, `go_to_map 135`); `motavia-machine-center` walks into Krup and
+  out again. Both are things a player can do; when H19 is fixed they are
+  redundant and harmless.
+
+### H20: the vehicle is not parked at a map load, and boarding is missing
+
+**Port defect, not blocking this route.** Found routing the Land Rover.
+
+- **Halt (evidence run):** `use_item LAND-ROVER` on Motavia at Krup's gate:
+  `camp item: LAND-ROVER NOT USABLE` (`build/c1/evidence/h20-land-rover-item-report.json`,
+  a scratch chapter appended to the route).
+- **Cartridge:** `GameMode_LoadFieldMap` does `clr.w (Vehicle_Index).w` unless
+  `Map_Load_Flags` bit 0 or 2 is set (`ps4.asm:107517`; `RefreshMap` at
+  `:121777` the same), so every ordinary warp leaves the party on foot with the
+  machine parked. `ItemAction_LandRover` (`:123419-123431`) boards again from the
+  ITEM menu, on Motavia, Dezolis or Rykros only and only when
+  `Vehicle_Boarding_Flags` bit 0 is set (`VehicleBoardingFlags`,
+  `ps4.asm:117131`), by writing Event `$09`; `Event_BoardingLandRover`
+  (`:144950-145008`) builds the vehicle object and writes `Vehicle_Index`.
+  `docs/field/VEHICLES.md` "Mount and dismount" records both.
+- **Port:** `change_map_from` keeps `self.vehicle` across the load
+  (`rust/psiv-runtime/src/map_change.rs:90-99`), so a mounted party walks into the
+  Ladea Tower and must press Action to get off (the route has a `dismount`
+  objective for it); and no scene is registered for events `$09`, `$0A`, `$0B`,
+  and `camp.rs` has no item action table, so the Land Rover item cannot be used.
+  Dismounting is therefore one way: the party in the route cannot take the
+  machine across the sand again once it has left it.
+- **Smallest change:** clear the vehicle in `change_map_from` unless the loading
+  scene asked to keep it, transcribe events `$09` to `$0B`, and answer the three
+  vehicle items from the camp.
+- **Disposition:** not needed from Krup to the Zio Fort (the foot planner finds
+  a seven-warp chain, 431 steps, from Krup's gate), so no route step depends on
+  it. Whether the Land Rover is needed later in the arc is not claimed.
+
+### H21: EVIL EYE (ability 76) in the Ladea Tower (#58)
+
+**Open port defect (lane a2-status's scope), issue #58.** The tower's F1 to F3
+encounters include a carrier of EVIL EYE (`abilities.json` enemy skill 76:
+effect 7, psychic, power 64, `EvilEye`). When a RUN fails, or the policy fights,
+the engine faults `unsupported ability 76 for fighter 6` (or 7) at
+`rust/psiv-core/src/battle/engine.rs` (the same emission as H15). Seen at the
+training targets 16, 17 and 21 of the C2 experiment (`ladea-tower-rune` objective
+4, `go_to_map 143`), not at 18 to 20 or in the final route, whose passes depend on
+draws. Per the lane brief it is recorded and not routed around.
+
 ## `verify` items resolved by playing
 
 R0 left 12 objectives marked `"verify": true`. All are resolved and the flags
@@ -371,6 +622,18 @@ dropped; the run that settled each is in the route's `note`.
 
 ## Not claimed
 
+- **C2's balance.** Everything the route fights from Juza on is won by a party
+  trained to level 17 before the fort and level 19 on Krup's ground, with the
+  boss policy; none of it is evidence that the cartridge's intended party wins
+  at those levels. Gy-Laguiah is a close fight (level 16 loses; 18 to 20 win in
+  the sampled draws). Juza is won with margin at level 17 (`zio-fort-juza`:
+  Hahn on 76 of 100 HP at the end).
+- **The boss policy's estimate.** It reads the live fighters' stats and the
+  cartridge's formula at its mean roll. A player reads the same ranking from the
+  damage numbers; the policy skips the experiment. Skills other than Crosscut
+  and Vortex are not chosen because the engine does not run them.
+- **Past the barrier.** Nurvus, the Zio fights and `Cutscene_ZioDefeated` are not
+  authored; see the forecast in [H18](#h18-event_ziofortbarrier-30-is-not-transcribed).
 - **Balance.** Members fall in `bioplant-rika` (ten command windows open with a
   member down; Gryz, Alys and Hahn stand at 0 HP when the Rika scene ends); the
   inn restores them (`north-bank` rests at Zema before the crossing). The policy

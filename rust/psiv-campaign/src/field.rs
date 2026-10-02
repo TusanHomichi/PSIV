@@ -110,7 +110,7 @@ impl Driver {
             let busy = {
                 let runtime = self.runtime();
                 runtime.scene_active()
-                    || runtime.state().is_stepping()
+                    || crate::driver::is_stepping(runtime)
                     || runtime.loot_state().is_some()
             };
             if busy {

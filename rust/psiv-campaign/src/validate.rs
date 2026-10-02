@@ -24,6 +24,7 @@ use std::fmt;
 use psiv_core::{Cell, Flag};
 use psiv_data::{BattleFiles, GameData};
 
+use crate::cell_plan::Mover;
 use crate::map_plan::{MapGraph, Plan, PlanError, Position, Target};
 use crate::route::{Chapter, Expectation, NameOrId, Objective, Route};
 
@@ -99,6 +100,8 @@ struct Run<'a> {
     flags: BTreeSet<Flag>,
     /// Cells an `interact` opened, by map; dropped when the party leaves.
     opened: BTreeMap<u16, Vec<Cell>>,
+    /// How the party moves, as the route's `vehicle` assertions claim it.
+    mover: Mover,
 }
 
 impl<'a> Run<'a> {
@@ -111,6 +114,7 @@ impl<'a> Run<'a> {
             pos: None,
             flags: BTreeSet::new(),
             opened: BTreeMap::new(),
+            mover: Mover::Foot,
         }
     }
 
@@ -190,7 +194,9 @@ impl<'a> Run<'a> {
 
     fn graph(&self) -> Result<MapGraph<'a>, String> {
         let flags: Vec<Flag> = self.flags.iter().copied().collect();
-        let mut graph = MapGraph::new(self.data, &flags).map_err(|e| e.to_string())?;
+        let mut graph = MapGraph::new(self.data, &flags)
+            .map_err(|e| e.to_string())?
+            .with_mover(self.mover);
         for (map, cells) in &self.opened {
             graph.open_cells(*map, cells.clone());
         }
@@ -256,6 +262,13 @@ impl<'a> Run<'a> {
                 }
             }
             Objective::Answer { .. } | Objective::RestInn { .. } | Objective::FightScripted => {
+                Ok(())
+            }
+            Objective::Dismount => {
+                if self.mover == Mover::Foot {
+                    return Err("dismount, and the route has the party on foot".into());
+                }
+                self.mover = Mover::Foot;
                 Ok(())
             }
             Objective::Interact { cell, opens, .. } => {
@@ -465,6 +478,16 @@ impl<'a> Run<'a> {
                     return Err(format!("party lists {who} twice"));
                 }
             }
+        }
+        if let Some(vehicle) = expect.vehicle {
+            if vehicle > psiv_core::VEHICLE_INDEX_MAX {
+                return Err(format!("vehicle {vehicle} is not 0 (on foot) or 1..=3"));
+            }
+            self.mover = if vehicle == 0 {
+                Mover::Foot
+            } else {
+                Mover::Vehicle(vehicle)
+            };
         }
         for flag in &expect.flags_set {
             self.flags.insert(flag.0);

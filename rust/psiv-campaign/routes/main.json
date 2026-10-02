@@ -391,7 +391,7 @@
       "random_battle_policy": "train_with_inn",
       "objectives": [
         {"do": "go_to_map", "map": 0, "via_warp": 3, "note": "Aiedo's south exit, arrival Motavia (36,61)"},
-        {"do": "patrol", "map": 0, "a": [40, 56], "b": [50, 56], "until": {"party_level_at_least": 12}, "refuge": [
+        {"do": "patrol", "map": 0, "a": [40, 56], "b": [50, 56], "until": {"party_level_at_least": 17}, "refuge": [
           {"do": "go_to_map", "map": 84, "note": "Aiedo's gate is the nearest warp on this map"},
           {"do": "go_to_map", "map": 94, "via_warp": 10},
           {"do": "answer", "yes": true, "note": "Chaz's house rest is free (28_ChazHouse.md)"},
@@ -402,6 +402,35 @@
         {"do": "go_to_map", "map": 94, "via_warp": 10},
         {"do": "answer", "yes": true, "note": "Chaz's house rest: the party leaves Aiedo whole"},
         {"do": "go_to_map", "map": 84, "via_warp": 0},
+        {"do": "save", "slot": 0}
+      ],
+      "closing": [
+        {"map": 84}
+      ]
+    },
+    {
+      "id": "aiedo-shopping",
+      "title": "Aiedo weapon shop: Crimson gear for Juza",
+      "source": "runtime-pack/shops.json (inventories 13 and 14, AiedoWeaponShop $5B); runtime-pack/battle/equipment.json (equippable_by); docs/campaign/RUNNER_LOG.md C1 findings (the party arrives with 21,832 meseta, Hahn has no weapon) and run C2-1 (Juza wipes a level 12 party in four rounds)",
+      "random_battle_policy": "default",
+      "objectives": [
+        {"do": "go_to_map", "map": 91, "note": "Aiedo weapon shop $5B"},
+        {"do": "go_to", "map": 91, "cell": [24, 34], "note": "below the weapon keeper (24,32), counter row 33"},
+        {"do": "buy", "item": "CRMC-SWORD", "count": 1, "face": "up", "note": "3600; Chaz"},
+        {"do": "buy", "item": "SABER-CLAW", "count": 2, "face": "up", "note": "1700 each; Rika"},
+        {"do": "buy", "item": "CRMC-KNIFE", "count": 1, "face": "up", "note": "1600; Hahn holds no weapon"},
+        {"do": "go_to", "map": 91, "cell": [39, 34], "note": "below the armour keeper (39,32)"},
+        {"do": "buy", "item": "CRMC-MAIL", "count": 3, "face": "up", "note": "3700 each; Chaz, Alys, Rika"},
+        {"do": "buy", "item": "CRMC-HELM", "count": 1, "face": "up", "note": "1800; Chaz"},
+        {"do": "equip", "member": "Chaz", "item": "CRMC-SWORD"},
+        {"do": "equip", "member": "Chaz", "item": "CRMC-MAIL"},
+        {"do": "equip", "member": "Chaz", "item": "CRMC-HELM"},
+        {"do": "equip", "member": "Rika", "item": "SABER-CLAW", "note": "right hand"},
+        {"do": "equip", "member": "Rika", "item": "SABER-CLAW", "note": "left hand"},
+        {"do": "equip", "member": "Rika", "item": "CRMC-MAIL"},
+        {"do": "equip", "member": "Alys", "item": "CRMC-MAIL"},
+        {"do": "equip", "member": "Hahn", "item": "CRMC-KNIFE"},
+        {"do": "go_to_map", "map": 84, "note": "out of the shop"},
         {"do": "save", "slot": 0}
       ],
       "closing": [
@@ -430,12 +459,155 @@
         {"do": "go_to_map", "map": 137, "note": "ZioFort_F2East; the planner's chain through ZioFort_Part2 and F1"},
         {"do": "go_to_map", "map": 136, "note": "the east tunnel; entering the Juza room from its west door lands in a box with no way to the stairs"},
         {"do": "go_to_map", "map": 135, "note": "arrive at the room's east door (47,31)"},
-        {"do": "go_to", "map": 135, "cell": [32, 21], "note": "below Juza (object 0 at (32,19)); the next objective is the talk that starts the Juza battle, which halts on an unsupported ability (RUNNER_LOG.md H16)"},
+        {"do": "go_to", "map": 135, "cell": [32, 21], "note": "below Juza (object 0 at (32,19)); the next chapter, zio-fort-juza, talks to him"},
         {"do": "expect", "map": 135, "cell": [32, 21], "flags_clear": ["event:0x41", "event:0x42"]},
         {"do": "save", "slot": 0}
       ],
       "closing": [
         {"map": 135, "cell": [32, 21], "flags_clear": ["event:0x41", "event:0x42"]}
+      ]
+    },
+    {
+      "id": "zio-fort-juza",
+      "title": "Zio Fort: Juza's battle",
+      "source": "docs/scenes/49_Juza.md and 50_JuzaDefeated.md (event $40: dialogue $48, set $41, event battle 3; trigger $2F sets $48 and opens the stairs); docs/campaign/RUNNER_LOG.md H16 (ZAN and FORCEFLASH, implemented by lane a1-damage)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "talk", "npc": 0, "note": "Juza at (32,19); event $40 runs the fade, dialogue $48, sets $41 and starts event battle 3"},
+        {"do": "fight_scripted", "note": "event battle 3: one JUZA, 1,523 HP"},
+        {"do": "expect", "map": 135, "flags_set": ["event:0x41", "event:0x48"], "note": "49_Juza.md op 2; 50_JuzaDefeated.md op 5 (trigger $2F fires after the battle)"},
+        {"do": "go_to_map", "map": 136, "note": "out by the east door: the stairs' four cells stay shut on the live map until it is built again (RUNNER_LOG.md H19)"},
+        {"do": "go_to_map", "map": 135, "note": "and back in: the map is built with $41 and $48 set, so the stairs at (24..25,18..19) are open"},
+        {"do": "save", "slot": 0}
+      ],
+      "closing": [
+        {"map": 135, "flags_set": ["event:0x41", "event:0x48"]}
+      ]
+    },
+    {
+      "id": "zio-fort-demi",
+      "title": "Zio Fort F3 and F4: the Demi rescue and Zio's first battle",
+      "source": "docs/scenes/31_DemiRescue.md (Zio Fort F4 $8B, RunEvent_SavingDemi $1C, leader Y exactly $170 = standing cell row 24, Zio $42 clear; sets $42, event battle 4) and 32_AlysWounded.md (RunEvent_AlysWounded $1D, Zio $42 set, Demi Joined $47 clear; sets $47); docs/scenes/12_ArcTriggerCensus.md",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 138, "note": "ZioFort_F3, by the stairs Juza's defeat opened"},
+        {"do": "go_to_map", "map": 139, "note": "ZioFort_F4"},
+        {"do": "go_to", "map": 139, "cell": [32, 23], "note": "the Demi rescue fires when the leader's Y is $170, which is standing cell row 24 (a standing cell is curr_y_pos/16 + 1, rust/psiv-core/src/trigger.rs PixelPos::from_cell); the walk to row 23 crosses it"},
+        {"do": "expect", "map": 63, "cell": [33, 35], "flags_set": ["event:0x42", "event:0x47"], "party": ["Gryz", "Chaz", "Rika", "Demi"], "note": "31_DemiRescue.md op 21 ($42); 32_AlysWounded.md ops 26-32 and 52 (Hahn and Alys leave, Demi seated, $47 set), the party is back in Krup Inn F1 $3F"},
+        {"do": "save", "slot": 0}
+      ],
+      "closing": [
+        {"map": 63, "cell": [33, 35], "flags_set": ["event:0x42", "event:0x47"], "party": ["Gryz", "Chaz", "Rika", "Demi"]}
+      ]
+    },
+    {
+      "id": "krup-training",
+      "title": "Motavia outside Krup: training before the Machine Center and the tower",
+      "source": "docs/campaign/RUNNER_LOG.md run C2 (H19): Gy Laguiah (event battle 5, Ladea Tower F5) kills a level 12 to 13 party in five rounds; runtime-pack/shops.json (KrupInn counter (23,34) on map 62, 5 meseta a head)",
+      "random_battle_policy": "default",
+      "objectives": [
+        {"do": "go_to_map", "map": 0, "note": "out of Krup by its gate"},
+        {"do": "patrol", "map": 0, "a": [109, 154], "b": [109, 165], "until": {"party_level_at_least": 19}, "refuge": [
+          {"do": "go_to_map", "map": 57},
+          {"do": "go_to_map", "map": 62},
+          {"do": "go_to", "map": 62, "cell": [23, 36]},
+          {"do": "rest_inn", "face": "up", "note": "Krup inn, 5 meseta a head (shops.json inn 3)"},
+          {"do": "go_to_map", "map": 57},
+          {"do": "go_to_map", "map": 0}
+        ], "note": "the foot-reachable ground south of Krup; the party trains on it and rests at the Krup inn when a member falls or the healers run dry"},
+        {"do": "go_to_map", "map": 57, "note": "back to Krup, wherever the last fight left the party"},
+        {"do": "go_to_map", "map": 62},
+        {"do": "go_to", "map": 62, "cell": [23, 36]},
+        {"do": "rest_inn", "face": "up", "note": "leave whole"},
+        {"do": "go_to_map", "map": 57},
+        {"do": "save", "slot": 0}
+      ],
+      "closing": [
+        {"map": 57}
+      ]
+    },
+    {
+      "id": "motavia-machine-center",
+      "title": "Motavia: the Machine Center rises",
+      "source": "docs/scenes/34_MachineCenterAppearing.md (Motavia $00, RunEvent_MachineCenter $06: Zio $42 set, Machine Center $43 clear, leader Y exactly $AD0 = standing cell row 174, X $710..$750 = cells 113..117; sets $43); psiv-campaign plan --from-map 63 --from-cell 33,35 --to-map 0 --to-cell 115,174 --flag event:0x42 --flag event:0x47",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to", "map": 0, "cell": [115, 174], "note": "the grave opens when the leader's Y is $AD0 (standing cell row 174) inside x $710..$750"},
+        {"do": "expect", "flags_set": ["event:0x43"], "note": "34_MachineCenterAppearing.md op 11"},
+        {"do": "go_to_map", "map": 57, "note": "into Krup and out again: the live overworld keeps its old collision until it is built again, and the Machine Center's door cells are only open on a map built with $43 set (RUNNER_LOG.md H19)"},
+        {"do": "go_to_map", "map": 0}
+      ],
+      "closing": [
+        {"map": 0, "flags_set": ["event:0x42", "event:0x43", "event:0x47"]}
+      ]
+    },
+    {
+      "id": "machine-center-control-key",
+      "title": "Machine Center: the elevator and the Control Key chest",
+      "source": "docs/scenes/33_GettingLandRover.md (Machine Center B1 Part2 $B9, RunEvent_GettingLandRover $1B: Control Key chest $10A set, Land Rover $44 clear, leader Y >= $1C0); runtime-pack/maps/0B7_MachineCenter.json and 0B8_MachineCenter_B1.json (interaction area type 2 event $13 at (30,17), chest 0 at (24,19)); psiv-campaign plan",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 183, "note": "Machine Center ground floor $B7, from Motavia warp 21"},
+        {"do": "interact", "cell": [30, 18], "face": "up", "opens": [[30, 17], [31, 17]], "note": "the elevator door, event $13 on the type-2 interaction area (30..31,17), as the BioPlant elevators"},
+        {"do": "go_to_map", "map": 184, "via_warp": 1, "note": "ride to Machine Center B1 $B8 by warp 1 (30..31,17)"},
+        {"do": "open_chest", "chest": 0, "note": "the only chest of $B8, at (24,19): the Control Key"},
+        {"do": "expect", "flags_set": ["chest:0x0A"], "note": "33_GettingLandRover.md trigger: Control Key chest $10A set (event flag $10A is chest flag $0A in the chest bank)"},
+        {"do": "go_to_map", "map": 185, "note": "Machine Center B1 Part2 $B9, by warp 1 at (30..31,28)"},
+        {"do": "go_to", "map": 185, "cell": [30, 30], "note": "RunEvent_GettingLandRover fires once the leader's Y is $1C0 or more (standing row 29 and below)"},
+        {"do": "expect", "map": 0, "cell": [114, 177], "vehicle": 1, "flags_set": ["event:0x44"], "note": "33_GettingLandRover.md ops 22-29: Vehicle_Index 1 (the Land Rover), Motavia at (114,177), $44 set"},
+        {"do": "save", "slot": 0}
+      ],
+      "closing": [
+        {"map": 0, "cell": [114, 177], "vehicle": 1, "flags_set": ["event:0x44"]}
+      ]
+    },
+    {
+      "id": "ladea-tower-rune",
+      "title": "Ladea Tower: the Land Rover to the tower, Rune rejoins on F2",
+      "source": "docs/scenes/35_RuneLadaeTower.md (Ladea Tower F2 $8E, RunEvent_RuneLadeaTower $19: Rune-again $62 clear and leader X >= $3C0 = column 60; Rune joins slot 5, sets $62); psiv-campaign plan --vehicle 1 from Motavia (109,153) (the Land Rover crosses the sand a person cannot: on foot the tower is not reachable)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 140, "note": "Ladea Tower $8C by Motavia warp 14, driving the Land Rover across the sand"},
+        {"do": "dismount", "note": "the Land Rover cannot pass the tower's one-cell corridors (psiv_core::can_enter)"},
+        {"do": "expect", "map": 140, "vehicle": 0},
+        {"do": "go_to_map", "map": 142, "note": "Ladea Tower F2 $8E, on foot"},
+        {"do": "go_to_map", "map": 143, "note": "F3; the walk from the stairs crosses column 60, where Rune rejoins"},
+        {"do": "expect", "flags_set": ["event:0x62"], "note": "35_RuneLadaeTower.md op 8"}
+      ],
+      "closing": [
+        {"vehicle": 0, "flags_set": ["event:0x62"]}
+      ]
+    },
+    {
+      "id": "ladea-tower-psycho-wand",
+      "title": "Ladea Tower F5: Gy Laguiah and the Psycho Wand",
+      "source": "docs/scenes/36_PsycoWandChest.md (F5 $91, RunEvent_FindingPsycoWand $2A: Gy Laguiah $69 clear, leader X $1E0..$1F0 = columns 30..31, Y $1B0 = standing row 28; event battle 5; sets $69) and 37_PsycoWand.md (RunEvent_PsycoWandFound $1E: chest $109 set, $67 clear; sets $63 and $67, ends in Krup $39); runtime-pack/maps/091_LadeaTower_F5.json (chest 0 at (30,24))",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 145, "note": "Ladea Tower F5 $91, by F3 and F4"},
+        {"do": "go_to", "map": 145, "cell": [31, 26], "note": "up the corridor to the chest room; crossing row 28 starts event $2F and event battle 5"},
+        {"do": "fight_scripted", "note": "event battle 5: GY-LAGUIAH, 2,580 HP"},
+        {"do": "expect", "map": 145, "cell": [31, 26], "flags_set": ["event:0x69"], "note": "36_PsycoWandChest.md op 18"},
+        {"do": "open_chest", "chest": 0, "note": "the Psycho Wand chest at (30,24): chest flag $09, then RunEvent_PsycoWandFound starts cutscene $800A"},
+        {"do": "expect", "map": 57, "cell": [20, 15], "flags_set": ["event:0x63", "event:0x67"], "note": "37_PsycoWand.md ops 104-106: After Alys Death $63 and $67; Krup $39"}
+      ],
+      "closing": [
+        {"map": 57, "cell": [20, 15], "flags_set": ["event:0x62", "event:0x63", "event:0x67", "event:0x69"]}
+      ]
+    },
+    {
+      "id": "zio-fort-barrier",
+      "title": "Zio Fort: the invisible barrier on the way to Nurvus",
+      "source": "docs/scenes/12_ArcTriggerCensus.md (Event_ZioFortBarrier $30, direct Zio Fort map-data path); reference/ps4disasm/ps4.asm Event_ZioFortBarrier (148155: tests After Alys Death $63 set, runs dialogue $44, sets ZioFortBarrier $64) and ZioFort $82 map effect entry $42 (BarrierBeam1-4 and the InvisibleBlock objects despawn when $64 is set); psiv-campaign plan --from-map 57 --from-cell 20,15 --to-map 130 --flag event:0x35",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 130, "note": "Zio Fort $82 by the passageway and Kadary, on foot (seven warps); the party runs from random encounters"},
+        {"do": "go_to", "map": 130, "cell": [47, 57], "note": "south of the barrier at (46..49,55)"},
+        {"do": "talk", "npc": 9, "note": "the InvisibleBlock at (47,55), dialogue entry 73, which fires event $30"},
+        {"do": "expect", "flags_set": ["event:0x64"], "note": "Event_ZioFortBarrier ends by setting $64 (ps4.asm:148251)"}
+      ],
+      "closing": [
+        {"flags_set": ["event:0x64"]}
       ]
     }
   ]
