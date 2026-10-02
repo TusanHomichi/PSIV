@@ -11,8 +11,7 @@ use crate::{Field, RETAIL_DISMISS_HOLD_FRAMES, event_battle_music, retail_pace_e
 use godot::prelude::*;
 use psiv_core::WarpTrigger;
 use psiv_runtime::{
-    DialogueAction, DialogueSignal, Frame, NpcDialogueOpen, RuntimeEvent, SceneDialogueOpen,
-    Session,
+    DialogueAction, DialogueSignal, Frame, NpcDialogueOpen, Routed, RuntimeEvent, SceneDialogueOpen,
 };
 
 impl Field {
@@ -70,65 +69,6 @@ impl Field {
                 RuntimeEvent::WarpUnmapped { cell } => {
                     godot_error!("type-1 cell with no doorway record at {cell:?}");
                 }
-                RuntimeEvent::Interact {
-                    npc_index,
-                    cell,
-                    reach,
-                } => {
-                    if matches!(reach, psiv_core::InteractReach::AcrossCounter) {
-                        let counter = self.shop.as_ref().and_then(|shop| {
-                            let runtime = self.runtime()?;
-                            let object_cell =
-                                runtime.map().npcs().get(npc_index).map(|npc| npc.cell);
-                            object_cell
-                                .into_iter()
-                                .chain(std::iter::once(cell))
-                                .find_map(|at| {
-                                    shop.bind().counter_at(runtime.map_id().0, at.x, at.y)
-                                })
-                        });
-                        if let Some(counter) = counter {
-                            let opened = match (self.shop.as_mut(), self.session.as_ref()) {
-                                (Some(shop), Some(session)) => {
-                                    shop.bind_mut().open(counter, session.runtime())
-                                }
-                                _ => false,
-                            };
-                            if opened {
-                                self.place_shop_window();
-                                if let Some(runtime) = self.runtime_mut() {
-                                    let facing = runtime.state().facing().opposite();
-                                    runtime.face_npc(npc_index, facing);
-                                }
-                                continue;
-                            }
-                        }
-                        godot_print!("counter reach at {cell:?} has no shop row; dialogue");
-                    }
-                    // The runtime resolves the map's tree and the object's
-                    // dialogue id, opens the window and turns the object to
-                    // face the party (the cartridge's default for a talk).
-                    // The shell's share is the sprite sequence and the
-                    // diagnostic for an object the map never bound.
-                    let opened = self.runtime_mut().map(|rt| rt.open_npc_dialogue(npc_index));
-                    match opened {
-                        Some(NpcDialogueOpen::Opened) => {
-                            let toward = self.runtime().map(|rt| rt.state().facing().opposite());
-                            if let Some(toward) = toward {
-                                let name = sequence_name("idle", toward);
-                                for entry in &mut self.npc_nodes {
-                                    if entry.index == npc_index {
-                                        entry.idle = name.clone();
-                                    }
-                                }
-                            }
-                        }
-                        Some(NpcDialogueOpen::NoBinding) => godot_print!(
-                            "talk: npc {npc_index} at {cell:?} has no dialogue binding"
-                        ),
-                        _ => {}
-                    }
-                }
                 RuntimeEvent::SceneStarted { trigger } => {
                     godot_print!("scene started (trigger {trigger})");
                     self.set_letterbox(true);
@@ -158,80 +98,6 @@ impl Field {
                 }
                 RuntimeEvent::TriggerUnsupported { trigger } => {
                     godot_print!("trigger {trigger} is an unsupported custom check");
-                }
-                RuntimeEvent::SceneDialogue { entry } => {
-                    godot_print!("scene dialogue open: entry {entry:#04x}");
-                    if std::env::var("PSIV_DEBUG_AUTOCLOSE_SCENE").is_ok_and(|value| value == "1")
-                        && !retail_pace_enabled()
-                    {
-                        godot_print!("debug: auto-closing scene dialogue entry {entry}");
-                        if let Some(rt) = self.runtime_mut() {
-                            // The runtime opened the window when the scene
-                            // asked for it; the harness shuts it again
-                            // without presenting anything.
-                            rt.close_dialogue();
-                            rt.dialogue_closed();
-                        }
-                        continue;
-                    }
-                    if retail_pace_enabled() {
-                        if !self.retail_pace_logged {
-                            godot_print!(
-                                "debug: retail-paced scene dialogue enabled (3f/char, dismiss hold {RETAIL_DISMISS_HOLD_FRAMES}f)"
-                            );
-                            self.retail_pace_logged = true;
-                        }
-                        self.retail_dialogue_wait = 0;
-                    }
-                    let panel_layout = self
-                        .presentation
-                        .panel_dialogue_mode(self.runtime().and_then(|rt| rt.scene_event()));
-                    // The runtime resolves the entry against the tree the
-                    // scene selected (`SetDialogueTree`, or the map's own
-                    // binding); a tree the pack does not have is the one case
-                    // that must leave the scene's dialogue barrier pending.
-                    let opened = self
-                        .runtime_mut()
-                        .map(|rt| rt.open_scene_dialogue(entry, panel_layout));
-                    match opened {
-                        Some(SceneDialogueOpen::UnknownTree) => {
-                            godot_error!("scene dialogue tree is absent from the loaded pack");
-                        }
-                        Some(SceneDialogueOpen::Empty) => {
-                            if let Some(rt) = self.runtime_mut() {
-                                rt.dialogue_closed();
-                            }
-                        }
-                        _ => {}
-                    }
-                }
-                RuntimeEvent::SceneDialogueResume => {
-                    godot_print!("scene dialogue resume (t{})", self.anim_tick);
-                    if std::env::var("PSIV_DEBUG_AUTOCLOSE_SCENE").is_ok_and(|value| value == "1")
-                        && !retail_pace_enabled()
-                    {
-                        if let Some(rt) = self.runtime_mut() {
-                            rt.close_dialogue();
-                            rt.dialogue_closed();
-                        }
-                        continue;
-                    }
-                    self.retail_dialogue_wait = 0;
-                    let panel_layout = self
-                        .presentation
-                        .panel_dialogue_mode(self.runtime().and_then(|rt| rt.scene_event()));
-                    let opened = self
-                        .runtime_mut()
-                        .is_some_and(|rt| rt.resume_scene_dialogue(panel_layout));
-                    if !opened && let Some(rt) = self.runtime_mut() {
-                        rt.dialogue_closed();
-                    }
-                }
-                RuntimeEvent::SceneChoiceRequested => {
-                    godot_print!("scene awaits a dialogue choice");
-                    if let Some(rt) = self.runtime_mut() {
-                        rt.open_scene_choice();
-                    }
                 }
                 RuntimeEvent::SceneBattleStarted {
                     index,
@@ -275,10 +141,15 @@ impl Field {
                         }
                     }
                 }
-                RuntimeEvent::InteractNothing { .. } => {
-                    if let Some(rt) = self.runtime_mut() {
-                        rt.open_nothing_here(0);
-                    }
+                // The session opens these windows itself, between the field
+                // node and the window node of the frame, and reports them as
+                // `Frame::routed`. One reaching the shell is a session defect.
+                RuntimeEvent::Interact { .. }
+                | RuntimeEvent::InteractNothing { .. }
+                | RuntimeEvent::SceneDialogue { .. }
+                | RuntimeEvent::SceneDialogueResume
+                | RuntimeEvent::SceneChoiceRequested => {
+                    godot_error!("window-opening event reached the shell: {event:?}");
                 }
             }
         }
@@ -298,9 +169,6 @@ impl Field {
                     if self.runtime().is_some_and(|rt| rt.scene_active()) {
                         godot_print!("scene dialogue closed (t{})", self.anim_tick);
                     }
-                    // F7 and FF both return through loc_69B00, which clears
-                    // the panel rendering byte. Keep the cursor separately.
-                    self.presentation.set_render_sprites(false);
                     if matches!(
                         self.runtime().and_then(|rt| rt.scene_dialogue_window()),
                         Some(
@@ -401,13 +269,76 @@ impl Field {
         }
     }
 
-    /// Presents one frame of the session, in the frame's own order.
-    /// Presents one frame of the session, in the frame's own order: the
-    /// window's input-half signals, the `$F6` scene, the events, then the
-    /// window's own half. The split is the cartridge's node order — an event
-    /// can open the window, and the box takes its first open-animation step on
-    /// the frame it opens — so this is the one place the frame's parts are
-    /// consumed.
+    /// Presents the windows the session opened this frame.
+    ///
+    /// The session already opened them, in the cartridge's order; what is left
+    /// is the shell's share: the diagnostics, the retail-pace harness's hold
+    /// counter, and the sprite sequence a talk turns an object to.
+    pub(super) fn present_routed(&mut self, routed: &[Routed]) {
+        for item in routed {
+            match *item {
+                Routed::Talk {
+                    npc_index,
+                    cell,
+                    outcome,
+                } => match outcome {
+                    NpcDialogueOpen::Opened => {
+                        let toward = self.runtime().map(|rt| rt.state().facing().opposite());
+                        if let Some(toward) = toward {
+                            let name = sequence_name("idle", toward);
+                            for entry in &mut self.npc_nodes {
+                                if entry.index == npc_index {
+                                    entry.idle = name.clone();
+                                }
+                            }
+                        }
+                    }
+                    NpcDialogueOpen::NoBinding => {
+                        godot_print!("talk: npc {npc_index} at {cell:?} has no dialogue binding");
+                    }
+                    NpcDialogueOpen::Nothing => {}
+                },
+                Routed::CounterWithoutShop { cell } => {
+                    godot_print!("counter reach at {cell:?} has no shop row; dialogue");
+                }
+                Routed::ShopOpened { .. } | Routed::NothingHere => {}
+                Routed::SceneChoice => godot_print!("scene awaits a dialogue choice"),
+                Routed::SceneDialogue { entry, outcome } => {
+                    godot_print!("scene dialogue open: entry {entry:#04x}");
+                    if retail_pace_enabled() {
+                        if !self.retail_pace_logged {
+                            godot_print!(
+                                "debug: retail-paced scene dialogue enabled (3f/char, dismiss hold {RETAIL_DISMISS_HOLD_FRAMES}f)"
+                            );
+                            self.retail_pace_logged = true;
+                        }
+                        self.retail_dialogue_wait = 0;
+                    }
+                    if outcome == SceneDialogueOpen::UnknownTree {
+                        godot_error!("scene dialogue tree is absent from the loaded pack");
+                    }
+                }
+                Routed::SceneDialogueSkipped { entry } => {
+                    godot_print!("scene dialogue open: entry {entry:#04x}");
+                    godot_print!("debug: auto-closing scene dialogue entry {entry}");
+                }
+                Routed::SceneDialogueResume { .. } => {
+                    godot_print!("scene dialogue resume (t{})", self.anim_tick);
+                    self.retail_dialogue_wait = 0;
+                }
+                Routed::SceneDialogueResumeSkipped => {
+                    godot_print!("scene dialogue resume (t{})", self.anim_tick);
+                }
+            }
+        }
+    }
+
+    /// Presents one field frame of the session, in the frame's own order: the
+    /// window's input-half signals, the `$F6` scene, the windows the session
+    /// opened, the events, then the window's own half. The order is the
+    /// cartridge's node order — an event can open the window, and the box takes
+    /// its first open-animation step on the frame it opens — so this is the one
+    /// place the frame's parts are consumed.
     pub(super) fn present_frame(&mut self, frame: Frame) {
         // `PSIV_DEBUG_INPUT=1` keeps its hook: the input the session gave the
         // field this frame. A window's frame has none — the field was starved.
@@ -434,19 +365,14 @@ impl Field {
             }
         }
 
+        self.present_routed(&frame.routed);
         let stepped = self.process_events(frame.events);
+        self.present_shop();
 
-        // The window's own half of the frame, after the events above: an
-        // `Interact` the shell routed to a talk or a scene's own
-        // `SceneDialogue` opens the box in `process_events`, and the box takes
-        // its first open-animation step on the frame it opens — the cartridge's
-        // window node ran after that decision, not before it.
-        let signals = self
-            .session
-            .as_mut()
-            .map(Session::window_tick)
-            .unwrap_or_default();
-        self.present_dialogue_signals(signals);
+        // The window's own half of the frame ran last in the session, after the
+        // events that open the window: the box took its first open-animation
+        // step on the frame it opened.
+        self.present_dialogue_signals(frame.window_signals);
         self.sync_dialogue_view();
 
         // A landing tick with the key still held is mid-stride, not rest:

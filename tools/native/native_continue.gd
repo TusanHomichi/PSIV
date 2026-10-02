@@ -86,7 +86,7 @@ func _physics_process(_delta):
         2:
             var camp = state.camp
             if camp == null:
-                press("ui_cancel")
+                press("psiv_camp")
             else:
                 match camp.mode:
                     "Root": choose(camp.root, 4)
@@ -106,7 +106,7 @@ func _physics_process(_delta):
                         cooldown = 30
         4:
             var camp = state.camp
-            if camp == null: press("ui_cancel")
+            if camp == null: press("psiv_camp")
             elif camp.mode == "Root": choose(camp.root, 0)
             elif camp.mode == "ItemList":
                 if camp.item != check_item_slot: choose(camp.item, check_item_slot)

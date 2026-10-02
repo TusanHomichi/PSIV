@@ -223,7 +223,7 @@ func battle_input(battle):
 
 func save_input(state):
     if state.camp == null:
-        press("ui_cancel")
+        press("psiv_camp")
     else:
         var camp = state.camp
         match camp.mode:

@@ -16,7 +16,7 @@ use std::path::Path;
 use psiv_core::{Cell, CharId, Flag, StepFrames};
 use psiv_data::GameData;
 use psiv_runtime::{
-    Button, NpcDialogueOpen, Pad, Runtime, RuntimeEvent, SceneDialogueOpen, Session,
+    Button, NpcDialogueOpen, Pad, Routed, Runtime, RuntimeEvent, SceneDialogueOpen, Session,
 };
 
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
@@ -29,51 +29,39 @@ const PRESS_PERIOD: u64 = 4;
 /// The frames the native smoke holds `Up` for: one 8-frame cell step.
 const UP_FRAMES: u32 = 8;
 
-/// A session driven the way the shell drives it: a pad in, the frame's events
-/// routed, the window's own half run.
+/// A session driven the way the shell drives it: a pad in, the frame's faults
+/// checked. The session opens the windows itself — a talk, a scene's line, a
+/// choice — so nothing here routes events.
 struct Player {
     session: Session,
     ticks: u64,
 }
 
 impl Player {
-    /// One frame: [`Session::frame`], the events a shell would route, then the
-    /// window's own half.
+    /// One frame: [`Session::frame`] and a look at what it opened and what went
+    /// wrong.
     fn tick(&mut self, pad: Pad) {
         self.ticks += 1;
         assert!(self.ticks < 20_000, "the opening exceeded its frame budget");
         let frame = self.session.frame(pad);
+        for routed in &frame.routed {
+            match routed {
+                Routed::SceneDialogue {
+                    outcome: SceneDialogueOpen::UnknownTree,
+                    ..
+                } => panic!("scene dialogue tree is absent from the loaded pack"),
+                Routed::Talk { outcome, .. } => {
+                    assert_eq!(
+                        *outcome,
+                        NpcDialogueOpen::Opened,
+                        "opening talk opened nothing"
+                    );
+                }
+                _ => {}
+            }
+        }
         for event in &frame.events {
             match event {
-                RuntimeEvent::SceneDialogue { entry } => {
-                    match self
-                        .session
-                        .runtime_mut()
-                        .open_scene_dialogue(*entry, false)
-                    {
-                        SceneDialogueOpen::Opened => {}
-                        // An entry that resolved to nothing is acknowledged, so
-                        // the scene runs on.
-                        SceneDialogueOpen::Empty => self.session.runtime_mut().dialogue_closed(),
-                        SceneDialogueOpen::UnknownTree => {
-                            panic!("scene dialogue tree is absent from the loaded pack")
-                        }
-                    }
-                }
-                RuntimeEvent::SceneDialogueResume => {
-                    if !self.session.runtime_mut().resume_scene_dialogue(false) {
-                        self.session.runtime_mut().dialogue_closed();
-                    }
-                }
-                RuntimeEvent::SceneChoiceRequested => {
-                    self.session.runtime_mut().open_scene_choice();
-                }
-                RuntimeEvent::Interact { npc_index, .. } => {
-                    match self.session.runtime_mut().open_npc_dialogue(*npc_index) {
-                        NpcDialogueOpen::Opened => {}
-                        other => panic!("opening talk opened nothing: {other:?}"),
-                    }
-                }
                 RuntimeEvent::SceneFaulted { .. }
                 | RuntimeEvent::SceneMissing { .. }
                 | RuntimeEvent::SceneBattleFailed { .. }
@@ -88,7 +76,6 @@ impl Player {
                 _ => {}
             }
         }
-        let _ = self.session.window_tick();
     }
 
     /// This frame's pad: a Speak press while the window is ready for one — a

@@ -1,73 +1,27 @@
-//! EQUIP camp flow kept separate from the retail root and status renderer.
-
-use psiv_runtime::{CampEquipResult, Runtime};
+//! EQUIP pages: the roster, the stat sheet, the item list and the hand choice.
+//! What equipping does is the session's.
 
 use super::draw::{draw_text, frame};
 use super::layout::{
     CHILD_CURSOR_PATTERN, CellRect, EQUIP_ITEM_LIST, EQUIP_MESSAGE, EQUIP_STATS, EQUIPPED_ITEMS,
 };
 use super::{CampChrome, CampMenu, DrawList};
+use psiv_runtime::CampView;
 
 impl CampMenu {
-    pub(super) fn confirm_equipment_slot(&mut self, runtime: &mut Runtime) {
-        let Some(character) = self.snapshot.party.get(self.equipment_character_selection) else {
-            self.mode = super::Mode::EquipResult;
-            self.message = "NO PARTY MEMBER".to_owned();
-            return;
-        };
-        let raw_slot = equipment_ui_slot(self.equipment_slot_selection);
-        if character.equipment[raw_slot] == "--" {
-            self.equipment_item_selection = 0;
-            self.equipment_options = runtime.camp_equipment(character.party_slot);
-            self.mode = super::Mode::EquipItems;
-            return;
-        }
-        let result = runtime.unequip_camp_item(character.party_slot, raw_slot);
-        self.message = equip_result_message(result);
-        self.mode = super::Mode::EquipResult;
-        self.sync(runtime);
-    }
-
-    pub(super) fn equip_selected_item(&mut self, runtime: &mut Runtime) {
-        let Some(character) = self.snapshot.party.get(self.equipment_character_selection) else {
-            self.mode = super::Mode::EquipResult;
-            self.message = "NO PARTY MEMBER".to_owned();
-            return;
-        };
-        let Some(item) = self.equipment_options.get(self.equipment_item_selection) else {
-            self.mode = super::Mode::EquipResult;
-            self.message = "NO EQUIPMENT".to_owned();
-            return;
-        };
-        let has_hand_choice = runtime.camp_equipment_hand_choice(item.slot);
-        if has_hand_choice && self.mode != super::Mode::EquipHands {
-            self.equipment_hand_selection = 0;
-            self.mode = super::Mode::EquipHands;
-            return;
-        }
-        let result = if has_hand_choice {
-            let hand = if self.equipment_hand_selection == 0 {
-                psiv_core::battle::EquipSlot::RightHand
-            } else {
-                psiv_core::battle::EquipSlot::LeftHand
-            };
-            runtime.equip_camp_item_in_hand(character.party_slot, item.slot, hand)
-        } else {
-            runtime.equip_camp_item(character.party_slot, item.slot)
-        };
-        self.message = equip_result_message(result);
-        self.mode = super::Mode::EquipResult;
-        self.sync(runtime);
-    }
-
-    pub(super) fn draw_equip_characters(&self, chrome: &CampChrome, list: &mut DrawList) {
-        self.draw_root(chrome, list, false);
+    pub(super) fn draw_equip_characters(
+        &self,
+        view: &CampView,
+        chrome: &CampChrome,
+        list: &mut DrawList,
+    ) {
+        self.draw_root(view, chrome, list, false);
         frame(
             chrome,
             &mut list.quads,
-            super::layout::equip_character_list(self.snapshot.party.len()),
+            super::layout::equip_character_list(view.snapshot.party.len()),
         );
-        for (row, character) in self.snapshot.party.iter().enumerate() {
+        for (row, character) in view.snapshot.party.iter().enumerate() {
             draw_text(
                 chrome,
                 &mut list.quads,
@@ -75,18 +29,23 @@ impl CampMenu {
                 (5, 14 + row as i32 * 2),
             );
         }
-        if !self.snapshot.party.is_empty()
+        if !view.snapshot.party.is_empty()
             && let Some(quad) = chrome.window_word(
                 CHILD_CURSOR_PATTERN,
-                (3, 14 + self.equipment_character_selection as i32 * 2),
+                (3, 14 + view.equipment_character_selection as i32 * 2),
             )
         {
             list.quads.push(quad);
         }
     }
 
-    pub(super) fn draw_equip_stats(&self, chrome: &CampChrome, list: &mut DrawList) {
-        let Some(character) = self.snapshot.party.get(self.equipment_character_selection) else {
+    pub(super) fn draw_equip_stats(
+        &self,
+        view: &CampView,
+        chrome: &CampChrome,
+        list: &mut DrawList,
+    ) {
+        let Some(character) = view.snapshot.party.get(view.equipment_character_selection) else {
             return;
         };
         // Native labels and numeric fields need more room than the original
@@ -131,18 +90,23 @@ impl CampMenu {
         }
         if let Some(quad) = chrome.window_word(
             CHILD_CURSOR_PATTERN,
-            (4, 14 + self.equipment_slot_selection as i32 * 2),
+            (4, 14 + view.equipment_slot_selection as i32 * 2),
         ) {
             list.quads.push(quad);
         }
     }
 
-    pub(super) fn draw_equip_items(&self, chrome: &CampChrome, list: &mut DrawList) {
-        self.draw_equip_stats(chrome, list);
+    pub(super) fn draw_equip_items(
+        &self,
+        view: &CampView,
+        chrome: &CampChrome,
+        list: &mut DrawList,
+    ) {
+        self.draw_equip_stats(view, chrome, list);
         frame(chrome, &mut list.quads, EQUIP_ITEM_LIST);
         const VISIBLE: usize = 8;
-        let page_start = (self.equipment_item_selection / VISIBLE) * VISIBLE;
-        for (row, item) in self
+        let page_start = (view.equipment_item_selection / VISIBLE) * VISIBLE;
+        for (row, item) in view
             .equipment_options
             .iter()
             .enumerate()
@@ -156,24 +120,34 @@ impl CampMenu {
                 (22, 3 + (row - page_start) as i32 * 2),
             );
         }
-        if !self.equipment_options.is_empty()
+        if !view.equipment_options.is_empty()
             && let Some(quad) = chrome.window_word(
                 CHILD_CURSOR_PATTERN,
-                (21, 3 + (self.equipment_item_selection % VISIBLE) as i32 * 2),
+                (21, 3 + (view.equipment_item_selection % VISIBLE) as i32 * 2),
             )
         {
             list.quads.push(quad);
         }
     }
 
-    pub(super) fn draw_equip_result(&self, chrome: &CampChrome, list: &mut DrawList) {
-        self.draw_equip_stats(chrome, list);
+    pub(super) fn draw_equip_result(
+        &self,
+        view: &CampView,
+        chrome: &CampChrome,
+        list: &mut DrawList,
+    ) {
+        self.draw_equip_stats(view, chrome, list);
         frame(chrome, &mut list.quads, EQUIP_MESSAGE);
-        draw_text(chrome, &mut list.quads, &self.message, (8, 22));
+        draw_text(chrome, &mut list.quads, &view.message, (8, 22));
     }
 
-    pub(super) fn draw_equip_hands(&self, chrome: &CampChrome, list: &mut DrawList) {
-        self.draw_equip_stats(chrome, list);
+    pub(super) fn draw_equip_hands(
+        &self,
+        view: &CampView,
+        chrome: &CampChrome,
+        list: &mut DrawList,
+    ) {
+        self.draw_equip_stats(view, chrome, list);
         frame(
             chrome,
             &mut list.quads,
@@ -184,29 +158,9 @@ impl CampMenu {
         }
         if let Some(quad) = chrome.window_word(
             CHILD_CURSOR_PATTERN,
-            (22, 15 + self.equipment_hand_selection as i32 * 2),
+            (22, 15 + view.equipment_hand_selection as i32 * 2),
         ) {
             list.quads.push(quad);
         }
-    }
-}
-
-/// The retail equipped-items cursor order is head/right/left/body, while the
-/// persistent record remains right/left/head/body at `$4C..$4F`.
-fn equipment_ui_slot(selection: usize) -> usize {
-    [2, 0, 1, 3][selection.min(3)]
-}
-
-fn equip_result_message(result: CampEquipResult) -> String {
-    match result {
-        CampEquipResult::Equipped {
-            item_name,
-            character_name,
-        } => format!("EQUIPPED {item_name} {character_name}"),
-        CampEquipResult::Unequipped {
-            item_name,
-            character_name,
-        } => format!("REMOVED {item_name} {character_name}"),
-        CampEquipResult::Unavailable { reason } => reason,
     }
 }

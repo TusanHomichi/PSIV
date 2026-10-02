@@ -12,9 +12,6 @@ use psiv_data::DialogueSet;
 /// Renderer state that has no place in `psiv-runtime`'s field semantics.
 #[derive(Debug, Default)]
 pub(crate) struct PresentationState {
-    /// Literal Render_Sprites_In_Cutscenes byte: nonzero suppresses field
-    /// sprites in a bit-15 cutscene and selects the panel portrait layout.
-    suppress_cutscene_sprites: bool,
     /// `InitVramAndCram` wiped the stage: no map, no actors, until a map
     /// redraw reloads the art. Distinct from `render_sprites`, which mirrors
     /// retail's explicit cutscene sprite toggle and survives map loads.
@@ -53,7 +50,6 @@ struct ObjectMotion {
 
 impl PresentationState {
     pub(crate) fn reset_scene(&mut self) {
-        self.suppress_cutscene_sprites = false;
         self.vram_blanked = false;
         self.temporary_objects.clear();
         self.hidden_characters.clear();
@@ -66,20 +62,19 @@ impl PresentationState {
         !self.hidden_characters.contains(&who)
     }
 
-    pub(crate) fn panel_dialogue_mode(&self, scene_event: Option<psiv_core::EventIndex>) -> bool {
-        self.suppress_cutscene_sprites && scene_event.is_some_and(|event| event.0 & 0x8000 != 0)
-    }
-
-    pub(crate) fn sprites_visible(&self, scene_event: Option<psiv_core::EventIndex>) -> bool {
-        scene_event.is_none() || (!self.panel_dialogue_mode(scene_event) && !self.vram_blanked)
+    /// Whether the field sprites show: always outside a scene; in one, unless
+    /// the runtime's panel byte hides them (`panel_mode`, from
+    /// `Runtime::panel_dialogue_mode`) or the VDP was wiped.
+    pub(crate) fn sprites_visible(
+        &self,
+        scene_event: Option<psiv_core::EventIndex>,
+        panel_mode: bool,
+    ) -> bool {
+        scene_event.is_none() || (!panel_mode && !self.vram_blanked)
     }
 
     pub(crate) fn set_vram_blanked(&mut self, blanked: bool) {
         self.vram_blanked = blanked;
-    }
-
-    pub(crate) fn set_render_sprites(&mut self, enabled: bool) {
-        self.suppress_cutscene_sprites = enabled;
     }
 
     pub(crate) fn set_saved_music(&mut self, id: u8) {
@@ -314,21 +309,15 @@ mod tests {
     }
 
     #[test]
-    fn original_panel_flag_suppresses_only_bit_15_cutscenes() {
+    fn the_panel_byte_hides_sprites_only_in_a_scene_and_a_blank_vram_hides_them_too() {
         let mut state = PresentationState::default();
         let cutscene = Some(psiv_core::EventIndex(0x8005));
-        let field_event = Some(psiv_core::EventIndex(0x17));
-        assert!(state.sprites_visible(cutscene));
-        state.set_render_sprites(true);
-        assert!(!state.sprites_visible(cutscene));
-        assert!(state.sprites_visible(field_event));
-        assert!(state.sprites_visible(None));
-        state.set_render_sprites(false);
-        assert!(state.sprites_visible(cutscene));
+        assert!(state.sprites_visible(cutscene, false));
+        assert!(!state.sprites_visible(cutscene, true));
+        assert!(state.sprites_visible(None, true));
         state.set_vram_blanked(true);
-        assert!(!state.sprites_visible(cutscene));
-        assert!(!state.sprites_visible(field_event));
+        assert!(!state.sprites_visible(cutscene, false));
         state.set_vram_blanked(false);
-        assert!(state.sprites_visible(cutscene));
+        assert!(state.sprites_visible(cutscene, false));
     }
 }

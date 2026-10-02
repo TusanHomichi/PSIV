@@ -47,7 +47,7 @@ use view::{NpcNode, SheetView};
 
 use psiv_core::{Cell, Direction, StepFrames};
 use psiv_data::GameData;
-use psiv_runtime::{Pad, Runtime, Session};
+use psiv_runtime::{FrameMode, Pad, Runtime, Session};
 use psiv_sound::SAMPLE_RATE;
 
 struct PsivExtension;
@@ -57,6 +57,14 @@ unsafe impl ExtensionLibrary for PsivExtension {}
 
 pub(crate) const CELL_PIXELS: f32 = 16.0;
 
+/// A session over `runtime`, configured the way the shell runs every session:
+/// the title's START and CONTINUE build theirs through here too.
+pub(crate) fn new_session(runtime: Runtime) -> Session {
+    let mut session = Session::new(runtime);
+    session.set_scene_dialogue_autoclose(scene_dialogue_autoclose());
+    session
+}
+
 /// Oracle tapes hold Speak for four frames for a dismissal edge.  Retail
 /// pacing deliberately waits those frames after the typewriter reports a
 /// complete page; it does not use the compressed debug autoclose path.
@@ -65,6 +73,14 @@ pub(crate) const RETAIL_DISMISS_HOLD_FRAMES: u16 = 4;
 pub(crate) fn retail_pace_enabled() -> bool {
     std::env::var("PSIV_DEBUG_AUTOCLOSE_SCENE").is_ok_and(|value| value == "1")
         && std::env::var("PSIV_DEBUG_RETAIL_PACE").is_ok_and(|value| value == "1")
+}
+
+/// `PSIV_DEBUG_AUTOCLOSE_SCENE=1` without the retail pace: scene dialogue
+/// lines are acknowledged unseen, for deterministic headless scene runs. Every
+/// session the shell builds gets it once, at construction ([`new_session`]).
+fn scene_dialogue_autoclose() -> bool {
+    std::env::var("PSIV_DEBUG_AUTOCLOSE_SCENE").is_ok_and(|value| value == "1")
+        && !retail_pace_enabled()
 }
 
 /// `EventBattleMusicData` (`ps4.asm:120820`): music id per event-battle
@@ -437,7 +453,7 @@ impl INode2D for Field {
                 psiv_sound::SoundBank::default()
             }
         };
-        self.session = Some(Session::new(runtime));
+        self.session = Some(new_session(runtime));
         let mut audio = audio::AudioOutput::new(sound_bank);
         let debug_audio = audio.has_debug_override();
         self.base_mut().add_child(audio.node());
@@ -533,10 +549,10 @@ impl Field {
 
     /// The game frame: everything the shell does not own.
     ///
-    /// `Session::frame` owns the dialogue window's input half, a pending `$F6`
-    /// and the field or the scene; this method owns the order around it, in
-    /// which the two remaining shell modes sit where the old dispatcher put
-    /// them: after the window's half is known, before the field's.
+    /// `Session::frame` owns the whole frame — the dialogue window, a pending
+    /// `$F6`, the field or the scene, the shop and inn, the camp and a chest —
+    /// in the cartridge's own order. This method sends it the pad and presents
+    /// what comes back.
     fn drive_game_frame(&mut self) {
         let window_open = self
             .session
@@ -544,21 +560,15 @@ impl Field {
             .is_some_and(|session| session.runtime().dialogue_open());
         let pad = self.frame_pad();
         if !window_open {
-            // S4. A window that is already up owns the frame, so neither mode
-            // runs under one — the old dispatcher reached them only after the
-            // window branch had returned.
             self.retail_dialogue_wait = 0;
-            if self.drive_shop_if_active() {
-                return;
-            }
-            if self.drive_camp_if_active() {
-                return;
-            }
         }
         let Some(frame) = self.session.as_mut().map(|session| session.frame(pad)) else {
             return;
         };
-        self.present_frame(frame);
+        match frame.mode {
+            FrameMode::Field => self.present_frame(frame),
+            FrameMode::Shop | FrameMode::Camp => self.present_menu_frame(frame),
+        }
     }
 
     /// Hands the window this frame's runtime view. The runtime owns the

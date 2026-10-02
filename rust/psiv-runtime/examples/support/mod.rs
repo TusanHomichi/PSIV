@@ -9,7 +9,8 @@
 use psiv_core::battle::{BattleEvent, Command, Outcome, RoundOrders, Side};
 use psiv_core::{Cell, Direction};
 use psiv_runtime::{
-    Button, DialogueSignal, NpcDialogueOpen, Pad, Runtime, RuntimeEvent, SceneDialogueOpen, Session,
+    Button, CampAbilityKind, CampPage, CampView, DialogueSignal, NpcDialogueOpen, Pad, Routed,
+    Runtime, RuntimeEvent, SceneDialogueOpen, Session,
 };
 use std::collections::{BTreeMap, VecDeque};
 
@@ -27,8 +28,8 @@ pub struct Walk {
 
 impl Walk {
     /// The runtime, for the route's own assertions and for the modes this
-    /// harness still drives itself (battles, camp) until the campaign runner
-    /// owns them.
+    /// harness still drives itself (battles) until the campaign runner owns
+    /// them.
     pub fn runtime(&self) -> &Runtime {
         self.session.runtime()
     }
@@ -52,32 +53,32 @@ impl Walk {
                 self.ticks, start.event, start.started
             );
         }
+        for routed in &frame.routed {
+            match routed {
+                Routed::SceneDialogue {
+                    entry,
+                    outcome: SceneDialogueOpen::UnknownTree,
+                } => panic!("scene dialogue entry {entry:#04x}: tree is absent from the pack"),
+                Routed::SceneDialogue { entry, .. } => {
+                    println!("{} scene dialogue entry {entry:#04x}", self.ticks);
+                }
+                Routed::SceneChoice => println!("{} scene awaits a choice", self.ticks),
+                Routed::Talk {
+                    npc_index, outcome, ..
+                } => match outcome {
+                    NpcDialogueOpen::Opened => {}
+                    NpcDialogueOpen::NoBinding => {
+                        println!("{} NPC {npc_index} has no dialogue binding", self.ticks)
+                    }
+                    NpcDialogueOpen::Nothing => {
+                        println!("{} NPC {npc_index} has nothing to say", self.ticks);
+                    }
+                },
+                other => println!("{} {other:?}", self.ticks),
+            }
+        }
         for event in frame.events {
             match event {
-                RuntimeEvent::SceneDialogue { entry } => {
-                    println!("{} scene dialogue entry {entry:#04x}", self.ticks);
-                    // The runtime resolves the entry against whichever tree
-                    // the scene selected, so the headless route needs no scene
-                    // presentation state of its own.
-                    match self.session.runtime_mut().open_scene_dialogue(entry, false) {
-                        SceneDialogueOpen::Empty => self.session.runtime_mut().dialogue_closed(),
-                        SceneDialogueOpen::UnknownTree => {
-                            panic!("scene dialogue tree is absent from the pack")
-                        }
-                        SceneDialogueOpen::Opened => {}
-                    }
-                }
-                RuntimeEvent::SceneDialogueResume => {
-                    println!("{} {event:?}", self.ticks);
-                    if !self.session.runtime_mut().resume_scene_dialogue(false) {
-                        self.session.runtime_mut().dialogue_closed();
-                    }
-                }
-                RuntimeEvent::SceneChoiceRequested => {
-                    println!("{} scene awaits a choice", self.ticks);
-                    self.session.runtime_mut().open_scene_choice();
-                }
-                RuntimeEvent::Interact { npc_index, .. } => self.talk(npc_index),
                 RuntimeEvent::SceneFaulted { .. }
                 | RuntimeEvent::SceneMissing { .. }
                 | RuntimeEvent::SceneBattleFailed { .. }
@@ -104,10 +105,7 @@ impl Walk {
                 _ => {}
             }
         }
-        // The window's own half of the same frame, after the events above may
-        // have opened it.
-        let signals = self.session.window_tick();
-        self.present(signals);
+        self.present(frame.window_signals);
     }
 
     fn fight(&mut self) {
@@ -204,18 +202,6 @@ impl Walk {
         panic!("battle exceeded 100 rounds");
     }
 
-    /// Talks to an object: the runtime resolves the map's tree and the
-    /// object's dialogue id, and the route presses through whatever opens.
-    fn talk(&mut self, npc: usize) {
-        match self.session.runtime_mut().open_npc_dialogue(npc) {
-            NpcDialogueOpen::Opened => {}
-            NpcDialogueOpen::NoBinding => {
-                println!("{} NPC {npc} has no dialogue binding", self.ticks)
-            }
-            NpcDialogueOpen::Nothing => println!("{} NPC {npc} has nothing to say", self.ticks),
-        }
-    }
-
     /// A frame's pad: the caller's buttons plus the route's own dialogue
     /// press — Speak on every `PRESS_PERIOD`-th frame while the window is ready
     /// for one, and nothing otherwise. The released frames between presses are
@@ -253,6 +239,90 @@ impl Walk {
                 DialogueSignal::Action(_) => {}
             }
         }
+    }
+
+    // Each example is its own crate and uses a subset of this shared module.
+    #[allow(dead_code)]
+    /// One fresh press of `button`: down for a frame, released for the next,
+    /// the shape the oracle tapes use.
+    pub fn press_button(&mut self, button: Button) {
+        self.tick(Pad::new(button));
+        self.tick(Pad::NEUTRAL);
+    }
+
+    /// The camp menu, while it is up.
+    #[allow(dead_code)]
+    fn camp(&self) -> &CampView {
+        self.session.camp_view().expect("the camp menu is up")
+    }
+
+    #[allow(dead_code)]
+    /// Moves a menu cursor onto `target` with Down presses; menus wrap, so it
+    /// always arrives. `cursor` reads the cursor out of the current view.
+    fn move_camp_cursor(&mut self, cursor: impl Fn(&CampView) -> usize, target: usize) {
+        for _ in 0..64 {
+            if cursor(self.camp()) == target {
+                return;
+            }
+            self.press_button(Button::Down);
+        }
+        panic!("the camp cursor never reached {target}");
+    }
+
+    #[allow(dead_code)]
+    /// Uses a technique from the camp menu with pad presses only: Camp, TECH,
+    /// the caster, the technique, the target, then back out to the field.
+    /// Returns the result line the menu showed.
+    pub fn camp_technique(
+        &mut self,
+        caster_slot: usize,
+        technique: u8,
+        target_slot: usize,
+    ) -> String {
+        self.press_button(Button::Camp);
+        assert_eq!(self.camp().page, CampPage::Root, "Camp opens the menu");
+        self.move_camp_cursor(|view| view.root_selection, 1);
+        self.press_button(Button::Speak);
+        assert_eq!(self.camp().page, CampPage::AbilityCharacters);
+        assert_eq!(self.camp().ability_kind, CampAbilityKind::Technique);
+        let caster = self
+            .camp()
+            .snapshot
+            .party
+            .iter()
+            .position(|member| member.party_slot == caster_slot)
+            .expect("the caster is in the party");
+        self.move_camp_cursor(|view| view.ability_character_selection, caster);
+        self.press_button(Button::Speak);
+        assert_eq!(self.camp().page, CampPage::AbilityList);
+        let ability = self
+            .camp()
+            .ability_options
+            .iter()
+            .position(|option| option.id == technique)
+            .expect("the caster knows the technique");
+        self.move_camp_cursor(|view| view.ability_selection, ability);
+        self.press_button(Button::Speak);
+        if self.camp().page == CampPage::AbilityTarget {
+            let target = self
+                .camp()
+                .snapshot
+                .party
+                .iter()
+                .position(|member| member.party_slot == target_slot)
+                .expect("the target is in the party");
+            self.move_camp_cursor(|view| view.target_selection, target);
+            self.press_button(Button::Speak);
+        }
+        assert_eq!(self.camp().page, CampPage::AbilityResult);
+        let line = self.camp().message.clone();
+        for _ in 0..8 {
+            if self.session.camp_view().is_none() {
+                return line;
+            }
+            self.press_button(Button::Cancel);
+        }
+        panic!("the camp menu would not close");
     }
 
     pub fn settle(&mut self) {

@@ -41,7 +41,7 @@ func _physics_process(_delta):
         return false
     var camp = state.camp
     if camp == null:
-        press("ui_cancel")
+        press("psiv_camp")
         return false
     match phase:
         0:

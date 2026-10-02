@@ -71,6 +71,12 @@ impl Runtime {
         self.field_suspended = suspended;
     }
 
+    /// Whether field-object updates are suspended: a window or a menu is up.
+    #[must_use]
+    pub fn field_suspended(&self) -> bool {
+        self.field_suspended
+    }
+
     /// Seeds the shared RNG word — for replays that align to an oracle log.
     pub fn set_rng_seed(&mut self, seed: u32) {
         self.rng = Lcg41::new(seed);

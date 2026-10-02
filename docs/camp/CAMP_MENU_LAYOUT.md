@@ -357,3 +357,18 @@ the Xvfb listener is available.
 This is enough geometry and state to certify the camp root without guessing at
 the retail rectangles, text origins, cursor variants, or single-member status
 composition.
+
+## Buttons
+
+The Camp button opens the menu (`FieldControls_GetInput`, `ps4.asm:114890`,
+table `loc_56014`). Inside, the runtime session reads the cartridge's masks:
+confirm on `ButtonSpeak_Mask|ButtonCamp_Mask`, back on `ButtonCancel`, and
+`ButtonStart` closes the whole menu from a cursor page and dismisses a result
+line like any button (root `Win_MenuOptionsMain` `ps4.asm:117255-117281`; ITEM
+`Win_ItemActionMain` `122507`; EQUIP `Win_EquipCharListMain` `126658`; TECH
+`Win_TechCharListMain` `128511`; SKILL `Win_SkillListMain` `130572`; result
+lines `Win_ItemUsedMsgMain` `123286`). The chest windows have no Start
+(`ps4.asm:137584-137599`). Pages not read individually and given the same rule:
+STATUS, ORDER, SAVE, the town list, the ability target and the hand choice.
+A result line returns Cancel to the list above it where the cartridge dismisses
+on any button; that difference is the port's page graph.

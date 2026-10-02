@@ -48,6 +48,7 @@ mod ids;
 mod manifest;
 mod map;
 mod new_game;
+mod shops;
 mod sound;
 mod sprites;
 mod travel;
@@ -87,6 +88,10 @@ pub use map::{
     VariantPlane, VehicleBattleLayout, Warp, WarpSource,
 };
 pub use new_game::NewGame;
+pub use shops::{
+    InnRecord, SHOPS_FILE, ShopCounter, ShopData, ShopGreeting, ShopInventory, ShopItem,
+    ShopPortrait,
+};
 pub use sound::{SoundFiles, SoundRecord, SoundTrackKind, SoundTrackRecord};
 pub use sprites::{Sequence, SequenceFrame, Sheet, SheetFile, VehiclePaletteVariant};
 pub use travel::{DungeonDestination, PlaceEntry, TownDestination, TravelData, TravelFile};

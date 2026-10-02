@@ -69,7 +69,10 @@ pub use encounters::{
 pub use events::{BattleAnimationEvent, BattleSoundEvent, BattleTimeline, RuntimeEvent};
 pub use pad::{Button, Pad};
 pub use save::RuntimeSaveError;
-pub use session::{Frame, SceneStart, Session};
+pub use session::{
+    CampPage, CampView, Frame, FrameMode, OrderDraft, ROOT_OPTIONS, Routed, SceneStart, Session,
+    ShopCounterView, ShopOwnedItem, ShopPage, ShopStock, ShopView,
+};
 pub use shop::{InnResult, ShopBuyResult, ShopSellResult};
 
 use bridge::char_id_by_symbol;
@@ -105,6 +108,11 @@ pub struct Runtime {
     /// The tree a running scene's dialogue entries index into, from its
     /// `SetDialogueTree` (`$53F00`) op. `None` means the map's own binding.
     scene_tree_address: Option<u32>,
+    /// The cartridge's cutscene-panel byte, which a scene's
+    /// `SetRenderSpritesInCutscene` writes and a dialogue close or the scene's
+    /// end clears. With it up, a high-bit cutscene's dialogue takes the panel
+    /// layout and the shell hides the field sprites.
+    scene_panel_sprites: bool,
     /// Volatile end-of-game latch set by the retail ending after Start.
     /// This is presentation state, not save data.
     game_cleared: bool,

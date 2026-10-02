@@ -152,13 +152,15 @@ impl Field {
             && let Ok(value) = std::env::var("PSIV_DEBUG_SHOP")
             && let Ok(index) = value.parse::<usize>()
         {
-            let opened = match (self.shop.as_mut(), self.session.as_ref()) {
-                (Some(shop), Some(session)) => shop.bind_mut().open_index(index, session.runtime()),
-                _ => false,
-            };
+            let opened = self
+                .session
+                .as_mut()
+                .is_some_and(|session| session.open_shop_counter(index));
             if opened {
                 godot_print!("debug: opening shop counter {index}");
                 self.place_shop_window();
+            } else {
+                godot_error!("shop debug selector {index} did not name a live counter");
             }
         }
         if self.anim_tick == 30
