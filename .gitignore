@@ -1,8 +1,12 @@
-# User-supplied ROMs / generated local data
-roms/
-generated/
-example-output/
-reference/
+# User-supplied ROMs / generated local data.
+# Local inputs are anchored and have no trailing slash, so a worktree that
+# symlinks one in (ds-lane --link, a subagent's ln -s) cannot stage the link:
+# "dir/" matches only a directory, and a committed self-link once replaced the
+# main checkout's oracle/gpgx-src on checkout (tests/test_gitignore_inputs.py).
+/roms
+/generated
+/example-output
+/reference
 *.bin
 *.gen
 *.smd
@@ -13,17 +17,17 @@ Phantasy Star IV*.md
 __pycache__/
 *.pyc
 .venv/
-runtime-pack/
-saves/
+/runtime-pack
+/saves
 rust/target/
 godot/.godot/
-oracle/gpgx-src/
-oracle/core/
-oracle/bin/
-oracle/logs/
-oracle/frames/
-oracle/states/
-oracle/layouts/
-build/
+/oracle/gpgx-src
+/oracle/core
+/oracle/bin
+/oracle/logs
+/oracle/frames
+/oracle/states
+/oracle/layouts
+/build
 oracle/tmp_*
 oracle/fixtures/battle_animation_art/*.png
