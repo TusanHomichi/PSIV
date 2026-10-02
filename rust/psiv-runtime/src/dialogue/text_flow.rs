@@ -1,5 +1,15 @@
 //! The pure retail dialogue text loop.
+//!
+//! `RunText_CharacterLoop` over the pack's segment streams. Nothing here draws
+//! and nothing here owns a frame count: the flow is the byte walker, the
+//! runner in this module's parent is its clock.
+//!
+//! Every `$FA` branch reads the runtime's live [`GameState`] at the moment it
+//! is evaluated — a flag written by an embedded `$F2` earlier in the same
+//! entry, or by a scene between two chunks, is visible to the next check.
+//! Nothing copies the flag bank, so nothing can go stale.
 
+use psiv_core::{Flag, GameState};
 use psiv_data::{
     ActionKind, CHARS_PER_LINE, Ctrl, DialogueEntry, LINES_PER_WINDOW, PORTRAIT_HIDE, PageEnd,
     Segment,
@@ -20,20 +30,33 @@ pub enum Opening {
 
 /// One retail `$F2` action, released when the typewriter reaches its byte
 /// position. Payload-bearing variants keep the decoder's word/byte widths;
-/// action dispatch itself belongs to the Godot field shell.
+/// the runtime applies `SetEventFlag` to [`GameState`] itself, and the
+/// remaining variants are dispatched by the presentation layer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DialogueAction {
+    /// 0: draw the panel with this id over the text window.
     LoadPanel(u16),
+    /// 1: destroy the last panel drawn.
     DestroyLastPanel,
+    /// 2: destroy every panel.
     DestroyAllPanels,
+    /// 3: queue this sound effect.
     LoadSound(u8),
+    /// 4: play this sound effect at once.
     LoadSound2(u8),
+    /// 5: reload the palette the window art was loaded with.
     UpdatePalette,
+    /// 6: Zio's eyes flash red.
     ZioEyesRed,
+    /// 7: pause the music.
     PauseMusic,
+    /// 8: resume it.
     ResumeMusic,
+    /// 9: the sabotage alarm's red palette.
     SabotageAlarmRedPalette,
+    /// 11: set event flag `flag`.
     SetEventFlag(u8),
+    /// 12: Elsydeon breaks.
     ElsydeonBroken,
 }
 
@@ -66,8 +89,6 @@ pub struct TextFlow {
     /// Diagnostic messages for controls that are intentionally not visual
     /// actions, such as a not-taken flag check.
     log: Vec<String>,
-    /// The event-flag bank at open time, for mid-message `$FA`.
-    flags: Vec<bool>,
     /// A taken mid-message `$FA` jump target; the window rebuilds the flow.
     jump: Option<u16>,
     /// A mid-message `$F6`; the window forwards it to the runtime.
@@ -85,19 +106,19 @@ impl TextFlow {
     /// Walks the preamble the interaction code eats and starts the message.
     ///
     /// `entry := $FA* ( $F6 event | $F3? text... )`. The `$FA` run is followed
-    /// on its not-set branch -- event flags do not exist yet -- and every skip
+    /// on its not-set branch — event flags do not exist yet — and every skip
     /// is logged.
     #[must_use]
     #[allow(dead_code)] // The flag-free form, kept for tests and future callers.
     pub fn open(entry: &DialogueEntry) -> Opening {
-        TextFlow::open_with_flags(entry, &[])
+        TextFlow::open_at(entry, &GameState::new())
     }
 
-    /// [`TextFlow::open`], consulting the live event-flag bank so `$FA`
-    /// chains take their set branches (this is how the town reacts to the
-    /// story, and how the principal's entry 0 routes to his briefing).
+    /// [`TextFlow::open`], consulting the live event flags so `$FA` chains
+    /// take their set branches (this is how the town reacts to the story, and
+    /// how the principal's entry 0 routes to his briefing).
     #[must_use]
-    pub fn open_with_flags(entry: &DialogueEntry, flags: &[bool]) -> Opening {
+    pub fn open_at(entry: &DialogueEntry, game: &GameState) -> Opening {
         let mut log = Vec::new();
         let mut index = 0;
         while let Some(Segment::Control(ctrl @ Ctrl::FlagCheck { .. })) = entry.segments.get(index)
@@ -106,7 +127,7 @@ impl TextFlow {
                 flag, then_entry, ..
             } = ctrl
             {
-                if flags.get(*flag as usize).copied().unwrap_or(false) {
+                if game.is_set(Flag::event(u16::from(*flag))) {
                     // Branch targets are RELATIVE: GetOffsetByID counts
                     // forward from the current entry. (Absolute worked for
                     // the principal only because his chain starts at 0.)
@@ -139,14 +160,13 @@ impl TextFlow {
             done: false,
             closed: false,
             log,
-            flags: flags.to_vec(),
             jump: None,
             event: None,
             pending_action: None,
             entry_id: entry.id,
             choice: None,
         };
-        flow.pump();
+        flow.pump(game);
         if flow.done && flow.stop.is_none() {
             return Opening::Silent;
         }
@@ -157,6 +177,12 @@ impl TextFlow {
     #[must_use]
     pub fn lines(&self) -> &[String] {
         &self.lines
+    }
+
+    /// Glyphs on the current page: the typewriter's target count.
+    #[must_use]
+    pub fn visible_chars(&self) -> usize {
+        self.lines.iter().map(|line| line.chars().count()).sum()
     }
 
     /// The portrait id currently shown, if any.
@@ -207,7 +233,7 @@ impl TextFlow {
 
     /// One engine tick: runs down a `$F9` delay. Returns whether anything
     /// changed.
-    pub fn tick(&mut self) -> bool {
+    pub fn tick(&mut self, game: &GameState) -> bool {
         if self.hold == 0 {
             return false;
         }
@@ -215,13 +241,13 @@ impl TextFlow {
         if self.hold > 0 {
             return false;
         }
-        self.pump();
+        self.pump(game);
         true
     }
 
     /// The accept press. Clears a finished page and runs on, or closes the
     /// window when the message is over.
-    pub fn advance(&mut self) {
+    pub fn advance(&mut self, game: &GameState) {
         match self.stop {
             None => {}
             Some(PageEnd::Choice) => {}
@@ -237,7 +263,7 @@ impl TextFlow {
                 if self.done {
                     self.closed = true;
                 } else {
-                    self.pump();
+                    self.pump(game);
                 }
             }
         }
@@ -249,7 +275,7 @@ impl TextFlow {
 
     /// Retail counts `$FF` delimiters from the byte AFTER both operands.
     /// Zero stays inside this entry; positive values skip to later entries.
-    pub fn answer_choice(&mut self, yes: bool) -> bool {
+    pub fn answer_choice(&mut self, yes: bool, game: &GameState) -> bool {
         let Some(offsets) = self.choice.take() else {
             return false;
         };
@@ -259,7 +285,7 @@ impl TextFlow {
         self.column = 0;
         self.stop = None;
         if offset == 0 {
-            self.pump();
+            self.pump(game);
         } else {
             self.jump = Some(self.entry_id + offset);
         }
@@ -269,7 +295,7 @@ impl TextFlow {
     /// Continue a taken in-stream branch without reopening the window or
     /// losing the portrait. Unlike interaction preambles, this executes the
     /// destination through the retail character loop.
-    pub fn continue_at(&mut self, entry: &DialogueEntry) {
+    pub fn continue_at(&mut self, entry: &DialogueEntry, game: &GameState) {
         self.entry_id = entry.id;
         self.segments.clone_from(&entry.segments);
         self.index = 0;
@@ -277,7 +303,7 @@ impl TextFlow {
         self.stop = None;
         self.done = false;
         self.closed = false;
-        self.pump();
+        self.pump(game);
     }
 
     /// `$F7` and the entry terminator return from `Event_RunDialogue`.
@@ -293,11 +319,10 @@ impl TextFlow {
 
     /// The scene's next `RunDialogueResume` reopens at `Saved_Dialogue_Addr`.
     /// At `$F7` this is inside the same entry; at `$FF` it is the next entry.
-    pub fn resume_scene(mut self, flags: &[bool]) -> Opening {
+    pub fn resume_scene(mut self, game: &GameState) -> Opening {
         if self.index >= self.segments.len() {
             return Opening::Jump(self.entry_id + 1);
         }
-        self.flags = flags.to_vec();
         self.lines = vec![String::new()];
         self.line = 0;
         self.column = 0;
@@ -305,7 +330,7 @@ impl TextFlow {
         self.stop = None;
         self.closed = false;
         self.done = false;
-        self.pump();
+        self.pump(game);
         Opening::Window(Box::new(self))
     }
 
@@ -333,18 +358,8 @@ impl TextFlow {
     }
 
     /// Resumes the retail text loop after the shell has applied one action.
-    pub fn resume_after_action(&mut self) {
-        self.pump();
-    }
-
-    /// Updates the copied event bank immediately, so a following `$FA` in the
-    /// same entry sees a flag written by an embedded action.
-    pub fn set_event_flag(&mut self, flag: u8) {
-        let index = usize::from(flag);
-        if self.flags.len() <= index {
-            self.flags.resize(index + 1, false);
-        }
-        self.flags[index] = true;
+    pub fn resume_after_action(&mut self, game: &GameState) {
+        self.pump(game);
     }
 
     /// Everything the flow could not act on since the last call.
@@ -393,13 +408,13 @@ impl TextFlow {
 
     /// Runs segments until a page is finished, a delay starts, or the entry
     /// ends.
-    fn pump(&mut self) {
+    fn pump(&mut self, game: &GameState) {
         while self.index < self.segments.len() {
             let segment = self.segments[self.index].clone();
             self.index += 1;
             let stop = match segment {
-                Segment::Text(run) => self.run_text(&run),
-                Segment::Control(ctrl) => self.run_control(&ctrl),
+                Segment::Text(run) => self.run_text(&run, game),
+                Segment::Control(ctrl) => self.run_control(&ctrl, game),
             };
             if stop {
                 return;
@@ -413,7 +428,7 @@ impl TextFlow {
 
     /// Writes a text run into the window, breaking and paging as it goes.
     /// Returns whether pumping stops here.
-    fn run_text(&mut self, run: &str) -> bool {
+    fn run_text(&mut self, run: &str, game: &GameState) -> bool {
         let chars: Vec<char> = run.chars().collect();
         let start = std::mem::take(&mut self.char_offset);
         for position in start..chars.len() {
@@ -431,7 +446,7 @@ impl TextFlow {
                     unreachable!()
                 };
                 self.index += 1;
-                return self.run_control(&ctrl);
+                return self.run_control(&ctrl, game);
             }
             self.line += 1;
             if at_run_end && self.peek(0) == Some(0xFC) {
@@ -455,7 +470,7 @@ impl TextFlow {
     }
 
     /// Runs one control code. Returns whether pumping stops here.
-    fn run_control(&mut self, ctrl: &Ctrl) -> bool {
+    fn run_control(&mut self, ctrl: &Ctrl, game: &GameState) -> bool {
         match ctrl {
             Ctrl::Newline { .. } => {
                 self.column = 0;
@@ -534,7 +549,9 @@ impl TextFlow {
             Ctrl::FlagCheck {
                 flag, then_entry, ..
             } => {
-                if self.flags.get(*flag as usize).copied().unwrap_or(false) {
+                // The live read: whatever the event flag bank holds at this
+                // instant decides the branch, whenever the pump reaches it.
+                if game.is_set(Flag::event(u16::from(*flag))) {
                     self.jump = Some(self.entry_id + *then_entry);
                     self.done = true;
                     self.close(PageEnd::End);
@@ -561,9 +578,5 @@ impl TextFlow {
                 true
             }
         }
-    }
-
-    fn visible_chars(&self) -> usize {
-        self.lines.iter().map(|line| line.chars().count()).sum()
     }
 }

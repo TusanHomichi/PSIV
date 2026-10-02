@@ -106,7 +106,11 @@ result from that receipt, not from a retyped summary. The gate refuses to start
 (exit 2, nothing run) while another gate holds `build/gate/.lock` or while a
 process has the debug PSIV extension mapped
 (`rust/target/debug/libpsiv_godot.so`, which its cargo commands rebuild);
-`--list` prints the commands without running them. Reporting a gate result means
+`--list` prints the commands without running them. Presentation certification
+is a separate entry point, `python3 tools/certify.py --build` (Godot, Xvfb and
+the local oracle frames required; pairs and doctrine in
+[scene presentation](scenes/SCENE_PRESENTATION.md)); run it for any change to
+Godot-visible paths and report it apart from the gate. Reporting a gate result means
 those commands; a subset, a different `CARGO_BUILD_JOBS`, parallel test threads
 or a per-crate run is a focused check and is reported as one. The gate does not
 cover:

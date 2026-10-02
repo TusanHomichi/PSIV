@@ -164,6 +164,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "psiv-campaign"
+version = "0.1.0"
+dependencies = [
+ "psiv-core",
+ "psiv-data",
+ "psiv-runtime",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "psiv-core"
 version = "0.1.0"
 dependencies = [
@@ -198,6 +209,7 @@ version = "0.1.0"
 dependencies = [
  "psiv-core",
  "psiv-data",
+ "serde_json",
 ]
 
 [[package]]

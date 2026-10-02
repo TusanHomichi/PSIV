@@ -1,26 +1,39 @@
-//! The text loop, held against the cartridge.
+//! The text loop, held against the cartridge, one rule at a time.
 //!
-//! Two kinds of test. The synthetic ones drive [`TextFlow`] over segments
-//! written by hand, one per rule of `RunText_CharacterLoop`. The corpus test
-//! replays all 2,736 retail entries and demands that the flow's pages are
-//! *exactly* the pages `psiv_tools.dialogue_pack.paginate` wrote into the pack
-//! -- an independent transcription of the same routine, from the ROM. If the
-//! two ever disagree, one of them is wrong about the cartridge.
+//! Every test drives [`TextFlow`] over segments written by hand, one per rule
+//! of `RunText_CharacterLoop`. The corpus half -- all 2,736 retail entries
+//! against the extractor's own pagination -- is in `tests_corpus`.
 //!
-//! No Godot types are touched here: the node is untestable headless, the loop
-//! it drives is not.
+//! No engine types are touched here: the loop is pure, and a [`GameState`] is
+//! all it needs to read its branches.
 
 use super::{Opening, TextFlow};
+use psiv_core::{Flag, GameState};
 use psiv_data::{ActionKind, Ctrl, DialogueEntry, DialogueSet, FlagScope, PageEnd, Segment};
-use serde_json::Value;
-use std::fs;
 use std::path::PathBuf;
+
+/// A fresh game state: no event flags set, which is the state the extractor's
+/// own pagination was decoded in.
+fn no_flags() -> GameState {
+    GameState::new()
+}
+
+/// The local runtime pack, for the rules that are about retail data rather
+/// than about a synthetic entry.
+pub(super) fn pack_dir() -> PathBuf {
+    match std::env::var_os("PSIV_RUNTIME_PACK") {
+        Some(path) => PathBuf::from(path),
+        None => PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join("runtime-pack"),
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
 
-fn entry(segments: Vec<Segment>) -> DialogueEntry {
+pub(super) fn entry(segments: Vec<Segment>) -> DialogueEntry {
     DialogueEntry {
         id: 0,
         text: String::new(),
@@ -29,32 +42,32 @@ fn entry(segments: Vec<Segment>) -> DialogueEntry {
     }
 }
 
-fn text(run: &str) -> Segment {
+pub(super) fn text(run: &str) -> Segment {
     Segment::Text(run.to_owned())
 }
 
-fn wait() -> Segment {
+pub(super) fn wait() -> Segment {
     Segment::Control(Ctrl::Wait {
         code: 0xFD,
         operands: Vec::new(),
     })
 }
 
-fn newline() -> Segment {
+pub(super) fn newline() -> Segment {
     Segment::Control(Ctrl::Newline {
         code: 0xFC,
         operands: Vec::new(),
     })
 }
 
-fn close() -> Segment {
+pub(super) fn close() -> Segment {
     Segment::Control(Ctrl::Close {
         code: 0xF7,
         operands: Vec::new(),
     })
 }
 
-fn portrait(id: u8) -> Segment {
+pub(super) fn portrait(id: u8) -> Segment {
     Segment::Control(Ctrl::Portrait {
         code: 0xF4,
         operands: vec![id],
@@ -63,7 +76,7 @@ fn portrait(id: u8) -> Segment {
     })
 }
 
-fn delay(frames: u16) -> Segment {
+pub(super) fn delay(frames: u16) -> Segment {
     Segment::Control(Ctrl::Delay {
         code: 0xF9,
         operands: vec![frames as u8],
@@ -71,7 +84,7 @@ fn delay(frames: u16) -> Segment {
     })
 }
 
-fn yes_no() -> Segment {
+pub(super) fn yes_no() -> Segment {
     Segment::Control(Ctrl::YesNo {
         code: 0xF5,
         operands: vec![1, 2],
@@ -80,7 +93,7 @@ fn yes_no() -> Segment {
     })
 }
 
-fn flag_check(flag: u8, then_entry: u16) -> Segment {
+pub(super) fn flag_check(flag: u8, then_entry: u16) -> Segment {
     Segment::Control(Ctrl::FlagCheck {
         code: 0xFA,
         operands: vec![flag, then_entry as u8],
@@ -90,7 +103,7 @@ fn flag_check(flag: u8, then_entry: u16) -> Segment {
     })
 }
 
-fn event(id: u16) -> Segment {
+pub(super) fn event(id: u16) -> Segment {
     Segment::Control(Ctrl::Event {
         code: 0xF6,
         operands: vec![0, id as u8],
@@ -98,7 +111,7 @@ fn event(id: u16) -> Segment {
     })
 }
 
-fn open(entry: &DialogueEntry) -> TextFlow {
+pub(super) fn open(entry: &DialogueEntry) -> TextFlow {
     match TextFlow::open(entry) {
         Opening::Window(flow) => *flow,
         Opening::Jump(next) => panic!("unexpected preamble jump to {next}"),
@@ -109,20 +122,21 @@ fn open(entry: &DialogueEntry) -> TextFlow {
 
 /// Every page the entry shows, driven the way a player drives it: run out any
 /// delay, read the page, press accept.
-fn pages(entry: &DialogueEntry) -> Vec<(Vec<String>, PageEnd)> {
+pub(super) fn pages(entry: &DialogueEntry) -> Vec<(Vec<String>, PageEnd)> {
+    let game = no_flags();
     let Opening::Window(mut flow) = TextFlow::open(entry) else {
         return Vec::new();
     };
     let mut pages = Vec::new();
     while flow.is_open() {
         while flow.take_pending_action().is_some() {
-            flow.resume_after_action();
+            flow.resume_after_action(&game);
         }
         let mut guard = 0;
         while flow.is_holding() {
-            flow.tick();
+            flow.tick(&game);
             while flow.take_pending_action().is_some() {
-                flow.resume_after_action();
+                flow.resume_after_action(&game);
             }
             guard += 1;
             assert!(guard < 1_000, "a delay that never ends");
@@ -134,7 +148,7 @@ fn pages(entry: &DialogueEntry) -> Vec<(Vec<String>, PageEnd)> {
         if end == PageEnd::Choice {
             break;
         }
-        flow.advance();
+        flow.advance(&game);
         assert!(pages.len() < 1_000, "a message that never ends");
     }
     pages
@@ -170,19 +184,20 @@ fn text_fills_the_window_and_waits_where_the_data_says() {
 
 #[test]
 fn a_page_is_shown_before_it_is_advanced() {
+    let game = no_flags();
     let entry = entry(vec![text("One"), wait(), text("Two")]);
     let mut flow = open(&entry);
     assert_eq!(flow.lines(), ["One"]);
     assert!(flow.is_waiting());
     assert!(flow.is_open());
 
-    flow.advance();
+    flow.advance(&game);
     assert_eq!(flow.lines(), ["Two"]);
     assert!(!flow.is_waiting(), "the last page shows no arrow");
     assert_eq!(flow.page_end(), Some(PageEnd::End));
     assert!(flow.is_open());
 
-    flow.advance();
+    flow.advance(&game);
     assert!(!flow.is_open(), "accept on the last page closes the window");
 }
 
@@ -246,6 +261,10 @@ fn close_ends_the_page_and_the_next_one_opens_fresh() {
 
 #[test]
 fn scene_close_preserves_cursor_and_refreshes_flags_before_resuming() {
+    // The resumed chunk's `$FA` reads the live bank: flag 7 is set here, and
+    // the flow takes the branch the moment the resume pumps it.
+    let mut game = no_flags();
+    game.set(Flag::event(7)).unwrap();
     let entry = entry(vec![
         portrait(2),
         text("first"),
@@ -260,7 +279,7 @@ fn scene_close_preserves_cursor_and_refreshes_flags_before_resuming() {
         !flow.pause_for_scene(),
         "ordinary wait stays inside the scene call"
     );
-    flow.advance();
+    flow.advance(&game);
     assert_eq!(flow.lines(), &["pause"]);
     assert!(flow.pause_for_scene());
     assert!(!flow.is_open());
@@ -269,9 +288,7 @@ fn scene_close_preserves_cursor_and_refreshes_flags_before_resuming() {
         &["pause"],
         "next text cannot run before resume"
     );
-    let mut flags = vec![false; 8];
-    flags[7] = true;
-    let Opening::Window(mut resumed) = flow.resume_scene(&flags) else {
+    let Opening::Window(mut resumed) = flow.resume_scene(&game) else {
         panic!("saved middle of entry");
     };
     assert_eq!(resumed.take_jump(), Some(3));
@@ -284,11 +301,12 @@ fn scene_close_preserves_cursor_and_refreshes_flags_before_resuming() {
 
 #[test]
 fn scene_resume_after_entry_terminator_opens_the_following_entry() {
+    let game = no_flags();
     let mut entry = entry(vec![text("finished")]);
     entry.id = 18;
     let mut flow = open(&entry);
     assert!(flow.pause_for_scene());
-    assert!(matches!(flow.resume_scene(&[]), Opening::Jump(19)));
+    assert!(matches!(flow.resume_scene(&game), Opening::Jump(19)));
 }
 
 #[test]
@@ -297,6 +315,7 @@ fn after_igglanova_dialogue_has_three_scene_calls_and_no_lost_pages() {
     if !dir.join("dialogue/trees.json").is_file() {
         return;
     }
+    let game = no_flags();
     let set = DialogueSet::load(&dir).unwrap();
     let entry = set.entry(33, 18).unwrap();
     let mut flow = open(entry);
@@ -308,13 +327,13 @@ fn after_igglanova_dialogue_has_three_scene_calls_and_no_lost_pages() {
             if end == Some(PageEnd::End) {
                 break;
             }
-            let Opening::Window(next) = flow.resume_scene(&[]) else {
+            let Opening::Window(next) = flow.resume_scene(&game) else {
                 panic!("F7 must resume inside the entry");
             };
             flow = *next;
             chunks.push(Vec::new());
         } else {
-            flow.advance();
+            flow.advance(&game);
         }
         assert!(chunks.len() <= 3);
     }
@@ -334,6 +353,7 @@ fn after_igglanova_dialogue_has_three_scene_calls_and_no_lost_pages() {
 
 #[test]
 fn a_portrait_shows_and_hides() {
+    let game = no_flags();
     let entry = entry(vec![
         portrait(6),
         text("Rika"),
@@ -343,40 +363,46 @@ fn a_portrait_shows_and_hides() {
     ]);
     let mut flow = open(&entry);
     assert_eq!(flow.portrait(), Some(6));
-    flow.advance();
+    flow.advance(&game);
     assert_eq!(flow.portrait(), None, "$F4 id 0 hides the window");
 }
 
 #[test]
 fn a_delay_holds_the_message_for_its_frames() {
+    let game = no_flags();
     let entry = entry(vec![text("wait"), delay(3), text("for it")]);
     let mut flow = open(&entry);
     assert!(flow.is_holding());
     assert_eq!(flow.lines(), ["wait"]);
     assert_eq!(flow.page_end(), None, "a delay is not a page break");
-    assert!(!flow.tick());
-    assert!(!flow.tick());
-    assert!(flow.tick(), "the third tick runs the message on");
+    assert!(!flow.tick(&game));
+    assert!(!flow.tick(&game));
+    assert!(flow.tick(&game), "the third tick runs the message on");
     assert_eq!(flow.lines(), ["waitfor it"]);
     assert_eq!(flow.page_end(), Some(PageEnd::End));
 }
 
 #[test]
 fn a_choice_requires_an_answer_and_branches_relative_to_its_entry() {
+    let game = no_flags();
     let mut entry = entry(vec![text("Well?"), yes_no(), text("after choice")]);
     entry.id = 24;
     let mut flow = open(&entry);
     assert_eq!(flow.page_end(), Some(PageEnd::Choice));
-    flow.advance();
+    flow.advance(&game);
     assert!(flow.is_open());
     assert!(flow.has_choice());
-    assert!(flow.answer_choice(false));
+    assert!(flow.answer_choice(false, &game));
     assert_eq!(flow.take_jump(), Some(26));
-    assert!(!flow.answer_choice(true), "an answer is consumed once");
+    assert!(
+        !flow.answer_choice(true, &game),
+        "an answer is consumed once"
+    );
 }
 
 #[test]
 fn choice_zero_continues_inside_entry_and_full_line_choices_keep_the_operands() {
+    let game = no_flags();
     let choice = Segment::Control(Ctrl::YesNo {
         code: 0xF5,
         operands: vec![0, 1],
@@ -394,12 +420,12 @@ fn choice_zero_continues_inside_entry_and_full_line_choices_keep_the_operands() 
         flow.has_choice(),
         "choice immediately after column 32 is still a choice"
     );
-    assert!(flow.answer_choice(true));
+    assert!(flow.answer_choice(true, &game));
     assert_eq!(flow.lines(), ["Yes response"]);
     assert_eq!(flow.portrait(), Some(2));
     assert_eq!(flow.page_end(), Some(PageEnd::End));
     let mut flow = open(&entry);
-    flow.answer_choice(false);
+    flow.answer_choice(false, &game);
     assert_eq!(flow.take_jump(), Some(1));
 }
 
@@ -409,6 +435,7 @@ fn chaz_house_answers_reach_different_retail_responses_and_keep_alys_portrait() 
     if !dir.join("dialogue/trees.json").is_file() {
         return;
     }
+    let game = no_flags();
     let set = DialogueSet::load(&dir).unwrap();
     for yes in [true, false] {
         let mut flow = open(set.entry(10, 49).unwrap());
@@ -416,12 +443,12 @@ fn chaz_house_answers_reach_different_retail_responses_and_keep_alys_portrait() 
             if flow.has_choice() {
                 break;
             }
-            flow.advance();
+            flow.advance(&game);
         }
-        assert!(flow.answer_choice(yes));
+        assert!(flow.answer_choice(yes, &game));
         if let Some(next) = flow.take_jump() {
             assert_eq!(next, 50);
-            flow.continue_at(set.entry(10, next).unwrap());
+            flow.continue_at(set.entry(10, next).unwrap(), &game);
         }
         assert_eq!(flow.portrait(), Some(2));
         assert_eq!(
@@ -469,6 +496,7 @@ fn an_empty_entry_opens_no_window() {
 
 #[test]
 fn an_action_stops_at_its_retail_byte_position() {
+    let game = no_flags();
     let entry = entry(vec![
         Segment::Control(Ctrl::Action {
             code: 0xF2,
@@ -488,12 +516,13 @@ fn an_action_stops_at_its_retail_byte_position() {
         flow.take_pending_action(),
         Some(super::DialogueAction::LoadPanel(387))
     );
-    flow.resume_after_action();
+    flow.resume_after_action(&game);
     assert_eq!(flow.lines(), ["after the panel"]);
 }
 
 #[test]
 fn an_action_after_text_waits_for_the_typewriter() {
+    let game = no_flags();
     let entry = entry(vec![
         text("before"),
         Segment::Control(Ctrl::Action {
@@ -515,181 +544,6 @@ fn an_action_after_text_waits_for_the_typewriter() {
         flow.take_pending_action(),
         Some(super::DialogueAction::LoadPanel(0x30))
     );
-    flow.resume_after_action();
+    flow.resume_after_action(&game);
     assert_eq!(flow.lines(), ["beforeafter"]);
-}
-
-// ---------------------------------------------------------------------------
-// The corpus
-// ---------------------------------------------------------------------------
-
-fn pack_dir() -> PathBuf {
-    match std::env::var_os("PSIV_RUNTIME_PACK") {
-        Some(path) => PathBuf::from(path),
-        None => PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../..")
-            .join("runtime-pack"),
-    }
-}
-
-/// The dialogue decoder cannot see the VDP window plane or infer a portrait
-/// from a page that never emits `$F4`, so this proof is opt-in and consumes a
-/// small sidecar made from the read-only oracle captures. The normal suite
-/// stays useful without a local oracle checkout; an oracle run makes the
-/// assertion strict.
-fn dialogue_oracle() -> Option<Value> {
-    let path = PathBuf::from(std::env::var_os("PSIV_DIALOGUE_LAYOUT_ORACLE")?);
-    if !path.is_file() {
-        eprintln!("skipping dialogue oracle: {} is absent", path.display());
-        return None;
-    }
-    let contents = fs::read_to_string(&path)
-        .unwrap_or_else(|error| panic!("could not read {}: {error}", path.display()));
-    let document: Value = serde_json::from_str(&contents)
-        .unwrap_or_else(|error| panic!("could not parse {}: {error}", path.display()));
-    if document["kind"] != "psiv_dialogue_layout_oracle" {
-        panic!("{} is not a dialogue layout oracle sidecar", path.display());
-    }
-    Some(document)
-}
-
-fn oracle_rect(document: &Value, name: &str) -> [i32; 4] {
-    let rect = &document[name];
-    ["x", "y", "width", "height"].map(|field| {
-        rect[field]
-            .as_i64()
-            .unwrap_or_else(|| panic!("oracle {name}.{field} is not an integer")) as i32
-    })
-}
-
-#[test]
-fn dialogue_window_matches_decoded_tape03_layout() {
-    let Some(oracle) = dialogue_oracle() else {
-        return;
-    };
-    assert_eq!(oracle["captures"]["window"]["frame"], 7400);
-    assert_eq!(oracle["captures"]["window"]["self_check_passed"], true);
-    assert_eq!(oracle["captures"]["arrow"]["frame"], 7371);
-    assert_eq!(oracle["captures"]["arrow"]["self_check_passed"], true);
-
-    let dir = pack_dir();
-    let set = DialogueSet::load(&dir).expect("the dialogue pack loads");
-    let text = set.window.text_window.rect;
-    assert_eq!(
-        [text.x, text.y, text.width, text.height],
-        oracle_rect(&oracle, "window_rect")
-    );
-    let portrait = set.window.portrait_window.rect;
-    assert_eq!(
-        [portrait.x, portrait.y, portrait.width, portrait.height],
-        oracle_rect(&oracle, "portrait_rect")
-    );
-
-    let border = set.window.geometry.border_cells as i32 * set.window.geometry.cell_pixels as i32;
-    assert_eq!(
-        [text.x + border, text.y + border],
-        [
-            oracle["text_origin"]["x"]
-                .as_i64()
-                .expect("oracle text origin x") as i32,
-            oracle["text_origin"]["y"]
-                .as_i64()
-                .expect("oracle text origin y") as i32,
-        ]
-    );
-
-    let arrow = &set.trees.window.scroll_arrow;
-    assert_eq!(
-        [
-            arrow.screen_x,
-            arrow.screen_y,
-            arrow.width as i32,
-            arrow.height as i32
-        ],
-        [
-            oracle["arrow"]["screen_x"]
-                .as_i64()
-                .expect("oracle arrow x") as i32,
-            oracle["arrow"]["screen_y"]
-                .as_i64()
-                .expect("oracle arrow y") as i32,
-            oracle["arrow"]["width"]
-                .as_i64()
-                .expect("oracle arrow width") as i32,
-            oracle["arrow"]["height"]
-                .as_i64()
-                .expect("oracle arrow height") as i32,
-        ]
-    );
-    assert_eq!(oracle["arrow"]["pattern"], 0x7F6);
-    assert_eq!(oracle["arrow"]["palette_line"], 2);
-
-    assert_eq!(oracle["portrait_present"], false);
-    assert!(!oracle["gaps"].as_array().expect("oracle gaps").is_empty());
-    eprintln!(
-        "dialogue oracle gap: tape 03 frame 7400 has no portrait `$F4`; portrait position is decoded from the retail window group, not visible art"
-    );
-}
-
-#[test]
-fn every_retail_entry_pages_exactly_as_the_extractor_says() {
-    let dir = pack_dir();
-    if !dir.join("dialogue").join("trees.json").is_file() {
-        eprintln!(
-            "skipping: no dialogue pack at {}. Build one with \
-             `python -m psiv_tools pack <rom> runtime-pack/`.",
-            dir.display()
-        );
-        return;
-    }
-    let set = DialogueSet::load(&dir).expect("the dialogue pack loads");
-
-    let mut compared = 0usize;
-    let mut shown = 0usize;
-    for tree in &set.trees.trees {
-        for entry in &tree.entries {
-            let expected: Vec<(Vec<String>, PageEnd)> = entry
-                .pages
-                .iter()
-                .map(|page| (page.lines.clone(), page.end))
-                .collect();
-            assert_eq!(
-                pages(entry),
-                expected,
-                "{} entry {} paginates differently",
-                tree.label,
-                entry.id
-            );
-            compared += 1;
-            shown += expected.len();
-        }
-    }
-    assert_eq!(compared, 2736);
-    // 6,038 windows across the corpus: 4,258 $FD waits, 1,538 message ends,
-    // 126 $F7 closes, 89 full windows and 27 choices.
-    assert_eq!(shown, 6038);
-}
-
-#[test]
-fn the_corpus_never_needs_a_third_line_or_a_wrapped_word() {
-    let dir = pack_dir();
-    if !dir.join("dialogue").join("trees.json").is_file() {
-        return;
-    }
-    let set = DialogueSet::load(&dir).expect("the dialogue pack loads");
-    for tree in &set.trees.trees {
-        for entry in &tree.entries {
-            for (lines, _) in pages(entry) {
-                assert!(lines.len() <= 2, "{} entry {}", tree.label, entry.id);
-                for line in lines {
-                    assert!(
-                        line.chars().count() <= 32,
-                        "{} entry {}",
-                        tree.label,
-                        entry.id
-                    );
-                }
-            }
-        }
-    }
 }

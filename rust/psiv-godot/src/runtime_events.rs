@@ -4,14 +4,14 @@
 //! extension registration boilerplate. The event loop is deliberately
 //! ordered: `ScenePresentation` is consumed exactly where the runtime put it.
 
-use crate::boot::collect_event_flags;
-use crate::dialogue::DialogueAction;
 use crate::transitions::TransitionKind;
 use crate::view::{NpcNode, sequence_name};
 use crate::{Field, RETAIL_DISMISS_HOLD_FRAMES, event_battle_music, retail_pace_enabled};
 use godot::prelude::*;
 use psiv_core::WarpTrigger;
-use psiv_runtime::RuntimeEvent;
+use psiv_runtime::{
+    DialogueAction, DialogueSignal, NpcDialogueOpen, RuntimeEvent, SceneDialogueOpen,
+};
 
 impl Field {
     /// Applies a batch of runtime events to the presentation. Returns whether
@@ -104,46 +104,34 @@ impl Field {
                         }
                         godot_print!("counter reach at {cell:?} has no shop row; dialogue");
                     }
-                    let binding = self.runtime.as_ref().and_then(|rt| {
-                        let record = rt.map_record()?;
-                        let tree = match record.dialogue_tree {
-                            0 => return None,
-                            tree => tree,
-                        };
-                        let id = rt.npc_dialogue_id(npc_index)?;
-                        Some((tree, id))
-                    });
-                    match binding {
-                        Some((tree, id)) => {
-                            let flags = self.runtime.as_ref().map(collect_event_flags);
-                            let opened = self.dialogue.as_mut().is_some_and(|w| {
-                                let mut w = w.bind_mut();
-                                if let Some(flags) = flags {
-                                    w.set_event_flags(flags);
-                                }
-                                w.open_dialogue(tree, id)
-                            });
-                            if opened {
-                                let toward = self
-                                    .runtime
-                                    .as_ref()
-                                    .map(|rt| rt.state().facing().opposite());
-                                if let Some(toward) = toward {
-                                    let name = sequence_name("idle", toward);
-                                    for entry in &mut self.npc_nodes {
-                                        if entry.index == npc_index {
-                                            entry.idle = name.clone();
-                                        }
-                                    }
-                                    if let Some(rt) = self.runtime.as_mut() {
-                                        rt.face_npc(npc_index, toward);
+                    // The runtime resolves the map's tree and the object's
+                    // dialogue id, opens the window and turns the object to
+                    // face the party (the cartridge's default for a talk).
+                    // The shell's share is the sprite sequence and the
+                    // diagnostic for an object the map never bound.
+                    let opened = self
+                        .runtime
+                        .as_mut()
+                        .map(|rt| rt.open_npc_dialogue(npc_index));
+                    match opened {
+                        Some(NpcDialogueOpen::Opened) => {
+                            let toward = self
+                                .runtime
+                                .as_ref()
+                                .map(|rt| rt.state().facing().opposite());
+                            if let Some(toward) = toward {
+                                let name = sequence_name("idle", toward);
+                                for entry in &mut self.npc_nodes {
+                                    if entry.index == npc_index {
+                                        entry.idle = name.clone();
                                     }
                                 }
                             }
                         }
-                        None => godot_print!(
+                        Some(NpcDialogueOpen::NoBinding) => godot_print!(
                             "talk: npc {npc_index} at {cell:?} has no dialogue binding"
                         ),
+                        _ => {}
                     }
                 }
                 RuntimeEvent::SceneStarted { trigger } => {
@@ -183,6 +171,10 @@ impl Field {
                     {
                         godot_print!("debug: auto-closing scene dialogue entry {entry}");
                         if let Some(rt) = self.runtime.as_mut() {
+                            // The runtime opened the window when the scene
+                            // asked for it; the harness shuts it again
+                            // without presenting anything.
+                            rt.close_dialogue();
                             rt.dialogue_closed();
                         }
                         continue;
@@ -196,29 +188,27 @@ impl Field {
                         }
                         self.retail_dialogue_wait = 0;
                     }
-                    let tree = self
-                        .runtime
-                        .as_ref()
-                        .and_then(|rt| rt.map_record())
-                        .map(|r| r.dialogue_tree)
-                        .unwrap_or(0);
-                    let Some(tree) = self.presentation.scene_dialogue_tree(tree) else {
-                        godot_error!("scene dialogue tree is absent from the loaded pack");
-                        continue;
-                    };
-                    let flags = self.runtime.as_ref().map(collect_event_flags);
                     let panel_layout = self
                         .presentation
                         .panel_dialogue_mode(self.runtime.as_ref().and_then(|rt| rt.scene_event()));
-                    let opened = self.dialogue.as_mut().is_some_and(|w| {
-                        let mut w = w.bind_mut();
-                        if let Some(flags) = flags {
-                            w.set_event_flags(flags);
+                    // The runtime resolves the entry against the tree the
+                    // scene selected (`SetDialogueTree`, or the map's own
+                    // binding); a tree the pack does not have is the one case
+                    // that must leave the scene's dialogue barrier pending.
+                    let opened = self
+                        .runtime
+                        .as_mut()
+                        .map(|rt| rt.open_scene_dialogue(entry, panel_layout));
+                    match opened {
+                        Some(SceneDialogueOpen::UnknownTree) => {
+                            godot_error!("scene dialogue tree is absent from the loaded pack");
                         }
-                        w.open_scene_dialogue(tree, entry, panel_layout)
-                    });
-                    if !opened && let Some(rt) = self.runtime.as_mut() {
-                        rt.dialogue_closed();
+                        Some(SceneDialogueOpen::Empty) => {
+                            if let Some(rt) = self.runtime.as_mut() {
+                                rt.dialogue_closed();
+                            }
+                        }
+                        _ => {}
                     }
                 }
                 RuntimeEvent::SceneDialogueResume => {
@@ -227,30 +217,27 @@ impl Field {
                         && !retail_pace_enabled()
                     {
                         if let Some(rt) = self.runtime.as_mut() {
+                            rt.close_dialogue();
                             rt.dialogue_closed();
                         }
                         continue;
                     }
                     self.retail_dialogue_wait = 0;
-                    let flags = self.runtime.as_ref().map(collect_event_flags);
                     let panel_layout = self
                         .presentation
                         .panel_dialogue_mode(self.runtime.as_ref().and_then(|rt| rt.scene_event()));
-                    let opened = self.dialogue.as_mut().is_some_and(|w| {
-                        let mut w = w.bind_mut();
-                        if let Some(flags) = flags {
-                            w.set_event_flags(flags);
-                        }
-                        w.resume_scene_dialogue(panel_layout)
-                    });
+                    let opened = self
+                        .runtime
+                        .as_mut()
+                        .is_some_and(|rt| rt.resume_scene_dialogue(panel_layout));
                     if !opened && let Some(rt) = self.runtime.as_mut() {
                         rt.dialogue_closed();
                     }
                 }
                 RuntimeEvent::SceneChoiceRequested => {
                     godot_print!("scene awaits a dialogue choice");
-                    if let Some(window) = self.dialogue.as_mut() {
-                        window.bind_mut().open_scene_choice();
+                    if let Some(rt) = self.runtime.as_mut() {
+                        rt.open_scene_choice();
                     }
                 }
                 RuntimeEvent::SceneBattleStarted {
@@ -296,8 +283,8 @@ impl Field {
                     }
                 }
                 RuntimeEvent::InteractNothing { .. } => {
-                    if let Some(window) = self.dialogue.as_mut() {
-                        window.bind_mut().open_nothing_here(0);
+                    if let Some(rt) = self.runtime.as_mut() {
+                        rt.open_nothing_here(0);
                     }
                 }
             }
@@ -305,21 +292,42 @@ impl Field {
         stepped
     }
 
-    /// Drain actions only when the typewriter has reached their byte
-    /// position. Consecutive actions are intentionally looped here: retail
-    /// runs them back-to-back before the next character iteration.
-    pub(super) fn service_dialogue_actions(&mut self) {
-        loop {
-            let action = self
-                .dialogue
-                .as_mut()
-                .and_then(|window| window.bind_mut().take_ready_action());
-            let Some(action) = action else {
-                break;
-            };
-            self.dispatch_dialogue_action(action);
-            if let Some(window) = self.dialogue.as_mut() {
-                window.bind_mut().resume_after_action();
+    /// Presents what the dialogue did this frame.
+    ///
+    /// The runtime has already applied every game-state side: the `$F2`
+    /// event-flag write, the scene's close acknowledgement, the choice. What
+    /// is left is the presentation — the panel planes a scene dialogue leaves
+    /// behind, the sounds, the palettes — plus the diagnostics.
+    pub(super) fn present_dialogue_signals(&mut self, signals: Vec<DialogueSignal>) {
+        for signal in signals {
+            match signal {
+                DialogueSignal::Closed { .. } => {
+                    if self.runtime.as_ref().is_some_and(|rt| rt.scene_active()) {
+                        godot_print!("scene dialogue closed (t{})", self.anim_tick);
+                    }
+                    // F7 and FF both return through loc_69B00, which clears
+                    // the panel rendering byte. Keep the cursor separately.
+                    self.presentation.set_render_sprites(false);
+                    if matches!(
+                        self.runtime
+                            .as_ref()
+                            .and_then(|rt| rt.scene_dialogue_window()),
+                        Some(
+                            psiv_core::DialogueWindow::Standard
+                                | psiv_core::DialogueWindow::Cutscene
+                                | psiv_core::DialogueWindow::Cutscene5
+                        )
+                    ) && let Some(layer) = self.cutscene_layer.as_mut()
+                    {
+                        layer.bind_mut().panel_destroy_all();
+                    }
+                }
+                DialogueSignal::ChoiceAnswered(yes) => {
+                    godot_print!("dialogue choice: {}", if yes { "YES" } else { "NO" });
+                }
+                DialogueSignal::Action(action) => self.dispatch_dialogue_action(action),
+                DialogueSignal::Log(line) => godot_print!("dialogue: {line}"),
+                DialogueSignal::Fault(line) => godot_error!("dialogue: {line}"),
             }
         }
     }
@@ -389,21 +397,9 @@ impl Field {
                 godot_print!("dialogue action: SabotageAlarmRedPalette");
             }
             DialogueAction::SetEventFlag(flag) => {
-                let result = self
-                    .runtime
-                    .as_mut()
-                    .map_or(Ok(()), |runtime| runtime.set_event_flag(flag));
-                match result {
-                    Ok(()) => {
-                        if let Some(window) = self.dialogue.as_mut() {
-                            window.bind_mut().set_event_flag(flag);
-                        }
-                        godot_print!("dialogue action: SetEventFlag({flag:#04x})");
-                    }
-                    Err(error) => {
-                        godot_error!("dialogue action SetEventFlag({flag:#04x}) failed: {error}")
-                    }
-                }
+                // The runtime already wrote the live flag bank when it
+                // released the action, so this is the log line only.
+                godot_print!("dialogue action: SetEventFlag({flag:#04x})");
             }
             DialogueAction::ElsydeonBroken => {
                 if let Some(layer) = self.cutscene_layer.as_mut() {

@@ -65,6 +65,8 @@ resolves into pad input:
 - reach a map and cell, path-finding across the pack's warp graph;
 - talk to an object, answer a choice, open a chest, use a field ability;
 - buy, sell, equip, rest at an inn, reorder the party;
+- `interact` with a cell (doors and elevators that open walls), and `patrol`
+  between two cells until a condition holds (grinding the route requires);
 - fight scripted battles; random battles use a policy that issues commands
   through the battle menu with the same pad input a player would use.
 
@@ -82,13 +84,14 @@ canonical_record: "docs/campaign/CAMPAIGN_RUNNER.md#task-graph"
 authority: "Owner 2026-10-01: campaign runner approach; commit, push, PR and merge once the full gate is green (docs/AGENT_WORKFLOW.md#authority-effort-and-continuation)"
 effort_policy: "Continue scoped repairs until acceptance passes; no fixed cycle limit (inherited)"
 exclusions: ["modding", "visual-parity claims beyond existing certifications", "gameplay changes that are not cartridge behavior"]
-next_action: "S1 (lane s1-dialogue)"
+next_action: "S2"
 nodes:
   - id: S1
     outcome: "Dialogue interpreter in psiv-runtime: control codes, branches, choices, actions, $F2/$F6/$F7, live flags, typewriter and open-animation gates, driven by a cartridge-layout Pad"
     depends_on: []
     acceptance: "psiv-godot no longer matches on Ctrl::; the window renders a runtime view; the TextFlow pagination test still matches all 2,736 entries; mid-message branch, $F2 and live-flag regression tests; the headless example harness's own dialogue walk is deleted; opening p1/p2 and MeetingRika certifications stay 0.000000"
-    state: in_progress
+    evidence: ["build/lane-evidence/workspace-tests.txt", "build/lane-evidence/clippy.txt", "build/lane-evidence/fmt.txt", "build/lane-evidence/examples-build.txt", "build/lane-evidence/python-checks.txt", "build/lane-evidence/testnames-psiv-godot.diff", "build/lane-evidence/testnames-psiv-runtime.diff", "build/lane-evidence/ctrl-grep.txt", "build/lane-evidence/negative-controls.md", "integration: tools/certify.py on candidate 46810a3 vs main e9e58a2 baseline: meeting-rika, title, battle 0.000000 on both; opening-p2 and camp-root captures byte-identical to baseline; opening-p1 differs by the expected two-frame retail-pace shift (dialogue close t278 -> t276); opening and camp pairs had already rotted on main (#44), so their 0.000000 is restored there, not here", "integration: native opening smoke (title START, trigger 124, Up) reaches map $13 (48,18), Chaz alone, 500 meseta, town 80008040"]
+    state: verified
   - id: S2
     outcome: "Session::frame(pad) owns mode dispatch, field, scenes, dialogue, pending $F6 and field suspension; Godot's lib.rs dispatcher calls it"
     depends_on: [S1]
@@ -109,9 +112,15 @@ nodes:
     depends_on: [S3, S4]
     acceptance: "psiv-godot compiles against the Session view API only (a mutator call from Godot fails to compile); title certification stays 0.000000; fresh-process CONTINUE verified"
     state: pending
+  - id: R0
+    outcome: "Route planner (cross-map warp graph + in-map BFS over the runtime's own FieldMap) and the route-file format with a pack validator; rust/psiv-campaign"
+    depends_on: []
+    acceptance: "Motavia (84,64) to Aiedo plans one warp (0x100706), arrival (47,83), 67 steps, matching docs/campaign/AIEDO.md's independent oracle/route.py result; validator accepts routes/main.json and rejects mutated copies"
+    state: verified
+    evidence: ["psiv-campaign 27/27 and psiv-runtime suites green at bf763ee", "validate routes/main.json: 13 chapters, 196 objectives, 100 warps, 3672 steps, 0 errors", "review: the planner's attach_chests copy replaced by one public fresh-entry builder, field_map_entered, also used by map_change and save", "12 objectives marked verify:true (R1 resolves them by running)"]
   - id: R1
-    outcome: "Campaign runner binary and route format; chapters through the post-Rika checkpoint"
-    depends_on: [S5]
+    outcome: "Campaign runner binary driving a Session from routes/main.json; chapters through the post-Rika checkpoint"
+    depends_on: [S5, R0]
     acceptance: "The runner plays New Game to the north bank (Motavia $00 (84,64), five members) from the route file with pad input only, writes a pad tape and chapter saves, and a deliberately broken objective halts with a report (negative control)"
     state: pending
   - id: R2

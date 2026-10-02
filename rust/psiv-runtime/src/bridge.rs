@@ -97,6 +97,24 @@ pub fn field_map_patched(
     field_map_retaining_objects(record, outcome, &[])
 }
 
+/// The field map a fresh map entry builds: the effect-patched layout and
+/// objects, then the treasure chests with lids from the saved chest flags.
+/// Every fresh entry (map change, save load) and every offline planner uses
+/// this one builder, so no caller can get a map that silently lacks chests.
+///
+/// # Errors
+///
+/// [`BridgeError`] when the record does not convert.
+pub fn field_map_entered(
+    record: &MapRecord,
+    effects: &EffectOutcome,
+    game: &GameState,
+) -> Result<FieldMap, BridgeError> {
+    let mut map = field_map_patched(record, Some(effects))?;
+    attach_chests(&mut map, record, game, &[], effects)?;
+    Ok(map)
+}
+
 /// LoadTreasureChests follows map NPC allocation. Keep live lids on a battle
 /// or chunk refresh; a real map entry reconstructs them from the saved flags.
 pub(super) fn attach_chests(
