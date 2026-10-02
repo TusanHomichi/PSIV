@@ -64,7 +64,8 @@ check receipts are in the travel ledger. The pack, saves and captures remain
 local and ignored.
 
 **Next action:** `S1` in the [campaign runner graph](campaign/CAMPAIGN_RUNNER.md#task-graph) —
-move mode dispatch out of `psiv-godot` into a runtime `Session::frame(pad)`.
+move the dialogue interpreter out of `psiv-godot` into the runtime, the first
+step toward a runtime `Session::frame(pad)`.
 Campaign progress after this checkpoint is driven by the runner's route file;
 the [Aiedo ledger](campaign/AIEDO.md)'s route, condition and budget research is
 input for its first chapters.

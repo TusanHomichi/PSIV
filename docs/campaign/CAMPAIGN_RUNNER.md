@@ -82,31 +82,31 @@ canonical_record: "docs/campaign/CAMPAIGN_RUNNER.md#task-graph"
 authority: "Owner 2026-10-01: campaign runner approach; commit, push, PR and merge once the full gate is green (docs/AGENT_WORKFLOW.md#authority-effort-and-continuation)"
 effort_policy: "Continue scoped repairs until acceptance passes; no fixed cycle limit (inherited)"
 exclusions: ["modding", "visual-parity claims beyond existing certifications", "gameplay changes that are not cartridge behavior"]
-next_action: "S1"
+next_action: "S1 (lane s1-dialogue)"
 nodes:
   - id: S1
-    outcome: "Session skeleton: Session::frame(pad) owns mode dispatch, field, scenes and field suspension; Godot's lib.rs dispatcher calls it"
+    outcome: "Dialogue interpreter in psiv-runtime: control codes, branches, choices, actions, $F2/$F6/$F7, live flags, typewriter and open-animation gates, driven by a cartridge-layout Pad"
     depends_on: []
-    acceptance: "Godot's per-frame dispatcher is replaced by Session::frame; the RNG-relevant field suspension is decided in the runtime; all existing tests pass; the six certified captures stay at rmse 0.000000; one existing native driver (opening) passes unchanged"
-    state: ready
+    acceptance: "psiv-godot no longer matches on Ctrl::; the window renders a runtime view; the TextFlow pagination test still matches all 2,736 entries; mid-message branch, $F2 and live-flag regression tests; the headless example harness's own dialogue walk is deleted; opening p1/p2 and MeetingRika certifications stay 0.000000"
+    state: in_progress
   - id: S2
-    outcome: "Dialogue interpreter in psiv-runtime: control codes, branches, choices, actions, $F2/$F6/$F7, live flags, typewriter and open-animation gates"
+    outcome: "Session::frame(pad) owns mode dispatch, field, scenes, dialogue, pending $F6 and field suspension; Godot's lib.rs dispatcher calls it"
     depends_on: [S1]
-    acceptance: "psiv-godot no longer matches on Ctrl::; the TextFlow pagination test still matches all 2,736 entries; mid-message branch and $F2 regression tests; MeetingRika certification stays 0.000000"
+    acceptance: "Godot's per-frame dispatcher is replaced by Session::frame; the RNG-relevant field suspension and the dismiss-press latch are decided in the runtime; all existing tests pass; the six certified captures stay at rmse 0.000000; the opening native driver passes unchanged"
     state: pending
   - id: S3
     outcome: "Battle menus and battle end in psiv-runtime, driven by pad input"
-    depends_on: [S1]
+    depends_on: [S2]
     acceptance: "RoundOrders are built only inside the runtime from menu input; outcome and rewards come from the battle itself; vehicle skill counts live in game state; the 87-fixture oracle replay stays exact; battle idle certification stays 0.000000"
     state: pending
   - id: S4
     outcome: "Shop, inn, camp, loot and their catalogs in psiv-runtime/psiv-data"
-    depends_on: [S1]
+    depends_on: [S2]
     acceptance: "shops.json loads only through psiv-data; sell price, equip/unequip and auto-target rules have runtime tests; camp root certification stays 0.000000"
     state: pending
   - id: S5
     outcome: "Title, CONTINUE/START/ERASE and game over in the Session; runtime mutators crate-private"
-    depends_on: [S2, S3, S4]
+    depends_on: [S3, S4]
     acceptance: "psiv-godot compiles against the Session view API only (a mutator call from Godot fails to compile); title certification stays 0.000000; fresh-process CONTINUE verified"
     state: pending
   - id: R1
