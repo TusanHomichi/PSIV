@@ -19,7 +19,6 @@ fn checked_tick(rt: &mut Runtime, input: Input) -> Vec<RuntimeEvent> {
             event,
             RuntimeEvent::SceneFaulted { .. }
                 | RuntimeEvent::SceneMissing { .. }
-                | RuntimeEvent::TriggerUnsupported { .. }
                 | RuntimeEvent::WarpUnmapped { .. }
                 | RuntimeEvent::MapRefreshFailed { .. }
                 | RuntimeEvent::UnpackedTarget { .. }

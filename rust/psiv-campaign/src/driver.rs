@@ -321,8 +321,7 @@ impl Driver {
                 | RuntimeEvent::SceneBattleFailed { .. }
                 | RuntimeEvent::MapRefreshFailed { .. }
                 | RuntimeEvent::UnpackedTarget { .. }
-                | RuntimeEvent::WarpUnmapped { .. }
-                | RuntimeEvent::TriggerUnsupported { .. } => {
+                | RuntimeEvent::WarpUnmapped { .. } => {
                     raise(HaltKind::SceneFault, format!("{event:?}"));
                 }
                 _ => {}

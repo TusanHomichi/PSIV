@@ -66,7 +66,9 @@ resolves into pad input:
 - talk to an object, answer a choice, open a chest, use a field ability;
 - buy, sell, equip, rest at an inn, reorder the party;
 - `interact` with a cell (doors and elevators that open walls), and `patrol`
-  between two cells until a condition holds (grinding the route requires);
+  between two cells until a condition holds (grinding the route requires),
+  with an optional `refuge` list the patrol runs when a member falls or a
+  living member drops under half HP;
 - fight scripted battles; random battles use a policy that issues commands
   through the battle menu with the same pad input a player would use.
 
