@@ -65,6 +65,8 @@ resolves into pad input:
 - reach a map and cell, path-finding across the pack's warp graph;
 - talk to an object, answer a choice, open a chest, use a field ability;
 - buy, sell, equip, rest at an inn, reorder the party;
+- `interact` with a cell (doors and elevators that open walls), and `patrol`
+  between two cells until a condition holds (grinding the route requires);
 - fight scripted battles; random battles use a policy that issues commands
   through the battle menu with the same pad input a player would use.
 
@@ -110,9 +112,15 @@ nodes:
     depends_on: [S3, S4]
     acceptance: "psiv-godot compiles against the Session view API only (a mutator call from Godot fails to compile); title certification stays 0.000000; fresh-process CONTINUE verified"
     state: pending
+  - id: R0
+    outcome: "Route planner (cross-map warp graph + in-map BFS over the runtime's own FieldMap) and the route-file format with a pack validator; rust/psiv-campaign"
+    depends_on: []
+    acceptance: "Motavia (84,64) to Aiedo plans one warp (0x100706), arrival (47,83), 67 steps, matching docs/campaign/AIEDO.md's independent oracle/route.py result; validator accepts routes/main.json and rejects mutated copies"
+    state: verified
+    evidence: ["psiv-campaign 27/27 and psiv-runtime suites green at bf763ee", "validate routes/main.json: 13 chapters, 196 objectives, 100 warps, 3672 steps, 0 errors", "review: the planner's attach_chests copy replaced by one public fresh-entry builder, field_map_entered, also used by map_change and save", "12 objectives marked verify:true (R1 resolves them by running)"]
   - id: R1
-    outcome: "Campaign runner binary and route format; chapters through the post-Rika checkpoint"
-    depends_on: [S5]
+    outcome: "Campaign runner binary driving a Session from routes/main.json; chapters through the post-Rika checkpoint"
+    depends_on: [S5, R0]
     acceptance: "The runner plays New Game to the north bank (Motavia $00 (84,64), five members) from the route file with pad input only, writes a pad tape and chapter saves, and a deliberately broken objective halts with a report (negative control)"
     state: pending
   - id: R2

@@ -7,7 +7,7 @@ use crate::bridge::{self, build_bespoke, build_wander, clear_bespoke_entry_flags
 use crate::effects;
 use crate::geometry::{camera_for_record, driver_of};
 use crate::vehicle;
-use crate::{BridgeError, Runtime, RuntimeEvent, field_map_patched};
+use crate::{BridgeError, Runtime, RuntimeEvent};
 
 impl Runtime {
     /// Applies the cartridge's battle-return map load before revealing the
@@ -71,8 +71,7 @@ impl Runtime {
         // maps at their next build; this map's own build below already sees
         // the post-clear state.
         let effects = effects::evaluate(record, &mut self.game);
-        let mut map = field_map_patched(record, Some(&effects))?;
-        bridge::attach_chests(&mut map, record, &self.game, &[], &effects)?;
+        let map = bridge::field_map_entered(record, &effects, &self.game)?;
         clear_bespoke_entry_flags(&mut self.game, record);
         self.effects = effects;
         // LoadMapObjects creates a fresh cast. Scene despawns only change

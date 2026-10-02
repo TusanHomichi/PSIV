@@ -1,0 +1,345 @@
+{
+  "format": 1,
+  "title": "PSIV campaign: New Game to Aiedo",
+  "chapters": [
+    {
+      "id": "academy",
+      "title": "Piata Academy: Alys, Hahn, Igglanova, back to Motavia",
+      "source": "rust/psiv-runtime/examples/academy_route.rs; tools/native/native_route.gd ACADEMY_ROUTE; docs/campaign/PLAYABILITY_ACADEMY.md; docs/scenes/03_AlysFound.md..11_PiataGuardsReprimand.md",
+      "random_battle_policy": "attack_all",
+      "objectives": [
+        {"do": "go_to", "map": 19, "cell": [38, 17], "note": "FindingAlys trigger fires on landing; academy_route.rs walk_to(38,17)"},
+        {"do": "expect", "flags_set": ["event:0x8"], "map": 19, "note": "Event_AlysFound sets $08 (academy_route.rs line asserting Flag::event(8))"},
+        {"do": "go_to_map", "map": 20, "via_warp": 0, "note": "native leg: walk to (31,10) on map 0x13"},
+        {"do": "go_to", "map": 20, "cell": [15, 16]},
+        {"do": "talk", "npc": 0, "note": "principal: face Up, Action"},
+        {"do": "expect", "flags_set": ["event:0x9"], "note": "principal briefing sets $09"},
+        {"do": "go_to_map", "map": 19, "via_warp": 0, "note": "native leg: walk to (15,21) on map 0x14"},
+        {"do": "go_to_map", "map": 17, "via_warp": 4, "note": "native leg: walk to (16,19) on map 0x13"},
+        {"do": "go_to_map", "map": 18, "via_warp": 3, "note": "native leg: walk to (30,8) on map 0x11"},
+        {"do": "go_to", "map": 18, "cell": [13, 18]},
+        {"do": "talk", "npc": 0, "verify": true, "note": "Hahn: face Up, Action; objects [0, 1] are all in talk range; the first ACTIVE one wins the probe, so the index depends on map effects at that moment"},
+        {"do": "expect", "flags_set": ["event:0xa"], "note": "Hahn joined sets $0A"},
+        {"do": "go_to_map", "map": 21, "via_warp": 1, "note": "native leg: walk to (18,13) on map 0x12"},
+        {"do": "go_to_map", "map": 22, "via_warp": 1, "note": "native leg: walk to (32,9) on map 0x15"},
+        {"do": "go_to_map", "map": 23, "via_warp": 1, "note": "native leg: walk to (14,19) on map 0x16"},
+        {"do": "go_to", "map": 23, "cell": [15, 11]},
+        {"do": "talk", "npc": 0, "verify": true, "note": "Igglanova: face Up, Action starts Event_IgglanovaBattle; objects [0, 2] are all in talk range; the first ACTIVE one wins the probe, so the index depends on map effects at that moment"},
+        {"do": "fight_scripted", "note": "Igglanova (boss formation); RoundOrders from the policy"},
+        {"do": "expect", "flags_set": ["event:0xb", "event:0xf"], "note": "$0B Igglanova defeated, $0F set after the conversation"},
+        {"do": "go_to_map", "map": 22, "via_warp": 0, "note": "native leg: walk to (16,19) on map 0x17"},
+        {"do": "go_to_map", "map": 21, "via_warp": 0, "note": "native leg: walk to (48,9) on map 0x16"},
+        {"do": "go_to_map", "map": 18, "via_warp": 0, "note": "native leg: walk to (48,9) on map 0x15"},
+        {"do": "go_to_map", "map": 17, "via_warp": 0, "note": "native leg: walk to (14,22) on map 0x12"},
+        {"do": "go_to_map", "map": 19, "via_warp": 2, "note": "native leg: walk to (16,19) on map 0x11"},
+        {"do": "go_to_map", "map": 20, "via_warp": 0, "note": "native leg: walk to (31,10) on map 0x13"},
+        {"do": "go_to", "map": 20, "cell": [15, 16]},
+        {"do": "talk", "npc": 0, "note": "principal pays: face Up, Action"},
+        {"do": "expect", "flags_set": ["event:0xc"], "note": "principal paid sets $0C"},
+        {"do": "go_to_map", "map": 19, "via_warp": 0, "note": "native leg: walk to (15,21) on map 0x14"},
+        {"do": "go_to_map", "map": 17, "via_warp": 4, "note": "native leg: walk to (16,19) on map 0x13"},
+        {"do": "go_to_map", "map": 16, "via_warp": 0, "note": "native leg: walk to (31,20) on map 0x11"},
+        {"do": "go_to_map", "map": 0, "via_warp": 0, "note": "native leg: walk to (31,48) on map 0x10"}
+      ],
+      "closing": [
+        {"flags_set": ["event:0x8", "event:0x9", "event:0xa", "event:0xb", "event:0xc", "event:0xf"], "map": 0}
+      ]
+    },
+    {
+      "id": "holt",
+      "title": "Mile, Zema, Birth Valley and Professor Holt",
+      "source": "tools/native/native_motavia.gd route; rust/psiv-runtime/examples/motavia_route.rs; docs/campaign/PLAYABILITY_HOLT_TONOE.md \"Connected native route through Holt\"; docs/scenes/13_ProfHolt.md",
+      "random_battle_policy": "heal_then_attack",
+      "objectives": [
+        {"do": "go_to_map", "map": 29, "via_warp": 1, "verify": true, "note": "native leg: walk to (61,100) on map 0x00; Mile first; both source drivers visit Mile before Zema, reason not stated in them"},
+        {"do": "go_to_map", "map": 0, "via_warp": 2, "note": "native leg: walk to (20,50) on map 0x1d"},
+        {"do": "go_to_map", "map": 36, "via_warp": 2, "note": "native leg: walk to (99,82) on map 0x00"},
+        {"do": "go_to_map", "map": 43, "via_warp": 1, "note": "native leg: walk to (31,11) on map 0x24"},
+        {"do": "go_to_map", "map": 44, "via_warp": 1, "note": "native leg: walk to (33,15) on map 0x2b"},
+        {"do": "go_to", "map": 44, "cell": [23, 17]},
+        {"do": "talk", "npc": 5, "note": "petrified Holt: face Up, Action"},
+        {"do": "expect", "flags_set": ["event:0x10"], "map": 36, "cell": [60, 21], "verify": true, "note": "Event_ProfHolt writes Map_Start=($3C,$14) facing down on Zema (docs/scenes/13_ProfHolt.md:26); the standing cell (60,21) applies the warp byte convention, confirm in play"},
+        {"do": "go_to_map", "map": 0, "via_warp": 0, "note": "native leg: walk to (31,50) on map 0x24; ledger: the ordinary save was at Motavia (99,83)"},
+        {"do": "save", "slot": 0}
+      ],
+      "closing": [
+        {"flags_set": ["event:0x10"], "map": 0, "cell": [99, 83]}
+      ]
+    },
+    {
+      "id": "rune-dorin",
+      "title": "Mile inn, Rune, the Valley Maze and Dorin at Tonoe",
+      "source": "tools/native/native_tonoe.gd route; rust/psiv-runtime/examples/tonoe_route.rs; docs/campaign/PLAYABILITY_HOLT_TONOE.md \"Connected native Tonoe completion\"; docs/scenes/14_MeetingRune.md, 15_MeetingDorin.md, 16_Dorin.md",
+      "random_battle_policy": "heal_then_attack",
+      "objectives": [
+        {"do": "go_to_map", "map": 29, "via_warp": 1, "note": "native leg: walk to (61,100) on map 0x00"},
+        {"do": "go_to_map", "map": 35, "via_warp": 8, "note": "native leg: walk to (38,43) on map 0x1d"},
+        {"do": "go_to", "map": 35, "cell": [21, 34]},
+        {"do": "rest_inn", "face": "up", "note": "native receipt: Mile inn costs 30 meseta for the party"},
+        {"do": "go_to_map", "map": 29, "via_warp": 0, "note": "native leg: walk to (21,46) on map 0x23"},
+        {"do": "go_to_map", "map": 0, "via_warp": 2, "note": "native leg: walk to (20,50) on map 0x1d"},
+        {"do": "go_to_map", "map": 64, "via_warp": 4, "note": "native leg: walk to (82,158) on map 0x00"},
+        {"do": "go_to", "map": 64, "cell": [30, 22]},
+        {"do": "talk", "npc": 4, "note": "Rune: face Up, Action"},
+        {"do": "expect", "flags_set": ["event:0x11"], "note": "Rune joined sets $11"},
+        {"do": "go_to_map", "map": 0, "via_warp": 3, "note": "native leg: walk to (30,56) on map 0x40"},
+        {"do": "go_to_map", "map": 216, "via_warp": 18, "note": "native leg: walk to (128,121) on map 0x00"},
+        {"do": "expect", "flags_set": ["event:0x13"], "note": "Rune clears the Valley Maze rock on entry (Event_RuneFlaeli), flag $13"},
+        {"do": "go_to_map", "map": 155, "via_warp": 3, "note": "native leg: walk to (31,31) on map 0xd8"},
+        {"do": "go_to_map", "map": 157, "via_warp": 2, "note": "native leg: walk to (16,11) on map 0x9b"},
+        {"do": "go_to_map", "map": 159, "via_warp": 2, "note": "native leg: walk to (16,15) on map 0x9d"},
+        {"do": "go_to_map", "map": 161, "via_warp": 2, "note": "native leg: walk to (18,15) on map 0x9f"},
+        {"do": "go_to_map", "map": 217, "via_warp": 1, "note": "native leg: walk to (32,15) on map 0xa1"},
+        {"do": "go_to_map", "map": 0, "via_warp": 0, "note": "native leg: walk to (31,36) on map 0xd9"},
+        {"do": "go_to_map", "map": 65, "via_warp": 5, "note": "native leg: walk to (150,88) on map 0x00"},
+        {"do": "go_to_map", "map": 67, "via_warp": 5, "note": "native leg: walk to (45,21) on map 0x41"},
+        {"do": "go_to", "map": 67, "cell": [30, 32]},
+        {"do": "talk", "npc": 0, "verify": true, "note": "Dorin: face Up, Action; objects [0, 5, 8] are all in talk range; the first ACTIVE one wins the probe, so the index depends on map effects at that moment"},
+        {"do": "answer", "yes": false, "note": "\"refining Titanium\" prompt (native_tonoe.gd choice_input; ledger NO)"},
+        {"do": "answer", "yes": false, "note": "\"blocked by a rock\" prompt (NO)"},
+        {"do": "answer", "yes": true, "note": "\"Warrior\" prompt (YES)"},
+        {"do": "expect", "flags_set": ["event:0x30"], "map": 67, "note": "Gryz joins and replaces Rune; flag $30"},
+        {"do": "save", "slot": 0}
+      ],
+      "closing": [
+        {"flags_set": ["event:0x11", "event:0x13", "event:0x30"], "map": 67}
+      ]
+    },
+    {
+      "id": "alshline",
+      "title": "Tonoe inn, the storage door, the basement and the Alshline chest",
+      "source": "tools/native/native_alshline.gd route; docs/campaign/PLAYABILITY_ALSHLINE_ZEMA.md \"Connected Alshline completion\"; docs/scenes/18_AlshlineFound.md, 19_Alshline.md",
+      "random_battle_policy": "run_unless_boss",
+      "objectives": [
+        {"do": "go_to_map", "map": 65, "via_warp": 0, "note": "native leg: walk to (30,40) on map 0x43"},
+        {"do": "go_to_map", "map": 70, "via_warp": 8, "note": "native leg: walk to (19,41) on map 0x41"},
+        {"do": "go_to", "map": 70, "cell": [20, 32]},
+        {"do": "rest_inn", "face": "up", "note": "native receipt: Tonoe inn costs 60 meseta (15 per member)"},
+        {"do": "go_to_map", "map": 65, "via_warp": 0, "note": "native leg: walk to (22,40) on map 0x46"},
+        {"do": "go_to_map", "map": 66, "via_warp": 4, "note": "native leg: walk to (31,11) on map 0x41"},
+        {"do": "go_to", "map": 66, "cell": [30, 28]},
+        {"do": "talk", "npc": 0, "verify": true, "note": "Gryz's storage door: face Up, Action; objects [0, 1] are all in talk range; the first ACTIVE one wins the probe, so the index depends on map effects at that moment"},
+        {"do": "expect", "flags_set": ["event:0x31"], "note": "storage door opened, flag $31"},
+        {"do": "go_to_map", "map": 71, "via_warp": 1, "note": "native leg: walk to (30,27) on map 0x42"},
+        {"do": "go_to_map", "map": 72, "via_warp": 1, "note": "native leg: walk to (32,15) on map 0x47"},
+        {"do": "go_to_map", "map": 73, "via_warp": 1, "note": "native leg: walk to (30,49) on map 0x48"},
+        {"do": "go_to_map", "map": 74, "via_warp": 1, "note": "native leg: walk to (48,53) on map 0x49"},
+        {"do": "go_to", "map": 74, "cell": [40, 33]},
+        {"do": "open_chest", "chest": 0, "note": "native leg walks to (40,33) and presses Up: the chest at (40,32); the Alshline item (id 141) goes to the pack"},
+        {"do": "expect", "flags_set": ["event:0x32"], "note": "Alshline conversation completes, flag $32"},
+        {"do": "go_to_map", "map": 73, "via_warp": 0, "note": "native leg: walk to (50,48) on map 0x4a"},
+        {"do": "go_to_map", "map": 72, "via_warp": 0, "note": "native leg: walk to (28,52) on map 0x49"},
+        {"do": "go_to_map", "map": 71, "via_warp": 0, "note": "native leg: walk to (30,12) on map 0x48"},
+        {"do": "go_to_map", "map": 66, "via_warp": 0, "note": "native leg: walk to (32,46) on map 0x47"},
+        {"do": "go_to_map", "map": 65, "via_warp": 0, "note": "native leg: walk to (30,40) on map 0x42"},
+        {"do": "save", "slot": 0}
+      ],
+      "closing": [
+        {"flags_set": ["event:0x31", "event:0x32"], "map": 65}
+      ]
+    },
+    {
+      "id": "zema-rescue",
+      "title": "Back through the maze to Zema and Igglanova",
+      "source": "tools/native/native_zema_return.gd route; docs/campaign/PLAYABILITY_ALSHLINE_ZEMA.md \"Connected Zema rescue and restart\"; docs/scenes/20_ZemaIgglanovaDefeated.md..23_ZemaOldManAfterMission.md",
+      "random_battle_policy": "run_unless_boss",
+      "objectives": [
+        {"do": "go_to", "map": 65, "cell": [19, 42]},
+        {"do": "go_to_map", "map": 70, "via_warp": 8, "note": "native leg: walk to (19,41) on map 0x41"},
+        {"do": "go_to", "map": 70, "cell": [20, 32]},
+        {"do": "rest_inn", "face": "up", "note": "paid Tonoe rest as in the Alshline chapter"},
+        {"do": "go_to_map", "map": 65, "via_warp": 0, "note": "native leg: walk to (22,40) on map 0x46"},
+        {"do": "go_to_map", "map": 0, "via_warp": 3, "note": "native leg: walk to (22,56) on map 0x41"},
+        {"do": "go_to_map", "map": 217, "via_warp": 19, "note": "native leg: walk to (148,93) on map 0x00"},
+        {"do": "go_to_map", "map": 161, "via_warp": 3, "note": "native leg: walk to (31,31) on map 0xd9"},
+        {"do": "go_to_map", "map": 159, "via_warp": 0, "note": "native leg: walk to (32,49) on map 0xa1"},
+        {"do": "go_to_map", "map": 157, "via_warp": 0, "note": "native leg: walk to (30,49) on map 0x9f"},
+        {"do": "go_to_map", "map": 155, "via_warp": 0, "note": "native leg: walk to (46,49) on map 0x9d"},
+        {"do": "go_to_map", "map": 216, "via_warp": 0, "note": "native leg: walk to (32,53) on map 0x9b"},
+        {"do": "go_to_map", "map": 0, "via_warp": 0, "note": "native leg: walk to (31,36) on map 0xd8"},
+        {"do": "go_to_map", "map": 36, "via_warp": 2, "note": "native leg: walk to (99,82) on map 0x00"},
+        {"do": "go_to", "map": 36, "cell": [30, 17]},
+        {"do": "fight_scripted", "note": "Igglanova is immune; the driver fought with ordinary commands and RAN from random battles until flag $33"},
+        {"do": "expect", "flags_set": ["event:0x33", "event:0x37"], "map": 36, "note": "$33 Igglanova defeated at Zema, $37 residents restored; Alshline consumed"},
+        {"do": "go_to_map", "map": 0, "via_warp": 0, "note": "native leg: walk to (31,50) on map 0x24"},
+        {"do": "save", "slot": 0}
+      ],
+      "closing": [
+        {"flags_set": ["event:0x33", "event:0x37"], "map": 0}
+      ]
+    },
+    {
+      "id": "zema-outfit",
+      "title": "Zema inn, shops and equipment",
+      "source": "tools/native/native_zema_outfit.gd; docs/campaign/PLAYABILITY_ALSHLINE_ZEMA.md \"Connected Zema equipment and restart\"; docs/camp/SHOPS.md",
+      "random_battle_policy": "attack_all",
+      "objectives": [
+        {"do": "go_to_map", "map": 36, "via_warp": 2, "note": "native leg: walk to (99,82) on map 0x00"},
+        {"do": "go_to_map", "map": 39, "via_warp": 4, "note": "native leg: walk to (36,31) on map 0x24"},
+        {"do": "go_to", "map": 39, "cell": [33, 34]},
+        {"do": "rest_inn", "face": "up", "note": "native receipt: 80 meseta for four members"},
+        {"do": "go_to_map", "map": 36, "via_warp": 0, "note": "native leg: walk to (33,40) on map 0x27"},
+        {"do": "go_to_map", "map": 38, "via_warp": 3, "note": "native leg: walk to (26,31) on map 0x24"},
+        {"do": "go_to", "map": 38, "cell": [28, 32]},
+        {"do": "buy", "item": "SLASHER", "count": 2, "face": "left", "note": "160 each"},
+        {"do": "buy", "item": "STEL-SWORD", "count": 1, "face": "left", "note": "280"},
+        {"do": "buy", "item": "BROAD-AXE", "count": 1, "face": "left", "note": "1000"},
+        {"do": "go_to", "map": 38, "cell": [35, 32]},
+        {"do": "buy", "item": "CRBN-SUIT", "count": 1, "face": "right", "note": "550"},
+        {"do": "buy", "item": "CRBNSHIELD", "count": 1, "face": "right", "note": "220"},
+        {"do": "buy", "item": "CIRCLET", "count": 1, "face": "right", "note": "100; total of seven purchases is 2470"},
+        {"do": "equip", "member": "Alys", "item": "SLASHER", "note": "right hand"},
+        {"do": "equip", "member": "Alys", "item": "SLASHER", "note": "left hand (hand selector)"},
+        {"do": "equip", "member": "Chaz", "item": "STEL-SWORD"},
+        {"do": "equip", "member": "Gryz", "item": "BROAD-AXE"},
+        {"do": "equip", "member": "Hahn", "item": "CRBN-SUIT"},
+        {"do": "equip", "member": "Hahn", "item": "CRBNSHIELD"},
+        {"do": "equip", "member": "Hahn", "item": "CIRCLET", "note": "Alys cannot use CIRCLET (usable-by mask), so Hahn"},
+        {"do": "go_to_map", "map": 36, "via_warp": 0, "note": "native leg: walk to (31,40) on map 0x26"},
+        {"do": "go_to_map", "map": 0, "via_warp": 0, "note": "native leg: walk to (31,50) on map 0x24"},
+        {"do": "save", "slot": 0}
+      ],
+      "closing": [
+        {"flags_set": ["event:0x37"], "map": 0}
+      ]
+    },
+    {
+      "id": "zema-training",
+      "title": "Birth Valley B1 training and a paid rest",
+      "source": "tools/native/native_zema_training.gd; docs/campaign/PLAYABILITY_ALSHLINE_ZEMA.md \"Connected BioPlant elevator checkpoint\"",
+      "random_battle_policy": "train_with_inn",
+      "objectives": [
+        {"do": "go_to_map", "map": 36, "via_warp": 2, "note": "native leg: walk to (99,82) on map 0x00"},
+        {"do": "go_to_map", "map": 43, "via_warp": 1, "note": "native leg: walk to (31,11) on map 0x24"},
+        {"do": "go_to_map", "map": 44, "via_warp": 1, "note": "native leg: walk to (33,15) on map 0x2b"},
+        {"do": "patrol", "map": 44, "a": [23, 17], "b": [24, 46], "until": {"party_level_at_least": 6, "money_at_least": 1180}, "verify": true, "note": "source drivers walked (23,17)<->(24,46) for 64 wins and rested at the Zema inn (0x27 (33,34), 80 meseta) when casters ran low on TP; level 6 and 1180 meseta are the driver defaults (PSIV_TRAIN_LEVEL)"},
+        {"do": "go_to_map", "map": 43, "via_warp": 0, "note": "native leg: walk to (24,49) on map 0x2c"},
+        {"do": "go_to_map", "map": 36, "via_warp": 0, "note": "native leg: walk to (17,53) on map 0x2b"},
+        {"do": "go_to_map", "map": 39, "via_warp": 4, "note": "native leg: walk to (36,31) on map 0x24"},
+        {"do": "go_to", "map": 39, "cell": [33, 34]},
+        {"do": "rest_inn", "face": "up", "note": "80 meseta"},
+        {"do": "go_to_map", "map": 36, "via_warp": 0, "note": "native leg: walk to (33,40) on map 0x27"},
+        {"do": "go_to_map", "map": 0, "via_warp": 0, "note": "native leg: walk to (31,50) on map 0x24"},
+        {"do": "save", "slot": 0}
+      ],
+      "closing": [
+        {"map": 0}
+      ]
+    },
+    {
+      "id": "zema-armour",
+      "title": "Two CRBN-SUITs from the armoury",
+      "source": "tools/native/native_zema_armour.gd; docs/campaign/PLAYABILITY_ALSHLINE_ZEMA.md \"Connected BioPlant elevator checkpoint\"",
+      "random_battle_policy": "attack_all",
+      "objectives": [
+        {"do": "go_to_map", "map": 36, "via_warp": 2, "note": "native leg: walk to (99,82) on map 0x00"},
+        {"do": "go_to_map", "map": 38, "via_warp": 3, "note": "native leg: walk to (26,31) on map 0x24"},
+        {"do": "go_to", "map": 38, "cell": [35, 32]},
+        {"do": "buy", "item": "CRBN-SUIT", "count": 2, "face": "right", "note": "550 each"},
+        {"do": "equip", "member": "Alys", "item": "CRBN-SUIT"},
+        {"do": "equip", "member": "Chaz", "item": "CRBN-SUIT"},
+        {"do": "go_to_map", "map": 36, "via_warp": 0, "note": "native leg: walk to (31,40) on map 0x26"},
+        {"do": "go_to_map", "map": 0, "via_warp": 0, "note": "native leg: walk to (31,50) on map 0x24"},
+        {"do": "save", "slot": 0}
+      ],
+      "closing": [
+        {"map": 0}
+      ]
+    },
+    {
+      "id": "bioplant-elevators",
+      "title": "Birth Valley door and the BioPlant elevators to $A7",
+      "source": "tools/native/native_bioplant.gd route and door/elevator handling; docs/campaign/BIOPLANT_NATIVE.md \"Source-backed implementation\" and \"Route and encounter census\"; docs/scenes/26_BioPlantAlarm.md",
+      "random_battle_policy": "bioplant_survival",
+      "objectives": [
+        {"do": "go_to_map", "map": 36, "via_warp": 2, "note": "native leg: walk to (99,82) on map 0x00"},
+        {"do": "go_to_map", "map": 43, "via_warp": 1, "note": "native leg: walk to (31,11) on map 0x24"},
+        {"do": "go_to_map", "map": 44, "via_warp": 1, "note": "native leg: walk to (33,15) on map 0x2b"},
+        {"do": "interact", "cell": [23, 16], "face": "up", "note": "Event_BioPlantDoorOpening: interaction rectangle (22..23,15); native door handler stands at (23,16)"},
+        {"do": "expect", "flags_set": ["temp:0"], "verify": true, "note": "the door event sets temporary flag 0 after its animation and the map-load effect keeps (22..23,15) open from it (docs/campaign/BIOPLANT_NATIVE.md \"Source-backed implementation\")"},
+        {"do": "go_to_map", "map": 162, "via_warp": 1, "note": "native leg: walk to (23,15) on map 0x2c"},
+        {"do": "go_to_map", "map": 163, "via_warp": 1, "note": "native leg: walk to (32,21) on map 0xa2; alarm scene (event $12) runs on this map"},
+        {"do": "go_to_map", "map": 164, "via_warp": 1, "note": "native leg: walk to (32,17) on map 0xa3"},
+        {"do": "interact", "cell": [32, 18], "face": "up", "opens": [[32, 17], [33, 17]], "verify": true, "note": "elevator door chunk written live by event $13; opens lists the warp rectangle cells, a claim the runner confirms (ELEVATORS table in native_bioplant.gd)"},
+        {"do": "go_to_map", "map": 166, "via_warp": 1, "note": "native leg: walk to (32,17) on map 0xa4"},
+        {"do": "interact", "cell": [40, 44], "face": "up", "opens": [[40, 43], [41, 43]], "verify": true, "note": "elevator door chunk written live by event $13; opens lists the warp rectangle cells, a claim the runner confirms (ELEVATORS table in native_bioplant.gd)"},
+        {"do": "go_to_map", "map": 167, "via_warp": 2, "note": "native leg: walk to (40,43) on map 0xa6"},
+        {"do": "save", "slot": 0, "note": "native saved-map-0A7 at (68,66)"}
+      ],
+      "closing": [
+        {"map": 167}
+      ]
+    },
+    {
+      "id": "bioplant-order",
+      "title": "Put Gryz in front",
+      "source": "docs/campaign/PLAYABILITY_ALSHLINE_ZEMA.md \"STATE/ORDER and the Gryz-leading checkpoint\"; tools/native/native_party_order.gd",
+      "random_battle_policy": "bioplant_survival",
+      "objectives": [
+        {"do": "reorder", "order": ["Gryz", "Alys", "Chaz", "Hahn"]},
+        {"do": "save", "slot": 0}
+      ],
+      "closing": [
+        {"party": ["Gryz", "Alys", "Chaz", "Hahn"]}
+      ]
+    },
+    {
+      "id": "bioplant-rika",
+      "title": "Up the elevators to Rika and out to Motavia",
+      "source": "tools/native/native_bioplant.gd route; docs/campaign/BIOPLANT_NATIVE.md \"Connected Rika continuation\"; docs/scenes/30_MeetingRika.md",
+      "random_battle_policy": "bioplant_survival",
+      "objectives": [
+        {"do": "interact", "cell": [70, 12], "face": "up", "opens": [[70, 11], [71, 11]], "verify": true, "note": "elevator door written live by event $13; opens lists the warp rectangle cells, a claim the runner confirms"},
+        {"do": "go_to_map", "map": 169, "via_warp": 2, "note": "native leg: walk to (70,11) on map 0xa7"},
+        {"do": "go_to_map", "map": 170, "via_warp": 0, "note": "native leg: walk to (32,50) on map 0xa9"},
+        {"do": "save", "slot": 0, "note": "native saved-map-0AA"},
+        {"do": "interact", "cell": [28, 28], "face": "up", "opens": [[28, 27], [29, 27]], "verify": true, "note": "elevator door written live by event $13; opens lists the warp rectangle cells, a claim the runner confirms"},
+        {"do": "go_to_map", "map": 171, "via_warp": 0, "note": "native leg: walk to (28,27) on map 0xaa"},
+        {"do": "go_to_map", "map": 172, "via_warp": 1, "note": "native leg: walk to (24,23) on map 0xab"},
+        {"do": "save", "slot": 0, "note": "native saved-map-0AC"},
+        {"do": "go_to", "map": 172, "cell": [31, 27], "note": "Rika scene fires on arrival; the native leg finishes on flag $35 (dialogue moves the party), ~115 dialogue accepts"},
+        {"do": "expect", "flags_set": ["event:0x34", "event:0x35"], "map": 0, "cell": [99, 83], "party": ["Gryz", "Alys", "Chaz", "Hahn", "Rika"], "note": "docs/campaign/BIOPLANT_NATIVE.md: Motavia $00 (99,83), flags $34/$35, five members"},
+        {"do": "save", "slot": 0}
+      ],
+      "closing": [
+        {"flags_set": ["event:0x34", "event:0x35"], "map": 0, "cell": [99, 83], "party": ["Gryz", "Alys", "Chaz", "Hahn", "Rika"]}
+      ]
+    },
+    {
+      "id": "north-bank",
+      "title": "Zema rest and the northern crossing to (84,64)",
+      "source": "tools/native/native_post_rika.gd; docs/field/TRAVEL.md \"Post-Rika northern crossing\"; docs/campaign/AIEDO.md \"Inputs\"",
+      "random_battle_policy": "attack_all",
+      "objectives": [
+        {"do": "go_to_map", "map": 36, "via_warp": 2, "note": "native leg: walk to (99,82) on map 0x00"},
+        {"do": "go_to_map", "map": 39, "via_warp": 4, "note": "native leg: walk to (36,31) on map 0x24"},
+        {"do": "go_to", "map": 39, "cell": [33, 34]},
+        {"do": "rest_inn", "face": "up", "note": "native receipt: 100 meseta for five members"},
+        {"do": "go_to_map", "map": 36, "via_warp": 0, "note": "native leg: walk to (33,40) on map 0x27"},
+        {"do": "go_to_map", "map": 0, "via_warp": 0, "note": "native leg: walk to (31,50) on map 0x24"},
+        {"do": "go_to", "map": 0, "cell": [84, 68], "note": "native leg across the Rika bridge patch ($35)"},
+        {"do": "go_to", "map": 0, "cell": [84, 67]},
+        {"do": "go_to", "map": 0, "cell": [84, 65]},
+        {"do": "go_to", "map": 0, "cell": [84, 64]},
+        {"do": "expect", "flags_set": ["event:0x35"], "map": 0, "cell": [84, 64], "party": ["Gryz", "Alys", "Chaz", "Hahn", "Rika"], "money_at_least": 1103, "note": "north-bank checkpoint: Motavia $00 (84,64), 1129 meseta in the saved checkpoint (docs/campaign/AIEDO.md \"Inputs\")"},
+        {"do": "save", "slot": 0}
+      ],
+      "closing": [
+        {"flags_set": ["event:0x35"], "map": 0, "cell": [84, 64], "party": ["Gryz", "Alys", "Chaz", "Hahn", "Rika"]}
+      ]
+    },
+    {
+      "id": "aiedo",
+      "title": "North bank to Aiedo",
+      "source": "docs/campaign/AIEDO.md sections 1-3 (route derived with oracle/route.py: one warp, record 0x100706 transition 7, 67 steps)",
+      "random_battle_policy": "attack_all",
+      "objectives": [
+        {"do": "go_to_map", "map": 84, "via_warp": 7, "note": "Motavia warp record 0x100706 (transition index 7) to Aiedo; arrival (47,83) facing up; ~1.4 random fights expected on the walk (AIEDO.md section 3)"},
+        {"do": "expect", "map": 84, "cell": [47, 83], "flags_set": ["event:0x35"], "note": "Aiedo arrival; no scene triggers on arrival (AIEDO.md section 2)"}
+      ],
+      "closing": [
+        {"map": 84, "cell": [47, 83]}
+      ]
+    }
+  ]
+}

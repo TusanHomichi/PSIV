@@ -15,7 +15,7 @@ use psiv_core::{
 use psiv_data::GameData;
 
 use super::bridge::{build_bespoke, build_wander, clear_bespoke_entry_flags};
-use super::{BridgeError, Runtime, field_map_patched};
+use super::{BridgeError, Runtime};
 use crate::geometry::{camera_for_record, driver_of};
 
 /// An error while reading, writing or constructing a runtime save.
@@ -124,8 +124,7 @@ pub(super) fn construct_runtime(
         .map(psiv_data::MapId(placement.map_id))
         .ok_or(BridgeError::NotPacked(placement.map_id))?;
     let effects = super::effects::evaluate(record, &mut game);
-    let mut map = field_map_patched(record, Some(&effects))?;
-    crate::bridge::attach_chests(&mut map, record, &game, &[], &effects)?;
+    let map = crate::bridge::field_map_entered(record, &effects, &game)?;
     clear_bespoke_entry_flags(&mut game, record);
     let party = Party::new(
         &map,
