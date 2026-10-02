@@ -122,7 +122,13 @@ fn original_recovery_techniques_cure_revive_and_keep_spent_resources_after_save(
     assert_eq!(rt.game().roster().get(CharId(0)).unwrap().status, 0);
     let hahn = rt.game().roster().get(CharId(2)).unwrap();
     assert!(hahn.curr_hp > 0);
-    assert_eq!(hahn.status, status::TECH_SEALED);
+    // REVER kept the seal through the fight (`andi.b #$90`), but the battle's
+    // exit does not: `Battle_LastMessage` clears bits 3 and 4 of every party slot
+    // (`andi.b #$E7, $16(a0)`, `ps4.asm:6366`) before it loads the field.
+    assert_eq!(
+        hahn.status, 0,
+        "the revived, sealed member leaves the battle unsealed"
+    );
     let before = rt.game().snapshot();
     let dir = std::env::temp_dir().join(format!("psiv-battle-cures-{}", std::process::id()));
     rt.save_slot(&dir, 0).unwrap();

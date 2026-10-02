@@ -22,7 +22,7 @@ pub fn inspect(pack: &Path, save: &Path) -> Result<String, SetupError> {
     let (session, _) = open_session(pack, &StartPoint::Save(save.to_path_buf()))?;
     let runtime = session.runtime();
     let camp = runtime.camp_state();
-    let cell = runtime.state().cell();
+    let cell = crate::driver::standing_cell(runtime);
     let mut out = String::new();
     let _ = writeln!(
         out,

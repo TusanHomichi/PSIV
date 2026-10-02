@@ -32,6 +32,12 @@ python3 -m psiv_tools pack "/path/to/Phantasy Star IV (USA).md" runtime-pack
 so every Rust build that includes `psiv-godot` or the whole workspace needs it
 first.
 
+The oracle host is separate and needs no preparation step: `./oracle/verify.sh`
+and every entry point that runs the host compile `oracle/host/` themselves
+through `python3 -m oracle.build_host`, and a binary built from other sources is
+rebuilt rather than run
+([oracle guide](../oracle/README.md#building-the-host-and-why-it-cannot-be-stale)).
+
 The accepted US ROM SHA-256 is:
 
 ```text

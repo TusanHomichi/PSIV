@@ -64,7 +64,10 @@ A route is an ordered list of chapters following the story order in
 [docs/scenes](../scenes/README.md). Each chapter holds objectives the runner
 resolves into pad input:
 
-- reach a map and cell, path-finding across the pack's warp graph;
+- reach a map and cell, path-finding across the pack's warp graph, on foot or
+  in the vehicle the party rides (a mounted party moves two cells a press over
+  the terrain its machine crosses, `psiv_core::can_enter`; the route says so
+  with `"vehicle": N` in an `expect` and ends it with `dismount`);
 - talk to an object, answer a choice, open a chest, use a field ability;
 - buy, sell, equip, rest at an inn, reorder the party;
 - `interact` with a cell (doors and elevators that open walls), and `patrol`
@@ -117,12 +120,17 @@ producing pads from views only:
 
 | Objective | Module | What it presses |
 | --- | --- | --- |
-| `go_to`, `go_to_map`, `patrol` | `walk.rs` | a direction for a step, re-planned from the real cell whenever the party comes to rest somewhere the plan did not expect; R0's planner over the live map, and a warp graph built from the flags the game holds; a yes/no prompt that a scene opens on the target map (Chaz's house offers a rest on arrival) ends `go_to_map` with the prompt open, for the next `answer` |
+| `go_to`, `go_to_map`, `patrol`, `dismount` | `walk.rs` (plans in `cell_plan.rs`, `map_plan.rs`) | a direction for a step, re-planned from the real cell whenever the party comes to rest somewhere the plan did not expect; R0's planner over the live map, and a warp graph built from the flags the game holds; a yes/no prompt that a scene opens on the target map (Chaz's house offers a rest on arrival) ends `go_to_map` with the prompt open, for the next `answer`; mounted, the same plans run on the vehicle's lattice (`Mover::Vehicle`: the standing cell is the vehicle's, a step is two cells, the four-cell footprint decides the terrain and the warp rule, as `VehicleState::tick` does), and `dismount` presses Action on open ground |
 | `talk`, `open_chest`, `interact`, `answer` | `talk.rs` | walks next to the object (or across its counter), turns, presses Speak, and reads what opened; Cancel is retail's direct NO |
 | `buy`, `sell`, `rest_inn` | `shopping.rs` | the shop view's pages, rows and cursors |
 | `equip`, `use_technique`, `use_item`, `reorder`, `save` | `camping.rs` | the camp view's pages; SAVE is answered by the driver with the file the runner writes |
-| random and scripted battles | `battle.rs`, `policy.rs` | the battle view's menus, one press at a time |
+| random and scripted battles | `battle.rs`, `policy.rs`, `policy_boss.rs` | the battle view's menus (ATTACK, TECH, SKILL, ITEM), one press at a time |
 | `expect` | `expect.rs` | nothing: it settles the game and reads flags, map, cell, party and purse |
+
+`plan --vehicle N` prints a walking plan for a mounted party. Mounted walks and
+the validator's `vehicle` claim exist because Motavia's sand blocks a walker and
+the Land Rover crosses it: the Ladea Tower cannot be reached on foot from Krup
+(`tests/cli.rs::plan_vehicle_crosses_the_sand_to_the_tower`).
 
 `field.rs` is the loop every controller calls first: it plays frames until the
 game hands control back, turning finished pages with Speak, acknowledging chest
@@ -136,6 +144,20 @@ After a battle the party is cured through the camp (`recovery.rs`). Losing is a
 halt. `attack_all`, `heal_then_attack`, `train_with_inn` and
 `bioplant_survival` resolve to the default policy; a route that needs another
 behaviour gets a type in `policy.rs` first.
+
+`fight_to_win` and `run_then_win` (`policy_boss.rs`) are what a player does
+against a boss, which the default policy loses to: the one cure a round goes to
+the most hurt member under half HP with the cheapest technique that restores what
+they are missing (the strongest when none does), and everyone else takes the
+damage action with the highest estimated damage to the first living enemy: the
+plain attack, a damaging technique they can pay for, or a damaging skill with
+uses left (`Crosscut`, `Vortex`: the two the engine runs). The estimate is the
+cartridge's damage formula at its mean roll on the live fighters' stats, which a
+player learns from the first rounds' damage numbers. `fight_to_win` fights every
+battle; `run_then_win` runs from random encounters like `run_unless_boss` and
+fights scripted ones this way. Juza (event battle 3) and Gy-Laguiah (event battle
+5) are won with it; with the default policy Juza kills a level 12 party in four
+rounds (run C2-1).
 
 **Halts and the report.** Each objective has a frame budget. The run stops at
 the first of: a missed `expect` or closing assertion, an exhausted budget, an
@@ -184,7 +206,7 @@ canonical_record: "docs/campaign/CAMPAIGN_RUNNER.md#task-graph"
 authority: "Owner 2026-10-01: campaign runner approach; commit, push, PR and merge once the full gate is green (docs/AGENT_WORKFLOW.md#authority-effort-and-continuation)"
 effort_policy: "Continue scoped repairs until acceptance passes; no fixed cycle limit (inherited)"
 exclusions: ["modding", "visual-parity claims beyond existing certifications", "gameplay changes that are not cartridge behavior"]
-next_action: "#58 enemy abilities (A1 damage, A2 status/conditional), then C2 from Juza"
+next_action: "F1 (H17 revision-gated scene ops, H18 $30, H19 live-map collision), then the route through Nurvus to Zio defeated"
 nodes:
   - id: S1
     outcome: "Dialogue interpreter in psiv-runtime: control codes, branches, choices, actions, $F2/$F6/$F7, live flags, typewriter and open-animation gates, driven by a cartridge-layout Pad"
@@ -249,6 +271,6 @@ nodes:
     outcome: "Route chapters to the Ending, one lane per blocker class"
     depends_on: [R1]
     acceptance: "The runner reaches Game_Cleared_Flag from New Game; each blocker it hit is fixed with a regression test or filed as an issue with a link from the route"
-    evidence: ["lane c1-motavia (base 8c19769): routes/main.json grows to 18 chapters and reaches the Zio Fort's Juza room (map $87, (32,21)) with all five alive at level 12 to 13: 457,356 frames, digest 96d2835a8633def8, tape sha256 53adf11f092bb99982c299aa2620b75a4078f6a4fe3ba69f0adae0a3d749bd57, identical on three runs, replay reproduces the digest; scenes 28 and 29 pass in-route; RUNNER_LOG.md H13 to H16", "the route stops at Juza: H16, enemy 114's ZAN and FORCEFLASH are not run by the engine, and the stairs to F3 and F4 open only after his battle; H15 lists the unsupported abilities on the way (FUSION, FIREBREATH, DEBAN) that the route passes only by running; H13 (#39) does not block the story"]
+    evidence: ["lane c1-motavia (base 8c19769): routes/main.json grows to 18 chapters and reaches the Zio Fort's Juza room (map $87, (32,21)) with all five alive at level 12 to 13: 457,356 frames, digest 96d2835a8633def8, tape sha256 53adf11f092bb99982c299aa2620b75a4078f6a4fe3ba69f0adae0a3d749bd57, identical on three runs, replay reproduces the digest; scenes 28 and 29 pass in-route; RUNNER_LOG.md H13 to H16", "the route stops at Juza: H16, enemy 114's ZAN and FORCEFLASH are not run by the engine, and the stairs to F3 and F4 open only after his battle; H15 lists the unsupported abilities on the way (FUSION, FIREBREATH, DEBAN) that the route passes only by running; H13 (#39) does not block the story", "lane c2-zio (base 0c6ae8b): routes/main.json grows to 27 chapters through scenes 31 to 37 (Juza's battle, the Demi rescue and Alys's wounding, the Machine Center and Land Rover, Ladea Tower with Rune, the Psycho Wand, the walk to the Zio Fort barrier); the runner learns to ride a vehicle (a two-cell lattice planner, `vehicle` assertions, `dismount`, `plan --vehicle`) and to fight a boss (`fight_to_win`, `run_then_win`). On the committed engine the run halts at its first port defect, `Cutscene_AlysWounded` reading the wrong dialogue tree (H17): 1,023,474 frames, exit 2, digest 49f5c47df7971428, identical on two runs, replay reproduces it. An experimental four-line patch for H17 plays on to `Event_ZioFortBarrier` (H18, not transcribed, no alternative); a stub for it completes all 27 chapters (digest e77a7b9cf1f5fa37, identical on two runs). H19 to H21 recorded (live map ignores story flags, vehicle parking and boarding, EVIL EYE in the tower)"]
     state: pending
 ```

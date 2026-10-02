@@ -30,7 +30,7 @@ use psiv_core::{Cell, Direction, FieldMap, Flag, GameState, MapError};
 use psiv_data::{GameData, MapRecord};
 use psiv_runtime::{BridgeError, evaluate_map_effects, field_map_entered};
 
-use crate::cell_plan::{CellPlanError, Flood};
+use crate::cell_plan::{CellPlanError, Flood, Mover};
 
 /// A map and the standing cell on it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -168,6 +168,7 @@ pub struct MapGraph<'a> {
     maps: HashMap<u16, Rc<FieldMap>>,
     floods: HashMap<Position, Rc<Flood>>,
     opened: HashMap<u16, Vec<Cell>>,
+    mover: Mover,
 }
 
 impl<'a> MapGraph<'a> {
@@ -187,7 +188,18 @@ impl<'a> MapGraph<'a> {
             maps: HashMap::new(),
             floods: HashMap::new(),
             opened: HashMap::new(),
+            mover: Mover::Foot,
         })
+    }
+
+    /// Plans every walk of this graph for a party that moves as `mover`: a
+    /// mounted party stays mounted across the warps of a chain, as the engine
+    /// keeps `Vehicle_Index` through a map change.
+    #[must_use]
+    pub fn with_mover(mut self, mover: Mover) -> MapGraph<'a> {
+        self.mover = mover;
+        self.floods.clear();
+        self
     }
 
     /// Declares `cells` of `map` walkable (collision 0), as a door or elevator
@@ -245,7 +257,9 @@ impl<'a> MapGraph<'a> {
             return Ok(Rc::clone(found));
         }
         let map = self.field_map(at.map)?;
-        let flood = Rc::new(Flood::new(&map, at.cell).map_err(|e| PlanError::Cells(at.map, e))?);
+        let flood = Rc::new(
+            Flood::for_mover(&map, at.cell, self.mover).map_err(|e| PlanError::Cells(at.map, e))?,
+        );
         self.floods.insert(at, Rc::clone(&flood));
         Ok(flood)
     }

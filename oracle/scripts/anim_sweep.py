@@ -16,9 +16,10 @@ import csv
 import pathlib
 import subprocess
 
+from oracle import host_binary
+
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 O = ROOT / "oracle"
-BIN = O / "bin" / "psiv_oracle"
 CORE = O / "core" / "genesis_plus_gx_libretro.so"
 ROM = ROOT / "Phantasy Star IV (USA).md"
 
@@ -52,7 +53,8 @@ def run(gap):
     tape = O / "tmp_anim.tape"
     tape.write_text(HEAD + body)
     out = O / "logs" / "anim_sweep.csv"
-    subprocess.run([str(BIN), "--core", str(CORE), "--rom", str(ROM),
+    subprocess.run([str(host_binary.ensure()), "--core", str(CORE),
+                    "--rom", str(ROM),
                     "--map", str(PROBE_MAP), "--tape", str(tape),
                     "--out", str(out)], check=True, capture_output=True)
     rows = list(csv.DictReader([l for l in open(out) if not l.startswith('#')]))

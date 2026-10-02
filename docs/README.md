@@ -19,13 +19,13 @@ other document sits in the folder for its area.
 ## battle — battle rules and retail research
 
 - [Battle research](battle/BATTLE_SCOUT.md) and its [worked continuation](battle/BATTLE_SCOUT_CONTINUATION.md).
-- [Enemy ability inventory](battle/ENEMY_ABILITIES.md), [enemy damage routes](battle/ENEMY_DAMAGE_ROUTES.md), [enemy POISON](battle/ENEMY_POISON.md).
+- [Enemy ability inventory](battle/ENEMY_ABILITIES.md), [enemy damage routes](battle/ENEMY_DAMAGE_ROUTES.md), [enemy POISON](battle/ENEMY_POISON.md), [enemy status and stat effects](battle/ENEMY_EFFECT_ABILITIES.md), [enemy Fusion](battle/ENEMY_FUSION.md).
 - [Battle animations](battle/BATTLE_ANIMATIONS.md), [battle geometry](battle/BATTLE_GEOMETRY.md), [battle recovery](battle/BATTLE_RECOVERY.md), [instant death](battle/INSTANT_DEATH.md).
 - [THREAD](battle/THREAD.md), [RIMIT](battle/RIMIT.md).
 
 ## oracle — cartridge-comparison ledgers
 
-- [Forced battles](oracle/BATTLE_ORACLE_FORCED.md), [replay](oracle/BATTLE_ORACLE_REPLAY.md), [sweep](oracle/BATTLE_ORACLE_SWEEP.md), [battle UI](oracle/BATTLE_ORACLE_UI.md).
+- [Forced battles](oracle/BATTLE_ORACLE_FORCED.md), [replay](oracle/BATTLE_ORACLE_REPLAY.md), [sweep](oracle/BATTLE_ORACLE_SWEEP.md), [Motavia-arc status captures](oracle/BATTLE_ORACLE_ARC.md), [battle UI](oracle/BATTLE_ORACLE_UI.md).
 - [Results](oracle/RESULTS.md) and [results continued](oracle/RESULTS_CONTINUED.md).
 - Method, tapes, harness and captures: the [oracle guide](../oracle/README.md).
 

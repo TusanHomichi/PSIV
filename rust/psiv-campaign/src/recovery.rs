@@ -8,8 +8,11 @@
 //! route's `use_technique` does; the cure itself, its cost and what it heals are
 //! the runtime's.
 //!
-//! The members it cannot help (fallen, or hurt with no healer's TP left) are the
-//! route's to handle with an inn: a route that grinds names the inn.
+//! The members it cannot help (fallen, an android, or hurt with no healer's TP
+//! left) are the route's to handle with an inn: a route that grinds names the
+//! inn. Camp healing techniques and restoratives exclude androids (the camp
+//! answers "NO EFFECT"; `Win_ItemUsedMsg`, `ps4.asm`), which only a Repair Kit
+//! or a night at an inn mends.
 
 use psiv_core::battle::status;
 use psiv_runtime::CampAbilityKind;
@@ -68,6 +71,7 @@ impl Driver {
             .filter(|m| {
                 m.current_hp > 0
                     && m.status & status::DEAD == 0
+                    && !m.profession.eq_ignore_ascii_case("android")
                     && u32::from(m.current_hp) * 100 < u32::from(m.max_hp) * SUSTAIN_PERCENT
             })
             .min_by(|a, b| {

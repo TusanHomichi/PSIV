@@ -4,7 +4,7 @@
 //! ```text
 //! psiv-campaign validate <route.json> [--pack DIR]
 //! psiv-campaign plan --from-map M --from-cell X,Y --to-map N [--to-cell X,Y]
-//!                    [--flag bank:id]... [--pack DIR]
+//!                    [--flag bank:id]... [--vehicle N] [--pack DIR]
 //! psiv-campaign run <route.json> [--from-chapter ID] [--until-chapter ID]
 //!                   [--save-dir DIR] [--tape OUT] [--report OUT] [--pack DIR]
 //! psiv-campaign replay <tape> [--from-save FILE] [--pack DIR]
@@ -25,6 +25,7 @@ mod run_cmd;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use psiv_campaign::cell_plan::Mover;
 use psiv_campaign::route::{FlagRef, Route};
 use psiv_campaign::validate::validate;
 use psiv_campaign::{MapGraph, Plan, Position, Target};
@@ -32,7 +33,7 @@ use psiv_core::{Cell, Direction};
 use psiv_data::{BattleFiles, GameData};
 
 const USAGE: &str = "usage:\n  psiv-campaign validate <route.json> [--pack DIR]\n  \
-psiv-campaign plan --from-map M --from-cell X,Y --to-map N [--to-cell X,Y] [--flag bank:id]... [--pack DIR]\n  \
+psiv-campaign plan --from-map M --from-cell X,Y --to-map N [--to-cell X,Y] [--flag bank:id]... [--vehicle N] [--pack DIR]\n  \
 psiv-campaign run <route.json> [--from-chapter ID] [--until-chapter ID] [--save-dir DIR] [--tape OUT] [--report OUT] [--pack DIR]\n  \
 psiv-campaign replay <tape> [--from-save FILE] [--pack DIR]";
 
@@ -200,7 +201,19 @@ fn cmd_plan(args: &[String]) -> Result<ExitCode, String> {
         .map(|f| FlagRef::try_from(f.to_owned()).map(|f| f.0))
         .collect::<Result<Vec<_>, _>>()?;
     let data = load_pack(&pack_dir(&args))?;
-    let mut graph = MapGraph::new(&data, &flags).map_err(|e| e.to_string())?;
+    let mover = match args.one("vehicle") {
+        Some(text) => match text
+            .parse::<u16>()
+            .map_err(|_| format!("bad vehicle {text:?}"))?
+        {
+            0 => Mover::Foot,
+            index => Mover::Vehicle(index),
+        },
+        None => Mover::Foot,
+    };
+    let mut graph = MapGraph::new(&data, &flags)
+        .map_err(|e| e.to_string())?
+        .with_mover(mover);
     match graph.plan(from, target) {
         Ok(plan) => {
             print_plan(&plan);

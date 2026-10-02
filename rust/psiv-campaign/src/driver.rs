@@ -11,10 +11,10 @@
 use std::collections::VecDeque;
 use std::path::PathBuf;
 
-use psiv_core::Direction;
+use psiv_core::{Cell, Direction};
 use psiv_runtime::{
-    BattleStart, BattleView, Button, DialogueSignal, Frame, Pad, Routed, RuntimeEvent, SaveStore,
-    SceneDialogueOpen, Session,
+    BattleStart, BattleView, Button, DialogueSignal, Frame, Pad, Routed, Runtime, RuntimeEvent,
+    SaveStore, SceneDialogueOpen, Session,
 };
 use serde_json::{Value, json};
 
@@ -67,6 +67,23 @@ pub struct Driver {
     policy: Option<Box<dyn Policy>>,
     recovery_due: bool,
     trace: bool,
+}
+
+/// Where the party stands: the vehicle's cell while mounted (the leader's own
+/// state does not move then), the leader's cell on foot.
+#[must_use]
+pub fn standing_cell(runtime: &Runtime) -> Cell {
+    runtime
+        .vehicle_cell()
+        .unwrap_or_else(|| runtime.state().cell())
+}
+
+/// Whether the party is between two standing cells.
+#[must_use]
+pub fn is_stepping(runtime: &Runtime) -> bool {
+    runtime
+        .vehicle_state()
+        .map_or_else(|| runtime.state().is_stepping(), |v| v.is_moving())
 }
 
 /// The pad that holds one direction.
@@ -433,7 +450,7 @@ impl Driver {
     pub fn at_rest(&self) -> bool {
         let runtime = self.session.runtime();
         self.mode_name() == "field"
-            && !runtime.state().is_stepping()
+            && !is_stepping(runtime)
             && runtime.loot_state().is_none()
             && runtime.field_notice().is_none()
     }
@@ -465,7 +482,7 @@ impl Driver {
     #[must_use]
     pub fn snapshot(&self) -> Value {
         let runtime = self.session.runtime();
-        let cell = runtime.state().cell();
+        let cell = standing_cell(runtime);
         json!({
             "frame": self.frames(),
             "map": runtime.map_id().0,
@@ -489,7 +506,7 @@ impl Driver {
     fn surroundings(&self) -> Vec<String> {
         let runtime = self.session.runtime();
         let map = runtime.map();
-        let here = runtime.state().cell();
+        let here = standing_cell(runtime);
         (-4_i32..=4)
             .map(|dy| {
                 (-5_i32..=5)
@@ -515,7 +532,7 @@ impl Driver {
     fn nearby_warps(&self) -> Vec<String> {
         let runtime = self.session.runtime();
         let map = runtime.map();
-        let here = runtime.state().cell();
+        let here = standing_cell(runtime);
         map.warps()
             .iter()
             .enumerate()

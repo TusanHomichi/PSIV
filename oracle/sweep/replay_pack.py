@@ -10,12 +10,13 @@ of a `generated/` dependency.
 
     python3 -m oracle.sweep.replay_pack
 
-Which records: exactly what the committed fixtures need — the sweep's under
-`sweep_motavia/` and the forced captures beside it — every `enemy_id` one of
-them seats, and every ability id either an enemy's AI can roll (the eight
-regular ids and the four conditional ones: the port's own `choose_ability`
-picks among them, so a missing record would make it pick blind) or one the
-fixture's log shows an enemy running. The values are copied from
+Which records: exactly what the committed fixtures need — every fixture under
+the directory tree (the sweep's `sweep_motavia/`, the Motavia arc's status and
+stat captures in `arc_motavia/`, and the forced captures beside them) — every
+`enemy_id` one of them seats or spawns, and every ability id either an enemy's
+AI can roll (the eight regular ids and the four conditional ones: the port's
+own `choose_ability` picks among them, so a missing record would make it pick
+blind) or one the fixture's log shows an enemy running. The values are copied from
 `generated/enemies.json` and `generated/enemy_skills.json` unchanged, in the
 field names `Rust`'s mirror structs read.
 """
@@ -34,12 +35,19 @@ ELEMENTS = ("physical", "energy", "fire", "gravity", "water", "anti_evil",
             "mechanical", "efess", "destroy")
 
 
+#: Enemies a fixture's own enemy brings in mid-battle, by the enemy that does:
+#: Fusion (`BattleObj_Fusion`, `ps4.asm:35832`) replaces both Zol slugs
+#: (enemy 34) with the MetaSlug its formation data names (enemy 36), which no
+#: formation seats at the start.
+SPAWNED = {34: 36}
+
+
 def fixture_enemies(fixtures: pathlib.Path) -> tuple[set[int], set[int]]:
     """The enemy ids the fixtures seat, and the ability ids their logs show.
 
-    Every fixture under the directory, subdirectories included (a sweep keeps
-    its own in `sweep_motavia/`), and the data files beside them skipped: a
-    fixture is the file with a `formation`, and the pack itself is not one.
+    Every fixture under the directory, subdirectories included, and the data
+    files beside them skipped: a fixture is the file with a `formation`, and
+    the pack itself is not one.
     """
     enemies: set[int] = set()
     abilities: set[int] = set()
@@ -112,6 +120,8 @@ def build(pack: pathlib.Path, fixtures: pathlib.Path) -> dict:
         (pack / "enemy_skills.json").read_text())}
     wanted_enemies, shown = fixture_enemies(fixtures)
     wanted_abilities = set(shown)
+    wanted_enemies |= {SPAWNED[enemy_id] for enemy_id in wanted_enemies
+                       if enemy_id in SPAWNED}
     for enemy_id in sorted(wanted_enemies):
         record = enemies[enemy_id]
         wanted_abilities.update(
@@ -122,8 +132,8 @@ def build(pack: pathlib.Path, fixtures: pathlib.Path) -> dict:
         "generated_by": "oracle/sweep/replay_pack.py",
         "source": {"enemies": "generated/enemies.json",
                    "enemy_skills": "generated/enemy_skills.json"},
-        "note": "every record the committed fixtures need - the sweep under "
-                "sweep_motavia/ and the forced captures beside it - by the "
+        "note": "every record the committed fixtures need - every fixture under "
+                "replay_fixtures/, subdirectories included - by the "
                 "enemy id they seat and the ability ids those enemies can "
                 "roll; field names are replay/pack.rs's mirror structs'",
         "enemies": [enemy_record(enemies[enemy_id])
@@ -137,8 +147,8 @@ def build(pack: pathlib.Path, fixtures: pathlib.Path) -> dict:
 def main(argv: list[str] | None = None) -> int:
     parsed = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parsed.add_argument("--pack", default=str(ROOT / "generated"))
-    # The whole fixture directory, not only the sweep's: the pack beside it is
-    # what every committed fixture reads, the forced captures included.
+    # The whole fixture directory, not only one sweep's: the pack beside it is
+    # what every committed fixture reads.
     parsed.add_argument("--fixtures", default=str(FIXTURES))
     parsed.add_argument("--out", default=str(FIXTURES / "motavia_pack.json"))
     arguments = parsed.parse_args(argv)

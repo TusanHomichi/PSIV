@@ -9,9 +9,9 @@
 //! or a battle moved it, a map loaded, something stood in the way.
 
 use psiv_core::{Cell, Direction, Flag};
-use psiv_runtime::Runtime;
+use psiv_runtime::{Button, Runtime};
 
-use crate::cell_plan::{Flood, Goal, plan_cells};
+use crate::cell_plan::{Flood, Goal, Mover, plan_cells_for};
 use crate::driver::{Driver, dir_pad};
 use crate::exec::{Memory, execute};
 use crate::field::Settled;
@@ -33,7 +33,15 @@ impl Driver {
     /// The standing cell.
     #[must_use]
     pub fn cell(&self) -> Cell {
-        self.runtime().state().cell()
+        crate::driver::standing_cell(self.runtime())
+    }
+
+    /// How the party moves: on foot, or in the vehicle the game has mounted.
+    #[must_use]
+    pub fn mover(&self) -> Mover {
+        self.runtime()
+            .vehicle_index()
+            .map_or(Mover::Foot, Mover::Vehicle)
     }
 
     /// The map the party is on.
@@ -74,8 +82,13 @@ impl Driver {
                 return Ok(());
             }
             let steps = if here.0 == map {
-                let plan = plan_cells(self.runtime().map(), here.1, Goal::Cell(target))
-                    .map_err(|e| unreachable_halt(map, target, &e.to_string()))?;
+                let plan = plan_cells_for(
+                    self.runtime().map(),
+                    self.mover(),
+                    here.1,
+                    Goal::Cell(target),
+                )
+                .map_err(|e| unreachable_halt(map, target, &e.to_string()))?;
                 plan.steps
             } else {
                 self.first_leg(Target::Cell { map, cell: target })?
@@ -126,6 +139,38 @@ impl Driver {
             HaltKind::Stuck,
             format!("{REPLAN_LIMIT} re-plans and the party has not reached map {map:#x}"),
         ))
+    }
+
+    /// Presses Action in the vehicle the party rides, which dismounts when the
+    /// standing cell is open ground (`psiv_core::dismount_allowed`).
+    ///
+    /// # Errors
+    ///
+    /// [`HaltKind::UnexpectedState`] when the party is not mounted;
+    /// [`HaltKind::Stuck`] when the press did not dismount (the cell is not
+    /// open ground).
+    pub fn dismount(&mut self) -> Res {
+        self.settle(false)?;
+        if self.runtime().vehicle_index().is_none() {
+            return Err(Halt::new(
+                HaltKind::UnexpectedState,
+                "the party is not riding a vehicle",
+            ));
+        }
+        self.tap(Button::Speak)?;
+        self.neutral(2)?;
+        if self.runtime().vehicle_index().is_some() {
+            return Err(Halt::new(
+                HaltKind::Stuck,
+                format!(
+                    "the vehicle would not stop at ({},{}) on map {:#x}: the cell is not open ground",
+                    self.cell().x,
+                    self.cell().y,
+                    self.map()
+                ),
+            ));
+        }
+        Ok(())
     }
 
     /// Walks between `a` and `b` on `map` until `until` holds, fighting what
@@ -199,7 +244,7 @@ impl Driver {
                     ),
                 )
             })?;
-        let flood = Flood::new(runtime.map(), self.cell())
+        let flood = Flood::for_mover(runtime.map(), self.cell(), self.mover())
             .map_err(|e| Halt::new(HaltKind::Unreachable, e.to_string()))?;
         // A warp the ordinary stepping rule fires is walked to and stepped
         // through. One whose trigger area the party can stand in without the
@@ -229,7 +274,8 @@ impl Driver {
         let runtime = self.runtime();
         let flags = set_flags(runtime);
         let mut graph = MapGraph::new(runtime.data(), &flags)
-            .map_err(|e| Halt::new(HaltKind::Unreachable, e.to_string()))?;
+            .map_err(|e| Halt::new(HaltKind::Unreachable, e.to_string()))?
+            .with_mover(self.mover());
         let from = Position {
             map: self.map(),
             cell: self.cell(),
@@ -246,7 +292,7 @@ impl Driver {
         // The live map is the truth: a door opened by an interaction, an NPC in
         // the way. The graph's own steps are the fallback when the live flood
         // cannot see the same warp.
-        let live = Flood::new(runtime.map(), from.cell)
+        let live = Flood::for_mover(runtime.map(), from.cell, self.mover())
             .ok()
             .and_then(|flood| flood.warp_plan(leg.hop.warp_index))
             .map(|p| p.steps);
@@ -267,16 +313,18 @@ impl Driver {
                 {
                     return Ok(());
                 }
-                if self.runtime().state().is_stepping() {
+                if crate::driver::is_stepping(self.runtime()) {
                     self.neutral(1)?;
                 } else {
                     break;
                 }
             }
             let before = self.cell();
-            let expected = self.runtime().map().neighbor(before, direction);
+            let expected = self
+                .mover()
+                .landing(self.runtime().map(), before, direction);
             self.tick(dir_pad(direction))?;
-            while self.mode_name() == "field" && self.runtime().state().is_stepping() {
+            while self.mode_name() == "field" && crate::driver::is_stepping(self.runtime()) {
                 self.neutral(1)?;
             }
             if self.map() != start_map {

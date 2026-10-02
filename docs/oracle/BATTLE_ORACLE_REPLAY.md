@@ -691,3 +691,37 @@ against today's RAM map (same data; `log_sha256` `4118ea6e...`; trace still
 2. **Measure the save/continue path's word.** It is read from the bytes today
    (see above). A tape that saves, powers off and continues would put the
    word's third edge on the same footing as the boot and the battle load.
+
+## What the comparator checks about status and stat effects (2026-10-02)
+
+The Motavia arc's abilities
+([`BATTLE_ORACLE_ARC.md`](BATTLE_ORACLE_ARC.md)) moved the comparator's
+ability branch from "a `StatusInflicted` exists for each status byte the log
+moved" to a two-way check, in `replay/compare.rs`'s `effect_divergence`:
+
+- **status** - for every fighter the log's action touched or the port's turn
+  inflicted a status on, the bits the log *gained* (`after & !before`) must equal
+  the bits the port's `StatusInflicted` events carry. Transient bit 7 is masked:
+  `loc_14D46` (`ps4.asm:29735`) sets it on a fighter seated mid-battle so the
+  queue's `$EE` test skips it, and the port answers it with the turn skip, which
+  the round's draw count checks;
+- **battle stat cells** - `agi_bat` (both sides' fixtures), and the party's
+  `atk_bat` / `dfs_bat` (added by `oracle/sweep/arc.py`; the extractor reads the
+  derived `$24` / `$28`) must equal the value of the port's `StatChanged` for that
+  fighter, with the two cartridge rules the port reports differently pinned
+  explicitly: `AbilityEffect_Paralyze` sets agility to 1 beside the status bit
+  (`ps4.asm:9431-9434`), and a fighter seated by Fusion starts from its record
+  (`BattleEvent::EnemiesFused` carries the agility);
+- **deaths** - for an action with no damage word (VOL), the fighters the log took
+  from positive HP to zero are the fighters whose `Died` the port's turn emitted,
+  and no others; a damage ability's HP and deaths are the per-slot walk's, because
+  its HP drops across frames after the action's window;
+- **a window the log opens on a fighter that did not act** - `loc_576A` leaves a
+  skipped actor's id in the actor field (`ps4.asm:8033`), so the round tail's
+  calls (one wake roll per sleeper, `Battle_RestoreStatsAtTurnEnd`,
+  `ps4.asm:9792`) open a window on it. The comparator accepts it as a non-swing
+  only when the port also skipped that actor (`TurnSkipped`) and the log resolved
+  no target; the round's draw count is what proves the wake rolls themselves.
+
+Three `Divergence` kinds carry the findings: `status` names both bit sets, `stat`
+names the cell, the log's value and the port's, and `deaths` names both lists.

@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "core_options.h"
 #include "frame_dump.h"
 #include "core_vdp.h"
 #include "libretro.h"
@@ -32,6 +33,14 @@
 #include "rng_trace.h"
 #include "state_dump.h"
 #include "tape.h"
+
+/* The sources this host was built from: a SHA-256 over oracle/host/*.c and *.h,
+ * passed in by oracle/build_host.py. `--build-id` prints it, which is how a
+ * launcher refuses to run a stale host (oracle/host_binary.py); a hand-compiled
+ * host without the define answers `unknown`, and is rebuilt as out of date. */
+#ifndef PSIV_ORACLE_BUILD_ID
+#define PSIV_ORACLE_BUILD_ID "unknown"
+#endif
 
 #define MAX_FIELDS 1024
 
@@ -82,41 +91,6 @@ static size_t (*rt_get_memory_size)(unsigned);
 static unsigned (*rt_get_region)(void);
 static struct core_vdp g_vdp;
 
-/* Options we pin explicitly. Anything not listed here falls through to the
- * core's compiled-in default, which is deterministic for a fixed core build;
- * --dump-options prints the full declared set with defaults so the pinned list
- * can be audited against a new core revision. */
-struct pinned_opt {
-	const char *key;
-	const char *value;
-};
-
-static const struct pinned_opt g_pinned[] = {
-	/* Hardware and timing: these decide instruction and frame cadence. */
-	{ "genesis_plus_gx_system_hw", "mega drive / genesis" },
-	{ "genesis_plus_gx_region_detect", "ntsc-u" },
-	{ "genesis_plus_gx_vdp_mode", "60hz" },
-	/* Must be "100", not "100%": the core does atoi() on this value, so a
-	 * label-shaped or otherwise unparseable string silently becomes a tiny
-	 * clock divisor instead of an error. validate_pinned_options() below
-	 * exists because of exactly this failure mode. */
-	{ "genesis_plus_gx_overclock", "100" },
-	{ "genesis_plus_gx_force_dtack", "enabled" },
-	{ "genesis_plus_gx_addr_error", "enabled" },
-	{ "genesis_plus_gx_lock_on", "disabled" },
-	{ "genesis_plus_gx_add_on", "none" },
-	/* Sprite limit is not cosmetic: it drives VDP status bits the 68000 can
-	 * read, so the accurate (limited) behaviour is required. */
-	{ "genesis_plus_gx_no_sprite_limit", "disabled" },
-	/* Rendering stays on and accurate. With no frame flags the video callback's
-	 * pixels are discarded, but VDP state feeds status registers, so we do not
-	 * skip work the hardware does. */
-	{ "genesis_plus_gx_render", "single field" },
-	{ "genesis_plus_gx_frameskip", "disabled" },
-	{ "genesis_plus_gx_overscan", "disabled" },
-	{ NULL, NULL }
-};
-
 static char g_system_dir[1024];
 static char g_save_dir[1024];
 static int g_dump_options;
@@ -157,112 +131,6 @@ static int load_save_ram_file(const char *path, void *memory, size_t capacity)
 	return 0;
 }
 
-/* Declared-option index, captured when the core announces its options, so we
- * can prove every pinned value is one the core actually accepts. A core that
- * receives an unrecognised value does not report an error: Genesis Plus GX
- * runs atoi() or a strcmp chain and falls through to whatever that yields,
- * which is how "1x" for the overclock option quietly clocked the 68000 at 1%
- * and produced a log full of zeroes. An oracle cannot afford silent
- * misconfiguration, so a bad pin is a startup abort. */
-#define MAX_DECLARED_OPTS 128
-#define MAX_OPT_VALUES 64
-
-struct declared_opt {
-	const char *key;
-	const char *values[MAX_OPT_VALUES];
-	int nvalues;
-};
-
-static struct declared_opt g_declared[MAX_DECLARED_OPTS];
-static int g_ndeclared;
-
-static void record_declared(const char *key,
-                            const struct retro_core_option_value *values)
-{
-	struct declared_opt *o;
-	if (g_ndeclared >= MAX_DECLARED_OPTS)
-		return;
-	o = &g_declared[g_ndeclared++];
-	o->key = key;
-	o->nvalues = 0;
-	for (; values && values->value && o->nvalues < MAX_OPT_VALUES; values++)
-		o->values[o->nvalues++] = values->value;
-}
-
-static int validate_pinned_options(void)
-{
-	const struct pinned_opt *p;
-	int bad = 0;
-
-	if (g_ndeclared == 0) {
-		fprintf(stderr, "psiv_oracle: core declared no options; cannot "
-		        "validate the pinned set\n");
-		return -1;
-	}
-
-	for (p = g_pinned; p->key; p++) {
-		const struct declared_opt *found = NULL;
-		int i, ok = 0;
-
-		for (i = 0; i < g_ndeclared; i++) {
-			if (strcmp(g_declared[i].key, p->key) == 0) {
-				found = &g_declared[i];
-				break;
-			}
-		}
-		if (!found) {
-			fprintf(stderr, "psiv_oracle: pinned option '%s' is not declared "
-			        "by this core build\n", p->key);
-			bad = 1;
-			continue;
-		}
-		for (i = 0; i < found->nvalues; i++)
-			if (strcmp(found->values[i], p->value) == 0) {
-				ok = 1;
-				break;
-			}
-		if (!ok) {
-			fprintf(stderr, "psiv_oracle: pinned option '%s' value '%s' is not "
-			        "one of the core's accepted values:", p->key, p->value);
-			for (i = 0; i < found->nvalues; i++)
-				fprintf(stderr, " '%s'", found->values[i]);
-			fprintf(stderr, "\n");
-			bad = 1;
-		}
-	}
-	return bad ? -1 : 0;
-}
-
-static void core_log(enum retro_log_level level, const char *fmt, ...)
-{
-	va_list ap;
-	if (level < RETRO_LOG_WARN)
-		return; /* core chatter would pollute stderr determinism checks */
-	va_start(ap, fmt);
-	vfprintf(stderr, fmt, ap);
-	va_end(ap);
-}
-
-static void ingest_options_v2(const struct retro_core_option_v2_definition *d)
-{
-	for (; d && d->key; d++) {
-		record_declared(d->key, d->values);
-		if (g_dump_options)
-			printf("option\t%s\t%s\n", d->key,
-			       d->default_value ? d->default_value : "(none)");
-	}
-}
-
-static void ingest_options_v1(const struct retro_core_option_definition *d)
-{
-	for (; d && d->key; d++) {
-		record_declared(d->key, d->values);
-		if (g_dump_options)
-			printf("option\t%s\t%s\n", d->key,
-			       d->default_value ? d->default_value : "(none)");
-	}
-}
-
 static int environment_cb(unsigned cmd, void *data)
 {
 	switch (cmd) {
@@ -287,7 +155,7 @@ static int environment_cb(unsigned cmd, void *data)
 		return 1;
 
 	case RETRO_ENVIRONMENT_GET_LOG_INTERFACE:
-		((struct retro_log_callback *)data)->log = core_log;
+		((struct retro_log_callback *)data)->log = core_options_log;
 		return 1;
 
 	case RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION:
@@ -313,20 +181,14 @@ static int environment_cb(unsigned cmd, void *data)
 
 	case RETRO_ENVIRONMENT_GET_VARIABLE: {
 		struct retro_variable *var = data;
-		const struct pinned_opt *p;
-		var->value = NULL;
-		for (p = g_pinned; p->key; p++) {
-			if (strcmp(p->key, var->key) == 0) {
-				var->value = p->value;
-				return 1;
-			}
-		}
-		return 0; /* core falls back to its compiled-in default */
+		/* NULL leaves the core on its compiled-in default. */
+		var->value = core_options_pinned_value(var->key);
+		return var->value ? 1 : 0;
 	}
 
 	case RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2:
 		if (data)
-			ingest_options_v2(
+			core_options_ingest_v2(
 				((struct retro_core_options_v2 *)data)->definitions);
 		return 1;
 
@@ -334,18 +196,18 @@ static int environment_cb(unsigned cmd, void *data)
 		if (data) {
 			struct retro_core_options_v2_intl *intl = data;
 			if (intl->us)
-				ingest_options_v2(intl->us->definitions);
+				core_options_ingest_v2(intl->us->definitions);
 		}
 		return 1;
 
 	case RETRO_ENVIRONMENT_SET_CORE_OPTIONS:
 		if (data)
-			ingest_options_v1(data);
+			core_options_ingest_v1(data);
 		return 1;
 
 	case RETRO_ENVIRONMENT_SET_CORE_OPTIONS_INTL:
 		if (data)
-			ingest_options_v1(
+			core_options_ingest_v1(
 				((struct retro_core_options_intl *)data)->us);
 		return 1;
 
@@ -599,7 +461,8 @@ static void usage(void)
 		"                   [--dump-ram <frame>:<path>]\n"
 	        "                   [--dump-state <frame>:<path>]\n"
 	        "                   [--rng-trace <path.csv>]\n"
-	        "                   [--load-sram <path>]\n");
+	        "                   [--load-sram <path>]\n"
+	        "                   [--build-id]\n");
 }
 
 int main(int argc, char **argv)
@@ -619,6 +482,15 @@ int main(int argc, char **argv)
 	FILE *rf;
 	int i, step, frame_dump_status;
 	uint64_t frame = 0;
+
+	/* Answered before anything is required or loaded: the launcher that asks a
+	 * binary what it was built from is asking about the binary, not about a
+	 * run, and has no core or ROM to give it. */
+	for (i = 1; i < argc; i++)
+		if (!strcmp(argv[i], "--build-id")) {
+			printf("%s\n", PSIV_ORACLE_BUILD_ID);
+			return 0;
+		}
 
 	for (i = 1; i < argc; i++) {
 		if (!strcmp(argv[i], "--core") && i + 1 < argc) core_path = argv[++i];
@@ -725,6 +597,9 @@ int main(int argc, char **argv)
 
 	rt_get_system_info(&sysinfo);
 
+	/* Before set_environment: the core declares its options from inside that
+	 * call, and --dump-options prints them as they are recorded. */
+	core_options_dump(g_dump_options);
 	rt_set_environment(environment_cb);
 	rt_set_video_refresh(video_refresh_cb);
 	rt_set_audio_sample(audio_sample_cb);
@@ -734,7 +609,7 @@ int main(int argc, char **argv)
 
 	/* set_environment above already fired the option declaration, so the
 	 * pinned set can be checked before a single frame is emulated. */
-	if (validate_pinned_options() != 0)
+	if (core_options_validate() != 0)
 		return 1;
 
 	if (g_dump_options) {

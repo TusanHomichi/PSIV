@@ -767,3 +767,122 @@ fn rimit_skips_existing_sleep_or_paralysis_without_rolling_but_rolls_for_immunit
         assert_eq!(roster.get(id(1)).unwrap().stats.curr_tp, 20);
     }
 }
+
+#[test]
+fn enemy_stasis_ball_doran_and_seals_meet_the_party_recovery_techniques() {
+    // The enemy abilities write the same cells the recovery techniques put back:
+    // RIMPA clears paralysis and restores agility *and* dexterity from the
+    // modified values (`AbilityEffect_RestoreAgiAndDex`), a second DORAN does not
+    // stack on the first, and nothing the party casts removes a seal.
+    use crate::battle::EnemySkill;
+    use crate::battle::enemy_effect::{EffectTurn, resolve_effect_skill};
+    let skill =
+        |id, name: &str, effect, power_stat, target, power, resistance, element| EnemySkill {
+            id,
+            name: name.into(),
+            effect,
+            power_stat,
+            target,
+            power,
+            resistance,
+            element,
+        };
+    let mut blauzen = fixtures::zoran_bult();
+    blauzen.id = 19;
+    blauzen.strength = 60;
+    let mut greneris = fixtures::zoran_bult();
+    greneris.id = 115;
+    greneris.mental = 31;
+    let data = data().with_enemies([blauzen, greneris]).with_enemy_skills([
+        skill(11, "STASISBALL", 0x1C, 1, 8, 64, 1, 13),
+        skill(40, "DORAN", 0x06, 0x82, 9, 80, 2, 11),
+        skill(41, "SEALS", 0x08, 0x82, 9, 80, 2, 11),
+    ]);
+    let mut roster = recovery_roster(&data);
+    roster.add_enemy(3, data.enemy(19).unwrap());
+    roster.add_enemy(4, data.enemy(115).unwrap());
+    let modified = |roster: &Roster, who: u8| {
+        let stats = &roster.get(id(who)).unwrap().stats;
+        (stats.agility.modified, stats.dexterity.modified)
+    };
+    let mut rolls = SliceRolls::new(&[63]);
+    let mut events = Vec::new();
+    assert_eq!(
+        resolve_effect_skill(
+            &mut roster,
+            id(8),
+            11,
+            Some(id(2)),
+            &data,
+            &mut rolls,
+            &mut events
+        ),
+        EffectTurn::Resolved
+    );
+    let stats = &roster.get(id(2)).unwrap().stats;
+    assert_eq!(stats.status & status::PARALYZED, status::PARALYZED);
+    assert_eq!((stats.agility.battle, stats.dexterity.battle), (1, 1));
+
+    // DORAN on the same member: from the modified agility, not the 1.
+    resolve_effect_skill(&mut roster, id(9), 40, None, &data, &mut rolls, &mut events);
+
+    // RIMPA (35) from the caster on the paralyzed member.
+    let mut cure = Vec::new();
+    resolve_technique(
+        &mut roster,
+        id(1),
+        35,
+        Some(id(2)),
+        &data,
+        &mut rolls,
+        &mut cure,
+    );
+    let stats = &roster.get(id(2)).unwrap().stats;
+    assert_eq!(stats.status & status::PARALYZED, 0, "paralysis is gone");
+    let (agility, dexterity) = modified(&roster, 2);
+    assert_eq!(
+        (stats.agility.battle, stats.dexterity.battle),
+        (agility, dexterity),
+        "the cure puts agility and dexterity back from the modified values"
+    );
+
+    // SEALS visits every party slot - the caster too - and no technique removes
+    // a seal. A sealed caster pays for a technique and gets no effect.
+    resolve_effect_skill(&mut roster, id(9), 41, None, &data, &mut rolls, &mut events);
+    for who in [1, 2, 3] {
+        assert_eq!(
+            roster.get(id(who)).unwrap().stats.status & status::TECH_SEALED,
+            status::TECH_SEALED
+        );
+    }
+    resolve_effect_skill(
+        &mut roster,
+        id(8),
+        11,
+        Some(id(2)),
+        &data,
+        &mut rolls,
+        &mut events,
+    );
+    assert_ne!(
+        roster.get(id(2)).unwrap().stats.status & status::PARALYZED,
+        0
+    );
+    let mut sealed = Vec::new();
+    resolve_technique(
+        &mut roster,
+        id(1),
+        35,
+        Some(id(2)),
+        &data,
+        &mut rolls,
+        &mut sealed,
+    );
+    let stats = &roster.get(id(2)).unwrap().stats;
+    assert_ne!(
+        stats.status & status::PARALYZED,
+        0,
+        "the sealed caster's RIMPA does nothing"
+    );
+    assert_eq!(stats.status & status::TECH_SEALED, status::TECH_SEALED);
+}

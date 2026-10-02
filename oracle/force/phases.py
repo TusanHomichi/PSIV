@@ -68,7 +68,7 @@ def plan(args, pack: Pack, layout: dict, selector: Selector, formation: int,
 
 def probe_phase(plan_facts: dict, args, selector: Selector, pack: Pack,
                 base_steps: list[Step],
-                layout: dict[str, dict]
+                layout: dict[str, dict], formation: int
                 ) -> tuple[Draw, durable_patch.Durable | None]:
     """Run the probe and hand back the draw, with the model's own checks.
 
@@ -77,7 +77,9 @@ def probe_phase(plan_facts: dict, args, selector: Selector, pack: Pack,
     - and its trace says where the draw is and what `hv + frame_count` was.
     With `--durable`, its log is also where the durable patch is planned: the
     frame the extractor will read the battle's start state from is in it, and
-    so is each fighter's HP there.
+    so is each fighter's HP there - at the frame the *forced* formation's load
+    ends, which is the probe's own only when the two have as many enemies
+    (`durable.forced_start_frame`).
     """
     out, stem = plan_facts["out"], plan_facts["stem"]
     steps = compose(base_steps, plan_facts["cut"], args.delay,
@@ -125,10 +127,13 @@ def probe_phase(plan_facts: dict, args, selector: Selector, pack: Pack,
             "the forcing model does not explain this run")
     durable = None
     if args.durable:
-        durable = durable_patch.plan_patch(log, layout, start, selector.vehicle)
+        forced_start = durable_patch.forced_start_frame(
+            start, len(built), len(pack.enemies_of(formation)))
+        durable = durable_patch.plan_patch(log, layout, forced_start,
+                                           selector.vehicle)
         who = "the vehicle" if selector.vehicle else ", ".join(
             cell.split("_hp")[0] for cell in durable.cells[::2])
-        print(f"durable: {durable.hp} HP to {who or 'nobody'} at f{start} "
+        print(f"durable: {durable.hp} HP to {who or 'nobody'} at f{forced_start} "
               f"(the frame the start state is read from), "
               f"{len(durable.cells)} cell(s)"
               + (f"; left alone: {', '.join(durable.skipped)}"
@@ -332,7 +337,7 @@ def run(args) -> int:
         return 0
 
     draw, durable = probe_phase(plan_facts, args, selector, pack, base_steps,
-                                layout)
+                                layout, formation)
     specs = patch_specs(selector, facts, layout, draw, forced_index)
     lines = [
         f"# --ram-patch list for {stem}",

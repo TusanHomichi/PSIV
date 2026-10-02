@@ -15,6 +15,7 @@ import re
 import subprocess
 import sys
 
+from oracle import host_binary
 from oracle.checks import load
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
@@ -30,7 +31,7 @@ def variant(text, mark, frames):
 
 
 def run(tape, out):
-    cmd = [str(ORACLE / 'bin' / 'psiv_oracle'),
+    cmd = [str(host_binary.ensure()),
            '--core', str(ORACLE / 'core' / 'genesis_plus_gx_libretro.so'),
            '--rom', str(ROOT / 'Phantasy Star IV (USA).md'),
            '--map', str(ORACLE / 'ram_map.tsv'),

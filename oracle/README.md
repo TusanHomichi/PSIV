@@ -52,6 +52,8 @@ oracle/
 ├── host/libretro.h         minimal libretro ABI subset
 ├── build_core.sh           fetches + builds the pinned emulation core
 ├── patches/*.patch         our patches to that checkout, applied in order
+├── build_host.py           compiles host/ into bin/psiv_oracle, build id included
+├── host_binary.py          the binary to run: this tree's host, or a rebuild of it
 ├── scripts/                the analysis tools, one module each: navigate
 │                           (closed-loop tape authoring over `route.py`),
 │                           analyze_rng (per-frame RNG call census from a log),
@@ -88,7 +90,8 @@ oracle/
 `oracle/` is a package, and there is one way into it: **every entry point is a
 module run from the repository root** - `python3 -m oracle.force`,
 `python3 -m oracle.sweep`, `python3 -m oracle.fixture`,
-`python3 -m oracle.rng_trace`, `python3 -m oracle.decode_layout`, and
+`python3 -m oracle.rng_trace`, `python3 -m oracle.decode_layout`,
+`python3 -m oracle.build_host`, `python3 -m oracle.host_binary`, and
 `python3 -m oracle.scripts.<name>` for the analysis tools - so no tool needs
 `oracle/` or the repository root on `PYTHONPATH`, and every oracle import is
 absolute (`from oracle import route`). Running a module by its file path is not
@@ -109,7 +112,8 @@ oracle/frames/
 ```
 
 `host/`, `tapes/`, `ram_map.json`, `ram_map.tsv`, `gen_ram_map.py`,
-`build_core.sh` and `verify.sh` are harness code and **are** committed.
+`build_core.sh`, `build_host.py`, `host_binary.py` and `verify.sh` are harness
+code and **are** committed.
 
 ## Running it
 
@@ -128,7 +132,38 @@ encounters, the level-up grind, escape and defend. The split is by tape cost,
 not importance: tape 10 alone is ~55k frames, and the battle tapes are where
 all the time goes.
 
-One tape by hand:
+### Building the host, and why it cannot be stale
+
+```sh
+python3 -m oracle.build_host      # ~1s: the sources and flags verify.sh uses
+```
+
+The build passes a SHA-256 over `host/*.c` and `*.h` in as
+`-DPSIV_ORACLE_BUILD_ID`, and the host prints it back for `--build-id`. Nothing
+used to tie the binary to its sources, so a checkout could drive the tapes with
+a host older than itself - issue #61 was a three-week-old `bin/psiv_oracle`
+with no `--rng-trace`, rebuilt by hand, mid-lane. Every entry point that
+launches the host now asks `oracle/host_binary.py` for the path instead: it
+compares what the binary reports with the fingerprint of the sources in front
+of it and rebuilds through the entry point when they differ - about a second,
+`gcc` and nothing else. Launchers that start together (a sweep at `--jobs 3`)
+serialize on `oracle/bin/.psiv_oracle.lock`, so the host is compiled once.
+
+From a shell:
+
+```sh
+python3 -m oracle.host_binary --path      # the path to run; rebuilds if it must
+python3 -m oracle.host_binary --build-id  # the fingerprint that binary reports
+```
+
+`PSIV_ORACLE_NO_REBUILD=1` (also `yes`, `true`, `on`) refuses a stale host
+instead, with an error naming both fingerprints, for a tree that must not be
+written to; unset, or any other value, lets a launcher rebuild.
+`tests/test_oracle_host_binary.py` owns the cases, including the one that fails
+when a new launcher names the binary instead of asking for it.
+
+One tape by hand (a bare shell run gets no freshness check of its own - build
+once with `python3 -m oracle.build_host`, or ask for the path as above):
 
 ```sh
 oracle/bin/psiv_oracle \
@@ -141,7 +176,8 @@ oracle/bin/psiv_oracle \
 ```
 
 Other flags: `--dump-options` lists every option the core declares with its
-default; `--probe-endian` prints work-RAM diagnostics.
+default; `--probe-endian` prints work-RAM diagnostics; `--build-id` prints the
+sources the binary was compiled from (see above).
 
 ### Video frame capture
 

@@ -138,3 +138,35 @@ fn validate_accepts_main_and_rejects_a_broken_copy() {
     );
     assert!(text.contains("NO-SUCH-ITEM"), "{text}");
 }
+
+/// The Ladea Tower lies across sand: a person cannot reach it from Krup, the
+/// Land Rover (`--vehicle 1`) can.
+#[test]
+fn plan_vehicle_crosses_the_sand_to_the_tower() {
+    if pack().is_none() {
+        return;
+    }
+    let plan = |vehicle: Option<&str>| {
+        let mut args = vec![
+            "plan",
+            "--from-map",
+            "0",
+            "--from-cell",
+            "109,153",
+            "--to-map",
+            "0x8c",
+            "--flag",
+            "event:0x44",
+        ];
+        if let Some(index) = vehicle {
+            args.extend(["--vehicle", index]);
+        }
+        bin().args(args).output().unwrap()
+    };
+    let foot = plan(None);
+    assert_eq!(foot.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&foot.stdout).contains("no plan"));
+    let mounted = plan(Some("1"));
+    assert_eq!(mounted.status.code(), Some(0));
+    assert!(String::from_utf8_lossy(&mounted.stdout).contains("arrive map 0x08c"));
+}

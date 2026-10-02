@@ -277,18 +277,29 @@ pub(crate) struct Action {
 
 /// An action's effects, as the log shows them.
 ///
-/// Only the status bytes are compared: they are the one effect the fixtures
-/// cover that the port reports as its own event (the engine's
-/// `StatusInflicted`). `hp` and `stats` are recorded for a reader and for the
-/// extractor's own reading of *whether* an ability resolved
-/// (`oracle/fixture/enemies.py`); the HP a resolution leaves is already
-/// compared through each target's `hp_after`.
+/// The status bytes are compared both ways (the bits the log gained are the
+/// bits the port's `StatusInflicted` events carry), and so are the battle
+/// cells (`agi_bat`, `atk_bat`, `dfs_bat`) and the deaths (a fighter whose HP
+/// the action took to zero is one the port's turn reports as `Died`). The HP a
+/// swing or a damage ability leaves is also compared through each target's
+/// `hp_after`; the other stat cells are recorded for a reader and for the extractor's own reading of *whether* an ability resolved
+/// (`oracle/fixture/enemies.py`) - the extractor logs the *derived* attack and
+/// defence cells (`$24`, `$28`), which a battle buff never moves, so an attack
+/// or defence change shows only in the damage a later action deals.
 #[derive(Debug, Clone, Default, Deserialize)]
 pub(crate) struct Effect {
     /// `[fighter id, status before, status after]` for every fighter whose
     /// status byte the action moved.
     #[serde(default)]
     pub(crate) status: Vec<(u8, u32, u32)>,
+    /// `[fighter id, hp before, hp after]` for every fighter whose HP the
+    /// action moved.
+    #[serde(default)]
+    pub(crate) hp: Vec<(u8, i32, i32)>,
+    /// `[fighter id, field, before, after]` for every battle stat cell the
+    /// action moved.
+    #[serde(default)]
+    pub(crate) stats: Vec<(u8, String, i32, i32)>,
 }
 
 #[derive(Debug, Clone, Deserialize)]

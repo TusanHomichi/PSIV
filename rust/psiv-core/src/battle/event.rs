@@ -124,6 +124,25 @@ pub enum BattleEvent {
         /// Full restored HP.
         hp: u16,
     },
+    /// Fusion (`BattleObj_Fusion`, `ps4.asm:35675`) cleared every enemy slot and
+    /// seated one new enemy from its own formation data in slot 1.
+    EnemiesFused {
+        /// The Zol slug whose turn it was.
+        actor: FighterId,
+        /// Every enemy slot the object cleared, in slot order.
+        removed: Vec<FighterId>,
+        /// The slot the new enemy took.
+        fighter: FighterId,
+        /// The new enemy's record id.
+        enemy_id: u16,
+        /// Display name.
+        name: String,
+        /// Full HP of the new enemy.
+        hp: u16,
+        /// Its battle agility, the one stat cell the oracle's effect columns
+        /// log for enemies that a fresh `Battle_FillEnemyStats` changes.
+        agility: u8,
+    },
     /// An actor activated an item from equipment or shared inventory.
     ItemUsed {
         /// Acting fighter.
