@@ -24,9 +24,7 @@ fn a_listed_route_resolves_with_its_record_on_the_nibble_9_target() {
     // so only the record's effect byte can still refuse one.
     for (enemy_id, ability) in [(75u16, 51u8), (0, 2)] {
         assert!(
-            DAMAGE_SKILL_ROUTES
-                .iter()
-                .any(|route| route.enemy_id == enemy_id && route.ability == ability),
+            all().any(|route| route.enemy_id == enemy_id && route.ability == ability),
             "({enemy_id}, {ability}) must be a listed route for this control"
         );
     }
@@ -86,9 +84,7 @@ fn a_listed_route_with_an_effect_handler_is_refused() {
         (BLUE_RAPPY, LOVEL_EYES),
     ] {
         assert!(
-            DAMAGE_SKILL_ROUTES
-                .iter()
-                .any(|route| route.enemy_id == carrier.enemy_id && route.ability == ability),
+            all().any(|route| route.enemy_id == carrier.enemy_id && route.ability == ability),
             "({}, {ability:#04X}) must be a listed route for this control",
             carrier.enemy_id
         );
