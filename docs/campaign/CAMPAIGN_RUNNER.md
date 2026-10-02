@@ -76,6 +76,99 @@ failed objective, unsupported ability, scene fault, lost battle or stuck walk,
 and writes a report: chapter, objective, frame, map, cell, mode and the last
 events.
 
+## The runner
+
+`rust/psiv-campaign` plays a route. It builds a `Session`, then presses one
+joypad byte per frame until each objective is met, reading the session's
+views to decide the next press. The durable record of its runs, with every
+halt and its diagnosis, is the [runner log](RUNNER_LOG.md).
+
+```text
+cargo build --release --manifest-path rust/Cargo.toml -p psiv-campaign
+rust/target/release/psiv-campaign run rust/psiv-campaign/routes/main.json \
+    --save-dir build/campaign/run1
+rust/target/release/psiv-campaign replay build/campaign/run1/run.tape
+```
+
+`run <route> [--from-chapter ID] [--until-chapter ID] [--save-dir DIR]
+[--tape OUT] [--report OUT] [--pack DIR]`. The save directory defaults to
+`build/campaign`, the tape to `<save-dir>/run.tape`, and a halt's report to
+`<save-dir>/halt-report.json`. Exit status: 0 completed, 2 halted (a report was
+written), 1 a usage or setup error. Release builds play the whole route in
+about half a second; a debug build is an order of magnitude slower and plays
+chapter one in three seconds.
+
+**The boundary.** The runner calls `Session::frame(pad)`, answers the camp's
+SAVE with `Session::finish_camp_save`, and reads `Session::runtime()` and its
+`&self` methods. It never calls `Session::runtime_mut` or a `&mut Runtime`
+method, and a test greps for it (`the_runner_reaches_no_runtime_mutator`). The
+one exception is construction, in `src/start.rs`: `Runtime::new_game`,
+`enable_battles` and `start_event` for START, `Runtime::from_save` for a chapter
+save, all on a runtime nobody has played yet. Node S5 owns title and
+construction; when it makes those crate-private, the runner needs a `Session`
+constructor that takes the pack and the battle files and does exactly this.
+
+**Controllers**, one per objective kind, each in its own module and each
+producing pads from views only:
+
+| Objective | Module | What it presses |
+| --- | --- | --- |
+| `go_to`, `go_to_map`, `patrol` | `walk.rs` | a direction for a step, re-planned from the real cell whenever the party comes to rest somewhere the plan did not expect; R0's planner over the live map, and a warp graph built from the flags the game holds |
+| `talk`, `open_chest`, `interact`, `answer` | `talk.rs` | walks next to the object (or across its counter), turns, presses Speak, and reads what opened; Cancel is retail's direct NO |
+| `buy`, `sell`, `rest_inn` | `shopping.rs` | the shop view's pages, rows and cursors |
+| `equip`, `use_technique`, `use_item`, `reorder`, `save` | `camping.rs` | the camp view's pages; SAVE is answered by the driver with the file the runner writes |
+| random and scripted battles | `battle.rs`, `policy.rs` | the battle view's menus, one press at a time |
+| `expect` | `expect.rs` | nothing: it settles the game and reads flags, map, cell, party and purse |
+
+`field.rs` is the loop every controller calls first: it plays frames until the
+game hands control back, turning finished pages with Speak, acknowledging chest
+results, fighting battles with the chapter's policy, and waiting out scenes.
+
+**Battle policy.** `random_battle_policy` names one (`policy.rs`). Everyone
+attacks the first living enemy; the first member who can cures the most hurt
+one below half HP with a healing technique, or failing that a healing item;
+`run_unless_boss` runs from random encounters and fights scripted battles.
+After a battle the party is cured through the camp (`recovery.rs`). Losing is a
+halt. `attack_all`, `heal_then_attack`, `train_with_inn` and
+`bioplant_survival` resolve to the default policy; a route that needs another
+behaviour gets a type in `policy.rs` first.
+
+**Halts and the report.** Each objective has a frame budget. The run stops at
+the first of: a missed `expect` or closing assertion, an exhausted budget, an
+unsupported enemy ability, a scene fault (a faulted or missing scene, an
+unsupported trigger, an unpacked warp target, a refused battle round), a lost
+battle, an unreachable target, a menu with no such entry, an object the route
+named that is not the one the game reached, or a state the objective cannot
+continue from. The report is JSON: `chapter`, `objective_index`,
+`objective_kind`, `objective`, `halt {kind, detail}`, `frame`, `map`, `cell`,
+`facing`, `mode`, `party` (HP, TP, level, status), `money`, the last 50 runtime
+`events`, `surroundings` (the collision values around the party),
+`nearby_warps`, `view` (the open dialogue, shop, camp, battle or chest) and the
+`battles` fought. `PSIV_CAMPAIGN_TRACE=1` prints every event and every battle
+decision to stderr as the run goes.
+
+**Tape, saves and replay.** The tape is every frame's pad byte, run-length
+encoded in a text file (`src/tape.rs` documents the format). A chapter that
+completes writes `<save-dir>/NN-id/slot_1.sram`, and `--from-chapter ID` starts
+from the save the chapter before it ended on; the tape then names that save by
+hash. Route `save` objectives write `<save-dir>/route/slot_N.sram` through the
+camp's SAVE page. `replay <tape> [--from-save FILE]` plays the tape back and
+prints the digest of the final state (map, cell, facing, purse, party and the
+whole persistent snapshot), which a run printed too and a replay must
+reproduce. A save loaded mid-route restarts the frame counter and RNG, so a
+`--from-chapter` run is the same game from there but not the same frames as the
+full run; only the full run from New Game is the route's evidence.
+
+**Tests.** `cargo test --manifest-path rust/Cargo.toml -p psiv-campaign --
+--test-threads=1` runs the planner and validator suites and
+`tests/runner.rs`: chapter one twice gives identical tapes, digests and saves;
+a tape replays to its digest, also from a chapter save; a wrong object index,
+an expectation that cannot hold, an unreachable cell and a spent budget each
+halt naming the objective; the exit statuses. The whole route is `#[ignore]`d:
+`cargo test --release --manifest-path rust/Cargo.toml -p psiv-campaign --test
+runner -- --ignored --test-threads=1`. Cases that need the pack skip with a
+message when it is absent.
+
 ## Task graph
 
 ```yaml
@@ -128,7 +221,9 @@ nodes:
     outcome: "Campaign runner binary driving a Session from routes/main.json; chapters through the post-Rika checkpoint"
     depends_on: [S5, R0]
     acceptance: "The runner plays New Game to the north bank (Motavia $00 (84,64), five members) from the route file with pad input only, writes a pad tape and chapter saves, and a deliberately broken objective halts with a report (negative control)"
-    state: pending
+    evidence: ["lane r1-runner (base 016cdc7), 2026-10-02: rust/psiv-campaign gains the runner (docs: 'The runner' above; record: RUNNER_LOG.md). `psiv-campaign run routes/main.json` plays all 13 chapters from New Game to the Aiedo arrival with pad presses only: 175,497 frames, 92 random battles and 2 scripted, exit 0, final-state digest 52ccbf8d9a7de61a, in about half a second in a release build. The north-bank checkpoint holds (Motavia $00 (84,64), Gryz, Alys, Chaz, Hahn and Rika alive, flag $35) and the Aiedo chapter arrives at $54 (47,83) after its one warp", "tape and replay: the run writes its pad tape (text, run-length encoded, src/tape.rs) and a chapter save per chapter; `psiv-campaign replay <tape> [--from-save FILE]` reproduces the digest, also for a tape that starts from a chapter save; two full runs printed the same digest", "tests: `cargo test --manifest-path rust/Cargo.toml -p psiv-campaign -- --test-threads=1` passes (50 passed, 1 ignored: the whole route, run in release); tests/runner.rs holds the determinism case (chapter one twice: identical tapes, digests and chapter saves), replay, resume from a chapter save, a boundary guard that greps the runner for runtime mutators, and the negative controls: a wrong object index halts at that objective with exit 2 and a report naming chapter, index and kind, an expectation that cannot hold halts at its objective, an unreachable cell, a spent budget, a pack with no item to use", "12 `verify` objectives resolved by playing and their flags dropped (RUNNER_LOG.md, 'verify items resolved'): Hahn and Dorin are object 0, Gryz's storage door is object 1 (the route had 0), Igglanova's press starts interaction area 0 rather than an object, the Holt scene lands the party at Zema (30,11) not (60,21), the Mile detour is unnecessary, the patrol condition holds, and the elevator doors' `opens` cells are walkable", "one port defect diagnosed, route works past it with a player's alternative: RunEvent_MileSandWorm is Unsupported unconditionally (rust/psiv-core/src/trigger_custom.rs:43) where the cartridge answers NoEvent outside its box without touching the RNG (ps4.asm:116449), so every visit to Mile halts; the route skips Mile and rests at the Piata inn (RUNNER_LOG.md, H1)", "open for S5: the runner builds its Session through Runtime::new_game, enable_battles, start_event and from_save in src/start.rs; when S5 makes them crate-private the runner needs a Session constructor over the pack and the battle files"]
+    integration_evidence: ["independent rerun at integration: run exit 0, 175,497 frames, digest 52ccbf8d9a7de61a, tape sha256 dd5ff60f... identical to the lane evidence; replay reproduces the digest", "gate 20261002T114112Z-b1d38ea: 1191 Python, 1150 Rust passed", "halt H1 filed as #54 (four custom triggers Unsupported); Mile removed from the route until fixed", "boundary: construction in start.rs still calls Runtime constructors and enable_battles/start_event; reconciled with S5"]
+    state: verified
   - id: R2
     outcome: "Tape replay in Godot"
     depends_on: [R1]
