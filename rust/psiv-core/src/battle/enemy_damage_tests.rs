@@ -213,6 +213,13 @@ pub(super) fn motavia_record(ability: u8) -> EnemySkill {
         FOI => ("FOI", 0x82, 8, 20, 7, 3),
         ROUND_EYES => ("ROUND EYES", 0x01, 8, 0, 6, 1),
         LOVEL_EYES => ("LOVEL EYES", 0x05, 8, 32, 6, 1),
+        // The Zio-arc records (`$28346C`, `$28359C`, `$283614`, `$2835CC`):
+        // FIREBREATH is the Zio Fort's and Ladea Tower's, the other three are
+        // Juza's and Nurvus's.
+        FIREBREATH => ("FIREBREATH", 0x01, 8, 32, 7, 3),
+        ZAN => ("ZAN", 0x82, 9, 16, 7, 1),
+        FORCEFLASH => ("FORCEFLASH", 0x02, 9, 36, 7, 2),
+        CORRSION => ("CORRSION", 0x02, 9, 64, 7, 1),
         other => panic!("no Motavia record for {other:#04X}"),
     };
     EnemySkill {

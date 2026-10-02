@@ -637,3 +637,110 @@ The sweep's own two options - `--durable` (the party-side HP patch,
 (stop at round N's end; the extractor records `outcome.truncated`) - and what a
 whole region's captures found with them are
 [`BATTLE_ORACLE_SWEEP.md`](BATTLE_ORACLE_SWEEP.md)'s.
+
+## 6. The Motavia arc: FIREBREATH, ZAN, FORCEFLASH, CORRSION (2026-10-02)
+
+The [campaign runner](../campaign/RUNNER_LOG.md) stops in Zio's fort: H16 halts on
+`unsupported ability 71/86` (Juza's ZAN and FORCEFLASH) and H15 on ability 33
+(FIREBREATH) in the fort's own encounters. The four abilities they name are the
+Zio-arc damage routes — `$21` FIREBREATH, `$47` ZAN, `$56` FORCEFLASH, `$4D`
+CORRSION — and this section is their cartridge evidence: one forced capture each,
+extracted into a fixture and replayed by
+[`every_fixture_replays_as_recorded`](../../rust/psiv-core/src/battle/replay/data.rs).
+
+The tool, the selector logic and the checks are sections 1-3's, unchanged; what
+these captures add is the option combination and the reason for it.
+
+| option | why |
+|---|---|
+| `--require-ability <id>` | the capture is only worth taking if the enemy *used* the ability, and the tool refuses the run otherwise. A roll is one of eight, so a series of `--delay` values is taken until one lands on it: `--delay` shifts every roll in the fight, and the attempts that miss are discarded (the reports that carry
+`require_ability_met: false` are what says so while the series runs). |
+| `--max-rounds 1` (ZAN, FORCEFLASH, CORRSION) or `3` (FIREBREATH) | the cap is what keeps a fight's *other* actions inside abilities the port runs: 100 TechMaster's `$3E` GIRES and its `$46` SAR condition, 115 Greneris's `$28`/`$29`/`$2A`/`$2F`/`$57` and 106 Haunt's `$4C` EVIL EYE are all outside this lane's four, and one of them in a captured round is one fixture the replay cannot hold. FIREBREATH's carrier needs no cap for that (83 Ripper's list is five zeros and three `$21`) — its three rounds are the long capture. |
+| no `--durable` | the tape's own party fights and keeps its own HP, so nothing in the fixture is the capture's invention. The party is level 1-7 and every one of these formations wipes it, which is why all four captures are **defeats**: the enemies act first (their agility is higher) and the log holds their whole round. A `--durable` run is refused for these formations anyway — the probe draws the group's own entry, whose enemy count can differ from the forced one's by a frame of load, and the tool then reads the patch one frame late (`--durable wrote 999 to alys_hp at f24818, but the capture reads 53 at f24817`). |
+
+### 6.1 The four captures
+
+```sh
+python3 -m oracle.force --formation 219 --out <dir> --max-rounds 3 --require-ability 33
+python3 -m oracle.force --formation 272 --out <dir> --max-rounds 1 --require-ability 71 --delay 19
+python3 -m oracle.force --formation 281 --out <dir> --max-rounds 1 --require-ability 86 --delay 5
+python3 -m oracle.force --formation 251 --out <dir> --max-rounds 1 --require-ability 77 --delay 53
+```
+
+| ability | carrier and formation | forced through | the ability's own action | fixture | replay |
+|---|---|---|---|---|---|
+| `$21` FIREBREATH | 83 Ripper ×2, formation 219 (`$DB`) | map 130 `Zio Fort` (`$082`, group 30; the map's own byte) | round 1 at f24985 (fighter 6) and round 3 at f25963 (fighter 7); 3 rounds, 255 battle rolls | `forced_db_ripper.json` | **exact** |
+| `$47` ZAN | 100 TechMaster ×2, formation 272 (`$110`) | map 204 `Nurvus_Part2` (`$0CC`, group 40) | round 1 at f24864 (fighter 7), three party slots, 49 rolls | `forced_110_techmaster.json` | **exact** |
+| `$56` FORCEFLASH | 115 Greneris, formation 281 (`$119`) | map 206 `Nurvus_B1` (`$0CE`, group 41) | round 1 at f24976 (fighter 6), three party slots, 49 rolls | `forced_119_greneris.json` | **exact** |
+| `$4D` CORRSION | 106 Haunt ×2, formation 251 (`$FB`) | map 142 `LadeaTower_F2` (`$08E`, group 38) | round 1 at f25129 (fighter 7), two living party slots, 35 rolls | `forced_fb_haunt.json` | **exact** |
+
+Every one of the four is a defeat of the tape's party: 100 TechMaster's `$44` FOI
+follows ZAN in the same round, 83 Ripper's rounds 2 and 3 are the party's own
+attacks and FIREBREATH's second use, and 106 Haunt's first action kills one
+member so CORRSION's five-slot request resolves the two that are left — which is
+the `AllParty` class's `Fighters_Hit_Flags` gate doing exactly what
+[`ENEMY_DAMAGE_ROUTES.md`](../battle/ENEMY_DAMAGE_ROUTES.md) §3 says it does.
+
+The extraction is section 3a's recipe with the cap and without the HP patch:
+
+```sh
+python3 -m oracle.fixture --trace <capture>/forced_110_attack_d19_rolls.csv \
+    --log <capture>/forced_110_attack_d19.csv \
+    --out rust/psiv-core/src/battle/replay_fixtures/forced_110_techmaster.json \
+    --tape "forced_110_attack_d19.tape (python3 -m oracle.force --formation 272 --max-rounds 1 --require-ability 71 --delay 19)" \
+    --battle-first 24794 --battle-last 25308 --max-rounds 1 --minified
+CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
+    -- --test-threads=1 every_fixture_replays_as_recorded
+```
+
+The replay harness reads the records those fixtures seat from
+`replay_fixtures/motavia_pack.json`, which now covers the forced captures beside
+the sweep (`oracle/sweep/replay_pack.py` walks the whole fixture directory);
+`divergences.json` is empty, so every committed fixture — the two tape battles,
+the four earlier forced captures, the four here, the three evidence-only
+captures below and the sweep's 81 — replays exactly.
+
+### 6.2 The three abilities that are not damage routes
+
+`$4C` EVIL EYE, `$2A` RIMIT and `$2F` VOL are on issue #58's list too, and their
+chains were read the same way: **none of them writes `move.w #$C` on any carrier
+the survey covers**, so the damage pipeline is never reached and the effect
+handler (`$07` SleepParalyze for the first two, `$02` Death for VOL) is the whole
+turn. Their captures are evidence of that reading and nothing else — a fixture
+for them would have to answer `EnemySkillUsed` for an ability whose handler this
+port does not run, so none is committed:
+
+| ability | carrier and formation | capture option | the ability's own action | what the log shows it doing |
+|---|---|---|---|---|
+| `$4C` EVIL EYE | 106 Haunt ×2, formation 251 (`$FB`) | `--formation 251 --max-rounds 2 --require-ability 76` | round 2 at f25403 (fighter 7) | 2 rolls, one slot, no damage word |
+| `$2A` RIMIT | 115 Greneris, formation 281 (`$119`) | `--formation 281 --max-rounds 2 --require-ability 42` | round 2 at f25131 (fighter 6) | 4 rolls, three slots, no damage word |
+| `$2F` VOL | 115 Greneris, formation 281 (`$119`) | `--formation 281 --max-rounds 2 --require-ability 47 --delay 17` | round 2 at f25324 (fighter 6) | 2 rolls, one slot, no damage word |
+
+The three captures' round-1 enemy actions are plain attacks or the *other*
+ability of the same carrier's list (115 Greneris's `$57` GELUN then RIMIT in one,
+`$56` FORCEFLASH then VOL in the other), which is why they are not fixtures: a
+round the port cannot run sits beside the one that proves the reading. Their
+logs are the evidence the reading rests on, and they are the reason those
+abilities' rows say `Not a damage route` rather than `single` or `all-party`:
+the log of an EVIL EYE, RIMIT or VOL turn holds rolls and a slot and no damage
+number at all.
+
+### 6.3 What these captures do not prove
+
+- **Juza's own battle.** 114 Juza is event battle 3 (the boss block of
+  `generated/formations.json`), which no map's group reaches and this tool does
+  not drive: his ZAN and FORCEFLASH arms are the same `EnemyAttack_Juza` arms
+  100 TechMaster's and 115 Greneris's captures exercise, and the port's own
+  ZAN row for 114 is the same object chain, but no fixture replays *his*
+  battle. The campaign runner's own run of it is the check for that
+  (`docs/campaign/RUNNER_LOG.md`, which the orchestrator runs at integration).
+- **A win, or a round the party lives through.** Every capture here ends in the
+  party's defeat, so the fixtures prove the enemies' turns and the damage they
+  deal, not what the party's commands did afterwards.
+- **The abilities' own animations, sounds or timing.** `--max-rounds` cuts the
+  capture at a round boundary and the fixture keeps the log's action frames; no
+  frame-level animation claim is made here (that is
+  `BATTLE_ANIMATIONS.md`'s and the presentation lane's).
+- **Anything about the deferred carriers.** 133 ProfoundDarkness1's `$21` and
+  140 Zio2's `$4D` are behind gates this port does not model
+  (`$FFFFEE87` and the `$FFFFEE98` phase counter) and have no capture.
