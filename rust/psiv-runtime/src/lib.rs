@@ -2,8 +2,9 @@
 //! (`psiv-core`), plus the game shell that owns map changes.
 //!
 //! `psiv-core` knows no schema and `psiv-data` knows no rules; this crate is
-//! the only place the two meet. `psiv-godot` drives a [`Runtime`] and never
-//! touches either lower layer directly.
+//! the only place the two meet. `psiv-godot` drives a [`Session`] — one joypad
+//! byte per frame in, a [`Frame`] of events and signals out — and never touches
+//! either lower layer directly.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -45,6 +46,7 @@ mod scene_map;
 #[cfg(test)]
 mod scene_map_tests;
 mod scene_runtime;
+mod session;
 mod shop;
 mod travel;
 #[cfg(test)]
@@ -67,6 +69,7 @@ pub use encounters::{
 pub use events::{BattleAnimationEvent, BattleSoundEvent, BattleTimeline, RuntimeEvent};
 pub use pad::{Button, Pad};
 pub use save::RuntimeSaveError;
+pub use session::{Frame, SceneStart, Session};
 pub use shop::{InnResult, ShopBuyResult, ShopSellResult};
 
 use bridge::char_id_by_symbol;

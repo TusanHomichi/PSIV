@@ -28,6 +28,8 @@
 
 use core::fmt;
 
+use psiv_core::{Direction, Input};
+
 /// One of the pad's eight buttons, in the cartridge's bit order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Button {
@@ -165,6 +167,65 @@ impl Pad {
     pub const fn is_pressed(self, previous: Pad, button: Button) -> bool {
         self.pressed(previous).held(button)
     }
+
+    /// The field-mode input this pad resolves to, in the cartridge's order.
+    ///
+    /// The talk button wins over a direction: `FieldControls_GetInput`
+    /// (`ps4.asm:114889`) reads `ButtonSpeak` out of `Joypad_Pressed` and hands
+    /// the frame to `FieldRoutine_Interaction`, which the engine models by
+    /// latching the press and spending it when the party comes to rest
+    /// (`psiv-core/src/field.rs`, `FieldState::tick`). It is the held level that
+    /// resolves here, not the edge, so a press held across frames is one
+    /// interaction — and so the dismiss latch, which compares this answer to
+    /// [`Input::Action`], keeps swallowing while the key is still down.
+    ///
+    /// The d-pad is `FieldObj_GetInput` (`ps4.asm:93212`), which hands
+    /// `FieldObj_Move` (`ps4.asm:93352`) the raw four-bit mask and lets
+    /// `FieldObj_MovementsTbl` (`ps4.asm:93675`) choose. Its first sixteen
+    /// entries are the whole rule:
+    ///
+    /// | mask | buttons | direction |
+    /// | --- | --- | --- |
+    /// | `$01` | Up | Up |
+    /// | `$02` | Down | Down |
+    /// | `$03` | Up+Down | — |
+    /// | `$04`, `$05`, `$06` | Left, with Up and/or Down | Left |
+    /// | `$07` | Up+Down+Left | — |
+    /// | `$08`, `$09`, `$0A` | Right, with Up and/or Down | Right |
+    /// | `$0B` | Up+Down+Right | — |
+    /// | `$0C`..`$0F` | Left+Right | — |
+    ///
+    /// So an opposing pair cancels the whole mask — including a perfectly good
+    /// horizontal or vertical held with it — and a held horizontal otherwise
+    /// beats a vertical. That is not "Up first", which is what the shell's own
+    /// `read_input` did before this resolution moved here.
+    #[must_use]
+    pub const fn field_input(self) -> Input {
+        if self.held(Button::Speak) {
+            return Input::Action;
+        }
+        let (up, down) = (self.held(Button::Up), self.held(Button::Down));
+        let (left, right) = (self.held(Button::Left), self.held(Button::Right));
+        // `$03`, `$07`, `$0B`, `$0F` and every `$0C` to `$0F`: an opposing pair
+        // is a mask the cartridge does nothing for — not even a facing change,
+        // since the table leaves its facing byte at `$FF`.
+        if (up && down) || (left && right) {
+            return Input::Neutral;
+        }
+        if left {
+            return Input::Direction(Direction::Left);
+        }
+        if right {
+            return Input::Direction(Direction::Right);
+        }
+        if up {
+            return Input::Direction(Direction::Up);
+        }
+        if down {
+            return Input::Direction(Direction::Down);
+        }
+        Input::Neutral
+    }
 }
 
 impl fmt::Display for Pad {
@@ -191,6 +252,7 @@ impl fmt::Display for Pad {
 #[cfg(test)]
 mod tests {
     use super::{Button, Pad};
+    use psiv_core::{Direction, Input};
 
     #[test]
     fn every_button_keeps_its_disassembly_bit() {
@@ -247,5 +309,74 @@ mod tests {
             "ButtonRight|ButtonSpeak"
         );
         assert_eq!(Button::Cancel.to_string(), "ButtonCancel");
+    }
+
+    /// Every one of the sixteen d-pad masks, against `FieldObj_MovementsTbl`
+    /// (`ps4.asm:93675`): the entries with zero step durations and a `$FF`
+    /// facing byte are the masks the cartridge does nothing for. This is the
+    /// table, not a preference — a menu that reorders these is a fidelity bug.
+    #[test]
+    fn the_cartridges_mask_table_decides_every_direction() {
+        use Direction::{Down, Left, Right, Up};
+        let table: [(u8, Option<Direction>); 16] = [
+            (0x00, None),
+            (0x01, Some(Up)),
+            (0x02, Some(Down)),
+            (0x03, None),
+            (0x04, Some(Left)),
+            (0x05, Some(Left)),
+            (0x06, Some(Left)),
+            (0x07, None),
+            (0x08, Some(Right)),
+            (0x09, Some(Right)),
+            (0x0A, Some(Right)),
+            (0x0B, None),
+            (0x0C, None),
+            (0x0D, None),
+            (0x0E, None),
+            (0x0F, None),
+        ];
+        for (mask, expected) in table {
+            let resolved = Pad::from_bits(mask).field_input();
+            let expected = expected.map_or(Input::Neutral, Input::Direction);
+            assert_eq!(resolved, expected, "mask {mask:#04x}");
+        }
+    }
+
+    /// The two ends of the table that a "first button wins" rule gets wrong:
+    /// a horizontal beats a vertical, and an opposing pair cancels the mask
+    /// even when a single direction is held with it.
+    #[test]
+    fn a_horizontal_beats_a_vertical_and_an_opposing_pair_cancels() {
+        let up_left = Pad::of(&[Button::Up, Button::Left]);
+        assert_eq!(up_left.field_input(), Input::Direction(Direction::Left));
+        assert_eq!(
+            Pad::of(&[Button::Down, Button::Right]).field_input(),
+            Input::Direction(Direction::Right)
+        );
+        assert_eq!(
+            Pad::of(&[Button::Up, Button::Down, Button::Left]).field_input(),
+            Input::Neutral,
+            "$07 is an entry the table leaves empty"
+        );
+        assert_eq!(
+            Pad::of(&[Button::Left, Button::Right]).field_input(),
+            Input::Neutral
+        );
+    }
+
+    /// The talk button is not a direction and not a tie-break: it takes the
+    /// frame, and it is read from the held set, not the press edge.
+    #[test]
+    fn the_talk_button_takes_the_frame_from_any_direction() {
+        let both = Pad::of(&[Button::Speak, Button::Down]);
+        assert_eq!(both.field_input(), Input::Action);
+        assert_eq!(both.field_input(), both.with(Button::Up).field_input());
+        assert_eq!(Pad::new(Button::Speak).field_input(), Input::Action);
+        // Cancel, Camp and Start are not field input: the engine's `Input` has
+        // no notion of them, and the shell reads Cancel for the camp itself.
+        for button in [Button::Cancel, Button::Camp, Button::Start] {
+            assert_eq!(Pad::new(button).field_input(), Input::Neutral);
+        }
     }
 }
