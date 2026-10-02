@@ -17,12 +17,39 @@ that pack; it does not run the emulator. The Cargo workspace has five crates:
 | [psiv-core](../rust/psiv-core/) | Deterministic field, battle, event, party and save rules; no dependencies or engine types |
 | [psiv-runtime](../rust/psiv-runtime/) | Pack-to-core conversion, game orchestration, persistence integration and presentation snapshots |
 | [psiv-sound](../rust/psiv-sound/) | Live PSIV driver, FM/PSG/DAC playback and register traces |
-| [psiv-godot](../rust/psiv-godot/) and [godot](../godot/) | Desktop bridge: rendering, pad input and audio output. Title, game over and battle are moving into the runtime `Session`, which already runs the field, scenes, dialogue, shops and camp ([campaign runner](campaign/CAMPAIGN_RUNNER.md)) |
+| [psiv-godot](../rust/psiv-godot/) and [godot](../godot/) | Desktop bridge: rendering, pad input and audio output. The runtime `Session` owns every game mode — field, scenes, dialogue, shops, camp, battle, title and game over ([campaign runner](campaign/CAMPAIGN_RUNNER.md)) |
 
 Game rules belong in the core; the runtime coordinates them, and Godot presents
 results and sends input. Keep ROM decoding in Python. Pack schema changes need
 matching extraction and consumer validation. ROM-derived packs remain local
 and excluded from Git; see [extraction](EXTRACTION.md) and [setup](DEVELOPMENT.md).
+
+## The public runtime API
+
+After the S5 node the crate's public surface is the session, its views and the
+constructors: `Session::frame(pad)` is a frame of game, `Session::runtime()`
+hands out the readonly runtime for presentation, the frame carries the views a
+shell draws (`Frame::battle`, `Frame::title`, `Frame::game_over`,
+`Frame::notice` and the open menus' `ShopView`/`CampView`), the constructors
+build what a session starts over (`Runtime::new`, `Runtime::new_game`,
+`Runtime::from_save`, `Runtime::load_slot`, `SaveStore`), and the fixtures a
+certification needs are `psiv-runtime/src/session/debug.rs` plus the
+`Session::debug_*` selectors. Everything that changes game state is
+`pub(crate)`: `psiv-godot` cannot name one, and the module doctests on
+`Session` (`rust/psiv-runtime/src/session/mod.rs`) fail to compile if a shell
+tries. The exceptions are the seams the crate's own harness still drives — the
+battle engine's `enable_battles`, `battle_round`, `finish_battle_for_outcome`,
+the field's `tick`, the dialogue's `open_scene_dialogue`/`dialogue_closed` and
+the save writer `save_slot` — which the runtime's own integration tests and
+examples drive directly. They stay `pub` until those harnesses move onto the
+session, because a `pub(crate)` mutator is invisible to an integration test that
+lives outside the crate; the S5 node of the
+[campaign runner](campaign/CAMPAIGN_RUNNER.md#task-graph) records the list and
+the reason. What remains of the shell is pictures, input mapping and the
+directory policy: `rust/psiv-godot/src/save_dir.rs` resolves
+`PSIV_SAVE_DIR` (refusing a scripted run that names none) and hands
+`psiv_runtime::SaveStore` to the session, which owns every slot read, write and
+erase from then on.
 
 ## The session frame
 
@@ -38,8 +65,8 @@ counter, a scene's own line, a choice, "nothing here", applied in
 the box takes its first open-animation step on the frame it opens. The `Frame`
 carries the runtime events left for the shell, what the session opened
 (`Frame::routed`), the dialogue signals, the scene a `$F6` started, the field
-input it resolved and, for a menu frame, the camp's events, sound and save
-request. The menus' windows are views the shell draws (`ShopView`, `CampView`):
+input it resolved and, for a menu frame, the camp's events, sound and the
+failure of a SAVE the session itself wrote (`Frame::camp_save_error`). The menus' windows are views the shell draws (`ShopView`, `CampView`):
 pages, cursors, the roster snapshot and the line a command answered with. The
 shop catalog (counters, stock, inn rates) is `shops.json` read through
 `psiv-data`; equip against unequip is decided from the equipment bytes, and a
@@ -49,9 +76,23 @@ The directions and the talk button resolve in the cartridge's order
 sixteen d-pad masks — an opposing pair cancels, a horizontal beats a vertical —
 and `FieldControls_GetInput`'s talk press taking the frame); the menus read
 presses as edges against the previous frame's pad. Godot sends the pad and
-presents the frame; the modes it still owns (title and game over) are checked
-in front of the call, and the [campaign runner](campaign/CAMPAIGN_RUNNER.md)
-node S5 moves them in.
+presents the frame; there is no mode left in front of the call.
+
+## The front door and the end of play
+
+The title is a session mode like any other
+(`rust/psiv-runtime/src/session/title.rs`): the phases and their frame counts
+(the Sega hold, the reveal transfer, the `#$233` Press Start hold,
+`ps4.asm:86926`), the option window CONTINUE/START/ERASE DATA, the three-row
+slot lists and the ARE YOU SURE? confirmation, all driven by the pad and
+reported as a `TitleView` the shell draws. START builds the retail initializer
+inside the session, CONTINUE loads a slot through the session's `SaveStore`, and
+ERASE DATA zeroes the picked slot's payload — no shell answers a request.
+A defeat is the other boundary (`session/game_over.rs`): the field-status
+windows (`session/notices.rs`) are acknowledged by the pad, and the fourteen
+frames that follow gate the title's return, exactly as the shell's own fade
+counted them. `Session::start_title()` puts a session at the front door; the
+shell calls it on a power-on boot and the fade calls it on a defeat.
 
 ## The battle frame
 
@@ -113,8 +154,9 @@ cannot resolve an entry is not a state a caller can build. Fork-rewritten scene 
 require validation against the retail bytes. See [scene research](scenes/README.md),
 [dialogue](scenes/SCENE_DIALOGUE.md) and [presentation](scenes/SCENE_PRESENTATION.md).
 
-Save serialization uses the retail SRAM layout with three local slot files.
-Normal title CONTINUE and camp SAVE are implemented. See [save format](camp/SAVE_SCOUT.md),
+Save serialization uses the retail SRAM layout with three local slot files, and
+every slot operation (the title's slot list, CONTINUE, ERASE DATA and the camp's
+STATE > SAVE) runs inside the session's `SaveStore`. See [save format](camp/SAVE_SCOUT.md),
 [field state](field/FIELD_STATE.md), [party ORDER](camp/PARTY_ORDER.md) and the
 [BioPlant ledger](campaign/BIOPLANT_NATIVE.md) for state and restart evidence.
 

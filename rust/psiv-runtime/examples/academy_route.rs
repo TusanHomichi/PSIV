@@ -2,7 +2,7 @@
 mod support;
 use psiv_core::{Cell, Direction, Flag, StepFrames};
 use psiv_data::{BattleFiles, GameData};
-use psiv_runtime::{Button, Pad, Runtime, Session};
+use psiv_runtime::{Button, Pad, Runtime, SaveStore, Session};
 use std::path::Path;
 use support::{Walk, press};
 
@@ -93,10 +93,10 @@ fn main() {
     route.checkpoint("Motavia unlocked");
     if let Some(dir) = std::env::var_os("PSIV_ROUTE_SAVE_DIR") {
         let dir = Path::new(&dir);
-        route.runtime_mut().save_slot(dir, 0).unwrap();
-        let mut resumed =
-            Runtime::load_slot(GameData::load(pack).unwrap(), dir, 0, StepFrames::default())
-                .unwrap();
+        route.save_slot(dir, 0).unwrap();
+        let mut resumed = SaveStore::new(dir)
+            .load(GameData::load(pack).unwrap(), 0, StepFrames::default())
+            .unwrap();
         resumed
             .enable_battles(&BattleFiles::load(pack).unwrap())
             .unwrap();

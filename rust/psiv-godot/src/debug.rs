@@ -9,6 +9,7 @@ impl Field {
         let Some(rt) = self.runtime() else {
             return GString::new();
         };
+        let title = self.session.as_ref().and_then(Session::title);
         let dialogue = rt.dialogue_open();
         let dialogue_view = rt.dialogue_view();
         let state = serde_json::json!({
@@ -17,8 +18,8 @@ impl Field {
             "dungeon_exit": rt.dungeon_exit_index(),
             "cell": [rt.state().cell().x, rt.state().cell().y],
             "stepping": rt.state().is_stepping(), "scene": rt.scene_active(),
-            "dialogue": dialogue, "title": self.title.is_some(),
-            "title_menu": self.title.as_ref().map(|title| title.debug_menu()),
+            "dialogue": dialogue, "title": title.is_some(),
+            "title_menu": title.map(|view| serde_json::json!({"phase": format!("{:?}", view.phase), "cursor": view.cursor})),
             "dialogue_choice": dialogue_view.as_ref().filter(|view| view.choice.is_some()).map(|view| serde_json::json!({
                 "ready": view.choice.is_some_and(|choice| choice.ready),
                 "cursor": view.choice.map(|choice| choice.cursor),
@@ -140,13 +141,6 @@ impl Field {
             }
             godot_print!("debug: opening camp menu");
             self.open_camp_menu();
-            // The tape-22 frame-7675 receipt: retail's camera settled at
-            // ($258,$E8), 16px below the fixture's player-centred default
-            // (the receipt reflects the walk history the fixture does not
-            // replay). Field-only correlation confirmed dy=16 exactly.
-            if let Some(rt) = self.runtime_mut() {
-                rt.set_camera(0x258, 0xE8);
-            }
         }
         if self.anim_tick == 30
             && let Ok(value) = std::env::var("PSIV_DEBUG_SHOP")
@@ -180,8 +174,9 @@ impl Field {
                         return;
                     }
                     let started = self
-                        .runtime_mut()
-                        .is_some_and(|runtime| runtime.start_event(event));
+                        .session
+                        .as_mut()
+                        .is_some_and(|session| session.debug_start_event(event));
                     if started {
                         self.presentation.reset_scene();
                         self.set_letterbox(true);

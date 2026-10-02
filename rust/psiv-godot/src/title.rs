@@ -1,10 +1,13 @@
 //! Retail front-door presentation: Sega logo, title art, and save menu.
 //!
-//! The title surface is intentionally presentation-only.  Its five art
-//! placements and the two menu windows are the decoded oracle constants in
-//! `oracle/decode_layout.py`; save validation stays in `boot.rs`, and choosing
-//! START releases the already-authoritative new-game runtime.  The opening
-//! scene's plane/text operations are a separate renderer slice.
+//! The title's flow is the runtime's: `psiv-runtime/src/session/title.rs` owns
+//! the phases, the option rows, the slot rules, the erase confirmation and the
+//! frames each phase runs for, and it hands this file a [`TitleView`] per
+//! frame. What is left here is the picture — the five art placements, the two
+//! menu windows, the CRAM replay and the prompt's palette cycle — sized from
+//! the decoded oracle constants in `oracle/decode_layout.py`. The nodes remain
+//! children of `Field`, and hiding them hands control back to the field shell
+//! without changing scenes or save serialization.
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::Path;
@@ -12,11 +15,10 @@ use std::path::Path;
 use godot::classes::{ColorRect, Image, ImageTexture, Sprite2D};
 use godot::obj::BaseMut;
 use godot::prelude::*;
-use psiv_core::Input as CoreInput;
 use psiv_data::{DialogueSet, Role};
+use psiv_runtime::{TitlePhase, TitleView, TitleWindow};
 
-use super::save_dir::{erase_slot, load_slot};
-use super::{Field, StepFrames, TransitionKind, read_input};
+use super::Field;
 
 const SCREEN_WIDTH: f32 = 320.0;
 const SCREEN_HEIGHT: f32 = 224.0;
@@ -25,13 +27,10 @@ const VIEW_WIDTH: f32 = 1280.0 / CAMERA_ZOOM;
 const VIEW_HEIGHT: f32 = 800.0 / CAMERA_ZOOM;
 const CELL: f32 = 8.0;
 
-// Oracle tape 25: Sega holds through frame 200; the decoded title mappings
-// settle by roughly frame 450, and the retail press-start routine waits 0x233
-// (563) frames before opening the menu.
-const SEGA_HOLD_TICKS: u32 = 200;
+/// The reveal's art window: the decoded title mappings settle by frame 248 of
+/// the transfer (oracle tape 25). Presentation only — the phase's own length is
+/// the runtime's.
 const TITLE_ART_APPEAR_TICKS: u32 = 248;
-const TITLE_REVEAL_TICKS: u32 = 299;
-const PRESS_START_HOLD_TICKS: u32 = 563;
 
 /// `Main_Frame_Count` is 93 frames behind the tape frame number when the
 /// title routine starts in the Grand Cross build. The oracle receipts at
@@ -43,17 +42,6 @@ const PRESS_START_PALETTE: [u16; 32] = [
     0x044E, 0x042E, 0x040E, 0x020C, 0x000A, 0x000A, 0x000A, 0x000A, 0x000A, 0x000A, 0x000A, 0x000A,
     0x020C, 0x040E, 0x042E, 0x044E, 0x046E, 0x048E, 0x04AE, 0x04CE,
 ];
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum Phase {
-    Sega,
-    Reveal,
-    PressStart,
-    Menu,
-    Slots,
-    EraseSlots,
-    EraseConfirm,
-}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum MenuKind {
@@ -97,50 +85,23 @@ struct TitleReplayManifest {
     frames: BTreeMap<String, serde_json::Value>,
 }
 
-#[derive(Clone, Copy)]
-enum TitleChoice {
-    Start,
-    Continue(usize),
-    Erase(usize),
-}
-
-/// State and nodes for the front door.  The nodes remain children of Field so
-/// the Godot scene stays untouched; hiding them hands control back to the
-/// existing field shell without changing scenes or save serialization.
+/// Nodes for the front door, over the field's own.
+///
+/// The nodes remain children of `Field` so the Godot scene stays untouched;
+/// hiding them hands control back to the field shell without changing scenes
+/// or save serialization. The flow they draw is not here: the session's
+/// [`TitleView`] says which window is up, where the cursor sits and how many
+/// frames the phase has run.
 pub(crate) struct TitleScreen {
     visuals: Vec<Visual>,
-    slots: [bool; 3],
-    phase: Phase,
-    ticks: u32,
-    menu_index: usize,
-    erase_slot: usize,
-    accept_down: bool,
-    direction_down: bool,
     replay_frames: Vec<u32>,
-    elapsed: u32,
 }
 
 impl TitleScreen {
-    pub(crate) fn debug_menu(&self) -> serde_json::Value {
-        serde_json::json!({"phase": format!("{:?}", self.phase), "cursor": self.menu_index})
-    }
-
-    pub(crate) fn build(
-        pack_dir: &str,
-        slots: [bool; 3],
-        mut parent: BaseMut<'_, Field>,
-    ) -> Option<TitleScreen> {
+    pub(crate) fn build(pack_dir: &str, mut parent: BaseMut<'_, Field>) -> Option<TitleScreen> {
         let mut screen = TitleScreen {
             visuals: Vec::new(),
-            slots,
-            phase: Phase::Sega,
-            ticks: 0,
-            menu_index: 0,
-            erase_slot: 0,
-            accept_down: false,
-            direction_down: false,
             replay_frames: load_replay_frames(pack_dir),
-            elapsed: 0,
         };
 
         let dialogue = match DialogueSet::load(std::path::Path::new(pack_dir)) {
@@ -212,7 +173,14 @@ impl TitleScreen {
             screen.hide();
             return None;
         }
-        screen.apply_phase();
+        screen.present(&TitleView {
+            phase: TitlePhase::Sega,
+            window: TitleWindow::None,
+            cursor: 0,
+            slots: [false; 3],
+            ticks: 0,
+            elapsed: 0,
+        });
         Some(screen)
     }
 
@@ -522,46 +490,36 @@ impl TitleScreen {
         }
     }
 
-    fn menu_kind(&self) -> Option<MenuKind> {
-        match self.phase {
-            Phase::Menu if self.slots.iter().any(|slot| *slot) => Some(MenuKind::SaveOptions),
-            Phase::Menu => Some(MenuKind::NoSave),
-            Phase::Slots => Some(MenuKind::Slots),
-            Phase::EraseSlots => Some(MenuKind::Slots),
-            Phase::EraseConfirm => Some(MenuKind::EraseConfirm),
-            _ => None,
-        }
-    }
-
-    fn apply_phase(&mut self) {
-        let menu_kind = self.menu_kind();
-        let title_art_ready = self.phase != Phase::Reveal || self.ticks >= TITLE_ART_APPEAR_TICKS;
-        let sega_alpha = (self.ticks as f32 / 75.0).min(1.0);
+    /// One frame's view: the phases, the fade ramps, the CRAM replay and the
+    /// prompt's cycle. The flow itself is the runtime's (`TitleView`); this is
+    /// only what it looks like.
+    pub(crate) fn present(&mut self, view: &TitleView) {
+        let menu_kind = menu_kind(view);
+        let reveal = view.phase == TitlePhase::Reveal;
+        let title_art_ready = !reveal || view.ticks >= TITLE_ART_APPEAR_TICKS;
+        let sega_alpha = (view.ticks as f32 / 75.0).min(1.0);
         let press_alpha = 1.0;
         for visual in &mut self.visuals {
             let (visible, alpha, selected) = match visual.surface {
                 Surface::Black => (true, 1.0, false),
-                Surface::SegaLogo => (self.phase == Phase::Sega, sega_alpha, false),
+                Surface::SegaLogo => (view.phase == TitlePhase::Sega, sega_alpha, false),
                 Surface::Background => (
-                    self.phase != Phase::Sega && !(self.phase == Phase::Reveal && !title_art_ready),
+                    view.phase != TitlePhase::Sega && !(reveal && !title_art_ready),
                     1.0,
                     false,
                 ),
-                Surface::BackgroundTransfer => {
-                    (self.phase == Phase::Reveal && !title_art_ready, 1.0, false)
-                }
+                Surface::BackgroundTransfer => (reveal && !title_art_ready, 1.0, false),
                 Surface::TitleLogo | Surface::Subtitle => (
-                    (self.phase == Phase::Reveal && title_art_ready)
-                        || self.phase == Phase::PressStart,
+                    (reveal && title_art_ready) || view.phase == TitlePhase::PressStart,
                     1.0,
                     false,
                 ),
-                Surface::PressStart => (self.phase == Phase::PressStart, press_alpha, false),
-                Surface::Copyright => (self.phase == Phase::PressStart, 1.0, false),
+                Surface::PressStart => (view.phase == TitlePhase::PressStart, press_alpha, false),
+                Surface::Copyright => (view.phase == TitlePhase::PressStart, 1.0, false),
                 Surface::Menu { kind, option } => (
                     menu_kind == Some(kind),
                     1.0,
-                    option.is_some_and(|index| index == self.menu_index),
+                    option.is_some_and(|index| index == view.cursor),
                 ),
             };
             match &mut visual.node {
@@ -570,7 +528,7 @@ impl TitleScreen {
                         .replay_frames
                         .iter()
                         .copied()
-                        .take_while(|frame| *frame <= self.elapsed)
+                        .take_while(|frame| *frame <= view.elapsed)
                         .last()
                         && let Some(texture) = visual.replay.get(&frame)
                     {
@@ -580,7 +538,7 @@ impl TitleScreen {
                         && matches!(visual.surface, Surface::PressStart)
                         && let Some(texture) = visual
                             .press_cycle
-                            .get(press_start_palette_index(self.elapsed))
+                            .get(press_start_palette_index(view.elapsed))
                     {
                         node.set_texture(texture);
                     }
@@ -592,11 +550,11 @@ impl TitleScreen {
                     });
                 }
                 VisualNode::Rect(node) => {
-                    let blue = if self.phase == Phase::Sega {
-                        if self.ticks <= 50 {
-                            0.545 + 0.13 * self.ticks as f32 / 50.0
-                        } else if self.ticks < 75 {
-                            0.675 * (75 - self.ticks) as f32 / 25.0
+                    let blue = if view.phase == TitlePhase::Sega {
+                        if view.ticks <= 50 {
+                            0.545 + 0.13 * view.ticks as f32 / 50.0
+                        } else if view.ticks < 75 {
+                            0.675 * (75 - view.ticks) as f32 / 25.0
                         } else {
                             0.0
                         }
@@ -610,125 +568,6 @@ impl TitleScreen {
         }
     }
 
-    fn move_menu(&mut self, direction: psiv_core::Direction) {
-        let count = match self.phase {
-            Phase::Menu if self.slots.iter().any(|slot| *slot) => 3,
-            Phase::Menu => 1,
-            Phase::Slots | Phase::EraseSlots => 3,
-            Phase::EraseConfirm => 2,
-            _ => return,
-        };
-        self.menu_index = match direction {
-            psiv_core::Direction::Up if self.menu_index == 0 => count - 1,
-            psiv_core::Direction::Up => self.menu_index - 1,
-            psiv_core::Direction::Down => (self.menu_index + 1) % count,
-            _ => self.menu_index,
-        };
-    }
-
-    fn accept(&mut self) -> Option<TitleChoice> {
-        match self.phase {
-            Phase::Sega => {
-                self.phase = Phase::Reveal;
-                self.ticks = 0;
-            }
-            Phase::Reveal => {
-                self.phase = Phase::PressStart;
-                self.ticks = 0;
-            }
-            Phase::PressStart => {
-                self.phase = Phase::Menu;
-                self.ticks = 0;
-            }
-            Phase::Menu if !self.slots.iter().any(|slot| *slot) => {
-                return Some(TitleChoice::Start);
-            }
-            Phase::Menu if self.menu_index == 0 => {
-                self.phase = Phase::Slots;
-                self.menu_index = self.slots.iter().position(|slot| *slot).unwrap_or(0);
-            }
-            Phase::Menu if self.menu_index == 1 => return Some(TitleChoice::Start),
-            Phase::Menu => {
-                self.phase = Phase::EraseSlots;
-                self.menu_index = self.slots.iter().position(|slot| *slot).unwrap_or(0);
-            }
-            Phase::Slots if self.slots.get(self.menu_index).copied().unwrap_or(false) => {
-                return Some(TitleChoice::Continue(self.menu_index));
-            }
-            Phase::Slots => godot_print!("title: selected save slot is empty"),
-            Phase::EraseSlots if self.slots.get(self.menu_index).copied().unwrap_or(false) => {
-                self.erase_slot = self.menu_index;
-                self.phase = Phase::EraseConfirm;
-                self.menu_index = 0;
-            }
-            Phase::EraseSlots => godot_print!("title: selected save slot is empty"),
-            Phase::EraseConfirm if self.menu_index == 0 => {
-                return Some(TitleChoice::Erase(self.erase_slot));
-            }
-            Phase::EraseConfirm => {
-                self.phase = Phase::EraseSlots;
-                self.menu_index = self.erase_slot;
-            }
-        }
-        None
-    }
-
-    fn tick(&mut self, input: CoreInput) -> Option<TitleChoice> {
-        self.ticks = self.ticks.saturating_add(1);
-        self.elapsed = self.elapsed.saturating_add(1);
-        // Debug-only fix-loop selector, same family as PSIV_DEBUG_EVENT:
-        // walk the title phases with synthetic accepts and select START, so
-        // the new-game handoff is testable without an input device.
-        if self.ticks > 10
-            && matches!(
-                self.phase,
-                Phase::Sega | Phase::Reveal | Phase::PressStart | Phase::Menu
-            )
-            && std::env::var("PSIV_DEBUG_TITLE_AUTOSTART").is_ok_and(|value| value == "1")
-        {
-            if matches!(self.phase, Phase::Menu) {
-                self.menu_index = if self.slots.iter().any(|slot| *slot) {
-                    1
-                } else {
-                    0
-                };
-            }
-            return self.accept();
-        }
-        let accept_down = matches!(input, CoreInput::Action);
-        let pressed = accept_down && !self.accept_down;
-        self.accept_down = accept_down;
-        let direction = match input {
-            CoreInput::Direction(direction) => Some(direction),
-            _ => None,
-        };
-        let direction_pressed = direction.is_some() && !self.direction_down;
-        self.direction_down = direction.is_some();
-        if direction_pressed && let Some(direction) = direction {
-            self.move_menu(direction);
-        }
-        let choice = if pressed { self.accept() } else { None };
-        if choice.is_none() {
-            match self.phase {
-                Phase::Sega if self.ticks > SEGA_HOLD_TICKS => {
-                    self.phase = Phase::Reveal;
-                    self.ticks = 0;
-                }
-                Phase::Reveal if self.ticks > TITLE_REVEAL_TICKS => {
-                    self.phase = Phase::PressStart;
-                    self.ticks = 0;
-                }
-                Phase::PressStart if self.ticks >= PRESS_START_HOLD_TICKS => {
-                    self.phase = Phase::Menu;
-                    self.ticks = 0;
-                }
-                _ => {}
-            }
-        }
-        self.apply_phase();
-        choice
-    }
-
     pub(crate) fn hide(&mut self) {
         for visual in &mut self.visuals {
             match &mut visual.node {
@@ -738,7 +577,7 @@ impl TitleScreen {
         }
     }
 
-    fn dispose(mut self) {
+    pub(crate) fn dispose(mut self) {
         self.hide();
         for visual in &mut self.visuals {
             match &mut visual.node {
@@ -746,6 +585,17 @@ impl TitleScreen {
                 VisualNode::Rect(node) => node.queue_free(),
             }
         }
+    }
+}
+
+/// The window a [`TitleView`] shows, in this file's own surface names.
+fn menu_kind(view: &TitleView) -> Option<MenuKind> {
+    match view.window {
+        TitleWindow::None => None,
+        TitleWindow::NoSave => Some(MenuKind::NoSave),
+        TitleWindow::SaveOptions => Some(MenuKind::SaveOptions),
+        TitleWindow::Slots => Some(MenuKind::Slots),
+        TitleWindow::EraseConfirm => Some(MenuKind::EraseConfirm),
     }
 }
 
@@ -833,122 +683,11 @@ fn load_replay_frames(pack_dir: &str) -> Vec<u32> {
     frames
 }
 
-impl Field {
-    /// Drives the title while starving the field runtime of input and ticks.
-    pub(super) fn drive_title(&mut self) -> bool {
-        let Some(mut title) = self.title.take() else {
-            return false;
-        };
-        let choice = title.tick(read_input());
-        if let Some(camera) = self.camera.as_ref() {
-            title.reposition(camera.get_position());
-        }
-        title_debug_shot(self, self.anim_tick, title.ticks);
-        if let Some(choice) = choice {
-            match choice {
-                TitleChoice::Erase(slot) => match erase_slot(slot) {
-                    Ok(path) => {
-                        godot_print!("title: erased save slot {} ({})", slot + 1, path.display());
-                        title.slots[slot] = false;
-                        title.phase = Phase::Menu;
-                        title.menu_index = 0;
-                        title.ticks = 0;
-                        title.apply_phase();
-                        self.title = Some(title);
-                    }
-                    Err(error) => {
-                        godot_error!("title: ERASE DATA slot {} failed: {error}", slot + 1);
-                        title.phase = Phase::EraseSlots;
-                        title.menu_index = slot;
-                        title.apply_phase();
-                        self.title = Some(title);
-                    }
-                },
-                choice => {
-                    if self.finish_title_choice(choice) {
-                        // A later game over builds a new title. Release the
-                        // old nodes instead of accumulating hidden copies.
-                        title.dispose();
-                    } else {
-                        self.title = Some(title);
-                    }
-                }
-            }
-        } else {
-            self.title = Some(title);
-        }
-        true
-    }
-
-    fn finish_title_choice(&mut self, choice: TitleChoice) -> bool {
-        match choice {
-            TitleChoice::Start => {
-                // Retail START is Event_GameStart: rebuild the runtime in the
-                // ROM-derived initial state (money, flag banks, Chaz and
-                // Alys), then fire the opening event from the pack.
-                let Some(data) = self.runtime().map(|runtime| runtime.data().clone()) else {
-                    godot_error!("title: START selected without a runtime");
-                    return false;
-                };
-                match crate::boot::new_game_runtime(data, StepFrames::default()) {
-                    Ok(mut runtime) => {
-                        godot_print!("title: START — new game, firing Event_GameStart");
-                        self.configure_battles(&mut runtime);
-                        let event = runtime
-                            .data()
-                            .new_game()
-                            .expect("validated title initializer")
-                            .event_index;
-                        let started = runtime.start_event(event);
-                        self.session = Some(crate::new_session(runtime));
-                        self.load_map_visuals();
-                        self.sync_visuals(false);
-                        if started {
-                            self.presentation.reset_scene();
-                            self.set_letterbox(true);
-                        } else {
-                            godot_error!("title: Event_GameStart did not start");
-                        }
-                        self.start_transition(TransitionKind::GameStart);
-                        true
-                    }
-                    Err(error) => {
-                        godot_error!("title: new game failed to build: {error}");
-                        false
-                    }
-                }
-            }
-            TitleChoice::Continue(slot) => {
-                let Some(data) = self.runtime().map(|runtime| runtime.data().clone()) else {
-                    godot_error!("title: CONTINUE selected without a runtime");
-                    return false;
-                };
-                match load_slot(data, slot) {
-                    Ok(mut runtime) => {
-                        godot_print!("title: CONTINUE loaded slot {}", slot + 1);
-                        self.configure_battles(&mut runtime);
-                        self.session = Some(crate::new_session(runtime));
-                        self.load_map_visuals();
-                        self.play_map_music();
-                        self.sync_visuals(false);
-                        self.start_transition(TransitionKind::GameStart);
-                        true
-                    }
-                    Err(error) => {
-                        godot_error!(
-                            "title: CONTINUE slot {} failed validation: {error}",
-                            slot + 1
-                        );
-                        false
-                    }
-                }
-            }
-            TitleChoice::Erase(_) => unreachable!("title erase is completed by drive_title"),
-        }
-    }
-}
-
-fn title_debug_shot(field: &Field, anim_tick: u64, title_ticks: u32) {
+/// `PSIV_DEBUG_TITLE_SHOT=1` with `PSIV_DEBUG_SHOT`: the deterministic title
+/// capture at its pinned clone tick. The phases it lands on are the runtime's
+/// (`TitleView::phase`); the log line carries the same two counters as before
+/// S5 moved the flow.
+pub(crate) fn title_debug_shot(field: &Field, anim_tick: u64, title_ticks: u32) {
     let Ok(path) = std::env::var("PSIV_DEBUG_SHOT") else {
         return;
     };

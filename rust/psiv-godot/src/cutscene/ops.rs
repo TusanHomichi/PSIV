@@ -270,8 +270,8 @@ impl Field {
             && Input::singleton().is_action_just_pressed("ui_accept")
         {
             self.presentation.ending_waiting_for_start = false;
-            if let Some(runtime) = self.runtime_mut() {
-                runtime.ending_continue();
+            if let Some(session) = self.session.as_mut() {
+                session.ending_continue();
             }
         }
         self.presentation.advance_objects();

@@ -10,9 +10,10 @@ use psiv_core::battle::Side;
 use psiv_core::{Cell, Direction};
 use psiv_runtime::{
     Button, CampAbilityKind, CampPage, CampView, CommandMenuView, DialogueSignal, MenuView,
-    NpcDialogueOpen, Pad, Routed, Runtime, RuntimeEvent, SceneDialogueOpen, Session,
+    NpcDialogueOpen, Pad, Routed, Runtime, RuntimeEvent, SaveStore, SceneDialogueOpen, Session,
 };
 use std::collections::{BTreeMap, VecDeque};
+use std::path::{Path, PathBuf};
 
 /// Frames between the route's dialogue presses: a fresh press every four
 /// frames, with the three released frames in between, which is the shape the
@@ -64,9 +65,19 @@ impl Walk {
         self.session.runtime()
     }
 
-    /// The runtime, mutably, for those same harness-driven modes.
-    pub fn runtime_mut(&mut self) -> &mut Runtime {
-        self.session.runtime_mut()
+    /// Writes the walk's own state through the session's store, pointed at
+    /// `directory`: the session's own save path, not a second one.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the store's write rejects.
+    pub fn save_slot(
+        &mut self,
+        directory: &Path,
+        slot: usize,
+    ) -> Result<PathBuf, psiv_runtime::SessionSaveError> {
+        self.session.set_save_store(SaveStore::new(directory));
+        self.session.save_slot(slot)
     }
 
     /// One frame, in the shipped shell's order: the session's frame with this

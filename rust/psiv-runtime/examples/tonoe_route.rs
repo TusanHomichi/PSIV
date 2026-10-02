@@ -62,6 +62,6 @@ fn main() {
     route.settle();
     route.checkpoint("Dorin");
     if let Some(dir) = std::env::var_os("PSIV_ROUTE_SAVE_DIR") {
-        route.runtime_mut().save_slot(Path::new(&dir), 0).unwrap();
+        route.save_slot(Path::new(&dir), 0).unwrap();
     }
 }

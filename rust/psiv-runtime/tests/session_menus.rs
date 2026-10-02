@@ -13,7 +13,7 @@ use std::sync::OnceLock;
 use psiv_core::{CharId, GameState, RetailLocation, RetailSave, StepFrames};
 use psiv_data::{BattleFiles, GameData};
 use psiv_runtime::{
-    Button, CampPage, FrameMode, Pad, Routed, Runtime, RuntimeEvent, Session, ShopPage,
+    Button, CampPage, FrameMode, Pad, Routed, Runtime, RuntimeEvent, SaveStore, Session, ShopPage,
 };
 
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
@@ -652,14 +652,18 @@ fn the_camp_menu_reorders_the_party() {
     assert_eq!(camp_page(&player), CampPage::Root);
 }
 
-/// SAVE hands the picked slot to the shell, which owns the save directory, and
-/// shows the shell's answer as its result line.
+/// SAVE completes inside the session: the store writes the picked slot and the
+/// page's result line is that write's answer. Negative control beside it: a
+/// session with no run directory refuses and the line says so, instead of
+/// falling back to a default path.
 #[test]
-fn the_camp_menu_asks_the_shell_to_save_the_picked_slot() {
+fn the_camp_menu_saves_through_the_session_store() {
     if !pack_present() {
         eprintln!("runtime pack not present; skipping");
         return;
     }
+    let directory = std::env::temp_dir().join(format!("psiv-camp-save-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&directory);
     let mut player = Player::new(FIELD, &camp_game());
     player.press(Button::Camp);
     player.down_to(|s| s.camp_view().unwrap().root_selection, 4); // STATE
@@ -668,23 +672,68 @@ fn the_camp_menu_asks_the_shell_to_save_the_picked_slot() {
     player.press(Button::Speak);
     assert_eq!(camp_page(&player), CampPage::SaveSlots);
     player.down_to(|s| s.camp_view().unwrap().save_selection, 1);
+    // A session without a store refuses the row: the shell resolved no
+    // directory, and a runtime never guesses one.
+    player.session.set_save_store(SaveStore::new(&directory));
     let frame = player.tick(Pad::new(Button::Speak));
-    assert_eq!(frame.save_request, Some(1), "the second slot was picked");
     assert_eq!(frame.mode, FrameMode::Camp);
     assert_eq!(camp_page(&player), CampPage::SaveResult);
-    assert_eq!(player.session.camp_view().unwrap().message, "");
-    player.session.finish_camp_save(Ok(()));
     assert_eq!(player.session.camp_view().unwrap().message, "FILE SAVED");
-    player
-        .session
-        .finish_camp_save(Err("no such directory".to_owned()));
-    assert_eq!(
-        player.session.camp_view().unwrap().message,
-        "SAVE ERROR: no such directory"
+    assert!(
+        directory.join("slot_2.sram").is_file(),
+        "the picked slot was written"
     );
+    assert!(
+        !directory.join("slot_1.sram").exists(),
+        "only the picked slot was written"
+    );
+    // The written slot is the state the session is in: a fresh session over the
+    // same store loads the same party and purse.
+    let (data, _) = pack();
+    let loaded = SaveStore::new(&directory)
+        .load(data.clone(), 1, StepFrames::default())
+        .expect("the slot loads");
+    assert_eq!(
+        loaded.game().snapshot(),
+        player.runtime().game().snapshot(),
+        "camp SAVE wrote the live state"
+    );
+    std::fs::remove_dir_all(&directory).expect("the run directory is ours");
     player.tick(Pad::NEUTRAL);
     player.press(Button::Speak);
     assert_eq!(camp_page(&player), CampPage::State);
+}
+
+/// Negative control: a session whose run named no directory refuses the camp's
+/// SAVE with the store's own message and writes nothing.
+#[test]
+fn a_save_without_a_run_directory_is_refused() {
+    if !pack_present() {
+        eprintln!("runtime pack not present; skipping");
+        return;
+    }
+    let mut player = Player::new(FIELD, &camp_game());
+    player.press(Button::Camp);
+    player.down_to(|s| s.camp_view().unwrap().root_selection, 4);
+    player.press(Button::Speak);
+    player.down_to(|s| s.camp_view().unwrap().state_selection, 2);
+    player.press(Button::Speak);
+    player.down_to(|s| s.camp_view().unwrap().save_selection, 0);
+    assert!(player.session.save_store().is_none());
+    assert_eq!(player.session.save_slots(), [false; 3]);
+    assert_eq!(
+        player
+            .session
+            .save_slot(0)
+            .err()
+            .map(|error| error.to_string()),
+        Some("the session has no save directory for this run".to_owned())
+    );
+    player.tick(Pad::new(Button::Speak));
+    assert_eq!(
+        player.session.camp_view().unwrap().message,
+        "SAVE ERROR: the session has no save directory for this run"
+    );
 }
 
 /// The cartridge's menus confirm on Speak or Camp (`ps4.asm:134986`,

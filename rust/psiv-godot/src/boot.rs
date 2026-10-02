@@ -1,10 +1,10 @@
-//! Field boot data and the debug fixtures the shell boots from.
-
-use std::path::Path;
-
-use psiv_core::{CharId, Direction, Flag, GameState, RetailLocation, RetailSave, StepFrames};
-use psiv_data::GameData;
-use psiv_runtime::Runtime;
+//! Field boot data and the debug selectors that bypass the front door.
+//!
+//! The fixtures themselves are the runtime's (`psiv-runtime/src/session/debug.rs`):
+//! a shell that wants one of them asks the runtime for a session, so no shell
+//! needs a mutable runtime. What stays here is the shell's own half — the
+//! fallback spawn and the list of selectors that must not wait behind the
+//! retail front door.
 
 use crate::input::requested_save_slot;
 
@@ -13,7 +13,7 @@ pub(crate) const FALLBACK_SPAWN_MAP: u16 = 0x010;
 pub(crate) const FALLBACK_SPAWN_CELL: (u16, u16) = (31, 8);
 
 /// Title-screen bypasses used by save/debug fix loops. These are deliberately
-/// checked before the title node is built: a screenshot or a battle/camp/shop
+/// checked before the title is started: a screenshot or a battle/camp/shop
 /// selector must still reach the surface it was written to inspect.
 pub(crate) fn title_bypassed() -> bool {
     let title_shot = std::env::var("PSIV_DEBUG_TITLE_SHOT").is_ok_and(|value| value == "1");
@@ -28,195 +28,17 @@ pub(crate) fn title_bypassed() -> bool {
         || (std::env::var_os("PSIV_DEBUG_SHOT").is_some() && !title_shot)
 }
 
-/// Builds the deterministic MeetingRika scene fixture used by the shell's
-/// oracle harness: an in-memory retail save, not a file and not a product boot
-/// path (the map is the BioPlant B4 entry used by the runtime tests). The
-/// opening is not a fixture: it is certified through the title's real START
-/// (`new_game_runtime`), because a hand-built opening state rotted when
-/// map-entry triggers changed (#44).
-pub(crate) fn debug_scene_runtime(
-    data: GameData,
-    event: u16,
-    step_frames: StepFrames,
-) -> Option<Result<Runtime, String>> {
-    let (map, char_x, char_y, party) = match event {
-        0x8007 => (
-            0x00AC,
-            // The oracle's tape-28 fixture: leader at pixel ($1F0,$1A0) —
-            // the retail trigger requires leader Y exactly $1A0.
-            0x1F0,
-            0x1A0,
-            [
-                Some(CharId(0)),
-                Some(CharId(1)),
-                Some(CharId(2)),
-                Some(CharId(3)),
-                None,
-            ],
-        ),
-        _ => return None,
-    };
-    let mut game = GameState::new();
-    game.set_party(party);
-    Some(
-        Runtime::from_save(
-            data,
-            RetailSave {
-                snapshot: game.snapshot(),
-                location: RetailLocation {
-                    world_index: 0,
-                    map_index_2: 0,
-                    map_index: map,
-                    char_x,
-                    char_y,
-                },
-            },
-            step_frames,
-        )
-        .map_err(|error| error.to_string()),
-    )
-}
-
-/// The retail title initializer. Debug scene fixtures deliberately construct
-/// their own state; a player's START must include the money and flag banks
-/// copied by `loc_44414` before the opening runs.
-pub(crate) fn new_game_runtime(data: GameData, step_frames: StepFrames) -> Result<Runtime, String> {
-    Runtime::new_game(data, step_frames).map_err(|error| error.to_string())
-}
-
-/// The game state tape 22 holds at its camp frame: the retail new-game banks
-/// (`Runtime::new_game`) plus the two flags the opening earns before control
-/// (`EventFlag 7` from Event_GameStart, `EventFlag_PiataChazControl` `$15`
-/// from Event_PiataChazAlone). A blank `GameState::new()` has `$15` clear, so
-/// the map-entry trigger 124 replays PiataChazAlone on load and pre-empts the
-/// fixture (#44).
-fn post_opening_game(data: &GameData, step_frames: StepFrames) -> Result<GameState, String> {
-    let mut game = new_game_runtime(data.clone(), step_frames)?.game().clone();
-    for id in [7, 21] {
-        game.set(Flag::event(id))
-            .map_err(|error| format!("post-opening flag {id}: {error}"))?;
-    }
-    Ok(game)
-}
-
-/// Reproduces tape 22's `camp_root_idle` receipt without making a save file:
-/// Chaz alone at map `$13`, field position `($2F0,$140)`, with 500 MST. The
-/// location is the runtime's player coordinate; the oracle camera settles at
-/// `($258,$E8)` after the map renderer applies its viewport offset.
-pub(crate) fn debug_camp_runtime(
-    data: GameData,
-    step_frames: StepFrames,
-) -> Option<Result<Runtime, String>> {
-    if !std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1") {
-        return None;
-    }
-    let mut game = match post_opening_game(&data, step_frames) {
-        Ok(game) => game,
-        Err(error) => return Some(Err(error)),
-    };
-    game.set_party([Some(CharId(0)), None, None, None, None]);
-    game.set_money(500);
-    // Tape 22, mark `camp_root_idle`, frame 7675. These are live RAM object
-    // positions, not map-spawn guesses. Camp opens with the field suspended,
-    // so the 30-frame debug lead-in cannot consume another wander step before
-    // the receipt-backed state is drawn.
-    const OBJECTS: [(i32, i32, Direction); 8] = [
-        (736, 226, Direction::Down),
-        (743, 128, Direction::Left),
-        (624, 128, Direction::Left),
-        (352, 112, Direction::Down),
-        (320, 256, Direction::Right),
-        (271, 160, Direction::Left),
-        (256, 112, Direction::Down),
-        (592, 240, Direction::Down),
-    ];
-    Some(
-        Runtime::from_save(
-            data,
-            RetailSave {
-                snapshot: game.snapshot(),
-                location: RetailLocation {
-                    world_index: 0,
-                    map_index_2: 0xFFFF,
-                    map_index: 0x13,
-                    char_x: 0x2F0,
-                    char_y: 0x140,
-                },
-            },
-            step_frames,
-        )
-        .map_err(|error| error.to_string())
-        .and_then(|mut runtime| {
-            for (index, &(x, y, facing)) in OBJECTS.iter().enumerate() {
-                runtime
-                    .set_npc_pixel_position(index, x, y)
-                    .map_err(|error| format!("camp object {index} position failed: {error}"))?;
-                runtime.face_npc(index, facing);
-            }
-            runtime.set_field_suspended(true);
-            Ok(runtime)
-        }),
-    )
-}
-
-/// Valid retail-shaped slots visible to the title menu. Loading is the same
-/// checksum/slot validation the continue path uses; no save bytes are
-/// written, repaired, or reserialized here.
-pub(crate) fn available_save_slots(data: &GameData, directory: &Path) -> [bool; 3] {
-    std::array::from_fn(|slot| {
-        Runtime::load_slot(data.clone(), directory, slot, StepFrames::default()).is_ok()
-    })
-}
-
 #[cfg(test)]
 mod new_game_tests {
-    use super::*;
-    use psiv_core::Flag;
+    use psiv_core::{CharId, Flag, StepFrames};
+    use psiv_data::GameData;
+    use psiv_runtime::Runtime;
+    use std::path::Path;
 
-    fn academy_f1_scene_starts(data: GameData, game: &GameState) -> bool {
-        let mut runtime = Runtime::from_save(
-            data,
-            RetailSave {
-                snapshot: game.snapshot(),
-                location: RetailLocation {
-                    world_index: 0,
-                    map_index_2: 0xFFFF,
-                    map_index: 0x13,
-                    char_x: 0x2F0,
-                    char_y: 0x140,
-                },
-            },
-            StepFrames::default(),
-        )
-        .expect("runtime builds");
-        // The shell's first ticks dispatch the map-entry trigger.
-        (0..3).any(|_| {
-            runtime.tick(psiv_core::Input::Neutral);
-            runtime.scene_active()
-        })
-    }
-
-    /// #44: the camp fixture rotted because PiataChazAlone's map-entry trigger
-    /// fired on a state with `$15` clear. The post-opening state must load
-    /// Academy F1 quietly; the blank state is the negative control showing the
-    /// trigger really does pre-empt.
-    #[test]
-    fn post_opening_state_does_not_replay_piata_chaz_alone() {
-        let pack = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
-        if !pack.join("manifest.json").is_file() {
-            eprintln!("runtime pack not present; skipping");
-            return;
-        }
-        let data = GameData::load(pack).expect("pack loads");
-        assert!(
-            academy_f1_scene_starts(data.clone(), &GameState::new()),
-            "negative control: with $15 clear the map-entry trigger must fire"
-        );
-        let game = post_opening_game(&data, StepFrames::default()).expect("state builds");
-        assert!(game.is_set(Flag::event(21)));
-        assert!(!academy_f1_scene_starts(data, &game));
-    }
-
+    /// The retail title initializer: `Runtime::new_game` copies the money and
+    /// flag banks `loc_44414` writes before the opening runs. Debug scene
+    /// fixtures deliberately construct their own state, so this is the only
+    /// place the shipped START state is pinned.
     #[test]
     fn title_start_preserves_the_retail_initial_state() {
         let pack = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
@@ -225,7 +47,7 @@ mod new_game_tests {
             return;
         }
         let data = GameData::load(pack).expect("pack loads");
-        let runtime = new_game_runtime(data, StepFrames::default()).expect("new game starts");
+        let runtime = Runtime::new_game(data, StepFrames::default()).expect("new game starts");
         // Retail loc_44414, verified by psiv_tools/newgame.py's opcode pins.
         assert_eq!(
             runtime.game().money(),

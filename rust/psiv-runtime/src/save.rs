@@ -1,8 +1,12 @@
-//! Runtime file I/O and the load-at-title seam for retail-shaped saves.
+//! Runtime file I/O and the store a [`Session`](crate::Session) saves through.
 //!
-//! Godot's title CONTINUE loads a validated retail-shaped slot, rebuilds
+//! The title's CONTINUE loads a validated retail-shaped slot, rebuilds
 //! GameState, evaluates map effects, and constructs a runtime at its saved
-//! map/cell. PSIV_LOAD_SLOT reaches the same path for isolated debug runs.
+//! map/cell; the camp's SAVE writes the same shape. Both go through
+//! [`SaveStore`], which is constructed with the run's directory: the shell
+//! owns the directory policy (`PSIV_SAVE_DIR`, and the refusal of a scripted
+//! run that names none), the runtime never guesses one, and the `PSIV_LOAD_SLOT`
+//! boot path reaches the same validation for isolated debug runs.
 
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -189,6 +193,98 @@ pub(super) fn construct_runtime(
     runtime.sync_vehicle_selector()?;
     runtime.apply_travel_entry();
     Ok(runtime)
+}
+
+/// A save operation the session refused before it reached a file.
+#[derive(Debug)]
+pub enum SessionSaveError {
+    /// The session has no store: the shell's directory policy refused to guess
+    /// one, and a runtime never falls back to a repository default.
+    NoDirectory,
+    /// The store's own operation failed.
+    Save(RuntimeSaveError),
+}
+
+impl fmt::Display for SessionSaveError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SessionSaveError::NoDirectory => {
+                write!(f, "the session has no save directory for this run")
+            }
+            SessionSaveError::Save(error) => error.fmt(f),
+        }
+    }
+}
+
+impl std::error::Error for SessionSaveError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            SessionSaveError::NoDirectory => None,
+            SessionSaveError::Save(error) => Some(error),
+        }
+    }
+}
+
+impl From<RuntimeSaveError> for SessionSaveError {
+    fn from(error: RuntimeSaveError) -> SessionSaveError {
+        SessionSaveError::Save(error)
+    }
+}
+
+/// The one save store a session owns: the run directory the shell resolved.
+///
+/// Every slot read, write and erase a session performs goes through this
+/// store, so the shell's policy (`rust/psiv-godot/src/save_dir.rs`) is the only
+/// place a directory can come from: a run that named none gets no store, and
+/// the session refuses the operation instead of touching a default path.
+#[derive(Debug, Clone)]
+pub struct SaveStore {
+    directory: PathBuf,
+}
+
+impl SaveStore {
+    /// A store over `directory`, the run directory the caller resolved.
+    #[must_use]
+    pub fn new(directory: impl Into<PathBuf>) -> SaveStore {
+        SaveStore {
+            directory: directory.into(),
+        }
+    }
+
+    /// The directory every operation goes to.
+    #[must_use]
+    pub fn directory(&self) -> &Path {
+        &self.directory
+    }
+
+    /// The three visible slots, presence only.
+    ///
+    /// Loading is the same checksum and slot validation CONTINUE runs; no
+    /// save bytes are written, repaired or reserialized by the probe.
+    #[must_use]
+    pub fn slots(&self, data: &GameData) -> [bool; 3] {
+        std::array::from_fn(|slot| self.load(data.clone(), slot, StepFrames::default()).is_ok())
+    }
+
+    /// Loads one visible slot: the title's CONTINUE.
+    pub fn load(
+        &self,
+        data: GameData,
+        slot: usize,
+        step_frames: StepFrames,
+    ) -> Result<Runtime, RuntimeSaveError> {
+        Runtime::load_slot(data, &self.directory, slot, step_frames)
+    }
+
+    /// Writes one visible slot: the camp's SAVE.
+    pub fn write(&self, runtime: &Runtime, slot: usize) -> Result<PathBuf, RuntimeSaveError> {
+        runtime.save_slot(&self.directory, slot)
+    }
+
+    /// Performs the title's destructive ERASE DATA for one visible slot.
+    pub fn erase(&self, slot: usize) -> Result<PathBuf, RuntimeSaveError> {
+        Runtime::erase_slot(&self.directory, slot)
+    }
 }
 
 impl Runtime {

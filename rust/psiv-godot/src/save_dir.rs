@@ -1,19 +1,16 @@
-//! The one save-directory resolver, and every slot operation that uses it.
+//! The one save-directory resolver.
 //!
-//! Every slot read, write and erase in the shell goes through
-//! [`save_directory`]. An interactive launch keeps the `saves/` default that
-//! `AGENTS.md` ("Protect local inputs and evidence") warns about; a scripted
-//! run (`--script` on the command line, how every native driver starts) must
-//! name its run directory, so a driver launched from the repository root
-//! cannot read, overwrite or erase the checkout's `saves/`.
+//! The shell resolves the run's directory here and hands it to the session
+//! ([`crate::configure_session`], `psiv_runtime::SaveStore`), which owns every
+//! slot read, write and erase from then on. An interactive launch keeps the
+//! `saves/` default that `AGENTS.md` ("Protect local inputs and evidence")
+//! warns about; a scripted run (`--script` on the command line, how every
+//! native driver starts) must name its run directory, so a driver launched
+//! from the repository root cannot read, overwrite or erase the checkout's
+//! `saves/`.
 
 use std::ffi::{OsStr, OsString};
 use std::path::PathBuf;
-
-use godot::prelude::*;
-use psiv_core::StepFrames;
-use psiv_data::GameData;
-use psiv_runtime::Runtime;
 
 /// The environment variable that names a run's save directory.
 const SAVE_DIR_ENV: &str = "PSIV_SAVE_DIR";
@@ -72,52 +69,6 @@ pub(crate) fn resolve_save_directory<Argument: AsRef<OsStr>>(
 pub(crate) fn save_directory() -> Result<PathBuf, SaveDirError> {
     let arguments: Vec<OsString> = std::env::args_os().collect();
     resolve_save_directory(&arguments, std::env::var_os(SAVE_DIR_ENV).as_deref())
-}
-
-/// The three visible slots the title presents, presence only.
-///
-/// A refused run directory reads as three empty slots after the guard's
-/// error: the title is presentation, and no lookup falls back to a directory
-/// the run did not name.
-pub(crate) fn presented_save_slots(data: &GameData) -> [bool; 3] {
-    match save_directory() {
-        Ok(directory) => crate::boot::available_save_slots(data, &directory),
-        Err(error) => {
-            godot_error!("save slot scan refused: {error}");
-            [false; 3]
-        }
-    }
-}
-
-/// Loads one visible slot for the title's CONTINUE.
-///
-/// The resolver's refusal comes back before any filesystem access, so a load
-/// never reads a directory the run did not name. The error is text for the
-/// caller's message, the shell's convention for runtime boot failures.
-pub(crate) fn load_slot(data: GameData, slot: usize) -> Result<Runtime, String> {
-    let directory = save_directory().map_err(|error| error.to_string())?;
-    Runtime::load_slot(data, &directory, slot, StepFrames::default())
-        .map_err(|error| error.to_string())
-}
-
-/// Writes one visible slot for the camp menu's STATE · SAVE.
-///
-/// The resolver's refusal comes back before any filesystem access, so a save
-/// never writes into a directory the run did not name.
-pub(crate) fn save_slot(runtime: &Runtime, slot: usize) -> Result<PathBuf, String> {
-    let directory = save_directory().map_err(|error| error.to_string())?;
-    runtime
-        .save_slot(&directory, slot)
-        .map_err(|error| error.to_string())
-}
-
-/// Performs the title's destructive ERASE DATA for one visible slot.
-///
-/// The resolver's refusal comes back before any filesystem access, so an
-/// erase never falls back to a directory the run did not name.
-pub(crate) fn erase_slot(slot: usize) -> Result<PathBuf, String> {
-    let directory = save_directory().map_err(|error| error.to_string())?;
-    Runtime::erase_slot(&directory, slot).map_err(|error| error.to_string())
 }
 
 #[cfg(test)]

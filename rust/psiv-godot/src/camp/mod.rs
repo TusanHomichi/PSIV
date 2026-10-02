@@ -22,7 +22,6 @@ use std::collections::BTreeMap;
 use psiv_runtime::{CampView, Frame, FrameMode};
 
 use crate::Field;
-use crate::save_dir::save_slot;
 
 use self::chrome::{CampChrome, Quad};
 
@@ -175,29 +174,19 @@ impl Field {
         }
         self.present_routed(&frame.routed);
         self.process_events(frame.events);
-        if let Some(slot) = frame.save_request {
-            self.save_camp_slot(slot);
+        // The camp's SAVE wrote its slot inside the session, which owns the
+        // run's save directory; a failed write is the frame's one report, so
+        // the shell logs it exactly as it logged its own attempt before.
+        if let Some(failure) = frame.camp_save_error {
+            godot_error!(
+                "camp: save slot {} failed: {}",
+                failure.slot + 1,
+                failure.error
+            );
         }
         self.present_shop();
         self.present_camp();
         self.sync_visuals(false);
-    }
-
-    /// Writes the slot the camp's SAVE picked through the run's save directory
-    /// and tells the session how it went.
-    ///
-    /// A scripted run without `PSIV_SAVE_DIR` is refused by the resolver before
-    /// any filesystem access, so SAVE never falls back to a directory the run
-    /// did not name.
-    fn save_camp_slot(&mut self, slot: usize) {
-        let Some(session) = self.session.as_mut() else {
-            return;
-        };
-        let result = save_slot(session.runtime(), slot).map(|_| ());
-        if let Err(error) = &result {
-            godot_error!("camp: save slot {} failed: {error}", slot + 1);
-        }
-        session.finish_camp_save(result);
     }
 
     /// Hands the camp node what the session shows, and places it.
