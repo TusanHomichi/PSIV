@@ -69,6 +69,14 @@ fn wanted_button(driver: &Driver, policy: &mut dyn Policy) -> Option<Button> {
         MenuView::Top { cursor } => {
             let boss = driver.battles().last().is_some_and(|b| b.kind == "event");
             let row = if policy.wants_run(boss) { 2 } else { 0 };
+            if row == 2 && *cursor == 2 && std::env::var_os("PSIV_CAMPAIGN_TRACE").is_some() {
+                let party: Vec<String> = view
+                    .party
+                    .iter()
+                    .map(|m| format!("{} {}/{}", m.name, m.hp, m.max_hp))
+                    .collect();
+                eprintln!("  battle RUN | {}", party.join(" | "));
+            }
             Some(toward_wrapping(*cursor, row, 3))
         }
         MenuView::VehicleSkills { slots, cursor } => {

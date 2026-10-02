@@ -55,7 +55,7 @@
 //! | `reorder` | `order` | set party order, first to last |
 //! | `save` | `slot` | ordinary SAVE to slot `0..3` |
 //! | `fight_scripted` | none | win the scripted battle that starts |
-//! | `patrol` | `map`, `a`, `b`, `until` | walk between cells `a` and `b` of `map`, fighting what the chapter's policy says, until `until` (`party_level_at_least`, `money_at_least`) holds; the validator takes the party to end on `b` |
+//! | `patrol` | `map`, `a`, `b`, `until`, optional `refuge` | walk between cells `a` and `b` of `map`, fighting what the chapter's policy says, until `until` (`party_level_at_least`, `money_at_least`) holds; `refuge` is an out-and-back list of steps run when a member has fallen or is below half HP after the camp cure; the validator takes the party to end on `b` |
 //! | `expect` | any of `flags_set`, `flags_clear`, `map`, `cell`, `party`, `money_at_least` | halt unless all hold |
 //!
 //! Names and ids: an item, technique or member is either its number or its
@@ -377,6 +377,12 @@ pub enum Objective {
         b: Xy,
         /// When to stop.
         until: Until,
+        /// Objectives run when the party can no longer train: a member has
+        /// fallen, or one is hurt below the camp's cure. They start on the
+        /// patrol's map and end on it (an inn trip out and back); the patrol
+        /// then resumes from wherever they end. Empty means keep fighting.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        refuge: Vec<Step>,
     },
     /// Assert state.
     Expect(Expectation),

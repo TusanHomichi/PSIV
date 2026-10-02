@@ -13,9 +13,10 @@ use psiv_runtime::Runtime;
 
 use crate::cell_plan::{Flood, Goal, plan_cells};
 use crate::driver::{Driver, dir_pad};
+use crate::exec::{Memory, execute};
 use crate::halt::{Halt, HaltKind, Res};
 use crate::map_plan::{MapGraph, Position, Target};
-use crate::route::Until;
+use crate::route::{Step, Until};
 
 /// Times in a row a walk may end where it began before the run halts.
 const NO_PROGRESS_LIMIT: u32 = 8;
@@ -115,13 +116,22 @@ impl Driver {
     }
 
     /// Walks between `a` and `b` on `map` until `until` holds, fighting what
-    /// comes, and ends standing on `b`.
+    /// comes, and ends standing on `b`. When the party cannot train on (see
+    /// [`Driver::needs_refuge`]) and the route gave a `refuge`, the refuge runs
+    /// first and the patrol resumes from where it ends.
     ///
     /// # Errors
     ///
-    /// As [`Driver::go_to`].
-    pub fn patrol(&mut self, map: u16, a: Cell, b: Cell, until: &Until) -> Res {
+    /// As [`Driver::go_to`], and a refuge objective's own halt.
+    pub fn patrol(&mut self, map: u16, a: Cell, b: Cell, until: &Until, refuge: &[Step]) -> Res {
         loop {
+            if !refuge.is_empty() && self.needs_refuge() {
+                self.note("patrol: the party cannot train on, taking the refuge");
+                let mut memory = Memory::default();
+                for step in refuge {
+                    execute(self, &mut memory, &step.objective)?;
+                }
+            }
             self.go_to(map, a)?;
             if self.until_holds(until) {
                 break;
@@ -132,6 +142,17 @@ impl Driver {
             }
         }
         self.go_to(map, b)
+    }
+
+    /// Whether the party has run out of ways to train: a member is down, or a
+    /// living member is below half HP after the camp cure had its turn.
+    #[must_use]
+    pub fn needs_refuge(&self) -> bool {
+        self.runtime().camp_state().party.iter().any(|m| {
+            m.current_hp == 0
+                || m.status & psiv_core::battle::status::DEAD != 0
+                || u32::from(m.current_hp) * 100 < u32::from(m.max_hp) * 50
+        })
     }
 
     /// Whether a patrol's condition holds: every given clause.

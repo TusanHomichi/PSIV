@@ -154,7 +154,7 @@ pub use state::{
 };
 pub use trigger::{
     AxisPredicate, Condition, CustomTrigger, EventIndex, PixelPos, PositionPredicate, Trigger,
-    TriggerContext, TriggerResult, Unsupported, evaluate_list,
+    TriggerContext, TriggerResult, evaluate_list,
 };
 pub use trigger_table::TRIGGERS;
 pub use vehicle::{

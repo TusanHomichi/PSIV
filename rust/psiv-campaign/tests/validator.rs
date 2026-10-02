@@ -154,3 +154,40 @@ fn bad_object_chest_flag_and_slot_ids_are_rejected() {
         );
     }
 }
+
+#[test]
+fn the_route_visits_mile_before_zema_and_again_for_the_inn() {
+    // RunEvent_MileSandWorm is transcribed (#54): Mile is on the route again,
+    // once in `holt` and once in `rune-dorin` for the inn.
+    let route = Route::parse(&main_text()).expect("main.json parses");
+    let visits = |chapter: &str| {
+        route
+            .chapters
+            .iter()
+            .find(|c| c.id == chapter)
+            .expect("chapter exists")
+            .objectives
+            .iter()
+            .filter(|s| {
+                matches!(
+                    s.objective,
+                    psiv_campaign::route::Objective::GoToMap { map: 29, .. }
+                )
+            })
+            .count()
+    };
+    assert!(visits("holt") >= 1, "holt visits Mile");
+    assert!(visits("rune-dorin") >= 1, "rune-dorin visits Mile");
+}
+
+#[test]
+fn a_patrol_refuge_that_ends_on_another_map_is_rejected() {
+    let Some(report) = run(&mutate(
+        &main_text(),
+        "{\"do\": \"go_to_map\", \"map\": 0, \"via_warp\": 3}\n        ], \"note\"",
+        "{\"do\": \"go_to_map\", \"map\": 70, \"via_warp\": 8}\n        ], \"note\"",
+    )) else {
+        return;
+    };
+    assert!(!report.is_ok(), "a refuge must return to the patrol's map");
+}

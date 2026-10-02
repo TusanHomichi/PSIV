@@ -1,8 +1,11 @@
 //! From a landing or a confirm to a scene: the map's trigger list and the
 //! type-2 interaction-area probe.
 
+use std::cell::RefCell;
+
 use psiv_core::{
     Cell, EventIndex, Flag, GameState, PixelPos, TRIGGERS, TriggerContext, TriggerResult,
+    evaluate_list,
 };
 
 use crate::{Runtime, RuntimeEvent};
@@ -29,37 +32,32 @@ impl Runtime {
         };
         let indices: Vec<u8> = record.events.iter().map(|&e| e as u8).collect();
         let standing = self.map.collision_at(cell).map(|c| c.to_raw());
+        let at = PixelPos::from_cell(cell);
+        // The routines that read the layout use `curr_y_pos` plus or minus
+        // `$10`, so resolve both live bytes here, once.
+        let layout_below = self.map_chunk_at(PixelPos {
+            x: at.x,
+            y: at.y + 16,
+        });
+        let layout_above = self.map_chunk_at(PixelPos {
+            x: at.x,
+            y: at.y - 16,
+        });
+        // `UpdateRNGSeed` is the field stream `self.rng` holds. Scan with a
+        // copy and store it back, so only routines that reach their draw
+        // advance it.
+        let rng = RefCell::new(self.rng.clone());
         let ctx = TriggerContext {
             state: &self.game,
-            at: PixelPos::from_cell(cell),
+            at,
             standing,
             previously_standing: self.prev_standing,
+            layout_below,
+            layout_above,
+            rng: &rng,
         };
-        let mut unsupported = None;
-        let mut hit = None;
-        for &index in &indices {
-            let Some(trigger) = TRIGGERS.get(usize::from(index)) else {
-                continue;
-            };
-            let result = if index == 0x0D {
-                self.elevator_trigger(cell)
-            } else {
-                trigger.evaluate(&ctx)
-            };
-            match result {
-                TriggerResult::NoEvent => {}
-                TriggerResult::Unsupported(..) => {
-                    if unsupported.is_none() {
-                        unsupported = Some((index, result));
-                    }
-                }
-                _ => {
-                    hit = Some((index, result));
-                    break;
-                }
-            }
-        }
-        let hit = hit.or(unsupported);
+        let hit = evaluate_list(&TRIGGERS, &indices, &ctx);
+        self.rng = rng.into_inner();
         self.prev_standing = standing;
         match hit {
             Some((index, TriggerResult::Fire(event))) => {
@@ -69,12 +67,7 @@ impl Runtime {
                     events.push(RuntimeEvent::SceneMissing { event: event.0 });
                 }
             }
-            Some((index, TriggerResult::Unsupported(..))) => {
-                events.push(RuntimeEvent::TriggerUnsupported { trigger: index });
-            }
-            Some((_, TriggerResult::FireWithoutIndex))
-            | Some((_, TriggerResult::NoEvent))
-            | None => {}
+            Some((_, TriggerResult::FireWithoutIndex | TriggerResult::NoEvent)) | None => {}
         }
         events
     }

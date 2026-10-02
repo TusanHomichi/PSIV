@@ -28,6 +28,9 @@ pub(crate) fn ctx<'a>(state: &'a GameState, at: PixelPos) -> TriggerContext<'a> 
         at,
         standing: None,
         previously_standing: None,
+        layout_below: None,
+        layout_above: None,
+        rng: Box::leak(Box::default()),
     }
 }
 

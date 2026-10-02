@@ -113,6 +113,21 @@ impl Inventory {
         item != EMPTY && self.slots.contains(&item)
     }
 
+    /// `GetItem` (`ps4.asm:121975`): whether the cartridge's own scan finds
+    /// `item`.
+    ///
+    /// Not the same as [`Inventory::contains`]. The routine counts the
+    /// non-empty slots, then compares only the **first that many bytes**. Battle
+    /// removal leaves holes, so with a hole in the list the tail items sit past
+    /// the scan window and the cartridge reports them missing. Callers that
+    /// reproduce a cartridge test through `GetItem` (the Pengu Feed trigger) use
+    /// this; ordinary "do we own it" questions keep using `contains`.
+    #[must_use]
+    pub fn get_item(&self, item: u8) -> bool {
+        let count = self.occupied();
+        self.slots[..count].contains(&item)
+    }
+
     /// Puts `item` in the first free slot and returns which one.
     ///
     /// # Errors

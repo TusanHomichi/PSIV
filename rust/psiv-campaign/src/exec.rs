@@ -71,7 +71,13 @@ pub fn execute(driver: &mut Driver, memory: &mut Memory, objective: &Objective) 
         Objective::Reorder { order } => driver.reorder(order),
         Objective::Save { slot } => driver.save_slot(*slot),
         Objective::FightScripted => fight_scripted(driver, memory),
-        Objective::Patrol { map, a, b, until } => driver.patrol(*map, a.cell(), b.cell(), until),
+        Objective::Patrol {
+            map,
+            a,
+            b,
+            until,
+            refuge,
+        } => driver.patrol(*map, a.cell(), b.cell(), until, refuge),
         Objective::Expect(expect) => driver.expect(expect),
     }
 }

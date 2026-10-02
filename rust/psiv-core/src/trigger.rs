@@ -43,6 +43,9 @@
 //! which is why those stay explicit variants instead of folding into
 //! [`AxisPredicate::Between`].
 
+use std::cell::RefCell;
+
+use crate::battle::Lcg41;
 use crate::geom::{CELL_PIXELS, Cell};
 use crate::state::{Flag, GameState};
 use crate::trigger_custom;
@@ -159,16 +162,14 @@ impl EventIndex {
 /// A trigger that is not a flags-plus-position formula.
 ///
 /// Kept as named variants rather than approximated, because each one does
-/// something the formula cannot express. Six are implemented exactly; four
-/// need state this crate does not model and report themselves as unsupported
-/// rather than guessing — see [`Trigger::evaluate`].
+/// something the formula cannot express: read the live map layout, compare
+/// collision edges, scan the inventory, or draw from the field RNG.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CustomTrigger {
-    /// `$0D` — reads the map *layout* byte at the standing cell and requires
-    /// `$53`. Needs plane bytes the engine is not given.
+    /// `$0D` — reads the map *layout* byte one cell below the leader's
+    /// position and requires `$53` (the open elevator door).
     RidingElevator,
     /// `$22` — two layout-byte reads, `$3C` below and optionally `$3E` above.
-    /// Needs plane bytes the engine is not given.
     EnterGrbkTwDoor,
     /// `$12` — fires on the rising edge of standing on collision type 2.
     Recovery,
@@ -183,22 +184,11 @@ pub enum CustomTrigger {
     /// `$35` — two complementary regions with different flag sets.
     CarnivorousTrees,
     /// `$5C..$70` — region test plus a 1-in-32 draw that also *advances* the
-    /// global RNG every frame the region matches. Needs the ported RNG.
+    /// field RNG every frame the region matches.
     MileSandWorm,
-    /// `$7B` — requires the Pengu Feed in the inventory. Needs an inventory.
+    /// `$7B` — requires the Pengu Feed to be missing from the inventory
+    /// (it has been stolen) while the leader stands at `y == $260`.
     PenguFeedStolen,
-}
-
-/// Why a custom trigger could not be decided here.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Unsupported {
-    /// Needs the map's layout (chunk-index) plane, which the engine does not
-    /// carry — it holds collision, not layout.
-    MapLayoutBytes,
-    /// Needs the cartridge's RNG, not yet ported (`UpdateRNGSeed`).
-    Rng,
-    /// Needs the party's inventory, which this crate does not model.
-    Inventory,
 }
 
 /// One entry of `RunEventsJmpTbl`.
@@ -233,7 +223,12 @@ pub struct Condition {
 ///
 /// Position is the party's pixel position; the two collision fields mirror
 /// `Tile_Collision_Standing` / `Saved_Tile_Collision_Standing` and are only
-/// read by [`CustomTrigger::Recovery`] and the two platform routines.
+/// read by [`CustomTrigger::Recovery`] and the two platform routines. The
+/// inventory is read through [`TriggerContext::state`].
+///
+/// The three remaining fields are the only reads that are not pure data. They
+/// are resolved once, by the caller that builds the context, because the
+/// engine owns neither the live layout plane nor the field RNG stream.
 #[derive(Debug, Clone, Copy)]
 pub struct TriggerContext<'a> {
     /// The persistent state.
@@ -244,6 +239,16 @@ pub struct TriggerContext<'a> {
     pub standing: Option<u8>,
     /// The previous such value, for edge detection.
     pub previously_standing: Option<u8>,
+    /// The **live** layout byte under `(curr_x_pos, curr_y_pos + $10)` — what
+    /// `GetMapLayoutOffset` addresses after the map's data effects and scene
+    /// patches. `None` when the position lies outside the plane.
+    pub layout_below: Option<u16>,
+    /// The live layout byte under `(curr_x_pos, curr_y_pos - $10)`.
+    pub layout_above: Option<u16>,
+    /// The field `RNG_Seed`. A trigger that calls `UpdateRNGSeed` advances it
+    /// here; the caller stores the result back, so the draw count is exactly
+    /// the number of routines that reached their draw.
+    pub rng: &'a RefCell<Lcg41>,
 }
 
 /// The result of checking one trigger.
@@ -256,8 +261,6 @@ pub enum TriggerResult {
     /// The check passed but writes no index — see
     /// [`Trigger::AlwaysWithoutIndex`].
     FireWithoutIndex,
-    /// This entry cannot be decided here. Never silently treated as `NoEvent`.
-    Unsupported(CustomTrigger, Unsupported),
 }
 
 impl Trigger {
@@ -297,35 +300,25 @@ impl Condition {
 /// `indices` is the map's `$FF`-terminated `Map_Events_Addr` list with the
 /// terminator already stripped — the pack carries it per map. The scan stops
 /// at the first entry that fires, exactly as `RunEvents` does, so list order
-/// is behaviour and must be preserved from the data.
-///
-/// Entries that cannot be decided here are returned as-is so a caller can
-/// handle or log them; the scan continues past them, which matches the
-/// cartridge only when the undecidable check would have failed. That caveat is
-/// documented on [`TriggerResult::Unsupported`] and there are exactly four such
-/// routines.
+/// is behaviour and must be preserved from the data. It is also RNG
+/// behaviour: [`CustomTrigger::MileSandWorm`] draws only when the scan reaches
+/// it, so entries listed after a hit never run.
 #[must_use]
 pub fn evaluate_list(
     table: &[Trigger],
     indices: &[u8],
     ctx: &TriggerContext<'_>,
 ) -> Option<(u8, TriggerResult)> {
-    let mut unsupported = None;
     for &index in indices {
         let Some(trigger) = table.get(usize::from(index)) else {
             continue;
         };
         match trigger.evaluate(ctx) {
             TriggerResult::NoEvent => {}
-            TriggerResult::Unsupported(custom, why) => {
-                if unsupported.is_none() {
-                    unsupported = Some((index, TriggerResult::Unsupported(custom, why)));
-                }
-            }
             hit => return Some((index, hit)),
         }
     }
-    unsupported
+    None
 }
 
 #[cfg(test)]

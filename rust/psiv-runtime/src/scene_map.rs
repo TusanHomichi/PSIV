@@ -1,8 +1,6 @@
 //! Original layout-byte conditions and event-owned map transitions.
 use crate::{Runtime, RuntimeEvent};
-use psiv_core::{
-    Cell, CustomTrigger, PixelPos, SceneFault, SceneInput, TriggerResult, Unsupported, WarpTrigger,
-};
+use psiv_core::{Cell, PixelPos, SceneFault, SceneInput, WarpTrigger};
 
 impl Runtime {
     /// Read the live collision-selected plane, including scene/load patches.
@@ -27,23 +25,15 @@ impl Runtime {
         )
     }
 
-    pub(crate) fn elevator_trigger(&self, cell: Cell) -> TriggerResult {
-        let mut at = PixelPos::from_cell(cell);
-        at.y += 16;
-        match self.map_chunk_at(at) {
-            Some(0x53) => TriggerResult::Fire(psiv_core::EventIndex(0x14)),
-            Some(_) => TriggerResult::NoEvent,
-            None => TriggerResult::Unsupported(
-                CustomTrigger::RidingElevator,
-                Unsupported::MapLayoutBytes,
-            ),
-        }
-    }
-
+    /// Whether `RunEvent_RidingElevator` would fire for a leader at `cell`.
     pub(crate) fn elevator_at(&self, cell: Cell) -> bool {
+        let at = PixelPos::from_cell(cell);
         self.map_record()
             .is_some_and(|record| record.events.contains(&0x0D))
-            && matches!(self.elevator_trigger(cell), TriggerResult::Fire(_))
+            && self.map_chunk_at(PixelPos {
+                x: at.x,
+                y: at.y + 16,
+            }) == Some(0x53)
     }
 
     pub(crate) fn take_scene_map_transition(&mut self, events: &mut Vec<RuntimeEvent>) {

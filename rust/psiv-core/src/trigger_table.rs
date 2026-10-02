@@ -475,6 +475,9 @@ mod tests {
             at: PixelPos { x, y },
             standing: None,
             previously_standing: None,
+            layout_below: None,
+            layout_above: None,
+            rng: Box::leak(Box::default()),
         }
     }
 
