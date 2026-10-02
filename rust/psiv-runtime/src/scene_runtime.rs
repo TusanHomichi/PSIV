@@ -151,6 +151,7 @@ impl Runtime {
             self.scene = None;
             self.scene_camera_locked = false;
             self.scene_triggers_pending = true;
+            self.scene_tree_address = None;
             events.push(RuntimeEvent::SceneEnded);
         }
         events
@@ -374,6 +375,14 @@ impl Runtime {
                     // in `tick_scene_camera` honours it.
                     SceneOp::SetFollowMode { bits } => {
                         self.scene_camera_locked = bits & 0b100 != 0;
+                    }
+                    // `DialogueTreesToRAM` changes which tree the scene's
+                    // dialogue entries and its panel text index into. The
+                    // renderer needs it for the panel text; the runtime needs
+                    // it to resolve a scene dialogue's own entry, and entry
+                    // ids are only meaningful against the current tree.
+                    SceneOp::SetDialogueTree { rom_addr } => {
+                        self.scene_tree_address = Some(rom_addr);
                     }
                     _ => {}
                 }

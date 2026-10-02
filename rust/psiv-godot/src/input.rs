@@ -3,6 +3,35 @@
 use godot::classes::Input;
 use godot::prelude::*;
 use psiv_core::Direction;
+use psiv_runtime::{Button, Pad};
+
+/// This frame's joypad byte, from the engine's actions.
+///
+/// `ui_accept` is Genesis C — `ButtonSpeak`, the talk and confirm button —
+/// and `ui_cancel` is B. Camp and Start have no binding of their own yet:
+/// the field's camp opens on cancel and the title reads confirm, so nothing
+/// here invents one. `synthetic_speak` is the debug retail pace's own press;
+/// it is a press in the pad, not a private path into the dialogue.
+pub(crate) fn read_pad(synthetic_speak: bool) -> Pad {
+    let input = Input::singleton();
+    let mut pad = Pad::NEUTRAL;
+    for (action, button) in [
+        ("ui_up", Button::Up),
+        ("ui_down", Button::Down),
+        ("ui_left", Button::Left),
+        ("ui_right", Button::Right),
+        ("ui_cancel", Button::Cancel),
+        ("ui_accept", Button::Speak),
+    ] {
+        if input.is_action_pressed(action) {
+            pad = pad.with(button);
+        }
+    }
+    if synthetic_speak {
+        pad = pad.with(Button::Speak);
+    }
+    pad
+}
 
 /// One input per tick. Confirm wins over movement; the cartridge reads them
 /// on separate paths and the talk takes the frame.

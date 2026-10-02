@@ -8,3 +8,7 @@ license.workspace = true
 [dependencies]
 psiv-core = { path = "../psiv-core" }
 psiv-data = { path = "../psiv-data" }
+
+[dev-dependencies]
+# The dialogue layout oracle sidecar is JSON, and `tests_corpus` reads it.
+serde_json.workspace = true

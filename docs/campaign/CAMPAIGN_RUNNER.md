@@ -88,6 +88,7 @@ nodes:
     outcome: "Dialogue interpreter in psiv-runtime: control codes, branches, choices, actions, $F2/$F6/$F7, live flags, typewriter and open-animation gates, driven by a cartridge-layout Pad"
     depends_on: []
     acceptance: "psiv-godot no longer matches on Ctrl::; the window renders a runtime view; the TextFlow pagination test still matches all 2,736 entries; mid-message branch, $F2 and live-flag regression tests; the headless example harness's own dialogue walk is deleted; opening p1/p2 and MeetingRika certifications stay 0.000000"
+    evidence: ["build/lane-evidence/workspace-tests.txt", "build/lane-evidence/clippy.txt", "build/lane-evidence/fmt.txt", "build/lane-evidence/examples-build.txt", "build/lane-evidence/python-checks.txt", "build/lane-evidence/testnames-psiv-godot.diff", "build/lane-evidence/testnames-psiv-runtime.diff", "build/lane-evidence/ctrl-grep.txt", "build/lane-evidence/negative-controls.md"]
     state: in_progress
   - id: S2
     outcome: "Session::frame(pad) owns mode dispatch, field, scenes, dialogue, pending $F6 and field suspension; Godot's lib.rs dispatcher calls it"

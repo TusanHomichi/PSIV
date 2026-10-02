@@ -103,6 +103,15 @@ impl PresentationState {
             .collect();
     }
 
+    /// The dialogue tree a running scene's entries index into.
+    ///
+    /// The runtime resolves a scene's *dialogue entries* itself now
+    /// (`Runtime::scene_dialogue_tree`, from the same `SetDialogueTree` op);
+    /// this presentation-side lookup is what
+    /// `every_scene_dialogue_tree_resolves_from_the_original_pack` drives, the
+    /// pack census that proves all 43 trees are reachable from the scene
+    /// ops' recorded addresses.
+    #[allow(dead_code)]
     pub(crate) fn scene_dialogue_tree(&self, fallback: u8) -> Option<u8> {
         match self.current_dialogue_tree {
             Some(address) => self.dialogue_trees.get(&address).copied(),

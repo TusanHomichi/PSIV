@@ -1,8 +1,13 @@
-//! Retail yes/no window, and the input that supplies an actual answer.
-use super::{DialogueWindow, Quad, WindowView, load_image};
-use godot::classes::{ImageTexture, Input};
+//! The retail yes/no window's art: two rows, a cursor, and nothing else.
+//!
+//! The answer rules — up/down edges, Speak on the cursor's row, Cancel as the
+//! direct NO — live in `psiv-runtime`'s dialogue choice state. This module
+//! only knows how the prompt looks: the `yes_no` record's window from the
+//! pack, the menu font, and `ArtNem_Window` pattern $6E8 as the cursor.
+use super::{Quad, WindowView, load_image};
+use godot::classes::ImageTexture;
 use godot::prelude::*;
-use psiv_data::{Ctrl, DialogueEntry, DialogueSet, Role, Segment};
+use psiv_data::{DialogueSet, Role};
 
 pub(super) struct ChoiceView {
     font: Gd<ImageTexture>,
@@ -84,87 +89,5 @@ impl ChoiceView {
             src: Rect2::new(Vector2::ZERO, cell),
         });
         out
-    }
-}
-
-impl DialogueWindow {
-    pub(crate) fn debug_choice(&self) -> Option<serde_json::Value> {
-        let flow = self.flow.as_ref().filter(|flow| flow.has_choice())?;
-        Some(
-            serde_json::json!({"ready":self.choice_ready(),"cursor":self.choice_cursor,"lines":flow.lines()}),
-        )
-    }
-
-    pub(super) fn choice_ready(&self) -> bool {
-        !self.is_opening()
-            && self.flow.as_ref().is_some_and(|flow| {
-                flow.has_choice()
-                    && self.revealed >= flow.lines().iter().map(|s| s.chars().count()).sum()
-            })
-    }
-
-    /// Choice input owns the prompt, including while it finishes typing.
-    /// Cancel is retail's direct NO shortcut; merely advancing never picks.
-    pub fn handle_choice_input(&mut self) -> bool {
-        if !self.flow.as_ref().is_some_and(|flow| flow.has_choice()) {
-            return false;
-        }
-        if !self.choice_ready() {
-            return true;
-        }
-        let input = Input::singleton();
-        if input.is_action_just_pressed("ui_up") || input.is_action_just_pressed("ui_down") {
-            self.choice_cursor ^= 1;
-            self.base_mut().queue_redraw();
-        }
-        let answer = if input.is_action_just_pressed("ui_cancel") {
-            Some(false)
-        } else if input.is_action_just_pressed("ui_accept") {
-            Some(self.choice_cursor == 0)
-        } else {
-            None
-        };
-        if let Some(yes) = answer {
-            godot_print!("dialogue choice: {}", if yes { "YES" } else { "NO" });
-            self.pending_choice = Some(yes);
-            if self.standalone_choice {
-                self.close();
-                self.standalone_choice = false;
-            } else {
-                if let Some(flow) = self.flow.as_mut() {
-                    flow.answer_choice(yes);
-                }
-                self.revealed = 0;
-                self.reveal_tick = 0;
-                self.choice_cursor = 0;
-                self.service_flow_signals();
-                self.sync_portrait();
-                self.base_mut().queue_redraw();
-            }
-        }
-        true
-    }
-
-    pub fn take_pending_choice(&mut self) -> Option<bool> {
-        self.pending_choice.take()
-    }
-
-    /// A scene branch without a preceding text choice remains interactive.
-    pub fn open_scene_choice(&mut self) -> bool {
-        let entry = DialogueEntry {
-            id: 0,
-            text: String::new(),
-            pages: Vec::new(),
-            segments: vec![Segment::Control(Ctrl::YesNo {
-                code: 0xF5,
-                operands: vec![0, 0],
-                yes_entry: 0,
-                no_entry: 0,
-            })],
-        };
-        let opened = self.open(&entry);
-        self.scene_dialogue = true;
-        self.standalone_choice = true;
-        opened
     }
 }
