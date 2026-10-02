@@ -105,8 +105,23 @@ fn validate_accepts_main_and_rejects_a_broken_copy() {
     let text = String::from_utf8(ok.stdout).unwrap();
     assert!(text.contains("0 errors"), "{text}");
     assert!(
-        text.contains("verify: chapter"),
-        "unverified steps are listed: {text}"
+        !text.contains("verify: chapter"),
+        "R1 played every step R0 left unconfirmed; none is listed: {text}"
+    );
+
+    // A step marked unconfirmed is still listed by name.
+    let marked = std::fs::read_to_string(MAIN_ROUTE).unwrap().replacen(
+        "{\"do\": \"expect\", \"flags_set\": [\"event:0x8\"]",
+        "{\"do\": \"expect\", \"verify\": true, \"flags_set\": [\"event:0x8\"]",
+        1,
+    );
+    let path = scratch("marked-route.json");
+    std::fs::write(&path, marked).unwrap();
+    let listed = bin().arg("validate").arg(&path).output().unwrap();
+    let text = String::from_utf8(listed.stdout).unwrap();
+    assert!(
+        text.contains("verify: chapter \"academy\" objective 1"),
+        "{text}"
     );
 
     let broken = std::fs::read_to_string(MAIN_ROUTE)

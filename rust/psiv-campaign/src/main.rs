@@ -1,14 +1,25 @@
-//! `psiv-campaign`: validate a route file or print a walking plan.
+//! `psiv-campaign`: validate a route file, print a walking plan, play a route
+//! headlessly with pad presses, or replay a recorded tape.
 //!
 //! ```text
 //! psiv-campaign validate <route.json> [--pack DIR]
 //! psiv-campaign plan --from-map M --from-cell X,Y --to-map N [--to-cell X,Y]
 //!                    [--flag bank:id]... [--pack DIR]
+//! psiv-campaign run <route.json> [--from-chapter ID] [--until-chapter ID]
+//!                   [--save-dir DIR] [--tape OUT] [--report OUT] [--pack DIR]
+//! psiv-campaign replay <tape> [--from-save FILE] [--pack DIR]
 //! ```
 //!
 //! Map ids are decimal or `0x` hex. The pack defaults to `$PSIV_PACK`, then
-//! `runtime-pack` beside the repository root. Exit status: 0 success, 1 a
-//! failed validation or an impossible plan, 2 a usage or input error.
+//! `runtime-pack` beside the repository root.
+//!
+//! Exit status. `validate` and `plan`: 0 success, 1 a failed validation or an
+//! impossible plan, 2 a usage or input error. `run` and `replay`: 0 the run
+//! completed, 2 the run halted (a report was written), 1 a usage or setup
+//! error. The two families differ because `validate` and `plan` shipped first
+//! with R0, and a verified command's statuses are not changed under it.
+
+mod run_cmd;
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -20,10 +31,17 @@ use psiv_core::{Cell, Direction};
 use psiv_data::{BattleFiles, GameData};
 
 const USAGE: &str = "usage:\n  psiv-campaign validate <route.json> [--pack DIR]\n  \
-psiv-campaign plan --from-map M --from-cell X,Y --to-map N [--to-cell X,Y] [--flag bank:id]... [--pack DIR]";
+psiv-campaign plan --from-map M --from-cell X,Y --to-map N [--to-cell X,Y] [--flag bank:id]... [--pack DIR]\n  \
+psiv-campaign run <route.json> [--from-chapter ID] [--until-chapter ID] [--save-dir DIR] [--tape OUT] [--report OUT] [--pack DIR]\n  \
+psiv-campaign replay <tape> [--from-save FILE] [--pack DIR]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    match args.first().map(String::as_str) {
+        Some("run") => return run_cmd::cmd_run(&args[1..]),
+        Some("replay") => return run_cmd::cmd_replay(&args[1..]),
+        _ => {}
+    }
     match run(&args) {
         Ok(code) => code,
         Err(message) => {
