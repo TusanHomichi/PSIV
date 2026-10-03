@@ -293,6 +293,17 @@ const FORCEFLASH: u8 = 0x56;
 /// (magic defense), el `1` (physical).
 const CORRSION: u8 = 0x4D;
 
+/// `EnemySkillData` `$4F` HEWN, record `01 02 09 38 07 01 00 00` at
+/// `$2835DC`: effect `$01`, stat `$02` (mental), tgt 9, pow 56, res `$07`
+/// (magic defense), el `1` (physical).
+const HEWN: u8 = 0x4F;
+
+/// `EnemySkillData` `$6C` BLACK WAVE2, record `01 02 08 70 07 01 00 00` at
+/// `$2836C4`: effect `$01`, stat `$02` (mental), tgt 8, pow 112, res `$07`
+/// (magic defense), el `1` (physical). The weak Black Wave the Psycho Wand's
+/// Zio2 casts (`ps4.asm:66908`).
+const BLACK_WAVE2: u8 = 0x6C;
+
 mod routes;
 
 use routes::proven;

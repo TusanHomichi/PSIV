@@ -1,6 +1,6 @@
 //! Retail Dezo campaign scenes from Dark Force 2's defeat through Gumbious.
 
-use super::super::{KYRA, SETH};
+use super::super::{KYRA, SETH, retained};
 use super::INSIDE_SPACESHIP_ROUTE;
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
@@ -328,7 +328,7 @@ pub static XE_ATHOUL_BEFORE_BATTLE: Scene = Scene {
     name: "Event_XeAThoulBeforeBattle",
     event: EventIndex(0x0059),
     ops: &[
-        standard(0x36),
+        retained(0x36),
         SceneOp::SetFlag {
             flag: Flag::event(0x9A),
             value: true,
@@ -347,7 +347,7 @@ pub static AIR_CASTLE_FAKE_CHEST: Scene = Scene {
     name: "Event_AirCastleFakeChest",
     event: EventIndex(0x005A),
     ops: &[
-        standard(0x3C),
+        retained(0x3C),
         SceneOp::SetFlag {
             flag: Flag::event(0xA6),
             value: true,
@@ -421,7 +421,7 @@ pub static LASHIEC_APPEARANCE: Scene = Scene {
         SceneOp::PlaySound {
             id: MUSIC_RED_ALERT,
         },
-        standard(0x37),
+        retained(0x37),
         SceneOp::SetFlag {
             flag: Flag::event(0x9B),
             value: true,

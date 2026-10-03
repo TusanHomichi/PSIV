@@ -38,6 +38,12 @@ four tree-6 loads H17 records. Guarded by
 [`tests/test_scene_trees.py`](../../tests/test_scene_trees.py) and
 `psiv-core`'s `every_scene_loads_the_trees_its_retail_bytes_load`.
 
+**`Event_GetAndRunDialogue2` callers are audited.** Its fourteen cartridge
+callers, the window it leaves up and the one transcription that read it as a
+resume (H22) are in [the Dialogue2 audit](DIALOGUE2_CALLERS.md), guarded by
+[`tests/test_dialogue2_callers.py`](../../tests/test_dialogue2_callers.py) and
+`psiv-core`'s `every_dialogue2_caller_is_a_retained_window`.
+
 ## Next-arc registry
 
 | Scene | Event | Doc | Retail bytes |

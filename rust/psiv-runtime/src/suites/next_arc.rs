@@ -211,6 +211,18 @@ fn drive_until_battle(runtime: &mut Runtime, event: u16) -> Vec<RuntimeEvent> {
 
 fn use_psycho_wand(runtime: &mut Runtime) {
     use psiv_core::battle::{Command, ItemSource};
+    // `EnemyInit_Zio` raises `$FFFFEE87`, which forces the opening ambush
+    // (`loc_B62A`, `ps4.asm:17448`): round 1 is Zio's alone, the Magic Barrier.
+    let opening = runtime
+        .battle_round(&RoundOrders::Commands(vec![Command::Defend; 5]))
+        .unwrap();
+    assert!(opening.iter().any(|e| matches!(
+        e,
+        BattleEvent::FirstZioAction {
+            action: psiv_core::battle::FirstZioAction::MagicBarrier,
+            ..
+        }
+    )));
     let slot = runtime
         .game()
         .inventory()

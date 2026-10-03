@@ -8,7 +8,7 @@
 //! panel allocator. The actual field walks use ordinary `MoveActorTo` ops so
 //! their start and arrival edges reach `FieldMap`.
 
-use super::{ALYS, CHAZ, GRYZ, HAHN, RUNE};
+use super::{ALYS, CHAZ, GRYZ, HAHN, RUNE, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_presentation::PresentationOp;
@@ -686,10 +686,7 @@ static ALSHLINE_OPS: &[SceneOp] = &[
     },
     SceneOp::SetDialogueTree { rom_addr: TREE_3 },
     SceneOp::SetRenderSpritesInCutscene { enabled: false },
-    SceneOp::RunDialogue {
-        source: DialogueSource::Entry(DialogueId(0x68)),
-        window: DialogueWindow::Standard,
-    },
+    retained(0x68),
     SceneOp::DespawnNpc {
         npc_index: 7,
         count: 1,

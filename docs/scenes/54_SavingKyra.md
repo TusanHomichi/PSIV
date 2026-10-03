@@ -16,7 +16,9 @@ body. ROM range: `$070856..$070976` exclusive end.
 
 | Ops | ROM offsets | Retail primitive / literal | Scene record |
 |---:|---|---|---|
-| 0-8 | `$070856..$0708E7` | vehicle branch, music/SFX stop, rebuild sprites, tree dialogue `$34` | vehicle/dialogue |
+| 0-8 | `$070856..$0708E7` | vehicle branch (on foot jumps to op 9), music/SFX stop, rebuild sprites, tree dialogue `$34` | vehicle/dialogue |
 | 9-14 | `$0708E8..$07094E` | red alert, panel `$98`, DMA, dialogue entry `$26`, move down `#$20` | presentation/actor |
 | 15-18 | `$07094F..$070975` | set Saving Kyra `$95`, event battle `$0A`, return `1` | flag/battle |
 
+The dialogue call is `Event_GetAndRunDialogue2` (`$5ACDC`), the retained window
+(`retained(0x26)`): see [the Dialogue2 audit](DIALOGUE2_CALLERS.md).
