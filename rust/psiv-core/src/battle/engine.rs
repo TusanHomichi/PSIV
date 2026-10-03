@@ -399,6 +399,15 @@ impl Battle {
         self.round
     }
 
+    /// Priority the next round will consume. The cartridge's
+    /// `Battle_ProcessCOMD` skips party command input while this is negative
+    /// (`ps4.asm:7636`); `Battle_OrderTurns` clears it after that round
+    /// (`ps4.asm:7938-7944`).
+    #[must_use]
+    pub const fn pending_priority(&self) -> Priority {
+        self.pending_priority
+    }
+
     /// The pools the dead have contributed so far.
     #[must_use]
     pub const fn pools(&self) -> Pools {

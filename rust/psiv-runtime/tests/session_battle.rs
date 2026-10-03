@@ -21,7 +21,7 @@
 
 use std::path::Path;
 
-use psiv_core::battle::Side;
+use psiv_core::battle::{BattleEvent, Priority, Side, status};
 use psiv_core::{Cell, CharId, Direction, GameState, RetailLocation, RetailSave};
 use psiv_data::{BattleFiles, GameData};
 use psiv_runtime::{BattleView, Button, Frame, MenuPage, MenuView, Pad, RuntimeEvent, Session};
@@ -38,6 +38,8 @@ const TAPE_07_FORMATION: u16 = 0x8A;
 /// `RES`, the single-target cure Chaz starts with — the technique this test
 /// picks and aims, so the target cursor is exercised.
 const RES: u8 = 24;
+/// The item the connected Zio route must keep until the first player round.
+const PSYCHO_WAND: u8 = 0x39;
 
 fn pack() -> Option<&'static Path> {
     let pack = Path::new(PACK);
@@ -84,6 +86,40 @@ fn field_session(pack: &Path, map: u16, cell: Cell) -> Session {
             },
         })
         .expect("the basement save loads")
+}
+
+/// A saved field position one step before the scripted Zio encounter. The
+/// fixture seats ordinary party records and an item; movement, the scene,
+/// battle entry and every battle round then use only `Session::frame` pads.
+fn zio_ambush_session(pack: &Path) -> Session {
+    let files = BattleFiles::load(pack).expect("battle files load");
+    let data = GameData::load(pack).expect("pack loads");
+    let initial = Session::start(data.clone())
+        .with_battles(files.clone())
+        .field()
+        .expect("the pack boots");
+    let mut game = GameState::from_snapshot(&initial.runtime().game().snapshot());
+    game.set_party([
+        Some(CharId(4)),
+        Some(CharId(0)),
+        Some(CharId(5)),
+        Some(CharId(6)),
+        Some(CharId(3)),
+    ]);
+    game.inventory_mut().add(PSYCHO_WAND).unwrap();
+    Session::start(data)
+        .with_battles(files)
+        .from_save(RetailSave {
+            snapshot: game.snapshot(),
+            location: RetailLocation {
+                world_index: 0,
+                map_index_2: 0,
+                map_index: 0xD3,
+                char_x: 30 * 16,
+                char_y: 31 * 16,
+            },
+        })
+        .expect("the Nurvus save loads")
 }
 
 /// One frame the way the shipped shell runs it: one call, the session's
@@ -229,6 +265,131 @@ fn living_enemies(session: &Session) -> Vec<u8> {
         .flat_map(|roster| roster.living(Side::Enemy))
         .map(|fighter| fighter.id.get())
         .collect()
+}
+
+fn item_count(session: &Session, item: u8) -> usize {
+    session
+        .runtime()
+        .game()
+        .inventory()
+        .slots()
+        .iter()
+        .filter(|&&held| held == item)
+        .count()
+}
+
+#[test]
+fn zio_ambush_uses_no_command_or_item_before_the_first_player_round() {
+    let Some(pack) = pack() else {
+        return;
+    };
+    let mut session = zio_ambush_session(pack);
+    let mut began = false;
+    for frame_index in 0..20_000 {
+        let dialogue_ready = session
+            .runtime()
+            .dialogue_view()
+            .is_some_and(|view| view.dismissable || view.choice.is_some_and(|choice| choice.ready));
+        let pad = if dialogue_ready && frame_index % 4 == 0 {
+            Pad::new(Button::Speak)
+        } else if !session.runtime().scene_active() && !session.runtime().state().is_stepping() {
+            Pad::new(Button::Up)
+        } else {
+            Pad::NEUTRAL
+        };
+        let frame = tick(&mut session, pad);
+        if let Some(events) = frame.events.iter().find_map(|event| match event {
+            RuntimeEvent::SceneBattleStarted {
+                index: 6, events, ..
+            } => Some(events),
+            _ => None,
+        }) {
+            assert!(events.iter().any(|event| matches!(
+                event,
+                BattleEvent::Started {
+                    priority: Priority::Ambush,
+                    ..
+                }
+            )));
+            began = true;
+            break;
+        }
+    }
+    assert!(began, "ordinary Up and Speak pads reach event battle 6");
+    assert!(session.battle_active());
+    assert_eq!(item_count(&session, PSYCHO_WAND), 1, "one Psycho Wand");
+
+    let mut saw_barrier = false;
+    let mut first_player_menu = None;
+    for frame_index in 0..2_000 {
+        // A player can press during the surprise; those presses do not create
+        // orders or spend the item while Zio owns the round.
+        let pad = if frame_index % 4 == 0 {
+            Pad::new(Button::Speak)
+        } else {
+            Pad::NEUTRAL
+        };
+        let frame = tick(&mut session, pad);
+        let battle = view(&frame);
+        saw_barrier |= battle.message == "MAG.BARRIR";
+        if battle.ready {
+            first_player_menu = battle.menu.clone();
+            break;
+        }
+        assert_eq!(battle.menu, None, "the ambush has no command surface");
+        assert!(battle.poses.is_empty(), "no party attack precedes its menu");
+        assert_eq!(
+            item_count(&session, PSYCHO_WAND),
+            1,
+            "the ambush cannot spend the Psycho Wand"
+        );
+    }
+    assert!(saw_barrier, "Zio's first enemy-only action was presented");
+    assert_eq!(first_player_menu, Some(MenuView::Top { cursor: 0 }));
+    assert_eq!(item_count(&session, PSYCHO_WAND), 1);
+}
+
+#[test]
+fn comd_press_with_only_sleeping_actors_enters_the_round_without_a_second_press() {
+    let Some(pack) = pack() else {
+        return;
+    };
+    let files = BattleFiles::load(pack).expect("battle files load");
+    let data = GameData::load(pack).expect("pack loads");
+    let initial = field_session(pack, BASEMENT, BASEMENT_SPAWN);
+    let mut game = GameState::from_snapshot(&initial.runtime().game().snapshot());
+    for who in [CharId(0), CharId(1), CharId(2)] {
+        game.roster_mut().get_mut(who).unwrap().status = status::ASLEEP;
+    }
+    let mut session = Session::start(data)
+        .with_battles(files)
+        .from_save(RetailSave {
+            snapshot: game.snapshot(),
+            location: RetailLocation {
+                world_index: 0,
+                map_index_2: 0,
+                map_index: BASEMENT,
+                char_x: BASEMENT_SPAWN.x * 16,
+                char_y: BASEMENT_SPAWN.y * 16,
+            },
+        })
+        .expect("the sleeping party loads");
+    let started = session.debug_battle(TAPE_07_FORMATION);
+    assert!(started.fault.is_none());
+    let top = wait_for_menu(&mut session);
+    assert_eq!(top.menu, Some(MenuView::Top { cursor: 0 }));
+    let roster = session.runtime().battle_roster().unwrap();
+    assert_eq!(roster.living(Side::Party).count(), 3);
+    assert!(
+        roster
+            .living(Side::Party)
+            .all(|fighter| !fighter.stats.can_act()),
+        "the `$6E` scan has no actor to command"
+    );
+    let after_comd = tick(&mut session, Pad::new(Button::Speak));
+    let after_comd = view(&after_comd);
+    assert!(!after_comd.ready, "the single COMD press submits the round");
+    assert_eq!(after_comd.menu, None, "there is no empty actor page");
 }
 
 #[test]

@@ -14,6 +14,18 @@ shortcut, a state edit or a skip to get past one.
 
 ## Current state
 
+**#70 isolated headless candidate (2026-10-03, base `82eed831`, gameplay
+source `6fb1a70`):** Session skips the scripted enemy-only ambush command round.
+After ordinary Krup training to level 23 and menu-selected existing cures,
+the 29-chapter New Game route defeats Zio and settles
+`Cutscene_ZioDefeated` on Motavia. Two frozen runs have identical tapes,
+digests and pad-SAVE bytes; both tapes replay, and a fresh Session loads the final
+slot with Chaz/Rika/Rune alive and `$65/$68/$66/$61` set
+([receipt](#70-frozen-headless-acceptance)). The earlier winning
+**chapter-resume** trial and losing runs below are preserved. The combined
+Godot/native milestone, generic Godot tape replay and a Zio event-battle
+oracle fixture are not claimed.
+
 **F3 (2026-10-02, base `2272c75`): H22 is fixed and the route now fights Zio.** It halts in
 `nurvus-zio` with `lost_battle`, a balance-and-session result, not a port fault
 ([F3 results](#f3-results-after-the-h22-fixes)).
@@ -830,6 +842,92 @@ that has no draw, plus an ITEM-menu policy (`oracle/force/tape.py` has `attack` 
 `defend` only) and a Psycho Wand and party seeded into RAM. That is a separate lane,
 not a patch to this one; no replay fixture was added and none changed.
 
+### #70 and Zio route trials on the isolated candidate
+
+The candidate starts at `82eed831af88234feec8ab8b9322a9d2624de91f` in
+`/home/peter/.cache/codex/worktrees/PSIV/ambush-zio`. Its ignored
+`runtime-pack` and `reference` entries link read-only local inputs; pack
+manifest SHA256 is
+`018df2227406af1f09412b9ec3550724a2f9b8688aa0400c1cd707f5b4d05650`.
+The built release runner uses the isolated `rust/target` directory,
+`CARGO_BUILD_JOBS=1`, and the shared heavy-job flock. No run writes the F3
+source saves.
+
+| Trial | Input and command | Result | Preserved evidence |
+| --- | --- | --- | --- |
+| #70 baseline after the Session gate, old training | F3 `27-nurvus-descent/slot_1.sram` copied byte-for-byte, SHA256 `c9417845688a5f45cf113271672f5cb82f6cd4d1ffac877c24a4af1bbb9d90af`; `psiv-campaign run routes/main.json --from-chapter nurvus-zio --save-dir build/ambush-zio/baseline --pack runtime-pack` | Exit 2, `lost_battle` at frame 4,868, digest `3cea66160c4728e1`. Trace chooses PSYCO-WAND at the first actual player-command menu after Zio's ambush, then loses with the 23/23/24/19/23 party. | `build/ambush-zio/baseline/{runner.log,halt-report.json,run.tape,timing.txt}`; tape SHA256 `c8bf88bf218bc51e0a37c370f6a3c015d686eb8f0b1bd4fb11edbca35f6691ab` |
+| Level-23 Krup training, old one-cure boss policy | F3 `20-zio-fort-demi/slot_1.sram` copied, SHA256 `12ee2a8a2507ba01c8d02ba712175a3738e5a2ca70ba4fc12c308c0619abcece`; `--from-chapter krup-training --save-dir build/ambush-zio/train23` | Exit 2, `lost_battle`, frame 1,359,374, digest `2957bdc96a7704ec`. Training took 1,315,336 frames and 1,620 ordinary battles; Zio party reached 27/26/28/23/26. Higher levels alone did not close the fight. | `build/ambush-zio/train23/{runner.log,halt-report.json,run.tape,timing.txt}`; predecessor chapter save SHA256 `863cdcd43975cba7bc5308726841b8e7d0edcf17de847fa9c18730b5e11ff78d` |
+| Same trained party, supported group cure | Copied the preceding trial's `27-nurvus-descent/slot_1.sram`, same SHA256 `863cdcd43975cba7bc5308726841b8e7d0edcf17de847fa9c18730b5e11ff78d`; `PSIV_CAMPAIGN_TRACE=1 psiv-campaign run routes/main.json --from-chapter nurvus-zio --save-dir build/ambush-zio/group23 --pack runtime-pack` | Exit 0, 9,271 frames, digest `278ef9a69eab6171`. The trace shows the wand via ITEM in the first player round and Rika's TECH 28 GISAR in later damaged rounds; the scene settles and the runner writes a **read-only chapter checkpoint** (this trial predates the final pad-SAVE objective). Fresh-Session `inspect` reads map `$00`, Chaz/Rika/Rune, and `$65/$68/$66/$61`; Rune is at 0/127 HP. | `build/ambush-zio/group23/{runner.log,run.tape,28-nurvus-zio/slot_1.sram,timing.txt}`; tape SHA256 `ab2039431e87cd5acb73b586eecdf54714ded86ef217cc741d65b3bc0cfce0d4`, checkpoint SHA256 `c7ceab137ae371a4a47ab839005651124789e407a93cfc43b1f6b3f529a34531` |
+| Old-level party with group cure | Copied the same F3 pre-Zio save as the #70 baseline, SHA256 `c9417845688a5f45cf113271672f5cb82f6cd4d1ffac877c24a4af1bbb9d90af`; new group-heal policy and final pad-SAVE route objective, `--from-chapter nurvus-zio --save-dir build/ambush-zio/group19` | Exit 2, `lost_battle`, 5,862 frames, digest `f823f4e3972ac976`. Rika chooses earned SAR (technique 27) through the menu in four rounds; its healing extends the fight but does not win. | `build/ambush-zio/group19/{runner.log,report.json,run.tape,timing.txt}`; tape SHA256 `0974fa58f5a880821244c27e3fef1b4305c9dde078443f0d92a76022771bf5c4` |
+| Level-22 training with group cure | Same F3 pre-training source save, SHA256 `12ee2a8a2507ba01c8d02ba712175a3738e5a2ca70ba4fc12c308c0619abcece`; an ignored local route copy changes only `krup-training`'s target to 22; `--from-chapter krup-training --save-dir build/ambush-zio/group22` | Exit 2, `lost_battle`, 1,162,849 frames, digest `57b8fca3f79b5c2d`. Training took 1,120,497 frames and 1,381 ordinary battles; Zio party 26/25/26/22/25 has SAR but not level-28 GISAR. The pre-Zio chapter checkpoint SHA256 is `deebc62edb3f1e4d4a3d57b1a352e3adc6df7dbb9149233e6bf7dd9b10f4ed37`. | `build/ambush-zio/group22/{route.json,runner.log,report.json,run.tape,timing.txt}`; tape SHA256 `fb091133a0764f90f7af565e576c8d06eaa53637269d1e899a166080ae887050` |
+| Level-23 trained party with actual pad SAVE | Copied the same level-23 pre-Zio save SHA256 `863cdcd43975cba7bc5308726841b8e7d0edcf17de847fa9c18730b5e11ff78d`; final route now includes `save` after Zio's settled scene; `--from-chapter nurvus-zio --save-dir build/ambush-zio/group23-save` | Exit 0, 9,297 frames, digest `98edcf5b85d2ecb5`. The added 26 frames are ordinary camp STATE → SAVE input. `route/slot_1.sram` and the read-only chapter checkpoint have identical bytes, SHA256 `c7ceab137ae371a4a47ab839005651124789e407a93cfc43b1f6b3f529a34531`; the separate route slot is the persistence evidence. | `build/ambush-zio/group23-save/{runner.log,run.tape,route/slot_1.sram,28-nurvus-zio/slot_1.sram,timing.txt}`; tape SHA256 `f87edbfe8003cf4724026f496437bdc461de37882a108e9d23b361267c692850` |
+
+### Full New Game probe after the first freeze
+
+The first frozen local commit `c9647831868a2054cec13253064e2ef9e930da80`
+and release runner SHA256 `d00bea217f698dd181dcc548fe27dc5419975773e77797de11f703348915d4b2`
+used the same pack manifest as above. The full run exposed an earlier route
+survival problem after the ambush command timing changed the encounter stream;
+it did not reach Zio. Both outcomes below are preserved, not substituted for
+the required final twice-replayed route.
+
+| Probe | Result | Raw evidence |
+| --- | --- | --- |
+| Tracked route at `c964783`, New Game | Exit 2, `lost_battle` in `rune-dorin` objective 15 (Valley Maze), 67,937 frames, digest `9e1c25c1cfc5e4ee`. After 20 battles the party's Chaz TP is down to 2 and the last formation `$9D` defeats it. | `build/ambush-zio/full-a/{runner.log,report.json,run.tape,timing.txt}`; tape SHA256 `c1368124a2701f80609c5e57afccc8158bb3e1de211fe7e97fa64d0962aad74d` |
+| Ignored local route copy changing only `rune-dorin` random encounters to `run_unless_boss`, New Game | Exit 0, all 29 chapters and the final camp SAVE, 2,430,197 frames, digest `bdbe45da995ad466`, 32.80 seconds. `rune-dorin` settles in 17,911 frames after 11 encounters; `nurvus-zio` finishes with Chaz L26, Rika L28 and Rune L26. The route save SHA256 is `e6a27534bf7e964800fbf29d6232c146cc677df766cb3637b5e8001559713e09`, byte-identical to the separate read-only chapter checkpoint. Fresh-Session `inspect` reads map `$00` (54,93), Chaz/Rika/Rune all alive and `$65/$68/$66/$61` set. This is a player RUN choice, not a battle-rule change. | `build/ambush-zio/full-rune-run/{route.json,runner.log,run.tape,route/slot_1.sram,28-nurvus-zio/slot_1.sram,inspect.log,timing.txt}`; route-copy SHA256 `a8cf92f36b439fea3ec0f4a2101589c6f75a492c3124b219a0244931cebc1c80`, tape SHA256 `6109cb681fd33b6027eea181428db1443126e91f431e91d853326db33801aa84` |
+
+### #70 frozen headless acceptance
+
+The tracked route's `rune-dorin` RUN choice was frozen at `da3df22` and
+completed twice from New Game (`full-final-a/b`: 2,430,197 frames, digest
+`bdbe45da995ad466`, tape SHA256 `6109cb681fd33b6027eea181428db1443126e91f431e91d853326db33801aa84`,
+pad-SAVE SHA256 `e6a27534bf7e964800fbf29d6232c146cc677df766cb3637b5e8001559713e09`).
+Those passes were **superseded** by a review correction to healing targets;
+their bytes remain in the ignored evidence directories.
+
+| Frozen source | New Game result | Evidence |
+| --- | --- | --- |
+| `64e4023`, shared core target lists, before proactive group cure | Exit 2 at Zio, 2,426,644 frames, digest `0460ec17c11b5a82`; the halted tape replays exactly (SHA256 `d66185710995eef97903d184c378eee44e6be1ad440585c0f910029b07806127`). After CORRSION, Chaz and Rika sit around 62% HP; the half-HP-only group rule skips GISAR, then Chaz dies. A chapter-resume probe from a hash-verified copy of the source-earned pre-Zio save wins under its reset RNG; it is diagnostic, not full-route acceptance. | `build/ambush-zio/full-target-a/{runner.log,report.json,run.tape,replay-halt.log,timing.txt}` and `full-target-trace/trace.log`; copied predecessor SHA256 `18ec910253f4597b3d6a62389f83bc55145c0a88ab5c3b7bb13e4b8cba47094b`, probe `zio-target-probe/` |
+| `6fb1a70`, group cure below 70% for at least two eligible humans | **Completed twice**, all 29 chapters, 2,430,333 frames and digest `d4a124057f4439cd` each; full tapes byte-identical (SHA256 `9b3ebe16dbb9241f679ab15033d8cdf7ea478942f6c1c27b204c071e0916ff0c`). Both tapes replay to the digest. Both distinct `route/slot_1.sram` pad SAVEs and the read-only final chapter snapshots are byte-identical (SHA256 `8443a11e790bfb51a8ede3f2d515f452d99050eaf1db3548a71c4525eb8ce6bd`). Fresh-process `inspect` loads each route slot at Motavia `$00` (54,93), Chaz L26 123/174, Rika L28 179/180, Rune L26 127/127, with `$65/$68/$66/$61` set. | `build/ambush-zio/full-group-{a,b}/{source.txt,inputs.sha256,binary.sha256,runner.log,run.tape,replay.log,route/slot_1.sram,28-nurvus-zio/slot_1.sram,inspect.log,results.sha256,timing.txt}`; `full-group-b/comparison.txt` confirms source, inputs, binary, tape, pad SAVE, snapshot and inspection identical |
+
+The accepted isolated runner is the worktree's own
+`rust/target/release/psiv-campaign`, SHA256
+`e025a578f99afd7eb97fea87869893545eaf50f7443eea30b8171d4ee1d26161`,
+with `CARGO_TARGET_DIR` set to that worktree, `CARGO_BUILD_JOBS=1` and the
+shared heavy-job flock. The route SHA256 is
+`56faad360a5be1a2d8fa2a7d5f25d15b05ad8f490ece010f20cb1f094896747f`;
+the pack manifest SHA256 remains
+`018df2227406af1f09412b9ec3550724a2f9b8688aa0400c1cd707f5b4d05650`.
+The final `save` objective presses camp STATE → SAVE after the scene settles;
+every chapter also has a separate read-only checkpoint, but only explicit
+`save` objectives exercise the ordinary SAVE input.
+
+The review correction uses the [correction ladder](../AGENT_WORKFLOW.md#correction-ladder)
+at rung 1: `DefaultPolicy` and `BossPolicy` consume the core's
+`technique_targets`/`item_targets`, the same API used by the runtime menu.
+The mixed Chaz/Demi/Rika negative case keeps the most injured android out
+of RES and MONOMATE targets, and checks GISAR when two humans are hurt.
+The 70% group threshold is a player
+choice after observed all-party damage; single-target cures remain below
+half HP. Neither policy change adds a technique or changes its retail effect.
+
+The source decision for #70 is in
+[battle-party.md](../source-notes/battle-party.md#2026-10-03--rounds-that-open-no-party-command-window):
+`loc_52D6` skips options on negative priority and
+`Battle_ProcessCOMD` skips all `$6E` actors; normal/preemptive priority still
+offers commands. `Battle_OrderTurns` queues enemies only on ambush and clears
+priority after the round. The read-only priority accessor changes no RNG or
+turn order. The route's `psycho_wand_then_win` policy disarms only on an
+actual menu choice. Rika learns GISAR (technique 28) at level 28 in the
+retail level table; it is existing effect 18, all-human target nibble 5,
+and the boss policy chooses it through the TECH menu when multiple humans
+are hurt. It cannot heal Demi, an android. Neither group-heal policy nor
+training edits battle balance or the core Zio phase model. SAR at level 20
+was tried; the level-22 party still loses, while the level-23 training route
+earns GISAR at Rika's level 28 and wins. There is **no
+event-battle oracle fixture for Zio**, so these are source-backed headless
+Session route results, not oracle parity.
+
 ## `verify` items resolved by playing
 
 R0 left 12 objectives marked `"verify": true`. All are resolved and the flags
@@ -860,9 +958,12 @@ dropped; the run that settled each is in the route's `note`.
   cartridge's formula at its mean roll. A player reads the same ranking from the
   damage numbers; the policy skips the experiment. Skills other than Crosscut
   and Vortex are not chosen because the engine does not run them.
-- **Past Zio's fight.** Nurvus down to B4 is played (`nurvus-descent`); F3 plays the Zio fight (it loses, see
-  [F3 results](#f3-results-after-the-h22-fixes)); `Cutscene_ZioDefeated` has not run, and whether the trained party
-  wins is open; see [H22](#h22-zio-at-nurvus-resumes-a-dialogue-instead-of-running-entry-0b-and-the-zio-phase-counter-is-unmodelled).
+- **Past Zio's defeat.** F3's losing fight remains the old-base observation
+  ([F3 results](#f3-results-after-the-h22-fixes)). The isolated #70
+  [full New Game receipt](#70-frozen-headless-acceptance) reaches the settled
+  scene and an ordinary SAVE in headless `Session`. It does not establish
+  combined Godot/native play, generic Godot tape replay, Zio event-battle
+  oracle parity or any later arc.
 - **Balance.** Members fall in `bioplant-rika` (ten command windows open with a
   member down; Gryz, Alys and Hahn stand at 0 HP when the Rika scene ends); the
   inn restores them (`north-bank` rests at Zema before the crossing). The policy

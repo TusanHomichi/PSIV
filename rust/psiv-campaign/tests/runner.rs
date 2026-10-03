@@ -25,6 +25,9 @@ use psiv_campaign::route::{Chapter, Route};
 use psiv_campaign::runner::{RunConfig, RunResult, run};
 use psiv_campaign::start::{StartPoint, open_session};
 use psiv_campaign::tape::Tape;
+use psiv_core::battle::{FighterId, Side, item_targets, technique_targets};
+use psiv_core::{CharId, Flag, GameState, RetailLocation, RetailSave};
+use psiv_runtime::{PartyStatus, Session, TechniqueEntry};
 
 use common::{MAIN_ROUTE, PACK, pack};
 
@@ -347,11 +350,161 @@ fn menu_window(actor: u8) -> psiv_runtime::CommandMenuView {
     }
 }
 
+/// RES and MONOMATE offer humans, not Demi. A desperate android in the party
+/// strip must never turn a healing policy's intent into a missing menu target.
+#[test]
+fn mixed_party_cures_use_the_menus_eligible_targets() {
+    use psiv_campaign::policy::{DefaultPolicy, Intent, Policy};
+    use psiv_campaign::policy_boss::BossPolicy;
+
+    let Some(set) = pack() else {
+        return;
+    };
+    let initial = Session::start(set.data.clone())
+        .with_battles(set.battle.clone())
+        .field()
+        .expect("the pack boots");
+    let item_id = initial
+        .runtime()
+        .battle_items()
+        .find(|item| item.name == "MONOMATE")
+        .expect("MONOMATE is in the battle pack")
+        .id;
+    let mut game = GameState::from_snapshot(&initial.runtime().game().snapshot());
+    game.set_party([
+        Some(CharId(0)),
+        Some(CharId(6)),
+        Some(CharId(5)),
+        None,
+        None,
+    ]);
+    game.roster_mut().get_mut(CharId(0)).unwrap().curr_tp = 20;
+    game.roster_mut().get_mut(CharId(6)).unwrap().curr_hp = 1;
+    let rika = game.roster_mut().get_mut(CharId(5)).unwrap();
+    rika.curr_hp = (rika.max_hp / 3).max(2);
+    rika.curr_tp = 50;
+    rika.techniques[0] = 28;
+    game.inventory_mut().add(item_id).unwrap();
+    let mut session = Session::start(set.data.clone())
+        .with_battles(set.battle.clone())
+        .from_save(RetailSave {
+            snapshot: game.snapshot(),
+            location: RetailLocation {
+                world_index: 0,
+                map_index_2: 0,
+                map_index: 0x15,
+                char_x: 20 * 16,
+                char_y: 10 * 16,
+            },
+        })
+        .expect("the mixed party loads");
+    assert!(session.debug_battle(0x8a).fault.is_none());
+    let runtime = session.runtime();
+    let roster = runtime.battle_roster().expect("the battle has a roster");
+    let actor = FighterId::new(1).unwrap();
+    let demi = FighterId::new(2).unwrap();
+    let rika = FighterId::new(3).unwrap();
+    let res = runtime
+        .battle_techniques()
+        .find(|tech| tech.id == 24)
+        .unwrap();
+    let monomate = runtime
+        .battle_items()
+        .find(|item| item.id == item_id)
+        .unwrap();
+    for targets in [
+        technique_targets(roster, actor, res),
+        item_targets(roster, actor, monomate),
+    ] {
+        assert!(targets.contains(&rika), "Rika must be selectable");
+        assert!(
+            !targets.contains(&demi),
+            "Demi must not appear in the cure menu"
+        );
+    }
+
+    let mut menu = menu_window(1);
+    menu.party = roster
+        .side(Side::Party)
+        .map(|fighter| PartyStatus {
+            fighter: fighter.id.get(),
+            name: fighter.name.clone(),
+            hp: fighter.stats.curr_hp,
+            max_hp: fighter.stats.max_hp,
+            tp: fighter.stats.curr_tp,
+            status: fighter.stats.status,
+        })
+        .collect();
+    assert_eq!(menu.party[1].fighter, demi.get());
+    assert!(menu.party[1].hp < menu.party[2].hp);
+    menu.techniques.push(TechniqueEntry {
+        id: res.id,
+        name: res.name.clone(),
+        cost: res.cost,
+        available: true,
+    });
+    let cure = Intent::Technique {
+        id: res.id,
+        target: Some(rika.get()),
+    };
+    assert_eq!(DefaultPolicy::default().choose(&menu, runtime), cure);
+    assert_eq!(BossPolicy::default().choose(&menu, runtime), cure);
+
+    menu.techniques.clear();
+    let item_cure = Intent::Item {
+        name: monomate.name.clone(),
+        target: Some(rika.get()),
+    };
+    assert_eq!(DefaultPolicy::default().choose(&menu, runtime), item_cure);
+    assert_eq!(BossPolicy::default().choose(&menu, runtime), item_cure);
+
+    // Only the android needs HP now: neither policy may order an unavailable
+    // human cure or spend the item on the wrong character.
+    menu.party[2].hp = menu.party[2].max_hp;
+    assert_eq!(
+        DefaultPolicy::default().choose(&menu, runtime),
+        Intent::Attack
+    );
+    assert_eq!(BossPolicy::default().choose(&menu, runtime), Intent::Attack);
+
+    // After group damage, two humans at 60% warrant the learned GISAR now;
+    // waiting for both to fall below half costs a lethal extra enemy round.
+    let gisar = runtime
+        .battle_techniques()
+        .find(|tech| tech.id == 28)
+        .unwrap();
+    assert!(
+        roster
+            .get(rika)
+            .unwrap()
+            .stats
+            .techniques
+            .contains(&gisar.id)
+    );
+    menu.actor = Some(rika.get());
+    menu.character = Some(5);
+    menu.party[0].hp = menu.party[0].max_hp * 3 / 5;
+    menu.party[2].hp = menu.party[2].max_hp * 3 / 5;
+    menu.techniques.push(TechniqueEntry {
+        id: gisar.id,
+        name: gisar.name.clone(),
+        cost: gisar.cost,
+        available: true,
+    });
+    assert_eq!(
+        BossPolicy::default().choose(&menu, runtime),
+        Intent::Technique {
+            id: gisar.id,
+            target: None
+        }
+    );
+}
+
 /// The opening-item policy (`psycho_wand_then_win`'s type) over a pack that
-/// holds an item, bought at the Piata shop as a player does: round 1 of a
-/// scripted battle, the first actor takes ITEM and the rest fight; the next
-/// round and the next battle start from the boss policy. Negative controls: a
-/// random encounter and a pack without the item get no opening.
+/// holds an item, bought at the Piata shop as a player does: the first actor
+/// of the first command round takes ITEM and the rest fight; the next round
+/// and the next battle start from the boss policy. Negative controls: an
+/// enemy-only ambush round, a random encounter and a pack without the item.
 #[test]
 fn the_first_actor_of_a_scripted_battle_opens_with_the_item() {
     use psiv_campaign::policy::{Intent, Policy};
@@ -378,6 +531,12 @@ fn the_first_actor_of_a_scripted_battle_opens_with_the_item() {
 
     let mut policy = OpeningItemPolicy::new("test_opening", item.id);
     policy.battle_begins(true);
+    policy.end_round();
+    assert_eq!(
+        policy.choose(&menu_window(1), runtime),
+        opening,
+        "an ambush round with no command window cannot spend the opening"
+    );
     assert_eq!(policy.choose(&menu_window(1), runtime), opening);
     assert_eq!(
         policy.choose(&menu_window(1), runtime),
@@ -585,38 +744,44 @@ fn an_arrival_prompt_is_the_next_objectives_to_answer() {
     );
 }
 
-/// The whole route from New Game, pads only. Run it in release.
-///
-/// Two port defects stop the route at Zio's fight in `nurvus-zio`
-/// (RUNNER_LOG.md H22: `Event_ZioNurvus` resumes a dialogue instead of running
-/// entry `$0B`, and the Zio phase counter is unmodelled, so BLACK WAVE is
-/// rolled in round 1). The test pins what is true today and stays honest when
-/// they are fixed: every chapter before them passes, the run either completes
-/// (last chapter `nurvus-zio`) or halts in that chapter, and its tape replays
-/// to the digest the run printed.
+/// The whole route from New Game to Zio's defeat, pads only. The last chapter
+/// makes an ordinary SAVE; a new Session reads it, and replaying the tape in
+/// another Session reaches the same digest.
 #[test]
 #[ignore = "plays the whole route: cargo test --release -p psiv-campaign --test runner -- --ignored"]
-fn the_whole_route_plays_to_its_documented_defect_and_replays() {
+fn the_whole_route_defeats_zio_saves_and_replays() {
     if pack().is_none() {
         return;
     }
     let config = config(&main_text(), "whole-route", None, None);
     let result = run(&config).expect("the route sets up");
     let done: Vec<&str> = result.chapters.iter().map(|c| c.id.as_str()).collect();
+    assert!(result.completed, "route halted: {:#?}", result.report);
+    assert_eq!(done.last(), Some(&"nurvus-zio"));
+    assert_eq!(result.chapters.len(), config.route.chapters.len());
+    let chapter_snapshot = result.chapters.last().unwrap().save.clone();
     assert!(
-        done.contains(&"nurvus-descent"),
-        "Nurvus is climbed to B4: {done:?}"
+        chapter_snapshot.is_file(),
+        "the runner wrote its read-only chapter snapshot"
     );
-    if result.completed {
-        assert_eq!(done.last(), Some(&"nurvus-zio"));
-        assert_eq!(result.chapters.len(), config.route.chapters.len());
-    } else {
-        let report = result.report.as_ref().expect("a halted run has a report");
-        assert_eq!(
-            report["chapter"], "nurvus-zio",
-            "an undocumented halt: {report:#}"
-        );
+    let pad_save = config.save_dir.join("route/slot_1.sram");
+    assert!(
+        pad_save.is_file(),
+        "the last chapter's pad SAVE wrote the separate route slot"
+    );
+    let (loaded, _) = open_session(PACK.as_ref(), &StartPoint::Save(pad_save)).unwrap();
+    let game = loaded.runtime().game();
+    assert_eq!(loaded.runtime().map_id().0, 0);
+    assert_eq!(game.party_members(), [CharId(0), CharId(5), CharId(3)]);
+    assert!(game.roster().get(CharId(0)).unwrap().curr_hp > 0);
+    for flag in [0x65, 0x68, 0x66, 0x61] {
+        assert!(game.is_set(Flag::event(flag)), "event flag {flag:#x}");
     }
     let replayed = replay(PACK.as_ref(), &result.tape, None).unwrap();
     assert_eq!(replayed.digest, result.digest);
+    assert!(
+        replayed.faults.is_empty(),
+        "replay faults: {:#?}",
+        replayed.faults
+    );
 }

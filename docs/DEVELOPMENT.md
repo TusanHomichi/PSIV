@@ -81,7 +81,9 @@ snapshot comparison and evidence limits are in the
 | --- | --- |
 | Arrow keys | Move / menu selection |
 | Enter, Space or Z | Confirm / interact |
-| Escape or X | Camp / cancel |
+| C | Camp |
+| Escape or X | Cancel |
+| Tab | Start |
 
 ## Run checks
 

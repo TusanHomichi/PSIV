@@ -77,8 +77,12 @@ resolves into pad input:
 - fight scripted battles; random battles use a policy that issues commands
   through the battle menu with the same pad input a player would use.
 
-Every chapter ends in assertions on flags, party, map and inventory taken from
-the scene transcriptions, and an ordinary SAVE. The runner halts on the first
+Chapters end with their specified assertions on flags, party, map and
+inventory taken from the scene transcriptions. The runner then writes a
+read-only chapter checkpoint with `Runtime::save_slot`; that snapshot is not
+an ordinary SAVE input. Only chapters with an explicit `save` objective press
+camp STATE → SAVE. The Zio-defeat chapter does so after its scene and flags
+settle. The runner halts on the first
 failed objective, unsupported ability, scene fault, lost battle or stuck walk,
 and writes a report: chapter, objective, frame, map, cell, mode and the last
 events.
@@ -138,7 +142,8 @@ results, fighting battles with the chapter's policy, and waiting out scenes.
 
 **Battle policy.** `random_battle_policy` names one (`policy.rs`). Everyone
 attacks the first living enemy; the first member who can cures the most hurt
-one below half HP with a healing technique, or failing that a healing item;
+eligible target below half HP with a healing technique, or failing that a
+healing item. Both use the core target lists that build the command menu;
 `run_unless_boss` runs from random encounters and fights scripted battles.
 After a battle the party is cured through the camp (`recovery.rs`). Losing is a
 halt. `attack_all`, `heal_then_attack`, `train_with_inn` and
@@ -146,11 +151,13 @@ halt. `attack_all`, `heal_then_attack`, `train_with_inn` and
 behaviour gets a type in `policy.rs` first.
 
 `fight_to_win` and `run_then_win` (`policy_boss.rs`) are what a player does
-against a boss, which the default policy loses to: the one cure a round goes to
-the most hurt member under half HP with the cheapest technique that restores what
-they are missing (the strongest when none does), and everyone else takes the
-damage action with the highest estimated damage to the first living enemy: the
-plain attack, a damaging technique they can pay for, or a damaging skill with
+against a boss, which the default policy loses to: the most hurt eligible member
+under half HP gets the cheapest sufficient single-target cure (the strongest
+when none is sufficient), and a learned all-human cure can also cover two or
+more eligible humans below 70% HP in that round. A sealed caster avoids TECH
+as a player heuristic; the retail menu still permits the wasteful selection.
+Everyone else takes the damage action with the highest estimated damage to the
+first living enemy: a plain attack, a damaging technique they can pay for, or a damaging skill with
 uses left (`Crosscut`, `Vortex`: the two the engine runs). The estimate is the
 cartridge's damage formula at its mean roll on the live fighters' stats, which a
 player learns from the first rounds' damage numbers. `fight_to_win` fights every
@@ -160,9 +167,11 @@ fights scripted ones this way. Juza (event battle 3) and Gy-Laguiah (event battl
 rounds (run C2-1).
 
 `psycho_wand_then_win` (`policy_opening.rs`) is `run_then_win` with an opening
-item: in round 1 of a scripted battle the first actor takes ITEM and picks the
-Psycho Wand (item `$39`, when the pack holds it), everyone else fights, and from
-round 2 it is the boss policy. It decides an item intent only; `battle.rs`
+item: in the first actual player-command round of a scripted battle the first
+actor takes ITEM and picks the Psycho Wand (item `$39`, when the pack holds it),
+everyone else fights, and afterward it is the boss policy. An enemy-only
+ambush round offers no item choice and does not disarm the opening. It decides
+an item intent only; `battle.rs`
 steers the ITEM page to the row, as for a healing item. The driver tells every
 policy when a battle begins and whether it is scripted (`Policy::battle_begins`),
 which is how a random encounter gets no opening. The Zio fight at Nurvus is the
@@ -186,10 +195,11 @@ decision to stderr as the run goes.
 **Tape, saves and replay.** The tape is every frame's pad byte, run-length
 encoded in a text file (`rust/psiv-runtime/src/tape.rs` documents the format;
 `psiv-campaign::tape` reexports the same codec). A chapter that
-completes writes `<save-dir>/NN-id/slot_1.sram`, and `--from-chapter ID` starts
-from the save the chapter before it ended on; the tape then names that save by
-hash. Route `save` objectives write `<save-dir>/route/slot_N.sram` through the
-camp's SAVE page. `replay <tape> [--from-save FILE]` plays the tape back and
+completes writes the read-only checkpoint `<save-dir>/NN-id/slot_1.sram`, and
+`--from-chapter ID` starts from the preceding chapter's checkpoint; the tape
+then names that file by hash. Only route `save` objectives write
+`<save-dir>/route/slot_N.sram` through the camp's SAVE page. `replay <tape>
+[--from-save FILE]` plays the tape back and
 prints the digest of the final state (map, cell, facing, purse, party and the
 whole persistent snapshot), which a run printed too and a replay must
 reproduce. `inspect <slot.sram>` prints a save's
@@ -255,10 +265,10 @@ message when it is absent.
 ```yaml
 outcome: "A fresh install plays New Game to the Ending headlessly from the route file with ordinary pad input, and milestone tapes replay identically in Godot"
 canonical_record: "docs/campaign/CAMPAIGN_RUNNER.md#task-graph"
-authority: "Owner 2026-10-01: campaign runner approach; commit, push, PR and merge once the full gate is green (docs/AGENT_WORKFLOW.md#authority-effort-and-continuation)"
+authority: "Owner 2026-10-01: campaign runner approach; commit, push, PR and merge once the full gate is green (docs/AGENT_WORKFLOW.md#authority-effort-and-continuation). Current #70/Zio assignment permits local explicit-path commits but no external publication yet; integration owns the combined full gate and native certification."
 effort_policy: "Continue scoped repairs until acceptance passes; no fixed cycle limit (inherited)"
-exclusions: ["modding", "visual-parity claims beyond existing certifications", "gameplay changes that are not cartridge behavior"]
-next_action: "Fix H22 (RUNNER_LOG.md): Event_ZioNurvus op 11 as RunDialogue entry $0B and the Zio/Zio2 phase counters (#62's family), then rerun nurvus-zio and route the rest of the Zio arc"
+exclusions: ["modding", "visual-parity claims beyond existing certifications", "gameplay changes that are not cartridge behavior", "later arc beyond Zio defeated in the current lane"]
+next_action: "Integrate #70's source-backed Session ambush gate with the presentation/vehicle changes and certify the static battle-0x88 capture; then rerun the 29-chapter Zio win, ordinary SAVE, fresh load and deterministic replay on the combined candidate. The separate native/Godot milestone check follows there; do not advance to the later arc yet."
 nodes:
   - id: S1
     outcome: "Dialogue interpreter in psiv-runtime: control codes, branches, choices, actions, $F2/$F6/$F7, live flags, typewriter and open-animation gates, driven by a cartridge-layout Pad"
@@ -319,9 +329,21 @@ nodes:
     depends_on: [R1]
     acceptance: "One generic Godot replay driver reproduces R1's tape and chapter-save bytes; the bespoke tools/native drivers it covers are retired"
     state: pending
+  - id: C70
+    outcome: "Issue #70: Session automatically resolves every enemy-only ambush round without a command surface or item use"
+    depends_on: [R1]
+    acceptance: "Cite loc_52D6, Battle_ProcessCOMD, loc_5380 and Battle_OrderTurns for every command-opening condition; a connected-pad scripted ambush shows no menu or Psycho Wand spend until the first real player round, a normal round still opens COMD, an alive but all-$6E-status party submits on its single COMD press, and the static battle-0x88 certification is unchanged on the combined candidate"
+    evidence: ["local candidate from 82eed831: read-only Battle::pending_priority and runtime bridge, automatic ambush gate, pad-only Zio event battle 6 regression and Academy normal-menu negative control, empty-actor command regression; docs/source-notes/battle-party.md records source conditions; battle-0x88 native certification remains the integration worker's check", "RUNNER_LOG.md #70 frozen headless acceptance: first actual player menu uses the Psycho Wand; no item is spent during the ambush. Mixed-party cure policy uses core target lists, excludes Demi from RES/MONOMATE and chooses GISAR when two humans are hurt; final focused tests under the shared heavy lock. Combined static certification still pending."]
+    state: in_progress
+  - id: CZ
+    outcome: "New Game through Cutscene_ZioDefeated with ordinary pad route, SAVE, fresh Session load and deterministic tape replay"
+    depends_on: [C70]
+    acceptance: "All 29 chapters complete from New Game twice on the frozen candidate with identical full tapes, digests and final ordinary pad-SAVE bytes at route/slot_1.sram; replay reproduces the digest with no faults; a fresh Session loads that route slot and asserts Motavia map $00, Chaz/Rika/Rune, Chaz alive and event flags $65/$68/$66/$61. Preserve losing trials. Do not claim the later arc or Zio oracle parity. Native Godot milestone proof is a separate integration check."
+    evidence: ["RUNNER_LOG.md #70 route trials preserve the old-level, level-22 and old one-cure losses; the trained party with earned GISAR wins a copied-save chapter, while 64e4023's stricter target legality exposed a different full-route Zio loss. Rung-1 shared targeting and an ordinary proactive group-heal policy fix it without balance changes.", "isolated frozen source 6fb1a70: full-group-a/b complete all 29 chapters from New Game at 2,430,333 frames each, digest d4a124057f4439cd; tapes SHA256 9b3ebe16... and pad SAVE bytes SHA256 8443a11e... identical; both replay, fresh Session inspections assert map $00, Chaz/Rika/Rune alive and $65/$68/$66/$61. The final camp SAVE is a separate route slot, not merely Runtime::save_slot; full hashes and failed runs in RUNNER_LOG.md. Combined-candidate rerun and native check remain pending."]
+    state: in_progress
   - id: C
     outcome: "Route chapters to the Ending, one lane per blocker class"
-    depends_on: [R1]
+    depends_on: [R1, CZ]
     acceptance: "The runner reaches Game_Cleared_Flag from New Game; each blocker it hit is fixed with a regression test or filed as an issue with a link from the route"
     evidence: ["lane c1-motavia (base 8c19769): routes/main.json grows to 18 chapters and reaches the Zio Fort's Juza room (map $87, (32,21)) with all five alive at level 12 to 13: 457,356 frames, digest 96d2835a8633def8, tape sha256 53adf11f092bb99982c299aa2620b75a4078f6a4fe3ba69f0adae0a3d749bd57, identical on three runs, replay reproduces the digest; scenes 28 and 29 pass in-route; RUNNER_LOG.md H13 to H16", "the route stops at Juza: H16, enemy 114's ZAN and FORCEFLASH are not run by the engine, and the stairs to F3 and F4 open only after his battle; H15 lists the unsupported abilities on the way (FUSION, FIREBREATH, DEBAN) that the route passes only by running; H13 (#39) does not block the story", "lane c2-zio (base 0c6ae8b): routes/main.json grows to 27 chapters through scenes 31 to 37 (Juza's battle, the Demi rescue and Alys's wounding, the Machine Center and Land Rover, Ladea Tower with Rune, the Psycho Wand, the walk to the Zio Fort barrier); the runner learns to ride a vehicle (a two-cell lattice planner, `vehicle` assertions, `dismount`, `plan --vehicle`) and to fight a boss (`fight_to_win`, `run_then_win`). On the committed engine the run halts at its first port defect, `Cutscene_AlysWounded` reading the wrong dialogue tree (H17): 1,023,474 frames, exit 2, digest 49f5c47df7971428, identical on two runs, replay reproduces it. An experimental four-line patch for H17 plays on to `Event_ZioFortBarrier` (H18, not transcribed, no alternative); a stub for it completes all 27 chapters (digest e77a7b9cf1f5fa37, identical on two runs). H19 to H21 recorded (live map ignores story flags, vehicle parking and boarding, EVIL EYE in the tower)", "lane c3-nurvus (base 5c62765): routes/main.json grows to 29 chapters; nurvus-descent plays Zio Fort to Nurvus B4 (six elevator doors, the B1 tunnel, B5 and the stairs; RUNNER_LOG.md N1 to N4) and nurvus-zio names the new psycho_wand_then_win policy (round-1 Psycho Wand through the battle ITEM menu, then fight_to_win). The full run halts at Zio's trigger on port defects H22 (Event_ZioNurvus op 11 resumes a dialogue instead of running entry $0B; the Zio and Zio2 phase counters are unmodelled, so BLACK WAVE is rolled in round 1): 1,730,441 frames, exit 2, digest 6eb19b166ed24d2f, tape sha256 e3cff60eaf31dacac06bfeb8819d983ad3a848da042d37108a5c73cc9d121402, identical on two runs, replay reproduces it"]
     state: pending

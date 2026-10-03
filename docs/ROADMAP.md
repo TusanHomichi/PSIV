@@ -1,6 +1,6 @@
 # Roadmap
 
-Gameplay checkpoint and workflow handoff: September 23, 2026.
+Historical native gameplay checkpoint: September 23, 2026.
 The goal is a complete native playthrough with
 the original game's behavior and presentation. Work is ordered by what
 blocks that playthrough; modding comes afterward.
@@ -19,7 +19,10 @@ The active graph is the [campaign runner graph](campaign/CAMPAIGN_RUNNER.md#task
 opened 2026-10-01 when the owner replaced per-segment native drivers with one
 headless runner over a runtime-owned `Session`. It supersedes the
 [Aiedo arrival graph](campaign/AIEDO.md#5-aiedo-arrival-task-graph), which never
-started. Its one next action, `S1`, is in [section 1](#1-continue-from-the-post-rika-checkpoint).
+started. Its next action is combined-candidate verification of #70's ambush
+command gate, then the Zio-win route and native milestone; the isolated
+[headless receipt](campaign/RUNNER_LOG.md#70-frozen-headless-acceptance) is not
+the combined Godot check.
 
 The [workflow setup graph](records/WORKFLOW_SETUP.md#setup-graph) and
 [connected BioPlant graph](campaign/BIOPLANT_NATIVE.md#archived-bioplant-task-graph)
@@ -46,6 +49,13 @@ These describe the recorded native routes and targeted checks, not complete
 coverage of every branch or every mechanic. Details are in the
 [playability ledger](campaign/NATIVE_PLAYABILITY.md) and [BioPlant ledger](campaign/BIOPLANT_NATIVE.md).
 
+The separate headless `Session` candidate on 2026-10-03 plays all 29 chapters
+from New Game through `Cutscene_ZioDefeated` twice, uses an ordinary camp SAVE,
+loads it in a fresh Session and replays both identical tapes. The
+[runner receipt](campaign/RUNNER_LOG.md#70-frozen-headless-acceptance) records
+its source, hashes and limits. Combined Godot/native proof and generic Godot
+tape replay (R2) remain pending.
+
 ## 1. Continue from the post-Rika checkpoint
 
 The [northern-crossing gate](field/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
@@ -63,10 +73,11 @@ The new code requires the rebuilt full pack; exact candidate, pack, binary and
 check receipts are in the travel ledger. The pack, saves and captures remain
 local and ignored.
 
-**Next action:** extend the route from the Zio-fort barrier through Nurvus to
-Zio's defeat (route chapter C3). The runner plays New Game through the Zio-fort
-barrier with pad presses only: 27 chapters, about 1.72M frames
-([run log](campaign/RUNNER_LOG.md)).
+**Next action:** integrate and verify #70's Session ambush gate with the
+presentation and vehicle changes, then repeat the New Game-to-Zio win on that
+combined candidate and run the native milestone checks. The isolated headless
+route reached Zio's defeat; it does not advance the native checkpoint or prove
+generic Godot tape replay.
 
 The exact 32×32 bridge match does not establish whole-scene visual parity,
 retail/native save-coordinate interchange, or later campaign progression.

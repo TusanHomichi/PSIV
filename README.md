@@ -19,17 +19,24 @@ Contributing with a coding agent? Start with [AGENTS.md](AGENTS.md) and the
 
 ## Where we are
 
-**Gameplay checkpoint: September 23, 2026.**
+**Native gameplay checkpoint: September 23, 2026.**
 
 **Workflow setup is complete:** the [evidence-driven workflow](docs/AGENT_WORKFLOW.md)
 is the standing default, and the [setup ledger](docs/records/WORKFLOW_SETUP.md) retains
 the verified graph and checks. The docs were merged through PR #1.
-**Latest campaign outcome:** the connected post-Rika party rested in Zema,
+**Historical native campaign outcome:** the connected post-Rika party rested in Zema,
 crossed the newly opened northern bridge, and saved on Motavia `$00 (84,64)`
 with all five alive and 1129 meseta. Fresh-process CONTINUE and save-byte
 validation pass. See the
-[current receipt](docs/field/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
+[historical native receipt](docs/field/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
 and [next task handoff](docs/ROADMAP.md#task-graph-handoff).
+
+**Headless Session milestone (isolated candidate, October 3):** the
+29-chapter ordinary-pad route plays New Game through `Cutscene_ZioDefeated`
+twice with identical tapes, digests and final camp-SAVE bytes. A fresh Session
+loads that save and both tapes replay to the same digest. This is
+[separate headless evidence](docs/campaign/RUNNER_LOG.md#70-frozen-headless-acceptance);
+the combined Godot/native milestone and generic Godot tape replay are pending.
 
 | Area | Current evidence |
 | --- | --- |
@@ -65,8 +72,9 @@ rerun or recertify either gameplay result.
 
 ## Next milestones
 
-1. Establish the source-backed route from the verified northern Motavia bank
-   to Aiedo, then verify that bounded arrival with SAVE/CONTINUE.
+1. Integrate the #70 ambush gate and Zio-win route with the presentation and
+   vehicle changes, then run the combined native milestone and generic Godot
+   tape replay checks.
 2. Close remaining battle abilities, enemy AI and camp command gaps as the
    campaign exposes them.
 3. Verify later story, vehicle and boss progression through ordinary input.
@@ -95,7 +103,8 @@ PSIV_SAVE_DIR="$PWD/saves" godot --path godot
 
 Use your Godot executable in place of `godot` if needed. Keep the default
 1280×800 viewport for desktop checks; reduced captures can clip camp windows.
-Arrow keys move; Enter/Space/Z confirm or interact; Escape/X open camp or cancel.
+The [input table](docs/DEVELOPMENT.md#launch-the-native-game) lists the
+current controls.
 
 [Developer setup and verification](docs/DEVELOPMENT.md) covers the ROM hash,
 save directories, test commands and local launcher assumptions.

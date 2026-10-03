@@ -150,6 +150,16 @@ impl CommandsMenu {
         self.actors.get(self.actor).copied()
     }
 
+    /// `Battle_ProcessCOMD` skips every party slot with a `$6E` status and
+    /// enters `Battle_OrderTurns` as soon as the scan is exhausted
+    /// (`ps4.asm:7636-7660`). The main COMD choice already supplied the
+    /// player's press; an empty actor list needs no second one.
+    pub(crate) fn no_actor_orders(&self) -> Option<RoundOrders> {
+        self.actors
+            .is_empty()
+            .then(|| RoundOrders::Commands(self.orders.clone()))
+    }
+
     fn actor_fighter(&self) -> Option<&psiv_core::battle::Fighter> {
         self.actor_id().and_then(|id| self.roster.get(id))
     }
@@ -371,9 +381,9 @@ impl CommandsMenu {
     }
 
     fn accept(&mut self) -> Option<RoundOrders> {
-        if self.actors.is_empty() {
+        if let Some(orders) = self.no_actor_orders() {
             self.open = false;
-            return Some(RoundOrders::Commands(self.orders.clone()));
+            return Some(orders);
         }
         if !self
             .rows()

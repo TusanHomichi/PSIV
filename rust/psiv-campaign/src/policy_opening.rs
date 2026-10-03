@@ -4,9 +4,11 @@
 //! Some story fights are won by an item, not by damage: the Psycho Wand,
 //! used from the battle's ITEM menu, strips the false form from the enemy
 //! Zio shows first (`next_arc.rs` `use_psycho_wand`, which asserts the
-//! enemy's stats reload). A player opens that fight with the item: the first
-//! actor of the first round takes ITEM, picks it, and everyone else fights.
-//! After that round this is the boss policy, unchanged.
+//! enemy's stats reload). A player opens the first round that accepts party
+//! commands with the item: its first actor takes ITEM, picks it, and everyone
+//! else fights. A scripted ambush lets the enemy act first without opening a
+//! command window; that enemy-only round cannot spend the opening. After the
+//! item round this is the boss policy, unchanged.
 //!
 //! The item is the route's knowledge, named by the policy (a route author
 //! chooses `psycho_wand_then_win` for the chapter that fights Zio); only a
@@ -22,7 +24,7 @@ use crate::policy_boss::BossPolicy;
 /// The Psycho Wand's cartridge item id.
 pub const PSYCHO_WAND: u8 = 0x39;
 
-/// Use one item in the first round of a scripted battle, then fight to win.
+/// Use one item in the first player-command round, then fight to win.
 #[derive(Debug)]
 pub struct OpeningItemPolicy {
     name: &'static str,

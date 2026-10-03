@@ -69,8 +69,8 @@
     {
       "id": "rune-dorin",
       "title": "Mile inn, Rune, the Valley Maze and Dorin at Tonoe",
-      "source": "tools/native/native_tonoe.gd route; rust/psiv-runtime/examples/tonoe_route.rs; docs/campaign/PLAYABILITY_HOLT_TONOE.md \"Connected native Tonoe completion\"; docs/scenes/14_MeetingRune.md, 15_MeetingDorin.md, 16_Dorin.md",
-      "random_battle_policy": "heal_then_attack",
+      "source": "tools/native/native_tonoe.gd route; rust/psiv-runtime/examples/tonoe_route.rs; docs/campaign/PLAYABILITY_HOLT_TONOE.md \"Connected native Tonoe completion\"; docs/scenes/14_MeetingRune.md, 15_MeetingDorin.md, 16_Dorin.md; docs/campaign/RUNNER_LOG.md #70 full-route probe (ordinary RUN from Valley Maze random encounters keeps the party alive when the ambush gate shifts the encounter stream)",
+      "random_battle_policy": "run_unless_boss",
       "objectives": [
         {"do": "go_to_map", "map": 29, "via_warp": 1, "note": "native leg: walk to (61,100) on map 0x00"},
         {"do": "go_to_map", "map": 35, "via_warp": 8, "note": "native leg: walk to (38,43) on map 0x1d"},
@@ -503,11 +503,11 @@
     {
       "id": "krup-training",
       "title": "Motavia outside Krup: training before the Machine Center and the tower",
-      "source": "docs/campaign/RUNNER_LOG.md run C2 (H19): Gy Laguiah (event battle 5, Ladea Tower F5) kills a level 12 to 13 party in five rounds; runtime-pack/shops.json (KrupInn counter (23,34) on map 62, 5 meseta a head)",
+      "source": "docs/campaign/RUNNER_LOG.md run C2 (H19): Gy Laguiah (event battle 5, Ladea Tower F5) kills a level 12 to 13 party in five rounds; RUNNER_LOG.md #70/Zio route trials: level-19 Krup training reaches Zio at 23/23/24/19/23 and loses, while level-23 Krup training plus Rika's retail GISAR choice wins; runtime-pack/shops.json (KrupInn counter (23,34) on map 62, 5 meseta a head)",
       "random_battle_policy": "default",
       "objectives": [
         {"do": "go_to_map", "map": 0, "note": "out of Krup by its gate"},
-        {"do": "patrol", "map": 0, "a": [109, 154], "b": [109, 165], "until": {"party_level_at_least": 19}, "refuge": [
+        {"do": "patrol", "map": 0, "a": [109, 154], "b": [109, 165], "until": {"party_level_at_least": 23}, "refuge": [
           {"do": "go_to_map", "map": 57},
           {"do": "go_to_map", "map": 62},
           {"do": "go_to", "map": 62, "cell": [23, 36]},
@@ -642,16 +642,17 @@
     {
       "id": "nurvus-zio",
       "title": "Nurvus B4: Zio, the Psycho Wand and Zio defeated",
-      "source": "docs/scenes/38_ZioNurvus.md (RunEvent_ZioNurvus $1F, Nurvus B4 Part2 $D3: Zio Nurvus $65 clear and leader Y exactly $1E0 = row 30; sets $65 and starts event battle 6) and docs/scenes/39_ZioDefeated.md (RunEvent_ZioDefeated $20: $65 set and Gryz Gone $68 clear; Cutscene_ZioDefeated $800B sets $68, $66, $61); rust/psiv-runtime/src/suites/next_arc.rs use_psycho_wand (the Psycho Wand, item $39, in the battle's first round); runtime-pack/maps/0D2_Nurvus_B4.json and 0D3_Nurvus_B4_Part2.json (the corridor at columns 30..31, rows 30..43)",
+      "source": "docs/scenes/38_ZioNurvus.md (RunEvent_ZioNurvus $1F, Nurvus B4 Part2 $D3: Zio Nurvus $65 clear and leader Y exactly $1E0 = row 30; sets $65 and starts event battle 6) and docs/scenes/39_ZioDefeated.md (RunEvent_ZioDefeated $20: $65 set and Gryz Gone $68 clear; Cutscene_ZioDefeated $800B sets $68, $66, $61 and seats Chaz/Rika/Rune); docs/source-notes/battle-party.md (#70: the ambush is enemy-only, so the Psycho Wand item $39 is chosen through ITEM on the first actual player-command round); runtime-pack/maps/0D2_Nurvus_B4.json and 0D3_Nurvus_B4_Part2.json (the corridor at columns 30..31, rows 30..43)",
       "random_battle_policy": "psycho_wand_then_win",
       "objectives": [
         {"do": "go_to_map", "map": 211, "note": "Nurvus B4 Part2 $D3 by B4 warp 1 (16,27), west along the corridor"},
-        {"do": "go_to", "map": 211, "cell": [30, 30], "note": "up the corridor; crossing row 30 starts event $34 and event battle 6. Halts today on port defects H22 (RUNNER_LOG.md): the scene resumes a dialogue instead of running entry $0B, and the Zio phase counter is unmodelled"},
-        {"do": "fight_scripted", "note": "event battle 6: Zio, opened with the Psycho Wand"},
-        {"do": "expect", "flags_set": ["event:0x65", "event:0x68", "event:0x66", "event:0x61"], "note": "38_ZioNurvus.md op 12 ($65) and 39_ZioDefeated.md ops 38-43 ($68, $66, $61)"}
+        {"do": "go_to", "map": 211, "cell": [30, 30], "note": "up the corridor; crossing row 30 starts event $34 and event battle 6"},
+        {"do": "fight_scripted", "note": "event battle 6: Zio, Psycho Wand in the first actual player-command round after the enemy-only ambush"},
+        {"do": "expect", "map": 0, "party": ["Chaz", "Rika", "Rune"], "flags_set": ["event:0x65", "event:0x68", "event:0x66", "event:0x61"], "note": "38_ZioNurvus.md op 12 ($65) and 39_ZioDefeated.md ops 33-43 (Gryz/Demi removed, Chaz revived, $68, $66, $61)"},
+        {"do": "save", "slot": 0, "note": "ordinary pad route through camp STATE -> SAVE after Cutscene_ZioDefeated settles; the result is save-dir/route/slot_1.sram, separate from the runner's read-only chapter snapshot"}
       ],
       "closing": [
-        {"flags_set": ["event:0x65", "event:0x68", "event:0x66", "event:0x61"]}
+        {"map": 0, "party": ["Chaz", "Rika", "Rune"], "flags_set": ["event:0x65", "event:0x68", "event:0x66", "event:0x61"]}
       ]
     }
   ]

@@ -13,8 +13,10 @@
 //! Everyone attacks the first living enemy the target list offers. When a
 //! party member is below [`HURT_PERCENT`] of their maximum HP, the first actor
 //! of the round who can cast a healing technique (battle effect 18, "heal HP")
-//! with the TP for it casts the cheapest one on the most hurt member; when
-//! nobody can, the first actor who can use a healing item from the pack does.
+//! with the TP for it casts the cheapest one on its most hurt eligible target;
+//! when nobody can, the first actor who can use a healing item from the pack
+//! does. Target eligibility is the battle menu's core rule, not a second
+//! interpretation in this policy.
 //! One heal a round: the rest attack. Losing is not a policy question: a
 //! defeated party halts the run.
 //!
@@ -35,7 +37,7 @@
 //! `fight_to_win` and `run_then_win` are the boss policy of
 //! [`crate::policy_boss`] (the second runs from random encounters);
 //! `psycho_wand_then_win` is `run_then_win` with an item used in the first
-//! round of a scripted battle ([`crate::policy_opening`]);
+//! player-command round of a scripted battle ([`crate::policy_opening`]);
 //! `attack_all`, `heal_then_attack`, `train_with_inn` and `bioplant_survival`
 //! resolve to `default` (the walk, the patrol and the inn they were named for
 //! are route objectives, not battle decisions). A route that needs another
@@ -43,7 +45,7 @@
 
 use crate::policy_boss::BossPolicy;
 use crate::policy_opening::OpeningItemPolicy;
-use psiv_core::battle::status;
+use psiv_core::battle::{FighterId, item_targets, status, technique_targets};
 use psiv_runtime::{CommandMenuView, PartyStatus, Runtime};
 
 /// A member below this share of their maximum HP is hurt enough to heal.
@@ -183,15 +185,31 @@ fn alive(member: &PartyStatus) -> bool {
     member.hp > 0 && member.status & status::DEAD == 0
 }
 
-fn hurt(member: &PartyStatus) -> bool {
-    alive(member) && u32::from(member.hp) * 100 < u32::from(member.max_hp) * HURT_PERCENT
+pub(crate) fn hurt(member: &PartyStatus) -> bool {
+    hurt_below(member, HURT_PERCENT)
 }
 
-/// The most hurt member: the lowest share of their maximum HP.
-pub(crate) fn most_hurt(party: &[PartyStatus]) -> Option<&PartyStatus> {
-    party.iter().filter(|m| hurt(m)).min_by(|a, b| {
-        (u32::from(a.hp) * u32::from(b.max_hp)).cmp(&(u32::from(b.hp) * u32::from(a.max_hp)))
-    })
+pub(crate) fn hurt_below(member: &PartyStatus, percent: u32) -> bool {
+    alive(member) && u32::from(member.hp) * 100 < u32::from(member.max_hp) * percent
+}
+
+/// Whether the cartridge's target list actually offers this party fighter.
+pub(crate) fn targetable(member: &PartyStatus, targets: &[FighterId]) -> bool {
+    FighterId::new(member.fighter).is_some_and(|id| targets.contains(&id))
+}
+
+/// The most hurt legal target: lowest share of maximum HP among the menu's
+/// eligible fighters, never merely the lowest number in the party strip.
+pub(crate) fn most_hurt_targetable<'a>(
+    party: &'a [PartyStatus],
+    targets: &[FighterId],
+) -> Option<&'a PartyStatus> {
+    party
+        .iter()
+        .filter(|m| hurt(m) && targetable(m, targets))
+        .min_by(|a, b| {
+            (u32::from(a.hp) * u32::from(b.max_hp)).cmp(&(u32::from(b.hp) * u32::from(a.max_hp)))
+        })
 }
 
 impl DefaultPolicy {
@@ -204,40 +222,54 @@ impl DefaultPolicy {
         if self.healed_this_round {
             return None;
         }
-        let patient = most_hurt(&menu.party)?;
+        let actor = FighterId::new(menu.actor?)?;
+        let roster = runtime.battle_roster()?;
+        // Retail allows a sealed TECH choice and spends TP on its wasted
+        // turn. This policy reads the live seal and chooses an item instead
+        // when one exists.
+        let sealed = roster.get(actor)?.stats.status & status::TECH_SEALED != 0;
         // A healing technique first: effect 18 is "heal HP".
-        let healing = runtime
-            .battle_techniques()
-            .filter(|technique| technique.effect == 18)
-            .map(|technique| technique.id)
-            .collect::<Vec<_>>();
-        let cure = menu
-            .techniques
-            .iter()
-            .filter(|entry| entry.available && healing.contains(&entry.id))
-            .min_by_key(|entry| entry.cost);
-        if let Some(cure) = cure {
-            let single = runtime
-                .battle_techniques()
-                .find(|technique| technique.id == cure.id)
-                .is_some_and(psiv_core::battle::Technique::single_target);
+        let cure = (!sealed)
+            .then(|| {
+                menu.techniques
+                    .iter()
+                    .filter(|entry| entry.available)
+                    .filter_map(|entry| {
+                        let tech = runtime.battle_techniques().find(|t| t.id == entry.id)?;
+                        if tech.effect != 18 || !tech.supported() {
+                            return None;
+                        }
+                        let targets = technique_targets(roster, actor, tech);
+                        let patient = most_hurt_targetable(&menu.party, &targets)?;
+                        Some((
+                            entry.cost,
+                            tech.id,
+                            tech.single_target().then_some(patient.fighter),
+                        ))
+                    })
+                    .min_by_key(|(cost, _, _)| *cost)
+            })
+            .flatten();
+        if let Some((_, id, target)) = cure {
             self.healed_this_round = true;
-            return Some(Intent::Technique {
-                id: cure.id,
-                target: single.then_some(patient.fighter),
-            });
+            return Some(Intent::Technique { id, target });
         }
         // Then a healing item the pack holds.
         let held = runtime.game().inventory();
         let item = runtime
             .battle_items()
             .filter(|item| item.effect == 18 && item.supported() && item.consumable)
-            .find(|item| held.contains(item.id));
-        if let Some(item) = item {
+            .filter(|item| held.contains(item.id))
+            .find_map(|item| {
+                let targets = item_targets(roster, actor, item);
+                let patient = most_hurt_targetable(&menu.party, &targets)?;
+                Some((item, item.single_target().then_some(patient.fighter)))
+            });
+        if let Some((item, target)) = item {
             self.healed_this_round = true;
             return Some(Intent::Item {
                 name: item.name.clone(),
-                target: item.single_target().then_some(patient.fighter),
+                target,
             });
         }
         None
@@ -302,16 +334,33 @@ mod tests {
     #[test]
     fn the_most_hurt_member_is_the_lowest_share_not_the_lowest_hp() {
         let party = [member(1, 30, 100), member(2, 5, 50), member(3, 90, 100)];
-        assert_eq!(most_hurt(&party).map(|m| m.fighter), Some(2));
-        assert_eq!(most_hurt(&[member(1, 50, 100)]).map(|m| m.fighter), None);
-        assert_eq!(most_hurt(&[member(1, 49, 100)]).map(|m| m.fighter), Some(1));
+        let targets = [FighterId::new(1).unwrap(), FighterId::new(2).unwrap()];
+        assert_eq!(
+            most_hurt_targetable(&party, &targets).map(|m| m.fighter),
+            Some(2)
+        );
+        assert_eq!(
+            most_hurt_targetable(&[member(1, 50, 100)], &targets).map(|m| m.fighter),
+            None
+        );
+        assert_eq!(
+            most_hurt_targetable(&[member(1, 49, 100)], &targets).map(|m| m.fighter),
+            Some(1)
+        );
+        assert_eq!(
+            most_hurt_targetable(&party, &targets[..1]).map(|m| m.fighter),
+            Some(1)
+        );
     }
 
     #[test]
     fn the_dead_are_not_patients() {
         let mut dead = member(1, 0, 100);
         dead.status = status::DEAD;
-        assert_eq!(most_hurt(&[dead, member(2, 90, 100)]), None);
+        assert_eq!(
+            most_hurt_targetable(&[dead, member(2, 90, 100)], &[FighterId::new(1).unwrap()]),
+            None
+        );
     }
 
     #[test]

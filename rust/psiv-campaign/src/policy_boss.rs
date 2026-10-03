@@ -5,11 +5,13 @@
 //! trying the strongest thing each member has and keeping the best-looking
 //! damage. This policy does that:
 //!
-//! 1. Healing first: one cure a round, for the most hurt member under half
-//!    HP, with the cheapest healing technique that restores what they are
-//!    missing (the strongest when none does). A boss hits for more than a
-//!    third of a member's HP, so the default policy's cheapest cure is a
-//!    wasted turn. With no technique the default policy's item cure applies.
+//! 1. Healing first: the most hurt member under half HP gets the cheapest
+//!    sufficient single-target cure, and a learned group cure covers two or
+//!    more eligible humans below 70% HP when one is available. The group cure
+//!    may follow an earlier actor's single cure in the same round. With no
+//!    technique the default policy's item cure applies. A sealed caster skips
+//!    TECH as a player who can see the seal would, though the retail menu
+//!    still lets the player select and waste it.
 //! 2. Otherwise the damage action with the highest estimated damage to the
 //!    first living enemy: the plain attack, a damaging technique the actor can
 //!    afford, or a damaging skill with uses left. An all-enemy action counts
@@ -22,10 +24,14 @@
 //! skips the experiment. It reads the roster through the runtime's read-only
 //! `battle_roster`, never a mutator.
 
-use psiv_core::battle::{FighterId, Stats};
+use psiv_core::battle::{FighterId, Stats, status, technique_targets};
 use psiv_runtime::{CommandMenuView, Runtime};
 
-use crate::policy::{DefaultPolicy, Intent, Policy, most_hurt};
+use crate::policy::{DefaultPolicy, Intent, Policy, hurt_below, most_hurt_targetable, targetable};
+
+/// A player uses a group cure early after shared damage, before the next
+/// all-party hit can kill a member. This is policy timing, not an engine rule.
+const GROUP_CURE_PERCENT: u32 = 70;
 
 /// The mean of `S + 8` in the damage formula: sixteen draws of 0..7 average 56.
 const MEAN_S_PLUS_8: u32 = 64;
@@ -76,6 +82,7 @@ pub struct BossPolicy {
     base: DefaultPolicy,
     current: Option<(u8, Intent)>,
     healed_this_round: bool,
+    group_healed_this_round: bool,
     /// Run from random encounters; only scripted battles are fought.
     run_encounters: bool,
 }
@@ -93,36 +100,92 @@ impl BossPolicy {
 
     /// The cure this actor casts now, when the round still needs one.
     fn heal(&mut self, menu: &CommandMenuView, runtime: &Runtime) -> Option<Intent> {
+        let actor = FighterId::new(menu.actor?)?;
+        let roster = runtime.battle_roster()?;
+        let caster = &roster.get(actor)?.stats;
+        let sealed = caster.status & status::TECH_SEALED != 0;
+        let men = u32::from(caster.mental.battle);
+
+        // SAR/GISAR/NASAR use target nibble 5. Use the same eligible target
+        // list as the TECH menu; a group cure is worth a separate command
+        // when it reaches at least two hurt allies, even after a single cure.
+        if !sealed && !self.group_healed_this_round {
+            let cures: Vec<_> = menu
+                .techniques
+                .iter()
+                .filter(|entry| entry.available)
+                .filter_map(|entry| {
+                    let tech = runtime.battle_techniques().find(|t| t.id == entry.id)?;
+                    if tech.effect != 18 || !tech.supported() || tech.targeting & 15 != 5 {
+                        return None;
+                    }
+                    let targets = technique_targets(roster, actor, tech);
+                    let hurt_targets: Vec<_> = menu
+                        .party
+                        .iter()
+                        .filter(|member| {
+                            hurt_below(member, GROUP_CURE_PERCENT) && targetable(member, &targets)
+                        })
+                        .collect();
+                    (hurt_targets.len() >= 2).then(|| {
+                        let need = hurt_targets
+                            .iter()
+                            .map(|member| u32::from(member.max_hp - member.hp))
+                            .max()
+                            .unwrap_or(0);
+                        (entry.cost, tech.id, men + u32::from(tech.power), need)
+                    })
+                })
+                .collect();
+            let chosen = cures
+                .iter()
+                .filter(|(_, _, amount, need)| amount >= need)
+                .min_by_key(|(cost, _, _, _)| *cost)
+                .or_else(|| cures.iter().max_by_key(|(_, _, amount, _)| *amount));
+            if let Some(&(_, id, _, _)) = chosen {
+                self.group_healed_this_round = true;
+                return Some(Intent::Technique { id, target: None });
+            }
+        }
         if self.healed_this_round {
             return None;
         }
-        let patient = most_hurt(&menu.party)?;
-        let need = u32::from(patient.max_hp.saturating_sub(patient.hp));
-        let actor = FighterId::new(menu.actor?)?;
-        let men = u32::from(runtime.battle_roster()?.get(actor)?.stats.mental.battle);
         // `Battle_CalcHealing` at its mean roll: (MEN + MEN + 2 * POWER) / 2.
-        let mut cures: Vec<(u32, u8, u32)> = menu
+        let mut cures: Vec<(u32, u8, u32, Vec<FighterId>)> = menu
             .techniques
             .iter()
-            .filter(|entry| entry.available)
+            .filter(|entry| entry.available && !sealed)
             .filter_map(|entry| {
                 let tech = runtime.battle_techniques().find(|t| t.id == entry.id)?;
                 (tech.effect == 18 && tech.supported() && tech.single_target()).then_some((
                     u32::from(entry.cost),
                     entry.id,
                     men + u32::from(tech.power),
+                    technique_targets(roster, actor, tech),
                 ))
             })
             .collect();
-        cures.sort_unstable();
+        let targets: Vec<_> = cures
+            .iter()
+            .flat_map(|(_, _, _, targets)| targets.iter().copied())
+            .collect();
+        let patient = most_hurt_targetable(&menu.party, &targets);
+        let need = patient.map(|p| u32::from(p.max_hp.saturating_sub(p.hp)));
+        cures.sort_unstable_by_key(|(cost, _, _, _)| *cost);
         let chosen = cures
             .iter()
-            .find(|(_, _, amount)| *amount >= need)
-            .or_else(|| cures.iter().max_by_key(|(_, _, amount)| *amount));
-        if let Some(&(_, id, _)) = chosen {
+            .filter(|(_, _, _, targets)| patient.is_some_and(|p| targetable(p, targets)))
+            .find(|(_, _, amount, _)| need.is_some_and(|need| *amount >= need))
+            .or_else(|| {
+                cures
+                    .iter()
+                    .filter(|(_, _, _, targets)| patient.is_some_and(|p| targetable(p, targets)))
+                    .max_by_key(|(_, _, amount, _)| *amount)
+            });
+        if let (Some((_, id, _, _)), Some(patient)) = (chosen, patient) {
             self.healed_this_round = true;
             return Some(Intent::Technique {
-                id,
+                id: *id,
                 target: Some(patient.fighter),
             });
         }
@@ -162,6 +225,9 @@ impl BossPolicy {
         living: u32,
         mut best: (u32, Intent),
     ) -> (u32, Intent) {
+        if me.status & status::TECH_SEALED != 0 {
+            return best;
+        }
         for entry in menu.techniques.iter().filter(|entry| entry.available) {
             let Some(tech) = runtime.battle_techniques().find(|t| t.id == entry.id) else {
                 continue;
@@ -268,6 +334,7 @@ impl Policy for BossPolicy {
     fn end_round(&mut self) {
         self.current = None;
         self.healed_this_round = false;
+        self.group_healed_this_round = false;
         self.base.end_round();
     }
 

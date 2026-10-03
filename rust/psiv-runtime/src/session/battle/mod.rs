@@ -57,7 +57,7 @@ pub use view::{
 use std::collections::BTreeMap;
 
 use psiv_core::Input;
-use psiv_core::battle::{BattleEvent, FighterId, Outcome, RoundOrders, Side};
+use psiv_core::battle::{BattleEvent, FighterId, Outcome, Priority, RoundOrders, Side};
 
 use crate::events::{BattleAnimationEvent, BattleTimeline};
 use crate::{Runtime, RuntimeEvent};
@@ -234,11 +234,13 @@ impl BattleMode {
         if runtime.battle_active() {
             let _ = runtime.tick(Input::Neutral);
         }
+        self.run_uncommanded_round(runtime);
         let orders = self.take_command(runtime, previous, pad);
         if let Some(orders) = orders {
             self.run_round(runtime, &orders);
         }
         self.advance(previous, pad);
+        self.run_uncommanded_round(runtime);
         self.service_finish(runtime);
         self.refresh_panes();
         let close_ready = std::mem::take(&mut self.close_ready);
@@ -308,10 +310,14 @@ impl BattleMode {
         match menu::top_input(&mut self.cursor, vehicle, previous, pad) {
             menu::TopChoice::Nothing => None,
             menu::TopChoice::Commands => {
-                self.window = Some(Window::Commands(Box::new(
-                    menu::CommandsMenu::with_command_bytes(runtime, self.command_bytes),
-                )));
-                None
+                let commands = menu::CommandsMenu::with_command_bytes(runtime, self.command_bytes);
+                if let Some(orders) = commands.no_actor_orders() {
+                    self.command_open = false;
+                    Some(orders)
+                } else {
+                    self.window = Some(Window::Commands(Box::new(commands)));
+                    None
+                }
             }
             menu::TopChoice::VehicleSkills => {
                 self.window = Some(Window::VehicleSkills(menu::VehicleWindow { cursor: 0 }));
@@ -337,6 +343,30 @@ impl BattleMode {
             Ok(timeline) => self.enqueue(timeline),
             Err(error) => self.fail_round(&error.to_string()),
         }
+    }
+
+    /// `loc_52D6` sends negative `Battle_Priority` straight to routine `$E`
+    /// before the main options (`ps4.asm:7568-7591`), and
+    /// `Battle_ProcessCOMD` skips party input (`ps4.asm:7636`). The engine's
+    /// `Battle_OrderTurns` queues enemies alone and clears that priority
+    /// (`ps4.asm:7739-7751,7938-7944`). Check both sides of `advance`: an
+    /// opening beat can finish on this frame, while an empty opening timeline
+    /// can leave the gate open before the first battle frame. Normal and
+    /// preemptive rounds still take menu input. A failed RUN's enemy-only turn
+    /// is already resolved inside the RUN round, without reopening this gate.
+    fn run_uncommanded_round(&mut self, runtime: &mut Runtime) {
+        if !self.command_open
+            || self.current.is_some()
+            || !self.queue.is_empty()
+            || self.finish_outcome.is_some()
+            || self.finish_request.is_some()
+            || runtime.battle_pending_priority() != Some(Priority::Ambush)
+        {
+            return;
+        }
+        self.command_open = false;
+        self.window = None;
+        self.run_round(runtime, &RoundOrders::attack_all());
     }
 
     /// Queues a timeline and starts its first event when nothing is playing.

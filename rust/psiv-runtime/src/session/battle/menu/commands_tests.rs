@@ -182,6 +182,28 @@ fn incapacitated_slots_are_skipped_and_group_tech_needs_no_target_cursor() {
 }
 
 #[test]
+fn an_alive_but_incapacitated_party_has_no_second_comd_press() {
+    let Some((_runtime, mut menu)) = menu() else {
+        return;
+    };
+    for who in [id(1), id(2), id(3)] {
+        menu.roster.get_mut(who).unwrap().stats.status = status::PARALYZED;
+    }
+    menu.actors = menu
+        .roster
+        .side(Side::Party)
+        .filter(|fighter| fighter.is_alive() && fighter.stats.can_act())
+        .map(|fighter| fighter.id)
+        .collect();
+    assert_eq!(menu.roster.living(Side::Party).count(), 3);
+    assert!(menu.actors.is_empty(), "`$6E` skips every party actor");
+    assert_eq!(
+        menu.no_actor_orders(),
+        Some(RoundOrders::Commands(vec![Command::Defend; 5]))
+    );
+}
+
+#[test]
 fn skills_keep_ids_and_targets_without_spending_uses_in_the_menu() {
     let Some((_runtime, mut menu)) = menu() else {
         return;
