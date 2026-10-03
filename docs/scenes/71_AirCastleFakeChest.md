@@ -19,3 +19,5 @@ body is excluded. ROM range: `$070B56..$070C30` exclusive end.
 | 3-9 | `$070B76..$070C18` | six object clear/animation groups and map-load bit `$08` | object/map presentation |
 | 10 | `$070C19..$070C2F` | event battle `$0F`, return `1` | battle |
 
+The dialogue call is `Event_GetAndRunDialogue2` (`$5ACDC`), the retained window
+(`retained(0x3C)`): see [the Dialogue2 audit](DIALOGUE2_CALLERS.md).

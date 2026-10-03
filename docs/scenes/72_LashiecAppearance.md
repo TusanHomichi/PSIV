@@ -19,3 +19,5 @@ Grand Cross branch is excluded. ROM range: `$070CB4..$070E4E` exclusive end.
 | 7-11 | `$070DDB..$070E3C` | set Lashiec `$9B`, saved red-alert music, map flags `$88`, battle `$10` | flag/music/battle |
 | 11 | `$070E3D..$070E4D` | event return `1` | return |
 
+The dialogue call is `Event_GetAndRunDialogue2` (`$5ACDC`), the retained window
+(`retained(0x37)`): see [the Dialogue2 audit](DIALOGUE2_CALLERS.md).

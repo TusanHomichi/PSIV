@@ -18,3 +18,5 @@ excluded (`ps4.options.asm:10`). ROM range: `$070B30..$070B56` exclusive end.
 | 0-1 | `$070B30..$070B42` | dialogue tree entry `$36`; set Xe A Thoul `$9A` | dialogue/flag |
 | 2-4 | `$070B43..$070B55` | map-load bit `$08`; event battle `$0E`; return `1` | map/battle |
 
+The dialogue call is `Event_GetAndRunDialogue2` (`$5ACDC`), the retained window
+(`retained(0x36)`): see [the Dialogue2 audit](DIALOGUE2_CALLERS.md).

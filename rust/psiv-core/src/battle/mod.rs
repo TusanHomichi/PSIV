@@ -84,12 +84,14 @@ mod records;
 mod retarget;
 mod rewards;
 mod rng;
+mod scripted_flag;
 mod skill;
 mod stats;
 mod tables;
 mod technique;
 mod vehicle_attack;
 mod vehicle_skill;
+mod zio;
 
 pub use enemy_skill::EnemySkill;
 

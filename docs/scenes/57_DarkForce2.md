@@ -17,3 +17,5 @@ is excluded. ROM range: `$070976..$0709A2` exclusive end.
 | 0-1 | `$070976..$07098B` | dialogue tree entry `$3A`; set Dark Force 2 `$9E` | dialogue/flag |
 | 2-5 | `$07098C..$0709A1` | stop all, map-load bit `$80`, battle `$11`, return `1` | battle/map flags |
 
+The dialogue call is `Event_GetAndRunDialogue2` (`$5ACDC`), the retained window
+(`retained(0x3A)`): see [the Dialogue2 audit](DIALOGUE2_CALLERS.md).
