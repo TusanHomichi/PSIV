@@ -129,3 +129,14 @@ class BuildByDefaultTest(unittest.TestCase):
     def test_legacy_build_flag_still_parses(self):
         self.assertFalse(certify.build_parser().parse_args(["--build"]).no_build)
 
+
+class CaptureTimeoutTest(unittest.TestCase):
+    """The capture budget scales with the tick it must reach."""
+
+    def test_long_pairs_get_longer_budgets(self):
+        self.assertGreater(certify.capture_timeout(4550), certify.capture_timeout(60))
+
+    def test_the_longest_pair_outlasts_ten_frames_a_second(self):
+        longest = max(tick for _, _, tick, *_ in certify.PAIRS)
+        self.assertGreaterEqual(certify.capture_timeout(longest), (longest + certify.QUIT_MARGIN) / 10)
+

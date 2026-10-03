@@ -133,6 +133,18 @@ def oracle_frame(name, frame, digest, recipe, receipt):
     return path, None
 
 
+#: Software GL under Xvfb renders a few frames a second on a loaded machine
+#: (opening-p2 reached tick 3018 of 4580 in 300 s at load 8), so a capture's
+#: budget scales with how far it must run instead of a flat cap.
+TIMEOUT_BASE_S = 120
+TIMEOUT_PER_TICK_S = 0.25
+
+
+def capture_timeout(tick):
+    """Seconds a capture to `tick` may take before it is called hung."""
+    return int(TIMEOUT_BASE_S + (tick + QUIT_MARGIN) * TIMEOUT_PER_TICK_S)
+
+
 def capture(name, env, tick, receipt):
     shot = receipt / f"{name}-t{tick}.png"
     # A fresh, empty save directory per run: the title shows CONTINUE (and the
@@ -142,7 +154,7 @@ def capture(name, env, tick, receipt):
     full_env = {**os.environ, "LIBGL_ALWAYS_SOFTWARE": "1", "PSIV_DEBUG_SCENE_TICKS": "1",
                 "PSIV_SAVE_DIR": str(saves),
                 "PSIV_DEBUG_SHOT": str(shot), "PSIV_DEBUG_SHOT_FRAME": str(tick), **env}
-    command = ["xvfb-run", "-a", "timeout", "300s", GODOT,
+    command = ["xvfb-run", "-a", "timeout", f"{capture_timeout(tick)}s", GODOT,
                "--log-file", str(receipt / f"{name}-godot.log"), *GODOT_FLAGS,
                "--path", "godot", "--quit-after", str(tick + QUIT_MARGIN)]
     with open(receipt / f"{name}-run.log", "w") as handle:
