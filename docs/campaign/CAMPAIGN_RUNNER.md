@@ -299,9 +299,13 @@ and its child absent after cleanup. `save-probe-negative.json` records the
 existing-output and over-600-frame refusals with no overwritten file. Earlier
 failed import, cell-format and terminated
 attempts remain in the ignored ledger. The Aiedo run logged five map-0
-background errors and seven panel warnings; map-0 fallback predates this
-candidate (issue #40). The selected
-Zio field image is a rendered milestone, not a scene-wide oracle comparison.
+background errors; map-0 fallback predates this candidate (issue #40). Its
+seven Alshline panel warnings are a false typed art-ID diagnostic for retail
+operand-free stack pops, tracked by [#74](https://github.com/TusanHomichi/PSIV/issues/74)
+and the [scene op ledger](../scenes/SCENE_PRESENTATION.md#op-coverage); no
+visual mismatch was observed in that classification, and no source fix is
+claimed here. The selected Zio field image is a rendered milestone, not a
+scene-wide oracle comparison.
 The older `native-zio-rendered-continue-2` zero-pad capture is almost black
 because it freezes during the title fade; its state/save proof remains valid,
 but that image is **not** evidence of a visible loaded world. The 180-pad
