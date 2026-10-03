@@ -60,19 +60,19 @@ func _physics_process(_delta):
             elif submitted == 1: selected_tech = 17
             elif menu.skills.any(func(s): return int(s.id) == 34 and s.available): selected_skill = 34
             record("round-%02d" % (submitted+1),state)
-        if menu.page == "Actions": choose(menu.cursor,2 if selected_skill >= 0 else (1 if selected_tech >= 0 else 0))
+        if menu.page == "Actions": choose_strip(menu.cursor,2 if selected_skill >= 0 else (1 if selected_tech >= 0 else 0))
         elif menu.page == "Skills":
             var wanted = menu.skills.map(func(s): return int(s.id)).find(selected_skill)
             if wanted < 0 or not menu.skills[wanted].available:
                 fail("CRASH unavailable",state)
                 return false
-            choose(menu.cursor,wanted)
+            choose_list(menu, wanted)
         elif menu.page == "Techniques":
             var wanted = menu.techniques.map(func(s): return int(s.id)).find(selected_tech)
             if wanted < 0 or not menu.techniques[wanted].available:
                 fail("BROSE unavailable",state)
                 return false
-            choose(menu.cursor,wanted)
+            choose_list(menu, wanted)
         elif menu.page.begins_with("Targets"): press("ui_accept")
         else: fail("unexpected combat menu",state)
         return false

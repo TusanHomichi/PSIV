@@ -42,6 +42,7 @@ from psiv_tools.battle_art_pack import (
     CHARACTER_ART_NAME,
     CHARACTER_PNG_DIRECTORY,
     ENEMY_ART_NAME,
+    COMMAND_UI_ART_NAME,
     ENEMY_ATTACK_ART_NAME,
     ENEMY_ATTACK_ART_DIRECTORY,
     ENEMY_OVERLAY_ART_NAME,
@@ -58,6 +59,10 @@ from psiv_tools.core import read_rom
 
 ROM = Path(__file__).resolve().parents[1] / "Phantasy Star IV (USA).md"
 DISASM = Path(__file__).resolve().parents[1] / "reference" / "ps4disasm" / "ps4.asm"
+COMMAND_ORACLE_STATE = (
+    Path(__file__).resolve().parents[1]
+    / "oracle/states/battle_command_idle_vdp_25000.json"
+)
 
 PACK_VERSION = 1
 
@@ -150,6 +155,7 @@ class TestEmittedFiles(unittest.TestCase):
             ("enemy_attacks", ENEMY_ATTACK_ART_NAME),
             ("characters", CHARACTER_ART_NAME),
             ("backgrounds", BACKGROUND_ART_NAME),
+            ("command_ui", COMMAND_UI_ART_NAME),
         ):
             with self.subTest(key=key):
                 blob = (self.root / name).read_bytes()
@@ -215,6 +221,47 @@ class TestEmittedFiles(unittest.TestCase):
                     self.assertEqual(chunks[b"IHDR"][9], png.COLOR_TYPE_INDEXED)
                     self.assertEqual(list(chunks[b"tRNS"])[TRANSPARENT_INDEX], 0)
 
+    def test_command_ui_art_is_the_two_nemesis_streams(self):
+        # `loc_7382` (`ps4.asm:10975`) decompresses 30 icon tiles to VRAM tile
+        # $15E and 8 cursor tiles to $17C. `loc_7634` copies 15 palette words
+        # from `loc_76A4` into CRAM line 3 (`ps4.asm:11213-11217,11250`).
+        art = json.loads((self.root / COMMAND_UI_ART_NAME).read_text())
+        self.assertEqual(art["format_version"], PACK_VERSION)
+        self.assertEqual(art["tile_count"], 38)
+        self.assertEqual(
+            [(s["name"], s["rom_offset"], s["tile_count"], s["first_vram_tile"])
+             for s in art["streams"]],
+            [("icons", "0x27D860", 30, 0x15E), ("cursor", "0x27DA70", 8, 0x17C)],
+        )
+        tiles = {t["vram_tile"]: t["rows"] for t in art["tiles"]}
+        self.assertEqual(sorted(tiles), list(range(0x15E, 0x184)))
+        for rows in tiles.values():
+            self.assertEqual([len(row) for row in rows], [8] * 8)
+        rom = read_rom(ROM)
+        self.assertEqual(
+            art["palette_line_3"],
+            [int.from_bytes(rom[i:i + 2], "big") for i in range(0x76A4, 0x76A4 + 30, 2)],
+        )
+
+    @unittest.skipUnless(COMMAND_ORACLE_STATE.is_file(), "local oracle VDP state absent")
+    def test_command_ui_art_matches_oracle_vram_and_cram(self):
+        # Tape 07 frame 25000 has the command streams loaded. This compares
+        # all 38 tiles and the actual CRAM line, without committed pixel data.
+        art = json.loads((self.root / COMMAND_UI_ART_NAME).read_text())
+        regions = json.loads(COMMAND_ORACLE_STATE.read_text())["regions"]
+        vram = bytes.fromhex(regions["vdp_vram"]["bytes_hex"])
+        cram = bytes.fromhex(regions["cram"]["bytes_hex"])
+        for tile in art["tiles"]:
+            at = tile["vram_tile"] * 32
+            self.assertEqual(
+                bytes.fromhex("".join(tile["rows"])), vram[at:at + 32],
+                f"VRAM tile ${tile['vram_tile']:X}",
+            )
+        self.assertEqual(
+            art["palette_line_3"],
+            [int.from_bytes(cram[i:i + 2], "big") for i in range(0x62, 0x80, 2)],
+        )
+
     def test_json_is_canonical_and_newline_terminated(self):
         for name in (
             ENEMY_ART_NAME,
@@ -222,6 +269,7 @@ class TestEmittedFiles(unittest.TestCase):
             ENEMY_ATTACK_ART_NAME,
             CHARACTER_ART_NAME,
             BACKGROUND_ART_NAME,
+            COMMAND_UI_ART_NAME,
         ):
             with self.subTest(file=name):
                 text = (self.root / name).read_text()

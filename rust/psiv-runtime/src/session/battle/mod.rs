@@ -39,16 +39,19 @@
 //! raised `Sound_Index` `$8B`; the shell plays it. Art, chrome, layout and
 //! animation frames stay in `psiv-godot/src/battle/`.
 
+mod blink;
+mod fixture;
 mod menu;
 mod narration;
+mod panes;
 mod presentation;
 mod queue;
 mod view;
 
 pub use view::{
     BattleBeat, BattleStart, BattleView, BeatView, CommandMenuView, DamageView, EnemyStatus,
-    MenuPage, MenuRow, MenuView, MessageKind, PartyStatus, SkillEntry, SkillSlotView, TargetKind,
-    TechniqueEntry,
+    MenuPage, MenuRow, MenuView, MessageKind, PaneView, PartyStatus, SkillEntry, SkillSlotView,
+    TargetKind, TechniqueEntry,
 };
 
 use std::collections::BTreeMap;
@@ -134,6 +137,16 @@ pub(crate) struct BattleMode {
     party: Vec<PartyStatus>,
     /// The battle's enemies with the visibility the played beats decided.
     enemies: Vec<EnemyStatus>,
+    /// `Battle_Command_Data`'s command byte per party slot: what each pane's
+    /// icon shows, kept across rounds the way the cartridge keeps it.
+    command_bytes: [u8; 5],
+    /// What each pane draws this frame.
+    panes: Vec<PaneView>,
+    /// The party bodies drawn so far in the round being played: the fighters
+    /// that have acted. `None` outside a round, when every body is drawn.
+    acted: Option<Vec<u8>>,
+    /// The red cursor's blink timers (`$FFFF41D2`/`$FFFF41D4`).
+    blink: blink::CursorBlink,
     /// Whether the command surface is open.
     command_open: bool,
     /// The COMD / MACR / RUN cursor (`Battle_Main_Option_Index`).
@@ -174,6 +187,10 @@ impl BattleMode {
             character_names: BTreeMap::new(),
             party: Vec::new(),
             enemies: Vec::new(),
+            command_bytes: [0; 5],
+            panes: Vec::new(),
+            acted: None,
+            blink: blink::CursorBlink::default(),
             command_open: false,
             cursor: 0,
             window: None,
@@ -188,6 +205,7 @@ impl BattleMode {
         mode.seat(runtime);
         mode.queue = queue::queue_timeline(timeline);
         mode.start_next_event();
+        mode.refresh_panes();
         mode
     }
 
@@ -222,6 +240,7 @@ impl BattleMode {
         }
         self.advance(previous, pad);
         self.service_finish(runtime);
+        self.refresh_panes();
         let close_ready = std::mem::take(&mut self.close_ready);
         BattleFrame {
             view: Some(self.view(runtime, close_ready)),
@@ -244,6 +263,18 @@ impl BattleMode {
         {
             return None;
         }
+        // The windows whose cursor routine is `Battle_UpdateRedCursor` or
+        // `Battle_UpdateRedCursor2` advance the blink timers on every frame
+        // they run: the main options, the lists and the mounted skills. The
+        // strip and the target pickers move a sprite instead.
+        let ticks = match &self.window {
+            None | Some(Window::VehicleSkills(_)) => true,
+            Some(Window::Commands(commands)) => commands.red_cursor_window(),
+        };
+        if ticks {
+            self.blink
+                .tick(pad.any(), menu::accept_pressed(previous, pad));
+        }
         if let Some(mut window) = self.window.take() {
             // `Battle_VehSkills` (`ps4.asm:7463`): B leaves the mounted
             // window; the shell's own copy reset its cursor and reopened the
@@ -252,6 +283,7 @@ impl BattleMode {
                 Window::Commands(commands) => {
                     let orders = commands.input(previous, pad);
                     let keep = commands.open;
+                    self.command_bytes = commands.command_bytes();
                     (orders, keep)
                 }
                 Window::VehicleSkills(skills) => {
@@ -276,7 +308,9 @@ impl BattleMode {
         match menu::top_input(&mut self.cursor, vehicle, previous, pad) {
             menu::TopChoice::Nothing => None,
             menu::TopChoice::Commands => {
-                self.window = Some(Window::Commands(Box::new(menu::CommandsMenu::new(runtime))));
+                self.window = Some(Window::Commands(Box::new(
+                    menu::CommandsMenu::with_command_bytes(runtime, self.command_bytes),
+                )));
                 None
             }
             menu::TopChoice::VehicleSkills => {
@@ -296,6 +330,9 @@ impl BattleMode {
 
     /// Resolves one round with `orders` and queues its timeline.
     fn run_round(&mut self, runtime: &mut Runtime, orders: &RoundOrders) {
+        // The command phase erased the party rows; each body comes back as
+        // its owner acts.
+        self.acted = Some(Vec::new());
         match runtime.battle_round_timeline(orders) {
             Ok(timeline) => self.enqueue(timeline),
             Err(error) => self.fail_round(&error.to_string()),
@@ -350,6 +387,8 @@ impl BattleMode {
             return;
         }
         let Some(queued) = self.queue.pop_front() else {
+            // The round is over: every party body is drawn again.
+            self.acted = None;
             if let Some(outcome) = self.finish_outcome.take() {
                 self.finish_request = Some((outcome, self.reward_each));
                 self.command_open = false;
@@ -357,12 +396,34 @@ impl BattleMode {
                 self.close_ready = true;
                 self.command_open = false;
             } else {
+                // `Battle_OpenMainOptions` (`ps4.asm:1850`) clears the first
+                // fighter's command byte once, as the options open.
+                if !self.command_open {
+                    // The round's end (`loc_5BAE`, `ps4.asm:8419`) cleared
+                    // the whole command table before it.
+                    self.command_bytes = [0; 5];
+                }
                 self.command_open = true;
                 self.message.clear();
                 self.message_kind = MessageKind::None;
             }
             return;
         };
+        if let Some(acted) = self.acted.as_mut() {
+            let actor = match &queued.event {
+                BattleEvent::Attacked { actor, .. }
+                | BattleEvent::Defended { actor }
+                | BattleEvent::TechniqueUsed { actor, .. }
+                | BattleEvent::SkillUsed { actor, .. }
+                | BattleEvent::ItemUsed { actor, .. } => Some(*actor),
+                _ => None,
+            };
+            if let Some(actor) = actor.filter(|actor| actor.side() == Side::Party)
+                && !acted.contains(&actor.get())
+            {
+                acted.push(actor.get());
+            }
+        }
         self.sounds.extend(queued.sounds);
         self.animations.extend(queued.animations);
         let event = queued.event;
@@ -386,6 +447,8 @@ impl BattleMode {
             removed,
             fighter,
             name,
+            enemy_id,
+            position,
             ..
         } = &event
         {
@@ -394,6 +457,8 @@ impl BattleMode {
                 enemy.visible = enemy.fighter == fighter.get();
                 if enemy.fighter == fighter.get() {
                     enemy.name.clone_from(name);
+                    enemy.enemy_id = *enemy_id;
+                    enemy.position = Some(*position);
                 }
             }
             self.names.insert(fighter.get(), name.clone());

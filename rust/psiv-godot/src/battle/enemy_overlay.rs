@@ -161,6 +161,15 @@ impl EnemyAnimation {
         self.texture.clone()
     }
 
+    /// Each piece's `(frame, timer)`, the pair the cartridge keeps in its
+    /// enemy sprite object (`$FFFFEA00 + $20 * piece`, words at `$0E`).
+    pub(super) fn clocks(&self) -> Vec<(usize, u8)> {
+        self.pieces
+            .iter()
+            .map(|piece| (piece.frame, piece.timer))
+            .collect()
+    }
+
     pub(super) fn attack_spec(&self) -> Option<AttackAnimation> {
         self.attack.clone()
     }

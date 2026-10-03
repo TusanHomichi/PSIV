@@ -59,13 +59,13 @@ func _physics_process(_delta):
             menu_open = true
             record("round-%02d" % (rounds+1),state)
         var casting = rounds < plan.size() and int(menu.character) == 8
-        if menu.page == "Actions": choose(menu.cursor,1 if casting else (4 if rounds < plan.size() else 0))
+        if menu.page == "Actions": choose_strip(menu.cursor,1 if casting else (4 if rounds < plan.size() else 0))
         elif menu.page == "Techniques":
             var wanted = menu.techniques.map(func(t): return int(t.id)).find(plan[rounds][0])
             if wanted < 0 or not menu.techniques[wanted].available:
                 fail("RIMIT unavailable",state)
                 return false
-            choose(menu.cursor,wanted)
+            choose_list(menu, wanted)
         elif menu.page.begins_with("Targets"):
             if casting:
                 var wanted = menu.targets.map(func(id): return int(id)).find(plan[rounds][1])

@@ -5,7 +5,6 @@
 //! (`docs/battle/BATTLE_GEOMETRY.md`, `oracle/layouts/*.json`); what the
 //! windows *say* now comes from the runtime's `BattleView`.
 
-use godot::builtin::PackedVector2Array;
 use godot::prelude::*;
 
 use psiv_runtime::{BattleView, MenuView, MessageKind};
@@ -18,21 +17,27 @@ use super::{
 };
 use crate::battle::chrome::WindowRect;
 use crate::battle::layout::{DEFAULT_TRANSIENT_COLUMN, append_status_quads, tile_dest};
-use crate::battle::{layout, menu_draw, status, vehicle_ui};
+use crate::battle::{command_window, layout, menu_draw, vehicle_ui};
 
 /// Builds this frame's quads and paints them.
 pub(super) fn compose(screen: &mut BattleScreen) {
     let mut quads = Vec::new();
-    let mut icon_pixels = Vec::new();
+    let mut sprites = Vec::new();
     if let (Some(chrome), Some(view)) = (screen.chrome.as_ref(), screen.view.as_ref()) {
         let cell = chrome.cell;
+        // The enemy name window is up for the main options and for every
+        // per-character window opened from them.
+        if matches!(
+            view.menu.as_ref(),
+            Some(MenuView::Top { .. } | MenuView::Commands(_))
+        ) && let Some(frame) = chrome.frame(ENEMY_NAME_RECT)
+        {
+            quads.extend(frame);
+            let name = first_visible_enemy(view).map_or("", String::as_str);
+            quads.extend(chrome.text(name, ENEMY_NAME_TEXT_RECT));
+        }
         match view.menu.as_ref() {
             Some(MenuView::Top { cursor }) => {
-                if let Some(frame) = chrome.frame(ENEMY_NAME_RECT) {
-                    quads.extend(frame);
-                    let name = first_visible_enemy(view).map_or("", String::as_str);
-                    quads.extend(chrome.text(name, ENEMY_NAME_TEXT_RECT));
-                }
                 if let Some(frame) = chrome.frame(COMMAND_RECT) {
                     quads.extend(frame);
                     let labels = if screen.vehicle_index.is_some() {
@@ -43,7 +48,11 @@ pub(super) fn compose(screen: &mut BattleScreen) {
                     quads.extend(chrome.text_with_pitch(labels, COMMAND_TEXT_RECT, 16.0));
                 }
                 for row in 0..COMMAND_CURSOR_WORDS.len() {
-                    let pattern = if row == *cursor { 0x6e8 } else { 0x6e7 };
+                    let pattern = if row == *cursor && view.cursor_red {
+                        0x6e8
+                    } else {
+                        0x6e7
+                    };
                     if let Some(quad) =
                         chrome.window_word(pattern, false, false, tile_dest(4, 6 + row as i32 * 2))
                     {
@@ -51,6 +60,14 @@ pub(super) fn compose(screen: &mut BattleScreen) {
                         // retail blue disabled/unselected form for the others.
                         quads.push(quad);
                     }
+                }
+            }
+            Some(MenuView::Commands(commands)) if commands.strip.is_some() => {
+                command_window::draw_strip(chrome, &mut screen.tiles, commands, &mut quads);
+                if commands.list.is_some() {
+                    command_window::draw_list(chrome, commands, view.cursor_red, &mut quads);
+                } else {
+                    sprites = command_window::strip_cursor(&mut screen.tiles, commands);
                 }
             }
             Some(MenuView::Commands(commands)) => menu_draw::draw(chrome, commands, &mut quads),
@@ -86,7 +103,7 @@ pub(super) fn compose(screen: &mut BattleScreen) {
             }
             MessageKind::None | MessageKind::Transient | MessageKind::Wide => {}
         }
-        append_status_quads(chrome, &view.party, &mut quads);
+        append_status_quads(chrome, &mut screen.tiles, view, &mut quads);
         if let Some(damage) = view.damage
             && let Some(column) = screen.damage_column(damage.target)
         {
@@ -103,21 +120,12 @@ pub(super) fn compose(screen: &mut BattleScreen) {
             };
             quads.extend(chrome.damage_quads(damage.amount, rect));
         }
-        icon_pixels = status::status_pixels(chrome.palette, &view.party);
     }
-    for quad in quads {
+    // Sprites after the planes: the cursor's priority bit puts it above them.
+    for quad in quads.into_iter().chain(sprites) {
         screen
             .base_mut()
             .draw_texture_rect_region(&quad.texture, quad.dest, quad.src);
-    }
-    for (position, color) in icon_pixels {
-        let points = PackedVector2Array::from(&[
-            position,
-            Vector2::new(position.x + 1.0, position.y),
-            Vector2::new(position.x + 1.0, position.y + 1.0),
-            Vector2::new(position.x, position.y + 1.0),
-        ]);
-        screen.base_mut().draw_colored_polygon(&points, color);
     }
 }
 

@@ -20,7 +20,7 @@ other document sits in the folder for its area.
 
 - [Battle research](battle/BATTLE_SCOUT.md) and its [worked continuation](battle/BATTLE_SCOUT_CONTINUATION.md).
 - [Enemy ability inventory](battle/ENEMY_ABILITIES.md), [enemy damage routes](battle/ENEMY_DAMAGE_ROUTES.md), [enemy POISON](battle/ENEMY_POISON.md), [enemy status and stat effects](battle/ENEMY_EFFECT_ABILITIES.md), [enemy Fusion](battle/ENEMY_FUSION.md).
-- [Battle animations](battle/BATTLE_ANIMATIONS.md), [battle geometry](battle/BATTLE_GEOMETRY.md), [battle recovery](battle/BATTLE_RECOVERY.md), [instant death](battle/INSTANT_DEATH.md).
+- [Battle command windows, status panes and the MetaSlug](battle/BATTLE_COMMAND_UI.md), [battle animations](battle/BATTLE_ANIMATIONS.md), [battle geometry](battle/BATTLE_GEOMETRY.md), [battle recovery](battle/BATTLE_RECOVERY.md), [instant death](battle/INSTANT_DEATH.md).
 - [THREAD](battle/THREAD.md), [RIMIT](battle/RIMIT.md).
 
 ## oracle — cartridge-comparison ledgers

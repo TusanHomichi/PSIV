@@ -284,21 +284,27 @@ fn the_first_basement_battle_is_fought_with_pad_presses() {
     assert_eq!(menu.actor, Some(1), "the first party slot answers first");
     assert_eq!(menu.character, Some(0), "Chaz");
 
-    // Menu navigation: one step down to TECH, one step back up.
-    let down = tap(&mut session, Button::Down);
+    // Menu navigation: the strip is Left/Right only (`Battle_CharCommand`),
+    // so Down does nothing; one step right to TECH, one step back left.
+    let ignored = tap(&mut session, Button::Down);
+    let Some(MenuView::Commands(menu)) = view(&ignored).menu.clone() else {
+        panic!("the command window stays open");
+    };
+    assert_eq!(menu.cursor, 0, "Down is not tested by the strip");
+    let down = tap(&mut session, Button::Right);
     let Some(MenuView::Commands(menu)) = view(&down).menu.clone() else {
         panic!("the command window stays open");
     };
-    assert_eq!(menu.cursor, 1, "TECH is the second row");
+    assert_eq!(menu.cursor, 1, "TECH is the second icon");
     assert_eq!(menu.rows[1].label, "TECH");
-    let up = tap(&mut session, Button::Up);
+    let up = tap(&mut session, Button::Left);
     let Some(MenuView::Commands(menu)) = view(&up).menu.clone() else {
         panic!("the command window stays open");
     };
     assert_eq!(menu.cursor, 0, "and back to ATTACK");
 
     // A technique with a target: TECH -> RES -> a party member.
-    tap(&mut session, Button::Down);
+    tap(&mut session, Button::Right);
     let techniques = tap(&mut session, Button::Speak);
     let Some(MenuView::Commands(menu)) = view(&techniques).menu.clone() else {
         panic!("TECH opens the technique list");
@@ -499,4 +505,103 @@ fn cancelling_out_of_a_target_list_returns_to_the_menu() {
         "cancel from the target list: page {:?}, cursor {}, actor {:?}, enemies {enemies_before:?}",
         menu.page, menu.cursor, menu.actor
     );
+}
+
+/// Plays tape 07's first round with pad presses only: Alys opens TECH and
+/// picks the first entry, Chaz and Hahn defend. `spec` seeds the fixture
+/// (`PSIV_DEBUG_BATTLE_WINDOW`). Returns the narration lines the round showed,
+/// Alys's TP when the options came back, and whether the first technique row
+/// was enabled in the list.
+fn alys_casts_her_first_technique(spec: &str) -> Option<(Vec<String>, u16, bool)> {
+    let pack = pack()?;
+    let files = BattleFiles::load(pack).expect("battle files load");
+    let mut session = Session::start(GameData::load(pack).expect("pack loads"))
+        .with_battles(files)
+        .field()
+        .expect("the pack boots");
+    let opening = session.debug_battle_window(TAPE_07_FORMATION, spec);
+    assert!(opening.fault.is_none(), "{:?}", opening.fault);
+    tick(&mut session, Pad::NEUTRAL);
+    let tap = |session: &mut Session, button: Button| {
+        let down = tick(session, Pad::new(button));
+        let up = tick(session, Pad::NEUTRAL);
+        (down, up)
+    };
+    // COMD opens Alys's strip; Right is TECH; Speak opens the list.
+    tap(&mut session, Button::Speak);
+    tap(&mut session, Button::Right);
+    let (_, listed) = tap(&mut session, Button::Speak);
+    let Some(MenuView::Commands(menu)) = view(&listed).menu.clone() else {
+        panic!("TECH opens the technique list");
+    };
+    assert_eq!(menu.page, MenuPage::Techniques);
+    let enabled = menu.rows[0].enabled;
+    // Choose the first row and any target it asks for, then let Chaz and
+    // Hahn defend.
+    let mut defenders = 0;
+    for _ in 0..40 {
+        let current = tick(&mut session, Pad::NEUTRAL);
+        let Some(MenuView::Commands(menu)) = view(&current).menu.clone() else {
+            break;
+        };
+        match (menu.page, menu.actor) {
+            (MenuPage::Techniques, _) => {
+                tap(&mut session, Button::Speak);
+            }
+            (MenuPage::Targets(_), _) => {
+                tap(&mut session, Button::Speak);
+            }
+            (MenuPage::Actions, Some(2 | 3)) => {
+                let steps = (4 + 5 - menu.cursor) % 5;
+                for _ in 0..steps {
+                    tap(&mut session, Button::Right);
+                }
+                tap(&mut session, Button::Speak);
+                defenders += 1;
+            }
+            _ => break,
+        }
+    }
+    assert_eq!(defenders, 2, "Chaz and Hahn defended");
+    let mut lines = Vec::new();
+    for _ in 0..3_000 {
+        let frame = tick(&mut session, Pad::NEUTRAL);
+        let current = view(&frame);
+        if !current.message.is_empty() && lines.last() != Some(&current.message) {
+            lines.push(current.message.clone());
+        }
+        if current.ready {
+            let alys = current.party.iter().find(|m| m.fighter == 1).unwrap();
+            return Some((lines, alys.tp, enabled));
+        }
+    }
+    panic!("the round never ended: {lines:?}");
+}
+
+/// A sealed member may choose a technique: the window refuses an entry on TP
+/// alone (`ps4.asm:1721`, `2628`), and the cast is paid and then wasted
+/// (`CharTech_CheckTPCost` `ps4.asm:14211`, `CharTech_Cast` `ps4.asm:14256`).
+/// The control is the same round unsealed: the cast lands and says nothing of
+/// a seal.
+#[test]
+fn a_sealed_member_may_choose_a_technique_and_the_cast_is_wasted() {
+    let Some((sealed_lines, sealed_tp, sealed_enabled)) =
+        alys_casts_her_first_technique("top,status=1/16")
+    else {
+        return;
+    };
+    assert!(sealed_enabled, "the window does not refuse a sealed member");
+    assert!(
+        sealed_lines.iter().any(|line| line == "Tech sealed!"),
+        "the cast is wasted: {sealed_lines:?}"
+    );
+    assert_eq!(sealed_tp, 40 - 6, "SANER's 6 TP are paid anyway");
+
+    let (free_lines, free_tp, free_enabled) = alys_casts_her_first_technique("top").unwrap();
+    assert!(free_enabled);
+    assert!(
+        !free_lines.iter().any(|line| line == "Tech sealed!"),
+        "negative control: an unsealed cast is not wasted: {free_lines:?}"
+    );
+    assert_eq!(free_tp, 40 - 6);
 }

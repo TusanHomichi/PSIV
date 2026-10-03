@@ -298,8 +298,10 @@ impl INode2D for Field {
         // Characters sort by their feet line, like the hardware's sprite
         // ordering: standing north of an NPC puts you behind them.
         self.base_mut().set_y_sort_enabled(true);
-        // Pack discovery: an exported build ships runtime-pack beside the
-        // executable; the dev tree keeps it at the repo root. First hit wins.
+        // An explicit local pack selects every loader below, including battle
+        // art. Otherwise an exported build looks beside the executable and
+        // the dev tree uses the repo-root runtime-pack.
+        let override_dir = std::env::var_os("PSIV_RUNTIME_PACK").map(std::path::PathBuf::from);
         let exe_side = godot::classes::Os::singleton()
             .get_executable_path()
             .to_string();
@@ -309,10 +311,18 @@ impl INode2D for Field {
         let dev = ProjectSettings::singleton()
             .globalize_path("res://../runtime-pack")
             .to_string();
-        self.pack_dir = exe_dir
-            .filter(|p| p.join("manifest.json").is_file())
-            .map(|p| p.to_string_lossy().into_owned())
-            .unwrap_or(dev);
+        let selected = override_dir
+            .clone()
+            .or_else(|| exe_dir.filter(|p| p.join("manifest.json").is_file()))
+            .unwrap_or_else(|| std::path::PathBuf::from(dev));
+        self.pack_dir = selected
+            .canonicalize()
+            .unwrap_or(selected)
+            .to_string_lossy()
+            .into_owned();
+        if override_dir.is_some() {
+            godot_print!("runtime pack override: {}", self.pack_dir);
+        }
         let data = match GameData::load(std::path::Path::new(&self.pack_dir)) {
             Ok(data) => data,
             Err(e) => {

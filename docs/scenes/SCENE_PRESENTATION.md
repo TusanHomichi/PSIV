@@ -54,6 +54,23 @@ wrong blink phase (`RMSE 19.408013`); it is not used for certification.
 | battle `0x88` | **0.000000** | clone t200 ↔ tape-07 frame 25000, `--fixed-fps 60` |
 | camp root | **0.000000** | clone t60 ↔ tape-22 frame 7675, `--fixed-fps 60` |
 
+Five battle pairs joined them on 2026-10-02 (#51, #64), all **0.000000**; the
+decode, receipts and pins are in [`BATTLE_COMMAND_UI.md`](../battle/BATTLE_COMMAND_UI.md).
+
+| pair | rmse | pairing |
+|---|---:|---|
+| `battle-strip` | **0.000000** | clone t334 (`strip,cursor=1,age=7`) ↔ tape-32 frame 25134, Alys's strip on TECH |
+| `battle-tech` | **0.000000** | clone t600 (`tech,cursor=0,blink=14/1`) ↔ tape-32 frame 25400, the technique window |
+| `battle-status` | **0.000000** | clone t200 (Chaz asleep, Alys paralyzed, Hahn sealed) ↔ tape-32 frame 25000 with three `Character_Stats` patches |
+| `battle-status-2` | **0.000000** | clone t200 (poisoned, dead, asleep+sealed) ↔ the same frame, other patches |
+| `battle-fusion` | **0.000000** | clone t714 (a defended round of formation `$D2`) ↔ tape-33 frame 25560, the MetaSlug |
+
+The mid-round attack (#52) is fixed in the shell's clock order but **not**
+certified: its fixture reads `rmse=20.254240` against tape-34 frame 25377, for
+the three causes in the doc above. Each pair names a `Session` fixture
+(`PSIV_DEBUG_BATTLE_WINDOW`, `rust/psiv-runtime/src/session/battle/fixture.rs`);
+the oracle frames regenerate from their tapes and are hash-checked.
+
 Run every pair with `python3 tools/certify.py` (it rebuilds the debug extension first); it pins each pair's
 clone tick and oracle-frame hash and writes a receipt under `build/certify/`.
 The 2026-10-02 run that restored all six is

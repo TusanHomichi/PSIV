@@ -108,6 +108,8 @@ impl Field {
                 fighter: enemy.fighter_id,
                 name: enemy.name.clone(),
                 visible: true,
+                enemy_id: enemy.enemy_id,
+                position: None,
             })
             .collect();
         self.begin_battle_presentation(setup, "oracle tape-07 command idle receipt");
@@ -170,6 +172,66 @@ impl Field {
             setup,
             "formation 0x0f7 newly-exact Worker Pod attack probe",
         );
+        self.set_battle_view(view);
+    }
+
+    /// Presents tape 07's first battle (formation `$8A`) with the command
+    /// window `spec` names open: `PSIV_DEBUG_BATTLE_WINDOW`, the certified
+    /// pairs' clone side. The session builds the battle and the window
+    /// (`Session::debug_battle_window`); this only picks the art for it, on the
+    /// same Academy Basement binding and overlay phase as the command-idle
+    /// fixture, so every pair against tape 07 shares one enemy clock.
+    ///
+    /// `PSIV_DEBUG_BATTLE_FORMATION` (hex, default `$8A`) and
+    /// `PSIV_DEBUG_BATTLE_MAP` (hex field map id, default the Academy
+    /// Basement binding) choose another formation and its background, for the
+    /// pairs that need one (the Zol slugs' Passageway).
+    pub(crate) fn start_window_debug_battle(&mut self, spec: &str) {
+        let hex = |name: &str| {
+            std::env::var(name).ok().and_then(|value| {
+                u16::from_str_radix(value.trim().trim_start_matches("0x"), 16).ok()
+            })
+        };
+        let formation = hex("PSIV_DEBUG_BATTLE_FORMATION").unwrap_or(0x008A);
+        let map = hex("PSIV_DEBUG_BATTLE_MAP");
+        let Some(frame) = self
+            .session
+            .as_mut()
+            .map(|session| session.debug_battle_window(formation, spec))
+        else {
+            return;
+        };
+        if let Some(fault) = &frame.fault {
+            godot_error!("{fault}");
+        }
+        let Some(view) = frame.view else {
+            return;
+        };
+        let setup = {
+            let (Some(files), Some(runtime)) = (self.battle_files.as_ref(), self.runtime()) else {
+                godot_error!("battle window fixture needs battle files and a runtime");
+                return;
+            };
+            let Some(mut setup) = build_setup(files, runtime, formation) else {
+                return;
+            };
+            match map {
+                Some(map) => {
+                    setup.map_id = map;
+                    setup.event_battle = None;
+                }
+                None => {
+                    setup.map_id = 0x17;
+                    setup.event_battle = Some(0);
+                }
+            }
+            setup.enemy_animation_phase_ticks = std::env::var("PSIV_DEBUG_BATTLE_PHASE")
+                .ok()
+                .and_then(|value| value.trim().parse().ok())
+                .unwrap_or(ORACLE_ENEMY_PHASE_TICKS);
+            setup
+        };
+        self.begin_battle_presentation(setup, "tape-07 battle with a command window open");
         self.set_battle_view(view);
     }
 }

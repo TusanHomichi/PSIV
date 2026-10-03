@@ -1,4 +1,4 @@
-"""Cases for tools/certify.py, the single entry point for the six certified pairs.
+"""Cases for tools/certify.py, the single entry point for the certified pairs.
 
     PYTHONPATH=. python3 -m unittest tests.test_certify -v
 
@@ -15,12 +15,39 @@ from unittest import mock
 
 from tools import certify
 
-NAMES = ["opening-p1", "opening-p2", "meeting-rika", "title", "battle-0x88", "camp-root"]
+SIX = ["opening-p1", "opening-p2", "meeting-rika", "title", "battle-0x88", "camp-root"]
+BATTLE = ["battle-status", "battle-status-2", "battle-fusion", "battle-strip", "battle-tech"]
+NAMES = SIX + BATTLE
+ROOT = Path(__file__).resolve().parent.parent
 
 
 class PairTableCase(unittest.TestCase):
-    def test_the_six_certified_pairs_are_present_once_in_order(self):
+    def test_the_certified_pairs_are_present_once_in_order(self):
         self.assertEqual([pair[0] for pair in certify.PAIRS], NAMES)
+
+    def test_the_six_original_pairs_keep_their_pins(self):
+        # The battle pairs were added after these six; their ticks and frames
+        # must not move with them.
+        pins = {pair[0]: (pair[2], pair[3], pair[4]) for pair in certify.PAIRS}
+        self.assertEqual(pins["battle-0x88"][:2], (200, "oracle/frames/frame_25000.png"))
+        self.assertEqual(pins["camp-root"][:2], (60, "oracle/frames/frame_7675.png"))
+        self.assertEqual(pins["title"][:2], (480, "oracle/frames/title/frame_450.png"))
+
+    def test_battle_pairs_name_a_session_fixture_and_a_regenerable_frame(self):
+        for name, env, _, frame, _, recipe in certify.PAIRS:
+            if name in BATTLE:
+                with self.subTest(pair=name):
+                    self.assertIn("PSIV_DEBUG_BATTLE_WINDOW", env)
+                    self.assertIsNotNone(recipe)
+                    self.assertTrue((ROOT / recipe["tape"]).is_file())
+                    # Oracle frames are local and ignored, never committed.
+                    self.assertTrue(frame.startswith("build/certify/oracle/"))
+
+    def test_battle_pairs_pin_the_enemy_clock_the_oracle_receipt_names(self):
+        for name, env, _, _, _, _ in certify.PAIRS:
+            if name in ("battle-strip", "battle-tech", "battle-status", "battle-status-2"):
+                with self.subTest(pair=name):
+                    self.assertIn("PSIV_DEBUG_BATTLE_PHASE", env)
 
     def test_every_pair_pins_a_sha256_and_a_positive_tick(self):
         for name, env, tick, frame, digest, _ in certify.PAIRS:

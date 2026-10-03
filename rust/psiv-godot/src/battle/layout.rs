@@ -1,13 +1,15 @@
 //! Plane-A layout helpers shared by the battle node and oracle assertions.
 
 use super::chrome::{BattleChrome, Quad, WindowRect};
+use super::status::append_pane_icon;
+use super::tiles::CommandTiles;
 use super::ui::{
     BATTLE_CELL_PIXELS, STATUS_HP_Y, STATUS_NAME_Y, STATUS_PANE_START_CELLS, STATUS_RECT,
     STATUS_SEPARATOR_COLUMNS, STATUS_TP_Y,
 };
 use godot::prelude::*;
 use psiv_core::battle::FighterId;
-use psiv_runtime::PartyStatus;
+use psiv_runtime::{BattleView, PartyStatus};
 
 /// The column the transient narration uses when the beat names no fighter:
 /// the shell's own default, which the runtime's view spells as `transient:
@@ -43,9 +45,11 @@ pub(super) fn tile_dest(x_cell: i32, y_cell: i32) -> Rect2 {
 
 pub(super) fn append_status_quads(
     chrome: &BattleChrome,
-    party_status: &[PartyStatus],
+    tiles: &mut CommandTiles,
+    view: &BattleView,
     quads: &mut Vec<Quad>,
 ) {
+    let party_status = view.party.as_slice();
     let excluded: Vec<(i32, i32)> = STATUS_SEPARATOR_COLUMNS
         .iter()
         .flat_map(|column| {
@@ -69,8 +73,11 @@ pub(super) fn append_status_quads(
     }
 
     for (pane, start) in STATUS_PANE_START_CELLS.iter().copied().enumerate() {
-        if let Some(member) = status_member(party_status, pane) {
-            quads.extend(chrome.text(
+        let member = status_member(party_status, pane);
+        let line = append_pane_icon(tiles, view, member, STATUS_FIGHTERS[pane], start, quads);
+        if let Some(member) = member {
+            quads.extend(chrome.text_on(
+                line,
                 &member.name,
                 WindowRect {
                     x: (start + 1) as f32 * BATTLE_CELL_PIXELS as f32,
@@ -79,7 +86,8 @@ pub(super) fn append_status_quads(
                     h: 8.0,
                 },
             ));
-            quads.extend(chrome.battle_number(
+            quads.extend(chrome.battle_number_on(
+                line,
                 &format!("{:>3}", member.hp),
                 WindowRect {
                     x: (start + 4) as f32 * BATTLE_CELL_PIXELS as f32,
@@ -88,7 +96,8 @@ pub(super) fn append_status_quads(
                     h: 8.0,
                 },
             ));
-            quads.extend(chrome.battle_number(
+            quads.extend(chrome.battle_number_on(
+                line,
                 &format!("{:>3}", member.tp),
                 WindowRect {
                     x: (start + 4) as f32 * BATTLE_CELL_PIXELS as f32,
@@ -103,13 +112,17 @@ pub(super) fn append_status_quads(
         // HP is 0x6f8,0x6f9,0x7f3 and TP is 0x6fa,0x6f9,0x7f3 at pane+1.
         for (row, first) in [(24, 0x6f8), (25, 0x6fa)] {
             for (offset, pattern) in [(0, first), (1, 0x6f9)] {
-                if let Some(quad) =
-                    chrome.window_word(pattern, false, false, tile_dest(start + 1 + offset, row))
-                {
+                if let Some(quad) = chrome.window_word_on(
+                    line,
+                    pattern,
+                    false,
+                    false,
+                    tile_dest(start + 1 + offset, row),
+                ) {
                     quads.push(quad);
                 }
             }
-            if let Some(quad) = chrome.font_word(0x7f3, tile_dest(start + 3, row)) {
+            if let Some(quad) = chrome.font_word_on(line, 0x7f3, tile_dest(start + 3, row)) {
                 quads.push(quad);
             }
         }

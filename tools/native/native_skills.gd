@@ -5,13 +5,13 @@ extends SceneTree
 var tick := 0
 var held := ""
 const PRESSES = {
-    100: "ui_accept", 110: "ui_down", 120: "ui_down", 130: "ui_accept",
+    100: "ui_accept", 110: "ui_right", 120: "ui_right", 130: "ui_accept",
     140: "ui_accept", 150: "ui_accept",
-    160: "ui_down", 170: "ui_down", 180: "ui_accept",
+    160: "ui_right", 170: "ui_right", 180: "ui_accept",
     190: "ui_accept", 200: "ui_down", 210: "ui_accept",
-    220: "ui_down", 230: "ui_down", 240: "ui_accept", 250: "ui_accept",
+    220: "ui_right", 230: "ui_right", 240: "ui_accept", 250: "ui_accept",
     # Reopen Chaz's skill list after the round to inspect the remaining uses.
-    1000: "ui_accept", 1010: "ui_down", 1020: "ui_down", 1030: "ui_accept",
+    1000: "ui_accept", 1010: "ui_right", 1020: "ui_right", 1030: "ui_accept",
 }
 const SHOTS = {135: "earth.png", 145: "target.png", 185: "vortex.png", 245: "vision.png"}
 

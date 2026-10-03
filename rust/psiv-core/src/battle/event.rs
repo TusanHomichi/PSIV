@@ -135,6 +135,10 @@ pub enum BattleEvent {
         fighter: FighterId,
         /// The new enemy's record id.
         enemy_id: u16,
+        /// The formation position byte the new enemy stands on (`$14` in
+        /// `loc_1A2F4`, `ps4.asm:35847`), which places its body exactly as a
+        /// formation's own position byte does.
+        position: u8,
         /// Display name.
         name: String,
         /// Full HP of the new enemy.

@@ -68,7 +68,9 @@ func _physics_process(_delta):
             press("ui_accept")
         else:
             var desired = 0 if verified else 4
-            press("ui_down" if battle.menu.cursor < desired else ("ui_up" if battle.menu.cursor > desired else "ui_accept"))
+            # The command strip steps with Left/Right and wraps over five icons.
+            var cursor = int(battle.menu.cursor)
+            press("ui_accept" if cursor == desired else ("ui_right" if (desired - cursor + 5) % 5 <= 2 else "ui_left"))
     elif battle.finishing or battle.message == "Victory!" or battle.message.ends_with("LV increased!"):
         press("ui_accept")
     return false

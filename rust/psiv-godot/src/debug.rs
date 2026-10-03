@@ -130,6 +130,14 @@ impl Field {
                 Err(_) => godot_error!("debug battle selector {formation} is not hex"),
             }
         }
+        if self.anim_tick == 30
+            && let Ok(spec) = std::env::var("PSIV_DEBUG_BATTLE_WINDOW")
+        {
+            godot_print!("debug: starting battle with window {spec}");
+            godot_print!("debug: battle theme dispatch: 0x95");
+            self.play_sound(0x95);
+            self.start_window_debug_battle(&spec);
+        }
         if self.anim_tick == 30 && std::env::var("PSIV_DEBUG_CAMP").is_ok_and(|value| value == "1")
         {
             if self.runtime().is_some_and(|rt| rt.scene_active()) {
@@ -260,6 +268,14 @@ impl Field {
             .unwrap_or(180);
         if self.anim_tick != at {
             return;
+        }
+        if self.battle_presentation_active()
+            && let Some(screen) = self.battle_screen.as_ref()
+        {
+            godot_print!(
+                "debug: overlay clocks at tick {at}: {:?}",
+                screen.bind().overlay_clocks()
+            );
         }
         if let Some(viewport) = self.base().get_viewport()
             && let Some(texture) = viewport.get_texture()

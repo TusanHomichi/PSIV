@@ -36,19 +36,30 @@ pub(super) struct Quad {
 
 pub(super) struct BattleChrome {
     tiles: BTreeMap<&'static str, Gd<ImageTexture>>,
-    window_words: BTreeMap<(u16, bool, bool), Gd<ImageTexture>>,
+    /// The window-art words per CRAM line: `[line][(pattern, flip_h, flip_v)]`.
+    window_words: [BTreeMap<(u16, bool, bool), Gd<ImageTexture>>; 4],
     damage_words: BTreeMap<(u16, bool, bool), Gd<ImageTexture>>,
-    font: Gd<ImageTexture>,
+    /// The menu font per CRAM line. Every glyph pixel is CRAM index 14 (the
+    /// window fill, `$0600` on every line) or 15 (the ink), so a line only
+    /// changes the ink (`ps4.asm:11056`, `Battle_DrawCommandIcons`, picks
+    /// the line from the status byte).
+    fonts: [Gd<ImageTexture>; 4],
     glyph_at: BTreeMap<char, Vector2>,
     glyph: Vector2,
     pub(super) cell: f32,
-    pub(super) palette: [Color; 16],
 }
 
 impl BattleChrome {
     /// Uses the same pack assets and role flips as `dialogue.rs`, without
     /// borrowing the dialogue renderer or changing its >1k-line module.
-    pub(super) fn build(pack_dir: &str, set: &DialogueSet) -> Option<BattleChrome> {
+    ///
+    /// `line_ink` is CRAM index 15 of lines 0 to 3 as RGB: the ink the font
+    /// and the HP/TP labels take on each line.
+    pub(super) fn build(
+        pack_dir: &str,
+        set: &DialogueSet,
+        line_ink: [Color; 4],
+    ) -> Option<BattleChrome> {
         let mut strip = load_image(pack_dir, &set.window.png)?;
         // The window tile art is shared with dialogue, but retail's battle
         // palette line sets colour index 14 (the window fill) to CRAM $0600
@@ -96,29 +107,31 @@ impl BattleChrome {
             Color::from_rgba8(0, 32, 98, 255),
             Color::from_rgba8(0, 0, 98, 255),
         );
-        let font = ImageTexture::create_from_image(&menu_image)?;
-        let window_words = retail_window_words(&strip)?;
+        let mut fonts = Vec::new();
+        let mut window_words = Vec::new();
+        for ink in line_ink {
+            // `Gd::clone` shares the image; a line needs its own pixels.
+            let mut font = copy_image(&menu_image)?;
+            let mut line_strip = copy_image(&strip)?;
+            if ink != Color::from_rgba8(238, 238, 238, 255) {
+                remap_color(&mut font, Color::from_rgba8(238, 238, 238, 255), ink);
+                remap_color(&mut line_strip, Color::from_rgba8(238, 238, 238, 255), ink);
+            }
+            fonts.push(ImageTexture::create_from_image(&font)?);
+            window_words.push(retail_window_words(&line_strip)?);
+        }
+        let fonts: [Gd<ImageTexture>; 4] = fonts.try_into().ok()?;
+        let window_words: [BTreeMap<_, _>; 4] = window_words.try_into().ok()?;
         let damage_words = retail_damage_words()?;
         let glyph_at = retail_glyphs();
-        let mut palette = [Color::BLACK; 16];
-        for (index, rgb) in set.window.palette.colors.iter().take(16).enumerate() {
-            palette[index] = Color::from_rgba8(rgb[0], rgb[1], rgb[2], 255);
-        }
-        // Battle's palette line sets the window fill (index 14) to CRAM
-        // $0600 — pure blue — where the dialogue set carries $0620. Same
-        // receipt as the strip/font remap above: slot 14 of every CRAM
-        // line in oracle/states/battle_command_idle_vdp_25000.json.
-        palette[14] = Color::from_rgba8(0, 0, 98, 255);
-
         Some(BattleChrome {
             tiles,
             window_words,
             damage_words,
-            font,
+            fonts,
             glyph_at,
             glyph: Vector2::new(8.0, 8.0),
             cell: set.window.geometry.cell_pixels as f32,
-            palette,
         })
     }
 
@@ -197,8 +210,22 @@ impl BattleChrome {
         flip_v: bool,
         dest: Rect2,
     ) -> Option<Quad> {
+        self.window_word_on(3, pattern, flip_h, flip_v, dest)
+    }
+
+    /// [`Self::window_word`] drawn with CRAM line `line`.
+    pub(super) fn window_word_on(
+        &self,
+        line: usize,
+        pattern: u16,
+        flip_h: bool,
+        flip_v: bool,
+        dest: Rect2,
+    ) -> Option<Quad> {
         Some(Quad {
-            texture: self.window_words.get(&(pattern, flip_h, flip_v))?.clone(),
+            texture: self.window_words[line]
+                .get(&(pattern, flip_h, flip_v))?
+                .clone(),
             dest,
             src: Rect2::new(Vector2::ZERO, Vector2::new(self.cell, self.cell)),
         })
@@ -208,14 +235,20 @@ impl BattleChrome {
     /// (`0x7c0`). This is used for the status-strip colon, whose plane word is
     /// `0x7f3`; regular text still goes through the character map below.
     pub(super) fn font_word(&self, pattern: u16, dest: Rect2) -> Option<Quad> {
+        self.font_word_on(3, pattern, dest)
+    }
+
+    /// [`Self::font_word`] drawn with CRAM line `line`.
+    pub(super) fn font_word_on(&self, line: usize, pattern: u16, dest: Rect2) -> Option<Quad> {
+        let font = &self.fonts[line];
         let index = pattern.checked_sub(FONT_BASE_TILE)? as i32;
-        let columns = (self.font.get_width() / self.cell as i32).max(1);
+        let columns = (font.get_width() / self.cell as i32).max(1);
         let source = Vector2::new(
             (index % columns) as f32 * self.cell,
             (index / columns) as f32 * self.cell,
         );
         Some(Quad {
-            texture: self.font.clone(),
+            texture: font.clone(),
             dest,
             src: Rect2::new(source, Vector2::new(self.cell, self.cell)),
         })
@@ -225,24 +258,30 @@ impl BattleChrome {
         self.text_with_pitch(text, rect, self.glyph.y)
     }
 
+    /// [`Self::text`] drawn with CRAM line `line`.
+    pub(super) fn text_on(&self, line: usize, text: &str, rect: WindowRect) -> Vec<Quad> {
+        self.text_with_pitch_on(line, text, rect, self.glyph.y)
+    }
+
     /// The battle status routine uses the second, wider number run in
     /// `ArtNem_Font`: source cells 36..45, VRAM patterns `0x7e4..0x7ed`.
     /// It is distinct from the window-charset digit bytes used by ordinary
-    /// menu/name strings.
-    pub(super) fn battle_number(&self, text: &str, rect: WindowRect) -> Vec<Quad> {
+    /// menu/name strings. Drawn with CRAM line `line`.
+    pub(super) fn battle_number_on(&self, line: usize, text: &str, rect: WindowRect) -> Vec<Quad> {
+        let font = &self.fonts[line];
         let mut quads = Vec::new();
         for (col, ch) in text.chars().enumerate() {
             let Some(digit) = ch.to_digit(10) else {
                 continue;
             };
             let index = 36 + digit as i32;
-            let columns = (self.font.get_width() / self.cell as i32).max(1);
+            let columns = (font.get_width() / self.cell as i32).max(1);
             let source = Vector2::new(
                 (index % columns) as f32 * self.cell,
                 (index / columns) as f32 * self.cell,
             );
             quads.push(Quad {
-                texture: self.font.clone(),
+                texture: font.clone(),
                 dest: Rect2::new(
                     Vector2::new(rect.x + col as f32 * self.glyph.x, rect.y),
                     self.glyph,
@@ -403,6 +442,17 @@ impl BattleChrome {
         rect: WindowRect,
         line_pitch: f32,
     ) -> Vec<Quad> {
+        self.text_with_pitch_on(3, text, rect, line_pitch)
+    }
+
+    /// [`Self::text_with_pitch`] drawn with CRAM line `line`.
+    pub(super) fn text_with_pitch_on(
+        &self,
+        line: usize,
+        text: &str,
+        rect: WindowRect,
+        line_pitch: f32,
+    ) -> Vec<Quad> {
         let cols = (rect.w / self.glyph.x.max(1.0)).floor() as usize;
         let rows = (rect.h / line_pitch.max(1.0)).floor() as usize;
         if cols == 0 || rows == 0 {
@@ -434,7 +484,7 @@ impl BattleChrome {
             // `oracle/layouts/battle_command_idle.json` decodes the space in
             // `ZORAN BULT` as window pattern 0x680, not font cell 0 (A).
             if ch == ' ' {
-                if let Some(quad) = self.window_word(0x680, false, false, dest) {
+                if let Some(quad) = self.window_word_on(line, 0x680, false, false, dest) {
                     quads.push(quad);
                 }
                 col += 1;
@@ -445,7 +495,7 @@ impl BattleChrome {
                 continue;
             };
             quads.push(Quad {
-                texture: self.font.clone(),
+                texture: self.fonts[line].clone(),
                 dest,
                 src: Rect2::new(*source, self.glyph),
             });
@@ -502,7 +552,9 @@ fn retail_window_words(strip: &Gd<Image>) -> Option<BTreeMap<(u16, bool, bool), 
     // planes: the 0x680 space/fill, selected/disabled cursor, separator
     // top/middle/bottom, and the HP/TP label glyphs. The source PNG is the
     // `0x680` window-tile load.
-    const PATTERNS: [u16; 8] = [0x680, 0x6e7, 0x6e8, 0x6f4, 0x6f5, 0x6f8, 0x6f9, 0x6fa];
+    const PATTERNS: [u16; 10] = [
+        0x680, 0x6e6, 0x6e7, 0x6e8, 0x6f4, 0x6f5, 0x6f8, 0x6f9, 0x6fa, 0x6ff,
+    ];
     let mut words = BTreeMap::new();
     for pattern in PATTERNS {
         let index = i32::from(pattern - WINDOW_BASE_TILE);
@@ -626,6 +678,14 @@ fn damage_pattern(pattern: u16) -> Option<[&'static str; 8]> {
 fn load_image(pack_dir: &str, name: &str) -> Option<Gd<Image>> {
     let path = format!("{pack_dir}/{name}");
     Image::load_from_file(&GString::from(path.as_str()))
+}
+
+/// A deep copy of an image: [`Gd::clone`] only shares it.
+fn copy_image(image: &Gd<Image>) -> Option<Gd<Image>> {
+    image.get_region(Rect2i::new(
+        Vector2i::ZERO,
+        Vector2i::new(image.get_width(), image.get_height()),
+    ))
 }
 
 /// Replaces every exactly-matching opaque pixel of `from` with `to` — the

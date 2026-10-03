@@ -4,8 +4,11 @@
 //! Every press is an edge (the cartridge's menus read `Joypad_Pressed`), so a
 //! press is always followed by a released frame. The menu is read from the
 //! last [`psiv_runtime::BattleView`] the session produced; nothing here knows a
-//! battle rule. The windows move one row per press and the main options wrap
-//! (`session/battle/menu/mod.rs` documents which window does what).
+//! battle rule. Each window is steered with the buttons its cartridge routine
+//! tests (`session/battle/menu/mod.rs` documents which window does what): the
+//! main options wrap on Up/Down, the per-character strip on Left/Right, the
+//! technique, skill and item windows show four rows a page (Up/Down wrap inside
+//! the page, Left/Right flip pages), and the target lists step one row a press.
 
 use psiv_runtime::{Button, CommandMenuView, MenuPage, MenuView, Pad, Runtime, TargetKind};
 
@@ -96,6 +99,40 @@ fn toward(current: usize, wanted: usize) -> Button {
     }
 }
 
+/// The per-character strip: Left/Right over its five icons, wrapping.
+fn toward_strip(current: usize, wanted: usize) -> Button {
+    const ICONS: usize = 5;
+    if current == wanted {
+        return Button::Speak;
+    }
+    if (wanted + ICONS - current) % ICONS <= ICONS / 2 {
+        Button::Right
+    } else {
+        Button::Left
+    }
+}
+
+/// The technique, skill and item windows: four rows a page, `current` and
+/// `wanted` counted across all pages. Left/Right flip a page; Up/Down wrap
+/// inside the page, the shorter way round.
+fn toward_list(current: usize, wanted: usize) -> Button {
+    const PAGE: usize = 4;
+    match (current / PAGE).cmp(&(wanted / PAGE)) {
+        std::cmp::Ordering::Less => Button::Right,
+        std::cmp::Ordering::Greater => Button::Left,
+        std::cmp::Ordering::Equal => {
+            let (row, wanted_row) = (current % PAGE, wanted % PAGE);
+            if row == wanted_row {
+                Button::Speak
+            } else if (wanted_row + PAGE - row) % PAGE <= PAGE / 2 {
+                Button::Down
+            } else {
+                Button::Up
+            }
+        }
+    }
+}
+
 /// Like [`toward`] on a window that wraps: the shorter way round.
 fn toward_wrapping(current: usize, wanted: usize, rows: usize) -> Button {
     if current == wanted {
@@ -129,7 +166,7 @@ fn command_button(
                 Intent::Item { .. } => 3,
                 Intent::Defend => 4,
             };
-            Some(toward(menu.cursor, row))
+            Some(toward_strip(menu.cursor, row))
         }
         MenuPage::Techniques => {
             let Intent::Technique { id, .. } = intent else {
@@ -137,7 +174,7 @@ fn command_button(
             };
             match menu.techniques.iter().position(|entry| entry.id == id) {
                 Some(row) if menu.rows.get(row).is_some_and(|r| r.enabled) => {
-                    Some(toward(menu.cursor, row))
+                    Some(toward_list(menu.cursor, row))
                 }
                 _ => {
                     policy.refuse();
@@ -154,7 +191,7 @@ fn command_button(
                 .iter()
                 .position(|row| row.enabled && row.label == name);
             if let Some(row) = row {
-                Some(toward(menu.cursor, row))
+                Some(toward_list(menu.cursor, row))
             } else {
                 policy.refuse();
                 Some(Button::Cancel)
@@ -166,7 +203,7 @@ fn command_button(
             };
             match menu.skills.iter().position(|entry| entry.id == id) {
                 Some(row) if menu.rows.get(row).is_some_and(|r| r.enabled) => {
-                    Some(toward(menu.cursor, row))
+                    Some(toward_list(menu.cursor, row))
                 }
                 _ => {
                     policy.refuse();
@@ -203,6 +240,25 @@ mod tests {
         assert_eq!(toward_wrapping(2, 0, 3), Button::Down);
         assert_eq!(toward_wrapping(1, 0, 3), Button::Up);
         assert_eq!(toward_wrapping(0, 2, 3), Button::Up);
+    }
+
+    #[test]
+    fn the_strip_takes_the_shorter_way_round_on_left_and_right() {
+        assert_eq!(toward_strip(0, 0), Button::Speak);
+        assert_eq!(toward_strip(0, 1), Button::Right);
+        assert_eq!(toward_strip(0, 2), Button::Right);
+        assert_eq!(toward_strip(0, 3), Button::Left);
+        assert_eq!(toward_strip(0, 4), Button::Left);
+        assert_eq!(toward_strip(4, 0), Button::Right);
+    }
+
+    #[test]
+    fn a_paged_window_flips_pages_then_wraps_inside_the_page() {
+        assert_eq!(toward_list(1, 6), Button::Right);
+        assert_eq!(toward_list(6, 1), Button::Left);
+        assert_eq!(toward_list(4, 7), Button::Up);
+        assert_eq!(toward_list(5, 6), Button::Down);
+        assert_eq!(toward_list(6, 6), Button::Speak);
     }
 
     #[test]

@@ -151,6 +151,8 @@ fn incapacitated_slots_are_skipped_and_group_tech_needs_no_target_cursor() {
         page: MenuPage::Actions,
         cursor: 0,
         orders: vec![Command::Defend; 5],
+        age: 0,
+        bytes: [0; 5],
         open: true,
     };
     menu.actors = menu
@@ -480,37 +482,128 @@ fn the_post_battle_pages_confirm_on_any_face_button() {
     assert!(!confirm_pressed(held, held));
 }
 
-/// The list windows keep this port's four-direction mapping; the cartridge's
-/// own character window is Left/Right only (`Battle_CharCommand`,
-/// `ps4.asm:2192`, through `Battle_UpdateCursor`, `ps4.asm:70646`). The
-/// module documentation says why.
+/// The strip is the cartridge's `Battle_CharCommand` (`ps4.asm:2192`): the
+/// cursor goes through `Battle_UpdateCursor` (`ps4.asm:70646`), which tests
+/// Left and Right only and wraps over the five icons (`d1 = 4`).
 #[test]
-fn the_command_window_takes_any_direction_as_one_step() {
+fn the_strip_moves_on_left_and_right_only_and_wraps() {
     let Some((_runtime, mut menu)) = menu() else {
         return;
     };
     let none = Pad::NEUTRAL;
-    for button in [Button::Down, Button::Right] {
-        menu.cursor = 0;
+    for button in [Button::Up, Button::Down] {
         menu.input(none, Pad::new(button));
-        assert_eq!(menu.cursor, 1, "{button} steps down one row");
+        assert_eq!(menu.cursor, 0, "{button} is not tested by the strip");
     }
-    menu.cursor = 3;
-    for button in [Button::Up, Button::Left] {
-        menu.cursor = 3;
-        menu.input(none, Pad::new(button));
-        assert_eq!(menu.cursor, 2, "{button} steps up one row");
-    }
-    // The window's own accept and cancel are the cartridge's.
-    menu.cursor = 0;
+    menu.input(none, Pad::new(Button::Right));
+    assert_eq!(menu.cursor, 1);
+    menu.input(none, Pad::new(Button::Left));
+    menu.input(none, Pad::new(Button::Left));
+    assert_eq!(menu.cursor, 4, "Left from the first icon wraps to the last");
+    menu.input(none, Pad::new(Button::Right));
     assert_eq!(
-        menu.input(none, Pad::new(Button::Speak)),
-        None,
-        "ATTACK opens the target list first"
+        menu.cursor, 0,
+        "Right from the last icon wraps to the first"
     );
+    // Accept and cancel are the cartridge's too.
+    assert_eq!(menu.input(none, Pad::new(Button::Speak)), None);
     assert_eq!(menu.page, MenuPage::Targets(TargetKind::Attack));
     menu.input(none, Pad::new(Button::Cancel));
     assert_eq!(menu.page, MenuPage::Actions);
+}
+
+/// The list windows run `Battle_UpdateRedCursor2` (`ps4.asm:1572`) over a
+/// page's four rows: Up and Down wrap inside the page, whether or not the row
+/// holds an entry, and only Right (when a next page exists) and Left (when a
+/// previous one does) change page (`Battle_TechWindow`, `ps4.asm:2593`).
+#[test]
+fn a_list_window_wraps_inside_its_page_and_flips_pages_on_left_and_right() {
+    let Some((_runtime, mut menu)) = menu() else {
+        return;
+    };
+    let usable: Vec<u8> = menu
+        .techniques
+        .values()
+        .filter(|tech| tech.targeting & 0x10 != 0)
+        .map(|tech| tech.id)
+        .take(6)
+        .collect();
+    assert_eq!(usable.len(), 6, "the pack has six in-battle techniques");
+    let actor = menu.actor_id().unwrap();
+    {
+        let stats = &mut menu.roster.get_mut(actor).unwrap().stats;
+        stats.techniques = [0; 16];
+        for (slot, id) in usable.iter().enumerate() {
+            stats.techniques[slot] = *id;
+        }
+    }
+    menu.page = MenuPage::Techniques;
+    menu.cursor = 0;
+    let none = Pad::NEUTRAL;
+    let press = |menu: &mut CommandsMenu, button| {
+        menu.input(none, Pad::new(button));
+    };
+    press(&mut menu, Button::Up);
+    assert_eq!(
+        menu.cursor, 3,
+        "Up from the first row wraps within the page"
+    );
+    press(&mut menu, Button::Down);
+    assert_eq!(
+        menu.cursor, 0,
+        "Down from the fourth row wraps within the page"
+    );
+    press(&mut menu, Button::Left);
+    assert_eq!(menu.cursor, 0, "no previous page: Left does nothing");
+    press(&mut menu, Button::Right);
+    assert_eq!(menu.cursor, 4, "Right flips to the next page's first row");
+    let view = menu.view().list.expect("a list window");
+    assert_eq!((view.page, view.entries.len()), (1, 2));
+    assert!(view.more_before && !view.more_after);
+    for expected in [5, 6, 7, 4] {
+        press(&mut menu, Button::Down);
+        assert_eq!(
+            menu.cursor, expected,
+            "rows past the entries still hold the cursor"
+        );
+    }
+    press(&mut menu, Button::Right);
+    assert_eq!(menu.cursor, 4, "no next page: Right does nothing");
+    press(&mut menu, Button::Left);
+    assert_eq!(menu.cursor, 0, "Left flips back to the first page");
+    // An empty row ignores accept; leaving the list returns to the strip on
+    // the icon that opened it.
+    menu.cursor = 7;
+    assert_eq!(menu.accept(), None);
+    assert_eq!(menu.page, MenuPage::Techniques);
+    menu.cancel();
+    assert_eq!((menu.page, menu.cursor), (MenuPage::Actions, 1));
+}
+
+/// The pane icon follows the command byte the way the cartridge writes it:
+/// 2 as the technique window opens, back to 0 when the window is left, 5 on
+/// defend, and the next record is cleared as a strip opens
+/// (`ps4.asm:1476`, `2777`).
+#[test]
+fn command_bytes_follow_the_cartridge_writes() {
+    let Some((_runtime, mut menu)) = menu() else {
+        return;
+    };
+    menu.bytes = [4, 4, 4, 4, 4];
+    menu.open_actor();
+    assert_eq!(
+        menu.bytes,
+        [4, 0, 4, 4, 4],
+        "opening a strip clears the next record"
+    );
+    menu.cursor = 1;
+    menu.accept();
+    assert_eq!(menu.bytes[menu.command_slot().unwrap()], 2);
+    menu.cancel();
+    assert_eq!(menu.bytes[menu.command_slot().unwrap()], 0);
+    menu.cursor = 4;
+    menu.accept();
+    assert_eq!(menu.bytes[0], 5, "defend writes its own byte");
 }
 
 /// The mounted window reads the record, not a copy: the engine subtracts the

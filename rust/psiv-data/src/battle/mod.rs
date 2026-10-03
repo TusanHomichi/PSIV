@@ -386,6 +386,7 @@ pub struct NamedId {
 
 mod abilities;
 mod animations;
+mod command_art;
 mod enemies;
 mod formations;
 mod levels;
@@ -397,6 +398,7 @@ pub use animations::{
     EnemyAnimationFrameSequence, EnemyAnimationSfxWrite, EnemyAnimationSource,
     EnemyAnimationTableSource, EnemyAnimationsFile,
 };
+pub use command_art::{COMMAND_UI_ART_PATH, CommandUiArt, CommandUiTile};
 pub use enemies::{EnemiesFile, Enemy, EnemyAi, EnemyAttack, EnemyStats, Rewards};
 pub use formations::{
     EncounterGroup, EncounterGroups, Formation, FormationEnemy, FormationsFile, MapBinding,

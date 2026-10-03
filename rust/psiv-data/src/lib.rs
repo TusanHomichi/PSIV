@@ -54,9 +54,9 @@ mod sprites;
 mod travel;
 
 pub use battle::{
-    AbilitiesFile, Ability, BATTLE_DIRECTORY, BattleFiles, ELEMENT_SLOTS, EffectTable,
-    EncounterGroup, EncounterGroups, EnemiesFile, Enemy, EnemyAi, EnemyAnimation,
-    EnemyAnimationCensus, EnemyAnimationDispatch, EnemyAnimationEvidence,
+    AbilitiesFile, Ability, BATTLE_DIRECTORY, BattleFiles, COMMAND_UI_ART_PATH, CommandUiArt,
+    CommandUiTile, ELEMENT_SLOTS, EffectTable, EncounterGroup, EncounterGroups, EnemiesFile, Enemy,
+    EnemyAi, EnemyAnimation, EnemyAnimationCensus, EnemyAnimationDispatch, EnemyAnimationEvidence,
     EnemyAnimationFrameSequence, EnemyAnimationSfxWrite, EnemyAnimationSource,
     EnemyAnimationTableSource, EnemyAnimationsFile, EnemyAttack, EnemyStats, Formation,
     FormationEnemy, FormationsFile, Level, LevelStats, LevelTable, LevelsFile, MapBinding, NamedId,

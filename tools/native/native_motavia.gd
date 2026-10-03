@@ -118,6 +118,29 @@ func field_healing_input(state):
 func choose(current, desired):
     press("ui_down" if current < desired else ("ui_up" if current > desired else "ui_accept"))
 
+# The per-character command strip is Left/Right only and wraps over its five
+# icons (`Battle_CharCommand`, ps4.asm:2192).
+func choose_strip(current, desired):
+    if current == desired:
+        press("ui_accept")
+        return
+    press("ui_right" if (int(desired) - int(current) + 5) % 5 <= 2 else "ui_left")
+
+# The technique, skill and item windows show four rows a page: Up/Down wrap
+# inside the page and Left/Right flip pages (`Battle_TechWindow`, ps4.asm:2593).
+# `menu.cursor` is the row across all pages.
+func choose_list(menu, desired):
+    var page = int(menu.cursor) / 4
+    var wanted_page = int(desired) / 4
+    if page < wanted_page:
+        press("ui_right")
+    elif page > wanted_page:
+        press("ui_left")
+    else:
+        var row = int(menu.cursor) % 4
+        var wanted_row = int(desired) % 4
+        press("ui_accept" if row == wanted_row else ("ui_down" if row < wanted_row else "ui_up"))
+
 func battle_input(battle):
     if battle.message == "ACIDBREATH" and not saw_acid:
         saw_acid = true

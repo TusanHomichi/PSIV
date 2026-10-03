@@ -70,6 +70,44 @@ TAPE_27 = {
     "frames": [4000, 5200],
 }
 
+# Tape 32 is tape 07's battle, command idle at frame 25000, then Alys's
+# command strip (cursor on TECH) and technique window. Both frames come from
+# one oracle run (`oracle/tapes/32_battle_command_windows.tape`).
+TAPE_32 = {
+    "tape": "oracle/tapes/32_battle_command_windows.tape",
+    "patches": [],
+    "frames": [25134, 25400],
+}
+
+# The same tape's command-idle frame with three status bytes patched in
+# `Character_Stats` one frame earlier: Chaz asleep ($08), Alys paralyzed ($02),
+# Hahn tech-sealed ($10). The patches are fixture operations (oracle/README.md,
+# "Deterministic scene fixtures"), not tape input.
+TAPE_32_STATUS = {
+    "tape": "oracle/tapes/32_battle_command_windows.tape",
+    "patches": ["24999:FFFFF516:08", "24999:FFFFF596:02", "24999:FFFFF616:10"],
+    "frames": [25000],
+}
+
+# The other three status inks: Chaz poisoned ($01, CRAM line 0), Alys dead
+# ($04, line 2 and the death icon), Hahn asleep and sealed ($18).
+TAPE_32_STATUS_2 = {
+    "tape": "oracle/tapes/32_battle_command_windows.tape",
+    "patches": ["24999:FFFFF516:01", "24999:FFFFF596:04", "24999:FFFFF616:18"],
+    "frames": [25000],
+}
+
+# Tape 33 is a forced battle: tape 07's own field prefix, with the three RAM
+# patches `python3 -m oracle.force --formation 0xD2` writes (the Passageway's
+# encounter group at the encounter, the seed word that lands the draw on
+# formation $D2, the map cells back), then its attack policy. Round 1 is the
+# two Zol slugs' Fusion; the options reopen over the MetaSlug about frame 25496.
+TAPE_33 = {
+    "tape": "oracle/tapes/33_zol_fusion_metaslug.tape",
+    "patches": ["24795:FFFFEC28:0081", "24818:FFFFEF0C:000A", "24820:FFFFEC28:0015"],
+    "frames": [25560],
+}
+
 # name, clone env, shot tick, oracle frame, frame SHA-256, regeneration recipe.
 # The opening hashes were pinned from the local frames on 2026-10-01 (the
 # 2026-08-17 certification recorded no hash for them); the others are the
@@ -93,6 +131,40 @@ PAIRS = [
     ("camp-root", {"PSIV_DEBUG_CAMP": "1"}, 60,
      "oracle/frames/frame_7675.png",
      "9bf283d9f48b4c0d959eb297ca0b1a997b62f227385ec25cae921e078ceaeca0", None),
+    # Sleep, paralysis and the seal on the status strip: the pane icons and
+    # inks come from `Battle_DrawCommandIcons`; the seal draws nothing. Blink
+    # seed 3/1 reads (17, 0) at tick 200, the oracle's $FFFF41D2/$FFFF41D4 at
+    # frame 25000; overlay phase 5568 puts the enemy clock where the
+    # oracle's Enemy_Sprites words say it is (docs/battle/BATTLE_COMMAND_UI.md).
+    ("battle-status", {"PSIV_DEBUG_BATTLE_WINDOW": "top,blink=3/1,status=2/8,status=1/2,status=3/16",
+                       "PSIV_DEBUG_BATTLE_PHASE": "5568"}, 200,
+     "build/certify/oracle/battle-status/frame_25000.png",
+     "f2037c2e7875ab85125a6ce20f392646bdfadd36ad3f0e7aaf35e24a74956da0", TAPE_32_STATUS),
+    ("battle-status-2", {"PSIV_DEBUG_BATTLE_WINDOW": "top,blink=3/1,status=2/1,status=1/4,status=3/24",
+                         "PSIV_DEBUG_BATTLE_PHASE": "5568"}, 200,
+     "build/certify/oracle/battle-status-2/frame_25000.png",
+     "3c0ac9db15083df8b18eb3b3458f91df6b9c76d19b7025782c80bd2a0392421c", TAPE_32_STATUS_2),
+    # The fused MetaSlug. The clone plays the real round (the party defends,
+    # the slugs' turn is Fusion) and the shot lands where the MetaSlug's overlay
+    # clock reads what the oracle's Enemy_Sprites words say at frame 25560:
+    # every piece at (frame 0, timer 2), one tick before the video frame.
+    ("battle-fusion", {"PSIV_DEBUG_BATTLE_WINDOW": "top,round=defend",
+                       "PSIV_DEBUG_BATTLE_FORMATION": "D2",
+                       "PSIV_DEBUG_BATTLE_MAP": "81"}, 714,
+     "build/certify/oracle/battle-fusion/frame_25560.png",
+     "b10cb5aa7ce60c6c66eec714cab6de28d4ff85cad7f3a385aaa4cdc589ad8ef8", TAPE_33),
+    # Clone tick t pairs with tape-07-family oracle frame 24800 + t: the
+    # battle fixtures start at tick 30 with the overlay clock seeded to 20
+    # (the command-idle pair's pin: tick 200 is frame 25000).
+    ("battle-strip", {"PSIV_DEBUG_BATTLE_WINDOW": "strip,cursor=1,age=7", "PSIV_DEBUG_BATTLE_PHASE": "5567"}, 334,
+     "build/certify/oracle/battle-windows/frame_25134.png",
+     "b148f45abf5b9e80c779d64b9a7e88fa8f545dd2fbb455aad2df41fd82f95bcb", TAPE_32),
+    # The blink seed (timer 14, phase 1) is solved so that the red cursor's
+    # timers read what the oracle's RAM held at frame 25400 ($FFFF41D2 = 3,
+    # $FFFF41D4 = 1) after the 571 frames the clone runs them.
+    ("battle-tech", {"PSIV_DEBUG_BATTLE_WINDOW": "tech,cursor=0,blink=14/1", "PSIV_DEBUG_BATTLE_PHASE": "5567"}, 600,
+     "build/certify/oracle/battle-windows/frame_25400.png",
+     "7a6b67ab078e88db3ff9bbbe066a7e2e6070102ff352efc7fea039d16a66bcdc", TAPE_32),
 ]
 
 # The shot hook saves and keeps running; quit a few frames after it.

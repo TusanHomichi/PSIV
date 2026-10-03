@@ -165,6 +165,8 @@ pub(crate) struct BattleScreen {
     pack_dir: String,
     art: Option<BattleArt>,
     chrome: Option<BattleChrome>,
+    /// The command icon and cursor art, built as the planes ask for it.
+    tiles: super::tiles::CommandTiles,
     background: Option<Gd<Sprite2D>>,
     enemy_nodes: Vec<EnemySprite>,
     party_nodes: Vec<PartySprite>,
@@ -183,6 +185,7 @@ impl INode2D for BattleScreen {
             pack_dir: String::new(),
             art: None,
             chrome: None,
+            tiles: super::tiles::CommandTiles::default(),
             background: None,
             enemy_nodes: Vec::new(),
             party_nodes: Vec::new(),
@@ -216,8 +219,9 @@ impl INode2D for BattleScreen {
 
 impl BattleScreen {
     /// Loads the battle art and the dialogue chrome/font conventions.
-    pub(crate) fn configure(&mut self, pack_dir: &str) {
+    pub(crate) fn configure(&mut self, pack_dir: &str, command_art: psiv_data::CommandUiArt) {
         self.pack_dir = pack_dir.to_owned();
+        self.tiles = super::tiles::CommandTiles::new(command_art);
         self.art = match BattleArt::load(pack_dir) {
             Ok(art) => Some(art),
             Err(error) => {
@@ -227,7 +231,11 @@ impl BattleScreen {
         };
         match DialogueSet::load(std::path::Path::new(pack_dir)) {
             Ok(set) => {
-                self.chrome = BattleChrome::build(pack_dir, &set);
+                let ink = self
+                    .art
+                    .as_ref()
+                    .map_or([Color::BLACK; 4], |art| art.line_ink());
+                self.chrome = BattleChrome::build(pack_dir, &set, ink);
                 if self.chrome.is_none() {
                     godot_error!("battle: dialogue chrome/font art failed to load");
                 }
@@ -256,6 +264,13 @@ impl BattleScreen {
     /// carries, and hands the node what to draw.
     pub(crate) fn set_view(&mut self, view: BattleView) {
         for status in &view.enemies {
+            if let Some(position) = status.position
+                && self.enemy_nodes.iter().any(|enemy| {
+                    enemy.fighter.get() == status.fighter && enemy.enemy_id != status.enemy_id
+                })
+            {
+                self.reseat_enemy(status.fighter, status.enemy_id, position);
+            }
             if let Some(enemy) = self
                 .enemy_nodes
                 .iter_mut()
@@ -266,6 +281,18 @@ impl BattleScreen {
         }
         // The party's own sprites are never hidden by a battle, so a revive
         // needs nothing here: the node was never taken away.
+        // The runtime says which party bodies the plane holds: the cartridge
+        // clears the party rows as a per-character window opens
+        // (`Battle_OpenCharComd`, `ps4.asm:2099-2101`: `loc_E4C` clears,
+        // `loc_E64` restores the saved enemy rows, `loc_EB6` draws one body)
+        // and a body returns as its owner acts.
+        for party in &mut self.party_nodes {
+            party.node.set_visible(
+                view.shown
+                    .as_ref()
+                    .is_none_or(|shown| shown.contains(&party.fighter.get())),
+            );
+        }
         self.restore_party_pose();
         for actor in &view.poses {
             self.set_party_pose(*actor, true);
@@ -275,6 +302,16 @@ impl BattleScreen {
         }
         self.view = Some(view);
         self.base_mut().queue_redraw();
+    }
+
+    /// The first enemy's overlay clocks, for the capture log: the oracle's
+    /// `Enemy_Sprites` words say the same thing about the cartridge.
+    pub(crate) fn overlay_clocks(&self) -> Vec<(usize, u8)> {
+        self.enemy_nodes
+            .first()
+            .and_then(|enemy| enemy.animation.as_ref())
+            .map(super::enemy_overlay::EnemyAnimation::clocks)
+            .unwrap_or_default()
     }
 
     /// The frame's view, once the runtime has produced one.

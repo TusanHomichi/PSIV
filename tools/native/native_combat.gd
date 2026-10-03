@@ -5,11 +5,11 @@ extends SceneTree
 var tick := 0
 var held := ""
 const PRESSES = {
-    100: "ui_accept", 110: "ui_down", 120: "ui_accept",
-    130: "ui_accept", 140: "ui_accept", 150: "ui_down",
+    100: "ui_accept", 110: "ui_right", 120: "ui_accept",
+    130: "ui_accept", 140: "ui_accept", 150: "ui_right",
     160: "ui_accept", 170: "ui_down", 180: "ui_down",
     190: "ui_accept", 200: "ui_down", 210: "ui_accept",
-    220: "ui_down", 230: "ui_accept", 240: "ui_accept",
+    220: "ui_right", 230: "ui_accept", 240: "ui_accept",
 }
 
 func _initialize():

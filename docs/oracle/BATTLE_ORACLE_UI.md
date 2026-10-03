@@ -45,3 +45,10 @@ unapproved host mutation, so the same built binary was verified through the
 Wayland capture path instead. The debug environment hook remains intact; the
 CLI selector is a deterministic fallback for this host-specific display-env
 failure.
+
+## Command windows, status panes, MetaSlug
+
+The per-character strip, the technique, skill and item windows, the status
+panes' icons and the fused MetaSlug are decoded in
+[`../battle/BATTLE_COMMAND_UI.md`](../battle/BATTLE_COMMAND_UI.md), with tapes
+32 (windows and statuses), 33 (Fusion) and 34 (the enemy attack) as receipts.
