@@ -245,3 +245,16 @@ Use [DEVELOPMENT.md](DEVELOPMENT.md) for current commands and
 transcription, a passing state test, a connected route and a matching screenshot
 each establish different facts. Follow the roadmap for campaign progress
 and remaining work.
+
+## Map-music transition boundary
+
+The remaining music transition and zero saved-sound restore policy are tracked
+in [#73](https://github.com/TusanHomichi/PSIV/issues/73). In accepted F2 candidate
+`57f15904084e97317fa29c39e6d58ae9ff2d8c92`, runtime owns the persistent `$ECEC`
+saved byte; the retail `$ECED` change edge is still absent, and a zero saved byte
+at a generic shell restore can fall back to raw map music. The US image sets
+the edge at `$051812`, consumes it at `$051958`, and restores the saved byte at
+`$05197A`; the separate battle-return copy is at `$033E0C`. The issue owns the
+source references, paths and command/timing acceptance, including verification
+of the driver's zero-byte behavior. This records an unfixed source boundary;
+no native audio parity or connected audio route is established here.
