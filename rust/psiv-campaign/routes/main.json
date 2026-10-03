@@ -507,7 +507,7 @@
       "random_battle_policy": "default",
       "objectives": [
         {"do": "go_to_map", "map": 0, "note": "out of Krup by its gate"},
-        {"do": "patrol", "map": 0, "a": [109, 154], "b": [109, 165], "until": {"party_level_at_least": 23}, "refuge": [
+        {"do": "patrol", "map": 0, "a": [109, 154], "b": [109, 165], "until": {"party_level_at_least": 24}, "refuge": [
           {"do": "go_to_map", "map": 57},
           {"do": "go_to_map", "map": 62},
           {"do": "go_to", "map": 62, "cell": [23, 36]},

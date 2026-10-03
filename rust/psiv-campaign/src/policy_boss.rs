@@ -212,7 +212,10 @@ impl BossPolicy {
         best = Self::techniques(menu, runtime, &me.stats, &target.stats, living, best);
         best = Self::skills(menu, runtime, &me.stats, &target.stats, living, best);
         if std::env::var_os("PSIV_CAMPAIGN_TRACE").is_some() {
-            eprintln!("  estimate {} -> {:?} ({})", me.name, best.1, best.0);
+            eprintln!(
+                "  estimate {} -> {:?} ({}) | {} {}/{} HP",
+                me.name, best.1, best.0, target.name, target.stats.curr_hp, target.stats.max_hp
+            );
         }
         best.1
     }

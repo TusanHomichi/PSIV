@@ -14,6 +14,12 @@ shortcut, a state edit or a skip to get past one.
 
 ## Current state
 
+**Combined P1/F2/R2 headless integration (2026-10-03):** the retained 29-chapter
+route completes twice from New Game with a one-level Krup training margin;
+both tapes replay and the separate ordinary pad-SAVE files match the final
+chapter snapshots ([combined receipt](#combined-p1f2r2-headless-integration)).
+The native full-prefix and bounded Zio SAVE/CONTINUE checks remain separate.
+
 **#70 isolated headless candidate (2026-10-03, base `82eed831`, gameplay
 source `6fb1a70`):** Session skips the scripted enemy-only ambush command round.
 After ordinary Krup training to level 23 and menu-selected existing cures,
@@ -858,6 +864,38 @@ was tried; the level-22 party still loses, while the level-23 training route
 earns GISAR at Rika's level 28 and wins. There is **no
 event-battle oracle fixture for Zio**, so these are source-backed headless
 Session route results, not oracle parity.
+
+### Combined P1/F2/R2 headless integration
+
+The integrated candidate kept the [#70 isolated receipt](#70-frozen-headless-acceptance)
+intact, selected the stable copied P1 pack (manifest SHA256
+`7fe1e64abfb4d55230a1039f5ac2deea4b45f6e94e5b029bba10107a39a016de`),
+and retained the 29 chapters. At Krup target level 23, a New Game run reached
+Zio with the earned predecessor save SHA256
+`17b3f11004826b81fd4035bf405ecd8a17c60fead8b1182dfa1cef7d53a437f5`
+but lost at frame 2,409,614. The opt-in battle trace shows PSYCO-WAND
+transforming Zio from 16,383 to 2,889 HP, then reducing him to 142 HP before
+the last party member fell. A fresh-session segment from that same copied save
+won in 7,785 frames under its reset RNG; that segment does not replace the
+failed New Game chain. Raw inputs: `build/r2-integration/combined-route/` and
+`combined-route-hp-trace/`, with the segment in `zio-debug-1/`.
+
+An ignored trial route changed only `krup-training`'s `party_level_at_least`
+from 23 to 24; its full New Game run completed in 2,615,778 frames. The
+tracked route now makes that same one-value change (SHA256
+`e2adacc375712a37aacf4d52396728c2b7001254c7d3abcf2e192ee66b6a4361`).
+Two current-path runs, `build/r2-integration/combined-final-{a,b}/`, both
+complete all 29 chapters in 2,615,778 frames and replay to digest
+`949c2abe3342e838`. Their tapes are byte-identical (SHA256
+`892dfce15918f8d79bdad0bdf9f6699b53179ef70026f1a4c2d38cc302f4835a`);
+each earned pre-Zio save has SHA256 `5392489ed8bdfb538152b67b8e260c6893cb534bef27b121dc9b977cf124a1e6`.
+The ordinary route SAVE and separate read-only final chapter checkpoint match
+within and across runs (SHA256 `4aeff0b18e219836bec033fb1ee15e26cc93484875fabd25adda67dd0472ec62`).
+The release runner SHA256 is
+`22bf47bb6fff5fc7262db0cb9cd24e74d749886f8d145cc8c735e277de022d1a`;
+`combined-final-a/timing-and-stderr.log` records 34.30 seconds for the route
+and `replay-timing.log` 2.36 seconds for its replay. This is headless state,
+not native title/input/persistence or visual proof.
 
 ## `verify` items resolved by playing
 
