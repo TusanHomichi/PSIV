@@ -1,6 +1,70 @@
 use super::*;
 
 impl Field {
+    /// A six-integer observation only: consumed gameplay frames, last pad
+    /// byte, title phase/window/cursor, and shell tick. No giant state JSON on
+    /// every frame, and no method here can advance a session.
+    pub(super) fn tape_boundary_probe(&self) -> PackedInt64Array {
+        if std::env::var("PSIV_NATIVE_TAPE").as_deref() != Ok("1") {
+            return PackedInt64Array::new();
+        }
+        let title = self.session.as_ref().and_then(Session::title);
+        let phase = title.map_or(
+            if self.session.is_some() { -1 } else { -2 },
+            |view| match view.phase {
+                psiv_runtime::TitlePhase::Sega => 0,
+                psiv_runtime::TitlePhase::Reveal => 1,
+                psiv_runtime::TitlePhase::PressStart => 2,
+                psiv_runtime::TitlePhase::Menu => 3,
+                psiv_runtime::TitlePhase::Slots => 4,
+                psiv_runtime::TitlePhase::EraseSlots => 5,
+                psiv_runtime::TitlePhase::EraseConfirm => 6,
+            },
+        );
+        let window = title.map_or(-1, |view| match view.window {
+            psiv_runtime::TitleWindow::None => 0,
+            psiv_runtime::TitleWindow::NoSave => 1,
+            psiv_runtime::TitleWindow::SaveOptions => 2,
+            psiv_runtime::TitleWindow::Slots => 3,
+            psiv_runtime::TitleWindow::EraseConfirm => 4,
+        });
+        let mut values = PackedInt64Array::new();
+        for value in [
+            self.tape_frames as i64,
+            self.tape_last_pad.map_or(-1, i64::from),
+            phase,
+            window,
+            title.map_or(-1, |view| view.cursor as i64),
+            self.anim_tick as i64,
+        ] {
+            values.push(value);
+        }
+        values
+    }
+
+    /// The exact bytes the normal save writer would persist now, observed
+    /// only at the replay boundary and without writing a slot.
+    pub(super) fn slot_bytes_probe(&self, slot: i32) -> PackedByteArray {
+        if std::env::var("PSIV_NATIVE_TAPE").as_deref() != Ok("1") {
+            return PackedByteArray::new();
+        }
+        let Some(runtime) = self.runtime() else {
+            godot_error!("native tape slot probe: runtime absent");
+            return PackedByteArray::new();
+        };
+        let Ok(slot) = usize::try_from(slot) else {
+            godot_error!("native tape slot probe: invalid slot {slot}");
+            return PackedByteArray::new();
+        };
+        match runtime.slot_bytes(slot) {
+            Ok(bytes) => PackedByteArray::from(bytes),
+            Err(error) => {
+                godot_error!("native tape slot probe: {error}");
+                PackedByteArray::new()
+            }
+        }
+    }
+
     /// Read-only observation for input-driven native regression routes.
     pub(super) fn play_probe(&self) -> GString {
         if std::env::var("PSIV_DEBUG_ROUTE").as_deref() != Ok("1") {

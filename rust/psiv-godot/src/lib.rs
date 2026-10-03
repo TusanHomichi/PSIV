@@ -28,6 +28,7 @@ mod save_dir;
 mod shop;
 #[path = "sound_hooks.rs"]
 mod sound_hooks;
+mod tape_feed;
 mod title;
 mod transitions;
 mod view;
@@ -164,6 +165,9 @@ struct Field {
     /// view is the whole surface a shell gets.
     session: Option<Session>,
     pack_dir: String,
+    /// Read-only native tape boundary: title frames are excluded.
+    tape_frames: u64,
+    tape_last_pad: Option<u8>,
     map_sprite: Option<Gd<Sprite2D>>,
     /// Priority tiles — what the VDP draws above sprites (palm crowns,
     /// archways). Sits over the party and NPCs, under the dialogue window.
@@ -238,6 +242,16 @@ impl Field {
     fn debug_walk_map(&self) -> GString {
         self.walk_probe()
     }
+
+    #[func]
+    fn debug_tape_boundary(&self) -> PackedInt64Array {
+        self.tape_boundary_probe()
+    }
+
+    #[func]
+    fn debug_slot_bytes(&self, slot: i32) -> PackedByteArray {
+        self.slot_bytes_probe(slot)
+    }
 }
 
 #[godot_api]
@@ -247,6 +261,8 @@ impl INode2D for Field {
             base,
             session: None,
             pack_dir: String::new(),
+            tape_frames: 0,
+            tape_last_pad: None,
             map_sprite: None,
             overlay_sprite: None,
             party: None,
@@ -584,7 +600,7 @@ impl Field {
     /// handoff when START or CONTINUE entered the game.
     fn drive_title_frame(&mut self) {
         let pad = self.frame_pad();
-        let Some(frame) = self.session.as_mut().map(|session| session.frame(pad)) else {
+        let Some(frame) = self.session_frame(pad, false) else {
             return;
         };
         let Some(title) = frame.title else {
@@ -643,6 +659,10 @@ impl Field {
     /// runtime and armed the battle pack, so this only takes the front door
     /// down and shows the field, in the order the shell's own title driver had.
     fn finish_title_entry(&mut self, entry: TitleEntry) {
+        // The START/CONTINUE frame belongs to the front door. The next actual
+        // Session::frame call is gameplay byte 1, not a shell callback guess.
+        self.tape_frames = 0;
+        self.tape_last_pad = None;
         match entry {
             TitleEntry::Started { event_started } => {
                 godot_print!("title: START — new game, firing Event_GameStart");
@@ -698,6 +718,22 @@ impl Field {
 }
 
 impl Field {
+    /// One observation point around every real session invocation. The title
+    /// dispatch excludes its bootstrap frames; field and battle dispatches
+    /// both count through this same adapter after the call returned.
+    pub(crate) fn session_frame(
+        &mut self,
+        pad: Pad,
+        gameplay: bool,
+    ) -> Option<psiv_runtime::Frame> {
+        let frame = self.session.as_mut()?.frame(pad);
+        if gameplay {
+            self.tape_frames = self.tape_frames.saturating_add(1);
+            self.tape_last_pad = Some(pad.bits());
+        }
+        Some(frame)
+    }
+
     /// The runtime behind the session, for what the shell reads.
     pub(crate) fn runtime(&self) -> Option<&psiv_runtime::Runtime> {
         self.session.as_ref().map(Session::runtime)
@@ -719,7 +755,7 @@ impl Field {
         if !window_open {
             self.retail_dialogue_wait = 0;
         }
-        let Some(frame) = self.session.as_mut().map(|session| session.frame(pad)) else {
+        let Some(frame) = self.session_frame(pad, true) else {
             return;
         };
         // A field-status window the session opened this frame: its own retail

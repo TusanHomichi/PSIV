@@ -184,7 +184,8 @@ continue from. The report is JSON: `chapter`, `objective_index`,
 decision to stderr as the run goes.
 
 **Tape, saves and replay.** The tape is every frame's pad byte, run-length
-encoded in a text file (`src/tape.rs` documents the format). A chapter that
+encoded in a text file (`rust/psiv-runtime/src/tape.rs` documents the format;
+`psiv-campaign::tape` reexports the same codec). A chapter that
 completes writes `<save-dir>/NN-id/slot_1.sram`, and `--from-chapter ID` starts
 from the save the chapter before it ended on; the tape then names that save by
 hash. Route `save` objectives write `<save-dir>/route/slot_N.sram` through the
@@ -197,6 +198,47 @@ through the runtime's own views: the question a route author asks of every
 chapter save. A save loaded mid-route restarts the frame counter and RNG, so a
 `--from-chapter` run is the same game from there but not the same frames as the
 full run; only the full run from New Game is the route's evidence.
+
+### R2 native tape replay (in progress)
+
+`tools/verify_native_tape.py` is the generic Godot entry point. It opens one
+campaign tape through the runtime-owned `TapeFeed` codec, checks a save-start
+tape's FNV against the source bytes **before** copying them into a fresh,
+isolated `PSIV_SAVE_DIR`, and sends each byte via ordinary `Input` actions.
+The title receives ordinary START/CONTINUE button edges; the tape begins at
+the first gameplay `Session::frame` call after that handoff. A central Field
+observer counts actual session invocations in both field and battle dispatch,
+records the last consumed pad, and excludes title frames. The driver stops at
+exactly N bytes, freezes the Field, and checks that two more SceneTree callbacks
+made no N+1 session call. It then compares `Runtime::slot_bytes(&self)` with a
+chapter save byte-for-byte. That read-only snapshot is the normal SAVE writer's
+encoding; equality does **not** by itself prove a camp SAVE action occurred.
+
+```bash
+CARGO_BUILD_JOBS=1 flock -x build/continuation-heavy.lock \
+  python3 tools/verify_native_tape.py --tape /path/to/run.tape \
+  --expect-save /path/to/chapter/slot_1.sram --pack /path/to/runtime-pack \
+  --out build/native-tape-academy
+```
+
+For a save-start tape, add `--from-save /path/to/preceding/slot_1.sram`.
+If the tape uses the camp SAVE command, `--expect-written-save` compares the
+slot the native game actually wrote in its isolated save directory with the
+runner's route SAVE file; that is distinct from the read-only endpoint
+snapshot. `--expect-map` and `--expect-cell x,y` guard the endpoint. The entry point
+requires a fresh output directory and retains `receipt.json`, the native
+report, exact snapshot bytes, and Godot logs. Its receipt records source-save
+SHA-256 before and after, the final live slot hash, selected pack hash, command,
+effective replay configuration and elapsed time. On a fresh checkout it first
+runs a local one-shot headless Godot editor scan to register the GDExtension.
+It strips inherited `PSIV_*`
+selectors, then enables only the read-only probes and explicit local inputs.
+The short Academy/CONTINUE cases bring up the boundary; R2 stays open until
+the full New Game-to-initial-Aiedo prefix matches its endpoint and save bytes
+under fixed-60-Hz native input. Headless checks disable only the render loop;
+the Field physics callback and every input/Session boundary still run. Selected
+1280×800 captures use a separate rendered run and are separate
+presentation evidence, not proof of input or persistent state.
 
 **Tests.** `cargo test --manifest-path rust/Cargo.toml -p psiv-campaign --
 --test-threads=1` runs the planner and validator suites and

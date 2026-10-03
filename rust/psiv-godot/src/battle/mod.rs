@@ -279,7 +279,7 @@ impl Field {
     /// its map refresh with the frame that closes it.
     fn drive_battle_frame(&mut self) -> Vec<RuntimeEvent> {
         let pad = self.frame_pad();
-        let Some(frame) = self.session.as_mut().map(|session| session.frame(pad)) else {
+        let Some(frame) = self.session_frame(pad, true) else {
             return Vec::new();
         };
         if let Some(battle) = frame.battle {

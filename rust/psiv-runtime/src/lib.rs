@@ -50,6 +50,7 @@ mod session;
 mod shop;
 #[cfg(test)]
 mod suites;
+pub mod tape;
 pub mod tools;
 mod travel;
 #[cfg(test)]

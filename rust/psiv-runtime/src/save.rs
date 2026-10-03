@@ -298,19 +298,14 @@ impl Runtime {
         Ok(directory.join(format!("slot_{}.sram", slot + 1)))
     }
 
-    /// Writes the current state to a retail-shaped slot file.
+    /// The exact retail-shaped slot bytes the ordinary writer persists.
+    /// Read-only: native replay compares a chapter boundary without performing
+    /// a SAVE action or introducing a second encoding path.
     ///
-    /// `directory` is the caller's run directory, never a repository default:
-    /// the Godot shell resolves `PSIV_SAVE_DIR` for it and refuses a scripted
-    /// run without that variable (`rust/psiv-godot/src/save_dir.rs`), while
-    /// tests pass a temporary directory without changing runtime state.
-    ///
-    /// Read-only on the runtime (`&self`), which is why it is public under the
-    /// S6 boundary: a caller holding a session's `&Runtime` may record the game
-    /// it is looking at — the campaign runner writes each chapter's boundary
-    /// save this way — but cannot change it.
-    pub fn save_slot(&self, directory: &Path, slot: usize) -> Result<PathBuf, RuntimeSaveError> {
-        let path = Self::slot_path(directory, slot)?;
+    /// # Errors
+    /// A slot outside the three visible rows or an unrepresentable position.
+    pub fn slot_bytes(&self, slot: usize) -> Result<Vec<u8>, RuntimeSaveError> {
+        validate_slot(slot)?;
         let cell = self.vehicle_cell().unwrap_or_else(|| self.state().cell());
         let (char_x, char_y) = cell_pixels(cell)?;
         let save = RetailSave {
@@ -326,8 +321,25 @@ impl Runtime {
             },
         };
         let encoded = RetailSlot::encode(&save, slot)?.with_dungeon_exit(self.dungeon_exit_index);
+        Ok(encoded.as_bytes().to_vec())
+    }
+
+    /// Writes the current state to a retail-shaped slot file.
+    ///
+    /// `directory` is the caller's run directory, never a repository default:
+    /// the Godot shell resolves `PSIV_SAVE_DIR` for it and refuses a scripted
+    /// run without that variable (`rust/psiv-godot/src/save_dir.rs`), while
+    /// tests pass a temporary directory without changing runtime state.
+    ///
+    /// Read-only on the runtime (`&self`), which is why it is public under the
+    /// S6 boundary: a caller holding a session's `&Runtime` may record the game
+    /// it is looking at — the campaign runner writes each chapter's boundary
+    /// save this way — but cannot change it.
+    pub fn save_slot(&self, directory: &Path, slot: usize) -> Result<PathBuf, RuntimeSaveError> {
+        let path = Self::slot_path(directory, slot)?;
+        let bytes = self.slot_bytes(slot)?;
         std::fs::create_dir_all(directory)?;
-        std::fs::write(&path, encoded.as_bytes())?;
+        std::fs::write(&path, bytes)?;
         Ok(path)
     }
 

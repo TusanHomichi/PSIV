@@ -71,6 +71,12 @@ menu for START/CONTINUE and camp STATE → SAVE for normal persistence.
 It currently expects `~/.local/bin/psiv-godot-4.7.1`, `rg` and `flock`;
 the commands above let you use another executable path.
 
+For campaign tape replay through the native game, use
+`tools/verify_native_tape.py` under the shared heavy lock. Its command,
+isolated save/output directories, exact-pad boundary, source-save hash check,
+snapshot comparison and evidence limits are in the
+[R2 native replay section](campaign/CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress).
+
 | Input | Action |
 | --- | --- |
 | Arrow keys | Move / menu selection |

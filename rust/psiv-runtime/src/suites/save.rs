@@ -115,6 +115,11 @@ fn runtime_save_file_round_trips_a_mid_progress_game_state() {
     runtime
         .save_slot(&directory, 0)
         .expect("write retail-shaped slot");
+    assert_eq!(
+        runtime.slot_bytes(0).expect("read-only slot encoding"),
+        std::fs::read(directory.join("slot_1.sram")).expect("writer's bytes"),
+        "the probe and ordinary save writer use the same bytes"
+    );
     let reloaded = Runtime::load_slot(data, &directory, 0, StepFrames::default())
         .expect("load retail-shaped slot");
 
