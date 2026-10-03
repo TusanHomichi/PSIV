@@ -15,6 +15,16 @@ from tools.verify_native_tape import (file_identity, identities_stable,
 
 
 class NativeTapeIdentityGuard(unittest.TestCase):
+    def test_direct_cli_imports_the_file_list_owner_without_pythonpath(self):
+        root = Path(__file__).resolve().parents[1]
+        env = dict(os.environ)
+        env.pop("PYTHONPATH", None)
+        run = subprocess.run([sys.executable, str(root / "tools/verify_native_tape.py"),
+                              "--help"], cwd=root, env=env,
+                             capture_output=True, text=True)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        self.assertIn("--tape", run.stdout)
+
     def test_changed_extension_or_driver_cannot_keep_a_stable_receipt(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -48,14 +58,34 @@ class NativeTapeIdentityGuard(unittest.TestCase):
             first = root / "missing-protected-assets"
             link.symlink_to(first, target_is_directory=True)
             before = source_identity(root)
-            self.assertEqual(before["untracked_entries"]["runtime-pack"]["kind"],
+            self.assertEqual(before["repository_entries"]["runtime-pack"]["kind"],
                              "symlink")
-            self.assertEqual(before["untracked_entries"]["runtime-pack"]["link_sha256"],
+            self.assertEqual(before["repository_entries"]["runtime-pack"]["link_sha256"],
                              hashlib.sha256(os.fsencode(str(first))).hexdigest())
             link.unlink()
             link.symlink_to(root / "another-missing-directory", target_is_directory=True)
             after = source_identity(root)
-            self.assertNotEqual(before["untracked_entries"], after["untracked_entries"])
+            self.assertNotEqual(before["repository_entries"], after["repository_entries"])
+            self.assertFalse(identities_stable({}, {}, before, after,
+                                               "pack", "pack", "tape", "tape"))
+
+    def test_quoted_and_newline_filename_keeps_its_actual_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "-c", "user.name=Test",
+                            "-c", "user.email=test@example.invalid", "commit",
+                            "--allow-empty", "-qm", "base"], check=True)
+            name = 'new "quote"\nline.txt'
+            path = root / name
+            path.write_bytes(b"first")
+            before = source_identity(root)
+            self.assertEqual(before["repository_entries"][name]["sha256"],
+                             hashlib.sha256(b"first").hexdigest())
+            self.assertIn({"status": "??", "path": name}, before["dirty_status"])
+            path.write_bytes(b"second")
+            after = source_identity(root)
+            self.assertNotEqual(before["repository_entries"], after["repository_entries"])
             self.assertFalse(identities_stable({}, {}, before, after,
                                                "pack", "pack", "tape", "tape"))
 
@@ -80,15 +110,28 @@ class NativeTapeIdentityGuard(unittest.TestCase):
                 terminate_process_group(parent, grace_s=0.2)
                 self.assertIsNotNone(parent.returncode)
                 child_stat = Path(f"/proc/{child_pid}/stat")
-                if child_stat.is_file():
-                    self.assertEqual(child_stat.read_text().split(") ", 1)[1][0], "Z")
+                deadline = time.monotonic() + 2
+                while True:
+                    try:
+                        state = child_stat.read_text().split(") ", 1)[1][0]
+                    except FileNotFoundError:
+                        break
+                    if state in {"Z", "X"}:
+                        break
+                    if time.monotonic() >= deadline:
+                        self.fail(f"owned child {child_pid} survived timeout cleanup: {state}")
+                    time.sleep(0.02)
             finally:
                 if parent.poll() is None:
                     terminate_process_group(parent, grace_s=0.1)
-                if child_pid is not None and Path(f"/proc/{child_pid}/stat").is_file():
-                    state = Path(f"/proc/{child_pid}/stat").read_text().split(") ", 1)[1][0]
-                    if state != "Z":
-                        os.kill(child_pid, signal.SIGKILL)
+                if child_pid is not None:
+                    try:
+                        state = Path(f"/proc/{child_pid}/stat").read_text().split(") ", 1)[1][0]
+                    except FileNotFoundError:
+                        pass
+                    else:
+                        if state not in {"Z", "X"}:
+                            os.kill(child_pid, signal.SIGKILL)
 
 
 if __name__ == "__main__":

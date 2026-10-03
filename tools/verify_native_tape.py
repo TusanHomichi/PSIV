@@ -19,6 +19,11 @@ import subprocess
 import sys
 import time
 
+try:  # imported as `tools.verify_native_tape` by tests
+    from tools.repo_files import repo_files
+except ModuleNotFoundError:  # direct `python3 tools/verify_native_tape.py`
+    from repo_files import repo_files
+
 
 ROOT = Path(__file__).resolve().parents[1]
 GODOT = Path(os.environ.get("PSIV_GODOT", Path.home() / ".local/bin/psiv-godot-4.7.1"))
@@ -40,8 +45,8 @@ def file_identity(path: Path) -> dict:
             "mtime_ns": stat.st_mtime_ns, "ctime_ns": stat.st_ctime_ns}
 
 
-def untracked_identity(path: Path) -> dict:
-    """Identify a Git-untracked entry without traversing a linked asset tree."""
+def source_entry_identity(path: Path) -> dict:
+    """Identify a repository entry without traversing a linked asset tree."""
     info = path.lstat()
     identity = {"mode": info.st_mode, "device": info.st_dev, "inode": info.st_ino,
                 "size": info.st_size, "mtime_ns": info.st_mtime_ns,
@@ -61,14 +66,31 @@ def source_identity(root: Path = ROOT) -> dict:
     def git(*args: str) -> bytes:
         return subprocess.check_output(["git", *args], cwd=root)
 
-    status = git("status", "--porcelain=v1", "--untracked-files=all").decode().splitlines()
-    untracked = git("ls-files", "--others", "--exclude-standard", "-z").split(b"\0")
-    untracked_entries = {os.fsdecode(name): untracked_identity(root / os.fsdecode(name))
-                         for name in untracked if name}
+    status = git("status", "--porcelain=v1", "-z", "--untracked-files=all")
+    fields = status.split(b"\0")
+    if fields.pop() != b"":
+        raise ValueError("unterminated Git porcelain status")
+    dirty_status = []
+    index = 0
+    while index < len(fields):
+        record = fields[index]
+        if len(record) < 4 or record[2:3] != b" ":
+            raise ValueError("malformed Git porcelain status")
+        state = record[:2]
+        item = {"status": os.fsdecode(state), "path": os.fsdecode(record[3:])}
+        if b"R" in state or b"C" in state:
+            index += 1
+            if index >= len(fields):
+                raise ValueError("missing Git rename/copy origin")
+            item["other_path"] = os.fsdecode(fields[index])
+        dirty_status.append(item)
+        index += 1
+    repository_entries = {name: source_entry_identity(root / name)
+                          for name in repo_files(root)}
     return {"head": git("rev-parse", "HEAD").decode().strip(),
-            "dirty_paths": status,
+            "dirty_status": dirty_status,
             "diff_sha256": hashlib.sha256(git("diff", "--no-ext-diff", "--binary", "HEAD")).hexdigest(),
-            "untracked_entries": untracked_entries}
+            "repository_entries": repository_entries}
 
 
 def terminate_process_group(process: subprocess.Popen, grace_s: float = 2.0) -> None:

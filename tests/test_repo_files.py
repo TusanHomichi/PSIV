@@ -11,8 +11,8 @@ reported false failures that way on 2026-09-25 (issue #30).
 The cases are:
 
 - `TheChangeSet` pins the helper's contract: a tracked file, an unstaged new
-  file and an ignored file, a tracked file deleted from disk, a pattern, and a
-  directory that is no repository at all;
+  file and an ignored file, a tracked file deleted from disk, a dangling
+  symlink that remains an entry, a pattern, and a non-repository directory;
 - `GuardsSeeUnstagedFiles` shows, per guard, the thing the change is for: each
   guard acts on an unstaged new file in a throwaway repository, pointed at it
   through the seam it already has - the working directory for `check_docs`,
@@ -148,6 +148,17 @@ class TheChangeSet(RepoCase):
         self.start({"docs/kept.md": lines("# Kept"), "docs/gone.md": lines("# Gone")})
         (self.root / "docs" / "gone.md").unlink()  # still in the index, not on disk
         self.assertEqual(self.files(), ["docs/kept.md"])
+
+    def test_a_dangling_unstaged_symlink_remains_in_the_change(self):
+        self.start({"docs/kept.md": lines("# Kept")})
+        link = self.root / "runtime-pack"
+        link.symlink_to(self.root / "missing-protected-pack", target_is_directory=True)
+        self.assertTrue(link.is_symlink())
+        self.assertFalse(link.exists())
+        self.assertEqual(self.files(), ["docs/kept.md", "runtime-pack"])
+        old_exists_filter = [path for path in self.files()
+                             if (self.root / path).exists()]
+        self.assertEqual(old_exists_filter, ["docs/kept.md"])
 
     def test_patterns_filter_the_change(self):
         self.start({"docs/one.md": lines("# One"), "tools/one.py": lines("# One")})

@@ -19,7 +19,7 @@ Contributing with a coding agent? Start with [AGENTS.md](AGENTS.md) and the
 
 ## Where we are
 
-**Native gameplay checkpoint: September 23, 2026.**
+**Combined post-Zio candidate checkpoint: October 3, 2026; not published.**
 
 **Workflow setup is complete:** the [evidence-driven workflow](docs/AGENT_WORKFLOW.md)
 is the standing default, and the [setup ledger](docs/records/WORKFLOW_SETUP.md) retains
@@ -31,12 +31,17 @@ validation pass. See the
 [historical native receipt](docs/field/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
 and [next task handoff](docs/ROADMAP.md#task-graph-handoff).
 
-**Headless Session milestone (isolated candidate, October 3):** the
+**Headless Session milestone (combined candidate, October 3):** the
 29-chapter ordinary-pad route plays New Game through `Cutscene_ZioDefeated`
 twice with identical tapes, digests and final camp-SAVE bytes. A fresh Session
-loads that save and both tapes replay to the same digest. This is
-[separate headless evidence](docs/campaign/RUNNER_LOG.md#70-frozen-headless-acceptance);
-the combined Godot/native milestone and generic Godot tape replay are pending.
+loads that save and both tapes replay to the same digest. The
+[combined route receipt](docs/campaign/RUNNER_LOG.md#combined-p1f2r2-headless-integration)
+is separate from native input proof: generic Godot tape replay reaches initial
+Aiedo from New Game, and an earned-save Zio segment passes ordinary CONTINUE,
+camp SAVE and fresh-process CONTINUE. The current 11-pair presentation
+certificate passes; the final Python gate repair/recheck and default-pack boot
+remain pending. Full R2 remains in progress because its driver-retirement
+criterion has not been met.
 
 | Area | Current evidence |
 | --- | --- |
@@ -72,12 +77,13 @@ rerun or recertify either gameplay result.
 
 ## Next milestones
 
-1. Integrate the #70 ambush gate and Zio-win route with the presentation and
-   vehicle changes, then run the combined native milestone and generic Godot
-   tape replay checks.
+1. Review the scoped Python gate repair, rerun the affected checks, and prove
+   the primary default pack through ordinary boot/CONTINUE. Archive the bounded
+   Zio checkpoint after the composed gate is accepted.
 2. Close remaining battle abilities, enemy AI and camp command gaps as the
    campaign exposes them.
-3. Verify later story, vehicle and boss progression through ordinary input.
+3. Next campaign route: post-Zio toward the spaceport/Zelan/Wren, with the ship
+   destination-menu gap an explicit dependency. No later-arc play is claimed.
 4. Finish presentation fidelity and produce a reproducible desktop package.
 5. Build modding tools after the unmodified game is playable end to end.
 

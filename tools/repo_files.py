@@ -15,6 +15,7 @@ Stdlib only, Python 3.
 
 from __future__ import annotations
 
+import os
 import subprocess
 from collections.abc import Iterable
 from pathlib import Path
@@ -31,9 +32,9 @@ def repo_files(root: Path | str = Path("."), patterns: Iterable[str] = ()) -> li
     [-- patterns]` lists: every tracked file, plus every working-tree file Git
     does not ignore. It is exactly the set a commit made with `git add -A`
     would contain, so a file nobody has staged is in it, and a local input Git
-    ignores is not. The result is de-duplicated and sorted, and a path that no
-    longer exists on disk is dropped, so a tracked file deleted from the
-    working tree is not in it either.
+    ignores is not. The result is de-duplicated and sorted. A tracked file
+    deleted from the working tree is dropped, but a dangling symlink remains:
+    its directory entry and link text still belong to the change.
 
     `patterns` filters the paths the way pathspecs do: `("*.md",)` is the
     Markdown of the change. `RepoFilesError` is raised when Git cannot list
@@ -55,4 +56,4 @@ def repo_files(root: Path | str = Path("."), patterns: Iterable[str] = ()) -> li
             f"git {' '.join(command[1:])} failed in {root}: {proc.stderr.strip()}"
         )
     listed = {record for record in proc.stdout.split("\0") if record}
-    return sorted(path for path in listed if (root / path).exists())
+    return sorted(path for path in listed if os.path.lexists(root / path))

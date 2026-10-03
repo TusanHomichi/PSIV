@@ -19,8 +19,11 @@ The active graph is the [campaign runner graph](campaign/CAMPAIGN_RUNNER.md#task
 opened 2026-10-01 when the owner replaced per-segment native drivers with one
 headless runner over a runtime-owned `Session`. It supersedes the
 [Aiedo arrival graph](campaign/AIEDO.md#5-aiedo-arrival-task-graph), which never
-started. Its next action is reviewed-candidate certification and the one
-combined workspace gate. The [R2 native receipts](campaign/CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress)
+started. The current combined candidate has an 11/11 zero-RMSE certificate.
+The sole five-stage gate on clean `5ec096f` passed docs, formatting, Rust tests
+and Clippy; Python failed on a missing ignored oracle fixture and a file-list
+authority guard. The bounded repair is in focused verification, with the
+affected Python/docs recheck and review still pending. The [R2 native receipts](campaign/CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress)
 separately cover New Game-to-initial-Aiedo and earned-checkpoint Zio SAVE/fresh
 CONTINUE; the isolated [#70 headless receipt](campaign/RUNNER_LOG.md#70-frozen-headless-acceptance)
 is historical, not the combined Godot check.
@@ -58,7 +61,8 @@ its source, hashes and limits. Generic native tape replay has reached the
 initial Aiedo endpoint from New Game; an earned-save Zio segment also passes
 ordinary SAVE and fresh CONTINUE. They are distinct input chains, with their
 raw evidence in [R2](campaign/CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress).
-Certification, the final gate and later-arc play remain open.
+The 11-pair certification passed; the composed final gate result and later-arc
+play remain open. Do not promote the failed `5ec096f` gate receipt to green.
 
 ## 1. Continue from the post-Rika checkpoint
 
@@ -77,10 +81,14 @@ The new code requires the rebuilt full pack; exact candidate, pack, binary and
 check receipts are in the travel ledger. The pack, saves and captures remain
 local and ignored.
 
-**Next action:** freeze and review the combined candidate, certify its pinned
-presentation pairs, then run the one combined workspace gate. Do not infer
-whole-scene parity, a full native New Game-to-Zio route, or a later arc from
-the bounded native Zio segment.
+**Next action:** review the frozen Python-only repair, rerun the affected
+Python/docs checks through the repository gate entry point, and compose the
+result with the unchanged 5ec Rust/fmt/Clippy inputs. After an accepted green
+matrix, prove primary default-pack boot and archive the bounded checkpoint.
+The next campaign route is post-Zio toward spaceport/Zelan/Wren; the ship
+destination-menu gap is an explicit dependency, not implemented here. Do not
+infer whole-scene parity, a full native New Game-to-Zio route, or later-arc
+play from the bounded native Zio segment.
 
 The exact 32×32 bridge match does not establish whole-scene visual parity,
 retail/native save-coordinate interchange, or later campaign progression.

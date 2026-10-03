@@ -89,6 +89,13 @@ snapshot comparison and evidence limits are in the
 
 For the complete Python suite, place the supported image at the repository
 root as `Phantasy Star IV (USA).md` and prepare the disassembly and full pack.
+The battle-art emission tests also need the ignored indexed PNGs named by
+`oracle/fixtures/battle_animation_remainder.json` under
+`oracle/fixtures/battle_animation_art/` (184 in the current receipt). A missing
+frame is an emission error. Preserve a verified local copy, or reproduce the
+frames from the named oracle captures using the renderer documented in
+[battle animations](battle/BATTLE_ANIMATIONS.md#runtime-contract-and-fixtures);
+do not commit the ROM-derived PNGs.
 The documentation check needs no local inputs. From the root:
 
 ```bash
