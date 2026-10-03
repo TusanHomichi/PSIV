@@ -60,10 +60,10 @@ the tree bound to the map the scene runs on (`runtime-pack/maps/*.json`
 | 8 | 150364 | `$070E1E` | `Event_LashiecAppearance` (`$5D`) | `$37` | map: Air Castle Inner B1 Part3 (`$187`), tree 22 | "You've finally come... Lutz!" | `Standard` window | `retained(0x37)` |
 | 9 | 153841 | `$074502` | `Cutscene_Alshline` (`$8005`) | `$68` | scene: `DialogueTree3`, reloaded at `$0744EE` before the call | "How are we going to get in with that creature blocking the way" | `Standard` window | `retained(0x68)` |
 | 10 | 157969 | `$078E9C` | `Cutscene_ProfoundDarkness` (`$8020`) | `$03` | map: The Edge Part9 (`$108`), tree 42 | "...Is this the shape The Profound Darkness has taken?" | `Standard` window | `retained(3)` |
-| 11 | 150750 | `$071538` | `Event_AngerTowerAlys` (`$62`) | `$08` | not transcribed | | no scene | **untranscribed** |
-| 12 | 152563 | `$072B2E` | `Event_FractOozeFound` (`$7D`) | `$2F` | not transcribed | | no scene | **untranscribed** |
-| 13 | 152871 | `$072FEA` | `Event_KingRappy` (`$88`) | `$36` | not transcribed | | no scene | **untranscribed** |
-| 14 | 152977 | `$0731B4` | `Event_DaughterTerminal` (`$8F`) | `$04` | not transcribed | | no scene | **untranscribed** |
+| 11 | 150750 | `$071538` | `Event_AngerTowerAlys` (`$62`) | `$08` | not transcribed | | no scene | **untranscribed**, [#71](https://github.com/TusanHomichi/PSIV/issues/71) |
+| 12 | 152563 | `$072B2E` | `Event_FractOozeFound` (`$7D`) | `$2F` | not transcribed | | no scene | **untranscribed**, [#71](https://github.com/TusanHomichi/PSIV/issues/71) |
+| 13 | 152871 | `$072FEA` | `Event_KingRappy` (`$88`) | `$36` | not transcribed | | no scene | **untranscribed**, [#71](https://github.com/TusanHomichi/PSIV/issues/71) |
+| 14 | 152977 | `$0731B4` | `Event_DaughterTerminal` (`$8F`) | `$04` | not transcribed | | no scene | **untranscribed**, [#71](https://github.com/TusanHomichi/PSIV/issues/71) |
 
 Findings:
 
@@ -84,13 +84,69 @@ Findings:
   (`tests/test_dialogue2_callers.py`) and fails if the image gains or loses
   one, and when a scene lands its row has to move into
   `DIALOGUE2_CALLERS` in `rust/psiv-core/src/scenes/mod.rs`. Open work, not
-  done here: transcribe the four.
+  done here: transcribe the four, tracked by
+  [#71](https://github.com/TusanHomichi/PSIV/issues/71).
 - **Not in scope, seen on the way:** `Event_CarnivorousTrees`
   (`ps4.asm:149973-149984`) and `Event_SavingKyra` (`ps4.asm:150039-150051`)
   move the *whole party* down `$20` pixels with a direct `move.w d1, $34(a4)`
   loop over `CalcPartyNumber` members, where the port runs `MoveActorOffset`
   on the leader with `wait`. A transcription difference of the Dezolis
-  campaign records, not of the Dialogue2 class; recorded here for that pass.
+  campaign records, not of the Dialogue2 class; tracked by
+  [#71](https://github.com/TusanHomichi/PSIV/issues/71).
+
+## Open-gap issue handoff (2026-10-03)
+
+An audit at `82eed831af88234feec8ab8b9322a9d2624de91f` inspected all 44
+open and closed GitHub issues. Open [#71](https://github.com/TusanHomichi/PSIV/issues/71)
+already names all four missing callers and the party-move discrepancy; no
+duplicate issue was filed. Its sibling-dialogue census work remains outside
+this closeout.
+
+The local image matches the [accepted US ROM hash](../DEVELOPMENT.md#prepare-the-local-pack).
+`psiv_tools/newgame.py::event_ptrs` resolves `EventPtrs` to `$05A2B4` from the
+retail dispatcher bytes. The pointer slots and adjacent entries establish the
+following spans; labels and fork build-address comments supply no authority.
+`tests/test_dialogue2_callers.py::rom_callers` independently finds fourteen
+callers, including these four, and the existing image/registry/document census
+reports no disagreement while retaining their explicit `UNTRANSCRIBED` status.
+
+| Event | Pointer slot -> routine | EventPtrs-derived span (inclusive) | Entry load and `jsr $5ACDC` bytes |
+|---|---|---|---|
+| AngerTowerAlys `$62` | `$05A43C` -> `$07148A` | `$07148A..$071579` (includes direction data) | `$071536`: `7008 4EB9 0005 ACDC` |
+| FractOozeFound `$7D` | `$05A4A8` -> `$072B2C` | `$072B2C..$072B51` | `$072B2C`: `702F 4EB9 0005 ACDC` |
+| KingRappy `$88` | `$05A4D4` -> `$072FDC` | `$072FDC..$073017` | `$072FE8`: `7036 4EB9 0005 ACDC` |
+| DaughterTerminal `$8F` | `$05A4F0` -> `$0731B2` | `$0731B2..$0731D9` | `$0731B2`: `7004 4EB9 0005 ACDC` |
+
+**Missing-scene acceptance:** own the transcriptions under
+`rust/psiv-core/src/scenes/` and their dispatch/table entries in `scenes/mod.rs`.
+Each event must dispatch a scene with its retail tree binding, literal retained
+entry, branches and ordered actor/flag/battle/return effects. Move its row from
+Python `UNTRANSCRIBED` into the documented scene ranges and Rust
+`DIALOGUE2_CALLERS`; the Python census and negative controls and Rust
+`every_dialogue2_caller_is_a_retained_window` must pass. Add scene outcome and
+branch assertions in `rust/psiv-core/tests/scene_outcomes.rs`. Retained-window
+agreement alone does not certify the rest of a missing scene.
+
+**Party-move basis and acceptance:** the US image at `$070826..$070847`
+([CarnivorousTrees](53_CarnivorousTrees.md)) and `$07093C..$07095D`
+([SavingKyra](54_SavingKyra.md)) loads the leader's Y, adds `$20` as a word,
+calls `CalcPartyNumber` (`$05A6A4`), then writes that same Y to each occupied
+party object. The writes are at `$07083C` and `$070952`: `3941 0034`
+(`move.w d1, $34(a4)`), with `$40` object strides and `dbf`. They are immediate
+position writes; X is untouched. Both port scenes in
+`rust/psiv-core/src/scenes/dezo_campaign.rs` instead request a leader-only
+`MoveActorOffset { dy: 0x20, wait: true }`; `scene_runner/ops.rs` schedules a
+walk and blocks, and the follow chain in `scene_runner.rs` trails followers.
+Resolve the shared primitive in those owning paths. Regression coverage in
+`rust/psiv-core/tests/events/scenes.rs` and `scene_outcomes.rs` must check both
+events, mounted/on-foot entry and one/five-member parties with distinct starting
+Y positions: all occupied Y words become `(old leader Y + $20) & $FFFF` before
+the battle request, X remains unchanged, and no walking wait is inserted.
+
+These findings are US-image and source/registry evidence. This closeout earned
+no runtime, ordinary-native-input, persistence or connected-route evidence for
+these gaps; #71 remains open. A later campaign claim needs its own connected
+input receipt.
 
 ## Guards
 
