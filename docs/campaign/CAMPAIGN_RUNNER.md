@@ -235,7 +235,10 @@ For a save-start tape, add `--from-save /path/to/preceding/slot_1.sram`.
 If the tape uses the camp SAVE command, `--expect-written-save` compares the
 slot the native game actually wrote in its isolated save directory with the
 runner's route SAVE file; that is distinct from the read-only endpoint
-snapshot. `--expect-map` and `--expect-cell x,y` guard the endpoint. The entry point
+snapshot. It also requires the successful slot-1 SAVE edge returned by
+`Session::camp_frame` and counted at the real Field session boundary: a
+save-start tape's pre-copied slot cannot pass on byte equality alone.
+`--expect-map` and `--expect-cell x,y` guard the endpoint. The entry point
 requires a fresh output directory and retains `receipt.json`, the native
 report, exact snapshot bytes, and Godot logs. Its receipt records source-save
 SHA-256 before and after, the final live slot hash, selected pack hash, command,

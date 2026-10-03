@@ -205,6 +205,17 @@ func _finish() -> void:
         return
     report["post_stop_callbacks_checked"] = frozen_checks - 1
     report["post_stop_session_frames"] = int(boundary[0])
+    var save_acks: PackedInt64Array = game.debug_tape_save_acks()
+    if save_acks.size() != 3:
+        _fail("native camp SAVE acknowledgement probe is unavailable")
+        return
+    report["camp_save_acks"] = [int(save_acks[0]), int(save_acks[1]), int(save_acks[2])]
+    var required_slot := OS.get_environment("PSIV_TAPE_REQUIRE_SAVE_SLOT")
+    if not required_slot.is_empty():
+        var slot := int(required_slot)
+        if slot < 0 or slot >= save_acks.size() or int(save_acks[slot]) < 1:
+            _fail("ordinary camp SAVE acknowledgement absent for slot %d" % [slot + 1])
+            return
     var snapshot: PackedByteArray = game.debug_slot_bytes(0)
     if snapshot.is_empty():
         _fail("read-only slot snapshot is unavailable")

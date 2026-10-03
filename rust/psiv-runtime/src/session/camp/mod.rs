@@ -349,8 +349,12 @@ impl Session {
         // page's result line is written by the same frame that asked for it,
         // with no round trip through the shell.
         let mut save_error = None;
+        let mut save_written = None;
         if let Some(slot) = camp.take_save_request() {
             save_error = self.finish_camp_save(slot);
+            if save_error.is_none() {
+                save_written = Some(slot);
+            }
         }
         let camp = self.camp.as_mut().expect("the camp is up");
         let drained = camp.finish_frame();
@@ -373,6 +377,7 @@ impl Session {
                 menu_events: drained.events,
                 sound: drained.sound,
                 camp_save_error: save_error,
+                camp_save_written: save_written,
                 scene_started,
                 ..Frame::default()
             });
@@ -390,6 +395,7 @@ impl Session {
             menu_events: drained.events,
             sound: drained.sound,
             camp_save_error: save_error,
+            camp_save_written: save_written,
             ..Frame::default()
         })
     }

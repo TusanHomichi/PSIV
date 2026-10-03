@@ -1,6 +1,19 @@
 use super::*;
 
 impl Field {
+    /// Successful ordinary camp writes seen at the real session boundary,
+    /// indexed by zero-based slot. A copied source file never increments it.
+    pub(super) fn tape_save_ack_probe(&self) -> PackedInt64Array {
+        if std::env::var("PSIV_NATIVE_TAPE").as_deref() != Ok("1") {
+            return PackedInt64Array::new();
+        }
+        let mut values = PackedInt64Array::new();
+        for count in self.tape_save_writes {
+            values.push(count as i64);
+        }
+        values
+    }
+
     /// A six-integer observation only: consumed gameplay frames, last pad
     /// byte, title phase/window/cursor, and shell tick. No giant state JSON on
     /// every frame, and no method here can advance a session.

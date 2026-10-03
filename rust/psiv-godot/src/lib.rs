@@ -168,6 +168,7 @@ struct Field {
     /// Read-only native tape boundary: title frames are excluded.
     tape_frames: u64,
     tape_last_pad: Option<u8>,
+    tape_save_writes: [u64; 3],
     map_sprite: Option<Gd<Sprite2D>>,
     /// Priority tiles — what the VDP draws above sprites (palm crowns,
     /// archways). Sits over the party and NPCs, under the dialogue window.
@@ -249,6 +250,11 @@ impl Field {
     }
 
     #[func]
+    fn debug_tape_save_acks(&self) -> PackedInt64Array {
+        self.tape_save_ack_probe()
+    }
+
+    #[func]
     fn debug_slot_bytes(&self, slot: i32) -> PackedByteArray {
         self.slot_bytes_probe(slot)
     }
@@ -263,6 +269,7 @@ impl INode2D for Field {
             pack_dir: String::new(),
             tape_frames: 0,
             tape_last_pad: None,
+            tape_save_writes: [0; 3],
             map_sprite: None,
             overlay_sprite: None,
             party: None,
@@ -663,6 +670,7 @@ impl Field {
         // Session::frame call is gameplay byte 1, not a shell callback guess.
         self.tape_frames = 0;
         self.tape_last_pad = None;
+        self.tape_save_writes = [0; 3];
         match entry {
             TitleEntry::Started { event_started } => {
                 godot_print!("title: START — new game, firing Event_GameStart");
@@ -730,6 +738,11 @@ impl Field {
         if gameplay {
             self.tape_frames = self.tape_frames.saturating_add(1);
             self.tape_last_pad = Some(pad.bits());
+            if let Some(slot) = frame.camp_save_written
+                && let Some(count) = self.tape_save_writes.get_mut(slot)
+            {
+                *count = count.saturating_add(1);
+            }
         }
         Some(frame)
     }

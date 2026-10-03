@@ -285,9 +285,12 @@ pub struct Frame {
     /// logs.
     pub notice: Option<FieldNoticeOpened>,
     /// The camp's SAVE when its write failed this frame. The session owns the
-    /// store, so the write is no longer a request the shell answers; this is
-    /// its only report, and it carries what the shell's log line said.
+    /// store, so the write is no longer a request the shell answers; the
+    /// failure carries what the shell's log line said.
     pub camp_save_error: Option<CampSaveFailure>,
+    /// The zero-based slot written by a successful ordinary camp SAVE on this
+    /// frame. A pre-existing slot or a failed write never sets this edge.
+    pub camp_save_written: Option<usize>,
     /// The battle's own frame while a battle owns the session, including the
     /// frame one began on.
     pub battle: Option<BattleFrame>,

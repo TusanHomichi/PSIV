@@ -676,6 +676,8 @@ fn the_camp_menu_saves_through_the_session_store() {
     player.session.set_save_store(SaveStore::new(&directory));
     let frame = player.tick(Pad::new(Button::Speak));
     assert_eq!(frame.mode, FrameMode::Camp);
+    assert_eq!(frame.camp_save_written, Some(1));
+    assert!(frame.camp_save_error.is_none());
     assert_eq!(camp_page(&player), CampPage::SaveResult);
     assert_eq!(player.session.camp_view().unwrap().message, "FILE SAVED");
     assert!(
@@ -730,7 +732,9 @@ fn a_save_without_a_run_directory_is_refused() {
             .map(|error| error.to_string()),
         Some("the session has no save directory for this run".to_owned())
     );
-    player.tick(Pad::new(Button::Speak));
+    let frame = player.tick(Pad::new(Button::Speak));
+    assert_eq!(frame.camp_save_written, None);
+    assert!(frame.camp_save_error.is_some());
     assert_eq!(
         player.session.camp_view().unwrap().message,
         "SAVE ERROR: the session has no save directory for this run"

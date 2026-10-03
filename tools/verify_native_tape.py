@@ -86,6 +86,7 @@ def main() -> int:
         "PSIV_TAPE_EXPECT_SAVE": str(expected) if expected else "",
         "PSIV_TAPE_EXPECT_MAP": str(args.expect_map) if args.expect_map is not None else "",
         "PSIV_TAPE_EXPECT_CELL": args.expect_cell or "",
+        "PSIV_TAPE_REQUIRE_SAVE_SLOT": "0" if written else "",
         "PSIV_TAPE_REPORT": str(native_report),
         "PSIV_TAPE_SNAPSHOT_OUT": str(snapshot),
         "PSIV_TAPE_CAPTURE": str(capture) if args.render_capture else "",
@@ -133,6 +134,9 @@ def main() -> int:
     source_after = sha256(source) if source else None
     live_slot = saves / "slot_1.sram"
     result = json.loads(native_report.read_text()) if native_report.is_file() else None
+    save_acks = result.get("camp_save_acks") if isinstance(result, dict) else None
+    acknowledged = (isinstance(save_acks, list) and len(save_acks) == 3
+                    and isinstance(save_acks[0], int) and save_acks[0] > 0)
     receipt = {
         "command": command, "exit_code": code, "elapsed_s": round(elapsed, 3),
         "effective_psiv_env": {key: env[key] for key in sorted(env) if key.startswith("PSIV_")},
@@ -150,6 +154,7 @@ def main() -> int:
         "expected_written_sha256": written_sha,
         "ordinary_save_matches": bool(written and live_slot.is_file()
                                       and sha256(live_slot) == written_sha),
+        "ordinary_save_acknowledged": acknowledged,
         "snapshot_sha256": sha256(snapshot) if snapshot.is_file() else None,
         "pack": str(pack), "pack_manifest_sha256": sha256(pack / "manifest.json"),
         "native_report": result,
@@ -163,7 +168,8 @@ def main() -> int:
                                 and result.get("source_copied") is True))
         and snapshot.is_file()
         and (expected is None or receipt["snapshot_sha256"] == expected_sha)
-        and (written is None or receipt["ordinary_save_matches"])
+        and (written is None or (receipt["ordinary_save_acknowledged"]
+                                and receipt["ordinary_save_matches"]))
     )
     receipt_path = out / "receipt.json"
     receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
