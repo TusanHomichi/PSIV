@@ -508,6 +508,13 @@ pub enum SceneOp {
     /// Collapse the followers onto the leader (`Event_OverlapCharacters`,
     /// `$5A87A`).
     OverlapCharacters,
+    /// Snap the overlapped party onto the vehicle lattice. If either original
+    /// sprite axis had bit `$10`, refresh objects and wait for the existing
+    /// runtime camera glide before the following `SetVehicleIndex`.
+    AlignVehicleBoarding {
+        /// The body object selected before the later persistent selector.
+        index: u16,
+    },
     /// Turn an NPC into a party character: the `trap #1` struct copy plus
     /// field-object construction that makes NPC-Alys become field-Alys.
     PromoteNpcToChar {
@@ -547,6 +554,13 @@ pub enum SceneOp {
     /// write covers all three.
     PlaySound {
         /// The sound id.
+        id: u8,
+    },
+    /// The boarding events write both sound words only if the saved byte
+    /// differs from `id`. Runtime owns that persistent byte and makes this
+    /// literal comparison; the three retail callers all pass `$8D`.
+    PlayMusicIfSavedDifferent {
+        /// The track written to `Sound_Index` and `Saved_Sound_Index`.
         id: u8,
     },
     /// Set `Saved_Sound_Index`, the track restored after an interruption.

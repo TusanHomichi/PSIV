@@ -61,6 +61,7 @@ pub(crate) mod post_rika_cutscenes;
 pub(crate) mod post_rika_events;
 pub(crate) mod post_zio_cutscenes;
 pub(crate) mod retail_endgame;
+pub(crate) mod vehicles;
 
 use crate::scene::{DialogueId, DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_runner::Scene;
@@ -197,6 +198,11 @@ pub static SCENES: &[Scene] = &[
     retail_endgame::RAJA_SICK,
     retail_endgame::RYKROS,
     retail_endgame::ENDING,
+    // The field menu's own events, not story beats: the three machines board
+    // from the ITEM menu (`ItemActionPtrs`, `ps4.asm:123419-123465`).
+    vehicles::BOARDING_LAND_ROVER,
+    vehicles::BOARDING_ICE_DIGGER,
+    vehicles::BOARDING_HYDROFOIL,
 ];
 
 /// The scene an event index selects, if it has been transcribed.
@@ -261,7 +267,7 @@ mod tests {
             ("Cutscene_MeetingRika", 107),
             ("Cutscene_DemiRescue", 26),
             ("Cutscene_AlysWounded", 57),
-            ("Event_GettingLandRover", 30),
+            ("Event_GettingLandRover", 31),
             ("Event_MachineCenterAppearing", 14),
             ("Event_RuneLadaeTower", 9),
             ("Event_PsycoWandChest", 20),
@@ -320,6 +326,9 @@ mod tests {
             ("Cutscene_RajaSick", 54),
             ("Cutscene_Rykros", 27),
             ("Cutscene_Ending", 367),
+            ("Event_BoardingLandRover", 7),
+            ("Event_BoardingIceDigger", 7),
+            ("Event_BoardingHydrofoil", 7),
         ];
         assert_eq!(
             SCENES.len(),

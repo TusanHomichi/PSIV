@@ -127,6 +127,13 @@ pub(super) fn construct_runtime(
     let record = data
         .map(psiv_data::MapId(placement.map_id))
         .ok_or(BridgeError::NotPacked(placement.map_id))?;
+    let saved_sound_index = crate::map_change::adjusted_map_music(
+        psiv_core::MapId(placement.map_id),
+        record.music.id,
+        &game,
+        0,
+    )
+    .unwrap_or(0);
     // The message box is part of the runtime, not a second step a caller can
     // forget: the dialogue comes from the loaded data, and data without it
     // (a synthetic pack built from parts) is refused here, where the error can
@@ -186,6 +193,9 @@ pub(super) fn construct_runtime(
         scene_battle: None,
         effects,
         vehicle: None,
+        boarding_body: None,
+        saved_sound_index,
+        map_load_flags: 0,
         saved_party_slots: None,
         camera_glide: None,
         scene_camera_locked: false,

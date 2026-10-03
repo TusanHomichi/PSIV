@@ -193,15 +193,17 @@ fn a_patrol_refuge_that_ends_on_another_map_is_rejected() {
     assert!(!report.is_ok(), "a refuge must return to the patrol's map");
 }
 
-/// The Ladea Tower's corridors are closed to the Land Rover. Take the
-/// dismount out and the walk into the tower is no longer statically possible.
+/// The Ladea Tower's corridors are closed to the Land Rover, and the tower's
+/// own map load is what parks it: `GameMode_LoadFieldMap` clears
+/// `Vehicle_Index` unless `Map_Load_Flags` bit 0 or 2 is set
+/// (`ps4.asm:107507-107517`). The route asserts the parked selector before it
+/// walks the corridors; drop that assertion and the walk is statically
+/// impossible for a mounted party.
+const TOWER_PARKED: &str = "        {\"do\": \"expect\", \"map\": 140, \"vehicle\": 0, \"note\": \"the tower's map load parks the Land Rover (GameMode_LoadFieldMap, ps4.asm:107517): no dismount press is needed, and the tower's one-cell corridors are on foot\"},\n";
+
 #[test]
-fn the_tower_walk_needs_the_dismount() {
-    let text = mutate(
-        &main_text(),
-        "        {\"do\": \"dismount\", \"note\": \"the Land Rover cannot pass the tower's one-cell corridors (psiv_core::can_enter)\"},\n        {\"do\": \"expect\", \"map\": 140, \"vehicle\": 0},\n",
-        "",
-    );
+fn the_tower_walk_needs_the_vehicle_parked() {
+    let text = mutate(&main_text(), TOWER_PARKED, "");
     let Some(report) = run(&text) else { return };
     assert!(
         report
@@ -215,10 +217,11 @@ fn the_tower_walk_needs_the_dismount() {
 
 #[test]
 fn dismounting_on_foot_and_a_bad_vehicle_are_rejected() {
+    // A dismount press after the tower's load has already parked the machine.
     let on_foot = mutate(
         &main_text(),
-        "{\"do\": \"expect\", \"map\": 140, \"vehicle\": 0},",
-        "{\"do\": \"expect\", \"map\": 140, \"vehicle\": 0}, {\"do\": \"dismount\"},",
+        TOWER_PARKED,
+        &format!("{TOWER_PARKED}        {{\"do\": \"dismount\"}},\n"),
     );
     let Some(report) = run(&on_foot) else { return };
     assert!(

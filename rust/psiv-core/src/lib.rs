@@ -158,8 +158,9 @@ pub use trigger::{
 };
 pub use trigger_table::TRIGGERS;
 pub use vehicle::{
-    DEFAULT_STEP_OFFSET, VEHICLE_INDEX_MAX, VEHICLE_INDEX_MIN, VehicleEffect, VehicleProfile,
-    VehicleState, battle_member, can_cross, can_enter, directional_collision, dismount_allowed,
+    BoardingSnap, DEFAULT_STEP_OFFSET, VEHICLE_BOARDING_FLAGS, VEHICLE_INDEX_MAX,
+    VEHICLE_INDEX_MIN, VehicleEffect, VehicleProfile, VehicleState, battle_member, boarding_flags,
+    boarding_snap, can_cross, can_enter, directional_collision, dismount_allowed,
     encounter_suppressed, profile, standing_collision,
 };
 pub use wander::{

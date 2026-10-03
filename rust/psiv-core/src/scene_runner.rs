@@ -33,6 +33,7 @@ enum Blocked {
     Choice,
     Battle,
     Map,
+    Camera,
     Done,
 }
 
@@ -89,6 +90,12 @@ impl SceneRunner {
     #[must_use]
     pub fn is_finished(&self) -> bool {
         self.blocked == Blocked::Done
+    }
+
+    /// Whether this boarding scene is waiting for the runtime's camera glide.
+    #[must_use]
+    pub fn is_waiting_for_camera(&self) -> bool {
+        self.blocked == Blocked::Camera
     }
 
     /// Window routine used by the last dialogue open or named resume.
@@ -255,6 +262,7 @@ impl SceneRunner {
             Blocked::EndingContinue if input == SceneInput::EndingContinue => Blocked::No,
             Blocked::Battle if matches!(input, SceneInput::BattleFinished { .. }) => Blocked::No,
             Blocked::Map if input == SceneInput::MapLoaded => Blocked::No,
+            Blocked::Camera if input == SceneInput::CameraArrived => Blocked::No,
             Blocked::Choice => match input {
                 SceneInput::Choice(_) => Blocked::No,
                 _ => Blocked::Choice,

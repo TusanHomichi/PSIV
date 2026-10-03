@@ -9,6 +9,13 @@ use psiv_core::{
 use crate::{Runtime, RuntimeEvent};
 
 impl Runtime {
+    /// Retail's persistent `$FFFFECEC`, for diagnostics and presentation
+    /// restore seams. Reading it does not consume it.
+    #[must_use]
+    pub fn saved_sound_index(&self) -> u8 {
+        self.saved_sound_index
+    }
+
     /// A live layout write replaces only its named chunks. Validate the whole
     /// batch before changing collision or pixels, and retain the object cast.
     fn write_scene_map_chunks(
@@ -146,11 +153,22 @@ impl Runtime {
     /// One tick of a running scene: feed any pending input, translate the
     /// effects, close out the scene when the runner finishes.
     pub(crate) fn scene_tick(&mut self, input: Input) -> Vec<RuntimeEvent> {
-        let pending = std::mem::take(&mut self.scene_input);
-        let scene_input = if pending == SceneInput::None && input == Input::Action {
-            SceneInput::EndingContinue
+        let camera_arrived = self
+            .scene
+            .as_ref()
+            .is_some_and(psiv_core::SceneRunner::is_waiting_for_camera)
+            && self.camera_glide.is_none();
+        // A camera completion belongs to the blocked op. Keep any unrelated
+        // pending input for the next op rather than swallowing it here.
+        let scene_input = if camera_arrived {
+            SceneInput::CameraArrived
         } else {
-            pending
+            let pending = std::mem::take(&mut self.scene_input);
+            if pending == SceneInput::None && input == Input::Action {
+                SceneInput::EndingContinue
+            } else {
+                pending
+            }
         };
         let mut events = Vec::new();
         let Some(runner) = self.scene.as_mut() else {
@@ -172,6 +190,7 @@ impl Runtime {
                 });
             }
             self.scene = None;
+            self.boarding_body = None;
             self.scene_camera_locked = false;
             self.scene_triggers_pending = true;
             self.scene_tree_address = None;
@@ -336,6 +355,50 @@ impl Runtime {
                 }
                 events.push(RuntimeEvent::VehicleChanged { index });
             }
+            SceneEffect::VehicleBoardingAligned {
+                index,
+                cell,
+                pan_camera,
+            } => {
+                let actors: Vec<_> = (0..self.party.len())
+                    .filter_map(|slot| self.scene_party_actor(slot).copied())
+                    .collect();
+                if let Err(error) = self.party.resume_scripted(&self.map, &actors) {
+                    events.push(RuntimeEvent::MapRefreshFailed {
+                        error: error.to_string(),
+                    });
+                    return;
+                }
+                let Some(body) = psiv_core::VehicleState::new(
+                    &self.map,
+                    index,
+                    cell,
+                    self.party.leader().facing(),
+                ) else {
+                    events.push(RuntimeEvent::SceneFaulted {
+                        fault: psiv_core::SceneFault::BadWrite,
+                    });
+                    return;
+                };
+                self.boarding_body = Some(body);
+                if pan_camera {
+                    // The object update preceding Event_MoveCamera leaves the
+                    // camera's driver at the new sprite position. Otherwise
+                    // the first normal scene-camera tick after the glide would
+                    // misread the snap as a fresh 16-pixel walking velocity.
+                    self.camera.reseat(psiv_core::Driver::at_cell(cell));
+                    for op in [
+                        psiv_core::PresentationOp::ClearHeldInput,
+                        psiv_core::PresentationOp::RebuildSprites,
+                    ] {
+                        events.push(RuntimeEvent::ScenePresentation {
+                            op: SceneOp::Presentation { op },
+                        });
+                    }
+                    let at = psiv_core::PixelPos::from_cell(cell);
+                    self.scene_move_camera_boarding(at.x, at.y);
+                }
+            }
             SceneEffect::RosterChanged { who } => {
                 events.push(RuntimeEvent::RosterChanged { who });
             }
@@ -352,13 +415,17 @@ impl Runtime {
                         start_x,
                         start_y,
                         facing,
+                        clear_load_flags,
                         ..
                     },
             } => {
                 // Start words are 8px units; the standing shift applies on Y,
-                // as everywhere in the pack.
+                // as everywhere in the pack. A scene's load is `RefreshMap`
+                // (`ps4.asm:121767`), whose object-keeping bit is 3, and the
+                // op carries the `bclr`/`bset` writes the scene made around it.
                 let cell = Cell::new(start_x / 2, start_y / 2 + 1);
-                match self.change_map_from(MapId(map), cell, facing, prev_map) {
+                match self.change_map_refresh(MapId(map), cell, facing, prev_map, clear_load_flags)
+                {
                     Ok(()) => {
                         let cast = self.build_cast();
                         if let Some(runner) = self.scene.as_mut() {
@@ -390,6 +457,21 @@ impl Runtime {
             // a headless run must pan exactly like a rendered one.
             SceneEffect::Presentation { op } => {
                 match op {
+                    SceneOp::PlayMusicIfSavedDifferent { id } => {
+                        // All three boarding events compare the persistent
+                        // word, then write Sound_Index and Saved_Sound_Index
+                        // in that order only when the saved byte differs.
+                        if self.saved_sound_index != id {
+                            self.saved_sound_index = id;
+                            for chosen in [SceneOp::PlaySound { id }, SceneOp::SetSavedMusic { id }]
+                            {
+                                events.push(RuntimeEvent::ScenePresentation { op: chosen });
+                            }
+                        }
+                        events.push(RuntimeEvent::SceneMusicRetained);
+                        return;
+                    }
+                    SceneOp::SetSavedMusic { id } => self.saved_sound_index = id,
                     SceneOp::SetCameraPos { x, y } => self.set_camera(x, y),
                     SceneOp::MoveCamera { x, y, speed } => {
                         self.scene_move_camera(x, y, i32::from(speed));
@@ -410,6 +492,14 @@ impl Runtime {
                     }
                     SceneOp::SetRenderSpritesInCutscene { enabled } => {
                         self.scene_panel_sprites = enabled;
+                    }
+                    // The scene's own `bset`/`bclr` writes on `Map_Load_Flags`
+                    // (`$FFFFEC4E`). The next map load reads them: bit 3 spares
+                    // the objects and the vehicle through a `RefreshMap`, and
+                    // bits 0/2 through a `GameMode_LoadFieldMap`
+                    // (`rust/psiv-runtime/src/map_change.rs`).
+                    SceneOp::SetMapLoadFlags { set, clear } => {
+                        self.map_load_flags = (self.map_load_flags | set) & !clear;
                     }
                     // `Event_MoveCamera` reading a live object rather than
                     // literals (`PresentationOp::CameraToActor`). The camera is
@@ -472,5 +562,110 @@ impl Runtime {
             // runtime action.
             _ => {}
         }
+    }
+}
+
+#[cfg(test)]
+mod boarding_sound_tests {
+    use super::*;
+    use psiv_core::{Direction, MapId, StepFrames};
+    use std::path::Path;
+
+    #[test]
+    fn all_three_boarding_frames_skip_same_track_and_emit_both_writes_on_mismatch() {
+        let pack = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("runtime pack not present; skipping");
+            return;
+        }
+        let data = psiv_data::GameData::load(&pack).expect("pack loads");
+        for event in [9, 10, 11] {
+            for saved in [0x8D, 0x84] {
+                let mut runtime = Runtime::new(
+                    data.clone(),
+                    0,
+                    Cell::new(114, 177),
+                    Direction::Down,
+                    StepFrames::default(),
+                )
+                .expect("field runtime");
+                runtime.saved_sound_index = saved;
+                assert!(runtime.start_event(event));
+                let mut sound_writes = Vec::new();
+                let mut retained = 0;
+                for _ in 0..8 {
+                    for emitted in runtime.tick(Input::Neutral) {
+                        match emitted {
+                            RuntimeEvent::ScenePresentation {
+                                op: SceneOp::PlaySound { id },
+                            } => sound_writes.push(SceneOp::PlaySound { id }),
+                            RuntimeEvent::ScenePresentation {
+                                op: SceneOp::SetSavedMusic { id },
+                            } => sound_writes.push(SceneOp::SetSavedMusic { id }),
+                            RuntimeEvent::SceneMusicRetained => retained += 1,
+                            _ => {}
+                        }
+                    }
+                    if !runtime.scene_active() {
+                        break;
+                    }
+                }
+                assert!(!runtime.scene_active(), "event {event} completed");
+                let expected = if saved == 0x8D {
+                    vec![]
+                } else {
+                    vec![
+                        SceneOp::PlaySound { id: 0x8D },
+                        SceneOp::SetSavedMusic { id: 0x8D },
+                    ]
+                };
+                assert_eq!(sound_writes, expected, "event {event}, saved {saved:#04x}");
+                assert_eq!(retained, 1, "event {event} retains music at scene end");
+                assert_eq!(runtime.saved_sound_index(), 0x8D);
+            }
+        }
+    }
+
+    #[test]
+    fn saved_sound_word_resets_at_start_and_follows_field_but_not_refresh_loads() {
+        let pack = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("runtime pack not present; skipping");
+            return;
+        }
+        let data = psiv_data::GameData::load(&pack).expect("pack loads");
+        let map_music = data.map(psiv_data::MapId(0)).unwrap().music.id;
+        assert_ne!(map_music, 0);
+        assert_ne!(map_music, 0x8D);
+        let new_game = Runtime::new_game(data.clone(), StepFrames::default()).unwrap();
+        assert_eq!(new_game.saved_sound_index(), 0, "START clears $ECEC");
+
+        let mut runtime = Runtime::new(
+            data,
+            0,
+            Cell::new(114, 177),
+            Direction::Down,
+            StepFrames::default(),
+        )
+        .unwrap();
+        assert_eq!(runtime.saved_sound_index(), map_music, "field entry");
+        runtime.saved_sound_index = 0x8D;
+        runtime
+            .change_map_refresh(MapId(0), Cell::new(114, 177), Direction::Down, 0, 0)
+            .unwrap();
+        assert_eq!(runtime.saved_sound_index(), 0x8D, "RefreshMap keeps word");
+        runtime.map_load_flags |= crate::map_change::LOAD_FLAG_AFTER_BATTLE;
+        runtime
+            .change_map(MapId(0), Cell::new(114, 177), Direction::Down)
+            .unwrap();
+        assert_eq!(runtime.saved_sound_index(), 0x8D, "battle keep bit");
+        runtime
+            .change_map(MapId(0), Cell::new(114, 177), Direction::Down)
+            .unwrap();
+        assert_eq!(
+            runtime.saved_sound_index(),
+            map_music,
+            "ordinary field load"
+        );
     }
 }

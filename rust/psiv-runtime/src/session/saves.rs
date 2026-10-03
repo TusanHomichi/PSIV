@@ -137,6 +137,7 @@ impl Session {
         self.prev_pad = Pad::NEUTRAL;
         self.shop = None;
         self.camp = None;
+        self.menu_scene = None;
         self.notice_open = false;
         self.mode = Mode::Field;
         Ok(())
@@ -186,5 +187,67 @@ impl Session {
     /// is the shell's; the gate itself is the runtime's).
     pub fn ending_continue(&mut self) {
         self.runtime.ending_continue();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::RuntimeEvent;
+    use crate::session::menu_scene::MenuScene;
+    use std::path::Path;
+
+    #[test]
+    fn start_and_continue_discard_an_old_inn_scene_handoff() {
+        let pack = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("runtime pack not present; skipping");
+            return;
+        }
+        let data = psiv_data::GameData::load(&pack).expect("pack loads");
+        let stale_bill = MenuScene::AiedoInn {
+            event: 0x54,
+            counter: 0,
+            cost: 25,
+        };
+        let assert_not_replayed = |session: &mut Session| {
+            assert_eq!(session.menu_scene, None);
+            let money = session.runtime().game().money();
+            session.resume_menu_scene(&[RuntimeEvent::SceneEnded]);
+            assert_eq!(session.runtime().game().money(), money, "no stale bill");
+            assert!(session.shop.is_none(), "no stale inn window");
+        };
+
+        let mut start = Session::start(data.clone()).field().expect("field boot");
+        start.menu_scene = Some(stale_bill);
+        start.start_new_game().expect("START installs a runtime");
+        assert_eq!(start.runtime().saved_sound_index(), 0);
+        assert_not_replayed(&mut start);
+
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .expect("clock after epoch")
+            .as_nanos();
+        let directory = std::env::temp_dir().join(format!(
+            "psiv-f2-menu-scene-reset-{}-{nonce}",
+            std::process::id()
+        ));
+        std::fs::create_dir(&directory).expect("new isolated save directory");
+        let mut resumed = Session::start(data)
+            .with_saves(SaveStore::new(&directory))
+            .field()
+            .expect("field boot");
+        resumed.runtime.game.set_money(100);
+        resumed.save_slot(0).expect("write isolated source slot");
+        resumed.menu_scene = Some(stale_bill);
+        resumed
+            .continue_save(0)
+            .expect("CONTINUE installs a runtime");
+        assert_eq!(
+            resumed.runtime().saved_sound_index(),
+            resumed.runtime().map_record().unwrap().music.id
+        );
+        assert_not_replayed(&mut resumed);
+        std::fs::remove_dir_all(&directory).expect("remove only our test directory");
     }
 }

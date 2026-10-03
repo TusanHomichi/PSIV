@@ -165,6 +165,10 @@ pub static GETTING_LAND_ROVER: Scene = Scene {
             id: MUSIC_LAND_MASTER,
         },
         SceneOp::WaitFrames { frames: 1 },
+        // `move.w #VehicleID_LandRover, (Vehicle_Index).w` (`$06DFFE`): the
+        // event's first of two writes. The refresh below parks the machine
+        // (`bclr #3` + `RefreshMap`, `$06E02A`), exactly as retail's does; the
+        // second write — after the field object is rebuilt — mounts it again.
         SceneOp::SetVehicleIndex { index: 1 },
         SceneOp::LoadMap {
             map: 0x00,
@@ -175,6 +179,8 @@ pub static GETTING_LAND_ROVER: Scene = Scene {
             align: 4,
             clear_load_flags: 0x08,
         },
+        // `move.w #VehicleID_LandRover, (Vehicle_Index).w` (`$06E09A`).
+        SceneOp::SetVehicleIndex { index: 1 },
         SceneOp::PlaySound {
             id: MUSIC_LAND_MASTER,
         },

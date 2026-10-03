@@ -34,6 +34,7 @@ pub use loot::{LootResult, LootState};
 #[cfg(test)]
 mod field_status_tests;
 mod geometry;
+mod item_action;
 mod map_change;
 mod new_game;
 mod pad;
@@ -82,7 +83,7 @@ pub use session::{
     Start, TargetKind, TechniqueEntry, TitleEntry, TitleErase, TitleFailure, TitleFrame,
     TitlePhase, TitleView, TitleWindow, battle_dwell_frames, camp_fixture, scene_fixture,
 };
-pub use shop::{InnResult, ShopBuyResult, ShopSellResult};
+pub use shop::{InnOpening, ShopBuyResult, ShopSellResult};
 
 use bridge::char_id_by_symbol;
 
@@ -210,6 +211,17 @@ pub struct Runtime {
     effects: EffectOutcome,
     /// Mounted field state; `None` means `Vehicle_Index == 0`.
     vehicle: Option<psiv_core::VehicleState>,
+    /// Scene-only body drawn after the boarding object's replacement and
+    /// before the blocking camera pan permits `Vehicle_Index` to be written.
+    boarding_body: Option<psiv_core::VehicleState>,
+    /// Persistent `$FFFFECEC` (`Saved_Sound_Index`) used by retail scene and
+    /// field-load comparisons. Godot owns playback, not this branch decision.
+    saved_sound_index: u8,
+    /// Retail's `Map_Load_Flags` (`$FFFFEC4E`): the one-shot bits a scene writes
+    /// for the next map load, and the object/vehicle test that load runs.
+    /// It is not saved, and each load routine consumes it the way the
+    /// cartridge's tail does (`rust/psiv-runtime/src/map_change.rs`).
+    map_load_flags: u8,
     /// Retail's transient `Saved_Char_ID_Mem_1/_5` bridge. It is deliberately
     /// outside `GameState` and SRAM: scenes use it between dispatches, while
     /// the cartridge never exposes it as an ordinary save field.
@@ -229,6 +241,7 @@ struct CameraGlide {
     target_x: i32,
     target_y: i32,
     speed: i32,
+    x_then_y: bool,
 }
 
 /// Everything encounters need, converted from the pack once.

@@ -209,3 +209,61 @@ fn rune_opens_the_live_rock_before_the_story_flag_and_keeps_the_party_staged() {
         "flag preserves the opening on the next load"
     );
 }
+
+/// `Map_Load_Flags` is the one-shot byte both load routines read. A warp is
+/// `GameMode_LoadFieldMap`, whose bits 0 and 2 spare the field objects — and
+/// with them `Vehicle_Index` — from `clr.w (Vehicle_Index).w`
+/// (`ps4.asm:107507-107517`); a scene's own `LoadMap` is `RefreshMap`, whose
+/// keep bit is 3 (`:121769-121780`). Each then consumes what it read
+/// (`andi.b #$80` in the field load's tail, `:107594`; zero for the refresh,
+/// `:121835`).
+#[test]
+fn the_load_flags_decide_whether_a_map_load_parks_the_vehicle() {
+    let Some(mut rt) = runtime(0, Cell::new(114, 177)) else {
+        return;
+    };
+    // An ordinary warp: no bit set, so the machine stays parked behind.
+    rt.set_vehicle_index(2).unwrap();
+    rt.change_map_from(MapId(0x39), Cell::new(31, 36), Direction::Up, 0)
+        .unwrap();
+    assert_eq!(
+        rt.vehicle_index(),
+        None,
+        "GameMode_LoadFieldMap clears the selector"
+    );
+
+    // A scene's refresh with bit 3 set keeps it, and zeroes the byte.
+    rt.set_vehicle_index(2).unwrap();
+    rt.map_load_flags = 0b0000_1000;
+    rt.change_map_refresh(MapId(0), Cell::new(114, 177), Direction::Up, 0x39, 0)
+        .unwrap();
+    assert_eq!(rt.vehicle_index(), Some(2), "RefreshMap's keep bit");
+    assert_eq!(rt.map_load_flags, 0, "RefreshMap consumes the flags");
+
+    // The same refresh with the scene's own `bclr #3` parks it.
+    rt.change_map_refresh(MapId(0), Cell::new(114, 177), Direction::Up, 0, 0x08)
+        .unwrap();
+    assert_eq!(rt.vehicle_index(), None);
+
+    // A field load's keep bits are 0 and 2: bit 2 (a cutscene) spares it…
+    rt.set_vehicle_index(1).unwrap();
+    rt.map_load_flags = 0b0000_0100;
+    rt.change_map_from(MapId(0x39), Cell::new(31, 36), Direction::Up, 0)
+        .unwrap();
+    assert_eq!(rt.vehicle_index(), Some(1), "bit 2 spares the machine");
+    assert_eq!(
+        rt.map_load_flags & !0b1000_0000,
+        0,
+        "the field load keeps bit 7 only"
+    );
+
+    // …and bit 3 does not: the two routines read different bits of one byte.
+    rt.map_load_flags = 0b0000_1000;
+    rt.change_map_from(MapId(0), Cell::new(114, 177), Direction::Up, 0x39)
+        .unwrap();
+    assert_eq!(
+        rt.vehicle_index(),
+        None,
+        "a warp reads bits 0 and 2, never bit 3"
+    );
+}

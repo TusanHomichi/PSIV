@@ -25,6 +25,61 @@ pub const VEHICLE_INDEX_MAX: u16 = 3;
 /// The retail movement table's normal selector, `FieldObj_Step_Offset`.
 pub const DEFAULT_STEP_OFFSET: u8 = 1;
 
+/// The position and conditional camera gate produced by the three retail
+/// boarding events. `Cell` uses the standing Y convention: its pixel Y is
+/// `(cell.y - 1) * 16`, not `cell.y * 16`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BoardingSnap {
+    /// The vehicle's 32-pixel-lattice anchor, as a standing cell.
+    pub cell: Cell,
+    /// Whether either original sprite coordinate had bit `$10` set.
+    pub pan_camera: bool,
+}
+
+/// `Event_BoardingLandRover/IceDigger/Hydrofoil` at US ROM `$06BA1A`,
+/// `$06BAF2`, `$06BBCA`: X is masked with `$FFEF`, Y is first advanced by
+/// `$10` and then masked, and the *original* X/Y bit `$10` controls the
+/// object refresh and blocking camera pan. The arithmetic is 68000 word
+/// arithmetic, including wraparound.
+#[must_use]
+pub fn boarding_snap(cell: Cell) -> BoardingSnap {
+    let x = cell.x.wrapping_mul(16);
+    let y = cell.y.wrapping_sub(1).wrapping_mul(16);
+    let snapped_x = x & 0xFFEF;
+    let snapped_y = y.wrapping_add(0x10) & 0xFFEF;
+    BoardingSnap {
+        cell: Cell::new(snapped_x / 16, (snapped_y / 16).wrapping_add(1)),
+        pan_camera: (x | y) & 0x10 != 0,
+    }
+}
+
+/// `VehicleBoardingFlags` (`$057C02`, `ps4.asm:117189-117199`): the selector
+/// mask that a standing tile allows, indexed by the raw collision value
+/// (`loc_45806`'s four-cell maximum, masked to four bits).
+///
+/// The cartridge's `FieldRoutine_Menu` fills `Vehicle_Boarding_Flags`
+/// (`$FFFFEC7F`) from this table once, when the camp menu opens
+/// (`ps4.asm:117126-117135`); the item actions then test one bit each,
+/// Land Rover 0, Ice Digger 1, Hydrofoil 2 (`ps4.asm:123419-123465`).
+///
+/// | index (raw collision) | `$0` | `1` | `9` | `$A` | `$B` | else |
+/// |---|---:|---:|---:|---:|---:|---:|
+/// | mask | `$07` | `$00` | `$04` | `$07` | `$07` | `$00` |
+///
+/// Raw `1` is the map-change tile: no boarding there ("object reload" tiles
+/// carry the party between maps). Raw `$A` is sand and `$B` Dezolis snow,
+/// where all three machines may board; raw `9` is Motavia water, which only
+/// the Hydrofoil can be launched from.
+pub const VEHICLE_BOARDING_FLAGS: [u8; 16] = [
+    0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x04, 0x07, 0x07, 0x00, 0x00, 0x00, 0x00,
+];
+
+/// `Vehicle_Boarding_Flags` for the raw collision value the party stands on.
+#[must_use]
+pub const fn boarding_flags(raw_standing: u8) -> u8 {
+    VEHICLE_BOARDING_FLAGS[(raw_standing & 0x0F) as usize]
+}
+
 /// The vehicle's fixed data, from `VehicleData` at `ps4.asm:321152`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct VehicleProfile {
@@ -496,12 +551,63 @@ mod tests {
     }
 
     #[test]
+    fn boarding_snap_uses_original_word_bits_and_standing_y() {
+        for (from, to, pan_camera) in [
+            ((114, 177), (114, 177), false),
+            ((115, 177), (114, 177), true),
+            ((114, 178), (114, 179), true),
+            ((115, 178), (114, 179), true),
+            ((4095, 0), (4094, 1), true),
+        ] {
+            assert_eq!(
+                boarding_snap(Cell::new(from.0, from.1)),
+                BoardingSnap {
+                    cell: Cell::new(to.0, to.1),
+                    pan_camera,
+                },
+                "retail word transform from {from:?}"
+            );
+        }
+    }
+
+    #[test]
     fn selectors_match_retail_vehicle_masks() {
         for raw in 0..=0x0F {
             assert_eq!(can_cross(1, raw), matches!(raw, 0 | 1 | 0xA));
             assert_eq!(can_cross(2, raw), matches!(raw, 0 | 1 | 0xA | 0xB));
             assert_eq!(can_cross(3, raw), matches!(raw, 0 | 1 | 9 | 0xA));
         }
+    }
+
+    /// `VehicleBoardingFlags` is indexed by the standing raw collision, not by
+    /// the map: the menu samples the party's four cells and keeps the maximum
+    /// (`loc_45806`), then masks it to four bits (`ps4.asm:117132-117135`).
+    #[test]
+    fn boarding_flags_follow_the_standing_raw_collision() {
+        // Normal ground: all three machines.
+        assert_eq!(boarding_flags(0), 0x07);
+        // A map-change tile carries the party between maps; nothing boards.
+        assert_eq!(boarding_flags(1), 0x00);
+        assert_eq!(boarding_flags(2), 0x00);
+        assert_eq!(boarding_flags(8), 0x00);
+        // Motavia water: the Hydrofoil only.
+        assert_eq!(boarding_flags(9), 0x04);
+        // Sand and Dezolis snow: all three.
+        assert_eq!(boarding_flags(0xA), 0x07);
+        assert_eq!(boarding_flags(0xB), 0x07);
+        // Everything the table has no row for fails closed, and the index is
+        // the low nibble: `FieldRoutine_Menu` masks the sampled byte with
+        // `andi.w #$F` before it reads the table (`ps4.asm:117133`).
+        assert_eq!(boarding_flags(0x0F), 0x00);
+        for raw in 0..=0xFFu8 {
+            assert_eq!(
+                boarding_flags(raw),
+                VEHICLE_BOARDING_FLAGS[usize::from(raw & 0x0F)],
+                "raw {raw:#04X}"
+            );
+        }
+        // The table is the nibble's own index space.
+        assert_eq!(VEHICLE_BOARDING_FLAGS.len(), 16);
     }
 
     #[test]

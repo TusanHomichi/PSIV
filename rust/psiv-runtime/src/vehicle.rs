@@ -41,6 +41,7 @@ impl Runtime {
         if index == 0 {
             self.game.set_vehicle_index(0);
             self.vehicle = None;
+            self.boarding_body = None;
             return Ok(());
         }
         if self
@@ -49,6 +50,7 @@ impl Runtime {
             .is_some_and(|vehicle| vehicle.index() == index)
         {
             self.game.set_vehicle_index(index);
+            self.boarding_body = None;
             return Ok(());
         }
         let leader = self.party.leader();
@@ -56,6 +58,7 @@ impl Runtime {
             .ok_or_else(|| BridgeError::Rejected(format!("cannot mount vehicle {index}")))?;
         self.game.set_vehicle_index(index);
         self.vehicle = Some(vehicle);
+        self.boarding_body = None;
         Ok(())
     }
 
@@ -75,6 +78,13 @@ impl Runtime {
     #[must_use]
     pub fn vehicle_state(&self) -> Option<VehicleState> {
         self.vehicle
+    }
+
+    /// The field sprite body. During a boarding pan the cartridge has already
+    /// replaced `Character_1` but has not written persistent `Vehicle_Index`.
+    #[must_use]
+    pub fn vehicle_draw_state(&self) -> Option<VehicleState> {
+        self.boarding_body.or(self.vehicle)
     }
 
     /// The vehicle's standing cell, used by save placement and renderers.

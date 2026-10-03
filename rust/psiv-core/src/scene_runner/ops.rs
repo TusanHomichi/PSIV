@@ -414,6 +414,28 @@ impl SceneRunner {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
             }
+            SceneOp::AlignVehicleBoarding { index } => {
+                let Some(leader) = self.actor(ActorRef::PartyMember(0)).copied() else {
+                    return Some(SceneFault::UnknownActor {
+                        actor: ActorRef::PartyMember(0),
+                    });
+                };
+                let snap = crate::vehicle::boarding_snap(leader.cell);
+                for slot in 0..PARTY_SLOTS {
+                    if let Some(actor) = self.actor_mut(ActorRef::PartyMember(slot)) {
+                        actor.park(snap.cell, actor.facing);
+                    }
+                }
+                effects.push(SceneEffect::VehicleBoardingAligned {
+                    index,
+                    cell: snap.cell,
+                    pan_camera: snap.pan_camera,
+                });
+                self.pc += 1;
+                if snap.pan_camera {
+                    self.blocked = Blocked::Camera;
+                }
+            }
             SceneOp::ReloadMapPalette
             | SceneOp::InitVramAndCram
             | SceneOp::LoadPalette { .. }
@@ -426,6 +448,7 @@ impl SceneRunner {
             | SceneOp::IntroTextFadeDown
             | SceneOp::SetStepOffset { .. }
             | SceneOp::PlaySound { .. }
+            | SceneOp::PlayMusicIfSavedDifferent { .. }
             | SceneOp::SetSavedMusic { .. }
             | SceneOp::FadeIn
             | SceneOp::FadeOut

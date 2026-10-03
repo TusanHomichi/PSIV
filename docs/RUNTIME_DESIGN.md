@@ -96,6 +96,29 @@ pages, cursors, the roster snapshot and the line a command answered with. The
 shop catalog (counters, stock, inn rates) is `shops.json` read through
 `psiv-data`; equip against unequip is decided from the equipment bytes, and a
 sale pays half the item record's price word (`ps4.asm:135570`) for any item.
+Some menu commands do not answer inside their own window: they destroy it and
+hand the field to an event, exactly as the cartridge's `Field_MenuExit` does
+(`ps4.asm:117150-117169`). `session/menu_scene.rs` owns that hand-off for both —
+the ITEM menu's vehicle actions, which leave the menu closed, and Aiedo's inn,
+which rebuilds its window and charges the bill when the scene returns
+(`docs/camp/SHOPS.md`, "Finding 3").
+START and CONTINUE replace the runtime and clear the per-frame menu-scene
+handoff with the other menu/window latches, so an old inn bill cannot consume
+an unrelated later `SceneEnded`. Vehicle ITEM scenes snap the live party via
+one core boarding rule and wait for the existing runtime camera glide only
+when the retail original-coordinate bit test requires it; the general scene
+`MoveCamera` timing and #59 camera-gate refresh remain separate work.
+The persistent `Saved_Sound_Index` byte lives in runtime: START clears it,
+CONTINUE/field entry seed it from the loaded map, ordinary field loads update
+it, and scene writes update or compare it before Godot receives a chosen
+sound op. Real-session Godot restores read that runtime word without consuming
+it, so repeated battle returns retain the selected track. Boarding also tells
+Godot to retain that sound through scene end without a synthetic restart. A
+one-shot cue survives only for runtime-less debug fixtures. Exact map-load
+replay timing still needs the runtime's `$ECED` music-change edge; the current
+shell can issue a redundant restore when a map transition keeps the track.
+For a still-zero word at a generic restore edge, the shell's existing map
+fallback remains a playback policy, not a claimed cartridge zero/stop rule.
 The directions and the talk button resolve in the cartridge's order
 (`Pad::field_input`, `rust/psiv-runtime/src/pad.rs`: `FieldObj_MovementsTbl`'s
 sixteen d-pad masks — an opposing pair cancels, a horizontal beats a vertical —

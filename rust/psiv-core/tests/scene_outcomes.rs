@@ -4,14 +4,78 @@ mod common;
 
 use common::map_with;
 use psiv_core::{
-    ActorRef, CharId, Direction, Flag, GameState, SceneEffect, SceneInput, SceneOp, SceneRunner,
-    ScriptedActor, StepFrames,
+    ActorRef, Cell, CharId, Direction, Flag, GameState, SceneEffect, SceneInput, SceneOp,
+    SceneRunner, ScriptedActor, StepFrames,
 };
 
 const FRAMES: u8 = 8;
 
 fn frames() -> StepFrames {
     StepFrames::new(FRAMES).unwrap()
+}
+
+#[test]
+fn each_vehicle_scene_snaps_the_cast_and_waits_only_for_off_grid_camera() {
+    let map = map_with(&["....", "....", "...."], vec![], vec![]);
+    for (name, selector) in [
+        ("Event_BoardingLandRover", 1),
+        ("Event_BoardingIceDigger", 2),
+        ("Event_BoardingHydrofoil", 3),
+    ] {
+        let scene = psiv_core::SCENES.iter().find(|s| s.name == name).unwrap();
+        for (from, expected, pan) in [
+            (Cell::new(114, 177), Cell::new(114, 177), false),
+            (Cell::new(115, 178), Cell::new(114, 179), true),
+        ] {
+            let mut state = GameState::new();
+            state.set_party([Some(CharId(0)), Some(CharId(1)), None, None, None]);
+            let cast = vec![
+                ScriptedActor::new(ActorRef::PartyMember(0), from, Direction::Down),
+                ScriptedActor::new(ActorRef::PartyMember(1), Cell::new(1, 1), Direction::Down),
+            ];
+            let mut runner = SceneRunner::new(scene.ops, cast, frames());
+            let effects = runner.tick(&map, &mut state, SceneInput::None);
+            assert!(
+                effects.iter().any(|effect| matches!(
+                    effect,
+                    SceneEffect::VehicleBoardingAligned { index, cell, pan_camera }
+                        if *index == selector && *cell == expected && *pan_camera == pan
+                )),
+                "{name} {from:?}: {effects:?}"
+            );
+            assert!(effects.iter().any(|effect| matches!(
+                effect,
+                SceneEffect::Presentation {
+                    op: SceneOp::PlayMusicIfSavedDifferent { id: 0x8D }
+                }
+            )));
+            assert!(!effects.iter().any(|effect| matches!(
+                effect,
+                SceneEffect::Presentation {
+                    op: SceneOp::PlaySound { .. } | SceneOp::SetSavedMusic { .. }
+                }
+            )));
+            for slot in 0..2 {
+                assert_eq!(
+                    runner.actor(ActorRef::PartyMember(slot)).unwrap().cell,
+                    expected
+                );
+            }
+            assert_eq!(runner.is_waiting_for_camera(), pan);
+            if pan {
+                assert_eq!(state.vehicle_index(), 0, "selector waits for pan");
+                runner.tick(&map, &mut state, SceneInput::None);
+                assert_eq!(
+                    state.vehicle_index(),
+                    0,
+                    "ordinary ticks cannot release pan"
+                );
+                runner.tick(&map, &mut state, SceneInput::CameraArrived);
+            }
+            assert_eq!(state.vehicle_index(), selector);
+            assert!(runner.is_finished());
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

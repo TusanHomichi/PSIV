@@ -280,6 +280,10 @@ pub enum RuntimeEvent {
     },
     /// The running scene finished successfully. Cinema off.
     SceneEnded,
+    /// This scene leaves the current music in place at completion. Boarding
+    /// writes the saved sound word only on a mismatch and has no end-of-scene
+    /// restore; the shell must not synthesize one for these routines.
+    SceneMusicRetained,
     /// One typed presentation operation emitted by the scene interpreter.
     ///
     /// The runtime keeps these in the exact order returned by one scene tick;

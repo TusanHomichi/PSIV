@@ -68,18 +68,13 @@ impl Field {
             party.set_position(position);
         }
 
-        // A mounted vehicle owns the field draw slot. Its selector and sheet
-        // come from the persisted Vehicle_Index/vehicle index, while the
-        // core supplies the 32px-grid cell and interpolated 4/8px movement.
-        let vehicle_state = runtime.vehicle_state();
+        // The boarding event replaces the party body before it writes the
+        // persistent selector; the same draw slot serves that brief pan.
+        let vehicle_state = runtime.vehicle_draw_state();
         if let Some(vehicle_state) = vehicle_state {
             let sheet_id = runtime
-                .vehicle_index()
-                .and_then(|index| {
-                    runtime
-                        .data()
-                        .vehicle_sheet_for_map(runtime.map_id().0, index)
-                })
+                .data()
+                .vehicle_sheet_for_map(runtime.map_id().0, vehicle_state.index())
                 .map(|sheet| sheet.id.clone());
             if let Some(sheet_id) = sheet_id {
                 if !self.sheet_views.contains_key(&sheet_id)

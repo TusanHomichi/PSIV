@@ -336,6 +336,8 @@ fn using_an_item_the_pack_no_longer_holds_halts() {
 
 fn menu_window(actor: u8) -> psiv_runtime::CommandMenuView {
     psiv_runtime::CommandMenuView {
+        strip: None,
+        list: None,
         title: String::new(),
         page: psiv_runtime::MenuPage::Actions,
         rows: Vec::new(),

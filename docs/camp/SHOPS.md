@@ -144,10 +144,41 @@ no church or clinic service (§6).
 ### Finding 3 — one inn runs a scene instead of a night
 
 `$066148`: `0C78 0006 ECD0` — when the selector is exactly `6` (group 0 index
-6, the Aiedo counter), and **both** `EventFlag_Zio` and `EventFlag_GirlsCaught`
-are clear, resting calls `Event_GirlsSneakingOut` instead of an ordinary
-night. The routine saves and restores the bill, selector and text variant
-around the call, so the transaction completes normally afterwards.
+6, the Aiedo counter), and **both** `EventFlag_Zio` ($42) and
+`EventFlag_GirlsCaught` ($46) are clear, resting calls
+`Event_GirlsSneakingOut` instead of an ordinary night. The routine saves and
+restores the bill, selector and text variant around the call, so the
+transaction completes normally afterwards.
+
+The exact order, which is what the port reproduces (`Win_RestConfirm`,
+`ps4.asm:136310-136483`):
+
+| # | Step | Lines |
+|---:|---|---|
+| 1 | the bill (`rate × occupied slots`) against the purse; a short purse prints the refusal and leaves | `:136367-136375`, refusal at `loc_662AA` `:136484-136503` |
+| 2 | the "welcome" line, then twelve VBlanks (`moveq #$B` + `dbf`) | `:136376-136387` |
+| 3 | `RecoverStats`: every occupied slot's HP, TP, status and eight skill uses, then `DoVehicleRecovery` | `:136388`, body `:136503` |
+| 4 | fade out, music stop | `:136389-136390` |
+| 5 | selector `6` **and** both flags clear → save the palette block, the bill, the selector and the text variant, call `Event_GirlsSneakingOut`, restore all four, mark the palette saved | `:136391-136410` |
+| 6 | charge the bill: `sub.l d0, (Current_Money).w` | `:136411-136414` |
+| 7 | draw the purse line and its window, sixty VBlanks, restore the palette, rebuild sprites, fade in, restore `Saved_Sound_Index` | `:136415-136463` |
+| 8 | the "rest well" line and its arrow, then every open window is destroyed | `:136464-136483` |
+
+So the party is **restored before** the scene and **billed after** it, and the
+window is destroyed for the scene's whole run and rebuilt over the closed
+transaction afterwards. The port splits the transaction at that seam:
+`psiv_runtime::InnOpening` and `Runtime::inn_begin` price the bill and recover
+the party, `Runtime::rest_event` answers which rests run a scene, and
+`inn_charge` closes the bill when the scene ends, in
+`rust/psiv-runtime/src/shop.rs` and `session/menu_scene.rs`. `InnResult`
+(`AiedoEventPending` included) is gone: the session runs one transaction in two
+halves, so there is no "pending" state left to model.
+
+`tests/session_menu_scenes.rs::the_aiedo_inn_rest_runs_the_scene_between_recovery_and_the_bill`
+and its flagged control cover the isolated pad path. START and CONTINUE clear
+the pending handoff alongside other per-frame menu state, preventing an old
+Aiedo bill from being charged when a later scene ends. The runner log's H13
+and `docs/campaign/AIEDO.md`'s G2 row record the defect this closes.
 
 ## 5. Finding 4 — three shops were cut and their table rows left behind
 

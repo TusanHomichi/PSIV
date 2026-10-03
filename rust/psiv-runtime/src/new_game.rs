@@ -42,6 +42,9 @@ impl Runtime {
             0,
         );
         let followers = game.party_len().saturating_sub(1);
-        save::construct_runtime(data, placement, game, followers)
+        let mut runtime = save::construct_runtime(data, placement, game, followers)?;
+        // Title_StartOption clears `$ECEC` before Event_GameStart runs.
+        runtime.saved_sound_index = 0;
+        Ok(runtime)
     }
 }

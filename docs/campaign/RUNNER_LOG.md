@@ -56,23 +56,125 @@ the route at chapter 20 and, with a four-line experimental patch for H17, H18
 halted it at `zio-fort-barrier`'s talk. Both are transcribed now, and F1-A
 carries no patch.
 
-Two more port defects were met and are not blockers here:
-[H20](#h20-the-vehicle-is-not-parked-at-a-map-load-and-boarding-is-missing) (the
-Land Rover) and [H21](#h21-evil-eye-ability-76-in-the-ladea-tower-58) (an
-unsupported enemy ability in the tower, issue #58).
+Lane F2 changed exactly one route objective: `ladea-tower-rune`'s `dismount`
+was removed because the warp into the tower parks the Land Rover. **Run F2-A,
+exit 0, 1,726,539 frames, digest `bfd4d40aa048623c`**, tape sha256
+`96acff7606db27823b39775419c4a961c7dedd8bc807f2719bb4f4e5479e5f8c`; all 27
+chapters complete through `zio-fort-barrier`. The route goes through
+`aiedo-chaz-house` and the initial `Event_GettingLandRover`; it does not rest at
+the Aiedo special inn or use ITEM to board/reboard a vehicle. The connected
+before/after route pair and the explicit-dismount negative control are evidence
+for the map-load parking/dismount change only. Hand-crafted save/pad receipts
+for the inn and ITEM paths are isolated input/state evidence, not connected
+route coverage.
+
+**The prior F2 candidate was held (2026-10-03 parent independent review); no
+merge recommendation was made.** Review found three source-level blockers: `vehicles.rs`
+omits the vehicle-object replacement, 32-pixel position snap and conditional
+blocking camera pan; `Session::install_runtime()` does not clear `menu_scene`,
+allowing a stale inn transaction across START/CONTINUE; and the three boarding
+scenes restart LandMaster unconditionally instead of comparing
+`Saved_Sound_Index` first. The existing workspace-test log prints the
+named inn/vehicle tests as `ok`; the runtime-pack symlink and its manifest
+predate that log, so the pack-gated isolated tests were available to execute.
+They remain input/state evidence, not connected route coverage. The whole-route
+replay test is marked ignored in that same log. Re-evaluate acceptance only
+against the repair candidate and fresh raw evidence. **F2-R below is that
+repair candidate; independent integration review remains pending.**
+
+The F2-A digest moved for two reasons: the removed dismount press and its settle
+frames are gone, and `Main_Frame_Count` mixes into every battle roll, so from
+that shorter pad history the draws differ — the tower chapters fight 3 and 4
+battles where F1-A's drew 6 and 3 (5,434 and 16,299 frames against 5,452 and
+14,415), and everything after them diverges with the stream.
+
 [H19](#h19-story-flags-and-scene-tile-writes-do-not-reach-the-live-maps-collision)
-is fixed. The run is a traversal
-proof, not a balance proof (see "Not claimed").
+is fixed, [H21](#h21-evil-eye-ability-76-in-the-ladea-tower-58) is still open
+(an unsupported enemy ability in the tower, issue #58), and the run is a
+traversal proof, not a balance proof (see "Not claimed").
 
 H16 (Juza's ZAN and FORCEFLASH) is resolved: lane a1-damage implemented them
 and the route fights Juza. H15 still lists FUSION and DEBAN open; C2's walks
-ran from every encounter on the way, as C1 did. The Aiedo inn defect
-[#39](https://github.com/TusanHomichi/PSIV/issues/39) does not block the story:
-[H13](#h13-the-aiedo-inn-returns-aiedoeventpending-39).
+ran from every encounter on the way, as C1 did.
 
 The one port defect the first runner lane found,
 [H1](#h1-the-mile-sand-worm-trigger-halts-every-visit-to-mile), is fixed
 (issue #54).
+
+## F2-R repair receipt (2026-10-03)
+
+Candidate: branch `ds/f2-menu-events`, base `6dfad82013d8cede788002e36f0a4722de4a1f52`,
+plus frozen source/test patch SHA-256
+`f04a36ca2c916348fe383a79bd1ed868cf0705ef12cf273600d52ce5092eb995`.
+The ignored local `build/f2-repair-20261003/FREEZE.json` has all 29 changed-file
+hashes, the complete patch, and the runtime-pack manifest SHA-256
+`018df2227406af1f09412b9ec3550724a2f9b8688aa0400c1cd707f5b4d05650`.
+The route file SHA-256 is
+`c51285678363da34431eb9035b754a478cd6a493c8bb77244fdd0ea7e86401c0`.
+After the route, the source/test patch digest and pack manifest digest were
+unchanged from this freeze; the local ROM SHA-256 still matched the manifest's
+`rom.sha256`. The run did not extract or rewrite the pack.
+
+The shared core boarding transform uses original 16-bit sprite words: X
+`& $FFEF`, Y `+$10` then `& $FFEF`, and the original bit `$10` on either axis
+chooses the pan. All three vehicle scenes sync the live party/followers, draw a
+scene-only vehicle body, then use the existing runtime camera glide to block
+before writing `Vehicle_Index` only when that bit test requires it. The camera
+target is `(subject-X-$98, subject-Y-$58) & $FFF`, speed 2, X then Y. The
+generic `MoveCamera` timing and #59 camera-gate refresh were not changed.
+`Session::install_runtime` clears the pending menu-scene handoff on START and
+CONTINUE. Runtime owns persistent `Saved_Sound_Index`, including title reset,
+field-load adjustment, and both boarding writes only on a mismatch; it tells
+Godot to retain the chosen sound across boarding scene end, so the shell does
+not synthesize a replay. At real-session restore edges Godot reads the runtime
+word without consuming it, including repeated battle returns; its one-shot
+cue now belongs only to runtime-less debug fixtures. Exact map-transition
+replay timing still needs the runtime's `$ECED` music-change edge, so the
+shell may redundantly restore a track on a same-music map load. A still-zero
+word uses the shell's map fallback; its exact cartridge zero/stop timing is
+not certified here.
+
+Retail source: `ps4.asm:144950-145128` (the three bodies), `:112431-112510`
+(`AdjustMusicIDs`), `:107507-107626` (field-load write/restore),
+`:87730-87742` (title reset), and `:67103` (battle return read), plus
+`Event_MoveCamera` at US ROM `$05AAEE`. The ignored
+`build/f2-repair-20261003/verify_rom.py` asserts raw bytes of the US retail
+ROM (SHA-256 `511f35cc11f88316f8b8940e28ab298bd75a4da193672a80172884d6eb913b6a`),
+including each X/Y mask, camera call followed by selector write, saved-sound
+comparison, both pan-target subtractions/masks, title clear sites, field-load
+write/restore and battle-return reads. Its output is
+`rom-evidence.txt` in that directory; no ROM bytes are tracked.
+
+Focused acceptance under the shared heavy lock: core snap and three-scene
+blocking tests each 1/1; runtime sound-frame tests 2/2 (all three same-track
+negative controls and mismatch write ordering); Godot restore-source seam
+1/1 (two runtime reads preserve `$8D` while debug cue stays separate);
+map-music 1/1; START/CONTINUE
+stale-handoff 1/1; camera seam 1/1; full `session_menu_scenes` 9/9, including
+off-grid X/Y/diagonal and aligned pad cases; `cargo check -p psiv-godot` and
+targeted Clippy `-D warnings` clean. `python3 tools/check_docs.py`: 173 files,
+0 problems; `git diff --check` clean. The first pad fixture at `(115,178)` was
+refused by collision and moved to open ground `(109,178)` before the 9/9 run;
+the first pan test's one-cell camera error was fixed by reseating the existing
+driver. Failed diagnostic logs are retained, not reported as passes.
+
+The fresh F2-R headless route started at New Game with no source save and an
+isolated `PSIV_SAVE_DIR`; release build and full run/replay held the global
+flock. All 27 chapters completed, exit 0, 1,726,539 frames, digest
+`bfd4d40aa048623c`; the replay reproduced it. Tape SHA-256
+`96acff7606db27823b39775419c4a961c7dedd8bc807f2719bb4f4e5479e5f8c`
+matches F2-A. Raw outputs, report and chapter saves are under ignored
+`build/f2-repair-20261003/route-final/` in this checkout (UTC
+20:21:37–20:23:03; run 21.72 seconds, replay 1.85 seconds). An earlier
+pre-sound-seam pass remains separately under `route/`. This route exercises
+parking and the initial Getting Land Rover scene; it still does **not** visit
+the special Aiedo inn or ITEM reboarding. The new pad tests start from
+hand-built saves and prove isolated input/state behavior, not a connected
+campaign milestone or visual parity. Parent review and eventual connected
+native use from an earned checkpoint remain the next acceptance boundary.
+F2-R is frozen as a local candidate commit for review; no push or merge was
+made. The parent owns reconciliation with the F3 scene-runner split and the
+reviewed combined candidate.
 
 ## Runs
 
@@ -183,6 +285,8 @@ except where stated.
 | C2-E3 | experimental engine (H17 patch and a stub for `$30` that runs dialogue `$44` and sets `$64`), `run-3` | completes, exit 0, 1,723,576 frames, digest `e77a7b9cf1f5fa37`, tape sha256 `e566844935aba65f75a0f6084f6d6e338636617dab336b40744c8073012b3c3a` |
 | C2-E4 | the same with `run-4` | identical frames, digest and tape sha256; `psiv-campaign replay build/c1/run-4/run.tape` reproduces the digest |
 | F1-A | `psiv-campaign run rust/psiv-campaign/routes/main.json --save-dir build/f1/run --tape build/f1/run/run.tape --report build/f1/run/report.json` (lane F1: H17, H18 and H19 transcribed, no patch, no route edit) | **completed**, exit 0, 1,724,673 frames, digest `6381311acb90c052`, tape sha256 `eb12090d6400ae95a38977ba917f457ca46382845707f060fe08d84cc4d826df`; route file sha256 `234b50fc832f3abce6762ec8212673ecaa1c7e936f2cebd069ab2ff58a8716df`, unchanged from the base. 251 frames longer than C2-E3: the real barrier scene runs where the stub skipped it, and the route's two H19 workarounds (Juza's east-door round trip, the Krup detour) are still performed |
+| F2-A | `psiv-campaign run rust/psiv-campaign/routes/main.json --save-dir build/f2/run --tape build/f2/run/run.tape --report build/f2/run/report.json` (lane F2 route edit: `dismount` removed; connected route uses initial Getting Land Rover scene, not Aiedo inn or ITEM reboarding) | **completed**, exit 0, 1,726,539 frames, digest `bfd4d40aa048623c`, tape sha256 `96acff7606db27823b39775419c4a961c7dedd8bc807f2719bb4f4e5479e5f8c`; route file sha256 `c51285678363da34431eb9035b754a478cd6a493c8bb77244fdd0ea7e86401c0` (one route edit: `ladea-tower-rune`'s `dismount` dropped). The old full-route baseline with that objective completed; the candidate route completes without it, while the explicit-dismount negative control halts because the map load already parked the vehicle. This is parking/load evidence, not reboarding evidence. |
+| F2-R | `flock -x /home/peter/PSIV/build/continuation-heavy.lock` around release build, `psiv-campaign run rust/psiv-campaign/routes/main.json --save-dir build/f2-repair-20261003/route-final/saves --tape build/f2-repair-20261003/route-final/run.tape --report build/f2-repair-20261003/route-final/report.json`, then replay of that tape; source/test candidate in [F2-R receipt](#f2-r-repair-receipt-2026-10-03) | **completed**, both commands exit 0; 27 chapters, 1,726,539 frames, digest `bfd4d40aa048623c`, tape SHA-256 `96acff7606db27823b39775419c4a961c7dedd8bc807f2719bb4f4e5479e5f8c`. Raw run/replay/report under ignored `build/f2-repair-20261003/route-final/`. Same caveat as F2-A: no special inn or ITEM reboarding in this connected route. |
 
 Per new chapter on the experimental engine (C2-E3; frames, battles, party at the
 chapter's end):
@@ -399,32 +503,50 @@ refuge and enters the basement at Alys L8, Chaz L6, Hahn L6, Gryz L7.
 
 ### H13: the Aiedo inn returns `AiedoEventPending` (#39)
 
-**Open port defect (issue #39), not on the critical path.**
+**Implementation present in candidate `792a059`; acceptance held after
+2026-10-03 review.** It was never on the critical path.
 
 - **Halt:** C1-1, `rest_inn` at the supermarket counter (50,32) facing up:
   `unexpected_state -- the counter refused: "Aiedo rest event pending."`
   (`build/c1/evidence/h-inn-39-report.json`).
-- **Cause (port):** `rust/psiv-runtime/src/shop.rs:126-127` returns
-  `InnResult::AiedoEventPending` when selector 6 is rested at with `$42` and
-  `$46` clear, after `RecoverStats` and before the bill; the shop window shows
-  the placeholder at `rust/psiv-runtime/src/session/shop.rs:397`; nothing runs
-  `Event_GirlsSneakingOut`, whose transcription is registered
+- **Cause (port):** `rust/psiv-runtime/src/shop.rs:126-127` returned
+  `InnResult::AiedoEventPending` when selector 6 was rested at with `$42` and
+  `$46` clear, after `RecoverStats` and before the bill; the shop window showed
+  the placeholder at `rust/psiv-runtime/src/session/shop.rs:397`; nothing ever
+  ran `Event_GirlsSneakingOut`, whose transcription was registered
   (`docs/scenes/27_GirlsSneakingOut.md`).
-- **Cartridge:** `loc_66122`, `reference/ps4disasm/ps4.asm:136380`; after
-  `RecoverStats` it tests selector 6, `EventFlag_Zio` and `EventFlag_GirlsCaught`
-  and calls `Event_GirlsSneakingOut` (`ps4.asm:136406`, body `:146949`), which
-  sets `$46`; the bill is taken after the scene (`loc_661B6`, `ps4.asm:136411`).
-- **Smallest change:** make `shop_stay` hand the scene to the session: run
-  event `$23` in the shop context (the scene tests already start it on map
-  `$63`) and settle the bill when the scene ends.
-- **Does it block the story?** No. `$46` is read only by Aiedo's own map data
-  (`MapDataMan_AiedoSupermarket`, `MapDataMan_AiedoPrison`,
-  `ps4.asm:109146-109178`, which show or hide the two girls) and by this inn.
-  No trigger the next arc uses reads it (`RunEvent_SavingDemi` tests `$42`
-  only, `docs/scenes/31_DemiRescue.md`). The route rests at Chaz's house
-  instead, which is a free rest the cartridge offers (scenes 28 and 29, passing
-  in `aiedo-chaz-house`). When #39 is fixed a chapter that rests at the inn
-  should assert `$46` and the prison map should show the girls.
+- **Cartridge:** after `RecoverStats` the counter tests selector 6,
+  `EventFlag_Zio` and `EventFlag_GirlsCaught` and calls
+  `Event_GirlsSneakingOut` with the palette block, the bill, the selector and
+  the text variant saved around it (`ps4.asm:136391-136410`); the bill is
+  taken after the scene (`sub.l d0, (Current_Money).w`, `:136414`), and the
+  window is destroyed for the scene's run and rebuilt on the "rest well" line
+  afterwards (`:136415-136483`). `docs/camp/SHOPS.md` "Finding 3" carries the step table.
+- **Fix:** the inn transaction is two halves — `inn_begin` prices the bill and
+  runs `RecoverStats`, `inn_charge` deducts it — and `Session` runs the scene
+  between them through the same menu-starts-scene hand-off the vehicle items
+  use (`rust/psiv-runtime/src/session/menu_scene.rs`). `InnResult` is gone.
+  Existing hand-crafted save/pad receipts are isolated input/state evidence;
+  the connected F2 route uses Chaz's house instead of this inn. The current
+  workspace-test log's named tests appear `ok`; the pack-gated tests were
+  available in that run, but remain isolated pad/state evidence rather than
+  connected route coverage. The named isolated receipts are:
+  `tests/session_menu_scenes.rs::the_aiedo_inn_rest_runs_the_scene_between_recovery_and_the_bill`
+  (money unchanged and the party restored before the scene, 500 → 400 after it,
+  `$46` set, the window back on its result line) and
+  `::the_aiedo_inn_is_an_ordinary_night_once_either_flag_is_set`.
+- **Additional review blocker:** `Session::install_runtime()` leaves
+  `menu_scene` uncleared while resetting the other per-frame fields. A stale
+  inn transaction may therefore cross START/CONTINUE. F2-R clears it and
+  tests both installation paths; see the repair receipt above.
+- **Does it block the story?** No, and it still does not. `$46` is read only by
+  Aiedo's own map data (`MapDataMan_AiedoSupermarket`, `MapDataMan_AiedoPrison`,
+  `ps4.asm:109146-109178`, which show or hide the two girls) and by this inn;
+  no trigger the next arc uses reads it (`RunEvent_SavingDemi` tests `$42` only,
+  `docs/scenes/31_DemiRescue.md`). The route rests at Chaz's house instead,
+  which is a free rest the cartridge offers (scenes 28 and 29, passing in
+  `aiedo-chaz-house`). A chapter that rests at the inn can now assert `$46`, and
+  the prison map should show the girls.
 
 ### H14: the fort needs a trained party and a rest that is not the Aiedo inn
 
@@ -685,33 +807,55 @@ come back).** Two instances.
 
 ### H20: the vehicle is not parked at a map load, and boarding is missing
 
-**Port defect, not blocking this route.** Found routing the Land Rover.
+**Implementation present in candidate `792a059`; acceptance held after
+2026-10-03 review.** It was not blocking this route.
 
 - **Halt (evidence run):** `use_item LAND-ROVER` on Motavia at Krup's gate:
   `camp item: LAND-ROVER NOT USABLE` (`build/c1/evidence/h20-land-rover-item-report.json`,
   a scratch chapter appended to the route).
 - **Cartridge:** `GameMode_LoadFieldMap` does `clr.w (Vehicle_Index).w` unless
   `Map_Load_Flags` bit 0 or 2 is set (`ps4.asm:107517`; `RefreshMap` at
-  `:121777` the same), so every ordinary warp leaves the party on foot with the
-  machine parked. `ItemAction_LandRover` (`:123419-123431`) boards again from the
-  ITEM menu, on Motavia, Dezolis or Rykros only and only when
+  `:121777` the same, on bit 3), so every ordinary warp leaves the party on
+  foot with the machine parked. `ItemAction_LandRover` (`:123419-123431`) boards
+  again from the ITEM menu, on the overworld only and only when
   `Vehicle_Boarding_Flags` bit 0 is set (`VehicleBoardingFlags`,
-  `ps4.asm:117131`), by writing Event `$09`; `Event_BoardingLandRover`
-  (`:144950-145008`) builds the vehicle object and writes `Vehicle_Index`.
-  `docs/field/VEHICLES.md` "Mount and dismount" records both.
-- **Port:** `change_map_from` keeps `self.vehicle` across the load
-  (`rust/psiv-runtime/src/map_change.rs:90-99`), so a mounted party walks into the
-  Ladea Tower and must press Action to get off (the route has a `dismount`
-  objective for it); and no scene is registered for events `$09`, `$0A`, `$0B`,
-  and `camp.rs` has no item action table, so the Land Rover item cannot be used.
-  Dismounting is therefore one way: the party in the route cannot take the
-  machine across the sand again once it has left it.
-- **Smallest change:** clear the vehicle in `change_map_from` unless the loading
-  scene asked to keep it, transcribe events `$09` to `$0B`, and answer the three
-  vehicle items from the camp.
-- **Disposition:** not needed from Krup to the Zio Fort (the foot planner finds
-  a seven-warp chain, 431 steps, from Krup's gate), so no route step depends on
-  it. Whether the Land Rover is needed later in the arc is not claimed.
+  `ps4.asm:117126-117199`, `$FFFFEC7F`), by writing Event `$09`;
+  `Event_BoardingLandRover` (`:144950-145008`) builds the vehicle object and
+  writes `Vehicle_Index`. `docs/field/VEHICLES.md` "Mount and dismount" records
+  both, with the boarding flags' real source corrected (the tile's raw
+  collision, `loc_45806`, not the map's low nibble).
+- **Port (before):** `change_map_from` kept `self.vehicle` across the load
+  (`rust/psiv-runtime/src/map_change.rs:90-99`), so a mounted party walked into
+  the Ladea Tower and had to press Action to get off (the route's `dismount`
+  objective); and no scene was registered for events `$09`, `$0A`, `$0B`, and
+  `camp.rs` had no item action table, so the Land Rover item could not be used.
+  Dismounting was therefore one way: the party could not take the machine
+  across the sand again once it had left it.
+- **Fix:** the live `Map_Load_Flags` byte, the two routines' flag tests and
+  their consumption (`rust/psiv-runtime/src/map_change.rs`), the cartridge's
+  item action table and its refusal lines
+  (`rust/psiv-runtime/src/item_action.rs`), the three boarding events
+  (`rust/psiv-core/src/scenes/vehicles.rs`), and the menu-starts-scene hand-off
+  both menus share (`rust/psiv-runtime/src/session/menu_scene.rs`).
+- **Review blocker:** the `Event_BoardingLandRover` transcription omits retail
+  steps 5/6: `charX &= 0xFFEF`, then `charY = (charY + 0x10) & 0xFFEF`, with
+  camera pan only when the pre-event X or Y has bit `0x10` set
+  (`ps4.asm:144950ff`). Its comment falsely says `VehicleState` already models
+  this. `Runtime::set_vehicle_index -> VehicleState::new` only normalizes the
+  cell; it does not snap to the 32-pixel grid. The `(114,177)` fixture is
+  already aligned: odd X or even standing Y is the off-grid case. This
+  pre-repair candidate does not establish correct off-grid boarding.
+- **F2-R:** shared boarding snap, scene-only body and existing-camera
+  completion gate cover all three ITEM events, including odd-X and
+  even-standing-Y pad cases. The raw US ROM byte check and isolated input
+  receipts are in the F2-R section above; connected earned-checkpoint
+  reboarding is still unclaimed.
+- **Disposition:** the route's `ladea-tower-rune` chapter drops its now-redundant
+  `dismount`: the warp into the tower parks the Land Rover by itself, so the
+  chapter's existing `expect {"map": 140, "vehicle": 0}` is now a receipt of the
+  corrected rule. Whether the Land Rover is needed later in the arc is still not
+  claimed, and a route that wants to drive again can now use the item:
+  `use_item LAND-ROVER` boards from anywhere the cartridge allows.
 
 ### H21: EVIL EYE (ability 76) in the Ladea Tower (#58)
 

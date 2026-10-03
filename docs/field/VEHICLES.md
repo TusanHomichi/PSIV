@@ -40,29 +40,105 @@ vehicle records. That is a project policy, not a claim about that retail read.
 
 ## Mount and dismount
 
-The field menu fills `Vehicle_Boarding_Flags` from the low map nibble using
-`VehicleBoardingFlags` (`ps4.asm:117131-117198`). The item actions then require
-both `(Field_Map_Index & $FFF0) == 0` and the corresponding flag bit
-(`ps4.asm:123419-123465`):
+`Vehicle_Boarding_Flags` (`$FFFFEC7F`) is the *tile's* answer, not the map's:
+as the camp menu opens, `FieldRoutine_Menu` samples the raw collision under the
+party's 2×2 footprint (`loc_45806`, `ps4.asm:90594-90646`), keeps the maximum,
+masks it to four bits and reads `VehicleBoardingFlags`
+(`$057C02`, `ps4.asm:117126-117135`, table at `:117189-117199`):
 
-| Low map id | Allowed item mounts |
-|---:|---|
-| `$0` | Land Rover, Ice Digger, Hydrofoil |
-| `$9` | Hydrofoil only |
-| `$A`, `$B` | Land Rover, Ice Digger, Hydrofoil |
-| all other low-nibble values | none |
+| Standing raw collision | `VehicleBoardingFlags` | Allowed item mounts |
+|---:|---:|---|
+| `$0` normal ground | `$07` | Land Rover, Ice Digger, Hydrofoil |
+| `$9` Motavia water | `$04` | Hydrofoil only |
+| `$A` sand | `$07` | Land Rover, Ice Digger, Hydrofoil |
+| `$B` Dezolis snow/ice | `$07` | Land Rover, Ice Digger, Hydrofoil |
+| `1` map-change tile, `8` solid, everything else | `$00` | none |
+
+**Correction:** this section said the index was the *low nibble of the map
+id*; it is the low nibble of the standing raw collision. `loc_45806` returns
+the four-cell maximum in `d7` and `FieldRoutine_Menu` masks *that* with
+`andi.w #$F` (`ps4.asm:117132-117134`), so `$A`/`$B` are the sand and snow
+rows rather than map ids — which is also what makes the raw-`1` row (`$00`)
+the "no boarding on a transition tile" rule. The flags are filled once, as
+the menu opens; nothing moves while a menu is up.
+
+The item actions then require *both* the overworld — `(Field_Map_Index & $FFF0)
+== 0`, i.e. map ids `0..$0F` — and the corresponding flag bit
+(`ps4.asm:123419-123465`). Three items carry boarding actions, and
+`ItemActionPtrs` (`:123355-123400`) is the cartridge's whole field table:
+
+| Item | Action | Accepts | Refusal text (`loc_5C2EA`) |
+|---|---|---|---|
+| LAND-ROVER `$96` | `ItemAction_LandRover` `:123419` | overworld + bit 0 → Event `$09` | "Can't get on it here!" (`loc_2AA2C8`) |
+| ICE-DIGGER `$97` | `ItemAction_IceDigger` `:123436` | overworld + bit 1 → Event `$0A` | "Can't get on it here!" |
+| HYDRO-FOIL `$98` | `ItemAction_HydroFoil` `:123453` | overworld + bit 2 → Event `$0B` | "Can't get on it here!" |
+| PENNANT `$94`, WOOD-CARVIN `$95` | `ItemAction_Pennant` `:123470` / `ItemAction_WoodCarvin` `:123484` | map `$5E` Chaz's house → Event `$97`/`$98` | "It's a waste\nto put it here!" |
+| PSYCO-WAND, DYNAMITE, ALSHLINE, ECLPS-TORCH, AERO-PRISM | `ItemAction_Nothing` `:123498` | never | their own record |
+| the map item `$8C` | `ItemAction_Map` `:123405` | map `0`/`1` → the map screen | "Cannot be used here!" |
+
+An accepted action destroys every window and sets `Routine_Exit_Flags` bit 1,
+which `Field_MenuExit` turns into `Game_Mode_Routine = $C`, the field's event
+routine, so the scene runs with no menu over it (`ps4.asm:123419-123431`,
+`117150-117169`). A refused one opens the message window with the item's own
+text. An item the table does not name — any ordinary weapon or armour —
+returns its own id from `loc_5C0B0` (`:123337-123353`), which the caller's
+`beq` reads as "consumed": the menu is destroyed and nothing is shown
+(`loc_5B7E4`, `:122596-122600`).
+
+`rust/psiv-runtime/src/item_action.rs` is the port's transcription of that
+table and of those messages, `psiv_core::boarding_flags` is the terrain rule,
+and `Session` runs an accepted event through the same hand-off the Aiedo inn
+uses (`rust/psiv-runtime/src/session/menu_scene.rs`).
+
+### What a map load does to the selector
+
+`Vehicle_Index` does not survive a load: both loader routines clear it unless
+their own `Map_Load_Flags` bit is set, so **walking through a map-change tile
+parks the machine** and the party steps out of town on foot.
+
+| Routine | Entry | Keeps the objects and the vehicle when | Consumes the flags by |
+|---|---|---|---|
+| `GameMode_LoadFieldMap` (`ps4.asm:107505`) | a warp (`MapTrans_*`), a teleport, the battle return | bit 0 (after a battle: `bset #0` at `:118057` and `:120803`) or bit 2 (after a cutscene: `:120746`) | `andi.b #$80` (`:107594`): bit 7 survives, the rest is spent |
+| `RefreshMap` (`:121767`) | a scene's own `LoadMap` op, an in-place event refresh | bit 3, "keep objects (used for map refresh during events)" (`ps4.constants.asm:2156`) | zeroing the byte (`:121835`) |
+
+Both call the same party placement and object walk, so a scene's `LoadMap` and
+a warp differ only in which bit spares the machine. `Map_Load_Flags` is a
+one-shot byte: a scene sets it with its own `bset`/`bclr` writes, and the next
+load spends it.
 
 Story events can set a selector directly. `Event_BoardingLandRover`,
 `Event_BoardingIceDigger` and `Event_BoardingHydrofoil` are Event indices `9`,
-`$A` and `$B` (`ps4.asm:120583-120590`, `144950-145128`). They wait for party
-overlap, rebuild the ordinary party objects into the selected vehicle object,
-stage the art, and write selector `1`, `2` or `3`. The Ice Digger is story-live:
+`$A` and `$B` (`ps4.asm:120583-120585`, `144950-145127`). They overlap the
+party, build the sprite table, write LandMaster only if `Saved_Sound_Index`
+differs, stage the art and replace the party object ids with one vehicle body.
+They mask sprite X with `$FFEF`, add `$10` to sprite Y before the same mask,
+and conditionally refresh objects/sprites and block on `Event_MoveCamera`
+speed 2 when either *original* coordinate has bit `$10`. Only then do they
+write selector `1`, `2` or `3`. Standing cells have pixel Y `(cell.y-1)*16`,
+so `(114,177)` is aligned and odd X/even standing Y is off-grid. The port's
+shared `boarding_snap` rule, scene op and existing runtime camera glide carry
+that ordering. A scene-only body occupies the draw slot during the blocking
+pan, before the persistent selector is written. Runtime compares its
+`Saved_Sound_Index` word and emits the two sound writes only on a mismatch;
+Godot plays the chosen sound without deciding the branch. The selected
+`Vehicle_Index` then draws the same machine from the pack's sheet and map
+palette. The Ice Digger is
+story-live:
 `Cutscene_DarkForce1Defeated` removes the Canceller, adds Ice Digger and sets
 flag `$89` (`docs/scenes/48_DarkForce1Defeated.md`). That is the Dezolis/snow
 route; it is not a generic Land Rover recolour.
 
+`Event_GettingLandRover` writes `Vehicle_Index` twice (`ps4.asm:147452`, then
+`:147483`): once before its `bclr #3` + `RefreshMap` (`:147459-147460`), which
+parks the machine again, and once after the field object is rebuilt
+(`$06E09A`). The port's transcription keeps both writes, so that scene's own
+refresh follows the same rule as any other.
+
 The runtime's `set_vehicle_index` anchors a selected machine at the leader's
-current cell. Dismount is Event `$10`, `Event_GettingOffVehicle`
+current cell. The three ITEM boarding scenes first sync the party to the
+snapped cell, including followers, and wait for a required pan before calling
+it; story and save selectors still use their own placement paths. Dismount is
+Event `$10`, `Event_GettingOffVehicle`
 (`ps4.asm:145343-145440`): it samples the four-cell standing footprint at the
 current anchor, accepts only an unsigned maximum of raw collision `0`, then
 rebuilds the party objects and writes selector `0`. Any other raw value opens
@@ -403,11 +479,34 @@ Implemented and tested:
 - all three selector profiles, masks, 32-pixel movement timing and footprint;
 - Ice Digger snow/ice and Hydrofoil water masks, including Hydrofoil's 8 px/frame speed;
 - menu/story mount and raw-zero dismount refusal/success;
+- boarding from the ITEM menu: `ItemActionPtrs`, the terrain's
+  `VehicleBoardingFlags` row, the three boarding events, the cartridge's own
+  refusal lines, and the "consumed" branch for an item outside the table;
+- the map-load rule: a warp parks the machine, a scene's `LoadMap` keeps it
+  only on bit 3, and the battle return keeps it (bit 0);
 - saved vehicle battle member, skill mask/use overlay and use decrement;
 - mounted random/event battle party swap and `$96` music;
 - 14 map-specific CRAM-line-3 vehicle palette variants;
 - 27 event, 416 field-map and 42 Mota background indexes plus all 32 assets;
 - oracle tape 29's mounted movement, dismount refusal, successful dismount and mounted entry fixture.
+
+Test coverage of the two rules above:
+
+- `rust/psiv-runtime/tests/session_menu_scenes.rs`, pads only: boarding the
+  Land Rover on Motavia and watching the Machine Center's doorway park it,
+  the in-town refusal ("Can't get on it here!"), Motavia water allowing the
+  Hydrofoil and refusing the Land Rover, a Dagger closing the menu without a
+  scene, `Cutscene_Dorin`'s `SetMapLoadFlags` bit 3 keeping a mounted party
+  through its own `LoadMap`, and the Aiedo inn's rest (bill priced and party
+  recovered before the scene, charged after it, `EventFlag_GirlsCaught` set);
+- `rust/psiv-runtime/src/field_entry_tests.rs`, both routines' flag tests and
+  the byte each consumes;
+- `rust/psiv-core/src/vehicle.rs`, the `VehicleBoardingFlags` rows.
+
+The campaign route's `ladea-tower-rune` chapter is the end-to-end receipt: the
+Land Rover drives to the Ladea Tower, the warp parks it, and the route's
+`expect {"map": 140, "vehicle": 0}` now holds *because of the load*, not
+because of an explicit dismount (`docs/campaign/RUNNER_LOG.md`, H20).
 
 Still open:
 
@@ -416,7 +515,11 @@ Still open:
    29 remains the explicit fixture for mounted movement, dismount and battle
    entry. The Ice Digger and Hydrofoil story routes are also still separate
    natural runs.
-2. The Godot shell can report one non-fatal `AudioStreamGeneratorPlayback`
+2. The map item (`ItemAction_Map`, `$8C`) opens the overworld map screen in
+   retail (`Routine_Exit_Flags` bit 2, `ps4.asm:117170`); the port has no map
+   screen, so the ITEM page answers `MAP SCREEN NOT READY` instead of a
+   refusal the item never got.
+3. The Godot shell can report one non-fatal `AudioStreamGeneratorPlayback`
    ObjectDB leak at shutdown on some headless runs. The field/battle boot exits
    successfully; this is the pre-existing audio lifecycle, outside the vehicle
    slice.

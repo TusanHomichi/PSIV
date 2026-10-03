@@ -224,7 +224,9 @@ pub struct CampItem {
     pub id: u8,
     /// Display label.
     pub name: String,
-    /// Whether the pack identifies this item as a field-consumable effect.
+    /// Whether ITEM's USE takes the disposable path — a pipe, or a type-8
+    /// record with a decoded effect (`ps4.asm:122557-122594`) — rather than
+    /// the action table (`rust/psiv-runtime/src/item_action.rs`).
     pub usable: bool,
     /// The decoded item target mode (`4` single target, `5` party target in
     /// the current pack).

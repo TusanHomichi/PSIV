@@ -284,7 +284,16 @@ impl Field {
 
     pub(crate) fn finish_cutscene_presentation(&mut self) {
         self.clear_red_palette();
-        let restored = self.restore_saved_music();
+        let restored = if self.presentation.scene_music_retained() {
+            // Runtime already settled this scene's Saved_Sound_Index decision.
+            // Boarding has no cartridge restore at exit; discard the shell's
+            // older one-shot cue without replaying or falling back to raw map
+            // music. Other scene restore behavior remains unchanged.
+            self.presentation.take_debug_saved_music();
+            true
+        } else {
+            self.restore_saved_music()
+        };
         self.presentation.reset_scene();
         if let Some(layer) = self.cutscene_layer.as_mut() {
             layer.bind_mut().end_opening();

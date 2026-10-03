@@ -574,9 +574,9 @@ impl INode2D for Field {
             // 170 updates before tick 200 become the 171 elapsed clock updates
             // the oracle receipt models.
             self.capture_debug_shot();
-            // Battle close is the other retail restore edge. Scene battles
-            // carry Saved_Sound_Index; ordinary battles fall back to the
-            // current map's music request.
+            // Battle close reads the runtime's persistent Saved_Sound_Index,
+            // as the retail return path does; zero falls back to the current
+            // map request in this shell.
             if battle_was_active
                 && !self.battle_presentation_active()
                 && !self.runtime().is_some_and(|rt| rt.game_over())
