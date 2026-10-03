@@ -247,9 +247,13 @@ func _finish() -> void:
         _fail("endpoint map mismatch: expected %s, got %s" % [expected_map, state["map"]])
         return
     var expected_cell := OS.get_environment("PSIV_TAPE_EXPECT_CELL")
-    if not expected_cell.is_empty() and expected_cell != "%s,%s" % [state["cell"][0], state["cell"][1]]:
-        _fail("endpoint cell mismatch: expected %s, got %s" % [expected_cell, state["cell"]])
-        return
+    if not expected_cell.is_empty():
+        var parts := expected_cell.split(",")
+        var actual: Array = state["cell"]
+        if parts.size() != 2 or actual.size() != 2 or \
+                int(parts[0]) != int(actual[0]) or int(parts[1]) != int(actual[1]):
+            _fail("endpoint cell mismatch: expected %s, got %s" % [expected_cell, actual])
+            return
     var capture := OS.get_environment("PSIV_TAPE_CAPTURE")
     if not capture.is_empty():
         var image := game.get_viewport().get_texture().get_image()

@@ -225,13 +225,25 @@ chapter save byte-for-byte. That read-only snapshot is the normal SAVE writer's
 encoding; equality does **not** by itself prove a camp SAVE action occurred.
 
 ```bash
-CARGO_BUILD_JOBS=1 flock -x build/continuation-heavy.lock \
+PSIV_HEAVY_LOCK=/absolute/path/to/primary/build/continuation-heavy.lock
+CARGO_BUILD_JOBS=1 flock -x "$PSIV_HEAVY_LOCK" \
   python3 tools/verify_native_tape.py --tape /path/to/run.tape \
   --expect-save /path/to/chapter/slot_1.sram --pack /path/to/runtime-pack \
   --out build/native-tape-academy
 ```
 
+Use the same absolute ignored lock path from every worktree; a relative
+`build/` lock serializes only that one checkout.
+
 For a save-start tape, add `--from-save /path/to/preceding/slot_1.sram`.
+For a fresh-process CONTINUE check of a newly written slot, use
+`psiv-campaign save-probe-tape <slot.sram> <out.tape> [neutral-frames]` to
+create a save-start tape through the same Rust codec. The optional count
+defaults to zero and is capped at 600. A bounded neutral-pad tape lets the
+normal title fade finish and the loaded field render; every neutral pad still
+counts as one real gameplay Session frame. Pass that tape and its source slot
+to the verifier. The probe loads through ordinary title input without
+claiming a new SAVE edge.
 If the tape uses the camp SAVE command, `--expect-written-save` compares the
 slot the native game actually wrote in its isolated save directory with the
 runner's route SAVE file; that is distinct from the read-only endpoint
@@ -242,16 +254,63 @@ save-start tape's pre-copied slot cannot pass on byte equality alone.
 requires a fresh output directory and retains `receipt.json`, the native
 report, exact snapshot bytes, and Godot logs. Its receipt records source-save
 SHA-256 before and after, the final live slot hash, selected pack hash, command,
-effective replay configuration and elapsed time. On a fresh checkout it first
-runs a local one-shot headless Godot editor scan to register the GDExtension.
-It strips inherited `PSIV_*`
-selectors, then enables only the read-only probes and explicit local inputs.
-The short Academy/CONTINUE cases bring up the boundary; R2 stays open until
-the full New Game-to-initial-Aiedo prefix matches its endpoint and save bytes
-under fixed-60-Hz native input. Headless checks disable only the render loop;
+effective replay configuration and elapsed time. It also records the Git HEAD,
+dirty diff and untracked-entry identities (symlink targets are never opened),
+exact pre/post GDExtension, driver, verifier and Godot identities, and the
+extension path/inode observed in the Godot process map. A changed source,
+tape, pack manifest or executable artifact fails the receipt. A timed-out
+launch terminates its own Godot/Xvfb process group and records exit 124. On a
+fresh checkout it first runs a local one-shot headless Godot editor scan to
+register the GDExtension. It strips inherited `PSIV_*` selectors, then
+enables only the read-only probes and explicit local inputs.
+Headless checks disable only the render loop;
 the Field physics callback and every input/Session boundary still run. Selected
 1280×800 captures use a separate rendered run and are separate
 presentation evidence, not proof of input or persistent state.
+
+**Combined candidate, 2026-10-03.** The selected pack is the ignored stable
+copy at `/home/peter/PSIV/build/accepted-p1-pack-7fe1e64a` (manifest SHA-256
+`7fe1e64abfb4d55230a1039f5ac2deea4b45f6e94e5b029bba10107a39a016de`).
+Raw receipts and logs are under ignored `build/r2-integration/` in this
+worktree; they are not Git assets.
+
+| Native replay | Observed result | Raw receipt |
+| --- | --- | --- |
+| New Game → Academy | 32,308 exact Session pads; chapter snapshot matches | `native-academy-current-2/receipt.json` |
+| Earned Academy CONTINUE → Holt | 11,408 pads, camp SAVE acknowledgement, snapshot matches | `native-holt-current/receipt.json` |
+| New Game → initial Aiedo | 156,019 pads in 2,066.765 s, title START t7 → first gameplay Session t8, two post-stop callbacks without N+1, map `$54` (47,83), snapshot SHA-256 `2d82632af8f7a001483b04493d294b5b8325bc631337cae471716bf02d0c0ef2` matches the full-run chapter | `native-aiedo-current/receipt.json` |
+| Earned pre-Zio save → Zio, then fresh-process CONTINUE | 8,823 pads, one ordinary camp SAVE acknowledgement and matching written slot; separate zero-pad ordinary CONTINUE reloads that slot with matching bytes | `native-zio-segment/receipt.json`, `native-zio-continue-zero/receipt.json` |
+| Rendered earned-save → Zio | 8,823 pads, same SAVE and endpoint bytes, pre/post identities stable, actual mapped extension matches; selected 1280×800 post-Zio field capture SHA-256 `a094885723bbe7b850ef263146334ebeeb4588635ce4912e8600eff17ed91983` | `native-zio-rendered-segment/receipt.json`, `selected-1280x800.png` |
+| Rendered fresh-process CONTINUE from that native-written slot | 180 neutral pads in the tape, 180 exact Session frames, no N+1, source/snapshot bytes SHA-256 `8d831c47fc859257e28c46ead3583668fe81b54b4d8eb5ce8eeb798427818baa`; selected 1280×800 loaded Motavia field SHA-256 `5b2698c5bfe618348a495b0d115bbd4e7c24638913b4c34ec4a3e0f8a278703f` | `native-zio-visible-continue/receipt.json`, `selected-1280x800.png` |
+
+The long Aiedo receipt predates the preflight identity guard. Its
+`native-aiedo-current/during-run-provenance.json` binds the active Godot PID's
+mapped library path/inode and its then-current SHA-256; the separate
+`after-run-provenance.json` shows the same on-disk script/library identities
+after exit. That is during/after observation, **not** a backdated preflight
+claim. The later rendered Zio run has full preflight/mapping/postflight
+identity proof. Negative controls retain malformed tape, wrong source hash,
+wrong endpoint, dropped pad, and copied-source-without-SAVE failures; the
+identity guard's temp-artifact tests change each of the driver and extension,
+retarget a directory symlink, and prove process-group cleanup of a child that
+ignores TERM. The integrated stub timeout receipt is
+`provenance-timeout-negative/receipt.json`: exit 124, verification refused,
+and its child absent after cleanup. `save-probe-negative.json` records the
+existing-output and over-600-frame refusals with no overwritten file. Earlier
+failed import, cell-format and terminated
+attempts remain in the ignored ledger. The Aiedo run logged five map-0
+background errors and seven panel warnings; map-0 fallback predates this
+candidate (issue #40). The selected
+Zio field image is a rendered milestone, not a scene-wide oracle comparison.
+The older `native-zio-rendered-continue-2` zero-pad capture is almost black
+because it freezes during the title fade; its state/save proof remains valid,
+but that image is **not** evidence of a visible loaded world. The 180-pad
+fresh CONTINUE capture above supplies that separate presentation observation
+without advancing any untaped gameplay frame. It makes no new SAVE request;
+the ordinary SAVE evidence is the preceding Zio segment. The fresh CONTINUE
+receipt's `ordinary_save_matches: false` means `--expect-written-save` was not
+requested for that no-SAVE tape.
+R2 stays in progress through final certification and the reviewed combined gate.
 
 **Tests.** `cargo test --manifest-path rust/Cargo.toml -p psiv-campaign --
 --test-threads=1` runs the planner and validator suites and
@@ -268,10 +327,10 @@ message when it is absent.
 ```yaml
 outcome: "A fresh install plays New Game to the Ending headlessly from the route file with ordinary pad input, and milestone tapes replay identically in Godot"
 canonical_record: "docs/campaign/CAMPAIGN_RUNNER.md#task-graph"
-authority: "Owner 2026-10-01: campaign runner approach; commit, push, PR and merge once the full gate is green (docs/AGENT_WORKFLOW.md#authority-effort-and-continuation). Current #70/Zio assignment permits local explicit-path commits but no external publication yet; integration owns the combined full gate and native certification."
+authority: "Owner 2026-10-01: campaign runner approach (docs/AGENT_WORKFLOW.md#authority-effort-and-continuation). Current combined-candidate assignment permits local explicit-path commits, focused/native checks and certification but no remote publication before owner acceptance; the single full workspace gate follows reviewed freeze."
 effort_policy: "Continue scoped repairs until acceptance passes; no fixed cycle limit (inherited)"
 exclusions: ["modding", "visual-parity claims beyond existing certifications", "gameplay changes that are not cartridge behavior", "later arc beyond Zio defeated in the current lane"]
-next_action: "Integrate #70's source-backed Session ambush gate with the presentation/vehicle changes and certify the static battle-0x88 capture; then rerun the 29-chapter Zio win, ordinary SAVE, fresh load and deterministic replay on the combined candidate. The separate native/Godot milestone check follows there; do not advance to the later arc yet."
+next_action: "Freeze and review the integrated candidate, certify the pinned presentation pairs, then run the single combined workspace gate. The 29-chapter New Game headless route, full native New Game-to-initial-Aiedo prefix and earned-checkpoint native Zio SAVE/fresh CONTINUE have separate passing receipts; do not claim full New Game-to-Zio native replay or later arc play."
 nodes:
   - id: S1
     outcome: "Dialogue interpreter in psiv-runtime: control codes, branches, choices, actions, $F2/$F6/$F7, live flags, typewriter and open-animation gates, driven by a cartridge-layout Pad"
@@ -331,7 +390,7 @@ nodes:
     outcome: "Tape replay in Godot"
     depends_on: [R1]
     acceptance: "One generic Godot replay driver reproduces R1's tape and chapter-save bytes; the bespoke tools/native drivers it covers are retired"
-    state: pending
+    state: in_progress
   - id: C70
     outcome: "Issue #70: Session automatically resolves every enemy-only ambush round without a command surface or item use"
     depends_on: [R1]

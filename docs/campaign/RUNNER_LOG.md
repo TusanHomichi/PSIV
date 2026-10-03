@@ -18,7 +18,10 @@ shortcut, a state edit or a skip to get past one.
 route completes twice from New Game with a one-level Krup training margin;
 both tapes replay and the separate ordinary pad-SAVE files match the final
 chapter snapshots ([combined receipt](#combined-p1f2r2-headless-integration)).
-The native full-prefix and bounded Zio SAVE/CONTINUE checks remain separate.
+The separate [R2 native receipts](CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress)
+now cover the full New Game-to-initial-Aiedo prefix and bounded earned-save
+Zio SAVE/fresh CONTINUE; neither is a whole-scene oracle claim. Final
+certification and the combined gate remain open.
 
 **#70 isolated headless candidate (2026-10-03, base `82eed831`, gameplay
 source `6fb1a70`):** Session skips the scripted enemy-only ambush command round.

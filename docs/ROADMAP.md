@@ -19,10 +19,11 @@ The active graph is the [campaign runner graph](campaign/CAMPAIGN_RUNNER.md#task
 opened 2026-10-01 when the owner replaced per-segment native drivers with one
 headless runner over a runtime-owned `Session`. It supersedes the
 [Aiedo arrival graph](campaign/AIEDO.md#5-aiedo-arrival-task-graph), which never
-started. Its next action is combined-candidate verification of #70's ambush
-command gate, then the Zio-win route and native milestone; the isolated
-[headless receipt](campaign/RUNNER_LOG.md#70-frozen-headless-acceptance) is not
-the combined Godot check.
+started. Its next action is reviewed-candidate certification and the one
+combined workspace gate. The [R2 native receipts](campaign/CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress)
+separately cover New Game-to-initial-Aiedo and earned-checkpoint Zio SAVE/fresh
+CONTINUE; the isolated [#70 headless receipt](campaign/RUNNER_LOG.md#70-frozen-headless-acceptance)
+is historical, not the combined Godot check.
 
 The [workflow setup graph](records/WORKFLOW_SETUP.md#setup-graph) and
 [connected BioPlant graph](campaign/BIOPLANT_NATIVE.md#archived-bioplant-task-graph)
@@ -49,12 +50,15 @@ These describe the recorded native routes and targeted checks, not complete
 coverage of every branch or every mechanic. Details are in the
 [playability ledger](campaign/NATIVE_PLAYABILITY.md) and [BioPlant ledger](campaign/BIOPLANT_NATIVE.md).
 
-The separate headless `Session` candidate on 2026-10-03 plays all 29 chapters
+The combined headless `Session` candidate on 2026-10-03 plays all 29 chapters
 from New Game through `Cutscene_ZioDefeated` twice, uses an ordinary camp SAVE,
 loads it in a fresh Session and replays both identical tapes. The
-[runner receipt](campaign/RUNNER_LOG.md#70-frozen-headless-acceptance) records
-its source, hashes and limits. Combined Godot/native proof and generic Godot
-tape replay (R2) remain pending.
+[runner receipt](campaign/RUNNER_LOG.md#combined-p1f2r2-headless-integration) records
+its source, hashes and limits. Generic native tape replay has reached the
+initial Aiedo endpoint from New Game; an earned-save Zio segment also passes
+ordinary SAVE and fresh CONTINUE. They are distinct input chains, with their
+raw evidence in [R2](campaign/CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress).
+Certification, the final gate and later-arc play remain open.
 
 ## 1. Continue from the post-Rika checkpoint
 
@@ -73,11 +77,10 @@ The new code requires the rebuilt full pack; exact candidate, pack, binary and
 check receipts are in the travel ledger. The pack, saves and captures remain
 local and ignored.
 
-**Next action:** integrate and verify #70's Session ambush gate with the
-presentation and vehicle changes, then repeat the New Game-to-Zio win on that
-combined candidate and run the native milestone checks. The isolated headless
-route reached Zio's defeat; it does not advance the native checkpoint or prove
-generic Godot tape replay.
+**Next action:** freeze and review the combined candidate, certify its pinned
+presentation pairs, then run the one combined workspace gate. Do not infer
+whole-scene parity, a full native New Game-to-Zio route, or a later arc from
+the bounded native Zio segment.
 
 The exact 32×32 bridge match does not establish whole-scene visual parity,
 retail/native save-coordinate interchange, or later campaign progression.
