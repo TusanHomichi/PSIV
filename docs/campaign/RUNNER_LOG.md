@@ -14,6 +14,10 @@ shortcut, a state edit or a skip to get past one.
 
 ## Current state
 
+**F3 (2026-10-02, base `2272c75`): H22 is fixed and the route now fights Zio.** It halts in
+`nurvus-zio` with `lost_battle`, a balance-and-session result, not a port fault
+([F3 results](#f3-results-after-the-h22-fixes)).
+
 **C3 (2026-10-02, base `5c62765`): the route has 29 chapters and halts in the
 last, `nurvus-zio`, on a port defect with no legitimate alternative
 ([H22](#h22-zio-at-nurvus-resumes-a-dialogue-instead-of-running-entry-0b-and-the-zio-phase-counter-is-unmodelled)).**
@@ -217,6 +221,8 @@ step depends on one.
 | C3-5 | probe on top of C3-3: enemies 139 and 140 forced to the plain attack (ability 0) so the engine runs them, `--from-chapter nurvus-zio` | Zio's fight runs 5,858 frames and the party (Gryz L23, Chaz L23, Rika L24, Demi L19, Rune L23) is **defeated**: `build/c1/evidence/c3-probe-zio-lost-battle-report.json`. Not a fidelity claim: ability 0 is not what Zio does, and the cartridge's Zio2 opens with a barrier and casts CORRSION, HEWN and BLACK WAVE |
 | C3-F1 | `psiv-campaign run rust/psiv-campaign/routes/main.json --save-dir build/c1/run-1 --tape build/c1/run-1/run.tape --report build/c1/run-1/report.json` (the committed engine) | **halted**, exit 2, chapter `nurvus-zio` objective 1 (`go_to`), frame 1,730,441: `scene_fault: dialogue event 0x0 has no transcribed scene`; digest `6eb19b166ed24d2f`, tape sha256 `e3cff60eaf31dacac06bfeb8819d983ad3a848da042d37108a5c73cc9d121402`; report `build/c1/evidence/c3-zio-nurvus-resume-report.json` |
 | C3-F2 | the same with `run-2` | identical frames, digest and tape sha256; `psiv-campaign replay build/c1/run-2/run.tape` replays 1,730,441 frames and reproduces the digest |
+
+| F3-0 | `psiv-campaign run rust/psiv-campaign/routes/main.json --save-dir build/f3/run --tape build/f3/run/run.tape --report build/f3/run/report.json` (release, the F3 engine) | **halted**, chapter `nurvus-zio` objective 1 (`go_to`), frame 1,727,476, digest `1d7c651992e0f631`, tape sha256 `1d123c9bc754ff70633d0b8057b49bc566f616dd3af6d9bc55ecd4ec52b08df5`: `lost_battle -- the party was defeated`. `psiv-campaign replay` reproduces 1,727,476 frames and the digest. Event battle 6 starts (`Started { priority: Ambush }`), Zio acts, the party is wiped; report `build/f3/evidence/committed-route-report.json` |
 
 The full run's halt differs from C3-2's because the full run has a dialogue
 cursor to resume (the Zio Fort barrier's, from `tree 13` entry `$45`) and the
@@ -708,6 +714,8 @@ draws. Per the lane brief it is recorded and not routed around.
 
 ### H22: Zio at Nurvus resumes a dialogue instead of running entry `$0B`, and the Zio phase counter is unmodelled
 
+**Status: fixed in F3** (2026-10-02). Part 1 is the class fix in [the Dialogue2 audit](../scenes/DIALOGUE2_CALLERS.md) (`DialogueWindow::Retained`, a ROM-derived census); part 2 is `rust/psiv-core/src/battle/zio.rs` plus the Zio2 rows. The text below is the diagnosis as written before the fix.
+
 **Open port defects on the critical path, no legitimate alternative: the route
 stops at Zio's trigger.** Two defects, one behind the other, both met in chapter
 `nurvus-zio` (Nurvus B4 Part2 `$D3`, crossing row 30). The committed engine halts
@@ -784,6 +792,44 @@ on the first; with the first patched (a probe, C3-3 and C3-4) the second halts i
   gives (CORRSION, HEWN, BLACK WAVE `$6C`) is open; the route has not been
   built past it, and `Cutscene_ZioDefeated` (`$800B`, Motavia) has not been run.
 
+### F3 results after the H22 fixes
+
+**Before:** the full run halted at Zio's trigger, frame 1,730,441, on a mistranscribed
+op (C3-F1, above). **After:** the route reaches the fight, plays it, and loses it
+(F3-0). Two things decide that loss, and only one is the route's.
+
+1. **A session defect wastes the Psycho Wand (not the route, not this lane's tree).**
+   `EnemyInit_Zio` raises `$FFFFEE87`, and `loc_B62A` (`ps4.asm:17448`) turns that into an
+   enemy ambush (`scripted_flag.rs`). The cartridge's `Battle_ProcessCOMD`
+   (`ps4.asm:7636`, `tst.b Battle_Priority / bmi`) then skips the party's command input
+   for that round and `Battle_OrderTurns` queues the enemies alone, so round 1 is Zio's
+   Magic Barrier and nothing else. `session/battle` (lane p1-battle) still opens the
+   command menu in an ambush round: `psycho_wand_then_win` spends its opening
+   PSYCO-WAND there, the round discards it, and Zio (139, 16,383 HP, the party's hits
+   do 1) kills one member a turn from round 4 on (Black Wave, `loc_25048`). Reported to
+   p1-battle. The route and the policy are unchanged.
+2. **With the wand in round 2 the party still loses on balance.** A throwaway
+   local edit of the policy (reverted, not committed) that waits for the second menu
+   round: round 2 Zio casts Nightmare, the wand reloads Zio2 (2,889 HP), and the party
+   (Gryz L23, Chaz L23, Rika L24, Demi L19, Rune L23, 137/195, 105/150, 164/164,
+   144/144, 115/115 on entry) is defeated in the fifth round after the wand, having
+   dealt about 1,100 of Zio2's 2,889 HP while CORRSION (78, 72, 76, 97, 48 in one
+   round) and BLACK WAVE hit it. Report
+   `build/f3/evidence/wand-round2-experiment-report.json`. Whether a better trained
+   party, other equipment or other commands win is a **route question**, reported with
+   the levels and rounds above and not changed. `Cutscene_ZioDefeated` has not run.
+
+Evidence class: the cited chains (`zio.rs`, `routes/zio.rs`, `DIALOGUE2_CALLERS.md`),
+unit and engine-driven tests, and these two runs. **No oracle capture** of the Zio
+battle exists: `oracle.force` forces a *group* through a probe run that locates the
+formation draw (`Battle_SetupEnemyData`'s `UpdateRNGSeed2`), but an event battle
+(`Event_Battle_Index >= 0`, `ps4.asm:11813-11818`) takes the boss block with no draw,
+so a `--ram-patch` of that byte would need the probe, durable-patch and fixture
+phases (`oracle/force/phases.py`, `draw.py`, `durable.py`) reworked around a battle
+that has no draw, plus an ITEM-menu policy (`oracle/force/tape.py` has `attack` and
+`defend` only) and a Psycho Wand and party seeded into RAM. That is a separate lane,
+not a patch to this one; no replay fixture was added and none changed.
+
 ## `verify` items resolved by playing
 
 R0 left 12 objectives marked `"verify": true`. All are resolved and the flags
@@ -814,9 +860,9 @@ dropped; the run that settled each is in the route's `note`.
   cartridge's formula at its mean roll. A player reads the same ranking from the
   damage numbers; the policy skips the experiment. Skills other than Crosscut
   and Vortex are not chosen because the engine does not run them.
-- **Past Zio's trigger.** Nurvus down to B4 is played (`nurvus-descent`); the Zio
-  fights and `Cutscene_ZioDefeated` have not run, and whether the trained party
-  wins them is open; see [H22](#h22-zio-at-nurvus-resumes-a-dialogue-instead-of-running-entry-0b-and-the-zio-phase-counter-is-unmodelled).
+- **Past Zio's fight.** Nurvus down to B4 is played (`nurvus-descent`); F3 plays the Zio fight (it loses, see
+  [F3 results](#f3-results-after-the-h22-fixes)); `Cutscene_ZioDefeated` has not run, and whether the trained party
+  wins is open; see [H22](#h22-zio-at-nurvus-resumes-a-dialogue-instead-of-running-entry-0b-and-the-zio-phase-counter-is-unmodelled).
 - **Balance.** Members fall in `bioplant-rika` (ten command windows open with a
   member down; Gryz, Alys and Hahn stand at 0 HP when the Rika scene ends); the
   inn restores them (`north-bank` rests at Zema before the crossing). The policy
