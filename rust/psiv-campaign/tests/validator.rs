@@ -33,7 +33,8 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
     let route = Route::parse(&main_text()).expect("main.json parses");
     let ids: Vec<&str> = route.chapters.iter().map(|c| c.id.as_str()).collect();
     assert_eq!(ids.first(), Some(&"academy"));
-    assert_eq!(ids.last(), Some(&"nurvus-zio"));
+    assert_eq!(ids.last(), Some(&"mota-spaceport"));
+    assert!(ids.contains(&"nurvus-zio"));
     assert!(ids.contains(&"aiedo"));
     assert!(ids.contains(&"north-bank"));
     for chapter in &route.chapters {

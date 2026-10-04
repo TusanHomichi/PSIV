@@ -14,106 +14,52 @@ shortcut, a state edit or a skip to get past one.
 
 ## Current state
 
-**Combined P1/F2/R2 headless integration (2026-10-03):** the retained 29-chapter
-route completes twice from New Game with a one-level Krup training margin;
-both tapes replay and the separate ordinary pad-SAVE files match the final
-chapter snapshots ([combined receipt](#combined-p1f2r2-headless-integration)).
-The separate [R2 native receipts](CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress)
-now cover the full New Game-to-initial-Aiedo prefix and bounded earned-save
-Zio SAVE/fresh CONTINUE; neither is a whole-scene oracle claim. The combined
-11-pair static certificate passes. The original five-stage gate remains FAILED
-on its Python row, while the scoped clean-`e9372bc` Python/docs recheck passes
-and its composed matrix carries forward unchanged Rust/fmt/Clippy inputs.
-The primary no-override pack boot/180-pad CONTINUE has separate native evidence
-in the R2 ledger. C70 and CZ are verified as this bounded checkpoint; later
-campaign play and full R2 driver retirement remain open.
+**C4 (2026-10-03, base `3344f18`): the route stops at the foot of the Mota
+Spaceport's boarding row** (chapter 30, `mota-spaceport`). It completes from New
+Game twice, 2,616,234 frames, digest `dccc4df3ce01bd22`, and replays
+([C4 runs](#c4-runs-the-mota-spaceport-zelan-and-wren)). The next step is the
+ship's destination menu, which the Session does not have
+([H23](#h23-the-ships-destination-menu-is-missing)). Behind it a probe halts on
+a second port defect with no alternative
+([H25](#h25-the-canceller-flag-is-never-set)).
 
-**#70 isolated headless candidate (2026-10-03, base `82eed831`, gameplay
-source `6fb1a70`):** Session skips the scripted enemy-only ambush command round.
-After ordinary Krup training to level 23 and menu-selected existing cures,
-the 29-chapter New Game route defeats Zio and settles
-`Cutscene_ZioDefeated` on Motavia. Two frozen runs have identical tapes,
-digests and pad-SAVE bytes; both tapes replay, and a fresh Session loads the final
-slot with Chaz/Rika/Rune alive and `$65/$68/$66/$61` set
-([receipt](#70-frozen-headless-acceptance)). The earlier winning
-**chapter-resume** trial and losing runs below are preserved. The combined
-Godot/native milestone, generic Godot tape replay and a Zio event-battle
-oracle fixture are not claimed.
+**CZ, the bounded checkpoint (2026-10-03):** the 29-chapter route completes twice
+from New Game through `Cutscene_ZioDefeated` with a one-level Krup training
+margin; tapes replay and the ordinary pad-SAVE files match the final chapter
+snapshots ([combined receipt](#combined-p1f2r2-headless-integration), [#70
+receipt](#70-frozen-headless-acceptance)). The [R2 native
+receipts](CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress) cover the New
+Game-to-initial-Aiedo prefix and a bounded earned-save Zio SAVE/fresh CONTINUE,
+not a whole-scene oracle claim. The 11-pair static certificate passes; the
+original five-stage gate stays FAILED on its Python row while the scoped
+clean-`e9372bc` Python/docs recheck passes (its matrix carries forward unchanged
+Rust/fmt/Clippy inputs). C70 and CZ are verified as this bounded checkpoint;
+later play, a Zio oracle fixture and full R2 driver retirement remain open.
 
-**F3 (2026-10-02, base `2272c75`): H22 is fixed and the route now fights Zio.** It halts in
-`nurvus-zio` with `lost_battle`, a balance-and-session result, not a port fault
-([F3 results](#f3-results-after-the-h22-fixes)).
+**Earlier states** (superseded; digests and hashes are what each run printed):
 
-**C3 (2026-10-02, base `5c62765`): the route has 29 chapters and halts in the
-last, `nurvus-zio`, on a port defect with no legitimate alternative
-([H22](#h22-zio-at-nurvus-resumes-a-dialogue-instead-of-running-entry-0b-and-the-zio-phase-counter-is-unmodelled)).**
-Everything before it passes from New Game: `nurvus-descent` (Zio Fort to
-Nurvus B4, six elevator doors, the B1 tunnel, B5 and the stairs) runs in 5,028 frames,
-and the halt is at Zio's trigger, frame 1,730,441 (run C3-F1, below).
-
-`routes/main.json` had 27 chapters before C3: New Game, the post-Rika north bank, Aiedo,
-the Zio Fort's Juza room (C1) and, since lane C2, Juza's battle, the first
-Motavia arc's Demi rescue, the Machine Center and the Land Rover, the Ladea
-Tower with Rune and the Psycho Wand, and the walk to the Zio Fort's barrier
-(scenes 31 to 37, `zio-fort-barrier` last). **The route completes.** Lane F1 fixed the four defects the runs below found
-on the critical path — H17 (the two revision-gated `DialogueTree6` loads), H18
-(`Event_ZioFortBarrier` `$30`) and H19 (live map tile writes) — and the 27
-chapters now run end to end: **run F1-A, exit 0, 1,724,673 frames, digest
-`6381311acb90c052`**, tape sha256
-`eb12090d6400ae95a38977ba917f457ca46382845707f060fe08d84cc4d826df`. The
-workarounds H19's report added to the route (Juza's east-door round trip, the
-Krup detour before the Machine Center) are now redundant; they still work and
-are left in place.
-
-The engine these runs were committed against carried neither fix: H17 halted
-the route at chapter 20 and, with a four-line experimental patch for H17, H18
-halted it at `zio-fort-barrier`'s talk. Both are transcribed now, and F1-A
-carries no patch.
-
-Lane F2 changed exactly one route objective: `ladea-tower-rune`'s `dismount`
-was removed because the warp into the tower parks the Land Rover. **Run F2-A,
-exit 0, 1,726,539 frames, digest `bfd4d40aa048623c`**, tape sha256
-`96acff7606db27823b39775419c4a961c7dedd8bc807f2719bb4f4e5479e5f8c`; all 27
-chapters complete through `zio-fort-barrier`. The route goes through
-`aiedo-chaz-house` and the initial `Event_GettingLandRover`; it does not rest at
-the Aiedo special inn or use ITEM to board/reboard a vehicle. The connected
-before/after route pair and the explicit-dismount negative control are evidence
-for the map-load parking/dismount change only. Hand-crafted save/pad receipts
-for the inn and ITEM paths are isolated input/state evidence, not connected
-route coverage.
-
-**The prior F2 candidate was held (2026-10-03 parent independent review); no
-merge recommendation was made.** Review found three source-level blockers: `vehicles.rs`
-omits the vehicle-object replacement, 32-pixel position snap and conditional
-blocking camera pan; `Session::install_runtime()` does not clear `menu_scene`,
-allowing a stale inn transaction across START/CONTINUE; and the three boarding
-scenes restart LandMaster unconditionally instead of comparing
-`Saved_Sound_Index` first. The existing workspace-test log prints the
-named inn/vehicle tests as `ok`; the runtime-pack symlink and its manifest
-predate that log, so the pack-gated isolated tests were available to execute.
-They remain input/state evidence, not connected route coverage. The whole-route
-replay test is marked ignored in that same log. Re-evaluate acceptance only
-against the repair candidate and fresh raw evidence. **F2-R below is that
-repair candidate; independent integration review remains pending.**
-
-The F2-A digest moved for two reasons: the removed dismount press and its settle
-frames are gone, and `Main_Frame_Count` mixes into every battle roll, so from
-that shorter pad history the draws differ — the tower chapters fight 3 and 4
-battles where F1-A's drew 6 and 3 (5,434 and 16,299 frames against 5,452 and
-14,415), and everything after them diverges with the stream.
-
-[H19](#h19-story-flags-and-scene-tile-writes-do-not-reach-the-live-maps-collision)
-is fixed, [H21](#h21-evil-eye-ability-76-in-the-ladea-tower-58) is still open
-(an unsupported enemy ability in the tower, issue #58), and the run is a
-traversal proof, not a balance proof (see "Not claimed").
-
-H16 (Juza's ZAN and FORCEFLASH) is resolved: lane a1-damage implemented them
-and the route fights Juza. H15 still lists FUSION and DEBAN open; C2's walks
-ran from every encounter on the way, as C1 did.
-
-The one port defect the first runner lane found,
-[H1](#h1-the-mile-sand-worm-trigger-halts-every-visit-to-mile), is fixed
-(issue #54).
+- **F3 and C3 (2026-10-02).** C3 grew the route to 29 chapters (`nurvus-descent`,
+  5,028 frames) and halted at Zio's trigger on a port defect with no alternative
+  ([H22](#h22-zio-at-nurvus-resumes-a-dialogue-instead-of-running-entry-0b-and-the-zio-phase-counter-is-unmodelled)),
+  frame 1,730,441 (run C3-F1). After the H22 fixes the route fights Zio and halts
+  `lost_battle`, a balance result ([F3 results](#f3-results-after-the-h22-fixes)).
+- **C2, F1 and F2 (27 chapters, scenes 31 to 37).** The committed engine halted at H17
+  and, with a four-line experimental patch, at H18; lane F1 fixed H17, H18 and H19
+  (**run F1-A**: exit 0, 1,724,673 frames, digest `6381311acb90c052`, tape sha256
+  `eb12090d6400ae95a38977ba917f457ca46382845707f060fe08d84cc4d826df`; its Juza and
+  Krup workarounds are redundant and stay). Lane F2 dropped `ladea-tower-rune`'s
+  `dismount` (the tower warp parks the Land Rover): **run F2-A**, exit 0, 1,726,539
+  frames, digest `bfd4d40aa048623c`, tape sha256
+  `96acff7606db27823b39775419c4a961c7dedd8bc807f2719bb4f4e5479e5f8c`. The digest moved
+  because `Main_Frame_Count` mixes into every battle roll (the tower fought 3 and 4
+  battles where F1-A drew 6 and 3). The route runs `Event_GettingLandRover`, not the
+  Aiedo special inn or ITEM boarding. H21 (#58) and H15 stay open; H1 is fixed (#54).
+- **The first F2 candidate was held** (parent review 2026-10-03): `vehicles.rs`
+  omitted the vehicle-object replacement, 32-pixel snap and conditional blocking
+  pan; `Session::install_runtime()` left `menu_scene` set across START/CONTINUE; the
+  boarding scenes restarted LandMaster without comparing `Saved_Sound_Index`. Its
+  test log was input/state evidence only. [F2-R](#f2-r-repair-receipt-2026-10-03)
+  repaired it.
 
 ## F2-R repair receipt (2026-10-03)
 
@@ -392,6 +338,96 @@ stairs and wrong about the route between them.
 - **N4.** B3's stairs (76..77,79) are a closed door like the others: `interact`
   at (76,80) first, or `go_to_map 210` halts `unreachable: no walk from (78,23)
   reaches warp 5`.
+
+## C4 runs: the Mota Spaceport, Zelan and Wren
+
+Base `3344f18`, release builds, `CARGO_BUILD_JOBS=2`, local `runtime-pack` (manifest
+SHA-256 `7fe1e64a…16de`); evidence under the ignored `build/c1/` and `build/c4/` of the
+lane's worktree. The brief: extend the route past Zio through the spaceport, Zelan, Wren,
+the sabotage and the crash landing. It stops at the ship's destination menu (H23).
+
+| Run | Command (from the worktree) | Result |
+| --- | --- | --- |
+| C4-0 | `run rust/psiv-campaign/routes/main.json --save-dir build/c1/run-0` (29 chapters) | exit 0, 2,615,778 frames, digest `949c2abe3342e838` (the combined receipt's); checkpoint SHA-256 `4aeff0b1…ec62` |
+| C4-1 | scratch chapter that boards, `--from-chapter mota-spaceport` (`build/c4/r1`) | halt `scene_fault` `WarpUnmapped (30,19)`, frame 240: H24 |
+| C4-2 | the same after the runner fix (`build/c4/r2`) | the scene flies Motavia, Zelan Space, Zelan: Zelan `$18D` (31,46) after 929 frames, no menu: H23 |
+| C4-3 | probe `zelan-wren` from C4-2's save (`build/c4/p1`) | exit 0, 6,507 frames: Wren L20 210/210 joins, `$70` set |
+| C4-4 | probe `zelan-canceller` (`build/c4/p2`): chest 5, then 420 frames walking | halt `expect_failed`: `$72` clear after "CANCELLER is procured!": H25 |
+| C4-5 | probe route from New Game (`build/c4/probe-full.json`: main, boarding restored, both probes) | exit 2 at `zelan-canceller` objective 4, 2,624,291 frames, digest `32ed271dcc5c620a`; `build/c4/probe-full/report.json` |
+| C4-6 | probes from the Wren save (`build/c4/p3`): Zelan row 48; the F1 elevator before the chest | `budget_exhausted` in a Zelan, Motavia, Zelan loop (H23); `SceneMissing { event: 42 }` (H26) |
+| C4-7, 8 | `run rust/psiv-campaign/routes/main.json --save-dir build/c1/run-{a,b}` (30 chapters) | both exit 0, 2,616,234 frames (456 more than C4-0: the new chapter), digest `dccc4df3ce01bd22`, tape SHA-256 `b96ebf10…4d45`, `29-mota-spaceport` snapshot `314e6602…a698`, pad-SAVE `route/slot_1.sram` `4aeff0b1…` unchanged; `replay` reproduces the digest; runner `b5795f79…6c94` |
+
+**Probe facts** for the lane that re-adds the chapters. Zelan `$18D` arrival (31,46);
+its elevator door is `interact` from (30,18) up, `opens` (30..31,17), then `go_to_map
+398 via_warp 0`. F1 `$18E`: `go_to` (31,14), `talk` npc 0 is Wren; chests 0 to 4 are
+the Plasma Sword, Claw, Dagger, Field and Pulse Laser, chest 5 at (49,49) the Canceller
+(chest flag `$0B`). Back down: `interact` from (30,50) up, `opens` (30..31,49), `via_warp
+0`. Zelan row 48, cells (30..31,48), is the boarding and the sabotage row.
+
+### H23: the ship's destination menu is missing
+
+**What it is.** `Cutscene_InsideSpaceship` (`ps4.asm:155427`) jumps to `loc_63BC4`
+(`:133499-133726`). Callers, all writing `$800D`: `RunEvent_EnterSpaceship` (`$21`,
+`:115743`; the Mota and Dezo spaceports), `RunEvent_KuranEnterSpaceship` (`$23`, `:115787`;
+Zelan row 48 and Kuran), `:115795`, `:115802`. `Cutscene_SpaceshipSabotage` embeds a copy
+(`:155431-155470`, `:155590-155600`) with the one-row mask `$08`, Kuran (`:155741`). Inputs:
+`World_Index` (the current world is left out) and the first set flag of `loc_63EF2`
+(`:133728-133735`: `DarkForce3Defeated $F8`, `Lashiec $D8`, `AirCastleFound $DC`,
+`DezoSpaceport $D8`, `AlysFound $90`, else `$88`), whose mask bits 7 to 2 are worlds 0 to 5:
+Motavia, Dezolis, Rykros, Zelan, Kuran, Air Castle. A window lists the names
+(`loc_2AAA7A`); `Window_Option_Index` moves under `Win_UpdateCursorUpDown` until Speak,
+Camp or Cancel (`:133604-133615`). Speak or Camp: `SFXID_Selection`, the name, 60
+frames, fade, **`World_Index` written from the row** (`:133677`), then the flight (takeoff
+`loc_64568` from a spaceport, `loc_6488A` elsewhere; leg `loc_64B34` and landing `loc_64B5A`,
+both indexed by the row). Cancel (`:133692`) reloads the map at its `loc_64B5A` start and
+sets nothing. At the Mota Spaceport `AlysFound` picks `$90`, so the list is one row, Zelan;
+at Zelan one row, Motavia; in the sabotage scene one row, Kuran.
+
+**Port.** None of it exists. `INSIDE_SPACESHIP`
+(`rust/psiv-core/src/scenes/post_zio_cutscenes.rs:102-153`) hard-codes Mota Spaceport,
+Motavia, Zelan Space, Zelan, with no list, cursor, Cancel or flag branch; `SPACESHIP_SABOTAGE`
+(`:155-232`) keeps only the panels and sounds; the runtime holds just the saved word
+(`rust/psiv-runtime/src/travel.rs:50-54`) and makes none of the cartridge's `World_Index`
+writes (`ps4.asm:133677`, `:155599`, `:155847`, `:156396`, H27). The Session has no such
+mode (`rust/psiv-runtime/src/session/`: title, shop, camp, battle, notices,
+`menu_scene.rs`). The fixed flight also fires from Zelan's row 48 (C4-6), so a player there
+can never choose Motavia. **Disposition: stopped at the foot of the boarding row, no
+alternative** (it is the only way aboard); C4-2 passes the step only because the port
+flies anyway, which is why the committed route does not. Smallest change, an orchestrator
+lane: a scene op that hands the frame to a Session-owned list window (from the flag table
+or the scene's mask; cursor, Speak or Camp, Cancel), writes `World_Index` and picks the
+legs by row. The route then needs a Speak press at the spaceport and one in the sabotage.
+
+### H24: a landing that starts a scene reports its type-1 cell as unmapped
+
+Runner, fixed: `driver.rs` `is_scene_fault` no longer halts on `WarpUnmapped` in a frame
+that began a scene (unit tests, and `tests/spaceport.rs`, whose negative control fails
+with the old fault). Port: `RunEvents` runs before `RunMapTransitions`
+(`ps4.asm:116768-116773`), yet `rust/psiv-runtime/src/field_tick.rs:112` reports the cell
+before `evaluate_triggers` (only elevator cells are special-cased, `:80-86`). Smallest
+change: evaluate triggers first.
+
+### H25: the Canceller flag is never set
+
+`RunEvent_SpaceshipSabotage` (`ps4.asm:115826`, `rust/psiv-core/src/trigger_table.rs:195-197`)
+needs `$72`, whose only writer is `MapUpdate_ZelanCanceller` (`:114507`, `MapUpdateJmpTbl`
+`$2D` at `:112931`; it sets `$72` when `ChestFlag_Canceller`, `$0B`, is set). `Zelan_F1`'s
+update list is `$0D,$15,$1B,$2D,$00` (`:266268`), run every field frame by
+`RunMapUpdates` (`:112859`). The pack holds the map-data effects and event lists but not
+the update list, and the runtime has no per-frame update that writes a flag: 420 frames
+after the chest opens `$72` is clear (C4-4, C4-5), so the sabotage and the crash landing
+behind it cannot be reached. **Disposition: no alternative** (the reads are `:115833`,
+`:116378`). Smallest change: `psiv_tools` extracts each map's update list, `psiv-data`
+loads it, `field_tick` runs the flag-writing entries (`$2D`) each frame. Everything past it
+(sabotage, Chaos Sorcerer, `Cutscene_CrashLanding` with #67, Dezolis control) is unprobed.
+
+### H26 and H27
+
+**H26.** `Event_CancellerReminder` (`$2A`, `ps4.asm:147371`: dialogue entry `$0C`, then `$73`)
+has no scene: `SceneMissing { event: 42 }` on F1 (30,50) with Wren aboard and the chest shut,
+a #56-class gap; a player's order avoids it (chest first). **H27.** No flight writes
+`World_Index` (H23), so `Runtime::world_index` stays `0` on Dezolis and the RYUKA and
+TELEPIPE town lists (`travel.rs:100-109`) read the wrong world.
 
 ## Halts and their diagnoses
 
