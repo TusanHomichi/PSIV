@@ -746,9 +746,10 @@ fn an_arrival_prompt_is_the_next_objectives_to_answer() {
     );
 }
 
-/// The whole route from New Game to Zio's defeat, the Mota Spaceport and the
-/// flight to Zelan, pads only. The Zio chapter makes an ordinary SAVE; a new Session reads it, and
-/// replaying the tape in another Session reaches the same digest.
+/// The whole route from New Game to Zio's defeat, the Mota Spaceport, Zelan,
+/// the sabotage and the crash landing to Raja Temple on Dezolis, pads only. The
+/// Zio chapter makes an ordinary SAVE; a new Session reads it, and replaying the
+/// tape in another Session reaches the same digest.
 #[test]
 #[ignore = "plays the whole route: cargo test --release -p psiv-campaign --test runner -- --ignored"]
 fn the_whole_route_defeats_zio_saves_and_replays() {
@@ -759,22 +760,55 @@ fn the_whole_route_defeats_zio_saves_and_replays() {
     let result = run(&config).expect("the route sets up");
     let done: Vec<&str> = result.chapters.iter().map(|c| c.id.as_str()).collect();
     assert!(result.completed, "route halted: {:#?}", result.report);
-    assert_eq!(done.last(), Some(&"mota-spaceport"));
-    assert_eq!(done[done.len() - 2], "nurvus-zio");
+    assert_eq!(done.last(), Some(&"dezolis-first-control"));
+    assert_eq!(done[done.len() - 5], "nurvus-zio");
     assert_eq!(result.chapters.len(), config.route.chapters.len());
-    let chapter_snapshot = result.chapters.last().unwrap().save.clone();
-    assert!(
-        chapter_snapshot.is_file(),
-        "the runner wrote its read-only chapter snapshot"
-    );
-    // The route ends in Zelan: the ship's destination menu opened on the
-    // Mota Spaceport's boarding row, `World_Index` 3 was picked with the pad,
-    // and the flight landed on loc_64B5A's Zelan row (RUNNER_LOG M23).
-    let (at_zelan, _) = open_session(PACK.as_ref(), &StartPoint::Save(chapter_snapshot)).unwrap();
+    let save_of = |id: &str| {
+        let chapter = result
+            .chapters
+            .iter()
+            .find(|c| c.id == id)
+            .expect("the chapter ran");
+        assert!(
+            chapter.save.is_file(),
+            "the runner wrote its read-only snapshot of {id}"
+        );
+        chapter.save.clone()
+    };
+    // The spaceport chapter ends in Zelan: the ship's destination menu opened on
+    // the Mota Spaceport's boarding row, `World_Index` 3 was picked with the
+    // pad, and the flight landed on loc_64B5A's Zelan row (RUNNER_LOG M23).
+    let (at_zelan, _) =
+        open_session(PACK.as_ref(), &StartPoint::Save(save_of("mota-spaceport"))).unwrap();
     assert_eq!(at_zelan.runtime().map_id().0, 0x18D);
     assert_eq!(at_zelan.runtime().world_index(), 3);
     let cell = psiv_campaign::driver::standing_cell(at_zelan.runtime());
     assert_eq!((cell.x, cell.y), (31, 46));
+    // The route ends at first control on Dezolis: Raja Temple's `$14C`, the
+    // exit's foot, with the five-member party, the crash landing's flags and
+    // `World_Index` 1 (`ps4.asm:155847`). Beyond it the exit's trigger event
+    // `$43` has no scene (RUNNER_LOG_DEZOLIS H28).
+    let (on_dezolis, _) = open_session(
+        PACK.as_ref(),
+        &StartPoint::Save(save_of("dezolis-first-control")),
+    )
+    .unwrap();
+    assert_eq!(on_dezolis.runtime().map_id().0, 0x14C);
+    assert_eq!(on_dezolis.runtime().world_index(), 1);
+    let cell = psiv_campaign::driver::standing_cell(on_dezolis.runtime());
+    assert_eq!((cell.x, cell.y), (95, 37));
+    let dezolis_game = on_dezolis.runtime().game();
+    assert_eq!(dezolis_game.party_members().len(), 5);
+    for flag in [0x70, 0x71, 0x72, 0x85, 0x88] {
+        assert!(
+            dezolis_game.is_set(Flag::event(flag)),
+            "event flag {flag:#x}"
+        );
+    }
+    assert!(
+        !dezolis_game.is_set(Flag::event(0x80)),
+        "Snowstorm is still clear: the exit's event has not run"
+    );
     let pad_save = config.save_dir.join("route/slot_1.sram");
     assert!(
         pad_save.is_file(),

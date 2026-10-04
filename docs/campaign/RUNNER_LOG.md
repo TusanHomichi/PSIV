@@ -8,7 +8,8 @@ this file holds what the runs found. Evidence files live under the git-ignored
 them; the commands below regenerate them.
 
 The runs of the Motavia arc (C1 to C3) are in [RUNNER_LOG_MOTAVIA.md](RUNNER_LOG_MOTAVIA.md)
-and those of the Zelan arc (C4, M23, H23 to H27) in [RUNNER_LOG_ZELAN.md](RUNNER_LOG_ZELAN.md);
+those of the Zelan arc (C4, M23, H23 to H27) in [RUNNER_LOG_ZELAN.md](RUNNER_LOG_ZELAN.md)
+and those of Zelan to Dezolis (C5, H28) in [RUNNER_LOG_DEZOLIS.md](RUNNER_LOG_DEZOLIS.md);
 this file keeps the current state, the early runs, the halts H1 to H22 and the integration
 receipts.
 
@@ -19,13 +20,27 @@ shortcut, a state edit or a skip to get past one.
 
 ## Current state
 
-**M23 (2026-10-04, base `bfa5c89`): the route flies from the Mota Spaceport to
+**C5 (2026-10-04, base `f6e84f9`): the route reaches first control on Dezolis**
+(33 chapters; `zelan-wren-canceller`, `zelan-sabotage`, `dezolis-first-control`). Wren
+joins, the Canceller chest sets `$72`, the sabotage's one-row Kuran menu is driven by
+`board`, the Chaos Sorcerer falls and the crash landing ends in Raja Temple `$14C` with
+Raja in the party and `World_Index` 1; the last chapter walks to the foot of the temple's
+exit, (95,37). Two full runs from New Game: exit 0, 2,638,546 frames, digest
+`6d365219c15bc775`, identical tapes (SHA-256 `4af507fa…15af`), replay reproduces the
+digest ([C5 runs](RUNNER_LOG_DEZOLIS.md#c5-runs)). **The route stops there on a port defect
+with no alternative: H28.** Stepping through the temple's only warp lands on Dezolis
+`$001` and fires `RunEvent_OutsideRajaTemple` (`ps4.asm:115936`), whose event `$43`
+(`Event_OutsideRajaTemple`, `ps4.asm:149239`) has no scene: `SceneMissing { event: 67 }`,
+halt report `build/c1/h28/halt-report.json` of the C5 worktree. Diagnosis, cartridge
+evidence and the smallest fix (one scene in `psiv-core`'s `scenes/dezo_campaign.rs`) are in
+[H28](RUNNER_LOG_DEZOLIS.md#h28-leaving-raja-temple-fires-event_outsiderajatemple-which-has-no-scene).
+
+**M23 (2026-10-04, base `bfa5c89`): the route flew from the Mota Spaceport to
 Zelan** (chapter 30, `mota-spaceport`). The ship's destination menu is a Session mode
 and every flight writes `World_Index` (H23 and H27 fixed). It completes from New Game,
 2,617,668 frames, digest `0bd25017e4696c02`, and replays
 ([M23](RUNNER_LOG_ZELAN.md#m23-the-ships-destination-menu-and-world_index-on-every-flight-2026-10-04)).
-The next stop is a probe on a second port defect with no alternative
-([H25](RUNNER_LOG_ZELAN.md#h25-the-canceller-flag-is-never-set)). The earlier state, C4:
+Its next stop, H25 (`$72`), is fixed on the C5 base. The earlier state, C4:
 the route stopped at the foot of the boarding row
 ([C4 runs](RUNNER_LOG_ZELAN.md#c4-runs-the-mota-spaceport-zelan-and-wren), 2,616,234
 frames, digest `dccc4df3ce01bd22`).
