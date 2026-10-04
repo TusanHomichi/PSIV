@@ -718,6 +718,55 @@
       "closing": [
         {"map": 332, "cell": [95, 37], "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x85", "event:0x88"], "flags_clear": ["event:0x80"]}
       ]
+    },
+    {
+      "id": "dezolis-outside-raja-temple",
+      "title": "Raja Temple exit: Event_OutsideRajaTemple plays and control returns on Dezolis",
+      "source": "docs/scenes/91_OutsideRajaTemple.md (Event_OutsideRajaTemple $43: DialogueTree14 entry 6, then Snowstorm $80); runtime-pack/maps/14C_RajaTemple.json (warp 0 to Dezolis $001 at (36,95)); docs/campaign/RUNNER_LOG_DEZOLIS.md (H28, closed by the event census)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 1, "via_warp": 0, "note": "the step through warp 0 lands on Dezolis (36,95); RunEvent_OutsideRajaTemple fires $43 on the first field frame there"},
+        {"do": "expect", "map": 1, "cell": [36, 95], "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x80", "event:0x85", "event:0x88"], "note": "the scene ended and set Snowstorm $80; the party stands where it arrived"}
+      ],
+      "closing": [
+        {"map": 1, "cell": [36, 95], "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x80", "event:0x85", "event:0x88"]}
+      ]
+    },
+    {
+      "id": "dezolis-gyuna",
+      "title": "Ryuon pub: Gyuna's space-ship answer sets the grave flag",
+      "source": "docs/scenes/98_Gyuna.md (Event_Gyuna $5C: after the conversation, popdlg / cmpi.b #$35 reads the byte under Saved_Dialogue_Addr, which is $35 only when the last entry run was entry 60, the space-ship answer; then flag $81); runtime-pack/maps/14A_RyuonPub.json (object 6, dialogue 48 = the $F6 $5C entry); psiv-campaign plan --from-map 1 --from-cell 36,95 --to-map 330",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 324, "via_warp": 1, "note": "native leg: Dezolis warp 1 (36,83) up to Ryuon, arriving (31,51)"},
+        {"do": "go_to_map", "map": 330, "via_warp": 9, "note": "native leg: Ryuon warp 9 into the pub"},
+        {"do": "talk", "npc": 6, "note": "the keeper: face Up, Action; entry 48 is an $F6 that starts Event_Gyuna"},
+        {"do": "answer", "yes": false, "note": "entry 49: the storm? NO, four entries on to 53"},
+        {"do": "answer", "yes": false, "note": "entry 53: the Garuberk Tower? NO, three on to 56"},
+        {"do": "answer", "yes": false, "note": "entry 56: Raja? NO, four on to 60"},
+        {"do": "answer", "yes": true, "note": "entry 60: the whereabouts of the space ship? YES: it runs out in entry 60, and entry 61 opens on $35"},
+        {"do": "expect", "map": 330, "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x81"], "flags_clear": ["event:0x84"], "note": "Event_Gyuna set $81 (the stop byte was $35); the grave flag $84 is still clear"}
+      ],
+      "closing": [
+        {"map": 330, "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x81"], "flags_clear": ["event:0x84"]}
+      ]
+    },
+    {
+      "id": "dezolis-tyler-grave",
+      "title": "Tyler: the grave opens and its stairs lead to the Hangar",
+      "source": "docs/scenes/92_TylerGraveOpening.md (Event_TylerGraveOpening $44, reached by tree 14 entry 29's FA 81,6 into entry 35's $F6; stair chunk (10,12) <- $47 and the twelve grave objects drifting aside); runtime-pack/maps/120_Tyler.json (warp 7 at cells (20..21,24..25) to the Hangar)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 324, "via_warp": 0, "note": "native leg: the pub's warp 0 back to Ryuon"},
+        {"do": "go_to_map", "map": 1, "via_warp": 1, "note": "native leg: Ryuon warp 1 down to Dezolis (36,83)"},
+        {"do": "go_to_map", "map": 288, "via_warp": 4, "note": "native leg: Dezolis warp 4 into Tyler"},
+        {"do": "interact", "cell": [20, 26], "face": "up", "opens": [[20, 24], [21, 24], [20, 25], [21, 25]], "note": "Speak at the grave's middle blocks (objects 5 and 6, dialogue 29): with $81 set the entry skips to 35, whose $F6 starts Event_TylerGraveOpening. `opens` is the stair footprint the scene frees: the validator cannot run a scene, so it takes them from here"},
+        {"do": "expect", "map": 288, "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x81", "event:0x84"], "note": "the scene ran: both halves of the inscription, the slide, the stair chunk, $84"},
+        {"do": "go_to_map", "map": 351, "via_warp": 7, "note": "the stairs: warp 7 sits on cells (20..21,24..25), which the twelve grave objects blocked until the scene drifted them aside (the interact's `opens`)"}
+      ],
+      "closing": [
+        {"map": 351, "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x81", "event:0x84"]}
+      ]
     }
   ]
 }

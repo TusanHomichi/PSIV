@@ -117,3 +117,67 @@ passed across the lib, bin and seven integration targets, 2 ignored (the whole r
 the arrival-prompt test, both run in release below); `cargo test --release -p psiv-campaign
 --test runner -- --ignored --test-threads=1`: 2 passed (the whole route to Raja Temple,
 its replay digest and the pad SAVE, 41.5 s). Clippy `-D warnings` and `fmt --check` are clean.
+
+## S7: H28 closed, and the two gates behind it
+
+Lane s7-events (2026-10-04), base `37b81e8` (`claude/campaign-19`). H28 was a class, not an
+instance: every trigger, interaction, dialogue `$F6`, item action and direct call the cartridge
+can fire is now enumerated from the image ([EVENT_COVERAGE](../scenes/EVENT_COVERAGE.md)), and a
+scene is registered or listed with an issue. `$43` is transcribed
+([91](../scenes/91_OutsideRajaTemple.md)); walking on from the temple then found two more gates, both
+on the way to Tyler's grave and the Hangar, and both are closed.
+
+| Run | Command | Result |
+| --- | --- | --- |
+| S7-0 | `psiv-campaign run rust/psiv-campaign/routes/main.json --pack build/s7-pack --save-dir build/s7-route --tape build/s7-route/run.tape --report build/s7-route/report.json` (36 chapters, release, `CARGO_BUILD_JOBS=2`) | exit 0, **2,644,170 frames**, digest `9f284397c1c0d1ff`, tape SHA-256 `5aa79965…0f81`; the route file is `1ce34576…18a1` |
+| S7-1 | the same into `build/s7-route-b` | `cmp` says the two tapes and the two `35-dezolis-tyler-grave` snapshots are byte-identical |
+| S7-2 | `replay build/s7-route/run.tape --pack build/s7-pack` | digest `9f284397c1c0d1ff`, 2,644,170 frames |
+
+The `32-dezolis-first-control` snapshot is `c244f6f5…c25e`, the same as C5's: the three new
+chapters left the prefix untouched. New chapters: `dezolis-outside-raja-temple` (1,339 frames,
+no battles), `dezolis-gyuna` (1,928 frames, none) and `dezolis-tyler-grave` (2,357 frames, one
+random battle on the overworld). Snapshots: `33-…` `d4ced1c6…2ad`, `34-…` `fb8e694b…d7c`,
+`35-…` `098fb416…445`. The run read `build/s7-pack`, a pack built from this revision's extractors
+and **not** the owner's `runtime-pack`: it differs from the accepted pack in exactly
+`manifest.json` (SHA-256 `3acaad7f…80a9` against `b6d9dd8c…83bc`), `maps/120_Tyler.json` and the new
+`maps/120_Tyler_patch.png`. The route's last chapter halts on the accepted pack until it is
+rebuilt (the same shape as #67).
+
+### What came after `$43`
+
+- **`$43` plays.** The step through Raja Temple's warp 0 lands on Dezolis (36,95), the snowstorm
+  exchange (`DialogueTree14` entry 6) runs, `$80` is set and control returns where the party
+  arrived.
+- **H29: the grave needs Gyuna.** Tyler's grave inscription (`DialogueTree14` entry 29,
+  `FA 81,6`) reaches the `$F6 $44` of `Event_TylerGraveOpening` only with flag `$81` set, and the only
+  writer of `$81` in the cartridge is `Event_Gyuna` (`$5C`, `$070CA8`), the keeper of the Ryuon pub,
+  which sets it only if the byte under `Saved_Dialogue_Addr` after its conversation is `$35`.
+  That byte is the first of the next entry after the last one run; it is `$35` only after entry 60,
+  the space-ship answer. The runner's `dezolis-gyuna` chapter answers NO, NO, NO, YES. A scene op
+  that reads the saved byte did not exist (`BranchIfSavedDialogueByte`,
+  [98](../scenes/98_Gyuna.md)); the dialogue window reports it when it closes.
+- **H30: the grave's chunk was not in the pack.** `Event_TylerGraveOpening` writes BG chunk
+  (10,12) with `$47`; the pack's Tyler atlas did not carry it and the runtime refused the write
+  (`MapRefreshFailed("scene chunk atlas is absent")`), the #67 class. `SCENE_CHUNK_WRITES` is now
+  one cited table, and `tests/test_scene_chunk_atlas.py` fails any registry write whose chunk the
+  pack's atlas does not resolve, naming scene and chunk.
+- **H31: the stairs.** The grave's warp 7 sits on cells the twelve grave objects block; the
+  scene drifts them 16 px left or 32 px right over 64 frames (`DriftNpcs`, [92](../scenes/92_TylerGraveOpening.md)).
+  The validator cannot run a scene, so the chapter's `interact` declares the cells it opens, and
+  `opens` now also frees objects standing on them for planning. The runner walks the warp to the
+  Hangar (`$15F`) after the scene.
+
+The route stops on arrival at the Hangar. The next event is `RunEvent_FindingLandale`
+(`$2B`, `Cutscene_Landale`), which needs the party at x `$1A0..$1B0`, y `$520` there.
+
+### Negative controls
+
+| Break | Guard | Result |
+| --- | --- | --- |
+| Gyuna's last answer NO | route `dezolis-gyuna` from its snapshot | halts `expect_failed`: `$81` clear (exit 2) |
+| an off-by-one stop byte (`$34`, `$36`, none) | `dezolis_scenes.rs` `an_off_by_one_stop_byte_leaves_81_clear` | `$81` stays clear |
+| `$81` clear at the grave | `dezolis_arc.rs` `without_gyunas_word_the_grave_stays_shut` | `$84` clear, the stairs still blocked |
+| the `interact`'s `opens` removed | `validator.rs` `the_grave_stairs_are_plannable_only_through_the_interacts_opens` | rejected in `dezolis-tyler-grave`, naming `via_warp 7` |
+| a registry write with no `SCENE_CHUNK_WRITES` row | `test_scene_chunk_atlas.py` | names the scene and the chunk |
+| the owner's pack (no Tyler atlas) | `test_scene_chunk_atlas.py` against `runtime-pack` | `Event_TylerGraveOpening: chunk $47 does not resolve …; rebuild the pack` |
+| a wrong grave step constant | `drift_tests.rs` | the end position misses the cartridge's |

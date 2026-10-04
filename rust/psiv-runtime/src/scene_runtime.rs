@@ -562,6 +562,16 @@ impl Runtime {
                     SceneOp::SetMapLoadFlags { set, clear } => {
                         self.map_load_flags = (self.map_load_flags | set) & !clear;
                     }
+                    // One frame of `SceneOp::DriftNpcs`: the object's
+                    // whole-pixel position after `FieldObj_UpdatePosition`
+                    // (`$04501C`) added its step constants. Written to the
+                    // field map so occupancy, collision and the renderer
+                    // follow the drift at the cartridge's rate.
+                    SceneOp::Presentation {
+                        op: psiv_core::PresentationOp::NpcPixelPosition { npc, x, y },
+                    } => {
+                        let _ = self.map.set_npc_pixel_position(npc, x, y);
+                    }
                     // `Event_MoveCamera` reading a live object rather than
                     // literals (`PresentationOp::CameraToActor`). The camera is
                     // runtime state because the on-screen tests feed the RNG

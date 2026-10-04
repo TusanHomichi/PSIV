@@ -72,10 +72,10 @@ class TestCrashLandingChunks(unittest.TestCase):
             broken = bytearray(self.rom)
             broken[changed_at] = 0 if changed_at == TABLE + 20 else 0xFF
             with self.subTest(at=hex(changed_at)), self.assertRaisesRegex(
-                MapPatchError, "crash landing animation table is incomplete"
+                MapPatchError, "Cutscene_CrashLaanding: the chunk table at .076E58 is incomplete"
             ):
                 scene_patch_chunks(broken, self.record)
-        with self.assertRaisesRegex(MapPatchError, "crash landing animation table is incomplete"):
+        with self.assertRaisesRegex(MapPatchError, "Cutscene_CrashLaanding: the chunk table at .076E58 is incomplete"):
             scene_patch_chunks(self.rom[:TABLE + 20], self.record)
 
 

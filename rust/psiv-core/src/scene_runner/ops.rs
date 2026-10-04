@@ -617,6 +617,51 @@ impl SceneRunner {
                 }
                 self.pc = target;
             }
+            SceneOp::BranchIfActorCoord {
+                actor,
+                axis,
+                cmp,
+                value,
+                if_true,
+                if_false,
+            } => {
+                let Some(coordinate) = self.coordinate_word(actor, axis) else {
+                    return Some(SceneFault::UnknownActor { actor });
+                };
+                let target = if cmp.holds(coordinate, value) {
+                    if_true
+                } else {
+                    if_false
+                };
+                if target > self.scene.len() {
+                    return Some(SceneFault::BadJump { target });
+                }
+                self.pc = target;
+            }
+            SceneOp::BranchIfSavedDialogueByte {
+                value,
+                if_equal,
+                if_not,
+            } => {
+                let target = if self.dialogue_stop_byte == Some(value) {
+                    if_equal
+                } else {
+                    if_not
+                };
+                if target > self.scene.len() {
+                    return Some(SceneFault::BadJump { target });
+                }
+                self.pc = target;
+            }
+            SceneOp::DriftNpcs { drifts, frames } => {
+                if let Some(actor) = self.start_drift(drifts, frames) {
+                    return Some(SceneFault::UnknownActor { actor });
+                }
+                self.pc += 1;
+                if frames > 0 {
+                    self.blocked = Blocked::Ticks(frames);
+                }
+            }
             SceneOp::CopyCharSlot { from, to } => {
                 // Object-level, not party-level: no GameState write here. The
                 // 32-word `trap #1` copy carries the object's position too.
