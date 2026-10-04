@@ -29,11 +29,10 @@ ability id (`eN_ability`); and, in a vehicle battle, the party side's HP.
 
 Fields it does not, recorded here as `"undetermined"` notes:
 
-* **Command identity.** The log carries menu cursors (`battle_main_option`,
-  `battle_char_comd_idx`), not the command each member chose. Every party
-  action observed in these battles is a physical attack (damage lands on enemy
-  slots with no status or TP movement), and the tapes hold C through the
-  command phase, so the fixture says `attack` for each member and says so.
+* **Legacy command identity.** Logs before the `bcmd` group carried only
+  menu cursors, and their physical-attack tapes establish `attack`. Current
+  logs carry the actual command bytes; scripts also observe the item cursor,
+  equipment and inventory to identify the selected copy.
 * **A miss versus an untargeted slot.** `Fighters_Hit_Flags` is `$FF` for
   both, so a slot the action's pass left at `$FF` is reported unresolved and
   not guessed at. The byte is the **last** `loc_B6A2` pass's: the routine
@@ -64,7 +63,9 @@ Fields it does not, recorded here as `"undetermined"` notes:
   RES - shows up in `effect` instead, which is read off every seated fighter.
 """
 from . import enemies as enemy_readings, roles, vehicle as vehicles
+from .commands import action_command, command_entry, inventory_at
 from .errors import FixtureError
+from .state import round_state
 from .observations import (ROLL_COLUMNS, action_effects, action_record,
                            action_windows, battle_start, decided_frame, victory_declared,
                            enemies_loaded, round_frames, side_of, turn_order)
@@ -190,16 +191,21 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta, max_rounds=0,
             record["ability_frame"] = reading["ability_frame"]
             record["ability_written"] = reading["written"]
         else:
-            # The command the member chose is not in the log; every party
-            # action here is a physical attack and the tape holds C
-            # (`docs/oracle/BATTLE_ORACLE_REPLAY.md`).
-            record["ability"] = 0
+            command = action_command(log, actor, start)
+            record["ability"] = command["ability"] if command else 0
             record["ability_frame"] = None
             record["ability_written"] = False
         record["kind"] = (enemy_readings.kind_of(
             record["ability"], roles.resolved_targets(record),
             record["effect"])
-                          if side_of(actor) == "enemy" else "attack")
+                          if side_of(actor) == "enemy" else
+                          (command["command"] if command else "attack"))
+        if side_of(actor) == "party" and record["kind"] in ("technique", "item"):
+            # These damage objects do not execute loc_B6A2's hit pass.
+            # Stale flags are not verdicts; the observed damage is a normal
+            # damage resolution (Character_DamageEnemy, ps4.asm:3986-4054).
+            for target in record["targets"]:
+                target["hit"] = "00" if target["damage"] is not None else "FF"
         if enemy_readings.ability_was_cleared(log, record):
             # Retain the observed zero; the cleared id is unobservable.
             record["ability_cleared"] = True
@@ -255,6 +261,8 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta, max_rounds=0,
                                 for frame, count in record["rolls"]]
             actions.append(written)
         order = turn_order(log, round_frame)
+        end_frame = min(last, starts[number] - 1) if number < len(starts) else last
+        state_after = round_state(log, end_frame, occupied)
         rounds.append({
             "round": number,
             "order_frame": round_frame,
@@ -265,6 +273,9 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta, max_rounds=0,
             "roll_count": sum(len(values) for _, values, _, n, _
                               in labelled if n == number),
             "actions": actions,
+            **({} if state_after is None else {"state_after": state_after}),
+            **({} if inventory_at(log, round_frame) is None else {
+                "inventory_after": inventory_at(log, end_frame)}),
         })
     if any(not round_["actions"] for round_ in rounds):
         raise FixtureError("a round has no action: the windows and the queue "
@@ -305,9 +316,9 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta, max_rounds=0,
             "roll_column": roll_column,
             "damage_run": DAMAGE_RUN,
             "undetermined": [
-                "command identity: the log has menu cursors, not the chosen "
-                "commands; every party action here is a physical attack and "
-                "the tape holds C, so each is recorded as `attack`",
+                *([] if log.has("cmd0_index") else [
+                    "command identity: this legacy log has no command cells; "
+                    "the tape and observed physical actions establish attack"]),
                 "a miss and an untargeted slot both read $FF in "
                 "Fighters_Hit_Flags, so a $FF slot with an unmoved damage "
                 "word is reported raw rather than guessed",
@@ -338,6 +349,8 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta, max_rounds=0,
             "enemies": enemies,
         },
         "party": party,
+        **({} if inventory_at(log, start_frame) is None else {
+            "inventory": inventory_at(log, start_frame)}),
         # The party slots whose attack route runs the close-range animation's
         # hit pass as well as Character_Attack's (Alys and Kyra, by the name
         # the fixture's party list carries); empty for a vehicle battle, whose
@@ -380,27 +393,6 @@ COMMAND_TARGET_COLUMNS = {1: "cmd0_target", 2: "cmd1_target",
 #: attack whose reach is the whole side (`ps4.asm:8464`), and `loc_B6A2` reads
 #: the sign as "widen the window" (`ps4.asm:17501-17508`).
 NO_TARGET = -1
-
-
-def command_entry(log, fighter, frame):
-    """One party member's round command, and its target when the log has it.
-
-    Every party action in these captures is a physical attack (`assembly`'s
-    "command identity" note), so the command is `attack`; what the capture can
-    add is *whom* it was aimed at. A capture that logs the `bcmd` group
-    (`oracle/force/runs.py`'s `GROUPS`) carries `Character_Command_Data`, and
-    the target a member chose is what the replay needs to tell a swing that
-    kept its aim from one the cartridge moved off a fallen enemy
-    (`docs/oracle/BATTLE_ORACLE_SWEEP.md`, the retarget cluster). Older captures, and
-    the sweep's own, do not carry the group: the entry then names no target
-    rather than guessing one.
-    """
-    entry = {"id": fighter, "command": "attack"}
-    column = COMMAND_TARGET_COLUMNS.get(fighter)
-    if column is not None and log.has(column):
-        value = log.num(frame, column)
-        entry["target"] = value - 0x10000 if value > 0x7FFF else value
-    return entry
 
 
 def _hp_patch_note(party, vehicle, hp):

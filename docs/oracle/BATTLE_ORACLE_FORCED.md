@@ -111,6 +111,11 @@ Three details the tool insists on, because each was found the hard way:
 
 ### 1.3 The policy
 
+X86 adds per-round `--party-script` commands through live cartridge menus.
+The format is in [oracle/README.md](../../oracle/README.md#party-command-scripts);
+state/RNG evidence is in [BATTLE_ORACLE_X86.md](BATTLE_ORACLE_X86.md).
+The two existing `--policy` inputs below are unchanged.
+
 `attack` (the default) is tape 07's own fight input: one `C` press every 16
 frames (4 held, 12 released). It takes COMD -> ATTACK -> the default target for
 each member and then advances messages and rounds, and it is what both checked-in
@@ -143,8 +148,10 @@ f25003/f25125) and the battle ends at f25621 instead of f25616. None of the
 three captures needed it - every ability fired on the first delay tried - but
 the knob is measured rather than assumed.
 
-**There is no policy that commands a technique, a skill or an item (recorded
-2026-09-25).** `--policy` takes `attack` or `defend` and nothing else
+**Historical limitation (2026-09-25), closed by X86.** The tool then had no
+policy commanding a technique, skill or item. The `--party-script` path now
+provides those inputs and command extraction; [X86 evidence](BATTLE_ORACLE_X86.md)
+records the closure. The original boundary was: `--policy` takes `attack` or `defend` and nothing else
 (`oracle/force/cli.py`; the frame patterns are `oracle/force/tape.py`'s
 `policy_steps`), so no run of this tool can open the TECH or SKILL list, pick an
 ability and pick its target - which is what a capture of the retarget rule's

@@ -57,7 +57,7 @@ formation, carrier, scene and input hash. It is an evidence output, not source d
 | damage | `$5A` FLAELI | event 138 ChaosSorcr2 |
 | damage after intro | `$63` BURSTROC | event 130 DarkForce1 |
 | damage | `$6A` WIND STORM | 143 Owltalon |
-| status/stat, A4 (`enemy_effect`) | `$24` POISONMIST, `$25` SLEEP GAS, `$4B` SHADOWBIND; `$1D` BARRIER stays deferred | 57 Mistralgec, 63 GerotLux, event 138 ChaosSorcr2; 48 Siren386 |
+| status/stat, A4 (`enemy_effect`) | `$24` POISONMIST, `$25` SLEEP GAS, `$4B` SHADOWBIND; `$1D` BARRIER captured by X86 | 57 Mistralgec, 63 GerotLux, event 138 ChaosSorcr2; 48 Siren386 |
 | no-effect (A3 repairs SatMinion WAITING) | `$07` FISSION2, `$17` WAITING | 50 FloatMine2; 42 SatMinion/44 FloatMine/50 FloatMine2 |
 | summon, outside damage/status lanes | `$14` WARNING | conditional 45 CommndBall; implemented by A4 as the refill (`resolve_fission`) |
 
@@ -268,7 +268,7 @@ see its row).
 | `$18` EXPLOSION | `$23` | damage | unsupported | 44 FloatMine (conditional:7), 50 FloatMine2 (conditional:7) | 8 | 0 | - |
 | `$19` DETONATION | `$24` | damage | unsupported | 45 CommndBall | 8 | 0 | - |
 | `$1C` FLARE SHOT | `$01` | damage | unsupported | 48 Siren386, 130 DarkForce1 | 8 | 0 | 9 |
-| `$1D` BARRIER | `$0B` | status/stat effect | unsupported | 48 Siren386 (conditional:8) | 8 | 0 | - |
+| `$1D` BARRIER | `$0B` | status/stat effect | implemented | 48 Siren386 (conditional:8) | 8 | 0 | - |
 | `$1F` DBL SLASH | `$01` | damage | unsupported | 145 RedMole | 1 | 0 | - |
 | `$20` PHONONMASR | `$01` | damage | unsupported | 130 DarkForce1 | 0 | 0 | 9 |
 | `$22` RAY BREATH | `$01` | damage | unsupported | 118 LwAddmer | 0 | 1 | - |
@@ -287,8 +287,8 @@ see its row).
 Who owns what (the `class` column above is §2's object-chain rule): the `damage`
 rows are the damage lane's (FLAELI first); the rest of the table is this lane's, with
 the status in the last column of §2/§3 - `$14`, `$24`, `$25` and `$4B` implemented,
-`$17`'s second carrier (42 SatMinion) read, `$1D` BARRIER deferred
-([ENEMY_EFFECT_ABILITIES.md](ENEMY_EFFECT_ABILITIES.md) section 7), and Dark Force 1's
+`$17`'s second carrier (42 SatMinion) read, `$1D` BARRIER implemented and captured
+([BATTLE_ORACLE_X86.md](../oracle/BATTLE_ORACLE_X86.md)), and Dark Force 1's
 first action - not an ability id at all - modelled
 ([`battle/scripted_flag.rs`](../../rust/psiv-core/src/battle/scripted_flag.rs)): the
 latch's object `$818` replaces the rolled ability and requests nothing, replayed

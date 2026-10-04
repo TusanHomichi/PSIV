@@ -70,6 +70,29 @@ where
             BattleEvent::Attacked { actor: who, .. } if *who == actor => {
                 return EnemyTurn::Attack;
             }
+            BattleEvent::FirstZioAction {
+                actor: who,
+                action,
+                target,
+            } if *who == actor => {
+                let ability = match action {
+                    FirstZioAction::MagicBarrier => 0x6B,
+                    FirstZioAction::Nightmare => 0x53,
+                    // Zio3 exits with no target; Zio's kill arm names one
+                    // (zio.rs, ps4.asm:19455-19461, 19502-19516).
+                    FirstZioAction::BlackWave => {
+                        if target.is_some() {
+                            0x54
+                        } else {
+                            0x70
+                        }
+                    }
+                    FirstZioAction::Invocation
+                    | FirstZioAction::Pause
+                    | FirstZioAction::DarkForceCharge => 0,
+                };
+                return EnemyTurn::Ability(ability);
+            }
             BattleEvent::RoundEnded { .. } => return EnemyTurn::Nothing,
             _ => {}
         }
@@ -108,6 +131,51 @@ where
         .clone()
         .take_while(|event| !opens_turn(event))
         .collect()
+}
+
+/// A selected party command must execute that command, never an attack fallback.
+fn party_turn<'a, I>(events: &mut I, actor: FighterId, action: &Action) -> bool
+where
+    I: Iterator<Item = &'a BattleEvent>,
+{
+    for event in events.by_ref() {
+        match event {
+            BattleEvent::Defended { actor: who } if *who == actor => {
+                return action.kind == Kind::Defend;
+            }
+            BattleEvent::TechniqueUsed {
+                actor: who,
+                technique,
+                ..
+            } if *who == actor => {
+                return action.kind == Kind::Technique && action.ability == Some(*technique);
+            }
+            BattleEvent::SkillUsed {
+                actor: who, skill, ..
+            } if *who == actor => {
+                return action.kind == Kind::Skill && action.ability == Some(*skill);
+            }
+            BattleEvent::ItemUsed {
+                actor: who, item, ..
+            } if *who == actor => {
+                return action.kind == Kind::Item && action.ability == Some(*item);
+            }
+            // The cartridge can reject a command after selection when an
+            // earlier action changes status. Its observable effect stays checked.
+            BattleEvent::TurnSkipped { actor: who, .. } if *who == actor => {
+                return action.effect.status.is_empty()
+                    && action.effect.hp.is_empty()
+                    && action.effect.stats.is_empty();
+            }
+            BattleEvent::RoundEnded { .. }
+            | BattleEvent::Attacked { .. }
+            | BattleEvent::TechniqueRejected { .. }
+            | BattleEvent::SkillRejected { .. }
+            | BattleEvent::ItemRejected { .. } => return false,
+            _ => {}
+        }
+    }
+    false
 }
 
 /// The status and agility comparison for an ability action: the first
@@ -198,6 +266,39 @@ fn effect_divergence(
         });
     }
     for (who, field, _before, after) in &action.effect.stats {
+        // Psycho Wand's loc_3CF60/loc_7F22 reloads records, rather than
+        // changing one stat. Check each observed cell against the same decoded
+        // record the engine reloads; end-of-round state also pins the new form.
+        let reloaded = turn.iter().find_map(|event| match event {
+            BattleEvent::EnemyStatsReloaded {
+                fighter, enemy_id, ..
+            } if *fighter == id(*who) => Some(*enemy_id),
+            _ => None,
+        });
+        if let Some(enemy) = reloaded {
+            let data = super::pack::data();
+            let stats = Stats::from_enemy(data.enemy(enemy).expect("reloaded pack record"));
+            let value = match field.as_str() {
+                "agi_bat" => u16::from(stats.agility.battle),
+                "atk" | "atk_bat" => stats.attack.battle,
+                "dfs" | "dfs_bat" => stats.defence.battle,
+                "men_bat" => u16::from(stats.mental.battle),
+                "dex_bat" => u16::from(stats.dexterity.battle),
+                "mdfs_bat" => stats.mental_defence.battle,
+                _ => continue,
+            };
+            if i32::from(value) != *after {
+                return Some(Divergence::Stat {
+                    frame: action.start_frame,
+                    actor,
+                    target: id(*who),
+                    field: field.clone(),
+                    log_value: *after,
+                    port_value: Some(value),
+                });
+            }
+            continue;
+        }
         // The cells a port event reports: battle agility (`agi_bat`, both
         // sides' fixtures) and the party's battle attack and defence
         // (`atk_bat`, `dfs_bat`, which `oracle/sweep/arc.py` adds because the
@@ -206,6 +307,7 @@ fn effect_divergence(
             "agi_bat" => TechniqueStat::Agility,
             "atk_bat" => TechniqueStat::Attack,
             "dfs_bat" => TechniqueStat::Defence,
+            "mdfs_bat" => TechniqueStat::MentalDefence,
             _ => continue,
         };
         let target = id(*who);
@@ -375,6 +477,19 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
                 });
             }
             targets
+        } else if action.actor <= LAST_PARTY_ID {
+            if !party_turn(&mut events, actor, action) {
+                return Some(Divergence::Ability {
+                    frame: action.start_frame,
+                    actor,
+                    log_ability: action.ability.unwrap_or(0),
+                    port: None,
+                });
+            }
+            if let Some(found) = effect_divergence(action, actor, &turn_of(&events)) {
+                return Some(found);
+            }
+            damaged.iter().map(|target| id(target.id)).collect()
         } else {
             // The log's action ran the ability roll, so the port's own arm has
             // to be what answers it. `Wasted` is the log's reading of an
@@ -403,18 +518,14 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
                     // leaves a cell behind (`oracle/fixture/enemies.py`). What
                     // it *can* say is that nothing was resolved - so the arm is
                     // accepted only if nothing was.
-                    let resolved = events
-                        .clone()
-                        .take_while(|event| {
-                            !matches!(
-                                event,
-                                BattleEvent::Attacked { .. } | BattleEvent::RoundEnded { .. }
-                            )
-                        })
-                        .any(|event| {
-                            matches!(event, BattleEvent::Resolved { actor: who, .. }
+                    let resolved =
+                        events
+                            .clone()
+                            .take_while(|event| !opens_turn(event))
+                            .any(|event| {
+                                matches!(event, BattleEvent::Resolved { actor: who, .. }
                                      if *who == actor)
-                        });
+                            });
                     if resolved {
                         return Some(Divergence::NotWasted {
                             frame: action.start_frame,
@@ -478,12 +589,7 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
         } else {
             events
                 .clone()
-                .take_while(|event| {
-                    !matches!(
-                        event,
-                        BattleEvent::Attacked { .. } | BattleEvent::RoundEnded { .. }
-                    )
-                })
+                .take_while(|event| !opens_turn(event))
                 .collect()
         };
 
@@ -506,7 +612,7 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
                         seen = Some((*verdict, *damage, *remaining_hp));
                         break;
                     }
-                    BattleEvent::Attacked { .. } | BattleEvent::RoundEnded { .. } => break,
+                    event if opens_turn(event) => break,
                     _ => {}
                 }
             }
@@ -580,10 +686,7 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
                     let died = events
                         .clone()
                         .take_while(|event| {
-                            !matches!(
-                                event,
-                                BattleEvent::Attacked { .. } | BattleEvent::RoundEnded { .. }
-                            )
+                            !opens_turn(event)
                         })
                         .any(|event| {
                             matches!(event, BattleEvent::Died { fighter } if *fighter == wanted)

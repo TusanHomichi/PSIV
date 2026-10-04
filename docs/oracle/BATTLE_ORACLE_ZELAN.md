@@ -104,7 +104,7 @@ round's draw count.
 
 | carrier | why |
 |---|---|
-| 48 Siren386 `$1D` BARRIER (conditional, arm `$08`) | Fires only after the Siren is hit by magic (`EnemyAI_MagicDamageReceived`, reaction flag bit 1). The capture tool has no policy that commands a technique ([forced ledger](BATTLE_ORACLE_FORCED.md) section 1.3: it needs a `tech` policy, a party that knows a single-target technique, and an extractor that records the command kind - the last in `oracle/fixture/`, outside this lane), so no capture can show the arm. The handler (`AbilityEffect_MagicDefenseUp`, range 2, no roll) is not written without an observed use; until then `UnsupportedAbility` and the physical swing. The arm guards on its own derived and battle magic defence (`move.w $2E(a2), d3 / cmp.w $2C(a2), d3 / bgt.w loc_10016`, `ps4.asm:22568-22570`) like ShadowSabr's DEBAN. |
+| 48 Siren386 `$1D` BARRIER (conditional, arm `$08`) | Closed by X86: ordinary-menu FOI triggers the arm, the signed guard and range-2 MDEF handler replay exactly. See [BATTLE_ORACLE_X86.md](BATTLE_ORACLE_X86.md) and [ENEMY_EFFECT_ABILITIES.md](../battle/ENEMY_EFFECT_ABILITIES.md#barrier-1d-siren386-and-browren486). |
 | 42 SatMinion `$17` WAITING (conditional, arm `$05`) | `EnemyAttack_ArmDrone`'s `$17` arm `loc_10468` (`ps4.asm:22806`) is the six instructions of the FloatMine fall-through `loc_10406`, whose behaviour `formation_124_d2` shows. Every formation that triggers it (`$123`, SatMinion, CRayTube, SatMinion) carries CRayTube's CHARGCNNON `$15` in round 1; lane A3 routed CHARGCNNON and its local `chargecannon` capture (formation `$123`) replays the SatMinion WAITING turns ([`ENEMY_ABILITIES_ROUTE.md`](../battle/ENEMY_ABILITIES_ROUTE.md) section 1). No committed fixture: that capture is local by A3's policy. |
 | 58 FlameNewt `$24`, 105 ShadMirage and 132 DarkForce3 `$4B` | Share a routine and arm with a routed pair, are not on the route, were not captured. |
 | 39 Tower `$14` | Same init (`EnemyInit_Tower`, with the same FloatMine guard) and record as 45 CommndBall, not on the route, not captured; the init gate covers it, the refill record is shared, no fixture. |
@@ -196,6 +196,6 @@ table is what it printed.
   fixture; they are the damage lane's.
 - The enemy-side agility cell is not in the log (`agi_bat` is the party's), so
   SHADOWBIND's effect on its own side is proven only through the party cells.
-- SatMinion's WAITING, BARRIER, Tower's WARNING and the other latch readers are read or
-  deferred, not observed (section 3).
+- BARRIER is now captured and replayed by X86; this older route lane's other
+  read/deferred boundaries remain the ones described in section 3.
 - The animations' timing: no frame-level claim is made.

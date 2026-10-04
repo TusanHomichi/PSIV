@@ -32,6 +32,9 @@ pub(crate) fn data() -> BattleData {
     fixtures::data()
         .with_enemies(sweep.enemies)
         .with_enemy_skills(sweep.enemy_skills)
+        .with_techniques(sweep.techniques)
+        .with_skills(sweep.skills)
+        .with_battle_items(sweep.battle_items)
         .with_enemies([helex(), fanbite(), desrt_leach()])
         .with_enemy_skills([flame_bolt(), spiral_bld(), sand_storm()])
 }
@@ -54,18 +57,102 @@ fn read_pack(path: &std::path::Path) -> SweepPack {
     SweepPack {
         enemies: parsed.enemies.into_iter().map(Into::into).collect(),
         enemy_skills: parsed.enemy_skills.into_iter().map(Into::into).collect(),
+        techniques: parsed.techniques.into_iter().map(Into::into).collect(),
+        skills: parsed.skills.into_iter().map(Into::into).collect(),
+        battle_items: parsed.battle_items.into_iter().map(Into::into).collect(),
     }
 }
 
 struct SweepPack {
     enemies: Vec<EnemyRecord>,
     enemy_skills: Vec<EnemySkill>,
+    techniques: Vec<Technique>,
+    skills: Vec<Skill>,
+    battle_items: Vec<BattleItem>,
 }
 
 #[derive(Deserialize)]
 struct SweepJson {
     enemies: Vec<EnemyJson>,
     enemy_skills: Vec<SkillJson>,
+    #[serde(default)]
+    techniques: Vec<PartyAbilityJson>,
+    #[serde(default)]
+    skills: Vec<PartyAbilityJson>,
+    #[serde(default)]
+    battle_items: Vec<PartyAbilityJson>,
+}
+
+/// Normalized psiv-data definitions, emitted from the ignored runtime pack.
+#[derive(Deserialize)]
+struct PartyAbilityJson {
+    id: u8,
+    name: String,
+    effect: u8,
+    targeting: u8,
+    power: u8,
+    resistance: u8,
+    element: u8,
+    #[serde(default)]
+    cost: u8,
+    #[serde(default)]
+    power_stat: u8,
+    #[serde(default)]
+    requires_weapon: bool,
+    #[serde(default)]
+    actor_power: u8,
+    #[serde(default)]
+    object: u8,
+    #[serde(default)]
+    consumable: bool,
+}
+
+impl From<PartyAbilityJson> for Technique {
+    fn from(j: PartyAbilityJson) -> Self {
+        Self {
+            id: j.id,
+            name: j.name,
+            effect: j.effect,
+            cost: j.cost,
+            targeting: j.targeting,
+            power: j.power,
+            resistance: j.resistance,
+            element: j.element,
+        }
+    }
+}
+
+impl From<PartyAbilityJson> for Skill {
+    fn from(j: PartyAbilityJson) -> Self {
+        Self {
+            id: j.id,
+            name: j.name,
+            effect: j.effect,
+            power_stat: j.power_stat,
+            requires_weapon: j.requires_weapon,
+            targeting: j.targeting,
+            power: j.power,
+            resistance: j.resistance,
+            element: j.element,
+        }
+    }
+}
+
+impl From<PartyAbilityJson> for BattleItem {
+    fn from(j: PartyAbilityJson) -> Self {
+        Self {
+            id: j.id,
+            name: j.name,
+            effect: j.effect,
+            actor_power: j.actor_power,
+            targeting: j.targeting,
+            power: j.power,
+            resistance: j.resistance,
+            element: j.element,
+            object: j.object,
+            consumable: j.consumable,
+        }
+    }
 }
 
 #[derive(Deserialize)]

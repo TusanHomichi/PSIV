@@ -13,6 +13,16 @@ use super::*;
 
 use crate::battle::*;
 
+fn inventory(fixture: &Fixture) -> crate::Inventory {
+    let slots = fixture.inventory.as_ref().map_or([0; 40], |slots| {
+        slots
+            .clone()
+            .try_into()
+            .expect("the logged inventory is forty bytes")
+    });
+    crate::Inventory::from_slots(slots)
+}
+
 /// The cartridge's rolls for a round, in the order it drew them.
 pub(crate) fn verbatim_round(fixture: &Fixture, round: u16) -> Vec<u16> {
     fixture
@@ -49,8 +59,9 @@ pub(crate) fn play(
     stream: &[u16],
 ) -> (Vec<BattleEvent>, usize) {
     let mut rolls = SliceRolls::new(stream);
+    let mut inventory = inventory(fixture);
     let timeline = battle
-        .round(&orders(fixture, round), data, &mut rolls)
+        .round_with_inventory(&orders(fixture, round), data, &mut inventory, &mut rolls)
         .expect("the fixture's battle resolves");
     (timeline, rolls.drawn())
 }
@@ -140,12 +151,63 @@ pub(crate) fn replay_inner(fixture: &Fixture, data: &BattleData) -> Replay {
     let mut timelines = Vec::new();
     let mut draws = Vec::new();
     let mut finding = None;
+    let mut inventory = inventory(fixture);
     for round in &fixture.rounds {
         let before = rolls.drawn();
         let timeline = battle
-            .round(&orders(fixture, round), data, &mut rolls)
+            .round_with_inventory(&orders(fixture, round), data, &mut inventory, &mut rolls)
             .expect("the fixture's battle resolves");
         let drawn = rolls.drawn() - before;
+        if let Some(expected) = &round.inventory_after {
+            assert_eq!(
+                inventory.slots().as_slice(),
+                expected.as_slice(),
+                "round {}: inventory after executing the recorded commands",
+                round.round
+            );
+        }
+        if let Some(states) = &round.state_after {
+            for state in states {
+                let stats = &battle
+                    .roster()
+                    .get(id(state.id))
+                    .expect("logged fighter")
+                    .stats;
+                assert_eq!(
+                    stats.curr_hp, state.hp,
+                    "round {} fighter {} HP",
+                    round.round, state.id
+                );
+                assert_eq!(
+                    stats.status & 0x7F,
+                    state.status,
+                    "round {} fighter {} status",
+                    round.round,
+                    state.id
+                );
+                if let Some(tp) = state.tp {
+                    assert_eq!(
+                        stats.curr_tp, tp,
+                        "round {} fighter {} TP",
+                        round.round, state.id
+                    );
+                }
+                if let Some(enemy) = state.enemy_id {
+                    assert_eq!(
+                        stats.enemy_id, enemy,
+                        "round {} fighter {} form",
+                        round.round, state.id
+                    );
+                }
+                if let Some(mdef) = state.mental_defence {
+                    assert_eq!(
+                        stats.mental_defence.battle, mdef,
+                        "round {} fighter {} MDEF",
+                        round.round, state.id
+                    );
+                }
+            }
+        }
         if finding.is_none() {
             finding = match divergence(round, &timeline) {
                 Some(divergence) => Some(Finding::Action {

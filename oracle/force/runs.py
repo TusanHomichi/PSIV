@@ -51,15 +51,19 @@ class Run:
 
 
 def run_oracle(tape: pathlib.Path, out_dir: pathlib.Path, stem: str,
-               patches: list[str], groups: str = GROUPS) -> Run:
+               patches: list[str], groups: str = GROUPS, *,
+               ram_map: pathlib.Path = DEFAULT_RAM_MAP_TSV,
+               dump_ram: tuple[int, pathlib.Path] | None = None) -> Run:
     out_dir.mkdir(parents=True, exist_ok=True)
     log = out_dir / f"{stem}.csv"
     trace = out_dir / f"{stem}_rolls.csv"
     argv = [str(host_binary.ensure()), "--core", str(CORE), "--rom", str(ROM),
-            "--map", str(DEFAULT_RAM_MAP_TSV), "--tape", str(tape),
+            "--map", str(ram_map), "--tape", str(tape),
             "--groups", groups, "--rng-trace", str(trace), "--out", str(log)]
     for spec in patches:
         argv += ["--ram-patch", spec]
+    if dump_ram is not None:
+        argv += ["--dump-ram", f"{dump_ram[0]}:{dump_ram[1]}"]
     proc = subprocess.run(argv, capture_output=True, text=True)
     return Run(log, trace, proc.stderr, proc.returncode)
 

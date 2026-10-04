@@ -34,6 +34,17 @@ def parser() -> argparse.ArgumentParser:
     parsed.add_argument("--out", required=True, help="output directory")
     parsed.add_argument("--policy", default="attack",
                         choices=("attack", "defend"))
+    parsed.add_argument("--party-script", default="",
+                        help="JSON per-player-round commands, entered through live menus; "
+                             "requires a scout prepared with --prepare-script")
+    parsed.add_argument("--prepare-script", action="store_true",
+                        help="cache the base tape's actual party/inventory RAM at the "
+                             "encounter seam, then stop (no forced fight)")
+    parsed.add_argument("--runtime-pack", default=str(ROOT / "runtime-pack"),
+                        help="ignored runtime pack: battle command definitions")
+    parsed.add_argument("--ram-patch", action="append", default=[],
+                        help="explicit party/inventory fixture FRAME:ADDRESS:HEX at "
+                             "battle_first+1; never command or cursor RAM")
     parsed.add_argument("--delay", type=int, default=0,
                         help="idle frames between the field prefix and the "
                              "policy; shifts every roll in the fight")
