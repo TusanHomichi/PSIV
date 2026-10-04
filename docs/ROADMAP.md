@@ -76,9 +76,9 @@ new SAVE. The campaign graph marks C70 and CZ verified as a bounded post-Zio
 checkpoint, while full R2 remains in progress on bespoke-driver retirement.
 Whole-scene/event-oracle/audio parity and later-arc play remain open.
 
-**Next action:** the player's techniques and skills on the route (#88), after
-the oracle's party command script and BARRIER (#86, in progress); then the route
-past Dark Force 1. The route plays New Game through `Cutscene_DarkForce1Defeated`
+**Next action:** the player's techniques and skills (#88), captured through the
+oracle's party command script (#86, done), alongside the route past Dark Force 1
+into the Ice Digger arc (C7). The route plays New Game through `Cutscene_DarkForce1Defeated`
 on Kuran in 43 chapters, with a long Dezolis training chapter standing in for the
 untranscribed player skills ([run log](campaign/RUNNER_LOG.md)).
 
