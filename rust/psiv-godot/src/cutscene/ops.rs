@@ -24,6 +24,17 @@ impl Field {
         }
         match op {
             SceneOp::FadeIn => self.start_transition(TransitionKind::SceneFadeIn),
+            SceneOp::FlightFadeIn { frames } => {
+                self.start_transition(TransitionKind::SceneFadeIn);
+                self.transition = Some(crate::transitions::Transition::with_frames(
+                    TransitionKind::SceneFadeIn,
+                    frames,
+                ));
+            }
+            SceneOp::FlightPlanet
+            | SceneOp::FlightPan
+            | SceneOp::FlightFieldReload
+            | SceneOp::FlightArrivalName => {}
             SceneOp::FadeOut => self.start_transition(TransitionKind::SceneFadeOut),
             SceneOp::InitVramAndCram => {
                 if let Some(layer) = self.cutscene_layer.as_mut() {

@@ -117,6 +117,24 @@ pub struct FlightTarget {
     pub previous_is_current: bool,
 }
 
+impl FlightTarget {
+    /// Map-word write to RefreshMap return, from tape 35's CPU return stacks.
+    /// RefreshMap is CPU/DMA work, not a fixed VInt loop (:121767-121909).
+    /// These are the two measured legs; other targets retain the old barrier.
+    #[must_use]
+    pub const fn refresh_frames(self, leg: FlightLeg) -> u16 {
+        match (leg, self.map) {
+            (FlightLeg::Takeoff, 0) => 42,
+            (FlightLeg::Takeoff, ZELAN_SPACE) => 18,
+            (FlightLeg::Transit, ZELAN_SPACE) => 17,
+            (FlightLeg::Transit, 0) => 41,
+            (FlightLeg::Landing, ZELAN) => 33,
+            (FlightLeg::Landing, MOTA_SPACEPORT) => 24,
+            _ => 1,
+        }
+    }
+}
+
 /// `loc_64B02` (`ps4.asm:134540-134562`): current map, takeoff map, start.
 const TAKEOFF: [(u16, u16, u16, u16); 6] = [
     (MOTA_SPACEPORT, 0x000, 0x68, 0xB4),
@@ -203,11 +221,12 @@ const SFX_SPACESHIP_RADAR: u8 = 0xF8;
 const SFX_SPACESHIP_PROPELLED: u8 = 0xE3;
 
 /// How many ops a Cancel skips: from the op after the menu to the cancel leg.
-const CANCEL_SKIP: u16 = 32;
+const CANCEL_SKIP: u16 = 42;
 
-/// `Pal_FadeIn` and `PalFadeOut_ClrSpriteTbl` each take 14 frames (measured on
-/// the oracle, tape 35: six fades account for 84 of the flight's frames).
+/// `PalFadeOut_ClrSpriteTbl` takes 14 frames (tape 35). Flight fade-in has
+/// two additional display-enable/terminal frames; FlightFadeIn owns its 16.
 const FADE_FRAMES: u16 = 14;
+const FADE_IN_FRAMES: u16 = 16;
 
 /// The shared body of `$800D`, `Cutscene_InsideSpaceship` (`ps4.asm:155427`):
 /// init, fade, `jmp loc_63BC4`. The two scenes that end in the same `jmp`
@@ -224,14 +243,9 @@ const FADE_FRAMES: u16 = 14;
 /// cancel            loc_63E5E               :133692-133726
 /// ```
 ///
-/// Frame counts: the loops and waits are the cartridge's `dbf` counts, and each
-/// fade is the 14 frames the oracle measures. What the scene model has no op
-/// for stays unmodelled and is listed in `docs/scenes/41_InsideSpaceship.md`
-/// with the oracle's totals: the Speak button that cuts a flight short
-/// (`:134228`, `:134315`), the camera pan `loc_5ABDC` runs before the descent,
-/// `RefreshMap`'s own frames and the planet name's typing, and `loc_64C1E`'s
-/// Rykros cutscene branch (`:134644-134655`).
-pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 38] = [
+/// Counts and CPU/DMA setup spans are cited separately in the scene ledger.
+/// The caption is instant: d4=1 skips RunText2's per-character wait.
+pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 48] = [
     SceneOp::InitVramAndCram,
     SceneOp::FadeIn,
     // `SpcSFXID_SpaceshipRadar`, once the list is built (`ps4.asm:133537`).
@@ -255,9 +269,10 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 38] = [
     SceneOp::LoadFlightMap {
         leg: FlightLeg::Takeoff,
     },
-    SceneOp::FadeIn,
-    SceneOp::WaitFrames {
-        frames: FADE_FRAMES,
+    // loc_641A2 ship art (2 frames), loc_64230 sprite DMA (1 frame).
+    SceneOp::WaitFrames { frames: 3 },
+    SceneOp::FlightFadeIn {
+        frames: FADE_IN_FRAMES,
     },
     SceneOp::Wait { ticks: 224 },
     SceneOp::PlaySound {
@@ -270,9 +285,9 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 38] = [
     SceneOp::LoadFlightMap {
         leg: FlightLeg::Takeoff,
     },
-    SceneOp::FadeIn,
-    SceneOp::WaitFrames {
-        frames: FADE_FRAMES,
+    SceneOp::WaitFrames { frames: 3 },
+    SceneOp::FlightFadeIn {
+        frames: FADE_IN_FRAMES,
     },
     SceneOp::Wait { ticks: 228 },
     // loc_6472C: fade out, 60 map updates, the planet screen's fade in, 300
@@ -281,13 +296,19 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 38] = [
     SceneOp::WaitFrames {
         frames: FADE_FRAMES,
     },
+    // Field_LoadSprites/Field_BuildSprites/VInt_Prepare (:134298-134300).
+    SceneOp::WaitFrames { frames: 1 },
     SceneOp::Wait { ticks: 60 },
     SceneOp::InitVramAndCram,
-    SceneOp::FadeIn,
-    SceneOp::WaitFrames {
-        frames: FADE_FRAMES,
+    SceneOp::FlightPlanet,
+    SceneOp::SetTextColour { colour: 0 },
+    SceneOp::FlightFadeIn {
+        frames: FADE_IN_FRAMES,
     },
-    SceneOp::WaitFrames { frames: 300 },
+    // Caption colour is zero until d0=$6D, after the 191st planet frame.
+    SceneOp::WaitFrames { frames: 191 },
+    SceneOp::SetTextColour { colour: 0xEEE },
+    SceneOp::WaitFrames { frames: 109 },
     SceneOp::FadeOut,
     SceneOp::WaitFrames {
         frames: FADE_FRAMES,
@@ -298,10 +319,13 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 38] = [
     SceneOp::LoadFlightMap {
         leg: FlightLeg::Transit,
     },
-    SceneOp::FadeIn,
-    SceneOp::WaitFrames {
-        frames: FADE_FRAMES,
+    // loc_641A2, loc_64332, then the Y-only pan and its sprite placement VInt.
+    SceneOp::WaitFrames { frames: 3 },
+    SceneOp::FlightFadeIn {
+        frames: FADE_IN_FRAMES,
     },
+    SceneOp::FlightPan,
+    SceneOp::WaitFrames { frames: 1 },
     SceneOp::Wait { ticks: 257 },
     SceneOp::FadeOut,
     SceneOp::WaitFrames {
@@ -310,6 +334,13 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 38] = [
     SceneOp::LoadFlightMap {
         leg: FlightLeg::Landing,
     },
+    SceneOp::FlightFieldReload,
+    SceneOp::FlightFadeIn {
+        frames: FADE_IN_FRAMES,
+    },
+    SceneOp::FlightArrivalName,
+    // Window_Update countdown $78 plus draw/teardown DMA (:136623-136646).
+    SceneOp::Wait { ticks: 124 },
     SceneOp::Return { value: 0 },
     // Cancel: back to the start cell of the map it was opened on.
     SceneOp::LoadFlightMap {
@@ -317,6 +348,33 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 38] = [
     },
     SceneOp::Return { value: 0 },
 ];
+
+/// Compile-time concatenation keeps callers from truncating a growing route.
+pub(crate) const fn append_ship_route<const N: usize>(prefix: &[SceneOp]) -> [SceneOp; N] {
+    assert!(N == prefix.len() + INSIDE_SPACESHIP_ROUTE.len());
+    let mut ops = [SceneOp::Return { value: 0 }; N];
+    let mut i = 0;
+    while i < prefix.len() {
+        ops[i] = prefix[i];
+        i += 1;
+    }
+    let mut j = 0;
+    while j < INSIDE_SPACESHIP_ROUTE.len() {
+        ops[i + j] = INSIDE_SPACESHIP_ROUTE[j];
+        j += 1;
+    }
+    ops
+}
+
+macro_rules! with_ship_menu {
+    ($($op:expr),* $(,)?) => {{
+        const PREFIX: &[$crate::scene::SceneOp] = &[$($op),*];
+        &$crate::scenes::flight::append_ship_route::<{
+            PREFIX.len() + $crate::scenes::flight::INSIDE_SPACESHIP_ROUTE.len()
+        }>(PREFIX)
+    }};
+}
+pub(crate) use with_ship_menu;
 
 #[cfg(test)]
 mod tests {
@@ -505,6 +563,14 @@ mod tests {
             let SceneOp::DestinationMenu { cancel_skip, .. } = scene.ops[at] else {
                 unreachable!()
             };
+            if scene.name != "Cutscene_SpaceshipSabotage" {
+                assert_eq!(
+                    &scene.ops[at - 3..],
+                    &INSIDE_SPACESHIP_ROUTE,
+                    "{} retains the complete shared flight",
+                    scene.name
+                );
+            }
             assert_eq!(
                 scene.ops[at + 1 + usize::from(cancel_skip)],
                 SceneOp::LoadFlightMap {
@@ -520,6 +586,12 @@ mod tests {
                 scene.name
             );
         }
+    }
+
+    #[test]
+    #[should_panic(expected = "assertion failed")]
+    fn a_truncated_shared_route_is_rejected_before_copying() {
+        append_ship_route::<{ INSIDE_SPACESHIP_ROUTE.len() - 1 }>(&[]);
     }
 
     #[test]
@@ -547,10 +619,9 @@ mod tests {
 
     #[test]
     fn a_confirm_flies_the_long_takeoff_from_a_spaceport_and_the_short_one_elsewhere() {
-        // Ticks from the takeoff's map load to the transit leg, summed from the
-        // cartridge's loops and the 14-frame fades: 14 + 419 + 60 (tone) + 14 + 60
-        // + 14 + 300 + 14 + 60 from a spaceport, 14 + 228 + 14 + 60 + 14 + 300 +
-        // 14 + 60 from anywhere else.
+        // The core owns the loops and flight fade-in's 16-frame barrier.
+        // Runtime resolves CPU/DMA setup spans; the exact full legs are tested
+        // against tape 35 in psiv-runtime's session_destination integration test.
         for (map_id, expected_at_least, expected_below) in
             [(MOTA_SPACEPORT, 955, 995), (ZELAN, 704, 744)]
         {
@@ -567,8 +638,21 @@ mod tests {
             assert!(!seen.iter().any(is_leg(FlightLeg::Return)));
             run.tick(&map, &mut state, SceneInput::MapLoaded);
             let mut ticks = 0u16;
+            let mut input = SceneInput::None;
             loop {
-                let effects = run.tick(&map, &mut state, SceneInput::None);
+                let effects = run.tick(&map, &mut state, input);
+                input = if effects.iter().any(|effect| {
+                    matches!(
+                        effect,
+                        SceneEffect::Presentation {
+                            op: SceneOp::FlightPlanet
+                        }
+                    )
+                }) {
+                    SceneInput::MapLoaded
+                } else {
+                    SceneInput::None
+                };
                 ticks += 1;
                 if effects.iter().any(is_leg(FlightLeg::Transit)) {
                     break;

@@ -4,7 +4,8 @@
 //! Renderer-only palette/panel/object choreography stays in typed presentation
 //! ops; party, map, inventory, flag and battle writes stay explicit here.
 
-use super::{INSIDE_SPACESHIP_ROUTE, KYRA, retained};
+use super::flight::with_ship_menu;
+use super::{KYRA, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_presentation::PresentationOp;
@@ -96,7 +97,7 @@ pub static MEETING_LE_ROOF: Scene = Scene {
 pub static LE_ROOF_AGAIN: Scene = Scene {
     name: "Cutscene_LeRoofAgain",
     event: EventIndex(0x801C),
-    ops: &[
+    ops: with_ship_menu![
         SceneOp::MoveActorTo {
             actor: LEADER,
             x: 0x1F0,
@@ -138,44 +139,6 @@ pub static LE_ROOF_AGAIN: Scene = Scene {
             flag: Flag::event(0xD7),
             value: true,
         },
-        INSIDE_SPACESHIP_ROUTE[0],
-        INSIDE_SPACESHIP_ROUTE[1],
-        INSIDE_SPACESHIP_ROUTE[2],
-        INSIDE_SPACESHIP_ROUTE[3],
-        INSIDE_SPACESHIP_ROUTE[4],
-        INSIDE_SPACESHIP_ROUTE[5],
-        INSIDE_SPACESHIP_ROUTE[6],
-        INSIDE_SPACESHIP_ROUTE[7],
-        INSIDE_SPACESHIP_ROUTE[8],
-        INSIDE_SPACESHIP_ROUTE[9],
-        INSIDE_SPACESHIP_ROUTE[10],
-        INSIDE_SPACESHIP_ROUTE[11],
-        INSIDE_SPACESHIP_ROUTE[12],
-        INSIDE_SPACESHIP_ROUTE[13],
-        INSIDE_SPACESHIP_ROUTE[14],
-        INSIDE_SPACESHIP_ROUTE[15],
-        INSIDE_SPACESHIP_ROUTE[16],
-        INSIDE_SPACESHIP_ROUTE[17],
-        INSIDE_SPACESHIP_ROUTE[18],
-        INSIDE_SPACESHIP_ROUTE[19],
-        INSIDE_SPACESHIP_ROUTE[20],
-        INSIDE_SPACESHIP_ROUTE[21],
-        INSIDE_SPACESHIP_ROUTE[22],
-        INSIDE_SPACESHIP_ROUTE[23],
-        INSIDE_SPACESHIP_ROUTE[24],
-        INSIDE_SPACESHIP_ROUTE[25],
-        INSIDE_SPACESHIP_ROUTE[26],
-        INSIDE_SPACESHIP_ROUTE[27],
-        INSIDE_SPACESHIP_ROUTE[28],
-        INSIDE_SPACESHIP_ROUTE[29],
-        INSIDE_SPACESHIP_ROUTE[30],
-        INSIDE_SPACESHIP_ROUTE[31],
-        INSIDE_SPACESHIP_ROUTE[32],
-        INSIDE_SPACESHIP_ROUTE[33],
-        INSIDE_SPACESHIP_ROUTE[34],
-        INSIDE_SPACESHIP_ROUTE[35],
-        INSIDE_SPACESHIP_ROUTE[36],
-        INSIDE_SPACESHIP_ROUTE[37],
     ],
 };
 

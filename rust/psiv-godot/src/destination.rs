@@ -45,6 +45,7 @@ pub(crate) struct DestinationScreen {
     menu: Option<ShipMenu>,
     /// The session's menu, as of the last frame; `None` while closed.
     view: Option<DestinationView>,
+    arrival: Option<String>,
     picture: Option<Gd<ImageTexture>>,
     picture_key: Option<(usize, ShipPalette)>,
 }
@@ -57,6 +58,7 @@ impl INode2D for DestinationScreen {
             chrome: None,
             menu: None,
             view: None,
+            arrival: None,
             picture: None,
             picture_key: None,
         }
@@ -90,7 +92,8 @@ impl DestinationScreen {
     }
 
     /// Shows the session's menu, or hides the node when there is none.
-    pub(crate) fn sync(&mut self, view: Option<&DestinationView>) {
+    pub(crate) fn sync(&mut self, view: Option<&DestinationView>, arrival: Option<&str>) {
+        self.arrival = arrival.map(str::to_owned);
         match view {
             Some(view) => {
                 self.view = Some(view.clone());
@@ -104,6 +107,12 @@ impl DestinationScreen {
                     self.picture_key = None;
                     self.base_mut().set_visible(false);
                     self.base_mut().queue_redraw();
+                }
+                if self.arrival.is_some() {
+                    self.base_mut().set_visible(true);
+                    self.base_mut().queue_redraw();
+                } else {
+                    self.base_mut().set_visible(false);
                 }
             }
         }
@@ -138,21 +147,42 @@ impl DestinationScreen {
     /// The windows, text and cursor boxes, in the order the cartridge wrote
     /// them: the prompt window, the list window, the boxes, the names.
     fn quads(&self) -> Vec<Quad> {
+        if let (Some(chrome), Some(menu), Some(name)) = (
+            self.chrome.as_ref(),
+            self.menu.as_ref(),
+            self.arrival.as_deref(),
+        ) {
+            if let Some(window) = menu.place_window(name.chars().count()) {
+                let (x, y) = (i32::from(window.x), i32::from(window.y));
+                let mut quads =
+                    chrome.frame_cells(x, y, i32::from(window.width), i32::from(window.height));
+                quads.extend(chrome.text(name, (x + 2, y + 1)));
+                return quads;
+            }
+            return Vec::new();
+        }
         let (Some(chrome), Some(menu), Some(view)) =
             (self.chrome.as_ref(), self.menu.as_ref(), self.view.as_ref())
         else {
             return Vec::new();
         };
         let mut quads = Vec::new();
-        if let Some(window) = menu.window(PROMPT_WINDOW) {
+        if let Some(window) = menu.window(PROMPT_WINDOW)
+            && view.prompt_columns > 0
+        {
             let (x, y) = (i32::from(window.x), i32::from(window.y));
             quads.extend(chrome.frame_cells(
-                x,
+                x + i32::from(window.width.saturating_sub(view.prompt_columns)) / 2,
                 y,
-                i32::from(window.width),
+                i32::from(view.prompt_columns),
                 i32::from(window.height),
             ));
-            if view.phase == DestinationPhase::Choosing {
+            if view.prompt_ready
+                && matches!(
+                    view.phase,
+                    DestinationPhase::Choosing | DestinationPhase::Opening
+                )
+            {
                 quads.extend(chrome.text(menu.prompt(), (x + 1, y + 1)));
             } else {
                 for (line, text) in view.typed.split('\n').enumerate() {
@@ -165,15 +195,19 @@ impl DestinationScreen {
         // `Window_Create` with `d0 = rows + 5`: the list window's id.
         let list_id = view.rows.len() as u8 + PROMPT_WINDOW;
         if !view.rows.is_empty()
+            && view.list_columns > 0
             && let Some(window) = menu.window(list_id)
         {
             let (x, y) = (i32::from(window.x), i32::from(window.y));
             quads.extend(chrome.frame_cells(
-                x,
+                x + i32::from(window.width.saturating_sub(view.list_columns)) / 2,
                 y,
-                i32::from(window.width),
+                i32::from(view.list_columns),
                 i32::from(window.height),
             ));
+            if view.phase == DestinationPhase::Opening {
+                return quads;
+            }
             for (row, &world) in view.rows.iter().enumerate() {
                 let line = y + 1 + row as i32 * 2;
                 // The box is the hollow pattern; the red cursor object (while
@@ -181,6 +215,7 @@ impl DestinationScreen {
                 // draw the solid one over it.
                 let lit = row == view.cursor
                     && match view.phase {
+                        DestinationPhase::Opening => false,
                         DestinationPhase::Choosing => view.cursor_visible,
                         DestinationPhase::Confirmed | DestinationPhase::Closing => true,
                     };
@@ -208,10 +243,21 @@ impl Field {
             .as_ref()
             .and_then(|session| session.destination_view())
             .cloned();
+        let flight = self
+            .session
+            .as_ref()
+            .and_then(|session| session.flight_view())
+            .cloned();
+        let arrival = flight.as_ref().and_then(|view| view.arrival.as_deref());
         if let Some(screen) = self.destination.as_mut() {
-            screen.bind_mut().sync(view.as_ref());
+            screen.bind_mut().sync(view.as_ref(), arrival);
         }
-        if view.is_some()
+        if let Some(layer) = self.cutscene_layer.as_mut() {
+            layer
+                .bind_mut()
+                .sync_flight_caption(flight.as_ref().and_then(|view| view.caption.as_deref()));
+        }
+        if (view.is_some() || arrival.is_some())
             && let Some(camera) = self.camera.as_ref()
         {
             let center = camera.get_position();

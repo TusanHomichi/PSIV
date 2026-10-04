@@ -81,7 +81,20 @@ struct ShipMenuJson {
     prompt: String,
     confirm_suffix: Vec<String>,
     names: Vec<String>,
+    #[serde(default)]
+    flight_captions: Vec<FlightCaption>,
+    #[serde(default)]
+    place_windows: Vec<ShipWindow>,
     backgrounds: Vec<BackgroundRecord>,
+}
+
+/// `SpaceTravel_PlaceNamePtrs`: a complete RunText2 line (leading spaces kept).
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+struct FlightCaption {
+    world: u8,
+    text: String,
+    glyph_count: usize,
+    instant: bool,
 }
 
 /// What the screen's palette does on a frame (`loc_64144`, `ps4.asm:133894-133925`).
@@ -103,6 +116,8 @@ pub struct ShipMenu {
     prompt: String,
     confirm_suffix: Vec<String>,
     names: Vec<String>,
+    flight_captions: Vec<FlightCaption>,
+    place_windows: Vec<ShipWindow>,
     backgrounds: Vec<Vec<u8>>,
 }
 
@@ -128,6 +143,36 @@ impl ShipMenu {
         }
         if json.palette.len() != 32 || json.names.len() != 6 || json.backgrounds.len() != 8 {
             return Err(mismatch("wrong palette, name or background count".into()));
+        }
+        // Older menu packs remain usable; their absent caption is exposed as
+        // None. A present table must be complete, ordered and instant (d4=1).
+        if !json.flight_captions.is_empty()
+            && (json.flight_captions.len() != 6
+                || json
+                    .flight_captions
+                    .iter()
+                    .enumerate()
+                    .any(|(world, caption)| {
+                        usize::from(caption.world) != world
+                            || !caption.instant
+                            || caption.glyph_count == 0
+                            || caption.glyph_count > 32
+                            || caption.text.chars().count() != caption.glyph_count
+                    }))
+        {
+            return Err(mismatch(
+                "malformed flight captions; rebuild the pack".into(),
+            ));
+        }
+        if !json.place_windows.is_empty()
+            && (json.place_windows.len() != 9
+                || json.place_windows.iter().enumerate().any(|(id, window)| {
+                    usize::from(window.id) != id || window.width < 2 || window.height < 2
+                }))
+        {
+            return Err(mismatch(
+                "malformed place-name windows; rebuild the pack".into(),
+            ));
         }
         let mut backgrounds = vec![Vec::new(); 8];
         for record in &json.backgrounds {
@@ -157,6 +202,8 @@ impl ShipMenu {
             prompt: json.prompt,
             confirm_suffix: json.confirm_suffix,
             names: json.names,
+            flight_captions: json.flight_captions,
+            place_windows: json.place_windows,
             backgrounds,
         })
     }
@@ -179,10 +226,26 @@ impl ShipMenu {
         self.names.get(usize::from(world)).map(String::as_str)
     }
 
+    /// The flight's planet/satellite caption, not the destination row name.
+    /// `loc_64C4A` calls RunText2 with d4=1: all glyphs appear without waits.
+    #[must_use]
+    pub fn flight_caption(&self, world: u8) -> Option<&str> {
+        self.flight_captions
+            .get(usize::from(world))
+            .map(|caption| caption.text.as_str())
+    }
+
     /// The `WinGroup_Event` record for a window id.
     #[must_use]
     pub fn window(&self, id: u8) -> Option<ShipWindow> {
         self.windows.iter().copied().find(|window| window.id == id)
+    }
+
+    /// FieldRoutine_PlaceName indexes WinGroup_PlaceName by glyph count minus
+    /// two (:136609-136615); older packs have no record to draw.
+    #[must_use]
+    pub fn place_window(&self, glyphs: usize) -> Option<ShipWindow> {
+        self.place_windows.get(glyphs.checked_sub(2)?).copied()
     }
 
     /// The background for a cover set: a bit mask of the `COVER_*` bits.
@@ -248,6 +311,8 @@ mod tests {
             prompt: "P".into(),
             confirm_suffix: vec![],
             names: vec!["A".into(); 6],
+            flight_captions: vec![],
+            place_windows: vec![],
             backgrounds: vec![background; 8],
         }
     }
@@ -287,11 +352,16 @@ mod tests {
     /// destination menu does not): the facts the cartridge states.
     #[test]
     fn the_local_pack_screen_holds_the_cartridges_strings_windows_and_pictures() {
-        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack");
-        let Ok(data) = crate::GameData::load(&root) else {
+        let root = std::env::var_os("PSIV_RUNTIME_PACK")
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack"));
+        if !root.join("manifest.json").is_file() {
+            eprintln!("runtime pack absent; skipping local ship screen");
             return;
-        };
+        }
+        let data = crate::GameData::load(&root).expect("local pack loads");
         let Some(menu) = data.ship_menu() else {
+            eprintln!("ship screen absent; skipping local ship screen");
             return;
         };
         assert_eq!(menu.prompt(), "Where do you want to go?");
@@ -332,11 +402,95 @@ mod tests {
             .unwrap();
         assert_eq!(plain.len(), SCREEN_WIDTH * SCREEN_HEIGHT * 4);
         assert_ne!(plain, lit, "world 3's marker lights");
+        if menu.flight_caption(0).is_none() {
+            eprintln!("flight captions absent in older pack; skipping caption checks");
+            return;
+        }
+        for world in 0..6 {
+            let caption = menu.flight_caption(world).expect("six captions");
+            assert!(caption.ends_with(menu.name(world).unwrap()) || world == 5);
+            assert!(!caption.trim().is_empty());
+        }
+        assert!(menu.flight_caption(6).is_none());
+        assert_eq!(
+            menu.place_window(2).map(|w| (w.width, w.height, w.x, w.y)),
+            Some((6, 3, 17, 7))
+        );
+        assert!(menu.place_window(1).is_none());
+        assert!(menu.place_window(11).is_none());
     }
 
     #[test]
     fn window_records_are_found_by_id() {
         assert_eq!(menu().window(5).map(|window| window.y), Some(21));
         assert!(menu().window(6).is_none());
+    }
+
+    #[test]
+    fn caption_contract_rejects_waiting_lines_and_bad_window_records() {
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("psiv-ship-{}-{nonce}", std::process::id()));
+        std::fs::create_dir(&root).unwrap();
+        let mut json = serde_json::json!({
+            "format_version": 1, "kind": "ship_menu", "rom_sha256": "00".repeat(32),
+            "palette": vec![serde_json::json!({"rgb": [0, 0, 0]}); 32],
+            "colors": {"highlight": [255, 255, 255], "dark": [0, 0, 0]},
+            "windows": [], "prompt": "a", "confirm_suffix": [], "names": vec!["a"; 6],
+            "flight_captions": (0..6).map(|world| serde_json::json!({
+                "world": world, "text": " a", "glyph_count": 2, "instant": true
+            })).collect::<Vec<_>>(),
+            "place_windows": (0..9).map(|id| serde_json::json!({
+                "id": id, "width": 6 + id, "height": 3, "x": 1, "y": 2
+            })).collect::<Vec<_>>(),
+            "backgrounds": (0..8).map(|covers| serde_json::json!({
+                "covers": covers, "file": format!("{covers}.idx")
+            })).collect::<Vec<_>>()
+        });
+        for covers in 0..8 {
+            std::fs::write(
+                root.join(format!("{covers}.idx")),
+                vec![0; SCREEN_WIDTH * SCREEN_HEIGHT],
+            )
+            .unwrap();
+        }
+        let file = ShipMenuFile {
+            path: "menu.json".into(),
+            sha256: String::new(),
+        };
+        let rom = serde_json::from_value(json["rom_sha256"].clone()).unwrap();
+        let load = |json: &serde_json::Value| {
+            std::fs::write(root.join(&file.path), serde_json::to_vec(json).unwrap()).unwrap();
+            ShipMenu::load(&root, &file, &rom)
+        };
+        let valid = load(&json).unwrap();
+        assert_eq!(valid.flight_caption(0), Some(" a"));
+        assert_eq!(valid.place_window(2).unwrap().width, 6);
+        // d4=1's contract must not silently accept per-character waits.
+        json["flight_captions"][0]["instant"] = false.into();
+        assert!(matches!(
+            load(&json),
+            Err(DataError::ManifestMismatch {
+                field: "ship_menu",
+                ..
+            })
+        ));
+        json["flight_captions"][0]["instant"] = true.into();
+        json["flight_captions"][0]["glyph_count"] = 3.into();
+        assert!(load(&json).is_err());
+        json["flight_captions"][0]["glyph_count"] = 2.into();
+        json["place_windows"][0]["width"] = 0.into();
+        assert!(load(&json).is_err());
+        // Backward compatibility is absence, never a guessed caption.
+        json.as_object_mut().unwrap().remove("flight_captions");
+        json.as_object_mut().unwrap().remove("place_windows");
+        assert_eq!(load(&json).unwrap().flight_caption(0), None);
+        for covers in 0..8 {
+            std::fs::remove_file(root.join(format!("{covers}.idx"))).unwrap();
+        }
+        std::fs::remove_file(root.join(&file.path)).unwrap();
+        std::fs::remove_dir(root).unwrap();
     }
 }

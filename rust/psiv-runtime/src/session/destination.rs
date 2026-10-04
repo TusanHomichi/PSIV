@@ -32,9 +32,8 @@
 //! (`oracle/tapes/35_ship_destination_menu.tape`), during which the view's
 //! phase is [`DestinationPhase::Closing`].
 //!
-//! Not modelled: the windows' open animation (`Window_Draw`, `:139785-139836`),
-//! during which the cartridge does not read the pad, and the `Message_Speed`
-//! option (the default of 2 is used; `ps4.asm:88668`).
+//! Window_Draw's opening (12 frames, :139785-139836) reads no pad. Its
+//! paired column writes and DMA ticks are exposed in DestinationView.
 
 use psiv_core::{DestinationMask, Flag, Input, destination_mask_byte, destination_worlds};
 use psiv_data::{COVER_AIR_CASTLE, COVER_KURAN, COVER_RYKROS, ShipPalette};
@@ -75,6 +74,8 @@ const CANCEL_CLOSE_FRAMES: u16 = 55;
 /// typed characters take 87 and the wait 60; Motavia's 31 characters: 179):
 /// the same teardown, `ps4.asm:133805-133833`.
 const CONFIRM_CLOSE_FRAMES: u16 = 25;
+/// Two slide-open windows plus prompt/list DMA: tape 35, frames 7246..7257.
+const OPEN_FRAMES: u8 = 12;
 /// `FieldObj_RedCursor`'s timers (`ps4.asm:141817-141843`): the first update
 /// leaves `$19`, a flip reloads `$F` and an invisible stretch adds `$A`.
 const CURSOR_START_TIMER: i16 = 0x19;
@@ -84,6 +85,8 @@ const CURSOR_INVISIBLE_EXTRA: i16 = 0x0A;
 /// Where the menu is in its run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DestinationPhase {
+    /// Window_Draw is running; every pad edge is discarded.
+    Opening,
     /// The list is up and the pad moves the cursor.
     Choosing,
     /// A row was confirmed: the message is typing, then the wait runs. The
@@ -97,6 +100,12 @@ pub enum DestinationPhase {
 /// Everything the destination screen draws.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DestinationView {
+    /// Columns Window_Draw has uploaded (zero before the first DMA).
+    pub prompt_columns: u8,
+    /// Columns of the list window uploaded so far.
+    pub list_columns: u8,
+    /// Prompt text DMA has completed.
+    pub prompt_ready: bool,
     /// The worlds listed, top to bottom: `World_Index` values.
     pub rows: Vec<u8>,
     /// The cursor row (`Window_Option_Index`).
@@ -189,6 +198,7 @@ pub(crate) struct DestinationMode {
     /// The teardown after the answer: frames left, and the world confirmed
     /// (`None` for a Cancel).
     closing: Option<(u16, Option<u8>)>,
+    opening_left: u8,
 }
 
 impl DestinationMode {
@@ -199,9 +209,12 @@ impl DestinationMode {
         let rykros_known = runtime.game().is_set(Flag::event(FLAG_RYKROS));
         DestinationMode {
             view: DestinationView {
+                prompt_columns: 0,
+                list_columns: 0,
+                prompt_ready: false,
                 rows,
                 cursor: 0,
-                phase: DestinationPhase::Choosing,
+                phase: DestinationPhase::Opening,
                 mask,
                 rykros_known,
                 blink: false,
@@ -214,6 +227,7 @@ impl DestinationMode {
             char_wait: 0,
             tail: None,
             closing: None,
+            opening_left: OPEN_FRAMES,
         }
     }
 
@@ -230,9 +244,40 @@ impl DestinationMode {
         pressed: Pad,
     ) -> (DestinationOutcome, Option<u8>) {
         match self.view.phase {
+            DestinationPhase::Opening => {
+                self.opening_frame(runtime);
+                (DestinationOutcome::Open, None)
+            }
             DestinationPhase::Choosing => self.choose(runtime, pressed),
             DestinationPhase::Confirmed => (self.confirmed_frame(pad), None),
             DestinationPhase::Closing => (self.closing_frame(), None),
+        }
+    }
+
+    /// Window_Draw grows two columns per pass, skipping alternate DMAs when
+    /// Window_Render_Mode bit 1 is set (:139795-139836). Prompt: 7 uploads,
+    /// then its text DMA; list: 3 uploads, then its final odd column with the
+    /// rows/cursor DMA. The first upload is two columns, not four.
+    fn opening_frame(&mut self, runtime: &Runtime) {
+        self.opening_left = self.opening_left.saturating_sub(1);
+        let elapsed = OPEN_FRAMES - self.opening_left;
+        let menu = runtime.data().ship_menu();
+        let prompt_width = menu.and_then(|m| m.window(5)).map_or(0, |w| w.width);
+        let list_width = menu
+            .and_then(|m| m.window(self.view.rows.len() as u8 + 5))
+            .map_or(0, |w| w.width);
+        self.view.prompt_columns = (2 + elapsed.saturating_sub(1).min(6) * 4).min(prompt_width);
+        self.view.prompt_ready = elapsed >= 8;
+        let list_uploads = elapsed.saturating_sub(8).min(3);
+        self.view.list_columns = if self.opening_left == 0 {
+            list_width
+        } else if list_uploads == 0 {
+            0
+        } else {
+            (2 + (list_uploads - 1) * 4).min(list_width)
+        };
+        if self.opening_left == 0 {
+            self.view.phase = DestinationPhase::Choosing;
         }
     }
 

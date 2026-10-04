@@ -11,6 +11,15 @@ use crate::scene::{
 use crate::state::{GameState, PARTY_SLOTS};
 
 impl SceneRunner {
+    /// Spend a runtime-resolved setup/refresh interval before the next op.
+    /// The initiating op remains the owner of whether map updates run.
+    pub fn delay_frames(&mut self, frames: u16) {
+        self.blocked = if frames == 0 {
+            Blocked::No
+        } else {
+            Blocked::Ticks(frames)
+        };
+    }
     /// Runs one op. Returns a fault instead of advancing when it cannot.
     pub(super) fn step_op(
         &mut self,
@@ -19,6 +28,25 @@ impl SceneRunner {
         effects: &mut Vec<SceneEffect>,
     ) -> Option<SceneFault> {
         match op {
+            SceneOp::FlightPlanet | SceneOp::FlightFieldReload => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+                self.blocked = Blocked::Map;
+            }
+            SceneOp::FlightPan => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+                self.blocked = Blocked::Camera;
+            }
+            SceneOp::FlightFadeIn { frames } => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+                self.blocked = Blocked::Ticks(frames);
+            }
+            SceneOp::FlightArrivalName => {
+                effects.push(SceneEffect::Presentation { op });
+                self.pc += 1;
+            }
             SceneOp::MoveActor { actor, to } => {
                 let Some(walker) = self.actor_mut(actor) else {
                     return Some(SceneFault::UnknownActor { actor });

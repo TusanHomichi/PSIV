@@ -185,6 +185,8 @@ PAIRS = [
     # marker blink and the clone's runtime clock aligned so the frame is the
     # oracle's frame 7293. The pair is the menu's own draw (the planetary map,
     # both windows, the cursor boxes), certified at 0.000000.
+    # After 12 Window_Draw frames, tick 70 still has full windows, cursor and
+    # marker hidden (session_destination); retain the fixed oracle frame.
     ("ship-menu", {"PSIV_DEBUG_EVENT": "0x800D"}, 70,
      "build/certify/oracle/ship-menu/frame_7293.png",
      "af4aaf169ea283c1784dad98822f02adcaa64684ccd3a5d037596df58f3300b8", TAPE_35),

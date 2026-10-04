@@ -113,6 +113,7 @@ mod debug;
 #[cfg(test)]
 mod debug_tests;
 mod destination;
+mod flight;
 mod game_over;
 mod menu_scene;
 mod notices;
@@ -129,6 +130,7 @@ pub use battle::{
 };
 pub use debug::{camp_fixture, scene_fixture};
 pub use destination::{DestinationPhase, DestinationView};
+pub use flight::FlightView;
 pub use game_over::{GAME_OVER_FADE_FRAMES, GameOverFrame};
 pub use notices::FieldNoticeOpened;
 pub use start::{FALLBACK_SPAWN, Start};
@@ -331,6 +333,7 @@ pub struct Session {
     /// The destination menu a scene's `SceneOp::DestinationMenu` opened
     /// (`destination.rs`). `Some` means the menu owns the pad.
     destination: Option<DestinationMode>,
+    flight: Option<FlightView>,
     /// The scene a menu command handed the field to, and the menu's resume for
     /// when it ends (`menu_scene.rs`). `Some` means the field owns the frames
     /// even with a window's state still held.
@@ -367,6 +370,7 @@ impl Session {
             shop: None,
             camp: None,
             destination: None,
+            flight: None,
             menu_scene: None,
             scene_dialogue_autoclose: false,
             title_autostart: false,
@@ -622,6 +626,12 @@ impl Session {
     /// after a fixture — uses it the same way.
     pub fn block_accept(&mut self) {
         self.accept_blocked = true;
+    }
+
+    /// The retail frame clock, including presentation-only and modal frames.
+    #[must_use]
+    pub fn main_frame_count(&self) -> u16 {
+        self.runtime.main_frame_count()
     }
 
     /// The runtime, for presentation views.

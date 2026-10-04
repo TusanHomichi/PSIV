@@ -121,6 +121,19 @@ pub enum DialogueSource {
 /// self-contained data with no labels to resolve at runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SceneOp {
+    /// `loc_64C4A`: prepare the planet screen and its instant packed caption.
+    FlightPlanet,
+    /// `loc_5ABDC`: Y-only, twelve-bit wrapped flight pan at 2 px/frame.
+    FlightPan,
+    /// `FieldRoutine_Cutscene`'s return through GameMode_LoadFieldMap.
+    FlightFieldReload,
+    /// `FieldRoutine_PlaceName`'s landing window (ps4.asm:136552-136646).
+    FlightArrivalName,
+    /// A flight Pal_FadeIn, including display-enable and terminal passes.
+    FlightFadeIn {
+        /// Display-enable, palette loop and terminal frame count.
+        frames: u16,
+    },
     /// Apply the normal transition record at the leader's current cell.
     /// Elevator events own its fade, destination door and departure step.
     TakeMapTransition,
