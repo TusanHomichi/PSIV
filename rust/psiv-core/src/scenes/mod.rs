@@ -53,6 +53,7 @@
 mod bioplant;
 pub(crate) mod dezo_campaign;
 pub(crate) mod dezo_endgame;
+pub(crate) mod dezolis_route;
 mod flight;
 mod game_start;
 pub(crate) mod next_arc;
@@ -159,6 +160,8 @@ pub static SCENES: &[Scene] = &[
     post_zio_cutscenes::INSIDE_SPACESHIP,
     post_zio_cutscenes::SPACESHIP_SABOTAGE,
     post_zio_cutscenes::CRASH_LANDING,
+    dezolis_route::OUTSIDE_RAJA_TEMPLE,
+    dezolis_route::TYLER_GRAVE_OPENING,
     post_zio_cutscenes::LANDALE,
     post_zio_cutscenes::KURAN_ARRIVAL,
     post_zio_cutscenes::NEAR_DARK_FORCE_1,
@@ -287,6 +290,8 @@ mod tests {
             ("Cutscene_InsideSpaceship", 38),
             ("Cutscene_SpaceshipSabotage", 36),
             ("Cutscene_CrashLaanding", 131),
+            ("Event_OutsideRajaTemple", 3),
+            ("Event_TylerGraveOpening", 19),
             ("Cutscene_Landale", 22),
             ("Event_KuranArrival", 2),
             ("Event_NearDarkForce1", 2),
@@ -410,6 +415,7 @@ mod tests {
             ("Cutscene_PsycoWand", 3),
             ("Cutscene_ZioDefeated", 1),
             ("Cutscene_CrashLaanding", 2),
+            ("Event_OutsideRajaTemple", 1),
             ("Cutscene_LashiecDefeated", 2),
             ("Cutscene_GumbiousBishop", 1),
             ("Cutscene_MeetingSeth", 1),

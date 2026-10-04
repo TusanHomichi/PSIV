@@ -11,6 +11,10 @@ use crate::map::FieldMap;
 use crate::scene::{
     ActorRef, OP_BUDGET_PER_TICK, SceneEffect, SceneFault, SceneInput, SceneOp, ScriptedActor,
 };
+pub(crate) mod actor;
+pub(crate) mod drift;
+#[cfg(test)]
+mod drift_tests;
 #[cfg(test)]
 mod map_update_tests;
 mod ops;
@@ -65,6 +69,14 @@ pub struct SceneRunner {
     /// The id of the map the scene is running on, as of the last tick: what
     /// `SkipUnlessMap` tests (`Field_Map_Index`).
     map_id: u16,
+    /// Every map object's pixel position, refreshed from the map each tick and
+    /// overlaid with the positions this scene has drifted
+    /// (`SceneOp::BranchIfActorCoord` reads it).
+    npc_pixels: Vec<(i32, i32)>,
+    /// Where this scene's `DriftNpcs` last left each object, by map index.
+    drifted: Vec<(usize, (i32, i32))>,
+    /// The `DriftNpcs` in progress.
+    drift: Option<drift::DriftRun>,
 }
 
 impl SceneRunner {
@@ -90,6 +102,9 @@ impl SceneRunner {
             follow_chain: true,
             y_first: false,
             map_id: 0,
+            npc_pixels: Vec::new(),
+            drifted: Vec::new(),
+            drift: None,
         }
     }
 
@@ -131,7 +146,7 @@ impl SceneRunner {
                 .pc
                 .checked_sub(1)
                 .and_then(|pc| self.scene.get(pc))
-                .is_some_and(|op| matches!(op, SceneOp::Wait { .. })),
+                .is_some_and(|op| matches!(op, SceneOp::Wait { .. } | SceneOp::DriftNpcs { .. })),
             Blocked::Actor(_) | Blocked::Camera => true,
             _ => false,
         }
@@ -164,6 +179,9 @@ impl SceneRunner {
     /// everyone anyway.
     pub fn recast(&mut self, cast: Vec<ScriptedActor>) {
         self.actors = cast;
+        // Object indices belong to one map's list.
+        self.drifted.clear();
+        self.drift = None;
     }
 
     /// Reconciles the cast with a party change **without** touching live
@@ -232,6 +250,7 @@ impl SceneRunner {
 
         self.party_slots = state.party();
         self.map_id = map.id().0;
+        self.refresh_npc_pixels(map);
         for index in 0..self.actors.len() {
             if self.actor_index(self.actors[index].actor) != Some(index) {
                 continue;
@@ -244,6 +263,7 @@ impl SceneRunner {
             }
         }
         self.tick_follow_chain();
+        self.tick_drift(&mut effects);
 
         self.unblock(input);
         self.run(state, &mut effects);

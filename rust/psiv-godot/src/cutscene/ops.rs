@@ -165,7 +165,11 @@ impl Field {
             | SceneOp::SetStepOffset { .. }
             | SceneOp::RecoverStats
             | SceneOp::SwapCharSlots { .. }
-            | SceneOp::RemoveItem { .. } => {
+            | SceneOp::RemoveItem { .. }
+            // Control flow is the runner's; a drift is drawn from the runtime's
+            // per-frame NPC positions (`NpcPixelPosition`), not animated here.
+            | SceneOp::BranchIfActorCoord { .. }
+            | SceneOp::DriftNpcs { .. } => {
                 godot_print!("scene presentation op consumed: {op:?}");
             }
             _ => {}
@@ -253,6 +257,7 @@ impl Field {
             | PresentationOp::RykrosPaletteCycle { .. }
             | PresentationOp::PaletteRampFromTable { .. }
             | PresentationOp::CameraToActor { .. }
+            | PresentationOp::NpcPixelPosition { .. }
             | PresentationOp::RajaSickTemporaryObject { .. }
             | PresentationOp::RajaSickResetRaja { .. }
             | PresentationOp::RajaSickArrangeParty { .. }

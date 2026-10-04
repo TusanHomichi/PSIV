@@ -134,6 +134,17 @@ tables; the clone's hack-only bodies are not evidence.
 | `Event_AngerTowerExitTop` | `$6A` | [86](86_AngerTowerExitTop.md) | `$072262..$0722D1` |
 | `Cutscene_ProfoundDarkness` | `$8020` | [87](87_ProfoundDarkness.md) | `$078D30..$078F3D` |
 
+## Dezolis route events
+
+Found by runner halts and then closed as a class by the
+[event census](EVENT_COVERAGE.md): a trigger or dialogue the cartridge fires
+and the port never transcribed.
+
+| Scene | Event | Doc | Retail bytes |
+|---|---:|---|---|
+| `Event_OutsideRajaTemple` | `$43` | [91](91_OutsideRajaTemple.md) | `$06FC76..$06FC93` |
+| `Event_TylerGraveOpening` | `$44` | [92](92_TylerGraveOpening.md) | `$06FC94..$06FE1B` |
+
 ## Terminal and recorded boundary surfaces
 
 | Scene | Event | Doc | Retail bytes |

@@ -256,6 +256,18 @@ pub enum PresentationOp {
         /// Retail scroll speed.
         speed: u16,
     },
+    /// A map object's whole-pixel position after one frame of
+    /// `SceneOp::DriftNpcs` (`FieldObj_UpdatePosition`, `$04501C`). The
+    /// runtime writes it to the field map so occupancy, collision and the
+    /// renderer follow the drift frame by frame.
+    NpcPixelPosition {
+        /// The object's index in the map's object list.
+        npc: usize,
+        /// `curr_x_pos` integer word.
+        x: i32,
+        /// `curr_y_pos` integer word.
+        y: i32,
+    },
     /// Construct Raja Sick's temporary chest/object at `$C4C0`.
     RajaSickTemporaryObject {
         /// Field-object RAM address.
