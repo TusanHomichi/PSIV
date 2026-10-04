@@ -9,6 +9,25 @@ use serde::{Deserialize, Deserializer};
 
 use super::{PixelRect, hex_byte};
 
+/// Type-0 area's world-indexed table and the first world's high-entry branch.
+/// Decoded from `Interaction_DisplayDialogue` ($058844), not map geography.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct WorldInteractionTrees {
+    /// One tree per destination-menu world byte, in index order.
+    pub world_trees: Vec<u8>,
+    /// The first world's alternate tree for unsigned high entry ids.
+    pub first_world_override: FirstWorldOverride,
+}
+
+/// The `cmpi.b` / `bcs` branch before the world table lookup.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+pub struct FirstWorldOverride {
+    /// Inclusive unsigned entry cutoff read from the cartridge instruction.
+    pub entry_from: u8,
+    /// The tree at the alternate pointer-table slot.
+    pub tree: u8,
+}
+
 // ---------------------------------------------------------------------------
 // trees.json
 // ---------------------------------------------------------------------------
@@ -34,6 +53,10 @@ pub struct TreeFile {
     /// before the emission landed.
     #[serde(default)]
     pub system_messages: Option<SystemMessages>,
+    /// World-indexed type-0 interaction selection. Older packs can still load
+    /// NPC/scene dialogue, but cannot open a world interaction without this.
+    #[serde(default)]
+    pub world_interaction: Option<WorldInteractionTrees>,
 }
 
 /// The uncompressed system-message block.

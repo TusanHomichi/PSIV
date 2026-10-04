@@ -1,5 +1,5 @@
 //! From a landing or a confirm to a scene: the map's trigger list and the
-//! type-2 interaction-area probe.
+//! map interaction-area probe.
 
 use std::cell::RefCell;
 
@@ -72,13 +72,13 @@ impl Runtime {
         events
     }
 
-    /// Runs the type-2 map interaction area probe on a consumed confirm.
+    /// Runs the type-0/type-2 map interaction probe on a consumed confirm.
     ///
     /// The pack has already resolved the record's 8-pixel source and
-    /// `XYRangeJmpTbl` selector into collision cells. Other interaction
-    /// handlers remain deliberately outside this path: their parameters are
-    /// dialogue/chest-specific, not event indexes.
-    pub(crate) fn start_interaction_event(&mut self, events: &mut Vec<RuntimeEvent>) -> bool {
+    /// `XYRangeJmpTbl` selector into collision cells. Areas precede objects
+    /// (`ps4.asm:118257-118264`); type 0's parameter is a dialogue byte, while
+    /// type 2's parameter indexes the event table (`:118872-118878`).
+    pub(crate) fn start_map_interaction(&mut self, events: &mut Vec<RuntimeEvent>) -> bool {
         let leader = self.party.leader();
         let Some(adjacent) = leader.cell().neighbor(leader.facing()) else {
             return false;
@@ -86,11 +86,11 @@ impl Runtime {
         let Some(record) = self.data.map(psiv_data::MapId(self.map.id().0)) else {
             return false;
         };
-        let Some((area_index, parameter, event)) = record
+        let Some(area) = record
             .interaction_areas
             .iter()
             .find(|area| {
-                area.interaction_type == 2
+                matches!(area.interaction_type, 0 | 2)
                     && interaction_flag_clear(&self.game, area)
                     && area.rect.is_some_and(|rect| {
                         rect.contains(psiv_data::CellPos::new(
@@ -99,10 +99,35 @@ impl Runtime {
                         ))
                     })
             })
-            .map(|area| (area.index, area.parameter, area.event_index))
+            .cloned()
         else {
             return false;
         };
+        // The retail gate tests and sets the selected bank before dispatch
+        // (`ps4.asm:118845-118869`). Story flag zero is unconditional.
+        match area.flag_type.id {
+            0 if area.flag != 0 => {
+                self.game
+                    .set(Flag::event(u16::from(area.flag)))
+                    .expect("interaction flag byte is in range");
+            }
+            1 => {
+                self.game
+                    .set(Flag::chest(u16::from(area.flag)))
+                    .expect("interaction flag byte is in range");
+            }
+            2 => {
+                self.game
+                    .set(Flag::temp(u16::from(area.flag)))
+                    .expect("interaction flag byte is in range");
+            }
+            _ => {}
+        }
+        if area.interaction_type == 0 {
+            self.open_area_dialogue(area.parameter);
+            return true;
+        }
+        let (area_index, parameter, event) = (area.index, area.parameter, area.event_index);
         let Some(event) = event else {
             events.push(RuntimeEvent::SceneMissing {
                 event: u16::from(parameter),

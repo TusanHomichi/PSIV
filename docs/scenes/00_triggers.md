@@ -47,7 +47,7 @@ From the per-map event byte lists (`generated/maps.json`, field `events`; these
 are `$FF`-terminated byte lists of *trigger indexes*, not event indexes). The
 whole Piata area:
 
-| Map | id | Tree | Trigger list |
+| Map | id | Map-loaded NPC/default scene tree | Trigger list |
 |---|---|---|---|
 | Piata | `$10` | 2 | `$00` (null) |
 | PiataAcademy | `$11` | 1 | `$00` |
@@ -66,6 +66,10 @@ whole Piata area:
 
 Two whole floors carry the entire act's positional logic. Everything else in
 Piata enters scenes through dialogue, not position.
+
+The tree column is the map-loaded NPC/default-scene binding. Type-0
+interaction areas use the live `World_Index` table instead; see the
+[full selection census and issue #42 correction](DIALOGUE_TREE_SELECTION.md#census-and-issue-42).
 
 > **Note for the pack**: the runtime pack's per-map JSON **does not carry the
 > event list**, although `psiv_tools/maps/records.py` already extracts it

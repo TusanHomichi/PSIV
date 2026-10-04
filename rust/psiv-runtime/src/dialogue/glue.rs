@@ -15,6 +15,7 @@
 
 use psiv_data::DialogueSet;
 
+use super::selection::DialogueSource;
 use crate::Runtime;
 use crate::dialogue::{DialogueSignal, DialogueView};
 use crate::pad::Pad;
@@ -164,15 +165,10 @@ impl Runtime {
     /// face the party — the cartridge's default for a talk, which `$F3`
     /// suppresses.
     ///
-    /// The map-effect dialogue override is what this uses, not the map
-    /// record's own binding: clinics and story rooms change what a person
-    /// says.
+    /// The object's entry id honors map-effect overrides: clinics and story
+    /// rooms change what a person says without changing the map-loaded tree.
     pub(crate) fn open_npc_dialogue(&mut self, npc_index: usize) -> NpcDialogueOpen {
-        let Some(tree) = self
-            .map_record()
-            .map(|record| record.dialogue_tree)
-            .filter(|tree| *tree != 0)
-        else {
+        let Some(tree) = self.select_dialogue_tree(DialogueSource::Npc) else {
             return NpcDialogueOpen::NoBinding;
         };
         let Some(dialogue_id) = self.npc_dialogue_id(npc_index) else {
@@ -184,6 +180,19 @@ impl Runtime {
         let toward = self.party.leader().facing().opposite();
         self.face_npc(npc_index, toward);
         NpcDialogueOpen::Opened
+    }
+
+    /// Type-0 areas select by the live world and unsigned entry byte, before
+    /// the normal preamble walk. They never turn an NPC (`ps4.asm:118330-118395`).
+    pub(crate) fn open_area_dialogue(&mut self, entry: u8) -> bool {
+        let Some(tree) = self.select_dialogue_tree(DialogueSource::Area { entry }) else {
+            self.dialogue.fault(format!(
+                "world {} interaction selection unavailable; rebuild the runtime pack",
+                self.world_index()
+            ));
+            return false;
+        };
+        self.dialogue.open_entry(tree, u16::from(entry), &self.game)
     }
 
     /// Opens a scene-owned line: the entry is resolved against the tree the
@@ -217,16 +226,7 @@ impl Runtime {
     /// after that op are relative to a tree that is not there.
     #[must_use]
     pub fn scene_dialogue_tree(&self) -> Option<u8> {
-        match self.scene_tree_address {
-            None => self.map_record().map(|record| record.dialogue_tree),
-            Some(address) => self
-                .dialogue_pack()
-                .trees
-                .trees
-                .iter()
-                .find(|tree| tree.rom_address() == Some(address))
-                .map(|tree| tree.tree),
-        }
+        self.select_dialogue_tree(DialogueSource::Scene)
     }
 
     /// Reopens the scene's saved text cursor (`Saved_Dialogue_Addr`) after its

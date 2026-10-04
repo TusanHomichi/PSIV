@@ -32,6 +32,9 @@
 mod choice;
 pub mod glue;
 mod open;
+mod selection;
+#[cfg(test)]
+mod selection_tests;
 mod text_flow;
 mod view;
 
