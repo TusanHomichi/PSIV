@@ -76,11 +76,11 @@ new SAVE. The campaign graph marks C70 and CZ verified as a bounded post-Zio
 checkpoint, while full R2 remains in progress on bespoke-driver retirement.
 Whole-scene/event-oracle/audio parity and later-arc play remain open.
 
-**Next action:** the route from the Hangar through `Cutscene_Landale`, Kuran
-and Dark Force 1 (C6), with BARRIER (`$1D`, Siren386 on Kuran) and the oracle's
-party command script (#86) alongside. The route plays New Game to the Hangar on
-Dezolis in 36 chapters with every enemy ability on the Zelan-to-Kuran stretch
-implemented except BARRIER ([run log](campaign/RUNNER_LOG.md)).
+**Next action:** the player's techniques and skills on the route (#88), after
+the oracle's party command script and BARRIER (#86, in progress); then the route
+past Dark Force 1. The route plays New Game through `Cutscene_DarkForce1Defeated`
+on Kuran in 43 chapters, with a long Dezolis training chapter standing in for the
+untranscribed player skills ([run log](campaign/RUNNER_LOG.md)).
 
 ## 1. Continue from the post-Rika checkpoint
 
