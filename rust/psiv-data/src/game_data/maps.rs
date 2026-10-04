@@ -28,6 +28,20 @@ pub(super) fn validate_map(record: &MapRecord) -> Result<(), DataError> {
     validate_dimensions(id, dims)?;
     validate_collision(id, dims, &record.collision)?;
     validate_overworld_patches(record)?;
+    if let Some(updates) = &record.map_updates
+        && (updates.is_empty()
+            || updates.iter().any(|entry| !entry.valid())
+            || record
+                .map_update_palette
+                .as_ref()
+                .is_none_or(|words| words.len() != 64))
+    {
+        return Err(DataError::validation(
+            id,
+            "map_updates",
+            "invalid program or missing 64-word CRAM shadow",
+        ));
+    }
 
     // The trees are numbered from one, so zero is as wrong as forty-four.
     if record.dialogue_tree == 0 || record.dialogue_tree > DIALOGUE_TREE_COUNT {

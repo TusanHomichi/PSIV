@@ -16,6 +16,8 @@ use psiv_data::{EffectGate, MapRecord};
 /// What a map's effect list does to this build, given the current flags.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct EffectOutcome {
+    /// Volatile state loaded with the map, advanced only by RunMapUpdates.
+    pub(crate) updates: crate::MapUpdateView,
     /// Record object indices to despawn (build with `active = false`).
     pub despawns: Vec<usize>,
     /// Record object indices whose object id changes, with the new id.
@@ -94,7 +96,10 @@ fn gate_holds(gate: &EffectGate, game: &GameState, unknown: &mut Vec<String>) ->
 /// pure model would evaluate later gates against pre-clear state.
 #[must_use]
 pub fn evaluate(record: &MapRecord, game: &mut GameState) -> EffectOutcome {
-    let mut out = EffectOutcome::default();
+    let mut out = EffectOutcome {
+        updates: crate::MapUpdateView::loaded(record),
+        ..EffectOutcome::default()
+    };
     let object_count = record.npcs.len();
 
     // The overworld page-copy hook precedes MapDataManager in the cartridge's

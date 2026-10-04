@@ -87,6 +87,10 @@ pub use map::{
     ResolvedCell, SpriteFacing, SpriteRef, TransitionTable, Treasure, VariantCollision,
     VariantPlane, VehicleBattleLayout, Warp, WarpSource,
 };
+pub use map::{
+    MapUpdate, PaletteCycle, PalettePhase, PaletteWrite, ScrollMode, UpdateBank, UpdateGate,
+    UpdateProgram,
+};
 pub use new_game::NewGame;
 pub use shops::{
     InnRecord, SHOPS_FILE, ShopCounter, ShopData, ShopGreeting, ShopInventory, ShopItem,

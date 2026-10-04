@@ -11,6 +11,8 @@ use crate::map::FieldMap;
 use crate::scene::{
     ActorRef, OP_BUDGET_PER_TICK, SceneEffect, SceneFault, SceneInput, SceneOp, ScriptedActor,
 };
+#[cfg(test)]
+mod map_update_tests;
 mod ops;
 
 use crate::state::{CharId, GameState, PARTY_SLOTS};
@@ -96,6 +98,31 @@ impl SceneRunner {
     #[must_use]
     pub fn is_waiting_for_camera(&self) -> bool {
         self.blocked == Blocked::Camera
+    }
+
+    /// Motion-loop frames update the map before testing arrival, including
+    /// the final frame that unblocks into dialogue or ends the scene
+    /// (ps4.asm:121117-121146,121484-121514).
+    #[must_use]
+    pub fn completes_map_update_loop(&self) -> bool {
+        matches!(self.blocked, Blocked::Actor(_) | Blocked::Camera)
+    }
+
+    /// Whether this blocked scene frame runs the retail map-update loop.
+    /// DoMapUpdateLoop/actor and camera loops call RunMapUpdates; dialogue,
+    /// VInt_PrepareLoop, map loads and panel-only waits do not
+    /// (ps4.asm:120957-121055,121117-121130,121484-121501).
+    #[must_use]
+    pub fn runs_map_updates(&self) -> bool {
+        match self.blocked {
+            Blocked::Ticks(_) => self
+                .pc
+                .checked_sub(1)
+                .and_then(|pc| self.scene.get(pc))
+                .is_some_and(|op| matches!(op, SceneOp::Wait { .. })),
+            Blocked::Actor(_) | Blocked::Camera => true,
+            _ => false,
+        }
     }
 
     /// Window routine used by the last dialogue open or named resume.

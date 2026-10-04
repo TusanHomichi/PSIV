@@ -131,6 +131,14 @@ Art composes now: `psiv_tools/enigma.py` (transcribed from the game's own `EniDe
 
 ## Map layouts and collision
 
+Per-map `MapUpdateJmpTbl` lists now ship as ordered `map_updates` programs,
+with extracted CRAM tables/sine inputs, a 64-word palette shadow and additive
+index-image sidecars. `manifest.map_updates` accounts for all 64 entries and
+361 real maps; three entries explicitly name missing runtime buffers.
+Original map images and all pre-existing map fields remain unchanged.
+See [the census and frame contract](field/MAP_UPDATES.md) for retail citations,
+supported classes, negative controls and full-pack comparison evidence.
+
 Field maps are built from 32×32-pixel chunks: 16 Mega Drive pattern-name words each, Kosinski-compressed and loaded back to back into `Chunk_Table`. Each plane's layout is one byte per chunk, also Kosinski, and the map record says which plane the collision reader uses. Bit 14 of a chunk word — the bit that would be the high palette-select bit — is a collision flag the game masks off before the VDP sees it (so field tiles can only use CRAM lines 0–1), and the four flags of a 2×2-tile cell spell out a 4-bit collision type per 16 pixels (0 normal, 1 map change, 2 recovery, 8 solid, 9 water, $A sand, $B ice, $C shop; 8–C block). Proven on Piata, PiataItemShop and IslandCave; `generated/layouts/piata.png` renders the town from the cartridge, all six of its doorways land on collision type 1, and the shop-location table's counter position lands on a shop cell. The two overworlds use a paged format: uncompressed 1,024-byte pages of chunk ids streamed through a rolling 4KB window as the camera moves, 128×128 chunks per plane, wrapping at 4,096 px on both axes — the planet is a globe. Nine page-copy hooks rewrite layout cells from event flags (spaceports appearing, the Bio Plant sealing); the pack emits those as `layout_patches`. Priority tiles (bit 15, which survives the collision-bit mask) draw above sprites on hardware; every map with priority tiles gets a transparent overlay PNG so the renderer reproduces that ordering.
 
 ## Battle formations

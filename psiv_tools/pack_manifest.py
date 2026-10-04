@@ -230,6 +230,7 @@ def write_manifest(
         # The flag-gated patches a map's MapDataManager list applies when the
         # map is built. Per-map lists live on the map records; this is the
         # census over all of them.
+        "map_updates": state["updates"]["census"],
         "map_effects": {
             **effects["census"],
             # A `layout_write` resolved: the collision cells it changes, and a

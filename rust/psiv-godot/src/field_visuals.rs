@@ -3,7 +3,7 @@
 
 use std::collections::HashSet;
 
-use godot::classes::{ColorRect, Sprite2D};
+use godot::classes::{ColorRect, ShaderMaterial, Sprite2D};
 use godot::prelude::*;
 
 use psiv_core::{Cell, Direction, SCREEN_HEIGHT, SCREEN_WIDTH};
@@ -15,6 +15,7 @@ use super::{Field, Session};
 impl Field {
     /// Places and animates the party sprite, animates NPCs, moves the camera.
     pub(super) fn sync_visuals(&mut self, walking: bool) {
+        self.sync_map_palette();
         let Some(runtime) = self.session.as_ref().map(Session::runtime) else {
             return;
         };
@@ -387,6 +388,49 @@ impl Field {
         }
         self.place_letterbox();
         self.sync_transition();
+    }
+
+    fn sync_map_palette(&mut self) {
+        let Some(view) = self.runtime().map(psiv_runtime::Runtime::map_updates) else {
+            return;
+        };
+        if view.palette.len() != 64 {
+            return;
+        }
+        let revision = view.palette_revision as i64;
+        // The repository's measured GPGX RGB565 ramps (COLOR_PIPELINE.md).
+        const RB: [u8; 8] = [0, 32, 65, 98, 139, 172, 205, 238];
+        const G: [u8; 8] = [0, 32, 68, 101, 137, 170, 206, 238];
+        let mut colors = PackedColorArray::new();
+        for &word in &view.palette[..32] {
+            colors.push(Color::from_rgba(
+                f32::from(RB[usize::from((word >> 1) & 7)]) / 255.0,
+                f32::from(G[usize::from((word >> 5) & 7)]) / 255.0,
+                f32::from(RB[usize::from((word >> 9) & 7)]) / 255.0,
+                1.0,
+            ));
+        }
+        for sprite in [&mut self.map_sprite, &mut self.overlay_sprite]
+            .into_iter()
+            .flatten()
+        {
+            let Some(mut material) = sprite
+                .get_material()
+                .and_then(|m| m.try_cast::<ShaderMaterial>().ok())
+            else {
+                continue;
+            };
+            if material
+                .get_shader_parameter("revision")
+                .try_to::<i64>()
+                .ok()
+                == Some(revision)
+            {
+                continue;
+            }
+            material.set_shader_parameter("palette", &colors.to_variant());
+            material.set_shader_parameter("revision", &revision.to_variant());
+        }
     }
 }
 

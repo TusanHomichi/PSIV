@@ -275,13 +275,18 @@ class TestManifest(PackFixtureCase):
                 1 + int(entry["has_overlay"])
                 for entry in self.manifest["map_effects"]["layout_write_resolution"]["maps"]
             )
+            palette_images = {
+                image
+                for payload in self.maps.values()
+                for image in payload.get("map_update_images", {}).values()
+            }
             self.assertEqual(
                 len(under("maps")),
                 # A JSON and a PNG each, an overlay for a map with priority
-                # tiles, and a patch atlas for a map whose effects write one.
+                # tiles, patch atlases and declared additive index images.
                 2 * len(FIXTURE_MAPS)
                 + self.manifest["overlays"]["maps_with_overlay"]
-                + patches,
+                + patches + len(palette_images),
             )
             # Whatever is left is top-level JSON, manifest included.
             categorised = sum(

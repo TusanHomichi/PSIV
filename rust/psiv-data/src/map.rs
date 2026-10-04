@@ -35,6 +35,7 @@ mod overworld;
 mod reference;
 mod settings;
 mod treasure;
+mod updates;
 mod warp;
 
 pub use cell::{COLLISION_CELL_PIXELS, Cell, CellPos, CellRect, Dimensions};
@@ -53,6 +54,10 @@ pub use overworld::{
 pub use reference::{MapRef, RangeRef};
 pub use settings::{Flags, Music};
 pub use treasure::{ContentsType, Treasure};
+pub use updates::{
+    MapUpdate, PaletteCycle, PalettePhase, PaletteWrite, ScrollMode, UpdateBank, UpdateGate,
+    UpdateProgram,
+};
 pub use warp::{TransitionTable, Warp, WarpSource};
 
 use crate::camera::MapScroll;
@@ -115,6 +120,15 @@ pub struct MapRecord {
     /// (`docs/field/MAP_EFFECTS.md`). Absent on packs predating the extraction.
     #[serde(default)]
     pub map_effects: Vec<MapEffect>,
+    /// Ordered per-frame programs. None is a legacy pack, not an empty list.
+    #[serde(default)]
+    pub map_updates: Option<Vec<MapUpdate>>,
+    /// Initial 64-word CRAM shadow, including the fixed party line.
+    #[serde(default)]
+    pub map_update_palette: Option<Vec<u16>>,
+    /// Original PNG -> additive palette-index PNG (including variants/atlases).
+    #[serde(default)]
+    pub map_update_images: std::collections::BTreeMap<String, String>,
     /// Decoded whole-layout replacements referenced by `layout_replace`
     /// writes, shipped as first-class variants with their own collision.
     #[serde(default)]
