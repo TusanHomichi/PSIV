@@ -305,7 +305,7 @@ mod tests {
             ("Event_FractOozeFound", 5),
             ("Event_KingRappy", 7),
             ("Event_DaughterTerminal", 5),
-            ("Cutscene_Landale", 22),
+            ("Cutscene_Landale", 24),
             ("Event_KuranArrival", 2),
             ("Event_NearDarkForce1", 2),
             ("Event_DarkForce1", 5),

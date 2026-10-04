@@ -24,7 +24,7 @@ use std::fmt;
 use psiv_core::{Cell, Flag};
 use psiv_data::{BattleFiles, GameData};
 
-use crate::cell_plan::Mover;
+use crate::cell_plan::{Flood, Mover};
 use crate::map_plan::{MapGraph, Plan, PlanError, Position, Target};
 use crate::route::{Chapter, Expectation, NameOrId, Objective, Route};
 
@@ -245,6 +245,7 @@ impl<'a> Run<'a> {
                     cell: target.cell,
                 })
             }
+            Objective::StepOnto { map, cell } => self.step_onto(*map, cell.cell()),
             Objective::GoToMap { map, via_warp } => {
                 self.require_map(*map)?;
                 self.go_to_map(*map, *via_warp)
@@ -417,6 +418,34 @@ impl<'a> Run<'a> {
             .map_err(|e| plan_reason(&e))?;
         self.note_plan(&plan);
         self.move_to(plan.to);
+        Ok(())
+    }
+
+    /// A `step_onto`: the cell must be a footprint a step can fire from where
+    /// the party stands. The scene decides where the party ends, so the
+    /// position is unknown until a later `expect` pins it.
+    fn step_onto(&mut self, map: u16, cell: Cell) -> Result<(), String> {
+        self.require_map(map)?;
+        let from = self.here("step_onto")?;
+        if from.map != map {
+            return Err(format!(
+                "step_onto on map {map:#05x}, and the route has the party on map {:#05x}",
+                from.map
+            ));
+        }
+        let mut graph = self.graph()?;
+        let field = graph.field_map(map).map_err(|e| plan_reason(&e))?;
+        let flood = Flood::for_mover(&field, from.cell, self.mover)
+            .map_err(|e| plan_reason(&PlanError::Cells(map, e)))?;
+        let plan = flood.onto_plan(&field, self.mover, cell).ok_or_else(|| {
+            format!(
+                "no walk from ({},{}) ends in a step that fires a warp onto ({},{}); \
+                     a cell that is not a warp footprint is a go_to",
+                from.cell.x, from.cell.y, cell.x, cell.y
+            )
+        })?;
+        self.report.planned_steps += plan.steps.len();
+        self.pos = None;
         Ok(())
     }
 

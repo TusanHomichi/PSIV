@@ -24,3 +24,14 @@ The scene writes `$83` before the battle request, matching the retail
 observable order. The following trigger `$32` dispatches `$8011` once the
 battle is resolved.
 
+
+## In the route (C6)
+
+`RunEvent_FindDarkForce` tests `curr_y_pos == $0D0` (`ps4.asm:115903-115913`):
+**row 14** of Kuran F3, any x, `$83` clear. The `kuran-dark-force-1` chapter
+walks to (30,14); the dialogue (entry 6) runs, `$83` is set and event battle 9
+starts (enemy 130, 4,540 HP; FLARE SHOT, PHONONMASR and BURSTROC strike the
+whole party). The engine runs no player skill beyond Crosscut and Vortex, so
+Chaz's Rayblade (anti-evil, which Dark Force 1 is weak to) and Rune's Efess are
+never cast: the party wins on techniques and plain attacks, and it took levels
+38 to 46 to do it ([RUNNER_LOG_KURAN.md](../campaign/RUNNER_LOG_KURAN.md#h34-dark-force-1-is-a-balance-loss-until-the-party-is-trained)).

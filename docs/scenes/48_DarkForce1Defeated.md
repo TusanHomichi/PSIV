@@ -25,3 +25,13 @@ The inventory mutation is persistent: the source calls `GetItem`, clears and
 reorders Canceller, then writes Ice Digger into a free slot. The runtime scene
 uses the existing inventory ops and the arc test asserts the resulting `$97`.
 
+
+## In the route (C6)
+
+`RunEvent_DarkForce1Defeated` (`$32`) is flags-only (`$83` set, `$89` clear), so
+it fires on the first field frame after the battle's victory page. The scene's
+`LoadMap` leaves the party on **Zelan F1 `$18E` at (31,17)** with `$89` set, the
+Canceller gone and the Ice Digger (`$97`) in the pack; the `kuran-dark-force-1`
+chapter's closing asserts exactly that, and `kuran_arc.rs`
+(`dark_force_1_defeated_takes_the_party_to_zelan_and_swaps_the_items`) checks the
+items from a hand-built save, with the unfought battle as the negative control.
