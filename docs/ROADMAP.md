@@ -22,11 +22,16 @@ headless runner over a runtime-owned `Session`. It supersedes the
 started. The current combined candidate has an 11/11 zero-RMSE certificate.
 The sole five-stage gate on clean `5ec096f` passed docs, formatting, Rust tests
 and Clippy; Python failed on a missing ignored oracle fixture and a file-list
-authority guard. The bounded repair is in focused verification, with the
-affected Python/docs recheck and review still pending. The [R2 native receipts](campaign/CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress)
+authority guard. That failed receipt remains immutable. The scoped repair on
+clean `e9372bc` passed 1,241 Python tests (one skip) and docs (zero problems)
+through one affected recheck. Its composed five-row matrix retains the earlier
+fmt/Rust/Clippy passes because all 558 Rust/config inputs match; it is not a
+second full gate. The [R2 native receipts](campaign/CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress)
 separately cover New Game-to-initial-Aiedo and earned-checkpoint Zio SAVE/fresh
-CONTINUE; the isolated [#70 headless receipt](campaign/RUNNER_LOG.md#70-frozen-headless-acceptance)
-is historical, not the combined Godot check.
+CONTINUE. A primary default-pack 180-pad CONTINUE also passed with no
+`PSIV_RUNTIME_PACK` override and a visible 1280×800 field. The isolated
+[#70 headless receipt](campaign/RUNNER_LOG.md#70-frozen-headless-acceptance)
+remains historical, not the combined Godot check.
 
 The [workflow setup graph](records/WORKFLOW_SETUP.md#setup-graph) and
 [connected BioPlant graph](campaign/BIOPLANT_NATIVE.md#archived-bioplant-task-graph)
@@ -48,6 +53,7 @@ TypeSafe/Jev provider, and the campaign queue below is unchanged.
 - [x] A bounded BioPlant battle followed by two ANTI cures, recovery and SAVE/CONTINUE.
 - [x] Connected healthy `$A7` continuation through Rika join/escape, all five alive, ordinary SAVE and fresh-process CONTINUE with byte validation.
 - [x] Post-Rika Zema recovery and northern bridge crossing, all five alive, ordinary SAVE/fresh CONTINUE, and exact 32×32 bridge-region comparison.
+- [x] Bounded post-Zio checkpoint: the 29-chapter headless New Game route, ordinary final SAVE and fresh Session load/replay; separate native earned-save Zio SAVE and fresh CONTINUE, plus primary default-pack CONTINUE. See the campaign graph for evidence boundaries.
 
 These describe the recorded native routes and targeted checks, not complete
 coverage of every branch or every mechanic. Details are in the
@@ -61,34 +67,39 @@ its source, hashes and limits. Generic native tape replay has reached the
 initial Aiedo endpoint from New Game; an earned-save Zio segment also passes
 ordinary SAVE and fresh CONTINUE. They are distinct input chains, with their
 raw evidence in [R2](campaign/CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress).
-The 11-pair certification passed; the composed final gate result and later-arc
-play remain open. Do not promote the failed `5ec096f` gate receipt to green.
+The 11-pair static certification passed. The composed applicable-check matrix
+is green on clean `e9372bc`; it joins one affected Python/docs recheck to the
+unchanged Rust/fmt/Clippy rows, without changing the original failed `5ec096f`
+receipt. The primary default-pack 180-pad ordinary CONTINUE passed from a
+copied, hash-verified native-written save with no override; that copy is not a
+new SAVE. The campaign graph marks C70 and CZ verified as a bounded post-Zio
+checkpoint, while full R2 remains in progress on bespoke-driver retirement.
+Whole-scene/event-oracle/audio parity and later-arc play remain open.
+
+**Next action:** the campaign route after Zio toward spaceport/Zelan/Wren, with
+the ship destination-menu gap as an explicit dependency. This work is parked
+for the next session; no later-arc code or play is claimed here. The bounded
+native Zio segment does not establish a full native New Game-to-Zio route or
+whole-scene parity.
 
 ## 1. Continue from the post-Rika checkpoint
 
 The [northern-crossing gate](field/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
-is complete. The current campaign source is Motavia `$00 (84,64)`, party
-Gryz/Alys/Chaz/Hahn/Rika, all alive with persistent statuses zero, original
+is complete. This section preserves the older replay source; the current
+single next route action is post-Zio, above. The post-Rika source is Motavia
+`$00 (84,64)`, party Gryz/Alys/Chaz/Hahn/Rika, all alive with persistent statuses zero, original
 inventory/event flags retained and 1129 meseta. Paid Zema recovery, one victory,
 the bridge crossing and ordinary SAVE passed. Fresh-process CONTINUE preserved
 state; Down to `(84,65)` and SAVE 2 passed byte validation.
 
-Use `build/native-post-rika-20260923/attempt-03/saves/slot_1.sram`, SHA256
+For that historical replay, use
+`build/native-post-rika-20260923/attempt-03/saves/slot_1.sram`, SHA256
 `2590e0e97ff3125774951ed2c474eba832892e3644cb79c8cdbb443d6499379e`.
 Copy it to a fresh run directory and hash it before use. The prior post-Rika
 `(99,83)` source, healthy `$A7` saves and every failed attempt remain protected.
 The new code requires the rebuilt full pack; exact candidate, pack, binary and
 check receipts are in the travel ledger. The pack, saves and captures remain
 local and ignored.
-
-**Next action:** review the frozen Python-only repair, rerun the affected
-Python/docs checks through the repository gate entry point, and compose the
-result with the unchanged 5ec Rust/fmt/Clippy inputs. After an accepted green
-matrix, prove primary default-pack boot and archive the bounded checkpoint.
-The next campaign route is post-Zio toward spaceport/Zelan/Wren; the ship
-destination-menu gap is an explicit dependency, not implemented here. Do not
-infer whole-scene parity, a full native New Game-to-Zio route, or later-arc
-play from the bounded native Zio segment.
 
 The exact 32×32 bridge match does not establish whole-scene visual parity,
 retail/native save-coordinate interchange, or later campaign progression.

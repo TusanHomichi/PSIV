@@ -20,8 +20,13 @@ both tapes replay and the separate ordinary pad-SAVE files match the final
 chapter snapshots ([combined receipt](#combined-p1f2r2-headless-integration)).
 The separate [R2 native receipts](CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress)
 now cover the full New Game-to-initial-Aiedo prefix and bounded earned-save
-Zio SAVE/fresh CONTINUE; neither is a whole-scene oracle claim. Final
-certification and the combined gate remain open.
+Zio SAVE/fresh CONTINUE; neither is a whole-scene oracle claim. The combined
+11-pair static certificate passes. The original five-stage gate remains FAILED
+on its Python row, while the scoped clean-`e9372bc` Python/docs recheck passes
+and its composed matrix carries forward unchanged Rust/fmt/Clippy inputs.
+The primary no-override pack boot/180-pad CONTINUE has separate native evidence
+in the R2 ledger. C70 and CZ are verified as this bounded checkpoint; later
+campaign play and full R2 driver retirement remain open.
 
 **#70 isolated headless candidate (2026-10-03, base `82eed831`, gameplay
 source `6fb1a70`):** Session skips the scripted enemy-only ambush command round.
@@ -934,7 +939,8 @@ dropped; the run that settled each is in the route's `note`.
   ([F3 results](#f3-results-after-the-h22-fixes)). The isolated #70
   [full New Game receipt](#70-frozen-headless-acceptance) reaches the settled
   scene and an ordinary SAVE in headless `Session`. It does not establish
-  combined Godot/native play, generic Godot tape replay, Zio event-battle
+  combined Godot/native play by itself; those bounded native receipts are
+  separate in the R2 ledger. Neither source establishes Zio event-battle
   oracle parity or any later arc.
 - **Balance.** Members fall in `bioplant-rika` (ten command windows open with a
   member down; Gryz, Alys and Hahn stand at 0 HP when the Rika scene ends); the

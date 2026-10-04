@@ -19,7 +19,7 @@ Contributing with a coding agent? Start with [AGENTS.md](AGENTS.md) and the
 
 ## Where we are
 
-**Combined post-Zio candidate checkpoint: October 3, 2026; not published.**
+**Combined post-Zio checkpoint: October 3, 2026.**
 
 **Workflow setup is complete:** the [evidence-driven workflow](docs/AGENT_WORKFLOW.md)
 is the standing default, and the [setup ledger](docs/records/WORKFLOW_SETUP.md) retains
@@ -39,9 +39,12 @@ loads that save and both tapes replay to the same digest. The
 is separate from native input proof: generic Godot tape replay reaches initial
 Aiedo from New Game, and an earned-save Zio segment passes ordinary CONTINUE,
 camp SAVE and fresh-process CONTINUE. The current 11-pair presentation
-certificate passes; the final Python gate repair/recheck and default-pack boot
-remain pending. Full R2 remains in progress because its driver-retirement
-criterion has not been met.
+certificate passes. The [campaign ledger](docs/campaign/CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress)
+records the repaired 180-pad native replay and ordinary primary default-pack
+CONTINUE with no pack override. The sole five-stage gate failed Python on its
+original candidate; a separate affected Python/docs recheck passed and its
+composed matrix carries forward unchanged Rust/fmt/Clippy inputs. Full R2
+remains in progress because its bespoke-driver retirement criterion is open.
 
 | Area | Current evidence |
 | --- | --- |
@@ -50,6 +53,7 @@ criterion has not been met.
 | Post-Rika travel | Paid Zema recovery and the northern bridge crossing pass through ordinary input and SAVE/CONTINUE. The missing overworld page-hook consumer is repaired; the bridge's named 32×32 region matches retail exactly. |
 | Combat and camp | Individual commands, implemented techniques/skills, all 26 usable battle-item records, recovery, shops, equipment, chests, travel and earned progression. STATE/ORDER supports undo, cancel and persistent formation changes. Ability coverage is still incomplete. |
 | Recovery | A bounded BioPlant run wins one encounter, cures two poisoned members with ANTI, heals, saves and reloads. The playthrough driver now cures poison before HP recovery. |
+| Zio checkpoint | The 29-chapter New Game route reaches the settled Zio-defeat scene twice in headless Session; a separate earned-save native segment proves ordinary CONTINUE → Zio → camp SAVE and fresh-process CONTINUE. This does not claim a full native New Game-to-Zio replay. |
 | Presentation | Selected reference frames and four ORDER-menu regions match the cartridge exactly. Whole-scene, animation and UI fidelity still need work. |
 | Data | The extractor covers all 361 real maps, character progression, dialogue, battle records, graphics and sound. Extracted records do not imply implemented gameplay. |
 
@@ -77,15 +81,13 @@ rerun or recertify either gameplay result.
 
 ## Next milestones
 
-1. Review the scoped Python gate repair, rerun the affected checks, and prove
-   the primary default pack through ordinary boot/CONTINUE. Archive the bounded
-   Zio checkpoint after the composed gate is accepted.
-2. Close remaining battle abilities, enemy AI and camp command gaps as the
+1. **One next route action:** continue after Zio toward the spaceport/Zelan/Wren.
+   The ship destination-menu gap is an explicit dependency; this route is
+   parked for the next work session, not implemented at this checkpoint.
+2. Then close remaining battle abilities, enemy AI and camp command gaps as the
    campaign exposes them.
-3. Next campaign route: post-Zio toward the spaceport/Zelan/Wren, with the ship
-   destination-menu gap an explicit dependency. No later-arc play is claimed.
-4. Finish presentation fidelity and produce a reproducible desktop package.
-5. Build modding tools after the unmodified game is playable end to end.
+3. Finish presentation fidelity and produce a reproducible desktop package.
+4. Build modding tools after the unmodified game is playable end to end.
 
 See the [roadmap](docs/ROADMAP.md) for concrete completion criteria.
 
