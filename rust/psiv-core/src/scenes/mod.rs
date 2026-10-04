@@ -163,6 +163,7 @@ pub static SCENES: &[Scene] = &[
     post_zio_cutscenes::CRASH_LANDING,
     dezolis_route::OUTSIDE_RAJA_TEMPLE,
     dezolis_route::TYLER_GRAVE_OPENING,
+    dezolis_route::GYUNA,
     census_events::CANCELLER_REMINDER,
     census_events::MILE_SAND_WORM_BATTLE,
     census_events::FRACT_OOZE_FOUND,
@@ -298,6 +299,7 @@ mod tests {
             ("Cutscene_CrashLaanding", 131),
             ("Event_OutsideRajaTemple", 3),
             ("Event_TylerGraveOpening", 19),
+            ("Event_Gyuna", 7),
             ("Event_CancellerReminder", 2),
             ("Event_MileSandWormBattle", 5),
             ("Event_FractOozeFound", 5),
@@ -383,6 +385,12 @@ mod tests {
                     SceneOp::BranchIfAligned {
                         if_aligned, if_not, ..
                     } => vec![*if_aligned, *if_not],
+                    SceneOp::BranchIfActorCoord {
+                        if_true, if_false, ..
+                    } => vec![*if_true, *if_false],
+                    SceneOp::BranchIfSavedDialogueByte {
+                        if_equal, if_not, ..
+                    } => vec![*if_equal, *if_not],
                     SceneOp::BranchIfVehicle {
                         if_mounted,
                         if_on_foot,

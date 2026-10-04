@@ -402,7 +402,7 @@ ALLOW_GROUPS: tuple[tuple[int, str, tuple[int, ...]], ...] = (
         "Dezolis late arc: Garuberk Tower, the Esper and Inner Sanctuary dialogue controls, the Musk Cat and Penguin towns, Raja and Anger Tower controls",
         (
             0x35, 0x36, 0x39, 0x3A, 0x42, 0x45, 0x46, 0x49, 0x4A, 0x4B, 0x4F, 0x51,
-            0x52, 0x5B, 0x5C, 0x67, 0x68, 0x6D, 0x99,
+            0x52, 0x5B, 0x67, 0x68, 0x6D, 0x99,
         ),
     ),
     (
@@ -415,7 +415,7 @@ ALLOWLIST: dict[int, tuple[int, str]] = {
     event: (issue, area) for issue, area, events in ALLOW_GROUPS for event in events
 }
 #: The most the allowlist may hold. Lower it when a scene lands; never raise it.
-ALLOWLIST_CEILING = 85
+ALLOWLIST_CEILING = 84
 
 
 def disposition(

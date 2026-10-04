@@ -267,6 +267,25 @@ pub enum SceneOp {
         /// Op index taken otherwise.
         if_false: usize,
     },
+    /// Branch on the byte under `Saved_Dialogue_Addr` (`$FFFFECF0`) after the
+    /// last dialogue: `popdlg` (`moveq #-1, d0 / move.w $ECF0.w, d0 / movea.l
+    /// d0, a0`) then `cmpi.b #value, (a0)` (`Event_Gyuna`, `$070CA2`).
+    ///
+    /// The text engine stores `a0` with `pushdlg` in `TextCtrlCode_Terminate2`
+    /// (`ps4.asm:142643`), which `$F7` (`TextCtrlCode_Terminate3`) and the
+    /// `$FE`/`$FF` terminators all reach, and `a0` has already stepped past
+    /// the terminator it just read. So the byte is the first of whatever the
+    /// text would run next: the continuation after an `$F7`, or the first byte
+    /// of the next entry after a terminator. The runtime reports it when the
+    /// dialogue closes; with no dialogue run yet nothing is equal.
+    BranchIfSavedDialogueByte {
+        /// The literal.
+        value: u8,
+        /// Op index taken when the byte equals it.
+        if_equal: usize,
+        /// Op index taken otherwise.
+        if_not: usize,
+    },
     /// `DoMainUpdatesLoop` (`$5A73C`) over map objects that carry step
     /// constants: each frame `FieldObj_UpdatePosition` (`$04501C`) adds the
     /// object's `x_step_constant` (`$20`) and `y_step_constant` (`$24`), signed

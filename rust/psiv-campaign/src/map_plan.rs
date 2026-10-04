@@ -202,8 +202,9 @@ impl<'a> MapGraph<'a> {
         self
     }
 
-    /// Declares `cells` of `map` walkable (collision 0), as a door or elevator
-    /// a route opens by interaction would leave them. Replaces any earlier
+    /// Declares `cells` of `map` walkable (collision 0, and free of any object
+    /// standing on them), as a door or elevator or a scene that moves objects
+    /// aside, which a route opens by interaction, would leave them. Replaces any earlier
     /// declaration for `map` and drops the plans cached for it.
     pub fn open_cells(&mut self, map: u16, cells: Vec<Cell>) {
         self.maps.remove(&map);
@@ -244,12 +245,25 @@ impl<'a> MapGraph<'a> {
         // mutate the state the walk sees, so evaluate on a private copy.
         let mut game = self.base.clone();
         let mut outcome = evaluate_map_effects(record, &mut game);
-        for cell in self.opened.get(&record.id.0).into_iter().flatten() {
+        let opened = self.opened.get(&record.id.0).map_or(&[][..], Vec::as_slice);
+        for cell in opened {
             outcome
                 .cell_patches
                 .push((u32::from(cell.x), u32::from(cell.y), 0));
         }
-        field_map_entered(record, &outcome, &game)
+        let mut map = field_map_entered(record, &outcome, &game)?;
+        // An opened cell is one the party can stand on, so an object the scene
+        // moves off it (Tyler's grave blocks) no longer occupies it either.
+        for cell in opened {
+            while let Some(index) = map
+                .npcs()
+                .iter()
+                .position(|npc| npc.active && npc.cell == *cell)
+            {
+                let _ = map.set_npc_active(index, false);
+            }
+        }
+        Ok(map)
     }
 
     fn flood(&mut self, at: Position) -> Result<Rc<Flood>, PlanError> {

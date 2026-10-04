@@ -174,6 +174,7 @@ impl DialogueRunner {
     /// instant-close path. No signal is produced, so a scene that never saw a
     /// window behaves as it did when the harness skipped opening one.
     pub(crate) fn close_window(&mut self) {
+        self.note_stop();
         self.flow = None;
         self.open_cells = 0;
         self.scene_dialogue = false;

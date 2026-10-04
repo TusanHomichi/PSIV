@@ -305,6 +305,27 @@ class TestTheCollisionPlane(unittest.TestCase):
         record, _, _ = _decoded(self.data, "Zema")
         self.assertEqual(scene_patch_chunks(self.data, record), [])
 
+    def test_scene_chunk_writes_come_from_one_cited_table(self):
+        """`SCENE_CHUNK_WRITES` rows add their chunks to the named map and no other."""
+        record, _, decoded = _decoded(self.data, "Tyler")
+        self.assertEqual(scene_patch_chunks(self.data, record), [0x47])
+        # The stair chunk is not in the map's own layout writes; its pixels and
+        # collision come from the chunk table, and it is walkable ground
+        # (no solid quadrant) once the grave is open.
+        cells = [v for _, _, v in chunk_collision_cells(decoded.chunks[0x47])]
+        self.assertEqual(len(cells), 4)
+        record, _, _ = _decoded(self.data, "RajaTemple")
+        self.assertEqual(scene_patch_chunks(self.data, record), list(range(0x50, 0x60)))
+        # Overworld and map-effect rows are recorded but add nothing.
+        self.assertEqual(scene_patch_chunks(self.data, {"id": 0x000}), [])
+
+    def test_a_moved_scene_write_fails_the_build_naming_the_scene(self):
+        moved = bytearray(self.data)
+        moved[0x6FCF4 + 3] = 0x48
+        record, _, _ = _decoded(self.data, "Tyler")
+        with self.assertRaisesRegex(MapPatchError, "Event_TylerGraveOpening: the write at \\$06FCF4 moved"):
+            scene_patch_chunks(bytes(moved), record)
+
 
 @unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
 class TestThePackedResolution(unittest.TestCase):

@@ -638,6 +638,21 @@ impl SceneRunner {
                 }
                 self.pc = target;
             }
+            SceneOp::BranchIfSavedDialogueByte {
+                value,
+                if_equal,
+                if_not,
+            } => {
+                let target = if self.dialogue_stop_byte == Some(value) {
+                    if_equal
+                } else {
+                    if_not
+                };
+                if target > self.scene.len() {
+                    return Some(SceneFault::BadJump { target });
+                }
+                self.pc = target;
+            }
             SceneOp::DriftNpcs { drifts, frames } => {
                 if let Some(actor) = self.start_drift(drifts, frames) {
                     return Some(SceneFault::UnknownActor { actor });

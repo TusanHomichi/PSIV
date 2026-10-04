@@ -44,7 +44,7 @@
 //! | `go_to_map` | `map`, optional `via_warp` | arrive on `map` by the cheapest warp chain; `via_warp` forces the first warp (index in the current map's record) |
 //! | `talk` | `npc` | face and talk to object `npc` (index in the current map's object list) |
 //! | `answer` | `yes` | answer an open Yes/No prompt |
-//! | `interact` | `cell`, `face`, optional `opens` | stand on `cell`, face `up`/`down`/`left`/`right`, press confirm (doors, elevators, interaction areas); `opens` lists the cells that become walkable, for planning |
+//! | `interact` | `cell`, `face`, optional `opens` | stand on `cell`, face `up`/`down`/`left`/`right`, press confirm (doors, elevators, interaction areas); `opens` lists the cells that become walkable, for planning (collision 0, and any object standing on them is taken to move off: Tyler's grave blocks) |
 //! | `open_chest` | `chest` | open chest `chest` of the current map (record index) |
 //! | `buy` | `item`, `count`, optional `face` | buy at the shop counter the party faces |
 //! | `sell` | `item`, optional `face` | sell one item |

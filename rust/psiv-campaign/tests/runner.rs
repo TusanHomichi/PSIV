@@ -29,7 +29,7 @@ use psiv_core::battle::{FighterId, Side, item_targets, technique_targets};
 use psiv_core::{CharId, Flag, GameState, RetailLocation, RetailSave};
 use psiv_runtime::{PartyStatus, Session, TechniqueEntry};
 
-use common::{MAIN_ROUTE, PACK, pack};
+use common::{MAIN_ROUTE, pack, pack_dir};
 
 fn main_text() -> String {
     std::fs::read_to_string(MAIN_ROUTE).expect("main.json reads")
@@ -51,7 +51,7 @@ fn config(text: &str, save: &str, until: Option<&str>, from: Option<&str>) -> Ru
 fn config_in(text: &str, save_dir: PathBuf, until: Option<&str>, from: Option<&str>) -> RunConfig {
     RunConfig {
         route: Route::parse(text).expect("the route parses"),
-        pack: PathBuf::from(PACK),
+        pack: pack_dir(),
         from_chapter: from.map(str::to_owned),
         until_chapter: until.map(str::to_owned),
         save_dir,
@@ -117,7 +117,7 @@ fn replaying_a_recorded_tape_reproduces_its_digest() {
     let text = result.tape.render();
     let tape = Tape::parse(&text).expect("a rendered tape parses");
     assert_eq!(tape, result.tape);
-    let replayed = replay(PACK.as_ref(), &tape, None).expect("replay sets up");
+    let replayed = replay(pack_dir().as_path(), &tape, None).expect("replay sets up");
     assert_eq!(replayed.frames, result.tape.pads.len() as u64);
     assert_eq!(replayed.digest, result.digest);
     assert!(replayed.faults.is_empty(), "{:?}", replayed.faults);
@@ -144,12 +144,13 @@ fn a_chapter_save_resumes_the_next_chapter_and_its_tape_replays() {
         0,
         &resume.route.chapters[0],
     );
-    let replayed = replay(PACK.as_ref(), &result.tape, Some(&save)).expect("replay from the save");
+    let replayed =
+        replay(pack_dir().as_path(), &result.tape, Some(&save)).expect("replay from the save");
     assert_eq!(replayed.digest, result.digest);
     // The tape names its save: the wrong file is refused.
     let other = result.chapters[0].save.clone();
-    assert!(replay(PACK.as_ref(), &result.tape, Some(&other)).is_err());
-    assert!(replay(PACK.as_ref(), &result.tape, None).is_err());
+    assert!(replay(pack_dir().as_path(), &result.tape, Some(&other)).is_err());
+    assert!(replay(pack_dir().as_path(), &result.tape, None).is_err());
 }
 
 #[test]
@@ -199,7 +200,7 @@ fn a_wrong_object_index_halts_naming_the_objective() {
     assert_eq!(report["party"][0]["name"], "Alys");
     assert!(report["events"].as_array().unwrap().len() <= 50);
     // A halted run still replays to the state it halted in.
-    let replayed = replay(PACK.as_ref(), &result.tape, None).unwrap();
+    let replayed = replay(pack_dir().as_path(), &result.tape, None).unwrap();
     assert_eq!(replayed.digest, result.digest);
 }
 
@@ -250,7 +251,7 @@ fn an_exhausted_frame_budget_halts() {
     if pack().is_none() {
         return;
     }
-    let (session, _) = open_session(PACK.as_ref(), &StartPoint::NewGame).unwrap();
+    let (session, _) = open_session(pack_dir().as_path(), &StartPoint::NewGame).unwrap();
     let mut driver = Driver::new(session, None);
     driver.set_budget(10);
     let halt = driver.neutral(50).unwrap_err();
@@ -287,7 +288,7 @@ fn shop_trip_result(objectives: &str) -> Option<RunResult> {
     let (first_config, _) = academy()?;
     let config = RunConfig {
         route: shop_trip(objectives),
-        pack: PathBuf::from(PACK),
+        pack: pack_dir(),
         from_chapter: Some("item-shop".to_owned()),
         until_chapter: Some("item-shop".to_owned()),
         save_dir: first_config.save_dir.clone(),
@@ -519,7 +520,7 @@ fn the_first_actor_of_a_scripted_battle_opens_with_the_item() {
     };
     assert!(result.completed, "report: {:#?}", result.report);
     let save = result.chapters.last().expect("the trip saved").save.clone();
-    let (session, _) = open_session(PACK.as_ref(), &StartPoint::Save(save)).unwrap();
+    let (session, _) = open_session(pack_dir().as_path(), &StartPoint::Save(save)).unwrap();
     let runtime = session.runtime();
     let item = runtime
         .battle_items()
@@ -760,8 +761,8 @@ fn the_whole_route_defeats_zio_saves_and_replays() {
     let result = run(&config).expect("the route sets up");
     let done: Vec<&str> = result.chapters.iter().map(|c| c.id.as_str()).collect();
     assert!(result.completed, "route halted: {:#?}", result.report);
-    assert_eq!(done.last(), Some(&"dezolis-first-control"));
-    assert_eq!(done[done.len() - 5], "nurvus-zio");
+    assert_eq!(done.last(), Some(&"dezolis-tyler-grave"));
+    assert_eq!(done[done.len() - 8], "nurvus-zio");
     assert_eq!(result.chapters.len(), config.route.chapters.len());
     let save_of = |id: &str| {
         let chapter = result
@@ -778,8 +779,11 @@ fn the_whole_route_defeats_zio_saves_and_replays() {
     // The spaceport chapter ends in Zelan: the ship's destination menu opened on
     // the Mota Spaceport's boarding row, `World_Index` 3 was picked with the
     // pad, and the flight landed on loc_64B5A's Zelan row (RUNNER_LOG M23).
-    let (at_zelan, _) =
-        open_session(PACK.as_ref(), &StartPoint::Save(save_of("mota-spaceport"))).unwrap();
+    let (at_zelan, _) = open_session(
+        pack_dir().as_path(),
+        &StartPoint::Save(save_of("mota-spaceport")),
+    )
+    .unwrap();
     assert_eq!(at_zelan.runtime().map_id().0, 0x18D);
     assert_eq!(at_zelan.runtime().world_index(), 3);
     let cell = psiv_campaign::driver::standing_cell(at_zelan.runtime());
@@ -787,9 +791,9 @@ fn the_whole_route_defeats_zio_saves_and_replays() {
     // The route ends at first control on Dezolis: Raja Temple's `$14C`, the
     // exit's foot, with the five-member party, the crash landing's flags and
     // `World_Index` 1 (`ps4.asm:155847`). Beyond it the exit's trigger event
-    // `$43` has no scene (RUNNER_LOG_DEZOLIS H28).
+    // `$43` plays in the next chapter (RUNNER_LOG_DEZOLIS H28).
     let (on_dezolis, _) = open_session(
-        PACK.as_ref(),
+        pack_dir().as_path(),
         &StartPoint::Save(save_of("dezolis-first-control")),
     )
     .unwrap();
@@ -809,12 +813,43 @@ fn the_whole_route_defeats_zio_saves_and_replays() {
         !dezolis_game.is_set(Flag::event(0x80)),
         "Snowstorm is still clear: the exit's event has not run"
     );
+    // The next chapter walks out through the exit: `Event_OutsideRajaTemple`
+    // (`$43`) played and set Snowstorm, and the party stands where it arrived.
+    let (outside, _) = open_session(
+        pack_dir().as_path(),
+        &StartPoint::Save(save_of("dezolis-outside-raja-temple")),
+    )
+    .unwrap();
+    assert_eq!(outside.runtime().map_id().0, 0x001);
+    assert!(outside.runtime().game().is_set(Flag::event(0x80)));
+    // Gyuna's space-ship answer set `$81`; the grave's flag is still clear.
+    let (pub_, _) = open_session(
+        pack_dir().as_path(),
+        &StartPoint::Save(save_of("dezolis-gyuna")),
+    )
+    .unwrap();
+    assert_eq!(pub_.runtime().map_id().0, 0x14A);
+    assert!(pub_.runtime().game().is_set(Flag::event(0x81)));
+    assert!(!pub_.runtime().game().is_set(Flag::event(0x84)));
+    // Tyler's grave opened (`$84`) and the stairs led to the Hangar (`$15F`).
+    let (hangar, _) = open_session(
+        pack_dir().as_path(),
+        &StartPoint::Save(save_of("dezolis-tyler-grave")),
+    )
+    .unwrap();
+    assert_eq!(hangar.runtime().map_id().0, 0x15F);
+    for flag in [0x81, 0x84] {
+        assert!(
+            hangar.runtime().game().is_set(Flag::event(flag)),
+            "{flag:#x}"
+        );
+    }
     let pad_save = config.save_dir.join("route/slot_1.sram");
     assert!(
         pad_save.is_file(),
         "the last chapter's pad SAVE wrote the separate route slot"
     );
-    let (loaded, _) = open_session(PACK.as_ref(), &StartPoint::Save(pad_save)).unwrap();
+    let (loaded, _) = open_session(pack_dir().as_path(), &StartPoint::Save(pad_save)).unwrap();
     let game = loaded.runtime().game();
     assert_eq!(loaded.runtime().map_id().0, 0);
     assert_eq!(game.party_members(), [CharId(0), CharId(5), CharId(3)]);
@@ -822,7 +857,7 @@ fn the_whole_route_defeats_zio_saves_and_replays() {
     for flag in [0x65, 0x68, 0x66, 0x61] {
         assert!(game.is_set(Flag::event(flag)), "event flag {flag:#x}");
     }
-    let replayed = replay(PACK.as_ref(), &result.tape, None).unwrap();
+    let replayed = replay(pack_dir().as_path(), &result.tape, None).unwrap();
     assert_eq!(replayed.digest, result.digest);
     assert!(
         replayed.faults.is_empty(),

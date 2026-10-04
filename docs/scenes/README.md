@@ -31,6 +31,12 @@ the party stands on the map — the mechanism the cartridge uses instead of a
 map reload — is listed with its port status in
 [the live-layout census](LIVE_LAYOUT_WRITES.md), which is H19's class fix.
 
+**Layout writes are held to the pack.** Every `SceneOp::WriteMapChunks` needs a chunk the pack's
+patch atlas carries for its map (`write_scene_map_chunks` refuses one it cannot resolve, #67).
+`psiv_tools.map_patches.SCENE_CHUNK_WRITES` is the one cited table of those writes and
+[`tests/test_scene_chunk_atlas.py`](../../tests/test_scene_chunk_atlas.py) fails a registry write
+with no row, or a row the pack does not resolve, naming the scene and the chunk.
+
 **Revision-conditional ops are audited.** Every transcribed scene's
 `if revision>0` / `else` blocks and its retail `DialogueTreesToRAM` calls are
 counted in [the revision audit](REVISION_AUDIT.md), which is what caught the
@@ -149,6 +155,7 @@ and the port never transcribed.
 | `Event_FractOozeFound` | `$7D` | [95](95_FractOozeFound.md) | `$072B2C..$072B51` |
 | `Event_KingRappy` | `$88` | [96](96_KingRappy.md) | `$072FDC..$073017` |
 | `Event_DaughterTerminal` | `$8F` | [97](97_DaughterTerminal.md) | `$0731B2..$0731D9` |
+| `Event_Gyuna` | `$5C` | [98](98_Gyuna.md) | `$070C82..$070CB3` |
 
 ## Terminal and recorded boundary surfaces
 

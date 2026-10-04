@@ -77,6 +77,9 @@ pub struct SceneRunner {
     drifted: Vec<(usize, (i32, i32))>,
     /// The `DriftNpcs` in progress.
     drift: Option<drift::DriftRun>,
+    /// The byte under `Saved_Dialogue_Addr` as of the last dialogue the
+    /// runtime closed (`BranchIfSavedDialogueByte`).
+    dialogue_stop_byte: Option<u8>,
 }
 
 impl SceneRunner {
@@ -105,6 +108,7 @@ impl SceneRunner {
             npc_pixels: Vec::new(),
             drifted: Vec::new(),
             drift: None,
+            dialogue_stop_byte: None,
         }
     }
 
@@ -150,6 +154,15 @@ impl SceneRunner {
             Blocked::Actor(_) | Blocked::Camera => true,
             _ => false,
         }
+    }
+
+    /// Records the byte under `Saved_Dialogue_Addr` after a dialogue closed:
+    /// what `popdlg` followed by `cmpi.b #n, (a0)` would read. The runtime
+    /// calls it when it acknowledges a closed or ended window; `None` means
+    /// the text engine has stopped nowhere readable (no dialogue has run, or
+    /// the stop was past the tree's last entry).
+    pub fn set_dialogue_stop_byte(&mut self, byte: Option<u8>) {
+        self.dialogue_stop_byte = byte;
     }
 
     /// Window routine used by the last dialogue open or named resume.

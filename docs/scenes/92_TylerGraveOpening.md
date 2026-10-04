@@ -106,3 +106,21 @@ end, the loop's frame count) and `rust/psiv-core/tests/dezolis_scenes.rs` (each
 object's end position, an intermediate frame, the stair cells blocked before and
 open after, the frame a cell frees, the dialogue and flag paths, the tick
 count).
+
+## Pack and route
+
+- **The stair chunk needs an atlas.** `WriteMapChunks` resolves against the current map's
+  patch atlas, and Tyler's carried no `$47`: the first run halted with
+  `MapRefreshFailed("scene chunk atlas is absent")` (the #67 class).
+  `psiv_tools.map_patches.SCENE_CHUNK_WRITES` is now the one cited table of scene chunk writes
+  (this scene: `move.b #$47, (a1)` at `$06FCF4`, pinned by its bytes), and
+  `tests/test_scene_chunk_atlas.py` fails any registry write the pack's atlas cannot resolve. A pack
+  built before the row existed must be rebuilt.
+- **Reach.** `DialogueTree14` entry 29 (the grave's middle blocks, objects 5 and 6) is
+  `FA 81,6`: with `$81` set it skips to entry 35, whose `$F6 $44` starts this scene, and `$81` is
+  only set by [`Event_Gyuna`](98_Gyuna.md). The route chapters `dezolis-gyuna` and
+  `dezolis-tyler-grave` play both with pads, then walk warp 7 (cells (20..21, 24..25)) to the
+  Hangar (`$15F`).
+- **Deviation from the brief's wording (recorded):** the stop byte `Event_Gyuna` needs reaches the
+  runner through `SceneRunner::set_dialogue_stop_byte`, set by the runtime when the dialogue closes,
+  not on the `SceneInput` itself, so no existing `SceneInput` match changed.

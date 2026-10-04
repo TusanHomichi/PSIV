@@ -448,3 +448,59 @@ fn a_stair_cell_frees_on_the_frame_its_last_object_leaves_it() {
     assert!(seen[..31].iter().all(|&held| held), "held through frame 31");
     assert!(seen[31..].iter().all(|&held| !held), "free from frame 32");
 }
+
+// ---------------------------------------------------------------------------
+// Event_Gyuna ($005C, docs/scenes/98_*)
+// ---------------------------------------------------------------------------
+
+/// Runs `Event_Gyuna`, closing its dialogue with the text engine's stop byte
+/// set to `stop` (what the runtime reports from the dialogue window).
+fn run_gyuna(state: &mut GameState, stop: Option<u8>) -> Vec<u16> {
+    let map = map_with(&["....", "...."], vec![], vec![]);
+    let scene = scene_for(EventIndex(0x5C)).unwrap();
+    let mut runner = SceneRunner::new(scene.ops, vec![], StepFrames::new(8).unwrap());
+    let mut opened = Vec::new();
+    let mut input = SceneInput::None;
+    for _ in 0..50 {
+        let effects = runner.tick(&map, state, input);
+        input = SceneInput::None;
+        for effect in &effects {
+            if let SceneEffect::DialogueOpen(DialogueId(id)) = effect {
+                opened.push(*id);
+                runner.set_dialogue_stop_byte(stop);
+                input = SceneInput::DialogueEnded;
+            }
+        }
+        if runner.is_finished() {
+            return opened;
+        }
+    }
+    panic!("Event_Gyuna did not finish");
+}
+
+#[test]
+fn gyuna_sets_81_only_when_the_text_stopped_on_35() {
+    let mut state = GameState::new();
+    let opened = run_gyuna(&mut state, Some(0x35));
+    assert_eq!(opened, vec![0x31], "the first-visit greeting");
+    assert!(state.is_set(Flag::event(0x81)), "EventFlag $81");
+}
+
+#[test]
+fn an_off_by_one_stop_byte_leaves_81_clear() {
+    // The negative control: `cmpi.b #$35` is exact, not a range.
+    for stop in [Some(0x34), Some(0x36), Some(0xFF), Some(0x00), None] {
+        let mut state = GameState::new();
+        run_gyuna(&mut state, stop);
+        assert!(!state.is_set(Flag::event(0x81)), "stop byte {stop:?}");
+    }
+}
+
+#[test]
+fn gyuna_greets_a_returning_party_with_entry_32() {
+    let mut state = GameState::new();
+    state.write(Flag::event(0x81), true).unwrap();
+    let opened = run_gyuna(&mut state, Some(0x10));
+    assert_eq!(opened, vec![0x32]);
+    assert!(state.is_set(Flag::event(0x81)), "the flag is never cleared");
+}

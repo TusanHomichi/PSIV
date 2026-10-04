@@ -245,3 +245,54 @@ pub static TYLER_GRAVE_OPENING: Scene = Scene {
         },
     ],
 };
+
+/// `$005C`, `Event_Gyuna`, retail `$070C82..$070CB3`: the Ryuon pub's keeper.
+///
+/// Reached by dialogue `$F6 $00 $5C` (`DialogueTree16` entry 48, the keeper's
+/// own line). Flag `$81` picks the greeting (`$31` before, `$32` after); the
+/// conversation runs with its yes/no questions inside the text, and afterwards
+/// `popdlg` / `cmpi.b #$35, (a0)` reads the byte the text engine stopped on.
+/// That is `$35` only when the last entry run was entry 60 (the space-ship
+/// answer: the byte after its terminator opens entry 61, "...What's the use
+/// now?"), and then `$81` is set: Tyler's grave inscription (`DialogueTree14`
+/// entry 29, `FA 81,6`) only reaches its `$F6` when it is.
+pub static GYUNA: Scene = Scene {
+    name: "Event_Gyuna",
+    event: EventIndex(0x005C),
+    ops: &[
+        // 0: `move.b #$81, d0 / jsr EventFlags_Test / bne.b loc_70C92`.
+        SceneOp::BranchFlag {
+            flag: Flag::event(FLAG_GYUNA_TOLD),
+            if_set: 3,
+            if_clear: 1,
+        },
+        // 1: `moveq #$31, d0 / bra.b loc_70C94`.
+        SceneOp::RunDialogue {
+            source: DialogueSource::Entry(DialogueId(0x31)),
+            window: DialogueWindow::Standard,
+        },
+        // 2.
+        SceneOp::Jump { to: 4 },
+        // 3: `loc_70C92`: `moveq #$32, d0`.
+        SceneOp::RunDialogue {
+            source: DialogueSource::Entry(DialogueId(0x32)),
+            window: DialogueWindow::Standard,
+        },
+        // 4: `popdlg` / `cmpi.b #$35, (a0)` / `bne.b loc_70CB2` ($070C9A..$070CA6).
+        SceneOp::BranchIfSavedDialogueByte {
+            value: 0x35,
+            if_equal: 5,
+            if_not: 6,
+        },
+        // 5: `move.b #$81, d0 / jsr EventFlags_Set` ($070CA8).
+        SceneOp::SetFlag {
+            flag: Flag::event(FLAG_GYUNA_TOLD),
+            value: true,
+        },
+        // 6: `loc_70CB2: rts`.
+        SceneOp::End,
+    ],
+};
+
+/// `EventFlag` `$81`: Gyuna has pointed the party at Tyler's grave.
+const FLAG_GYUNA_TOLD: u16 = 0x81;

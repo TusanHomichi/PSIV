@@ -137,7 +137,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0059` | `Event_XeAThoulBeforeBattle` | map trigger $44 | AirCastleXeAThoulRoom | scene `Event_XeAThoulBeforeBattle` |
 | `$005A` | `Event_AirCastleFakeChest` | map trigger $45 | AirCastleInner_B1_Part3 | scene `Event_AirCastleFakeChest` |
 | `$005B` | `Event_RajaSick` | dialogue `$F6` | tree 18 entry 101 | allowlisted, #83 |
-| `$005C` | `Event_Gyuna` | dialogue `$F6` | tree 16 entry 48 | allowlisted, #83 |
+| `$005C` | `Event_Gyuna` | dialogue `$F6` | tree 16 entry 48 | scene `Event_Gyuna` |
 | `$005D` | `Event_LashiecAppearance` | map trigger $46 | AirCastleInner_B1_Part3 | scene `Event_LashiecAppearance` |
 | `$005E` | `Event_StrengthTowerTop` | map trigger $49 | StrengthTower_F4 | scene `Event_StrengthTowerTop` |
 | `$005F` | `Event_CourageTowerTop` | map trigger $4A | CourageTower_F4 | scene `Event_CourageTowerTop` |
@@ -255,8 +255,8 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 | #71 | `Event_GetAndRunDialogue2` callers | 1 |
 | #81 | Motavia side content | 42 |
 | #82 | Vahal Fort and Weapon Plant | 19 |
-| #83 | Dezolis late arc | 20 |
-| | total | 85 |
+| #83 | Dezolis late arc | 19 |
+| | total | 84 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events
@@ -267,6 +267,16 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 - [#82](https://github.com/TusanHomichi/PSIV/issues/82): Vahal Fort and Weapon Plant.
 - [#83](https://github.com/TusanHomichi/PSIV/issues/83): Dezolis late arc,
   including the Dezolis dialogue controls.
+
+## Why the remaining #56 and #71 entries are not transcribed
+
+Each needs something the scene vocabulary does not have, and each is off the route to Kuran:
+
+| Event | Blocker |
+|---|---|
+| `$37`, `$38` `Event_GaruberkTwDoorEntered1/2` (`$06F5A4`, `$06F724`, #56) | The body resolves layout cells from the leader's live position (`GetMapLayoutOffset` with `Character_1.x >> 5`, `y - $10`), writes a chunk pair, then plays a table-driven BG animation with `RefreshPlaneBG` per frame and a `tst.w $2A(a4)` walk loop. `WriteMapChunks` takes literal coordinates; the live-position write, the table walk and the map-update loop need new ops (Garuberk Tower, [#83](https://github.com/TusanHomichi/PSIV/issues/83)'s area). |
+| `$96` `Event_PenguinFeedStolen` (`$0735F6`, #56) | Builds a temporary thief object in slot `$C380` (map object 2 of Zosa's item shop, which has two objects), steps it with `Event_MoveSingleObject` toward the leader's live X, then clears it. The scene cast holds party members and map objects by index; a temporary object has no `ActorRef`. |
+| `$62` `Event_AngerTowerAlys` (`$07148A`, #71) | Steps `Character_1` (the leader) and a map object with `Event_StepObject` along a direction table. `DriftNpcs` moves map objects only; the leader's position is the party driver's. |
 
 Two entries sit in an area only by closest fit: `$10` (`Event_GettingOffVehicle`,
 a field-input event with no map) is under #81, and `$21` (`Event_Recovery`, the

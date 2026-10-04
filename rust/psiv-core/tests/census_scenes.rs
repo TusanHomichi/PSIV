@@ -73,7 +73,7 @@ fn battles(played: &Played) -> Vec<u16> {
         .effects
         .iter()
         .filter_map(|e| match e {
-            SceneEffect::BattleRequested { index } => Some(u16::from(*index)),
+            SceneEffect::BattleRequested { index } => Some(*index),
             _ => None,
         })
         .collect()
