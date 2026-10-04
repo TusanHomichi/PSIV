@@ -232,6 +232,7 @@ def write_manifest(
         # census over all of them.
         "map_effects": {
             **effects["census"],
+            "scene_patch_chunks": state["scene_patch_maps"],
             # A `layout_write` resolved: the collision cells it changes, and a
             # drawn tile of the chunk it stamps in. `collision_authoritative`
             # counts the writes that land on the plane GetChunkAndCollision
