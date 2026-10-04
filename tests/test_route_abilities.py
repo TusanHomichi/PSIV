@@ -161,5 +161,32 @@ class LedgerTests(unittest.TestCase):
                          count["implemented"])
 
 
+class CommittedDocBlock(unittest.TestCase):
+    """The route doc's tables are the tool's output, never a hand-kept copy."""
+
+    DOC = ra.ROOT / "docs" / "battle" / "ENEMY_ABILITIES_ROUTE.md"
+
+    def test_the_route_doc_block_matches_the_derivation(self):
+        try:
+            data = Data.load(ra.GENERATED)
+        except FileNotFoundError as error:
+            self.skipTest(f"generated tables absent (local input): {error}")
+        scope = ra.stretch_scope(ra.STRETCHES["zelan-kuran"])
+        expected = ra.markdown(derive(data, scope, ra.ledger_classes()))
+        text = self.DOC.read_text()
+        self.assertEqual(
+            text, ra.with_doc_block(text, expected),
+            "docs/battle/ENEMY_ABILITIES_ROUTE.md is stale: run "
+            "python3 -m oracle.sweep.route_abilities --update-doc "
+            "docs/battle/ENEMY_ABILITIES_ROUTE.md")
+
+    def test_a_stale_block_is_detected_and_a_missing_one_is_an_error(self):
+        text = "intro\n<!-- route_abilities:begin -->\n\nold\n\n<!-- route_abilities:end -->\n"
+        self.assertNotEqual(text, ra.with_doc_block(text, "new"))
+        self.assertIn("\n\nnew\n\n", ra.with_doc_block(text, "new"))
+        with self.assertRaises(ValueError):
+            ra.with_doc_block("no markers here", "new")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -231,58 +231,75 @@ not list for these maps: the conditional WARNING (Kuran, 45 CommndBall) and BARR
 the Chaos Sorcerer's SHADOWBIND, and `$63` BURSTROC on Dark Force 1 (a damage ability,
 see its row).
 
+The tables below are the tool's output for the default stretch, regenerated with
+`--update-doc` (a test fails when they drift from the derivation):
+
+<!-- route_abilities:begin -->
+
+Maps and the groups they draw
+
 | map | symbol | named by | groups on foot | vehicle groups |
 |---|---|---|---|---|
-| `001` | Dezolis | chapter dezolis-outside-raja-temple; chapter dezolis-tyler-grave; scene CRASH_LANDING; scene LANDALE | 11, 12 | 13 |
-| `120` | Tyler | chapter dezolis-tyler-grave | - | - |
+| `001` | Dezolis | chapter dezolis-outside-raja-temple; chapter dezolis-tyler-grave; chapter dezolis-landale; chapter dezolis-training; scene CRASH_LANDING; scene LANDALE | 11, 12 | 13 |
+| `0D4` | DezoSpaceport | chapter kuran-arrival | - | - |
+| `120` | Tyler | chapter dezolis-tyler-grave; chapter dezolis-tyler-prepare; chapter dezolis-training | - | - |
+| `122` | TylerWeaponShop | chapter dezolis-tyler-prepare | - | - |
+| `123` | TylerItemShop | chapter dezolis-tyler-prepare | - | - |
+| `125` | TylerInn | chapter dezolis-training | - | - |
 | `144` | Ryuon | chapter dezolis-gyuna; chapter dezolis-tyler-grave | - | - |
 | `14A` | RyuonPub | chapter dezolis-gyuna | - | - |
 | `14C` | RajaTemple | chapter zelan-sabotage; chapter dezolis-first-control; scene CRASH_LANDING | - | - |
-| `15F` | Hangar | chapter dezolis-tyler-grave | 44 | - |
+| `15F` | Hangar | chapter dezolis-tyler-grave; chapter dezolis-tyler-prepare; chapter dezolis-landale | 44 | - |
 | `18C` | ZelanSpace | scene SPACESHIP_SABOTAGE | - | - |
 | `18D` | Zelan | chapter zelan-wren-canceller; chapter zelan-sabotage | - | - |
-| `18E` | Zelan_F1 | chapter zelan-wren-canceller; scene DARK_FORCE_1_DEFEATED | - | - |
-| `190` | Kuran | Kuran interior (scene 45-47's map) | 45 | - |
-| `191` | Kuran_F1 | Kuran interior (scene 45-47's map) | 45 | - |
-| `192` | Kuran_F2 | Kuran interior (scene 45-47's map) | 45 | - |
-| `193` | Kuran_F1_Part2 | Kuran interior (scene 45-47's map) | 45 | - |
-| `194` | Kuran_F1_Part3 | Kuran interior (scene 45-47's map) | 45 | - |
-| `195` | Kuran_F1_Part5 | Kuran interior (scene 45-47's map) | 45 | - |
-| `196` | Kuran_F2_Part2 | Kuran interior (scene 45-47's map) | 45 | - |
-| `197` | Kuran_F1_Part4 | Kuran interior (scene 45-47's map) | 45 | - |
+| `18E` | Zelan_F1 | chapter zelan-wren-canceller; chapter kuran-dark-force-1; scene DARK_FORCE_1_DEFEATED | - | - |
+| `190` | Kuran | chapter kuran-arrival; Kuran interior (scene 45-47's map) | 45 | - |
+| `191` | Kuran_F1 | chapter kuran-elevators; Kuran interior (scene 45-47's map) | 45 | - |
+| `192` | Kuran_F2 | chapter kuran-elevators; Kuran interior (scene 45-47's map) | 45 | - |
+| `193` | Kuran_F1_Part2 | chapter kuran-elevators; Kuran interior (scene 45-47's map) | 45 | - |
+| `194` | Kuran_F1_Part3 | chapter kuran-elevators; Kuran interior (scene 45-47's map) | 45 | - |
+| `195` | Kuran_F1_Part5 | chapter kuran-elevators; Kuran interior (scene 45-47's map) | 45 | - |
+| `196` | Kuran_F2_Part2 | chapter kuran-elevators; Kuran interior (scene 45-47's map) | 45 | - |
+| `197` | Kuran_F1_Part4 | chapter kuran-elevators; Kuran interior (scene 45-47's map) | 45 | - |
+| `198` | Kuran_F3 | chapter kuran-elevators; chapter kuran-near-dark-force; chapter kuran-dark-force-1 | - | - |
+
+Event battles
 
 | index | scenes | enemies |
 |---|---|---|
 | 8 | SPACESHIP_SABOTAGE | 138 ChaosSorcr2 |
 | 9 | DARK_FORCE_1 | 130 DarkForce1 |
 
+Abilities the scope can meet
+
 | ability | effect | class | ledger | carriers | foot maps | vehicle maps | events |
 |---|---|---|---|---|---|---|---|
-| `$02` FLAME BOLT | `$01` | — | implemented | 0 Helex | 2 | 0 | - |
-| `$04` LASRCANNON | `$01` | damage | unsupported | 4 ProtectBit | 0 | 1 | - |
-| `$07` FISSION | `$1E` | — | implemented | 50 FloatMine2 | 8 | 0 | - |
-| `$13` CELL SPLIT | `$01` | damage | unsupported | 37 SnowSlug | 2 | 0 | - |
+| `$02` FLAME BOLT | `$01` | damage | implemented | 0 Helex | 2 | 0 | - |
+| `$04` LASRCANNON | `$01` | damage | implemented | 4 ProtectBit | 0 | 1 | - |
+| `$07` FISSION | `$1E` | no effect | implemented | 50 FloatMine2 | 8 | 0 | - |
+| `$13` CELL SPLIT | `$01` | damage | implemented | 37 SnowSlug | 2 | 0 | - |
 | `$14` WARNING | `$1E` | unknown | implemented | 45 CommndBall (conditional:1) | 8 | 0 | - |
-| `$15` CHARGCNNON | `$20` | damage | unsupported | 40 CRayTube (conditional:5) | 8 | 0 | - |
-| `$17` WAITING | `$22` | — | implemented | 42 SatMinion (conditional:5), 44 FloatMine, 50 FloatMine2 | 8 | 0 | - |
-| `$18` EXPLOSION | `$23` | damage | unsupported | 44 FloatMine (conditional:7), 50 FloatMine2 (conditional:7) | 8 | 0 | - |
-| `$19` DETONATION | `$24` | damage | unsupported | 45 CommndBall | 8 | 0 | - |
-| `$1C` FLARE SHOT | `$01` | damage | unsupported | 48 Siren386, 130 DarkForce1 | 8 | 0 | 9 |
+| `$15` CHARGCNNON | `$20` | damage | implemented | 40 CRayTube (conditional:5) | 8 | 0 | - |
+| `$17` WAITING | `$22` | no effect | implemented | 42 SatMinion (conditional:5), 44 FloatMine, 50 FloatMine2 | 8 | 0 | - |
+| `$18` EXPLOSION | `$23` | damage | implemented | 44 FloatMine (conditional:7), 50 FloatMine2 (conditional:7) | 8 | 0 | - |
+| `$19` DETONATION | `$24` | damage | implemented | 45 CommndBall | 8 | 0 | - |
+| `$1C` FLARE SHOT | `$01` | damage | implemented | 48 Siren386, 130 DarkForce1 | 8 | 0 | 9 |
 | `$1D` BARRIER | `$0B` | status/stat effect | implemented | 48 Siren386 (conditional:8) | 8 | 0 | - |
-| `$1F` DBL SLASH | `$01` | damage | unsupported | 145 RedMole | 1 | 0 | - |
-| `$20` PHONONMASR | `$01` | damage | unsupported | 130 DarkForce1 | 0 | 0 | 9 |
-| `$22` RAY BREATH | `$01` | damage | unsupported | 118 LwAddmer | 0 | 1 | - |
-| `$23` SUPERSONIC | `$01` | damage | unsupported | 69 BiterFly (conditional:8), 142 Skytiara | 1 | 0 | - |
+| `$1F` DBL SLASH | `$01` | damage | implemented | 145 RedMole | 1 | 0 | - |
+| `$20` PHONONMASR | `$01` | damage | implemented | 130 DarkForce1 | 0 | 0 | 9 |
+| `$22` RAY BREATH | `$01` | damage | partial | 118 LwAddmer | 0 | 1 | - |
+| `$23` SUPERSONIC | `$01` | damage | implemented | 69 BiterFly (conditional:8), 142 Skytiara | 1 | 0 | - |
 | `$24` POISONMIST | `$1B` | status/stat effect | implemented | 57 Mistralgec | 1 | 0 | - |
 | `$25` SLEEP GAS | `$07` | status/stat effect | implemented | 63 GerotLux | 1 | 0 | - |
-| `$2B` NEEDLE | `$01` | damage | unsupported | 68 Rajago, 69 BiterFly | 1 | 0 | - |
-| `$33` ACIDBREATH | `$01` | — | implemented | 85 Piercer | 8 | 0 | - |
+| `$2B` NEEDLE | `$01` | damage | implemented | 68 Rajago, 69 BiterFly | 1 | 0 | - |
+| `$33` ACIDBREATH | `$01` | damage | implemented | 85 Piercer | 8 | 0 | - |
 | `$4B` SHADOWBIND | `$06` | status/stat effect | partial | 138 ChaosSorcr2 | 0 | 0 | 8 |
-| `$4F` HEWN | `$01` | damage | unsupported | 138 ChaosSorcr2 | 0 | 0 | 8 |
-| `$5A` FLAELI | `$01` | damage | unsupported | 138 ChaosSorcr2 | 0 | 0 | 8 |
-| `$63` BURSTROC | `$01` | damage | unsupported | 130 DarkForce1 | 0 | 0 | 9 |
-| `$6A` WIND STORM | `$01` | damage | unsupported | 143 Owltalon | 0 | 1 | - |
+| `$4F` HEWN | `$01` | damage | implemented | 138 ChaosSorcr2 | 0 | 0 | 8 |
+| `$5A` FLAELI | `$01` | damage | implemented | 138 ChaosSorcr2 | 0 | 0 | 8 |
+| `$63` BURSTROC | `$01` | damage | implemented | 130 DarkForce1 | 0 | 0 | 9 |
+| `$6A` WIND STORM | `$01` | damage | implemented | 143 Owltalon | 0 | 1 | - |
 
+<!-- route_abilities:end -->
 
 Who owns what (the `class` column above is §2's object-chain rule): the `damage`
 rows are the damage lane's (FLAELI first); the rest of the table is this lane's, with
