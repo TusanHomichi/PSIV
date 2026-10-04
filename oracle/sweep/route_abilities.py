@@ -4,6 +4,7 @@
     python3 -m oracle.sweep.route_abilities --json       # the same, as JSON
     python3 -m oracle.sweep.route_abilities --stretch zelan-kuran
     python3 -m oracle.sweep.route_abilities --out build/route-set.json
+    python3 -m oracle.sweep.route_abilities --update-doc docs/battle/ENEMY_ABILITIES_ROUTE.md
     python3 -m oracle.sweep.route_abilities --map-pattern '^(Zelan|Kuran)' \\
         --scene-doc docs/scenes/45_KuranArrival.md --out build/route-set.json
 
@@ -408,6 +409,24 @@ def sha256_of(paths: list[pathlib.Path]) -> dict[str, str]:
             for path in sorted(set(paths))}
 
 
+DOC_BEGIN = "<!-- route_abilities:begin -->"
+DOC_END = "<!-- route_abilities:end -->"
+
+
+def doc_block(text: str) -> tuple[int, int]:
+    """The span of the generated block between the markers of a document."""
+    begin, end = text.find(DOC_BEGIN), text.find(DOC_END)
+    if begin < 0 or end < begin:
+        raise ValueError(f"no {DOC_BEGIN} ... {DOC_END} block")
+    return begin + len(DOC_BEGIN), end
+
+
+def with_doc_block(text: str, table: str) -> str:
+    """`text` with its generated block replaced by `table`."""
+    begin, end = doc_block(text)
+    return text[:begin] + "\n\n" + table.strip() + "\n\n" + text[end:]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--data-dir", type=pathlib.Path, default=GENERATED)
@@ -419,6 +438,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--out", type=pathlib.Path,
                         help="write the JSON, with the hash of every input, here")
+    parser.add_argument("--update-doc", type=pathlib.Path,
+                        help="rewrite this document's route_abilities block with the "
+                             "markdown (the tables are evidence output: never edit them "
+                             "by hand)")
     arguments = parser.parse_args(argv)
     if arguments.scene_doc and not arguments.map_pattern:
         parser.error("--scene-doc needs --map-pattern (an explicit scope)")
@@ -439,6 +462,12 @@ def main(argv: list[str] | None = None) -> int:
         result["source_sha256"] = sha256_of(inputs)
         arguments.out.parent.mkdir(parents=True, exist_ok=True)
         arguments.out.write_text(json.dumps(result, indent=2) + "\n")
+    if arguments.update_doc:
+        text = arguments.update_doc.read_text()
+        try:
+            arguments.update_doc.write_text(with_doc_block(text, markdown(result)))
+        except ValueError as error:
+            parser.error(f"{arguments.update_doc}: {error}")
     print(json.dumps(result, indent=1) if arguments.json else markdown(result))
     return 0
 

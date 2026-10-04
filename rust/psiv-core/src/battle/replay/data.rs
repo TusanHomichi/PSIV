@@ -266,6 +266,51 @@ fn every_fixture_replays_as_recorded() {
     );
 }
 
+#[test]
+fn barrier_capture_rejects_a_wrong_mdef_or_party_command() {
+    let text = include_str!("../replay_fixtures/siren386_126_magic.json");
+    let data = pack::data();
+    let mut captured = fixture(text);
+    let barrier = captured
+        .rounds
+        .iter_mut()
+        .flat_map(|round| &mut round.actions)
+        .find(|action| action.ability == Some(0x1D))
+        .expect("observed BARRIER");
+    let stat = barrier
+        .effect
+        .stats
+        .iter_mut()
+        .find(|(_, field, _, _)| field == "mdfs_bat")
+        .expect("observed battle MDEF change");
+    stat.3 += 1;
+    let replay = replay_inner(&captured, &data);
+    assert!(
+        matches!(
+            replay.finding,
+            Some(Finding::Action {
+                divergence: Divergence::Stat { .. },
+                ..
+            })
+        ),
+        "one wrong MDEF point must fail generic replay"
+    );
+
+    let mut captured = fixture(text);
+    let command = captured
+        .rounds
+        .iter_mut()
+        .flat_map(|round| &mut round.commands)
+        .find(|command| command.command == "technique")
+        .expect("observed FOI command");
+    command.command = "defend".into();
+    let rejected = std::panic::catch_unwind(|| replay_inner(&captured, &data));
+    assert!(
+        rejected.is_err() || rejected.unwrap().finding.is_some(),
+        "a wrong command must not replay as the captured technique"
+    );
+}
+
 /// Writes the manifest entry every diverging fixture needs - one JSON object
 /// per line, naming its fixture in the line's own `fixture` field - to the file
 /// `PSIV_MANIFEST_DUMP` names, and prints a one-line summary of what it wrote.

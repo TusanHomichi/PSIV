@@ -529,6 +529,81 @@ BOLT, Fanbite/SPIRAL BLD, Desrt Leach/SAND STORM under the Land Rover and again
 under the Ice Digger), the Ice Digger's two-pass swing divergence and their
 limits.
 
+### Party command scripts
+
+`--policy attack|defend` keeps its existing inputs and default (`attack`).
+`--party-script commands.json` selects commands through the cartridge's own
+COMD, lists and target cursors. First cache the base tape's actual party and
+inventory at its encounter seam:
+
+```sh
+python3 -m oracle.force --formation 0x126 --prepare-script \
+  --scout build/x86/scout.json --out build/x86/base
+python3 -m oracle.force --formation 0x126 --durable --max-rounds 4 \
+  --party-script commands.json --scout build/x86/scout.json \
+  --require-ability 0x1D --out build/x86/siren
+```
+
+The script is strict JSON. Every round names all occupied party fighters by
+one-based battle slot (1..5), not character id. All keys shown are required;
+DEFEND has no `id` or `target`:
+
+```json
+{
+  "rounds": [
+    {
+      "1": {"command": "technique", "id": "0x01", "target": 6},
+      "2": {"command": "attack", "target": 7},
+      "3": {"command": "defend"}
+    },
+    {
+      "1": {"command": "skill", "id": 6, "target": 6},
+      "2": {"command": "item", "id": "0x39", "target": -1},
+      "3": {"command": "defend"}
+    }
+  ],
+  "repeat_last": true
+}
+```
+
+IDs accept integers or hexadecimal strings. Targets are fighters 1..5 (party),
+6..9 (enemies), or `-1` for a command with no target cursor (whole-side/self
+range, or a multi-target weapon). Script rounds count **player command phases**:
+an ambush round consumes no script round. `repeat_last` defaults to false;
+exhausting a finite script refuses the run. The example is a format illustration,
+not a promise that an arbitrary base party owns its named skills/items.
+
+Preflight reads the hashed RAM observation and decoded definitions from the
+ignored `runtime-pack/battle/` pack. It rejects unknown/unlearned techniques,
+exhausted skills, unaffordable techniques, absent items and invalid ranges before
+any probe or capture frame runs. Later list entries are checked live too. Explicit
+`--ram-patch FRAME:FFFFADDRESS:HEX` fixtures are allowed only with a script, only
+at `battle_first + 1`, and only within party/inventory RAM `$F400..$FA7F`.
+They never write commands, menu cursors or list scratch. The Psycho Wand event
+recipe is in [BATTLE_ORACLE_X86.md](../docs/oracle/BATTLE_ORACLE_X86.md).
+
+`Battle_ProcessCOMD` (`ps4.asm:7635-7661`) advances the party slot, skips
+status-ineligible actors and bypasses command input during an enemy ambush.
+The command strip is horizontal (`Battle_CharCommand`, `ps4.asm:2192-2225`).
+The cartridge builds reverse learned technique/skill lists and equipment-first
+item lists (`Battle_FillTechList`, 1695-1730; `Battle_FillSkillList`, 1734-1792;
+`Battle_FillItemList`, 1796-1816). Live list cursors select four-row pages
+(`Battle_UpdateRedCursor2`, 1572-1603); disabled entries cannot be selected.
+Enemy targets follow occupied objects (`Battle_PickTargetEnemy`, 1216-1250).
+Party target order is spatial, so the pilot observes the actual cursor and
+fighter coordinates (`Battle_PickTargetChar`, 1337-1373), without embedding a
+ROM coordinate table. A pad press holds four frames then releases twelve.
+
+A read-only pilot host pauses at input-block boundaries and observes RAM. It
+preserves the probe's exact pad prefix through the measured formation draw:
+changing it earlier can change the HV roll and select another formation.
+`script-inputs.json` records the live decisions; `script-map.tsv/json` records
+additional observations. The pilot freezes an ordinary tape, which the stock,
+self-building host captures and verifies twice with the existing RNG checker.
+The pilot is not the final evidence host. Extraction records each actual command,
+its concrete item copy, inventory and end-of-round HP/TP/form/MDEF state;
+`oracle.sweep.replay_pack` mirrors only the decoded definitions those commands need.
+
 ### Sweeping a region: `python3 -m oracle.sweep`
 
 `python3 -m oracle.force` captures one formation; `python3 -m oracle.sweep`

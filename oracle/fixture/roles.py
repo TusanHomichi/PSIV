@@ -133,6 +133,10 @@ def label_calls(record, frame, count):
                         0)] * DAMAGE_RUN
         return labels
     if record["actor"] <= PARTY_SIDE_MAX:
+        if record.get("kind", "attack") != "attack":
+            # Technique/skill/item chance consumers are not physical hit
+            # passes; damage runs above are still directly observable.
+            return [("action", None, 0)] * count
         labels = hit_pass_labels(count, resolved_targets(record),
                                  record["passes_done"] + 1)
         if labels is not None:

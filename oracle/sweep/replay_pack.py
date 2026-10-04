@@ -39,7 +39,7 @@ ELEMENTS = ("physical", "energy", "fire", "gravity", "water", "anti_evil",
 #: Fusion (`BattleObj_Fusion`, `ps4.asm:35832`) replaces both Zol slugs
 #: (enemy 34) with the MetaSlug its formation data names (enemy 36), which no
 #: formation seats at the start.
-SPAWNED = {34: 36}
+SPAWNED = {34: 36, 139: 140}  # Psycho Wand's loc_3CF60, ps4.asm:79203-79215.
 
 
 def fixture_enemies(fixtures: pathlib.Path) -> tuple[set[int], set[int]]:
@@ -63,7 +63,8 @@ def fixture_enemies(fixtures: pathlib.Path) -> tuple[set[int], set[int]]:
                 # the two tapes' own replay, whose enemy turns the hand-written
                 # records beside this file carry), so they are read with
                 # `get`: an action with no `kind` is not an ability here.
-                if action.get("kind", "attack") != "attack" and action.get("ability"):
+                if (action["actor"] > 5 and action.get("kind", "attack") != "attack"
+                        and action.get("ability")):
                     abilities.add(action["ability"])
     return enemies, abilities
 
@@ -113,7 +114,52 @@ def skill_record(record: dict) -> dict:
     }
 
 
-def build(pack: pathlib.Path, fixtures: pathlib.Path) -> dict:
+def party_records(runtime: pathlib.Path, fixtures: pathlib.Path) -> dict:
+    """Mirror psiv-data's decoded records, never read the ROM in the replay."""
+    wanted = {kind: set() for kind in ("technique", "skill", "item")}
+    for path in sorted(fixtures.rglob("*.json")):
+        document = json.loads(path.read_text())
+        for round_ in document.get("rounds", []):
+            for command in round_.get("commands", []):
+                if command["command"] in wanted:
+                    wanted[command["command"]].add(command["ability"])
+    if not any(wanted.values()):
+        return {"techniques": [], "skills": [], "battle_items": []}
+    abilities = json.loads((runtime / "battle/abilities.json").read_text())
+    equipment = {record["id"]: record for record in json.loads(
+        (runtime / "battle/equipment.json").read_text())["items"]}
+    result = {}
+    for kind, key, output in (("technique", "techniques", "techniques"),
+                              ("skill", "skills", "skills"),
+                              ("item", "item_effects", "battle_items")):
+        records = {record["id"]: record for record in abilities[key]}
+        values = []
+        for id_ in sorted(wanted[kind]):
+            record = records[id_]
+            value = {"id": id_, "name": record["display_name"],
+                     "effect": record["effect_id"],
+                     "power": record["power_or_hit_chance"],
+                     "resistance": record["resistance_stat"]["id"],
+                     "element": record["element"]["id"]}
+            if kind == "item":
+                value.update(actor_power=record["parameter_2"],
+                             targeting=record["targeting_or_parameter_3"] & 15,
+                             object=record["battle_object_or_graphic_id"],
+                             consumable=equipment[id_]["type"]["id"] == 8)
+            else:
+                value["targeting"] = record["targeting"]["raw"]
+                if kind == "technique":
+                    value["cost"] = record["tp_cost"]
+                else:
+                    value.update(power_stat=record["relevant_stat"]["id"],
+                                 requires_weapon=record["requires_weapon"])
+            values.append(value)
+        result[output] = values
+    return result
+
+
+def build(pack: pathlib.Path, fixtures: pathlib.Path,
+          runtime: pathlib.Path | None = None) -> dict:
     enemies = {record["id"]: record for record in json.loads(
         (pack / "enemies.json").read_text())}
     skills = {record["id"]: record for record in json.loads(
@@ -128,10 +174,12 @@ def build(pack: pathlib.Path, fixtures: pathlib.Path) -> dict:
             ability for ability in
             list(record["ai"]["regular_ability_ids"])
             + list(record["ai"]["conditional_ability_ids"]) if ability)
-    return {
+    document = {
         "generated_by": "oracle/sweep/replay_pack.py",
         "source": {"enemies": "generated/enemies.json",
-                   "enemy_skills": "generated/enemy_skills.json"},
+                   "enemy_skills": "generated/enemy_skills.json",
+                   "party_abilities": "runtime-pack/battle/abilities.json",
+                   "equipment": "runtime-pack/battle/equipment.json"},
         "note": "every record the committed fixtures need - every fixture under "
                 "replay_fixtures/, subdirectories included - by the "
                 "enemy id they seat and the ability ids those enemies can "
@@ -142,18 +190,21 @@ def build(pack: pathlib.Path, fixtures: pathlib.Path) -> dict:
                          for ability in sorted(wanted_abilities)
                          if ability in skills],
     }
+    document.update(party_records(runtime or ROOT / "runtime-pack", fixtures))
+    return document
 
 
 def main(argv: list[str] | None = None) -> int:
     parsed = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parsed.add_argument("--pack", default=str(ROOT / "generated"))
+    parsed.add_argument("--runtime-pack", default=str(ROOT / "runtime-pack"))
     # The whole fixture directory, not only one sweep's: the pack beside it is
     # what every committed fixture reads.
     parsed.add_argument("--fixtures", default=str(FIXTURES))
     parsed.add_argument("--out", default=str(FIXTURES / "motavia_pack.json"))
     arguments = parsed.parse_args(argv)
     document = build(pathlib.Path(arguments.pack),
-                     pathlib.Path(arguments.fixtures))
+                     pathlib.Path(arguments.fixtures), pathlib.Path(arguments.runtime_pack))
     out = pathlib.Path(arguments.out)
     out.write_text(json.dumps(document, separators=(",", ":")) + "\n")
     print(f"wrote {out}: {len(document['enemies'])} enemy record(s), "

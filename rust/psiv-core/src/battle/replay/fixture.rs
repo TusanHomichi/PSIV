@@ -17,6 +17,9 @@ pub(crate) struct Fixture {
     pub(crate) provenance: Provenance,
     pub(crate) formation: Formation,
     pub(crate) party: Vec<PartyEntry>,
+    /// The live forty-byte inventory, including holes, for scripted ITEM commands.
+    #[serde(default)]
+    pub(crate) inventory: Option<Vec<u8>>,
     /// A vehicle battle's party side (`loc_78EE`, `ps4.asm:11408`).
     #[serde(default)]
     pub(crate) vehicle: Option<VehicleSection>,
@@ -218,6 +221,20 @@ pub(crate) struct Round {
     pub(crate) commands: Vec<CommandEntry>,
     pub(crate) roll_count: u32,
     pub(crate) actions: Vec<Action>,
+    #[serde(default)]
+    pub(crate) inventory_after: Option<Vec<u8>>,
+    #[serde(default)]
+    pub(crate) state_after: Option<Vec<EndState>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(crate) struct EndState {
+    pub(crate) id: u8,
+    pub(crate) hp: u16,
+    pub(crate) status: u8,
+    pub(crate) tp: Option<u16>,
+    pub(crate) enemy_id: Option<u16>,
+    pub(crate) mental_defence: Option<u16>,
 }
 
 /// One party member's round command, as `Character_Command_Data` held it.
@@ -225,13 +242,22 @@ pub(crate) struct Round {
 pub(crate) struct CommandEntry {
     /// The one-based party-side fighter id the command belongs to.
     pub(crate) id: u8,
-    /// The command's name. Every capture these fixtures replay is the attack
-    /// policy's, so the extractor writes `attack`; nothing here reads it.
-    #[allow(dead_code)]
+    /// The selected cartridge command, not an inferred default attack.
     pub(crate) command: String,
+    #[serde(default)]
+    pub(crate) ability: Option<u8>,
+    #[serde(default)]
+    pub(crate) source: Option<CommandSource>,
     /// The command's target cell, absent for a capture with no `bcmd` columns.
     #[serde(default)]
     pub(crate) target: Option<i16>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub(crate) enum CommandSource {
+    Inventory(u8),
+    Equipment(u8),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Default)]
@@ -245,6 +271,10 @@ pub(crate) enum Kind {
     Ability,
     /// An enemy's ability that spent the turn without an effect.
     Wasted,
+    Technique,
+    Skill,
+    Item,
+    Defend,
 }
 
 #[derive(Debug, Deserialize)]
