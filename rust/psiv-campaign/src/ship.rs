@@ -11,7 +11,7 @@
 
 use psiv_core::{Direction, WORLD_COUNT};
 use psiv_data::GameData;
-use psiv_runtime::{Button, Pad};
+use psiv_runtime::{Button, DestinationPhase, Pad};
 
 use crate::driver::{Driver, dir_pad};
 use crate::halt::{Halt, HaltKind, Res};
@@ -76,8 +76,23 @@ impl Driver {
                 format!("stepping {step:?} opened no destination menu"),
             ));
         }
-        // Let go of the step so the next press is a fresh edge.
+        // Let go of the step so the next press is a fresh edge, then wait out
+        // the window's opening: the cartridge discards every pad edge while
+        // Window_Draw runs (`DestinationPhase::Opening`), as a player's early
+        // presses would be.
         self.tick(Pad::NEUTRAL)?;
+        for _ in 0..MENU_FRAMES {
+            match self.session().destination_view().map(|view| view.phase) {
+                Some(DestinationPhase::Choosing) => break,
+                Some(_) => self.tick(Pad::NEUTRAL)?,
+                None => {
+                    return Err(Halt::new(
+                        HaltKind::UnexpectedState,
+                        "the destination menu closed before it took input",
+                    ));
+                }
+            }
+        }
         let (row, rows) = {
             let view = self.session().destination_view().ok_or_else(|| {
                 Halt::new(HaltKind::UnexpectedState, "the destination menu closed")
