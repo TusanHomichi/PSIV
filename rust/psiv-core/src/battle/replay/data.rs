@@ -88,6 +88,27 @@ fn fixture_files() -> Vec<(String, PathBuf)> {
     let dir = fixtures_dir();
     let mut files: Vec<(String, PathBuf)> = Vec::new();
     collect_fixtures(&dir, &dir, &mut files);
+    let local = local_fixtures_dir();
+    if local.join("replay_pack.json").is_file() {
+        let mut additional = Vec::new();
+        collect_fixtures(&local, &local, &mut additional);
+        if additional.is_empty() {
+            eprintln!(
+                "no local captures at {}; skipping local captures",
+                local.display()
+            );
+        }
+        files.extend(
+            additional
+                .into_iter()
+                .map(|(name, path)| (format!("local/{name}"), path)),
+        );
+    } else {
+        eprintln!(
+            "local replay inputs absent at {}; skipping local captures",
+            local.display()
+        );
+    }
     files.sort();
     assert!(
         files.len() >= 2,
@@ -97,12 +118,20 @@ fn fixture_files() -> Vec<(String, PathBuf)> {
     files
 }
 
+fn local_fixtures_dir() -> PathBuf {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    root.join(
+        std::env::var_os("PSIV_REPLAY_FIXTURES")
+            .unwrap_or_else(|| "build/oracle/replay_fixtures".into()),
+    )
+}
+
 /// The directory's own data files: the manifest, and the swept records
 /// [`super::pack`] reads (`oracle/sweep/replay_pack.py`). Everything else
 /// under the directory is a fixture - a file that is not one fails the walk
 /// with the extractor's own parse error, which is the honest way to find out.
 fn not_a_fixture(name: &std::ffi::OsStr) -> bool {
-    name == "divergences.json" || name == "motavia_pack.json"
+    name == "divergences.json" || name == "motavia_pack.json" || name == "replay_pack.json"
 }
 
 fn collect_fixtures(root: &Path, dir: &Path, files: &mut Vec<(String, PathBuf)>) {
@@ -142,6 +171,11 @@ fn collect_fixtures(root: &Path, dir: &Path, files: &mut Vec<(String, PathBuf)>)
 fn every_fixture_replays_as_recorded() {
     let (manifest, manifest_path) = manifest();
     let data = pack::data();
+    let local = local_fixtures_dir();
+    let local_data = local
+        .join("replay_pack.json")
+        .is_file()
+        .then(|| pack::local_data(&local.join("replay_pack.json")));
     let files = fixture_files();
     let mut checked = 0;
     for (name, path) in &files {
@@ -154,7 +188,16 @@ fn every_fixture_replays_as_recorded() {
             "{name}: the fixture records the capture's trace"
         );
 
-        let replay = replay_inner(&fixture, &data);
+        let replay = replay_inner(
+            &fixture,
+            if name.starts_with("local/") {
+                local_data
+                    .as_ref()
+                    .expect("local captures need the validated pack export")
+            } else {
+                &data
+            },
+        );
         let finding = &replay.finding;
         let entry = manifest.fixtures.get(name);
         match (finding, entry) {
@@ -260,6 +303,10 @@ fn every_fixture_replays_as_recorded() {
         checked += 1;
     }
     assert_eq!(checked, files.len(), "every fixture was replayed");
+    eprintln!(
+        "replayed {checked} fixtures; {} manifest entries",
+        manifest.fixtures.len()
+    );
 }
 
 /// Writes the manifest entry every diverging fixture needs - one JSON object
@@ -293,13 +340,27 @@ fn dump_manifest_entries() {
     let dump_path = manifest_dump_path();
     let (manifest, manifest_path) = manifest();
     let data = pack::data();
+    let local = local_fixtures_dir();
+    let local_data = local
+        .join("replay_pack.json")
+        .is_file()
+        .then(|| pack::local_data(&local.join("replay_pack.json")));
     let files = fixture_files();
     let mut lines: Vec<String> = Vec::new();
     for (name, path) in &files {
         let text = std::fs::read_to_string(path)
             .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
         let fixture = fixture(&text);
-        let replay = replay_inner(&fixture, &data);
+        let replay = replay_inner(
+            &fixture,
+            if name.starts_with("local/") {
+                local_data
+                    .as_ref()
+                    .expect("local captures need the validated pack export")
+            } else {
+                &data
+            },
+        );
         let Some(finding) = &replay.finding else {
             continue;
         };

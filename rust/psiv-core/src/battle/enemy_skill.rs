@@ -314,6 +314,11 @@ pub(super) fn resolve_fission(
 /// (45) — are arms too.
 const FLOAT_MINE_CARRIERS: [u16; 4] = [44, 45, 46, 50];
 
+/// `EnemyAttack_ArmDrone` (ps4.asm:22789-22806), shared by 41 ArmDrone
+/// and 42 SatMinion. Only WAITING takes `loc_10468` (22807-22813),
+/// which clears the target and ability and spends the turn like loc_10406.
+const ARM_DRONE_CARRIERS: [u16; 2] = [41, 42];
+
 /// The roll this routine has nothing to load for: `$07` Fission2 on 50
 /// FloatMine2 and `$17` Waiting on 44 FloatMine, 46 VopalSphre and 50
 /// FloatMine2 spend the turn without an effect.
@@ -342,9 +347,9 @@ const FLOAT_MINE_CARRIERS: [u16; 4] = [44, 45, 46, 50];
 /// a physical swing is the whole point: the actor really does act and do
 /// nothing.
 ///
-/// `$18`/`$19`/`$14`/`$1A` on these carriers still fall back — their objects
-/// are outside this transcription — which is what the negative control in
-/// `enemy_skill_tests` pins with 45 CommndBall's own `$19`.
+/// The ArmDrone family has the same clear-and-return arm for WAITING only;
+/// FISSION2 must not enter it. Damage arms are owned by `enemy_damage`, and
+/// neither their existence nor another carrier's no-effect arm proves a pair.
 pub(super) fn resolve_no_effect_turn(
     roster: &mut Roster,
     actor: FighterId,
@@ -361,7 +366,8 @@ pub(super) fn resolve_no_effect_turn(
     let carrier = roster.get(actor).is_some_and(|fighter| {
         fighter.is_alive()
             && fighter.id.side() == Side::Enemy
-            && FLOAT_MINE_CARRIERS.contains(&fighter.stats.enemy_id)
+            && (FLOAT_MINE_CARRIERS.contains(&fighter.stats.enemy_id)
+                || (skill.is_waiting() && ARM_DRONE_CARRIERS.contains(&fighter.stats.enemy_id)))
     });
     if !carrier {
         return false;

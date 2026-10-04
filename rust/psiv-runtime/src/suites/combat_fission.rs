@@ -349,11 +349,11 @@ fn floatmine2_formations_spend_fission2_and_waiting_turns_without_a_swing() {
 }
 
 /// The same formation roster with 45 CommndBall in the middle — pack formation
-/// 292 — rolls `$19` Detonation, one of the routine's *arms*. Its object is
-/// untraced, so it keeps the ordinary fallback: an `UnsupportedAbility` notice
-/// and a physical swing. The wasted-turn witness must not swallow an arm.
+/// 292 — rolls `$19` Detonation. loc_17C9E (ps4.asm:33114-33127)
+/// damages the party; loc_17D4A (33154-33177) clears both neighbor objects
+/// without clearing their cached stats. Neither a wasted turn nor a fallback.
 #[test]
-fn a_float_mine_arm_on_a_real_formation_keeps_the_physical_fallback() {
+fn detonation_on_a_real_formation_damages_party_and_removes_only_neighbors() {
     let pack = Path::new(PACK);
     if !pack.join("manifest.json").is_file() {
         eprintln!("runtime pack absent; skipping");
@@ -372,24 +372,26 @@ fn a_float_mine_arm_on_a_real_formation_keeps_the_physical_fallback() {
             .collect::<Vec<_>>(),
         vec![50, 45, 50]
     );
+    let cached: Vec<_> = [id(6), id(8)]
+        .into_iter()
+        .map(|who| {
+            runtime
+                .battle_roster()
+                .unwrap()
+                .get(who)
+                .unwrap()
+                .stats
+                .clone()
+        })
+        .collect();
     runtime.set_rng_seed(0x0101_5678);
     let timeline = runtime
         .battle_round_timeline(&RoundOrders::Commands(vec![Command::Defend; 3]))
         .unwrap();
     assert!(
-        timeline.events.contains(&BattleEvent::UnsupportedAbility {
-            actor: id(7),
-            ability: 25,
-        }),
+        timeline.events.iter().any(|e| matches!(e,
+            BattleEvent::EnemySkillUsed { actor, skill: 25, .. } if *actor == id(7))),
         "CommndBall's whole list is `$19`: {:?}",
-        timeline.events
-    );
-    assert!(
-        timeline
-            .events
-            .iter()
-            .any(|e| matches!(e, BattleEvent::Attacked { actor, .. } if *actor == id(7))),
-        "{:?}",
         timeline.events
     );
     assert!(
@@ -400,4 +402,28 @@ fn a_float_mine_arm_on_a_real_formation_keeps_the_physical_fallback() {
         "{:?}",
         timeline.events
     );
+    assert!(!timeline.events.iter().any(|e| matches!(e,
+        BattleEvent::UnsupportedAbility { actor, .. } | BattleEvent::Attacked { actor, .. }
+            if *actor == id(7))));
+    let damaged: Vec<_> = timeline
+        .events
+        .iter()
+        .filter_map(|e| match e {
+            BattleEvent::Resolved {
+                actor,
+                target,
+                damage: Some(_),
+                ..
+            } if *actor == id(7) => Some(*target),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(damaged, [id(1), id(2), id(3)]);
+    let roster = runtime.battle_roster().unwrap();
+    assert!(roster.get(id(7)).unwrap().is_alive());
+    for (who, stats) in [id(6), id(8)].into_iter().zip(cached) {
+        let removed = roster.get(who).unwrap();
+        assert!(!removed.active);
+        assert_eq!(removed.stats, stats);
+    }
 }

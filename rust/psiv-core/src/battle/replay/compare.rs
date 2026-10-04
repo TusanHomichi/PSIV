@@ -377,6 +377,8 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
                 }
                 (Kind::Ability, EnemyTurn::Ability(skill)) if Some(*skill) == action.ability => {}
                 (Kind::Wasted, EnemyTurn::Wasted(ability)) if Some(*ability) == action.ability => {}
+                (Kind::Wasted, EnemyTurn::Wasted(0x07 | 0x17))
+                    if action.ability_cleared && action.ability == Some(0) => {}
                 (Kind::Wasted, EnemyTurn::Ability(skill)) if Some(*skill) == action.ability => {
                     // The log cannot tell this turn from one the arm spent:
                     // both draw the ability roll and nothing else, and neither

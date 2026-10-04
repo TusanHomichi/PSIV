@@ -200,6 +200,9 @@ pub struct Battle {
     /// `EnemyInit_Zio` clears it at battle start (`ps4.asm:17895`); only the
     /// three Zio routines write it.
     enemy_phase: u8,
+    /// `$FFFFEE87`: boss-init latch. DarkForce1 consumes it in its first
+    /// attack (ps4.asm:20031-20035), after the ordinary ability draw.
+    scripted_latch: bool,
 }
 
 impl Battle {
@@ -309,6 +312,7 @@ impl Battle {
                 run_chance: formation.can_run().then_some(formation.run_chance),
                 vehicle,
                 enemy_phase: 0,
+                scripted_latch: scripted,
             },
             events,
         ))

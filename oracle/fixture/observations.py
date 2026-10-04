@@ -300,8 +300,23 @@ def decided_frame(log, enemy_ids, party_ids, first, last, columns=None):
         frames.append(wiped_out(log, enemy_ids, first, last, columns))
     if party_ids:
         frames.append(wiped_out(log, party_ids, first, last, columns))
+    # Object removal need not zero cached HP. loc_66B8's object/status scan
+    # selects $18 when no enemy remains (ps4.asm:9760-9772), then loc_67AE
+    # opens the victory sequence. This sampled state is stronger than HP.
+    frames.append(next((frame for frame in range(first, last + 1)
+                        if frame in log.by_frame and victory_declared(log, frame)), None))
     seen = [frame for frame in frames if frame is not None]
     return min(seen) if seen else None
+
+
+def victory_declared(log, frame):
+    """The primary victory routine, distinct from an attack or a run exit.
+
+    BattleRoutines $18 -> loc_67AE (ps4.asm:7537,9780): this state is
+    selected by the live enemy-object scan, not the cached stats' HP.
+    Older captures without the column keep their HP-based observation.
+    """
+    return log.has("battle_routine") and log.num(frame, "battle_routine") == 0x18
 
 
 def hit_flag_column(fighter_id):

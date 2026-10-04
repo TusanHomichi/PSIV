@@ -164,6 +164,21 @@ def capture_phase(plan_facts: dict, specs: list[str], draw: Draw, pack: Pack,
     preview_capture = read_capture(preview, draw.frame,
                                   selector.kind == "vehicle", preview_rows)
     battle_shape(preview_capture, preview_rows, layout)
+    if durable is not None and durable.frame != preview_capture.start_frame:
+        print(f"durable: estimated f{durable.frame}, forced preview measures "
+              f"f{preview_capture.start_frame}; calibrating the HP patch")
+        specs[:] = durable_patch.align_to_capture(
+            durable, specs, layout, preview_capture.start_frame)
+        # Retain the mis-timed preview. Only the calibrated preview and the
+        # two identical final captures can certify a durable start state.
+        preview = runs.run_oracle(plan_facts["full_tape"], out / "preview-calibrated",
+                                 stem, specs)
+        preview_rows = read_rows(preview.log)
+        preview_capture = read_capture(preview, draw.frame,
+                                      selector.kind == "vehicle", preview_rows)
+        battle_shape(preview_capture, preview_rows, layout)
+        durable_patch.verify(durable, fixture.Log(preview_rows, layout),
+                             preview_capture.start_frame)
     cap_rounds(preview_capture, args.max_rounds)
     window = preview_capture.window
     if not matches(preview_capture, pack, formation):
@@ -359,9 +374,16 @@ def run(args) -> int:
         "\n".join(lines) + "\n" + "\n".join(specs) + "\n")
     print("patches: " + "  ".join(specs))
 
+    estimated_frame = durable.frame if durable is not None else None
     final, preview_status = capture_phase(plan_facts, specs, draw, pack,
                                          selector, formation, args, layout,
                                          durable)
+    if durable is not None and durable.frame != estimated_frame:
+        patch_file = plan_facts["out"] / f"{stem}.patches.txt"
+        (plan_facts["out"] / f"{stem}.estimated.patches.txt").write_text(patch_file.read_text())
+        lines[-1] = (f"# f{durable.frame}: the durable party patch, {durable.hp} HP to "
+                     f"{', '.join(durable.cells)} - measured from the forced preview")
+        patch_file.write_text("\n".join(lines) + "\n" + "\n".join(specs) + "\n")
     checked = subprocess.run(
         # `python3 -m oracle.rng_trace`, from the repository root the tools are
         # modules of - the same convention the sweep's own commands use

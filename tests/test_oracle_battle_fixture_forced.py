@@ -23,6 +23,8 @@ from tests.test_oracle_battle_fixture import (FixtureTest, LogBuilder, RAM_MAP,
 FORCED_MAP = {"fields": RAM_MAP["fields"] + [
     {"name": f"e{slot}_ability", "hex": True} for slot in range(1, 5)
 ] + [
+    {"name": "battle_routine", "hex": True},
+    {"name": "current_target", "hex": True},
     {"name": "vehicle_index", "hex": True},
     {"name": "vehicle_fighter_hp", "hex": False},
     {"name": "vehicle_land_hp", "hex": False},
@@ -39,6 +41,7 @@ class ForcedRow(Row):
     def __init__(self, **overrides):
         defaults = {f"e{slot}_ability": "00" for slot in range(1, 5)}
         defaults.update({
+            "battle_routine": "0000", "current_target": "0000",
             "vehicle_index": "0000", "vehicle_fighter_hp": "0",
             "vehicle_land_hp": "0", "vehicle_land_max_hp": "0",
             "vehicle_land_skill_mask": "0",
@@ -213,6 +216,71 @@ class EnemyAbilities(ForcedFixture):
         action = fixture["rounds"][0]["actions"][0]
         self.assertEqual(action["kind"], "attack")
         self.assertEqual(action["ability"], 0)
+
+
+class ClearedAbility(ForcedFixture):
+    def rows(self, **overrides):
+        builder = ForcedLog()
+        builder.frame(20, enemy_count=1, e1_id=f"{42:X}", e1_hp=100, e1_maxhp=100)
+        builder.frame(21, turn_00=6, turn_01=20)
+        builder.frame(22, battle_actor=6, battle_routine="0016", current_target="0000",
+                      **{f"hit_{i:02d}": "FF" for i in range(9)}, **overrides)
+        builder.frame(23)
+        return builder.rows
+
+    def test_clear_and_return_keeps_zero_and_labels_every_draw_as_an_ability_roll(self):
+        fixture = self.build(self.rows(), {20: 1, 21: 13, 22: 2}, 20, 23)
+        action = fixture["rounds"][0]["actions"][0]
+        self.assertEqual((action["kind"], action["ability"]), ("wasted", 0))
+        self.assertTrue(action["ability_cleared"])
+        self.assertEqual(action["targets"], [])
+        self.assertEqual([r[2] for r in fixture["rolls"]["rows"] if r[6] == 6],
+                         ["ability", "ability_reroll"])
+
+    def test_a_physical_miss_with_a_live_target_is_not_a_cleared_ability(self):
+        rows = self.rows()
+        for row in rows[2:]:
+            row.values["current_target"] = "0001"
+        fixture = self.build(rows, {20: 1, 21: 13, 22: 2}, 20, 23)
+        action = fixture["rounds"][0]["actions"][0]
+        self.assertEqual(action["kind"], "attack")
+        self.assertNotIn("ability_cleared", action)
+
+    def test_an_unread_carrier_is_not_classified_by_the_signature_alone(self):
+        fixture = self.build(self.rows(e1_id=100), {20: 1, 21: 13, 22: 2}, 20, 23)
+        action = fixture["rounds"][0]["actions"][0]
+        self.assertEqual(action["kind"], "attack")
+        self.assertNotIn("ability_cleared", action)
+
+
+class ObjectRemovalVictory(ForcedFixture):
+    def rows(self, routine):
+        builder = ForcedLog()
+        builder.frame(20, enemy_count=1, e1_id=f"{44:X}", e1_hp=100, e1_maxhp=100)
+        builder.frame(21, turn_00=6, turn_01=20)
+        builder.frame(22, battle_actor=6, e1_ability="18")
+        builder.frame(23, hit_00="00", dmg_00=5, alys_hp=48)
+        builder.frame(24, battle_routine=routine)
+        builder.frame(25, battle_routine="0000")
+        return builder.rows
+
+    def test_declared_victory_ends_battle_without_zeroing_cached_enemy_hp(self):
+        fixture = self.build(self.rows("0018"), {20: 1, 21: 13, 22: 1, 23: 16, 25: 1},
+                             20, 25)
+        self.assertTrue(fixture["outcome"]["victory"])
+        self.assertEqual(fixture["outcome"]["end_frame"], 24)
+        self.assertEqual(fixture["outcome"]["dead_enemy_ids"], [])
+        outside = fixture["outside_rolls"]["rows"]
+        self.assertEqual(outside[-1][0:3:2], [25, "item_drop"])
+        self.assertEqual(fixture["rounds"][0]["roll_count"], 13 + 1 + 16)
+
+    def test_an_ordinary_continuation_is_not_a_victory_declaration(self):
+        fixture = self.build(self.rows("0010"), {20: 1, 21: 13, 22: 1, 23: 16, 25: 1},
+                             20, 25)
+        self.assertFalse(fixture["outcome"]["victory"])
+        self.assertIsNone(fixture["provenance"]["decided_frame"])
+        self.assertFalse(any(row[2] == "item_drop"
+                             for row in fixture["outside_rolls"]["rows"]))
 
 
 class ActionWindows(ForcedFixture):

@@ -260,6 +260,10 @@ pub(crate) struct Action {
     /// The ability id the log's `eN_ability` byte held for this action.
     #[serde(default)]
     pub(crate) ability: Option<u8>,
+    /// The cited no-object arm's clear-and-return snapshot: the stored id
+    /// is zero, not the chosen id. The extractor retains that uncertainty.
+    #[serde(default)]
+    pub(crate) ability_cleared: bool,
     pub(crate) targets: Vec<Target>,
     /// The party-side fighters alive when the action opened; the comparator
     /// reads the targets it resolves, so this is the fixture's own record of

@@ -13,15 +13,15 @@
 //! | read, clear | the first action of `EnemyAttack_ProfoundDarkness1` (`ps4.asm:19824-19828`), `_DarkForce2` (`19971-19975`), `_DarkForce1` (`20031-20035`) and `_CarnivorousTree` (`20102-20105`) | `tst.b` then `clr.b` and a fixed object with the ability cleared |
 //! | read | `loc_B62A` (`ps4.asm:17448-17449`), the opening-priority routine | `tst.b ($FFFFEE87).w / beq.s / st d0` |
 //!
-//! Only the last reader is modelled here: with the flag up `Battle_Priority`
+//! The opening reader makes `Battle_Priority`
 //! becomes `$FF`, an enemy ambush, whatever the chance roll and the boss
 //! forcing said (`ps4.asm:17436-17452`; `Battle_ProcessCOMD`'s
 //! `tst.b (Battle_Priority).w / bmi` at `ps4.asm:7636` then skips the party's
 //! command input, and `Battle_OrderTurns` queues the enemies alone). The four
-//! first-action readers dispatch fixed objects instead of the rolled ability;
-//! none of those arms is a row of the damage tables yet, so they keep the
-//! explicit unsupported path (issue #62's ProfoundDarkness1 FIREBREATH row is
-//! the one waiting on them).
+//! first-action readers dispatch fixed objects instead of the rolled ability.
+//! `engine_enemy` models DarkForce1's animation-only intro, consuming the
+//! shared latch once; its later arms use the damage registry. The other
+//! first-action readers remain outside that registry (issue #62).
 
 /// Whether the init routine of `enemy_id` raises `$FFFFEE87`.
 ///

@@ -64,6 +64,15 @@ impl Battle {
         if let Some(fighter) = self.roster.get_mut(actor) {
             fighter.ability = ability;
         }
+        if enemy_id == 130 && self.scripted_latch {
+            // EnemyAttack_DarkForce1 (ps4.asm:20031-20035) clears the
+            // rolled ability and the shared latch, then loads $818.
+            // loc_32344 (64872-65000), including its children, animates
+            // only: no damage request and no UpdateRNGSeed2 call.
+            self.scripted_latch = false;
+            self.roster.get_mut(actor).expect("acting enemy").ability = 0;
+            return Ok(true);
+        }
         if let Some(arm) = zio::step(enemy_id, self.enemy_phase) {
             self.run_zio_arm(actor, intended, arm, events);
             return Ok(true);
