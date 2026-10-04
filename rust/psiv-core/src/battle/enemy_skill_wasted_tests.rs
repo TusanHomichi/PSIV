@@ -135,7 +135,9 @@ fn float_mine_carriers_spend_the_roll_without_an_effect_or_a_swing() {
         (50u16, [7u8; 8], 7u8, "FISSION"),
         (44, [23; 8], 23, "WAITING"),
         (46, [23; 8], 23, "WAITING"),
-        // `EnemyAttack_ArmDrone`'s `$17` arm is the same fall-through body.
+        // `EnemyAttack_ArmDrone`'s `$17` arm `loc_10468` (`ps4.asm:22806-22813`)
+        // is the same fall-through body, for 41 ArmDrone and 42 SatMinion.
+        (41, [23; 8], 23, "WAITING"),
         (42, [23; 8], 23, "WAITING"),
     ] {
         let (battle, events, drawn) =
@@ -183,14 +185,14 @@ fn float_mine_carriers_spend_the_roll_without_an_effect_or_a_swing() {
     }
 }
 
-/// The negative control: the routine's own `$19` arm on its fourth carrier, and
+/// The negative control: a constructed `$19` roll on an unproven carrier, and
 /// the same `$07` record on an enemy outside every `EnemyAttack_FloatMine`
 /// entry, both keep the ordinary fallback — an `UnsupportedAbility` notice, a
 /// physical swing, its accuracy roll and the 16 damage draws.
 #[test]
 fn other_abilities_and_carriers_keep_the_physical_fallback() {
     for (carrier, slots, ability, skills) in [
-        (45u16, [25u8; 8], 25u8, vec![detonation_record()]),
+        (44u16, [25u8; 8], 25u8, vec![detonation_record()]),
         (10, [7; 8], 7, vec![fission2_record()]),
     ] {
         let (_, events, drawn) = float_mine_round(carrier, slots, skills);
@@ -279,4 +281,24 @@ fn the_no_effect_witness_needs_the_traced_record_and_carrier() {
         ));
     }
     assert_eq!(events.len(), 1, "a missed witness adds no event");
+}
+
+#[test]
+fn arm_drone_no_effect_arm_does_not_accept_fission2() {
+    for enemy in [41, 42] {
+        let data = float_mine_data(enemy, [7; 8], vec![fission2_record()]);
+        let mut roster = Roster::new();
+        roster.add_enemy(1, data.enemy(enemy).unwrap());
+        let before = roster.clone();
+        let mut events = Vec::new();
+        assert!(!resolve_no_effect_turn(
+            &mut roster,
+            id(6),
+            7,
+            &data,
+            &mut events
+        ));
+        assert_eq!(roster, before);
+        assert!(events.is_empty());
+    }
 }

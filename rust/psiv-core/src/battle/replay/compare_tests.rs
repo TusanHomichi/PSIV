@@ -127,3 +127,41 @@ fn an_ability_that_lands_a_critical_on_an_unread_slot_diverges() {
         .expect("the port landed a critical the log does not show");
     assert_eq!(finding.kind(), "value");
 }
+
+#[test]
+fn cleared_no_effect_id_needs_its_snapshot_marker_and_a_real_clear_arm() {
+    let mut round = round();
+    let action = &mut round.actions[0];
+    action.kind = Kind::Wasted;
+    action.ability = Some(0);
+    action.targets.clear();
+    let mut events = vec![
+        BattleEvent::RoundBegan {
+            round: 1,
+            order: vec![fighter(6)],
+        },
+        BattleEvent::EnemyAbilityWasted {
+            actor: fighter(6),
+            ability: 0x17,
+            name: "constructed".into(),
+        },
+        BattleEvent::RoundEnded { round: 1 },
+    ];
+    // An observed zero alone never authorizes accepting a different id.
+    assert!(divergence(&round, &events).is_some());
+    round.actions[0].ability_cleared = true;
+    assert_eq!(divergence(&round, &events), None);
+    // An unrelated wasted ability has no cited clear-and-return arm here.
+    if let BattleEvent::EnemyAbilityWasted { ability, .. } = &mut events[1] {
+        *ability = 0x45;
+    }
+    assert!(divergence(&round, &events).is_some());
+    // A damaging turn cannot hide behind the clear marker, either.
+    events[1] = BattleEvent::EnemyAbilityWasted {
+        actor: fighter(6),
+        ability: 0x17,
+        name: "constructed".into(),
+    };
+    events.insert(2, resolved(Verdict::Normal, Some(5)));
+    assert!(divergence(&round, &events).is_some());
+}

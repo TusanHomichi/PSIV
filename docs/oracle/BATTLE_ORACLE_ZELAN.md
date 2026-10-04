@@ -48,9 +48,11 @@ with this party, and the event battles are forced by writing `Event_Battle_Index
 over a random encounter.
 
 A capture is cut (`--max-rounds`, then the recipe's `rounds`) before the first ability
-that no lane implements: FloatMine2's EXPLOSION `$18` and CommndBall's DETONATION
-`$19` (formation `$124`), ChaosSorcr's FLAELI `$5A` and HEWN `$4F`, Dark Force 1's
-FLARE SHOT `$1C`. The delay scan that chose them is the capture tool's own
+that no lane implemented when it was taken: FloatMine2's EXPLOSION `$18` and CommndBall's
+DETONATION `$19` (formation `$124`), ChaosSorcr's FLAELI `$5A` and HEWN `$4F`, Dark Force
+1's FLARE SHOT `$1C`. Lane A3's damage routes (M34) implement all of them, with captures of
+their own ([`BATTLE_ORACLE_REPLAY.md`](BATTLE_ORACLE_REPLAY.md); the A3 captures are local
+and ignored); the cuts below are still where these fixtures end. The delay scan that chose them is the capture tool's own
 `--delay`: event 8 was scanned over delays 0 to 12 and only delay 9 uses SHADOWBIND
 before FLAELI or HEWN; formation `$124` over 0 to 3, where all four open with
 WARNING and delay 2 is the one whose second round is also all supported.
@@ -103,9 +105,9 @@ round's draw count.
 | carrier | why |
 |---|---|
 | 48 Siren386 `$1D` BARRIER (conditional, arm `$08`) | Fires only after the Siren is hit by magic (`EnemyAI_MagicDamageReceived`, reaction flag bit 1). The capture tool has no policy that commands a technique ([forced ledger](BATTLE_ORACLE_FORCED.md) section 1.3: it needs a `tech` policy, a party that knows a single-target technique, and an extractor that records the command kind - the last in `oracle/fixture/`, outside this lane), so no capture can show the arm. The handler (`AbilityEffect_MagicDefenseUp`, range 2, no roll) is not written without an observed use; until then `UnsupportedAbility` and the physical swing. The arm guards on its own derived and battle magic defence (`move.w $2E(a2), d3 / cmp.w $2C(a2), d3 / bgt.w loc_10016`, `ps4.asm:22568-22570`) like ShadowSabr's DEBAN. |
-| 42 SatMinion `$17` WAITING (conditional, arm `$05`) | Implemented by reading: `EnemyAttack_ArmDrone`'s `$17` arm `loc_10468` (`ps4.asm:22806`) is the six instructions of the FloatMine fall-through `loc_10406`, whose behaviour `formation_124_d2` now shows. Every formation that triggers it (`$123`, SatMinion, CRayTube, SatMinion) carries CRayTube's CHARGCNNON `$15` in round 1, a damage ability another lane owns, so no fixture can be kept. Re-capture `$123` once CHARGCNNON is routed. |
+| 42 SatMinion `$17` WAITING (conditional, arm `$05`) | `EnemyAttack_ArmDrone`'s `$17` arm `loc_10468` (`ps4.asm:22806`) is the six instructions of the FloatMine fall-through `loc_10406`, whose behaviour `formation_124_d2` shows. Every formation that triggers it (`$123`, SatMinion, CRayTube, SatMinion) carries CRayTube's CHARGCNNON `$15` in round 1; lane A3 routed CHARGCNNON and its local `chargecannon` capture (formation `$123`) replays the SatMinion WAITING turns ([`ENEMY_ABILITIES_ROUTE.md`](../battle/ENEMY_ABILITIES_ROUTE.md) section 1). No committed fixture: that capture is local by A3's policy. |
 | 58 FlameNewt `$24`, 105 ShadMirage and 132 DarkForce3 `$4B` | Share a routine and arm with a routed pair, are not on the route, were not captured. |
-| 39 Tower `$14` | Same init (`EnemyInit_Tower`) and record as 45 CommndBall, not on the route, not captured; the init gate covers it, the refill record is shared, no fixture. |
+| 39 Tower `$14` | Same init (`EnemyInit_Tower`, with the same FloatMine guard) and record as 45 CommndBall, not on the route, not captured; the init gate covers it, the refill record is shared, no fixture. |
 | `$FFFFEE87`'s other first-action readers (133 ProfoundDarkness1 `$864`, 131 DarkForce2 `$83C`, 129 CarnivorousTree `$808`) | Not on this route (Dezolis's later arc); their objects' chains are unread. |
 
 ## 4. Harness changes the captures needed
@@ -162,6 +164,16 @@ table is what it printed.
 - **WARNING is a refill, not a spent turn.** `EnemyInit_Tower` clears the objects beside
   a CommndBall and its `$14` object ends in `loc_14CBE`, Fission's refill; the first
   reading (an alarm and nothing else) was refuted by the capture's round-1 queue.
+- **`EnemyInit_Tower` has a guard, and it reads the next fighter, not the conditions**
+  (M34, from lane A3's capture of formation `$125`). The routine opens with
+  `cmpi.w #$2C, $52(a4) / bne / rts` (`ps4.asm:18244-18246`). Fighter objects are
+  `next_obj = $40` apart and `fighter_id` is `$12` (`ps4.constants.asm:99,150`), so
+  `$52(a4)` is the next fighter's enemy id and `$2C` is 44 FloatMine. Formation `$124`
+  (FloatMine2 on both sides) opens with a queue of the CommndBall alone; formation
+  `$125` (FloatMine on both sides) queues all three, and the Detonation that follows
+  removes the neighbors. A4's first reading of the word as the enemy's condition ids
+  (`$0101`, so the guard never fires) was wrong about `$125`: the cartridge, not the
+  name of the routine, decided. `enemy_skill::initialize_enemies` carries the guard.
 - **The FloatMine fall-through is now observed** (`$17` on 50 FloatMine2): the log's
   ability byte is `$00` for it, which is why the extractor files it as an attack.
 - **BURSTROC `$63` is a damage ability**, not scripted/custom: object `$82C` jumps into

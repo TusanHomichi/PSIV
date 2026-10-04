@@ -438,7 +438,12 @@ pub enum BattleEvent {
         /// Cartridge display name of the record the roll landed on.
         name: String,
     },
-    /// A fighter's HP reached zero or below.
+    /// A fighter was defeated or its enemy object was removed.
+    ///
+    /// EXPLOSION/DETONATION's object clears (ps4.asm:33713-33724 and
+    /// 33160-33176) use the existing removal cue without changing cached HP,
+    /// status or reward pools. The roster's `active` bit distinguishes them
+    /// from an HP-zero defeat; rewards are owned by the damage caller.
     Died {
         /// Who.
         fighter: FighterId,

@@ -285,3 +285,45 @@ fn warning_refills_the_named_neighbour_and_commndball_starts_with_dormant_ones()
     assert!(!resolve_fission(&mut r, id(7), 20, id(6), &data, &mut Vec::new()).unwrap());
     assert_eq!(r, before);
 }
+
+/// `EnemyInit_Tower`'s opening guard (`ps4.asm:18244-18246`): `$52(a4)` is the
+/// next fighter object's `fighter_id`, and `$2C` is 44 FloatMine. A CommndBall
+/// or Tower with a FloatMine to its right clears nothing - the captured
+/// formation `$125` queues all three; with any other enemy to its right
+/// (`$124`'s FloatMine2) it clears both sides. The guard reads the right-hand
+/// neighbor only, which the third arm pins.
+#[test]
+fn tower_init_keeps_its_neighbours_when_a_float_mine_stands_to_its_right() {
+    let mut ball = fixtures::zoran_bult();
+    ball.id = 45;
+    let mut mine = fixtures::zoran_bult();
+    mine.id = 44;
+    let mut mine2 = fixtures::zoran_bult();
+    mine2.id = 50;
+    let data = fixtures::data().with_enemies([ball, mine, mine2]);
+    for (carrier, line_up, cleared) in [
+        (45, [44, 45, 44], false),
+        (39, [44, 39, 44], false),
+        (45, [50, 45, 50], true),
+        (45, [44, 45, 50], true),
+        (45, [50, 45, 44], false),
+    ] {
+        let mut data = data.clone();
+        if carrier == 39 {
+            let mut tower = fixtures::zoran_bult();
+            tower.id = 39;
+            data = data.with_enemies([tower]);
+        }
+        let mut r = Roster::new();
+        for (slot, enemy) in line_up.into_iter().enumerate() {
+            r.add_enemy(u8::try_from(slot + 1).unwrap(), data.enemy(enemy).unwrap());
+        }
+        initialize_enemies(&mut r);
+        assert_eq!(
+            [id(6), id(8)].map(|who| r.get(who).unwrap().active),
+            [!cleared; 2],
+            "{line_up:?}"
+        );
+        assert!(r.get(id(7)).unwrap().active, "{line_up:?}");
+    }
+}

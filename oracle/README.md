@@ -70,7 +70,12 @@ oracle/
 │                           `python3 -m oracle.force`
 ├── sweep/                  captures every Motavia formation and extracts each
 │                           (the list, one formation's run, the batch);
-│                           `__main__.py` is `python3 -m oracle.sweep`
+│                           `__main__.py` is `python3 -m oracle.sweep`;
+│                           `route_abilities` derives the abilities a route
+│                           stretch can meet (one tool: a named stretch or a map
+│                           pattern), `capture_route` captures them, `zelan` and
+│                           `arc` are the status/stat recipes, `observed` lists
+│                           what a fixture directory shows running
 ├── fixture/                the replay-fixture extractor (the two CSVs, the roll
 │                           derivation, the observations, the fixture's shape);
 │                           `__main__.py` is `python3 -m oracle.fixture`
@@ -489,6 +494,29 @@ no item action boards a vehicle outside Motavia - while the Motavia tables take
 any of the three. Without the flag the table's own region decides (Land Rover on
 Motavia, Ice Digger on Dezolis), which is how the three older captures were
 taken. `oracle/force/selectors.py` carries the rule with its citations.
+
+`--event N` forces an *event battle* instead of a formation, for the bosses and
+scripted fights no encounter table reaches (`--formation` and `--event` are
+exclusive, one is required). `N` is the `Event_Battle_Index` of
+`generated/formations.json`'s `boss_formations`, which `Battle_SetupEnemyData`
+tests before it reads any group, grid or vehicle table
+(`ps4.asm:11813-11819`), so the tool writes that one byte (`$FFFFECFC`, one
+frame after the encounter fires, held for the battle - the scripted scenes leave
+it set the same way) and does no draw measurement and no seed patch. The probe
+run is the capture's own model: it must show exactly the boss formation the pack
+lists for `N`, or the capture is refused. The report carries `event_battle`
+(`null` for a formation capture) and the output files are named `event08` style:
+
+```sh
+python3 -m oracle.force --event 8 --out build/forced/event8 --durable \
+    --max-rounds 3 --delay 9 --require-ability 0x4B
+```
+
+`oracle/force/selectors.py`'s `event_selector` carries the rule with its
+citations; `tests/test_oracle_force_event.py` pins it. The Zelan-to-Kuran
+fixtures (`python3 -m oracle.sweep.zelan`, ledger
+[`BATTLE_ORACLE_ZELAN.md`](../docs/oracle/BATTLE_ORACLE_ZELAN.md)) use it for
+events 8 and 9.
 
 Five oracle runs per capture: a scout, a probe that measures the draw, an
 untrimmed preview, the trimmed capture, and a re-run to byte-compare it, with

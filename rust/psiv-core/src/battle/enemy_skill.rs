@@ -106,14 +106,36 @@ impl EnemySkill {
 
 /// EnemyInit_Igglanova and EnemyInit_Tower (`ps4.asm:18275`, `18243`) clear the
 /// neighboring fighter objects: 12 Igglanova and 13 Guilgenova take the first,
-/// 39 Tower and 45 CommndBall the second, whose only difference is a guard on
-/// `$52(a4)` that none of their conditions meets (`$0101`, not `$002C`). The
-/// port keeps their formation identity and stats ready for the refill. Position bit 7 is
-/// a palette selector; it is unrelated to this initialization routine.
+/// 39 Tower and 45 CommndBall the second. The port keeps their formation
+/// identity and stats ready for the refill. Position bit 7 is a palette
+/// selector; it is unrelated to this initialization routine.
+///
+/// `EnemyInit_Tower` opens with `cmpi.w #$2C, $52(a4) / bne / rts`
+/// (`ps4.asm:18244-18246`): it returns without clearing anything when
+/// `$52(a4)` reads `$2C`. The fighter objects sit `next_obj = $40` apart
+/// (`ps4.constants.asm:99`) and `fighter_id` is `$12`, so `$52(a4)` is the
+/// *next* fighter's enemy id and `$2C` is 44 FloatMine: a Tower or CommndBall
+/// whose right-hand neighbor is a FloatMine keeps both neighbors. Two captured
+/// CommndBall formations show both outcomes: `$124` (FloatMine2 on both sides)
+/// opens with a queue of the CommndBall alone, `$125` (FloatMine on both sides)
+/// queues all three (`docs/oracle/BATTLE_ORACLE_ZELAN.md` and
+/// `docs/oracle/BATTLE_ORACLE_REPLAY.md`). Reading the word as the enemy's
+/// condition ids (`$0101`) cannot explain the second capture.
 pub(super) fn initialize_enemies(roster: &mut Roster) {
+    const FLOAT_MINE: u16 = 44;
     let parents: Vec<_> = roster
         .side(Side::Enemy)
-        .filter(|f| matches!(f.stats.enemy_id, 12 | 13 | 39 | 45))
+        .filter(|f| match f.stats.enemy_id {
+            12 | 13 => true,
+            39 | 45 => {
+                let next = f.id.get().checked_add(1).and_then(FighterId::new);
+                !next
+                    .filter(|id| id.side() == Side::Enemy)
+                    .and_then(|id| roster.get(id))
+                    .is_some_and(|neighbor| neighbor.stats.enemy_id == FLOAT_MINE)
+            }
+            _ => false,
+        })
         .map(|f| f.id)
         .collect();
     for parent in parents {
@@ -189,16 +211,18 @@ pub(super) fn resolve_fission(
 /// (45) — are arms too.
 const FLOAT_MINE_CARRIERS: [u16; 4] = [44, 45, 46, 50];
 
-/// 42 SatMinion's `EnemyAttackOffs` entry (`$2A`) is `EnemyAttack_ArmDrone`
-/// (`ps4.asm:22789`), whose `$17` arm `loc_10468` (`ps4.asm:22806`) is the same
-/// six instructions as `loc_10406` (`movea.l $38(a1), a0 / clr.w
+/// `EnemyAttack_ArmDrone` (`ps4.asm:22789`) is the `EnemyAttackOffs` entry of
+/// `$29` 41 ArmDrone, `$2A` 42 SatMinion and `$2B` 43 StarDrone
+/// (`ps4.asm:19248-19250`). Its `$17` arm `loc_10468` (`ps4.asm:22806-22813`)
+/// is the same six instructions as `loc_10406` (`movea.l $38(a1), a0 / clr.w
 /// Current_Target_Index / clr.w $24(a4) / move.w #$16, Battle_Routine / subq.w
-/// #2, $2(a4) / rts`). SatMinion reaches it through its conditional `$17`
-/// (`EnemyAI_CRayTubeNearSatMinion`, which overwrites the ability when slots 1/2/3
-/// hold SatMinion, CRayTube, SatMinion: formation `$123`). The path is **read,
-/// not observed**: every capture of that formation also carries CRayTube's
-/// CHARGCNNON `$15`, a damage ability another lane owns, in round 1.
-const ARM_DRONE_CARRIERS: [u16; 1] = [42];
+/// #2, $2(a4) / rts`), and **only** `$17` takes it: any other non-zero
+/// ability falls through `loc_10434` (`ps4.asm:22795-22805`) to object `$194`, so
+/// FISSION2 must not enter this arm. SatMinion reaches `$17` through its
+/// conditional (`EnemyAI_CRayTubeNearSatMinion`, which overwrites the ability
+/// when slots 1/2/3 hold SatMinion, CRayTube, SatMinion: formation `$123`), and
+/// the captured fight carries CRayTube's CHARGCNNON `$15` in the same round.
+const ARM_DRONE_CARRIERS: [u16; 2] = [41, 42];
 
 /// The roll this routine has nothing to load for: `$07` Fission2 on 50
 /// FloatMine2 and `$17` Waiting on 44 FloatMine, 46 VopalSphre and 50
@@ -228,9 +252,9 @@ const ARM_DRONE_CARRIERS: [u16; 1] = [42];
 /// a physical swing is the whole point: the actor really does act and do
 /// nothing.
 ///
-/// `$18`/`$19`/`$14`/`$1A` on these carriers still fall back — their objects
-/// are outside this transcription — which is what the negative control in
-/// `enemy_skill_tests` pins with 45 CommndBall's own `$19`.
+/// The ArmDrone family has the same clear-and-return arm for WAITING only;
+/// FISSION2 must not enter it. Damage arms are owned by `enemy_damage`, and
+/// neither their existence nor another carrier's no-effect arm proves a pair.
 pub(super) fn resolve_no_effect_turn(
     roster: &mut Roster,
     actor: FighterId,
@@ -248,7 +272,7 @@ pub(super) fn resolve_no_effect_turn(
         fighter.is_alive()
             && fighter.id.side() == Side::Enemy
             && (FLOAT_MINE_CARRIERS.contains(&fighter.stats.enemy_id)
-                || ARM_DRONE_CARRIERS.contains(&fighter.stats.enemy_id))
+                || (skill.is_waiting() && ARM_DRONE_CARRIERS.contains(&fighter.stats.enemy_id)))
     });
     if !carrier {
         return false;

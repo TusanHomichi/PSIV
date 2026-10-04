@@ -104,6 +104,27 @@ def kind_of(ability, targets, effects=None):
     return "wasted"
 
 
+def ability_was_cleared(log, record):
+    """The no-object arms' snapshot signature, not an invented ability id.
+
+    loc_10406 (ps4.asm:22781-22787) and loc_10468 (22807-22813)
+    clear Current_Target_Index and ability, set Battle_Routine $16 and
+    leave every hit byte $FF. A same-frame clear hides the chosen id, but
+    these cited carrier families and the full signature distinguish the
+    spent turn from a physical miss (whose target remains nonzero).
+    """
+    start, actor = record["start_frame"], record["actor"]
+    if actor <= 5 or record["ability"] or record["targets"] or _moved(record["effect"]):
+        return False
+    if not all(log.has(c) for c in ("battle_routine", "current_target")):
+        return False
+    carrier = log.num(start, f"e{actor - 5}_id")
+    return (carrier in {41, 42, 44, 45, 46, 50}
+            and log.num(start, "battle_routine") == 0x16
+            and log.num(start, "current_target") == 0
+            and all(log.raw(start, f"hit_{i:02d}") == "FF" for i in range(9)))
+
+
 def _moved(effects):
     """Whether any fighter's HP, status or battle stat cell moved."""
     if not effects:

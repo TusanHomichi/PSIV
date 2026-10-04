@@ -65,9 +65,11 @@ impl Battle {
             fighter.ability = ability;
         }
         if self.scripted_latch && super::super::scripted_flag::reads_first_action(enemy_id) {
-            // `EnemyAttack_DarkForce1`'s opening test: the latch is up, so the
-            // rolled ability is dropped, the latch lowered and the fixed
-            // object loaded (the roll above was drawn either way).
+            // `EnemyAttack_DarkForce1`'s opening test (`ps4.asm:20031-20035`):
+            // the latch is up, so the rolled ability is dropped, the latch
+            // lowered and the fixed object `$818` loaded (the roll above was
+            // drawn either way). `loc_32344` (`ps4.asm:64872-65000`) and its
+            // children animate only: no damage request, no `UpdateRNGSeed2`.
             self.scripted_latch = false;
             if let Some(fighter) = self.roster.get_mut(actor) {
                 fighter.ability = 0;

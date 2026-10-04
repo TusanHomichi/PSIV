@@ -365,7 +365,10 @@ jmp loc_14CBE` (`ps4.asm:33846-33850`) - the refill of the neighbour slot
 `EnemyAI_EmptySpace` named, after an alarm in front of it (`$198`,
 `loc_185EC`, `ps4.asm:33725`). 45 CommndBall's init is `EnemyInit_Tower`
 (`ps4.asm:18243`), which clears the objects beside it like Igglanova's does, so
-`CommndBall` fights alone until a WARNING calls one of its two FloatMine2 back.
+`CommndBall` fights alone until a WARNING calls one of its two FloatMine2 back. Unless
+the next fighter is a FloatMine: the routine returns first when `$52(a4)`, the next
+fighter object's enemy id, is `$2C` (`ps4.asm:18244-18246`; formation `$125` queues
+all three, [`BATTLE_ORACLE_ZELAN.md`](../oracle/BATTLE_ORACLE_ZELAN.md) section 6).
 The port already ran Fission's refill (`enemy_skill::resolve_fission`); the
 WARNING record joins it (`EnemySkill::is_refill`) and `initialize_enemies`
 covers 39 Tower and 45. The first version of this lane read WARNING as a spent

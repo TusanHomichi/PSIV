@@ -108,6 +108,9 @@ mod turn_order;
 #[path = "engine_tests_abilities.rs"]
 mod abilities;
 
+#[path = "engine_tests_dark_force.rs"]
+mod dark_force;
+
 #[path = "engine_tests_rewards.rs"]
 mod rewards;
 

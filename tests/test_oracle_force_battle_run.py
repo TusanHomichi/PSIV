@@ -331,17 +331,18 @@ class WholeDurableRun(WholeRunBase):
                              0)
         report = self.report()
         durable = report["durable"]
-        # The probe's own start frame is f201 (where its enemy records fill
-        # in), which is the frame the extractor reads the start state from.
-        self.assertEqual((durable["hp"], durable["frame"]), (999, 201))
+        # The probe's start frame is f201; this constructed forced preview
+        # loads at f48. The observed forced frame, not the estimate, wins.
+        self.assertEqual((durable["hp"], durable["frame"]), (999, 48))
         self.assertEqual(durable["cells"], [
             "alys_hp", "alys_maxhp", "chaz_hp", "chaz_maxhp",
             "hahn_hp", "hahn_maxhp"])
         self.assertEqual(durable["skipped"], [])
         self.assertEqual(report["patches"][-6:], [
-            "201:FFFFF58E:03E7", "201:FFFFF590:03E7",
-            "201:FFFFF50E:03E7", "201:FFFFF510:03E7",
-            "201:FFFFF60E:03E7", "201:FFFFF610:03E7"])
+            "48:FFFFF58E:03E7", "48:FFFFF590:03E7",
+            "48:FFFFF50E:03E7", "48:FFFFF510:03E7",
+            "48:FFFFF60E:03E7", "48:FFFFF610:03E7"])
+        self.assertIn("preview-calibrated", [call["dir"] for call in self.calls])
         # The patch list's own comment says what the cells are for.
         with open(os.path.join(self.out,
                                "forced_05_attack.patches.txt")) as handle:

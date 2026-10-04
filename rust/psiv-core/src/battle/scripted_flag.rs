@@ -21,10 +21,12 @@
 //! Force 1's first action ([`reads_first_action`]): object `$818`, a charge-up
 //! that requests nothing, replaces the rolled ability, and the captured fight
 //! (`docs/oracle/BATTLE_ORACLE_ZELAN.md`) shows the byte cleared and no slot
-//! resolved. The other three first-action readers dispatch fixed objects whose
-//! chains have not been read (`$864`, `$83C`, `$808`); none of those arms is a
-//! row of the damage tables yet, so they keep the explicit unsupported path
-//! (issue #62's ProfoundDarkness1 FIREBREATH row is the one waiting on them).
+//! resolved; its later turns, with the latch down, take the ordinary ability
+//! roll into the damage registry. The other three first-action readers
+//! dispatch fixed objects whose chains have not been read (`$864`, `$83C`,
+//! `$808`); none of those arms is a row of the damage tables yet, so they keep
+//! the explicit unsupported path (issue #62's ProfoundDarkness1 FIREBREATH row
+//! is the one waiting on them).
 
 /// Whether the init routine of `enemy_id` raises `$FFFFEE87`.
 ///

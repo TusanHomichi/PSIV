@@ -492,6 +492,17 @@ class LogReading(PackFixture):
         rows = self.capture_rows((25, 25), ended=False)
         self.assertEqual(fb.classify(rows, (40, 60)), "unfinished")
 
+    def test_positive_cached_hp_can_win_only_with_an_in_window_victory_declaration(self):
+        rows = self.capture_rows((100, 100), (10, 5, 3))
+        for row in rows:
+            row["battle_routine"] = "0000"
+        rows[-2]["battle_routine"] = "0018"
+        self.assertEqual(fb.classify(rows, (40, 60)), "victory")
+        rows[-2]["battle_routine"] = "0010"
+        self.assertEqual(fb.classify(rows, (40, 60)), "withdrawal")
+        rows[-1]["battle_routine"] = "0018"
+        self.assertEqual(fb.classify(rows, (40, 60)), "withdrawal")
+
     def test_ability_uses_are_the_nonzero_ids_from_the_draw_onward(self):
         rows = [log_row(frame, e1_ability=e1, e2_ability=e2,
                         e3_ability="00", e4_ability="00")

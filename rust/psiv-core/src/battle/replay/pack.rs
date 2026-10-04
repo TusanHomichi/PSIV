@@ -36,6 +36,16 @@ pub(crate) fn data() -> BattleData {
         .with_enemy_skills([flame_bolt(), spiral_bld(), sand_storm()])
 }
 
+/// Additional local captures use records loaded and validated by `psiv-data`
+/// and the runtime's existing bridge, then exported by the pack-backed test.
+/// The export stays ignored alongside the captures, never in source.
+pub(crate) fn local_data(path: &std::path::Path) -> BattleData {
+    let extra = read_pack(path);
+    data()
+        .with_enemies(extra.enemies)
+        .with_enemy_skills(extra.enemy_skills)
+}
+
 /// The swept fixtures' records, as `oracle/sweep/replay_pack.py` writes them.
 ///
 /// A data file rather than transcribed Rust: a sweep meets dozens of enemies,
@@ -43,7 +53,11 @@ pub(crate) fn data() -> BattleData {
 fn sweep_pack() -> SweepPack {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("src/battle/replay_fixtures/motavia_pack.json");
-    let text = std::fs::read_to_string(&path)
+    read_pack(&path)
+}
+
+fn read_pack(path: &std::path::Path) -> SweepPack {
+    let text = std::fs::read_to_string(path)
         .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
     let parsed: SweepJson = serde_json::from_str(&text)
         .unwrap_or_else(|error| panic!("{} does not parse: {error}", path.display()));

@@ -14,6 +14,7 @@ import dataclasses
 import pathlib
 
 from .. import fixture
+from ..fixture.observations import victory_declared
 from .errors import ForceError
 from .pack import Pack
 from .runs import Run, by_frame, battle_window, hp_of, read_rows, sha256
@@ -84,9 +85,10 @@ def enemy_slots(rows: list[dict], window: tuple[int, int]) -> list[dict]:
 
 def classify(rows: list[dict], window: tuple[int, int],
              vehicle: bool = False) -> str:
-    """What the log says the battle did, from the party's and enemies' HP.
+    """What the log says the battle did, from HP and the victory declaration.
 
-    `victory` needs every built enemy slot at or below zero HP, `defeat` every
+    `victory` needs every built enemy slot at or below zero HP or the logged
+    victory routine selected by the live-object scan, `defeat` every
     party member. A battle that ends with both sides standing is reported as
     `withdrawal` rather than guessed at - an enemy escape, or a vehicle battle
     whose wrecked vehicle the party's own HP columns cannot show (the vehicle
@@ -98,6 +100,10 @@ def classify(rows: list[dict], window: tuple[int, int],
     slots = enemy_slots(rows, window)
     if slots and all(hp_of(end, f"e{entry['slot']}_hp") <= 0
                      for entry in slots):
+        return "victory"
+    log = fixture.Log(rows, {"battle_routine": {"hex": True}})
+    if any(victory_declared(log, int(row["frame"])) for row in rows
+           if window[0] <= int(row["frame"]) <= window[1]):
         return "victory"
     if vehicle and hp_of(end, "vehicle_fighter_hp") <= 0:
         return "defeat"
