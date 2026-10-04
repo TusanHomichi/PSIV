@@ -102,6 +102,59 @@ impl Driver {
         ))
     }
 
+    /// Walks to the cell beside `target` on `map` and takes the one step onto
+    /// it, `target` being a warp footprint where a map trigger starts a scene
+    /// ahead of the warp (`RunEvents` runs before `RunMapTransitions` on foot,
+    /// `ps4.asm:116768-116773`). The objective is met when a scene has run;
+    /// what it leaves is the next objective's to assert.
+    ///
+    /// # Errors
+    ///
+    /// [`HaltKind::UnexpectedState`] when the party is not on `map` or the step
+    /// fired the warp with no scene, [`HaltKind::Unreachable`] when no walk
+    /// reaches the step, [`HaltKind::Stuck`] when the party cannot move, or a
+    /// halt from a frame.
+    pub fn step_onto(&mut self, map: u16, target: Cell) -> Res {
+        let mut stalled = 0;
+        let scenes_before = self.scenes_ended();
+        for _ in 0..REPLAN_LIMIT {
+            let prompt = self.settle(true)? == Settled::Choice;
+            if self.scenes_ended() > scenes_before {
+                return Ok(());
+            }
+            let here = (self.map(), self.cell());
+            if here.0 != map {
+                return Err(Halt::new(
+                    HaltKind::UnexpectedState,
+                    format!(
+                        "step_onto ({},{}) of map {map:#x}: the party is on map {:#x} and no \
+                         scene ran, so the step fired the warp",
+                        target.x, target.y, here.0
+                    ),
+                ));
+            }
+            if prompt {
+                return Err(unanswered_prompt());
+            }
+            let flood = Flood::for_mover(self.runtime().map(), here.1, self.mover())
+                .map_err(|e| unreachable_halt(map, target, &e.to_string()))?;
+            let plan = flood
+                .onto_plan(self.runtime().map(), self.mover(), target)
+                .ok_or_else(|| {
+                    unreachable_halt(map, target, "no walk ends in a step onto the cell")
+                })?;
+            self.walk(&plan.steps)?;
+            stalled = progress(&mut stalled, here, (self.map(), self.cell()))?;
+        }
+        Err(Halt::new(
+            HaltKind::Stuck,
+            format!(
+                "{REPLAN_LIMIT} re-plans and no scene ran on ({},{})",
+                target.x, target.y
+            ),
+        ))
+    }
+
     /// Arrives on `map`, taking the warp whose record index is `via_warp`
     /// first when the route names one.
     ///

@@ -93,6 +93,7 @@ impl Runtime {
         }
         let mut map_changed = false;
         let mut interaction_started = false;
+        let mut triggers_run = false;
         let mut field_effects = field_effects.into_iter();
         while let Some(effect) = field_effects.next() {
             match effect {
@@ -107,6 +108,7 @@ impl Runtime {
                     // RunEvents owns the opened elevator tile before the
                     // ordinary collision/warp path can report it unmapped.
                     if self.elevator_at(cell) {
+                        triggers_run = true;
                         events.extend(self.evaluate_triggers(cell));
                         if self.scene_active() {
                             return events;
@@ -119,22 +121,35 @@ impl Runtime {
                     target_cell,
                     facing,
                     ..
-                } => match self.change_map(target_map, target_cell, facing) {
-                    Ok(()) => {
-                        map_changed = true;
-                        events.push(RuntimeEvent::MapChanged {
-                            map: target_map,
-                            trigger,
-                        });
+                } => {
+                    // On foot `FieldRoutine_Controls` runs `RunEvents` before
+                    // `RunMapTransitions` (`ps4.asm:116768-116773`), and a
+                    // scene it starts ends the frame: a trigger on a warp cell
+                    // (the Hangar's Landale row, `$2B`) wins over the warp.
+                    if !triggers_run && let Some(cell) = landed {
+                        triggers_run = true;
+                        events.extend(self.evaluate_triggers(cell));
+                        if self.scene_active() {
+                            return events;
+                        }
                     }
-                    Err(BridgeError::NotPacked(id)) => {
-                        events.push(RuntimeEvent::UnpackedTarget { map: MapId(id) });
+                    match self.change_map(target_map, target_cell, facing) {
+                        Ok(()) => {
+                            map_changed = true;
+                            events.push(RuntimeEvent::MapChanged {
+                                map: target_map,
+                                trigger,
+                            });
+                        }
+                        Err(BridgeError::NotPacked(id)) => {
+                            events.push(RuntimeEvent::UnpackedTarget { map: MapId(id) });
+                        }
+                        // Any other bridge failure on a packed map is a defect the
+                        // pack's own validation should have caught; surface it the
+                        // same way rather than panicking mid-game.
+                        Err(_) => events.push(RuntimeEvent::UnpackedTarget { map: target_map }),
                     }
-                    // Any other bridge failure on a packed map is a defect the
-                    // pack's own validation should have caught; surface it the
-                    // same way rather than panicking mid-game.
-                    Err(_) => events.push(RuntimeEvent::UnpackedTarget { map: target_map }),
-                },
+                }
                 Effect::WarpUnmapped { cell } => events.push(RuntimeEvent::WarpUnmapped { cell }),
                 Effect::Interact {
                     npc_index,

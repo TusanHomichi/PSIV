@@ -185,17 +185,19 @@ binary/input/output hashes and the final-save reading are in
 `build/a3-evidence/`. The main route's SHA-256 remains
 `1ce3457606cb3a0df63780dfa5c4bb99f14d40addcd3ee3924d01308ae8318a1`.
 
-This closes the connected sabotage-battle gate for carrier 138. The unchanged
-main route ends at the Hangar, before Landale, Kuran and event battle 9.
-**BURSTROC's connected campaign proof remains open**: it has the cited chain
-and carrier/intro core tests, but neither a forced capture (#72) nor a route
-through DarkForce1. DarkForce1's FLARE SHOT/PHONONMASR event chains share this
-route limit despite their different random carriers' exact replays. Extending
-the campaign route belongs outside this damage lane's write set.
+This closes the connected sabotage-battle gate for carrier 138. Route lane C6
+(2026-10-04, [`RUNNER_LOG_KURAN.md`](../campaign/RUNNER_LOG_KURAN.md)) then
+extended the main route through Landale and Kuran and won event battle 9.
+**BURSTROC's cartridge proof remains open.** The route fight is a connected
+campaign result with FLARE SHOT, PHONONMASR and BURSTROC striking the party, but
+it is not a cartridge comparison: there is no forced capture of event battle 9
+(#72), and the animation-only first act is not checked against
+`EnemyAttack_DarkForce1`. DarkForce1's FLARE SHOT/PHONONMASR event chains share
+this gap despite their different random carriers' exact replays.
 
 ## 2. The Zelan-to-Kuran route (lane A4)
 
-The campaign route has reached the Hangar and crosses Dezolis to Kuran
+The campaign route crosses Dezolis to Kuran and Dark Force 1
 ([`RUNNER_LOG_ZELAN.md`](../campaign/RUNNER_LOG_ZELAN.md),
 [`RUNNER_LOG_DEZOLIS.md`](../campaign/RUNNER_LOG_DEZOLIS.md)). The set of abilities it
 will meet is **derived**, not listed, by

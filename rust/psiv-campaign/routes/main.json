@@ -767,6 +767,139 @@
       "closing": [
         {"map": 351, "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x81", "event:0x84"]}
       ]
+    },
+    {
+      "id": "dezolis-tyler-prepare",
+      "title": "Tyler: silver armour and cures before Kuran",
+      "source": "runtime-pack/shops.json (Tyler weapon shop inventories 34 and 35, item shop 36); runtime-pack/maps/120_Tyler.json (warps 3, 4 and 7); docs/campaign/RUNNER_LOG_KURAN.md (the Dark Force 1 loss that asks for it)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 288, "via_warp": 1, "note": "native leg: the Hangar's warp 1 (66..67,20) up the grave stairs, arriving in Tyler at (20,26)"},
+        {"do": "go_to_map", "map": 290, "via_warp": 3, "note": "Tyler warp 3 into the weapon and armour shop"},
+        {"do": "go_to", "map": 290, "cell": [36, 32], "note": "below the armour keeper (36,30), counter row 31"},
+        {"do": "buy", "item": "SILV-MAIL", "count": 2, "face": "up", "note": "13200 each; Chaz and Rika (49 DEF against CRMC-MAIL's 25)"},
+        {"do": "buy", "item": "SILV-CROWN", "count": 1, "face": "up", "note": "5000; Rika (16 against GRPT-CROWN's 11)"},
+        {"do": "buy", "item": "SILV-MANTL", "count": 1, "face": "up", "note": "7300; Rune (49 DEF, 8 MDF against PSY-ROBE's 33 and 4)"},
+        {"do": "equip", "member": "Chaz", "item": "SILV-MAIL"},
+        {"do": "equip", "member": "Rika", "item": "SILV-MAIL"},
+        {"do": "equip", "member": "Rika", "item": "SILV-CROWN"},
+        {"do": "equip", "member": "Rune", "item": "SILV-MANTL"},
+        {"do": "go_to_map", "map": 288, "note": "out of the shop"},
+        {"do": "go_to_map", "map": 291, "via_warp": 4, "note": "Tyler warp 4 into the item shop"},
+        {"do": "go_to", "map": 291, "cell": [33, 32], "note": "below the keeper (33,30), counter row 31"},
+        {"do": "buy", "item": "DIMATE", "count": 6, "face": "up", "note": "160 each: the cure the policy reaches for in a boss fight. The pack has 40 slots and stacks nothing: twenty stopped on a full pack (RUNNER_LOG_KURAN C6-6), six fit beside the old armour the party now carries"},
+        {"do": "go_to_map", "map": 288, "note": "out of the shop"},
+        {"do": "interact", "cell": [20, 26], "face": "up", "opens": [[20, 24], [21, 24], [20, 25], [21, 25]], "note": "a reloaded Tyler puts the grave stones back (92_TylerGraveOpening.md, 'The guard'): Speak at the grave again, the slide replays and $84 stays set"},
+        {"do": "go_to_map", "map": 351, "via_warp": 7, "note": "the stairs back to the Hangar (66,21)"}
+      ],
+      "closing": [
+        {"map": 351, "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x81", "event:0x84"], "flags_clear": ["event:0x82"]}
+      ]
+    },
+    {
+      "id": "dezolis-landale",
+      "title": "The Hangar: Cutscene_Landale and the Dezo spaceport's appearance",
+      "source": "docs/scenes/44_Landale.md (Cutscene_Landale $8010 via RunEvent_FindingLandale $2B: Tyler grave $84 set, Dezo spaceport $82 clear, leader at x $1A0..$1B0, y $520); ps4.asm:116768-116773 (RunEvents before RunMapTransitions on foot)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "step_onto", "map": 351, "cell": [26, 83], "note": "the trigger cell: leader x $1A0 (cell 26), y $520 (cell 83: a standing cell's y byte is its row less one). It is also the first cell of the Hangar's warp 0 (26..27,83), and the scene wins over the warp"},
+        {"do": "expect", "map": 1, "cell": [9, 74], "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x82"], "note": "the scene ran: LoadMap put the party on Dezolis at Map_Start (9,73), standing cell (9,74), and set $82"}
+      ],
+      "closing": [
+        {"map": 1, "cell": [9, 74], "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x82"]}
+      ]
+    },
+    {
+      "id": "dezolis-training",
+      "title": "Dezolis: train outside the spaceport, with the Tyler inn for a refuge and a last night",
+      "source": "runtime-pack/battle/formations.json (encounter group 11 on the Dezolis position grid: 1,363 to 4,236 experience a battle); runtime-pack/shops.json (Tyler inn 13); docs/campaign/RUNNER_LOG_KURAN.md (the Dark Force 1 loss that asks for it)",
+      "random_battle_policy": "attack_all",
+      "objectives": [
+        {"do": "patrol", "map": 1, "a": [9, 74], "b": [18, 70], "until": {"party_level_at_least": 38}, "refuge": [{"do": "go_to_map", "map": 288, "via_warp": 4, "note": "Dezolis warp 4 (14..15,68..69) into Tyler"}, {"do": "go_to_map", "map": 293, "via_warp": 6, "note": "Tyler warp 6 into the inn"}, {"do": "go_to", "map": 293, "cell": [28, 30], "note": "below the keeper (28,28), counter row 29"}, {"do": "rest_inn", "face": "up", "note": "550 meseta for five: HP and TP whole"}, {"do": "go_to_map", "map": 288, "note": "out of the inn"}, {"do": "go_to_map", "map": 1, "note": "out of Tyler to the Dezolis overworld"}], "note": "open ground by the spaceport door; Dezolis's cold wears the party down (the map's poison flag), the default policy attacks and cures, the camp cure spends TP and the inn gives both back"},
+        {"do": "go_to_map", "map": 288, "via_warp": 4, "note": "Dezolis warp 4 (14..15,68..69) into Tyler"},
+        {"do": "go_to_map", "map": 293, "via_warp": 6, "note": "Tyler warp 6 into the inn"},
+        {"do": "go_to", "map": 293, "cell": [28, 30], "note": "below the keeper (28,28), counter row 29"},
+        {"do": "rest_inn", "face": "up", "note": "550 meseta for five: HP and TP whole"},
+        {"do": "go_to_map", "map": 288, "note": "out of the inn"},
+        {"do": "go_to_map", "map": 1, "note": "out of Tyler to the Dezolis overworld"},
+        {"do": "expect", "map": 1, "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x82"]}
+      ],
+      "closing": [
+        {"map": 1, "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x82"]}
+      ]
+    },
+    {
+      "id": "kuran-arrival",
+      "title": "Dezo spaceport: fly to Kuran and Event_KuranArrival",
+      "source": "docs/scenes/44_Landale.md (the spaceport opened, $82 set, so the destination list is mask $D8 and lists Kuran); docs/scenes/45_KuranArrival.md (Event_KuranArrival $3D, map trigger $2C on Kuran $190 while $86 is clear); runtime-pack/maps/001_Dezolis.json (warp 9 at (12..13,72) to the Dezo spaceport (30,43)); runtime-pack/maps/0D4_DezoSpaceport.json (RunEvent_EnterSpaceship $21 at x $1E0..$1F0, y $120, cell row 19); psiv-campaign plan --from-map 1 --from-cell 9,74 --to-map 212 --flag event:0x82",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 212, "via_warp": 9, "note": "native leg: Dezolis warp 9 into the Dezo spaceport, arriving (30,43)"},
+        {"do": "go_to", "map": 212, "cell": [30, 20], "note": "the cell below the boarding row: RunEvent_EnterSpaceship fires on x $1E0..$1F0 (cells 30..31), y $120 (row 19)"},
+        {"do": "board", "step": "up", "to": 4, "note": "the destination menu lists Dezolis's neighbours by the $82 mask; row Kuran, Speak, fly"},
+        {"do": "expect", "map": 400, "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x82", "event:0x86"], "note": "Event_KuranArrival ran on the first field frame and set $86"}
+      ],
+      "closing": [
+        {"map": 400, "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x82", "event:0x86"]}
+      ]
+    },
+    {
+      "id": "kuran-elevators",
+      "title": "Kuran: the elevator chain from the landing to the third floor",
+      "source": "runtime-pack/maps/190_Kuran.json .. 198_Kuran_F3.json (warps, and event $13 interaction areas: the elevator doors, Event_ElevatorDoorOpening $13); a breadth-first search over the pack's collision grids, doors and warps (RUNNER_LOG_KURAN.md)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "interact", "cell": [30, 18], "face": "up", "opens": [[30, 17], [31, 17]], "note": "Kuran's elevator door, interaction area 0 (30..31,17)"},
+        {"do": "go_to_map", "map": 401, "via_warp": 0, "note": "Kuran warp 0 into F1's elevator room, arriving (46,51)"},
+        {"do": "go_to_map", "map": 403, "via_warp": 4, "note": "F1 warp 4 (22..23,51), a map-change tile, to Part2 (50,33)"},
+        {"do": "interact", "cell": [13, 36], "face": "up", "opens": [[12, 35], [13, 35]], "note": "Part2's elevator door, area 0 (12..13,35)"},
+        {"do": "go_to_map", "map": 404, "via_warp": 0, "note": "Part2 warp 0 to Part3 (12,35)"},
+        {"do": "go_to_map", "map": 401, "via_warp": 1, "note": "Part3 warp 1 (44..45,34) back to F1 at (16,53), a region the arrival room does not reach"},
+        {"do": "go_to_map", "map": 407, "via_warp": 3, "note": "F1 warp 3 (46..47,78) to Part4 (30,23)"},
+        {"do": "interact", "cell": [30, 34], "face": "up", "opens": [[30, 33], [31, 33]], "note": "Part4's elevator door, area 0 (30..31,33)"},
+        {"do": "go_to_map", "map": 402, "via_warp": 0, "note": "Part4 warp 0 to F2 (46,83)"},
+        {"do": "interact", "cell": [46, 12], "face": "up", "opens": [[46, 11], [47, 11]], "note": "F2's north elevator door, area 0 (46..47,11)"},
+        {"do": "go_to_map", "map": 401, "via_warp": 0, "note": "F2 warp 0 to F1 (46,17)"},
+        {"do": "go_to_map", "map": 405, "via_warp": 6, "note": "F1 warp 6 (70..71,51) to Part5 (12,33)"},
+        {"do": "interact", "cell": [18, 30], "face": "up", "opens": [[18, 29], [19, 29]], "note": "Part5's elevator door, area 0 (18..19,29)"},
+        {"do": "go_to_map", "map": 406, "via_warp": 0, "note": "Part5 warp 0 to F2 Part2 (18,29)"},
+        {"do": "go_to_map", "map": 401, "via_warp": 1, "note": "F2 Part2 warp 1 (18..19,34) to F1 (76,53)"},
+        {"do": "interact", "cell": [47, 36], "face": "up", "opens": [[46, 35], [47, 35]], "note": "F1's middle elevator door, area 1 (46..47,35)"},
+        {"do": "go_to_map", "map": 402, "via_warp": 1, "note": "F1 warp 1 to F2 (46,27)"},
+        {"do": "interact", "cell": [46, 46], "face": "up", "opens": [[46, 45], [47, 45]], "note": "F2's south elevator door, area 2 (46..47,45)"},
+        {"do": "go_to_map", "map": 408, "via_warp": 2, "note": "F2 warp 2 to F3 (30,49)"},
+        {"do": "expect", "map": 408, "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x86"], "flags_clear": ["event:0x87", "event:0x83"], "note": "F3: Near Dark Force $87 and Dark Force 1 $83 are still clear"}
+      ],
+      "closing": [
+        {"map": 408, "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x86"], "flags_clear": ["event:0x87", "event:0x83"]}
+      ]
+    },
+    {
+      "id": "kuran-near-dark-force",
+      "title": "Kuran F3: the corridor north, Event_NearDarkForce1",
+      "source": "docs/scenes/46_NearDarkForce1.md (Event_NearDarkForce1 $3E, RunEvent_NearDarkForce $2D on Kuran F3 $198: leader y $200, $87 clear); runtime-pack/maps/198_Kuran_F3.json (the corridor x 29..32, rows 21..40; the standing cell's y byte is its row less one, so y $200 is row 33)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to", "map": 408, "cell": [30, 33], "note": "the trigger row: RunEvent_NearDarkForce fires on y $200 (row 33), any x; F3 rolls no random battles"},
+        {"do": "expect", "map": 408, "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x86", "event:0x87"], "flags_clear": ["event:0x83"], "note": "Event_NearDarkForce1 ran (entry 5) and set $87; Dark Force 1 $83 is still clear"}
+      ],
+      "closing": [
+        {"map": 408, "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x86", "event:0x87"], "flags_clear": ["event:0x83"]}
+      ]
+    },
+    {
+      "id": "kuran-dark-force-1",
+      "title": "Kuran F3: Dark Force 1, the event battle and Cutscene_DarkForce1Defeated",
+      "source": "docs/scenes/47_DarkForce1.md (Event_DarkForce1 $3F, RunEvent_FindDarkForce $2E on Kuran F3: leader y $0D0, which is row 14; $83 clear; dialogue entry 6, $83, then event battle 9); docs/scenes/48_DarkForce1Defeated.md (RunEvent_DarkForce1Defeated $32: $83 set, $89 clear, starts Cutscene_DarkForce1Defeated $8011, which loads Zelan F1 at ($3E,$20) and swaps the Canceller for the Ice Digger)",
+      "random_battle_policy": "fight_to_win",
+      "objectives": [
+        {"do": "go_to", "map": 408, "cell": [30, 14], "note": "the trigger row: RunEvent_FindDarkForce fires on y $0D0 (row 14), any x"},
+        {"do": "fight_scripted", "note": "event battle 9: Dark Force 1 (4,540 HP; FLARE SHOT, PHONONMASR and BURSTROC hit the whole party). The engine runs no player skill beyond Crosscut and Vortex, so Rayblade and Efess are never cast and the party wins on techniques and attacks alone, at the levels the training chapter reached"},
+        {"do": "expect", "map": 398, "cell": [31, 17], "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x83", "event:0x89"], "note": "the battle was won and Cutscene_DarkForce1Defeated ran: Zelan F1 (31,17), Dark Force 1 $83 and Ice Digger $89 set"}
+      ],
+      "closing": [
+        {"map": 398, "cell": [31, 17], "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x83", "event:0x89"]}
+      ]
     }
   ]
 }

@@ -9,7 +9,9 @@ them; the commands below regenerate them.
 
 The runs of the Motavia arc (C1 to C3) are in [RUNNER_LOG_MOTAVIA.md](RUNNER_LOG_MOTAVIA.md)
 those of the Zelan arc (C4, M23, H23 to H27) in [RUNNER_LOG_ZELAN.md](RUNNER_LOG_ZELAN.md)
-and those of Zelan to Dezolis (C5, H28) in [RUNNER_LOG_DEZOLIS.md](RUNNER_LOG_DEZOLIS.md);
+those of Zelan to Dezolis (C5, H28, and S7's H29 to H31 on the way to the Hangar) in
+[RUNNER_LOG_DEZOLIS.md](RUNNER_LOG_DEZOLIS.md)
+and those of the Hangar to Dark Force 1 (C6, H32 to H35) in [RUNNER_LOG_KURAN.md](RUNNER_LOG_KURAN.md);
 this file keeps the current state, the early runs, the halts H1 to H22 and the integration
 receipts.
 
@@ -19,6 +21,23 @@ a fix lane or an issue; the runner never fixes a port defect and never adds a
 shortcut, a state edit or a skip to get past one.
 
 ## Current state
+
+**C6 (2026-10-04, base `00f4936`): the route defeats Dark Force 1** (43 chapters; seven new:
+`dezolis-tyler-prepare`, `dezolis-landale`, `dezolis-training`, `kuran-arrival`, `kuran-elevators`,
+`kuran-near-dark-force`, `kuran-dark-force-1`). The party shops at Tyler, steps onto the Hangar's
+Landale row (a trigger on a warp footprint: the runtime now scans triggers before a warp and the
+route has a `step_onto` objective), the scene raises the Dezo spaceport on the live map, the ship
+flies to Kuran, twelve elevator doors and warps lead to F3, and Dark Force 1 falls in event battle
+9 after a Dezolis training chapter (738 battles, every member at level 38 or more); the cutscene
+leaves the party on Zelan F1 (31,17) with the Ice Digger. Two full runs from New Game: exit 0,
+**3,700,582 frames**, digest `fbe9fef7015aba2e`, identical tapes (SHA-256 `969ba6dc…4996`), replay
+reproduces the digest ([C6 runs](RUNNER_LOG_KURAN.md#c6-runs)). Halts found and fixed: H32 (trigger
+on a warp), H33 (Landale's live chunk write), H35 (Dezolis's cold, a patrol `refuge`); H34 is a
+balance loss answered by training. **One finding for the orchestrator:** the engine runs no player
+skill beyond Crosscut and Vortex, so Chaz's Rayblade and Rune's Efess, the answers to a boss weak to
+them, are never cast ([H34](RUNNER_LOG_KURAN.md#h34-dark-force-1-is-a-balance-loss-until-the-party-is-trained)).
+The scene docs go on with [49](../scenes/49_Juza.md); Siren386's BARRIER (`$1D`, #86) was never
+reached, the route runs from Kuran's random battles and trains on Dezolis.
 
 **C5 (2026-10-04, base `f6e84f9`): the route reaches first control on Dezolis**
 (33 chapters; `zelan-wren-canceller`, `zelan-sabotage`, `dezolis-first-control`). Wren

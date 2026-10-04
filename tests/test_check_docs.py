@@ -11,8 +11,9 @@ lines it prints.
 
 The real tree passes case runs the same tool against this repository, so the
 guard is checked against the documents it guards. The rest are negative
-controls (a missing link target, a missing anchor, a missing command path and
-an unmatched glob, each rejected by name and line) and positive cases that pin
+controls (a missing link target, a missing anchor, a missing command path, an
+unmatched glob and a `yaml` block that does not parse, each rejected by name
+and line) and positive cases that pin
 what the checker deliberately lets through: a duplicate heading's `-1` anchor,
 a link written inside a fenced block or inline code, an external URL, and
 git-ignored local inputs, as a link target and as a command path.
@@ -34,7 +35,8 @@ CHECKER = ROOT / "tools" / "check_docs.py"
 
 SUMMARY_RE = re.compile(
     r"checked (?P<files>\d+) files, (?P<links>\d+) links, "
-    r"(?P<anchors>\d+) anchors, (?P<paths>\d+) command paths; "
+    r"(?P<anchors>\d+) anchors, (?P<paths>\d+) command paths, "
+    r"(?P<yaml>\d+) yaml blocks; "
     r"(?P<problems>\d+) problem\(s\)"
 )
 
@@ -100,6 +102,7 @@ class RealTree(RepoCase):
         self.assertGreater(int(summary["links"]), 100)
         self.assertGreater(int(summary["anchors"]), 10)
         self.assertGreater(int(summary["paths"]), 10)
+        self.assertGreater(int(summary["yaml"]), 0)
         self.assertEqual(summary["problems"], "0")
 
     def test_missing_link_in_a_copy_is_rejected(self):
@@ -159,6 +162,25 @@ class NegativeControls(RepoCase):
         })
         self.assertEqual(code, 1, out)
         self.assertIn("docs/report.md:4: command path not found: tools/missing.py", out)
+
+    def test_a_yaml_block_that_does_not_parse(self):
+        """An unterminated quote in a task graph is named at the line it opens."""
+        code, out = self.check({
+            "docs/graph.md": lines(
+                "# Graph", "",
+                "```yaml",
+                "outcome: \"a route\"",
+                "nodes:",
+                "  - id: C",
+                "    evidence: [\"one\", \"two]",
+                "    state: ready",
+                "```",
+            ),
+        })
+        self.assertEqual(code, 1, out)
+        self.assertIn(
+            "docs/graph.md:7: yaml block does not parse: while scanning a quoted scalar", out
+        )
 
     def test_unmatched_glob(self):
         code, out = self.check({
@@ -284,14 +306,18 @@ class SummaryAndExit(RepoCase):
                 "",
                 "```bash", "ls tests/", "```",
             ),
-            "docs/notes.md": lines("# Notes", "## Notes"),
+            "docs/notes.md": lines(
+                "# Notes", "## Notes", "",
+                "```yaml", "next_action: \"a quoted: colon\"", "evidence: [\"a\", \"b\"]", "```",
+                "", "```yml", "also: [checked]", "```",
+            ),
             "tests/test_one.py": lines("# a test"),
         })
         self.assertEqual(code, 0, out)
         summary = SUMMARY_RE.search(out)
         self.assertEqual(
-            [summary[field] for field in ("files", "links", "anchors", "paths", "problems")],
-            ["2", "1", "1", "1", "0"],
+            [summary[field] for field in ("files", "links", "anchors", "paths", "yaml", "problems")],
+            ["2", "1", "1", "1", "2", "0"],
             out,
         )
 

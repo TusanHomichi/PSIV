@@ -17,6 +17,9 @@ is scanned, and fenced code blocks and inline code are skipped as content:
   GitHub does it: lowercase, everything but letters, digits, spaces, hyphens
   and underscores dropped, spaces turned into hyphens, and a repeated slug
   numbered `-1`, `-2`, ... in document order;
+- every `yaml` (or `yml`) block must parse (PyYAML `safe_load`): the task graphs the
+  roadmap points at are YAML records, and a broken quote turns one into text
+  no tool can read;
 - inside a `bash`, `sh`, `shell` or `console` block, every token naming a path
   under `docs/`, `godot/`, `oracle/`, `psiv_tools/`, `rust/`, `tests/` or
   `tools/` (optionally behind `./` or `$PWD/`) must exist, and a token with a
@@ -32,7 +35,7 @@ Problems print one per line as `path:line: message`, followed by a summary
 count. The counts are of the links, anchors and paths inspected; a link with a
 scheme or host is passed over without being counted. Exit status is 1 when a
 problem was found, 0 when the tree is clean, and 2 when the checker cannot run
-at all: no repository, or not started from its root.
+at all: no repository, not started from its root, or PyYAML missing.
 """
 
 from __future__ import annotations
@@ -45,6 +48,11 @@ import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import unquote
+
+try:
+    import yaml
+except ModuleNotFoundError:  # reported by `main`: the checker cannot run without it
+    yaml = None
 
 try:  # imported as `tools.check_docs`: the suite, and the gate's `PYTHONPATH=.`
     from tools.repo_files import repo_files
@@ -66,6 +74,7 @@ CHECKED_PATH_PREFIXES = (
 PATH_STRIPPED_PREFIXES = ("./", "$PWD/", "${PWD}/", '"$PWD/', '"${PWD}/')
 
 COMMAND_FENCE_LANGS = frozenset({"bash", "sh", "shell", "console"})
+YAML_FENCE_LANGS = frozenset({"yaml", "yml"})
 
 SCHEME_RE = re.compile(r"\A[A-Za-z][A-Za-z0-9+.\-]*:")
 FENCE_OPEN_RE = re.compile(r"\A {0,3}(?P<fence>`{3,}|~{3,})(?P<info>.*)\Z")
@@ -108,14 +117,15 @@ def is_ignored(path: str) -> bool:
 
 
 def iter_fenced_lines(lines: list[str]):
-    """`(index, text, info)` per line; `info` is None outside a fenced block.
+    """`(index, text, info, delimiter)` per line; `info` is None outside a fenced block.
 
     A fence delimiter line reports the info string of the block it belongs to,
-    so no content is ever read off a delimiter.
+    so no content is ever read off a delimiter; `delimiter` marks those lines.
     """
     fence = None  # (character, length, info string)
     for index, text in enumerate(lines):
         current = None if fence is None else fence[2]
+        delimiter = fence is not None
         if fence is None:
             open_match = FENCE_OPEN_RE.match(text)
             if open_match:
@@ -124,11 +134,14 @@ def iter_fenced_lines(lines: list[str]):
                 if not (fence_text[0] == "`" and "`" in info):
                     fence = (fence_text[0], len(fence_text), info.strip())
                     current = fence[2]
+                    delimiter = True
         elif re.match(
             rf"\A {{0,3}}{re.escape(fence[0])}{{{fence[1]},}}[ \t]*\Z", text
         ):
             fence = None
-        yield index, text, current
+        else:
+            delimiter = False
+        yield index, text, current, delimiter
 
 
 def fence_language(info: str) -> str:
@@ -146,7 +159,7 @@ def heading_slugs(lines: list[str]) -> set[str]:
     """Every anchor a file's headings define, duplicates numbered in order."""
     seen: dict[str, int] = {}
     slugs: set[str] = set()
-    for _, text, info in iter_fenced_lines(lines):
+    for _, text, info, _ in iter_fenced_lines(lines):
         if info is not None:
             continue
         match = HEADING_RE.match(text)
@@ -262,6 +275,24 @@ def check_link(
     return [], 1, 0
 
 
+def check_yaml(name: str, line: int, body: list[str]) -> str | None:
+    """A problem line when the `yaml` block opened at `line` does not parse."""
+    try:
+        yaml.safe_load("\n".join(body))
+    except yaml.YAMLError as error:
+        # The context mark is where the broken construct opened (a quote's
+        # first character), which is the line to fix; the problem mark can sit
+        # at the end of the block.
+        mark = getattr(error, "context_mark", None) or getattr(error, "problem_mark", None)
+        at = line + 1 + mark.line if mark is not None else line
+        reason = "; ".join(
+            part for part in (getattr(error, "context", None), getattr(error, "problem", None))
+            if part
+        ) or str(error).splitlines()[0]
+        return f"{name}:{at}: yaml block does not parse: {reason}"
+    return None
+
+
 def check_tree() -> tuple[list[str], list[int]]:
     """Every problem in the tree, and the files/links/anchors/paths counts.
 
@@ -280,11 +311,23 @@ def check_tree() -> tuple[list[str], list[int]]:
     slugs = {name: heading_slugs(lines) for name, lines in texts.items()}
 
     problems: list[str] = []
-    counts = [len(texts), 0, 0, 0]  # files, links, anchors, command paths
+    counts = [len(texts), 0, 0, 0, 0]  # files, links, anchors, command paths, yaml blocks
     for name, lines in texts.items():
-        for index, text, info in iter_fenced_lines(lines):
+        block = None  # (opening line, body) of the yaml block being read
+        for index, text, info, delimiter in iter_fenced_lines(lines):
             line = index + 1
-            if info is None:
+            if info is not None and fence_language(info) in YAML_FENCE_LANGS:
+                if not delimiter:
+                    block[1].append(text)
+                elif block is None:
+                    block = (line, [])
+                else:
+                    counts[4] += 1
+                    message = check_yaml(name, *block)
+                    if message:
+                        problems.append(message)
+                    block = None
+            elif info is None:
                 for raw in link_targets(strip_inline_code(text)):
                     found, links, anchors = check_link(name, line, raw, slugs)
                     problems += found
@@ -305,12 +348,17 @@ def main() -> int:
     if Path(top).resolve() != root:
         print(f"check_docs: run from the repository root ({top})", file=sys.stderr)
         return 2
+    if yaml is None:
+        print("check_docs: PyYAML is required to parse yaml blocks (docs/DEVELOPMENT.md)",
+              file=sys.stderr)
+        return 2
     problems, counts = check_tree()
     for problem in problems:
         print(problem)
-    files, links, anchors, paths = counts
+    files, links, anchors, paths, yaml_blocks = counts
     summary = (
-        f"checked {files} files, {links} links, {anchors} anchors, {paths} command paths"
+        f"checked {files} files, {links} links, {anchors} anchors, {paths} command paths, "
+        f"{yaml_blocks} yaml blocks"
     )
     print(f"{summary}; {len(problems)} problem(s)")
     return 1 if problems else 0

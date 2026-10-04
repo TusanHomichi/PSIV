@@ -748,9 +748,10 @@ fn an_arrival_prompt_is_the_next_objectives_to_answer() {
 }
 
 /// The whole route from New Game to Zio's defeat, the Mota Spaceport, Zelan,
-/// the sabotage and the crash landing to Raja Temple on Dezolis, pads only. The
-/// Zio chapter makes an ordinary SAVE; a new Session reads it, and replaying the
-/// tape in another Session reaches the same digest.
+/// the sabotage and the crash landing to Raja Temple on Dezolis, Tyler's grave,
+/// Landale, Kuran and the defeat of Dark Force 1, pads only. The Zio chapter
+/// makes an ordinary SAVE; a new Session reads it, and replaying the tape in
+/// another Session reaches the same digest.
 #[test]
 #[ignore = "plays the whole route: cargo test --release -p psiv-campaign --test runner -- --ignored"]
 fn the_whole_route_defeats_zio_saves_and_replays() {
@@ -761,8 +762,10 @@ fn the_whole_route_defeats_zio_saves_and_replays() {
     let result = run(&config).expect("the route sets up");
     let done: Vec<&str> = result.chapters.iter().map(|c| c.id.as_str()).collect();
     assert!(result.completed, "route halted: {:#?}", result.report);
-    assert_eq!(done.last(), Some(&"dezolis-tyler-grave"));
-    assert_eq!(done[done.len() - 8], "nurvus-zio");
+    assert_eq!(done.last(), Some(&"kuran-dark-force-1"));
+    // Fourteen chapters follow Zio's defeat: the spaceport, Zelan, Dezolis, the
+    // Hangar's second visit and Kuran.
+    assert_eq!(done[done.len() - 15], "nurvus-zio");
     assert_eq!(result.chapters.len(), config.route.chapters.len());
     let save_of = |id: &str| {
         let chapter = result
@@ -844,6 +847,50 @@ fn the_whole_route_defeats_zio_saves_and_replays() {
             "{flag:#x}"
         );
     }
+    // Landale: the spaceport rose on the live map and the party stands on
+    // Dezolis by its door with `$82` set (RUNNER_LOG_KURAN C6-1).
+    let (landale, _) = open_session(
+        pack_dir().as_path(),
+        &StartPoint::Save(save_of("dezolis-landale")),
+    )
+    .unwrap();
+    assert_eq!(landale.runtime().map_id().0, 0x001);
+    assert!(landale.runtime().game().is_set(Flag::event(0x82)));
+    // Kuran: the flight wrote `World_Index` 4 and `Event_KuranArrival` set `$86`.
+    let (kuran, _) = open_session(
+        pack_dir().as_path(),
+        &StartPoint::Save(save_of("kuran-arrival")),
+    )
+    .unwrap();
+    assert_eq!(kuran.runtime().map_id().0, 0x190);
+    assert_eq!(kuran.runtime().world_index(), 4);
+    assert!(kuran.runtime().game().is_set(Flag::event(0x86)));
+    // The elevator chain ends on F3 with Dark Force 1 still ahead.
+    let (third_floor, _) = open_session(
+        pack_dir().as_path(),
+        &StartPoint::Save(save_of("kuran-elevators")),
+    )
+    .unwrap();
+    assert_eq!(third_floor.runtime().map_id().0, 0x198);
+    assert!(!third_floor.runtime().game().is_set(Flag::event(0x83)));
+    // Dark Force 1 fell: the cutscene put the party on Zelan F1 with the Ice
+    // Digger, `$83` and `$89` set, all five members on the roster.
+    let (zelan, _) = open_session(
+        pack_dir().as_path(),
+        &StartPoint::Save(save_of("kuran-dark-force-1")),
+    )
+    .unwrap();
+    assert_eq!(zelan.runtime().map_id().0, 0x18E);
+    let defeated = zelan.runtime().game();
+    assert_eq!(defeated.party_members().len(), 5);
+    for flag in [0x83, 0x89] {
+        assert!(defeated.is_set(Flag::event(flag)), "{flag:#x}");
+    }
+    assert!(defeated.inventory().contains(0x97), "the Ice Digger");
+    assert!(
+        !defeated.inventory().contains(0x9A),
+        "the Canceller is gone"
+    );
     let pad_save = config.save_dir.join("route/slot_1.sram");
     assert!(
         pad_save.is_file(),

@@ -13,7 +13,8 @@ project metadata specifies 3.10+; Rust uses edition 2024. Other platforms and
 packaged desktop exports remain roadmap work.
 
 The extraction tools use Python's standard library. Pixel-comparison scripts
-also use Pillow and NumPy. Native automated checks on Linux use Xvfb.
+also use Pillow and NumPy, and `tools/check_docs.py` uses PyYAML to parse the
+documents' `yaml` task graphs. Native automated checks on Linux use Xvfb.
 
 ## Prepare the local pack
 

@@ -163,6 +163,18 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
         via="overworld_patches",
     ),
     SceneChunkWrite(
+        scene="Cutscene_Landale",
+        map_id=0x001,
+        citation=(
+            "Event_DezoSpaceportAppearing loc_6C148: GetMapLayoutChunkBG(6,$24) at $06C14E-$06C158, "
+            "`move.b #$2C, (a1)` at $06C15C; the Dezolis load hook loc_53E98 writes the same chunk "
+            "when EventFlag_DezoSpaceport is set"
+        ),
+        chunks=(0x2C,),
+        checks=((0x6C15C, "12BC002C"),),
+        via="overworld_patches",
+    ),
+    SceneChunkWrite(
         scene="Cutscene_PsycoWand",
         map_id=0x039,
         citation="`move.b #$8F, (a1)` at $075810 (FG (9,5)) and `move.b #$90, (a1)` at $075824 (BG (9,6))",
