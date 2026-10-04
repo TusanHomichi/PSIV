@@ -18,6 +18,10 @@ only its two inputs can be patched:
 * **which of the group's 32 entries**: `UpdateRNGSeed2`'s roll
   (`ps4.asm:86097`), `(hv_counter + Main_Frame_Count - RNG_Seed_high) & $1F`.
 
+An event battle (`--event N`) skips both: `Event_Battle_Index` names the boss
+formation outright (`ps4.asm:11815-11819`), so the tool writes that one byte
+(`selectors.event_selector`) and the probe is the capture's own model.
+
 The group is forced with a one-shot `--ram-patch` one frame after the encounter
 fires, and written back one frame after the formation draw (the vehicle index
 excepted: the battle reads it every frame). The entry is forced by patching
@@ -71,21 +75,22 @@ from .draw import GROUP_ENTRIES, Draw, find_draw, patch_specs
 from .durable import (DURABLE_HP, MEMBERS, VEHICLE_CELLS, Durable, plan_patch,
                       verify as verify_durable)
 from .errors import ForceError
-from .pack import (Pack, cell_from_row, describe, field_layout,
-                   parse_formation, patch_spec)
+from .pack import (EVENT_BASE, EXTRA_CELLS, Pack, cell_from_row, describe,
+                   field_layout, parse_event, parse_formation, patch_spec)
 from .phases import (build_report, capture_phase, plan, probe_phase, run)
 from .runs import (GROUPS, ORACLE, ROOT, Run, battle_window, by_frame, hp_of,
                    read_rows, run_oracle, seed_of, sha256)
 from .scout import SCOUT_GROUPS, SELECTOR_CELLS, scout
 from .selectors import (REGION_VEHICLES, VEHICLE_NAMES, VEHICLE_TABLES,
                         Selector, check_vehicle, check_vehicle_for_group,
-                        choose_selector, selector_for_group)
+                        choose_selector, event_selector, selector_for_group)
 from .tape import (PRESS_FRAMES, PROBE_REPEATS, RELEASE_FRAMES, TAIL_FRAMES,
                    Step, compose, emit_tape, expand_tape, policy_steps,
                    tape_frames, trim_tape)
 
 __all__ = [
-    "Capture", "DURABLE_HP", "Draw", "Durable", "ForceError", "GROUPS",
+    "Capture", "DURABLE_HP", "Draw", "Durable", "EVENT_BASE", "EXTRA_CELLS",
+    "ForceError", "GROUPS",
     "GROUP_ENTRIES", "MEMBERS", "ORACLE",
     "PRESS_FRAMES", "PROBE_REPEATS", "Pack", "REGION_VEHICLES",
     "RELEASE_FRAMES", "ROOT", "Run", "SCOUT_GROUPS", "SELECTOR_CELLS",
@@ -94,8 +99,10 @@ __all__ = [
     "ability_uses", "battle_shape", "battle_window", "build_report", "by_frame",
     "cap_rounds", "capture_phase", "cell_from_row", "check_vehicle",
     "check_vehicle_for_group", "choose_selector", "classify", "compose",
-    "describe", "emit_tape", "enemy_slots", "expand_tape", "field_layout",
-    "find_draw", "hp_of", "main", "matches", "parse_formation", "patch_specs",
+    "describe", "emit_tape", "enemy_slots", "event_selector", "expand_tape",
+    "field_layout",
+    "find_draw", "hp_of", "main", "matches", "parse_event", "parse_formation",
+    "patch_specs",
     "plan", "plan_patch", "policy_steps", "probe_phase", "read_capture",
     "read_rows", "run",
     "run_oracle", "scout", "seed_of", "selector_for_group", "sha256",

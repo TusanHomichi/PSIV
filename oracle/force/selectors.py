@@ -186,6 +186,26 @@ def selector_for_group(pack: Pack, group: int,
     return None
 
 
+def event_selector(index: int) -> Selector:
+    """Force an event battle: write `Event_Battle_Index`, nothing else.
+
+    `Battle_SetupEnemyData` (`ps4.asm:11813-11819`) loads
+    `Event_Battle_Index` and, when the byte is not negative, takes the formation
+    from `Battle_BossFormationData` at once - before any group, grid or vehicle
+    table is read, and with no `UpdateRNGSeed2` call, so there is no entry to
+    steer and no draw to measure. The scripted scenes write the same byte
+    (`ps4.asm:149140` for `Event_DarkForce1`, the Chaos Sorcerer's at the
+    sabotage scene) and leave it set for the battle's length, which is what the
+    cell does here; the map loader writes `$FF` back when the field is next
+    loaded (`ps4.asm:107595`, `121836`).
+    """
+    return Selector(
+        -1, "event",
+        f"Event_Battle_Index = {index}: the boss formation, with no group "
+        "and no draw",
+        [("event_battle_index", index)], [])
+
+
 def choose_selector(pack: Pack, formation: int,
                     vehicle: int | None = None) -> Selector:
     """Force this formation's group through the least invasive selector.

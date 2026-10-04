@@ -20,6 +20,7 @@
 //! | `$07` | `AbilityEffect_SleepParalyze` (`ps4.asm:9154`) | nothing if asleep or paralyzed; else one chance roll, which only writes the effect word |
 //! | `$08` | `AbilityEffect_SealTech` (`ps4.asm:9167`) | nothing if sealed; else chance roll, then `bset #StatusTechSealed` |
 //! | `$0A` | `AbilityEffect_DefenseUp` (`ps4.asm:9203`) | `dfs_pow_battle = dfs_pow + d1` after the range's validity test and, when the record has a resistance selector, a chance roll |
+//! | `$1B` | `AbilityEffect_Poison` (`ps4.asm:9410`) | nothing if poisoned; else chance roll, then `bset #StatusPoisoned` |
 //! | `$1C` | `AbilityEffect_Paralyze` (`ps4.asm:9424`) | nothing if paralyzed; else chance roll, then paralyzed set, sleep cleared, `agility_battle` and `dexterity_battle` both 1 |
 //!
 //! `d1` is the actor's power stat, which `Effect_SetupSkillParams`
@@ -54,6 +55,10 @@ use super::{
 #[path = "enemy_effect_tests.rs"]
 mod tests;
 
+#[cfg(test)]
+#[path = "enemy_effect_crawler_tests.rs"]
+mod crawler_tests;
+
 /// An `AbilityEffectsOffs` handler this module implements.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Handler {
@@ -75,6 +80,8 @@ enum Handler {
     SealTech,
     /// `$0A`, `AbilityEffect_DefenseUp` (`ps4.asm:9203`).
     DefenseUp,
+    /// `$1B`, `AbilityEffect_Poison` (`ps4.asm:9410`).
+    Poison,
     /// `$1C`, `AbilityEffect_Paralyze` (`ps4.asm:9424`).
     Paralyze,
 }
@@ -89,6 +96,7 @@ impl Handler {
             Handler::SleepParalyze => 0x07,
             Handler::SealTech => 0x08,
             Handler::DefenseUp => 0x0A,
+            Handler::Poison => 0x1B,
             Handler::Paralyze => 0x1C,
         }
     }
@@ -127,12 +135,18 @@ struct Route {
 }
 
 /// Every `(enemy, ability)` arm this module resolves - the ones a capture saw run
-/// (`docs/oracle/BATTLE_ORACLE_ARC.md`). Radhin's SEALS and DEBAN (`EnemyAttack_Juza`
-/// arms at 20729 and `loc_E666`, 20747) are the same reads as Greneris's and are
-/// deliberately absent: no capture of Radhin has a prefix of abilities the port runs.
+/// (`docs/oracle/BATTLE_ORACLE_ARC.md`, `docs/oracle/BATTLE_ORACLE_ZELAN.md`).
+/// Radhin's SEALS and DEBAN (`EnemyAttack_Juza` arms at 20729 and `loc_E666`,
+/// 20747) are the same reads as Greneris's and are deliberately absent: no
+/// capture of Radhin has a prefix of abilities the port runs.
 ///
 /// | pair | routine and arm | object | handler |
 /// |---|---|---|---|
+/// | 31 CarrionCr `$10` THREAD | `EnemyAttack_Crawler` (`ps4.asm:23081`), arm `loc_1084A` (23113) | `BattleObj_Thread` (`ps4.asm:36186`) | `$06`, range 8 |
+/// | 32 Caterpillr `$11` POISON | the same routine, arm `loc_10836` (23107) | `BattleObj_Poison` (`ps4.asm:36279`) | `$1B`, range 8 |
+/// | 57 Mistralgec `$24` POISONMIST | `EnemyAttack_SandNewt` (`ps4.asm:22267`), arm `loc_FD06` (22287) | object `$244`, `BattleObj_PoisonMist` (`ps4.asm:42202`): one call (42293) | `$1B`, range 8 |
+/// | 63 GerotLux `$25` SLEEP GAS | `EnemyAttack_AbeFrog` (`ps4.asm:22246`), arm `loc_FCA0` (22257) | object `$250`, `BattleObj_SleepGas` (`ps4.asm:41714`) -> `loc_24D76` (`ps4.asm:48702`): one call (48706), then `bset #3` on every landed slot | `$07`, range 9 |
+/// | 111 ChaosSorcr, 138 ChaosSorcr2 `$4B` SHADOWBIND | `EnemyAttack_ChaosSorcr` (`ps4.asm:20816`), arm `loc_E83E` (20868) | object `$724`, `loc_2BCEA` (`ps4.asm:57360`): one call (57411) at frame `$F` | `$06`, range 9 |
 /// | 76 FlyScreamr `$34` VOICE | `EnemyAttack_FlattrPlnt` (`ps4.asm:21778`), arm at 21803 | `BattleObj_Voice` (`ps4.asm:38465`) | `$07`, range 9 |
 /// | 19 Blauzen, 21 Goldine `$0B` STASISBALL | `EnemyAttack_Blauzen` (`ps4.asm:23346`), `.stasisball` (23404) | `BattleObj_BlauzenStasisBall` (`ps4.asm:28127`) and four children | `$1C`, range 8 |
 /// | 26 LifeDeletr `$0B` | `EnemyAttack_LifeDeletr` (`ps4.asm:23124`), `.ability` (23140) | `BattleObj_LifeDeletrStasisBall` (`ps4.asm:26956`) and two children | `$1C`, range 8 |
@@ -145,112 +159,42 @@ struct Route {
 /// | 115 Greneris, 72 BloodSaber, 88 SoldrFiend `$2F` VOL | arms 20630 (`loc_E47A`), 22005 (`loc_F93C`), 21484 (`loc_F1E2`) | `loc_2AE8E` (`ps4.asm:56333`) and its child `loc_2AE0C` (56296); `loc_1D2F4` (`ps4.asm:39774`); `loc_23216` (`ps4.asm:46736`): one call, then `loc_25048` (`ps4.asm:48916`) kills | `$02`, range 8 |
 /// | 70 ShadowSabr `$2D` DEBAN | `EnemyAttack_ShadowSabr` (`ps4.asm:21933`), arm `loc_F89A` (21966) | object `$2A8`, `loc_1D7D8` (`ps4.asm:40098`) | `$0A`, range 2 |
 const ROUTES: &[Route] = &[
+    route(31, 0x10, Handler::AgilityDown, 8),
+    route(32, 0x11, Handler::Poison, 8),
+    route(57, 0x24, Handler::Poison, 8),
+    route(63, 0x25, Handler::SleepParalyze, 9),
+    route(111, 0x4B, Handler::AgilityDown, 9),
+    route(138, 0x4B, Handler::AgilityDown, 9),
+    route(76, 0x34, Handler::SleepParalyze, 9),
+    route(19, 0x0B, Handler::Paralyze, 8),
+    route(26, 0x0B, Handler::Paralyze, 8),
+    route(21, 0x0B, Handler::Paralyze, 8),
+    route(115, 0x28, Handler::AgilityDown, 9),
+    route(115, 0x57, Handler::AttackDown, 9),
+    route(115, 0x29, Handler::SealTech, 9),
+    route(115, 0x2A, Handler::SleepParalyze, 9),
+    route(77, 0x2A, Handler::SleepParalyze, 9),
+    route(107, 0x4C, Handler::SleepParalyze, 8),
+    route(106, 0x4C, Handler::SleepParalyze, 8),
+    route(115, 0x2F, Handler::Death, 8),
+    route(72, 0x2F, Handler::Death, 8),
+    route(88, 0x2F, Handler::Death, 8),
     Route {
-        enemy: 76,
-        ability: 0x34,
-        handler: Handler::SleepParalyze,
-        range: 9,
-        guard: Guard::None,
-    },
-    Route {
-        enemy: 19,
-        ability: 0x0B,
-        handler: Handler::Paralyze,
-        range: 8,
-        guard: Guard::None,
-    },
-    Route {
-        enemy: 26,
-        ability: 0x0B,
-        handler: Handler::Paralyze,
-        range: 8,
-        guard: Guard::None,
-    },
-    Route {
-        enemy: 21,
-        ability: 0x0B,
-        handler: Handler::Paralyze,
-        range: 8,
-        guard: Guard::None,
-    },
-    Route {
-        enemy: 115,
-        ability: 0x28,
-        handler: Handler::AgilityDown,
-        range: 9,
-        guard: Guard::None,
-    },
-    Route {
-        enemy: 115,
-        ability: 0x57,
-        handler: Handler::AttackDown,
-        range: 9,
-        guard: Guard::None,
-    },
-    Route {
-        enemy: 115,
-        ability: 0x29,
-        handler: Handler::SealTech,
-        range: 9,
-        guard: Guard::None,
-    },
-    Route {
-        enemy: 115,
-        ability: 0x2A,
-        handler: Handler::SleepParalyze,
-        range: 9,
-        guard: Guard::None,
-    },
-    Route {
-        enemy: 77,
-        ability: 0x2A,
-        handler: Handler::SleepParalyze,
-        range: 9,
-        guard: Guard::None,
-    },
-    Route {
-        enemy: 107,
-        ability: 0x4C,
-        handler: Handler::SleepParalyze,
-        range: 8,
-        guard: Guard::None,
-    },
-    Route {
-        enemy: 106,
-        ability: 0x4C,
-        handler: Handler::SleepParalyze,
-        range: 8,
-        guard: Guard::None,
-    },
-    Route {
-        enemy: 115,
-        ability: 0x2F,
-        handler: Handler::Death,
-        range: 8,
-        guard: Guard::None,
-    },
-    Route {
-        enemy: 72,
-        ability: 0x2F,
-        handler: Handler::Death,
-        range: 8,
-        guard: Guard::None,
-    },
-    Route {
-        enemy: 88,
-        ability: 0x2F,
-        handler: Handler::Death,
-        range: 8,
-        guard: Guard::None,
-    },
-    Route {
-        enemy: 70,
-        ability: 0x2D,
-        handler: Handler::DefenseUp,
-        range: 2,
         guard: Guard::DefenceNotRaised,
+        ..route(70, 0x2D, Handler::DefenseUp, 2)
     },
 ];
+
+/// One arm with no guard.
+const fn route(enemy: u16, ability: u8, handler: Handler, range: u8) -> Route {
+    Route {
+        enemy,
+        ability,
+        handler,
+        range,
+        guard: Guard::None,
+    }
+}
 
 /// What the engine does after [`resolve_effect_skill`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -335,7 +279,10 @@ pub(super) fn resolve_effect_skill(
 fn visited(range: u8, intended: Option<FighterId>) -> Vec<FighterId> {
     match range {
         // `AbilityRange_Single`: `Current_Target_Index`.
-        8 => intended.into_iter().collect(),
+        8 => intended
+            .into_iter()
+            .filter(|id| id.side() == Side::Party)
+            .collect(),
         // `AbilityRange_MultiChars`: `moveq #1, d6 / moveq #4, d7`.
         9 => (1..=5).filter_map(FighterId::new).collect(),
         // `AbilityRange_MultiEnemies`: `moveq #6, d6 / moveq #3, d7`.
@@ -448,6 +395,17 @@ fn apply(
             if landed(skill, power, stats, rolls) {
                 stats.status |= status::TECH_SEALED;
                 events.push(inflicted(status::TECH_SEALED));
+            }
+        }
+        Handler::Poison => {
+            // `btst #StatusPoisoned` ends the handler before the roll; the
+            // bit is the handler's own (`bset #StatusPoisoned, status(a4)`).
+            if stats.status & status::POISONED != 0 {
+                return;
+            }
+            if landed(skill, power, stats, rolls) {
+                stats.status |= status::POISONED;
+                events.push(inflicted(status::POISONED));
             }
         }
         Handler::Paralyze => {

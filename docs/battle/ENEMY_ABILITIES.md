@@ -189,21 +189,21 @@ and 140 Zio2 for `$4D`.
 | `$0B` (11) **StasisBall**<br>STASISBALL | eff `$1C` · stat $01 (strength) · tgt 8 · pow 64 · res $01 (strength) · el `13` efess | `EnemyAttack_Blauzen` (`ps4.asm:23346`)<br>→ BattleObj_BlauzenStasisBall (`ps4.asm:28127`)<br>BattleObj_BlauzenStasisBall5 (`ps4.asm:27819`)<br>BattleObj_BlauzenStasisBall4 (`ps4.asm:27928`)<br>BattleObj_BlauzenStasisBall3 (`ps4.asm:27983`)<br>BattleObj_BlauzenStasisBall2 (`ps4.asm:28057`)<br>`EnemyAttack_LifeDeletr` (`ps4.asm:23124`)<br>→ BattleObj_LifeDeletrStasisBall (`ps4.asm:26956`)<br>BattleObj_LifeDeletrStasisBall2 (`ps4.asm:26855`)<br>BattleObj_LifeDeletrStasisBall3 (`ps4.asm:26823`) | `AbilityEffect_Paralyze` (`ps4.asm:9424`) | 19 Blauzen, 21 Goldine, 26 LifeDeletr<br>11/504 formations | status/stat effect | implemented - `enemy_effect` (`ROUTES`) for 19 Blauzen, 21 Goldine and 26 LifeDeletr; `AbilityEffect_Paralyze` on the drawn target ([`ENEMY_EFFECT_ABILITIES.md`](ENEMY_EFFECT_ABILITIES.md)) |
 | `$0E` (14) **MicroMissl**<br>MICROMISSL | eff `$01` · stat $05 (attack) · tgt 9 · pow 0 · res $06 (defense) · el `1` physical | `EnemyAttack_BalDuel` (`ps4.asm:23316`)<br>→ loc_378FC (`ps4.asm:72007`)<br>`EnemyAttack_LifeDeletr` (`ps4.asm:23124`)<br>→ BattleObj_LifeDeletrMicroMissl (`ps4.asm:52229`) | `AbilityEffect_None` (`ps4.asm:9092`) | 26 LifeDeletr, 28 DragerDuel, 29 JurafaDuel<br>13/504 formations | damage | unsupported |
 | `$0F` (15) **FlamLaunch**<br>FLAMLAUNCH | eff `$01` · stat $01 (strength) · tgt 8 · pow 64 · res $07 (magic_defense) · el `3` fire | `EnemyAttack_BalDuel` (`ps4.asm:23316`)<br>→ loc_37704 (`ps4.asm:71820`) | `AbilityEffect_None` (`ps4.asm:9092`) | 29 JurafaDuel<br>4/504 formations | damage | unsupported |
-| `$10` (16) **Thread**<br>THREAD | eff `$06` · stat $01 (strength) · tgt 8 · pow 64 · res $03 (agility) · el `1` physical | `EnemyAttack_Crawler` (`ps4.asm:23081`)<br>→ BattleObj_Thread (`ps4.asm:36186`) | `AbilityEffect_AgilityDown` (`ps4.asm:9139`) | 31 CarrionCr<br>3/504 formations | — | implemented — `enemy_skill::resolve_thread` |
-| `$11` (17) **Poison**<br>POISON | eff `$1B` · stat $01 (strength) · tgt 8 · pow 64 · res $01 (strength) · el `13` efess | `EnemyAttack_Crawler` (`ps4.asm:23081`)<br>→ BattleObj_Poison (`ps4.asm:36279`) | `AbilityEffect_Poison` (`ps4.asm:9410`) | 32 Caterpillr<br>7/504 formations | status/stat effect | implemented — `enemy_skill::resolve_poison` ([ENEMY_POISON.md](ENEMY_POISON.md)) |
+| `$10` (16) **Thread**<br>THREAD | eff `$06` · stat $01 (strength) · tgt 8 · pow 64 · res $03 (agility) · el `1` physical | `EnemyAttack_Crawler` (`ps4.asm:23081`)<br>→ BattleObj_Thread (`ps4.asm:36186`) | `AbilityEffect_AgilityDown` (`ps4.asm:9139`) | 31 CarrionCr<br>3/504 formations | — | implemented — `enemy_effect` (`ROUTES`, handler `$06`), moved there from `enemy_skill::resolve_thread` by lane A4 ([ENEMY_EFFECT_ABILITIES.md](ENEMY_EFFECT_ABILITIES.md) section 7) |
+| `$11` (17) **Poison**<br>POISON | eff `$1B` · stat $01 (strength) · tgt 8 · pow 64 · res $01 (strength) · el `13` efess | `EnemyAttack_Crawler` (`ps4.asm:23081`)<br>→ BattleObj_Poison (`ps4.asm:36279`) | `AbilityEffect_Poison` (`ps4.asm:9410`) | 32 Caterpillr<br>7/504 formations | status/stat effect | implemented — `enemy_effect` (`ROUTES`, handler `$1B`), moved there from `enemy_skill::resolve_poison` by lane A4 ([ENEMY_POISON.md](ENEMY_POISON.md)); seven swept fixtures replay it |
 | `$13` (19) **CellSplit**<br>CELL SPLIT | eff `$01` · stat $01 (strength) · tgt 9 · pow 80 · res $06 (defense) · el `1` physical | `EnemyAttack_MetaSlug` (`ps4.asm:22931`)<br>→ BattleObj_CellSplit (`ps4.asm:35240`)<br>BattleObj_CellSplit2 (`ps4.asm:35344`)<br>BattleObj_CellSplit3 (`ps4.asm:35392`)<br>BattleObj_CellSplit4 (`ps4.asm:35445`)<br>BattleObj_CellSplit5 (`ps4.asm:35493`) | `AbilityEffect_None` (`ps4.asm:9092`) | 37 SnowSlug, 38 FractOoze, 137 FractOoze2<br>5/504 formations (+1 boss) | damage | unsupported |
 | `$16` (22) **Flash**<br>FLASH | eff `$21` · stat $01 (strength) · tgt 9 · pow 64 · res $02 (mental) · el `11` psychic | `EnemyAttack_ArmDrone` (`ps4.asm:22789`)<br>→ loc_1886C (`ps4.asm:33905`) | `AbilityEffect_DexterityDown` (`ps4.asm:9457`) | 43 StarDrone<br>7/504 formations | damage | unsupported |
 | `$17` (23) **Waiting**<br>WAITING | eff `$22` · stat $00 (none) · tgt 0 · pow 0 · res $00 (none) · el `0` none | `EnemyAttack_FloatMine` (`ps4.asm:22675`) — no object; the routine clears `$24(a4)` | `AbilityEffect_None` (`ps4.asm:9092`) | 44 FloatMine, 46 VopalSphre, 50 FloatMine2<br>10/504 formations | — | implemented — `enemy_skill::resolve_no_effect_turn` (`rust/psiv-core/src/battle/enemy_skill.rs`): all three carriers are `EnemyAttack_FloatMine` entries (`$2C`/`$2E`/`$32`) whose routine has no `$17` arm, so `loc_10406` (`ps4.asm:22781`) spends the turn about to happen, exactly as the name says. `rust/psiv-godot/src/battle/timeline.rs` narrates `BattleEvent::EnemyAbilityWasted` as an empty line with no beat — which is what retail shows — and its `narration` match now names every variant, so a new core event fails to compile there until it is given its line |
 | `$19` (25) **Detonation**<br>DETONATION | eff `$24` · stat $05 (attack) · tgt 9 · pow 24 · res $06 (defense) · el `1` physical | `EnemyAttack_FloatMine` (`ps4.asm:22675`)<br>→ loc_17B5E (`ps4.asm:33029`)<br>loc_17DA6 (`ps4.asm:33183`)<br>loc_17E1A (`ps4.asm:33211`)<br>loc_17F6C (`ps4.asm:33295`)<br>loc_1804A (`ps4.asm:33351`)<br>loc_18144 (`ps4.asm:33412`)<br>loc_1816A (`ps4.asm:33424`)<br>loc_1824A (`ps4.asm:33483`)<br>loc_18270 (`ps4.asm:33495`)<br>loc_18344 (`ps4.asm:33550`) | `AbilityEffect_None` (`ps4.asm:9092`) | 45 CommndBall<br>2/504 formations | damage | unsupported |
 | `$1C` (28) **FlareShot**<br>FLARE SHOT | eff `$01` · stat $05 (attack) · tgt 8 · pow 16 · res $06 (defense) · el `2` energy | `EnemyAttack_DarkForce1` (`ps4.asm:20030`)<br>→ loc_31F60 (`ps4.asm:64584`)<br>`EnemyAttack_Warren286` (`ps4.asm:22515`)<br>→ loc_1786E (`ps4.asm:32828`) | `AbilityEffect_None` (`ps4.asm:9092`) | 47 Warren286, 48 Siren386, 49 Browren486, 130 DarkForce1<br>13/504 formations (+1 boss) | damage † | unsupported |
-| `$1D` (29) **Barrier**<br>BARRIER | eff `$0B` · stat $01 (strength) · tgt 2 · pow 0 · res $00 (none) · el `0` none | `EnemyAttack_Warren286` (`ps4.asm:22515`)<br>→ loc_1769E (`ps4.asm:32706`)<br>loc_175A2 (`ps4.asm:32636`)<br>loc_174BE (`ps4.asm:32575`)<br>loc_1740E (`ps4.asm:32526`)<br>loc_17364 (`ps4.asm:32478`)<br>loc_172CA (`ps4.asm:32429`)<br>loc_171D0 (`ps4.asm:32358`) | `AbilityEffect_MagicDefenseUp` (`ps4.asm:9220`) | 49 Browren486<br>5/504 formations | status/stat effect | unsupported |
+| `$1D` (29) **Barrier**<br>BARRIER | eff `$0B` · stat $01 (strength) · tgt 2 · pow 0 · res $00 (none) · el `0` none | `EnemyAttack_Warren286` (`ps4.asm:22515`)<br>→ loc_1769E (`ps4.asm:32706`)<br>loc_175A2 (`ps4.asm:32636`)<br>loc_174BE (`ps4.asm:32575`)<br>loc_1740E (`ps4.asm:32526`)<br>loc_17364 (`ps4.asm:32478`)<br>loc_172CA (`ps4.asm:32429`)<br>loc_171D0 (`ps4.asm:32358`) | `AbilityEffect_MagicDefenseUp` (`ps4.asm:9220`) | 49 Browren486 (regular), 48 Siren386 (conditional, arm `$08`)<br>5/504 formations | status/stat effect | unsupported - deferred, [ENEMY_EFFECT_ABILITIES.md](ENEMY_EFFECT_ABILITIES.md) section 7: 48 Siren386 reaches it only after a magic hit, which no capture policy can produce |
 | `$1F` (31) **DblSlash**<br>DBL SLASH | eff `$01` · stat $05 (attack) · tgt 8 · pow 32 · res $06 (defense) · el `1` physical | `EnemyAttack_Loader` (`ps4.asm:22448`)<br>→ loc_16D1C (`ps4.asm:32015`)<br>loc_16E9E (`ps4.asm:32135`)<br>`EnemyAttack_SnowMole` (`ps4.asm:19620`)<br>→ BattleObj_EnemyDblSlash (`ps4.asm:68007`) | `AbilityEffect_None` (`ps4.asm:9092`) | 52 Debugger, 53 Dominator, 145 RedMole, 146 HungryMole<br>20/504 formations (+1 boss) | damage | unsupported |
 | `$20` (32) **PhononMasr**<br>PHONONMASR | eff `$01` · stat $01 (strength) · tgt 9 · pow 88 · res $06 (defense) · el `1` physical | `EnemyAttack_DarkForce1` (`ps4.asm:20030`)<br>→ loc_31CDC (`ps4.asm:64401`)<br>`EnemyAttack_Loader` (`ps4.asm:22448`)<br>→ loc_169C6 (`ps4.asm:31782`) | `AbilityEffect_None` (`ps4.asm:9092`) | 53 Dominator, 130 DarkForce1<br>4/504 formations (+2 boss) | damage † | unsupported |
 | `$21` (33) **FireBreath**<br>FIREBREATH | eff `$01` · stat $01 (strength) · tgt 8 · pow 32 · res $07 (magic_defense) · el `3` fire | `EnemyAttack_GyLaguiah` (`ps4.asm:20519`)<br>→ loc_2A01A (`ps4.asm:55324`)<br>`EnemyAttack_ProfoundDarkness1` (`ps4.asm:19823`)<br>→ loc_30022 (`ps4.asm:62419`)<br>`EnemyAttack_Ripper` (`ps4.asm:21587`)<br>→ loc_23D0A (`ps4.asm:47507`)<br>`EnemyAttack_SandNewt` (`ps4.asm:22267`)<br>→ BattleObj_FireBreath (`ps4.asm:42121`)<br>`EnemyAttack_StoneHeads` (`ps4.asm:22350`)<br>→ loc_16366 (`ps4.asm:31333`)<br>loc_16406 (`ps4.asm:31380`) | `AbilityEffect_None` (`ps4.asm:9092`) | 58 FlameNewt, 59 StoneHeads, 83 Ripper, 84 BladeRight, 117 GyLaguiah, 133 ProfoundDarkness1<br>25/504 formations (+3 boss) | damage † | implemented — `enemy_damage::resolve_damage_skill` (`DAMAGE_SKILL_ROUTES`, the `firebreath` family) for this carrier; one `$38` request. 133 ProfoundDarkness1 carries `$21` too and is left out: its routine tests `$FFFFEE87` first (the `†` gate) — [routes](ENEMY_DAMAGE_ROUTES.md) §3 |
 | `$22` (34) **RayBreath**<br>RAY BREATH | eff `$01` · stat $01 (strength) · tgt 8 · pow 72 · res $07 (magic_defense) · el `2` energy | `EnemyAttack_GyLaguiah` (`ps4.asm:20519`)<br>→ loc_29EEE (`ps4.asm:55243`)<br>`EnemyAttack_ProfoundDarkness1` (`ps4.asm:19823`)<br>→ loc_2FE7C (`ps4.asm:62296`)<br>`EnemyAttack_StoneHeads` (`ps4.asm:22350`)<br>→ loc_1628A (`ps4.asm:31273`)<br>loc_16406 (`ps4.asm:31380`) | `AbilityEffect_None` (`ps4.asm:9092`) | 60 CrminHeads, 61 BlindHeads, 118 LwAddmer, 133 ProfoundDarkness1<br>15/504 formations (+1 boss) | damage † | unsupported |
 | `$23` (35) **SuperSonic**<br>SUPERSONIC | eff `$01` · stat $01 (strength) · tgt 9 · pow 150 · res $06 (defense) · el `1` physical | `EnemyAttack_DezoOwl` (`ps4.asm:19658`)<br>→ BattleObj_OwlSupersonic (`ps4.asm:68761`) | `AbilityEffect_None` (`ps4.asm:9092`) | 142 Skytiara<br>7/504 formations | damage | unsupported |
-| `$24` (36) **PoisonMist**<br>POISONMIST | eff `$1B` · stat $01 (strength) · tgt 8 · pow 80 · res $01 (strength) · el `13` efess | `EnemyAttack_SandNewt` (`ps4.asm:22267`)<br>→ BattleObj_PoisonMist (`ps4.asm:42202`) | `AbilityEffect_Poison` (`ps4.asm:9410`) | 57 Mistralgec, 58 FlameNewt<br>6/504 formations | status/stat effect | unsupported |
-| `$25` (37) **SleepGas**<br>SLEEP GAS | eff `$07` · stat $01 (strength) · tgt 9 · pow 80 · res $01 (strength) · el `11` psychic | `EnemyAttack_AbeFrog` (`ps4.asm:22246`)<br>→ BattleObj_SleepGas (`ps4.asm:41714`) | `AbilityEffect_SleepParalyze` (`ps4.asm:9154`) | 63 GerotLux<br>3/504 formations | status/stat effect | unsupported |
+| `$24` (36) **PoisonMist**<br>POISONMIST | eff `$1B` · stat $01 (strength) · tgt 8 · pow 80 · res $01 (strength) · el `13` efess | `EnemyAttack_SandNewt` (`ps4.asm:22267`)<br>→ BattleObj_PoisonMist (`ps4.asm:42202`) | `AbilityEffect_Poison` (`ps4.asm:9410`) | 57 Mistralgec, 58 FlameNewt<br>6/504 formations | status/stat effect | implemented - `enemy_effect` for 57 Mistralgec (handler `$1B`, range 8): the Dezolis foot groups' only carrier, captured and replayed ([`BATTLE_ORACLE_ZELAN.md`](../oracle/BATTLE_ORACLE_ZELAN.md)); 58 FlameNewt shares the routine and arm but is off the route and unobserved, so it keeps `UnsupportedAbility` |
+| `$25` (37) **SleepGas**<br>SLEEP GAS | eff `$07` · stat $01 (strength) · tgt 9 · pow 80 · res $01 (strength) · el `11` psychic | `EnemyAttack_AbeFrog` (`ps4.asm:22246`)<br>→ BattleObj_SleepGas (`ps4.asm:41714`) | `AbilityEffect_SleepParalyze` (`ps4.asm:9154`) | 63 GerotLux<br>3/504 formations | status/stat effect | implemented - `enemy_effect` for 63 GerotLux (handler `$07`, range 9, `bset #3` from `loc_24D76`): the Hangar's carrier, captured and replayed |
 | `$26` (38) **Shift**<br>SHIFT | eff `$09` · stat $82 (mental) · tgt 3 · pow 0 · res $00 (none) · el `0` none | `EnemyAttack_Juza` (`ps4.asm:20575`)<br>→ loc_2AAEE (`ps4.asm:56081`) | `AbilityEffect_AttackUp` (`ps4.asm:9181`) | 116 Radhin<br>4/504 formations | status/stat effect | unsupported |
 | `$27` (39) **Saner**<br>SANER | eff `$0C` · stat $82 (mental) · tgt 2 · pow 0 · res $00 (none) · el `0` none | `EnemyAttack_Juza` (`ps4.asm:20575`)<br>→ loc_2A91A (`ps4.asm:55950`) | `AbilityEffect_AgilityUp` (`ps4.asm:9237`) | 116 Radhin<br>4/504 formations | status/stat effect | unsupported |
 | `$28` (40) **Doran**<br>DORAN | eff `$06` · stat $82 (mental) · tgt 9 · pow 80 · res $02 (mental) · el `11` psychic | `EnemyAttack_Juza` (`ps4.asm:20575`)<br>→ loc_2A814 (`ps4.asm:55873`) | `AbilityEffect_AgilityDown` (`ps4.asm:9139`) | 115 Greneris<br>1/504 formations | status/stat effect | implemented - `enemy_effect` for 115 Greneris; `AbilityEffect_AgilityDown` on all five party slots |
@@ -234,7 +234,7 @@ and 140 Zio2 for `$4D`.
 | `$47` (71) **Zan**<br>ZAN | eff `$01` · stat $82 (mental) · tgt 9 · pow 16 · res $07 (magic_defense) · el `1` physical | `EnemyAttack_Juza` (`ps4.asm:20575`)<br>→ loc_2AF18 (`ps4.asm:56372`)<br>`EnemyAttack_TechUser` (`ps4.asm:21156`)<br>→ loc_215D6 (`ps4.asm:44836`) | `AbilityEffect_None` (`ps4.asm:9092`) | 100 TechMaster, 114 Juza<br>6/504 formations (+1 boss) | damage | implemented — `enemy_damage::resolve_damage_skill` (`DAMAGE_SKILL_ROUTES`, the `zio` family) for this carrier; the all-party class: the arm clears `Current_Target_Index` and the object writes `#$C` to the five party slots (line 44895 for 100, line 56426 for 114) |
 | `$48` (72) **Gifoi**<br>GIFOI | eff `$01` · stat $82 (mental) · tgt 8 · pow 56 · res $07 (magic_defense) · el `3` fire | `EnemyAttack_DElmLars` (`ps4.asm:20222`)<br>→ loc_2900E (`ps4.asm:54263`)<br>`EnemyAttack_TechUser` (`ps4.asm:21156`)<br>→ loc_21960 (`ps4.asm:45087`) | `AbilityEffect_None` (`ps4.asm:9092`) | 101 DarkWitch, 124 LeFawGan<br>9/504 formations | damage | unsupported |
 | `$4A` (74) **StarDust**<br>STAR DUST | eff `$01` · stat $02 (mental) · tgt 9 · pow 72 · res $07 (magic_defense) · el `2` energy | `EnemyAttack_Acacia` (`ps4.asm:21092`)<br>→ loc_20B96 (`ps4.asm:44101`) | `AbilityEffect_None` (`ps4.asm:9092`) | 105 ShadMirage<br>3/504 formations | damage | unsupported |
-| `$4B` (75) **ShadowBind**<br>SHADOWBIND | eff `$06` · stat $02 (mental) · tgt 9 · pow 64 · res $02 (mental) · el `11` psychic | `EnemyAttack_Acacia` (`ps4.asm:21092`)<br>→ loc_2078E (`ps4.asm:43835`)<br>`EnemyAttack_ChaosSorcr` (`ps4.asm:20816`)<br>→ loc_2BCEA (`ps4.asm:57360`)<br>`EnemyAttack_DarkForce3` (`ps4.asm:19907`)<br>→ loc_30A38 (`ps4.asm:63083`) | `AbilityEffect_AgilityDown` (`ps4.asm:9139`) | 105 ShadMirage, 111 ChaosSorcr, 132 DarkForce3, 138 ChaosSorcr2<br>11/504 formations (+2 boss) | status/stat effect | unsupported |
+| `$4B` (75) **ShadowBind**<br>SHADOWBIND | eff `$06` · stat $02 (mental) · tgt 9 · pow 64 · res $02 (mental) · el `11` psychic | `EnemyAttack_Acacia` (`ps4.asm:21092`)<br>→ loc_2078E (`ps4.asm:43835`)<br>`EnemyAttack_ChaosSorcr` (`ps4.asm:20816`)<br>→ loc_2BCEA (`ps4.asm:57360`)<br>`EnemyAttack_DarkForce3` (`ps4.asm:19907`)<br>→ loc_30A38 (`ps4.asm:63083`) | `AbilityEffect_AgilityDown` (`ps4.asm:9139`) | 105 ShadMirage, 111 ChaosSorcr, 132 DarkForce3, 138 ChaosSorcr2<br>11/504 formations (+2 boss) | status/stat effect | partial - `enemy_effect` for 111 ChaosSorcr and 138 ChaosSorcr2 (handler `$06`, range 9, MEN against MEN): 138 is the sabotage's Chaos Sorcerer (event battle 8). 105 ShadMirage and 132 DarkForce3 are off the route and unobserved |
 | `$4C` (76) **EvilEye**<br>EVIL EYE | eff `$07` · stat $02 (mental) · tgt 8 · pow 64 · res $02 (mental) · el `11` psychic | `EnemyAttack_DarkForce2` (`ps4.asm:19970`)<br>→ loc_30DC0 (`ps4.asm:63323`)<br>`EnemyAttack_Haunt` (`ps4.asm:21005`)<br>→ loc_2CB1C (`ps4.asm:58346`)<br>`EnemyAttack_ProfoundDarkness3` (`ps4.asm:19692`)<br>→ loc_2E524 (`ps4.asm:60482`) | `AbilityEffect_SleepParalyze` (`ps4.asm:9154`) | 106 Haunt, 107 Spector, 131 DarkForce2, 135 ProfoundDarkness3<br>11/504 formations (+2 boss) | status/stat effect | partial - `enemy_effect` for 106 Haunt and 107 Spector (`AbilityEffect_SleepParalyze`, one target, `bset #3` by `loc_2CB1C`); 131 DarkForce2 and 135 ProfoundDarkness3 are the cutscene-gated routines (`†`), not routed |
 | `$4D` (77) **Corrsion**<br>CORRSION | eff `$01` · stat $02 (mental) · tgt 9 · pow 64 · res $07 (magic_defense) · el `1` physical | `EnemyAttack_ChaosSorcr` (`ps4.asm:20816`)<br>→ loc_2BED2 (`ps4.asm:57485`)<br>`EnemyAttack_DarkForce3` (`ps4.asm:19907`)<br>→ loc_308FA (`ps4.asm:62998`)<br>`EnemyAttack_Haunt` (`ps4.asm:21005`)<br>→ loc_2C98A (`ps4.asm:58230`)<br>`EnemyAttack_Zio2` (`ps4.asm:19519`) — phase counter rewrites `$24(a4)`; with the counter clear the rolled id is dispatched.<br>`$6B`/phase 0 → BattleObj_MagBarrir (`ps4.asm:67319`)<br>`$00` → loc_338E0 (`ps4.asm:66735`)<br>`$6C` → BattleObj_BlackWave2 (`ps4.asm:66922`)<br>`$4D` → loc_33646 (`ps4.asm:66537`)<br>else → loc_335A6 (`ps4.asm:66498`) | `AbilityEffect_None` (`ps4.asm:9092`) | 106 Haunt, 107 Spector, 111 ChaosSorcr, 112 Illusionst, 113 ImagioMage, 132 DarkForce3, 140 Zio2<br>30/504 formations (+2 boss) | damage † | implemented — `enemy_damage::resolve_damage_skill` (`DAMAGE_SKILL_ROUTES`, the `zio` family) for this carrier; the all-party class, one `#$C` per party slot (line 48575, or the object's own loop at line 57589). 140 Zio2 joined in F3: its first action is the scripted Magic Barrier and the roll is dispatched from the second (`battle/zio.rs`) — [routes](ENEMY_DAMAGE_ROUTES.md) §3 |
 | `$4E` (78) **DthSpell**<br>DTHSPELL | eff `$02` · stat $02 (mental) · tgt 8 · pow 112 · res $02 (mental) · el `10` biological | `EnemyAttack_ChaosSorcr` (`ps4.asm:20816`)<br>→ loc_2B8C6 (`ps4.asm:57104`)<br>`EnemyAttack_Haunt` (`ps4.asm:21005`)<br>→ loc_2C854 (`ps4.asm:58148`) | `AbilityEffect_Death` (`ps4.asm:9098`) | 107 Spector, 112 Illusionst, 113 ImagioMage<br>18/504 formations (+1 boss) | status/stat effect | unsupported |
@@ -253,7 +253,7 @@ and 140 Zio2 for `$4D`.
 | `$5F` (95) **ThndHalbrt**<br>THNDHALBRT | eff `$01` · stat $05 (attack) · tgt 9 · pow 0 · res $06 (defense) · el `7` electric | `EnemyAttack_Lashiec` (`ps4.asm:20116`)<br>→ loc_281F6 (`ps4.asm:53309`) | `AbilityEffect_None` (`ps4.asm:9092`) | 128 Lashiec<br>0/504 formations (+1 boss) | damage | unsupported |
 | `$60` (96) **Posession**<br>POSESSION | eff `$07` · stat $02 (mental) · tgt 8 · pow 32 · res $02 (mental) · el `11` psychic | `EnemyAttack_Lashiec` (`ps4.asm:20116`)<br>→ loc_2805C (`ps4.asm:53215`) | `AbilityEffect_SleepParalyze` (`ps4.asm:9154`) | 128 Lashiec<br>0/504 formations (+1 boss) | damage | unsupported |
 | `$61` (97) **AnothrGate**<br>ANOTHRGATE | eff `$01` · stat $02 (mental) · tgt 9 · pow 148 · res $07 (magic_defense) · el `1` physical | `EnemyAttack_Lashiec` (`ps4.asm:20116`)<br>→ loc_27B02 (`ps4.asm:52835`)<br>`EnemyAttack_ProfoundDarkness2` (`ps4.asm:19750`)<br>→ loc_2F060 (`ps4.asm:61289`) | `AbilityEffect_None` (`ps4.asm:9092`) | 128 Lashiec, 134 ProfoundDarkness2<br>0/504 formations (+1 boss) | damage | unsupported |
-| `$63` (99) **Burstroc**<br>BURSTROC | eff `$01` · stat $01 (strength) · tgt 9 · pow 72 · res $07 (magic_defense) · el `1` physical | `EnemyAttack_DarkForce1` (`ps4.asm:20030`)<br>→ loc_31AB6 (`ps4.asm:64247`) | `AbilityEffect_None` (`ps4.asm:9092`) | 130 DarkForce1<br>0/504 formations (+1 boss) | scripted/custom | unsupported |
+| `$63` (99) **Burstroc**<br>BURSTROC | eff `$01` · stat $01 (strength) · tgt 9 · pow 72 · res $07 (magic_defense) · el `1` physical | `EnemyAttack_DarkForce1` (`ps4.asm:20030`)<br>→ loc_31AB6 (`ps4.asm:64247`) | `AbilityEffect_None` (`ps4.asm:9092`) | 130 DarkForce1<br>0/504 formations (+1 boss) | damage | unsupported - reclassified by lane A4 from `scripted/custom`: object `$82C` (`loc_31AB6`, `ps4.asm:64247`) reaches `jmp (loc_24A9E)` at its fourth state (line 64263), the shared tail that writes `#$C` to all five party slots (`ps4.asm:48483-48500`); the lane that owns damage routes takes it (all-party class) |
 | `$64` (100) **ShdwBreath**<br>SHDWBREATH | eff `$01` · stat $05 (attack) · tgt 8 · pow 112 · res $07 (magic_defense) · el `1` physical | `EnemyAttack_DarkForce2` (`ps4.asm:19970`)<br>→ loc_31378 (`ps4.asm:63744`)<br>`EnemyAttack_ProfoundDarkness1` (`ps4.asm:19823`)<br>→ loc_301B6 (`ps4.asm:62539`) | `AbilityEffect_None` (`ps4.asm:9092`) | 131 DarkForce2, 133 ProfoundDarkness1<br>0/504 formations (+2 boss) | scripted/custom | unsupported |
 | `$65` (101) **LightShowr**<br>LIGHTSHOWR | eff `$01` · stat $01 (strength) · tgt 9 · pow 120 · res $07 (magic_defense) · el `7` electric | `EnemyAttack_DarkForce2` (`ps4.asm:19970`)<br>→ loc_30FD2 (`ps4.asm:63467`)<br>`EnemyAttack_ProfoundDarkness2` (`ps4.asm:19750`)<br>→ loc_2EF0E (`ps4.asm:61209`) | `AbilityEffect_None` (`ps4.asm:9092`) | 131 DarkForce2, 134 ProfoundDarkness2<br>0/504 formations (+1 boss) | damage † | unsupported |
 | `$69` (105) **Canceling**<br>CANCELING | eff `$27` · stat $00 (none) · tgt 9 · pow 0 · res $00 (none) · el `0` none | `EnemyAttack_ProfoundDarkness3` (`ps4.asm:19692`)<br>→ loc_2E2DE (`ps4.asm:60310`) | `AbilityEffect_RestoreStats` (`ps4.asm:9472`) | 135 ProfoundDarkness3<br>0/504 formations | damage | unsupported |
@@ -280,7 +280,7 @@ same ledger. The mechanism itself is §1's arm table; `status` here is the
 | `$0C` (12) **Combine**<br>COMBINE | eff `$1F` · stat $00 (none) · tgt 25 · pow 26 · res $00 (none) · el `0` none | 23 ArthroPod | 3 WiredineExists | unknown | unsupported |
 | `$0D` (13) **Combine2**<br>COMBINE | eff `$1F` · stat $00 (none) · tgt 23 · pow 26 · res $00 (none) · el `0` none | 25 Wiredine | 4 ArthroPodExists | unknown | unsupported |
 | `$12` (18) **Fusion**<br>FUSION | eff `$1F` · stat $00 (none) · tgt 34 · pow 36 · res $00 (none) · el `0` none | 34 ZolSlug | 6 ZolSlugs | unknown | implemented - `enemy_fusion::resolve_fusion` ([`ENEMY_FUSION.md`](ENEMY_FUSION.md)) |
-| `$14` (20) **Warning**<br>WARNING | eff `$1E` · stat $00 (none) · tgt 44 · pow 0 · res $00 (none) · el `0` none | 39 Tower, 45 CommndBall | 1 EmptySpace | unknown | unsupported |
+| `$14` (20) **Warning**<br>WARNING | eff `$1E` · stat $00 (none) · tgt 44 · pow 0 · res $00 (none) · el `0` none | 39 Tower, 45 CommndBall | 1 EmptySpace | unknown | implemented - the refill family: `enemy_skill::resolve_fission` for this record (`$1CC` ends in `loc_14CBE`), and `initialize_enemies` for 39 Tower and 45 CommndBall ([ENEMY_EFFECT_ABILITIES.md](ENEMY_EFFECT_ABILITIES.md) section 7). Observed for 45 CommndBall; 39 Tower is off the route, same init and record, unobserved |
 | `$15` (21) **ChargCnnon**<br>CHARGCNNON | eff `$20` · stat $01 (strength) · tgt 9 · pow 48 · res $07 (magic_defense) · el `2` energy | 40 CRayTube | 5 CRayTubeNearSatMinion | damage | unsupported |
 | `$18` (24) **Explosion**<br>EXPLOSION | eff `$23` · stat $05 (attack) · tgt 8 · pow 0 · res $06 (defense) · el `1` physical | 44 FloatMine, 50 FloatMine2 | 7 PhysicalAtkReceived | damage | unsupported |
 | `$1A` (26) **CyanicBomb**<br>CYANICBOMB | eff `$02` · stat $01 (strength) · tgt 8 · pow 56 · res $01 (strength) · el `10` biological | 46 VopalSphre | 7 PhysicalAtkReceived | status/stat effect | unsupported |
@@ -308,6 +308,12 @@ condition 2 HalfHPOrLower). ShadowSabr's `EnemyAttack_ShadowSabr` arm (`loc_F89A
 `$12` Fusion on the Zol slugs; `$2C` AIRSLASH is not (it is the next damage row
 nothing owns).
 
+`$17` WAITING is also **conditional** for 42 SatMinion (condition `$05`, formation
+`$123` SatMinion, CRayTube, SatMinion): `EnemyAttack_ArmDrone`'s `$17` arm
+(`loc_10468`, `ps4.asm:22806`) is the FloatMine fall-through's body, and
+`resolve_no_effect_turn` covers 42 for it - read, not observed (see
+`enemy_skill.rs`'s `ARM_DRONE_CARRIERS`).
+
 ## 4. Where the unsupported abilities appear
 
 Map ids whose encounter table can roll a formation carrying the ability, with the
@@ -331,8 +337,6 @@ Map ids whose encounter table can roll a formation carrying the ability, with th
 | `$21` FIREBREATH | damage | 54 (+3 boss) | 082 ZioFort, 083 ZioFort_Part2, 084 ZioFort_F1, 085 ZioFort_F2West, 087 ZioFortJuzaRoom, 089 ZioFort_F2East, 08A ZioFort_F3, 08B ZioFort_F4, 08C LadeaTower, 08D LadeaTower_F1, 08E LadeaTower_F2, 08F LadeaTower_F3, 090 LadeaTower_F4, 091 LadeaTower_F5, 092 IslandCave, 093 IslandCave_F1, 094 IslandCave_F1_Part2, 095 IslandCave_Part2, 096 IslandCave_B1, 097 IslandCave_F2, 098 IslandCave_F3, 0F2 StrengthTower, 0F3 StrengthTower_F1, 0F7 CourageTower, 0F8 CourageTower_F1, 0FC AngerTower, 0FD AngerTower_F1, 172 AirCastle_Part2, 173 AirCastle_Part3, 174 AirCastle_Part4, 175 AirCastle_Part5, 176 AirCastle_F1_Part9, 177 AirCastle_F1_Part5, 178 AirCastle_F1_Part2, 179 AirCastle_F1_Part10, 17A AirCastleInner, 17B AirCastle_F1_Part11, 17C AirCastle_F1_Part12, 17D AirCastle_F1_Part13, 17E AirCastle_Part8, 17F AirCastle_Part7, 180 AirCastle_F1_Part4, 181 AirCastle_F1, 182 AirCastle_F1_Part3, 183 AirCastle_F2, 184 AirCastleXeAThoulRoom, 185 AirCastleInner_B1, 186 AirCastleInner_B1_Part2, 188 AirCastleInner_B2, 189 AirCastleInner_B3, 18A AirCastleInner_B4, 18B AirCastleInner_B5, 199 GaruberkTower, 19A GaruberkTower_Part2 |
 | `$22` RAY BREATH | damage | 17 (+1 boss) | 001 Dezolis, 002 Rykros, 0F2 StrengthTower, 0F3 StrengthTower_F1, 0F4 StrengthTower_F2, 0F5 StrengthTower_F3, 0F7 CourageTower, 0F8 CourageTower_F1, 0F9 CourageTower_F2, 0FA CourageTower_F3, 0FC AngerTower, 0FD AngerTower_F1, 100 TheEdge, 101 TheEdge_Part2, 102 TheEdge_Part3, 103 TheEdge_Part4, 104 TheEdge_Part5 |
 | `$23` SUPERSONIC | damage | 5 | 001 Dezolis, 158 MystVale, 159 MystVale_Part2, 15A MystVale_Part3, 15B MystVale_Part4 |
-| `$24` POISONMIST | status/stat effect | 8 | 001 Dezolis, 092 IslandCave, 093 IslandCave_F1, 094 IslandCave_F1_Part2, 095 IslandCave_Part2, 096 IslandCave_B1, 097 IslandCave_F2, 098 IslandCave_F3 |
-| `$25` SLEEP GAS | status/stat effect | 1 | 15F Hangar |
 | `$26` SHIFT | status/stat effect | 5 | 19B GaruberkTower_Part3, 19C GaruberkTower_Part4, 19D GaruberkTower_Part5, 19E GaruberkTower_Part6, 19F GaruberkTower_Part7 |
 | `$27` SANER | status/stat effect | 5 | 19B GaruberkTower_Part3, 19C GaruberkTower_Part4, 19D GaruberkTower_Part5, 19E GaruberkTower_Part6, 19F GaruberkTower_Part7 |
 | `$29` SEALS | status/stat effect | 10 | 0CE Nurvus_B1, 0CF Nurvus_B2, 0D0 Nurvus_B3, 0D2 Nurvus_B4, 0D5 Nurvus_B5, 19B GaruberkTower_Part3, 19C GaruberkTower_Part4, 19D GaruberkTower_Part5, 19E GaruberkTower_Part6, 19F GaruberkTower_Part7 |
@@ -382,14 +386,14 @@ Map ids whose encounter table can roll a formation carrying the ability, with th
 | | |
 |---|---|
 | distinct nonzero regular ability ids (§2) | 83 |
-| implemented | 30 (F3 added `$54` and `$6C`) |
-| partial | 2 (`$29` SEALS: Greneris implemented, Radhin deferred; `$4C` EVIL EYE: Haunt and Spector implemented, the two cutscene-gated carriers not) |
-| unsupported | 51 |
-| — `damage` | 39 |
-| — `status/stat effect` | 10 |
-| — `scripted/custom` | 2 unsupported (`$63` BURSTROC, `$64` SHDWBREATH); `$54` and `$6C` BLACK WAVE implemented in F3 |
+| implemented | 32 (F3 added `$54` and `$6C`; A4 added `$24` and `$25`) |
+| partial | 3 (`$29` SEALS: Greneris implemented, Radhin deferred; `$4C` EVIL EYE: Haunt and Spector implemented, the two cutscene-gated carriers not; `$4B` SHADOWBIND: the two Chaos Sorcerers implemented, ShadMirage and DarkForce3 not - A4) |
+| unsupported | 48 |
+| — `damage` | 40 (A4 reclassified `$63` BURSTROC from scripted/custom) |
+| — `status/stat effect` | 7 (A4 implemented `$24`, `$25` and part of `$4B`) |
+| — `scripted/custom` | 1 unsupported (`$64` SHDWBREATH); `$54` and `$6C` BLACK WAVE implemented in F3 |
 | — `unknown` | 0 |
-| conditional-only ids (§3) | 24, three of them implemented (`$06` FISSION, `$12` FUSION, `$45` RES) |
+| conditional-only ids (§3) | 24, four of them implemented (`$06` FISSION, `$12` FUSION, `$45` RES, `$14` WARNING) |
 
 The twenty-eight earlier implemented rows (plus F3's `$54` and `$6C`) are exactly what `psiv-core` claims (the first seventeen below, then the Motavia arc's damage routes and its status and stat abilities):
 
@@ -419,11 +423,11 @@ The twenty-eight earlier implemented rows (plus F3's `$54` and `$6C`) are exactl
   FloatMine2 (`$32`). `loc_10406` (`ps4.asm:22781`) loads no object and clears
   `$24(a4)`, so those turns pass with nothing happening (see the Port gaps
   bullet for the draws and the one unmodelled override).
-- `$10` THREAD → `enemy_skill::resolve_thread`. Carrier 31 CarrionCr →
+- `$10` THREAD → `enemy_effect` (a `ROUTES` entry since lane A4). Carrier 31 CarrionCr →
   `EnemyAttack_Crawler` (`ps4.asm:23081`) → `BattleObj_Thread` (`ps4.asm:36186`)
   for `$10`, `BattleObj_Poison` (`ps4.asm:36279`) otherwise — matching
   `docs/battle/THREAD.md`.
-- `$11` POISON → `enemy_skill::resolve_poison`. Carrier 32 Caterpillr →
+- `$11` POISON → `enemy_effect` (a `ROUTES` entry since lane A4). Carrier 32 Caterpillr →
   `EnemyAttack_Crawler` → `BattleObj_Poison`; effect `$1B` →
   `AbilityEffect_Poison`. See [`ENEMY_POISON.md`](ENEMY_POISON.md).
 - `$33` ACIDBREATH → `enemy_damage::resolve_damage_skill` for all four carriers
@@ -628,11 +632,12 @@ The twenty-eight earlier implemented rows (plus F3's `$54` and `$6C`) are exactl
 ### Port gaps
 
 - `Battle::roll_enemy_ability` (`rust/psiv-core/src/battle/engine_enemy.rs`) handles
-  Fission/Fission2, the record-driven damage skills (`enemy_damage`: `$33`,
-  `$02` and the eight Motavia single-target abilities), THREAD, the Zio family (139, 140, 152) and the
-  FloatMine carriers' `$07`/`$17` no-effect turn, `enemy_effect`'s status and
-  stat routes (VOICE, RIMIT, EVIL EYE, STASISBALL, DORAN, SEALS, GELUN, VOL and
-  ShadowSabr's DEBAN),
+  Fission/Fission2/WARNING (the refill), the record-driven damage skills
+  (`enemy_damage`: `$33`, `$02` and the eight Motavia single-target abilities), the
+  Zio family (139, 140, 152), Dark Force 1's latch-gated first action and the
+  FloatMine carriers' (and SatMinion's) `$07`/`$17` no-effect turn, `enemy_effect`'s
+  status and stat routes (THREAD, POISON, POISONMIST, SLEEP GAS, SHADOWBIND, VOICE,
+  RIMIT, EVIL EYE, STASISBALL, DORAN, SEALS, GELUN, VOL and ShadowSabr's DEBAN),
   `enemy_skill::resolve_res` (RES and GIRES) and `enemy_fusion`'s Fusion.
   Every other nonzero id emits
   `BattleEvent::UnsupportedAbility` and then takes the ordinary attack path
@@ -712,12 +717,108 @@ The twenty-eight earlier implemented rows (plus F3's `$54` and `$6C`) are exactl
   four swept fixtures (`formation_2A`, `2B`, `32`, `34`) pin the numbers.
 - **The Zio family is implemented (F3).** `$FFFFEE98` is one byte shared by `EnemyAttack_Zio` (139), `_Zio2` (140) and `_Zio3` (152); `battle/zio.rs` lists every writer and reader and the arm table, `engine_enemy.rs` runs it, and a Psycho Wand form change keeps the counter (`loc_3CF60` runs no init routine). `$FFFFEE87` is a different shape (a latch); only its opening-priority reader is modelled (`battle/scripted_flag.rs`): a Zio battle opens as an enemy ambush, so the party has no command round before Zio's Magic Barrier. Still open (issue #62): ProfoundDarkness1's FIREBREATH behind the latch's first-action readers.
 
+## 6. The Zelan-to-Kuran route (lane A4)
+
+The campaign route has reached the Hangar and crosses Dezolis to Kuran
+([`RUNNER_LOG_ZELAN.md`](../campaign/RUNNER_LOG_ZELAN.md),
+[`RUNNER_LOG_DEZOLIS.md`](../campaign/RUNNER_LOG_DEZOLIS.md)). The set of abilities it
+will meet is **derived**, not listed, by
+
+```
+python3 -m oracle.sweep.route_abilities            # markdown; --json for the data
+```
+
+(`oracle/sweep/route_abilities.py`). It reads the maps the route file names from
+the chapter `zelan-wren-canceller` to the last one (`rust/psiv-campaign/routes/main.json`),
+the maps the scenes `SPACESHIP_SABOTAGE` to `DARK_FORCE_1_DEFEATED` load
+(`rust/psiv-core/src/scenes/post_zio_cutscenes.rs`: docs/scenes 42-48), and Kuran's
+eight encounter maps (the stretch ends there); resolves each through
+`generated/encounters.json`, `formation_indexes.json` and `formations.json` to the
+enemies its groups can draw; adds the event battles the scenes start
+(`StartBattle` indexes to `boss_formations[].event_battle_index`); and lists every
+regular and conditional ability of those enemies with the class this file's §2 and
+§3 give it. A vehicle-only group (Dezolis group 13) is listed apart from the groups on
+foot because the Ice Digger arrives with scene 48, after Kuran.
+
+**Where it disagrees with section 4's list.** §4 names POISONMIST, STRNGLIGHT and
+SLEEP GAS "on Dezolis and Hangar maps"; the derivation finds POISONMIST (Mistralgec,
+Dezolis group 11) and SLEEP GAS (GerotLux, Hangar group 44) and **not** STRNGLIGHT: its
+only carrier, 79 Shrieker, lives on the Island Cave maps. It also finds what §4 does
+not list for these maps: the conditional WARNING (Kuran, 45 CommndBall) and BARRIER
+(Kuran, 48 Siren386 by its arm-`$08` condition, which §2's carrier column leaves out),
+the Chaos Sorcerer's SHADOWBIND, and `$63` BURSTROC on Dark Force 1 (a damage ability,
+see its row).
+
+| map | symbol | named by | groups on foot | vehicle groups |
+|---|---|---|---|---|
+| `001` | Dezolis | chapter dezolis-outside-raja-temple; chapter dezolis-tyler-grave; scene CRASH_LANDING; scene LANDALE | 11, 12 | 13 |
+| `120` | Tyler | chapter dezolis-tyler-grave | - | - |
+| `144` | Ryuon | chapter dezolis-gyuna; chapter dezolis-tyler-grave | - | - |
+| `14A` | RyuonPub | chapter dezolis-gyuna | - | - |
+| `14C` | RajaTemple | chapter zelan-sabotage; chapter dezolis-first-control; scene CRASH_LANDING | - | - |
+| `15F` | Hangar | chapter dezolis-tyler-grave | 44 | - |
+| `18C` | ZelanSpace | scene SPACESHIP_SABOTAGE | - | - |
+| `18D` | Zelan | chapter zelan-wren-canceller; chapter zelan-sabotage | - | - |
+| `18E` | Zelan_F1 | chapter zelan-wren-canceller; scene DARK_FORCE_1_DEFEATED | - | - |
+| `190` | Kuran | Kuran interior (scene 45-47's map) | 45 | - |
+| `191` | Kuran_F1 | Kuran interior (scene 45-47's map) | 45 | - |
+| `192` | Kuran_F2 | Kuran interior (scene 45-47's map) | 45 | - |
+| `193` | Kuran_F1_Part2 | Kuran interior (scene 45-47's map) | 45 | - |
+| `194` | Kuran_F1_Part3 | Kuran interior (scene 45-47's map) | 45 | - |
+| `195` | Kuran_F1_Part5 | Kuran interior (scene 45-47's map) | 45 | - |
+| `196` | Kuran_F2_Part2 | Kuran interior (scene 45-47's map) | 45 | - |
+| `197` | Kuran_F1_Part4 | Kuran interior (scene 45-47's map) | 45 | - |
+
+| index | scenes | enemies |
+|---|---|---|
+| 8 | SPACESHIP_SABOTAGE | 138 ChaosSorcr2 |
+| 9 | DARK_FORCE_1 | 130 DarkForce1 |
+
+| ability | effect | class | ledger | carriers | foot maps | vehicle maps | events |
+|---|---|---|---|---|---|---|---|
+| `$02` FLAME BOLT | `$01` | — | implemented | 0 Helex | 2 | 0 | - |
+| `$04` LASRCANNON | `$01` | damage | unsupported | 4 ProtectBit | 0 | 1 | - |
+| `$07` FISSION | `$1E` | — | implemented | 50 FloatMine2 | 8 | 0 | - |
+| `$13` CELL SPLIT | `$01` | damage | unsupported | 37 SnowSlug | 2 | 0 | - |
+| `$14` WARNING | `$1E` | unknown | implemented | 45 CommndBall (conditional:1) | 8 | 0 | - |
+| `$15` CHARGCNNON | `$20` | damage | unsupported | 40 CRayTube (conditional:5) | 8 | 0 | - |
+| `$17` WAITING | `$22` | — | implemented | 42 SatMinion (conditional:5), 44 FloatMine, 50 FloatMine2 | 8 | 0 | - |
+| `$18` EXPLOSION | `$23` | damage | unsupported | 44 FloatMine (conditional:7), 50 FloatMine2 (conditional:7) | 8 | 0 | - |
+| `$19` DETONATION | `$24` | damage | unsupported | 45 CommndBall | 8 | 0 | - |
+| `$1C` FLARE SHOT | `$01` | damage | unsupported | 48 Siren386, 130 DarkForce1 | 8 | 0 | 9 |
+| `$1D` BARRIER | `$0B` | status/stat effect | unsupported | 48 Siren386 (conditional:8) | 8 | 0 | - |
+| `$1F` DBL SLASH | `$01` | damage | unsupported | 145 RedMole | 1 | 0 | - |
+| `$20` PHONONMASR | `$01` | damage | unsupported | 130 DarkForce1 | 0 | 0 | 9 |
+| `$22` RAY BREATH | `$01` | damage | unsupported | 118 LwAddmer | 0 | 1 | - |
+| `$23` SUPERSONIC | `$01` | damage | unsupported | 69 BiterFly (conditional:8), 142 Skytiara | 1 | 0 | - |
+| `$24` POISONMIST | `$1B` | status/stat effect | implemented | 57 Mistralgec | 1 | 0 | - |
+| `$25` SLEEP GAS | `$07` | status/stat effect | implemented | 63 GerotLux | 1 | 0 | - |
+| `$2B` NEEDLE | `$01` | damage | unsupported | 68 Rajago, 69 BiterFly | 1 | 0 | - |
+| `$33` ACIDBREATH | `$01` | — | implemented | 85 Piercer | 8 | 0 | - |
+| `$4B` SHADOWBIND | `$06` | status/stat effect | partial | 138 ChaosSorcr2 | 0 | 0 | 8 |
+| `$4F` HEWN | `$01` | damage | unsupported | 138 ChaosSorcr2 | 0 | 0 | 8 |
+| `$5A` FLAELI | `$01` | damage | unsupported | 138 ChaosSorcr2 | 0 | 0 | 8 |
+| `$63` BURSTROC | `$01` | damage | unsupported | 130 DarkForce1 | 0 | 0 | 9 |
+| `$6A` WIND STORM | `$01` | damage | unsupported | 143 Owltalon | 0 | 1 | - |
+
+
+Who owns what (the `class` column above is §2's object-chain rule): the `damage`
+rows are the damage lane's (FLAELI first); the rest of the table is this lane's, with
+the status in the last column of §2/§3 - `$14`, `$24`, `$25` and `$4B` implemented,
+`$17`'s second carrier (42 SatMinion) read, `$1D` BARRIER deferred
+([ENEMY_EFFECT_ABILITIES.md](ENEMY_EFFECT_ABILITIES.md) section 7), and Dark Force 1's
+first action - not an ability id at all - modelled
+([`battle/scripted_flag.rs`](../../rust/psiv-core/src/battle/scripted_flag.rs)): the
+latch's object `$818` replaces the rolled ability and requests nothing, replayed
+from the captured event battle 9. The captures, with the round each ability was seen
+in, are [`BATTLE_ORACLE_ZELAN.md`](../oracle/BATTLE_ORACLE_ZELAN.md).
+
 ## Appendix — how to re-check this file
 
 - **Completeness.** §2 holds one row per id in the union of
   `ai.regular_ability_ids` over the 153 records of `generated/enemies.json`
   (83 ids, each exactly once); the same set re-derived from `raw_hex` bytes 36..43
-  is identical. §4 holds the §2 rows whose status is `unsupported` (59 rows: the 57 unsupported and the two partial ones).
+  is identical. §4 holds one row per ability that still had an unsupported carrier when it was written; rows are dropped as lanes finish them and not every lane did (A4 dropped `$24` and `$25`; `$21`, `$47` and others implemented earlier are still listed), so its map lists are the census and the status column of §2 is the work state.
 - **Citations.** Every `ps4.asm:NNNN` citation in this file points at a label that
   begins on that line, and every backticked label next to such a citation is the
   label found there. Statement-level references are written as "line NNNN" and

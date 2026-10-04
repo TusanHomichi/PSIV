@@ -1,3 +1,9 @@
+//! The crawler family's two arms - THREAD (`$10`, effect `$06`) and POISON
+//! (`$11`, effect `$1B`) - run through the same effect handlers every other
+//! status and stat ability uses (`ROUTES`), so this file is where their
+//! numbers are pinned: the hit-chance boundary, the skipped draws, the target
+//! rules and the engine-level turn.
+
 use super::*;
 use crate::battle::{
     Battle, Command, FormationEnemy, FormationRecord, PartyMember, RoundOrders, SliceRolls,
@@ -6,6 +12,20 @@ use crate::battle::{
 
 fn id(n: u8) -> FighterId {
     FighterId::new(n).unwrap()
+}
+
+/// `resolve_effect_skill`, read as the "did this arm take the turn" answer the
+/// crawler tests ask.
+fn resolve_effect(
+    r: &mut Roster,
+    actor: FighterId,
+    ability: u8,
+    intended: Option<FighterId>,
+    data: &BattleData,
+    rolls: &mut impl Rolls,
+    events: &mut Vec<BattleEvent>,
+) -> bool {
+    resolve_effect_skill(r, actor, ability, intended, data, rolls, events) == EffectTurn::Resolved
 }
 
 /// Enemy 32 Caterpillr's shape: the crawler family's shared routine carrying
@@ -78,7 +98,7 @@ fn poison_lands_at_the_hit_chance_boundary_and_misses_below_it() {
         let draws = [roll];
         let mut rolls = SliceRolls::new(&draws);
         let mut events = Vec::new();
-        assert!(resolve_poison(
+        assert!(resolve_effect(
             &mut r,
             id(6),
             17,
@@ -134,7 +154,7 @@ fn an_existing_ailment_skips_the_draw_while_immunity_still_spends_it() {
         let already = case == "already poisoned";
         let mut rolls = SliceRolls::new(&[63]);
         let mut events = Vec::new();
-        assert!(resolve_poison(
+        assert!(resolve_effect(
             &mut r,
             id(6),
             17,
@@ -158,16 +178,23 @@ fn an_existing_ailment_skips_the_draw_while_immunity_still_spends_it() {
 #[test]
 fn a_lookalike_record_or_another_carrier_cannot_poison() {
     let data = poison_data();
-    // PoisonMist (`$24`) carries the same effect byte `$1B` and the same stat
-    // selectors; only the hit-chance byte differs, so a dispatcher keyed on the
-    // effect alone would wrongly treat it as record 17.
-    let mut mist = data.enemy_skill(17).unwrap().clone();
-    mist.power = 80;
-    let with_mist = data.clone().with_enemy_skills([mist]);
+    // The route is the `(enemy, ability)` pair plus the record's effect byte
+    // and range nibble: a record 17 that no longer says `$1B` (poison) or range
+    // 8 (the drawn target) is not the traced one.
+    let mut other_effect = data.enemy_skill(17).unwrap().clone();
+    other_effect.effect = 0x07;
+    let mut other_range = data.enemy_skill(17).unwrap().clone();
+    other_range.target = 9;
+    let with_effect = data.clone().with_enemy_skills([other_effect]);
+    let with_range = data.clone().with_enemy_skills([other_range]);
 
     for (case, skills, enemy_id) in [
-        ("PoisonMist's record", &with_mist, 32),
+        ("an effect that is not poison", &with_effect, 32),
+        ("a range that is not the drawn target", &with_range, 32),
         ("an unrelated enemy", &data, 9),
+        // 31 CarrionCr shares the routine but its list holds THREAD, not
+        // POISON; the pair is not a route.
+        ("the sibling carrier", &data, 31),
     ] {
         let mut r = poison_roster(skills);
         r.get_mut(id(6)).unwrap().stats.enemy_id = enemy_id;
@@ -175,7 +202,7 @@ fn a_lookalike_record_or_another_carrier_cannot_poison() {
         let mut rolls = SliceRolls::new(&[63]);
         let mut events = Vec::new();
         assert!(
-            !resolve_poison(
+            !resolve_effect(
                 &mut r,
                 id(6),
                 17,
@@ -191,9 +218,11 @@ fn a_lookalike_record_or_another_carrier_cannot_poison() {
         assert!(events.is_empty(), "{case}");
     }
 
+    // PoisonMist (`$24`) is a route of its own (57 Mistralgec), not the
+    // crawler's: 32 Caterpillr rolling it is outside the table.
     for ability in [0, 16, 36] {
         let mut r = poison_roster(&data);
-        assert!(!resolve_poison(
+        assert!(!resolve_effect(
             &mut r,
             id(6),
             ability,
@@ -227,7 +256,7 @@ fn a_missing_dead_or_enemy_target_consumes_the_ability_without_a_roll() {
         let mut rolls = SliceRolls::new(&[63]);
         let mut events = Vec::new();
         assert!(
-            resolve_poison(&mut r, id(6), 17, target, &data, &mut rolls, &mut events),
+            resolve_effect(&mut r, id(6), 17, target, &data, &mut rolls, &mut events),
             "{case}"
         );
         assert_eq!(rolls.drawn(), 0, "{case}");
@@ -301,13 +330,23 @@ fn the_engine_dispatches_poison_without_a_physical_attack() {
 }
 
 #[test]
-fn a_lookalike_poison_record_still_falls_back_to_an_unsupported_attack() {
-    // The negative control for the dispatcher: the same enemy and the same
-    // ability id, carrying a record the port has not proven. It must keep the
-    // explicit diagnostic and the physical fallback rather than poisoning.
+fn an_unrouted_pair_still_falls_back_to_an_unsupported_attack() {
+    // The negative control for the dispatcher: the same enemy rolling an
+    // ability id the table does not route for it (36, PoisonMist's record) must
+    // keep the explicit diagnostic and the physical fallback rather than
+    // poisoning.
     let mut mist = poison_data().enemy_skill(17).unwrap().clone();
+    mist.id = 36;
+    mist.name = "POISONMIST".into();
     mist.power = 80;
-    let data = poison_data().with_enemy_skills([mist]);
+    let mut crawler = fixtures::zoran_bult();
+    crawler.id = 32;
+    crawler.name = "CATERPILLR".into();
+    crawler.strength = 20;
+    crawler.regular_abilities = [36; 8];
+    let data = fixtures::data()
+        .with_enemies([crawler])
+        .with_enemy_skills([mist]);
     let mut rolls = SliceRolls::new(&[63]);
     let (mut battle, _) = Battle::start(
         &one_crawler_formation(),
@@ -326,7 +365,7 @@ fn a_lookalike_poison_record_still_falls_back_to_an_unsupported_attack() {
         .unwrap();
     assert!(events.contains(&BattleEvent::UnsupportedAbility {
         actor: id(6),
-        ability: 17,
+        ability: 36,
     }));
     assert!(
         events
@@ -338,7 +377,7 @@ fn a_lookalike_poison_record_still_falls_back_to_an_unsupported_attack() {
         events.iter().any(|e| matches!(e,
             BattleEvent::Resolved { actor, damage: Some(damage), .. }
                 if *actor == id(6) && *damage > 0)),
-        "the unproven record falls back to a real physical attack: {events:?}"
+        "the unrouted pair falls back to a real physical attack: {events:?}"
     );
     assert!(
         !events
@@ -346,4 +385,98 @@ fn a_lookalike_poison_record_still_falls_back_to_an_unsupported_attack() {
             .any(|e| matches!(e, BattleEvent::StatusInflicted { .. })),
         "{events:?}"
     );
+}
+
+// ---- THREAD ----
+
+fn thread_data() -> BattleData {
+    let mut crawler = fixtures::zoran_bult();
+    crawler.id = 31;
+    crawler.strength = 20;
+    fixtures::data()
+        .with_enemies([crawler])
+        .with_enemy_skills([EnemySkill {
+            id: 16,
+            name: "THREAD".into(),
+            effect: 6,
+            power_stat: 1,
+            target: 8,
+            power: 64,
+            resistance: 3,
+            element: 1,
+        }])
+}
+
+#[test]
+fn thread_spends_one_chance_roll_and_never_deals_physical_damage() {
+    let data = thread_data();
+    for (roll, expected_agility) in [(32, 20), (33, 30)] {
+        let mut r = Roster::new();
+        let member = PartyMember::seat(&fixtures::chaz(), &data).unwrap();
+        r.add_party_member(member.character, member.name, member.stats);
+        r.add_enemy(1, data.enemy(31).unwrap());
+        let stats = &mut r.get_mut(id(1)).unwrap().stats;
+        stats.agility.modified = 50;
+        stats.agility.battle = 20;
+        stats.element_props[0] = 2;
+        let hp = stats.curr_hp;
+        let draws = [roll];
+        let mut rolls = SliceRolls::new(&draws);
+        let mut events = Vec::new();
+        assert!(resolve_effect(
+            &mut r,
+            id(6),
+            16,
+            Some(id(1)),
+            &data,
+            &mut rolls,
+            &mut events
+        ));
+        let stats = &r.get(id(1)).unwrap().stats;
+        assert_eq!(
+            (stats.curr_hp, stats.status, stats.agility.battle),
+            (hp, 0, expected_agility)
+        );
+        assert_eq!(rolls.drawn(), 1);
+        assert!(!events.iter().any(|e| matches!(
+            e,
+            BattleEvent::Attacked { .. }
+                | BattleEvent::Resolved {
+                    damage: Some(_),
+                    ..
+                }
+        )));
+    }
+}
+
+#[test]
+fn thread_uses_modified_agility_each_time_and_floors_it_at_one() {
+    let data = thread_data();
+    for modified in [10, 20, 50] {
+        let mut r = Roster::new();
+        let member = PartyMember::seat(&fixtures::chaz(), &data).unwrap();
+        r.add_party_member(member.character, member.name, member.stats);
+        r.add_enemy(1, data.enemy(31).unwrap());
+        let stats = &mut r.get_mut(id(1)).unwrap().stats;
+        stats.agility.modified = modified;
+        stats.agility.battle = 1;
+        stats.element_props[0] = 2;
+        let mut rolls = SliceRolls::new(&[63]);
+        for _ in 0..2 {
+            assert!(resolve_effect(
+                &mut r,
+                id(6),
+                16,
+                Some(id(1)),
+                &data,
+                &mut rolls,
+                &mut Vec::new()
+            ));
+            assert_eq!(
+                r.get(id(1)).unwrap().stats.agility.battle,
+                modified.saturating_sub(20).max(1)
+            );
+        }
+        assert_eq!(rolls.drawn(), 2);
+    }
 }

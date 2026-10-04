@@ -18,13 +18,32 @@ import pathlib
 from .errors import ForceError
 
 
+#: An event battle's formation, as this tool numbers it: the regular
+#: formations are `0..503`, and `generated/formations.json`'s boss block is
+#: reached by `Event_Battle_Index`, not by a group, so boss formation `N` is
+#: `EVENT_BASE + N` here and nowhere else.
+EVENT_BASE = 0x1000
+
+#: Cells the tool writes that no capture ever reads back, so the RAM map the
+#: log is built from has no column for them: `Event_Battle_Index`
+#: (`ps4.constants.asm:2262`, `$FFFFECFC`), the byte `Battle_SetupEnemyData`
+#: tests before it looks at any group (`ps4.asm:11815-11819`).
+EXTRA_CELLS = {
+    "event_battle_index": {"name": "event_battle_index", "addr": "FFFFECFC",
+                           "size": 1},
+}
+
+
 def field_layout(ram_map: pathlib.Path) -> dict[str, dict]:
     """{name: field} from ram_map.json, the source of truth for addresses."""
     try:
         document = json.loads(ram_map.read_text())
     except (OSError, ValueError) as error:
         raise ForceError(f"cannot read {ram_map}: {error}")
-    return {field["name"]: field for field in document["fields"]}
+    layout = {field["name"]: field for field in document["fields"]}
+    for name, field in EXTRA_CELLS.items():
+        layout.setdefault(name, field)
+    return layout
 
 
 def patch_spec(frame: int, layout: dict[str, dict], name: str,
@@ -78,8 +97,11 @@ class Pack:
             enemies = json.loads((data_dir / "enemies.json").read_text())
         except (OSError, KeyError, ValueError) as exc:
             raise ForceError(f"cannot read the pack in {data_dir}: {exc}")
+        formations = {f["id"]: f for f in forms["formations"]}
+        formations.update({EVENT_BASE + f["event_battle_index"]: f
+                           for f in forms.get("boss_formations", [])})
         return cls(
-            formations={f["id"]: f for f in forms["formations"]},
+            formations=formations,
             enemies={e["id"]: e for e in enemies},
             groups={g["group"]: g["formation_ids"] for g in indexes["groups"]},
             maps={m["map_id"]: m for m in encounters["maps"]},
@@ -131,12 +153,29 @@ def parse_formation(text: str, pack: Pack) -> int:
         value = int(text, 0)
     except ValueError:
         raise ForceError(f"--formation {text!r} is not a number (try 0x5E)")
-    if value not in pack.formation_ids:
+    regular = {fid for fid in pack.formation_ids if fid < EVENT_BASE}
+    if value not in regular:
         raise ForceError(
             f"formation {value} (#${value:02X}) is not in "
             f"generated/formations.json, whose ids run "
-            f"{min(pack.formation_ids)}..{max(pack.formation_ids)}")
+            f"{min(regular)}..{max(regular)} (a boss formation is "
+            "`--event`)")
     return value
+
+
+def parse_event(text: str, pack: Pack) -> int:
+    """An `--event` value as this tool numbers its formation."""
+    try:
+        value = int(text, 0)
+    except ValueError:
+        raise ForceError(f"--event {text!r} is not a number (try 8)")
+    if EVENT_BASE + value not in pack.formation_ids:
+        indexes = sorted(fid - EVENT_BASE for fid in pack.formation_ids
+                         if fid >= EVENT_BASE)
+        raise ForceError(
+            f"event battle {value} has no boss formation in "
+            f"generated/formations.json (indexes {indexes[0]}..{indexes[-1]})")
+    return EVENT_BASE + value
 
 
 def describe(pack: Pack, formation: int) -> str:
@@ -144,4 +183,7 @@ def describe(pack: Pack, formation: int) -> str:
     parts = [f"{entry['slot']}:{pack.enemies[entry['id']]['symbol']}"
              f"(id {entry['id']}, hp {entry['maxhp']})"
              for entry in pack.enemies_of(formation)]
+    if formation >= EVENT_BASE:
+        return (f"event battle {formation - EVENT_BASE} (boss formation) = "
+                + ", ".join(parts))
     return f"formation {formation} (#${formation:02X}) = " + ", ".join(parts)

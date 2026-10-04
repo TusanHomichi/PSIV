@@ -1,5 +1,11 @@
 # Crawler THREAD dispatch
 
+> **Moved (2026-10-04, lane A4).** `enemy_skill::resolve_thread` is gone: THREAD
+> `$10` is a `ROUTES` entry of `enemy_effect` (31 CarrionCr, handler `$06`, range
+> 8), the handler DORAN and SHADOWBIND share. The rules below are unchanged; a
+> failed roll no longer reports a `Resolved` miss (the comparator accepts either).
+> See [ENEMY_EFFECT_ABILITIES.md](ENEMY_EFFECT_ABILITIES.md) section 7.
+
 The connected Alshline run exposed a combat discrepancy in formation 9B:
 `build/native-alshline-thread-fallback` reached the final basement floor,
 attempted RUN, and lost Chaz and Hahn after the engine substituted physical
@@ -16,7 +22,7 @@ subtract repeatedly from the previously debuffed value, change HP, apply
 paralysis, or change dexterity. Defending's physical resistance affects the
 chance. The original wind-up writes EnemyAttack5, SFX DA.
 
-The resolver now dispatches this exact record for the crawler family and
+The dispatcher now routes this record for the crawler family and
 returns before the physical fallback. Two core tests cover threshold equality,
 no damage, one chance draw, the floor and repeated non-stacking behavior.
 The real-pack test uses original Raja against the four Carrion Crawlers in

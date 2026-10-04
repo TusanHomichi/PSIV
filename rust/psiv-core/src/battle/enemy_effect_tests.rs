@@ -41,6 +41,12 @@ fn skills() -> Vec<EnemySkill> {
         skill(52, "VOICE", 0x07, 1, 9, 128, 2, 11),
         // `$57` GELUN: `03 82 09 40 02 0B`.
         skill(87, "GELUN", 0x03, 0x82, 9, 64, 2, 11),
+        // `$24` POISONMIST: `1B 01 08 50 01 0D` - STR vs STR, efess, threshold 80.
+        skill(36, "POISONMIST", 0x1B, 1, 8, 80, 1, 13),
+        // `$25` SLEEP GAS: `07 01 09 50 01 0B` - STR vs STR, psychic, threshold 80.
+        skill(37, "SLEEP GAS", 0x07, 1, 9, 80, 1, 11),
+        // `$4B` SHADOWBIND: `06 02 09 40 02 0B` - MEN vs MEN, psychic, threshold 64.
+        skill(75, "SHADOWBIND", 0x06, 2, 9, 64, 2, 11),
     ]
 }
 
@@ -65,6 +71,10 @@ fn data() -> BattleData {
             enemy(88, 73, 63),
             enemy(70, 20, 18),
             enemy(77, 40, 1),
+            enemy(57, 20, 1),
+            enemy(63, 20, 1),
+            enemy(138, 1, 20),
+            enemy(111, 1, 20),
         ])
         .with_enemy_skills(skills())
 }
@@ -613,4 +623,143 @@ fn an_android_dies_into_the_android_bit() {
     r.get_mut(id(1)).unwrap().stats.profession = crate::battle::PROFESSION_ANDROID;
     run(&mut r, 6, 47, Some(1), &data, &[0]);
     assert_eq!(r.get(id(1)).unwrap().stats.status, status::ANDROID_DEAD);
+}
+
+#[test]
+fn poisonmist_poisons_only_the_drawn_target_at_its_own_threshold() {
+    // STR 20 vs STR 20, efess factor 2, threshold 80: `v = 2r` misses up to
+    // r = 40 and lands from 41. The record is range 8: one slot, the drawn one.
+    let data = data();
+    for (roll, landed) in [(40, false), (41, true)] {
+        let mut r = roster(&data, 3, 57, 1);
+        let (turn, drawn, events) = run(&mut r, 6, 36, Some(2), &data, &[roll]);
+        assert_eq!((turn, drawn), (EffectTurn::Resolved, 1), "r = {roll}");
+        let mut want = vec![used(6, 36, "POISONMIST")];
+        if landed {
+            want.push(BattleEvent::StatusInflicted {
+                actor: id(6),
+                target: id(2),
+                status: status::POISONED,
+            });
+        }
+        assert_eq!(events, want, "r = {roll}");
+        assert_eq!(
+            r.get(id(2)).unwrap().stats.status,
+            if landed { status::POISONED } else { 0 }
+        );
+        assert_eq!(r.get(id(1)).unwrap().stats.status, 0, "not the others");
+        assert_eq!(r.get(id(3)).unwrap().stats.status, 0, "not the others");
+        assert_eq!(r.get(id(2)).unwrap().stats.curr_hp, 500, "no damage");
+    }
+}
+
+#[test]
+fn poisonmist_on_a_poisoned_target_draws_nothing() {
+    // `AbilityEffect_Poison` returns on `btst #StatusPoisoned` before its call.
+    let data = data();
+    let mut r = roster(&data, 1, 57, 1);
+    r.get_mut(id(1)).unwrap().stats.status = status::POISONED;
+    let (_, drawn, events) = run(&mut r, 6, 36, Some(1), &data, &[63]);
+    assert_eq!(drawn, 0);
+    assert_eq!(events, vec![used(6, 36, "POISONMIST")]);
+}
+
+#[test]
+fn sleep_gas_visits_every_slot_and_sleeps_the_ones_that_land() {
+    // STR 20 vs STR 20, psychic factor 2, threshold 80: lands from r = 41, one
+    // roll per living slot that is neither asleep nor paralyzed.
+    let data = data();
+    let mut r = roster(&data, 4, 63, 1);
+    r.get_mut(id(4)).unwrap().stats.status = status::PARALYZED;
+    let (turn, drawn, events) = run(&mut r, 6, 37, None, &data, &[41, 40, 41]);
+    assert_eq!(
+        (turn, drawn),
+        (EffectTurn::Resolved, 3),
+        "the paralyzed rolls none"
+    );
+    assert_eq!(
+        events,
+        vec![
+            used(6, 37, "SLEEP GAS"),
+            BattleEvent::StatusInflicted {
+                actor: id(6),
+                target: id(1),
+                status: status::ASLEEP,
+            },
+            BattleEvent::StatusInflicted {
+                actor: id(6),
+                target: id(3),
+                status: status::ASLEEP,
+            },
+        ]
+    );
+    assert_eq!(r.get(id(2)).unwrap().stats.status, 0, "r = 40 misses");
+    assert_eq!(r.get(id(4)).unwrap().stats.status, status::PARALYZED);
+}
+
+#[test]
+fn shadowbind_sets_agility_from_the_modified_value_on_every_slot_that_lands() {
+    // MEN 20 vs MEN 20, psychic factor 2, threshold 64: lands from r = 33. The
+    // new battle agility is `modified - MEN` with a floor of one, set from the
+    // modified value so a second cast does not stack.
+    let data = data();
+    for enemy_id in [138, 111] {
+        let mut r = roster(&data, 3, enemy_id, 1);
+        for (slot, modified) in [(1, 50), (2, 12), (3, 50)] {
+            let stats = &mut r.get_mut(id(slot)).unwrap().stats;
+            stats.agility.modified = modified;
+            stats.agility.battle = modified;
+        }
+        let (turn, drawn, events) = run(&mut r, 6, 75, None, &data, &[33, 33, 32]);
+        assert_eq!((turn, drawn), (EffectTurn::Resolved, 3), "enemy {enemy_id}");
+        assert_eq!(
+            events,
+            vec![
+                used(6, 75, "SHADOWBIND"),
+                BattleEvent::StatChanged {
+                    actor: id(6),
+                    target: id(1),
+                    stat: TechniqueStat::Agility,
+                    value: 30,
+                },
+                BattleEvent::StatChanged {
+                    actor: id(6),
+                    target: id(2),
+                    stat: TechniqueStat::Agility,
+                    value: 1,
+                },
+            ],
+            "enemy {enemy_id}"
+        );
+        assert_eq!(
+            r.get(id(3)).unwrap().stats.agility.battle,
+            50,
+            "r = 32 misses"
+        );
+        let (_, _, _) = run(&mut r, 6, 75, None, &data, &[63, 63, 63]);
+        assert_eq!(
+            r.get(id(1)).unwrap().stats.agility.battle,
+            30,
+            "a second cast does not stack"
+        );
+    }
+}
+
+#[test]
+fn the_zelan_pairs_are_routes_only_for_their_own_carriers() {
+    let data = data();
+    // 58 FlameNewt shares POISONMIST's routine but no capture saw it cast, and
+    // 57 Mistralgec's own list does not make SLEEP GAS a route.
+    for (enemy_id, ability) in [(58u16, 36u8), (57, 37), (63, 36), (138, 36), (77, 75)] {
+        let mut r = roster(&data, 1, 77, 1);
+        r.get_mut(id(6)).unwrap().stats.enemy_id = enemy_id;
+        let before = r.clone();
+        let (turn, drawn, events) = run(&mut r, 6, ability, Some(1), &data, &[63]);
+        assert_eq!(
+            (turn, drawn, events.len()),
+            (EffectTurn::NotMine, 0, 0),
+            "{enemy_id} / {ability}"
+        );
+        assert_eq!(r, before);
+    }
 }

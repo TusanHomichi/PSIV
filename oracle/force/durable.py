@@ -61,15 +61,30 @@ class Durable:
     cells: list[str]
     #: The fighters it was *not* written for, because the tape left them down.
     skipped: list[str]
+    #: The first frame the cells are written on. The estimate of
+    #: `forced_start_frame` is exact for a formation whose enemies load one per
+    #: frame, and one frame late for one whose slots share a frame (three
+    #: GerotLux land as 1 + 2: `docs/oracle/BATTLE_ORACLE_FORCED.md` section 7),
+    #: so the same value is written on every frame from here to `frame`. The
+    #: load never writes a party HP cell after `FillBattleStats`, so the extra
+    #: writes change nothing the earlier ones did not.
+    first_frame: int | None = None
+
+    def frames(self) -> list[int]:
+        """The frames the cells are written on, `frame` last."""
+        first = self.frame if self.first_frame is None \
+            else min(self.first_frame, self.frame)
+        return list(range(first, self.frame + 1))
 
     def specs(self, layout: dict[str, dict]) -> list[str]:
         """The `--ram-patch` list: both HP cells of every living fighter."""
-        return [patch_spec(self.frame, layout, cell, self.hp)
-                for cell in self.cells]
+        return [patch_spec(frame, layout, cell, self.hp)
+                for frame in self.frames() for cell in self.cells]
 
     def report(self) -> dict:
         return {"hp": self.hp, "frame": self.frame, "cells": list(self.cells),
-                "skipped": list(self.skipped)}
+                "skipped": list(self.skipped),
+                "frames": self.frames()}
 
 
 def forced_start_frame(probe_start: int, probe_enemies: int,
@@ -91,7 +106,7 @@ def forced_start_frame(probe_start: int, probe_enemies: int,
 
 
 def plan_patch(log, layout: dict[str, dict], start_frame: int, vehicle=None,
-         hp: int = DURABLE_HP) -> Durable:
+         hp: int = DURABLE_HP, first_frame: int | None = None) -> Durable:
     """The patch, from the frame the battle's start state is read.
 
     `log` is the probe's RAM log at `start_frame` - the frame the extractor
@@ -119,7 +134,8 @@ def plan_patch(log, layout: dict[str, dict], start_frame: int, vehicle=None,
                 cells += [f"{name}_hp", f"{name}_maxhp"]
             else:
                 skipped.append(name)
-    return Durable(hp=hp, frame=start_frame, cells=cells, skipped=skipped)
+    return Durable(hp=hp, frame=start_frame, cells=cells, skipped=skipped,
+                   first_frame=first_frame)
 
 
 def verify(durable: Durable, log, frame: int) -> None:

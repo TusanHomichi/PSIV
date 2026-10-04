@@ -200,6 +200,10 @@ pub struct Battle {
     /// `EnemyInit_Zio` clears it at battle start (`ps4.asm:17895`); only the
     /// three Zio routines write it.
     enemy_phase: u8,
+    /// `$FFFFEE87`, the scripted-battle latch (see [`super::scripted_flag`]):
+    /// raised by a boss's init routine, lowered by the first action of the
+    /// routines that read it.
+    scripted_latch: bool,
 }
 
 impl Battle {
@@ -309,6 +313,7 @@ impl Battle {
                 run_chance: formation.can_run().then_some(formation.run_chance),
                 vehicle,
                 enemy_phase: 0,
+                scripted_latch: scripted,
             },
             events,
         ))

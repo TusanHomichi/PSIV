@@ -2,7 +2,7 @@
 //! 50 FloatMine2 and `$17` Waiting on the FloatMine carriers spend the turn.
 //!
 //! Split out of `enemy_skill_tests.rs` under the repository's 1,000-line rule;
-//! included with `#[path]` from `enemy_skill.rs`, like `enemy_skill_poison_tests.rs`.
+//! included with `#[path]` from `enemy_skill.rs`.
 
 use super::*;
 use crate::battle::{
@@ -135,6 +135,8 @@ fn float_mine_carriers_spend_the_roll_without_an_effect_or_a_swing() {
         (50u16, [7u8; 8], 7u8, "FISSION"),
         (44, [23; 8], 23, "WAITING"),
         (46, [23; 8], 23, "WAITING"),
+        // `EnemyAttack_ArmDrone`'s `$17` arm is the same fall-through body.
+        (42, [23; 8], 23, "WAITING"),
     ] {
         let (battle, events, drawn) =
             float_mine_round(carrier, slots, vec![fission2_record(), waiting_record()]);
