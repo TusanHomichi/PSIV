@@ -10,6 +10,12 @@ use godot::prelude::*;
 use super::{CutsceneLayer, SCREEN};
 
 impl CutsceneLayer {
+    /// The Session's full RunText2 record; the shell never types or waits.
+    pub(crate) fn sync_flight_caption(&mut self, caption: Option<&str>) {
+        if let Some(text) = self.text_layer.as_mut() {
+            text.bind_mut().flight_caption(caption);
+        }
+    }
     /// Draws the black stage and the narration image while the opening runs.
     pub(super) fn draw_opening(&mut self) {
         if self.opening_visible {

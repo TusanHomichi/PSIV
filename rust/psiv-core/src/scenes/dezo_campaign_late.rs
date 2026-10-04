@@ -1,11 +1,11 @@
 //! Retail Dezo campaign scenes from Dark Force 2's defeat through Gumbious.
 
 use super::super::{KYRA, SETH, retained};
-use super::INSIDE_SPACESHIP_ROUTE;
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_presentation::PresentationOp;
 use crate::scene_runner::Scene;
+use crate::scenes::flight::with_ship_menu;
 use crate::state::Flag;
 use crate::trigger::EventIndex;
 
@@ -285,7 +285,7 @@ pub static AFTER_D_ELM_LARS_BATTLE: Scene = Scene {
 pub static FINDING_AIR_CASTLE: Scene = Scene {
     name: "Cutscene_FindingAirCastle",
     event: EventIndex(0x8015),
-    ops: &[
+    ops: with_ship_menu![
         SceneOp::InitVramAndCram,
         SceneOp::FadeIn,
         SceneOp::PanelCreate { id: 0x18A },
@@ -295,44 +295,6 @@ pub static FINDING_AIR_CASTLE: Scene = Scene {
             flag: Flag::event(0x99),
             value: true,
         },
-        INSIDE_SPACESHIP_ROUTE[0],
-        INSIDE_SPACESHIP_ROUTE[1],
-        INSIDE_SPACESHIP_ROUTE[2],
-        INSIDE_SPACESHIP_ROUTE[3],
-        INSIDE_SPACESHIP_ROUTE[4],
-        INSIDE_SPACESHIP_ROUTE[5],
-        INSIDE_SPACESHIP_ROUTE[6],
-        INSIDE_SPACESHIP_ROUTE[7],
-        INSIDE_SPACESHIP_ROUTE[8],
-        INSIDE_SPACESHIP_ROUTE[9],
-        INSIDE_SPACESHIP_ROUTE[10],
-        INSIDE_SPACESHIP_ROUTE[11],
-        INSIDE_SPACESHIP_ROUTE[12],
-        INSIDE_SPACESHIP_ROUTE[13],
-        INSIDE_SPACESHIP_ROUTE[14],
-        INSIDE_SPACESHIP_ROUTE[15],
-        INSIDE_SPACESHIP_ROUTE[16],
-        INSIDE_SPACESHIP_ROUTE[17],
-        INSIDE_SPACESHIP_ROUTE[18],
-        INSIDE_SPACESHIP_ROUTE[19],
-        INSIDE_SPACESHIP_ROUTE[20],
-        INSIDE_SPACESHIP_ROUTE[21],
-        INSIDE_SPACESHIP_ROUTE[22],
-        INSIDE_SPACESHIP_ROUTE[23],
-        INSIDE_SPACESHIP_ROUTE[24],
-        INSIDE_SPACESHIP_ROUTE[25],
-        INSIDE_SPACESHIP_ROUTE[26],
-        INSIDE_SPACESHIP_ROUTE[27],
-        INSIDE_SPACESHIP_ROUTE[28],
-        INSIDE_SPACESHIP_ROUTE[29],
-        INSIDE_SPACESHIP_ROUTE[30],
-        INSIDE_SPACESHIP_ROUTE[31],
-        INSIDE_SPACESHIP_ROUTE[32],
-        INSIDE_SPACESHIP_ROUTE[33],
-        INSIDE_SPACESHIP_ROUTE[34],
-        INSIDE_SPACESHIP_ROUTE[35],
-        INSIDE_SPACESHIP_ROUTE[36],
-        INSIDE_SPACESHIP_ROUTE[37],
     ],
 };
 

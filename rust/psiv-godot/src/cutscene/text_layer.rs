@@ -15,6 +15,7 @@ pub(super) struct OpeningTextLayer {
     font: Option<Gd<ImageTexture>>,
     set: Option<DialogueSet>,
     entries: [Option<DialogueEntry>; 4],
+    flight_caption: Option<String>,
     next_slot: usize,
     colour: Color,
     fade_direction: i8,
@@ -30,6 +31,7 @@ impl INode2D for OpeningTextLayer {
             font: None,
             set: None,
             entries: std::array::from_fn(|_| None),
+            flight_caption: None,
             next_slot: 0,
             colour: Color::from_rgb(0.0, 0.0, 0.0),
             fade_direction: 0,
@@ -49,6 +51,7 @@ impl INode2D for OpeningTextLayer {
             return;
         };
         let mut quads = Vec::new();
+        let mut lines = Vec::new();
         for (row, entry) in self.entries.iter().enumerate() {
             let Some(entry) = entry else { continue };
             let Some(page) = entry.pages.first() else {
@@ -57,12 +60,18 @@ impl INode2D for OpeningTextLayer {
             let line = page.lines.first().map(String::as_str).unwrap_or_default();
             // Plane offset $40A is tile column 5: every line starts at x=40
             // and any centring is baked into the entry text itself.
-            let x = 40.0;
             // DrawTextToPlane targets $840A, then advances 0x180 bytes per
             // entry: plane offset $40A is tile row 8 (y=64) and 0x180 bytes
             // is three 0x80-byte plane rows, a 24-pixel line pitch — both
             // confirmed against oracle/frames/opening/frame_4000.png.
             let y = 64.0 + row as f32 * 24.0;
+            lines.push((line, 40.0, y));
+        }
+        if let Some(caption) = self.flight_caption.as_deref() {
+            // GetPlaneAOffset d3=4,d4=$17 (:134662-134678), 8x16 font.
+            lines.push((caption, 32.0, 184.0));
+        }
+        for (line, x, y) in lines {
             for (column, ch) in line.chars().enumerate() {
                 let Some(glyph) = self.set.as_ref().and_then(|set| set.glyph(ch)) else {
                     continue;
@@ -86,6 +95,15 @@ impl INode2D for OpeningTextLayer {
 }
 
 impl OpeningTextLayer {
+    pub(super) fn flight_caption(&mut self, caption: Option<&str>) {
+        if self.flight_caption.as_deref() == caption {
+            return;
+        }
+        self.flight_caption = caption.map(str::to_owned);
+        let visible = self.flight_caption.is_some() || self.entries.iter().any(Option::is_some);
+        self.base_mut().set_visible(visible);
+        self.base_mut().queue_redraw();
+    }
     pub(super) fn configure(&mut self, pack_dir: &str, set: DialogueSet) {
         let path = format!("{pack_dir}/{}", set.font.png);
         self.font = Image::load_from_file(&GString::from(path.as_str()))

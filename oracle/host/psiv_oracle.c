@@ -90,6 +90,9 @@ static void *(*rt_get_memory_data)(unsigned);
 static size_t (*rt_get_memory_size)(unsigned);
 static unsigned (*rt_get_region)(void);
 static struct core_vdp g_vdp;
+/* Optional frame-end CPU diagnostics. The pinned core's m68k_get_reg enum
+ * has D0=0, D7=7, A7=15, PC=16 (core/m68k/m68k.h). */
+static unsigned (*g_cpu_reg)(unsigned);
 
 static char g_system_dir[1024];
 static char g_save_dir[1024];
@@ -461,6 +464,7 @@ static void usage(void)
 		"                   [--dump-ram <frame>:<path>]\n"
 	        "                   [--dump-state <frame>:<path>]\n"
 	        "                   [--rng-trace <path.csv>]\n"
+	        "                   [--cpu-trace]\n"
 	        "                   [--load-sram <path>]\n"
 	        "                   [--build-id]\n");
 }
@@ -472,7 +476,7 @@ int main(int argc, char **argv)
 	const char *dump_frames = NULL, *dump_frames_dir = NULL;
 	const char *load_sram_path = NULL;
 	const char *rng_trace_path = NULL;
-	int probe_endian = 0;
+	int probe_endian = 0, cpu_trace = 0;
 	FILE *out = stdout;
 	struct retro_system_info sysinfo;
 	struct retro_system_av_info av_info;
@@ -527,6 +531,7 @@ int main(int argc, char **argv)
 		else if (!strcmp(argv[i], "--rng-trace") && i + 1 < argc)
 			rng_trace_path = argv[++i];
 		else if (!strcmp(argv[i], "--probe-endian")) probe_endian = 1;
+		else if (!strcmp(argv[i], "--cpu-trace")) cpu_trace = 1;
 		else { usage(); return 2; }
 	}
 	if ((dump_frames && !dump_frames_dir) ||
@@ -683,6 +688,14 @@ int main(int argc, char **argv)
 		        g_ram_size);
 		return 1;
 	}
+	if (cpu_trace) {
+		uintptr_t address;
+		if (core_symbol_bind((void *)(uintptr_t)rt_run, "m68k_get_reg", &address) != 0) {
+			fprintf(stderr, "psiv_oracle: %s\n", core_vdp_error());
+			return 1;
+		}
+		g_cpu_reg = (unsigned (*)(unsigned))address;
+	}
 
 	/* Endianness probe: run far enough for the game to have written its
 	 * signature string to PS4_String ($FFFFF000), then print it under the
@@ -759,6 +772,10 @@ int main(int argc, char **argv)
 	if (rng_trace_enabled())
 		fprintf(out, "# rng-trace=%s\n", path_basename(rng_trace_path));
 	fprintf(out, "frame,mark,buttons");
+	if (cpu_trace) {
+		fprintf(out, ",cpu_pc,cpu_sp,cpu_d0,cpu_d7");
+		for (i = 0; i < 32; i++) fprintf(out, ",stack%02d", i);
+	}
 	for (i = 0; i < g_nfields; i++)
 		if (g_fields[i].enabled)
 			fprintf(out, ",%s", g_fields[i].name);
@@ -816,6 +833,16 @@ int main(int argc, char **argv)
 
 			fprintf(out, "%llu,%s,%s", (unsigned long long)frame,
 			        (k == 0) ? tape_step->mark : "", btn);
+			if (cpu_trace) {
+				uint32_t sp = g_cpu_reg(15);
+				fprintf(out, ",%06X,%08X,%08X,%08X", g_cpu_reg(16), sp,
+				        g_cpu_reg(0), g_cpu_reg(7));
+				for (i = 0; i < 32; i++) {
+					uint64_t address = (uint64_t)sp + (unsigned)i * 4;
+					fprintf(out, ",%08X", address >= 0xFFFF0000u && address <= 0xFFFFFFFCu
+					        ? ram_u32((uint32_t)address) : 0);
+				}
+			}
 
 			for (i = 0; i < g_nfields; i++) {
 				uint32_t v;

@@ -53,11 +53,25 @@ pub(crate) struct TransitionVisual {
 pub(crate) struct Transition {
     kind: TransitionKind,
     age: u16,
+    frames: Option<u16>,
 }
 
 impl Transition {
     pub(crate) fn new(kind: TransitionKind) -> Self {
-        Self { kind, age: 0 }
+        Self {
+            kind,
+            age: 0,
+            frames: None,
+        }
+    }
+
+    /// Runtime-supplied display interval; this changes no simulation clock.
+    pub(crate) fn with_frames(kind: TransitionKind, frames: u16) -> Self {
+        Self {
+            kind,
+            age: 0,
+            frames: Some(frames),
+        }
     }
 
     pub(crate) fn kind(self) -> TransitionKind {
@@ -105,6 +119,9 @@ impl Transition {
     }
 
     fn duration(self) -> u16 {
+        if let Some(frames) = self.frames {
+            return frames;
+        }
         match self.kind {
             TransitionKind::Doorway => 80,
             TransitionKind::BattleEntry => 56,
@@ -182,7 +199,10 @@ impl Transition {
         if self.finished() {
             return None;
         }
-        Some(black(PALETTE_LEVELS.saturating_sub(step_up(self.age))))
+        let display_enable = self.duration().saturating_sub(14);
+        Some(black(PALETTE_LEVELS.saturating_sub(step_up(
+            self.age.saturating_sub(display_enable),
+        ))))
     }
 
     fn scene_fade_out_visual(self) -> Option<TransitionVisual> {
