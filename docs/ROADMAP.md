@@ -76,11 +76,13 @@ new SAVE. The campaign graph marks C70 and CZ verified as a bounded post-Zio
 checkpoint, while full R2 remains in progress on bespoke-driver retirement.
 Whole-scene/event-oracle/audio parity and later-arc play remain open.
 
-**Next action:** extend the route from Zelan through Wren, the Canceller, the
-spaceship sabotage and the crash landing to first control on Dezolis (route
-chapter C5). The runner plays New Game through Zio's defeat and flies from the
-Mota Spaceport to Zelan through the cartridge's destination menu with pad
-presses only (30 chapters, about 2.62M frames; [run log](campaign/RUNNER_LOG.md)).
+**Next action:** the enemy abilities on the Zelan and early-Dezolis route
+(FLAELI `$5A` in the sabotage's Chaos Sorcerer battle first, #58 class), then
+the route from the Hangar into `Cutscene_Landale`. With the flight now
+frame-exact, the route plays New Game through Zelan and halts in the sabotage
+battle on FLAELI; the chapters past it (crash landing, Raja Temple, Gyuna,
+Tyler's grave, the Hangar) passed on the previous clock
+([run log](campaign/RUNNER_LOG.md)).
 
 ## 1. Continue from the post-Rika checkpoint
 
