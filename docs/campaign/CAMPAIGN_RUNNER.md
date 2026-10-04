@@ -370,7 +370,7 @@ canonical_record: "docs/campaign/CAMPAIGN_RUNNER.md#task-graph"
 authority: "Owner 2026-10-01: campaign runner approach (docs/AGENT_WORKFLOW.md#authority-effort-and-continuation). The bounded post-Zio checkpoint has reviewed local evidence; publication and integration follow the workflow authority record. Later-arc implementation is parked for the next session."
 effort_policy: "Continue scoped repairs until acceptance passes; no fixed cycle limit (inherited)"
 exclusions: ["modding", "visual-parity claims beyond existing certifications", "gameplay changes that are not cartridge behavior", "later arc beyond Zio defeated in the current lane"]
-next_action: "The route stops at the foot of the Mota Spaceport's boarding row (chapter 30). Two orchestrator fix lanes block what follows: the ship's destination menu as a Session mode (RUNNER_LOG H23) and per-frame map updates that write flags, MapUpdate_ZelanCanceller (H25). Then re-add the Zelan, Wren and Canceller chapters from the C4 probe facts, the sabotage and the crash landing (with #67). This is the single ready campaign action; do not infer later-arc play or full native New Game-to-Zio replay from the archived bounded checkpoint."
+next_action: "C5: route from Zelan through the sabotage and crash landing to first control on Dezolis"
 nodes:
   - id: S1
     outcome: "Dialogue interpreter in psiv-runtime: control codes, branches, choices, actions, $F2/$F6/$F7, live flags, typewriter and open-animation gates, driven by a cartridge-layout Pad"

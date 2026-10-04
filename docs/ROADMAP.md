@@ -76,11 +76,11 @@ new SAVE. The campaign graph marks C70 and CZ verified as a bounded post-Zio
 checkpoint, while full R2 remains in progress on bespoke-driver retirement.
 Whole-scene/event-oracle/audio parity and later-arc play remain open.
 
-**Next action:** the campaign route after Zio toward spaceport/Zelan/Wren, with
-the ship destination-menu gap as an explicit dependency. This work is parked
-for the next session; no later-arc code or play is claimed here. The bounded
-native Zio segment does not establish a full native New Game-to-Zio route or
-whole-scene parity.
+**Next action:** extend the route from Zelan through Wren, the Canceller, the
+spaceship sabotage and the crash landing to first control on Dezolis (route
+chapter C5). The runner plays New Game through Zio's defeat and flies from the
+Mota Spaceport to Zelan through the cartridge's destination menu with pad
+presses only (30 chapters, about 2.62M frames; [run log](campaign/RUNNER_LOG.md)).
 
 ## 1. Continue from the post-Rika checkpoint
 
