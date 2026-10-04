@@ -7,7 +7,7 @@
 //! view each frame.
 
 mod abilities;
-mod chrome;
+pub(crate) mod chrome;
 mod draw;
 mod equipment;
 mod layout;
@@ -186,6 +186,7 @@ impl Field {
         }
         self.present_shop();
         self.present_camp();
+        self.present_destination();
         self.sync_visuals(false);
     }
 

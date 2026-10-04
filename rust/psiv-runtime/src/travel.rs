@@ -53,6 +53,33 @@ impl Runtime {
         (self.saved_world_index >> 8) as u8
     }
 
+    /// Writes `World_Index`, the high byte of the saved word: the destination
+    /// menu's `move.b (a0,d0.w), (World_Index).w` (`ps4.asm:133677`) and the
+    /// scenes' own `move.b #n, (World_Index).w` (`ps4.asm:155847`, `:156396`,
+    /// `:156940`, `:157065`, `:157791`). The RYUKA and TELEPIPE town lists read
+    /// it back (`Runtime::town_destinations`, `ps4.asm:128945-128975`).
+    pub(crate) fn set_world_index(&mut self, world: u8) {
+        self.saved_world_index = (u16::from(world) << 8) | (self.saved_world_index & 0xFF);
+    }
+
+    /// The destination menu's answer reaching the scene it blocked: a chosen
+    /// world is written to `World_Index` first (`ps4.asm:133677`), a Cancel
+    /// writes nothing (`ps4.asm:133692`).
+    pub(crate) fn answer_destination(&mut self, world: Option<u8>) {
+        self.scene_input = match world {
+            Some(world) => {
+                self.set_world_index(world);
+                psiv_core::SceneInput::DestinationChosen
+            }
+            None => psiv_core::SceneInput::DestinationCancelled,
+        };
+    }
+
+    /// `Main_Frame_Count`, the word the cartridge's blinks read.
+    pub(crate) fn main_frame_count(&self) -> u16 {
+        self.frames
+    }
+
     /// Current Field_Map_Index_2, updated by warps and explicit scene loads.
     #[must_use]
     pub fn previous_map_id(&self) -> u16 {

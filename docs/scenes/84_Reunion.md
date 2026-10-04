@@ -4,7 +4,7 @@
 - **Pointer:** `CutscenePtrs[$1F]`; scene `$801F`.
 - **Trigger:** `RunEventsJmpTbl[$50]`, Elsydeon `$D9` set and Reunion `$DA`
   clear.
-- **Data:** `dezo_endgame.rs`, `REUNION` (35 ops).
+- **Data:** `dezo_endgame.rs`, `REUNION` (36 ops).
 
 ## Clone audit
 

@@ -85,6 +85,14 @@ impl Session {
                     }
                     routed.push(Routed::SceneDialogueResume { opened });
                 }
+                // The ship's destination menu: the scene blocked on its op and
+                // the session opens the window (`destination.rs`).
+                RuntimeEvent::ScenePresentation {
+                    op: psiv_core::SceneOp::DestinationMenu { mask, .. },
+                } => {
+                    self.open_destination(mask);
+                    routed.push(Routed::DestinationMenu);
+                }
                 RuntimeEvent::SceneChoiceRequested => {
                     self.runtime.open_scene_choice();
                     routed.push(Routed::SceneChoice);

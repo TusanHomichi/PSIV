@@ -4,7 +4,7 @@
 - **Pointer:** `CutscenePtrs[$11]`; scene `$8011`.
 - **Trigger:** `RunEventsJmpTbl[$32]`, Dark Force 1 `$83` set and Ice Digger
   `$89` clear.
-- **Data:** `post_zio_cutscenes.rs`, `DARK_FORCE_1_DEFEATED` (27 ops).
+- **Data:** `post_zio_cutscenes.rs`, `DARK_FORCE_1_DEFEATED` (28 ops).
 
 ## Clone audit
 

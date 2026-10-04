@@ -746,8 +746,8 @@ fn an_arrival_prompt_is_the_next_objectives_to_answer() {
     );
 }
 
-/// The whole route from New Game to Zio's defeat and the Mota Spaceport, pads
-/// only. The Zio chapter makes an ordinary SAVE; a new Session reads it, and
+/// The whole route from New Game to Zio's defeat, the Mota Spaceport and the
+/// flight to Zelan, pads only. The Zio chapter makes an ordinary SAVE; a new Session reads it, and
 /// replaying the tape in another Session reaches the same digest.
 #[test]
 #[ignore = "plays the whole route: cargo test --release -p psiv-campaign --test runner -- --ignored"]
@@ -767,13 +767,14 @@ fn the_whole_route_defeats_zio_saves_and_replays() {
         chapter_snapshot.is_file(),
         "the runner wrote its read-only chapter snapshot"
     );
-    // The route ends at the foot of the Mota Spaceport's boarding row, one step
-    // short of the ship's destination menu (RUNNER_LOG C4).
-    let (at_the_ship, _) =
-        open_session(PACK.as_ref(), &StartPoint::Save(chapter_snapshot)).unwrap();
-    assert_eq!(at_the_ship.runtime().map_id().0, 0xBF);
-    let cell = psiv_campaign::driver::standing_cell(at_the_ship.runtime());
-    assert_eq!((cell.x, cell.y), (30, 20));
+    // The route ends in Zelan: the ship's destination menu opened on the
+    // Mota Spaceport's boarding row, `World_Index` 3 was picked with the pad,
+    // and the flight landed on loc_64B5A's Zelan row (RUNNER_LOG M23).
+    let (at_zelan, _) = open_session(PACK.as_ref(), &StartPoint::Save(chapter_snapshot)).unwrap();
+    assert_eq!(at_zelan.runtime().map_id().0, 0x18D);
+    assert_eq!(at_zelan.runtime().world_index(), 3);
+    let cell = psiv_campaign::driver::standing_cell(at_zelan.runtime());
+    assert_eq!((cell.x, cell.y), (31, 46));
     let pad_save = config.save_dir.join("route/slot_1.sram");
     assert!(
         pad_save.is_file(),

@@ -298,6 +298,7 @@ impl Field {
                     godot_print!("counter reach at {cell:?} has no shop row; dialogue");
                 }
                 Routed::ShopOpened { .. } | Routed::NothingHere => {}
+                Routed::DestinationMenu => godot_print!("scene opened the destination menu"),
                 Routed::SceneChoice => godot_print!("scene awaits a dialogue choice"),
                 Routed::SceneDialogue { entry, outcome } => {
                     godot_print!("scene dialogue open: entry {entry:#04x}");
@@ -364,6 +365,7 @@ impl Field {
         self.present_routed(&frame.routed);
         let stepped = self.process_events(frame.events);
         self.present_shop();
+        self.present_destination();
 
         // A battle this frame's events started: the runtime has already begun
         // it, so the shell builds the art, shows the stage and — for an

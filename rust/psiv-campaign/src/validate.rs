@@ -264,6 +264,20 @@ impl<'a> Run<'a> {
             Objective::Answer { .. } | Objective::RestInn { .. } | Objective::FightScripted => {
                 Ok(())
             }
+            Objective::Board { to, .. } => {
+                self.here("board")?;
+                let world = crate::ship::world_of(to, self.data)?;
+                // The flight ends on the landing table's row for the world
+                // (`loc_64B5A`, `ps4.asm:134593`), whichever menu row picked it.
+                let landing = psiv_core::flight_target(psiv_core::FlightLeg::Landing, 0, world)
+                    .ok_or_else(|| format!("World_Index {world} has no landing"))?;
+                self.require_map(landing.map)?;
+                self.move_to(Position {
+                    map: landing.map,
+                    cell: Cell::new(landing.start_x / 2, landing.start_y / 2 + 1),
+                });
+                Ok(())
+            }
             Objective::Dismount => {
                 if self.mover == Mover::Foot {
                     return Err("dismount, and the route has the party on foot".into());

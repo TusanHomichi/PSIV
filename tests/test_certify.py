@@ -17,7 +17,7 @@ from tools import certify
 
 SIX = ["opening-p1", "opening-p2", "meeting-rika", "title", "battle-0x88", "camp-root"]
 BATTLE = ["battle-status", "battle-status-2", "battle-fusion", "battle-strip", "battle-tech"]
-NAMES = SIX + BATTLE
+NAMES = SIX + BATTLE + ["ship-menu"]
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -42,6 +42,21 @@ class PairTableCase(unittest.TestCase):
                     self.assertTrue((ROOT / recipe["tape"]).is_file())
                     # Oracle frames are local and ignored, never committed.
                     self.assertTrue(frame.startswith("build/certify/oracle/"))
+
+    def test_the_ship_menu_pair_names_its_event_fixture_and_a_regenerable_frame(self):
+        pair = next(p for p in certify.PAIRS if p[0] == "ship-menu")
+        _, env, _, frame, _, recipe = pair
+        # The clone starts the real scene (Cutscene_InsideSpaceship) through the
+        # session's event fixture, not a hand-built menu.
+        self.assertEqual(env, {"PSIV_DEBUG_EVENT": "0x800D"})
+        self.assertIs(recipe, certify.TAPE_35)
+        self.assertTrue((ROOT / recipe["tape"]).is_file())
+        self.assertTrue(frame.startswith("build/certify/oracle/"))
+        # The fixture is tape 28's frame-7000 reload and a frame-7200 event
+        # entry, with AlysFound (F101 bit 7), all spelled as patches.
+        self.assertIn("7200:FFFFECA8:800D", recipe["patches"])
+        self.assertIn("7000:FFFFEC28:00BF", recipe["patches"])
+        self.assertIn("7000:FFFFF101:80", recipe["patches"])
 
     def test_battle_pairs_pin_the_enemy_clock_the_oracle_receipt_names(self):
         for name, env, _, _, _, _ in certify.PAIRS:

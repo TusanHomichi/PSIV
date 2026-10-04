@@ -146,7 +146,12 @@ pub use scene::{
 };
 pub use scene_presentation::{CreditsPlane, PresentationAsset, PresentationOp};
 pub use scene_runner::{Scene, SceneRunner, runner_for};
-pub use scenes::{SCENES, scene_for};
+pub use scenes::{
+    DESTINATION_DEFAULT_MASK, DESTINATION_FLAG_TABLE, DestinationMask, FlightLeg, FlightTarget,
+    SCENES, SPACEPORT_MAPS, WORLD_AIR_CASTLE, WORLD_COUNT, WORLD_DEZOLIS, WORLD_KURAN,
+    WORLD_MOTAVIA, WORLD_RYKROS, WORLD_ZELAN, destination_mask_byte, destination_worlds,
+    flight_target, scene_for,
+};
 pub use state::{CharId, Flag, FlagBank, GameState, PARTY_SLOTS};
 pub use state::{
     MACRO_COMMANDS, MACRO_COUNT, MacroCommand, MacroRecord, StateSnapshot, VEHICLE_COUNT,
