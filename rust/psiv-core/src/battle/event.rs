@@ -31,7 +31,9 @@ pub enum Outcome {
     ScriptedExit,
 }
 
-/// `EnemyAttack_Zio3`'s five turns, controlled by `$FFFFEE98`.
+/// The scripted turns of the boss routines that do not roll an ability:
+/// `EnemyAttack_Zio3`'s five, controlled by `$FFFFEE98`, and Dark Force 1's
+/// latch-gated first action.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FirstZioAction {
     /// Object $908, ability $6B.
@@ -44,6 +46,11 @@ pub enum FirstZioAction {
     Nightmare,
     /// Object $914 returns to the field without invoking effect $2C.
     BlackWave,
+    /// Dark Force 1's first action (`EnemyAttack_DarkForce1`, `ps4.asm:20031-20038`):
+    /// the scripted-battle latch is raised, so the routine clears the rolled
+    /// ability and loads object `$818` (`loc_32344`, `ps4.asm:64872`), a
+    /// presentation-only charge-up that requests nothing.
+    DarkForceCharge,
 }
 
 /// Why a queued fighter did nothing.

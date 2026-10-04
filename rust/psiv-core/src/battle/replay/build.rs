@@ -228,7 +228,27 @@ pub(crate) fn start(fixture: &Fixture, data: &BattleData, rolls: &mut impl Rolls
             "the priority draw is the cartridge's own roll"
         );
     }
-    let expected: Vec<FighterId> = fixture.formation.enemies.iter().map(|e| id(e.id)).collect();
+    // A formation seats every enemy its table names, but the init routines of
+    // Igglanova, Guilgenova, Tower and CommndBall clear the objects beside
+    // them (`EnemyInit_Igglanova` / `EnemyInit_Tower`, `ps4.asm:18275`,
+    // `18243`): the log still holds those slots' records, and the first
+    // round's queue is what says the slot is not fighting.
+    let first_queue = fixture.rounds.first().map(|round| &round.order);
+    let clears_neighbours = |enemy_id: u16| matches!(enemy_id, 12 | 13 | 39 | 45);
+    let dormant =
+        |entry: &FormationEnemyEntry| {
+            first_queue.is_some_and(|order| !order.contains(&entry.id))
+                && fixture.formation.enemies.iter().any(|other| {
+                    clears_neighbours(other.enemy_id) && other.id.abs_diff(entry.id) == 1
+                })
+        };
+    let expected: Vec<FighterId> = fixture
+        .formation
+        .enemies
+        .iter()
+        .filter(|entry| !dormant(entry))
+        .map(|e| id(e.id))
+        .collect();
     assert_eq!(
         started.1, expected,
         "the formation seats the cartridge's enemies"

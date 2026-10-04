@@ -326,6 +326,24 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
                         swing = Some(Vec::new());
                         break;
                     }
+                    // A scripted first action (Dark Force 1's latch turn) clears
+                    // the ability byte, so the log files it as an attack that
+                    // resolved no slot: the port's answer is the scripted event.
+                    BattleEvent::FirstZioAction { actor: who, .. } if *who == actor => {
+                        swing = Some(Vec::new());
+                        break;
+                    }
+                    // `EnemyAttack_FloatMine`'s fall-through (`loc_10406`,
+                    // `ps4.asm:22781`) writes the rolled id and clears it again
+                    // inside one frame, so the log's byte reads zero and the
+                    // action is filed as an attack that resolved no slot. What
+                    // tells the two apart is the draw count, which the round's
+                    // own check pins: a swing draws a hit roll, the spent turn
+                    // draws the ability roll and nothing after it.
+                    BattleEvent::EnemyAbilityWasted { actor: who, .. } if *who == actor => {
+                        swing = Some(Vec::new());
+                        break;
+                    }
                     BattleEvent::RoundEnded { .. } => break,
                     _ => {}
                 }

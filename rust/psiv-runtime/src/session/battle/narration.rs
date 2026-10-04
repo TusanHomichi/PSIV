@@ -67,7 +67,9 @@ pub(crate) fn narration(
                 FirstZioAction::MagicBarrier => "MAG.BARRIR",
                 FirstZioAction::Nightmare => "NIGHTMARE",
                 FirstZioAction::BlackWave => "BLACK WAVE",
-                FirstZioAction::Invocation | FirstZioAction::Pause => "",
+                FirstZioAction::Invocation
+                | FirstZioAction::Pause
+                | FirstZioAction::DarkForceCharge => "",
             }
             .into(),
             beat: BattleBeat::None,

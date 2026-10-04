@@ -1,4 +1,4 @@
-# Enemy status and stat abilities (the Motavia arc)
+# Enemy status and stat abilities (the Motavia arc, and the Zelan route)
 
 What this ledger records: the enemy abilities that change a status bit, a
 battle stat or a fighter's life - VOICE, RIMIT, EVIL EYE, STASISBALL, DORAN,
@@ -15,6 +15,11 @@ Code: `rust/psiv-core/src/battle/enemy_effect.rs` (the status and stat handlers)
 `enemy_fusion.rs` (Fusion). Nothing here is decided from an ability's name; every
 rule is a line of `reference/ps4disasm/ps4.asm`, and every pair was seen run in a
 capture (`BATTLE_ORACLE_ARC.md`).
+
+The Zelan-to-Kuran route (issue #58 class, lane A4, 2026-10-04) added POISONMIST,
+SLEEP GAS, SHADOWBIND and the refill WARNING to the same table and moved the
+crawlers' THREAD and POISON into it, so that every status or stat ability the
+port runs goes through one handler per effect byte: [section 7](#7-the-zelan-route-pairs).
 
 ## 1. How an effect ability runs
 
@@ -76,6 +81,11 @@ table (`ROUTES`) gates which `(enemy, ability)` pairs may reach it.
 | `$2D` DEBAN | 116 Radhin; 70 ShadowSabr | `EnemyAttack_Juza` arm `loc_E666` (`ps4.asm:20747`); `EnemyAttack_ShadowSabr` (`ps4.asm:21933`) arm `loc_F89A` (`ps4.asm:21966`) | `loc_2A660` (`ps4.asm:55760`); `loc_1D7D8` (`ps4.asm:40098`) | `$0A` | 2 |
 | `$3E` GIRES | 100 TechMaster | `EnemyAttack_TechUser` (`ps4.asm:21156`), fall-through `loc_EEAA` (`ps4.asm:21266`) | object `$3D4`, `loc_213DC` (`ps4.asm:44701`) | `NormalLogic` heal | 1 |
 | `$12` Fusion | 34 ZolSlug | `EnemyAttack_Blob` (`ps4.asm:23043`), `loc_10796` | `BattleObj_Fusion` (`ps4.asm:35675`), `BattleObj_Fusion2` (`ps4.asm:35850`) | none | - |
+| `$10` THREAD | 31 CarrionCr | `EnemyAttack_Crawler` (`ps4.asm:23081`), arm `loc_1084A` (23113) | `BattleObj_Thread` (`ps4.asm:36186`) | `$06` | 8 |
+| `$11` POISON | 32 Caterpillr | the same routine, arm `loc_10836` (23107) | `BattleObj_Poison` (`ps4.asm:36279`) | `$1B` | 8 |
+| `$24` POISONMIST | 57 Mistralgec | `EnemyAttack_SandNewt` (`ps4.asm:22267`), arm `loc_FD06` (22287) | `BattleObj_PoisonMist` (`ps4.asm:42202`) | `$1B` | 8 |
+| `$25` SLEEP GAS | 63 GerotLux | `EnemyAttack_AbeFrog` (`ps4.asm:22246`), arm `loc_FCA0` (22257) | `BattleObj_SleepGas` (`ps4.asm:41714`) -> `loc_24D76` (`ps4.asm:48702`) | `$07` + `bset #3` | 9 |
+| `$4B` SHADOWBIND | 111 ChaosSorcr, 138 ChaosSorcr2 | `EnemyAttack_ChaosSorcr` (`ps4.asm:20816`), arm `loc_E83E` (20868) | object `$724`, `loc_2BCEA` (`ps4.asm:57360`) | `$06` | 9 |
 
 A carrier appears in `ROUTES` only if a capture saw it use the ability
 (`BATTLE_ORACLE_ARC.md` section 2); the ones that are not routed, and why, are
@@ -286,3 +296,85 @@ enemy could sleep or seal a party member, wrong the moment VOICE or SEALS landed
 - **SoldrFiend's VOL kill** is read, not observed: the one capture of it is a
   miss. Its object ends in the same `loc_25048` the two observed carriers use
   (`ps4.asm:46878`).
+
+## 7. The Zelan route pairs
+
+What the route from Zelan to Kuran meets and how it was derived is
+[`ENEMY_ABILITIES.md`](ENEMY_ABILITIES.md) section 6; the captures that saw each
+pair are [`BATTLE_ORACLE_ZELAN.md`](../oracle/BATTLE_ORACLE_ZELAN.md).
+
+### One handler per effect byte
+
+THREAD (`$10`, effect `$06`) and POISON (`$11`, effect `$1B`) used to have a
+resolver of their own in `enemy_skill.rs`; DORAN's `$06` and no `$1B` handler lived
+here. They are `ROUTES` entries now (`31 CarrionCr`, `32 Caterpillr`), and
+`enemy_skill::resolve_thread` / `resolve_poison` are gone, so POISONMIST and
+SHADOWBIND share a handler with the crawler arm of the same effect instead of
+copying it. The seven POISON fixtures of the Motavia sweep replay through the
+new path unchanged; THREAD has no committed capture (no CarrionCr formation is in
+the swept set), so its evidence stays the unit tests in
+`enemy_effect_crawler_tests.rs` and the chain read in `THREAD.md`. A route is
+the `(enemy, ability)` pair plus the record's effect byte and range nibble, which
+is weaker than the old full-record pins; the record still drives every number.
+
+### POISONMIST (`$24`, Mistralgec)
+
+Record 36 `1B 01 08 50 01 0D`: effect `$1B` (`AbilityEffect_Poison`,
+`ps4.asm:9410`), range 8 (the drawn target), STR against STR, efess factor,
+miss threshold 80. `EnemyAttack_SandNewt` (`ps4.asm:22267`) keeps
+`Current_Target_Index`, loads object `$244` = `BattleObj_PoisonMist`
+(`ps4.asm:42202`), whose state `loc_1F69E` (`ps4.asm:42285`) calls
+`GetEnemySkillEffectAndRange` once at its fourth frame (`ps4.asm:42293`). The
+handler tests `StatusPoisoned` first (an already poisoned target takes no
+roll), rolls once and sets the bit. No `move.w #$C`/`#5` is written by the
+object or by the helpers it calls. Mistralgec's own list is `[0 x5, 36 x3]`. 58
+FlameNewt shares the routine and its arm but is not on the route and no capture
+saw it cast POISONMIST, so it is not routed. Poison does nothing more in battle;
+its field consequence (1 HP per four steps) is `field_status.rs`.
+
+### SLEEP GAS (`$25`, GerotLux)
+
+Record 37 `07 01 09 50 01 0B`: `AbilityEffect_SleepParalyze` (the VOICE shape),
+range 9, STR against STR, psychic factor, threshold 80. `EnemyAttack_AbeFrog`
+(`ps4.asm:22246`) clears `Current_Target_Index` for every nonzero ability
+(`loc_FCA0`, 22257) and loads object `$250` = `BattleObj_SleepGas`
+(`ps4.asm:41714`): its state `+4` jumps to `loc_24D76` (`ps4.asm:48702`), which
+makes the one call (48706) and then sets bit 3 of the status of every party
+fighter whose effect word is nonzero (48714-48724) - the same `bset #3` as
+`loc_25074`. A sleeping or paralyzed member takes no roll. The sleepers wake by
+the end-of-round roll like VOICE's.
+
+### SHADOWBIND (`$4B`, ChaosSorcr and ChaosSorcr2)
+
+Record 75 `06 02 09 40 02 0B`: `AbilityEffect_AgilityDown`, range 9, **MEN against
+MEN** (byte 1 is `$02`, not `$82`), psychic factor, threshold 64.
+`EnemyAttack_ChaosSorcr` (`ps4.asm:20816`), arm `loc_E83E` (20868), clears
+`Current_Target_Index` and loads object `$724` = `loc_2BCEA` (`ps4.asm:57360`);
+at frame `$F` of its first state it calls `GetEnemySkillEffectAndRange` once
+(57411) and spawns a child `$3F8` (`loc_20A0C`, `ps4.asm:44013`) for every
+slot that landed. The children are sprites. The new battle agility is the
+caster's MEN subtracted from the *modified* value, floored at 1, exactly as
+THREAD's and DORAN's.
+
+### WARNING (`$14`, CommndBall) is a refill
+
+Record 20 `1E 00 2C 00 00 00 00 00` has the effect byte of the two Fission
+records, and its object ends the same way: `$1CC` (`loc_1879A`,
+`ps4.asm:33852`) finishes with `clr.w (a4) / movea.l $7C(a4), a1 /
+jmp loc_14CBE` (`ps4.asm:33846-33850`) - the refill of the neighbour slot
+`EnemyAI_EmptySpace` named, after an alarm in front of it (`$198`,
+`loc_185EC`, `ps4.asm:33725`). 45 CommndBall's init is `EnemyInit_Tower`
+(`ps4.asm:18243`), which clears the objects beside it like Igglanova's does, so
+`CommndBall` fights alone until a WARNING calls one of its two FloatMine2 back.
+The port already ran Fission's refill (`enemy_skill::resolve_fission`); the
+WARNING record joins it (`EnemySkill::is_refill`) and `initialize_enemies`
+covers 39 Tower and 45. The first version of this lane read WARNING as a spent
+turn with an alarm and the capture refuted it: the log's first round queue holds
+the CommndBall alone.
+
+### What is deferred, and why
+
+| pair | reason |
+|---|---|
+| 48 Siren386 `$1D` BARRIER (conditional, arm `$08` `EnemyAI_MagicDamageReceived`) | It fires only after a magic hit on the Siren (reaction flag bit 1). No capture policy commands a technique (`BATTLE_ORACLE_FORCED.md` section 1.3), so no capture can show the arm; the handler (`AbilityEffect_MagicDefenseUp`, `ps4.asm:9220`, range 2, no roll) is not written without an observed use. The arm also guards on its own derived and battle magic defence like ShadowSabr's DEBAN (`EnemyAttack_Warren286`, `ps4.asm:22515`, `loc_100A6` to `loc_10016`). Until then `UnsupportedAbility` and the physical swing. |
+| 58 FlameNewt `$24`, 105 ShadMirage and 132 DarkForce3 `$4B` | Share a routine with a routed pair, are not on the route, were not captured. |

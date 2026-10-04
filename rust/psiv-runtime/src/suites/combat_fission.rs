@@ -348,12 +348,15 @@ fn floatmine2_formations_spend_fission2_and_waiting_turns_without_a_swing() {
     );
 }
 
-/// The same formation roster with 45 CommndBall in the middle — pack formation
-/// 292 — rolls `$19` Detonation, one of the routine's *arms*. Its object is
-/// untraced, so it keeps the ordinary fallback: an `UnsupportedAbility` notice
-/// and a physical swing. The wasted-turn witness must not swallow an arm.
+/// The same formation roster with 45 CommndBall in the middle - pack formation
+/// 292. `EnemyInit_Tower` clears both FloatMine2 beside it, so round 1's queue is
+/// the CommndBall alone and, with an empty slot on each side, its first action
+/// is `$14` WARNING - the refill, observed in the cartridge
+/// (`docs/oracle/BATTLE_ORACLE_ZELAN.md`). The refill brings one FloatMine2
+/// back; the routine's other arm, `$19` Detonation, still falls back (the core
+/// test `other_abilities_and_carriers_keep_the_physical_fallback`).
 #[test]
-fn a_float_mine_arm_on_a_real_formation_keeps_the_physical_fallback() {
+fn a_commndball_starts_alone_and_its_first_action_calls_a_neighbour_back() {
     let pack = Path::new(PACK);
     if !pack.join("manifest.json").is_file() {
         eprintln!("runtime pack absent; skipping");
@@ -363,32 +366,33 @@ fn a_float_mine_arm_on_a_real_formation_keeps_the_physical_fallback() {
     runtime
         .start_battle_timeline(292, runtime.battle_party())
         .unwrap();
-    assert_eq!(
-        runtime
-            .battle_roster()
-            .unwrap()
-            .side(Side::Enemy)
-            .map(|f| f.stats.enemy_id)
-            .collect::<Vec<_>>(),
-        vec![50, 45, 50]
-    );
     runtime.set_rng_seed(0x0101_5678);
     let timeline = runtime
         .battle_round_timeline(&RoundOrders::Commands(vec![Command::Defend; 3]))
         .unwrap();
+    let order = timeline.events.iter().find_map(|e| match e {
+        BattleEvent::RoundBegan { order, .. } => Some(order.clone()),
+        _ => None,
+    });
+    let order = order.expect("a round opens with its queue");
     assert!(
-        timeline.events.contains(&BattleEvent::UnsupportedAbility {
+        order.contains(&id(7)) && !order.contains(&id(6)) && !order.contains(&id(8)),
+        "the FloatMine2 beside the CommndBall are cleared at the start: {order:?}"
+    );
+    assert!(
+        timeline.events.contains(&BattleEvent::EnemySkillUsed {
             actor: id(7),
-            ability: 25,
+            skill: 20,
+            name: "WARNING".into(),
         }),
-        "CommndBall's whole list is `$19`: {:?}",
+        "an empty slot on a side makes `$14` the CommndBall's ability: {:?}",
         timeline.events
     );
     assert!(
         timeline
             .events
             .iter()
-            .any(|e| matches!(e, BattleEvent::Attacked { actor, .. } if *actor == id(7))),
+            .any(|e| matches!(e, BattleEvent::EnemyReplenished { actor, .. } if *actor == id(7))),
         "{:?}",
         timeline.events
     );
@@ -396,7 +400,7 @@ fn a_float_mine_arm_on_a_real_formation_keeps_the_physical_fallback() {
         !timeline
             .events
             .iter()
-            .any(|e| matches!(e, BattleEvent::EnemyAbilityWasted { ability: 25, .. })),
+            .any(|e| matches!(e, BattleEvent::UnsupportedAbility { .. })),
         "{:?}",
         timeline.events
     );

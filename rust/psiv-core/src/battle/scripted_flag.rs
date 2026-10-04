@@ -13,15 +13,18 @@
 //! | read, clear | the first action of `EnemyAttack_ProfoundDarkness1` (`ps4.asm:19824-19828`), `_DarkForce2` (`19971-19975`), `_DarkForce1` (`20031-20035`) and `_CarnivorousTree` (`20102-20105`) | `tst.b` then `clr.b` and a fixed object with the ability cleared |
 //! | read | `loc_B62A` (`ps4.asm:17448-17449`), the opening-priority routine | `tst.b ($FFFFEE87).w / beq.s / st d0` |
 //!
-//! Only the last reader is modelled here: with the flag up `Battle_Priority`
+//! Two readers are modelled here: with the flag up `Battle_Priority`
 //! becomes `$FF`, an enemy ambush, whatever the chance roll and the boss
 //! forcing said (`ps4.asm:17436-17452`; `Battle_ProcessCOMD`'s
 //! `tst.b (Battle_Priority).w / bmi` at `ps4.asm:7636` then skips the party's
-//! command input, and `Battle_OrderTurns` queues the enemies alone). The four
-//! first-action readers dispatch fixed objects instead of the rolled ability;
-//! none of those arms is a row of the damage tables yet, so they keep the
-//! explicit unsupported path (issue #62's ProfoundDarkness1 FIREBREATH row is
-//! the one waiting on them).
+//! command input, and `Battle_OrderTurns` queues the enemies alone), and Dark
+//! Force 1's first action ([`reads_first_action`]): object `$818`, a charge-up
+//! that requests nothing, replaces the rolled ability, and the captured fight
+//! (`docs/oracle/BATTLE_ORACLE_ZELAN.md`) shows the byte cleared and no slot
+//! resolved. The other three first-action readers dispatch fixed objects whose
+//! chains have not been read (`$864`, `$83C`, `$808`); none of those arms is a
+//! row of the damage tables yet, so they keep the explicit unsupported path
+//! (issue #62's ProfoundDarkness1 FIREBREATH row is the one waiting on them).
 
 /// Whether the init routine of `enemy_id` raises `$FFFFEE87`.
 ///
@@ -31,6 +34,14 @@
 #[must_use]
 pub(super) const fn init_raises(enemy_id: u16) -> bool {
     matches!(enemy_id, 0x81 | 0x82 | 0x83 | 0x85 | 0x8B | 0x8C | 0x98)
+}
+
+/// Whether `enemy_id`'s attack routine spends a raised latch on a fixed
+/// object that this port models: `130` DarkForce1 (`EnemyAttack_DarkForce1`,
+/// `ps4.asm:20030`), whose object `$818` is presentation only.
+#[must_use]
+pub(super) const fn reads_first_action(enemy_id: u16) -> bool {
+    enemy_id == 0x82
 }
 
 #[cfg(test)]
