@@ -10,10 +10,13 @@ func _initialize():
         presses[start] = "ui_accept"
         for actor in range(3):
             for down in range(4):
-                presses[start + 10 + actor * 50 + down * 10] = "ui_down"
+                presses[start + 10 + actor * 50 + down * 10] = "ui_right"
             presses[start + 50 + actor * 50] = "ui_accept"
     presses[1400] = "ui_accept"
-    for at in [1410,1420,1430,1440,1460,1470,1480,1500,1510,1520,1550,1560,1570,1580]:
+    # The strip steps right; the item window's rows step down inside the page.
+    for at in [1410,1420,1430,1440,1460,1470,1480,1550,1560,1570,1580]:
+        presses[at] = "ui_right"
+    for at in [1500,1510,1520]:
         presses[at] = "ui_down"
     for at in [1450,1490,1530,1540,1590]:
         presses[at] = "ui_accept"

@@ -82,6 +82,7 @@ impl Field {
                     }
                 }
                 RuntimeEvent::ScenePresentation { op } => self.consume_scene_op(op),
+                RuntimeEvent::SceneMusicRetained => self.presentation.retain_scene_music(),
                 RuntimeEvent::SceneEnded => {
                     godot_print!("scene ended");
                     self.finish_cutscene_presentation();

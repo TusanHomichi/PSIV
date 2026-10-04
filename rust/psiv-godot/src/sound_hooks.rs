@@ -18,20 +18,25 @@ impl Field {
         godot_print!("scene sound: {id:#04x}");
     }
 
-    /// Retail's `Saved_Sound_Index` is a one-byte restore word, not a second
-    /// mixer. Zero means the scene cleared it; any other value is returned
-    /// when the scene/map presentation hands control back to the field.
+    /// The runtime has already applied this persistent saved-word write.
+    /// Runtime-less debug fixtures retain their separate one-shot cue.
     pub(super) fn save_scene_music(&mut self, id: u8) {
-        self.presentation.set_saved_music(id);
+        if self.runtime().is_none() {
+            self.presentation.set_debug_saved_music(id);
+        }
         godot_print!("scene saved music: {id:#04x}");
     }
 
+    /// At real-session restore edges, read the persistent cartridge word from
+    /// runtime. `loc_33DEC` and other retail readers do not consume `$ECEC`.
+    /// Only a runtime-less debug fixture falls back to the shell's old cue.
     pub(super) fn restore_saved_music(&mut self) -> bool {
-        let Some(id) = self.presentation.take_saved_music() else {
+        let runtime_saved = self.runtime().map(|runtime| runtime.saved_sound_index());
+        let Some(id) = self.presentation.restore_music_id(runtime_saved) else {
             return false;
         };
         self.play_sound(id);
-        godot_print!("scene restored saved music: {id:#04x}");
+        godot_print!("restored saved music: {id:#04x}");
         true
     }
 

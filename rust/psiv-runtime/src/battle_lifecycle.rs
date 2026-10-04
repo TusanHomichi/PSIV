@@ -2,7 +2,7 @@
 //! and the start, round and absorb seams the shell drives.
 
 use psiv_core::CharId;
-use psiv_core::battle::{Battle, BattleEvent, Rng2, RoundOrders};
+use psiv_core::battle::{Battle, BattleEvent, Priority, Rng2, RoundOrders};
 
 use crate::boss_battles;
 use crate::camp;
@@ -97,6 +97,12 @@ impl Runtime {
     #[must_use]
     pub fn battle_roster(&self) -> Option<&psiv_core::battle::Roster> {
         self.battle.as_ref().map(Battle::roster)
+    }
+
+    /// The next round's one-shot priority, for the Session's command gate.
+    #[must_use]
+    pub(crate) fn battle_pending_priority(&self) -> Option<Priority> {
+        self.battle.as_ref().map(Battle::pending_priority)
     }
 
     /// Cartridge technique definitions for presentation of names and costs.

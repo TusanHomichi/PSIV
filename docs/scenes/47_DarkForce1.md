@@ -16,7 +16,7 @@ end. No hack-only scene is involved.
 
 | Ops | ROM offsets | Retail primitive | Scene record |
 |---:|---|---|---|
-| 0 | `$06FAF8..$06FB03` | `Event_GetAndRunDialogue2`, entry `6` | standard dialogue |
+| 0 | `$06FAF8..$06FB03` | `Event_GetAndRunDialogue2`, entry `6` | retained-window dialogue |
 | 1-2 | `$06FB04..$06FB13` | set Dark Force 1 `$83`; set map-load bit 7 | flag/map flags |
 | 3-4 | `$06FB14..$06FB1D` | event battle index `9`; routine-exit handoff | battle/return |
 

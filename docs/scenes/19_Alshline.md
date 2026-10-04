@@ -59,3 +59,6 @@ blocks at `StartBattle` and resumes only after the runtime supplies
 The arc test drives the long panel/dialogue sequence, resolves the event
 battle, and then asserts flag `$33`. `RemoveItem` is tested through the same
 scene state path and safely no-ops when a fixture does not carry Alshline.
+
+The dialogue call is `Event_GetAndRunDialogue2` (`$5ACDC`), the retained window
+(`retained(0x68)`): see [the Dialogue2 audit](DIALOGUE2_CALLERS.md).

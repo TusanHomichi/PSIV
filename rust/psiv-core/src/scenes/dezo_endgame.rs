@@ -5,7 +5,7 @@
 //! tower flags, the transient party-slot bridge, Elsydeon, Reunion and the
 //! Profound Darkness battle handoff.
 
-use super::{CHAZ, DEMI, GRYZ, HAHN, KYRA, RAJA};
+use super::{CHAZ, DEMI, GRYZ, HAHN, KYRA, RAJA, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_presentation::PresentationOp;
@@ -687,7 +687,7 @@ pub static PROFOUND_DARKNESS: Scene = Scene {
         SceneOp::PlaySound {
             id: MUSIC_BLACK_BLOOD,
         },
-        standard(3),
+        retained(3),
         SceneOp::SetFlag {
             flag: Flag::event(0xE8),
             value: true,

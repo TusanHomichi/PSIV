@@ -29,7 +29,7 @@
 //! *values*; it must not change the *count*.
 
 use super::action::resolve_attack;
-use super::ai::{choose_ability, choose_target, targetable_party};
+use super::ai::{choose_target, targetable_party};
 use super::chances::{ESCAPE, Verdict, calculate_chances};
 use super::event::{BattleEvent, Outcome, Skipped};
 use super::fighters::{ENEMY_SLOTS, FighterId, Roster, Side};
@@ -196,8 +196,10 @@ pub struct Battle {
     run_chance: Option<u8>,
     /// Whether this is the one-fighter vehicle battle surface.
     vehicle: bool,
-    /// Shared enemy-object sequence byte `$FFFFEE98`, reset at battle start.
-    zio_phase: u8,
+    /// `$FFFFEE98`, the Zio routines' shared phase counter (see [`super::zio`]).
+    /// `EnemyInit_Zio` clears it at battle start (`ps4.asm:17895`); only the
+    /// three Zio routines write it.
+    enemy_phase: u8,
 }
 
 impl Battle {
@@ -268,12 +270,21 @@ impl Battle {
                 .is_some_and(super::fighters::Fighter::is_alive)
         });
 
-        let priority = roll_priority(
+        let rolled = roll_priority(
             roster.highest_party_agility(),
             formation.ambush_chance,
             boss,
             rolls,
         );
+        // `loc_B62A`'s last test (`ps4.asm:17448-17450`): `$FFFFEE87`, which
+        // the boss init routines raise, forces `Battle_Priority` to `$FF`
+        // after the roll (drawn either way) and the boss clear have run.
+        let scripted = !vehicle
+            && formation
+                .enemies
+                .iter()
+                .any(|slot| super::scripted_flag::init_raises(slot.enemy_id));
+        let priority = if scripted { Priority::Ambush } else { rolled };
         if priority == Priority::Ambush {
             // `loc_B62A`'s tail (`ps4.asm:17456-17463`): a negative priority
             // sets bit 3 on every *occupied* enemy slot, once, off this roll.
@@ -297,7 +308,7 @@ impl Battle {
                 last_ability_index: 0,
                 run_chance: formation.can_run().then_some(formation.run_chance),
                 vehicle,
-                zio_phase: 0,
+                enemy_phase: 0,
             },
             events,
         ))
@@ -386,6 +397,15 @@ impl Battle {
     #[must_use]
     pub const fn round_number(&self) -> u16 {
         self.round
+    }
+
+    /// Priority the next round will consume. The cartridge's
+    /// `Battle_ProcessCOMD` skips party command input while this is negative
+    /// (`ps4.asm:7636`); `Battle_OrderTurns` clears it after that round
+    /// (`ps4.asm:7938-7944`).
+    #[must_use]
+    pub const fn pending_priority(&self) -> Priority {
+        self.pending_priority
     }
 
     /// The pools the dead have contributed so far.
@@ -721,173 +741,6 @@ impl Battle {
         Ok(())
     }
 
-    /// `Enemy_Attack`'s opening — the ability roll, always taken.
-    ///
-    /// Fission and the traced damage-skill routes
-    /// ([`super::enemy_damage::resolve_damage_skill`]) dispatch after the
-    /// ordinary ability roll and empty-space condition, and so do FloatMine-carrier
-    /// rolls of `$07` and `$17`, which spend the turn without an effect. Unsupported abilities
-    /// retain the fallback. When the roll
-    /// lands on a real ability the enemy still swings physically, and an
-    /// [`BattleEvent::UnsupportedAbility`] says so rather than letting a wrong
-    /// number pass for a right one. 53 of the cartridge's 153 enemies —
-    /// including everything in both oracle tapes — carry an all-zero list and
-    /// never reach that branch.
-    fn roll_enemy_ability(
-        &mut self,
-        actor: FighterId,
-        intended: Option<FighterId>,
-        data: &BattleData,
-        rolls: &mut impl Rolls,
-        events: &mut Vec<BattleEvent>,
-    ) -> Result<bool, BattleDataError> {
-        let enemy_id = self.roster.get(actor).map_or(0, |f| f.stats.enemy_id);
-        let record = data.enemy(enemy_id)?;
-        let (_, mut ability) = choose_ability(record, &mut self.last_ability_index, rolls);
-        // The instruction block runs *after* the roll and before the routine
-        // dispatch, so it can replace the ability the roll picked
-        // (`ps4.asm:19157-19168`).
-        let outcome = super::enemy_ai::instruction_block(&mut self.roster, actor, record, rolls)?;
-        let mut replacement = None;
-        match outcome {
-            super::enemy_ai::AiOutcome::Rolled => {}
-            super::enemy_ai::AiOutcome::Replaced { slot, neighbour } => {
-                ability = record.conditional_abilities[slot];
-                replacement = neighbour;
-            }
-            super::enemy_ai::AiOutcome::Unsupported { .. } => {
-                // The port cannot tell whether the arm held, so it must not run
-                // the roll: reporting the ability that arm would have written
-                // and falling back to the swing is the only honest answer
-                // (`docs/battle/ENEMY_ABILITIES.md`, Port gaps).
-                let ability = outcome.unreported_ability(record).expect("unsupported arm");
-                if let Some(fighter) = self.roster.get_mut(actor) {
-                    fighter.ability = ability;
-                }
-                events.push(BattleEvent::UnsupportedAbility { actor, ability });
-                return Ok(false);
-            }
-        }
-        if let Some(fighter) = self.roster.get_mut(actor) {
-            fighter.ability = ability;
-        }
-        if enemy_id == 152 {
-            // EnemyAttack_Zio3 overrides the rolled skill with its object
-            // sequence. Its final ability $70 names out-of-range effect
-            // $2C, but object $914 never dispatches that effect at all.
-            use super::FirstZioAction;
-            let (action, skill) = match self.zio_phase {
-                0 => (FirstZioAction::MagicBarrier, 0x6B),
-                1 => (FirstZioAction::Invocation, 0),
-                2 => (FirstZioAction::Pause, 0),
-                3 => (FirstZioAction::Nightmare, 0x53),
-                4 => (FirstZioAction::BlackWave, 0x70),
-                _ => (FirstZioAction::Pause, 0),
-            };
-            self.zio_phase = self.zio_phase.saturating_add(1);
-            self.roster.get_mut(actor).expect("acting enemy").ability = skill;
-            let target = if action == FirstZioAction::BlackWave {
-                self.roster
-                    .side(Side::Party)
-                    .find(|f| f.character == Some(1))
-                    .or_else(|| self.roster.side(Side::Party).next())
-                    .map(|f| f.id)
-            } else {
-                None
-            };
-            events.push(BattleEvent::FirstZioAction {
-                actor,
-                action,
-                target,
-            });
-            if action == FirstZioAction::BlackWave {
-                self.outcome = Some(Outcome::ScriptedExit);
-            }
-            return Ok(true);
-        }
-        if let Some(target) = replacement
-            && super::enemy_skill::resolve_fission(
-                &mut self.roster,
-                actor,
-                ability,
-                target,
-                data,
-                events,
-            )?
-        {
-            return Ok(true);
-        }
-        if super::enemy_fusion::resolve_fusion(&mut self.roster, actor, ability, data, events)? {
-            return Ok(true);
-        }
-        if super::enemy_damage::resolve_damage_skill(
-            &mut self.roster,
-            actor,
-            ability,
-            intended,
-            data,
-            rolls,
-            events,
-        ) {
-            return Ok(true);
-        }
-        match super::enemy_effect::resolve_effect_skill(
-            &mut self.roster,
-            actor,
-            ability,
-            intended,
-            data,
-            rolls,
-            events,
-        ) {
-            super::enemy_effect::EffectTurn::Resolved => return Ok(true),
-            // The arm's guard sent the turn to the ordinary attack objects.
-            super::enemy_effect::EffectTurn::Swing => return Ok(false),
-            super::enemy_effect::EffectTurn::NotMine => {}
-        }
-        if super::enemy_skill::resolve_thread(
-            &mut self.roster,
-            actor,
-            ability,
-            intended,
-            data,
-            rolls,
-            events,
-        ) {
-            return Ok(true);
-        }
-        if super::enemy_skill::resolve_poison(
-            &mut self.roster,
-            actor,
-            ability,
-            intended,
-            data,
-            rolls,
-            events,
-        ) {
-            return Ok(true);
-        }
-        if super::enemy_skill::resolve_res(&mut self.roster, actor, ability, data, rolls, events) {
-            return Ok(true);
-        }
-        // `EnemyAttack_FloatMine`'s fall-through (`loc_10406`): the roll has
-        // nothing to load, so the turn is spent rather than turned into a
-        // physical attack. Last, because it is the absence of an arm.
-        if super::enemy_skill::resolve_no_effect_turn(
-            &mut self.roster,
-            actor,
-            ability,
-            data,
-            events,
-        ) {
-            return Ok(true);
-        }
-        if ability != 0 {
-            events.push(BattleEvent::UnsupportedAbility { actor, ability });
-        }
-        Ok(false)
-    }
-
     /// `Battle_ProcessRUN` — `ps4.asm:7672`.
     ///
     /// Four short-circuits before the roll, in the cartridge's order:
@@ -978,6 +831,9 @@ struct TurnResources<'a> {
     inventory: &'a mut crate::Inventory,
     events: &'a mut Vec<BattleEvent>,
 }
+
+#[path = "engine_enemy.rs"]
+mod enemy_roll;
 
 #[cfg(test)]
 #[path = "engine_tests.rs"]

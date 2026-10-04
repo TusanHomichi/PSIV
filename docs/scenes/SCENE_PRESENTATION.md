@@ -54,6 +54,23 @@ wrong blink phase (`RMSE 19.408013`); it is not used for certification.
 | battle `0x88` | **0.000000** | clone t200 ↔ tape-07 frame 25000, `--fixed-fps 60` |
 | camp root | **0.000000** | clone t60 ↔ tape-22 frame 7675, `--fixed-fps 60` |
 
+Five battle pairs joined them on 2026-10-02 (#51, #64), all **0.000000**; the
+decode, receipts and pins are in [`BATTLE_COMMAND_UI.md`](../battle/BATTLE_COMMAND_UI.md).
+
+| pair | rmse | pairing |
+|---|---:|---|
+| `battle-strip` | **0.000000** | clone t334 (`strip,cursor=1,age=7`) ↔ tape-32 frame 25134, Alys's strip on TECH |
+| `battle-tech` | **0.000000** | clone t600 (`tech,cursor=0,blink=14/1`) ↔ tape-32 frame 25400, the technique window |
+| `battle-status` | **0.000000** | clone t200 (Chaz asleep, Alys paralyzed, Hahn sealed) ↔ tape-32 frame 25000 with three `Character_Stats` patches |
+| `battle-status-2` | **0.000000** | clone t200 (poisoned, dead, asleep+sealed) ↔ the same frame, other patches |
+| `battle-fusion` | **0.000000** | clone t714 (a defended round of formation `$D2`) ↔ tape-33 frame 25560, the MetaSlug |
+
+The mid-round attack (#52) is fixed in the shell's clock order but **not**
+certified: its fixture reads `rmse=20.254240` against tape-34 frame 25377, for
+the three causes in the doc above. Each pair names a `Session` fixture
+(`PSIV_DEBUG_BATTLE_WINDOW`, `rust/psiv-runtime/src/session/battle/fixture.rs`);
+the oracle frames regenerate from their tapes and are hash-checked.
+
 Run every pair with `python3 tools/certify.py` (it rebuilds the debug extension first); it pins each pair's
 clone tick and oracle-frame hash and writes a receipt under `build/certify/`.
 The 2026-10-02 run that restored all six is
@@ -207,7 +224,7 @@ border at `(37,2)`.
 |---|---|---|
 | `InitVramAndCram` | Implemented | Clears staged/visible scene planes and opening text. |
 | `FadeIn`, `FadeOut` | Implemented | Seven CRAM-equivalent levels, two-frame stepping, 14 renderer ticks; the cover is above cutscene planes and below dialogue. |
-| `Panel_Create`, `Panel_Destroy`, `Panel_DestroyAll` | Implemented for scene ops and dialogue `$F2` actions | Retail panel records are decoded from all non-empty banked `PanelPtrs` ranges. Scene ids remain compatible with the typed scene stream; dialogue word ids include `$30` and the other 162 action-referenced records. Destroy is stack-pop, and an id mismatch warns. |
+| `Panel_Create`, `Panel_Destroy`, `Panel_DestroyAll` | Implemented for scene ops and dialogue `$F2` actions | Retail panel records are decoded from all non-empty banked `PanelPtrs` ranges. Scene ids remain compatible with the typed scene stream; dialogue word ids include `$30` and the other 162 action-referenced records. Retail destroy is an operand-free stack pop; the typed `PanelDestroy { id }` currently emits false art-ID mismatch warnings for Alshline's loop counters ([#74](https://github.com/TusanHomichi/PSIV/issues/74)). |
 | `DmaPlanes` | Implemented | Staged panels become visible only at the DMA event. |
 | `LoadPalette` | Implemented | Decoded word records are loaded and length-checked from `presentation/panels.json`. Pixel assets bake their retail palette for Godot's texture path. |
 | `LoadArt` | Implemented for all 7 decoded scene writes | `presentation/load_art/` carries each Nemesis payload, source address, destination tile, map context, consumed/decompressed size, and hash. The four object-consuming writes also feed the temporary-object sheets. |
@@ -218,7 +235,7 @@ border at `(37,2)`.
 | `ObjectAnimation`, `SetObjectDestination` | Implemented for map sprites and the 6 standalone object keys | MeetingRika's two Rika keys (`$18/$26A`, `$18/$55C`) use the raw field-art source at `$292D00`; Holt, RuneFlaeli, Igglanova, and the chest splinter use their decoded `LoadArt` payloads. Sheets are gated until the matching art upload is consumed and are rendered at the scene destination. |
 | `PlaySound` | Implemented | Routes through the live `AudioOutput`/`SoundMachine` path, separate from battle SFX dispatch. |
 | dialogue `Ctrl::Action` | Implemented | `TextFlow` stops at the retail byte position; `DialogueWindow` releases the action after the preceding glyphs, and `Field` routes panels, sounds, palette effects, and flags through the existing seams. See [`DIALOGUE_ACTIONS.md`](DIALOGUE_ACTIONS.md). |
-| `SetSavedMusic` | Implemented | Stores the retail one-byte restore word; zero clears it. Scene end, battle close, and non-scene map reload consume it and replay the sound through `AudioOutput`. |
+| `SetSavedMusic` | Implemented for scene writes | Runtime stores the persistent retail `Saved_Sound_Index` byte, including zero, and decides conditional writes before emitting audio ops. Real-session Godot restores read that word without consuming it; the one-shot cue is confined to runtime-less debug fixtures. Boarding retains the chosen sound at scene end without a synthetic restart. Exact map-transition replay timing still lacks the runtime's `$ECED` music-change edge; a still-zero word uses the shell's existing map fallback, not a certified cartridge zero/stop rule. |
 | `WaitFrames` | Implemented | Runtime owns the blocking count; Godot records the op and does not create a second timer. |
 | `PresentationOp::RebuildSprites` / `ReloadMapChunks` | Implemented | Rebuilds map visuals at the ordered event. |
 | palette-word/red-fade/window/portrait records | Implemented for the decoded generic set | Generic `WindowDestroy/Create`, `LoadWindowTiles`, `LoadPortrait`, and `DrawPortrait` now drive the runtime window layer. The Meseta window roles come from `dialogue/set.window.png`; `shopkeeper_2` is emitted as a 48x48, 36-tile portrait from art `$29DE1E`, mapping `$2A2B36`, destination tile `$55C`. |

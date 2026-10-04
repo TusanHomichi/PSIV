@@ -19,7 +19,7 @@ handoff.
 | 0-2 | `$06F2EA..$06F302` | stop music; map update `$27+1=40`; VDP/palette write `$8C89` | sound/wait/presentation |
 | 3-5 | `$06F306..$06F37C` | load art `$347/$580`; stage objects `$1E8/$1EC`; enemy appearance `$A3` | art/object/sound |
 | 6-7 | `$06F384..$06F3AA` | 126 update iterations; wait `$13+1=20`; palette write `$8C81` | waits/presentation |
-| 8-11 | `$06F3B2..$06F3CC` | step object; Black Blood `$A8`; wait one; resume dialogue `$0B` | object/sound/wait/dialogue |
+| 8-11 | `$06F3B2..$06F3CC` | step object; Black Blood `$A8`; wait one; dialogue entry `$0B` through `Event_GetAndRunDialogue2` (not a resume, H22) | object/sound/wait/dialogue |
 | 12-14 | `$06F3DA..$06F3F0` | set Nurvus `$65`; save Stop All `$FE`; set map-load bits `$88` | flag/music/map flags |
 | 15-16 | `$06F3F4..$06F400` | battle index 6, routine-exit bit, return | `StartBattle(6)`, `Return(1)` |
 

@@ -9,6 +9,7 @@
 //!                   [--save-dir DIR] [--tape OUT] [--report OUT] [--pack DIR]
 //! psiv-campaign replay <tape> [--from-save FILE] [--pack DIR]
 //! psiv-campaign inspect <slot.sram> [--pack DIR]
+//! psiv-campaign save-probe-tape <slot.sram> <out.tape> [neutral-frames]
 //! ```
 //!
 //! Map ids are decimal or `0x` hex. The pack defaults to `$PSIV_PACK`, then
@@ -27,6 +28,7 @@ use std::process::ExitCode;
 
 use psiv_campaign::cell_plan::Mover;
 use psiv_campaign::route::{FlagRef, Route};
+use psiv_campaign::tape::{Tape, TapeStart, fnv1a64};
 use psiv_campaign::validate::validate;
 use psiv_campaign::{MapGraph, Plan, Position, Target};
 use psiv_core::{Cell, Direction};
@@ -35,7 +37,8 @@ use psiv_data::{BattleFiles, GameData};
 const USAGE: &str = "usage:\n  psiv-campaign validate <route.json> [--pack DIR]\n  \
 psiv-campaign plan --from-map M --from-cell X,Y --to-map N [--to-cell X,Y] [--flag bank:id]... [--vehicle N] [--pack DIR]\n  \
 psiv-campaign run <route.json> [--from-chapter ID] [--until-chapter ID] [--save-dir DIR] [--tape OUT] [--report OUT] [--pack DIR]\n  \
-psiv-campaign replay <tape> [--from-save FILE] [--pack DIR]";
+psiv-campaign replay <tape> [--from-save FILE] [--pack DIR]\n  \
+psiv-campaign save-probe-tape <slot.sram> <out.tape> [neutral-frames]";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -43,6 +46,7 @@ fn main() -> ExitCode {
         Some("run") => return run_cmd::cmd_run(&args[1..]),
         Some("replay") => return run_cmd::cmd_replay(&args[1..]),
         Some("inspect") => return run_cmd::cmd_inspect(&args[1..]),
+        Some("save-probe-tape") => return cmd_save_probe_tape(&args[1..]),
         _ => {}
     }
     match run(&args) {
@@ -50,6 +54,62 @@ fn main() -> ExitCode {
         Err(message) => {
             eprintln!("{message}");
             ExitCode::from(2)
+        }
+    }
+}
+
+const MAX_SAVE_PROBE_FRAMES: usize = 600;
+
+fn probe_frame_count(value: Option<&String>) -> Result<usize, String> {
+    let Some(value) = value else { return Ok(0) };
+    let frames = value
+        .parse::<usize>()
+        .map_err(|_| "neutral-frames must be decimal".to_owned())?;
+    if frames > MAX_SAVE_PROBE_FRAMES {
+        return Err(format!("neutral-frames exceeds {MAX_SAVE_PROBE_FRAMES}"));
+    }
+    Ok(frames)
+}
+
+/// Make an ordinary CONTINUE probe through the shared tape codec. Zero pads
+/// check loading only; neutral pads allow the normal title fade to render.
+fn cmd_save_probe_tape(args: &[String]) -> ExitCode {
+    let (source, output, count) = match args {
+        [source, output] => (source, output, None),
+        [source, output, count] => (source, output, Some(count)),
+        _ => {
+            eprintln!("{USAGE}");
+            return ExitCode::from(1);
+        }
+    };
+    let result = (|| -> Result<(), String> {
+        let frames = probe_frame_count(count)?;
+        let bytes = std::fs::read(source).map_err(|e| format!("cannot read {source}: {e}"))?;
+        let mut tape = Tape::new(TapeStart::Save {
+            hash: fnv1a64(&bytes),
+        });
+        tape.pads.resize(frames, 0);
+        let path = Path::new(output);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("cannot create {}: {e}", parent.display()))?;
+        }
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+            .map_err(|e| format!("cannot create {output}: {e}"))?;
+        file.write_all(tape.render().as_bytes())
+            .map_err(|e| format!("cannot write {output}: {e}"))?;
+        println!("CONTINUE probe {output}: {frames} neutral pads from {source}");
+        Ok(())
+    })();
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("{error}");
+            ExitCode::from(1)
         }
     }
 }
@@ -278,4 +338,19 @@ fn print_plan(plan: &Plan) {
         plan.legs.len(),
         plan.total_steps()
     );
+}
+
+#[cfg(test)]
+mod save_probe_tests {
+    use super::*;
+
+    #[test]
+    fn neutral_probe_count_defaults_to_zero_and_has_a_finite_limit() {
+        assert_eq!(probe_frame_count(None), Ok(0));
+        assert_eq!(probe_frame_count(Some(&"180".to_owned())), Ok(180));
+        assert_eq!(probe_frame_count(Some(&"600".to_owned())), Ok(600));
+        assert!(probe_frame_count(Some(&"601".to_owned())).is_err());
+        assert!(probe_frame_count(Some(&"-1".to_owned())).is_err());
+        assert!(probe_frame_count(Some(&"not-a-count".to_owned())).is_err());
+    }
 }

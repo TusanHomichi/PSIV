@@ -79,9 +79,18 @@ pub struct DialogueId(pub u16);
 /// Which dialogue-window setup a scene asked for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub enum DialogueWindow {
-    /// `Event_GetAndRunDialogue` (`$5AC66`) — every scene but one.
+    /// `Event_GetAndRunDialogue` (`$5AC66`): the window closes, the panels
+    /// are destroyed and the map chunks reload (`Panel_DestroyAll`,
+    /// `Window_Destroy`, `Map_LoadChunks`).
     #[default]
     Standard,
+    /// `Event_GetAndRunDialogue2` (`$5ACDC`, `ps4.asm:121634`): the same text
+    /// loop, but the routine ends by zeroing `Panel_Num`, `Windows_Opened_Num`
+    /// and `$FFFFECA4` instead of destroying anything, so the text window and
+    /// every panel stay on screen and no chunk is reloaded. Fourteen
+    /// cartridge callers (`docs/scenes/DIALOGUE2_CALLERS.md`), every one a
+    /// scene that ends in a battle or a map change.
+    Retained,
     /// `Event_GetAndRunDialogue5` (`$5ADF8`) — `Cutscene_PiataPrincipal`.
     Cutscene,
     /// `Event_GetAndRunDialogue3`, used by the Rykros surface.
@@ -499,6 +508,13 @@ pub enum SceneOp {
     /// Collapse the followers onto the leader (`Event_OverlapCharacters`,
     /// `$5A87A`).
     OverlapCharacters,
+    /// Snap the overlapped party onto the vehicle lattice. If either original
+    /// sprite axis had bit `$10`, refresh objects and wait for the existing
+    /// runtime camera glide before the following `SetVehicleIndex`.
+    AlignVehicleBoarding {
+        /// The body object selected before the later persistent selector.
+        index: u16,
+    },
     /// Turn an NPC into a party character: the `trap #1` struct copy plus
     /// field-object construction that makes NPC-Alys become field-Alys.
     PromoteNpcToChar {
@@ -538,6 +554,13 @@ pub enum SceneOp {
     /// write covers all three.
     PlaySound {
         /// The sound id.
+        id: u8,
+    },
+    /// The boarding events write both sound words only if the saved byte
+    /// differs from `id`. Runtime owns that persistent byte and makes this
+    /// literal comparison; the three retail callers all pass `$8D`.
+    PlayMusicIfSavedDifferent {
+        /// The track written to `Sound_Index` and `Saved_Sound_Index`.
         id: u8,
     },
     /// Set `Saved_Sound_Index`, the track restored after an interruption.

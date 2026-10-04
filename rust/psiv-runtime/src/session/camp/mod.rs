@@ -45,7 +45,8 @@ use crate::{
     CampAbility, CampAbilityKind, CampItem, CampState, Pad, Runtime, RuntimeEvent, pad::Button,
 };
 
-use super::{Frame, FrameMode, Session};
+use super::menu_scene::MenuScene;
+use super::{Frame, FrameMode, SceneStart, Session};
 
 pub use order::OrderDraft;
 
@@ -173,6 +174,10 @@ pub struct CampView {
     pub(crate) runtime_events: Vec<RuntimeEvent>,
     pub(crate) save_slot_request: Option<usize>,
     pub(crate) closed: bool,
+    /// The event a command answered with, for the session to start once the
+    /// menu is gone (`menu_scene.rs`). The ITEM menu's accepted action is the
+    /// only command that has one (`ps4.asm:123419-123431`).
+    pub(crate) scene_event: Option<u16>,
 }
 
 /// One frame of the menu, as the session needs it.
@@ -180,6 +185,7 @@ pub(crate) struct CampFrame {
     pub(crate) events: Vec<RuntimeEvent>,
     pub(crate) sound: Option<u8>,
     pub(crate) closed: bool,
+    pub(crate) scene_event: Option<u16>,
 }
 
 /// The pad's edges and levels the menu pages read.
@@ -241,6 +247,7 @@ impl CampView {
             runtime_events: Vec::new(),
             save_slot_request: None,
             closed: false,
+            scene_event: None,
         }
     }
 
@@ -312,6 +319,7 @@ impl CampView {
             events: std::mem::take(&mut self.runtime_events),
             sound: self.sound_request.take(),
             closed: self.closed,
+            scene_event: self.scene_event.take(),
         }
     }
 }
@@ -341,8 +349,12 @@ impl Session {
         // page's result line is written by the same frame that asked for it,
         // with no round trip through the shell.
         let mut save_error = None;
+        let mut save_written = None;
         if let Some(slot) = camp.take_save_request() {
             save_error = self.finish_camp_save(slot);
+            if save_error.is_none() {
+                save_written = Some(slot);
+            }
         }
         let camp = self.camp.as_mut().expect("the camp is up");
         let drained = camp.finish_frame();
@@ -351,11 +363,22 @@ impl Session {
             self.runtime.set_field_suspended(false);
             // The press that closed the menu must not read as a talk.
             self.accept_blocked = true;
+            // An accepted ITEM action hands the field to its event
+            // (`DestroyAllWindows` + `Event_Index`, `ps4.asm:123419-123431`).
+            // The menu is closed either way — the window destroy is
+            // unconditional — and a pack without the scene is reported in
+            // `scene_started` rather than left silent.
+            let scene_started = drained.scene_event.map(|event| SceneStart {
+                event,
+                started: self.start_menu_scene(MenuScene::ItemAction { event }),
+            });
             return Some(Frame {
                 mode: FrameMode::Camp,
                 menu_events: drained.events,
                 sound: drained.sound,
                 camp_save_error: save_error,
+                camp_save_written: save_written,
+                scene_started,
                 ..Frame::default()
             });
         }
@@ -372,6 +395,7 @@ impl Session {
             menu_events: drained.events,
             sound: drained.sound,
             camp_save_error: save_error,
+            camp_save_written: save_written,
             ..Frame::default()
         })
     }

@@ -45,6 +45,8 @@ impl BattleMode {
                 fighter: fighter.id.get(),
                 name,
                 visible: true,
+                enemy_id: fighter.stats.enemy_id,
+                position: None,
             });
         }
     }
@@ -55,11 +57,16 @@ impl BattleMode {
             .map(std::string::ToString::to_string)
     }
 
+    /// Runs the pane routine over the party strip and keeps what it decided.
+    pub(super) fn refresh_panes(&mut self) {
+        self.panes = super::panes::refresh(&mut self.command_bytes, &self.party);
+    }
+
     /// What this frame draws.
     pub(super) fn view(&self, runtime: &Runtime, close_ready: bool) -> BattleView {
         let menu = if self.command_open {
             Some(match self.window.as_ref() {
-                Some(Window::Commands(commands)) => MenuView::Commands(commands.view()),
+                Some(Window::Commands(commands)) => MenuView::Commands(Box::new(commands.view())),
                 Some(Window::VehicleSkills(skills)) => skills.view(runtime),
                 None => MenuView::Top {
                     cursor: self.cursor,
@@ -97,6 +104,14 @@ impl BattleMode {
             reward_meseta: self.reward_meseta,
             damage,
             party: self.party.clone(),
+            panes: self.panes.clone(),
+            shown: match self.window.as_ref() {
+                Some(Window::Commands(commands)) if self.command_open => {
+                    commands.actor().map(|actor| vec![actor.get()])
+                }
+                _ => self.acted.clone(),
+            },
+            cursor_red: self.blink.red,
             enemies: self.enemies.clone(),
             poses,
             current,

@@ -398,14 +398,30 @@ impl Driver {
             )?;
             self.tap(Button::Speak)?;
         }
-        self.expect_camp_page(CampPage::ItemResult)?;
-        let message = self.camp()?.message.clone();
-        self.note(format!("camp item: {message}"));
-        if message.contains("NOT USABLE") {
-            return Err(Halt::new(
-                HaltKind::UnexpectedState,
-                format!("the item cannot be used: {message:?}"),
-            ));
+        // The cartridge's ITEM use ends one of three ways
+        // (`ps4.asm:122546-122605`, `123337-123431`): a result line for a
+        // disposable or for a refused action, or the menu closed by an action
+        // that ran — a boarding event, or the "consumed" branch an item outside
+        // the action table takes. Only the last of those leaves nothing to read.
+        match self.session().camp_view().map(|view| view.page) {
+            Some(CampPage::ItemResult) => {
+                let message = self.camp()?.message.clone();
+                self.note(format!("camp item: {message}"));
+            }
+            other if self.runtime().scene_active() => {
+                self.note(format!(
+                    "camp item: the action started a scene ({other:?} page)"
+                ));
+            }
+            other => {
+                return Err(Halt::new(
+                    HaltKind::UnexpectedState,
+                    format!(
+                        "using {item} answered nothing ({other:?} page): the action table took \
+                         the menu without running anything"
+                    ),
+                ));
+            }
         }
         self.close_camp()
     }

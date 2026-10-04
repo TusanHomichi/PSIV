@@ -1,9 +1,9 @@
 //! Renderer state the runtime deliberately does not hold.
 //!
 //! Panel planes, temporary objects, hidden characters, loaded palettes and art
-//! and the saved-music word are bookkeeping between the ordered `SceneOp`s the
-//! runtime emits. Keeping it here is what lets `psiv-runtime` stop at field
-//! semantics: nothing in this module advances a scene or sets a scene flag.
+//! and a runtime-less debug playback cue are bookkeeping between the ordered
+//! `SceneOp`s the runtime emits. Runtime owns the persistent retail
+//! `Saved_Sound_Index` word; this module cannot decide or consume it.
 
 use std::collections::BTreeMap;
 
@@ -16,7 +16,8 @@ pub(crate) struct PresentationState {
     /// redraw reloads the art. Distinct from `render_sprites`, which mirrors
     /// retail's explicit cutscene sprite toggle and survives map loads.
     vram_blanked: bool,
-    saved_music: Option<u8>,
+    debug_saved_music: Option<u8>,
+    scene_music_retained: bool,
     pub(super) temporary_objects: BTreeMap<usize, TemporaryObject>,
     pub(super) hidden_characters: std::collections::BTreeSet<u8>,
     pub(super) loaded_palettes: BTreeMap<u32, u16>,
@@ -56,6 +57,7 @@ impl PresentationState {
         self.loaded_art.clear();
         self.current_dialogue_tree = None;
         self.ending_waiting_for_start = false;
+        self.scene_music_retained = false;
     }
 
     pub(crate) fn character_visible(&self, who: u8) -> bool {
@@ -77,8 +79,8 @@ impl PresentationState {
         self.vram_blanked = blanked;
     }
 
-    pub(crate) fn set_saved_music(&mut self, id: u8) {
-        self.saved_music = (id != 0).then_some(id);
+    pub(crate) fn set_debug_saved_music(&mut self, id: u8) {
+        self.debug_saved_music = (id != 0).then_some(id);
     }
 
     pub(crate) fn load_art(&mut self, rom_addr: u32, tile: u16) {
@@ -114,8 +116,26 @@ impl PresentationState {
         }
     }
 
-    pub(crate) fn take_saved_music(&mut self) -> Option<u8> {
-        self.saved_music.take()
+    pub(crate) fn take_debug_saved_music(&mut self) -> Option<u8> {
+        self.debug_saved_music.take()
+    }
+
+    /// The runtime word is persistent across restores. The one-shot cue is
+    /// consulted only when no runtime exists (static debug fixtures).
+    pub(crate) fn restore_music_id(&mut self, runtime_saved: Option<u8>) -> Option<u8> {
+        match runtime_saved {
+            Some(0) => None,
+            Some(id) => Some(id),
+            None => self.take_debug_saved_music(),
+        }
+    }
+
+    pub(crate) fn retain_scene_music(&mut self) {
+        self.scene_music_retained = true;
+    }
+
+    pub(crate) fn scene_music_retained(&self) -> bool {
+        self.scene_music_retained
     }
 
     pub(crate) fn temporary_draws(&self) -> Vec<(usize, TemporaryObject)> {
@@ -295,17 +315,28 @@ mod tests {
     }
 
     #[test]
-    fn saved_music_is_a_one_shot_restore_word_and_zero_clears_it() {
+    fn runtime_less_debug_music_cue_is_one_shot_and_zero_clears_it() {
         let mut state = PresentationState::default();
-        assert_eq!(state.take_saved_music(), None);
+        assert_eq!(state.take_debug_saved_music(), None);
 
-        state.set_saved_music(0x91);
-        assert_eq!(state.take_saved_music(), Some(0x91));
-        assert_eq!(state.take_saved_music(), None);
+        state.set_debug_saved_music(0x91);
+        assert_eq!(state.take_debug_saved_music(), Some(0x91));
+        assert_eq!(state.take_debug_saved_music(), None);
 
-        state.set_saved_music(0x91);
-        state.set_saved_music(0);
-        assert_eq!(state.take_saved_music(), None);
+        state.set_debug_saved_music(0x91);
+        state.set_debug_saved_music(0);
+        assert_eq!(state.take_debug_saved_music(), None);
+    }
+
+    #[test]
+    fn runtime_music_restore_never_consumes_the_debug_cue_or_the_saved_word() {
+        let mut state = PresentationState::default();
+        state.set_debug_saved_music(0x91);
+        assert_eq!(state.restore_music_id(Some(0x8D)), Some(0x8D));
+        assert_eq!(state.restore_music_id(Some(0x8D)), Some(0x8D));
+        assert_eq!(state.restore_music_id(Some(0)), None);
+        assert_eq!(state.restore_music_id(None), Some(0x91));
+        assert_eq!(state.restore_music_id(None), None);
     }
 
     #[test]

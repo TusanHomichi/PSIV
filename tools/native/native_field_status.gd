@@ -85,7 +85,7 @@ func _physics_process(_delta):
         if b.ready:
             if b.menu == null: press("ui_accept")
             elif b.menu.page == "Actions":
-                press("ui_down" if b.menu.cursor < 4 else "ui_accept")
+                press("ui_right" if b.menu.cursor < 4 else "ui_accept")
             else:
                 push_error("unexpected defeat command menu")
                 quit(1)

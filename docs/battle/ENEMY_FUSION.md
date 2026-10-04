@@ -71,3 +71,8 @@ The oracle's effect columns show the new fighter's agility (`e1_agi_bat` 14 ->
 Nothing in this arm depends on state the port lacks. Rewards need no change:
 each enemy adds its own record's experience and meseta when it dies, and the
 slugs that fused never die.
+
+The shell draws the MetaSlug from the event's `position` (`$14`) and enemy id
+through `EnemyStatus`; the certified pair is `battle-fusion`
+([`BATTLE_COMMAND_UI.md`](BATTLE_COMMAND_UI.md)). The slide-together animation is
+not modelled.

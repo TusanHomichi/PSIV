@@ -138,7 +138,7 @@ func battle_input(battle):
                 command_spell = 1
         print("NATIVE TONOE planned command actor=", menu.character, " spell=", command_spell, " target=", command_target)
     if menu.page == "Actions":
-        choose(menu.cursor, 1 if command_spell >= 0 else 0)
+        choose_strip(menu.cursor, 1 if command_spell >= 0 else 0)
     elif menu.page == "Techniques":
         var index := -1
         for i in range(menu.techniques.size()):
@@ -147,7 +147,7 @@ func battle_input(battle):
         if index < 0:
             fail("planned spell is absent from the actual menu", menu)
             return
-        choose(menu.cursor, index)
+        choose_list(menu, index)
     elif menu.page.begins_with("Targets"):
         var ids = menu.targets.map(func(id): return int(id))
         var index = ids.find(command_target)

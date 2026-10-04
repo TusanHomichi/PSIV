@@ -71,16 +71,31 @@ menu for START/CONTINUE and camp STATE → SAVE for normal persistence.
 It currently expects `~/.local/bin/psiv-godot-4.7.1`, `rg` and `flock`;
 the commands above let you use another executable path.
 
+For campaign tape replay through the native game, use
+`tools/verify_native_tape.py` under the shared heavy lock. Its command,
+isolated save/output directories, exact-pad boundary, source-save hash check,
+snapshot comparison and evidence limits are in the
+[R2 native replay section](campaign/CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress).
+
 | Input | Action |
 | --- | --- |
 | Arrow keys | Move / menu selection |
 | Enter, Space or Z | Confirm / interact |
-| Escape or X | Camp / cancel |
+| C | Camp |
+| Escape or X | Cancel |
+| Tab | Start |
 
 ## Run checks
 
 For the complete Python suite, place the supported image at the repository
 root as `Phantasy Star IV (USA).md` and prepare the disassembly and full pack.
+The battle-art emission tests also need the ignored indexed PNGs named by
+`oracle/fixtures/battle_animation_remainder.json` under
+`oracle/fixtures/battle_animation_art/` (184 in the current receipt). A missing
+frame is an emission error. Preserve a verified local copy, or reproduce the
+frames from the named oracle captures using the renderer documented in
+[battle animations](battle/BATTLE_ANIMATIONS.md#runtime-contract-and-fixtures);
+do not commit the ROM-derived PNGs.
 The documentation check needs no local inputs. From the root:
 
 ```bash

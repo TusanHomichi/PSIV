@@ -25,7 +25,13 @@
 //!
 //! A window that is up owns the frame before either menu may open, and a chest
 //! the field opened pre-empts the camp, as the shell's old dispatcher ordered
-//! them. The shell that draws the game sends the pad and presents what comes
+//! them. One more thing takes the pad away from a menu: a command the
+//! cartridge answers by destroying its window and running an event — the ITEM
+//! menu's vehicle actions and Aiedo's inn — which `menu_scene.rs` owns. Those
+//! frames belong to the field until the scene ends, when the menu's own resume
+//! (nothing for ITEM, the bill and its result line for the inn) runs.
+//!
+//! The shell that draws the game sends the pad and presents what comes
 //! back: it decides nothing about game state, and it has no way to reach one —
 //! [`Session::runtime`] hands out a `&Runtime` and the runtime's mutators are
 //! crate-private.
@@ -107,6 +113,7 @@ mod debug;
 #[cfg(test)]
 mod debug_tests;
 mod game_over;
+mod menu_scene;
 mod notices;
 mod route;
 mod saves;
@@ -140,6 +147,7 @@ pub use shop::{ShopCounterView, ShopOwnedItem, ShopPage, ShopStock, ShopView};
 
 use battle::BattleMode;
 use game_over::GameOverMode;
+use menu_scene::MenuScene;
 use title::TitleMode;
 
 /// A `$F6` the dialogue fired, and whether its scene began.
@@ -277,9 +285,12 @@ pub struct Frame {
     /// logs.
     pub notice: Option<FieldNoticeOpened>,
     /// The camp's SAVE when its write failed this frame. The session owns the
-    /// store, so the write is no longer a request the shell answers; this is
-    /// its only report, and it carries what the shell's log line said.
+    /// store, so the write is no longer a request the shell answers; the
+    /// failure carries what the shell's log line said.
     pub camp_save_error: Option<CampSaveFailure>,
+    /// The zero-based slot written by a successful ordinary camp SAVE on this
+    /// frame. A pre-existing slot or a failed write never sets this edge.
+    pub camp_save_written: Option<usize>,
     /// The battle's own frame while a battle owns the session, including the
     /// frame one began on.
     pub battle: Option<BattleFrame>,
@@ -310,6 +321,10 @@ pub struct Session {
     prev_pad: Pad,
     shop: Option<ShopView>,
     camp: Option<CampView>,
+    /// The scene a menu command handed the field to, and the menu's resume for
+    /// when it ends (`menu_scene.rs`). `Some` means the field owns the frames
+    /// even with a window's state still held.
+    menu_scene: Option<MenuScene>,
     /// The debug harness's switch: scene lines are acknowledged unseen.
     scene_dialogue_autoclose: bool,
     /// The debug harness's switch: the title walks itself to START.
@@ -341,6 +356,7 @@ impl Session {
             prev_pad: Pad::NEUTRAL,
             shop: None,
             camp: None,
+            menu_scene: None,
             scene_dialogue_autoclose: false,
             title_autostart: false,
             notice_open: false,
@@ -384,6 +400,11 @@ impl Session {
             // back — not the field, not the shared seed.
             self.mode = Mode::GameOver(Box::new(GameOverMode::new()));
             self.game_over_frame()
+        } else if self.menu_scene.is_some() {
+            // A menu handed the field to a scene: the field owns these frames
+            // — the cartridge's windows are gone — until the scene ends and
+            // the menu's resume runs (`menu_scene.rs`).
+            self.field_frame(pad)
         } else if !self.runtime.dialogue_open() && self.shop.is_some() {
             self.shop_frame(pad, pressed)
         } else if !self.runtime.dialogue_open()
@@ -495,6 +516,9 @@ impl Session {
         };
         let events = self.runtime.tick(field_input);
         let (events, routed) = self.route(events);
+        // A menu command's scene may have ended on this frame: the menu's own
+        // resume (the Aiedo bill and its result line) runs on the same frame.
+        self.resume_menu_scene(&events);
         // An encounter or a scene battle this frame's events asked for starts
         // inside the frame; the battle loop owns the frames after it.
         let battle = self.begin_battle(&events);

@@ -1,4 +1,5 @@
-//! The Zio-arc pairs: `$47` ZAN, `$56` FORCEFLASH and `$4D` CORRSION.
+//! The Zio-arc pairs: `$47` ZAN, `$56` FORCEFLASH, `$4D` CORRSION, and the
+//! three rolled arms of 140 Zio2 behind its phase counter.
 //!
 //! These are the abilities the campaign runner meets in Zio's fort and behind
 //! it — Juza's own draws (`docs/campaign/RUNNER_LOG.md` H16), the Ripper and
@@ -20,13 +21,14 @@
 //! what lets the request be the whole turn; target nibble 9
 //! (`AbilityRange_MultiChars`) only multiplies that no-op handler.
 //!
-//! The two carriers left out are 140 Zio2 (below) — `$4D` there is behind the
-//! phase counter `$FFFFEE98`, which this port does not model for enemy 140 —
-//! and nothing else: 114 Juza's own `EnemyAttack_Juza` arms are the same ones
-//! 115 Greneris and 116 Radhin dispatch, and his event battle is reachable by
-//! the oracle only through the fort's event script, not by `oracle.force`.
+//! 140 Zio2's rows are the last three: its routine runs a scripted first action
+//! (`zio::step`, the Magic Barrier) and dispatches the rolled ability from the
+//! second on, so a row here is only ever reached with the phase counter
+//! `$FFFFEE98` past zero. 114 Juza's own `EnemyAttack_Juza` arms are the same
+//! ones 115 Greneris and 116 Radhin dispatch, and his event battle is reachable
+//! by the oracle only through the fort's event script, not by `oracle.force`.
 
-use super::super::{CORRSION, DamageClass, FORCEFLASH, ObjectDraws, ZAN};
+use super::super::{BLACK_WAVE2, CORRSION, DamageClass, FORCEFLASH, HEWN, ObjectDraws, ZAN};
 use super::DamageRoute;
 
 pub(super) const ROUTES: &[DamageRoute] = &[
@@ -162,15 +164,56 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         class: DamageClass::AllParty,
         draws: ObjectDraws::None,
     },
+    // 140 Zio2, `$4D` CORRSION. `EnemyAttackOffs` `$8C` → `EnemyAttack_Zio2`
+    // (`ps4.asm:19519`): with the phase counter past zero (the first action is
+    // the scripted Magic Barrier, `zio::step`) it tests the rolled `$24(a4)` in
+    // turn — `tst.w` at line 19532 (zero is object `$920`), `cmpi.w #$6C` at
+    // line 19545 — and everything else reaches `loc_D458` (line 19556), which
+    // clears `Current_Target_Index` to `$FFFF` (line 19557) before it tests
+    // `$4D` (line 19562) and writes object `$928` (line 19568) = `loc_33646`
+    // (`ps4.asm:66537`; `BattleObjsGroup10Ptrs` line 66428). Its phase table
+    // `loc_336A0` (line 66560) sends state 16 to `jmp (loc_24BB6).l` (line
+    // 66565): the shared all-party tail, one `move.w #$C, $2(a3)` per party
+    // slot at line 48575. The flinches on the way are not requests, and no
+    // call in the chain reaches `UpdateRNGSeed2`.
+    DamageRoute {
+        enemy_id: 140,
+        ability: CORRSION,
+        class: DamageClass::AllParty,
+        draws: ObjectDraws::None,
+    },
+    // 140 Zio2, `$4F` HEWN: the same `loc_D458` clears the target index, and
+    // `$4F` fails the `$4D` test, so it takes `loc_D498` (line 19570): object
+    // `$930` (line 19575) = `loc_335A6` (`ps4.asm:66498`; `BattleObjsGroup10Ptrs`
+    // line 66430). Its phase table `loc_33630` (line 66531) differs from
+    // CORRSION's only at state 12, `loc_2B7EE` (`ps4.asm:57045`) in place of
+    // `loc_33750`: the same flinch-and-effect state, which advances the state
+    // by four through `loc_25232` once `($FFFFEE85)` clears (lines 57098-57101
+    // of `loc_2B8B4`) into state 16, again `jmp (loc_24BB6).l` (line 66536).
+    // The same five-slot request, again with no draw.
+    DamageRoute {
+        enemy_id: 140,
+        ability: HEWN,
+        class: DamageClass::AllParty,
+        draws: ObjectDraws::None,
+    },
+    // 140 Zio2, `$6C` BLACK WAVE2, the weak Black Wave. `loc_D426`
+    // (`ps4.asm:19544`) tests `$6C` (line 19545) and writes object `$91C`
+    // (line 19554) = `BattleObj_BlackWave2` (`ps4.asm:66922`; the comment above
+    // it reads "the weak Black Wave (Psycho-wanded Zio)"). It does **not**
+    // clear `Current_Target_Index`, so the object keeps the drawn target in
+    // `$38`. Its phase table `loc_33BB6` (line 66934) reaches `loc_33BD0`
+    // (line 66941) at state 12, which flinches that target (`move.w #5, $2(a3)`,
+    // line 66945) and jumps into `loc_24A6C` (line 66948) with the state at 16,
+    // where the table's own `jmp (loc_24A6C).l` (line 66939) keeps entering it
+    // until the target's `$1C` timer clears: the single-target tail
+    // (`ps4.asm:48468`) makes its one request at line 48474 and, once
+    // `($FFFF416C)` clears, advances the state by six to the end entry
+    // (`loc_33BF6`, line 66949). No call reaches `UpdateRNGSeed2`.
+    DamageRoute {
+        enemy_id: 140,
+        ability: BLACK_WAVE2,
+        class: DamageClass::Single,
+        draws: ObjectDraws::None,
+    },
 ];
-
-// **140 Zio2 is not a row.** `EnemyAttack_Zio2` (`ps4.asm:19519`) tests the
-// phase counter `($FFFFEE98)` first (line 19520) and, on Zio2's first action,
-// rewrites `$24(a4)` to `$6B` and loads object `$908` instead of dispatching the
-// rolled id; only a later action reaches `loc_D458` (`ps4.asm:19556`) and the
-// `$4D` arm's object `$928` (`ps4.asm:66537`, `loc_33646`, whose phase table
-// `loc_336A0` at line 66560 jumps to `loc_24BB6` at line 66565). The port models
-// no counter for enemy 140 — `engine::roll_enemy_ability` drives that sequence
-// for 152 Zio3 only — so a row here would resolve CORRSION on an action the
-// cartridge turns into MAGIC BARRIER. It belongs to the lane that transcribes
-// Zio2's sequence, with the phase-0 `$6B` object.

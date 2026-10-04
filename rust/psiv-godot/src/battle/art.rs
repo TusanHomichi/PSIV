@@ -294,6 +294,26 @@ impl BattleArt {
         self.backgrounds.get(&index).map(String::as_str)
     }
 
+    /// CRAM index 15 of lines 0 to 3: the ink the menu font and the HP/TP
+    /// labels take on each line. Lines 0 to 2 are the layout's per-line
+    /// words (`ps4.asm:7654`, `loc_7634`); line 3 is the window palette's
+    /// white (`loc_76A4`).
+    pub(crate) fn line_ink(&self) -> [Color; 4] {
+        let word = |line: u8| {
+            self.enemy_palette
+                .index_15_by_line
+                .get(&line)
+                .copied()
+                .unwrap_or(0x0EEE)
+        };
+        [
+            cram_color(word(0)),
+            cram_color(word(1)),
+            cram_color(word(2)),
+            cram_color(0x0EEE),
+        ]
+    }
+
     pub(crate) fn background_path_by_index(&self, index: u8) -> Option<&str> {
         self.backgrounds.get(&index).map(String::as_str)
     }
@@ -536,7 +556,7 @@ fn palette_index(pixel: Color, palette: &[u16; 16]) -> Option<usize> {
     })
 }
 
-fn cram_color(word: u16) -> Color {
+pub(crate) fn cram_color(word: u16) -> Color {
     const RED_BLUE: [u8; 8] = [0, 32, 65, 98, 139, 172, 205, 238];
     const GREEN: [u8; 8] = [0, 32, 68, 101, 137, 170, 206, 238];
     Color::from_rgba8(

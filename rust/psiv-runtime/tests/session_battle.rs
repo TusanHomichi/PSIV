@@ -21,7 +21,7 @@
 
 use std::path::Path;
 
-use psiv_core::battle::Side;
+use psiv_core::battle::{BattleEvent, Priority, Side, status};
 use psiv_core::{Cell, CharId, Direction, GameState, RetailLocation, RetailSave};
 use psiv_data::{BattleFiles, GameData};
 use psiv_runtime::{BattleView, Button, Frame, MenuPage, MenuView, Pad, RuntimeEvent, Session};
@@ -38,6 +38,8 @@ const TAPE_07_FORMATION: u16 = 0x8A;
 /// `RES`, the single-target cure Chaz starts with — the technique this test
 /// picks and aims, so the target cursor is exercised.
 const RES: u8 = 24;
+/// The item the connected Zio route must keep until the first player round.
+const PSYCHO_WAND: u8 = 0x39;
 
 fn pack() -> Option<&'static Path> {
     let pack = Path::new(PACK);
@@ -84,6 +86,40 @@ fn field_session(pack: &Path, map: u16, cell: Cell) -> Session {
             },
         })
         .expect("the basement save loads")
+}
+
+/// A saved field position one step before the scripted Zio encounter. The
+/// fixture seats ordinary party records and an item; movement, the scene,
+/// battle entry and every battle round then use only `Session::frame` pads.
+fn zio_ambush_session(pack: &Path) -> Session {
+    let files = BattleFiles::load(pack).expect("battle files load");
+    let data = GameData::load(pack).expect("pack loads");
+    let initial = Session::start(data.clone())
+        .with_battles(files.clone())
+        .field()
+        .expect("the pack boots");
+    let mut game = GameState::from_snapshot(&initial.runtime().game().snapshot());
+    game.set_party([
+        Some(CharId(4)),
+        Some(CharId(0)),
+        Some(CharId(5)),
+        Some(CharId(6)),
+        Some(CharId(3)),
+    ]);
+    game.inventory_mut().add(PSYCHO_WAND).unwrap();
+    Session::start(data)
+        .with_battles(files)
+        .from_save(RetailSave {
+            snapshot: game.snapshot(),
+            location: RetailLocation {
+                world_index: 0,
+                map_index_2: 0,
+                map_index: 0xD3,
+                char_x: 30 * 16,
+                char_y: 31 * 16,
+            },
+        })
+        .expect("the Nurvus save loads")
 }
 
 /// One frame the way the shipped shell runs it: one call, the session's
@@ -231,6 +267,131 @@ fn living_enemies(session: &Session) -> Vec<u8> {
         .collect()
 }
 
+fn item_count(session: &Session, item: u8) -> usize {
+    session
+        .runtime()
+        .game()
+        .inventory()
+        .slots()
+        .iter()
+        .filter(|&&held| held == item)
+        .count()
+}
+
+#[test]
+fn zio_ambush_uses_no_command_or_item_before_the_first_player_round() {
+    let Some(pack) = pack() else {
+        return;
+    };
+    let mut session = zio_ambush_session(pack);
+    let mut began = false;
+    for frame_index in 0..20_000 {
+        let dialogue_ready = session
+            .runtime()
+            .dialogue_view()
+            .is_some_and(|view| view.dismissable || view.choice.is_some_and(|choice| choice.ready));
+        let pad = if dialogue_ready && frame_index % 4 == 0 {
+            Pad::new(Button::Speak)
+        } else if !session.runtime().scene_active() && !session.runtime().state().is_stepping() {
+            Pad::new(Button::Up)
+        } else {
+            Pad::NEUTRAL
+        };
+        let frame = tick(&mut session, pad);
+        if let Some(events) = frame.events.iter().find_map(|event| match event {
+            RuntimeEvent::SceneBattleStarted {
+                index: 6, events, ..
+            } => Some(events),
+            _ => None,
+        }) {
+            assert!(events.iter().any(|event| matches!(
+                event,
+                BattleEvent::Started {
+                    priority: Priority::Ambush,
+                    ..
+                }
+            )));
+            began = true;
+            break;
+        }
+    }
+    assert!(began, "ordinary Up and Speak pads reach event battle 6");
+    assert!(session.battle_active());
+    assert_eq!(item_count(&session, PSYCHO_WAND), 1, "one Psycho Wand");
+
+    let mut saw_barrier = false;
+    let mut first_player_menu = None;
+    for frame_index in 0..2_000 {
+        // A player can press during the surprise; those presses do not create
+        // orders or spend the item while Zio owns the round.
+        let pad = if frame_index % 4 == 0 {
+            Pad::new(Button::Speak)
+        } else {
+            Pad::NEUTRAL
+        };
+        let frame = tick(&mut session, pad);
+        let battle = view(&frame);
+        saw_barrier |= battle.message == "MAG.BARRIR";
+        if battle.ready {
+            first_player_menu = battle.menu.clone();
+            break;
+        }
+        assert_eq!(battle.menu, None, "the ambush has no command surface");
+        assert!(battle.poses.is_empty(), "no party attack precedes its menu");
+        assert_eq!(
+            item_count(&session, PSYCHO_WAND),
+            1,
+            "the ambush cannot spend the Psycho Wand"
+        );
+    }
+    assert!(saw_barrier, "Zio's first enemy-only action was presented");
+    assert_eq!(first_player_menu, Some(MenuView::Top { cursor: 0 }));
+    assert_eq!(item_count(&session, PSYCHO_WAND), 1);
+}
+
+#[test]
+fn comd_press_with_only_sleeping_actors_enters_the_round_without_a_second_press() {
+    let Some(pack) = pack() else {
+        return;
+    };
+    let files = BattleFiles::load(pack).expect("battle files load");
+    let data = GameData::load(pack).expect("pack loads");
+    let initial = field_session(pack, BASEMENT, BASEMENT_SPAWN);
+    let mut game = GameState::from_snapshot(&initial.runtime().game().snapshot());
+    for who in [CharId(0), CharId(1), CharId(2)] {
+        game.roster_mut().get_mut(who).unwrap().status = status::ASLEEP;
+    }
+    let mut session = Session::start(data)
+        .with_battles(files)
+        .from_save(RetailSave {
+            snapshot: game.snapshot(),
+            location: RetailLocation {
+                world_index: 0,
+                map_index_2: 0,
+                map_index: BASEMENT,
+                char_x: BASEMENT_SPAWN.x * 16,
+                char_y: BASEMENT_SPAWN.y * 16,
+            },
+        })
+        .expect("the sleeping party loads");
+    let started = session.debug_battle(TAPE_07_FORMATION);
+    assert!(started.fault.is_none());
+    let top = wait_for_menu(&mut session);
+    assert_eq!(top.menu, Some(MenuView::Top { cursor: 0 }));
+    let roster = session.runtime().battle_roster().unwrap();
+    assert_eq!(roster.living(Side::Party).count(), 3);
+    assert!(
+        roster
+            .living(Side::Party)
+            .all(|fighter| !fighter.stats.can_act()),
+        "the `$6E` scan has no actor to command"
+    );
+    let after_comd = tick(&mut session, Pad::new(Button::Speak));
+    let after_comd = view(&after_comd);
+    assert!(!after_comd.ready, "the single COMD press submits the round");
+    assert_eq!(after_comd.menu, None, "there is no empty actor page");
+}
+
 #[test]
 fn the_first_basement_battle_is_fought_with_pad_presses() {
     let Some(pack) = pack() else {
@@ -284,21 +445,27 @@ fn the_first_basement_battle_is_fought_with_pad_presses() {
     assert_eq!(menu.actor, Some(1), "the first party slot answers first");
     assert_eq!(menu.character, Some(0), "Chaz");
 
-    // Menu navigation: one step down to TECH, one step back up.
-    let down = tap(&mut session, Button::Down);
+    // Menu navigation: the strip is Left/Right only (`Battle_CharCommand`),
+    // so Down does nothing; one step right to TECH, one step back left.
+    let ignored = tap(&mut session, Button::Down);
+    let Some(MenuView::Commands(menu)) = view(&ignored).menu.clone() else {
+        panic!("the command window stays open");
+    };
+    assert_eq!(menu.cursor, 0, "Down is not tested by the strip");
+    let down = tap(&mut session, Button::Right);
     let Some(MenuView::Commands(menu)) = view(&down).menu.clone() else {
         panic!("the command window stays open");
     };
-    assert_eq!(menu.cursor, 1, "TECH is the second row");
+    assert_eq!(menu.cursor, 1, "TECH is the second icon");
     assert_eq!(menu.rows[1].label, "TECH");
-    let up = tap(&mut session, Button::Up);
+    let up = tap(&mut session, Button::Left);
     let Some(MenuView::Commands(menu)) = view(&up).menu.clone() else {
         panic!("the command window stays open");
     };
     assert_eq!(menu.cursor, 0, "and back to ATTACK");
 
     // A technique with a target: TECH -> RES -> a party member.
-    tap(&mut session, Button::Down);
+    tap(&mut session, Button::Right);
     let techniques = tap(&mut session, Button::Speak);
     let Some(MenuView::Commands(menu)) = view(&techniques).menu.clone() else {
         panic!("TECH opens the technique list");
@@ -499,4 +666,103 @@ fn cancelling_out_of_a_target_list_returns_to_the_menu() {
         "cancel from the target list: page {:?}, cursor {}, actor {:?}, enemies {enemies_before:?}",
         menu.page, menu.cursor, menu.actor
     );
+}
+
+/// Plays tape 07's first round with pad presses only: Alys opens TECH and
+/// picks the first entry, Chaz and Hahn defend. `spec` seeds the fixture
+/// (`PSIV_DEBUG_BATTLE_WINDOW`). Returns the narration lines the round showed,
+/// Alys's TP when the options came back, and whether the first technique row
+/// was enabled in the list.
+fn alys_casts_her_first_technique(spec: &str) -> Option<(Vec<String>, u16, bool)> {
+    let pack = pack()?;
+    let files = BattleFiles::load(pack).expect("battle files load");
+    let mut session = Session::start(GameData::load(pack).expect("pack loads"))
+        .with_battles(files)
+        .field()
+        .expect("the pack boots");
+    let opening = session.debug_battle_window(TAPE_07_FORMATION, spec);
+    assert!(opening.fault.is_none(), "{:?}", opening.fault);
+    tick(&mut session, Pad::NEUTRAL);
+    let tap = |session: &mut Session, button: Button| {
+        let down = tick(session, Pad::new(button));
+        let up = tick(session, Pad::NEUTRAL);
+        (down, up)
+    };
+    // COMD opens Alys's strip; Right is TECH; Speak opens the list.
+    tap(&mut session, Button::Speak);
+    tap(&mut session, Button::Right);
+    let (_, listed) = tap(&mut session, Button::Speak);
+    let Some(MenuView::Commands(menu)) = view(&listed).menu.clone() else {
+        panic!("TECH opens the technique list");
+    };
+    assert_eq!(menu.page, MenuPage::Techniques);
+    let enabled = menu.rows[0].enabled;
+    // Choose the first row and any target it asks for, then let Chaz and
+    // Hahn defend.
+    let mut defenders = 0;
+    for _ in 0..40 {
+        let current = tick(&mut session, Pad::NEUTRAL);
+        let Some(MenuView::Commands(menu)) = view(&current).menu.clone() else {
+            break;
+        };
+        match (menu.page, menu.actor) {
+            (MenuPage::Techniques, _) => {
+                tap(&mut session, Button::Speak);
+            }
+            (MenuPage::Targets(_), _) => {
+                tap(&mut session, Button::Speak);
+            }
+            (MenuPage::Actions, Some(2 | 3)) => {
+                let steps = (4 + 5 - menu.cursor) % 5;
+                for _ in 0..steps {
+                    tap(&mut session, Button::Right);
+                }
+                tap(&mut session, Button::Speak);
+                defenders += 1;
+            }
+            _ => break,
+        }
+    }
+    assert_eq!(defenders, 2, "Chaz and Hahn defended");
+    let mut lines = Vec::new();
+    for _ in 0..3_000 {
+        let frame = tick(&mut session, Pad::NEUTRAL);
+        let current = view(&frame);
+        if !current.message.is_empty() && lines.last() != Some(&current.message) {
+            lines.push(current.message.clone());
+        }
+        if current.ready {
+            let alys = current.party.iter().find(|m| m.fighter == 1).unwrap();
+            return Some((lines, alys.tp, enabled));
+        }
+    }
+    panic!("the round never ended: {lines:?}");
+}
+
+/// A sealed member may choose a technique: the window refuses an entry on TP
+/// alone (`ps4.asm:1721`, `2628`), and the cast is paid and then wasted
+/// (`CharTech_CheckTPCost` `ps4.asm:14211`, `CharTech_Cast` `ps4.asm:14256`).
+/// The control is the same round unsealed: the cast lands and says nothing of
+/// a seal.
+#[test]
+fn a_sealed_member_may_choose_a_technique_and_the_cast_is_wasted() {
+    let Some((sealed_lines, sealed_tp, sealed_enabled)) =
+        alys_casts_her_first_technique("top,status=1/16")
+    else {
+        return;
+    };
+    assert!(sealed_enabled, "the window does not refuse a sealed member");
+    assert!(
+        sealed_lines.iter().any(|line| line == "Tech sealed!"),
+        "the cast is wasted: {sealed_lines:?}"
+    );
+    assert_eq!(sealed_tp, 40 - 6, "SANER's 6 TP are paid anyway");
+
+    let (free_lines, free_tp, free_enabled) = alys_casts_her_first_technique("top").unwrap();
+    assert!(free_enabled);
+    assert!(
+        !free_lines.iter().any(|line| line == "Tech sealed!"),
+        "negative control: an unsealed cast is not wasted: {free_lines:?}"
+    );
+    assert_eq!(free_tp, 40 - 6);
 }

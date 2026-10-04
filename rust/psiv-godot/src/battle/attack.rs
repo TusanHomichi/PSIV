@@ -17,6 +17,8 @@ use super::enemy_overlay::EnemyAnimation;
 /// One enemy body and its already-decoded idle overlay animation.
 pub(super) struct EnemySprite {
     pub(super) fighter: FighterId,
+    /// The enemy record the body was built for: a Fusion changes it.
+    pub(super) enemy_id: u16,
     pub(super) node: Gd<Sprite2D>,
     pub(super) animation: Option<EnemyAnimation>,
     pub(super) attack: Option<EnemyAttackState>,

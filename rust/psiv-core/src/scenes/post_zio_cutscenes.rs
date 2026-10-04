@@ -8,7 +8,7 @@
 //! presentation records.  Persistent edges — maps, flags, party, inventory
 //! and battles — remain ordinary scene operations.
 
-use super::{CHAZ, RAJA, RIKA, RUNE, WREN};
+use super::{CHAZ, RAJA, RIKA, RUNE, WREN, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_presentation::PresentationOp;
@@ -654,10 +654,7 @@ pub static DARK_FORCE_1: Scene = Scene {
     name: "Event_DarkForce1",
     event: EventIndex(0x003F),
     ops: &[
-        SceneOp::RunDialogue {
-            source: DialogueSource::Entry(DialogueId(6)),
-            window: DialogueWindow::Standard,
-        },
+        retained(6),
         SceneOp::SetFlag {
             flag: Flag::event(0x83),
             value: true,
@@ -739,10 +736,7 @@ pub static JUZA: Scene = Scene {
         SceneOp::Presentation {
             op: PresentationOp::FadeToRed { lines: 2 },
         },
-        SceneOp::RunDialogue {
-            source: DialogueSource::Entry(DialogueId(0x48)),
-            window: DialogueWindow::Standard,
-        },
+        retained(0x48),
         SceneOp::SetFlag {
             flag: Flag::event(0x41),
             value: true,

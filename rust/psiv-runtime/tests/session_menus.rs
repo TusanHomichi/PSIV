@@ -676,6 +676,8 @@ fn the_camp_menu_saves_through_the_session_store() {
     player.session.set_save_store(SaveStore::new(&directory));
     let frame = player.tick(Pad::new(Button::Speak));
     assert_eq!(frame.mode, FrameMode::Camp);
+    assert_eq!(frame.camp_save_written, Some(1));
+    assert!(frame.camp_save_error.is_none());
     assert_eq!(camp_page(&player), CampPage::SaveResult);
     assert_eq!(player.session.camp_view().unwrap().message, "FILE SAVED");
     assert!(
@@ -730,7 +732,9 @@ fn a_save_without_a_run_directory_is_refused() {
             .map(|error| error.to_string()),
         Some("the session has no save directory for this run".to_owned())
     );
-    player.tick(Pad::new(Button::Speak));
+    let frame = player.tick(Pad::new(Button::Speak));
+    assert_eq!(frame.camp_save_written, None);
+    assert!(frame.camp_save_error.is_some());
     assert_eq!(
         player.session.camp_view().unwrap().message,
         "SAVE ERROR: the session has no save directory for this run"
@@ -776,7 +780,11 @@ fn start_closes_the_camp_from_a_cursor_page_and_dismisses_a_result() {
         eprintln!("runtime pack not present; skipping");
         return;
     }
-    let mut player = Player::new(ITEM_SHOP, &camp_game());
+    // The Psyco-Wand is in the ITEM table with `ItemAction_Nothing`
+    // (`ps4.asm:123355-123397`), so USING it answers with its own record.
+    let mut game = camp_game();
+    game.inventory_mut().add(0x39).unwrap();
+    let mut player = Player::new(ITEM_SHOP, &game);
     player.press(Button::Camp);
     player.down_to(|s| s.camp_view().unwrap().root_selection, 4); // STATE
     player.press(Button::Speak);
@@ -787,12 +795,28 @@ fn start_closes_the_camp_from_a_cursor_page_and_dismisses_a_result() {
         "Start closed every page"
     );
 
-    // A result line: ITEM on a pack with nothing usable reports "NOT USABLE".
+    // A result line: ITEM on the Psyco-Wand, whose action table entry
+    // (`ItemAction_Nothing`, `ps4.asm:123498`) refuses with its own text, then
+    // Start dismisses the line but not the menu.
     player.press(Button::Camp);
     player.press(Button::Speak); // ITEM
     assert_eq!(camp_page(&player), CampPage::ItemList);
-    player.press(Button::Speak); // the Dagger
+    let wand = player
+        .session
+        .camp_view()
+        .unwrap()
+        .snapshot
+        .inventory
+        .iter()
+        .position(|item| item.id == 0x39)
+        .expect("the pack holds the Psyco-Wand");
+    player.down_to(|s| s.camp_view().unwrap().item_selection, wand);
+    player.press(Button::Speak);
     assert_eq!(camp_page(&player), CampPage::ItemResult);
+    assert_eq!(
+        player.session.camp_view().unwrap().message,
+        "PSYCO-WAND has no effect\nwhen used here!"
+    );
     player.press(Button::Start);
     assert!(
         player.session.camp_view().is_some(),

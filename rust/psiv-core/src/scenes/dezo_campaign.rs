@@ -4,7 +4,7 @@
 //! Renderer-only palette/panel/object choreography stays in typed presentation
 //! ops; party, map, inventory, flag and battle writes stay explicit here.
 
-use super::KYRA;
+use super::{KYRA, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_presentation::PresentationOp;
@@ -243,7 +243,10 @@ pub static SAVING_KYRA: Scene = Scene {
     ops: &[
         SceneOp::BranchIfVehicle {
             if_mounted: 2,
-            if_on_foot: 8,
+            // `tst.w Vehicle_Index / beq.w loc_70908` (`ps4.asm:149987-149988`):
+            // on foot skips the dismount and dialogue `$34` and lands on the
+            // red-alert music, op 9.
+            if_on_foot: 9,
         },
         SceneOp::SetSavedMusic {
             id: MUSIC_DEZOLIS_FIELD,
@@ -264,7 +267,7 @@ pub static SAVING_KYRA: Scene = Scene {
         SceneOp::PanelCreate { id: 0x98 },
         SceneOp::DmaPlanes,
         SceneOp::SetDialogueTree { rom_addr: TREE_37 },
-        standard(0x26),
+        retained(0x26),
         SceneOp::MoveActorOffset {
             actor: LEADER,
             dx: 0,
@@ -428,7 +431,7 @@ pub static DARK_FORCE_2: Scene = Scene {
     name: "Event_DarkForce2",
     event: EventIndex(0x004E),
     ops: &[
-        standard(0x3A),
+        retained(0x3A),
         SceneOp::SetFlag {
             flag: Flag::event(0x9E),
             value: true,

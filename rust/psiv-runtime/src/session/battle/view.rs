@@ -38,6 +38,20 @@ pub struct PartyStatus {
     pub status: u8,
 }
 
+/// What one pane of the status strip draws beside the name, and the CRAM line
+/// its text is drawn on (`Battle_DrawCommandIcons`, `ps4.asm:11056`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PaneView {
+    /// Retail fighter slot, 1-5, of the pane's seat.
+    pub fighter: u8,
+    /// The icon index the pane draws: 0 no command yet, 1-5 attack, tech,
+    /// skill, item, defend, 6 paralysis, 7 sleep, 8 dead, 9 an empty seat.
+    pub icon: u8,
+    /// CRAM line of the pane's text: 3 normal, 0 poisoned, 1 asleep or
+    /// paralyzed, 2 dead.
+    pub ink_line: u8,
+}
+
 /// One enemy of the current battle, in fighter order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct EnemyStatus {
@@ -47,6 +61,13 @@ pub struct EnemyStatus {
     pub name: String,
     /// Whether the story still shows this enemy's sprite.
     pub visible: bool,
+    /// The enemy record this slot holds now. It changes when Fusion seats a
+    /// MetaSlug in slot 1, which is the shell's cue to draw a different body.
+    pub enemy_id: u16,
+    /// The formation position byte of an enemy seated mid-battle (Fusion's
+    /// `$14`); `None` for the formation's own enemies, whose positions the
+    /// shell reads from the formation record.
+    pub position: Option<u8>,
 }
 
 /// The beat the battle is playing.
@@ -169,7 +190,11 @@ pub struct TechniqueEntry {
     pub name: String,
     /// TP the cast costs.
     pub cost: u8,
-    /// Whether the actor can cast it now.
+    /// Whether a cast would take effect: supported, affordable and not sealed.
+    /// The window itself only refuses on TP (`ps4.asm:1721`, `2628`); a sealed member
+    /// may choose the entry and the cast is paid and wasted
+    /// (`CharTech_Cast`, `ps4.asm:14256`), so a policy reads this flag to avoid
+    /// a wasted turn.
     pub available: bool,
 }
 
@@ -186,9 +211,65 @@ pub struct SkillEntry {
     pub available: bool,
 }
 
+/// The per-character command strip: the cartridge's horizontal five-icon
+/// window (`Battle_OpenCharComd`, `ps4.asm:2085`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StripView {
+    /// `Battle_Total_Comd_Input`: the acting fighter's slot minus one. It
+    /// picks the window's column (`loc_17A4`, `ps4.asm:2410`).
+    pub slot: u8,
+    /// Which of ATTACK, TECH, SKILL, ITEM, DEFEND have an icon. The routine
+    /// leaves the cell blank when the actor has nothing to put there
+    /// (`ps4.asm:2108-2160`).
+    pub present: [bool; 5],
+    /// The selected icon, 0-4 (`Battle_Char_Comd_Index`).
+    pub cursor: u8,
+    /// Frames the window has been open: the command cursor object's clock
+    /// (`BattleObj_ComdCursor`, `ps4.asm:70465`), whose two mapping frames
+    /// alternate while it runs.
+    pub age: u32,
+}
+
+/// One entry of a list window page.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListEntry {
+    /// The name, as the cartridge prints it.
+    pub name: String,
+    /// The number beside the name: a technique's TP cost or a skill's uses.
+    pub value: Option<u8>,
+    /// `false` draws the entry in the disabled palette and ignores accept.
+    pub enabled: bool,
+}
+
+/// One page of a technique, skill or item window: four rows, the selected
+/// row, and whether neighbouring pages exist.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListView {
+    /// Which window: [`MenuPage::Techniques`] (`Battle_TechWindow`, 12
+    /// columns wide), [`MenuPage::Skills`] (`Battle_SkillWindow`, 16) or
+    /// [`MenuPage::Items`] (`Battle_ItemWindow`, 14).
+    pub window: MenuPage,
+    /// `Battle_Total_Comd_Input`, for the window's column.
+    pub slot: u8,
+    /// The page, from zero.
+    pub page: usize,
+    /// The page's entries; fewer than four leaves the rest blank.
+    pub entries: Vec<ListEntry>,
+    /// The selected row on this page, 0-3.
+    pub cursor: u8,
+    /// A previous page exists (`Left` flips to it).
+    pub more_before: bool,
+    /// A next page exists (`Right` flips to it).
+    pub more_after: bool,
+}
+
 /// The per-character command window.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CommandMenuView {
+    /// The strip, on the actions page.
+    pub strip: Option<StripView>,
+    /// The list window, on the technique, skill and item pages.
+    pub list: Option<ListView>,
     /// The window title.
     pub title: String,
     /// The page the window is on.
@@ -233,7 +314,7 @@ pub enum MenuView {
         cursor: usize,
     },
     /// The command window of the actor whose turn it is.
-    Commands(CommandMenuView),
+    Commands(Box<CommandMenuView>),
     /// The mounted surface's own skill window.
     VehicleSkills {
         /// The slots, in learned-slot order.
@@ -275,6 +356,18 @@ pub struct BattleView {
     pub damage: Option<DamageView>,
     /// The live party strip, in fighter order.
     pub party: Vec<PartyStatus>,
+    /// What each of the five panes draws, by fighter slot.
+    pub panes: Vec<PaneView>,
+    /// The party bodies the plane has drawn, by fighter slot; `None` draws
+    /// all of them. The cartridge clears the party rows when a command window
+    /// opens (`Battle_OpenCharComd`, `ps4.asm:2099`) and draws a body back
+    /// only as its owner acts, until the round ends and the options reopen.
+    pub shown: Option<Vec<u8>>,
+    /// Whether the red-cursor windows (the main options and the technique,
+    /// skill and item lists) draw their selected row red this frame; the
+    /// cartridge alternates red and blue (`Battle_UpdateRedCursor2`,
+    /// `ps4.asm:1572`).
+    pub cursor_red: bool,
     /// The battle's enemies, in fighter order, with their visibility.
     pub enemies: Vec<EnemyStatus>,
     /// Party fighters taking the attack pose this beat.
@@ -309,6 +402,9 @@ impl Default for BattleView {
             reward_meseta: 0,
             damage: None,
             party: Vec::new(),
+            panes: Vec::new(),
+            shown: None,
+            cursor_red: true,
             enemies: Vec::new(),
             poses: Vec::new(),
             current: None,
@@ -333,9 +429,12 @@ impl BattleView {
     /// is no battle and no round: the frame only draws.
     #[must_use]
     pub fn command_idle(party: Vec<PartyStatus>, enemies: Vec<EnemyStatus>) -> BattleView {
+        let mut bytes = [0; 5];
+        let panes = super::panes::refresh(&mut bytes, &party);
         BattleView {
             menu: Some(MenuView::Top { cursor: 0 }),
             ready: true,
+            panes,
             party,
             enemies,
             ..BattleView::default()

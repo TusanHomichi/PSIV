@@ -27,6 +27,8 @@ pub enum SceneInput {
     },
     /// The runtime completed a scene-requested map load and recast the runner.
     MapLoaded,
+    /// The runtime's `Event_MoveCamera` glide reached its target.
+    CameraArrived,
     /// The ending's retail `Joypad_Pressed` loop received Start.
     EndingContinue,
 }
@@ -118,6 +120,16 @@ pub enum SceneEffect {
     VehicleChanged {
         /// The new vehicle id.
         index: u16,
+    },
+    /// All party objects were parked at the boarding lattice cell. A pan is
+    /// required only for an original coordinate with bit `$10` set.
+    VehicleBoardingAligned {
+        /// The vehicle body object staged before the selector write.
+        index: u16,
+        /// The snapped standing cell.
+        cell: Cell,
+        /// Whether to run and await the speed-2 camera pan.
+        pan_camera: bool,
     },
     /// A roster record changed outside a battle.
     RosterChanged {

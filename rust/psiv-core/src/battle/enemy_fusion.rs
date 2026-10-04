@@ -42,6 +42,8 @@ const ZOL_SLUG: u16 = 34;
 const FUSION: u8 = 0x12;
 /// `loc_1A2F4`'s enemy byte: `$24`, MetaSlug.
 const META_SLUG: u16 = 0x24;
+/// `loc_1A2F4`'s position byte: `$14`, plane column 20 (`ps4.asm:35847`).
+const META_SLUG_POSITION: u8 = 0x14;
 
 /// Fusion, if `ability` is it and `actor` is a Zol slug.
 ///
@@ -90,6 +92,7 @@ pub(super) fn resolve_fusion(
         removed,
         fighter,
         enemy_id: record.id,
+        position: META_SLUG_POSITION,
         name: record.name.clone(),
         hp: record.hp,
         agility: record.agility,

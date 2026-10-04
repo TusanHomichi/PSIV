@@ -143,11 +143,45 @@ impl BattleScreen {
                 .insert(enemy.fighter_id, enemy.position);
             self.enemy_nodes.push(EnemySprite {
                 fighter,
+                enemy_id: enemy.enemy_id,
                 node,
                 animation: animation.take(),
                 attack: None,
             });
         }
+    }
+
+    /// Redraws one enemy slot as another record: Fusion seats a MetaSlug in
+    /// slot 1 at the position byte `loc_1A2F4` carries (`ps4.asm:35847`). The
+    /// body, its idle overlay clock and its damage column are rebuilt exactly
+    /// as the battle's own load builds them, because the cartridge rebuilds
+    /// the enemy side through that same load (`loc_14D46`, `ps4.asm:29735`).
+    pub(super) fn reseat_enemy(&mut self, fighter: u8, enemy_id: u16, position: u8) {
+        let Some(art) = self.art.as_ref() else {
+            return;
+        };
+        let (width, height) = art.enemy_size(enemy_id).unwrap_or((0, 0));
+        let (x, y) = enemy_sprite_origin(position, width, height);
+        let texture = art.enemy_texture(&self.pack_dir, enemy_id, position);
+        let animation = art.enemy_animation(&self.pack_dir, enemy_id, position, 0);
+        let shown = animation.as_ref().map(EnemyAnimation::texture).or(texture);
+        let Some(enemy) = self
+            .enemy_nodes
+            .iter_mut()
+            .find(|enemy| enemy.fighter.get() == fighter)
+        else {
+            return;
+        };
+        let Some(shown) = shown else {
+            godot_error!("battle enemy {enemy_id} body failed to load for fighter {fighter}");
+            return;
+        };
+        enemy.clear_attack();
+        enemy.enemy_id = enemy_id;
+        enemy.animation = animation;
+        enemy.node.set_texture(&shown);
+        enemy.node.set_position(Vector2::new(x as f32, y as f32));
+        self.enemy_positions.insert(fighter, position);
     }
 
     pub(super) fn build_party(&mut self, setup: &BattleSetup) {

@@ -28,6 +28,7 @@ impl Runtime {
             return false;
         };
         self.scene = Some(runner);
+        self.boarding_body = None;
         self.scene_event = event;
         // Entry indices are relative to whichever tree the scene points the
         // dialogue system at; a new scene starts on the map's own binding.

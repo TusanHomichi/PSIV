@@ -6,6 +6,43 @@ attack passes' draw counts.
 
 Index: [source and provenance notes](README.md).
 
+## 2026-10-03 — Rounds that open no party command window
+
+`loc_52D6` (`reference/ps4disasm/ps4.asm:7560-7591`) tests
+`Battle_Priority` before `Battle_MainOptions`: zero enters the ordinary
+path, positive priority sets `Battle_Routine_2 = $21` before allowing party
+commands, and negative priority jumps to `loc_5326`, writes battle routine
+`$E`, and returns without opening the options. `Battle_ProcessCOMD`
+(`ps4.asm:7636-7660`) independently branches on negative priority to
+`loc_5420`, which clears routine 2 and enters order routine `$E`.
+`Battle_OrderTurns` (`ps4.asm:7739-7751`) queues only enemy slots in that
+case and clears priority after the round (`:7938-7944`). Thus a preemptive
+round still shows commands; an ambush round shows none. Failed RUN writes
+negative priority inside the already-submitted RUN round
+(`Battle_RunFailMsg`, `ps4.asm:6673-6699`); it is not another Session menu
+gate.
+
+For a later ordinary round, `loc_5380` (`ps4.asm:7580-7630`) opens main
+options if at least one occupied party slot lacks `$44` (dead or android
+dead); it does **not** require an actor who can currently act. After the
+player chooses COMD, `Battle_ProcessCOMD` skips each slot whose status has
+any `$6E` bit (paralysis, dead, either sleep bit, android dead) and goes
+straight to order routine `$E` if the scan finds none. The native Session
+therefore submits the all-Defend default on that COMD press, with no extra
+"NO ORDERS" page. The runtime's read-only `Battle::pending_priority()`
+gate supplies the ambush decision; `CommandsMenu::no_actor_orders()` supplies
+the exhausted `$6E` scan. Neither changes core turn order, item spending,
+or RNG draws.
+
+The new connected-pad Zio regression starts event battle 6 from a saved
+pre-trigger position, observes `Priority::Ambush`, no command surface or
+Psycho Wand use during the enemy-only Magic Barrier round, and the ordinary
+top menu with the wand still held afterward. The existing Academy Basement
+pad battle remains the normal-menu negative control; the empty-actor command
+test pins the `$6E` path. These are headless Session state/input observations, **not**
+an oracle event-battle parity fixture. Zio's phase/ability model likewise
+has no event-battle oracle fixture.
+
 ## 2026-09-12 — VISION and opening character skills
 
 **RETAIL CARTRIDGE BUG 13 — VISION reads the caster's name.** The verified

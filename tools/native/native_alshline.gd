@@ -124,19 +124,19 @@ func battle_input(battle):
             command_skill = 31
             command_target = int(targets[-1].id)
         print("NATIVE ALSHLINE command character=",menu.character," tech=",command_spell," skill=",command_skill," target=",command_target)
-    if menu.page == "Actions": choose(menu.cursor,2 if command_skill >= 0 else (1 if command_spell >= 0 else 0))
+    if menu.page == "Actions": choose_strip(menu.cursor,2 if command_skill >= 0 else (1 if command_spell >= 0 else 0))
     elif menu.page == "Techniques":
         var wanted = menu.techniques.map(func(t): return int(t.id)).find(command_spell)
         if wanted < 0:
             fail("planned spell disappeared",menu)
             return
-        choose(menu.cursor,wanted)
+        choose_list(menu, wanted)
     elif menu.page == "Skills":
         var wanted = menu.skills.map(func(t): return int(t.id)).find(command_skill)
         if wanted < 0:
             fail("planned skill disappeared",menu)
             return
-        choose(menu.cursor,wanted)
+        choose_list(menu, wanted)
     elif menu.page.begins_with("Targets"):
         var wanted = menu.targets.map(func(id): return int(id)).find(command_target)
         choose(menu.cursor,max(0,wanted))

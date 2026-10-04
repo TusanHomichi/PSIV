@@ -43,6 +43,7 @@ pub mod map_plan;
 pub mod menu;
 pub mod policy;
 pub mod policy_boss;
+pub mod policy_opening;
 pub mod recovery;
 pub mod replay;
 pub mod route;

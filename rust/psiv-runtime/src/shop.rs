@@ -3,6 +3,11 @@
 //! The Godot shop window owns selection and presentation. This module owns
 //! the irreversible part: every purse and inventory change goes through the
 //! [`GameState`] APIs held by [`Runtime`].
+//!
+//! An inn stay is two halves, because the cartridge's Aiedo counter hands the
+//! party to `Event_GirlsSneakingOut` between them: [`inn_begin`] tests the bill
+//! and runs `RecoverStats`, and [`inn_charge`] deducts it after the scene has
+//! returned (`ps4.asm:136367-136414`; `docs/camp/SHOPS.md`, "Finding 3").
 
 use psiv_core::{Flag, GameState};
 
@@ -50,33 +55,41 @@ pub enum ShopSellResult {
     EmptySlot,
 }
 
-/// The result of asking an inn for a night.
+/// The inn's opening half.
+///
+/// Retail tests the bill against the purse and runs `RecoverStats` *before* the
+/// Aiedo special case, and charges the bill only after it
+/// (`ps4.asm:136367-136414`). Splitting the transaction at that seam is what
+/// lets a rest hand the party to a scene with the recovery already done and the
+/// bill still open.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum InnResult {
-    /// The party paid and the modeled character fields were recovered.
-    Stayed {
+pub enum InnOpening {
+    /// The bill is affordable and every occupied slot has been recovered.
+    Resting {
         /// `rate * party_slots`.
         cost: u32,
         /// Occupied party slots billed and recovered.
         party_slots: usize,
     },
-    /// The party cannot afford the bill; state is unchanged.
+    /// The purse cannot cover the unchanged bill; nothing was recovered.
     InsufficientFunds {
         /// `rate * party_slots`.
         cost: u32,
         /// Money still held.
         money: u32,
     },
-    /// Aiedo selector 6 enters the scripted event path instead of an
-    /// ordinary night. The event runner is not owned by the shop lane yet.
-    AiedoEventPending {
-        /// The bill the event must settle.
-        cost: u32,
-        /// Slots recovered before the event handoff, matching retail's
-        /// `RecoverStats` ordering.
-        party_slots: usize,
-    },
 }
+
+/// `EventFlag_Zio` (`ps4.constants.asm:1539`): set when the party first fights
+/// Zio.
+const EVENT_FLAG_ZIO: u16 = 0x42;
+/// `EventFlag_GirlsCaught` (`ps4.constants.asm:1543`): set by the Aiedo rest
+/// event itself (`docs/scenes/27_GirlsSneakingOut.md`).
+const EVENT_FLAG_GIRLS_CAUGHT: u16 = 0x46;
+/// Group 0's Aiedo counter: `$FFFFECD1` selector `6` (`$066148`).
+const AIEDO_INN_SELECTOR: usize = 6;
+/// `Event_GirlsSneakingOut`, EventPtrs[`$23`] (`ps4.asm:146949`).
+const EVENT_GIRLS_SNEAKING_OUT: u16 = 0x23;
 
 /// Applies a retail buy to a game state.
 pub fn buy(game: &mut GameState, item: u8, price: u32) -> ShopBuyResult {
@@ -111,24 +124,26 @@ pub fn sell(game: &mut GameState, slot: usize, buy_price: u32) -> ShopSellResult
     ShopSellResult::Sold { item, price }
 }
 
-/// Applies an inn bill and the modeled part of `RecoverStats`.
-pub fn stay(game: &mut GameState, rate: u32, selector: usize) -> InnResult {
+/// The inn's opening half: the affordability test and the modeled part of
+/// `RecoverStats`, in the cartridge's order (`ps4.asm:136371-136388`).
+pub fn inn_begin(game: &mut GameState, rate: u32) -> InnOpening {
     let party_slots = game.party_len();
     let cost = rate.saturating_mul(party_slots as u32);
     if game.money() < cost {
-        return InnResult::InsufficientFunds {
+        return InnOpening::InsufficientFunds {
             cost,
             money: game.money(),
         };
     }
-
     game.recover_stats();
-    if selector == 6 && game.is_clear(Flag::event(0x42)) && game.is_clear(Flag::event(0x46)) {
-        return InnResult::AiedoEventPending { cost, party_slots };
-    }
+    InnOpening::Resting { cost, party_slots }
+}
 
-    game.set_money(game.money() - cost);
-    InnResult::Stayed { cost, party_slots }
+/// Charges a bill an [`inn_begin`] priced (`sub.l d0, (Current_Money).w`,
+/// `ps4.asm:136414`) and returns the purse.
+pub fn inn_charge(game: &mut GameState, cost: u32) -> u32 {
+    game.set_money(game.money().saturating_sub(cost));
+    game.money()
 }
 
 impl Runtime {
@@ -142,9 +157,27 @@ impl Runtime {
         sell(&mut self.game, slot, buy_price)
     }
 
-    /// Runs one inn stay against the persistent game state.
-    pub(crate) fn shop_stay(&mut self, rate: u32, selector: usize) -> InnResult {
-        stay(&mut self.game, rate, selector)
+    /// The inn's opening half against the persistent game state.
+    pub(crate) fn inn_begin(&mut self, rate: u32) -> InnOpening {
+        inn_begin(&mut self.game, rate)
+    }
+
+    /// Charges the purse for a bill [`Runtime::inn_begin`] priced.
+    pub(crate) fn inn_charge(&mut self, cost: u32) -> u32 {
+        inn_charge(&mut self.game, cost)
+    }
+
+    /// The scene a rest at `selector` runs instead of an ordinary night, if
+    /// any: `$066148` tests the inn selector for group 0's Aiedo counter (`6`)
+    /// and `EventFlag_Zio` and `EventFlag_GirlsCaught` for clear, and then calls
+    /// `Event_GirlsSneakingOut` with the bill, selector and text variant saved
+    /// and restored around it (`ps4.asm:136391-136410`).
+    #[must_use]
+    pub(crate) fn rest_event(&self, selector: usize) -> Option<u16> {
+        (selector == AIEDO_INN_SELECTOR
+            && self.game.is_clear(Flag::event(EVENT_FLAG_ZIO))
+            && self.game.is_clear(Flag::event(EVENT_FLAG_GIRLS_CAUGHT)))
+        .then_some(EVENT_GIRLS_SNEAKING_OUT)
     }
 }
 
@@ -211,27 +244,49 @@ mod tests {
         game.set_money(10);
         game.set_party_slot(0, Some(CharId(0))).unwrap();
         assert_eq!(
-            stay(&mut game, 5, 0),
-            InnResult::Stayed {
+            inn_begin(&mut game, 5),
+            InnOpening::Resting {
                 cost: 5,
                 party_slots: 1
             }
         );
+        assert_eq!(game.money(), 10, "the opening half does not charge");
+        assert_eq!(inn_charge(&mut game, 5), 5);
         assert_eq!(game.money(), 5);
     }
 
+    /// The opening half prices the bill and recovers the party; the bill is
+    /// charged only by [`inn_charge`] (`ps4.asm:136367-136414`). The pad-only
+    /// Aiedo test in `tests/session_menu_scenes.rs` proves the same ordering
+    /// with a real party: restored before the scene, charged after it.
     #[test]
-    fn aiedo_special_is_flagged_before_the_bill_is_deducted() {
+    fn the_bill_stays_open_between_the_halves() {
         let mut game = GameState::new();
         game.set_money(5);
         game.set_party_slot(0, Some(CharId(0))).unwrap();
         assert_eq!(
-            stay(&mut game, 5, 6),
-            InnResult::AiedoEventPending {
+            inn_begin(&mut game, 5),
+            InnOpening::Resting {
                 cost: 5,
                 party_slots: 1
             }
         );
-        assert_eq!(game.money(), 5);
+        assert_eq!(game.money(), 5, "the bill is charged after the rest");
+        assert_eq!(inn_charge(&mut game, 5), 0);
+    }
+
+    /// The negative control: a bill the purse cannot cover changes nothing —
+    /// not the purse, not the party.
+    #[test]
+    fn a_bill_the_purse_cannot_cover_recovers_nothing() {
+        let mut game = GameState::new();
+        game.set_money(4);
+        game.set_party_slot(0, Some(CharId(0))).unwrap();
+        let before = game.snapshot();
+        assert_eq!(
+            inn_begin(&mut game, 5),
+            InnOpening::InsufficientFunds { cost: 5, money: 4 }
+        );
+        assert_eq!(game.snapshot(), before);
     }
 }

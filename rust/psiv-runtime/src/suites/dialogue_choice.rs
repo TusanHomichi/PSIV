@@ -158,14 +158,16 @@ fn paid_inn_recovers_the_same_character_and_vehicle_use_banks() {
         return;
     };
     let before = rt.game().snapshot();
-    assert!(matches!(
-        rt.shop_stay(5, 0),
-        crate::InnResult::Stayed {
+    assert_eq!(
+        rt.inn_begin(5),
+        crate::InnOpening::Resting {
             cost: 10,
             party_slots: 2
         }
-    ));
-    assert_eq!(rt.game().money(), before.money - 10);
+    );
+    // The bill is charged after the rest, as the Aiedo counter's transaction
+    // does (`ps4.asm:136414`).
+    assert_eq!(rt.inn_charge(10), before.money - 10);
     for who in [CharId(0), CharId(1)] {
         let stats = rt.game().roster().get(who).unwrap();
         assert_eq!(stats.curr_hp, stats.max_hp);

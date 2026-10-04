@@ -30,7 +30,7 @@ func _physics_process(_delta):
         if battle.finishing or battle.message == "Victory!" or battle.message.ends_with("LV increased!") or " learned " in battle.message:
             press("ui_accept")
         elif battle.ready:
-            if battle.menu != null and battle.menu.page == "Actions": choose(battle.menu.cursor,0)
+            if battle.menu != null and battle.menu.page == "Actions": choose_strip(battle.menu.cursor,0)
             else: press("ui_accept")
         return false
     if not saw_battle or state.scene or state.dialogue or state.transition: return false

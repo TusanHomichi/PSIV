@@ -489,10 +489,6 @@ fn every_zio_route_resolves_in_an_ordinary_round() {
 /// [`BattleEvent::UnsupportedAbility`] path instead of resolving a turn the
 /// chain reading does not support:
 ///
-/// - **140 Zio2's `$4D`.** `EnemyAttack_Zio2` (`ps4.asm:19519`) rewrites
-///   `$24(a4)` from its phase counter `($FFFFEE98)`, so the first action is
-///   MAGIC BARRIER whatever the roll held. The port models no counter for enemy
-///   140, so the row would resolve CORRSION on an action the cartridge spends.
 /// - **133 ProfoundDarkness1's `$21`**, covered in
 ///   `enemy_damage_firebreath_tests`.
 /// - **`$4C` EVIL EYE, `$2A` RIMIT and `$2F` VOL**, whose chains make no
@@ -502,15 +498,7 @@ fn every_zio_route_resolves_in_an_ordinary_round() {
 ///   deals.
 #[test]
 fn the_deferred_pairs_are_refused() {
-    let zio2 = Carrier {
-        enemy_id: 140,
-        symbol: "Zio2",
-        hp: 2889,
-        mental: 38,
-        abilities: [0, CORRSION, CORRSION, CORRSION, 0x4F, 0x4F, 0x6C, 0x6C],
-    };
     for (carrier, ability) in [
-        (zio2, CORRSION),
         (HAUNT, EVIL_EYE),
         (SPECTOR, EVIL_EYE),
         (TECH_PLANT, RIMIT),

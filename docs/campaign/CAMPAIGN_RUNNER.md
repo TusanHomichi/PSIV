@@ -77,8 +77,12 @@ resolves into pad input:
 - fight scripted battles; random battles use a policy that issues commands
   through the battle menu with the same pad input a player would use.
 
-Every chapter ends in assertions on flags, party, map and inventory taken from
-the scene transcriptions, and an ordinary SAVE. The runner halts on the first
+Chapters end with their specified assertions on flags, party, map and
+inventory taken from the scene transcriptions. The runner then writes a
+read-only chapter checkpoint with `Runtime::save_slot`; that snapshot is not
+an ordinary SAVE input. Only chapters with an explicit `save` objective press
+camp STATE → SAVE. The Zio-defeat chapter does so after its scene and flags
+settle. The runner halts on the first
 failed objective, unsupported ability, scene fault, lost battle or stuck walk,
 and writes a report: chapter, objective, frame, map, cell, mode and the last
 events.
@@ -138,7 +142,8 @@ results, fighting battles with the chapter's policy, and waiting out scenes.
 
 **Battle policy.** `random_battle_policy` names one (`policy.rs`). Everyone
 attacks the first living enemy; the first member who can cures the most hurt
-one below half HP with a healing technique, or failing that a healing item;
+eligible target below half HP with a healing technique, or failing that a
+healing item. Both use the core target lists that build the command menu;
 `run_unless_boss` runs from random encounters and fights scripted battles.
 After a battle the party is cured through the camp (`recovery.rs`). Losing is a
 halt. `attack_all`, `heal_then_attack`, `train_with_inn` and
@@ -146,11 +151,13 @@ halt. `attack_all`, `heal_then_attack`, `train_with_inn` and
 behaviour gets a type in `policy.rs` first.
 
 `fight_to_win` and `run_then_win` (`policy_boss.rs`) are what a player does
-against a boss, which the default policy loses to: the one cure a round goes to
-the most hurt member under half HP with the cheapest technique that restores what
-they are missing (the strongest when none does), and everyone else takes the
-damage action with the highest estimated damage to the first living enemy: the
-plain attack, a damaging technique they can pay for, or a damaging skill with
+against a boss, which the default policy loses to: the most hurt eligible member
+under half HP gets the cheapest sufficient single-target cure (the strongest
+when none is sufficient), and a learned all-human cure can also cover two or
+more eligible humans below 70% HP in that round. A sealed caster avoids TECH
+as a player heuristic; the retail menu still permits the wasteful selection.
+Everyone else takes the damage action with the highest estimated damage to the
+first living enemy: a plain attack, a damaging technique they can pay for, or a damaging skill with
 uses left (`Crosscut`, `Vortex`: the two the engine runs). The estimate is the
 cartridge's damage formula at its mean roll on the live fighters' stats, which a
 player learns from the first rounds' damage numbers. `fight_to_win` fights every
@@ -158,6 +165,18 @@ battle; `run_then_win` runs from random encounters like `run_unless_boss` and
 fights scripted ones this way. Juza (event battle 3) and Gy-Laguiah (event battle
 5) are won with it; with the default policy Juza kills a level 12 party in four
 rounds (run C2-1).
+
+`psycho_wand_then_win` (`policy_opening.rs`) is `run_then_win` with an opening
+item: in the first actual player-command round of a scripted battle the first
+actor takes ITEM and picks the Psycho Wand (item `$39`, when the pack holds it),
+everyone else fights, and afterward it is the boss policy. An enemy-only
+ambush round offers no item choice and does not disarm the opening. It decides
+an item intent only; `battle.rs`
+steers the ITEM page to the row, as for a healing item. The driver tells every
+policy when a battle begins and whether it is scripted (`Policy::battle_begins`),
+which is how a random encounter gets no opening. The Zio fight at Nurvus is the
+chapter that names it (`nurvus-zio`); `tests/runner.rs` pins the policy's
+choices over a pack that holds an item bought at the Piata shop.
 
 **Halts and the report.** Each objective has a frame budget. The run stops at
 the first of: a missed `expect` or closing assertion, an exhausted budget, an
@@ -174,11 +193,13 @@ continue from. The report is JSON: `chapter`, `objective_index`,
 decision to stderr as the run goes.
 
 **Tape, saves and replay.** The tape is every frame's pad byte, run-length
-encoded in a text file (`src/tape.rs` documents the format). A chapter that
-completes writes `<save-dir>/NN-id/slot_1.sram`, and `--from-chapter ID` starts
-from the save the chapter before it ended on; the tape then names that save by
-hash. Route `save` objectives write `<save-dir>/route/slot_N.sram` through the
-camp's SAVE page. `replay <tape> [--from-save FILE]` plays the tape back and
+encoded in a text file (`rust/psiv-runtime/src/tape.rs` documents the format;
+`psiv-campaign::tape` reexports the same codec). A chapter that
+completes writes the read-only checkpoint `<save-dir>/NN-id/slot_1.sram`, and
+`--from-chapter ID` starts from the preceding chapter's checkpoint; the tape
+then names that file by hash. Only route `save` objectives write
+`<save-dir>/route/slot_N.sram` through the camp's SAVE page. `replay <tape>
+[--from-save FILE]` plays the tape back and
 prints the digest of the final state (map, cell, facing, purse, party and the
 whole persistent snapshot), which a run printed too and a replay must
 reproduce. `inspect <slot.sram>` prints a save's
@@ -187,6 +208,146 @@ through the runtime's own views: the question a route author asks of every
 chapter save. A save loaded mid-route restarts the frame counter and RNG, so a
 `--from-chapter` run is the same game from there but not the same frames as the
 full run; only the full run from New Game is the route's evidence.
+
+### R2 native tape replay (in progress)
+
+`tools/verify_native_tape.py` is the generic Godot entry point. It opens one
+campaign tape through the runtime-owned `TapeFeed` codec, checks a save-start
+tape's FNV against the source bytes **before** copying them into a fresh,
+isolated `PSIV_SAVE_DIR`, and sends each byte via ordinary `Input` actions.
+The title receives ordinary START/CONTINUE button edges; the tape begins at
+the first gameplay `Session::frame` call after that handoff. A central Field
+observer counts actual session invocations in both field and battle dispatch,
+records the last consumed pad, and excludes title frames. The driver stops at
+exactly N bytes, freezes the Field, and checks that two more SceneTree callbacks
+made no N+1 session call. It then compares `Runtime::slot_bytes(&self)` with a
+chapter save byte-for-byte. That read-only snapshot is the normal SAVE writer's
+encoding; equality does **not** by itself prove a camp SAVE action occurred.
+
+```bash
+PSIV_HEAVY_LOCK=/absolute/path/to/primary/build/continuation-heavy.lock
+CARGO_BUILD_JOBS=1 flock -x "$PSIV_HEAVY_LOCK" \
+  python3 tools/verify_native_tape.py --tape /path/to/run.tape \
+  --expect-save /path/to/chapter/slot_1.sram --pack /path/to/runtime-pack \
+  --out build/native-tape-academy
+```
+
+Use the same absolute ignored lock path from every worktree; a relative
+`build/` lock serializes only that one checkout.
+
+For a save-start tape, add `--from-save /path/to/preceding/slot_1.sram`.
+For a fresh-process CONTINUE check of a newly written slot, use
+`psiv-campaign save-probe-tape <slot.sram> <out.tape> [neutral-frames]` to
+create a save-start tape through the same Rust codec. The optional count
+defaults to zero and is capped at 600. A bounded neutral-pad tape lets the
+normal title fade finish and the loaded field render; every neutral pad still
+counts as one real gameplay Session frame. Pass that tape and its source slot
+to the verifier. The probe loads through ordinary title input without
+claiming a new SAVE edge.
+If the tape uses the camp SAVE command, `--expect-written-save` compares the
+slot the native game actually wrote in its isolated save directory with the
+runner's route SAVE file; that is distinct from the read-only endpoint
+snapshot. It also requires the successful slot-1 SAVE edge returned by
+`Session::camp_frame` and counted at the real Field session boundary: a
+save-start tape's pre-copied slot cannot pass on byte equality alone.
+`--expect-map` and `--expect-cell x,y` guard the endpoint. The entry point
+requires a fresh output directory and retains `receipt.json`, the native
+report, exact snapshot bytes, and Godot logs. Its receipt records source-save
+SHA-256 before and after, the final live slot hash, selected pack hash, command,
+effective replay configuration and elapsed time. It also records the Git HEAD,
+dirty diff and authoritative tracked-plus-untracked repository-entry identities
+(symlink targets are never opened),
+exact pre/post GDExtension, driver, verifier and Godot identities, and the
+extension path/inode observed in the Godot process map. A changed source,
+tape, pack manifest or executable artifact fails the receipt. A timed-out
+launch terminates its own Godot/Xvfb process group and records exit 124. On a
+fresh checkout it first runs a local one-shot headless Godot editor scan to
+register the GDExtension. It strips inherited `PSIV_*` selectors, then
+enables only the read-only probes and explicit local inputs.
+Headless checks disable only the render loop;
+the Field physics callback and every input/Session boundary still run. Selected
+1280×800 captures use a separate rendered run and are separate
+presentation evidence, not proof of input or persistent state.
+
+**Combined post-Zio checkpoint, 2026-10-03/04.** The selected pack is the ignored stable
+copy at `/home/peter/PSIV/build/accepted-p1-pack-7fe1e64a` (manifest SHA-256
+`7fe1e64abfb4d55230a1039f5ac2deea4b45f6e94e5b029bba10107a39a016de`).
+Raw receipts and logs are under ignored `build/r2-integration/` here and in
+the stable primary checkpoint
+`/home/peter/PSIV/build/accepted-combined-5ec096f/worktree/build/r2-integration/`;
+they are not Git assets. The failed five-stage gate has a separate immutable
+receipt under `build/gate/20261003T231702Z-5ec096f/` and is not called green.
+The affected Python/docs recheck, repaired-CLI proof, primary default-pack
+proof, and all raw logs are retained separately in that stable checkpoint.
+
+| Native replay | Observed result | Raw receipt |
+| --- | --- | --- |
+| New Game → Academy | 32,308 exact Session pads; chapter snapshot matches | `native-academy-current-2/receipt.json` |
+| Earned Academy CONTINUE → Holt | 11,408 pads, camp SAVE acknowledgement, snapshot matches | `native-holt-current/receipt.json` |
+| New Game → initial Aiedo | 156,019 pads in 2,066.765 s, title START t7 → first gameplay Session t8, two post-stop callbacks without N+1, map `$54` (47,83), snapshot SHA-256 `2d82632af8f7a001483b04493d294b5b8325bc631337cae471716bf02d0c0ef2` matches the full-run chapter | `native-aiedo-current/receipt.json` |
+| Earned pre-Zio save → Zio, then fresh-process CONTINUE | 8,823 pads, one ordinary camp SAVE acknowledgement and matching written slot; separate zero-pad ordinary CONTINUE reloads that slot with matching bytes | `native-zio-segment/receipt.json`, `native-zio-continue-zero/receipt.json` |
+| Rendered earned-save → Zio | 8,823 pads, same SAVE and endpoint bytes, pre/post identities stable, actual mapped extension matches; selected 1280×800 post-Zio field capture SHA-256 `a094885723bbe7b850ef263146334ebeeb4588635ce4912e8600eff17ed91983` | `native-zio-rendered-segment/receipt.json`, `selected-1280x800.png` |
+| Rendered fresh-process CONTINUE from that native-written slot | 180 neutral pads in the tape, 180 exact Session frames, no N+1, source/snapshot bytes SHA-256 `8d831c47fc859257e28c46ead3583668fe81b54b4d8eb5ce8eeb798427818baa`; selected 1280×800 loaded Motavia field SHA-256 `5b2698c5bfe618348a495b0d115bbd4e7c24638913b4c34ec4a3e0f8a278703f` | `native-zio-visible-continue/receipt.json`, `selected-1280x800.png` |
+| Repaired verifier CLI on clean `e9372bc` | One rendered 180-pad CONTINUE, title handoff then exact Session frames and no N+1; pre/post source, pack, driver, Godot and library identities stable; mapped extension path/inode matched; source/live/snapshot/expected slot all `8d831c47…`. Zero SAVE acknowledgements. | Stable primary `build/accepted-combined-5ec096f/native-cli-e9372bc/receipt.json` and `APPENDIX.json` |
+| Ordinary primary default-pack CONTINUE | Detached primary `e9372bc`, freshly built extension SHA-256 `97bbb622…`, `PSIV_RUNTIME_PACK` **absent**; dev `runtime-pack` resolves to the accepted stable pack. Ordinary title CONTINUE and 180 exact neutral Session pads match the same `8d831c47…` slot. Mapped primary extension inode matched preflight; source/pack/code hashes stayed stable. The inspected 1280×800 field capture is SHA-256 `5b2698c5…`; no new SAVE. | Stable primary `build/accepted-combined-5ec096f/primary-default-180cont-e9372bc/receipt.json`, `VISUAL_REVIEW.json`, `APPENDIX.json` |
+
+The earlier native receipts used the prior untracked-entry source guard and
+remain historical. The scoped verifier repair uses `tools/repo_files.py` for
+the complete non-ignored file set, including dangling symlinks, and retains
+`lstat`/`readlink` identity without following linked asset directories. Its
+focused owner/negative tests pass. The actual repaired-CLI 180-pad replay in
+the table passed in 14.596 seconds; the primary no-override replay passed in
+14.587 seconds. Neither reran the long Aiedo or Zio tape. The primary's older
+real pack was hash-checked against all 4,787 archived files and moved to a
+named ignored backup before `runtime-pack` became a link to the accepted pack;
+the former primary extension and the tested rebuilt extension are retained
+separately. No private-worktree pack path is needed for a default launch.
+
+The long Aiedo receipt predates the preflight identity guard. Its
+`native-aiedo-current/during-run-provenance.json` binds the active Godot PID's
+mapped library path/inode and its then-current SHA-256; the separate
+`after-run-provenance.json` shows the same on-disk script/library identities
+after exit. That is during/after observation, **not** a backdated preflight
+claim. The later rendered Zio run has full preflight/mapping/postflight
+identity proof. Negative controls retain malformed tape, wrong source hash,
+wrong endpoint, dropped pad, and copied-source-without-SAVE failures; the
+identity guard's temp-artifact tests change each of the driver and extension,
+retarget a directory symlink, and prove process-group cleanup of a child that
+ignores TERM. The integrated stub timeout receipt is
+`provenance-timeout-negative/receipt.json`: exit 124, verification refused,
+and its child absent after cleanup. `save-probe-negative.json` records the
+existing-output and over-600-frame refusals with no overwritten file. Earlier
+failed import, cell-format and terminated
+attempts remain in the ignored ledger. The Aiedo run logged five map-0
+background errors; map-0 fallback predates this candidate (issue #40). Its
+seven Alshline panel warnings are a false typed art-ID diagnostic for retail
+operand-free stack pops, tracked by [#74](https://github.com/TusanHomichi/PSIV/issues/74)
+and the [scene op ledger](../scenes/SCENE_PRESENTATION.md#op-coverage); no
+visual mismatch was observed in that classification, and no source fix is
+claimed here. The selected Zio field image is a rendered milestone, not a
+scene-wide oracle comparison.
+The older `native-zio-rendered-continue-2` zero-pad capture is almost black
+because it freezes during the title fade; its state/save proof remains valid,
+but that image is **not** evidence of a visible loaded world. The 180-pad
+fresh CONTINUE capture above supplies that separate presentation observation
+without advancing any untaped gameplay frame. It makes no new SAVE request;
+the ordinary SAVE evidence is the preceding Zio segment. The fresh CONTINUE
+receipt's `ordinary_save_matches: false` means `--expect-written-save` was not
+requested for that no-SAVE tape.
+The 11-pair static certificate on this candidate passes with zero RMSE,
+including unchanged battle-0x88. The sole five-stage gate on clean `5ec096f`
+passed four stages and failed Python on 31 missing local oracle-frame errors
+and one file-list authority guard; that receipt remains FAILED. The protected
+184 receipt-named PNGs were copied with source/copy readback. The scoped repair
+at clean `e9372bc` passed 18 focused owner tests and one affected recheck:
+docs checked 176 files with zero problems, full Python ran 1,241 tests with
+zero failures/errors and one skip. The composed five-row matrix applies the
+prior fmt/Rust (1,287 passed, three ignored)/Clippy results through an unchanged
+558-file Rust/config input map; it is not a new full five-command gate.
+R2 stays in progress:
+its broader bespoke-driver retirement criterion has not been met. No driver is
+deleted for this checkpoint; an inventory must distinguish focused regression
+fixtures from duplicate campaign paths before full R2 closure.
 
 **Tests.** `cargo test --manifest-path rust/Cargo.toml -p psiv-campaign --
 --test-threads=1` runs the planner and validator suites and
@@ -203,10 +364,10 @@ message when it is absent.
 ```yaml
 outcome: "A fresh install plays New Game to the Ending headlessly from the route file with ordinary pad input, and milestone tapes replay identically in Godot"
 canonical_record: "docs/campaign/CAMPAIGN_RUNNER.md#task-graph"
-authority: "Owner 2026-10-01: campaign runner approach; commit, push, PR and merge once the full gate is green (docs/AGENT_WORKFLOW.md#authority-effort-and-continuation)"
+authority: "Owner 2026-10-01: campaign runner approach (docs/AGENT_WORKFLOW.md#authority-effort-and-continuation). The bounded post-Zio checkpoint has reviewed local evidence; publication and integration follow the workflow authority record. Later-arc implementation is parked for the next session."
 effort_policy: "Continue scoped repairs until acceptance passes; no fixed cycle limit (inherited)"
-exclusions: ["modding", "visual-parity claims beyond existing certifications", "gameplay changes that are not cartridge behavior"]
-next_action: "C3: route from the Zio-fort barrier through Nurvus to Zio defeated"
+exclusions: ["modding", "visual-parity claims beyond existing certifications", "gameplay changes that are not cartridge behavior", "later arc beyond Zio defeated in the current lane"]
+next_action: "Continue the route after Zio toward spaceport/Zelan/Wren, with the ship destination-menu gap an explicit dependency. This is the single ready campaign action, parked for the next session; do not infer later-arc play or full native New Game-to-Zio replay from the archived bounded checkpoint."
 nodes:
   - id: S1
     outcome: "Dialogue interpreter in psiv-runtime: control codes, branches, choices, actions, $F2/$F6/$F7, live flags, typewriter and open-animation gates, driven by a cartridge-layout Pad"
@@ -266,11 +427,26 @@ nodes:
     outcome: "Tape replay in Godot"
     depends_on: [R1]
     acceptance: "One generic Godot replay driver reproduces R1's tape and chapter-save bytes; the bespoke tools/native drivers it covers are retired"
-    state: pending
+    integration_evidence: ["bounded native milestone: New Game to initial Aiedo, 156019 exact pads and matching chapter bytes; earned-save Zio segment 8823 pads with ordinary SAVE acknowledgement and fresh-process CONTINUE; selected 1280x800 rendered Zio and fresh CONTINUE captures are separate presentation evidence", "clean e9372bc: repaired generic CLI and primary no-override default-pack CONTINUE each consumed 180 exact neutral pads, matched native-written slot bytes, and observed the mapped extension; stable primary build/accepted-combined-5ec096f retains receipts, images and binaries", "the original 5ec five-stage gate remains FAILED; affected e937 Python/docs pass, and the composed matrix applies unchanged Rust/fmt/Clippy inputs", "open: bespoke-driver retirement not inventoried or completed; full R2 remains in progress"]
+    state: in_progress
+  - id: C70
+    outcome: "Issue #70: Session automatically resolves every enemy-only ambush round without a command surface or item use"
+    depends_on: [R1]
+    acceptance: "Cite loc_52D6, Battle_ProcessCOMD, loc_5380 and Battle_OrderTurns for every command-opening condition; a connected-pad scripted ambush shows no menu or Psycho Wand spend until the first real player round, a normal round still opens COMD, an alive but all-$6E-status party submits on its single COMD press, and the static battle-0x88 certification is unchanged on the combined candidate"
+    evidence: ["local candidate from 82eed831: read-only Battle::pending_priority and runtime bridge, automatic ambush gate, pad-only Zio event battle 6 regression and Academy normal-menu negative control, empty-actor command regression; docs/source-notes/battle-party.md records source conditions", "RUNNER_LOG.md #70 frozen headless acceptance: first actual player menu uses the Psycho Wand; no item is spent during the ambush. Mixed-party cure policy uses core target lists, excludes Demi from RES/MONOMATE and chooses GISAR when two humans are hurt; final focused tests under the shared heavy lock."]
+    integration_evidence: ["combined 11-pair static certificate on clean 90d2ef1 is RMSE 0 for all pairs, including unchanged battle-0x88; only docs/Python authority changed through e9372bc", "connected-pad scripted ambush opens no party COMD or Psycho Wand spend until the first real player round; separate ordinary all-$6E no-actor COMD and normal-menu regressions pass against the cited source conditions", "composed applicable-check matrix: e9372bc docs/1,241 Python pass; unchanged 558 Rust/config inputs carry 5ec fmt/1,287 Rust/Clippy passes; original failed gate remains immutable"]
+    state: verified
+  - id: CZ
+    outcome: "New Game through Cutscene_ZioDefeated with ordinary pad route, SAVE, fresh Session load and deterministic tape replay"
+    depends_on: [C70]
+    acceptance: "All 29 chapters complete from New Game twice on the frozen candidate with identical full tapes, digests and final ordinary pad-SAVE bytes at route/slot_1.sram; replay reproduces the digest with no faults; a fresh Session loads that route slot and asserts Motavia map $00, Chaz/Rika/Rune, Chaz alive and event flags $65/$68/$66/$61. Preserve losing trials. Do not claim the later arc or Zio oracle parity. Native Godot milestone proof is a separate integration check."
+    evidence: ["RUNNER_LOG.md #70 route trials preserve the old-level, level-22 and old one-cure losses; the trained party with earned GISAR wins a copied-save chapter, while 64e4023's stricter target legality exposed a different full-route Zio loss. Rung-1 shared targeting and an ordinary proactive group-heal policy fix it without balance changes.", "isolated frozen source 6fb1a70: full-group-a/b complete all 29 chapters from New Game at 2,430,333 frames each, digest d4a124057f4439cd; tapes SHA256 9b3ebe16... and pad SAVE bytes SHA256 8443a11e... identical; both replay, fresh Session inspections assert map $00, Chaz/Rika/Rune alive and $65/$68/$66/$61. The final camp SAVE is a separate route slot, not merely Runtime::save_slot; full hashes and failed runs in RUNNER_LOG.md. Combined rerun and native checks were pending at this isolated freeze; the integration receipts below close that gap."]
+    integration_evidence: ["combined candidate 5ec096f: two full 29-chapter New Game routes at 2615778 frames, digest 949c2abe3342e838, identical tapes and final ordinary pad-SAVE bytes; earned pre-Zio save SHA256 5392489e and full-chain final slot SHA256 4aeff0b1; fresh Session inspection/replay in the combined runner receipt", "native earned-checkpoint Zio CONTINUE, 8823 pads, real camp SAVE acknowledgement and byte-matched written slot; fresh-process CONTINUE and rendered field are separate from the full headless New Game origin, not a full native New Game-to-Zio claim", "composed applicable-check matrix accepted on clean e9372bc; original failed 5ec gate is retained; primary default-pack no-override CONTINUE passed separately with the native-written slot"]
+    state: verified
   - id: C
     outcome: "Route chapters to the Ending, one lane per blocker class"
-    depends_on: [R1]
+    depends_on: [R1, CZ]
     acceptance: "The runner reaches Game_Cleared_Flag from New Game; each blocker it hit is fixed with a regression test or filed as an issue with a link from the route"
-    evidence: ["lane c1-motavia (base 8c19769): routes/main.json grows to 18 chapters and reaches the Zio Fort's Juza room (map $87, (32,21)) with all five alive at level 12 to 13: 457,356 frames, digest 96d2835a8633def8, tape sha256 53adf11f092bb99982c299aa2620b75a4078f6a4fe3ba69f0adae0a3d749bd57, identical on three runs, replay reproduces the digest; scenes 28 and 29 pass in-route; RUNNER_LOG.md H13 to H16", "the route stops at Juza: H16, enemy 114's ZAN and FORCEFLASH are not run by the engine, and the stairs to F3 and F4 open only after his battle; H15 lists the unsupported abilities on the way (FUSION, FIREBREATH, DEBAN) that the route passes only by running; H13 (#39) does not block the story", "lane c2-zio (base 0c6ae8b): routes/main.json grows to 27 chapters through scenes 31 to 37 (Juza's battle, the Demi rescue and Alys's wounding, the Machine Center and Land Rover, Ladea Tower with Rune, the Psycho Wand, the walk to the Zio Fort barrier); the runner learns to ride a vehicle (a two-cell lattice planner, `vehicle` assertions, `dismount`, `plan --vehicle`) and to fight a boss (`fight_to_win`, `run_then_win`). On the committed engine the run halts at its first port defect, `Cutscene_AlysWounded` reading the wrong dialogue tree (H17): 1,023,474 frames, exit 2, digest 49f5c47df7971428, identical on two runs, replay reproduces it. An experimental four-line patch for H17 plays on to `Event_ZioFortBarrier` (H18, not transcribed, no alternative); a stub for it completes all 27 chapters (digest e77a7b9cf1f5fa37, identical on two runs). H19 to H21 recorded (live map ignores story flags, vehicle parking and boarding, EVIL EYE in the tower)"]
-    state: pending
+    evidence: ["lane c1-motavia (base 8c19769): routes/main.json grows to 18 chapters and reaches the Zio Fort's Juza room (map $87, (32,21)) with all five alive at level 12 to 13: 457,356 frames, digest 96d2835a8633def8, tape sha256 53adf11f092bb99982c299aa2620b75a4078f6a4fe3ba69f0adae0a3d749bd57, identical on three runs, replay reproduces the digest; scenes 28 and 29 pass in-route; RUNNER_LOG.md H13 to H16", "the route stops at Juza: H16, enemy 114's ZAN and FORCEFLASH are not run by the engine, and the stairs to F3 and F4 open only after his battle; H15 lists the unsupported abilities on the way (FUSION, FIREBREATH, DEBAN) that the route passes only by running; H13 (#39) does not block the story", "lane c2-zio (base 0c6ae8b): routes/main.json grows to 27 chapters through scenes 31 to 37 (Juza's battle, the Demi rescue and Alys's wounding, the Machine Center and Land Rover, Ladea Tower with Rune, the Psycho Wand, the walk to the Zio Fort barrier); the runner learns to ride a vehicle (a two-cell lattice planner, `vehicle` assertions, `dismount`, `plan --vehicle`) and to fight a boss (`fight_to_win`, `run_then_win`). On the committed engine the run halts at its first port defect, `Cutscene_AlysWounded` reading the wrong dialogue tree (H17): 1,023,474 frames, exit 2, digest 49f5c47df7971428, identical on two runs, replay reproduces it. An experimental four-line patch for H17 plays on to `Event_ZioFortBarrier` (H18, not transcribed, no alternative); a stub for it completes all 27 chapters (digest e77a7b9cf1f5fa37, identical on two runs). H19 to H21 recorded (live map ignores story flags, vehicle parking and boarding, EVIL EYE in the tower)", "lane c3-nurvus (base 5c62765): routes/main.json grows to 29 chapters; nurvus-descent plays Zio Fort to Nurvus B4 (six elevator doors, the B1 tunnel, B5 and the stairs; RUNNER_LOG.md N1 to N4) and nurvus-zio names the new psycho_wand_then_win policy (round-1 Psycho Wand through the battle ITEM menu, then fight_to_win). The full run halts at Zio's trigger on port defects H22 (Event_ZioNurvus op 11 resumes a dialogue instead of running entry $0B; the Zio and Zio2 phase counters are unmodelled, so BLACK WAVE is rolled in round 1): 1,730,441 frames, exit 2, digest 6eb19b166ed24d2f, tape sha256 e3cff60eaf31dacac06bfeb8819d983ad3a848da042d37108a5c73cc9d121402, identical on two runs, replay reproduces it"]
+    state: ready
 ```

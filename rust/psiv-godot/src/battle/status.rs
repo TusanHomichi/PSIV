@@ -1,95 +1,41 @@
-//! Retail battle status-strip icons.
-//!
-//! Kept separate from the command surface so the battle UI module stays small
-//! enough to remain reviewable while the vehicle menu grows.
+//! The status strip's per-pane icon: the command or status icon beside each
+//! name, which the runtime decides every frame
+//! (`session/battle/panes.rs`, `Battle_DrawCommandIcons`, `ps4.asm:11056`).
 
-use godot::prelude::*;
+use psiv_runtime::{BattleView, PartyStatus};
 
-use psiv_runtime::PartyStatus;
+use super::chrome::Quad;
+use super::command_window::ICON_WORDS;
+use super::layout::tile_dest;
+use super::tiles::CommandTiles;
 
-use super::ui::{BATTLE_CELL_PIXELS, STATUS_NAME_Y, STATUS_PANE_START_CELLS};
-
-const QUESTION: [&str; 16] = [
-    "BWWWWWWWWWWWWWWB",
-    "WKKKKKKKKKKKKKKW",
-    "WKKKKKKKKKKKKKKW",
-    "WKKKqoYYYYoqKKKW",
-    "WKKKoYqKKqYoqKKW",
-    "WKKKYYKKKKYYqKKW",
-    "WKKKoYKKKKYYqKKW",
-    "WKKKKKKqoYYqKKKW",
-    "WKKKKKKYYoqKKKKW",
-    "WKKKKKKYYqKKKKKW",
-    "WKKKKKKKKKKKKKKW",
-    "WKKKKKKYYqKKKKKW",
-    "WKKKKKKYYqKKKKKW",
-    "WKKKKKKKKKKKKKKW",
-    "WKKKKKKKKKKKKKKW",
-    "BWWWWWWWWWWWWWWB",
-];
-
-const BLANK: [&str; 16] = [
-    "BWWWWWWWWWWWWWWB",
-    "WKKKKKKKKKKKKKKW",
-    "WKKKKKKKKKKKKKKW",
-    "WKKKKKKKKKKKKKKW",
-    "WKKKKKKKKKKKKKKW",
-    "WKKKKKKKKKKKKKKW",
-    "WKKKKKKKKKKKKKKW",
-    "WKKKKKKKKKKKKKKW",
-    "WKKKKKKKKKKKKKKW",
-    "WKKKKKKKKKKKKKKW",
-    "WKKKKKKKKKKKKKKW",
-    "WKKKKKKKKKKKKKKW",
-    "WKKKKKKKKKKKKKKW",
-    "WKKKKKKKKKKKKKKW",
-    "WKKKKKKKKKKKKKKW",
-    "BWWWWWWWWWWWWWWB",
-];
-
-pub(super) fn status_pixels(
-    palette: [Color; 16],
-    party_status: &[PartyStatus],
-) -> Vec<(Vector2, Color)> {
-    let mut pixels = Vec::new();
-    for (pane, start) in STATUS_PANE_START_CELLS.iter().copied().enumerate() {
-        let member = super::layout::status_member(party_status, pane).is_some();
-        {
-            let origin = Vector2::new(
-                (start + 5) as f32 * BATTLE_CELL_PIXELS as f32,
-                STATUS_NAME_Y,
-            );
-            pixels.extend(pattern_pixels(
-                origin,
-                if member { &QUESTION } else { &BLANK },
-                palette,
-            ));
-        }
+/// The icon and ink line a pane draws: the runtime's pane decision, or for a
+/// view that carries none (a static fixture) the idle default
+/// (`Battle_DrawCommandIcons`: no command yet, the window line).
+fn pane_icon(view: &BattleView, member: Option<&PartyStatus>, fighter: u8) -> (u8, usize) {
+    if let Some(pane) = view.panes.iter().find(|pane| pane.fighter == fighter) {
+        return (pane.icon, usize::from(pane.ink_line));
     }
-    pixels
+    (if member.is_some() { 0 } else { 9 }, 3)
 }
 
-fn pattern_pixels(origin: Vector2, rows: &[&str], palette: [Color; 16]) -> Vec<(Vector2, Color)> {
-    let mut pixels = Vec::new();
-    for (row, line) in rows.iter().enumerate() {
-        for (column, symbol) in line.chars().enumerate() {
-            let color = match symbol {
-                'B' => palette[14],
-                'W' => palette[15],
-                'K' => palette[0],
-                'L' => palette[2],
-                'R' => palette[13],
-                'P' => palette[12],
-                'Y' => palette[11],
-                'q' => palette[6],
-                'o' => palette[5],
-                _ => continue,
-            };
-            pixels.push((
-                Vector2::new(origin.x + column as f32, origin.y + row as f32),
-                color,
-            ));
+/// Draws a pane's icon two cells wide and two high at the pane's fifth cell
+/// (`loc_75D8`, `ps4.asm:11182`: `$8, $A, $88, $8A` from the name cell) and
+/// returns the CRAM line the pane's text takes.
+pub(super) fn append_pane_icon(
+    tiles: &mut CommandTiles,
+    view: &BattleView,
+    member: Option<&PartyStatus>,
+    fighter: u8,
+    start: i32,
+    quads: &mut Vec<Quad>,
+) -> usize {
+    let (icon, line) = pane_icon(view, member, fighter);
+    for (index, word) in ICON_WORDS[usize::from(icon).min(9)].iter().enumerate() {
+        let at = tile_dest(start + 5 + (index as i32 % 2), 22 + (index as i32 / 2));
+        if let Some(quad) = tiles.word(*word, at) {
+            quads.push(quad);
         }
     }
-    pixels
+    line
 }

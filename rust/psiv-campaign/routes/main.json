@@ -69,8 +69,8 @@
     {
       "id": "rune-dorin",
       "title": "Mile inn, Rune, the Valley Maze and Dorin at Tonoe",
-      "source": "tools/native/native_tonoe.gd route; rust/psiv-runtime/examples/tonoe_route.rs; docs/campaign/PLAYABILITY_HOLT_TONOE.md \"Connected native Tonoe completion\"; docs/scenes/14_MeetingRune.md, 15_MeetingDorin.md, 16_Dorin.md",
-      "random_battle_policy": "heal_then_attack",
+      "source": "tools/native/native_tonoe.gd route; rust/psiv-runtime/examples/tonoe_route.rs; docs/campaign/PLAYABILITY_HOLT_TONOE.md \"Connected native Tonoe completion\"; docs/scenes/14_MeetingRune.md, 15_MeetingDorin.md, 16_Dorin.md; docs/campaign/RUNNER_LOG.md #70 full-route probe (ordinary RUN from Valley Maze random encounters keeps the party alive when the ambush gate shifts the encounter stream)",
+      "random_battle_policy": "run_unless_boss",
       "objectives": [
         {"do": "go_to_map", "map": 29, "via_warp": 1, "note": "native leg: walk to (61,100) on map 0x00"},
         {"do": "go_to_map", "map": 35, "via_warp": 8, "note": "native leg: walk to (38,43) on map 0x1d"},
@@ -503,11 +503,11 @@
     {
       "id": "krup-training",
       "title": "Motavia outside Krup: training before the Machine Center and the tower",
-      "source": "docs/campaign/RUNNER_LOG.md run C2 (H19): Gy Laguiah (event battle 5, Ladea Tower F5) kills a level 12 to 13 party in five rounds; runtime-pack/shops.json (KrupInn counter (23,34) on map 62, 5 meseta a head)",
+      "source": "docs/campaign/RUNNER_LOG.md run C2 (H19): Gy Laguiah (event battle 5, Ladea Tower F5) kills a level 12 to 13 party in five rounds; RUNNER_LOG.md #70/Zio route trials: level-19 Krup training reaches Zio at 23/23/24/19/23 and loses, while level-23 Krup training plus Rika's retail GISAR choice wins; runtime-pack/shops.json (KrupInn counter (23,34) on map 62, 5 meseta a head)",
       "random_battle_policy": "default",
       "objectives": [
         {"do": "go_to_map", "map": 0, "note": "out of Krup by its gate"},
-        {"do": "patrol", "map": 0, "a": [109, 154], "b": [109, 165], "until": {"party_level_at_least": 19}, "refuge": [
+        {"do": "patrol", "map": 0, "a": [109, 154], "b": [109, 165], "until": {"party_level_at_least": 24}, "refuge": [
           {"do": "go_to_map", "map": 57},
           {"do": "go_to_map", "map": 62},
           {"do": "go_to", "map": 62, "cell": [23, 36]},
@@ -568,8 +568,7 @@
       "random_battle_policy": "run_then_win",
       "objectives": [
         {"do": "go_to_map", "map": 140, "note": "Ladea Tower $8C by Motavia warp 14, driving the Land Rover across the sand"},
-        {"do": "dismount", "note": "the Land Rover cannot pass the tower's one-cell corridors (psiv_core::can_enter)"},
-        {"do": "expect", "map": 140, "vehicle": 0},
+        {"do": "expect", "map": 140, "vehicle": 0, "note": "the tower's map load parks the Land Rover (GameMode_LoadFieldMap, ps4.asm:107517): no dismount press is needed, and the tower's one-cell corridors are on foot"},
         {"do": "go_to_map", "map": 142, "note": "Ladea Tower F2 $8E, on foot"},
         {"do": "go_to_map", "map": 143, "note": "F3; the walk from the stairs crosses column 60, where Rune rejoins"},
         {"do": "expect", "flags_set": ["event:0x62"], "note": "35_RuneLadaeTower.md op 8"}
@@ -608,6 +607,51 @@
       ],
       "closing": [
         {"flags_set": ["event:0x64"]}
+      ]
+    },
+    {
+      "id": "nurvus-descent",
+      "title": "Nurvus: the ascent, the elevators and the stairs to B4",
+      "source": "docs/scenes/38_ZioNurvus.md (trigger Nurvus B4 Part2 $D3); runtime-pack/maps/0D7_Nurvus.json, 0CC_Nurvus_Part2.json, 0CD_Nurvus_Part3.json, 0CE_Nurvus_B1.json, 0D0_Nurvus_B3.json, 0D2_Nurvus_B4.json (warps, type-2 interaction areas with event $13); psiv-campaign plan --from-map 130 --from-cell 47,54 --to-map 205 --flag event:0x64",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 215, "note": "Nurvus $D7 by Zio Fort warp 8 (47,49)"},
+        {"do": "go_to_map", "map": 204, "note": "Nurvus Part2 $CC by $D7 warp 0"},
+        {"do": "go_to_map", "map": 205, "via_warp": 2, "note": "Part3 $CD by Part2 warp 2 at (44,19): the corridor that reaches the elevator (warp 1 leads to a dead end)"},
+        {"do": "interact", "cell": [30, 14], "face": "up", "opens": [[30, 13], [31, 13]], "note": "the Part3 elevator door, event $13 on the type-2 interaction area (30..31,13)"},
+        {"do": "go_to_map", "map": 206, "via_warp": 2, "note": "B1 $CE by Part3 warp 2 (30..31,13)"},
+        {"do": "interact", "cell": [22, 12], "face": "up", "opens": [[22, 11], [23, 11]], "note": "B1's west elevator door, interaction area 1 (22..23,11); the east door (70,11) is in a region B1's ground floor does not join to the arrival's"},
+        {"do": "go_to_map", "map": 208, "via_warp": 1, "note": "B3 $D0 region 1 by B1 warp 1 (22,11)"},
+        {"do": "interact", "cell": [14, 68], "face": "up", "opens": [[14, 67], [15, 67]], "note": "B3's door to B1's south-west room, interaction area 2 (14..15,67)"},
+        {"do": "go_to_map", "map": 206, "via_warp": 2, "note": "B1 south-west room by B3 warp 2 (14,67)"},
+        {"do": "go_to_map", "map": 209, "via_warp": 4, "note": "the B1 tunnel $D1 by B1 warp 4 (28,73)"},
+        {"do": "go_to_map", "map": 206, "via_warp": 1, "note": "B1 south-east room by the tunnel's east warp (48,32)"},
+        {"do": "interact", "cell": [70, 12], "face": "up", "opens": [[70, 11], [71, 11]], "note": "B1's east elevator door, interaction area 2 (70..71,11)"},
+        {"do": "go_to_map", "map": 208, "via_warp": 2, "note": "B3 region 2 by B1 warp 2 (70,11): the region holding warp 4 to B5"},
+        {"do": "interact", "cell": [78, 12], "face": "up", "opens": [[78, 11], [79, 11]], "note": "B3's door to B5, interaction area 4 (78..79,11)"},
+        {"do": "go_to_map", "map": 213, "via_warp": 4, "note": "B5 $D5 by B3 warp 4 (78,11)"},
+        {"do": "go_to_map", "map": 208, "via_warp": 1, "note": "back to B3 by B5 warp 1 (30..31,36) arriving at (78,23): the region that holds the stairs"},
+        {"do": "interact", "cell": [76, 80], "face": "up", "opens": [[76, 79], [77, 79]], "note": "B3's door to the B4 stairs, interaction area 5 (76..77,79)"},
+        {"do": "go_to_map", "map": 210, "via_warp": 5, "note": "B4 $D2 by the stairs at B3 warp 5 (76,79)"}
+      ],
+      "closing": [
+        {"map": 210}
+      ]
+    },
+    {
+      "id": "nurvus-zio",
+      "title": "Nurvus B4: Zio, the Psycho Wand and Zio defeated",
+      "source": "docs/scenes/38_ZioNurvus.md (RunEvent_ZioNurvus $1F, Nurvus B4 Part2 $D3: Zio Nurvus $65 clear and leader Y exactly $1E0 = row 30; sets $65 and starts event battle 6) and docs/scenes/39_ZioDefeated.md (RunEvent_ZioDefeated $20: $65 set and Gryz Gone $68 clear; Cutscene_ZioDefeated $800B sets $68, $66, $61 and seats Chaz/Rika/Rune); docs/source-notes/battle-party.md (#70: the ambush is enemy-only, so the Psycho Wand item $39 is chosen through ITEM on the first actual player-command round); runtime-pack/maps/0D2_Nurvus_B4.json and 0D3_Nurvus_B4_Part2.json (the corridor at columns 30..31, rows 30..43)",
+      "random_battle_policy": "psycho_wand_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 211, "note": "Nurvus B4 Part2 $D3 by B4 warp 1 (16,27), west along the corridor"},
+        {"do": "go_to", "map": 211, "cell": [30, 30], "note": "up the corridor; crossing row 30 starts event $34 and event battle 6"},
+        {"do": "fight_scripted", "note": "event battle 6: Zio, Psycho Wand in the first actual player-command round after the enemy-only ambush"},
+        {"do": "expect", "map": 0, "party": ["Chaz", "Rika", "Rune"], "flags_set": ["event:0x65", "event:0x68", "event:0x66", "event:0x61"], "note": "38_ZioNurvus.md op 12 ($65) and 39_ZioDefeated.md ops 33-43 (Gryz/Demi removed, Chaz revived, $68, $66, $61)"},
+        {"do": "save", "slot": 0, "note": "ordinary pad route through camp STATE -> SAVE after Cutscene_ZioDefeated settles; the result is save-dir/route/slot_1.sram, separate from the runner's read-only chapter snapshot"}
+      ],
+      "closing": [
+        {"map": 0, "party": ["Chaz", "Rika", "Rune"], "flags_set": ["event:0x65", "event:0x68", "event:0x66", "event:0x61"]}
       ]
     }
   ]

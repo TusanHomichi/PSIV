@@ -13,11 +13,13 @@
 mod art;
 mod attack;
 mod chrome;
+mod command_window;
 mod enemy_overlay;
 mod fixtures;
 mod layout;
 mod menu_draw;
 mod status;
+mod tiles;
 mod ui;
 mod vehicle;
 mod vehicle_ui;
@@ -27,7 +29,7 @@ pub(crate) use ui::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
 use godot::prelude::*;
 
 use psiv_core::Flag;
-use psiv_data::BattleFiles;
+use psiv_data::{BattleFiles, CommandUiArt};
 use psiv_runtime::{BattleStart, BattleView, Runtime, RuntimeEvent, Session};
 
 use super::Field;
@@ -91,6 +93,24 @@ impl Field {
     /// retained for formation names and positions when a battle starts, and the
     /// session keeps it for every runtime its front door builds afterwards.
     pub(crate) fn configure_battles(&mut self, session: &mut Session) {
+        // `Field::ready` calls this before the title is shown. An older pack
+        // can contain battle records but no command art; letting the node
+        // default to empty tiles would make its menus silently incomplete.
+        let command_art = match CommandUiArt::load(std::path::Path::new(&self.pack_dir)) {
+            Ok(art) => art,
+            Err(error) => {
+                godot_error!(
+                    "runtime pack at {} has missing or invalid battle command art: {error}. Rebuild this local pack with `python3 -m psiv_tools pack <rom> <pack-dir>`.",
+                    self.pack_dir
+                );
+                let mut tree = self
+                    .base()
+                    .get_tree()
+                    .expect("Field::ready runs in the scene tree");
+                tree.quit_ex().exit_code(1).done();
+                return;
+            }
+        };
         match BattleFiles::load(std::path::Path::new(&self.pack_dir)) {
             Ok(files) => match session.enable_battles(&files) {
                 Ok(()) => self.battle_files = Some(files),
@@ -103,7 +123,7 @@ impl Field {
 
         let mut screen = BattleScreen::new_alloc();
         screen.set_z_index(100);
-        screen.bind_mut().configure(&self.pack_dir);
+        screen.bind_mut().configure(&self.pack_dir, command_art);
         self.base_mut().add_child(&screen);
         self.battle_screen = Some(screen);
     }
@@ -230,16 +250,21 @@ impl Field {
         if !self.battle_presentation_active() {
             return false;
         }
+        // The art clocks first, then this frame's view: the cartridge creates
+        // an enemy's attack object in `Battle_UpdateFighters` and the object's
+        // first run only draws its first frame, so an animation a frame's
+        // view starts is shown at its start and first advances on the frame
+        // after (`GameMode_Battle`, `ps4.asm:947-966`; #52). The clocks carry
+        // presentation only: the idle overlay animation and any live attack
+        // layer.
+        if let Some(screen) = self.battle_screen.as_mut() {
+            screen.bind_mut().advance_animation();
+        }
         let mut events = Vec::new();
         if self.session.as_ref().is_some_and(Session::battle_active) {
             events = self.drive_battle_frame();
             // The shell's own fixtures never reach this point: they draw a
             // static view with no session battle behind it.
-        }
-        if let Some(screen) = self.battle_screen.as_mut() {
-            // The art clocks this frame: the idle overlay animation and any
-            // live attack layer. Both carry presentation only.
-            screen.bind_mut().advance_animation();
         }
         self.place_letterbox();
         if self.battle_close_ready() {
@@ -254,7 +279,7 @@ impl Field {
     /// its map refresh with the frame that closes it.
     fn drive_battle_frame(&mut self) -> Vec<RuntimeEvent> {
         let pad = self.frame_pad();
-        let Some(frame) = self.session.as_mut().map(|session| session.frame(pad)) else {
+        let Some(frame) = self.session_frame(pad, true) else {
             return Vec::new();
         };
         if let Some(battle) = frame.battle {

@@ -19,17 +19,32 @@ Contributing with a coding agent? Start with [AGENTS.md](AGENTS.md) and the
 
 ## Where we are
 
-**Gameplay checkpoint: September 23, 2026.**
+**Combined post-Zio checkpoint: October 3, 2026.**
 
 **Workflow setup is complete:** the [evidence-driven workflow](docs/AGENT_WORKFLOW.md)
 is the standing default, and the [setup ledger](docs/records/WORKFLOW_SETUP.md) retains
 the verified graph and checks. The docs were merged through PR #1.
-**Latest campaign outcome:** the connected post-Rika party rested in Zema,
+**Historical native campaign outcome:** the connected post-Rika party rested in Zema,
 crossed the newly opened northern bridge, and saved on Motavia `$00 (84,64)`
 with all five alive and 1129 meseta. Fresh-process CONTINUE and save-byte
 validation pass. See the
-[current receipt](docs/field/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
+[historical native receipt](docs/field/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
 and [next task handoff](docs/ROADMAP.md#task-graph-handoff).
+
+**Headless Session milestone (combined candidate, October 3):** the
+29-chapter ordinary-pad route plays New Game through `Cutscene_ZioDefeated`
+twice with identical tapes, digests and final camp-SAVE bytes. A fresh Session
+loads that save and both tapes replay to the same digest. The
+[combined route receipt](docs/campaign/RUNNER_LOG.md#combined-p1f2r2-headless-integration)
+is separate from native input proof: generic Godot tape replay reaches initial
+Aiedo from New Game, and an earned-save Zio segment passes ordinary CONTINUE,
+camp SAVE and fresh-process CONTINUE. The current 11-pair presentation
+certificate passes. The [campaign ledger](docs/campaign/CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress)
+records the repaired 180-pad native replay and ordinary primary default-pack
+CONTINUE with no pack override. The sole five-stage gate failed Python on its
+original candidate; a separate affected Python/docs recheck passed and its
+composed matrix carries forward unchanged Rust/fmt/Clippy inputs. Full R2
+remains in progress because its bespoke-driver retirement criterion is open.
 
 | Area | Current evidence |
 | --- | --- |
@@ -38,6 +53,7 @@ and [next task handoff](docs/ROADMAP.md#task-graph-handoff).
 | Post-Rika travel | Paid Zema recovery and the northern bridge crossing pass through ordinary input and SAVE/CONTINUE. The missing overworld page-hook consumer is repaired; the bridge's named 32×32 region matches retail exactly. |
 | Combat and camp | Individual commands, implemented techniques/skills, all 26 usable battle-item records, recovery, shops, equipment, chests, travel and earned progression. STATE/ORDER supports undo, cancel and persistent formation changes. Ability coverage is still incomplete. |
 | Recovery | A bounded BioPlant run wins one encounter, cures two poisoned members with ANTI, heals, saves and reloads. The playthrough driver now cures poison before HP recovery. |
+| Zio checkpoint | The 29-chapter New Game route reaches the settled Zio-defeat scene twice in headless Session; a separate earned-save native segment proves ordinary CONTINUE → Zio → camp SAVE and fresh-process CONTINUE. This does not claim a full native New Game-to-Zio replay. |
 | Presentation | Selected reference frames and four ORDER-menu regions match the cartridge exactly. Whole-scene, animation and UI fidelity still need work. |
 | Data | The extractor covers all 361 real maps, character progression, dialogue, battle records, graphics and sound. Extracted records do not imply implemented gameplay. |
 
@@ -65,13 +81,13 @@ rerun or recertify either gameplay result.
 
 ## Next milestones
 
-1. Establish the source-backed route from the verified northern Motavia bank
-   to Aiedo, then verify that bounded arrival with SAVE/CONTINUE.
-2. Close remaining battle abilities, enemy AI and camp command gaps as the
+1. **One next route action:** continue after Zio toward the spaceport/Zelan/Wren.
+   The ship destination-menu gap is an explicit dependency; this route is
+   parked for the next work session, not implemented at this checkpoint.
+2. Then close remaining battle abilities, enemy AI and camp command gaps as the
    campaign exposes them.
-3. Verify later story, vehicle and boss progression through ordinary input.
-4. Finish presentation fidelity and produce a reproducible desktop package.
-5. Build modding tools after the unmodified game is playable end to end.
+3. Finish presentation fidelity and produce a reproducible desktop package.
+4. Build modding tools after the unmodified game is playable end to end.
 
 See the [roadmap](docs/ROADMAP.md) for concrete completion criteria.
 
@@ -95,7 +111,8 @@ PSIV_SAVE_DIR="$PWD/saves" godot --path godot
 
 Use your Godot executable in place of `godot` if needed. Keep the default
 1280×800 viewport for desktop checks; reduced captures can clip camp windows.
-Arrow keys move; Enter/Space/Z confirm or interact; Escape/X open camp or cancel.
+The [input table](docs/DEVELOPMENT.md#launch-the-native-game) lists the
+current controls.
 
 [Developer setup and verification](docs/DEVELOPMENT.md) covers the ROM hash,
 save directories, test commands and local launcher assumptions.

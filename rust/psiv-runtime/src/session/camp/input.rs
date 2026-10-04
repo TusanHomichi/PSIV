@@ -1,5 +1,6 @@
 //! The camp's page dispatch: one frame of menu input and the commands it fires.
 
+use crate::item_action::ItemUseOutcome;
 use crate::{CampAbilityKind, CampUseResult, Runtime};
 
 use super::{CampPage, CampView, MenuInput, ROOT_OPTIONS, wrap};
@@ -323,20 +324,44 @@ impl CampView {
             self.begin_selected_item_travel(runtime);
             return;
         }
-        if !item.usable {
-            self.page = CampPage::ItemResult;
-            self.message = format!("{} NOT USABLE", item.name);
+        if item.usable {
+            // One member, or an item that heals the whole party (target mode
+            // 5): no one to pick.
+            if self.snapshot.party.len() == 1 || item.targeting == 5 {
+                self.target_selection = 0;
+                self.use_selected_item(runtime);
+            } else {
+                self.target_selection = 0;
+                self.page = CampPage::ItemTarget;
+            }
             return;
         }
-        // One member, or an item that heals the whole party (target mode 5):
-        // no one to pick.
-        if self.snapshot.party.len() == 1 || item.targeting == 5 {
-            self.target_selection = 0;
-            self.use_selected_item(runtime);
-        } else {
-            self.target_selection = 0;
-            self.page = CampPage::ItemTarget;
+        // Every other item takes the cartridge's action table
+        // (`ItemActionPtrs`, `ps4.asm:123337-123397`): three of its entries
+        // destroy the menu and run an event, the rest answer with the item's
+        // own refusal line, and an item the table does not name is "consumed"
+        // by the caller's test and closes the menu with nothing shown
+        // (`loc_5B7E4`, `ps4.asm:122596-122600`).
+        match runtime.field_item_use(item.id) {
+            ItemUseOutcome::Scene { event } => {
+                self.scene_event = Some(event);
+                self.close();
+            }
+            ItemUseOutcome::MapScreen => {
+                // `ItemAction_Map` accepted (`Routine_Exit_Flags` bit 2): the
+                // cartridge opens the overworld map screen, which the port does
+                // not have (`docs/camp/SHOPS.md`). The line says so rather than
+                // inventing a refusal the item did not get.
+                self.message = "MAP SCREEN NOT READY".to_owned();
+                self.page = CampPage::ItemResult;
+            }
+            ItemUseOutcome::Refused { message } => {
+                self.message = message;
+                self.page = CampPage::ItemResult;
+            }
+            ItemUseOutcome::MenuClosed => self.close(),
         }
+        self.sync(runtime);
     }
 
     fn use_selected_item(&mut self, runtime: &mut Runtime) {

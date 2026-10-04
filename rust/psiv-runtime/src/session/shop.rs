@@ -27,8 +27,9 @@ use psiv_data::{ShopCounter, ShopData};
 use psiv_core::Input;
 
 use crate::pad::{Button, Pad};
-use crate::{InnResult, Runtime, ShopBuyResult, ShopSellResult};
+use crate::{InnOpening, Runtime, ShopBuyResult, ShopSellResult};
 
+use super::menu_scene::MenuScene;
 use super::{Frame, FrameMode, Session};
 
 /// The page the shop window shows.
@@ -122,6 +123,22 @@ pub struct ShopView {
     pub counter: ShopCounterView,
     accept_blocked: bool,
     inn_selector: Option<usize>,
+    /// A rest that handed the party to a scene: the session destroys this
+    /// window, runs the scene, and rebuilds the window from here.
+    pub(crate) rest_scene: Option<RestScene>,
+}
+
+/// The Aiedo rest's mid-transaction hand-off (`ps4.asm:136391-136414`): the
+/// event the window is waiting on, the bill it has not charged, and the counter
+/// it must rebuild itself at.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct RestScene {
+    /// `Event_GirlsSneakingOut`.
+    pub(crate) event: u16,
+    /// The bill `RecoverStats` was priced at, charged after the scene.
+    pub(crate) cost: u32,
+    /// The counter row id, so the window can be rebuilt on the same view.
+    pub(crate) counter: usize,
 }
 
 /// What a frame of the shop did to the mode.
@@ -173,6 +190,7 @@ impl ShopView {
             },
             accept_blocked: true,
             inn_selector: counter.inn_index,
+            rest_scene: None,
         };
         view.refresh(runtime);
         view
@@ -391,12 +409,36 @@ impl ShopView {
             self.page = ShopPage::InnGreeting;
             return;
         };
-        self.message = match runtime.shop_stay(rate, index) {
-            InnResult::Stayed { .. } => "Thank you very much.\nPlease come again.".to_owned(),
-            InnResult::InsufficientFunds { .. } => "You don't have enough money!".to_owned(),
-            InnResult::AiedoEventPending { .. } => "Aiedo rest event pending.".to_owned(),
-        };
-        self.page = ShopPage::Message;
+        // The cartridge tests the bill and runs `RecoverStats` first
+        // (`ps4.asm:136367-136388`), then, at the Aiedo counter only, hands the
+        // party to `Event_GirlsSneakingOut` — with the bill, selector and text
+        // variant saved around it — and charges the bill when it returns
+        // (`:136391-136414`). An ordinary night charges it here.
+        match runtime.inn_begin(rate) {
+            InnOpening::InsufficientFunds { .. } => {
+                self.message = "You don't have enough money!".to_owned();
+                self.page = ShopPage::Message;
+            }
+            InnOpening::Resting { cost, .. } => match runtime.rest_event(index) {
+                Some(event) => {
+                    self.rest_scene = Some(RestScene {
+                        event,
+                        cost,
+                        counter: self.counter.id,
+                    });
+                }
+                None => {
+                    runtime.inn_charge(cost);
+                    self.message = "Thank you very much.\nPlease come again.".to_owned();
+                    self.page = ShopPage::Message;
+                }
+            },
+        }
+    }
+
+    /// Takes the rest's scene hand-off, once, for the session to run.
+    pub(crate) fn take_rest_scene(&mut self) -> Option<RestScene> {
+        self.rest_scene.take()
     }
 }
 
@@ -424,10 +466,41 @@ pub(crate) fn wrap(current: usize, count: usize, forward: bool) -> usize {
 }
 
 impl Session {
-    /// One frame of the shop or inn window.
+    /// One frame of the shop or inn window, and the scene a rest handed the
+    /// party to.
+    ///
+    /// The cartridge destroys the windows before the inn's scene runs and
+    /// rebuilds them after it (`ps4.asm:136391-136414`): this frame destroys
+    /// them, [`MenuScene`] keeps the transaction open while the field runs the
+    /// scene, and the resume rebuilds the window over the closed bill.
     pub(crate) fn shop_frame(&mut self, pad: Pad, pressed: Pad) -> Frame {
         let shop = self.shop.as_mut().expect("a shop frame has a shop");
-        if shop.frame(&mut self.runtime, pad, pressed) == ShopOutcome::Closed {
+        let outcome = shop.frame(&mut self.runtime, pad, pressed);
+        let handoff = shop.take_rest_scene();
+        if let Some(handoff) = handoff {
+            // The window is gone for the scene's whole run, exactly as the
+            // cartridge's three `Window_Destroy` calls leave it.
+            self.shop = None;
+            self.runtime.set_field_suspended(false);
+            let counter = handoff.counter;
+            let cost = handoff.cost;
+            let handoff = MenuScene::AiedoInn {
+                event: handoff.event,
+                counter,
+                cost,
+            };
+            if !self.start_menu_scene(handoff) {
+                // A pack without the event transcribed still closes the
+                // transaction: the bill was priced before the scene and must
+                // not be lost to a missing one.
+                self.finish_aiedo_stay(counter, cost);
+            }
+            return Frame {
+                mode: FrameMode::Shop,
+                ..Frame::default()
+            };
+        }
+        if outcome == ShopOutcome::Closed {
             self.shop = None;
             self.runtime.set_field_suspended(false);
             return Frame {

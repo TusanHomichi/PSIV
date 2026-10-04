@@ -4,7 +4,7 @@
 //! Ported from `psiv-godot/src/battle/commands.rs` and `ui_input.rs` with the
 //! S3 node, because the cartridge decides this in `BattleRoutines2`
 //! (`ps4.asm:1138`) and the shell was making game decisions it could not own:
-//! eligible actors, the TP/`TECH_SEALED`/weapon/item-reservation enable rules,
+//! eligible actors, the TP/weapon/item-reservation enable rules,
 //! target lists, the Defend default and the per-slot order vector.
 //!
 //! # The cartridge's buttons
@@ -16,20 +16,13 @@
 //! | --- | --- | --- | --- |
 //! | main options, `Battle_MainOptions` (`ps4.asm:1916`) | `ButtonSpeak\|ButtonCamp` (`ps4.asm:1926`) | none | Up/Down, wrapping (`Battle_UpdateRedCursor2`, `ps4.asm:1572`) |
 //! | character command, `Battle_CharCommand` (`ps4.asm:2192`) | `ButtonSpeak\|ButtonCamp` (`ps4.asm:2210`) | `ButtonCancel` (`ps4.asm:2206`) | Left/Right, wrapping (`Battle_UpdateCursor`, `ps4.asm:70646`, `d1=4`) |
-//! | technique/skill/item windows, `Battle_TechWindow` (`ps4.asm:2593`) and twins | `ButtonSpeak\|ButtonCamp` (`ps4.asm:2614`) | `ButtonCancel` (`ps4.asm:2610`) | Up/Down (`Battle_UpdateRedCursor2`), Left/Right page the window |
+//! | technique/skill/item windows, `Battle_TechWindow` (`ps4.asm:2593`) and twins | `ButtonSpeak\|ButtonCamp` (`ps4.asm:2614`) | `ButtonCancel` (`ps4.asm:2610`) | Up/Down inside a four-row page (`Battle_UpdateRedCursor2`), Left/Right flip pages |
 //! | mounted skills, `Battle_VehSkills` (`ps4.asm:7461`) | `ButtonSpeak\|ButtonCamp` (`ps4.asm:7465`) | `ButtonCancel` (`ps4.asm:7463`) | Left/Right (`Battle_UpdateRedCursor`), `d1=1` |
 //!
-//! Only the accept, the cancel and the main options' Up/Down rule are taken
-//! verbatim. The per-character and list windows keep the shell's mapping —
-//! any of the four directions moves the list cursor by one — because this
-//! port's window is one vertical list where the cartridge's character window
-//! is a horizontal five-icon strip (`Battle_CharCommand` places its cursor at
-//! `base + index * 24` pixels), and because the repository's native input
-//! drivers steer those lists with `ui_up`/`ui_down`
-//! (`tools/native/native_combat.gd`, `native_items.gd`, `native_skills.gd`,
-//! `native_rimit.gd`). Reading Left/Right only would be faithful to the strip
-//! and would break every one of those checks; this module says so instead of
-//! pretending the two layouts are the same.
+//! The per-character strip and the three list windows follow the cartridge's
+//! direction tests (decoded in `docs/battle/BATTLE_COMMAND_UI.md`). Only the
+//! target pages keep the port's own one-list mapping, because the cartridge
+//! picks targets with a sprite cursor over the fighters.
 //!
 //! # What an empty row does
 //!
