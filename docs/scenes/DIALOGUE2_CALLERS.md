@@ -61,9 +61,9 @@ the tree bound to the map the scene runs on (`runtime-pack/maps/*.json`
 | 9 | 153841 | `$074502` | `Cutscene_Alshline` (`$8005`) | `$68` | scene: `DialogueTree3`, reloaded at `$0744EE` before the call | "How are we going to get in with that creature blocking the way" | `Standard` window | `retained(0x68)` |
 | 10 | 157969 | `$078E9C` | `Cutscene_ProfoundDarkness` (`$8020`) | `$03` | map: The Edge Part9 (`$108`), tree 42 | "...Is this the shape The Profound Darkness has taken?" | `Standard` window | `retained(3)` |
 | 11 | 150750 | `$071538` | `Event_AngerTowerAlys` (`$62`) | `$08` | not transcribed | | no scene | **untranscribed**, [#71](https://github.com/TusanHomichi/PSIV/issues/71) |
-| 12 | 152563 | `$072B2E` | `Event_FractOozeFound` (`$7D`) | `$2F` | not transcribed | | no scene | **untranscribed**, [#71](https://github.com/TusanHomichi/PSIV/issues/71) |
-| 13 | 152871 | `$072FEA` | `Event_KingRappy` (`$88`) | `$36` | not transcribed | | no scene | **untranscribed**, [#71](https://github.com/TusanHomichi/PSIV/issues/71) |
-| 14 | 152977 | `$0731B4` | `Event_DaughterTerminal` (`$8F`) | `$04` | not transcribed | | no scene | **untranscribed**, [#71](https://github.com/TusanHomichi/PSIV/issues/71) |
+| 12 | 152563 | `$072B2E` | `Event_FractOozeFound` (`$7D`) | `$2F` | current tree of its dialogue trigger | | no scene | `retained(0x2F)`; scene [95](95_FractOozeFound.md) |
+| 13 | 152871 | `$072FEA` | `Event_KingRappy` (`$88`) | `$36` | current tree of its dialogue trigger | | no scene | `retained(0x36)`; scene [96](96_KingRappy.md) |
+| 14 | 152977 | `$0731B4` | `Event_DaughterTerminal` (`$8F`) | `$04` | current tree of its dialogue trigger | | no scene | `retained(0x04)`; scene [97](97_DaughterTerminal.md) |
 
 Findings:
 
@@ -77,14 +77,14 @@ Findings:
 - **Ten of ten window-variant mismatches (rows 1 to 10):** nine transcribed
   callers used the standard window, which destroys the panels the cartridge
   leaves up, and the tenth was the resume of row 1.
-- **Four callers have no scene** (rows 11 to 14): their events are in the
-  retail `EventPtrs` table and trigger on Motavia and Dezolis side paths, but
-  the port transcribes none of them, so they play nothing. They are
-  deliberately not hidden: the census lists them in `UNTRANSCRIBED`
-  (`tests/test_dialogue2_callers.py`) and fails if the image gains or loses
-  one, and when a scene lands its row has to move into
-  `DIALOGUE2_CALLERS` in `rust/psiv-core/src/scenes/mod.rs`. Open work, not
-  done here: transcribe the four, tracked by
+- **One caller has no scene** (row 11, `Event_AngerTowerAlys`; rows 12 to 14 were
+  transcribed by the event census lane): its event is in the retail `EventPtrs`
+  table and fires from a dialogue `$F6` on Dezolis, but the port transcribes
+  nothing for it, so it plays nothing. It is deliberately not hidden: the
+  census lists it in `UNTRANSCRIBED` (`tests/test_dialogue2_callers.py`) and
+  fails if the image gains or loses one, and when a scene lands its row has to
+  move into `DIALOGUE2_CALLERS` in `rust/psiv-core/src/scenes/mod.rs`. Open
+  work, not done here: transcribe it, tracked by
   [#71](https://github.com/TusanHomichi/PSIV/issues/71).
 - **Not in scope, seen on the way:** `Event_CarnivorousTrees`
   (`ps4.asm:149973-149984`) and `Event_SavingKyra` (`ps4.asm:150039-150051`)

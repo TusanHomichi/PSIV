@@ -55,9 +55,6 @@ JSR_DIALOGUE2 = bytes.fromhex("4eb9") + DIALOGUE2.to_bytes(4, "big")
 # Event ids are the `EventPtrs` slots (`ps4.asm:120650..120720`).
 UNTRANSCRIBED = {
     0x071538: ("Event_AngerTowerAlys", 0x62, 0x08),
-    0x072B2E: ("Event_FractOozeFound", 0x7D, 0x2F),
-    0x072FEA: ("Event_KingRappy", 0x88, 0x36),
-    0x0731B4: ("Event_DaughterTerminal", 0x8F, 0x04),
 }
 
 RETAINED_RE = re.compile(r"\bretained\(\s*(0x[0-9A-Fa-f]+|\d+)\s*\)")

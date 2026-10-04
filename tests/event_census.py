@@ -372,8 +372,8 @@ def chain_callers(ev: Event) -> list[int]:
 #: reason. A scene that lands removes its event from here (and the list
 #: shrinks: `ALLOWLIST_CEILING` is the most it may ever hold).
 ALLOW_GROUPS: tuple[tuple[int, str, tuple[int, ...]], ...] = (
-    (ISSUE_TRIGGERS, "trigger-fired, no scene (issue #56)", (0x2A, 0x37, 0x38, 0x71, 0x96)),
-    (ISSUE_DIALOGUE2, "`Event_GetAndRunDialogue2` caller, no scene (issue #71)", (0x62, 0x7D, 0x88, 0x8F)),
+    (ISSUE_TRIGGERS, "trigger-fired, no scene (issue #56)", (0x37, 0x38, 0x96)),
+    (ISSUE_DIALOGUE2, "`Event_GetAndRunDialogue2` caller, no scene (issue #71)", (0x62,)),
     (
         ISSUE_MOTAVIA,
         "Motavia side content: Aiedo, Piata, Monsen, Mile, Zosa, the Soldier's Temple, the Plate System and Wreckage",
@@ -415,7 +415,7 @@ ALLOWLIST: dict[int, tuple[int, str]] = {
     event: (issue, area) for issue, area, events in ALLOW_GROUPS for event in events
 }
 #: The most the allowlist may hold. Lower it when a scene lands; never raise it.
-ALLOWLIST_CEILING = 90
+ALLOWLIST_CEILING = 85
 
 
 def disposition(

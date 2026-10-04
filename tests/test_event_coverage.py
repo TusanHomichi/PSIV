@@ -68,9 +68,9 @@ class EventCensus(unittest.TestCase):
             self.assertIn(issue, ec.ISSUES, f"${event:04X}")
             self.assertTrue(reason)
         by_issue = {i: [e for e, (n, _) in ec.ALLOWLIST.items() if n == i] for i in ec.ISSUES}
-        # The four issues that predate the census keep exactly their members.
-        self.assertEqual(sorted(by_issue[56]), [0x2A, 0x37, 0x38, 0x71, 0x96])
-        self.assertEqual(sorted(by_issue[71]), [0x62, 0x7D, 0x88, 0x8F])
+        # #56 and #71 keep exactly what is still untranscribed of their lists.
+        self.assertEqual(sorted(by_issue[56]), [0x37, 0x38, 0x96])
+        self.assertEqual(sorted(by_issue[71]), [0x62])
 
     def test_the_census_sees_every_source_kind(self) -> None:
         kinds = {k for ev in self.census.events.values() for k in ev.kinds()}
@@ -165,16 +165,16 @@ class NegativeControl(unittest.TestCase):
 
     def test_an_entry_without_an_issue_is_reported(self) -> None:
         allowlist = dict(ec.ALLOWLIST)
-        allowlist[0x2A] = (0, "no issue")
+        allowlist[0x37] = (0, "no issue")
         found = ec.problems(self.census, self.registry, allowlist)
-        self.assertTrue(any("$002A" in f and "tracked issue" in f for f in found), found)
+        self.assertTrue(any("$0037" in f and "tracked issue" in f for f in found), found)
 
     def test_a_new_event_without_a_scene_is_reported(self) -> None:
         allowlist = dict(ec.ALLOWLIST)
-        del allowlist[0x2A]
+        del allowlist[0x37]
         found = ec.problems(self.census, self.registry, allowlist)
         self.assertEqual(len(found), 1, found)
-        self.assertIn("$002A Event_CancellerReminder", found[0])
+        self.assertIn("$0037 Event_GaruberkTwDoorEntered1", found[0])
 
     def test_a_new_immediate_writer_in_the_image_is_reported(self) -> None:
         patched = bytearray(self.rom)

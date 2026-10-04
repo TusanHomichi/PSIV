@@ -134,7 +134,7 @@ tables; the clone's hack-only bodies are not evidence.
 | `Event_AngerTowerExitTop` | `$6A` | [86](86_AngerTowerExitTop.md) | `$072262..$0722D1` |
 | `Cutscene_ProfoundDarkness` | `$8020` | [87](87_ProfoundDarkness.md) | `$078D30..$078F3D` |
 
-## Dezolis route events
+## Census-driven scenes (S7)
 
 Found by runner halts and then closed as a class by the
 [event census](EVENT_COVERAGE.md): a trigger or dialogue the cartridge fires
@@ -144,6 +144,11 @@ and the port never transcribed.
 |---|---:|---|---|
 | `Event_OutsideRajaTemple` | `$43` | [91](91_OutsideRajaTemple.md) | `$06FC76..$06FC93` |
 | `Event_TylerGraveOpening` | `$44` | [92](92_TylerGraveOpening.md) | `$06FC94..$06FE1B` |
+| `Event_CancellerReminder` | `$2A` | [93](93_CancellerReminder.md) | `$06DEAE..$06DEBD` |
+| `Event_MileSandWormBattle` | `$71` | [94](94_MileSandWormBattle.md) | `$072654..$072677` |
+| `Event_FractOozeFound` | `$7D` | [95](95_FractOozeFound.md) | `$072B2C..$072B51` |
+| `Event_KingRappy` | `$88` | [96](96_KingRappy.md) | `$072FDC..$073017` |
+| `Event_DaughterTerminal` | `$8F` | [97](97_DaughterTerminal.md) | `$0731B2..$0731D9` |
 
 ## Terminal and recorded boundary surfaces
 

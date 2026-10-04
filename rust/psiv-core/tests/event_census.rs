@@ -41,8 +41,9 @@ use Disposition::{Allowlisted, InsideScene, Null, Scene};
 const ISSUES: [u32; 5] = [56, 71, 81, 82, 83];
 
 /// The most the allowlist may hold. Lower it when a scene lands; never raise it.
-const ALLOWLIST_CEILING: usize = 90;
+const ALLOWLIST_CEILING: usize = 85;
 
+#[rustfmt::skip]
 const CENSUS: &[(u16, &str, Disposition)] = &[
     // census:begin
     (0x0000, "Event_NoEvent", Disposition::Null),
@@ -84,7 +85,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0027, "Event_RuneFlaeli", Disposition::Scene),
     (0x0028, "Event_AlshlineFound", Disposition::Scene),
     (0x0029, "Event_WreckageEngine", Disposition::Allowlisted(81)),
-    (0x002A, "Event_CancellerReminder", Disposition::Allowlisted(56)),
+    (0x002A, "Event_CancellerReminder", Disposition::Scene),
     (0x002B, "Event_GettingLandRover", Disposition::Scene),
     (0x002C, "Event_MonsenEarthquake", Disposition::Allowlisted(81)),
     (0x002D, "Event_PlateSysEngine", Disposition::Allowlisted(81)),
@@ -155,7 +156,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x006E, "Event_Burstroc", Disposition::Allowlisted(82)),
     (0x006F, "Event_PosiBolt", Disposition::Allowlisted(82)),
     (0x0070, "Event_RanchOwner", Disposition::Allowlisted(81)),
-    (0x0071, "Event_MileSandWormBattle", Disposition::Allowlisted(56)),
+    (0x0071, "Event_MileSandWormBattle", Disposition::Scene),
     (0x0072, "Event_RanchOwnerAfterBattle", Disposition::Allowlisted(81)),
     (0x0073, "Event_RockyFound", Disposition::Allowlisted(81)),
     (0x0074, "Event_CatchingRocky", Disposition::Allowlisted(81)),
@@ -167,7 +168,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x007A, "Event_TallasMom", Disposition::Allowlisted(81)),
     (0x007B, "Event_TallasMomAfterRescue", Disposition::Allowlisted(81)),
     (0x007C, "Event_InsideMonsenHole", Disposition::Allowlisted(81)),
-    (0x007D, "Event_FractOozeFound", Disposition::Allowlisted(71)),
+    (0x007D, "Event_FractOozeFound", Disposition::Scene),
     (0x007E, "Event_TallasRescued", Disposition::Allowlisted(81)),
     (0x007F, "Event_LostGirlsMother", Disposition::Allowlisted(81)),
     (0x0080, "Event_GirlPrison", Disposition::Allowlisted(81)),
@@ -178,14 +179,14 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0085, "Event_FatherAfterBoyRecovery", Disposition::Allowlisted(81)),
     (0x0086, "Event_DyingBoy", Disposition::Allowlisted(81)),
     (0x0087, "Event_MeetingSekreas", Disposition::Allowlisted(81)),
-    (0x0088, "Event_KingRappy", Disposition::Allowlisted(71)),
+    (0x0088, "Event_KingRappy", Disposition::Scene),
     (0x0089, "Event_KingRappyDefeated", Disposition::Allowlisted(81)),
     (0x008A, "Event_ZemaServantBattle", Disposition::Scene),
     (0x008B, "Event_ZemaOldMan", Disposition::Scene),
     (0x008C, "Event_ZemaOldManAfterMission", Disposition::Scene),
     (0x008D, "Event_VahalFortEntrance", Disposition::Allowlisted(82)),
     (0x008E, "Event_VahalFortMidway", Disposition::Allowlisted(82)),
-    (0x008F, "Event_DaughterTerminal", Disposition::Allowlisted(71)),
+    (0x008F, "Event_DaughterTerminal", Disposition::Scene),
     (0x0090, "Event_VahalFortBarrier", Disposition::Allowlisted(82)),
     (0x0091, "Event_DominatorsDefeated", Disposition::Allowlisted(82)),
     (0x0092, "Event_WeaponPlantArrival", Disposition::Allowlisted(82)),

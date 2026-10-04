@@ -87,7 +87,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0027` | `Event_RuneFlaeli` | map trigger $30 | ValleyMazeOutside | scene `Event_RuneFlaeli` |
 | `$0028` | `Event_AlshlineFound` | map trigger $18 | TonoeBasement_B3 | scene `Event_AlshlineFound` |
 | `$0029` | `Event_WreckageEngine` | interaction area $01; dialogue `$F6` | Wreckage_F2_Part4, tree 8 entry 70 | allowlisted, #81 |
-| `$002A` | `Event_CancellerReminder` | map trigger $55 | Zelan_F1 | allowlisted, #56 |
+| `$002A` | `Event_CancellerReminder` | map trigger $55 | Zelan_F1 | scene `Event_CancellerReminder` |
 | `$002B` | `Event_GettingLandRover` | map trigger $1B | MachineCenter_B1_Part2 | scene `Event_GettingLandRover` |
 | `$002C` | `Event_MonsenEarthquake` | dialogue `$F6` | tree 12 entry 10 | allowlisted, #81 |
 | `$002D` | `Event_PlateSysEngine` | interaction area $02 | PlateSystem_F4 | allowlisted, #81 |
@@ -158,7 +158,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$006E` | `Event_Burstroc` | interaction area $0E | WeaponPlant_F2 | allowlisted, #82 |
 | `$006F` | `Event_PosiBolt` | interaction area $0F | VahalFort_F3 | allowlisted, #82 |
 | `$0070` | `Event_RanchOwner` | dialogue `$F6` | tree 3 entry 19 | allowlisted, #81 |
-| `$0071` | `Event_MileSandWormBattle` | map trigger $70 | Mile | allowlisted, #56 |
+| `$0071` | `Event_MileSandWormBattle` | map trigger $70 | Mile | scene `Event_MileSandWormBattle` |
 | `$0072` | `Event_RanchOwnerAfterBattle` | dialogue `$F6` | tree 3 entry 21 | allowlisted, #81 |
 | `$0073` | `Event_RockyFound` | dialogue `$F6` | tree 12 entry 40 | allowlisted, #81 |
 | `$0074` | `Event_CatchingRocky` | dialogue `$F6` | tree 5 entry 52, tree 6 entry 52, tree 12 entry 41 (+2 more) | allowlisted, #81 |
@@ -170,7 +170,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$007A` | `Event_TallasMom` | dialogue `$F6` | tree 12 entry 28 | allowlisted, #81 |
 | `$007B` | `Event_TallasMomAfterRescue` | dialogue `$F6` | tree 12 entry 30 | allowlisted, #81 |
 | `$007C` | `Event_InsideMonsenHole` | map trigger $71 | MonsenCave | allowlisted, #81 |
-| `$007D` | `Event_FractOozeFound` | dialogue `$F6` | tree 12 entry 38 | allowlisted, #71 |
+| `$007D` | `Event_FractOozeFound` | dialogue `$F6` | tree 12 entry 38 | scene `Event_FractOozeFound` |
 | `$007E` | `Event_TallasRescued` | map trigger $72 | MonsenCave | allowlisted, #81 |
 | `$007F` | `Event_LostGirlsMother` | dialogue `$F6` | tree 25 entry 13 | allowlisted, #81 |
 | `$0080` | `Event_GirlPrison` | dialogue `$F6` | tree 11 entry 89 | allowlisted, #81 |
@@ -181,14 +181,14 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0085` | `Event_FatherAfterBoyRecovery` | dialogue `$F6` | tree 24 entry 43 | allowlisted, #81 |
 | `$0086` | `Event_DyingBoy` | dialogue `$F6` | tree 24 entry 50 | allowlisted, #81 |
 | `$0087` | `Event_MeetingSekreas` | dialogue `$F6` | tree 24 entry 37 | allowlisted, #81 |
-| `$0088` | `Event_KingRappy` | dialogue `$F6` | tree 24 entry 61, tree 25 entry 61 | allowlisted, #71 |
+| `$0088` | `Event_KingRappy` | dialogue `$F6` | tree 24 entry 61, tree 25 entry 61 | scene `Event_KingRappy` |
 | `$0089` | `Event_KingRappyDefeated` | map trigger $73 | RappyCave | allowlisted, #81 |
 | `$008A` | `Event_ZemaServantBattle` | map trigger $74 | Zema | scene `Event_ZemaServantBattle` |
 | `$008B` | `Event_ZemaOldMan` | dialogue `$F6` | tree 4 entry 76 | scene `Event_ZemaOldMan` |
 | `$008C` | `Event_ZemaOldManAfterMission` | dialogue `$F6` | tree 4 entry 78 | scene `Event_ZemaOldManAfterMission` |
 | `$008D` | `Event_VahalFortEntrance` | map trigger $75 | VahalFort | allowlisted, #82 |
 | `$008E` | `Event_VahalFortMidway` | map trigger $76 | VahalFort_F2 | allowlisted, #82 |
-| `$008F` | `Event_DaughterTerminal` | dialogue `$F6` | tree 43 entry 10 | allowlisted, #71 |
+| `$008F` | `Event_DaughterTerminal` | dialogue `$F6` | tree 43 entry 10 | scene `Event_DaughterTerminal` |
 | `$0090` | `Event_VahalFortBarrier` | dialogue `$F6` | tree 43 entry 9 | allowlisted, #82 |
 | `$0091` | `Event_DominatorsDefeated` | map trigger $77 | VahalFort_F3 | allowlisted, #82 |
 | `$0092` | `Event_WeaponPlantArrival` | map trigger $78 | WeaponPlant | allowlisted, #82 |
@@ -251,12 +251,12 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 <!-- counts:begin -->
 | Issue | Area | Allowlisted events |
 |---:|---|---:|
-| #56 | trigger-fired events | 5 |
-| #71 | `Event_GetAndRunDialogue2` callers | 4 |
+| #56 | trigger-fired events | 3 |
+| #71 | `Event_GetAndRunDialogue2` callers | 1 |
 | #81 | Motavia side content | 42 |
 | #82 | Vahal Fort and Weapon Plant | 19 |
 | #83 | Dezolis late arc | 20 |
-| | total | 90 |
+| | total | 85 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events
