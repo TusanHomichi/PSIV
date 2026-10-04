@@ -25,7 +25,8 @@ import sys
 
 from .. import fixture
 from . import durable as durable_patch
-from . import runs
+from . import runs, script_capture
+from .script import preflight
 from .capture import (Capture, battle_shape, cap_rounds,
                       enemies_at as enemy_slots_at, matches, read_capture)
 from .draw import Draw, find_draw, patch_specs
@@ -45,7 +46,7 @@ def plan(args, pack: Pack, layout: dict, selector: Selector, formation: int,
     cut = facts["battle_first"]
     name = f"event{formation - EVENT_BASE:02X}" if selector.kind == "event" \
         else f"{formation:02X}"
-    stem = f"forced_{name}_{args.policy}" \
+    stem = f"forced_{name}_{'script' if args.party_script else args.policy}" \
         + (f"_d{args.delay}" if args.delay else "") \
         + (f"_v{args.vehicle}" if args.vehicle else "")
     header = (
@@ -55,7 +56,7 @@ def plan(args, pack: Pack, layout: dict, selector: Selector, formation: int,
         f"{selector.label}\n"
         f"# base tape {args.base_tape}, frames 1..{cut}: its encounter fires at "
         f"f{cut}, the formation is drawn a few frames later\n"
-        f"# policy {args.policy}"
+        f"# policy {'script' if args.party_script else args.policy}"
         + (f", delay {args.delay} idle frames at the seam" if args.delay else "")
         + f", {args.repeats} block(s)\n")
     steps = compose(base_steps, cut, args.delay, args.repeats, args.policy)
@@ -202,8 +203,9 @@ def capture_phase(plan_facts: dict, specs: list[str], draw: Draw, pack: Pack,
     identical apart from their output directory.
     """
     out, stem, tape = plan_facts["out"], plan_facts["stem"], plan_facts["tape"]
+    options = plan_facts.get("run_options", {})
     preview = runs.run_oracle(plan_facts["full_tape"], out / "preview", stem,
-                             specs)
+                             specs, **options)
     if preview.status != 0:
         print(f"note: the untrimmed preview run ended with exit "
               f"{preview.status} (post-battle game-over sequence); the trimmed "
@@ -220,7 +222,7 @@ def capture_phase(plan_facts: dict, specs: list[str], draw: Draw, pack: Pack,
         # Retain the mis-timed preview. Only the calibrated preview and the
         # two identical final captures can certify a durable start state.
         preview = runs.run_oracle(plan_facts["full_tape"], out / "preview-calibrated",
-                                 stem, specs)
+                                 stem, specs, **options)
         preview_rows = read_rows(preview.log)
         preview_capture = read_capture(preview, draw.frame,
                                       selector.kind == "vehicle", preview_rows)
@@ -256,8 +258,8 @@ def capture_phase(plan_facts: dict, specs: list[str], draw: Draw, pack: Pack,
     trim_to = min(tape_frames(plan_facts["steps"]), trim_to)
     tape.write_text(emit_tape(trim_tape(plan_facts["steps"], trim_to),
                               plan_facts["header"]))
-    capture = runs.run_oracle(tape, out / "capture", stem, specs)
-    rerun = runs.run_oracle(tape, out / "verify", stem, specs)
+    capture = runs.run_oracle(tape, out / "capture", stem, specs, **options)
+    rerun = runs.run_oracle(tape, out / "verify", stem, specs, **options)
     for label, run in (("capture", capture), ("verify", rerun)):
         if run.status != 0:
             raise ForceError(f"the {label} run failed (exit {run.status}):\n"
@@ -310,7 +312,11 @@ def build_report(args, pack: Pack, selector: Selector, formation: int,
             {value for entry in pack.enemies_of(formation)
              for value in pack.ability_ids(entry["id"])}),
         "action": describe(pack, formation),
-        "policy": args.policy,
+        "policy": "script" if args.party_script else args.policy,
+        "prefix_policy": args.policy,
+        "party_script": args.party_script or None,
+        "party_script_sha256": sha256(pathlib.Path(args.party_script)) if args.party_script else None,
+        "script_ram_map": str(plan_facts["out"] / "script-map.json") if args.party_script else None,
         "delay": args.delay,
         "repeats": args.repeats,
         "base_tape": str(args.base_tape),
@@ -371,6 +377,8 @@ def run(args) -> int:
     if args.max_rounds < 0:
         raise ForceError("--max-rounds must be >= 0 (0 = capture the whole "
                          "battle)")
+    if args.ram_patch and not args.party_script:
+        raise ForceError("--ram-patch fixtures require a validated --party-script")
     base_tape = pathlib.Path(args.base_tape)
     try:
         base_text = base_tape.read_text()
@@ -381,7 +389,11 @@ def run(args) -> int:
         else pack.entries_for(formation)[selector.group][0]
     facts = scout(base_tape, base_text, out,
                   pathlib.Path(args.scout) if args.scout else out / "scout.json",
-                  args.refresh_scout, args.dry_run, layout)
+                  args.refresh_scout, args.dry_run or bool(args.party_script), layout)
+    script = preflight(args, facts) if args.party_script else None
+    if args.prepare_script:
+        script_capture.prepare(args, facts, base_steps)
+        return 0
     plan_facts = plan(args, pack, layout, selector, formation, facts, base_steps)
 
     print(describe(pack, formation))
@@ -437,11 +449,17 @@ def run(args) -> int:
             f"battle's start state from"
             + (f"; left alone: {', '.join(durable.skipped)}"
                if durable.skipped else ""))
+    specs += args.ram_patch
     (plan_facts["out"] / f"{stem}.patches.txt").write_text(
         "\n".join(lines) + "\n" + "\n".join(specs) + "\n")
     print("patches: " + "  ".join(specs))
 
     estimated_frame = durable.frame if durable is not None else None
+    if script is not None:
+        # The measured draw depends on the pad branch's cycles too. Preserve
+        # the probe's exact pad prefix through the draw and selector restore.
+        plan_facts["script_start"] = draw.frame + 1
+        script_capture.build(plan_facts, args, specs, script)
     final, preview_status = capture_phase(plan_facts, specs, draw, pack,
                                          selector, formation, args, layout,
                                          durable)

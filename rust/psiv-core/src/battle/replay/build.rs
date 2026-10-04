@@ -321,12 +321,39 @@ pub(crate) fn orders(fixture: &Fixture, round: &Round) -> RoundOrders {
         if slot >= commands.len() {
             commands.resize(slot + 1, Command::Attack);
         }
-        commands[slot] = match entry.target {
-            Some(target) if target > 0 => {
-                Command::AttackTarget(id(u8::try_from(target).expect("the cell is one byte")))
-            }
-            // `-1`, and a capture with no cell at all: no single target.
-            _ => Command::Attack,
+        let target = entry
+            .target
+            .filter(|target| *target > 0)
+            .map(|target| id(u8::try_from(target).expect("the cell is one byte")));
+        let ability = || {
+            entry
+                .ability
+                .expect("selected command carries its record id")
+        };
+        commands[slot] = match entry.command.as_str() {
+            "attack" => target.map_or(Command::Attack, Command::AttackTarget),
+            "defend" => Command::Defend,
+            "technique" => Command::Technique {
+                technique: ability(),
+                target,
+            },
+            "skill" => Command::Skill {
+                skill: ability(),
+                target,
+            },
+            "item" => Command::Item {
+                item: ability(),
+                target,
+                source: match entry
+                    .source
+                    .as_ref()
+                    .expect("ITEM records its concrete copy")
+                {
+                    CommandSource::Inventory(slot) => ItemSource::Inventory(*slot),
+                    CommandSource::Equipment(slot) => ItemSource::Equipment(*slot),
+                },
+            },
+            other => panic!("unknown fixture command {other}"),
         };
     }
     RoundOrders::Commands(commands)

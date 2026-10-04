@@ -6,6 +6,7 @@ HP is a signed word, so a dead fighter reads 65511 for -25, and `Log.signed`
 is what turns the rendering back into the number the cartridge holds.
 """
 from .errors import FixtureError
+from .commands import action_command
 
 #: `loc_266C` clamps every stored damage to this range, so a
 #: `Battle_Heal_Damage_List` word outside it was not written by a damage call:
@@ -190,7 +191,18 @@ def action_windows(log, first, last, cuts=(), roll_frames=()):
             continue
         if current == actor:
             continue
-        if frame in rolls:
+        command = action_command(log, current, frame)
+        prefix = next((name for name, id_ in PARTY_IDS if id_ == current), None)
+        eligible = prefix is not None and log.num(frame, prefix + "_status") & 0xEE == 0
+        # No-RNG party turns still copy Current_Command after the live/status
+        # checks. Require the command word to move while both menus are idle;
+        # list scratch aliases this address during command selection.
+        no_roll = (eligible and command and command["command"] in ("defend", "technique", "skill", "item")
+                   and log.has("battle_routine_2")
+                   and log.num(frame, "battle_routine_2") == 0
+                   and (log.changed(frame, "current_command")
+                        or log.changed(frame, "battle_actor")))
+        if frame in rolls or no_roll:
             if windows:
                 windows[-1][2] = min(windows[-1][2], frame - 1)
             windows.append([current, frame, last])
@@ -537,7 +549,7 @@ STATUS_EFFECT_BITS = 0xFF & ~(0x04 | 0x40)
 EFFECT_FIELDS = {
     "party": ["status", "str", "agi_bat", "dex", "atk", "dfs", "men"],
     "enemy": ["status", "agi_bat", "atk", "dfs", "str_bat", "men_bat",
-              "dex_bat"],
+              "dex_bat", "mdfs_bat"],
 }
 
 

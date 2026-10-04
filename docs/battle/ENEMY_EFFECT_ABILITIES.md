@@ -375,9 +375,32 @@ covers 39 Tower and 45. The first version of this lane read WARNING as a spent
 turn with an alarm and the capture refuted it: the log's first round queue holds
 the CommndBall alone.
 
+### BARRIER (`$1D`, Siren386 and Browren486)
+
+`EnemyAttackOffs` maps enemies 47/48/49 to `EnemyAttack_Warren286`
+(`ps4.asm:19254-19256`, 22515). Siren386's conditional `$08` tests magic-hit
+reaction bit 1 and clears the whole reaction byte (`EnemyAI_MagicDamageReceived`,
+22500-22511); Browren486's regular slot reaches the same `$1D` arm.
+`loc_100A6` (`ps4.asm:22559`, compare at 22567-22570) compares **signed** battle MDEF (`$2E`) against
+derived MDEF (`$2C`). If battle MDEF is greater, `loc_10016` clears the ability
+and takes the physical swing. Otherwise it clears the target and loads the
+`$1DC` children and `$1E0` parent (22571-22592).
+
+The `$1E0` parent `loc_1769E` (32706) calls `GetEnemySkillEffectAndRange`
+once at its handoff (32771). `AbilityEffect_MagicDefenseUp` (9220-9233)
+visits living enemies in range 2 and sets each battle MDEF to its own derived
+MDEF plus the caster's power stat, with 16-bit addition. It does not stack.
+The decoded BARRIER record selects STR and no resistance stat, so the effect
+consumes no RNG (`Effect_SetupSkillParams`, 9576-9595). The guard examines the
+caster alone; lowered recipients are still reset from their derived values.
+
+The script captures and exact generic replays are in
+[BATTLE_ORACLE_X86.md](../oracle/BATTLE_ORACLE_X86.md). Unit negative controls
+reject an untraced carrier or wrong effect record and pin the signed guard,
+word wrap, living-slot range and second-cast fallback.
+
 ### What is deferred, and why
 
 | pair | reason |
 |---|---|
-| 48 Siren386 `$1D` BARRIER (conditional, arm `$08` `EnemyAI_MagicDamageReceived`) | It fires only after a magic hit on the Siren (reaction flag bit 1). No capture policy commands a technique (`BATTLE_ORACLE_FORCED.md` section 1.3), so no capture can show the arm; the handler (`AbilityEffect_MagicDefenseUp`, `ps4.asm:9220`, range 2, no roll) is not written without an observed use. The arm also guards on its own derived and battle magic defence like ShadowSabr's DEBAN (`EnemyAttack_Warren286`, `ps4.asm:22515`, `loc_100A6` to `loc_10016`). Until then `UnsupportedAbility` and the physical swing. |
 | 58 FlameNewt `$24`, 105 ShadMirage and 132 DarkForce3 `$4B` | Share a routine with a routed pair, are not on the route, were not captured. |

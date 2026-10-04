@@ -20,6 +20,7 @@
 //! | `$07` | `AbilityEffect_SleepParalyze` (`ps4.asm:9154`) | nothing if asleep or paralyzed; else one chance roll, which only writes the effect word |
 //! | `$08` | `AbilityEffect_SealTech` (`ps4.asm:9167`) | nothing if sealed; else chance roll, then `bset #StatusTechSealed` |
 //! | `$0A` | `AbilityEffect_DefenseUp` (`ps4.asm:9203`) | `dfs_pow_battle = dfs_pow + d1` after the range's validity test and, when the record has a resistance selector, a chance roll |
+//! | `$0B` | `AbilityEffect_MagicDefenseUp` (`ps4.asm:9220`) | `mdfs_pow_battle = mdfs_pow + d1`, wrapping a word, after the range/chance test |
 //! | `$1B` | `AbilityEffect_Poison` (`ps4.asm:9410`) | nothing if poisoned; else chance roll, then `bset #StatusPoisoned` |
 //! | `$1C` | `AbilityEffect_Paralyze` (`ps4.asm:9424`) | nothing if paralyzed; else chance roll, then paralyzed set, sleep cleared, `agility_battle` and `dexterity_battle` both 1 |
 //!
@@ -59,6 +60,10 @@ mod tests;
 #[path = "enemy_effect_crawler_tests.rs"]
 mod crawler_tests;
 
+#[cfg(test)]
+#[path = "enemy_effect_barrier_tests.rs"]
+mod barrier_tests;
+
 /// An `AbilityEffectsOffs` handler this module implements.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Handler {
@@ -80,6 +85,8 @@ enum Handler {
     SealTech,
     /// `$0A`, `AbilityEffect_DefenseUp` (`ps4.asm:9203`).
     DefenseUp,
+    /// `$0B`, `AbilityEffect_MagicDefenseUp` (`ps4.asm:9220-9233`).
+    MagicDefenseUp,
     /// `$1B`, `AbilityEffect_Poison` (`ps4.asm:9410`).
     Poison,
     /// `$1C`, `AbilityEffect_Paralyze` (`ps4.asm:9424`).
@@ -96,6 +103,7 @@ impl Handler {
             Handler::SleepParalyze => 0x07,
             Handler::SealTech => 0x08,
             Handler::DefenseUp => 0x0A,
+            Handler::MagicDefenseUp => 0x0B,
             Handler::Poison => 0x1B,
             Handler::Paralyze => 0x1C,
         }
@@ -114,6 +122,10 @@ enum Guard {
     /// and loads the ordinary attack objects. The turn becomes a physical
     /// swing with no ability.
     DefenceNotRaised,
+    /// Warren286/Siren386/Browren486's BARRIER arm, `loc_100A6`
+    /// (`ps4.asm:22559`, compare at 22567-22570): signed `battle > derived` falls back to
+    /// `loc_10016`'s cleared-ability physical swing.
+    MagicDefenceNotRaised,
 }
 
 /// One proven `(enemy, ability)` arm.
@@ -157,8 +169,25 @@ struct Route {
 /// | 77 TechPlant `$2A` RIMIT | `EnemyAttack_FlattrPlnt`, arm `loc_F65E` (`ps4.asm:21822`) | `BattleObj_EnemyRimit` (`ps4.asm:38366`): one call (38414), `loc_24CFE` sets bit `$FFFFEEA2` = 3 | `$07`, range 9 |
 /// | 106 Haunt, 107 Spector `$4C` EVIL EYE | `EnemyAttack_Haunt` (`ps4.asm:21005`), arm `loc_EAC6` (21023) | object `$700`, `loc_2CB1C` (`ps4.asm:58346`): one call (58375), then `bset #3` on the stored target (58495) | `$07`, range 8 |
 /// | 115 Greneris, 72 BloodSaber, 88 SoldrFiend `$2F` VOL | arms 20630 (`loc_E47A`), 22005 (`loc_F93C`), 21484 (`loc_F1E2`) | `loc_2AE8E` (`ps4.asm:56333`) and its child `loc_2AE0C` (56296); `loc_1D2F4` (`ps4.asm:39774`); `loc_23216` (`ps4.asm:46736`): one call, then `loc_25048` (`ps4.asm:48916`) kills | `$02`, range 8 |
+/// | 48 Siren386, 49 Browren486 `$1D` BARRIER | `EnemyAttack_Warren286` (`ps4.asm:22515`), `loc_100A6` (22559) | object `$1E0`, `loc_1769E` (`ps4.asm:32706`), one call (32771) | `$0B`, range 2, signed caster MDEF guard |
 /// | 70 ShadowSabr `$2D` DEBAN | `EnemyAttack_ShadowSabr` (`ps4.asm:21933`), arm `loc_F89A` (21966) | object `$2A8`, `loc_1D7D8` (`ps4.asm:40098`) | `$0A`, range 2 |
 const ROUTES: &[Route] = &[
+    // EnemyAttack_Warren286 -> $1E0 (loc_1769E, ps4.asm:32706), whose
+    // loc_17788 calls GetEnemySkillEffectAndRange once (32771), range 2.
+    Route {
+        enemy: 48,
+        ability: 0x1D,
+        handler: Handler::MagicDefenseUp,
+        range: 2,
+        guard: Guard::MagicDefenceNotRaised,
+    },
+    Route {
+        enemy: 49,
+        ability: 0x1D,
+        handler: Handler::MagicDefenseUp,
+        range: 2,
+        guard: Guard::MagicDefenceNotRaised,
+    },
     route(31, 0x10, Handler::AgilityDown, 8),
     route(32, 0x11, Handler::Poison, 8),
     route(57, 0x24, Handler::Poison, 8),
@@ -237,9 +266,15 @@ pub(super) fn resolve_effect_skill(
     }) else {
         return EffectTurn::NotMine;
     };
-    if route.guard == Guard::DefenceNotRaised
-        && caster.stats.defence.derived < caster.stats.defence.battle
-    {
+    let raised = match route.guard {
+        Guard::None => false,
+        Guard::DefenceNotRaised => caster.stats.defence.derived < caster.stats.defence.battle,
+        Guard::MagicDefenceNotRaised => {
+            (caster.stats.mental_defence.battle as i16)
+                > (caster.stats.mental_defence.derived as i16)
+        }
+    };
+    if raised {
         if let Some(fighter) = roster.get_mut(actor) {
             fighter.ability = 0;
         }
@@ -371,6 +406,19 @@ fn apply(
                     target,
                     stat: TechniqueStat::Defence,
                     value: stats.defence.battle,
+                });
+            }
+        }
+        Handler::MagicDefenseUp => {
+            if landed(skill, power, stats, rolls) {
+                // AbilityEffect_MagicDefenseUp: derived + d1, not stacking
+                // and not saturating (ps4.asm:9230-9231).
+                stats.mental_defence.battle = stats.mental_defence.derived.wrapping_add(power);
+                events.push(BattleEvent::StatChanged {
+                    actor,
+                    target,
+                    stat: TechniqueStat::MentalDefence,
+                    value: stats.mental_defence.battle,
                 });
             }
         }
