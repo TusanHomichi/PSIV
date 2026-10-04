@@ -47,7 +47,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=pathlib.Path, required=True)
     parser.add_argument("--scout", type=pathlib.Path, required=True)
     parser.add_argument("--fixtures-dir", type=pathlib.Path,
-                        default=ROOT / "build/oracle/replay_fixtures")
+                        default=ROOT / "rust/psiv-core/src/battle/replay_fixtures/arc_zelan_damage")
     parser.add_argument("--max-delay", type=int, default=24)
     args = parser.parse_args(argv)
     if args.max_delay < 0:
