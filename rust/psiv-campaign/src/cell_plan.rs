@@ -310,6 +310,31 @@ impl Flood {
         })
     }
 
+    /// The plan whose last step lands on `cell` and fires a warp: the one step
+    /// a trigger scene on a warp footprint takes (`RunEvents` runs first).
+    #[must_use]
+    pub fn onto_plan(&self, map: &FieldMap, mover: Mover, cell: Cell) -> Option<CellPlan> {
+        let cell = map.normalize(cell)?;
+        for &at in &self.order {
+            for direction in Direction::ALL {
+                if mover.landing(map, at, direction) != Some(cell) {
+                    continue;
+                }
+                let Some(warp) = mover.firing_warp(map, at, cell) else {
+                    continue;
+                };
+                let mut steps = self.path_to(at)?;
+                steps.push(direction);
+                return Some(CellPlan {
+                    steps,
+                    end: cell,
+                    fires: Some(warp),
+                });
+            }
+        }
+        None
+    }
+
     /// The plan to the first-discovered cell of `rect`.
     #[must_use]
     pub fn rect_plan(&self, map: &FieldMap, rect: CellRect) -> Option<CellPlan> {

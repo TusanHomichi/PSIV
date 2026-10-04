@@ -589,7 +589,17 @@ pub static LANDALE: Scene = Scene {
         SceneOp::PlaySound {
             id: SFX_GRAVE_OPENING,
         },
-        SceneOp::Wait { ticks: 369 },
+        // `Event_DezoSpaceportAppearing`'s loop (`ps4.asm:145497-145521`) runs
+        // `d7` from `$170` to 0, 369 passes. `loc_6C148` (`:145530-145541`)
+        // writes BG chunk (6,36) <- `$2C`, the spaceport, after the pass with
+        // `d7 == $3D`: 308 passes, the write (`RefreshPlaneBG`), 61 more.
+        // The chunk's four collision cells read map-change, which is what
+        // makes warp 9 of Dezolis fire on the live map.
+        SceneOp::Wait { ticks: 308 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(6, 36, 0x2C)],
+        },
+        SceneOp::Wait { ticks: 61 },
         SceneOp::ObjectAnimation {
             slot: 0,
             object_id: 0x78,

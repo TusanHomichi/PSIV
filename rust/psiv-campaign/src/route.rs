@@ -41,6 +41,7 @@
 //! | `do` | fields | meaning |
 //! | --- | --- | --- |
 //! | `go_to` | `map`, `cell` | stand on `cell` of `map`, crossing warps if needed |
+//! | `step_onto` | `map`, `cell` | take the one step onto `cell`, a warp footprint where a map trigger starts a scene before the warp fires (`RunEvents` runs first); halts when the warp fires instead; the position is unknown until a later `expect` pins it |
 //! | `go_to_map` | `map`, optional `via_warp` | arrive on `map` by the cheapest warp chain; `via_warp` forces the first warp (index in the current map's record) |
 //! | `talk` | `npc` | face and talk to object `npc` (index in the current map's object list) |
 //! | `answer` | `yes` | answer an open Yes/No prompt |
@@ -274,6 +275,18 @@ pub enum Objective {
         /// Target map.
         map: u16,
         /// Target standing cell.
+        cell: Xy,
+    },
+    /// Take the one step onto a warp's footprint cell where a map trigger
+    /// starts a scene before the warp can fire: `RunEvents` precedes
+    /// `RunMapTransitions` on foot (`ps4.asm:116768-116773`), so a scene
+    /// registered on that cell owns the frame. `go_to` plans a warp footprint
+    /// as a terminal, never as a goal; this plans the firing step as an
+    /// ordinary one and halts when it fires the warp instead.
+    StepOnto {
+        /// Map the cell is on.
+        map: u16,
+        /// The footprint cell stepped onto.
         cell: Xy,
     },
     /// Arrive on a map by the cheapest warp chain.

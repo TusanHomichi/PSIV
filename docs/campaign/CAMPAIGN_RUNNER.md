@@ -74,6 +74,11 @@ resolves into pad input:
   between two cells until a condition holds (grinding the route requires),
   with an optional `refuge` list the patrol runs when a member falls or a
   living member drops under half HP;
+- `step_onto` a warp's footprint cell where a map trigger starts a scene
+  before the warp can fire (`RunEvents` runs before `RunMapTransitions` on foot,
+  `ps4.asm:116768-116773`; the Hangar's Landale row): `go_to` plans a footprint as
+  a terminal, never as a goal, and `step_onto` plans the firing step as an
+  ordinary one and halts if the warp fires instead of a scene;
 - fight scripted battles; random battles use a policy that issues commands
   through the battle menu with the same pad input a player would use.
 

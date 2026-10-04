@@ -19,7 +19,7 @@ pub struct Memory {
 #[must_use]
 pub fn budget_for(objective: &Objective) -> u64 {
     match objective {
-        Objective::GoTo { .. } | Objective::GoToMap { .. } => 120_000,
+        Objective::GoTo { .. } | Objective::GoToMap { .. } | Objective::StepOnto { .. } => 120_000,
         Objective::Talk { .. }
         | Objective::Answer { .. }
         | Objective::Interact { .. }
@@ -51,6 +51,7 @@ pub fn execute(driver: &mut Driver, memory: &mut Memory, objective: &Objective) 
     let face = |face: &Option<Face>| face.map(Face::direction);
     match objective {
         Objective::GoTo { map, cell } => driver.go_to(*map, cell.cell()),
+        Objective::StepOnto { map, cell } => driver.step_onto(*map, cell.cell()),
         Objective::GoToMap { map, via_warp } => driver.go_to_map(*map, *via_warp),
         Objective::Talk { npc } => driver.talk(*npc as usize).map(|_| ()),
         Objective::Answer { yes } => driver.answer(*yes).map(|_| ()),

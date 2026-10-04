@@ -33,17 +33,19 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
     let route = Route::parse(&main_text()).expect("main.json parses");
     let ids: Vec<&str> = route.chapters.iter().map(|c| c.id.as_str()).collect();
     assert_eq!(ids.first(), Some(&"academy"));
-    assert_eq!(ids.last(), Some(&"dezolis-tyler-grave"));
+    assert_eq!(ids.last(), Some(&"kuran-dark-force-1"));
     assert_eq!(
-        ids[ids.len() - 7..],
+        ids[ids.len() - 9..],
         [
-            "mota-spaceport",
-            "zelan-wren-canceller",
-            "zelan-sabotage",
-            "dezolis-first-control",
-            "dezolis-outside-raja-temple",
             "dezolis-gyuna",
-            "dezolis-tyler-grave"
+            "dezolis-tyler-grave",
+            "dezolis-tyler-prepare",
+            "dezolis-landale",
+            "dezolis-training",
+            "kuran-arrival",
+            "kuran-elevators",
+            "kuran-near-dark-force",
+            "kuran-dark-force-1"
         ]
     );
     assert!(ids.contains(&"nurvus-zio"));
@@ -81,8 +83,8 @@ fn the_validator_accepts_the_shipped_route() {
 fn the_grave_stairs_are_plannable_only_through_the_interacts_opens() {
     let text = mutate(
         &main_text(),
-        "\"opens\": [[20, 24], [21, 24], [20, 25], [21, 25]], ",
-        "",
+        "\"opens\": [[20, 24], [21, 24], [20, 25], [21, 25]], \"note\": \"Speak at the grave's middle blocks",
+        "\"note\": \"Speak at the grave's middle blocks",
     );
     let Some(report) = run(&text) else { return };
     let error = report
@@ -339,4 +341,65 @@ fn the_zelan_chapters_reject_a_bad_boarding_and_a_missing_object() {
         .find(|e| e.reason.contains("object 7 does not exist"))
         .expect("the missing object is reported");
     assert_eq!(error.chapter, "zelan-wren-canceller");
+}
+
+/// `step_onto` names a warp footprint a step can fire from where the party
+/// stands: a cell that is only open ground is a `go_to`, and a map the party is
+/// not on is rejected with its chapter.
+#[test]
+fn step_onto_must_name_a_footprint_on_the_map_the_party_is_on() {
+    let plain = mutate(
+        &main_text(),
+        "{\"do\": \"step_onto\", \"map\": 351, \"cell\": [26, 83],",
+        "{\"do\": \"step_onto\", \"map\": 351, \"cell\": [26, 70],",
+    );
+    let Some(report) = run(&plain) else { return };
+    let error = report
+        .errors
+        .iter()
+        .find(|e| e.reason.contains("is a go_to"))
+        .expect("the plain cell is reported");
+    assert_eq!(error.chapter, "dezolis-landale");
+    // Dezolis `$001` is a map of the pack, but the party is in the Hangar.
+    let elsewhere = mutate(
+        &main_text(),
+        "{\"do\": \"step_onto\", \"map\": 351, \"cell\": [26, 83],",
+        "{\"do\": \"step_onto\", \"map\": 1, \"cell\": [26, 83],",
+    );
+    let report = run(&elsewhere).unwrap();
+    assert!(
+        report
+            .errors
+            .iter()
+            .any(|e| e.chapter == "dezolis-landale" && e.reason.contains("has the party on map")),
+        "{:?}",
+        report.errors
+    );
+}
+
+/// Kuran's maze joins its regions only through the elevator doors the route
+/// opens: drop one `opens` and the chapter that needs it is rejected, naming
+/// the warp; a flight to a world that is not one is rejected in its chapter.
+#[test]
+fn the_kuran_chapters_reject_a_missing_door_and_a_bad_world() {
+    let shut = mutate(&main_text(), "\"opens\": [[30, 33], [31, 33]], ", "");
+    let Some(report) = run(&shut) else { return };
+    let error = report
+        .errors
+        .iter()
+        .find(|e| e.chapter == "kuran-elevators")
+        .expect("the shut door is rejected in its chapter");
+    assert!(error.reason.contains("via_warp 0"), "{}", error.reason);
+    let bad_world = mutate(
+        &main_text(),
+        "{\"do\": \"board\", \"step\": \"up\", \"to\": 4,",
+        "{\"do\": \"board\", \"step\": \"up\", \"to\": 9,",
+    );
+    let report = run(&bad_world).unwrap();
+    let error = report
+        .errors
+        .iter()
+        .find(|e| e.reason.contains("not a World_Index"))
+        .expect("the bad world is reported");
+    assert_eq!(error.chapter, "kuran-arrival");
 }
