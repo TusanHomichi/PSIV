@@ -317,14 +317,8 @@ pub static CRASH_LANDING: Scene = Scene {
             speed: 2,
         },
         SceneOp::FadeOut,
-        SceneOp::SetFlag {
-            flag: Flag::event(0x85),
-            value: true,
-        },
-        SceneOp::SetMapLoadFlags {
-            set: 0x08,
-            clear: 0,
-        },
+        // $076820..$07684A: the first Raja Temple load clears bit 3;
+        // RajaTemple $85 is still clear, so its roof has not opened yet.
         SceneOp::LoadMap {
             map: 0x14C,
             prev_map: 0x001,
@@ -332,7 +326,7 @@ pub static CRASH_LANDING: Scene = Scene {
             start_y: 0x2E,
             facing: Direction::Down,
             align: 0,
-            clear_load_flags: 0,
+            clear_load_flags: 0x08,
         },
         SceneOp::Presentation {
             op: PresentationOp::SavePartySpriteX { parked_x: 0x5F0 },
@@ -382,12 +376,30 @@ pub static CRASH_LANDING: Scene = Scene {
         SceneOp::PlaySound {
             id: SFX_ELEVATOR_OPEN,
         },
-        SceneOp::ObjectAnimation {
-            slot: 0,
-            object_id: 0x1F4,
-            art_tile: 0x2C3,
-            frames: 1,
+        // $076AE6 -> $076E00: Raja Temple BG (47,9), (48,9),
+        // (47,10), (48,10). $40(a1) advances one 64-chunk row, not X.
+        // $076E58..$076E6B: five frames; $076E16/$076E50 runs six
+        // RunMapUpdates + DMAPlane_B_VInt passes after every frame.
+        SceneOp::WriteMapChunks {
+            chunks: &[(47, 9, 0x50), (48, 9, 0x51), (47, 10, 0x58), (48, 10, 0x59)],
         },
+        SceneOp::Wait { ticks: 6 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(47, 9, 0x52), (48, 9, 0x53), (47, 10, 0x58), (48, 10, 0x59)],
+        },
+        SceneOp::Wait { ticks: 6 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(47, 9, 0x54), (48, 9, 0x55), (47, 10, 0x5A), (48, 10, 0x5B)],
+        },
+        SceneOp::Wait { ticks: 6 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(47, 9, 0x56), (48, 9, 0x57), (47, 10, 0x5C), (48, 10, 0x5D)],
+        },
+        SceneOp::Wait { ticks: 6 },
+        SceneOp::WriteMapChunks {
+            chunks: &[(47, 9, 0x56), (48, 9, 0x57), (47, 10, 0x5E), (48, 10, 0x5F)],
+        },
+        SceneOp::Wait { ticks: 6 },
         SceneOp::Wait { ticks: 60 },
         SceneOp::MoveActorTo {
             actor: CHAZ_ACTOR,
@@ -433,6 +445,26 @@ pub static CRASH_LANDING: Scene = Scene {
         },
         SceneOp::Presentation {
             op: PresentationOp::RebuildSprites,
+        },
+        // $076BEA..$076C06: only after the live write, set $85 and
+        // RefreshMap with bit 3 set. MapDataMan_RajaTemple ($052AAE)
+        // reapplies the last frame on this and later loads.
+        SceneOp::SetFlag {
+            flag: Flag::event(0x85),
+            value: true,
+        },
+        SceneOp::SetMapLoadFlags {
+            set: 0x08,
+            clear: 0,
+        },
+        SceneOp::LoadMap {
+            map: 0x14C,
+            prev_map: 0x001,
+            start_x: 6,
+            start_y: 0x2E,
+            facing: Direction::Down,
+            align: 0,
+            clear_load_flags: 0,
         },
         SceneOp::FadeIn,
         SceneOp::Wait { ticks: 60 },

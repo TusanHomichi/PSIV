@@ -39,8 +39,9 @@ table slot, whose address was checked against the image.
 | `Event_MachineCenterAppearing` `$06` | `$06B5CE` | BG `(57,90)` ← `$D3` | **was dropped** → `WriteMapChunks` |
 | `Cutscene_PsycoWand` `$800A` | `$07580A`, `$07581E` | FG `(9,5)` ← `$8F`, BG `(9,6)` ← `$90` | **was `ReloadMapChunks`** → `WriteMapChunks` |
 | `Cutscene_ZioDefeated` `$800B` (via `Event_MotaSpaceportAppearing` `$07`) | `$06B808` | BG `(26,45)` ← `$3F` | **was dropped** → `WriteMapChunks` |
+| `Cutscene_CrashLanding` `$800F` | `$076E00` (called at `$076AE6`) | Raja Temple BG `(47,9),(48,9),(47,10),(48,10)` ← five frames ending `$56,$57,$5E,$5F` | `WriteMapChunks` ×5; raw `$50..$5F` atlas tiles, [retail decode](43_CrashLanding.md#live-layout-write-retail-correction-67) |
 
-Three of those seven were transcribed as presentation or not at all, which is
+Several of these were transcribed as presentation or not at all, which is
 the class H19 reports: a scene op that changes collision was recorded as art.
 `Event_JuzaDefeated` and `Cutscene_PsycoWand` were on the campaign route and
 had workarounds in it (`go_to_map` round trips); the rest were latent.
@@ -49,7 +50,6 @@ had workarounds in it (`go_to_map` round trips); the rest were latent.
 
 | Owner | Site | Write | Why not |
 |---|---|---|---|
-| `Cutscene_CrashLaanding` `$800F` | `$076E00` (helper, called from `$076AE6`) | BG `(47,9),(48,9),(111,9),(112,9)` ← five animation rows ending `$56,$57,$5E,$5F` | Dezolis `$001` carries no plain atlas tile for those ids and this lane's environment cannot rebuild the pack (missing ignored oracle fixtures). Off the campaign route; the next lane that can rebuild the pack adds `$50..$5F` to the map's `scene_patch_chunks`. |
 | `Event_VahFortMovingPlatform1..2` `$15`,`$16`, `Event_WpnPlntMovingPlatform1..4` `$17`-`$1A` | `$06C4C4`…`$06CD8A` | moving-platform chunk swaps | not transcribed at all — no Vahal Fort / Weapon Plant scene exists in the registry |
 | `Event_WreckageEngine` `$29` | `$06DD14` | one chunk | not transcribed |
 | `Event_GaruberkTwDoorOpening1/2` `$35`,`$36`, `Event_GaruberkTwDoorEntered1/2` `$37`,`$38` | `$06F454`…`$06F83A` | tower door animations | not transcribed |
@@ -93,6 +93,17 @@ stairs. The runtime verifies each literal id against the base layout before
 removing that chunk's overlays, so a mistranscribed coordinate fails loudly
 instead of opening the wrong wall.
 
+The crash helper uses raw tiles. The earlier census misattributed it to
+Dezolis and interpreted `$40(a1)` as an X displacement. Retail first loads
+Raja Temple (`$076820`, `$07684A`; `ps4.asm:155869-155876`), whose BG width is
+64 (`$1A9A12`; `ps4.asm:254149`), so `$40(a1)` is the next row. Its own
+Kosinski chunk source is `$1ABDA8` (`ps4.asm:254150`). The pack now
+emits all 16 temple animation chunks via `scene_patch_chunks` and records
+each contributing map in `manifest.map_effects.scene_patch_chunks`.
+No Dezolis tiles are added. The
+[line-by-line helper and collision basis](43_CrashLanding.md#live-layout-write-retail-correction-67)
+replace that incorrect row.
+
 ## Verification
 
 `rust/psiv-runtime/src/scene_map_tests.rs`:
@@ -106,5 +117,17 @@ instead of opening the wrong wall.
   read `MapChange` right after the scene, with no battle and no reload; the
   negative control is the same flags without the event.
 
-Both ran against the pack as it stands; no pack regeneration is needed for
-either. The `CrashLaanding` row above is the one that would need one.
+Those two H19 checks needed no pack regeneration. For #67,
+`rust/psiv-runtime/src/scene_crash_tests.rs` checks five live temple frames,
+six ticks between writes, all 16 affected collision cells, the later flag and
+same-map reload, and a decoded-slot reconstruction of the final frame. Its
+negative control sets `$85` without a write or reload: the lower-right roof
+stays walkable. All five writes are required while `$85` is still clear, so
+the load hook cannot substitute for the scene's animation.
+
+`tests/test_crash_landing.py` checks the retail map/stride/plane operands,
+all five source rows, plain atlas pixels and priority pixels against a
+one-chunk map render, collision nibbles, and the manifest census. Negative
+controls reject truncated/missing/early terminators and exclude Dezolis from
+the temple chunk census. See the [#67 receipt](43_CrashLanding.md#67-delivery-receipt)
+for the rebuilt pack and verification boundaries.

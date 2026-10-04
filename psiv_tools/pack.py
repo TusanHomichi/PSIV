@@ -710,6 +710,7 @@ def build_pack(
     unloaded: list[dict[str, Any]] = []
     artless_objects: list[dict[str, Any]] = []
     patch_maps: list[dict[str, Any]] = []
+    scene_patch_maps: list[dict[str, Any]] = []
     patch_totals: dict[str, int] = {}
     palette_totals: dict[str, int] = {}
     object_placements: dict[int, int] = {}
@@ -776,7 +777,10 @@ def build_pack(
             raise PackError(
                 f"map 0x{record['id']:03X}: overworld hook needs a base priority overlay"
             )
-        patched_chunks = sorted(set(patched_chunks) | set(scene_patch_chunks(rom_bytes, record)))
+        scene_chunks = scene_patch_chunks(rom_bytes, record)
+        if scene_chunks:
+            scene_patch_maps.append({**_target(record), "chunks": scene_chunks})
+        patched_chunks = sorted(set(patched_chunks) | set(scene_chunks))
         # A path that copies a CRAM line repaints the NPCs drawn on it, and
         # nothing else -- map tiles cannot select the line these three copies
         # write. The alternates register as ordinary sheets.

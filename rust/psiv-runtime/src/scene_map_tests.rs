@@ -2,6 +2,9 @@
 use super::*;
 use psiv_core::{Input, MapId};
 
+#[path = "scene_crash_tests.rs"]
+mod crash;
+
 /// The pack this target builds against. `PSIV_RUNTIME_PACK` lets a lane test a
 /// pack it built itself (the same escape hatch `dialogue::glue::tests` uses).
 fn pack_dir() -> std::path::PathBuf {

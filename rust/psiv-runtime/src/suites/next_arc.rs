@@ -23,8 +23,12 @@ use psiv_data::{BattleFiles, GameData};
 
 const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
 
+fn pack_dir() -> std::path::PathBuf {
+    std::env::var_os("PSIV_RUNTIME_PACK").map_or_else(|| Path::new(PACK).to_path_buf(), Into::into)
+}
+
 fn runtime_with_title_fixture() -> Runtime {
-    let data = GameData::load(Path::new(PACK)).expect("pack loads");
+    let data = GameData::load(&pack_dir()).expect("pack loads");
     let mut game = GameState::new();
     game.set_party([Some(CharId(0)), Some(CharId(1)), None, None, None]);
     let mut runtime = Runtime::from_save(
@@ -42,7 +46,7 @@ fn runtime_with_title_fixture() -> Runtime {
         StepFrames::default(),
     )
     .expect("title fixture starts");
-    let files = BattleFiles::load(Path::new(PACK)).expect("battle files load");
+    let files = BattleFiles::load(&pack_dir()).expect("battle files load");
     runtime.enable_battles(&files).expect("battles enable");
     runtime
 }
@@ -93,7 +97,7 @@ where
     F: FnOnce(&mut GameState),
 {
     let mut relocated = relocate_with_edit(runtime, map, edit);
-    let files = BattleFiles::load(Path::new(PACK)).expect("battle files load");
+    let files = BattleFiles::load(&pack_dir()).expect("battle files load");
     relocated
         .enable_battles(&files)
         .expect("battles enable after edited relocation");
@@ -126,7 +130,7 @@ fn harden_arc_battle_roster(game: &mut GameState) {
 
 fn relocate_with_battles(runtime: &Runtime, map: u16) -> Runtime {
     let mut relocated = relocate_with_state(runtime, map);
-    let files = BattleFiles::load(Path::new(PACK)).expect("battle files load");
+    let files = BattleFiles::load(&pack_dir()).expect("battle files load");
     relocated
         .enable_battles(&files)
         .expect("battles enable after relocation");
@@ -300,7 +304,7 @@ fn resolve_scene_battle_with_limit(runtime: &mut Runtime, max_rounds: usize) -> 
 
 #[test]
 fn synthetic_scene_chain_reaches_ending_with_explicit_battle_fixtures() {
-    if !Path::new(PACK).join("battle").is_dir() {
+    if !pack_dir().join("battle").is_dir() {
         eprintln!("pack battle section not present; skipping");
         return;
     }
