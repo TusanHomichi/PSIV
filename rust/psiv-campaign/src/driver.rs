@@ -21,6 +21,24 @@ use serde_json::{Value, json};
 use crate::halt::{Halt, HaltKind, Res};
 use crate::policy::Policy;
 
+/// Whether `event` is a fault the run halts on. `scene_began` is whether the
+/// same frame started a scene: the cartridge runs `RunEvents` before
+/// `RunMapTransitions` on every landing (`ps4.asm:116768-116773`), so a landing
+/// that started a scene never reached the map-change table, and the runtime's
+/// report of the type-1 cell it landed on as unmapped is no fault there (the
+/// Mota Spaceport's boarding row, RUNNER_LOG C4).
+fn is_scene_fault(event: &RuntimeEvent, scene_began: bool) -> bool {
+    match event {
+        RuntimeEvent::SceneFaulted { .. }
+        | RuntimeEvent::SceneMissing { .. }
+        | RuntimeEvent::SceneBattleFailed { .. }
+        | RuntimeEvent::MapRefreshFailed { .. }
+        | RuntimeEvent::UnpackedTarget { .. } => true,
+        RuntimeEvent::WarpUnmapped { .. } => !scene_began,
+        _ => false,
+    }
+}
+
 /// How many runtime events a halt report keeps.
 pub const EVENT_RING: usize = 50;
 
@@ -323,6 +341,11 @@ impl Driver {
                 );
             }
         }
+        let scene_began = frame
+            .events
+            .iter()
+            .chain(&frame.menu_events)
+            .any(|event| matches!(event, RuntimeEvent::SceneStarted { .. }));
         for event in frame.events.iter().chain(&frame.menu_events) {
             match event {
                 RuntimeEvent::StepCompleted { .. } | RuntimeEvent::ScenePresentation { .. } => {
@@ -333,12 +356,7 @@ impl Driver {
                     self.areas.push((*area, *event));
                 }
                 RuntimeEvent::SceneEnded => self.scenes_ended += 1,
-                RuntimeEvent::SceneFaulted { .. }
-                | RuntimeEvent::SceneMissing { .. }
-                | RuntimeEvent::SceneBattleFailed { .. }
-                | RuntimeEvent::MapRefreshFailed { .. }
-                | RuntimeEvent::UnpackedTarget { .. }
-                | RuntimeEvent::WarpUnmapped { .. } => {
+                other if is_scene_fault(other, scene_began) => {
                     raise(HaltKind::SceneFault, format!("{event:?}"));
                 }
                 _ => {}
@@ -593,4 +611,41 @@ fn scratch_dir() -> PathBuf {
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let n = NEXT.fetch_add(1, Ordering::Relaxed);
     std::env::temp_dir().join(format!("psiv-campaign-{}-{n}", std::process::id()))
+}
+
+#[cfg(test)]
+mod tests {
+    use psiv_core::Cell;
+    use psiv_runtime::RuntimeEvent;
+
+    use super::is_scene_fault;
+
+    fn unmapped() -> RuntimeEvent {
+        RuntimeEvent::WarpUnmapped {
+            cell: Cell { x: 30, y: 19 },
+        }
+    }
+
+    /// `RunEvents` runs before `RunMapTransitions`: an unmapped type-1 cell in
+    /// the frame that started a scene is the event's cell, not a pack defect.
+    #[test]
+    fn an_unmapped_cell_is_no_fault_when_the_frame_started_a_scene() {
+        assert!(!is_scene_fault(&unmapped(), true));
+    }
+
+    /// Negative control: the same event with no scene in the frame is still the
+    /// pack defect it names, and the unconditional faults ignore the scene.
+    #[test]
+    fn an_unmapped_cell_with_no_scene_and_the_other_faults_still_halt() {
+        assert!(is_scene_fault(&unmapped(), false));
+        for began in [false, true] {
+            assert!(is_scene_fault(
+                &RuntimeEvent::UnpackedTarget {
+                    map: psiv_core::MapId(0x18D)
+                },
+                began
+            ));
+            assert!(!is_scene_fault(&RuntimeEvent::SceneEnded, began));
+        }
+    }
 }
