@@ -35,6 +35,8 @@ use serde::{Deserialize, Deserializer};
 use crate::error::DataError;
 
 mod chrome;
+#[cfg(test)]
+mod selection_tests;
 mod trees;
 
 pub use chrome::{
@@ -43,8 +45,9 @@ pub use chrome::{
     WindowPalette, WindowRecord,
 };
 pub use trees::{
-    ActionKind, Ctrl, DialogueEntry, DialogueTree, FlagScope, PORTRAIT_HIDE, Page, PageEnd,
-    ScrollArrow, Segment, SystemMessages, TreeFile, TreeWindow,
+    ActionKind, Ctrl, DialogueEntry, DialogueTree, FirstWorldOverride, FlagScope, PORTRAIT_HIDE,
+    Page, PageEnd, ScrollArrow, Segment, SystemMessages, TreeFile, TreeWindow,
+    WorldInteractionTrees,
 };
 
 /// Format version every file of the dialogue pack declares.
@@ -173,6 +176,26 @@ impl DialogueSet {
 
         self.validate_window(&window_path)?;
         self.validate_trees(&trees_path)?;
+        if let Some(selection) = &self.trees.world_interaction {
+            if selection.world_trees.len() != 6 {
+                return Err(defect(
+                    &trees_path,
+                    "world_interaction needs six world trees",
+                ));
+            }
+            for tree in selection
+                .world_trees
+                .iter()
+                .chain(std::iter::once(&selection.first_world_override.tree))
+            {
+                if self.tree(*tree).is_none() {
+                    return Err(defect(
+                        &trees_path,
+                        format!("world_interaction references absent tree {tree}"),
+                    ));
+                }
+            }
+        }
         self.validate_portrait_files(pack_dir, &portraits_path)?;
         Ok(())
     }

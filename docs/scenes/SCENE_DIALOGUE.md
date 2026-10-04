@@ -7,6 +7,12 @@ campaign checkpoint** because it skipped the rescue conversations.
 
 ## Dialogue tree selection
 
+The current selection owner and full US-ROM census are in
+[Dialogue tree selection](DIALOGUE_TREE_SELECTION.md). Type-0 interaction
+areas use the live world table (including Motavia's high-entry override);
+NPCs and default scenes retain the map tree. The historical scene-address
+repair below concerns explicit scene tree loads, not world-area selection.
+
 `SetDialogueTree` reached the presentation state, but the Godot lookup only
 recognized trees 17, 39 and 42. Alshline explicitly selects tree 3 while
 standing in Zema, whose map uses tree 4. The renderer silently used tree 4's
