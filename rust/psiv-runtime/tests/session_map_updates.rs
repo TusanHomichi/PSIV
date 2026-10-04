@@ -14,7 +14,7 @@ use psiv_runtime::{Button, Pad, RuntimeEvent, Session};
 fn pack_path() -> PathBuf {
     std::env::var_os("PSIV_RUNTIME_PACK")
         .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../build/x41-pack"))
+        .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack"))
 }
 
 fn pack() -> &'static (GameData, BattleFiles) {
@@ -22,7 +22,7 @@ fn pack() -> &'static (GameData, BattleFiles) {
     PACK.get_or_init(|| {
         let path = control_pack(&pack_path());
         (
-            GameData::load(&path).expect("x41 pack loads"),
+            GameData::load(&path).expect("runtime pack loads"),
             BattleFiles::load(&path).expect("battles load"),
         )
     })
@@ -32,11 +32,12 @@ fn pack() -> &'static (GameData, BattleFiles) {
 // Commands expecting failure are recorded in the ledger; the source pack is
 // never edited and the session has no mutation/input seam after construction.
 fn control_pack(source: &Path) -> PathBuf {
-    let Ok(control) = std::env::var("PSIV_X41_NEGATIVE_CONTROL") else {
+    let Ok(control) = std::env::var("PSIV_MAP_UPDATES_NEGATIVE_CONTROL") else {
         return source.to_owned();
     };
     assert!(matches!(control.as_str(), "omit_dispatch" | "water_phase"));
-    let target = std::env::temp_dir().join(format!("psiv-x41-{control}-{}", std::process::id()));
+    let target =
+        std::env::temp_dir().join(format!("psiv-map-updates-{control}-{}", std::process::id()));
     std::fs::create_dir_all(target.join("maps")).unwrap();
     let manifest: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(source.join("manifest.json")).unwrap())
@@ -171,12 +172,17 @@ fn zelan_canceller_requires_the_chest_bit_not_inventory_or_temporary_flags() {
 
 #[test]
 fn aiedo_water_follows_raw_table_columns_and_absolute_eight_frame_clock() {
-    let rom = std::fs::read(
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../Phantasy Star IV (USA).md"),
-    )
-    .unwrap();
+    // The raw table is read from the cartridge itself as an independent check
+    // of the pack; skip, like the pack-dependent suites, when the local ROM is
+    // absent (a fresh clone, a worktree without the input linked).
+    let rom_path =
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../Phantasy Star IV (USA).md");
+    let Ok(rom) = std::fs::read(&rom_path) else {
+        eprintln!("ROM not present at {}; skipping", rom_path.display());
+        return;
+    };
     let mut session = session_at(0x54, ground(0x54, None), &fresh_game());
-    if let Some(directory) = std::env::var_os("PSIV_X41_NATIVE_SAVE") {
+    if let Some(directory) = std::env::var_os("PSIV_MAP_UPDATES_NATIVE_SAVE") {
         let directory = PathBuf::from(directory);
         std::fs::create_dir_all(&directory).unwrap();
         let fixture = session_at(0x54, Cell::new(34, 34), &fresh_game());

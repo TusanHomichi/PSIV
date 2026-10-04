@@ -286,7 +286,7 @@ also used `PYTHONPATH=.`. Raw logs and command/exit/timing JSON receipts are in
 | `python3 -m psiv_tools pack 'Phantasy Star IV (USA).md' build/x41-pack` | exit 0; 361 maps; 222.282 s | `pack` |
 | `python3 -m psiv_tools.map_updates_compare runtime-pack build/x41-pack --report build/x41-evidence/pack-comparison.json` | exit 0; additive-only comparison above | `pack-comparison` |
 | `python3 -m unittest discover -s tests -p test_map_updates.py` | exit 0; 11 passed | `python-focused` |
-| `cargo test --offline --manifest-path rust/Cargo.toml -p psiv-runtime --test session_map_updates --test session_map_updates_palette -- --test-threads=1` | exit 0; 11 + 6 passed; native fixture generated with `PSIV_X41_NATIVE_SAVE` | `rust-classes` |
+| `cargo test --offline --manifest-path rust/Cargo.toml -p psiv-runtime --test session_map_updates --test session_map_updates_palette -- --test-threads=1` | exit 0; 11 + 6 passed; native fixture generated with `PSIV_MAP_UPDATES_NATIVE_SAVE` | `rust-classes` |
 | `cargo test --manifest-path rust/Cargo.toml -p psiv-core --lib scene_runner::map_update_tests -- --test-threads=1` | exit 0; 2 passed, 594 filtered | `core-map-loops` |
 | `python3 -m unittest discover -s tests` | exit 0; 1,252 passed, zero skips; 757.564 s | `python-workspace` |
 | `cargo test --manifest-path rust/Cargo.toml --workspace -- --test-threads=1` | exit 0; 38 targets, 1,308 passed, zero failed, 3 ignored; 871.492 s | `workspace`, `workspace-summary` |
@@ -309,7 +309,7 @@ from the ROM; the environment variable does not redirect every fixture.
 ### Failures, controls and visual limit
 
 The once-run runtime controls used private copied map JSONs, never the source
-pack: `PSIV_X41_NEGATIVE_CONTROL=omit_dispatch` with the exact Canceller test
+pack: `PSIV_MAP_UPDATES_NEGATIVE_CONTROL=omit_dispatch` with the exact Canceller test
 exited **101**, one expected failure; `water_phase` with the exact Aiedo test
 exited **101**, one expected failure at frame 8. Full argv, temporary paths and
 assertions are in `negative-canceller.{json,log}` and `negative-water.{json,log}`.
@@ -338,7 +338,7 @@ worktree log path. Its GDScript syntax check exits 0 (`native-water-parse.log`).
 Actual shader upload, rendered palette pixels and fresh-process CONTINUE remain
 unverified. `tests/map_update_water_native.gd` is the opt-in input-only probe;
 it requires the fixture's explicit `PSIV_SAVE_DIR`, `PSIV_DEBUG_ROUTE=1` and
-`PSIV_X41_NATIVE_OUTPUT` pointing at a new capture directory.
+`PSIV_MAP_UPDATES_NATIVE_OUTPUT` pointing at a new capture directory.
 
 ### Campaign result and next action
 

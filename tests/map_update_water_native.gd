@@ -11,9 +11,9 @@ var records := []
 var output := ""
 
 func _initialize():
-    output = OS.get_environment("PSIV_X41_NATIVE_OUTPUT")
+    output = OS.get_environment("PSIV_MAP_UPDATES_NATIVE_OUTPUT")
     if output == "":
-        push_error("PSIV_X41_NATIVE_OUTPUT is required")
+        push_error("PSIV_MAP_UPDATES_NATIVE_OUTPUT is required")
         quit(2)
     call_deferred("start_game")
 

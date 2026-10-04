@@ -14,7 +14,7 @@ fn data() -> &'static GameData {
         let root = std::env::var_os("PSIV_RUNTIME_PACK")
             .map(PathBuf::from)
             .unwrap_or_else(|| {
-                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../build/x41-pack")
+                PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../runtime-pack")
             });
         GameData::load(&root).unwrap()
     })
