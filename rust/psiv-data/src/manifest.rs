@@ -36,6 +36,9 @@ pub struct Manifest {
     /// Optional ROM-derived field teleport and place-entry tables.
     #[serde(default)]
     pub travel: Option<crate::TravelFile>,
+    /// Optional ROM-derived destination-menu screen (`ps4.asm:133499`).
+    #[serde(default)]
+    pub ship_menu: Option<crate::ShipMenuFile>,
     /// Every packed map, in id order.
     pub maps: Vec<MapEntry>,
     /// Maps deliberately not packed, and why: the `PtrMap_Null` placeholders

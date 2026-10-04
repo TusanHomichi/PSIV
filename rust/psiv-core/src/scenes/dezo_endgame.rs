@@ -484,6 +484,8 @@ pub static REUNION: Scene = Scene {
         },
         SceneOp::Wait { ticks: 60 },
         SceneOp::InitVramAndCram,
+        // `move.b #0, (World_Index).w` (`ps4.asm:157791`)
+        SceneOp::SetWorldIndex { world: 0 },
         SceneOp::LoadMap {
             map: 0x0BF,
             prev_map: 0xFFFF,

@@ -746,9 +746,9 @@ fn an_arrival_prompt_is_the_next_objectives_to_answer() {
     );
 }
 
-/// The whole route from New Game to Zio's defeat, pads only. The last chapter
-/// makes an ordinary SAVE; a new Session reads it, and replaying the tape in
-/// another Session reaches the same digest.
+/// The whole route from New Game to Zio's defeat, the Mota Spaceport and the
+/// flight to Zelan, pads only. The Zio chapter makes an ordinary SAVE; a new Session reads it, and
+/// replaying the tape in another Session reaches the same digest.
 #[test]
 #[ignore = "plays the whole route: cargo test --release -p psiv-campaign --test runner -- --ignored"]
 fn the_whole_route_defeats_zio_saves_and_replays() {
@@ -759,13 +759,22 @@ fn the_whole_route_defeats_zio_saves_and_replays() {
     let result = run(&config).expect("the route sets up");
     let done: Vec<&str> = result.chapters.iter().map(|c| c.id.as_str()).collect();
     assert!(result.completed, "route halted: {:#?}", result.report);
-    assert_eq!(done.last(), Some(&"nurvus-zio"));
+    assert_eq!(done.last(), Some(&"mota-spaceport"));
+    assert_eq!(done[done.len() - 2], "nurvus-zio");
     assert_eq!(result.chapters.len(), config.route.chapters.len());
     let chapter_snapshot = result.chapters.last().unwrap().save.clone();
     assert!(
         chapter_snapshot.is_file(),
         "the runner wrote its read-only chapter snapshot"
     );
+    // The route ends in Zelan: the ship's destination menu opened on the
+    // Mota Spaceport's boarding row, `World_Index` 3 was picked with the pad,
+    // and the flight landed on loc_64B5A's Zelan row (RUNNER_LOG M23).
+    let (at_zelan, _) = open_session(PACK.as_ref(), &StartPoint::Save(chapter_snapshot)).unwrap();
+    assert_eq!(at_zelan.runtime().map_id().0, 0x18D);
+    assert_eq!(at_zelan.runtime().world_index(), 3);
+    let cell = psiv_campaign::driver::standing_cell(at_zelan.runtime());
+    assert_eq!((cell.x, cell.y), (31, 46));
     let pad_save = config.save_dir.join("route/slot_1.sram");
     assert!(
         pad_save.is_file(),

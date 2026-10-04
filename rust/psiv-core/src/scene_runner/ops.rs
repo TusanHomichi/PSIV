@@ -177,7 +177,9 @@ impl SceneRunner {
                 self.blocked = Blocked::Battle;
                 self.pc += 1;
             }
-            SceneOp::LoadMap { .. } | SceneOp::TakeMapTransition => {
+            SceneOp::LoadMap { .. }
+            | SceneOp::LoadFlightMap { .. }
+            | SceneOp::TakeMapTransition => {
                 effects.push(SceneEffect::MapRequested { op });
                 self.pc += 1;
                 // The runtime must load the new map and recast the runner
@@ -685,6 +687,26 @@ impl SceneRunner {
             | SceneOp::SetMapLoadFlags { .. } => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
+            }
+            SceneOp::DestinationMenu { .. } => {
+                // The pc stays on this op: the answer decides where the scene
+                // resumes (`unblock`), the way `BranchChoice`'s does. The
+                // request travels as the op itself; the session opens the menu.
+                effects.push(SceneEffect::Presentation { op });
+                self.blocked = Blocked::Destination;
+            }
+            SceneOp::SetWorldIndex { world } => {
+                effects.push(SceneEffect::WorldIndexSet { world });
+                self.pc += 1;
+            }
+            SceneOp::SkipUnlessMap { maps, skip } => {
+                self.pc += 1;
+                if !maps.contains(&self.map_id) {
+                    self.pc += usize::from(skip);
+                }
+            }
+            SceneOp::SkipOps { count } => {
+                self.pc += 1 + usize::from(count);
             }
             SceneOp::Jump { to } => {
                 if to > self.scene.len() {

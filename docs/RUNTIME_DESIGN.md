@@ -102,6 +102,16 @@ hand the field to an event, exactly as the cartridge's `Field_MenuExit` does
 the ITEM menu's vehicle actions, which leave the menu closed, and Aiedo's inn,
 which rebuilds its window and charges the bill when the scene returns
 (`docs/camp/SHOPS.md`, "Finding 3").
+The other hand-off runs the opposite way: a scene op that needs a window of the
+session's own. `SceneOp::DestinationMenu` (the ship's `loc_63BC4`) blocks the
+scene and reaches the session as a `ScenePresentation` event; `session/route.rs`
+opens the destination mode (`session/destination.rs`), which owns the pad until
+the player answers: a `DestinationView` for the shell (rows, cursor, the typed
+confirm message, the closing phase) and `Runtime::answer_destination` back to the
+scene, which writes `World_Index` for a confirm and nothing for a Cancel
+(`docs/scenes/41_InsideSpaceship.md`). The flight legs after it are
+`SceneOp::LoadFlightMap` requests the runtime resolves from the cartridge's tables
+by the current map and `World_Index`; a table with no row is a scene fault.
 START and CONTINUE replace the runtime and clear the per-frame menu-scene
 handoff with the other menu/window latches, so an old inn bill cannot consume
 an unrelated later `SceneEnded`. Vehicle ITEM scenes snap the live party via

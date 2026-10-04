@@ -51,6 +51,7 @@ def write_manifest(
     sound = state["sound"]
     title = state["title"]
     travel = state["travel"]
+    ship_menu = state["ship_menu"]
     presentation = state["presentation"]
     skipped = state["skipped"]
     sprite_census = state["sprite_census"]
@@ -212,6 +213,7 @@ def write_manifest(
         # Counters, inventories and inn rates, in shops.json.
         "shops": shops,
         "travel": travel,
+        "ship_menu": ship_menu,
         "sound": sound,
         "dialogue": dialogue,
         "title": title,
@@ -230,8 +232,10 @@ def write_manifest(
         # The flag-gated patches a map's MapDataManager list applies when the
         # map is built. Per-map lists live on the map records; this is the
         # census over all of them.
+        "map_updates": state["updates"]["census"],
         "map_effects": {
             **effects["census"],
+            "scene_patch_chunks": state["scene_patch_maps"],
             # A `layout_write` resolved: the collision cells it changes, and a
             # drawn tile of the chunk it stamps in. `collision_authoritative`
             # counts the writes that land on the plane GetChunkAndCollision

@@ -25,6 +25,9 @@ pub fn budget_for(objective: &Objective) -> u64 {
         | Objective::Interact { .. }
         | Objective::OpenChest { .. }
         | Objective::FightScripted => 120_000,
+        // The flight alone is some 1,600 frames; the budget covers a walk onto
+        // the row and a retry.
+        Objective::Board { .. } => 20_000,
         Objective::Buy { .. }
         | Objective::Sell { .. }
         | Objective::RestInn { .. }
@@ -71,6 +74,11 @@ pub fn execute(driver: &mut Driver, memory: &mut Memory, objective: &Objective) 
         Objective::UseItem { item, target } => driver.use_item(item, target),
         Objective::Reorder { order } => driver.reorder(order),
         Objective::Save { slot } => driver.save_slot(*slot),
+        Objective::Board { step, to } => {
+            let world = crate::ship::world_of(to, driver.runtime().data())
+                .map_err(|reason| Halt::new(HaltKind::UnexpectedState, reason))?;
+            driver.board(step.direction(), world)
+        }
         Objective::FightScripted => fight_scripted(driver, memory),
         Objective::Dismount => driver.dismount(),
         Objective::Patrol {

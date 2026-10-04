@@ -260,11 +260,13 @@ class TestMapRenders(PackFixtureCase):
             self.assertIsNone(entry["png_over"])
             self.assertIsNone(entry["png_over_sha256"])
             self.assertEqual(entry["priority_tiles"], 0)
+            payload = json.loads((root / entry["json"]).read_text())
+            self.assertEqual(set(payload["map_update_images"]), {entry["png"]})
             self.assertEqual(
                 sorted(p.name for p in (root / MAPS_DIRECTORY).iterdir()),
-                ["100_TheEdge.json", "100_TheEdge.png"],
+                sorted(["100_TheEdge.json", "100_TheEdge.png"]
+                       + [Path(name).name for name in payload["map_update_images"].values()]),
             )
-            payload = json.loads((root / entry["json"]).read_text())
             # The key is always present; only its value moves.
             self.assertIn("png_over", payload)
             self.assertIsNone(payload["png_over"])

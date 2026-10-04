@@ -16,7 +16,7 @@
 //!
 //! * [`driver`]: one [`psiv_runtime::Session`], one pad per frame, the tape, the
 //!   frame budget and the halt detector;
-//! * [`field`], [`walk`], [`talk`], [`shopping`], [`camping`], [`battle`],
+//! * [`field`], [`walk`], [`talk`], [`shopping`], [`ship`], [`camping`], [`battle`],
 //!   [`expect`], [`menu`]: one controller per objective kind, each producing
 //!   pads from the session's read-only views;
 //! * [`policy`]: how battles are fought, by name;
@@ -48,6 +48,7 @@ pub mod recovery;
 pub mod replay;
 pub mod route;
 pub mod runner;
+pub mod ship;
 pub mod shopping;
 pub mod start;
 pub mod talk;

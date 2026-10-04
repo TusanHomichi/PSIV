@@ -233,6 +233,42 @@ impl Runtime {
         }
     }
 
+    /// A scene's map load: `RefreshMap` (`ps4.asm:121767`) at a start given in
+    /// eight-pixel units, with the `Map_Load_Flags` bits the scene cleared,
+    /// then the runner is recast for the new map's objects and its map-load
+    /// barrier released.
+    fn scene_load_map(
+        &mut self,
+        (map, prev_map, start_x, start_y): (u16, u16, u16, u16),
+        facing: psiv_core::Direction,
+        clear_load_flags: u8,
+        events: &mut Vec<RuntimeEvent>,
+    ) {
+        // Start words are 8px units; the standing shift applies on Y, as
+        // everywhere in the pack. A scene's load is `RefreshMap`, whose
+        // object-keeping bit is 3, and the op carries the `bclr`/`bset`
+        // writes the scene made around it.
+        let cell = Cell::new(start_x / 2, start_y / 2 + 1);
+        match self.change_map_refresh(MapId(map), cell, facing, prev_map, clear_load_flags) {
+            Ok(()) => {
+                let cast = self.build_cast();
+                if let Some(runner) = self.scene.as_mut() {
+                    runner.recast(cast);
+                }
+                events.push(RuntimeEvent::MapChanged {
+                    map: MapId(map),
+                    trigger: WarpTrigger::MapChange,
+                });
+            }
+            Err(_) => events.push(RuntimeEvent::UnpackedTarget { map: MapId(map) }),
+        }
+        // Whether the target was accepted or rejected, release the
+        // interpreter's map-load barrier. A rejected target is then
+        // allowed to report its own missing-actor fault instead of
+        // hanging a scene forever.
+        self.scene_input = SceneInput::MapLoaded;
+    }
+
     fn translate_scene_effect(&mut self, effect: SceneEffect, events: &mut Vec<RuntimeEvent>) {
         match effect {
             SceneEffect::DialogueOpen(id) => {
@@ -419,31 +455,56 @@ impl Runtime {
                         ..
                     },
             } => {
-                // Start words are 8px units; the standing shift applies on Y,
-                // as everywhere in the pack. A scene's load is `RefreshMap`
-                // (`ps4.asm:121767`), whose object-keeping bit is 3, and the
-                // op carries the `bclr`/`bset` writes the scene made around it.
-                let cell = Cell::new(start_x / 2, start_y / 2 + 1);
-                match self.change_map_refresh(MapId(map), cell, facing, prev_map, clear_load_flags)
-                {
-                    Ok(()) => {
-                        let cast = self.build_cast();
-                        if let Some(runner) = self.scene.as_mut() {
-                            runner.recast(cast);
-                        }
-                        events.push(RuntimeEvent::MapChanged {
-                            map: MapId(map),
-                            trigger: WarpTrigger::MapChange,
-                        });
-                    }
-                    Err(_) => events.push(RuntimeEvent::UnpackedTarget { map: MapId(map) }),
-                }
-                // Whether the target was accepted or rejected, release the
-                // interpreter's map-load barrier. A rejected target is then
-                // allowed to report its own missing-actor fault instead of
-                // hanging a scene forever.
-                self.scene_input = SceneInput::MapLoaded;
+                self.scene_load_map(
+                    (map, prev_map, start_x, start_y),
+                    facing,
+                    clear_load_flags,
+                    events,
+                );
             }
+            // The ship's flight legs read a table by the current map or by the
+            // chosen world: `loc_64B02` (takeoff), `loc_64B34` (transit) and
+            // `loc_64B5A` (landing, and Cancel's return), `ps4.asm:134540-134610`.
+            // A key the table has no row for is a scene fault, never a silent
+            // no-op: the cartridge's search would run off the table's end.
+            SceneEffect::MapRequested {
+                op: SceneOp::LoadFlightMap { leg },
+            } => {
+                let current = self.map.id().0;
+                let world = self.world_index();
+                match psiv_core::flight_target(leg, current, world) {
+                    Some(target) => {
+                        // `Field_Map_Index_2` becomes the map being left, or
+                        // `$FFFF` when Cancel reloads the same map
+                        // (`ps4.asm:133700`).
+                        let prev_map = if target.previous_is_current {
+                            current
+                        } else {
+                            0xFFFF
+                        };
+                        self.scene_load_map(
+                            (target.map, prev_map, target.start_x, target.start_y),
+                            psiv_core::Direction::Down,
+                            0x08,
+                            events,
+                        );
+                    }
+                    None => {
+                        events.push(RuntimeEvent::SceneFaulted {
+                            fault: psiv_core::SceneFault::NoFlightTarget {
+                                leg,
+                                map: current,
+                                world,
+                            },
+                        });
+                        if let Some(runner) = self.scene.as_mut() {
+                            runner.abort();
+                        }
+                    }
+                }
+            }
+            // The scene's own `move.b #n, (World_Index).w`.
+            SceneEffect::WorldIndexSet { world } => self.set_world_index(world),
             // MapDataManager effects are load-time work, not a live rebuild on
             // every flag write. The next map load evaluates the new flag and
             // applies the pack's Igglanova despawn gate.
@@ -560,7 +621,40 @@ impl Runtime {
             // now; their authoritative live positions are rebuilt by the
             // party driver. Presentation ops and their arrivals need no other
             // runtime action.
-            _ => {}
+            SceneEffect::ActorFaced {
+                actor: ActorRef::PartyMember(_) | ActorRef::Character(_),
+                ..
+            }
+            | SceneEffect::ActorMoveStarted {
+                actor: ActorRef::PartyMember(_) | ActorRef::Character(_),
+                ..
+            }
+            | SceneEffect::ActorArrived {
+                actor: ActorRef::PartyMember(_) | ActorRef::Character(_),
+                ..
+            }
+            | SceneEffect::ActorPlaced {
+                actor: ActorRef::PartyMember(_) | ActorRef::Character(_),
+                ..
+            } => {}
+            // The runner reports these edges for its own bookkeeping: the
+            // scene's value is read when it finishes, the purse is already
+            // written to `GameState`, and `Finished` is handled by
+            // `scene_tick` through `is_finished`.
+            SceneEffect::Returned { .. }
+            | SceneEffect::MoneyChanged { .. }
+            | SceneEffect::Finished => {}
+            // The runner emits `MapRequested` for exactly the three ops
+            // handled above. Any other op is a runner bug, and it must not be
+            // swallowed: the scene would wait on the map-load barrier forever.
+            SceneEffect::MapRequested { .. } => {
+                events.push(RuntimeEvent::SceneFaulted {
+                    fault: psiv_core::SceneFault::BadWrite,
+                });
+                if let Some(runner) = self.scene.as_mut() {
+                    runner.abort();
+                }
+            }
         }
     }
 }

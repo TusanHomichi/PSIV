@@ -566,13 +566,19 @@ impl Camera {
 
     /// One frame, in the cartridge's own order.
     ///
-    /// `Event_MoveCamera` shows the field loop's sequence plainly: the commits
-    /// (`UpdateCameraXPosFG/BG`) run *before* `Field_UpdateObjects`, so a frame
-    /// folds last frame's scroll into the position first, then decides this
-    /// frame's scroll from the driver's sprite position — which is itself a
-    /// frame old, having been written by the previous frame's
-    /// `FieldObj_CalcSpritePos`.
+    /// Ordinary field control latches during `Field_UpdateObjects`, calls
+    /// `RunMapUpdates`, then commits (`ps4.asm:116783-116790`). The latch reads
+    /// the sprite position written by the previous `FieldObj_CalcSpritePos`.
+    /// Call latch/commit separately when inserting a map update; this combined
+    /// path remains useful for callers without an intervening map program.
     pub fn tick(&mut self, driver: Driver) {
+        self.latch_driver(driver);
+        self.commit_driver();
+    }
+
+    /// Latch the object's velocities before RunMapUpdates ($054BD4 etc.).
+    /// [`Camera::commit_driver`] completes the same field frame afterwards.
+    pub fn latch_driver(&mut self, driver: Driver) {
         // 1. FieldObj_Camera*Pos_FG/BG: latch this frame's scroll off the
         //    driver's velocity, gated on its sprite position — a frame old,
         //    written by the previous CalcSpritePos — being past the threshold
@@ -582,26 +588,57 @@ impl Camera {
         self.driver_x = driver.x;
         self.driver_y = driver.y;
         self.step_x = if self.gates.ec25 == 0 {
-            0
+            self.step_x
         } else {
             latch(vx, self.driver_sprite_x, THRESHOLD_X)
         };
         self.step_y = if self.gates.ec25 == 0 {
-            0
+            self.step_y
         } else {
             latch(vy, self.driver_sprite_y, THRESHOLD_Y)
         };
         self.step_x_bg = if self.gates.ec26 == 0 {
-            0
+            self.step_x_bg
         } else {
             latch(vx, self.driver_sprite_x, THRESHOLD_X)
         };
         self.step_y_bg = if self.gates.ec26 == 0 {
-            0
+            self.step_y_bg
         } else {
             latch(vy, self.driver_sprite_y, THRESHOLD_Y)
         };
+    }
 
+    /// Apply `step -= step ASR shift` between object latching and camera commit.
+    /// Source: MapUpdate_ZioFortMoveUpdateRate and the parallel damping entries.
+    pub fn damp_step(&mut self, plane: CameraPlane, x_shift: u8, y_shift: u8) {
+        let (x, y) = match plane {
+            CameraPlane::Foreground => (&mut self.step_x, &mut self.step_y),
+            CameraPlane::Background => (&mut self.step_x_bg, &mut self.step_y_bg),
+        };
+        *x = x.wrapping_sub(*x >> x_shift);
+        *y = y.wrapping_sub(*y >> y_shift);
+    }
+
+    /// Zio tunnels replace BG's X step with its arithmetic quarter ($054C0C).
+    pub fn shift_x_step(&mut self, plane: CameraPlane, shift: u8) {
+        match plane {
+            CameraPlane::Foreground => self.step_x >>= shift,
+            CameraPlane::Background => self.step_x_bg >>= shift,
+        }
+    }
+
+    /// The vertical-scroll entry writes only the integer Y word ($055DB2).
+    pub fn write_y_word(&mut self, plane: CameraPlane, word: u16) {
+        let y = match plane {
+            CameraPlane::Foreground => &mut self.pos_y,
+            CameraPlane::Background => &mut self.pos_y_bg,
+        };
+        *y = ((i32::from(word)) << 16) | (*y & 0xFFFF);
+    }
+
+    /// Commit the latched, map-update-adjusted counters and sprite position.
+    pub fn commit_driver(&mut self) {
         // 2. UpdateCamera*PosFG/BG: fold this frame's scroll in, then apply the
         //    plane's edge rule. The commit lands *after* the latch, not before:
         //    the oracle's camera columns hold `leader - camera` at exactly
@@ -618,7 +655,10 @@ impl Camera {
         // 3. FieldObj_CalcSpritePos: every object, on screen or not, recomputes
         //    its sprite position. The driver's is what the latch reads next
         //    frame.
-        self.refresh_driver_sprite(driver);
+        self.refresh_driver_sprite(Driver {
+            x: self.driver_x,
+            y: self.driver_y,
+        });
     }
 
     /// The sprite-space position of an object at 16.16 map position `(x, y)`.

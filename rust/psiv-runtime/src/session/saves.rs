@@ -138,6 +138,7 @@ impl Session {
         self.shop = None;
         self.camp = None;
         self.menu_scene = None;
+        self.destination = None;
         self.notice_open = false;
         self.mode = Mode::Field;
         Ok(())

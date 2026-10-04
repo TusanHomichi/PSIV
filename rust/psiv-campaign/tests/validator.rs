@@ -33,7 +33,8 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
     let route = Route::parse(&main_text()).expect("main.json parses");
     let ids: Vec<&str> = route.chapters.iter().map(|c| c.id.as_str()).collect();
     assert_eq!(ids.first(), Some(&"academy"));
-    assert_eq!(ids.last(), Some(&"nurvus-zio"));
+    assert_eq!(ids.last(), Some(&"mota-spaceport"));
+    assert!(ids.contains(&"nurvus-zio"));
     assert!(ids.contains(&"aiedo"));
     assert!(ids.contains(&"north-bank"));
     for chapter in &route.chapters {
@@ -240,6 +241,36 @@ fn dismounting_on_foot_and_a_bad_vehicle_are_rejected() {
     let report = run(&bad).unwrap();
     assert!(
         report.errors.iter().any(|e| e.reason.contains("vehicle 9")),
+        "{:?}",
+        report.errors
+    );
+}
+
+#[test]
+fn a_boarding_objective_must_name_a_world() {
+    // A destination that is not a World_Index is rejected with its location.
+    let bad = mutate(
+        &main_text(),
+        "{\"do\": \"board\", \"step\": \"up\", \"to\": 3,",
+        "{\"do\": \"board\", \"step\": \"up\", \"to\": 9,",
+    );
+    let Some(report) = run(&bad) else { return };
+    let error = report
+        .errors
+        .iter()
+        .find(|e| e.reason.contains("not a World_Index"))
+        .expect("the bad world is reported");
+    assert_eq!(error.chapter, "mota-spaceport");
+    // A name nothing carries is rejected too, whether or not the local pack has
+    // the destination screen to resolve names against.
+    let unknown = mutate(
+        &main_text(),
+        "{\"do\": \"board\", \"step\": \"up\", \"to\": 3,",
+        "{\"do\": \"board\", \"step\": \"up\", \"to\": \"Atlantis\",",
+    );
+    let report = run(&unknown).unwrap();
+    assert!(
+        report.errors.iter().any(|e| e.reason.contains("Atlantis")),
         "{:?}",
         report.errors
     );

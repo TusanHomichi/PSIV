@@ -8,6 +8,16 @@ use psiv_data::GameData;
 use crate::{EffectOutcome, Runtime};
 
 impl Runtime {
+    /// Shared RNG longword, read-only, for source/draw-order receipts.
+    #[must_use]
+    pub fn rng_seed(&self) -> u32 {
+        self.rng.seed()
+    }
+    /// Current palette/scroll outputs and explicitly unsupported map inputs.
+    #[must_use]
+    pub fn map_updates(&self) -> &crate::MapUpdateView {
+        &self.effects.updates
+    }
     /// The currently loaded map.
     #[must_use]
     pub fn map_id(&self) -> MapId {

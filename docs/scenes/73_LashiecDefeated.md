@@ -3,7 +3,7 @@
 - **Retail bytes:** `$077A68..$077BD9` inclusive, 370 bytes.
 - **Pointer:** `CutscenePtrs[$16]`; scene `$8016`.
 - **Trigger:** `RunEventsJmpTbl[$47]`, Lashiec `$9B` set.
-- **Data:** `dezo_campaign.rs`, `LASHIEC_DEFEATED` (27 ops).
+- **Data:** `dezo_campaign.rs`, `LASHIEC_DEFEATED` (28 ops).
 
 ## Clone audit
 

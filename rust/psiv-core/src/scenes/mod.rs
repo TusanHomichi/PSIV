@@ -53,6 +53,7 @@
 mod bioplant;
 pub(crate) mod dezo_campaign;
 pub(crate) mod dezo_endgame;
+mod flight;
 mod game_start;
 pub(crate) mod next_arc;
 pub(crate) mod next_arc_followup;
@@ -62,6 +63,13 @@ pub(crate) mod post_rika_events;
 pub(crate) mod post_zio_cutscenes;
 pub(crate) mod retail_endgame;
 pub(crate) mod vehicles;
+
+pub(crate) use flight::INSIDE_SPACESHIP_ROUTE;
+pub use flight::{
+    DESTINATION_DEFAULT_MASK, DESTINATION_FLAG_TABLE, DestinationMask, FlightLeg, FlightTarget,
+    SPACEPORT_MAPS, WORLD_AIR_CASTLE, WORLD_COUNT, WORLD_DEZOLIS, WORLD_KURAN, WORLD_MOTAVIA,
+    WORLD_RYKROS, WORLD_ZELAN, destination_mask_byte, destination_worlds, flight_target,
+};
 
 use crate::scene::{DialogueId, DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_runner::Scene;
@@ -276,18 +284,18 @@ mod tests {
             ("Event_ZioNurvus", 17),
             ("Cutscene_ZioDefeated", 45),
             ("Cutscene_MeetingWren", 16),
-            ("Cutscene_InsideSpaceship", 12),
-            ("Cutscene_SpaceshipSabotage", 40),
-            ("Cutscene_CrashLaanding", 120),
+            ("Cutscene_InsideSpaceship", 38),
+            ("Cutscene_SpaceshipSabotage", 36),
+            ("Cutscene_CrashLaanding", 131),
             ("Cutscene_Landale", 22),
             ("Event_KuranArrival", 2),
             ("Event_NearDarkForce1", 2),
             ("Event_DarkForce1", 5),
-            ("Cutscene_DarkForce1Defeated", 27),
+            ("Cutscene_DarkForce1Defeated", 28),
             ("Event_Juza", 5),
             ("Event_JuzaDefeated", 3),
             ("Event_MeetingLeRoof", 17),
-            ("Cutscene_LeRoofAgain", 35),
+            ("Cutscene_LeRoofAgain", 61),
             ("Event_CarnivorousTrees", 13),
             ("Event_SavingKyra", 19),
             ("Cutscene_MeetingKyra", 24),
@@ -303,13 +311,13 @@ mod tests {
             ("Event_ClmCenterAfterBattle", 2),
             ("Event_DElmLars", 4),
             ("Event_AfterDElmLarsBattle", 2),
-            ("Cutscene_FindingAirCastle", 18),
+            ("Cutscene_FindingAirCastle", 44),
             ("Event_AirCastleArrival", 2),
             ("Event_XeAThoulBeforeBattle", 5),
             ("Event_AirCastleFakeChest", 11),
             ("Event_LashiecAppearance", 12),
-            ("Cutscene_LashiecDefeated", 27),
-            ("Cutscene_GumbiousBishop", 17),
+            ("Cutscene_LashiecDefeated", 28),
+            ("Cutscene_GumbiousBishop", 18),
             ("Event_StrengthTowerTop", 15),
             ("Event_CourageTowerTop", 18),
             ("Event_DeVars", 4),
@@ -319,7 +327,7 @@ mod tests {
             ("Event_SaLewsDefeated", 6),
             ("Cutscene_BeforeElsydeonCave", 16),
             ("Cutscene_Elsydeon", 47),
-            ("Cutscene_Reunion", 35),
+            ("Cutscene_Reunion", 36),
             ("Event_AngerTowerTop", 12),
             ("Event_AngerTowerExitTop", 10),
             ("Cutscene_ProfoundDarkness", 20),

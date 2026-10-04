@@ -10,13 +10,14 @@ Extractor: `psiv_tools/map_effects/`. Emission: per-map `map_effects` and
 
 ---
 
-## 1. There are three systems, not one
+## 1. Map changes have four owners
 
 | System | Where it lives | When it runs | Size |
 |---|---|---|---|
 | **A. MapDataManager** | the map record's last section | map load only | 127 live entries, 139 maps |
 | **B. Per-object live gating** | the object's own `FieldObjectsJmpTbl` routine | every frame | 4 routines |
 | **C. Overworld page hooks** | `loc_53BDC`/`loc_53CD4` jump tables | per 1KB page copy | 12 patches, maps 0–1 |
+| **D. MapUpdateJmpTbl** | the map record's ordered byte list | eligible field and scene-loop frames | [64-entry census](MAP_UPDATES.md#census) |
 
 Sections 2–11 describe the original **A** slice. **C** ships its raw source
 records as `layout_patches` on maps 0 and 1; the native consumer added on

@@ -78,6 +78,12 @@ impl Driver {
                     "a shop window is open and no objective asked",
                 ));
             }
+            if self.session().destination_view().is_some() {
+                return Err(Halt::new(
+                    HaltKind::UnexpectedState,
+                    "the ship's destination menu is open and no objective asked",
+                ));
+            }
             if let Some(notice) = self.runtime().field_notice() {
                 return Err(Halt::new(
                     HaltKind::UnexpectedState,

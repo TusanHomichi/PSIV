@@ -653,6 +653,22 @@
       "closing": [
         {"map": 0, "party": ["Chaz", "Rika", "Rune"], "flags_set": ["event:0x65", "event:0x68", "event:0x66", "event:0x61"]}
       ]
+    },
+    {
+      "id": "mota-spaceport",
+      "title": "Motavia: the new Mota Spaceport, the ship's destination menu and the flight to Zelan",
+      "source": "docs/scenes/41_InsideSpaceship.md (Mota Spaceport $BF, RunEvent_EnterSpaceship $21: leader X $1E0..$1F0 = columns 30..31, Y $120 = standing row 19, Event_Index $800D); docs/scenes/39_ZioDefeated.md (Event_MotaSpaceportAppearing sets $66); reference/ps4disasm/ps4.asm:115743 (RunEvent_EnterSpaceship); psiv-campaign plan --from-map 0 --from-cell 54,93 --to-map 191 --flag event:0x66; ps4.asm:133499 (loc_63BC4, the destination menu: AlysFound's mask $90 lists Zelan alone at the Mota Spaceport), :134593 (loc_64B5A, Zelan's landing row ($3E,$5A)); docs/campaign/RUNNER_LOG.md (H23, M23)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "expect", "map": 0, "cell": [54, 93], "flags_set": ["event:0x66"], "note": "where Cutscene_ZioDefeated leaves the party (the checkpoint's inspect output); the spaceport has appeared on the live map"},
+        {"do": "go_to_map", "map": 191, "note": "Mota Spaceport $BF by Motavia warp 22 (52,90), three steps from where the Zio scene leaves the party"},
+        {"do": "go_to", "map": 191, "cell": [30, 20], "note": "up the gangway corridor to the foot of the boarding row: Kyra and Raja stand at (31,19) and (31,20), and one more step to (30,19) starts Cutscene_InsideSpaceship, which opens the ship's destination menu"},
+        {"do": "board", "step": "up", "to": 3, "note": "the step onto row 19 opens the menu; its only row is World_Index 3, Zelan; Speak confirms, the flight (Motavia, Zelan Space) lands at Zelan's arrival cell (31,46), and World_Index is 3 from then on"},
+        {"do": "expect", "map": 397, "cell": [31, 46], "flags_set": ["event:0x66", "event:0x68"], "note": "Zelan $18D at loc_64B5A's row ($3E,$5A): cell (31,46)"}
+      ],
+      "closing": [
+        {"map": 397, "cell": [31, 46], "flags_set": ["event:0x66", "event:0x68"]}
+      ]
     }
   ]
 }

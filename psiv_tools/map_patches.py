@@ -120,7 +120,7 @@ class MapPatchError(ValueError):
 
 
 def scene_patch_chunks(rom: bytes, record: dict[str, Any]) -> list[int]:
-    """Original door-animation chunks needed by this map's interaction events.
+    """Original animation chunks needed by this map's live scene writes.
 
     These are live scene writes, independent of MapDataManager's load-time
     paths. Keep them in the same atlas so each write carries pixels and its
@@ -147,6 +147,14 @@ def scene_patch_chunks(rom: bytes, record: dict[str, Any]) -> list[int]:
             if len(table) != 9 or table[-1] != 0xFF:
                 raise MapPatchError("elevator door animation table is incomplete")
             chunks.update(table[1:8:2])
+    if record["id"] == 0x14C:
+        # Cutscene_CrashLanding loads RajaTemple at $076820/$07684A, then
+        # calls $076E00 at $076AE6. $076E58 is five four-chunk BG frames,
+        # terminated by FF at $076E6C; the map's own chunks are $1ABDA8.
+        table = rom[0x76E58:0x76E6D]
+        if len(table) != 21 or table[-1] != 0xFF or 0xFF in table[:-1]:
+            raise MapPatchError("crash landing animation table is incomplete")
+        chunks.update(table[:-1])
     return sorted(chunks)
 
 

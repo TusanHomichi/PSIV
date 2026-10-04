@@ -4,7 +4,7 @@
 //! one-thousand-line maintenance limit. The party sprite and the per-frame
 //! animation half of the same drawing path stay in `field_visuals.rs`.
 
-use godot::classes::{Image, ImageTexture, Sprite2D};
+use godot::classes::{Image, ImageTexture, Material, Shader, ShaderMaterial, Sprite2D};
 use godot::prelude::*;
 
 use super::view::{
@@ -20,9 +20,17 @@ impl Field {
             return;
         };
         let id = runtime.map_id().0;
+        let palette_images = runtime.map_record().map(|r| &r.map_update_images);
         // Surface every gap the effect layer knows about — silence here
         // would read as "fully patched" when it is not.
         let fx = runtime.map_effects();
+        for skipped in &runtime.map_updates().unsupported {
+            godot_warn!(
+                "map {id:#05x}: update {:#04x} requires {} (#41)",
+                skipped.index,
+                skipped.missing
+            );
+        }
         if fx.unresolved_layout_writes > 0 {
             godot_warn!(
                 "map {id:#05x}: {} layout write(s) active but unresolved - collision/visual patch pending pack support",
@@ -50,11 +58,16 @@ impl Field {
 
         match runtime.map_png().map(str::to_owned) {
             Some(name) => {
-                let path = format!("{}/{name}", self.pack_dir);
+                let indexed = palette_images.and_then(|images| images.get(&name));
+                let path = format!("/{}", indexed.unwrap_or(&name));
+                let path = format!("{}{path}", self.pack_dir);
                 match Image::load_from_file(&GString::from(path.as_str())) {
                     Some(mut image) => {
                         if let Some(tiles) = &atlas {
-                            let atlas_path = format!("{}/{}", self.pack_dir, tiles.png);
+                            let atlas_name = palette_images
+                                .and_then(|images| images.get(&tiles.png))
+                                .unwrap_or(&tiles.png);
+                            let atlas_path = format!("{}/{atlas_name}", self.pack_dir);
                             match Image::load_from_file(&GString::from(atlas_path.as_str())) {
                                 Some(atlas_img) => {
                                     let edge = tiles.tile_pixels as i32;
@@ -86,6 +99,7 @@ impl Field {
                             && let Some(sprite) = self.map_sprite.as_mut()
                         {
                             sprite.set_texture(&texture);
+                            install_palette_material(sprite, indexed.is_some());
                             // A scene's InitVramAndCram may have blanked the
                             // field; a map redraw is what restores it — the
                             // actor sprites ride the same reload.
@@ -104,7 +118,9 @@ impl Field {
         if let Some(sprite) = self.overlay_sprite.as_mut() {
             match over {
                 Some(name) => {
-                    let path = format!("{}/{name}", self.pack_dir);
+                    let indexed = palette_images.and_then(|images| images.get(&name));
+                    let path = format!("/{}", indexed.unwrap_or(&name));
+                    let path = format!("{}{path}", self.pack_dir);
                     match Image::load_from_file(&GString::from(path.as_str())) {
                         Some(mut image) => {
                             // The overlay atlas mirrors the base one: same
@@ -112,7 +128,10 @@ impl Field {
                             if let Some(tiles) = &atlas
                                 && let Some(over_png) = &tiles.png_over
                             {
-                                let atlas_path = format!("{}/{over_png}", self.pack_dir);
+                                let atlas_name = palette_images
+                                    .and_then(|images| images.get(over_png))
+                                    .unwrap_or(over_png);
+                                let atlas_path = format!("{}/{atlas_name}", self.pack_dir);
                                 if let Some(atlas_img) =
                                     Image::load_from_file(&GString::from(atlas_path.as_str()))
                                 {
@@ -138,6 +157,7 @@ impl Field {
                             match ImageTexture::create_from_image(&image) {
                                 Some(texture) => {
                                     sprite.set_texture(&texture);
+                                    install_palette_material(sprite, indexed.is_some());
                                     sprite.set_visible(true);
                                 }
                                 None => godot_error!("could not texture overlay {path}"),
@@ -269,5 +289,31 @@ impl Field {
                 spawn,
             });
         }
+    }
+}
+
+// Indexed textures are an additive pack input. Timing, gates and color writes
+// have already been decided by the runtime; this shader only looks up a slot.
+const MAP_PALETTE_SHADER: &str = r#"
+shader_type canvas_item;
+render_mode unshaded;
+uniform vec4 palette[32];
+uniform int revision = -1;
+void fragment() {
+    vec4 pixel = texture(TEXTURE, UV);
+    int slot = clamp(int(round(pixel.r * 255.0)), 0, 31);
+    COLOR = vec4(palette[slot].rgb, pixel.a);
+}
+"#;
+
+fn install_palette_material(sprite: &mut Gd<Sprite2D>, indexed: bool) {
+    if indexed {
+        let mut shader = Shader::new_gd();
+        shader.set_code(MAP_PALETTE_SHADER);
+        let mut material = ShaderMaterial::new_gd();
+        material.set_shader(&shader);
+        sprite.set_material(&material);
+    } else {
+        sprite.set_material(Gd::<Material>::null_arg());
     }
 }

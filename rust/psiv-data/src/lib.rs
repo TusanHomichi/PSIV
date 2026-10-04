@@ -48,6 +48,7 @@ mod ids;
 mod manifest;
 mod map;
 mod new_game;
+mod ship_menu;
 mod shops;
 mod sound;
 mod sprites;
@@ -87,7 +88,15 @@ pub use map::{
     ResolvedCell, SpriteFacing, SpriteRef, TransitionTable, Treasure, VariantCollision,
     VariantPlane, VehicleBattleLayout, Warp, WarpSource,
 };
+pub use map::{
+    MapUpdate, PaletteCycle, PalettePhase, PaletteWrite, ScrollMode, UpdateBank, UpdateGate,
+    UpdateProgram,
+};
 pub use new_game::NewGame;
+pub use ship_menu::{
+    COVER_AIR_CASTLE, COVER_KURAN, COVER_RYKROS, SCREEN_HEIGHT, SCREEN_WIDTH, ShipMenu,
+    ShipMenuFile, ShipPalette, ShipWindow,
+};
 pub use shops::{
     InnRecord, SHOPS_FILE, ShopCounter, ShopData, ShopGreeting, ShopInventory, ShopItem,
     ShopPortrait,
