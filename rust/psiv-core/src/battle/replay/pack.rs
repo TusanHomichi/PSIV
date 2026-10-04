@@ -36,16 +36,6 @@ pub(crate) fn data() -> BattleData {
         .with_enemy_skills([flame_bolt(), spiral_bld(), sand_storm()])
 }
 
-/// Additional local captures use records loaded and validated by `psiv-data`
-/// and the runtime's existing bridge, then exported by the pack-backed test.
-/// The export stays ignored alongside the captures, never in source.
-pub(crate) fn local_data(path: &std::path::Path) -> BattleData {
-    let extra = read_pack(path);
-    data()
-        .with_enemies(extra.enemies)
-        .with_enemy_skills(extra.enemy_skills)
-}
-
 /// The swept fixtures' records, as `oracle/sweep/replay_pack.py` writes them.
 ///
 /// A data file rather than transcribed Rust: a sweep meets dozens of enemies,
