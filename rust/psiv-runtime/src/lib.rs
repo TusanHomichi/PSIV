@@ -27,6 +27,8 @@ mod field_status;
 mod field_tick;
 mod field_triggers;
 mod loot;
+mod map_updates;
+pub use map_updates::{MapUpdateView, ScrollWrite, UnsupportedMapUpdate};
 #[cfg(test)]
 mod loot_tests;
 pub use field_status::FieldNotice;

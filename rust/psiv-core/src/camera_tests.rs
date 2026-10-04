@@ -351,3 +351,34 @@ fn the_field_default_gates_match_the_oracle_field_entry() {
         }
     );
 }
+
+#[test]
+fn disabled_driver_gates_preserve_seeded_steps_for_map_updates() {
+    // FieldObj_CameraX/YPos exits at the gate before clr.l (ps4.asm:89548).
+    let driver = Driver {
+        x: px(600),
+        y: px(300),
+    };
+    let mut camera = Camera::placed_on_planes_with_steps(
+        driver,
+        ACADEMY,
+        ACADEMY,
+        CameraGates::default(),
+        (px(1), -px(1)),
+        (px(2), -px(2)),
+    );
+    camera.latch_driver(driver);
+    assert_eq!(camera.raw_step_on(CameraPlane::Foreground), (px(1), -px(1)));
+    camera.damp_step(CameraPlane::Background, 4, 2);
+    assert_eq!(
+        camera.raw_step_on(CameraPlane::Background),
+        (px(2) - (px(2) >> 4), -px(2) - (-px(2) >> 2))
+    );
+    let before = camera.raw_on(CameraPlane::Background);
+    let steps = camera.raw_step_on(CameraPlane::Background);
+    camera.commit_driver();
+    assert_eq!(
+        camera.raw_on(CameraPlane::Background),
+        (before.0 + steps.0, before.1 + steps.1)
+    );
+}

@@ -36,7 +36,21 @@ impl Runtime {
                 self.scene_warmup = false;
                 return Vec::new();
             }
-            return self.scene_tick(input);
+            let motion_frame = self
+                .scene
+                .as_ref()
+                .is_some_and(psiv_core::SceneRunner::completes_map_update_loop);
+            let events = self.scene_tick(input);
+            if (motion_frame
+                || self
+                    .scene
+                    .as_ref()
+                    .is_some_and(psiv_core::SceneRunner::runs_map_updates))
+                && !self.field_suspended
+            {
+                self.run_map_updates();
+            }
+            return events;
         }
         // The field-mode tick: GameMode_Field opens with an unconditional
         // UpdateRNGSeed before dispatching (ps4.asm:107638). It vanishes
@@ -55,7 +69,19 @@ impl Runtime {
             }
         }
         if self.vehicle.is_some() {
-            return self.tick_vehicle(input);
+            let events = self.tick_vehicle(input);
+            if !self.field_suspended
+                && self.scene.is_none()
+                && !events.iter().any(|e| {
+                    matches!(
+                        e,
+                        RuntimeEvent::MapChanged { .. } | RuntimeEvent::EncounterRolled { .. }
+                    )
+                })
+            {
+                self.run_map_updates();
+            }
+            return events;
         }
         let mut events = Vec::new();
         let (mut landed, field_effects) = match self.field_status.pending.take() {
@@ -115,11 +141,10 @@ impl Runtime {
                     cell,
                     reach,
                 } => {
-                    if self.start_chest_interaction(npc_index)
-                        || self.start_interaction_event(&mut events)
+                    interaction_started = true;
+                    if !self.start_chest_interaction(npc_index)
+                        && !self.start_interaction_event(&mut events)
                     {
-                        interaction_started = true;
-                    } else {
                         events.push(RuntimeEvent::Interact {
                             npc_index,
                             cell,
@@ -128,9 +153,8 @@ impl Runtime {
                     }
                 }
                 Effect::InteractNothing { facing } => {
-                    if self.start_interaction_event(&mut events) {
-                        interaction_started = true;
-                    } else {
+                    interaction_started = true;
+                    if !self.start_interaction_event(&mut events) {
                         events.push(RuntimeEvent::InteractNothing { facing });
                     }
                 }
@@ -158,6 +182,7 @@ impl Runtime {
             && self.loot.is_none()
             && let Some(set) = self.battles.as_mut()
             && set.table.enabled(self.map.id().0)
+            && self.effects.updates.random_battles != Some(false)
             && !EncounterClock::suppressed(&self.map, cell)
             && set.clock.step()
             && self.rng.next_roll() & FOOT_MASK == 0
@@ -182,10 +207,23 @@ impl Runtime {
         if !self.field_suspended {
             self.tick_field_objects();
         }
-        // `UpdateCamera*PosFG/BG` folds in last frame's scroll and
-        // `FieldObj_*` latches this frame's, both against the party's
-        // post-movement position.
-        self.camera.tick(driver_of(self.party.leader()));
+        // Object latches use the party's post-movement position and the prior
+        // sprite threshold; map updates adjust those counters before commit.
+        self.camera.latch_driver(driver_of(self.party.leader()));
+        // Retail FieldRoutine_Controls: objects, AnimateTiles, RunMapUpdates,
+        // camera commit. Transition/scene/battle/input dispatch frames skip it
+        // (ps4.asm:116755-116798); menus/dialogue never call the retail table.
+        if !self.field_suspended
+            && !map_changed
+            && !interaction_started
+            && self.scene.is_none()
+            && !events
+                .iter()
+                .any(|e| matches!(e, RuntimeEvent::EncounterRolled { .. }))
+        {
+            self.run_map_updates();
+        }
+        self.camera.commit_driver();
         events
     }
 }

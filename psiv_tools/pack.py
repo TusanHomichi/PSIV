@@ -138,6 +138,8 @@ from .sprites.emit import (
 )
 from .symbols import ITEM_SYMBOLS
 from .chest_sprites import bind_chest_sprites
+from .map_updates import extract_map_updates
+from .map_updates_render import bind_updates
 from .warps import (  # noqa: F401
     STANDING_CELL_Y_OFFSET,
     XY_RANGE_NAMES,
@@ -695,6 +697,7 @@ def build_pack(
 
     # Every map's MapDataManager list, decoded once and handed out per map.
     effects = extract_map_effects(rom_bytes, extracted["maps"])
+    updates = extract_map_updates(rom_bytes, extracted["maps"])
     replacements_by_map: dict[int, list[dict[str, Any]]] = {}
     for replacement in effects["replacements"]:
         replacements_by_map.setdefault(replacement["map"], []).append(replacement)
@@ -820,6 +823,7 @@ def build_pack(
             record, decoded, png_name, sprites, overworld, png_over_name,
             map_effects, variants, patch_tiles, overworld_patches,
         )
+        bind_updates(rom_bytes, record, payload, directory, image, overlay_image, updates)
         bind_chest_sprites(rom_bytes, payload["treasure_chests"], palette_48,
                           record["general_var"], npc_sheets)
         if variants:
