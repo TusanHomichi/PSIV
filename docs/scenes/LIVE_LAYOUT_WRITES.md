@@ -40,6 +40,7 @@ table slot, whose address was checked against the image.
 | `Cutscene_PsycoWand` `$800A` | `$07580A`, `$07581E` | FG `(9,5)` ← `$8F`, BG `(9,6)` ← `$90` | **was `ReloadMapChunks`** → `WriteMapChunks` |
 | `Cutscene_ZioDefeated` `$800B` (via `Event_MotaSpaceportAppearing` `$07`) | `$06B808` | BG `(26,45)` ← `$3F` | **was dropped** → `WriteMapChunks` |
 | `Cutscene_CrashLanding` `$800F` | `$076E00` (called at `$076AE6`) | Raja Temple BG `(47,9),(48,9),(47,10),(48,10)` ← five frames ending `$56,$57,$5E,$5F` | `WriteMapChunks` ×5; raw `$50..$5F` atlas tiles, [retail decode](43_CrashLanding.md#live-layout-write-retail-correction-67) |
+| `Event_TylerGraveOpening` `$44` | `$06FCEE` | BG `(10,12)` ← `$47`, with the twelve grave objects drifting aside (`DriftNpcs`) | `WriteMapChunks` + `DriftNpcs`, [92](92_TylerGraveOpening.md) |
 
 Several of these were transcribed as presentation or not at all, which is
 the class H19 reports: a scene op that changes collision was recorded as art.
@@ -54,9 +55,8 @@ had workarounds in it (`go_to_map` round trips); the rest were latent.
 | `Event_WreckageEngine` `$29` | `$06DD14` | one chunk | not transcribed |
 | `Event_GaruberkTwDoorOpening1/2` `$35`,`$36`, `Event_GaruberkTwDoorEntered1/2` `$37`,`$38` | `$06F454`…`$06F83A` | tower door animations | not transcribed |
 | `Event_SilenceTmDoorOpening` `$42` | `$06FC04`, `$06FC16` | two-chunk door | not transcribed (the file's next body after `Event_JuzaDefeated`) |
-| `Event_TylerGraveOpening` `$44` | `$06FCEE` | grave chunk | not transcribed |
 
-The last four groups are the already-recorded direct bodies outside this
+The last three groups are the already-recorded direct bodies outside this
 slice ([12_ArcTriggerCensus](12_ArcTriggerCensus.md)); listing them here keeps
 the *class* visible: each is a live collision change, not decoration.
 

@@ -3,7 +3,6 @@
 
 #![allow(dead_code)]
 
-use std::path::Path;
 use std::sync::OnceLock;
 
 use psiv_data::{BattleFiles, GameData};
@@ -19,19 +18,26 @@ pub struct Pack {
     pub battle: BattleFiles,
 }
 
-/// The loaded pack, or `None` (after saying so) when `runtime-pack` is absent.
+/// The pack `pack()` reads: `PSIV_RUNTIME_PACK` when set (a scratch pack built
+/// from a revision's own extractors), else the repository's `runtime-pack`.
+pub fn pack_dir() -> std::path::PathBuf {
+    std::env::var_os("PSIV_RUNTIME_PACK")
+        .map_or_else(|| std::path::PathBuf::from(PACK), std::path::PathBuf::from)
+}
+
+/// The loaded pack, or `None` (after saying so) when it is absent.
 pub fn pack() -> Option<&'static Pack> {
     static PACK_CELL: OnceLock<Option<Pack>> = OnceLock::new();
     PACK_CELL
         .get_or_init(|| {
-            let dir = Path::new(PACK);
+            let dir = pack_dir();
             if !dir.join("manifest.json").is_file() {
-                eprintln!("runtime pack not present at {PACK}; skipping");
+                eprintln!("runtime pack not present at {}; skipping", dir.display());
                 return None;
             }
             Some(Pack {
-                data: GameData::load(dir).expect("pack loads"),
-                battle: BattleFiles::load(dir).expect("battle files load"),
+                data: GameData::load(&dir).expect("pack loads"),
+                battle: BattleFiles::load(&dir).expect("battle files load"),
             })
         })
         .as_ref()

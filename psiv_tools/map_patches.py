@@ -80,6 +80,7 @@ from __future__ import annotations
 
 import hashlib
 import re
+from dataclasses import dataclass
 from typing import Any, Sequence
 
 from . import png
@@ -119,6 +120,109 @@ class MapPatchError(ValueError):
     pass
 
 
+@dataclass(frozen=True)
+class SceneChunkWrite:
+    """One transcribed scene's live layout writes on one map.
+
+    `scene` is the registry name (`rust/psiv-core/src/scenes`), `map_id` the map
+    the write lands on, and `chunks` the chunk ids it writes: literal, or a ROM
+    table read when the scene walks one (`table`: `(offset, length)`, `$FF`
+    terminated). `citation` says where the write is in the image, and `checks`
+    pins literal bytes there so a moved write fails the build instead of
+    shipping an atlas the scene cannot use.
+
+    `via` says which atlas source resolves the write at runtime
+    (`write_scene_map_chunks`): `"scene"`, a raw tile this table adds;
+    `"map_effects"`, a raw tile the map's own `MapDataManager` writes already
+    put in the atlas; `"overworld_patches"`, the composed FG-over-BG pair a
+    paged overworld hook carries. Only `"scene"` rows add atlas chunks; the
+    others are recorded so the guard can hold the pack to them.
+    """
+
+    scene: str
+    map_id: int
+    citation: str
+    chunks: tuple[int, ...] = ()
+    table: tuple[int, int] | None = None
+    checks: tuple[tuple[int, str], ...] = ()
+    via: str = "scene"
+
+
+#: Every `WriteMapChunks` in the scene registry, by map. The atlas must carry
+#: each chunk's pixels and collision (`write_scene_map_chunks` refuses a write
+#: it cannot resolve: `scene chunk atlas is absent`, #67), so a transcribed scene
+#: write that is missing here fails `tests/test_scene_chunk_atlas.py`, naming the
+#: scene and the chunk, before a route halts on it.
+SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
+    SceneChunkWrite(
+        scene="Event_MachineCenterAppearing",
+        map_id=0x000,
+        citation="loc_6B5C0: GetMapLayoutChunkBG($39,$5A) at $06B5CE, `move.b #$D3, (a1)` at $06B5D4",
+        chunks=(0xD3,),
+        checks=((0x6B5D4, "12BC00D3"),),
+        via="overworld_patches",
+    ),
+    SceneChunkWrite(
+        scene="Cutscene_PsycoWand",
+        map_id=0x039,
+        citation="`move.b #$8F, (a1)` at $075810 (FG (9,5)) and `move.b #$90, (a1)` at $075824 (BG (9,6))",
+        chunks=(0x8F, 0x90),
+        checks=((0x75810, "12BC008F"), (0x75824, "12BC0090")),
+        via="map_effects",
+    ),
+    SceneChunkWrite(
+        scene="Cutscene_ZioDefeated",
+        map_id=0x000,
+        citation="Event_MotaSpaceportAppearing loc_6B7FA: GetMapLayoutChunkBG($1A,$2D) at $06B808, `move.b #$3F, (a1)` at $06B80E",
+        chunks=(0x3F,),
+        checks=((0x6B80E, "12BC003F"),),
+        via="overworld_patches",
+    ),
+    SceneChunkWrite(
+        scene="Cutscene_CrashLaanding",
+        map_id=0x14C,
+        citation=(
+            "loads RajaTemple at $076820/$07684A, then calls $076E00 at $076AE6; "
+            "$076E58 is five four-chunk BG frames terminated by FF at $076E6C "
+            "(the map's own chunks are $1ABDA8)"
+        ),
+        table=(0x76E58, 21),
+    ),
+    SceneChunkWrite(
+        scene="Event_TylerGraveOpening",
+        map_id=0x120,
+        citation="GetMapLayoutOffset(d1=$A, d2=$C, d3=1) at $06FCEE, `move.b #$47, (a1)` at $06FCF4",
+        chunks=(0x47,),
+        checks=((0x6FCF4, "12BC0047"),),
+    ),
+)
+
+
+def chunk_ids(rom: bytes, row: SceneChunkWrite) -> set[int]:
+    """The chunk ids `row` writes, with every pinned byte checked against `rom`."""
+    for offset, expected in row.checks:
+        if rom[offset : offset + len(expected) // 2] != bytes.fromhex(expected):
+            raise MapPatchError(f"{row.scene}: the write at ${offset:06X} moved ({row.citation})")
+    found = set(row.chunks)
+    if row.table is not None:
+        offset, length = row.table
+        table = rom[offset : offset + length]
+        if len(table) != length or table[-1] != 0xFF or 0xFF in table[:-1]:
+            raise MapPatchError(f"{row.scene}: the chunk table at ${offset:06X} is incomplete")
+        found.update(table[:-1])
+    return found
+
+
+def scene_write_chunks(rom: bytes, map_id: int) -> set[int]:
+    """The chunk ids `SCENE_CHUNK_WRITES` adds to `map_id`'s atlas (`via` `"scene"`)."""
+    found: set[int] = set()
+    for row in SCENE_CHUNK_WRITES:
+        if row.map_id != map_id or row.via != "scene":
+            continue
+        found.update(chunk_ids(rom, row))
+    return found
+
+
 def scene_patch_chunks(rom: bytes, record: dict[str, Any]) -> list[int]:
     """Original animation chunks needed by this map's live scene writes.
 
@@ -147,14 +251,7 @@ def scene_patch_chunks(rom: bytes, record: dict[str, Any]) -> list[int]:
             if len(table) != 9 or table[-1] != 0xFF:
                 raise MapPatchError("elevator door animation table is incomplete")
             chunks.update(table[1:8:2])
-    if record["id"] == 0x14C:
-        # Cutscene_CrashLanding loads RajaTemple at $076820/$07684A, then
-        # calls $076E00 at $076AE6. $076E58 is five four-chunk BG frames,
-        # terminated by FF at $076E6C; the map's own chunks are $1ABDA8.
-        table = rom[0x76E58:0x76E6D]
-        if len(table) != 21 or table[-1] != 0xFF or 0xFF in table[:-1]:
-            raise MapPatchError("crash landing animation table is incomplete")
-        chunks.update(table[:-1])
+    chunks.update(scene_write_chunks(rom, record["id"]))
     return sorted(chunks)
 
 

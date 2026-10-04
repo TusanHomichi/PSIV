@@ -37,6 +37,7 @@ from .common import (
 )
 from .flow import CTRL_NAMES, CTRL_NOTES, Census, system_messages, tree_json
 from .signatures import check_signatures
+from .selection import extract_selection
 from .window import (
     BACKGROUND_COLOR_INDEX,
     GLYPH_COUNT,
@@ -118,6 +119,7 @@ def emit_dialogue(rom_bytes: bytes, out_dir: str | Path) -> dict[str, Any]:
         "font": FONT_JSON_NAME,
         "chrome": WINDOW_JSON_NAME,
         "system_messages": messages,
+        "world_interaction": extract_selection(rom_bytes),
         "portraits": PORTRAITS_NAME,
         "trees": trees,
     }

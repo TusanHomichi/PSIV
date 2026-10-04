@@ -32,6 +32,10 @@
 mod choice;
 pub mod glue;
 mod open;
+mod selection;
+#[cfg(test)]
+mod selection_tests;
+mod stop_byte;
 mod text_flow;
 mod view;
 
@@ -120,6 +124,9 @@ pub struct DialogueRunner {
     cutscene_portrait: bool,
     /// Signals produced since the last drain, in order.
     signals: Vec<DialogueSignal>,
+    /// The byte under the saved dialogue address after the last stop
+    /// (`stop_byte.rs`).
+    stop_byte: Option<u8>,
 }
 
 impl Default for DialogueRunner {
@@ -147,6 +154,7 @@ impl DialogueRunner {
             scene_dialogue: false,
             cutscene_portrait: false,
             signals: Vec::new(),
+            stop_byte: None,
         }
     }
 

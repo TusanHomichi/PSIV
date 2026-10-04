@@ -89,6 +89,8 @@ behind it cannot be reached. **Disposition: no alternative** (the reads are `:11
 `:116378`). Smallest change: `psiv_tools` extracts each map's update list, `psiv-data`
 loads it, `field_tick` runs the flag-writing entries (`$2D`) each frame. Everything past it
 (sabotage, Chaos Sorcerer, `Cutscene_CrashLanding` with #67, Dezolis control) is unprobed.
+**Fixed on main before C5** (the per-frame map updates, #41): the C5 route sets `$72` with
+the chest and plays the rest ([C5 runs](RUNNER_LOG_DEZOLIS.md#c5-runs)).
 
 ### H26 and H27
 

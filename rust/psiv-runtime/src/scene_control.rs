@@ -57,6 +57,15 @@ impl Runtime {
         cast
     }
 
+    /// Hands the running scene the byte under `Saved_Dialogue_Addr` that the
+    /// dialogue just closed on (`BranchIfSavedDialogueByte`).
+    fn sync_dialogue_stop_byte(&mut self) {
+        let byte = self.dialogue.stop_byte();
+        if let Some(runner) = self.scene.as_mut() {
+            runner.set_dialogue_stop_byte(byte);
+        }
+    }
+
     /// Whether a scene is running (cinema mode, input ownership).
     #[must_use]
     pub fn scene_active(&self) -> bool {
@@ -121,6 +130,7 @@ impl Runtime {
     pub(crate) fn dialogue_closed(&mut self) {
         if self.scene.is_some() && !matches!(self.scene_input, SceneInput::Choice(_)) {
             self.scene_input = SceneInput::DialogueClosed;
+            self.sync_dialogue_stop_byte();
         }
     }
 
@@ -128,6 +138,7 @@ impl Runtime {
     pub(crate) fn dialogue_ended(&mut self) {
         if self.scene.is_some() && !matches!(self.scene_input, SceneInput::Choice(_)) {
             self.scene_input = SceneInput::DialogueEnded;
+            self.sync_dialogue_stop_byte();
         }
     }
 

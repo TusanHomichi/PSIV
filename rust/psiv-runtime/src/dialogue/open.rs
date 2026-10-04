@@ -14,8 +14,8 @@ use psiv_data::{Ctrl, DialogueEntry, Segment};
 use super::{DialogueRunner, Opening, TextFlow};
 
 impl DialogueRunner {
-    /// Opens an NPC's line: the map's dialogue tree (1-based) and the object's
-    /// `dialogue_id`.
+    /// Opens a field entry in the tree the runtime selection owner resolved:
+    /// a map-loaded NPC tree or a world-selected type-0 area tree.
     pub(crate) fn open_entry(&mut self, tree: u8, dialogue_id: u16, game: &GameState) -> bool {
         self.open_resolved_tree(tree, dialogue_id, game, false, false)
     }
@@ -174,6 +174,7 @@ impl DialogueRunner {
     /// instant-close path. No signal is produced, so a scene that never saw a
     /// window behaves as it did when the harness skipped opening one.
     pub(crate) fn close_window(&mut self) {
+        self.note_stop();
         self.flow = None;
         self.open_cells = 0;
         self.scene_dialogue = false;

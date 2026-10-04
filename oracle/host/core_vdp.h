@@ -15,6 +15,8 @@ struct core_vdp {
 };
 
 int core_vdp_bind(void *core_anchor, struct core_vdp *vdp);
+/* Bind a local core symbol without assuming a private CPU struct layout. */
+int core_symbol_bind(void *core_anchor, const char *name, uintptr_t *address);
 const char *core_vdp_error(void);
 
 #endif

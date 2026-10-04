@@ -29,8 +29,13 @@ fn pack() -> Option<&'static (GameData, BattleFiles)> {
     static PACK_FILES: OnceLock<Option<(GameData, BattleFiles)>> = OnceLock::new();
     PACK_FILES
         .get_or_init(|| {
-            let path = Path::new(PACK);
+            let selected = std::env::var_os("PSIV_RUNTIME_PACK");
+            let path = selected
+                .as_deref()
+                .map(Path::new)
+                .unwrap_or_else(|| Path::new(PACK));
             if !path.join("manifest.json").is_file() {
+                eprintln!("runtime pack absent; skipping destination tests");
                 return None;
             }
             Some((
@@ -126,7 +131,11 @@ impl Player {
     /// Holds `button` until the destination menu is up; the frames it took.
     fn walk_into_menu(&mut self, button: Button) -> u32 {
         for frames in 0..400 {
-            if self.session.destination_view().is_some() {
+            if self
+                .session
+                .destination_view()
+                .is_some_and(|view| view.phase == DestinationPhase::Choosing)
+            {
                 // Let go, so the next press is a fresh edge.
                 self.tick(Pad::NEUTRAL);
                 return frames;
@@ -456,7 +465,11 @@ fn a_flight_table_without_a_row_is_a_scene_fault() {
     };
     assert!(player.session.debug_start_event(0x800D));
     // The menu opens wherever the scene runs; Cancel resumes on the return leg.
-    player.wait_until(400, |p| p.session.destination_view().is_some());
+    player.wait_until(400, |p| {
+        p.session
+            .destination_view()
+            .is_some_and(|view| view.phase == DestinationPhase::Choosing)
+    });
     let mut fault = None;
     for pad in
         std::iter::once(Pad::new(Button::Cancel)).chain(std::iter::repeat_n(Pad::NEUTRAL, 600))
@@ -537,4 +550,204 @@ fn the_answers_take_the_frames_the_cartridge_took() {
     };
     player.board_at_mota();
     assert_eq!(map_change_after(&mut player, Button::Cancel), 55, "Cancel");
+}
+
+/// Tape 35 confirm at 7401; field control is mode $0C/routine 0, after the
+/// landing refresh, ordinary reload/fade and place-name window, not map write.
+#[test]
+fn both_flights_return_control_on_tape_35s_exact_frame() {
+    for (origin, world, button, target, expected_maps, expected) in [
+        (
+            MOTA_GANGWAY,
+            0,
+            Button::Up,
+            ZELAN,
+            vec![(173, 0), (1216, 0x18C), (1652, ZELAN)],
+            1861,
+        ),
+        (
+            (ZELAN, 31, 46),
+            0x0300,
+            Button::Down,
+            MOTA_SPACEPORT,
+            vec![(179, 0x18C), (946, 0), (1406, MOTA_SPACEPORT)],
+            1596,
+        ),
+    ] {
+        let mut story = post_zio();
+        story.world_word = world;
+        let Some(mut player) = Player::at(origin, &story) else {
+            return;
+        };
+        player.walk_into_menu(button);
+        let clock = player.session.main_frame_count();
+        let mut maps = Vec::new();
+        let mut ops = Vec::new();
+        let mut caption_seen = false;
+        let mut caption_at = None;
+        let mut control = None;
+        for offset in 0..2200 {
+            let frame = player.tick(if offset == 0 {
+                Pad::new(Button::Speak)
+            } else {
+                Pad::NEUTRAL
+            });
+            for event in &frame.events {
+                match event {
+                    RuntimeEvent::MapChanged { map, .. } => maps.push((offset, map.0)),
+                    RuntimeEvent::ScenePresentation { op } => ops.push((offset, *op)),
+                    RuntimeEvent::SceneEnded => control = Some(offset),
+                    _ => {}
+                }
+            }
+            if let Some(view) = player.session.flight_view()
+                && let Some(caption) = view.caption.as_deref()
+            {
+                let packed = player
+                    .runtime()
+                    .data()
+                    .ship_menu()
+                    .unwrap()
+                    .flight_caption(player.runtime().world_index())
+                    .expect("rebuilt pack captions");
+                assert_eq!(caption, packed, "d4=1 types the whole caption at once");
+                caption_seen = true;
+                caption_at.get_or_insert(offset);
+            }
+            if control.is_some() {
+                break;
+            }
+        }
+        eprintln!(
+            "tape35 {origin:?} -> {target:#x}: maps={maps:?}; control={control:?}; ops={ops:?}"
+        );
+        assert_eq!(maps, expected_maps, "tape 35 map-word write edges");
+        assert_eq!(control, Some(expected), "confirm to ordinary field control");
+        assert_eq!(player.runtime().map_id().0, target);
+        assert_eq!(
+            player.session.main_frame_count().wrapping_sub(clock),
+            expected as u16 + 1,
+            "every presentation/setup frame spends the field frame clock"
+        );
+        if player
+            .runtime()
+            .data()
+            .ship_menu()
+            .unwrap()
+            .flight_caption(0)
+            .is_some()
+        {
+            assert!(caption_seen);
+            assert_eq!(
+                caption_at,
+                Some(if target == ZELAN { 826 } else { 556 }),
+                "completed caption DMA follows setup, not the initial clear"
+            );
+        } else {
+            eprintln!("older pack has no flight captions; caption assertion skipped");
+        }
+        assert!(
+            player.session.flight_view().is_none(),
+            "no flight overlay after control"
+        );
+    }
+}
+
+/// Window_Draw (tape 35 frames 7246..7257) never reads the pad. Edges spent
+/// there stay lost, including a held Speak carried across the final upload.
+#[test]
+fn opening_discards_all_pad_edges_and_does_not_defer_a_held_accept() {
+    let Some(mut player) = Player::at(MOTA_GANGWAY, &post_zio()) else {
+        return;
+    };
+    for _ in 0..400 {
+        if player.session.destination_view().is_some() {
+            break;
+        }
+        player.tick(Pad::new(Button::Up));
+    }
+    assert_eq!(
+        player.session.destination_view().unwrap().phase,
+        DestinationPhase::Opening
+    );
+    let clock = player.session.main_frame_count();
+    // Frame-end DMA widths from the fresh tape-35 CPU trace, not the port's
+    // growth formula: prompt 7246..7252, list 7254..7257. The odd final list
+    // column is uploaded with its text, after Window_Draw's skipped DMA.
+    let prompt_columns = [2, 6, 10, 14, 18, 22, 26, 26, 26, 26, 26, 26];
+    let list_columns = [0, 0, 0, 0, 0, 0, 0, 0, 2, 6, 10, 11];
+    for opening in 1_u8..=12 {
+        let buttons = if opening == 12 {
+            vec![Button::Speak]
+        } else if opening % 2 == 0 {
+            vec![Button::Cancel, Button::Camp, Button::Up]
+        } else {
+            vec![Button::Speak, Button::Down]
+        };
+        let frame = player.tick(Pad::of(&buttons));
+        let view = player
+            .session
+            .destination_view()
+            .expect("opening presses cannot close the menu");
+        assert_eq!(
+            view.phase,
+            if opening < 12 {
+                DestinationPhase::Opening
+            } else {
+                DestinationPhase::Choosing
+            }
+        );
+        assert_eq!(
+            view.prompt_columns,
+            prompt_columns[usize::from(opening - 1)]
+        );
+        assert_eq!(view.prompt_ready, opening >= 8);
+        assert_eq!(view.list_columns, list_columns[usize::from(opening - 1)]);
+        assert_eq!(view.cursor, 0);
+        assert!(view.typed.is_empty());
+        assert_eq!(frame.sound, None);
+    }
+    assert_eq!(player.session.main_frame_count().wrapping_sub(clock), 12);
+    assert_eq!(
+        player.tick(Pad::new(Button::Speak)).sound,
+        None,
+        "held edge was spent during opening"
+    );
+    assert_eq!(
+        player.session.destination_view().unwrap().phase,
+        DestinationPhase::Choosing
+    );
+    player.tick(Pad::NEUTRAL);
+    // Positive control: the same pad press after opening is read immediately.
+    assert_eq!(player.tick(Pad::new(Button::Speak)).sound, Some(0xF3));
+    assert_eq!(
+        player.session.destination_view().unwrap().phase,
+        DestinationPhase::Confirmed
+    );
+}
+
+/// Re-derive the clone pin from the shell's event fixture at tick 30. This
+/// proves the view state only; X11 captures must still certify the fixed image.
+#[test]
+fn certified_tick_70_still_has_the_settled_hidden_cursor_state() {
+    let Some((data, _)) = pack() else {
+        return;
+    };
+    let mut session =
+        psiv_runtime::scene_fixture(data.clone(), 0x800D, psiv_core::StepFrames::default())
+            .unwrap()
+            .unwrap();
+    for tick in 1..=70 {
+        if tick == 30 {
+            assert!(session.debug_start_event(0x800D));
+        }
+        session.frame(Pad::NEUTRAL);
+    }
+    let view = session.destination_view().unwrap();
+    assert_eq!(view.phase, DestinationPhase::Choosing);
+    assert_eq!((view.prompt_columns, view.list_columns), (26, 11));
+    assert!(view.prompt_ready);
+    assert!(!view.cursor_visible);
+    assert!(!view.blink);
+    assert_eq!(view.rows, [WORLD_ZELAN]);
 }

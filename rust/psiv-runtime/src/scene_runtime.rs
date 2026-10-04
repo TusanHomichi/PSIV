@@ -488,6 +488,13 @@ impl Runtime {
                             0x08,
                             events,
                         );
+                        if leg != psiv_core::FlightLeg::Return {
+                            self.scene_camera_locked = true;
+                            self.scene_input = SceneInput::None;
+                            if let Some(runner) = self.scene.as_mut() {
+                                runner.delay_frames(target.refresh_frames(leg));
+                            }
+                        }
                     }
                     None => {
                         events.push(RuntimeEvent::SceneFaulted {
@@ -518,6 +525,35 @@ impl Runtime {
             // a headless run must pan exactly like a rendered one.
             SceneEffect::Presentation { op } => {
                 match op {
+                    SceneOp::FlightPlanet => {
+                        // Tape 35: InitVRAMAndCRAM 15/13 frames, loc_643B8
+                        // background 18, loc_644AE sprites 2/4, RunText2 3/2
+                        // CPU frames. d4=1 means zero per-character waits.
+                        let frames = if self.map.id().0 == 0 { 38 } else { 37 };
+                        if let Some(runner) = self.scene.as_mut() {
+                            runner.delay_frames(frames);
+                        }
+                    }
+                    SceneOp::FlightPan => {
+                        // loc_5ABDC pans only Y. RefreshMap seats the camera
+                        // at start_y*8-$58; the subject adds $100 before the
+                        // helper's twelve-bit mask, giving 128 two-pixel steps.
+                        let (x, y) = self.camera.raw();
+                        self.camera_glide = Some(crate::CameraGlide {
+                            target_x: (x >> 16) & 0xFFF,
+                            target_y: ((y >> 16) + 0x100) & 0xFFF,
+                            speed: 2,
+                            x_then_y: true,
+                        });
+                    }
+                    SceneOp::FlightFieldReload => {
+                        // The cutscene return's VInt plus the ordinary field
+                        // reload up to Pal_FadeIn (tape 35 CPU stacks).
+                        let frames = if self.map.id().0 == 0x18D { 36 } else { 26 };
+                        if let Some(runner) = self.scene.as_mut() {
+                            runner.delay_frames(frames);
+                        }
+                    }
                     SceneOp::PlayMusicIfSavedDifferent { id } => {
                         // All three boarding events compare the persistent
                         // word, then write Sound_Index and Saved_Sound_Index
@@ -561,6 +597,16 @@ impl Runtime {
                     // (`rust/psiv-runtime/src/map_change.rs`).
                     SceneOp::SetMapLoadFlags { set, clear } => {
                         self.map_load_flags = (self.map_load_flags | set) & !clear;
+                    }
+                    // One frame of `SceneOp::DriftNpcs`: the object's
+                    // whole-pixel position after `FieldObj_UpdatePosition`
+                    // (`$04501C`) added its step constants. Written to the
+                    // field map so occupancy, collision and the renderer
+                    // follow the drift at the cartridge's rate.
+                    SceneOp::Presentation {
+                        op: psiv_core::PresentationOp::NpcPixelPosition { npc, x, y },
+                    } => {
+                        let _ = self.map.set_npc_pixel_position(npc, x, y);
                     }
                     // `Event_MoveCamera` reading a live object rather than
                     // literals (`PresentationOp::CameraToActor`). The camera is

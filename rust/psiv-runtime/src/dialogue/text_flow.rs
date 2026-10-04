@@ -9,6 +9,8 @@
 //! entry, or by a scene between two chunks, is visible to the next check.
 //! Nothing copies the flag bank, so nothing can go stale.
 
+mod stop;
+
 use psiv_core::{Flag, GameState};
 use psiv_data::{
     ActionKind, CHARS_PER_LINE, Ctrl, DialogueEntry, LINES_PER_WINDOW, PORTRAIT_HIDE, PageEnd,

@@ -51,8 +51,10 @@
 //! every count below is the corrected `d0 + 1`.
 
 mod bioplant;
+pub(crate) mod census_events;
 pub(crate) mod dezo_campaign;
 pub(crate) mod dezo_endgame;
+pub(crate) mod dezolis_route;
 mod flight;
 mod game_start;
 pub(crate) mod next_arc;
@@ -159,6 +161,14 @@ pub static SCENES: &[Scene] = &[
     post_zio_cutscenes::INSIDE_SPACESHIP,
     post_zio_cutscenes::SPACESHIP_SABOTAGE,
     post_zio_cutscenes::CRASH_LANDING,
+    dezolis_route::OUTSIDE_RAJA_TEMPLE,
+    dezolis_route::TYLER_GRAVE_OPENING,
+    dezolis_route::GYUNA,
+    census_events::CANCELLER_REMINDER,
+    census_events::MILE_SAND_WORM_BATTLE,
+    census_events::FRACT_OOZE_FOUND,
+    census_events::KING_RAPPY,
+    census_events::DAUGHTER_TERMINAL,
     post_zio_cutscenes::LANDALE,
     post_zio_cutscenes::KURAN_ARRIVAL,
     post_zio_cutscenes::NEAR_DARK_FORCE_1,
@@ -284,9 +294,17 @@ mod tests {
             ("Event_ZioNurvus", 17),
             ("Cutscene_ZioDefeated", 45),
             ("Cutscene_MeetingWren", 16),
-            ("Cutscene_InsideSpaceship", 38),
+            ("Cutscene_InsideSpaceship", 48),
             ("Cutscene_SpaceshipSabotage", 36),
             ("Cutscene_CrashLaanding", 131),
+            ("Event_OutsideRajaTemple", 3),
+            ("Event_TylerGraveOpening", 19),
+            ("Event_Gyuna", 7),
+            ("Event_CancellerReminder", 2),
+            ("Event_MileSandWormBattle", 5),
+            ("Event_FractOozeFound", 5),
+            ("Event_KingRappy", 7),
+            ("Event_DaughterTerminal", 5),
             ("Cutscene_Landale", 22),
             ("Event_KuranArrival", 2),
             ("Event_NearDarkForce1", 2),
@@ -295,7 +313,7 @@ mod tests {
             ("Event_Juza", 5),
             ("Event_JuzaDefeated", 3),
             ("Event_MeetingLeRoof", 17),
-            ("Cutscene_LeRoofAgain", 61),
+            ("Cutscene_LeRoofAgain", 71),
             ("Event_CarnivorousTrees", 13),
             ("Event_SavingKyra", 19),
             ("Cutscene_MeetingKyra", 24),
@@ -311,7 +329,7 @@ mod tests {
             ("Event_ClmCenterAfterBattle", 2),
             ("Event_DElmLars", 4),
             ("Event_AfterDElmLarsBattle", 2),
-            ("Cutscene_FindingAirCastle", 44),
+            ("Cutscene_FindingAirCastle", 54),
             ("Event_AirCastleArrival", 2),
             ("Event_XeAThoulBeforeBattle", 5),
             ("Event_AirCastleFakeChest", 11),
@@ -367,6 +385,12 @@ mod tests {
                     SceneOp::BranchIfAligned {
                         if_aligned, if_not, ..
                     } => vec![*if_aligned, *if_not],
+                    SceneOp::BranchIfActorCoord {
+                        if_true, if_false, ..
+                    } => vec![*if_true, *if_false],
+                    SceneOp::BranchIfSavedDialogueByte {
+                        if_equal, if_not, ..
+                    } => vec![*if_equal, *if_not],
                     SceneOp::BranchIfVehicle {
                         if_mounted,
                         if_on_foot,
@@ -410,6 +434,7 @@ mod tests {
             ("Cutscene_PsycoWand", 3),
             ("Cutscene_ZioDefeated", 1),
             ("Cutscene_CrashLaanding", 2),
+            ("Event_OutsideRajaTemple", 1),
             ("Cutscene_LashiecDefeated", 2),
             ("Cutscene_GumbiousBishop", 1),
             ("Cutscene_MeetingSeth", 1),
@@ -463,6 +488,9 @@ mod tests {
         ("Event_LashiecAppearance", 0x070E1E, 0x37),
         ("Cutscene_Alshline", 0x074502, 0x68),
         ("Cutscene_ProfoundDarkness", 0x078E9C, 0x03),
+        ("Event_FractOozeFound", 0x072B2E, 0x2F),
+        ("Event_KingRappy", 0x072FEA, 0x36),
+        ("Event_DaughterTerminal", 0x0731B4, 0x04),
     ];
 
     fn retained_entries(scene: &Scene) -> Vec<u16> {

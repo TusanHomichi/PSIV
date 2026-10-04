@@ -24,6 +24,17 @@ impl Field {
         }
         match op {
             SceneOp::FadeIn => self.start_transition(TransitionKind::SceneFadeIn),
+            SceneOp::FlightFadeIn { frames } => {
+                self.start_transition(TransitionKind::SceneFadeIn);
+                self.transition = Some(crate::transitions::Transition::with_frames(
+                    TransitionKind::SceneFadeIn,
+                    frames,
+                ));
+            }
+            SceneOp::FlightPlanet
+            | SceneOp::FlightPan
+            | SceneOp::FlightFieldReload
+            | SceneOp::FlightArrivalName => {}
             SceneOp::FadeOut => self.start_transition(TransitionKind::SceneFadeOut),
             SceneOp::InitVramAndCram => {
                 if let Some(layer) = self.cutscene_layer.as_mut() {
@@ -165,7 +176,12 @@ impl Field {
             | SceneOp::SetStepOffset { .. }
             | SceneOp::RecoverStats
             | SceneOp::SwapCharSlots { .. }
-            | SceneOp::RemoveItem { .. } => {
+            | SceneOp::RemoveItem { .. }
+            // Control flow is the runner's; a drift is drawn from the runtime's
+            // per-frame NPC positions (`NpcPixelPosition`), not animated here.
+            | SceneOp::BranchIfActorCoord { .. }
+            | SceneOp::BranchIfSavedDialogueByte { .. }
+            | SceneOp::DriftNpcs { .. } => {
                 godot_print!("scene presentation op consumed: {op:?}");
             }
             _ => {}
@@ -253,6 +269,7 @@ impl Field {
             | PresentationOp::RykrosPaletteCycle { .. }
             | PresentationOp::PaletteRampFromTable { .. }
             | PresentationOp::CameraToActor { .. }
+            | PresentationOp::NpcPixelPosition { .. }
             | PresentationOp::RajaSickTemporaryObject { .. }
             | PresentationOp::RajaSickResetRaja { .. }
             | PresentationOp::RajaSickArrangeParty { .. }

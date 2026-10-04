@@ -135,6 +135,18 @@ done:
 	return result;
 }
 
+int core_symbol_bind(void *core_anchor, const char *name, uintptr_t *address)
+{
+	Dl_info info;
+	if (!core_anchor || !name || !address || !dladdr(core_anchor, &info) ||
+	    !info.dli_fname || !info.dli_fbase) {
+		failf("cannot locate the loaded core symbol");
+		return -1;
+	}
+	return local_symbol_address(info.dli_fname, (uintptr_t)info.dli_fbase,
+	                            name, address);
+}
+
 int core_vdp_bind(void *core_anchor, struct core_vdp *vdp)
 {
 	Dl_info info;

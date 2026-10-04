@@ -45,11 +45,14 @@ class PairTableCase(unittest.TestCase):
 
     def test_the_ship_menu_pair_names_its_event_fixture_and_a_regenerable_frame(self):
         pair = next(p for p in certify.PAIRS if p[0] == "ship-menu")
-        _, env, _, frame, _, recipe = pair
+        _, env, tick, frame, digest, recipe = pair
         # The clone starts the real scene (Cutscene_InsideSpaceship) through the
         # session's event fixture, not a hand-built menu.
         self.assertEqual(env, {"PSIV_DEBUG_EVENT": "0x800D"})
         self.assertIs(recipe, certify.TAPE_35)
+        self.assertEqual(tick, 70)  # still settled with cursor and marker hidden
+        self.assertEqual(frame, "build/certify/oracle/ship-menu/frame_7293.png")
+        self.assertEqual(digest, "af4aaf169ea283c1784dad98822f02adcaa64684ccd3a5d037596df58f3300b8")
         self.assertTrue((ROOT / recipe["tape"]).is_file())
         self.assertTrue(frame.startswith("build/certify/oracle/"))
         # The fixture is tape 28's frame-7000 reload and a frame-7200 event
@@ -181,4 +184,3 @@ class CaptureTimeoutTest(unittest.TestCase):
     def test_the_longest_pair_outlasts_ten_frames_a_second(self):
         longest = max(tick for _, _, tick, *_ in certify.PAIRS)
         self.assertGreaterEqual(certify.capture_timeout(longest), (longest + certify.QUIT_MARGIN) / 10)
-

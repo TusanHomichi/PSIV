@@ -142,8 +142,8 @@ impl Runtime {
                     reach,
                 } => {
                     interaction_started = true;
-                    if !self.start_chest_interaction(npc_index)
-                        && !self.start_interaction_event(&mut events)
+                    if !self.start_map_interaction(&mut events)
+                        && !self.start_chest_interaction(npc_index)
                     {
                         events.push(RuntimeEvent::Interact {
                             npc_index,
@@ -154,7 +154,7 @@ impl Runtime {
                 }
                 Effect::InteractNothing { facing } => {
                     interaction_started = true;
-                    if !self.start_interaction_event(&mut events) {
+                    if !self.start_map_interaction(&mut events) {
                         events.push(RuntimeEvent::InteractNothing { facing });
                     }
                 }

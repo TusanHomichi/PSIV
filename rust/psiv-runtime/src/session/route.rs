@@ -23,6 +23,7 @@ impl Session {
         let mut kept = Vec::with_capacity(events.len());
         let mut routed = Vec::new();
         for event in events {
+            self.sync_flight_view(&event);
             match event {
                 RuntimeEvent::Interact {
                     npc_index,

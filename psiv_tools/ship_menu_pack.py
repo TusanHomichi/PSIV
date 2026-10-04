@@ -31,7 +31,7 @@ from typing import Any
 from . import gfx, planes
 from .enigma import decompress as enigma_decompress
 from .nemesis import decompress as nemesis_decompress
-from .text import decode_name
+from .text import DIALOGUE, decode_name
 
 SHIP_MENU_DIRECTORY = "ship_menu"
 SHIP_MENU_NAME = "ship_menu/ship_menu.json"
@@ -91,6 +91,12 @@ PROMPT_OFFSET = 0x2AAA46
 SUFFIX_OFFSET = 0x2AAA60
 NAMES_OFFSET = 0x2AAA7A
 WORLD_NAMES = 6
+
+#: US retail `SpaceTravel_PlaceNamePtrs`, read by `loc_64C4A` ($064C64).
+#: `RunText2` uses the dialogue charset, includes leading spaces and ends at FF.
+FLIGHT_CAPTION_PTRS = 0x2AAADE
+#: `WinGroup_PlaceName` (:141402-141429), nine name-length-indexed records.
+PLACE_WINDOWS = 0x0695F8
 
 
 class ShipMenuError(ValueError):
@@ -253,6 +259,16 @@ def _windows(rom: bytes) -> list[dict[str, Any]]:
     return records
 
 
+def _place_windows(rom: bytes) -> list[dict[str, Any]]:
+    records = []
+    for window_id in range(9):
+        offset = PLACE_WINDOWS + window_id * 8
+        width, height, x, y = rom[offset:offset + 4]
+        records.append({"id": window_id, "width": width + 1, "height": height + 1,
+                        "x": x, "y": y, "rom_offset": f"0x{offset:06X}"})
+    return records
+
+
 def _strings(rom: bytes) -> dict[str, Any]:
     def until(offset: int, end: int) -> bytes:
         stop = rom.index(bytes([end]), offset)
@@ -273,6 +289,28 @@ def _strings(rom: bytes) -> dict[str, Any]:
     }
 
 
+def flight_captions(rom: bytes) -> list[dict[str, Any]]:
+    """Decode the six FF-terminated flight captions, never menu-name substitutes.
+
+    `loc_64C4A` writes d4=1 before RunText2 ($064C78): no per-glyph waits
+    (`ps4.asm:143728-143733`). The final FF queues the text DMA.
+    """
+    captions = []
+    for world in range(WORLD_NAMES):
+        entry = FLIGHT_CAPTION_PTRS + world * 4
+        offset = int.from_bytes(rom[entry:entry + 4], "big")
+        if offset >= len(rom):
+            raise ShipMenuError(f"flight caption {world} pointer is outside the ROM")
+        end = rom.find(b"\xff", offset, offset + 33)
+        if end < 0 or end == offset or any(value >= 0xF0 for value in rom[offset:end]):
+            raise ShipMenuError(f"flight caption {world} is not a bounded RunText2 line")
+        raw = rom[offset:end]
+        captions.append({"world": world, "text": decode_name(raw, charset=DIALOGUE),
+                         "rom_offset": f"0x{offset:06X}",
+                         "glyph_count": len(raw), "instant": True})
+    return captions
+
+
 def extract_ship_menu(rom: bytes) -> tuple[dict[str, Any], dict[int, bytes]]:
     """The JSON record and the eight cover-combination backgrounds."""
     tiles = _vram_tiles(rom)
@@ -286,6 +324,8 @@ def extract_ship_menu(rom: bytes) -> tuple[dict[str, Any], dict[int, bytes]]:
         "colors": {"highlight": _color(0x0EEE), "dark": _color(0x0400)},
         "windows": _windows(rom),
         **_strings(rom),
+        "flight_captions": flight_captions(rom),
+        "place_windows": _place_windows(rom),
         "backgrounds": [
             {
                 "covers": covers,
@@ -298,6 +338,8 @@ def extract_ship_menu(rom: bytes) -> tuple[dict[str, Any], dict[int, bytes]]:
             "loader": "loc_63F00, loc_63F2C, loc_64144 (ps4.asm:133745-133925)",
             "art": [{"rom_offset": f"0x{o:06X}", "vram_tile": f"0x{t:03X}"} for o, t in ART],
             "palette": f"0x{PALETTE_OFFSET:06X}",
+            "flight_caption_ptrs": f"0x{FLIGHT_CAPTION_PTRS:06X}",
+            "place_windows": f"0x{PLACE_WINDOWS:06X}",
         },
     }
     return record, backgrounds

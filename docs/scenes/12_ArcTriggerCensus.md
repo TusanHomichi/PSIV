@@ -236,7 +236,7 @@ and GirlsCaught are clear. It is a pointer-table event `$23`, not a
 | `$2E` | `RunEvent_FindDarkForce` | Dark Force 1 `$83` clear; leader Y `$0D0` | `$003F` |
 | `$2F` | `RunEvent_JuzaDefeated` | Juza `$41` set; Juza Defeated `$48` clear | `$0041` |
 | `$30` | `RunEvent_RuneFlaeli` | Rune `$11` set; Tonoe path `$13` clear | `$0027` (already covered) |
-| `$31` | `RunEvent_OutsideRajaTemple` | Snowstorm `$80` clear | `$0043` (later) |
+| `$31` | `RunEvent_OutsideRajaTemple` | Snowstorm `$80` clear | `$0043`, [91](91_OutsideRajaTemple.md) |
 | `$32` | `RunEvent_DarkForce1Defeated` | Dark Force 1 `$83` set; Ice Digger `$89` clear | `$8011` |
 
 The formulas are covered by the focused census test in

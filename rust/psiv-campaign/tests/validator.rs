@@ -33,7 +33,19 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
     let route = Route::parse(&main_text()).expect("main.json parses");
     let ids: Vec<&str> = route.chapters.iter().map(|c| c.id.as_str()).collect();
     assert_eq!(ids.first(), Some(&"academy"));
-    assert_eq!(ids.last(), Some(&"mota-spaceport"));
+    assert_eq!(ids.last(), Some(&"dezolis-tyler-grave"));
+    assert_eq!(
+        ids[ids.len() - 7..],
+        [
+            "mota-spaceport",
+            "zelan-wren-canceller",
+            "zelan-sabotage",
+            "dezolis-first-control",
+            "dezolis-outside-raja-temple",
+            "dezolis-gyuna",
+            "dezolis-tyler-grave"
+        ]
+    );
     assert!(ids.contains(&"nurvus-zio"));
     assert!(ids.contains(&"aiedo"));
     assert!(ids.contains(&"north-bank"));
@@ -59,6 +71,26 @@ fn the_validator_accepts_the_shipped_route() {
     );
     assert!(report.objectives > 150);
     assert!(report.planned_warps > 80);
+}
+
+/// The grave's stairs are blocked by the objects the scene moves aside, so the
+/// walk down them is only plannable because the `interact` that starts the scene
+/// declares the cells it opens. Drop the declaration and the stairs walk is
+/// rejected in its chapter, naming the warp.
+#[test]
+fn the_grave_stairs_are_plannable_only_through_the_interacts_opens() {
+    let text = mutate(
+        &main_text(),
+        "\"opens\": [[20, 24], [21, 24], [20, 25], [21, 25]], ",
+        "",
+    );
+    let Some(report) = run(&text) else { return };
+    let error = report
+        .errors
+        .iter()
+        .find(|e| e.chapter == "dezolis-tyler-grave")
+        .expect("the stairs walk is rejected in its chapter");
+    assert!(error.reason.contains("via_warp 7"), "{}", error.reason);
 }
 
 #[test]
@@ -274,4 +306,37 @@ fn a_boarding_objective_must_name_a_world() {
         "{:?}",
         report.errors
     );
+}
+
+#[test]
+fn the_zelan_chapters_reject_a_bad_boarding_and_a_missing_object() {
+    // The sabotage's boarding names Kuran; any other number is rejected with the
+    // chapter that holds it.
+    let bad_world = mutate(
+        &main_text(),
+        "{\"do\": \"board\", \"step\": \"down\", \"to\": 4,",
+        "{\"do\": \"board\", \"step\": \"down\", \"to\": 9,",
+    );
+    let Some(report) = run(&bad_world) else {
+        return;
+    };
+    let error = report
+        .errors
+        .iter()
+        .find(|e| e.reason.contains("not a World_Index"))
+        .expect("the bad world is reported");
+    assert_eq!(error.chapter, "zelan-sabotage");
+    // Zelan F1 has two objects (Wren and the elevator): a seventh does not exist.
+    let bad_npc = mutate(
+        &main_text(),
+        "{\"do\": \"talk\", \"npc\": 0, \"note\": \"Wren,",
+        "{\"do\": \"talk\", \"npc\": 7, \"note\": \"Wren,",
+    );
+    let report = run(&bad_npc).unwrap();
+    let error = report
+        .errors
+        .iter()
+        .find(|e| e.reason.contains("object 7 does not exist"))
+        .expect("the missing object is reported");
+    assert_eq!(error.chapter, "zelan-wren-canceller");
 }

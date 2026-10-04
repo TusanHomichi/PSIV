@@ -31,6 +31,12 @@ the party stands on the map — the mechanism the cartridge uses instead of a
 map reload — is listed with its port status in
 [the live-layout census](LIVE_LAYOUT_WRITES.md), which is H19's class fix.
 
+**Layout writes are held to the pack.** Every `SceneOp::WriteMapChunks` needs a chunk the pack's
+patch atlas carries for its map (`write_scene_map_chunks` refuses one it cannot resolve, #67).
+`psiv_tools.map_patches.SCENE_CHUNK_WRITES` is the one cited table of those writes and
+[`tests/test_scene_chunk_atlas.py`](../../tests/test_scene_chunk_atlas.py) fails a registry write
+with no row, or a row the pack does not resolve, naming the scene and the chunk.
+
 **Revision-conditional ops are audited.** Every transcribed scene's
 `if revision>0` / `else` blocks and its retail `DialogueTreesToRAM` calls are
 counted in [the revision audit](REVISION_AUDIT.md), which is what caught the
@@ -133,6 +139,23 @@ tables; the clone's hack-only bodies are not evidence.
 | `Event_AngerTowerTop` | `$69` | [85](85_AngerTowerTop.md) | `$0721CC..$072261` |
 | `Event_AngerTowerExitTop` | `$6A` | [86](86_AngerTowerExitTop.md) | `$072262..$0722D1` |
 | `Cutscene_ProfoundDarkness` | `$8020` | [87](87_ProfoundDarkness.md) | `$078D30..$078F3D` |
+
+## Census-driven scenes (S7)
+
+Found by runner halts and then closed as a class by the
+[event census](EVENT_COVERAGE.md): a trigger or dialogue the cartridge fires
+and the port never transcribed.
+
+| Scene | Event | Doc | Retail bytes |
+|---|---:|---|---|
+| `Event_OutsideRajaTemple` | `$43` | [91](91_OutsideRajaTemple.md) | `$06FC76..$06FC93` |
+| `Event_TylerGraveOpening` | `$44` | [92](92_TylerGraveOpening.md) | `$06FC94..$06FE1B` |
+| `Event_CancellerReminder` | `$2A` | [93](93_CancellerReminder.md) | `$06DEAE..$06DEBD` |
+| `Event_MileSandWormBattle` | `$71` | [94](94_MileSandWormBattle.md) | `$072654..$072677` |
+| `Event_FractOozeFound` | `$7D` | [95](95_FractOozeFound.md) | `$072B2C..$072B51` |
+| `Event_KingRappy` | `$88` | [96](96_KingRappy.md) | `$072FDC..$073017` |
+| `Event_DaughterTerminal` | `$8F` | [97](97_DaughterTerminal.md) | `$0731B2..$0731D9` |
+| `Event_Gyuna` | `$5C` | [98](98_Gyuna.md) | `$070C82..$070CB3` |
 
 ## Terminal and recorded boundary surfaces
 
