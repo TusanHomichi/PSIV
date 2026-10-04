@@ -76,12 +76,13 @@ pub use pad::{Button, Pad};
 pub use save::{RuntimeSaveError, SaveStore, SessionSaveError};
 pub use session::{
     BATTLE_DWELL_FRAMES, BattleBeat, BattleFrame, BattleStart, BattleView, BeatView, CampPage,
-    CampSaveFailure, CampView, CommandMenuView, DamageView, EnemyStatus, FALLBACK_SPAWN,
-    FieldNoticeOpened, Frame, FrameMode, GAME_OVER_FADE_FRAMES, GameOverFrame, MenuPage, MenuRow,
-    MenuView, MessageKind, OrderDraft, PartyStatus, ROOT_OPTIONS, Routed, SceneStart, Session,
-    ShopCounterView, ShopOwnedItem, ShopPage, ShopStock, ShopView, SkillEntry, SkillSlotView,
-    Start, TargetKind, TechniqueEntry, TitleEntry, TitleErase, TitleFailure, TitleFrame,
-    TitlePhase, TitleView, TitleWindow, battle_dwell_frames, camp_fixture, scene_fixture,
+    CampSaveFailure, CampView, CommandMenuView, DamageView, DestinationPhase, DestinationView,
+    EnemyStatus, FALLBACK_SPAWN, FieldNoticeOpened, Frame, FrameMode, GAME_OVER_FADE_FRAMES,
+    GameOverFrame, MenuPage, MenuRow, MenuView, MessageKind, OrderDraft, PartyStatus, ROOT_OPTIONS,
+    Routed, SceneStart, Session, ShopCounterView, ShopOwnedItem, ShopPage, ShopStock, ShopView,
+    SkillEntry, SkillSlotView, Start, TargetKind, TechniqueEntry, TitleEntry, TitleErase,
+    TitleFailure, TitleFrame, TitlePhase, TitleView, TitleWindow, battle_dwell_frames,
+    camp_fixture, scene_fixture,
 };
 pub use shop::{InnOpening, ShopBuyResult, ShopSellResult};
 

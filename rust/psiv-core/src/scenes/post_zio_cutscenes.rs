@@ -1,18 +1,20 @@
 //! Retail scenes after Zio's fall.
 //!
 //! The source bodies are the `grand_cross=0` branch selected by the retail
-//! pointer tables.  The spaceship routine is a shared, player-facing menu;
-//! its scene record below follows the Zelan selection used by the headless arc
-//! and keeps the full destination table in `docs/scenes/41_InsideSpaceship.md`.
+//! pointer tables.  The spaceship routine is a shared, player-facing menu:
+//! `scenes/flight.rs` carries its tables and the flight as scene ops, and the
+//! runtime's destination session mode owns the window
+//! (`docs/scenes/41_InsideSpaceship.md`).
 //! Renderer-only panel, palette and temporary-object writes stay typed
 //! presentation records.  Persistent edges — maps, flags, party, inventory
 //! and battles — remain ordinary scene operations.
 
-use super::{CHAZ, RAJA, RIKA, RUNE, WREN, retained};
+use super::{CHAZ, INSIDE_SPACESHIP_ROUTE, RAJA, RIKA, RUNE, WREN, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_presentation::PresentationOp;
 use crate::scene_runner::Scene;
+use crate::scenes::{DestinationMask, FlightLeg};
 use crate::state::Flag;
 use crate::trigger::EventIndex;
 
@@ -39,8 +41,6 @@ const SFX_POWER_DOWN: u8 = 0xE4;
 const SFX_ELEVATOR_OPEN: u8 = 0xE5;
 const SFX_GRAVE_OPENING: u8 = 0xDD;
 const SFX_DOOR_OPENED: u8 = 0xE2;
-const SFX_SPACESHIP_PROPELLED: u8 = 0xE3;
-const SFX_SELECTION: u8 = 0xF3;
 const SFX_SPACESHIP_RADAR: u8 = 0xF8;
 const SOUND_STOP_SPC: u8 = 0xFD;
 
@@ -97,59 +97,18 @@ pub static MEETING_WREN: Scene = Scene {
 
 /// `$800D`, `Cutscene_InsideSpaceship`, retail `$07606C..$07607D`.
 ///
-/// The body jumps to the shared spaceship menu.  This is the route realization
-/// used by the headless arc: Mota Spaceport -> Motavia -> Zelan Space -> Zelan.
+/// The body jumps to the shared spaceship menu, `loc_63BC4`; the ops are
+/// [`INSIDE_SPACESHIP_ROUTE`], whose skips are relative so the two scenes that
+/// inline the same `jmp` share them.
 pub static INSIDE_SPACESHIP: Scene = Scene {
     name: "Cutscene_InsideSpaceship",
     event: EventIndex(0x800D),
-    ops: &[
-        SceneOp::InitVramAndCram,
-        SceneOp::FadeIn,
-        SceneOp::PlaySound {
-            id: MUSIC_TAKE_OFF_LANDALE,
-        },
-        SceneOp::SetSavedMusic {
-            id: MUSIC_TAKE_OFF_LANDALE,
-        },
-        SceneOp::LoadMap {
-            map: 0x00,
-            prev_map: 0x0BF,
-            start_x: 0x68,
-            start_y: 0xB4,
-            facing: Direction::Down,
-            align: 0,
-            clear_load_flags: 0x08,
-        },
-        // `loc_64568` uses DoMapUpdateLoop through the initial flight and
-        // emits SpaceshipPropelled at loop counter `$E0`.
-        SceneOp::Wait { ticks: 224 },
-        SceneOp::PlaySound {
-            id: SFX_SPACESHIP_PROPELLED,
-        },
-        SceneOp::Wait { ticks: 195 },
-        SceneOp::LoadMap {
-            map: 0x18C,
-            prev_map: 0x00,
-            start_x: 0x43,
-            start_y: 0x1C,
-            facing: Direction::Down,
-            align: 0,
-            clear_load_flags: 0x08,
-        },
-        // `loc_64800`: `$20000` down by `$200`, including the terminal pass.
-        SceneOp::Wait { ticks: 257 },
-        SceneOp::LoadMap {
-            map: 0x18D,
-            prev_map: 0x18C,
-            start_x: 0x3E,
-            start_y: 0x5A,
-            facing: Direction::Down,
-            align: 0,
-            clear_load_flags: 0x08,
-        },
-        SceneOp::Return { value: 0 },
-    ],
+    ops: &INSIDE_SPACESHIP_ROUTE,
 };
+
+/// Ops between the sabotage menu and its cancel leg: everything after the menu
+/// up to and including the final `Return { value: 1 }`.
+const SABOTAGE_CANCEL_SKIP: u16 = 28;
 
 /// `$800E`, `Cutscene_SpaceshipSabotage`, retail `$07607E..$076589`.
 pub static SPACESHIP_SABOTAGE: Scene = Scene {
@@ -173,13 +132,13 @@ pub static SPACESHIP_SABOTAGE: Scene = Scene {
         SceneOp::PlaySound {
             id: SFX_SPACESHIP_RADAR,
         },
-        SceneOp::PanelCreate { id: 5 },
-        SceneOp::DmaPlanes,
-        SceneOp::PanelCreate { id: 6 },
-        SceneOp::DmaPlanes,
-        SceneOp::PlaySound { id: SFX_SELECTION },
-        SceneOp::PlaySound { id: SOUND_STOP_SPC },
-        SceneOp::Wait { ticks: 60 },
+        // The copy of the menu with the one-row mask `$08`, Kuran
+        // (`loc_76586`, `ps4.asm:155741`). Cancel (`:155546`, `loc_764F8`)
+        // lands on the cancel leg at the end of the scene.
+        SceneOp::DestinationMenu {
+            mask: DestinationMask::Fixed(0x08),
+            cancel_skip: SABOTAGE_CANCEL_SKIP,
+        },
         SceneOp::PanelDestroyAll,
         SceneOp::FadeOut,
         SceneOp::Presentation {
@@ -188,7 +147,7 @@ pub static SPACESHIP_SABOTAGE: Scene = Scene {
         SceneOp::PlaySound { id: MUSIC_STOP },
         SceneOp::LoadMap {
             map: 0x18C,
-            prev_map: 0x18D,
+            prev_map: 0xFFFF,
             start_x: 0x43,
             start_y: 0x3C,
             facing: Direction::Down,
@@ -227,6 +186,10 @@ pub static SPACESHIP_SABOTAGE: Scene = Scene {
         },
         SceneOp::StartBattle { index: 8 },
         SceneOp::Return { value: 1 },
+        SceneOp::LoadFlightMap {
+            leg: FlightLeg::Return,
+        },
+        SceneOp::Return { value: 0 },
     ],
 };
 
@@ -688,6 +651,8 @@ pub static DARK_FORCE_1_DEFEATED: Scene = Scene {
         },
         SceneOp::Wait { ticks: 60 },
         SceneOp::InitVramAndCram,
+        // `move.b #3, (World_Index).w` (`ps4.asm:156396`)
+        SceneOp::SetWorldIndex { world: 3 },
         SceneOp::LoadMap {
             map: 0x18E,
             prev_map: 0xFFFF,

@@ -79,6 +79,7 @@ from .presentation_pack import emit_presentation
 from .title_pack import emit_title
 from .newgame import extract_new_game
 from .travel import emit_travel
+from .ship_menu_pack import emit_ship_menu
 from .npc_commands import extract_npc_commands
 # The two world maps' layouts are not in their records at all -- they stream
 # from paged tables -- so their decode lives in `psiv_tools.overworld`.
@@ -942,6 +943,7 @@ def build_pack(
     }
     game_start_sha = _write_json(directory / GAME_START_NAME, game_start)
     travel = emit_travel(rom_bytes, directory)
+    ship_menu = emit_ship_menu(rom_bytes, directory)
     start = game_start["first_control"]
 
     # Enemies, formations, level progression and the ability records the

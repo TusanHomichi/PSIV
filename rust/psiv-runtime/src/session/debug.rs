@@ -31,7 +31,20 @@ pub fn scene_fixture(
     event: u16,
     step_frames: StepFrames,
 ) -> Option<Result<Session, String>> {
+    // The ship's destination menu (`PSIV_DEBUG_EVENT=0x800D`): the Mota
+    // Spaceport at the foot of the gangway, `EventFlag_AlysFound` set so the
+    // list is the post-Zio one (`ps4.asm:133728-133735`), a Chaz and Alys party.
+    let mut flags: &[u16] = &[];
     let (map, char_x, char_y, party) = match event {
+        0x800D => {
+            flags = &[0x08];
+            (
+                0x00BF,
+                30 * 16,
+                20 * 16,
+                [Some(CharId(0)), Some(CharId(1)), None, None, None],
+            )
+        }
         0x8007 => (
             0x00AC,
             // The oracle's tape-28 fixture: leader at pixel ($1F0,$1A0) —
@@ -50,6 +63,11 @@ pub fn scene_fixture(
     };
     let mut game = GameState::new();
     game.set_party(party);
+    for &flag in flags {
+        if let Err(error) = game.set(Flag::event(flag)) {
+            return Some(Err(format!("scene fixture flag {flag:#x}: {error}")));
+        }
+    }
     Some(
         Runtime::from_save(
             data,

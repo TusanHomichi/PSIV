@@ -31,6 +31,7 @@ enum Blocked {
     Dialogue,
     EndingContinue,
     Choice,
+    Destination,
     Battle,
     Map,
     Camera,
@@ -59,6 +60,9 @@ pub struct SceneRunner {
     /// X gap. Retail's default is X-first (`FieldObj_GetAutoInput`,
     /// `ps4.asm:93232`).
     y_first: bool,
+    /// The id of the map the scene is running on, as of the last tick: what
+    /// `SkipUnlessMap` tests (`Field_Map_Index`).
+    map_id: u16,
 }
 
 impl SceneRunner {
@@ -83,6 +87,7 @@ impl SceneRunner {
             step_frames,
             follow_chain: true,
             y_first: false,
+            map_id: 0,
         }
     }
 
@@ -90,6 +95,13 @@ impl SceneRunner {
     #[must_use]
     pub fn is_finished(&self) -> bool {
         self.blocked == Blocked::Done
+    }
+
+    /// Ends the scene where it stands. The runtime uses it when an op's request
+    /// cannot be honoured and the fault has already been reported; the next
+    /// tick closes the scene out as for any finished one.
+    pub fn abort(&mut self) {
+        self.blocked = Blocked::Done;
     }
 
     /// Whether this boarding scene is waiting for the runtime's camera glide.
@@ -192,6 +204,7 @@ impl SceneRunner {
         }
 
         self.party_slots = state.party();
+        self.map_id = map.id().0;
         for index in 0..self.actors.len() {
             if self.actor_index(self.actors[index].actor) != Some(index) {
                 continue;
@@ -267,6 +280,10 @@ impl SceneRunner {
                 SceneInput::Choice(_) => Blocked::No,
                 _ => Blocked::Choice,
             },
+            Blocked::Destination => match input {
+                SceneInput::DestinationChosen | SceneInput::DestinationCancelled => Blocked::No,
+                _ => Blocked::Destination,
+            },
             other => other,
         };
         // A choice's answer decides the jump, so it is applied here where the
@@ -276,6 +293,19 @@ impl SceneRunner {
             && self.blocked == Blocked::No
         {
             self.pc = if answer { if_yes } else { if_no };
+        }
+        // The destination menu's answer: confirm resumes at the next op,
+        // Cancel after the `cancel_skip` ops that follow (`ps4.asm:133692`).
+        if let (
+            SceneInput::DestinationChosen | SceneInput::DestinationCancelled,
+            Some(SceneOp::DestinationMenu { cancel_skip, .. }),
+        ) = (input, self.scene.get(self.pc).copied())
+            && self.blocked == Blocked::No
+        {
+            self.pc += 1;
+            if input == SceneInput::DestinationCancelled {
+                self.pc += usize::from(cancel_skip);
+            }
         }
     }
 

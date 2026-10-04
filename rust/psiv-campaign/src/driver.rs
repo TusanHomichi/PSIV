@@ -449,6 +449,8 @@ impl Driver {
         let runtime = self.session.runtime();
         if self.session.battle_active() {
             "battle"
+        } else if self.session.destination_view().is_some() {
+            "destination"
         } else if self.session.shop_view().is_some() {
             "shop"
         } else if self.session.camp_view().is_some() {

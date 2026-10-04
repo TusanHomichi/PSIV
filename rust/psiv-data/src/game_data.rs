@@ -50,6 +50,7 @@ pub struct GameData {
     dialogue: Option<Arc<crate::DialogueSet>>,
     new_game: Option<crate::NewGame>,
     travel: Option<crate::TravelData>,
+    ship_menu: Option<crate::ShipMenu>,
     /// Shop counters, stock lists and inn rates. `None` for a synthetic pack
     /// built with [`GameData::from_parts`].
     shops: Option<crate::ShopData>,
@@ -89,6 +90,7 @@ impl GameData {
             dialogue: None,
             new_game: None,
             travel: None,
+            ship_menu: None,
             shops: None,
         })
     }
@@ -119,6 +121,11 @@ impl GameData {
     /// Field travel tables, absent in older or synthetic packs.
     pub fn travel(&self) -> Option<&crate::TravelData> {
         self.travel.as_ref()
+    }
+
+    /// The ship's destination screen, absent in older or synthetic packs.
+    pub fn ship_menu(&self) -> Option<&crate::ShipMenu> {
+        self.ship_menu.as_ref()
     }
 
     /// The shop counters, stock lists and inn rates, loaded with the pack.

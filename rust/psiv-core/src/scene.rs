@@ -34,6 +34,7 @@ use crate::field::StepFrames;
 use crate::geom::{Cell, Direction};
 use crate::map::FieldMap;
 use crate::scene_presentation::PresentationOp;
+use crate::scenes::{DestinationMask, FlightLeg};
 use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 pub use crate::scene_types::{SceneEffect, SceneFault, SceneInput};
@@ -786,6 +787,46 @@ pub enum SceneOp {
     /// Set the volatile `Game_Cleared_Flag` after the player dismisses the
     /// final Termi scene. This is not save serialization state.
     MarkGameCleared,
+    /// The ship's destination menu (`loc_63BC4`, `ps4.asm:133499-133726`):
+    /// the runtime hands the frame to a session-owned list window and the
+    /// scene blocks until the player picks a row or cancels.
+    ///
+    /// Confirm continues at the next op, with `World_Index` already written
+    /// (`:133677`). Cancel skips the next `cancel_skip` ops (`:133692`), so a
+    /// scene that embeds a copy of the flight keeps working at any offset.
+    DestinationMenu {
+        /// Where the row mask comes from.
+        mask: DestinationMask,
+        /// Ops skipped on Cancel.
+        cancel_skip: u16,
+    },
+    /// Load the map a flight table names for the current map and the chosen
+    /// world: `loc_64B02`, `loc_64B34` or `loc_64B5A` (`ps4.asm:134540-134610`).
+    /// Blocks like [`SceneOp::LoadMap`]; a table with no row is a fault.
+    LoadFlightMap {
+        /// Which table.
+        leg: FlightLeg,
+    },
+    /// Write `World_Index` (`move.b #n, (World_Index).w`, `ps4.asm:155847`,
+    /// `:156396`, `:156940`, `:157065`, `:157791`).
+    SetWorldIndex {
+        /// The world.
+        world: u8,
+    },
+    /// Skip the next `skip` ops unless the current map is one of `maps`: the
+    /// takeoff's `cmpi.w #MapID_MotaSpaceport / #MapID_DezoSpaceport,
+    /// (Field_Map_Index).w` pair (`ps4.asm:133667-133674`).
+    SkipUnlessMap {
+        /// The maps that do not skip.
+        maps: &'static [u16],
+        /// Ops skipped otherwise.
+        skip: u16,
+    },
+    /// Skip the next `count` ops: a relative `bra` over an alternative.
+    SkipOps {
+        /// Ops skipped.
+        count: u16,
+    },
     /// Unconditional jump.
     Jump {
         /// Op index.

@@ -71,6 +71,13 @@ impl GameData {
                 &data.manifest.rom.sha256,
             )?);
         }
+        if let Some(file) = &data.manifest.ship_menu {
+            data.ship_menu = Some(crate::ShipMenu::load(
+                pack_dir,
+                file,
+                &data.manifest.rom.sha256,
+            )?);
+        }
         // A pack extracted from a ROM carries its shops; a broken file fails
         // here and names itself. A synthetic pack has none.
         if pack_dir.join(crate::SHOPS_FILE).is_file() {

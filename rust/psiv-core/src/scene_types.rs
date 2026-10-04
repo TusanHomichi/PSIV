@@ -6,6 +6,7 @@
 
 use crate::geom::{Cell, Direction};
 use crate::scene::{ActorRef, DialogueId, SceneOp};
+use crate::scenes::FlightLeg;
 use crate::state::{CharId, Flag, PARTY_SLOTS};
 
 /// What the runtime tells the runner between ticks.
@@ -31,6 +32,11 @@ pub enum SceneInput {
     CameraArrived,
     /// The ending's retail `Joypad_Pressed` loop received Start.
     EndingContinue,
+    /// The destination menu's player confirmed a row; the session already
+    /// wrote `World_Index` (`ps4.asm:133677`).
+    DestinationChosen,
+    /// The destination menu's player cancelled (`ps4.asm:133692`).
+    DestinationCancelled,
 }
 
 /// Something the runtime must act on.
@@ -177,6 +183,11 @@ pub enum SceneEffect {
     },
     /// The volatile retail `Game_Cleared_Flag` was set.
     GameCleared,
+    /// The scene wrote `World_Index`.
+    WorldIndexSet {
+        /// The world.
+        world: u8,
+    },
     /// The scene ended.
     Finished,
     /// The scene could not continue.
@@ -200,4 +211,14 @@ pub enum SceneFault {
     BadWrite,
     /// The op budget ran out.
     Runaway,
+    /// A flight leg's table has no row for the current map or world
+    /// (`loc_64B02`, `loc_64B34`, `loc_64B5A`, `ps4.asm:134540-134610`).
+    NoFlightTarget {
+        /// The table.
+        leg: FlightLeg,
+        /// The map the party was on.
+        map: u16,
+        /// `World_Index` at the request.
+        world: u8,
+    },
 }

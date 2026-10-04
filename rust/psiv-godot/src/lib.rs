@@ -17,6 +17,7 @@ mod camp;
 mod cutscene;
 #[path = "debug.rs"]
 mod debug;
+mod destination;
 mod dialogue;
 mod field_map;
 mod field_status;
@@ -36,6 +37,7 @@ use battle::{BATTLE_FRAME_HEIGHT, BATTLE_FRAME_WIDTH, BattleScreen};
 use boot::title_bypassed;
 use camp::CampMenu;
 use cutscene::{CutsceneLayer, PresentationState};
+use destination::DestinationScreen;
 use dialogue::DialogueWindow;
 use input::requested_save_slot;
 use save_dir::save_directory;
@@ -189,6 +191,7 @@ struct Field {
     dialogue: Option<Gd<DialogueWindow>>,
     status_presentation: field_status::StatusPresentation,
     shop: Option<Gd<ShopWindow>>,
+    destination: Option<Gd<DestinationScreen>>,
     camp_menu: Option<Gd<CampMenu>>,
     title: Option<title::TitleScreen>,
     battle_screen: Option<Gd<BattleScreen>>,
@@ -283,6 +286,7 @@ impl INode2D for Field {
             dialogue: None,
             status_presentation: field_status::StatusPresentation::default(),
             shop: None,
+            destination: None,
             camp_menu: None,
             title: None,
             battle_screen: None,
@@ -486,6 +490,18 @@ impl INode2D for Field {
         shop.bind_mut().configure(&self.pack_dir);
         self.base_mut().add_child(&shop);
         self.shop = Some(shop);
+
+        let mut destination = DestinationScreen::new_alloc();
+        match psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
+            Ok(set) => destination.bind_mut().configure(
+                &self.pack_dir,
+                &set,
+                session.runtime().data().ship_menu().cloned(),
+            ),
+            Err(e) => godot_error!("destination menu pack failed to load: {e}"),
+        }
+        self.base_mut().add_child(&destination);
+        self.destination = Some(destination);
 
         let mut camp = CampMenu::new_alloc();
         match psiv_data::DialogueSet::load(std::path::Path::new(&self.pack_dir)) {
@@ -780,7 +796,9 @@ impl Field {
             // A battle-mode frame here is the field frame a battle began on;
             // the battle loop's own frames go through `drive_battle_if_active`.
             FrameMode::Field | FrameMode::Battle => self.present_frame(frame),
-            FrameMode::Shop | FrameMode::Camp => self.present_menu_frame(frame),
+            FrameMode::Shop | FrameMode::Camp | FrameMode::Destination => {
+                self.present_menu_frame(frame);
+            }
             // The defeat fade, and the frame its last count hands the title
             // back on: the picture comes down and the front door's nodes go up
             // in the same frame the shell's own game-over driver did it.

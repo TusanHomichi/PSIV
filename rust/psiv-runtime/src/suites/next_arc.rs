@@ -133,6 +133,23 @@ fn relocate_with_battles(runtime: &Runtime, map: u16) -> Runtime {
     relocated
 }
 
+/// The ship's destination menu is the session's window; this harness has no
+/// session, so it answers as the player the chain plays does, written the way
+/// the session writes a confirm: Zelan (`World_Index` 3), or Kuran (4) in the
+/// sabotage scene, whose copy of the menu lists nothing else (`loc_76586`).
+fn answer_ship_menu(runtime: &mut Runtime, item: &RuntimeEvent) {
+    if let RuntimeEvent::ScenePresentation {
+        op: SceneOp::DestinationMenu { mask, .. },
+    } = item
+    {
+        let world = match mask {
+            psiv_core::DestinationMask::Fixed(_) => psiv_core::WORLD_KURAN,
+            psiv_core::DestinationMask::FlagTable => psiv_core::WORLD_ZELAN,
+        };
+        runtime.answer_destination(Some(world));
+    }
+}
+
 fn drive_scene(runtime: &mut Runtime, event: u16) -> Vec<RuntimeEvent> {
     assert!(runtime.start_event(event), "event {event:#x} starts");
     let mut log = Vec::new();
@@ -148,6 +165,7 @@ fn drive_scene(runtime: &mut Runtime, event: u16) -> Vec<RuntimeEvent> {
             if matches!(item, RuntimeEvent::SceneChoiceRequested) {
                 runtime.dialogue_choice(true);
             }
+            answer_ship_menu(runtime, item);
             if matches!(
                 item,
                 RuntimeEvent::SceneDialogue { .. } | RuntimeEvent::SceneDialogueResume
@@ -194,6 +212,7 @@ fn drive_until_battle(runtime: &mut Runtime, event: u16) -> Vec<RuntimeEvent> {
             if matches!(item, RuntimeEvent::SceneChoiceRequested) {
                 runtime.dialogue_choice(true);
             }
+            answer_ship_menu(runtime, item);
             if matches!(
                 item,
                 RuntimeEvent::SceneDialogue { .. } | RuntimeEvent::SceneDialogueResume
@@ -627,8 +646,12 @@ fn synthetic_scene_chain_reaches_ending_with_explicit_battle_fixtures() {
     let _ = drive_scene(&mut post_zio, 0x0048);
     assert!(post_zio.game().is_set(Flag::event(0xD1)));
 
+    // Cutscene_LeRoofAgain runs in the Le Roof Room and ends in the shared ship
+    // menu, whose takeoff table is keyed by that map (`loc_64B02`).
+    post_zio = relocate_with_battles(&post_zio, 0x0F0);
     let _ = drive_scene(&mut post_zio, 0x801C);
     assert_eq!(post_zio.map_id().0, 0x18D);
+    assert_eq!(post_zio.world_index(), psiv_core::WORLD_ZELAN);
     assert!(post_zio.game().is_set(Flag::event(0xD6)));
     assert!(post_zio.game().is_set(Flag::event(0xD7)));
 
@@ -736,8 +759,12 @@ fn synthetic_scene_chain_reaches_ending_with_explicit_battle_fixtures() {
     let _ = drive_scene(&mut post_zio, 0x0057);
     assert!(post_zio.game().is_set(Flag::event(0xA5)));
 
+    // Cutscene_FindingAirCastle is triggered at the Dezolis spaceport
+    // (`RunEventsJmpTbl[$42]`, map `$0D4`) and ends in the same ship menu.
+    post_zio = relocate_with_battles(&post_zio, 0x0D4);
     let _ = drive_scene(&mut post_zio, 0x8015);
     assert_eq!(post_zio.map_id().0, 0x18D);
+    assert_eq!(post_zio.world_index(), psiv_core::WORLD_ZELAN);
     assert!(post_zio.game().is_set(Flag::event(0x99)));
     let _ = drive_scene(&mut post_zio, 0x0058);
     assert!(post_zio.game().is_set(Flag::event(0x9F)));

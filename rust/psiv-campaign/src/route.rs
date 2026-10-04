@@ -55,6 +55,7 @@
 //! | `reorder` | `order` | set party order, first to last |
 //! | `save` | `slot` | ordinary SAVE to slot `0..3` |
 //! | `fight_scripted` | none | win the scripted battle that starts |
+//! | `board` | `step`, `to` | step `up`/`down`/`left`/`right` onto a boarding row until the ship's destination menu opens, move its cursor to the world `to` (a `World_Index` or its name), press Speak and fly; the validator ends the party on that world's landing cell |
 //! | `dismount` | none | press Action in the vehicle the party rides; halts when the standing cell is not open ground |
 //! | `patrol` | `map`, `a`, `b`, `until`, optional `refuge` | walk between cells `a` and `b` of `map`, fighting what the chapter's policy says, until `until` (`party_level_at_least`, `money_at_least`) holds; `refuge` is an out-and-back list of steps run when a member has fallen or is below half HP after the camp cure; the validator takes the party to end on `b` |
 //! | `expect` | any of `flags_set`, `flags_clear`, `map`, `cell`, `party`, `money_at_least`, `vehicle` | halt unless all hold |
@@ -371,6 +372,16 @@ pub enum Objective {
     },
     /// Win the scripted battle that starts.
     FightScripted,
+    /// Step onto a boarding row, pick a world in the ship's destination menu
+    /// and fly there.
+    Board {
+        /// The step that fires the boarding event.
+        step: Face,
+        /// The destination: a `World_Index` (`0` Motavia, `1` Dezolis, `2`
+        /// Rykros, `3` Zelan, `4` Kuran, `5` the Air Castle) or the pack's name
+        /// for it.
+        to: NameOrId,
+    },
     /// Get out of the vehicle the party rides (the Action press on open
     /// ground).
     Dismount,

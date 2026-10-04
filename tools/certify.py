@@ -108,6 +108,22 @@ TAPE_33 = {
     "frames": [25560],
 }
 
+# Tape 35 is tape 28's input schedule with the ship's destination menu entered
+# by explicit fixture patches (`Cutscene_InsideSpaceship`, event `$800D`, at the
+# Mota Spaceport with `EventFlag_AlysFound` set): frame 7000 reloads the map,
+# frame 7200 puts the field routine in Events with `Event_Index = $800D`. The
+# menu's windows are open by frame 7258 and the red cursor object and the
+# marker's palette blink then run free; frames 7283..7308 are one cursor-hidden
+# stretch whose frames are byte-identical, so frame 7293 is a settled target
+# (`docs/scenes/41_InsideSpaceship.md`, "Oracle timeline").
+TAPE_35 = {
+    "tape": "oracle/tapes/35_ship_destination_menu.tape",
+    "patches": ["7000:FFFFEC28:00BF", "7000:FFFFEC2A:0000", "7000:FFFFEC4E:02",
+                "7000:FFFFEF00:0008", "7000:FFFFF101:80", "7200:FFFFECA8:800D",
+                "7200:FFFFEC20:000C"],
+    "frames": [7293],
+}
+
 # name, clone env, shot tick, oracle frame, frame SHA-256, regeneration recipe.
 # The opening hashes were pinned from the local frames on 2026-10-01 (the
 # 2026-08-17 certification recorded no hash for them); the others are the
@@ -165,6 +181,13 @@ PAIRS = [
     ("battle-tech", {"PSIV_DEBUG_BATTLE_WINDOW": "tech,cursor=0,blink=14/1", "PSIV_DEBUG_BATTLE_PHASE": "5567"}, 600,
      "build/certify/oracle/battle-windows/frame_25400.png",
      "7a6b67ab078e88db3ff9bbbe066a7e2e6070102ff352efc7fea039d16a66bcdc", TAPE_32),
+    # The ship's destination menu at the Mota Spaceport: the cursor hidden, the
+    # marker blink and the clone's runtime clock aligned so the frame is the
+    # oracle's frame 7293. The pair is the menu's own draw (the planetary map,
+    # both windows, the cursor boxes), certified at 0.000000.
+    ("ship-menu", {"PSIV_DEBUG_EVENT": "0x800D"}, 70,
+     "build/certify/oracle/ship-menu/frame_7293.png",
+     "af4aaf169ea283c1784dad98822f02adcaa64684ccd3a5d037596df58f3300b8", TAPE_35),
 ]
 
 # The shot hook saves and keeps running; quit a few frames after it.

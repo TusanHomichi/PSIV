@@ -20,13 +20,13 @@ const WINDOW_BASE_TILE: u16 = 0x680;
 /// which becomes pattern `$6F7` after the `$680` window base is added.
 pub(super) const STATUS_SLASH_PATTERN: u16 = 0x6F7;
 
-pub(super) struct Quad {
-    pub(super) texture: Gd<ImageTexture>,
-    pub(super) dest: Rect2,
-    pub(super) src: Rect2,
+pub(crate) struct Quad {
+    pub(crate) texture: Gd<ImageTexture>,
+    pub(crate) dest: Rect2,
+    pub(crate) src: Rect2,
 }
 
-pub(super) struct CampChrome {
+pub(crate) struct CampChrome {
     tiles: BTreeMap<&'static str, Gd<ImageTexture>>,
     window_words: BTreeMap<(u16, bool, bool), Gd<ImageTexture>>,
     font: Gd<ImageTexture>,
@@ -34,7 +34,7 @@ pub(super) struct CampChrome {
 }
 
 impl CampChrome {
-    pub(super) fn build(pack_dir: &str, set: &DialogueSet) -> Option<CampChrome> {
+    pub(crate) fn build(pack_dir: &str, set: &DialogueSet) -> Option<CampChrome> {
         let strip = load_image(pack_dir, &set.window.png)?;
         let mut tiles = BTreeMap::new();
         for role in Role::ALL {
@@ -66,6 +66,12 @@ impl CampChrome {
             glyph_at: retail_glyphs(),
             tiles,
         })
+    }
+
+    /// A window frame by its cell rectangle: `(x, y)` is the top-left cell and
+    /// `(w, h)` the size in cells, frame included.
+    pub(crate) fn frame_cells(&self, x: i32, y: i32, w: i32, h: i32) -> Vec<Quad> {
+        self.frame(CellRect::new(x, y, w, h))
     }
 
     pub(super) fn frame(&self, rect: CellRect) -> Vec<Quad> {
@@ -112,7 +118,7 @@ impl CampChrome {
         quads
     }
 
-    pub(super) fn window_word(&self, pattern: u16, cell: (i32, i32)) -> Option<Quad> {
+    pub(crate) fn window_word(&self, pattern: u16, cell: (i32, i32)) -> Option<Quad> {
         Some(Quad {
             texture: self.window_words.get(&(pattern, false, false))?.clone(),
             dest: Rect2::new(
@@ -123,7 +129,7 @@ impl CampChrome {
         })
     }
 
-    pub(super) fn text(&self, text: &str, cell: (i32, i32)) -> Vec<Quad> {
+    pub(crate) fn text(&self, text: &str, cell: (i32, i32)) -> Vec<Quad> {
         let mut quads = Vec::new();
         for (column, character) in text.chars().enumerate() {
             let dest_cell = (cell.0 + column as i32, cell.1);

@@ -112,6 +112,7 @@ mod camp;
 mod debug;
 #[cfg(test)]
 mod debug_tests;
+mod destination;
 mod game_over;
 mod menu_scene;
 mod notices;
@@ -127,6 +128,7 @@ pub use battle::{
     PartyStatus, SkillEntry, SkillSlotView, TargetKind, TechniqueEntry, battle_dwell_frames,
 };
 pub use debug::{camp_fixture, scene_fixture};
+pub use destination::{DestinationPhase, DestinationView};
 pub use game_over::{GAME_OVER_FADE_FRAMES, GameOverFrame};
 pub use notices::FieldNoticeOpened;
 pub use start::{FALLBACK_SPAWN, Start};
@@ -146,6 +148,7 @@ pub use camp::{CampPage, CampView, OrderDraft, ROOT_OPTIONS};
 pub use shop::{ShopCounterView, ShopOwnedItem, ShopPage, ShopStock, ShopView};
 
 use battle::BattleMode;
+use destination::DestinationMode;
 use game_over::GameOverMode;
 use menu_scene::MenuScene;
 use title::TitleMode;
@@ -173,6 +176,8 @@ pub enum FrameMode {
     Camp,
     /// The battle loop, including the frame it began and the frame it closed.
     Battle,
+    /// The ship's destination menu, including the frame it answered on.
+    Destination,
     /// The title, including the frame a defeat's fade restored it on.
     Title,
     /// The defeat fade, before the title comes back.
@@ -239,6 +244,8 @@ pub enum Routed {
     SceneDialogueResumeSkipped,
     /// A scene's yes/no branch opened with no text in front of it.
     SceneChoice,
+    /// A scene's ship destination menu opened.
+    DestinationMenu,
 }
 
 /// The camp's SAVE failure, on the frame the write failed.
@@ -321,6 +328,9 @@ pub struct Session {
     prev_pad: Pad,
     shop: Option<ShopView>,
     camp: Option<CampView>,
+    /// The destination menu a scene's `SceneOp::DestinationMenu` opened
+    /// (`destination.rs`). `Some` means the menu owns the pad.
+    destination: Option<DestinationMode>,
     /// The scene a menu command handed the field to, and the menu's resume for
     /// when it ends (`menu_scene.rs`). `Some` means the field owns the frames
     /// even with a window's state still held.
@@ -356,6 +366,7 @@ impl Session {
             prev_pad: Pad::NEUTRAL,
             shop: None,
             camp: None,
+            destination: None,
             menu_scene: None,
             scene_dialogue_autoclose: false,
             title_autostart: false,
@@ -400,6 +411,10 @@ impl Session {
             // back — not the field, not the shared seed.
             self.mode = Mode::GameOver(Box::new(GameOverMode::new()));
             self.game_over_frame()
+        } else if self.destination.is_some() {
+            // A scene handed the frame to the ship's destination menu: it owns
+            // the pad until the player answers (`destination.rs`).
+            self.destination_frame(pad, pressed)
         } else if self.menu_scene.is_some() {
             // A menu handed the field to a scene: the field owns these frames
             // — the cartridge's windows are gone — until the scene ends and

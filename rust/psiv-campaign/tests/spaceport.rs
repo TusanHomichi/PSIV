@@ -1,4 +1,4 @@
-//! The Mota Spaceport's boarding row, walked with pads (lane C4).
+//! The Mota Spaceport's boarding row, walked and flown with pads (lanes C4, M23).
 //!
 //! The boarding row is a type-1 collision cell whose job is an event, not a
 //! warp: the cartridge's `RunEvents` runs before `RunMapTransitions`
@@ -51,10 +51,11 @@ fn at_the_gangway(y: u16) -> Option<Session> {
     )
 }
 
-/// One step north onto the boarding row starts the ship's scene; the walk ends
-/// in the story's hands instead of halting on a scene fault.
+/// One step north onto the boarding row starts the ship's scene, which opens
+/// the destination menu; `board` picks Zelan with the pad and the flight lands
+/// there. The walk ends in the story's hands, not in a scene fault.
 #[test]
-fn stepping_onto_the_boarding_row_is_a_scene_and_not_a_fault() {
+fn boarding_opens_the_menu_and_the_flight_lands_in_zelan() {
     let Some(session) = at_the_gangway(20) else {
         return;
     };
@@ -63,12 +64,46 @@ fn stepping_onto_the_boarding_row_is_a_scene_and_not_a_fault() {
     let start = driver.cell();
     assert_eq!((start.x, start.y), (30, 20), "the foot of the boarding row");
     driver
-        .go_to(MOTA_SPACEPORT, psiv_core::Cell { x: 30, y: 19 })
-        .expect("the boarding step is not a halt");
-    assert!(
-        driver.scenes_ended() > 0 || driver.cell().y == 19,
-        "the step either ran the scene or stands on the row"
+        .board(psiv_core::Direction::Up, 3)
+        .expect("the boarding step opens the menu and Zelan flies");
+    assert_eq!(driver.map(), 0x18D);
+    assert_eq!(
+        driver.runtime().world_index(),
+        3,
+        "the flight wrote World_Index"
     );
+    let cell = driver.cell();
+    assert_eq!((cell.x, cell.y), (31, 46), "Zelan's arrival cell");
+    assert!(driver.scenes_ended() > 0);
+}
+
+/// A world the menu does not list halts by name instead of flying somewhere
+/// else: at the Mota Spaceport the list is Zelan alone, so Kuran is refused.
+#[test]
+fn a_world_the_menu_does_not_list_is_a_halt() {
+    let Some(session) = at_the_gangway(20) else {
+        return;
+    };
+    let mut driver = Driver::new(session, None);
+    let halt = driver
+        .board(psiv_core::Direction::Up, 4)
+        .expect_err("Kuran is not on the list");
+    assert_eq!(halt.kind, psiv_campaign::halt::HaltKind::MenuEntryMissing);
+    assert!(halt.detail.contains("lists [3]"), "{halt:?}");
+}
+
+/// A step that opens no menu (the cell above the boarding row is wall) is an
+/// unexpected state, not a hang.
+#[test]
+fn a_step_that_opens_no_menu_halts() {
+    let Some(session) = at_the_gangway(20) else {
+        return;
+    };
+    let mut driver = Driver::new(session, None);
+    let halt = driver
+        .board(psiv_core::Direction::Left, 3)
+        .expect_err("walking left opens no menu");
+    assert_eq!(halt.kind, psiv_campaign::halt::HaltKind::UnexpectedState);
 }
 
 /// Row 18 above the boarding row is wall: the planner refuses it by name, so

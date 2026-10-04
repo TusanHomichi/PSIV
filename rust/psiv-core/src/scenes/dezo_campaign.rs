@@ -4,7 +4,7 @@
 //! Renderer-only palette/panel/object choreography stays in typed presentation
 //! ops; party, map, inventory, flag and battle writes stay explicit here.
 
-use super::{KYRA, retained};
+use super::{INSIDE_SPACESHIP_ROUTE, KYRA, retained};
 use crate::geom::Direction;
 use crate::scene::{ActorRef, DialogueId, DialogueSource, DialogueWindow, SceneOp};
 use crate::scene_presentation::PresentationOp;
@@ -20,14 +20,12 @@ const TREE_37: u32 = 0x001F_9580;
 const MUSIC_DEZOLIS_FIELD: u8 = 0x99;
 const MUSIC_TOWER: u8 = 0x9A;
 const MUSIC_LAND_MASTER: u8 = 0x8D;
-const MUSIC_TAKE_OFF_LANDALE: u8 = 0x9B;
 const MUSIC_FAL: u8 = 0x92;
 const MUSIC_RED_ALERT: u8 = 0xA9;
 const SOUND_STOP_SPC: u8 = 0xFD;
 const SOUND_STOP_ALL: u8 = 0xFE;
 const SFX_DEBAN: u8 = 0xDC;
 const SFX_STAIRS: u8 = 0xDF;
-const SFX_SPACESHIP_PROPELLED: u8 = 0xE3;
 
 const fn entry(id: u16) -> DialogueSource {
     DialogueSource::Entry(DialogueId(id))
@@ -46,52 +44,6 @@ const fn cutscene(id: u16) -> SceneOp {
         window: DialogueWindow::Cutscene,
     }
 }
-
-/// The shared retail `$800D` route, inlined by the two source bodies that end
-/// in `jmp (Cutscene_InsideSpaceship).l`.
-pub(super) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 11] = [
-    SceneOp::InitVramAndCram,
-    SceneOp::FadeIn,
-    SceneOp::PlaySound {
-        id: MUSIC_TAKE_OFF_LANDALE,
-    },
-    SceneOp::SetSavedMusic {
-        id: MUSIC_TAKE_OFF_LANDALE,
-    },
-    SceneOp::LoadMap {
-        map: 0x00,
-        prev_map: 0x0BF,
-        start_x: 0x68,
-        start_y: 0xB4,
-        facing: Direction::Down,
-        align: 0,
-        clear_load_flags: 0x08,
-    },
-    SceneOp::Wait { ticks: 224 },
-    SceneOp::PlaySound {
-        id: SFX_SPACESHIP_PROPELLED,
-    },
-    SceneOp::Wait { ticks: 195 },
-    SceneOp::LoadMap {
-        map: 0x18C,
-        prev_map: 0x000,
-        start_x: 0x43,
-        start_y: 0x1C,
-        facing: Direction::Down,
-        align: 0,
-        clear_load_flags: 0x08,
-    },
-    SceneOp::Wait { ticks: 257 },
-    SceneOp::LoadMap {
-        map: 0x18D,
-        prev_map: 0x18C,
-        start_x: 0x3E,
-        start_y: 0x5A,
-        facing: Direction::Down,
-        align: 0,
-        clear_load_flags: 0x08,
-    },
-];
 
 /// `$0048`, `Event_MeetingLeRoof`, `$070482..$07069D`.
 pub static MEETING_LE_ROOF: Scene = Scene {
@@ -197,7 +149,33 @@ pub static LE_ROOF_AGAIN: Scene = Scene {
         INSIDE_SPACESHIP_ROUTE[8],
         INSIDE_SPACESHIP_ROUTE[9],
         INSIDE_SPACESHIP_ROUTE[10],
-        SceneOp::Return { value: 0 },
+        INSIDE_SPACESHIP_ROUTE[11],
+        INSIDE_SPACESHIP_ROUTE[12],
+        INSIDE_SPACESHIP_ROUTE[13],
+        INSIDE_SPACESHIP_ROUTE[14],
+        INSIDE_SPACESHIP_ROUTE[15],
+        INSIDE_SPACESHIP_ROUTE[16],
+        INSIDE_SPACESHIP_ROUTE[17],
+        INSIDE_SPACESHIP_ROUTE[18],
+        INSIDE_SPACESHIP_ROUTE[19],
+        INSIDE_SPACESHIP_ROUTE[20],
+        INSIDE_SPACESHIP_ROUTE[21],
+        INSIDE_SPACESHIP_ROUTE[22],
+        INSIDE_SPACESHIP_ROUTE[23],
+        INSIDE_SPACESHIP_ROUTE[24],
+        INSIDE_SPACESHIP_ROUTE[25],
+        INSIDE_SPACESHIP_ROUTE[26],
+        INSIDE_SPACESHIP_ROUTE[27],
+        INSIDE_SPACESHIP_ROUTE[28],
+        INSIDE_SPACESHIP_ROUTE[29],
+        INSIDE_SPACESHIP_ROUTE[30],
+        INSIDE_SPACESHIP_ROUTE[31],
+        INSIDE_SPACESHIP_ROUTE[32],
+        INSIDE_SPACESHIP_ROUTE[33],
+        INSIDE_SPACESHIP_ROUTE[34],
+        INSIDE_SPACESHIP_ROUTE[35],
+        INSIDE_SPACESHIP_ROUTE[36],
+        INSIDE_SPACESHIP_ROUTE[37],
     ],
 };
 
