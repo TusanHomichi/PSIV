@@ -286,7 +286,7 @@ mod tests {
             ("Cutscene_MeetingWren", 16),
             ("Cutscene_InsideSpaceship", 38),
             ("Cutscene_SpaceshipSabotage", 36),
-            ("Cutscene_CrashLaanding", 130),
+            ("Cutscene_CrashLaanding", 131),
             ("Cutscene_Landale", 22),
             ("Event_KuranArrival", 2),
             ("Event_NearDarkForce1", 2),

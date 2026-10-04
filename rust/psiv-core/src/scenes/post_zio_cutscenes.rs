@@ -269,6 +269,9 @@ pub static CRASH_LANDING: Scene = Scene {
             align: 0,
             clear_load_flags: 0x08,
         },
+        // `move.b #1, (World_Index).w` right after the RefreshMap
+        // (`ps4.asm:155847`): the party is on Dezolis from here on.
+        SceneOp::SetWorldIndex { world: 1 },
         SceneOp::Presentation {
             op: PresentationOp::RebuildSprites,
         },
@@ -778,3 +781,28 @@ pub static JUZA_DEFEATED: Scene = Scene {
         },
     ],
 };
+
+#[cfg(test)]
+mod world_index_tests {
+    use super::*;
+
+    /// `Cutscene_CrashLaanding` writes `World_Index = 1` immediately after the
+    /// RefreshMap that loads Dezolis (`ps4.asm:155847`), and nowhere else.
+    #[test]
+    fn the_crash_landing_sets_dezolis_right_after_loading_it() {
+        let ops = CRASH_LANDING.ops;
+        let writes: Vec<usize> = ops
+            .iter()
+            .enumerate()
+            .filter(|(_, op)| matches!(op, SceneOp::SetWorldIndex { .. }))
+            .map(|(i, _)| i)
+            .collect();
+        assert_eq!(writes.len(), 1, "exactly one World_Index write");
+        let at = writes[0];
+        assert!(matches!(ops[at], SceneOp::SetWorldIndex { world: 1 }));
+        assert!(
+            matches!(ops[at - 1], SceneOp::LoadMap { map: 0x001, .. }),
+            "the write follows the Dezolis load"
+        );
+    }
+}
