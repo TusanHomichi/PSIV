@@ -41,9 +41,10 @@
 //! | `do` | fields | meaning |
 //! | --- | --- | --- |
 //! | `go_to` | `map`, `cell` | stand on `cell` of `map`, crossing warps if needed |
-//! | `step_onto` | `map`, `cell` | take the one step onto `cell`, a warp footprint where a map trigger starts a scene before the warp fires (`RunEvents` runs first); halts when the warp fires instead; the position is unknown until a later `expect` pins it |
+//! | `step_onto` | `map`, `cell` | take the one step onto `cell`, where a map trigger starts a scene: a warp footprint (the scene wins before the warp fires, `RunEvents` runs first) or any other trigger cell; halts when the warp fires instead, or the party stands on the cell and no scene ran; the position is unknown until a later `expect` pins it |
 //! | `go_to_map` | `map`, optional `via_warp` | arrive on `map` by the cheapest warp chain; `via_warp` forces the first warp (index in the current map's record) |
-//! | `talk` | `npc` | face and talk to object `npc` (index in the current map's object list) |
+//! | `talk` | `npc`, optional `opens` | face and talk to object `npc` (index in the current map's object list); `opens` lists the cells an object stands on that the conversation sends away, for planning |
+//! | `wait` | `frames` | press nothing for `frames` frames (1 to 600) while the field runs |
 //! | `answer` | `yes` | answer an open Yes/No prompt |
 //! | `interact` | `cell`, `face`, optional `opens` | stand on `cell`, face `up`/`down`/`left`/`right`, press confirm (doors, elevators, interaction areas); `opens` lists the cells that become walkable, for planning (collision 0, and any object standing on them is taken to move off: Tyler's grave blocks) |
 //! | `open_chest` | `chest` | open chest `chest` of the current map (record index) |
@@ -56,7 +57,7 @@
 //! | `reorder` | `order` | set party order, first to last |
 //! | `save` | `slot` | ordinary SAVE to slot `0..3` |
 //! | `fight_scripted` | none | win the scripted battle that starts |
-//! | `board` | `step`, `to` | step `up`/`down`/`left`/`right` onto a boarding row until the ship's destination menu opens, move its cursor to the world `to` (a `World_Index` or its name), press Speak and fly; the validator ends the party on that world's landing cell |
+//! | `board` | optional `step`, `to` | step `up`/`down`/`left`/`right` onto a boarding row until the ship's destination menu opens (without `step`, wait for the menu a scene opens by itself), move its cursor to the world `to` (a `World_Index` or its name), press Speak and fly; the validator ends the party on that world's landing cell |
 //! | `dismount` | none | press Action in the vehicle the party rides; halts when the standing cell is not open ground |
 //! | `patrol` | `map`, `a`, `b`, `until`, optional `refuge` | walk between cells `a` and `b` of `map`, fighting what the chapter's policy says, until `until` (`party_level_at_least`, `money_at_least`) holds; `refuge` is an out-and-back list of steps run when a member has fallen or is below half HP after the camp cure; the validator takes the party to end on `b` |
 //! | `expect` | any of `flags_set`, `flags_clear`, `map`, `cell`, `party`, `money_at_least`, `vehicle` | halt unless all hold |
@@ -80,6 +81,9 @@ use serde::{Deserialize, Serialize};
 
 /// The only route format this crate reads.
 pub const FORMAT: u32 = 1;
+
+/// The most frames one `wait` objective may let pass.
+pub const MAX_WAIT_FRAMES: u32 = 600;
 
 /// A whole route file.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -277,16 +281,18 @@ pub enum Objective {
         /// Target standing cell.
         cell: Xy,
     },
-    /// Take the one step onto a warp's footprint cell where a map trigger
-    /// starts a scene before the warp can fire: `RunEvents` precedes
-    /// `RunMapTransitions` on foot (`ps4.asm:116768-116773`), so a scene
-    /// registered on that cell owns the frame. `go_to` plans a warp footprint
-    /// as a terminal, never as a goal; this plans the firing step as an
-    /// ordinary one and halts when it fires the warp instead.
+    /// Take the one step onto a cell where a map trigger starts a scene. On a
+    /// warp footprint the scene runs before the warp can fire: `RunEvents`
+    /// precedes `RunMapTransitions` on foot (`ps4.asm:116768-116773`), so a
+    /// scene registered on that cell owns the frame. `go_to` plans a warp
+    /// footprint as a terminal, never as a goal; this plans the firing step as
+    /// an ordinary one and halts when it fires the warp instead. On any other
+    /// trigger cell the step is the plain walk that ends there: a `go_to` would
+    /// plan again from where the scene left the party and fire it twice.
     StepOnto {
         /// Map the cell is on.
         map: u16,
-        /// The footprint cell stepped onto.
+        /// The cell stepped onto.
         cell: Xy,
     },
     /// Arrive on a map by the cheapest warp chain.
@@ -301,6 +307,19 @@ pub enum Objective {
     Talk {
         /// Index in the map's object list.
         npc: u32,
+        /// Cells of the current map an object stands on that the conversation
+        /// sends away (the Esper Mansion's door guards step aside): the
+        /// validator plans with them open until the party leaves the map, as
+        /// for an `interact`. The runner needs nothing: it walks the live map.
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        opens: Vec<Xy>,
+    },
+    /// Press nothing for `frames` frames while the field runs: an object a
+    /// scene sent walking (guards stepping aside) finishes before the next
+    /// walk is planned around it.
+    Wait {
+        /// Frames to let pass, 1 to 600.
+        frames: u32,
     },
     /// Answer an open Yes/No prompt.
     Answer {
@@ -386,10 +405,14 @@ pub enum Objective {
     /// Win the scripted battle that starts.
     FightScripted,
     /// Step onto a boarding row, pick a world in the ship's destination menu
-    /// and fly there.
+    /// and fly there. Without a `step` the menu is one a scene opens by
+    /// itself (`Cutscene_FindingAirCastle` ends in the ship's menu): the
+    /// objective waits for it.
     Board {
-        /// The step that fires the boarding event.
-        step: Face,
+        /// The step that fires the boarding event; absent when a scene
+        /// opens the menu.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        step: Option<Face>,
         /// The destination: a `World_Index` (`0` Motavia, `1` Dezolis, `2`
         /// Rykros, `3` Zelan, `4` Kuran, `5` the Air Castle) or the pack's name
         /// for it.

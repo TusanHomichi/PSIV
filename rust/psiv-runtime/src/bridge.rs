@@ -6,8 +6,9 @@ use crate::effects::EffectOutcome;
 use psiv_core::{
     BespokeFlag, BespokeKind, BespokeRandom, BespokeSet, Cell, CollisionGrid, Direction, FieldMap,
     FollowTarget, GameState, Leash, MapId, Npc, NpcId, PATTERN_48F36, PATTERN_49128,
-    PATTERN_ESPER_GUARD, PATTERN_MUSK_GUARD, PATTERN_TYPE5, PATTERN_TYPE17, PATTERN_TYPE35,
-    PATTERN_TYPE36, WanderKind, WanderSet, WanderSpeed, Warp, WarpTrigger,
+    PATTERN_ESPER_GUARD, PATTERN_ESPER_GUARD_SECOND, PATTERN_MUSK_GUARD, PATTERN_TYPE5,
+    PATTERN_TYPE17, PATTERN_TYPE35, PATTERN_TYPE36, WanderKind, WanderSet, WanderSpeed, Warp,
+    WarpTrigger,
 };
 use psiv_data::{GameData, MapRecord, TransitionTable};
 
@@ -575,6 +576,26 @@ fn bespoke_kind(symbol: Option<&str>) -> Option<BespokeKind> {
     })
 }
 
+/// The second Esper guard's route: right where the first goes left.
+fn esper_second_guard(kind: BespokeKind, second: bool) -> BespokeKind {
+    match kind {
+        BespokeKind::FlaggedPattern {
+            flag,
+            before,
+            speed,
+            leash,
+            ..
+        } if second => BespokeKind::FlaggedPattern {
+            flag,
+            before,
+            after: PATTERN_ESPER_GUARD_SECOND,
+            speed,
+            leash,
+        },
+        other => other,
+    }
+}
+
 /// Builds the explicit post-wave-7 actor set for a map.
 pub(super) fn build_bespoke(map: &FieldMap, record: &MapRecord) -> Result<BespokeSet, BridgeError> {
     let objects: Vec<(usize, BespokeKind)> = record
@@ -585,7 +606,18 @@ pub(super) fn build_bespoke(map: &FieldMap, record: &MapRecord) -> Result<Bespok
             if !map.npcs().get(i).is_some_and(|object| object.active) {
                 return None;
             }
-            bespoke_kind(npc.symbol.as_deref()).map(|kind| (i, kind))
+            let kind = bespoke_kind(npc.symbol.as_deref())?;
+            // `FieldObj_EsperGuard` / `FieldObj_InnerEsperGuards` read the
+            // route table of the second guard when the object before them has
+            // the guard's id word (`cmpi.w #$8268 / #$826C, -$40(a4)`,
+            // `ps4.asm:97172`, `:97206`).
+            let follows_a_guard = i > 0
+                && matches!(
+                    npc.symbol.as_deref(),
+                    Some("EsperGuard" | "InnerEsperGuards")
+                )
+                && record.npcs[i - 1].symbol == npc.symbol;
+            Some((i, esper_second_guard(kind, follows_a_guard)))
         })
         .collect();
     BespokeSet::build(map, &objects).map_err(|e| BridgeError::Rejected(e.to_string()))

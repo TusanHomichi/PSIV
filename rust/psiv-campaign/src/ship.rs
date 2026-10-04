@@ -21,6 +21,9 @@ use crate::route::NameOrId;
 /// scene's own warm-up and its first ops, nowhere near a walk.
 const MENU_FRAMES: u32 = 600;
 
+/// Frames a scene may take, dialogue and all, to reach its destination menu.
+const SCENE_MENU_FRAMES: u32 = 20_000;
+
 /// The world a route's `to` names: a `World_Index`, or a name from the pack's
 /// `loc_2AAA7A` table compared without case.
 ///
@@ -76,6 +79,44 @@ impl Driver {
                 format!("stepping {step:?} opened no destination menu"),
             ));
         }
+        self.fly(world)
+    }
+
+    /// Picks `world` in the destination menu a scene opens by itself and
+    /// flies: `Cutscene_FindingAirCastle` ends in the ship's menu
+    /// (`docs/scenes/68_FindingAirCastle.md`). Pages the scene's dialogue with
+    /// Speak while it waits for the menu.
+    ///
+    /// # Errors
+    ///
+    /// [`HaltKind::UnexpectedState`] when no menu opens,
+    /// [`HaltKind::MenuEntryMissing`] when it does not list the world, or a
+    /// halt from a frame.
+    pub fn board_from_scene(&mut self, world: u8) -> Res {
+        for _ in 0..SCENE_MENU_FRAMES {
+            if self.session().destination_view().is_some() {
+                return self.fly(world);
+            }
+            if self.session().battle_active() {
+                self.fight()?;
+            } else if self
+                .runtime()
+                .dialogue_view()
+                .is_some_and(|view| view.dismissable && view.choice.is_none())
+            {
+                self.tap(Button::Speak)?;
+            } else {
+                self.tick(Pad::NEUTRAL)?;
+            }
+        }
+        Err(Halt::new(
+            HaltKind::UnexpectedState,
+            "no scene opened a destination menu",
+        ))
+    }
+
+    /// From the open menu: pick the row, confirm and wait the flight out.
+    fn fly(&mut self, world: u8) -> Res {
         // Let go of the step so the next press is a fresh edge, then wait out
         // the window's opening: the cartridge discards every pad edge while
         // Window_Draw runs (`DestinationPhase::Opening`), as a player's early

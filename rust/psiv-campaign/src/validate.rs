@@ -26,7 +26,7 @@ use psiv_data::{BattleFiles, GameData};
 
 use crate::cell_plan::{Flood, Mover};
 use crate::map_plan::{MapGraph, Plan, PlanError, Position, Target};
-use crate::route::{Chapter, Expectation, NameOrId, Objective, Route};
+use crate::route::{Chapter, Expectation, MAX_WAIT_FRAMES, NameOrId, Objective, Route};
 
 /// One problem, located.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -250,10 +250,25 @@ impl<'a> Run<'a> {
                 self.require_map(*map)?;
                 self.go_to_map(*map, *via_warp)
             }
-            Objective::Talk { npc } => {
+            Objective::Wait { frames } => {
+                if (1..=MAX_WAIT_FRAMES).contains(frames) {
+                    Ok(())
+                } else {
+                    Err(format!(
+                        "wait of {frames} frames is not 1 to {MAX_WAIT_FRAMES}"
+                    ))
+                }
+            }
+            Objective::Talk { npc, opens } => {
                 let here = self.here("talk")?;
                 let count = self.record_of(here.map)?.npcs.len();
                 if (*npc as usize) < count {
+                    if !opens.is_empty() {
+                        self.opened
+                            .entry(here.map)
+                            .or_default()
+                            .extend(opens.iter().map(|c| c.cell()));
+                    }
                     Ok(())
                 } else {
                     Err(format!(
@@ -421,9 +436,9 @@ impl<'a> Run<'a> {
         Ok(())
     }
 
-    /// A `step_onto`: the cell must be a footprint a step can fire from where
-    /// the party stands. The scene decides where the party ends, so the
-    /// position is unknown until a later `expect` pins it.
+    /// A `step_onto`: a walk must end in a step onto the cell, firing a warp
+    /// there or landing plainly on a trigger cell. The scene decides where the
+    /// party ends, so the position is unknown until a later `expect` pins it.
     fn step_onto(&mut self, map: u16, cell: Cell) -> Result<(), String> {
         self.require_map(map)?;
         let from = self.here("step_onto")?;
@@ -439,8 +454,8 @@ impl<'a> Run<'a> {
             .map_err(|e| plan_reason(&PlanError::Cells(map, e)))?;
         let plan = flood.onto_plan(&field, self.mover, cell).ok_or_else(|| {
             format!(
-                "no walk from ({},{}) ends in a step that fires a warp onto ({},{}); \
-                     a cell that is not a warp footprint is a go_to",
+                "no walk from ({},{}) ends in a step onto ({},{}): the cell is where the \
+                     party stands, or it cannot be reached without firing another warp",
                 from.cell.x, from.cell.y, cell.x, cell.y
             )
         })?;

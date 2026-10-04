@@ -749,7 +749,9 @@ fn an_arrival_prompt_is_the_next_objectives_to_answer() {
 
 /// The whole route from New Game to Zio's defeat, the Mota Spaceport, Zelan,
 /// the sabotage and the crash landing to Raja Temple on Dezolis, Tyler's grave,
-/// Landale, Kuran and the defeat of Dark Force 1, pads only. The Zio chapter
+/// Landale, Kuran, the defeat of Dark Force 1, Meese, the trees, the Esper
+/// Mansion, the Gumbious Temple and the Air Castle to the Xe-A-Thoul room, pads
+/// only. The Zio chapter
 /// makes an ordinary SAVE; a new Session reads it, and replaying the tape in
 /// another Session reaches the same digest.
 #[test]
@@ -762,10 +764,10 @@ fn the_whole_route_defeats_zio_saves_and_replays() {
     let result = run(&config).expect("the route sets up");
     let done: Vec<&str> = result.chapters.iter().map(|c| c.id.as_str()).collect();
     assert!(result.completed, "route halted: {:#?}", result.report);
-    assert_eq!(done.last(), Some(&"kuran-dark-force-1"));
-    // Fourteen chapters follow Zio's defeat: the spaceport, Zelan, Dezolis, the
-    // Hangar's second visit and Kuran.
-    assert_eq!(done[done.len() - 15], "nurvus-zio");
+    assert_eq!(done.last(), Some(&"air-castle-xe-athoul-room"));
+    // Twenty-two chapters follow Zio's defeat: the spaceport, Zelan, Dezolis, the
+    // Hangar's second visit, Kuran and the late Dezolis arc to the Air Castle.
+    assert_eq!(done[done.len() - 23], "nurvus-zio");
     assert_eq!(result.chapters.len(), config.route.chapters.len());
     let save_of = |id: &str| {
         let chapter = result
@@ -891,6 +893,61 @@ fn the_whole_route_defeats_zio_saves_and_replays() {
         !defeated.inventory().contains(0x9A),
         "the Canceller is gone"
     );
+    // Raja fell sick in Meese's clinic (`$94`) and left the party.
+    let (clinic, _) = open_session(
+        pack_dir().as_path(),
+        &StartPoint::Save(save_of("meese-raja-sick")),
+    )
+    .unwrap();
+    assert_eq!(clinic.runtime().map_id().0, 0x134);
+    assert!(clinic.runtime().game().is_set(Flag::event(0x94)));
+    assert_eq!(clinic.runtime().game().party_members().len(), 4);
+    // The trees were fought and Kyra joined in slot 5 (`$95`, `$A0`).
+    let (kyra, _) = open_session(
+        pack_dir().as_path(),
+        &StartPoint::Save(save_of("dezolis-saving-kyra")),
+    )
+    .unwrap();
+    assert!(kyra.runtime().game().party_members().contains(&CharId(9)));
+    for flag in [0x94, 0x95, 0xA0] {
+        assert!(kyra.runtime().game().is_set(Flag::event(flag)), "{flag:#x}");
+    }
+    // The Esper guards gave way (`$96`) and Rune is Lutz (`$97`).
+    let (sanctuary, _) = open_session(
+        pack_dir().as_path(),
+        &StartPoint::Save(save_of("esper-inner-sanctuary")),
+    )
+    .unwrap();
+    assert_eq!(sanctuary.runtime().map_id().0, 0x16F);
+    for flag in [0x96, 0x97] {
+        assert!(
+            sanctuary.runtime().game().is_set(Flag::event(flag)),
+            "{flag:#x}"
+        );
+    }
+    // The torch was stolen (`$98`), the Air Castle found (`$99`) and entered
+    // (`$9F`); the chapter after it ends in the Xe-A-Thoul room with the fight
+    // still ahead.
+    let (castle, _) = open_session(
+        pack_dir().as_path(),
+        &StartPoint::Save(save_of("air-castle-arrival")),
+    )
+    .unwrap();
+    assert_eq!(castle.runtime().map_id().0, 0x171);
+    assert_eq!(castle.runtime().world_index(), 5);
+    for flag in [0x98, 0x99, 0x9F] {
+        assert!(
+            castle.runtime().game().is_set(Flag::event(flag)),
+            "{flag:#x}"
+        );
+    }
+    let (room, _) = open_session(
+        pack_dir().as_path(),
+        &StartPoint::Save(save_of("air-castle-xe-athoul-room")),
+    )
+    .unwrap();
+    assert_eq!(room.runtime().map_id().0, 0x184);
+    assert!(!room.runtime().game().is_set(Flag::event(0x9A)));
     let pad_save = config.save_dir.join("route/slot_1.sram");
     assert!(
         pad_save.is_file(),

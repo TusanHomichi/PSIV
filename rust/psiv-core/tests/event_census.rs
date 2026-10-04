@@ -41,7 +41,7 @@ use Disposition::{Allowlisted, InsideScene, Null, Scene};
 const ISSUES: [u32; 5] = [56, 71, 81, 82, 83];
 
 /// The most the allowlist may hold. Lower it when a scene lands; never raise it.
-const ALLOWLIST_CEILING: usize = 84;
+const ALLOWLIST_CEILING: usize = 81;
 
 #[rustfmt::skip]
 const CENSUS: &[(u16, &str, Disposition)] = &[
@@ -112,8 +112,8 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0042, "Event_SilenceTmDoorOpening", Disposition::Allowlisted(83)),
     (0x0043, "Event_OutsideRajaTemple", Disposition::Scene),
     (0x0044, "Event_TylerGraveOpening", Disposition::Scene),
-    (0x0045, "Event_PersistentEsperGuards", Disposition::Allowlisted(83)),
-    (0x0046, "Event_EclipseTorchStolen", Disposition::Allowlisted(83)),
+    (0x0045, "Event_PersistentEsperGuards", Disposition::Scene),
+    (0x0046, "Event_EclipseTorchStolen", Disposition::Scene),
     (0x0047, "Event_EclipseTorchUsed", Disposition::Scene),
     (0x0048, "Event_MeetingLeRoof", Disposition::Scene),
     (0x0049, "Event_MuskCatsGuarding", Disposition::Allowlisted(83)),
@@ -122,7 +122,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x004C, "Event_CarnivorousTrees", Disposition::Scene),
     (0x004D, "Event_SavingKyra", Disposition::Scene),
     (0x004E, "Event_DarkForce2", Disposition::Scene),
-    (0x004F, "Event_EsperGuardPermission", Disposition::Allowlisted(83)),
+    (0x004F, "Event_EsperGuardPermission", Disposition::Scene),
     (0x0050, "Event_DarkForce3Defeated", Disposition::Scene),
     (0x0051, "Event_InnerSanctGuard", Disposition::Allowlisted(83)),
     (0x0052, "Event_InnerSanctGuardBeforeElsydeon", Disposition::Allowlisted(83)),

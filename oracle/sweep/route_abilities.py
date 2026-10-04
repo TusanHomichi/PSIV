@@ -13,7 +13,7 @@ battles, joined with the generated tables:
 
 * **A named stretch** (`--stretch`, the default): the route file's objectives
   (`rust/psiv-campaign/routes/main.json`) from the chapter that opens the
-  stretch to the last chapter each name a `map`; the scenes the stretch starts
+  stretch to the stretch's own last chapter each name a `map`; the scenes the stretch starts
   (`rust/psiv-core/src/scenes/post_zio_cutscenes.rs`, the statics from
   `SPACESHIP_SABOTAGE` to `DARK_FORCE_1_DEFEATED`) name the maps they load and
   the event battles they start.
@@ -76,14 +76,21 @@ _SCENE = re.compile(r"pub static ([A-Z0-9_]+): Scene = Scene \{")
 class Stretch:
     """A slice of the route: the chapters and scenes that bound it."""
 
-    #: First route chapter id of the slice; every chapter from it to the last.
+    #: First route chapter id of the slice; every chapter from it to
+    #: `last_chapter`, so a chapter appended to the route does not widen it.
     first_chapter: str
-    #: First and last scene static of `post_zio_cutscenes.rs` the slice starts.
-    first_scene: str
-    last_scene: str
+    #: Last route chapter id of the slice.
+    last_chapter: str
+    #: First and last scene static of `post_zio_cutscenes.rs` the slice starts;
+    #: `None` when the slice's scenes live elsewhere and its battles are named in
+    #: `extra_battles`.
+    first_scene: str | None
+    last_scene: str | None
     #: Map ids the slice reaches that no chapter or scene names: the map a
     #: trigger fires on (`KURAN_ARRIVAL`'s own map), by reason.
     extra_maps: tuple[tuple[int, str], ...] = ()
+    #: Event battle indexes the slice reaches or stops at, by reason.
+    extra_battles: tuple[tuple[int, str], ...] = ()
 
 
 STRETCHES = {
@@ -95,10 +102,27 @@ STRETCHES = {
     # share its group.
     "zelan-kuran": Stretch(
         first_chapter="zelan-wren-canceller",
+        last_chapter="kuran-dark-force-1",
         first_scene="SPACESHIP_SABOTAGE",
         last_scene="DARK_FORCE_1_DEFEATED",
         extra_maps=tuple((0x190 + n, "Kuran interior (scene 45-47's map)")
                          for n in range(8)),
+    ),
+    # The route past Dark Force 1 (C7): Zelan F1 on the Ice Digger, Meese, the
+    # carnivorous trees, the Esper Mansion, the Gumbious Temple, the flight and
+    # the Air Castle's walk to the Xe-A-Thoul room (docs/scenes/99-101,
+    # RUNNER_LOG_ICEDIGGER.md). Its scenes are in several files, so its event
+    # battles are named: the trees (`Event_CarnivorousTrees`, `Event_SavingKyra`)
+    # and the Xe-A-Thoul fight the route stops at the door of (`$59`).
+    "dezolis-air-castle": Stretch(
+        first_chapter="dezolis-ice-digger",
+        last_chapter="air-castle-xe-athoul-room",
+        first_scene=None,
+        last_scene=None,
+        extra_maps=tuple((map_id, "Air Castle walk to the Xe-A-Thoul room")
+                         for map_id in (0x170, 0x171, 0x172, 0x173, 0x178, 0x17F, 0x181)),
+        extra_battles=((10, "Event_CarnivorousTrees / Event_SavingKyra"),
+                       (14, "Event_XeAThoulBeforeBattle (the route stops at its door)")),
     ),
 }
 
@@ -177,22 +201,27 @@ def stretch_scope(stretch: Stretch) -> Scope:
     """The maps the route file and the scenes of a stretch name."""
     scope = Scope(inputs=[ROUTE, SCENES])
     chapters = json.loads(ROUTE.read_text())["chapters"]
-    start = [chapter["id"] for chapter in chapters].index(stretch.first_chapter)
-    for chapter in chapters[start:]:
+    ids = [chapter["id"] for chapter in chapters]
+    start = ids.index(stretch.first_chapter)
+    end = ids.index(stretch.last_chapter)
+    for chapter in chapters[start:end + 1]:
         for objective in chapter["objectives"]:
             if isinstance(objective, dict) and isinstance(
                     objective.get("map"), int):
                 scope.add_map(objective["map"], f"chapter {chapter['id']}")
-    records = scene_records(SCENES.read_text())
-    names = list(records)
-    first = names.index(stretch.first_scene)
-    last = names.index(stretch.last_scene)
-    for name in names[first:last + 1]:
-        loaded, started = records[name]
-        for map_id in loaded:
-            scope.add_map(map_id, f"scene {name}")
-        for index in started:
-            scope.add_battle(index, name)
+    if stretch.first_scene is not None:
+        records = scene_records(SCENES.read_text())
+        names = list(records)
+        first = names.index(stretch.first_scene)
+        last = names.index(stretch.last_scene)
+        for name in names[first:last + 1]:
+            loaded, started = records[name]
+            for map_id in loaded:
+                scope.add_map(map_id, f"scene {name}")
+            for index in started:
+                scope.add_battle(index, name)
+    for index, why in stretch.extra_battles:
+        scope.add_battle(index, why)
     for map_id, why in stretch.extra_maps:
         scope.add_map(map_id, why)
     return scope
@@ -312,7 +341,9 @@ def derive(data: Data, scope: Scope, ledger: dict[int, dict]) -> dict:
     used_formations: set[int] = set()
     for map_id in sorted(scope.maps):
         entry = data.encounters.get(map_id)
-        if entry is None or entry["mode"] == "none":
+        # A map with no encounter table (`none`) or outside it (`outside_table`,
+        # the space maps) draws nothing.
+        if entry is None or entry["mode"] in ("none", "outside_table"):
             map_groups[map_id] = {"foot": [], "vehicle": []}
             continue
         if entry["mode"] == "group":

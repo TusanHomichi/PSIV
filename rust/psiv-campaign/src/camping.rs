@@ -387,6 +387,14 @@ impl Driver {
             Some(rows),
         )?;
         self.tap(Button::Speak)?;
+        // An accepted action table entry (a boarding) destroys the menu on this
+        // very press (`loc_5B7E4`, `ps4.asm:122596-122600`) and the field runs
+        // its event with nothing over it: there is no page left to read, only a
+        // scene to wait out.
+        if self.session().camp_view().is_none() && self.runtime().scene_active() {
+            self.note("camp item: the action closed the menu and started a scene");
+            return self.settle(false).map(|_| ());
+        }
         if self.camp_page()? == CampPage::ItemTarget {
             let who = self.member_row(target)?;
             let rows = self.camp()?.snapshot.party.len();

@@ -14,6 +14,13 @@ use crate::map::FieldMap;
 use crate::{Leash, WanderSpeed};
 
 const IDLE: u8 = 0xFF;
+/// A pattern terminator that does not restart the pattern. Retail's looping
+/// routines end on `$FF` with `clr.w $1C(a4)` (`loc_49FCE`..`loc_49FF0`, the
+/// cursor back to 0); the guards' routines end on the same `$FF` with
+/// `move.w #n, $1C(a4)`, which leaves the cursor on the `$FF` itself, so every
+/// later frame reads `$FF` again and the guard idles (`loc_4A0B2`..`loc_4A0E8`,
+/// `loc_4A102`..`loc_4A138`, `loc_4A030`..`loc_4A056`).
+const LATCH: u8 = 0xFE;
 
 /// The event/temp bits read by field-object routines in this module.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -537,6 +544,10 @@ impl BespokeSet {
         }
         let actor = &mut self.actors[index];
         let command = commands[actor.cursor % commands.len()];
+        if command == LATCH {
+            // The cursor stays on the terminator: idle for good.
+            return 0;
+        }
         actor.cursor += 1;
         if command == IDLE {
             actor.cursor = 0;
@@ -749,10 +760,19 @@ pub const PATTERN_49128: &[u8] = &[
     4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 1, 3, 3, 3, 2, 2, 4, 4, 4,
     4, 4, 4, 1, 3, 3, 3, 3, 3, 3, 3, 1, 1, 1, 1, 4, IDLE,
 ];
-/// `loc_4A022`, used by MuskCatGuard after its event flag.
-pub const PATTERN_MUSK_GUARD: &[u8] = &[3, 3, 2, IDLE];
-/// `loc_4A0A4`/`loc_4A0F4`, the Esper guard route after permission.
-pub const PATTERN_ESPER_GUARD: &[u8] = &[3, 2, IDLE];
+/// `loc_4A022`, used by MuskCatGuard after its event flag: table `loc_4A05A`
+/// (`03 03 02 FF`, ROM `$04A05A`), cursor latched on the `$FF` at index 3
+/// (`move.w #3, $1C(a4)`, `$04A04C`).
+pub const PATTERN_MUSK_GUARD: &[u8] = &[3, 3, 2, LATCH];
+/// `loc_4A0A4`/`loc_4A0F4`, the first Esper guard's route after permission
+/// (also the first Inner Esper guard's): table `loc_4A0EC` / `loc_4A13C`
+/// (`03 02 FF`), cursor latched on the `$FF` at index 2.
+pub const PATTERN_ESPER_GUARD: &[u8] = &[3, 2, LATCH];
+/// The second guard's route: the routine reads `loc_4A0F0` / `loc_4A140`
+/// (`04 02 FF`) when the object before it already carries the guard's id word
+/// (`cmpi.w #$8268, -$40(a4)` / `#$826C`), so it steps right where the first
+/// steps left.
+pub const PATTERN_ESPER_GUARD_SECOND: &[u8] = &[4, 2, LATCH];
 
 #[cfg(test)]
 #[path = "bespoke_tests.rs"]

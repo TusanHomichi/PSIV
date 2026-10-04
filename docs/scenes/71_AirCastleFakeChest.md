@@ -4,7 +4,7 @@
 - **Pointer:** `EventPtrs[$5A]`; event `$005A`.
 - **Trigger:** `RunEventsJmpTbl[$45]`, Eclipse Torch chest `$10C` set and
   Spector `$A6` clear.
-- **Data:** `dezo_campaign.rs`, `AIR_CASTLE_FAKE_CHEST` (11 ops).
+- **Data:** `dezo_campaign_late.rs`, `AIR_CASTLE_FAKE_CHEST` (11 ops).
 
 ## Clone audit
 

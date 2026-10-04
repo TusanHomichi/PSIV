@@ -565,6 +565,16 @@ impl SceneRunner {
                 effects.push(SceneEffect::NpcDespawned { npc_index, count });
                 self.pc += 1;
             }
+            SceneOp::SetNpcDialogue {
+                npc_index,
+                dialogue_id,
+            } => {
+                effects.push(SceneEffect::NpcDialogueSet {
+                    npc_index,
+                    dialogue_id,
+                });
+                self.pc += 1;
+            }
             SceneOp::MoveCamera { .. } => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;

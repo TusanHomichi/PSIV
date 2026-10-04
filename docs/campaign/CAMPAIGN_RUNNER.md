@@ -74,11 +74,21 @@ resolves into pad input:
   between two cells until a condition holds (grinding the route requires),
   with an optional `refuge` list the patrol runs when a member falls or a
   living member drops under half HP;
-- `step_onto` a warp's footprint cell where a map trigger starts a scene
-  before the warp can fire (`RunEvents` runs before `RunMapTransitions` on foot,
-  `ps4.asm:116768-116773`; the Hangar's Landale row): `go_to` plans a footprint as
-  a terminal, never as a goal, and `step_onto` plans the firing step as an
-  ordinary one and halts if the warp fires instead of a scene;
+- `step_onto` a cell where a map trigger starts a scene. On a warp's footprint
+  the scene runs before the warp can fire (`RunEvents` runs before
+  `RunMapTransitions` on foot, `ps4.asm:116768-116773`; the Hangar's Landale
+  row): `go_to` plans a footprint as a terminal, never as a goal, and
+  `step_onto` plans the firing step as an ordinary one and halts if the warp
+  fires instead of a scene. On any other trigger cell (the carnivorous trees'
+  corridor, `RunEvent_CarnivorousTrees`) it is the plain walk that ends there,
+  because a `go_to` plans again from where the scene leaves the party and fires
+  the trigger a second time; it halts when the party stands on the cell and no
+  scene ran;
+- `wait` frames while the field runs (an object a scene sent walking, the
+  Esper Mansion's guards, finishes before the next walk is planned around it),
+  and `opens` on a `talk` for the cells such a conversation clears, as on an
+  `interact`; `board` without a `step` answers the destination menu a scene
+  opens by itself (`Cutscene_FindingAirCastle`);
 - fight scripted battles; random battles use a policy that issues commands
   through the battle menu with the same pad input a player would use.
 
@@ -129,10 +139,11 @@ producing pads from views only:
 
 | Objective | Module | What it presses |
 | --- | --- | --- |
-| `go_to`, `go_to_map`, `patrol`, `dismount` | `walk.rs` (plans in `cell_plan.rs`, `map_plan.rs`) | a direction for a step, re-planned from the real cell whenever the party comes to rest somewhere the plan did not expect; R0's planner over the live map, and a warp graph built from the flags the game holds; a yes/no prompt that a scene opens on the target map (Chaz's house offers a rest on arrival) ends `go_to_map` with the prompt open, for the next `answer`; mounted, the same plans run on the vehicle's lattice (`Mover::Vehicle`: the standing cell is the vehicle's, a step is two cells, the four-cell footprint decides the terrain and the warp rule, as `VehicleState::tick` does), and `dismount` presses Action on open ground |
+| `go_to`, `go_to_map`, `patrol`, `dismount` | `walk.rs` (plans in `cell_plan.rs`, `map_plan.rs`) | a direction for a step, re-planned from the real cell whenever the party comes to rest somewhere the plan did not expect; R0's planner over the live map, and a warp graph built from the flags the game holds; a yes/no prompt that a scene opens on the target map (Chaz's house offers a rest on arrival) ends `go_to_map` with the prompt open, for the next `answer`; so does the ship's destination menu; the warp graph is built from the pack's records, so a cell where a record puts an object the game has since moved off (the Esper Mansion's door guards) is opened in it before the chain is planned; mounted, the same plans run on the vehicle's lattice (`Mover::Vehicle`: the standing cell is the vehicle's, a step is two cells, the four-cell footprint decides the terrain and the warp rule, as `VehicleState::tick` does), and `dismount` presses Action on open ground |
 | `talk`, `open_chest`, `interact`, `answer` | `talk.rs` | walks next to the object (or across its counter), turns, presses Speak, and reads what opened; Cancel is retail's direct NO |
+| `wait`, `board` | `field.rs`, `ship.rs` | `wait` presses nothing; `board` holds a step until the destination menu opens, or waits for the menu a scene opens (`go_to_map` ends with such a menu open, for the next `board`) |
 | `buy`, `sell`, `rest_inn` | `shopping.rs` | the shop view's pages, rows and cursors |
-| `equip`, `use_technique`, `use_item`, `reorder`, `save` | `camping.rs` | the camp view's pages; SAVE is answered by the driver with the file the runner writes |
+| `equip`, `use_technique`, `use_item`, `reorder`, `save` | `camping.rs` | the camp view's pages; SAVE is answered by the driver with the file the runner writes; a boarding item (the Ice Digger, `ItemAction_IceDigger`) closes the menu on the press that accepts it, so `use_item` waits the scene out instead of reading a page |
 | random and scripted battles | `battle.rs`, `policy.rs`, `policy_boss.rs` | the battle view's menus (ATTACK, TECH, SKILL, ITEM), one press at a time |
 | `expect` | `expect.rs` | nothing: it settles the game and reads flags, map, cell, party and purse |
 
@@ -187,7 +198,9 @@ choices over a pack that holds an item bought at the Piata shop.
 the first of: a missed `expect` or closing assertion, an exhausted budget, an
 unsupported enemy ability, a scene fault (a faulted or missing scene, an
 unsupported trigger, an unpacked warp target, an unmapped type-1 cell unless the
-same frame began a scene, a refused battle round), a lost
+same frame began a scene or the cell borders a warp footprint (a doorway row
+whose warp the cartridge keeps one row on, `AirCastle_F1` warp 0), a refused
+battle round), a lost
 battle, an unreachable target, a menu with no such entry, an object the route
 named that is not the one the game reached, or a state the objective cannot
 continue from. The report is JSON: `chapter`, `objective_index`,

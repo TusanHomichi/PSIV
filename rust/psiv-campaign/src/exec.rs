@@ -20,6 +20,7 @@ pub struct Memory {
 pub fn budget_for(objective: &Objective) -> u64 {
     match objective {
         Objective::GoTo { .. } | Objective::GoToMap { .. } | Objective::StepOnto { .. } => 120_000,
+        Objective::Wait { frames } => u64::from(*frames) + 20_000,
         Objective::Talk { .. }
         | Objective::Answer { .. }
         | Objective::Interact { .. }
@@ -27,7 +28,7 @@ pub fn budget_for(objective: &Objective) -> u64 {
         | Objective::FightScripted => 120_000,
         // The flight alone is some 1,600 frames; the budget covers a walk onto
         // the row and a retry.
-        Objective::Board { .. } => 20_000,
+        Objective::Board { .. } => 40_000,
         Objective::Buy { .. }
         | Objective::Sell { .. }
         | Objective::RestInn { .. }
@@ -53,7 +54,12 @@ pub fn execute(driver: &mut Driver, memory: &mut Memory, objective: &Objective) 
         Objective::GoTo { map, cell } => driver.go_to(*map, cell.cell()),
         Objective::StepOnto { map, cell } => driver.step_onto(*map, cell.cell()),
         Objective::GoToMap { map, via_warp } => driver.go_to_map(*map, *via_warp),
-        Objective::Talk { npc } => driver.talk(*npc as usize).map(|_| ()),
+        Objective::Talk { npc, .. } => driver.talk(*npc as usize).map(|_| ()),
+        Objective::Wait { frames } => {
+            driver.settle(false)?;
+            driver.neutral(*frames)?;
+            driver.settle(false).map(|_| ())
+        }
         Objective::Answer { yes } => driver.answer(*yes).map(|_| ()),
         Objective::Interact { cell, face, .. } => {
             driver.interact(cell.cell(), face.direction()).map(|_| ())
@@ -78,7 +84,10 @@ pub fn execute(driver: &mut Driver, memory: &mut Memory, objective: &Objective) 
         Objective::Board { step, to } => {
             let world = crate::ship::world_of(to, driver.runtime().data())
                 .map_err(|reason| Halt::new(HaltKind::UnexpectedState, reason))?;
-            driver.board(step.direction(), world)
+            match step {
+                Some(step) => driver.board(step.direction(), world),
+                None => driver.board_from_scene(world),
+            }
         }
         Objective::FightScripted => fight_scripted(driver, memory),
         Objective::Dismount => driver.dismount(),
