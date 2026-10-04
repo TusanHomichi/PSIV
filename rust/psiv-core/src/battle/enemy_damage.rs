@@ -19,9 +19,10 @@
 //! [`DamageClass`] — one `$38` request, or the five-slot all-party loop — and
 //! the [`ObjectDraws`] its chain takes off the shared stream while it animates;
 //! the record still drives the arithmetic, and no record-byte predicate is part
-//! of the proof beyond the effect handler: a record whose effect is not `$01`
-//! (`AbilityEffect_None`, `ps4.asm:9092`) would need that handler modelled as
-//! well, so it stays on the explicit [`BattleEvent::UnsupportedAbility`] path.
+//! of the proof beyond the effect handler: the proven no-op indices `$01`,
+//! `$20`, `$23` and `$24` all reach `AbilityEffect_None` (`ps4.asm:9092`). A real
+//! effect needs its own implementation and stays on the explicit
+//! [`BattleEvent::UnsupportedAbility`] path.
 //! Byte 2's target nibble is *not* a gate — it picks the
 //! `Ability_ProcessRange` (`ps4.asm:8975`) handler for the effect, and the
 //! damage request the object makes comes from the object chain alone.
@@ -69,15 +70,27 @@ mod firebreath_tests;
 #[path = "enemy_damage_zio_tests.rs"]
 mod zio_tests;
 
-/// An `AbilityEffectsOffs` (`ps4.asm:9036`) index whose handler does nothing
-/// but return: `$01` is `AbilityEffect_None` (`ps4.asm:9092`), a bare `rts`.
+#[cfg(test)]
+#[path = "enemy_damage_flaeli_tests.rs"]
+mod flaeli_tests;
+
+#[cfg(test)]
+#[path = "enemy_damage_route_tests.rs"]
+mod route_tests;
+
+/// The proven damage records' no-op `AbilityEffectsOffs` indices
+/// (`ps4.asm:9036`): each reaches `AbilityEffect_None`, a bare `rts`.
 ///
 /// The routes below model the damage request and nothing else, so a record
 /// whose effect handler would also do something is not guessed at: it stays on
-/// the unsupported path until that handler is implemented. Index `$00` is the
-/// same handler, but no enemy skill record in the table carries it — every
-/// damage record written by the game uses `$01`.
-const EFFECT_NONE: u8 = 0x01;
+/// the unsupported path until that handler is implemented. Other no-op
+/// indices are not admitted without a proven damage record/chain pair.
+fn effect_is_none(effect: u8) -> bool {
+    // `AbilityEffectsOffs` (ps4.asm:9036-9088): $20 (CHARGCNNON) and
+    // $23 (EXPLOSION) and $24 (DETONATION) also point at the bare rts
+    // at AbilityEffect_None (table lines 9076/9079/9080).
+    matches!(effect, 0x01 | 0x20 | 0x23 | 0x24)
+}
 
 /// What a proven route's object chain does with `move.w #$C`
 /// (`Fighter_TakeDamage`, `ps4.asm:1033`): how many requests it makes and
@@ -97,6 +110,10 @@ enum DamageClass {
     /// Exactly one `move.w #$C, $2(aX)` in the whole chain, against the
     /// object's `$38`: the drawn `Current_Target_Index`, one party member.
     Single,
+    /// FloatMine's `loc_18574` (ps4.asm:33694-33724): one stored-target
+    /// request, then clears the actor's object and reaction byte. Cached HP
+    /// is not changed and the reward routine is not called.
+    SingleRemoveActor,
     /// Five requests, one per party slot, from a `moveq #4, dN` loop over
     /// `Obj_Fighters`: the shared tails `loc_24A9E` (`ps4.asm:48483`) and
     /// `loc_24BB6` (`ps4.asm:48562`), plus the objects that inline the same
@@ -139,6 +156,10 @@ enum DamageClass {
     ///   (lines 48489, 48568) postpones the whole five-slot write, never one
     ///   member of it, so it cannot skip a target either.
     AllParty,
+    /// CommndBall's `loc_17C9E` (ps4.asm:33114-33127) requests the party
+    /// once. `loc_17D4A` (33154-33177) then clears the next and previous
+    /// enemy objects, retaining the actor, cached stats and reward pools.
+    AllPartyRemoveNeighbours,
 }
 
 /// The calls a route's object chain makes on the shared stream *before* its
@@ -317,8 +338,8 @@ pub(super) use routes::{DAMAGE_SKILL_ROUTES, all};
 /// Returns `false`, leaving the ability to
 /// [`BattleEvent::UnsupportedAbility`], when the `(enemy, ability)` pair is not
 /// in the table, when the ability has no record, when the record's effect byte
-/// is not `$01` (`AbilityEffect_None`, so its handler would do more than the
-/// request this models), or when the actor is not a living enemy. Nothing is
+/// is not a proven no-op (`AbilityEffect_None`), or when the actor is not a
+/// living enemy. Nothing is
 /// drawn and no event is emitted on any of those paths, so the caller's
 /// fallback starts from the state the ability roll left behind.
 ///
@@ -349,7 +370,7 @@ pub(super) fn resolve_damage_skill(
 ) -> bool {
     let Some(skill) = data
         .enemy_skill(ability)
-        .filter(|s| s.effect == EFFECT_NONE)
+        .filter(|s| effect_is_none(s.effect))
     else {
         return false;
     };
@@ -389,7 +410,7 @@ pub(super) fn resolve_damage_skill(
     match class {
         // One request against the object's `$38`, the drawn
         // `Current_Target_Index`.
-        DamageClass::Single => {
+        DamageClass::Single | DamageClass::SingleRemoveActor => {
             if let Some(target) = intended.filter(|id| id.side() == Side::Party) {
                 damage_one_target(roster, actor, skill, power, target, rolls, events);
             }
@@ -398,7 +419,7 @@ pub(super) fn resolve_damage_skill(
         // still standing, in slot order. `intended` plays no part: the arm
         // cleared `Current_Target_Index` before loading its object and the
         // loop runs over `Obj_Fighters` itself.
-        DamageClass::AllParty => {
+        DamageClass::AllParty | DamageClass::AllPartyRemoveNeighbours => {
             let targets: Vec<FighterId> = roster
                 .side(Side::Party)
                 .filter(|f| f.is_alive())
@@ -406,6 +427,32 @@ pub(super) fn resolve_damage_skill(
                 .collect();
             for target in targets {
                 damage_one_target(roster, actor, skill, power, target, rolls, events);
+            }
+        }
+    }
+    let removed = match class {
+        DamageClass::SingleRemoveActor => vec![actor],
+        DamageClass::AllPartyRemoveNeighbours => {
+            [actor.get().checked_add(1), actor.get().checked_sub(1)]
+                .into_iter()
+                .flatten()
+                .filter_map(FighterId::new)
+                .filter(|id| id.side() == Side::Enemy)
+                .collect()
+        }
+        DamageClass::Single | DamageClass::AllParty => Vec::new(),
+    };
+    for id in removed {
+        if let Some(fighter) = roster.get_mut(id) {
+            let occupied = fighter.active;
+            fighter.active = false;
+            if class == DamageClass::SingleRemoveActor {
+                fighter.reaction_flags = 0;
+            }
+            // Object removal is visible on the same existing presentation
+            // path as an enemy's death; it does not mark cached stats dead.
+            if occupied {
+                events.push(BattleEvent::Died { fighter: id });
             }
         }
     }

@@ -1,6 +1,6 @@
 """The command line: the arguments, and the process exit status.
 
-`--formation` and `--out` are required; everything else has a default that the
+`--out` and one of `--formation` / `--event` are required; everything else has a default that the
 ledger's captures were taken with. The exit status is the tool's own verdict:
 `0` when every check passed, `1` when a required ability never fired or
 `python3 -m oracle.rng_trace check` failed on the capture, `2` when the
@@ -23,8 +23,14 @@ DEFAULT_RAM_MAP = ORACLE / "ram_map.json"
 def parser() -> argparse.ArgumentParser:
     parsed = argparse.ArgumentParser(
         description="Force a formation into a battle and capture it.")
-    parsed.add_argument("--formation", required=True,
+    parsed.add_argument("--formation",
                         help="formation id, decimal or 0x-prefixed")
+    parsed.add_argument("--event", default=None,
+                        help="an event battle's `Event_Battle_Index` instead "
+                             "of a formation: the boss formation "
+                             "`generated/formations.json` lists for it, "
+                             "forced by writing that byte (no group, no "
+                             "draw)")
     parsed.add_argument("--out", required=True, help="output directory")
     parsed.add_argument("--policy", default="attack",
                         choices=("attack", "defend"))
@@ -69,6 +75,8 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if (args.formation is None) == (args.event is None):
+        parser().error("exactly one of --formation and --event is required")
     try:
         return run(args)
     except ForceError as error:

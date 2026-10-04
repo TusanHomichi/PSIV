@@ -9,9 +9,14 @@
 
 mod acid;
 mod all_party;
+mod dark_force;
 mod firebreath;
+mod flaeli;
 mod flame;
+mod machines;
 mod motavia;
+mod organic;
+mod techniques;
 mod zio;
 
 use super::{DamageClass, ObjectDraws};
@@ -43,6 +48,11 @@ pub(crate) const DAMAGE_SKILL_ROUTES: &[&[DamageRoute]] = &[
     all_party::ROUTES,
     firebreath::ROUTES,
     zio::ROUTES,
+    flaeli::ROUTES,
+    machines::ROUTES,
+    organic::ROUTES,
+    techniques::ROUTES,
+    dark_force::ROUTES,
 ];
 
 /// Every row of every family, in registry order.

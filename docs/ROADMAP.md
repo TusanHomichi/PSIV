@@ -76,13 +76,11 @@ new SAVE. The campaign graph marks C70 and CZ verified as a bounded post-Zio
 checkpoint, while full R2 remains in progress on bespoke-driver retirement.
 Whole-scene/event-oracle/audio parity and later-arc play remain open.
 
-**Next action:** the enemy abilities on the Zelan and early-Dezolis route
-(FLAELI `$5A` in the sabotage's Chaos Sorcerer battle first, #58 class), then
-the route from the Hangar into `Cutscene_Landale`. With the flight now
-frame-exact, the route plays New Game through Zelan and halts in the sabotage
-battle on FLAELI; the chapters past it (crash landing, Raja Temple, Gyuna,
-Tyler's grave, the Hangar) passed on the previous clock
-([run log](campaign/RUNNER_LOG.md)).
+**Next action:** the route from the Hangar through `Cutscene_Landale`, Kuran
+and Dark Force 1 (C6), with BARRIER (`$1D`, Siren386 on Kuran) and the oracle's
+party command script (#86) alongside. The route plays New Game to the Hangar on
+Dezolis in 36 chapters with every enemy ability on the Zelan-to-Kuran stretch
+implemented except BARRIER ([run log](campaign/RUNNER_LOG.md)).
 
 ## 1. Continue from the post-Rika checkpoint
 

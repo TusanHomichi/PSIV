@@ -31,7 +31,9 @@ pub enum Outcome {
     ScriptedExit,
 }
 
-/// `EnemyAttack_Zio3`'s five turns, controlled by `$FFFFEE98`.
+/// The scripted turns of the boss routines that do not roll an ability:
+/// `EnemyAttack_Zio3`'s five, controlled by `$FFFFEE98`, and Dark Force 1's
+/// latch-gated first action.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FirstZioAction {
     /// Object $908, ability $6B.
@@ -44,6 +46,11 @@ pub enum FirstZioAction {
     Nightmare,
     /// Object $914 returns to the field without invoking effect $2C.
     BlackWave,
+    /// Dark Force 1's first action (`EnemyAttack_DarkForce1`, `ps4.asm:20031-20038`):
+    /// the scripted-battle latch is raised, so the routine clears the rolled
+    /// ability and loads object `$818` (`loc_32344`, `ps4.asm:64872`), a
+    /// presentation-only charge-up that requests nothing.
+    DarkForceCharge,
 }
 
 /// Why a queued fighter did nothing.
@@ -431,7 +438,12 @@ pub enum BattleEvent {
         /// Cartridge display name of the record the roll landed on.
         name: String,
     },
-    /// A fighter's HP reached zero or below.
+    /// A fighter was defeated or its enemy object was removed.
+    ///
+    /// EXPLOSION/DETONATION's object clears (ps4.asm:33713-33724 and
+    /// 33160-33176) use the existing removal cue without changing cached HP,
+    /// status or reward pools. The roster's `active` bit distinguishes them
+    /// from an HP-zero defeat; rewards are owned by the damage caller.
     Died {
         /// Who.
         fighter: FighterId,

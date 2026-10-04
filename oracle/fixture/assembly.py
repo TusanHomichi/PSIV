@@ -66,7 +66,7 @@ Fields it does not, recorded here as `"undetermined"` notes:
 from . import enemies as enemy_readings, roles, vehicle as vehicles
 from .errors import FixtureError
 from .observations import (ROLL_COLUMNS, action_effects, action_record,
-                           action_windows, battle_start, decided_frame,
+                           action_windows, battle_start, decided_frame, victory_declared,
                            enemies_loaded, round_frames, side_of, turn_order)
 from .rolls import (DAMAGE_RUN, HIT_NOT_TARGETED, group_by_frame,
                     roll_column_report, rolls_in_window)
@@ -200,6 +200,10 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta, max_rounds=0,
             record["ability"], roles.resolved_targets(record),
             record["effect"])
                           if side_of(actor) == "enemy" else "attack")
+        if enemy_readings.ability_was_cleared(log, record):
+            # Retain the observed zero; the cleared id is unobservable.
+            record["ability_cleared"] = True
+            record["kind"] = "wasted"
         records.append(record)
 
     # Roles, in the trace's own order: the priority draw, each round's order
@@ -425,5 +429,5 @@ def _hp_patch_note(party, vehicle, hp):
 
 def _won(log, enemies, frame, columns):
     """Whether every enemy the formation seated is down at `frame`."""
-    return bool(enemies) and all(
-        log.signed(frame, columns[entry["id"]]) <= 0 for entry in enemies)
+    return victory_declared(log, frame) or (bool(enemies) and all(
+        log.signed(frame, columns[entry["id"]]) <= 0 for entry in enemies))

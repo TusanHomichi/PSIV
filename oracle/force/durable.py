@@ -61,37 +61,69 @@ class Durable:
     cells: list[str]
     #: The fighters it was *not* written for, because the tape left them down.
     skipped: list[str]
+    #: The first frame the cells are written on. The estimate of
+    #: `forced_start_frame` is exact for a formation whose enemies load one per
+    #: frame, and one frame late for one whose slots share a frame (three
+    #: GerotLux land as 1 + 2: `docs/oracle/BATTLE_ORACLE_FORCED.md` section 7),
+    #: so the same value is written on every frame from here to `frame`. The
+    #: load never writes a party HP cell after `FillBattleStats`, so the extra
+    #: writes change nothing the earlier ones did not.
+    first_frame: int | None = None
+
+    def frames(self) -> list[int]:
+        """The frames the cells are written on, `frame` last."""
+        first = self.frame if self.first_frame is None \
+            else min(self.first_frame, self.frame)
+        return list(range(first, self.frame + 1))
 
     def specs(self, layout: dict[str, dict]) -> list[str]:
         """The `--ram-patch` list: both HP cells of every living fighter."""
-        return [patch_spec(self.frame, layout, cell, self.hp)
-                for cell in self.cells]
+        return [patch_spec(frame, layout, cell, self.hp)
+                for frame in self.frames() for cell in self.cells]
 
     def report(self) -> dict:
         return {"hp": self.hp, "frame": self.frame, "cells": list(self.cells),
-                "skipped": list(self.skipped)}
+                "skipped": list(self.skipped),
+                "frames": self.frames()}
 
 
 def forced_start_frame(probe_start: int, probe_enemies: int,
                        forced_enemies: int) -> int:
-    """The frame the *forced* formation's start state is read from.
+    """An initial estimate of the forced formation's start-state frame.
 
     The probe leaves the seed alone, so it builds whatever formation the group's
     own draw names - not the one being forced - and its
     `enemies_loaded` frame (`oracle/fixture/observations.py`) is the frame *its*
-    last enemy record is written. The load writes one enemy slot per frame
-    (`loc_7F2E`, `ps4.asm:11911`; `docs/oracle/BATTLE_ORACLE_SWEEP.md` H1), so the
+    last enemy record is written. The earlier sweep observed one slot per
+    frame (`docs/oracle/BATTLE_ORACLE_SWEEP.md` H1), so the
     first record lands `probe_enemies - 1` frames before that, and the forced
-    formation's last record lands `forced_enemies - 1` frames after it. A patch
+    formation's last record was estimated `forced_enemies - 1` frames after it. A patch
     placed on the probe's frame is one frame late for a smaller forced formation
     (a two-enemy formation forced out of a three-enemy draw reads the party's own
-    HP back), and one frame early for a larger one.
+    HP back), and one frame early for a larger one. This is not a cartridge
+    timing rule: loc_7F2E (ps4.asm:11911-11940) loops without a frame wait.
+    A3's two-Helex capture loads both records in one sampled frame. The forced
+    preview measures the actual frame and calibrates before certification.
     """
     return probe_start - (probe_enemies - 1) + (forced_enemies - 1)
 
 
+def align_to_capture(durable: Durable, specs: list[str], layout: dict[str, dict],
+                     observed_start: int) -> list[str]:
+    """Move only HP patches to the forced preview's measured start frame.
+
+    Selector and seed patches stay byte-for-byte. The caller retains the first
+    preview, runs a calibrated preview, and checks both final captures there.
+    """
+    old = set(durable.specs(layout))
+    if not old.issubset(specs):
+        raise ForceError("the durable patch list does not contain every planned HP cell")
+    durable.frame = observed_start
+    return [spec for spec in specs if spec not in old] + durable.specs(layout)
+
+
 def plan_patch(log, layout: dict[str, dict], start_frame: int, vehicle=None,
-         hp: int = DURABLE_HP) -> Durable:
+         hp: int = DURABLE_HP, first_frame: int | None = None) -> Durable:
     """The patch, from the frame the battle's start state is read.
 
     `log` is the probe's RAM log at `start_frame` - the frame the extractor
@@ -119,7 +151,8 @@ def plan_patch(log, layout: dict[str, dict], start_frame: int, vehicle=None,
                 cells += [f"{name}_hp", f"{name}_maxhp"]
             else:
                 skipped.append(name)
-    return Durable(hp=hp, frame=start_frame, cells=cells, skipped=skipped)
+    return Durable(hp=hp, frame=start_frame, cells=cells, skipped=skipped,
+                   first_frame=first_frame)
 
 
 def verify(durable: Durable, log, frame: int) -> None:

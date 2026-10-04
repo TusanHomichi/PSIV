@@ -27,6 +27,7 @@ mod combat_items;
 mod combat_recovery;
 mod combat_rewards;
 mod combat_rimit;
+mod combat_route_damage;
 mod combat_skills;
 mod combat_techniques;
 mod dialogue_choice;

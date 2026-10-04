@@ -226,94 +226,104 @@ fn dormant_neighbors_keep_stats_but_are_absent_from_targets_and_turns() {
     }));
 }
 
-fn thread_data() -> BattleData {
-    let mut crawler = fixtures::zoran_bult();
-    crawler.id = 31;
-    crawler.strength = 20;
-    fixtures::data()
-        .with_enemies([crawler])
-        .with_enemy_skills([EnemySkill {
-            id: 16,
-            name: "THREAD".into(),
-            effect: 6,
-            power_stat: 1,
-            target: 8,
-            power: 64,
-            resistance: 3,
-            element: 1,
-        }])
-}
-
+/// `$14` WARNING on 45 CommndBall is the refill family's third record: the same
+/// effect byte, the same `loc_14CBE`, a different alarm in front of it.
 #[test]
-fn thread_spends_one_chance_roll_and_never_deals_physical_damage() {
-    let data = thread_data();
-    for (roll, expected_agility) in [(32, 20), (33, 30)] {
-        let mut r = Roster::new();
-        let member = PartyMember::seat(&fixtures::chaz(), &data).unwrap();
-        r.add_party_member(member.character, member.name, member.stats);
-        r.add_enemy(1, data.enemy(31).unwrap());
-        let stats = &mut r.get_mut(id(1)).unwrap().stats;
-        stats.agility.modified = 50;
-        stats.agility.battle = 20;
-        stats.element_props[0] = 2;
-        let hp = stats.curr_hp;
-        let draws = [roll];
-        let mut rolls = SliceRolls::new(&draws);
-        let mut events = Vec::new();
-        assert!(resolve_thread(
-            &mut r,
-            id(6),
-            16,
-            Some(id(1)),
-            &data,
-            &mut rolls,
-            &mut events
-        ));
-        let stats = &r.get(id(1)).unwrap().stats;
-        assert_eq!(
-            (stats.curr_hp, stats.status, stats.agility.battle),
-            (hp, 0, expected_agility)
-        );
-        assert_eq!(rolls.drawn(), 1);
-        assert!(!events.iter().any(|e| matches!(
-            e,
-            BattleEvent::Attacked { .. }
-                | BattleEvent::Resolved {
-                    damage: Some(_),
-                    ..
-                }
-        )));
+fn warning_refills_the_named_neighbour_and_commndball_starts_with_dormant_ones() {
+    let mut ball = fixtures::zoran_bult();
+    ball.id = 45;
+    ball.name = "COMMNDBALL".into();
+    let mut mine = fixtures::zoran_bult();
+    mine.id = 50;
+    mine.name = "FLOATMINE2".into();
+    mine.hp = 150;
+    let warning = EnemySkill {
+        id: 20,
+        name: "WARNING".into(),
+        effect: 30,
+        power_stat: 0,
+        target: 44,
+        power: 0,
+        resistance: 0,
+        element: 0,
+    };
+    let data = fixtures::data()
+        .with_enemies([ball, mine])
+        .with_enemy_skills([warning]);
+    let mut r = Roster::new();
+    for (slot, enemy) in [(1, 50), (2, 45), (3, 50)] {
+        r.add_enemy(slot, data.enemy(enemy).unwrap());
     }
+    initialize_enemies(&mut r);
+    assert!(
+        !r.get(id(6)).unwrap().active && !r.get(id(8)).unwrap().active,
+        "EnemyInit_Tower clears both neighbours"
+    );
+    assert!(r.get(id(7)).unwrap().active);
+    kill(&mut r, 8);
+    let mut events = Vec::new();
+    assert!(resolve_fission(&mut r, id(7), 20, id(8), &data, &mut events).unwrap());
+    assert!(r.get(id(8)).unwrap().active);
+    assert!(events.contains(&BattleEvent::EnemySkillUsed {
+        actor: id(7),
+        skill: 20,
+        name: "WARNING".into(),
+    }));
+    assert!(events.contains(&BattleEvent::EnemyReplenished {
+        actor: id(7),
+        fighter: id(8),
+        enemy_id: 50,
+        name: "FLOATMINE2".into(),
+        hp: 150,
+    }));
+    // A record that is not the traced `$14` is not a refill.
+    let mut moved = data.enemy_skill(20).unwrap().clone();
+    moved.target = 9;
+    let data = data.with_enemy_skills([moved]);
+    kill(&mut r, 6);
+    let before = r.clone();
+    assert!(!resolve_fission(&mut r, id(7), 20, id(6), &data, &mut Vec::new()).unwrap());
+    assert_eq!(r, before);
 }
 
+/// `EnemyInit_Tower`'s opening guard (`ps4.asm:18244-18246`): `$52(a4)` is the
+/// next fighter object's `fighter_id`, and `$2C` is 44 FloatMine. A CommndBall
+/// or Tower with a FloatMine to its right clears nothing - the captured
+/// formation `$125` queues all three; with any other enemy to its right
+/// (`$124`'s FloatMine2) it clears both sides. The guard reads the right-hand
+/// neighbor only, which the third arm pins.
 #[test]
-fn thread_uses_modified_agility_each_time_and_floors_it_at_one() {
-    let data = thread_data();
-    for modified in [10, 20, 50] {
-        let mut r = Roster::new();
-        let member = PartyMember::seat(&fixtures::chaz(), &data).unwrap();
-        r.add_party_member(member.character, member.name, member.stats);
-        r.add_enemy(1, data.enemy(31).unwrap());
-        let stats = &mut r.get_mut(id(1)).unwrap().stats;
-        stats.agility.modified = modified;
-        stats.agility.battle = 1;
-        stats.element_props[0] = 2;
-        let mut rolls = SliceRolls::new(&[63]);
-        for _ in 0..2 {
-            assert!(resolve_thread(
-                &mut r,
-                id(6),
-                16,
-                Some(id(1)),
-                &data,
-                &mut rolls,
-                &mut Vec::new()
-            ));
-            assert_eq!(
-                r.get(id(1)).unwrap().stats.agility.battle,
-                modified.saturating_sub(20).max(1)
-            );
+fn tower_init_keeps_its_neighbours_when_a_float_mine_stands_to_its_right() {
+    let mut ball = fixtures::zoran_bult();
+    ball.id = 45;
+    let mut mine = fixtures::zoran_bult();
+    mine.id = 44;
+    let mut mine2 = fixtures::zoran_bult();
+    mine2.id = 50;
+    let data = fixtures::data().with_enemies([ball, mine, mine2]);
+    for (carrier, line_up, cleared) in [
+        (45, [44, 45, 44], false),
+        (39, [44, 39, 44], false),
+        (45, [50, 45, 50], true),
+        (45, [44, 45, 50], true),
+        (45, [50, 45, 44], false),
+    ] {
+        let mut data = data.clone();
+        if carrier == 39 {
+            let mut tower = fixtures::zoran_bult();
+            tower.id = 39;
+            data = data.with_enemies([tower]);
         }
-        assert_eq!(rolls.drawn(), 2);
+        let mut r = Roster::new();
+        for (slot, enemy) in line_up.into_iter().enumerate() {
+            r.add_enemy(u8::try_from(slot + 1).unwrap(), data.enemy(enemy).unwrap());
+        }
+        initialize_enemies(&mut r);
+        assert_eq!(
+            [id(6), id(8)].map(|who| r.get(who).unwrap().active),
+            [!cleared; 2],
+            "{line_up:?}"
+        );
+        assert!(r.get(id(7)).unwrap().active, "{line_up:?}");
     }
 }

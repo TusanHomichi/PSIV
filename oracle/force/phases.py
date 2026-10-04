@@ -30,10 +30,11 @@ from .capture import (Capture, battle_shape, cap_rounds,
                       enemies_at as enemy_slots_at, matches, read_capture)
 from .draw import Draw, find_draw, patch_specs
 from .errors import ForceError
-from .pack import Pack, describe, field_layout, parse_formation
+from .pack import (EVENT_BASE, Pack, describe, field_layout, parse_event,
+                   parse_formation)
 from .runs import (ROOT, battle_window, by_frame, read_rows, seed_of, sha256)
 from .scout import scout
-from .selectors import Selector, choose_selector
+from .selectors import Selector, choose_selector, event_selector
 from .tape import (PROBE_REPEATS, TAIL_FRAMES, Step, compose, emit_tape,
                    expand_tape, tape_frames, trim_tape)
 
@@ -42,7 +43,9 @@ def plan(args, pack: Pack, layout: dict, selector: Selector, formation: int,
          facts: dict, base_steps: list[Step]) -> dict:
     """The composed tape, its header and the selector-only patch list."""
     cut = facts["battle_first"]
-    stem = f"forced_{formation:02X}_{args.policy}" \
+    name = f"event{formation - EVENT_BASE:02X}" if selector.kind == "event" \
+        else f"{formation:02X}"
+    stem = f"forced_{name}_{args.policy}" \
         + (f"_d{args.delay}" if args.delay else "") \
         + (f"_v{args.vehicle}" if args.vehicle else "")
     header = (
@@ -95,6 +98,9 @@ def probe_phase(plan_facts: dict, args, selector: Selector, pack: Pack,
     if window is None:
         raise ForceError("the probe never entered a battle: the forced group "
                          "patch did not survive to the load")
+    if selector.kind == "event":
+        return event_probe(rows, window, args, selector, pack, layout,
+                           formation)
     draw = find_draw(read_rows(run.trace), rows, plan_facts["cut"])
     drawn = pack.group_entries(selector.group)[draw.index]
     print(f"probe: the formation is drawn at f{draw.frame} "
@@ -129,11 +135,53 @@ def probe_phase(plan_facts: dict, args, selector: Selector, pack: Pack,
     if args.durable:
         forced_start = durable_patch.forced_start_frame(
             start, len(built), len(pack.enemies_of(formation)))
+        # From the frame after the draw: the load starts there, and nothing
+        # after `FillBattleStats` rewrites the cells (`durable.Durable`).
         durable = durable_patch.plan_patch(log, layout, forced_start,
-                                           selector.vehicle)
+                                           selector.vehicle,
+                                           first_frame=draw.frame + 1)
         who = "the vehicle" if selector.vehicle else ", ".join(
             cell.split("_hp")[0] for cell in durable.cells[::2])
         print(f"durable: {durable.hp} HP to {who or 'nobody'} at f{forced_start} "
+              f"(the frame the start state is read from), "
+              f"{len(durable.cells)} cell(s)"
+              + (f"; left alone: {', '.join(durable.skipped)}"
+                 if durable.skipped else ""))
+    return draw, durable
+
+
+def event_probe(rows: list[dict], window: tuple[int, int], args,
+                selector: Selector, pack: Pack, layout: dict[str, dict],
+                formation: int) -> tuple[Draw, durable_patch.Durable | None]:
+    """The probe of an event battle: the forced battle itself.
+
+    There is no draw to measure and no seed to steer - `Event_Battle_Index`
+    names the formation outright - so the probe *is* the capture's model: its
+    log must show exactly the boss formation the pack lists for the event, and
+    its own start frame is the forced battle's, not an estimate
+    (`durable.forced_start_frame`'s enemy-count arithmetic is for a probe that
+    built some other formation). The `Draw` this hands back is a stand-in that
+    only says where the load begins: one frame before the battle's first
+    enemy record, which is where the capture starts reading ability uses.
+    """
+    log = fixture.Log(rows, layout)
+    start = fixture.enemies_loaded(log, window[0], window[1])
+    built = enemy_slots_at(rows, start)
+    if built != pack.enemies_of(formation):
+        raise ForceError(
+            f"the probe built {built}, but {describe(pack, formation)} is "
+            f"{pack.enemies_of(formation)}: writing Event_Battle_Index did "
+            "not give the boss formation")
+    draw = Draw(frame=start - len(built), hv=0, frame_count=0, seed_before=0,
+                roll=0, index=0, k=0, rows_in_frame=0)
+    print(f"probe: the {describe(pack, formation)} is built by f{start} "
+          "(no draw: Event_Battle_Index names it)")
+    durable = None
+    if args.durable:
+        durable = durable_patch.plan_patch(log, layout, start, 0,
+                                           first_frame=draw.frame + 1)
+        who = ", ".join(cell.split("_hp")[0] for cell in durable.cells[::2])
+        print(f"durable: {durable.hp} HP to {who or 'nobody'} at f{start} "
               f"(the frame the start state is read from), "
               f"{len(durable.cells)} cell(s)"
               + (f"; left alone: {', '.join(durable.skipped)}"
@@ -164,6 +212,21 @@ def capture_phase(plan_facts: dict, specs: list[str], draw: Draw, pack: Pack,
     preview_capture = read_capture(preview, draw.frame,
                                   selector.kind == "vehicle", preview_rows)
     battle_shape(preview_capture, preview_rows, layout)
+    if durable is not None and durable.frame != preview_capture.start_frame:
+        print(f"durable: estimated f{durable.frame}, forced preview measures "
+              f"f{preview_capture.start_frame}; calibrating the HP patch")
+        specs[:] = durable_patch.align_to_capture(
+            durable, specs, layout, preview_capture.start_frame)
+        # Retain the mis-timed preview. Only the calibrated preview and the
+        # two identical final captures can certify a durable start state.
+        preview = runs.run_oracle(plan_facts["full_tape"], out / "preview-calibrated",
+                                 stem, specs)
+        preview_rows = read_rows(preview.log)
+        preview_capture = read_capture(preview, draw.frame,
+                                      selector.kind == "vehicle", preview_rows)
+        battle_shape(preview_capture, preview_rows, layout)
+        durable_patch.verify(durable, fixture.Log(preview_rows, layout),
+                             preview_capture.start_frame)
     cap_rounds(preview_capture, args.max_rounds)
     window = preview_capture.window
     if not matches(preview_capture, pack, formation):
@@ -240,6 +303,8 @@ def build_report(args, pack: Pack, selector: Selector, formation: int,
     return {
         "formation": formation,
         "formation_hex": f"0x{formation:02X}",
+        "event_battle": formation - EVENT_BASE
+        if selector.kind == "event" else None,
         "formation_enemies": pack.enemies_of(formation),
         "formation_ability_ids": sorted(
             {value for entry in pack.enemies_of(formation)
@@ -252,7 +317,7 @@ def build_report(args, pack: Pack, selector: Selector, formation: int,
         "base_battle_first": cut,
         "selector": {"group": selector.group, "kind": selector.kind,
                      "label": selector.label, "entry": forced_index,
-                     "entries": entries[selector.group],
+                     "entries": entries.get(selector.group, []),
                      "cells": selector.cells, "restore": selector.restore,
                      "cells_before": facts["cells"]},
         "vehicle": {"index": selector.vehicle, "name": selector.vehicle_name,
@@ -295,8 +360,12 @@ def run(args) -> int:
     out = pathlib.Path(args.out)
     layout = field_layout(pathlib.Path(args.ram_map))
     pack = Pack.load(pathlib.Path(args.data_dir))
-    formation = parse_formation(args.formation, pack)
-    selector = choose_selector(pack, formation, args.vehicle)
+    if args.event is not None:
+        formation = parse_event(args.event, pack)
+        selector = event_selector(formation - EVENT_BASE)
+    else:
+        formation = parse_formation(args.formation, pack)
+        selector = choose_selector(pack, formation, args.vehicle)
     if args.delay < 0 or args.repeats < 1:
         raise ForceError("--delay must be >= 0 and --repeats >= 1")
     if args.max_rounds < 0:
@@ -308,15 +377,19 @@ def run(args) -> int:
     except OSError as error:
         raise ForceError(str(error)) from error
     base_steps = expand_tape(base_text)
-    forced_index = pack.entries_for(formation)[selector.group][0]
+    forced_index = 0 if selector.kind == "event" \
+        else pack.entries_for(formation)[selector.group][0]
     facts = scout(base_tape, base_text, out,
                   pathlib.Path(args.scout) if args.scout else out / "scout.json",
                   args.refresh_scout, args.dry_run, layout)
     plan_facts = plan(args, pack, layout, selector, formation, facts, base_steps)
 
     print(describe(pack, formation))
-    print(f"group {selector.group} via {selector.label}; entry {forced_index} of"
-          f" {len(pack.group_entries(selector.group))}")
+    if selector.kind == "event":
+        print(f"forced via {selector.label}")
+    else:
+        print(f"group {selector.group} via {selector.label}; entry "
+              f"{forced_index} of {len(pack.group_entries(selector.group))}")
     print(f"base tape {base_tape}: first battle at f{plan_facts['cut']}, so the "
           f"tape is {tape_frames(plan_facts['steps'])} frames ({args.policy}"
           + (f", delay {args.delay}" if args.delay else "") + ")")
@@ -338,15 +411,24 @@ def run(args) -> int:
 
     draw, durable = probe_phase(plan_facts, args, selector, pack, base_steps,
                                 layout, formation)
-    specs = patch_specs(selector, facts, layout, draw, forced_index)
-    lines = [
-        f"# --ram-patch list for {stem}",
-        f"# f{facts['battle_first'] + 1}: the group selector, one frame after "
-        f"the encounter fires",
-        f"# f{draw.frame_before}: RNG_Seed's high word, one frame before the "
-        f"formation draw (K = {draw.k}, entry {forced_index})",
-        f"# f{draw.frame + 1}: the selector cells written back",
-    ]
+    if selector.kind == "event":
+        # No seed word and no restore: the byte stays set for the battle.
+        specs = patch_specs(selector, facts, layout)
+        lines = [
+            f"# --ram-patch list for {stem}",
+            f"# f{facts['battle_first'] + 1}: Event_Battle_Index, one frame "
+            "after the encounter fires; it stays set for the whole battle",
+        ]
+    else:
+        specs = patch_specs(selector, facts, layout, draw, forced_index)
+        lines = [
+            f"# --ram-patch list for {stem}",
+            f"# f{facts['battle_first'] + 1}: the group selector, one frame "
+            f"after the encounter fires",
+            f"# f{draw.frame_before}: RNG_Seed's high word, one frame before "
+            f"the formation draw (K = {draw.k}, entry {forced_index})",
+            f"# f{draw.frame + 1}: the selector cells written back",
+        ]
     if durable is not None:
         specs += durable.specs(layout)
         lines.append(
@@ -359,9 +441,16 @@ def run(args) -> int:
         "\n".join(lines) + "\n" + "\n".join(specs) + "\n")
     print("patches: " + "  ".join(specs))
 
+    estimated_frame = durable.frame if durable is not None else None
     final, preview_status = capture_phase(plan_facts, specs, draw, pack,
                                          selector, formation, args, layout,
                                          durable)
+    if durable is not None and durable.frame != estimated_frame:
+        patch_file = plan_facts["out"] / f"{stem}.patches.txt"
+        (plan_facts["out"] / f"{stem}.estimated.patches.txt").write_text(patch_file.read_text())
+        lines[-1] = (f"# f{durable.frame}: the durable party patch, {durable.hp} HP to "
+                     f"{', '.join(durable.cells)} - measured from the forced preview")
+        patch_file.write_text("\n".join(lines) + "\n" + "\n".join(specs) + "\n")
     checked = subprocess.run(
         # `python3 -m oracle.rng_trace`, from the repository root the tools are
         # modules of - the same convention the sweep's own commands use

@@ -51,6 +51,8 @@ EXTRA = ("atk_bat", "dfs_bat")
 class Entry:
     """One committed fixture and the capture it comes from."""
 
+    #: The formation id - or, when `event` is set, the event battle's
+    #: `Event_Battle_Index` (`python3 -m oracle.force --event`).
     formation: int
     delay: int
     #: `--max-rounds` of the capture.
@@ -60,14 +62,18 @@ class Entry:
     rounds: int
     #: What the fixture is for.
     note: str
+    event: bool = False
 
     @property
     def name(self) -> str:
-        return f"formation_{self.formation:X}_d{self.delay}"
+        kind = "event" if self.event else "formation"
+        return f"{kind}_{self.formation:02X}_d{self.delay}" if self.event \
+            else f"{kind}_{self.formation:X}_d{self.delay}"
 
     @property
     def capture(self) -> str:
-        return f"f_{self.formation:X}_d{self.delay}"
+        kind = "e" if self.event else "f"
+        return f"{kind}_{self.formation:X}_d{self.delay}"
 
 
 ENTRIES = (
@@ -97,7 +103,9 @@ ENTRIES = (
 
 def capture_argv(entry: Entry, work: pathlib.Path) -> list[str]:
     return [sys.executable, "-m", "oracle.force",
-            "--formation", f"0x{entry.formation:X}", "--durable",
+            "--event" if entry.event else "--formation",
+            str(entry.formation) if entry.event else f"0x{entry.formation:X}",
+            "--durable",
             "--max-rounds", str(entry.capture_rounds),
             "--delay", str(entry.delay),
             "--scout", str(work / "scout.json"),
@@ -150,18 +158,25 @@ def augment(path: pathlib.Path, log_path: str) -> int:
     return moved
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--work", default=str(ROOT / "build" / "arc"))
+def run_recipe(entries: tuple[Entry, ...], fixtures: pathlib.Path,
+               work_name: str, description: str,
+               argv: list[str] | None = None) -> int:
+    """The command line every recipe module shares: list, capture, extract.
+
+    A recipe is a tuple of `Entry` and the directory its fixtures are committed
+    to; this module's own is the Motavia arc, `oracle.sweep.zelan` the next.
+    """
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument("--work", default=str(ROOT / "build" / work_name))
     parser.add_argument("--list", action="store_true")
     parser.add_argument("--capture", action="store_true")
     parser.add_argument("--extract", action="store_true")
     parser.add_argument("--only", help="a fixture name, for one entry")
-    parser.add_argument("--out", default=str(FIXTURES))
+    parser.add_argument("--out", default=str(fixtures))
     arguments = parser.parse_args(argv)
     work = pathlib.Path(arguments.work)
     out = pathlib.Path(arguments.out)
-    entries = [entry for entry in ENTRIES
+    entries = [entry for entry in entries
                if arguments.only in (None, entry.name)]
     if arguments.list or not (arguments.capture or arguments.extract):
         for entry in entries:
@@ -189,6 +204,10 @@ def main(argv: list[str] | None = None) -> int:
             moved = augment(target, report["log"])
             print(f"{entry.name}: {target.name}, {moved} battle cell(s) added")
     return status
+
+
+def main(argv: list[str] | None = None) -> int:
+    return run_recipe(ENTRIES, FIXTURES, "arc", __doc__.splitlines()[0], argv)
 
 
 if __name__ == "__main__":

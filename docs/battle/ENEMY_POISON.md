@@ -1,5 +1,13 @@
 # Crawler POISON dispatch
 
+> **Moved (2026-10-04, lane A4).** `enemy_skill::resolve_poison` and its record
+> pin are gone: POISON `$11` is a `ROUTES` entry of `enemy_effect` (32 Caterpillr,
+> handler `$1B`, range 8), the handler POISONMIST `$24` (57 Mistralgec) shares.
+> The chain, the draw rules and the "already poisoned draws nothing" rule below are
+> unchanged and now live in `enemy_effect_crawler_tests.rs`; the lookalike-record
+> pin became the route gate (pair plus effect byte plus range nibble). See
+> [ENEMY_EFFECT_ABILITIES.md](ENEMY_EFFECT_ABILITIES.md) section 7.
+
 Ability `$11` (17, POISON) was unsupported: a Caterpillr that rolled it made the
 port emit `BattleEvent::UnsupportedAbility` and substitute a physical attack.
 The crawler family's shared routine now reaches the same object path its `$10`
@@ -71,7 +79,7 @@ Enemy 32 Caterpillr is the carrier: its ability list is
 formations (pack ids `0x38`/`0x39`/`0x3a` are the 2/3/4-Caterpillr groups). The
 sibling record `$24` PoisonMist shares the effect byte, both stat selectors and
 the element and differs only in the hit-chance byte; it belongs to
-`BattleObj_PoisonMist` and its own routine, so it stays out of this dispatch.
+`BattleObj_PoisonMist` and its own routine, so it is a route of its own (57 Mistralgec) through the same handler.
 
 ## What the port does
 
@@ -144,7 +152,7 @@ future visual comparison stay separate.
   including the phase-8 teardown (`clr.w (a4)`, `Battle_Routine = $16`) and the
   `Battle_Routine_2 = $27` handoff.
 - The object's palette write and `bset #4,$2(a4)` sprite flag (cosmetic).
-- The sibling `$24` PoisonMist and every other effect outside this record; the
+- Every effect outside the routed pairs (POISONMIST is routed since lane A4); the
   general effect dispatcher is still absent.
 - Field poison consequences are unchanged and live elsewhere
   (`field_status.rs`): 1 HP per four steps on a poison map.

@@ -43,7 +43,11 @@ pub(crate) fn data() -> BattleData {
 fn sweep_pack() -> SweepPack {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("src/battle/replay_fixtures/motavia_pack.json");
-    let text = std::fs::read_to_string(&path)
+    read_pack(&path)
+}
+
+fn read_pack(path: &std::path::Path) -> SweepPack {
+    let text = std::fs::read_to_string(path)
         .unwrap_or_else(|error| panic!("cannot read {}: {error}", path.display()));
     let parsed: SweepJson = serde_json::from_str(&text)
         .unwrap_or_else(|error| panic!("{} does not parse: {error}", path.display()));

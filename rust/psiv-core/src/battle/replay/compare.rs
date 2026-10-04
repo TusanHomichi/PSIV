@@ -326,6 +326,24 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
                         swing = Some(Vec::new());
                         break;
                     }
+                    // A scripted first action (Dark Force 1's latch turn) clears
+                    // the ability byte, so the log files it as an attack that
+                    // resolved no slot: the port's answer is the scripted event.
+                    BattleEvent::FirstZioAction { actor: who, .. } if *who == actor => {
+                        swing = Some(Vec::new());
+                        break;
+                    }
+                    // `EnemyAttack_FloatMine`'s fall-through (`loc_10406`,
+                    // `ps4.asm:22781`) writes the rolled id and clears it again
+                    // inside one frame, so the log's byte reads zero and the
+                    // action is filed as an attack that resolved no slot. What
+                    // tells the two apart is the draw count, which the round's
+                    // own check pins: a swing draws a hit roll, the spent turn
+                    // draws the ability roll and nothing after it.
+                    BattleEvent::EnemyAbilityWasted { actor: who, .. } if *who == actor => {
+                        swing = Some(Vec::new());
+                        break;
+                    }
                     BattleEvent::RoundEnded { .. } => break,
                     _ => {}
                 }
@@ -377,6 +395,8 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
                 }
                 (Kind::Ability, EnemyTurn::Ability(skill)) if Some(*skill) == action.ability => {}
                 (Kind::Wasted, EnemyTurn::Wasted(ability)) if Some(*ability) == action.ability => {}
+                (Kind::Wasted, EnemyTurn::Wasted(0x07 | 0x17))
+                    if action.ability_cleared && action.ability == Some(0) => {}
                 (Kind::Wasted, EnemyTurn::Ability(skill)) if Some(*skill) == action.ability => {
                     // The log cannot tell this turn from one the arm spent:
                     // both draw the ability roll and nothing else, and neither

@@ -330,6 +330,36 @@ The fixture schema is additive, so the tapes' fixtures were not touched:
 `animation_hit_pass_ids` and the provenance notes are new keys, and a fixture
 without them reads as a battle whose every action is a physical attack.
 
+### Same-frame ability clearing (A3, 2026-10-04)
+
+The CHARGCNNON formation's SatMinions execute WAITING via
+`EnemyAttack_ArmDrone` / `loc_10468` (`ps4.asm:22806`, lines 22807–22813). That arm,
+like the FloatMine fall-through `loc_10406` (`ps4.asm:22781–22787`), clears
+both the target and ability before the frame is sampled. A zero ability byte
+alone therefore does not establish a physical attack.
+
+`oracle/fixture/enemies.py::ability_was_cleared` requires a cited carrier,
+`Battle_Routine == $16`, `Current_Target_Index == 0`, all nine hit bytes `$FF`,
+and no target/effect movement. It records `kind: wasted` and additive
+`ability_cleared: true`, retaining the **observed zero** in `ability`; it does
+not invent the hidden executed id. Every draw is then an ability roll or
+reroll, not a guessed physical hit roll. The core comparator accepts that
+marker only for its proven `$07`/`$17` clear-and-return events and still
+rejects extra damage, another ability, or a missing turn.
+
+Synthetic controls reject a physical miss with a nonzero target and an
+unread carrier. Comparator controls reject an unmarked zero, an unrelated
+wasted ability and a damaging turn. The raw A3 capture logs/traces were
+retained unchanged; only extracts were regenerated after this reader repair.
+
+EXPLOSION can remove the last enemy objects with positive cached HP. The
+extractor also reads the logged `Battle_Routine == $18` victory declaration:
+`loc_66B8` scans object occupancy/status, selects `$18` at line 9772 and
+`loc_67AE` (`ps4.asm:9780`) opens the victory sequence. That declaration ends
+the battle window and keeps the later item-drop draw outside its RNG stream.
+It does not manufacture HP-zero deaths or rewards. Synthetic positive-HP
+controls require that declaration; an ordinary `$10` continuation is rejected.
+
 ## Three divergences, all closed
 
 ### Alys's and Kyra's second hit pass

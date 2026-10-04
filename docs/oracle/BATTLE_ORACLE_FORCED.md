@@ -766,3 +766,50 @@ enemy count gets the frame it always did.
 The Motavia arc's twelve captures
 ([`BATTLE_ORACLE_ARC.md`](BATTLE_ORACLE_ARC.md)) were taken with it; their
 recipe is `python3 -m oracle.sweep.arc`.
+
+The durable patch's frame has a second case (2026-10-04). The slot-per-frame
+arithmetic is exact when a formation's enemies are different records, and one
+frame late when some share a record: three GerotLux (`$11E`) read `enemy_count`
+3 from f24821 with one slot filled and **all three** filled on f24822, not
+f24823, so the patch landed a frame after the start state and
+`durable.verify` refused the capture (`wrote 999 to alys_hp at f24823, but the
+capture reads 53 at f24822`). The patch is now written on every frame from the
+one after the draw to the estimate (`oracle/force/durable.py`'s
+`first_frame`, the report's `durable.frames`): `FillBattleStats` is the only
+writer of the party's HP cells and it runs before `Battle_SetupEnemyData`
+(`ps4.asm:10005-10008`), so the repeated write changes nothing the first one
+did not, and the estimate stays the *last* write (the existing run test pins
+it).
+
+## 8. Forcing an event battle: `--event`
+
+`Battle_SetupEnemyData` reads `Event_Battle_Index` (`$FFFFECFC`, byte,
+`ps4.constants.asm:2262`) first and, when it is not negative, takes the formation
+from `Battle_BossFormationData` at once (`ps4.asm:11815-11819`): no group, no
+grid cell, no vehicle table and no `UpdateRNGSeed2` call, so there is no entry
+to steer and nothing to measure. The scenes write the same byte before they
+start a battle (`ps4.asm:149140` `Event_DarkForce1`; the sabotage scene's index
+8) and leave it set for the fight; the map loader resets it to `$FF`
+(`ps4.asm:107595`, `121836`). `python3 -m oracle.force --event N` therefore
+writes that one cell one frame after the encounter fires, exactly where a
+group selector writes its cells, and nothing else.
+
+What differs from `--formation`, and where the code says so:
+
+* the formation is `generated/formations.json`'s `boss_formations` entry with
+  `event_battle_index` N; `oracle/force/pack.py` numbers it `0x1000 + N` so it
+  shares the regular formations' readers (`enemies_of`, `describe`) and no
+  group lists it (`EVENT_BASE`);
+* the cell has no column in the RAM log, so `oracle/force/pack.py`'s
+  `EXTRA_CELLS` supplies its address next to `ram_map.json`'s fields;
+* the probe **is** the forced battle: its log has to show exactly the boss
+  formation's enemies (ids and HP) or the tool stops
+  (`phases.event_probe`), and its own start frame is the durable patch's, with
+  no estimate;
+* the opening priority is the event rule, not the encounter's: `loc_B62A`
+  draws its roll and then clears `Battle_Priority` for a non-negative
+  `Event_Battle_Index` (`ps4.asm:17444-17447`), so the party opens unless the
+  scripted-battle latch is raised (`battle/scripted_flag.rs`).
+
+The first captures: event 8 (the Chaos Sorcerer of the sabotage scene), event
+9 (Dark Force 1) - `docs/oracle/BATTLE_ORACLE_ZELAN.md`.

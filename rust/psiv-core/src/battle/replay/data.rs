@@ -260,6 +260,10 @@ fn every_fixture_replays_as_recorded() {
         checked += 1;
     }
     assert_eq!(checked, files.len(), "every fixture was replayed");
+    eprintln!(
+        "replayed {checked} fixtures; {} manifest entries",
+        manifest.fixtures.len()
+    );
 }
 
 /// Writes the manifest entry every diverging fixture needs - one JSON object

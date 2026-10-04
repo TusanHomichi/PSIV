@@ -7,10 +7,6 @@ use super::{BattleData, BattleDataError, BattleEvent, FighterId, Rolls, Roster, 
 mod tests;
 
 #[cfg(test)]
-#[path = "enemy_skill_poison_tests.rs"]
-mod poison_tests;
-
-#[cfg(test)]
 #[path = "enemy_skill_wasted_tests.rs"]
 mod wasted_tests;
 
@@ -36,13 +32,13 @@ pub struct EnemySkill {
 }
 
 impl EnemySkill {
-    /// Fission, the crawler family's THREAD and POISON, and TechUser's RES.
-    /// Enemy skills that make one damage request live in
-    /// [`super::enemy_damage`]; other routines remain explicitly unsupported
+    /// Fission and TechUser's RES. Enemy skills that make one damage request
+    /// live in [`super::enemy_damage`], the ones that change a status or a stat
+    /// in [`super::enemy_effect`]; other routines remain explicitly unsupported
     /// until their gameplay has been transcribed.
     #[must_use]
     pub const fn supported(&self) -> bool {
-        self.is_fission() || self.is_thread() || self.is_poison() || self.is_tech_heal()
+        self.is_refill() || self.is_tech_heal()
     }
 
     const fn is_fission(&self) -> bool {
@@ -53,16 +49,6 @@ impl EnemySkill {
             && self.power == 0
             && self.resistance == 0
             && self.element == 0
-    }
-
-    const fn is_thread(&self) -> bool {
-        self.id == 16
-            && self.effect == 6
-            && self.power_stat == 1
-            && self.target == 8
-            && self.power == 64
-            && self.resistance == 3
-            && self.element == 1
     }
 
     /// Record 23 at `0x28341C` is `22 00 00 00 00 00 00 00` — effect `$22`,
@@ -79,17 +65,25 @@ impl EnemySkill {
             && self.element == 0
     }
 
-    /// Record 17 at `0x2833EC` is `1b 01 08 40 01 0d 00 00`. PoisonMist (`$24`)
-    /// shares the effect byte, both stat selectors and the element; only the
-    /// hit chance separates them, so the whole record is pinned here.
-    const fn is_poison(&self) -> bool {
-        self.id == 17
-            && self.effect == 27
-            && self.power_stat == 1
-            && self.target == 8
-            && self.power == 64
-            && self.resistance == 1
-            && self.element == 13
+    /// Record 20 `$14` WARNING at `0x283404` is `1e 00 2c 00 00 00 00 00`:
+    /// effect `$1E` like the two Fission records, no stat selector, byte 2
+    /// `$2C`, no power, resistance or element. Its objects end in the same
+    /// refill the Fission objects do (see [`resolve_fission`]); the record is
+    /// pinned so a pack whose `$14` became something else cannot pass for it.
+    const fn is_warning(&self) -> bool {
+        self.id == 20
+            && self.effect == 30
+            && self.power_stat == 0
+            && self.target == 44
+            && self.power == 0
+            && self.resistance == 0
+            && self.element == 0
+    }
+
+    /// The abilities whose object ends by refilling the neighbour slot
+    /// `EnemyAI_EmptySpace` named: Fission and Fission2 and WARNING.
+    const fn is_refill(&self) -> bool {
+        self.is_fission() || self.is_warning()
     }
 
     /// The two records `EnemyAttack_TechUser`'s object `$3D4` heals with.
@@ -110,145 +104,38 @@ impl EnemySkill {
     }
 }
 
-/// EnemyAttack_Crawler selects object $134 for THREAD, retaining the chosen
-/// party target. Its animation calls GetEnemySkillEffectAndRange once and
-/// never requests a physical damage reaction. Effect 6 uses STR versus live
-/// AGI, then subtracts STR from modified AGI (not from the previous debuff).
-pub(super) fn resolve_thread(
-    roster: &mut Roster,
-    actor: FighterId,
-    ability: u8,
-    intended: Option<FighterId>,
-    data: &BattleData,
-    rolls: &mut impl Rolls,
-    events: &mut Vec<BattleEvent>,
-) -> bool {
-    let Some(skill) = data.enemy_skill(ability).filter(|s| s.is_thread()) else {
-        return false;
-    };
-    let Some(caster) = roster.get(actor).filter(|f| {
-        f.is_alive() && f.id.side() == Side::Enemy && matches!(f.stats.enemy_id, 30..=32)
-    }) else {
-        return false;
-    };
-    let power = super::technique::stat(&caster.stats, skill.power_stat);
-    events.push(BattleEvent::EnemySkillUsed {
-        actor,
-        skill: ability,
-        name: skill.name.clone(),
-    });
-    let Some(fighter) = intended
-        .filter(|id| id.side() == Side::Party)
-        .and_then(|id| roster.get_mut(id))
-        .filter(|f| f.is_alive())
-    else {
-        return true;
-    };
-    let stats = &mut fighter.stats;
-    if super::calculate_chances(
-        power as i16,
-        super::technique::stat(stats, skill.resistance) as i16,
-        i16::from(stats.element_factor(skill.element).unwrap_or(0)),
-        i16::from(skill.power),
-        i16::from(skill.effect),
-        rolls,
-    ) == super::Verdict::Miss
-    {
-        events.push(BattleEvent::Resolved {
-            actor,
-            target: fighter.id,
-            verdict: super::Verdict::Miss,
-            damage: None,
-            remaining_hp: stats.curr_hp,
-        });
-    } else {
-        stats.agility.battle = stats.agility.modified.saturating_sub(power as u8).max(1);
-        events.push(BattleEvent::StatChanged {
-            actor,
-            target: fighter.id,
-            stat: super::technique::TechniqueStat::Agility,
-            value: stats.agility.battle.into(),
-        });
-    }
-    true
-}
-
-/// EnemyAttack_Crawler's other nonzero arm. Ability `$11` is not `$10`, so
-/// loc_10836 loads object `$138`, `BattleObj_Poison` — the same shape as
-/// BattleObj_Thread and, like it, never a damage request. Its wind-up writes
-/// `SFXID_EnemyAttack4` ($D8), then calls GetEnemySkillEffectAndRange once at
-/// the animation handoff, retaining the chosen party target.
+/// EnemyInit_Igglanova and EnemyInit_Tower (`ps4.asm:18275`, `18243`) clear the
+/// neighboring fighter objects: 12 Igglanova and 13 Guilgenova take the first,
+/// 39 Tower and 45 CommndBall the second. The port keeps their formation
+/// identity and stats ready for the refill. Position bit 7 is a palette
+/// selector; it is unrelated to this initialization routine.
 ///
-/// Record 17's effect byte `$1B` dispatches to AbilityEffect_Poison, which
-/// returns before anything else when the target is already poisoned and
-/// otherwise runs Effect_DoEnemySkill's single chance roll: actor STR against
-/// target STR, the target's efess factor as the scale, the record's hit-chance
-/// byte as the miss threshold, the effect id as the upper threshold. Any
-/// non-negative verdict sets the poisoned bit.
-pub(super) fn resolve_poison(
-    roster: &mut Roster,
-    actor: FighterId,
-    ability: u8,
-    intended: Option<FighterId>,
-    data: &BattleData,
-    rolls: &mut impl Rolls,
-    events: &mut Vec<BattleEvent>,
-) -> bool {
-    use super::stats::status;
-    let Some(skill) = data.enemy_skill(ability).filter(|s| s.is_poison()) else {
-        return false;
-    };
-    let Some(caster) = roster.get(actor).filter(|f| {
-        f.is_alive() && f.id.side() == Side::Enemy && matches!(f.stats.enemy_id, 30..=32)
-    }) else {
-        return false;
-    };
-    let power = super::technique::stat(&caster.stats, skill.power_stat);
-    events.push(BattleEvent::EnemySkillUsed {
-        actor,
-        skill: ability,
-        name: skill.name.clone(),
-    });
-    let Some(fighter) = intended
-        .filter(|id| id.side() == Side::Party)
-        .and_then(|id| roster.get_mut(id))
-        .filter(|f| f.is_alive())
-    else {
-        return true;
-    };
-    let stats = &mut fighter.stats;
-    // AbilityEffect_Poison's first test. An already-poisoned target does not
-    // reach the chance roll at all, so it spends no draw.
-    if stats.status & status::POISONED != 0 {
-        return true;
-    }
-    if super::calculate_chances(
-        power as i16,
-        super::technique::stat(stats, skill.resistance) as i16,
-        i16::from(stats.element_factor(skill.element).unwrap_or(0)),
-        i16::from(skill.power),
-        i16::from(skill.effect),
-        rolls,
-    ) == super::Verdict::Miss
-    {
-        return true;
-    }
-    stats.status |= status::POISONED;
-    events.push(BattleEvent::StatusInflicted {
-        actor,
-        target: fighter.id,
-        status: status::POISONED,
-    });
-    true
-}
-
-/// EnemyInit_Igglanova clears the neighboring fighter objects, but keeps
-/// their formation identity and stats ready for Fission. Position bit 7 is
-/// a palette selector; it is unrelated to this initialization routine.
+/// `EnemyInit_Tower` opens with `cmpi.w #$2C, $52(a4) / bne / rts`
+/// (`ps4.asm:18244-18246`): it returns without clearing anything when
+/// `$52(a4)` reads `$2C`. The fighter objects sit `next_obj = $40` apart
+/// (`ps4.constants.asm:99`) and `fighter_id` is `$12`, so `$52(a4)` is the
+/// *next* fighter's enemy id and `$2C` is 44 FloatMine: a Tower or CommndBall
+/// whose right-hand neighbor is a FloatMine keeps both neighbors. Two captured
+/// CommndBall formations show both outcomes: `$124` (FloatMine2 on both sides)
+/// opens with a queue of the CommndBall alone, `$125` (FloatMine on both sides)
+/// queues all three (`docs/oracle/BATTLE_ORACLE_ZELAN.md` and
+/// `docs/oracle/BATTLE_ORACLE_REPLAY.md`). Reading the word as the enemy's
+/// condition ids (`$0101`) cannot explain the second capture.
 pub(super) fn initialize_enemies(roster: &mut Roster) {
+    const FLOAT_MINE: u16 = 44;
     let parents: Vec<_> = roster
         .side(Side::Enemy)
-        .filter(|f| matches!(f.stats.enemy_id, 12 | 13))
+        .filter(|f| match f.stats.enemy_id {
+            12 | 13 => true,
+            39 | 45 => {
+                let next = f.id.get().checked_add(1).and_then(FighterId::new);
+                !next
+                    .filter(|id| id.side() == Side::Enemy)
+                    .and_then(|id| roster.get(id))
+                    .is_some_and(|neighbor| neighbor.stats.enemy_id == FLOAT_MINE)
+            }
+            _ => false,
+        })
         .map(|f| f.id)
         .collect();
     for parent in parents {
@@ -272,6 +159,16 @@ pub(super) fn initialize_enemies(roster: &mut Roster) {
 /// (`enemy_ai::instruction_block`), which is where `$FFFFEE81` and the parity
 /// draw now live: `EnemyAttack_Igglanova` clears `Current_Target_Index` and
 /// hands the object the slot the arm named.
+///
+/// The refill is shared by every ability whose object ends in `loc_14CBE`
+/// ([`EnemySkill::is_refill`]): the two Fission records, and `$14` WARNING of 45
+/// CommndBall (and 39 Tower), whose `$1CC` object (`loc_1879A`,
+/// `ps4.asm:33852`) finishes with `clr.w (a4) / movea.l $7C(a4), a1 /
+/// jmp loc_14CBE` (`ps4.asm:33846-33850`) after an alarm animation
+/// (`loc_185EC`, `ps4.asm:33725`). The captured fight
+/// (`docs/oracle/BATTLE_ORACLE_ZELAN.md`) shows it: round 1's queue holds the
+/// CommndBall alone - `EnemyInit_Tower` (`ps4.asm:18243`) cleared both
+/// FloatMine2 beside it - and round 2 holds the one WARNING named.
 pub(super) fn resolve_fission(
     roster: &mut Roster,
     actor: FighterId,
@@ -280,7 +177,7 @@ pub(super) fn resolve_fission(
     data: &BattleData,
     events: &mut Vec<BattleEvent>,
 ) -> Result<bool, BattleDataError> {
-    let Some(skill) = data.enemy_skill(ability).filter(|skill| skill.is_fission()) else {
+    let Some(skill) = data.enemy_skill(ability).filter(|skill| skill.is_refill()) else {
         return Ok(false);
     };
     let Some(fighter) = roster.get_mut(target).filter(|f| !f.is_alive()) else {
@@ -314,6 +211,19 @@ pub(super) fn resolve_fission(
 /// (45) — are arms too.
 const FLOAT_MINE_CARRIERS: [u16; 4] = [44, 45, 46, 50];
 
+/// `EnemyAttack_ArmDrone` (`ps4.asm:22789`) is the `EnemyAttackOffs` entry of
+/// `$29` 41 ArmDrone, `$2A` 42 SatMinion and `$2B` 43 StarDrone
+/// (`ps4.asm:19248-19250`). Its `$17` arm `loc_10468` (`ps4.asm:22806-22813`)
+/// is the same six instructions as `loc_10406` (`movea.l $38(a1), a0 / clr.w
+/// Current_Target_Index / clr.w $24(a4) / move.w #$16, Battle_Routine / subq.w
+/// #2, $2(a4) / rts`), and **only** `$17` takes it: any other non-zero
+/// ability falls through `loc_10434` (`ps4.asm:22795-22805`) to object `$194`, so
+/// FISSION2 must not enter this arm. SatMinion reaches `$17` through its
+/// conditional (`EnemyAI_CRayTubeNearSatMinion`, which overwrites the ability
+/// when slots 1/2/3 hold SatMinion, CRayTube, SatMinion: formation `$123`), and
+/// the captured fight carries CRayTube's CHARGCNNON `$15` in the same round.
+const ARM_DRONE_CARRIERS: [u16; 2] = [41, 42];
+
 /// The roll this routine has nothing to load for: `$07` Fission2 on 50
 /// FloatMine2 and `$17` Waiting on 44 FloatMine, 46 VopalSphre and 50
 /// FloatMine2 spend the turn without an effect.
@@ -342,9 +252,9 @@ const FLOAT_MINE_CARRIERS: [u16; 4] = [44, 45, 46, 50];
 /// a physical swing is the whole point: the actor really does act and do
 /// nothing.
 ///
-/// `$18`/`$19`/`$14`/`$1A` on these carriers still fall back — their objects
-/// are outside this transcription — which is what the negative control in
-/// `enemy_skill_tests` pins with 45 CommndBall's own `$19`.
+/// The ArmDrone family has the same clear-and-return arm for WAITING only;
+/// FISSION2 must not enter it. Damage arms are owned by `enemy_damage`, and
+/// neither their existence nor another carrier's no-effect arm proves a pair.
 pub(super) fn resolve_no_effect_turn(
     roster: &mut Roster,
     actor: FighterId,
@@ -361,7 +271,8 @@ pub(super) fn resolve_no_effect_turn(
     let carrier = roster.get(actor).is_some_and(|fighter| {
         fighter.is_alive()
             && fighter.id.side() == Side::Enemy
-            && FLOAT_MINE_CARRIERS.contains(&fighter.stats.enemy_id)
+            && (FLOAT_MINE_CARRIERS.contains(&fighter.stats.enemy_id)
+                || (skill.is_waiting() && ARM_DRONE_CARRIERS.contains(&fighter.stats.enemy_id)))
     });
     if !carrier {
         return false;

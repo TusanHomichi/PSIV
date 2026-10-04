@@ -64,6 +64,23 @@ impl Battle {
         if let Some(fighter) = self.roster.get_mut(actor) {
             fighter.ability = ability;
         }
+        if self.scripted_latch && super::super::scripted_flag::reads_first_action(enemy_id) {
+            // `EnemyAttack_DarkForce1`'s opening test (`ps4.asm:20031-20035`):
+            // the latch is up, so the rolled ability is dropped, the latch
+            // lowered and the fixed object `$818` loaded (the roll above was
+            // drawn either way). `loc_32344` (`ps4.asm:64872-65000`) and its
+            // children animate only: no damage request, no `UpdateRNGSeed2`.
+            self.scripted_latch = false;
+            if let Some(fighter) = self.roster.get_mut(actor) {
+                fighter.ability = 0;
+            }
+            events.push(BattleEvent::FirstZioAction {
+                actor,
+                action: super::super::FirstZioAction::DarkForceCharge,
+                target: None,
+            });
+            return Ok(true);
+        }
         if let Some(arm) = zio::step(enemy_id, self.enemy_phase) {
             self.run_zio_arm(actor, intended, arm, events);
             return Ok(true);
@@ -113,28 +130,6 @@ impl Battle {
             // The arm's guard sent the turn to the ordinary attack objects.
             super::super::enemy_effect::EffectTurn::Swing => return Ok(false),
             super::super::enemy_effect::EffectTurn::NotMine => {}
-        }
-        if super::super::enemy_skill::resolve_thread(
-            &mut self.roster,
-            actor,
-            ability,
-            intended,
-            data,
-            rolls,
-            events,
-        ) {
-            return Ok(true);
-        }
-        if super::super::enemy_skill::resolve_poison(
-            &mut self.roster,
-            actor,
-            ability,
-            intended,
-            data,
-            rolls,
-            events,
-        ) {
-            return Ok(true);
         }
         if super::super::enemy_skill::resolve_res(
             &mut self.roster,
