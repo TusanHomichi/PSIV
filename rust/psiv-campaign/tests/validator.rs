@@ -33,7 +33,16 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
     let route = Route::parse(&main_text()).expect("main.json parses");
     let ids: Vec<&str> = route.chapters.iter().map(|c| c.id.as_str()).collect();
     assert_eq!(ids.first(), Some(&"academy"));
-    assert_eq!(ids.last(), Some(&"mota-spaceport"));
+    assert_eq!(ids.last(), Some(&"dezolis-first-control"));
+    assert_eq!(
+        ids[ids.len() - 4..],
+        [
+            "mota-spaceport",
+            "zelan-wren-canceller",
+            "zelan-sabotage",
+            "dezolis-first-control"
+        ]
+    );
     assert!(ids.contains(&"nurvus-zio"));
     assert!(ids.contains(&"aiedo"));
     assert!(ids.contains(&"north-bank"));
@@ -274,4 +283,37 @@ fn a_boarding_objective_must_name_a_world() {
         "{:?}",
         report.errors
     );
+}
+
+#[test]
+fn the_zelan_chapters_reject_a_bad_boarding_and_a_missing_object() {
+    // The sabotage's boarding names Kuran; any other number is rejected with the
+    // chapter that holds it.
+    let bad_world = mutate(
+        &main_text(),
+        "{\"do\": \"board\", \"step\": \"down\", \"to\": 4,",
+        "{\"do\": \"board\", \"step\": \"down\", \"to\": 9,",
+    );
+    let Some(report) = run(&bad_world) else {
+        return;
+    };
+    let error = report
+        .errors
+        .iter()
+        .find(|e| e.reason.contains("not a World_Index"))
+        .expect("the bad world is reported");
+    assert_eq!(error.chapter, "zelan-sabotage");
+    // Zelan F1 has two objects (Wren and the elevator): a seventh does not exist.
+    let bad_npc = mutate(
+        &main_text(),
+        "{\"do\": \"talk\", \"npc\": 0, \"note\": \"Wren,",
+        "{\"do\": \"talk\", \"npc\": 7, \"note\": \"Wren,",
+    );
+    let report = run(&bad_npc).unwrap();
+    let error = report
+        .errors
+        .iter()
+        .find(|e| e.reason.contains("object 7 does not exist"))
+        .expect("the missing object is reported");
+    assert_eq!(error.chapter, "zelan-wren-canceller");
 }

@@ -669,6 +669,55 @@
       "closing": [
         {"map": 397, "cell": [31, 46], "flags_set": ["event:0x66", "event:0x68"]}
       ]
+    },
+    {
+      "id": "zelan-wren-canceller",
+      "title": "Zelan: the elevator to F1, Wren joins and the Canceller chest",
+      "source": "docs/scenes/40_MeetingWren.md (Cutscene_MeetingWren $800C: Wren talked to on Zelan F1 $18E, sets EventFlag_WrenJoined $70, party slot after Rune); docs/campaign/RUNNER_LOG_ZELAN.md (C4 probe facts: Zelan $18D elevator interact from (30,18) up opening (30..31,17), F1 Wren at (31,13), chest 5 the Canceller at (49,49), chest flag $0B); runtime-pack/maps/18D_Zelan.json and 18E_Zelan_F1.json; ps4.asm:114507 (MapUpdate_ZelanCanceller sets $72 once $0B is set, run every field frame by RunMapUpdates)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "expect", "map": 397, "cell": [31, 46], "note": "where the flight leaves the party"},
+        {"do": "interact", "cell": [30, 18], "face": "up", "opens": [[30, 17], [31, 17]], "note": "Zelan's elevator door, event $13 on the type-2 interaction area (30..31,17)"},
+        {"do": "go_to_map", "map": 398, "via_warp": 0, "note": "Zelan F1 $18E by Zelan warp 0 (30..31,17)"},
+        {"do": "go_to", "map": 398, "cell": [31, 14], "note": "below Wren at (31,13)"},
+        {"do": "talk", "npc": 0, "note": "Wren, NPCWren dialogue 9: starts Cutscene_MeetingWren"},
+        {"do": "expect", "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0x70"], "note": "40_MeetingWren.md ops 11-14: Wren in the next party slot, $70 set"},
+        {"do": "open_chest", "chest": 5, "note": "the Canceller chest at (49,49), chest flag $0B; opened before the elevator so Event_CancellerReminder ($2A, #56) never fires"},
+        {"do": "expect", "flags_set": ["chest:0x0b", "event:0x72"], "note": "MapUpdate_ZelanCanceller sets $72 on a field frame once $0B is set (ps4.asm:114507)"}
+      ],
+      "closing": [
+        {"map": 398, "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0x70", "event:0x72"]}
+      ]
+    },
+    {
+      "id": "zelan-sabotage",
+      "title": "Zelan: the sabotage, the Chaos Sorcerer and the crash landing",
+      "source": "docs/scenes/42_SpaceshipSabotage.md (RunEvent_SpaceshipSabotage $28 on Zelan $18D: Wren $70 and Canceller $72 set, Chaos Sorcerer $71 clear, leader Y $2F0 = standing row 48; Cutscene_SpaceshipSabotage $800E: the one-row Kuran menu, then the takeoff, dialogue and event battle 8); docs/scenes/43_CrashLanding.md; docs/scenes/41_InsideSpaceship.md; ps4.asm:115826 (RunEvent_SpaceshipSabotage)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "interact", "cell": [30, 50], "face": "up", "opens": [[30, 49], [31, 49]], "note": "F1's elevator door back down (type-2 area (30..31,49)); the Canceller is held, so the reminder event ($2A) does not fire"},
+        {"do": "go_to_map", "map": 397, "via_warp": 0, "note": "Zelan $18D by F1 warp 0 (30..31,49), arriving at (30,17)"},
+        {"do": "go_to", "map": 397, "cell": [30, 47], "note": "to the cell above row 48, the sabotage row"},
+        {"do": "board", "step": "down", "to": 4, "note": "the step onto row 48 starts Cutscene_SpaceshipSabotage, whose menu lists Kuran alone; Speak confirms"},
+        {"do": "fight_scripted", "note": "event battle 8, the Chaos Sorcerer, begins inside the scene after the takeoff; the board's wait fights it with the chapter's policy and this objective asserts a scripted battle began"},
+        {"do": "expect", "map": 332, "cell": [94, 27], "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x71", "event:0x85", "event:0x88"], "note": "43_CrashLanding.md: the Crash Landing resumes after the battle, loads Raja Temple $14C, sets $85, copies Raja into the party and sets RajaJoined $88; first control is on Dezolis at the temple, at (94,27) where the scene leaves the party (the checkpoint inspect output)"}
+      ],
+      "closing": [
+        {"map": 332, "cell": [94, 27], "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x70", "event:0x71", "event:0x72", "event:0x85", "event:0x88"]}
+      ]
+    },
+    {
+      "id": "dezolis-first-control",
+      "title": "Raja Temple: first control on Dezolis, to the foot of the temple's exit",
+      "source": "docs/scenes/43_CrashLanding.md (Cutscene_CrashLanding returns 1 at Raja Temple $14C with Raja joined $88; the next movement is player-controlled); runtime-pack/maps/14C_RajaTemple.json (warp 0 at (95..96,38) to Dezolis $001); docs/campaign/RUNNER_LOG_DEZOLIS.md (H28: the step through that warp lands on Dezolis (36,95) and fires RunEvent_OutsideRajaTemple $31, event $43, which has no scene, so the route stops at the foot of the exit); psiv-campaign plan --from-map 332 --from-cell 94,27 --to-map 332 --to-cell 95,37",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to", "map": 332, "cell": [95, 37], "note": "the party's first ordinary walk on Dezolis: south through the temple to the foot of its exit, the cell above warp 0 (95..96,38)"},
+        {"do": "expect", "map": 332, "cell": [95, 37], "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x85", "event:0x88"], "flags_clear": ["event:0x80"], "note": "the Snowstorm flag $80 is still clear: the exit's trigger event $43 would run next (H28)"}
+      ],
+      "closing": [
+        {"map": 332, "cell": [95, 37], "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x85", "event:0x88"], "flags_clear": ["event:0x80"]}
+      ]
     }
   ]
 }
