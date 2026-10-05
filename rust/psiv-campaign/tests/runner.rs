@@ -750,8 +750,7 @@ fn an_arrival_prompt_is_the_next_objectives_to_answer() {
 /// The whole route from New Game to Zio's defeat, the Mota Spaceport, Zelan,
 /// the sabotage and the crash landing to Raja Temple on Dezolis, Tyler's grave,
 /// Landale, Kuran, the defeat of Dark Force 1, Meese, the trees, the Esper
-/// Mansion, the Gumbious Temple and the Air Castle to the Xe-A-Thoul room, pads
-/// only. The Zio chapter
+/// Mansion, the Gumbious Temple and the flight to the Air Castle, pads only. The Zio chapter
 /// makes an ordinary SAVE; a new Session reads it, and replaying the tape in
 /// another Session reaches the same digest.
 #[test]
@@ -764,10 +763,10 @@ fn the_whole_route_defeats_zio_saves_and_replays() {
     let result = run(&config).expect("the route sets up");
     let done: Vec<&str> = result.chapters.iter().map(|c| c.id.as_str()).collect();
     assert!(result.completed, "route halted: {:#?}", result.report);
-    assert_eq!(done.last(), Some(&"air-castle-xe-athoul-room"));
-    // Twenty-two chapters follow Zio's defeat: the spaceport, Zelan, Dezolis, the
+    assert_eq!(done.last(), Some(&"air-castle-arrival"));
+    // Twenty-one chapters follow Zio's defeat: the spaceport, Zelan, Dezolis, the
     // Hangar's second visit, Kuran and the late Dezolis arc to the Air Castle.
-    assert_eq!(done[done.len() - 23], "nurvus-zio");
+    assert_eq!(done[done.len() - 22], "nurvus-zio");
     assert_eq!(result.chapters.len(), config.route.chapters.len());
     let save_of = |id: &str| {
         let chapter = result
@@ -926,8 +925,7 @@ fn the_whole_route_defeats_zio_saves_and_replays() {
         );
     }
     // The torch was stolen (`$98`), the Air Castle found (`$99`) and entered
-    // (`$9F`); the chapter after it ends in the Xe-A-Thoul room with the fight
-    // still ahead.
+    // (`$9F`): the route's last chapter.
     let (castle, _) = open_session(
         pack_dir().as_path(),
         &StartPoint::Save(save_of("air-castle-arrival")),
@@ -941,13 +939,6 @@ fn the_whole_route_defeats_zio_saves_and_replays() {
             "{flag:#x}"
         );
     }
-    let (room, _) = open_session(
-        pack_dir().as_path(),
-        &StartPoint::Save(save_of("air-castle-xe-athoul-room")),
-    )
-    .unwrap();
-    assert_eq!(room.runtime().map_id().0, 0x184);
-    assert!(!room.runtime().game().is_set(Flag::event(0x9A)));
     let pad_save = config.save_dir.join("route/slot_1.sram");
     assert!(
         pad_save.is_file(),

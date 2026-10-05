@@ -109,20 +109,27 @@ STRETCHES = {
                          for n in range(8)),
     ),
     # The route past Dark Force 1 (C7): Zelan F1 on the Ice Digger, Meese, the
-    # carnivorous trees, the Esper Mansion, the Gumbious Temple, the flight and
-    # the Air Castle's walk to the Xe-A-Thoul room (docs/scenes/99-101,
-    # RUNNER_LOG_ICEDIGGER.md). Its scenes are in several files, so its event
-    # battles are named: the trees (`Event_CarnivorousTrees`, `Event_SavingKyra`)
-    # and the Xe-A-Thoul fight the route stops at the door of (`$59`).
+    # carnivorous trees, the Esper Mansion, the Gumbious Temple and the flight to
+    # the Air Castle (docs/scenes/99-101, RUNNER_LOG_ICEDIGGER.md). The route
+    # ends at the Air Castle's landing, because the walk on from it meets
+    # abilities the engine does not run; the stretch covers that walk and the
+    # fixed battles ahead, so the enemy-ability lane that closes them can read
+    # its worklist here and restore the dropped chapter. Its scenes are in
+    # several files, so its event battles are named: the trees
+    # (`Event_CarnivorousTrees`, `Event_SavingKyra`), Xe-A-Thoul (`$59`),
+    # Lashiec (`$5D`) and Dark Force 2 (`$4E`).
     "dezolis-air-castle": Stretch(
         first_chapter="dezolis-ice-digger",
-        last_chapter="air-castle-xe-athoul-room",
+        last_chapter="air-castle-arrival",
         first_scene=None,
         last_scene=None,
         extra_maps=tuple((map_id, "Air Castle walk to the Xe-A-Thoul room")
-                         for map_id in (0x170, 0x171, 0x172, 0x173, 0x178, 0x17F, 0x181)),
+                         for map_id in (0x170, 0x171, 0x172, 0x173, 0x178, 0x17F,
+                                        0x181, 0x184)),
         extra_battles=((10, "Event_CarnivorousTrees / Event_SavingKyra"),
-                       (14, "Event_XeAThoulBeforeBattle (the route stops at its door)")),
+                       (14, "Event_XeAThoulBeforeBattle"),
+                       (16, "Event_LashiecAppearance"),
+                       (17, "Event_DarkForce2")),
     ),
 }
 

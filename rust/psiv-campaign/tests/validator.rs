@@ -33,9 +33,9 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
     let route = Route::parse(&main_text()).expect("main.json parses");
     let ids: Vec<&str> = route.chapters.iter().map(|c| c.id.as_str()).collect();
     assert_eq!(ids.first(), Some(&"academy"));
-    assert_eq!(ids.last(), Some(&"air-castle-xe-athoul-room"));
+    assert_eq!(ids.last(), Some(&"air-castle-arrival"));
     assert_eq!(
-        ids[ids.len() - 14..],
+        ids[ids.len() - 13..],
         [
             "dezolis-landale",
             "dezolis-training",
@@ -49,8 +49,7 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
             "esper-mansion",
             "esper-inner-sanctuary",
             "gumbious-torch-stolen",
-            "air-castle-arrival",
-            "air-castle-xe-athoul-room"
+            "air-castle-arrival"
         ]
     );
     assert!(ids.contains(&"nurvus-zio"));
@@ -443,35 +442,33 @@ fn the_esper_chapter_rejects_a_door_the_talk_does_not_open() {
     );
 }
 
-/// `wait` is 1 to 600 frames, and a `board` with no step is the menu a scene
-/// opens (the Air Castle's), so it validates like the stepped one.
+/// `wait` is 1 to 600 frames (the Esper guards' wait), and a `board` with no
+/// step is the menu a scene opens (the Air Castle's), so it validates like the
+/// stepped one.
 #[test]
 fn wait_is_bounded_and_a_scene_menu_board_validates() {
     let long = mutate(
         &main_text(),
-        "{\"do\": \"wait\", \"frames\": 7,",
-        "{\"do\": \"wait\", \"frames\": 601,",
+        "{\"do\": \"wait\", \"frames\": 90, \"note\": \"FieldObj_EsperGuard walks",
+        "{\"do\": \"wait\", \"frames\": 601, \"note\": \"FieldObj_EsperGuard walks",
     );
     let Some(report) = run(&long) else { return };
     assert!(
         report
             .errors
             .iter()
-            .any(|e| e.chapter == "air-castle-xe-athoul-room" && e.reason.contains("601")),
+            .any(|e| e.chapter == "esper-mansion" && e.reason.contains("601")),
         "{:?}",
         report.errors
     );
     let zero = mutate(
         &main_text(),
-        "{\"do\": \"wait\", \"frames\": 7,",
-        "{\"do\": \"wait\", \"frames\": 0,",
+        "{\"do\": \"wait\", \"frames\": 90, \"note\": \"FieldObj_EsperGuard walks",
+        "{\"do\": \"wait\", \"frames\": 0, \"note\": \"FieldObj_EsperGuard walks",
     );
     let report = run(&zero).unwrap();
     assert!(
-        report
-            .errors
-            .iter()
-            .any(|e| e.chapter == "air-castle-xe-athoul-room"),
+        report.errors.iter().any(|e| e.chapter == "esper-mansion"),
         "{:?}",
         report.errors
     );

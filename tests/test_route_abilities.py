@@ -145,8 +145,19 @@ class ScopeTests(unittest.TestCase):
 
     def test_the_c7_stretch_names_its_chapters_and_its_event_battles(self):
         found = ra.stretch_scope(ra.STRETCHES["dezolis-air-castle"])
-        self.assertEqual(sorted(found.battles), [10, 14])
+        self.assertEqual(sorted(found.battles), [10, 14, 16, 17])
         self.assertIn(0x184, found.maps)
+        self.assertIn(0x173, found.maps, "the Air Castle walk is in it")
+        # It is the whole worklist: GRA, COMBINE, THNDRBLAST, Lashiec's and Dark
+        # Force 2's abilities are all in the scope and none is implemented.
+        try:
+            result = derive(Data.load(ra.GENERATED), found, ra.ledger_classes())
+        except FileNotFoundError as error:
+            self.skipTest(f"generated tables absent (local input): {error}")
+        listed = {a["ability"]: a["ledger_status"] for a in result["abilities"]}
+        for ability in (0x31, 0x3A, 0x5C, 0x5F, 0x60, 0x61, 0x62, 0x64, 0x65):
+            self.assertIn(ability, listed, hex(ability))
+            self.assertNotEqual(listed[ability], "implemented", hex(ability))
         self.assertTrue(any("dezolis-ice-digger" in why
                             for reasons in found.maps.values() for why in reasons))
         # The route's first chapters are not in it.

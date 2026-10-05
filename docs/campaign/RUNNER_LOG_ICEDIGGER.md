@@ -3,15 +3,19 @@
 Lane c7-icedigger (2026-10-04): the route past `Cutscene_DarkForce1Defeated`. It carries the
 party from Zelan F1 with the Ice Digger through Meese (Raja falls sick), the carnivorous trees
 (Kyra joins), the Esper Mansion (Rune is Lutz), the Gumbious Temple (the Eclipse Torch is stolen)
-and the flight to the Air Castle, and stops in the Xe-A-Thoul room, one step short of the first
-fixed battle the engine cannot play. The earlier arc is [RUNNER_LOG_KURAN.md](RUNNER_LOG_KURAN.md);
+and the flight to the Air Castle, and ends on its landing: the walk on from there meets enemy
+abilities the engine does not run, so that chapter is recorded here and not in the route
+([H38](#h38-the-air-castles-walk-meets-abilities-the-engine-does-not-run)). The earlier arc is [RUNNER_LOG_KURAN.md](RUNNER_LOG_KURAN.md);
 the index and current state are in the [runner log](RUNNER_LOG.md).
 
 **The milestone the brief named was not reached, and could not be.** Event `$40`/`$41` (Juza) was
 played in the Zio Fort long before this arc, so the next boss scene the gates open is
-`Cutscene_DarkForce2Defeated` (`$8017`). Between here and it stand three fixed battles whose
-enemies use abilities the engine does not run ([H44](#h44-the-xe-a-thoul-fight-needs-gizan-and-thndrblast)),
-all in #88's lane.
+`Cutscene_DarkForce2Defeated` (`$8017`). Between here and it stand a walk of random battles and
+three fixed battles (Xe-A-Thoul, Lashiec, Dark Force 2) whose enemies use abilities the engine
+does not run ([H38](#h38-the-air-castles-walk-meets-abilities-the-engine-does-not-run),
+[H44](#h44-the-xe-a-thoul-fight-needs-gizan-and-thndrblast)): enemy-ability gaps, the #58 class,
+which the `dezolis-air-castle` stretch of `oracle.sweep.route_abilities` lists. (#88 is the
+player's own techniques and skills, and is not what stops this route.)
 
 ## C7 runs
 
@@ -33,9 +37,10 @@ evidence for the route.
 | C7-4 | `talk` the Gumbious monk (dialogue 36) | halt `scene_fault`, "dialogue event 0x46 has no transcribed scene": H41 |
 | C7-5 | `go_to_map 212`, the Dezo spaceport | halt `unexpected_state`, "the ship's destination menu is open and no objective asked": H42 |
 | C7-6 | `go_to_map 388` through the Air Castle, three first tries | halts `unsupported_ability` (58 and 45) in random battles: H38; with a pause first, `WarpUnmapped (34,43)`: H43 |
-| C7-F1, F2 | `run rust/psiv-campaign/routes/main.json --save-dir build/c7-route{,-b} --tape …/run.tape --report …/report.json` (51 chapters, twice from New Game) | both exit 0, **3,754,623 frames**, digest `641d58ecd6645729`, tape SHA-256 `5aa1f9d2499cdffa7e7a438dab5b9704f3f22cad516b472357e0cac1db4206a8` (`cmp` says the two tapes are identical; the two `50-…` snapshots are `ae614f13…1b`); the pad SAVE `route/slot_1.sram` is `4aeff0b1…ec62`, unchanged; the route file is `9c73aa08…0a7f`, the binary `e786300b…db25` |
-| C7-R | `psiv-campaign replay build/c7-route/run.tape` | digest `641d58ecd6645729`, 3,754,623 frames |
-| C7-P | the probe: `step_onto (31,35)` of the Xe-A-Thoul room from the last snapshot, then `fight_scripted` | the scene runs, event battle 14 starts, halt `unsupported_ability` 92 (`$5C` THNDRBLAST), fighter 8, round 1: H44 |
+| C7-7 | the full route with the dropped chapter, twice (51 chapters), `wait 7` first | both exit 0, 3,754,623 frames, digest `641d58ecd6645729`, tape SHA-256 `5aa1f9d2…06a8`. **Withdrawn at review:** the pause was a re-roll of random battles past abilities the engine does not run, which is not a route; see H38 |
+| C7-P | the probe: `step_onto (31,35)` of the Xe-A-Thoul room from that run's last snapshot, then `fight_scripted` | the scene runs, event battle 14 starts, halt `unsupported_ability` 92 (`$5C` THNDRBLAST), fighter 8, round 1: H44 |
+| C7-F1, F2 | `run rust/psiv-campaign/routes/main.json --save-dir build/c7-route{,-b} --tape …/run.tape --report …/report.json` (50 chapters, twice from New Game) | both exit 0, **3,743,328 frames**, digest `40c7f505ecc5c357`, tape SHA-256 `db8ae7fea8e5735d57a23250b696c38e535362a714db44f7938e3330aff4ae70` (`cmp` says the two tapes are identical, and so are the two `49-…` snapshots, `06feecfa…41d7`); the pad SAVE `route/slot_1.sram` is `4aeff0b1…ec62`, unchanged; the route file is `f31dd7ec…9532`, the binary `e786300b…db25` |
+| C7-R | `psiv-campaign replay build/c7-route/run.tape` | digest `40c7f505ecc5c357`, 3,743,328 frames |
 
 **The 43-chapter prefix is untouched.** The final tape's first 3,700,582 pads are the base's
 (`build/s/tapeprefix.py`: every frame compared, identical), and the 43 chapter snapshots are
@@ -53,7 +58,6 @@ Chapter frames and what each ends on (SHA-256 of its snapshot, abbreviated):
 | `esper-inner-sanctuary` | 9,452 | 0 | Inner Sanctuary B1 (30,37), `$97`; `7107ed72…` |
 | `gumbious-torch-stolen` | 9,615 | 1 | Gumbious F1 (39,23), `$98`; `185e35eb…` |
 | `air-castle-arrival` | 5,976 | 3 | the Air Castle (63,54), `World_Index` 5, `$98 $99 $9F`; `06feecfa…` |
-| `air-castle-xe-athoul-room` | 11,295 | 16 | the Xe-A-Thoul room (31,51), `$9A` clear; `ae614f13…` |
 
 ## The halts
 
@@ -61,13 +65,13 @@ Chapter frames and what each ends on (SHA-256 of its snapshot, abbreviated):
 | --- | --- | --- | --- |
 | H36 | runner | `use_item` of a boarding item | `camping.rs` waits the boarding scene out |
 | H37 | runner objective | a trigger on plain ground | `step_onto` takes any trigger cell |
-| H38 | #88, random battles | the Air Castle's encounters use abilities the engine does not run | none here; the pause that re-rolls them, recorded |
+| H38 | enemy abilities (#58 class), random battles | the Air Castle's walk meets abilities the engine does not run | none here; the chapter that walks it is recorded below, out of the route |
 | H39 | scene, class #83 | `Event_EsperGuardPermission` (`$4F`) | scene, `SetNpcDialogue` op, census entry |
 | H40 | runtime, planner | the Esper door guards never leave the door | latched patterns, per-guard table, vacated cells, `wait`, `talk` `opens` |
 | H41 | scene, class #83 | `Event_EclipseTorchStolen` (`$46`) | one scene, a census entry |
 | H42 | runner | a scene opens the ship's menu on arrival | `board` without a step, `settle_at` |
 | H43 | runner | a doorway row whose warp is one row on | the unmapped report is no fault beside a warp |
-| H44 | #88, fixed battle | the Xe-A-Thoul fight | none: the route stops at its door |
+| H44 | enemy abilities (#58 class), fixed battle | the Xe-A-Thoul fight | none: the dropped chapter ends at its door |
 
 ### H36: `use_item` assumed the camp stays open
 
@@ -95,12 +99,13 @@ no scene ran. **Tests and negative controls:** `esper_arc.rs`
 `validator.rs` `step_onto_names_a_reachable_cell_on_the_map_the_party_is_on` (a wall is
 rejected); with the fallback removed the first fails `Unreachable`.
 
-### H38: random battles on the Air Castle's walk use abilities the engine does not run
+### H38: the Air Castle's walk meets abilities the engine does not run
 
-Not fixed: `battle/**` is the p88 lane's. The walk from the landing to the Xe-A-Thoul room crosses
-`AirCastle_Part2`, `Part3`, `Part6`, `F1` and `F1_Part2` (52 foot groups each; the sweep below) and
-meets 3 to 17 random battles. The policy runs from them, and an enemy that acts before the
-party's RUN resolves (round 1, 110 frames after the battle begins) can use one of these:
+An enemy-ability gap (the #58 class, `battle/**` is the enemy-ability lane's), not a route problem.
+The walk from the landing to the Xe-A-Thoul room crosses `AirCastle_Part2`, `Part3`, `Part6`, `F1`
+and `F1_Part2` (52 foot groups each) and meets 3 to 17 random battles. The policy runs from them,
+and an enemy that acts before the party's RUN resolves (round 1, 110 frames after the battle
+begins) can use one of these:
 
 | Ability | Carrier | Run |
 | --- | --- | --- |
@@ -109,18 +114,37 @@ party's RUN resolves (round 1, 110 frames after the battle begins) can use one o
 | `$31` GRA (unsupported) | DimensWorm (73), formation 372 on `$173` | the full route, first try: halt, fighter 7, round 1 |
 | `$3A` COMBINE | formation 373 on `$173` | the full route with a 1-frame pause: halt, fighter 6, round 1 |
 
-`python3 -m oracle.sweep.route_abilities --map-pattern 'AirCastle_Part3$|AirCastle_Part6$|AirCastle_F1_Part2$|AirCastle_F1$|AirCastle_Part7$|AirCastle_Part2$'`
-lists, for the maps reached: `$2C` AIRSLASH, `$2D` DEBAN, `$30` DISTORTION, `$31` GRA, `$3A`
-COMBINE and `$4E` DTHSPELL unsupported, `$4C` EVIL EYE partial, FIREBREATH, GIWAT and CORRSION
-implemented. A player meets the same abilities; the engine just halts on them.
+`python3 -m oracle.sweep.route_abilities --stretch dezolis-air-castle` lists them (the worklist
+below). A player meets the same abilities; the engine just halts on them.
 
-The full route's first try halted this way, so `air-castle-xe-athoul-room` opens with
-`{"do": "wait", "frames": 7}`: a pause on the landing that re-rolls the walk's encounters. With 1
-frame it halts (COMBINE), with 7 and 13 it completes (16 and 17 battles). **This is the route's
-dice, not the game's, and it is fragile in the way the C6 log notes for the elevator chapter: any
-earlier chapter's frame count changes it. It should go when #88 lands those abilities.** The
-orchestrator may prefer to end the route at `air-castle-arrival` instead; nothing after the pause
-depends on it.
+**What the route does about it: nothing, and it ends at `air-castle-arrival`.** The first draft of
+the route carried one more chapter, `air-castle-xe-athoul-room`, opened by `wait 7`: an idle that
+shifted the walk's random rolls until 7 and 13 frames completed (16 and 17 battles) where 0 and 1
+halted. That is dice-fishing around an engine gap and was withdrawn at review, together with the
+chapter. The `wait` objective stays (the Esper guards' waits are a player waiting). The chapter,
+verbatim but for that note's label, for the lane that lands the abilities to restore (with the `wait` removed, since the walk
+then needs no luck):
+
+```json
+    {
+      "id": "air-castle-xe-athoul-room",
+      "title": "The Air Castle: through the maze to the Xe-A-Thoul room",
+      "source": "runtime-pack/maps/171_AirCastle.json .. 184_AirCastleXeAThoulRoom.json (the warp chain to AirCastle_Part6 $170 warp 16 at (63,53), the only door into $184); docs/scenes/70_XeAThoulBeforeBattle.md (Event_XeAThoulBeforeBattle $59 fires inside $184 and starts event battle 14, which needs GIZAN and THNDRBLAST: the route stops at its door, RUNNER_LOG_ICEDIGGER.md)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "wait", "frames": 7, "note": "a pause on the landing that re-rolls the walk's encounters: with none, the first walk halts on DimensWorm's GRA ($31, formation 372 on $173), with 1 frame on a BladeRight's COMBINE ($3A, formation 373); 7 and 13 complete (RUNNER_LOG_ICEDIGGER.md, H38). Both abilities are enemy-ability gaps (the #58 class), and the pause should go when the engine runs them"},
+        {"do": "go_to_map", "map": 388, "note": "AirCastleXeAThoulRoom $184: the Air Castle's random battles are run from; several of their enemies' abilities are not run by the engine, so the walk's frames are the route's dice (RUNNER_LOG_ICEDIGGER.md)"},
+        {"do": "expect", "map": 388, "cell": [31, 51], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_clear": ["event:0x9a"], "note": "at the foot of the Xe-A-Thoul room, the trigger ahead"}
+      ],
+      "closing": [
+        {"map": 388, "cell": [31, 51], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_clear": ["event:0x9a"]}
+      ]
+    }
+```
+
+When the abilities exist, restore it after `air-castle-arrival`, drop its first objective, add
+`Event_XeAThoulBeforeBattle` and its `fight_scripted`, and re-run the two full routes: the numbers
+above (3,754,623 frames) were for the withdrawn form and do not carry over.
 
 ### H39: `Event_EsperGuardPermission` and `SetNpcDialogue`
 
@@ -216,7 +240,7 @@ argument forced to false it halts `SceneFault WarpUnmapped`).
 
 `RunEvent_FindXeAThoul` (`$44`, `Event_XeAThoulBeforeBattle` `$59`) fires inside the room (x `$1D0..$220`,
 y `<= $220`; the probe steps onto (31,35)), runs dialogue entry 54 and starts event battle 14
-(enemy 123, three XeAThouls). The route stops at its door, in `air-castle-xe-athoul-room`.
+(enemy 123, three XeAThouls). The withdrawn chapter ended at its door.
 
 | Probe | Result |
 | --- | --- |
@@ -231,8 +255,9 @@ The sweep for the room and the other two fixed battles on the way to `$8017`
 | 16 (Lashiec) | 128 Lashiec | `$5F` THNDHALBRT, `$60` POSESSION, `$61` ANOTHRGATE, `$62` REINFORCE (conditional) |
 | 17 (Dark Force 2) | 131 DarkForce2 | `$64` SHDWBREATH, `$65` LIGHTSHOWR; `$4C` EVIL EYE partial |
 
-A fixed battle cannot be run from. Everything after this point belongs to #88 and the ability
-lanes; the route resumes at `Event_XeAThoulBeforeBattle` when they land.
+A fixed battle cannot be run from. Everything after this point is an enemy-ability gap (the #58
+class, the `dezolis-air-castle` stretch); the route resumes at `Event_XeAThoulBeforeBattle` when
+the abilities land.
 
 Unrelated to the walk: the scene docs 69 to 74 named `dezo_campaign.rs` for scenes that live in
 `dezo_campaign_late.rs`, which made `--scene-doc` fail with a `KeyError` on them; they are
@@ -242,10 +267,13 @@ such a map draws nothing now (see the widenings below).
 
 The arc's own scope for the next enemy-ability lane is a named stretch,
 `python3 -m oracle.sweep.route_abilities --stretch dezolis-air-castle`: the route's chapters
-`dezolis-ice-digger` to `air-castle-xe-athoul-room`, the Air Castle walk's maps, and event battles
-10 (the trees) and 14 (Xe-A-Thoul). Its **unsupported** abilities: `$2C` AIRSLASH, `$2D` DEBAN,
-`$30` DISTORTION, `$31` GRA, `$35` GIZAN, `$3A` COMBINE, `$4E` DTHSPELL, `$5C` THNDRBLAST;
-**partial**: `$22` RAY BREATH (the Ice Digger's group on Dezolis) and `$4C` EVIL EYE.
+`dezolis-ice-digger` to `air-castle-arrival`, the Air Castle walk's maps (named explicitly, since
+the chapter that walked them is out of the route) and event battles 10 (the trees), 14
+(Xe-A-Thoul), 16 (Lashiec) and 17 (Dark Force 2). Its **unsupported** abilities: `$2C` AIRSLASH,
+`$2D` DEBAN, `$30` DISTORTION, `$31` GRA, `$35` GIZAN, `$3A` COMBINE, `$4E` DTHSPELL, `$5C`
+THNDRBLAST, Lashiec's `$5F` THNDHALBRT, `$60` POSESSION, `$61` ANOTHRGATE and `$62` REINFORCE, and
+Dark Force 2's `$64` SHDWBREATH and `$65` LIGHTSHOWR; **partial**: `$22` RAY BREATH (the Ice
+Digger's group on Dezolis) and `$4C` EVIL EYE.
 
 ## Balance and levels
 
@@ -284,7 +312,7 @@ Also outside the list and touched: `tests/event_census.py` and `rust/psiv-core/t
 (the allowlist, under `tests/**` and `rust/psiv-core/tests/**`).
 
 A fourth, approved after the lane's first full test run failed on it: `oracle/sweep/route_abilities.py`.
-The `zelan-kuran` stretch ran to the route's *last* chapter, so the eight new chapters widened what
+The `zelan-kuran` stretch ran to the route's *last* chapter, so the new chapters widened what
 `docs/battle/ENEMY_ABILITIES_ROUTE.md` derives from; `Stretch` now names its `last_chapter`
 (`kuran-dark-force-1`) and the doc block is byte-identical. The same change makes a map outside the
 encounter table draw nothing (the `KeyError`), lets a stretch name its scenes' event battles
@@ -295,8 +323,8 @@ unknown mode as the control). P88 owns the rest of `oracle/sweep/**`.
 
 ## Not claimed
 
-- **The Air Castle walk's pause.** `wait 7` is a re-roll of random battles whose abilities the engine
-  does not run ([H38](#h38-random-battles-on-the-air-castles-walk-use-abilities-the-engine-does-not-run)).
+- **The Air Castle's walk and fights.** Out of the route: the engine does not run the abilities they
+  use ([H38](#h38-the-air-castles-walk-meets-abilities-the-engine-does-not-run)).
 - **The thieves' choreography.** Ten object records, their step constants and the sprite art are not
   modelled; the scene's frames, dialogue, despawn and flag are.
 - **Native play.** Headless `Session`, pads only. No Godot capture of Meese, the trees, the

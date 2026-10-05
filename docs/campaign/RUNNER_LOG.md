@@ -24,23 +24,26 @@ shortcut, a state edit or a skip to get past one.
 
 ## Current state
 
-**C7 (2026-10-04, base `20f22e6`): the route reaches the Air Castle's Xe-A-Thoul room** (51
-chapters; eight new: `dezolis-ice-digger`, `meese-raja-sick`, `dezolis-saving-kyra`,
-`esper-mansion`, `esper-inner-sanctuary`, `gumbious-torch-stolen`, `air-castle-arrival`,
-`air-castle-xe-athoul-room`). Zelan F1 to Dezolis on the Ice Digger, Raja falls sick in Meese, the
-trees fall and Kyra joins, the Esper guards give way and Rune is Lutz, the Eclipse Torch is stolen
-at the Gumbious Temple, the Dezo spaceport's scene opens the ship's menu and the flight lands in
-the Air Castle. Two full runs from New Game: exit 0, **3,754,623 frames**, digest
-`641d58ecd6645729`, identical tapes (SHA-256 `5aa1f9d2…06a8`), replay reproduces the digest; the
-43-chapter prefix is pad-for-pad and snapshot-for-snapshot the base's
+**C7 (2026-10-04, base `20f22e6`): the route reaches the Air Castle** (50 chapters; seven new:
+`dezolis-ice-digger`, `meese-raja-sick`, `dezolis-saving-kyra`, `esper-mansion`,
+`esper-inner-sanctuary`, `gumbious-torch-stolen`, `air-castle-arrival`). Zelan F1 to Dezolis on the
+Ice Digger, Raja falls sick in Meese, the trees fall and Kyra joins, the Esper guards give way and
+Rune is Lutz, the Eclipse Torch is stolen at the Gumbious Temple, the Dezo spaceport's scene opens
+the ship's menu and the flight lands in the Air Castle. Two full runs from New Game: exit 0,
+**3,743,328 frames**, digest `40c7f505ecc5c357`, identical tapes (SHA-256 `db8ae7fe…ae70`), replay
+reproduces the digest; the 43-chapter prefix is pad-for-pad and snapshot-for-snapshot the base's
 ([C7 runs](RUNNER_LOG_ICEDIGGER.md#c7-runs)). Halts found and fixed: H36 to H37 and H42 to H43
-(runner), H39 and H41 (three scenes, one new op, three census entries: #83 19 to 16), H40 (the Esper
-door guards: the port looped a table the cartridge latches). **The route stops at a halt that is
-#88's:** the Air Castle's random battles meet abilities the engine does not run (a one-frame pause in
-the last chapter re-rolls them, H38) and the first fixed battle ahead, Xe-A-Thoul (event battle 14),
-needs `$35` GIZAN and `$5C` THNDRBLAST ([H44](RUNNER_LOG_ICEDIGGER.md#h44-the-xe-a-thoul-fight-needs-gizan-and-thndrblast));
-Lashiec and Dark Force 2 after it need six more. The milestone the brief named (`Event_Juza` or Dark
-Force 2) was not reachable: Juza was played in the Zio Fort already, Dark Force 2 is behind those.
+(runner), H39 and H41 (three scenes, one new op: #83 19 to 16), H40
+(the Esper door guards: the port looped a table the cartridge latches). **The route ends there on
+enemy-ability gaps (the #58 class):** the Air Castle's random battles meet abilities the engine does
+not run (H38), and the fixed battles ahead need `$35` GIZAN and `$5C` THNDRBLAST (Xe-A-Thoul,
+[H44](RUNNER_LOG_ICEDIGGER.md#h44-the-xe-a-thoul-fight-needs-gizan-and-thndrblast)), six of
+Lashiec's and Dark Force 2's more. A chapter that walked on to the Xe-A-Thoul room was dropped at
+review because it passed only by shifting the dice (an idle that re-rolled the random battles); it
+is recorded in [H38](RUNNER_LOG_ICEDIGGER.md#h38-the-air-castles-walk-meets-abilities-the-engine-does-not-run)
+for the lane that lands the abilities, and `--stretch dezolis-air-castle` is that lane's worklist.
+The milestone the brief named (`Event_Juza` or Dark Force 2) was not reachable: Juza was played in
+the Zio Fort already, Dark Force 2 is behind those.
 
 **C6 (2026-10-04, base `00f4936`): the route defeats Dark Force 1** (43 chapters; seven new:
 `dezolis-tyler-prepare`, `dezolis-landale`, `dezolis-training`, `kuran-arrival`, `kuran-elevators`,
