@@ -33,19 +33,23 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
     let route = Route::parse(&main_text()).expect("main.json parses");
     let ids: Vec<&str> = route.chapters.iter().map(|c| c.id.as_str()).collect();
     assert_eq!(ids.first(), Some(&"academy"));
-    assert_eq!(ids.last(), Some(&"kuran-dark-force-1"));
+    assert_eq!(ids.last(), Some(&"air-castle-arrival"));
     assert_eq!(
-        ids[ids.len() - 9..],
+        ids[ids.len() - 13..],
         [
-            "dezolis-gyuna",
-            "dezolis-tyler-grave",
-            "dezolis-tyler-prepare",
             "dezolis-landale",
             "dezolis-training",
             "kuran-arrival",
             "kuran-elevators",
             "kuran-near-dark-force",
-            "kuran-dark-force-1"
+            "kuran-dark-force-1",
+            "dezolis-ice-digger",
+            "meese-raja-sick",
+            "dezolis-saving-kyra",
+            "esper-mansion",
+            "esper-inner-sanctuary",
+            "gumbious-torch-stolen",
+            "air-castle-arrival"
         ]
     );
     assert!(ids.contains(&"nurvus-zio"));
@@ -343,23 +347,35 @@ fn the_zelan_chapters_reject_a_bad_boarding_and_a_missing_object() {
     assert_eq!(error.chapter, "zelan-wren-canceller");
 }
 
-/// `step_onto` names a warp footprint a step can fire from where the party
-/// stands: a cell that is only open ground is a `go_to`, and a map the party is
-/// not on is rejected with its chapter.
+/// `step_onto` names a cell a trigger starts a scene on: a warp footprint a step
+/// fires, or any open cell a walk reaches (the carnivorous trees' corridor). A
+/// wall nothing reaches is rejected, and a map the party is not on is rejected
+/// with its chapter.
 #[test]
-fn step_onto_must_name_a_footprint_on_the_map_the_party_is_on() {
+fn step_onto_names_a_reachable_cell_on_the_map_the_party_is_on() {
     let plain = mutate(
         &main_text(),
         "{\"do\": \"step_onto\", \"map\": 351, \"cell\": [26, 83],",
         "{\"do\": \"step_onto\", \"map\": 351, \"cell\": [26, 70],",
     );
     let Some(report) = run(&plain) else { return };
+    assert!(
+        !report.errors.iter().any(|e| e.chapter == "dezolis-landale"),
+        "open ground the party can walk to is a trigger cell too: {:?}",
+        report.errors
+    );
+    let wall = mutate(
+        &main_text(),
+        "{\"do\": \"step_onto\", \"map\": 351, \"cell\": [26, 83],",
+        "{\"do\": \"step_onto\", \"map\": 351, \"cell\": [0, 0],",
+    );
+    let report = run(&wall).unwrap();
     let error = report
         .errors
         .iter()
-        .find(|e| e.reason.contains("is a go_to"))
-        .expect("the plain cell is reported");
-    assert_eq!(error.chapter, "dezolis-landale");
+        .find(|e| e.chapter == "dezolis-landale" && e.reason.contains("ends in a step onto"))
+        .unwrap_or_else(|| panic!("the unreachable cell is reported: {:?}", report.errors));
+    assert!(error.reason.contains("(0,0)"), "{}", error.reason);
     // Dezolis `$001` is a map of the pack, but the party is in the Hangar.
     let elsewhere = mutate(
         &main_text(),
@@ -402,4 +418,60 @@ fn the_kuran_chapters_reject_a_missing_door_and_a_bad_world() {
         .find(|e| e.reason.contains("not a World_Index"))
         .expect("the bad world is reported");
     assert_eq!(error.chapter, "kuran-arrival");
+}
+
+/// The Esper Mansion's door guards stand on the door row until the
+/// conversation sends them away: drop the `talk`'s `opens` and the chapter that
+/// walks through is rejected naming the hall; the inner guards likewise.
+#[test]
+fn the_esper_chapter_rejects_a_door_the_talk_does_not_open() {
+    let shut = mutate(&main_text(), "\"opens\": [[32, 36], [33, 36]], ", "");
+    let Some(report) = run(&shut) else { return };
+    let error = report
+        .errors
+        .iter()
+        .find(|e| e.chapter == "esper-mansion")
+        .unwrap_or_else(|| panic!("the shut door is rejected: {:?}", report.errors));
+    assert!(error.reason.contains("0x167"), "{}", error.reason);
+    let inner = mutate(&main_text(), "\"opens\": [[47, 20], [48, 20]], ", "");
+    let report = run(&inner).unwrap();
+    assert!(
+        report.errors.iter().any(|e| e.chapter == "esper-mansion"),
+        "{:?}",
+        report.errors
+    );
+}
+
+/// `wait` is 1 to 600 frames (the Esper guards' wait), and a `board` with no
+/// step is the menu a scene opens (the Air Castle's), so it validates like the
+/// stepped one.
+#[test]
+fn wait_is_bounded_and_a_scene_menu_board_validates() {
+    let long = mutate(
+        &main_text(),
+        "{\"do\": \"wait\", \"frames\": 90, \"note\": \"FieldObj_EsperGuard walks",
+        "{\"do\": \"wait\", \"frames\": 601, \"note\": \"FieldObj_EsperGuard walks",
+    );
+    let Some(report) = run(&long) else { return };
+    assert!(
+        report
+            .errors
+            .iter()
+            .any(|e| e.chapter == "esper-mansion" && e.reason.contains("601")),
+        "{:?}",
+        report.errors
+    );
+    let zero = mutate(
+        &main_text(),
+        "{\"do\": \"wait\", \"frames\": 90, \"note\": \"FieldObj_EsperGuard walks",
+        "{\"do\": \"wait\", \"frames\": 0, \"note\": \"FieldObj_EsperGuard walks",
+    );
+    let report = run(&zero).unwrap();
+    assert!(
+        report.errors.iter().any(|e| e.chapter == "esper-mansion"),
+        "{:?}",
+        report.errors
+    );
+    let shipped = run(&main_text()).unwrap();
+    assert!(shipped.errors.is_empty(), "{:?}", shipped.errors);
 }

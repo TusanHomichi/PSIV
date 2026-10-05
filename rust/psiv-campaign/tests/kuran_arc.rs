@@ -119,7 +119,7 @@ fn step_onto_the_landale_row_starts_the_scene_and_raises_the_spaceport() {
 /// shut and the very step fires the warp, which the objective reports as a
 /// halt; a cell no step reaches by firing a warp is unreachable by name.
 #[test]
-fn step_onto_halts_when_the_warp_fires_or_the_cell_is_not_a_footprint() {
+fn step_onto_halts_when_the_warp_fires_or_no_scene_runs_on_the_cell() {
     let Some(session) = party_at(HANGAR, 1, 26, 82, &[DEZO_SPACEPORT]) else {
         return;
     };
@@ -136,10 +136,15 @@ fn step_onto_halts_when_the_warp_fires_or_the_cell_is_not_a_footprint() {
     };
     let mut driver = Driver::new(session, None);
     let halt = driver
-        .step_onto(HANGAR, Cell::new(26, 70))
-        .expect_err("(26,70) is open ground, not a warp footprint");
-    assert_eq!(halt.kind, HaltKind::Unreachable);
+        .step_onto(HANGAR, Cell::new(26, 81))
+        .expect_err("(26,81) is open ground where no trigger fires");
+    assert_eq!(halt.kind, HaltKind::UnexpectedState);
+    assert!(halt.detail.contains("no scene ran"), "{halt:?}");
     assert!(!flag(&driver, DEZO_SPACEPORT));
+    let halt = driver
+        .step_onto(HANGAR, Cell::new(0, 0))
+        .expect_err("(0,0) is a wall no walk ends on");
+    assert_eq!(halt.kind, HaltKind::Unreachable);
 }
 
 /// With the spaceport raised (`$82`) the destination list at the Dezo

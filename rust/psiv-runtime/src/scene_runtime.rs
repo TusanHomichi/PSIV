@@ -325,6 +325,14 @@ impl Runtime {
                     count,
                 });
             }
+            SceneEffect::NpcDialogueSet {
+                npc_index,
+                dialogue_id,
+            } => {
+                self.effects
+                    .dialogue_overrides
+                    .insert(npc_index, dialogue_id);
+            }
             SceneEffect::NpcPromoted { npc, .. } => {
                 let _ = self.map.set_npc_active(npc, false);
                 events.push(RuntimeEvent::NpcsDespawned {

@@ -488,6 +488,18 @@ pub enum SceneOp {
         /// How many consecutive objects the block clear covers.
         count: usize,
     },
+    /// Write a field object's `dialogue_id` (`$14(a4)`): the line it speaks
+    /// the next time it is talked to. The guards at the Esper Mansion door are
+    /// the first user: `Event_EsperGuardPermission` writes `1` or `2` into
+    /// both (`$14` and `$54` off `Field_Obj_Secondary`, `$FFFFC300`) so they
+    /// answer the party differently from then on. A map reload rebuilds the
+    /// object from its record and the write is gone, as in retail.
+    SetNpcDialogue {
+        /// The object, by its index in the map's object list.
+        npc_index: usize,
+        /// The dialogue entry it speaks.
+        dialogue_id: u16,
+    },
     /// Move the camera to a pixel position at `speed`.
     ///
     /// `Event_MoveCamera` (`$5AAEE`) subtracts `$98`/`$58` for the half-screen

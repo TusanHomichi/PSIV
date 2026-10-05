@@ -27,14 +27,21 @@ use crate::policy::Policy;
 /// that started a scene never reached the map-change table, and the runtime's
 /// report of the type-1 cell it landed on as unmapped is no fault there (the
 /// Mota Spaceport's boarding row, RUNNER_LOG C4).
-fn is_scene_fault(event: &RuntimeEvent, scene_began: bool) -> bool {
+///
+/// `doorway_row` is whether the unmapped type-1 cell borders a warp footprint
+/// of the map: a doorway row (type 1) whose warp the cartridge keeps in the
+/// normal-ground table one row on (the Air Castle's `AirCastle_F1` warp 0, rows
+/// 43 and 44). `RunMapTransitions` reads only the map-change table on the
+/// type-1 cell, finds nothing and the walk goes on to the row that fires; the
+/// unmapped report is a fault only where no warp is near to explain it.
+fn is_scene_fault(event: &RuntimeEvent, scene_began: bool, doorway_row: bool) -> bool {
     match event {
         RuntimeEvent::SceneFaulted { .. }
         | RuntimeEvent::SceneMissing { .. }
         | RuntimeEvent::SceneBattleFailed { .. }
         | RuntimeEvent::MapRefreshFailed { .. }
         | RuntimeEvent::UnpackedTarget { .. } => true,
-        RuntimeEvent::WarpUnmapped { .. } => !scene_began,
+        RuntimeEvent::WarpUnmapped { .. } => !scene_began && !doorway_row,
         _ => false,
     }
 }
@@ -311,6 +318,24 @@ impl Driver {
         self.tick(Pad::NEUTRAL)
     }
 
+    /// Whether `event` is a [`RuntimeEvent::WarpUnmapped`] on a cell beside a
+    /// warp footprint of the current map (see [`is_scene_fault`]).
+    fn is_doorway_row(&self, event: &RuntimeEvent) -> bool {
+        let RuntimeEvent::WarpUnmapped { cell } = event else {
+            return false;
+        };
+        let map = self.runtime().map();
+        let beside: Vec<Cell> = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+            .into_iter()
+            .filter_map(|(dx, dy)| {
+                map.normalize_signed(i32::from(cell.x) + dx, i32::from(cell.y) + dy)
+            })
+            .collect();
+        map.warps()
+            .iter()
+            .any(|warp| beside.iter().any(|c| warp.source.contains(*c)))
+    }
+
     fn absorb(&mut self, frame: Frame) -> Res {
         let mut fault: Option<Halt> = None;
         let mut raise = |kind: HaltKind, detail: String| {
@@ -356,7 +381,7 @@ impl Driver {
                     self.areas.push((*area, *event));
                 }
                 RuntimeEvent::SceneEnded => self.scenes_ended += 1,
-                other if is_scene_fault(other, scene_began) => {
+                other if is_scene_fault(other, scene_began, self.is_doorway_row(other)) => {
                     raise(HaltKind::SceneFault, format!("{event:?}"));
                 }
                 _ => {}
@@ -632,22 +657,32 @@ mod tests {
     /// the frame that started a scene is the event's cell, not a pack defect.
     #[test]
     fn an_unmapped_cell_is_no_fault_when_the_frame_started_a_scene() {
-        assert!(!is_scene_fault(&unmapped(), true));
+        assert!(!is_scene_fault(&unmapped(), true, false));
     }
 
     /// Negative control: the same event with no scene in the frame is still the
     /// pack defect it names, and the unconditional faults ignore the scene.
     #[test]
     fn an_unmapped_cell_with_no_scene_and_the_other_faults_still_halt() {
-        assert!(is_scene_fault(&unmapped(), false));
+        assert!(is_scene_fault(&unmapped(), false, false));
         for began in [false, true] {
             assert!(is_scene_fault(
                 &RuntimeEvent::UnpackedTarget {
                     map: psiv_core::MapId(0x18D)
                 },
-                began
+                began,
+                false
             ));
-            assert!(!is_scene_fault(&RuntimeEvent::SceneEnded, began));
+            assert!(!is_scene_fault(&RuntimeEvent::SceneEnded, began, false));
         }
+    }
+
+    /// A doorway row whose warp sits one row on in the normal-ground table
+    /// (`AirCastle_F1` warp 0): the type-1 row reports unmapped and the walk
+    /// goes on to the row that fires. The same report with no warp beside it
+    /// stays a fault (the test above).
+    #[test]
+    fn an_unmapped_doorway_row_beside_its_warp_is_no_fault() {
+        assert!(!is_scene_fault(&unmapped(), false, true));
     }
 }

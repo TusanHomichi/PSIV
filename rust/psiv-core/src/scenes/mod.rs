@@ -55,8 +55,10 @@ pub(crate) mod census_events;
 pub(crate) mod dezo_campaign;
 pub(crate) mod dezo_endgame;
 pub(crate) mod dezolis_route;
+pub(crate) mod esper_events;
 mod flight;
 mod game_start;
+pub(crate) mod gumbious_events;
 pub(crate) mod next_arc;
 pub(crate) mod next_arc_followup;
 pub(crate) mod opening;
@@ -181,9 +183,12 @@ pub static SCENES: &[Scene] = &[
     dezo_campaign::CARNIVOROUS_TREES,
     dezo_campaign::SAVING_KYRA,
     dezo_campaign::MEETING_KYRA,
+    esper_events::ESPER_GUARD_PERMISSION,
+    esper_events::PERSISTENT_ESPER_GUARDS,
     dezo_campaign::ECLIPSE_TORCH_USED,
     dezo_campaign::DARK_FORCE_2,
     dezo_campaign::LUTZ_REVELATION,
+    gumbious_events::ECLIPSE_TORCH_STOLEN,
     dezo_campaign::DARK_FORCE_2_DEFEATED,
     dezo_campaign::MEETING_SETH,
     dezo_campaign::AERO_PRISM,
@@ -317,9 +322,12 @@ mod tests {
             ("Event_CarnivorousTrees", 13),
             ("Event_SavingKyra", 19),
             ("Cutscene_MeetingKyra", 24),
+            ("Event_EsperGuardPermission", 14),
+            ("Event_PersistentEsperGuards", 6),
             ("Event_EclipseTorchUsed", 28),
             ("Event_DarkForce2", 6),
             ("Cutscene_LutzRevelation", 30),
+            ("Event_EclipseTorchStolen", 58),
             ("Cutscene_DarkForce2Defeated", 33),
             ("Cutscene_MeetingSeth", 11),
             ("Cutscene_AeroPrism", 27),
@@ -443,6 +451,8 @@ mod tests {
             ("Cutscene_MeetingKyra", 1),
             ("Event_CarnivorousTrees", 1),
             ("Event_SavingKyra", 2),
+            ("Event_PersistentEsperGuards", 2),
+            ("Event_EclipseTorchStolen", 2),
             ("Event_EclipseTorchUsed", 1),
         ];
         for scene in SCENES {

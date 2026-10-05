@@ -103,17 +103,20 @@ impl Driver {
     }
 
     /// Walks to the cell beside `target` on `map` and takes the one step onto
-    /// it, `target` being a warp footprint where a map trigger starts a scene
-    /// ahead of the warp (`RunEvents` runs before `RunMapTransitions` on foot,
-    /// `ps4.asm:116768-116773`). The objective is met when a scene has run;
-    /// what it leaves is the next objective's to assert.
+    /// it, `target` being a cell where a map trigger starts a scene: a warp
+    /// footprint, where the scene wins over the warp (`RunEvents` runs before
+    /// `RunMapTransitions` on foot, `ps4.asm:116768-116773`), or any other
+    /// trigger cell. The objective is met when a scene has run; what it leaves
+    /// is the next objective's to assert. A `go_to` on such a cell would plan
+    /// again from wherever the scene left the party and fire the trigger a
+    /// second time.
     ///
     /// # Errors
     ///
-    /// [`HaltKind::UnexpectedState`] when the party is not on `map` or the step
-    /// fired the warp with no scene, [`HaltKind::Unreachable`] when no walk
-    /// reaches the step, [`HaltKind::Stuck`] when the party cannot move, or a
-    /// halt from a frame.
+    /// [`HaltKind::UnexpectedState`] when the party is not on `map`, the step
+    /// fired the warp with no scene, or the party stands on the cell and no
+    /// scene ran; [`HaltKind::Unreachable`] when no walk reaches the step,
+    /// [`HaltKind::Stuck`] when the party cannot move, or a halt from a frame.
     pub fn step_onto(&mut self, map: u16, target: Cell) -> Res {
         let mut stalled = 0;
         let scenes_before = self.scenes_ended();
@@ -135,6 +138,16 @@ impl Driver {
             }
             if prompt {
                 return Err(unanswered_prompt());
+            }
+            if self.runtime().map().normalize(target) == Some(here.1) {
+                return Err(Halt::new(
+                    HaltKind::UnexpectedState,
+                    format!(
+                        "step_onto ({},{}) of map {map:#x}: the party stands on the cell and no \
+                         scene ran: no trigger fires there with the flags the game holds",
+                        target.x, target.y
+                    ),
+                ));
             }
             let flood = Flood::for_mover(self.runtime().map(), here.1, self.mover())
                 .map_err(|e| unreachable_halt(map, target, &e.to_string()))?;
@@ -166,8 +179,19 @@ impl Driver {
         let mut first = via_warp;
         let start_map = self.map();
         for _ in 0..REPLAN_LIMIT {
-            let prompt = self.settle(true)? == Settled::Choice;
+            let settled = self.settle_at(true, true)?;
+            let prompt = settled == Settled::Choice;
             let here = (self.map(), self.cell());
+            if settled == Settled::Menu {
+                // The same for the ship's menu a scene opens on arrival.
+                if here.0 == map {
+                    return Ok(());
+                }
+                return Err(Halt::new(
+                    HaltKind::UnexpectedState,
+                    "the ship's destination menu is open and no objective asked",
+                ));
+            }
             if prompt {
                 // A scene that fires on arrival and asks a question (a house
                 // that offers a rest) has delivered the party: the prompt is
@@ -321,6 +345,30 @@ impl Driver {
         })
     }
 
+    /// The walkable cells where the current map's record puts an object that
+    /// is no longer there: gone from the map or standing elsewhere now.
+    fn vacated_spawn_cells(&self) -> Vec<Cell> {
+        let runtime = self.runtime();
+        let Some(record) = runtime.map_record() else {
+            return Vec::new();
+        };
+        let live = runtime.map();
+        record
+            .npcs
+            .iter()
+            .enumerate()
+            .filter_map(|(index, spawn)| {
+                let cell = Cell::new(spawn.x_cell as u16, spawn.y_cell as u16);
+                let here = live.npcs().get(index)?;
+                let moved = !here.active || here.cell != cell;
+                let open = live
+                    .collision_at(cell)
+                    .is_some_and(|collision| !collision.is_blocking());
+                (moved && open).then_some(cell)
+            })
+            .collect()
+    }
+
     /// The steps of the first warp on the cheapest chain to `target`, planned
     /// from the flags the game holds now and re-walked on the live map.
     fn first_leg(&self, target: Target) -> Res<Vec<Direction>> {
@@ -333,6 +381,14 @@ impl Driver {
             map: self.map(),
             cell: self.cell(),
         };
+        // The graph is built from the pack's records, where every object
+        // stands at its spawn cell. An object the game has since moved off
+        // (the Esper Mansion's door guards, a scene's actor) no longer blocks
+        // the cell it was recorded on.
+        let vacated = self.vacated_spawn_cells();
+        if !vacated.is_empty() {
+            graph.open_cells(from.map, vacated);
+        }
         let plan = graph
             .plan(from, target)
             .map_err(|e| Halt::new(HaltKind::Unreachable, e.to_string()))?;

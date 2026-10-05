@@ -26,6 +26,8 @@ pub enum Settled {
     Idle,
     /// A yes/no prompt is up and ready for an answer.
     Choice,
+    /// The ship's destination menu is open.
+    Menu,
 }
 
 impl Driver {
@@ -42,6 +44,18 @@ impl Driver {
     /// route did not ask for (a shop, the camp, a full pack, a field notice,
     /// an unanswered prompt).
     pub fn settle(&mut self, stop_at_choice: bool) -> Res<Settled> {
+        self.settle_at(stop_at_choice, false)
+    }
+
+    /// [`Driver::settle`], which also stops at the ship's destination menu
+    /// when `stop_at_menu` (a scene on arrival opens it, as
+    /// `Cutscene_FindingAirCastle` does at the Dezo spaceport): the menu is the
+    /// next objective's to answer.
+    ///
+    /// # Errors
+    ///
+    /// As [`Driver::settle`].
+    pub fn settle_at(&mut self, stop_at_choice: bool, stop_at_menu: bool) -> Res<Settled> {
         let mut quiet = 0;
         loop {
             if self.session().battle_active() {
@@ -79,6 +93,9 @@ impl Driver {
                 ));
             }
             if self.session().destination_view().is_some() {
+                if stop_at_menu {
+                    return Ok(Settled::Menu);
+                }
                 return Err(Halt::new(
                     HaltKind::UnexpectedState,
                     "the ship's destination menu is open and no objective asked",
