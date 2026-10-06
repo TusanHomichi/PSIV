@@ -88,8 +88,8 @@ Chapters are the 50 of `routes/main.json` at digest `40c7f505ecc5c357`
 
 | Driver | What it proved | Covering chapter | Why it is still here |
 | --- | --- | --- | --- |
-| `native_opening.gd` | One Up press after the auto-acknowledged opening has returned control | `academy` (0) starts from START and the first pad is the first gameplay frame | `docs/campaign/PLAYABILITY_FOUNDATIONS.md` runs it in a `bash` block, so `tools/check_docs.py` fails if the file goes. Delete it with that block |
-| `verify_native_alarm.py` | The BioPlant alarm palette ramp and its four-frame cadence in captured PNGs | None. Its only producer, `native_bioplant.gd`, is retired and the tape takes no mid-run capture | `docs/campaign/BIOPLANT_NATIVE.md` runs it in a `bash` block. It has no producer left, so it is dead code until the tape driver captures at chosen frames |
+| `native_opening.gd` | One Up press after the auto-acknowledged opening has returned control | `academy` (0) covers the state: it starts from START and the first pad is the first gameplay frame | It also takes the rendered first-control capture at frame 3360 ([PLAYABILITY_FOUNDATIONS.md](PLAYABILITY_FOUNDATIONS.md)), which the tape replay cannot take until it captures at chosen frames ([#93](https://github.com/TusanHomichi/PSIV/issues/93)). Kept until then (orchestrator, 2026-10-06) |
+| `verify_native_alarm.py` | The BioPlant alarm palette ramp and its four-frame cadence in captured PNGs | None. Its only producer, `native_bioplant.gd`, is retired and the tape takes no mid-run capture | Kept: its comparison is the check [#93](https://github.com/TusanHomichi/PSIV/issues/93) feeds from frame-addressed tape captures. Until then it has no producer, and the alarm check is suspended ([BIOPLANT_NATIVE.md](BIOPLANT_NATIVE.md)) (orchestrator, 2026-10-06) |
 
 ## Checks on the kept drivers this lane touched
 

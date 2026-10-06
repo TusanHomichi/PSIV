@@ -524,9 +524,9 @@ The checkpoint above left the bespoke-driver retirement open. The whole-route
 replay and the [native driver inventory](NATIVE_DRIVERS.md) answer it: twelve
 campaign-path drivers are retired, twenty fixtures and observers stay (with two
 of the three verifiers) for branches and captures the tape does not carry, and
-one driver (`native_opening.gd`) and one orphaned verifier
-(`verify_native_alarm.py`) wait on a change to a document outside this lane's
-write set. The task-graph node and the lane ledger are the orchestrator's.
+`native_opening.gd` (a rendered capture) and `verify_native_alarm.py` (whose
+producer was retired) stay until the tape replay takes frame-addressed captures
+([#93](https://github.com/TusanHomichi/PSIV/issues/93)).
 
 **Tests.** `cargo test --manifest-path rust/Cargo.toml -p psiv-campaign --
 --test-threads=1` runs the planner and validator suites and
