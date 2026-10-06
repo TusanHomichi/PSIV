@@ -124,6 +124,17 @@ written), 1 a usage or setup error. Release builds play the whole route in
 about half a second; a debug build is an order of magnitude slower and plays
 chapter one in three seconds.
 
+A completed run's `--report` file lists its chapters (route position, id,
+frames, battles, save path and the FNV-1a 64 of the chapter save) beside the
+final digest and the frame count; a halted run's report is the halt report
+below. `split-tape <run.tape> <report.json> <out-dir>` cuts the run's tape at
+those frames into one `NN-id.tape` per chapter through the shared tape codec:
+the first piece keeps the run's start and every later piece starts from the
+previous chapter's save. The pieces concatenate back to the run's tape
+(`rust/psiv-campaign/tests/split.rs`), and that is all they promise: a piece
+replayed from its predecessor's save plays other battles, because a slot holds
+no RNG state ([R2](#r2-native-tape-replay-in-progress) shows the proof).
+
 **The boundary.** The runner calls `Session::frame(pad)` and reads
 `Session::runtime()` and its `&self` methods. It never names a `&mut Runtime`
 member, and a test greps for it (`the_runner_reaches_no_runtime_mutator`).
@@ -288,6 +299,152 @@ the Field physics callback and every input/Session boundary still run. Selected
 1280×800 captures use a separate rendered run and are separate
 presentation evidence, not proof of input or persistent state.
 
+**The whole route, 2026-10-06.** `tools/verify_native_route.py` replays a
+completed run's tape once, from New Game, through the same driver and checks
+every chapter save at the frame its chapter ended on. `native_tape.gd` takes
+a checkpoint list (`PSIV_TAPE_CHECKPOINTS`: frame, label, expected save) and
+compares `Runtime::slot_bytes` with each saved chapter the moment the Field has
+consumed that many Session frames; the first mismatch fails the run naming the
+chapter, its frame and the first differing byte, and keeps the native bytes next
+to the receipt. `--until-chapter ID` replays the prefix that ends with a chapter
+(`PSIV_TAPE_STOP_AT`). The script writes one receipt per chapter
+(`chapters/NN-id.json`: frames, wall time, native snapshot SHA-256, match) and a
+`summary.json`/`summary.md`, and refuses a run directory whose chapter saves no
+longer hash to the report's `save_fnv`.
+
+```bash
+# Once, in the worktree that will replay (never while a Godot process has the
+# extension loaded): an extension that replays at about 1,000 frames/s.
+CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_OPT_LEVEL=3 CARGO_PROFILE_DEV_DEBUG_ASSERTIONS=false \
+  cargo build --manifest-path rust/Cargo.toml -p psiv-godot
+CARGO_BUILD_JOBS=2 cargo build --release --manifest-path rust/Cargo.toml -p psiv-campaign
+rust/target/release/psiv-campaign run rust/psiv-campaign/routes/main.json \
+  --save-dir build/r2-route --tape build/r2-route/run.tape --report build/r2-route/report.json
+PSIV_HEAVY_LOCK=/absolute/path/to/primary/build/continuation-heavy.lock
+flock -x "$PSIV_HEAVY_LOCK" python3 tools/verify_native_route.py \
+  --run-dir build/r2-route --out build/r2-native
+flock -x "$PSIV_HEAVY_LOCK" python3 tools/verify_native_route.py \
+  --run-dir build/r2-route --out build/r2-native-continue --continue-probes
+```
+
+**Why one process, not one per chapter.** The brief for this node was to replay
+each chapter from the preceding chapter's save. That cannot reproduce the run:
+a slot holds no RNG state and no frame counter, so a loaded game restarts both
+and the same pads play other battles. `psiv-campaign run --from-chapter holt`
+from the Academy save plays 11,408 frames (the 2026-10-03 figure) against the
+full run's 6,933 and writes a slot that differs from the full run's at byte 44;
+the split tape of that chapter, replayed natively from the same save, fails its
+slot comparison. This is the runtime's contract, not a Godot divergence (the
+headless replay shows the same), so the whole tape replays once and the
+checkpoints carry the chapter saves. `split-tape` is kept because the pieces
+add up to the tape, but no check replays one alone.
+
+**The extension build.** The plain debug extension replays chapter one
+(32,308 frames) in 359.7 s, 90 frames/s, which would take about eleven hours
+for the route. Sampling the process shows the time in the YM2612 core
+(`ym3438.c`, which `cc` compiles at -O0 in a dev profile) and in godot-rust's
+strict safeguards, not in the session. The same chapter takes 30.5 s, 1,059
+frames/s, with `CARGO_PROFILE_DEV_OPT_LEVEL=3` and debug assertions off. The
+library lands at the path the `.gdextension` names, so a later plain
+`cargo build -p psiv-godot` replaces it with the slow one again; the receipt
+records the library's SHA-256 and the mapped path and inode. Debug assertions are
+off in this build and on in the Rust suites.
+
+**Result, at clean `93c7453`.** Run directory `build/r2-route` (ignored; release
+`psiv-campaign` run: exit 0, 3,743,328 frames, digest `40c7f505ecc5c357`, tape
+SHA-256 `db8ae7fe…ae70`, 24 `save` objectives). The replay ran from a clean clone
+of that commit with the optimized extension (SHA-256 `75fce4d1…3e0f`, mapped
+path and inode matched the preflight), pack manifest `02bb29ad…11f2`, exit 0 in
+5,945.3 s (99 minutes), identity stable before and after. Every one of the 50
+chapter saves matched the native snapshot byte for byte:
+
+| # | Chapter | Frames | Battles | Wall (s) | Frames/s | Native slot bytes vs chapter save |
+| ---: | --- | ---: | ---: | ---: | ---: | --- |
+| 0 | `academy` | 32,308 | 4 | 29.3 | 1102 | match |
+| 1 | `holt` | 6,933 | 3 | 8.4 | 824 | match |
+| 2 | `rune-dorin` | 17,911 | 11 | 17.0 | 1054 | match |
+| 3 | `basement-training` | 42,212 | 23 | 71.5 | 590 | match |
+| 4 | `alshline` | 9,316 | 9 | 10.2 | 909 | match |
+| 5 | `zema-rescue` | 13,244 | 7 | 13.3 | 998 | match |
+| 6 | `zema-outfit` | 1,307 | 0 | 3.4 | 383 | match |
+| 7 | `zema-training` | 4,752 | 4 | 5.2 | 916 | match |
+| 8 | `zema-armour` | 718 | 0 | 1.3 | 558 | match |
+| 9 | `bioplant-elevators` | 5,756 | 4 | 8.2 | 698 | match |
+| 10 | `bioplant-order` | 60 | 0 | 0.3 | 192 | match |
+| 11 | `bioplant-rika` | 19,010 | 3 | 18.9 | 1007 | match |
+| 12 | `north-bank` | 1,307 | 1 | 1.9 | 694 | match |
+| 13 | `aiedo` | 1,185 | 1 | 1.7 | 703 | match |
+| 14 | `aiedo-chaz-house` | 1,130 | 0 | 0.7 | 1624 | match |
+| 15 | `aiedo-training` | 859,087 | 630 | 1440.4 | 596 | match |
+| 16 | `aiedo-shopping` | 1,132 | 0 | 3.6 | 311 | match |
+| 17 | `passage-to-zio-fort` | 2,689 | 2 | 2.3 | 1152 | match |
+| 18 | `zio-fort-approach` | 2,680 | 4 | 4.0 | 671 | match |
+| 19 | `zio-fort-juza` | 3,406 | 2 | 7.4 | 458 | match |
+| 20 | `zio-fort-demi` | 17,998 | 3 | 18.0 | 1002 | match |
+| 21 | `krup-training` | 1,528,066 | 1874 | 2667.0 | 573 | match |
+| 22 | `motavia-machine-center` | 1,089 | 0 | 1.4 | 790 | match |
+| 23 | `machine-center-control-key` | 4,837 | 0 | 4.4 | 1106 | match |
+| 24 | `ladea-tower-rune` | 5,446 | 6 | 5.4 | 1012 | match |
+| 25 | `ladea-tower-psycho-wand` | 13,285 | 4 | 12.9 | 1026 | match |
+| 26 | `zio-fort-barrier` | 5,931 | 9 | 6.1 | 970 | match |
+| 27 | `nurvus-descent` | 4,590 | 6 | 5.8 | 794 | match |
+| 28 | `nurvus-zio` | 8,393 | 1 | 12.3 | 682 | match |
+| 29 | `mota-spaceport` | 2,346 | 1 | 1.6 | 1430 | match |
+| 30 | `zelan-wren-canceller` | 6,944 | 0 | 5.5 | 1268 | match |
+| 31 | `zelan-sabotage` | 13,919 | 1 | 11.8 | 1180 | match |
+| 32 | `dezolis-first-control` | 98 | 0 | 0.0 | 12250 | match |
+| 33 | `dezolis-outside-raja-temple` | 1,339 | 0 | 1.6 | 843 | match |
+| 34 | `dezolis-gyuna` | 1,944 | 0 | 1.3 | 1446 | match |
+| 35 | `dezolis-tyler-grave` | 2,357 | 1 | 2.3 | 1018 | match |
+| 36 | `dezolis-tyler-prepare` | 1,794 | 0 | 2.6 | 687 | match |
+| 37 | `dezolis-landale` | 2,691 | 2 | 2.7 | 986 | match |
+| 38 | `dezolis-training` | 1,031,235 | 738 | 1474.1 | 700 | match |
+| 39 | `kuran-arrival` | 2,668 | 0 | 1.4 | 1952 | match |
+| 40 | `kuran-elevators` | 5,494 | 10 | 6.3 | 870 | match |
+| 41 | `kuran-near-dark-force` | 663 | 0 | 0.4 | 1645 | match |
+| 42 | `kuran-dark-force-1` | 11,312 | 1 | 13.0 | 870 | match |
+| 43 | `dezolis-ice-digger` | 2,443 | 0 | 1.9 | 1267 | match |
+| 44 | `meese-raja-sick` | 4,599 | 0 | 3.0 | 1551 | match |
+| 45 | `dezolis-saving-kyra` | 7,689 | 1 | 8.6 | 890 | match |
+| 46 | `esper-mansion` | 2,972 | 1 | 2.1 | 1390 | match |
+| 47 | `esper-inner-sanctuary` | 9,452 | 0 | 6.7 | 1409 | match |
+| 48 | `gumbious-torch-stolen` | 9,615 | 1 | 7.4 | 1292 | match |
+| 49 | `air-castle-arrival` | 5,976 | 3 | 6.5 | 924 | match |
+| | **50 chapters** | **3,743,328** | | **5943** | **630** | **50/50 match** |
+
+The route's 24 `save` objectives were answered by 24 ordinary camp SAVE
+acknowledgements (slot 1; slots 2 and 3: none), and the slot file the native
+game wrote at the end equals the runner's last pad SAVE (`route/slot_1.sram`,
+SHA-256 `4aeff0b1…ec62`). The final snapshot is chapter 49's save
+(`06feecfa…41d7`) at map `$171` (63,54), and two further callbacks after the
+last pad made no extra Session call. The three training chapters, 91 percent of the frames, run at 570 to 700 frames/s;
+Godot's resident memory grew from 470 MB to 2.3 GB over the replay (about
+20 MB a minute, which tracks the battle count and is not investigated here).
+The log carries 1,383 map-0 battle-background fallbacks (issue #40), 43
+scene-panel diagnostics and 2 type-1 doorway notices, none tied to a state
+difference.
+
+**Persistence.** The replay never loads a save. `--continue-probes` loads each
+of the 50 chapter saves in its own Godot process through the ordinary title
+CONTINUE (a zero-pad save-start tape from `psiv-campaign save-probe-tape`) and
+requires the snapshot to re-encode the same bytes: 50 of 50 pass in 103 s, source
+saves unchanged, at clean `138da9f` (`build/r2-native-continue/continue-summary.json`).
+
+**Negative controls.** A chapter save with one byte flipped (and the report's
+hash made to agree) fails at that chapter: `01-holt` differs at byte 1000,
+chapter `02-rune-dorin` is not reached, exit 1. A pad dropped inside `holt`
+stops the replay on the driver's pad boundary before that chapter's checkpoint
+(`academy` had matched), exit 1.
+`tests/test_verify_native_route.py` covers the refusals (stale run directory,
+foreign report, missing save), the per-chapter wall times, a divergence's first
+byte, a driver pass that hides a differing chapter, and the probe summaries;
+the `split` tests were mutated (a chain hash off by one chapter) and fail.
+
+The replay is a headless run with the render loop off: it proves input, state and
+the save writer, not the picture, and it takes no mid-run capture. It does not
+replace the fresh-process CONTINUE probes, the selected rendered captures above,
+or the fixtures that remain ([native drivers](NATIVE_DRIVERS.md)).
+
 **Combined post-Zio checkpoint, 2026-10-03/04.** The selected pack is the ignored stable
 copy at `/home/peter/PSIV/build/accepted-p1-pack-7fe1e64a` (manifest SHA-256
 `7fe1e64abfb4d55230a1039f5ac2deea4b45f6e94e5b029bba10107a39a016de`).
@@ -363,10 +520,13 @@ docs checked 176 files with zero problems, full Python ran 1,241 tests with
 zero failures/errors and one skip. The composed five-row matrix applies the
 prior fmt/Rust (1,287 passed, three ignored)/Clippy results through an unchanged
 558-file Rust/config input map; it is not a new full five-command gate.
-R2 stays in progress:
-its broader bespoke-driver retirement criterion has not been met. No driver is
-deleted for this checkpoint; an inventory must distinguish focused regression
-fixtures from duplicate campaign paths before full R2 closure.
+The checkpoint above left the bespoke-driver retirement open. The whole-route
+replay and the [native driver inventory](NATIVE_DRIVERS.md) answer it: twelve
+campaign-path drivers are retired, twenty fixtures and observers stay (with two
+of the three verifiers) for branches and captures the tape does not carry, and
+one driver (`native_opening.gd`) and one orphaned verifier
+(`verify_native_alarm.py`) wait on a change to a document outside this lane's
+write set. The task-graph node and the lane ledger are the orchestrator's.
 
 **Tests.** `cargo test --manifest-path rust/Cargo.toml -p psiv-campaign --
 --test-threads=1` runs the planner and validator suites and
@@ -374,7 +534,11 @@ fixtures from duplicate campaign paths before full R2 closure.
 a tape replays to its digest, also from a chapter save; a wrong object index,
 an expectation that cannot hold, an unreachable cell and a spent budget each
 halt naming the objective; the exit statuses; `tests/spaceport.rs` walks onto the
-Mota Spaceport's boarding row, whose scene must not halt on its type-1 cell. The
+Mota Spaceport's boarding row, whose scene must not halt on its type-1 cell;
+`tests/split.rs` checks that a completed report names its chapters with the
+hash of each save, that the cut tapes add up to the run's tape and chain through
+those hashes, and that a split refuses a halted report, a foreign tape and an
+existing output. The
 whole route is `#[ignore]`d:
 `cargo test --release --manifest-path rust/Cargo.toml -p psiv-campaign --test
 runner -- --ignored --test-threads=1`. Cases that need the pack skip with a
