@@ -218,6 +218,82 @@ class Main(unittest.TestCase):
             self.assertIn("REFUSED", said.getvalue())
 
 
+class ContinueProbes(unittest.TestCase):
+    """`--continue-probes` against stand-ins for the probe-tape cutter and the
+    tape driver, which need a built binary and Godot."""
+
+    @staticmethod
+    def fake_driver(results):
+        outcomes = iter(results)
+
+        def run(argv):
+            options = dict(zip(argv[::2], argv[1::2]))
+            out = Path(options["--out"])
+            out.mkdir(parents=True)
+            ok, unchanged = next(outcomes)
+            (out / "receipt.json").write_text(json.dumps({
+                "pass": ok, "source_sha256_before": "aa",
+                "source_sha256_after": "aa" if unchanged else "bb",
+                "snapshot_sha256": "aa" if ok else "cc"}))
+            return 0 if ok else 1
+        return run
+
+    def run_probes(self, root: Path, results, cutter_code=0):
+        run = write_run(root)
+        binary = root / "psiv-campaign"
+        binary.write_text("stub")
+        out = root / "out"
+        cut = mock.Mock(return_value=mock.Mock(returncode=cutter_code, stderr="no save",
+                                               stdout=""))
+        with mock.patch.object(route.verify_native_tape, "main", self.fake_driver(results)), \
+                mock.patch.object(route.subprocess, "run", cut), \
+                contextlib.redirect_stdout(io.StringIO()):
+            code = route.main(["--run-dir", str(run), "--out", str(out), "--continue-probes",
+                               "--campaign-bin", str(binary)])
+        return code, out, cut
+
+    def test_every_chapter_save_must_load_and_reencode_identically(self):
+        with tempfile.TemporaryDirectory() as directory:
+            code, out, cut = self.run_probes(Path(directory), [(True, True)] * 3)
+            summary = json.loads((out / "continue-summary.json").read_text())
+        self.assertEqual(code, 0)
+        self.assertTrue(summary["pass"])
+        self.assertEqual([item["chapter"] for item in summary["chapters"]],
+                         ["00-academy", "01-holt", "02-rune-dorin"])
+        self.assertEqual(cut.call_count, 3)
+        self.assertEqual(cut.call_args.args[0][1], "save-probe-tape")
+        self.assertEqual(cut.call_args.args[0][-1], "0", "a zero-pad probe: load only")
+
+    def test_one_save_that_does_not_reencode_fails_the_run(self):
+        with tempfile.TemporaryDirectory() as directory:
+            code, out, _ = self.run_probes(Path(directory),
+                                           [(True, True), (False, True), (True, True)])
+            summary = json.loads((out / "continue-summary.json").read_text())
+        self.assertEqual(code, 1)
+        self.assertEqual([item["pass"] for item in summary["chapters"]], [True, False, True])
+
+    def test_a_probe_that_touched_its_source_save_fails(self):
+        with tempfile.TemporaryDirectory() as directory:
+            code, _, _ = self.run_probes(Path(directory), [(True, False)] * 3)
+        self.assertEqual(code, 1)
+
+    def test_a_missing_binary_is_refused_and_a_failed_cutter_is_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            run = write_run(root)
+            with contextlib.redirect_stdout(io.StringIO()) as said:
+                code = route.main(["--run-dir", str(run), "--out", str(root / "out"),
+                                   "--continue-probes",
+                                   "--campaign-bin", str(root / "absent")])
+            self.assertEqual(code, 1)
+            self.assertIn("REFUSED", said.getvalue())
+        with tempfile.TemporaryDirectory() as directory:
+            code, out, _ = self.run_probes(Path(directory), [], cutter_code=1)
+            summary = json.loads((out / "continue-summary.json").read_text())
+        self.assertEqual(code, 1)
+        self.assertEqual(summary["chapters"][0]["error"], "no save")
+
+
 class DriverCheckpoints(unittest.TestCase):
     """The tape verifier's side of the contract."""
 

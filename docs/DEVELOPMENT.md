@@ -73,10 +73,16 @@ It currently expects `~/.local/bin/psiv-godot-4.7.1`, `rg` and `flock`;
 the commands above let you use another executable path.
 
 For campaign tape replay through the native game, use
-`tools/verify_native_tape.py` under the shared heavy lock. Its command,
+`tools/verify_native_tape.py` under the shared heavy lock; for a whole
+`psiv-campaign run`, `tools/verify_native_route.py` replays its tape once from
+New Game and compares every chapter save (`--continue-probes` loads each chapter
+save through the title's CONTINUE instead). Their commands,
 isolated save/output directories, exact-pad boundary, source-save hash check,
-snapshot comparison and evidence limits are in the
+snapshot comparison, the extension build that makes a whole route take an hour
+rather than half a day, and evidence limits are in the
 [R2 native replay section](campaign/CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress).
+Which `tools/native/` drivers remain, and why, is in
+[native drivers](campaign/NATIVE_DRIVERS.md).
 
 | Input | Action |
 | --- | --- |
@@ -144,8 +150,9 @@ cover:
 
 - tests skipped for a missing ROM, disassembly or full pack: a checkout without
   them yields a partial gate, and the report says which inputs were absent;
-- native Godot drivers (`tools/native/native_*.gd`, `tools/native/verify_native_*.py`) and
-  anything visual: their ledgers own those runs;
+- native Godot drivers (`tools/native/native_*.gd`, `tools/native/verify_native_*.py`,
+  `tools/verify_native_tape.py`, `tools/verify_native_route.py`) and anything
+  visual: their ledgers own those runs;
 - cartridge comparisons: `./oracle/verify.sh` (fast) and `--full` are separate
   lanes, described in the [oracle guide](../oracle/README.md).
 
@@ -181,8 +188,10 @@ file the rule should pass.
 ## Native and original-game comparisons
 
 `tools/native/native_*.gd` drives ordinary Godot input and reads runtime observations.
-Some drivers use isolated fixtures; others continue a saved campaign. Their
-ledgers identify which kind of evidence each run supplies. A driver runs under
+The campaign itself is replayed by the generic tape driver; the bespoke drivers
+that remain use isolated fixtures and debug selectors for branches and captures
+the tape does not carry ([native drivers](campaign/NATIVE_DRIVERS.md) says which
+and why). Their ledgers identify which kind of evidence each run supplies. A driver runs under
 Godot's `--script`, so it must name its run directory with `PSIV_SAVE_DIR`; the
 extension refuses to resolve one without the variable
 ([repository instructions](../AGENTS.md#protect-local-inputs-and-evidence)).

@@ -124,6 +124,17 @@ written), 1 a usage or setup error. Release builds play the whole route in
 about half a second; a debug build is an order of magnitude slower and plays
 chapter one in three seconds.
 
+A completed run's `--report` file lists its chapters (route position, id,
+frames, battles, save path and the FNV-1a 64 of the chapter save) beside the
+final digest and the frame count; a halted run's report is the halt report
+below. `split-tape <run.tape> <report.json> <out-dir>` cuts the run's tape at
+those frames into one `NN-id.tape` per chapter through the shared tape codec:
+the first piece keeps the run's start and every later piece starts from the
+previous chapter's save. The pieces concatenate back to the run's tape
+(`rust/psiv-campaign/tests/split.rs`), and that is all they promise: a piece
+replayed from its predecessor's save plays other battles, because a slot holds
+no RNG state ([R2](#r2-native-tape-replay-in-progress) shows the proof).
+
 **The boundary.** The runner calls `Session::frame(pad)` and reads
 `Session::runtime()` and its `&self` methods. It never names a `&mut Runtime`
 member, and a test greps for it (`the_runner_reaches_no_runtime_mutator`).
@@ -374,7 +385,11 @@ fixtures from duplicate campaign paths before full R2 closure.
 a tape replays to its digest, also from a chapter save; a wrong object index,
 an expectation that cannot hold, an unreachable cell and a spent budget each
 halt naming the objective; the exit statuses; `tests/spaceport.rs` walks onto the
-Mota Spaceport's boarding row, whose scene must not halt on its type-1 cell. The
+Mota Spaceport's boarding row, whose scene must not halt on its type-1 cell;
+`tests/split.rs` checks that a completed report names its chapters with the
+hash of each save, that the cut tapes add up to the run's tape and chain through
+those hashes, and that a split refuses a halted report, a foreign tape and an
+existing output. The
 whole route is `#[ignore]`d:
 `cargo test --release --manifest-path rust/Cargo.toml -p psiv-campaign --test
 runner -- --ignored --test-threads=1`. Cases that need the pack skip with a

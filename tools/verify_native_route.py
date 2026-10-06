@@ -12,6 +12,11 @@ a loaded game restarts both (`psiv-campaign run --from-chapter` plays other
 battles, documented in docs/campaign/CAMPAIGN_RUNNER.md). Only the full tape
 from New Game is the route's evidence, so only a prefix of it can be replayed
 (`--until-chapter`), never a single chapter.
+
+`--continue-probes` is the other half: it loads each chapter save in a fresh
+Godot process through the ordinary title CONTINUE and requires the snapshot to
+re-encode the same bytes. The replay never loads a save, so persistence is
+proven there, one chapter at a time.
 """
 
 from __future__ import annotations
@@ -19,6 +24,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import subprocess
 import sys
 import time
 
@@ -136,6 +142,49 @@ def summary_table(receipts: list[dict]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def continue_probe(chapter: dict, probe_dir: Path, campaign_bin: Path, pack: Path,
+                   timeout: int) -> dict:
+    """One fresh Godot process loads the chapter's save through the ordinary
+    title CONTINUE (a zero-pad save-start tape) and must re-encode it to the
+    same bytes. This is the persistence evidence each retired driver began
+    with; the continuous replay never loads a save, so it does not carry it."""
+    probe_dir.mkdir(parents=True)
+    tape = probe_dir / "probe.tape"
+    made = subprocess.run([str(campaign_bin), "save-probe-tape", str(chapter["save"]),
+                           str(tape), "0"], capture_output=True, text=True)
+    label = f"{chapter['index']:02d}-{chapter['id']}"
+    if made.returncode != 0:
+        return {"chapter": label, "pass": False, "error": made.stderr.strip() or "no probe tape"}
+    started = time.monotonic()
+    code = verify_native_tape.main([
+        "--tape", str(tape), "--from-save", str(chapter["save"]),
+        "--expect-save", str(chapter["save"]), "--pack", str(pack),
+        "--out", str(probe_dir / "native"), "--timeout", str(timeout)])
+    receipt_path = probe_dir / "native" / "receipt.json"
+    receipt = json.loads(receipt_path.read_text()) if receipt_path.is_file() else {}
+    return {"chapter": label, "pass": bool(code == 0 and receipt.get("pass")),
+            "wall_s": round(time.monotonic() - started, 3),
+            "save_sha256": receipt.get("source_sha256_before"),
+            "snapshot_sha256": receipt.get("snapshot_sha256"),
+            "source_unchanged": receipt.get("source_sha256_before")
+            == receipt.get("source_sha256_after"),
+            "receipt": str(receipt_path)}
+
+
+def run_continue_probes(chapters: list[dict], out: Path, campaign_bin: Path, pack: Path,
+                        timeout: int) -> int:
+    results = [continue_probe(chapter, out / "continue" / f"{chapter['index']:02d}-{chapter['id']}",
+                              campaign_bin, pack, timeout) for chapter in chapters]
+    passed = all(item["pass"] and item.get("source_unchanged", False) for item in results)
+    (out / "continue-summary.json").write_text(json.dumps(
+        {"version": RECEIPT_VERSION, "pass": passed, "chapters": results},
+        indent=2, sort_keys=True) + "\n")
+    print(f"native route: CONTINUE probes {'PASS' if passed else 'FAIL'}; "
+          f"{sum(1 for item in results if item['pass'])}/{len(results)} chapter saves load and "
+          f"re-encode identically; summary={out / 'continue-summary.json'}")
+    return 0 if passed else 1
+
+
 def parser() -> argparse.ArgumentParser:
     command = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     command.add_argument("--run-dir", type=Path, required=True,
@@ -150,6 +199,13 @@ def parser() -> argparse.ArgumentParser:
                          help="seconds for the whole replay (default six hours)")
     command.add_argument("--drop-pad-at", type=int,
                          help="negative control: replace one pad byte with neutral")
+    command.add_argument("--continue-probes", action="store_true",
+                         help="instead of the replay, load every chapter save in its own fresh "
+                              "Godot process through the ordinary title CONTINUE and require "
+                              "the snapshot to re-encode the same bytes")
+    command.add_argument("--campaign-bin", type=Path,
+                         default=verify_native_tape.ROOT / "rust/target/release/psiv-campaign",
+                         help="the psiv-campaign binary that cuts the probe tapes")
     return command
 
 
@@ -167,6 +223,13 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     out = args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
+    if args.continue_probes:
+        if not args.campaign_bin.is_file():
+            print(f"native route: REFUSED: {args.campaign_bin} is missing; build it with "
+                  "`cargo build --release -p psiv-campaign`")
+            return 1
+        return run_continue_probes(chapters, out, args.campaign_bin.resolve(),
+                                   args.pack, args.timeout)
     checkpoints = out / "checkpoints.json"
     checkpoints.write_text(json.dumps(checkpoint_list(chapters), indent=2) + "\n")
     full_run = len(chapters) == chapters_in_run
