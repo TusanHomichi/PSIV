@@ -103,11 +103,20 @@ the dialogue window so scene text can remain visible once it opens.
 At scene end, the retail composition fades out through **10685**, reaches
 black at **10686**, and holds through **10734**. The map load boundary is
 frame **10693**. The reverse ramp starts at **10735**, advances every two
-frames, and is full at **10747**; field mode resumes at **10748**. The renderer
-therefore starts `SceneEnd` at the runtime `SceneEnded` boundary with **42
-black-hold frames and a 13-frame reverse ramp**. This is the correct seam for
-the Godot runtime: the pre-10693 fade is the retail scene's `InitVramAndCram`
-work, which the runtime deliberately exposes only as the scene boundary.
+frames, and is full at **10747**; field mode resumes at **10748**. That is
+`FieldRoutine_Cutscene`'s zero return running `GameMode_LoadFieldMap`
+(`docs/scenes/FIELD_RELOAD.md`): 55 frames from the load boundary to control,
+42 black and the 13-step ramp of `Pal_FadeIn`'s 16. The pre-10693 fade is the
+retail scene's `InitVramAndCram` work, which the runtime deliberately exposes
+only as the scene boundary.
+
+The runtime owns those frames and the shell draws only what it emits: one
+`PresentationOp::FieldReload { setup, fade }` where the load begins, drawn as a
+single `SceneFadeIn` of `setup + fade` frames (black, then the ramp), and
+`SceneEnded` on the frame control returns. The shell's old `SceneEnd` stand-in
+(a fixed 55-frame cover started at `SceneEnded`) is retired; it would have
+blacked the screen out a second time. For the principal `setup` is 39 and
+`fade` 16, which is the 42 + 13 above.
 
 The ordinary Alys interaction is different: it has the retail dialogue-window
 open/close treatment (small window around 7175, full window by 7190, closing
