@@ -457,6 +457,16 @@ pub static ZIO_DEFEATED: Scene = Scene {
         SceneOp::WriteMapChunks {
             chunks: &[(26, 45, 0x3F)],
         },
+        // The routine's last act: `moveq #EventFlag_MotaSpaceport, d0 / jmp
+        // EventFlags_Set` (`ps4.asm:144825-144826`). It comes before the
+        // cutscene's second `RefreshMap`, which therefore loads the map with
+        // the `$66` page hook active; set only at the scene's end, that load
+        // rebuilt the map without the door (collision type 1 at (52..53,
+        // 90..91)) until a battle's reload fixed it by luck.
+        SceneOp::SetFlag {
+            flag: Flag::event(0x66),
+            value: true,
+        },
         // `$075D84`: the Motavia aftermath speaks tree 36, which the routine
         // loads unguarded after `Event_MotaSpaceportAppearing` (revision
         // independent, so it is a plain transcription gap rather than a

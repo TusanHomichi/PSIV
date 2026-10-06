@@ -31,6 +31,18 @@
 //! battle) is fought. The Alshline chapters name it: their party is far below
 //! the basement's weight.
 //!
+//! # `train_with_inn` and `bioplant_survival`
+//!
+//! Both are for a party that is under-levelled for where it stands, and both
+//! exist because the cartridge's random draws are one stream: any frame the
+//! runtime spends or saves anywhere moves every later encounter, so a route
+//! that survives only on one stream is not a route. `bioplant_survival` runs
+//! from every random encounter, as `run_unless_boss` does. `train_with_inn`
+//! fights, because a training patrol exists to win fights, and retreats once a
+//! party member has fallen or a living one is below [`RETREAT_PERCENT`] of
+//! their HP: the inn or the house that follows the patrol cures what a
+//! retreat leaves, and a wiped party cures nothing.
+//!
 //! # Route names
 //!
 //! The route files name nine names. `run_unless_boss` is its own behaviour;
@@ -38,9 +50,8 @@
 //! [`crate::policy_boss`] (the second runs from random encounters);
 //! `psycho_wand_then_win` is `run_then_win` with an item used in the first
 //! player-command round of a scripted battle ([`crate::policy_opening`]);
-//! `attack_all`, `heal_then_attack`, `train_with_inn` and `bioplant_survival`
-//! resolve to `default` (the walk, the patrol and the inn they were named for
-//! are route objectives, not battle decisions). A route that needs another
+//! `attack_all` and `heal_then_attack` resolve to `default` (the walk and the
+//! patrol they were named for are route objectives, not battle decisions). A route that needs another
 //! behaviour gets a type here first.
 
 use crate::policy_boss::BossPolicy;
@@ -50,6 +61,10 @@ use psiv_runtime::{CommandMenuView, PartyStatus, Runtime};
 
 /// A member below this share of their maximum HP is hurt enough to heal.
 pub const HURT_PERCENT: u32 = 50;
+
+/// A living member below this share of their maximum HP makes `train_with_inn`
+/// leave a random encounter.
+pub const RETREAT_PERCENT: u32 = 33;
 
 /// What one actor chooses to do.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,6 +119,12 @@ pub trait Policy {
         false
     }
 
+    /// [`Policy::wants_run`], asked on the main options with the party strip in
+    /// view, for a policy whose answer depends on how the party stands.
+    fn wants_run_with(&self, boss: bool, _party: &[PartyStatus]) -> bool {
+        self.wants_run(boss)
+    }
+
     /// Whether the party is cured through the camp after each battle
     /// (`recovery.rs`).
     fn recovers(&self) -> bool {
@@ -124,8 +145,8 @@ pub const NAMES: [(&str, &str); 9] = [
     ("fight_to_win", "fight_to_win"),
     ("run_then_win", "run_then_win"),
     ("psycho_wand_then_win", "psycho_wand_then_win"),
-    ("train_with_inn", "default"),
-    ("bioplant_survival", "default"),
+    ("train_with_inn", "train_with_inn"),
+    ("bioplant_survival", "bioplant_survival"),
 ];
 
 /// The policy a route names, or `None` for a name nobody defines.
@@ -139,8 +160,12 @@ pub fn by_name(name: &str) -> Option<Box<dyn Policy>> {
             "psycho_wand_then_win",
             crate::policy_opening::PSYCHO_WAND,
         )),
-        "run_unless_boss" => Box::new(DefaultPolicy {
+        "run_unless_boss" | "bioplant_survival" => Box::new(DefaultPolicy {
             run_encounters: true,
+            ..DefaultPolicy::default()
+        }),
+        "train_with_inn" => Box::new(DefaultPolicy {
+            retreat: true,
             ..DefaultPolicy::default()
         }),
         _ => Box::new(DefaultPolicy::default()),
@@ -179,6 +204,9 @@ pub struct DefaultPolicy {
     healed_this_round: bool,
     /// Run from random encounters instead of fighting them.
     run_encounters: bool,
+    /// Run from a random encounter once a member has fallen or a living one is
+    /// below [`RETREAT_PERCENT`].
+    retreat: bool,
 }
 
 fn alive(member: &PartyStatus) -> bool {
@@ -304,6 +332,15 @@ impl Policy for DefaultPolicy {
         self.run_encounters && !boss
     }
 
+    fn wants_run_with(&self, boss: bool, party: &[PartyStatus]) -> bool {
+        self.wants_run(boss)
+            || (self.retreat
+                && !boss
+                && party
+                    .iter()
+                    .any(|m| !alive(m) || hurt_below(m, RETREAT_PERCENT)))
+    }
+
     fn end_round(&mut self) {
         self.current = None;
         self.healed_this_round = false;
@@ -361,6 +398,28 @@ mod tests {
             most_hurt_targetable(&[dead, member(2, 90, 100)], &[FighterId::new(1).unwrap()]),
             None
         );
+    }
+
+    /// `train_with_inn` fights a healthy party, and leaves once a member has
+    /// fallen or a living one is under a third; a boss is never left, and
+    /// `bioplant_survival` runs from every random encounter.
+    #[test]
+    fn the_survival_policies_retreat_when_the_party_cannot_win() {
+        let healthy = [member(1, 100, 100), member(2, 40, 100)];
+        let low = [member(1, 100, 100), member(2, 32, 100)];
+        let mut dead = member(2, 0, 100);
+        dead.status = status::DEAD;
+        let fallen = [member(1, 100, 100), dead];
+        let training = by_name("train_with_inn").unwrap();
+        assert!(!training.wants_run_with(false, &healthy));
+        assert!(training.wants_run_with(false, &low));
+        assert!(training.wants_run_with(false, &fallen));
+        assert!(!training.wants_run_with(true, &fallen), "a boss is fought");
+        let survival = by_name("bioplant_survival").unwrap();
+        assert!(survival.wants_run_with(false, &healthy));
+        assert!(!survival.wants_run_with(true, &healthy));
+        // The plain policy never runs, whatever the strip shows.
+        assert!(!by_name("default").unwrap().wants_run_with(false, &fallen));
     }
 
     #[test]

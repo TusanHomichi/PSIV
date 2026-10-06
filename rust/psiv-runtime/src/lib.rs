@@ -48,6 +48,9 @@ mod scene_control;
 mod scene_map;
 #[cfg(test)]
 mod scene_map_tests;
+mod scene_return;
+#[cfg(test)]
+mod scene_return_tests;
 mod scene_runtime;
 mod session;
 mod shop;
@@ -236,6 +239,11 @@ pub struct Runtime {
     /// `SetFollowMode` bit 2: the scene has locked the camera (the walk
     /// off-screen in the opening). Cleared when a scene installs or ends.
     scene_camera_locked: bool,
+    /// The value the running scene's `Return` produced (`d0`), read when it
+    /// finishes (`scene_return.rs`).
+    scene_returned: Option<u16>,
+    /// A zero-returning cutscene's field reload, counting down to control.
+    scene_tail: Option<scene_return::ReturnTail>,
 }
 
 /// See [`Runtime::scene_move_camera`].

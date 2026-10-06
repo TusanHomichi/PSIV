@@ -28,7 +28,7 @@ impl SceneRunner {
         effects: &mut Vec<SceneEffect>,
     ) -> Option<SceneFault> {
         match op {
-            SceneOp::FlightPlanet | SceneOp::FlightFieldReload => {
+            SceneOp::FlightPlanet => {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
                 self.blocked = Blocked::Map;
@@ -42,10 +42,6 @@ impl SceneRunner {
                 effects.push(SceneEffect::Presentation { op });
                 self.pc += 1;
                 self.blocked = Blocked::Ticks(frames);
-            }
-            SceneOp::FlightArrivalName => {
-                effects.push(SceneEffect::Presentation { op });
-                self.pc += 1;
             }
             SceneOp::MoveActor { actor, to } => {
                 let Some(walker) = self.actor_mut(actor) else {

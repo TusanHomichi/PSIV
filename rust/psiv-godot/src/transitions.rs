@@ -18,8 +18,6 @@ pub(crate) enum TransitionKind {
     /// Cutscene initialization: fade to black and hold until the scene's
     /// first presentation window is ready.
     SceneStart,
-    /// Cutscene return: start black and reveal the field in the retail ramp.
-    SceneEnd,
     /// The title hand-off's centered screen wipe.  The Godot field has no
     /// title plane, so this is used as a matching black-to-field reveal.
     GameStart,
@@ -74,10 +72,6 @@ impl Transition {
         }
     }
 
-    pub(crate) fn kind(self) -> TransitionKind {
-        self.kind
-    }
-
     /// Advances one renderer frame. Returns true once the measured sequence
     /// has completed.
     pub(crate) fn tick(&mut self) -> bool {
@@ -99,7 +93,6 @@ impl Transition {
             TransitionKind::Doorway => self.doorway_visual(),
             TransitionKind::BattleEntry => self.battle_visual(),
             TransitionKind::SceneStart => self.scene_start_visual(),
-            TransitionKind::SceneEnd => self.scene_end_visual(),
             TransitionKind::GameStart => self.game_start_visual(),
             TransitionKind::SceneFadeIn => self.scene_fade_in_visual(),
             TransitionKind::SceneFadeOut => self.scene_fade_out_visual(),
@@ -126,7 +119,6 @@ impl Transition {
             TransitionKind::Doorway => 80,
             TransitionKind::BattleEntry => 56,
             TransitionKind::SceneStart => 37,
-            TransitionKind::SceneEnd => 55,
             TransitionKind::GameStart => 18,
             TransitionKind::SceneFadeIn | TransitionKind::SceneFadeOut => 14,
         }
@@ -167,18 +159,6 @@ impl Transition {
             0 => PALETTE_LEVELS,
             1..=13 => step_up(self.age),
             14..=36 => PALETTE_LEVELS,
-            _ => return None,
-        };
-        Some(black(level))
-    }
-
-    fn scene_end_visual(self) -> Option<TransitionVisual> {
-        if self.finished() {
-            return None;
-        }
-        let level = match self.age {
-            0..=41 => PALETTE_LEVELS,
-            42..=54 => step_down(self.age - 41),
             _ => return None,
         };
         Some(black(level))
@@ -298,17 +278,31 @@ mod tests {
         assert_eq!(start.visual().unwrap().level, 7);
         age_to(&mut start, 24);
         assert!(start.finished());
+    }
 
-        let mut end = Transition::new(TransitionKind::SceneEnd);
-        assert_eq!(end.visual().unwrap().level, 7);
-        age_to(&mut end, 41);
-        assert_eq!(end.visual().unwrap().level, 7);
-        age_to(&mut end, 1);
-        assert_eq!(end.visual().unwrap().level, 6);
-        age_to(&mut end, 12);
-        assert_eq!(end.visual().unwrap().level, 0);
-        age_to(&mut end, 1);
-        assert!(end.finished());
+    /// A cutscene's return blacks the screen out once: the runtime's
+    /// `FieldReload { setup, fade }` is one `SceneFadeIn` of `setup + fade`
+    /// frames. The principal's retail return is 55 mode-8 frames, black
+    /// through 10734 and a 13-frame ramp to full at 10747 (docs/field/
+    /// TRANSITIONS_DECODED.md); the fade's 16 frames end in that ramp.
+    #[test]
+    fn a_cutscene_return_is_one_black_hold_then_one_ramp() {
+        let mut ret = Transition::with_frames(TransitionKind::SceneFadeIn, 39 + 16);
+        let mut levels = vec![ret.visual().unwrap().level];
+        while !ret.tick() {
+            levels.push(ret.visual().map_or(0, |visual| visual.level));
+        }
+        assert_eq!(levels.len(), 55, "the return spends the measured frames");
+        assert!(levels[..42].iter().all(|&level| level == 7), "black hold");
+        assert_eq!(levels[42], 6, "first ramp step");
+        assert_eq!(levels[54], 0, "clear on the last frame");
+        let ramp = &levels[42..];
+        assert!(ramp.windows(2).all(|pair| pair[1] <= pair[0]), "{ramp:?}");
+        let darkest_again = levels[43..].iter().position(|&level| level == 7);
+        assert_eq!(
+            darkest_again, None,
+            "no second blackout after the ramp starts"
+        );
     }
 
     #[test]

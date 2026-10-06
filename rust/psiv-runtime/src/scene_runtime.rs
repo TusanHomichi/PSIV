@@ -153,6 +153,11 @@ impl Runtime {
     /// One tick of a running scene: feed any pending input, translate the
     /// effects, close out the scene when the runner finishes.
     pub(crate) fn scene_tick(&mut self, input: Input) -> Vec<RuntimeEvent> {
+        // A cutscene that returned zero is past its last op: the cartridge is
+        // in `GameMode_LoadFieldMap`, and the scene only waits out its frames.
+        if self.scene_tail.is_some() {
+            return self.tick_scene_tail();
+        }
         let camera_arrived = self
             .scene
             .as_ref()
@@ -181,23 +186,37 @@ impl Runtime {
         }
         self.tick_scene_camera();
         if finished {
-            let actors: Vec<_> = (0..self.party.len())
-                .filter_map(|slot| self.scene_party_actor(slot).copied())
-                .collect();
-            if let Err(error) = self.party.resume_scripted(&self.map, &actors) {
-                events.push(RuntimeEvent::MapRefreshFailed {
-                    error: error.to_string(),
-                });
+            self.resume_party_from_scene(&mut events);
+            if !self.begin_cutscene_return(&mut events) {
+                self.end_scene(&mut events);
             }
-            self.scene = None;
-            self.boarding_body = None;
-            self.scene_camera_locked = false;
-            self.scene_triggers_pending = true;
-            self.scene_tree_address = None;
-            self.scene_panel_sprites = false;
-            events.push(RuntimeEvent::SceneEnded);
         }
         events
+    }
+
+    /// Hands the party back to the field at the scene's last scripted
+    /// positions.
+    pub(crate) fn resume_party_from_scene(&mut self, events: &mut Vec<RuntimeEvent>) {
+        let actors: Vec<_> = (0..self.party.len())
+            .filter_map(|slot| self.scene_party_actor(slot).copied())
+            .collect();
+        if let Err(error) = self.party.resume_scripted(&self.map, &actors) {
+            events.push(RuntimeEvent::MapRefreshFailed {
+                error: error.to_string(),
+            });
+        }
+    }
+
+    /// The scene is over: the runner and its scene-only state go, and the
+    /// field takes the next frame.
+    pub(crate) fn end_scene(&mut self, events: &mut Vec<RuntimeEvent>) {
+        self.scene = None;
+        self.boarding_body = None;
+        self.scene_camera_locked = false;
+        self.scene_triggers_pending = true;
+        self.scene_tree_address = None;
+        self.scene_panel_sprites = false;
+        events.push(RuntimeEvent::SceneEnded);
     }
 
     /// The camera latch, driven by the scripted leader.
@@ -554,14 +573,6 @@ impl Runtime {
                             x_then_y: true,
                         });
                     }
-                    SceneOp::FlightFieldReload => {
-                        // The cutscene return's VInt plus the ordinary field
-                        // reload up to Pal_FadeIn (tape 35 CPU stacks).
-                        let frames = if self.map.id().0 == 0x18D { 36 } else { 26 };
-                        if let Some(runner) = self.scene.as_mut() {
-                            runner.delay_frames(frames);
-                        }
-                    }
                     SceneOp::PlayMusicIfSavedDifferent { id } => {
                         // All three boarding events compare the persistent
                         // word, then write Sound_Index and Saved_Sound_Index
@@ -691,13 +702,11 @@ impl Runtime {
                 actor: ActorRef::PartyMember(_) | ActorRef::Character(_),
                 ..
             } => {}
-            // The runner reports these edges for its own bookkeeping: the
-            // scene's value is read when it finishes, the purse is already
-            // written to `GameState`, and `Finished` is handled by
-            // `scene_tick` through `is_finished`.
-            SceneEffect::Returned { .. }
-            | SceneEffect::MoneyChanged { .. }
-            | SceneEffect::Finished => {}
+            // The scene's `d0` is read when it finishes (`scene_return.rs`),
+            // the purse is already written to `GameState`, and `Finished` is
+            // handled by `scene_tick` through `is_finished`.
+            SceneEffect::Returned { value } => self.scene_returned = Some(value),
+            SceneEffect::MoneyChanged { .. } | SceneEffect::Finished => {}
             // The runner emits `MapRequested` for exactly the three ops
             // handled above. Any other op is a runner bug, and it must not be
             // swallowed: the scene would wait on the map-load barrier forever.

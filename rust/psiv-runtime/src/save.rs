@@ -199,6 +199,8 @@ pub(super) fn construct_runtime(
         saved_party_slots: None,
         camera_glide: None,
         scene_camera_locked: false,
+        scene_returned: None,
+        scene_tail: None,
     };
     runtime.sync_vehicle_selector()?;
     runtime.apply_travel_entry();

@@ -4,7 +4,7 @@
   `loc_63BC4` (`ps4.asm:133499-133726`) and the flight routines it calls.
 - **Pointer:** `CutscenePtrs[$0D]` at `$05A580`; scene event `$800D`.
 - **Dispatch:** `RunEventsJmpTbl[$21/$23/$24/$25]`, see [Callers](#callers).
-- **Data:** `rust/psiv-core/src/scenes/flight.rs`, `INSIDE_SPACESHIP_ROUTE` (48 ops,
+- **Data:** `rust/psiv-core/src/scenes/flight.rs`, `INSIDE_SPACESHIP_ROUTE` (44 ops,
   `INSIDE_SPACESHIP` in `post_zio_cutscenes.rs` is those ops). The menu window is
   the session's destination mode, `rust/psiv-runtime/src/session/destination.rs`.
 - **Pack:** `ship_menu/` (`psiv_tools/ship_menu_pack.py`): the strings, the
@@ -93,6 +93,15 @@ resolve the caption pointer and mode.
 | ordinary field fade in | `GameMode_LoadFieldMap`, `Pal_FadeIn` | 16 | 16 |
 | place-name window to field control | `FieldRoutine_PlaceName`, `:136552-136646`, timer `$78` plus draw/teardown DMA | 124 | 124 |
 | **confirm to field control** | first `Game_Mode=$0C`, `Game_Mode_Routine=0` after landing | **1,861** | **1,596** |
+
+The last three rows (return VInt and reload preparation, fade-in, place-name
+window) are not flight-specific: they are `FieldRoutine_Cutscene`'s zero return
+through `GameMode_LoadFieldMap` and `FieldRoutine_PlaceName`, which every
+cutscene takes. The port runs them as that general reload, with the `$18D` and
+`$BF` counts above as two rows of the per-map table
+([`FIELD_RELOAD.md`](FIELD_RELOAD.md)): 35 + 16 and 25 + 16 frames from the
+return's VInt, and the 124-frame window because the travel table names both
+landings. The scene ends at the landing's `LoadFlightMap` and `Return { value: 0 }`.
 
 `RefreshMap`, VRAM initialization and caption generation are CPU/decompression/
 DMA work; the disassembly does not give them a constant VInt count. The table's

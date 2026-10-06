@@ -481,20 +481,12 @@ impl Field {
     /// Advances transitions even while the battle presentation owns the
     /// normal runtime tick.
     pub(super) fn tick_transition(&mut self) {
-        let finished_kind = self
+        let finished = self
             .transition
             .as_mut()
-            .and_then(|transition| transition.tick().then_some(transition.kind()));
-        if let Some(kind) = finished_kind {
+            .is_some_and(|transition| transition.tick());
+        if finished {
             self.transition = None;
-            if kind == TransitionKind::SceneEnd {
-                self.set_letterbox(false);
-                // Every transcribed scene refreshes the map before its end,
-                // but a scene that faulted mid-blank must not strand a
-                // hidden field or hidden actors.
-                self.set_field_map_visible(true);
-                self.presentation.set_vram_blanked(false);
-            }
         }
         self.sync_transition();
     }

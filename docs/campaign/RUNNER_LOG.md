@@ -14,6 +14,8 @@ those of Zelan to Dezolis (C5, H28, and S7's H29 to H31 on the way to the Hangar
 those of the Hangar to Dark Force 1 (C6, H32 to H35) in [RUNNER_LOG_KURAN.md](RUNNER_LOG_KURAN.md)
 and those of the Ice Digger arc, Zelan to the Air Castle (C7, H36 to H44), in
 [RUNNER_LOG_ICEDIGGER.md](RUNNER_LOG_ICEDIGGER.md);
+S8's cutscene-return reload and the halts it exposed (H45, H46) are in
+[RUNNER_LOG_RELOAD.md](RUNNER_LOG_RELOAD.md);
 this file keeps the current state, the early runs, the halts H1 to H22 and the integration
 receipts.
 
@@ -23,6 +25,13 @@ a fix lane or an issue; the runner never fixes a port defect and never adds a
 shortcut, a state edit or a skip to get past one.
 
 ## Current state
+
+**S8 (2026-10-06, base `1b01ee7`): the route completes again with the cutscene-return reload modelled.**
+Two full runs from New Game: exit 0, 50 chapters, **3,852,511 frames**, digest `29c81ae27664b15b`,
+identical tapes, replay reproduces the digest ([S8 runs](RUNNER_LOG_RELOAD.md#s8-runs)). The
+digest moved because every zero-returning cutscene now spends its retail reload frames and the
+random stream moved with them; two runner policies and one scene flag order changed to survive that
+(H45, H46). The C7 paragraph below is the state before it.
 
 **C7 (2026-10-04, base `20f22e6`): the route reaches the Air Castle** (50 chapters; seven new:
 `dezolis-ice-digger`, `meese-raja-sick`, `dezolis-saving-kyra`, `esper-mansion`,

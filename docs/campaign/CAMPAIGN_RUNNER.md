@@ -173,9 +173,17 @@ eligible target below half HP with a healing technique, or failing that a
 healing item. Both use the core target lists that build the command menu;
 `run_unless_boss` runs from random encounters and fights scripted battles.
 After a battle the party is cured through the camp (`recovery.rs`). Losing is a
-halt. `attack_all`, `heal_then_attack`, `train_with_inn` and
-`bioplant_survival` resolve to the default policy; a route that needs another
-behaviour gets a type in `policy.rs` first.
+halt. `attack_all` and `heal_then_attack` resolve to the default policy; a
+route that needs another behaviour gets a type in `policy.rs` first.
+
+`bioplant_survival` runs from every random encounter, like `run_unless_boss`.
+`train_with_inn` fights and retreats (RUN) once a member has fallen or a living
+one is under a third of their HP, so the inn that ends a training patrol cures
+a party and does not find a dead one. Both exist because the cartridge's random
+draws are one stream: any frame the runtime spends or saves anywhere moves
+every later encounter (the cutscene-return reload,
+[`FIELD_RELOAD.md`](../scenes/FIELD_RELOAD.md), moved all of them), and a route
+that survives on only one stream is not a route.
 
 `fight_to_win` and `run_then_win` (`policy_boss.rs`) are what a player does
 against a boss, which the default policy loses to: the most hurt eligible member

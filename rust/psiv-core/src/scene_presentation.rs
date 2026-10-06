@@ -20,6 +20,23 @@ pub enum PresentationAsset {
 /// One renderer-owned operation preserved by a scene transcription.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PresentationOp {
+    /// `FieldRoutine_Cutscene`'s zero return reaching `GameMode_LoadFieldMap`
+    /// (`ps4.asm:120745-120746`, `:107505-107635`): the scene is over for the
+    /// renderer, the field map is loaded under black, and `Pal_FadeIn`
+    /// reveals it. The runtime owns the frames and emits this op once, where
+    /// the reload begins; the renderer draws nothing else for the return.
+    FieldReload {
+        /// Black frames before the fade: the return's VInt and the map-load
+        /// work, measured per map (`scenes::field_reload`).
+        setup: u16,
+        /// `Pal_FadeIn`'s frames, 16, or 0 when `Map_Load_Flags` bit 7 skipped
+        /// it (`ps4.asm:107628`).
+        fade: u16,
+    },
+    /// `FieldRoutine_PlaceName`'s window, up for the retail 124 frames
+    /// (`ps4.asm:136552-136646`) when the travel table names the pair
+    /// (`Field_Map_Index`, `Field_Map_Index_2`).
+    PlaceNameWindow,
     /// Hide or show a party sprite while a scene-owned object replaces it.
     SetCharacterVisible {
         /// Character id, independent of party order.
