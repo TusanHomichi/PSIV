@@ -58,5 +58,7 @@ pub mod tape;
 pub mod validate;
 pub mod walk;
 
-pub use cell_plan::{CellPlan, CellPlanError, Flood, Goal, Mover, plan_cells, plan_cells_for};
+pub use cell_plan::{
+    CellPlan, CellPlanError, Flood, Goal, Mover, held_by_npc, plan_cells, plan_cells_for,
+};
 pub use map_plan::{Hop, Leg, MapGraph, Plan, PlanError, Position, Target};

@@ -28,6 +28,9 @@ pub enum Opened {
     Chest,
 }
 
+/// Walks toward a talk target before giving up on one that keeps moving off.
+const TALK_REPLANS: u32 = 8;
+
 impl Driver {
     /// Walks next to object `npc` of the current map, faces it and presses
     /// Speak.
@@ -36,15 +39,27 @@ impl Driver {
     ///
     /// [`HaltKind::WrongObject`] for an object that does not exist, one the
     /// press did not reach, or a press that reached nothing;
-    /// [`HaltKind::Unreachable`] when no cell next to it can be reached.
+    /// [`HaltKind::Unreachable`] when no cell next to it can be reached;
+    /// [`HaltKind::Stuck`] when the object keeps moving off while the party
+    /// walks to it.
     pub fn talk_to(&mut self, npc: usize) -> Res<Opened> {
         self.settle(false)?;
-        let (stand, face) = self.standing_place(npc)?;
-        self.go_to(self.map(), stand)?;
-        self.face(face)?;
-        self.press_speak()?;
-        let opened = self.read_opened(Some(npc))?;
-        Ok(opened)
+        for _ in 0..TALK_REPLANS {
+            let (stand, face) = self.standing_place(npc)?;
+            self.go_to(self.map(), stand)?;
+            // A wanderer can move while the party walks to it: press only when
+            // the party still stands where it faces the object, and otherwise
+            // plan again from here. Planning ticks no frame.
+            if self.standing_place(npc)? == (self.cell(), face) {
+                self.face(face)?;
+                self.press_speak()?;
+                return self.read_opened(Some(npc));
+            }
+        }
+        Err(Halt::new(
+            HaltKind::Stuck,
+            format!("object {npc} moved off {TALK_REPLANS} times while the party walked to it"),
+        ))
     }
 
     /// Where to stand, and which way to face, to talk to object `npc`: the

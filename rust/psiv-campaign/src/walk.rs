@@ -11,7 +11,7 @@
 use psiv_core::{Cell, Direction, Flag};
 use psiv_runtime::{Button, Runtime};
 
-use crate::cell_plan::{Flood, Goal, Mover, plan_cells_for};
+use crate::cell_plan::{CellPlanError, Flood, Goal, Mover, held_by_npc, plan_cells_for};
 use crate::driver::{Driver, dir_pad};
 use crate::exec::{Memory, execute};
 use crate::field::Settled;
@@ -28,6 +28,10 @@ const REPLAN_LIMIT: u32 = 2_000;
 
 /// Neutral frames spent waiting for whatever blocked a step to move on.
 const BLOCKED_WAIT: u32 = 6;
+/// Neutral frames a `go_to` waits, in all, for an NPC standing on its goal to
+/// move on before it halts as stuck: ten seconds, longer than a wanderer
+/// pauses between steps.
+const HELD_GOAL_WAIT_LIMIT: u32 = 600;
 
 impl Driver {
     /// The standing cell.
@@ -60,6 +64,7 @@ impl Driver {
     /// the party cannot move, or a halt from a frame.
     pub fn go_to(&mut self, map: u16, target: Cell) -> Res {
         let mut stalled = 0;
+        let mut held_wait = 0;
         let began_on_target_map = self.map() == map;
         let scenes_before = self.scenes_ended();
         for _ in 0..REPLAN_LIMIT {
@@ -82,14 +87,34 @@ impl Driver {
                 return Ok(());
             }
             let steps = if here.0 == map {
-                let plan = plan_cells_for(
+                match plan_cells_for(
                     self.runtime().map(),
                     self.mover(),
                     here.1,
                     Goal::Cell(target),
-                )
-                .map_err(|e| unreachable_halt(map, target, &e.to_string()))?;
-                plan.steps
+                ) {
+                    Ok(plan) => plan.steps,
+                    // A wanderer stepped onto the goal itself. It moves on, as
+                    // one in the way does: wait for it, up to a limit, so a
+                    // goal held for good still halts.
+                    Err(CellPlanError::GoalNotWalkable(_))
+                        if held_by_npc(self.runtime().map(), target) =>
+                    {
+                        if held_wait >= HELD_GOAL_WAIT_LIMIT {
+                            return Err(Halt::new(
+                                HaltKind::Stuck,
+                                format!(
+                                    "an NPC has stood on the goal ({},{}) for {held_wait} frames",
+                                    target.x, target.y
+                                ),
+                            ));
+                        }
+                        self.neutral(BLOCKED_WAIT)?;
+                        held_wait += BLOCKED_WAIT;
+                        continue;
+                    }
+                    Err(e) => return Err(unreachable_halt(map, target, &e.to_string())),
+                }
             } else {
                 self.first_leg(Target::Cell { map, cell: target })?
             };
