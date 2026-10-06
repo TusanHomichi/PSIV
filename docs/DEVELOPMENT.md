@@ -132,7 +132,12 @@ process has the debug PSIV extension mapped
 is a separate entry point, `python3 tools/certify.py` (Godot, Xvfb and
 the local oracle frames required; pairs and doctrine in
 [scene presentation](scenes/SCENE_PRESENTATION.md)); run it for any change to
-Godot-visible paths and report it apart from the gate. Reporting a gate result means
+Godot-visible paths and report it apart from the gate. An integration candidate
+is verified as a whole by `python3 tools/verify_candidate.py --expect-digest <hex>
+--expect-chapters <n>` on a clean tree: the release campaign route against the
+expected digest and chapter count, then certify under the shared heavy lock
+(`PSIV_HEAVY_LOCK`, default `build/continuation-heavy.lock`), then the gate, with
+one receipt under `build/candidate/`. Reporting a gate result means
 those commands; a subset, a different `CARGO_BUILD_JOBS`, parallel test threads
 or a per-crate run is a focused check and is reported as one. The gate does not
 cover:
