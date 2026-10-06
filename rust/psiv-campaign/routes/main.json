@@ -900,6 +900,140 @@
       "closing": [
         {"map": 398, "cell": [31, 17], "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x83", "event:0x89"]}
       ]
+    },
+    {
+      "id": "dezolis-ice-digger",
+      "title": "Zelan F1 to Dezolis: the elevator, the ship, and the Ice Digger boarded",
+      "source": "docs/scenes/48_DarkForce1Defeated.md (the party stands on Zelan F1 (31,17) with $89 set and the Ice Digger $97 in the pack); docs/scenes/41_InsideSpaceship.md and runtime-pack/ship_menu (the Zelan boarding row 48 and the destination mask $D8 once $82 is set: Motavia, Dezolis, Zelan, Kuran); rust/psiv-runtime/src/item_action.rs (ItemAction_IceDigger, ps4.asm:123436-123448: Vehicle_Boarding_Flags bit 1, set on plain ground)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "interact", "cell": [30, 50], "face": "up", "opens": [[30, 49], [31, 49]], "note": "F1's elevator door back down (type-2 area (30..31,49)), as in zelan-sabotage"},
+        {"do": "go_to_map", "map": 397, "via_warp": 0, "note": "Zelan $18D by F1 warp 0"},
+        {"do": "go_to", "map": 397, "cell": [30, 47], "note": "to the cell above row 48, the boarding row"},
+        {"do": "board", "step": "down", "to": 1, "note": "the step onto row 48 opens the destination menu; Dezolis is its second row; the flight lands at the Dezo spaceport $0D4 (30,21)"},
+        {"do": "go_to_map", "map": 1, "note": "the spaceport's door to Dezolis, arriving on the door tile (12,73)"},
+        {"do": "go_to", "map": 1, "cell": [10, 73], "note": "a step off the door tile: raw collision 1 is the map-change tile, where no machine boards"},
+        {"do": "use_item", "item": "ICE-DIGGER", "target": "Chaz", "note": "ITEM, ICE-DIGGER: ItemAction_IceDigger accepts on plain ground and the field runs Event_BoardingIceDigger ($0A)"},
+        {"do": "expect", "map": 1, "cell": [10, 73], "vehicle": 2, "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "note": "Event_BoardingIceDigger ran: Vehicle_Index 2"}
+      ],
+      "closing": [
+        {"map": 1, "cell": [10, 73], "vehicle": 2, "party": ["Chaz", "Rika", "Rune", "Wren", "Raja"], "flags_set": ["event:0x82", "event:0x89"]}
+      ]
+    },
+    {
+      "id": "meese-raja-sick",
+      "title": "Meese: the clinic's second floor and Cutscene_RajaSick",
+      "source": "docs/scenes/88_RetailBoundaries.md (Cutscene_RajaSick $8012, tree 18 entry 100, which the doctor on MeeseClinic_F1 $134 (object 2, dialogue 100) speaks); runtime-pack/maps/12D_Meese.json (the Dezolis overworld's warp 3 at (146,52)) and 133_MeeseClinic.json (warp 1 up the stairs)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 301, "note": "Meese $12D by Dezolis warp 3 (146,52); the Ice Digger parks at the town's map load"},
+        {"do": "expect", "map": 301, "vehicle": 0, "note": "the map load parked the Ice Digger"},
+        {"do": "go_to_map", "map": 307, "note": "the clinic $133 by the town's door"},
+        {"do": "go_to_map", "map": 308, "note": "the clinic's second floor $134"},
+        {"do": "go_to", "map": 308, "cell": [34, 29], "note": "beside the doctor at (35,29)"},
+        {"do": "talk", "npc": 2, "note": "object 2, dialogue 100: $F6 $8012, Cutscene_RajaSick; Raja collapses and the scene sets $94, removes him from the party and reloads the floor at ($34,$38)"},
+        {"do": "expect", "map": 308, "cell": [26, 29], "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0x94"], "note": "the cutscene ran: Raja out of the party, $94 set"}
+      ],
+      "closing": [
+        {"map": 308, "cell": [26, 29], "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0x94"]}
+      ]
+    },
+    {
+      "id": "dezolis-saving-kyra",
+      "title": "Dezolis: the carnivorous trees, Event_SavingKyra and Cutscene_MeetingKyra",
+      "source": "docs/scenes/54_SavingKyra.md (Event_SavingKyra $4D: RunEvent_CarnivorousTrees $35, ps4.asm:115977, with Raja sick $94 and the trees $95 clear) and docs/scenes/55_MeetingKyra.md (Cutscene_MeetingKyra $8013: trees fought, Kyra not joined); runtime-pack/maps/001_Dezolis.json (the trees' corridor (186..187,12..13) below warp 13 into the Garuberk Tower)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 307, "note": "back down the clinic stairs to $133"},
+        {"do": "go_to_map", "map": 301, "note": "Meese $12D"},
+        {"do": "go_to_map", "map": 1, "note": "Dezolis, on the door tile of warp 3"},
+        {"do": "go_to", "map": 1, "cell": [146, 50], "note": "open ground above the door: raw collision 0"},
+        {"do": "use_item", "item": "ICE-DIGGER", "target": "Chaz", "note": "the machine parked at the town's map load: board again"},
+        {"do": "expect", "vehicle": 2, "note": "Event_BoardingIceDigger"},
+        {"do": "go_to", "map": 1, "cell": [186, 15], "note": "the cell below the trees' corridor, on the Ice Digger's lattice"},
+        {"do": "step_onto", "map": 1, "cell": [186, 13], "note": "the trigger row: RunEvent_CarnivorousTrees fires at x $BA0..$BB0, y <= $C0 (row 13). A go_to would plan again from where the scene leaves the party and fire it twice"},
+        {"do": "fight_scripted", "note": "event battle 10: the carnivorous trees (won); Cutscene_MeetingKyra follows at once (trees $95 set, Kyra not joined)"},
+        {"do": "expect", "map": 1, "cell": [186, 15], "vehicle": 2, "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x94", "event:0x95", "event:0xa0"], "note": "Kyra in slot 5, $95 and $A0 set, the Ice Digger mounted at ($174,$1C)"}
+      ],
+      "closing": [
+        {"map": 1, "cell": [186, 15], "vehicle": 2, "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x94", "event:0x95", "event:0xa0"]}
+      ]
+    },
+    {
+      "id": "esper-mansion",
+      "title": "Esper Mansion: the door guards, the inner guards and the courtyard",
+      "source": "docs/scenes/99_EsperGuardPermission.md (Event_EsperGuardPermission $4F: the trees fought, $95, opens the door with entry 1 and sets temp flag $1A) and docs/scenes/100_PersistentEsperGuards.md (Event_PersistentEsperGuards $45 sets $96); runtime-pack/maps/166_EspMansionEntrance.json .. 16D_EspMansionCourtyard.json (the inner guards stand on the courtyard door row (47..48,20) of EspMansionNorth, which the hall's two corridors reach only by the east warp)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 358, "note": "the Esper Mansion's entrance $166, by Dezolis warp 10"},
+        {"do": "expect", "map": 358, "vehicle": 0, "note": "the map load parked the Ice Digger"},
+        {"do": "go_to", "map": 358, "cell": [32, 37], "note": "below the left guard at (32,36)"},
+        {"do": "talk", "npc": 0, "opens": [[32, 36], [33, 36]], "note": "object 0, dialogue 51: $F6 $4F; the guards turn to the leader, the trees are fought, entry 1, both guards' dialogue ids become 1, temp $1A set"},
+        {"do": "wait", "frames": 90, "note": "FieldObj_EsperGuard walks the guards aside: left and right once, down refused by the leash, then the $FF latch (loc_4A0A4)"},
+        {"do": "go_to_map", "map": 359, "note": "the mansion hall $167 by warp 3"},
+        {"do": "go_to_map", "map": 362, "via_warp": 6, "note": "EspMansionNorth $16A by the hall's east warp 6 (68,25): the west warp 5 lands in a corridor that does not reach the door row"},
+        {"do": "go_to", "map": 362, "cell": [47, 19], "note": "above the inner guards at (47,20) and (48,20): the door row is entered from the north"},
+        {"do": "talk", "npc": 3, "opens": [[47, 20], [48, 20]], "note": "object 3, dialogue 52: $F6 $45; tree 20 entry $2E, both guards' ids become $23, $96 set"},
+        {"do": "wait", "frames": 90, "note": "FieldObj_InnerEsperGuards steps them aside once $96 is set"},
+        {"do": "go_to_map", "map": 365, "note": "EspMansionCourtyard $16D by warp 2"},
+        {"do": "expect", "map": 365, "cell": [31, 16], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x95", "event:0x96"], "note": "in the courtyard with the inner guards gone"}
+      ],
+      "closing": [
+        {"map": 365, "cell": [31, 16], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x95", "event:0x96"]}
+      ]
+    },
+    {
+      "id": "esper-inner-sanctuary",
+      "title": "Inner Sanctuary: Cutscene_LutzRevelation",
+      "source": "docs/scenes/58_LutzRevelation.md (Cutscene_LutzRevelation $8014, RunEvent_LutzRevelation $39 on InnerSanctuary $16E: x $1E0..$210, y $1D0..$1F0, $97 clear); runtime-pack/maps/16E_InnerSanctuary.json (warp 1 at (31,31) to B1; the trigger rows 30 to 32)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 366, "note": "InnerSanctuary $16E by the courtyard's warp 1, arriving (31,39)"},
+        {"do": "step_onto", "map": 366, "cell": [32, 32], "note": "a cell of the trigger rectangle; the scene walks the leader to the stairs itself"},
+        {"do": "expect", "map": 367, "cell": [30, 37], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x97"], "note": "Rune is Lutz: $97 set and the party in B1 $16F"}
+      ],
+      "closing": [
+        {"map": 367, "cell": [30, 37], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x97"]}
+      ]
+    },
+    {
+      "id": "gumbious-torch-stolen",
+      "title": "Gumbious Temple: Event_EclipseTorchStolen",
+      "source": "docs/scenes/101_EclipseTorchStolen.md (Event_EclipseTorchStolen $46: the monk at (39,22) on Gumbious_F1 $162, tree 38 entry 36 with $97 set and $98 clear jumps to entry 53, $F6 $46); runtime-pack/maps/001_Dezolis.json (warp 11 at (124,68) into GumbiousEntrance $160) and 161_Gumbious.json (warp 2 up to F1)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 1, "note": "Dezolis from the Inner Sanctuary: the Esper door's overworld arrival (231,57)"},
+        {"do": "go_to", "map": 1, "cell": [228, 59], "note": "plain ground beside the door"},
+        {"do": "use_item", "item": "ICE-DIGGER", "target": "Chaz", "note": "board again"},
+        {"do": "expect", "vehicle": 2, "note": "Event_BoardingIceDigger"},
+        {"do": "go_to_map", "map": 352, "note": "GumbiousEntrance $160"},
+        {"do": "expect", "map": 352, "vehicle": 0, "note": "the map load parked the Ice Digger"},
+        {"do": "go_to_map", "map": 354, "note": "Gumbious_F1 $162 by the temple town's warp 2"},
+        {"do": "go_to", "map": 354, "cell": [39, 23], "note": "below the monk at (39,22)"},
+        {"do": "talk", "npc": 6, "note": "object 6, dialogue 36: entry 36 jumps to 53 ($97 set, $98 clear); the Air Castle's figures take the torch"},
+        {"do": "expect", "map": 354, "cell": [39, 23], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x97", "event:0x98"], "note": "the torch is stolen: $98 set"}
+      ],
+      "closing": [
+        {"map": 354, "cell": [39, 23], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x98"]}
+      ]
+    },
+    {
+      "id": "air-castle-arrival",
+      "title": "The Dezo spaceport to the Air Castle: Cutscene_FindingAirCastle and the flight",
+      "source": "docs/scenes/68_FindingAirCastle.md (Cutscene_FindingAirCastle $8015, RunEvent_FindingAirCastle $42 on DezoSpaceport $0D4: $98 set, $99 clear; it ends in the inlined spaceship menu) and docs/scenes/69_AirCastleArrival.md (Event_AirCastleArrival $58, $9F); rust/psiv-core/src/scenes/flight.rs (the destination mask $DC once $99 is set lists the Air Castle, World_Index 5)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 1, "note": "Dezolis from the temple town's entrance, on the door tile (125,71)"},
+        {"do": "go_to", "map": 1, "cell": [125, 73], "note": "plain ground below the door"},
+        {"do": "use_item", "item": "ICE-DIGGER", "target": "Chaz", "note": "board again"},
+        {"do": "expect", "vehicle": 2, "note": "Event_BoardingIceDigger"},
+        {"do": "go_to_map", "map": 212, "note": "the Dezo spaceport: entering the map fires RunEvent_FindingAirCastle, whose scene opens the destination menu"},
+        {"do": "board", "to": 5, "note": "no step: the scene opens the menu; the Air Castle is the list's last row"},
+        {"do": "expect", "map": 369, "cell": [63, 54], "vehicle": 0, "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x98", "event:0x99", "event:0x9f"], "note": "Cutscene_FindingAirCastle set $99 and the flight landed on the Air Castle $171; Event_AirCastleArrival set $9F"}
+      ],
+      "closing": [
+        {"map": 369, "cell": [63, 54], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x99", "event:0x9f"]}
+      ]
     }
   ]
 }

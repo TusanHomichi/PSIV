@@ -310,8 +310,14 @@ impl Flood {
         })
     }
 
-    /// The plan whose last step lands on `cell` and fires a warp: the one step
-    /// a trigger scene on a warp footprint takes (`RunEvents` runs first).
+    /// The plan whose last step lands on `cell` and starts the scene there.
+    ///
+    /// A warp footprint is the first kind: the step fires a warp, and a map
+    /// trigger on it wins because `RunEvents` runs before `RunMapTransitions`
+    /// (`ps4.asm:116768-116773`). Any other cell a trigger list names (the
+    /// carnivorous trees' corridor, `RunEvent_CarnivorousTrees`,
+    /// `ps4.asm:115977`) is the second: the ordinary walk that ends on it. A
+    /// cell the party already stands on has no step onto it.
     #[must_use]
     pub fn onto_plan(&self, map: &FieldMap, mover: Mover, cell: Cell) -> Option<CellPlan> {
         let cell = map.normalize(cell)?;
@@ -332,7 +338,10 @@ impl Flood {
                 });
             }
         }
-        None
+        if cell == self.start {
+            return None;
+        }
+        self.cell_plan(cell)
     }
 
     /// The plan to the first-discovered cell of `rect`.

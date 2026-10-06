@@ -108,6 +108,77 @@ class ScopeTests(unittest.TestCase):
         self.assertTrue(any(where.startswith("scene ")
                             for reasons in found.maps.values() for where in reasons))
 
+    def test_a_chapter_appended_to_the_route_does_not_widen_a_stretch(self):
+        import json
+        original = json.loads(ra.ROUTE.read_text())
+        extended = json.loads(ra.ROUTE.read_text())
+        extended["chapters"].append({
+            "id": "an-appended-chapter", "title": "t", "source": "s",
+            "random_battle_policy": "run_then_win",
+            "objectives": [{"do": "go_to_map", "map": 0x1A0}],
+        })
+        scopes = []
+        with tempfile.TemporaryDirectory() as root:
+            for name, route in (("original", original), ("extended", extended)):
+                path = pathlib.Path(root, f"{name}.json")
+                path.write_text(json.dumps(route))
+                saved, ra.ROUTE = ra.ROUTE, path
+                try:
+                    scopes.append(sorted(
+                        ra.stretch_scope(ra.STRETCHES["zelan-kuran"]).maps))
+                finally:
+                    ra.ROUTE = saved
+        self.assertEqual(scopes[0], scopes[1])
+        self.assertNotIn(0x1A0, scopes[1])
+        # Negative control: a stretch with no named end would have taken it.
+        open_ended = ra.Stretch(first_chapter="zelan-wren-canceller",
+                                last_chapter="an-appended-chapter",
+                                first_scene=None, last_scene=None)
+        with tempfile.TemporaryDirectory() as root:
+            path = pathlib.Path(root, "extended.json")
+            path.write_text(json.dumps(extended))
+            saved, ra.ROUTE = ra.ROUTE, path
+            try:
+                self.assertIn(0x1A0, ra.stretch_scope(open_ended).maps)
+            finally:
+                ra.ROUTE = saved
+
+    def test_the_c7_stretch_names_its_chapters_and_its_event_battles(self):
+        found = ra.stretch_scope(ra.STRETCHES["dezolis-air-castle"])
+        self.assertEqual(sorted(found.battles), [10, 14, 16, 17])
+        self.assertIn(0x184, found.maps)
+        self.assertIn(0x173, found.maps, "the Air Castle walk is in it")
+        # It is the whole worklist: GRA, COMBINE, THNDRBLAST, Lashiec's and Dark
+        # Force 2's abilities are all in the scope and none is implemented.
+        try:
+            result = derive(Data.load(ra.GENERATED), found, ra.ledger_classes())
+        except FileNotFoundError as error:
+            self.skipTest(f"generated tables absent (local input): {error}")
+        listed = {a["ability"]: a["ledger_status"] for a in result["abilities"]}
+        for ability in (0x31, 0x3A, 0x5C, 0x5F, 0x60, 0x61, 0x62, 0x64, 0x65):
+            self.assertIn(ability, listed, hex(ability))
+            self.assertNotEqual(listed[ability], "implemented", hex(ability))
+        self.assertTrue(any("dezolis-ice-digger" in why
+                            for reasons in found.maps.values() for why in reasons))
+        # The route's first chapters are not in it.
+        self.assertFalse(any("kuran-dark-force-1" in why
+                             for reasons in found.maps.values() for why in reasons))
+
+    def test_a_map_outside_the_encounter_table_draws_nothing(self):
+        outside = data()
+        outside.encounters[7] = {"map_id": 7, "mode": "outside_table",
+                                 "in_table": False, "group": None}
+        outside.map_symbols[7] = "space"
+        found = scope()
+        found.add_map(7, "test")
+        result = derive(outside, found, LEDGER)
+        self.assertEqual(result["groups"], [7, 8], "the same groups as without it")
+        self.assertEqual(result["abilities"], derive(data(), scope(), LEDGER)["abilities"])
+        # Negative control: an unknown mode is still an error, not a silent skip.
+        outside.encounters[7]["mode"] = "mystery"
+        with self.assertRaises(KeyError):
+            derive(outside, found, LEDGER)
+
     def test_a_pattern_selects_by_symbol_and_an_empty_one_is_an_error(self):
         found = ra.pattern_scope(data(), "^wor", [])
         self.assertEqual(sorted(found.maps), [5])

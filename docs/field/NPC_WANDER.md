@@ -168,7 +168,19 @@ The implementation is deliberately split by what the routine actually does:
 | `Random` | `NPCType11`, `NPCType12`, `NPCType13`, `Mouse`, `Prisoner`, `SmallWhiteDuck`, `SmallBrownDuck` | one `Rolls` stream in map-object order; helper-specific masks and retry rules are transcribed |
 | `FlaggedRandom` | `NPCType8` | no draw while `EventFlag_IgglanovaZema` is clear; `loc_49CEA` draws only after it is set |
 | `Follow` / `FlaggedFollow` | `NPCType6`, `NPCType7`, `FellowPenguin`, `loc_49192`, `loc_496C6` | relationship/object-target command, no RNG; FellowPenguin clears interaction bit 3 when joined |
-| `FlaggedPattern` | `EsperGuard`, `InnerEsperGuards`, `MuskCatGuard` | fixed pre-flag command, then the extracted literal route; no RNG |
+| `FlaggedPattern` | `EsperGuard`, `InnerEsperGuards`, `MuskCatGuard` | fixed pre-flag command, then the extracted literal route, which **latches** on its `$FF` (below); no RNG |
+
+**Terminators: loop or latch.** A pattern table ends in `$FF`. The looping routines
+(`loc_49FCE`, `ps4.asm:97101`) clear the cursor (`clr.w $1C(a4)`) and start over; the three guard
+routines store the index of the `$FF` itself (`move.w #2, $1C(a4)` at `loc_4A0A4`/`loc_4A0F4`,
+`move.w #3, $1C(a4)` at `loc_4A022`), so every later frame reads `$FF` again and the guard idles for
+good. `bespoke.rs` spells the second kind `LATCH` and the first `IDLE`. The Esper door guards also
+read different tables: `loc_4A0EC`/`loc_4A13C` (`03 02 FF`, left then down) for the first and
+`loc_4A0F0`/`loc_4A140` (`04 02 FF`, right then down) when the object before them carries the same
+id word (`cmpi.w #$8268, -$40(a4)`, `#$826C` for the inner pair), which `bridge.rs` reproduces by
+comparing the previous object's symbol. The `$3D = 0` leash refuses the vertical command, so a
+guard ends one cell to its side: the door row is free. A looped table in the port made both guards
+walk left forever (found by the C7 route at the Esper Mansion, `RUNNER_LOG_ICEDIGGER.md` H40).
 
 The motion classes all use the same cartridge gates as the ordinary walkers:
 facing is written before a leash refusal, accepted movement commits the map

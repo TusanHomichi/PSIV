@@ -4,7 +4,7 @@
 - **Pointer:** `EventPtrs[$5D]`; event `$005D`.
 - **Trigger:** `RunEventsJmpTbl[$46]`, Spector `$A6` set and Lashiec `$9B`
   clear.
-- **Data:** `dezo_campaign.rs`, `LASHIEC_APPEARANCE` (12 ops).
+- **Data:** `dezo_campaign_late.rs`, `LASHIEC_APPEARANCE` (12 ops).
 
 ## Clone audit
 

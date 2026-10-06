@@ -114,8 +114,8 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0042` | `Event_SilenceTmDoorOpening` | interaction area $07 | LeRoofRoom | allowlisted, #83 |
 | `$0043` | `Event_OutsideRajaTemple` | map trigger $31 | Dezolis | scene `Event_OutsideRajaTemple` |
 | `$0044` | `Event_TylerGraveOpening` | dialogue `$F6` | tree 14 entry 35 | scene `Event_TylerGraveOpening` |
-| `$0045` | `Event_PersistentEsperGuards` | dialogue `$F6` | tree 20 entry 52, tree 21 entry 52 | allowlisted, #83 |
-| `$0046` | `Event_EclipseTorchStolen` | dialogue `$F6` | tree 38 entry 53 | allowlisted, #83 |
+| `$0045` | `Event_PersistentEsperGuards` | dialogue `$F6` | tree 20 entry 52, tree 21 entry 52 | scene `Event_PersistentEsperGuards` |
+| `$0046` | `Event_EclipseTorchStolen` | dialogue `$F6` | tree 38 entry 53 | scene `Event_EclipseTorchStolen` |
 | `$0047` | `Event_EclipseTorchUsed` | map trigger $36 | Dezolis | scene `Event_EclipseTorchUsed` |
 | `$0048` | `Event_MeetingLeRoof` | map trigger $33 | LeRoofRoom | scene `Event_MeetingLeRoof` |
 | `$0049` | `Event_MuskCatsGuarding` | dialogue `$F6` | tree 17 entry 48 | allowlisted, #83 |
@@ -124,7 +124,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$004C` | `Event_CarnivorousTrees` | map trigger $35 | Dezolis | scene `Event_CarnivorousTrees` |
 | `$004D` | `Event_SavingKyra` | map trigger $35 | Dezolis | scene `Event_SavingKyra` |
 | `$004E` | `Event_DarkForce2` | map trigger $37 | GaruberkTower_Part7 | scene `Event_DarkForce2` |
-| `$004F` | `Event_EsperGuardPermission` | dialogue `$F6` | tree 20 entry 51, tree 21 entry 51 | allowlisted, #83 |
+| `$004F` | `Event_EsperGuardPermission` | dialogue `$F6` | tree 20 entry 51, tree 21 entry 51 | scene `Event_EsperGuardPermission` |
 | `$0050` | `Event_DarkForce3Defeated` | map trigger $3C | Motavia, SoldiersTempleOutside | scene `Event_DarkForce3Defeated` |
 | `$0051` | `Event_InnerSanctGuard` | dialogue `$F6` | tree 20 entry 36 | allowlisted, #83 |
 | `$0052` | `Event_InnerSanctGuardBeforeElsydeon` | dialogue `$F6` | tree 20 entry 39 | allowlisted, #83 |
@@ -255,8 +255,8 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 | #71 | `Event_GetAndRunDialogue2` callers | 1 |
 | #81 | Motavia side content | 42 |
 | #82 | Vahal Fort and Weapon Plant | 19 |
-| #83 | Dezolis late arc | 19 |
-| | total | 84 |
+| #83 | Dezolis late arc | 16 |
+| | total | 81 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events

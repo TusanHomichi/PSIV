@@ -3,7 +3,7 @@
 - **Retail bytes:** `$070B1E..$070B2F` inclusive, 18 bytes.
 - **Pointer:** `EventPtrs[$58]`; event `$0058`.
 - **Trigger:** `RunEventsJmpTbl[$43]`, Air Castle `$9F` clear.
-- **Data:** `dezo_campaign.rs`, `AIR_CASTLE_ARRIVAL` (2 ops).
+- **Data:** `dezo_campaign_late.rs`, `AIR_CASTLE_ARRIVAL` (2 ops).
 
 ## Clone audit
 

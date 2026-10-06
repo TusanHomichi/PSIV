@@ -156,6 +156,9 @@ and the port never transcribed.
 | `Event_KingRappy` | `$88` | [96](96_KingRappy.md) | `$072FDC..$073017` |
 | `Event_DaughterTerminal` | `$8F` | [97](97_DaughterTerminal.md) | `$0731B2..$0731D9` |
 | `Event_Gyuna` | `$5C` | [98](98_Gyuna.md) | `$070C82..$070CB3` |
+| `Event_EsperGuardPermission` | `$4F` | [99](99_EsperGuardPermission.md) | `$0709A2..$070A29` |
+| `Event_PersistentEsperGuards` | `$45` | [100](100_PersistentEsperGuards.md) | `$06FE1C..$06FE55` |
+| `Event_EclipseTorchStolen` | `$46` | [101](101_EclipseTorchStolen.md) | `$06FE56..$070189` |
 
 ## Terminal and recorded boundary surfaces
 

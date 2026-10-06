@@ -149,6 +149,13 @@ pub enum SceneEffect {
         /// How many consecutive objects.
         count: usize,
     },
+    /// A field object's `dialogue_id` was written.
+    NpcDialogueSet {
+        /// The object's index in the map's object list.
+        npc_index: usize,
+        /// The dialogue entry it speaks from now on.
+        dialogue_id: u16,
+    },
     /// An actor was placed outright.
     ActorPlaced {
         /// Who.

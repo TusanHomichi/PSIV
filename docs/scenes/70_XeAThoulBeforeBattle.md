@@ -4,7 +4,7 @@
 - **Pointer:** `EventPtrs[$59]`; event `$0059`.
 - **Trigger:** `RunEventsJmpTbl[$44]`, Xe A Thoul `$9A` clear in the Air
   Castle position rectangle.
-- **Data:** `dezo_campaign.rs`, `XE_ATHOUL_BEFORE_BATTLE` (5 ops).
+- **Data:** `dezo_campaign_late.rs`, `XE_ATHOUL_BEFORE_BATTLE` (5 ops).
 
 ## Clone audit
 

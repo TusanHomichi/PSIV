@@ -3,7 +3,7 @@
 - **Retail bytes:** `$077DC6..$077EAB` inclusive, 230 bytes.
 - **Pointer:** `CutscenePtrs[$18]`; scene `$8018`.
 - **Trigger:** `RunEventsJmpTbl[$48]`, Hydrofoil `$9D` clear at Gumbious.
-- **Data:** `dezo_campaign.rs`, `GUMBIOUS_BISHOP` (18 ops).
+- **Data:** `dezo_campaign_late.rs`, `GUMBIOUS_BISHOP` (18 ops).
 
 ## Clone audit
 
