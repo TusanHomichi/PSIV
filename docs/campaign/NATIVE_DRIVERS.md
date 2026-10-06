@@ -91,6 +91,25 @@ Chapters are the 50 of `routes/main.json` at digest `40c7f505ecc5c357`
 | `native_opening.gd` | One Up press after the auto-acknowledged opening has returned control | `academy` (0) starts from START and the first pad is the first gameplay frame | `docs/campaign/PLAYABILITY_FOUNDATIONS.md` runs it in a `bash` block, so `tools/check_docs.py` fails if the file goes. Delete it with that block |
 | `verify_native_alarm.py` | The BioPlant alarm palette ramp and its four-frame cadence in captured PNGs | None. Its only producer, `native_bioplant.gd`, is retired and the tape takes no mid-run capture | `docs/campaign/BIOPLANT_NATIVE.md` runs it in a `bash` block. It has no producer left, so it is dead code until the tape driver captures at chosen frames |
 
+## Checks on the kept drivers this lane touched
+
+Both ran under the shared heavy lock from chapter saves of the 2026-10-06 route
+(`PSIV_DEBUG_ROUTE=1`, a copied save directory, the optimized extension):
+
+- `native_party_order.gd` after it left the route skeleton, against the
+  original driver from the same commit, both started from `09-bioplant-elevators`
+  and rendered under Xvfb: the same eight checkpoint names with identical
+  states, the same slot bytes after the SAVE, and all seven captures
+  byte-identical. A headless pair gave the same states and bytes.
+- `native_continue.gd` with no route receipt, from `16-aiedo-shopping`: CONTINUE,
+  one step down, SAVE into slot 2; `verify_native_continue.py` then reports
+  `complete` (only the standing Y word, the header's slot number and its
+  checksums changed).
+
+The other eighteen kept drivers and `verify_native_order.py` against the original
+game were not re-run in this lane; none of them reads a retired driver or its
+output, but their health against today's pack is not re-proven here.
+
 ## What the retirement leaves uncovered
 
 These were proved by a retired driver and are carried by nothing today:
