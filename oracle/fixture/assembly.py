@@ -65,10 +65,10 @@ Fields it does not, recorded here as `"undetermined"` notes:
 from . import enemies as enemy_readings, roles, vehicle as vehicles
 from .commands import action_command, command_entry, inventory_at
 from .errors import FixtureError
-from .state import round_state
+from .state import round_end_frame, round_state
 from .observations import (ROLL_COLUMNS, action_effects, action_record,
                            action_windows, battle_start, decided_frame, victory_declared,
-                           enemies_loaded, round_frames, side_of, turn_order)
+                           enemies_loaded, round_frames, round_tail_frames, side_of, turn_order)
 from .rolls import (DAMAGE_RUN, HIT_NOT_TARGETED, group_by_frame,
                     roll_column_report, rolls_in_window)
 
@@ -142,6 +142,7 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta, max_rounds=0,
     # acts last in one round and first in the next is two actions, not one.
     windows = action_windows(log, start_frame, last, cuts=starts,
                              roll_frames=[frame for frame, _ in frames])
+    tails = round_tail_frames(log, start_frame, last)
     if not windows:
         raise FixtureError(f"no action starts between {start_frame} and {last}")
 
@@ -239,8 +240,12 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta, max_rounds=0,
                                  record["round"], record["actor"]))
                 break
         else:
+            # Tail calls remain in the round's exact stream and draw count,
+            # but are not an action's effects or an order/targeting pass.
+            role = "wake" if any(starts[round_of(frame) - 1] <= tail <= frame
+                                 for tail in tails) else "order"
             labelled.append((frame, values,
-                             [("order", None, 0)] * len(values),
+                             [(role, None, 0)] * len(values),
                              round_of(frame), 0))
 
     rolls, outside = [], []
@@ -262,6 +267,7 @@ def build_fixture(trace_rows, log, ram_map, first, last, meta, max_rounds=0,
             actions.append(written)
         order = turn_order(log, round_frame)
         end_frame = min(last, starts[number] - 1) if number < len(starts) else last
+        end_frame = round_end_frame(log, round_frame, end_frame)
         state_after = round_state(log, end_frame, occupied)
         rounds.append({
             "round": number,

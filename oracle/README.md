@@ -582,6 +582,33 @@ at `battle_first + 1`, and only within party/inventory RAM `$F400..$FA7F`.
 They never write commands, menu cursors or list scratch. The Psycho Wand event
 recipe is in [BATTLE_ORACLE_X86.md](../docs/oracle/BATTLE_ORACLE_X86.md).
 
+For the complete party-side inventory, use
+`python3 -m oracle.sweep.player_abilities --require-captures` and the generated
+[player ledger](../docs/battle/PLAYER_ABILITIES.md). Its source-chain and
+negative-control rules are owned there. A recipe batch uses the same driver:
+
+```sh
+python3 -m oracle.sweep.player_capture --cases build/player/cases.json \
+  --scout build/x86/scout.json --out build/player/captures \
+  --fixtures rust/psiv-core/src/battle/replay_fixtures/player
+python3 -m oracle.sweep.replay_pack
+CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
+  --lib every_fixture_replays_as_recorded -- --test-threads=1
+```
+
+Recipes declare `name`, `formation` (or `event`), `rounds`, optional `defaults`
+and per-slot `party` stat/status/resource settings. Optional `characters`
+selects three distinct stored character records; observation addresses follow
+those actual records. The capture wrapper splits each record patch into the
+host's 64-byte chunks. It checks both stock log hashes, records each command's
+exit/timing/log hash, and refuses an ability that was selected but never ran.
+`--only NAME --extract-only` reuses completed, hash-verified observations;
+it does not rerun or alter the cartridge evidence. Keep recipes and raw RAM in
+ignored `build/`. These explicit fixtures do not certify a connected route.
+Party scripts refuse vehicle-only formations before launching the host.
+The pilot's terminal error names its last frame, menu state and queued presses;
+inspect those logs before retrying.
+
 `Battle_ProcessCOMD` (`ps4.asm:7635-7661`) advances the party slot, skips
 status-ineligible actors and bypasses command input during an enemy ambush.
 The command strip is horizontal (`Battle_CharCommand`, `ps4.asm:2192-2225`).

@@ -47,6 +47,53 @@ pub(crate) fn party_member(
     data: &BattleData,
     hp_patch: Option<&HpPatch>,
 ) -> PartyMember {
+    if let Some(record) = &entry.record {
+        let character = entry
+            .character_id
+            .expect("observed record needs its character id");
+        assert!(character < crate::CHARACTER_COUNT as u8);
+        assert_eq!(record.len(), 0x80, "a complete observed character record");
+        let mut payload = vec![0; crate::save::RETAIL_PAYLOAD_BYTES];
+        let start = 0x400 + usize::from(character) * 0x80;
+        payload[start..start + 0x80].copy_from_slice(record);
+        let snapshot = crate::StateSnapshot::from_retail_payload(&payload).expect("observed RAM");
+        let mut stats = snapshot.characters[usize::from(character)]
+            .clone()
+            .expect("occupied record");
+        // Bit 7 belongs to the loaded sprite, not persistent battle status.
+        stats.status &= 0x7F;
+        assert_eq!(
+            (stats.curr_hp, stats.max_hp, stats.curr_tp, stats.max_tp),
+            (entry.hp, entry.max_hp, entry.tp, entry.max_tp),
+            "snapshot agrees with the independent CSV"
+        );
+        assert_eq!(stats.status, entry.status & 0x7F);
+        assert_eq!(
+            (
+                stats.strength.battle,
+                stats.mental.battle,
+                stats.agility.battle,
+                stats.dexterity.battle,
+                stats.attack.battle,
+                stats.defence.battle
+            ),
+            (
+                entry.strength as u8,
+                entry.mental as u8,
+                entry.agility as u8,
+                entry.dexterity as u8,
+                entry.attack,
+                entry.defence
+            )
+        );
+        // Match the existing armor-resistance bug fix on entering a battle.
+        stats.physical_prop_save = stats.element_props[0];
+        return PartyMember {
+            character,
+            name: entry.name.clone(),
+            stats,
+        };
+    }
     let record = match entry.id {
         1 => fixtures::alys(),
         2 => fixtures::chaz(),

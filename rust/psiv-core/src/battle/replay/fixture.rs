@@ -96,6 +96,11 @@ pub(crate) struct FormationEnemyEntry {
 
 #[derive(Debug, Deserialize)]
 pub(crate) struct PartyEntry {
+    #[serde(default)]
+    pub(crate) character_id: Option<u8>,
+    /// Independently observed $80-byte record; decoded by the retail codec.
+    #[serde(default)]
+    pub(crate) record: Option<Vec<u8>>,
     pub(crate) id: u8,
     pub(crate) name: String,
     pub(crate) level: u16,
@@ -235,6 +240,26 @@ pub(crate) struct EndState {
     pub(crate) tp: Option<u16>,
     pub(crate) enemy_id: Option<u16>,
     pub(crate) mental_defence: Option<u16>,
+    #[serde(default)]
+    pub(crate) str_bat: Option<u8>,
+    #[serde(default)]
+    pub(crate) men_bat: Option<u8>,
+    #[serde(default)]
+    pub(crate) agi_bat: Option<u8>,
+    #[serde(default)]
+    pub(crate) dex_bat: Option<u8>,
+    #[serde(default)]
+    pub(crate) atk_bat: Option<u16>,
+    #[serde(default)]
+    pub(crate) dfs_bat: Option<u16>,
+    #[serde(default)]
+    pub(crate) mdfs_bat: Option<u16>,
+    #[serde(default)]
+    pub(crate) elements: Option<[u8; 14]>,
+    #[serde(default)]
+    pub(crate) shadows: Option<[u8; 14]>,
+    #[serde(default)]
+    pub(crate) uses: Option<[u8; 8]>,
 }
 
 /// One party member's round command, as `Character_Command_Data` held it.

@@ -122,7 +122,7 @@ fn foi_uses_mental_element_and_magic_defense_without_a_hit_roll() {
 fn invalid_commands_do_not_spend_tp_or_roll_or_become_attacks() {
     for (tech, target, reason) in [
         (99, Some(id(1)), TechniqueRejection::Unavailable),
-        (33, None, TechniqueRejection::Unavailable),
+        (33, None, TechniqueRejection::NotLearned),
         (1, Some(id(6)), TechniqueRejection::NotLearned),
         (24, Some(id(6)), TechniqueRejection::InvalidTarget),
     ] {

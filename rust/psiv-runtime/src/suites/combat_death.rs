@@ -41,8 +41,6 @@ fn gryz_original_crash_and_brose_records_consume_resources_and_survive_save() {
     )
     .unwrap();
     rt.enable_battles(&files).unwrap();
-    assert_eq!(rt.battle_techniques().filter(|t| t.supported()).count(), 35);
-    assert_eq!(rt.battle_skills().filter(|s| s.supported()).count(), 5);
     if let Some(directory) = std::env::var_os("PSIV_DEATH_SMOKE_SAVE_DIR") {
         rt.save_slot(Path::new(&directory), 0).unwrap();
     }

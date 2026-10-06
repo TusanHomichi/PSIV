@@ -75,6 +75,15 @@ def battle_start(log, frame):
             "defence": block["dfs"],
             "experience": block["exp"],
         })
+        # Script fixtures can change a base/modified stat independently.
+        # Compare the live battle copy, not the legacy base-stat column.
+        # Character_Stats layout: ps4.constants.asm:34-73.
+        if log.has(prefix + "_player_str_bat"):
+            party[-1]["character_id"] = log.num(frame, f"menu_party_{index - 1}")
+            for name, column in (("strength", "str_bat"), ("mental", "men_bat"),
+                                 ("dexterity", "dex_bat"), ("attack", "atk_bat"),
+                                 ("defence", "dfs_bat")):
+                party[-1][name] = log.num(frame, prefix + "_player_" + column)
     enemies = []
     for slot in range(1, 5):
         max_hp = log.num(frame, f"e{slot}_maxhp")
@@ -139,6 +148,22 @@ def round_frames(log, first, last):
     return starts
 
 
+def round_tail_frames(log, first, last):
+    """Frames that execute loc_5366's round-wide restoration, not a turn.
+
+    BattleRoutines index $1C invokes loc_5366, which sets the routine to 6
+    before Battle_RestoreStatsAtTurnEnd (ps4.asm:7539,7596-7602). The sampled
+    $1C -> 6 transition therefore includes wake RNG, even when the final
+    queue entry was skipped and battle_actor still names that sleeper.
+    """
+    if not log.has("battle_routine"):
+        return set()
+    return {frame for frame in range(first + 1, last + 1)
+            if frame in log.by_frame and frame - 1 in log.by_frame
+            and log.num(frame - 1, "battle_routine") == 0x1C
+            and log.num(frame, "battle_routine") == 6}
+
+
 def action_windows(log, first, last, cuts=(), roll_frames=()):
     """[(actor, start, end)]: one per turn the turn engine ran.
 
@@ -175,8 +200,10 @@ def action_windows(log, first, last, cuts=(), roll_frames=()):
     """
     cuts = set(cuts)
     rolls = set(roll_frames)
+    tails = round_tail_frames(log, first, last)
     windows = []
     actor = None
+    in_tail = False
     for frame in range(first, last + 1):
         row = log.by_frame.get(frame)
         if row is None:
@@ -185,6 +212,14 @@ def action_windows(log, first, last, cuts=(), roll_frames=()):
             if windows:
                 windows[-1][2] = min(windows[-1][2], frame - 1)
             actor = None
+            in_tail = False
+            continue
+        if frame in tails:
+            if windows:
+                windows[-1][2] = min(windows[-1][2], frame - 1)
+            actor = None
+            in_tail = True
+        if in_tail:
             continue
         current = log.num(frame, "battle_actor")
         if not 1 <= current <= 9:

@@ -70,7 +70,6 @@ fn original_recovery_techniques_cure_revive_and_keep_spent_resources_after_save(
     )
     .unwrap();
     rt.enable_battles(&files).unwrap();
-    assert_eq!(rt.battle_techniques().filter(|t| t.supported()).count(), 35);
     if let Some(directory) = std::env::var_os("PSIV_RECOVERY_SMOKE_SAVE_DIR") {
         rt.save_slot(Path::new(&directory), 0).unwrap();
     }

@@ -44,6 +44,8 @@ mod fixture;
 mod menu;
 mod narration;
 mod panes;
+#[cfg(test)]
+mod player_tests;
 mod presentation;
 mod queue;
 mod view;
@@ -340,7 +342,12 @@ impl BattleMode {
         // its owner acts.
         self.acted = Some(Vec::new());
         match runtime.battle_round_timeline(orders) {
-            Ok(timeline) => self.enqueue(timeline),
+            Ok(timeline) => {
+                for event in &timeline.events {
+                    event.apply_character_roster(runtime.game.roster_mut());
+                }
+                self.enqueue(timeline);
+            }
             Err(error) => self.fail_round(&error.to_string()),
         }
     }
@@ -593,6 +600,11 @@ impl BattleMode {
     /// so far. This is the shell's own `update_live_party_hp`, moved.
     fn update_live_party(&mut self, event: &BattleEvent) {
         let (target, hp, tp) = match event {
+            BattleEvent::TpRestored {
+                target,
+                remaining_tp,
+                ..
+            } => (*target, None, Some(*remaining_tp)),
             BattleEvent::Resolved {
                 target,
                 remaining_hp,
