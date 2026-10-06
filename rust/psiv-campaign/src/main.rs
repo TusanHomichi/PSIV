@@ -10,6 +10,7 @@
 //! psiv-campaign replay <tape> [--from-save FILE] [--pack DIR]
 //! psiv-campaign inspect <slot.sram> [--pack DIR]
 //! psiv-campaign save-probe-tape <slot.sram> <out.tape> [neutral-frames]
+//! psiv-campaign split-tape <run.tape> <report.json> <out-dir>
 //! ```
 //!
 //! Map ids are decimal or `0x` hex. The pack defaults to `$PSIV_PACK`, then
@@ -38,7 +39,8 @@ const USAGE: &str = "usage:\n  psiv-campaign validate <route.json> [--pack DIR]\
 psiv-campaign plan --from-map M --from-cell X,Y --to-map N [--to-cell X,Y] [--flag bank:id]... [--vehicle N] [--pack DIR]\n  \
 psiv-campaign run <route.json> [--from-chapter ID] [--until-chapter ID] [--save-dir DIR] [--tape OUT] [--report OUT] [--pack DIR]\n  \
 psiv-campaign replay <tape> [--from-save FILE] [--pack DIR]\n  \
-psiv-campaign save-probe-tape <slot.sram> <out.tape> [neutral-frames]";
+psiv-campaign save-probe-tape <slot.sram> <out.tape> [neutral-frames]\n  \
+psiv-campaign split-tape <run.tape> <report.json> <out-dir>";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -47,6 +49,7 @@ fn main() -> ExitCode {
         Some("replay") => return run_cmd::cmd_replay(&args[1..]),
         Some("inspect") => return run_cmd::cmd_inspect(&args[1..]),
         Some("save-probe-tape") => return cmd_save_probe_tape(&args[1..]),
+        Some("split-tape") => return run_cmd::cmd_split_tape(&args[1..]),
         _ => {}
     }
     match run(&args) {
