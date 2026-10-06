@@ -71,14 +71,17 @@ table (`ROUTES`) gates which `(enemy, ability)` pairs may reach it.
 | ability | carriers | routine and arm | object | handler | range |
 |---|---|---|---|---|---|
 | `$2A` RIMIT | 115 Greneris; 77 TechPlant | `EnemyAttack_Juza`, arm `loc_E4C4` (`ps4.asm:20648`); `EnemyAttack_FlattrPlnt`, arm `loc_F65E` (`ps4.asm:21822`) | object `$754`, `loc_2ACD6` (`ps4.asm:56212`), child `$758`, `loc_2AC22` (`ps4.asm:56160`); `BattleObj_EnemyRimit` (`ps4.asm:38366`) | `$07` + `loc_25074`; `$07` + `loc_24CFE` | 9 |
-| `$4C` EVIL EYE | 106 Haunt, 107 Spector | `EnemyAttack_Haunt` (`ps4.asm:21005`), arm `loc_EAC6` (`ps4.asm:21023`) | object `$700`, `loc_2CB1C` (`ps4.asm:58346`) | `$07` + `bset #3` on the stored target | 8 |
+| `$4C` EVIL EYE | 106 Haunt, 107 Spector; 131 DarkForce2 | `EnemyAttack_Haunt` (`ps4.asm:21005`), arm `loc_EAC6` (`ps4.asm:21023`); `EnemyAttack_DarkForce2` (`ps4.asm:19970`), fall-through `loc_DB30` (`ps4.asm:20013`) | object `$700`, `loc_2CB1C` (`ps4.asm:58346`); object `$850`, `loc_30DC0` (`ps4.asm:63323`), two effect calls | `$07` + `bset #3` on the stored target (`loc_25074` for DarkForce2) | 8 |
 | `$2F` VOL | 115 Greneris, 72 BloodSaber, 88 SoldrFiend | arms `loc_E47A` (`ps4.asm:20630`), `loc_F93C` (`ps4.asm:22005`), `loc_F1E2` (`ps4.asm:21484`) | `loc_2AE8E` (`ps4.asm:56333`) with child `loc_2AE0C` (`56296`); `loc_1D2F4` (`ps4.asm:39774`); `loc_23216` (`ps4.asm:46736`) | `$02` + `loc_25048` | 8 |
 | `$34` VOICE | 76 FlyScreamr | `EnemyAttack_FlattrPlnt` (`ps4.asm:21778`), arm 21803 | `BattleObj_Voice` (`ps4.asm:38465`) -> `loc_24CC8` (`ps4.asm:48646`) | `$07` + `loc_25074` | 9 |
 | `$0B` STASISBALL | 19 Blauzen, 21 Goldine, 26 LifeDeletr | `EnemyAttack_Blauzen` `.stasisball` (`ps4.asm:23404`); `EnemyAttack_LifeDeletr` `.ability` (`ps4.asm:23140`) | `BattleObj_BlauzenStasisBall` (`ps4.asm:28127`) and four children; `BattleObj_LifeDeletrStasisBall` (`ps4.asm:26956`) and two | `$1C` | 8 |
 | `$28` DORAN | 115 Greneris | `EnemyAttack_Juza` (`ps4.asm:20575`), arm 20708 | object `$768`, `loc_2A814` (`ps4.asm:55873`) | `$06` | 9 |
 | `$57` GELUN | 115 Greneris | same routine, arm 20700, same tail (`loc_E5E6`) | `loc_2A814` | `$03` | 9 |
 | `$29` SEALS | 115 Greneris, 116 Radhin | arm 20728 | object `$76C`, `loc_2A74A` (`ps4.asm:55820`) | `$08` | 9 |
-| `$2D` DEBAN | 116 Radhin; 70 ShadowSabr | `EnemyAttack_Juza` arm `loc_E666` (`ps4.asm:20747`); `EnemyAttack_ShadowSabr` (`ps4.asm:21933`) arm `loc_F89A` (`ps4.asm:21966`) | `loc_2A660` (`ps4.asm:55760`); `loc_1D7D8` (`ps4.asm:40098`) | `$0A` | 2 |
+| `$2D` DEBAN | 116 Radhin; 70 ShadowSabr, 71 FrostSaber, 72 BloodSaber | `EnemyAttack_Juza` arm `loc_E666` (`ps4.asm:20747`); `EnemyAttack_ShadowSabr` (`ps4.asm:21933`) arm `loc_F89A` (`ps4.asm:21966`) | `loc_2A660` (`ps4.asm:55760`); `loc_1D7D8` (`ps4.asm:40098`) | `$0A` | 2 |
+| `$4E` DTHSPELL | 107 Spector | `EnemyAttack_Haunt` (`ps4.asm:21005`), arm `loc_EB50` (`ps4.asm:21057`) | object `$708`, `loc_2C854` (`ps4.asm:58148`) | `$02` + the stored target's kill | 8 |
+| `$60` POSESSION | 128 Lashiec | `EnemyAttack_Lashiec` (`ps4.asm:20116`), arm `loc_DD2C` (`ps4.asm:20136`) | object `$7E8`, `loc_2805C` (`ps4.asm:53215`) | `$07` + `bset #3` on the stored target | 8 |
+| `$62` REINFORCE | 128 Lashiec | `EnemyAttack_Lashiec`, arm `loc_DD84` (`ps4.asm:20156`) | object `$7EC`, `loc_27ED0` (`ps4.asm:53099`) -> `loc_24C68` (`ps4.asm:48613`) | `$2B` | 3 |
 | `$3E` GIRES | 100 TechMaster | `EnemyAttack_TechUser` (`ps4.asm:21156`), fall-through `loc_EEAA` (`ps4.asm:21266`) | object `$3D4`, `loc_213DC` (`ps4.asm:44701`) | `NormalLogic` heal | 1 |
 | `$12` Fusion | 34 ZolSlug | `EnemyAttack_Blob` (`ps4.asm:23043`), `loc_10796` | `BattleObj_Fusion` (`ps4.asm:35675`), `BattleObj_Fusion2` (`ps4.asm:35850`) | none | - |
 | `$10` THREAD | 31 CarrionCr | `EnemyAttack_Crawler` (`ps4.asm:23081`), arm `loc_1084A` (23113) | `BattleObj_Thread` (`ps4.asm:36186`) | `$06` | 8 |
@@ -88,8 +91,10 @@ table (`ROUTES`) gates which `(enemy, ability)` pairs may reach it.
 | `$4B` SHADOWBIND | 111 ChaosSorcr, 138 ChaosSorcr2 | `EnemyAttack_ChaosSorcr` (`ps4.asm:20816`), arm `loc_E83E` (20868) | object `$724`, `loc_2BCEA` (`ps4.asm:57360`) | `$06` | 9 |
 
 A carrier appears in `ROUTES` only if a capture saw it use the ability
-(`BATTLE_ORACLE_ARC.md` section 2); the ones that are not routed, and why, are
-that ledger's section 3, and they stay on the explicit `UnsupportedAbility` path.
+(`BATTLE_ORACLE_ARC.md` section 2), or it shares a captured carrier's routine,
+arm and object (72 BloodSaber's DEBAN, beside the captured 70 and 71); the ones
+that are not routed, and why, are that ledger's section 3 and section 8 below,
+and they stay on the explicit `UnsupportedAbility` path.
 Radhin's SEALS and DEBAN (the `116` entries above) are the deferred pairs.
 
 ## 3. What each ability does
@@ -404,3 +409,40 @@ word wrap, living-slot range and second-cast fallback.
 | pair | reason |
 |---|---|
 | 58 FlameNewt `$24`, 105 ShadMirage and 132 DarkForce3 `$4B` | Share a routine with a routed pair, are not on the route, were not captured. |
+
+## 8. The Air Castle pairs (lane A5)
+
+The captures and the census are
+[`ENEMY_ABILITIES_AIR_CASTLE.md`](ENEMY_ABILITIES_AIR_CASTLE.md); the pairs are in
+section 2's table.
+
+- **DEBAN, all three sabres.** `EnemyAttack_ShadowSabr` is `EnemyAttackOffs`
+  `$46`-`$48` (`ps4.asm:19277-19279`), so FrostSaber and BloodSaber run ShadowSabr's
+  arm and object. The object `$2A8` tests the caster's seal at frame `$14`
+  (`ps4.asm:40125-40130`): sealed, it reaches frame `$19` and ends the turn with no
+  effect call. FrostSaber's capture shows the turn filed `wasted`, like
+  ShadowSabr's: its effect lands on the enemy side the log does not read.
+- **DTHSPELL** is VOL's shape on Spector's own object: `loc_250A2`'s one call,
+  then the stored target's kill (`loc_2C928`, `ps4.asm:58201-58219`). The
+  ChaosSorcr family's arm loads another object (`$72C`) and is not routed.
+- **POSESSION** is a sleep, not a damage request: `loc_250A2`, then `bset #3` on
+  the stored target (`ps4.asm:53268-53273`).
+- **REINFORCE** is `AbilityEffect_IncreaseStats` (`ps4.asm:9496-9506`) on the
+  actor: `Battle_ProcessEffect` (no roll, the record has no resistance byte) and
+  then, without reading its answer, 20 added to the four battle bytes (wrapping)
+  and the three battle words. Its object raises `$FFFFEE86` on its first frame
+  (line 53102), which holds arm `$11` off for the rest of the battle
+  (`enemy_ai::AiFlags`).
+- **DarkForce2's EVIL EYE calls the effect twice** (`loc_30F10`, lines 63416-63418:
+  `GetEnemySkillEffectAndRange`, then `loc_250A2`, which calls it again). The
+  second call's `Battle_ClearEffects` wipes the first one's word, so the target
+  takes two chance rolls and the second decides; `loc_25074` sets the sleep bit
+  from it (line 63456). `Calls::TwiceLastDecides` is admitted only for the sleep
+  handler, which writes nothing but the effect word.
+- **The caster's seal, as a class.** Sixteen objects test the caster's
+  `StatusTechSealed` before their effect (the list is in the census ledger's
+  section 3), several through a prelude a whole routine's objects share. Every
+  routed pair whose object reaches one is `sealable` - the sabres' DEBAN, and the
+  earlier RIMIT (77, 115), DORAN, GELUN, SEALS and VOL (72, 88, 115) - and
+  `enemy_skill::resolve_res` takes the same exit for RES and GIRES (`$3D4`'s
+  test at line 44729, phase 8 with bit 7 at `loc_21558`).

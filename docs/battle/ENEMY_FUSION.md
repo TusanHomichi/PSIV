@@ -1,4 +1,13 @@
-# Fusion: two Zol slugs become one MetaSlug
+# Fusion and COMBINE: an object reloads the enemy side
+
+Two arms replace the whole enemy side with a formation their object keeps
+inline: Fusion (two Zol slugs become a MetaSlug) and COMBINE (BladeRight and
+HakenLeft become TwinArms, lane A5, section "COMBINE" below). Both records are
+the pack's (`battle/formations.json`'s `inline_formations`, decoded by
+`psiv_tools.formations`), looked up by label in `enemy_fusion.rs`; the engine
+holds no formation bytes.
+
+## Fusion
 
 Enemy 34 ZolSlug has eight empty regular ability slots and four copies of
 conditional ability `$12` FUSION behind `EnemyAI_ZolSlugs`. The Passageway to
@@ -55,10 +64,16 @@ fighters) and answers it in `take_turn`, which skips a fighter that an
 ## What the port does
 
 `enemy_fusion::resolve_fusion` is reached after Fission in `roll_enemy_ability`.
-It gates on the pinned record 18, on the actor being a living ZolSlug, and on the
-pack having a MetaSlug; then it emits `EnemySkillUsed`, clears the four enemy
-slots (`Roster::clear_enemies`), seats the MetaSlug in slot 1 and emits
+It gates on the `(carrier, ability)` arm (`RELOADS`), the record's effect byte
+(`$1F`, `AbilityEffect_None`) and the actor being alive, looks the arm's record
+up by label (`BattleData::inline_formation`, an error when the pack lacks it),
+then emits `EnemySkillUsed` (Fusion only: COMBINE's arm clears the id first),
+clears the four enemy slots (`Roster::clear_enemies`), seats the record's enemy
+in its slot and emits
 `BattleEvent::EnemiesFused { removed, fighter, enemy_id, name, hp, agility }`.
+The engine then takes the record's run byte as `Enemy_Run_Chance`: the copy is
+the whole record, and `Enemy_Run_Chance` is `Enemy_Formation_Data + 1`
+(`ps4.constants.asm:2039-2041`).
 The battle view follows it (`session/battle/mod.rs`): the removed slots stop
 being drawn, slot 1 takes the MetaSlug's name.
 
@@ -76,3 +91,27 @@ The shell draws the MetaSlug from the event's `position` (`$14`) and enemy id
 through `EnemyStatus`; the certified pair is `battle-fusion`
 ([`BATTLE_COMMAND_UI.md`](BATTLE_COMMAND_UI.md)). The slide-together animation is
 not modelled.
+
+## COMBINE
+
+`EnemyAI_HakenLeftExists` (`$0D`, named by 84 BladeRight) fires when exactly one
+other enemy object is a HakenLeft and none is a second BladeRight;
+`EnemyAI_BladeRightExists` (`$0E`, 86 HakenLeft) is the same with the ids swapped
+(`ps4.asm:21557-21653`). They write `$3A` and `$3B`. `EnemyAttack_Ripper`'s
+fall-through `loc_F3B6` (`ps4.asm:21620-21624`) and `EnemyAttack_Piercer`'s
+`loc_F2E4` (`ps4.asm:21549-21553`) clear `$24(a4)` and `Current_Target_Index` and
+turn the attack object into `$354` (`loc_23C84`, `ps4.asm:47469`), which on its
+first frame clears the 32 objects at `$FFFFD800` and the four enemy fighter
+words, copies `loc_23D00` (`00 00 00 00 01 01 00 57 14 FF`: one enemy, 87
+TwinArms, position `$14`) over `Enemy_Formation_Data` and calls `loc_14D46`
+(`ps4.asm:47483-47503`). No `UpdateRNGSeed2` call sits in the object or the
+routines it calls.
+
+Because the arm clears the id, no frame of the log shows `$3A`/`$3B`: the
+extractor files the turn as an attack that resolved no slot, the comparator takes
+`EnemiesFused` as the port's answer for it, and the capture
+(`replay_fixtures/air_castle/combine.json`, formation `$1BA`) is checked by the
+enemy the reload seats. The run byte changes there: `$1BA`'s `$3C` becomes the
+record's 0. In the Air Castle no formation pairs the two, so COMBINE does not
+fire on that stretch; the port's arms fired for a BladeRight with no partner until
+lane A5 ([`ENEMY_ABILITIES_AIR_CASTLE.md`](ENEMY_ABILITIES_AIR_CASTLE.md)).

@@ -7,9 +7,10 @@ module does not re-derive any of it -- it imports the same extractors the
 
     enemies.json     153 records: stats, the fourteen element properties, the
                      AI lists, rewards, and what a basic attack is
-    formations.json  504 formations + 27 boss formations, the 68 encounter
-                     groups, the per-map bindings and both overworld position
-                     grids
+    formations.json  504 formations + 27 boss formations, the two formations
+                     battle objects keep inline (Fusion's and COMBINE's), the
+                     68 encounter groups, the per-map bindings and both
+                     overworld position grids
     levels.json      the eleven characters' progression, 937 records
     abilities.json   the 8-byte records the damage pipeline consumes:
                      techniques, skills, enemy skills, and every item's
@@ -267,6 +268,15 @@ def build_formations(rom: bytes) -> dict[str, Any]:
 
     normal = [_formation(record) for record in formations["formations"]]
     bosses = [_formation(record) for record in formations["boss_formations"]]
+    # Records an object copies over `Enemy_Formation_Data` mid-battle; keyed by
+    # the label of their bytes, which is what the engine names them by.
+    inline = [
+        {"label": record["label"], "rom_offset": record["rom_offset"],
+         "loaded_by": record["loaded_by"],
+         **_formation({key: value for key, value in record.items()
+                       if key not in ("label", "rom_offset", "loaded_by")})}
+        for record in formations["inline_formations"]
+    ]
     mismatched = [f["id"] for f in normal + bosses if not f["count_matches_entries"]]
 
     grids = [
@@ -295,6 +305,7 @@ def build_formations(rom: bytes) -> dict[str, Any]:
         "boss_formation_count": len(bosses),
         "formations": normal,
         "boss_formations": bosses,
+        "inline_formations": inline,
         "encounter_groups": {
             "source": indexes["source"],
             "group_size_bytes": indexes["group_size_bytes"],
@@ -548,6 +559,7 @@ def emit_battle(rom: bytes, out_dir: str | Path, version: int) -> dict[str, Any]
             "formations": {"file": FORMATIONS_NAME, "sha256": shas[FORMATIONS_NAME],
                            "count": formations["formation_count"],
                            "boss_count": formations["boss_formation_count"],
+                           "inline_count": len(formations["inline_formations"]),
                            "encounter_groups": formations["encounter_groups"]["group_count"]},
             "levels": {"file": LEVELS_NAME, "sha256": shas[LEVELS_NAME],
                        "characters": levels["character_count"],

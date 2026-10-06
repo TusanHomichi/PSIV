@@ -57,6 +57,26 @@ FORMATION_INDEX_BLOCK: dict[str, Any] = {
 }
 
 
+#: Formation records stored inline in battle-object code, uncompressed, which
+#: an object copies over `Enemy_Formation_Data` (`$FFFF41F0`) before it calls
+#: `loc_14D46` to rebuild the enemy side mid-battle. The copy takes the whole
+#: header too, so `Enemy_Run_Chance` and the drop bytes follow the new record.
+#: Each is located by the one `lea (<offset>).l, a0` that loads it.
+INLINE_FORMATIONS: list[dict[str, Any]] = [
+    # BattleObj_Fusion, frame $14: `lea (loc_1A2F4).l, a0` (ps4.asm:35832),
+    # the record at ps4.asm:35846-35847. Ability $12 FUSION (34 ZolSlug).
+    {"label": "loc_1A2F4", "offset": 0x1A2F4, "loaded_by": "BattleObj_Fusion"},
+    # Object $354 (loc_23C84), first frame: `lea (loc_23D00).l, a0`
+    # (ps4.asm:47491), the record at 47505. Abilities $3A/$3B COMBINE
+    # (84 BladeRight, 86 HakenLeft).
+    {"label": "loc_23D00", "offset": 0x23D00, "loaded_by": "loc_23C84"},
+]
+#: `lea (abs).l, a0`: opcode 41F9 and a 32-bit address.
+LEA_ABS_A0 = b"\x41\xF9"
+#: The longest inline record the scan accepts: the header and four enemies.
+INLINE_MAX = HEADER_SIZE + 4 * 2 + 1
+
+
 class FormationError(ValueError):
     pass
 
@@ -204,6 +224,45 @@ def parse_formation_block(block: bytes, source: dict[str, Any], spec: dict[str, 
     return parsed
 
 
+def extract_inline_formations(data: bytes) -> list[dict[str, Any]]:
+    """The formation records battle objects keep in their own code.
+
+    Each record is read from its offset up to the `$FF` terminator with the
+    same structural rule as a block record (header, then whole pairs), and is
+    accepted only when the ROM holds exactly one `lea (<offset>).l, a0` - the
+    load that makes those bytes a formation and not something else.
+    """
+    parsed = []
+    for spec in INLINE_FORMATIONS:
+        offset = spec["offset"]
+        reference = LEA_ABS_A0 + offset.to_bytes(4, "big")
+        loads = data.count(reference)
+        if loads != 1:
+            raise FormationError(
+                f"{spec['label']} at 0x{offset:06X}: expected one `lea` that loads it, "
+                f"found {loads}")
+        window = data[offset:offset + INLINE_MAX]
+        (start, record), = split_formation_records(
+            window[:split_end(window, spec)])
+        parsed.append({
+            "label": spec["label"],
+            "rom_offset": f"0x{offset:06X}",
+            "loaded_by": spec["loaded_by"],
+            **parse_formation_record(record),
+        })
+    return parsed
+
+
+def split_end(window: bytes, spec: dict[str, Any]) -> int:
+    """One record's length: the header, whole pairs, then the `$FF`."""
+    cursor = HEADER_SIZE
+    while cursor < len(window) and window[cursor] != TERMINATOR:
+        cursor += 2
+    if cursor >= len(window):
+        raise FormationError(f"{spec['label']}: no terminator within {INLINE_MAX} bytes")
+    return cursor + 1
+
+
 def extract_formations(data: bytes) -> dict[str, Any]:
     blocks = []
     formations = []
@@ -237,6 +296,7 @@ def extract_formations(data: bytes) -> dict[str, Any]:
         "total_boss_formations": len(boss_formations),
         "formations": formations,
         "boss_formations": boss_formations,
+        "inline_formations": extract_inline_formations(data),
     }
 
 

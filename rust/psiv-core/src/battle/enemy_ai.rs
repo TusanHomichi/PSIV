@@ -62,6 +62,10 @@ use super::rng::Rolls;
 #[path = "enemy_ai_tests.rs"]
 mod tests;
 
+#[cfg(test)]
+#[path = "enemy_ai_pair_tests.rs"]
+mod pair_tests;
+
 /// The `EnemyID_*` constants the arms compare against (`ps4.constants.asm`).
 pub mod enemy_id {
     /// `EnemyID_ArthroPod` — `$17`.
@@ -258,6 +262,18 @@ impl AiOutcome {
     }
 }
 
+/// The battle-wide bytes an arm reads besides the roster.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) struct AiFlags {
+    /// `$FFFFEE86`, Lashiec's REINFORCE latch. `EnemyInit_Lashiec` clears it
+    /// (`ps4.asm:18114`) and object `$7EC` sets it on its first frame
+    /// (`loc_27ED0`, `st ($FFFFEE86).w` at `ps4.asm:53102`), the object
+    /// Lashiec's own `$62` arm loads (`ps4.asm:20172`); arm `$11` is its only
+    /// reader (`ps4.asm:20492`). Those three lines are every access in the
+    /// image.
+    pub(crate) reinforced: bool,
+}
+
 /// `Enemy_Attack`'s instruction block: the scan over `$50(a3)`..`$53(a3)`.
 ///
 /// The ability the roll wrote is left alone when nothing fires, which is why
@@ -278,6 +294,7 @@ pub(crate) fn instruction_block(
     roster: &mut Roster,
     actor: FighterId,
     record: &EnemyRecord,
+    flags: AiFlags,
     rolls: &mut impl Rolls,
 ) -> Result<AiOutcome, BattleDataError> {
     // The last arm that wrote the ability slot. An arm that does not stop the
@@ -292,7 +309,7 @@ pub(crate) fn instruction_block(
         let Some(condition) = EnemyAiCondition::from_id(id) else {
             return Err(BattleDataError::UnknownAiCondition(id));
         };
-        match arm(roster, actor, condition, rolls) {
+        match arm(roster, actor, condition, flags, rolls) {
             Arm::NoFire => {}
             Arm::Fire => {
                 chosen = Some((slot, None));
@@ -317,17 +334,22 @@ pub(crate) fn instruction_block(
                     break;
                 }
             }
-            Arm::ClearsXeAThoulFlags => {
+            Arm::ClearsXeAThoulFlags { fires } => {
                 // Three `bclr #4, reaction_flags` on Fighter_Enemy_1..3
-                // (`ps4.asm:20369-20371`): slots 6, 7 and 8.
+                // (`ps4.asm:20369-20371`): slots 6, 7 and 8. They run as soon
+                // as the actor's own bit is set, before the three slots are
+                // read, so a scan that then finds a slot without a XeAThoul
+                // has still cleared them.
                 for id in 6..=8u8 {
                     if let Some(fighter) = FighterId::new(id).and_then(|id| roster.get_mut(id)) {
                         fighter.reaction_flags &= !super::fighters::reaction::MULTI_TARGET;
                     }
                 }
-                chosen = Some((slot, None));
-                if condition.stops_the_scan() {
-                    break;
+                if fires {
+                    chosen = Some((slot, None));
+                    if condition.stops_the_scan() {
+                        break;
+                    }
                 }
             }
             Arm::Unsupported => return Ok(AiOutcome::Unsupported { condition }),
@@ -350,8 +372,12 @@ enum Arm {
     FireEmptySpace(FighterId),
     /// It held and cleared the actor's whole `reaction_flags` byte.
     Clears,
-    /// It held and cleared bit 4 on enemy slots 1..3.
-    ClearsXeAThoulFlags,
+    /// The actor's bit 4 was set, so bit 4 was cleared on enemy slots 1..3;
+    /// `fires` says whether the three slots then all held XeAThoul.
+    ClearsXeAThoulFlags {
+        /// Whether the arm wrote its ability.
+        fires: bool,
+    },
     /// The condition cannot be evaluated from port state.
     Unsupported,
 }
@@ -361,6 +387,7 @@ fn arm(
     roster: &Roster,
     actor: FighterId,
     condition: EnemyAiCondition,
+    flags: AiFlags,
     rolls: &mut impl Rolls,
 ) -> Arm {
     match condition {
@@ -511,14 +538,14 @@ fn arm(
 
         // `EnemyAI_HakenLeftExists` (`ps4.asm:21628`) is named by 84
         // BladeRight and `EnemyAI_BladeRightExists` (`ps4.asm:21557`) by 86
-        // HakenLeft, despite the labels reading the other way round: each fires
-        // for the **last** of its pair, once no other enemy object holds either
-        // id.
+        // HakenLeft, and each reads as its label says: it fires when exactly
+        // one partner stands beside the actor and no second fighter of the
+        // actor's own kind does — the pair is ready to COMBINE.
         EnemyAiCondition::HakenLeftExists => {
-            partner_gone(roster, actor, enemy_id::BLADE_RIGHT, enemy_id::HAKEN_LEFT)
+            pair_ready(roster, actor, enemy_id::BLADE_RIGHT, enemy_id::HAKEN_LEFT)
         }
         EnemyAiCondition::BladeRightExists => {
-            partner_gone(roster, actor, enemy_id::HAKEN_LEFT, enemy_id::BLADE_RIGHT)
+            pair_ready(roster, actor, enemy_id::HAKEN_LEFT, enemy_id::BLADE_RIGHT)
         }
 
         // `EnemyAI_HalfHPOrLower_AllEnemies`, `ps4.asm:21320-21338`: any
@@ -536,14 +563,18 @@ fn arm(
         // the bit from.
         EnemyAiCondition::Unknown => Arm::Unsupported,
 
-        // `EnemyAI_HP25PercentOrLower`, `ps4.asm:20491-20502`: the actor at or
-        // below a quarter of its maximum, **and** `$FFFFEE86` clear. That byte
-        // is Lashiec's own battle-object flag: `EnemyInit_Lashiec` clears it
-        // (`ps4.asm:18114`), and object `$7EC` (`loc_27ED0`, `ps4.asm:53099`)
-        // sets it — the object Lashiec's own `$62` arm loads (`ps4.asm:20172`).
-        // The port models no battle objects, so it cannot say whether that flag
-        // is set; 128 Lashiec is the only record naming this entry.
-        EnemyAiCondition::Hp25PercentOrLower => Arm::Unsupported,
+        // `EnemyAI_HP25PercentOrLower`, `ps4.asm:20491-20502`: `$FFFFEE86`
+        // clear (`tst.b / bne`), then `lsr.w #2` of the actor's own maximum and
+        // `cmp.w curr_hp, d1 / bcs`, so it holds at exactly a quarter. The byte
+        // is [`AiFlags::reinforced`]: the REINFORCE object raises it, so the arm
+        // fires once a battle. 128 Lashiec is the only record naming it.
+        EnemyAiCondition::Hp25PercentOrLower => {
+            if !flags.reinforced && at_or_below_fraction(roster, actor, 2) {
+                Arm::Fire
+            } else {
+                Arm::NoFire
+            }
+        }
 
         // `EnemyAI_ThreeXeAThouls`, `ps4.asm:20365-20397`: bit 4 on the actor,
         // then enemy slots 1, 2 and 3 all holding XeAThoul.
@@ -554,8 +585,8 @@ fn arm(
             let all = (6..=8u8).all(|id| {
                 occupant(roster, id).map(|f| f.stats.enemy_id) == Some(enemy_id::XE_A_THOUL)
             });
-            if multi && all {
-                Arm::ClearsXeAThoulFlags
+            if multi {
+                Arm::ClearsXeAThoulFlags { fires: all }
             } else {
                 Arm::NoFire
             }
@@ -571,14 +602,17 @@ fn received(roster: &Roster, actor: FighterId, bit: u8) -> Arm {
     if set { Arm::Clears } else { Arm::NoFire }
 }
 
-/// The partner-existence pair: fire when no other enemy object holds `partner`
-/// **and** none holds `other`.
+/// The partner pair: fire when exactly one other enemy object holds `partner`
+/// and none holds `own`, the actor's own id.
 ///
-/// Both loops read `fighter_id(a2)` of every occupied slot, skip `a4` itself
-/// (`cmpa.l a4, a2`) and count the other id in `d5`, which starts at `-1` so a
-/// count of zero fires.
-fn partner_gone(roster: &Roster, actor: FighterId, partner: u16, other: u16) -> Arm {
-    let mut others = 0u8;
+/// Both loops (`ps4.asm:21628-21653` and `21557-21582`) read `fighter_id(a2)`
+/// of every occupied enemy slot, skip `a4` itself (`cmpa.l a4, a2`), leave at
+/// once with `d1 = 0` on a second `own` (`beq.s loc_F3FA`), and count `partner`
+/// with `addq.b #1, d5` from `moveq #-1, d5`. `tst.b d5 / beq.s loc_F3FE` then
+/// fires on a byte of zero: **one** partner. No partner leaves `$FF`, two leave
+/// `1`, and neither fires.
+fn pair_ready(roster: &Roster, actor: FighterId, own: u16, partner: u16) -> Arm {
+    let mut d5 = u8::MAX;
     for id in 6..=9u8 {
         if id == actor.get() {
             continue;
@@ -586,14 +620,14 @@ fn partner_gone(roster: &Roster, actor: FighterId, partner: u16, other: u16) -> 
         let Some(fighter) = occupant(roster, id) else {
             continue;
         };
-        if fighter.stats.enemy_id == partner {
+        if fighter.stats.enemy_id == own {
             return Arm::NoFire;
         }
-        if fighter.stats.enemy_id == other {
-            others += 1;
+        if fighter.stats.enemy_id == partner {
+            d5 = d5.wrapping_add(1);
         }
     }
-    if others == 0 { Arm::Fire } else { Arm::NoFire }
+    if d5 == 0 { Arm::Fire } else { Arm::NoFire }
 }
 
 /// Whether the fighter in `id` is at or below `max_hp >> shift`.

@@ -89,7 +89,8 @@ where
                     }
                     FirstZioAction::Invocation
                     | FirstZioAction::Pause
-                    | FirstZioAction::DarkForceCharge => 0,
+                    | FirstZioAction::DarkForceCharge
+                    | FirstZioAction::DarkForceReveal => 0,
                 };
                 return EnemyTurn::Ability(ability);
             }
@@ -273,8 +274,13 @@ fn effect_divergence(
         // Psycho Wand's loc_3CF60/loc_7F22 reloads records, rather than
         // changing one stat. Check each observed cell against the same decoded
         // record the engine reloads; end-of-round state also pins the new form.
+        // Fusion's and COMBINE's reload (`loc_14D46`) fills the seated
+        // fighter's cells from its record the same way.
         let reloaded = turn.iter().find_map(|event| match event {
             BattleEvent::EnemyStatsReloaded {
+                fighter, enemy_id, ..
+            }
+            | BattleEvent::EnemiesFused {
                 fighter, enemy_id, ..
             } if *fighter == id(*who) => Some(*enemy_id),
             _ => None,
@@ -436,6 +442,14 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
                     // the ability byte, so the log files it as an attack that
                     // resolved no slot: the port's answer is the scripted event.
                     BattleEvent::FirstZioAction { actor: who, .. } if *who == actor => {
+                        swing = Some(Vec::new());
+                        break;
+                    }
+                    // COMBINE's arms clear `$24(a4)` before their object
+                    // reloads the side (`ps4.asm:21550`, `21621`), so the log
+                    // files the turn the same way: an attack that resolved no
+                    // slot. Fusion keeps its id and is an ability turn.
+                    BattleEvent::EnemiesFused { actor: who, .. } if *who == actor => {
                         swing = Some(Vec::new());
                         break;
                     }

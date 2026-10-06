@@ -76,6 +76,10 @@ pub(crate) struct Formation {
     pub(crate) run_chance: u8,
     pub(crate) drop_rate: u8,
     pub(crate) priority: u16,
+    /// The `Event_Battle_Index` a forced event capture wrote
+    /// (`python3 -m oracle.fixture --event-battle`); absent for an encounter.
+    #[serde(default)]
+    pub(crate) event_battle_index: Option<u8>,
     pub(crate) enemies: Vec<FormationEnemyEntry>,
 }
 

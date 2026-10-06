@@ -5,6 +5,8 @@
     python3 -m oracle.sweep.route_abilities --stretch zelan-kuran
     python3 -m oracle.sweep.route_abilities --out build/route-set.json
     python3 -m oracle.sweep.route_abilities --update-doc docs/battle/ENEMY_ABILITIES_ROUTE.md
+    python3 -m oracle.sweep.route_abilities --stretch dezolis-air-castle \
+        --update-doc docs/battle/ENEMY_ABILITIES_AIR_CASTLE.md
     python3 -m oracle.sweep.route_abilities --map-pattern '^(Zelan|Kuran)' \\
         --scene-doc docs/scenes/45_KuranArrival.md --out build/route-set.json
 
@@ -131,6 +133,15 @@ STRETCHES = {
                        (16, "Event_LashiecAppearance"),
                        (17, "Event_DarkForce2")),
     ),
+}
+
+
+#: The committed document whose generated block each stretch's tables fill
+#: (`--update-doc`); `tests/test_route_abilities.py` holds every one to its
+#: derivation.
+STRETCH_DOCS = {
+    "zelan-kuran": ROOT / "docs" / "battle" / "ENEMY_ABILITIES_ROUTE.md",
+    "dezolis-air-castle": ROOT / "docs" / "battle" / "ENEMY_ABILITIES_AIR_CASTLE.md",
 }
 
 

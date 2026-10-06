@@ -15,11 +15,22 @@ def round_end_frame(log, first, last):
 
 
 def round_state(log, frame, occupied):
+    """Each fighter's stat cells at `frame`.
+
+    An enemy slot whose `Obj_Fighters` word (`menu_object_N`) reads zero holds
+    no fighter: its stats struct is whatever the last occupant left. That is a
+    defeated enemy's, or - after Fusion's or COMBINE's reload (`loc_14D46`,
+    `ps4.asm:29735`) cleared the slot - a fighter the battle no longer has, so
+    it is not reported as state.
+    """
     if not log.has("menu_party_0"):
         return None
     values = []
     names = {1: "alys", 2: "chaz", 3: "hahn"}
     for fighter in sorted(occupied):
+        column = f"menu_object_{fighter}"
+        if fighter > 5 and log.has(column) and log.num(frame, column) == 0:
+            continue
         prefix = names[fighter] if fighter <= 5 else f"e{fighter - 5}"
         value = {"id": fighter, "hp": max(0, log.signed(frame, HP_COLUMNS[fighter])),
                  "status": log.num(frame, prefix + "_status") & 0x7F}

@@ -81,7 +81,8 @@ pub(crate) fn narration(
                 FirstZioAction::BlackWave => "BLACK WAVE",
                 FirstZioAction::Invocation
                 | FirstZioAction::Pause
-                | FirstZioAction::DarkForceCharge => "",
+                | FirstZioAction::DarkForceCharge
+                | FirstZioAction::DarkForceReveal => "",
             }
             .into(),
             beat: BattleBeat::None,

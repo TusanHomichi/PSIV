@@ -20,7 +20,7 @@ use std::collections::BTreeMap;
 use psiv_core::battle::Bonuses;
 use psiv_core::battle::{
     BattleData, CharacterRecord, ELEMENT_NAMES, ELEMENT_SLOTS, EnemyRecord, FormationEnemy,
-    FormationRecord, ItemKind, ItemRecord, LevelRecord, LevelTable, Rolls,
+    FormationRecord, InlineFormation, ItemKind, ItemRecord, LevelRecord, LevelTable, Rolls,
 };
 use psiv_core::{Cell, CollisionType, FieldMap};
 use psiv_data::BattleFiles;
@@ -149,6 +149,24 @@ pub fn battle_data(files: &BattleFiles) -> Result<BattleData, BridgeError> {
     data = data.with_skills(skills);
     data = data.with_battle_items(battle_item_records(files)?);
     data = data.with_enemy_skills(enemy_skill_records(files)?);
+    // The records Fusion's and COMBINE's objects copy over the battle's own
+    // (`psiv_core`'s `enemy_fusion`), keyed by the label of their bytes.
+    data = data.with_inline_formations(files.formations.inline_formations.iter().map(|inline| {
+        InlineFormation {
+            label: inline.label.clone(),
+            run_chance: inline.formation.run_chance,
+            enemies: inline
+                .formation
+                .enemies
+                .iter()
+                .map(|enemy| FormationEnemy {
+                    slot: enemy.slot,
+                    enemy_id: enemy.enemy_id,
+                    position: enemy.position,
+                })
+                .collect(),
+        }
+    }));
     for table in &files.levels.characters {
         data = data.with_level_table(table.character_id, level_table(table)?);
     }

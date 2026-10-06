@@ -45,6 +45,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: FIREBREATH,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 59 StoneHeads, `$21` FIREBREATH: `EnemyAttackOffs` `$3B`
     // (`ps4.asm:19266`) → `EnemyAttack_StoneHeads` (`ps4.asm:22350`), whose
@@ -63,6 +64,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: FIREBREATH,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 83 Ripper, `$21` FIREBREATH: `EnemyAttackOffs` `$53` (`ps4.asm:19290`) →
     // `EnemyAttack_Ripper` (`ps4.asm:21587`), `$21` test at line 21604 taking
@@ -75,6 +77,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: FIREBREATH,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 84 BladeRight, `$21` FIREBREATH: `EnemyAttackOffs` `$54` (`ps4.asm:19291`)
     // → the same `EnemyAttack_Ripper` arm, object and request. BladeRight's
@@ -85,6 +88,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: FIREBREATH,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 117 GyLaguiah, `$21` FIREBREATH: `EnemyAttackOffs` `$75`
     // (`ps4.asm:19324`) → `EnemyAttack_GyLaguiah` (`ps4.asm:20519`), `$21` test
@@ -102,6 +106,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: FIREBREATH,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
 ];
 

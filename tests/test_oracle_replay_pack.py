@@ -4,7 +4,7 @@ import pathlib
 import tempfile
 import unittest
 
-from oracle.sweep.replay_pack import fixture_enemies, party_records
+from oracle.sweep.replay_pack import build, fixture_enemies, party_records
 
 
 class ReplayPack(unittest.TestCase):
@@ -77,3 +77,37 @@ class ReplayPack(unittest.TestCase):
             self.write(runtime / "battle/equipment.json", {"items": []})
             with self.assertRaises(KeyError):
                 party_records(runtime, fixtures)
+
+    def test_a_reload_brings_its_inline_record_and_the_enemy_it_seats(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = pathlib.Path(directory)
+            fixtures, pack = root / "fixtures", root / "pack"
+            self.write(fixtures / "capture.json", {
+                "formation": {"enemies": [{"enemy_id": 84}]}, "rounds": []})
+            enemy = lambda id_: {
+                "id": id_, "symbol": f"E{id_}", "hp": 1,
+                "stats": dict.fromkeys(("strength", "mental", "agility", "dexterity",
+                                        "attack", "defense", "magic_defense"), 1),
+                "basic_attack": {"element": {"id": 1}, "status_effect": {"id": 0}},
+                "properties": {name: {"value": 4} for name in (
+                    "physical", "energy", "fire", "gravity", "water", "anti_evil",
+                    "electric", "holyword", "brose", "biological", "psychic",
+                    "mechanical", "efess", "destroy")},
+                "ai": {"regular_ability_ids": [0] * 8, "condition_ids": [0] * 4,
+                       "conditional_ability_ids": [0] * 4},
+                "experience_reward": 0, "meseta_reward": 0}
+            self.write(pack / "enemies.json", [enemy(84), enemy(87)])
+            self.write(pack / "enemy_skills.json", [])
+            inline = {"label": "loc_23D00", "run_agility": 7,
+                      "enemies": [{"slot": 1, "enemy": {"id": 87}, "position": 20}]}
+            self.write(pack / "formations.json", {"inline_formations": [inline]})
+            document = build(pack, fixtures, root / "runtime")
+            self.assertEqual([e["id"] for e in document["enemies"]], [84, 87])
+            self.assertEqual(document["inline_formations"], [{
+                "label": "loc_23D00", "run_chance": 7,
+                "enemies": [{"slot": 1, "enemy_id": 87, "position": 20}]}])
+            # A pack extracted before the records were decoded is refused, not
+            # silently short of the enemy the reload seats.
+            self.write(pack / "formations.json", {})
+            with self.assertRaises(SystemExit):
+                build(pack, fixtures, root / "runtime")

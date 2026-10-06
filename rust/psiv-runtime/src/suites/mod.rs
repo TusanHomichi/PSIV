@@ -25,6 +25,7 @@ mod combat_enemy_poison;
 mod combat_fission;
 mod combat_items;
 mod combat_recovery;
+mod combat_reload;
 mod combat_rewards;
 mod combat_rimit;
 mod combat_route_damage;

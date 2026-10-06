@@ -13,7 +13,7 @@ const PACK: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack");
 /// A runtime on a constructed durability fixture: Chaz, Alys and Hahn with 999
 /// HP, unrelated to any native save, so that a formation's opening rounds can be
 /// watched.
-fn runtime(pack: &Path, files: &BattleFiles) -> Runtime {
+pub(super) fn runtime(pack: &Path, files: &BattleFiles) -> Runtime {
     let mut initial = Runtime::new(
         GameData::load(pack).unwrap(),
         0x2B,

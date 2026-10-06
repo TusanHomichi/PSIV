@@ -12,13 +12,13 @@ use crate::battle::rng::SliceRolls;
 use crate::battle::stats::status;
 use crate::battle::{Roster, Stats};
 
-fn id(n: u8) -> FighterId {
+pub(super) fn id(n: u8) -> FighterId {
     FighterId::new(n).expect("a fighter id")
 }
 
 /// An enemy record standing in for a pack record: only the id and the AI block
 /// matter to the dispatch.
-fn record(enemy: u16, conditions: [u8; 4], abilities: [u8; 4]) -> EnemyRecord {
+pub(super) fn record(enemy: u16, conditions: [u8; 4], abilities: [u8; 4]) -> EnemyRecord {
     EnemyRecord {
         id: enemy,
         name: format!("ENEMY{enemy}"),
@@ -29,7 +29,7 @@ fn record(enemy: u16, conditions: [u8; 4], abilities: [u8; 4]) -> EnemyRecord {
 }
 
 /// A roster with the named enemy slots: `(slot, enemy id, conditions, ability)`.
-fn roster(rows: &[(u8, u16, [u8; 4], [u8; 4])]) -> Roster {
+pub(super) fn roster(rows: &[(u8, u16, [u8; 4], [u8; 4])]) -> Roster {
     let mut r = Roster::new();
     for (slot, enemy, conditions, abilities) in rows {
         r.add_enemy(*slot, &record(*enemy, *conditions, *abilities))
@@ -39,20 +39,26 @@ fn roster(rows: &[(u8, u16, [u8; 4], [u8; 4])]) -> Roster {
 }
 
 /// A record whose four slots all name `condition` for `ability`.
-fn one_arm(condition: u8, ability: u8) -> EnemyRecord {
+pub(super) fn one_arm(condition: u8, ability: u8) -> EnemyRecord {
     record(0, [condition; 4], [ability; 4])
 }
 
 /// Runs the block on a fresh slice of draws and reports what it decided and how
 /// many draws it took.
-fn scan(roster: &mut Roster, actor: u8, record: &EnemyRecord, draws: &[u16]) -> (AiOutcome, usize) {
+pub(super) fn scan(
+    roster: &mut Roster,
+    actor: u8,
+    record: &EnemyRecord,
+    draws: &[u16],
+) -> (AiOutcome, usize) {
     let mut rolls = SliceRolls::new(draws);
-    let outcome = instruction_block(roster, id(actor), record, &mut rolls).expect("a table id");
+    let outcome = instruction_block(roster, id(actor), record, AiFlags::default(), &mut rolls)
+        .expect("a table id");
     (outcome, rolls.drawn())
 }
 
 /// What the engine makes of an outcome: the ability the actor runs.
-fn ability_of(record: &EnemyRecord, outcome: AiOutcome, rolled: u8) -> u8 {
+pub(super) fn ability_of(record: &EnemyRecord, outcome: AiOutcome, rolled: u8) -> u8 {
     match outcome {
         AiOutcome::Replaced { slot, .. } => record.conditional_abilities[slot],
         AiOutcome::Rolled => rolled,
@@ -69,7 +75,7 @@ fn neighbour_of(outcome: AiOutcome) -> Option<FighterId> {
 }
 
 /// `max_hp` and `curr_hp` on the fighter in `slot`.
-fn hp(roster: &mut Roster, slot: u8, curr: u16, max: u16) {
+pub(super) fn hp(roster: &mut Roster, slot: u8, curr: u16, max: u16) {
     let fighter = roster.get_mut(id(slot)).expect("a seated enemy");
     fighter.stats.curr_hp = curr;
     fighter.stats.max_hp = max;
@@ -129,6 +135,7 @@ fn an_id_past_the_table_refuses_the_turn() {
             &mut r,
             id(6),
             &record(0, [0x14, 0, 0, 0], [0; 4]),
+            AiFlags::default(),
             &mut rolls
         ),
         Err(BattleDataError::UnknownAiCondition(0x14))
@@ -650,49 +657,7 @@ fn tech_sealed_holds_off_for_every_other_status() {
     }
 }
 
-// --- arms $0D / $0E: the partner pair -------------------------------------
-
-#[test]
-fn each_partner_arm_fires_for_the_last_of_its_pair() {
-    // 84 BladeRight names $0D, 86 HakenLeft names $0E; each fires when the
-    // *other* id is gone, and neither fires while a second of its own stands.
-    let blade = one_arm(0x0D, 58);
-    let mut r = roster(&[(2, enemy_id::BLADE_RIGHT, [0x0D; 4], [58; 4])]);
-    let (outcome, drawn) = scan(&mut r, 7, &blade, &[]);
-    assert_eq!(ability_of(&blade, outcome, 0), 58);
-    assert_eq!(drawn, 0);
-
-    let haken = one_arm(0x0E, 59);
-    let mut r = roster(&[(2, enemy_id::HAKEN_LEFT, [0x0E; 4], [59; 4])]);
-    let (outcome, _) = scan(&mut r, 7, &haken, &[]);
-    assert_eq!(ability_of(&haken, outcome, 0), 59);
-}
-
-#[test]
-fn the_partner_arms_hold_off_while_the_pair_stands() {
-    let blade = one_arm(0x0D, 58);
-    for rows in [
-        // The partner is present.
-        vec![
-            (1u8, enemy_id::HAKEN_LEFT, [0x0E; 4], [59; 4]),
-            (2, enemy_id::BLADE_RIGHT, [0x0D; 4], [58; 4]),
-        ],
-        // A second BladeRight keeps the first from firing.
-        vec![
-            (2, enemy_id::BLADE_RIGHT, [0x0D; 4], [58; 4]),
-            (3, enemy_id::BLADE_RIGHT, [0x0D; 4], [58; 4]),
-        ],
-    ] {
-        let mut r = roster(&rows);
-        assert_eq!(scan(&mut r, 7, &blade, &[]).0, AiOutcome::Rolled);
-    }
-    // The actor's own slot is skipped: a lone BladeRight *is* the last one.
-    let mut r = roster(&[(1, enemy_id::BLADE_RIGHT, [0x0D; 4], [58; 4])]);
-    assert!(matches!(
-        scan(&mut r, 6, &blade, &[]).0,
-        AiOutcome::Replaced { .. }
-    ));
-}
+// --- arms $0D / $0E: the partner pair are in `enemy_ai_pair_tests.rs` ------
 
 // --- arm $0F: HalfHPOrLower_AllEnemies ------------------------------------
 
@@ -765,35 +730,33 @@ fn three_xe_a_thouls_holds_off_without_the_multi_target_bit() {
 // --- the unsupported arms -------------------------------------------------
 
 #[test]
-fn the_two_arms_without_a_writable_fact_are_explicitly_unsupported() {
-    // $10 reads $FFFFEEA4 bit 0, which nothing in the disassembly writes; $11
-    // reads $FFFFEE86, set by Lashiec's own battle object.
-    for (condition, ability) in [(0x10u8, 83u8), (0x11, 98)] {
-        let record = one_arm(condition, ability);
-        let mut r = roster(&[(1, 128, [condition; 4], [ability; 4])]);
-        let (outcome, drawn) = scan(&mut r, 6, &record, &[]);
-        assert_eq!(
-            outcome,
-            AiOutcome::Unsupported {
-                condition: EnemyAiCondition::from_id(condition).expect("a table entry")
-            },
-            "{condition:#04X}"
-        );
-        assert_eq!(
-            outcome.unreported_ability(&record),
-            Some(ability),
-            "the timeline names the ability the arm would have written"
-        );
-        assert_eq!(drawn, 0);
-    }
+fn the_arm_without_a_writable_fact_is_explicitly_unsupported() {
+    // $10 reads $FFFFEEA4 bit 0, which nothing in the disassembly writes. ($11
+    // reads $FFFFEE86, which the port models: `enemy_ai_pair_tests.rs`.)
+    let (condition, ability) = (0x10u8, 83u8);
+    let record = one_arm(condition, ability);
+    let mut r = roster(&[(1, 128, [condition; 4], [ability; 4])]);
+    let (outcome, drawn) = scan(&mut r, 6, &record, &[]);
+    assert_eq!(
+        outcome,
+        AiOutcome::Unsupported {
+            condition: EnemyAiCondition::from_id(condition).expect("a table entry")
+        }
+    );
+    assert_eq!(
+        outcome.unreported_ability(&record),
+        Some(ability),
+        "the timeline names the ability the arm would have written"
+    );
+    assert_eq!(drawn, 0);
 }
 
 #[test]
 fn an_unsupported_arm_stops_the_scan_before_a_later_one() {
-    // 17 HP25PercentOrLower in slot 0 and a HalfHPOrLower in slot 1: the port
-    // cannot tell whether the first held, so nothing after it may decide.
-    let mixed = record(0, [0x11, 2, 0, 0], [98, 40, 0, 0]);
-    let mut r = roster(&[(1, 128, [0x11, 2, 0, 0], [98, 40, 0, 0])]);
+    // 16 Unknown in slot 0 and a HalfHPOrLower in slot 1: the port cannot
+    // tell whether the first held, so nothing after it may decide.
+    let mixed = record(0, [0x10, 2, 0, 0], [83, 40, 0, 0]);
+    let mut r = roster(&[(1, 128, [0x10, 2, 0, 0], [83, 40, 0, 0])]);
     hp(&mut r, 6, 1, 100);
     let (outcome, _) = scan(&mut r, 6, &mixed, &[]);
     assert!(matches!(outcome, AiOutcome::Unsupported { .. }));

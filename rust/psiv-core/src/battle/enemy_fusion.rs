@@ -1,101 +1,152 @@
-//! Fusion: two Zol slugs become one MetaSlug.
+//! Fusion and COMBINE: an object replaces the whole enemy side with a formation
+//! it keeps inline.
 //!
-//! `EnemyAI_ZolSlugs` (arm `$06` of `EnemyAIInstructionsOffs`, see
-//! [`super::enemy_ai`]) replaces the slug's rolled ability with the record's
-//! conditional ability `$12` when every occupied enemy slot holds a ZolSlug and
-//! there are exactly two of them. `EnemyAttack_Blob` (`ps4.asm:23043`) sends a
-//! nonzero ability to `loc_10796`, which loads `BattleObj_Fusion`
-//! (`ps4.asm:35675`) and `BattleObj_Fusion2` (`ps4.asm:35850`) and clears
-//! `Current_Target_Index`. The objects slide the two sprites together and, at
-//! their frame `$14` (`ps4.asm:35817`):
+//! Two arms load such an object:
+//!
+//! - **Fusion.** `EnemyAI_ZolSlugs` (arm `$06`, [`super::enemy_ai`]) writes the
+//!   conditional `$12` when every occupied enemy slot holds a ZolSlug and there
+//!   are exactly two. `EnemyAttack_Blob` (`ps4.asm:23043`) sends a nonzero
+//!   ability to `loc_10796`, which loads `BattleObj_Fusion` (`ps4.asm:35675`) and
+//!   `BattleObj_Fusion2` (`ps4.asm:35850`) and clears `Current_Target_Index`.
+//!   At their frame `$14` (`ps4.asm:35817`) they reload the side from
+//!   `loc_1A2F4` (`ps4.asm:35820-35841`).
+//! - **COMBINE.** `EnemyAI_HakenLeftExists` (`$0D`, named by 84 BladeRight) and
+//!   `EnemyAI_BladeRightExists` (`$0E`, named by 86 HakenLeft) write `$3A` and
+//!   `$3B` when the pair stands alone. `EnemyAttack_Ripper`'s fall-through
+//!   `loc_F3B6` (`ps4.asm:21620-21624`) and `EnemyAttack_Piercer`'s `loc_F2E4`
+//!   (`ps4.asm:21549-21553`) clear the ability (`clr.w $24(a4)`) and
+//!   `Current_Target_Index` and turn the attack object into `$354` (`loc_23C84`,
+//!   `ps4.asm:47469`), which does everything on its first frame
+//!   (`ps4.asm:47483-47503`): it reloads the side from `loc_23D00`.
+//!
+//! The reload is the same in both objects:
 //!
 //! ```text
 //!     clear the 32 objects at $FFFFD800 and the four Fighter_Enemy_n words
-//!                                                  (ps4.asm:35820-35831)
-//!     lea (loc_1A2F4).l, a0 / lea (Enemy_Formation_Data).l, a1 / trap #1
-//!                                                  (ps4.asm:35832-35835)
-//!     jsr loc_14D46(pc)                            (ps4.asm:35839)
-//!     move.w #$16, (Battle_Routine).l              (ps4.asm:35841)
+//!     lea (<record>).l, a0 / lea (Enemy_Formation_Data).l, a1 / moveq #4, d7
+//!     trap #1                                       ; ten bytes over the header
+//!     jsr loc_14D46                                 ; loc_7F22 -> Battle_FillEnemyStats
+//!     move.w #$16, (Battle_Routine).l
 //! ```
 //!
-//! `loc_1A2F4` (`ps4.asm:35846-35847`) is ten bytes of formation data - `00 00 00
-//! 00 01 01 00 24 14 FF`: ambush 0, run 0, drop rate 0, drop item none, **one**
-//! enemy, enemy id `$24` (36, MetaSlug) at position `$14` - which `loc_14D46`
-//! (`ps4.asm:29735`) feeds through `loc_7F22` -> `Battle_FillEnemyStats`
-//! (`ps4.asm:11939`) exactly as the battle's own load does. So whatever the two
-//! slugs' HP was, and whichever slots they stood in, the fight continues against
-//! one full-HP MetaSlug in slot 1. The header's run and drop bytes equal the
-//! slugs' own formations' (`0xD2`-`0xD4`: run 0, drop rate 0, no item), so
-//! nothing about running or drops changes.
+//! `loc_14D46` (`ps4.asm:29735`) feeds the new record through `loc_7F22` ->
+//! `Battle_FillEnemyStats` (`ps4.asm:11939`) exactly as the battle's own load
+//! does, so whatever HP the old fighters had and whichever slots they stood in,
+//! the fight continues against the record's full-HP enemy in slot 1. The copy
+//! takes the header too: `Enemy_Run_Chance` is `Enemy_Formation_Data + 1`
+//! (`ps4.constants.asm:2039-2041`), so the escape test reads the record's run
+//! byte from then on. The records are the pack's (`psiv_tools.formations`'s
+//! `INLINE_FORMATIONS`), looked up by their label.
 //!
-//! Nothing in the chain draws from the RNG (no `UpdateRNGSeed2` site between the
-//! two objects' labels), and the record's own range and hit bytes are never
-//! read: the effect byte `$1F` is `AbilityEffect_None` and no object calls
-//! `GetEnemySkillEffectAndRange`.
+//! Nothing in either chain draws from the RNG (no `UpdateRNGSeed2` site in
+//! either object or the routines they call), and the records' own range and hit
+//! bytes are never read: the effect byte `$1F` is `AbilityEffect_None` and no
+//! object calls `GetEnemySkillEffectAndRange`.
 
 use super::{BattleData, BattleDataError, BattleEvent, FighterId, Roster, Side, Stats};
 
-/// `EnemyAttackOffs` entry `$22`: 34 ZolSlug, the only enemy whose conditional
-/// ability is Fusion.
-const ZOL_SLUG: u16 = 34;
-/// The conditional ability id the arm writes.
-const FUSION: u8 = 0x12;
-/// `loc_1A2F4`'s enemy byte: `$24`, MetaSlug.
-const META_SLUG: u16 = 0x24;
-/// `loc_1A2F4`'s position byte: `$14`, plane column 20 (`ps4.asm:35847`).
-const META_SLUG_POSITION: u8 = 0x14;
+/// One arm that reloads the enemy side from an inline record.
+struct Reload {
+    /// The carrier's enemy id.
+    carrier: u16,
+    /// The ability its condition writes.
+    ability: u8,
+    /// The label of the record the object copies.
+    formation: &'static str,
+    /// Whether the arm clears `$24(a4)` before it loads the object (COMBINE's
+    /// do, Fusion's does not).
+    clears_ability: bool,
+}
 
-/// Fusion, if `ability` is it and `actor` is a Zol slug.
+/// Every arm this module resolves.
+const RELOADS: &[Reload] = &[
+    // EnemyAttackOffs $22 (34 ZolSlug) -> EnemyAttack_Blob -> BattleObj_Fusion.
+    Reload {
+        carrier: 34,
+        ability: 0x12,
+        formation: "loc_1A2F4",
+        clears_ability: false,
+    },
+    // EnemyAttackOffs $54 (84 BladeRight) -> EnemyAttack_Ripper -> $354.
+    Reload {
+        carrier: 84,
+        ability: 0x3A,
+        formation: "loc_23D00",
+        clears_ability: true,
+    },
+    // EnemyAttackOffs $56 (86 HakenLeft) -> EnemyAttack_Piercer -> $354.
+    Reload {
+        carrier: 86,
+        ability: 0x3B,
+        formation: "loc_23D00",
+        clears_ability: true,
+    },
+];
+
+/// `AbilityEffect_None`'s index, the effect byte both records carry.
+const NO_EFFECT: u8 = 0x1F;
+
+/// Fusion or COMBINE, if `ability` is one of [`RELOADS`] for `actor`.
+///
+/// Returns the run byte of the new record when the side was reloaded - the
+/// caller's `Enemy_Run_Chance` from then on - and `None` when the pair is not
+/// one of these arms.
 ///
 /// # Errors
-/// [`BattleDataError::UnknownEnemy`] when the pack has no MetaSlug record.
+/// [`BattleDataError::UnknownInlineFormation`] or
+/// [`BattleDataError::UnknownEnemy`] when the pack lacks the record or the
+/// enemy it seats.
 pub(super) fn resolve_fusion(
     roster: &mut Roster,
     actor: FighterId,
     ability: u8,
     data: &BattleData,
     events: &mut Vec<BattleEvent>,
-) -> Result<bool, BattleDataError> {
-    let Some(skill) = data.enemy_skill(ability).filter(|s| {
-        // Record 18: `1F 00 22 24 00 00 00 00` - effect `$1F`, no stat, and the
-        // two ids the object compares and loads (`$22` ZolSlug, `$24`).
-        s.id == FUSION
-            && s.effect == 0x1F
-            && s.power_stat == 0
-            && s.target == 0x22
-            && s.power == 0x24
-            && s.resistance == 0
-            && s.element == 0
-    }) else {
-        return Ok(false);
+) -> Result<Option<u8>, BattleDataError> {
+    let Some(caster) = roster.get(actor).filter(|f| f.is_alive()) else {
+        return Ok(None);
     };
-    if !roster
-        .get(actor)
-        .is_some_and(|f| f.is_alive() && f.stats.enemy_id == ZOL_SLUG)
-    {
-        return Ok(false);
+    let Some(reload) = RELOADS
+        .iter()
+        .find(|r| r.carrier == caster.stats.enemy_id && r.ability == ability)
+    else {
+        return Ok(None);
+    };
+    let Some(skill) = data.enemy_skill(ability).filter(|s| s.effect == NO_EFFECT) else {
+        return Ok(None);
+    };
+    let formation = data.inline_formation(reload.formation)?;
+    // Both records seat one enemy, in slot 1; the event says which.
+    let [seat] = formation.enemies.as_slice() else {
+        return Ok(None);
+    };
+    let record = data.enemy(seat.enemy_id)?;
+    if reload.clears_ability {
+        if let Some(fighter) = roster.get_mut(actor) {
+            fighter.ability = 0;
+        }
+    } else {
+        events.push(BattleEvent::EnemySkillUsed {
+            actor,
+            skill: ability,
+            name: skill.name.clone(),
+        });
     }
-    let record = data.enemy(META_SLUG)?;
     let removed: Vec<FighterId> = roster.side(Side::Enemy).map(|f| f.id).collect();
-    events.push(BattleEvent::EnemySkillUsed {
-        actor,
-        skill: ability,
-        name: skill.name.clone(),
-    });
     roster.clear_enemies();
     let fighter = roster
-        .add_enemy(1, record)
-        .expect("slot 1 was just emptied");
+        .add_enemy(seat.slot, record)
+        .expect("the side was just emptied");
     debug_assert_eq!(Stats::from_enemy(record).curr_hp, record.hp);
     events.push(BattleEvent::EnemiesFused {
         actor,
         removed,
         fighter,
         enemy_id: record.id,
-        position: META_SLUG_POSITION,
+        position: seat.position,
         name: record.name.clone(),
         hp: record.hp,
         agility: record.agility,
     });
-    Ok(true)
+    Ok(Some(formation.run_chance))
 }

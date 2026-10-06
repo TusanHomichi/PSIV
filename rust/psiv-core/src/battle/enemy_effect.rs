@@ -23,6 +23,7 @@
 //! | `$0B` | `AbilityEffect_MagicDefenseUp` (`ps4.asm:9220`) | `mdfs_pow_battle = mdfs_pow + d1`, wrapping a word, after the range/chance test |
 //! | `$1B` | `AbilityEffect_Poison` (`ps4.asm:9410`) | nothing if poisoned; else chance roll, then `bset #StatusPoisoned` |
 //! | `$1C` | `AbilityEffect_Paralyze` (`ps4.asm:9424`) | nothing if paralyzed; else chance roll, then paralyzed set, sleep cleared, `agility_battle` and `dexterity_battle` both 1 |
+//! | `$2B` | `AbilityEffect_IncreaseStats` (`ps4.asm:9496`) | the chance step (`Battle_ProcessEffect`, whose answer it never tests), then 20 added to the four battle bytes and the three battle words |
 //!
 //! `d1` is the actor's power stat, which `Effect_SetupSkillParams`
 //! (`ps4.asm:9576`) reads through record byte 1 **masked with `$7F`** (line
@@ -64,6 +65,10 @@ mod crawler_tests;
 #[path = "enemy_effect_barrier_tests.rs"]
 mod barrier_tests;
 
+#[cfg(test)]
+#[path = "enemy_effect_air_castle_tests.rs"]
+mod air_castle_tests;
+
 /// An `AbilityEffectsOffs` handler this module implements.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Handler {
@@ -91,6 +96,13 @@ enum Handler {
     Poison,
     /// `$1C`, `AbilityEffect_Paralyze` (`ps4.asm:9424`).
     Paralyze,
+    /// `$2B`, `AbilityEffect_IncreaseStats` (`ps4.asm:9496-9506`): `bsr.s
+    /// Battle_ProcessEffect` and then, without testing its answer, `moveq #20,
+    /// d1` added with `add.b` to `strength_battle`, `mental_battle`,
+    /// `agility_battle` and `dexterity_battle` and with `add.w` to
+    /// `atk_pow_battle`, `dfs_pow_battle` and `magic_dfs_battle` - each from its
+    /// battle value, so it stacks and wraps.
+    IncreaseStats,
 }
 
 impl Handler {
@@ -106,6 +118,7 @@ impl Handler {
             Handler::MagicDefenseUp => 0x0B,
             Handler::Poison => 0x1B,
             Handler::Paralyze => 0x1C,
+            Handler::IncreaseStats => 0x2B,
         }
     }
 }
@@ -128,6 +141,24 @@ enum Guard {
     MagicDefenceNotRaised,
 }
 
+/// How many times the route's object runs `GetEnemySkillEffectAndRange`
+/// (`ps4.asm:8687`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Calls {
+    /// One call, which the object (or a shared tail such as `loc_250A2`,
+    /// `ps4.asm:48945`) reads afterwards.
+    Once,
+    /// DarkForce2's EVIL EYE (`loc_30F10`, `ps4.asm:63411-63430`): `jsr
+    /// GetEnemySkillEffectAndRange` at 63417 and then `jsr loc_250A2` at
+    /// 63418, which calls it again (48947). The second call's
+    /// `Battle_ClearEffects` (`ps4.asm:8695`) wipes the words the first one
+    /// wrote, so each call takes its own chance roll and only the second
+    /// decides; `loc_25074` (48929) reads its words at the end (63456).
+    /// Only [`Handler::SleepParalyze`] uses it: that handler writes nothing but
+    /// the effect word, so the first call changes no state.
+    TwiceLastDecides,
+}
+
 /// One proven `(enemy, ability)` arm.
 #[derive(Debug, Clone, Copy)]
 struct Route {
@@ -144,6 +175,15 @@ struct Route {
     range: u8,
     /// What the arm tests first.
     guard: Guard,
+    /// Whether the object tests the caster's `StatusTechSealed` before the
+    /// effect - `btst #4, $16(a1)` on `$3C(a4)`'s stats (`ps4.asm:40129` for
+    /// DEBAN) - and, when it is set, ends the turn with no effect call.
+    sealable: bool,
+    /// How many effect calls the object makes.
+    calls: Calls,
+    /// Whether the object raises `$FFFFEE86`, Lashiec's REINFORCE latch
+    /// (`loc_27ED0`, `st ($FFFFEE86).w` at `ps4.asm:53102`).
+    raises_reinforce_latch: bool,
 }
 
 /// Every `(enemy, ability)` arm this module resolves - the ones a capture saw run
@@ -170,7 +210,11 @@ struct Route {
 /// | 106 Haunt, 107 Spector `$4C` EVIL EYE | `EnemyAttack_Haunt` (`ps4.asm:21005`), arm `loc_EAC6` (21023) | object `$700`, `loc_2CB1C` (`ps4.asm:58346`): one call (58375), then `bset #3` on the stored target (58495) | `$07`, range 8 |
 /// | 115 Greneris, 72 BloodSaber, 88 SoldrFiend `$2F` VOL | arms 20630 (`loc_E47A`), 22005 (`loc_F93C`), 21484 (`loc_F1E2`) | `loc_2AE8E` (`ps4.asm:56333`) and its child `loc_2AE0C` (56296); `loc_1D2F4` (`ps4.asm:39774`); `loc_23216` (`ps4.asm:46736`): one call, then `loc_25048` (`ps4.asm:48916`) kills | `$02`, range 8 |
 /// | 48 Siren386, 49 Browren486 `$1D` BARRIER | `EnemyAttack_Warren286` (`ps4.asm:22515`), `loc_100A6` (22559) | object `$1E0`, `loc_1769E` (`ps4.asm:32706`), one call (32771) | `$0B`, range 2, signed caster MDEF guard |
-/// | 70 ShadowSabr `$2D` DEBAN | `EnemyAttack_ShadowSabr` (`ps4.asm:21933`), arm `loc_F89A` (21966) | object `$2A8`, `loc_1D7D8` (`ps4.asm:40098`) | `$0A`, range 2 |
+/// | 70 ShadowSabr, 71 FrostSaber, 72 BloodSaber `$2D` DEBAN | `EnemyAttack_ShadowSabr` (`ps4.asm:21933`, entries `$46`-`$48`), arm `loc_F89A` (21966) | object `$2A8`, `loc_1D7D8` (`ps4.asm:40098`): seal test at frame `$14` (40125-40130) | `$0A`, range 2, sealable |
+/// | 107 Spector `$4E` DTHSPELL | `EnemyAttack_Haunt`, arm `loc_EB50` (`ps4.asm:21057`) | object `$708`, `loc_2C854` (`ps4.asm:58148`): `loc_250A2` (58181), then the kill at `loc_2C928` (58201-58219) | `$02`, range 8 |
+/// | 128 Lashiec `$60` POSESSION | `EnemyAttack_Lashiec`, arm `loc_DD2C` (`ps4.asm:20136`) | object `$7E8`, `loc_2805C` (`ps4.asm:53215`): `loc_250A2` (53268), then `bset #3` on the stored target (53271-53273) | `$07`, range 8 |
+/// | 128 Lashiec `$62` REINFORCE | `EnemyAttack_Lashiec`, arm `loc_DD84` (`ps4.asm:20156`) | object `$7EC`, `loc_27ED0` (`ps4.asm:53099`): raises `$FFFFEE86` (53102), then its phase 8 jumps to `loc_24C68` (48613), one call (48617) | `$2B`, range 3 |
+/// | 131 DarkForce2 `$4C` EVIL EYE | `EnemyAttack_DarkForce2`, fall-through `loc_DB30` (`ps4.asm:20013`) | object `$850`, `loc_30DC0` (`ps4.asm:63323`): two calls (63417, 63418 via `loc_250A2`), `loc_25074` at 63456 | `$07`, range 8, [`Calls::TwiceLastDecides`] |
 const ROUTES: &[Route] = &[
     // EnemyAttack_Warren286 -> $1E0 (loc_1769E, ps4.asm:32706), whose
     // loc_17788 calls GetEnemySkillEffectAndRange once (32771), range 2.
@@ -180,6 +224,9 @@ const ROUTES: &[Route] = &[
         handler: Handler::MagicDefenseUp,
         range: 2,
         guard: Guard::MagicDefenceNotRaised,
+        sealable: false,
+        calls: Calls::Once,
+        raises_reinforce_latch: false,
     },
     Route {
         enemy: 49,
@@ -187,6 +234,9 @@ const ROUTES: &[Route] = &[
         handler: Handler::MagicDefenseUp,
         range: 2,
         guard: Guard::MagicDefenceNotRaised,
+        sealable: false,
+        calls: Calls::Once,
+        raises_reinforce_latch: false,
     },
     route(31, 0x10, Handler::AgilityDown, 8),
     route(32, 0x11, Handler::Poison, 8),
@@ -198,21 +248,72 @@ const ROUTES: &[Route] = &[
     route(19, 0x0B, Handler::Paralyze, 8),
     route(26, 0x0B, Handler::Paralyze, 8),
     route(21, 0x0B, Handler::Paralyze, 8),
-    route(115, 0x28, Handler::AgilityDown, 9),
-    route(115, 0x57, Handler::AttackDown, 9),
-    route(115, 0x29, Handler::SealTech, 9),
-    route(115, 0x2A, Handler::SleepParalyze, 9),
-    route(77, 0x2A, Handler::SleepParalyze, 9),
+    // Greneris's objects share EnemyAttack_Juza's caster prelude, whose seal
+    // test ends a sealed caster's turn at frame $1D through loc_2B1CC: DORAN
+    // and GELUN's $768 and SEALS's $76C reach it at 56109, RIMIT's $754 at
+    // 56242 (ps4.asm:56081-56123, 56238-56258, 56563-56574).
+    sealable(route(115, 0x28, Handler::AgilityDown, 9)),
+    sealable(route(115, 0x57, Handler::AttackDown, 9)),
+    sealable(route(115, 0x29, Handler::SealTech, 9)),
+    sealable(route(115, 0x2A, Handler::SleepParalyze, 9)),
+    // BattleObj_EnemyRimit's frame $24: sealed, it clears $FFFFEE80 and
+    // itself before the effect call (ps4.asm:38384-38393).
+    sealable(route(77, 0x2A, Handler::SleepParalyze, 9)),
     route(107, 0x4C, Handler::SleepParalyze, 8),
     route(106, 0x4C, Handler::SleepParalyze, 8),
-    route(115, 0x2F, Handler::Death, 8),
-    route(72, 0x2F, Handler::Death, 8),
-    route(88, 0x2F, Handler::Death, 8),
+    // VOL: Greneris's $74C reaches the Juza prelude's test at 56505 (exit
+    // loc_2B1CC); BloodSaber's $2C0 shares the ShadowSabr prelude loc_1D5E2,
+    // whose sealed caster ends at frame $19 (ps4.asm:39980-40011);
+    // SoldrFiend's $374 tests at frame $E and, sealed, ends at $24 with no
+    // effect call (ps4.asm:46774-46804).
+    sealable(route(115, 0x2F, Handler::Death, 8)),
+    sealable(route(72, 0x2F, Handler::Death, 8)),
+    sealable(route(88, 0x2F, Handler::Death, 8)),
+    // EnemyAttack_ShadowSabr is EnemyAttackOffs $46, $47 and $48
+    // (ps4.asm:19277-19279): one arm, one object, three carriers.
+    deban(70),
+    deban(71),
+    deban(72),
+    // DTHSPELL: loc_250A2's single call, then the stored target's kill. The
+    // ChaosSorcr family's arm (112 Illusionst, 113 ImagioMage) loads another
+    // object, $72C, and stays off the table until a capture sees it.
+    route(107, 0x4E, Handler::Death, 8),
+    route(128, 0x60, Handler::SleepParalyze, 8),
     Route {
-        guard: Guard::DefenceNotRaised,
-        ..route(70, 0x2D, Handler::DefenseUp, 2)
+        raises_reinforce_latch: true,
+        ..route(128, 0x62, Handler::IncreaseStats, 3)
+    },
+    Route {
+        calls: Calls::TwiceLastDecides,
+        ..route(131, 0x4C, Handler::SleepParalyze, 8)
     },
 ];
+
+/// The ShadowSabr family's DEBAN arm: the routine's own defence test
+/// (`loc_F89A`), then the object's seal test.
+const fn deban(enemy: u16) -> Route {
+    Route {
+        guard: Guard::DefenceNotRaised,
+        sealable: true,
+        ..route(enemy, 0x2D, Handler::DefenseUp, 2)
+    }
+}
+
+/// Whether the arm of `enemy` for `ability` loads an object that raises
+/// `$FFFFEE86` ([`super::enemy_ai::AiFlags::reinforced`]).
+pub(super) fn raises_reinforce_latch(enemy: u16, ability: u8) -> bool {
+    ROUTES
+        .iter()
+        .any(|r| r.enemy == enemy && r.ability == ability && r.raises_reinforce_latch)
+}
+
+/// The same arm, with an object that tests the caster's seal first.
+const fn sealable(route: Route) -> Route {
+    Route {
+        sealable: true,
+        ..route
+    }
+}
 
 /// One arm with no guard.
 const fn route(enemy: u16, ability: u8, handler: Handler, range: u8) -> Route {
@@ -222,6 +323,9 @@ const fn route(enemy: u16, ability: u8, handler: Handler, range: u8) -> Route {
         handler,
         range,
         guard: Guard::None,
+        sealable: false,
+        calls: Calls::Once,
+        raises_reinforce_latch: false,
     }
 }
 
@@ -282,12 +386,18 @@ pub(super) fn resolve_effect_skill(
     }
     // `$7F`: `Effect_SetupSkillParams` masks the selector before the stat table.
     let power = stat(&caster.stats, skill.power_stat & 0x7F);
+    let sealed = route.sealable && caster.stats.status & status::TECH_SEALED != 0;
     events.push(BattleEvent::EnemySkillUsed {
         actor,
         skill: ability,
         name: skill.name.clone(),
     });
-    for target in visited(route.range, intended) {
+    if sealed {
+        // The object animates, finds the seal and ends the turn before its
+        // effect call: no roll, no change.
+        return EffectTurn::Resolved;
+    }
+    for target in visited(route.range, actor, intended) {
         let Some(fighter) = roster.get_mut(target) else {
             continue;
         };
@@ -295,6 +405,13 @@ pub(super) fn resolve_effect_skill(
         // death bit, is skipped before the handler.
         if !fighter.is_alive() {
             continue;
+        }
+        if route.calls == Calls::TwiceLastDecides {
+            // The first call's roll, whose word the second call wipes.
+            debug_assert_eq!(route.handler, Handler::SleepParalyze);
+            if fighter.stats.status & (status::ASLEEP | status::PARALYZED) == 0 {
+                landed(skill, power, &fighter.stats, rolls);
+            }
         }
         apply(
             route.handler,
@@ -311,8 +428,10 @@ pub(super) fn resolve_effect_skill(
 
 /// `AbilityRangeOffs` (`ps4.asm:8903`): the fighters the range visits, in
 /// slot order.
-fn visited(range: u8, intended: Option<FighterId>) -> Vec<FighterId> {
+fn visited(range: u8, actor: FighterId, intended: Option<FighterId>) -> Vec<FighterId> {
     match range {
+        // `AbilityRange_Self` (`ps4.asm:8946`): the actor.
+        3 => vec![actor],
         // `AbilityRange_Single`: `Current_Target_Index`.
         8 => intended
             .into_iter()
@@ -454,6 +573,33 @@ fn apply(
             if landed(skill, power, stats, rolls) {
                 stats.status |= status::POISONED;
                 events.push(inflicted(status::POISONED));
+            }
+        }
+        Handler::IncreaseStats => {
+            // `Battle_ProcessEffect`'s chance step runs (none for a record with
+            // no resistance byte) and its answer is not read.
+            landed(skill, power, stats, rolls);
+            const RAISE: u8 = 20;
+            stats.strength.battle = stats.strength.battle.wrapping_add(RAISE);
+            stats.mental.battle = stats.mental.battle.wrapping_add(RAISE);
+            stats.agility.battle = stats.agility.battle.wrapping_add(RAISE);
+            stats.dexterity.battle = stats.dexterity.battle.wrapping_add(RAISE);
+            stats.attack.battle = stats.attack.battle.wrapping_add(RAISE.into());
+            stats.defence.battle = stats.defence.battle.wrapping_add(RAISE.into());
+            stats.mental_defence.battle = stats.mental_defence.battle.wrapping_add(RAISE.into());
+            for (stat, value) in [
+                (TechniqueStat::Attack, stats.attack.battle),
+                (TechniqueStat::Defence, stats.defence.battle),
+                (TechniqueStat::MentalDefence, stats.mental_defence.battle),
+                (TechniqueStat::Agility, stats.agility.battle.into()),
+                (TechniqueStat::Dexterity, stats.dexterity.battle.into()),
+            ] {
+                events.push(BattleEvent::StatChanged {
+                    actor,
+                    target,
+                    stat,
+                    value,
+                });
             }
         }
         Handler::Paralyze => {
