@@ -5,9 +5,10 @@
 //! Damage techniques do not take physical hit/critical rolls ($B75A).
 //! Unsupported effects fail before payment; they never become an attack.
 
+use super::player_effect::{self, Effect};
 use super::retarget;
 use super::{BattleData, BattleEvent, FighterId, Roster, Side, Stats, Verdict};
-use super::{Rolls, calc_healing, calculate_chances, calculate_damage, clamp_damage, status};
+use super::{Rolls, calc_healing, calculate_damage, clamp_damage, status};
 
 #[cfg(test)]
 #[path = "technique_tests.rs"]
@@ -42,7 +43,8 @@ impl Technique {
             && self.targeting & 15 <= 9
             && self.resistance <= 7
             && self.element <= 14
-            && matches!(self.effect, 1 | 2 | 3 | 6 | 7 | 9 | 10 | 11 | 12 | 18..=22)
+            && matches!(self.effect, 1 | 2 | 3 | 6..=14 | 18..=22)
+            && (self.effect != 13 || matches!(self.power, 2..=29))
     }
 
     /// Whether command selection needs a target cursor.
@@ -165,6 +167,8 @@ pub(super) fn resolve_technique(
     let tech = tech.expect("validated");
     let power = u16::from(caster.stats.mental.battle);
     let sealed = caster.stats.status & status::TECH_SEALED != 0;
+    let intended =
+        retarget::ability_target(roster, intended, tech.targeting & 15, tech.effect, rolls);
     let caster = roster.get_mut(actor).expect("present");
     caster.stats.curr_tp -= u16::from(tech.cost);
     events.push(BattleEvent::TechniqueUsed {
@@ -183,23 +187,13 @@ pub(super) fn resolve_technique(
         });
         return Vec::new();
     }
+    if tech.effect == 1 {
+        super::player_animation::technique(id, rolls);
+    }
     let mut targets = technique_targets(roster, actor, tech);
     if tech.single_target() {
-        // `loc_5A98`: a living aim is kept and a fallen enemy is re-aimed by
-        // the loop this record's own effect id selects. A technique whose
-        // target nibble is 4, 6 or 8 — a heal or a revival aimed at an ally —
-        // never enters the routine at all (`ps4.asm:8055-8057`), so a dead
-        // healing recipient is never replaced and the effect's own eligibility
-        // decides what a paid cast on one does.
+        // The shared turn-time aim check never re-aims party recovery ranges.
         targets = intended
-            .and_then(|commanded| {
-                retarget::single_target(
-                    roster,
-                    commanded,
-                    retarget::deficit_for_effect(tech.effect),
-                    rolls,
-                )
-            })
             .filter(|chosen| targets.contains(chosen))
             .into_iter()
             .collect();
@@ -260,89 +254,68 @@ pub(super) fn resolve_technique(
                 });
             }
             19..=22 => resolve_recovery(stats, actor, target, tech.effect, events),
+            14 => {
+                // The animation, not the effect pass, clears bit 3 in every
+                // character record. See the final roster-wide pass below.
+            }
             effect => {
-                // AbilityEffect_SleepParalyze returns before the chance roll
-                // when the target is already asleep or paralyzed.
-                if effect == 7 && stats.status & (status::ASLEEP | status::PARALYZED) != 0 {
-                    events.push(BattleEvent::TechniqueIneffective { actor, target });
-                    continue;
-                }
-                // Effect_DoTechnique bypasses the chance roll when byte 4 is
-                // zero. Successful buffs/debuffs use the caster's MEN itself.
-                if tech.resistance != 0
-                    && calculate_chances(
-                        power as i16,
-                        stat(stats, tech.resistance) as i16,
-                        i16::from(stats.element_factor(tech.element).unwrap_or(0)),
-                        i16::from(tech.power),
-                        i16::from(effect),
-                        rolls,
-                    ) == Verdict::Miss
-                {
-                    events.push(BattleEvent::Resolved {
-                        actor,
-                        target,
-                        verdict: Verdict::Miss,
-                        damage: None,
-                        remaining_hp: stats.curr_hp,
-                    });
-                    continue;
-                }
-                if effect == 2 {
-                    // BROSE/VOL/SAVOL mark successful targets in effect 2;
-                    // their animation completion at loc_39068 clears HP.
-                    // Death earns the ordinary enemy rewards, without a
-                    // damage roll or a synthetic amount displayed as damage.
-                    stats.curr_hp = 0;
-                    stats.status |= status::DEAD;
-                    events.push(BattleEvent::Died { fighter: target });
-                    died.push(target);
-                    continue;
-                }
-                if effect == 7 {
-                    // BattleObj_RimitMain sets only StatusAsleep. It does not
-                    // apply the generic sleep object's agility reduction.
-                    stats.status |= status::ASLEEP;
-                    events.push(BattleEvent::FellAsleep { actor, target });
-                    continue;
-                }
-                let (stat, value) = match effect {
-                    3 => {
-                        stats.attack.battle = stats.attack.derived.saturating_sub(power);
-                        (TechniqueStat::Attack, stats.attack.battle)
-                    }
-                    6 => {
-                        stats.agility.battle =
-                            stats.agility.modified.saturating_sub(power as u8).max(1);
-                        (TechniqueStat::Agility, stats.agility.battle.into())
-                    }
-                    9 => {
-                        stats.attack.battle = stats.attack.derived.wrapping_add(power);
-                        (TechniqueStat::Attack, stats.attack.battle)
-                    }
-                    10 => {
-                        stats.defence.battle = stats.defence.derived.wrapping_add(power);
-                        (TechniqueStat::Defence, stats.defence.battle)
-                    }
-                    11 => {
-                        stats.mental_defence.battle =
-                            stats.mental_defence.derived.wrapping_add(power);
-                        (TechniqueStat::MentalDefence, stats.mental_defence.battle)
-                    }
-                    12 => {
-                        stats.agility.battle = stats.agility.modified.wrapping_add(power as u8);
-                        (TechniqueStat::Agility, stats.agility.battle.into())
-                    }
-                    _ => unreachable!("supported effects checked before payment"),
+                let effect = Effect {
+                    effect,
+                    power,
+                    threshold: tech.power,
+                    resistance: tech.resistance,
+                    element: tech.element,
                 };
-                events.push(BattleEvent::StatChanged {
+                if !player_effect::lands(stats, &effect, rolls) {
+                    if (effect.effect == 7
+                        && stats.status & (status::ASLEEP | status::PARALYZED) != 0)
+                        || (effect.effect == 8 && stats.status & status::TECH_SEALED != 0)
+                    {
+                        events.push(BattleEvent::TechniqueIneffective { actor, target });
+                    } else {
+                        events.push(BattleEvent::Resolved {
+                            actor,
+                            target,
+                            verdict: Verdict::Miss,
+                            damage: None,
+                            remaining_hp: stats.curr_hp,
+                        });
+                    }
+                    continue;
+                }
+                match effect.effect {
+                    2 => {
+                        // BROSE/VOL/SAVOL completion: loc_39068 (74089-74106).
+                        stats.curr_hp = 0;
+                        stats.status |= status::DEAD;
+                        events.push(BattleEvent::Died { fighter: target });
+                        died.push(target);
+                    }
+                    7 => {
+                        // BattleObj_RimitMain (74244-74252) keeps AGI unchanged.
+                        stats.status |= status::ASLEEP;
+                        events.push(BattleEvent::FellAsleep { actor, target });
+                    }
+                    _ => player_effect::support(stats, actor, target, &effect, events),
+                }
+            }
+        }
+    }
+    if tech.effect == 14 {
+        // loc_39494 (ps4.asm:74439-74448): every character, including dead
+        // androids and off-party records. It does not restore agility.
+        for fighter in roster.iter_mut().filter(|f| f.id.side() == Side::Party) {
+            let removed = fighter.stats.status & status::ASLEEP;
+            fighter.stats.status &= !status::ASLEEP;
+            if removed != 0 {
+                events.push(BattleEvent::StatusRestored {
                     actor,
-                    target,
-                    stat,
-                    value,
+                    target: fighter.id,
+                    removed,
                 });
             }
         }
+        events.push(BattleEvent::CharacterSleepCleared);
     }
     died
 }

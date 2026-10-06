@@ -61,6 +61,7 @@ fn every_new_carrier_uses_the_cited_request_shape_and_record_arithmetic() {
         (&[60, 61, 118], 0x22, false),
         (&[69, 142], 0x23, true),
         (&[68, 69, 146], 0x2B, false),
+        (&[73, 74], 0x30, true),
         (&[108, 111, 112, 113, 138, 121], 0x4F, true),
         (&[111, 112, 113, 138, 121, 125], 0x5A, false),
         (&[130], 0x63, true),
@@ -201,6 +202,29 @@ fn unproven_pair_and_real_effect_handler_are_negative_controls() {
             &mut roster,
             id(6),
             0x5A,
+            Some(id(2)),
+            &data,
+            &mut rolls,
+            &mut events
+        ));
+        assert_eq!(roster, before);
+        assert_eq!(rolls.drawn(), 0);
+        assert!(events.is_empty());
+    }
+}
+
+#[test]
+fn distortion_is_not_enabled_for_an_untraced_carrier_or_real_status_effect() {
+    for (enemy, effect) in [(72, 1), (73, 7)] {
+        let data = data(enemy, 0x30, effect);
+        let mut roster = roster(&data, enemy);
+        let before = roster.clone();
+        let mut rolls = SliceRolls::new(&[0]);
+        let mut events = Vec::new();
+        assert!(!resolve_damage_skill(
+            &mut roster,
+            id(6),
+            0x30,
             Some(id(2)),
             &data,
             &mut rolls,

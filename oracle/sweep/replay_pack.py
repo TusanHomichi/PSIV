@@ -117,18 +117,27 @@ def skill_record(record: dict) -> dict:
 def party_records(runtime: pathlib.Path, fixtures: pathlib.Path) -> dict:
     """Mirror psiv-data's decoded records, never read the ROM in the replay."""
     wanted = {kind: set() for kind in ("technique", "skill", "item")}
+    equipped = set()
     for path in sorted(fixtures.rglob("*.json")):
         document = json.loads(path.read_text())
+        for member in document.get("party", []):
+            if "record" in member:
+                equipped.update(id_ for id_ in member["record"][0x4C:0x50] if id_)
         for round_ in document.get("rounds", []):
             for command in round_.get("commands", []):
                 if command["command"] in wanted:
                     wanted[command["command"]].add(command["ability"])
-    if not any(wanted.values()):
-        return {"techniques": [], "skills": [], "battle_items": []}
+    if not any(wanted.values()) and not equipped:
+        return {"techniques": [], "skills": [], "battle_items": [], "equipment": []}
     abilities = json.loads((runtime / "battle/abilities.json").read_text())
     equipment = {record["id"]: record for record in json.loads(
         (runtime / "battle/equipment.json").read_text())["items"]}
-    result = {}
+    bonus_names = ("strength", "mental", "agility", "dexterity", "attack", "defense", "magic_defense")
+    result = {"equipment": [{"id": id_, "name": equipment[id_]["display_name"],
+                            "kind": equipment[id_]["type"]["id"],
+                            "element": equipment[id_]["element"]["id"],
+                            "bonuses": [equipment[id_]["bonuses"][name] for name in bonus_names]}
+                           for id_ in sorted(equipped)]}
     for kind, key, output in (("technique", "techniques", "techniques"),
                               ("skill", "skills", "skills"),
                               ("item", "item_effects", "battle_items")):

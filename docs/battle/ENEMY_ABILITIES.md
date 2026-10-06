@@ -7,8 +7,8 @@ out of the disassembly, and whether `psiv-core` implements it. Read
 finished dispatch (THREAD). Nothing here changes code; it is the map for doing so
 one ability at a time.
 
-**83 distinct nonzero regular ability ids.** 45 implemented, 4 partial
-(`$22`, `$29`, `$4B`, `$4C`), 34 unsupported: 27 damage, 1 scripted/custom and
+**83 distinct nonzero regular ability ids.** 45 implemented, 5 partial
+(`$22`, `$29`, `$30`, `$4B`, `$4C`), 33 unsupported: 26 damage, 1 scripted/custom and
 6 status/stat effect. The route census and A3 evidence are in §6
 ([`ENEMY_ABILITIES_ROUTE.md`](ENEMY_ABILITIES_ROUTE.md)); the A4
 status and stat captures are in
@@ -213,7 +213,7 @@ by A3; ProfoundDarkness1 remains deferred for `$21` and `$22` (#62).
 | `$2D` (45) **Deban**<br>DEBAN | eff `$0A` · stat $82 (mental) · tgt 2 · pow 0 · res $00 (none) · el `0` none | `EnemyAttack_Juza` (`ps4.asm:20575`)<br>→ loc_2A660 (`ps4.asm:55760`) | `AbilityEffect_DefenseUp` (`ps4.asm:9203`) | 116 Radhin<br>4/504 formations | status/stat effect | unsupported - 116 Radhin's arm (`loc_E666`) is the same read as ShadowSabr's conditional DEBAN, which is implemented (section 3 note), but no clean Radhin capture exists |
 | `$2E` (46) **Giwat**<br>GIWAT | eff `$01` · stat $82 (mental) · tgt 8 · pow 88 · res $07 (magic_defense) · el `5` water_ice | `EnemyAttack_DElmLars` (`ps4.asm:20222`)<br>→ loc_28F76 (`ps4.asm:54226`)<br>`EnemyAttack_FlattrPlnt` (`ps4.asm:21778`)<br>→ BattleObj_EnemyGiwat (`ps4.asm:38195`)<br>BattleObj_AcidBreathChild (`ps4.asm:38622`)<br>`EnemyAttack_HewGilla` (`ps4.asm:21395`)<br>→ loc_22670 (`ps4.asm:45925`)<br>`EnemyAttack_ShadowSabr` (`ps4.asm:21933`)<br>→ loc_1D5AA (`ps4.asm:39951`)<br>`EnemyAttack_TechUser` (`ps4.asm:21156`)<br>→ loc_21852 (`ps4.asm:45013`) | `AbilityEffect_None` (`ps4.asm:9092`) | 71 FrostSaber, 77 TechPlant, 91 HewGilla, 101 DarkWitch, 122 DElmLars, 123 XeAThoul<br>27/504 formations (+2 boss) | — | implemented — `enemy_damage::resolve_damage_skill` for all six carriers (`DAMAGE_SKILL_ROUTES`); each chain makes one guarded `move.w #$C` against `$38` (lines 40042, 48513, 48529, 45310, 48474) |
 | `$2F` (47) **Vol**<br>VOL | eff `$02` · stat $82 (mental) · tgt 8 · pow 80 · res $02 (mental) · el `10` biological | `EnemyAttack_Juza` (`ps4.asm:20575`)<br>→ loc_2AE8E (`ps4.asm:56333`)<br>`EnemyAttack_ShadowSabr` (`ps4.asm:21933`)<br>→ loc_1D2F4 (`ps4.asm:39774`)<br>`EnemyAttack_TwinArms` (`ps4.asm:21455`)<br>→ loc_23216 (`ps4.asm:46736`) | `AbilityEffect_Death` (`ps4.asm:9098`) | 72 BloodSaber, 88 SoldrFiend, 115 Greneris<br>8/504 formations | status/stat effect | implemented - `enemy_effect` for 115 Greneris, 72 BloodSaber and 88 SoldrFiend: `AbilityEffect_Death`, then `loc_25048` zeroes HP and sets the death bit; not a damage route (88's kill arm is read, not observed) |
-| `$30` (48) **Distortion**<br>DISTORTION | eff `$01` · stat $01 (strength) · tgt 9 · pow 128 · res $07 (magic_defense) · el `4` gravity | `EnemyAttack_ProfoundDarkness2` (`ps4.asm:19750`)<br>→ loc_2F1B2 (`ps4.asm:61394`) | `AbilityEffect_None` (`ps4.asm:9092`) | 134 ProfoundDarkness2<br>0/504 formations | damage | unsupported |
+| `$30` (48) **Distortion**<br>DISTORTION | eff `$01` · stat $01 (strength) · tgt 9 · pow 128 · res $07 (magic_defense) · el `4` gravity | `EnemyAttack_ProfoundDarkness2` (`ps4.asm:19750`)<br>→ loc_2F1B2 (`ps4.asm:61394`) | `AbilityEffect_None` (`ps4.asm:9092`) | 134 ProfoundDarkness2<br>0/504 formations | damage | partial — `enemy_damage` implements conditional DISTORTION for 73 DimensWorm and 74 OuterBeast via `EnemyAttack_DimensWorm` (`ps4.asm:21903-21909`) → `loc_1CC64` (39283) → `loc_24BB6` (48562); 134 ProfoundDarkness2 remains unsupported. DimensWorm stock turns replay in `player/seal_debuffs_ready.json`; OuterBeast shares the source arm and core controls only. See [player ledger](PLAYER_ABILITIES.md). |
 | `$31` (49) **Gra**<br>GRA | eff `$01` · stat $82 (mental) · tgt 9 · pow 32 · res $07 (magic_defense) · el `4` gravity | `EnemyAttack_DimensWorm` (`ps4.asm:21892`)<br>→ loc_1C99C (`ps4.asm:39050`)<br>loc_1C73E (`ps4.asm:38879`)<br>loc_1C658 (`ps4.asm:38807`) | `AbilityEffect_None` (`ps4.asm:9092`) | 73 DimensWorm, 74 OuterBeast<br>14/504 formations | damage | unsupported |
 | `$32` (50) **Gigra**<br>GIGRA | eff `$01` · stat $82 (mental) · tgt 9 · pow 64 · res $07 (magic_defense) · el `4` gravity | `EnemyAttack_DimensWorm` (`ps4.asm:21892`)<br>→ loc_1C99C (`ps4.asm:39050`)<br>loc_1C73E (`ps4.asm:38879`)<br>loc_1C658 (`ps4.asm:38807`) | `AbilityEffect_None` (`ps4.asm:9092`) | 74 OuterBeast<br>7/504 formations | damage | unsupported |
 | `$33` (51) **AcidBreath**<br>ACIDBREATH | eff `$01` · stat $01 (strength) · tgt 8 · pow 24 · res $06 (defense) · el `1` physical | `EnemyAttack_FlattrPlnt` (`ps4.asm:21778`)<br>→ BattleObj_AcidBreath (`ps4.asm:38566`)<br>BattleObj_AcidBreathChild (`ps4.asm:38622`)<br>`EnemyAttack_Piercer` (`ps4.asm:21518`)<br>→ loc_23998 (`ps4.asm:47264`)<br>loc_24FD2 (`ps4.asm:48883`) | `AbilityEffect_None` (`ps4.asm:9092`) | 75 FlattrPlnt, 76 FlyScreamr, 85 Piercer, 86 HakenLeft<br>19/504 formations | damage | implemented — `enemy_damage::resolve_damage_skill` for all four carriers (`DAMAGE_SKILL_ROUTES`); 77 TechPlant shares `EnemyAttack_FlattrPlnt` but never rolls `$33` |
@@ -376,9 +376,9 @@ Map ids whose encounter table can roll a formation carrying the ability, with th
 |---|---|
 | distinct nonzero regular ability ids (§2) | 83 |
 | implemented | 45 (F3: 30; A3: 12 more regular ids; A4: `$24` and `$25`, plus THREAD and POISON moved into `enemy_effect`; X86: `$1D` BARRIER) |
-| partial | 4 (`$22` RAY BREATH: ProfoundDarkness1 deferred; `$29` SEALS: Greneris implemented, Radhin deferred; `$4B` SHADOWBIND: the two Chaos Sorcerers implemented, ShadMirage and DarkForce3 not; `$4C` EVIL EYE: Haunt and Spector implemented, the two cutscene-gated carriers not) |
-| unsupported | 34 |
-| — `damage` | 27 |
+| partial | 5 (`$22` RAY BREATH; `$29` SEALS; `$30` DISTORTION; `$4B` SHADOWBIND; `$4C` EVIL EYE; carrier details in §2) |
+| unsupported | 33 |
+| — `damage` | 26 |
 | — `status/stat effect` | 6 |
 | — `scripted/custom` | 1 unsupported (`$64` SHDWBREATH); BURSTROC is post-intro damage (§6) |
 | — `unknown` | 0 |

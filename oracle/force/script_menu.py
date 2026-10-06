@@ -20,6 +20,16 @@ LIST_MENU = {8: ("technique", 0x412E, 16, 1, 0x41AE),
              0x11: ("skill", 0x4142, 8, 2, 0x41BA),
              0x17: ("item", 0x4152, 44, 1, 0x41C4)}
 READY = {2, 5, *LIST_MENU, 0xC, 0xD, 0x1F, 0x22, 0x24, 0x26, 0x28, 0x2A, 0x2D, 0x2F}
+CONFIRM = {0x1F, 0x20, 0x22, 0x24, 0x26, 0x28, 0x2A, 0x2D, 0x2F}
+
+
+def confirmation_ready(routine: int) -> bool:
+    """Confirm text/results in either initialized state, never a busy list.
+
+    RunBattleRoutines2 masks bit 15 (ps4.asm:1123-1134); results sets it on
+    initialization and continues through that state (5894-5908).
+    """
+    return routine & 0x7FFF in CONFIRM
 
 
 def extra_fields() -> list[tuple[str, int, int]]:
@@ -40,21 +50,72 @@ def extra_fields() -> list[tuple[str, int, int]]:
     for character in range(11):
         fields.extend((f"menu_equipment_{character}_{i}", 0xF54C + character * 0x80 + i, 1)
                       for i in range(4))
+    # The independent stock capture compares support effects and resource
+    # payment, not only HP. RAM offsets: ps4.constants.asm:34-73.
+    for prefix, character in (("alys", 1), ("chaz", 0), ("hahn", 2)):
+        start = 0xF500 + character * 0x80
+        for name, offset, width in (("str_bat", 0x1A, 1), ("men_bat", 0x1D, 1),
+                                    ("dex_bat", 0x23, 1), ("atk_bat", 0x26, 2),
+                                    ("dfs_bat", 0x2A, 2), ("mdfs_bat", 0x2E, 2)):
+            fields.append((f"{prefix}_player_{name}", start + offset, width))
+        for index in range(14):
+            fields.append((f"{prefix}_player_element_{index}", start + 0x30 + 2 * index, 1))
+            fields.append((f"{prefix}_player_shadow_{index}", start + 0x31 + 2 * index, 1))
+        for index in range(8):
+            fields.append((f"{prefix}_player_use_{index}", start + 0x6A + 2 * index, 1))
     for slot in range(4):
-        fields.append((f"e{slot + 1}_mdfs_bat", 0x422E + slot * 0x80, 2))
+        start = 0x4200 + slot * 0x80
+        for name, offset in (("atk_bat", 0x26), ("dfs_bat", 0x2A), ("mdfs_bat", 0x2E)):
+            fields.append((f"e{slot + 1}_{name}", start + offset, 2))
     fields.extend((f"menu_inventory_{i}", 0xF410 + i, 1) for i in range(40))
     return fields
 
 
-def write_map(base: pathlib.Path, out: pathlib.Path) -> pathlib.Path:
-    text = base.read_text()
-    out.write_text(text + "\n" + "".join(
-        f"{name}\tFFFF{address:04X}\t{size}\tmenu\t-\n"
+def party_address(name: str, address: int, party: dict | None) -> int:
+    """Legacy CSV prefixes name fighter slots, not a substituted character.
+
+    Keep the extractor's existing three-slot schema while observing the actual
+    selected records. Equipment/menu fields retain their literal addresses.
+    """
+    if party is None:
+        return address
+    for prefix, slot, original in (("alys", 1, 1), ("chaz", 2, 0), ("hahn", 3, 2)):
+        start = 0xF500 + original * 0x80
+        if name.startswith(prefix + "_") and start <= address < start + 0x80:
+            return address + (party[slot]["character"] - original) * 0x80
+    return address
+
+
+def write_map(base: pathlib.Path, out: pathlib.Path, party: dict | None = None) -> pathlib.Path:
+    from .runs import GROUPS
+    # The host counts disabled fields too. A battle script needs only the
+    # capture's enabled groups; including the full field-object map exhausts
+    # its bounded field table when support-state observations are added.
+    groups = set(GROUPS.split(","))
+    if party is not None and set(party) != {1, 2, 3}:
+        raise ForceError("script capture's observed schema needs exactly three occupied slots")
+    lines = []
+    for line in base.read_text().splitlines():
+        if not line or line.startswith("#"):
+            lines.append(line)
+            continue
+        cells = line.split("\t")
+        if cells[3] not in groups:
+            continue
+        address = party_address(cells[0], int(cells[1], 16) & 0xFFFF, party)
+        cells[1] = f"FFFF{address:04X}"
+        lines.append("\t".join(cells))
+    out.write_text("\n".join(lines) + "\n" + "".join(
+        f"{name}\tFFFF{party_address(name, address, party):04X}\t{size}\tmenu\t-\n"
         for name, address, size in extra_fields()))
-    fields = json.loads(base.with_suffix(".json").read_text())["fields"]
+    fields = [field for field in json.loads(base.with_suffix(".json").read_text())["fields"]
+              if field["group"] in groups]
     fields += [{"name": name, "addr": f"FFFF{address:04X}", "size": size,
                 "group": "menu", "hex": False}
                for name, address, size in extra_fields()]
+    for field in fields:
+        address = int(field["addr"], 16) & 0xFFFF
+        field["addr"] = f"FFFF{party_address(field['name'], address, party):04X}"
     out.with_suffix(".json").write_text(json.dumps({"fields": fields}, indent=2) + "\n")
     return out
 
@@ -100,11 +161,13 @@ def command_buttons(row: dict, command: Command) -> list[str]:
         if command.target not in targets:
             raise ForceError(f"live target list {targets} rejects target {command.target}")
         if routine == 0xD:
-            # Character cursor order is spatial, not fighter-id order. Read
-            # its actual x coordinate instead of embedding loc_D9A's ROM table
-            # (Battle_PickTargetChar, ps4.asm:1337-1373).
-            return (["C"] if row["menu_target_x"] == row[f"menu_object_x_{command.target}"]
-                    else ["R"])
+            # Cursor and body anchors differ. Their left-to-right order is
+            # shared, not their exact coordinates: Battle_AllyCursorInitPos
+            # (ps4.asm:70625) versus fighter_x_pos (constants:148).
+            # Read that order instead of embedding loc_D9A's ROM table.
+            spatial = sorted(targets, key=lambda i: int(row[f"menu_object_x_{i}"]))
+            return horizontal(int(row["battle_char_index"]),
+                              spatial.index(command.target), len(spatial)) + ["C"]
         column = "battle_enemy_index" if routine == 0xC else "battle_char_index"
         return horizontal(int(row[column]), targets.index(command.target), len(targets)) + ["C"]
     raise ForceError(f"not a command menu: ${routine:04X}")

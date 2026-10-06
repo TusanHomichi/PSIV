@@ -53,7 +53,8 @@ def animation_hit_pass_actors(party):
     (`rust/psiv-core/src/battle/action.rs`'s `takes_second_hit_pass`).
     """
     return {entry["id"] for entry in party
-            if entry["name"] in ANIMATION_HIT_PASS_NAMES}
+            if (entry["character_id"] in (1, 9) if "character_id" in entry
+                else entry["name"] in ANIMATION_HIT_PASS_NAMES)}
 
 
 def resolved_targets(record):

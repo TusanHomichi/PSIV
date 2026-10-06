@@ -156,6 +156,26 @@ pub const fn deficit_for_effect(effect: u8) -> Deficit {
     }
 }
 
+/// The turn pass checks ranges 1..=3 before execution, including all-enemy
+/// abilities (loc_57C4 / loc_5BDC, ps4.asm:8050-8057,8473-8480).
+/// Battle_ComdTechTarget_All leaves the stored target cell untouched
+/// (2659-2661), so a group command can retain a fallen single-target aim.
+/// Re-aiming consumes its tie draws even though the effect still covers the
+/// whole group. None represents an explicit negative, whole-side aim.
+pub(super) fn ability_target(
+    roster: &Roster,
+    intended: Option<FighterId>,
+    range: u8,
+    effect: u8,
+    rolls: &mut impl Rolls,
+) -> Option<FighterId> {
+    if matches!(range, 1..=3) {
+        intended.and_then(|aim| single_target(roster, aim, deficit_for_effect(effect), rolls))
+    } else {
+        intended
+    }
+}
+
 /// `loc_5AE6`-`loc_5B88`: which enemy slot a re-aimed command lands on.
 ///
 /// The four enemy slots are walked in order, only living fighters take part,

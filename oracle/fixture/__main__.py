@@ -59,6 +59,9 @@ def main(argv=None):
                              "fighter's two HP cells to (oracle/force/"
                              "durable.py); recorded in the provenance so a "
                              "replay knows the start state is the capture's")
+    parser.add_argument("--start-ram", type=pathlib.Path,
+                        help="stock-host 65536-byte RAM dump at the logged start frame")
+    parser.add_argument("--start-ram-sha256", help="required expected digest of --start-ram")
     arguments = parser.parse_args(argv)
 
     trace_rows = load_rows(arguments.trace)
@@ -81,6 +84,11 @@ def main(argv=None):
                             arguments.battle_first, arguments.battle_last, meta,
                             max_rounds=arguments.max_rounds,
                             hp_patch=arguments.hp_patch or None)
+    if arguments.start_ram is not None:
+        from .player_state import attach_start_ram
+        attach_start_ram(fixture, arguments.start_ram, arguments.start_ram_sha256)
+    elif arguments.start_ram_sha256 is not None:
+        raise FixtureError("--start-ram-sha256 requires --start-ram")
     with open(arguments.out, "w") as handle:
         if arguments.minified:
             handle.write(json.dumps(fixture, separators=(",", ":"),

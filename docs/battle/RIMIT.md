@@ -1,5 +1,10 @@
 # RIMIT and remaining technique work
 
+Current dispatch and cartridge-capture status are owned by
+[Player techniques and skills](PLAYER_ABILITIES.md). The sections below retain
+the earlier RIMIT/native evidence and the source traps that P88 resolves;
+their historical 35-of-38 count is not the current inventory.
+
 RIMIT (23) is now supported by the command resolver. The original eight-byte
 record at 0x2A9C98 specifies effect 7, 10 TP, all enemies, MEN versus MEN,
 psychic resistance and miss threshold 48. `AbilityEffect_SleepParalyze`
@@ -29,7 +34,7 @@ and verified original seal branch are recorded in
 [SOUND_INTEGRATION.md](../sound/SOUND_INTEGRATION.md). Gameplay coverage remains 35 of
 38 battle techniques; this closes a sound-dispatch bug.
 
-## FEEVE source trap — not implemented
+## FEEVE source trap — historical implementation boundary
 
 Do not translate power 11 into psychic resistance slot 10. The US ROM's
 actual effect-13 routine at 0x6370 reads byte 3 of the technique, adds 0x2E

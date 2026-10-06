@@ -54,6 +54,27 @@ fn round() -> Round {
     serde_json::from_str(POISON_ON_A_CLEAN_SLOT).expect("the round parses")
 }
 
+#[test]
+fn sleep_event_compares_the_status_bit_and_rejects_missing_or_extra_sleep() {
+    let mut round = round();
+    let action = &mut round.actions[0];
+    action.effect.status.push((1, 0, u32::from(status::ASLEEP)));
+    let sleep = BattleEvent::FellAsleep {
+        actor: fighter(6),
+        target: fighter(1),
+    };
+    assert_eq!(effect_divergence(action, fighter(6), &[&sleep]), None);
+    assert!(matches!(
+        effect_divergence(action, fighter(6), &[]),
+        Some(Divergence::Status { .. })
+    ));
+    action.effect.status.clear();
+    assert!(matches!(
+        effect_divergence(action, fighter(6), &[&sleep]),
+        Some(Divergence::Status { .. })
+    ));
+}
+
 /// The port's turn: the ability it used, then whatever it did about the slot.
 fn timeline(resolution: BattleEvent) -> Vec<BattleEvent> {
     vec![

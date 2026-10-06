@@ -8,6 +8,24 @@ fn id(value: u8) -> FighterId {
 }
 
 #[test]
+fn tp_restoration_uses_existing_prose_without_an_hp_damage_beat() {
+    let names = BTreeMap::from([(2, "Raja".to_owned())]);
+    let result = narration(
+        &BattleEvent::TpRestored {
+            actor: id(1),
+            target: id(2),
+            amount: 17,
+            remaining_tp: 43,
+        },
+        &names,
+        &BTreeMap::new(),
+    );
+    assert_eq!(result.line, "Raja restored 17 TP");
+    assert_eq!(result.beat, BattleBeat::None);
+    assert!(!waits_for_confirm(result.beat));
+}
+
+#[test]
 fn narration_uses_retail_damage_and_reward_strings() {
     let names = BTreeMap::from([(1, "Chaz".to_owned()), (6, "MonsterFly".to_owned())]);
     let miss = narration(

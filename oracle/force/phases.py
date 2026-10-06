@@ -258,8 +258,16 @@ def capture_phase(plan_facts: dict, specs: list[str], draw: Draw, pack: Pack,
     trim_to = min(tape_frames(plan_facts["steps"]), trim_to)
     tape.write_text(emit_tape(trim_tape(plan_facts["steps"], trim_to),
                               plan_facts["header"]))
-    capture = runs.run_oracle(tape, out / "capture", stem, specs, **options)
-    rerun = runs.run_oracle(tape, out / "verify", stem, specs, **options)
+    capture_options, verify_options = dict(options), dict(options)
+    if args.party_script:
+        # Observe actual loaded records in both stock-host evidence runs.
+        # Never construct replay's state from the patch recipe or pilot RAM.
+        capture_options["dump_ram"] = (preview_capture.start_frame,
+                                       (out / "capture/start-state.bin").resolve())
+        verify_options["dump_ram"] = (preview_capture.start_frame,
+                                      (out / "verify/start-state.bin").resolve())
+    capture = runs.run_oracle(tape, out / "capture", stem, specs, **capture_options)
+    rerun = runs.run_oracle(tape, out / "verify", stem, specs, **verify_options)
     for label, run in (("capture", capture), ("verify", rerun)):
         if run.status != 0:
             raise ForceError(f"the {label} run failed (exit {run.status}):\n"
@@ -293,6 +301,8 @@ def capture_phase(plan_facts: dict, specs: list[str], draw: Draw, pack: Pack,
     if final.log_sha256 != sha256(rerun.log) \
             or final.trace_sha256 != sha256(rerun.trace):
         raise ForceError("two runs of the same tape and patches differ")
+    if args.party_script and sha256(out / "capture/start-state.bin") != sha256(out / "verify/start-state.bin"):
+        raise ForceError("two stock-host start-state observations differ")
     return final, preview.status
 
 
@@ -340,6 +350,8 @@ def build_report(args, pack: Pack, selector: Selector, formation: int,
         "tape_frames": tape_frames(expand_tape(plan_facts["tape"].read_text())),
         "battle_first": final.window[0], "battle_last": final.window[1],
         "start_frame": final.start_frame,
+        "start_ram": str(plan_facts["out"] / "capture/start-state.bin") if args.party_script else None,
+        "start_ram_sha256": sha256(plan_facts["out"] / "capture/start-state.bin") if args.party_script else None,
         "max_rounds": args.max_rounds,
         "truncated": final.truncated,
         "cut_frame": final.cut_frame,
@@ -372,6 +384,8 @@ def run(args) -> int:
     else:
         formation = parse_formation(args.formation, pack)
         selector = choose_selector(pack, formation, args.vehicle)
+    if args.party_script and selector.kind == "vehicle":
+        raise ForceError("party scripts need an on-foot formation; this selector seats only the vehicle")
     if args.delay < 0 or args.repeats < 1:
         raise ForceError("--delay must be >= 0 and --repeats >= 1")
     if args.max_rounds < 0:
