@@ -21,8 +21,15 @@ func _initialize():
     if OS.has_environment("PSIV_CONTINUE_ITEM_SLOT"):
         check_item_slot = int(OS.get_environment("PSIV_CONTINUE_ITEM_SLOT")) - 1
     directory = OS.get_environment("PSIV_CONTINUE_OUTPUT")
-    var receipt = JSON.parse_string(FileAccess.get_file_as_string(OS.get_environment("PSIV_CONTINUE_ROUTE_RECEIPT")))
-    expected = receipt.checkpoints[-1].state
+    # An optional receipt (`{"checkpoints": [{"state": ...}]}`) names the state
+    # the source save was written from, for a key-by-key comparison after
+    # CONTINUE. Without it the slot's own bytes are the reference: the tape
+    # replay's `--expect-save` already proves a loaded slot re-encodes to its
+    # source, and verify_native_continue.py compares the saved bytes.
+    var receipt_path := OS.get_environment("PSIV_CONTINUE_ROUTE_RECEIPT")
+    if not receipt_path.is_empty():
+        var receipt = JSON.parse_string(FileAccess.get_file_as_string(receipt_path))
+        expected = receipt.checkpoints[-1].state
     call_deferred("start_game")
 
 func start_game():
@@ -63,13 +70,16 @@ func _physics_process(_delta):
         return false
     match phase:
         0:
-            var keys = ["map", "cell", "money", "flags", "leader"]
-            for optional_key in ["inventory", "chests", "party_status", "party_resources"]:
-                if expected.has(optional_key): keys.append(optional_key)
-            for key in keys:
-                if state[key] != expected[key]:
-                    fail("CONTINUE changed " + key, state)
-                    return false
+            if expected != null:
+                var keys = ["map", "cell", "money", "flags", "leader"]
+                for optional_key in ["inventory", "chests", "party_status", "party_resources"]:
+                    if expected.has(optional_key): keys.append(optional_key)
+                for key in keys:
+                    if state[key] != expected[key]:
+                        fail("CONTINUE changed " + key, state)
+                        return false
+            else:
+                expected = state # The loaded slot is the reference for the step below.
             record("continued", state)
             phase = 4 if check_item_slot >= 0 else 1
             cooldown = 20

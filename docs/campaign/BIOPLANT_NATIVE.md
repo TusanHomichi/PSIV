@@ -125,11 +125,12 @@ The fully red frame, restored frame and open elevator were visually inspected.
 This verifies the component fade on the native scene; it is not a comparison
 against an emulator recording of the whole scene.
 
-Reproduce this check with:
-
-```sh
-python tools/native/verify_native_alarm.py build/native-bioplant/campaign-retreat/route
-```
+The check is suspended. Its producer, `native_bioplant.gd`, was retired with the
+campaign-path drivers ([native driver inventory](NATIVE_DRIVERS.md)), because the
+whole-route tape replay covers its state. `tools/native/verify_native_alarm.py`
+stays and will read the same sixteen stages from frame-addressed captures of
+the tape replay ([#93](https://github.com/TusanHomichi/PSIV/issues/93)). The
+receipt above is the last run.
 
 ## Preserved traversal failure
 

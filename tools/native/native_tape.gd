@@ -18,6 +18,13 @@ var title_down := false
 var frozen_checks := 0
 var failed := false
 var report := {}
+# Chapter checkpoints: [{frame, label, expect_save}], ascending by frame. The
+# slot snapshot is compared with each saved chapter the moment the Field has
+# consumed that many gameplay Session frames, inside one continuous replay.
+var checkpoints: Array = []
+var next_checkpoint := 0
+var checkpoint_results: Array = []
+var replay_started_ms := 0
 
 func _initialize() -> void:
     var tape_path := OS.get_environment("PSIV_TAPE_FILE")
@@ -50,6 +57,16 @@ func _prepare_tape() -> void:
     if pads.size() != expected_count:
         _fail("typed feed frame count differs from its pad bytes")
         return
+    # A prefix replay: stop after exactly this many gameplay frames.
+    var stop_at := OS.get_environment("PSIV_TAPE_STOP_AT")
+    if not stop_at.is_empty():
+        if not stop_at.is_valid_int() or int(stop_at) < 1 or int(stop_at) > expected_count:
+            _fail("PSIV_TAPE_STOP_AT must be a frame count within the tape")
+            return
+        expected_count = int(stop_at)
+        report["frames_limit"] = expected_count
+    if not _load_checkpoints():
+        return
     var source_path := OS.get_environment("PSIV_TAPE_SOURCE_SAVE")
     if report["start_kind"] == "save":
         if source_path.is_empty() or not FileAccess.file_exists(source_path):
@@ -80,6 +97,36 @@ func _prepare_tape() -> void:
         return
     call_deferred("_start_game")
 
+func _load_checkpoints() -> bool:
+    var path := OS.get_environment("PSIV_TAPE_CHECKPOINTS")
+    if path.is_empty():
+        return true
+    if not FileAccess.file_exists(path):
+        _fail("checkpoint list is missing: " + path)
+        return false
+    var parsed = JSON.parse_string(FileAccess.get_file_as_string(path))
+    if typeof(parsed) != TYPE_ARRAY or parsed.is_empty():
+        _fail("checkpoint list is not a non-empty JSON array")
+        return false
+    var previous := 0
+    for entry in parsed:
+        if typeof(entry) != TYPE_DICTIONARY or not entry.has("frame") \
+                or not entry.has("label") or not entry.has("expect_save"):
+            _fail("checkpoint entry needs frame, label and expect_save")
+            return false
+        var frame := int(entry["frame"])
+        if frame <= previous or frame > expected_count:
+            _fail("checkpoint %s frame %d is not ascending within the tape" % [entry["label"], frame])
+            return false
+        if not FileAccess.file_exists(str(entry["expect_save"])):
+            _fail("checkpoint %s save is missing: %s" % [entry["label"], entry["expect_save"]])
+            return false
+        previous = frame
+        checkpoints.append({"frame": frame, "label": str(entry["label"]),
+                "expect_save": str(entry["expect_save"])})
+    report["checkpoints_declared"] = checkpoints.size()
+    return true
+
 func _start_game() -> void:
     if failed:
         return
@@ -106,6 +153,7 @@ func _physics_process(_delta: float) -> bool:
             _fail("gameplay advanced before the first tape pad")
             return false
         report["title_handoff_shell_tick"] = int(boundary[5])
+        replay_started_ms = Time.get_ticks_msec()
         started = true
         title_down = false
         if expected_count == 0:
@@ -137,6 +185,8 @@ func _physics_process(_delta: float) -> bool:
     consumed = count
     if consumed % 5000 == 0:
         print("native-tape: consumed %d/%d gameplay frames" % [consumed, expected_count])
+    if not _check_checkpoint():
+        return false
     if consumed == 1:
         if int(boundary[5]) != int(report["title_handoff_shell_tick"]) + 1:
             _fail("first gameplay Session frame did not follow title handoff")
@@ -151,6 +201,42 @@ func _physics_process(_delta: float) -> bool:
     else:
         _apply_game_pad(consumed)
     return false
+
+func _check_checkpoint() -> bool:
+    if next_checkpoint >= checkpoints.size() or consumed != int(checkpoints[next_checkpoint]["frame"]):
+        return true
+    var point: Dictionary = checkpoints[next_checkpoint]
+    var snapshot: PackedByteArray = game.debug_slot_bytes(0)
+    var expected := FileAccess.get_file_as_bytes(str(point["expect_save"]))
+    var result := {"label": point["label"], "frame": consumed,
+            "elapsed_ms": Time.get_ticks_msec() - replay_started_ms,
+            "snapshot_bytes": snapshot.size(), "expected_bytes": expected.size(),
+            "snapshot_sha256": _sha256_hex(snapshot), "match": snapshot == expected}
+    checkpoint_results.append(result)
+    report["checkpoints"] = checkpoint_results
+    next_checkpoint += 1
+    if snapshot != expected:
+        var first := 0
+        while first < min(snapshot.size(), expected.size()) and snapshot[first] == expected[first]:
+            first += 1
+        result["first_differing_byte"] = first
+        var dump := OS.get_environment("PSIV_TAPE_SNAPSHOT_OUT") + ".divergence-" + str(point["label"])
+        var output := FileAccess.open(dump, FileAccess.WRITE)
+        if output != null:
+            output.store_buffer(snapshot)
+            output.close()
+            result["divergent_snapshot"] = dump
+        _fail("chapter %s: native slot bytes differ from the chapter save at frame %d (first differing byte %d)" % [point["label"], consumed, first])
+        return false
+    print("native-tape: chapter %s matches at frame %d (%d ms)" % [point["label"], consumed, result["elapsed_ms"]])
+    _write_report()
+    return true
+
+func _sha256_hex(bytes: PackedByteArray) -> String:
+    var context := HashingContext.new()
+    context.start(HashingContext.HASH_SHA256)
+    context.update(bytes)
+    return context.finish().hex_encode()
 
 func _drive_title(phase: int, window: int, cursor: int) -> void:
     if title_down:
@@ -202,6 +288,9 @@ func _finish() -> void:
     var boundary: PackedInt64Array = game.debug_tape_boundary()
     if int(boundary[0]) != expected_count:
         _fail("frozen boundary differs from declared frame count")
+        return
+    if next_checkpoint != checkpoints.size():
+        _fail("replay ended before checkpoint %s" % checkpoints[next_checkpoint]["label"])
         return
     report["post_stop_callbacks_checked"] = frozen_checks - 1
     report["post_stop_session_frames"] = int(boundary[0])

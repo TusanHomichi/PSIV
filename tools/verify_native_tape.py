@@ -151,6 +151,26 @@ def identities_stable(code_before: dict, code_after: dict, git_before: dict,
             and pack_before == pack_after and tape_before == tape_after)
 
 
+def checkpoints_passed(result: dict | None, checkpoints: Path | None) -> bool:
+    """Every declared chapter checkpoint was reached and matched its save."""
+    if checkpoints is None:
+        return True
+    declared = json.loads(checkpoints.read_text())
+    reached = result.get("checkpoints") if isinstance(result, dict) else None
+    return (isinstance(reached, list) and len(reached) == len(declared)
+            and all(item.get("match") is True and item.get("label") == want["label"]
+                    and item.get("frame") == want["frame"]
+                    for item, want in zip(reached, declared)))
+
+
+def checkpoint_save_hashes(checkpoints: Path | None) -> dict:
+    """SHA-256 of every chapter save a checkpoint list names, by label."""
+    if checkpoints is None:
+        return {}
+    return {entry["label"]: sha256(Path(entry["expect_save"]))
+            for entry in json.loads(checkpoints.read_text())}
+
+
 def parser() -> argparse.ArgumentParser:
     command = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     command.add_argument("--tape", type=Path, required=True)
@@ -163,13 +183,18 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--pack", type=Path, default=ROOT / "runtime-pack")
     command.add_argument("--out", type=Path, required=True)
     command.add_argument("--timeout", type=int, default=600)
+    command.add_argument("--checkpoints", type=Path,
+                         help="JSON list of {frame, label, expect_save}: compare the slot "
+                              "snapshot with each saved chapter at its frame, in one replay")
+    command.add_argument("--stop-at", type=int,
+                         help="replay only the first N gameplay frames of the tape")
     command.add_argument("--render-capture", action="store_true")
     command.add_argument("--drop-pad-at", type=int, help="negative control: replace one byte with neutral")
     return command
 
 
-def main() -> int:
-    args = parser().parse_args()
+def main(argv: list[str] | None = None) -> int:
+    args = parser().parse_args(argv)
     tape = args.tape.resolve(strict=True)
     source = args.from_save.resolve(strict=True) if args.from_save else None
     expected = args.expect_save.resolve(strict=True) if args.expect_save else None
@@ -181,6 +206,9 @@ def main() -> int:
         parser().error(f"Godot executable absent: {GODOT}")
     if args.timeout <= 0:
         parser().error("--timeout must be positive")
+    if args.stop_at is not None and args.stop_at < 1:
+        parser().error("--stop-at must be a positive frame count")
+    checkpoints = args.checkpoints.resolve(strict=True) if args.checkpoints else None
     if args.expect_cell:
         parts = args.expect_cell.split(",")
         if len(parts) != 2 or any(not part.isdecimal() for part in parts):
@@ -216,6 +244,8 @@ def main() -> int:
         "PSIV_TAPE_REPORT": str(native_report),
         "PSIV_TAPE_SNAPSHOT_OUT": str(snapshot),
         "PSIV_TAPE_CAPTURE": str(capture) if args.render_capture else "",
+        "PSIV_TAPE_CHECKPOINTS": str(checkpoints) if checkpoints else "",
+        "PSIV_TAPE_STOP_AT": str(args.stop_at) if args.stop_at is not None else "",
         "LIBGL_ALWAYS_SOFTWARE": "1",
     })
     if args.drop_pad_at is not None:
@@ -249,6 +279,7 @@ def main() -> int:
     git_before = source_identity()
     pack_manifest_before = sha256(pack / "manifest.json")
     tape_sha_before = sha256(tape)
+    saves_before = checkpoint_save_hashes(checkpoints)
     if args.render_capture:
         command = ["xvfb-run", "-a", str(GODOT), "--display-driver", "x11",
                    "--rendering-method", "gl_compatibility", "--rendering-driver", "opengl3",
@@ -283,6 +314,7 @@ def main() -> int:
     git_after = source_identity()
     pack_manifest_after = sha256(pack / "manifest.json")
     tape_sha_after = sha256(tape)
+    saves_after = checkpoint_save_hashes(checkpoints)
     identity_stable = identities_stable(code_before, code_after, git_before,
                                         git_after, pack_manifest_before,
                                         pack_manifest_after, tape_sha_before,
@@ -329,6 +361,10 @@ def main() -> int:
         "godot_log": str(godot_log), "run_log": str(run_log),
         "capture": str(capture) if capture.is_file() else None,
     }
+    receipt["checkpoints_file"] = str(checkpoints) if checkpoints else None
+    receipt["checkpoint_saves_sha256"] = saves_before
+    receipt["checkpoint_saves_stable"] = saves_before == saves_after
+    receipt["checkpoints_passed"] = checkpoints_passed(result, checkpoints)
     receipt["pass"] = (
         code == 0 and result is not None and result.get("result") == "pass"
         and identity_stable and mapped_library_matches
@@ -336,6 +372,7 @@ def main() -> int:
         and (source is None or (result.get("source_hash_verified_before_copy") is True
                                 and result.get("source_copied") is True))
         and snapshot.is_file()
+        and receipt["checkpoints_passed"] and receipt["checkpoint_saves_stable"]
         and (expected is None or receipt["snapshot_sha256"] == expected_sha)
         and (written is None or (receipt["ordinary_save_acknowledged"]
                                 and receipt["ordinary_save_matches"]))
