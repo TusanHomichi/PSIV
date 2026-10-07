@@ -781,3 +781,20 @@ a boss battle: `loc_B62A` draws the opening roll and then discards its verdict
 `event_09_d0`) predate the field; their verdicts (normal, and Dark Force 1's
 latch) come out the same either way.
 
+
+## Removals, form changes and a death that pays nothing (lane A6, 2026-10-07)
+
+The endgame captures ([`ENEMY_ABILITIES_ENDGAME.md`](../battle/ENEMY_ABILITIES_ENDGAME.md))
+added three readings, each pinned by a negative control in that ledger:
+
+- **The actor's own removal is not a death the log can see.** CYANICBOMB's `$1C8`
+  clears its caster's object (`ps4.asm:33621-33627`) and leaves its HP, so the
+  non-damaging action's death check no longer counts the actor's `Died` unless
+  the log took the actor to zero HP.
+- **A form change is filed as an attack.** Profound Darkness's form-change arms
+  clear `$24(a4)` (`ps4.asm:19902`, `19818`) like COMBINE's, and the comparator
+  accepts the port's `EnemyStatsReloaded` for the actor's own slot there.
+- **ProfoundDarkness3's death.** Its death object `$8B8` never calls `loc_2D960`
+  (`ps4.asm:59734-59908`): the log's last round leaves the fighter at zero HP
+  with no death bit and pays no experience. `fighters::death_object_pays` carries
+  the rule; the port takes the form off the field and pays nothing.

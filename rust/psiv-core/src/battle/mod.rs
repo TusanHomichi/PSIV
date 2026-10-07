@@ -71,7 +71,9 @@ mod chances;
 mod damage;
 mod enemy_ai;
 mod enemy_damage;
+mod enemy_dispatch;
 mod enemy_effect;
+mod enemy_form;
 mod enemy_fusion;
 mod enemy_skill;
 mod engine;
@@ -97,6 +99,7 @@ mod vehicle_attack;
 mod vehicle_skill;
 mod zio;
 
+pub use enemy_dispatch::{Owner, owner as dispatch_owner};
 pub use enemy_skill::EnemySkill;
 
 #[cfg(test)]

@@ -11,6 +11,8 @@ mod acid;
 mod air_castle;
 mod all_party;
 mod dark_force;
+mod endgame;
+mod endgame_bosses;
 mod firebreath;
 mod flaeli;
 mod flame;
@@ -60,6 +62,8 @@ pub(crate) const DAMAGE_SKILL_ROUTES: &[&[DamageRoute]] = &[
     techniques::ROUTES,
     dark_force::ROUTES,
     air_castle::ROUTES,
+    endgame::ROUTES,
+    endgame_bosses::ROUTES,
 ];
 
 /// Every row of every family, in registry order.

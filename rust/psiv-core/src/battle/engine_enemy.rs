@@ -88,10 +88,38 @@ impl Battle {
                 action,
                 target: None,
             });
+            if action == super::super::FirstZioAction::TreesTakeRoot {
+                // `$808`'s `bset #1, $16(a1)` on the stats of
+                // `Fighter_Enemy_1`..`3` (`ps4.asm:52551-52555`), whatever each
+                // slot holds and whether or not it is already set.
+                const PARALYZED: u8 = super::super::stats::status::PARALYZED;
+                for slot in 6..=8u8 {
+                    if let Some(fighter) =
+                        FighterId::new(slot).and_then(|id| self.roster.get_mut(id))
+                        && fighter.stats.status & PARALYZED == 0
+                    {
+                        fighter.stats.status |= PARALYZED;
+                        events.push(BattleEvent::StatusInflicted {
+                            actor,
+                            target: fighter.id,
+                            status: PARALYZED,
+                        });
+                    }
+                }
+            }
             return Ok(true);
         }
         if let Some(arm) = zio::step(enemy_id, self.enemy_phase) {
             self.run_zio_arm(actor, intended, arm, events);
+            return Ok(true);
+        }
+        if super::super::enemy_form::resolve_form_change(
+            &mut self.roster,
+            actor,
+            ability,
+            data,
+            events,
+        )? {
             return Ok(true);
         }
         if let Some(target) = replacement

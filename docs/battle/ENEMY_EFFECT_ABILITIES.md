@@ -446,3 +446,14 @@ section 2's table.
   earlier RIMIT (77, 115), DORAN, GELUN, SEALS and VOL (72, 88, 115) - and
   `enemy_skill::resolve_res` takes the same exit for RES and GIRES (`$3D4`'s
   test at line 44729, phase 8 with bit 7 at `loc_21558`).
+
+## 9. The endgame pairs (lane A6)
+
+Section 2 of [`ENEMY_ABILITIES_ENDGAME.md`](ENEMY_ABILITIES_ENDGAME.md) lists them,
+with the captures. Four handlers are new - `$09` AttackUp, `$0C` AgilityUp, `$21`
+DexterityDown and `$27` RestoreStats (`ps4.asm:9181`, `9237`, `9457`, `9472`) - and
+the route gained two traced arm behaviours: `Guard::AttackNotRaised` and
+`Guard::AgilityWord` (SHIFT's and DeathBearr's SANER's arms), and `Pick` (Radhin's
+random enemy pick before SHIFT, SPARK's android pick). CYANICBOMB's object removes
+its caster after the kill. Heals with other targets than RES's lowest-HP enemy
+(SAR, GISAR, SoldrFiend's GIRES) are `enemy_skill::resolve_res`'s `HEALS` table.

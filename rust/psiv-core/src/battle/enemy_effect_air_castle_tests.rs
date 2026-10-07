@@ -113,12 +113,17 @@ fn an_unsealed_raised_sabre_still_swings_before_the_object_loads() {
 
 #[test]
 fn dthspell_kills_the_stored_target_on_a_landed_roll() {
-    // 112 Illusionst and 113 ImagioMage reach another object and are not routed.
+    // 112 Illusionst and 113 ImagioMage reach another object, `$72C`, with the
+    // same call and kill (lane A6); 106 Haunt has no DTHSPELL arm.
     for enemy in [112, 113] {
         let (data, mut roster) = setup(enemy, skill(0x4E, 0x02, 8, 2));
         let (turn, _, drawn) = run(&mut roster, &data, 0x4E, Some(id(2)), &[63]);
-        assert_eq!((turn, drawn), (EffectTurn::NotMine, 0), "{enemy}");
+        assert_eq!((turn, drawn), (EffectTurn::Resolved, 1), "{enemy}");
+        assert!(!roster.get(id(2)).unwrap().is_alive());
     }
+    let (data, mut roster) = setup(106, skill(0x4E, 0x02, 8, 2));
+    let (turn, _, drawn) = run(&mut roster, &data, 0x4E, Some(id(2)), &[63]);
+    assert_eq!((turn, drawn), (EffectTurn::NotMine, 0));
     let (data, mut roster) = setup(107, skill(0x4E, 0x02, 8, 2));
     let (turn, events, drawn) = run(&mut roster, &data, 0x4E, Some(id(2)), &[63]);
     assert_eq!(turn, EffectTurn::Resolved);
@@ -219,8 +224,21 @@ fn exactly_the_effect_arms_whose_object_tests_the_caster_seal_are_sealable() {
     assert_eq!(
         sealable,
         [
+            // Lane A6: the DarkMaraud family's shared state 0 `loc_1E94C`
+            // (frame $14, `ps4.asm:41371-41375`).
+            (64, 0x26),
+            (64, 0x28),
+            (65, 0x26),
+            (65, 0x27),
+            (65, 0x29),
+            (66, 0x26),
+            (66, 0x29),
+            (66, 0x2A),
             (70, 0x2D),
             (71, 0x2D),
+            // Lane A6: BloodSaber's SHIFT object `$2C4` starts in DEBAN's
+            // seal-testing state (40125-40129).
+            (72, 0x26),
             (72, 0x2D),
             (72, 0x2F),
             (77, 0x2A),
@@ -230,6 +248,12 @@ fn exactly_the_effect_arms_whose_object_tests_the_caster_seal_are_sealable() {
             (115, 0x2A),
             (115, 0x2F),
             (115, 0x57),
+            // Lane A6: Radhin's objects share the Juza prelude `loc_2AB2E`
+            // (seal test at 56109).
+            (116, 0x26),
+            (116, 0x27),
+            (116, 0x29),
+            (116, 0x2D),
         ]
     );
 }
