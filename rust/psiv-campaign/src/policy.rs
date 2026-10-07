@@ -1,66 +1,47 @@
 //! Battle policies: what each party member does when their command window
-//! opens.
+//! opens, and when the party runs.
 //!
 //! A policy decides; it never presses a button. It reads the command window's
-//! view and the runtime's read-only battle data and returns an [`Intent`], and
+//! view and the runtime's read-only battle data, builds a
+//! [`Board`](crate::policy_board::Board), and returns an [`Intent`];
 //! `battle.rs` walks the menu cursor to it with ordinary pad presses. Policies
 //! are looked up by the name a route chapter gives in `random_battle_policy`
-//! ([`by_name`]), so a new behaviour is a new type and one line in [`NAMES`],
-//! with no change to the menu driver.
+//! ([`by_name`]).
 //!
-//! # The `default` policy
+//! # One player, three temperaments
 //!
-//! Everyone attacks the first living enemy the target list offers. When a
-//! party member is below [`HURT_PERCENT`] of their maximum HP, the first actor
-//! of the round who can cast a healing technique (battle effect 18, "heal HP")
-//! with the TP for it casts the cheapest one on its most hurt eligible target;
-//! when nobody can, the first actor who can use a healing item from the pack
-//! does. Target eligibility is the battle menu's core rule, not a second
-//! interpretation in this policy.
-//! One heal a round: the rest attack. Losing is not a policy question: a
-//! defeated party halts the run.
+//! Every name resolves to one [`PartyPolicy`], whose command choices are the
+//! rules of [`crate::policy_plan`]: every technique, skill and item the member
+//! can use, chosen by effect class, element factors and the engine's own
+//! damage formula, with a scripted battle fought with everything and a random
+//! encounter fought cheaply. The names differ only in what the party does on
+//! the main options:
+//!
+//! * `default`, `attack_all`, `heal_then_attack` and `fight_to_win` fight every
+//!   battle;
+//! * `run_unless_boss`, `run_then_win` and `bioplant_survival` RUN from every
+//!   random encounter (every round until it works) and fight scripted battles;
+//! * `train_with_inn` fights, and RUNs from a random encounter once a member
+//!   has fallen or a living one is below [`RETREAT_PERCENT`] of their HP: the
+//!   inn or the house that follows the patrol cures what a retreat leaves, and
+//!   a wiped party cures nothing.
+//!
+//! `psycho_wand_then_win` is `run_then_win` with an item used in the first
+//! player-command round of a scripted battle ([`crate::policy_opening`]).
+//!
+//! The running names exist because the cartridge's random draws are one
+//! stream: any frame the runtime spends or saves anywhere moves every later
+//! encounter, so a route that survives only on one stream is not a route.
 //!
 //! After a battle ends and the party stands at rest, the runner also cures the
-//! hurt through the camp (`recovery.rs`), which is the same policy's business:
-//! [`Policy::recovers`].
-//!
-//! # `run_unless_boss`
-//!
-//! The same, except that a random encounter is run from (RUN on the main
-//! options, every round until it works) and a scripted battle (a boss, an event
-//! battle) is fought. The Alshline chapters name it: their party is far below
-//! the basement's weight.
-//!
-//! # `train_with_inn` and `bioplant_survival`
-//!
-//! Both are for a party that is under-levelled for where it stands, and both
-//! exist because the cartridge's random draws are one stream: any frame the
-//! runtime spends or saves anywhere moves every later encounter, so a route
-//! that survives only on one stream is not a route. `bioplant_survival` runs
-//! from every random encounter, as `run_unless_boss` does. `train_with_inn`
-//! fights, because a training patrol exists to win fights, and retreats once a
-//! party member has fallen or a living one is below [`RETREAT_PERCENT`] of
-//! their HP: the inn or the house that follows the patrol cures what a
-//! retreat leaves, and a wiped party cures nothing.
-//!
-//! # Route names
-//!
-//! The route files name nine names. `run_unless_boss` is its own behaviour;
-//! `fight_to_win` and `run_then_win` are the boss policy of
-//! [`crate::policy_boss`] (the second runs from random encounters);
-//! `psycho_wand_then_win` is `run_then_win` with an item used in the first
-//! player-command round of a scripted battle ([`crate::policy_opening`]);
-//! `attack_all` and `heal_then_attack` resolve to `default` (the walk and the
-//! patrol they were named for are route objectives, not battle decisions). A route that needs another
-//! behaviour gets a type here first.
+//! hurt through the camp (`recovery.rs`): [`Policy::recovers`].
 
-use crate::policy_boss::BossPolicy;
-use crate::policy_opening::OpeningItemPolicy;
-use psiv_core::battle::{FighterId, item_targets, status, technique_targets};
+use psiv_core::battle::status;
 use psiv_runtime::{CommandMenuView, PartyStatus, Runtime};
 
-/// A member below this share of their maximum HP is hurt enough to heal.
-pub const HURT_PERCENT: u32 = 50;
+use crate::policy_board::Board;
+use crate::policy_opening::OpeningItemPolicy;
+use crate::policy_plan::Planner;
 
 /// A living member below this share of their maximum HP makes `train_with_inn`
 /// leave a random encounter.
@@ -69,8 +50,12 @@ pub const RETREAT_PERCENT: u32 = 33;
 /// What one actor chooses to do.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Intent {
-    /// ATTACK the first living enemy.
-    Attack,
+    /// ATTACK; `target` is the enemy fighter id for a single-target weapon,
+    /// `None` for the first one the list offers.
+    Attack {
+        /// The enemy to swing at.
+        target: Option<u8>,
+    },
     /// TECH: cast technique `id`, on `target` (a fighter id) when it takes one.
     Technique {
         /// One-based technique id.
@@ -95,6 +80,11 @@ pub enum Intent {
     },
     /// DEFEND.
     Defend,
+}
+
+impl Intent {
+    /// A plain attack on the first enemy the list offers.
+    pub const ATTACK: Intent = Intent::Attack { target: None };
 }
 
 /// A battle policy.
@@ -131,44 +121,36 @@ pub trait Policy {
         true
     }
 
-    /// The actor's choice could not be carried out (an item row that is
-    /// disabled): drop to a plain attack for this window.
+    /// The actor's choice could not be carried out (a row that is disabled):
+    /// drop to a plain attack for this window.
     fn refuse(&mut self);
 }
 
-/// Policy names the route files use, with the policy each resolves to.
+/// Policy names the route files use, with the temperament each resolves to.
 pub const NAMES: [(&str, &str); 9] = [
-    ("default", "default"),
-    ("attack_all", "default"),
-    ("heal_then_attack", "default"),
-    ("run_unless_boss", "run_unless_boss"),
-    ("fight_to_win", "fight_to_win"),
-    ("run_then_win", "run_then_win"),
+    ("default", "fight"),
+    ("attack_all", "fight"),
+    ("heal_then_attack", "fight"),
+    ("fight_to_win", "fight"),
+    ("run_unless_boss", "run_encounters"),
+    ("run_then_win", "run_encounters"),
+    ("bioplant_survival", "run_encounters"),
+    ("train_with_inn", "train"),
     ("psycho_wand_then_win", "psycho_wand_then_win"),
-    ("train_with_inn", "train_with_inn"),
-    ("bioplant_survival", "bioplant_survival"),
 ];
 
 /// The policy a route names, or `None` for a name nobody defines.
 #[must_use]
 pub fn by_name(name: &str) -> Option<Box<dyn Policy>> {
-    let (_, policy) = NAMES.iter().find(|(route_name, _)| *route_name == name)?;
-    Some(match *policy {
-        "fight_to_win" => Box::new(BossPolicy::default()),
-        "run_then_win" => Box::new(BossPolicy::running()),
+    let (route_name, temperament) = NAMES.iter().find(|(route_name, _)| *route_name == name)?;
+    Some(match *temperament {
         "psycho_wand_then_win" => Box::new(OpeningItemPolicy::new(
             "psycho_wand_then_win",
             crate::policy_opening::PSYCHO_WAND,
         )),
-        "run_unless_boss" | "bioplant_survival" => Box::new(DefaultPolicy {
-            run_encounters: true,
-            ..DefaultPolicy::default()
-        }),
-        "train_with_inn" => Box::new(DefaultPolicy {
-            retreat: true,
-            ..DefaultPolicy::default()
-        }),
-        _ => Box::new(DefaultPolicy::default()),
+        "run_encounters" => Box::new(PartyPolicy::running(*route_name)),
+        "train" => Box::new(PartyPolicy::training(*route_name)),
+        _ => Box::new(PartyPolicy::fighting(*route_name)),
     })
 }
 
@@ -197,11 +179,17 @@ pub(crate) fn trace_choice(menu: &CommandMenuView, actor: u8, intent: &Intent) {
     eprintln!("  battle actor {actor} {intent:?} | {}", party.join(" | "));
 }
 
-/// Attack with everyone; heal the hurt.
-#[derive(Debug, Default)]
-pub struct DefaultPolicy {
+fn alive(member: &PartyStatus) -> bool {
+    member.hp > 0 && member.status & status::OUT == 0
+}
+
+/// The party policy: [`crate::policy_plan`]'s choices, with a temperament on
+/// the main options.
+#[derive(Debug, Clone)]
+pub struct PartyPolicy {
+    name: &'static str,
+    planner: Planner,
     current: Option<(u8, Intent)>,
-    healed_this_round: bool,
     /// Run from random encounters instead of fighting them.
     run_encounters: bool,
     /// Run from a random encounter once a member has fallen or a living one is
@@ -209,108 +197,52 @@ pub struct DefaultPolicy {
     retreat: bool,
 }
 
-fn alive(member: &PartyStatus) -> bool {
-    member.hp > 0 && member.status & status::DEAD == 0
-}
-
-pub(crate) fn hurt(member: &PartyStatus) -> bool {
-    hurt_below(member, HURT_PERCENT)
-}
-
-pub(crate) fn hurt_below(member: &PartyStatus, percent: u32) -> bool {
-    alive(member) && u32::from(member.hp) * 100 < u32::from(member.max_hp) * percent
-}
-
-/// Whether the cartridge's target list actually offers this party fighter.
-pub(crate) fn targetable(member: &PartyStatus, targets: &[FighterId]) -> bool {
-    FighterId::new(member.fighter).is_some_and(|id| targets.contains(&id))
-}
-
-/// The most hurt legal target: lowest share of maximum HP among the menu's
-/// eligible fighters, never merely the lowest number in the party strip.
-pub(crate) fn most_hurt_targetable<'a>(
-    party: &'a [PartyStatus],
-    targets: &[FighterId],
-) -> Option<&'a PartyStatus> {
-    party
-        .iter()
-        .filter(|m| hurt(m) && targetable(m, targets))
-        .min_by(|a, b| {
-            (u32::from(a.hp) * u32::from(b.max_hp)).cmp(&(u32::from(b.hp) * u32::from(a.max_hp)))
-        })
-}
-
-impl DefaultPolicy {
-    fn decide(&mut self, menu: &CommandMenuView, runtime: &Runtime) -> Intent {
-        self.heal(menu, runtime).unwrap_or(Intent::Attack)
-    }
-
-    /// The healing this actor does now, if the round still needs one.
-    pub(crate) fn heal(&mut self, menu: &CommandMenuView, runtime: &Runtime) -> Option<Intent> {
-        if self.healed_this_round {
-            return None;
-        }
-        let actor = FighterId::new(menu.actor?)?;
-        let roster = runtime.battle_roster()?;
-        // Retail allows a sealed TECH choice and spends TP on its wasted
-        // turn. This policy reads the live seal and chooses an item instead
-        // when one exists.
-        let sealed = roster.get(actor)?.stats.status & status::TECH_SEALED != 0;
-        // A healing technique first: effect 18 is "heal HP".
-        let cure = (!sealed)
-            .then(|| {
-                menu.techniques
-                    .iter()
-                    .filter(|entry| entry.available)
-                    .filter_map(|entry| {
-                        let tech = runtime.battle_techniques().find(|t| t.id == entry.id)?;
-                        if tech.effect != 18 || !tech.supported() {
-                            return None;
-                        }
-                        let targets = technique_targets(roster, actor, tech);
-                        let patient = most_hurt_targetable(&menu.party, &targets)?;
-                        Some((
-                            entry.cost,
-                            tech.id,
-                            tech.single_target().then_some(patient.fighter),
-                        ))
-                    })
-                    .min_by_key(|(cost, _, _)| *cost)
-            })
-            .flatten();
-        if let Some((_, id, target)) = cure {
-            self.healed_this_round = true;
-            return Some(Intent::Technique { id, target });
-        }
-        // Then a healing item the pack holds.
-        let held = runtime.game().inventory();
-        let item = runtime
-            .battle_items()
-            .filter(|item| item.effect == 18 && item.supported() && item.consumable)
-            .filter(|item| held.contains(item.id))
-            .find_map(|item| {
-                let targets = item_targets(roster, actor, item);
-                let patient = most_hurt_targetable(&menu.party, &targets)?;
-                Some((item, item.single_target().then_some(patient.fighter)))
-            });
-        if let Some((item, target)) = item {
-            self.healed_this_round = true;
-            return Some(Intent::Item {
-                name: item.name.clone(),
-                target,
-            });
-        }
-        None
+impl Default for PartyPolicy {
+    fn default() -> PartyPolicy {
+        PartyPolicy::fighting("default")
     }
 }
 
-impl Policy for DefaultPolicy {
+impl PartyPolicy {
+    /// Fights every battle.
+    #[must_use]
+    pub fn fighting(name: &'static str) -> PartyPolicy {
+        PartyPolicy {
+            name,
+            planner: Planner::default(),
+            current: None,
+            run_encounters: false,
+            retreat: false,
+        }
+    }
+
+    /// Runs from random encounters and fights scripted battles.
+    #[must_use]
+    pub fn running(name: &'static str) -> PartyPolicy {
+        PartyPolicy {
+            run_encounters: true,
+            ..PartyPolicy::fighting(name)
+        }
+    }
+
+    /// Fights, and leaves a random encounter that has hurt the party.
+    #[must_use]
+    pub fn training(name: &'static str) -> PartyPolicy {
+        PartyPolicy {
+            retreat: true,
+            ..PartyPolicy::fighting(name)
+        }
+    }
+}
+
+impl Policy for PartyPolicy {
     fn name(&self) -> &'static str {
-        if self.run_encounters {
-            "run_unless_boss"
-        } else {
-            "default"
-        }
+        self.name
+    }
+
+    fn battle_begins(&mut self, boss: bool) {
+        self.planner.begin_battle(boss);
+        self.current = None;
     }
 
     fn choose(&mut self, menu: &CommandMenuView, runtime: &Runtime) -> Intent {
@@ -322,7 +254,9 @@ impl Policy for DefaultPolicy {
         {
             return intent.clone();
         }
-        let intent = self.decide(menu, runtime);
+        let intent = Board::read(menu, runtime).map_or(Intent::ATTACK, |board| {
+            self.planner.decide(&board)
+        });
         trace_choice(menu, actor, &intent);
         self.current = Some((actor, intent.clone()));
         intent
@@ -336,19 +270,19 @@ impl Policy for DefaultPolicy {
         self.wants_run(boss)
             || (self.retreat
                 && !boss
-                && party
-                    .iter()
-                    .any(|m| !alive(m) || hurt_below(m, RETREAT_PERCENT)))
+                && party.iter().any(|m| {
+                    !alive(m) || u32::from(m.hp) * 100 < u32::from(m.max_hp) * RETREAT_PERCENT
+                }))
     }
 
     fn end_round(&mut self) {
         self.current = None;
-        self.healed_this_round = false;
+        self.planner.end_round();
     }
 
     fn refuse(&mut self) {
         if let Some((actor, _)) = self.current {
-            self.current = Some((actor, Intent::Attack));
+            self.current = Some((actor, Intent::ATTACK));
         }
     }
 }
@@ -366,38 +300,6 @@ mod tests {
             tp: 0,
             status: 0,
         }
-    }
-
-    #[test]
-    fn the_most_hurt_member_is_the_lowest_share_not_the_lowest_hp() {
-        let party = [member(1, 30, 100), member(2, 5, 50), member(3, 90, 100)];
-        let targets = [FighterId::new(1).unwrap(), FighterId::new(2).unwrap()];
-        assert_eq!(
-            most_hurt_targetable(&party, &targets).map(|m| m.fighter),
-            Some(2)
-        );
-        assert_eq!(
-            most_hurt_targetable(&[member(1, 50, 100)], &targets).map(|m| m.fighter),
-            None
-        );
-        assert_eq!(
-            most_hurt_targetable(&[member(1, 49, 100)], &targets).map(|m| m.fighter),
-            Some(1)
-        );
-        assert_eq!(
-            most_hurt_targetable(&party, &targets[..1]).map(|m| m.fighter),
-            Some(1)
-        );
-    }
-
-    #[test]
-    fn the_dead_are_not_patients() {
-        let mut dead = member(1, 0, 100);
-        dead.status = status::DEAD;
-        assert_eq!(
-            most_hurt_targetable(&[dead, member(2, 90, 100)], &[FighterId::new(1).unwrap()]),
-            None
-        );
     }
 
     /// `train_with_inn` fights a healthy party, and leaves once a member has
@@ -425,7 +327,8 @@ mod tests {
     #[test]
     fn route_policy_names_resolve() {
         for (name, _) in NAMES {
-            assert!(by_name(name).is_some(), "{name}");
+            let policy = by_name(name).unwrap_or_else(|| panic!("{name}"));
+            assert_eq!(policy.name(), name);
             assert!(is_known(name));
         }
         assert!(by_name("berserk").is_none());

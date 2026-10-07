@@ -1,5 +1,5 @@
 //! The `psycho_wand_then_win` policy: open a scripted battle with one item,
-//! then fight it as [`BossPolicy`] does.
+//! then fight it as [`PartyPolicy`] does.
 //!
 //! Some story fights are won by an item, not by damage: the Psycho Wand,
 //! used from the battle's ITEM menu, strips the false form from the enemy
@@ -8,7 +8,7 @@
 //! commands with the item: its first actor takes ITEM, picks it, and everyone
 //! else fights. A scripted ambush lets the enemy act first without opening a
 //! command window; that enemy-only round cannot spend the opening. After the
-//! item round this is the boss policy, unchanged.
+//! item round this is the party policy, unchanged.
 //!
 //! The item is the route's knowledge, named by the policy (a route author
 //! chooses `psycho_wand_then_win` for the chapter that fights Zio); only a
@@ -18,8 +18,7 @@
 
 use psiv_runtime::{CommandMenuView, Runtime};
 
-use crate::policy::{Intent, Policy};
-use crate::policy_boss::BossPolicy;
+use crate::policy::{Intent, PartyPolicy, Policy};
 
 /// The Psycho Wand's cartridge item id.
 pub const PSYCHO_WAND: u8 = 0x39;
@@ -29,7 +28,7 @@ pub const PSYCHO_WAND: u8 = 0x39;
 pub struct OpeningItemPolicy {
     name: &'static str,
     item: u8,
-    inner: BossPolicy,
+    inner: PartyPolicy,
     /// The battle in progress is scripted and its opening is not yet spent.
     armed: bool,
     current: Option<(u8, Intent)>,
@@ -42,7 +41,7 @@ impl OpeningItemPolicy {
         OpeningItemPolicy {
             name,
             item,
-            inner: BossPolicy::running(),
+            inner: PartyPolicy::running(name),
             armed: false,
             current: None,
         }
@@ -103,7 +102,7 @@ impl Policy for OpeningItemPolicy {
 
     fn refuse(&mut self) {
         if let Some((actor, _)) = self.current {
-            self.current = Some((actor, Intent::Attack));
+            self.current = Some((actor, Intent::ATTACK));
         } else {
             self.inner.refuse();
         }
