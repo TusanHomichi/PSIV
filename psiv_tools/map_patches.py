@@ -207,6 +207,72 @@ SCENE_CHUNK_WRITES: tuple[SceneChunkWrite, ...] = (
         chunks=(0x47,),
         checks=((0x6FCF4, "12BC0047"),),
     ),
+    # The six moving platforms (S9, #82). Each routine is `lea table(pc), a3`
+    # twice, with the two `move.b $4(a3), (a1)` / `$5(a3), $1(a1)` writes at the
+    # start and `$6(a3)`/`$7(a3)` at the end; the chunk ids are the table bytes
+    # (start table: x, y, two chunks, per flag state; ride table: step word,
+    # x, y, two chunks), pinned whole so a moved table fails the build. FG plane
+    # (`moveq #0, d3`), which is these maps' collision plane.
+    SceneChunkWrite(
+        scene="Event_VahFortMovingPlatform1",
+        map_id=0x0CA,
+        citation="Event_VahFortMovingPlatform1 $06C478: start table $06C5EC, ride table $06C5F8; writes at $06C4CA/$06C4CE and $06C5C0/$06C5C4",
+        chunks=(0xC0, 0xC1, 0xC2, 0xC3, 0xCC, 0xCD),
+        checks=(
+            (0x6C5EC, "02C00220C2C302C002C0C0C1"),
+            (0x6C5F8, "020002C002C0CCCDFE0002C00220CCCD"),
+        ),
+    ),
+    SceneChunkWrite(
+        scene="Event_VahFortMovingPlatform2",
+        map_id=0x0CA,
+        citation="Event_VahFortMovingPlatform2 $06C608: start table $06C77C, ride table $06C788",
+        chunks=(0xC0, 0xC1, 0xCC, 0xCD),
+        checks=(
+            (0x6C77C, "02C003A0C0C102C00300C0C1"),
+            (0x6C788, "FE0002C00300CCCD020002C003A0CCCD"),
+        ),
+    ),
+    SceneChunkWrite(
+        scene="Event_WpnPlntMovingPlatform1",
+        map_id=0x0C5,
+        citation="Event_WpnPlntMovingPlatform1 $06C798: start table $06C90C, ride table $06C918",
+        chunks=(0xC0, 0xC1, 0xC2, 0xC3, 0xCC, 0xCD),
+        checks=(
+            (0x6C90C, "01C002A0C2C301C00380C0C1"),
+            (0x6C918, "020001C00380CCCDFE0001C002A0CCCD"),
+        ),
+    ),
+    SceneChunkWrite(
+        scene="Event_WpnPlntMovingPlatform2",
+        map_id=0x0C5,
+        citation="Event_WpnPlntMovingPlatform2 $06C928: start table $06CA9C, ride table $06CAA8",
+        chunks=(0xC0, 0xC1, 0xC2, 0xC3, 0xCC, 0xCD),
+        checks=(
+            (0x6CA9C, "02200160C2C302200240C0C1"),
+            (0x6CAA8, "020002200240CCCDFE0002200160CCCD"),
+        ),
+    ),
+    SceneChunkWrite(
+        scene="Event_WpnPlntMovingPlatform3",
+        map_id=0x0C5,
+        citation="Event_WpnPlntMovingPlatform3 $06CAB8: start table $06CC2C, ride table $06CC38",
+        chunks=(0xC0, 0xC1, 0xC2, 0xC3, 0xCC, 0xCD),
+        checks=(
+            (0x6CC2C, "03800160C2C303800240C0C1"),
+            (0x6CC38, "020003800240CCCDFE0003800160CCCD"),
+        ),
+    ),
+    SceneChunkWrite(
+        scene="Event_WpnPlntMovingPlatform4",
+        map_id=0x0C5,
+        citation="Event_WpnPlntMovingPlatform4 $06CC48: start table $06CDB8, ride table $06CDC4",
+        chunks=(0xC0, 0xC1, 0xC2, 0xC3, 0xCC, 0xCD),
+        checks=(
+            (0x6CDB8, "03E002A0C2C303E00380C0C1"),
+            (0x6CDC4, "020003E00380CCCDFE0003E002A0CCCD"),
+        ),
+    ),
 )
 
 

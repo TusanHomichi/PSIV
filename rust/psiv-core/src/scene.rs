@@ -36,83 +36,13 @@ use crate::scene_runner::drift::{CoordCmp, NpcDrift};
 use crate::scenes::{DestinationMask, FlightLeg};
 use crate::state::{CharId, Flag, PARTY_SLOTS};
 
-pub use crate::scene_types::{SceneEffect, SceneFault, SceneInput};
+pub use crate::scene_types::{
+    ActorRef, Axis, DialogueId, DialogueSource, DialogueWindow, SceneEffect, SceneFault, SceneInput,
+};
 
 /// How many ops one tick may execute before the runner assumes the script is
 /// looping and faults. Generous for real scenes, finite for broken ones.
 pub const OP_BUDGET_PER_TICK: usize = 1024;
-
-/// Which coordinate a comparison reads.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Axis {
-    /// `curr_x_pos`.
-    X,
-    /// `curr_y_pos`.
-    Y,
-}
-
-/// Who a scene op is talking about.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum ActorRef {
-    /// A party member by slot; 0 is the leader.
-    PartyMember(usize),
-    /// A field object by its index in [`FieldMap::npcs`].
-    ///
-    /// Scene-lane proved these live at field-object RAM `$FFFFC300 + N*$40`,
-    /// so "NPC index N" is an unambiguous handle into the current map.
-    Npc(usize),
-    /// A character, resolved to whichever field object currently holds them
-    /// via the party slots — the `Event_GetCharacter` (`$5A6D6`) primitive.
-    /// Lets a scene name Chaz or Alys instead of guessing a slot.
-    Character(CharId),
-}
-
-/// A dialogue tree entry to open. The engine carries no text — the id is
-/// resolved against the pack by the runtime.
-///
-/// `GetDialogueByID` (`$59164`) skips `d0` `$FF` terminators through whichever
-/// tree was decompressed to `$FFFF3000`, so an entry index is only meaningful
-/// against the *current* tree. [`SceneOp::SetDialogueTree`] changes it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct DialogueId(pub u16);
-
-/// Which dialogue-window setup a scene asked for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-pub enum DialogueWindow {
-    /// `Event_GetAndRunDialogue` (`$5AC66`): the window closes, the panels
-    /// are destroyed and the map chunks reload (`Panel_DestroyAll`,
-    /// `Window_Destroy`, `Map_LoadChunks`).
-    #[default]
-    Standard,
-    /// `Event_GetAndRunDialogue2` (`$5ACDC`, `ps4.asm:121634`): the same text
-    /// loop, but the routine ends by zeroing `Panel_Num`, `Windows_Opened_Num`
-    /// and `$FFFFECA4` instead of destroying anything, so the text window and
-    /// every panel stay on screen and no chunk is reloaded. Fourteen
-    /// cartridge callers (`docs/scenes/DIALOGUE2_CALLERS.md`), every one a
-    /// scene that ends in a battle or a map change.
-    Retained,
-    /// `Event_GetAndRunDialogue5` (`$5ADF8`) — `Cutscene_PiataPrincipal`.
-    Cutscene,
-    /// `Event_GetAndRunDialogue3`, used by the Rykros surface.
-    Cutscene3,
-    /// The ending's first `RunText3` window before the panel sequence.
-    EndingIntro,
-    /// `Event_GetAndRunDialogue4` / `Event_RunDialogue4` in `$8021`.
-    Ending,
-    /// `Event_RunDialogue5` used for the Rykros hand-off line.
-    Cutscene5,
-}
-
-/// Where a dialogue entry index comes from.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum DialogueSource {
-    /// A literal entry index written into the scene.
-    Entry(DialogueId),
-    /// Read `dialogue_id` (`$14`) off a field object. `Event_AlysFound` does
-    /// exactly this — `move.b $14(a4),d0` — so the line Alys speaks is a
-    /// property of her map object, not of the scene.
-    NpcDialogueId(ActorRef),
-}
 
 /// One instruction of a scene.
 ///
@@ -911,6 +841,84 @@ pub enum SceneOp {
     SkipOps {
         /// Ops skipped.
         count: u16,
+    },
+    /// Flip one flag in place: `TempEveFlags_Toggle` (`$576EA`, `bchg` on
+    /// `Temp_Event_Flags`) or `EventFlags_Toggle` (`$576E0`). The platform and
+    /// terminal events use it so a second use undoes the first.
+    ToggleFlag {
+        /// Which flag.
+        flag: Flag,
+    },
+    /// Branch on whether `who` is in the party: `Event_GetCharacter`
+    /// (`$5A6D6`) returns with N set when `FindCharacterSlot` finds no slot,
+    /// and the caller's `bmi` takes the absent path
+    /// (`Event_DominatorsDefeated`, `$073258..$073294`).
+    BranchIfPartyMember {
+        /// The character asked about.
+        who: CharId,
+        /// Op index taken when they hold a party slot.
+        if_present: usize,
+        /// Op index taken otherwise.
+        if_absent: usize,
+    },
+    /// `loc_5A97C` (`$5A97C`): `Event_UpdateObjFacing` on every character
+    /// object whose id word is non-zero, in slot order. Every party member
+    /// turns; an empty slot is skipped.
+    FaceParty {
+        /// The facing written to each.
+        facing: Direction,
+    },
+    /// Write one byte of a character record's `skills` array
+    /// (`move.b #id, skills+n(a0)`, `Event_Burstroc` `$072512`): the skill is
+    /// learned. Only the id byte is written; the use counts are untouched.
+    SetCharacterSkill {
+        /// The roster record (`Wren_Stats` is `$FFFFF880`).
+        who: CharId,
+        /// Index into the eight-byte `skills` array.
+        slot: u8,
+        /// The skill id written.
+        skill: u8,
+    },
+    /// The moving platforms' ride loop (`loc_6C50E`, `$06C50E`, and its five
+    /// siblings): every frame the table's step word, sign-extended and shifted
+    /// into signed 16.16 pixels (`ext.l d0 / lsl.l #8, d0`), is added to the
+    /// platform object's `curr_y_pos` and, in the same frame, to `curr_y_pos`
+    /// and `dest_y_pos` of all five party objects, and to the camera step
+    /// counters; the loop ends when the platform object reaches its target.
+    /// The target is a whole number of frames away, so the op carries the
+    /// count. Blocks for `frames` ticks, running map updates each one.
+    ///
+    /// The party moves rigidly: the distance (`step_y * frames`) must be a
+    /// whole number of 16-pixel cells, or the scene faults. The platform's own
+    /// motion is announced to the renderer as a [`SceneOp::StepFieldObject`]
+    /// on `slot`.
+    RidePlatform {
+        /// The temporary platform object's slot (`Field_LoadObject`'s first
+        /// free one).
+        slot: usize,
+        /// Signed 16.16 pixels per frame.
+        step_y: i32,
+        /// Loop iterations.
+        frames: u16,
+    },
+    /// The conveyor belts' carry loop (`Event_ConveyorBeltDown`, `$06CE5C`,
+    /// and its three siblings): from the leader's resting cell the party is
+    /// walked one cell at a time in `direction` at `FieldObj_Step_Offset` 0
+    /// (16 frames per cell) for as long as the live collision-plane chunk
+    /// under the leader (`GetChunkAndCollision`: chunk at `curr_x_pos`,
+    /// `curr_y_pos + $10`) lies in `first_chunk..=last_chunk`, tested on
+    /// every pixel of the step. The first test comes after one pixel, so the
+    /// leader always takes at least one step, and a step in flight when the
+    /// test fails is completed. Blocks until the leader arrives; the chunk
+    /// layout is read through [`crate::SceneRunner::tick_with`], and a runner
+    /// ticked without one faults.
+    ConveyorRide {
+        /// The belt's direction.
+        direction: Direction,
+        /// Lowest chunk id the belt covers (`cmpi.b #$A8, d7`).
+        first_chunk: u8,
+        /// Highest chunk id the belt covers (`cmpi.b #$AB, d7`).
+        last_chunk: u8,
     },
     /// Unconditional jump.
     Jump {

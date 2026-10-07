@@ -161,6 +161,37 @@ and the port never transcribed.
 | `Event_PersistentEsperGuards` | `$45` | [100](100_PersistentEsperGuards.md) | `$06FE1C..$06FE55` |
 | `Event_EclipseTorchStolen` | `$46` | [101](101_EclipseTorchStolen.md) | `$06FE56..$070189` |
 
+## Vahal Fort and Weapon Plant (S9)
+
+The nineteen events of issue #82, transcribed ahead of the route (it does not
+reach the fort yet, so these are state tests, not campaign evidence). The story
+scenes are [110](110_VahalFortStory.md), the two chest events
+[111](111_WrenSkillChests.md), and the twelve field mechanics (platforms,
+terminals, belts) are [the field record](../field/PLATFORMS_AND_BELTS.md), whose
+byte ranges are repeated here.
+
+| Scene | Event | Doc | Retail bytes |
+|---|---:|---|---|
+| `Event_VahFortMovingPlatform1` | `$15` | [platforms](../field/PLATFORMS_AND_BELTS.md#the-platforms) | `$06C478..$06C607` |
+| `Event_VahFortMovingPlatform2` | `$16` | [platforms](../field/PLATFORMS_AND_BELTS.md#the-platforms) | `$06C608..$06C797` |
+| `Event_WpnPlntMovingPlatform1` | `$17` | [platforms](../field/PLATFORMS_AND_BELTS.md#the-platforms) | `$06C798..$06C927` |
+| `Event_WpnPlntMovingPlatform2` | `$18` | [platforms](../field/PLATFORMS_AND_BELTS.md#the-platforms) | `$06C928..$06CAB7` |
+| `Event_WpnPlntMovingPlatform3` | `$19` | [platforms](../field/PLATFORMS_AND_BELTS.md#the-platforms) | `$06CAB8..$06CC47` |
+| `Event_WpnPlntMovingPlatform4` | `$1A` | [platforms](../field/PLATFORMS_AND_BELTS.md#the-platforms) | `$06CC48..$06CDD3` |
+| `Event_VahalFortTerminal` | `$1B` | [terminals](../field/PLATFORMS_AND_BELTS.md#the-terminals) | `$06CDD4..$06CE17` |
+| `Event_WeaponPlantTerminal` | `$1C` | [terminals](../field/PLATFORMS_AND_BELTS.md#the-terminals) | `$06CE18..$06CE5B` |
+| `Event_ConveyorBeltDown` | `$1D` | [belts](../field/PLATFORMS_AND_BELTS.md#the-conveyor-belts) | `$06CE5C..$06CFA3` |
+| `Event_ConveyorBeltUp` | `$1E` | [belts](../field/PLATFORMS_AND_BELTS.md#the-conveyor-belts) | `$06CFA4..$06D0EB` |
+| `Event_ConveyorBeltRight` | `$1F` | [belts](../field/PLATFORMS_AND_BELTS.md#the-conveyor-belts) | `$06D0EC..$06D233` |
+| `Event_ConveyorBeltLeft` | `$20` | [belts](../field/PLATFORMS_AND_BELTS.md#the-conveyor-belts) | `$06D234..$06D37B` |
+| `Event_Burstroc` | `$6E` | [111](111_WrenSkillChests.md) | `$0724A4..$07251F` |
+| `Event_PosiBolt` | `$6F` | [111](111_WrenSkillChests.md#event_posibolt) | `$072520..$07259D` |
+| `Event_VahalFortEntrance` | `$8D` | [110](110_VahalFortStory.md) | `$07318E..$07319F` |
+| `Event_VahalFortMidway` | `$8E` | [110](110_VahalFortStory.md#event_vahalfortmidway) | `$0731A0..$0731B1` |
+| `Event_VahalFortBarrier` | `$90` | [110](110_VahalFortStory.md#event_vahalfortbarrier) | `$0731DA..$0731FF` |
+| `Event_DominatorsDefeated` | `$91` | [110](110_VahalFortStory.md#event_dominatorsdefeated) | `$073200..$0733B9` |
+| `Event_WeaponPlantArrival` | `$92` | [110](110_VahalFortStory.md#event_weaponplantarrival) | `$0733BA..$0733CB` |
+
 ## Terminal and recorded boundary surfaces
 
 | Scene | Event | Doc | Retail bytes |
@@ -366,6 +397,24 @@ inventory, vehicles and equipment at each state-bearing edge.
 after it has rebuilt and recast the new map. NPC `ActorMoveStarted` and
 `ActorArrived` edges update `FieldMap`, which is the authoritative landing
 state used by the comparator.
+
+### Vahal Fort and Weapon Plant extensions (S9)
+
+Six ops, each cited, tested (`scene_runner/mechanics_tests.rs`) and used by the
+[Vahal Fort and Weapon Plant records](../field/PLATFORMS_AND_BELTS.md):
+
+| Op | Retail primitive | Used by |
+|---|---|---|
+| `ToggleFlag{flag}` | `TempEveFlags_Toggle` `$576EA` (`bchg` on `Temp_Event_Flags`); `EventFlags_Toggle` `$576E0` | the six platforms, both terminals |
+| `BranchIfPartyMember{who, if_present, if_absent}` | `Event_GetCharacter` `$5A6D6` (N set when `FindCharacterSlot` fails) + `bmi` | `Event_DominatorsDefeated` |
+| `FaceParty{facing}` | `loc_5A97C` `$5A97C`: `Event_UpdateObjFacing` on every non-empty character object | `Event_DominatorsDefeated` |
+| `SetCharacterSkill{who, slot, skill}` | `move.b #id, skills+n(a0)` on a character record (`Event_Burstroc` `$07250E`) | Burstroc, Positron Bolt |
+| `RidePlatform{slot, step_y, frames}` | the ride loop `loc_6C50E` `$06C50E` (and five siblings): a 16.16 step added each frame to the platform object and all five party objects | the six platforms |
+| `ConveyorRide{direction, first_chunk, last_chunk}` | the carry loop of `Event_ConveyorBeltDown` `$06CE5C` (and three siblings), reading `GetChunkAndCollision` `$45A52` | the four belts |
+
+`ConveyorRide` is the one op that reads the live layout: `SceneRunner::tick_with`
+takes the chunk probe, and the runtime hands it the collision plane with scene
+patches applied. `SceneFault::NoLayout` is its fault.
 
 ### Intro-only extensions
 
