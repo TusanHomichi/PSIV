@@ -76,11 +76,11 @@ new SAVE. The campaign graph marks C70 and CZ verified as a bounded post-Zio
 checkpoint, while full R2 remains in progress on bespoke-driver retirement.
 Whole-scene/event-oracle/audio parity and later-arc play remain open.
 
-**Next action:** restore the Xe-A-Thoul chapter (recorded in the
-[Ice Digger run log](campaign/RUNNER_LOG_ICEDIGGER.md), without its `wait`) and play
-on through the Xe-A-Thoul battle, Lashiec and Dark Force 2. Every enemy ability on
-that stretch is now implemented and cartridge-captured. The route plays New Game to
-the Air Castle's arrival in 50 chapters ([run log](campaign/RUNNER_LOG.md)).
+**Next action:** C9, from Dezolis after `Cutscene_DarkForce2Defeated` through
+`Cutscene_GumbiousBishop` and the Hydrofoil, alongside the party policy that uses
+every technique and skill (#88's remaining half) and the endgame enemy abilities
+(lane A6, running). The route plays New Game to Dark Force 2's defeat in 62
+chapters ([run log](campaign/RUNNER_LOG.md)).
 
 ## 1. Continue from the post-Rika checkpoint
 
