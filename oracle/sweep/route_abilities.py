@@ -59,6 +59,8 @@ import pathlib
 import re
 import sys
 
+from psiv_tools.extract_stamp import StaleExtractError, load_table
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 GENERATED = ROOT / "generated"
 ROUTE = ROOT / "rust" / "psiv-campaign" / "routes" / "main.json"
@@ -252,7 +254,7 @@ class Data:
     @classmethod
     def load(cls, directory: pathlib.Path = GENERATED) -> "Data":
         def read(name: str):
-            return json.loads((directory / f"{name}.json").read_text())
+            return load_table(directory, name)
 
         formations = read("formations")
         return cls(
@@ -626,7 +628,10 @@ def main(argv: list[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     if arguments.scene_doc and not arguments.map_pattern:
         parser.error("--scene-doc needs --map-pattern (an explicit scope)")
-    data = Data.load(arguments.data_dir)
+    try:
+        data = Data.load(arguments.data_dir)
+    except StaleExtractError as error:
+        parser.error(str(error))
     try:
         if arguments.map_pattern:
             scope = pattern_scope(data, arguments.map_pattern, arguments.scene_doc)

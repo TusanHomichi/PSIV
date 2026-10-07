@@ -26,6 +26,8 @@ import argparse
 import json
 import pathlib
 
+from psiv_tools.extract_stamp import REBUILD_COMMAND, StaleExtractError, load_table
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 FIXTURES = ROOT / "rust" / "psiv-core" / "src" / "battle" / "replay_fixtures"
 #: The property names in `generated/enemies.json`, in `ELEMENT_SLOTS` order
@@ -177,23 +179,21 @@ def party_records(runtime: pathlib.Path, fixtures: pathlib.Path) -> dict:
     return result
 
 
-def build(pack: pathlib.Path, fixtures: pathlib.Path,
+def build(generated: pathlib.Path, fixtures: pathlib.Path,
           runtime: pathlib.Path | None = None) -> dict:
-    enemies = {record["id"]: record for record in json.loads(
-        (pack / "enemies.json").read_text())}
-    skills = {record["id"]: record for record in json.loads(
-        (pack / "enemy_skills.json").read_text())}
-    inline = {record["label"]: record for record in json.loads(
-        (pack / "formations.json").read_text()).get("inline_formations", [])}
+    enemies = {record["id"]: record for record in load_table(generated, "enemies")}
+    skills = {record["id"]: record for record in load_table(generated, "enemy_skills")}
+    inline = {record["label"]: record
+              for record in load_table(generated, "formations").get("inline_formations", [])}
     wanted_enemies, shown = fixture_enemies(fixtures)
     wanted_abilities = set(shown)
     labels = sorted({RELOADS[enemy_id] for enemy_id in wanted_enemies
                      if enemy_id in RELOADS})
     missing = [label for label in labels if label not in inline]
     if missing:
-        raise SystemExit(f"{pack / 'formations.json'} has no inline formation "
+        raise SystemExit(f"{generated / 'formations.json'} has no inline formation "
                          f"{', '.join(missing)}: extract it with "
-                         "`python3 -m psiv_tools extract`")
+                         f"`{REBUILD_COMMAND}`")
     spawned = {SPAWNED[enemy_id] for enemy_id in wanted_enemies if enemy_id in SPAWNED}
     while not spawned <= wanted_enemies:
         wanted_enemies |= spawned
@@ -241,8 +241,11 @@ def main(argv: list[str] | None = None) -> int:
     parsed.add_argument("--fixtures", default=str(FIXTURES))
     parsed.add_argument("--out", default=str(FIXTURES / "motavia_pack.json"))
     arguments = parsed.parse_args(argv)
-    document = build(pathlib.Path(arguments.pack),
-                     pathlib.Path(arguments.fixtures), pathlib.Path(arguments.runtime_pack))
+    try:
+        document = build(pathlib.Path(arguments.pack), pathlib.Path(arguments.fixtures),
+                         pathlib.Path(arguments.runtime_pack))
+    except StaleExtractError as error:
+        raise SystemExit(str(error))
     out = pathlib.Path(arguments.out)
     out.write_text(json.dumps(document, separators=(",", ":")) + "\n")
     print(f"wrote {out}: {len(document['enemies'])} enemy record(s), "

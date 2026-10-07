@@ -13,6 +13,7 @@ import tempfile
 import unittest
 
 from oracle.sweep import route_abilities as ra
+from psiv_tools.extract_stamp import load_table
 from oracle.sweep.route_abilities import (Data, Scope, classes, derive,
                                           ledger_classes, scene_records)
 
@@ -192,7 +193,7 @@ class ScopeTests(unittest.TestCase):
         self.assertEqual(battles[26], [133, 134, 135])
         # Every map with an encounter table whose event list holds an event of
         # the stretch's scenes (`RunEventsJmpTbl` $37-$54) is in the scope.
-        maps = json.loads((ra.GENERATED / "maps.json").read_text())["maps"]
+        maps = load_table(ra.GENERATED, "maps")["maps"]
         for entry in maps:
             events = (entry.get("events") or {}).get("ids") or []
             drawn = data.encounters.get(entry["id"], {}).get("mode") not in (

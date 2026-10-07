@@ -15,6 +15,8 @@ import dataclasses
 import json
 import pathlib
 
+from psiv_tools.extract_stamp import StaleExtractError, load_table
+
 from .errors import ForceError
 
 
@@ -91,10 +93,12 @@ class Pack:
     @classmethod
     def load(cls, data_dir: pathlib.Path) -> "Pack":
         try:
-            forms = json.loads((data_dir / "formations.json").read_text())
-            indexes = json.loads((data_dir / "formation_indexes.json").read_text())
-            encounters = json.loads((data_dir / "encounters.json").read_text())
-            enemies = json.loads((data_dir / "enemies.json").read_text())
+            forms = load_table(data_dir, "formations")
+            indexes = load_table(data_dir, "formation_indexes")
+            encounters = load_table(data_dir, "encounters")
+            enemies = load_table(data_dir, "enemies")
+        except StaleExtractError as exc:
+            raise ForceError(str(exc)) from exc
         except (OSError, KeyError, ValueError) as exc:
             raise ForceError(f"cannot read the pack in {data_dir}: {exc}")
         formations = {f["id"]: f for f in forms["formations"]}

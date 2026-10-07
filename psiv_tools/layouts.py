@@ -48,6 +48,7 @@ from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 from . import png
+from .extract_stamp import check_accumulating_png_directory, write_png_stamp
 from .gfx import GRAYSCALE_RAMP, RGB, decode_palette, decode_tile, palette_rgb
 from .kosinski import decompress as kos_decompress
 
@@ -906,6 +907,9 @@ def export_map_pngs(
     directory = Path(out_dir)
     directory.mkdir(parents=True, exist_ok=True)
     stem = name or spec.label or "map"
+    # The directory grows one map at a time: its stamp can only vouch for images
+    # this source wrote, so images from older source must be cleared first.
+    check_accumulating_png_directory(directory, "layouts", {f"{stem}.png", f"{stem}_collision.png"})
 
     layout_png = directory / f"{stem}.png"
     layout_png.write_bytes(
@@ -913,6 +917,7 @@ def export_map_pngs(
     )
     collision_png = directory / f"{stem}_collision.png"
     collision_png.write_bytes(render_collision(decoded.collision))
+    write_png_stamp(directory, "layouts")
 
     result = decoded.to_json()
     result["png"] = {"layout": str(layout_png), "collision": str(collision_png)}

@@ -22,6 +22,7 @@ from unittest import mock
 
 from oracle import force as fb
 from oracle.force import runs
+from psiv_tools.extract_stamp import write_table_stamp
 
 #: A pack with three groups: 0 is drawn by a map, 1 by the Motavia position
 #: grid, 2 is a vehicle table. Formation 5 sits in 0 and 2, formation 6 in 1.
@@ -137,6 +138,7 @@ class PackFixture(unittest.TestCase):
                    {"groups": [{"group": group, "formation_ids": ids}
                                for group, ids in sorted(GROUP_IDS.items())]})
         write_json(os.path.join(self.data, "encounters.json"), ENCOUNTERS)
+        write_table_stamp(self.data)
         self.ram_map = os.path.join(self.dir.name, "ram_map.json")
         write_json(self.ram_map, RAM_MAP)
         self.layout = fb.field_layout(pathlib.Path(self.ram_map))
@@ -154,6 +156,7 @@ class PackFixture(unittest.TestCase):
                    {"groups": [{"group": group, "formation_ids": ids}
                                for group, ids in sorted(groups.items())]})
         write_json(os.path.join(root, "encounters.json"), encounters)
+        write_table_stamp(root)
         self.pack_dir = root
         return fb.Pack.load(pathlib.Path(root))
 

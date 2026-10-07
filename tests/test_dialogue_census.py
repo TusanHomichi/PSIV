@@ -1,6 +1,7 @@
 import unittest
 
 from psiv_tools.dialogue_census import census
+from psiv_tools.extract_stamp import load_table_file
 from psiv_tools.presentation_pack import DIALOGUE_ACTION_PANEL_IDS
 
 
@@ -53,9 +54,8 @@ class DialogueCensusTests(unittest.TestCase):
         path = Path(__file__).parents[1] / "generated/dialogue.json"
         if not path.is_file():
             self.skipTest("generated dialogue extract is not present")
-        import json
 
-        result = census(json.loads(path.read_text(encoding="utf-8")))
+        result = census(load_table_file(path))
         self.assertEqual(result["entries"], 2736)
         self.assertEqual(result["action_occurrences"], 266)
         self.assertEqual(result["panel_count"], 163)

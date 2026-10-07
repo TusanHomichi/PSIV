@@ -22,6 +22,8 @@ import json
 import pathlib
 import re
 
+from psiv_tools.extract_stamp import StaleExtractError, load_table_file
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 RECORD = ROOT / "build" / "lane-evidence" / "sweep" / "sweep_motavia.json"
 ABILITIES = ROOT / "docs" / "battle" / "ENEMY_ABILITIES.md"
@@ -56,8 +58,7 @@ def ability_status(path: pathlib.Path) -> dict[int, dict]:
 
 
 def enemy_names(path: pathlib.Path) -> dict[int, str]:
-    return {record["id"]: record["symbol"] for record in json.loads(
-        path.read_text())}
+    return {record["id"]: record["symbol"] for record in load_table_file(path)}
 
 
 def captured(record: dict) -> list[dict]:
@@ -146,9 +147,12 @@ def main(argv: list[str] | None = None) -> int:
     parsed.add_argument("--abilities", default=str(ABILITIES))
     parsed.add_argument("--enemies", default=str(ENEMIES))
     arguments = parsed.parse_args(argv)
+    try:
+        names = enemy_names(pathlib.Path(arguments.enemies))
+    except StaleExtractError as error:
+        parsed.error(str(error))
     record = json.loads(pathlib.Path(arguments.record).read_text())
-    print(coverage(record, ability_status(pathlib.Path(arguments.abilities)),
-                   enemy_names(pathlib.Path(arguments.enemies))))
+    print(coverage(record, ability_status(pathlib.Path(arguments.abilities)), names))
     return 0
 
 

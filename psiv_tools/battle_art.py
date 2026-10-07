@@ -102,6 +102,7 @@ from typing import Any, Sequence
 from . import planes
 from .enigma import EnigmaError
 from .enigma import decompress as enigma_decompress
+from .extract_stamp import discard_png_stamp, write_png_stamp
 from .gfx import COLORS_PER_LINE, GRAYSCALE_RAMP, RGB, decode_palette, decode_tile, palette_rgb
 from .nemesis import TILE_SIZE
 from .nemesis import decompress as nemesis_decompress
@@ -741,6 +742,7 @@ def export_battle_art_pngs(data: bytes, out_dir: str | Path) -> list[dict[str, A
     directory = Path(out_dir)
     (directory / "enemies").mkdir(parents=True, exist_ok=True)
     (directory / "characters").mkdir(parents=True, exist_ok=True)
+    discard_png_stamp(directory)
     written: list[dict[str, Any]] = []
 
     records = enemy_records(data)
@@ -778,4 +780,5 @@ def export_battle_art_pngs(data: bytes, out_dir: str | Path) -> list[dict[str, A
                 "palette": "loc_76A4 line 3",
                 "bytes": len(image),
             })
+    write_png_stamp(directory, "battle_art")
     return written

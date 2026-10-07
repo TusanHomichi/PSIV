@@ -105,6 +105,7 @@ from .gfx import (
     _gap_bounds,
     _slice,
 )
+from .extract_stamp import discard_png_stamp, write_png_stamp
 from .kosinski import decompress as kosinski_decompress
 
 RGB = tuple[int, int, int]
@@ -783,6 +784,7 @@ def export_plane_pngs(data: bytes, out_dir: str | Path) -> list[dict[str, Any]]:
     """
     directory = Path(out_dir)
     directory.mkdir(parents=True, exist_ok=True)
+    discard_png_stamp(directory)
     written: list[dict[str, Any]] = []
 
     def emit(label: str, cells, columns, tiles, cram, art_vram_tile, palette_name):
@@ -840,4 +842,5 @@ def export_plane_pngs(data: bytes, out_dir: str | Path) -> list[dict[str, Any]]:
             f"Pal_{symbol}BattleBG",
         )
 
+    write_png_stamp(directory, "planes")
     return written

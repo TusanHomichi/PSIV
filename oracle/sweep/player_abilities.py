@@ -17,6 +17,7 @@ import sys
 import tempfile
 
 from oracle.sweep.player_chains import Chains
+from psiv_tools.extract_stamp import StaleExtractError, load_table
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 LEDGER = ROOT / "docs/battle/PLAYER_ABILITIES.md"
@@ -214,8 +215,8 @@ def main(argv: list[str] | None = None) -> int:
             for record in records[f"{kind}s"]:
                 if (kind, record["id"]) not in rows:
                     raise ValueError(f"ledger lacks {kind} {record['id']} {record['display_name']}")
-        characters = read(args.generated / "characters.json")
-        learned = learn_tables(characters, read(args.generated / "progression.json"))
+        characters = load_table(args.generated, "characters")
+        learned = learn_tables(characters, load_table(args.generated, "progression"))
         report = read(args.route_report)
         levels = route_levels(report)
         include_saved_learning(learned, report, characters, records)
@@ -262,7 +263,7 @@ def main(argv: list[str] | None = None) -> int:
             for row in missing:
                 print(f"missing capture: {row['kind']} {row['id']} {row['name']}")
         return int(bool(bad or (args.require_captures and missing)))
-    except (OSError, ValueError, KeyError) as error:
+    except (OSError, ValueError, KeyError, StaleExtractError) as error:
         print(f"player_abilities: {error}", file=sys.stderr)
         return 2
 

@@ -5,6 +5,7 @@ import tempfile
 import unittest
 
 from oracle.sweep.replay_pack import build, fixture_enemies, party_records
+from psiv_tools.extract_stamp import write_table_stamp
 
 
 class ReplayPack(unittest.TestCase):
@@ -101,6 +102,7 @@ class ReplayPack(unittest.TestCase):
             inline = {"label": "loc_23D00", "run_agility": 7,
                       "enemies": [{"slot": 1, "enemy": {"id": 87}, "position": 20}]}
             self.write(pack / "formations.json", {"inline_formations": [inline]})
+            write_table_stamp(pack)
             document = build(pack, fixtures, root / "runtime")
             self.assertEqual([e["id"] for e in document["enemies"]], [84, 87])
             self.assertEqual(document["inline_formations"], [{

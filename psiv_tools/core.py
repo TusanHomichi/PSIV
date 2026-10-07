@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .extract_stamp import METADATA_KEY, table_stamp
 from .formations import extract_formation_indexes, extract_formations
 from .gfx import extract_graphics
 from .maps import extract_maps
@@ -634,6 +635,13 @@ def write_extract(data: bytes, output_dir: str | Path) -> dict[str, Any]:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     result = extract_all(data)
-    for key in ["metadata", "layout_validation", "tables", "characters", "techniques", "skills", "combos", "vehicles", "items", "enemies", "enemy_skills", "progression", "formations", "formation_indexes", "shops", "graphics", "names", "dialogue", "maps", "encounters", "planes"]:
+    # The stamp lives in `metadata.json`, which is therefore removed first and
+    # written last: a run that stops half way leaves tables nothing vouches for,
+    # and readers refuse them. `dump` and `inspect` describe the ROM and carry
+    # no stamp; only a written extract has an extractor.
+    (output_dir / "metadata.json").unlink(missing_ok=True)
+    for key in ["layout_validation", "tables", "characters", "techniques", "skills", "combos", "vehicles", "items", "enemies", "enemy_skills", "progression", "formations", "formation_indexes", "shops", "graphics", "names", "dialogue", "maps", "encounters", "planes"]:
         (output_dir / f"{key}.json").write_text(json.dumps(result[key], indent=2) + "\n", encoding="utf-8")
+    metadata = {**result["metadata"], METADATA_KEY: table_stamp()}
+    (output_dir / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     return result

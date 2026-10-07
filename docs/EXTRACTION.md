@@ -53,6 +53,9 @@ python -m psiv_tools inspect "/path/to/Phantasy Star IV (USA).md"
 python -m psiv_tools extract "/path/to/Phantasy Star IV (USA).md" generated
 ```
 
+`extract` writes only the JSON tables. To rebuild the whole of `generated/`,
+with its stamps, use [`regenerate`](#rebuild-the-generated-directory).
+
 The extract command writes:
 
 ```text
@@ -79,6 +82,46 @@ generated/
 ├── encounters.json
 └── planes.json
 ```
+
+## Rebuild the generated directory
+
+`generated/` is the output of four producers: `extract` (the JSON tables), `art`
+(`gfx/`), `planes` (`planes/`) and `battle-art` (`battle_art/`). One command runs all of them, in that
+order, into one directory:
+
+```bash
+python3 -m psiv_tools regenerate "/path/to/Phantasy Star IV (USA).md" generated
+```
+
+It prints each step's duration. This is the way to rebuild `generated/`; run it
+after any change under `psiv_tools/` that the extractor reaches, and before a
+tool that reads the tables.
+
+Every output is stamped with the extractor that wrote it, so a reader cannot
+use an older extract without noticing:
+
+- The stamp is a SHA-256 over the source of every `psiv_tools` module the
+  producing command can reach through its imports, with the per-module hashes
+  beside it. The JSON tables share one stamp, in `metadata.json` under
+  `extract_stamp`: `core` imports every extractor, so the import graph gives
+  each table the same modules and a per-file stamp would claim precision the
+  graph does not have. Each PNG directory carries its own `extract_stamp.json`,
+  written by the exporter that writes the images (`export_art_pngs`,
+  `export_plane_pngs`, `export_battle_art_pngs` and `export_map_pngs`).
+- A reader opens a table with `psiv_tools.extract_stamp.load_table`. A present
+  extract with no stamp, or with another source's stamp, raises
+  `StaleExtractError`, naming the file, both stamps, the modules that differ and
+  the command above. An absent `generated/` is an ordinary `FileNotFoundError`,
+  so a check that skips without the local inputs still skips.
+  `tests/test_extract_stamp.py` fails when any other module reads `generated/`.
+- Editing an extractor module, even a pure refactor, changes the stamp and
+  makes the next read refuse until `regenerate` runs. That is the price of never
+  missing a drift. `metadata.json` is written last, so an interrupted run leaves
+  tables that refuse rather than ones that look current.
+- `layouts/` is written by `export_map_pngs` for the maps someone chooses and
+  has no command of its own, so `regenerate` does not touch it. The exporter
+  stamps it, and refuses to add a map to a directory of images from another
+  source.
 
 ## Proven retail-layout tables
 
