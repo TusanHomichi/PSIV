@@ -199,10 +199,10 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0097` | `Event_Pennant` | ItemAction_Pennant: ITEM menu, Chaz's house only |  | allowlisted, #81 |
 | `$0098` | `Event_WoodCarving` | ItemAction_WoodCarvin: ITEM menu, Chaz's house only |  | allowlisted, #81 |
 | `$0099` | `Event_EnterAngerTower` | map trigger $56 | AngerTower | allowlisted, #83 |
-| `$009A` | `Event_SoldiersTempleCaveDialogue1` | map trigger $57 | IslandCave_F1 | allowlisted, #81 |
-| `$009B` | `Event_SoldiersTempleCaveDialogue2` | map trigger $58 | IslandCave_F3 | allowlisted, #81 |
-| `$009C` | `Event_SoldiersTempleReached` | map trigger $59 | SoldiersTempleOutside | allowlisted, #81 |
-| `$009D` | `Event_AeroPrismFound` | map trigger $5A | SoldiersTemple | allowlisted, #81 |
+| `$009A` | `Event_SoldiersTempleCaveDialogue1` | map trigger $57 | IslandCave_F1 | scene `Event_SoldiersTempleCaveDialogue1` |
+| `$009B` | `Event_SoldiersTempleCaveDialogue2` | map trigger $58 | IslandCave_F3 | scene `Event_SoldiersTempleCaveDialogue2` |
+| `$009C` | `Event_SoldiersTempleReached` | map trigger $59 | SoldiersTempleOutside | scene `Event_SoldiersTempleReached` |
+| `$009D` | `Event_AeroPrismFound` | map trigger $5A | SoldiersTemple | scene `Event_AeroPrismFound` |
 | `$009E` | `Event_PiataGuardsReprimand` | map trigger $5B | Motavia | scene `Event_PiataGuardsReprimand` |
 | `$009F` | `Event_GameStart` | Title_StartOption: Start on the title screen |  | scene `Event_GameStart` |
 | `$00A0` | `Event_PiataChazAlone` | map trigger $7C | PiataAcademy_F1 | scene `Event_PiataChazAlone` |
@@ -253,10 +253,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 |---:|---|---:|
 | #56 | trigger-fired events | 1 |
 | #71 | `Event_GetAndRunDialogue2` callers | 1 |
-| #81 | Motavia side content | 42 |
+| #81 | Motavia side content | 38 |
 | #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 11 |
-| | total | 55 |
+| | total | 51 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events

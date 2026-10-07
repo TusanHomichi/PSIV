@@ -53,7 +53,16 @@ pub fn execute(driver: &mut Driver, memory: &mut Memory, objective: &Objective) 
     match objective {
         Objective::GoTo { map, cell } => driver.go_to(*map, cell.cell()),
         Objective::StepOnto { map, cell } => driver.step_onto(*map, cell.cell()),
-        Objective::GoToMap { map, via_warp } => driver.go_to_map(*map, *via_warp),
+        Objective::GoToMap {
+            map,
+            via_warp,
+            arrival_scene: false,
+        } => driver.go_to_map(*map, *via_warp),
+        Objective::GoToMap {
+            map,
+            via_warp,
+            arrival_scene: true,
+        } => driver.go_to_map_scene(*map, *via_warp),
         Objective::Talk { npc, .. } => driver.talk(*npc as usize).map(|_| ()),
         Objective::Wait { frames } => {
             driver.settle(false)?;

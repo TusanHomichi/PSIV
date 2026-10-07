@@ -167,6 +167,10 @@ and the port never transcribed.
 | `Event_GaruberkTwDoorEntered2` | `$38` | [103](103_GaruberkTowerDoors.md) | `$06F724..$06F8A3` |
 | `Event_GaruberkTwEyeAction1` | `$39` | [104](104_GaruberkTowerEyes.md) | `$06F8A4..$06F995` |
 | `Event_GaruberkTwEyeAction2` | `$3A` | [104](104_GaruberkTowerEyes.md) | `$06F996..$06FA33` |
+| `Event_SoldiersTempleCaveDialogue1` | `$9A` | [112](112_SoldiersTemple.md) | `$073880..$073891` |
+| `Event_SoldiersTempleCaveDialogue2` | `$9B` | [112](112_SoldiersTemple.md) | `$073892..$0738A3` |
+| `Event_SoldiersTempleReached` | `$9C` | [112](112_SoldiersTemple.md) | `$0738A4..$0738B5` |
+| `Event_AeroPrismFound` | `$9D` | [112](112_SoldiersTemple.md) | `$0738B6..$0738D1` |
 
 ## Vahal Fort and Weapon Plant (S9)
 

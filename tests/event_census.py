@@ -376,12 +376,11 @@ ALLOW_GROUPS: tuple[tuple[int, str, tuple[int, ...]], ...] = (
     (ISSUE_DIALOGUE2, "`Event_GetAndRunDialogue2` caller, no scene (issue #71)", (0x62,)),
     (
         ISSUE_MOTAVIA,
-        "Motavia side content: Aiedo, Piata, Monsen, Mile, Zosa, the Soldier's Temple, the Plate System and Wreckage",
+        "Motavia side content: Aiedo, Piata, Monsen, Mile, Zosa, the Plate System and Wreckage",
         (
             0x0E, 0x22, 0x24, 0x29, 0x2C, 0x2D, 0x31, 0x66, 0x6C, 0x70, 0x72, 0x73, 0x74,
             0x75, 0x76, 0x77, 0x78, 0x79, 0x7A, 0x7B, 0x7C, 0x7E, 0x7F, 0x80, 0x81, 0x82, 0x83,
-            0x84, 0x85, 0x86, 0x87, 0x89, 0x93, 0x94, 0x95, 0x97, 0x98, 0x9A, 0x9B, 0x9C,
-            0x9D,
+            0x84, 0x85, 0x86, 0x87, 0x89, 0x93, 0x94, 0x95, 0x97, 0x98,
         ),
     ),
     (
@@ -402,7 +401,7 @@ ALLOWLIST: dict[int, tuple[int, str]] = {
     event: (issue, area) for issue, area, events in ALLOW_GROUPS for event in events
 }
 #: The most the allowlist may hold. Lower it when a scene lands; never raise it.
-ALLOWLIST_CEILING = 55
+ALLOWLIST_CEILING = 51
 
 
 def disposition(

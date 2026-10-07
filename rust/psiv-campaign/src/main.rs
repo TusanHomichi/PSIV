@@ -3,7 +3,7 @@
 //!
 //! ```text
 //! psiv-campaign validate <route.json> [--pack DIR]
-//! psiv-campaign plan --from-map M --from-cell X,Y --to-map N [--to-cell X,Y]
+//! psiv-campaign plan (--from-map M --from-cell X,Y | --from-save FILE) --to-map N [--to-cell X,Y]
 //!                    [--flag bank:id]... [--vehicle N] [--pack DIR]
 //! psiv-campaign run <route.json> [--from-chapter ID] [--until-chapter ID]
 //!                   [--save-dir DIR] [--tape OUT] [--report OUT] [--pack DIR]
@@ -37,7 +37,7 @@ use psiv_core::{Cell, Direction};
 use psiv_data::{BattleFiles, GameData};
 
 const USAGE: &str = "usage:\n  psiv-campaign validate <route.json> [--pack DIR]\n  \
-psiv-campaign plan --from-map M --from-cell X,Y --to-map N [--to-cell X,Y] [--flag bank:id]... [--vehicle N] [--pack DIR]\n  \
+psiv-campaign plan (--from-map M --from-cell X,Y | --from-save FILE) --to-map N [--to-cell X,Y] [--flag bank:id]... [--vehicle N] [--pack DIR]\n  \
 psiv-campaign run <route.json> [--from-chapter ID] [--until-chapter ID] [--save-dir DIR] [--tape OUT] [--report OUT] [--pack DIR]\n  \
 psiv-campaign replay <tape> [--from-save FILE] [--pack DIR]\n  \
 psiv-campaign save-probe-tape <slot.sram> <out.tape> [neutral-frames]\n  \
@@ -249,9 +249,29 @@ fn cmd_validate(args: &[String]) -> Result<ExitCode, String> {
 
 fn cmd_plan(args: &[String]) -> Result<ExitCode, String> {
     let args = Args::parse(args)?;
-    let from = Position {
-        map: parse_map(args.require("from-map")?)?,
-        cell: parse_cell(args.require("from-cell")?)?,
+    // `--from-save` plans from a chapter save's position and flags; `--flag`
+    // adds to them.
+    let saved = match args.one("from-save") {
+        Some(path) => Some(
+            psiv_campaign::inspect::save_position(&pack_dir(&args), Path::new(path))
+                .map_err(|e| e.to_string())?,
+        ),
+        None => None,
+    };
+    let from = match (&saved, args.one("from-map"), args.one("from-cell")) {
+        (_, Some(map), Some(cell)) => Position {
+            map: parse_map(map)?,
+            cell: parse_cell(cell)?,
+        },
+        (Some((map, cell, _)), None, None) => Position {
+            map: *map,
+            cell: *cell,
+        },
+        _ => {
+            return Err(format!(
+                "plan needs --from-map and --from-cell, or --from-save alone\n{USAGE}"
+            ));
+        }
     };
     let to_map = parse_map(args.require("to-map")?)?;
     let target = match args.one("to-cell") {
@@ -261,11 +281,10 @@ fn cmd_plan(args: &[String]) -> Result<ExitCode, String> {
         },
         None => Target::Map(to_map),
     };
-    let flags = args
-        .all("flag")
-        .into_iter()
-        .map(|f| FlagRef::try_from(f.to_owned()).map(|f| f.0))
-        .collect::<Result<Vec<_>, _>>()?;
+    let mut flags = saved.map_or_else(Vec::new, |(_, _, flags)| flags);
+    for text in args.all("flag") {
+        flags.push(FlagRef::try_from(text.to_owned())?.0);
+    }
     let data = load_pack(&pack_dir(&args))?;
     let mover = match args.one("vehicle") {
         Some(text) => match text

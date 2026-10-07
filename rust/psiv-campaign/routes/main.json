@@ -1289,6 +1289,245 @@
       "closing": [
         {"map": 1, "cell": [186, 8], "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0x9e", "event:0xa1"]}
       ]
+    },
+    {
+      "id": "gumbious-bishop",
+      "title": "Gumbious Temple: Cutscene_GumbiousBishop and the Hydrofoil",
+      "source": "docs/scenes/74_GumbiousBishop.md (RunEvent_GumbiousBishop $48, RunEventsJmpTbl[$48], ps4.asm:116228-116241: Hydrofoil $9D clear, leader X $1E0..$1F0 = cells 30..31, Y at most $180 = row 24, Event_Index $8018) and AdjustGumbiousMap (ps4.asm:111750-111772: with Dark Force 2 defeated the entrance loads Gumbious_B2 at ($3C,$44) = (30,35)); runtime-pack/maps/164_Gumbious_B2.json warp 0 (30..31,23) into Gumbious_B2_Part2 $165",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "use_item", "item": "ICE-DIGGER", "target": "Chaz", "note": "ItemAction_IceDigger on Dezolis (186,8)"},
+        {"do": "expect", "vehicle": 2, "note": "Event_BoardingIceDigger"},
+        {"do": "go_to_map", "map": 356, "note": "Dezolis warp 11 into the Gumbious entrance: with $9E set AdjustGumbiousMap loads Gumbious_B2 $164 at (30,35) instead"},
+        {"do": "expect", "map": 356, "cell": [30, 35], "vehicle": 0, "note": "the map load parked the Ice Digger"},
+        {"do": "go_to_map", "map": 357, "note": "B2 warp 0 (30..31,23) into Gumbious_B2_Part2 $165"},
+        {"do": "step_onto", "map": 357, "cell": [30, 24], "note": "row 24 is curr_y_pos $180, the bishop at (31,23) above"},
+        {"do": "expect", "map": 191, "cell": [30, 24], "flags_set": ["event:0x9d", "event:0xc0"], "items_held": ["HYDROFOIL"], "items_absent": ["ECLPSTORCH"], "note": "Cutscene_GumbiousBishop ($8018): Mota Spaceport $BF, Wren and Demi talk in the spaceport, the Eclipse Torch is removed, the Hydrofoil added, $9D and $C0 set"}
+      ],
+      "closing": [
+        {"map": 191, "cell": [30, 24], "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0x9d", "event:0xc0"], "items_held": ["HYDROFOIL"], "items_absent": ["ECLPSTORCH"]}
+      ]
+    },
+    {
+      "id": "seth-island",
+      "title": "Motavia: the Hydrofoil to the Soldier's Temple island and Cutscene_MeetingSeth",
+      "source": "docs/scenes/60_MeetingSeth.md (Cutscene_MeetingSeth $8019: RunEvent_MeetingSeth $3A, RunEventsJmpTbl[$3A], ps4.asm:116068: Seth Joined $C1 clear, leader exactly at ($770,$9B0) = cell (119,155), the IslandCave door, Motavia warp 17); docs/scenes/102_Recovery.md (the Mota Spaceport's recovery cells (26..27,38..39) and (34..35,38..39), RunEvent_Recovery $12 rising edge on collision 2); docs/field/VEHICLES.md (the Hydrofoil crosses Motavia water, boards on open ground, dismounts on open ground)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to", "map": 191, "cell": [34, 40], "note": "below the recovery cells (34..35,38..39)"},
+        {"do": "go_to", "map": 191, "cell": [34, 38], "note": "the rising edge on collision 2 fires Event_Recovery ($21): RecoverStats"},
+        {"do": "expect", "map": 191, "status_clear": true, "note": "Rika stands, Wren restarts"},
+        {"do": "go_to_map", "map": 0, "note": "Mota Spaceport warp 0 (30,44) into Motavia (52,91)"},
+        {"do": "go_to", "map": 0, "cell": [54, 93], "note": "plain ground clear of the spaceport's map-change tiles, whose collision 1 refuses a boarding"},
+        {"do": "use_item", "item": "HYDROFOIL", "target": "Chaz", "note": "ItemAction_HydroFoil: overworld, open ground"},
+        {"do": "expect", "vehicle": 3, "note": "Event_BoardingHydrofoil"},
+        {"do": "go_to", "map": 0, "cell": [118, 157], "note": "across the water to the island's south shore (the lattice of a two-cell step: even x, odd y from the boarding cell)"},
+        {"do": "dismount", "note": "Event_GettingOffVehicle on open ground"},
+        {"do": "go_to", "map": 0, "cell": [119, 157], "note": "the island's south shore, two below the cave door (119,155)"},
+        {"do": "step_onto", "map": 0, "cell": [119, 156], "note": "the leader stands exactly on ($770,$9B0): curr_y_pos $9B0 is standing row 156, one cell below the cave door"},
+        {"do": "expect", "map": 0, "cell": [119, 156], "party": ["Chaz", "Rika", "Rune", "Wren", "Seth"], "flags_set": ["event:0xc1"], "status_clear": true, "note": "Cutscene_MeetingSeth: Seth joins in party slot 5, $C1 set, Motavia reloaded"}
+      ],
+      "closing": [
+        {"map": 0, "cell": [119, 156], "party": ["Chaz", "Rika", "Rune", "Wren", "Seth"], "flags_set": ["event:0xc1"]}
+      ]
+    },
+    {
+      "id": "island-cave",
+      "title": "The Soldier's Temple island cave: the way through to the temple",
+      "source": "docs/scenes/112_SoldiersTemple.md (RunEventsJmpTbl[$57] SoldiersTempleCaveDialogue1 on IslandCave_F1 $93, [$58] Dialogue2 on IslandCave_F3 $98, [$59] SoldiersTempleReached on SoldiersTempleOutside $99, ps4.asm:116405-116427; Event_$9A, $9B, $9C); runtime-pack/maps/092_IslandCave.json .. 099_SoldiersTempleOutside.json",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 147, "note": "IslandCave $92 warp 2 (44..45,14..15) into IslandCave_F1 $93: Event_SoldiersTempleCaveDialogue1 ($9A) runs on the load"},
+        {"do": "expect", "map": 147, "flags_set": ["event:0xc2"], "note": "$C2, SethConversation1"},
+        {"do": "go_to_map", "map": 152, "note": "IslandCave_F1 warp 2 (40..41,66..67) into IslandCave_F3 $98: Event_SoldiersTempleCaveDialogue2 ($9B)"},
+        {"do": "expect", "map": 152, "flags_set": ["event:0xc3"], "note": "$C3, SethConversation2"},
+        {"do": "go_to_map", "map": 153, "note": "IslandCave_F3 warp 0 (34..35,17) into SoldiersTempleOutside $99: Event_SoldiersTempleReached ($9C)"},
+        {"do": "expect", "map": 153, "flags_set": ["event:0xc4"], "note": "$C4, SoldiersTemple"}
+      ],
+      "closing": [
+        {"map": 153, "party": ["Chaz", "Rika", "Rune", "Wren", "Seth"], "flags_set": ["event:0xc2", "event:0xc3", "event:0xc4"]}
+      ]
+    },
+    {
+      "id": "soldiers-temple",
+      "title": "The Soldier's Temple: the Aero-Prism chest",
+      "source": "docs/scenes/112_SoldiersTemple.md (Event_AeroPrismFound $9D: RunEvent_FindingAeroPrism, RunEventsJmpTbl[$5A], ps4.asm:116429-116439, chest $10D set and $C8 clear; sets $C9 then $C8); runtime-pack/maps/09A_SoldiersTemple.json (chest 0, AeroPrism, item $8F)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 154, "note": "SoldiersTempleOutside warp 1 (25..26,13) into the temple"},
+        {"do": "open_chest", "chest": 0, "note": "the Aero-Prism"},
+        {"do": "expect", "map": 154, "items_held": ["AERO-PRISM"], "flags_set": ["event:0xc8", "event:0xc9", "chest:0xd"], "note": "the chest's flag $10D, then Event_AeroPrismFound sets $C9 and $C8"}
+      ],
+      "closing": [
+        {"map": 154, "party": ["Chaz", "Rika", "Rune", "Wren", "Seth"], "flags_set": ["event:0xc8", "event:0xc9"]}
+      ]
+    },
+    {
+      "id": "aero-prism-dark-force-3",
+      "title": "SoldiersTempleOutside: Cutscene_AeroPrism, Dark Force 3 and Event_DarkForce3Defeated",
+      "source": "docs/scenes/61_AeroPrism.md (Cutscene_AeroPrism $801A: RunEvent_AeroPrism, RunEventsJmpTbl[$3B], ps4.asm:116081-116090, chest $10D set and Dark Force 3 $C5 clear; Seth leaves, $C5 set, event battle $12) and 62_DarkForce3Defeated.md (Event_DarkForce3Defeated $50, [$3C], ps4.asm:116092-116101: $C5 set and $C6 clear)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 153, "note": "out of the temple (warp 0 (31..32,34)): the outside map's event list runs $3B before $59, and the cutscene starts on the load"},
+        {"do": "fight_scripted", "note": "event battle 18 ($12): Dark Force 3"},
+        {"do": "expect", "map": 153, "flags_set": ["event:0xc5", "event:0xc6"], "note": "Event_DarkForce3Defeated: $C6"}
+      ],
+      "closing": [
+        {"map": 153, "flags_set": ["event:0xc5", "event:0xc6"]}
+      ]
+    },
+    {
+      "id": "le-roof-meeting",
+      "title": "The flight to Rykros from the Mota Spaceport and Event_MeetingLeRoof",
+      "source": "ps4.asm:133728-133735 (loc_63EF2: with Dark Force 3 defeated $C6 the ship's destination mask is $F8, Rykros among the worlds); docs/scenes/41_InsideSpaceship.md (Mota Spaceport $BF, RunEvent_EnterSpaceship $21, ps4.asm:115743) and 51_MeetingLeRoof.md (Event_MeetingLeRoof $48: RunEvent_MeetingLeRoof, RunEventsJmpTbl[$33], ps4.asm:115955, Le Roof $D1 clear, on the load of LeRoofRoom $F0); docs/field/VEHICLES.md (the Hydrofoil)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 0, "note": "back through the cave: SoldiersTempleOutside, IslandCave_F3, F1, IslandCave, Motavia (119,156)"},
+        {"do": "go_to", "map": 0, "cell": [118, 157], "note": "clear of the cave door's map-change tile (119,155), whose collision 1 refuses a boarding"},
+        {"do": "use_item", "item": "HYDROFOIL", "target": "Chaz", "note": "ItemAction_HydroFoil on the island's ground"},
+        {"do": "expect", "vehicle": 3},
+        {"do": "go_to", "map": 0, "cell": [54, 93], "note": "across the water to the ground below the spaceport (the lattice of the boarding cell (118,157): even x, odd y)"},
+        {"do": "dismount"},
+        {"do": "go_to_map", "map": 191, "note": "Motavia warp 22 (52..53,90..91) into the Mota Spaceport"},
+        {"do": "go_to", "map": 191, "cell": [30, 20]},
+        {"do": "board", "step": "up", "to": 2, "note": "RunEvent_EnterSpaceship; the menu's row for World_Index 2, Rykros"},
+        {"do": "expect", "map": 240, "flags_set": ["event:0xd1"], "note": "the landing in LeRoofRoom $F0 and Event_MeetingLeRoof ($D1)"}
+      ],
+      "closing": [
+        {"map": 240, "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0xc6", "event:0xd1"]}
+      ]
+    },
+    {
+      "id": "strength-tower-top",
+      "title": "Rykros: the Strength Tower to its top and Event_StrengthTowerTop",
+      "source": "docs/scenes/75_StrengthTowerTop.md (Event_StrengthTowerTop $5E: RunEvent_StrengthTowerTop, RunEventsJmpTbl[$49], ps4.asm:116243, $E2 clear, on the load of StrengthTower_F4 $F6); runtime-pack/maps/002_Rykros.json warp 1 (32,33) into StrengthTower $F2, StrengthTower_F1..F4",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 246, "note": "LeRoofRoom, the Silence Temple, Rykros, the Strength Tower's four floors: F4 $F6 loads and Event_StrengthTowerTop runs"},
+        {"do": "expect", "map": 246, "flags_set": ["event:0xe2"], "note": "$E2: the figures at the top kill the monsters"}
+      ],
+      "closing": [
+        {"map": 246, "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0xe2"]}
+      ]
+    },
+    {
+      "id": "de-vars",
+      "title": "The Strength Tower: De-Vars, Event_DeVarsDefeated and the three rings",
+      "source": "docs/scenes/77_DeVars.md (Event_DeVars $60 from tree 41 entry 13's $F6, dialogue 3, $D4 set, event battle $16) and 80_DeVarsDefeated.md (Event_DeVarsDefeated $64: RunEvent_DeVarsDefeated, RunEventsJmpTbl[$4B], ps4.asm:116259, $D4 set and $E5 clear); MapUpdate_StrengthTwChests (ps4.asm:114713: the three ring chests $A1..$A3 set $D5)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to", "map": 246, "cell": [30, 30], "note": "below the figure at (30,29), object 1, dialogue 13"},
+        {"do": "talk", "npc": 1, "note": "dialogue 13 is $F6 $00 $60: Event_DeVars"},
+        {"do": "fight_scripted", "note": "event battle 22 ($16): De-Vars"},
+        {"do": "expect", "map": 246, "flags_set": ["event:0xd4", "event:0xe5"], "note": "$D4, then $E5 from Event_DeVarsDefeated"},
+        {"do": "open_chest", "chest": 0, "note": "PalmaRing"},
+        {"do": "open_chest", "chest": 1, "note": "MotaRing"},
+        {"do": "open_chest", "chest": 2, "note": "DezoRing"},
+        {"do": "expect", "map": 246, "flags_set": ["event:0xd5"], "note": "MapUpdate_StrengthTwChests: all three chests open sets $D5"}
+      ],
+      "closing": [
+        {"map": 246, "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0xd4", "event:0xe5", "event:0xd5"]}
+      ]
+    },
+    {
+      "id": "courage-tower-top",
+      "title": "Rykros: the Courage Tower to its top and Event_CourageTowerTop",
+      "source": "docs/scenes/76_CourageTowerTop.md (Event_CourageTowerTop $5F: RunEvent_CourageTowerTop, RunEventsJmpTbl[$4A], ps4.asm:116251, $E3 clear, on the load of CourageTower_F4 $FB); runtime-pack/maps/002_Rykros.json warp 2 (96,97) into CourageTower $F7",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 251, "note": "Rykros, the Courage Tower's four floors: F4 $FB loads and Event_CourageTowerTop runs"},
+        {"do": "expect", "map": 251, "flags_set": ["event:0xe3"], "note": "$E3"}
+      ],
+      "closing": [
+        {"map": 251, "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0xe3"]}
+      ]
+    },
+    {
+      "id": "sa-lews",
+      "title": "The Courage Tower: Sa-Lews, Event_SaLewsDefeated and the two rings",
+      "source": "docs/scenes/78_SaLews.md (Event_SaLews $61 from tree 41 entry 14's $F6, $D2 set, event battle) and 81_SaLewsDefeated.md (Event_SaLewsDefeated $65: RunEvent_SaLewsDefeated, RunEventsJmpTbl[$4C], ps4.asm:116270, $D2 set and $E6 clear); MapUpdate_CourageTwChests (ps4.asm:114729: the two ring chests $A4, $A5 set $D3)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to", "map": 251, "cell": [30, 31], "note": "below the figure at (30,30), object 1, dialogue 14"},
+        {"do": "talk", "npc": 1, "note": "dialogue 14 is $F6 $00 $61: Event_SaLews"},
+        {"do": "fight_scripted", "note": "Sa-Lews's event battle"},
+        {"do": "expect", "map": 251, "flags_set": ["event:0xd2", "event:0xe6"], "note": "$D2, then $E6"},
+        {"do": "open_chest", "chest": 0, "note": "RykrRing"},
+        {"do": "open_chest", "chest": 1, "note": "AlgoRing"},
+        {"do": "expect", "map": 251, "flags_set": ["event:0xd3"], "note": "MapUpdate_CourageTwChests: both chests open sets $D3"}
+      ],
+      "closing": [
+        {"map": 251, "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0xd2", "event:0xe6", "event:0xd3"]}
+      ]
+    },
+    {
+      "id": "le-roof-again",
+      "title": "Le Roof again: Cutscene_LeRoofAgain and the flight from Rykros",
+      "source": "docs/scenes/52_LeRoofAgain.md (Cutscene_LeRoofAgain $801C: RunEvent_LeRoofAgain, RunEventsJmpTbl[$34], ps4.asm:115963, the Strength and Courage tower chests $D5 and $D3 set and Le Roof story $D6 clear, on the load of LeRoofRoom $F0; sets $D6 and $D7, then the inlined $800D destination menu)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 240, "note": "out of the tower and back to LeRoofRoom: the cutscene starts on the load"},
+        {"do": "board", "to": 1, "note": "the destination menu the scene opens by itself; Dezolis"}
+      ],
+      "closing": [
+        {"party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0xd6", "event:0xd7"]}
+      ]
+    },
+    {
+      "id": "before-elsydeon-cave",
+      "title": "The Esper Mansion again: Cutscene_BeforeElsydeonCave",
+      "source": "docs/scenes/82_BeforeElsydeonCave.md (Cutscene_BeforeElsydeonCave $801D: RunEvent_BeforeElsydeonCave, RunEventsJmpTbl[$4F], ps4.asm:116296, Le Roof story $D6 set and Elsydeon cave $D8 clear, on the load of InnerSanctuary_B1 $16F; Chaz alone, stats recovered, $D8 set); the Esper Mansion's route as in the esper-mansion and esper-inner-sanctuary chapters",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 1, "note": "Dezo Spaceport warp 0 down to Dezolis (12,73)"},
+        {"do": "go_to", "map": 1, "cell": [12, 75], "note": "plain ground"},
+        {"do": "use_item", "item": "ICE-DIGGER", "target": "Chaz"},
+        {"do": "expect", "vehicle": 2},
+        {"do": "go_to_map", "map": 358, "note": "the Esper Mansion's entrance by Dezolis warp 10"},
+        {"do": "expect", "map": 358, "vehicle": 0},
+        {"do": "go_to", "map": 358, "cell": [32, 37], "note": "below the left guard at (32,36): the temp flag $1A that held the door open went with the last visit"},
+        {"do": "talk", "npc": 0, "opens": [[32, 36], [33, 36]], "note": "Event_EsperGuardPermission again ($95 set, so no fight): the guards step aside"},
+        {"do": "wait", "frames": 90},
+        {"do": "go_to_map", "map": 359, "note": "the mansion hall $167 by warp 3"},
+        {"do": "go_to_map", "map": 362, "via_warp": 6, "note": "EspMansionNorth $16A by the hall's east warp 6"},
+        {"do": "go_to", "map": 362, "cell": [47, 19], "note": "above the inner guards at (47,20) and (48,20): the door row is entered from the north"},
+        {"do": "wait", "frames": 90, "note": "FieldObj_InnerEsperGuards steps the inner guards aside at once: $96 is set"},
+        {"do": "go_to_map", "map": 367, "note": "the courtyard, the Inner Sanctuary and its B1 $16F: the cutscene starts on the load"}
+      ],
+      "closing": [
+        {"map": 367, "flags_set": ["event:0xd8"]}
+      ]
+    },
+    {
+      "id": "elsydeon",
+      "title": "The Elsydeon cave: Cutscene_Elsydeon",
+      "source": "docs/scenes/83_Elsydeon.md (Cutscene_Elsydeon $801E: the type-2 interaction area at (32..33,21) of ElsydeonCave_B1 $15E with event $801E and flag $D9, parameter 10; the saved party slots restored, Elsydeon $77 in Chaz's equipment, $D9 set); runtime-pack/maps/15D_ElsydeonCave.json, 15E_ElsydeonCave_B1.json",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 350, "note": "InnerSanctuary_B1 warp 0 (30..31,25) into ElsydeonCave $15D, warp 1 (32..33,43) into ElsydeonCave_B1 $15E"},
+        {"do": "go_to", "map": 350, "cell": [32, 22], "note": "below the interaction area (32..33,21)"},
+        {"do": "interact", "cell": [32, 22], "face": "up", "note": "Cutscene_Elsydeon"},
+        {"do": "expect", "map": 367, "flags_set": ["event:0xd9"], "party": ["Chaz", "Rika", "Rune", "Wren"], "note": "$D9; the party's slots restored; Elsydeon in Chaz's hands"}
+      ],
+      "closing": [
+        {"map": 367, "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0xd8", "event:0xd9"]}
+      ]
+    },
+    {
+      "id": "reunion",
+      "title": "The Dezo Spaceport: Cutscene_Reunion",
+      "source": "docs/scenes/84_Reunion.md (Cutscene_Reunion $801F: RunEvent_Reunion, RunEventsJmpTbl[$50], ps4.asm:116307, Elsydeon $D9 set and Reunion $DA clear, on the load of DezoSpaceport $D4; Mota Spaceport, the Reunion flag $DA, the fifth member's equipment)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 1, "note": "out through the Esper Mansion to Dezolis (231,57)"},
+        {"do": "go_to", "map": 1, "cell": [228, 59], "note": "plain ground beside the door"},
+        {"do": "use_item", "item": "ICE-DIGGER", "target": "Chaz"},
+        {"do": "expect", "vehicle": 2},
+        {"do": "go_to_map", "map": 212, "arrival_scene": true, "note": "Dezolis's warp to the Dezo Spaceport: the cutscene starts on the load and carries the party to the Mota Spaceport"}
+      ],
+      "closing": [
+        {"flags_set": ["event:0xd9", "event:0xda"]}
+      ]
     }
   ]
 }

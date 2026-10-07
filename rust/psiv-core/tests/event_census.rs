@@ -41,7 +41,7 @@ use Disposition::{Allowlisted, InsideScene, Null, Scene};
 const ISSUES: [u32; 5] = [56, 71, 81, 82, 83];
 
 /// The most the allowlist may hold. Lower it when a scene lands; never raise it.
-const ALLOWLIST_CEILING: usize = 55;
+const ALLOWLIST_CEILING: usize = 51;
 
 #[rustfmt::skip]
 const CENSUS: &[(u16, &str, Disposition)] = &[
@@ -197,10 +197,10 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0097, "Event_Pennant", Disposition::Allowlisted(81)),
     (0x0098, "Event_WoodCarving", Disposition::Allowlisted(81)),
     (0x0099, "Event_EnterAngerTower", Disposition::Allowlisted(83)),
-    (0x009A, "Event_SoldiersTempleCaveDialogue1", Disposition::Allowlisted(81)),
-    (0x009B, "Event_SoldiersTempleCaveDialogue2", Disposition::Allowlisted(81)),
-    (0x009C, "Event_SoldiersTempleReached", Disposition::Allowlisted(81)),
-    (0x009D, "Event_AeroPrismFound", Disposition::Allowlisted(81)),
+    (0x009A, "Event_SoldiersTempleCaveDialogue1", Disposition::Scene),
+    (0x009B, "Event_SoldiersTempleCaveDialogue2", Disposition::Scene),
+    (0x009C, "Event_SoldiersTempleReached", Disposition::Scene),
+    (0x009D, "Event_AeroPrismFound", Disposition::Scene),
     (0x009E, "Event_PiataGuardsReprimand", Disposition::Scene),
     (0x009F, "Event_GameStart", Disposition::Scene),
     (0x00A0, "Event_PiataChazAlone", Disposition::Scene),

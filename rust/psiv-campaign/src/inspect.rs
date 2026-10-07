@@ -99,3 +99,36 @@ pub fn inspect(pack: &Path, save: &Path) -> Result<String, SetupError> {
     let _ = writeln!(out, "event flags {}", set.join(" "));
     Ok(out)
 }
+
+/// Where a save stands and the flags it holds: what `plan --from-save` plans
+/// from, so a walk is checked against the flags the game really has.
+///
+/// # Errors
+///
+/// [`SetupError`] when the pack or the save cannot be opened.
+pub fn save_position(
+    pack: &Path,
+    save: &Path,
+) -> Result<(u16, psiv_core::Cell, Vec<Flag>), SetupError> {
+    let (session, _) = open_session(pack, &StartPoint::Save(save.to_path_buf()))?;
+    let runtime = session.runtime();
+    let cell = crate::driver::standing_cell(runtime);
+    let game = runtime.game();
+    let mut flags = Vec::new();
+    for id in 0..512 {
+        if game.is_set(Flag::event(id)) {
+            flags.push(Flag::event(id));
+        }
+    }
+    for id in 0..256 {
+        if game.is_set(Flag::temp(id)) {
+            flags.push(Flag::temp(id));
+        }
+    }
+    for id in 0..128 {
+        if game.is_set(Flag::town(id)) {
+            flags.push(Flag::town(id));
+        }
+    }
+    Ok((runtime.map_id().0, cell, flags))
+}
