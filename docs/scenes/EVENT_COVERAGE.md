@@ -78,7 +78,7 @@ cartridge keeps no other route to the field event dispatcher.
 | `$001E` | `Event_ConveyorBeltUp` | map trigger $10; map trigger $11 | VahalFort_F2, WeaponPlant_F3 | allowlisted, #82 |
 | `$001F` | `Event_ConveyorBeltRight` | map trigger $10; map trigger $11 | VahalFort_F2, WeaponPlant_F3 | allowlisted, #82 |
 | `$0020` | `Event_ConveyorBeltLeft` | map trigger $10; map trigger $11 | VahalFort_F2, WeaponPlant_F3 | allowlisted, #82 |
-| `$0021` | `Event_Recovery` | map trigger $12; called from $0067 | AirCastleXeAThoulRoom, AirCastle_F1_Part9, DezoSpaceport (+3 more) | allowlisted, #83 |
+| `$0021` | `Event_Recovery` | map trigger $12; called from $0067 | AirCastleXeAThoulRoom, AirCastle_F1_Part9, DezoSpaceport (+3 more) | scene `Event_Recovery` |
 | `$0022` | `Event_AiedoManSavings` | dialogue `$F6` | tree 11 entry 24 | allowlisted, #81 |
 | `$0023` | `Event_GirlsSneakingOut` | direct call: the Aiedo shop/inn routine (`Event_GirlsSneakingOut`, `ps4.asm` shop code) |  | scene `Event_GirlsSneakingOut` |
 | `$0024` | `Event_FaintingPriest` | dialogue `$F6` | tree 9 entry 55 | allowlisted, #81 |
@@ -98,12 +98,12 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0032` | `Event_MeetingDorin` | dialogue `$F6` | tree 7 entry 23 | scene `Event_MeetingDorin` |
 | `$0033` | `Event_TonoeBasementDoor` | dialogue `$F6` | tree 7 entry 41 | scene `Event_TonoeBasementDoor` |
 | `$0034` | `Event_ZioNurvus` | map trigger $1F | Nurvus_B4_Part2 | scene `Event_ZioNurvus` |
-| `$0035` | `Event_GaruberkTwDoorOpening1` | interaction area $03 | GaruberkTower, GaruberkTower_Part2, GaruberkTower_Part3 (+3 more) | allowlisted, #83 |
-| `$0036` | `Event_GaruberkTwDoorOpening2` | interaction area $04 | GaruberkTower_Part2, GaruberkTower_Part3, GaruberkTower_Part4 (+3 more) | allowlisted, #83 |
-| `$0037` | `Event_GaruberkTwDoorEntered1` | map trigger $22 | GaruberkTower, GaruberkTower_Part2, GaruberkTower_Part3 (+4 more) | allowlisted, #56 |
-| `$0038` | `Event_GaruberkTwDoorEntered2` | map trigger $22 | GaruberkTower, GaruberkTower_Part2, GaruberkTower_Part3 (+4 more) | allowlisted, #56 |
-| `$0039` | `Event_GaruberkTwEyeAction1` | interaction area $05 | GaruberkTower_Part2 | allowlisted, #83 |
-| `$003A` | `Event_GaruberkTwEyeAction2` | interaction area $06 | GaruberkTower_Part5 | allowlisted, #83 |
+| `$0035` | `Event_GaruberkTwDoorOpening1` | interaction area $03 | GaruberkTower, GaruberkTower_Part2, GaruberkTower_Part3 (+3 more) | scene `Event_GaruberkTwDoorOpening1` |
+| `$0036` | `Event_GaruberkTwDoorOpening2` | interaction area $04 | GaruberkTower_Part2, GaruberkTower_Part3, GaruberkTower_Part4 (+3 more) | scene `Event_GaruberkTwDoorOpening2` |
+| `$0037` | `Event_GaruberkTwDoorEntered1` | map trigger $22 | GaruberkTower, GaruberkTower_Part2, GaruberkTower_Part3 (+4 more) | scene `Event_GaruberkTwDoorEntered1` |
+| `$0038` | `Event_GaruberkTwDoorEntered2` | map trigger $22 | GaruberkTower, GaruberkTower_Part2, GaruberkTower_Part3 (+4 more) | scene `Event_GaruberkTwDoorEntered2` |
+| `$0039` | `Event_GaruberkTwEyeAction1` | interaction area $05 | GaruberkTower_Part2 | scene `Event_GaruberkTwEyeAction1` |
+| `$003A` | `Event_GaruberkTwEyeAction2` | interaction area $06 | GaruberkTower_Part5 | scene `Event_GaruberkTwEyeAction2` |
 | `$003B` | `Event_ChazHouse` | map trigger $26 | ChazHouse | scene `Event_ChazHouse` |
 | `$003C` | `Event_LeavingChazHouse` | map trigger $27 | Aiedo | scene `Event_LeavingChazHouse` |
 | `$003D` | `Event_KuranArrival` | map trigger $2C | Kuran | scene `Event_KuranArrival` |
@@ -251,16 +251,16 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 <!-- counts:begin -->
 | Issue | Area | Allowlisted events |
 |---:|---|---:|
-| #56 | trigger-fired events | 3 |
+| #56 | trigger-fired events | 1 |
 | #71 | `Event_GetAndRunDialogue2` callers | 1 |
 | #81 | Motavia side content | 42 |
 | #82 | Vahal Fort and Weapon Plant | 19 |
-| #83 | Dezolis late arc | 16 |
-| | total | 81 |
+| #83 | Dezolis late arc | 11 |
+| | total | 74 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events
-  (`$71`, `$37`, `$38`, `$96`, `$2A`).
+  (`$71`, `$37`, `$38`, `$96`, `$2A`); `$96` remains.
 - [#71](https://github.com/TusanHomichi/PSIV/issues/71): the four
   `Event_GetAndRunDialogue2` callers (`$62`, `$7D`, `$88`, `$8F`).
 - [#81](https://github.com/TusanHomichi/PSIV/issues/81): Motavia side content.
@@ -270,15 +270,24 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 
 ## Why the remaining #56 and #71 entries are not transcribed
 
-Each needs something the scene vocabulary does not have, and each is off the route to Kuran:
+Each needs something the scene vocabulary does not have, and each is off the route:
 
 | Event | Blocker |
 |---|---|
-| `$37`, `$38` `Event_GaruberkTwDoorEntered1/2` (`$06F5A4`, `$06F724`, #56) | The body resolves layout cells from the leader's live position (`GetMapLayoutOffset` with `Character_1.x >> 5`, `y - $10`), writes a chunk pair, then plays a table-driven BG animation with `RefreshPlaneBG` per frame and a `tst.w $2A(a4)` walk loop. `WriteMapChunks` takes literal coordinates; the live-position write, the table walk and the map-update loop need new ops (Garuberk Tower, [#83](https://github.com/TusanHomichi/PSIV/issues/83)'s area). |
 | `$96` `Event_PenguinFeedStolen` (`$0735F6`, #56) | Builds a temporary thief object in slot `$C380` (map object 2 of Zosa's item shop, which has two objects), steps it with `Event_MoveSingleObject` toward the leader's live X, then clears it. The scene cast holds party members and map objects by index; a temporary object has no `ActorRef`. |
 | `$62` `Event_AngerTowerAlys` (`$07148A`, #71) | Steps `Character_1` (the leader) and a map object with `Event_StepObject` along a direction table. `DriftNpcs` moves map objects only; the leader's position is the party driver's. |
 
-Two entries sit in an area only by closest fit: `$10` (`Event_GettingOffVehicle`,
-a field-input event with no map) is under #81, and `$21` (`Event_Recovery`, the
-generic recovery tile, whose maps are Dezolis late-arc rooms and the
-spaceports) is under #83.
+One entry sits in an area only by closest fit: `$10` (`Event_GettingOffVehicle`,
+a field-input event with no map) is under #81. `$21` (`Event_Recovery`, the
+generic recovery tile) sat under #83 the same way until lane C8 transcribed it
+([102](102_Recovery.md)).
+
+The Garuberk Tower's six events (`$35` to `$3A`) left the allowlist with lane C8
+([103](103_GaruberkTowerDoors.md), [104](104_GaruberkTowerEyes.md)). The ops this
+table once listed as missing were already there: `WriteActorMapChunks` writes at
+the leader's live position, a table row is a write and a four-frame `Wait`
+(`RunMapUpdates` per frame), and `MoveActorOffset` is the `tst.w $2A(a4)` walk.
+What the tower did need was the layout swap of its first eye
+(`SceneOp::ReplaceMapLayout`), the door chunks in its maps' scene chunk atlas
+(`psiv_tools/map_patches.py`) and the closed-door guard as a rule of the
+interaction probe (`CLOSED_DOOR_GUARDS`).

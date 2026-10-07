@@ -693,7 +693,15 @@ fn inspect_reads_a_chapter_save_and_refuses_a_missing_one() {
     assert_eq!(out.status.code(), Some(0));
     let text = String::from_utf8(out.stdout).unwrap();
     assert!(text.contains("map 0x0 "), "{text}");
-    for line in ["party 0 Alys L7", "wears", "inventory", "event flags"] {
+    for line in [
+        "party 0 Alys L7",
+        "status 0x",
+        "wears",
+        "  skills [",
+        "techniques [",
+        "inventory",
+        "event flags",
+    ] {
         assert!(text.contains(line), "{line}: {text}");
     }
     let missing = Command::new(bin)

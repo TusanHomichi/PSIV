@@ -265,6 +265,8 @@ impl Field {
             | PresentationOp::EndingFinaleFieldPrep { .. }
             | PresentationOp::DmaPlanesLoop { .. }
             | PresentationOp::PaletteIncreaseTone { .. }
+            | PresentationOp::PaletteToneFlash { .. }
+            | PresentationOp::GaruberkEyeArtCycle { .. }
             | PresentationOp::ClearPaletteLine { .. }
             | PresentationOp::VariablePaletteFade { .. }
             | PresentationOp::RykrosPaletteCycle { .. }

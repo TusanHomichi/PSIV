@@ -115,6 +115,17 @@ impl Runtime {
         }
     }
 
+    /// Rebuilds the walking party stacked on `cell` facing `facing`: every
+    /// character object on one position, as a dismount leaves them (see
+    /// [`Runtime::set_vehicle_index`]).
+    pub(crate) fn stack_party_at(&mut self, cell: psiv_core::Cell, facing: psiv_core::Direction) {
+        let followers = self.game.party_len().saturating_sub(1);
+        let frames = self.party.leader().step_frames();
+        if let Ok(party) = Party::new(&self.map, cell, facing, frames, followers) {
+            self.party = party;
+        }
+    }
+
     /// Starts an event's scene directly — the `$F6` dialogue path (the
     /// principal's briefing). Returns whether a transcribed scene began.
     pub(crate) fn start_event(&mut self, event: u16) -> bool {

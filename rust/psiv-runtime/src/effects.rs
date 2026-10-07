@@ -89,6 +89,43 @@ fn gate_holds(gate: &EffectGate, game: &GameState, unknown: &mut Vec<String>) ->
     }
 }
 
+/// A pack ROM source, `"0x1C8F7A"`, as a number.
+pub(crate) fn parse_rom_source(text: &str) -> Option<u32> {
+    let hex = text
+        .strip_prefix("0x")
+        .or_else(|| text.strip_prefix("0X"))?;
+    u32::from_str_radix(hex, 16).ok()
+}
+
+/// What a `KosDecomp` of the layout at ROM `source` into a map's layout plane
+/// installs: `Ok(Some(index))` for the variant one of whose changed planes was
+/// decoded from `source`; `Ok(None)` when `source` is a variant plane identical
+/// to the map's own layout. Every retail replacement pair decompresses both
+/// planes and one of them is the base blob (`MapDataMan_GaruberkTowerPart2`'s
+/// FG `$1C8F7A`, `ps4.asm:109349-109352`), which reproduces the base and changes
+/// nothing; refusing it, as this walk did, made every such map unbuildable once
+/// its flag was set. `Err` when no variant names the source.
+pub(crate) fn layout_replace_variant(record: &MapRecord, source: u32) -> Result<Option<usize>, ()> {
+    let from = |plane: &psiv_data::VariantPlane| {
+        plane.source.as_deref().and_then(parse_rom_source) == Some(source)
+    };
+    if let Some(index) = record
+        .layout_variants
+        .iter()
+        .position(|v| v.planes.iter().any(|p| !p.identical_to_base && from(p)))
+    {
+        return Ok(Some(index));
+    }
+    if record
+        .layout_variants
+        .iter()
+        .any(|v| v.planes.iter().any(|p| p.identical_to_base && from(p)))
+    {
+        return Ok(None);
+    }
+    Err(())
+}
+
 /// Evaluates a record's effect list, walking entries in list order exactly
 /// as `MapDataManager` does — which means `flag_clear` writes MUTATE the
 /// state mid-walk, so a later entry's gates see the cleared flag. This is
@@ -216,16 +253,16 @@ pub fn evaluate(record: &MapRecord, game: &mut GameState) -> EffectOutcome {
                         other => out.unknown_banks.push(format!("flag_clear {other:?}")),
                     },
                     "layout_replace" => {
-                        // Match the write's source to the variant whose
-                        // changed plane came from it.
-                        let found = record.layout_variants.iter().position(|v| {
-                            v.planes
-                                .iter()
-                                .any(|p| !p.identical_to_base && p.source == write.source)
-                        });
-                        match found {
-                            Some(index) => out.variant = Some(index),
-                            None => out.unknown_banks.push(format!(
+                        match write
+                            .source
+                            .as_deref()
+                            .and_then(parse_rom_source)
+                            .ok_or(())
+                            .and_then(|source| layout_replace_variant(record, source))
+                        {
+                            Ok(Some(index)) => out.variant = Some(index),
+                            Ok(None) => {}
+                            Err(()) => out.unknown_banks.push(format!(
                                 "layout_replace source {:?} has no variant",
                                 write.source
                             )),
@@ -274,6 +311,33 @@ mod tests {
             evaluate(valley, &mut game).sprite_overrides,
             before.sprite_overrides
         );
+    }
+
+    /// `MapDataMan_GaruberkTowerPart2` (`ps4.asm:109346-109358`) decompresses
+    /// FG `$1C8F7A` (the map's own layout) and BG `$1C92BA` while temp flag
+    /// `$14` is set. The FG write reproduces the base and must select nothing;
+    /// the BG write selects the variant. A source no variant names stays loud.
+    #[test]
+    fn a_layout_pair_whose_one_plane_is_the_base_selects_the_variant() {
+        let pack = std::path::Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/../../runtime-pack"));
+        if !pack.join("manifest.json").is_file() {
+            eprintln!("pack absent; skipping");
+            return;
+        }
+        let data = psiv_data::GameData::load(pack).expect("pack loads");
+        let part2 = data
+            .map(psiv_data::MapId(0x19A))
+            .expect("GaruberkTower_Part2");
+        let mut game = GameState::new();
+        let closed = evaluate(part2, &mut game);
+        assert_eq!((closed.variant, closed.unknown_banks.len()), (None, 0));
+        game.set(Flag::temp(0x14)).unwrap();
+        let open = evaluate(part2, &mut game);
+        assert_eq!(open.unknown_banks, Vec::<String>::new());
+        assert_eq!(open.variant, Some(0));
+        assert_eq!(layout_replace_variant(part2, 0x1C_8F7A), Ok(None));
+        assert_eq!(layout_replace_variant(part2, 0x1C_92BA), Ok(Some(0)));
+        assert_eq!(layout_replace_variant(part2, 0x1C_0000), Err(()));
     }
 
     fn write(kind: &str, index: u32) -> EffectWrite {

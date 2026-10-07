@@ -160,6 +160,13 @@ and the port never transcribed.
 | `Event_EsperGuardPermission` | `$4F` | [99](99_EsperGuardPermission.md) | `$0709A2..$070A29` |
 | `Event_PersistentEsperGuards` | `$45` | [100](100_PersistentEsperGuards.md) | `$06FE1C..$06FE55` |
 | `Event_EclipseTorchStolen` | `$46` | [101](101_EclipseTorchStolen.md) | `$06FE56..$070189` |
+| `Event_Recovery` | `$21` | [102](102_Recovery.md) | `$06D37C..$06D467` |
+| `Event_GaruberkTwDoorOpening1` | `$35` | [103](103_GaruberkTowerDoors.md) | `$06F43A..$06F4EF` |
+| `Event_GaruberkTwDoorOpening2` | `$36` | [103](103_GaruberkTowerDoors.md) | `$06F4F0..$06F5A3` |
+| `Event_GaruberkTwDoorEntered1` | `$37` | [103](103_GaruberkTowerDoors.md) | `$06F5A4..$06F723` |
+| `Event_GaruberkTwDoorEntered2` | `$38` | [103](103_GaruberkTowerDoors.md) | `$06F724..$06F8A3` |
+| `Event_GaruberkTwEyeAction1` | `$39` | [104](104_GaruberkTowerEyes.md) | `$06F8A4..$06F995` |
+| `Event_GaruberkTwEyeAction2` | `$3A` | [104](104_GaruberkTowerEyes.md) | `$06F996..$06FA33` |
 
 ## Terminal and recorded boundary surfaces
 

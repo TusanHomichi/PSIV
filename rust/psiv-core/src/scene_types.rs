@@ -122,6 +122,14 @@ pub enum SceneEffect {
         /// (Chunk x, chunk y, replacement chunk id).
         chunks: Vec<(u32, u32, u16)>,
     },
+    /// A scene replaced the live layout with the one decoded from these ROM
+    /// sources ([`crate::SceneOp::ReplaceMapLayout`]).
+    MapLayoutReplaced {
+        /// Foreground layout source.
+        fg: u32,
+        /// Background layout source.
+        bg: u32,
+    },
     /// The selected vehicle changed.
     VehicleChanged {
         /// The new vehicle id.

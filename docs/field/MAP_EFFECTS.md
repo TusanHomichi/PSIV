@@ -285,3 +285,19 @@ blitter; it owns no story flag or collision rule. This full-map representation
 does **not** reproduce retail page streaming after a flag changes while the
 same map remains loaded. Later dynamic chunk-definition writes, live object
 gating and whole-overworld visual parity remain separate work.
+
+## 13. A replacement pair whose one plane is the base (C8, 2026-10-07)
+
+Each retail `layout_replace` pair decompresses both layout planes, and one of
+them is the map's own blob (the pack marks that plane `identical_to_base`):
+`MapDataMan_GaruberkTowerPart2` writes FG `$1C8F7A`, Part2's own layout, beside
+BG `$1C92BA` (`ps4.asm:109346-109358`). The effect walk matched a write only to
+a variant's *changed* plane, so the FG write raised `layout_replace source
+"0x1C8F7A" has no variant` and the map refused to build once temp flag `$14` was
+set. `layout_replace_variant` (`rust/psiv-runtime/src/effects.rs`) now takes a
+write of an identical plane as what it is, a write that reproduces the base and
+selects nothing, and still refuses a source no variant names. The same lookup
+serves `SceneOp::ReplaceMapLayout`, the live swap `Event_GaruberkTwEyeAction1`
+makes ([104](../scenes/104_GaruberkTowerEyes.md)). No map the route crossed
+before C8 had a replacement active. Test:
+`effects::tests::a_layout_pair_whose_one_plane_is_the_base_selects_the_variant`.

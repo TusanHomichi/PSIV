@@ -60,7 +60,7 @@
 //! | `board` | optional `step`, `to` | step `up`/`down`/`left`/`right` onto a boarding row until the ship's destination menu opens (without `step`, wait for the menu a scene opens by itself), move its cursor to the world `to` (a `World_Index` or its name), press Speak and fly; the validator ends the party on that world's landing cell |
 //! | `dismount` | none | press Action in the vehicle the party rides; halts when the standing cell is not open ground |
 //! | `patrol` | `map`, `a`, `b`, `until`, optional `refuge` | walk between cells `a` and `b` of `map`, fighting what the chapter's policy says, until `until` (`party_level_at_least`, `money_at_least`) holds; `refuge` is an out-and-back list of steps run when a member has fallen or is below half HP after the camp cure; the validator takes the party to end on `b` |
-//! | `expect` | any of `flags_set`, `flags_clear`, `map`, `cell`, `party`, `money_at_least`, `vehicle` | halt unless all hold |
+//! | `expect` | any of `flags_set`, `flags_clear`, `map`, `cell`, `party`, `money_at_least`, `vehicle`, `items_held`, `items_absent`, `status_clear` | halt unless all hold |
 //!
 //! Names and ids: an item, technique or member is either its number or its
 //! cartridge display name (`"RES"`, `"Chaz"`), compared case-insensitively. A
@@ -268,6 +268,18 @@ pub struct Expectation {
     /// Digger, `3` Hydrofoil. The validator plans every later walk for it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vehicle: Option<u16>,
+    /// Items the pack holds, each in at least one slot: what a scene's
+    /// `AddItem` gave (`Cutscene_LashiecDefeated` returns the Eclipse Torch).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub items_held: Vec<NameOrId>,
+    /// Items in no slot of the pack: what a scene's `RemoveItem` took.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub items_absent: Vec<NameOrId>,
+    /// Every party member's status byte reads zero: no ailment, nobody fallen
+    /// and no android shut down. What `RecoverStats` leaves (an inn, the
+    /// recovery tile).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub status_clear: bool,
 }
 
 /// What a step asks of the runner.

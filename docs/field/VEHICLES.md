@@ -145,6 +145,22 @@ rebuilds the party objects and writes selector `0`. Any other raw value opens
 the retail `Cannot get off!` window and leaves the selector mounted. The core
 surfaces that as `VehicleDismountBlocked` and does not mutate the party.
 
+**Where a dismount leaves the party (C8, 2026-10-07).** Both of the cartridge's
+dismounts rebuild every character object on `Character_1`, which is the
+machine's body while mounted, copying its position, destination and facing
+(`Event_GettingOffVehicle`, `loc_6BF4E`, `ps4.asm:145362-145380`; the mounted
+branch of `Event_EclipseTorchUsed`, `loc_701DE`, `:149559-149577`). The port's
+party objects stay where the party boarded while the machine drives, and
+`set_vehicle_index(0)` used to drop the machine and leave them there: the
+torch scene put the party back at Jut's door, 66 cells from the trees. Now a
+dismount from a mounted state stacks the party (and a running scene's party
+actors, `SceneRunner::park_party`) on the machine's cell and facing before the
+machine goes (`rust/psiv-runtime/src/vehicle.rs`; test
+`field_entry_tests::a_dismount_stands_the_party_on_the_machine`). A map load
+that parks the machine is not a dismount and keeps its own placement
+(`apply_map_load_flags`). The route's 50-chapter prefix, which crosses
+`Event_SavingKyra`'s dismount, is byte-identical with the change.
+
 ## Field art and movement
 
 Retail's field vehicle object uses the Nemesis art at `loc_51A7A`

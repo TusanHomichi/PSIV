@@ -210,6 +210,74 @@ fn rune_opens_the_live_rock_before_the_story_flag_and_keeps_the_party_staged() {
     );
 }
 
+/// Both of the cartridge's dismounts rebuild every character object on
+/// `Character_1`, the machine's body, with its position and facing
+/// (`Event_GettingOffVehicle`, `loc_6BF4E`, `ps4.asm:145362-145380`; the
+/// mounted branch of `Event_EclipseTorchUsed`, `loc_701DE`, `:149559-149577`).
+/// The party objects stayed where the party boarded; a dismount stands them on
+/// the machine.
+#[test]
+fn a_dismount_stands_the_party_on_the_machine() {
+    // One step of the Ice Digger from the cell above Meese's door where the
+    // route boards it, in the first direction with open ground, from a fresh
+    // game each time (a step into a town would park it).
+    let mut found = None;
+    let mut tried = Vec::new();
+    for direction in [
+        Direction::Right,
+        Direction::Left,
+        Direction::Up,
+        Direction::Down,
+    ] {
+        let Some(mut rt) = runtime(1, Cell::new(146, 50)) else {
+            return;
+        };
+        // EventFlag_Snowstorm ($80): past the Raja temple, so the overworld's
+        // entry trigger ($31, `Event_OutsideRajaTemple`) stays quiet.
+        rt.game.set(Flag::event(0x80)).unwrap();
+        let boarded = rt.party.leader().cell();
+        rt.set_vehicle_index(2).unwrap();
+        let mut last = None;
+        let mut stepped = None;
+        for _ in 0..120 {
+            let events = rt.tick(Input::Direction(direction));
+            let Some(vehicle) = rt.vehicle_state() else {
+                last = Some(format!("unmounted after {events:?}"));
+                break;
+            };
+            last = Some(format!(
+                "{:?} moving {}",
+                vehicle.cell(),
+                vehicle.is_moving()
+            ));
+            if vehicle.cell() != boarded && !vehicle.is_moving() {
+                stepped = Some(vehicle);
+                break;
+            }
+        }
+        if let Some(vehicle) = stepped {
+            found = Some((rt, boarded, vehicle));
+            break;
+        }
+        tried.push((
+            direction,
+            last,
+            psiv_core::can_enter(2, &rt.map, boarded, direction),
+            rt.vehicle_state().and_then(|v| v.step_timing()),
+        ));
+    }
+    let (mut rt, boarded, vehicle) =
+        found.unwrap_or_else(|| panic!("the Ice Digger never drove off its cell: {tried:?}"));
+    assert_eq!(rt.party.leader().cell(), boarded, "the party stayed behind");
+    rt.set_vehicle_index(0).unwrap();
+    assert_eq!(rt.vehicle_index(), None);
+    assert_eq!(rt.party.leader().cell(), vehicle.cell());
+    assert_eq!(rt.party.leader().facing(), vehicle.facing());
+    for member in rt.party.members() {
+        assert_eq!(member.cell, vehicle.cell(), "every object stacked");
+    }
+}
+
 /// `Map_Load_Flags` is the one-shot byte both load routines read. A warp is
 /// `GameMode_LoadFieldMap`, whose bits 0 and 2 spare the field objects — and
 /// with them `Vehicle_Index` — from `clr.w (Vehicle_Index).w`

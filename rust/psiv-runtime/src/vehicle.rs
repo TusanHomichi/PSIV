@@ -40,7 +40,19 @@ impl Runtime {
         }
         if index == 0 {
             self.game.set_vehicle_index(0);
-            self.vehicle = None;
+            // Both of the cartridge's dismounts rebuild every character
+            // object on `Character_1`, the machine's body while mounted, with
+            // its position and facing (`Event_GettingOffVehicle`, `loc_6BF4E`,
+            // `ps4.asm:145362-145380`; `Event_EclipseTorchUsed`'s mounted
+            // branch, `loc_701DE`, `ps4.asm:149559-149577`). The party objects
+            // here stayed where the party boarded, so they are stacked on the
+            // machine's cell before it goes.
+            if let Some(vehicle) = self.vehicle.take() {
+                self.stack_party_at(vehicle.cell(), vehicle.facing());
+                if let Some(runner) = self.scene.as_mut() {
+                    runner.park_party(vehicle.cell(), vehicle.facing());
+                }
+            }
             self.boarding_body = None;
             return Ok(());
         }

@@ -225,6 +225,34 @@ pub enum PresentationOp {
         /// Corrected loop count.
         frames: u16,
     },
+    /// `Event_Recovery`'s flash (`loc_6D3BA` and `loc_6D40A`, `ps4.asm:146867-146934`,
+    /// ROM `$06D3BA..$06D467`): for `frames` VBlanks, on each frame whose
+    /// `Main_Frame_Count & 3` is zero, every one of the first `words` words of
+    /// `Palette_Table_Buffer` steps one tone per component, toward white
+    /// (`brighten`, each of red, green and blue up by one until it reaches `$E`)
+    /// or back toward its copy in `Palette_Table_Buffer_2` (down by one until it
+    /// equals the copy). The frames themselves are the scene's following
+    /// [`crate::SceneOp::WaitFrames`]: `VInt_Prepare` with no map update.
+    PaletteToneFlash {
+        /// Toward white, or back toward the saved buffer.
+        brighten: bool,
+        /// Palette words stepped: `move.w #$1F, d0`, the first two lines.
+        words: u16,
+        /// Corrected loop count (`moveq #$F, d7`: 16).
+        frames: u16,
+    },
+    /// The Garuberk Tower eye's art cycle (`loc_6F91E`, `ps4.asm:148977-149019`,
+    /// and its copy `loc_6F9BC`, `:149031-149073`): for `frames` VBlanks, on each
+    /// frame whose `Main_Frame_Count` is even, step the ping-pong frame index in
+    /// `$FFFFECF2` (0 to 2 and back; the direction in `$FFFFECF3`) and queue a
+    /// DMA of that frame, `$9E0` bytes per frame from `RAM_Start`, `$4F0` words
+    /// to the VRAM command `$4060`. The three frames are the art the scene
+    /// decompressed first ([`PresentationOp::LoadSceneAsset`]); the frames
+    /// themselves are the scene's following `WaitFrames`.
+    GaruberkEyeArtCycle {
+        /// Corrected loop count (`moveq #$3B, d7`: 60; `move.w #$77, d7`: 120).
+        frames: u16,
+    },
     /// Copy the ending's temporary palette line to zero before panel 171.
     ClearPaletteLine {
         /// Palette line index.

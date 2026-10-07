@@ -218,6 +218,19 @@ pub enum SceneOp {
         /// (Chunk x, chunk y, replacement chunk id) in chunk coordinates.
         chunks: &'static [(u32, u32, u16)],
     },
+    /// Replace the live map layout, both planes: `KosDecomp` of `fg` into
+    /// `Map_Layout_FG` and of `bg` into `Map_Layout_BG`, the shape
+    /// `Event_GaruberkTwEyeAction1` ends with (`ps4.asm:148974-148979`) and
+    /// `MapDataMan_GaruberkTowerPart2` repeats at every load once its temp
+    /// flag is set. Collision reads the layout, so the change reaches the live
+    /// map at once; the runtime installs the pack's layout variant decoded
+    /// from these sources and keeps every object where it stands.
+    ReplaceMapLayout {
+        /// ROM source of the foreground layout.
+        fg: u32,
+        /// ROM source of the background layout.
+        bg: u32,
+    },
     /// Clear VRAM and CRAM (`InitVRAMAndCRAM`, `$5A658`): fades out, resets a
     /// VDP register and rebuilds the Plane A buffer. Engine-visible effect is
     /// the fade; the rest is the renderer's.

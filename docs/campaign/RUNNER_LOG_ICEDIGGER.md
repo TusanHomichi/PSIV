@@ -124,6 +124,10 @@ never combines on this walk. A5 fixed the trigger and implemented every ability 
 ([ENEMY_ABILITIES_AIR_CASTLE.md](../battle/ENEMY_ABILITIES_AIR_CASTLE.md)). The restored chapter,
 with no `wait`, completes from the `air-castle-arrival` save in 11,284 frames and 16 battles.
 
+**Restored (lane C8, 2026-10-07).** The chapter is back in the route after `air-castle-arrival`,
+without its `wait`, and completes in the full run from New Game: 10,584 frames, 12 battles. The fights
+behind it are in [RUNNER_LOG_AIRCASTLE.md](RUNNER_LOG_AIRCASTLE.md).
+
 **What the route does about it: nothing, and it ends at `air-castle-arrival`.** The first draft of
 the route carried one more chapter, `air-castle-xe-athoul-room`, opened by `wait 7`: an idle that
 shifted the walk's random rolls until 7 and 13 frames completed (16 and 17 battles) where 0 and 1
