@@ -1,9 +1,17 @@
-//! The party policy's rules: what a player does with everything a member can do.
+//! The party policy's rules: what a player does with everything the party can do.
 //!
 //! One [`Planner`] serves every route policy name; the names differ only in
 //! when they RUN (`policy.rs`). It reads a [`Board`] and returns an [`Intent`].
 //! It never reads the RNG: every number is the engine's own formula on a local
-//! roll sequence ([`crate::policy_estimate`]), on the stats the engine reads.
+//! roll sequence ([`crate::policy_estimate`]), on the stats the engine reads
+//! (`policy_value.rs` holds the valuations).
+//!
+//! # A round is ordered as a whole
+//!
+//! The first command window of a round orders every member who can act, the
+//! way a player thinks the round through before pressing anything; each window
+//! then takes its member's order. A window the plan did not expect (the board
+//! changed under it) is ordered on its own by the same rules.
 //!
 //! # The battle's kind sets the budget
 //!
@@ -12,28 +20,33 @@
 //! must walk on afterwards fights it: skill uses and consumable items are kept
 //! for the scripted battles (only an inn or a rest restores them), and TP goes
 //! to damage only when one cast does at least [`ENCOUNTER_SPEND_FACTOR`] times
-//! what the plain attack would. Cures are never rationed by the kind.
+//! what the member's plain attack would. Cures are never rationed by the kind,
+//! but a random encounter needs at most one single cure and one group cure a
+//! round.
 //!
-//! # The order of the rules, for each member's window
+//! # The order of the rules
 //!
-//! 1. **Group cure.** A learned all-ally cure, once a round, when two or more
-//!    of the members it reaches are at risk. At risk means below the larger of
-//!    [`GROUP_CURE_PERCENT`] of maximum HP and the threat below.
-//! 2. **Single cure.** The member at the lowest share of HP who is at risk
-//!    (below the larger of [`HURT_PERCENT`] and the threat) gets the cheapest
-//!    cure that lifts them out of it, or the strongest there is. In a random
-//!    encounter one cure a round is enough.
-//! 3. **Revival** (scripted battles): a fallen member is raised while the fight
-//!    has more than a round left; a full revival before a partial one.
-//! 4. **Status cure** (scripted battles): a paralysed or sleeping member.
-//! 5. **The best action by value**, in HP: the plain attack, every damaging
-//!    technique, skill or item, an instant-death effect (its chance to land
-//!    times the HP it removes), a sleep (its chance times what the enemy does
-//!    in a turn), and in scripted battles an attack-down on the enemies or an
-//!    attack- or defence-up on the party (the damage it adds or saves over the
-//!    rounds the fight has left, at most [`BUFF_ROUNDS`]). A single-target
-//!    command takes its best target.
-//! 6. ATTACK, or DEFEND for a member with no weapon.
+//! 1. **Finish it.** When the members' best actions are expected to remove
+//!    every enemy's HP this round, nobody cures: the round is all offence.
+//! 2. **Cures**, most urgent first, each given to the member whose own best
+//!    action is worth least (a cure that lifts the patient clear of the threat
+//!    before one that does not, then the cheaper cure):
+//!    * a group cure when two or more members it reaches are at risk, below the
+//!      larger of [`GROUP_CURE_PERCENT`] of maximum HP and the threat;
+//!    * a single cure for each member at risk, below the larger of
+//!      [`HURT_PERCENT`] and the threat, lowest share of HP first, one a
+//!      member;
+//!    * in a scripted battle with more than a round left, a revival for each
+//!      fallen member (full before partial) and a status cure for a paralysed
+//!      or sleeping one.
+//! 3. **The best action by value**, in HP, for everyone else in slot order: the
+//!    plain attack, every damaging technique, skill or item, an instant-death
+//!    effect (its chance to land times the HP it removes), a sleep (its chance
+//!    times what the enemy does in a turn), and in scripted battles an
+//!    attack-down on the enemies or an attack- or defence-up on the party (the
+//!    damage it adds or saves over the rounds the fight has left, at most
+//!    [`BUFF_ROUNDS`]). A single-target command takes its best target.
+//! 4. ATTACK, or DEFEND for a member with no weapon.
 //!
 //! **The threat** is what a member could lose before their next turn: the
 //! larger of the most HP any member lost over one round of this battle (a
@@ -42,11 +55,10 @@
 //! above a member's maximum HP is one no cure prevents, so it does not move the
 //! line.
 //!
-//! **The round's book.** A player orders the round knowing what the earlier
-//! members were told: the damage they will do comes off each enemy's HP before
-//! the next member is valued (overkill counts nothing), cures count toward the
-//! patient, a revival or a sleep is not ordered twice, and an item copy is not
-//! spent twice.
+//! **The round's book.** The damage an order will do comes off each enemy's HP
+//! before the next member is valued (overkill counts nothing), cures count
+//! toward the patient, a revival or a sleep is not ordered twice, and an item
+//! copy is not spent twice.
 //!
 //! **TP for cures.** A member who knows a cure keeps the TP for its cheapest
 //! one when choosing anything else.
@@ -56,10 +68,15 @@ use std::collections::BTreeMap;
 use psiv_core::battle::status;
 
 use crate::policy::Intent;
-use crate::policy_board::{Ability, Board, Combatant, Source};
-use crate::policy_estimate::{
-    self as estimate, EffectClass, HP, Stat, Value, attack_damage, damage, healing, max_damage,
-};
+use crate::policy_board::{Ability, Board, Combatant, Kit, Source};
+use crate::policy_estimate::{EffectClass, HP, Value, healing};
+
+#[cfg(test)]
+#[path = "policy_plan_tests.rs"]
+mod tests;
+
+#[path = "policy_value.rs"]
+mod value;
 
 /// A member below this share of their maximum HP is at risk whatever the threat.
 pub const HURT_PERCENT: u32 = 50;
@@ -99,27 +116,38 @@ struct Book {
     buffed: Vec<(u8, u8)>,
     items: BTreeMap<u8, u16>,
     single_cures: u32,
-    group_cured: bool,
+    group_cures: u32,
+    /// Members who already have a single cure ordered.
+    patients: Vec<u8>,
 }
 
-#[cfg(test)]
-#[path = "policy_plan_tests.rs"]
-mod tests;
-
-/// The rules, with their battle memory and round book.
+/// The rules, with their battle memory and the round's orders.
 #[derive(Debug, Clone, Default)]
 pub struct Planner {
     scripted: bool,
     memory: Memory,
     book: Book,
+    orders: BTreeMap<u8, Intent>,
     round_open: bool,
 }
 
-/// A scored candidate.
+/// A scored candidate: its value, the order, what it does to each fighter,
+/// and which of the kit's abilities it uses (`None` for ATTACK).
 struct Pick {
     value: Value,
     intent: Intent,
     each: Vec<(u8, Value)>,
+    ability: Option<usize>,
+}
+
+/// A cure on offer: who casts what, on whom, and how it ranks.
+struct Offer<'a> {
+    member: u8,
+    ability: &'a Ability,
+    target: Option<u8>,
+    patients: Vec<u8>,
+    amount: Value,
+    rank: (bool, u8, Value, (bool, u8), u8),
 }
 
 impl Planner {
@@ -140,6 +168,7 @@ impl Planner {
     /// The round's orders are in: the next window opens a new round.
     pub fn end_round(&mut self) {
         self.book = Book::default();
+        self.orders.clear();
         self.round_open = false;
     }
 
@@ -147,22 +176,15 @@ impl Planner {
     pub fn decide(&mut self, board: &Board) -> Intent {
         if !self.round_open {
             self.observe(board);
+            self.plan_round(board);
             self.round_open = true;
         }
-        let Some(me) = board.me() else {
-            return Intent::Defend;
-        };
-        let intent = self
-            .group_cure(board, me)
-            .or_else(|| self.single_cure(board, me))
-            .or_else(|| self.revive(board, me))
-            .or_else(|| self.status_cure(board, me))
-            .or_else(|| self.best_action(board, me));
-        intent.unwrap_or(if board.weapon.is_some() {
-            Intent::Attack { target: None }
-        } else {
-            Intent::Defend
-        })
+        if let Some(intent) = self.orders.get(&board.actor) {
+            return intent.clone();
+        }
+        let intent = self.offence(board, board.actor);
+        self.orders.insert(board.actor, intent.clone());
+        intent
     }
 
     /// The round's first window: what the last round did to both sides.
@@ -185,33 +207,62 @@ impl Planner {
         memory.party_hp = board.party.iter().map(|m| (m.id, m.hp)).collect();
     }
 
-    /// The most `member` could lose before their next turn.
-    fn threat(&self, board: &Board, member: &Combatant) -> u16 {
-        let plain = board
-            .enemies
+    /// The members who will be asked this round, in slot order.
+    fn ready(board: &Board) -> Vec<u8> {
+        board
+            .kits
             .iter()
-            .filter(|e| e.plain_attacks > 0)
-            .map(|e| {
-                max_damage(
-                    e.attack.0,
-                    member.defence.0,
-                    member.factor(e.attack_element),
-                    0,
-                )
+            .filter(|k| {
+                board
+                    .member(k.id)
+                    .is_some_and(|m| m.alive() && m.status & status::NO_TURN == 0)
             })
-            .max()
-            .unwrap_or(0);
-        plain.max(self.memory.worst_loss)
+            .map(|k| k.id)
+            .collect()
     }
 
-    /// The HP below which `member` is at risk.
-    fn line(&self, board: &Board, member: &Combatant, percent: u32) -> u16 {
-        let floor = u16::try_from(u32::from(member.max_hp) * percent / 100).unwrap_or(u16::MAX);
-        let threat = self.threat(board, member);
-        if threat >= member.max_hp {
-            floor
-        } else {
-            floor.max(threat.saturating_add(1))
+    fn plan_round(&mut self, board: &Board) {
+        let mut free = Self::ready(board);
+        if !free.contains(&board.actor) {
+            free.push(board.actor);
+            free.sort_unstable();
+        }
+        // Finish it: if the whole round's offence empties the enemy side, no
+        // member spends a turn on a cure.
+        let mut trial = self.clone();
+        for id in &free {
+            let intent = trial.offence(board, *id);
+            trial.orders.insert(*id, intent);
+        }
+        if board.enemies.iter().all(|e| trial.left(e) == 0) {
+            *self = trial;
+            return;
+        }
+        while let Some((member, intent)) = self.next_cure(board, &free) {
+            self.orders.insert(member, intent);
+            free.retain(|id| *id != member);
+        }
+        for id in free {
+            let intent = self.offence(board, id);
+            self.orders.insert(id, intent);
+        }
+    }
+
+    /// The best action of member `id`, booked; ATTACK or DEFEND when nothing
+    /// is worth more.
+    fn offence(&mut self, board: &Board, id: u8) -> Intent {
+        let kit = board.kit(id);
+        let pick = kit.and_then(|kit| self.best_pick(board, kit));
+        match pick {
+            Some(pick) => {
+                self.commit(kit.expect("a pick has a kit"), &pick);
+                if std::env::var_os("PSIV_CAMPAIGN_TRACE").is_some() {
+                    eprintln!("  value {id} -> {:?} ({} HP)", pick.intent, pick.value / HP);
+                }
+                pick.intent
+            }
+            None if kit.is_some_and(|k| k.weapon.is_some()) => Intent::ATTACK,
+            None => Intent::Defend,
         }
     }
 
@@ -224,6 +275,7 @@ impl Planner {
             .min(member.max_hp)
     }
 
+    /// How far below the risk line `member` stands, or `None` when clear.
     fn at_risk(&self, board: &Board, member: &Combatant, percent: u32) -> Option<u16> {
         if !member.alive() {
             return None;
@@ -233,38 +285,24 @@ impl Planner {
         (hp < line).then(|| line - hp)
     }
 
-    /// Whether the actor can pay for `ability` now: the TP for a technique
-    /// (and no seal on the caster: retail takes the TP and wastes the turn,
-    /// `CharTech_Cast`, `ps4.asm:14256`), a copy not yet ordered this round
-    /// for an item. A skill on the board has a use left.
-    fn in_stock(&self, ability: &Ability, board: &Board) -> bool {
+    /// Whether member `kit` can pay for `ability` now: the TP for a technique
+    /// (and no seal: retail takes the TP and wastes the turn, `CharTech_Cast`,
+    /// `ps4.asm:14256`), a copy not yet ordered this round for an item. A skill
+    /// on the board has a use left.
+    fn in_stock(&self, board: &Board, kit: &Kit, ability: &Ability) -> bool {
         match &ability.source {
             Source::Item { id, .. } => {
                 let ordered = self.book.items.get(id).copied().unwrap_or(0);
                 board.stock(*id).is_none_or(|copies| ordered < copies)
             }
-            Source::Technique(_) => board.me().is_some_and(|me| {
+            Source::Technique(_) => board.member(kit.id).is_some_and(|me| {
                 me.tp >= u16::from(ability.tp_cost) && me.status & status::TECH_SEALED == 0
             }),
             Source::Skill(_) => true,
         }
     }
 
-    /// The TP the actor keeps for their cheapest cure.
-    fn reserve(board: &Board) -> u16 {
-        board
-            .abilities
-            .iter()
-            .filter(|a| {
-                matches!(a.source, Source::Technique(_))
-                    && matches!(a.class(), EffectClass::Heal | EffectClass::HealRevive)
-            })
-            .map(|a| u16::from(a.tp_cost))
-            .min()
-            .unwrap_or(0)
-    }
-
-    /// Ranks cures: a renewable one before an item, then by TP.
+    /// Ranks cures by what they spend: a renewable one before an item, then by TP.
     fn cure_cost(ability: &Ability) -> (bool, u8) {
         (
             matches!(ability.source, Source::Item { .. }),
@@ -272,88 +310,152 @@ impl Planner {
         )
     }
 
-    fn heals(ability: &Ability, me: &Combatant) -> bool {
+    fn heals(ability: &Ability) -> bool {
         matches!(ability.class(), EffectClass::Heal | EffectClass::HealRevive)
-            && (ability.range != 3 || ability.targets.contains(&me.id))
     }
 
-    fn group_cure(&mut self, board: &Board, me: &Combatant) -> Option<Intent> {
-        if self.book.group_cured {
+    /// The most urgent cure some free member can give, booked.
+    fn next_cure(&mut self, board: &Board, free: &[u8]) -> Option<(u8, Intent)> {
+        let offers = self
+            .group_offers(board, free)
+            .or_else(|| self.single_offers(board, free))
+            .or_else(|| self.revive_offers(board, free))
+            .or_else(|| self.status_offers(board, free))?;
+        let best = offers.into_iter().min_by_key(|o| o.rank)?;
+        let class = best.ability.class();
+        match class {
+            EffectClass::Heal | EffectClass::HealRevive if best.target.is_none() && best.patients.len() > 1 => {
+                self.book.group_cures += 1;
+            }
+            EffectClass::Heal | EffectClass::HealRevive => {
+                self.book.single_cures += 1;
+                self.book.patients.extend(&best.patients);
+            }
+            EffectClass::Revive { .. } => {}
+            _ => {}
+        }
+        for patient in &best.patients {
+            match class {
+                EffectClass::Heal | EffectClass::HealRevive => {
+                    *self.book.healing.entry(*patient).or_default() += best.amount;
+                    if class == EffectClass::HealRevive {
+                        self.book.raised.push(*patient);
+                    }
+                }
+                EffectClass::Revive { .. } => self.book.raised.push(*patient),
+                _ => self.book.cured.push(*patient),
+            }
+        }
+        if let Source::Item { id, .. } = best.ability.source {
+            *self.book.items.entry(id).or_default() += 1;
+        }
+        Some((best.member, Self::intent(best.ability, best.target)))
+    }
+
+    /// What member `id`'s best action is worth, unbooked: a cure's price.
+    fn worth(&self, board: &Board, id: u8) -> Value {
+        board
+            .kit(id)
+            .and_then(|kit| self.best_pick(board, kit))
+            .map_or(0, |p| p.value)
+    }
+
+    fn group_offers<'a>(&self, board: &'a Board, free: &[u8]) -> Option<Vec<Offer<'a>>> {
+        if !self.scripted && self.book.group_cures > 0 {
             return None;
         }
-        let mut options: Vec<(&Ability, Value, u16, Vec<u8>)> = Vec::new();
-        for ability in board.abilities.iter().filter(|a| {
-            !a.single() && a.range != 3 && Self::heals(a, me) && self.in_stock(a, board)
-        }) {
-            let patients: Vec<(u8, u16)> = board
-                .party
-                .iter()
-                .filter(|m| ability.targets.contains(&m.id))
-                .filter_map(|m| Some((m.id, self.at_risk(board, m, GROUP_CURE_PERCENT)?)))
-                .collect();
-            if patients.len() < 2 {
-                continue;
+        let mut offers = Vec::new();
+        for kit in board.kits.iter().filter(|k| free.contains(&k.id)) {
+            for ability in kit.abilities.iter().filter(|a| {
+                !a.single() && a.range != 3 && Self::heals(a) && self.in_stock(board, kit, a)
+            }) {
+                let patients: Vec<(u8, u16)> = board
+                    .party
+                    .iter()
+                    .filter(|m| ability.targets.contains(&m.id))
+                    .filter_map(|m| Some((m.id, self.at_risk(board, m, GROUP_CURE_PERCENT)?)))
+                    .collect();
+                if patients.len() < 2 {
+                    continue;
+                }
+                let need = patients.iter().map(|(_, n)| *n).max().unwrap_or(0);
+                let amount = healing(ability.power_stat, ability.power.into(), u16::MAX);
+                offers.push(Offer {
+                    member: kit.id,
+                    ability,
+                    target: None,
+                    patients: patients.iter().map(|p| p.0).collect(),
+                    amount,
+                    rank: (
+                        amount < Value::from(need) * HP,
+                        0,
+                        self.worth(board, kit.id),
+                        Self::cure_cost(ability),
+                        kit.id,
+                    ),
+                });
             }
-            let need = patients.iter().map(|(_, n)| *n).max().unwrap_or(0);
-            let amount = healing(ability.power_stat, ability.power.into(), u16::MAX);
-            options.push((ability, amount, need, patients.iter().map(|p| p.0).collect()));
         }
-        let chosen = options
-            .iter()
-            .filter(|(_, amount, need, _)| *amount >= Value::from(*need) * HP)
-            .min_by_key(|(a, ..)| Self::cure_cost(a))
-            .or_else(|| options.iter().max_by_key(|(_, amount, ..)| *amount))?;
-        let (ability, amount, _, patients) = chosen;
-        self.book.group_cured = true;
-        for patient in patients {
-            *self.book.healing.entry(*patient).or_default() += amount;
-        }
-        Some(self.order(ability, None))
+        (!offers.is_empty()).then_some(offers)
     }
 
-    fn single_cure(&mut self, board: &Board, me: &Combatant) -> Option<Intent> {
+    fn single_offers<'a>(&self, board: &'a Board, free: &[u8]) -> Option<Vec<Offer<'a>>> {
         if !self.scripted && self.book.single_cures > 0 {
             return None;
         }
-        let cures: Vec<&Ability> = board
-            .abilities
+        let reaches = |kit: &Kit, a: &Ability, patient: u8| {
+            (a.single() && a.targets.contains(&patient)) || (a.range == 3 && kit.id == patient)
+        };
+        let cures: Vec<(&Kit, &Ability)> = board
+            .kits
             .iter()
-            .filter(|a| (a.single() || a.range == 3) && Self::heals(a, me) && self.in_stock(a, board))
+            .filter(|k| free.contains(&k.id))
+            .flat_map(|k| k.abilities.iter().map(move |a| (k, a)))
+            .filter(|(k, a)| (a.single() || a.range == 3) && Self::heals(a) && self.in_stock(board, k, a))
             .collect();
-        let patient = board
+        let (patient, need) = board
             .party
             .iter()
-            .filter(|m| cures.iter().any(|a| a.targets.contains(&m.id)))
+            .filter(|m| !self.book.patients.contains(&m.id))
+            .filter(|m| cures.iter().any(|(k, a)| reaches(k, a, m.id)))
             .filter_map(|m| Some((m, self.at_risk(board, m, HURT_PERCENT)?)))
             .min_by(|(a, _), (b, _)| {
                 (u32::from(self.hp_after_cures(a)) * u32::from(b.max_hp))
                     .cmp(&(u32::from(self.hp_after_cures(b)) * u32::from(a.max_hp)))
-            });
-        let (patient, need) = patient?;
-        let mut options: Vec<(&Ability, Value)> = cures
+            })?;
+        let offers: Vec<Offer<'a>> = cures
             .into_iter()
-            .filter(|a| a.targets.contains(&patient.id))
-            .map(|a| (a, healing(a.power_stat, a.power.into(), u16::MAX)))
+            .filter(|(k, a)| reaches(k, a, patient.id))
+            .map(|(kit, ability)| {
+                let amount = healing(ability.power_stat, ability.power.into(), u16::MAX);
+                Offer {
+                    member: kit.id,
+                    ability,
+                    target: ability.single().then_some(patient.id),
+                    patients: vec![patient.id],
+                    amount,
+                    rank: (
+                        amount < Value::from(need) * HP,
+                        0,
+                        self.worth(board, kit.id),
+                        Self::cure_cost(ability),
+                        kit.id,
+                    ),
+                }
+            })
             .collect();
-        options.sort_by_key(|(a, _)| Self::cure_cost(a));
-        let chosen = options
-            .iter()
-            .find(|(_, amount)| *amount >= Value::from(need) * HP)
-            .or_else(|| options.iter().max_by_key(|(_, amount)| *amount))?;
-        let (ability, amount) = *chosen;
-        self.book.single_cures += 1;
-        *self.book.healing.entry(patient.id).or_default() += amount;
-        Some(self.order(ability, ability.single().then_some(patient.id)))
+        (!offers.is_empty()).then_some(offers)
     }
 
-    fn revive(&mut self, board: &Board, me: &Combatant) -> Option<Intent> {
-        if !self.scripted || self.rounds_left(board, me) < 2 {
+    fn revive_offers<'a>(&self, board: &'a Board, free: &[u8]) -> Option<Vec<Offer<'a>>> {
+        if !self.scripted || self.rounds_left(board) < 2 {
             return None;
         }
-        let fallen: Vec<&Combatant> = board
+        let fallen: Vec<u8> = board
             .party
             .iter()
             .filter(|m| !m.alive() && !self.book.raised.contains(&m.id))
+            .map(|m| m.id)
             .collect();
         let rank = |a: &Ability| match a.class() {
             EffectClass::Revive { full: true } => Some(0),
@@ -361,332 +463,81 @@ impl Planner {
             EffectClass::Revive { full: false } => Some(2),
             _ => None,
         };
-        let (ability, patients) = board
-            .abilities
-            .iter()
-            .filter(|a| self.in_stock(a, board))
-            .filter_map(|a| {
-                let rank = rank(a)?;
+        let mut offers = Vec::new();
+        for kit in board.kits.iter().filter(|k| free.contains(&k.id)) {
+            for ability in kit.abilities.iter().filter(|a| self.in_stock(board, kit, a)) {
+                let Some(class_rank) = rank(ability) else {
+                    continue;
+                };
                 let patients: Vec<u8> = fallen
                     .iter()
-                    .filter(|m| a.targets.contains(&m.id))
-                    .map(|m| m.id)
+                    .copied()
+                    .filter(|id| ability.targets.contains(id))
                     .collect();
-                (!patients.is_empty()).then_some((rank, Self::cure_cost(a), a, patients))
-            })
-            .min_by_key(|(rank, cost, ..)| (*rank, *cost))
-            .map(|(_, _, a, patients)| (a, patients))?;
-        let target = ability.single().then(|| patients[0]);
-        match target {
-            Some(id) => self.book.raised.push(id),
-            None => self.book.raised.extend(patients),
+                let Some(first) = patients.first().copied() else {
+                    continue;
+                };
+                let single = ability.single();
+                offers.push(Offer {
+                    member: kit.id,
+                    ability,
+                    target: single.then_some(first),
+                    patients: if single { vec![first] } else { patients },
+                    amount: 0,
+                    rank: (
+                        false,
+                        class_rank,
+                        self.worth(board, kit.id),
+                        Self::cure_cost(ability),
+                        kit.id,
+                    ),
+                });
+            }
         }
-        Some(self.order(ability, target))
+        (!offers.is_empty()).then_some(offers)
     }
 
-    fn status_cure(&mut self, board: &Board, me: &Combatant) -> Option<Intent> {
-        if !self.scripted || self.rounds_left(board, me) < 2 {
+    fn status_offers<'a>(&self, board: &'a Board, free: &[u8]) -> Option<Vec<Offer<'a>>> {
+        if !self.scripted || self.rounds_left(board) < 2 {
             return None;
         }
-        for ability in board.abilities.iter().filter(|a| self.in_stock(a, board)) {
-            let EffectClass::Cure(bits) = ability.class() else {
-                continue;
-            };
-            let bits = bits & (status::PARALYZED | status::ASLEEP);
-            let patient = board.party.iter().find(|m| {
-                m.alive()
-                    && m.status & bits != 0
-                    && ability.targets.contains(&m.id)
-                    && !self.book.cured.contains(&m.id)
-            });
-            if let Some(patient) = patient {
-                self.book.cured.push(patient.id);
-                return Some(self.order(ability, ability.single().then_some(patient.id)));
-            }
-        }
-        None
-    }
-
-    /// An enemy's HP after the damage already ordered.
-    fn left(&self, enemy: &Combatant) -> u16 {
-        let ordered = self.book.damage.get(&enemy.id).copied().unwrap_or(0) / HP;
-        enemy
-            .hp
-            .saturating_sub(u16::try_from(ordered).unwrap_or(u16::MAX))
-    }
-
-    /// Rounds the fight has left at the rate the party removes HP.
-    fn rounds_left(&self, board: &Board, me: &Combatant) -> u64 {
-        let remaining: u64 = board.enemies.iter().map(|e| u64::from(self.left(e))).sum();
-        let living = board.party.iter().filter(|m| m.alive()).count() as u64;
-        let rate = if self.memory.enemy_loss > 0 {
-            u64::from(self.memory.enemy_loss)
-        } else {
-            let swing = self.attack_pick(board, me).map_or(HP, |p| p.value);
-            (swing * living.max(1) / HP).max(1)
-        };
-        remaining.div_ceil(rate.max(1)).max(1)
-    }
-
-    /// What an enemy does to the party in one of its turns.
-    fn enemy_turn(&self, board: &Board, enemy: &Combatant) -> Value {
-        let living: Vec<&Combatant> = board.party.iter().filter(|m| m.alive()).collect();
-        let n = living.len().max(1) as u64;
-        let plain: Value = living
-            .iter()
-            .map(|m| {
-                damage(
-                    enemy.attack.0,
-                    m.defence.0,
-                    m.factor(enemy.attack_element),
-                    0,
-                    m.hp,
-                )
-            })
-            .sum::<Value>()
-            / n;
-        let seen =
-            Value::from(self.memory.party_loss) * HP / (board.enemies.len().max(1) as u64);
-        plain.max(seen)
-    }
-
-    fn attack_pick(&self, board: &Board, me: &Combatant) -> Option<Pick> {
-        let weapon = board.weapon.as_ref()?;
-        let hit = |e: &Combatant| -> Value {
-            let factor = weapon
-                .elements
-                .iter()
-                .map(|el| e.factor(*el))
-                .max()
-                .unwrap_or(0);
-            attack_damage(
-                me.attack.0,
-                me.dexterity,
-                e.agility,
-                e.defence.0,
-                factor,
-                weapon.all,
-                self.left(e),
-            )
-        };
-        if weapon.all {
-            let each: Vec<(u8, Value)> = board.enemies.iter().map(|e| (e.id, hit(e))).collect();
-            return Some(Pick {
-                value: each.iter().map(|(_, v)| v).sum(),
-                intent: Intent::Attack { target: None },
-                each,
-            });
-        }
-        board
-            .enemies
-            .iter()
-            .map(|e| (e.id, hit(e)))
-            .fold(None::<(u8, Value)>, |best, (id, v)| match best {
-                Some((_, b)) if b >= v => best,
-                _ => Some((id, v)),
-            })
-            .map(|(id, value)| Pick {
-                value,
-                intent: Intent::Attack { target: Some(id) },
-                each: vec![(id, value)],
-            })
-    }
-
-    /// What `ability` does to enemy `e`, in HP.
-    fn on_enemy(&self, board: &Board, me: &Combatant, ability: &Ability, e: &Combatant) -> Value {
-        let factor = if ability.element >= 0x10 {
-            board.weapon.as_ref().map_or(0, |w| {
-                w.elements.iter().map(|el| e.factor(*el)).max().unwrap_or(0)
-            })
-        } else {
-            e.factor(ability.element)
-        };
-        let resist = e.stat(ability.resistance);
-        let lands = || {
-            estimate::landing_chance(
-                ability.power_stat,
-                resist,
-                factor,
-                ability.power,
-                ability.effect,
-                ability.resistance,
-            )
-        };
-        match ability.class() {
-            EffectClass::Damage => damage(
-                ability.power_stat,
-                resist,
-                factor,
-                ability.power.into(),
-                self.left(e),
-            ),
-            EffectClass::Death => lands() * Value::from(self.left(e)) * HP / 64,
-            EffectClass::Sleep
-                if e.status & (status::ASLEEP | status::PARALYZED) == 0
-                    && !self.book.slept.contains(&e.id) =>
-            {
-                lands() * self.enemy_turn(board, e) / 64
-            }
-            EffectClass::Debuff(Stat::Attack) if self.scripted && e.attack.0 >= e.attack.1 => {
-                let lowered = Combatant {
-                    attack: (e.attack.0.saturating_sub(ability.power_stat), e.attack.1),
-                    ..e.clone()
+        let mut offers = Vec::new();
+        for kit in board.kits.iter().filter(|k| free.contains(&k.id)) {
+            for ability in kit.abilities.iter().filter(|a| self.in_stock(board, kit, a)) {
+                let EffectClass::Cure(bits) = ability.class() else {
+                    continue;
                 };
-                let saved = self
-                    .enemy_turn(board, e)
-                    .saturating_sub(self.enemy_turn(board, &lowered))
-                    * u64::from(e.plain_attacks)
-                    / 8;
-                lands() * saved * self.rounds_left(board, me).saturating_sub(1).min(BUFF_ROUNDS)
-                    / 64
-            }
-            _ => 0,
-        }
-    }
-
-    /// What `ability` does for party member `m`, in HP over the rounds left.
-    fn on_member(&self, board: &Board, me: &Combatant, ability: &Ability, m: &Combatant) -> Value {
-        if !self.scripted || !m.alive() || self.book.buffed.contains(&(ability.effect, m.id)) {
-            return 0;
-        }
-        let rounds = self.rounds_left(board, me).saturating_sub(1).min(BUFF_ROUNDS);
-        match ability.class() {
-            EffectClass::Buff(Stat::Attack) if m.attack.0 <= m.attack.1 => {
-                let Some(base) = self.attack_pick(board, m) else {
-                    return 0;
+                let bits = bits & (status::PARALYZED | status::ASLEEP);
+                let Some(patient) = board.party.iter().find(|m| {
+                    m.alive()
+                        && m.status & bits != 0
+                        && ability.targets.contains(&m.id)
+                        && !self.book.cured.contains(&m.id)
+                }) else {
+                    continue;
                 };
-                let strong = Combatant {
-                    attack: (m.attack.0.saturating_add(ability.power_stat), m.attack.1),
-                    ..m.clone()
-                };
-                let raised = self.attack_pick(board, &strong).map_or(0, |p| p.value);
-                raised.saturating_sub(base.value) * rounds
-            }
-            EffectClass::Buff(Stat::Defence) if m.defence.0 <= m.defence.1 => {
-                let strong = Combatant {
-                    defence: (m.defence.0.saturating_add(ability.power_stat), m.defence.1),
-                    ..m.clone()
-                };
-                let saved: Value = board
-                    .enemies
-                    .iter()
-                    .map(|e| {
-                        let hit = |t: &Combatant| {
-                            damage(e.attack.0, t.defence.0, t.factor(e.attack_element), 0, t.hp)
-                        };
-                        hit(m).saturating_sub(hit(&strong)) * u64::from(e.plain_attacks) / 8
-                    })
-                    .sum();
-                saved * rounds
-            }
-            _ => 0,
-        }
-    }
-
-    fn ability_pick(&self, board: &Board, me: &Combatant, ability: &Ability) -> Option<Pick> {
-        let onto_enemies = matches!(
-            ability.class(),
-            EffectClass::Damage | EffectClass::Death | EffectClass::Sleep | EffectClass::Debuff(_)
-        );
-        let candidates: Vec<(u8, Value)> = ability
-            .targets
-            .iter()
-            .filter_map(|id| {
-                let fighter = board.fighter(*id)?;
-                Some((
-                    *id,
-                    if onto_enemies {
-                        board.enemies.iter().any(|e| e.id == *id).then(|| {
-                            self.on_enemy(board, me, ability, fighter)
-                        })?
-                    } else {
-                        self.on_member(board, me, ability, fighter)
-                    },
-                ))
-            })
-            .collect();
-        if ability.single() {
-            let (id, value) = candidates.iter().copied().fold(None, |best, (id, v)| match best {
-                Some((_, b)) if b >= v => best,
-                _ => Some((id, v)),
-            })?;
-            Some(Pick {
-                value,
-                intent: self.intent(ability, Some(id)),
-                each: vec![(id, value)],
-            })
-        } else {
-            Some(Pick {
-                value: candidates.iter().map(|(_, v)| v).sum(),
-                intent: self.intent(ability, None),
-                each: candidates,
-            })
-        }
-    }
-
-    fn best_action(&mut self, board: &Board, me: &Combatant) -> Option<Intent> {
-        let attack = self.attack_pick(board, me);
-        let floor = attack.as_ref().map_or(0, |p| p.value);
-        let reserve = Self::reserve(board);
-        let mut best = attack;
-        for ability in board.abilities.iter().filter(|a| self.in_stock(a, board)) {
-            if matches!(
-                ability.class(),
-                EffectClass::Heal | EffectClass::HealRevive
-            ) {
-                continue;
-            }
-            if let Source::Technique(_) = ability.source
-                && me.tp < u16::from(ability.tp_cost) + reserve
-            {
-                continue;
-            }
-            if !self.scripted
-                && (matches!(ability.source, Source::Skill(_))
-                    || matches!(ability.source, Source::Item { consumable: true, .. }))
-            {
-                continue;
-            }
-            let Some(pick) = self.ability_pick(board, me, ability) else {
-                continue;
-            };
-            if !self.scripted && ability.spends() && pick.value < floor * ENCOUNTER_SPEND_FACTOR {
-                continue;
-            }
-            if pick.value > best.as_ref().map_or(0, |b| b.value) {
-                best = Some(pick);
+                offers.push(Offer {
+                    member: kit.id,
+                    ability,
+                    target: ability.single().then_some(patient.id),
+                    patients: vec![patient.id],
+                    amount: 0,
+                    rank: (
+                        false,
+                        0,
+                        self.worth(board, kit.id),
+                        Self::cure_cost(ability),
+                        kit.id,
+                    ),
+                });
             }
         }
-        let best = best.filter(|p| p.value > 0)?;
-        self.commit(board, &best);
-        if std::env::var_os("PSIV_CAMPAIGN_TRACE").is_some() {
-            eprintln!(
-                "  value {} -> {:?} ({} HP)",
-                me.name,
-                best.intent,
-                best.value / HP
-            );
-        }
-        Some(best.intent)
+        (!offers.is_empty()).then_some(offers)
     }
 
     /// Books a chosen action's effect for the members still to order.
-    fn commit(&mut self, board: &Board, pick: &Pick) {
-        let ability = match &pick.intent {
-            Intent::Technique { id, .. } => board
-                .abilities
-                .iter()
-                .find(|a| a.source == Source::Technique(*id)),
-            Intent::Skill { id, .. } => board
-                .abilities
-                .iter()
-                .find(|a| a.source == Source::Skill(*id)),
-            Intent::Item { name, .. } => board
-                .abilities
-                .iter()
-                .find(|a| matches!(&a.source, Source::Item { name: n, .. } if n == name)),
-            _ => None,
-        };
+    fn commit(&mut self, kit: &Kit, pick: &Pick) {
+        let ability = pick.ability.and_then(|index| kit.abilities.get(index));
         let class = ability.map_or(EffectClass::Damage, Ability::class);
         for (id, value) in &pick.each {
             match class {
@@ -706,7 +557,7 @@ impl Planner {
         }
     }
 
-    fn intent(&self, ability: &Ability, target: Option<u8>) -> Intent {
+    fn intent(ability: &Ability, target: Option<u8>) -> Intent {
         let target = if ability.single() { target } else { None };
         match &ability.source {
             Source::Technique(id) => Intent::Technique { id: *id, target },
@@ -716,13 +567,5 @@ impl Planner {
                 target,
             },
         }
-    }
-
-    /// Orders `ability` and books an item copy.
-    fn order(&mut self, ability: &Ability, target: Option<u8>) -> Intent {
-        if let Source::Item { id, .. } = ability.source {
-            *self.book.items.entry(id).or_default() += 1;
-        }
-        self.intent(ability, target)
     }
 }

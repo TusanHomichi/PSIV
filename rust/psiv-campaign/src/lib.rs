@@ -45,6 +45,7 @@ pub mod map_plan;
 pub mod menu;
 pub mod policy;
 pub mod policy_board;
+mod policy_board_read;
 pub mod policy_estimate;
 pub mod policy_opening;
 pub mod policy_plan;

@@ -5,6 +5,7 @@
 
 use super::*;
 use crate::policy_board::Weapon;
+use crate::policy_estimate::{damage, max_damage};
 
 const FIRE: u8 = 3;
 const WATER: u8 = 5;
@@ -57,16 +58,24 @@ fn technique(id: u8, effect: u8, range: u8, power: u8, element: u8, cost: u8, ta
     }
 }
 
-fn board(party: Vec<Combatant>, enemies: Vec<Combatant>, abilities: Vec<Ability>) -> Board {
-    Board {
-        actor: 1,
-        party,
-        enemies,
+fn kit(id: u8, abilities: Vec<Ability>) -> Kit {
+    Kit {
+        id,
         abilities,
         weapon: Some(Weapon {
             elements: vec![1],
             all: false,
         }),
+    }
+}
+
+/// A board whose actor, fighter 1, has `abilities`; nobody else acts.
+fn board(party: Vec<Combatant>, enemies: Vec<Combatant>, abilities: Vec<Ability>) -> Board {
+    Board {
+        actor: 1,
+        party,
+        enemies,
+        kits: vec![kit(1, abilities)],
         stock: Vec::new(),
     }
 }
@@ -214,7 +223,7 @@ fn the_policy_counts_crosscut_once() {
     let b = board(vec![me.clone()], vec![enemy.clone()], vec![crosscut.clone()]);
     let once = damage(60, enemy.defence.0, 2, 20, enemy.hp);
     let pick = planner
-        .ability_pick(&b, &me, &crosscut)
+        .ability_pick(&b, &b.kits[0], 0)
         .expect("CROSSCUT has a target");
     assert_eq!(pick.value, once);
 
@@ -259,7 +268,7 @@ fn an_encounter_is_fought_cheaply_and_a_boss_with_everything() {
 }
 
 /// The round's book: a second member does not pile damage onto an enemy the
-/// first one's order already finishes.
+/// first one's order already finishes, and a new round starts a new book.
 #[test]
 fn the_round_book_spreads_damage_over_the_enemies() {
     let mut a = foe(50);
@@ -267,13 +276,79 @@ fn the_round_book_spreads_damage_over_the_enemies() {
     let mut b = foe(50);
     b.id = 7;
     b.hp = 50;
+    let second = Combatant {
+        name: "Gryz".into(),
+        ..chaz()
+    };
+    let second = Combatant { id: 3, ..second };
+    let mut round = Board {
+        actor: 1,
+        party: vec![chaz(), second],
+        enemies: vec![a, b],
+        kits: vec![kit(1, Vec::new()), kit(3, Vec::new())],
+        stock: Vec::new(),
+    };
     let mut planner = scripted();
-    let enemies = vec![a, b];
-    let first = planner.decide(&board(vec![chaz()], enemies.clone(), Vec::new()));
-    assert_eq!(first, Intent::Attack { target: Some(6) }, "a tie takes the first");
-    let second = planner.decide(&board(vec![chaz()], enemies.clone(), Vec::new()));
-    assert_eq!(second, Intent::Attack { target: Some(7) }, "6 is already booked");
+    assert_eq!(planner.decide(&round), Intent::Attack { target: Some(6) }, "a tie takes the first");
+    round.actor = 3;
+    assert_eq!(planner.decide(&round), Intent::Attack { target: Some(7) }, "6 is already booked");
     planner.end_round();
-    let next = planner.decide(&board(vec![chaz()], enemies, Vec::new()));
-    assert_eq!(next, Intent::Attack { target: Some(6) }, "a new round, a new book");
+    round.actor = 1;
+    assert_eq!(planner.decide(&round), Intent::Attack { target: Some(6) }, "a new round");
+}
+
+/// The round is ordered as a whole: the cure goes to the member whose own
+/// action is worth least, and the strong hitter keeps hitting. Negative: with
+/// only the strong hitter able to cure, the strong hitter cures.
+#[test]
+fn the_cure_goes_to_the_member_whose_action_is_worth_least() {
+    let res = |power_stat| Ability {
+        power_stat,
+        ..technique(24, 18, 4, 20, 0, 3, &[1, 2, 3])
+    };
+    let mut hurt = rika();
+    hurt.hp = 180;
+    let weak = Combatant {
+        id: 3,
+        name: "Hahn".into(),
+        attack: (10, 10),
+        ..chaz()
+    };
+    let enemies = vec![foe(200)];
+    let mut round = Board {
+        actor: 1,
+        party: vec![chaz(), hurt.clone(), weak.clone()],
+        enemies: enemies.clone(),
+        kits: vec![kit(1, vec![res(60)]), kit(3, vec![res(60)])],
+        stock: Vec::new(),
+    };
+    let mut planner = scripted();
+    assert!(matches!(planner.decide(&round), Intent::Attack { .. }), "Chaz hits");
+    round.actor = 3;
+    assert_eq!(
+        planner.decide(&round),
+        Intent::Technique {
+            id: 24,
+            target: Some(2)
+        },
+        "Hahn cures"
+    );
+
+    let mut alone = Board {
+        actor: 1,
+        party: vec![chaz(), hurt, weak],
+        enemies,
+        kits: vec![kit(1, vec![res(60)]), kit(3, Vec::new())],
+        stock: Vec::new(),
+    };
+    let mut planner = scripted();
+    assert_eq!(
+        planner.decide(&alone),
+        Intent::Technique {
+            id: 24,
+            target: Some(2)
+        }
+    );
+    alone.actor = 3;
+    assert!(matches!(planner.decide(&alone), Intent::Attack { .. }));
 }

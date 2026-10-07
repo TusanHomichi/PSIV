@@ -1,8 +1,8 @@
 //! The board: what a player sees when a member's command window opens.
 //!
-//! [`Board::read`] builds it from the open command window
-//! ([`CommandMenuView`]) and the runtime's read-only battle surface
-//! (`battle_roster`, `battle_data`, the pack). The decision rules in
+//! `Board::read` (`policy_board_read.rs`) builds it from the open command
+//! window and the runtime's read-only battle surface (`battle_roster`,
+//! `battle_data`, the pack). The decision rules in
 //! [`crate::policy_plan`] read only a [`Board`], so tests construct one directly.
 //!
 //! What it holds:
@@ -10,23 +10,14 @@
 //! * every fighter's battle stats, element factors and status, as the engine
 //!   reads them (the live roster's `Stats`, an enemy's built from its pack
 //!   record, `Stats::from_enemy`);
-//! * every action the actor can take now, each with the record bytes its
-//!   formula reads and the target list the command menu offers (the core's
-//!   `technique_targets`, `skill_targets` and `item_targets`): techniques the
-//!   window enables (supported, TP enough, not sealed), skills with uses left
-//!   (and a weapon when the record wants one), and the battle items the pack
-//!   and the actor's hands hold;
-//! * the actor's weapon: whether it reaches every enemy and the elements its
-//!   hands carry (shields skipped, `Character_DamageEnemy`'s larger-of-two-hands
-//!   rule, `ps4.asm:3910`).
+//! * for every living member, a [`Kit`]: every action they can take this round,
+//!   each with the record bytes its formula reads and the target list the
+//!   command menu offers, and their weapon (whether a swing reaches every
+//!   enemy, and the elements the hands carry).
 //!
 //! Nothing here writes to the runtime.
 
-use psiv_core::battle::{
-    BattleData, EnemyRecord, Fighter, FighterId, ItemKind, Reach, Roster, Side, Stats,
-    item_targets, skill_targets, status, technique_targets, weapon_reach,
-};
-use psiv_runtime::{CommandMenuView, Runtime};
+use psiv_core::battle::{EnemyRecord, Fighter, Side, status};
 
 use crate::policy_estimate::EffectClass;
 
@@ -226,7 +217,7 @@ impl Ability {
     }
 }
 
-/// The actor's weapon.
+/// A member's weapon.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Weapon {
     /// The element ids the hands carry (shields skipped).
@@ -235,7 +226,18 @@ pub struct Weapon {
     pub all: bool,
 }
 
-/// What the actor sees.
+/// What one member can do this round.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Kit {
+    /// The member's fighter id.
+    pub id: u8,
+    /// Every action besides ATTACK and DEFEND the member can take now.
+    pub abilities: Vec<Ability>,
+    /// The member's weapon, or `None` when ATTACK is not offered.
+    pub weapon: Option<Weapon>,
+}
+
+/// What the player sees when a member's window opens.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Board {
     /// The acting fighter id.
@@ -244,11 +246,9 @@ pub struct Board {
     pub party: Vec<Combatant>,
     /// The living enemies, in fighter-id order.
     pub enemies: Vec<Combatant>,
-    /// Every action besides ATTACK and DEFEND the actor can take now.
-    pub abilities: Vec<Ability>,
-    /// The actor's weapon, or `None` when ATTACK is not offered.
-    pub weapon: Option<Weapon>,
-    /// Copies the pack holds of each consumable the actor can use.
+    /// What each living party member can do (`policy_board_read.rs`).
+    pub kits: Vec<Kit>,
+    /// Copies the pack holds of each consumable a member can use.
     pub stock: Vec<(u8, u16)>,
 }
 
@@ -256,7 +256,19 @@ impl Board {
     /// The actor.
     #[must_use]
     pub fn me(&self) -> Option<&Combatant> {
-        self.party.iter().find(|m| m.id == self.actor)
+        self.member(self.actor)
+    }
+
+    /// A party member by fighter id.
+    #[must_use]
+    pub fn member(&self, id: u8) -> Option<&Combatant> {
+        self.party.iter().find(|m| m.id == id)
+    }
+
+    /// What member `id` can do.
+    #[must_use]
+    pub fn kit(&self, id: u8) -> Option<&Kit> {
+        self.kits.iter().find(|k| k.id == id)
     }
 
     /// A fighter by id, on either side.
@@ -274,167 +286,4 @@ impl Board {
     pub fn stock(&self, id: u8) -> Option<u16> {
         self.stock.iter().find(|(item, _)| *item == id).map(|(_, n)| *n)
     }
-
-    /// The board of the open window, or `None` outside a battle with a roster.
-    #[must_use]
-    pub fn read(menu: &CommandMenuView, runtime: &Runtime) -> Option<Board> {
-        let actor = FighterId::new(menu.actor?)?;
-        let roster = runtime.battle_roster()?;
-        let data = runtime.battle_data()?;
-        let me = roster.get(actor)?;
-        let party = roster
-            .side(Side::Party)
-            .map(|f| Combatant::from_fighter(f, None))
-            .collect();
-        let enemies = roster
-            .living(Side::Enemy)
-            .map(|f| Combatant::from_fighter(f, data.enemy(f.stats.enemy_id).ok()))
-            .collect();
-        let mine = Combatant::from_fighter(me, None);
-        let mut abilities = Vec::new();
-        techniques(menu, roster, data, actor, &mine, &mut abilities);
-        skills(menu, roster, data, actor, &mine, &mut abilities);
-        items(runtime, roster, data, actor, &me.stats, &mut abilities);
-        let held = runtime.game().inventory();
-        let stock = abilities
-            .iter()
-            .filter_map(|a| match a.source {
-                Source::Item { id, consumable: true, .. } => Some((
-                    id,
-                    u16::try_from((0..40).filter(|slot| held.get(*slot) == Some(id)).count())
-                        .unwrap_or(u16::MAX),
-                )),
-                _ => None,
-            })
-            .collect();
-        Some(Board {
-            actor: actor.get(),
-            party,
-            enemies,
-            abilities,
-            weapon: weapon(&me.stats, data),
-            stock,
-        })
-    }
-}
-
-fn ids(targets: &[FighterId]) -> Vec<u8> {
-    targets.iter().map(FighterId::get).collect()
-}
-
-fn techniques(
-    menu: &CommandMenuView,
-    roster: &Roster,
-    data: &BattleData,
-    actor: FighterId,
-    me: &Combatant,
-    out: &mut Vec<Ability>,
-) {
-    for entry in menu.techniques.iter().filter(|e| e.available) {
-        let Some(tech) = data.technique(entry.id) else {
-            continue;
-        };
-        out.push(Ability {
-            source: Source::Technique(tech.id),
-            effect: tech.effect,
-            range: tech.targeting & 15,
-            // `resolve_technique`: the caster's mental, always.
-            power_stat: me.mental,
-            power: tech.power,
-            resistance: tech.resistance,
-            element: tech.element,
-            tp_cost: tech.cost,
-            targets: ids(&technique_targets(roster, actor, tech)),
-        });
-    }
-}
-
-fn skills(
-    menu: &CommandMenuView,
-    roster: &Roster,
-    data: &BattleData,
-    actor: FighterId,
-    me: &Combatant,
-    out: &mut Vec<Ability>,
-) {
-    for entry in menu
-        .skills
-        .iter()
-        .filter(|e| e.available && e.remaining > 0)
-    {
-        let Some(skill) = data.skill(entry.id) else {
-            continue;
-        };
-        out.push(Ability {
-            source: Source::Skill(skill.id),
-            effect: skill.effect,
-            range: skill.targeting & 15,
-            // `resolve_skill`: the record's selected stat (VISION's fixed 8
-            // has no damage or healing use here).
-            power_stat: me.stat(skill.power_stat),
-            power: skill.power,
-            resistance: skill.resistance,
-            element: skill.element,
-            tp_cost: 0,
-            targets: ids(&skill_targets(roster, actor, skill)),
-        });
-    }
-}
-
-fn items(
-    runtime: &Runtime,
-    roster: &Roster,
-    data: &BattleData,
-    actor: FighterId,
-    me: &Stats,
-    out: &mut Vec<Ability>,
-) {
-    let held = runtime.game().inventory();
-    let mut seen = Vec::new();
-    let hands = me.equipment.iter().copied();
-    let pack = (0..40).filter_map(|slot| held.get(slot));
-    for id in hands.chain(pack).filter(|id| *id != 0) {
-        if seen.contains(&id) {
-            continue;
-        }
-        seen.push(id);
-        let Some(item) = data.battle_item(id) else {
-            continue;
-        };
-        // A consumable is used from the pack only (`resolve_item` refuses an
-        // equipped copy); anything else from a hand or the pack.
-        if !item.supported() || (item.consumable && !held.contains(id)) {
-            continue;
-        }
-        out.push(Ability {
-            source: Source::Item {
-                id,
-                name: item.name.clone(),
-                consumable: item.consumable,
-            },
-            effect: item.effect,
-            range: item.targeting,
-            power_stat: item.actor_power.into(),
-            power: item.power,
-            resistance: item.resistance,
-            element: item.element,
-            tp_cost: 0,
-            targets: ids(&item_targets(roster, actor, item)),
-        });
-    }
-}
-
-fn weapon(me: &Stats, data: &BattleData) -> Option<Weapon> {
-    let reach = weapon_reach(me, data).ok().flatten()?;
-    let elements = me.equipment[..2]
-        .iter()
-        .filter(|id| **id != 0)
-        .filter_map(|id| data.item(*id).ok())
-        .filter(|item| item.kind != ItemKind::Shield)
-        .map(|item| item.element)
-        .collect();
-    Some(Weapon {
-        elements,
-        all: reach == Reach::All,
-    })
 }
