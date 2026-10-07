@@ -17,7 +17,7 @@ import sys
 import tempfile
 
 from oracle.sweep.player_chains import Chains
-from psiv_tools.extract_stamp import StaleExtractError, load_table
+from psiv_tools.extract_stamp import StaleExtractError, load_table, table_sha256
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 LEDGER = ROOT / "docs/battle/PLAYER_ABILITIES.md"
@@ -233,8 +233,7 @@ def main(argv: list[str] | None = None) -> int:
         engine = fresh_engine(args.runtime_pack, args.out.with_name("dispatch-inventory.json"))
         abilities = inventory(records, learned, levels, rows, engine, captures(args.fixtures))
         args.out.parent.mkdir(parents=True, exist_ok=True)
-        inputs = [args.ledger, args.asm, args.route_report, args.generated / "characters.json",
-                  args.generated / "progression.json", args.runtime_pack / "battle/abilities.json"]
+        inputs = [args.ledger, args.asm, args.route_report, args.runtime_pack / "battle/abilities.json"]
         inputs += [pathlib.Path(chapter["save"]) for chapter in report["chapters"]
                    if "save" in chapter]
         base = args.ledger.read_text()
@@ -251,6 +250,11 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("generated player ledger is stale; run --update-doc")
         document = {"abilities": [{k: v for k, v in r.items() if k != "cells"} for r in abilities],
                     "inputs": {str(p): hashlib.sha256(p.read_bytes()).hexdigest() for p in inputs}}
+        # The generated tables' hashes come from the extract stamp (already checked
+        # by the loads above), not from reading the files again.
+        document["inputs"].update(
+            {str(args.generated / f"{name}.json"): table_sha256(args.generated, name)
+             for name in ("characters", "progression")})
         args.out.write_text(json.dumps(document, indent=2) + "\n")
         route = [r for r in abilities if r["route"] and r["battle"]]
         bad = [r for r in route if r["engine"] != "implemented"]

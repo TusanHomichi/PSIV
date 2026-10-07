@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .extract_stamp import METADATA_KEY, table_stamp
+from .extract_stamp import begin_table_export, finish_table_export
 from .formations import extract_formation_indexes, extract_formations
 from .gfx import extract_graphics
 from .maps import extract_maps
@@ -631,17 +631,24 @@ def extract_all(data: bytes) -> dict[str, Any]:
     return result
 
 
+#: The tables `write_extract` writes, one `<key>.json` each, beside `metadata.json`.
+TABLE_KEYS = ["layout_validation", "tables", "characters", "techniques", "skills", "combos", "vehicles", "items", "enemies", "enemy_skills", "progression", "formations", "formation_indexes", "shops", "graphics", "names", "dialogue", "maps", "encounters", "planes"]
+
+
 def write_extract(data: bytes, output_dir: str | Path) -> dict[str, Any]:
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     result = extract_all(data)
     # The stamp lives in `metadata.json`, which is therefore removed first and
     # written last: a run that stops half way leaves tables nothing vouches for,
-    # and readers refuse them. `dump` and `inspect` describe the ROM and carry
-    # no stamp; only a written extract has an extractor.
-    (output_dir / "metadata.json").unlink(missing_ok=True)
-    for key in ["layout_validation", "tables", "characters", "techniques", "skills", "combos", "vehicles", "items", "enemies", "enemy_skills", "progression", "formations", "formation_indexes", "shops", "graphics", "names", "dialogue", "maps", "encounters", "planes"]:
-        (output_dir / f"{key}.json").write_text(json.dumps(result[key], indent=2) + "\n", encoding="utf-8")
-    metadata = {**result["metadata"], METADATA_KEY: table_stamp()}
-    (output_dir / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
+    # and readers refuse them. It lists every table written, with its hash, and
+    # the tables the previous stamp listed that this run does not write are
+    # removed (`psiv_tools/extract_stamp.py`). `dump` and `inspect` describe the
+    # ROM and carry no stamp; only a written extract has an extractor.
+    previous = begin_table_export(output_dir)
+    written: dict[str, bytes] = {}
+    for key in TABLE_KEYS:
+        written[f"{key}.json"] = (json.dumps(result[key], indent=2) + "\n").encode("utf-8")
+        (output_dir / f"{key}.json").write_bytes(written[f"{key}.json"])
+    finish_table_export(output_dir, result["metadata"], written, previous)
     return result

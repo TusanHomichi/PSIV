@@ -917,7 +917,7 @@ def export_map_pngs(
     )
     collision_png = directory / f"{stem}_collision.png"
     collision_png.write_bytes(render_collision(decoded.collision))
-    write_png_stamp(directory, "layouts")
+    write_png_stamp(directory, "layouts", [layout_png, collision_png], keep_previous=True)
 
     result = decoded.to_json()
     result["png"] = {"layout": str(layout_png), "collision": str(collision_png)}

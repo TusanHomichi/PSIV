@@ -10,6 +10,7 @@ test skips without it, the way the other extractor tests do.
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import pathlib
 import re
@@ -76,6 +77,50 @@ class Loader(TempDirectory):
                     load_table(self.directory, "enemies")
                 self.assertIn("no stamp", str(caught.exception))
 
+    def test_a_table_the_stamp_does_not_list_is_refused(self):
+        # An old table left in a freshly stamped directory (one a later extractor
+        # dropped or renamed) must not load under the new stamp.
+        write_json(self.directory / "enemies.json", [])
+        stamp.write_table_stamp(self.directory)
+        write_json(self.directory / "old_table.json", {"from": "an older extract"})
+        with self.assertRaises(StaleExtractError) as caught:
+            load_table(self.directory, "old_table")
+        message = str(caught.exception)
+        self.assertIn(str(self.directory / "old_table.json"), message)
+        self.assertIn("not one of the files", message)
+        self.assertIn("python3 -m psiv_tools regenerate", message)
+        self.assertEqual(load_table(self.directory, "enemies"), [], "the listed table still loads")
+
+    def test_a_table_whose_bytes_changed_after_stamping_is_refused(self):
+        # A stale table copied over a current one, under a current stamp.
+        write_json(self.directory / "formations.json", {"inline_formations": [1]})
+        stamp.write_table_stamp(self.directory)
+        write_json(self.directory / "formations.json", {})
+        with self.assertRaises(StaleExtractError) as caught:
+            load_table(self.directory, "formations")
+        message = str(caught.exception)
+        self.assertIn(str(self.directory / "formations.json"), message)
+        self.assertIn("changed since the extract was stamped", message)
+        self.assertIn("python3 -m psiv_tools regenerate", message)
+        with self.assertRaises(StaleExtractError):
+            stamp.table_sha256(self.directory, "formations")
+
+    def test_metadata_json_is_bound_by_its_contents_too(self):
+        write_json(self.directory / "metadata.json", {"hashes": {"sha256": "aa"}})
+        stamp.write_table_stamp(self.directory)
+        self.assertEqual(load_table(self.directory, "metadata")["hashes"], {"sha256": "aa"})
+        document = json.loads((self.directory / "metadata.json").read_text())
+        document["hashes"]["sha256"] = "bb"
+        write_json(self.directory / "metadata.json", document)
+        with self.assertRaises(StaleExtractError):
+            load_table(self.directory, "metadata")
+
+    def test_the_stamp_lists_the_hash_a_provenance_record_can_use(self):
+        write_json(self.directory / "characters.json", [1, 2])
+        stamp.write_table_stamp(self.directory)
+        self.assertEqual(stamp.table_sha256(self.directory, "characters"),
+                         hashlib.sha256((self.directory / "characters.json").read_bytes()).hexdigest())
+
     def test_a_directory_or_table_that_is_absent_keeps_its_skip_behaviour(self):
         # The gate runs with no generated/: readers that skip on this error
         # must keep skipping, and must not be told the extract is stale.
@@ -134,34 +179,84 @@ class Loader(TempDirectory):
 
 
 class PngDirectories(TempDirectory):
+    def png(self, name: str, content: bytes = b"png") -> pathlib.Path:
+        path = self.directory / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+        return path
+
     def test_a_stamped_directory_passes_and_a_foreign_one_is_refused(self):
-        stamp.write_png_stamp(self.directory, "gfx")
+        stamp.write_png_stamp(self.directory, "gfx", [self.png("a.png"), self.png("sub/b.png")])
         stamp.check_png_directory(self.directory, "gfx")
         with self.assertRaises(StaleExtractError) as caught:
             stamp.check_png_directory(self.directory, "planes")
         self.assertIn(str(self.directory / stamp.STAMP_FILE), str(caught.exception))
         self.assertIn("python3 -m psiv_tools regenerate", str(caught.exception))
-        write_json(self.directory / stamp.STAMP_FILE,
-                   {**stamp.source_stamp("gfx"), "stamp": "f" * 64})
+        record = json.loads((self.directory / stamp.STAMP_FILE).read_text())
+        self.assertEqual(sorted(record["files"]), ["a.png", "sub/b.png"])
+        write_json(self.directory / stamp.STAMP_FILE, {**record, "stamp": "f" * 64})
         with self.assertRaises(StaleExtractError):
             stamp.check_png_directory(self.directory, "gfx")
         (self.directory / stamp.STAMP_FILE).unlink()
         with self.assertRaises(StaleExtractError):
             stamp.check_png_directory(self.directory, "gfx")
 
+    def test_an_orphan_image_is_refused(self):
+        # An image from an earlier run that this run no longer writes.
+        stamp.write_png_stamp(self.directory, "gfx", [self.png("a.png")])
+        self.png("orphan.png")
+        with self.assertRaises(StaleExtractError) as caught:
+            stamp.check_png_directory(self.directory, "gfx")
+        self.assertIn("orphan.png", str(caught.exception))
+        self.assertIn("does not list", str(caught.exception))
+
+    def test_a_changed_or_missing_listed_image_is_refused(self):
+        stamp.write_png_stamp(self.directory, "gfx", [self.png("a.png"), self.png("b.png")])
+        self.png("a.png", b"another run's pixels")
+        with self.assertRaises(StaleExtractError) as caught:
+            stamp.check_png_directory(self.directory, "gfx")
+        self.assertIn("a.png", str(caught.exception))
+        self.png("a.png")
+        stamp.check_png_directory(self.directory, "gfx")
+        (self.directory / "b.png").unlink()
+        with self.assertRaises(StaleExtractError) as caught:
+            stamp.check_png_directory(self.directory, "gfx")
+        self.assertIn("missing b.png", str(caught.exception))
+
+    def test_an_export_removes_the_images_its_last_stamp_listed_and_only_those(self):
+        stamp.write_png_stamp(self.directory, "gfx", [self.png("a.png"), self.png("dropped.png")])
+        keep = self.directory / "notes.txt"
+        keep.write_text("not the exporter's")
+        stamp.begin_png_export(self.directory)
+        self.assertFalse((self.directory / "dropped.png").exists())
+        self.assertFalse((self.directory / "a.png").exists())
+        self.assertFalse((self.directory / stamp.STAMP_FILE).exists(), "half way means unvouched")
+        self.assertTrue(keep.exists(), "a file no stamp listed is never deleted")
+        # The next run writes only a.png: dropped.png is gone for good.
+        stamp.write_png_stamp(self.directory, "gfx", [self.png("a.png")])
+        self.assertFalse((self.directory / "dropped.png").exists())
+        with self.assertRaises(StaleExtractError):  # notes.txt is not listed
+            stamp.check_png_directory(self.directory, "gfx")
+
+    def test_a_stamp_cannot_make_an_export_delete_outside_its_directory(self):
+        outside = self.root / "precious.txt"
+        outside.write_text("keep")
+        write_json(self.directory / stamp.STAMP_FILE,
+                   {"files": {"../precious.txt": "0", str(outside): "0"}})
+        stamp.begin_png_export(self.directory)
+        self.assertTrue(outside.exists())
+
     def test_a_directory_that_grows_one_image_at_a_time_cannot_inherit_a_stamp(self):
-        (self.directory / "old.png").write_bytes(b"png")
+        self.png("old.png")
         with self.assertRaises(StaleExtractError):
             stamp.check_accumulating_png_directory(self.directory, "layouts", {"new.png"})
         stamp.check_accumulating_png_directory(self.directory, "layouts", {"old.png"})
-        stamp.write_png_stamp(self.directory, "layouts")
+        stamp.write_png_stamp(self.directory, "layouts", [self.directory / "old.png"])
         stamp.check_accumulating_png_directory(self.directory, "layouts", {"new.png"})
-
-    def test_discarding_a_stamp_leaves_an_interrupted_export_unvouched(self):
-        stamp.write_png_stamp(self.directory, "gfx")
-        stamp.discard_png_stamp(self.directory)
-        with self.assertRaises(StaleExtractError):
-            stamp.check_png_directory(self.directory, "gfx")
+        stamp.write_png_stamp(self.directory, "layouts", [self.png("new.png")], keep_previous=True)
+        stamp.check_png_directory(self.directory, "layouts")
+        record = json.loads((self.directory / stamp.STAMP_FILE).read_text())
+        self.assertEqual(sorted(record["files"]), ["new.png", "old.png"])
 
 
 @unittest.skipUnless(ROM.exists(), f"ROM fixture not present at {ROM}")
@@ -181,27 +276,33 @@ class Producers(TempDirectory):
                              ("battle_art", export_battle_art_pngs)):
             with self.subTest(kind=kind):
                 target = self.root / kind
-                export(self.data, target)
+                written = export(self.data, target)
                 stamp.check_png_directory(target, kind)
+                record = json.loads((target / stamp.STAMP_FILE).read_text())
+                self.assertEqual(len(record["files"]), len(written))
+                (target / "orphan.png").write_bytes(b"x")
+                with self.assertRaises(StaleExtractError):
+                    stamp.check_png_directory(target, kind)
 
 
 class WriteExtract(TempDirectory):
-    """`write_extract` stamps `metadata.json`, and writes it last."""
-
-    KEYS = ["metadata", "layout_validation", "tables", "characters", "techniques", "skills",
-            "combos", "vehicles", "items", "enemies", "enemy_skills", "progression",
-            "formations", "formation_indexes", "shops", "graphics", "names", "dialogue",
-            "maps", "encounters", "planes"]
+    """`write_extract` stamps `metadata.json` with every table's hash, and writes it last."""
 
     def fake_result(self, without=()):
-        return {key: {"key": key} for key in self.KEYS if key not in without}
+        return {key: {"key": key} for key in ["metadata", *core.TABLE_KEYS] if key not in without}
 
     def test_the_written_extract_carries_the_stamp_and_loads(self):
         with mock.patch.object(core, "extract_all", return_value=self.fake_result()):
             core.write_extract(b"", self.directory)
         metadata = json.loads((self.directory / "metadata.json").read_text())
-        self.assertEqual(metadata["extract_stamp"], stamp.table_stamp())
+        record = metadata["extract_stamp"]
+        self.assertEqual({k: record[k] for k in ("kind", "stamp", "modules")}, stamp.table_stamp())
+        self.assertEqual(sorted(record["files"]), sorted(["metadata.json", *(f"{k}.json" for k in core.TABLE_KEYS)]))
+        for key in core.TABLE_KEYS:
+            self.assertEqual(record["files"][f"{key}.json"],
+                             hashlib.sha256((self.directory / f"{key}.json").read_bytes()).hexdigest())
         self.assertEqual(load_table(self.directory, "enemies"), {"key": "enemies"})
+        self.assertEqual(load_table(self.directory, "metadata")["key"], "metadata")
 
     def test_an_extract_that_stops_half_way_is_not_vouched_for(self):
         with mock.patch.object(core, "extract_all", return_value=self.fake_result()):
@@ -215,6 +316,23 @@ class WriteExtract(TempDirectory):
         self.assertFalse((self.directory / "metadata.json").exists())
         with self.assertRaises(StaleExtractError):
             load_table(self.directory, "enemies")
+
+    def test_a_rerun_that_drops_a_table_removes_the_old_file(self):
+        with mock.patch.object(core, "extract_all", return_value=self.fake_result()):
+            core.write_extract(b"", self.directory)
+        (self.directory / "notes.txt").write_text("not a table")
+        write_json(self.directory / "unlisted.json", {"from": "nobody's stamp"})
+        kept = [key for key in core.TABLE_KEYS if key != "vehicles"]
+        with mock.patch.object(core, "TABLE_KEYS", kept), \
+                mock.patch.object(core, "extract_all", return_value=self.fake_result(without=("vehicles",))):
+            core.write_extract(b"", self.directory)
+        self.assertFalse((self.directory / "vehicles.json").exists(), "the table the new extractor dropped")
+        self.assertEqual(load_table(self.directory, "enemies"), {"key": "enemies"})
+        with self.assertRaises(FileNotFoundError):
+            load_table(self.directory, "vehicles")
+        self.assertTrue((self.directory / "notes.txt").exists(), "a file no stamp listed is never deleted")
+        with self.assertRaises(StaleExtractError):
+            load_table(self.directory, "unlisted")
 
 
 class EveryReaderRefusesAStaleExtract(TempDirectory):
@@ -287,7 +405,8 @@ def mentions(node: ast.AST, tainted: set[str]) -> bool:
     """Whether `node` names the extract directory: by its usual names, or by a name derived from one.
 
     The name of the function a call invokes is not a mention (`write_generated(...)`);
-    its receiver and its arguments are.
+    its receiver and its arguments are. A tainted name is a variable (`base`) or an
+    attribute chain (`self.root`).
     """
     if isinstance(node, ast.Call):
         parts = [*node.args, *(k.value for k in node.keywords)]
@@ -296,18 +415,39 @@ def mentions(node: ast.AST, tainted: set[str]) -> bool:
         return any(mentions(part, tainted) for part in parts)
     if GENERATED_NAMES.search(ast.unparse(node)):
         return True
-    return any(isinstance(sub, ast.Name) and sub.id in tainted for sub in ast.walk(node))
+    return any(isinstance(sub, (ast.Name, ast.Attribute)) and ast.unparse(sub) in tainted
+               for sub in ast.walk(node))
+
+
+PATH_WRAPPERS = {"Path", "PurePath", "str", "join", "resolve", "joinpath", "absolute",
+                 "glob", "rglob", "iterdir", "sorted", "list", "tuple", "set", "reversed",
+                 "enumerate"}
 
 
 def is_path_expression(node: ast.AST) -> bool:
-    """A value that is still a path (`dir / name`, `Path(dir)`, `str(dir)`), not what was read from one."""
+    """A value that is still a path (`dir / name`, `Path(dir)`, `dir.glob(...)`, a pair of them), not what was read from one."""
     if isinstance(node, ast.BinOp):
         return isinstance(node.op, ast.Div)
     if isinstance(node, ast.Call):
         function = node.func
         name = function.attr if isinstance(function, ast.Attribute) else getattr(function, "id", "")
-        return name in {"Path", "PurePath", "str", "join", "resolve", "joinpath", "absolute"}
+        return name in PATH_WRAPPERS
+    if isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+        return any(is_path_expression(element) for element in node.elts)
+    if isinstance(node, ast.NamedExpr):
+        return is_path_expression(node.value)
     return isinstance(node, (ast.Name, ast.Attribute, ast.Constant, ast.JoinedStr))
+
+
+def target_names(target: ast.AST) -> set[str]:
+    """The variables and attribute chains a target binds (`a`, `self.root`, each of `a, (b, c)`)."""
+    if isinstance(target, (ast.Name, ast.Attribute)):
+        return {ast.unparse(target)}
+    if isinstance(target, (ast.Tuple, ast.List)):
+        return set().union(*(target_names(element) for element in target.elts), set())
+    if isinstance(target, ast.Starred):
+        return target_names(target.value)
+    return set()
 
 
 def own_nodes(scope: ast.AST):
@@ -320,24 +460,51 @@ def own_nodes(scope: ast.AST):
             stack.extend(ast.iter_child_nodes(node))
 
 
+def bindings(nodes) -> list[tuple[int, set[str], ast.AST]]:
+    """`(line, names bound, value)` for each assignment shape: `=`, `x: T = v`, `for x in v`, `(x := v)`."""
+    found = []
+    for node in nodes:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if (isinstance(target, (ast.Tuple, ast.List)) and isinstance(node.value, (ast.Tuple, ast.List))
+                        and len(target.elts) == len(node.value.elts)):
+                    # `a, b = x, y` binds pairwise; anything else binds every name to the whole value.
+                    found.extend((node.lineno, target_names(t), v) for t, v in zip(target.elts, node.value.elts))
+                else:
+                    found.append((node.lineno, target_names(target), node.value))
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            found.append((node.lineno, target_names(node.target), node.value))
+        elif isinstance(node, (ast.For, ast.AsyncFor)):
+            found.append((node.lineno, target_names(node.target), node.iter))
+        elif isinstance(node, ast.comprehension):
+            found.append((node.iter.lineno, target_names(node.target), node.iter))
+        elif isinstance(node, ast.NamedExpr):
+            found.append((node.lineno, target_names(node.target), node.value))
+    return sorted(found, key=lambda item: item[0])
+
+
 def bare_reads(source: str) -> list[tuple[int, str]]:
     """`(line, code)` of every read of a path that is, or derives from, the extract directory.
 
     A read is `json.load`/`json.loads`, `.read_text()`, `.read_bytes()`,
-    `.open()` or `open(...)`, or a call to a helper defined in the same file
-    whose body performs one (`read = lambda p: json.loads(p.read_text())`). A
-    path is the extract directory's when its source names it (`generated`,
-    `GENERATED`, `data_dir`, ...), or names a variable of the enclosing
-    functions that was assigned from one, or defaulted from one.
+    `.open()` or `open(...)` for reading, or a call to a helper defined in the
+    same file whose body performs one (`read = lambda p: json.loads(p.read_text())`).
+    A path is the extract directory's when its source names it (`generated`,
+    `GENERATED`, `data_dir`, ...), or names a variable or attribute that was
+    bound from one: by assignment, annotated assignment, tuple unpacking, a
+    `for` target, a comprehension target, a walrus, a parameter default, or
+    `self.root = data_dir` in any method of the class.
 
     What it cannot see is a read through a generic name that never touched one
-    of those (`path.read_text()` on a parameter the caller fills): the other
-    half of the guard is that the loader is the readers' one import, and
-    `EveryReaderRefusesAStaleExtract` calls each reader with a stale table.
+    of those (`path.read_text()` on a parameter the caller fills), a helper in
+    another module, or a copy (`shutil.copy`): the loader is the door and this
+    is the deterrent. `EveryReaderRefusesAStaleExtract` calls each reader with
+    an extract the stamp does not vouch for.
     """
     found: list[tuple[int, str]] = []
 
-    def visit(scope: ast.AST, inherited: set[str], helpers: set[str]) -> None:
+    def visit(scope: ast.AST, inherited: set[str], helpers: set[str], report: bool = True) -> set[str]:
+        """Visit one scope; return the `self.x` attributes it tainted."""
         tainted = set(inherited)
         helpers = set(helpers)
         if isinstance(scope, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
@@ -353,22 +520,31 @@ def bare_reads(source: str) -> list[tuple[int, str]]:
                 if GENERATED_NAMES.search(arg.arg):
                     tainted.add(arg.arg)
         nodes = list(own_nodes(scope))
-        for node in nodes:  # local reader helpers, then taint, in source order
+        for node in nodes:  # local reader helpers
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and any(
                     isinstance(sub, ast.Call) and is_read(sub) for sub in ast.walk(node)):
                 helpers.add(node.name)
             if isinstance(node, ast.Assign) and isinstance(node.value, ast.Lambda) and any(
                     isinstance(sub, ast.Call) and is_read(sub) for sub in ast.walk(node.value)):
                 helpers.update(t.id for t in node.targets if isinstance(t, ast.Name))
-        for node in sorted((n for n in nodes if isinstance(n, ast.Assign)), key=lambda n: n.lineno):
-            if is_path_expression(node.value) and mentions(node.value, tainted):
-                tainted.update(t.id for t in node.targets if isinstance(t, ast.Name))
-        for node in nodes:
-            if isinstance(node, ast.Call) and mentions(node, tainted) and (
-                    is_read(node) or (isinstance(node.func, ast.Name) and node.func.id in helpers)):
-                found.append((node.lineno, ast.unparse(node)))
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)):
-                visit(node, tainted, helpers)
+        for _, names, value in bindings(nodes):  # taint, in source order
+            if is_path_expression(value) and mentions(value, tainted):
+                tainted.update(names)
+        if report:
+            for node in nodes:
+                if isinstance(node, ast.Call) and mentions(node, tainted) and (
+                        is_read(node) or (isinstance(node.func, ast.Name) and node.func.id in helpers)):
+                    found.append((node.lineno, ast.unparse(node)))
+        attributes = {name for name in tainted - inherited if name.startswith("self.")}
+        children = [n for n in nodes if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef))]
+        if isinstance(scope, ast.ClassDef):
+            # `self.root = data_dir` in one method taints `self.root` in every method.
+            for child in children:
+                attributes |= visit(child, tainted, helpers, report=False)
+            tainted |= attributes
+        for child in children:
+            attributes |= visit(child, tainted, helpers, report)
+        return attributes
 
     visit(ast.parse(source), set(), set())
     return sorted(set(found))
@@ -419,6 +595,29 @@ class NothingReadsGeneratedBare(unittest.TestCase):
                 'def read(p):\n    return json.loads(p.read_text())\n'
                 'forms = read(DATA_DIR / "formations.json")'),
             "a reader opened explicitly for reading": 'open(data_dir / "x.json", "r")',
+            "a for-loop target": (
+                'for table in (data_dir / "a.json", data_dir / "b.json"):\n'
+                '    json.loads(table.read_text())'),
+            "a for-loop over a glob": (
+                'for table in sorted(data_dir.glob("*.json")):\n'
+                '    json.loads(table.read_text())'),
+            "an annotated assignment": (
+                'base: pathlib.Path = args.generated\n'
+                'json.loads((base / "enemies.json").read_text())'),
+            "tuple unpacking": (
+                'first, second = data_dir / "a.json", ROOT / "report.json"\n'
+                'json.loads(first.read_text())'),
+            "a walrus": 'json.loads((table := data_dir / "a.json").read_text())',
+            "a walrus bound then read": (
+                'if (table := data_dir / "a.json").is_file():\n'
+                '    json.loads(table.read_text())'),
+            "an attribute set in __init__ and read in another method": (
+                'class Reader:\n'
+                '    def __init__(self, data_dir):\n'
+                '        self.root = data_dir\n'
+                '    def formations(self):\n'
+                '        return json.loads((self.root / "formations.json").read_text())'),
+            "a comprehension": '[json.loads(t.read_text()) for t in GENERATED.glob("*.json")]',
         }
         for name, code in shapes.items():
             with self.subTest(shape=name):
@@ -435,6 +634,10 @@ class NothingReadsGeneratedBare(unittest.TestCase):
             'open(data_dir / "enemies.json", "w")',
             'data = Data.load(arguments.data_dir)\nuse(data)',
             'def f(directory):\n    return json.loads((directory / "report.json").read_text())',
+            'for table in report_dir.glob("*.json"):\n    json.loads(table.read_text())',
+            'class R:\n    def __init__(self, root):\n        self.root = root\n'
+            '    def go(self):\n        return json.loads((self.root / "r.json").read_text())',
+            'first, second = data_dir / "a.json", ROOT / "report.json"\njson.loads(second.read_text())',
         ):
             with self.subTest(code=code):
                 self.assertEqual(bare_reads(code), [], code)

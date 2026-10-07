@@ -102,7 +102,7 @@ from typing import Any, Sequence
 from . import planes
 from .enigma import EnigmaError
 from .enigma import decompress as enigma_decompress
-from .extract_stamp import discard_png_stamp, write_png_stamp
+from .extract_stamp import begin_png_export, write_png_stamp
 from .gfx import COLORS_PER_LINE, GRAYSCALE_RAMP, RGB, decode_palette, decode_tile, palette_rgb
 from .nemesis import TILE_SIZE
 from .nemesis import decompress as nemesis_decompress
@@ -740,9 +740,9 @@ def _safe_name(label: str) -> str:
 def export_battle_art_pngs(data: bytes, out_dir: str | Path) -> list[dict[str, Any]]:
     """Write one PNG per enemy and per character pose."""
     directory = Path(out_dir)
+    begin_png_export(directory)
     (directory / "enemies").mkdir(parents=True, exist_ok=True)
     (directory / "characters").mkdir(parents=True, exist_ok=True)
-    discard_png_stamp(directory)
     written: list[dict[str, Any]] = []
 
     records = enemy_records(data)
@@ -780,5 +780,5 @@ def export_battle_art_pngs(data: bytes, out_dir: str | Path) -> list[dict[str, A
                 "palette": "loc_76A4 line 3",
                 "bytes": len(image),
             })
-    write_png_stamp(directory, "battle_art")
+    write_png_stamp(directory, "battle_art", [entry["path"] for entry in written])
     return written

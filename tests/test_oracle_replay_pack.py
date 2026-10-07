@@ -111,5 +111,6 @@ class ReplayPack(unittest.TestCase):
             # A pack extracted before the records were decoded is refused, not
             # silently short of the enemy the reload seats.
             self.write(pack / "formations.json", {})
+            write_table_stamp(pack)
             with self.assertRaises(SystemExit):
                 build(pack, fixtures, root / "runtime")

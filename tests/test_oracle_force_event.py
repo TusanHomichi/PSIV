@@ -18,6 +18,7 @@ from unittest import mock
 
 from oracle import force as fb
 from oracle.force import runs
+from psiv_tools.extract_stamp import write_table_stamp
 from tests.test_oracle_force_battle import FORMATIONS, write_json
 from tests.test_oracle_force_battle_run import WholeRunBase
 
@@ -35,6 +36,7 @@ class EventBase(WholeRunBase):
         super().setUp()
         write_json(os.path.join(self.data, "formations.json"),
                    dict(FORMATIONS, boss_formations=[BOSS]))
+        write_table_stamp(self.data)  # the stamp lists the table's bytes: stamp again
         self.pack = fb.Pack.load(pathlib.Path(self.data))
 
     def argv(self, *extra):

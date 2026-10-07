@@ -22,6 +22,13 @@ This module owns the fix, and nothing else decides it.
 * **Tables** carry their stamp in `metadata.json` (`extract_stamp`). **PNG
   directories** carry `extract_stamp.json` beside the images, written by the
   function that writes them.
+* **The stamp binds contents, not just the directory.** It lists every file the
+  producer wrote with its SHA-256 (`files`). A table that is not listed, or whose
+  bytes differ, is refused, so an old file left in a freshly stamped directory
+  (a table a later extractor dropped, a stale file copied over a current one)
+  cannot load. A PNG directory that holds a file the stamp does not list is
+  refused as a whole. Producers remove the files their *previous* stamp listed
+  and they no longer write, and nothing else: they never clear a directory.
 * **Reading** goes through `load_table` / `load_table_file`. A directory that is
   absent stays an ordinary `FileNotFoundError`, so a reader that skips when the
   local input is missing keeps skipping. A directory that is present but
@@ -36,6 +43,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -46,7 +54,7 @@ PACKAGE_DIR = Path(__file__).resolve().parent
 #: Bumped when this module's own hashing changes; it is part of every stamp.
 #: The module itself is left out of the hashed graph (`EXCLUDED_MODULES`): it
 #: decides the stamp, it does not shape a table or a pixel.
-STAMP_FORMAT = 1
+STAMP_FORMAT = 2
 EXCLUDED_MODULES = frozenset({"psiv_tools.extract_stamp"})
 
 #: Beside the PNGs of a directory; `metadata.json` carries the JSON extract's.
@@ -72,15 +80,23 @@ class StaleExtractError(RuntimeError):
     """A present `generated/` output that this checkout's extractor did not write."""
 
     def __init__(self, path: Path, kind: str, found: dict[str, Any] | None,
-                 expected: dict[str, Any], command: str = REBUILD_COMMAND) -> None:
+                 expected: dict[str, Any], command: str = REBUILD_COMMAND,
+                 reason: str | None = None) -> None:
         self.path = Path(path)
         self.kind = kind
         self.found = found
         self.expected = expected
         self.command = command
+        #: Set when the stamp matches but the file or directory does not (contents).
+        self.reason = reason
         super().__init__(self._message())
 
     def _message(self) -> str:
+        if self.reason:
+            lines = [f"{self.path} {self.reason}; this {self.kind} extract's stamp "
+                     f"{self.expected['stamp'][:16]} does not vouch for it."]
+            lines.append(f"Rebuild it with: {self.command}")
+            return " ".join(lines)
         if self.found is None:
             seen = "no stamp (an extract from before stamping existed, or one written by hand)"
         else:
@@ -193,39 +209,145 @@ def describe_difference(found: dict[str, Any] | None, expected: dict[str, Any]) 
 # Writing the stamp (the producers call these)
 # ---------------------------------------------------------------------------
 def table_stamp() -> dict[str, Any]:
-    """The record `metadata.json` carries under `extract_stamp`."""
+    """The source half of the record `metadata.json` carries under `extract_stamp`."""
     return source_stamp("tables")
 
 
-def write_png_stamp(directory: str | Path, kind: str) -> Path:
-    """Stamp a PNG directory. The exporter that writes the images calls this."""
-    directory = Path(directory)
-    directory.mkdir(parents=True, exist_ok=True)
-    path = directory / STAMP_FILE
-    path.write_text(json.dumps(source_stamp(kind), indent=2) + "\n", encoding="utf-8")
+def digest(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def metadata_digest(metadata: dict[str, Any]) -> str:
+    """Digest of a `metadata.json` document without the stamp it carries.
+
+    The stamp lives in `metadata.json` and cannot list itself; the rest of the
+    document is bound the same way as any other table.
+    """
+    body = {key: value for key, value in metadata.items() if key != METADATA_KEY}
+    return digest(json.dumps(body, sort_keys=True).encode("utf-8"))
+
+
+def _listed(record: Any) -> dict[str, str]:
+    files = record.get("files") if isinstance(record, dict) else None
+    return dict(files) if isinstance(files, dict) else {}
+
+
+def _safe_relative(name: str) -> Path | None:
+    path = Path(name)
+    if path.is_absolute() or ".." in path.parts or not path.parts:
+        return None
     return path
 
 
-def discard_png_stamp(directory: str | Path) -> None:
-    """Remove a PNG directory's stamp before its images are rewritten.
+def _remove_listed(directory: Path, names: Iterable[str]) -> None:
+    """Delete exactly these files of an earlier stamp. Never a directory, never a glob."""
+    for name in names:
+        relative = _safe_relative(name)
+        if relative is not None and (directory / relative).is_file():
+            (directory / relative).unlink()
 
-    An exporter that stops half way then leaves images nothing vouches for.
+
+def _previous_tables_record(directory: Path) -> Any:
+    try:
+        metadata = _read_json(directory / METADATA_FILE)
+    except (OSError, ValueError):
+        return None
+    return metadata.get(METADATA_KEY) if isinstance(metadata, dict) else None
+
+
+def begin_table_export(directory: str | Path) -> set[str]:
+    """Before an extract rewrites `directory`: drop the old stamp, return the files it listed.
+
+    `metadata.json` carries the stamp, so removing it first leaves any table
+    nothing vouches for until `finish_table_export` writes it again.
     """
-    (Path(directory) / STAMP_FILE).unlink(missing_ok=True)
+    directory = Path(directory)
+    previous = set(_listed(_previous_tables_record(directory)))
+    (directory / METADATA_FILE).unlink(missing_ok=True)
+    return previous
+
+
+def finish_table_export(directory: str | Path, metadata: dict[str, Any],
+                        written: dict[str, bytes], previous: set[str]) -> None:
+    """Write `metadata.json` last, listing `written` (`{file name: bytes}`).
+
+    Files the previous stamp listed that this run did not write are removed: a
+    table a later extractor drops does not stay behind to load.
+    """
+    directory = Path(directory)
+    files = {name: digest(data) for name, data in sorted(written.items())}
+    files[METADATA_FILE] = metadata_digest(metadata)
+    _remove_listed(directory, previous - set(files))
+    document = {**metadata, METADATA_KEY: {**table_stamp(), "files": files}}
+    (directory / METADATA_FILE).write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
 
 
 def write_table_stamp(directory: str | Path) -> Path:
-    """Stamp a table directory by merging into its `metadata.json`.
+    """Stamp a table directory that is not a full extract (a test's synthetic one).
 
-    `write_extract` embeds the stamp in the metadata it writes; this exists for
-    a directory that is not a full extract (a test's synthetic one).
+    Lists every `*.json` table in it, so a table written afterwards must be
+    stamped again.
     """
-    path = Path(directory) / METADATA_FILE
-    metadata = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
-    metadata[METADATA_KEY] = table_stamp()
-    path.parent.mkdir(parents=True, exist_ok=True)
+    directory = Path(directory)
+    path = directory / METADATA_FILE
+    metadata = _read_json(path) if path.is_file() else {}
+    files = {table.name: digest(table.read_bytes())
+             for table in sorted(directory.glob("*.json")) if table.name != METADATA_FILE}
+    files[METADATA_FILE] = metadata_digest(metadata)
+    metadata[METADATA_KEY] = {**table_stamp(), "files": files}
+    directory.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
     return path
+
+
+def begin_png_export(directory: str | Path) -> None:
+    """Before an exporter rewrites a PNG directory: remove the files its last stamp listed.
+
+    Only those files and the stamp. An exporter that stops half way then leaves
+    a directory nothing vouches for, and an image a later exporter no longer
+    writes does not stay behind.
+    """
+    directory = Path(directory)
+    directory.mkdir(parents=True, exist_ok=True)
+    stamp_path = directory / STAMP_FILE
+    try:
+        previous = _listed(_read_json(stamp_path))
+    except (OSError, ValueError):
+        previous = {}
+    _remove_listed(directory, previous)
+    stamp_path.unlink(missing_ok=True)
+
+
+def write_png_stamp(directory: str | Path, kind: str, written: Iterable[str | Path],
+                    keep_previous: bool = False) -> Path:
+    """Stamp a PNG directory, listing the files the exporter wrote (with their hashes).
+
+    `keep_previous` is for an exporter that adds to a directory it does not
+    rebuild (`export_map_pngs`): the files the existing stamp lists stay listed.
+    """
+    directory = Path(directory)
+    stamp_path = directory / STAMP_FILE
+    names: set[str] = set()
+    if keep_previous and stamp_path.is_file():
+        try:
+            names.update(_listed(_read_json(stamp_path)))
+        except ValueError:
+            pass
+    for item in written:
+        item = Path(item)
+        try:
+            item = item.relative_to(directory)
+        except ValueError:
+            pass  # already relative to the directory
+        names.add(item.as_posix())
+    files = {}
+    for name in sorted(names):
+        relative = _safe_relative(name)
+        if relative is not None and (directory / relative).is_file():
+            files[name] = digest((directory / relative).read_bytes())
+    stamp_path.write_text(json.dumps({**source_stamp(kind), "files": files}, indent=2) + "\n",
+                          encoding="utf-8")
+    return stamp_path
 
 
 # ---------------------------------------------------------------------------
@@ -235,37 +357,87 @@ def _read_json(path: Path) -> Any:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def check_tables(directory: str | Path, command: str = REBUILD_COMMAND) -> None:
-    """Raise `StaleExtractError` unless `directory`'s tables carry this source's stamp."""
+def _tables_record(directory: Path) -> dict[str, Any] | None:
+    metadata_path = directory / METADATA_FILE
+    if not metadata_path.is_file():
+        return None
+    try:
+        value = _read_json(metadata_path)
+    except ValueError:
+        return None
+    if isinstance(value, dict) and isinstance(value.get(METADATA_KEY), dict):
+        return value[METADATA_KEY]
+    return None
+
+
+def check_tables(directory: str | Path, command: str = REBUILD_COMMAND) -> dict[str, Any]:
+    """Raise `StaleExtractError` unless `directory`'s tables carry this source's stamp.
+
+    Returns the stamp record. This checks the source half only; `load_table`
+    also binds the file it opens to the record's list.
+    """
     directory = Path(directory)
     expected = table_stamp()
-    metadata_path = directory / METADATA_FILE
-    found = None
-    if metadata_path.is_file():
-        try:
-            value = _read_json(metadata_path)
-        except ValueError:
-            value = None
-        if isinstance(value, dict) and isinstance(value.get(METADATA_KEY), dict):
-            found = value[METADATA_KEY]
+    found = _tables_record(directory)
     if found is None or found.get("stamp") != expected["stamp"]:
-        raise StaleExtractError(metadata_path, "table", found, expected, command)
+        raise StaleExtractError(directory / METADATA_FILE, "table", found, expected, command)
+    return found
 
 
-def load_table(directory: str | Path, name: str, command: str = REBUILD_COMMAND) -> Any:
-    """The parsed `<directory>/<name>.json`, refused unless its extract is current.
-
-    A missing table is a `FileNotFoundError` and is never reported as stale, so a
-    caller that skips on an absent local input keeps skipping.
-    """
-    path = Path(directory) / f"{name}.json"
+def _table_bytes(directory: Path, name: str, command: str) -> tuple[bytes, str]:
+    """`(bytes, sha256)` of a table the current stamp lists and the bytes match."""
+    path = directory / f"{name}.json"
     if not path.is_file():
         raise FileNotFoundError(f"{path} is not present (local input; build it with: {command})")
     try:
-        check_tables(directory, command)
+        record = check_tables(directory, command)
     except StaleExtractError as error:
         raise StaleExtractError(path, "table", error.found, error.expected, command) from None
-    return _read_json(path)
+    expected = table_stamp()
+    listed = _listed(record).get(path.name)
+    if listed is None:
+        raise StaleExtractError(
+            path, "table", record, expected, command,
+            reason="is not one of the files the extract's stamp lists "
+                   "(left over from an older extract, or added by hand)")
+    data = path.read_bytes()
+    if path.name != METADATA_FILE and digest(data) != listed:
+        raise StaleExtractError(
+            path, "table", record, expected, command,
+            reason="has changed since the extract was stamped "
+                   f"(sha256 {digest(data)[:16]}, the stamp lists {listed[:16]})")
+    return data, listed
+
+
+def load_table(directory: str | Path, name: str, command: str = REBUILD_COMMAND) -> Any:
+    """The parsed `<directory>/<name>.json`, refused unless the current extractor wrote it.
+
+    Refused when the directory's stamp is another source's, when the file is not
+    one the stamp lists, or when its bytes are not the ones that were listed. A
+    missing table is a `FileNotFoundError` and is never reported as stale, so a
+    caller that skips on an absent local input keeps skipping.
+    """
+    directory = Path(directory)
+    data, _ = _table_bytes(directory, name, command)
+    document = json.loads(data.decode("utf-8"))
+    if name == "metadata":
+        # The stamp cannot list itself: the rest of the document is what is bound.
+        listed = _listed(_tables_record(directory)).get(METADATA_FILE)
+        if not isinstance(document, dict) or metadata_digest(document) != listed:
+            raise StaleExtractError(
+                directory / METADATA_FILE, "table", _tables_record(directory), table_stamp(),
+                command, reason="has changed since the extract was stamped")
+    return document
+
+
+def table_sha256(directory: str | Path, name: str, command: str = REBUILD_COMMAND) -> str:
+    """The SHA-256 the stamp lists for a table, after the same checks as `load_table`.
+
+    For provenance records that want the hash of an input without reading it.
+    """
+    if name == "metadata":
+        raise ValueError("metadata.json is bound by its contents without the stamp; load it instead")
+    return _table_bytes(Path(directory), name, command)[1]
 
 
 def load_table_file(path: str | Path, command: str = REBUILD_COMMAND) -> Any:
@@ -274,23 +446,12 @@ def load_table_file(path: str | Path, command: str = REBUILD_COMMAND) -> Any:
     return load_table(path.parent, path.stem, command)
 
 
-def check_accumulating_png_directory(
-    directory: str | Path, kind: str, rewriting: set[str], command: str = REBUILD_COMMAND
-) -> None:
-    """For an exporter that adds images to a directory it does not rebuild.
-
-    One stamp cannot vouch for images the exporter is not rewriting, so images
-    from another source must be cleared (or rebuilt) first: this raises
-    `StaleExtractError` when the directory holds PNGs other than `rewriting`
-    and does not carry this source's stamp.
-    """
-    directory = Path(directory)
-    if any(path.name not in rewriting for path in directory.glob("*.png")):
-        check_png_directory(directory, kind, command)
-
-
 def check_png_directory(directory: str | Path, kind: str, command: str = REBUILD_COMMAND) -> None:
-    """Raise `StaleExtractError` unless a PNG directory carries this source's stamp."""
+    """Raise `StaleExtractError` unless a PNG directory is what this source's exporter wrote.
+
+    The stamp must be this source's; every file it lists must be present with
+    the listed hash; and no file the stamp does not list may be present.
+    """
     directory = Path(directory)
     expected = source_stamp(kind)
     stamp_path = directory / STAMP_FILE
@@ -304,3 +465,37 @@ def check_png_directory(directory: str | Path, kind: str, command: str = REBUILD
             found = value
     if found is None or found.get("kind") != kind or found.get("stamp") != expected["stamp"]:
         raise StaleExtractError(stamp_path, f"{kind} PNG", found, expected, command)
+    listed = _listed(found)
+
+    def refuse(reason: str) -> StaleExtractError:
+        return StaleExtractError(directory, f"{kind} PNG", found, expected, command, reason=reason)
+
+    for name, want in sorted(listed.items()):
+        relative = _safe_relative(name)
+        path = directory / relative if relative is not None else None
+        if path is None or not path.is_file():
+            raise refuse(f"is missing {name}, which its stamp lists")
+        if digest(path.read_bytes()) != want:
+            raise refuse(f"holds {name} changed since the stamp was written")
+    present = {path.relative_to(directory).as_posix() for path in directory.rglob("*") if path.is_file()}
+    extra = sorted(present - set(listed) - {STAMP_FILE})
+    if extra:
+        shown = ", ".join(extra[:5]) + (f" and {len(extra) - 5} more" if len(extra) > 5 else "")
+        raise refuse(f"holds files its stamp does not list ({shown}); remove them")
+
+
+def check_accumulating_png_directory(
+    directory: str | Path, kind: str, rewriting: set[str], command: str = REBUILD_COMMAND
+) -> None:
+    """For an exporter that adds images to a directory it does not rebuild.
+
+    One stamp cannot vouch for images the exporter is not rewriting, so this
+    raises `StaleExtractError` when the directory holds files other than
+    `rewriting` and is not wholly what this source's exporter wrote.
+    """
+    directory = Path(directory)
+    others = [path for path in directory.rglob("*")
+              if path.is_file() and path.name != STAMP_FILE
+              and path.relative_to(directory).as_posix() not in rewriting]
+    if others:
+        check_png_directory(directory, kind, command)

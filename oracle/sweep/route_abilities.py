@@ -59,7 +59,7 @@ import pathlib
 import re
 import sys
 
-from psiv_tools.extract_stamp import StaleExtractError, load_table
+from psiv_tools.extract_stamp import StaleExtractError, load_table, table_sha256
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 GENERATED = ROOT / "generated"
@@ -643,9 +643,11 @@ def main(argv: list[str] | None = None) -> int:
     result["scope"] = arguments.map_pattern or arguments.stretch
     result["scenes"] = scope.scenes
     if arguments.out:
-        inputs = scope.inputs + [LEDGER] + [
-            arguments.data_dir / f"{name}.json" for name in DATA_FILES]
-        result["source_sha256"] = sha256_of(inputs)
+        hashes = sha256_of(scope.inputs + [LEDGER])
+        # The extract's own hashes, from its stamp, not a second read of the files.
+        hashes.update({str(arguments.data_dir / f"{name}.json"): table_sha256(arguments.data_dir, name)
+                       for name in DATA_FILES})
+        result["source_sha256"] = dict(sorted(hashes.items()))
         arguments.out.parent.mkdir(parents=True, exist_ok=True)
         arguments.out.write_text(json.dumps(result, indent=2) + "\n")
     if arguments.update_doc:
