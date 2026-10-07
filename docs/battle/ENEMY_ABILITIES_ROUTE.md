@@ -287,13 +287,13 @@ Abilities the scope can meet
 | `$1D` BARRIER | `$0B` | status/stat effect | implemented | 48 Siren386 (conditional:8) | 8 | 0 | - |
 | `$1F` DBL SLASH | `$01` | damage | implemented | 145 RedMole | 1 | 0 | - |
 | `$20` PHONONMASR | `$01` | damage | implemented | 130 DarkForce1 | 0 | 0 | 9 |
-| `$22` RAY BREATH | `$01` | damage | partial | 118 LwAddmer | 0 | 1 | - |
+| `$22` RAY BREATH | `$01` | damage | implemented | 118 LwAddmer | 0 | 1 | - |
 | `$23` SUPERSONIC | `$01` | damage | implemented | 69 BiterFly (conditional:8), 142 Skytiara | 1 | 0 | - |
 | `$24` POISONMIST | `$1B` | status/stat effect | implemented | 57 Mistralgec | 1 | 0 | - |
 | `$25` SLEEP GAS | `$07` | status/stat effect | implemented | 63 GerotLux | 1 | 0 | - |
 | `$2B` NEEDLE | `$01` | damage | implemented | 68 Rajago, 69 BiterFly | 1 | 0 | - |
 | `$33` ACIDBREATH | `$01` | damage | implemented | 85 Piercer | 8 | 0 | - |
-| `$4B` SHADOWBIND | `$06` | status/stat effect | partial | 138 ChaosSorcr2 | 0 | 0 | 8 |
+| `$4B` SHADOWBIND | `$06` | status/stat effect | implemented | 138 ChaosSorcr2 | 0 | 0 | 8 |
 | `$4F` HEWN | `$01` | damage | implemented | 138 ChaosSorcr2 | 0 | 0 | 8 |
 | `$5A` FLAELI | `$01` | damage | implemented | 138 ChaosSorcr2 | 0 | 0 | 8 |
 | `$63` BURSTROC | `$01` | damage | implemented | 130 DarkForce1 | 0 | 0 | 9 |

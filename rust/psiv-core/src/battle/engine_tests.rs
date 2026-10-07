@@ -114,6 +114,9 @@ mod dark_force;
 #[path = "engine_tests_air_castle.rs"]
 mod air_castle;
 
+#[path = "engine_tests_endgame.rs"]
+mod endgame;
+
 #[path = "engine_tests_rewards.rs"]
 mod rewards;
 

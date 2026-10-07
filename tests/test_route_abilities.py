@@ -6,6 +6,7 @@ and an explicit map pattern) share one derivation; the ledger the classes come
 from is the committed `docs/battle/ENEMY_ABILITIES.md`, whose counts a test
 recomputes.
 """
+import json
 import pathlib
 import re
 import tempfile
@@ -165,6 +166,70 @@ class ScopeTests(unittest.TestCase):
         # The route's first chapters are not in it.
         self.assertFalse(any("kuran-dark-force-1" in why
                              for reasons in found.maps.values() for why in reasons))
+
+    def test_the_endgame_stretch_holds_every_boss_battle_and_form(self):
+        try:
+            data = Data.load(ra.GENERATED)
+        except FileNotFoundError as error:
+            self.skipTest(f"generated tables absent (local input): {error}")
+        found = ra.stretch_scope(ra.STRETCHES["air-castle-ending"], data)
+        result = derive(data, found, ra.ledger_classes())
+        battles = {int(k): v["enemies"] for k, v in result["event_battles"].items()}
+        bosses = {
+            17: 131,  # Dark Force 2 (scene 57)
+            18: 132,  # Dark Force 3 (scene 61)
+            11: 117,  # Gy-Laguiah, the Climate Center (scene 64)
+            12: 122,  # D.Elm Lars (scene 66)
+            22: 120,  # De Vars, the Strength Tower's top (scene 77)
+            23: 121,  # Sa Lews, the Courage Tower's top (scene 78)
+            24: 126,  # the Anger Tower's guardian (Event_AngerTowerAlys)
+            25: 127,  # Re Faze (scene 79)
+        }
+        for index, enemy in bosses.items():
+            self.assertIn(enemy, battles.get(index, []), f"battle {index}")
+        # Profound Darkness's three forms: the battle seats the first, and the
+        # form changes write the other two over `Enemy_Positions`.
+        self.assertEqual(battles[26], [133, 134, 135])
+        # Every map with an encounter table whose event list holds an event of
+        # the stretch's scenes (`RunEventsJmpTbl` $37-$54) is in the scope.
+        maps = json.loads((ra.GENERATED / "maps.json").read_text())["maps"]
+        for entry in maps:
+            events = (entry.get("events") or {}).get("ids") or []
+            drawn = data.encounters.get(entry["id"], {}).get("mode") not in (
+                None, "none", "outside_table")
+            if drawn and any(0x37 <= event <= 0x54 for event in events):
+                self.assertIn(entry["id"], found.maps, entry["symbol"])
+        # Negative control: without the form changes PD2's and PD3's abilities
+        # (CANCELING) leave the work list.
+        narrow = ra.stretch_scope(ra.STRETCHES["air-castle-ending"], data)
+        narrow.battle_enemies.clear()
+        listed = {a["ability"] for a in derive(data, narrow, ra.ledger_classes())["abilities"]}
+        self.assertNotIn(0x69, listed)
+        self.assertIn(0x69, {a["ability"] for a in result["abilities"]})
+
+    def test_an_extra_enemy_needs_a_battle_the_stretch_reaches(self):
+        stretch = ra.Stretch(first_chapter=None, last_chapter=None, first_scene=None,
+                             last_scene=None, extra_enemies=((26, 134, "why"),))
+        with self.assertRaisesRegex(ValueError, "does not reach"):
+            ra.stretch_scope(stretch)
+
+    def test_a_scene_record_follows_its_modules_glob_reexport(self):
+        with tempfile.TemporaryDirectory() as root:
+            parent = pathlib.Path(root, "parent.rs")
+            parent.write_text(
+                "pub static OWN: Scene = Scene { ops: &[SceneOp::StartBattle { index: 3 }] };\n"
+                '#[path = "child.rs"]\nmod child;\npub use child::*;\n')
+            pathlib.Path(root, "child.rs").write_text(
+                "pub static MOVED: Scene = Scene { ops: &[\n"
+                "SceneOp::LoadMap { map: 0x16F, prev_map: 1 },\n"
+                "SceneOp::StartBattle { index: 26 }, ] };\n")
+            read = []
+            self.assertEqual(ra.scene_record(parent, "MOVED", read), ([0x16F], [26]))
+            self.assertEqual([path.name for path in read], ["parent.rs", "child.rs"])
+            self.assertEqual(ra.scene_record(parent, "OWN"), ([], [3]))
+            # A static neither file defines is an error, not an empty record.
+            with self.assertRaises(KeyError):
+                ra.scene_record(parent, "ABSENT")
 
     def test_a_map_outside_the_encounter_table_draws_nothing(self):
         outside = data()

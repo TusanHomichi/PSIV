@@ -57,6 +57,21 @@ pub enum FirstZioAction {
     /// (`loc_3161C`, `ps4.asm:63924`), which scrolls the boss's plane in and
     /// requests nothing.
     DarkForceReveal,
+    /// Profound Darkness 1's first action (`EnemyAttack_ProfoundDarkness1`,
+    /// `ps4.asm:19824-19830`): the latch is raised, so the routine clears the
+    /// rolled ability and `Current_Target_Index` and loads object `$864`
+    /// (`loc_30376`, `ps4.asm:62647`) - a palette fade and the `$868` raster
+    /// wave (`loc_30734`, 62874) that runs for the rest of the battle. No
+    /// request, no effect call, no `UpdateRNGSeed2`.
+    ProfoundDarknessRise,
+    /// The carnivorous trees' first action (`EnemyAttack_CarnivorousTree`,
+    /// `ps4.asm:20102-20110`): the latch is raised, so the routine clears
+    /// `Current_Target_Index` and loads object `$808` (`loc_27706`,
+    /// `ps4.asm:52501`), which redraws the three trees and sets
+    /// `StatusParalyzed` on the stats of `Fighter_Enemy_1`..`3`
+    /// (`ps4.asm:52551-52555`). No request, no effect call, no
+    /// `UpdateRNGSeed2`.
+    TreesTakeRoot,
 }
 
 /// Why a queued fighter did nothing.

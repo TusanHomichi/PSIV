@@ -76,13 +76,15 @@ _SCENE = re.compile(r"pub static ([A-Z0-9_]+): Scene = Scene \{")
 
 @dataclasses.dataclass(frozen=True)
 class Stretch:
-    """A slice of the route: the chapters and scenes that bound it."""
+    """A slice of the game: the chapters, scenes and map families that bound it."""
 
     #: First route chapter id of the slice; every chapter from it to
     #: `last_chapter`, so a chapter appended to the route does not widen it.
-    first_chapter: str
+    #: `None` for a slice the route file does not reach yet, whose maps come
+    #: from `families` and `scene_docs` instead.
+    first_chapter: str | None
     #: Last route chapter id of the slice.
-    last_chapter: str
+    last_chapter: str | None
     #: First and last scene static of `post_zio_cutscenes.rs` the slice starts;
     #: `None` when the slice's scenes live elsewhere and its battles are named in
     #: `extra_battles`.
@@ -93,6 +95,16 @@ class Stretch:
     extra_maps: tuple[tuple[int, str], ...] = ()
     #: Event battle indexes the slice reaches or stops at, by reason.
     extra_battles: tuple[tuple[int, str], ...] = ()
+    #: Map families, as `(symbol pattern, reason)`: every map whose symbol the
+    #: pattern matches joins the scope, the way `--map-pattern` selects them.
+    families: tuple[tuple[str, str], ...] = ()
+    #: Scene documents (paths under the repository) whose **Data** row's
+    #: record joins the scope, the way `--scene-doc` adds one.
+    scene_docs: tuple[str, ...] = ()
+    #: Enemies an event battle seats that its boss formation does not list -
+    #: a form change that writes `Enemy_Positions` itself - as `(event battle,
+    #: enemy id, reason)`.
+    extra_enemies: tuple[tuple[int, int, str], ...] = ()
 
 
 STRETCHES = {
@@ -136,12 +148,68 @@ STRETCHES = {
 }
 
 
+#: The scene documents of the game's last part, `docs/scenes/57` to `89`:
+#: Dark Force 2 to the Ending. `88_RetailBoundaries.md` is the census of the
+#: retail surfaces beside the story chain and transcribes no scene, so it has
+#: no **Data** row; the battle it names (the Anger Tower's Alys fight) is the
+#: stretch's `extra_battles`.
+ENDGAME_SCENE_DOCS = tuple(
+    str(path.relative_to(ROOT))
+    for number in range(57, 90) if number != 88
+    for path in sorted((ROOT / "docs" / "scenes").glob(f"{number}_*.md")))
+
+STRETCHES["air-castle-ending"] = Stretch(
+    # Everything after the Air Castle to the Ending (lane A6). The route file
+    # does not reach these maps yet, so the scope is the explicit kind: map
+    # families and the scene documents 57-89. Each family is a dungeon whose
+    # map event list (`generated/maps.json` `events`, indexes into
+    # `RunEventsJmpTbl`, `ps4.asm:115011`) holds an event of those scenes, or
+    # a dungeon the owner's A6 scope names; the world maps the scenes load
+    # (Motavia for Seth and Dark Force 3, Dezolis after Dark Force 2) come in
+    # through the scene documents. Myst Vale (group 46) is left out: its only
+    # events are the Musk Cats' interactions (`EventPtrs[$49]`/`[$4A]`,
+    # `docs/scenes/88_RetailBoundaries.md`), no story scene.
+    first_chapter=None,
+    last_chapter=None,
+    first_scene=None,
+    last_scene=None,
+    families=(
+        (r"^AirCastle", "Air Castle: Xe-A-Thoul, the fake chest and Lashiec "
+                        "(RunEventsJmpTbl $43-$47, scenes 69-73)"),
+        (r"^GaruberkTower", "Garuberk Tower: Dark Force 2 at its seventh part "
+                            "($37/$38, scenes 57 and 59)"),
+        (r"^ClimCenter", "Climate Center: Gy-Laguiah and D.Elm Lars "
+                         "($3E-$41, scenes 64-67)"),
+        (r"^Reshel", "Reshel: the zombie battle ($3D, scene 63)"),
+        (r"^(IslandCave|SoldiersTemple)", "Island Cave and the Soldiers' Temple: "
+                                         "the Aero Prism ($57-$5A, scene 61)"),
+        (r"^Rykros$", "Rykros: Cutscene_Rykros once Dark Force 3 falls "
+                      "(loc_64C1E, scene census 88)"),
+        (r"^(VahalFort|WeaponPlant)", "Vahal Fort and the Weapon Plant "
+                                      "(named by the A6 scope)"),
+        (r"^(StrengthTower|CourageTower|AngerTower)",
+         "the three towers: De Vars and Sa Lews at the tops ($49-$4C), the Alys "
+         "fight and Re Faze ($4E, $51, $52, $56; scenes 75-81, 85-86)"),
+        (r"^(InnerSanctuary|ElsydeonCave)", "Elsydeon ($39, $4F; scenes 58, 82-83)"),
+        (r"^TheEdge", "The Edge: Profound Darkness and the Ending "
+                      "($53, $54; scenes 87 and 89)"),
+    ),
+    scene_docs=ENDGAME_SCENE_DOCS,
+    extra_battles=((24, "Event_AngerTowerAlys (ps4.asm:150697): battle $18"),),
+    extra_enemies=(
+        (26, 134, "loc_2F8D8 (ps4.asm:61916): Profound Darkness's second form"),
+        (26, 135, "loc_2EDD8 (ps4.asm:61119): Profound Darkness's third form"),
+    ),
+)
+
+
 #: The committed document whose generated block each stretch's tables fill
 #: (`--update-doc`); `tests/test_route_abilities.py` holds every one to its
 #: derivation.
 STRETCH_DOCS = {
     "zelan-kuran": ROOT / "docs" / "battle" / "ENEMY_ABILITIES_ROUTE.md",
     "dezolis-air-castle": ROOT / "docs" / "battle" / "ENEMY_ABILITIES_AIR_CASTLE.md",
+    "air-castle-ending": ROOT / "docs" / "battle" / "ENEMY_ABILITIES_ENDGAME.md",
 }
 
 
@@ -151,6 +219,8 @@ class Scope:
 
     maps: dict[int, list[str]] = dataclasses.field(default_factory=dict)
     battles: dict[int, list[str]] = dataclasses.field(default_factory=dict)
+    #: Enemies a battle seats beyond its boss formation, with the reason.
+    battle_enemies: dict[int, dict[int, str]] = dataclasses.field(default_factory=dict)
     #: The scene records an explicit scope selected, for the evidence file.
     scenes: list[dict] = dataclasses.field(default_factory=list)
     #: Every file the scope was read from, for the evidence file's hashes.
@@ -215,18 +285,88 @@ def scene_records(text: str) -> dict[str, tuple[list[int], list[int]]]:
     return records
 
 
-def stretch_scope(stretch: Stretch) -> Scope:
-    """The maps the route file and the scenes of a stretch name."""
+_GLOB_REEXPORT = re.compile(
+    r'#\[path\s*=\s*"([^"]+\.rs)"\]\s*mod\s+(\w+);\s*pub use \2::\*;')
+
+
+def scene_record(source: pathlib.Path, name: str,
+                 inputs: list[pathlib.Path] | None = None
+                 ) -> tuple[list[int], list[int]]:
+    """`(maps, battles)` of the `Scene` static `name`, as `source` exports it.
+
+    A scene module may split its statics into a child file it re-exports with
+    `#[path = "x.rs"] mod x; pub use x::*;` (`dezo_campaign.rs` does), so a
+    static the file does not define is looked up in those children - the
+    module's own export, not a search of every scene file. `inputs` collects
+    each file read.
+    """
+    text = source.read_text()
+    if inputs is not None:
+        inputs.append(source)
+    records = scene_records(text)
+    if name in records:
+        return records[name]
+    for child, _module in _GLOB_REEXPORT.findall(text):
+        try:
+            return scene_record(source.parent / child, name, inputs)
+        except KeyError:
+            continue
+    raise KeyError(f"{source.name} exports no scene {name}")
+
+
+def add_scene_doc(scope: Scope, path: pathlib.Path) -> None:
+    """The maps and battles of the scene record a document's **Data** row names."""
+    text = path.read_text()
+    match = re.search(r"\*\*Data:\*\* `([^`]+\.rs)`, `([^`]+)`", text)
+    if not match:
+        raise ValueError(f"{path}: no literal scene Data row")
+    read: list[pathlib.Path] = []
+    try:
+        loaded, started = scene_record(SCENE_DIR / match[1], match[2], read)
+    except KeyError as error:
+        raise ValueError(f"{path}: {error.args[0]}") from None
+    for map_id in loaded:
+        scope.add_map(map_id, f"scene {match[2]}")
+    for index in started:
+        scope.add_battle(index, match[2])
+    scope.scenes.append({"document": str(path), "record": match[2],
+                         "maps": loaded, "battles": started})
+    scope.inputs.extend((path, *read))
+
+
+def add_family(scope: Scope, data: "Data", pattern: str, why: str) -> None:
+    """Every map whose symbol `pattern` matches; an empty match is an error."""
+    found = [map_id for map_id, symbol in sorted(data.map_symbols.items())
+             if re.search(pattern, symbol)]
+    if not found:
+        raise ValueError(f"the map pattern {pattern!r} selects no maps")
+    for map_id in found:
+        scope.add_map(map_id, why)
+
+
+def stretch_scope(stretch: Stretch, data: "Data | None" = None) -> Scope:
+    """The maps the route file, the scenes and the families of a stretch name.
+
+    `data` is read only for a stretch with map families (`Data.load()` when
+    it is not given).
+    """
     scope = Scope(inputs=[ROUTE, SCENES])
-    chapters = json.loads(ROUTE.read_text())["chapters"]
-    ids = [chapter["id"] for chapter in chapters]
-    start = ids.index(stretch.first_chapter)
-    end = ids.index(stretch.last_chapter)
-    for chapter in chapters[start:end + 1]:
-        for objective in chapter["objectives"]:
-            if isinstance(objective, dict) and isinstance(
-                    objective.get("map"), int):
-                scope.add_map(objective["map"], f"chapter {chapter['id']}")
+    if stretch.first_chapter is not None:
+        chapters = json.loads(ROUTE.read_text())["chapters"]
+        ids = [chapter["id"] for chapter in chapters]
+        start = ids.index(stretch.first_chapter)
+        end = ids.index(stretch.last_chapter)
+        for chapter in chapters[start:end + 1]:
+            for objective in chapter["objectives"]:
+                if isinstance(objective, dict) and isinstance(
+                        objective.get("map"), int):
+                    scope.add_map(objective["map"], f"chapter {chapter['id']}")
+    if stretch.families:
+        data = data or Data.load()
+        for pattern, why in stretch.families:
+            add_family(scope, data, pattern, why)
+    for document in stretch.scene_docs:
+        add_scene_doc(scope, ROOT / document)
     if stretch.first_scene is not None:
         records = scene_records(SCENES.read_text())
         names = list(records)
@@ -242,6 +382,11 @@ def stretch_scope(stretch: Stretch) -> Scope:
         scope.add_battle(index, why)
     for map_id, why in stretch.extra_maps:
         scope.add_map(map_id, why)
+    for index, enemy, why in stretch.extra_enemies:
+        if index not in scope.battles:
+            raise ValueError(f"extra enemy {enemy} names battle {index}, "
+                             "which the stretch does not reach")
+        scope.battle_enemies.setdefault(index, {})[enemy] = why
     return scope
 
 
@@ -253,25 +398,9 @@ def pattern_scope(data: Data, pattern: str,
     transcribes; only that record's maps and battles join the scope.
     """
     scope = Scope()
-    for map_id, symbol in sorted(data.map_symbols.items()):
-        if re.search(pattern, symbol):
-            scope.add_map(map_id, f"pattern {pattern!r}")
-    if not scope.maps:
-        raise ValueError(f"the map pattern {pattern!r} selects no maps")
+    add_family(scope, data, pattern, f"pattern {pattern!r}")
     for path in scene_docs:
-        text = path.read_text()
-        match = re.search(r"\*\*Data:\*\* `([^`]+\.rs)`, `([^`]+)`", text)
-        if not match:
-            raise ValueError(f"{path}: no literal scene Data row")
-        source = SCENE_DIR / match[1]
-        loaded, started = scene_records(source.read_text())[match[2]]
-        for map_id in loaded:
-            scope.add_map(map_id, f"scene {match[2]}")
-        for index in started:
-            scope.add_battle(index, match[2])
-        scope.scenes.append({"document": str(path), "record": match[2],
-                             "maps": loaded, "battles": started})
-        scope.inputs.extend((path, source))
+        add_scene_doc(scope, path)
     return scope
 
 
@@ -380,8 +509,11 @@ def derive(data: Data, scope: Scope, ledger: dict[int, dict]) -> dict:
                         note(slot["enemy"]["id"], **{kind: map_id})
     event_rows = {}
     for index in sorted(scope.battles):
-        enemies = sorted({slot["enemy"]["id"] for slot in data.bosses[index]["enemies"]})
-        event_rows[index] = {"scenes": scope.battles[index], "enemies": enemies}
+        seated = scope.battle_enemies.get(index, {})
+        enemies = sorted({slot["enemy"]["id"] for slot in data.bosses[index]["enemies"]}
+                         | set(seated))
+        event_rows[index] = {"scenes": scope.battles[index] + list(seated.values()),
+                             "enemies": enemies}
         for enemy_id in enemies:
             note(enemy_id, event=index)
 
@@ -499,7 +631,7 @@ def main(argv: list[str] | None = None) -> int:
         if arguments.map_pattern:
             scope = pattern_scope(data, arguments.map_pattern, arguments.scene_doc)
         else:
-            scope = stretch_scope(STRETCHES[arguments.stretch])
+            scope = stretch_scope(STRETCHES[arguments.stretch], data)
         result = derive(data, scope, ledger_classes())
     except ValueError as error:
         parser.error(str(error))
