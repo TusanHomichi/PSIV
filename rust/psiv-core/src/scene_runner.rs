@@ -11,12 +11,16 @@ use crate::map::FieldMap;
 use crate::scene::{
     ActorRef, OP_BUDGET_PER_TICK, SceneEffect, SceneFault, SceneInput, SceneOp, ScriptedActor,
 };
+use crate::trigger::PixelPos;
 pub(crate) mod actor;
 pub(crate) mod drift;
 #[cfg(test)]
 mod drift_tests;
 #[cfg(test)]
 mod map_update_tests;
+mod mechanics;
+#[cfg(test)]
+mod mechanics_tests;
 mod ops;
 
 use crate::state::{CharId, GameState, PARTY_SLOTS};
@@ -41,6 +45,9 @@ enum Blocked {
     Battle,
     Map,
     Camera,
+    /// A conveyor op waiting for the end of its tick, when the layout scan
+    /// turns it into a walk.
+    Belt,
     Done,
 }
 
@@ -80,6 +87,10 @@ pub struct SceneRunner {
     /// The byte under `Saved_Dialogue_Addr` as of the last dialogue the
     /// runtime closed (`BranchIfSavedDialogueByte`).
     dialogue_stop_byte: Option<u8>,
+    /// The `RidePlatform` in progress.
+    ride: Option<mechanics::RideRun>,
+    /// The `ConveyorRide` in progress.
+    belt: Option<mechanics::BeltRun>,
 }
 
 impl SceneRunner {
@@ -109,6 +120,8 @@ impl SceneRunner {
             drifted: Vec::new(),
             drift: None,
             dialogue_stop_byte: None,
+            ride: None,
+            belt: None,
         }
     }
 
@@ -150,7 +163,14 @@ impl SceneRunner {
                 .pc
                 .checked_sub(1)
                 .and_then(|pc| self.scene.get(pc))
-                .is_some_and(|op| matches!(op, SceneOp::Wait { .. } | SceneOp::DriftNpcs { .. })),
+                .is_some_and(|op| {
+                    matches!(
+                        op,
+                        SceneOp::Wait { .. }
+                            | SceneOp::DriftNpcs { .. }
+                            | SceneOp::RidePlatform { .. }
+                    )
+                }),
             Blocked::Actor(_) | Blocked::Camera => true,
             _ => false,
         }
@@ -256,6 +276,22 @@ impl SceneRunner {
         state: &mut GameState,
         input: SceneInput,
     ) -> Vec<SceneEffect> {
+        self.tick_with(map, state, input, None)
+    }
+
+    /// [`SceneRunner::tick`] with the live collision-plane layout: `chunks`
+    /// answers the chunk id under a pixel position (`None` off the plane),
+    /// patches included, as `GetChunkAndCollision` (`$45A52`) does. A
+    /// [`SceneOp::ConveyorRide`] reads it; a runner ticked through
+    /// [`SceneRunner::tick`] has `None`, and that op faults with
+    /// [`SceneFault::NoLayout`].
+    pub fn tick_with(
+        &mut self,
+        map: &FieldMap,
+        state: &mut GameState,
+        input: SceneInput,
+        chunks: Option<&dyn Fn(PixelPos) -> Option<u16>>,
+    ) -> Vec<SceneEffect> {
         let mut effects = Vec::new();
         if self.blocked == Blocked::Done {
             return effects;
@@ -277,9 +313,12 @@ impl SceneRunner {
         }
         self.tick_follow_chain();
         self.tick_drift(&mut effects);
+        self.tick_ride();
+        self.end_belt_if_arrived();
 
         self.unblock(input);
         self.run(state, &mut effects);
+        self.resolve_belt(map, chunks, &mut effects);
         effects
     }
 

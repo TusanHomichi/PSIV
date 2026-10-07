@@ -2,27 +2,37 @@
 use crate::{Runtime, RuntimeEvent};
 use psiv_core::{Cell, PixelPos, SceneFault, SceneInput, WarpTrigger};
 
+/// The chunk id under a pixel position on the collision-selected plane, patches
+/// included: what `GetChunkAndCollision` (`$45A52`) and `GetMapLayoutOffset`
+/// read. A free function over the record and the live effects so the scene
+/// runner can be handed a probe while the runtime's other fields are borrowed.
+pub(crate) fn live_chunk(
+    record: &psiv_data::MapRecord,
+    effects: &crate::EffectOutcome,
+    at: PixelPos,
+) -> Option<u16> {
+    let layout = effects
+        .variant
+        .and_then(|index| record.layout_variants.get(index))
+        .and_then(|variant| variant.vehicle_battle.as_ref())
+        .or(record.vehicle_battle.as_ref())?;
+    let x = u32::try_from(at.x).ok()? / 32;
+    let y = u32::try_from(at.y).ok()? / 32;
+    let base = layout.rows.get(y as usize)?.get(x as usize)?;
+    Some(
+        effects
+            .chunk_patches
+            .iter()
+            .rev()
+            .find_map(|&(cx, cy, id)| ((cx, cy) == (x, y)).then_some(id))
+            .unwrap_or(*base),
+    )
+}
+
 impl Runtime {
     /// Read the live collision-selected plane, including scene/load patches.
     pub(crate) fn map_chunk_at(&self, at: PixelPos) -> Option<u16> {
-        let record = self.map_record()?;
-        let layout = self
-            .effects
-            .variant
-            .and_then(|index| record.layout_variants.get(index))
-            .and_then(|variant| variant.vehicle_battle.as_ref())
-            .or(record.vehicle_battle.as_ref())?;
-        let x = u32::try_from(at.x).ok()? / 32;
-        let y = u32::try_from(at.y).ok()? / 32;
-        let base = layout.rows.get(y as usize)?.get(x as usize)?;
-        Some(
-            self.effects
-                .chunk_patches
-                .iter()
-                .rev()
-                .find_map(|&(cx, cy, id)| ((cx, cy) == (x, y)).then_some(id))
-                .unwrap_or(*base),
-        )
+        live_chunk(self.map_record()?, &self.effects, at)
     }
 
     /// Whether `RunEvent_RidingElevator` would fire for a leader at `cell`.

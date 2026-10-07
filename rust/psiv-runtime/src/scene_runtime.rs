@@ -179,7 +179,12 @@ impl Runtime {
         let Some(runner) = self.scene.as_mut() else {
             return events;
         };
-        let effects = runner.tick(&self.map, &mut self.game, scene_input);
+        // The live layout a belt op reads (`GetChunkAndCollision`), read off
+        // the runtime's own fields so the runner can borrow `game` mutably.
+        let record = self.data.map(psiv_data::MapId(self.map.id().0));
+        let live = &self.effects;
+        let probe = |at: PixelPos| record.and_then(|r| crate::scene_map::live_chunk(r, live, at));
+        let effects = runner.tick_with(&self.map, &mut self.game, scene_input, Some(&probe));
         let finished = runner.is_finished();
         for effect in effects {
             self.translate_scene_effect(effect, &mut events);

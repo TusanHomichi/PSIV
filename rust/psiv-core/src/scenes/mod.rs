@@ -52,6 +52,7 @@
 
 mod bioplant;
 pub(crate) mod census_events;
+mod conveyors;
 pub(crate) mod dezo_campaign;
 pub(crate) mod dezo_endgame;
 pub(crate) mod dezolis_route;
@@ -67,7 +68,10 @@ pub(crate) mod post_rika_cutscenes;
 pub(crate) mod post_rika_events;
 pub(crate) mod post_zio_cutscenes;
 pub(crate) mod retail_endgame;
+mod vahal_common;
+pub(crate) mod vahal_fort;
 pub(crate) mod vehicles;
+pub(crate) mod weapon_plant;
 
 pub use field_reload::{field_reload_is_proxy, field_reload_rows};
 pub(crate) use flight::INSIDE_SPACESHIP_ROUTE;
@@ -173,6 +177,26 @@ pub static SCENES: &[Scene] = &[
     census_events::FRACT_OOZE_FOUND,
     census_events::KING_RAPPY,
     census_events::DAUGHTER_TERMINAL,
+    // Vahal Fort and the Weapon Plant (#82).
+    vahal_fort::VAHAL_FORT_ENTRANCE,
+    vahal_fort::VAHAL_FORT_MIDWAY,
+    vahal_fort::VAHAL_FORT_BARRIER,
+    vahal_fort::VAH_FORT_MOVING_PLATFORM_1,
+    vahal_fort::VAH_FORT_MOVING_PLATFORM_2,
+    vahal_fort::VAHAL_FORT_TERMINAL,
+    vahal_fort::DOMINATORS_DEFEATED,
+    vahal_fort::POSI_BOLT,
+    weapon_plant::WEAPON_PLANT_ARRIVAL,
+    weapon_plant::WPN_PLNT_MOVING_PLATFORM_1,
+    weapon_plant::WPN_PLNT_MOVING_PLATFORM_2,
+    weapon_plant::WPN_PLNT_MOVING_PLATFORM_3,
+    weapon_plant::WPN_PLNT_MOVING_PLATFORM_4,
+    weapon_plant::WEAPON_PLANT_TERMINAL,
+    weapon_plant::BURSTROC,
+    conveyors::CONVEYOR_BELT_DOWN,
+    conveyors::CONVEYOR_BELT_UP,
+    conveyors::CONVEYOR_BELT_RIGHT,
+    conveyors::CONVEYOR_BELT_LEFT,
     post_zio_cutscenes::LANDALE,
     post_zio_cutscenes::KURAN_ARRIVAL,
     post_zio_cutscenes::NEAR_DARK_FORCE_1,
@@ -312,6 +336,25 @@ mod tests {
             ("Event_FractOozeFound", 5),
             ("Event_KingRappy", 7),
             ("Event_DaughterTerminal", 5),
+            ("Event_VahalFortEntrance", 2),
+            ("Event_VahalFortMidway", 2),
+            ("Event_VahalFortBarrier", 5),
+            ("Event_VahFortMovingPlatform1", 22),
+            ("Event_VahFortMovingPlatform2", 22),
+            ("Event_VahalFortTerminal", 8),
+            ("Event_DominatorsDefeated", 49),
+            ("Event_PosiBolt", 14),
+            ("Event_WeaponPlantArrival", 2),
+            ("Event_WpnPlntMovingPlatform1", 22),
+            ("Event_WpnPlntMovingPlatform2", 22),
+            ("Event_WpnPlntMovingPlatform3", 22),
+            ("Event_WpnPlntMovingPlatform4", 22),
+            ("Event_WeaponPlantTerminal", 8),
+            ("Event_Burstroc", 14),
+            ("Event_ConveyorBeltDown", 6),
+            ("Event_ConveyorBeltUp", 6),
+            ("Event_ConveyorBeltRight", 6),
+            ("Event_ConveyorBeltLeft", 6),
             ("Cutscene_Landale", 24),
             ("Event_KuranArrival", 2),
             ("Event_NearDarkForce1", 2),
@@ -408,6 +451,11 @@ mod tests {
                     SceneOp::BranchIfActorGreater {
                         if_greater, if_not, ..
                     } => vec![*if_greater, *if_not],
+                    SceneOp::BranchIfPartyMember {
+                        if_present,
+                        if_absent,
+                        ..
+                    } => vec![*if_present, *if_absent],
                     _ => vec![],
                 };
                 for target in targets {

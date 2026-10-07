@@ -793,6 +793,12 @@ impl SceneRunner {
                 }
                 self.pc = to;
             }
+            SceneOp::ToggleFlag { .. }
+            | SceneOp::BranchIfPartyMember { .. }
+            | SceneOp::FaceParty { .. }
+            | SceneOp::SetCharacterSkill { .. }
+            | SceneOp::RidePlatform { .. }
+            | SceneOp::ConveyorRide { .. } => return self.step_mechanic_op(op, state, effects),
             SceneOp::End => {
                 effects.push(SceneEffect::Finished);
                 self.blocked = Blocked::Done;
