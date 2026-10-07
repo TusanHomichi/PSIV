@@ -35,11 +35,15 @@ ELEMENTS = ("physical", "energy", "fire", "gravity", "water", "anti_evil",
             "mechanical", "efess", "destroy")
 
 
-#: Enemies a fixture's own enemy brings in mid-battle, by the enemy that does:
-#: Fusion (`BattleObj_Fusion`, `ps4.asm:35832`) replaces both Zol slugs
-#: (enemy 34) with the MetaSlug its formation data names (enemy 36), which no
-#: formation seats at the start.
-SPAWNED = {34: 36, 139: 140}  # Psycho Wand's loc_3CF60, ps4.asm:79203-79215.
+#: The inline formation an enemy's own arm reloads the side from, by the
+#: enemy whose arm it is: Fusion (`BattleObj_Fusion`, `ps4.asm:35832`) for the
+#: Zol slug (34), COMBINE (`loc_23C84`, `ps4.asm:47491`) for BladeRight (84) and
+#: HakenLeft (86). The records - and so the enemies they seat, which no
+#: formation may seat at the start - are the extractor's
+#: (`psiv_tools.formations.INLINE_FORMATIONS`).
+RELOADS = {34: "loc_1A2F4", 84: "loc_23D00", 86: "loc_23D00"}
+#: Enemies a fixture's own enemy brings in mid-battle some other way.
+SPAWNED = {139: 140}  # Psycho Wand's loc_3CF60, ps4.asm:79203-79215.
 
 
 def fixture_enemies(fixtures: pathlib.Path) -> tuple[set[int], set[int]]:
@@ -173,10 +177,21 @@ def build(pack: pathlib.Path, fixtures: pathlib.Path,
         (pack / "enemies.json").read_text())}
     skills = {record["id"]: record for record in json.loads(
         (pack / "enemy_skills.json").read_text())}
+    inline = {record["label"]: record for record in json.loads(
+        (pack / "formations.json").read_text()).get("inline_formations", [])}
     wanted_enemies, shown = fixture_enemies(fixtures)
     wanted_abilities = set(shown)
+    labels = sorted({RELOADS[enemy_id] for enemy_id in wanted_enemies
+                     if enemy_id in RELOADS})
+    missing = [label for label in labels if label not in inline]
+    if missing:
+        raise SystemExit(f"{pack / 'formations.json'} has no inline formation "
+                         f"{', '.join(missing)}: extract it with "
+                         "`python3 -m psiv_tools extract`")
     wanted_enemies |= {SPAWNED[enemy_id] for enemy_id in wanted_enemies
                        if enemy_id in SPAWNED}
+    wanted_enemies |= {entry["enemy"]["id"] for label in labels
+                       for entry in inline[label]["enemies"]}
     for enemy_id in sorted(wanted_enemies):
         record = enemies[enemy_id]
         wanted_abilities.update(
@@ -198,6 +213,12 @@ def build(pack: pathlib.Path, fixtures: pathlib.Path,
         "enemy_skills": [skill_record(skills[ability])
                          for ability in sorted(wanted_abilities)
                          if ability in skills],
+        "inline_formations": [
+            {"label": label, "run_chance": inline[label]["run_agility"],
+             "enemies": [{"slot": entry["slot"], "enemy_id": entry["enemy"]["id"],
+                          "position": entry["position"]}
+                         for entry in inline[label]["enemies"]]}
+            for label in labels],
     }
     document.update(party_records(runtime or ROOT / "runtime-pack", fixtures))
     return document

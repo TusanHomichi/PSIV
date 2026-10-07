@@ -755,3 +755,29 @@ moved" to a two-way check, in `replay/compare.rs`'s `effect_divergence`:
 
 Three `Divergence` kinds carry the findings: `status` names both bit sets, `stat`
 names the cell, the log's value and the port's, and `deaths` names both lists.
+
+## Reloads and event battles (lane A5, 2026-10-06)
+
+The Air Castle captures ([`ENEMY_ABILITIES_AIR_CASTLE.md`](../battle/ENEMY_ABILITIES_AIR_CASTLE.md))
+needed three readings of the log the earlier fixtures never met:
+
+- **A reload's cells.** A fighter seated by Fusion or COMBINE (`loc_14D46`) takes
+  every battle cell from its record, so `effect_divergence` checks the seated
+  fighter's logged cells against that record, the path the Psycho Wand's
+  `EnemyStatsReloaded` already took; `EnemiesFused` now takes it too.
+- **A turn filed as an attack.** COMBINE's arms clear `$24(a4)` before the object
+  runs (`ps4.asm:21550`, `21621`), so the log files the turn as an attack that
+  resolved no slot, as it does Dark Force's latch turns; the comparator accepts
+  the port's `EnemiesFused` there.
+- **An emptied slot is not state.** `oracle/fixture/state.py` leaves out an enemy
+  slot whose `Obj_Fighters` word (`menu_object_N`) reads zero at the round's end:
+  its stats struct is a defeated or reloaded-away fighter's, not a fighter the
+  battle has.
+
+An event capture records its `Event_Battle_Index` in the fixture's formation
+(`python3 -m oracle.fixture --event-battle N`), and `replay/build.rs` starts it as
+a boss battle: `loc_B62A` draws the opening roll and then discards its verdict
+(`ps4.asm:17444-17446`). The two earlier event fixtures (`arc_zelan/event_08_d9`,
+`event_09_d0`) predate the field; their verdicts (normal, and Dark Force 1's
+latch) come out the same either way.
+

@@ -327,6 +327,24 @@ pub struct FormationRecord {
     pub enemies: Vec<FormationEnemy>,
 }
 
+/// A formation record a battle object copies over `Enemy_Formation_Data`
+/// (`$FFFF41F0`) mid-battle before `loc_14D46` (`ps4.asm:29735`) rebuilds the
+/// enemy side: Fusion's `loc_1A2F4` and COMBINE's `loc_23D00`.
+///
+/// The copy is the whole record, so its header replaces the battle's:
+/// `Enemy_Run_Chance` is `Enemy_Formation_Data + 1`
+/// (`ps4.constants.asm:2039-2041`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct InlineFormation {
+    /// The disassembly label of the record's bytes, the name it is looked up
+    /// by.
+    pub label: String,
+    /// Byte 1, the run comparison the rest of the battle uses.
+    pub run_chance: u8,
+    /// The enemies, in slot order.
+    pub enemies: Vec<FormationEnemy>,
+}
+
 /// `Enemy_Run_Chance` values at or above this forbid escape outright
 /// (`ps4.asm:7707`).
 pub const UNRUNNABLE: u8 = 0xF0;
@@ -455,6 +473,8 @@ pub enum BattleDataError {
     /// follows the table. The port refuses the turn instead of picking a
     /// behaviour the cartridge does not have.
     UnknownAiCondition(u8),
+    /// A battle object's inline formation is not in the data.
+    UnknownInlineFormation(&'static str),
 }
 
 impl fmt::Display for BattleDataError {
@@ -474,6 +494,9 @@ impl fmt::Display for BattleDataError {
                 f,
                 "AI condition {id} is past EnemyAIInstructionsOffs' twenty entries"
             ),
+            BattleDataError::UnknownInlineFormation(label) => {
+                write!(f, "no inline formation {label} in the data")
+            }
         }
     }
 }
@@ -493,9 +516,37 @@ pub struct BattleData {
     skills: BTreeMap<u8, super::skill::Skill>,
     enemy_skills: BTreeMap<u8, super::enemy_skill::EnemySkill>,
     battle_items: BTreeMap<u8, super::item::BattleItem>,
+    inline_formations: BTreeMap<String, InlineFormation>,
 }
 
 impl BattleData {
+    /// Installs the formations battle objects keep inline, keyed by label.
+    #[must_use]
+    pub fn with_inline_formations(
+        mut self,
+        records: impl IntoIterator<Item = InlineFormation>,
+    ) -> Self {
+        self.inline_formations.extend(
+            records
+                .into_iter()
+                .map(|record| (record.label.clone(), record)),
+        );
+        self
+    }
+
+    /// The inline formation stored at `label`.
+    ///
+    /// # Errors
+    /// [`BattleDataError::UnknownInlineFormation`] when the data has none.
+    pub fn inline_formation(
+        &self,
+        label: &'static str,
+    ) -> Result<&InlineFormation, BattleDataError> {
+        self.inline_formations
+            .get(label)
+            .ok_or(BattleDataError::UnknownInlineFormation(label))
+    }
+
     /// Installs the enemy ability records, separate from player skills.
     #[must_use]
     pub fn with_enemy_skills(

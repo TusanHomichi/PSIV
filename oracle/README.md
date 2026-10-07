@@ -516,7 +516,8 @@ python3 -m oracle.force --event 8 --out build/forced/event8 --durable \
 citations; `tests/test_oracle_force_event.py` pins it. The Zelan-to-Kuran
 fixtures (`python3 -m oracle.sweep.zelan`, ledger
 [`BATTLE_ORACLE_ZELAN.md`](../docs/oracle/BATTLE_ORACLE_ZELAN.md)) use it for
-events 8 and 9.
+events 8 and 9; `oracle.sweep.air_castle` for 14, 16 and 17, whose fixtures add
+`oracle.fixture --event-battle N` ([replay ledger](../docs/oracle/BATTLE_ORACLE_REPLAY.md#reloads-and-event-battles-lane-a5-2026-10-06)).
 
 Five oracle runs per capture: a scout, a probe that measures the draw, an
 untrimmed preview, the trimmed capture, and a re-run to byte-compare it, with

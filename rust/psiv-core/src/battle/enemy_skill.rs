@@ -341,11 +341,19 @@ pub(super) fn resolve_res(
     // `AbilityStatsOffs[$82 & $7F]` is `mental_battle`; the mask is
     // `Effect_SetupSkillParams`' own (`ps4.asm:9580`).
     let power = super::technique::stat(&caster.stats, skill.power_stat & 0x7F);
+    let sealed = caster.stats.status & super::stats::status::TECH_SEALED != 0;
     events.push(BattleEvent::EnemySkillUsed {
         actor,
         skill: ability,
         name: skill.name.clone(),
     });
+    if sealed {
+        // `$3D4`'s frame `$F` seal test (`ps4.asm:44725-44730`): a sealed
+        // caster skips the cast, reaches phase 8 with bit 7 set at `$1D`
+        // (44742-44748) and `loc_21558` ends the turn there (44803-44805)
+        // without picking a target or calling the effect.
+        return true;
+    }
     // `loc_21504`: the occupied enemy slot with the lowest `curr_hp`, the
     // earlier one on a tie — an unoccupied slot never wins.
     let Some(target) = roster

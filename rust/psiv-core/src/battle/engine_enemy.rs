@@ -39,8 +39,13 @@ impl Battle {
         // The instruction block runs *after* the roll and before the routine
         // dispatch, so it can replace the ability the roll picked
         // (`ps4.asm:19157-19168`).
-        let outcome =
-            super::super::enemy_ai::instruction_block(&mut self.roster, actor, record, rolls)?;
+        let outcome = super::super::enemy_ai::instruction_block(
+            &mut self.roster,
+            actor,
+            record,
+            self.ai_flags,
+            rolls,
+        )?;
         let mut replacement = None;
         match outcome {
             super::super::enemy_ai::AiOutcome::Rolled => {}
@@ -64,19 +69,23 @@ impl Battle {
         if let Some(fighter) = self.roster.get_mut(actor) {
             fighter.ability = ability;
         }
-        if self.scripted_latch && super::super::scripted_flag::reads_first_action(enemy_id) {
-            // `EnemyAttack_DarkForce1`'s opening test (`ps4.asm:20031-20035`):
-            // the latch is up, so the rolled ability is dropped, the latch
-            // lowered and the fixed object `$818` loaded (the roll above was
-            // drawn either way). `loc_32344` (`ps4.asm:64872-65000`) and its
-            // children animate only: no damage request, no `UpdateRNGSeed2`.
+        if self.scripted_latch
+            && let Some(action) = super::super::scripted_flag::first_action(enemy_id)
+        {
+            // `EnemyAttack_DarkForce1`'s opening test (`ps4.asm:20031-20035`)
+            // and `EnemyAttack_DarkForce2`'s (`19971-19977`): the latch is up,
+            // so the rolled ability is dropped, the latch lowered and the fixed
+            // object loaded (the roll above was drawn either way). `$818`
+            // (`loc_32344`, `ps4.asm:64872-65000`) and `$83C` (`loc_3161C`,
+            // `63924-64034`) animate only: no damage request, no
+            // `UpdateRNGSeed2`.
             self.scripted_latch = false;
             if let Some(fighter) = self.roster.get_mut(actor) {
                 fighter.ability = 0;
             }
             events.push(BattleEvent::FirstZioAction {
                 actor,
-                action: super::super::FirstZioAction::DarkForceCharge,
+                action,
                 target: None,
             });
             return Ok(true);
@@ -97,13 +106,16 @@ impl Battle {
         {
             return Ok(true);
         }
-        if super::super::enemy_fusion::resolve_fusion(
+        if let Some(run_chance) = super::super::enemy_fusion::resolve_fusion(
             &mut self.roster,
             actor,
             ability,
             data,
             events,
         )? {
+            // The record's header now sits over `Enemy_Formation_Data`, and
+            // `Enemy_Run_Chance` is its second byte.
+            self.run_chance = (run_chance < super::super::UNRUNNABLE).then_some(run_chance);
             return Ok(true);
         }
         if super::super::enemy_damage::resolve_damage_skill(
@@ -126,7 +138,13 @@ impl Battle {
             rolls,
             events,
         ) {
-            super::super::enemy_effect::EffectTurn::Resolved => return Ok(true),
+            super::super::enemy_effect::EffectTurn::Resolved => {
+                // REINFORCE's object raises `$FFFFEE86` on its first frame.
+                if super::super::enemy_effect::raises_reinforce_latch(enemy_id, ability) {
+                    self.ai_flags.reinforced = true;
+                }
+                return Ok(true);
+            }
             // The arm's guard sent the turn to the ordinary attack objects.
             super::super::enemy_effect::EffectTurn::Swing => return Ok(false),
             super::super::enemy_effect::EffectTurn::NotMine => {}

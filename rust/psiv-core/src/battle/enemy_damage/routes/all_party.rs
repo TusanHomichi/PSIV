@@ -34,6 +34,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: SPIRAL_BLD,
         class: DamageClass::AllParty,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 80 SandWorm, `$38` EARTHQUAKE. `EnemyAttackOffs` `$50`
     // (`ps4.asm:19287`) → `EnemyAttack_SandWorm` (`ps4.asm:21658`); `loc_F4D4`
@@ -62,6 +63,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: EARTHQUAKE,
         class: DamageClass::AllParty,
         draws: ObjectDraws::EarthquakeShake,
+        sealable: false,
     },
     // 149 KingRappy, `$38` EARTHQUAKE. `EnemyAttackOffs` `$95`
     // (`ps4.asm:19356`) → `EnemyAttack_KingRappy` (`ps4.asm:19596`), whose
@@ -91,5 +93,6 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: EARTHQUAKE,
         class: DamageClass::AllParty,
         draws: ObjectDraws::None,
+        sealable: false,
     },
 ];

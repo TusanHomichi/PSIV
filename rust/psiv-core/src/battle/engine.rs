@@ -204,6 +204,11 @@ pub struct Battle {
     /// raised by a boss's init routine, lowered by the first action of the
     /// routines that read it.
     scripted_latch: bool,
+    /// The battle-wide bytes the AI instruction block reads besides the roster
+    /// (`$FFFFEE86`, see [`super::enemy_ai::AiFlags`]). Clear at the start:
+    /// `EnemyInit_Lashiec` clears the one byte (`ps4.asm:18114`), and no other
+    /// record names the arm that reads it.
+    ai_flags: super::enemy_ai::AiFlags,
 }
 
 impl Battle {
@@ -314,6 +319,7 @@ impl Battle {
                 vehicle,
                 enemy_phase: 0,
                 scripted_latch: scripted,
+                ai_flags: super::enemy_ai::AiFlags::default(),
             },
             events,
         ))

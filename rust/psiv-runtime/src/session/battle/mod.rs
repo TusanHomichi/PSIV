@@ -489,7 +489,8 @@ impl BattleMode {
             ..
         } = &event
         {
-            // Fusion clears every enemy slot and seats one new enemy in slot 1.
+            // Fusion and COMBINE clear every enemy slot and seat one new enemy
+            // in slot 1 (`enemy_fusion`).
             for enemy in &mut self.enemies {
                 enemy.visible = enemy.fighter == fighter.get();
                 if enemy.fighter == fighter.get() {

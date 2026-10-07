@@ -247,7 +247,10 @@ pub(crate) fn start(fixture: &Fixture, data: &BattleData, rolls: &mut impl Rolls
                 .iter()
                 .map(|entry| party_member(entry, data, hp_patch))
                 .collect();
-            Battle::start(&formation, party, data, false, rolls)
+            // An event battle's `loc_B62A` clears the verdict of the roll it
+            // still draws (`ps4.asm:17444-17446`): `Battle::start`'s `boss`.
+            let event = fixture.formation.event_battle_index.is_some();
+            Battle::start(&formation, party, data, event, rolls)
                 .expect("the fixture's formation resolves")
         }
     };

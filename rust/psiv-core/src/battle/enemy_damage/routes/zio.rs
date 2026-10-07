@@ -46,6 +46,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: ZAN,
         class: DamageClass::AllParty,
         draws: ObjectDraws::None,
+        sealable: true,
     },
     // 114 Juza, `$47` ZAN. `EnemyAttackOffs` `$72` (`ps4.asm:19321`) →
     // `EnemyAttack_Juza` (`ps4.asm:20575`); the `$47` test is at line 20612 in
@@ -61,6 +62,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: ZAN,
         class: DamageClass::AllParty,
         draws: ObjectDraws::None,
+        sealable: true,
     },
     // 114 Juza, `$56` FORCEFLASH. The carrier routine tests `$44`, `$40`, `$47`,
     // `$2F`, `$2A`, `$27`, `$26`, `$57`, `$28`, `$29`, `$2D` and `$49`, and the
@@ -76,6 +78,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: FORCEFLASH,
         class: DamageClass::AllParty,
         draws: ObjectDraws::None,
+        sealable: true,
     },
     // 115 Greneris, `$56` FORCEFLASH: `EnemyAttackOffs` `$73` (`ps4.asm:19322`)
     // → the same `EnemyAttack_Juza`, the same else arm and the same request.
@@ -86,6 +89,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: FORCEFLASH,
         class: DamageClass::AllParty,
         draws: ObjectDraws::None,
+        sealable: true,
     },
     // 116 Radhin, `$56` FORCEFLASH: `EnemyAttackOffs` `$74` (`ps4.asm:19323`) →
     // the same routine, arm and request (`$26`/`$27`/`$29`/`$2D` tested, `$56`
@@ -95,6 +99,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: FORCEFLASH,
         class: DamageClass::AllParty,
         draws: ObjectDraws::None,
+        sealable: true,
     },
     // 106 Haunt, `$4D` CORRSION. `EnemyAttackOffs` `$6A` (`ps4.asm:19313`) →
     // `EnemyAttack_Haunt` (`ps4.asm:21005`), whose `$4D` arm `loc_EB04`
@@ -111,6 +116,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: CORRSION,
         class: DamageClass::AllParty,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 107 Spector, `$4D` CORRSION: `EnemyAttackOffs` `$6B` (`ps4.asm:19314`) →
     // the same `EnemyAttack_Haunt` arm, object and tail.
@@ -119,6 +125,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: CORRSION,
         class: DamageClass::AllParty,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 111 ChaosSorcr, `$4D` CORRSION. `EnemyAttackOffs` `$6F` (`ps4.asm:19318`)
     // → `EnemyAttack_ChaosSorcr` (`ps4.asm:20816`), arm `loc_E7EC`
@@ -134,6 +141,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: CORRSION,
         class: DamageClass::AllParty,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 112 Illusionst, `$4D` CORRSION: `EnemyAttackOffs` `$70` (`ps4.asm:19319`)
     // → the same `EnemyAttack_ChaosSorcr` arm, object and loop.
@@ -142,6 +150,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: CORRSION,
         class: DamageClass::AllParty,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 113 ImagioMage, `$4D` CORRSION: `EnemyAttackOffs` `$71` (`ps4.asm:19320`)
     // → the same routine, arm and loop.
@@ -150,6 +159,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: CORRSION,
         class: DamageClass::AllParty,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 132 DarkForce3, `$4D` CORRSION. `EnemyAttackOffs` `$84` (`ps4.asm:19339`)
     // → `EnemyAttack_DarkForce3` (`ps4.asm:19907`), arm `loc_D9FE`
@@ -163,6 +173,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: CORRSION,
         class: DamageClass::AllParty,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 140 Zio2, `$4D` CORRSION. `EnemyAttackOffs` `$8C` → `EnemyAttack_Zio2`
     // (`ps4.asm:19519`): with the phase counter past zero (the first action is
@@ -181,6 +192,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: CORRSION,
         class: DamageClass::AllParty,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 140 Zio2, `$4F` HEWN: the same `loc_D458` clears the target index, and
     // `$4F` fails the `$4D` test, so it takes `loc_D498` (line 19570): object
@@ -196,6 +208,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: HEWN,
         class: DamageClass::AllParty,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 140 Zio2, `$6C` BLACK WAVE2, the weak Black Wave. `loc_D426`
     // (`ps4.asm:19544`) tests `$6C` (line 19545) and writes object `$91C`
@@ -215,5 +228,6 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: BLACK_WAVE2,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
 ];

@@ -59,6 +59,12 @@ def main(argv=None):
                              "fighter's two HP cells to (oracle/force/"
                              "durable.py); recorded in the provenance so a "
                              "replay knows the start state is the capture's")
+    parser.add_argument("--event-battle", type=int,
+                        help="the `Event_Battle_Index` the capture forced "
+                             "(`python3 -m oracle.force --event`): recorded in "
+                             "the formation, because `loc_B62A` discards the "
+                             "opening roll's verdict in an event battle and the "
+                             "RAM log has no column for that byte")
     parser.add_argument("--start-ram", type=pathlib.Path,
                         help="stock-host 65536-byte RAM dump at the logged start frame")
     parser.add_argument("--start-ram-sha256", help="required expected digest of --start-ram")
@@ -84,6 +90,8 @@ def main(argv=None):
                             arguments.battle_first, arguments.battle_last, meta,
                             max_rounds=arguments.max_rounds,
                             hp_patch=arguments.hp_patch or None)
+    if arguments.event_battle is not None:
+        fixture["formation"]["event_battle_index"] = arguments.event_battle
     if arguments.start_ram is not None:
         from .player_state import attach_start_ram
         attach_start_ram(fixture, arguments.start_ram, arguments.start_ram_sha256)

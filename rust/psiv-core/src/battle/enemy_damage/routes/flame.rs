@@ -36,6 +36,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: FLAME_BOLT,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // `EnemyAttackOffs` `$05` (`ps4.asm:19212`) → `EnemyAttack_ForcedFly`
     // (`ps4.asm:23567`) falls through into `EnemyAttack_Helex` for a nonzero
@@ -45,6 +46,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: FLAME_BOLT,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 71 FrostSaber, `$2E` GIWAT: `EnemyAttackOffs` `$47` (`ps4.asm:19278`) →
 ];

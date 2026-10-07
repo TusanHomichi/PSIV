@@ -15,6 +15,11 @@ pub struct FormationsFile {
     pub formations: Vec<Formation>,
     /// The boss formations, indexed by `Event_Battle_Index`.
     pub boss_formations: Vec<Formation>,
+    /// The formations battle objects keep in their own code and copy over
+    /// `Enemy_Formation_Data` mid-battle (Fusion's, COMBINE's). Absent from a
+    /// pack written before they were decoded.
+    #[serde(default)]
+    pub inline_formations: Vec<InlineFormation>,
     /// The 32-entry groups an encounter roll indexes.
     #[serde(default)]
     pub encounter_groups: Option<EncounterGroups>,
@@ -149,6 +154,26 @@ impl Formation {
             (None, None) => "an unidentified formation".into(),
         }
     }
+}
+
+/// A formation record stored uncompressed in a battle object's code.
+///
+/// The object copies the whole record - header included - over
+/// `Enemy_Formation_Data` (`$FFFF41F0`, whose second byte is
+/// `Enemy_Run_Chance`) and calls `loc_14D46` (`ps4.asm:29735`) to rebuild the
+/// enemy side, so every header byte takes effect, not just the enemies.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct InlineFormation {
+    /// The disassembly label of the record's bytes (`loc_23D00`): the name the
+    /// engine looks the record up by.
+    pub label: String,
+    /// Where those bytes sit in the ROM, as `0x`-prefixed hex.
+    pub rom_offset: String,
+    /// The object that loads it.
+    pub loaded_by: String,
+    /// The record itself.
+    #[serde(flatten)]
+    pub formation: Formation,
 }
 
 /// One enemy slot of a formation.
