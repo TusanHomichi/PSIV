@@ -35,7 +35,7 @@ pub fn inspect(pack: &Path, save: &Path) -> Result<String, SetupError> {
     for member in &camp.party {
         let _ = writeln!(
             out,
-            "party {} {} L{} xp {} hp {}/{} tp {}/{} str {} men {} agi {} dex {} atk {} def {} wears {:?}",
+            "party {} {} L{} xp {} hp {}/{} tp {}/{} status {:#04x} str {} men {} agi {} dex {} atk {} def {} wears {:?}",
             member.party_slot,
             member.name,
             member.level,
@@ -44,6 +44,7 @@ pub fn inspect(pack: &Path, save: &Path) -> Result<String, SetupError> {
             member.max_hp,
             member.current_tp,
             member.max_tp,
+            member.status,
             member.strength,
             member.mental,
             member.agility,
@@ -52,6 +53,38 @@ pub fn inspect(pack: &Path, save: &Path) -> Result<String, SetupError> {
             member.defense_power,
             member.equipment
         );
+        if let Some(stats) = runtime.game().roster().get(psiv_core::CharId(member.id)) {
+            let skills: Vec<String> = stats
+                .skills
+                .iter()
+                .zip(stats.curr_skill_uses.iter().zip(&stats.max_skill_uses))
+                .filter(|(id, _)| **id != 0)
+                .map(|(id, (uses, max))| {
+                    let name = runtime
+                        .battle_skills()
+                        .find(|skill| skill.id == *id)
+                        .map_or("?", |skill| skill.name.as_str());
+                    format!("{name} {uses}/{max}")
+                })
+                .collect();
+            let techniques: Vec<&str> = stats
+                .techniques
+                .iter()
+                .filter(|id| **id != 0)
+                .map(|id| {
+                    runtime
+                        .battle_techniques()
+                        .find(|tech| tech.id == *id)
+                        .map_or("?", |tech| tech.name.as_str())
+                })
+                .collect();
+            let _ = writeln!(
+                out,
+                "  skills [{}] techniques [{}]",
+                skills.join(", "),
+                techniques.join(", ")
+            );
+        }
     }
     let items: Vec<String> = camp
         .inventory

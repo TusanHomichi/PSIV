@@ -41,7 +41,7 @@ use Disposition::{Allowlisted, InsideScene, Null, Scene};
 const ISSUES: [u32; 5] = [56, 71, 81, 82, 83];
 
 /// The most the allowlist may hold. Lower it when a scene lands; never raise it.
-const ALLOWLIST_CEILING: usize = 62;
+const ALLOWLIST_CEILING: usize = 55;
 
 #[rustfmt::skip]
 const CENSUS: &[(u16, &str, Disposition)] = &[
@@ -76,7 +76,7 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x001E, "Event_ConveyorBeltUp", Disposition::Scene),
     (0x001F, "Event_ConveyorBeltRight", Disposition::Scene),
     (0x0020, "Event_ConveyorBeltLeft", Disposition::Scene),
-    (0x0021, "Event_Recovery", Disposition::Allowlisted(83)),
+    (0x0021, "Event_Recovery", Disposition::Scene),
     (0x0022, "Event_AiedoManSavings", Disposition::Allowlisted(81)),
     (0x0023, "Event_GirlsSneakingOut", Disposition::Scene),
     (0x0024, "Event_FaintingPriest", Disposition::Allowlisted(81)),
@@ -96,12 +96,12 @@ const CENSUS: &[(u16, &str, Disposition)] = &[
     (0x0032, "Event_MeetingDorin", Disposition::Scene),
     (0x0033, "Event_TonoeBasementDoor", Disposition::Scene),
     (0x0034, "Event_ZioNurvus", Disposition::Scene),
-    (0x0035, "Event_GaruberkTwDoorOpening1", Disposition::Allowlisted(83)),
-    (0x0036, "Event_GaruberkTwDoorOpening2", Disposition::Allowlisted(83)),
-    (0x0037, "Event_GaruberkTwDoorEntered1", Disposition::Allowlisted(56)),
-    (0x0038, "Event_GaruberkTwDoorEntered2", Disposition::Allowlisted(56)),
-    (0x0039, "Event_GaruberkTwEyeAction1", Disposition::Allowlisted(83)),
-    (0x003A, "Event_GaruberkTwEyeAction2", Disposition::Allowlisted(83)),
+    (0x0035, "Event_GaruberkTwDoorOpening1", Disposition::Scene),
+    (0x0036, "Event_GaruberkTwDoorOpening2", Disposition::Scene),
+    (0x0037, "Event_GaruberkTwDoorEntered1", Disposition::Scene),
+    (0x0038, "Event_GaruberkTwDoorEntered2", Disposition::Scene),
+    (0x0039, "Event_GaruberkTwEyeAction1", Disposition::Scene),
+    (0x003A, "Event_GaruberkTwEyeAction2", Disposition::Scene),
     (0x003B, "Event_ChazHouse", Disposition::Scene),
     (0x003C, "Event_LeavingChazHouse", Disposition::Scene),
     (0x003D, "Event_KuranArrival", Disposition::Scene),

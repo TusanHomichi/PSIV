@@ -31,29 +31,26 @@ validation pass. See the
 [historical native receipt](docs/field/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
 and [next task handoff](docs/ROADMAP.md#task-graph-handoff).
 
-**Headless Session milestone (combined candidate, October 3):** the
-29-chapter ordinary-pad route plays New Game through `Cutscene_ZioDefeated`
-twice with identical tapes, digests and final camp-SAVE bytes. A fresh Session
-loads that save and both tapes replay to the same digest. The
-[combined route receipt](docs/campaign/RUNNER_LOG.md#combined-p1f2r2-headless-integration)
-is separate from native input proof: generic Godot tape replay reaches initial
-Aiedo from New Game, and an earned-save Zio segment passes ordinary CONTINUE,
-camp SAVE and fresh-process CONTINUE. The current 11-pair presentation
-certificate passes. The [campaign ledger](docs/campaign/CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress)
-records the repaired 180-pad native replay and ordinary primary default-pack
-CONTINUE with no pack override. The sole five-stage gate failed Python on its
-original candidate; a separate affected Python/docs recheck passed and its
-composed matrix carries forward unchanged Rust/fmt/Clippy inputs. Full R2
-remains in progress because its bespoke-driver retirement criterion is open.
+**Campaign milestone (October 7):** the ordinary-pad campaign route plays New
+Game through `Cutscene_DarkForce2Defeated` in 62 chapters (4,483,067 frames),
+twice with identical tapes and a replay that reproduces the digest. The whole
+tape, through the Air Castle's arrival, replays natively in Godot with every
+chapter's save byte-identical, and every chapter save loads through the title's
+CONTINUE ([native tape replay](docs/campaign/CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress)).
+Every player technique and skill, and every enemy ability up to Dark Force 2, is
+transcribed and verified against cartridge captures. Each integration passes
+`tools/verify_candidate.py`: the route, the 12 certified presentation pairs at
+0.000000, and the full gate. The [run log](docs/campaign/RUNNER_LOG.md) records
+every halt and its fix; the [roadmap](docs/ROADMAP.md) holds the next action.
 
 | Area | Current evidence |
 | --- | --- |
 | Connected playthrough | Ordinary-input routes complete the Academy, Tonoe/Alshline and Zema aftermath, with saved checkpoints and fresh CONTINUE checks. |
 | BioPlant | Connected traversal, Rika join and escape are verified with all five alive, expected story flags, an ordinary Motavia save and fresh CONTINUE. The original healthy `$A7` save and failed attempts are preserved. |
 | Post-Rika travel | Paid Zema recovery and the northern bridge crossing pass through ordinary input and SAVE/CONTINUE. The missing overworld page-hook consumer is repaired; the bridge's named 32×32 region matches retail exactly. |
-| Combat and camp | Individual commands, implemented techniques/skills, all 26 usable battle-item records, recovery, shops, equipment, chests, travel and earned progression. STATE/ORDER supports undo, cancel and persistent formation changes. Ability coverage is still incomplete. |
+| Combat and camp | Every player technique and skill (94) and every enemy ability through Dark Force 2, each replaying the cartridge's captured RNG exactly; all 26 usable battle-item records, recovery, shops, equipment, chests, travel and earned progression. Endgame enemy abilities are in progress, and the campaign's battle policy does not yet use every skill ([#88](https://github.com/TusanHomichi/PSIV/issues/88)). |
 | Recovery | A bounded BioPlant run wins one encounter, cures two poisoned members with ANTI, heals, saves and reloads. The playthrough driver now cures poison before HP recovery. |
-| Zio checkpoint | The 29-chapter New Game route reaches the settled Zio-defeat scene twice in headless Session; a separate earned-save native segment proves ordinary CONTINUE → Zio → camp SAVE and fresh-process CONTINUE. This does not claim a full native New Game-to-Zio replay. |
+| Campaign route | 62 chapters from New Game to Dark Force 2's defeat, headless and deterministic. Native Godot replay of the 50-chapter tape to the Air Castle matches every chapter save; the twelve chapters past it are proven headless only until the next native replay. |
 | Presentation | Selected reference frames and four ORDER-menu regions match the cartridge exactly. Whole-scene, animation and UI fidelity still need work. |
 | Data | The extractor covers all 361 real maps, character progression, dialogue, battle records, graphics and sound. Extracted records do not imply implemented gameplay. |
 

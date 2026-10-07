@@ -98,6 +98,46 @@ impl Runtime {
         Ok(())
     }
 
+    /// `SceneOp::ReplaceMapLayout`: install the pack's layout variant decoded
+    /// from `fg` and `bg` on the live map, as the map's own load would with
+    /// the variant's flag set, keeping the objects, the party and the camera.
+    /// Scene chunk writes made over the old layout go with it: the cartridge's
+    /// `KosDecomp` overwrites the whole layout buffer.
+    fn replace_scene_map_layout(&mut self, fg: u32, bg: u32) -> Result<(), crate::BridgeError> {
+        let reject = |message: String| crate::BridgeError::Rejected(message);
+        let record = self
+            .map_record()
+            .ok_or(crate::BridgeError::NotPacked(self.map.id().0))?;
+        let mut variant = None;
+        for source in [fg, bg] {
+            match crate::effects::layout_replace_variant(record, source) {
+                Ok(Some(index)) => variant = Some(index),
+                Ok(None) => {}
+                Err(()) => {
+                    return Err(reject(format!(
+                        "layout ${source:06X} is no layout variant of this map"
+                    )));
+                }
+            }
+        }
+        let Some(index) = variant else {
+            return Err(reject(format!(
+                "layouts ${fg:06X}/${bg:06X} change nothing on this map"
+            )));
+        };
+        let mut effects = self.effects.clone();
+        effects.variant = Some(index);
+        effects.cell_patches.clear();
+        effects.chunk_patches.clear();
+        effects.patch_blits.clear();
+        let mut map =
+            crate::bridge::field_map_retaining_objects(record, Some(&effects), self.map.npcs())?;
+        crate::bridge::attach_chests(&mut map, record, &self.game, self.map.npcs(), &effects)?;
+        self.map = map;
+        self.effects = effects;
+        Ok(())
+    }
+
     /// `loc_6DBAC` is an explicit live layout write, independent of the
     /// map-load flag walk. Reveal only the named base chunks; keep NPCs,
     /// unrelated overlays, party movement and camera state intact.
@@ -402,6 +442,20 @@ impl Runtime {
             }
             SceneEffect::MapChunksWritten { chunks } => {
                 match self.write_scene_map_chunks(&chunks) {
+                    Ok(()) => events.push(RuntimeEvent::MapRefreshed),
+                    Err(error) => {
+                        self.scene = None;
+                        events.push(RuntimeEvent::MapRefreshFailed {
+                            error: error.to_string(),
+                        });
+                        events.push(RuntimeEvent::SceneFaulted {
+                            fault: psiv_core::SceneFault::BadWrite,
+                        });
+                    }
+                }
+            }
+            SceneEffect::MapLayoutReplaced { fg, bg } => {
+                match self.replace_scene_map_layout(fg, bg) {
                     Ok(()) => events.push(RuntimeEvent::MapRefreshed),
                     Err(error) => {
                         self.scene = None;

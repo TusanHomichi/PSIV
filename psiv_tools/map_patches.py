@@ -329,8 +329,46 @@ def scene_patch_chunks(rom: bytes, record: dict[str, Any]) -> list[int]:
             if len(table) != 9 or table[-1] != 0xFF:
                 raise MapPatchError("elevator door animation table is incomplete")
             chunks.update(table[1:8:2])
+    if events & {GARUBERK_DOOR_OPENING_1, GARUBERK_DOOR_OPENING_2}:
+        chunks.update(garuberk_door_chunks(rom))
     chunks.update(scene_write_chunks(rom, record["id"]))
     return sorted(chunks)
+
+
+#: `Interaction_EventIndexes` parameters 3 and 4 (`$35`, `$36`): the Garuberk
+#: Tower's door openings. Every tower map that carries one is also where
+#: `RunEvent_EnterGrbkTwDoor` (`$22`) lands a party, so the same chunks cover the
+#: doors entered (`$37`, `$38`).
+GARUBERK_DOOR_OPENING_1 = 0x03
+GARUBERK_DOOR_OPENING_2 = 0x04
+
+#: The Garuberk door tables, `(offset, length)` with the `$FF`: rows of a frame
+#: count and two chunk ids (the chunk above the leader, the chunk under), opened
+#: by `Event_GaruberkTwDoorOpening1/2` (`loc_6F4D4`, `loc_6F588`) and closed
+#: behind the party by `Event_GaruberkTwDoorEntered1/2` (`loc_6F714`,
+#: `loc_6F894`), `ps4.asm:148689-148950`.
+GARUBERK_DOOR_TABLES = ((0x6F4D4, 28), (0x6F588, 28), (0x6F714, 16), (0x6F894, 16))
+
+#: Each opening first tests the leader's chunk against the closed door,
+#: `cmpi.b #$38, (a1)` at `$06F478` and `$06F52E`; pinned so a moved routine
+#: fails the build.
+GARUBERK_DOOR_CHECKS = ((0x6F478, "0C110038"), (0x6F52E, "0C110038"))
+
+
+def garuberk_door_chunks(rom: bytes) -> set[int]:
+    """Every chunk id the four Garuberk door tables write, the closed `$38`
+    included (it is each opening's first row and each closing's last)."""
+    for offset, expected in GARUBERK_DOOR_CHECKS:
+        if rom[offset : offset + len(expected) // 2] != bytes.fromhex(expected):
+            raise MapPatchError(f"Garuberk door guard at ${offset:06X} moved")
+    chunks: set[int] = set()
+    for offset, length in GARUBERK_DOOR_TABLES:
+        table = rom[offset : offset + length]
+        if len(table) != length or table[-1] != 0xFF or (length - 1) % 3:
+            raise MapPatchError(f"Garuberk door table at ${offset:06X} is incomplete")
+        for row in range(0, length - 1, 3):
+            chunks.update(table[row + 1 : row + 3])
+    return chunks
 
 
 # ---------------------------------------------------------------------------

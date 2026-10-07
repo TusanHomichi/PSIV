@@ -60,6 +60,7 @@ pub(crate) mod esper_events;
 mod field_reload;
 mod flight;
 mod game_start;
+pub(crate) mod garuberk_events;
 pub(crate) mod gumbious_events;
 pub(crate) mod next_arc;
 pub(crate) mod next_arc_followup;
@@ -67,6 +68,7 @@ pub(crate) mod opening;
 pub(crate) mod post_rika_cutscenes;
 pub(crate) mod post_rika_events;
 pub(crate) mod post_zio_cutscenes;
+pub(crate) mod recovery;
 pub(crate) mod retail_endgame;
 mod vahal_common;
 pub(crate) mod vahal_fort;
@@ -197,6 +199,13 @@ pub static SCENES: &[Scene] = &[
     conveyors::CONVEYOR_BELT_UP,
     conveyors::CONVEYOR_BELT_RIGHT,
     conveyors::CONVEYOR_BELT_LEFT,
+    recovery::RECOVERY,
+    garuberk_events::DOOR_OPENING_1,
+    garuberk_events::DOOR_OPENING_2,
+    garuberk_events::DOOR_ENTERED_1,
+    garuberk_events::DOOR_ENTERED_2,
+    garuberk_events::EYE_ACTION_1,
+    garuberk_events::EYE_ACTION_2,
     post_zio_cutscenes::LANDALE,
     post_zio_cutscenes::KURAN_ARRIVAL,
     post_zio_cutscenes::NEAR_DARK_FORCE_1,
@@ -355,6 +364,13 @@ mod tests {
             ("Event_ConveyorBeltUp", 6),
             ("Event_ConveyorBeltRight", 6),
             ("Event_ConveyorBeltLeft", 6),
+            ("Event_Recovery", 16),
+            ("Event_GaruberkTwDoorOpening1", 19),
+            ("Event_GaruberkTwDoorOpening2", 19),
+            ("Event_GaruberkTwDoorEntered1", 21),
+            ("Event_GaruberkTwDoorEntered2", 21),
+            ("Event_GaruberkTwEyeAction1", 8),
+            ("Event_GaruberkTwEyeAction2", 4),
             ("Cutscene_Landale", 24),
             ("Event_KuranArrival", 2),
             ("Event_NearDarkForce1", 2),

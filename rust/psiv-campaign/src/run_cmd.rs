@@ -7,10 +7,11 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use psiv_campaign::prefix::check_prefix;
 use psiv_campaign::replay::replay;
 use psiv_campaign::route::Route;
 use psiv_campaign::runner::{RunConfig, run};
-use psiv_campaign::split::{chapters_of, report_chapters, split_tape};
+use psiv_campaign::split::{ChapterCut, chapters_of, report_chapters, split_tape};
 use psiv_campaign::tape::Tape;
 
 use super::{Args, pack_dir};
@@ -183,6 +184,54 @@ fn split_inner(args: &[String]) -> Result<(), String> {
         );
     }
     Ok(())
+}
+
+/// `prefix-check <base.tape> <base-report.json> <run.tape> <run-save-dir>`: the
+/// run's tape begins with every pad of the base's, and each base chapter's save
+/// hashes the same in the run's save directory. 0 they match, 2 they differ, 1
+/// a usage or input error.
+pub fn cmd_prefix_check(args: &[String]) -> ExitCode {
+    let [base_tape, base_report, run_tape, run_saves] = args else {
+        eprintln!("{}", super::USAGE);
+        return ExitCode::from(1);
+    };
+    let (base, chapters, run) = match prefix_inputs(base_tape, base_report, run_tape) {
+        Ok(inputs) => inputs,
+        Err(message) => {
+            eprintln!("{message}");
+            return ExitCode::from(1);
+        }
+    };
+    match check_prefix(&base, &chapters, &run, Path::new(run_saves)) {
+        Ok(found) => {
+            println!(
+                "prefix matches: {} chapters, {} frames, every pad and every chapter save",
+                found.chapters, found.frames
+            );
+            ExitCode::SUCCESS
+        }
+        Err(error) => {
+            println!("prefix differs: {error}");
+            ExitCode::from(2)
+        }
+    }
+}
+
+/// The base tape, the base report's chapters and the run's tape.
+fn prefix_inputs(
+    base_tape: &str,
+    base_report: &str,
+    run_tape: &str,
+) -> Result<(Tape, Vec<ChapterCut>, Tape), String> {
+    let read = |path: &str| -> Result<String, String> {
+        std::fs::read_to_string(path).map_err(|e| format!("cannot read {path}: {e}"))
+    };
+    let base = Tape::parse(&read(base_tape)?).map_err(|e| format!("{base_tape}: {e}"))?;
+    let run = Tape::parse(&read(run_tape)?).map_err(|e| format!("{run_tape}: {e}"))?;
+    let report: serde_json::Value =
+        serde_json::from_str(&read(base_report)?).map_err(|e| format!("{base_report}: {e}"))?;
+    let chapters = chapters_of(&report).map_err(|e| format!("{base_report}: {e}"))?;
+    Ok((base, chapters, run))
 }
 
 /// `inspect <slot.sram> [--pack DIR]`: the save's position, party, pack and flags.

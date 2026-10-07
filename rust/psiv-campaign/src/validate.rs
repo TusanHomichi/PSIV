@@ -537,6 +537,16 @@ impl<'a> Run<'a> {
                 }
             }
         }
+        for item in expect.items_held.iter().chain(&expect.items_absent) {
+            self.item(item)?;
+        }
+        if let Some(both) = expect
+            .items_held
+            .iter()
+            .find(|held| expect.items_absent.contains(held))
+        {
+            return Err(format!("item {both} is both held and absent"));
+        }
         if let Some(vehicle) = expect.vehicle {
             if vehicle > psiv_core::VEHICLE_INDEX_MAX {
                 return Err(format!("vehicle {vehicle} is not 0 (on foot) or 1..=3"));

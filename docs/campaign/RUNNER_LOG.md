@@ -16,6 +16,8 @@ and those of the Ice Digger arc, Zelan to the Air Castle (C7, H36 to H44), in
 [RUNNER_LOG_ICEDIGGER.md](RUNNER_LOG_ICEDIGGER.md);
 S8's cutscene-return reload and the halts it exposed (H45, H46) are in
 [RUNNER_LOG_RELOAD.md](RUNNER_LOG_RELOAD.md);
+those of the Air Castle to Dark Force 2 (C8, H47 to H50) in
+[RUNNER_LOG_AIRCASTLE.md](RUNNER_LOG_AIRCASTLE.md);
 this file keeps the current state, the early runs, the halts H1 to H22 and the integration
 receipts.
 
@@ -25,6 +27,17 @@ a fix lane or an issue; the runner never fixes a port defect and never adds a
 shortcut, a state edit or a skip to get past one.
 
 ## Current state
+
+**C8 (2026-10-07, base `d501aee`): the route defeats Dark Force 2** (62 chapters; twelve new, from
+the restored `air-castle-xe-athoul-room` to `garuberk-dark-force-2`). Xe-A-Thoul falls once the
+castle's recovery tile (`Event_Recovery`, newly transcribed) has repaired Wren, shut down since Dark
+Force 1; the party buys Laconian arms and reflective armour at Jut and trains in the castle to level 37
+(554,799 frames); the Eclipse Torch's chest runs the Spector, Lashiec and `Cutscene_LashiecDefeated`;
+the torch burns the trees; the Garuberk Tower's ten doors and two eyes (six newly transcribed events,
+one new scene op, a door atlas in the pack) lead to Dark Force 2, and `Cutscene_DarkForce2Defeated`
+returns control on Dezolis (186,8). Two full runs from New Game: exit 0, **4,483,067 frames**, digest `eefda814de149505`, identical tapes (SHA-256 `62300cb1…46a3`) and chapter saves, replay reproduces the digest ([C8 final runs](RUNNER_LOG_AIRCASTLE.md#the-final-runs)). The 50-chapter prefix is pad-for-pad
+and save-for-save the base's. **The route past the torch needs the rebuilt pack** (the tower's door
+atlas, `psiv_tools`); see [the C8 log](RUNNER_LOG_AIRCASTLE.md#c8-runs). Halts H47 to H50.
 
 **S8 (2026-10-06, base `1b01ee7`): the route completes again with the cutscene-return reload modelled.**
 Two full runs from New Game: exit 0, 50 chapters, **3,852,511 frames**, digest `29c81ae27664b15b`,

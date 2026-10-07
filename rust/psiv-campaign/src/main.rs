@@ -11,6 +11,7 @@
 //! psiv-campaign inspect <slot.sram> [--pack DIR]
 //! psiv-campaign save-probe-tape <slot.sram> <out.tape> [neutral-frames]
 //! psiv-campaign split-tape <run.tape> <report.json> <out-dir>
+//! psiv-campaign prefix-check <base.tape> <base-report.json> <run.tape> <run-save-dir>
 //! ```
 //!
 //! Map ids are decimal or `0x` hex. The pack defaults to `$PSIV_PACK`, then
@@ -40,7 +41,8 @@ psiv-campaign plan --from-map M --from-cell X,Y --to-map N [--to-cell X,Y] [--fl
 psiv-campaign run <route.json> [--from-chapter ID] [--until-chapter ID] [--save-dir DIR] [--tape OUT] [--report OUT] [--pack DIR]\n  \
 psiv-campaign replay <tape> [--from-save FILE] [--pack DIR]\n  \
 psiv-campaign save-probe-tape <slot.sram> <out.tape> [neutral-frames]\n  \
-psiv-campaign split-tape <run.tape> <report.json> <out-dir>";
+psiv-campaign split-tape <run.tape> <report.json> <out-dir>\n  \
+psiv-campaign prefix-check <base.tape> <base-report.json> <run.tape> <run-save-dir>";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -50,6 +52,7 @@ fn main() -> ExitCode {
         Some("inspect") => return run_cmd::cmd_inspect(&args[1..]),
         Some("save-probe-tape") => return cmd_save_probe_tape(&args[1..]),
         Some("split-tape") => return run_cmd::cmd_split_tape(&args[1..]),
+        Some("prefix-check") => return run_cmd::cmd_prefix_check(&args[1..]),
         _ => {}
     }
     match run(&args) {
