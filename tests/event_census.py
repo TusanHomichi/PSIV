@@ -390,14 +390,6 @@ ALLOW_GROUPS: tuple[tuple[int, str, tuple[int, ...]], ...] = (
         (0x10,),
     ),
     (
-        ISSUE_VAHAL,
-        "Vahal Fort and Weapon Plant: platforms, conveyors, terminals, bosses and gates",
-        (
-            0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F, 0x20, 0x6E,
-            0x6F, 0x8D, 0x8E, 0x90, 0x91, 0x92,
-        ),
-    ),
-    (
         ISSUE_DEZOLIS,
         "Dezolis late arc: Garuberk Tower, the Esper and Inner Sanctuary dialogue controls, the Musk Cat and Penguin towns, Raja and Anger Tower controls",
         (
@@ -415,7 +407,7 @@ ALLOWLIST: dict[int, tuple[int, str]] = {
     event: (issue, area) for issue, area, events in ALLOW_GROUPS for event in events
 }
 #: The most the allowlist may hold. Lower it when a scene lands; never raise it.
-ALLOWLIST_CEILING = 81
+ALLOWLIST_CEILING = 62
 
 
 def disposition(

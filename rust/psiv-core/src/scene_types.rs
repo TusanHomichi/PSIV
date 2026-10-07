@@ -5,9 +5,81 @@
 //! thousand-line monolith.
 
 use crate::geom::{Cell, Direction};
-use crate::scene::{ActorRef, DialogueId, SceneOp};
+use crate::scene::SceneOp;
 use crate::scenes::FlightLeg;
 use crate::state::{CharId, Flag, PARTY_SLOTS};
+
+/// Which coordinate a comparison reads.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Axis {
+    /// `curr_x_pos`.
+    X,
+    /// `curr_y_pos`.
+    Y,
+}
+
+/// Who a scene op is talking about.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ActorRef {
+    /// A party member by slot; 0 is the leader.
+    PartyMember(usize),
+    /// A field object by its index in [`FieldMap::npcs`].
+    ///
+    /// Scene-lane proved these live at field-object RAM `$FFFFC300 + N*$40`,
+    /// so "NPC index N" is an unambiguous handle into the current map.
+    Npc(usize),
+    /// A character, resolved to whichever field object currently holds them
+    /// via the party slots — the `Event_GetCharacter` (`$5A6D6`) primitive.
+    /// Lets a scene name Chaz or Alys instead of guessing a slot.
+    Character(CharId),
+}
+
+/// A dialogue tree entry to open. The engine carries no text — the id is
+/// resolved against the pack by the runtime.
+///
+/// `GetDialogueByID` (`$59164`) skips `d0` `$FF` terminators through whichever
+/// tree was decompressed to `$FFFF3000`, so an entry index is only meaningful
+/// against the *current* tree. [`SceneOp::SetDialogueTree`] changes it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct DialogueId(pub u16);
+
+/// Which dialogue-window setup a scene asked for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub enum DialogueWindow {
+    /// `Event_GetAndRunDialogue` (`$5AC66`): the window closes, the panels
+    /// are destroyed and the map chunks reload (`Panel_DestroyAll`,
+    /// `Window_Destroy`, `Map_LoadChunks`).
+    #[default]
+    Standard,
+    /// `Event_GetAndRunDialogue2` (`$5ACDC`, `ps4.asm:121634`): the same text
+    /// loop, but the routine ends by zeroing `Panel_Num`, `Windows_Opened_Num`
+    /// and `$FFFFECA4` instead of destroying anything, so the text window and
+    /// every panel stay on screen and no chunk is reloaded. Fourteen
+    /// cartridge callers (`docs/scenes/DIALOGUE2_CALLERS.md`), every one a
+    /// scene that ends in a battle or a map change.
+    Retained,
+    /// `Event_GetAndRunDialogue5` (`$5ADF8`) — `Cutscene_PiataPrincipal`.
+    Cutscene,
+    /// `Event_GetAndRunDialogue3`, used by the Rykros surface.
+    Cutscene3,
+    /// The ending's first `RunText3` window before the panel sequence.
+    EndingIntro,
+    /// `Event_GetAndRunDialogue4` / `Event_RunDialogue4` in `$8021`.
+    Ending,
+    /// `Event_RunDialogue5` used for the Rykros hand-off line.
+    Cutscene5,
+}
+
+/// Where a dialogue entry index comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum DialogueSource {
+    /// A literal entry index written into the scene.
+    Entry(DialogueId),
+    /// Read `dialogue_id` (`$14`) off a field object. `Event_AlysFound` does
+    /// exactly this — `move.b $14(a4),d0` — so the line Alys speaks is a
+    /// property of her map object, not of the scene.
+    NpcDialogueId(ActorRef),
+}
 
 /// What the runtime tells the runner between ticks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -228,4 +300,7 @@ pub enum SceneFault {
         /// `World_Index` at the request.
         world: u8,
     },
+    /// A [`SceneOp::ConveyorRide`] reached the end of the map's chunk plane
+    /// (or ran with no layout to read) before the belt's chunks ended.
+    NoLayout,
 }

@@ -147,6 +147,12 @@ against a cartridge frame. This lane adds no replacement RNG algorithm.
 | `$3E` | `MapUpdate_NoUpdate6` | `0x055FA8` / 114876 | No writes; moveq #0,d0 / rts | none | 0 | implemented |
 | `$3F` | `MapUpdate_NoUpdate7` | `0x055FAC` / 114883 | No writes; moveq #0,d0 / rts | none | 0 | implemented |
 
+`$11` and `$12` (the Vahal Fort and Weapon Plant belt animation) stay the
+missing-input programs above. The belts' *carry* (events `$1D..$20`) does not
+depend on them: it tests the chunk ids `$A8..$AB` / `$AC..$AF` that the
+animation cycles through, and the static layout holds ids in those ranges
+([PLATFORMS_AND_BELTS](PLATFORMS_AND_BELTS.md#the-conveyor-belts)).
+
 ### Retail quirks retained
 
 - `$1F` masks the already-zero `d0`: the fork's optional frame reload is absent,

@@ -23,6 +23,14 @@ pub struct ScriptedActor {
     /// Where it is walking, if anywhere.
     pub target: Option<Cell>,
     pub(crate) step: Option<(Direction, Cell, u8)>,
+    /// Frames per cell this actor walks at, when a scene op fixes its own
+    /// speed (the conveyor belts run at `FieldObj_Step_Offset` 0, not the
+    /// party's walk). `None` is the runner's ordinary step timing.
+    pub(crate) pace: Option<StepFrames>,
+    /// Whole-pixel displacement from [`ScriptedActor::cell`], in the sixteenths
+    /// [`ScriptedActor::render_offset_16ths`] reports: what a platform ride
+    /// adds to the object's position between cell boundaries.
+    pub(crate) slide: (i32, i32),
 }
 
 impl ScriptedActor {
@@ -35,6 +43,8 @@ impl ScriptedActor {
             facing,
             target: None,
             step: None,
+            pace: None,
+            slide: (0, 0),
         }
     }
 
@@ -50,6 +60,7 @@ impl ScriptedActor {
         self.facing = facing;
         self.target = None;
         self.step = None;
+        self.slide = (0, 0);
     }
 
     /// Whether it still has walking to do.
@@ -62,11 +73,12 @@ impl ScriptedActor {
     #[must_use]
     pub fn render_offset_16ths(&self, frames: StepFrames) -> (i32, i32) {
         let Some((dir, _, progress)) = self.step else {
-            return (0, 0);
+            return self.slide;
         };
+        let frames = self.pace.unwrap_or(frames);
         let travelled = i32::from(progress) * crate::field::SUBCELL_UNITS / i32::from(frames.get());
         let (dx, dy) = dir.delta();
-        (dx * travelled, dy * travelled)
+        (self.slide.0 + dx * travelled, self.slide.1 + dy * travelled)
     }
 
     /// The direction that closes the gap to `target`.
@@ -102,6 +114,7 @@ impl ScriptedActor {
         frames: StepFrames,
         y_first: bool,
     ) -> Option<Cell> {
+        let frames = self.pace.unwrap_or(frames);
         if self.step.is_none() {
             let target = self.target?;
             match self.direction_toward(target, y_first) {

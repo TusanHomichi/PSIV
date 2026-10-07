@@ -66,18 +66,18 @@ cartridge keeps no other route to the field event dispatcher.
 | `$0012` | `Event_BioPlantAlarm` | map trigger $0C | BioPlant_Part2 | scene `Event_BioPlantAlarm` |
 | `$0013` | `Event_ElevatorDoorOpening` | interaction area $13 | BioPlant_Part3, BioPlant_B1, BioPlant_B2 (+42 more) | scene `Event_ElevatorDoorOpening` |
 | `$0014` | `Event_RidingElevator` | map trigger $0D | BioPlant_B1, BioPlant_B2, BioPlant_B3 (+42 more) | scene `Event_RidingElevator` |
-| `$0015` | `Event_VahFortMovingPlatform1` | map trigger $0E | VahalFort_F2 | allowlisted, #82 |
-| `$0016` | `Event_VahFortMovingPlatform2` | map trigger $0E | VahalFort_F2 | allowlisted, #82 |
-| `$0017` | `Event_WpnPlntMovingPlatform1` | map trigger $0F | WeaponPlant_F1 | allowlisted, #82 |
-| `$0018` | `Event_WpnPlntMovingPlatform2` | map trigger $0F | WeaponPlant_F1 | allowlisted, #82 |
-| `$0019` | `Event_WpnPlntMovingPlatform3` | map trigger $0F | WeaponPlant_F1 | allowlisted, #82 |
-| `$001A` | `Event_WpnPlntMovingPlatform4` | map trigger $0F | WeaponPlant_F1 | allowlisted, #82 |
-| `$001B` | `Event_VahalFortTerminal` | interaction area $1B | VahalFort_F2 | allowlisted, #82 |
-| `$001C` | `Event_WeaponPlantTerminal` | interaction area $1C | WeaponPlant_F3 | allowlisted, #82 |
-| `$001D` | `Event_ConveyorBeltDown` | map trigger $10; map trigger $11 | VahalFort_F2, WeaponPlant_F3 | allowlisted, #82 |
-| `$001E` | `Event_ConveyorBeltUp` | map trigger $10; map trigger $11 | VahalFort_F2, WeaponPlant_F3 | allowlisted, #82 |
-| `$001F` | `Event_ConveyorBeltRight` | map trigger $10; map trigger $11 | VahalFort_F2, WeaponPlant_F3 | allowlisted, #82 |
-| `$0020` | `Event_ConveyorBeltLeft` | map trigger $10; map trigger $11 | VahalFort_F2, WeaponPlant_F3 | allowlisted, #82 |
+| `$0015` | `Event_VahFortMovingPlatform1` | map trigger $0E | VahalFort_F2 | scene `Event_VahFortMovingPlatform1` |
+| `$0016` | `Event_VahFortMovingPlatform2` | map trigger $0E | VahalFort_F2 | scene `Event_VahFortMovingPlatform2` |
+| `$0017` | `Event_WpnPlntMovingPlatform1` | map trigger $0F | WeaponPlant_F1 | scene `Event_WpnPlntMovingPlatform1` |
+| `$0018` | `Event_WpnPlntMovingPlatform2` | map trigger $0F | WeaponPlant_F1 | scene `Event_WpnPlntMovingPlatform2` |
+| `$0019` | `Event_WpnPlntMovingPlatform3` | map trigger $0F | WeaponPlant_F1 | scene `Event_WpnPlntMovingPlatform3` |
+| `$001A` | `Event_WpnPlntMovingPlatform4` | map trigger $0F | WeaponPlant_F1 | scene `Event_WpnPlntMovingPlatform4` |
+| `$001B` | `Event_VahalFortTerminal` | interaction area $1B | VahalFort_F2 | scene `Event_VahalFortTerminal` |
+| `$001C` | `Event_WeaponPlantTerminal` | interaction area $1C | WeaponPlant_F3 | scene `Event_WeaponPlantTerminal` |
+| `$001D` | `Event_ConveyorBeltDown` | map trigger $10; map trigger $11 | VahalFort_F2, WeaponPlant_F3 | scene `Event_ConveyorBeltDown` |
+| `$001E` | `Event_ConveyorBeltUp` | map trigger $10; map trigger $11 | VahalFort_F2, WeaponPlant_F3 | scene `Event_ConveyorBeltUp` |
+| `$001F` | `Event_ConveyorBeltRight` | map trigger $10; map trigger $11 | VahalFort_F2, WeaponPlant_F3 | scene `Event_ConveyorBeltRight` |
+| `$0020` | `Event_ConveyorBeltLeft` | map trigger $10; map trigger $11 | VahalFort_F2, WeaponPlant_F3 | scene `Event_ConveyorBeltLeft` |
 | `$0021` | `Event_Recovery` | map trigger $12; called from $0067 | AirCastleXeAThoulRoom, AirCastle_F1_Part9, DezoSpaceport (+3 more) | allowlisted, #83 |
 | `$0022` | `Event_AiedoManSavings` | dialogue `$F6` | tree 11 entry 24 | allowlisted, #81 |
 | `$0023` | `Event_GirlsSneakingOut` | direct call: the Aiedo shop/inn routine (`Event_GirlsSneakingOut`, `ps4.asm` shop code) |  | scene `Event_GirlsSneakingOut` |
@@ -155,8 +155,8 @@ cartridge keeps no other route to the field event dispatcher.
 | `$006B` | `Event_IgglanovaBattle` | interaction area $0B | AcademyBasement_B2 | scene `Event_IgglanovaBattle` |
 | `$006C` | `Event_Phonon` | interaction area $0C | PlateSystem_F3 | allowlisted, #81 |
 | `$006D` | `Event_Hijammer` | interaction area $0D | Kuran_F1_Part2 | allowlisted, #83 |
-| `$006E` | `Event_Burstroc` | interaction area $0E | WeaponPlant_F2 | allowlisted, #82 |
-| `$006F` | `Event_PosiBolt` | interaction area $0F | VahalFort_F3 | allowlisted, #82 |
+| `$006E` | `Event_Burstroc` | interaction area $0E | WeaponPlant_F2 | scene `Event_Burstroc` |
+| `$006F` | `Event_PosiBolt` | interaction area $0F | VahalFort_F3 | scene `Event_PosiBolt` |
 | `$0070` | `Event_RanchOwner` | dialogue `$F6` | tree 3 entry 19 | allowlisted, #81 |
 | `$0071` | `Event_MileSandWormBattle` | map trigger $70 | Mile | scene `Event_MileSandWormBattle` |
 | `$0072` | `Event_RanchOwnerAfterBattle` | dialogue `$F6` | tree 3 entry 21 | allowlisted, #81 |
@@ -186,12 +186,12 @@ cartridge keeps no other route to the field event dispatcher.
 | `$008A` | `Event_ZemaServantBattle` | map trigger $74 | Zema | scene `Event_ZemaServantBattle` |
 | `$008B` | `Event_ZemaOldMan` | dialogue `$F6` | tree 4 entry 76 | scene `Event_ZemaOldMan` |
 | `$008C` | `Event_ZemaOldManAfterMission` | dialogue `$F6` | tree 4 entry 78 | scene `Event_ZemaOldManAfterMission` |
-| `$008D` | `Event_VahalFortEntrance` | map trigger $75 | VahalFort | allowlisted, #82 |
-| `$008E` | `Event_VahalFortMidway` | map trigger $76 | VahalFort_F2 | allowlisted, #82 |
+| `$008D` | `Event_VahalFortEntrance` | map trigger $75 | VahalFort | scene `Event_VahalFortEntrance` |
+| `$008E` | `Event_VahalFortMidway` | map trigger $76 | VahalFort_F2 | scene `Event_VahalFortMidway` |
 | `$008F` | `Event_DaughterTerminal` | dialogue `$F6` | tree 43 entry 10 | scene `Event_DaughterTerminal` |
-| `$0090` | `Event_VahalFortBarrier` | dialogue `$F6` | tree 43 entry 9 | allowlisted, #82 |
-| `$0091` | `Event_DominatorsDefeated` | map trigger $77 | VahalFort_F3 | allowlisted, #82 |
-| `$0092` | `Event_WeaponPlantArrival` | map trigger $78 | WeaponPlant | allowlisted, #82 |
+| `$0090` | `Event_VahalFortBarrier` | dialogue `$F6` | tree 43 entry 9 | scene `Event_VahalFortBarrier` |
+| `$0091` | `Event_DominatorsDefeated` | map trigger $77 | VahalFort_F3 | scene `Event_DominatorsDefeated` |
+| `$0092` | `Event_WeaponPlantArrival` | map trigger $78 | WeaponPlant | scene `Event_WeaponPlantArrival` |
 | `$0093` | `Event_MeeseClinicSickWoman` | dialogue `$F6` | tree 18 entry 102 | allowlisted, #81 |
 | `$0094` | `Event_StrippersAppearing` | map trigger $79 | StripClub | allowlisted, #81 |
 | `$0095` | `Event_ExitingStripClub` | map trigger $7A | HuntersGuild | allowlisted, #81 |
@@ -254,9 +254,9 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 | #56 | trigger-fired events | 3 |
 | #71 | `Event_GetAndRunDialogue2` callers | 1 |
 | #81 | Motavia side content | 42 |
-| #82 | Vahal Fort and Weapon Plant | 19 |
+| #82 | Vahal Fort and Weapon Plant | 0 |
 | #83 | Dezolis late arc | 16 |
-| | total | 81 |
+| | total | 62 |
 <!-- counts:end -->
 
 - [#56](https://github.com/TusanHomichi/PSIV/issues/56): trigger-fired events
@@ -265,6 +265,10 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
   `Event_GetAndRunDialogue2` callers (`$62`, `$7D`, `$88`, `$8F`).
 - [#81](https://github.com/TusanHomichi/PSIV/issues/81): Motavia side content.
 - [#82](https://github.com/TusanHomichi/PSIV/issues/82): Vahal Fort and Weapon Plant.
+  All nineteen events are transcribed (S9): [the story scenes](110_VahalFortStory.md),
+  [the chests](111_WrenSkillChests.md) and [the platforms, terminals and
+  belts](../field/PLATFORMS_AND_BELTS.md). The entry stays so the issue's area
+  keeps its row.
 - [#83](https://github.com/TusanHomichi/PSIV/issues/83): Dezolis late arc,
   including the Dezolis dialogue controls.
 

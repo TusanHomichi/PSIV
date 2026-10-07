@@ -6,6 +6,8 @@ use psiv_core::{Input, MapId};
 mod crash;
 #[path = "scene_landale_tests.rs"]
 mod landale;
+#[path = "scene_vahal_tests.rs"]
+mod vahal;
 
 /// The pack this target builds against. `PSIV_RUNTIME_PACK` lets a lane test a
 /// pack it built itself (the same escape hatch `dialogue::glue::tests` uses).
