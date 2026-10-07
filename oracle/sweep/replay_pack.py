@@ -41,9 +41,15 @@ ELEMENTS = ("physical", "energy", "fire", "gravity", "water", "anti_evil",
 #: HakenLeft (86). The records - and so the enemies they seat, which no
 #: formation may seat at the start - are the extractor's
 #: (`psiv_tools.formations.INLINE_FORMATIONS`).
-RELOADS = {34: "loc_1A2F4", 84: "loc_23D00", 86: "loc_23D00"}
-#: Enemies a fixture's own enemy brings in mid-battle some other way.
-SPAWNED = {139: 140}  # Psycho Wand's loc_3CF60, ps4.asm:79203-79215.
+#: Lane A6 adds the WorkerPods' COMBINE (`$FC`, `ps4.asm:27557`), FractOoze's
+#: FISSION (`BattleObj_SlugFission`, 35062) and InfantWorm's NOTHING (`$398`,
+#: 45795).
+RELOADS = {34: "loc_1A2F4", 84: "loc_23D00", 86: "loc_23D00",
+           23: "loc_1308C", 25: "loc_1308C", 38: "loc_1987E", 94: "loc_224E8"}
+#: Enemies a fixture's own enemy brings in mid-battle some other way: the
+#: Psycho Wand's loc_3CF60 (ps4.asm:79203-79215), and Profound Darkness's form
+#: changes (loc_2F8D8, 61916; loc_2EDD8, 61119), which chain.
+SPAWNED = {139: 140, 133: 134, 134: 135}
 
 
 def fixture_enemies(fixtures: pathlib.Path) -> tuple[set[int], set[int]]:
@@ -188,8 +194,10 @@ def build(pack: pathlib.Path, fixtures: pathlib.Path,
         raise SystemExit(f"{pack / 'formations.json'} has no inline formation "
                          f"{', '.join(missing)}: extract it with "
                          "`python3 -m psiv_tools extract`")
-    wanted_enemies |= {SPAWNED[enemy_id] for enemy_id in wanted_enemies
-                       if enemy_id in SPAWNED}
+    spawned = {SPAWNED[enemy_id] for enemy_id in wanted_enemies if enemy_id in SPAWNED}
+    while not spawned <= wanted_enemies:
+        wanted_enemies |= spawned
+        spawned = {SPAWNED[enemy_id] for enemy_id in wanted_enemies if enemy_id in SPAWNED}
     wanted_enemies |= {entry["enemy"]["id"] for label in labels
                        for entry in inline[label]["enemies"]}
     for enemy_id in sorted(wanted_enemies):

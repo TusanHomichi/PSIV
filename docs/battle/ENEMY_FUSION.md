@@ -115,3 +115,18 @@ enemy the reload seats. The run byte changes there: `$1BA`'s `$3C` becomes the
 record's 0. In the Air Castle no formation pairs the two, so COMBINE does not
 fire on that stretch; the port's arms fired for a BladeRight with no partner until
 lane A5 ([`ENEMY_ABILITIES_AIR_CASTLE.md`](ENEMY_ABILITIES_AIR_CASTLE.md)).
+
+## The endgame reloads (lane A6)
+
+Three more arms reload the side through `loc_14D46`, each from a record the pack's
+`inline_formations` carries (`psiv_tools.formations.INLINE_FORMATIONS`):
+
+| arm | object | record | seats | `$24(a4)` |
+|---|---|---|---|---|
+| 23 ArthroPod `$0C`, 25 Wiredine `$0D` COMBINE | `$FC` (`BattleObj_TarantellaCombine`, `ps4.asm:27454`) | `loc_1308C` (27571) | one LifeDeletr | kept |
+| 38 FractOoze `$1B` FISSION | `BattleObj_SlugFission` (34947) | `loc_1987E` (35075) | four JR.OOZE | kept |
+| 94 InfantWorm `$41` NOTHING | `$398` (`loc_223C0`, 45734) | `loc_224E8` (45818) | one SandWorm | cleared |
+
+FISSION's effect byte is `$25`, another `AbilityEffect_None`; the reload table
+pins each arm's own effect byte. A record that seats several enemies emits one
+`EnemiesFused` per seat. Captures: [`ENEMY_ABILITIES_ENDGAME.md`](ENEMY_ABILITIES_ENDGAME.md).

@@ -220,10 +220,30 @@ enum ObjectDraws {
     /// pass (52962, 52967) - [`ANOTHER_GATE_DRAWS`] in all, before it raises
     /// `$FFFFEE80` at `$46` (52957) and lets the request run.
     AnotherGate,
+    /// MOTRCANNON's `$AC` (`BattleObj_SlaveMotrCannon`, `ps4.asm:28736`): one
+    /// call when its state 0's animation ends (28770), whose `&3` picks the
+    /// flinch row of `loc_140E4`; the five-slot request is state `$C`'s (28921).
+    MotorCannon,
+    /// LifeDeletr's MICROMISSL: `$80C` (`ps4.asm:52229`) loads `$810`
+    /// (`loc_27094`, 52071), which calls `loc_270F0` - one call each (52107) -
+    /// twice on each of its frames 1, 9, 19 and 29 to jitter `$814`'s sprite,
+    /// all before `$80C`'s state `$C` jumps to `loc_24A9E`.
+    MicroMissile,
+    /// Profound Darkness 3's MEGID object `$8AC` (`loc_2DF4A`,
+    /// `ps4.asm:60068`): on each odd frame of its 72-frame state 0 it calls the
+    /// generator once (60128) and spawns a `$8B0` that calls it once more in
+    /// its init (60282) - 72 calls; its state 2 spawns twenty `$8B4`, two calls
+    /// each in their init (59955, 59960) - 40 more. All 112 come before state
+    /// 3's `loc_24BB6`.
+    Megid,
 }
 
 /// `$7F8`'s calls: 59 frames (`$11` = 1 .. `$3B`), two passes, two calls each.
 const ANOTHER_GATE_DRAWS: u16 = (0x3C - 1) * 2 * 2;
+
+/// `$8AC`'s calls: 36 parent calls and 36 `$8B0` inits, then 20 `$8B4` inits
+/// of two.
+const MEGID_DRAWS: u16 = 36 * 2 + 20 * 2;
 
 impl ObjectDraws {
     /// Takes the calls the chain makes before its damage request, for a party
@@ -233,6 +253,9 @@ impl ObjectDraws {
             ObjectDraws::None => 0,
             ObjectDraws::EarthquakeShake => EARTHQUAKE_SHAKE_DRAWS,
             ObjectDraws::AnotherGate => ANOTHER_GATE_DRAWS,
+            ObjectDraws::MotorCannon => 1,
+            ObjectDraws::MicroMissile => 8,
+            ObjectDraws::Megid => MEGID_DRAWS,
             ObjectDraws::GraSparks => {
                 sparks::draws(living, rolls);
                 return;
@@ -364,6 +387,12 @@ mod sparks;
 use routes::proven;
 #[cfg(test)]
 pub(super) use routes::{DAMAGE_SKILL_ROUTES, all};
+
+/// Whether [`resolve_damage_skill`] runs `skill` for `enemy`: a proven route
+/// and a no-op effect handler.
+pub(super) fn owns(enemy: u16, skill: &super::EnemySkill) -> bool {
+    effect_is_none(skill.effect) && proven(enemy, skill.id).is_some()
+}
 
 /// The traced damage requests of one route, for every pair in
 /// [`DAMAGE_SKILL_ROUTES`]: one request against the chosen party target
