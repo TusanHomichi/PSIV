@@ -132,8 +132,8 @@ pub use order::{Priority, QueueEntry, build_queue, roll_priority};
 pub use records::{
     AI_CONDITIONS, BattleData, BattleDataError, Bonuses, CharacterRecord, ELEMENT_SLOTS,
     EQUIPMENT_SLOTS, ElementRole, EnemyRecord, EquipSlot, FormationEnemy, FormationRecord,
-    ItemKind, ItemRecord, LevelRecord, LevelTable, REGULAR_ABILITIES, SKILL_SLOTS, TECHNIQUE_SLOTS,
-    UNRUNNABLE,
+    InlineFormation, ItemKind, ItemRecord, LevelRecord, LevelTable, REGULAR_ABILITIES, SKILL_SLOTS,
+    TECHNIQUE_SLOTS, UNRUNNABLE,
 };
 pub use rewards::{MAX_LEVEL, POOL_CAP, Pools, Split, level_up, level_up_absent, split_rewards};
 pub use rng::{HV_SURROGATE, Lcg41, RESEED, Rng2, Rolls, SliceRolls};

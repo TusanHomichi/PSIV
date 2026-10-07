@@ -8,6 +8,7 @@
 //! does not.
 
 mod acid;
+mod air_castle;
 mod all_party;
 mod dark_force;
 mod firebreath;
@@ -34,6 +35,11 @@ pub(crate) struct DamageRoute {
     pub(super) class: DamageClass,
     /// What the same chain takes off the shared stream before it does that.
     pub(super) draws: ObjectDraws,
+    /// Whether the object tests the caster's `StatusTechSealed` and, when it is
+    /// set, ends the turn without a request: GIZAN's `loc_2912C`
+    /// (`btst #4, $16(a1)` at `ps4.asm:54387`) is one of the sixteen objects
+    /// that do.
+    pub(super) sealable: bool,
 }
 
 /// Every family's rows, one slice per carrier family.
@@ -53,6 +59,7 @@ pub(crate) const DAMAGE_SKILL_ROUTES: &[&[DamageRoute]] = &[
     organic::ROUTES,
     techniques::ROUTES,
     dark_force::ROUTES,
+    air_castle::ROUTES,
 ];
 
 /// Every row of every family, in registry order.

@@ -51,6 +51,12 @@ pub enum FirstZioAction {
     /// ability and loads object `$818` (`loc_32344`, `ps4.asm:64872`), a
     /// presentation-only charge-up that requests nothing.
     DarkForceCharge,
+    /// Dark Force 2's first action (`EnemyAttack_DarkForce2`,
+    /// `ps4.asm:19971-19977`): the latch is raised, so the routine clears the
+    /// rolled ability and `Current_Target_Index` and loads object `$83C`
+    /// (`loc_3161C`, `ps4.asm:63924`), which scrolls the boss's plane in and
+    /// requests nothing.
+    DarkForceReveal,
 }
 
 /// Why a queued fighter did nothing.

@@ -51,6 +51,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: ACID_BREATH,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // `EnemyAttackOffs` `$4C` (`ps4.asm:19283`) → the same
     // `EnemyAttack_FlattrPlnt` arm and object.
@@ -59,6 +60,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: ACID_BREATH,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // `EnemyAttackOffs` `$55` (`ps4.asm:19292`) → `EnemyAttack_Piercer`
     // (`ps4.asm:21518`), `$33` arm `loc_F2A0` → object `$35C` = `loc_23998`
@@ -68,6 +70,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: ACID_BREATH,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // `EnemyAttackOffs` `$56` (`ps4.asm:19293`) → the same
     // `EnemyAttack_Piercer` arm and object.
@@ -76,5 +79,6 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: ACID_BREATH,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
 ];

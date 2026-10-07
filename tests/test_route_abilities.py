@@ -148,8 +148,9 @@ class ScopeTests(unittest.TestCase):
         self.assertEqual(sorted(found.battles), [10, 14, 16, 17])
         self.assertIn(0x184, found.maps)
         self.assertIn(0x173, found.maps, "the Air Castle walk is in it")
-        # It is the whole worklist: GRA, COMBINE, THNDRBLAST, Lashiec's and Dark
-        # Force 2's abilities are all in the scope and none is implemented.
+        # It was lane A5's whole worklist: GRA, COMBINE, THNDRBLAST, Lashiec's
+        # and Dark Force 2's abilities are all in the scope, and none is left
+        # unsupported (a `partial` row's other carriers are bosses outside it).
         try:
             result = derive(Data.load(ra.GENERATED), found, ra.ledger_classes())
         except FileNotFoundError as error:
@@ -157,7 +158,8 @@ class ScopeTests(unittest.TestCase):
         listed = {a["ability"]: a["ledger_status"] for a in result["abilities"]}
         for ability in (0x31, 0x3A, 0x5C, 0x5F, 0x60, 0x61, 0x62, 0x64, 0x65):
             self.assertIn(ability, listed, hex(ability))
-            self.assertNotEqual(listed[ability], "implemented", hex(ability))
+        self.assertEqual([hex(a) for a, status in listed.items() if status == "unsupported"],
+                         [])
         self.assertTrue(any("dezolis-ice-digger" in why
                             for reasons in found.maps.values() for why in reasons))
         # The route's first chapters are not in it.
@@ -233,23 +235,25 @@ class LedgerTests(unittest.TestCase):
 
 
 class CommittedDocBlock(unittest.TestCase):
-    """The route doc's tables are the tool's output, never a hand-kept copy."""
+    """The route docs' tables are the tool's output, never a hand-kept copy."""
 
-    DOC = ra.ROOT / "docs" / "battle" / "ENEMY_ABILITIES_ROUTE.md"
-
-    def test_the_route_doc_block_matches_the_derivation(self):
+    def test_every_route_doc_block_matches_the_derivation(self):
         try:
             data = Data.load(ra.GENERATED)
         except FileNotFoundError as error:
             self.skipTest(f"generated tables absent (local input): {error}")
-        scope = ra.stretch_scope(ra.STRETCHES["zelan-kuran"])
-        expected = ra.markdown(derive(data, scope, ra.ledger_classes()))
-        text = self.DOC.read_text()
-        self.assertEqual(
-            text, ra.with_doc_block(text, expected),
-            "docs/battle/ENEMY_ABILITIES_ROUTE.md is stale: run "
-            "python3 -m oracle.sweep.route_abilities --update-doc "
-            "docs/battle/ENEMY_ABILITIES_ROUTE.md")
+        self.assertEqual(set(ra.STRETCH_DOCS), set(ra.STRETCHES),
+                         "every stretch has a committed document")
+        for stretch, doc in ra.STRETCH_DOCS.items():
+            with self.subTest(stretch=stretch):
+                scope = ra.stretch_scope(ra.STRETCHES[stretch])
+                expected = ra.markdown(derive(data, scope, ra.ledger_classes()))
+                text = doc.read_text()
+                relative = doc.relative_to(ra.ROOT)
+                self.assertEqual(
+                    text, ra.with_doc_block(text, expected),
+                    f"{relative} is stale: run python3 -m oracle.sweep.route_abilities "
+                    f"--stretch {stretch} --update-doc {relative}")
 
     def test_a_stale_block_is_detected_and_a_missing_one_is_an_error(self):
         text = "intro\n<!-- route_abilities:begin -->\n\nold\n\n<!-- route_abilities:end -->\n"

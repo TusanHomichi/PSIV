@@ -109,6 +109,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: GIWAT,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: true,
     },
     // 77 TechPlant, `$2E` GIWAT: `EnemyAttackOffs` `$4D` (`ps4.asm:19284`) →
     // `EnemyAttack_FlattrPlnt` arm `loc_F6C4` (`ps4.asm:21846`), writing `$2FC`
@@ -120,6 +121,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: GIWAT,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: true,
     },
     // 91 HewGilla, `$2E` GIWAT: `EnemyAttackOffs` `$5B` (`ps4.asm:19298`) →
     // `EnemyAttack_HewGilla` (`ps4.asm:21395`); `$2E` is the else arm
@@ -131,6 +133,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: GIWAT,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 101 DarkWitch, `$2E` GIWAT: `EnemyAttackOffs` `$65` (`ps4.asm:19308`) →
     // `EnemyAttack_TechUser` (`ps4.asm:21156`), arm `loc_EE0E`
@@ -142,6 +145,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: GIWAT,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: true,
     },
     // 122 DElmLars, `$2E` GIWAT: `EnemyAttackOffs` `$7A` (`ps4.asm:19329`) →
     // `EnemyAttack_DElmLars` (`ps4.asm:20222`), arm `loc_DFBE`
@@ -153,6 +157,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: GIWAT,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: true,
     },
     // 123 XeAThoul, `$2E` GIWAT: `EnemyAttackOffs` `$7B` (`ps4.asm:19330`) →
     // the same `EnemyAttack_DElmLars` arm, object and request.
@@ -161,6 +166,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: GIWAT,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: true,
     },
     // 81 DesrtLeach, `$37` SAND STORM: `EnemyAttackOffs` `$51`
     // (`ps4.asm:19288`) → `EnemyAttack_SandWorm` (`ps4.asm:21658`), arm
@@ -172,6 +178,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: SAND_STORM,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 82 Leviathan, `$39` MAELSTROM: `EnemyAttackOffs` `$52`
     // (`ps4.asm:19289`) → `EnemyAttack_SandWorm`'s else arm `loc_F4FA`
@@ -183,6 +190,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: MAELSTROM,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 90 Depcen, `$3F` FLODBREATH: `EnemyAttackOffs` `$5A`
     // (`ps4.asm:19297`) → `EnemyAttack_Ismounos` (`ps4.asm:21434`), whose
@@ -194,6 +202,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: FLODBREATH,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 91 HewGilla, `$3F` FLODBREATH: `EnemyAttackOffs` `$5B`
     // (`ps4.asm:19298`) → `EnemyAttack_HewGilla`'s `$3F` arm (test at line
@@ -204,6 +213,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: FLODBREATH,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 92 Elmelew, `$3F` FLODBREATH: `EnemyAttackOffs` `$5C`
     // (`ps4.asm:19299`) → the same `EnemyAttack_HewGilla` arm, object and
@@ -213,6 +223,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: FLODBREATH,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 91 HewGilla, `$40` WAT: `EnemyAttack_HewGilla`'s `$40` arm `loc_F0CC`
     // (`ps4.asm:21412`, test at line 21418) writes `$388` (line 21423) =
@@ -223,6 +234,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: WAT,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 92 Elmelew, `$40` WAT: `EnemyAttackOffs` `$5C` (`ps4.asm:19299`) → the
     // same arm and object.
@@ -231,6 +243,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: WAT,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 99 TechUser, `$40` WAT: `EnemyAttackOffs` `$63` (`ps4.asm:19306`) →
     // `EnemyAttack_TechUser`'s `$40` arm `loc_EDC4` (`ps4.asm:21211`), writing
@@ -241,6 +254,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: WAT,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: true,
     },
     // 100 TechMaster, `$40` WAT: `EnemyAttackOffs` `$64` (`ps4.asm:19307`) →
     // the same `EnemyAttack_TechUser` arm and object.
@@ -249,6 +263,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: WAT,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: true,
     },
     // 114 Juza, `$40` WAT: `EnemyAttackOffs` `$72` (`ps4.asm:19321`) →
     // `EnemyAttack_Juza` (`ps4.asm:20575`), arm `loc_E3DE` (`ps4.asm:20593`)
@@ -259,6 +274,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: WAT,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: true,
     },
     // 99 TechUser, `$44` FOI: `EnemyAttack_TechUser`'s first arm (test at
     // line 21157) writes `$3B0` (line 21171) = `loc_21BF0`
@@ -269,6 +285,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: FOI,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: true,
     },
     // 100 TechMaster, `$44` FOI: `EnemyAttackOffs` `$64` (`ps4.asm:19307`) →
     // the same `EnemyAttack_TechUser` arm and object.
@@ -277,6 +294,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: FOI,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: true,
     },
     // 114 Juza, `$44` FOI: `EnemyAttack_Juza`'s first arm (`ps4.asm:20575`,
     // test at line 20576) writes `$740` (line 20590) = `loc_2B08E`
@@ -287,6 +305,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: FOI,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: true,
     },
     // 147 Rappy, `$6D` ROUND EYES: `EnemyAttackOffs` `$93`
     // (`ps4.asm:19354`) → `EnemyAttack_Rappy` (`ps4.asm:19578`), whose
@@ -300,6 +319,7 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: ROUND_EYES,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     // 148 BlueRappy, `$6E` LOVEL EYES: `EnemyAttackOffs` `$94`
     // (`ps4.asm:19355`) → the same routine's else arm `loc_D4DE`
@@ -311,5 +331,6 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: LOVEL_EYES,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
 ];

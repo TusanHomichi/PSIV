@@ -113,6 +113,12 @@ impl BattleFiles {
             .formations
             .iter()
             .chain(&self.formations.boss_formations)
+            .chain(
+                self.formations
+                    .inline_formations
+                    .iter()
+                    .map(|i| &i.formation),
+            )
             .flat_map(|formation| formation.enemies.iter().map(|slot| slot.enemy_id))
             .collect();
         let mut found = Vec::new();
@@ -282,6 +288,12 @@ impl BattleFiles {
             .formations
             .iter()
             .chain(&self.formations.boss_formations)
+            .chain(
+                self.formations
+                    .inline_formations
+                    .iter()
+                    .map(|i| &i.formation),
+            )
         {
             for slot in &formation.enemies {
                 if !seen.contains(&slot.enemy_id) {

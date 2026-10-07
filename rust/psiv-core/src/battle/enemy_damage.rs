@@ -78,6 +78,10 @@ mod flaeli_tests;
 #[path = "enemy_damage_route_tests.rs"]
 mod route_tests;
 
+#[cfg(test)]
+#[path = "enemy_damage_air_castle_tests.rs"]
+mod air_castle_tests;
+
 /// The proven damage records' no-op `AbilityEffectsOffs` indices
 /// (`ps4.asm:9036`): each reaches `AbilityEffect_None`, a bare `rts`.
 ///
@@ -160,6 +164,11 @@ enum DamageClass {
     /// once. `loc_17D4A` (33154-33177) then clears the next and previous
     /// enemy objects, retaining the actor, cached stats and reward pools.
     AllPartyRemoveNeighbours,
+    /// THNDRBLAST's `$7C0` (`loc_28B7E`, `ps4.asm:53948-53969`): `bset #1`
+    /// (`StatusParalyzed`) on the stats of `Fighter_Enemy_1`..`3` - the three
+    /// Xe-A-Thouls whose combined arm cast it, whatever each slot now holds -
+    /// and then the five-slot `loc_24BB6` (53903).
+    AllPartyParalyzingTrio,
 }
 
 /// The calls a route's object chain makes on the shared stream *before* its
@@ -179,10 +188,12 @@ enum DamageClass {
 ///
 /// So the count is part of the route, read out of the chain the same way the
 /// class is, and the resolver takes the calls where the object does: after the
-/// ability roll and before the first damage run. It depends on nothing the
-/// battle state holds — the object runs its fixed frame count whatever the
-/// target count, the party's HP or the fight's outcome — which is why it is a
-/// per-route constant and not a function.
+/// ability roll and before the first damage run. For every route but one it
+/// depends on nothing the battle state holds — the object runs its fixed frame
+/// count whatever the target count, the party's HP or the fight's outcome — so
+/// it is a per-route constant. GRA's sparks are the exception: one spark per
+/// living party member, each loading the next at a countdown its own call
+/// picks, so [`ObjectDraws::GraSparks`] is a simulation ([`sparks`]).
 ///
 /// The file's every `jsr (UpdateRNGSeed2).l` call site was enumerated for this
 /// (43 of them, `docs/source-notes/battle-enemy-abilities.md`, 2026-09-25):
@@ -195,18 +206,40 @@ enum ObjectDraws {
     /// Nothing in the chain calls the generator: the route's whole draw is the
     /// ability roll and the damage runs.
     None,
-    /// `BattleObj_Earthquake`'s shake (`ps4.asm:47884`), the one chain read to
-    /// call `UpdateRNGSeed2` — [`EARTHQUAKE_SHAKE_DRAWS`] calls, all of them
-    /// before the five-slot request at `ps4.asm:47998`.
+    /// `BattleObj_Earthquake`'s shake (`ps4.asm:47884`) — [`EARTHQUAKE_SHAKE_DRAWS`]
+    /// calls, all of them before the five-slot request at `ps4.asm:47998`.
     EarthquakeShake,
+    /// GRA's sparks ([`sparks`]): one call per living party member, then one
+    /// per spark that fires before `$FFFFEE85` rises. The one route whose
+    /// count is not a constant: it depends on the party and on the calls
+    /// themselves.
+    GraSparks,
+    /// ANOTHRGATE's `$7F8` (`loc_27C80`, `ps4.asm:52942-52981`): on each frame
+    /// its `$11` counts from 1 to `$3B`, `blt.s loc_27CC4` (52953) runs a
+    /// two-pass `dbf` loop (52960-52979) with two `UpdateRNGSeed2` calls a
+    /// pass (52962, 52967) - [`ANOTHER_GATE_DRAWS`] in all, before it raises
+    /// `$FFFFEE80` at `$46` (52957) and lets the request run.
+    AnotherGate,
 }
 
+/// `$7F8`'s calls: 59 frames (`$11` = 1 .. `$3B`), two passes, two calls each.
+const ANOTHER_GATE_DRAWS: u16 = (0x3C - 1) * 2 * 2;
+
 impl ObjectDraws {
-    /// How many calls the chain makes before its damage request.
-    const fn count(self) -> u16 {
-        match self {
+    /// Takes the calls the chain makes before its damage request, for a party
+    /// with `living` sparked members.
+    fn draw(self, living: usize, rolls: &mut impl Rolls) {
+        let fixed = match self {
             ObjectDraws::None => 0,
             ObjectDraws::EarthquakeShake => EARTHQUAKE_SHAKE_DRAWS,
+            ObjectDraws::AnotherGate => ANOTHER_GATE_DRAWS,
+            ObjectDraws::GraSparks => {
+                sparks::draws(living, rolls);
+                return;
+            }
+        };
+        for _ in 0..fixed {
+            rolls.next_roll();
         }
     }
 }
@@ -326,6 +359,7 @@ const HEWN: u8 = 0x4F;
 const BLACK_WAVE2: u8 = 0x6C;
 
 mod routes;
+mod sparks;
 
 use routes::proven;
 #[cfg(test)]
@@ -354,9 +388,11 @@ pub(super) use routes::{DAMAGE_SKILL_ROUTES, all};
 /// the order `Battle_UpdateFighters` (`ps4.asm:987`) runs their `$C` routines
 /// in.
 ///
-/// The object's calls are drawn whatever the battle state: the arm loads the
+/// The object's calls are drawn whatever the outcome: the arm loads the
 /// object on the ability roll alone, so the shake runs its sixty frames and
-/// takes its 28 calls even in a round where no party slot is left to damage.
+/// takes its 28 calls even in a round where no party slot is left to damage
+/// (GRA's sparks, which count the living party, take none then). A sealable
+/// route's sealed caster takes none either: its object ends the turn first.
 /// They sit before every damage run, never between them — the request is the
 /// object's last phase, and all of its draws are behind it.
 pub(super) fn resolve_damage_skill(
@@ -394,18 +430,38 @@ pub(super) fn resolve_damage_skill(
     // (`move.w (a1,d1.w), d1`, table offsets `atk_pow_battle` and above) and
     // `$01`..`$04` as bytes, which is what [`super::technique::stat`] returns.
     let power = super::technique::stat(&caster.stats, skill.power_stat & super::STAT_INDEX_MASK);
+    let sealed = route.sealable && caster.stats.status & super::stats::status::TECH_SEALED != 0;
     events.push(BattleEvent::EnemySkillUsed {
         actor,
         skill: ability,
         name: skill.name.clone(),
     });
+    if sealed {
+        // The object animates, finds its caster sealed and ends the turn
+        // before any request (`DamageRoute::sealable`).
+        return true;
+    }
     // The chain's own calls come here, between the ability roll the caller made
     // and the first damage run below: they are the frames the object spends
     // animating before its request, and they move the shared seed like any
     // other draw, so a port that skips them reads another action's numbers as
-    // its own. See [`ObjectDraws`] for what makes them a per-route constant.
-    for _ in 0..route.draws.count() {
-        rolls.next_roll();
+    // its own. See [`ObjectDraws`] for which are constants and which is not.
+    let living = roster.side(Side::Party).filter(|f| f.is_alive()).count();
+    route.draws.draw(living, rolls);
+    if class == DamageClass::AllPartyParalyzingTrio {
+        const PARALYZED: u8 = super::stats::status::PARALYZED;
+        for slot in 6..=8u8 {
+            if let Some(fighter) = FighterId::new(slot).and_then(|id| roster.get_mut(id))
+                && fighter.stats.status & PARALYZED == 0
+            {
+                fighter.stats.status |= PARALYZED;
+                events.push(BattleEvent::StatusInflicted {
+                    actor,
+                    target: fighter.id,
+                    status: PARALYZED,
+                });
+            }
+        }
     }
     match class {
         // One request against the object's `$38`, the drawn
@@ -419,7 +475,9 @@ pub(super) fn resolve_damage_skill(
         // still standing, in slot order. `intended` plays no part: the arm
         // cleared `Current_Target_Index` before loading its object and the
         // loop runs over `Obj_Fighters` itself.
-        DamageClass::AllParty | DamageClass::AllPartyRemoveNeighbours => {
+        DamageClass::AllParty
+        | DamageClass::AllPartyRemoveNeighbours
+        | DamageClass::AllPartyParalyzingTrio => {
             let targets: Vec<FighterId> = roster
                 .side(Side::Party)
                 .filter(|f| f.is_alive())
@@ -440,7 +498,9 @@ pub(super) fn resolve_damage_skill(
                 .filter(|id| id.side() == Side::Enemy)
                 .collect()
         }
-        DamageClass::Single | DamageClass::AllParty => Vec::new(),
+        DamageClass::Single | DamageClass::AllParty | DamageClass::AllPartyParalyzingTrio => {
+            Vec::new()
+        }
     };
     for id in removed {
         if let Some(fighter) = roster.get_mut(id) {

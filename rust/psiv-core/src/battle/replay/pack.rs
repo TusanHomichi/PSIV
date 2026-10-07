@@ -36,6 +36,7 @@ pub(crate) fn data() -> BattleData {
         .with_skills(sweep.skills)
         .with_battle_items(sweep.battle_items)
         .with_items(sweep.equipment)
+        .with_inline_formations(sweep.inline_formations)
         .with_enemies([helex(), fanbite(), desrt_leach()])
         .with_enemy_skills([flame_bolt(), spiral_bld(), sand_storm()])
 }
@@ -62,6 +63,23 @@ fn read_pack(path: &std::path::Path) -> SweepPack {
         skills: parsed.skills.into_iter().map(Into::into).collect(),
         battle_items: parsed.battle_items.into_iter().map(Into::into).collect(),
         equipment: parsed.equipment.into_iter().map(Into::into).collect(),
+        inline_formations: parsed
+            .inline_formations
+            .into_iter()
+            .map(|j| InlineFormation {
+                label: j.label,
+                run_chance: j.run_chance,
+                enemies: j
+                    .enemies
+                    .into_iter()
+                    .map(|e| FormationEnemy {
+                        slot: e.slot,
+                        enemy_id: e.enemy_id,
+                        position: e.position,
+                    })
+                    .collect(),
+            })
+            .collect(),
     }
 }
 
@@ -72,6 +90,22 @@ struct SweepPack {
     skills: Vec<Skill>,
     battle_items: Vec<BattleItem>,
     equipment: Vec<ItemRecord>,
+    inline_formations: Vec<InlineFormation>,
+}
+
+/// One record Fusion or COMBINE copies, as `replay_pack.py` writes it.
+#[derive(Deserialize)]
+struct InlineJson {
+    label: String,
+    run_chance: u8,
+    enemies: Vec<InlineEnemyJson>,
+}
+
+#[derive(Deserialize)]
+struct InlineEnemyJson {
+    slot: u8,
+    enemy_id: u16,
+    position: u8,
 }
 
 #[derive(Deserialize)]
@@ -86,6 +120,8 @@ struct SweepJson {
     battle_items: Vec<PartyAbilityJson>,
     #[serde(default)]
     equipment: Vec<ItemJson>,
+    #[serde(default)]
+    inline_formations: Vec<InlineJson>,
 }
 
 #[derive(Deserialize)]

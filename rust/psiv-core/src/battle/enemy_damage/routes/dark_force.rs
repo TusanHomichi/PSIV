@@ -17,17 +17,20 @@ pub(super) const ROUTES: &[DamageRoute] = &[
         ability: 0x1C,
         class: DamageClass::Single,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     DamageRoute {
         enemy_id: 130,
         ability: 0x20,
         class: DamageClass::AllParty,
         draws: ObjectDraws::None,
+        sealable: false,
     },
     DamageRoute {
         enemy_id: 130,
         ability: 0x63,
         class: DamageClass::AllParty,
         draws: ObjectDraws::None,
+        sealable: false,
     },
 ];

@@ -293,13 +293,20 @@ impl Roster {
     /// android-dead. Note the mask: only `$44`, so a *sleeping* or paralysed
     /// character still contributes, which is why a fully incapacitated party
     /// can still roll a good escape chance.
+    ///
+    /// The comparison is **signed**: `moveq #0, d1`, then `cmp.b d1, d0 /
+    /// ble.s` (`ps4.asm:17472`, `17481-17483`), so an agility of `$80` or more
+    /// reads as negative and never beats the starting zero. The answer is
+    /// therefore the highest agility in `1..=127`, or zero; the callers read
+    /// `d1` as a word whose high byte the `moveq` cleared. A captured fight
+    /// whose party carried agility 255 opened with the enemy's ambush on that
+    /// zero (`replay_fixtures/air_castle/airslash.json`).
     #[must_use]
     pub fn highest_party_agility(&self) -> u8 {
         self.side(Side::Party)
             .filter(|f| !f.stats.is_out())
             .map(|f| f.stats.agility.battle)
-            .max()
-            .unwrap_or(0)
+            .fold(0u8, |d1, d0| if d0 as i8 > d1 as i8 { d0 } else { d1 })
     }
 }
 
@@ -362,6 +369,29 @@ mod tests {
 
         // An empty party yields zero rather than panicking.
         assert_eq!(Roster::new().highest_party_agility(), 0);
+    }
+
+    #[test]
+    fn an_agility_of_128_or_more_reads_as_negative() {
+        let mut roster = Roster::new();
+        for agility in [255u8, 128, 40] {
+            let mut stats = Stats::from_enemy(&zoran_bult());
+            stats.agility.battle = agility;
+            roster.add_party_member(0, "member".into(), stats);
+        }
+        assert_eq!(roster.highest_party_agility(), 40);
+        let mut fast = Roster::new();
+        let mut stats = Stats::from_enemy(&zoran_bult());
+        stats.agility.battle = 200;
+        fast.add_party_member(0, "only".into(), stats.clone());
+        assert_eq!(
+            fast.highest_party_agility(),
+            0,
+            "nothing beats the moveq #0"
+        );
+        stats.agility.battle = 127;
+        fast.add_party_member(1, "edge".into(), stats);
+        assert_eq!(fast.highest_party_agility(), 127);
     }
 
     #[test]

@@ -111,6 +111,9 @@ mod abilities;
 #[path = "engine_tests_dark_force.rs"]
 mod dark_force;
 
+#[path = "engine_tests_air_castle.rs"]
+mod air_castle;
+
 #[path = "engine_tests_rewards.rs"]
 mod rewards;
 
