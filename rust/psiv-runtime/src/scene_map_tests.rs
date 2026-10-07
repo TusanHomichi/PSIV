@@ -4,6 +4,8 @@ use psiv_core::{Input, MapId};
 
 #[path = "scene_crash_tests.rs"]
 mod crash;
+#[path = "scene_garuberk_tests.rs"]
+mod garuberk;
 #[path = "scene_landale_tests.rs"]
 mod landale;
 #[path = "scene_vahal_tests.rs"]

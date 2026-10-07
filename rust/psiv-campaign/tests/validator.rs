@@ -33,24 +33,26 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
     let route = Route::parse(&main_text()).expect("main.json parses");
     let ids: Vec<&str> = route.chapters.iter().map(|c| c.id.as_str()).collect();
     assert_eq!(ids.first(), Some(&"academy"));
-    assert_eq!(ids.last(), Some(&"air-castle-arrival"));
+    assert_eq!(ids.last(), Some(&"garuberk-dark-force-2"));
     assert_eq!(
-        ids[ids.len() - 13..],
+        ids[ids.len() - 15..],
         [
-            "dezolis-landale",
-            "dezolis-training",
-            "kuran-arrival",
-            "kuran-elevators",
-            "kuran-near-dark-force",
-            "kuran-dark-force-1",
-            "dezolis-ice-digger",
-            "meese-raja-sick",
-            "dezolis-saving-kyra",
-            "esper-mansion",
             "esper-inner-sanctuary",
             "gumbious-torch-stolen",
-            "air-castle-arrival"
-        ]
+            "air-castle-arrival",
+            "air-castle-xe-athoul-room",
+            "air-castle-recovery-tile",
+            "air-castle-xe-athoul",
+            "jut-outfit",
+            "air-castle-training",
+            "air-castle-inner",
+            "air-castle-lashiec",
+            "jut-inn",
+            "dezolis-eclipse-torch",
+            "garuberk-tower-first-eye",
+            "garuberk-tower-second-eye",
+            "garuberk-dark-force-2"
+        ][..]
     );
     assert!(ids.contains(&"nurvus-zio"));
     assert!(ids.contains(&"aiedo"));
@@ -123,6 +125,48 @@ fn a_wrong_item_id_is_rejected_with_its_location() {
     );
     let report = run(&numeric).unwrap();
     assert!(report.errors.iter().any(|e| e.reason.contains("item #250")));
+}
+
+/// An `expect`'s inventory claims name real items, and no item is both held
+/// and absent; `status_clear` parses as a claim of its own.
+#[test]
+fn an_inventory_claim_names_a_real_item_once() {
+    const LASHIEC: &str = "\"items_held\": [\"ECLPSTORCH\"], \"flags_set\": [\"event:0xa6\", \"event:0x9b\", \"chest:0x0c\"]";
+    let unknown = mutate(
+        &main_text(),
+        LASHIEC,
+        "\"items_held\": [\"NO-SUCH-TORCH\"], \"flags_set\": [\"event:0xa6\", \"event:0x9b\", \"chest:0x0c\"]",
+    );
+    let Some(report) = run(&unknown) else { return };
+    let error = report
+        .errors
+        .iter()
+        .find(|e| e.reason.contains("NO-SUCH-TORCH"))
+        .expect("the unknown item is reported");
+    assert_eq!(error.chapter, "air-castle-lashiec");
+    let both = mutate(
+        &main_text(),
+        LASHIEC,
+        "\"items_held\": [\"ECLPSTORCH\"], \"items_absent\": [\"ECLPSTORCH\"], \"flags_set\": [\"event:0xa6\", \"event:0x9b\", \"chest:0x0c\"]",
+    );
+    let report = run(&both).unwrap();
+    assert!(
+        report
+            .errors
+            .iter()
+            .any(|e| e.reason.contains("both held and absent")),
+        "{:?}",
+        report.errors
+    );
+    let route = Route::parse(&main_text()).unwrap();
+    assert!(
+        route
+            .chapters
+            .iter()
+            .flat_map(|c| &c.closing)
+            .any(|claim| claim.status_clear),
+        "the recovery chapters claim a clear status"
+    );
 }
 
 #[test]

@@ -1034,6 +1034,261 @@
       "closing": [
         {"map": 369, "cell": [63, 54], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x99", "event:0x9f"]}
       ]
+    },
+    {
+      "id": "air-castle-xe-athoul-room",
+      "title": "The Air Castle: through the maze to the Xe-A-Thoul room",
+      "source": "runtime-pack/maps/171_AirCastle.json .. 184_AirCastleXeAThoulRoom.json (the warp chain to AirCastle_Part6 $170 warp 16 at (63,53), the only door into $184); RUNNER_LOG_ICEDIGGER.md H38 (the chapter as recorded, restored without its wait once lane A5 landed the walk's abilities)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 388, "note": "AirCastleXeAThoulRoom $184: the Air Castle's random battles are run from"},
+        {"do": "expect", "map": 388, "cell": [31, 51], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_clear": ["event:0x9a"], "note": "at the foot of the Xe-A-Thoul room, the trigger ahead"}
+      ],
+      "closing": [
+        {"map": 388, "cell": [31, 51], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_clear": ["event:0x9a"]}
+      ]
+    },
+    {
+      "id": "air-castle-recovery-tile",
+      "title": "AirCastle_F1_Part9: the recovery tile before the Xe-A-Thoul fight",
+      "source": "docs/scenes/102_Recovery.md (Event_Recovery $21: RunEvent_Recovery, RunEventsJmpTbl[$12], ps4.asm:115574-115581, fires on a step onto collision 2; RecoverStats, ps4.asm:136503, clears every status byte, so Wren, shut down by bit 6 since Dark Force 1, is repaired); runtime-pack/maps/176_AirCastle_F1_Part9.json (event slot $12; the tile is (31..32,28..29); AirCastle_Part6 $170 warp 0 at (63,93) lands on (31,23))",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 374, "note": "AirCastle_F1_Part9 $176 by AirCastle_Part6's warp 0, a few steps from the Xe-A-Thoul room's door"},
+        {"do": "step_onto", "map": 374, "cell": [31, 28], "note": "the tile's top row, entered from (31,27): Tile_Collision_Standing 2 with the saved collision 0"},
+        {"do": "expect", "map": 374, "cell": [31, 28], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "status_clear": true, "note": "Event_Recovery ran: every status byte zero, Wren's shutdown bit included"}
+      ],
+      "closing": [
+        {"map": 374, "cell": [31, 28], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "status_clear": true, "flags_clear": ["event:0x9a"]}
+      ]
+    },
+    {
+      "id": "air-castle-xe-athoul",
+      "title": "The Xe-A-Thoul room: Event_XeAThoulBeforeBattle and event battle 14",
+      "source": "docs/scenes/70_XeAThoulBeforeBattle.md (Event_XeAThoulBeforeBattle $59: RunEvent_FindXeAThoul, RunEventsJmpTbl[$44], ps4.asm:116183-116195, $9A clear, x $1D0..$220, y <= $220; dialogue $36, $9A set, event battle $0E)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 388, "note": "back to the Xe-A-Thoul room by AirCastle_Part6's warp 16"},
+        {"do": "step_onto", "map": 388, "cell": [31, 35], "note": "the first row inside RunEvent_FindXeAThoul's rectangle (y <= $220)"},
+        {"do": "fight_scripted", "note": "event battle 14: three XeAThouls (enemy 123)"},
+        {"do": "expect", "map": 388, "cell": [31, 35], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x9a"], "note": "Xe-A-Thoul fought: $9A set; the party stands where the scene began"},
+        {"do": "step_onto", "map": 388, "cell": [31, 19], "note": "the room's own recovery tile (31..32,18..19) behind the fight, open now that the XeAThoul objects are gone: Event_Recovery ($21)"},
+        {"do": "expect", "map": 388, "cell": [31, 19], "status_clear": true, "note": "RecoverStats ran: every status byte zero"}
+      ],
+      "closing": [
+        {"map": 388, "cell": [31, 19], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x9a"], "status_clear": true}
+      ]
+    },
+    {
+      "id": "jut-outfit",
+      "title": "Back to Dezolis for Laconian arms and reflective armour at Jut",
+      "source": "RUNNER_LOG_AIRCASTLE.md (Lashiec, event battle 16, wipes the party in the gear it wore since Kuran); runtime-pack/shops.json (Jut weapon shop $13C, counters 65 and 66); runtime-pack/maps/136_Jut.json (Dezolis warp 5 at (120,74); Jut warp 9 into the shop); RunEvent_AirCstlEnterSpaceship (RunEventsJmpTbl[$24], ps4.asm:115795-115801: y = $370, cell row 56 below the landing) and RunEvent_EnterSpaceship ($21, ps4.asm:115743-115754: the Dezo spaceport's row 19 at x 30..31)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 369, "note": "back through the maze to the Air Castle's landing $171"},
+        {"do": "go_to", "map": 369, "cell": [63, 54], "note": "the landing, above the boarding row"},
+        {"do": "board", "step": "down", "to": 1, "note": "the step down holds until cell row 56 (y = $370) fires Cutscene_InsideSpaceship; Dezolis is World_Index 1"},
+        {"do": "go_to_map", "map": 1, "note": "the Dezo spaceport's door to Dezolis, arriving on the door tile (12,73)"},
+        {"do": "go_to", "map": 1, "cell": [10, 73], "note": "plain ground beside the door, where the machine boards"},
+        {"do": "use_item", "item": "ICE-DIGGER", "target": "Chaz", "note": "ItemAction_IceDigger"},
+        {"do": "expect", "vehicle": 2, "note": "Event_BoardingIceDigger"},
+        {"do": "go_to_map", "map": 310, "note": "Jut $136 by Dezolis warp 5 (120,74)"},
+        {"do": "expect", "map": 310, "vehicle": 0, "note": "the map load parked the Ice Digger"},
+        {"do": "go_to_map", "map": 316, "note": "Jut warp 9 into the weapon and armour shop $13C"},
+        {"do": "go_to", "map": 316, "cell": [26, 32], "note": "below the weapon keeper (26,30), counter rows 30..31"},
+        {"do": "buy", "item": "LACO-SWORD", "count": 1, "face": "up", "note": "20400: Chaz (ATK 103 against CRMC-SWORD's 43)"},
+        {"do": "buy", "item": "LACO-CLAW", "count": 2, "face": "up", "note": "10200 each: Rika's two hands (ATK 51 each against SABER-CLAW's 18)"},
+        {"do": "go_to", "map": 316, "cell": [37, 32], "note": "below the armour keeper (37,30)"},
+        {"do": "buy", "item": "RFLC-MAIL", "count": 2, "face": "up", "note": "26800 each: Chaz and Rika (DEF 53, MDF 14 against SILV-MAIL's 49 and 4)"},
+        {"do": "buy", "item": "RFLC-ROBE", "count": 1, "face": "up", "note": "18400: Rune (DEF 58, MDF 20 against SILV-MANTL's 49 and 8)"},
+        {"do": "equip", "member": "Chaz", "item": "LACO-SWORD"},
+        {"do": "equip", "member": "Rika", "item": "LACO-CLAW"},
+        {"do": "equip", "member": "Rika", "item": "LACO-CLAW"},
+        {"do": "equip", "member": "Chaz", "item": "RFLC-MAIL"},
+        {"do": "equip", "member": "Rika", "item": "RFLC-MAIL"},
+        {"do": "equip", "member": "Rune", "item": "RFLC-ROBE"},
+        {"do": "go_to_map", "map": 310, "note": "out of the shop"},
+        {"do": "go_to_map", "map": 1, "note": "Jut's edge to Dezolis, arriving on the town tile (121,77)"},
+        {"do": "go_to", "map": 1, "cell": [121, 79], "note": "plain ground below the town: on the town tile the Ice Digger answers that it cannot board"},
+        {"do": "use_item", "item": "ICE-DIGGER", "target": "Chaz", "note": "board again"},
+        {"do": "expect", "vehicle": 2, "note": "Event_BoardingIceDigger"},
+        {"do": "go_to_map", "map": 212, "note": "the Dezo spaceport $0D4"},
+        {"do": "expect", "map": 212, "vehicle": 0, "note": "the map load parked the Ice Digger"},
+        {"do": "go_to", "map": 212, "cell": [30, 20], "note": "below the boarding row: y = $120 is cell row 19 in the pack's cell space"},
+        {"do": "board", "step": "up", "to": 5, "note": "row 19 fires Cutscene_InsideSpaceship; the Air Castle is World_Index 5 ($DC mask with $99 set)"},
+        {"do": "expect", "map": 369, "cell": [63, 54], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "items_held": ["CRMC-SWORD", "SABER-CLAW", "SILV-MAIL", "SILV-MANTL"], "items_absent": ["LACO-SWORD", "LACO-CLAW", "RFLC-MAIL", "RFLC-ROBE"], "flags_set": ["event:0x9a"], "note": "back on the Air Castle's landing: the new arms and armour worn, the old ones in the pack"}
+      ],
+      "closing": [
+        {"map": 369, "cell": [63, 54], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x9a"]}
+      ]
+    },
+    {
+      "id": "air-castle-training",
+      "title": "AirCastle_F1_Part9: training across the recovery tile before the inner floors",
+      "source": "RUNNER_LOG_AIRCASTLE.md (Lashiec, event battle 16: a balance loss with every member alive, the Jut gear on and the party full); docs/scenes/102_Recovery.md (the tile at (31..32,28..29) refills the party on every crossing); runtime-pack/maps/176_AirCastle_F1_Part9.json (random battles on, the warps on rows 22 and 35)",
+      "random_battle_policy": "fight_to_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 374, "note": "AirCastle_F1_Part9 $176: AirCastle $171 warp 0, AirCastle_Part2 warp 1, AirCastle_Part3 warp 5, arriving (31,34)"},
+        {"do": "patrol", "map": 374, "a": [31, 32], "b": [31, 25], "until": {"party_level_at_least": 37}, "note": "every leg crosses the recovery tile, so RecoverStats refills the party (fallen members included) on each pass; Kyra, who joined at 27, is the member the condition waits for"},
+        {"do": "expect", "map": 374, "cell": [31, 25], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x9a"], "flags_clear": ["event:0xa6"], "note": "trained; the chest room still ahead"}
+      ],
+      "closing": [
+        {"map": 374, "cell": [31, 25], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x9a"], "flags_clear": ["event:0xa6"]}
+      ]
+    },
+    {
+      "id": "air-castle-inner",
+      "title": "The Air Castle's inner floors to the Eclipse Torch's room",
+      "source": "runtime-pack/maps/179_AirCastle_F1_Part10.json (the three XeAThouls and their InvisibleBlocks at rows 28..29 before warp 2 at (31,26) into AirCastleInner $17A); 17A_AirCastleInner.json .. 187_AirCastleInner_B1_Part3.json (AirCastleInner warp 1, B1 warp 3, B1_Part2 warp 1); RunEventsJmpTbl[$45..$47] on $187 (ps4.asm:116197-116226)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to", "map": 374, "cell": [31, 27], "note": "above the tile, from the patrol's end at (31,25)"},
+        {"do": "step_onto", "map": 374, "cell": [31, 28], "note": "the recovery tile's top row from (31,27): Event_Recovery ($21) refills the party before the inner floors"},
+        {"do": "expect", "map": 374, "cell": [31, 28], "status_clear": true, "note": "RecoverStats ran: every status byte zero"},
+        {"do": "go_to_map", "map": 391, "note": "AirCastleInner_B1_Part3 $187, arriving (30,50) below the Eclipse Torch's chest"},
+        {"do": "expect", "map": 391, "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x9a"], "flags_clear": ["event:0xa6", "event:0x9b"], "note": "in the chest room; the Spector $A6 and Lashiec $9B still ahead"}
+      ],
+      "closing": [
+        {"map": 391, "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x9a"], "flags_clear": ["event:0xa6", "event:0x9b"]}
+      ]
+    },
+    {
+      "id": "air-castle-lashiec",
+      "title": "The Eclipse Torch's chest: Event_AirCastleFakeChest, Event_LashiecAppearance and Cutscene_LashiecDefeated",
+      "source": "docs/scenes/71_AirCastleFakeChest.md, 72_LashiecAppearance.md and 73_LashiecDefeated.md. Three beats with no control between them, so one chapter: RunEvent_AirCstlFakeChest (RunEventsJmpTbl[$45], ps4.asm:116197-116206) fires on ChestFlag_EclpsTorch with $A6 clear, and $5A sets $A6, takes the torch back and starts event battle 15; on the next RunEvents RunEvent_LashiecAppearing ($46, ps4.asm:116209-116218: $A6 set, $9B clear) fires, and $5D sets $9B before event battle 16; RunEvent_LashiecDefeated ($47, ps4.asm:116220-116226: $9B set) then runs $8016, which returns the torch and loads Gumbious_F1 $162. runtime-pack/maps/187_AirCastleInner_B1_Part3.json (chest 0 at (30,27), item $8E, chest flag $0C)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to", "map": 391, "cell": [30, 28], "note": "below the chest"},
+        {"do": "open_chest", "chest": 0, "note": "the torch is procured; the chain runs from the next RunEvents to Gumbious"},
+        {"do": "fight_scripted", "note": "event battles 15 (the Spector) and 16 (Lashiec, 6,383 HP): the open_chest settles through both, and this claims them"},
+        {"do": "expect", "map": 354, "cell": [39, 23], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "items_held": ["ECLPSTORCH"], "flags_set": ["event:0xa6", "event:0x9b", "chest:0x0c"], "flags_clear": ["event:0x9c"], "note": "Cutscene_LashiecDefeated: back on Gumbious_F1 with the Eclipse Torch, $A6 and $9B set"}
+      ],
+      "closing": [
+        {"map": 354, "cell": [39, 23], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "items_held": ["ECLPSTORCH"], "flags_set": ["event:0xa6", "event:0x9b"], "flags_clear": ["event:0x9c"]}
+      ]
+    },
+    {
+      "id": "jut-inn",
+      "title": "Jut: a night at the inn after Lashiec",
+      "source": "the Lashiec fight leaves members fallen and Wren shut down (RUNNER_LOG_AIRCASTLE.md); runtime-pack/shops.json (JutInn $142, inn 17, keeper (28,34)); runtime-pack/maps/136_Jut.json (warp 14 into the inn); RecoverStats (ps4.asm:136503) clears every status byte",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 1, "note": "out of the temple: Gumbious_F1, Gumbious, the entrance, Dezolis (125,71)"},
+        {"do": "go_to", "map": 1, "cell": [125, 73], "note": "plain ground below the temple"},
+        {"do": "use_item", "item": "ICE-DIGGER", "target": "Chaz", "note": "ItemAction_IceDigger"},
+        {"do": "expect", "vehicle": 2, "note": "Event_BoardingIceDigger"},
+        {"do": "go_to_map", "map": 310, "note": "Jut $136 by Dezolis warp 5 (120,74)"},
+        {"do": "expect", "map": 310, "vehicle": 0, "note": "the map load parked the Ice Digger"},
+        {"do": "go_to_map", "map": 322, "note": "Jut warp 14 into the inn $142"},
+        {"do": "go_to", "map": 322, "cell": [28, 36], "note": "below the innkeeper (28,34), counter rows 34..35"},
+        {"do": "rest_inn", "face": "up", "note": "RecoverStats: the fallen stand up and Wren restarts"},
+        {"do": "expect", "map": 322, "cell": [28, 36], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "status_clear": true, "items_held": ["ECLPSTORCH"], "note": "everyone up"}
+      ],
+      "closing": [
+        {"map": 322, "cell": [28, 36], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "status_clear": true, "flags_set": ["event:0x9b"], "flags_clear": ["event:0x9c"]}
+      ]
+    },
+    {
+      "id": "dezolis-eclipse-torch",
+      "title": "Dezolis: Event_EclipseTorchUsed on the carnivorous trees",
+      "source": "docs/scenes/56_EclipseTorchUsed.md (Event_EclipseTorchUsed $47: RunEvent_EclipseTorchUsed, RunEventsJmpTbl[$36], ps4.asm:116011-116027, $9B set and $9C clear, x $B80..$BB0, y <= $E0); RunEvent_CarnivorousTrees ($35, ps4.asm:115977-116009) lists first on Dezolis but at y $E0 (row 15) falls to loc_56E1A, which fires nothing once Kyra has joined",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 310, "note": "out of the inn"},
+        {"do": "go_to_map", "map": 1, "note": "Jut's edge to Dezolis, arriving on the town tile (121,77)"},
+        {"do": "go_to", "map": 1, "cell": [121, 79], "note": "plain ground below the town"},
+        {"do": "use_item", "item": "ICE-DIGGER", "target": "Chaz", "note": "board again"},
+        {"do": "expect", "vehicle": 2, "note": "Event_BoardingIceDigger"},
+        {"do": "go_to", "map": 1, "cell": [186, 17], "note": "below the corridor, on the Ice Digger's lattice"},
+        {"do": "step_onto", "map": 1, "cell": [186, 15], "note": "row 15 is y $E0, inside the torch's box and below the trees' (y <= $C0)"},
+        {"do": "expect", "map": 1, "cell": [186, 15], "vehicle": 0, "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x9b", "event:0x9c"], "note": "the trees burnt: $9C set; the scene's mounted branch left the party on foot where the machine stood (loc_701DE)"}
+      ],
+      "closing": [
+        {"map": 1, "cell": [186, 15], "vehicle": 0, "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x9b", "event:0x9c"]}
+      ]
+    },
+    {
+      "id": "garuberk-tower-first-eye",
+      "title": "The Garuberk Tower: the doors and the first eye, to Part5",
+      "source": "docs/scenes/103_GaruberkTowerDoors.md (Event_GaruberkTwDoorOpening1/2 $35/$36 from the type-2 interaction areas on every door, Event_GaruberkTwDoorEntered1/2 $37/$38 from RunEvent_EnterGrbkTwDoor, RunEventsJmpTbl[$22], ps4.asm:115755-115786) and 104_GaruberkTowerEyes.md (Event_GaruberkTwEyeAction1 $39); runtime-pack/maps/199_GaruberkTower.json .. 19D_GaruberkTower_Part5.json (Part2's rooms meet only in its variant, MapDataMan_GaruberkTowerPart2, ps4.asm:109346-109358)",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to_map", "map": 409, "note": "GaruberkTower $199 by Dezolis warp 13 (186..187,6..7), up the corridor the torch cleared"},
+        {"do": "go_to", "map": 409, "cell": [34, 20], "note": "below the door (34..35,19)"},
+        {"do": "interact", "cell": [34, 20], "face": "up", "opens": [[34, 19], [35, 19]], "note": "interaction area, parameter 3: Event_GaruberkTwDoorOpening1 ($35) steps loc_6F4D4 open"},
+        {"do": "go_to_map", "map": 410, "via_warp": 0, "note": "into the open door: RunEvent_EnterGrbkTwDoor fires before the warp, and the door entered takes the map's own transition, opens the arrival door, walks the party out and shuts it"},
+        {"do": "expect", "map": 410, "cell": [36, 46], "note": "one cell below the arrival door"},
+        {"do": "go_to", "map": 410, "cell": [20, 32], "note": "below the first eye (20..21,30..31)"},
+        {"do": "interact", "cell": [20, 32], "face": "up", "note": "interaction area, parameter 5, temp flag $14: Event_GaruberkTwEyeAction1 ($39) sets $14 and decompresses Part2's other layout, which joins its two rooms"},
+        {"do": "expect", "map": 410, "cell": [20, 32], "flags_set": ["temp:0x14"], "note": "the first eye: GaruberkTower_Part2 now plans on its variant"},
+        {"do": "go_to", "map": 410, "cell": [62, 46], "note": "below the door (62..63,45)"},
+        {"do": "interact", "cell": [62, 46], "face": "up", "opens": [[62, 45], [63, 45]], "note": "interaction area, parameter 3: Event_GaruberkTwDoorOpening1 ($35) steps loc_6F4D4 open"},
+        {"do": "go_to_map", "map": 411, "via_warp": 1, "note": "into the open door: RunEvent_EnterGrbkTwDoor fires before the warp, and the door entered takes the map's own transition, opens the arrival door, walks the party out and shuts it"},
+        {"do": "expect", "map": 411, "cell": [22, 14], "note": "one cell below the arrival door"},
+        {"do": "go_to", "map": 411, "cell": [46, 40], "note": "below the door (46..47,39)"},
+        {"do": "interact", "cell": [46, 40], "face": "up", "opens": [[46, 39], [47, 39]], "note": "interaction area, parameter 3: Event_GaruberkTwDoorOpening1 ($35) steps loc_6F4D4 open"},
+        {"do": "go_to_map", "map": 412, "via_warp": 1, "note": "into the open door: RunEvent_EnterGrbkTwDoor fires before the warp, and the door entered takes the map's own transition, opens the arrival door, walks the party out and shuts it"},
+        {"do": "expect", "map": 412, "cell": [44, 48], "note": "one cell below the arrival door"},
+        {"do": "go_to", "map": 412, "cell": [22, 54], "note": "below the door (22..23,53)"},
+        {"do": "interact", "cell": [22, 54], "face": "up", "opens": [[22, 53], [23, 53]], "note": "interaction area, parameter 3: Event_GaruberkTwDoorOpening1 ($35) steps loc_6F4D4 open"},
+        {"do": "go_to_map", "map": 413, "via_warp": 2, "note": "into the open door: RunEvent_EnterGrbkTwDoor fires before the warp, and the door entered takes the map's own transition, opens the arrival door, walks the party out and shuts it"},
+        {"do": "expect", "map": 413, "cell": [24, 76], "note": "one cell below the arrival door"}
+      ],
+      "closing": [
+        {"map": 413, "cell": [24, 76], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x9c", "temp:0x14"], "flags_clear": ["event:0x9e"]}
+      ]
+    },
+    {
+      "id": "garuberk-tower-second-eye",
+      "title": "The Garuberk Tower: the second eye and the stairs to Part7",
+      "source": "docs/scenes/104_GaruberkTowerEyes.md (Event_GaruberkTwEyeAction2 $3A in Part5's room behind (62,25); MapDataMan_GaruberkTowerPart6, ps4.asm:109363-109375, loads the layout that joins Part6's (62,21) room to the stairs (50,23) while $16 is set) and 103_GaruberkTowerDoors.md; runtime-pack/maps/19D_GaruberkTower_Part5.json .. 19F_GaruberkTower_Part7.json",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "go_to", "map": 413, "cell": [26, 46], "note": "below the door (26..27,45)"},
+        {"do": "interact", "cell": [26, 46], "face": "up", "opens": [[26, 45], [27, 45]], "note": "interaction area, parameter 3: Event_GaruberkTwDoorOpening1 ($35) steps loc_6F4D4 open"},
+        {"do": "go_to_map", "map": 414, "via_warp": 4, "note": "into the open door: RunEvent_EnterGrbkTwDoor fires before the warp, and the door entered takes the map's own transition, opens the arrival door, walks the party out and shuts it"},
+        {"do": "expect", "map": 414, "cell": [38, 54], "note": "one cell below the arrival door"},
+        {"do": "go_to", "map": 414, "cell": [70, 36], "note": "below the door (70..71,35)"},
+        {"do": "interact", "cell": [70, 36], "face": "up", "opens": [[70, 35], [71, 35]], "note": "interaction area, parameter 4: Event_GaruberkTwDoorOpening2 ($36) steps loc_6F588 open"},
+        {"do": "go_to_map", "map": 413, "via_warp": 2, "note": "into the open door: RunEvent_EnterGrbkTwDoor fires before the warp, and the door entered takes the map's own transition, opens the arrival door, walks the party out and shuts it"},
+        {"do": "expect", "map": 413, "cell": [62, 26], "note": "one cell below the arrival door"},
+        {"do": "go_to", "map": 413, "cell": [56, 33], "note": "above the second eye (56..57,34..35)"},
+        {"do": "interact", "cell": [56, 33], "face": "down", "note": "interaction area, parameter 6, temp flag $16: Event_GaruberkTwEyeAction2 ($3A); MapDataMan_GaruberkTowerPart6 reads $16 at Part6's next load"},
+        {"do": "expect", "map": 413, "cell": [56, 33], "flags_set": ["temp:0x16"], "note": "the second eye"},
+        {"do": "go_to", "map": 413, "cell": [62, 26], "note": "below the door (62..63,25)"},
+        {"do": "interact", "cell": [62, 26], "face": "up", "opens": [[62, 25], [63, 25]], "note": "interaction area, parameter 3: Event_GaruberkTwDoorOpening1 ($35) steps loc_6F4D4 open"},
+        {"do": "go_to_map", "map": 414, "via_warp": 2, "note": "into the open door: RunEvent_EnterGrbkTwDoor fires before the warp, and the door entered takes the map's own transition, opens the arrival door, walks the party out and shuts it"},
+        {"do": "expect", "map": 414, "cell": [70, 36], "note": "one cell below the arrival door"},
+        {"do": "go_to", "map": 414, "cell": [70, 48], "note": "below the door (70..71,47)"},
+        {"do": "interact", "cell": [70, 48], "face": "up", "opens": [[70, 47], [71, 47]], "note": "interaction area, parameter 4: Event_GaruberkTwDoorOpening2 ($36) steps loc_6F588 open"},
+        {"do": "go_to_map", "map": 413, "via_warp": 3, "note": "into the open door: RunEvent_EnterGrbkTwDoor fires before the warp, and the door entered takes the map's own transition, opens the arrival door, walks the party out and shuts it"},
+        {"do": "expect", "map": 413, "cell": [62, 38], "note": "one cell below the arrival door"},
+        {"do": "go_to", "map": 413, "cell": [52, 16], "note": "below the door (52..53,15)"},
+        {"do": "interact", "cell": [52, 16], "face": "up", "opens": [[52, 15], [53, 15]], "note": "interaction area, parameter 3: Event_GaruberkTwDoorOpening1 ($35) steps loc_6F4D4 open"},
+        {"do": "go_to_map", "map": 414, "via_warp": 1, "note": "into the open door: RunEvent_EnterGrbkTwDoor fires before the warp, and the door entered takes the map's own transition, opens the arrival door, walks the party out and shuts it"},
+        {"do": "expect", "map": 414, "cell": [62, 22], "note": "one cell below the arrival door"},
+        {"do": "go_to", "map": 414, "cell": [50, 24], "note": "below the door (50..51,23)"},
+        {"do": "interact", "cell": [50, 24], "face": "up", "opens": [[50, 23], [51, 23]], "note": "interaction area, parameter 4: Event_GaruberkTwDoorOpening2 ($36) steps loc_6F588 open"},
+        {"do": "go_to_map", "map": 415, "via_warp": 4, "note": "into the open door: RunEvent_EnterGrbkTwDoor fires before the warp, and the door entered takes the map's own transition, opens the arrival door, walks the party out and shuts it"},
+        {"do": "expect", "map": 415, "cell": [38, 36], "note": "one cell below the arrival door"}
+      ],
+      "closing": [
+        {"map": 415, "cell": [38, 36], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x9c", "temp:0x16"], "flags_clear": ["event:0x9e"]}
+      ]
+    },
+    {
+      "id": "garuberk-dark-force-2",
+      "title": "GaruberkTower_Part7: Event_DarkForce2, event battle 17 and Cutscene_DarkForce2Defeated",
+      "source": "docs/scenes/57_DarkForce2.md (Event_DarkForce2 $4E: RunEvent_FindDarkForce2, RunEventsJmpTbl[$37], ps4.asm:116029-116038, $9E clear and curr_y_pos = $100, cell row 17; dialogue $3A, $9E set, event battle $11) and 59_DarkForce2Defeated.md (Cutscene_DarkForce2Defeated $8017: RunEvent_DarkForce2Defeated, RunEventsJmpTbl[$38], ps4.asm:116040-116049, $9E set and $A1 clear, fires on the field frame after the battle, so the two beats share a chapter; $A1 set, Kyra leaves, Dezolis loaded at ($174,$0E))",
+      "random_battle_policy": "run_then_win",
+      "objectives": [
+        {"do": "step_onto", "map": 415, "cell": [36, 17], "note": "row 17 is curr_y_pos $100, below Dark Force 2 at (36,15)"},
+        {"do": "fight_scripted", "note": "event battle 17: Dark Force 2 (7,524 HP)"},
+        {"do": "expect", "map": 1, "cell": [186, 8], "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0x9e", "event:0xa1"], "note": "Cutscene_DarkForce2Defeated: $A1 set, Kyra gone, the party back on Dezolis below the tower ($174,$0E), control returned"}
+      ],
+      "closing": [
+        {"map": 1, "cell": [186, 8], "party": ["Chaz", "Rika", "Rune", "Wren"], "flags_set": ["event:0x9e", "event:0xa1"]}
+      ]
     }
   ]
 }

@@ -10,6 +10,14 @@ use psiv_core::{
 
 use crate::{Runtime, RuntimeEvent};
 
+/// The interaction events whose routine first reads the layout byte at the
+/// leader's object position (`GetMapLayoutOffset` of `x >> 5`, `y >> 5`) and
+/// returns at once unless it is the closed door: `(event, closed chunk)`.
+/// `Event_ElevatorDoorOpening` (`cmpi.b #$4F, (a1)`, `ps4.asm:145601`) and the
+/// Garuberk Tower's two door openings (`cmpi.b #$38, (a1)`, `ps4.asm:148657`
+/// and `:148713`, ROM `$06F478` and `$06F52E`).
+const CLOSED_DOOR_GUARDS: [(u16, u16); 3] = [(0x13, 0x4F), (0x35, 0x38), (0x36, 0x38)];
+
 /// Mirrors `Interaction_ChkMapAreas`'s already-processed gate. A story area
 /// with flag zero is explicitly unconditional; nonzero selectors are clear
 /// until the corresponding handler records them.
@@ -134,9 +142,11 @@ impl Runtime {
             });
             return true;
         };
-        // Event_ElevatorDoorOpening exits silently unless the chunk at the
-        // leader's object position is the original closed-door tile.
-        if event == 0x13 && self.map_chunk_at(PixelPos::from_cell(leader.cell())) != Some(0x4F) {
+        // Door events whose first act tests the layout byte at the leader's
+        // object position against the closed door and return when it differs.
+        if let Some(&(_, closed)) = CLOSED_DOOR_GUARDS.iter().find(|(e, _)| *e == event)
+            && self.map_chunk_at(PixelPos::from_cell(leader.cell())) != Some(closed)
+        {
             return true;
         }
         if self.install_scene(EventIndex(event)) {

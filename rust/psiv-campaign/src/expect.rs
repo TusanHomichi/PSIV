@@ -83,6 +83,32 @@ impl Driver {
                 misses.push(format!("vehicle is {riding}, expected {want}"));
             }
         }
+        if !expect.items_held.is_empty() || !expect.items_absent.is_empty() {
+            let pack = runtime.camp_state().inventory;
+            let holds = |key: &NameOrId| {
+                find_named(&pack, key, |i| i.name.as_str(), |i| u32::from(i.id)).is_some()
+            };
+            for item in &expect.items_held {
+                if !holds(item) {
+                    misses.push(format!("the pack holds no {item}, expected one"));
+                }
+            }
+            for item in &expect.items_absent {
+                if holds(item) {
+                    misses.push(format!("the pack holds {item}, expected none"));
+                }
+            }
+        }
+        if expect.status_clear {
+            for member in runtime.camp_state().party {
+                if member.status != 0 {
+                    misses.push(format!(
+                        "{} has status {:#04x}, expected 0",
+                        member.name, member.status
+                    ));
+                }
+            }
+        }
         if misses.is_empty() {
             Ok(())
         } else {

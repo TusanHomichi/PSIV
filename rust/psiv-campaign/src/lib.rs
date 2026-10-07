@@ -21,8 +21,9 @@
 //!   pads from the session's read-only views;
 //! * [`policy`]: how battles are fought, by name;
 //! * [`exec`], [`runner`]: objectives, chapters, saves and the halt report;
-//! * [`tape`], [`digest`], [`replay`], [`split`]: the pad tape, its replay and
-//!   its cut at chapter boundaries.
+//! * [`tape`], [`digest`], [`replay`], [`split`], [`prefix`]: the pad tape, its
+//!   replay, its cut at chapter boundaries and the check that a longer route
+//!   left an earlier run's chapters alone.
 //!
 //! The planner plans; the runner moves the party, with pad presses only.
 
@@ -45,6 +46,7 @@ pub mod menu;
 pub mod policy;
 pub mod policy_boss;
 pub mod policy_opening;
+pub mod prefix;
 pub mod recovery;
 pub mod replay;
 pub mod route;
