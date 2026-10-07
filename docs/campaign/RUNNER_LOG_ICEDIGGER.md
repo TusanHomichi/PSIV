@@ -117,6 +117,13 @@ begins) can use one of these:
 `python3 -m oracle.sweep.route_abilities --stretch dezolis-air-castle` lists them (the worklist
 below). A player meets the same abilities; the engine just halts on them.
 
+**Correction (lane A5, 2026-10-06).** The two COMBINE halts were the port's own bug, not a missing
+ability. The cartridge fires COMBINE only when exactly one partner stands beside the actor, and the
+port fired it with none. No Air Castle formation pairs BladeRight with HakenLeft, so the cartridge
+never combines on this walk. A5 fixed the trigger and implemented every ability above
+([ENEMY_ABILITIES_AIR_CASTLE.md](../battle/ENEMY_ABILITIES_AIR_CASTLE.md)). The restored chapter,
+with no `wait`, completes from the `air-castle-arrival` save in 11,284 frames and 16 battles.
+
 **What the route does about it: nothing, and it ends at `air-castle-arrival`.** The first draft of
 the route carried one more chapter, `air-castle-xe-athoul-room`, opened by `wait 7`: an idle that
 shifted the walk's random rolls until 7 and 13 frames completed (16 and 17 battles) where 0 and 1
