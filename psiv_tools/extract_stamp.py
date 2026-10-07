@@ -43,6 +43,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import warnings
 from collections.abc import Iterable
 from functools import lru_cache
 from pathlib import Path
@@ -239,11 +240,38 @@ def _safe_relative(name: str) -> Path | None:
     return path
 
 
+def _contained(directory: Path, relative: Path) -> bool:
+    """Whether `directory / relative` stays inside `directory` on disk.
+
+    No directory on the way may be a symlink, and the file's parent must resolve
+    under the resolved `directory`. A `directory` that is itself a symlink
+    (`generated` -> `build/generated-c30`) is fine: the comparison is against its
+    resolved path. Lanes link inputs in piecemeal, so a symlinked subdirectory
+    is a case, not an attack.
+    """
+    current = directory
+    for part in relative.parts[:-1]:
+        current = current / part
+        if current.is_symlink():
+            return False
+    root = directory.resolve()
+    parent = (directory / relative).parent.resolve()
+    return parent == root or root in parent.parents
+
+
 def _remove_listed(directory: Path, names: Iterable[str]) -> None:
-    """Delete exactly these files of an earlier stamp. Never a directory, never a glob."""
+    """Delete exactly these files of an earlier stamp. Never a directory, never a glob.
+
+    A listed name that would leave the directory (an absolute or `..` path, or one
+    that goes through a symlinked subdirectory) is skipped with a warning.
+    """
     for name in names:
         relative = _safe_relative(name)
-        if relative is not None and (directory / relative).is_file():
+        if relative is None or not _contained(directory, relative):
+            warnings.warn(f"{directory}: not removing {name!r}, which a stamp lists but which "
+                          "would leave the directory", stacklevel=2)
+            continue
+        if (directory / relative).is_file():
             (directory / relative).unlink()
 
 
@@ -277,27 +305,12 @@ def finish_table_export(directory: str | Path, metadata: dict[str, Any],
     directory = Path(directory)
     files = {name: digest(data) for name, data in sorted(written.items())}
     files[METADATA_FILE] = metadata_digest(metadata)
-    _remove_listed(directory, previous - set(files))
+    # Tables are bare `<name>.json` files beside `metadata.json`; a stamp that
+    # lists anything else (a nested path) is not one this function wrote.
+    _remove_listed(directory, sorted(name for name in previous - set(files)
+                                     if "/" not in name and "\\" not in name and name.endswith(".json")))
     document = {**metadata, METADATA_KEY: {**table_stamp(), "files": files}}
     (directory / METADATA_FILE).write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
-
-
-def write_table_stamp(directory: str | Path) -> Path:
-    """Stamp a table directory that is not a full extract (a test's synthetic one).
-
-    Lists every `*.json` table in it, so a table written afterwards must be
-    stamped again.
-    """
-    directory = Path(directory)
-    path = directory / METADATA_FILE
-    metadata = _read_json(path) if path.is_file() else {}
-    files = {table.name: digest(table.read_bytes())
-             for table in sorted(directory.glob("*.json")) if table.name != METADATA_FILE}
-    files[METADATA_FILE] = metadata_digest(metadata)
-    metadata[METADATA_KEY] = {**table_stamp(), "files": files}
-    directory.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(metadata, indent=2) + "\n", encoding="utf-8")
-    return path
 
 
 def begin_png_export(directory: str | Path) -> None:
@@ -385,9 +398,17 @@ def check_tables(directory: str | Path, command: str = REBUILD_COMMAND) -> dict[
 
 
 def _table_bytes(directory: Path, name: str, command: str) -> tuple[bytes, str]:
-    """`(bytes, sha256)` of a table the current stamp lists and the bytes match."""
+    """`(bytes, sha256)` of a table the current stamp lists and the bytes match.
+
+    `FileNotFoundError` only when there is nothing to judge: no `metadata.json`
+    and no table (a checkout without `generated/`), or a current stamp that does
+    not list the name and no such file. Otherwise the stamp decides first, so an
+    old extract is refused for any table name, including one the new extractor
+    adds, and a table the current stamp lists but which is missing is refused
+    rather than skipped.
+    """
     path = directory / f"{name}.json"
-    if not path.is_file():
+    if not path.is_file() and not (directory / METADATA_FILE).is_file():
         raise FileNotFoundError(f"{path} is not present (local input; build it with: {command})")
     try:
         record = check_tables(directory, command)
@@ -395,6 +416,12 @@ def _table_bytes(directory: Path, name: str, command: str) -> tuple[bytes, str]:
         raise StaleExtractError(path, "table", error.found, error.expected, command) from None
     expected = table_stamp()
     listed = _listed(record).get(path.name)
+    if not path.is_file():
+        if listed is None:
+            raise FileNotFoundError(f"{path} is not present and the extract's stamp does not list it")
+        raise StaleExtractError(
+            path, "table", record, expected, command,
+            reason="is missing, though the extract's stamp lists it (deleted since it was stamped)")
     if listed is None:
         raise StaleExtractError(
             path, "table", record, expected, command,
@@ -413,9 +440,11 @@ def load_table(directory: str | Path, name: str, command: str = REBUILD_COMMAND)
     """The parsed `<directory>/<name>.json`, refused unless the current extractor wrote it.
 
     Refused when the directory's stamp is another source's, when the file is not
-    one the stamp lists, or when its bytes are not the ones that were listed. A
-    missing table is a `FileNotFoundError` and is never reported as stale, so a
-    caller that skips on an absent local input keeps skipping.
+    one the stamp lists, when a table the stamp lists is missing, or when its bytes
+    are not the ones that were listed. `FileNotFoundError` is for a checkout with
+    no `generated/` at all (and for a name the current stamp does not list and no
+    file has), so a caller that skips on an absent local input keeps skipping and
+    a stale extract never looks absent.
     """
     directory = Path(directory)
     data, _ = _table_bytes(directory, name, command)

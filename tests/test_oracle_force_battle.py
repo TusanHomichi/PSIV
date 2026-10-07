@@ -22,7 +22,7 @@ from unittest import mock
 
 from oracle import force as fb
 from oracle.force import runs
-from psiv_tools.extract_stamp import write_table_stamp
+from tests.stamp_fixture import write_table_stamp
 
 #: A pack with three groups: 0 is drawn by a map, 1 by the Motavia position
 #: grid, 2 is a vehicle table. Formation 5 sits in 0 and 2, formation 6 in 1.

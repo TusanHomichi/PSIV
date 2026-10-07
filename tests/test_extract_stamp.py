@@ -24,6 +24,7 @@ from oracle.sweep import coverage, replay_pack, route_abilities
 from psiv_tools import core, dialogue_census
 from psiv_tools import extract_stamp as stamp
 from psiv_tools.extract_stamp import StaleExtractError, load_table
+from tests.stamp_fixture import write_table_stamp
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 ROM = ROOT / "Phantasy Star IV (USA).md"
@@ -31,6 +32,11 @@ ROM = ROOT / "Phantasy Star IV (USA).md"
 
 def write_json(path: pathlib.Path, value) -> None:
     path.write_text(json.dumps(value) + "\n", encoding="utf-8")
+
+
+def fake_result(without=()):
+    """What `core.extract_all` returns, reduced to one tiny document per table."""
+    return {key: {"key": key} for key in ["metadata", *core.TABLE_KEYS] if key not in without}
 
 
 class TempDirectory(unittest.TestCase):
@@ -45,7 +51,7 @@ class TempDirectory(unittest.TestCase):
 class Loader(TempDirectory):
     def test_a_matching_stamp_loads_the_table(self):
         write_json(self.directory / "enemies.json", [{"id": 1}])
-        stamp.write_table_stamp(self.directory)
+        write_table_stamp(self.directory)
         self.assertEqual(load_table(self.directory, "enemies"), [{"id": 1}])
         self.assertEqual(stamp.load_table_file(self.directory / "enemies.json"), [{"id": 1}])
 
@@ -81,7 +87,7 @@ class Loader(TempDirectory):
         # An old table left in a freshly stamped directory (one a later extractor
         # dropped or renamed) must not load under the new stamp.
         write_json(self.directory / "enemies.json", [])
-        stamp.write_table_stamp(self.directory)
+        write_table_stamp(self.directory)
         write_json(self.directory / "old_table.json", {"from": "an older extract"})
         with self.assertRaises(StaleExtractError) as caught:
             load_table(self.directory, "old_table")
@@ -94,7 +100,7 @@ class Loader(TempDirectory):
     def test_a_table_whose_bytes_changed_after_stamping_is_refused(self):
         # A stale table copied over a current one, under a current stamp.
         write_json(self.directory / "formations.json", {"inline_formations": [1]})
-        stamp.write_table_stamp(self.directory)
+        write_table_stamp(self.directory)
         write_json(self.directory / "formations.json", {})
         with self.assertRaises(StaleExtractError) as caught:
             load_table(self.directory, "formations")
@@ -107,7 +113,7 @@ class Loader(TempDirectory):
 
     def test_metadata_json_is_bound_by_its_contents_too(self):
         write_json(self.directory / "metadata.json", {"hashes": {"sha256": "aa"}})
-        stamp.write_table_stamp(self.directory)
+        write_table_stamp(self.directory)
         self.assertEqual(load_table(self.directory, "metadata")["hashes"], {"sha256": "aa"})
         document = json.loads((self.directory / "metadata.json").read_text())
         document["hashes"]["sha256"] = "bb"
@@ -117,16 +123,51 @@ class Loader(TempDirectory):
 
     def test_the_stamp_lists_the_hash_a_provenance_record_can_use(self):
         write_json(self.directory / "characters.json", [1, 2])
-        stamp.write_table_stamp(self.directory)
+        write_table_stamp(self.directory)
         self.assertEqual(stamp.table_sha256(self.directory, "characters"),
                          hashlib.sha256((self.directory / "characters.json").read_bytes()).hexdigest())
+
+    def test_a_stale_stamp_refuses_a_table_name_it_has_never_seen(self):
+        # A newer extractor adds foo.json; an older dev extract must refuse the
+        # read, not skip it as an absent local input.
+        old = {**stamp.table_stamp(), "stamp": "0" * 64, "files": {}}
+        write_json(self.directory / "metadata.json", {"extract_stamp": old})
+        for name in ("enemies", "foo"):
+            with self.subTest(table=name):
+                with self.assertRaises(StaleExtractError) as caught:
+                    load_table(self.directory, name)
+                self.assertIn(f"{name}.json", str(caught.exception))
+                self.assertIn("python3 -m psiv_tools regenerate", str(caught.exception))
+
+    def test_a_table_the_current_stamp_lists_but_is_missing_is_refused(self):
+        write_json(self.directory / "enemies.json", [])
+        write_json(self.directory / "items.json", [])
+        write_table_stamp(self.directory)
+        (self.directory / "items.json").unlink()
+        with self.assertRaises(StaleExtractError) as caught:
+            load_table(self.directory, "items")
+        self.assertIn("missing", str(caught.exception))
+        self.assertIn(str(self.directory / "items.json"), str(caught.exception))
+        self.assertEqual(load_table(self.directory, "enemies"), [])
+
+    def test_a_name_nothing_lists_and_nothing_holds_is_still_an_absent_input(self):
+        write_json(self.directory / "enemies.json", [])
+        write_table_stamp(self.directory)
+        with self.assertRaises(FileNotFoundError):
+            load_table(self.directory, "never_extracted")
+        # No metadata.json and no table: a checkout without generated/ (the gate).
+        with self.assertRaises(FileNotFoundError):
+            load_table(self.root / "empty", "enemies")
+        (self.root / "empty").mkdir()
+        with self.assertRaises(FileNotFoundError):
+            load_table(self.root / "empty", "enemies")
 
     def test_a_directory_or_table_that_is_absent_keeps_its_skip_behaviour(self):
         # The gate runs with no generated/: readers that skip on this error
         # must keep skipping, and must not be told the extract is stale.
         with self.assertRaises(FileNotFoundError):
             load_table(self.root / "nowhere", "enemies")
-        stamp.write_table_stamp(self.directory)
+        write_table_stamp(self.directory)
         with self.assertRaises(FileNotFoundError):
             load_table(self.directory, "enemies")
         self.assertFalse(issubclass(StaleExtractError, OSError))
@@ -243,8 +284,35 @@ class PngDirectories(TempDirectory):
         outside.write_text("keep")
         write_json(self.directory / stamp.STAMP_FILE,
                    {"files": {"../precious.txt": "0", str(outside): "0"}})
-        stamp.begin_png_export(self.directory)
+        with self.assertWarns(UserWarning):
+            stamp.begin_png_export(self.directory)
         self.assertTrue(outside.exists())
+
+    def test_a_symlinked_subdirectory_cannot_make_an_export_delete_outside(self):
+        outside = self.root / "outside"
+        outside.mkdir()
+        precious = outside / "viadirlink.png"
+        precious.write_bytes(b"keep")
+        (self.directory / "linkdir").symlink_to(outside, target_is_directory=True)
+        self.png("a.png")
+        write_json(self.directory / stamp.STAMP_FILE,
+                   {"files": {"linkdir/viadirlink.png": "0", "a.png": "0"}})
+        with self.assertWarns(UserWarning) as caught:
+            stamp.begin_png_export(self.directory)
+        self.assertIn("linkdir/viadirlink.png", str(caught.warning))
+        self.assertTrue(precious.exists(), "a file behind a symlinked subdirectory is never deleted")
+        self.assertFalse((self.directory / "a.png").exists(), "the listed file inside the directory still goes")
+
+    def test_a_directory_that_is_itself_a_symlink_still_works(self):
+        # generated -> build/generated-c30: the root resolves, the files are inside it.
+        real = self.root / "real"
+        (real / "sub").mkdir(parents=True)
+        (real / "sub" / "b.png").write_bytes(b"png")
+        link = self.root / "link"
+        link.symlink_to(real, target_is_directory=True)
+        write_json(link / stamp.STAMP_FILE, {"files": {"sub/b.png": "0"}})
+        stamp.begin_png_export(link)
+        self.assertFalse((real / "sub" / "b.png").exists())
 
     def test_a_directory_that_grows_one_image_at_a_time_cannot_inherit_a_stamp(self):
         self.png("old.png")
@@ -289,7 +357,7 @@ class WriteExtract(TempDirectory):
     """`write_extract` stamps `metadata.json` with every table's hash, and writes it last."""
 
     def fake_result(self, without=()):
-        return {key: {"key": key} for key in ["metadata", *core.TABLE_KEYS] if key not in without}
+        return fake_result(without)
 
     def test_the_written_extract_carries_the_stamp_and_loads(self):
         with mock.patch.object(core, "extract_all", return_value=self.fake_result()):
@@ -333,6 +401,27 @@ class WriteExtract(TempDirectory):
         self.assertTrue((self.directory / "notes.txt").exists(), "a file no stamp listed is never deleted")
         with self.assertRaises(StaleExtractError):
             load_table(self.directory, "unlisted")
+
+
+class TableCleanup(TempDirectory):
+    def test_a_stamp_listing_a_nested_path_cannot_make_an_extract_delete_it(self):
+        with mock.patch.object(core, "extract_all", return_value=fake_result()):
+            core.write_extract(b"", self.directory)
+        (self.directory / "sub").mkdir()
+        nested = self.directory / "sub" / "old.json"
+        nested.write_text("{}")
+        outside = self.root / "outside.json"
+        outside.write_text("{}")
+        metadata = json.loads((self.directory / "metadata.json").read_text())
+        metadata["extract_stamp"]["files"].update(
+            {"sub/old.json": "0", "../outside.json": "0", "gone.json": "0"})
+        (self.directory / "gone.json").write_text("{}")
+        write_json(self.directory / "metadata.json", metadata)
+        with mock.patch.object(core, "extract_all", return_value=fake_result()):
+            core.write_extract(b"", self.directory)
+        self.assertTrue(nested.exists())
+        self.assertTrue(outside.exists())
+        self.assertFalse((self.directory / "gone.json").exists(), "a bare dropped table goes")
 
 
 class EveryReaderRefusesAStaleExtract(TempDirectory):

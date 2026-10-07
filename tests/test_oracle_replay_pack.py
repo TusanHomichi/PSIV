@@ -5,7 +5,7 @@ import tempfile
 import unittest
 
 from oracle.sweep.replay_pack import build, fixture_enemies, party_records
-from psiv_tools.extract_stamp import write_table_stamp
+from tests.stamp_fixture import write_table_stamp
 
 
 class ReplayPack(unittest.TestCase):

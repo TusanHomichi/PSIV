@@ -127,9 +127,11 @@ use an older extract without noticing:
 - A reader opens a table with `psiv_tools.extract_stamp.load_table`. A present
   extract with no stamp, with another source's stamp, or failing the content
   check above raises `StaleExtractError`, naming the file, what is wrong with it
-  and the command above. An absent `generated/` is an ordinary
-  `FileNotFoundError`, so a check that skips without the local inputs still
-  skips. `tests/test_extract_stamp.py` fails when any other module reads
+  and the command above. A stale stamp refuses every table name, including one
+  a newer extractor adds, and a table the stamp lists but which has been deleted
+  is refused too. Only a checkout with no `generated/` at all (or a name nothing
+  lists and no file holds) gives an ordinary `FileNotFoundError`, so a check that
+  skips without the local inputs still skips. `tests/test_extract_stamp.py` fails when any other module reads
   `generated/`.
 - Editing an extractor module, even a pure refactor, changes the stamp and
   makes the next read refuse until `regenerate` runs. That is the price of never

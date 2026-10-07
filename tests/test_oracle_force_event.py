@@ -18,7 +18,7 @@ from unittest import mock
 
 from oracle import force as fb
 from oracle.force import runs
-from psiv_tools.extract_stamp import write_table_stamp
+from tests.stamp_fixture import write_table_stamp
 from tests.test_oracle_force_battle import FORMATIONS, write_json
 from tests.test_oracle_force_battle_run import WholeRunBase
 
