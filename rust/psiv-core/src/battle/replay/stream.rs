@@ -173,6 +173,60 @@ pub(crate) fn replay_inner(fixture: &Fixture, data: &BattleData) -> Replay {
                     .get(id(state.id))
                     .expect("logged fighter")
                     .stats;
+                for (label, actual, observed) in [
+                    (
+                        "STR",
+                        u16::from(stats.strength.battle),
+                        state.str_bat.map(u16::from),
+                    ),
+                    (
+                        "MEN",
+                        u16::from(stats.mental.battle),
+                        state.men_bat.map(u16::from),
+                    ),
+                    (
+                        "AGI",
+                        u16::from(stats.agility.battle),
+                        state.agi_bat.map(u16::from),
+                    ),
+                    (
+                        "DEX",
+                        u16::from(stats.dexterity.battle),
+                        state.dex_bat.map(u16::from),
+                    ),
+                    ("ATK", stats.attack.battle, state.atk_bat),
+                    ("DFS", stats.defence.battle, state.dfs_bat),
+                    ("MDEF", stats.mental_defence.battle, state.mdfs_bat),
+                ] {
+                    if let Some(expected) = observed {
+                        assert_eq!(
+                            actual, expected,
+                            "round {} fighter {} {label}",
+                            round.round, state.id
+                        );
+                    }
+                }
+                if let Some(expected) = state.elements {
+                    assert_eq!(
+                        stats.element_props, expected,
+                        "round {} fighter {} elements",
+                        round.round, state.id
+                    );
+                }
+                if let Some(expected) = state.shadows {
+                    assert_eq!(
+                        stats.element_shadow, expected,
+                        "round {} fighter {} shadows",
+                        round.round, state.id
+                    );
+                }
+                if let Some(expected) = state.uses {
+                    assert_eq!(
+                        stats.curr_skill_uses, expected,
+                        "round {} fighter {} uses",
+                        round.round, state.id
+                    );
+                }
                 assert_eq!(
                     stats.curr_hp, state.hp,
                     "round {} fighter {} HP",
@@ -297,8 +351,9 @@ impl Finding {
 /// Every call the log's frames hold is one the port accounts for.
 ///
 /// The count is per action, against the roles that action's frames carry: the
-/// round's own order pass is the difference between the round's `roll_count`
-/// and the sum over its actions. A roll with no consumer - the divergence this
+/// round's order pass and observed wake tail are separate from its actions.
+/// The verbatim replay checks their consumers and the final status/AGI cells.
+/// A roll with no consumer - the divergence this
 /// test exists to catch - shows up as an action whose log count is larger than
 /// the port's, and a consumer with no roll in the log shows up in the other
 /// direction.
@@ -308,6 +363,14 @@ pub(crate) fn account_for_every_roll(fixture: &Fixture, tape: &str) {
         let order = rolls
             .iter()
             .filter(|roll| roll.round == round.round && roll.role == "order")
+            .count();
+        let wake = rolls
+            .iter()
+            .filter(|roll| roll.round == round.round && roll.role == "wake")
+            .inspect(|roll| {
+                assert_eq!(roll.action, 0, "{tape}: wake RNG is round-owned");
+                assert_eq!(roll.target, None, "{tape}: wake target is not inferred");
+            })
             .count();
         let mut actions = 0;
         for action in &round.actions {
@@ -356,8 +419,8 @@ pub(crate) fn account_for_every_roll(fixture: &Fixture, tape: &str) {
         }
         assert_eq!(
             round.roll_count as usize,
-            actions + order,
-            "{tape}: round {}'s frames hold the order pass and its actions, nothing else",
+            actions + order + wake,
+            "{tape}: round {}'s frames hold order, actions and the observed wake tail",
             round.round
         );
     }

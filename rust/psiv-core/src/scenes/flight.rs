@@ -221,7 +221,7 @@ const SFX_SPACESHIP_RADAR: u8 = 0xF8;
 const SFX_SPACESHIP_PROPELLED: u8 = 0xE3;
 
 /// How many ops a Cancel skips: from the op after the menu to the cancel leg.
-const CANCEL_SKIP: u16 = 42;
+const CANCEL_SKIP: u16 = 38;
 
 /// `PalFadeOut_ClrSpriteTbl` takes 14 frames (tape 35). Flight fade-in has
 /// two additional display-enable/terminal frames; FlightFadeIn owns its 16.
@@ -245,7 +245,7 @@ const FADE_IN_FRAMES: u16 = 16;
 ///
 /// Counts and CPU/DMA setup spans are cited separately in the scene ledger.
 /// The caption is instant: d4=1 skips RunText2's per-character wait.
-pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 48] = [
+pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 44] = [
     SceneOp::InitVramAndCram,
     SceneOp::FadeIn,
     // `SpcSFXID_SpaceshipRadar`, once the list is built (`ps4.asm:133537`).
@@ -334,13 +334,10 @@ pub(crate) const INSIDE_SPACESHIP_ROUTE: [SceneOp; 48] = [
     SceneOp::LoadFlightMap {
         leg: FlightLeg::Landing,
     },
-    SceneOp::FlightFieldReload,
-    SceneOp::FlightFadeIn {
-        frames: FADE_IN_FRAMES,
-    },
-    SceneOp::FlightArrivalName,
-    // Window_Update countdown $78 plus draw/teardown DMA (:136623-136646).
-    SceneOp::Wait { ticks: 124 },
+    // `FieldRoutine_Cutscene`'s zero return: the general cutscene-return
+    // reload owns everything from here to field control - the map reload,
+    // `Pal_FadeIn`, and `FieldRoutine_PlaceName`'s window when the travel
+    // table names this landing (`rust/psiv-runtime/src/scene_return.rs`).
     SceneOp::Return { value: 0 },
     // Cancel: back to the start cell of the map it was opened on.
     SceneOp::LoadFlightMap {

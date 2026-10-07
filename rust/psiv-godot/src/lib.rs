@@ -212,9 +212,10 @@ struct Field {
     /// ColorRect pieces used by the active transition cover.
     transition_nodes: Vec<Gd<ColorRect>>,
     red_palette: red_palette::RedPalette,
-    /// True only for a high-bit cutscene whose retail scene has the full
-    /// palette treatment; ordinary events retain their dialogue-window motion.
-    scene_transition_active: bool,
+    /// Set when a zero-return cutscene's `FieldReload` op has already torn the
+    /// scene down and drawn the field; the scene's `SceneEnded` then only
+    /// hands control back. Cleared by that `SceneEnded`.
+    field_reload_presented: bool,
     /// The character id whose sheet the leader sprite currently uses.
     leader_char: u8,
     /// Auto-paced scene dialogue hold counter.  This is only used when the
@@ -302,7 +303,7 @@ impl INode2D for Field {
             transition: None,
             transition_nodes: Vec::new(),
             red_palette: red_palette::RedPalette::default(),
-            scene_transition_active: false,
+            field_reload_presented: false,
             leader_char: 0,
             party_sequence: String::new(),
             party_seq_start: 0,

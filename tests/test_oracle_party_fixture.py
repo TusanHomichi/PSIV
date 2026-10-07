@@ -2,9 +2,11 @@
 import unittest
 
 from oracle.fixture.commands import command_entry
+from oracle.fixture.commands import inventory_at
 from oracle.fixture.errors import FixtureError
 from oracle.fixture.logs import Log
-from oracle.fixture.observations import action_windows
+from oracle.fixture.observations import action_windows, round_tail_frames
+from oracle.fixture.state import round_end_frame
 
 
 def log(rows, hexadecimal=()):
@@ -13,6 +15,23 @@ def log(rows, hexadecimal=()):
 
 
 class PartyFixture(unittest.TestCase):
+    def test_round_inventory_retains_command_consumption_but_excludes_later_loot(self):
+        rows = [dict(self.item_row(), frame=str(frame), battle_routine=routine,
+                     menu_inventory_0=str(item))
+                for frame, routine, item in ((1, "0000", 57), (2, "0018", 0),
+                                              (3, "0018", 128))]
+        observed = log(rows, ("battle_routine",))
+        frame = round_end_frame(observed, 1, 3)
+        self.assertEqual(frame, 2)
+        self.assertEqual(inventory_at(observed, frame)[0], 0)
+        # Without the observed victory seam, the later inventory write is an
+        # in-battle effect and must remain visible, not be masked away.
+        for row in rows:
+            row["battle_routine"] = "0000"
+        observed = log(rows, ("battle_routine",))
+        self.assertEqual(round_end_frame(observed, 1, 3), 3)
+        self.assertEqual(inventory_at(observed, 3)[0], 128)
+
     def test_every_command_byte_is_preserved_and_unknown_is_rejected(self):
         for index, name in enumerate(("attack", "technique", "skill", "item", "defend"), 1):
             if name == "item":
@@ -62,6 +81,25 @@ class PartyFixture(unittest.TestCase):
                                         1, 4, cuts=[1]), [(2, 3, 4)])
         self.assertEqual(action_windows(log(self.turn_rows(menu="0011"), hex_fields),
                                         1, 4, cuts=[1]), [])
+
+    def test_wake_draws_close_the_last_action_and_never_open_a_phantom_attack(self):
+        rows = self.turn_rows()
+        for row, routine in zip(rows, (0, 0, 0x1C, 6)):
+            row.update(battle_routine=str(routine))
+        rows[2].update(battle_actor="0007", e2_status="24")
+        rows[3].update(battle_actor="0007", e2_status="16")
+        fields = ("battle_actor", "current_command", "battle_routine_2")
+        observed = log(rows, fields)
+        self.assertEqual(round_tail_frames(observed, 1, 4), {4})
+        # The final actor wakes in the same sampled frame as the calls. Its
+        # clean status must not manufacture a real attack either.
+        self.assertEqual(action_windows(observed, 1, 4, cuts=[1], roll_frames=[4]),
+                         [(1, 2, 3)])
+        # Negative control: without the restoration transition those calls
+        # really do open an enemy action, so RNG is not silently discarded.
+        rows[2]["battle_routine"] = "0"
+        self.assertEqual(action_windows(log(rows, fields), 1, 4, cuts=[1], roll_frames=[4]),
+                         [(1, 2, 3), (7, 4, 4)])
 
 
 if __name__ == "__main__":

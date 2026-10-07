@@ -356,6 +356,19 @@ impl Flood {
     }
 }
 
+/// Whether `cell` is open terrain that an NPC occupies right now: a goal the
+/// party can reach once a wanderer moves on, unlike a wall or the map's edge.
+/// [`plan_cells`] refuses such a goal as [`CellPlanError::GoalNotWalkable`]
+/// because the live map is blocked there this frame; the caller decides
+/// whether to wait.
+#[must_use]
+pub fn held_by_npc(map: &FieldMap, cell: Cell) -> bool {
+    map.npc_at(cell).is_some()
+        && !map
+            .collision_at(cell)
+            .is_none_or(CollisionType::is_blocking)
+}
+
 /// Plans a walk on `map` from `start` to `goal`.
 ///
 /// # Errors

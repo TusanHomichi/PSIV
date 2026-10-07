@@ -1,6 +1,6 @@
 //! The cell planner on hand-built maps: no pack needed, so these always run.
 
-use psiv_campaign::{CellPlanError, Flood, Goal, Mover, plan_cells, plan_cells_for};
+use psiv_campaign::{CellPlanError, Flood, Goal, Mover, held_by_npc, plan_cells, plan_cells_for};
 use psiv_core::{
     Cell, CellRect, CollisionGrid, Direction, FieldMap, MapId, Npc, NpcId, Warp, WarpTrigger,
 };
@@ -78,6 +78,24 @@ fn walls_and_npcs_block_and_the_goal_must_be_walkable() {
         plan_cells(&shut, Cell::new(0, 0), Goal::Cell(Cell::new(2, 0))),
         Err(CellPlanError::Unreachable)
     );
+}
+
+#[test]
+fn a_goal_an_npc_stands_on_is_held_not_walled() {
+    // `go_to` waits for a wanderer standing on its goal and halts on a wall:
+    // the plan error is the same, `held_by_npc` tells them apart.
+    let rows = ["0800", "0000"];
+    let on_ground = Npc::new(NpcId(1), Cell::new(2, 0), Direction::Down);
+    let on_wall = Npc::new(NpcId(2), Cell::new(1, 0), Direction::Down);
+    let m = map(&rows, vec![], vec![on_ground, on_wall]);
+    assert_eq!(
+        plan_cells(&m, Cell::new(0, 0), Goal::Cell(Cell::new(2, 0))),
+        Err(CellPlanError::GoalNotWalkable(Cell::new(2, 0)))
+    );
+    assert!(held_by_npc(&m, Cell::new(2, 0)), "open ground under an NPC");
+    assert!(!held_by_npc(&m, Cell::new(1, 0)), "a wall, NPC or not");
+    assert!(!held_by_npc(&m, Cell::new(3, 1)), "open ground with no NPC");
+    assert!(!held_by_npc(&m, Cell::new(9, 9)), "off the map");
 }
 
 #[test]

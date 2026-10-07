@@ -1,6 +1,6 @@
 //! The flight's drawable records; all clocks stay in the scene interpreter.
 
-use psiv_core::SceneOp;
+use psiv_core::{PresentationOp, SceneOp};
 
 use super::Session;
 use crate::RuntimeEvent;
@@ -40,7 +40,10 @@ impl Session {
                 }
             }
             RuntimeEvent::ScenePresentation {
-                op: SceneOp::FlightArrivalName,
+                op:
+                    SceneOp::Presentation {
+                        op: PresentationOp::PlaceNameWindow,
+                    },
             } => {
                 let arrival = self
                     .runtime

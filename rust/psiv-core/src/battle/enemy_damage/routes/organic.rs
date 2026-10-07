@@ -18,10 +18,27 @@
 //! (loc_D56E,19633; BattleObj_MoleNeedle,68370) reaches loc_24B20 (48529).
 //! WIND STORM: Owltalon's $8CC (loc_D61E,19680; loc_3526A,68568)
 //! reaches loc_24B20: one target despite record target nibble 9.
+//! DISTORTION: DimensWorm/OuterBeast share EnemyAttack_DimensWorm
+//! (19280-19281). Its $30 arm (loc_F7A6,21903-21909) clears the target
+//! and loads $2D4 = loc_1CC64 (39283). State 8 reaches loc_24BB6
+//! (39299-39300), the five-slot damage request. Its palette/sine animation
+//! (loc_1CD52/loc_1CE1E,39369-39516) consumes no UpdateRNGSeed2 draws.
 use super::super::{DamageClass, ObjectDraws};
 use super::DamageRoute;
 
 pub(super) const ROUTES: &[DamageRoute] = &[
+    DamageRoute {
+        enemy_id: 73,
+        ability: 0x30,
+        class: DamageClass::AllParty,
+        draws: ObjectDraws::None,
+    },
+    DamageRoute {
+        enemy_id: 74,
+        ability: 0x30,
+        class: DamageClass::AllParty,
+        draws: ObjectDraws::None,
+    },
     DamageRoute {
         enemy_id: 37,
         ability: 0x13,

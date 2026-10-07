@@ -35,6 +35,7 @@ pub(crate) fn data() -> BattleData {
         .with_techniques(sweep.techniques)
         .with_skills(sweep.skills)
         .with_battle_items(sweep.battle_items)
+        .with_items(sweep.equipment)
         .with_enemies([helex(), fanbite(), desrt_leach()])
         .with_enemy_skills([flame_bolt(), spiral_bld(), sand_storm()])
 }
@@ -60,6 +61,7 @@ fn read_pack(path: &std::path::Path) -> SweepPack {
         techniques: parsed.techniques.into_iter().map(Into::into).collect(),
         skills: parsed.skills.into_iter().map(Into::into).collect(),
         battle_items: parsed.battle_items.into_iter().map(Into::into).collect(),
+        equipment: parsed.equipment.into_iter().map(Into::into).collect(),
     }
 }
 
@@ -69,6 +71,7 @@ struct SweepPack {
     techniques: Vec<Technique>,
     skills: Vec<Skill>,
     battle_items: Vec<BattleItem>,
+    equipment: Vec<ItemRecord>,
 }
 
 #[derive(Deserialize)]
@@ -81,6 +84,37 @@ struct SweepJson {
     skills: Vec<PartyAbilityJson>,
     #[serde(default)]
     battle_items: Vec<PartyAbilityJson>,
+    #[serde(default)]
+    equipment: Vec<ItemJson>,
+}
+
+#[derive(Deserialize)]
+struct ItemJson {
+    id: u8,
+    name: String,
+    kind: u8,
+    element: u8,
+    bonuses: [i8; 7],
+}
+
+impl From<ItemJson> for ItemRecord {
+    fn from(j: ItemJson) -> Self {
+        Self {
+            id: j.id,
+            name: j.name,
+            kind: ItemKind::from_byte(j.kind).expect("decoded equipment type"),
+            element: j.element,
+            bonuses: Bonuses {
+                strength: j.bonuses[0],
+                mental: j.bonuses[1],
+                agility: j.bonuses[2],
+                dexterity: j.bonuses[3],
+                attack: j.bonuses[4],
+                defence: j.bonuses[5],
+                mental_defence: j.bonuses[6],
+            },
+        }
+    }
 }
 
 /// Normalized psiv-data definitions, emitted from the ignored runtime pack.

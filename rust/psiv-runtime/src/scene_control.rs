@@ -3,8 +3,8 @@
 //! cleared-game latch.
 
 use psiv_core::{
-    ActorRef, EventIndex, Party, SceneInput, SceneRunner, ScriptedActor, StepFrames, runner_for,
-    scene_for,
+    ActorRef, EventIndex, Party, Scene, SceneInput, SceneRunner, ScriptedActor, StepFrames,
+    runner_for, scene_for,
 };
 
 use crate::Runtime;
@@ -20,6 +20,12 @@ impl Runtime {
         let Some(scene) = scene_for(event) else {
             return false;
         };
+        self.install_runner(scene, event)
+    }
+
+    /// Starts `scene` as event `event`. The registry lookup above and a
+    /// test's own scene share this one setup.
+    pub(crate) fn install_runner(&mut self, scene: &'static Scene, event: EventIndex) -> bool {
         let cast = self.build_cast();
         // The runner walks with the party's own step timing, so scripted-walk
         // interpolation (renderer, camera driver) shares one clock with field
@@ -34,6 +40,8 @@ impl Runtime {
         // dialogue system at; a new scene starts on the map's own binding.
         self.scene_tree_address = None;
         self.scene_input = SceneInput::None;
+        self.scene_returned = None;
+        self.scene_tail = None;
         self.scene_choice_pending = false;
         self.scene_camera_locked = false;
         self.scene_warmup = true;

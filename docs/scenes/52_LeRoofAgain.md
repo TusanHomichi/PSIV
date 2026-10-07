@@ -4,7 +4,7 @@
 - **Pointer:** `CutscenePtrs[$1C]`; scene `$801C`.
 - **Trigger:** `RunEventsJmpTbl[$34]`, strength chest `$D5` and courage chest
   `$D3` set, Le Roof story `$D6` clear.
-- **Data:** `dezo_campaign.rs`, `LE_ROOF_AGAIN` (71 ops).
+- **Data:** `dezo_campaign.rs`, `LE_ROOF_AGAIN` (67 ops).
 
 ## Clone audit
 

@@ -80,6 +80,10 @@ mod event;
 mod fighters;
 mod item;
 mod order;
+mod player_animation;
+mod player_effect;
+#[cfg(test)]
+mod player_tests;
 mod records;
 mod retarget;
 mod rewards;

@@ -16,7 +16,7 @@ import sys
 
 from . import runs, script_menu
 from .errors import ForceError
-from .script import Script, definitions, party_state
+from .script import Script, definitions, party_state, patch_state
 from .tape import Step, emit_tape, tape_frames, trim_tape
 
 def prepare(args, facts: dict, base_steps: list[Step]) -> None:
@@ -57,7 +57,11 @@ def build(plan: dict, args, specs: list[str], script: Script) -> None:
     if built.returncode:
         raise ForceError(f"pilot host build failed: {built.stderr}")
     (out / "host-build.txt").write_text(built.stdout + built.stderr)
-    ram_map = script_menu.write_map(runs.DEFAULT_RAM_MAP_TSV, plan["out"] / "script-map.tsv")
+    cache = pathlib.Path(args.scout) if args.scout else plan["out"] / "scout.json"
+    facts = json.loads(cache.read_text())
+    observed = pathlib.Path(facts["script_state"]["path"]).read_bytes()
+    party = party_state(patch_state(observed, args.ram_patch, facts["battle_first"] + 1))
+    ram_map = script_menu.write_map(runs.DEFAULT_RAM_MAP_TSV, plan["out"] / "script-map.tsv", party)
     plan["run_options"] = {"ram_map": ram_map, "groups": runs.GROUPS + ",menu"}
     steps = trim_tape(plan["steps"], plan["script_start"])
     start = tape_frames(steps)
@@ -74,6 +78,8 @@ def build(plan: dict, args, specs: list[str], script: Script) -> None:
     records = definitions(pathlib.Path(args.runtime_pack))
     queue = None
     new_phase = True
+    last_frame = start
+    last_row = {}
     layout = [(line.split("\t")[0], int(line.split("\t")[1], 16) & 0xFFFF,
                int(line.split("\t")[2]), line.split("\t")[4].strip() == "hex")
               for line in ram_map.read_text().splitlines() if line and not line.startswith("#")]
@@ -84,12 +90,18 @@ def build(plan: dict, args, specs: list[str], script: Script) -> None:
         while True:
             line = proc.stdout.readline()
             if not line:
-                raise ForceError(f"pilot host stopped before script boundary: {proc.wait()}")
+                status = proc.wait()
+                detail = (f"f{last_frame}, {round_count} queue(s), "
+                          f"routine ${last_row.get('battle_routine_2', '?')}, "
+                          f"command ${last_row.get('current_command', '?')}")
+                raise ForceError(f"pilot host stopped before script boundary: {status}; {detail}; "
+                                 "inspect pilot.csv and pilot-stderr.txt for a stalled animation/menu")
             frame, raw = line.split()
             frame, raw = int(frame), bytes.fromhex(raw)
             row = {name: (f"{int.from_bytes(raw[address:address + size], 'big'):0{size * 2}X}"
                           if hex_ else str(int.from_bytes(raw[address:address + size], "big")))
                    for name, address, size, hex_ in layout}
+            last_frame, last_row = frame, row
             current_queue = tuple(row[f"turn_{i:02d}"] for i in range(18))
             ids = [int(value, 16) for value in current_queue[::2]]
             if any(ids) and all(0 <= value <= 9 for value in ids):
@@ -122,7 +134,7 @@ def build(plan: dict, args, specs: list[str], script: Script) -> None:
                 # merely to close its final captured turn.
                 command = script.command(fighter, player_round, round_count, args.max_rounds)
                 buttons = script_menu.command_buttons(row, command)
-            elif routine in script_menu.READY:
+            elif routine in script_menu.READY or script_menu.confirmation_ready(routine):
                 buttons = ["C"]
             else:
                 buttons = []
@@ -152,7 +164,7 @@ def build(plan: dict, args, specs: list[str], script: Script) -> None:
             proc.terminate()
             proc.wait()
         stderr.close()
-    (plan["out"] / "script-inputs.json").write_text(json.dumps(receipt, indent=2) + "\n")
+        (plan["out"] / "script-inputs.json").write_text(json.dumps(receipt, indent=2) + "\n")
     plan["steps"] = steps
     plan["full_tape"].write_text(emit_tape(steps, plan["header"]))
     print(f"script frozen: {len(receipt)} menu decisions, {tape_frames(steps)} frames")

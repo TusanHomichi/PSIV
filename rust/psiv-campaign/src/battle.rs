@@ -72,7 +72,11 @@ fn wanted_button(driver: &Driver, policy: &mut dyn Policy) -> Option<Button> {
         // The main options: row 0 is COMD (ATTAC when mounted).
         MenuView::Top { cursor } => {
             let boss = driver.battles().last().is_some_and(|b| b.kind == "event");
-            let row = if policy.wants_run(boss) { 2 } else { 0 };
+            let row = if policy.wants_run_with(boss, &view.party) {
+                2
+            } else {
+                0
+            };
             if row == 2 && *cursor == 2 && std::env::var_os("PSIV_CAMPAIGN_TRACE").is_some() {
                 let party: Vec<String> = view
                     .party

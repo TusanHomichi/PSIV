@@ -77,7 +77,6 @@ impl Field {
                     godot_print!("scene started (interaction area {area}, event {event:#x})");
                     self.set_letterbox(true);
                     if event & 0x8000 != 0 {
-                        self.scene_transition_active = true;
                         self.start_transition(TransitionKind::SceneStart);
                     }
                 }
@@ -85,14 +84,13 @@ impl Field {
                 RuntimeEvent::SceneMusicRetained => self.presentation.retain_scene_music(),
                 RuntimeEvent::SceneEnded => {
                     godot_print!("scene ended");
-                    self.finish_cutscene_presentation();
-                    if self.scene_transition_active {
-                        self.scene_transition_active = false;
-                        self.start_transition(TransitionKind::SceneEnd);
-                    } else {
-                        self.set_letterbox(false);
+                    // A zero-return cutscene's `FieldReload` op already tore the
+                    // scene down and drew the field; every other end does it here.
+                    if !std::mem::take(&mut self.field_reload_presented) {
+                        self.finish_cutscene_presentation();
+                        self.load_map_visuals();
                     }
-                    self.load_map_visuals();
+                    self.set_letterbox(false);
                 }
                 RuntimeEvent::SceneMissing { event } => {
                     godot_error!("trigger fired event {event:#x} with no transcribed scene");
@@ -351,7 +349,6 @@ impl Field {
                 godot_print!("dialogue event {:#x} starts its scene", start.event);
                 self.set_letterbox(true);
                 if start.event & 0x8000 != 0 {
-                    self.scene_transition_active = true;
                     self.start_transition(TransitionKind::SceneStart);
                 }
             } else {

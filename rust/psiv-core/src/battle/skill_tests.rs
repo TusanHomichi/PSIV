@@ -122,7 +122,7 @@ fn vortex_is_one_hit_with_sixteen_draws_and_spends_the_matching_slot() {
 }
 
 #[test]
-fn crosscut_rolls_both_hits_independently_and_spends_one_matching_use() {
+fn crosscut_choreography_does_not_add_a_second_damage_run() {
     let data = data();
     let mut roster = roster(&data);
     let stats = &mut roster.get_mut(id(2)).unwrap().stats;
@@ -158,8 +158,8 @@ fn crosscut_rolls_both_hits_independently_and_spends_one_matching_use() {
             _ => None,
         })
         .collect();
-    assert_eq!(hits, vec![(id(7), Some(85), 215), (id(7), Some(96), 119)]);
-    assert_eq!(rolls.drawn(), 32);
+    assert_eq!(hits, vec![(id(7), Some(85), 215)]);
+    assert_eq!(rolls.drawn(), 16);
     assert_eq!(roster.get(id(6)).unwrap().stats.curr_hp, 25);
     assert_eq!(
         roster.get(id(2)).unwrap().stats.curr_skill_uses,
@@ -181,7 +181,7 @@ fn crosscut_rolls_both_hits_independently_and_spends_one_matching_use() {
 }
 
 #[test]
-fn crosscut_stops_after_a_kill_without_rolling_or_retargeting_its_second_hit() {
+fn crosscut_does_not_roll_or_retarget_after_a_kill() {
     let data = data();
     let mut roster = roster(&data);
     let stats = &mut roster.get_mut(id(2)).unwrap().stats;

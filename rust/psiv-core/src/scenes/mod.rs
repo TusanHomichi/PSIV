@@ -56,6 +56,7 @@ pub(crate) mod dezo_campaign;
 pub(crate) mod dezo_endgame;
 pub(crate) mod dezolis_route;
 pub(crate) mod esper_events;
+mod field_reload;
 mod flight;
 mod game_start;
 pub(crate) mod gumbious_events;
@@ -68,6 +69,7 @@ pub(crate) mod post_zio_cutscenes;
 pub(crate) mod retail_endgame;
 pub(crate) mod vehicles;
 
+pub use field_reload::{field_reload_is_proxy, field_reload_rows};
 pub(crate) use flight::INSIDE_SPACESHIP_ROUTE;
 pub use flight::{
     DESTINATION_DEFAULT_MASK, DESTINATION_FLAG_TABLE, DestinationMask, FlightLeg, FlightTarget,
@@ -297,9 +299,9 @@ mod tests {
             ("Cutscene_PsycoWand", 110),
             ("Event_ZioFortBarrier", 35),
             ("Event_ZioNurvus", 17),
-            ("Cutscene_ZioDefeated", 45),
+            ("Cutscene_ZioDefeated", 46),
             ("Cutscene_MeetingWren", 16),
-            ("Cutscene_InsideSpaceship", 48),
+            ("Cutscene_InsideSpaceship", 44),
             ("Cutscene_SpaceshipSabotage", 36),
             ("Cutscene_CrashLaanding", 131),
             ("Event_OutsideRajaTemple", 3),
@@ -318,7 +320,7 @@ mod tests {
             ("Event_Juza", 5),
             ("Event_JuzaDefeated", 3),
             ("Event_MeetingLeRoof", 17),
-            ("Cutscene_LeRoofAgain", 71),
+            ("Cutscene_LeRoofAgain", 67),
             ("Event_CarnivorousTrees", 13),
             ("Event_SavingKyra", 19),
             ("Cutscene_MeetingKyra", 24),
@@ -337,7 +339,7 @@ mod tests {
             ("Event_ClmCenterAfterBattle", 2),
             ("Event_DElmLars", 4),
             ("Event_AfterDElmLarsBattle", 2),
-            ("Cutscene_FindingAirCastle", 54),
+            ("Cutscene_FindingAirCastle", 50),
             ("Event_AirCastleArrival", 2),
             ("Event_XeAThoulBeforeBattle", 5),
             ("Event_AirCastleFakeChest", 11),

@@ -15,13 +15,17 @@
 //! walking through a map-change tile therefore parks the machine, and the
 //! party steps out of town on foot. Each routine then consumes the flags it
 //! read — `andi.b #$80` keeps only bit 7, "skip palette fade in" (`:107594`,
-//! the tail of the load) after a field load, and `RefreshMap` zeroes the byte
+//! the tail of the load), which the field load spends itself (`bclr #7`,
+//! `:107628`: no fade-in when it was set), and `RefreshMap` zeroes the byte
 //! (`:121835`).
 //!
 //! `Runtime::map_load_flags` is that byte. A scene writes it with its own
 //! `SetMapLoadFlags` op (`ps4.asm`'s `bset`/`bclr` pairs), and the battle
 //! return is a field load with bit 0 set at battle entry (`ps4.asm:118057`,
 //! `120803` → `loc_585C8`), which is why a fight does not dismount the party.
+//! A zero-returning cutscene is a field load with bit 2 set by
+//! `FieldRoutine_Cutscene` (`ps4.asm:120746`); that path is
+//! [`Runtime::reload_field_after_cutscene`].
 
 use psiv_core::{Cell, Direction, Flag, GameState, MapId};
 
@@ -44,6 +48,19 @@ pub(crate) enum MapLoad {
 
 /// Bit 0 of `Map_Load_Flags`, set when a battle begins.
 pub(crate) const LOAD_FLAG_AFTER_BATTLE: u8 = 0b0000_0001;
+/// Bit 2, set by `FieldRoutine_Cutscene` on a zero return (`ps4.asm:120746`).
+pub(crate) const LOAD_FLAG_AFTER_CUTSCENE: u8 = 0b0000_0100;
+/// Bit 7: "skip palette fade in" (`ps4.asm:107628`).
+pub(crate) const LOAD_FLAG_SKIP_FADE: u8 = 0b1000_0000;
+
+/// What a cutscene-return reload decided: the two flag-dependent frame terms.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct CutsceneReload {
+    /// The music branch wrote `Saved_Sound_Index`: one more `VInt_Prepare`.
+    pub(crate) music_written: bool,
+    /// Bit 7 was set: no `Pal_FadeIn`.
+    pub(crate) skip_fade: bool,
+}
 
 /// `AdjustMusicIDs` (`US ROM $0545F0`), after the field loader has already
 /// skipped zero, battle bit 0, and a raw id equal to `Saved_Sound_Index`.
@@ -72,8 +89,10 @@ pub(super) fn adjusted_map_music(map: MapId, raw: u8, game: &GameState, saved: u
 
 impl Runtime {
     /// Applies the cartridge's flag test to the live vehicle and consumes the
-    /// bits, as the load routine's tail does.
-    fn apply_map_load_flags(&mut self, kind: MapLoad) {
+    /// bits, as the load routine's tail does. Returns whether bit 7 was set:
+    /// a field load then skips its `Pal_FadeIn` (`ps4.asm:107628`).
+    fn apply_map_load_flags(&mut self, kind: MapLoad) -> bool {
+        let skip_fade = self.map_load_flags & LOAD_FLAG_SKIP_FADE != 0;
         let spare = match kind {
             MapLoad::Field => self.map_load_flags & 0b0000_0101 != 0,
             MapLoad::Refresh => self.map_load_flags & 0b0000_1000 != 0,
@@ -84,10 +103,10 @@ impl Runtime {
             self.vehicle = None;
             self.game.set_vehicle_index(0);
         }
-        self.map_load_flags = match kind {
-            MapLoad::Field => self.map_load_flags & 0b1000_0000,
-            MapLoad::Refresh => 0,
-        };
+        // `andi.b #$80` then `bclr #7` (`:107594`, `:107628`): both routines
+        // leave the byte zero.
+        self.map_load_flags = 0;
+        skip_fade
     }
 
     /// Applies the cartridge's battle-return map load before revealing the
@@ -105,20 +124,107 @@ impl Runtime {
         }
     }
 
-    pub(crate) fn refresh_field_after_battle(&mut self) -> Result<(), BridgeError> {
+    /// The map-data walk of a `GameMode_LoadFieldMap` whose flags spare the
+    /// objects (bit 0 after a battle, bit 2 after a cutscene): `LoadMapObjects`,
+    /// `LoadTreasureChests` and the party placement all return without
+    /// touching the object memory (`loc_53546` `:110819-110821`,
+    /// `LoadMapObjects` `:110925-110930`, `LoadTreasureChests`
+    /// `:110981-110983`), so the live objects, wander clocks and scene cast
+    /// stay, while `MapDataManager` runs again over them.
+    ///
+    /// The retained objects keep what a scene wrote into them, so the
+    /// dialogue ids it set (`$14(a4)`, `SceneEffect::NpcDialogueSet`) survive
+    /// the walk, which rewrites only the objects its own entries name.
+    fn rewalk_map_retaining_objects(&mut self) -> Result<(), BridgeError> {
         let target = self.map.id();
         let record = self
             .data
             .map(psiv_data::MapId(target.0))
             .ok_or(BridgeError::NotPacked(target.0))?;
-        // GameMode_LoadFieldMap with Map_Load_Flags bit 0: the map-data
-        // walk runs, while object initialization, party placement and camera
-        // initialization do not. Keep the wander clocks and scene cast too.
-        let effects = effects::evaluate(record, &mut self.game);
+        let mut effects = effects::evaluate(record, &mut self.game);
+        for (&index, &id) in &self.effects.dialogue_overrides {
+            effects.dialogue_overrides.entry(index).or_insert(id);
+        }
         let mut map = bridge::field_map_retaining_objects(record, Some(&effects), self.map.npcs())?;
         bridge::attach_chests(&mut map, record, &self.game, self.map.npcs(), &effects)?;
         self.map = map;
         self.effects = effects;
+        Ok(())
+    }
+
+    /// `GameMode_LoadFieldMap` after a zero-returning cutscene
+    /// (`FieldRoutine_Cutscene`, `ps4.asm:120745-120746`), in the cartridge's
+    /// order: the flag test, the music word, the map-data walk, the camera
+    /// from `Character_1`, and the load tail's resets. Returns whether the
+    /// music branch spent its extra `VInt_Prepare` (`:107619-107626`) and
+    /// whether bit 7 skipped the fade.
+    pub(crate) fn reload_field_after_cutscene(&mut self) -> Result<CutsceneReload, BridgeError> {
+        let target = self.map.id();
+        let raw_music = self
+            .data
+            .map(psiv_data::MapId(target.0))
+            .ok_or(BridgeError::NotPacked(target.0))?
+            .music
+            .id;
+        // `bset #2, (Map_Load_Flags).w`: the cutscene's own writes (bit 0 from
+        // `Cutscene_MeetingKyra`, bit 7 from the scenes that skip the fade)
+        // are already in the byte.
+        self.map_load_flags |= LOAD_FLAG_AFTER_CUTSCENE;
+        let music_written = self.write_map_music(target, raw_music);
+        // Bit 2 spares the objects and the vehicle; the byte is spent.
+        let skip_fade = self.apply_map_load_flags(MapLoad::Field);
+        self.rewalk_map_retaining_objects()?;
+        let record = self
+            .data
+            .map(psiv_data::MapId(target.0))
+            .ok_or(BridgeError::NotPacked(target.0))?;
+        // `loc_53854` re-centres every camera on `Character_1`.
+        let leader = match self.vehicle.as_ref() {
+            Some(vehicle) => vehicle::driver_of(vehicle),
+            None => driver_of(self.party.leader()),
+        };
+        self.camera =
+            camera_for_record(leader, &self.map, record).map_err(BridgeError::Rejected)?;
+        self.camera_glide = None;
+        self.scene_camera_locked = false;
+        // `loc_518D2`: the load tail clears the status counters and re-arms
+        // the ten free steps, and `GameMode_LoadFieldMap` starts the standing
+        // tile over.
+        self.prev_standing = None;
+        self.field_status.clock.reset();
+        if let Some(set) = self.battles.as_mut() {
+            set.clock.reset();
+        }
+        // `FieldRoutine_PlaceName` runs after every field load.
+        self.apply_travel_entry();
+        Ok(CutsceneReload {
+            music_written,
+            skip_fade,
+        })
+    }
+
+    /// The load's music branch (`ps4.asm:107536-107547`): a map with music,
+    /// bit 0 clear and a raw id other than `Saved_Sound_Index` asks
+    /// `AdjustMusicIDs`, and a zero answer writes the saved word and raises
+    /// `$FFFFECED`. Returns whether it wrote.
+    fn write_map_music(&mut self, map: MapId, raw: u8) -> bool {
+        if self.map_load_flags & LOAD_FLAG_AFTER_BATTLE != 0 {
+            return false;
+        }
+        match adjusted_map_music(map, raw, &self.game, self.saved_sound_index) {
+            Some(id) => {
+                self.saved_sound_index = id;
+                true
+            }
+            None => false,
+        }
+    }
+
+    pub(crate) fn refresh_field_after_battle(&mut self) -> Result<(), BridgeError> {
+        // GameMode_LoadFieldMap with Map_Load_Flags bit 0: the map-data
+        // walk runs, while object initialization, party placement and camera
+        // initialization do not.
+        self.rewalk_map_retaining_objects()?;
         // The battle set bit 0 when it began (`bset #0`, `ps4.asm:118057` and
         // `120803`), so this load keeps the objects — and the party stays
         // mounted, because the flag test below finds the bit still set.

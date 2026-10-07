@@ -5,11 +5,13 @@ import json
 import pathlib
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest import mock
 
 from oracle.force import ForceError, cli, phases, runs
 from oracle.force.script import Command, Script, party_state, patch_state, validate
-from oracle.force.script_menu import command_buttons, list_buttons, presses, verify_commands
+from oracle.force.script_menu import (command_buttons, confirmation_ready,
+                                     list_buttons, presses, verify_commands)
 
 
 def state():
@@ -31,6 +33,18 @@ def records():
 
 
 class Parsing(unittest.TestCase):
+    def test_party_script_refuses_vehicle_only_selector_before_any_capture(self):
+        args = cli.parser().parse_args(["--formation", "1", "--party-script", "commands.json",
+                                       "--out", "unused"])
+        with mock.patch.object(phases, "field_layout", return_value={}), \
+                mock.patch.object(phases.Pack, "load"), \
+                mock.patch.object(phases, "parse_formation", return_value=1), \
+                mock.patch.object(phases, "choose_selector", return_value=SimpleNamespace(kind="vehicle")), \
+                mock.patch.object(phases, "scout") as scout:
+            with self.assertRaisesRegex(ForceError, "on-foot formation"):
+                phases.run(args)
+            scout.assert_not_called()
+
     def test_all_commands_and_hex_ids(self):
         kinds = [{"command": "attack", "target": 6},
                  {"command": "technique", "id": "0x1", "target": 7},
@@ -128,6 +142,14 @@ class Validation(unittest.TestCase):
 
 
 class MenuSequence(unittest.TestCase):
+    def test_initialized_results_confirm_but_high_bit_command_lists_do_not(self):
+        self.assertTrue(confirmation_ready(0x2D))
+        self.assertTrue(confirmation_ready(0x802D))
+        self.assertTrue(confirmation_ready(0x802F))
+        self.assertTrue(confirmation_ready(0x8020))
+        for routine in (0x8005, 0x8011, 0x8017, 0x8001, 0):
+            self.assertFalse(confirmation_ready(routine))
+
     def row(self, routine):
         return {"battle_routine_2": f"{routine:04X}", "battle_total_comd": "0",
                 "menu_command_0": "0"}
@@ -181,6 +203,8 @@ class MenuSequence(unittest.TestCase):
             row["battle_enemy_index" if routine == 0xC else "battle_char_index"] = str(current)
             row["menu_target_x"] = "320"
             row[f"menu_object_x_{target}"] = "320"
+            row["menu_object_x_1"] = "200"
             self.assertEqual(command_buttons(row, Command("technique", target, 1)), wanted)
-        row["menu_target_x"] = "240"
-        self.assertEqual(command_buttons(row, Command("technique", target, 1)), ["R"])
+        row["battle_char_index"] = "0"
+        row["menu_target_x"] = "312"  # different sprite/body anchors
+        self.assertEqual(command_buttons(row, Command("technique", target, 1)), ["R", "C"])

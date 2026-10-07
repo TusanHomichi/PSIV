@@ -193,6 +193,9 @@ fn effect_divergence(
                     status,
                     ..
                 } if *hit == target => Some(u32::from(*status)),
+                BattleEvent::FellAsleep { target: hit, .. } if *hit == target => {
+                    Some(u32::from(status::ASLEEP))
+                }
                 _ => None,
             })
             .fold(0, |bits, status| bits | status)
@@ -204,7 +207,8 @@ fn effect_divergence(
         .map(|(target, _, _)| id(*target))
         .collect();
     for event in turn {
-        if let BattleEvent::StatusInflicted { target, .. } = event
+        if let BattleEvent::StatusInflicted { target, .. } | BattleEvent::FellAsleep { target, .. } =
+            event
             && !targets.contains(target)
         {
             targets.push(*target);

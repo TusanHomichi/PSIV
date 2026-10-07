@@ -58,6 +58,18 @@ pub(crate) fn narration(
     character_names: &BTreeMap<u8, String>,
 ) -> Narration {
     match event {
+        BattleEvent::TpRestored { target, amount, .. } => Narration {
+            line: format!("{} restored {amount} TP", fighter_name(*target, names)),
+            beat: BattleBeat::None,
+        },
+        BattleEvent::ResistanceChanged { target, .. } => Narration {
+            line: format!("{} resistance changed", fighter_name(*target, names)),
+            beat: BattleBeat::None,
+        },
+        BattleEvent::CharacterSleepCleared => Narration {
+            line: String::new(),
+            beat: BattleBeat::None,
+        },
         BattleEvent::EnemyStatsReloaded { .. } => Narration {
             line: String::new(),
             beat: BattleBeat::None,

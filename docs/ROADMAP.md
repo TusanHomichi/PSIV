@@ -76,10 +76,11 @@ new SAVE. The campaign graph marks C70 and CZ verified as a bounded post-Zio
 checkpoint, while full R2 remains in progress on bespoke-driver retirement.
 Whole-scene/event-oracle/audio parity and later-arc play remain open.
 
-**Next action:** the player's techniques and skills (#88, in progress), then the
-enemy abilities of the Air Castle stretch (14 unsupported, the #58 class), then the
-route into the Xe-A-Thoul room, Lashiec and Dark Force 2. The route plays New Game
-to the Air Castle's arrival in 50 chapters ([run log](campaign/RUNNER_LOG.md)).
+**Next action:** integrate the Air Castle enemy abilities (lane A5, committed on
+its branch; it needs a pack rebuild for the decoded inline formation), then restore
+the Xe-A-Thoul chapter and play on to Lashiec and Dark Force 2. The route plays New
+Game to the Air Castle's arrival in 50 chapters with every player technique and skill
+cartridge-verified ([run log](campaign/RUNNER_LOG.md)).
 
 ## 1. Continue from the post-Rika checkpoint
 

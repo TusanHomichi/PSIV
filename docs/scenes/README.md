@@ -21,7 +21,8 @@ through Zema, the Tonoe road, the BioPlant escape, the Rika hand-off, Zio's
 fall, the Zelan spaceship route, Dezolis/Raja arrival and the first Kuran/Dark
 Force handoff. The Dezo campaign continuation runs from Le Roof through the
 Reunion gate and the Profound Darkness battle request. The trigger/map census is
-[12_ArcTriggerCensus](12_ArcTriggerCensus.md); the per-scene records are
+[12_ArcTriggerCensus](12_ArcTriggerCensus.md); what a scene's return does, and the
+field reload a cutscene's zero starts, is [FIELD_RELOAD](FIELD_RELOAD.md); the per-scene records are
 [13_ProfHolt](13_ProfHolt.md) through [50_JuzaDefeated](50_JuzaDefeated.md).
 The native registry and headless proof live beside those documents in
 `psiv-core` and `psiv-runtime`.

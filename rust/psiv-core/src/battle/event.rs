@@ -76,6 +76,33 @@ pub enum Skipped {
 /// rendered, instead of quietly becoming a runtime "unhandled event" string.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BattleEvent {
+    /// FEEVE's byte-indexed write (ps4.asm:9265-9276), including the shadow.
+    ResistanceChanged {
+        /// Caster.
+        actor: FighterId,
+        /// Recipient.
+        target: FighterId,
+        /// One-based element slot.
+        element: u8,
+        /// The odd byte is the saved property rather than the live property.
+        shadow: bool,
+        /// Property after the write.
+        value: u8,
+    },
+    /// AROWS clears sleep in all eleven character records, including members
+    /// outside this battle (loc_39494, ps4.asm:74439-74448).
+    CharacterSleepCleared,
+    /// ATARAXIA restores TP rather than HP (ps4.asm:4649-4656).
+    TpRestored {
+        /// Skill user.
+        actor: FighterId,
+        /// TP recipient.
+        target: FighterId,
+        /// Actual TP restored.
+        amount: u16,
+        /// TP after restoration.
+        remaining_tp: u16,
+    },
     /// Psycho Wand's object reloads the enemy records after changing the
     /// first formation entry from invulnerable Zio to vulnerable Zio.
     EnemyStatsReloaded {
@@ -487,4 +514,19 @@ pub enum BattleEvent {
         /// How.
         outcome: Outcome,
     },
+}
+
+impl BattleEvent {
+    /// Apply a character-roster-wide effect beyond the fighters this battle
+    /// owns. AROWS' animation clears only bit 3, with no stat restoration
+    /// (loc_39494, ps4.asm:74439-74448).
+    pub fn apply_character_roster(&self, roster: &mut crate::CharacterRoster) {
+        if matches!(self, Self::CharacterSleepCleared) {
+            for id in 0..crate::CHARACTER_COUNT {
+                if let Some(stats) = roster.get_mut(crate::CharId(id as u8)) {
+                    stats.status &= !super::status::ASLEEP;
+                }
+            }
+        }
+    }
 }

@@ -266,7 +266,6 @@ impl Field {
                         self.presentation.reset_scene();
                         self.set_letterbox(true);
                         if event & 0x8000 != 0 {
-                            self.scene_transition_active = true;
                             self.start_transition(crate::transitions::TransitionKind::SceneStart);
                         }
                         godot_print!("debug: starting scene event {event:#06x}");

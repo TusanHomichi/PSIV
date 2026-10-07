@@ -31,10 +31,7 @@ impl Field {
                     frames,
                 ));
             }
-            SceneOp::FlightPlanet
-            | SceneOp::FlightPan
-            | SceneOp::FlightFieldReload
-            | SceneOp::FlightArrivalName => {}
+            SceneOp::FlightPlanet | SceneOp::FlightPan => {}
             SceneOp::FadeOut => self.start_transition(TransitionKind::SceneFadeOut),
             SceneOp::InitVramAndCram => {
                 if let Some(layer) = self.cutscene_layer.as_mut() {
@@ -197,6 +194,10 @@ impl Field {
                     self.presentation.hidden_characters.insert(who.0);
                 }
             }
+            PresentationOp::FieldReload { setup, fade } => self.present_field_reload(setup, fade),
+            // The session's flight view carries the arrival name; no other
+            // place-name window has a drawable yet.
+            PresentationOp::PlaceNameWindow => {}
             PresentationOp::ReloadMapChunks | PresentationOp::RebuildSprites => {
                 self.load_map_visuals();
             }
@@ -296,6 +297,26 @@ impl Field {
         if let Some(layer) = self.cutscene_layer.as_mut() {
             layer.bind_mut().tick();
             layer.bind_mut().place();
+        }
+    }
+
+    /// The runtime's cutscene-return reload (`FieldRoutine_Cutscene`, zero
+    /// return): the scene is over for the renderer, the field map is drawn
+    /// under black, and one `Pal_FadeIn` reveals it. `setup` frames of black
+    /// and the 16-frame fade are one `SceneFadeIn` of their sum, so the screen
+    /// blacks out once, for the frames the runtime measured; nothing is drawn
+    /// at the scene's `SceneEnded`.
+    fn present_field_reload(&mut self, setup: u16, fade: u16) {
+        self.finish_cutscene_presentation();
+        self.set_field_map_visible(true);
+        self.load_map_visuals();
+        self.field_reload_presented = true;
+        if fade > 0 {
+            self.start_transition(TransitionKind::SceneFadeIn);
+            self.transition = Some(crate::transitions::Transition::with_frames(
+                TransitionKind::SceneFadeIn,
+                setup + fade,
+            ));
         }
     }
 
