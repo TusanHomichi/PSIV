@@ -63,6 +63,7 @@ other document sits in the folder for its area.
   - [Aiedo arrival](campaign/AIEDO.md) — the route from the post-Rika north bank to Aiedo `$54`, its entry and story conditions, the encounter and recovery budget, the port's readiness gaps and its superseded arrival graph.
   - [Campaign runner](campaign/CAMPAIGN_RUNNER.md) — the active end-to-end plan: a runtime-owned `Session`, one headless runner over a route file, and Godot tape replay at milestones.
 - [Runner receipts](campaign/RUNNER_LOG.md) and [early halt archive (H1–H16)](campaign/RUNNER_HALTS_EARLY.md) — dated evidence and historical diagnoses; the roadmap owns current work.
+  - [Party policy and training sweep](campaign/RUNNER_LOG_POLICY.md) — the round-planning party policy, the training rule and its sweep, the negative controls and the route's digests.
 - [BioPlant checkpoints](campaign/BIOPLANT_NATIVE.md) — connected Rika escape, ordinary SAVE/fresh CONTINUE, poison recovery and retained failed attempts.
 - [Post-Rika northern crossing](field/TRAVEL.md#post-rika-northern-crossing-2026-09-23) — current Motavia north-bank save, paid recovery, repaired overworld bridge, restart bytes and bounded visual proof.
 - [Party ORDER](camp/PARTY_ORDER.md) — original rules, native input and exact menu-region comparisons.

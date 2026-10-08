@@ -7,6 +7,7 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use psiv_campaign::driver::MemberAtEnd;
 use psiv_campaign::prefix::check_prefix;
 use psiv_campaign::replay::replay;
 use psiv_campaign::route::Route;
@@ -66,6 +67,9 @@ fn run_inner(args: &[String]) -> Result<ExitCode, String> {
             chapter.save.display(),
             chapter.party
         );
+        for battle in &chapter.event_battles {
+            println!("  {}", battle.end_line());
+        }
     }
     println!(
         "tape {} ({} frames); digest {}",
@@ -93,11 +97,25 @@ fn run_inner(args: &[String]) -> Result<ExitCode, String> {
     if let Some(path) = args.one("report") {
         let chapters = report_chapters(first_index, &result.chapters)
             .map_err(|e| format!("cannot hash a chapter save: {e}"))?;
+        let event_battles: Vec<serde_json::Value> = result
+            .chapters
+            .iter()
+            .flat_map(|chapter| {
+                chapter.event_battles.iter().map(|b| {
+                    serde_json::json!({
+                        "chapter": chapter.id, "id": b.id, "start_frame": b.start_frame,
+                        "end_frame": b.end_frame,
+                        "party_at_end": b.party_at_end.iter().map(MemberAtEnd::to_json).collect::<Vec<_>>(),
+                    })
+                })
+            })
+            .collect();
         let report = serde_json::json!({
             "result": "completed",
             "digest": result.digest.to_string(),
             "frames": result.tape.pads.len(),
             "chapters": chapters,
+            "event_battles": event_battles,
         });
         write_file(Path::new(path), &report.to_string())?;
     }

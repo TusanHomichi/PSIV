@@ -199,14 +199,16 @@ pub fn damage(attack: u16, defence: u16, factor: u16, bonus: u16, cap: u16) -> V
     })
 }
 
+/// A [`memo`] key: the formula's tag and its five inputs.
+type MemoKey = (u8, u16, u16, u16, u16, u16);
+
 /// A pure function of its key, remembered: the same fighters meet the same
 /// numbers every round, and a training patrol fights thousands of rounds.
-fn memo(key: (u8, u16, u16, u16, u16, u16), compute: impl FnOnce() -> Value) -> Value {
+fn memo(key: MemoKey, compute: impl FnOnce() -> Value) -> Value {
     use std::cell::RefCell;
     use std::collections::HashMap;
     thread_local! {
-        static CACHE: RefCell<HashMap<(u8, u16, u16, u16, u16, u16), Value>> =
-            RefCell::new(HashMap::new());
+        static CACHE: RefCell<HashMap<MemoKey, Value>> = RefCell::new(HashMap::new());
     }
     if let Some(value) = CACHE.with(|cache| cache.borrow().get(&key).copied()) {
         return value;
@@ -302,7 +304,14 @@ pub fn attack_damage(
 /// resistance stat and element factor. A zero resistance selector skips the
 /// roll and always lands.
 #[must_use]
-pub fn landing_chance(power: u16, resistance: u16, factor: u16, threshold: u8, effect: u8, selector: u8) -> u64 {
+pub fn landing_chance(
+    power: u16,
+    resistance: u16,
+    factor: u16,
+    threshold: u8,
+    effect: u8,
+    selector: u8,
+) -> u64 {
     if selector == 0 {
         return 64;
     }

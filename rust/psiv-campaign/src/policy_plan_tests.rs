@@ -44,7 +44,15 @@ fn foe(attack: u16) -> Combatant {
     }
 }
 
-fn technique(id: u8, effect: u8, range: u8, power: u8, element: u8, cost: u8, targets: &[u8]) -> Ability {
+fn technique(
+    id: u8,
+    effect: u8,
+    range: u8,
+    power: u8,
+    element: u8,
+    cost: u8,
+    targets: &[u8],
+) -> Ability {
     Ability {
         source: Source::Technique(id),
         effect,
@@ -146,7 +154,11 @@ fn the_policy_heals_before_a_member_falls() {
         }
     );
 
-    let chosen = scripted().decide(&board(vec![chaz(), hurt.clone()], vec![foe(50)], vec![res.clone()]));
+    let chosen = scripted().decide(&board(
+        vec![chaz(), hurt.clone()],
+        vec![foe(50)],
+        vec![res.clone()],
+    ));
     assert!(matches!(chosen, Intent::Attack { .. }), "{chosen:?}");
 
     // What a round showed counts too: Chaz lost 200 of his 800 last round, so
@@ -181,11 +193,19 @@ fn the_policy_never_orders_a_technique_it_cannot_afford() {
     weak.elements[usize::from(FIRE - 1)] = 4;
     let mut poor = chaz();
     poor.tp = 19;
-    let chosen = scripted().decide(&board(vec![poor.clone()], vec![weak.clone()], vec![nafoi.clone()]));
+    let chosen = scripted().decide(&board(
+        vec![poor.clone()],
+        vec![weak.clone()],
+        vec![nafoi.clone()],
+    ));
     assert!(matches!(chosen, Intent::Attack { .. }), "{chosen:?}");
 
     poor.tp = 20;
-    let chosen = scripted().decide(&board(vec![poor.clone()], vec![weak.clone()], vec![nafoi.clone()]));
+    let chosen = scripted().decide(&board(
+        vec![poor.clone()],
+        vec![weak.clone()],
+        vec![nafoi.clone()],
+    ));
     assert_eq!(tech_id(&chosen), Some(3));
 
     // A caster who knows a cure keeps its TP: 22 covers NAFOI but not
@@ -220,7 +240,11 @@ fn the_policy_counts_crosscut_once() {
         ..chaz()
     };
     let planner = scripted();
-    let b = board(vec![me.clone()], vec![enemy.clone()], vec![crosscut.clone()]);
+    let b = board(
+        vec![me.clone()],
+        vec![enemy.clone()],
+        vec![crosscut.clone()],
+    );
     let once = damage(60, enemy.defence.0, 2, 20, enemy.hp);
     let pick = planner
         .ability_pick(&b, &b.kits[0], 0)
@@ -289,12 +313,24 @@ fn the_round_book_spreads_damage_over_the_enemies() {
         stock: Vec::new(),
     };
     let mut planner = scripted();
-    assert_eq!(planner.decide(&round), Intent::Attack { target: Some(6) }, "a tie takes the first");
+    assert_eq!(
+        planner.decide(&round),
+        Intent::Attack { target: Some(6) },
+        "a tie takes the first"
+    );
     round.actor = 3;
-    assert_eq!(planner.decide(&round), Intent::Attack { target: Some(7) }, "6 is already booked");
+    assert_eq!(
+        planner.decide(&round),
+        Intent::Attack { target: Some(7) },
+        "6 is already booked"
+    );
     planner.end_round();
     round.actor = 1;
-    assert_eq!(planner.decide(&round), Intent::Attack { target: Some(6) }, "a new round");
+    assert_eq!(
+        planner.decide(&round),
+        Intent::Attack { target: Some(6) },
+        "a new round"
+    );
 }
 
 /// The round is ordered as a whole: the cure goes to the member whose own
@@ -306,8 +342,10 @@ fn the_cure_goes_to_the_member_whose_action_is_worth_least() {
         power_stat,
         ..technique(24, 18, 4, 20, 0, 3, &[1, 2, 3])
     };
+    // Below half, so the percentage line alone puts her at risk: this test is
+    // about who cures, not when (`the_policy_heals_before_a_member_falls`).
     let mut hurt = rika();
-    hurt.hp = 180;
+    hurt.hp = 120;
     let weak = Combatant {
         id: 3,
         name: "Hahn".into(),
@@ -323,7 +361,10 @@ fn the_cure_goes_to_the_member_whose_action_is_worth_least() {
         stock: Vec::new(),
     };
     let mut planner = scripted();
-    assert!(matches!(planner.decide(&round), Intent::Attack { .. }), "Chaz hits");
+    assert!(
+        matches!(planner.decide(&round), Intent::Attack { .. }),
+        "Chaz hits"
+    );
     round.actor = 3;
     assert_eq!(
         planner.decide(&round),

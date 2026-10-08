@@ -61,7 +61,14 @@ impl Board {
                 let mut abilities = Vec::new();
                 techniques(&techs, roster, data, fighter.id, &me, &mut abilities);
                 skill_list(&skills, roster, data, fighter.id, &me, &mut abilities);
-                items(&pack, roster, data, fighter.id, &fighter.stats, &mut abilities);
+                items(
+                    &pack,
+                    roster,
+                    data,
+                    fighter.id,
+                    &fighter.stats,
+                    &mut abilities,
+                );
                 Kit {
                     id: fighter.id.get(),
                     abilities,
@@ -183,7 +190,13 @@ fn items(
     out: &mut Vec<Ability>,
 ) {
     let mut seen = Vec::new();
-    for id in me.equipment.iter().chain(pack).copied().filter(|id| *id != 0) {
+    for id in me
+        .equipment
+        .iter()
+        .chain(pack)
+        .copied()
+        .filter(|id| *id != 0)
+    {
         if seen.contains(&id) {
             continue;
         }

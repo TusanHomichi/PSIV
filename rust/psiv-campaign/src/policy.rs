@@ -148,9 +148,9 @@ pub fn by_name(name: &str) -> Option<Box<dyn Policy>> {
             "psycho_wand_then_win",
             crate::policy_opening::PSYCHO_WAND,
         )),
-        "run_encounters" => Box::new(PartyPolicy::running(*route_name)),
-        "train" => Box::new(PartyPolicy::training(*route_name)),
-        _ => Box::new(PartyPolicy::fighting(*route_name)),
+        "run_encounters" => Box::new(PartyPolicy::running(route_name)),
+        "train" => Box::new(PartyPolicy::training(route_name)),
+        _ => Box::new(PartyPolicy::fighting(route_name)),
     })
 }
 
@@ -254,9 +254,8 @@ impl Policy for PartyPolicy {
         {
             return intent.clone();
         }
-        let intent = Board::read(menu, runtime).map_or(Intent::ATTACK, |board| {
-            self.planner.decide(&board)
-        });
+        let intent =
+            Board::read(menu, runtime).map_or(Intent::ATTACK, |board| self.planner.decide(&board));
         trace_choice(menu, actor, &intent);
         self.current = Some((actor, intent.clone()));
         intent

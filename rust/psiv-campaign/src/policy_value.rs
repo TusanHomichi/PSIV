@@ -79,7 +79,15 @@ impl Planner {
         let n = living.len().max(1) as u64;
         let plain: Value = living
             .iter()
-            .map(|m| damage(enemy.attack.0, m.defence.0, m.factor(enemy.attack_element), 0, m.hp))
+            .map(|m| {
+                damage(
+                    enemy.attack.0,
+                    m.defence.0,
+                    m.factor(enemy.attack_element),
+                    0,
+                    m.hp,
+                )
+            })
             .sum::<Value>()
             / n;
         let seen = Value::from(self.memory.party_loss) * HP / (board.enemies.len().max(1) as u64);

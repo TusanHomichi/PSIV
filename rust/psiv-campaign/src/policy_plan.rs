@@ -324,7 +324,9 @@ impl Planner {
         let best = offers.into_iter().min_by_key(|o| o.rank)?;
         let class = best.ability.class();
         match class {
-            EffectClass::Heal | EffectClass::HealRevive if best.target.is_none() && best.patients.len() > 1 => {
+            EffectClass::Heal | EffectClass::HealRevive
+                if best.target.is_none() && best.patients.len() > 1 =>
+            {
                 self.book.group_cures += 1;
             }
             EffectClass::Heal | EffectClass::HealRevive => {
@@ -411,7 +413,9 @@ impl Planner {
             .iter()
             .filter(|k| free.contains(&k.id))
             .flat_map(|k| k.abilities.iter().map(move |a| (k, a)))
-            .filter(|(k, a)| (a.single() || a.range == 3) && Self::heals(a) && self.in_stock(board, k, a))
+            .filter(|(k, a)| {
+                (a.single() || a.range == 3) && Self::heals(a) && self.in_stock(board, k, a)
+            })
             .collect();
         let (patient, need) = board
             .party
@@ -465,7 +469,11 @@ impl Planner {
         };
         let mut offers = Vec::new();
         for kit in board.kits.iter().filter(|k| free.contains(&k.id)) {
-            for ability in kit.abilities.iter().filter(|a| self.in_stock(board, kit, a)) {
+            for ability in kit
+                .abilities
+                .iter()
+                .filter(|a| self.in_stock(board, kit, a))
+            {
                 let Some(class_rank) = rank(ability) else {
                     continue;
                 };
@@ -503,7 +511,11 @@ impl Planner {
         }
         let mut offers = Vec::new();
         for kit in board.kits.iter().filter(|k| free.contains(&k.id)) {
-            for ability in kit.abilities.iter().filter(|a| self.in_stock(board, kit, a)) {
+            for ability in kit
+                .abilities
+                .iter()
+                .filter(|a| self.in_stock(board, kit, a))
+            {
                 let EffectClass::Cure(bits) = ability.class() else {
                     continue;
                 };

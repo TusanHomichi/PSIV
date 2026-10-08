@@ -70,6 +70,83 @@ pub struct BattleRecord {
     pub meseta: u16,
     /// Experience each member's page showed.
     pub experience: u16,
+    /// The party as the field took the screen back, leader first; empty while
+    /// the battle runs. Whether every member stood at the end of a fight is
+    /// the training rule's observable (`docs/campaign/RUNNER_LOG_POLICY.md`).
+    pub party_at_end: Vec<MemberAtEnd>,
+}
+
+impl BattleRecord {
+    /// Whether the battle ended with every member standing; `false` while it
+    /// runs or when it was lost.
+    #[must_use]
+    pub fn all_standing(&self) -> bool {
+        !self.party_at_end.is_empty() && self.party_at_end.iter().all(MemberAtEnd::standing)
+    }
+
+    /// `event battle N: frames S..E; party Name hp/max, ...; every member
+    /// standing` (or `down: names`): how the fight left the party.
+    #[must_use]
+    pub fn end_line(&self) -> String {
+        let party: Vec<String> = self.party_at_end.iter().map(MemberAtEnd::label).collect();
+        let down: Vec<&str> = self
+            .party_at_end
+            .iter()
+            .filter(|m| !m.standing())
+            .map(|m| m.name.as_str())
+            .collect();
+        let verdict = if self.party_at_end.is_empty() {
+            "no end observed".to_owned()
+        } else if down.is_empty() {
+            "every member standing".to_owned()
+        } else {
+            format!("down: {}", down.join(", "))
+        };
+        format!(
+            "{} battle {}: frames {}..{}; party {}; {verdict}",
+            self.kind,
+            self.id,
+            self.start_frame,
+            self.end_frame,
+            party.join(", ")
+        )
+    }
+}
+
+/// One party member as a battle left them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemberAtEnd {
+    /// The member's name.
+    pub name: String,
+    /// HP left.
+    pub hp: u16,
+    /// Maximum HP.
+    pub max_hp: u16,
+    /// The status byte (`psiv_core::battle::status`).
+    pub status: u8,
+}
+
+impl MemberAtEnd {
+    /// Standing: HP above zero and neither dead bit set. An android shut down
+    /// at full HP (`StatusAndroidDead`) is down.
+    #[must_use]
+    pub const fn standing(&self) -> bool {
+        self.hp > 0 && self.status & psiv_core::battle::status::OUT == 0
+    }
+
+    /// `Name hp/max`, with ` down` for a member who is not standing.
+    #[must_use]
+    pub fn label(&self) -> String {
+        let down = if self.standing() { "" } else { " down" };
+        format!("{} {}/{}{down}", self.name, self.hp, self.max_hp)
+    }
+
+    /// As the run report writes it.
+    #[must_use]
+    pub fn to_json(&self) -> Value {
+        json!({"name": self.name, "hp": self.hp, "max_hp": self.max_hp,
+               "status": self.status, "standing": self.standing()})
+    }
 }
 
 /// A session being played one frame at a time.
@@ -414,6 +491,7 @@ impl Driver {
                     end_frame: 0,
                     meseta: 0,
                     experience: 0,
+                    party_at_end: Vec::new(),
                 });
             }
             if let Some(text) = battle.fault {
@@ -440,8 +518,22 @@ impl Driver {
         let active = self.session.battle_active();
         if self.in_battle && !active {
             let end = self.frames();
+            let party: Vec<MemberAtEnd> = self
+                .session
+                .runtime()
+                .camp_state()
+                .party
+                .into_iter()
+                .map(|m| MemberAtEnd {
+                    name: m.name,
+                    hp: m.current_hp,
+                    max_hp: m.max_hp,
+                    status: m.status,
+                })
+                .collect();
             if let Some(record) = self.battles.last_mut() {
                 record.end_frame = end;
+                record.party_at_end = party;
             }
         }
         self.in_battle = active;
@@ -645,7 +737,7 @@ mod tests {
     use psiv_core::Cell;
     use psiv_runtime::RuntimeEvent;
 
-    use super::is_scene_fault;
+    use super::{BattleRecord, MemberAtEnd, is_scene_fault};
 
     fn unmapped() -> RuntimeEvent {
         RuntimeEvent::WarpUnmapped {
@@ -684,5 +776,42 @@ mod tests {
     #[test]
     fn an_unmapped_doorway_row_beside_its_warp_is_no_fault() {
         assert!(!is_scene_fault(&unmapped(), false, true));
+    }
+
+    /// A member is down at zero HP or with a dead bit, an android shut down
+    /// at full HP included; a fight with nobody down is all standing, and a
+    /// battle whose end was not seen is not. Negatives: each down member.
+    #[test]
+    fn a_battle_end_names_the_members_who_are_down() {
+        let member = |name: &str, hp: u16, status: u8| MemberAtEnd {
+            name: name.to_owned(),
+            hp,
+            max_hp: 400,
+            status,
+        };
+        let mut battle = BattleRecord {
+            kind: "event",
+            id: 16,
+            start_frame: 100,
+            end_frame: 900,
+            meseta: 0,
+            experience: 0,
+            party_at_end: vec![member("Chaz", 254, 0), member("Wren", 10, 0)],
+        };
+        assert!(battle.all_standing());
+        assert_eq!(
+            battle.end_line(),
+            "event battle 16: frames 100..900; party Chaz 254/400, Wren 10/400; every member standing"
+        );
+        battle.party_at_end[1] = member("Wren", 400, psiv_core::battle::status::ANDROID_DEAD);
+        assert!(!battle.all_standing());
+        assert!(battle.end_line().ends_with("Wren 400/400 down; down: Wren"));
+        battle.party_at_end[1] = member("Wren", 0, 0);
+        assert!(!battle.all_standing());
+        battle.party_at_end[1] = member("Wren", 30, psiv_core::battle::status::DEAD);
+        assert!(!battle.all_standing());
+        battle.party_at_end.clear();
+        assert!(!battle.all_standing());
+        assert!(battle.end_line().ends_with("; no end observed"));
     }
 }

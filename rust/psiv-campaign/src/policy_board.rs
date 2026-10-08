@@ -284,6 +284,9 @@ impl Board {
     /// not used up.
     #[must_use]
     pub fn stock(&self, id: u8) -> Option<u16> {
-        self.stock.iter().find(|(item, _)| *item == id).map(|(_, n)| *n)
+        self.stock
+            .iter()
+            .find(|(item, _)| *item == id)
+            .map(|(_, n)| *n)
     }
 }

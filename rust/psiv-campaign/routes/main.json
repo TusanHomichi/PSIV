@@ -387,11 +387,11 @@
     {
       "id": "aiedo-training",
       "title": "Motavia plain outside Aiedo: training before the Zio Fort",
-      "source": "docs/campaign/RUNNER_LOG.md run C1-3 (H14): a level 8 to 11 party dies in the Zio Fort's first corridors; no native driver trains here",
+      "source": "docs/campaign/RUNNER_LOG.md run C1-3 (H14): a level 8 to 11 party dies in the Zio Fort's first corridors; no native driver trains here; docs/campaign/RUNNER_LOG_POLICY.md (the sweep: level 15, and 22,000 meseta for the Aiedo gear)",
       "random_battle_policy": "train_with_inn",
       "objectives": [
         {"do": "go_to_map", "map": 0, "via_warp": 3, "note": "Aiedo's south exit, arrival Motavia (36,61)"},
-        {"do": "patrol", "map": 0, "a": [40, 56], "b": [50, 56], "until": {"party_level_at_least": 17}, "refuge": [
+        {"do": "patrol", "map": 0, "a": [40, 56], "b": [50, 56], "until": {"party_level_at_least": 15, "money_at_least": 22000}, "refuge": [
           {"do": "go_to_map", "map": 84, "note": "Aiedo's gate is the nearest warp on this map"},
           {"do": "go_to_map", "map": 94, "via_warp": 10},
           {"do": "answer", "yes": true, "note": "Chaz's house rest is free (28_ChazHouse.md)"},
@@ -503,11 +503,11 @@
     {
       "id": "krup-training",
       "title": "Motavia outside Krup: training before the Machine Center and the tower",
-      "source": "docs/campaign/RUNNER_LOG.md run C2 (H19): Gy Laguiah (event battle 5, Ladea Tower F5) kills a level 12 to 13 party in five rounds; RUNNER_LOG.md #70/Zio route trials: level-19 Krup training reaches Zio at 23/23/24/19/23 and loses, while level-23 Krup training plus Rika's retail GISAR choice wins; runtime-pack/shops.json (KrupInn counter (23,34) on map 62, 5 meseta a head)",
+      "source": "docs/campaign/RUNNER_LOG.md run C2 (H19): Gy Laguiah (event battle 5, Ladea Tower F5) kills a level 12 to 13 party in five rounds; RUNNER_LOG.md #70/Zio route trials: level-19 Krup training reaches Zio at 23/23/24/19/23 and loses, while level-23 Krup training plus Rika's retail GISAR choice wins; docs/campaign/RUNNER_LOG_POLICY.md (the sweep: level 23); runtime-pack/shops.json (KrupInn counter (23,34) on map 62, 5 meseta a head)",
       "random_battle_policy": "default",
       "objectives": [
         {"do": "go_to_map", "map": 0, "note": "out of Krup by its gate"},
-        {"do": "patrol", "map": 0, "a": [109, 154], "b": [109, 165], "until": {"party_level_at_least": 24}, "refuge": [
+        {"do": "patrol", "map": 0, "a": [109, 154], "b": [109, 165], "until": {"party_level_at_least": 23}, "refuge": [
           {"do": "go_to_map", "map": 57},
           {"do": "go_to_map", "map": 62},
           {"do": "go_to", "map": 62, "cell": [23, 36]},
@@ -812,10 +812,10 @@
     {
       "id": "dezolis-training",
       "title": "Dezolis: train outside the spaceport, with the Tyler inn for a refuge and a last night",
-      "source": "runtime-pack/battle/formations.json (encounter group 11 on the Dezolis position grid: 1,363 to 4,236 experience a battle); runtime-pack/shops.json (Tyler inn 13); docs/campaign/RUNNER_LOG_KURAN.md (the Dark Force 1 loss that asks for it)",
+      "source": "runtime-pack/battle/formations.json (encounter group 11 on the Dezolis position grid: 1,363 to 4,236 experience a battle); runtime-pack/shops.json (Tyler inn 13); docs/campaign/RUNNER_LOG_KURAN.md (the Dark Force 1 loss that asks for it); docs/campaign/RUNNER_LOG_POLICY.md (the sweep: level 34, set by Xe-A-Thoul)",
       "random_battle_policy": "attack_all",
       "objectives": [
-        {"do": "patrol", "map": 1, "a": [9, 74], "b": [18, 70], "until": {"party_level_at_least": 38}, "refuge": [{"do": "go_to_map", "map": 288, "via_warp": 4, "note": "Dezolis warp 4 (14..15,68..69) into Tyler"}, {"do": "go_to_map", "map": 293, "via_warp": 6, "note": "Tyler warp 6 into the inn"}, {"do": "go_to", "map": 293, "cell": [28, 30], "note": "below the keeper (28,28), counter row 29"}, {"do": "rest_inn", "face": "up", "note": "550 meseta for five: HP and TP whole"}, {"do": "go_to_map", "map": 288, "note": "out of the inn"}, {"do": "go_to_map", "map": 1, "note": "out of Tyler to the Dezolis overworld"}], "note": "open ground by the spaceport door; Dezolis's cold wears the party down (the map's poison flag), the default policy attacks and cures, the camp cure spends TP and the inn gives both back"},
+        {"do": "patrol", "map": 1, "a": [9, 74], "b": [18, 70], "until": {"party_level_at_least": 34}, "refuge": [{"do": "go_to_map", "map": 288, "via_warp": 4, "note": "Dezolis warp 4 (14..15,68..69) into Tyler"}, {"do": "go_to_map", "map": 293, "via_warp": 6, "note": "Tyler warp 6 into the inn"}, {"do": "go_to", "map": 293, "cell": [28, 30], "note": "below the keeper (28,28), counter row 29"}, {"do": "rest_inn", "face": "up", "note": "550 meseta for five: HP and TP whole"}, {"do": "go_to_map", "map": 288, "note": "out of the inn"}, {"do": "go_to_map", "map": 1, "note": "out of Tyler to the Dezolis overworld"}], "note": "open ground by the spaceport door; Dezolis's cold wears the party down (the map's poison flag), the party policy attacks and cures, the camp cure spends TP and the inn gives both back"},
         {"do": "go_to_map", "map": 288, "via_warp": 4, "note": "Dezolis warp 4 (14..15,68..69) into Tyler"},
         {"do": "go_to_map", "map": 293, "via_warp": 6, "note": "Tyler warp 6 into the inn"},
         {"do": "go_to", "map": 293, "cell": [28, 30], "note": "below the keeper (28,28), counter row 29"},
@@ -1125,11 +1125,11 @@
     {
       "id": "air-castle-training",
       "title": "AirCastle_F1_Part9: training across the recovery tile before the inner floors",
-      "source": "RUNNER_LOG_AIRCASTLE.md (Lashiec, event battle 16: a balance loss with every member alive, the Jut gear on and the party full); docs/scenes/102_Recovery.md (the tile at (31..32,28..29) refills the party on every crossing); runtime-pack/maps/176_AirCastle_F1_Part9.json (random battles on, the warps on rows 22 and 35)",
+      "source": "RUNNER_LOG_AIRCASTLE.md (Lashiec, event battle 16: a balance loss with every member alive, the Jut gear on and the party full); RUNNER_LOG_POLICY.md (the sweep: level 34); docs/scenes/102_Recovery.md (the tile at (31..32,28..29) refills the party on every crossing); runtime-pack/maps/176_AirCastle_F1_Part9.json (random battles on, the warps on rows 22 and 35)",
       "random_battle_policy": "fight_to_win",
       "objectives": [
         {"do": "go_to_map", "map": 374, "note": "AirCastle_F1_Part9 $176: AirCastle $171 warp 0, AirCastle_Part2 warp 1, AirCastle_Part3 warp 5, arriving (31,34)"},
-        {"do": "patrol", "map": 374, "a": [31, 32], "b": [31, 25], "until": {"party_level_at_least": 37}, "note": "every leg crosses the recovery tile, so RecoverStats refills the party (fallen members included) on each pass; Kyra, who joined at 27, is the member the condition waits for"},
+        {"do": "patrol", "map": 374, "a": [31, 32], "b": [31, 25], "until": {"party_level_at_least": 34}, "note": "every leg crosses the recovery tile, so RecoverStats refills the party (fallen members included) on each pass; Kyra, who joined at 27, is the member the condition waits for"},
         {"do": "expect", "map": 374, "cell": [31, 25], "party": ["Chaz", "Rika", "Rune", "Wren", "Kyra"], "flags_set": ["event:0x9a"], "flags_clear": ["event:0xa6"], "note": "trained; the chest room still ahead"}
       ],
       "closing": [

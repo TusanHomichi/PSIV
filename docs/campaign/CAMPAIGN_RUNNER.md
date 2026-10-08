@@ -164,7 +164,7 @@ producing pads from views only:
 | `wait`, `board` | `field.rs`, `ship.rs` | `wait` presses nothing; `board` holds a step until the destination menu opens, or waits for the menu a scene opens (`go_to_map` ends with such a menu open, for the next `board`) |
 | `buy`, `sell`, `rest_inn` | `shopping.rs` | the shop view's pages, rows and cursors |
 | `equip`, `use_technique`, `use_item`, `reorder`, `save` | `camping.rs` | the camp view's pages; SAVE is answered by the driver with the file the runner writes; a boarding item (the Ice Digger, `ItemAction_IceDigger`) closes the menu on the press that accepts it, so `use_item` waits the scene out instead of reading a page |
-| random and scripted battles | `battle.rs`, `policy.rs`, `policy_boss.rs` | the battle view's menus (ATTACK, TECH, SKILL, ITEM), one press at a time |
+| random and scripted battles | `battle.rs`, `policy.rs`, `policy_plan.rs`, `policy_value.rs`, `policy_estimate.rs`, `policy_board.rs`, `policy_board_read.rs`, `policy_opening.rs` | the battle view's menus (ATTACK, TECH, SKILL, ITEM), one press at a time |
 | `expect` | `expect.rs` | nothing: it settles the game and reads flags, map, cell, party, purse, vehicle, the pack (`items_held`, `items_absent`) and the party's status bytes (`status_clear`) |
 
 `plan --vehicle N` prints a walking plan for a mounted party. Mounted walks and
@@ -176,51 +176,102 @@ the Land Rover crosses it: the Ladea Tower cannot be reached on foot from Krup
 game hands control back, turning finished pages with Speak, acknowledging chest
 results, fighting battles with the chapter's policy, and waiting out scenes.
 
-**Battle policy.** `random_battle_policy` names one (`policy.rs`). Everyone
-attacks the first living enemy; the first member who can cures the most hurt
-eligible target below half HP with a healing technique, or failing that a
-healing item. Both use the core target lists that build the command menu;
-`run_unless_boss` runs from random encounters and fights scripted battles.
+**Battle policy.** `random_battle_policy` names one (`policy.rs`). Every name
+resolves to one party policy whose commands come from one planner; the names
+differ only in when the party RUNs:
+
+- `default`, `attack_all`, `heal_then_attack` and `fight_to_win` fight every battle;
+- `run_unless_boss`, `run_then_win` and `bioplant_survival` run from every random
+  encounter (every round until it works) and fight scripted battles;
+- `train_with_inn` fights, and runs from a random encounter once a member has
+  fallen or a living one is under a third of their HP, so the inn that ends a
+  training patrol cures a party and does not find a dead one;
+- `psycho_wand_then_win` (`policy_opening.rs`) is `run_then_win` with an opening
+  item: in the first actual player-command round of a scripted battle the first
+  actor takes ITEM and picks the Psycho Wand (item `$39`, when the pack holds
+  it) and everyone else follows the plan. An enemy-only ambush round offers no
+  item choice and does not disarm the opening. The driver tells every policy when
+  a battle begins and whether it is scripted (`Policy::battle_begins`), which is
+  how a random encounter gets no opening. The Zio fight at Nurvus is the chapter
+  that names it (`nurvus-zio`); `tests/runner.rs` pins the opening over a pack
+  that holds an item bought at the Piata shop.
+
+The running names exist because the cartridge's random draws are one stream:
+any frame the runtime spends or saves anywhere moves every later encounter (the
+cutscene-return reload, [`FIELD_RELOAD.md`](../scenes/FIELD_RELOAD.md), moved
+all of them), and a route that survives on only one stream is not a route.
+
+A policy decides and never presses: it returns an `Intent` (ATTACK on a target,
+a technique, skill or item on a target, DEFEND) and `battle.rs` walks the menu
+cursor to it with ordinary pad presses. The planner is four modules:
+
+- **The board** (`policy_board.rs`, read by `policy_board_read.rs`). When a
+  command window opens the policy reads every fighter's battle stats, element
+  factors and status as the engine holds them, and every living member's kit:
+  each technique, skill and item they can use this round, with the record bytes
+  its formula reads and the target list the command menu offers (the core's
+  `technique_targets`, `skill_targets` and `item_targets`), and their weapon.
+  The actor's techniques and skills are the open window's entries; the other
+  members' follow the window's rule. The runtime is read through `&Runtime`
+  only (`Runtime::battle_data`, `session/battle/policy_view.rs`).
+- **The estimate** (`policy_estimate.rs`). Every number is the engine's own
+  formula on a local roll sequence, never the game's RNG: damage is
+  `calculate_damage` at each sum of its sixteen 0..7 draws, weighted by how many
+  of the 8^16 sequences give it, and capped at the target's HP per outcome;
+  healing is `calc_healing` the same way; a plain attack's hit and critical are
+  `calculate_chances` at each of its 64 rolls; whether a status effect lands is
+  the same kernel with the record's threshold. Values are integers in 1/256 HP.
+  The effect class comes from the record's effect byte through
+  `AbilityEffectsOffs` (`ps4.asm:9036-9086`), so a technique, a skill and an
+  item that share an effect share a class.
+- **The round plan** (`policy_plan.rs`). The round's first window orders every
+  member who can act, as a player thinks the round through before pressing
+  anything. *Finish it*: when the members' best actions are expected to remove
+  every enemy's HP, nobody cures. *Cures*, most urgent first, each given to the
+  member whose own best action is worth least: a group cure when two or more
+  members it reaches are below 70% of their maximum HP or the threat; a single
+  cure for each member below half or the threat, lowest share first, one a
+  patient; in a scripted battle with more than a round left, a revival for each
+  fallen member and a status cure for a paralysed or sleeping one. *The best
+  action by value* for everyone else; ATTACK, or DEFEND without a weapon, when
+  nothing is worth more. The threat is the larger of the most HP one member lost
+  over a round of this battle and the strongest plain attack a living enemy
+  could land (the formula's highest roll). A round book carries the earlier
+  orders: their damage comes off each enemy before the next member is valued,
+  cures count toward the patient, a revival or a sleep is not ordered twice and
+  an item copy is not spent twice. A member who knows a cure keeps the TP for
+  the cheapest one.
+- **The value** (`policy_value.rs`), in HP: the plain attack (every enemy for a
+  group weapon, else the best target), every damaging technique, skill or item,
+  an instant-death effect (its landing chance times the HP it removes), a sleep
+  (its chance times what the enemy does in a turn) and, in a scripted battle, an
+  attack-down on an enemy or an attack- or defence-up on a member (the damage it
+  adds or saves over the rounds left, at most four). CROSSCUT counts one damage
+  pass, as the engine resolves it (`loc_9880`). A scripted battle is fought with
+  everything. A random encounter keeps skill uses and consumable items for the
+  scripted battles, spends TP on damage only at twice the member's plain attack,
+  and orders at most one single cure and one group cure a round.
+
+`policy_plan_tests.rs` holds the rules' unit tests, each with the board change
+that must change the choice; `tests/party_policy.rs`
+`mixed_party_cures_use_the_menus_eligible_targets` plays them on a live battle
+with an android in the party. The negative controls are in
+[RUNNER_LOG_POLICY.md](RUNNER_LOG_POLICY.md#negative-controls).
+
 After a battle the party is cured through the camp (`recovery.rs`). Losing is a
-halt. `attack_all` and `heal_then_attack` resolve to the default policy; a
-route that needs another behaviour gets a type in `policy.rs` first.
+halt. A route that needs another behaviour gets a temperament in `policy.rs`,
+not a second planner.
 
-`bioplant_survival` runs from every random encounter, like `run_unless_boss`.
-`train_with_inn` fights and retreats (RUN) once a member has fallen or a living
-one is under a third of their HP, so the inn that ends a training patrol cures
-a party and does not find a dead one. Both exist because the cartridge's random
-draws are one stream: any frame the runtime spends or saves anywhere moves
-every later encounter (the cutscene-return reload,
-[`FIELD_RELOAD.md`](../scenes/FIELD_RELOAD.md), moved all of them), and a route
-that survives on only one stream is not a route.
-
-`fight_to_win` and `run_then_win` (`policy_boss.rs`) are what a player does
-against a boss, which the default policy loses to: the most hurt eligible member
-under half HP gets the cheapest sufficient single-target cure (the strongest
-when none is sufficient), and a learned all-human cure can also cover two or
-more eligible humans below 70% HP in that round. A sealed caster avoids TECH
-as a player heuristic; the retail menu still permits the wasteful selection.
-Everyone else takes the damage action with the highest estimated damage to the
-first living enemy: a plain attack, a damaging technique they can pay for, or a damaging skill with
-uses left (`Crosscut`, `Vortex`: the two the engine runs). The estimate is the
-cartridge's damage formula at its mean roll on the live fighters' stats, which a
-player learns from the first rounds' damage numbers. `fight_to_win` fights every
-battle; `run_then_win` runs from random encounters like `run_unless_boss` and
-fights scripted ones this way. Juza (event battle 3) and Gy-Laguiah (event battle
-5) are won with it; with the default policy Juza kills a level 12 party in four
-rounds (run C2-1).
-
-`psycho_wand_then_win` (`policy_opening.rs`) is `run_then_win` with an opening
-item: in the first actual player-command round of a scripted battle the first
-actor takes ITEM and picks the Psycho Wand (item `$39`, when the pack holds it),
-everyone else fights, and afterward it is the boss policy. An enemy-only
-ambush round offers no item choice and does not disarm the opening. It decides
-an item intent only; `battle.rs`
-steers the ITEM page to the row, as for a healing item. The driver tells every
-policy when a battle begins and whether it is scripted (`Policy::battle_begins`),
-which is how a random encounter gets no opening. The Zio fight at Nurvus is the
-chapter that names it (`nurvus-zio`); `tests/runner.rs` pins the policy's
-choices over a pack that holds an item bought at the Piata shop.
+**Battle ends.** The driver records the party as the field takes the screen back
+from every battle (`BattleRecord::party_at_end`, a member is down at zero HP or
+with a dead bit, a shut-down android included). `run` prints one line under its
+chapter for every scripted battle (`event battle N: frames S..E; party ...;
+every member standing`, or `down:` and the names), and the completed report
+carries them as `event_battles`; a halted run's report has them in `battles`.
+That line, not the chapter's closing party, says who stood at a fight's end: a
+chapter can heal or lose members after its fight (the Xe-A-Thoul chapter ends
+on the recovery tile; Demi leaves after Zio). Training levels are chosen from it
+([RUNNER_LOG_POLICY.md](RUNNER_LOG_POLICY.md#the-training-rule)).
 
 **Halts and the report.** Each objective has a frame budget. The run stops at
 the first of: a missed `expect` or closing assertion, an exhausted budget, an
@@ -569,7 +620,7 @@ canonical_record: "docs/campaign/CAMPAIGN_RUNNER.md#task-graph"
 authority: "Owner 2026-10-01: campaign runner approach (docs/AGENT_WORKFLOW.md#authority-effort-and-continuation). The bounded post-Zio checkpoint has reviewed local evidence; publication and integration follow the workflow authority record. Later-arc implementation is parked for the next session."
 effort_policy: "Continue scoped repairs until acceptance passes; no fixed cycle limit (inherited)"
 exclusions: ["modding", "visual-parity claims beyond existing certifications", "gameplay changes that are not cartridge behavior", "later arc beyond Zio defeated in the current lane"]
-next_action: "P88b: the party policy uses every technique and skill and the training chapters shrink (#88); C9: from Dezolis after Cutscene_DarkForce2Defeated through Cutscene_GumbiousBishop and the Hydrofoil; A6: endgame enemy abilities"
+next_action: "Integrate campaign-30 (A6) with P88b and decide its training rule: the two-clock levels complete 28 of 61 resume streams, the old levels 52 (RUNNER_LOG_POLICY.md#findings); then C9: from Dezolis after Cutscene_DarkForce2Defeated through Cutscene_GumbiousBishop and the Hydrofoil"
 nodes:
   - id: S1
     outcome: "Dialogue interpreter in psiv-runtime: control codes, branches, choices, actions, $F2/$F6/$F7, live flags, typewriter and open-animation gates, driven by a cartridge-layout Pad"
@@ -651,4 +702,10 @@ nodes:
     acceptance: "The runner reaches Game_Cleared_Flag from New Game; each blocker it hit is fixed with a regression test or filed as an issue with a link from the route"
     evidence: ["lane c1-motavia (base 8c19769): routes/main.json grows to 18 chapters and reaches the Zio Fort's Juza room (map $87, (32,21)) with all five alive at level 12 to 13: 457,356 frames, digest 96d2835a8633def8, tape sha256 53adf11f092bb99982c299aa2620b75a4078f6a4fe3ba69f0adae0a3d749bd57, identical on three runs, replay reproduces the digest; scenes 28 and 29 pass in-route; RUNNER_LOG.md H13 to H16", "the route stops at Juza: H16, enemy 114's ZAN and FORCEFLASH are not run by the engine, and the stairs to F3 and F4 open only after his battle; H15 lists the unsupported abilities on the way (FUSION, FIREBREATH, DEBAN) that the route passes only by running; H13 (#39) does not block the story", "lane c2-zio (base 0c6ae8b): routes/main.json grows to 27 chapters through scenes 31 to 37 (Juza's battle, the Demi rescue and Alys's wounding, the Machine Center and Land Rover, Ladea Tower with Rune, the Psycho Wand, the walk to the Zio Fort barrier); the runner learns to ride a vehicle (a two-cell lattice planner, `vehicle` assertions, `dismount`, `plan --vehicle`) and to fight a boss (`fight_to_win`, `run_then_win`). On the committed engine the run halts at its first port defect, `Cutscene_AlysWounded` reading the wrong dialogue tree (H17): 1,023,474 frames, exit 2, digest 49f5c47df7971428, identical on two runs, replay reproduces it. An experimental four-line patch for H17 plays on to `Event_ZioFortBarrier` (H18, not transcribed, no alternative); a stub for it completes all 27 chapters (digest e77a7b9cf1f5fa37, identical on two runs). H19 to H21 recorded (live map ignores story flags, vehicle parking and boarding, EVIL EYE in the tower)", "lane c3-nurvus (base 5c62765): routes/main.json grows to 29 chapters; nurvus-descent plays Zio Fort to Nurvus B4 (six elevator doors, the B1 tunnel, B5 and the stairs; RUNNER_LOG.md N1 to N4) and nurvus-zio names the new psycho_wand_then_win policy (round-1 Psycho Wand through the battle ITEM menu, then fight_to_win). The full run halts at Zio's trigger on port defects H22 (Event_ZioNurvus op 11 resumes a dialogue instead of running entry $0B; the Zio and Zio2 phase counters are unmodelled, so BLACK WAVE is rolled in round 1): 1,730,441 frames, exit 2, digest 6eb19b166ed24d2f, tape sha256 e3cff60eaf31dacac06bfeb8819d983ad3a848da042d37108a5c73cc9d121402, identical on two runs, replay reproduces it", "lane c4-ship (base 3344f18): routes/main.json grows to 30 chapters; mota-spaceport walks Zio's checkpoint to the foot of the Mota Spaceport's boarding row and stops there on purpose. Two full runs: exit 0, 2,616,234 frames, digest dccc4df3ce01bd22, identical tapes, replay reproduces it. The runner stops treating an unmapped type-1 cell as a fault in a frame that began a scene (H24). Probes behind the stop (RUNNER_LOG C4-3 to C4-6): Wren joins on Zelan F1, the Canceller chest opens, and the run halts because MapUpdate_ZelanCanceller is not run, so $72 never sets and the sabotage cannot fire (H25, no alternative). The ship destination menu (loc_63BC4: a flag-built world list, cursor, Cancel, World_Index write) is not in the Session (H23)", "lane c5-dezolis (base f6e84f9): routes/main.json grows to 33 chapters; zelan-wren-canceller, zelan-sabotage (the one-row Kuran menu by board, the Chaos Sorcerer, Cutscene_CrashLanding with the #67 BG write) and dezolis-first-control reach first control in Raja Temple $14C with Raja joined and World_Index 1, with no runner change. Two full runs: exit 0, 2,638,546 frames, digest 6d365219c15bc775, identical tapes (SHA-256 4af507fa...15af), replay reproduces it. The route stops at the temple exit on port defect H28: Event_OutsideRajaTemple (event $43) has no scene, SceneMissing { event: 67 } (RUNNER_LOG_DEZOLIS.md)", "integration campaign-21 (e551b36), 2026-10-04: a4-status + a3-damage reconciled (m34); every enemy ability on the zelan-kuran stretch implemented except BARRIER ($1D, #86); 136 replay fixtures with an empty manifest; release route 36 chapters to the Hangar, digest e6200509953185db; gate build/gate/20261004T143020Z-e551b36 (1330 Python, 1423 Rust), certify 12/12 build/certify/20261004T142129Z-e551b36", "integration campaign-22 (869a4a4), 2026-10-04: lane c6-kuran; release route 43 chapters through Cutscene_DarkForce1Defeated, 3700582 frames, digest fbe9fef7015aba2e, tape sha256 969ba6dc identical to the lane; pack rebuilt byte-identical; gate build/gate/20261004T204506Z-869a4a4 (1330 Python, 1433 Rust), certify 12/12 build/certify/20261004T203454Z-869a4a4; the Dezolis training chapter stands in for untranscribed player skills (#88)", "integration campaign-23 (20f22e6), 2026-10-04: lane x86-policy (#86 party command scripts, BARRIER, Zio Psycho Wand); 140 fixtures replay exactly; route unchanged at 43 chapters, digest fbe9fef7015aba2e; gate build/gate/20261004T215357Z-20f22e6 (1352 Python, 1437 Rust), certify 12/12 build/certify/20261004T214431Z-20f22e6", "integration campaign-24 (fb23d2e), 2026-10-06: lane c7-icedigger; route 50 chapters to air-castle-arrival, 3743328 frames, digest 40c7f505ecc5c357, tape db8ae7fe identical to the lane; 14 enemy abilities on the dezolis-air-castle stretch unsupported (next lane A5); candidate receipt build/candidate/20261006T140306Z-fb23d2e (certify 12/12, gate 1359 Python, 1455 Rust)", "integration campaign-26 (99d3ddd), 2026-10-06: lanes p88-player (every player technique and skill, 163 fixtures) and s8-reload (cutscene zero-return field reload), runner wanderer/talk re-plan; route 50 chapters, 3852511 frames, digest 29c81ae27664b15b; candidate receipt build/candidate/20261006T232301Z-99d3ddd (certify 12/12, gate 1407 Python, 1496 Rust)", "integration campaign-27 (37a02a2), 2026-10-07: lane a5-aircastle (every dezolis-air-castle enemy ability, COMBINE inline formation in the pack, 9 captures incl. Lashiec and Dark Force 2); pack build/accepted-c27-pack-37a02a2; route unchanged at 50 chapters, digest 29c81ae27664b15b; the restored Xe-A-Thoul chapter completes in the lane without a wait; candidate receipt build/candidate/20261007T001316Z-37a02a2 (certify 12/12, gate 1420 Python, 1529 Rust)", "integration campaign-28 (ff747a5), 2026-10-07: lane s9-vahal (#82, all 19 Vahal Fort and Weapon Plant events, ahead of the route; allowlist 81 to 62); pack build/accepted-c28-pack-ff747a5; route unchanged at 50 chapters, digest 29c81ae27664b15b; candidate receipt build/candidate/20261007T175417Z-ff747a5 (certify 12/12, gate 1437 Python, 1556 Rust)", "lane c8-aircastle (base d501aee), 2026-10-07: route 62 chapters through Cutscene_DarkForce2Defeated with control returned, 4483067 frames, digest eefda814de149505, tape sha256 62300cb1 identical on two runs with identical chapter saves, replay reproduces it, the 50-chapter prefix pad- and save-identical (new prefix-check subcommand); Event_Recovery and the six Garuberk Tower events transcribed (census allowlist 81 to 74), new scene op ReplaceMapLayout, the tower door atlas in psiv_tools (the pack must be rebuilt: the accepted c27 pack halts at the first tower door), the dismount placement and the layout_replace identical-plane fixes; Lashiec a balance loss answered by the Jut arms and armour and training to level 37 (554799 frames); RUNNER_LOG_AIRCASTLE.md H47 to H50", "integration campaign-29 (bedf06c), 2026-10-07: lane c8-aircastle reconciled with s9-vahal; pack build/accepted-c29-pack-bedf06c; route 62 chapters through Cutscene_DarkForce2Defeated, 4483067 frames, digest eefda814de149505; candidate receipt build/candidate/20261007T190552Z-bedf06c (certify 12/12, gate green)"]
     state: ready
+  - id: P88b
+    outcome: "One party policy chooses every member's command from every technique, skill and item with the engine's own formulas, a round at a time, and the training chapters shrink to what it needs (#88)"
+    depends_on: [C]
+    acceptance: "cargo test --release -p psiv-campaign green with tests/runner.rs compiling; the negative controls (weakness, threat, affordability, CROSSCUT doubled) each fail exactly their test; dezolis-training and air-castle-training swept with the two-clock rule, Aiedo 15 + 22,000 meseta and Krup 23 fixed; two full release runs on the A6 engine and the accepted c30 pack exit 0 with 62 chapters, one digest and identical chapter saves, and replay reproduces the digest; prefix-check against the old policy's run with the divergence explained; RUNNER_LOG_POLICY.md; the gate green"
+    evidence: ["lane p88b (Claude worktree, branch worktree-agent-a6d2b8f76a50aa285; base cd0c8d1 merged at 22ac050): policy.rs (one PartyPolicy, temperaments by route name), policy_board.rs and policy_board_read.rs (every member's kit and the core's target lists), policy_estimate.rs (calculate_damage, calc_healing and calculate_chances over the exact roll distribution, no game RNG), policy_plan.rs and policy_value.rs (the round planned at its first window); policy_boss.rs deleted; Runtime::battle_data read-only (session/battle/policy_view.rs)", "routes/main.json training levels: Aiedo 17 to 15 + 22,000 meseta, Krup 24 to 23, Dezolis 38 to 34, Air Castle 37 to 34; training 3,871,317 to 2,899,390 frames, the route 4,209,488 to 3,244,777 (RUNNER_LOG_POLICY.md#before-and-after)", "two runs build/p88b-final-a and -b: exit 0, 62 chapters, 3,244,777 frames, digest f16cf8961b9d915b, tape SHA-256 53faf912...ecc8, 63 save files identical; replay exit 0 with the same digest; prefix-check exit 2 at frame 14,260 in academy, the route's first battle (expected under a new policy)", "negative controls: six breaks, each fails exactly its test (build/p88b-evidence/negctl-*.log)", "the runner records the party at every battle's end (BattleRecord::party_at_end) and prints it under the chapter; the sweep tables are read from it (RUNNER_LOG_POLICY.md#the-training-rule)", "finding: resuming from every chapter save, the trimmed route completes 28 of 61 streams and the old levels 52 (RUNNER_LOG_POLICY.md#robustness-other-streams)", "gate 20261007T230823Z-8c7091b on the lane's uncommitted tree: check_docs 0 problems; workspace tests 1,596 passed, 0 failed, 3 ignored; clippy -D warnings clean; fmt fails on psiv-runtime/src/session/battle/mod.rs (the lane's own mod policy_view line sorts one line lower; outside the lane's write set, awaiting the orchestrator); Python 1,377 run with 49 errors, every one a missing ignored oracle input; rerun with oracle/layouts, states and frames copied into the worktree: 1,449 run, OK, 1 skipped"]
+    state: blocked
 ```
