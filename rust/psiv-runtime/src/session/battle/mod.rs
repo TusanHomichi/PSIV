@@ -44,9 +44,9 @@ mod fixture;
 mod menu;
 mod narration;
 mod panes;
-mod policy_view;
 #[cfg(test)]
 mod player_tests;
+mod policy_view;
 mod presentation;
 mod queue;
 mod view;

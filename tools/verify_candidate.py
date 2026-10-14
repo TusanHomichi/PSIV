@@ -10,10 +10,14 @@ time and in this order:
 2. the campaign route, `psiv-campaign run rust/psiv-campaign/routes/main.json`,
    into the receipt directory, and reads its `report.json`: the result must be
    `completed`, and `--expect-digest` / `--expect-chapters` must hold when given;
-3. `python3 tools/certify.py`, the certified pixel pairs, under the shared heavy
-   lock (`PSIV_HEAVY_LOCK`, default `build/continuation-heavy.lock`): Godot and
-   Xvfb runs from every worktree take that lock;
-4. `python3 tools/gate.py`, the integration gate.
+3. `python3 tools/resume_check.py` on that run: the route resumed from every
+   chapter save finishes, or halts only where
+   `rust/psiv-campaign/routes/resume_manifest.json` lists (about 25 minutes),
+   under the shared heavy lock (`PSIV_HEAVY_LOCK`, default
+   `build/continuation-heavy.lock`);
+4. `python3 tools/certify.py`, the certified pixel pairs, under the same lock:
+   Godot and Xvfb runs from every worktree take that lock;
+5. `python3 tools/gate.py`, the integration gate.
 
 A failing step does not stop the later ones; the exit code is 1 when any step
 failed or an expectation did not hold, 0 otherwise, and 2 when the run is
@@ -21,8 +25,8 @@ refused before anything runs (not the root, or a dirty tree without
 `--allow-dirty`). Everything lands in `build/candidate/<UTC stamp>-<short sha>/`:
 one log per step, the route's tape, saves and report, and `receipt.json` with
 the candidate SHA, each step's command, exit code and duration, the route's
-digest, chapter count, frames and tape SHA-256, and the certify and gate
-receipt paths their logs name. A candidate result is reported from that
+digest, chapter count, frames and tape SHA-256, and the resume summary and the
+certify and gate receipt paths their logs name. A candidate result is reported from that
 receipt. Stdlib only, Python 3.
 """
 
@@ -58,6 +62,7 @@ def steps(out: Path) -> list[tuple[str, str, bool]]:
                   "rust/Cargo.toml -p psiv-campaign", False),
         ("route", f"{CAMPAIGN} run {ROUTE} --save-dir {route} --tape {route}/run.tape "
                   f"--report {route}/report.json", False),
+        ("resume", f"python3 tools/resume_check.py --run {route} --out {out / 'resume'}", True),
         ("certify", "python3 tools/certify.py", True),
         ("gate", "python3 tools/gate.py", False),
     ]
@@ -118,11 +123,12 @@ def expectation_failures(facts: dict, digest: str | None, chapters: int | None) 
     return failures
 
 
-RECEIPT_RE = re.compile(r"receipt=(\S+)")
+RECEIPT_RE = re.compile(r"(?:receipt|summary)=(\S+)")
 
 
 def named_receipt(log: Path) -> str | None:
-    """The last `receipt=<path>` a step's log printed (certify and gate do)."""
+    """The last `receipt=<path>` (certify, gate) or `summary=<path>` (the resume
+    check) a step's log printed."""
     if not log.is_file():
         return None
     found = RECEIPT_RE.findall(log.read_text(errors="replace"))

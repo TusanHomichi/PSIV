@@ -72,7 +72,7 @@ pub struct BattleRecord {
     pub experience: u16,
     /// The party as the field took the screen back, leader first; empty while
     /// the battle runs. Whether every member stood at the end of a fight is
-    /// the training rule's observable (`docs/campaign/RUNNER_LOG_POLICY.md`).
+    /// the training rule's observable (`docs/campaign/CAMPAIGN_RUNNER.md#the-runner`).
     pub party_at_end: Vec<MemberAtEnd>,
 }
 

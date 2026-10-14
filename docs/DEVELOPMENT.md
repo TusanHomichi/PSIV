@@ -141,9 +141,17 @@ the local oracle frames required; pairs and doctrine in
 Godot-visible paths and report it apart from the gate. An integration candidate
 is verified as a whole by `python3 tools/verify_candidate.py --expect-digest <hex>
 --expect-chapters <n>` on a clean tree: the release campaign route against the
-expected digest and chapter count, then certify under the shared heavy lock
-(`PSIV_HEAVY_LOCK`, default `build/continuation-heavy.lock`), then the gate, with
-one receipt under `build/candidate/`. Reporting a gate result means
+expected digest and chapter count; then the resume check,
+`python3 tools/resume_check.py --run <that run>`, which resumes the route from
+every chapter save and fails on any halt
+`rust/psiv-campaign/routes/resume_manifest.json` does not list (each entry an
+issue link and a date) and on a listed halt that no longer occurs (about 25
+minutes; [the rule](campaign/CAMPAIGN_RUNNER.md#the-runner)); then certify; the
+resume check and certify hold the shared heavy lock (`PSIV_HEAVY_LOCK`, default
+`build/continuation-heavy.lock`); then the gate, with one receipt under
+`build/candidate/`. A route change that moves a halt changes the manifest in the
+same commit: `python3 tools/resume_check.py --evaluate <check dir>` re-judges a
+finished check against an edited manifest without running it again. Reporting a gate result means
 those commands; a subset, a different `CARGO_BUILD_JOBS`, parallel test threads
 or a per-crate run is a focused check and is reported as one. The gate does not
 cover:

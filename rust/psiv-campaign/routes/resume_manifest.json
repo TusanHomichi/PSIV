@@ -1,0 +1,37 @@
+{
+ "format": 1,
+ "route": "rust/psiv-campaign/routes/main.json",
+ "about": "Every resume of the route from a chapter save finishes, except these halts (tools/resume_check.py; docs/campaign/CAMPAIGN_RUNNER.md#the-runner). Each entry is one halt, where it stops (chapter, objective index, halt kind), the chapters whose resume reaches it, the issue that owns it and the date it was recorded. An unlisted halt fails the check, and so does a listed resume that no longer halts there.",
+ "halts": [
+  {
+   "chapter": "air-castle-xe-athoul",
+   "objective": 1,
+   "objective_kind": "step_onto",
+   "kind": "lost_battle",
+   "resumes": ["zema-outfit", "machine-center-control-key", "zelan-sabotage", "dezolis-outside-raja-temple", "dezolis-ice-digger", "dezolis-saving-kyra"],
+   "issue": "https://github.com/TusanHomichi/PSIV/issues/107",
+   "date": "2026-10-07",
+   "note": "Xe-A-Thoul (event battle 14) defeats the party: 6 of the 50 resumes that reach him"
+  },
+  {
+   "chapter": "dezolis-gyuna",
+   "objective": 1,
+   "objective_kind": "go_to_map",
+   "kind": "unreachable",
+   "resumes": ["aiedo", "passage-to-zio-fort"],
+   "issue": "https://github.com/TusanHomichi/PSIV/issues/109",
+   "date": "2026-10-07",
+   "note": "no walk from (39,36) reaches warp 9 of map $144"
+  },
+  {
+   "chapter": "dezolis-eclipse-torch",
+   "objective": 5,
+   "objective_kind": "go_to",
+   "kind": "lost_battle",
+   "resumes": ["dezolis-gyuna"],
+   "issue": "https://github.com/TusanHomichi/PSIV/issues/110",
+   "date": "2026-10-07",
+   "note": "a random battle on the Eclipse Torch drive defeats the party"
+  }
+ ]
+}
