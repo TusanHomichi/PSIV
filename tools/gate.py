@@ -17,9 +17,11 @@ UTC start and end, duration, exit code, log path and parsed counts (a
 sums for `cargo test`; a count the run never reported is null, not zero). A gate
 result is reported from that receipt.
 
-Two guards refuse to start, both with exit 2 and nothing run: `build/gate/.lock`,
-held exclusively with `fcntl.flock` for the whole run (a second gate exits at
-once instead of racing it; heavy runs are serialized by project rule), and any
+Two guards refuse to start, both with exit 2 and nothing run: the gate lock,
+`<main checkout>/build/gate/.lock` (tools/heavy_lock.py resolves it, so every
+worktree of the repository shares one file), held exclusively with
+`fcntl.flock` for the whole run (a second gate exits at once instead of racing
+it; heavy runs are serialized by project rule), and any
 process with `rust/target/debug/libpsiv_godot.so` mapped - the library
 godot/psiv.gdextension loads, which the cargo commands rebuild.
 
@@ -37,9 +39,13 @@ import shlex
 import subprocess
 import sys
 import time
+import unittest
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from heavy_lock import gate_lock_path  # noqa: E402
 
 EXIT_OK = 0
 EXIT_FAILED = 1
@@ -54,9 +60,46 @@ GATE_COMMANDS = [
     "CARGO_BUILD_JOBS=1 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
 ]
 
-#: Where receipts go, relative to the root; the lock lives in this directory.
+#: The per-commit fast tier, `python3 tools/gate.py --fast`: docs/DEVELOPMENT.md's
+#: second `## Run checks` block, in order, verbatim. It is not the integration
+#: bar; the full gate above is.
+FAST_COMMANDS = [
+    "python3 tools/check_docs.py",
+    "cargo fmt --manifest-path rust/Cargo.toml --all --check",
+    "CARGO_BUILD_JOBS=1 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
+    "PYTHONPATH=. python3 tools/gate.py --quick-unittest",
+    "CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml --workspace -- --test-threads=1",
+]
+
+#: Python test modules the fast tier leaves to the full gate: every module that
+#: took 6 s or more in one in-process run of the whole suite (2026-10-15, CPU
+#: capped at 2.3 GHz; 786 s in all, the other modules 46 s). Most of it is
+#: `build_pack` setup, ~20 s per call (#130). Every name must be a module
+#: under tests/ (tests/test_gate.py checks), so a rename cannot leave a stale
+#: entry here. Values are those seconds.
+SLOW_PYTHON_MODULES = {
+    "test_pack_maps": 263.1,
+    "test_map_patches": 73.3,
+    "test_pack_sprites": 68.8,
+    "test_shop_flow": 47.5,
+    "test_pack_manifest": 44.7,
+    "test_reload_frames": 31.4,
+    "test_battle_art_pack": 26.8,
+    "test_map_effects": 26.1,
+    "test_newgame": 24.5,
+    "test_crash_landing": 24.2,
+    "test_npc_commands": 24.1,
+    "test_render": 22.7,
+    "test_pack_game_start": 22.5,
+    "test_oracle_host_binary": 11.0,
+    "test_extract_stamp": 8.1,
+    "test_battle_pack": 7.2,
+    "test_battle_records": 7.2,
+    "test_battle_animations": 6.7,
+}
+
+#: Where receipts go, relative to the root. The lock is shared: see heavy_lock.
 GATE_DIR = Path("build") / "gate"
-LOCK_NAME = ".lock"
 
 #: The library godot/psiv.gdextension loads, relative to the root.
 EXTENSION_PATH = Path("rust") / "target" / "debug" / "libpsiv_godot.so"
@@ -161,7 +204,7 @@ def parse_cargo_test(text):
 def parse_counts(command, text):
     """Parsed counts for `command`'s log text; `{}` when it has nothing to count."""
     words = _command_words(command)
-    if "unittest" in words:
+    if "unittest" in words or "--quick-unittest" in words:
         return parse_unittest(text)
     if _operand(words, "cargo") == "test":
         return parse_cargo_test(text)
@@ -207,11 +250,6 @@ def git_info(root):
     paths = status.splitlines()
     return {"candidate_sha": head, "short_sha": short or head[:7],
             "dirty": bool(paths), "dirty_paths": paths}
-
-
-def lock_path(receipt_dir):
-    """The lock guarding a receipt directory's siblings: `build/gate/.lock`."""
-    return Path(receipt_dir).parent / LOCK_NAME
 
 
 @contextmanager
@@ -314,17 +352,58 @@ def _summary(records, receipt_dir, root):
     return "; ".join(part for part in (head, counts) if part) + tail
 
 
-def run_gate(commands, root, receipt_dir):
+def _module_name(suite):
+    """The module a discovered per-module suite came from, or None when empty."""
+    for test in _flat_tests(suite):
+        return test.id().split(".")[0]
+    return None
+
+
+def _flat_tests(suite):
+    """Every test case in `suite`, depth first, in discovery order."""
+    for item in suite:
+        if isinstance(item, unittest.TestSuite):
+            yield from _flat_tests(item)
+        else:
+            yield item
+
+
+def quick_unittest(start="tests", excluded=SLOW_PYTHON_MODULES, stream=None):
+    """The fast tier's Python suite: `unittest discover -s tests` minus `excluded`.
+
+    Discovery is the full gate's, so a new module joins the fast tier unless
+    it is named in SLOW_PYTHON_MODULES; a module that fails to import still
+    reports its error here. Returns 0 when every test passed, 1 otherwise, and
+    prints unittest's own `Ran N tests` / `OK` / `FAILED` lines.
+    """
+    # The import path `python3 -m unittest discover -s tests` gives the tests:
+    # the cwd, not this script's tools/ (discover then puts the start first).
+    tools_dir = str(Path(__file__).resolve().parent)
+    saved = list(sys.path)
+    sys.path[:] = [os.getcwd()] + [entry for entry in sys.path if entry != tools_dir]
+    try:
+        start = str(Path(start).resolve())
+        suite = unittest.TestLoader().discover(start, top_level_dir=start)
+        kept = unittest.TestSuite(module for module in suite
+                                  if _module_name(module) not in excluded)
+        result = unittest.TextTestRunner(stream=stream or sys.stderr).run(kept)
+    finally:
+        sys.path[:] = saved
+    return EXIT_OK if result.wasSuccessful() else EXIT_FAILED
+
+
+def run_gate(commands, root, receipt_dir, tier="full"):
     """Run `commands` in order under `root`, writing a receipt into `receipt_dir`.
 
     Returns the receipt, whose `exit_code` is 0 when every command exited 0 and
     1 otherwise; the summary line is printed and stored. Raises GateRefused
-    (exit 2) without running anything when another gate holds the lock or a
-    process has the debug extension mapped.
+    (exit 2) without running anything when another gate holds the lock (the
+    repository-wide gate lock of `root`, from heavy_lock) or a process has the
+    debug extension mapped.
     """
     root = Path(root).resolve()
     receipt_dir = Path(receipt_dir).resolve()
-    lock_file = lock_path(receipt_dir)
+    lock_file = gate_lock_path(root)
     with gate_lock(lock_file):
         extension = root / EXTENSION_PATH
         loaded = loaded_extension_pids(extension)
@@ -352,6 +431,7 @@ def run_gate(commands, root, receipt_dir):
             "duration_s": round(sum(r["duration_s"] for r in records), 3),
             "exit_code": EXIT_FAILED if any(r["exit_code"] != 0 for r in records) else EXIT_OK,
             "receipt_dir": display_path(receipt_dir, root),
+            "tier": tier,
             "commands": records,
             "summary": _summary(records, receipt_dir, root),
         }
@@ -363,23 +443,32 @@ def run_gate(commands, root, receipt_dir):
 
 
 def main(argv=None):
-    """`python3 tools/gate.py [--list]`, run from the repository root."""
+    """`python3 tools/gate.py [--fast] [--list]`, run from the repository root."""
     parser = argparse.ArgumentParser(
         prog="python3 tools/gate.py",
         description="Run the repository gate and write its receipt under build/gate/.")
+    parser.add_argument("--fast", action="store_true",
+                        help="run the per-commit fast tier instead of the full gate")
     parser.add_argument("--list", action="store_true",
-                        help="print the gate commands and exit without running them")
+                        help="print the commands and exit without running them")
+    parser.add_argument("--quick-unittest", action="store_true",
+                        help="run the fast tier's Python suite (tests/ minus "
+                             "SLOW_PYTHON_MODULES) in this process; no receipt")
     args = parser.parse_args(argv)
+    if args.quick_unittest:
+        return quick_unittest()
+    commands, tier = (FAST_COMMANDS, "fast") if args.fast else (GATE_COMMANDS, "full")
     if args.list:
-        for command in GATE_COMMANDS:
+        for command in commands:
             print(command)
         return EXIT_OK
     root = Path.cwd()
     # The directory is named for the candidate; run_gate re-reads git for the receipt.
     stamp = utc_stamp(datetime.now(timezone.utc))
-    receipt_dir = root / GATE_DIR / f"{stamp}-{git_info(root)['short_sha']}"
+    suffix = "-fast" if args.fast else ""
+    receipt_dir = root / GATE_DIR / f"{stamp}-{git_info(root)['short_sha']}{suffix}"
     try:
-        receipt = run_gate(GATE_COMMANDS, root, receipt_dir)
+        receipt = run_gate(commands, root, receipt_dir, tier)
     except GateRefused as refusal:
         print(str(refusal), file=sys.stderr)
         return EXIT_REFUSED

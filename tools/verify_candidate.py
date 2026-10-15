@@ -11,8 +11,9 @@ time and in this order:
    into the receipt directory, and reads its `report.json`: the result must be
    `completed`, and `--expect-digest` / `--expect-chapters` must hold when given;
 3. `python3 tools/certify.py`, the certified pixel pairs, under the shared heavy
-   lock (`PSIV_HEAVY_LOCK`, default `build/continuation-heavy.lock`): Godot and
-   Xvfb runs from every worktree take that lock;
+   lock (`PSIV_HEAVY_LOCK`, default the main checkout's
+   `build/continuation-heavy.lock`, from tools/heavy_lock.py): Godot and Xvfb
+   runs from every worktree take that lock;
 4. `python3 tools/gate.py`, the integration gate.
 
 A failing step does not stop the later ones; the exit code is 1 when any step
@@ -32,7 +33,6 @@ import argparse
 import fcntl
 import hashlib
 import json
-import os
 import re
 import subprocess
 import sys
@@ -47,7 +47,8 @@ EXIT_REFUSED = 2
 ROUTE = "rust/psiv-campaign/routes/main.json"
 CAMPAIGN = "rust/target/release/psiv-campaign"
 CANDIDATE_DIR = Path("build") / "candidate"
-DEFAULT_HEAVY_LOCK = Path("build") / "continuation-heavy.lock"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from heavy_lock import heavy_lock_path  # noqa: E402  (shared by every worktree)
 
 
 def steps(out: Path) -> list[tuple[str, str, bool]]:
@@ -157,7 +158,7 @@ def main(argv: list[str] | None = None, runner=run_step) -> int:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out = CANDIDATE_DIR / f"{stamp}-{sha[:7]}"
     out.mkdir(parents=True)
-    lock = Path(os.environ.get("PSIV_HEAVY_LOCK", DEFAULT_HEAVY_LOCK))
+    lock = heavy_lock_path()
 
     records = []
     for name, command, heavy in steps(out):

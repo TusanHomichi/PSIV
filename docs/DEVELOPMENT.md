@@ -122,11 +122,31 @@ CARGO_BUILD_JOBS=1 cargo clippy --manifest-path rust/Cargo.toml --workspace --al
 
 Run these sequentially: `python3 tools/gate.py` runs exactly this list, in
 order, from one entry point and writes a receipt
-([Gate and coverage](#gate-and-coverage)). Full map/pack tests can take several
-minutes. Serial Rust tests avoid the memory pressure seen when many
-pack-loading cases run together. Tests requiring local assets may fail or
-explicitly skip when their fixtures are absent; report that distinction with
-the result.
+([Gate and coverage](#gate-and-coverage)). The Python suite is most of the
+gate's time. Serial Rust tests keep one pack-loading case in memory at a time.
+`rust/Cargo.toml`'s `[profile.test]` builds tests at `opt-level = 1` with
+overflow checks and debug assertions kept on (`psiv-core/tests/build_profile.rs`
+fails if either is turned off), so the Rust suite runs in about two minutes on
+a warm build. Tests requiring local assets may fail or explicitly skip when
+their fixtures are absent; report that distinction with the result.
+
+The per-commit fast tier is `python3 tools/gate.py --fast`. It runs this list,
+in order, with the same receipt format (`tier: "fast"`, directory suffix
+`-fast`):
+
+```bash
+python3 tools/check_docs.py
+cargo fmt --manifest-path rust/Cargo.toml --all --check
+CARGO_BUILD_JOBS=1 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
+PYTHONPATH=. python3 tools/gate.py --quick-unittest
+CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml --workspace -- --test-threads=1
+```
+
+`--quick-unittest` is the full gate's `unittest discover -s tests` minus the
+modules in `SLOW_PYTHON_MODULES` (`tools/gate.py`), which lists each one with
+its measured seconds. A new test module joins the fast tier unless it is added
+there. The fast tier is a commit check, not a gate result: integration still
+needs the full gate.
 
 ### Gate and coverage
 
@@ -138,10 +158,15 @@ writes one log per command plus `receipt.json` under
 dirty and its `git status --porcelain` paths, and each command's string, UTC
 start and end, duration, exit code, log path and parsed counts. Report a gate
 result from that receipt, not from a retyped summary. The gate refuses to start
-(exit 2, nothing run) while another gate holds `build/gate/.lock` or while a
+(exit 2, nothing run) while another gate holds the gate lock or while a
 process has the debug PSIV extension mapped
 (`rust/target/debug/libpsiv_godot.so`, which its cargo commands rebuild);
-`--list` prints the commands without running them. Presentation certification
+`--list` prints the commands without running them. The gate lock and the heavy
+lock are one file each for the whole repository, under the main checkout's
+`build/` (`build/gate/.lock` and `build/continuation-heavy.lock`), so gates
+and heavy runs in different worktrees serialize; `tools/heavy_lock.py` owns
+both paths and prints the heavy one, for
+`flock -x "$(python3 tools/heavy_lock.py)" <command>`. Presentation certification
 is a separate entry point, `python3 tools/certify.py` (Godot, Xvfb and
 the local oracle frames required; pairs and doctrine in
 [scene presentation](scenes/SCENE_PRESENTATION.md)); run it for any change to
@@ -149,7 +174,7 @@ Godot-visible paths and report it apart from the gate. An integration candidate
 is verified as a whole by `python3 tools/verify_candidate.py --expect-digest <hex>
 --expect-chapters <n>` on a clean tree: the release campaign route against the
 expected digest and chapter count, then certify under the shared heavy lock
-(`PSIV_HEAVY_LOCK`, default `build/continuation-heavy.lock`), then the gate, with
+(`PSIV_HEAVY_LOCK` overrides it), then the gate, with
 one receipt under `build/candidate/`. Reporting a gate result means
 those commands; a subset, a different `CARGO_BUILD_JOBS`, parallel test threads
 or a per-crate run is a focused check and is reported as one. The gate does not
