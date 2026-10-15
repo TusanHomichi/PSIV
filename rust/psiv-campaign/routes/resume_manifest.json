@@ -1,13 +1,14 @@
 {
  "format": 1,
  "route": "rust/psiv-campaign/routes/main.json",
- "about": "Every resume of the route from a chapter save finishes, except these halts (tools/resume_check.py; docs/campaign/CAMPAIGN_RUNNER.md#the-runner). Each entry is one halt, where it stops (chapter, objective index, halt kind), the chapters whose resume reaches it, the issue that owns it and the date it was recorded. An unlisted halt fails the check, and so does a listed resume that no longer halts there.",
+ "about": "Every resume of the route from a chapter save finishes, except these halts (tools/resume_check.py; docs/campaign/CAMPAIGN_RUNNER.md#the-runner). Each entry is one halt, where and how it stops (chapter, objective index, objective kind, halt kind, and for a lost battle the battle: event:N or random), the chapters whose resume reaches it, the issue that owns it and the date it was recorded. An unlisted halt fails the check, and so does a listed resume that no longer halts there.",
  "halts": [
   {
    "chapter": "air-castle-xe-athoul",
    "objective": 1,
    "objective_kind": "step_onto",
    "kind": "lost_battle",
+   "battle": "event:14",
    "resumes": ["zema-outfit", "machine-center-control-key", "zelan-sabotage", "dezolis-outside-raja-temple", "dezolis-ice-digger", "dezolis-saving-kyra"],
    "issue": "https://github.com/TusanHomichi/PSIV/issues/107",
    "date": "2026-10-07",
@@ -28,6 +29,7 @@
    "objective": 5,
    "objective_kind": "go_to",
    "kind": "lost_battle",
+   "battle": "random",
    "resumes": ["dezolis-gyuna"],
    "issue": "https://github.com/TusanHomichi/PSIV/issues/110",
    "date": "2026-10-07",

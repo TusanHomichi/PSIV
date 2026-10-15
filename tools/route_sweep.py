@@ -28,7 +28,9 @@ every stream is `tools/resume_check.py`'s question; the training rule that
 uses it is in docs/campaign/CAMPAIGN_RUNNER.md. Exit status: the run's own
 (0 completed, 2 halted, 1 setup error), or 2 when the sweep is refused before
 anything runs (an unknown chapter, a chapter without a patrol, an output
-directory in use without `--replace`). Stdlib only, Python 3.
+directory in use without `--replace`, a NAME that is not one plain path
+component or whose directory does not sit inside OUT_ROOT). `--replace`
+deletes only that directory. Stdlib only, Python 3.
 """
 
 from __future__ import annotations
@@ -51,6 +53,7 @@ OUT_ROOT = Path("build") / "sweep"
 CHAPTER_RE = re.compile(r"^chapter (\S+): (\d+) frames, (\d+) battles, .*party (.*)$")
 EVENT_RE = re.compile(r"^  (event battle \d+: .*)$")
 TAPE_RE = re.compile(r"^tape .* \((\d+) frames\); digest (\S+)$")
+NAME_RE = re.compile(r"^[\w.-]+$")
 
 
 class Refused(Exception):
@@ -147,6 +150,20 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def run_dir(out_root: Path, name: str) -> Path:
+    """NAME's directory, refused unless NAME is one plain path component and
+    the directory resolves to a direct child of OUT_ROOT: `--replace` deletes
+    it, and nothing outside OUT_ROOT may be deleted (an absolute NAME, `.`,
+    `..`, or a link inside OUT_ROOT that points elsewhere)."""
+    if not NAME_RE.match(name) or name in (".", ".."):
+        raise Refused(f"the run name {name!r} is not one plain path component "
+                      "(letters, digits, '_', '.', '-')")
+    out = out_root / name
+    if out.resolve().parent != out_root.resolve():
+        raise Refused(f"{out} resolves to {out.resolve()}, outside {out_root.resolve()}")
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.summarize:
@@ -163,6 +180,7 @@ def main(argv: list[str] | None = None) -> int:
 def sweep(args: argparse.Namespace) -> int:
     if not args.name:
         raise Refused("name the run (or --summarize RUN...)")
+    out = run_dir(args.out_root, args.name)
     if (args.seed is None) != (args.from_chapter is None):
         raise Refused("--seed and --from-chapter go together")
     try:
@@ -174,7 +192,6 @@ def sweep(args: argparse.Namespace) -> int:
     for chapter in (args.from_chapter, args.until_chapter):
         if chapter is not None and chapter not in ids:
             raise Refused(f"no chapter {chapter!r} in the changed route")
-    out = args.out_root / args.name
     if out.exists() and any(out.iterdir()):
         if not args.replace:
             raise Refused(f"{out} holds an earlier run (--replace removes it)")

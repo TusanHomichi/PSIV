@@ -15,11 +15,14 @@ save). For each chapter i from 1 to the last, the check copies chapter i-1's
 save into a fresh directory and runs `psiv-campaign run ROUTE --from-chapter
 <chapter i>` to the route's end, one process at a time.
 
-A resume completes or halts. A halt is classified by where it stopped: the
-chapter, the objective index and the halt kind of the run's halt report. The
-manifest (default `rust/psiv-campaign/routes/resume_manifest.json`) lists the
-halts the route has today, each with the resume points it occurs from, the
-GitHub issue that owns it and the date it was recorded. The check fails on:
+A resume completes or halts. A halt is classified by where and how it
+stopped, all from the run's halt report: the chapter, the objective index, the
+objective's kind, the halt kind and, for a lost battle, the battle (`event:N`
+for scripted battle N, `random` for an encounter; absent for any other halt).
+The manifest (default `rust/psiv-campaign/routes/resume_manifest.json`) lists
+the halts the route has today, each with that key, the resume points it occurs
+from, the GitHub issue that owns it and the date it was recorded. The check
+fails on:
 
 - a halt the manifest does not list, or lists only from other resume points;
 - a listed resume point that no longer halts there (a stale entry: the defect
@@ -65,8 +68,9 @@ OUT_ROOT = Path("build") / "resume-check"
 
 ISSUE_RE = re.compile(r"^https://github\.com/[\w.-]+/[\w.-]+/issues/\d+$")
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-ENTRY_KEYS = {"chapter", "objective", "objective_kind", "kind", "resumes", "issue", "date",
-              "note"}
+BATTLE_RE = re.compile(r"^(event:\d+|random)$")
+ENTRY_KEYS = {"chapter", "objective", "objective_kind", "kind", "battle", "resumes", "issue",
+              "date", "note"}
 
 
 class Refused(Exception):
@@ -136,9 +140,16 @@ def someone_stood(battle: dict) -> bool:
     return any(member.get("standing") for member in battle.get("party_at_end", []))
 
 
+def battle_of(battle: dict) -> str:
+    """A battle record's name in a halt key: `event:N` or `random`."""
+    return f"event:{battle['id']}" if battle.get("kind") == "event" else "random"
+
+
 def outcome_of(directory: Path, start: str) -> dict:
-    """What the resume in `directory` did: completed, halted (where and how) or error,
-    with the scripted (event) battles it won and the one it lost."""
+    """What the resume in `directory` did: completed (exit 0 and a completed
+    report), halted (exit 2 and a halted report; where and how) or error
+    (anything else), with the scripted (event) battles it won and the one it
+    lost."""
     outcome: dict = {"start": start, "result": "error", "won": [], "lost": None}
     try:
         code = int((directory / "exit").read_text())
@@ -150,38 +161,52 @@ def outcome_of(directory: Path, start: str) -> dict:
     except (OSError, ValueError):
         outcome["detail"] = f"exit {code} and no report"
         return outcome
+    if code not in (0, 2):
+        outcome["detail"] = (f"exit {code} beside a {report.get('result')!r} report: the "
+                             "runner stopped without its verdict")
+        return outcome
     if code == 0 and report.get("result") == "completed":
         outcome["result"] = "completed"
         outcome["won"] = [b["id"] for b in report.get("event_battles", []) if someone_stood(b)]
         return outcome
     if code == 2 and report.get("result") == "halted":
-        events = [b for b in report.get("battles", []) if b.get("kind") == "event"]
+        battles = report.get("battles", [])
+        events = [b for b in battles if b.get("kind") == "event"]
+        kind = report.get("halt", {}).get("kind")
+        # The battle a lost battle was lost in is the last one the report lists.
+        last = battles[-1] if kind == "lost_battle" and battles else None
         outcome.update({
             "result": "halted",
             "chapter": report.get("chapter"),
             "objective": report.get("objective_index"),
             "objective_kind": report.get("objective_kind"),
-            "kind": report.get("halt", {}).get("kind"),
+            "kind": kind,
+            "battle": None if last is None else battle_of(last),
             "detail": report.get("halt", {}).get("detail", ""),
             "won": [b["id"] for b in events if someone_stood(b)],
         })
-        battles = report.get("battles", [])
-        if (outcome["kind"] == "lost_battle" and battles and battles[-1].get("kind") == "event"
-                and not someone_stood(battles[-1])):
-            outcome["lost"] = battles[-1]["id"]
+        if last is not None and last.get("kind") == "event" and not someone_stood(last):
+            outcome["lost"] = last["id"]
         return outcome
     outcome["detail"] = f"exit {code}, report result {report.get('result')!r}"
     return outcome
 
 
+#: Where and how a halt stopped: chapter, objective index, objective kind, halt
+#: kind and battle (`None` for a halt that is not a lost battle).
+KEY_FIELDS = ("chapter", "objective", "objective_kind", "kind", "battle")
+
+
 def halt_key(entry_or_outcome: dict) -> tuple:
-    return (entry_or_outcome.get("chapter"), entry_or_outcome.get("objective"),
-            entry_or_outcome.get("kind"))
+    return tuple(entry_or_outcome.get(field) for field in KEY_FIELDS)
 
 
-def describe(key: tuple) -> str:
-    chapter, objective, kind = key
-    return f"chapter {chapter} objective {objective} ({kind})"
+def describe(halt: dict) -> str:
+    """A halt (an entry or an outcome) for a problem line."""
+    kind, battle = halt.get("kind"), halt.get("battle")
+    how = kind if battle is None else f"{kind} in {battle}"
+    return (f"chapter {halt.get('chapter')} objective {halt.get('objective')} "
+            f"{halt.get('objective_kind')} ({how})")
 
 
 def valid_date(text: object) -> bool:
@@ -212,7 +237,7 @@ def load_manifest(path: Path, ids: list[str]) -> tuple[list[dict], list[str]]:
         if not isinstance(entry, dict):
             problems.append(f"{where}: not an object")
             continue
-        where = f"manifest entry {n} ({describe(halt_key(entry))})"
+        where = f"manifest entry {n} ({describe(entry)})"
         unknown = sorted(set(entry) - ENTRY_KEYS)
         if unknown:
             problems.append(f"{where}: unknown keys {unknown}")
@@ -221,8 +246,16 @@ def load_manifest(path: Path, ids: list[str]) -> tuple[list[dict], list[str]]:
         objective = entry.get("objective")
         if not isinstance(objective, int) or isinstance(objective, bool) or objective < 0:
             problems.append(f"{where}: objective must be an objective index")
+        if not isinstance(entry.get("objective_kind"), str) or not entry.get("objective_kind"):
+            problems.append(f"{where}: no objective kind")
         if not isinstance(entry.get("kind"), str) or not entry.get("kind"):
             problems.append(f"{where}: no halt kind")
+        battle = entry.get("battle")
+        lost = entry.get("kind") == "lost_battle"
+        if lost and (not isinstance(battle, str) or not BATTLE_RE.match(battle)):
+            problems.append(f"{where}: a lost battle names its battle (event:<n> or random)")
+        if not lost and battle is not None:
+            problems.append(f"{where}: only a lost battle names a battle")
         if not isinstance(entry.get("issue"), str) or not ISSUE_RE.match(entry["issue"]):
             problems.append(f"{where}: no issue link (https://github.com/<owner>/<repo>/issues/<n>)")
         if not valid_date(entry.get("date")):
@@ -265,7 +298,7 @@ def judge(outcomes: list[dict], entries: list[dict]) -> list[str]:
             continue
         if outcome["result"] == "completed":
             if entry is not None:
-                problems.append(f"stale: the manifest lists {describe(halt_key(entry))} from "
+                problems.append(f"stale: the manifest lists {describe(entry)} from "
                                 f"{start} ({entry.get('issue')}), and that resume completes")
             continue
         key = halt_key(outcome)
@@ -273,17 +306,17 @@ def judge(outcomes: list[dict], entries: list[dict]) -> list[str]:
             continue
         detail = outcome.get("detail", "")
         if key in listed:
-            problems.append(f"resume from {start} halts at {describe(key)}, which the manifest "
-                            f"lists only from {listed[key].get('resumes')}: {detail}")
+            problems.append(f"resume from {start} halts at {describe(outcome)}, which the "
+                            f"manifest lists only from {listed[key].get('resumes')}: {detail}")
         else:
-            problems.append(f"resume from {start} halts at {describe(key)}, which the manifest "
-                            f"does not list: {detail}")
+            problems.append(f"resume from {start} halts at {describe(outcome)}, which the "
+                            f"manifest does not list: {detail}")
         if entry is not None:
-            problems.append(f"stale: the manifest lists {describe(halt_key(entry))} from {start} "
+            problems.append(f"stale: the manifest lists {describe(entry)} from {start} "
                             f"({entry.get('issue')}), and that resume halts elsewhere")
     for start, entry in expected.items():
         if start not in ran:
-            problems.append(f"the manifest lists {describe(halt_key(entry))} from {start}, "
+            problems.append(f"the manifest lists {describe(entry)} from {start}, "
                             "which this check did not resume")
     return problems
 
@@ -304,8 +337,7 @@ def line_of(index: int, outcome: dict) -> str:
     if outcome["result"] == "completed":
         what = "completed"
     elif outcome["result"] == "halted":
-        what = (f"halted at {describe(halt_key(outcome))}, {outcome.get('objective_kind')}: "
-                f"{outcome.get('detail', '')}")
+        what = f"halted at {describe(outcome)}: {outcome.get('detail', '')}"
     else:
         what = f"error: {outcome.get('detail', '')}"
     return f"from {index:02d} {outcome['start']}: {what}"

@@ -130,6 +130,28 @@ class Sweep(unittest.TestCase):
             self.assertIn(message, out)
         self.assertFalse((self.binary.parent / "command.json").exists())
 
+    def test_an_absolute_name_is_refused(self):
+        code, out = self.sweep(str(self.root / "elsewhere"), "--replace")
+        self.assertEqual(code, rs.EXIT_REFUSED, out)
+        self.assertIn("not one plain path component", out)
+
+    def test_dot_names_are_refused(self):
+        for name in (".", ".."):
+            code, out = self.sweep(name, "--replace")
+            self.assertEqual(code, rs.EXIT_REFUSED, out)
+            self.assertIn("not one plain path component", out)
+
+    def test_a_link_inside_the_out_root_that_points_elsewhere_is_refused(self):
+        outside = self.root / "outside"
+        outside.mkdir()
+        (outside / "keep.txt").write_text("evidence")
+        (self.root / "sweep").mkdir()
+        (self.root / "sweep" / "link").symlink_to(outside)
+        code, out = self.sweep("link", "--replace")
+        self.assertEqual(code, rs.EXIT_REFUSED, out)
+        self.assertIn("outside", out)
+        self.assertEqual((outside / "keep.txt").read_text(), "evidence")
+
     def test_an_earlier_run_is_kept_unless_replaced(self):
         self.assertEqual(self.sweep("same")[0], 0)
         code, out = self.sweep("same")

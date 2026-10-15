@@ -10,8 +10,11 @@ writes the report the real runner writes. So the check's classification,
 manifest rules, refusals and evaluate mode are tested without running the game.
 The negative controls are the manifest's own: an entry removed fails naming the
 halt it covered, an entry for a halt that does not occur fails as stale, an
-entry without an issue link or a date fails. `CheckedInManifest` holds the
-repository's manifest to the same rules against the real route.
+entry without an issue link or a date fails, and a halt that differs from its
+entry in any one part of the key (objective, objective kind, halt kind,
+battle) is unlisted. A resume counts as completed or halted only with the exit
+status that goes with its report. `CheckedInManifest` holds the repository's
+manifest to the same rules against the real route.
 """
 import contextlib
 import io
@@ -48,21 +51,27 @@ if step == "crash":
 report = Path(opt("--report"))
 standing = [{"name": "Chaz", "hp": 9, "max_hp": 9, "status": 0, "standing": True}]
 down = [{"name": "Chaz", "hp": 0, "max_hp": 9, "status": 4, "standing": False}]
-if step == "completed":
+if step == "completed" or step.get("report") == "completed":
     report.write_text(json.dumps({"result": "completed", "event_battles": [
         {"chapter": "d", "id": 1, "party_at_end": standing}]}))
-    sys.exit(0)
+    sys.exit(0 if step == "completed" else step["exit"])
 battles = [{"kind": "event", "id": 1, "end_frame": 5, "party_at_end": standing}]
 if step["kind"] == "lost_battle":
-    battles.append({"kind": "event", "id": 2, "end_frame": 9, "party_at_end": down})
+    battle = step["battle"]
+    if battle == "random":
+        battles.append({"kind": "encounter", "id": 40, "end_frame": 9, "party_at_end": down})
+    else:
+        battles.append({"kind": "event", "id": int(battle.split(":")[1]), "end_frame": 9,
+                        "party_at_end": down})
 report.write_text(json.dumps({"result": "halted", "chapter": step["chapter"],
-    "objective_index": step["objective"], "objective_kind": "go_to",
+    "objective_index": step["objective"], "objective_kind": step["objective_kind"],
     "halt": {"kind": step["kind"], "detail": "what happened"}, "battles": battles}))
-sys.exit(2)
+sys.exit(step.get("exit", 2))
 '''
 
-LOST = {"chapter": "d", "objective": 2, "kind": "lost_battle"}
-STUCK = {"chapter": "d", "objective": 0, "kind": "unreachable"}
+LOST = {"chapter": "d", "objective": 2, "objective_kind": "go_to", "kind": "lost_battle",
+        "battle": "event:2"}
+STUCK = {"chapter": "d", "objective": 0, "objective_kind": "go_to", "kind": "unreachable"}
 PLAN = {"b": "completed", "c": LOST, "d": STUCK}
 
 
@@ -142,17 +151,18 @@ class Check(unittest.TestCase):
         code, out = self.check()
         self.assertEqual(code, rc.EXIT_PROBLEMS, out)
         self.assertEqual(self.summary()["problems"], [
-            "resume from c halts at chapter d objective 2 (lost_battle), which the manifest "
-            "does not list: what happened"])
+            "resume from c halts at chapter d objective 2 go_to (lost_battle in event:2), which "
+            "the manifest does not list: what happened"])
 
     def test_an_entry_for_a_halt_that_does_not_occur_is_stale(self):
         self.write_manifest(MATCHING + [entry({"chapter": "c", "objective": 1,
+                                               "objective_kind": "talk",
                                                "kind": "wrong_object"}, ["b"])])
         code, out = self.check()
         self.assertEqual(code, rc.EXIT_PROBLEMS, out)
         (problem,) = self.summary()["problems"]
         self.assertTrue(problem.startswith("stale: the manifest lists chapter c objective 1 "
-                                           "(wrong_object) from b"), problem)
+                                           "talk (wrong_object) from b"), problem)
         self.assertTrue(problem.endswith("and that resume completes"), problem)
 
     def test_a_listed_halt_at_another_resume_point_fails_both_ways(self):
@@ -161,8 +171,8 @@ class Check(unittest.TestCase):
         self.assertEqual(code, rc.EXIT_PROBLEMS, out)
         problems = self.summary()["problems"]
         self.assertEqual(len(problems), 2, problems)
-        self.assertIn("stale: the manifest lists chapter d objective 2 (lost_battle) from b",
-                      problems[0])
+        self.assertIn("stale: the manifest lists chapter d objective 2 go_to "
+                      "(lost_battle in event:2) from b", problems[0])
         self.assertIn("which the manifest lists only from ['b']", problems[1])
 
     def test_an_entry_without_an_issue_link_or_a_date_fails(self):
@@ -192,6 +202,76 @@ class Check(unittest.TestCase):
         self.assertEqual(code, rc.EXIT_PROBLEMS, out)
         self.assertEqual(self.summary()["problems"],
                          ["resume from b did not run: exit 1 and no report"])
+
+    def assert_unlisted(self, halt, start="c"):
+        """`halt` from `start`, against the manifest's entry for that resume
+        point (LOST from c, STUCK from d), differing in one part of the key:
+        unlisted, and the entry stale."""
+        self.set_plan({**PLAN, start: halt})
+        code, out = self.check()
+        self.assertEqual(code, rc.EXIT_PROBLEMS, out)
+        problems = self.summary()["problems"]
+        self.assertEqual(len(problems), 2, problems)
+        self.assertIn("which the manifest does not list", problems[0])
+        self.assertIn("that resume halts elsewhere", problems[1])
+
+    def test_a_halt_at_another_objective_is_unlisted(self):
+        self.assert_unlisted({**LOST, "objective": 3})
+
+    def test_a_halt_at_another_objective_kind_is_unlisted(self):
+        self.assert_unlisted({**LOST, "objective_kind": "step_onto"})
+
+    def test_another_halt_kind_is_unlisted(self):
+        self.assert_unlisted({**STUCK, "kind": "budget"}, start="d")
+
+    def test_a_loss_in_another_battle_is_unlisted(self):
+        self.assert_unlisted({**LOST, "battle": "event:3"})
+        self.assert_unlisted({**LOST, "battle": "random"})
+
+    def test_a_random_loss_matches_an_entry_that_names_random(self):
+        self.set_plan({**PLAN, "c": {**LOST, "battle": "random"}})
+        self.write_manifest([entry({**LOST, "battle": "random"}, ["c"]), entry(STUCK, ["d"])])
+        code, out = self.check()
+        self.assertEqual(code, rc.EXIT_OK, out)
+
+    def test_a_lost_battle_entry_names_its_battle(self):
+        no_battle = entry({k: v for k, v in LOST.items() if k != "battle"}, ["c"])
+        self.write_manifest([no_battle, entry(STUCK, ["d"])])
+        code, out = self.check()
+        self.assertEqual(code, rc.EXIT_PROBLEMS, out)
+        self.assertIn("a lost battle names its battle", self.summary()["problems"][0])
+
+    def test_only_a_lost_battle_entry_names_a_battle(self):
+        stray = entry({**STUCK, "battle": "event:2"}, ["d"])
+        self.write_manifest([entry(LOST, ["c"]), stray])
+        code, out = self.check()
+        self.assertEqual(code, rc.EXIT_PROBLEMS, out)
+        self.assertIn("only a lost battle names a battle", self.summary()["problems"][0])
+
+    def test_a_halted_report_with_exit_0_is_an_error(self):
+        self.set_plan({**PLAN, "d": {**STUCK, "exit": 0}})
+        code, out = self.check()
+        self.assertEqual(code, rc.EXIT_PROBLEMS, out)
+        self.assertEqual(self.summary()["problems"], [
+            "resume from d did not run: exit 0, report result 'halted'"])
+
+    def test_a_completed_report_with_exit_2_is_an_error(self):
+        self.set_plan({**PLAN, "b": {"report": "completed", "exit": 2}})
+        code, out = self.check()
+        self.assertEqual(code, rc.EXIT_PROBLEMS, out)
+        self.assertEqual(self.summary()["problems"], [
+            "resume from b did not run: exit 2, report result 'completed'"])
+
+    def test_a_crash_beside_a_report_is_an_error(self):
+        self.set_plan({**PLAN, "b": {"report": "completed", "exit": 101},
+                       "d": {**STUCK, "exit": 101}})
+        code, out = self.check()
+        self.assertEqual(code, rc.EXIT_PROBLEMS, out)
+        self.assertEqual(self.summary()["problems"], [
+            "resume from b did not run: exit 101 beside a 'completed' report: the runner "
+            "stopped without its verdict",
+            "resume from d did not run: exit 101 beside a 'halted' report: the runner "
+            "stopped without its verdict"])
 
     def test_evaluate_judges_an_earlier_check_without_running(self):
         self.check()
