@@ -180,7 +180,7 @@ read different tables: `loc_4A0EC`/`loc_4A13C` (`03 02 FF`, left then down) for 
 id word (`cmpi.w #$8268, -$40(a4)`, `#$826C` for the inner pair), which `bridge.rs` reproduces by
 comparing the previous object's symbol. The `$3D = 0` leash refuses the vertical command, so a
 guard ends one cell to its side: the door row is free. A looped table in the port made both guards
-walk left forever (found by the C7 route at the Esper Mansion, `RUNNER_LOG_ICEDIGGER.md` H40).
+walk left forever (found by the campaign route at the Esper Mansion).
 
 The motion classes all use the same cartridge gates as the ordinary walkers:
 facing is written before a leash refusal, accepted movement commits the map
@@ -528,7 +528,7 @@ freeze if every column that would move is checked in the same source.
   Their movement/RNG ownership is closed here; sprite art, frame tables, and
   absolute-pixel presentation remain in the visual lane by scope.
 
-## Closed parity receipts
+## Closed parity checks
 
 - **Random-family transcription:** `FieldObj_GetRandomMove` (`ps4.asm:96693`),
   `GetRandomMove2` (`96711`), `GetRandomMove3` (`96730`), the remap at

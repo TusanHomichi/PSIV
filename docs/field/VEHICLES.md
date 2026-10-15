@@ -423,65 +423,17 @@ well as the refusal side. The mounted battle entry is intentionally a
 documented fixture after the ordinary mounted field path; it does not claim a
 natural random encounter happened at a chosen frame.
 
-## Natural route receipt: tape 31
-
-`oracle/tapes/31_natural_land_rover.tape` is the input-only naturalization
-attempt. It starts from power-on, reaches Alys and the principal confession,
-survives the Academy basement and Igglanova beats with ordinary field inputs,
-recovers the party at Piata's live inn, crosses the Motavia/Edge route into
-Zema, enters Birth Valley B1, completes the real Prof. Holt scene, and returns
-to the Motavia overworld. The replay log is
-`oracle/logs/31_natural_land_rover.csv`; it was generated with no `--ram-patch`
-and contains 131,130 rows.
-
-The stable frame marks are:
-
-| Frame | Mark | Retail state |
-|---:|---|---|
-| `81,409` | `piata_inn_recovered` | Piata inn map `0019`, live recovery complete; selector `0` |
-| `102,951` | `zema_town_warp` | Zema map `0024`, leader `(1568,1312)`; selector `0` |
-| `103,071` | `zema_town_cross` | Zema town cross `(496,768)`; event flags `01FF0C00` |
-| `103,675` | `zema_to_birth_valley` | Birth Valley load map `002B`; selector `0` |
-| `113,419` | `birth_valley_b1_enter` | Birth Valley B1 map `002C`, leader `(528,224)` |
-| `129,139` | `holt_scene_done` | return to Zema map `0024`, leader `(480,160)`, event flags `01FF8C00` |
-| `131,011` | `natural_prefix_holt_world` | Motavia map `0000`, leader `(1584,1312)`; selector `0` |
-
-`vehicle_index` is `0000` on every row. That is the important negative
-receipt: this natural prefix never mounts, so it has no honest natural marks
-for vehicle-terrain movement, dismount refusal, successful dismount, or a
-mounted encounter. The tape stops here because `GettingLandRover` is later:
-after the Zema/Krup/Tonoe/Rune/Alshline/Zio/BioPlant/Rika branch, the Control
-Key prerequisite, and Machine Center B1 Part2. Tape 29 therefore remains the
-fixture-only receipt for those vehicle behaviors; tape 31 does not overwrite it
-with invented natural evidence.
-
-The practical stop is also measured, not cosmetic: after Holt the party is
-Chaz `27`, Alys `44`, Hahn `13` HP. The shortest attempted Piata healing
-detour hit three natural formations whose retail rolls refused RUN; ordinary
-combat inputs left only Alys alive before the inn inputs could be consumed.
-The pre-`IgglanovaZemaDefeated` Zema inn is locked as well. Continuing from
-this state needs a new long, battle-safe route plan, so it is documented as
-remainder rather than smuggled into the tape as a fixture.
-
-The clone replay comparator walks the same input schedule from its first
-engine-aligned mark, `await_control` at frame `6,539`. It is clean for the
-first 560 frames through frame `7,098` (33 modeled columns, zero
-divergences). At frame `7,099` the retail party continues through a cell where
-the clone's static NPC position blocks; that is the known NPC/wander frontier,
-outside this vehicle slice and explicitly excluded from ownership. The clone
-does not claim a vehicle or encounter receipt for the unmounted prefix.
-
 ## Verification status
 
-Headless debug boots (the available Godot binary exits successfully and
+Headless debug boots (`$PSIV_GODOT` names the Godot executable, as the [development guide](../DEVELOPMENT.md#launch-the-native-game) says; the binary exits successfully and
 reaches the field/battle surface):
 
 ```sh
 env PSIV_DEBUG_VEHICLE=2 PSIV_DEBUG_VEHICLE_BATTLE=0x88 \
-  /home/peter/.local/bin/cairn-godot-4.7.1 --headless --audio-driver Dummy \
+  "$PSIV_GODOT" --headless --audio-driver Dummy \
   --path godot --quit-after 120
 env PSIV_DEBUG_VEHICLE=3 PSIV_DEBUG_VEHICLE_BATTLE=0x88 \
-  /home/peter/.local/bin/cairn-godot-4.7.1 --headless --audio-driver Dummy \
+  "$PSIV_GODOT" --headless --audio-driver Dummy \
   --path godot --quit-after 120
 ```
 
@@ -522,23 +474,24 @@ Test coverage of the two rules above:
 The campaign route's `ladea-tower-rune` chapter is the end-to-end receipt: the
 Land Rover drives to the Ladea Tower, the warp parks it, and the route's
 `expect {"map": 140, "vehicle": 0}` now holds *because of the load*, not
-because of an explicit dismount (`docs/campaign/RUNNER_LOG.md`, H20).
+because of an explicit dismount.
 
 Still open:
 
-1. The full natural Land Rover route is still owed. Tape 31 closes the
-   power-on-to-Holt prefix, but it does not yet reach `GettingLandRover`; tape
-   29 remains the explicit fixture for mounted movement, dismount and battle
-   entry. The Ice Digger and Hydrofoil story routes are also still separate
-   natural runs.
+1. The natural story legs are the campaign route's: `machine-center-control-key`
+   receives the Land Rover and `ladea-tower-rune` drives it to the tower;
+   `dezolis-ice-digger` boards the Ice Digger
+   (`rust/psiv-campaign/routes/main.json`). The Hydrofoil's leg comes after
+   Dark Force 2, with the rest of the route to the Ending
+   ([#116](https://github.com/TusanHomichi/PSIV/issues/116)). Tape 29 remains the oracle fixture for mounted movement,
+   dismount refusal and mounted battle entry.
 2. The map item (`ItemAction_Map`, `$8C`) opens the overworld map screen in
    retail (`Routine_Exit_Flags` bit 2, `ps4.asm:117170`); the port has no map
-   screen, so the ITEM page answers `MAP SCREEN NOT READY` instead of a
-   refusal the item never got.
+   screen, so the ITEM page answers `MAP SCREEN NOT READY` instead
+   ([#122](https://github.com/TusanHomichi/PSIV/issues/122)).
 3. The Godot shell can report one non-fatal `AudioStreamGeneratorPlayback`
-   ObjectDB leak at shutdown on some headless runs. The field/battle boot exits
-   successfully; this is the pre-existing audio lifecycle, outside the vehicle
-   slice.
+   ObjectDB leak at shutdown on some headless runs; the field and battle boot
+   exits successfully ([#123](https://github.com/TusanHomichi/PSIV/issues/123)).
 
 Ownership remains split cleanly: core movement and battle-member rules are in
 `rust/psiv-core/src/vehicle.rs`, mutable field/battle bridges in

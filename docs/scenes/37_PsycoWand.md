@@ -45,7 +45,7 @@ The two `move.l #DialogueTree6, d0 / jsr (DialogueTreesToRAM).l` calls before
 dialogue `$2E` and before the late `popdlg` resume (`ps4.asm:154633`,
 `:154938`), and the tree-5 restore at `:155002`, all sit under `if revision>0`;
 this build is English (`revision = 1`), so all three run. The first two were
-missed until H17. See the [revision audit](REVISION_AUDIT.md).
+missed until the campaign runner halted on the wrong dialogue tree. See the [revision audit](REVISION_AUDIT.md).
 
 ## Verification
 

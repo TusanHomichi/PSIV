@@ -4,7 +4,7 @@ Every event index the cartridge can fire, derived from the US image, and what
 the port does with each. The class this closes: the campaign runner kept
 halting on events the port never transcribed (`$71` sandworm, the Garuberk
 doors, the penguin feed, `$2A` Canceller reminder, four
-`Event_GetAndRunDialogue2` callers, then H28's `$43` on every arrival outside
+`Event_GetAndRunDialogue2` callers, then `$43` on every arrival outside
 Raja Temple), each found one at a time by a halt.
 
 **The guard.** [`tests/test_event_coverage.py`](../../tests/test_event_coverage.py)

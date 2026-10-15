@@ -1,15 +1,8 @@
 # Retail scene transcriptions
 
-**Research coverage is not connected-play coverage.** These records extend
-through the ending, while the verified connected campaign is still in the
-BioPlant. Use [the roadmap](../ROADMAP.md) and [playability ledger](../campaign/NATIVE_PLAYABILITY.md)
-for current progress; an individual scene fixture does not close a campaign milestone.
-
-Opening-act material was transcribed 2026-08-14 from the retail cartridge;
-the next-arc records below were added 2026-08-16, with the Dezo campaign
-continuation added in the same wave. These documents are the
-retail research behind the implemented event interpreter: every scene in the
-opening act, disassembled from cartridge bytes, expressed as an ordered
+These records are the retail research behind the event interpreter, and they
+extend through the Ending. Each scene is disassembled from cartridge bytes and
+expressed as an ordered
 `SceneOp` sequence, with every RAM address, event flag and dialogue reference
 resolved to a name.
 
@@ -30,7 +23,7 @@ The native registry and headless proof live beside those documents in
 **Live layout writes are audited.** Every scene that writes map chunks while
 the party stands on the map — the mechanism the cartridge uses instead of a
 map reload — is listed with its port status in
-[the live-layout census](LIVE_LAYOUT_WRITES.md), which is H19's class fix.
+[the live-layout census](LIVE_LAYOUT_WRITES.md).
 
 **Layout writes are held to the pack.** Every `SceneOp::WriteMapChunks` needs a chunk the pack's
 patch atlas carries for its map (`write_scene_map_chunks` refuses one it cannot resolve, #67).
@@ -41,13 +34,13 @@ with no row, or a row the pack does not resolve, naming the scene and the chunk.
 **Revision-conditional ops are audited.** Every transcribed scene's
 `if revision>0` / `else` blocks and its retail `DialogueTreesToRAM` calls are
 counted in [the revision audit](REVISION_AUDIT.md), which is what caught the
-four tree-6 loads H17 records. Guarded by
+four missed tree-6 loads (the scenes then read the wrong dialogue tree). Guarded by
 [`tests/test_scene_trees.py`](../../tests/test_scene_trees.py) and
 `psiv-core`'s `every_scene_loads_the_trees_its_retail_bytes_load`.
 
 **`Event_GetAndRunDialogue2` callers are audited.** Its fourteen cartridge
 callers, the window it leaves up and the one transcription that read it as a
-resume (H22) are in [the Dialogue2 audit](DIALOGUE2_CALLERS.md), guarded by
+resume (Zio at Nurvus) are in [the Dialogue2 audit](DIALOGUE2_CALLERS.md), guarded by
 [`tests/test_dialogue2_callers.py`](../../tests/test_dialogue2_callers.py) and
 `psiv-core`'s `every_dialogue2_caller_is_a_retained_window`.
 
@@ -558,7 +551,7 @@ field maps.
   map-data/interaction path, not an entry the retail `RunEvent_*` chain covered
   here writes. Its `grand_cross=0` bytes are recorded in the census as a direct
   body; it is not silently substituted with Grand Cross code.
-  (`Event_ZioFortBarrier` `$30` was in this list until H18: the Zio Fort
+  (`Event_ZioFortBarrier` `$30` was in this list until the campaign runner halted on it: the Zio Fort
   courtyard's barrier is reached by a dialogue action, and it is transcribed
   now — see [90](90_ZioFortBarrier.md).)
 - `Event_FortuneTeller` and `Event_AfterFortuneTeller`: the retail

@@ -3,19 +3,20 @@
 `MapDataManager` runs at map load and only at map load
 ([map effects](../field/MAP_EFFECTS.md#2-the-dispatcher)), so a story flag that
 changes while the party stands on a map changes nothing until the map reloads.
-Three cartridge mechanisms make a change *live* anyway, and H19 was the port
-missing the first of them:
+Three cartridge mechanisms make a change *live* anyway, and the port
+once missed the first of them, so story flags and scene tile writes did not
+reach the live map's collision:
 
 1. **the scene writes the layout itself.** `GetMapLayoutOffset` (`$53514`) or
    `GetMapLayoutChunkBG` (`$53EEC`) resolves a layout address from literal
    column and row operands, the routine writes chunk ids into it, and
    `RefreshPlaneBG` (`$540FA`) redraws the plane. Collision is read from that
    layout, so the write is walkable the same frame. **This is the mechanism
-   both H19 cases use** — `Event_JuzaDefeated` (`$06FB74`) and
+   both of those cases use** — `Event_JuzaDefeated` (`$06FB74`) and
    `Event_MachineCenterAppearing` (`$06B5CE`) — and neither calls `RefreshMap`.
 2. the overworld page hooks (`loc_53BDC`/`loc_53CD4`), which retail replays per
    1 KB page copy and this port applies at map construction
-   ([map effects §12](../field/MAP_EFFECTS.md#12-native-overworld-page-hook-consumption-2026-09-23)).
+   ([map effects §12](../field/MAP_EFFECTS.md#12-native-overworld-page-hook-consumption)).
    The two overworld writes below have page-hook *twins* gated on the same flag,
    which is how the pack corroborates their coordinates.
 3. a whole-map reload the scene asks for, which is the ordinary `LoadMap` op.
@@ -44,7 +45,7 @@ table slot, whose address was checked against the image.
 | `Event_VahFortMovingPlatform1..2` `$15`,`$16`, `Event_WpnPlntMovingPlatform1..4` `$17`-`$1A` | `$06C4C4`…`$06CD8A` (start and end writes) | two-chunk FG platform pairs, `$C0..$C3` vacated, `$CC,$CD` (collision 2) at the destination, around a 60-frame settle and an 80- or 112-frame ride | `WriteMapChunks` x2 per scene half; the six `SCENE_CHUNK_WRITES` rows put `$C0..$C3` in the two maps' atlases, [PLATFORMS_AND_BELTS](../field/PLATFORMS_AND_BELTS.md) |
 
 Several of these were transcribed as presentation or not at all, which is
-the class H19 reports: a scene op that changes collision was recorded as art.
+the class that missed mechanism belongs to: a scene op that changes collision was recorded as art.
 `Event_JuzaDefeated` and `Cutscene_PsycoWand` were on the campaign route and
 had workarounds in it (`go_to_map` round trips); the rest were latent.
 
@@ -117,7 +118,7 @@ replace that incorrect row.
   read `MapChange` right after the scene, with no battle and no reload; the
   negative control is the same flags without the event.
 
-Those two H19 checks needed no pack regeneration. For #67,
+Those two checks needed no pack regeneration. For #67,
 `rust/psiv-runtime/src/scene_crash_tests.rs` checks five live temple frames,
 six ticks between writes, all 16 affected collision cells, the later flag and
 same-map reload, and a decoded-slot reconstruction of the final frame. Its
@@ -129,5 +130,4 @@ the load hook cannot substitute for the scene's animation.
 all five source rows, plain atlas pixels and priority pixels against a
 one-chunk map render, collision nibbles, and the manifest census. Negative
 controls reject truncated/missing/early terminators and exclude Dezolis from
-the temple chunk census. See the [#67 receipt](43_CrashLanding.md#67-delivery-receipt)
-for the rebuilt pack and verification boundaries.
+the temple chunk census.

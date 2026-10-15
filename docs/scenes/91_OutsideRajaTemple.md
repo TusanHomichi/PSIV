@@ -5,7 +5,8 @@
 - **Trigger:** Dezolis `$001`, `RunEventsJmpTbl[$31]` (`RunEvent_OutsideRajaTemple`,
   the `$0043` write is at `$056D50`), Snowstorm `$80` clear. The routine has no
   position test: it fires on the first field frame after every arrival, which
-  from Raja Temple (`$14C`, one warp) is the only way out. Runner log H28.
+  from Raja Temple (`$14C`, one warp) is the only way out, so the campaign runner halted on the first arrival
+until this scene was transcribed.
 - **Data:** `dezolis_route.rs`, `OUTSIDE_RAJA_TEMPLE` (3 ops).
 
 ## Clone audit

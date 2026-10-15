@@ -287,6 +287,8 @@ centred 960x672 3x surface from `PSIV_DEBUG_SHOT`, normalizes it to 320x224,
 and reports RGB RMSE against an oracle frame. The identity-path tool check is
 `rmse=0.000000`.
 
+`$PSIV_GODOT` is the Godot executable ([development guide](../DEVELOPMENT.md#launch-the-native-game)).
+
 The capture command, once a display backend is available, is deliberately
 boring and explicit:
 
@@ -299,7 +301,7 @@ xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 \
   PSIV_DEBUG_SCENE_TICKS=1 \
   PSIV_DEBUG_SHOT=/tmp/psiv-opening-retail.png \
   PSIV_DEBUG_SHOT_FRAME=<clone-tick> \
-  /home/peter/.local/bin/psiv-godot-4.7.1 \
+  "$PSIV_GODOT" \
   --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
   --log-file /tmp/psiv-opening-retail-godot.log \
   --path godot --quit-after <clone-tick-plus-one>
@@ -313,7 +315,7 @@ xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 \
   PSIV_DEBUG_SCENE_TICKS=1 \
   PSIV_DEBUG_SHOT=/tmp/psiv-meeting-rika-retail.png \
   PSIV_DEBUG_SHOT_FRAME=<clone-tick> \
-  /home/peter/.local/bin/psiv-godot-4.7.1 \
+  "$PSIV_GODOT" \
   --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
   --log-file /tmp/psiv-meeting-rika-retail-godot.log \
   --path godot --quit-after <clone-tick-plus-one>
@@ -474,7 +476,6 @@ Integration-time defects fixed while certifying (2026-08-17):
 **MeetingRika capture command for integration:**
 
 ```sh
-GODOT=/home/peter/.local/bin/psiv-godot-4.7.1
 xvfb-run -a env \
   PSIV_DEBUG_EVENT=0x8007 \
   PSIV_DEBUG_AUTOCLOSE_SCENE=1 \
@@ -482,7 +483,7 @@ xvfb-run -a env \
   PSIV_DEBUG_SCENE_TICKS=1 \
   PSIV_DEBUG_SHOT=/tmp/psiv-meeting-rika-retail.png \
   PSIV_DEBUG_SHOT_FRAME=<settled-clone-tick> \
-  timeout 180s "$GODOT" --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
+  timeout 180s "$PSIV_GODOT" --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
   --log-file /tmp/psiv-meeting-rika-retail-godot.log \
   --path godot --quit-after 300000 \
   > /tmp/psiv-meeting-rika-retail.log 2>&1
@@ -513,12 +514,11 @@ is claimed until the pairs run under the required Xvfb/X11 harness.
 Title certification:
 
 ```sh
-GODOT=/home/peter/.local/bin/psiv-godot-4.7.1
 xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 PSIV_DEBUG_SCENE_TICKS=1 \
   PSIV_DEBUG_TITLE_SHOT=1 \
   PSIV_DEBUG_SHOT=/tmp/psiv-title-xvfb-480.png \
   PSIV_DEBUG_SHOT_FRAME=480 \
-  timeout 180s "$GODOT" --log-file /tmp/psiv-title-godot.log \
+  timeout 180s "$PSIV_GODOT" --log-file /tmp/psiv-title-godot.log \
   --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
   --path godot --quit-after 300000 \
   > /tmp/psiv-title-xvfb-480.log 2>&1
@@ -529,12 +529,11 @@ python3 psiv_tools/presentation_rmse.py \
 Camp certification:
 
 ```sh
-GODOT=/home/peter/.local/bin/psiv-godot-4.7.1
 xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 PSIV_DEBUG_SCENE_TICKS=1 \
   PSIV_DEBUG_CAMP=1 \
   PSIV_DEBUG_SHOT=/tmp/psiv-camp-xvfb-60.png \
   PSIV_DEBUG_SHOT_FRAME=60 \
-  timeout 180s "$GODOT" --log-file /tmp/psiv-camp-godot.log \
+  timeout 180s "$PSIV_GODOT" --log-file /tmp/psiv-camp-godot.log \
   --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
   --path godot --quit-after 300000 \
   > /tmp/psiv-camp-xvfb-60.log 2>&1
@@ -545,12 +544,11 @@ python3 psiv_tools/presentation_rmse.py \
 Battle certification uses the same wrapper and a settled shot at tick 200:
 
 ```sh
-GODOT=/home/peter/.local/bin/psiv-godot-4.7.1
 xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 PSIV_DEBUG_SCENE_TICKS=1 \
   PSIV_DEBUG_BATTLE=0x88 \
   PSIV_DEBUG_SHOT=/tmp/psiv-battle-xvfb-200.png \
   PSIV_DEBUG_SHOT_FRAME=200 \
-  timeout 180s "$GODOT" --log-file /tmp/psiv-battle-godot.log \
+  timeout 180s "$PSIV_GODOT" --log-file /tmp/psiv-battle-godot.log \
   --display-driver x11 --rendering-method gl_compatibility --rendering-driver opengl3 --audio-driver Dummy \
   --path godot --quit-after 300000 \
   > /tmp/psiv-battle-xvfb-200.log 2>&1
@@ -629,9 +627,8 @@ already pre-empted.
 
 - **Scene-wide fidelity:** the certification table above records completed
   MeetingRika, title and camp frame comparisons. The earlier Xvfb-blocked
-  certification task is closed. Those frames do not certify whole scenes;
-  [BIOPLANT_NATIVE.md](../campaign/BIOPLANT_NATIVE.md) records the later Rika fixture,
-  palette limits and unfinished connected join/escape.
+  certification task is closed. Those frames do not certify whole scenes,
+  and the Rika fixture's palette writes remain unverified against a full scene.
 - **Chest splinter's 66 unmapped patterns:** retained as transparent holes
   because the retail scene mapping consumes VRAM left by another runtime load;
   no source-of-truth pixels for those slots were found in the declared upload.

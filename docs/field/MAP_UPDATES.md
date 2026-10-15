@@ -1,4 +1,4 @@
-# Per-frame map updates — Issue #41
+# Per-frame map updates
 
 Tracking: [Issue #41](https://github.com/TusanHomichi/PSIV/issues/41).
 
@@ -8,15 +8,11 @@ list terminated by `$FF`. A nonzero return would stop the list, but all 64
 retail entries return zero. Sources: `ps4.asm:112859-112953`, confirmed against
 US bytes, not the fork's assembled-address annotations.
 
-## Outcome and acceptance
+## Scope
 
-Scope: decode all lists/tables into an additive ignored pack, execute every
-modeled routine through the field frame, expose precise missing-input records,
-and draw runtime-owned palette state in Godot. Acceptance is the brief's
-workspace/Python/style/docs gates, release campaign, pack comparison and eleven
-certified captures. No scene transcription or spaceship-menu changes belong here.
-The owner-supplied Issue #41 brief is the work graph: census → extraction →
-runtime/view → renderer → focused controls → frozen checks → local commit.
+The pack carries every decoded update list and table; the runtime executes
+every modeled routine inside the field frame and reports the inputs it does not
+model yet (below); Godot draws the runtime-owned palette state.
 
 ## Frame ownership and ordering
 
@@ -240,139 +236,3 @@ resulting palette. **Rung 2** guards reject malformed decoded tables and
 non-additive pack edits. The existing deterministic pack inventory guard now
 counts declared additive index images rather than treating every extra PNG as
 an overlay. Its no-overlay check still rejects an unwanted overlay/index image.
-
-## Lane receipt
-
-Base `3344f183232d24b802d5dd58f0a4a4e0424bd964`; branch `cx/x41-mapupdates`.
-Review is **self-review**, not an independent-model review. The brief authorized
-a local commit only; no push, merge or issue mutation was performed. H25 is
-absent in this base's and the owner's available
-`RUNNER_LOG.md`; `gh issue view 41 --comments` exited 1 (API connection failed),
-so the owner-supplied brief supplied the issue facts.
-
-### Pack and inputs
-
-The ROM, `reference`, `runtime-pack` and `oracle/gpgx-src` are existing read-only
-symlinks into `/home/peter/PSIV`. This lane supplied 184 ignored per-PNG symlinks
-from the owner's `oracle/fixtures/battle_animation_art` and copied six ignored
-certification oracle frames. The source directories and tracked fixture README
-were preserved. `build/x41-evidence/local-inputs.json` records targets and hashes.
-No source campaign save was used; the native-water save is an explicit Session
-placement fixture with SHA256
-`8f5dfee36f1eb871fbeedc78f61d5d9cc3f70c03727c141e0daf2e1013920b77`.
-
-Fresh pack: `build/x41-pack`; manifest SHA256
-`f76e53a2b77df6a593547bde1ece582ba852e4524b14d8aa4b2b24dd4bed87e3`.
-Accepted manifest:
-`7fe1e64abfb4d55230a1039f5ac2deea4b45f6e94e5b029bba10107a39a016de`.
-The strict comparison accounts for 4,788 original files: 4,426 original
-binary/other files byte-identical, 361 map JSON files changed only additively,
-and the manifest changed only by the census and correct map JSON hashes.
-All 284 additions are declared index images. Zero non-additive differences.
-Receipt: `build/x41-evidence/pack-comparison.json`.
-
-The parallel-lane manifest hunk is self-contained: in
-`psiv_tools/pack_manifest.py::write_manifest`, add only
-`"map_updates": state["updates"]["census"]` before `map_effects`.
-`scene_patch_chunks`, scene transcription, `docs/scenes` and runtime `session`
-were not edited. `pack.py` remains 999 lines.
-
-### Commands and results
-
-Heavy commands ran one at a time under
-`/home/peter/PSIV/build/continuation-heavy.lock`. Rust commands used
-`CARGO_BUILD_JOBS=2`; full and focused Rust tests used `--test-threads=1`.
-Pack consumers ran with `PSIV_RUNTIME_PACK=$PWD/build/x41-pack`; Python discovery
-also used `PYTHONPATH=.`. Raw logs and command/exit/timing JSON receipts are in
-`build/x41-evidence/`. Candidate source hashes are `candidate-1.json` through
-`candidate-7.json`; only receipt text changed after the last source freeze.
-
-| Actual command | Result | Evidence stem |
-| --- | --- | --- |
-| `python3 -m psiv_tools pack 'Phantasy Star IV (USA).md' build/x41-pack` | exit 0; 361 maps; 222.282 s | `pack` |
-| `python3 -m psiv_tools.map_updates_compare runtime-pack build/x41-pack --report build/x41-evidence/pack-comparison.json` | exit 0; additive-only comparison above | `pack-comparison` |
-| `python3 -m unittest discover -s tests -p test_map_updates.py` | exit 0; 11 passed | `python-focused` |
-| `cargo test --offline --manifest-path rust/Cargo.toml -p psiv-runtime --test session_map_updates --test session_map_updates_palette -- --test-threads=1` | exit 0; 11 + 6 passed; native fixture generated with `PSIV_MAP_UPDATES_NATIVE_SAVE` | `rust-classes` |
-| `cargo test --manifest-path rust/Cargo.toml -p psiv-core --lib scene_runner::map_update_tests -- --test-threads=1` | exit 0; 2 passed, 594 filtered | `core-map-loops` |
-| `python3 -m unittest discover -s tests` | exit 0; 1,252 passed, zero skips; 757.564 s | `python-workspace` |
-| `cargo test --manifest-path rust/Cargo.toml --workspace -- --test-threads=1` | exit 0; 38 targets, 1,308 passed, zero failed, 3 ignored; 871.492 s | `workspace`, `workspace-summary` |
-| `cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings` | exit 0; 6.092 s | `clippy` |
-| `cargo fmt --manifest-path rust/Cargo.toml --all --check` | exit 0 | `fmt` |
-| `python3 tools/size_guard.py` | exit 0; 1,039 files, 120 exempt, zero oversized | `size_guard` |
-| `python3 tools/check_docs.py` | exit 0; zero problems | `check_docs` |
-| `git diff --check` | exit 0 | `diff-check` |
-| `cargo build --release --manifest-path rust/Cargo.toml -p psiv-campaign` | exit 0; 65.879 s | `release-build` |
-| `./rust/target/release/psiv-campaign run rust/psiv-campaign/routes/main.json --save-dir build/x41-route --tape build/x41-route/run.tape --report build/x41-route/report.json` | exit 0; completed, 37.324 s | `route` |
-| `python3 tools/certify.py` | exit 1; zero captures, all 11 Godot launches exit 1; 40.084 s | `certify` |
-
-The three Rust ignores are the two opt-in long campaign tests and the manifest
-harvesting utility. The required release route was run separately, not skipped.
-Some legacy runtime suites hardcode the accepted `runtime-pack`; that symlink
-was not rebound. Data-pack integration tests, the new Session targets and the
-release campaign explicitly use the fresh pack. Python pack fixtures rebuild
-from the ROM; the environment variable does not redirect every fixture.
-
-### Failures, controls and visual limit
-
-The once-run runtime controls used private copied map JSONs, never the source
-pack: `PSIV_MAP_UPDATES_NEGATIVE_CONTROL=omit_dispatch` with the exact Canceller test
-exited **101**, one expected failure; `water_phase` with the exact Aiedo test
-exited **101**, one expected failure at frame 8. Full argv, temporary paths and
-assertions are in `negative-canceller.{json,log}` and `negative-water.{json,log}`.
-Python structural mutation controls and Rust table-bound controls pass by
-rejecting their corrupt input.
-
-The first full Python run exited 1: 1,252 cases, two obsolete inventory
-expectations (13 versus 9 map files; The Edge's declared index image omitted).
-Both were repaired, passed together (exit 0, two cases), then the full suite
-passed. A focused Rust run initially had a stale no-op fixture failure; Clippy
-initially rejected a Godot material null-argument type. The final scene-loop
-test first had a temporary-slice lifetime compile error, then a nonblocking
-camera fixture error. All were repaired. Two stale workspace runs were stopped
-with exit 130 and are **not passes**. Unique attempt logs, interruption records
-and `early-failure-history.json` preserve observed failures; that history labels
-early overwritten logs honestly.
-
-Latest certification receipt:
-`build/certify/20261004T044623Z-3344f18/certify.json`. Godot 4.7.1 and Xvfb exist,
-but the sandbox denies both filesystem and abstract X11 socket connections
-with `EPERM`; `x11-sandbox.json` and `x11-socket.log` record the direct probe.
-No RMSE or byte-identical-capture claim is established. The Aiedo native probe
-also exits 1 before drawing (`native-water.{json,log}`); its first attempt
-aborted with exit 134 on an unwritable default Godot log, repaired by an explicit
-worktree log path. Its GDScript syntax check exits 0 (`native-water-parse.log`).
-Actual shader upload, rendered palette pixels and fresh-process CONTINUE remain
-unverified. `tests/map_update_water_native.gd` is the opt-in input-only probe;
-it requires the fixture's explicit `PSIV_SAVE_DIR`, `PSIV_DEBUG_ROUTE=1` and
-`PSIV_MAP_UPDATES_NATIVE_OUTPUT` pointing at a new capture directory.
-
-### Campaign result and next action
-
-The tracked route completes **all 29 chapters**, New Game through post-Zio,
-in **2,615,778 frames**, digest **`949c2abe3342e838`**. This is the existing
-route's scope, not full retail campaign completion or a connected Zelan visit.
-Its tape SHA256 is
-`892dfce15918f8d79bdad0bdf9f6699b53179ef70026f1a4c2d38cc302f4835a`;
-the ordinary pad SAVE and separate final chapter checkpoint both hash to
-`4aeff0b18e219836bec033fb1ee15e26cc93484875fabd25adda67dd0472ec62`.
-These match the recorded baseline's digest, tape and saves. No update-specific
-RNG draw occurs on this route (the only such draw is Rykros `$2A`), and the map
-updates cause no final-state digest change. Full binary/route/tape/save hashes:
-`build/x41-evidence/route-hashes.json`; report: `build/x41-route/report.json`.
-
-Local commit is blocked by the execution environment: the common Git directory
-is writable, but `/home/peter/PSIV/.git/worktrees/x41-mapupdates` is explicitly
-mounted read-only. Explicit-path `git add` exits 128 creating `index.lock`.
-The branch still points at the base SHA; no source files are staged and no
-commit was created. `build/x41-evidence/git-staging-blocked.{json,log}` records
-the exit and mount evidence. `delivery.patch`, `source-files.json` and
-`commit-message.txt` in that directory provide a reviewable handoff; the message
-ends with the requested `Co-Authored-By: GPT-6.1-Sol <noreply@openai.com>` trailer.
-No protected Git metadata was remounted, replaced or bypassed.
-
-Next action: the orchestrator stages the explicit file list and commits on this
-branch outside the metadata-restricted sandbox, then runs certification and
-the Aiedo native probe outside the display restriction with this fresh pack
-before claiming visual acceptance or integrating. Issue #41 retains the three missing buffers,
-undrawn scroll records, sprite recoloring and scene-glide/ice-loop caller gaps
-described above. No owner decision or new write-set expansion was assumed.

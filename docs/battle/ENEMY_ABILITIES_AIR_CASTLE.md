@@ -65,7 +65,7 @@ shares the route uncaptured.
   and no second of the actor's own kind (`ps4.asm:21628-21653`). The port fired for
   a BladeRight with no partner at all, so the Air Castle's BladeRights (formations
   `$16A`, `$175`, `$176`: no HakenLeft) "combined" where the cartridge never does -
-  the COMBINE halts of [H38](../campaign/RUNNER_LOG_ICEDIGGER.md#h38-the-air-castles-walk-meets-abilities-the-engine-does-not-run).
+  the campaign runner's COMBINE halts on the Air Castle walk.
   Fixed in `enemy_ai.rs` (`pair_ready`); the BladeRights of group 52 now breathe
   fire. **Negative control:** the old rule makes `air_castle/combine` diverge at
   round 2's end state (slot 6 STR 90 for 80).
@@ -158,8 +158,8 @@ built from it (`python3 -m psiv_tools pack`, which carries the inline formations
   `ff9fbc995dc5b82a` - the cutscene field reload owned by another lane, and the
   same frames and digest as the base revision's own probe of the route
   (`build/c26-route-probe2`): nothing in this lane changes the route's prefix.
-- **The dropped chapter, restored.** `air-castle-xe-athoul-room` from
-  [H38](../campaign/RUNNER_LOG_ICEDIGGER.md#h38-the-air-castles-walk-meets-abilities-the-engine-does-not-run),
+- **The dropped chapter, restored.** `air-castle-xe-athoul-room`, which the
+  runner had dropped at the COMBINE halt,
   without its `wait 7`, appended to a scratch copy of the route and run with
   `--from-chapter` from the `air-castle-arrival` save of the base's last
   completed candidate (`slot_1.sram` SHA-256 `06feecfa…41d7`): **completed**,

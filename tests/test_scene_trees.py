@@ -4,7 +4,8 @@
 
 `Cutscene_AlysWounded` and `Cutscene_PsycoWand` read Krup Inn F1's tree 5 in
 this port where the cartridge loads `DialogueTree6` first, and the scene
-faulted the moment its dialogue entry landed on an empty line (runner log H17).
+faulted the moment its dialogue entry landed on an empty line
+(`docs/scenes/REVISION_AUDIT.md`).
 Every one of the four missed loads sat under `if revision>0`, so an op-count
 test could not see it: the transcriptions had skipped a conditional class.
 

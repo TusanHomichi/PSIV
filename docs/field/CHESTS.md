@@ -107,8 +107,6 @@ that branch is still missing. Its exact window geometry, two initial full
 pack acknowledgements and original input timing also need comparison.
 Chest-specific event staging (including the Psycho Wand and fake chest),
 late map-object rewrites and a connected campaign route through these
-treasures remain separate work. The connected Tonoe basement run now passes
-in `build/native-alshline`: normal acquisition of item 141, its conversation,
-return to Tonoe, SAVE and fresh-title Continue. `../campaign/NATIVE_PLAYABILITY.md` records
-its exact source chain and ending resources. Other chest-specific story paths
-still need connected proof.
+treasures remain separate work. The campaign route opens the Tonoe basement
+chest (item 141) with ordinary input; other chest-specific story paths still
+need connected proof.

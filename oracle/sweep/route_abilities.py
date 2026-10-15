@@ -126,7 +126,7 @@ STRETCHES = {
     ),
     # The route past Dark Force 1 (C7): Zelan F1 on the Ice Digger, Meese, the
     # carnivorous trees, the Esper Mansion, the Gumbious Temple and the flight to
-    # the Air Castle (docs/scenes/99-101, RUNNER_LOG_ICEDIGGER.md). The route
+    # the Air Castle (docs/scenes/99-101). The route
     # ends at the Air Castle's landing, because the walk on from it meets
     # abilities the engine does not run; the stretch covers that walk and the
     # fixed battles ahead, so the enemy-ability lane that closes them can read

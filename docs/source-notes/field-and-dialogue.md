@@ -42,7 +42,7 @@ The prior native runtime ignored the extracted hook list. The repaired pack
 and Rust consumer retain the source records, compose both planes and apply
 flag-gated collision, raw chunk identity and render patches on map build.
 Same-map live page streaming after a flag change remains unimplemented; see
-[MAP_EFFECTS.md](../field/MAP_EFFECTS.md#12-native-overworld-page-hook-consumption-2026-09-23).
+[MAP_EFFECTS.md](../field/MAP_EFFECTS.md#12-native-overworld-page-hook-consumption).
 
 Zema's inn row `$068116` is `01 14`, rate 20 per occupied party slot; its
 keeper row is `$0683A4`. Five members pay 100. `RecoverStats` starts at
@@ -51,8 +51,6 @@ keeper row is `$0683A4`. Five members pay 100. `RecoverStats` starts at
 skill-use counters. The older address in `../camp/SHOPS.md` and shop_flow.py's docstring
 is corrected; no recovery rule changed.
 
-Raw byte receipts and the retained native failure live under
-`build/native-post-rika-20260923/`. The original bridge video comparison uses
-explicitly isolated SRAM position fixtures, not connected cartridge play.
-Their Y word is `(standing_y-1)*16`, accounting for the separately documented
+The bridge video comparison uses explicitly isolated SRAM position fixtures,
+not connected cartridge play. Their Y word is `(standing_y-1)*16`, accounting for the separately documented
 legacy native save-coordinate gap without modifying any campaign save.

@@ -2,7 +2,7 @@
 
 - **Retail bytes:** `$06DEAE..$06DEBD` inclusive, 16 bytes.
 - **Pointer:** `EventPtrs[$2A]` at `$05A2B4`; event `$002A`.
-- **Trigger:** Zelan F1 `$18E`, `RunEventsJmpTbl[$55]`, the elevator reminder (runner log H26, issue #56): the party reached the elevator before opening the Canceller chest.
+- **Trigger:** Zelan F1 `$18E`, `RunEventsJmpTbl[$55]`, the elevator reminder (issue #56): the party reached the elevator before opening the Canceller chest.
 - **Data:** `census_events.rs`, `CANCELLER_REMINDER` (2 ops).
 
 ## Clone audit

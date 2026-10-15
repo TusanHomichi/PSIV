@@ -250,19 +250,16 @@ its own table, the flag blocks are read door by door, and `KosDecomp` is the
 routine the layout-replace sites agree on — so a ROM that disagrees fails
 rather than decoding something else.
 
-## 12. Native overworld page-hook consumption (2026-09-23)
+## 12. Native overworld page-hook consumption
 
-The connected post-Rika route exposed an omitted consumer: the pack already
-decoded the page hooks, but `MapRecord` discarded them and the runtime built
-the unpatched world. With `$35` set, the party still stopped at Motavia
-`(84,68)` below a broken bridge. The retained failure is
-`build/native-post-rika-20260923/attempt-02/route/failure.json`.
+The overworld's page hooks are flag-gated map patches the runtime must apply:
+without them, with `$35` set, the party stops at Motavia `(84,68)` below a
+broken bridge.
 
 US retail `loc_53D16` at `$053D16..$053D39` tests event `$35`, clears FG chunk
 `(42,33)` to `$00`, and writes BG chunk `$48`. The four collision cells
-`(84..85,66..67)` change from water `$9` to normal `$0`. The inn and route
-conditions, connected input result and SAVE/CONTINUE receipts belong in the
-[travel ledger](TRAVEL.md#post-rika-northern-crossing-2026-09-23).
+`(84..85,66..67)` change from water `$9` to normal `$0`
+([the northern bridge](TRAVEL.md#the-northern-bridge-after-rika-joins)).
 
 `resolve_overworld_patches` retains the raw hook list and emits a separate
 `overworld_patches` list. Each flag group folds its ordered plane writes over
