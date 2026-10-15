@@ -13,7 +13,7 @@ Enemy 34 ZolSlug has eight empty regular ability slots and four copies of
 conditional ability `$12` FUSION behind `EnemyAI_ZolSlugs`. The Passageway to
 Zio's fort (`$081`, group 29; formations `$D2`-`$D4`) is the only map that meets
 them, and the campaign runner passed it only because `run_unless_boss` escapes
-before the roll (`docs/campaign/RUNNER_LOG.md`, H15). This file is the rule the
+before the roll. This file is the rule the
 port now runs, from `rust/psiv-core/src/battle/enemy_fusion.rs`; the capture is
 `BATTLE_ORACLE_ARC.md`. The wider ledger is
 [`ENEMY_EFFECT_ABILITIES.md`](ENEMY_EFFECT_ABILITIES.md).

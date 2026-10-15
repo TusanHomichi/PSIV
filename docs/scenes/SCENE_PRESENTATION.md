@@ -629,9 +629,8 @@ already pre-empted.
 
 - **Scene-wide fidelity:** the certification table above records completed
   MeetingRika, title and camp frame comparisons. The earlier Xvfb-blocked
-  certification task is closed. Those frames do not certify whole scenes;
-  [BIOPLANT_NATIVE.md](../campaign/BIOPLANT_NATIVE.md) records the later Rika fixture,
-  palette limits and unfinished connected join/escape.
+  certification task is closed. Those frames do not certify whole scenes,
+  and the Rika fixture's palette writes remain unverified against a full scene.
 - **Chest splinter's 66 unmapped patterns:** retained as transparent holes
   because the retail scene mapping consumes VRAM left by another runtime load;
   no source-of-truth pixels for those slots were found in the declared upload.

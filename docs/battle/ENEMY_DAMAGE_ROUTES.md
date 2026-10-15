@@ -460,8 +460,8 @@ table cites label lines and the request lines themselves.
 ### The Zio-arc rows: FIREBREATH, ZAN, FORCEFLASH, CORRSION (2026-10-02)
 
 Sixteen of the rows above became `DAMAGE_SKILL_ROUTES` entries on 2026-10-02, for
-the abilities the campaign runner stops on in Zio's fort and behind it
-(`docs/campaign/RUNNER_LOG.md` H15 and H16). Each was read again from its own
+the abilities the campaign runner stopped on in Zio's fort and behind it.
+Each was read again from its own
 citations before the row was added, and each was then captured from the
 cartridge and replayed through the fixture — the captures, their rounds and
 their verdicts are [`BATTLE_ORACLE_FORCED.md`](../oracle/BATTLE_ORACLE_FORCED.md)

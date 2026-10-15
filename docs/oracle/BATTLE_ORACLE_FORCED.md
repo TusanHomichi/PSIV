@@ -197,7 +197,6 @@ same formation as the third, forced with `--vehicle 2` so the battle loads the
 
 | | formation `$5E` | formation `$37` | formation `$53` |
 |---|---|---|---|
-| capture | `build/lane-evidence/f94` | `build/lane-evidence/f37` | `build/lane-evidence/f53` |
 | formation | 2 Helex (id 0, hp 90) | 2 Fanbite (id 15, hp 261) | 1 Desrt Leach (id 81, hp 1040) |
 | group | 44 | 4 | 8 |
 | selector | `map 351` (Hangar), one cell | `grid`: world map 0, cell (36,4) | `vehicle`: table 8 |
@@ -210,8 +209,6 @@ same formation as the third, forced with `--vehicle 2` so the battle loads the
 | battle window | f24794-25616 | f24794-25166 | f24794-26872 |
 | outcome | defeat (Alys, Chaz, Hahn all at 0 HP) | defeat (all three at 0 HP) | **victory**: the Desrt Leach at 0 HP, the vehicle at 378 HP, +1500 exp, +1 meseta |
 | ability id used | `$02` FLAME BOLT - enemy 2 at f25003, enemy 1 at f25125 | `$08` SPIRAL BLD - enemy 2 at f24903 | `$37` SAND STORM - enemy 1 at f25839 |
-| trace sha256 | `b1e96472d9282c9172fea59f6e93d92209189047f90887e9049ad861fac86abe` | `e74f0d6645295ec4ec1296ba2b6687262ba547595c96db70d5b325cbdcc09257` | `aa133d61288c886b34af14572a4ef9080fc59e47bd20bbce02a011daf06a214b` |
-| log sha256 | `b4ed383d91ea7ea7895ffbf559fd766be3d1317a80a9619b2be379442f3dd349` | `86c6e5e7e41a324d2c4a68a720c78e4dc9de9f1609ee46331a521172655b1a30` | `33f19744e8fd485c625a81b302c8a979af567463ce46c731a028b98afe13a0c3` |
 
 "the captured battle is that formation" is the tool's own check, not a reading
 of the report: the ids *and* the HP per enemy slot must equal
@@ -535,8 +532,6 @@ sit in no other group.
 | round 1's swing | 3 hit passes (f25059, f25060, f25072) + 16 draws at f25098 summing 52 -> 165 | 2 hit passes (f25058, f25059) + 16 draws at f25075 summing 51 -> 212 |
 | outcome | victory, the Leach at 0 HP, +1500 exp, +1 meseta | victory, +1500 exp, +1 meseta |
 | ability id used | `$37` SAND STORM at f25839 | `$37` SAND STORM at f25416 |
-| trace sha256 | `aa133d61288c886b34af14572a4ef9080fc59e47bd20bbce02a011daf06a214b` | `ae50eaaeee6383f4cb0e7ddde9f702ae5fe9da1ef08d63a033ad7f999f6ff288` |
-| log sha256 | `33f19744e8fd485c625a81b302c8a979af567463ce46c731a028b98afe13a0c3` | `5226afa4697307aa240a9fd047ab5a82a5975399e7648944463594116df6e2e9` |
 
 The Ice Digger capture's log pin carries this lane's `# rom=` line (section 3);
 its trace pin does not.
@@ -649,8 +644,8 @@ whole region's captures found with them are
 
 ## 6. The Motavia arc: FIREBREATH, ZAN, FORCEFLASH, CORRSION (2026-10-02)
 
-The [campaign runner](../campaign/RUNNER_LOG.md) stops in Zio's fort: H16 halts on
-`unsupported ability 71/86` (Juza's ZAN and FORCEFLASH) and H15 on ability 33
+The [campaign runner](../campaign/CAMPAIGN_RUNNER.md) stopped in Zio's fort on
+`unsupported ability 71/86` (Juza's ZAN and FORCEFLASH) and on ability 33
 (FIREBREATH) in the fort's own encounters. The four abilities they name are the
 Zio-arc damage routes — `$21` FIREBREATH, `$47` ZAN, `$56` FORCEFLASH, `$4D`
 CORRSION — and this section is their cartridge evidence: one forced capture each,
@@ -741,8 +736,7 @@ number at all.
   not drive: his ZAN and FORCEFLASH arms are the same `EnemyAttack_Juza` arms
   100 TechMaster's and 115 Greneris's captures exercise, and the port's own
   ZAN row for 114 is the same object chain, but no fixture replays *his*
-  battle. The campaign runner's own run of it is the check for that
-  (`docs/campaign/RUNNER_LOG.md`, which the orchestrator runs at integration).
+  battle. The campaign route's own run of it is the check for that.
 - **A win, or a round the party lives through.** Every capture here ends in the
   party's defeat, so the fixtures prove the enemies' turns and the damage they
   deal, not what the party's commands did afterwards.

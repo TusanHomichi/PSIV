@@ -2,33 +2,28 @@
 
 PSIV reconstructs the US retail game as a native Rust/Godot runtime. Match
 cartridge behavior, document deliberate deviations, and keep the unmodified
-game playable without an editor or agent service. Modding follows a complete
-base-game playthrough.
+game playable without an editor or agent service. The release bar and
+platforms are in [the roadmap](docs/ROADMAP.md).
 
 ## Start here
 
 Check applicable instructions (including `AGENTS.override.md`),
 `git status --short --branch`, worktrees and relevant build/game processes before
-editing. Preserve others' changes. Use [README.md](README.md) for current scope,
-[the roadmap](docs/ROADMAP.md) for the canonical task-graph pointer, and
+editing. Preserve others' changes. Active work is GitHub issues; use
+[the roadmap](docs/ROADMAP.md) for the release bar and
 [the workflow](docs/AGENT_WORKFLOW.md) for planning, authority, evidence and handoff.
-Read only the relevant [subsystem ledger](docs/README.md) and source; use
+Read only the relevant [subsystem document](docs/README.md) and source; use
 [DEVELOPMENT.md](docs/DEVELOPMENT.md) when preparing checks and
 [RUNTIME_DESIGN.md](docs/RUNTIME_DESIGN.md) for layer boundaries.
 Find a feature's owning paths and focused test in the [feature map](docs/FEATURE_MAP.md).
 
-Define an observable outcome and acceptance before implementation. Substantive
-dependent work uses one graph; simple changes use a short plan. Verified results
-unlock dependencies. New ideas do not change scope, permissions or acceptance.
+Define an observable outcome and acceptance in the issue or PR before
+implementation. New ideas do not change scope, permissions or acceptance.
 
 ## Roles
 
-An orchestrator scopes, decides architecture and permissions, reviews and
-integrates; delivery workers own implementation through checks, repair,
-evidence and closeout. The split, delegation contract and routing honesty
-rules are in [the workflow](docs/AGENT_WORKFLOW.md#roles-and-delegation).
-Which model or tool fills a role is host-local configuration, never tracked
-guidance.
+Roles, the delegation contract and routing honesty are owned by
+[the workflow](docs/AGENT_WORKFLOW.md#roles-and-delegation).
 
 ## Fix the class, not the instance
 
@@ -37,8 +32,7 @@ guidance.
   [correction ladder](docs/AGENT_WORKFLOW.md#correction-ladder). The PR names
   the rung it used.
 - The codebase is memory: keep
-  [one paved path per concern](docs/AGENT_WORKFLOW.md#the-codebase-is-memory).
-  A known gap is an issue link, not a code comment.
+  [one paved path per concern, with gaps as issue links](docs/AGENT_WORKFLOW.md#the-codebase-is-memory).
 - Verify through the repository's own entry points; a check needed twice is
   promoted into the repo ([DEVELOPMENT.md](docs/DEVELOPMENT.md#gate-and-coverage)).
 - Each rule has one [owning document](docs/README.md#rule-owners); link to it
@@ -46,14 +40,13 @@ guidance.
 
 ## Retail and layer boundaries
 
-Keep deterministic rules in `psiv-core`, orchestration in `psiv-runtime`, pack
-decoding/schema in Python/`psiv-data`, sound in `psiv-sound`, and presentation/input
-in Godot/the bridge. Do not duplicate rules in Godot or test drivers.
+Each concern stays in the layer [RUNTIME_DESIGN.md](docs/RUNTIME_DESIGN.md#data-and-runtime-layers)
+assigns it; do not duplicate rules in Godot or test drivers.
 Preserve retail integer widths, signedness, flag banks, ordering and RNG semantics.
 Cite symbols/offsets and record deviations in [docs/source-notes/README.md](docs/source-notes/README.md).
 The reference fork contains Grand Cross rewrites: confirm US retail bytes, not
 hack scene bodies or fork build-address comments. Ability names and genre
-conventions do not establish rules. Follow ledger corrections; resolve conflicts
+conventions do not establish rules. Follow recorded corrections; resolve conflicts
 against source and fresh observations.
 
 ## Protect local inputs and evidence
@@ -80,9 +73,10 @@ against source and fresh observations.
   ([workflow table](docs/AGENT_WORKFLOW.md#find-the-smallest-useful-verification));
   add meaningful regression coverage for gameplay fixes and a negative control
   for a new correctness check.
-- The gate's commands, prerequisites and coverage limits are in
-  [DEVELOPMENT.md](docs/DEVELOPMENT.md#run-checks). Run Python, Rust and oracle
-  heavy checks sequentially; parallel pack-loading runs exhaust memory.
+- The gate's commands, prerequisites and coverage limits, and the shared lock
+  that serializes heavy runs, are in [DEVELOPMENT.md](docs/DEVELOPMENT.md#run-checks).
+  Run Python, Rust and oracle heavy checks one at a time; parallel
+  pack-loading runs exhaust memory.
 - Freeze a reviewed candidate before expensive gates. Relevant code, tests or
   gate-input changes invalidate affected results. Preserve actual commands,
   revisions, hashes, timing, exit status, failures and skips; inspect raw evidence.
@@ -98,12 +92,12 @@ against source and fresh observations.
 
 ## Finish the task
 
-Continue scoped repairs until acceptance passes, with no fixed cycle limit
-(owner decision, 2026-09-23). This does not expand scope or grant publication or
-spending authority. Reuse existing authorization; see the workflow's permission
-record. Update the relevant ledger, and the overview/roadmap when a milestone
-closes. Archive completed graphs before advancing; retain one next action.
-Continue ready authorized tasks without asking again. Before a requested commit,
+Continue scoped repairs until acceptance passes, under the
+[effort policy and permission record](docs/AGENT_WORKFLOW.md#authority-effort-and-continuation).
+Put the result, checks and evidence in the PR; update a document only when the
+behavior, commands or retail findings it describes changed, and the README or
+roadmap when a release item closes. Continue ready authorized tasks without
+asking again. Before a requested commit,
 ensure writers are idle and inspect the staged list/diff. Finish through any
 authorized integration and owned cleanup; preserve unrelated work and evidence.
 Report actual checks, limits, Git state and the next concrete step.

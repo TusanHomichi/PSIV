@@ -430,8 +430,8 @@ and conditional-only damage routes in §6:
   object's `$38`.
 - `$21` FIREBREATH, `$47` ZAN, `$56` FORCEFLASH and `$4D` CORRSION → the same
   `enemy_damage::resolve_damage_skill`, added 2026-10-02 for the Motavia arc
-  (`docs/campaign/RUNNER_LOG.md` H15/H16: the runner stops at Juza on ZAN and
-  FORCEFLASH, and the fort's and tower's encounters meet FIREBREATH). Sixteen
+  (the campaign runner stopped at Juza on ZAN and FORCEFLASH, and the fort's
+  and tower's encounters meet FIREBREATH). Sixteen
   `(enemy, ability)` pairs: FIREBREATH for 58/59/83/84/117 (one `$38` request
   each, `firebreath` family), ZAN for 100/114 and FORCEFLASH for 114/115/116
   (the all-party class — 100's object writes `#$C` to the five slots at line

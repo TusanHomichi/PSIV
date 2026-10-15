@@ -47,6 +47,4 @@ scene content and treat the fork's scene files as adversarial. (Dialogue tree
 
 Scene rules live in `rust/psiv-core/`; runtime and Godot consume their effects.
 The implemented oracle uses a headless Genesis Plus GX host; see
-[oracle setup](../../oracle/README.md). Current coverage and the distinction
-between isolated scenes and connected play are recorded in
-[the playability ledger](../campaign/NATIVE_PLAYABILITY.md).
+[oracle setup](../../oracle/README.md).

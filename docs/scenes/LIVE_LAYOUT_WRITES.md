@@ -15,7 +15,7 @@ missing the first of them:
    `Event_MachineCenterAppearing` (`$06B5CE`) — and neither calls `RefreshMap`.
 2. the overworld page hooks (`loc_53BDC`/`loc_53CD4`), which retail replays per
    1 KB page copy and this port applies at map construction
-   ([map effects §12](../field/MAP_EFFECTS.md#12-native-overworld-page-hook-consumption-2026-09-23)).
+   ([map effects §12](../field/MAP_EFFECTS.md#12-native-overworld-page-hook-consumption)).
    The two overworld writes below have page-hook *twins* gated on the same flag,
    which is how the pack corroborates their coordinates.
 3. a whole-map reload the scene asks for, which is the ordinary `LoadMap` op.
@@ -129,5 +129,4 @@ the load hook cannot substitute for the scene's animation.
 all five source rows, plain atlas pixels and priority pixels against a
 one-chunk map render, collision nibbles, and the manifest census. Negative
 controls reject truncated/missing/early terminators and exclude Dezolis from
-the temple chunk census. See the [#67 receipt](43_CrashLanding.md#67-delivery-receipt)
-for the rebuilt pack and verification boundaries.
+the temple chunk census.

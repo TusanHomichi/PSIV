@@ -1,8 +1,8 @@
 # Battle system: retail research
 
 Research began 2026-08-15. This document records cartridge routines and
-measurements. The battle engine is implemented; current command gaps belong
-in [the roadmap](../ROADMAP.md) and [playability ledger](../campaign/NATIVE_PLAYABILITY.md).
+measurements. The battle engine is implemented; remaining gaps are GitHub
+issues labeled `gameplay-fidelity`.
 Use [runtime architecture](../RUNTIME_DESIGN.md) for settled design decisions.
 
 Method note: every retail address below was **verified against the cartridge**

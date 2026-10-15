@@ -30,6 +30,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tools.repo_files import repo_files
+
 ROOT = Path(__file__).resolve().parents[1]
 CHECKER = ROOT / "tools" / "check_docs.py"
 
@@ -50,6 +52,49 @@ def git_env(home):
 def lines(*parts):
     """A file body, one newline-terminated line per part."""
     return "".join(part + "\n" for part in parts)
+
+
+YAML_LANGS = ("yaml", "yml")
+
+
+def yaml_block_count(texts):
+    """How many closed `yaml`/`yml` fenced blocks `texts` hold, counted here.
+
+    Deliberately not the checker's own parser: a fence opens with three or
+    more backticks or tildes behind at most three spaces (a backtick fence's
+    info string holds no backtick) and closes on a line of at least as many of
+    the same character. A block left open at the end of a file is never
+    checked, so it is not counted.
+    """
+    count = 0
+    for text in texts:
+        fence = None  # (character, length, is_yaml)
+        for line in text.splitlines():
+            body = line.lstrip(" ")
+            if len(line) - len(body) > 3:
+                continue  # indented code or block content, never a fence line
+            if fence is None:
+                char = body[:1]
+                run = len(body) - len(body.lstrip(char)) if char in ("`", "~") else 0
+                info = body[run:].strip()
+                if run >= 3 and not (char == "`" and "`" in info):
+                    words = info.split()
+                    fence = (char, run, bool(words) and words[0].lower() in YAML_LANGS)
+            elif body.rstrip() == fence[0] * len(body.rstrip()) and len(body.rstrip()) >= fence[1]:
+                count += fence[2]
+                fence = None
+    return count
+
+
+def tracked_markdown(root):
+    """The Markdown texts the checker scans: the change's `*.md` files."""
+    texts = []
+    for name in repo_files(root, ("*.md",)):
+        try:
+            texts.append((Path(root) / name).read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError):
+            continue  # the checker skips an unreadable file the same way
+    return texts
 
 
 def run_checker(cwd, home):
@@ -102,8 +147,21 @@ class RealTree(RepoCase):
         self.assertGreater(int(summary["links"]), 100)
         self.assertGreater(int(summary["anchors"]), 10)
         self.assertGreater(int(summary["paths"]), 10)
-        self.assertGreater(int(summary["yaml"]), 0)
+        # The tree may hold no yaml block at all, so the count is checked
+        # against an independent tally of the same files rather than a floor.
+        self.assertEqual(int(summary["yaml"]), yaml_block_count(tracked_markdown(ROOT)), out)
         self.assertEqual(summary["problems"], "0")
+
+    def test_a_yaml_block_appended_to_a_copy_is_counted(self):
+        """One yaml block added to a copy of a real document counts exactly once."""
+        original = (ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
+        before = yaml_block_count([original])
+        appended = original + lines("", "```yaml", "added: [one]", "```")
+        self.assertEqual(yaml_block_count([appended]), before + 1)
+        code, out = self.check({"docs/ROADMAP.md": appended})
+        summary = SUMMARY_RE.search(out)
+        self.assertIsNotNone(summary, out)
+        self.assertEqual(int(summary["yaml"]), before + 1, out)
 
     def test_missing_link_in_a_copy_is_rejected(self):
         """A broken link in a copy of a real document is named with its line."""

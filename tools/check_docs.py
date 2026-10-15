@@ -17,9 +17,8 @@ is scanned, and fenced code blocks and inline code are skipped as content:
   GitHub does it: lowercase, everything but letters, digits, spaces, hyphens
   and underscores dropped, spaces turned into hyphens, and a repeated slug
   numbered `-1`, `-2`, ... in document order;
-- every `yaml` (or `yml`) block must parse (PyYAML `safe_load`): the task graphs the
-  roadmap points at are YAML records, and a broken quote turns one into text
-  no tool can read;
+- every `yaml` (or `yml`) block must parse (PyYAML `safe_load`): a broken quote
+  turns a YAML record into text no tool can read;
 - inside a `bash`, `sh`, `shell` or `console` block, every token naming a path
   under `docs/`, `godot/`, `oracle/`, `psiv_tools/`, `rust/`, `tests/` or
   `tools/` (optionally behind `./` or `$PWD/`) must exist, and a token with a

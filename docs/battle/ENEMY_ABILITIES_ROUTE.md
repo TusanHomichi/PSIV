@@ -99,7 +99,7 @@ record is copied into new committed fixtures.
   FISSION2 is a negative control. The extractor retains the observed zero
   and marks the complete clear-and-return signature. The comparator remains
   strict about damage, other ids and draws; see
-  [the replay schema reading](../oracle/BATTLE_ORACLE_REPLAY.md#same-frame-ability-clearing-a3-2026-10-04).
+  [the replay schema reading](../oracle/BATTLE_ORACLE_REPLAY.md#same-frame-ability-clearing).
 - **BURSTROC is ordinary all-party damage after the intro**, via `$82C` /
   `loc_31AB6` (`ps4.asm:64247`), phase 3 to `loc_24A9E` (line 64263).
   DarkForce1 clears `$FFFFEE87` and its rolled ability once before loading
@@ -185,8 +185,7 @@ binary/input/output hashes and the final-save reading are in
 `build/a3-evidence/`. The main route's SHA-256 remains
 `1ce3457606cb3a0df63780dfa5c4bb99f14d40addcd3ee3924d01308ae8318a1`.
 
-This closes the connected sabotage-battle gate for carrier 138. Route lane C6
-(2026-10-04, [`RUNNER_LOG_KURAN.md`](../campaign/RUNNER_LOG_KURAN.md)) then
+This closes the connected sabotage-battle gate for carrier 138. The campaign route then
 extended the main route through Landale and Kuran and won event battle 9.
 **BURSTROC's cartridge proof remains open.** The route fight is a connected
 campaign result with FLARE SHOT, PHONONMASR and BURSTROC striking the party, but
@@ -197,9 +196,7 @@ this gap despite their different random carriers' exact replays.
 
 ## 2. The Zelan-to-Kuran route (lane A4)
 
-The campaign route crosses Dezolis to Kuran and Dark Force 1
-([`RUNNER_LOG_ZELAN.md`](../campaign/RUNNER_LOG_ZELAN.md),
-[`RUNNER_LOG_DEZOLIS.md`](../campaign/RUNNER_LOG_DEZOLIS.md)). The set of abilities it
+The campaign route crosses Dezolis to Kuran and Dark Force 1. The set of abilities it
 will meet is **derived**, not listed, by
 
 ```

@@ -1,6 +1,6 @@
 # Replaying the oracle tapes' battles in `psiv-core`
 
-What this ledger records: two basement battles from the oracle's tapes, each
+What this document records: two basement battles from the oracle's tapes, each
 replayed inside `psiv-core` on the exact rolls the cartridge drew, compared
 action by action with what the oracle's RAM log shows the cartridge doing.
 
@@ -124,7 +124,7 @@ the tape line carried its basename, so they carry an older `# tape=` spelling
 and an older `log_sha256`; their `# rom=` line is unchanged and their data is
 identical either way.
 
-### Provenance, and the current pins
+### Provenance
 
 | field | tape 07 | tape 09 |
 |---|---|---|
@@ -132,26 +132,14 @@ identical either way.
 | core | Genesis Plus GX `2d7131c5efa606f649d36e1685a8ca47c24f31b3` + `oracle/patches/0001-rng-hv-trace.patch` | same |
 | battle window | frames 24794-30428; the party's first action is f29489 | frames 25002-31908 |
 | start state | frame 24808, the frame the formation was written into RAM | frame 25016 |
-| trace | 136 calls in 15 frames, f24807-f30306, sha256 `0d97f6d6917c3440a211be2e0661eb8c363e04b748c2cef4e510ad32fbb9cb91` | 137 calls in 16 frames, f25015-f31786, sha256 `fbe5fa26f02a159108caf46670f546061debc5fdda6e13b869941576d82e0675` |
-| RAM log | sha256 `4118ea6efda4cb1a2c5ce74cb04b66323eb26da37f39698a9e1a016156fe9ea4` | sha256 `1c40b5f2967496d4dc6aa472d03957bf965b0db9b2b5f8ce8d9f8d0c9ea55513` |
+| trace | 136 calls in 15 frames, f24807-f30306 | 137 calls in 16 frames, f25015-f31786 |
 | trace check | `python3 -m oracle.rng_trace check` passes: every row is `hv + frame_count - seed_high`, the seed chain closes on the log's `rng_seed`, and the VBlank counter step agrees | passes |
 | battle roll stream | 134 of the 136; the encounter's formation draw (f24807) and the post-victory item drop draw (f30306) are recorded outside it | 135 of the 137; formation f25015, item drop f31786 |
 | formation | two ZoranBult (enemy id 10) | Xanafalgue (id 9) and ZoranBult (id 10) |
 | party | Alys lvl 7, Chaz lvl 1, Hahn lvl 1 | same |
 
-Each fixture carries all of this, plus the log's sha256, as `provenance`. Tape
-07's trace was re-captured in lane R against the current host and came back
-byte-identical to the pin above; tape 09's was captured there with the fixed
-host, and its fixture was re-extracted: every field outside `provenance` is
-identical to the one it replaces, and `provenance` differs only in
-`trace_sha256`, `log_sha256`, the two header lists, `roll_convention` and
-`roll_column` (`agrees` 137, `subtracts_low_word` 0).
-
-Tape 07's fixture still pins an older log sha256 -
-`e2ed38f191525e27c48dd1e1214ed8baace19a4cd405552d0787cc4931b3c461` - because
-`enemy_ability_index` joined `oracle/ram_map.json`'s `battle` group after that
-capture. Dropping that one column from the log above reproduces the pinned bytes
-exactly, so the two differ in that column and nothing else; see the follow-ups.
+Each fixture carries all of this, with the trace's and the log's SHA-256, as
+`provenance`.
 
 ## The roll convention, and the fix
 
@@ -214,7 +202,7 @@ of those same rows differs from the cartridge's roll in all 137 of them.
 ### The defect, and what now stops it
 
 The host wrote `roll = hv + frame_count - seed_lo` (the word at `$FFFFEF0E`,
-which no instruction reads as the subtrahend) until lane P1 fixed it where it
+which no instruction reads as the subtrahend) until it was fixed where it
 was written, in `rng_trace_roll` (`oracle/host/rng_trace.h`, called by
 `oracle/host/rng_trace.c`), and in `oracle/rng_trace.py`'s `roll_for`. The two
 halves differ by a per-frame constant, so every row of the pre-fix column was a
@@ -222,8 +210,8 @@ per-frame-constant shift of the cartridge's roll - and
 `python3 -m oracle.rng_trace check` could not see it, because its own `roll_for`
 repeated the same subtraction: the host wrote it, `check` re-derived it, and the
 two agreed with each other and with nothing else. That is the shape of failure
-two of lane P1's changes block, and a third makes a capture pinnable across
-lanes:
+two of the fixes block, and a third makes a capture pinnable across
+checkouts:
 
 - `oracle.fixture` no longer accepts a column it merely recognises.
   Every row's `roll` is checked against the derivation above, and the first row
@@ -241,8 +229,7 @@ lanes:
   is the control: it reads the `# tape=` call site and compiles
   `path_basename` into a probe, and the capture measurement is a copy of the
   Helex capture's tape replayed from another directory, whose log and trace come
-  back byte-identical
-  (`docs/oracle/BATTLE_ORACLE_FORCED.md` §3a, `build/lane-evidence/group_compare/`).
+  back byte-identical (`docs/oracle/BATTLE_ORACLE_FORCED.md` §3a).
 
 ### The negative controls of the data-driven replay
 
@@ -260,9 +247,7 @@ honest, and both directions are checked by running it:
   `vehicle_attack` deleted - fails the test at exactly the finding the deleted
   entry carried: `forced_53_desrtleach: the port diverges at f25026 (round 1,
   no-swing)`, the log's actor 1 resolving one target against the port's no
-  swing. Restoring it passes. Transcripts in the lane's
-  `build/lane-evidence/03-negative-control.log` and
-  `04-replay-after-restore.log` (not committed).
+  swing. Restoring it passes.
 * **The hit byte sampled a pass early.** Pointing the extractor back at the
   frame the flags first moved - `sample_decisive_hits` disabled, the fixture
   re-extracted from the same capture - fails the strict comparator at the
@@ -271,17 +256,11 @@ honest, and both directions are checked by running it:
   the walk reaches the next one, round 6 at f26387 (`Normal with Some(189)`
   against `hit flag 01`) - the same defect in the other round, and the
   comparator reports each in turn. Restoring the sampler and re-extracting
-  gives the two `$00` bytes and an empty manifest again. Transcripts: the
-  lane's `build/lane-evidence/14-negative-control-round3.log`,
-  `14c-negative-control-round6.log` and `14d-restored.log` (not committed).
-
-The manifest-entry and changed-roll controls above were run against the tree
-this ledger describes; their transcripts are in `build/lane-evidence/negative_controls.log`
-and `build/lane-evidence/negative_control_b.log` of the lane that wrote them.
+  gives the two `$00` bytes and an empty manifest again.
 
 ### The negative control
 
-A capture carrying the pre-fix column is rejected rather than replayed. Lane R's
+A capture carrying the pre-fix column is rejected rather than replayed. The
 control takes tape 07's regenerated trace and replaces every row's `roll` with
 the low-word value - what the pre-fix host wrote - leaving every other column
 alone, which is the whole of the difference the defect made; the two commands
@@ -306,31 +285,7 @@ probe), and
 `tests/test_oracle_battle_fixture.py::test_a_low_word_roll_column_is_rejected_with_its_frame_and_call`
 (the extractor).
 
-## The reorganization, and what stayed put
-
-The extractor and the replay harness were reorganized under the repository's
-file-size rule: `oracle/fixture/__main__.py` is a thin CLI over `oracle/fixture/`,
-`oracle/force/__main__.py` keeps the capture tool's CLI over its own package, and
-`rust/psiv-core/src/battle/replay/` holds the fixture's shape, the battle
-builder, the verbatim-stream driver, the comparator and the data-driven test
-(the wiring stays in `engine_tests_replay.rs`). Two measurements say nothing
-moved with it:
-
-* **The tapes' data is byte-stable.** Re-extracting tapes 07 and 09 from fresh
-  captures with the reorganized extractor reproduces every field the committed
-  fixtures already had - zero differences, provenance aside
-  (`build/lane-evidence/tape07-09-recheck.log`);
-* **Every test name survives.** The names in the two tape modules and
-  `engine_tests_replay.rs` are unchanged (the diff in
-  `build/lane-evidence/test-names.log` is additions only: the new
-  data-driven test and the new modules' constructors).
-
-The fixture schema is additive, so the tapes' fixtures were not touched:
-`kind`, `ability`, `vehicle`, `outcome.defeat`, `outcome.dead_party_ids`,
-`animation_hit_pass_ids` and the provenance notes are new keys, and a fixture
-without them reads as a battle whose every action is a physical attack.
-
-### Same-frame ability clearing (A3, 2026-10-04)
+## Same-frame ability clearing
 
 The CHARGCNNON formation's SatMinions execute WAITING via
 `EnemyAttack_ArmDrone` / `loc_10468` (`ps4.asm:22806`, lines 22807–22813). That arm,
@@ -523,8 +478,8 @@ load a save.
 `enemy_ability_index` was added to `oracle/ram_map.json` (`$FFFFEEA8`, size 2,
 group `battle`; see [`oracle/README.md`](../../oracle/README.md#ram-map)) and
 `ram_map.tsv` regenerated with `oracle/gen_ram_map.py`. With it in the log the
-word's whole life is visible frame by frame - the transitions below are re-read
-in lane R from captures of these tapes with the current map:
+word's whole life is visible frame by frame - the transitions below are read
+from captures of these tapes with the current map:
 
 | tape | power-on (f1) | battle start | during the battle | at the battle's end |
 |---|---|---|---|---|
@@ -551,7 +506,7 @@ hold those raw rolls, so the RAM log and the RNG trace agree digit for digit.
 
 The tapes' own logs can only show a zero being compared against a zero. Runs
 with `--ram-patch` (RAM patched, so experiments rather than natural-route
-evidence; re-run in lane R on tape 07) close that:
+evidence; run on tape 07) close that:
 
 | probe | patch | what the log shows |
 |---|---|---|
@@ -705,12 +660,7 @@ Not proved, and not claimed:
   tapes and other formations are other fixtures.
 - **The save/continue path's word.** It is read from the bytes, not measured.
 
-## Follow-ups still open
-
-Closed at integration: `battle-party.md`'s dated "moves from f29489 to f29789"
-sentence now carries a dated correction, and tape 07's fixture was re-extracted
-against today's RAM map (same data; `log_sha256` `4118ea6e...`; trace still
-`0d97f6d6...`).
+## Open follow-ups
 
 1. **Fixture the remaining battle tapes.** `python3 -m oracle.fixture` needs no
    change for a new tape - `--tape`, `--battle-first`, `--battle-last` and the
@@ -722,7 +672,7 @@ against today's RAM map (same data; `log_sha256` `4118ea6e...`; trace still
    (see above). A tape that saves, powers off and continues would put the
    word's third edge on the same footing as the boot and the battle load.
 
-## What the comparator checks about status and stat effects (2026-10-02)
+## What the comparator checks about status and stat effects
 
 The Motavia arc's abilities
 ([`BATTLE_ORACLE_ARC.md`](BATTLE_ORACLE_ARC.md)) moved the comparator's
@@ -756,7 +706,7 @@ moved" to a two-way check, in `replay/compare.rs`'s `effect_divergence`:
 Three `Divergence` kinds carry the findings: `status` names both bit sets, `stat`
 names the cell, the log's value and the port's, and `deaths` names both lists.
 
-## Reloads and event battles (lane A5, 2026-10-06)
+## Reloads and event battles
 
 The Air Castle captures ([`ENEMY_ABILITIES_AIR_CASTLE.md`](../battle/ENEMY_ABILITIES_AIR_CASTLE.md))
 needed three readings of the log the earlier fixtures never met:
@@ -782,7 +732,7 @@ a boss battle: `loc_B62A` draws the opening roll and then discards its verdict
 latch) come out the same either way.
 
 
-## Removals, form changes and a death that pays nothing (lane A6, 2026-10-07)
+## Removals, form changes and a death that pays nothing
 
 The endgame captures ([`ENEMY_ABILITIES_ENDGAME.md`](../battle/ENEMY_ABILITIES_ENDGAME.md))
 added three readings, each pinned by a negative control in that ledger:

@@ -1,6 +1,6 @@
 # Battle screen geometry
 
-Scouted 2026-08-15 (Fable). The layout facts the battle-screen build needs:
+The layout facts the battle-screen build needs:
 where the background sits, where enemies and party members are placed, where
 the windows and damage numbers go, and what sets the pace.
 

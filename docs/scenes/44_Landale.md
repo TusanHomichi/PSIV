@@ -36,7 +36,7 @@ layout; the chunk `$2C` is what makes them map-change (type 1), and the same
 chunk is written by the map's load hook `loc_53E98` (`ps4.asm:111635-111646`,
 gated on `$82`), which is why a save loaded after the scene walked into the
 door and the party that played the scene live did not. The route halted on it
-as a stuck walk at (12,73) in the first full run (`RUNNER_LOG_KURAN.md`, H33).
+as a stuck walk at (12,73) in the first full run.
 
 - The write resolves through the pack's `overworld_patches` entry for flag `$82`
   (chunk (6,36), `collision_chunk_id $2C`, four map-change cells), so no atlas

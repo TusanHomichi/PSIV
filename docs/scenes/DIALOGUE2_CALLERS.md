@@ -1,11 +1,10 @@
-# `Event_GetAndRunDialogue2` caller audit (H22 class fix)
+# `Event_GetAndRunDialogue2` caller audit
 
 `Event_ZioNurvus` ended its presentation with a `RunDialogueResume`. The
 cartridge's last op there is `moveq #$B, d0 / jsr Event_GetAndRunDialogue2`
 (`ps4.asm:148622-148623`), entry `$0B` of the map's own tree. A resume reopens
 `Saved_Dialogue_Addr`, which in play is whatever dialogue ran last and after a
-load is nothing, so the committed engine halted at Zio's trigger
-([runner log H22](../campaign/RUNNER_LOG.md#h22-zio-at-nurvus-resumes-a-dialogue-instead-of-running-entry-0b-and-the-zio-phase-counter-is-unmodelled)).
+load is nothing, so the engine halted the campaign runner at Zio's trigger.
 This document is the audit of every caller of that routine, and the census
 that keeps it true.
 

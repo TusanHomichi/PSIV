@@ -1,14 +1,13 @@
 # Native drivers: what the tape retires and what stays
 
-Opened for node R2. Before R2, `tools/native/` held 33 bespoke Godot drivers
-and three verifiers, one per hop of the campaign and one per UI fixture. The
-generic replay driver (`tools/native/native_tape.gd`, entered through
+The generic replay driver (`tools/native/native_tape.gd`, entered through
 `tools/verify_native_tape.py` and, for a whole run,
-`tools/verify_native_route.py`) now replays the campaign runner's own pad tape
-and compares every chapter save byte for byte
-([R2 section](CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress)). This
-ledger records, driver by driver, what each proved, which chapter of the tape
-covers it, and the decision.
+`tools/verify_native_route.py`) replays the campaign runner's own pad tape and
+compares every chapter save byte for byte
+([native tape replay](CAMPAIGN_RUNNER.md#native-tape-replay)). It replaced the
+bespoke per-hop Godot drivers that once covered the campaign. This document
+lists, driver by driver, what each one checks, which chapter of the tape covers
+it, and whether it stays in `tools/native/`.
 
 ## The rule behind the decisions
 
@@ -28,11 +27,8 @@ choose), or when its product is a capture or a comparison with the original
 game. The tape carries no such branch: its pads come from the runner's
 controllers and policies, and its only capture is one optional endpoint image.
 
-What the tape proves and does not prove is stated in
-[AGENTS.md](../../AGENTS.md#verify-the-claim-you-intend-to-make): state tests
-prove state, ordinary native input proves the interaction path, fresh-process
-CONTINUE proves persistence, and a capture proves only the frame it shows.
-The continuous replay never loads a save, so persistence is checked by its own
+What the tape proves and does not prove follows
+[AGENTS.md](../../AGENTS.md#verify-the-claim-you-intend-to-make). The continuous replay never loads a save, so persistence is checked by its own
 entry point: `tools/verify_native_route.py --continue-probes` loads each chapter
 save in a fresh process through the title's CONTINUE and requires the
 snapshot to re-encode the same bytes.
@@ -84,31 +80,40 @@ Chapters are the 50 of `routes/main.json` at digest `40c7f505ecc5c357`
 | `native_dialogue.gd` | The post-Igglanova scene from the isolated `dialogue_resume` save, captured page by page without acknowledgement | State only | Kept (capture observer) |
 | `native_rika_fixture.gd` | Rika's join scene from `PSIV_DEBUG_EVENT=8007`, every page and the Holt exit effect, no input | `bioplant-rika` (11) proves the join's state | Kept (capture observer) |
 
-### Blocked: covered, but a document outside this lane's write set runs it
+### Kept until the tape takes frame-addressed captures
 
 | Driver | What it proved | Covering chapter | Why it is still here |
 | --- | --- | --- | --- |
-| `native_opening.gd` | One Up press after the auto-acknowledged opening has returned control | `academy` (0) covers the state: it starts from START and the first pad is the first gameplay frame | It also takes the rendered first-control capture at frame 3360 ([PLAYABILITY_FOUNDATIONS.md](PLAYABILITY_FOUNDATIONS.md)), which the tape replay cannot take until it captures at chosen frames ([#93](https://github.com/TusanHomichi/PSIV/issues/93)). Kept until then (orchestrator, 2026-10-06) |
-| `verify_native_alarm.py` | The BioPlant alarm palette ramp and its four-frame cadence in captured PNGs | None. Its only producer, `native_bioplant.gd`, is retired and the tape takes no mid-run capture | Kept: its comparison is the check [#93](https://github.com/TusanHomichi/PSIV/issues/93) feeds from frame-addressed tape captures. Until then it has no producer, and the alarm check is suspended ([BIOPLANT_NATIVE.md](BIOPLANT_NATIVE.md)) (orchestrator, 2026-10-06) |
+| `native_opening.gd` | One Up press after the auto-acknowledged opening has returned control | `academy` (0) covers the state: it starts from START and the first pad is the first gameplay frame | It also takes the rendered first-control capture at frame 3360, which the tape replay cannot take until it captures at chosen frames ([#93](https://github.com/TusanHomichi/PSIV/issues/93)) |
+| `verify_native_alarm.py` | The BioPlant alarm palette ramp and its four-frame cadence in captured PNGs | None. Its only producer, `native_bioplant.gd`, is retired and the tape takes no mid-run capture | Its comparison is the check [#93](https://github.com/TusanHomichi/PSIV/issues/93) feeds from frame-addressed tape captures. Until then it has no producer, and the alarm check is suspended |
 
-## Checks on the kept drivers this lane touched
+### Running the opening capture
 
-Both ran under the shared heavy lock from chapter saves of the 2026-10-06 route
-(`PSIV_DEBUG_ROUTE=1`, a copied save directory, the optimized extension):
+`native_opening.gd` needs the local pack, Godot and Xvfb, and runs with every
+other `PSIV_DEBUG_*` selector and `PSIV_LOAD_SLOT` unset. `godot` is your Godot
+executable ([development guide](../DEVELOPMENT.md#launch-the-native-game)):
 
-- `native_party_order.gd` after it left the route skeleton, against the
-  original driver from the same commit, both started from `09-bioplant-elevators`
-  and rendered under Xvfb: the same eight checkpoint names with identical
-  states, the same slot bytes after the SAVE, and all seven captures
-  byte-identical. A headless pair gave the same states and bytes.
-- `native_continue.gd` with no route receipt, from `16-aiedo-shopping`: CONTINUE,
-  one step down, SAVE into slot 2; `verify_native_continue.py` then reports
-  `complete` (only the standing Y word, the header's slot number and its
-  checksums changed).
+```sh
+cargo build -p psiv-godot --manifest-path rust/Cargo.toml
+mkdir -p build/native-opening
+xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 \
+  PSIV_SAVE_DIR="$PWD/build/native-opening/saves" \
+  PSIV_DEBUG_TITLE_SHOT=1 PSIV_DEBUG_TITLE_AUTOSTART=1 \
+  PSIV_DEBUG_AUTOCLOSE_SCENE=1 PSIV_DEBUG_SCENE_TICKS=1 PSIV_DEBUG_INPUT=1 \
+  PSIV_DEBUG_STATE="$PWD/build/native-opening/state.json" \
+  PSIV_DEBUG_SHOT="$PWD/build/native-opening/field.png" \
+  PSIV_DEBUG_SHOT_FRAME=3360 \
+  godot --path godot \
+  --script "$PWD/tools/native/native_opening.gd" --display-driver x11 \
+  --rendering-method gl_compatibility --audio-driver Dummy \
+  --fixed-fps 60 --quit-after 3370 \
+  --log-file "$PWD/build/native-opening/godot.log"
+```
 
-The other eighteen kept drivers and `verify_native_order.py` against the original
-game were not re-run in this lane; none of them reads a retired driver or its
-output, but their health against today's pack is not re-proven here.
+The expected state at tick 3360 is map `$13`, cell `(48,18)`, Chaz alone, no
+active scene and 500 meseta; a process that exits successfully is not by itself
+a pass. Dialogue is auto-acknowledged and audio is the dummy driver, so the run
+says nothing about dialogue pacing, sound or controller hardware.
 
 ## What the retirement leaves uncovered
 
@@ -124,14 +129,4 @@ These were proved by a retired driver and are carried by nothing today:
   the hand choice mutates neither equipment nor inventory. `suites::camp_equipment`
   covers the accepted path only.
 - **Per-chapter replay.** A chapter cannot be replayed alone, because a save
-  holds no RNG state ([why](CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress)).
-
-## References left in other documents
-
-Documents outside this lane's write set still name retired drivers in prose
-(`docs/campaign/AIEDO.md`, `BIOPLANT_NATIVE.md`, `PLAYABILITY_ACADEMY.md`,
-`PLAYABILITY_HOLT_TONOE.md`, `PLAYABILITY_FOUNDATIONS.md`, `docs/field/TRAVEL.md`,
-`docs/camp/PARTY_ORDER.md`) and in two comments in `rust/psiv-godot/src/`
-(`battle/ui/mod.rs`). They are historical ledgers of dated runs and none is in a
-command block, so the checks pass; they should be annotated or trimmed in their
-own change.
+  holds no RNG state ([why](CAMPAIGN_RUNNER.md#native-tape-replay)).

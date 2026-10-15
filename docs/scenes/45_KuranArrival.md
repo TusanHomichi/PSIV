@@ -26,4 +26,4 @@ destination mask `$D8` once `$82` is set) and lands on Kuran `$190` at (31,46).
 frame after the landing, runs this scene and sets `$86`. Without `$82` the list
 has no Kuran row (`kuran_arc.rs`, the negative control). The route then opens the
 elevator door at (30..31,17) and rides Kuran's chain of regions to F3
-([RUNNER_LOG_KURAN.md](../campaign/RUNNER_LOG_KURAN.md#the-elevator-chain)).
+(the `kuran-elevators` chapter of `rust/psiv-campaign/routes/main.json`).

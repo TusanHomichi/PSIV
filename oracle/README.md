@@ -517,7 +517,7 @@ citations; `tests/test_oracle_force_event.py` pins it. The Zelan-to-Kuran
 fixtures (`python3 -m oracle.sweep.zelan`, ledger
 [`BATTLE_ORACLE_ZELAN.md`](../docs/oracle/BATTLE_ORACLE_ZELAN.md)) use it for
 events 8 and 9; `oracle.sweep.air_castle` (14, 16, 17) and `oracle.sweep.endgame` (10-26), via `oracle.sweep.forced_cases`, whose fixtures add
-`oracle.fixture --event-battle N` ([replay ledger](../docs/oracle/BATTLE_ORACLE_REPLAY.md#reloads-and-event-battles-lane-a5-2026-10-06)).
+`oracle.fixture --event-battle N` ([replay ledger](../docs/oracle/BATTLE_ORACLE_REPLAY.md#reloads-and-event-battles)).
 
 Five oracle runs per capture: a scout, a probe that measures the draw, an
 untrimmed preview, the trimmed capture, and a re-run to byte-compare it, with
@@ -755,40 +755,25 @@ oracle/bin/psiv_oracle \
     --dump-frames-dir /tmp/psiv-vehicle29-oracle
 ```
 
-The pinned replay produced the following state and video receipts:
-
-| frame | receipt |
-|---:|---|
-| `7200` | `Vehicle_Index=1`, position `(2336,512)`, standing collision `0` |
-| `7201` | right input advances four pixels, confirming 4 px/frame and an eight-frame 32-pixel step |
-| `7300` | the vehicle remains at the solid boundary rather than crossing it |
-| `7605` | standing collision is raw `9`; the selector remains mounted |
-| `7726` | retail PNG visibly reads `Cannot get off!` |
-| `7830` | `Game_Mode_Routine=14` while `Vehicle_Index=1` |
-| `7850` | battle game mode is active with the mounted vehicle fighter |
-| `7900` | battle routine has initialized three enemies while the vehicle remains selected |
-
-The dumped PNG SHA-256 values from the final replay are:
-
-```text
-frame_7605.png  2cb50dd71b656517e1f424fe3a497ad429f06f9a504018079ac86fc199fcbc61
-frame_7726.png  72928413566ced72c3bcfe626d55ada7e34c228e9feb0a61843045f04025e84
-frame_7830.png  498ce5848d85c752bae7ead67d022079044dc355ef8bc429eb1c5de3dd866e9f
-frame_7900.png  bc52c0c9edd58cefa3c17816ed999c5547513595e95883f4f07ee1a9bab483cb
-```
+In the replay the mounted Land Rover advances four pixels a frame (an
+eight-frame 32-pixel step), stops at the solid boundary, reads the retail
+`Cannot get off!` window on raw collision `9` (frame 7726), and enters battle
+with the vehicle fighter selected (frames 7830-7900).
 
 A replay with the frame-7605 bad-terrain patches omitted dismounts by frame
 8125. That is the success-side check for the same retail `Event_GettingOffVehicle`
 path; the refusal and success cases are not inferred from the clone.
 
-### Natural tape 31: verified prefix
+### Natural tape 31
 
 `oracle/tapes/31_natural_land_rover.tape` is the natural-input companion to
-tape 29. It starts at power-on and contains only scheduled joypad inputs: no
-RAM patches, save-state loads, or fixture writes. The route reaches the live
-Piata inn, the Zema/Igglanova sequence, Birth Valley B1, and the real
-`Cutscene_ProfHolt` completion before returning to Motavia. Its canonical
-replay log is `oracle/logs/31_natural_land_rover.csv`.
+tape 29: scheduled joypad inputs from power-on, with no RAM patches, save-state
+loads or fixture writes. It reaches the Piata inn, the Zema/Igglanova sequence,
+Birth Valley B1 and the real `Cutscene_ProfHolt` completion, then returns to
+Motavia (131,130 frames; canonical log `oracle/logs/31_natural_land_rover.csv`).
+It stops before `GettingLandRover`, so tape 29 remains the fixture for mounted
+movement, dismount refusal and mounted encounters. The clone-side `psiv-replay`
+check starts at its `await_control` mark (frame 6,539).
 
 ```sh
 oracle/bin/psiv_oracle \
@@ -799,46 +784,6 @@ oracle/bin/psiv_oracle \
     --groups core,pos,collision,party,battle,flags,chars,vehicle \
     --out oracle/logs/31_natural_land_rover.csv
 ```
-
-The replay is 131,130 frames. The route receipt is:
-
-| frame | mark | map / leader | selector | flags |
-|---:|---|---|---:|---|
-| `81,409` | `piata_inn_recovered` | `0019 / (656,496)` | `0000` | `01FF0400` |
-| `102,951` | `zema_town_warp` | `0024 / (1568,1312)` | `0000` | `01FF0400` |
-| `103,071` | `zema_town_cross` | `0024 / (496,768)` | `0000` | `01FF0C00` |
-| `103,675` | `zema_to_birth_valley` | `002B / (496,160)` | `0000` | `01FF0C00` |
-| `113,419` | `birth_valley_b1_enter` | `002C / (528,224)` | `0000` | `01FF0C00` |
-| `129,139` | `holt_scene_done` | `0024 / (480,160)` | `0000` | `01FF8C00` |
-| `131,011` | `natural_prefix_holt_world` | `0000 / (1584,1312)` | `0000` | `01FF8C00` |
-
-The selector is `0000` on all 131,130 rows. This is an honest partial, not a
-vehicle receipt: the tape stops before the later Zema/Krup/Tonoe/Rune/
-Alshline/Zio/BioPlant/Rika chain and Machine Center B1 Part2's
-`GettingLandRover`. Consequently there are no natural mount, vehicle-terrain,
-dismount-refusal, successful-dismount, or mounted-encounter marks to report;
-tape 29 remains the documented fixture for those surfaces.
-
-The stop has a concrete route reason. Holt leaves Chaz/Alys/Hahn at `27/44/13`
-HP; the shortest attempted Piata healing detour hit three natural formations
-whose retail rolls refused RUN, and ordinary combat inputs left only Alys
-alive before the inn inputs could be consumed. Zema's inn is still locked
-before `IgglanovaZemaDefeated`, so the remaining route needs a new battle-safe
-natural plan rather than a fake continuation.
-
-The clone-side `psiv-replay` check uses the same tape and starts at the
-engine-aligned `await_control` mark (frame `6,539`). It compares cleanly for
-560 frames through frame `7,098` across 33 modeled columns. The first later
-divergence, frame `7,099`, is the already-known static-NPC versus retail
-wander position; NPC/wander internals are outside this slice. The clone does
-not claim vehicle parity where the natural tape has no vehicle state.
-
-### Fixture sweep
-
-The remaining RAM-patched receipts are the MeetingRika capture (tape 28) and
-the mounted vehicle surface (tape 29). Both intentionally enter late or
-stateful surfaces that are not cheap extensions of an existing natural tape;
-the new tape 31 prefix is the only fixture debt naturalized in this slice.
 
 ## Tape format
 
@@ -985,9 +930,7 @@ measured. Using Speak here would fire a Talk on the first frame of control.
 
 ## Results and reference
 
-The operational README stays short enough to audit at a glance. The detailed
-oracle findings are split into two reference ledgers so each file remains
-under the repository's 1,000-line maintenance limit:
+The detailed oracle findings live in two reference documents:
 
 - [`RESULTS.md`](../docs/oracle/RESULTS.md) — determinism, field/talk/RNG/battle evidence,
   and the chest/object findings through the second chest.
@@ -995,5 +938,5 @@ under the repository's 1,000-line maintenance limit:
   note, camera/object observations, story gates, RAM notes, tape-authoring
   guidance, open questions, and comparator feeding.
 
-Regenerate the ledgers from the pinned ROM/core with `./oracle/verify.sh`;
-the current operational findings remain the ones that script checks.
+`./oracle/verify.sh` regenerates the measurements they cite from the pinned
+ROM and core.

@@ -1,10 +1,10 @@
-# Revision-conditional op audit (H17)
+# Revision-conditional op audit
 
 `Cutscene_AlysWounded` and `Cutscene_PsycoWand` loaded `DialogueTree6` before
 their Krup conversations in the cartridge and not in this port, so the scene
 read Krup Inn F1's bound tree 5 instead: entry `$2C` landed on tree 5's empty
 entries 44 to 46, the window never opened, and the following `RunDialogueResume`
-had no cursor ([runner log H17](../campaign/RUNNER_LOG.md#h17-cutscene_alyswounded-and-cutscene_psycowand-read-the-wrong-dialogue-tree)).
+had no cursor, and the campaign runner halted there.
 Every one of the four missed loads sits under `if revision>0`, which is why no
 op-count test noticed: the transcriptions had skipped a whole conditional
 class, not one line.

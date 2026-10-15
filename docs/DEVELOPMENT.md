@@ -7,14 +7,16 @@ For agent-assisted contributions, read [AGENTS.md](../AGENTS.md) and the
 
 ## Current environment
 
-The committed GDExtension library paths target Linux x86-64. Godot 4.7.1 is
-the version used for native verification, with a 1280×800 viewport. Python
-project metadata specifies 3.10+; Rust uses edition 2024. Other platforms and
-packaged desktop exports remain roadmap work.
+This section owns the toolchain versions. The committed GDExtension library
+paths target Linux x86-64, and the Steam Deck build is the same Linux target
+(see [package for the Steam Deck](#package-for-the-steam-deck)). The supported
+Godot version is **4.7.1**, with a 1280×800 viewport. Python 3.10 or newer;
+Rust with edition 2024. Supported platforms are a [roadmap](ROADMAP.md)
+decision.
 
 The extraction tools use Python's standard library. Pixel-comparison scripts
 also use Pillow and NumPy, and `tools/check_docs.py` uses PyYAML to parse the
-documents' `yaml` task graphs. Native automated checks on Linux use Xvfb.
+documents' `yaml` blocks. Native automated checks on Linux use Xvfb.
 
 ## Prepare the local pack
 
@@ -47,8 +49,8 @@ The accepted US ROM SHA-256 is:
 
 The full pack includes all 361 real maps. `pack --map` deliberately restricts
 coverage and is useful for development, but is not the full campaign pack.
-The ROM, disassembly checkout and generated pack are local inputs/outputs;
-they are excluded from Git.
+The ROM, disassembly checkout and generated pack are
+[local inputs](../AGENTS.md#protect-local-inputs-and-evidence).
 
 `generated/` (the extractor's tables and PNGs) is stamped with the extractor
 source that wrote it, and every tool that reads it refuses an older extract. After
@@ -57,10 +59,9 @@ changing anything under `psiv_tools/`, rebuild it with
 ([how the stamp works](EXTRACTION.md#rebuild-the-generated-directory)). A checkout
 with no `generated/` is not affected: the readers that skip without it still skip.
 
-The 2026-09-23 overworld repair requires the resolved `overworld_patches` and
-composed base/priority atlas data. Older packs fail with an explicit rebuild
-message; rerun the full pack command above. Preserve any pack used by retained
-evidence before regeneration. See [map effects](field/MAP_EFFECTS.md#12-native-overworld-page-hook-consumption-2026-09-23).
+A pack built by an older extractor fails to load with an explicit rebuild
+message; rerun the full pack command above. Preserve any pack that retained
+evidence depends on before regenerating it.
 
 ## Launch the native game
 
@@ -80,24 +81,37 @@ It currently expects `~/.local/bin/psiv-godot-4.7.1`, `rg` and `flock`;
 the commands above let you use another executable path.
 
 For campaign tape replay through the native game, use
-`tools/verify_native_tape.py` under the shared heavy lock; for a whole
-`psiv-campaign run`, `tools/verify_native_route.py` replays its tape once from
-New Game and compares every chapter save (`--continue-probes` loads each chapter
-save through the title's CONTINUE instead). Their commands,
-isolated save/output directories, exact-pad boundary, source-save hash check,
-snapshot comparison, the extension build that makes a whole route take an hour
-rather than half a day, and evidence limits are in the
-[R2 native replay section](campaign/CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress).
+`tools/verify_native_tape.py`; for a whole `psiv-campaign run`,
+`tools/verify_native_route.py` replays its tape once from New Game and compares
+every chapter save (`--continue-probes` loads each chapter save through the
+title's CONTINUE instead). Both run under the heavy-run lock
+([gate and coverage](#gate-and-coverage)). Their commands, isolated save and
+output directories, exact-pad boundary, source-save hash check, snapshot
+comparison and the extension build that makes a whole route take an hour rather
+than half a day are in the
+[native tape replay section](campaign/CAMPAIGN_RUNNER.md#native-tape-replay).
 Which `tools/native/` drivers remain, and why, is in
 [native drivers](campaign/NATIVE_DRIVERS.md).
 
-| Input | Action |
-| --- | --- |
-| Arrow keys | Move / menu selection |
-| Enter, Space or Z | Confirm / interact |
-| C | Camp |
-| Escape or X | Cancel |
-| Tab | Start |
+The keyboard and controller bindings are listed in the
+[README](../README.md#controls); they come from the input map in
+[`godot/project.godot`](../godot/project.godot).
+
+### Package for the Steam Deck
+
+```bash
+./tools/package/deploy-deck.sh <deck-address> [user]
+```
+
+`tools/package/deploy-deck.sh` builds the release extension with
+`cargo zigbuild` against the Deck's glibc (a plain build links the host's newer
+symbol versions and the Deck refuses to load it), exports the Godot project's
+`Linux-SteamDeck` preset to `build/deck/`, stages the executable with a copy of
+`runtime-pack/` beside it (an exported build looks for the pack next to the
+executable), and copies the stage to `~/psiv` on the Deck with `rsync` over SSH.
+It needs SSH key access to the Deck and, as written, `cargo-zigbuild` and
+Godot under `~/.local/bin`. On the Deck, add `~/psiv/psiv.x86_64` as a
+non-Steam game.
 
 ## Run checks
 
@@ -198,18 +212,11 @@ file the rule should pass.
 The campaign itself is replayed by the generic tape driver; the bespoke drivers
 that remain use isolated fixtures and debug selectors for branches and captures
 the tape does not carry ([native drivers](campaign/NATIVE_DRIVERS.md) says which
-and why). Their ledgers identify which kind of evidence each run supplies. A driver runs under
-Godot's `--script`, so it must name its run directory with `PSIV_SAVE_DIR`; the
-extension refuses to resolve one without the variable
+and why). A driver runs under Godot's `--script`, so it must name its run
+directory with `PSIV_SAVE_DIR`
 ([repository instructions](../AGENTS.md#protect-local-inputs-and-evidence)).
+Cartridge comparisons are described in the [oracle guide](../oracle/README.md).
 
-- [BioPlant and recovery](campaign/BIOPLANT_NATIVE.md)
-- [Post-Rika crossing and current campaign save](field/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
-- [Party ORDER](camp/PARTY_ORDER.md)
-- [Full native playability ledger](campaign/NATIVE_PLAYABILITY.md)
-- [Cartridge oracle setup](../oracle/README.md)
-
-Receipts under `build/` contain local logs, captures and saves; they are not
-repository downloads. Keep source saves intact when testing a continuation.
-Use the default desktop viewport for visual checks: the small recovery-run
-captures clipped camp windows and establish state/persistence, not menu parity.
+Output under `build/` holds local logs, captures and saves; it is not part of
+the repository. Use the default desktop viewport for visual checks: a reduced
+window can clip camp windows.

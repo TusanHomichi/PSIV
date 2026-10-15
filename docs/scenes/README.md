@@ -1,15 +1,8 @@
 # Retail scene transcriptions
 
-**Research coverage is not connected-play coverage.** These records extend
-through the ending, while the verified connected campaign is still in the
-BioPlant. Use [the roadmap](../ROADMAP.md) and [playability ledger](../campaign/NATIVE_PLAYABILITY.md)
-for current progress; an individual scene fixture does not close a campaign milestone.
-
-Opening-act material was transcribed 2026-08-14 from the retail cartridge;
-the next-arc records below were added 2026-08-16, with the Dezo campaign
-continuation added in the same wave. These documents are the
-retail research behind the implemented event interpreter: every scene in the
-opening act, disassembled from cartridge bytes, expressed as an ordered
+These records are the retail research behind the event interpreter, and they
+extend through the Ending. Each scene is disassembled from cartridge bytes and
+expressed as an ordered
 `SceneOp` sequence, with every RAM address, event flag and dialogue reference
 resolved to a name.
 
@@ -30,7 +23,7 @@ The native registry and headless proof live beside those documents in
 **Live layout writes are audited.** Every scene that writes map chunks while
 the party stands on the map — the mechanism the cartridge uses instead of a
 map reload — is listed with its port status in
-[the live-layout census](LIVE_LAYOUT_WRITES.md), which is H19's class fix.
+[the live-layout census](LIVE_LAYOUT_WRITES.md).
 
 **Layout writes are held to the pack.** Every `SceneOp::WriteMapChunks` needs a chunk the pack's
 patch atlas carries for its map (`write_scene_map_chunks` refuses one it cannot resolve, #67).
