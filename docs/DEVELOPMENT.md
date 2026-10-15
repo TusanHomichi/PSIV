@@ -80,6 +80,12 @@ menu for START/CONTINUE and camp STATE → SAVE for normal persistence.
 It currently expects `~/.local/bin/psiv-godot-4.7.1`, `rg` and `flock`;
 the commands above let you use another executable path.
 
+`PSIV_GODOT` names the Godot executable for the scripted tools
+(`tools/certify.py`, `tools/verify_native_tape.py`) and for the capture
+commands in the subsystem documents, which write it as `"$PSIV_GODOT"`. The
+tools default to `~/.local/bin/psiv-godot-4.7.1` when it is unset; set it once
+in your shell for the documents' commands.
+
 For campaign tape replay through the native game, use
 `tools/verify_native_tape.py`; for a whole `psiv-campaign run`,
 `tools/verify_native_route.py` replays its tape once from New Game and compares

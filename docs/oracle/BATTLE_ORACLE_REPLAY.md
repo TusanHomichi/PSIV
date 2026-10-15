@@ -75,7 +75,7 @@ Reproducing both captures, and the replay, from a checkout with the ROM linked
 in:
 
 ```sh
-ROM="/home/peter/PSIV/Phantasy Star IV (USA).md"   # this project's own checkout
+ROM="/path/to/Phantasy Star IV (USA).md"     # your ROM image
 ./oracle/build_core.sh                       # pinned core + oracle/patches
 ln -sfn "$ROM" "Phantasy Star IV (USA).md"   # verify.sh reads the ROM at that path
 ./oracle/verify.sh                           # builds the host, runs the fast lane
@@ -667,10 +667,11 @@ Not proved, and not claimed:
    two logs are enough. Tape 10's three encounters in a row are the natural next
    one: three more battles on their own seed paths, and a chance at a second
    instance of the case tape 07 carries - a battle whose first ability draw is
-   zero, against the word the load left.
+   zero, against the word the load left ([#124](https://github.com/TusanHomichi/PSIV/issues/124)).
 2. **Measure the save/continue path's word.** It is read from the bytes today
    (see above). A tape that saves, powers off and continues would put the
-   word's third edge on the same footing as the boot and the battle load.
+   word's third edge on the same footing as the boot and the battle load
+   ([#125](https://github.com/TusanHomichi/PSIV/issues/125)).
 
 ## What the comparator checks about status and stat effects
 

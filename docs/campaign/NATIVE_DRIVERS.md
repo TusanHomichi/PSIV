@@ -122,11 +122,12 @@ These were proved by a retired driver and are carried by nothing today:
 - **Mid-scene captures.** The route drivers saved PNGs at fixed legs and
   scenes; the replay's one capture is the endpoint. The alarm cadence check
   above is the casualty. Capturing at named frames in `native_tape.gd` would
-  restore all of them.
+  restore all of them ([#93](https://github.com/TusanHomichi/PSIV/issues/93)).
 - **Resident palette, 50 dialogue pages and Igglanova's visible entrance**
-  (`native_zema_return.gd`): presentation observations of the Zema rescue.
+  (`native_zema_return.gd`): presentation observations of the Zema rescue
+  ([#93](https://github.com/TusanHomichi/PSIV/issues/93)).
 - **The equipment hand-selector cancel** (`native_zema_outfit.gd`): cancelling
   the hand choice mutates neither equipment nor inventory. `suites::camp_equipment`
-  covers the accepted path only.
+  covers the accepted path only ([#121](https://github.com/TusanHomichi/PSIV/issues/121)).
 - **Per-chapter replay.** A chapter cannot be replayed alone, because a save
   holds no RNG state ([why](CAMPAIGN_RUNNER.md#native-tape-replay)).

@@ -22,7 +22,10 @@ is scanned, and fenced code blocks and inline code are skipped as content:
 - inside a `bash`, `sh`, `shell` or `console` block, every token naming a path
   under `docs/`, `godot/`, `oracle/`, `psiv_tools/`, `rust/`, `tests/` or
   `tools/` (optionally behind `./` or `$PWD/`) must exist, and a token with a
-  `*` must match at least one file of the change.
+  `*` must match at least one file of the change;
+- no line, fenced or not, names a host-absolute home path (`/home/<user>/`,
+  `/Users/<user>/`): it works on one machine only. Write a `~/`-relative path,
+  an environment variable such as `$PSIV_GODOT`, or a placeholder.
 
 A path git ignores is a local input (`AGENTS.md`, "Protect local inputs and
 evidence"), not repository content - and not a file of the change either: the
@@ -83,6 +86,8 @@ INLINE_CODE_RE = re.compile(r"(`+).+?\1")
 LINK_RE = re.compile(r"\[[^\]]*\]\((?P<target>[^()]*(?:\([^()]*\)[^()]*)*)\)")
 SHELL_ASSIGNMENT_RE = re.compile(r"\A[A-Za-z_][A-Za-z0-9_]*=(?P<value>.+)\Z", re.DOTALL)
 SHELL_PUNCTUATION = ".,;:)]}\"'"
+# A home directory spelled out for one machine; a `~/` path or a URL is not one.
+HOST_HOME_RE = re.compile(r"(?<![\w.~/:-])/(?:home|Users)/[A-Za-z0-9._-]+/")
 
 
 def git_stdout(*args: str) -> str:
@@ -312,6 +317,9 @@ def check_tree() -> tuple[list[str], list[int]]:
     problems: list[str] = []
     counts = [len(texts), 0, 0, 0, 0]  # files, links, anchors, command paths, yaml blocks
     for name, lines in texts.items():
+        for index, text in enumerate(lines):
+            for match in HOST_HOME_RE.finditer(text):
+                problems.append(f"{name}:{index + 1}: host-absolute home path: {match.group(0)}")
         block = None  # (opening line, body) of the yaml block being read
         for index, text, info, delimiter in iter_fenced_lines(lines):
             line = index + 1

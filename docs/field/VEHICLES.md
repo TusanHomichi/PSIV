@@ -425,15 +425,15 @@ natural random encounter happened at a chosen frame.
 
 ## Verification status
 
-Headless debug boots (the available Godot binary exits successfully and
+Headless debug boots (`$PSIV_GODOT` names the Godot executable, as the [development guide](../DEVELOPMENT.md#launch-the-native-game) says; the binary exits successfully and
 reaches the field/battle surface):
 
 ```sh
 env PSIV_DEBUG_VEHICLE=2 PSIV_DEBUG_VEHICLE_BATTLE=0x88 \
-  /home/peter/.local/bin/cairn-godot-4.7.1 --headless --audio-driver Dummy \
+  "$PSIV_GODOT" --headless --audio-driver Dummy \
   --path godot --quit-after 120
 env PSIV_DEBUG_VEHICLE=3 PSIV_DEBUG_VEHICLE_BATTLE=0x88 \
-  /home/peter/.local/bin/cairn-godot-4.7.1 --headless --audio-driver Dummy \
+  "$PSIV_GODOT" --headless --audio-driver Dummy \
   --path godot --quit-after 120
 ```
 
@@ -478,19 +478,20 @@ because of an explicit dismount.
 
 Still open:
 
-1. The full natural Land Rover route is still owed. Tape 31 closes the
-   power-on-to-Holt prefix, but it does not yet reach `GettingLandRover`; tape
-   29 remains the explicit fixture for mounted movement, dismount and battle
-   entry. The Ice Digger and Hydrofoil story routes are also still separate
-   natural runs.
+1. The natural story legs are the campaign route's: `machine-center-control-key`
+   receives the Land Rover and `ladea-tower-rune` drives it to the tower;
+   `dezolis-ice-digger` boards the Ice Digger
+   (`rust/psiv-campaign/routes/main.json`). The Hydrofoil's leg comes after
+   Dark Force 2, with the rest of the route to the Ending
+   ([#116](https://github.com/TusanHomichi/PSIV/issues/116)). Tape 29 remains the oracle fixture for mounted movement,
+   dismount refusal and mounted battle entry.
 2. The map item (`ItemAction_Map`, `$8C`) opens the overworld map screen in
    retail (`Routine_Exit_Flags` bit 2, `ps4.asm:117170`); the port has no map
-   screen, so the ITEM page answers `MAP SCREEN NOT READY` instead of a
-   refusal the item never got.
+   screen, so the ITEM page answers `MAP SCREEN NOT READY` instead
+   ([#122](https://github.com/TusanHomichi/PSIV/issues/122)).
 3. The Godot shell can report one non-fatal `AudioStreamGeneratorPlayback`
-   ObjectDB leak at shutdown on some headless runs. The field/battle boot exits
-   successfully; this is the pre-existing audio lifecycle, outside the vehicle
-   slice.
+   ObjectDB leak at shutdown on some headless runs; the field and battle boot
+   exits successfully ([#123](https://github.com/TusanHomichi/PSIV/issues/123)).
 
 Ownership remains split cleanly: core movement and battle-member rules are in
 `rust/psiv-core/src/vehicle.rs`, mutable field/battle bridges in

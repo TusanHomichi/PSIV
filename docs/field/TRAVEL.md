@@ -73,12 +73,12 @@ its entrance, so its exit defaults to zero unless the place-entry table
 identifies it. This extension is a deliberate native restart improvement,
 not a claim that the original cartridge saves $ED51.
 
-World selection during later space-travel scenes still needs the explicit
-original writes wired into the scene runtime. Native Motavia travel and the
-raw saved world-byte interpretation are covered here. The existing general
-map-entry follower alignment, the exact retail teleport visuals/window layout,
-and the legacy standing-Y save-format discrepancy are
-separate remaining work. Do not infer full travel or campaign fidelity.
+Native Motavia travel and the raw saved world-byte interpretation are
+covered here. Still open: world selection during later space-travel scenes
+needs the original writes wired into the scene runtime ([#126](https://github.com/TusanHomichi/PSIV/issues/126)); general
+map-entry follower alignment ([#127](https://github.com/TusanHomichi/PSIV/issues/127)); the exact retail teleport visuals and
+window layout ([#128](https://github.com/TusanHomichi/PSIV/issues/128)); and the legacy standing-Y save-format discrepancy
+([#129](https://github.com/TusanHomichi/PSIV/issues/129)).
 
 ## Verification
 

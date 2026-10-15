@@ -12,8 +12,8 @@ lines it prints.
 The real tree passes case runs the same tool against this repository, so the
 guard is checked against the documents it guards. The rest are negative
 controls (a missing link target, a missing anchor, a missing command path, an
-unmatched glob and a `yaml` block that does not parse, each rejected by name
-and line) and positive cases that pin
+unmatched glob, a `yaml` block that does not parse and a host-absolute home
+path, each rejected by name and line) and positive cases that pin
 what the checker deliberately lets through: a duplicate heading's `-1` anchor,
 a link written inside a fenced block or inline code, an external URL, and
 git-ignored local inputs, as a link target and as a command path.
@@ -240,6 +240,20 @@ class NegativeControls(RepoCase):
             "docs/graph.md:7: yaml block does not parse: while scanning a quoted scalar", out
         )
 
+    def test_a_host_absolute_home_path(self):
+        """A `/home/<user>/` or `/Users/<user>/` path is named, in prose or a fence."""
+        code, out = self.check({
+            "docs/report.md": lines(
+                "# Report", "",
+                "Set GODOT=/home/alice/.local/bin/godot first.",
+                "```sh", "/Users/bob/bin/godot --path godot", "```",
+            ),
+        })
+        self.assertEqual(code, 1, out)
+        self.assertIn("docs/report.md:3: host-absolute home path: /home/alice/", out)
+        self.assertIn("docs/report.md:5: host-absolute home path: /Users/bob/", out)
+        self.assertIn("; 2 problem(s)", out)
+
     def test_unmatched_glob(self):
         code, out = self.check({
             "docs/report.md": lines("# Report", "", "```bash", "ls tools/absent_*.py", "```"),
@@ -331,6 +345,17 @@ class AcceptedCases(RepoCase):
         self.assertEqual(code, 1, out)
         self.assertIn("docs/report.md:4: command path not found: docs/absent", out)
         self.assertNotIn("docs/local", out)
+
+    def test_home_relative_paths_and_urls_pass(self):
+        """`~/` paths, `$HOME` and a URL whose path holds `/home/` are not host paths."""
+        code, out = self.check({
+            "docs/report.md": lines(
+                "# Report", "",
+                "The default is `~/.local/bin/psiv-godot`, or $HOME/.local/bin.",
+                "[site](https://example.invalid/home/alice/page)",
+            ),
+        })
+        self.assertEqual(code, 0, out)
 
     def test_matched_glob_and_existing_paths_pass(self):
         code, out = self.check({

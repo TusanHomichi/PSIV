@@ -30,14 +30,16 @@ differs from the original in places.
 Version 1.0 means the unmodified game is completable from New Game to the
 Ending natively. The checklist:
 
-- [ ] The full campaign, New Game to the Ending, plays natively.
-- [ ] Long sessions run without memory growth.
-- [ ] Every story event that a trigger starts has its scene.
-- [ ] Hosted CI runs the checks that need no ROM.
-- [ ] A release package and player instructions for Linux and the Steam Deck.
+- [ ] The full campaign, New Game to the Ending, plays natively ([#116](https://github.com/TusanHomichi/PSIV/issues/116)).
+- [ ] Long sessions run without memory growth ([#92](https://github.com/TusanHomichi/PSIV/issues/92)).
+- [ ] Every story event that a trigger starts has its scene
+  ([#56](https://github.com/TusanHomichi/PSIV/issues/56), [#71](https://github.com/TusanHomichi/PSIV/issues/71), [#81](https://github.com/TusanHomichi/PSIV/issues/81), [#83](https://github.com/TusanHomichi/PSIV/issues/83)).
+- [ ] Hosted CI runs the checks that need no ROM ([#15](https://github.com/TusanHomichi/PSIV/issues/15)).
+- [ ] A release package for Linux and the Steam Deck ([#115](https://github.com/TusanHomichi/PSIV/issues/115)).
+- [x] Player instructions: this README.
 
 The open items are the [v1.0 blocker issues](https://github.com/TusanHomichi/PSIV/issues?q=is%3Aissue+is%3Aopen+label%3Av1.0-blocker).
-Windows support comes after 1.0.
+Windows support comes after 1.0 ([#117](https://github.com/TusanHomichi/PSIV/issues/117)).
 
 ## Play it
 
@@ -105,7 +107,7 @@ as long as they still fit the pack's schema (it refuses a malformed table).
 `python3 -m psiv_tools pack` rebuilds the pack from the ROM and overwrites
 edits made in place, so keep your changes separately. A mod overlay loader, so
 that mods sit beside the original pack instead of inside it, is planned after
-1.0.
+1.0 ([#118](https://github.com/TusanHomichi/PSIV/issues/118)).
 
 ## Contributing
 
