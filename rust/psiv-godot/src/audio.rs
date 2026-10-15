@@ -195,7 +195,7 @@ mod tests {
     }
 
     fn real_track_log() -> Vec<psiv_sound::RegisterWrite> {
-        let mut machine = SoundMachine::new();
+        let mut machine = SoundMachine::with_register_trace();
         machine.load_bank(piata_bank());
         machine.play(0x84);
         let frames = (SAMPLE_RATE / DRIVER_TICK_HZ) as usize * 3;
@@ -246,5 +246,46 @@ mod tests {
                 machine.last_error()
             );
         }
+    }
+
+    /// Renders `seconds` of retail `music` with retail battle SFX `sfx`
+    /// struck once a second, as raw PCM bits.
+    fn retail_pcm(
+        machine: &mut SoundMachine,
+        music: u8,
+        sfx: u8,
+        seconds: usize,
+    ) -> Vec<(u32, u32)> {
+        let bits = |frames: Vec<psiv_sound::StereoFrame>| {
+            frames
+                .into_iter()
+                .map(|frame| (frame.left.to_bits(), frame.right.to_bits()))
+                .collect::<Vec<_>>()
+        };
+        machine.load_bank(piata_bank());
+        // One driver tick installs the music before the SFX is queued.
+        machine.play(music);
+        let mut pcm = bits(machine.render_frames((SAMPLE_RATE / DRIVER_TICK_HZ) as usize));
+        for _ in 0..seconds {
+            machine.play(sfx);
+            pcm.extend(bits(machine.render_frames(SAMPLE_RATE as usize)));
+        }
+        assert!(machine.last_error().is_none(), "{:?}", machine.last_error());
+        pcm
+    }
+
+    /// #92: the live machine the bridge builds keeps no chip-write trace, so a
+    /// long session's memory does not grow with the sound it plays. `$8F` is
+    /// the pack's densest track (~262k writes a minute when traced) and `$F5`
+    /// a battle SFX; tracing them must not change one PCM bit.
+    #[test]
+    fn the_live_machine_keeps_no_trace_and_tracing_changes_no_pcm() {
+        let mut traced = SoundMachine::with_register_trace();
+        let mut live = SoundMachine::new();
+        let traced_pcm = retail_pcm(&mut traced, 0x8f, 0xf5, 5);
+        let live_pcm = retail_pcm(&mut live, 0x8f, 0xf5, 5);
+        assert!(traced.take_register_log().len() > 10_000);
+        assert_eq!(live.register_log().writes(), None);
+        assert_eq!(traced_pcm, live_pcm, "the trace changed the PCM");
     }
 }

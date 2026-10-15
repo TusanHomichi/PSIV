@@ -7,9 +7,10 @@
 //! about JSON or the ROM.
 //!
 //! Every chip write passes through [`RegisterLog`] before it reaches a core.
-//! That is the fixture seam: current tests assert the deterministic write
-//! stream, while future oracle captures can replace expected vectors without
-//! changing the renderer or driver.
+//! That is the fixture seam: a machine built with
+//! [`SoundMachine::with_register_trace`] records the deterministic write
+//! stream for tests and future oracle captures. The live machine
+//! ([`SoundMachine::new`]) records nothing.
 
 mod dac;
 mod driver;
@@ -52,13 +53,25 @@ pub struct SoundMachine {
 }
 
 impl SoundMachine {
-    /// Creates an idle machine.  Use [`Self::load`] before rendering a song.
+    /// Creates an idle machine that records no chip-write trace: the live
+    /// game's machine. Use [`Self::load`] before rendering a song.
     pub fn new() -> Self {
+        Self::with_log(RegisterLog::untraced())
+    }
+
+    /// Creates an idle machine that records every chip write for
+    /// [`Self::take_register_log`]: the fixture and oracle seam. The trace
+    /// grows until taken, so only bounded runs that read it should use this.
+    pub fn with_register_trace() -> Self {
+        Self::with_log(RegisterLog::traced())
+    }
+
+    fn with_log(log: RegisterLog) -> Self {
         Self {
             driver: driver::Driver::new(),
             ym: Ym2612::new(SAMPLE_RATE),
             psg: Sn76489::new(SAMPLE_RATE),
-            log: RegisterLog::new(),
+            log,
         }
     }
 
@@ -118,8 +131,22 @@ impl SoundMachine {
     }
 
     /// Returns and clears the write trace since the previous call.
+    ///
+    /// # Panics
+    ///
+    /// On a machine built without [`Self::with_register_trace`]: an untraced
+    /// machine has no trace, and returning an empty one would let two
+    /// "identical" logs compare equal without recording anything.
     pub fn take_register_log(&mut self) -> Vec<RegisterWrite> {
-        self.log.take()
+        self.log.take().expect(
+            "take_register_log on an untraced SoundMachine: build it with \
+             SoundMachine::with_register_trace()",
+        )
+    }
+
+    /// The trace as recorded so far, without taking it.
+    pub fn register_log(&self) -> &RegisterLog {
+        &self.log
     }
 
     /// Returns the current driver tick for diagnostics and future oracle
