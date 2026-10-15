@@ -20,33 +20,60 @@ pub struct RegisterWrite {
     pub value: u8,
 }
 
-/// Append-only trace owned by a [`SoundMachine`](crate::SoundMachine).
+/// The chip-write trace owned by a [`SoundMachine`](crate::SoundMachine).
+///
+/// Tracing is opt-in ([`SoundMachine::with_register_trace`](crate::SoundMachine::with_register_trace)).
+/// A traced machine appends one record per write, and a DAC sample writes
+/// YM `$2A` about 21,000 times a second, so an untraced machine — the live
+/// game's — must record nothing: an always-on trace grew without bound for
+/// the life of the process (#92).
 #[derive(Clone, Debug, Default)]
 pub struct RegisterLog {
-    writes: Vec<RegisterWrite>,
+    /// `None` when tracing is off; writes then cost nothing.
+    writes: Option<Vec<RegisterWrite>>,
 }
 
 impl RegisterLog {
-    pub(crate) fn new() -> Self {
-        Self::default()
+    pub(crate) fn untraced() -> Self {
+        Self { writes: None }
+    }
+
+    pub(crate) fn traced() -> Self {
+        Self {
+            writes: Some(Vec::new()),
+        }
     }
 
     pub(crate) fn clear(&mut self) {
-        self.writes.clear();
+        if let Some(writes) = self.writes.as_mut() {
+            writes.clear();
+        }
     }
 
     pub(crate) fn push(&mut self, write: RegisterWrite) {
-        self.writes.push(write);
+        if let Some(writes) = self.writes.as_mut() {
+            writes.push(write);
+        }
     }
 
-    pub(crate) fn take(&mut self) -> Vec<RegisterWrite> {
-        std::mem::take(&mut self.writes)
+    /// The writes since the previous take, or `None` on an untraced log.
+    pub(crate) fn take(&mut self) -> Option<Vec<RegisterWrite>> {
+        self.writes.as_mut().map(std::mem::take)
     }
 }
 
 impl RegisterLog {
-    /// Views the writes without consuming them.
-    pub fn writes(&self) -> &[RegisterWrite] {
-        &self.writes
+    /// Whether this log records writes.
+    pub fn is_traced(&self) -> bool {
+        self.writes.is_some()
+    }
+
+    /// Views the writes without consuming them; `None` when tracing is off.
+    pub fn writes(&self) -> Option<&[RegisterWrite]> {
+        self.writes.as_deref()
     }
 }
+
+#[cfg(test)]
+#[path = "trace_tests.rs"]
+mod trace_tests;

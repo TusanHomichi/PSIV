@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use psiv_campaign::prefix::check_prefix;
-use psiv_campaign::replay::replay;
+use psiv_campaign::replay::replay_observing;
 use psiv_campaign::route::Route;
 use psiv_campaign::runner::{RunConfig, run};
 use psiv_campaign::split::{ChapterCut, chapters_of, report_chapters, split_tape};
@@ -105,7 +105,11 @@ fn run_inner(args: &[String]) -> Result<ExitCode, String> {
     Ok(ExitCode::SUCCESS)
 }
 
-/// `replay <tape> [--from-save FILE] [--pack DIR]`.
+/// `replay <tape> [--from-save FILE] [--pack DIR] [--map-every N]`.
+///
+/// `--map-every N` prints `map-sample <frames> <map>` after every N frames:
+/// the map the native RSS samples were taken on, for re-judging recorded
+/// samples (`tools/verify_native_tape.py`, #92).
 pub fn cmd_replay(args: &[String]) -> ExitCode {
     match replay_inner(args) {
         Ok(code) => code,
@@ -124,7 +128,23 @@ fn replay_inner(args: &[String]) -> Result<ExitCode, String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read {path}: {e}"))?;
     let tape = Tape::parse(&text).map_err(|e| format!("{path}: {e}"))?;
     let from_save = args.one("from-save").map(Path::new);
-    let result = replay(&pack_dir(&args), &tape, from_save).map_err(|e| e.to_string())?;
+    let map_every = match args.one("map-every") {
+        Some(text) => match text.parse::<usize>() {
+            Ok(every) if every > 0 => Some(every),
+            _ => {
+                return Err(format!(
+                    "--map-every needs a positive frame count, not {text:?}"
+                ));
+            }
+        },
+        None => None,
+    };
+    let result = replay_observing(&pack_dir(&args), &tape, from_save, |frames, runtime| {
+        if map_every.is_some_and(|every| frames % every == 0) {
+            println!("map-sample {frames} {}", runtime.map_id().0);
+        }
+    })
+    .map_err(|e| e.to_string())?;
     for (frame, fault) in &result.faults {
         println!("fault at frame {frame}: {fault}");
     }
