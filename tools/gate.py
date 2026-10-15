@@ -73,29 +73,21 @@ FAST_COMMANDS = [
 
 #: Python test modules the fast tier leaves to the full gate: every module that
 #: took 6 s or more in one in-process run of the whole suite (2026-10-15, CPU
-#: capped at 2.3 GHz; 786 s in all, the other modules 46 s). Most of it is
-#: `build_pack` setup, ~20 s per call (#130). Every name must be a module
-#: under tests/ (tests/test_gate.py checks), so a rename cannot leave a stale
-#: entry here. Values are those seconds.
+#: capped at 2.3 GHz; 202 s in all, the other modules 63 s). The suite emits
+#: the pack's map-independent sections once per process (#130), so the first
+#: module that builds a pack pays ~10 s for the rest. Every name must be a
+#: module under tests/ (tests/test_gate.py checks), so a rename cannot leave a
+#: stale entry here. Values are those seconds.
 SLOW_PYTHON_MODULES = {
-    "test_pack_maps": 263.1,
-    "test_map_patches": 73.3,
-    "test_pack_sprites": 68.8,
-    "test_shop_flow": 47.5,
-    "test_pack_manifest": 44.7,
+    "test_pack_maps": 36.5,
     "test_reload_frames": 31.4,
-    "test_battle_art_pack": 26.8,
-    "test_map_effects": 26.1,
-    "test_newgame": 24.5,
-    "test_crash_landing": 24.2,
-    "test_npc_commands": 24.1,
-    "test_render": 22.7,
-    "test_pack_game_start": 22.5,
-    "test_oracle_host_binary": 11.0,
-    "test_extract_stamp": 8.1,
-    "test_battle_pack": 7.2,
-    "test_battle_records": 7.2,
-    "test_battle_animations": 6.7,
+    "test_pack_manifest": 13.7,
+    "test_battle_art_pack": 12.3,
+    "test_crash_landing": 11.2,
+    "test_map_patches": 11.0,
+    "test_oracle_host_binary": 10.3,
+    "test_sprites": 6.6,
+    "test_extract_stamp": 6.6,
 }
 
 #: Where receipts go, relative to the root. The lock is shared: see heavy_lock.
