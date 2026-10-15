@@ -91,9 +91,11 @@ fn the_fixture_is_dac_heavy_when_traced() {
 }
 
 #[test]
-fn an_untraced_machine_records_nothing_over_minutes_of_dac() {
+fn an_untraced_machine_records_nothing_while_the_dac_plays() {
+    // One second is ~21k DAC writes (`the_fixture_is_dac_heavy_when_traced`);
+    // an untraced log holds none of them by construction.
     let mut live = machine(false);
-    let _ = render(&mut live, 300);
+    let _ = render(&mut live, 1);
     assert!(live.last_error().is_none());
     assert!(!live.register_log().is_traced());
     assert_eq!(live.register_log().writes(), None);

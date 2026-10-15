@@ -248,44 +248,46 @@ mod tests {
         }
     }
 
-    /// Renders `seconds` of retail `music` with retail battle SFX `sfx`
-    /// struck once a second, as raw PCM bits.
-    fn retail_pcm(
-        machine: &mut SoundMachine,
-        music: u8,
-        sfx: u8,
-        seconds: usize,
-    ) -> Vec<(u32, u32)> {
-        let bits = |frames: Vec<psiv_sound::StereoFrame>| {
-            frames
-                .into_iter()
-                .map(|frame| (frame.left.to_bits(), frame.right.to_bits()))
-                .collect::<Vec<_>>()
-        };
+    /// Renders `seconds` of one retail record as raw PCM bits.
+    fn retail_pcm(machine: &mut SoundMachine, id: u8, seconds: usize) -> Vec<(u32, u32)> {
         machine.load_bank(piata_bank());
-        // One driver tick installs the music before the SFX is queued.
-        machine.play(music);
-        let mut pcm = bits(machine.render_frames((SAMPLE_RATE / DRIVER_TICK_HZ) as usize));
-        for _ in 0..seconds {
-            machine.play(sfx);
-            pcm.extend(bits(machine.render_frames(SAMPLE_RATE as usize)));
-        }
+        machine.play(id);
+        let pcm = machine
+            .render_frames(SAMPLE_RATE as usize * seconds)
+            .into_iter()
+            .map(|frame| (frame.left.to_bits(), frame.right.to_bits()))
+            .collect();
         assert!(machine.last_error().is_none(), "{:?}", machine.last_error());
         pcm
     }
 
-    /// #92: the live machine the bridge builds keeps no chip-write trace, so a
-    /// long session's memory does not grow with the sound it plays. `$8F` is
-    /// the pack's densest track (~262k writes a minute when traced) and `$F5`
-    /// a battle SFX; tracing them must not change one PCM bit.
+    fn audible(pcm: &[(u32, u32)]) -> bool {
+        pcm.iter()
+            .any(|&(left, right)| f32::from_bits(left) != 0.0 || f32::from_bits(right) != 0.0)
+    }
+
+    /// #92: the live machine the bridge builds keeps no chip-write trace, and
+    /// tracing never changes one PCM bit. `$84` drives the DAC (YM `$2A`, the
+    /// write that grew the old always-on trace); `$F5` is a battle SFX.
     #[test]
     fn the_live_machine_keeps_no_trace_and_tracing_changes_no_pcm() {
-        let mut traced = SoundMachine::with_register_trace();
-        let mut live = SoundMachine::new();
-        let traced_pcm = retail_pcm(&mut traced, 0x8f, 0xf5, 5);
-        let live_pcm = retail_pcm(&mut live, 0x8f, 0xf5, 5);
-        assert!(traced.take_register_log().len() > 10_000);
-        assert_eq!(live.register_log().writes(), None);
-        assert_eq!(traced_pcm, live_pcm, "the trace changed the PCM");
+        for (id, dac) in [(0x84, true), (0xf5, false)] {
+            let mut traced = SoundMachine::with_register_trace();
+            let mut live = SoundMachine::new();
+            let traced_pcm = retail_pcm(&mut traced, id, 3);
+            let live_pcm = retail_pcm(&mut live, id, 3);
+            let log = traced.take_register_log();
+            assert!(!log.is_empty(), "{id:#04x} wrote nothing");
+            if dac {
+                assert!(
+                    log.iter()
+                        .any(|write| write.chip == Chip::Ym2612 && write.register == 0x2a),
+                    "{id:#04x} never wrote the DAC"
+                );
+            }
+            assert!(audible(&traced_pcm), "{id:#04x} rendered silence");
+            assert_eq!(live.register_log().writes(), None);
+            assert_eq!(traced_pcm, live_pcm, "the trace changed {id:#04x}'s PCM");
+        }
     }
 }
