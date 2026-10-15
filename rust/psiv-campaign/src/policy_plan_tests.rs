@@ -454,3 +454,30 @@ fn the_cure_goes_to_the_member_whose_action_is_worth_least() {
     alone.actor = 3;
     assert!(matches!(planner.decide(&alone), Intent::Attack { .. }));
 }
+
+/// Options worth the same are ranked by what they spend, never by the order
+/// a kit lists them in: the same two techniques in either order give the same
+/// choice, the lower id at equal cost and the cheaper at unequal cost.
+/// Negative: in a kit holding a tie, reversing the list must not change the
+/// choice.
+#[test]
+fn equal_options_are_ranked_by_spend_not_list_order() {
+    let enemy = with(foe(50), |s| s.element_props[usize::from(FIRE - 1)] = 4);
+    let low_id = technique(4, 1, 1, 40, FIRE, 4, &[6]);
+    let high_id = technique(10, 1, 1, 40, FIRE, 4, &[6]);
+    for kit in [
+        vec![low_id.clone(), high_id.clone()],
+        vec![high_id.clone(), low_id.clone()],
+    ] {
+        let chosen = scripted().decide(&board(vec![chaz()], vec![enemy.clone()], kit));
+        assert_eq!(tech_id(&chosen), Some(4), "{chosen:?}");
+    }
+    let cheap = technique(10, 1, 1, 40, FIRE, 2, &[6]);
+    for kit in [
+        vec![low_id.clone(), cheap.clone()],
+        vec![cheap.clone(), low_id.clone()],
+    ] {
+        let chosen = scripted().decide(&board(vec![chaz()], vec![enemy.clone()], kit));
+        assert_eq!(tech_id(&chosen), Some(10), "{chosen:?}");
+    }
+}

@@ -132,12 +132,70 @@ pub struct Planner {
 }
 
 /// A scored candidate: its value, the order, what it does to each fighter,
-/// and which of the kit's abilities it uses (`None` for ATTACK).
+/// which of the kit's abilities it uses (`None` for ATTACK), and what it
+/// spends (the tie-break).
 struct Pick {
     value: Value,
     intent: Intent,
     each: Vec<(u8, Value)>,
     ability: Option<usize>,
+    spend: Spend,
+}
+
+/// What a command spends, the planner's one tie-break after value: options
+/// worth the same are ordered by this key, never by the order a list
+/// happens to hold them in, so every member's options rank alike.
+///
+/// In order: a free command (ATTACK, DEFEND) before a technique, a technique
+/// before a skill (it spends a use) and a skill before an item (it may be
+/// consumed); then the lower TP cost; then the lower technique, skill or item
+/// id; then the lower target fighter id. A command without a target cursor
+/// (every enemy, the whole party, the caster) has target key 0, so it sorts
+/// before any single target (fighter ids are 1-9).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) struct Spend {
+    kind: u8,
+    tp: u8,
+    id: u8,
+    target: u8,
+}
+
+impl Spend {
+    /// A free command on `target`.
+    pub(crate) fn free(target: Option<u8>) -> Spend {
+        Spend {
+            kind: 0,
+            tp: 0,
+            id: 0,
+            target: target.unwrap_or(0),
+        }
+    }
+
+    /// `ability` on `target` (`None` without a target cursor).
+    pub(crate) fn of(ability: &Ability, target: Option<u8>) -> Spend {
+        let (kind, id) = match &ability.source {
+            Source::Technique(id) => (1, *id),
+            Source::Skill(id) => (2, *id),
+            Source::Item { id, .. } => (3, *id),
+        };
+        Spend {
+            kind,
+            tp: ability.tp_cost,
+            id,
+            target: if ability.single() {
+                target.unwrap_or(0)
+            } else {
+                0
+            },
+        }
+    }
+}
+
+/// The planner's one comparator: whether an option worth `a` spending `a_spend`
+/// ranks above one worth `b` spending `b_spend`. Higher value first; equal
+/// values by [`Spend`].
+pub(crate) fn ranks_above(a: Value, a_spend: Spend, b: Value, b_spend: Spend) -> bool {
+    a > b || (a == b && a_spend < b_spend)
 }
 
 /// A cure on offer: who casts what, on whom, and how it ranks.
@@ -147,7 +205,7 @@ struct Offer<'a> {
     target: Option<u8>,
     patients: Vec<u8>,
     amount: Value,
-    rank: (bool, u8, Value, (bool, u8), u8),
+    rank: (bool, u8, Value, Spend, u8),
 }
 
 impl Planner {
@@ -304,14 +362,6 @@ impl Planner {
         }
     }
 
-    /// Ranks cures by what they spend: a renewable one before an item, then by TP.
-    fn cure_cost(ability: &Ability) -> (bool, u8) {
-        (
-            matches!(ability.source, Source::Item { .. }),
-            ability.tp_cost,
-        )
-    }
-
     fn heals(ability: &Ability) -> bool {
         matches!(ability.class(), EffectClass::Heal | EffectClass::HealRevive)
     }
@@ -394,7 +444,7 @@ impl Planner {
                         amount < Value::from(need) * HP,
                         0,
                         self.worth(board, kit.id),
-                        Self::cure_cost(ability),
+                        Spend::of(ability, None),
                         kit.id,
                     ),
                 });
@@ -444,7 +494,7 @@ impl Planner {
                         amount < Value::from(need) * HP,
                         0,
                         self.worth(board, kit.id),
-                        Self::cure_cost(ability),
+                        Spend::of(ability, Some(patient.id())),
                         kit.id,
                     ),
                 }
@@ -498,7 +548,7 @@ impl Planner {
                         false,
                         class_rank,
                         self.worth(board, kit.id),
-                        Self::cure_cost(ability),
+                        Spend::of(ability, Some(first)),
                         kit.id,
                     ),
                 });
@@ -540,7 +590,7 @@ impl Planner {
                         false,
                         0,
                         self.worth(board, kit.id),
-                        Self::cure_cost(ability),
+                        Spend::of(ability, Some(patient.id())),
                         kit.id,
                     ),
                 });

@@ -4,7 +4,7 @@
 
 use psiv_core::battle::status;
 
-use super::{BUFF_ROUNDS, ENCOUNTER_SPEND_FACTOR, Pick, Planner};
+use super::{BUFF_ROUNDS, ENCOUNTER_SPEND_FACTOR, Pick, Planner, Spend, ranks_above};
 use crate::policy::Intent;
 use crate::policy_board::{Ability, Board, Combatant, Kit, Source};
 use crate::policy_estimate::{
@@ -110,13 +110,18 @@ impl Planner {
                 intent: Intent::ATTACK,
                 each,
                 ability: None,
+                spend: Spend::free(None),
             });
         }
-        best_of(board.enemies.iter().map(|e| (e.id(), hit(e)))).map(|(id, value)| Pick {
+        best_of(board.enemies.iter().map(|e| (e.id(), hit(e))), |id| {
+            Spend::free(Some(id))
+        })
+        .map(|(id, value)| Pick {
             value,
             intent: Intent::Attack { target: Some(id) },
             each: vec![(id, value)],
             ability: None,
+            spend: Spend::free(Some(id)),
         })
     }
 
@@ -221,12 +226,15 @@ impl Planner {
             })
             .collect();
         if ability.single() {
-            let (id, value) = best_of(candidates.iter().copied())?;
+            let (id, value) = best_of(candidates.iter().copied(), |id| {
+                Spend::of(ability, Some(id))
+            })?;
             Some(Pick {
                 value,
                 intent: Self::intent(ability, Some(id)),
                 each: vec![(id, value)],
                 ability: Some(index),
+                spend: Spend::of(ability, Some(id)),
             })
         } else {
             Some(Pick {
@@ -234,6 +242,7 @@ impl Planner {
                 intent: Self::intent(ability, None),
                 each: candidates,
                 ability: Some(index),
+                spend: Spend::of(ability, None),
             })
         }
     }
@@ -282,7 +291,11 @@ impl Planner {
             if !self.scripted && ability.spends() && pick.value < floor * ENCOUNTER_SPEND_FACTOR {
                 continue;
             }
-            if pick.value > best.as_ref().map_or(0, |b| b.value) {
+            let above = match &best {
+                Some(b) => ranks_above(pick.value, pick.spend, b.value, b.spend),
+                None => pick.value > 0,
+            };
+            if above {
                 best = Some(pick);
             }
         }
@@ -290,10 +303,14 @@ impl Planner {
     }
 }
 
-/// The candidate worth most; the first of equals.
-fn best_of(candidates: impl Iterator<Item = (u8, Value)>) -> Option<(u8, Value)> {
+/// The target worth most, ties broken by [`ranks_above`] on each target's
+/// `spend`.
+fn best_of(
+    candidates: impl Iterator<Item = (u8, Value)>,
+    spend: impl Fn(u8) -> Spend,
+) -> Option<(u8, Value)> {
     candidates.fold(None, |best, (id, v)| match best {
-        Some((_, b)) if b >= v => best,
+        Some((b_id, b)) if !ranks_above(v, spend(id), b, spend(b_id)) => best,
         _ => Some((id, v)),
     })
 }
