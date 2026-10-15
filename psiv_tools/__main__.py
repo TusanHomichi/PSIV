@@ -2,9 +2,57 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from pathlib import Path
 
 from .core import RomError, extract_all, inspect_rom, read_rom, write_extract
+from .extract_stamp import StaleExtractError
+
+
+def _extract(data: bytes, output: Path) -> None:
+    result = write_extract(data, output)
+    print(f"Verified PSIV US retail ROM: {result['metadata']['hashes']['sha256']}")
+    print(f"Extracted {len(result['characters'])} characters")
+    print(f"Extracted {len(result['techniques'])} techniques")
+    print(f"Extracted {len(result['skills'])} skills")
+    print(f"Extracted {len(result['combos'])} combos")
+    print(f"Extracted {len(result['vehicles'])} vehicles")
+    print(f"Extracted {len(result['items'])} items/equipment records")
+    print(f"Extracted {len(result['enemies'])} enemy records")
+    print(f"Extracted {len(result['enemy_skills'])} enemy skill records")
+    print(f"Extracted {result['progression']['total_level_records']} level-progression records")
+    print(f"Extracted {result['formations']['total_formations']} battle formations")
+    print(f"Extracted {result['formations']['total_boss_formations']} boss formations")
+    print(f"Extracted {result['formation_indexes']['group_count']} encounter formation-index groups")
+    print(f"Extracted {result['shops']['shop_count']} shop inventories, {result['shops']['locations']['entry_count']} shop locations")
+    print(f"Extracted graphics metadata: {result['graphics']['total_tiles_decoded']} tiles across named art, portraits, and battle backgrounds")
+    print(f"Extracted {len(result['names']['tables'])} name tables and {result['dialogue']['total_entries']} dialogue entries in {len(result['dialogue']['trees'])} trees")
+    print(f"Extracted {result['maps']['real_map_count']} map records ({result['maps']['null_map_count']} null) with encounter binding")
+    print(f"Extracted {result['planes']['distinct_mappings']} Enigma plane mappings ({result['planes']['total_cells_decoded']} cells)")
+    print(f"Wrote JSON to {output}")
+
+
+def _regenerate(data: bytes, output: Path) -> None:
+    """Every producer of `generated/`, in order, into one directory.
+
+    The tables first (their `metadata.json` is written last), then each PNG
+    directory; every step writes its own stamp (`psiv_tools/extract_stamp.py`).
+    """
+    from .battle_art import export_battle_art_pngs
+    from .gfx import export_art_pngs
+    from .planes import export_plane_pngs
+
+    steps = [
+        ("tables", lambda: _extract(data, output)),
+        ("gfx", lambda: print(f"Wrote {len(export_art_pngs(data, output / 'gfx'))} PNG sheets to {output / 'gfx'}")),
+        ("planes", lambda: print(f"Wrote {len(export_plane_pngs(data, output / 'planes'))} composed PNGs to {output / 'planes'}")),
+        ("battle_art", lambda: print(f"Wrote {len(export_battle_art_pngs(data, output / 'battle_art'))} battle art PNGs to {output / 'battle_art'}")),
+    ]
+    for name, step in steps:
+        started = time.monotonic()
+        step()
+        print(f"regenerate: {name} done in {time.monotonic() - started:.1f}s")
+    print(f"regenerate: {output} rebuilt and stamped (layouts/ is written by export_map_pngs and is not touched)")
 
 
 def main() -> int:
@@ -28,6 +76,17 @@ def main() -> int:
     p_planes = sub.add_parser("planes", help="Compose Enigma plane mappings into finished PNGs (writes Sega pixels; keep the output gitignored)")
     p_planes.add_argument("rom", type=Path)
     p_planes.add_argument("output", type=Path)
+
+    p_battle_art = sub.add_parser("battle-art", help="Render enemy and character battle art to PNGs (writes Sega pixels; keep the output gitignored)")
+    p_battle_art.add_argument("rom", type=Path)
+    p_battle_art.add_argument("output", type=Path)
+
+    p_regenerate = sub.add_parser(
+        "regenerate",
+        help="Rebuild every generated/ output in one run: the JSON tables, then gfx/, planes/ and battle_art/ PNGs, each stamped",
+    )
+    p_regenerate.add_argument("rom", type=Path)
+    p_regenerate.add_argument("output", type=Path)
 
     p_pack = sub.add_parser("pack", help="Emit the runtime pack for psiv-data (writes Sega pixels; keep the output gitignored)")
     p_pack.add_argument("rom", type=Path)
@@ -54,7 +113,10 @@ def main() -> int:
     if args.command == "dialogue-census":
         from .dialogue_census import load, markdown
 
-        result = load(args.dialogue_json)
+        try:
+            result = load(args.dialogue_json)
+        except (OSError, StaleExtractError) as exc:
+            parser.error(str(exc))
         if args.format == "markdown":
             print(markdown(result))
         else:
@@ -66,32 +128,19 @@ def main() -> int:
             info = inspect_rom(data)
             print(json.dumps(info, indent=2))
         elif args.command == "extract":
-            result = write_extract(data, args.output)
-            print(f"Verified PSIV US retail ROM: {result['metadata']['hashes']['sha256']}")
-            print(f"Extracted {len(result['characters'])} characters")
-            print(f"Extracted {len(result['techniques'])} techniques")
-            print(f"Extracted {len(result['skills'])} skills")
-            print(f"Extracted {len(result['combos'])} combos")
-            print(f"Extracted {len(result['vehicles'])} vehicles")
-            print(f"Extracted {len(result['items'])} items/equipment records")
-            print(f"Extracted {len(result['enemies'])} enemy records")
-            print(f"Extracted {len(result['enemy_skills'])} enemy skill records")
-            print(f"Extracted {result['progression']['total_level_records']} level-progression records")
-            print(f"Extracted {result['formations']['total_formations']} battle formations")
-            print(f"Extracted {result['formations']['total_boss_formations']} boss formations")
-            print(f"Extracted {result['formation_indexes']['group_count']} encounter formation-index groups")
-            print(f"Extracted {result['shops']['shop_count']} shop inventories, {result['shops']['locations']['entry_count']} shop locations")
-            print(f"Extracted graphics metadata: {result['graphics']['total_tiles_decoded']} tiles across named art, portraits, and battle backgrounds")
-            print(f"Extracted {len(result['names']['tables'])} name tables and {result['dialogue']['total_entries']} dialogue entries in {len(result['dialogue']['trees'])} trees")
-            print(f"Extracted {result['maps']['real_map_count']} map records ({result['maps']['null_map_count']} null) with encounter binding")
-            print(f"Extracted {result['planes']['distinct_mappings']} Enigma plane mappings ({result['planes']['total_cells_decoded']} cells)")
-            print(f"Wrote JSON to {args.output}")
+            _extract(data, args.output)
         elif args.command == "dump":
             print(json.dumps(extract_all(data), indent=2))
         elif args.command == "art":
             from .gfx import export_art_pngs
             written = export_art_pngs(data, args.output)
             print(f"Wrote {len(written)} PNG sheets to {args.output}")
+        elif args.command == "battle-art":
+            from .battle_art import export_battle_art_pngs
+            written = export_battle_art_pngs(data, args.output)
+            print(f"Wrote {len(written)} battle art PNGs to {args.output}")
+        elif args.command == "regenerate":
+            _regenerate(data, args.output)
         elif args.command == "planes":
             from .planes import export_plane_pngs
             written = export_plane_pngs(data, args.output)

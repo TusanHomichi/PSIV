@@ -59,6 +59,8 @@ import pathlib
 import re
 import sys
 
+from psiv_tools.extract_stamp import StaleExtractError, load_table, table_sha256
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 GENERATED = ROOT / "generated"
 ROUTE = ROOT / "rust" / "psiv-campaign" / "routes" / "main.json"
@@ -252,7 +254,7 @@ class Data:
     @classmethod
     def load(cls, directory: pathlib.Path = GENERATED) -> "Data":
         def read(name: str):
-            return json.loads((directory / f"{name}.json").read_text())
+            return load_table(directory, name)
 
         formations = read("formations")
         return cls(
@@ -626,7 +628,10 @@ def main(argv: list[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     if arguments.scene_doc and not arguments.map_pattern:
         parser.error("--scene-doc needs --map-pattern (an explicit scope)")
-    data = Data.load(arguments.data_dir)
+    try:
+        data = Data.load(arguments.data_dir)
+    except StaleExtractError as error:
+        parser.error(str(error))
     try:
         if arguments.map_pattern:
             scope = pattern_scope(data, arguments.map_pattern, arguments.scene_doc)
@@ -638,9 +643,11 @@ def main(argv: list[str] | None = None) -> int:
     result["scope"] = arguments.map_pattern or arguments.stretch
     result["scenes"] = scope.scenes
     if arguments.out:
-        inputs = scope.inputs + [LEDGER] + [
-            arguments.data_dir / f"{name}.json" for name in DATA_FILES]
-        result["source_sha256"] = sha256_of(inputs)
+        hashes = sha256_of(scope.inputs + [LEDGER])
+        # The extract's own hashes, from its stamp, not a second read of the files.
+        hashes.update({str(arguments.data_dir / f"{name}.json"): table_sha256(arguments.data_dir, name)
+                       for name in DATA_FILES})
+        result["source_sha256"] = dict(sorted(hashes.items()))
         arguments.out.parent.mkdir(parents=True, exist_ok=True)
         arguments.out.write_text(json.dumps(result, indent=2) + "\n")
     if arguments.update_doc:

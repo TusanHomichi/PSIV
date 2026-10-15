@@ -51,6 +51,7 @@ from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 from . import png
+from .extract_stamp import begin_png_export, write_png_stamp
 from .nemesis import TILE_SIZE, decompress, read_header
 
 TILE_WIDTH = 8
@@ -676,7 +677,7 @@ def export_art_pngs(data: bytes, out_dir: str | Path, columns: int = 16) -> list
     version control.
     """
     directory = Path(out_dir)
-    directory.mkdir(parents=True, exist_ok=True)
+    begin_png_export(directory)
     written: list[dict[str, Any]] = []
 
     def emit(
@@ -735,4 +736,5 @@ def export_art_pngs(data: bytes, out_dir: str | Path, columns: int = 16) -> list
         colors += [(0, 0, 0)] * (COLORS_PER_LINE - len(colors))
         emit(label, decode_tiles(decompressed), None, colors, entry["palette"]["label"])
 
+    write_png_stamp(directory, "gfx", [entry["path"] for entry in written])
     return written

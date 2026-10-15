@@ -53,11 +53,15 @@ python -m psiv_tools inspect "/path/to/Phantasy Star IV (USA).md"
 python -m psiv_tools extract "/path/to/Phantasy Star IV (USA).md" generated
 ```
 
-The extract command writes:
+`extract` writes only the JSON tables. To rebuild the whole of `generated/`,
+with its stamps, use [`regenerate`](#rebuild-the-generated-directory).
+
+`extract` writes the JSON tables; `regenerate` also writes the PNG directories
+and a stamp file for each. The whole of `generated/`:
 
 ```text
 generated/
-├── metadata.json
+├── metadata.json                (carries the extract stamp, with every table's SHA-256)
 ├── layout_validation.json
 ├── tables.json
 ├── characters.json
@@ -77,8 +81,76 @@ generated/
 ├── dialogue.json
 ├── maps.json
 ├── encounters.json
-└── planes.json
+├── planes.json
+├── gfx/                         (art sheets, PNG)
+│   └── extract_stamp.json
+├── planes/                      (composed plane screens, PNG)
+│   └── extract_stamp.json
+├── battle_art/                  (enemies/ and characters/, PNG)
+│   └── extract_stamp.json
+└── layouts/                     (map renders, PNG; not rebuilt by regenerate, see below)
+    └── extract_stamp.json
 ```
+
+## Rebuild the generated directory
+
+`generated/` is the output of four producers: `extract` (the JSON tables), `art`
+(`gfx/`), `planes` (`planes/`) and `battle-art` (`battle_art/`). One command runs all of them, in that
+order, into one directory:
+
+```bash
+python3 -m psiv_tools regenerate "/path/to/Phantasy Star IV (USA).md" generated
+```
+
+It prints each step's duration. This is the way to rebuild `generated/`; run it
+after any change under `psiv_tools/` that the extractor reaches, and before a
+tool that reads the tables.
+
+Every output is stamped with the extractor that wrote it, so a reader cannot
+use an older extract without noticing:
+
+- The stamp is a SHA-256 over the source of every `psiv_tools` module the
+  producing command can reach through its imports, with the per-module hashes
+  beside it. The JSON tables share one stamp, in `metadata.json` under
+  `extract_stamp`: `core` imports every extractor, so the import graph gives
+  each table the same modules and a per-file stamp would claim precision the
+  graph does not have. Each PNG directory carries its own `extract_stamp.json`,
+  written by the exporter that writes the images (`export_art_pngs`,
+  `export_plane_pngs`, `export_battle_art_pngs` and `export_map_pngs`).
+- The stamp also lists every file its producer wrote, with the file's SHA-256, so
+  it vouches for contents and not only for the directory. A table the stamp does
+  not list, or whose bytes differ from the listed hash, is refused: an old table
+  left behind by an extractor that dropped it, or a stale file copied over a
+  current one, cannot load under a current stamp. A PNG directory that holds a
+  file its stamp does not list, lacks one it lists, or holds a changed one is
+  refused as a whole.
+- A reader opens a table with `psiv_tools.extract_stamp.load_table`. A present
+  extract with no stamp, with another source's stamp, or failing the content
+  check above raises `StaleExtractError`, naming the file, what is wrong with it
+  and the command above. A stale stamp refuses every table name, including one
+  a newer extractor adds, and a table the stamp lists but which has been deleted
+  is refused too. Only a checkout with no `generated/` at all (or a name nothing
+  lists and no file holds) gives an ordinary `FileNotFoundError`, so a check that
+  skips without the local inputs still skips. `tests/test_extract_stamp.py` fails when any other module reads
+  `generated/`.
+- Editing an extractor module, even a pure refactor, changes the stamp and
+  makes the next read refuse until `regenerate` runs. That is the price of never
+  missing a drift. `metadata.json` is written last, so an interrupted run leaves
+  tables that refuse rather than ones that look current.
+- Each producer first removes the files its *previous* stamp listed and then
+  writes its own; a file the new run no longer produces does not stay behind. It
+  removes nothing else and never clears a directory, so a file placed there by
+  hand survives and a PNG directory holding one is refused until it is removed.
+- **No code reads the PNG directories today.** Their stamps and
+  `check_png_directory` are there for the first reader, which must call it. Only
+  the JSON tables have readers (the battle-forcing pack, the route and player
+  ability derivations, the replay pack, the sweep coverage and the dialogue
+  census).
+- `layouts/` is written by `export_map_pngs` for the maps someone chooses and
+  has no command of its own, so `regenerate` does not touch it
+  ([#106](https://github.com/TusanHomichi/PSIV/issues/106) tracks the missing
+  producer). The exporter stamps it, and refuses to add a map to a directory
+  that holds images from another source.
 
 ## Proven retail-layout tables
 

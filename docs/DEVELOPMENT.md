@@ -50,6 +50,13 @@ coverage and is useful for development, but is not the full campaign pack.
 The ROM, disassembly checkout and generated pack are local inputs/outputs;
 they are excluded from Git.
 
+`generated/` (the extractor's tables and PNGs) is stamped with the extractor
+source that wrote it, and every tool that reads it refuses an older extract. After
+changing anything under `psiv_tools/`, rebuild it with
+`python3 -m psiv_tools regenerate "<ROM path>" generated`
+([how the stamp works](EXTRACTION.md#rebuild-the-generated-directory)). A checkout
+with no `generated/` is not affected: the readers that skip without it still skip.
+
 The 2026-09-23 overworld repair requires the resolved `overworld_patches` and
 composed base/priority atlas data. Older packs fail with an explicit rebuild
 message; rerun the full pack command above. Preserve any pack used by retained

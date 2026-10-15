@@ -13,6 +13,8 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, Iterable
 
+from .extract_stamp import load_table_file
+
 
 ACTION_SPECS: tuple[tuple[int, str], ...] = (
     (0, "load_panel"),
@@ -138,10 +140,13 @@ def census(document: dict[str, Any]) -> dict[str, Any]:
 
 
 def load(path: str | Path) -> dict[str, Any]:
-    """Load and census a generated or runtime-pack dialogue JSON file."""
+    """Load and census `generated/dialogue.json`.
 
-    document = json.loads(Path(path).read_text(encoding="utf-8"))
-    return census(document)
+    The table goes through the extract-stamp loader, so a file from an older
+    extractor is refused (`StaleExtractError`) instead of counted.
+    """
+
+    return census(load_table_file(path))
 
 
 def _locations(entries: dict[str, int]) -> str:
