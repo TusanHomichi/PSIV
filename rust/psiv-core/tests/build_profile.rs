@@ -19,9 +19,10 @@ fn integer_overflow_panics_in_test_builds() {
 }
 
 #[test]
-fn debug_assertions_are_on_in_test_builds() {
+fn debug_assertions_fire_in_test_builds() {
+    let asserted = panic::catch_unwind(|| debug_assert!(black_box(false)));
     assert!(
-        cfg!(debug_assertions),
-        "debug-assertions is off in the test profile"
+        asserted.is_err(),
+        "debug_assert!(false) passed: debug-assertions is off in the test profile"
     );
 }

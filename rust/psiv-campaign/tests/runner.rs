@@ -85,7 +85,10 @@ fn academy() -> Option<&'static (RunConfig, RunResult)> {
 fn academy_saves() -> Option<PathBuf> {
     static COPIES: AtomicUsize = AtomicUsize::new(0);
     let (first_config, _) = academy()?;
-    let dir = scratch(&format!("academy-copy-{}", COPIES.fetch_add(1, Ordering::Relaxed)));
+    let dir = scratch(&format!(
+        "academy-copy-{}",
+        COPIES.fetch_add(1, Ordering::Relaxed)
+    ));
     for entry in std::fs::read_dir(&first_config.save_dir).expect("academy saves list") {
         let from = entry.expect("academy save entry").path();
         let to = dir.join(from.file_name().expect("named entry"));
