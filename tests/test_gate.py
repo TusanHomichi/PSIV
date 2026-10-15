@@ -17,19 +17,23 @@ import contextlib
 import fcntl
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from tools.gate import (GATE_COMMANDS, GateRefused, command_slug, lock_path, main,
-                        parse_counts, run_gate)
+from tools.gate import (FAST_COMMANDS, GATE_COMMANDS, SLOW_PYTHON_MODULES, GateRefused,
+                        command_slug, main, parse_counts, quick_unittest, run_gate)
+from tools.heavy_lock import HEAVY_LOCK_ENV, HELD_ENV, gate_lock_path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEVELOPMENT = REPO_ROOT / "docs" / "DEVELOPMENT.md"
 
 DOCS_COMMAND, UNITTEST_COMMAND, FMT_COMMAND, CARGO_TEST_COMMAND, CLIPPY_COMMAND = GATE_COMMANDS
+QUICK_UNITTEST_COMMAND = FAST_COMMANDS[3]
 
 # Captured: `python3 -m unittest gate_sample_skip` (build/lane-evidence/capture/
 # unittest-skip.capture.txt), minus the shell prompt line.
@@ -92,31 +96,32 @@ time.sleep(60)
 """
 
 
-def run_checks_block(text):
-    """The command lines of the first fenced `bash` block under `## Run checks`.
+def run_checks_blocks(text):
+    """The command lines of each fenced `bash` block under `## Run checks`.
 
-    Every non-empty line of that block is a command, so a comment or a second
-    command there shows up as a mismatch against GATE_COMMANDS.
+    The first block is the full gate, the second the fast tier. Every
+    non-empty line of a block is a command, so a comment or an extra command
+    there shows up as a mismatch against GATE_COMMANDS or FAST_COMMANDS.
     """
     lines = text.splitlines()
     heading = next((i for i, line in enumerate(lines) if line.strip() == "## Run checks"), None)
     if heading is None:
         raise AssertionError("docs/DEVELOPMENT.md has no `## Run checks` heading")
-    inside, collected, closed = False, [], False
+    blocks, inside, collected = [], False, []
     for line in lines[heading + 1:]:
         if inside:
             if line.strip() == "```":
-                closed = True
-                break
-            if line.strip():
+                blocks.append(collected)
+                inside, collected = False, []
+            elif line.strip():
                 collected.append(line.rstrip())
         elif line.strip() == "```bash":
             inside = True
         elif line.startswith("## "):
             break
-    if not closed:
-        raise AssertionError("the `## Run checks` fenced bash block is missing or unclosed")
-    return collected
+    if inside:
+        raise AssertionError("a `## Run checks` fenced bash block is unclosed")
+    return blocks
 
 
 def fake_step(label, marker=None, exit_code=0):
@@ -133,10 +138,20 @@ class DocAgreementCase(unittest.TestCase):
     """GATE_COMMANDS and the documented Run checks block are the same list."""
 
     def test_gate_commands_are_the_run_checks_block(self):
-        block = run_checks_block(DEVELOPMENT.read_text())
+        block = run_checks_blocks(DEVELOPMENT.read_text())[0]
         for command in GATE_COMMANDS:
             self.assertIn(command, block)
         self.assertEqual(block, GATE_COMMANDS)
+
+    def test_fast_commands_are_the_second_run_checks_block(self):
+        blocks = run_checks_blocks(DEVELOPMENT.read_text())
+        self.assertGreaterEqual(len(blocks), 2, "no fast-tier block under `## Run checks`")
+        self.assertEqual(blocks[1], FAST_COMMANDS)
+
+    def test_the_fast_tier_runs_the_full_gates_static_checks(self):
+        """fmt, clippy and check_docs are the same commands in both tiers."""
+        for command in (DOCS_COMMAND, FMT_COMMAND, CLIPPY_COMMAND):
+            self.assertIn(command, FAST_COMMANDS)
 
 
 class EntryPointCase(unittest.TestCase):
@@ -148,6 +163,13 @@ class EntryPointCase(unittest.TestCase):
             code = main(["--list"])
         self.assertEqual(code, 0)
         self.assertEqual(buffer.getvalue().splitlines(), GATE_COMMANDS)
+
+    def test_fast_list_prints_the_fast_commands(self):
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            code = main(["--fast", "--list"])
+        self.assertEqual(code, 0)
+        self.assertEqual(buffer.getvalue().splitlines(), FAST_COMMANDS)
 
 
 class UnitCase(unittest.TestCase):
@@ -183,6 +205,10 @@ class CountParserCase(unittest.TestCase):
         self.assertEqual(parse_counts(CARGO_TEST_COMMAND, crashed),
                          {"passed": None, "failed": None, "ignored": None, "suites": 0})
 
+    def test_the_quick_unittest_command_is_counted_as_unittest(self):
+        self.assertEqual(parse_counts(QUICK_UNITTEST_COMMAND, SAMPLE_UNITTEST_FAILED),
+                         parse_counts(UNITTEST_COMMAND, SAMPLE_UNITTEST_FAILED))
+
     def test_only_unittest_and_cargo_test_are_counted(self):
         self.assertEqual(parse_counts(FMT_COMMAND, SAMPLE_UNITTEST_PASS), {})
         self.assertEqual(parse_counts(CLIPPY_COMMAND, SAMPLE_CARGO_TEST), {})
@@ -197,6 +223,12 @@ class GateRunCase(unittest.TestCase):
         self.root = Path(self.tmp.name).resolve()
         self.receipt_dir = self.root / "build" / "gate" / "20260101T000000Z-fixture"
         self.head_sha = self.init_repo()
+        # The run's heavy lock is the fixture repo's own, never the real one.
+        environ = {key: value for key, value in os.environ.items()
+                   if key not in (HEAVY_LOCK_ENV, HELD_ENV)}
+        patcher = mock.patch.dict(os.environ, environ, clear=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def git(self, *args):
         completed = subprocess.run(["git", *args], cwd=self.root, check=True,
@@ -215,11 +247,11 @@ class GateRunCase(unittest.TestCase):
         self.git("commit", "-q", "-m", "init")
         return self.git("rev-parse", "HEAD")
 
-    def run_quiet(self, commands, receipt_dir=None):
+    def run_quiet(self, commands, receipt_dir=None, tier="full"):
         """`run_gate` with stdout captured: (receipt, its non-empty printed lines)."""
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
-            receipt = run_gate(commands, self.root, receipt_dir or self.receipt_dir)
+            receipt = run_gate(commands, self.root, receipt_dir or self.receipt_dir, tier)
         return receipt, [line for line in buffer.getvalue().splitlines() if line.strip()]
 
     def stored(self, receipt_dir=None):
@@ -263,6 +295,24 @@ class GateRunCase(unittest.TestCase):
         self.assertEqual(stored["summary"], receipt["summary"])
         self.assertEqual(stored["commands"][1]["exit_code"], 3)
 
+    def test_the_fast_tier_summary_names_the_tier_not_the_gate(self):
+        receipt, _ = self.run_quiet([fake_step("only")], tier="fast")
+        self.assertEqual(receipt["tier"], "fast")
+        self.assertTrue(receipt["summary"].startswith("fast tier OK: 1/1"), receipt["summary"])
+        failed, _ = self.run_quiet([fake_step("bad", exit_code=1)],
+                                   self.receipt_dir.with_name("fast-failed"), tier="fast")
+        self.assertTrue(failed["summary"].startswith("fast tier FAILED: 1/1"),
+                        failed["summary"])
+        self.assertNotIn("gate OK", failed["summary"] + receipt["summary"])
+
+    def test_the_run_holds_the_heavy_lock_and_exports_the_marker(self):
+        probe = ("python3 -c \"import os; open('marker.txt', 'w')"
+                 f".write(os.environ.get('{HELD_ENV}', ''))\"")
+        receipt, _ = self.run_quiet([probe])
+        self.assertEqual(receipt["exit_code"], 0)
+        self.assertEqual((self.root / "marker.txt").read_text(),
+                         str(self.root / "build" / "continuation-heavy.lock"))
+
     def test_receipt_records_a_dirty_tree_and_its_paths(self):
         (self.root / "scratch.txt").write_text("uncommitted\n")
         receipt, _ = self.run_quiet([fake_step("only")])
@@ -286,7 +336,7 @@ class GateRunCase(unittest.TestCase):
         self.assertIn("Ran 2 tests, failures=0, errors=0, skipped=1", receipt["summary"])
 
     def test_a_held_lock_refuses_the_second_gate(self):
-        lock_file = lock_path(self.receipt_dir)
+        lock_file = gate_lock_path(self.root)
         lock_file.parent.mkdir(parents=True, exist_ok=True)
         with lock_file.open("a") as held:
             fcntl.flock(held, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -348,6 +398,41 @@ class GateRunCase(unittest.TestCase):
         self.assertNotIn("gate FAILED", receipt["summary"])
 
 
+class QuickUnittestCase(unittest.TestCase):
+    """The fast tier's Python suite: discovery minus SLOW_PYTHON_MODULES."""
+
+    def test_every_slow_module_is_a_test_module(self):
+        missing = sorted(name for name in SLOW_PYTHON_MODULES
+                         if not (REPO_ROOT / "tests" / f"{name}.py").is_file())
+        self.assertEqual(missing, [], "SLOW_PYTHON_MODULES names a module tests/ lacks")
+
+    def run_quick(self, excluded):
+        """quick_unittest over a temp suite: one passing and one failing module."""
+        with tempfile.TemporaryDirectory() as tmp:
+            start = Path(tmp)
+            for name, body in (("test_quick_pass", "self.assertTrue(True)"),
+                               ("test_quick_fail", "self.fail('slow module ran')")):
+                (start / f"{name}.py").write_text(
+                    "import unittest\n\n\nclass Case(unittest.TestCase):\n"
+                    f"    def test_it(self):\n        {body}\n")
+            stream = io.StringIO()
+            code = quick_unittest(start, excluded=excluded, stream=stream)
+            for name in ("test_quick_pass", "test_quick_fail"):
+                sys.modules.pop(name, None)
+        return code, stream.getvalue()
+
+    def test_an_excluded_module_does_not_run(self):
+        code, output = self.run_quick({"test_quick_fail"})
+        self.assertEqual(code, 0, output)
+        self.assertIn("Ran 1 test", output)
+
+    def test_negative_control_without_the_exclusion_the_failure_runs(self):
+        code, output = self.run_quick(set())
+        self.assertEqual(code, 1, output)
+        self.assertIn("Ran 2 tests", output)
+        self.assertIn("slow module ran", output)
+
+
 class NotARepositoryCase(unittest.TestCase):
     """A root git cannot describe still gets a receipt, saying why it could not."""
 
@@ -357,7 +442,8 @@ class NotARepositoryCase(unittest.TestCase):
             receipt_dir = root / "build" / "gate" / "run"
             buffer = io.StringIO()
             with contextlib.redirect_stdout(buffer):
-                receipt = run_gate([fake_step("only")], root, receipt_dir)
+                receipt = run_gate([fake_step("only")], root, receipt_dir,
+                                   heavy_lock=root / "build" / "heavy.lock")
             self.assertEqual(receipt["exit_code"], 0)
             self.assertIsNone(receipt["candidate_sha"])
             self.assertIsNone(receipt["dirty"])

@@ -17,6 +17,7 @@ mod common;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::OnceLock;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use psiv_campaign::driver::Driver;
 use psiv_campaign::halt::HaltKind;
@@ -78,6 +79,28 @@ fn academy() -> Option<&'static (RunConfig, RunResult)> {
         .as_ref()
 }
 
+/// A private copy of the academy's save directory. A run resuming from it
+/// writes its chapter save and live slot there, so tests running in parallel
+/// never read a save another test wrote; each call gets a fresh directory.
+fn academy_saves() -> Option<PathBuf> {
+    static COPIES: AtomicUsize = AtomicUsize::new(0);
+    let (first_config, _) = academy()?;
+    let dir = scratch(&format!(
+        "academy-copy-{}",
+        COPIES.fetch_add(1, Ordering::Relaxed)
+    ));
+    for entry in std::fs::read_dir(&first_config.save_dir).expect("academy saves list") {
+        let from = entry.expect("academy save entry").path();
+        let to = dir.join(from.file_name().expect("named entry"));
+        std::fs::create_dir_all(&to).expect("copy directory");
+        for file in std::fs::read_dir(&from).expect("academy save files list") {
+            let file = file.expect("academy save file").path();
+            std::fs::copy(&file, to.join(file.file_name().expect("named file"))).expect("copy");
+        }
+    }
+    Some(dir)
+}
+
 #[test]
 fn chapter_one_plays_through_to_motavia() {
     let Some((_, result)) = academy() else {
@@ -127,23 +150,14 @@ fn replaying_a_recorded_tape_reproduces_its_digest() {
 /// replays from that save to the same digest.
 #[test]
 fn a_chapter_save_resumes_the_next_chapter_and_its_tape_replays() {
-    let Some((first_config, _)) = academy() else {
+    let Some(save_dir) = academy_saves() else {
         return;
     };
-    let resume = config_in(
-        &main_text(),
-        first_config.save_dir.clone(),
-        Some("holt"),
-        Some("holt"),
-    );
+    let resume = config_in(&main_text(), save_dir.clone(), Some("holt"), Some("holt"));
     let result = run(&resume).expect("holt sets up from the academy save");
     assert!(result.completed, "report: {:#?}", result.report);
     assert_eq!(result.chapters[0].id, "holt");
-    let save = psiv_campaign::runner::chapter_save_file(
-        &first_config.save_dir,
-        0,
-        &resume.route.chapters[0],
-    );
+    let save = psiv_campaign::runner::chapter_save_file(&save_dir, 0, &resume.route.chapters[0]);
     let replayed =
         replay(pack_dir().as_path(), &result.tape, Some(&save)).expect("replay from the save");
     assert_eq!(replayed.digest, result.digest);
@@ -285,13 +299,12 @@ fn shop_trip(objectives: &str) -> Route {
 }
 
 fn shop_trip_result(objectives: &str) -> Option<RunResult> {
-    let (first_config, _) = academy()?;
     let config = RunConfig {
         route: shop_trip(objectives),
         pack: pack_dir(),
         from_chapter: Some("item-shop".to_owned()),
         until_chapter: Some("item-shop".to_owned()),
-        save_dir: first_config.save_dir.clone(),
+        save_dir: academy_saves()?,
         verbose: false,
     };
     Some(run(&config).expect("the trip sets up from the academy save"))

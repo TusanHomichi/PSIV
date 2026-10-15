@@ -280,7 +280,11 @@ CARGO_BUILD_JOBS=1 flock -x "$PSIV_HEAVY_LOCK" \
 ```
 
 Use the same absolute ignored lock path from every worktree; a relative
-`build/` lock serializes only that one checkout.
+`build/` lock serializes only that one checkout. `python3 tools/heavy_lock.py`
+prints it (the main checkout's `build/continuation-heavy.lock`, from any
+worktree), and `python3 tools/heavy_lock.py run -- <command>` is the preferred
+wrapper: it marks the hold, so a gate or candidate run nested under it does not
+wait on its own parent ([gate and coverage](../DEVELOPMENT.md#gate-and-coverage)).
 
 For a save-start tape, add `--from-save /path/to/preceding/slot_1.sram`.
 For a fresh-process CONTINUE check of a newly written slot, use
