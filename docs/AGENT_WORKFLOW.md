@@ -11,14 +11,16 @@ an automatic dispatcher or enforcement system; enforcement belongs to the
 
 ## Where work and its record live
 
-Active work is a GitHub issue carrying one of the labels the
-[roadmap](ROADMAP.md) names. Planning and acceptance live in that issue or in
+Owner decision, 2026-10-14. Active work is a GitHub issue carrying one of the
+labels `v1.0-blocker`, `gameplay-fidelity`, `presentation`, `tooling` or
+`post-release`. Planning and acceptance live in that issue or in
 the pull request that closes it: the observable outcome, its exclusions, the
 acceptance check and, for dependent work, the order of steps. Changes land on
 `main` through a branch and a pull request, and the PR description is the
 receipt. Commits, issues and PRs are the project's record; the docs hold no
-task graphs, run logs or status ledgers, and are updated only when the
-behavior, commands or retail findings they describe change.
+task graphs, run logs or status ledgers (git history keeps the old ones), and
+are updated only when the behavior, commands or retail findings they describe
+change.
 
 ## Start and select work
 

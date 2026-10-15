@@ -34,7 +34,7 @@ start `($70,$BC)`. The final load is the same map/previous map with start
 `$075D84` loads `DialogueTree36` between the Motavia fade-in and the
 `$73`/`$74`/`$75` panels, and the `popdlg` after them resumes a line from that
 tree. The load is not inside a revision block, so it was a plain transcription
-gap rather than the H17 class, and the port's resume read the map's own tree
+gap rather than the missed-revision-block class, and the port's resume read the map's own tree
 until it was added. See the [revision audit](REVISION_AUDIT.md).
 
 ## Verification

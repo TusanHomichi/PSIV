@@ -15,11 +15,8 @@ Post PSIV publicly, let people play and mod it, then maintain it.
   are fixed in maintenance.
 - **Platforms for 1.0:** Linux and the Steam Deck. Windows comes later, as its
   own work item.
-- **The record is commits, issues and pull requests.** Run logs and ledgers
-  are not kept in the tree; git history holds the old ones. The docs carry no
-  task graphs: active work is a GitHub issue with one of the labels
-  `v1.0-blocker`, `gameplay-fidelity`, `presentation`, `tooling` or
-  `post-release`.
+- **Active work is GitHub issues**, under the record policy the
+  [workflow](AGENT_WORKFLOW.md#where-work-and-its-record-live) owns.
 
 ## 1.0 checklist
 

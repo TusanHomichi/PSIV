@@ -14,9 +14,8 @@ code and focused test that own a feature in the [feature map](docs/FEATURE_MAP.m
 - Run the checks in the developer guide's [run checks](docs/DEVELOPMENT.md#run-checks)
   section that apply to your change, and say in the PR which ones you ran and
   what they reported. A gameplay fix comes with a regression test.
-- Keep each concern in its layer: rules in `psiv-core`, orchestration in
-  `psiv-runtime`, ROM decoding in Python, drawing and input in Godot
-  ([runtime design](docs/RUNTIME_DESIGN.md)).
+- Keep each concern in the layer the
+  [runtime design](docs/RUNTIME_DESIGN.md#data-and-runtime-layers) assigns it.
 - Cite the cartridge for a rule (a disassembly symbol or ROM offset). A
   deliberate difference from the original is recorded in the
   [source notes](docs/source-notes/README.md).
@@ -41,10 +40,9 @@ A known gap in the code is an issue link, not a comment explaining it away
 
 ## The record
 
-Pull requests, issues and commit history are the project's record. Put the
-reasoning, the evidence and the checks you ran in the PR description; do not
-add status logs or ledgers to the docs. Docs describe how the game and the
-tools work now.
+Put the reasoning, the evidence and the checks you ran in the PR description;
+the [record policy](docs/AGENT_WORKFLOW.md#where-work-and-its-record-live)
+says where everything else lives.
 
 Coding agents, and humans who want the full working rules, read
 [AGENTS.md](AGENTS.md) and the [workflow](docs/AGENT_WORKFLOW.md).

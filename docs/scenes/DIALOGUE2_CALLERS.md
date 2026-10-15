@@ -66,7 +66,7 @@ the tree bound to the map the scene runs on (`runtime-pack/maps/*.json`
 
 Findings:
 
-- **One resume mismatch (the H22 defect):** row 1. The census test
+- **One resume mismatch (the Zio-at-Nurvus defect above):** row 1. The census test
   `no_scene_resumes_before_it_opens_a_dialogue` extends that to every
   registered scene: none opens with a resume now.
 - **One control-flow mismatch the audit surfaced (row 4):**

@@ -23,7 +23,8 @@ PSIV is not at 1.0 yet. An automated playthrough, pressing the same buttons a
 player would, gets from New Game to Dark Force 2's defeat, and the native game
 replays it as far as the Air Castle so far. Every player technique and skill,
 and every enemy ability up to Dark Force 2, is checked against the cartridge.
-The rest of the game, through to the Ending, is being integrated now.
+The rest, from there to the Ending, is in progress
+([#116](https://github.com/TusanHomichi/PSIV/issues/116)).
 Presentation (some animations, whole-scene staging, audio timing) still
 differs from the original in places.
 
@@ -49,10 +50,9 @@ PSIV currently runs from a source checkout; a packaged release is part of the
 - the US ROM, `Phantasy Star IV (USA).md` (`.md` is the Mega Drive ROM
   extension; the accepted SHA-256 is in the
   [developer guide](docs/DEVELOPMENT.md#prepare-the-local-pack));
-- Python 3.10 or newer, a Rust toolchain with edition 2024, `git`, GNU `patch`
-  and a C compiler;
-- Godot, at the version the [developer guide](docs/DEVELOPMENT.md#current-environment)
-  names.
+- Python, Rust and Godot at the versions the
+  [developer guide](docs/DEVELOPMENT.md#current-environment) names, plus `git`,
+  GNU `patch` and a C compiler.
 
 ### On Linux
 

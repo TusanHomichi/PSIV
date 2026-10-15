@@ -241,7 +241,7 @@ class NegativeControls(RepoCase):
         )
 
     def test_a_host_absolute_home_path(self):
-        """A `/home/<user>/` or `/Users/<user>/` path is named, in prose or a fence."""
+        """A `/home/<user>` or `/Users/<user>` path is named, in prose or a fence."""
         code, out = self.check({
             "docs/report.md": lines(
                 "# Report", "",
@@ -250,9 +250,25 @@ class NegativeControls(RepoCase):
             ),
         })
         self.assertEqual(code, 1, out)
-        self.assertIn("docs/report.md:3: host-absolute home path: /home/alice/", out)
-        self.assertIn("docs/report.md:5: host-absolute home path: /Users/bob/", out)
+        self.assertIn("docs/report.md:3: host-absolute home path: /home/alice", out)
+        self.assertIn("docs/report.md:5: host-absolute home path: /Users/bob", out)
         self.assertIn("; 2 problem(s)", out)
+
+    def test_a_home_path_in_a_file_url_or_without_a_trailing_slash(self):
+        """`file:///home/<user>/...` and a bare `/home/<user>` at a word end are named."""
+        code, out = self.check({
+            "docs/report.md": lines(
+                "# Report", "",
+                "The capture is file:///home/carol/frames/f.png here.",
+                "Saves went to /home/dave.",
+                "Or `/Users/erin`",
+            ),
+        })
+        self.assertEqual(code, 1, out)
+        self.assertIn("docs/report.md:3: host-absolute home path: /home/carol", out)
+        self.assertIn("docs/report.md:4: host-absolute home path: /home/dave", out)
+        self.assertIn("docs/report.md:5: host-absolute home path: /Users/erin", out)
+        self.assertIn("; 3 problem(s)", out)
 
     def test_unmatched_glob(self):
         code, out = self.check({
@@ -353,6 +369,7 @@ class AcceptedCases(RepoCase):
                 "# Report", "",
                 "The default is `~/.local/bin/psiv-godot`, or $HOME/.local/bin.",
                 "[site](https://example.invalid/home/alice/page)",
+                "See https://example.com/home/x for the page, and ~/home/a/b.",
             ),
         })
         self.assertEqual(code, 0, out)

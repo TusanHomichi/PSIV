@@ -34,13 +34,13 @@ with no row, or a row the pack does not resolve, naming the scene and the chunk.
 **Revision-conditional ops are audited.** Every transcribed scene's
 `if revision>0` / `else` blocks and its retail `DialogueTreesToRAM` calls are
 counted in [the revision audit](REVISION_AUDIT.md), which is what caught the
-four tree-6 loads H17 records. Guarded by
+four missed tree-6 loads (the scenes then read the wrong dialogue tree). Guarded by
 [`tests/test_scene_trees.py`](../../tests/test_scene_trees.py) and
 `psiv-core`'s `every_scene_loads_the_trees_its_retail_bytes_load`.
 
 **`Event_GetAndRunDialogue2` callers are audited.** Its fourteen cartridge
 callers, the window it leaves up and the one transcription that read it as a
-resume (H22) are in [the Dialogue2 audit](DIALOGUE2_CALLERS.md), guarded by
+resume (Zio at Nurvus) are in [the Dialogue2 audit](DIALOGUE2_CALLERS.md), guarded by
 [`tests/test_dialogue2_callers.py`](../../tests/test_dialogue2_callers.py) and
 `psiv-core`'s `every_dialogue2_caller_is_a_retained_window`.
 
@@ -551,7 +551,7 @@ field maps.
   map-data/interaction path, not an entry the retail `RunEvent_*` chain covered
   here writes. Its `grand_cross=0` bytes are recorded in the census as a direct
   body; it is not silently substituted with Grand Cross code.
-  (`Event_ZioFortBarrier` `$30` was in this list until H18: the Zio Fort
+  (`Event_ZioFortBarrier` `$30` was in this list until the campaign runner halted on it: the Zio Fort
   courtyard's barrier is reached by a dialogue action, and it is transcribed
   now — see [90](90_ZioFortBarrier.md).)
 - `Event_FortuneTeller` and `Event_AfterFortuneTeller`: the retail

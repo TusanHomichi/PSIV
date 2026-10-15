@@ -1,8 +1,8 @@
 # Documentation
 
 These documents describe how PSIV and its tools work now, and what the
-cartridge does. Status and active work live in GitHub issues and pull
-requests; old ledgers and run logs are in git history.
+cartridge does. Status and active work live elsewhere, under the
+[record policy](AGENT_WORKFLOW.md#where-work-and-its-record-live).
 
 ## Start here
 
@@ -81,13 +81,14 @@ Add a row here when a new rule gets an owner.
 
 | Rule | Owner |
 | --- | --- |
-| Release bar, platforms and record policy | [Roadmap](ROADMAP.md#decisions-owner-2026-10-14) |
+| Release bar and platforms | [Roadmap](ROADMAP.md#decisions-owner-2026-10-14) |
 | Retail fidelity and integer semantics | [AGENTS.md](../AGENTS.md#retail-and-layer-boundaries) |
 | Layer boundaries; Godot presents and sends input | [Runtime design](RUNTIME_DESIGN.md#data-and-runtime-layers) |
 | Retail deviations and provenance | [Source notes](source-notes/README.md) |
 | Protected inputs, local assets out of Git, saves and evidence safety | [AGENTS.md](../AGENTS.md#protect-local-inputs-and-evidence) |
 | Evidence types and what a claim needs | [AGENTS.md](../AGENTS.md#verify-the-claim-you-intend-to-make) |
-| Where work and its record live; roles, delegation | [Agent workflow](AGENT_WORKFLOW.md#where-work-and-its-record-live), [roles](AGENT_WORKFLOW.md#roles-and-delegation) |
+| Record policy: where work and its record live (issues, PRs, commits; no ledgers, logs or graphs in docs) | [Agent workflow](AGENT_WORKFLOW.md#where-work-and-its-record-live) |
+| Roles and delegation | [Agent workflow](AGENT_WORKFLOW.md#roles-and-delegation) |
 | Authority, permissions and the effort policy | [Agent workflow](AGENT_WORKFLOW.md#authority-effort-and-continuation) |
 | Correction ladder | [Agent workflow](AGENT_WORKFLOW.md#correction-ladder) |
 | One paved path; gaps as issues; guard before cleanup | [Agent workflow](AGENT_WORKFLOW.md#the-codebase-is-memory) |

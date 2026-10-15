@@ -9,7 +9,8 @@ platforms are in [the roadmap](docs/ROADMAP.md).
 
 Check applicable instructions (including `AGENTS.override.md`),
 `git status --short --branch`, worktrees and relevant build/game processes before
-editing. Preserve others' changes. Active work is GitHub issues; use
+editing. Preserve others' changes. Active work is GitHub issues
+([record policy](docs/AGENT_WORKFLOW.md#where-work-and-its-record-live)); use
 [the roadmap](docs/ROADMAP.md) for the release bar and
 [the workflow](docs/AGENT_WORKFLOW.md) for planning, authority, evidence and handoff.
 Read only the relevant [subsystem document](docs/README.md) and source; use
