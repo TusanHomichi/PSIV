@@ -1,28 +1,46 @@
 #!/usr/bin/env python3
-"""tools/heavy_lock.py - the repository-wide heavy-run lock: its path and its holder.
+"""tools/heavy_lock.py - the repository-wide heavy-run lock: its path, classes and queue.
 
     python3 tools/heavy_lock.py [--gate]          # print the lock path
-    python3 tools/heavy_lock.py run -- <cmd...>   # run <cmd> holding the heavy lock
+    python3 tools/heavy_lock.py status            # print holders and waiters
+    python3 tools/heavy_lock.py run [--priority] [--class exclusive|godot] -- <cmd...>
 
-Heavy runs (Godot, Xvfb, the gate's pack-loading suites) are serialized by
-project rule across every worktree, so their locks must name one file for the
-whole repository, not one per checkout. Both locks live under the main
-checkout's `build/`, found through `git rev-parse --git-common-dir`, which a
-linked worktree and the main checkout answer identically:
+Heavy runs are serialized by project rule across every worktree, so their locks
+must name one file for the whole repository, not one per checkout. Both locks
+live under the main checkout's `build/`, found through
+`git rev-parse --git-common-dir`, which a linked worktree and the main checkout
+answer identically:
 
 - `heavy_lock_path()`: `<main>/build/continuation-heavy.lock`.
   `PSIV_HEAVY_LOCK` overrides it.
 - `gate_lock_path()`: `<main>/build/gate/.lock`, which `tools/gate.py` holds
   for a whole gate run.
 
+The heavy lock has two classes. `exclusive` (cargo, the Python suite, the gate,
+pack builds) holds the lock file with LOCK_EX and runs alone. `godot` (one
+Godot/Xvfb run, about 350 MB) holds it with LOCK_SH plus one of
+`PSIV_GODOT_SLOTS` (default 3) slot files beside it, so several Godot runs
+share the machine and an exclusive holder excludes them all.
+
+Waiters queue in `<lock>.queue/`, one file per waiter that the waiter holds
+flocked for as long as it waits (a killed waiter's entry is pruned, never
+waited for). Every grant is decided under `<lock>.mutex`, and only the head of
+the queue may take the lock, so the order is deterministic: priority waiters
+(`--priority`, or `PSIV_LOCK_PRIORITY=1` for code that calls
+`hold_heavy_lock`) before normal ones, each in arrival order. A holder is never
+preempted; the next grant goes to the head. While waiting, a line names the
+holders and how many waiters (and priority waiters) are ahead, again whenever
+that changes.
+
 `hold_heavy_lock(path)` is the one way in-repo code takes the heavy lock, and
 `run -- <cmd>` the one way to wrap a command in it. The holder exports
-`PSIV_HEAVY_LOCK_HELD=<resolved path>`, so a descendant that asks for the same
-lock (the gate under `run`, verify_candidate's certify step) proceeds without
-blocking on its own ancestor. A raw `flock(1)` wrapper sets no marker; a child
-that finds the lock held by one of its ancestors (by inode in /proc/locks)
-exits 2 naming the parent instead of waiting forever. Any other holder is
-waited for, with one "waiting for" line naming it.
+`PSIV_HEAVY_LOCK_HELD=<resolved path>` with the class and slot count, so a
+descendant that asks for the same lock (the gate under `run`, certify under
+verify_candidate) proceeds without blocking on its own ancestor; an exclusive
+request under a godot holder is refused instead, because the holder never
+excluded anyone. A raw `flock(1)` wrapper sets no marker; a child that finds
+the lock held by one of its ancestors (by inode in /proc/locks) exits 2 naming
+the parent instead of waiting forever (`raw_flock_parent`).
 
 A directory git cannot describe (a fixture, an exported tree) falls back to its
 own `build/`. Stdlib only, Python 3, Linux (/proc).
@@ -35,14 +53,38 @@ import fcntl
 import os
 import subprocess
 import sys
+import time
 from contextlib import contextmanager
+from dataclasses import dataclass
 from pathlib import Path
 
 HEAVY_LOCK_ENV = "PSIV_HEAVY_LOCK"
 HELD_ENV = "PSIV_HEAVY_LOCK_HELD"
+HELD_CLASS_ENV = "PSIV_HEAVY_LOCK_CLASS"
+HELD_SLOTS_ENV = "PSIV_HEAVY_LOCK_SLOTS"
+PRIORITY_ENV = "PSIV_LOCK_PRIORITY"
+GODOT_SLOTS_ENV = "PSIV_GODOT_SLOTS"
 HEAVY_LOCK_NAME = "continuation-heavy.lock"
 GATE_LOCK = Path("gate") / ".lock"
 EXIT_HELD_BY_PARENT = 2
+
+EXCLUSIVE = "exclusive"
+GODOT = "godot"
+LOCK_CLASSES = (EXCLUSIVE, GODOT)
+DEFAULT_GODOT_SLOTS = 3
+#: Seconds between a waiter's looks at the queue. A heavy run lasts minutes.
+POLL_S = 0.2
+
+
+@dataclass(frozen=True)
+class Hold:
+    """What a `hold_heavy_lock` block holds: its class and godot slots (an
+    exclusive hold covers every slot), and whether an ancestor holds it."""
+
+    path: Path
+    lock_class: str
+    slots: int
+    nested: bool
 
 
 def main_checkout(start=None):
@@ -76,18 +118,31 @@ def gate_lock_path(start=None):
     return main_checkout(start) / "build" / GATE_LOCK
 
 
-def lock_holders(path, proc_locks=Path("/proc/locks")):
-    """PIDs holding a lock on `path`'s inode, from /proc/locks.
+def godot_slots(environ=None):
+    """How many godot-class holders may share the machine: `PSIV_GODOT_SLOTS`, default 3."""
+    environ = os.environ if environ is None else environ
+    raw = environ.get(GODOT_SLOTS_ENV)
+    if not raw:
+        return DEFAULT_GODOT_SLOTS
+    value = int(raw)
+    if value < 1:
+        raise ValueError(f"{GODOT_SLOTS_ENV}={raw!r}: need at least one slot")
+    return value
+
+
+def lock_modes(path, proc_locks=Path("/proc/locks")):
+    """`[(pid, class)]` holding a lock on `path`'s inode, from /proc/locks:
+    a WRITE lock is `exclusive`, a READ lock `godot`.
 
     Matched by inode alone: on btrfs the device field names the superblock's
     device, not the file's `st_dev`. Waiters (`->` lines) are not holders.
     """
     inode = os.stat(path).st_ino
-    pids = []
+    found = []
     try:
         lines = Path(proc_locks).read_text().splitlines()
     except OSError:
-        return pids
+        return found
     for line in lines:
         fields = line.split()
         if len(fields) < 6 or fields[1] == "->":
@@ -97,7 +152,17 @@ def lock_holders(path, proc_locks=Path("/proc/locks")):
             line_inode = int(fields[5].rsplit(":", 1)[1])
         except (ValueError, IndexError):
             continue
-        if line_inode == inode and pid not in pids:
+        mode = EXCLUSIVE if fields[3] == "WRITE" else GODOT
+        if line_inode == inode and (pid, mode) not in found:
+            found.append((pid, mode))
+    return found
+
+
+def lock_holders(path, proc_locks=Path("/proc/locks")):
+    """PIDs holding a lock on `path`'s inode, from /proc/locks (see `lock_modes`)."""
+    pids = []
+    for pid, _ in lock_modes(path, proc_locks):
+        if pid not in pids:
             pids.append(pid)
     return pids
 
@@ -116,51 +181,250 @@ def ancestor_pids(pid=None):
     return chain
 
 
-@contextmanager
-def hold_heavy_lock(path=None, environ=None, report=None):
-    """Hold the heavy lock `path` (default: `heavy_lock_path()`) for the block.
+def raw_flock_parent(path=None, environ=None):
+    """The pid of an ancestor holding the heavy lock `path` without exporting the
+    marker (a raw `flock(1)` wrapper), or None.
 
+    A process under such a parent can never take the lock, so an entry point
+    refuses at once (exit 2) instead of waiting on itself.
+    """
+    environ = os.environ if environ is None else environ
+    path = Path(path or heavy_lock_path(environ=environ))
+    if not path.exists():
+        return None
+    resolved = str(path.resolve())
+    if environ.get(HELD_ENV) == resolved:
+        return None
+    ancestors = ancestor_pids()
+    return next((pid for pid in lock_holders(resolved) if pid in ancestors), None)
+
+
+def refuse_message(path, parent):
+    """What a child of a raw `flock(1)` holder prints before exiting 2."""
+    return (f"heavy lock {path} is already held by your parent pid {parent}; "
+            "use `python3 tools/heavy_lock.py run -- <command>` or run without a wrapper")
+
+
+class _Queue:
+    """The waiters of one lock: `<lock>.queue/<rank>-<seq>-<pid>-<class>`, each
+    held flocked by its waiter, read and changed only under `<lock>.mutex`."""
+
+    def __init__(self, lock):
+        self.dir = Path(f"{lock}.queue")
+        self.mutex = Path(f"{lock}.mutex")
+        self.dir.mkdir(exist_ok=True)
+
+    @contextmanager
+    def locked(self):
+        handle = os.open(self.mutex, os.O_RDWR | os.O_CREAT, 0o644)
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX)
+            yield
+        finally:
+            os.close(handle)
+
+    def entries(self):
+        """Live waiters, head first; entries whose waiter died are removed."""
+        live = []
+        for name in os.listdir(self.dir):
+            try:
+                handle = os.open(self.dir / name, os.O_RDWR)
+            except FileNotFoundError:
+                continue
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                live.append(name)
+            else:
+                os.unlink(self.dir / name)
+            finally:
+                os.close(handle)
+        return sorted(live, key=_entry_key)
+
+    def join(self, priority, lock_class, waiting):
+        """Enqueue this process behind `waiting`; returns (name, held handle)."""
+        seq = max((_entry_key(name)[1] for name in waiting), default=0) + 1
+        name = f"{0 if priority else 1}-{seq:012d}-{os.getpid()}-{lock_class}"
+        handle = os.open(self.dir / name, os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o644)
+        fcntl.flock(handle, fcntl.LOCK_EX)
+        return name, handle
+
+    def leave(self, entry):
+        name, handle = entry
+        try:
+            os.unlink(self.dir / name)
+        except FileNotFoundError:
+            pass
+        os.close(handle)
+
+
+def _entry_key(name):
+    """(rank, seq) of a queue entry: priority rank 0 first, then arrival."""
+    rank, seq = name.split("-")[:2]
+    return int(rank), int(seq)
+
+
+def _entry_pid(name):
+    return int(name.split("-")[2])
+
+
+def _try_grant(lock, lock_class, slots, cap):
+    """The handles that hold `lock` in `lock_class` with `slots` godot slots, or
+    None (nothing held) when it is not free now. Never blocks."""
+    held = [os.open(lock, os.O_RDWR | os.O_CREAT, 0o644)]
+    try:
+        if lock_class == EXCLUSIVE:
+            fcntl.flock(held[0], fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return held
+        fcntl.flock(held[0], fcntl.LOCK_SH | fcntl.LOCK_NB)
+        for index in range(cap):
+            if len(held) - 1 == slots:
+                break
+            handle = os.open(f"{lock}.godot{index}", os.O_RDWR | os.O_CREAT, 0o644)
+            try:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                os.close(handle)
+            else:
+                held.append(handle)
+        if len(held) - 1 == slots:
+            return held
+    except BlockingIOError:
+        pass
+    for handle in held:
+        os.close(handle)
+    return None
+
+
+def _wait_line(lock, lock_class, priority, ahead):
+    """One "waiting for" line: the holders with their class, the queue ahead."""
+    holders = ", ".join(f"{pid} ({mode})" for pid, mode in lock_modes(lock)) or "none"
+    urgent = sum(1 for name in ahead if _entry_key(name)[0] == 0)
+    me = f"{lock_class}, priority" if priority else lock_class
+    return (f"waiting for {lock} held by pid {holders}; {len(ahead)} waiter(s) ahead, "
+            f"{urgent} of them priority; this waiter: {me}")
+
+
+def _acquire(lock, lock_class, slots, cap, priority, report):
+    """Queue for `lock` and return the granting handles once this waiter is the
+    head and the lock is free in its class."""
+    queue = _Queue(lock)
+    entry = None
+    shown = None
+    try:
+        while True:
+            with queue.locked():
+                waiting = queue.entries()
+                if entry is None:
+                    if not waiting:
+                        held = _try_grant(lock, lock_class, slots, cap)
+                        if held:
+                            return held
+                    parent = raw_flock_parent(lock, environ={})
+                    if parent is not None:
+                        print(refuse_message(lock, parent), file=report, flush=True)
+                        raise SystemExit(EXIT_HELD_BY_PARENT)
+                    entry = queue.join(priority, lock_class, waiting)
+                    waiting = queue.entries()
+                ahead = waiting[:waiting.index(entry[0])]
+                if not ahead:
+                    held = _try_grant(lock, lock_class, slots, cap)
+                    if held:
+                        queue.leave(entry)
+                        entry = None
+                        return held
+                line = _wait_line(lock, lock_class, priority, ahead)
+            if line != shown:
+                print(line, file=report, flush=True)
+                shown = line
+            time.sleep(POLL_S)
+    finally:
+        if entry is not None:
+            queue.leave(entry)
+
+
+@contextmanager
+def hold_heavy_lock(path=None, environ=None, report=None, lock_class=EXCLUSIVE, slots=1,
+                    priority=None):
+    """Hold the heavy lock `path` (default: `heavy_lock_path()`) for the block,
+    yielding a `Hold`.
+
+    `lock_class` is `exclusive` or `godot`; a godot hold takes `slots` slots
+    (1 to `PSIV_GODOT_SLOTS`). `priority` defaults to `PSIV_LOCK_PRIORITY=1`.
     A no-op when this process already runs under a holder of the same file
-    (`PSIV_HEAVY_LOCK_HELD`). Otherwise it takes the lock, exporting the marker
-    for the block's subprocesses. When the lock is busy: if an ancestor holds
-    it (a raw `flock(1)` wrapper), it prints why and raises SystemExit(2)
-    rather than wait on itself; else it prints one "waiting for" line and blocks.
+    (`PSIV_HEAVY_LOCK_HELD`), yielding that holder's class and slots; an
+    exclusive request under a godot holder exits 2. Otherwise it queues, takes
+    the lock and exports the markers for the block's subprocesses. If an
+    ancestor holds the lock without the marker (a raw `flock(1)` wrapper), it
+    prints why and raises SystemExit(2) rather than wait on itself.
     """
     environ = os.environ if environ is None else environ
     report = report or sys.stderr
+    if lock_class not in LOCK_CLASSES:
+        raise ValueError(f"lock class {lock_class!r}: expected one of {LOCK_CLASSES}")
     path = Path(path or heavy_lock_path(environ=environ))
     path.parent.mkdir(parents=True, exist_ok=True)
     resolved = str(path.resolve())
+    cap = godot_slots(environ)
     if environ.get(HELD_ENV) == resolved:
-        yield path
+        held_class = environ.get(HELD_CLASS_ENV) or EXCLUSIVE
+        if lock_class == EXCLUSIVE and held_class != EXCLUSIVE:
+            print(f"heavy lock {resolved}: an exclusive run was started under a godot-class "
+                  "holder, which excludes nobody; run it under an exclusive holder",
+                  file=report, flush=True)
+            raise SystemExit(EXIT_HELD_BY_PARENT)
+        held_slots = int(environ.get(HELD_SLOTS_ENV) or cap)
+        yield Hold(path, held_class, held_slots, nested=True)
         return
-    handle = os.open(resolved, os.O_RDWR | os.O_CREAT, 0o644)
+    if lock_class == GODOT and not 1 <= slots <= cap:
+        raise ValueError(f"{slots} godot slots requested; {GODOT_SLOTS_ENV} allows 1 to {cap}")
+    if priority is None:
+        priority = environ.get(PRIORITY_ENV) == "1"
+    held = _acquire(resolved, lock_class, slots, cap, priority, report)
+    granted = cap if lock_class == EXCLUSIVE else slots
+    markers = {HELD_ENV: resolved, HELD_CLASS_ENV: lock_class, HELD_SLOTS_ENV: str(granted)}
+    previous = {key: environ.get(key) for key in markers}
     try:
-        try:
-            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError:
-            holders = lock_holders(resolved)
-            ancestors = ancestor_pids()
-            parent = next((pid for pid in holders if pid in ancestors), None)
-            if parent is not None:
-                print(f"heavy lock {resolved} is already held by your parent pid "
-                      f"{parent}; use `python3 tools/heavy_lock.py run -- <command>` "
-                      "or run without a wrapper", file=report, flush=True)
-                raise SystemExit(EXIT_HELD_BY_PARENT) from None
-            named = ", ".join(str(pid) for pid in holders) or "an unknown process"
-            print(f"waiting for {resolved} held by pid {named}", file=report, flush=True)
-            fcntl.flock(handle, fcntl.LOCK_EX)
-        previous = environ.get(HELD_ENV)
-        environ[HELD_ENV] = resolved
-        try:
-            yield path
-        finally:
-            if previous is None:
-                environ.pop(HELD_ENV, None)
-            else:
-                environ[HELD_ENV] = previous
+        environ.update(markers)
+        yield Hold(path, lock_class, granted, nested=False)
     finally:
-        os.close(handle)
+        for key, value in previous.items():
+            if value is None:
+                environ.pop(key, None)
+            else:
+                environ[key] = value
+        for handle in held:
+            os.close(handle)
+
+
+def _cmdline(pid):
+    try:
+        raw = Path(f"/proc/{pid}/cmdline").read_bytes()
+    except OSError:
+        return "?"
+    return " ".join(part.decode(errors="replace") for part in raw.split(b"\0") if part)
+
+
+def status(path=None, out=None):
+    """Print the lock's holders and waiters, each with its pid and command line."""
+    out = out or sys.stdout
+    path = Path(path or heavy_lock_path())
+    print(f"heavy lock {path} (godot slots: {godot_slots()})", file=out)
+    if not path.exists():
+        print("holders: none", file=out)
+        return
+    holders = lock_modes(path)
+    print("holders:" + ("" if holders else " none"), file=out)
+    for pid, mode in holders:
+        print(f"  {pid} {mode}: {_cmdline(pid)}", file=out)
+    queue = _Queue(path.resolve())
+    with queue.locked():
+        waiting = queue.entries()
+    print("waiters:" + ("" if waiting else " none"), file=out)
+    for name in waiting:
+        pid = _entry_pid(name)
+        rank = "priority " if _entry_key(name)[0] == 0 else ""
+        print(f"  {pid} {rank}{name.split('-', 3)[3]}: {_cmdline(pid)}", file=out)
 
 
 def _git(cwd, *args):
@@ -173,20 +437,39 @@ def _git(cwd, *args):
     return completed.stdout.strip() if completed.returncode == 0 else ""
 
 
+def run_parser():
+    parser = argparse.ArgumentParser(
+        prog="python3 tools/heavy_lock.py run",
+        description="Run a command holding the heavy lock.")
+    parser.add_argument("--priority", action="store_true",
+                        help="go ahead of every normal waiter (speedup lanes, a yield)")
+    parser.add_argument("--class", dest="lock_class", choices=LOCK_CLASSES, default=EXCLUSIVE,
+                        help="exclusive (default: cargo, the Python suite, the gate, pack "
+                             "builds) or godot (one Godot/Xvfb run)")
+    return parser
+
+
 def main(argv=None):
-    """Print a lock path, or `run -- <cmd>` under the heavy lock (its exit code)."""
+    """Print a lock path or the lock's status, or `run -- <cmd>` under the heavy
+    lock (its exit code)."""
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv[:1] == ["run"]:
-        command = argv[2:] if argv[1:2] == ["--"] else argv[1:]
+        options, command = (argv[1:argv.index("--")], argv[argv.index("--") + 1:]) \
+            if "--" in argv else ([], argv[1:])
+        args = run_parser().parse_args(options)
         if not command:
-            print("usage: python3 tools/heavy_lock.py run -- <command...>", file=sys.stderr)
+            print("usage: python3 tools/heavy_lock.py run [--priority] "
+                  "[--class exclusive|godot] -- <command...>", file=sys.stderr)
             return 2
-        with hold_heavy_lock():
+        with hold_heavy_lock(lock_class=args.lock_class, priority=args.priority or None):
             return subprocess.run(command).returncode
+    if argv[:1] == ["status"]:
+        status()
+        return 0
     parser = argparse.ArgumentParser(
         prog="python3 tools/heavy_lock.py",
-        description="Print the repository-wide heavy-run lock path, or "
-                    "`run -- <command>` holding it.")
+        description="Print the repository-wide heavy-run lock path; `status` for its "
+                    "holders and waiters, or `run -- <command>` holding it.")
     parser.add_argument("--gate", action="store_true",
                         help="print the gate lock instead of the heavy lock")
     args = parser.parse_args(argv)

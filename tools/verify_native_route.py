@@ -1,6 +1,7 @@
 """Replay a whole campaign run natively and compare every chapter save.
 
-Run this entry point under the shared heavy flock. It feeds one completed
+It holds one godot-class slot of the shared heavy lock (tools/heavy_lock.py)
+for the whole run, so no wrapper is needed. It feeds one completed
 `psiv-campaign run` (its `run.tape` and `report.json`) through the generic
 Godot tape driver in a single continuous replay from New Game, and compares the
 slot snapshot with each chapter's saved bytes at the frame the chapter ended
@@ -234,6 +235,13 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    lock = verify_native_tape.heavy_lock_path(verify_native_tape.ROOT)
+    with verify_native_tape.hold_heavy_lock(lock, lock_class=verify_native_tape.GODOT_CLASS):
+        return verify_route(args)
+
+
+def verify_route(args: argparse.Namespace) -> int:
+    """The run `main` parsed, checked while it holds its godot slot."""
     if args.rss_bound_mb is not None and (
             args.rss_every is None or args.rss_warmup_frames is None
             or args.rss_warmup_frames < args.rss_every):

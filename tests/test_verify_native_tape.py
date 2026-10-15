@@ -16,8 +16,28 @@ import io
 import json
 
 from tools import verify_native_tape
+from tools.heavy_lock import (HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV, HELD_SLOTS_ENV,
+                              PRIORITY_ENV)
 from tools.verify_native_tape import (file_identity, host_power, identities_stable, rss_verdict,
                                       source_identity, terminate_process_group)
+
+
+#: Every case's heavy lock is a throwaway file, never the repository's own: the
+#: verifiers take a godot slot themselves, and a held real lock must not stall
+#: (or be stalled by) these cases.
+_LOCK_DIR = tempfile.TemporaryDirectory(prefix="native-lock-")
+_LOCK_ENV = mock.patch.dict(os.environ, {HEAVY_LOCK_ENV: str(Path(_LOCK_DIR.name) / "heavy.lock")})
+
+
+def setUpModule():
+    for key in (HELD_ENV, HELD_CLASS_ENV, HELD_SLOTS_ENV, PRIORITY_ENV):
+        os.environ.pop(key, None)  # restored by the patch's stop
+    _LOCK_ENV.start()
+
+
+def tearDownModule():
+    _LOCK_ENV.stop()
+    _LOCK_DIR.cleanup()
 
 
 class NativeTapeIdentityGuard(unittest.TestCase):
@@ -328,6 +348,32 @@ class NativeTapeReceiptRss(unittest.TestCase):
                       ("--rss-warmup-frames", "999", "--rss-bound-mb", "16")):
             with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
                 self.run_main([(300, 100, 10, 1)] * 4, extra)
+
+class TakesItsGodotSlot(unittest.TestCase):
+    """The replay holds one godot-class slot of the heavy lock itself."""
+
+    def held_while_replaying(self, *wrapper):
+        seen = {}
+
+        def replay(args):
+            seen.update({key: os.environ.get(key) for key in (HELD_ENV, HELD_CLASS_ENV)})
+            return 0
+
+        with mock.patch.object(verify_native_tape, "replay", replay), wrapper[0] if wrapper \
+                else contextlib.nullcontext():
+            self.assertEqual(verify_native_tape.main(["--tape", "t", "--out", "o"]), 0)
+        return seen
+
+    def test_the_replay_holds_a_godot_slot_of_the_heavy_lock(self):
+        lock = str(Path(os.environ[HEAVY_LOCK_ENV]).resolve())
+        self.assertEqual(self.held_while_replaying(), {HELD_ENV: lock, HELD_CLASS_ENV: "godot"})
+
+    def test_negative_control_under_an_exclusive_holder_it_takes_nothing_new(self):
+        lock = str(Path(os.environ[HEAVY_LOCK_ENV]).resolve())
+        outer = mock.patch.dict(os.environ, {HELD_ENV: lock, HELD_CLASS_ENV: "exclusive"})
+        self.assertEqual(self.held_while_replaying(outer),
+                         {HELD_ENV: lock, HELD_CLASS_ENV: "exclusive"})
+
 
 if __name__ == "__main__":
     unittest.main()

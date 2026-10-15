@@ -4,13 +4,34 @@ driver to compare, and what it reports for a chapter that did not match."""
 import contextlib
 import io
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
 from unittest import mock
 
 from tools import verify_native_route as route
+from tools.heavy_lock import (HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV, HELD_SLOTS_ENV,
+                              PRIORITY_ENV)
 from tools.verify_native_tape import checkpoint_save_hashes, checkpoints_passed
+
+
+#: Every case's heavy lock is a throwaway file, never the repository's own: the
+#: verifiers take a godot slot themselves, and a held real lock must not stall
+#: (or be stalled by) these cases.
+_LOCK_DIR = tempfile.TemporaryDirectory(prefix="native-lock-")
+_LOCK_ENV = mock.patch.dict(os.environ, {HEAVY_LOCK_ENV: str(Path(_LOCK_DIR.name) / "heavy.lock")})
+
+
+def setUpModule():
+    for key in (HELD_ENV, HELD_CLASS_ENV, HELD_SLOTS_ENV, PRIORITY_ENV):
+        os.environ.pop(key, None)  # restored by the patch's stop
+    _LOCK_ENV.start()
+
+
+def tearDownModule():
+    _LOCK_ENV.stop()
+    _LOCK_DIR.cleanup()
 
 
 def write_run(root: Path, chapters=(("academy", b"save-0", 10), ("holt", b"save-1", 5),
@@ -356,6 +377,33 @@ class DriverCheckpoints(unittest.TestCase):
             (root / "s1.sram").write_bytes(b"changed")
             self.assertNotEqual(before, checkpoint_save_hashes(listed))
             self.assertEqual(checkpoint_save_hashes(None), {})
+
+
+class TakesItsGodotSlot(unittest.TestCase):
+    """The route holds one godot-class slot itself for the whole run, so the
+    replay and every CONTINUE probe inside it are nested no-ops."""
+
+    def held_while_verifying(self, *wrapper):
+        seen = {}
+
+        def verify(args):
+            seen.update({key: os.environ.get(key) for key in (HELD_ENV, HELD_CLASS_ENV)})
+            return 0
+
+        with mock.patch.object(route, "verify_route", verify), wrapper[0] if wrapper \
+                else contextlib.nullcontext():
+            self.assertEqual(route.main(["--run-dir", "run", "--out", "out"]), 0)
+        return seen
+
+    def test_the_run_holds_a_godot_slot_of_the_heavy_lock(self):
+        lock = str(Path(os.environ[HEAVY_LOCK_ENV]).resolve())
+        self.assertEqual(self.held_while_verifying(), {HELD_ENV: lock, HELD_CLASS_ENV: "godot"})
+
+    def test_negative_control_under_an_exclusive_holder_it_takes_nothing_new(self):
+        lock = str(Path(os.environ[HEAVY_LOCK_ENV]).resolve())
+        outer = mock.patch.dict(os.environ, {HELD_ENV: lock, HELD_CLASS_ENV: "exclusive"})
+        self.assertEqual(self.held_while_verifying(outer),
+                         {HELD_ENV: lock, HELD_CLASS_ENV: "exclusive"})
 
 
 if __name__ == "__main__":

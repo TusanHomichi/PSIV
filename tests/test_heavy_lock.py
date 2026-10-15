@@ -11,12 +11,18 @@ show a gate started in the worktree refuses (or with `--wait`, waits) while the
 main checkout's gate lock is held. `AcquireCase` runs real processes on a temp
 lock file, each bounded by a timeout so a regression fails instead of hanging:
 a nested acquire under the marker proceeds, a child under a raw-flock parent
-exits 2, and an unrelated holder is waited for.
+exits 2, and an unrelated holder is waited for. `QueueCase` runs real
+`heavy_lock.py run` holders and waiters and asserts on the order in which they
+wrote to a shared file while holding the lock: a priority waiter goes first, the
+godot class shares the machine up to its cap, an exclusive holder excludes it,
+and a killed waiter does not block the queue.
 """
 import contextlib
 import fcntl
 import io
 import os
+import select
+import signal
 import subprocess
 import sys
 import tempfile
@@ -28,8 +34,10 @@ from unittest import mock
 
 from tools import verify_candidate
 from tools.gate import GateRefused, run_gate
-from tools.heavy_lock import (EXIT_HELD_BY_PARENT, HEAVY_LOCK_ENV, HELD_ENV, gate_lock_path,
-                              heavy_lock_path, hold_heavy_lock, lock_holders, main_checkout)
+from tools.heavy_lock import (EXIT_HELD_BY_PARENT, GODOT_SLOTS_ENV, HEAVY_LOCK_ENV, HELD_CLASS_ENV,
+                              HELD_ENV, HELD_SLOTS_ENV, PRIORITY_ENV, gate_lock_path,
+                              heavy_lock_path, hold_heavy_lock, lock_holders, main_checkout,
+                              raw_flock_parent)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TOOLS = REPO_ROOT / "tools"
@@ -63,10 +71,13 @@ time.sleep(120)
 """
 
 
+LOCK_KEYS = (HEAVY_LOCK_ENV, HELD_ENV, HELD_CLASS_ENV, HELD_SLOTS_ENV, PRIORITY_ENV,
+             GODOT_SLOTS_ENV)
+
+
 def clean_env():
-    """os.environ without the lock override or the held marker."""
-    return {key: value for key, value in os.environ.items()
-            if key not in (HEAVY_LOCK_ENV, HELD_ENV)}
+    """os.environ without the lock override, the held markers, priority or a slot cap."""
+    return {key: value for key, value in os.environ.items() if key not in LOCK_KEYS}
 
 
 def old_relative_default(start):
@@ -260,6 +271,216 @@ class AcquireCase(unittest.TestCase):
                 with hold_heavy_lock(self.lock, environ=environ):  # re-entrant: no block
                     self.assertEqual(environ[HELD_ENV], str(self.lock))
             self.assertNotIn(HELD_ENV, environ)
+
+#: Under the lock: says `held`, then keeps it until its stdin closes.
+HOLD_UNTIL_STDIN = 'import sys; print("held", flush=True); sys.stdin.readline()'
+
+#: Under the lock: appends `argv[2]` to the order file `argv[1]`.
+APPEND = 'import sys; open(sys.argv[1], "a").write(sys.argv[2] + "\\n")'
+
+#: Takes `argv[1]` itself with hold_heavy_lock (priority from the environment),
+#: then appends `argv[3]` to the order file `argv[2]`.
+APPEND_UNDER_HOLD = f"""
+import sys
+sys.path.insert(0, {str(TOOLS)!r})
+from heavy_lock import hold_heavy_lock
+with hold_heavy_lock(sys.argv[1]):
+    open(sys.argv[2], "a").write(sys.argv[3] + "\\n")
+"""
+
+#: Asks for `argv[2]` under whatever holds `argv[1]`; prints what it got.
+NESTED_REQUEST = f"""
+import sys
+sys.path.insert(0, {str(TOOLS)!r})
+from heavy_lock import hold_heavy_lock
+with hold_heavy_lock(sys.argv[1], lock_class=sys.argv[2]) as hold:
+    print(hold.lock_class, hold.slots, hold.nested, flush=True)
+"""
+
+
+def read_until(stream, needle, timeout=TIMEOUT):
+    """Bytes from an unbuffered pipe up to and including `needle`, as text;
+    fails rather than hangs when `needle` does not come within `timeout`."""
+    deadline = time.monotonic() + timeout
+    seen = b""
+    while needle.encode() not in seen:
+        remaining = deadline - time.monotonic()
+        ready, _, _ = select.select([stream], [], [], max(remaining, 0))
+        if not ready:
+            raise AssertionError(f"{needle!r} did not arrive in {timeout} s; got {seen!r}")
+        chunk = os.read(stream.fileno(), 4096)
+        if not chunk:
+            raise AssertionError(f"{needle!r} never arrived before EOF; got {seen!r}")
+        seen += chunk
+    return seen.decode()
+
+
+class QueueCase(unittest.TestCase):
+    """Real holders and waiters on a temp lock. Each waiter appends its name to
+    `self.order` while it holds the lock, so the file is the grant order."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        base = Path(tmp.name).resolve()
+        self.lock = base / "build" / "continuation-heavy.lock"
+        self.lock.parent.mkdir()
+        self.order = base / "order.txt"
+        self.env = {**clean_env(), HEAVY_LOCK_ENV: str(self.lock)}
+
+    def spawn(self, argv, env=None):
+        process = subprocess.Popen([sys.executable, *argv], stdin=subprocess.PIPE,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0,
+                                   env={**self.env, **(env or {})})
+        self.addCleanup(stop, process)
+        self.addCleanup(process.stderr.close)
+        self.addCleanup(process.stdin.close)
+        return process
+
+    def holder(self, lock_class="exclusive", env=None):
+        """A `run --class` holder that has said `held`."""
+        process = self.spawn([str(TOOLS / "heavy_lock.py"), "run", "--class", lock_class,
+                              "--", sys.executable, "-c", HOLD_UNTIL_STDIN], env)
+        read_until(process.stdout, "held")
+        return process
+
+    def waiter(self, name, *flags, env=None):
+        """A `run` waiter that has printed its first waiting line (so it is queued)."""
+        process = self.spawn([str(TOOLS / "heavy_lock.py"), "run", *flags, "--",
+                              sys.executable, "-c", APPEND, str(self.order), name], env)
+        process.first_line = read_until(process.stderr, "\n")
+        return process
+
+    @staticmethod
+    def release(process):
+        process.stdin.close()
+        process.wait(timeout=TIMEOUT)
+
+    def granted(self):
+        return self.order.read_text().split() if self.order.exists() else []
+
+    def finish(self, *waiters):
+        for process in waiters:
+            self.assertEqual(process.wait(timeout=TIMEOUT), 0)
+        return self.granted()
+
+    def acquisition_order(self, *second_flags, second_env=None):
+        """Holder, then waiter `first`, then waiter `second`; release; the grant order."""
+        holder = self.holder()
+        first = self.waiter("first")
+        self.assertIn(f"held by pid {holder.pid} (exclusive)", first.first_line)
+        second = self.waiter("second", *second_flags, env=second_env)
+        self.assertEqual(self.granted(), [], "a holder is never preempted")
+        self.release(holder)
+        return self.finish(first, second)
+
+    def assert_priority_first(self, order):
+        self.assertEqual(order, ["second", "first"])
+
+    def test_a_priority_waiter_acquires_before_an_earlier_normal_waiter(self):
+        self.assert_priority_first(self.acquisition_order("--priority"))
+
+    def test_negative_control_without_the_flag_arrival_order_holds(self):
+        order = self.acquisition_order()
+        self.assertEqual(order, ["first", "second"])
+        with self.assertRaises(AssertionError):
+            self.assert_priority_first(order)
+
+    def test_the_environment_form_marks_hold_heavy_lock_as_priority(self):
+        holder = self.holder()
+        first = self.waiter("first")
+        second = self.spawn(["-c", APPEND_UNDER_HOLD, str(self.lock), str(self.order), "second"],
+                            env={PRIORITY_ENV: "1"})
+        self.assertIn("this waiter: exclusive, priority", read_until(second.stderr, "\n"))
+        self.release(holder)
+        self.assert_priority_first(self.finish(first, second))
+
+    def test_a_waiter_names_the_holder_and_the_priority_waiters_ahead(self):
+        holder = self.holder()
+        first = self.waiter("first")
+        self.assertIn("0 waiter(s) ahead, 0 of them priority", first.first_line)
+        second = self.waiter("second", "--priority")
+        self.assertIn("0 waiter(s) ahead", second.first_line)
+        # The earlier waiter reprints when a priority waiter queues ahead of it.
+        line = read_until(first.stderr, "1 waiter(s) ahead, 1 of them priority")
+        self.assertIn(f"held by pid {holder.pid}", line.splitlines()[-1])
+        self.release(holder)
+        self.finish(first, second)
+
+    def test_godot_holders_share_the_machine_up_to_the_cap(self):
+        cap = {GODOT_SLOTS_ENV: "2"}
+        one, two = self.holder("godot", cap), self.holder("godot", cap)  # both at once
+        third = self.waiter("third", "--class", "godot", env=cap)
+        self.assertIn(f"{one.pid} (godot)", third.first_line)
+        exclusive = self.waiter("exclusive", env=cap)
+        self.release(one)
+        self.assertEqual(third.wait(timeout=TIMEOUT), 0)
+        self.assertEqual(self.granted(), ["third"], "a godot holder excludes an exclusive run")
+        self.release(two)
+        self.assertEqual(self.finish(exclusive), ["third", "exclusive"])
+
+    def test_negative_control_a_larger_cap_admits_the_third_godot_holder(self):
+        cap = {GODOT_SLOTS_ENV: "3"}
+        for _ in range(3):
+            self.holder("godot", cap)  # fails (no `held`) if the third had to wait
+
+    def test_an_exclusive_holder_excludes_godot_runs(self):
+        holder = self.holder()
+        godot = self.waiter("godot", "--class", "godot")
+        self.assertIn(f"held by pid {holder.pid} (exclusive)", godot.first_line)
+        self.assertEqual(self.granted(), [])
+        self.release(holder)
+        self.assertEqual(self.finish(godot), ["godot"])
+
+    def test_a_killed_waiter_does_not_block_the_queue(self):
+        holder = self.holder()
+        dead = self.waiter("dead")
+        dead.send_signal(signal.SIGKILL)
+        dead.wait(timeout=TIMEOUT)
+        alive = self.waiter("alive")
+        self.assertIn("0 waiter(s) ahead", alive.first_line)
+        self.release(holder)
+        self.assertEqual(self.finish(alive), ["alive"])
+
+    def test_an_exclusive_request_under_a_godot_holder_is_refused(self):
+        done = subprocess.run(
+            [sys.executable, str(TOOLS / "heavy_lock.py"), "run", "--class", "godot", "--",
+             sys.executable, "-c", NESTED_REQUEST, str(self.lock), "exclusive"],
+            capture_output=True, text=True, timeout=TIMEOUT, env=self.env)
+        self.assertEqual(done.returncode, EXIT_HELD_BY_PARENT, done.stdout + done.stderr)
+        self.assertIn("excludes nobody", done.stderr)
+
+    def test_a_godot_request_under_an_exclusive_holder_gets_every_slot(self):
+        done = subprocess.run(
+            [sys.executable, str(TOOLS / "heavy_lock.py"), "run", "--",
+             sys.executable, "-c", NESTED_REQUEST, str(self.lock), "godot"],
+            capture_output=True, text=True, timeout=TIMEOUT,
+            env={**self.env, GODOT_SLOTS_ENV: "4"})
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(done.stdout.split(), ["exclusive", "4", "True"])
+
+    def test_raw_flock_parent_names_only_an_unmarked_ancestor(self):
+        probe = (f"import sys; sys.path.insert(0, {str(TOOLS)!r}); "
+                 "from heavy_lock import raw_flock_parent; print(raw_flock_parent(sys.argv[1]))")
+        raw = subprocess.run([sys.executable, "-c", RAW_FLOCK_PARENT_PRINT, str(self.lock),
+                              probe], capture_output=True, text=True, timeout=TIMEOUT,
+                             env=self.env)
+        self.assertEqual(raw.stdout.split(), [raw.stdout.split()[0]] * 2, raw.stderr)
+        marked = subprocess.run([sys.executable, str(TOOLS / "heavy_lock.py"), "run", "--",
+                                 sys.executable, "-c", probe, str(self.lock)],
+                                capture_output=True, text=True, timeout=TIMEOUT, env=self.env)
+        self.assertEqual(marked.stdout.strip(), "None")
+        self.assertIsNone(raw_flock_parent(self.lock, environ={}))  # free: nobody
+
+
+#: RAW_FLOCK_PARENT, but printing its own pid before running the probe child.
+RAW_FLOCK_PARENT_PRINT = """
+import fcntl, os, subprocess, sys
+held = open(sys.argv[1], "a")
+fcntl.flock(held, fcntl.LOCK_EX)
+print(os.getpid(), flush=True)
+sys.exit(subprocess.run([sys.executable, "-c", sys.argv[2], sys.argv[1]]).returncode)
+"""
 
 
 if __name__ == "__main__":

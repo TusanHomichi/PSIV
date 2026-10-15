@@ -21,13 +21,16 @@ import os
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
 
 from tools.gate import (FAST_COMMANDS, GATE_COMMANDS, SLOW_PYTHON_MODULES, GateRefused,
                         command_slug, main, parse_counts, quick_unittest, run_gate)
-from tools.heavy_lock import HEAVY_LOCK_ENV, HELD_ENV, gate_lock_path
+from tools.heavy_lock import (HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV, HELD_SLOTS_ENV,
+                              PRIORITY_ENV, gate_lock_path, heavy_lock_path)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEVELOPMENT = REPO_ROOT / "docs" / "DEVELOPMENT.md"
@@ -87,6 +90,15 @@ test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 2 filtered out; 
 """
 
 #: Maps the temp file the guard watches and keeps the mapping alive until killed.
+#: Holds `argv[1]` exclusively, says `held`, and keeps it until stdin closes.
+HEAVY_HOLDER = """
+import fcntl, sys
+held = open(sys.argv[1], "a")
+fcntl.flock(held, fcntl.LOCK_EX)
+print("held", flush=True)
+sys.stdin.readline()
+"""
+
 MMAP_CHILD = """
 import mmap, sys, time
 handle = open(sys.argv[1], "r+b")
@@ -225,7 +237,8 @@ class GateRunCase(unittest.TestCase):
         self.head_sha = self.init_repo()
         # The run's heavy lock is the fixture repo's own, never the real one.
         environ = {key: value for key, value in os.environ.items()
-                   if key not in (HEAVY_LOCK_ENV, HELD_ENV)}
+                   if key not in (HEAVY_LOCK_ENV, HELD_ENV, HELD_CLASS_ENV, HELD_SLOTS_ENV,
+                                  PRIORITY_ENV)}
         patcher = mock.patch.dict(os.environ, environ, clear=True)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -350,6 +363,41 @@ class GateRunCase(unittest.TestCase):
         self.assertEqual(receipt["exit_code"], 0)
         receipt, _ = self.run_quiet([fake_step("again")])  # and the run released its own
         self.assertEqual(receipt["exit_code"], 0)
+
+    def test_a_gate_queued_for_the_heavy_lock_holds_no_gate_lock(self):
+        """The heavy lock comes first, so a waiting gate never holds the gate
+        lock: its queue alone orders gates (a priority gate is not stuck behind
+        a normal one that took the gate lock first), and no gate waits on the
+        heavy lock while holding what a heavy holder's nested gate needs."""
+        heavy = heavy_lock_path(self.root)
+        heavy.parent.mkdir(parents=True, exist_ok=True)
+        holder = subprocess.Popen([sys.executable, "-c", HEAVY_HOLDER, str(heavy)],
+                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        self.addCleanup(self.stop, holder)
+        self.assertEqual(holder.stdout.readline().strip(), "held")
+        output, outcome = io.StringIO(), {}
+
+        def gate():
+            outcome["receipt"] = run_gate([fake_step("queued")], self.root, self.receipt_dir,
+                                          wait=True)
+
+        with contextlib.redirect_stdout(output):
+            thread = threading.Thread(target=gate)
+            thread.start()
+            for _ in range(300):  # bounded: 30 s for the gate to queue
+                if "waiting for" in output.getvalue():
+                    break
+                time.sleep(0.1)
+            self.assertIn(f"waiting for {heavy}", output.getvalue())
+            lock_file = gate_lock_path(self.root)
+            lock_file.parent.mkdir(parents=True, exist_ok=True)
+            with lock_file.open("a") as probe:  # free while the gate waits
+                fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(probe, fcntl.LOCK_UN)
+            holder.stdin.close()
+            thread.join(timeout=60)
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(outcome["receipt"]["exit_code"], 0)
 
     def test_a_loaded_extension_refuses_until_the_holder_exits(self):
         extension = self.root / "rust" / "target" / "debug" / "libpsiv_godot.so"
