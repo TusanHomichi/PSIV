@@ -12,7 +12,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from psiv_tools import png
+from psiv_tools import pack_sections, png
 from psiv_tools.layouts import collision_type_name, is_blocking
 from psiv_tools.pack import (
     MANIFEST_NAME,
@@ -226,7 +226,10 @@ class TestManifest(PackFixtureCase):
     def test_building_twice_produces_identical_bytes(self):
         with tempfile.TemporaryDirectory() as other:
             second = Path(other) / "pack"
-            build_pack(self.data, second, map_ids=FIXTURE_MAPS)
+            # Every emitter runs again rather than replaying a section an
+            # earlier build in this process kept (psiv_tools.pack_sections).
+            with pack_sections.fresh():
+                build_pack(self.data, second, map_ids=FIXTURE_MAPS)
             first_files = sorted(p.relative_to(self.root) for p in self.root.rglob("*") if p.is_file())
             second_files = sorted(p.relative_to(second) for p in second.rglob("*") if p.is_file())
             self.assertEqual(first_files, second_files)

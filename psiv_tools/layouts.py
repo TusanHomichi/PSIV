@@ -48,6 +48,33 @@ from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 from . import png
+from .chunk_draw import (  # noqa: F401 -- re-exported, see chunk_draw
+    CHUNK_TILES_X,
+    CHUNK_TILES_Y,
+    CHUNK_WORDS,
+    CHUNK_BYTES,
+    TILE_PIXELS,
+    CHUNK_PIXELS_X,
+    CHUNK_PIXELS_Y,
+    TILE_INDEX_MASK,
+    H_FLIP_BIT,
+    V_FLIP_BIT,
+    PALETTE_BIT,
+    COLLISION_BIT,
+    PRIORITY_BIT,
+    VDP_WORD_MASK,
+    VRAM_TILES,
+    PreparedChunk,
+    collision_flag,
+    h_flip,
+    overlay_chunk,
+    palette_line,
+    prepare_chunk,
+    priority,
+    tile_index,
+    v_flip,
+    vdp_word,
+)
 from .extract_stamp import check_accumulating_png_directory, write_png_stamp
 from .gfx import GRAYSCALE_RAMP, RGB, decode_palette, decode_tile, palette_rgb
 from .kosinski import decompress as kos_decompress
@@ -55,18 +82,6 @@ from .kosinski import decompress as kos_decompress
 # ---------------------------------------------------------------------------
 # Geometry, all of it read off the load path rather than assumed.
 # ---------------------------------------------------------------------------
-
-#: A chunk is 16 big-endian words. `SetupChunksFG` does `lsl.w #5,d3` on the
-#: chunk id to reach it, and `ChunkTilesToBuffer` is called with d1 = d2 = 3,
-#: i.e. four cells across and four rows down.
-CHUNK_TILES_X = 4
-CHUNK_TILES_Y = 4
-CHUNK_WORDS = CHUNK_TILES_X * CHUNK_TILES_Y
-CHUNK_BYTES = CHUNK_WORDS * 2
-
-TILE_PIXELS = 8
-CHUNK_PIXELS_X = CHUNK_TILES_X * TILE_PIXELS
-CHUNK_PIXELS_Y = CHUNK_TILES_Y * TILE_PIXELS
 
 #: `GetChunkAndCollision` picks a collision quadrant with bit 1 of the tile
 #: coordinate, so one collision cell covers 2x2 tiles.
@@ -77,17 +92,6 @@ COLLISION_CELL_PIXELS = COLLISION_CELL_TILES * TILE_PIXELS
 #: 256 chunks, and Map_Layout_FG..Map_Layout_BG is 0x1000 bytes apart.
 MAX_CHUNKS = 256
 LAYOUT_RAM_BYTES = 0x1000
-
-#: Mega Drive pattern-name word fields. Bit 14 would be the high palette bit;
-#: PSIV steals it for collision and masks it off on the way to the VDP.
-TILE_INDEX_MASK = 0x07FF
-H_FLIP_BIT = 11
-V_FLIP_BIT = 12
-PALETTE_BIT = 13
-COLLISION_BIT = 14
-PRIORITY_BIT = 15
-VDP_WORD_MASK = 0xBFFF  # ChunkTilesToBuffer / ChunkTilesToVRAM
-VRAM_TILES = 0x800      # 11-bit pattern index
 
 #: Names as the disassembly annotates them at `GetChunkAndCollision`. They are
 #: labels for a 4-bit code, not a bitmask: the code is assembled from the
@@ -119,45 +123,6 @@ PLANES = (PLANE_FG, PLANE_BG)
 
 class LayoutError(ValueError):
     pass
-
-
-# ---------------------------------------------------------------------------
-# Pattern-name word accessors
-# ---------------------------------------------------------------------------
-def tile_index(word: int) -> int:
-    return word & TILE_INDEX_MASK
-
-
-def h_flip(word: int) -> bool:
-    return bool(word >> H_FLIP_BIT & 1)
-
-
-def v_flip(word: int) -> bool:
-    return bool(word >> V_FLIP_BIT & 1)
-
-
-def palette_line(word: int) -> int:
-    """The CRAM line the VDP will use.
-
-    Only one palette bit survives: bit 14 is the collision flag and is masked
-    off by `ChunkTilesToBuffer`, so chunk tiles can only ever draw from CRAM
-    lines 0 and 1.
-    """
-    return word >> PALETTE_BIT & 1
-
-
-def priority(word: int) -> bool:
-    return bool(word >> PRIORITY_BIT & 1)
-
-
-def collision_flag(word: int) -> int:
-    """Bit 14, the bit `btst #6,0(a1)` tests and `andi.w #$BFFF` removes."""
-    return word >> COLLISION_BIT & 1
-
-
-def vdp_word(word: int) -> int:
-    """The word as the VDP receives it, collision bit stripped."""
-    return word & VDP_WORD_MASK
 
 
 def collision_type_name(value: int) -> str:
@@ -482,9 +447,12 @@ _COLLISION_WORD_OFFSETS = (0, 1, CHUNK_TILES_X, CHUNK_TILES_X + 1)
 def collision_at(chunks: ChunkTable, layout: Layout, cell_x: int, cell_y: int) -> int:
     """The collision type of one 16x16 cell, straight out of the asm's arithmetic."""
     chunk_id = layout.chunk_at(cell_x // COLLISION_CELL_TILES, cell_y // COLLISION_CELL_TILES)
-    words = chunks[chunk_id]
+    return _quadrant_collision(chunks[chunk_id], cell_x & 1, cell_y & 1)
+
+
+def _quadrant_collision(words: Sequence[int], quadrant_x: int, quadrant_y: int) -> int:
     # andi.w #2,d0 -> +4 bytes (2 words); andi.w #2,d1 -> +$10 bytes (8 words).
-    base = (cell_y & 1) * (CHUNK_TILES_X * COLLISION_CELL_TILES) + (cell_x & 1) * COLLISION_CELL_TILES
+    base = quadrant_y * (CHUNK_TILES_X * COLLISION_CELL_TILES) + quadrant_x * COLLISION_CELL_TILES
     value = 0
     for bit, step in enumerate(_COLLISION_WORD_OFFSETS):
         if collision_flag(words[base + step]):
@@ -499,14 +467,31 @@ def decode_collision(chunks: ChunkTable, layout: Layout) -> CollisionGrid:
     reads Map_Layout_BG when the map record's `$FFFFEC24` byte is non-zero and
     Map_Layout_FG when it is zero. `collision_plane` on `MapLayoutSpec` carries
     that byte.
+
+    Every cell is `collision_at`'s value; a chunk's four quadrants are worked
+    out once per chunk id rather than once per cell.
     """
     width = layout.width_chunks * COLLISION_CELL_TILES
     height = layout.height_chunks * COLLISION_CELL_TILES
-    out = bytearray(width * height)
-    for cell_y in range(height):
-        row = cell_y * width
-        for cell_x in range(width):
-            out[row + cell_x] = collision_at(chunks, layout, cell_x, cell_y)
+    # chunk id -> its two cell rows, two cells each
+    quadrants: dict[int, tuple[bytes, bytes]] = {}
+    out = bytearray()
+    for chunk_y in range(layout.height_chunks):
+        row: list[tuple[bytes, bytes]] = []
+        for chunk_x in range(layout.width_chunks):
+            chunk_id = layout.chunk_at(chunk_x, chunk_y)
+            cells = quadrants.get(chunk_id)
+            if cells is None:
+                words = chunks[chunk_id]
+                cells = quadrants[chunk_id] = tuple(
+                    bytes(_quadrant_collision(words, qx, qy) for qx in (0, 1))
+                    for qy in (0, 1)
+                )
+            row.append(cells)
+        for qy in (0, 1):
+            out += b"".join(cells[qy] for cells in row)
+    if len(out) != width * height:
+        raise LayoutError(f"collision grid is {len(out)} cells, expected {width}x{height}")
     return CollisionGrid(width=width, height=height, types=bytes(out))
 
 
@@ -623,6 +608,7 @@ def compose_layout(
     layout: Layout,
     patterns: TilePatterns,
     base: bytes | bytearray | None = None,
+    prepared: dict[int, PreparedChunk] | None = None,
 ) -> tuple[int, int, bytearray, set[int]]:
     """Draw one plane's tiles into an index buffer.
 
@@ -634,47 +620,50 @@ def compose_layout(
 
     With `base` given, this composites on top of it the way the VDP overlays
     plane A on plane B: colour index 0 is transparent, everything else wins.
+
+    `prepared` holds chunk drawings by chunk id, and may be shared between the
+    planes of one map: they index the same chunk table and patterns.
     """
     width, height = layout.width_pixels, layout.height_pixels
-    if base is None:
-        pixels = bytearray(width * height)
-        overlay = False
-    else:
-        if len(base) != width * height:
-            raise LayoutError(
-                f"Base image is {len(base)} bytes, expected {width * height} for a "
-                f"{width}x{height} plane"
-            )
-        pixels = bytearray(base)
-        overlay = True
+    if base is not None and len(base) != width * height:
+        raise LayoutError(
+            f"Base image is {len(base)} bytes, expected {width * height} for a "
+            f"{width}x{height} plane"
+        )
 
     missing: set[int] = set()
+    if prepared is None:
+        prepared = {}
+
+    def chunk(chunk_x: int, chunk_y: int) -> PreparedChunk:
+        chunk_id = layout.chunk_at(chunk_x, chunk_y)
+        found = prepared.get(chunk_id)
+        if found is None:
+            words = chunks[chunk_id]
+            found = prepared[chunk_id] = prepare_chunk(
+                (
+                    (i % CHUNK_TILES_X, i // CHUNK_TILES_X, words[i])
+                    for i in range(CHUNK_TILES_X * CHUNK_TILES_Y)
+                ),
+                patterns,
+            )
+        missing.update(found.missing)
+        return found
+
+    if base is None:
+        # A fresh plane: every pixel is written once, so each pixel row of the
+        # plane is the matching rows of its chunks, side by side.
+        out = bytearray()
+        for chunk_y in range(layout.height_chunks):
+            row = [chunk(chunk_x, chunk_y) for chunk_x in range(layout.width_chunks)]
+            for y in range(CHUNK_PIXELS_Y):
+                out += b"".join(block.rows[y] for block in row)
+        return width, height, out, missing
+
+    pixels = bytearray(base)
     for chunk_y in range(layout.height_chunks):
         for chunk_x in range(layout.width_chunks):
-            words = chunks[layout.chunk_at(chunk_x, chunk_y)]
-            for tile_y in range(CHUNK_TILES_Y):
-                for tile_x in range(CHUNK_TILES_X):
-                    word = vdp_word(words[tile_y * CHUNK_TILES_X + tile_x])
-                    index = tile_index(word)
-                    if index not in patterns.loaded:
-                        missing.add(index)
-                        continue
-                    tile = patterns.tile(index)
-                    shift = palette_line(word) * 16
-                    flip_x, flip_y = h_flip(word), v_flip(word)
-                    ox = chunk_x * CHUNK_PIXELS_X + tile_x * TILE_PIXELS
-                    oy = chunk_y * CHUNK_PIXELS_Y + tile_y * TILE_PIXELS
-                    for y in range(TILE_PIXELS):
-                        source_y = TILE_PIXELS - 1 - y if flip_y else y
-                        row = tile[source_y * TILE_PIXELS:(source_y + 1) * TILE_PIXELS]
-                        if flip_x:
-                            row = row[::-1]
-                        start = (oy + y) * width + ox
-                        for x in range(TILE_PIXELS):
-                            value = row[x]
-                            if overlay and value == 0:
-                                continue
-                            pixels[start + x] = value + shift
+            overlay_chunk(pixels, width, chunk_x, chunk_y, chunk(chunk_x, chunk_y))
     return width, height, pixels, missing
 
 
@@ -695,7 +684,10 @@ def render_layout(
     Without a palette the tiles render against a grayscale ramp repeated for
     both CRAM lines, so an unproven palette binding stays visibly unproven.
     """
-    width, height, pixels, missing = compose_layout(chunks, layout, patterns)
+    prepared: dict[int, PreparedChunk] = {}
+    width, height, pixels, missing = compose_layout(
+        chunks, layout, patterns, prepared=prepared
+    )
     if overlay is not None:
         if (overlay.width_chunks, overlay.height_chunks) != (
             layout.width_chunks,
@@ -705,7 +697,9 @@ def render_layout(
                 f"Overlay plane is {overlay.width_chunks}x{overlay.height_chunks} "
                 f"chunks but the base plane is {layout.width_chunks}x{layout.height_chunks}"
             )
-        _, _, pixels, extra = compose_layout(chunks, overlay, patterns, pixels)
+        _, _, pixels, extra = compose_layout(
+            chunks, overlay, patterns, pixels, prepared=prepared
+        )
         missing |= extra
 
     colours = list(palette) if palette is not None else list(GRAYSCALE_RAMP) * 2

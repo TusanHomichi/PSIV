@@ -84,10 +84,11 @@ def encode_indexed(
     data = bytes(pixels)
     if not 1 <= len(palette) <= 256:
         raise PngError(f"Palette must hold 1..256 colours, got {len(palette)}")
-    highest = max(data) if data else 0
-    if highest >= len(palette):
+    # Deleting every valid index leaves exactly the pixels that have none.
+    unpaletted = data.translate(None, bytes(range(len(palette))))
+    if unpaletted:
         raise PngError(
-            f"Pixel index {highest} has no palette entry ({len(palette)} colours)"
+            f"Pixel index {max(unpaletted)} has no palette entry ({len(palette)} colours)"
         )
 
     plte = bytearray()

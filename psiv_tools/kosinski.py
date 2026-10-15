@@ -22,6 +22,8 @@ below reproduces that exactly, which is what makes it a usable length oracle.
 
 from __future__ import annotations
 
+from .decode_cache import memoized
+
 
 class KosinskiError(ValueError):
     pass
@@ -80,6 +82,7 @@ def _copy_match(out: bytearray, displacement: int, count: int) -> None:
         out.append(out[start + i])
 
 
+@memoized()
 def decompress(data: bytes, offset: int = 0) -> tuple[bytes, int]:
     """Decompress the Kosinski stream at `offset`.
 

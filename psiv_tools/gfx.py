@@ -289,11 +289,16 @@ def decode_tile(chunk: bytes) -> bytes:
     """Expand one 32-byte pattern into 64 palette indices, row-major."""
     if len(chunk) != TILE_SIZE:
         raise GraphicsError(f"A pattern is {TILE_SIZE} bytes, got {len(chunk)}")
+    data = bytes(chunk)
     out = bytearray(TILE_WIDTH * TILE_HEIGHT)
-    for i, byte in enumerate(chunk):
-        out[i * 2] = byte >> 4
-        out[i * 2 + 1] = byte & 0x0F
+    # Each byte holds two pixels, high nybble first.
+    out[0::2] = data.translate(_HIGH_NYBBLE)
+    out[1::2] = data.translate(_LOW_NYBBLE)
     return bytes(out)
+
+
+_HIGH_NYBBLE = bytes(value >> 4 for value in range(0x100))
+_LOW_NYBBLE = bytes(value & 0x0F for value in range(0x100))
 
 
 def decode_tiles(data: bytes) -> list[bytes]:

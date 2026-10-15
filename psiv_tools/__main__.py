@@ -38,6 +38,7 @@ def _regenerate(data: bytes, output: Path) -> None:
     The tables first (their `metadata.json` is written last), then each PNG
     directory; every step writes its own stamp (`psiv_tools/extract_stamp.py`).
     """
+    from . import decode_cache
     from .battle_art import export_battle_art_pngs
     from .gfx import export_art_pngs
     from .planes import export_plane_pngs
@@ -48,10 +49,12 @@ def _regenerate(data: bytes, output: Path) -> None:
         ("planes", lambda: print(f"Wrote {len(export_plane_pngs(data, output / 'planes'))} composed PNGs to {output / 'planes'}")),
         ("battle_art", lambda: print(f"Wrote {len(export_battle_art_pngs(data, output / 'battle_art'))} battle art PNGs to {output / 'battle_art'}")),
     ]
-    for name, step in steps:
-        started = time.monotonic()
-        step()
-        print(f"regenerate: {name} done in {time.monotonic() - started:.1f}s")
+    # The steps decode many of the same blobs; decode each once (#130).
+    with decode_cache.scope():
+        for name, step in steps:
+            started = time.monotonic()
+            step()
+            print(f"regenerate: {name} done in {time.monotonic() - started:.1f}s")
     print(f"regenerate: {output} rebuilt and stamped (layouts/ is written by export_map_pngs and is not touched)")
 
 
