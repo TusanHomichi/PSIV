@@ -250,14 +250,21 @@ func _check_checkpoint() -> bool:
 func _sample_rss() -> void:
     # Godot's own counters split the owner: objects, resources and nodes that
     # pile up are engine-side; RSS growth with flat counters and flat static
-    # memory is the extension's own (Rust) heap.
-    rss_samples.append({"frame": consumed,
+    # memory is the extension's own (Rust) heap. Static memory holds the
+    # current map's images, so each sample names its map; the verdict compares
+    # a map only with itself. An unreadable map is left out of the sample and
+    # fails the verdict.
+    var sample := {"frame": consumed,
             "elapsed_ms": Time.get_ticks_msec() - replay_started_ms, "rss_kb": _rss_kb(),
             "static_kb": int(Performance.get_monitor(Performance.MEMORY_STATIC)) / 1024,
             "objects": int(Performance.get_monitor(Performance.OBJECT_COUNT)),
             "resources": int(Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT)),
             "nodes": int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
-            "orphan_nodes": int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))})
+            "orphan_nodes": int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))}
+    var state = JSON.parse_string(str(game.debug_play_state()))
+    if typeof(state) == TYPE_DICTIONARY and state.has("map") and state["map"] != null:
+        sample["map"] = int(state["map"])
+    rss_samples.append(sample)
     report["rss_samples"] = rss_samples
 
 # VmRSS in KiB; procfs files report no length, so read them line by line.

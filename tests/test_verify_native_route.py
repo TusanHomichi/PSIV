@@ -215,6 +215,17 @@ class Main(unittest.TestCase):
         self.assertEqual((options["--rss-every"], options["--rss-warmup-frames"],
                           options["--rss-bound-mb"]), ("5000", "20000", "48.0"))
 
+    def test_an_rss_bound_without_a_warmup_sample_is_refused_before_replaying(self):
+        asked = []
+        for extra in (("--rss-every", "5000", "--rss-bound-mb", "16"),
+                      ("--rss-every", "5000", "--rss-warmup-frames", "100",
+                       "--rss-bound-mb", "16")):
+            with tempfile.TemporaryDirectory() as directory, \
+                    self.assertRaises(SystemExit), \
+                    contextlib.redirect_stderr(io.StringIO()):
+                self.run_main(Path(directory), extra, self.fake_driver([True], record=asked))
+        self.assertEqual(asked, [])
+
     def test_a_stale_run_directory_is_refused_before_anything_is_replayed(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

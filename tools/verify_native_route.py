@@ -14,20 +14,21 @@ from New Game is the route's evidence, so only a prefix of it can be replayed
 (`--until-chapter`), never a single chapter.
 
 `--rss-every N --rss-warmup-frames W --rss-bound-mb B` turns the replay into
-the #92 memory check: the driver samples resident memory every N frames and
-the receipt fails when memory past frame W grows beyond B (what is measured is
-`verify_native_tape.rss_verdict`). The check is defined by frames, so by
-battles, not by wall time: a slow host replays the same battles. The
-reference run is the prefix through chapter 14:
+the #92 memory check: the driver samples memory every N frames and the receipt
+fails when memory past frame W grows beyond B (what is measured, and how, is
+`verify_native_tape.rss_verdict`). The check's coverage is set in frames, so
+every run plays the same maps and battles whatever the host's speed; the bound
+is judged over that window of frames. Growth is not normalized per frame:
+audio is rendered on the wall clock, so a slower host renders more of it per
+frame. The verdict reads Godot's static memory, which only debug builds
+report, so the check is for debug builds (the release path is #117). The
+reference window is the campaign prefix through chapter 14:
 
     psiv-campaign run rust/psiv-campaign/routes/main.json \
         --until-chapter aiedo-chaz-house --save-dir RUN --tape RUN/run.tape \
         --report RUN/report.json
     verify_native_route.py --run-dir RUN --out OUT \
         --rss-every 2500 --rss-warmup-frames 20000 --rss-bound-mb 16
-
-(156,761 frames, 75 battles at e11e757). The shipped retention grew the
-extension heap 114.6 MB over it; the fixed build, 4.3 MB.
 
 `--continue-probes` is the other half: it loads each chapter save in a fresh
 Godot process through the ordinary title CONTINUE and requires the snapshot to
@@ -215,7 +216,7 @@ def parser() -> argparse.ArgumentParser:
                          help="seconds for the whole replay (default six hours)")
     command.add_argument("--rss-every", type=int,
                          help="record Godot's resident memory every N gameplay frames (#92)")
-    command.add_argument("--rss-warmup-frames", type=int, default=0,
+    command.add_argument("--rss-warmup-frames", type=int,
                          help="frames before the RSS baseline")
     command.add_argument("--rss-bound-mb", type=float,
                          help="fail when RSS grows more than this past its baseline")
@@ -233,6 +234,11 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    if args.rss_bound_mb is not None and (
+            args.rss_every is None or args.rss_warmup_frames is None
+            or args.rss_warmup_frames < args.rss_every):
+        parser().error("--rss-bound-mb needs --rss-every and --rss-warmup-frames of at least "
+                       "--rss-every")
     run_dir = args.run_dir.resolve(strict=True)
     try:
         report, chapters, chapters_in_run = load_chapters(run_dir, args.until_chapter)
@@ -267,8 +273,9 @@ def main(argv: list[str] | None = None) -> int:
     if args.drop_pad_at is not None:
         tape_args += ["--drop-pad-at", str(args.drop_pad_at)]
     if args.rss_every is not None:
-        tape_args += ["--rss-every", str(args.rss_every),
-                      "--rss-warmup-frames", str(args.rss_warmup_frames)]
+        tape_args += ["--rss-every", str(args.rss_every)]
+    if args.rss_warmup_frames is not None:
+        tape_args += ["--rss-warmup-frames", str(args.rss_warmup_frames)]
     if args.rss_bound_mb is not None:
         tape_args += ["--rss-bound-mb", str(args.rss_bound_mb)]
     started = time.monotonic()
