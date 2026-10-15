@@ -176,123 +176,34 @@ the Land Rover crosses it: the Ladea Tower cannot be reached on foot from Krup
 game hands control back, turning finished pages with Speak, acknowledging chest
 results, fighting battles with the chapter's policy, and waiting out scenes.
 
-**Battle policy.** `random_battle_policy` names one (`policy.rs`). Every name
-resolves to one party policy whose commands come from one planner; the names
-differ only in when the party RUNs:
+**Battle policy.** `random_battle_policy` names a temperament of the one party
+policy (`policy.rs`); the names differ only in when the party RUNs. At a
+round's first command window the planner (`policy_plan.rs`, `policy_value.rs`,
+`policy_estimate.rs`) orders every member from the board (`policy_board.rs`):
+each fighter as the engine holds it, and what each member's window would enable
+(`Runtime::window_techniques`, `window_skills`, `window_items`), valued with the
+engine's own formulas and rules. It returns an `Intent` and `battle.rs` presses
+the menus to it. The rules are in those modules' docs, their tests in
+`policy_plan_tests.rs` and `tests/party_policy.rs`. Losing is a halt; after a
+battle the camp cures the party (`recovery.rs`).
 
-- `default`, `attack_all`, `heal_then_attack` and `fight_to_win` fight every battle;
-- `run_unless_boss`, `run_then_win` and `bioplant_survival` run from every random
-  encounter (every round until it works) and fight scripted battles;
-- `train_with_inn` fights, and runs from a random encounter once a member has
-  fallen or a living one is under a third of their HP, so the inn that ends a
-  training patrol cures a party and does not find a dead one;
-- `psycho_wand_then_win` (`policy_opening.rs`) is `run_then_win` with an opening
-  item: in the first actual player-command round of a scripted battle the first
-  actor takes ITEM and picks the Psycho Wand (item `$39`, when the pack holds
-  it) and everyone else follows the plan. An enemy-only ambush round offers no
-  item choice and does not disarm the opening. The driver tells every policy when
-  a battle begins and whether it is scripted (`Policy::battle_begins`), which is
-  how a random encounter gets no opening. The Zio fight at Nurvus is the chapter
-  that names it (`nurvus-zio`); `tests/runner.rs` pins the opening over a pack
-  that holds an item bought at the Piata shop.
+**Battle ends.** `run` prints one line under its chapter for every scripted
+battle, who stood as the field took the screen back (`BattleRecord::end_line`),
+and the report carries them (`event_battles`, or `battles` for a halted run).
 
-The running names exist because the cartridge's random draws are one stream:
-any frame the runtime spends or saves anywhere moves every later encounter (the
-cutscene-return reload, [`FIELD_RELOAD.md`](../scenes/FIELD_RELOAD.md), moved
-all of them), and a route that survives on only one stream is not a route.
-
-A policy decides and never presses: it returns an `Intent` (ATTACK on a target,
-a technique, skill or item on a target, DEFEND) and `battle.rs` walks the menu
-cursor to it with ordinary pad presses. The planner is four modules:
-
-- **The board** (`policy_board.rs`, read by `policy_board_read.rs`). When a
-  command window opens the policy reads every fighter's battle stats, element
-  factors and status as the engine holds them, and every living member's kit:
-  each technique, skill and item they can use this round, with the record bytes
-  its formula reads and the target list the command menu offers (the core's
-  `technique_targets`, `skill_targets` and `item_targets`), and their weapon.
-  The actor's techniques and skills are the open window's entries; the other
-  members' follow the window's rule. The runtime is read through `&Runtime`
-  only (`Runtime::battle_data`, `session/battle/policy_view.rs`).
-- **The estimate** (`policy_estimate.rs`). Every number is the engine's own
-  formula on a local roll sequence, never the game's RNG: damage is
-  `calculate_damage` at each sum of its sixteen 0..7 draws, weighted by how many
-  of the 8^16 sequences give it, and capped at the target's HP per outcome;
-  healing is `calc_healing` the same way; a plain attack's hit and critical are
-  `calculate_chances` at each of its 64 rolls; whether a status effect lands is
-  the same kernel with the record's threshold. Values are integers in 1/256 HP.
-  The effect class comes from the record's effect byte through
-  `AbilityEffectsOffs` (`ps4.asm:9036-9086`), so a technique, a skill and an
-  item that share an effect share a class.
-- **The round plan** (`policy_plan.rs`). The round's first window orders every
-  member who can act, as a player thinks the round through before pressing
-  anything. *Finish it*: when the members' best actions are expected to remove
-  every enemy's HP, nobody cures. *Cures*, most urgent first, each given to the
-  member whose own best action is worth least: a group cure when two or more
-  members it reaches are below 70% of their maximum HP or the threat; a single
-  cure for each member below half or the threat, lowest share first, one a
-  patient; in a scripted battle with more than a round left, a revival for each
-  fallen member and a status cure for a paralysed or sleeping one. *The best
-  action by value* for everyone else; ATTACK, or DEFEND without a weapon, when
-  nothing is worth more. The threat is the larger of the most HP one member lost
-  over a round of this battle and the strongest plain attack a living enemy
-  could land (the formula's highest roll). A round book carries the earlier
-  orders: their damage comes off each enemy before the next member is valued,
-  cures count toward the patient, a revival or a sleep is not ordered twice and
-  an item copy is not spent twice. A member who knows a cure keeps the TP for
-  the cheapest one.
-- **The value** (`policy_value.rs`), in HP: the plain attack (every enemy for a
-  group weapon, else the best target), every damaging technique, skill or item,
-  an instant-death effect (its landing chance times the HP it removes), a sleep
-  (its chance times what the enemy does in a turn) and, in a scripted battle, an
-  attack-down on an enemy or an attack- or defence-up on a member (the damage it
-  adds or saves over the rounds left, at most four). CROSSCUT counts one damage
-  pass, as the engine resolves it (`loc_9880`). A scripted battle is fought with
-  everything. A random encounter keeps skill uses and consumable items for the
-  scripted battles, spends TP on damage only at twice the member's plain attack,
-  and orders at most one single cure and one group cure a round.
-
-`policy_plan_tests.rs` holds the rules' unit tests, each with the board change
-that must change the choice; `tests/party_policy.rs`
-`mixed_party_cures_use_the_menus_eligible_targets` plays them on a live battle
-with an android in the party.
-
-After a battle the party is cured through the camp (`recovery.rs`). Losing is a
-halt. A route that needs another behaviour gets a temperament in `policy.rs`,
-not a second planner.
-
-**Battle ends.** The driver records the party as the field takes the screen back
-from every battle (`BattleRecord::party_at_end`, a member is down at zero HP or
-with a dead bit, a shut-down android included). `run` prints one line under its
-chapter for every scripted battle (`event battle N: frames S..E; party ...;
-every member standing`, or `down:` and the names), and the completed report
-carries them as `event_battles`; a halted run's report has them in `battles`.
-That line, not the chapter's closing party, says who stood at a fight's end: a
-chapter can heal or lose members after its fight (the Xe-A-Thoul chapter ends
-on the recovery tile; Demi leaves after Zio).
-
-**Every resume finishes.** A fresh process that resumes from a chapter save
-starts the cartridge's random stream again, so each chapter save is the start of
-another trial of the rest of the route. `tools/resume_check.py --run <completed
-run>` resumes the route from every chapter save of the run, one process at a
-time, and holds the outcomes to `rust/psiv-campaign/routes/resume_manifest.json`:
-every resume finishes, except the halts the manifest lists, each classified by
-(chapter, objective index, halt kind) with the resume points it occurs from, an
-issue link and a date. An unlisted halt fails the check, and so does a listed
-resume that no longer halts there (stale), an entry without an issue or a date,
-and a resume that did not run. `tools/verify_candidate.py` runs it after the
-route step, under the heavy lock, for every integration candidate
-([DEVELOPMENT.md](../DEVELOPMENT.md#gate-and-coverage)); the 62-chapter route
-takes about 25 minutes.
-
-**Training levels.** A training chapter patrols until the lowest member's level
-(and, where the route needs it, the purse) reaches its `until`. Its level is the
-lowest at which every fixed fight from that training up to the next one is won
-from every resume point before the next training, and the route's halts are
-exactly the ones the manifest lists: a cut that leaves a new kind of halt fails,
-whatever the count. `tools/route_sweep.py` plays a variant of the route (a
-level, a purse, a dropped chapter) from New Game or from a save and summarizes
-it with the battle-end lines.
+**Every resume finishes.** A fresh process resumed from a chapter save starts
+the cartridge's random stream again, so the route must finish from every
+chapter save, except the halts `rust/psiv-campaign/routes/resume_manifest.json`
+lists, each with its issue and date (the entry format is in the file's `about`
+and in `tools/resume_check.py`). `python3 tools/resume_check.py --run <completed
+run>` resumes the route from every chapter save of the run and fails on an
+unlisted halt or a stale entry; `--evaluate <check dir>` re-judges a finished
+check against an edited manifest. `tools/verify_candidate.py` runs it for every
+integration candidate ([DEVELOPMENT.md](../DEVELOPMENT.md#gate-and-coverage)).
+The training chapters keep the pre-P88b levels by the owner decision of
+2026-10-07; the manifest lists the halts the route still has.
+`python3 tools/route_sweep.py NAME --level CHAPTER=N` plays a variant of the
+route and summarizes its battle ends.
 
 **Halts and the report.** Each objective has a frame budget. The run stops at
 the first of: a missed `expect` or closing assertion, an exhausted budget, an
@@ -641,7 +552,7 @@ canonical_record: "docs/campaign/CAMPAIGN_RUNNER.md#task-graph"
 authority: "Owner 2026-10-01: campaign runner approach (docs/AGENT_WORKFLOW.md#authority-effort-and-continuation). The bounded post-Zio checkpoint has reviewed local evidence; publication and integration follow the workflow authority record. Later-arc implementation is parked for the next session."
 effort_policy: "Continue scoped repairs until acceptance passes; no fixed cycle limit (inherited)"
 exclusions: ["modding", "visual-parity claims beyond existing certifications", "gameplay changes that are not cartridge behavior", "later arc beyond Zio defeated in the current lane"]
-next_action: "P88b: the party policy uses every technique and skill and the training chapters shrink (#88); C9: from Dezolis after Cutscene_DarkForce2Defeated through Cutscene_GumbiousBishop and the Hydrofoil; A6: endgame enemy abilities"
+next_action: "C9: rebase onto the campaign-30 base with P88b integrated (from Dezolis after Cutscene_DarkForce2Defeated through Cutscene_GumbiousBishop and the Hydrofoil); then #116"
 nodes:
   - id: S1
     outcome: "Dialogue interpreter in psiv-runtime: control codes, branches, choices, actions, $F2/$F6/$F7, live flags, typewriter and open-animation gates, driven by a cartridge-layout Pad"

@@ -36,7 +36,6 @@
 //! After a battle ends and the party stands at rest, the runner also cures the
 //! hurt through the camp (`recovery.rs`): [`Policy::recovers`].
 
-use psiv_core::battle::status;
 use psiv_runtime::{CommandMenuView, PartyStatus, Runtime};
 
 use crate::policy_board::Board;
@@ -180,7 +179,7 @@ pub(crate) fn trace_choice(menu: &CommandMenuView, actor: u8, intent: &Intent) {
 }
 
 fn alive(member: &PartyStatus) -> bool {
-    member.hp > 0 && member.status & status::OUT == 0
+    crate::policy_board::standing(member.status)
 }
 
 /// The party policy: [`crate::policy_plan`]'s choices, with a temperament on
@@ -288,6 +287,8 @@ impl Policy for PartyPolicy {
 
 #[cfg(test)]
 mod tests {
+    use psiv_core::battle::status;
+
     use super::*;
 
     fn member(fighter: u8, hp: u16, max_hp: u16) -> PartyStatus {

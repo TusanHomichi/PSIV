@@ -127,11 +127,11 @@ pub struct MemberAtEnd {
 }
 
 impl MemberAtEnd {
-    /// Standing: HP above zero and neither dead bit set. An android shut down
-    /// at full HP (`StatusAndroidDead`) is down.
+    /// Standing (`crate::policy_board::standing`): neither dead bit set. An
+    /// android shut down at full HP (`StatusAndroidDead`) is down.
     #[must_use]
     pub const fn standing(&self) -> bool {
-        self.hp > 0 && self.status & psiv_core::battle::status::OUT == 0
+        crate::policy_board::standing(self.status)
     }
 
     /// `Name hp/max`, with ` down` for a member who is not standing.
@@ -778,9 +778,9 @@ mod tests {
         assert!(!is_scene_fault(&unmapped(), false, true));
     }
 
-    /// A member is down at zero HP or with a dead bit, an android shut down
-    /// at full HP included; a fight with nobody down is all standing, and a
-    /// battle whose end was not seen is not. Negatives: each down member.
+    /// A member is down with a dead bit, an android shut down at full HP
+    /// included; a fight with nobody down is all standing, and a battle whose
+    /// end was not seen is not. Negatives: each down member.
     #[test]
     fn a_battle_end_names_the_members_who_are_down() {
         let member = |name: &str, hp: u16, status: u8| MemberAtEnd {
@@ -806,8 +806,6 @@ mod tests {
         battle.party_at_end[1] = member("Wren", 400, psiv_core::battle::status::ANDROID_DEAD);
         assert!(!battle.all_standing());
         assert!(battle.end_line().ends_with("Wren 400/400 down; down: Wren"));
-        battle.party_at_end[1] = member("Wren", 0, 0);
-        assert!(!battle.all_standing());
         battle.party_at_end[1] = member("Wren", 30, psiv_core::battle::status::DEAD);
         assert!(!battle.all_standing());
         battle.party_at_end.clear();

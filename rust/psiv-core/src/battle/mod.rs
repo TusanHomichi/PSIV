@@ -149,7 +149,7 @@ pub use tables::{
     ELEMENT_NAMES, ELEMENT_OFFSETS, STAT_INDEX_MASK, STAT_OFFSETS, StatSlot, StatWidth,
     WEAPON_ELEMENT_SENTINEL, WORD_STAT_THRESHOLD, element_name, element_offset, stat_slot,
 };
-pub use technique::{Technique, TechniqueRejection, TechniqueStat, technique_targets};
+pub use technique::{Technique, TechniqueRejection, TechniqueStat, stat, technique_targets};
 pub use vehicle_attack::{
     VEHICLE_ATTACK_ELEMENT, VEHICLE_ATTACK_OBJECTS, VEHICLE_FIGHTER_IDS, VehicleAttackObject,
     attack_object, hit_passes, is_vehicle_fighter, resolve_vehicle_attack, vehicle_index,

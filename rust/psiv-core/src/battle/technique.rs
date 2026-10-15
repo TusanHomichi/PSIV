@@ -111,7 +111,11 @@ pub fn technique_targets(roster: &Roster, actor: FighterId, tech: &Technique) ->
         .collect()
 }
 
-pub(super) fn stat(stats: &Stats, selector: u8) -> u16 {
+/// The fighter stat a record's selector byte names (the `loc_275A` table,
+/// `ps4.asm:3797-3812`): 1 strength, 2 mental, 3 agility, 4 dexterity, 5
+/// attack, 6 defence, 7 mental defence, anything else 0.
+#[must_use]
+pub fn stat(stats: &Stats, selector: u8) -> u16 {
     match selector {
         1 => stats.strength.battle.into(),
         2 => stats.mental.battle.into(),

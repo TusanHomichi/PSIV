@@ -192,19 +192,19 @@ impl Planner {
         let memory = &mut self.memory;
         let mut lost = 0_u32;
         for member in board.party.iter().filter(|m| m.alive()) {
-            if let Some((_, before)) = memory.party_hp.iter().find(|(id, _)| *id == member.id) {
-                let loss = before.saturating_sub(member.hp);
+            if let Some((_, before)) = memory.party_hp.iter().find(|(id, _)| *id == member.id()) {
+                let loss = before.saturating_sub(member.hp());
                 memory.worst_loss = memory.worst_loss.max(loss);
                 lost += u32::from(loss);
             }
         }
         memory.party_loss = lost;
-        let enemy_hp: u32 = board.enemies.iter().map(|e| u32::from(e.hp)).sum();
+        let enemy_hp: u32 = board.enemies.iter().map(|e| u32::from(e.hp())).sum();
         if let Some(before) = memory.enemy_hp {
             memory.enemy_loss = before.saturating_sub(enemy_hp);
         }
         memory.enemy_hp = Some(enemy_hp);
-        memory.party_hp = board.party.iter().map(|m| (m.id, m.hp)).collect();
+        memory.party_hp = board.party.iter().map(|m| (m.id(), m.hp())).collect();
     }
 
     /// The members who will be asked this round, in slot order.
@@ -215,7 +215,7 @@ impl Planner {
             .filter(|k| {
                 board
                     .member(k.id)
-                    .is_some_and(|m| m.alive() && m.status & status::NO_TURN == 0)
+                    .is_some_and(|m| m.alive() && m.status() & status::NO_TURN == 0)
             })
             .map(|k| k.id)
             .collect()
@@ -268,11 +268,11 @@ impl Planner {
 
     /// HP counting the cures already ordered.
     fn hp_after_cures(&self, member: &Combatant) -> u16 {
-        let promised = self.book.healing.get(&member.id).copied().unwrap_or(0) / HP;
+        let promised = self.book.healing.get(&member.id()).copied().unwrap_or(0) / HP;
         member
-            .hp
+            .hp()
             .saturating_add(u16::try_from(promised).unwrap_or(u16::MAX))
-            .min(member.max_hp)
+            .min(member.max_hp())
     }
 
     /// How far below the risk line `member` stands, or `None` when clear.
@@ -295,8 +295,10 @@ impl Planner {
                 let ordered = self.book.items.get(id).copied().unwrap_or(0);
                 board.stock(*id).is_none_or(|copies| ordered < copies)
             }
+            // The window lets a sealed member choose (#131); the cast is paid and
+            // wasted, so declining it is the planner's judgment, not the window's.
             Source::Technique(_) => board.member(kit.id).is_some_and(|me| {
-                me.tp >= u16::from(ability.tp_cost) && me.status & status::TECH_SEALED == 0
+                me.tp() >= u16::from(ability.tp_cost) && me.status() & status::TECH_SEALED == 0
             }),
             Source::Skill(_) => true,
         }
@@ -374,8 +376,8 @@ impl Planner {
                 let patients: Vec<(u8, u16)> = board
                     .party
                     .iter()
-                    .filter(|m| ability.targets.contains(&m.id))
-                    .filter_map(|m| Some((m.id, self.at_risk(board, m, GROUP_CURE_PERCENT)?)))
+                    .filter(|m| ability.targets.contains(&m.id()))
+                    .filter_map(|m| Some((m.id(), self.at_risk(board, m, GROUP_CURE_PERCENT)?)))
                     .collect();
                 if patients.len() < 2 {
                     continue;
@@ -420,23 +422,23 @@ impl Planner {
         let (patient, need) = board
             .party
             .iter()
-            .filter(|m| !self.book.patients.contains(&m.id))
-            .filter(|m| cures.iter().any(|(k, a)| reaches(k, a, m.id)))
+            .filter(|m| !self.book.patients.contains(&m.id()))
+            .filter(|m| cures.iter().any(|(k, a)| reaches(k, a, m.id())))
             .filter_map(|m| Some((m, self.at_risk(board, m, HURT_PERCENT)?)))
             .min_by(|(a, _), (b, _)| {
-                (u32::from(self.hp_after_cures(a)) * u32::from(b.max_hp))
-                    .cmp(&(u32::from(self.hp_after_cures(b)) * u32::from(a.max_hp)))
+                (u32::from(self.hp_after_cures(a)) * u32::from(b.max_hp()))
+                    .cmp(&(u32::from(self.hp_after_cures(b)) * u32::from(a.max_hp())))
             })?;
         let offers: Vec<Offer<'a>> = cures
             .into_iter()
-            .filter(|(k, a)| reaches(k, a, patient.id))
+            .filter(|(k, a)| reaches(k, a, patient.id()))
             .map(|(kit, ability)| {
                 let amount = healing(ability.power_stat, ability.power.into(), u16::MAX);
                 Offer {
                     member: kit.id,
                     ability,
-                    target: ability.single().then_some(patient.id),
-                    patients: vec![patient.id],
+                    target: ability.single().then_some(patient.id()),
+                    patients: vec![patient.id()],
                     amount,
                     rank: (
                         amount < Value::from(need) * HP,
@@ -458,8 +460,8 @@ impl Planner {
         let fallen: Vec<u8> = board
             .party
             .iter()
-            .filter(|m| !m.alive() && !self.book.raised.contains(&m.id))
-            .map(|m| m.id)
+            .filter(|m| !m.alive() && !self.book.raised.contains(&m.id()))
+            .map(|m| m.id())
             .collect();
         let rank = |a: &Ability| match a.class() {
             EffectClass::Revive { full: true } => Some(0),
@@ -522,17 +524,17 @@ impl Planner {
                 let bits = bits & (status::PARALYZED | status::ASLEEP);
                 let Some(patient) = board.party.iter().find(|m| {
                     m.alive()
-                        && m.status & bits != 0
-                        && ability.targets.contains(&m.id)
-                        && !self.book.cured.contains(&m.id)
+                        && m.status() & bits != 0
+                        && ability.targets.contains(&m.id())
+                        && !self.book.cured.contains(&m.id())
                 }) else {
                     continue;
                 };
                 offers.push(Offer {
                     member: kit.id,
                     ability,
-                    target: ability.single().then_some(patient.id),
-                    patients: vec![patient.id],
+                    target: ability.single().then_some(patient.id()),
+                    patients: vec![patient.id()],
                     amount: 0,
                     rank: (
                         false,

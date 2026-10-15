@@ -7,148 +7,149 @@
 //!
 //! What it holds:
 //!
-//! * every fighter's battle stats, element factors and status, as the engine
-//!   reads them (the live roster's `Stats`, an enemy's built from its pack
-//!   record, `Stats::from_enemy`);
+//! * every fighter as the engine holds it (the live roster's `Fighter`), read
+//!   through the core's own rules: `Fighter::is_alive`, the stat selector
+//!   `stat`, and the element factors `ability_element_factor`,
+//!   `character_element_factor` and `enemy_element_factor` over the battle
+//!   records the board borrows;
 //! * for every living member, a [`Kit`]: every action they can take this round,
 //!   each with the record bytes its formula reads and the target list the
-//!   command menu offers, and their weapon (whether a swing reaches every
-//!   enemy, and the elements the hands carry).
+//!   command menu offers, and whether their swing reaches every enemy.
 //!
 //! Nothing here writes to the runtime.
 
-use psiv_core::battle::{EnemyRecord, Fighter, Side, status};
+use psiv_core::battle::{
+    BattleData, EnemyRecord, Fighter, Stats, ability_element_factor, character_element_factor,
+    enemy_element_factor, stat, status,
+};
 
 use crate::policy_estimate::EffectClass;
 
-/// One fighter as the policy sees it.
+/// One fighter as the policy sees it: the engine's own [`Fighter`] (id, name,
+/// live stats, whether its slot is occupied), read through the core's rules.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Combatant {
-    /// Retail fighter id: 1-5 the party, 6-9 the enemies.
-    pub id: u8,
-    /// Display name, for the trace.
-    pub name: String,
-    /// Current HP.
-    pub hp: u16,
-    /// Maximum HP.
-    pub max_hp: u16,
-    /// Current TP (party only).
-    pub tp: u16,
-    /// Status bits (`psiv_core::battle::status`).
-    pub status: u8,
-    /// Whether this is an android (healing techniques pass it by).
-    pub android: bool,
-    /// Live strength, mental, agility and dexterity.
-    pub strength: u16,
-    /// Live mental.
-    pub mental: u16,
-    /// Live agility.
-    pub agility: u16,
-    /// Live dexterity.
-    pub dexterity: u16,
-    /// Live attack power, and its unbuffed value.
-    pub attack: (u16, u16),
-    /// Live defence, and its unbuffed value.
-    pub defence: (u16, u16),
-    /// Live mental defence, and its unbuffed value.
-    pub mental_defence: (u16, u16),
-    /// The factor against each element id 1..=14: 0 immune, 2 normal, 4 very
-    /// weak (`physical_prop` `$30` to `destroy_prop` `$4A`,
-    /// `ps4.constants.asm:36-49`).
-    pub elements: [u8; 14],
-    /// An enemy's plain-attack element (its record's `curr_tp` slot).
-    pub attack_element: u8,
+    /// The fighter as the roster holds it.
+    pub fighter: Fighter,
     /// How many of an enemy's eight regular ability slots are a plain attack.
     pub plain_attacks: u8,
 }
 
 impl Combatant {
-    /// A blank fighter: every stat zero, every element factor normal.
-    #[must_use]
-    pub fn new(id: u8, hp: u16, max_hp: u16) -> Combatant {
-        Combatant {
-            id,
-            name: format!("F{id}"),
-            hp,
-            max_hp,
-            tp: 0,
-            status: 0,
-            android: false,
-            strength: 0,
-            mental: 0,
-            agility: 0,
-            dexterity: 0,
-            attack: (0, 0),
-            defence: (0, 0),
-            mental_defence: (0, 0),
-            elements: [2; 14],
-            attack_element: 1,
-            plain_attacks: 8,
-        }
-    }
-
     /// From a live roster fighter; `record` is an enemy's pack record.
     #[must_use]
     pub fn from_fighter(fighter: &Fighter, record: Option<&EnemyRecord>) -> Combatant {
-        let s = &fighter.stats;
         Combatant {
-            id: fighter.id.get(),
-            name: fighter.name.clone(),
-            hp: s.curr_hp,
-            max_hp: s.max_hp,
-            tp: if fighter.id.side() == Side::Party {
-                s.curr_tp
-            } else {
-                0
-            },
-            status: s.status,
-            android: s.is_android(),
-            strength: s.strength.battle.into(),
-            mental: s.mental.battle.into(),
-            agility: s.agility.battle.into(),
-            dexterity: s.dexterity.battle.into(),
-            attack: (s.attack.battle, s.attack.derived),
-            defence: (s.defence.battle, s.defence.derived),
-            mental_defence: (s.mental_defence.battle, s.mental_defence.derived),
-            elements: s.element_props,
-            attack_element: record.map_or(0, |r| r.attack_element),
+            fighter: fighter.clone(),
             plain_attacks: record.map_or(0, |r| {
                 u8::try_from(r.regular_abilities.iter().filter(|a| **a == 0).count()).unwrap_or(0)
             }),
         }
     }
 
-    /// Standing: HP above zero and neither dead bit set.
+    /// Retail fighter id: 1-5 the party, 6-9 the enemies.
+    #[must_use]
+    pub const fn id(&self) -> u8 {
+        self.fighter.id.get()
+    }
+
+    /// The live stats.
+    #[must_use]
+    pub const fn stats(&self) -> &Stats {
+        &self.fighter.stats
+    }
+
+    /// Current HP.
+    #[must_use]
+    pub const fn hp(&self) -> u16 {
+        self.fighter.stats.curr_hp
+    }
+
+    /// Maximum HP.
+    #[must_use]
+    pub const fn max_hp(&self) -> u16 {
+        self.fighter.stats.max_hp
+    }
+
+    /// Current TP (a party member's; an enemy's slot holds its attack element).
+    #[must_use]
+    pub const fn tp(&self) -> u16 {
+        self.fighter.stats.curr_tp
+    }
+
+    /// Status bits (`psiv_core::battle::status`).
+    #[must_use]
+    pub const fn status(&self) -> u8 {
+        self.fighter.stats.status
+    }
+
+    /// Live attack power.
+    #[must_use]
+    pub const fn attack(&self) -> u16 {
+        self.fighter.stats.attack.battle
+    }
+
+    /// Unbuffed attack power.
+    #[must_use]
+    pub const fn attack_base(&self) -> u16 {
+        self.fighter.stats.attack.derived
+    }
+
+    /// Live defence.
+    #[must_use]
+    pub const fn defence(&self) -> u16 {
+        self.fighter.stats.defence.battle
+    }
+
+    /// Unbuffed defence.
+    #[must_use]
+    pub const fn defence_base(&self) -> u16 {
+        self.fighter.stats.defence.derived
+    }
+
+    /// Standing: the engine's own `Fighter::is_alive`.
     #[must_use]
     pub const fn alive(&self) -> bool {
-        self.hp > 0 && self.status & status::OUT == 0
+        self.fighter.is_alive()
     }
 
-    /// The cartridge's stat selector (`technique::stat`, the `loc_275A` table,
-    /// `ps4.asm:3797-3812`): 1 strength .. 7 mental defence.
+    /// The stat a record's selector byte names (`psiv_core::battle::stat`).
     #[must_use]
-    pub const fn stat(&self, selector: u8) -> u16 {
-        match selector {
-            1 => self.strength,
-            2 => self.mental,
-            3 => self.agility,
-            4 => self.dexterity,
-            5 => self.attack.0,
-            6 => self.defence.0,
-            7 => self.mental_defence.0,
-            _ => 0,
-        }
+    pub fn stat(&self, selector: u8) -> u16 {
+        stat(&self.fighter.stats, selector)
     }
 
-    /// The factor against element `element` (`$2E + 2 * id`), or 0 for an id
-    /// that selects nothing, as `Stats::element_factor`.
+    /// The factor this fighter's plain attack presents against `target`
+    /// (`enemy_element_factor`): an enemy's attack element.
     #[must_use]
-    pub fn factor(&self, element: u8) -> u16 {
-        usize::from(element)
-            .checked_sub(1)
-            .and_then(|index| self.elements.get(index))
-            .map_or(0, |f| u16::from(*f))
+    pub fn plain_factor(&self, target: &Combatant) -> u16 {
+        enemy_element_factor(self.stats(), target.stats())
     }
+
+    /// A copy with live attack power `attack`, for valuing a buff or debuff.
+    #[must_use]
+    pub fn with_attack(&self, attack: u16) -> Combatant {
+        let mut c = self.clone();
+        c.fighter.stats.attack.battle = attack;
+        c
+    }
+
+    /// A copy with live defence `defence`, for valuing a buff.
+    #[must_use]
+    pub fn with_defence(&self, defence: u16) -> Combatant {
+        let mut c = self.clone();
+        c.fighter.stats.defence.battle = defence;
+        c
+    }
+}
+
+/// Whether a party member seen through a view (the field's party, the battle's
+/// status strip) stands, which is [`Fighter::is_alive`] for a seated member:
+/// the slot is occupied, so only `Stats::is_out`'s mask (`status::OUT`, `$44`)
+/// decides.
+#[must_use]
+pub const fn standing(status_byte: u8) -> bool {
+    status_byte & status::OUT == 0
 }
 
 /// Where an action comes from, which is how `battle.rs` steers to it.
@@ -220,8 +221,6 @@ impl Ability {
 /// A member's weapon.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Weapon {
-    /// The element ids the hands carry (shields skipped).
-    pub elements: Vec<u8>,
     /// A swing reaches every enemy (weapon types 2 and 4).
     pub all: bool,
 }
@@ -239,7 +238,9 @@ pub struct Kit {
 
 /// What the player sees when a member's window opens.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Board {
+pub struct Board<'d> {
+    /// The battle records the engine reads (the weapons' element factors).
+    pub data: &'d BattleData,
     /// The acting fighter id.
     pub actor: u8,
     /// Every party fighter, the fallen included.
@@ -252,7 +253,22 @@ pub struct Board {
     pub stock: Vec<(u8, u16)>,
 }
 
-impl Board {
+impl Board<'_> {
+    /// The factor `me`'s plain attack presents against `target`: the larger of
+    /// the two hands (`character_element_factor`); 0 for an unknown item.
+    #[must_use]
+    pub fn weapon_factor(&self, me: &Combatant, target: &Combatant) -> u16 {
+        character_element_factor(me.stats(), target.stats(), self.data).unwrap_or(0)
+    }
+
+    /// The factor an ability of element `element` cast by `me` presents
+    /// against `target`, the weapon fallback included (`ability_element_factor`);
+    /// 0 for an unknown item.
+    #[must_use]
+    pub fn ability_factor(&self, me: &Combatant, target: &Combatant, element: u8) -> u16 {
+        ability_element_factor(me.stats(), target.stats(), element, self.data).unwrap_or(0)
+    }
+
     /// The actor.
     #[must_use]
     pub fn me(&self) -> Option<&Combatant> {
@@ -262,7 +278,7 @@ impl Board {
     /// A party member by fighter id.
     #[must_use]
     pub fn member(&self, id: u8) -> Option<&Combatant> {
-        self.party.iter().find(|m| m.id == id)
+        self.party.iter().find(|m| m.id() == id)
     }
 
     /// What member `id` can do.
@@ -277,7 +293,7 @@ impl Board {
         self.party
             .iter()
             .chain(self.enemies.iter())
-            .find(|f| f.id == id)
+            .find(|f| f.id() == id)
     }
 
     /// Copies of consumable item `id` in the pack; `None` for an item that is
