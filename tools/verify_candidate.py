@@ -14,7 +14,8 @@ time and in this order:
    lock (`PSIV_HEAVY_LOCK`, default the main checkout's
    `build/continuation-heavy.lock`, from tools/heavy_lock.py): Godot and Xvfb
    runs from every worktree take that lock;
-4. `python3 tools/gate.py`, the integration gate.
+4. `python3 tools/gate.py --wait`, the integration gate (it waits for a
+   running gate instead of refusing, and takes the heavy lock itself).
 
 A failing step does not stop the later ones; the exit code is 1 when any step
 failed or an expectation did not hold, 0 otherwise, and 2 when the run is
@@ -30,7 +31,6 @@ receipt. Stdlib only, Python 3.
 from __future__ import annotations
 
 import argparse
-import fcntl
 import hashlib
 import json
 import re
@@ -48,7 +48,7 @@ ROUTE = "rust/psiv-campaign/routes/main.json"
 CAMPAIGN = "rust/target/release/psiv-campaign"
 CANDIDATE_DIR = Path("build") / "candidate"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from heavy_lock import heavy_lock_path  # noqa: E402  (shared by every worktree)
+from heavy_lock import heavy_lock_path, hold_heavy_lock  # noqa: E402  (shared by every worktree)
 
 
 def steps(out: Path) -> list[tuple[str, str, bool]]:
@@ -60,7 +60,7 @@ def steps(out: Path) -> list[tuple[str, str, bool]]:
         ("route", f"{CAMPAIGN} run {ROUTE} --save-dir {route} --tape {route}/run.tape "
                   f"--report {route}/report.json", False),
         ("certify", "python3 tools/certify.py", True),
-        ("gate", "python3 tools/gate.py", False),
+        ("gate", "python3 tools/gate.py --wait", False),
     ]
 
 
@@ -75,9 +75,7 @@ def run_step(command: str, log: Path, lock: Path | None) -> int:
         if lock is None:
             return subprocess.run(["bash", "-c", command], stdout=handle,
                                   stderr=subprocess.STDOUT).returncode
-        lock.parent.mkdir(parents=True, exist_ok=True)
-        with open(lock, "a") as held:
-            fcntl.flock(held, fcntl.LOCK_EX)
+        with hold_heavy_lock(lock):
             return subprocess.run(["bash", "-c", command], stdout=handle,
                                   stderr=subprocess.STDOUT).returncode
 

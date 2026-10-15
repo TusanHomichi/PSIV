@@ -17,15 +17,17 @@ import contextlib
 import fcntl
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from tools.gate import (FAST_COMMANDS, GATE_COMMANDS, SLOW_PYTHON_MODULES, GateRefused,
                         command_slug, main, parse_counts, quick_unittest, run_gate)
-from tools.heavy_lock import gate_lock_path
+from tools.heavy_lock import HEAVY_LOCK_ENV, HELD_ENV, gate_lock_path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEVELOPMENT = REPO_ROOT / "docs" / "DEVELOPMENT.md"
@@ -221,6 +223,12 @@ class GateRunCase(unittest.TestCase):
         self.root = Path(self.tmp.name).resolve()
         self.receipt_dir = self.root / "build" / "gate" / "20260101T000000Z-fixture"
         self.head_sha = self.init_repo()
+        # The run's heavy lock is the fixture repo's own, never the real one.
+        environ = {key: value for key, value in os.environ.items()
+                   if key not in (HEAVY_LOCK_ENV, HELD_ENV)}
+        patcher = mock.patch.dict(os.environ, environ, clear=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def git(self, *args):
         completed = subprocess.run(["git", *args], cwd=self.root, check=True,
@@ -239,11 +247,11 @@ class GateRunCase(unittest.TestCase):
         self.git("commit", "-q", "-m", "init")
         return self.git("rev-parse", "HEAD")
 
-    def run_quiet(self, commands, receipt_dir=None):
+    def run_quiet(self, commands, receipt_dir=None, tier="full"):
         """`run_gate` with stdout captured: (receipt, its non-empty printed lines)."""
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
-            receipt = run_gate(commands, self.root, receipt_dir or self.receipt_dir)
+            receipt = run_gate(commands, self.root, receipt_dir or self.receipt_dir, tier)
         return receipt, [line for line in buffer.getvalue().splitlines() if line.strip()]
 
     def stored(self, receipt_dir=None):
@@ -286,6 +294,24 @@ class GateRunCase(unittest.TestCase):
         self.assertEqual(stored["exit_code"], 1)
         self.assertEqual(stored["summary"], receipt["summary"])
         self.assertEqual(stored["commands"][1]["exit_code"], 3)
+
+    def test_the_fast_tier_summary_names_the_tier_not_the_gate(self):
+        receipt, _ = self.run_quiet([fake_step("only")], tier="fast")
+        self.assertEqual(receipt["tier"], "fast")
+        self.assertTrue(receipt["summary"].startswith("fast tier OK: 1/1"), receipt["summary"])
+        failed, _ = self.run_quiet([fake_step("bad", exit_code=1)],
+                                   self.receipt_dir.with_name("fast-failed"), tier="fast")
+        self.assertTrue(failed["summary"].startswith("fast tier FAILED: 1/1"),
+                        failed["summary"])
+        self.assertNotIn("gate OK", failed["summary"] + receipt["summary"])
+
+    def test_the_run_holds_the_heavy_lock_and_exports_the_marker(self):
+        probe = ("python3 -c \"import os; open('marker.txt', 'w')"
+                 f".write(os.environ.get('{HELD_ENV}', ''))\"")
+        receipt, _ = self.run_quiet([probe])
+        self.assertEqual(receipt["exit_code"], 0)
+        self.assertEqual((self.root / "marker.txt").read_text(),
+                         str(self.root / "build" / "continuation-heavy.lock"))
 
     def test_receipt_records_a_dirty_tree_and_its_paths(self):
         (self.root / "scratch.txt").write_text("uncommitted\n")
@@ -416,7 +442,8 @@ class NotARepositoryCase(unittest.TestCase):
             receipt_dir = root / "build" / "gate" / "run"
             buffer = io.StringIO()
             with contextlib.redirect_stdout(buffer):
-                receipt = run_gate([fake_step("only")], root, receipt_dir)
+                receipt = run_gate([fake_step("only")], root, receipt_dir,
+                                   heavy_lock=root / "build" / "heavy.lock")
             self.assertEqual(receipt["exit_code"], 0)
             self.assertIsNone(receipt["candidate_sha"])
             self.assertIsNone(receipt["dirty"])
