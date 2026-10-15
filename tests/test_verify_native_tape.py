@@ -10,7 +10,7 @@ import tempfile
 import time
 import unittest
 
-from tools.verify_native_tape import (file_identity, identities_stable,
+from tools.verify_native_tape import (file_identity, host_power, identities_stable, rss_verdict,
                                       source_identity, terminate_process_group)
 
 
@@ -133,6 +133,85 @@ class NativeTapeIdentityGuard(unittest.TestCase):
                         if state not in {"Z", "X"}:
                             os.kill(child_pid, signal.SIGKILL)
 
+
+def samples(*rows, every=1000, step_ms=1000):
+    """One sample per row of (rss_mb, static_mb, objects) every `every` frames."""
+    return [{"frame": every * (i + 1), "elapsed_ms": step_ms * (i + 1),
+             "rss_kb": int(rss * 1024), "static_kb": int(static * 1024), "objects": objects}
+            for i, (rss, static, objects) in enumerate(rows)]
+
+
+class NativeTapeRssBound(unittest.TestCase):
+    """#92: memory past warm-up stays bounded, judged outside Godot's map-sized
+    static swings."""
+
+    def test_flat_extension_heap_passes_though_godot_static_swings_with_the_map(self):
+        # Godot static memory holds the current map's images: +110 MB and back.
+        verdict = rss_verdict(samples((360, 210, 2800), (250, 100, 2800), (360, 210, 2900),
+                                      (252, 100, 2850), (362, 212, 2900)), 2000, 16)
+        self.assertTrue(verdict["pass"], verdict)
+        self.assertEqual(verdict["extension"]["growth_mb"], 2.0)
+        self.assertEqual(verdict["godot_static"]["over_warmup_peak_mb"], 2.0)
+
+    def test_warmup_growth_is_not_counted(self):
+        self.assertTrue(rss_verdict(samples((100, 50, 10), (900, 50, 10), (905, 50, 10)),
+                                    2000, 16)["pass"])
+
+    def test_a_growing_extension_heap_fails_whatever_the_map(self):
+        # The shipped #92 shape: the Rust heap grows ~4 MB a minute.
+        verdict = rss_verdict(samples((250, 100, 2800), (250, 100, 2800), (380, 210, 2800),
+                                      (290, 100, 2800), (420, 210, 2800)), 2000, 16)
+        self.assertFalse(verdict["pass"])
+        self.assertFalse(verdict["extension"]["pass"])
+        self.assertEqual(verdict["extension"]["growth_mb"], 60.0)
+        self.assertEqual(verdict["extension"]["slope_kb_per_kframe"], 20480.0)
+
+    def test_a_transient_extension_peak_counts_even_if_it_falls_back(self):
+        self.assertFalse(rss_verdict(samples((250, 100, 1), (250, 100, 1), (300, 100, 1),
+                                             (250, 100, 1)), 2000, 16)["pass"])
+
+    def test_godot_static_or_objects_climbing_past_warmup_fail(self):
+        static = rss_verdict(samples((300, 200, 10), (300, 200, 10), (330, 230, 10)), 2000, 16)
+        self.assertFalse(static["pass"])
+        self.assertFalse(static["godot_static"]["pass"])
+        self.assertTrue(static["extension"]["pass"])
+        objects = rss_verdict(samples((300, 200, 10), (300, 200, 10), (300, 200, 300)), 2000, 16)
+        self.assertFalse(objects["pass"])
+        self.assertFalse(objects["objects"]["pass"])
+
+    def test_the_verdict_leaves_the_report_samples_untouched(self):
+        rows = samples((300, 200, 10), (300, 200, 10), (300, 200, 10))
+        before = [dict(item) for item in rows]
+        rss_verdict(rows, 2000, 16)
+        self.assertEqual(rows, before)
+
+    def test_host_power_reads_supplies_and_the_cpu_cap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "class/power_supply/AC").mkdir(parents=True)
+            (root / "class/power_supply/AC/type").write_text("Mains\n")
+            (root / "class/power_supply/AC/online").write_text("1\n")
+            cpufreq = root / "devices/system/cpu/cpu0/cpufreq"
+            cpufreq.mkdir(parents=True)
+            (cpufreq / "bios_limit").write_text("2300000\n")
+            power = host_power(root)
+        self.assertEqual(power["power_supply"]["AC"]["online"], "1")
+        self.assertIsNone(power["power_supply"]["AC"]["status"])
+        self.assertEqual(power["cpu0_bios_limit_khz"], "2300000")
+        self.assertIsNone(power["cpu0_scaling_max_freq_khz"])
+
+    def test_missing_or_unreadable_samples_fail_rather_than_pass(self):
+        self.assertFalse(rss_verdict(None, 0, 16)["pass"])
+        # No warm-up sample, too few samples past warm-up, an unreadable one.
+        self.assertFalse(rss_verdict(samples((470, 1, 1), (480, 1, 1)), 0, 16)["pass"])
+        self.assertFalse(rss_verdict(samples((470, 1, 1), (480, 1, 1), (490, 1, 1)),
+                                     3000, 16)["pass"])
+        unreadable = samples((470, 1, 1), (480, 1, 1), (490, 1, 1))
+        unreadable[2]["rss_kb"] = -1
+        self.assertFalse(rss_verdict(unreadable, 2000, 16)["pass"])
+        missing = samples((470, 1, 1), (480, 1, 1), (490, 1, 1))
+        del missing[1]["static_kb"]
+        self.assertFalse(rss_verdict(missing, 2000, 16)["pass"])
 
 if __name__ == "__main__":
     unittest.main()

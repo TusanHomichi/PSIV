@@ -25,6 +25,10 @@ var checkpoints: Array = []
 var next_checkpoint := 0
 var checkpoint_results: Array = []
 var replay_started_ms := 0
+# Resident-memory samples (#92): every PSIV_TAPE_RSS_EVERY gameplay frames the
+# process's VmRSS is recorded, so a long replay shows whether memory stays flat.
+var rss_every := 0
+var rss_samples: Array = []
 
 func _initialize() -> void:
     var tape_path := OS.get_environment("PSIV_TAPE_FILE")
@@ -67,6 +71,15 @@ func _prepare_tape() -> void:
         report["frames_limit"] = expected_count
     if not _load_checkpoints():
         return
+    var every := OS.get_environment("PSIV_TAPE_RSS_EVERY")
+    if not every.is_empty():
+        if not every.is_valid_int() or int(every) < 1:
+            _fail("PSIV_TAPE_RSS_EVERY must be a positive frame count")
+            return
+        rss_every = int(every)
+        if _rss_kb() <= 0:
+            _fail("resident memory is unreadable from /proc/self/status")
+            return
     var source_path := OS.get_environment("PSIV_TAPE_SOURCE_SAVE")
     if report["start_kind"] == "save":
         if source_path.is_empty() or not FileAccess.file_exists(source_path):
@@ -185,6 +198,8 @@ func _physics_process(_delta: float) -> bool:
     consumed = count
     if consumed % 5000 == 0:
         print("native-tape: consumed %d/%d gameplay frames" % [consumed, expected_count])
+    if rss_every > 0 and consumed % rss_every == 0:
+        _sample_rss()
     if not _check_checkpoint():
         return false
     if consumed == 1:
@@ -231,6 +246,30 @@ func _check_checkpoint() -> bool:
     print("native-tape: chapter %s matches at frame %d (%d ms)" % [point["label"], consumed, result["elapsed_ms"]])
     _write_report()
     return true
+
+func _sample_rss() -> void:
+    # Godot's own counters split the owner: objects, resources and nodes that
+    # pile up are engine-side; RSS growth with flat counters and flat static
+    # memory is the extension's own (Rust) heap.
+    rss_samples.append({"frame": consumed,
+            "elapsed_ms": Time.get_ticks_msec() - replay_started_ms, "rss_kb": _rss_kb(),
+            "static_kb": int(Performance.get_monitor(Performance.MEMORY_STATIC)) / 1024,
+            "objects": int(Performance.get_monitor(Performance.OBJECT_COUNT)),
+            "resources": int(Performance.get_monitor(Performance.OBJECT_RESOURCE_COUNT)),
+            "nodes": int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
+            "orphan_nodes": int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT))})
+    report["rss_samples"] = rss_samples
+
+# VmRSS in KiB; procfs files report no length, so read them line by line.
+func _rss_kb() -> int:
+    var status := FileAccess.open("/proc/self/status", FileAccess.READ)
+    if status == null:
+        return -1
+    while not status.eof_reached():
+        var line := status.get_line()
+        if line.begins_with("VmRSS:"):
+            return int(line.trim_prefix("VmRSS:").strip_edges().split(" ")[0])
+    return -1
 
 func _sha256_hex(bytes: PackedByteArray) -> String:
     var context := HashingContext.new()

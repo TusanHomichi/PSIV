@@ -203,6 +203,18 @@ class Main(unittest.TestCase):
         self.assertEqual(summary["scope"], "prefix through holt")
         self.assertEqual(asked[0][asked[0].index("--stop-at") + 1], "15")
 
+    def test_the_rss_bound_reaches_the_tape_driver(self):
+        asked = []
+        with tempfile.TemporaryDirectory() as directory:
+            code, _ = self.run_main(
+                Path(directory), ("--rss-every", "5000", "--rss-warmup-frames", "20000",
+                                  "--rss-bound-mb", "48"),
+                self.fake_driver([True, True, True], record=asked))
+        self.assertEqual(code, 0)
+        options = dict(zip(asked[0][::2], asked[0][1::2]))
+        self.assertEqual((options["--rss-every"], options["--rss-warmup-frames"],
+                          options["--rss-bound-mb"]), ("5000", "20000", "48.0"))
+
     def test_a_stale_run_directory_is_refused_before_anything_is_replayed(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
