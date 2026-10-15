@@ -33,7 +33,7 @@ IDS = ["a", "b", "c", "d"]
 ISSUE = "https://github.com/TusanHomichi/PSIV/issues/107"
 
 FAKE = r'''
-import json, sys
+import json, sys, time
 from pathlib import Path
 args = sys.argv[1:]
 opt = lambda name: args[args.index(name) + 1]
@@ -45,6 +45,7 @@ start = ids.index(opt("--from-chapter"))
 save = Path(opt("--save-dir")) / f"{start - 1:02d}-{ids[start - 1]}" / "slot_1.sram"
 if not save.is_file() or save.read_text() != f"save of {ids[start - 1]}":
     sys.exit(1)
+time.sleep(plan.get("_sleep", {}).get(ids[start], 0))
 step = plan[ids[start]]
 if step == "crash":
     sys.exit(1)
@@ -123,6 +124,8 @@ class Check(unittest.TestCase):
         if evaluate is None:
             argv += ["--run", str(self.seed), "--binary", str(self.binary),
                      "--out", str(self.root / f"out{self.runs}")]
+            if "--jobs" not in extra:
+                argv += ["--jobs", "1"]
         else:
             argv += ["--evaluate", str(evaluate)]
         out = io.StringIO()
@@ -136,7 +139,7 @@ class Check(unittest.TestCase):
     def test_outcomes_that_match_the_manifest_pass(self):
         code, out = self.check()
         self.assertEqual(code, rc.EXIT_OK, out)
-        self.assertEqual(self.calls(), ["b", "c", "d"], "every resume, in order, once")
+        self.assertEqual(sorted(self.calls()), ["b", "c", "d"], "every resume, once")
         summary = self.summary()
         self.assertEqual(summary["result"], "ok")
         self.assertEqual(summary["completed"], 1)
@@ -273,13 +276,27 @@ class Check(unittest.TestCase):
             "resume from d did not run: exit 101 beside a 'halted' report: the runner "
             "stopped without its verdict"])
 
+    def test_the_summary_is_the_same_bytes_whatever_the_jobs(self):
+        # The later resumes finish first when they run at once.
+        self.set_plan({**PLAN, "_sleep": {"b": 0.6, "c": 0.3}})
+        self.check("--jobs", "1")
+        self.check("--jobs", "4")
+        one = (self.root / "out1" / "summary.json").read_bytes()
+        four = (self.root / "out2" / "summary.json").read_bytes()
+        self.assertEqual(one, four)
+        self.assertEqual(sorted(self.calls()), ["b", "b", "c", "c", "d", "d"])
+        self.assertEqual(json.loads((self.root / "out2" / "timing.json").read_text())["jobs"], 4)
+        self.assertEqual(
+            (self.root / "out1" / "resume_check.log").read_text(),
+            (self.root / "out2" / "resume_check.log").read_text())
+
     def test_evaluate_judges_an_earlier_check_without_running(self):
         self.check()
         first = self.root / "out1"
         self.write_manifest([entry(STUCK, ["d"])])
         code, out = self.check(evaluate=first)
         self.assertEqual(code, rc.EXIT_PROBLEMS, out)
-        self.assertEqual(self.calls(), ["b", "c", "d"], "evaluate runs nothing")
+        self.assertEqual(sorted(self.calls()), ["b", "c", "d"], "evaluate runs nothing")
         evaluated = json.loads((first / "evaluate-summary.json").read_text())
         self.assertTrue(evaluated["evaluated_only"])
         self.assertIn("which the manifest does not list", evaluated["problems"][0])

@@ -12,10 +12,10 @@ time and in this order:
    `completed`, and `--expect-digest` / `--expect-chapters` must hold when given;
 3. `python3 tools/resume_check.py` on that run: the route resumed from every
    chapter save finishes, or halts only where
-   `rust/psiv-campaign/routes/resume_manifest.json` lists (about 25 minutes),
-   under the shared heavy lock (`PSIV_HEAVY_LOCK`, default
-   `build/continuation-heavy.lock`);
-4. `python3 tools/certify.py`, the certified pixel pairs, under the same lock:
+   `rust/psiv-campaign/routes/resume_manifest.json` lists; its resumes are
+   headless runs of about 40 MB, run in parallel, and take no heavy lock;
+4. `python3 tools/certify.py`, the certified pixel pairs, under the shared
+   heavy lock (`PSIV_HEAVY_LOCK`, default `build/continuation-heavy.lock`):
    Godot and Xvfb runs from every worktree take that lock;
 5. `python3 tools/gate.py`, the integration gate.
 
@@ -62,7 +62,7 @@ def steps(out: Path) -> list[tuple[str, str, bool]]:
                   "rust/Cargo.toml -p psiv-campaign", False),
         ("route", f"{CAMPAIGN} run {ROUTE} --save-dir {route} --tape {route}/run.tape "
                   f"--report {route}/report.json", False),
-        ("resume", f"python3 tools/resume_check.py --run {route} --out {out / 'resume'}", True),
+        ("resume", f"python3 tools/resume_check.py --run {route} --out {out / 'resume'}", False),
         ("certify", "python3 tools/certify.py", True),
         ("gate", "python3 tools/gate.py", False),
     ]

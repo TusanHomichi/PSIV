@@ -3,7 +3,7 @@
 where the resume manifest says it does.
 
     python3 tools/resume_check.py --run DIR [--route FILE] [--manifest FILE]
-        [--pack DIR] [--binary FILE] [--out DIR]
+        [--pack DIR] [--binary FILE] [--out DIR] [--jobs N]
     python3 tools/resume_check.py --evaluate DIR [--route FILE] [--manifest FILE]
 
 Run from the repository root. The cartridge's random draws are one stream, and
@@ -13,7 +13,9 @@ one stream only is not a route (docs/campaign/CAMPAIGN_RUNNER.md). `--run DIR`
 names a completed run of the route (its `report.json` lists every chapter's
 save). For each chapter i from 1 to the last, the check copies chapter i-1's
 save into a fresh directory and runs `psiv-campaign run ROUTE --from-chapter
-<chapter i>` to the route's end, one process at a time.
+<chapter i>` to the route's end. The resumes are independent fresh
+processes, each in its own directory; `--jobs N` runs up to N at once
+(default: the CPU count less two, at least one).
 
 A resume completes or halts. A halt is classified by where and how it
 stopped, all from the run's halt report: the chapter, the objective index, the
@@ -35,13 +37,15 @@ manifest without running anything, so a manifest edit is checked in seconds.
 
 The check writes `DIR/NN-<chapter>/` for each resume (the copied save, the
 chapter saves, tape, report, logs and exit status), `summary.json` (the route,
-run, manifest and binary with their SHA-256, each resume's outcome, the
-scripted battles each resume won and lost, and the problems) and
-`resume_check.log`. Exit status: 0 when the outcomes match the manifest, 1
+run, manifest and binary with their SHA-256, each resume's outcome in resume
+order, the scripted battles each resume won and lost, and the problems; the
+same bytes whatever `--jobs` is), `timing.json` (when the check ran, the jobs,
+and each resume's seconds) and `resume_check.log`. Exit status: 0 when the outcomes match the manifest, 1
 when they do not, 2 when the check cannot run (no completed run, a run of
 another route, an unreadable manifest, an output directory in use). The
-62-chapter route takes about 25 minutes; `tools/verify_candidate.py` runs it
-under the heavy lock. Stdlib only, Python 3.
+resumes are headless runs of about 40 MB each, so the check takes no heavy
+lock; `tools/verify_candidate.py` runs it with the default jobs. Stdlib only,
+Python 3.
 """
 
 from __future__ import annotations
@@ -50,11 +54,13 @@ import argparse
 import datetime as dt
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 EXIT_OK = 0
@@ -356,7 +362,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--binary", type=Path, default=BINARY)
     parser.add_argument("--out", type=Path, help="the check's directory (default "
                         "build/resume-check/<UTC stamp>)")
+    parser.add_argument("--jobs", type=int, default=default_jobs(),
+                        help="resumes run at once (default: the CPU count less two, at least 1)")
     return parser
+
+
+def default_jobs() -> int:
+    return max(1, (os.cpu_count() or 1) - 2)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -388,21 +400,32 @@ def check(args: argparse.Namespace) -> int:
         if out.exists() and any(out.iterdir()):
             raise Refused(f"{out} is not empty")
         out.mkdir(parents=True, exist_ok=True)
+    if args.jobs < 1:
+        raise Refused("--jobs must be at least 1")
+    began = time.monotonic()
+
+    def resume(index: int) -> float | None:
+        """Run resume `index` (when running), its wall seconds."""
+        if saves is None:
+            return None
+        start = time.monotonic()
+        run_resume(args.binary, args.route, ids, index, saves[index - 1], out, args.pack)
+        return round(time.monotonic() - start, 1)
+
     log_lines = []
     outcomes = []
-    for index in range(1, len(ids)):
-        if saves is not None:
-            begin = time.monotonic()
-            run_resume(args.binary, args.route, ids, index, saves[index - 1], out, args.pack)
-            seconds = time.monotonic() - begin
-        else:
-            seconds = None
-        outcome = outcome_of(resume_dir(out, index, ids), ids[index])
-        outcome["seconds"] = None if seconds is None else round(seconds, 1)
-        outcomes.append(outcome)
-        line = line_of(index, outcome)
-        log_lines.append(line)
-        print(line, flush=True)
+    seconds = {}
+    with ThreadPoolExecutor(max_workers=args.jobs) as pool:
+        # Submitted and read in resume order, so the outcomes, the log and the
+        # summary never depend on which resume finished first.
+        pending = [(index, pool.submit(resume, index)) for index in range(1, len(ids))]
+        for index, future in pending:
+            seconds[ids[index]] = future.result()
+            outcome = outcome_of(resume_dir(out, index, ids), ids[index])
+            outcomes.append(outcome)
+            line = line_of(index, outcome)
+            log_lines.append(line)
+            print(line, flush=True)
     problems += judge(outcomes, entries)
     completed = sum(o["result"] == "completed" for o in outcomes)
     verdict = "OK" if not problems else f"{len(problems)} problem(s)"
@@ -418,13 +441,17 @@ def check(args: argparse.Namespace) -> int:
         "binary": str(args.binary), "binary_sha256": sha256(args.binary),
         "pack": None if args.pack is None else str(args.pack),
         "evaluated_only": args.evaluate is not None,
-        "started": started,
-        "ended": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "resumes": outcomes, "completed": completed, "fights": fight_table(outcomes),
         "problems": problems, "result": "ok" if not problems else "problems",
     }
     name = "summary.json" if args.evaluate is None else "evaluate-summary.json"
     (out / name).write_text(json.dumps(summary, indent=1) + "\n")
+    if args.evaluate is None:
+        timing = {"started": started,
+                  "ended": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+                  "jobs": args.jobs, "wall_seconds": round(time.monotonic() - began, 1),
+                  "resume_seconds": seconds}
+        (out / "timing.json").write_text(json.dumps(timing, indent=1) + "\n")
     log_name = "resume_check.log" if args.evaluate is None else "evaluate.log"
     (out / log_name).write_text("\n".join(log_lines) + "\n")
     print(f"{summary_line}; summary={out / name}", flush=True)

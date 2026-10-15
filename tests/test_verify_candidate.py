@@ -76,14 +76,14 @@ class Candidate(unittest.TestCase):
         (path,) = Path("build/candidate").glob("*/receipt.json")
         return json.loads(path.read_text())
 
-    def test_all_steps_pass_in_order_and_the_resume_check_and_certify_hold_the_lock(self):
+    def test_all_steps_pass_in_order_and_only_certify_holds_the_lock(self):
         runner, calls = fake_runner()
         code, out = self.run_main(["--expect-digest", "abc", "--expect-chapters", "2"], runner)
         self.assertEqual(code, vc.EXIT_OK, out)
         self.assertEqual([name for name, _ in calls],
                          ["build", "route", "resume", "certify", "gate"])
         self.assertEqual([lock is not None for _, lock in calls],
-                         [False, False, True, True, False])
+                         [False, False, False, True, False])
         receipt = self.receipt()
         self.assertEqual(receipt["route"]["digest"], "abc")
         self.assertEqual(receipt["route"]["chapters"], 2)

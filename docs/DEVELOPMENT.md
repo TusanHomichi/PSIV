@@ -152,10 +152,10 @@ expected digest and chapter count; then the resume check,
 `python3 tools/resume_check.py --run <that run>`, which resumes the route from
 every chapter save and fails on any halt
 `rust/psiv-campaign/routes/resume_manifest.json` does not list (each entry an
-issue link and a date) and on a listed halt that no longer occurs (about 25
-minutes; [the rule](campaign/CAMPAIGN_RUNNER.md#the-runner)); then certify; the
-resume check and certify hold the shared heavy lock (`PSIV_HEAVY_LOCK`, default
-`build/continuation-heavy.lock`); then the gate, with one receipt under
+issue link and a date) and on a listed halt that no longer occurs
+([the rule](campaign/CAMPAIGN_RUNNER.md#the-runner); its headless resumes run in
+parallel and take no lock); then certify, under the shared heavy lock
+(`PSIV_HEAVY_LOCK`, default `build/continuation-heavy.lock`); then the gate, with one receipt under
 `build/candidate/`. A route change that moves a halt changes the manifest in the
 same commit: `python3 tools/resume_check.py --evaluate <check dir>` re-judges a
 finished check against an edited manifest without running it again. Reporting a gate result means
