@@ -10,8 +10,9 @@ For agent-assisted contributions, read [AGENTS.md](../AGENTS.md) and the
 This section owns the toolchain versions. The committed GDExtension library
 paths target Linux x86-64, and the Steam Deck build is the same Linux target
 (see [package for the Steam Deck](#package-for-the-steam-deck)). The supported
-Godot version is **4.7.1**, with a 1280×800 viewport. Python 3.10 or newer;
-Rust with edition 2024. Supported platforms are a [roadmap](ROADMAP.md)
+Godot version is **4.7.1** (pinned in `.godot-version`), with a 1280×800
+viewport. Python 3.10 or newer; Rust 1.97.1 with edition 2024, pinned in
+`rust-toolchain.toml`, which rustup reads and installs on first use. Supported platforms are a [roadmap](ROADMAP.md)
 decision.
 
 The extraction tools use Python's standard library. Pixel-comparison scripts
