@@ -84,34 +84,23 @@ FAST_COMMANDS = [
     "CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml --workspace -- --test-threads=1",
 ]
 
-#: Python test modules the fast tier leaves to the full gate (2026-10-16, CPU
-#: capped at 2.3 GHz; values are seconds). First, every module that took 6 s or
-#: more in one in-process run of the whole suite (202 s in all). Then a fixed
-#: point over the fast tier's own run: the first module in it that builds a pack
-#: pays the ~10 s one-time emit of the map-independent sections (#130), so each
-#: such module at >= 6 s there was moved here in turn until the payer was
-#: test_title_boot, whose shared PackFixtureCase most fast-tier modules need
-#: (fast tier 77 s -> 66 s). Every name must be a module under tests/
+#: Python test modules the fast tier leaves to the full gate: every module whose
+#: intrinsic time is 6 s or more. Intrinsic means measured in a process whose
+#: one-time fixtures are already built -- the pack's map-independent sections
+#: (#130), the shared PackFixtureCase pack and the map table, ~13 s that the
+#: first module to need them pays in any run -- taking the lower of a forward
+#: and a reverse discovery-order run (2026-10-16, CPU capped at 2.3 GHz).
+#: Values are those seconds. Every name must be a module under tests/
 #: (tests/test_gate.py checks), so a rename cannot leave a stale entry here.
 SLOW_PYTHON_MODULES = {
-    # whole suite
-    "test_pack_maps": 36.5,
-    "test_reload_frames": 31.4,
-    "test_pack_manifest": 13.7,
-    "test_battle_art_pack": 12.3,
-    "test_crash_landing": 11.2,
-    "test_map_patches": 11.0,
-    "test_oracle_host_binary": 10.3,
-    "test_sprites": 6.6,
-    "test_extract_stamp": 6.6,
-    # fast tier, as the first pack builder
-    "test_map_effects": 12.3,
-    "test_newgame": 12.5,
-    "test_npc_commands": 11.9,
-    "test_pack_game_start": 12.7,
-    "test_pack_sprites": 15.2,
-    "test_render": 12.3,
-    "test_shop_flow": 13.8,
+    "test_pack_maps": 37.1,
+    "test_reload_frames": 32.0,
+    "test_battle_art_pack": 14.7,
+    "test_pack_manifest": 14.2,
+    "test_map_patches": 12.8,
+    "test_oracle_host_binary": 12.3,
+    "test_extract_stamp": 7.7,
+    "test_sprites": 7.2,
 }
 
 #: Where receipts go, relative to the root. The lock is shared: see heavy_lock.
