@@ -313,7 +313,7 @@ mod tests {
 
     fn vehicle_roster() -> Roster {
         let mut roster = Roster::new();
-        let vehicle = crate::vehicle::battle_member(
+        let vehicle = crate::vehicle::battle_member_with_hp(
             1,
             crate::VehicleRecord {
                 current_hp: 500,

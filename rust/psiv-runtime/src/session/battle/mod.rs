@@ -49,6 +49,8 @@ mod player_tests;
 mod policy_view;
 mod presentation;
 mod queue;
+#[cfg(test)]
+mod vehicle_end_tests;
 mod view;
 
 pub use view::{

@@ -201,7 +201,7 @@ pub(crate) fn vehicle_member(section: &VehicleSection, party_slot: u8) -> PartyM
         max_skill_uses,
         ..VehicleRecord::default()
     };
-    vehicle::battle_member(section.index, record)
+    vehicle::battle_member_with_hp(section.index, record)
         .unwrap_or_else(|| panic!("Vehicle_Index {} has no profile", section.index))
 }
 
