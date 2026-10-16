@@ -38,8 +38,7 @@ restored skill receives its original learning-level uses.
 
 The `repair_progression` runtime example loads source slot 1, writes a new
 output slot 1, rejects an existing output, and verifies the source file is
-unchanged. The connected repair is recorded in
-`build/native-progression/repaired-campaign/repair-receipt.json`:
+unchanged. On a save from before the fix, the repair changes:
 
 | Logical payload byte | Change |
 | --- | --- |
@@ -47,10 +46,8 @@ unchanged. The connected repair is recorded in
 | `$46B` | Chaz's EARTH maximum: 3 to 5 |
 | `$554` | Hahn's third technique: empty to WAT (4) |
 
-These are the only changed payload bytes. The original native Tonoe file
-remains at `build/native-tonoe/saves/slot_1.sram`; the repaired copy is under
-`build/native-progression/repaired-campaign/`. The next ordinary paid inn
-can refill the repaired skill maximum under the usual rest rules.
+These are the only changed payload bytes. The next ordinary paid inn can
+refill the repaired skill maximum under the usual rest rules.
 
 ## Verification
 
@@ -60,19 +57,13 @@ The real-record runtime test wins an original two-Zoran-Bult formation with
 three characters, earns eight EXP each, teaches Chaz TSU and Hahn WAT, and
 retains both through save/load. Separate tests bound the explicit repair
 and verify that a full learned-slot array leaves the entire roster intact
-on failure. The full workspace passes 868 tests and strict Clippy.
+on failure.
 
-`build/native-progression/route/receipt.json` completes the corresponding
-isolated Godot battle with normal commands, both learned-ability messages,
-the correct levels, unchanged spent skill uses and SAVE 2. A fresh process
-uses actual title CONTINUE 2, verifies the learned slots, moves one cell
-down and writes SAVE 3. Its `continued/validation.json` verifies both source
-files remain byte-identical and only standing Y changes in the new payload.
-This fixture intentionally starts just below the level thresholds. It is
-not connected campaign progress. Exact original results-window wording,
-layout and sound timing remain presentation work. A separate held-message
-capture run under `held-captures/` confirms both complete messages render;
-the shared seven-letter word occupies identical glyph pixels in both images.
+`tools/native/native_progression.gd` fights an isolated battle with normal
+commands from just below the level thresholds, shows both learned-ability
+messages and saves; a fresh process loads it through CONTINUE and verifies the
+learned slots. It is not connected campaign progress. The results window's
+exact wording, layout and sound timing are presentation work.
 
 ## Measured on the cartridge
 

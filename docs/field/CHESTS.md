@@ -60,45 +60,22 @@ It does not replace the selected slot in place.
 Godot uses the original window/font assets. Its normal ITEM list now pages
 all 40 items in eight-row pages, with matching text/cursor spacing. Child
 ITEM, target, STATE and SAVE windows draw only the moving hollow selection
-marker; the previous code drew the same marker beside every option, hiding
-which one was selected. The root keeps its separate red selection marker.
+marker. The root keeps its separate red selection marker.
 
 ## Verification
 
 - `rust/psiv-runtime/src/loot_tests.rs`: normal field input, solid objects,
   first-free grant, repeated opening, parked control, full-pack return,
   necessary-item protection, first-duplicate compaction, Alshline trigger,
-  battle refresh and save reload. A separate core regression verifies that
-  invalid chest/slot data cannot remove an inventory item before failure.
-- Workspace tests: **853 passed** in
-  `build/native-chests/workspace-tests.log`. The later atomicity guard passes
-  all 20 focused state tests in `transaction-tests.log`; final strict workspace
-  Clippy and the native build pass. Native captures cover the later menu fixes.
-- Eleven extraction tests, including three new chest tests, pass in
-  `build/native-chests/python-tests.log`. A broader 96-test pack/battle-record
-  run passed 93 checks and exposed three stale assertions: chest sheet users
-  were excluded, and the earlier eight shop portraits were uncategorized.
-  Those assertions now account for the emitted assets; all three pass on
-  rerun in `python-pack-recheck.log`.
-- Four isolated Godot receipts are complete under
-  `build/native-chests/{normal,meseta,white,full}/route/receipt.json`.
-  Each opens the chest with normal input, checks repeat opening or full-pack
-  decisions, and saves to slot 2. The full-pack run completes Alshline's
-  conversation and verifies the item in slot 39. Screenshots were inspected.
-- `build/native-chests/continued/receipt.json`: a fresh process uses the
-  actual title CONTINUE option and loads slot 2. Inventory, flags, chest
-  lids and party status match; page five visibly selects Alshline; one Down
-  step followed by SAVE to slot 3 changes only the payload Y byte at `$309`
-  (`$10 -> $20`). Slot 2 remains byte-identical. This run includes the final
-  row-spacing and selection-marker fixes; its build hash is recorded beside
-  the receipt. The earlier four receipts retain their own build hashes.
-
-The isolated fixtures derive from the native Tonoe save, but deliberately
-change location, inventory and the target chest bit. They are transaction
-proof, not a campaign playthrough. The source campaign save remains
-`9e27b823e34058ff8cd7d8547cf914f88ea3386b9e3395661accb9f18d516aa7`.
-Native runs use software X11 rendering, fixed 60 fps and dummy audio; they
-do not establish physical controller, speaker or desktop performance parity.
+  battle refresh and save reload. A core regression verifies that invalid
+  chest or slot data cannot remove an inventory item before failure.
+- The extraction tests cover chest records and sheets.
+- `tools/native/native_chests.gd` opens a normal, a meseta, a white and a
+  full-pack chest with ordinary input from isolated fixtures and saves; a fresh
+  process loads the save through the title's CONTINUE
+  (`tools/native/verify_native_continue.py`). The fixtures are transaction
+  proof, not a campaign playthrough; the campaign route opens the Tonoe
+  basement chest with ordinary input.
 
 ## Remaining fidelity work
 
