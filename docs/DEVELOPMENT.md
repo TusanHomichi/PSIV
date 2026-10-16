@@ -243,20 +243,26 @@ units fit:
 
 | Class | Holds | Taken by |
 | --- | --- | --- |
-| `exclusive` | the whole machine | `tools/gate.py` (both tiers, the whole run), and, through `python3 tools/heavy_lock.py run -- <command>`, the Python suite, pack builds and a cargo test that loads the runtime pack (`psiv-data`, `psiv-runtime`, `psiv-campaign`, or the workspace) |
-| `build` | 8 units (4 GB) | certify's extension build, `verify_candidate`'s release build, and, through `heavy_lock.py run --class build -- <command>`, any other cargo build or clippy run and a cargo test that loads no pack (`psiv-core`, `psiv-sound`, `psiv-godot`) |
+| `exclusive` | the whole machine | `tools/gate.py` (both tiers, the whole run: its receipt is a timed, reproducible run), and `python3 tools/heavy_lock.py run -- <command>` without `--class` |
+| `build` | 8 units | every cargo invocation (build, test or clippy, whether or not it loads the pack: compilation is its peak): certify's extension build, `verify_candidate`'s release build, and `heavy_lock.py run --class build -- cargo ...` |
 | `godot` | 1 unit and one of `PSIV_GODOT_SLOTS` slots (default 3) per run | `tools/certify.py` (one slot per `--jobs` worker), `tools/verify_native_tape.py`, `tools/verify_native_route.py`, and `heavy_lock.py run --class godot -- <command>` for any other single Godot/Xvfb run |
+| `python` | 2 units | the Python suite or part of it: `heavy_lock.py run --class python -- python3 -m unittest ...` |
+| `pack` | 1 unit | a pack build: `heavy_lock.py run --class pack -- python3 -m psiv_tools pack ...` |
 
-An exclusive holder excludes every shared holder and they exclude it; one
-build and three Godot runs fit together (11 units), as do two builds (16). The
-entry points in the table take their class themselves: never wrap them. A
-headless `psiv-campaign` run takes no lock. `PSIV_GODOT_SLOTS` and
+An exclusive holder excludes every shared holder and they exclude it. A cargo
+run, two Godot runs and a Python suite fit together (12 units); a second cargo
+run then waits, and two cargo runs fit alone (16). The entry points in the
+table take their class themselves: never wrap them. A headless
+`psiv-campaign` run takes no lock. `PSIV_GODOT_SLOTS` and
 `PSIV_LOCK_UNITS` must be the same for every process: each holder records them
 in its slot and unit files, and a process that finds a held file recording
 another value refuses with exit 2.
 
-A class's units are its largest measured peak process-tree RSS (the sum over
-every process of the job, sampled every 0.2 s) rounded up to whole units. One
+One sizing rule holds for every class: its units are ceil(its largest measured
+peak process-tree RSS / 512 MB), the RSS summed over every process of the job
+and sampled every 0.2 s. The safety margin is the budget, not the units: 16
+units leave about 5.5 GB outside the lock for the desktop, the agent sessions,
+unlocked headless runs and any job that peaks above its measurement. One
 run each, 2026-10-16, on the 8-core 13.5 GB host on AC with the CPU capped at
 2.3 GHz (`bios_limit` 2300000), at `20a76de`; `/usr/bin/time -v` reports the
 largest single process:
@@ -268,15 +274,15 @@ largest single process:
 | `cargo build -p psiv-godot` (dev), cold target | 88 s | 3,609 MB | 3,617 MB | - | `build` |
 | `cargo test --workspace --no-run`, default jobs | 165 s | 3,050 MB | 887 MB | - | `build` |
 | `cargo clippy --workspace --all-targets`, warm | 25 s | 1,762 MB | 525 MB | - | `build` |
-| `cargo test -p psiv-data`, built | 5 s | 291 MB | 199 MB | loads | `exclusive` |
+| `cargo test -p psiv-data`, built | 5 s | 291 MB | 199 MB | loads | `build` |
 | `cargo test -p psiv-core`, built | 2 s | 263 MB | 133 MB | none | `build` |
-| `cargo test -p psiv-runtime`, built | 69 s | 102 MB | 123 MB | loads | `exclusive` |
+| `cargo test -p psiv-runtime`, built | 69 s | 102 MB | 123 MB | loads | `build` |
 | `cargo test -p psiv-sound`, built | 1 s | 36 MB | 77 MB | none | `build` |
 | `cargo test -p psiv-godot`, built | 5 s | 63 MB | 33 MB | none | `build` |
-| `cargo test -p psiv-campaign`, built | 38 s | 149 MB | 118 MB | loads | `exclusive` |
-| the gate's workspace `cargo test`, built | 123 s | 292 MB | 199 MB | loads | `exclusive` |
-| the Python suite (`unittest discover -s tests`, 1,648 tests) | 229 s | 815 MB | 813 MB | loads | `exclusive` |
-| a full pack build (`python3 -m psiv_tools pack`) | 47 s | 129 MB | 130 MB | writes | `exclusive` |
+| `cargo test -p psiv-campaign`, built | 38 s | 149 MB | 118 MB | loads | `build` |
+| the gate's workspace `cargo test`, built | 123 s | 292 MB | 199 MB | loads | `build` |
+| the Python suite (`unittest discover -s tests`, 1,648 tests) | 229 s | 815 MB | 813 MB | loads | `python` |
+| a full pack build (`python3 -m psiv_tools pack`) | 47 s | 129 MB | 130 MB | writes | `pack` |
 | one certify pair (`--only battle-0x88 --jobs 1`, Godot and Xvfb) | 8 s | 418 MB | 340 MB | loads | `godot` |
 | one headless `psiv-campaign run` chapter (`academy`) | 0.4 s | - | 28 MB | loads | none |
 
@@ -284,10 +290,16 @@ largest single process:
 run alone; compiling them is the `--no-run` row. A crate loads the pack when
 its run changes with `PSIV_RUNTIME_PACK` pointed at a missing directory
 (`psiv-runtime` then fails, `psiv-data` and `psiv-campaign` skip). Compilation,
-not the pack, sets the memory: every test run is under 300 MB. The pack-loading
-runs, the Python suite and pack builds stay exclusive as
-[#140](https://github.com/TusanHomichi/PSIV/issues/140) set; by size alone they
-would fit `build`. A gate takes the gate lock first and the heavy lock second, as every
+not the pack, sets a cargo invocation's memory: every test run alone is under
+300 MB, but `cargo test` compiles first (one crate's rebuild took
+`psiv-runtime`'s run to 2,214 MB), so every cargo invocation takes `build`.
+
+Transition: a holder started from a checkout older than the budget takes no
+units, so the budget counts only holders running the current
+`tools/heavy_lock.py`; exclusion is unaffected, because every class still
+holds the lock file itself. Merge main into a lane to bring it onto the budget.
+
+A gate takes the gate lock first and the heavy lock second, as every
 deployed gate does; the reverse order deadlocks against them. So never wrap the
 gate in `heavy_lock.py run`: a priority gate is `PSIV_LOCK_PRIORITY=1 python3
 tools/gate.py ...`, and a gate nested under a heavy holder refuses (exit 2,

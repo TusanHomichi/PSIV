@@ -22,9 +22,8 @@ every worktree shares one file each, always in this order (heavy_lock's
 docstring owns it; a gate taking them the other way deadlocks against one that
 does not): the gate lock, `<main checkout>/build/gate/.lock`, for the whole
 run, and inside it the heavy lock in `GATE_LOCK_CLASS`, exclusive, through
-`hold_heavy_lock` for every command (its Python suite and workspace
-`cargo test` load the runtime pack, so the gate as a whole is a machine-wide
-job; the receipt names the class at the top and on each command; a run under
+`hold_heavy_lock` for every command (the gate's receipt is a timed,
+reproducible run, so nothing shares the machine with it; the receipt names the class at the top and on each command; a run under
 an exclusive `heavy_lock.py run` already holds it, so that step is a no-op there, and
 `PSIV_LOCK_PRIORITY=1` queues the gate as a priority waiter). A gate nested
 under a heavy holder takes the gate lock without waiting, `--wait` or not: the
@@ -105,9 +104,9 @@ SLOW_PYTHON_MODULES = {
     "test_sprites": 7.2,
 }
 
-#: The heavy-lock class every gate command runs under: the Python suite and the
-#: workspace `cargo test` load the runtime pack (docs/DEVELOPMENT.md, "Heavy-run
-#: lock"), so the gate holds the machine for the whole run.
+#: The heavy-lock class every gate command runs under. The gate's receipt is a
+#: timed, reproducible run, so it holds the machine for the whole run: the one
+#: exclusive job (docs/DEVELOPMENT.md, "Heavy-run lock").
 GATE_LOCK_CLASS = EXCLUSIVE
 
 #: Where receipts go, relative to the root. The lock is shared: see heavy_lock.

@@ -39,7 +39,8 @@ from unittest import mock
 from tools import heavy_lock as heavy_lock_module
 from tools import verify_candidate
 from tools.gate import GateRefused, run_gate
-from tools.heavy_lock import (BUILD, CLASS_UNITS, EXCLUSIVE, EXIT_HELD_BY_PARENT, GODOT,
+from tools.heavy_lock import (BUILD, CLASS_UNITS, EXCLUSIVE, EXIT_HELD_BY_PARENT, GODOT, PACK,
+                              PYTHON,
                               GODOT_SLOTS_ENV, HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV,
                               HELD_SLOTS_ENV, PRIORITY_ENV, UNITS_ENV, gate_lock_path,
                               heavy_lock_path, hold_heavy_lock, lock_holders, lock_modes,
@@ -624,7 +625,7 @@ class QueueCase(LockProcesses):
 PAIR_BUDGET = {UNITS_ENV: str(CLASS_UNITS[BUILD] + CLASS_UNITS[GODOT])}
 
 
-def overfilling_take_files(lock, kind, count, cap, env):
+def overfilling_take_files(lock, kind, count, cap, env, label=None):
     """The mutation for the budget's negative control: `_take_files` without
     all-or-none, so a grant proceeds on whatever units are free."""
     held = []
@@ -779,6 +780,65 @@ class BudgetCase(LockProcesses):
             self.assertEqual(done.returncode, 0, done.stderr)
             self.assertEqual(done.stdout.split()[0], held)
             self.assertEqual(done.stdout.split()[2], "True")
+
+    def mixed_holders(self, env=None):
+        """One cargo run, two Godot runs and a Python suite, all held at once."""
+        return [self.holder(BUILD, env), self.holder(GODOT, env), self.holder(GODOT, env),
+                self.holder(PYTHON, env)]
+
+    def test_a_cargo_run_two_godot_runs_and_a_python_suite_share_the_budget(self):
+        holders = self.mixed_holders()
+        expected = CLASS_UNITS[BUILD] + 2 * CLASS_UNITS[GODOT] + CLASS_UNITS[PYTHON]
+        self.assertEqual(units_in_use(self.lock), expected)
+        self.assertLessEqual(expected, lock_units({}))
+        self.assertEqual(sorted(lock_modes(self.lock)),
+                         sorted(zip((h.pid for h in holders), (BUILD, GODOT, GODOT, PYTHON))))
+        second = self.waiter("second-cargo", "--class", BUILD)
+        self.assertIn(f"{holders[0].pid} (build)", second.first_line)
+        time.sleep(0.5)
+        self.assertEqual(self.granted(), [], "a second cargo run would exceed the budget")
+        self.release(holders[0])
+        self.assertEqual(self.finish(second), ["second-cargo"])
+
+    def test_negative_control_a_budget_one_unit_short_makes_the_suite_wait(self):
+        short = CLASS_UNITS[BUILD] + 2 * CLASS_UNITS[GODOT] + CLASS_UNITS[PYTHON] - 1
+        budget = {UNITS_ENV: str(short)}
+        cargo, _, _ = self.holder(BUILD, budget), self.holder(GODOT, budget), \
+            self.holder(GODOT, budget)
+        suite = self.waiter("suite", "--class", PYTHON, env=budget)
+        time.sleep(0.5)
+        self.assertEqual(self.granted(), [])
+        self.release(cargo)
+        self.assertEqual(self.finish(suite), ["suite"])
+
+    def test_negative_control_a_budget_with_room_starts_the_second_cargo_run(self):
+        room = CLASS_UNITS[BUILD] * 2 + 2 * CLASS_UNITS[GODOT] + CLASS_UNITS[PYTHON]
+        budget = {UNITS_ENV: str(room)}
+        self.mixed_holders(budget)
+        code, stderr = self.immediate("second-cargo", "--class", BUILD, env=budget)
+        self.assertEqual(code, 0, stderr)
+        self.assertNotIn("waiting", stderr)
+
+    def test_an_exclusive_holder_excludes_every_shared_class_and_they_exclude_it(self):
+        for lock_class in (PYTHON, PACK):
+            holder = self.holder()
+            waiter = self.waiter(lock_class, "--class", lock_class)
+            self.assertIn(f"held by pid {holder.pid} (exclusive)", waiter.first_line)
+            self.release(holder)
+            self.assertEqual(waiter.wait(timeout=TIMEOUT), 0)
+            shared = self.holder(lock_class)
+            exclusive = self.waiter(f"exclusive-after-{lock_class}")
+            self.assertIn(f"held by pid {shared.pid} ({lock_class})", exclusive.first_line)
+            self.release(shared)
+            self.assertEqual(exclusive.wait(timeout=TIMEOUT), 0)
+        self.assertEqual(self.granted(), ["python", "exclusive-after-python", "pack",
+                                          "exclusive-after-pack"])
+
+    def test_negative_control_with_no_holder_python_and_pack_start_at_once(self):
+        for lock_class in (PYTHON, PACK):
+            code, stderr = self.immediate(lock_class, "--class", lock_class)
+            self.assertEqual(code, 0, stderr)
+            self.assertNotIn("waiting", stderr)
 
     def test_a_held_unit_under_another_budget_is_refused(self):
         self.holder("build", {UNITS_ENV: "16"})  # records 16 in its unit files

@@ -3,7 +3,7 @@
 
     python3 tools/heavy_lock.py [--gate]          # print the lock path
     python3 tools/heavy_lock.py status            # print holders and waiters
-    python3 tools/heavy_lock.py run [--priority] [--class exclusive|godot|build] -- <cmd...>
+    python3 tools/heavy_lock.py run [--priority] [--class CLASS] -- <cmd...>
 
 Heavy runs are serialized by project rule across every worktree, so their locks
 must name one file for the whole repository, not one per checkout. Both locks
@@ -23,20 +23,19 @@ wrap the gate in `run`; a priority gate is `PSIV_LOCK_PRIORITY=1 python3
 tools/gate.py ...`, and a gate nested under a heavy holder refuses a busy gate
 lock rather than wait.
 
-The heavy lock has three classes, split by peak memory (the measured table is
-in docs/DEVELOPMENT.md, "Heavy-run lock"). `exclusive` (the gate, the Python
-suite, pack builds, a cargo test that loads the runtime pack) holds the lock
-file with LOCK_EX and runs alone. The shared classes hold it with LOCK_SH plus
-units of a machine memory budget, `PSIV_LOCK_UNITS` (default
-`DEFAULT_LOCK_UNITS`) unit files of `UNIT_MB` each beside it, taken all or
-none: `godot` (one Godot/Xvfb run) takes `CLASS_UNITS[godot]` units per slot
-and one of `PSIV_GODOT_SLOTS` (default 3) slot files per run, and `build` (a
-cargo build or clippy run, or a cargo test that loads no pack) takes
-`CLASS_UNITS[build]`. So shared holders run side by side while their units
-fit, and an exclusive holder excludes them all. The slot cap and the budget
-must be the same for every process: each holder writes them into its slot and
-unit files, and a process that finds a held file recording another value
-refuses (exit 2) rather than overfill the machine.
+The heavy lock's classes are split by peak memory (the measured table is in
+docs/DEVELOPMENT.md, "Heavy-run lock"). `exclusive` (the gate as a whole, and
+the default of `run`) holds the lock file with LOCK_EX and runs alone. The
+shared classes hold it with LOCK_SH plus units of a machine memory budget,
+`PSIV_LOCK_UNITS` (default `DEFAULT_LOCK_UNITS`) unit files of `UNIT_MB` each
+beside it, taken all or none, `CLASS_UNITS` each: `build` (any cargo build,
+test or clippy run: compilation is its peak), `godot` (one Godot/Xvfb run, per
+slot, plus one of `PSIV_GODOT_SLOTS` (default 3) slot files), `python` (the
+Python suite) and `pack` (a pack build). So shared holders run side by side
+while their units fit, and an exclusive holder excludes them all. The slot cap
+and the budget must be the same for every process: each holder writes them
+into its slot and unit files, and a process that finds a held file recording
+another value refuses (exit 2) rather than overfill the machine.
 
 Waiters queue in `<lock>.queue/`, one file per waiter that the waiter holds
 flocked for as long as it waits (a killed waiter's entry is pruned, never
@@ -55,7 +54,7 @@ that changes.
 `PSIV_HEAVY_LOCK_HELD=<resolved path>` with the class and slot count, so a
 descendant that asks for the same lock (certify under an exclusive `run`)
 proceeds without blocking on its own ancestor; a request under a shared
-holder of another class (an exclusive run under godot, a build under godot) is
+holder of another class (an exclusive run under godot, a build under python) is
 refused instead, because the holder neither excluded anyone nor reserved the
 request's units. A raw `flock(1)` wrapper sets no marker; a child that finds
 the lock held by one of its ancestors (by inode in /proc/locks) exits 2 naming
@@ -93,21 +92,24 @@ EXIT_HELD_BY_PARENT = 2
 EXCLUSIVE = "exclusive"
 GODOT = "godot"
 BUILD = "build"
-LOCK_CLASSES = (EXCLUSIVE, GODOT, BUILD)
+PYTHON = "python"
+PACK = "pack"
+LOCK_CLASSES = (EXCLUSIVE, GODOT, BUILD, PYTHON, PACK)
 #: How /proc/locks shows a LOCK_SH holder that holds no slot or unit yet (a
 #: shared head between its flock and its grant).
 SHARED = "shared"
 DEFAULT_GODOT_SLOTS = 3
 #: Megabytes per budget unit, and the budget: 16 units are 8 GB of the 13.5 GB
-#: development host, leaving the desktop, the agent sessions and unlocked
-#: headless runs about 5 GB.
+#: development host. The safety margin is the budget itself: the 5.5 GB it
+#: leaves covers the desktop, the agent sessions and unlocked headless runs,
+#: and any job that peaks above its measured RSS.
 UNIT_MB = 512
 DEFAULT_LOCK_UNITS = 16
-#: Units each shared holder takes (godot: per slot): the class's largest
-#: measured peak process-tree RSS rounded up to whole units, from the table in
-#: docs/DEVELOPMENT.md (a certify pair 418 MB; a cold dev psiv-godot build
-#: 3,609 MB). So one build and three Godot runs fit (11), or two builds (16).
-CLASS_UNITS = {GODOT: 1, BUILD: 8}
+#: Units each shared holder takes (godot: per slot), one rule for every class:
+#: ceil(the class's largest measured peak process-tree RSS / UNIT_MB), from
+#: the table in docs/DEVELOPMENT.md: a cold dev psiv-godot build 3,609 MB, a
+#: certify pair 418 MB, the Python suite 815 MB, a pack build 129 MB.
+CLASS_UNITS = {BUILD: 8, GODOT: 1, PYTHON: 2, PACK: 1}
 #: Seconds between a waiter's looks at the queue. A heavy run lasts minutes.
 POLL_S = 0.2
 
@@ -205,34 +207,45 @@ def _proc_locks(proc_locks):
 
 
 def _numbered(lock, kind):
-    """`{inode: index}` of `<lock>.<kind><index>` files (kind `godot` or `unit`)."""
+    """`{inode: path}` of `<lock>.<kind><index>` files (kind `godot` or `unit`)."""
     prefix = Path(f"{lock}.{kind}")
     found = {}
     for path in prefix.parent.glob(prefix.name + "*"):
-        index = path.name[len(prefix.name):]
-        if index.isdecimal():
+        if path.name[len(prefix.name):].isdecimal():
             try:
-                found[path.stat().st_ino] = int(index)
+                found[path.stat().st_ino] = path
             except FileNotFoundError:
                 continue
     return found
 
 
+def _recorded(path):
+    """`(cap, class)` a slot or unit file records (`<cap>` or `<cap> <class>`);
+    None for a field it does not hold."""
+    try:
+        fields = path.read_text(errors="replace").split()
+    except OSError:
+        return None, None
+    cap = int(fields[0]) if fields and fields[0].isdecimal() else None
+    return cap, fields[1] if len(fields) > 1 else None
+
+
 def lock_modes(path, proc_locks=Path("/proc/locks")):
     """`[(pid, class)]` holding a lock on `path`'s inode, from /proc/locks: a
     WRITE lock is `exclusive`; a READ lock is `godot` when the pid holds a
-    godot slot, `build` when it holds budget units only, else `shared`."""
+    godot slot, else the class its budget units record, else `shared`."""
     inode = os.stat(path).st_ino
     held = _proc_locks(proc_locks)
     slots, units = _numbered(path, GODOT), _numbered(path, "unit")
     in_slots = {pid for pid, node, _ in held if node in slots}
-    in_units = {pid for pid, node, _ in held if node in units}
+    unit_class = {pid: _recorded(units[node])[1] or SHARED
+                  for pid, node, _ in held if node in units}
     found = []
     for pid, node, write in held:
         if node != inode:
             continue
         mode = EXCLUSIVE if write else GODOT if pid in in_slots \
-            else BUILD if pid in in_units else SHARED
+            else unit_class.get(pid, SHARED)
         if (pid, mode) not in found:
             found.append((pid, mode))
     return found
@@ -396,7 +409,8 @@ class _Need:
         slots = _take_files(lock, GODOT, self.slots, self.cap, GODOT_SLOTS_ENV)
         if slots is None:
             return None
-        units = _take_files(lock, "unit", self.units, self.budget, UNITS_ENV)
+        units = _take_files(lock, "unit", self.units, self.budget, UNITS_ENV,
+                            self.lock_class)
         if units is None:
             for handle in slots:
                 os.close(handle)
@@ -420,7 +434,8 @@ def _check_cap(lock, kind, cap, env):
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            recorded = os.pread(handle, 16, 0).decode(errors="replace").strip()
+            fields = os.pread(handle, 64, 0).decode(errors="replace").split()
+            recorded = fields[0] if fields else ""
             if int(index) >= cap or (recorded.isdecimal() and int(recorded) != cap):
                 theirs = recorded if recorded.isdecimal() else f"above {cap}"
                 what = "godot slot" if kind == GODOT else "budget unit"
@@ -432,10 +447,11 @@ def _check_cap(lock, kind, cap, env):
             os.close(handle)
 
 
-def _take_files(lock, kind, count, cap, env):
+def _take_files(lock, kind, count, cap, env, label=None):
     """Handles holding `count` free `<lock>.<kind>N` files (N below `cap`), each
-    recording `cap`, or None (nothing held) when fewer are free: all or none.
-    Never blocks. Raises SlotCapMismatch when a held file records another cap."""
+    recording `cap` (and the holder's class `label`, for `status`), or None
+    (nothing held) when fewer are free: all or none. Never blocks. Raises
+    SlotCapMismatch when a held file records another cap."""
     if count == 0:
         return []
     _check_cap(lock, kind, cap, env)
@@ -450,7 +466,7 @@ def _take_files(lock, kind, count, cap, env):
             os.close(handle)
         else:
             os.ftruncate(handle, 0)
-            os.pwrite(handle, str(cap).encode(), 0)
+            os.pwrite(handle, (f"{cap} {label}" if label else str(cap)).encode(), 0)
             held.append(handle)
     if len(held) == count:
         return held
@@ -697,10 +713,9 @@ def run_parser():
     parser.add_argument("--priority", action="store_true",
                         help="go ahead of every normal waiter (speedup lanes, a yield)")
     parser.add_argument("--class", dest="lock_class", choices=LOCK_CLASSES, default=EXCLUSIVE,
-                        help="exclusive (default: the Python suite, pack builds, a cargo "
-                             "test that loads the runtime pack), godot (one Godot/Xvfb "
-                             "run) or build (a cargo build or clippy run, or a cargo test "
-                             "that loads no pack)")
+                        help="exclusive (default: the whole machine), build (any cargo "
+                             "build, test or clippy run), godot (one Godot/Xvfb run), "
+                             "python (the Python suite) or pack (a pack build)")
     return parser
 
 
@@ -714,7 +729,7 @@ def main(argv=None):
         args = run_parser().parse_args(options)
         if not command:
             print("usage: python3 tools/heavy_lock.py run [--priority] "
-                  "[--class exclusive|godot|build] -- <command...>", file=sys.stderr)
+                  f"[--class {'|'.join(LOCK_CLASSES)}] -- <command...>", file=sys.stderr)
             return 2
         with hold_heavy_lock(lock_class=args.lock_class, priority=args.priority or None):
             return subprocess.run(command).returncode
