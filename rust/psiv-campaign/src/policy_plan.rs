@@ -26,8 +26,9 @@
 //!
 //! # The order of the rules
 //!
-//! 1. **Finish it.** When the members' best actions are expected to remove
-//!    every enemy's HP this round, nobody cures: the round is all offence.
+//! 1. **Finish it.** When the members' best actions remove every enemy's HP
+//!    this round whatever the damage rolls (each pass at its least), nobody
+//!    cures: the round is all offence. Turn order is not covered.
 //! 2. **Cures**, most urgent first, each given to the member whose own best
 //!    action is worth least (a cure that lifts the patient clear of the threat
 //!    before one that does not, then the cheaper cure):
@@ -290,10 +291,12 @@ impl Planner {
             free.push(board.actor);
             free.sort_unstable();
         }
-        // Finish it: if the whole round's offence empties the enemy side
-        // whatever the rolls, no member spends a turn on a cure. Expected
-        // damage is not enough: a round that only probably kills leaves the
-        // members it did not cure to the enemy's next turn.
+        // Finish it: if the round's offence empties the enemy side whatever
+        // the damage rolls, no member spends a turn on a cure. Expected damage
+        // is not enough: a round that only probably empties it leaves the
+        // members it did not cure to the enemy's turns. This is about the
+        // damage rolls only: it does not cover turn order (an enemy that acts
+        // first still acts), so it is not a promise that the battle ends.
         let mut trial = self.clone();
         for id in &free {
             let intent = trial.offence(board, *id);
@@ -308,7 +311,7 @@ impl Planner {
                     .iter()
                     .map(|(id, v)| (*id, *v / HP))
                     .collect();
-                eprintln!("  finish it: enemies {hp:?}, certain damage {sure:?}");
+                eprintln!("  finish it: enemies {hp:?}, least damage {sure:?}");
             }
             *self = trial;
             return;

@@ -33,8 +33,8 @@
 //! so a technique, a skill and an item that share an effect id share a class.
 
 use psiv_core::battle::{
-    DAMAGE_DRAWS, DAMAGE_ROLL_MASK, PHYSICAL, SliceRolls, Verdict, calc_healing, calculate_chances,
-    calculate_damage, clamp_damage, critical_bonus,
+    DAMAGE_DRAWS, DAMAGE_ROLL_MASK, SliceRolls, Verdict, calc_healing, calculate_chances,
+    calculate_damage, clamp_damage, critical_bonus, hit_verdict,
 };
 use std::sync::OnceLock;
 
@@ -224,30 +224,47 @@ fn memo(key: MemoKey, compute: impl FnOnce() -> Value) -> Value {
     value
 }
 
-/// The most one damage pass can do: every draw 7.
-#[must_use]
-pub fn max_damage(attack: u16, defence: u16, factor: u16, bonus: u16) -> u16 {
-    let draws = draws_for(112);
-    clamp_damage(calculate_damage(
-        attack,
-        defence,
-        factor,
-        bonus,
-        &mut SliceRolls::new(&draws),
-    ))
+/// One damage pass, clamped, at each of the 113 sums its sixteen draws can
+/// make. `calculate_damage` multiplies `(S + 8) * attack` in a wrapping 16-bit
+/// word, so at an attack of 547 and up a high sum can wrap below a low one:
+/// the extremes are over every sum, not at its ends.
+fn pass_extreme(tag: u8, attack: u16, defence: u16, factor: u16, bonus: u16) -> u16 {
+    let value = memo((tag, attack, defence, factor, bonus, 0), || {
+        let passes = (0..=112).map(|sum| {
+            let draws = draws_for(sum);
+            clamp_damage(calculate_damage(
+                attack,
+                defence,
+                factor,
+                bonus,
+                &mut SliceRolls::new(&draws),
+            ))
+        });
+        let extreme = if tag == MEMO_MAX {
+            passes.max()
+        } else {
+            passes.min()
+        };
+        Value::from(extreme.unwrap_or(0))
+    });
+    u16::try_from(value).unwrap_or(u16::MAX)
 }
 
-/// The least one damage pass can do: every draw 0.
+/// [`memo`] tags of [`pass_extreme`].
+const MEMO_MAX: u8 = 2;
+const MEMO_MIN: u8 = 3;
+
+/// The most one damage pass can do, over every sum of its draws.
+#[must_use]
+pub fn max_damage(attack: u16, defence: u16, factor: u16, bonus: u16) -> u16 {
+    pass_extreme(MEMO_MAX, attack, defence, factor, bonus)
+}
+
+/// The least one damage pass can do, over every sum of its draws: what it
+/// does whatever the damage rolls.
 #[must_use]
 pub fn min_damage(attack: u16, defence: u16, factor: u16, bonus: u16) -> u16 {
-    let draws = draws_for(0);
-    clamp_damage(calculate_damage(
-        attack,
-        defence,
-        factor,
-        bonus,
-        &mut SliceRolls::new(&draws),
-    ))
+    pass_extreme(MEMO_MIN, attack, defence, factor, bonus)
 }
 
 /// The expected `Battle_CalcHealing` amount, capped at `cap` (what the
@@ -266,24 +283,21 @@ pub fn min_healing(power_stat: u16, power: u16) -> u16 {
 }
 
 /// Of a physical hit roll's 64 outcomes: how many miss, land normally and
-/// land critically. `multi` demotes a critical to a normal hit (`loc_B754`).
+/// land critically, by the core's own verdict (`hit_verdict`: a group swing
+/// demotes a critical to a normal hit, `loc_B754`).
 #[must_use]
 pub fn hit_outcomes(dexterity: u16, agility: u16, multi: bool) -> (u64, u64, u64) {
-    let (scale, miss, crit) = PHYSICAL;
     let mut counts = (0, 0, 0);
     for roll in 0..64_u16 {
-        let verdict = calculate_chances(
+        let verdict = hit_verdict(
             i16::try_from(dexterity).unwrap_or(i16::MAX),
             i16::try_from(agility).unwrap_or(i16::MAX),
-            scale,
-            miss,
-            crit,
+            multi,
             &mut SliceRolls::new(&[roll]),
         );
         match verdict {
             Verdict::Miss => counts.0 += 1,
             Verdict::Normal => counts.1 += 1,
-            Verdict::Critical if multi => counts.1 += 1,
             Verdict::Critical => counts.2 += 1,
         }
     }
@@ -366,6 +380,28 @@ mod tests {
         assert_eq!(damage(1, 200, 0, 0, 999), HP);
         // Overkill counts nothing: a 10 HP target.
         assert_eq!(damage(200, 0, 2, 0, 10), 10 * HP);
+    }
+
+    /// At an attack of 600, `(S + 8) * 600` wraps the 16-bit word for high
+    /// sums, so the least pass is not the every-draw-0 one and the most is not
+    /// the every-draw-7 one. Negative: the end sums alone overstate the least
+    /// and understate the most.
+    #[test]
+    fn the_damage_extremes_cover_the_16_bit_wrap() {
+        let pass = |sum| {
+            let draws = draws_for(sum);
+            clamp_damage(calculate_damage(600, 0, 2, 0, &mut SliceRolls::new(&draws)))
+        };
+        let all: Vec<u16> = (0..=112).map(pass).collect();
+        let least = *all.iter().min().unwrap();
+        let most = *all.iter().max().unwrap();
+        assert!(
+            least < pass(0),
+            "the board's premise: a wrapped sum is lower"
+        );
+        assert!(most > pass(112), "the board's premise: the top sum wrapped");
+        assert_eq!(min_damage(600, 0, 2, 0), least);
+        assert_eq!(max_damage(600, 0, 2, 0), most);
     }
 
     #[test]
