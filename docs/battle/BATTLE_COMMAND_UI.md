@@ -179,8 +179,7 @@ causes, found by this pair:
    `fighter_x_pos` from the attacker's (`ps4.asm:19170-19180`); Alys is drawn
    about 40 px left of her seat during the strike.
 
-Causes 1 and 2 need the extractor (`psiv_tools/battle_animation_*.py`, outside
-this lane's write set) and a per-attack-routine choreography; cause 3 is
+Causes 1 and 2 need the extractor (`psiv_tools/battle_animation_*.py`) and a per-attack-routine choreography; cause 3 is
 presentation of the target's `Character_Targeted` routine.
 
 ## The art comes from the pack

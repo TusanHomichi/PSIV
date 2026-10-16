@@ -146,7 +146,7 @@ rebuilds the party objects and writes selector `0`. Any other raw value opens
 the retail `Cannot get off!` window and leaves the selector mounted. The core
 surfaces that as `VehicleDismountBlocked` and does not mutate the party.
 
-**Where a dismount leaves the party (C8, 2026-10-07).** Both of the cartridge's
+**Where a dismount leaves the party.** Both of the cartridge's
 dismounts rebuild every character object on `Character_1`, which is the
 machine's body while mounted, copying its position, destination and facing
 (`Event_GettingOffVehicle`, `loc_6BF4E`, `ps4.asm:145362-145380`; the mounted

@@ -310,7 +310,7 @@ code was proven byte-identical to retail, corroboration.
 ## SceneOp vocabulary
 
 Base vocabulary from `docs/RUNTIME_DESIGN.md`, plus the extensions the opening
-and next acts genuinely need. **The interpreter lane implements exactly this
+and next acts genuinely need. **The interpreter implements exactly this
 union.**
 
 ### Base (used as designed)
@@ -423,7 +423,7 @@ no map update runs), `IntroTextFadeUp{}` / `IntroTextFadeDown{}` (the
 
 ## Documents
 
-Cross-checked against the new-game extraction lane where they overlap:
+Cross-checked against the new-game extraction where they overlap:
 `psiv_tools/newgame.py` and `runtime-pack/game_start.json` own the title
 handoff and `Event_GameStart`'s epilogue, and this set cites them rather than
 re-deriving. We agree on the routine start, on `rom_end = $073ECE`, on the

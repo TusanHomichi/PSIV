@@ -150,8 +150,8 @@ run>` resumes the route from every chapter save of the run and fails on an
 unlisted halt or a stale entry; `--evaluate <check dir>` re-judges a finished
 check against an edited manifest. `tools/verify_candidate.py` runs it for every
 integration candidate ([DEVELOPMENT.md](../DEVELOPMENT.md#gate-and-coverage)).
-The training chapters keep the pre-P88b levels by the owner decision of
-2026-10-07; the manifest lists the halts the route still has.
+The training chapters keep their earlier levels (owner decision,
+2026-10-07); the manifest lists the halts the route still has.
 `python3 tools/route_sweep.py NAME --level CHAPTER=N` plays a variant of the
 route and summarizes its battle ends.
 

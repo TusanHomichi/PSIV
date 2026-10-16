@@ -76,8 +76,8 @@ Findings:
 - **Ten of ten window-variant mismatches (rows 1 to 10):** nine transcribed
   callers used the standard window, which destroys the panels the cartridge
   leaves up, and the tenth was the resume of row 1.
-- **One caller has no scene** (row 11, `Event_AngerTowerAlys`; rows 12 to 14 were
-  transcribed by the event census lane): its event is in the retail `EventPtrs`
+- **One caller has no scene** (row 11, `Event_AngerTowerAlys`; rows 12 to 14 are
+  transcribed): its event is in the retail `EventPtrs`
   table and fires from a dialogue `$F6` on Dezolis, but the port transcribes
   nothing for it, so it plays nothing. It is deliberately not hidden: the
   census lists it in `UNTRANSCRIBED` (`tests/test_dialogue2_callers.py`) and

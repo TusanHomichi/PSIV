@@ -8,8 +8,8 @@
 ## Clone audit
 
 The body was read from the US image through its `EventPtrs` slot; the clone's label
-names it and nothing else. Transcribed by the event census lane (S7,
-[EVENT_COVERAGE](EVENT_COVERAGE.md)).
+names it and nothing else. Transcribed for the event census
+([EVENT_COVERAGE](EVENT_COVERAGE.md)).
 
 ## Retail transcription
 
@@ -18,4 +18,4 @@ names it and nothing else. Transcribed by the event census lane (S7,
 | 0 | `$06DEAE..$06DEB5` | `moveq #$C, d0` / `jsr Event_GetAndRunDialogue` (`$5AC66`) | standard `RunDialogue` `$0C` |
 | 1 | `$06DEB6..$06DEBD` | `moveq #$73, d0` / `jmp EventFlags_Set` (tail call) | `SetFlag` `$73` |
 
-The scene is off the critical path: opening chest 5 first (`$72`) never reaches it (C5).
+The scene is off the critical path: opening chest 5 first (`$72`) never reaches it.

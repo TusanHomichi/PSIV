@@ -74,7 +74,7 @@ runtime's already-ratified replacement for the hardware H/V counter term
 ([RNG design](../RUNTIME_DESIGN.md#rng-design),
 `rust/psiv-core/src/battle/rng.rs`). Its regression proves generator, draw count,
 seed ordering and native-model reload value, not bit-identical raster entropy
-against a cartridge frame. This lane adds no replacement RNG algorithm.
+against a cartridge frame. There is no replacement RNG algorithm.
 
 | ID | Routine | Retail address / source line | State, palette/VDP writes and conditions | RNG | Map bindings | Runtime |
 | --- | --- | --- | --- | --- | ---: | --- |
@@ -180,7 +180,7 @@ Horizontal/vertical scroll entries emit exact sparse word writes with the DMA
 destination class. Godot's composed-map renderer does not yet draw per-line or
 per-column scroll staging records. Their state/record tests pass independently
 of any visual claim. Scene glides and extra ice-loop calls have the caller gaps
-listed above; this lane does not change their owning modules.
+listed above.
 
 ## Extraction and presentation contract
 

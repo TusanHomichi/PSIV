@@ -19,7 +19,7 @@ other opening-act scene put together.
 
 ## How the title screen gets here
 
-Cross-checked against the new-game extraction lane
+Cross-checked against the new-game extraction
 (`psiv_tools/newgame.py`, `runtime-pack/game_start.json`); we agree on the
 routine start (`$073946`) and on `rom_end = $073ECE`.
 
@@ -457,7 +457,7 @@ SetFlag{EventFlag_PiataFirstTime}
 
 ## Where the act's opening state comes from
 
-This is the routine the new-game-init lane's work has to agree with, and it
+This is the routine the new-game initialiser has to agree with, and it
 does — the epilogue below is decoded identically by `psiv_tools/newgame.py`
 (`runtime-pack/game_start.json`, `first_control`), which is the citable source
 for it. It ends by writing, in order:
