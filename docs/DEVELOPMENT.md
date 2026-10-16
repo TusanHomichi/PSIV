@@ -275,25 +275,30 @@ largest single process:
 | --- | ---: | ---: | ---: | --- | --- |
 | `cargo build --release -p psiv-campaign`, cold target, default jobs | 49 s | 1,073 MB | 633 MB | - | `build` |
 | the same, after touching `psiv-core` | 45 s | 1,060 MB | 629 MB | - | `build` |
-| `cargo build -p psiv-godot` (dev), cold target | 88 s | 3,609 MB | 3,617 MB | - | `build` |
-| `cargo test --workspace --no-run`, default jobs | 165 s | 3,050 MB | 887 MB | - | `build` |
+| `cargo build -p psiv-godot` (dev), cold target | 88 s | 3,609 MB | 3,617 MB | - | `exclusive` (relinks the extension) |
+| `cargo test --workspace --no-run`, default jobs | 165 s | 3,050 MB | 887 MB | - | `exclusive` (compiles `psiv-godot`) |
 | `cargo clippy --workspace --all-targets`, warm | 25 s | 1,762 MB | 525 MB | - | `build` |
-| `cargo test -p psiv-data`, built | 5 s | 291 MB | 199 MB | loads | `build` |
-| `cargo test -p psiv-core`, built | 2 s | 263 MB | 133 MB | none | `build` |
-| `cargo test -p psiv-runtime`, built | 69 s | 102 MB | 123 MB | loads | `build` |
+| `cargo test -p psiv-data`, built | 5 s | 291 MB | 199 MB | reads | `build` |
+| `cargo test -p psiv-core`, built | 2 s | 263 MB | 133 MB | reads | `build` |
+| `cargo test -p psiv-runtime`, built | 69 s | 102 MB | 123 MB | reads | `build` |
 | `cargo test -p psiv-sound`, built | 1 s | 36 MB | 77 MB | none | `build` |
-| `cargo test -p psiv-godot`, built | 5 s | 63 MB | 33 MB | none | `build` |
-| `cargo test -p psiv-campaign`, built | 38 s | 149 MB | 118 MB | loads | `build` |
-| the gate's workspace `cargo test`, built | 123 s | 292 MB | 199 MB | loads | `build` |
-| the Python suite (`unittest discover -s tests`, 1,648 tests) | 229 s | 815 MB | 813 MB | loads | `python` |
+| `cargo test -p psiv-godot`, built | 5 s | 63 MB | 33 MB | reads | `exclusive` (compiles `psiv-godot`) |
+| `cargo test -p psiv-campaign`, built | 38 s | 149 MB | 118 MB | reads | `build` |
+| the gate's workspace `cargo test`, built | 123 s | 292 MB | 199 MB | reads | `exclusive` (the gate) |
+| the Python suite (`unittest discover -s tests`, 1,648 tests) | 229 s | 815 MB | 813 MB | reads | `python` |
 | a full pack build (`python3 -m psiv_tools pack`) | 47 s | 129 MB | 130 MB | writes | `exclusive` |
-| one certify pair (`--only battle-0x88 --jobs 1`, Godot and Xvfb) | 8 s | 418 MB | 340 MB | loads | `godot` |
-| one headless `psiv-campaign run` chapter (`academy`) | 0.4 s | - | 28 MB | loads | none |
+| one certify pair (`--only battle-0x88 --jobs 1`, Godot and Xvfb) | 8 s | 418 MB | 340 MB | reads | `godot` |
+| one headless `psiv-campaign run` chapter (`academy`) | 0.4 s | - | 28 MB | reads | none |
 
 "Built" means the test binaries were compiled first, so the row is the test
-run alone; compiling them is the `--no-run` row. A crate loads the pack when
-its run changes with `PSIV_RUNTIME_PACK` pointed at a missing directory
-(`psiv-runtime` then fails, `psiv-data` and `psiv-campaign` skip). Compilation,
+run alone; compiling them is the `--no-run` row. A crate's pack use comes from
+reading its code, not from its logs: its sources and tests name `runtime-pack`,
+`PSIV_RUNTIME_PACK` or `PSIV_PACK` (`grep -rnE
+'runtime-pack|PSIV_RUNTIME_PACK|PSIV_PACK' rust/<crate>/src rust/<crate>/tests`,
+then read each hit). Every crate's tests read it except `psiv-sound`, whose hits
+are comments. A run without the pack does not show it: a test that skips prints
+its note with `eprintln!`, which libtest captures when the test passes.
+Compilation,
 not the pack, sets a cargo invocation's memory: every test run alone is under
 300 MB, but `cargo test` compiles first (one crate's rebuild took
 `psiv-runtime`'s run to 2,214 MB), so every cargo invocation takes `build`.
