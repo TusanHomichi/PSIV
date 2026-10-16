@@ -1,14 +1,13 @@
 # PSIV runtime architecture
 
-Updated September 15, 2026. This describes the current implementation structure
-and fidelity decisions. [README](../README.md) records playable scope;
-[ROADMAP.md](ROADMAP.md) is the current work list. Detailed measurements belong
-in the subsystem ledgers linked below.
+This describes the implementation structure and fidelity decisions. It owns
+the layer boundaries; retail measurements live in the subsystem documents
+linked below.
 
 ## Data and runtime layers
 
 Python extracts the verified US ROM into a local pack. The native game loads
-that pack; it does not run the emulator. The Cargo workspace has five crates:
+that pack; it does not run the emulator. The Cargo workspace has six crates:
 
 | Component | Role |
 | --- | --- |
@@ -17,17 +16,19 @@ that pack; it does not run the emulator. The Cargo workspace has five crates:
 | [psiv-core](../rust/psiv-core/) | Deterministic field, battle, event, party and save rules; no dependencies or engine types |
 | [psiv-runtime](../rust/psiv-runtime/) | Pack-to-core conversion, game orchestration, persistence integration and presentation snapshots |
 | [psiv-sound](../rust/psiv-sound/) | Live PSIV driver, FM/PSG/DAC playback and register traces |
-| [psiv-godot](../rust/psiv-godot/) and [godot](../godot/) | Desktop bridge: rendering, pad input and audio output. The runtime `Session` owns every game mode — field, scenes, dialogue, shops, camp, battle, title and game over ([campaign runner](campaign/CAMPAIGN_RUNNER.md)) |
+| [psiv-godot](../rust/psiv-godot/) and [godot](../godot/) | Desktop bridge: rendering, pad input and audio output. The runtime `Session` owns every game mode — field, scenes, dialogue, shops, camp, battle, title and game over |
+| [psiv-campaign](../rust/psiv-campaign/) | The headless campaign runner: plays a route file through `Session::frame(pad)` with ordinary pad input and writes a replayable tape ([campaign runner](campaign/CAMPAIGN_RUNNER.md)) |
 
 Game rules belong in the core; the runtime coordinates them, and Godot presents
-results and sends input. Keep ROM decoding in Python. Pack schema changes need
-matching extraction and consumer validation. ROM-derived packs remain local
-and excluded from Git; see [extraction](EXTRACTION.md) and [setup](DEVELOPMENT.md).
+results and sends input, deciding nothing about game state. Keep ROM decoding in
+Python. Pack schema changes need matching extraction and consumer validation;
+see [extraction](EXTRACTION.md). The pack is a local input
+([AGENTS.md](../AGENTS.md#protect-local-inputs-and-evidence)).
 
 ## The public runtime API
 
-A game is a `Session` (`rust/psiv-runtime/src/session/mod.rs`). After the S6
-node that is the whole of the runtime's public surface: `Session::frame(pad)` is
+A game is a `Session` (`rust/psiv-runtime/src/session/mod.rs`), and that is the
+whole of the runtime's public surface: `Session::frame(pad)` is
 a frame of game, `Session::runtime()` hands out the read-only runtime for
 presentation, the frame carries the views a shell draws (`Frame::battle`,
 `Frame::title`, `Frame::game_over`, `Frame::notice` and the open menus'
@@ -215,8 +216,7 @@ require validation against the retail bytes. See [scene research](scenes/README.
 Save serialization uses the retail SRAM layout with three local slot files, and
 every slot operation (the title's slot list, CONTINUE, ERASE DATA and the camp's
 STATE > SAVE) runs inside the session's `SaveStore`. See [save format](camp/SAVE_SCOUT.md),
-[field state](field/FIELD_STATE.md), [party ORDER](camp/PARTY_ORDER.md) and the
-[BioPlant ledger](campaign/BIOPLANT_NATIVE.md) for state and restart evidence.
+[field state](field/FIELD_STATE.md) and [party ORDER](camp/PARTY_ORDER.md).
 
 ## RNG design
 
@@ -250,21 +250,13 @@ The original-game oracle is a headless Genesis Plus GX libretro host in
 it is not a runtime dependency. Native drivers in `tools/` provide separate
 input and SAVE/CONTINUE checks.
 
-Use [DEVELOPMENT.md](DEVELOPMENT.md) for current commands and
-[AGENT_WORKFLOW.md](AGENT_WORKFLOW.md) for evidence and handoffs. A scene
-transcription, a passing state test, a connected route and a matching screenshot
-each establish different facts. Follow the roadmap for campaign progress
-and remaining work.
+Use [DEVELOPMENT.md](DEVELOPMENT.md) for commands; what each kind of evidence
+establishes is owned by [AGENTS.md](../AGENTS.md#verify-the-claim-you-intend-to-make).
 
 ## Map-music transition boundary
 
-The remaining music transition and zero saved-sound restore policy are tracked
-in [#73](https://github.com/TusanHomichi/PSIV/issues/73). In accepted F2 candidate
-`57f15904084e97317fa29c39e6d58ae9ff2d8c92`, runtime owns the persistent `$ECEC`
-saved byte; the retail `$ECED` change edge is still absent, and a zero saved byte
-at a generic shell restore can fall back to raw map music. The US image sets
-the edge at `$051812`, consumes it at `$051958`, and restores the saved byte at
-`$05197A`; the separate battle-return copy is at `$033E0C`. The issue owns the
-source references, paths and command/timing acceptance, including verification
-of the driver's zero-byte behavior. This records an unfixed source boundary;
-no native audio parity or connected audio route is established here.
+The retail `$ECED` music-change edge and the zero saved-sound restore policy are
+not modeled yet: [#73](https://github.com/TusanHomichi/PSIV/issues/73) owns the
+source references (the US image sets the edge at `$051812`, consumes it at
+`$051958` and restores the saved byte at `$05197A`; the battle-return copy is at
+`$033E0C`) and the acceptance.

@@ -48,6 +48,7 @@ import json
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
+from . import decode_cache, pack_sections
 from .gfx import palette_rgb
 from .layouts import (
     BLOCKING_COLLISION_TYPES,
@@ -321,6 +322,7 @@ def _selected(records: Sequence[dict[str, Any]], map_ids: Iterable[int] | None) 
     return [by_id[i] for i in sorted(set(wanted))]
 
 
+@decode_cache.scoped
 def build_pack(
     rom_bytes: bytes,
     out_dir: str | Path,
@@ -336,7 +338,8 @@ def build_pack(
     `unpacked_warp_targets`, which for an unfiltered build is empty -- the map
     graph closes.
 
-    The output holds Sega-derived pixels and is never committed.
+    The output holds Sega-derived pixels and is never committed. Each
+    compressed blob is decoded once per build (`decode_cache`).
     """
     directory = Path(out_dir)
     maps_directory = directory / MAPS_DIRECTORY
@@ -344,18 +347,21 @@ def build_pack(
 
     extracted = extract_maps(rom_bytes)
     records = _selected(extracted["maps"], map_ids)
+    # Everything that does not depend on `map_ids` is emitted through here, so
+    # a process building several packs from one ROM emits it once (#130).
+    sections = pack_sections.for_rom(rom_bytes)
 
     # Sound is pack-wide.  Keep the map music ids as usage provenance even for
     # a filtered test pack; the raw sound section always contains the complete
     # driver id space, not only the maps selected for this build.
-    sound = emit_sound(
-        rom_bytes,
-        directory,
-        map_music_ids=[
-            record["music"]["id"]
-            for record in extracted["maps"]
-            if record.get("music", {}).get("id") is not None
-        ],
+    map_music_ids = tuple(
+        record["music"]["id"]
+        for record in extracted["maps"]
+        if record.get("music", {}).get("id") is not None
+    )
+    sound = sections.emit(
+        directory, ("sound", map_music_ids),
+        lambda root: emit_sound(rom_bytes, root, map_music_ids=list(map_music_ids)),
     )
 
     routines = scan_field_objects(rom_bytes)
@@ -619,18 +625,27 @@ def build_pack(
     # new-game and never again.
     game_start = {
         "format_version": PACK_FORMAT_VERSION,
-        **extract_new_game(rom_bytes, extracted["maps"]),
+        **sections.value(
+            ("game_start",), lambda: extract_new_game(rom_bytes, extracted["maps"])
+        ),
     }
     game_start_sha = _write_json(directory / GAME_START_NAME, game_start)
-    travel = emit_travel(rom_bytes, directory)
-    ship_menu = emit_ship_menu(rom_bytes, directory)
+    travel = sections.emit(
+        directory, ("travel",), lambda root: emit_travel(rom_bytes, root)
+    )
+    ship_menu = sections.emit(
+        directory, ("ship_menu",), lambda root: emit_ship_menu(rom_bytes, root)
+    )
     start = game_start["first_control"]
 
     # Enemies, formations, level progression and the ability records the
     # damage pipeline consumes. Its own directory because it is a different
     # half of the game from field mode, and `psiv_tools.battle_pack` is the
     # only thing that knows its shape.
-    battle = emit_battle(rom_bytes, directory, PACK_FORMAT_VERSION)
+    battle = sections.emit(
+        directory, ("battle", PACK_FORMAT_VERSION),
+        lambda root: emit_battle(rom_bytes, root, PACK_FORMAT_VERSION),
+    )
     # Where the party spends its money. One file rather than a per-map
     # section: a counter is looked up by (map, position) once, on talking
     # to a shopkeeper, and the price and inn rules are global.
@@ -642,28 +657,38 @@ def build_pack(
     # character poses, under battle/art/. A subtree of the battle fragment
     # rather than a sibling of it, because it is the same half of the game and
     # `psiv_tools.battle_art_pack` owns its shape.
-    battle["art"] = emit_battle_art(rom_bytes, directory, PACK_FORMAT_VERSION)
+    battle["art"] = sections.emit(
+        directory, ("battle_art", PACK_FORMAT_VERSION),
+        lambda root: emit_battle_art(rom_bytes, root, PACK_FORMAT_VERSION),
+    )
 
     # The dialogue half: trees, font, portraits, window chrome. Emitted here
     # rather than by the CLI so that a programmatic build_pack() produces a
     # complete pack — its absence once shipped a game that couldn't talk.
-    dialogue = emit_dialogue(rom_bytes, directory)
+    dialogue = sections.emit(
+        directory, ("dialogue",), lambda root: emit_dialogue(rom_bytes, root)
+    )
 
     # The retail front door: Sega logo, title mappings, and the composed
     # 320x224 background. Pixels stay in the ignored runtime pack; the
     # manifest carries the small index and title/layout.json carries the
     # extraction provenance.
-    title = emit_title(rom_bytes, directory)
+    title = sections.emit(
+        directory, ("title",), lambda root: emit_title(rom_bytes, root)
+    )
 
     # The cutscene renderer's Panel_Create records, opening background, and
     # palette requests. Same contract as title: pixels stay in the ignored
     # pack, presentation/panels.json carries the extraction provenance.
-    presentation = emit_presentation(rom_bytes, directory)
+    presentation = sections.emit(
+        directory, ("presentation",), lambda root: emit_presentation(rom_bytes, root)
+    )
 
     # What a scene's MoveActorCommand byte means. Its own file for the same
     # reason: the provenance is bulky and it is read once, not per map.
     npc_commands = {
-        "format_version": PACK_FORMAT_VERSION, **extract_npc_commands(rom_bytes)
+        "format_version": PACK_FORMAT_VERSION,
+        **sections.value(("npc_commands",), lambda: extract_npc_commands(rom_bytes)),
     }
     npc_commands_sha = _write_json(directory / NPC_COMMANDS_NAME, npc_commands)
 

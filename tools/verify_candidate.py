@@ -6,33 +6,39 @@
 Run from the repository root on a clean tree (the candidate). It runs, one at a
 time and in this order:
 
-1. `cargo build --release -p psiv-campaign` (`CARGO_BUILD_JOBS=2`);
+1. `cargo build --release -p psiv-campaign` (`CARGO_BUILD_JOBS=2`), holding the
+   shared heavy lock in the exclusive class;
 2. the campaign route, `psiv-campaign run rust/psiv-campaign/routes/main.json`,
    into the receipt directory, and reads its `report.json`: the result must be
    `completed`, and `--expect-digest` / `--expect-chapters` must hold when given;
-3. `python3 tools/certify.py`, the certified pixel pairs, under the shared heavy
-   lock (`PSIV_HEAVY_LOCK`, default `build/continuation-heavy.lock`): Godot and
-   Xvfb runs from every worktree take that lock;
-4. `python3 tools/gate.py`, the integration gate.
+3. `python3 tools/resume_check.py` on that run: the route resumed from every
+   chapter save finishes, or halts only where
+   `rust/psiv-campaign/routes/resume_manifest.json` lists; its resumes are
+   headless runs of about 40 MB, run in parallel, and take no heavy lock;
+4. `python3 tools/certify.py`, the certified pixel pairs, under the shared heavy
+   lock (`PSIV_HEAVY_LOCK`, default the main checkout's
+   `build/continuation-heavy.lock`, from tools/heavy_lock.py): Godot and Xvfb
+   runs from every worktree take that lock;
+5. `python3 tools/gate.py --wait`, the integration gate (it waits for a
+   running gate instead of refusing, and takes the heavy lock itself).
 
 A failing step does not stop the later ones; the exit code is 1 when any step
 failed or an expectation did not hold, 0 otherwise, and 2 when the run is
-refused before anything runs (not the root, or a dirty tree without
-`--allow-dirty`). Everything lands in `build/candidate/<UTC stamp>-<short sha>/`:
+refused before anything runs (not the root, a raw `flock(1)` parent holding the
+heavy lock, which would leave certify waiting on its own ancestor after the
+build and the route, or a dirty tree without `--allow-dirty`). Everything lands in `build/candidate/<UTC stamp>-<short sha>/`:
 one log per step, the route's tape, saves and report, and `receipt.json` with
 the candidate SHA, each step's command, exit code and duration, the route's
-digest, chapter count, frames and tape SHA-256, and the certify and gate
-receipt paths their logs name. A candidate result is reported from that
+digest, chapter count, frames and tape SHA-256, and the resume summary and the
+certify and gate receipt paths their logs name. A candidate result is reported from that
 receipt. Stdlib only, Python 3.
 """
 
 from __future__ import annotations
 
 import argparse
-import fcntl
 import hashlib
 import json
-import os
 import re
 import subprocess
 import sys
@@ -47,7 +53,9 @@ EXIT_REFUSED = 2
 ROUTE = "rust/psiv-campaign/routes/main.json"
 CAMPAIGN = "rust/target/release/psiv-campaign"
 CANDIDATE_DIR = Path("build") / "candidate"
-DEFAULT_HEAVY_LOCK = Path("build") / "continuation-heavy.lock"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from heavy_lock import (heavy_lock_path, hold_heavy_lock, raw_flock_parent,  # noqa: E402
+                        refuse_message)  # (shared by every worktree)
 
 
 def steps(out: Path) -> list[tuple[str, str, bool]]:
@@ -55,11 +63,12 @@ def steps(out: Path) -> list[tuple[str, str, bool]]:
     route = out / "route"
     return [
         ("build", "CARGO_BUILD_JOBS=2 cargo build --release --manifest-path "
-                  "rust/Cargo.toml -p psiv-campaign", False),
+                  "rust/Cargo.toml -p psiv-campaign", True),
         ("route", f"{CAMPAIGN} run {ROUTE} --save-dir {route} --tape {route}/run.tape "
                   f"--report {route}/report.json", False),
+        ("resume", f"python3 tools/resume_check.py --run {route} --out {out / 'resume'}", False),
         ("certify", "python3 tools/certify.py", True),
-        ("gate", "python3 tools/gate.py", False),
+        ("gate", "python3 tools/gate.py --wait", False),
     ]
 
 
@@ -74,9 +83,7 @@ def run_step(command: str, log: Path, lock: Path | None) -> int:
         if lock is None:
             return subprocess.run(["bash", "-c", command], stdout=handle,
                                   stderr=subprocess.STDOUT).returncode
-        lock.parent.mkdir(parents=True, exist_ok=True)
-        with open(lock, "a") as held:
-            fcntl.flock(held, fcntl.LOCK_EX)
+        with hold_heavy_lock(lock):
             return subprocess.run(["bash", "-c", command], stdout=handle,
                                   stderr=subprocess.STDOUT).returncode
 
@@ -118,11 +125,12 @@ def expectation_failures(facts: dict, digest: str | None, chapters: int | None) 
     return failures
 
 
-RECEIPT_RE = re.compile(r"receipt=(\S+)")
+RECEIPT_RE = re.compile(r"(?:receipt|summary)=(\S+)")
 
 
 def named_receipt(log: Path) -> str | None:
-    """The last `receipt=<path>` a step's log printed (certify and gate do)."""
+    """The last `receipt=<path>` (certify, gate) or `summary=<path>` (the resume
+    check) a step's log printed."""
     if not log.is_file():
         return None
     found = RECEIPT_RE.findall(log.read_text(errors="replace"))
@@ -148,6 +156,11 @@ def main(argv: list[str] | None = None, runner=run_step) -> int:
     if top != Path.cwd().resolve():
         print(f"verify_candidate: run from the repository root ({top})", file=sys.stderr)
         return EXIT_REFUSED
+    lock = heavy_lock_path()
+    parent = raw_flock_parent(lock)
+    if parent is not None:
+        print(f"verify_candidate: {refuse_message(lock, parent)}", file=sys.stderr)
+        return EXIT_REFUSED
     dirty = git("status", "--porcelain")
     if dirty and not args.allow_dirty:
         print("verify_candidate: the tree is dirty; freeze the candidate first "
@@ -157,7 +170,6 @@ def main(argv: list[str] | None = None, runner=run_step) -> int:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out = CANDIDATE_DIR / f"{stamp}-{sha[:7]}"
     out.mkdir(parents=True)
-    lock = Path(os.environ.get("PSIV_HEAVY_LOCK", DEFAULT_HEAVY_LOCK))
 
     records = []
     for name, command, heavy in steps(out):

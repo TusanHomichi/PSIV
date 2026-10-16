@@ -71,7 +71,9 @@ mod chances;
 mod damage;
 mod enemy_ai;
 mod enemy_damage;
+mod enemy_dispatch;
 mod enemy_effect;
+mod enemy_form;
 mod enemy_fusion;
 mod enemy_skill;
 mod engine;
@@ -97,6 +99,7 @@ mod vehicle_attack;
 mod vehicle_skill;
 mod zio;
 
+pub use enemy_dispatch::{Owner, owner as dispatch_owner};
 pub use enemy_skill::EnemySkill;
 
 #[cfg(test)]
@@ -109,7 +112,7 @@ mod party_tests;
 
 pub use action::{
     HitPass, Reach, ability_element_factor, candidate_targets, character_element_factor,
-    critical_bonus, enemy_element_factor, resolve_attack, roll_hits, weapon_reach,
+    critical_bonus, enemy_element_factor, hit_verdict, resolve_attack, roll_hits, weapon_reach,
 };
 pub use ai::{ABILITY_ROLL_MASK, TARGET_RATES, choose_ability, choose_target, targetable_party};
 pub use chances::{CHANCE_ROLL_MASK, ESCAPE, PHYSICAL, START_PRIORITY, Verdict, calculate_chances};
@@ -146,7 +149,7 @@ pub use tables::{
     ELEMENT_NAMES, ELEMENT_OFFSETS, STAT_INDEX_MASK, STAT_OFFSETS, StatSlot, StatWidth,
     WEAPON_ELEMENT_SENTINEL, WORD_STAT_THRESHOLD, element_name, element_offset, stat_slot,
 };
-pub use technique::{Technique, TechniqueRejection, TechniqueStat, technique_targets};
+pub use technique::{Technique, TechniqueRejection, TechniqueStat, stat, technique_targets};
 pub use vehicle_attack::{
     VEHICLE_ATTACK_ELEMENT, VEHICLE_ATTACK_OBJECTS, VEHICLE_FIGHTER_IDS, VehicleAttackObject,
     attack_object, hit_passes, is_vehicle_fighter, resolve_vehicle_attack, vehicle_index,

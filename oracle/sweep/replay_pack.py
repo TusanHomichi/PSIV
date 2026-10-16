@@ -26,6 +26,8 @@ import argparse
 import json
 import pathlib
 
+from psiv_tools.extract_stamp import REBUILD_COMMAND, StaleExtractError, load_table
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 FIXTURES = ROOT / "rust" / "psiv-core" / "src" / "battle" / "replay_fixtures"
 #: The property names in `generated/enemies.json`, in `ELEMENT_SLOTS` order
@@ -41,9 +43,15 @@ ELEMENTS = ("physical", "energy", "fire", "gravity", "water", "anti_evil",
 #: HakenLeft (86). The records - and so the enemies they seat, which no
 #: formation may seat at the start - are the extractor's
 #: (`psiv_tools.formations.INLINE_FORMATIONS`).
-RELOADS = {34: "loc_1A2F4", 84: "loc_23D00", 86: "loc_23D00"}
-#: Enemies a fixture's own enemy brings in mid-battle some other way.
-SPAWNED = {139: 140}  # Psycho Wand's loc_3CF60, ps4.asm:79203-79215.
+#: Lane A6 adds the WorkerPods' COMBINE (`$FC`, `ps4.asm:27557`), FractOoze's
+#: FISSION (`BattleObj_SlugFission`, 35062) and InfantWorm's NOTHING (`$398`,
+#: 45795).
+RELOADS = {34: "loc_1A2F4", 84: "loc_23D00", 86: "loc_23D00",
+           23: "loc_1308C", 25: "loc_1308C", 38: "loc_1987E", 94: "loc_224E8"}
+#: Enemies a fixture's own enemy brings in mid-battle some other way: the
+#: Psycho Wand's loc_3CF60 (ps4.asm:79203-79215), and Profound Darkness's form
+#: changes (loc_2F8D8, 61916; loc_2EDD8, 61119), which chain.
+SPAWNED = {139: 140, 133: 134, 134: 135}
 
 
 def fixture_enemies(fixtures: pathlib.Path) -> tuple[set[int], set[int]]:
@@ -171,25 +179,25 @@ def party_records(runtime: pathlib.Path, fixtures: pathlib.Path) -> dict:
     return result
 
 
-def build(pack: pathlib.Path, fixtures: pathlib.Path,
+def build(generated: pathlib.Path, fixtures: pathlib.Path,
           runtime: pathlib.Path | None = None) -> dict:
-    enemies = {record["id"]: record for record in json.loads(
-        (pack / "enemies.json").read_text())}
-    skills = {record["id"]: record for record in json.loads(
-        (pack / "enemy_skills.json").read_text())}
-    inline = {record["label"]: record for record in json.loads(
-        (pack / "formations.json").read_text()).get("inline_formations", [])}
+    enemies = {record["id"]: record for record in load_table(generated, "enemies")}
+    skills = {record["id"]: record for record in load_table(generated, "enemy_skills")}
+    inline = {record["label"]: record
+              for record in load_table(generated, "formations").get("inline_formations", [])}
     wanted_enemies, shown = fixture_enemies(fixtures)
     wanted_abilities = set(shown)
     labels = sorted({RELOADS[enemy_id] for enemy_id in wanted_enemies
                      if enemy_id in RELOADS})
     missing = [label for label in labels if label not in inline]
     if missing:
-        raise SystemExit(f"{pack / 'formations.json'} has no inline formation "
+        raise SystemExit(f"{generated / 'formations.json'} has no inline formation "
                          f"{', '.join(missing)}: extract it with "
-                         "`python3 -m psiv_tools extract`")
-    wanted_enemies |= {SPAWNED[enemy_id] for enemy_id in wanted_enemies
-                       if enemy_id in SPAWNED}
+                         f"`{REBUILD_COMMAND}`")
+    spawned = {SPAWNED[enemy_id] for enemy_id in wanted_enemies if enemy_id in SPAWNED}
+    while not spawned <= wanted_enemies:
+        wanted_enemies |= spawned
+        spawned = {SPAWNED[enemy_id] for enemy_id in wanted_enemies if enemy_id in SPAWNED}
     wanted_enemies |= {entry["enemy"]["id"] for label in labels
                        for entry in inline[label]["enemies"]}
     for enemy_id in sorted(wanted_enemies):
@@ -233,8 +241,11 @@ def main(argv: list[str] | None = None) -> int:
     parsed.add_argument("--fixtures", default=str(FIXTURES))
     parsed.add_argument("--out", default=str(FIXTURES / "motavia_pack.json"))
     arguments = parsed.parse_args(argv)
-    document = build(pathlib.Path(arguments.pack),
-                     pathlib.Path(arguments.fixtures), pathlib.Path(arguments.runtime_pack))
+    try:
+        document = build(pathlib.Path(arguments.pack), pathlib.Path(arguments.fixtures),
+                         pathlib.Path(arguments.runtime_pack))
+    except StaleExtractError as error:
+        raise SystemExit(str(error))
     out = pathlib.Path(arguments.out)
     out.write_text(json.dumps(document, separators=(",", ":")) + "\n")
     print(f"wrote {out}: {len(document['enemies'])} enemy record(s), "

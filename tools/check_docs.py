@@ -17,13 +17,16 @@ is scanned, and fenced code blocks and inline code are skipped as content:
   GitHub does it: lowercase, everything but letters, digits, spaces, hyphens
   and underscores dropped, spaces turned into hyphens, and a repeated slug
   numbered `-1`, `-2`, ... in document order;
-- every `yaml` (or `yml`) block must parse (PyYAML `safe_load`): the task graphs the
-  roadmap points at are YAML records, and a broken quote turns one into text
-  no tool can read;
+- every `yaml` (or `yml`) block must parse (PyYAML `safe_load`): a broken quote
+  turns a YAML record into text no tool can read;
 - inside a `bash`, `sh`, `shell` or `console` block, every token naming a path
   under `docs/`, `godot/`, `oracle/`, `psiv_tools/`, `rust/`, `tests/` or
   `tools/` (optionally behind `./` or `$PWD/`) must exist, and a token with a
-  `*` must match at least one file of the change.
+  `*` must match at least one file of the change;
+- no line, fenced or not, names a host-absolute home path (`/home/<user>`,
+  `/Users/<user>`, a `file://` URL's included; a network URL's path is not
+  one): it works on one machine only. Write a `~/`-relative path,
+  an environment variable such as `$PSIV_GODOT`, or a placeholder.
 
 A path git ignores is a local input (`AGENTS.md`, "Protect local inputs and
 evidence"), not repository content - and not a file of the change either: the
@@ -84,6 +87,29 @@ INLINE_CODE_RE = re.compile(r"(`+).+?\1")
 LINK_RE = re.compile(r"\[[^\]]*\]\((?P<target>[^()]*(?:\([^()]*\)[^()]*)*)\)")
 SHELL_ASSIGNMENT_RE = re.compile(r"\A[A-Za-z_][A-Za-z0-9_]*=(?P<value>.+)\Z", re.DOTALL)
 SHELL_PUNCTUATION = ".,;:)]}\"'"
+# A home directory spelled out for one machine: `/home/<user>` or
+# `/Users/<user>` ending in `/`, whitespace, punctuation or the line's end. A
+# path inside a longer one (`a/home/b/`, `~/home/b/`) is not one; neither is the
+# path of a network URL, which `host_home_paths` blanks out first.
+HOST_HOME_RE = re.compile(
+    r"(?<![\w.~/$-])/(?:home|Users)/[A-Za-z0-9._-]+?(?=[/\s.,;:)\]}>\"'`]|\Z)"
+)
+# A URL with a scheme; `file:` URLs name local paths and stay checked.
+URL_RE = re.compile(r"\b(?P<scheme>[A-Za-z][A-Za-z0-9+.\-]*)://\S*")
+
+
+def host_home_paths(text: str) -> list[str]:
+    """The host-absolute home paths one line names.
+
+    A network URL (`https://example.com/home/x`) is a remote path, so it is
+    blanked before the scan; a `file://` URL keeps its path, which is local.
+    """
+    def blank(match: re.Match) -> str:
+        if match["scheme"].lower() == "file":
+            return " " * len("file://") + match.group(0)[len("file://"):]
+        return " " * len(match.group(0))
+
+    return [found.group(0) for found in HOST_HOME_RE.finditer(URL_RE.sub(blank, text))]
 
 
 def git_stdout(*args: str) -> str:
@@ -313,6 +339,9 @@ def check_tree() -> tuple[list[str], list[int]]:
     problems: list[str] = []
     counts = [len(texts), 0, 0, 0, 0]  # files, links, anchors, command paths, yaml blocks
     for name, lines in texts.items():
+        for index, text in enumerate(lines):
+            for path in host_home_paths(text):
+                problems.append(f"{name}:{index + 1}: host-absolute home path: {path}")
         block = None  # (opening line, body) of the yaml block being read
         for index, text, info, delimiter in iter_fenced_lines(lines):
             line = index + 1

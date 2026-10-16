@@ -85,23 +85,25 @@ from typing import Any, Sequence
 
 from . import png
 from .gfx import decode_palette, palette_rgb
-from .layouts import (
+from .chunk_draw import (
     CHUNK_PIXELS_X,
     CHUNK_PIXELS_Y,
     CHUNK_TILES_X,
-    COLLISION_CELL_TILES,
     TILE_PIXELS,
-    ChunkTable,
-    RGB,
-    _COLLISION_WORD_OFFSETS,
     collision_flag,
-    collision_type_name,
     h_flip,
     palette_line,
     priority,
     tile_index,
     v_flip,
     vdp_word,
+)
+from .layouts import (
+    COLLISION_CELL_TILES,
+    RGB,
+    _COLLISION_WORD_OFFSETS,
+    ChunkTable,
+    collision_type_name,
 )
 from .render import OVERLAY_TRANSPARENT_INDICES
 

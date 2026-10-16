@@ -101,14 +101,18 @@ impl Driver {
                     "the ship's destination menu is open and no objective asked",
                 ));
             }
-            if let Some(notice) = self.runtime().field_notice() {
-                return Err(Halt::new(
-                    HaltKind::UnexpectedState,
-                    format!(
-                        "a field notice ({notice:?}) is up; acknowledging it is not on the \
-                         session's pad surface"
-                    ),
-                ));
+            // A fallen or perished notice (`UpdateFieldStatus`): the session
+            // opens its window at the top of the next frame
+            // (`Session::serve_field_notice`), and the window is a message the
+            // dialogue branch below reads and dismisses, as a player does
+            // (`ps4.asm:117104-117105`). A perished notice then ends the game.
+            if let Some(notice) = self.runtime().field_notice()
+                && self.runtime().dialogue_view().is_none()
+            {
+                self.note(format!("field notice: {notice:?}"));
+                self.tick(psiv_runtime::Pad::NEUTRAL)?;
+                quiet = 0;
+                continue;
             }
             if let Some(view) = self.runtime().dialogue_view() {
                 quiet = 0;

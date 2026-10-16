@@ -1,147 +1,105 @@
-# Evidence-driven agent workflow
+# Agent workflow
 
 [Project instructions](../AGENTS.md) · [Setup and checks](DEVELOPMENT.md) ·
 [Roadmap](ROADMAP.md) · [Documentation index](README.md)
 
-This is PSIV's standing default. Each standing rule has one owner, listed in the
-[documentation index](README.md#rule-owners); current playable scope lives in
-the project README, and the work queue and canonical graph
-pointer in the roadmap. Subsystem ledgers retain measured history. Do not
-create a second tracker or copy changing campaign status into instructions.
-The [setup ledger](records/WORKFLOW_SETUP.md) records adoption and host verification.
-This procedure is guidance, not an automatic dispatcher, restart service or
-enforcement system; enforcement belongs to the
+This is PSIV's standing process for planning, delegation, authority, evidence
+and handoff. Each standing rule has one owner, listed in the
+[documentation index](README.md#rule-owners). This procedure is guidance, not
+an automatic dispatcher or enforcement system; enforcement belongs to the
 [gate](DEVELOPMENT.md#gate-and-coverage).
+
+## Where work and its record live
+
+Owner decision, 2026-10-14. Active work is a GitHub issue carrying one of the
+labels `v1.0-blocker`, `gameplay-fidelity`, `presentation`, `tooling` or
+`post-release`. Planning and acceptance live in that issue or in
+the pull request that closes it: the observable outcome, its exclusions, the
+acceptance check and, for dependent work, the order of steps. Changes land on
+`main` through a branch and a pull request, and the PR description is the
+receipt. Commits, issues and PRs are the project's record; the docs hold no
+task graphs, run logs or status ledgers (git history keeps the old ones), and
+are updated only when the behavior, commands or retail findings they describe
+change.
 
 ## Start and select work
 
-Inspect the applicable global/project instruction chain, including overrides,
-working tree, worktrees and relevant processes. After interruption, also inspect
-the exact candidate revision and fresh receipts before restarting a job; a
-disconnected monitor does not mean its child exited. Read task-relevant source,
-architecture and ledger corrections, not every historical log.
+Inspect the applicable instruction chain (including overrides), the working
+tree, worktrees and relevant processes. After an interruption, also inspect the
+exact candidate revision and fresh results before restarting a job; a
+disconnected monitor does not mean its child exited. Read the task-relevant
+source, design and recorded corrections, not every old log.
 
 State one bounded outcome, exclusions and an observable acceptance check before
-editing. The orchestrator selects a ready authorized task from the canonical
-graph and orchestrates its ownership; implementation remains with a delivery
-worker. A small independent change needs only a short plan and receipt, not an
-orchestrator exception. Keep one next action; do not turn a new idea into an
-implicit milestone or reset the effort policy.
-
-Changes land on `main` through a branch and a GitHub pull request. Known gaps,
-deferred cleanups and candidate guards are GitHub issues, linked from the code
-review, ledger or roadmap that needs them rather than tracked in a second list.
-Campaign graphs stay in the roadmap handoff or the issue that owns the work.
+editing. The orchestrator selects a ready authorized issue and assigns it; a
+delivery worker implements it. A small independent change needs only a short
+plan and receipt. Do not turn a new idea into an implicit milestone or reset
+the effort policy; file it as an issue.
 
 ## Roles and delegation
 
 | Role | Responsibility |
 | --- | --- |
-| Orchestrator | Concise scoping, architecture and permission decisions, graph selection, coordination, review and acceptance; no routine implementation or repeated check loops |
-| Complex delivery | Complex implementation/refactoring through relevant checks, debugging/repairs, candidate freeze and evidence handoff |
-| Bounded delivery | Bounded exploration/routine implementation, test runs, log triage, receipts and routine docs through checks and closeout |
-| Optional helper | Narrow supervised work with a concrete benefit; never primary design/integration |
+| Orchestrator | Scoping, architecture and permission decisions, work selection, coordination, review and acceptance; no routine implementation or repeated check loops |
+| Complex delivery | Complex implementation and refactoring through relevant checks, debugging and repairs, candidate freeze and evidence handoff |
+| Bounded delivery | Bounded exploration and routine implementation, test runs, log triage, receipts and routine docs through checks and closeout |
+| Optional helper | Narrow supervised work with a concrete benefit; never primary design or integration |
 
-This is the owner's strict PSIV role split. Small routine tasks go to bounded
-delivery and complex work to complex delivery; the orchestrator does not absorb
-implementation because a task is small or a check failed. The orchestrator does
-not routinely write code, tests, fixtures, harnesses or docs, or run/monitor
-repeated checks. Exceptions require an explicit owner instruction or an actually
-unavailable route, which must be reported honestly; never silently substitute
-the orchestrator. Do not create work merely to exercise a model. Workers own
-their outcomes through acceptance, including relevant checks, repair, evidence
-and closeout. The parent independently reviews the result and remains
-accountable for integration, without taking over implementation or evidence
-plumbing. Use compact receipts and proportionate direct diff/raw-artifact spot
-checks; do not duplicate worker investigations or rerun passing checks absent a
-concrete cause. Verify substantive helper results independently and record
-corrections/reliability, including rejected output.
+Small routine tasks go to bounded delivery and complex work to complex
+delivery; the orchestrator does not absorb implementation because a task is
+small or a check failed. Exceptions require an explicit owner instruction or an
+actually unavailable route, reported honestly. Workers own their outcomes
+through acceptance, including relevant checks, repair, evidence and closeout.
+The orchestrator independently reviews the result and remains accountable for
+integration, without taking over implementation. Review compact receipts with
+proportionate spot checks of the diff and raw artifacts; do not duplicate a
+worker's investigation or rerun a passing check without a concrete cause.
+Verify substantive helper results independently, including rejected output.
 
 Which model, tool and effort fill each role is host-local configuration in
-untracked files (a host's global instructions or a git-excluded local
-instruction file), never tracked guidance; the same goes for personal and
-machine-specific preferences. Specify model and effort in the host's launch
-controls. Record requested versus actual values from host/session metadata; a
-catalog proves advertisement, not successful execution. If a route is
-unavailable, report it and continue only independent work without silently
-substituting. A prompt or `AGENTS.md` cannot switch an already running model.
+untracked files, never tracked guidance; the same goes for personal and
+machine-specific preferences. Record requested versus actual values from host
+or session metadata; a catalog proves advertisement, not execution. If a route
+is unavailable, report it and continue only independent work. A prompt or
+`AGENTS.md` cannot switch an already running model.
 
 Each delegation names exact inputs, acceptance, owned files, forbidden writes,
-mutable resources and concurrency constraints. Include a bounded context packet;
-workers return compact results and evidence paths. Tell workers to preserve
-others' changes. Use disjoint ownership or isolated worktrees when needed. The
-assigned worker retains ownership after failed checks and runs the repair loop;
-escalate only concrete architectural or permission blockers. Long-running checks
-and process monitoring stay worker-owned, without parent busy polling. Preserve
-independent review, serialized expensive runs, and safety requirements. The
-parent reviews artifacts and raw checks, not just completion messages. After a
-failed batch, review all completed workers' receipts before selecting repair
-scope without repeating their investigations. Integrate only after writers are
-idle. Do not commit a moving shared tree.
+mutable resources and concurrency constraints, with a bounded context packet;
+workers return compact results and evidence paths. Use disjoint ownership or
+isolated worktrees when needed. The assigned worker keeps ownership after a
+failed check and runs the repair loop; escalate only concrete architectural or
+permission blockers. Long-running checks and monitoring stay with the worker.
+Serialize expensive runs, integrate only after writers are idle, and do not
+commit a moving shared tree.
 
 ## Authority, effort and continuation
 
-Source: the owner's workflow-setup request, repair-budget reply and subsequent
-docs PR/merge/cleanup authorization on 2026-09-23, together with the existing
-PSIV input-protection rules. Later explicit
-PSIV authorization persists; record its source here or in the canonical task.
-Another repository's grants, an available tool or a permissive sandbox confer
-no project authority.
+This is the permission record. Explicit PSIV authorization persists; record a
+new grant here. Another repository's grants, an available tool or a permissive
+sandbox confer no project authority.
 
 | Area | Standing record |
 | --- | --- |
-| Scope | Implement and verify this documentation setup. Future assigned PSIV tasks include necessary local edits, focused checks and scoped repairs; preserve unrelated work. |
-| Local setup | Use documented prerequisites or isolated local dependencies before declaring a missing preinstalled tool unavailable. Do not modify unrelated system configuration. |
-| Git / remote writes | The owner authorized committing, publishing a PR, merging and owned cleanup for these workflow docs on 2026-09-23, and on 2026-09-25 the contributor-guidance change through issues, a branch and a PR. Neither is a standing remote-write grant for campaign changes. On 2026-10-01 the owner granted, for the end-to-end campaign effort ([campaign runner](campaign/CAMPAIGN_RUNNER.md)), committing, pushing branches, opening PRs and merging them once the full gate is green, plus issue filing. Reuse explicit task authorization without asking again. Remote inspection is allowed. |
-| Cleanup | Remove only owned disposable outputs/processes and, when integration includes it, owned task branches/worktrees. Retain receipts, source saves and other people's work. No broad cleanup. |
-| Deployment / publication | Releases, deployment and asset distribution are outside this setup; no standing grant recorded. |
-| Paid services | No paid model service is currently authorized in PSIV; the completed battle-decision experiments are summarized in their [archived record](records/REDSHIRT_BATTLE.md). Any future live batch needs a new explicit assignment, and nothing here authorizes unrelated service or credit purchase. |
+| Scope | Assigned PSIV tasks include necessary local edits, focused checks and scoped repairs; preserve unrelated work. |
+| Local setup | Use documented prerequisites or isolated local dependencies before declaring a tool unavailable. Do not modify unrelated system configuration. |
+| Git and remote writes | On 2026-10-01 the owner granted, for the end-to-end campaign effort, committing, pushing branches, opening PRs and merging them once the full gate is green, plus issue filing. Reuse explicit task authorization without asking again. Remote inspection is allowed. |
+| Cleanup | Remove only owned disposable outputs and processes and, when integration includes it, owned task branches and worktrees. Retain evidence, source saves and other people's work. No broad cleanup. |
+| Deployment and publication | Releases, deployment and asset distribution have no standing grant. |
+| Paid services | No paid model service is authorized in PSIV; a live batch needs a new explicit assignment. |
 | Protected inputs | Owned by [AGENTS.md](../AGENTS.md#protect-local-inputs-and-evidence); no task grant relaxes them. |
-| Effort | Owner: "Continue scoped repairs until it passes, with no fixed cycle limit." Applies to failures of accepted checks inside authorized scope. It does not waive source, permission, resource or input constraints. |
-| Continuation | The original setup graph covers local documentation acceptance; the authorized publication follow-through is recorded in the setup ledger. BioPlant continuation was assigned separately and must not be bundled into the docs PR. During an assigned outcome, continue ready authorized nodes through its agreed endpoint without repeated approval requests. |
+| Effort | Owner, 2026-09-23: "Continue scoped repairs until it passes, with no fixed cycle limit." This applies to failures of accepted checks inside authorized scope. It does not waive source, permission, resource or input constraints, expand scope, or grant publication or spending authority. |
+| Continuation | During an assigned outcome, continue ready authorized steps through its agreed endpoint without repeated approval requests. |
 
-On 2026-09-23 the owner separately requested committing the pending intentional
-PSIV work, creating a PR, merging it and cleaning up owned integration state.
-This authorizes the reviewed BioPlant and post-Rika crossing
-integration. It is not a standing grant for later campaign work,
-deployment or additional paid calls.
-
-An observed failure leads to a scoped repair and rerun of affected checks. A
-missing source/input or genuine authority boundary gets a specific blocker,
-not an invented result or repeated blind retries. Complete independent
-preparation before asking for the blocking decision; any necessary approval
-should concern a concrete reviewable result. New tasks cannot silently reset a
-budget, weaken a gate, expand scope or grant permissions through graph edits.
-
-## One canonical task graph
-
-For substantive dependent work, put the graph in its existing issue or handoff;
-otherwise use the roadmap's **Task graph handoff** section. Link that location
-from the roadmap. Common inputs and policy may be inherited. Each node records:
-
-| Field | Required content |
-| --- | --- |
-| ID / outcome | Stable ID and one concrete observable result |
-| Dependencies | IDs whose verified acceptance unlocks this node |
-| Owner | End-to-end implementation, relevant checks, repair and evidence/closeout owner; assigned person/model, effort and actual route if different |
-| Inputs | Relevant issue/design/source/ledger references and candidate identity |
-| Acceptance | Exact command or observation, expected result and evidence type |
-| State | `pending`, `ready`, `in_progress`, `blocked` or `verified` |
-| Evidence | Actual receipts, failures/skips, review and artifact references |
-| Effort | Explicit local policy or inheritance with its source |
-
-The orchestrator reviews graph edits and selects nodes only when dependencies are verified.
-`blocked` names the missing evidence/decision. A check failure returns its node
-to repair; invalidate dependent acceptance affected by changes. Do not mark a
-node verified because its worker stopped or its budget expired. Preserve stable
-IDs and failure history. Archive a completed graph in its owning ledger/closed
-issue before advancing, remove its active duplicate, and retain one next action.
-The [setup graph](records/WORKFLOW_SETUP.md#setup-graph) is the first real worked example.
+An observed failure leads to a scoped repair and a rerun of the affected
+checks. A missing source or input, or a genuine authority boundary, gets a
+specific blocker, not an invented result or blind retries. Complete independent
+preparation before asking for the blocking decision. A new task cannot silently
+reset a budget, weaken a gate, expand scope or grant permissions.
 
 ## Find the smallest useful verification
 
-All commands below run from the repository root. Prepare local prerequisites
-from [DEVELOPMENT.md](DEVELOPMENT.md) before running asset-dependent tests.
+All commands run from the repository root. Prepare local prerequisites from
+[DEVELOPMENT.md](DEVELOPMENT.md) before running asset-dependent tests.
 
 | Change | Start with | Extend verification when needed |
 | --- | --- | --- |
@@ -152,99 +110,76 @@ from [DEVELOPMENT.md](DEVELOPMENT.md) before running asset-dependent tests.
 | Sound | Relevant `psiv-sound` tests | Register/timing comparisons and playback checks for the affected path |
 | Documentation | `python3 tools/check_docs.py` and `git diff --check` | Code tests only if source also changes |
 
-Examples of selecting existing test targets:
-
 ```bash
 PYTHONPATH=. python3 -m unittest discover -s tests -p 'test_psiv_tools.py'
 CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml -p psiv-runtime --lib suites::camp_order:: -- --test-threads=1
 ```
 
-These examples do not cover every change. The full Python/Rust/format/Clippy
-commands live in the setup guide. Oracle setup and its fast/full lanes live
-in [oracle/README.md](../oracle/README.md). Do not rerun expensive suites after
-an unchanged, applicable pass without a new reason.
+The full commands and the heavy-run lock are in the
+[development guide](DEVELOPMENT.md#run-checks); oracle lanes are in
+[oracle/README.md](../oracle/README.md). What each kind of evidence proves is
+owned by [AGENTS.md](../AGENTS.md#verify-the-claim-you-intend-to-make).
 
-Run the cheapest useful existing check during development. Add feedback only
-when a concrete observation is missing; introduce a new correctness check with
-a meaningful negative control. Repair real failures without rewriting evidence.
-Review and freeze a candidate (commit, or base commit plus exact patch and
-changed-file hashes) before expensive gates. A relevant code, test or gate-input
-change invalidates affected acceptance; rerun it and retain the earlier receipt
-under its original candidate identity.
+Run the cheapest useful check during development. Add feedback only when a
+concrete observation is missing, and give a new correctness check a meaningful
+negative control. Repair real failures without rewriting evidence. Freeze a
+reviewed candidate (a commit, or a base commit plus an exact patch) before
+expensive gates; a relevant code, test or gate-input change invalidates the
+affected results.
 
-Full Python, Rust and oracle jobs stay serialized under PSIV's resource rules.
-When PR publication is authorized, independent local and hosted checks may run
-concurrently, with isolated outputs, databases, ports and mutable build inputs.
-Keep local/default/browser/hosted results separate. A docs check is no gameplay
-test, and a hosted pass does not replace native or cartridge evidence.
+## Reproduce without damaging a save
 
-## Reproduce without damaging the checkpoint
+Before a native run, identify the source commit and dirty changes, the pack
+manifest hash, the source save hash, the driver and the executable. Use a
+separate output directory under `build/` and a separate `PSIV_SAVE_DIR`.
+Inspect driver paths and stop conditions before launch, and record any fixture
+injection explicitly. Check that the intended build is the one running: a
+loaded shared library can outlive a source edit. Keep a failed run's logs and
+state apart from a successful save, and never repair party resources or flags
+behind the driver's back and then call the run ordinary play.
 
-Before a campaign run, identify the source commit and dirty changes, pack
-manifest hash, source save hash, driver and executable. Use a separate output
-directory under `build/` and a separate `PSIV_SAVE_DIR`. Inspect driver paths
-and stop conditions before launch. Record any fixture injection explicitly.
+## Receipt and handoff
 
-Check that the intended build is actually running: a loaded shared library
-can outlive a source edit. Rebuild with the relevant Godot process stopped.
-Use the documented desktop viewport for UI checks; tiny screenshots can clip
-menus even when state assertions pass.
-
-A failure is useful evidence. Keep its logs and resulting state separately
-from a successful save. Do not repair party resources or flags behind the
-driver's back and then describe the run as ordinary connected play.
-
-## Receipt and handoff template
-
-Put the concise result in the relevant subsystem ledger. Detailed logs and
-ROM-derived artifacts stay local; commit reproduction instructions and hashes.
-Use repo-relative paths in shared documentation so another checkout can follow
-them. Identify unavailable local inputs instead of assuming they ship in Git.
+The PR description (or the worker's report to the orchestrator) carries the
+receipt. Detailed logs and ROM-derived artifacts stay local; the receipt gives
+repo-relative paths and says when local evidence is absent from another
+checkout.
 
 ```text
 Task and intended behavior:
 Source commit, branch, and relevant dirty changes:
 Files changed and why:
-Retail basis (symbols/offsets, ledger references):
+Retail basis (symbols/offsets, references):
 Environment (tool versions, executable, viewport):
 Inputs (pack identity, source save hash, fixture assumptions):
 Requested and actual model/effort; ownership and authority source:
-Commands actually run, cwd, UTC start/end, elapsed time and exit status:
-Results (passed / failed / skipped / not run), raw log paths and hashes:
+Commands actually run, exit status and timing:
+Results (passed / failed / skipped / not run) and raw log paths:
 Evidence type (state / native input / persistence / visual comparison):
-Outputs (local paths and hashes, resulting party/map/flags where relevant):
-Review (self / independent, reviewer, candidate, findings and corrections):
-Known limits and remaining failures:
+Review (self / independent, findings and corrections):
+Correction-ladder rung:
+Known limits, remaining failures and the issues filed for them:
 Next concrete step:
-Git state (commit/push status and any remaining edits):
+Git state:
 ```
 
-For a small docs fix, omit irrelevant gameplay fields. For a campaign milestone,
-retain enough input and save provenance to distinguish a continuation from an
-isolated fixture. Keep dated historical results intact and add corrections
-explicitly when new evidence overturns an earlier interpretation.
-
-Generate revisions, hashes, timing, statuses and receipts from actual artifacts;
-do not fill them from recollection. Read raw outputs and read back the archive.
-Claim speedups only from comparable completed measurements, with their scope.
-ROM-derived logs/captures stay ignored; commit concise provenance and reproduction
-commands. Local evidence may be absent from another checkout: say so explicitly.
+Omit irrelevant gameplay fields for a small docs fix. Generate revisions,
+hashes, timing and statuses from actual artifacts, never from recollection.
+Claim a speedup only from comparable completed measurements.
 
 ## Review, integration and procedure changes
 
-Review both diff and behavior, label self-review versus independent review, and
-resolve material findings before acceptance. Once permitted, continue through
-PR, merge, exact-main verification, evidence archive/read-back and owned cleanup.
-Verify affected checks against the integrated main revision; a candidate's old
-receipt is not an exact-main pass. Inspect final Git/worktree/process state and
-continue the next ready authorized node. If integration was not requested, leave
-a verified local result and report that boundary without inventing an approval gate.
+Review both the diff and the behavior, label self-review versus independent
+review, and resolve material findings before acceptance. Once permitted,
+continue through PR, merge, verification on the integrated `main` revision and
+owned cleanup; a candidate's earlier result is not a pass on `main`. If
+integration was not requested, leave a verified local result and report that
+boundary.
 
 Improve this procedure from observed problems the same way code is corrected:
-climb the [correction ladder](#correction-ladder), and record the problem,
-change, review and verification in the relevant existing ledger. Do not weaken
-checks or claim automatic dispatch/restart/enforcement without a working executor
-and a verification result.
+climb the [correction ladder](#correction-ladder) and record the change in its
+PR. Do not weaken checks or claim automatic enforcement without a working
+executor.
 
 ## Correction ladder
 
@@ -277,7 +212,7 @@ only contain patterns worth copying.
   implementation of the same concern is a defect, even when both agree today.
 - No workarounds, duplicate code paths, or comments that justify a deviation.
   A known gap is a GitHub issue link. Comments state contracts and invariants;
-  retail deviations are recorded in [docs/source-notes/README.md](source-notes/README.md).
+  retail deviations are recorded in [the source notes](source-notes/README.md).
 - An anti-pattern that cannot be removed in the current change is first stopped
   from spreading: add a guard (lint setting or guard test, with a baseline of
   the existing instances if needed) that fails on new ones, then file the
@@ -292,7 +227,5 @@ automatically. A host that reads a different entry file gets a tracked file that
 only imports `AGENTS.md`; host-local routing and preferences live in untracked
 files (see [roles and delegation](#roles-and-delegation)). `AGENTS.override.md`,
 where a host supports it, replaces `AGENTS.md` at its directory level rather
-than extending it. Check configured fallback names and instruction byte limits
-when applicable. Verify the effective chain in a fresh session when supported,
-and record any unverified host separately. Do not conflate a successful CLI
-check with every IDE or app host.
+than extending it. Verify the effective chain in a fresh session when
+supported.

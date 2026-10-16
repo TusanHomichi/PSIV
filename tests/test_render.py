@@ -16,13 +16,13 @@ from pathlib import Path
 
 from psiv_tools import png
 from psiv_tools.core import read_rom
-from psiv_tools.layouts import (
+from psiv_tools.chunk_draw import (
     CHUNK_PIXELS_X,
     CHUNK_PIXELS_Y,
     CHUNK_WORDS,
     TILE_PIXELS,
-    ChunkTable,
 )
+from psiv_tools.layouts import ChunkTable
 from psiv_tools.maps import extract_maps
 from psiv_tools.pack import MAPS_DIRECTORY, build_pack, decode_layout_section, layout_spec
 from psiv_tools.render import OVERLAY_TRANSPARENT_INDICES, PLANE_BYTES, priority_tiles

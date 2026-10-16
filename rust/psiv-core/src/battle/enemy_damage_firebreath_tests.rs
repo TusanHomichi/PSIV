@@ -332,28 +332,26 @@ fn the_gated_firebreath_carrier_is_refused() {
             FIREBREATH, FIREBREATH, FIREBREATH, 0x22, 0x22, 0x64, 0x64, 0x64,
         ],
     };
-    assert!(
-        super::all().all(|route| route.enemy_id != 133),
-        "133 ProfoundDarkness1 must not be a listed route"
-    );
+    // Lane A6 modelled the latch (`scripted_flag::first_action`), so the
+    // engine spends the first turn on `$864` before the roll reaches this
+    // table (`engine_tests_endgame.rs`), and the row below the gate - `$870`,
+    // one request through `$874`'s `loc_24A6C` - is a route like the others.
+    let route = super::all()
+        .find(|route| route.enemy_id == 133 && route.ability == FIREBREATH)
+        .expect("133 ProfoundDarkness1's FIREBREATH is a route");
+    assert_eq!(route.class, DamageClass::Single);
     let data = firebreath_data(&[carrier]);
     let mut r = firebreath_roster(&data, &carrier);
-    let before = r.clone();
     let mut rolls = SliceRolls::new(&[0]);
     let mut events = Vec::new();
-    assert!(
-        !resolve_damage_skill(
-            &mut r,
-            id(6),
-            FIREBREATH,
-            Some(id(2)),
-            &data,
-            &mut rolls,
-            &mut events
-        ),
-        "the gated carrier keeps the unsupported path"
-    );
-    assert_eq!(r, before, "nothing moved");
-    assert_eq!(rolls.drawn(), 0, "nothing drawn");
-    assert!(events.is_empty(), "nothing emitted");
+    assert!(resolve_damage_skill(
+        &mut r,
+        id(6),
+        FIREBREATH,
+        Some(id(2)),
+        &data,
+        &mut rolls,
+        &mut events
+    ));
+    assert_eq!(rolls.drawn(), 16, "one request, no object calls");
 }

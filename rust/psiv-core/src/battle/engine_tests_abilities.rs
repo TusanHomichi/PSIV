@@ -59,7 +59,7 @@ fn a_battle_starts_with_the_ability_reroll_word_at_zero() {
 #[test]
 fn a_vehicle_skill_consumes_a_use_and_runs_its_retail_dispatcher() {
     let data = fixtures::data();
-    let vehicle = crate::vehicle::battle_member(
+    let vehicle = crate::vehicle::battle_member_with_hp(
         1,
         VehicleRecord {
             current_hp: 500,

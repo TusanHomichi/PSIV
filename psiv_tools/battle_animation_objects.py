@@ -57,10 +57,30 @@ def _call_target(rom: bytes, offset: int) -> int | None:
     return None
 
 
+#: jsr/jmp abs.l and jsr/jmp (d16,pc): the opcodes `_call_target` resolves.
+_CALL_OPCODES = (b"\x4E\xB9", b"\x4E\xF9", b"\x4E\xBA", b"\x4E\xFA")
+
+
+def _call_sites(rom: bytes, start: int, stop: int) -> list[int]:
+    """Word-aligned offsets in [start, stop) that hold a call opcode, in order.
+
+    The same set a `range(start, stop, 2)` walk through `_call_target` finds:
+    `bytes.find` only skips words that cannot be a call.
+    """
+    sites: list[int] = []
+    for opcode in _CALL_OPCODES:
+        offset = rom.find(opcode, start, stop + 1)
+        while offset != -1:
+            if not (offset - start) & 1:
+                sites.append(offset)
+            offset = rom.find(opcode, offset + 1, stop + 1)
+    return sorted(sites)
+
+
 def helper_calls(rom: bytes, start: int, end: int) -> list[dict[str, Any]]:
     """Return absolute and PC-relative calls to known battle helpers."""
     calls: list[dict[str, Any]] = []
-    for offset in range(start, max(start, end - 3), 2):
+    for offset in _call_sites(rom, start, max(start, end - 3)):
         target = _call_target(rom, offset)
         if target in FRAME_HELPERS or target == LOAD_PLC1:
             calls.append({

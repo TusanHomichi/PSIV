@@ -77,6 +77,13 @@ const fn step_of(turn: ZioTurn, ability: u8, advances: bool) -> Step {
     }
 }
 
+/// Whether `enemy_id`'s routine scripts every turn and never dispatches the
+/// rolled ability: `EnemyAttack_Zio3` and `EnemyAttack_Zio` (Zio2 dispatches
+/// it from its second action on).
+pub(super) const fn ignores_roll(enemy_id: u16) -> bool {
+    matches!(enemy_id, ZIO | ZIO3)
+}
+
 /// The scripted arm `enemy_id`'s routine runs with the counter at `phase`, or
 /// `None` when it dispatches the rolled ability instead (every other enemy, and
 /// Zio2 from its second action on: `ps4.asm:19531-19576`).

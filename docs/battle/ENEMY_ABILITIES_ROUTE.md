@@ -99,7 +99,7 @@ record is copied into new committed fixtures.
   FISSION2 is a negative control. The extractor retains the observed zero
   and marks the complete clear-and-return signature. The comparator remains
   strict about damage, other ids and draws; see
-  [the replay schema reading](../oracle/BATTLE_ORACLE_REPLAY.md#same-frame-ability-clearing-a3-2026-10-04).
+  [the replay schema reading](../oracle/BATTLE_ORACLE_REPLAY.md#same-frame-ability-clearing).
 - **BURSTROC is ordinary all-party damage after the intro**, via `$82C` /
   `loc_31AB6` (`ps4.asm:64247`), phase 3 to `loc_24A9E` (line 64263).
   DarkForce1 clears `$FFFFEE87` and its rolled ability once before loading
@@ -185,8 +185,7 @@ binary/input/output hashes and the final-save reading are in
 `build/a3-evidence/`. The main route's SHA-256 remains
 `1ce3457606cb3a0df63780dfa5c4bb99f14d40addcd3ee3924d01308ae8318a1`.
 
-This closes the connected sabotage-battle gate for carrier 138. Route lane C6
-(2026-10-04, [`RUNNER_LOG_KURAN.md`](../campaign/RUNNER_LOG_KURAN.md)) then
+This closes the connected sabotage-battle gate for carrier 138. The campaign route then
 extended the main route through Landale and Kuran and won event battle 9.
 **BURSTROC's cartridge proof remains open.** The route fight is a connected
 campaign result with FLARE SHOT, PHONONMASR and BURSTROC striking the party, but
@@ -197,9 +196,7 @@ this gap despite their different random carriers' exact replays.
 
 ## 2. The Zelan-to-Kuran route (lane A4)
 
-The campaign route crosses Dezolis to Kuran and Dark Force 1
-([`RUNNER_LOG_ZELAN.md`](../campaign/RUNNER_LOG_ZELAN.md),
-[`RUNNER_LOG_DEZOLIS.md`](../campaign/RUNNER_LOG_DEZOLIS.md)). The set of abilities it
+The campaign route crosses Dezolis to Kuran and Dark Force 1. The set of abilities it
 will meet is **derived**, not listed, by
 
 ```
@@ -287,13 +284,13 @@ Abilities the scope can meet
 | `$1D` BARRIER | `$0B` | status/stat effect | implemented | 48 Siren386 (conditional:8) | 8 | 0 | - |
 | `$1F` DBL SLASH | `$01` | damage | implemented | 145 RedMole | 1 | 0 | - |
 | `$20` PHONONMASR | `$01` | damage | implemented | 130 DarkForce1 | 0 | 0 | 9 |
-| `$22` RAY BREATH | `$01` | damage | partial | 118 LwAddmer | 0 | 1 | - |
+| `$22` RAY BREATH | `$01` | damage | implemented | 118 LwAddmer | 0 | 1 | - |
 | `$23` SUPERSONIC | `$01` | damage | implemented | 69 BiterFly (conditional:8), 142 Skytiara | 1 | 0 | - |
 | `$24` POISONMIST | `$1B` | status/stat effect | implemented | 57 Mistralgec | 1 | 0 | - |
 | `$25` SLEEP GAS | `$07` | status/stat effect | implemented | 63 GerotLux | 1 | 0 | - |
 | `$2B` NEEDLE | `$01` | damage | implemented | 68 Rajago, 69 BiterFly | 1 | 0 | - |
 | `$33` ACIDBREATH | `$01` | damage | implemented | 85 Piercer | 8 | 0 | - |
-| `$4B` SHADOWBIND | `$06` | status/stat effect | partial | 138 ChaosSorcr2 | 0 | 0 | 8 |
+| `$4B` SHADOWBIND | `$06` | status/stat effect | implemented | 138 ChaosSorcr2 | 0 | 0 | 8 |
 | `$4F` HEWN | `$01` | damage | implemented | 138 ChaosSorcr2 | 0 | 0 | 8 |
 | `$5A` FLAELI | `$01` | damage | implemented | 138 ChaosSorcr2 | 0 | 0 | 8 |
 | `$63` BURSTROC | `$01` | damage | implemented | 130 DarkForce1 | 0 | 0 | 9 |

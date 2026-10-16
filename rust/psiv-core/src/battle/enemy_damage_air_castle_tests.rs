@@ -240,6 +240,10 @@ fn exactly_the_routes_whose_object_tests_the_caster_seal_are_sealable() {
         (123, 0x35),
         (124, 0x35),
         (125, 0x35),
+        // Lane A6: GIFOI's two objects test it too - TechUser's prelude
+        // `loc_21C30` (45257) for 101, DElmLars's `loc_291D2` (54387) for 124.
+        (101, 0x48),
+        (124, 0x48),
     ];
     expected.sort_unstable();
     let mut sealable: Vec<(u16, u8)> = all()

@@ -47,22 +47,8 @@ from __future__ import annotations
 from typing import Any, Sequence
 
 from . import png
-from .layouts import (
-    CHUNK_PIXELS_X,
-    CHUNK_PIXELS_Y,
-    CHUNK_TILES_X,
-    PLANE_BG,
-    PLANE_FG,
-    TILE_PIXELS,
-    ChunkTable,
-    Layout,
-    h_flip,
-    palette_line,
-    priority,
-    tile_index,
-    v_flip,
-    vdp_word,
-)
+from .chunk_draw import CHUNK_TILES_X, PreparedChunk, overlay_chunk, prepare_chunk, priority
+from .layouts import PLANE_BG, PLANE_FG, ChunkTable, Layout
 from .warps import PackError
 
 #: The overlay's transparent palette indices. Pixel values are
@@ -101,39 +87,25 @@ def _draw_priority_plane(
 ) -> int:
     """Draw one plane's priority tiles, returning how many it placed.
 
-    The inner loop is `compose_layout`'s, minus the branch for a base image:
-    this always composites, because a plane that is not drawing a priority tile
-    is not drawing anything.
+    The draw is `compose_layout`'s, always compositing: a plane that is not
+    drawing a priority tile is not drawing anything.
     """
     placed = 0
+    prepared: dict[int, PreparedChunk] = {}
     for chunk_y in range(layout.height_chunks):
         for chunk_x in range(layout.width_chunks):
-            tiles = tiles_by_chunk.get(layout.chunk_at(chunk_x, chunk_y))
+            chunk_id = layout.chunk_at(chunk_x, chunk_y)
+            tiles = tiles_by_chunk.get(chunk_id)
             if tiles is None:
                 continue
-            for tile_x, tile_y, raw in tiles:
-                placed += 1
-                word = vdp_word(raw)
-                index = tile_index(word)
-                if index not in patterns.loaded:
-                    # Already surfaced by `unloaded_patterns`; drawing nothing
-                    # is what the base render does with it too.
-                    continue
-                tile = patterns.tile(index)
-                shift = palette_line(word) * 16
-                flip_x, flip_y = h_flip(word), v_flip(word)
-                ox = chunk_x * CHUNK_PIXELS_X + tile_x * TILE_PIXELS
-                oy = chunk_y * CHUNK_PIXELS_Y + tile_y * TILE_PIXELS
-                for y in range(TILE_PIXELS):
-                    source_y = TILE_PIXELS - 1 - y if flip_y else y
-                    row = tile[source_y * TILE_PIXELS:(source_y + 1) * TILE_PIXELS]
-                    if flip_x:
-                        row = row[::-1]
-                    start = (oy + y) * width + ox
-                    for x in range(TILE_PIXELS):
-                        value = row[x]
-                        if value:
-                            pixels[start + x] = value + shift
+            placed += len(tiles)
+            chunk = prepared.get(chunk_id)
+            if chunk is None:
+                # A pattern the map never loaded draws nothing: already
+                # surfaced by `unloaded_patterns`, and the base render skips
+                # it too.
+                chunk = prepared[chunk_id] = prepare_chunk(tiles, patterns)
+            overlay_chunk(pixels, width, chunk_x, chunk_y, chunk)
     return placed
 
 
@@ -162,7 +134,7 @@ def priority_overlay(
         counts["tiles"][layout.plane] = _draw_priority_plane(
             layout, tiles_by_chunk, decoded.patterns, pixels, width
         )
-    counts["opaque_pixels"] = sum(1 for value in pixels if value)
+    counts["opaque_pixels"] = len(pixels) - pixels.count(0)
     counts["chunks_with_priority_tiles"] = len(tiles_by_chunk)
     if not counts["opaque_pixels"]:
         return None, counts

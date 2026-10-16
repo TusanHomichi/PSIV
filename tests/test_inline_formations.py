@@ -84,13 +84,24 @@ class Retail(unittest.TestCase):
                           for e in parsed["loc_1A2F4"]["enemies"]], [(1, 36, 0x14)])
         self.assertEqual([(e["slot"], e["enemy"]["id"], e["position"])
                           for e in parsed["loc_23D00"]["enemies"]], [(1, 87, 0x14)])
+        # Lane A6: the WorkerPods' COMBINE seats one LifeDeletr (27571-27572),
+        # FractOoze's FISSION four JR.OOZE at 8, $10, $18, $20 (35075-35076),
+        # InfantWorm's NOTHING one SandWorm (45818).
+        self.assertEqual([(e["slot"], e["enemy"]["id"], e["position"])
+                          for e in parsed["loc_1308C"]["enemies"]], [(1, 26, 0x14)])
+        self.assertEqual([(e["slot"], e["enemy"]["id"], e["position"])
+                          for e in parsed["loc_1987E"]["enemies"]],
+                         [(1, 35, 0x08), (2, 35, 0x10), (3, 35, 0x18), (4, 35, 0x20)])
+        self.assertEqual([(e["slot"], e["enemy"]["id"], e["position"])
+                          for e in parsed["loc_224E8"]["enemies"]], [(1, 80, 0x14)])
         for record in parsed.values():
             self.assertEqual(record["run_agility"], 0)
             self.assertTrue(record["enemy_count_matches_entries"])
 
     def test_the_pack_carries_them_under_its_own_field_names(self):
         inline = build_formations(self.data)["inline_formations"]
-        self.assertEqual([r["label"] for r in inline], ["loc_1A2F4", "loc_23D00"])
+        self.assertEqual([r["label"] for r in inline],
+                         ["loc_1A2F4", "loc_23D00", "loc_1308C", "loc_1987E", "loc_224E8"])
         for record in inline:
             self.assertEqual(record["run_chance"], 0)
             self.assertNotIn("run_agility", record)

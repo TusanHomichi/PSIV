@@ -13,7 +13,7 @@ Enemy 34 ZolSlug has eight empty regular ability slots and four copies of
 conditional ability `$12` FUSION behind `EnemyAI_ZolSlugs`. The Passageway to
 Zio's fort (`$081`, group 29; formations `$D2`-`$D4`) is the only map that meets
 them, and the campaign runner passed it only because `run_unless_boss` escapes
-before the roll (`docs/campaign/RUNNER_LOG.md`, H15). This file is the rule the
+before the roll. This file is the rule the
 port now runs, from `rust/psiv-core/src/battle/enemy_fusion.rs`; the capture is
 `BATTLE_ORACLE_ARC.md`. The wider ledger is
 [`ENEMY_EFFECT_ABILITIES.md`](ENEMY_EFFECT_ABILITIES.md).
@@ -115,3 +115,18 @@ enemy the reload seats. The run byte changes there: `$1BA`'s `$3C` becomes the
 record's 0. In the Air Castle no formation pairs the two, so COMBINE does not
 fire on that stretch; the port's arms fired for a BladeRight with no partner until
 lane A5 ([`ENEMY_ABILITIES_AIR_CASTLE.md`](ENEMY_ABILITIES_AIR_CASTLE.md)).
+
+## The endgame reloads (lane A6)
+
+Three more arms reload the side through `loc_14D46`, each from a record the pack's
+`inline_formations` carries (`psiv_tools.formations.INLINE_FORMATIONS`):
+
+| arm | object | record | seats | `$24(a4)` |
+|---|---|---|---|---|
+| 23 ArthroPod `$0C`, 25 Wiredine `$0D` COMBINE | `$FC` (`BattleObj_TarantellaCombine`, `ps4.asm:27454`) | `loc_1308C` (27571) | one LifeDeletr | kept |
+| 38 FractOoze `$1B` FISSION | `BattleObj_SlugFission` (34947) | `loc_1987E` (35075) | four JR.OOZE | kept |
+| 94 InfantWorm `$41` NOTHING | `$398` (`loc_223C0`, 45734) | `loc_224E8` (45818) | one SandWorm | cleared |
+
+FISSION's effect byte is `$25`, another `AbilityEffect_None`; the reload table
+pins each arm's own effect byte. A record that seats several enemies emits one
+`EnemiesFused` per seat. Captures: [`ENEMY_ABILITIES_ENDGAME.md`](ENEMY_ABILITIES_ENDGAME.md).

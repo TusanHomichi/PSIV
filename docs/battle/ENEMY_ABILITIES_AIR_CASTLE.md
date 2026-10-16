@@ -65,7 +65,7 @@ shares the route uncaptured.
   and no second of the actor's own kind (`ps4.asm:21628-21653`). The port fired for
   a BladeRight with no partner at all, so the Air Castle's BladeRights (formations
   `$16A`, `$175`, `$176`: no HakenLeft) "combined" where the cartridge never does -
-  the COMBINE halts of [H38](../campaign/RUNNER_LOG_ICEDIGGER.md#h38-the-air-castles-walk-meets-abilities-the-engine-does-not-run).
+  the campaign runner's COMBINE halts on the Air Castle walk.
   Fixed in `enemy_ai.rs` (`pair_ready`); the BladeRights of group 52 now breathe
   fire. **Negative control:** the old rule makes `air_castle/combine` diverge at
   round 2's end state (slot 6 STR 90 for 80).
@@ -158,8 +158,8 @@ built from it (`python3 -m psiv_tools pack`, which carries the inline formations
   `ff9fbc995dc5b82a` - the cutscene field reload owned by another lane, and the
   same frames and digest as the base revision's own probe of the route
   (`build/c26-route-probe2`): nothing in this lane changes the route's prefix.
-- **The dropped chapter, restored.** `air-castle-xe-athoul-room` from
-  [H38](../campaign/RUNNER_LOG_ICEDIGGER.md#h38-the-air-castles-walk-meets-abilities-the-engine-does-not-run),
+- **The dropped chapter, restored.** `air-castle-xe-athoul-room`, which the
+  runner had dropped at the COMBINE halt,
   without its `wait 7`, appended to a scratch copy of the route and run with
   `--from-chapter` from the `air-castle-arrival` save of the base's last
   completed candidate (`slot_1.sram` SHA-256 `06feecfa…41d7`): **completed**,
@@ -224,27 +224,27 @@ Abilities the scope can meet
 | `$13` CELL SPLIT | `$01` | damage | implemented | 37 SnowSlug | 1 | 0 | - |
 | `$1F` DBL SLASH | `$01` | damage | implemented | 145 RedMole | 1 | 0 | - |
 | `$21` FIREBREATH | `$01` | damage | implemented | 59 StoneHeads, 84 BladeRight | 6 | 0 | - |
-| `$22` RAY BREATH | `$01` | damage | partial | 118 LwAddmer | 0 | 1 | - |
+| `$22` RAY BREATH | `$01` | damage | implemented | 118 LwAddmer | 0 | 1 | - |
 | `$23` SUPERSONIC | `$01` | damage | implemented | 69 BiterFly (conditional:8), 142 Skytiara | 1 | 0 | - |
 | `$24` POISONMIST | `$1B` | status/stat effect | implemented | 57 Mistralgec | 1 | 0 | - |
 | `$2B` NEEDLE | `$01` | damage | implemented | 68 Rajago, 69 BiterFly | 1 | 0 | - |
 | `$2C` AIRSLASH | `$01` | damage | implemented | 71 FrostSaber (conditional:2) | 6 | 0 | - |
-| `$2D` DEBAN | `$0A` | status/stat effect | partial | 71 FrostSaber (conditional:7) | 6 | 0 | - |
+| `$2D` DEBAN | `$0A` | status/stat effect | implemented | 71 FrostSaber (conditional:7) | 6 | 0 | - |
 | `$2E` GIWAT | `$01` | damage | implemented | 71 FrostSaber, 123 XeAThoul | 6 | 0 | 14 |
-| `$30` DISTORTION | `$01` | damage | partial | 73 DimensWorm (conditional:12) | 6 | 0 | - |
+| `$30` DISTORTION | `$01` | damage | implemented | 73 DimensWorm (conditional:12) | 6 | 0 | - |
 | `$31` GRA | `$01` | damage | implemented | 73 DimensWorm | 6 | 0 | - |
 | `$35` GIZAN | `$01` | damage | implemented | 123 XeAThoul | 0 | 0 | 14 |
 | `$3A` COMBINE | `$1F` | unknown | implemented | 84 BladeRight (conditional:13) | 6 | 0 | - |
-| `$4C` EVIL EYE | `$07` | status/stat effect | partial | 107 Spector, 131 DarkForce2 | 6 | 0 | 17 |
+| `$4C` EVIL EYE | `$07` | status/stat effect | implemented | 107 Spector, 131 DarkForce2 | 6 | 0 | 17 |
 | `$4D` CORRSION | `$01` | damage | implemented | 107 Spector | 6 | 0 | - |
-| `$4E` DTHSPELL | `$02` | status/stat effect | partial | 107 Spector | 6 | 0 | - |
+| `$4E` DTHSPELL | `$02` | status/stat effect | implemented | 107 Spector | 6 | 0 | - |
 | `$5C` THNDRBLAST | `$01` | damage | implemented | 123 XeAThoul (conditional:18) | 0 | 0 | 14 |
 | `$5F` THNDHALBRT | `$01` | damage | implemented | 128 Lashiec | 0 | 0 | 16 |
 | `$60` POSESSION | `$07` | status/stat effect | implemented | 128 Lashiec | 0 | 0 | 16 |
-| `$61` ANOTHRGATE | `$01` | damage | partial | 128 Lashiec | 0 | 0 | 16 |
+| `$61` ANOTHRGATE | `$01` | damage | implemented | 128 Lashiec | 0 | 0 | 16 |
 | `$62` REINFORCE | `$2B` | status/stat effect | implemented | 128 Lashiec (conditional:17) | 0 | 0 | 16 |
-| `$64` SHDWBREATH | `$01` | damage | partial | 131 DarkForce2 | 0 | 0 | 17 |
-| `$65` LIGHTSHOWR | `$01` | damage | partial | 131 DarkForce2 | 0 | 0 | 17 |
+| `$64` SHDWBREATH | `$01` | damage | implemented | 131 DarkForce2 | 0 | 0 | 17 |
+| `$65` LIGHTSHOWR | `$01` | damage | implemented | 131 DarkForce2 | 0 | 0 | 17 |
 | `$6A` WIND STORM | `$01` | damage | implemented | 143 Owltalon | 0 | 1 | - |
 
 <!-- route_abilities:end -->

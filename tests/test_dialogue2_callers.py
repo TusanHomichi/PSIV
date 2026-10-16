@@ -7,7 +7,7 @@ Event_GetAndRunDialogue2` (`ps4.asm:148622`). The port transcribed that as a
 `RunDialogueResume`, which reopens `Saved_Dialogue_Addr`: in play that is
 whatever dialogue ran last (the Zio Fort barrier's `$45`, so the resume opened
 `$46` and its text fired event 0), and after a load there is nothing to resume
-(runner log H22). Every other caller sat on the standard window variant, which
+(`docs/scenes/DIALOGUE2_CALLERS.md`). Every other caller sat on the standard window variant, which
 destroys the panels the cartridge leaves up.
 
 This test pins the class, not the instance. It re-derives from the US image

@@ -62,6 +62,3 @@ frames, allowing their independently timed cursors to reach the same phase.
 No pixels inside the compared rectangles are masked. This is a bounded
 ORDER-window comparison: the surrounding camp's single-character summary,
 added SAVE row and field camera do not have whole-screen parity.
-
-Run artifacts and the fresh-process CONTINUE result are recorded with the
-connected campaign checkpoint in `docs/campaign/BIOPLANT_NATIVE.md`.

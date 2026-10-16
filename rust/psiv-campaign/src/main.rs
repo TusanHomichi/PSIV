@@ -7,7 +7,7 @@
 //!                    [--flag bank:id]... [--vehicle N] [--pack DIR]
 //! psiv-campaign run <route.json> [--from-chapter ID] [--until-chapter ID]
 //!                   [--save-dir DIR] [--tape OUT] [--report OUT] [--pack DIR]
-//! psiv-campaign replay <tape> [--from-save FILE] [--pack DIR]
+//! psiv-campaign replay <tape> [--from-save FILE] [--pack DIR] [--map-every N]
 //! psiv-campaign inspect <slot.sram> [--pack DIR]
 //! psiv-campaign save-probe-tape <slot.sram> <out.tape> [neutral-frames]
 //! psiv-campaign split-tape <run.tape> <report.json> <out-dir>
@@ -39,7 +39,7 @@ use psiv_data::{BattleFiles, GameData};
 const USAGE: &str = "usage:\n  psiv-campaign validate <route.json> [--pack DIR]\n  \
 psiv-campaign plan --from-map M --from-cell X,Y --to-map N [--to-cell X,Y] [--flag bank:id]... [--vehicle N] [--pack DIR]\n  \
 psiv-campaign run <route.json> [--from-chapter ID] [--until-chapter ID] [--save-dir DIR] [--tape OUT] [--report OUT] [--pack DIR]\n  \
-psiv-campaign replay <tape> [--from-save FILE] [--pack DIR]\n  \
+psiv-campaign replay <tape> [--from-save FILE] [--pack DIR] [--map-every N]\n  \
 psiv-campaign save-probe-tape <slot.sram> <out.tape> [neutral-frames]\n  \
 psiv-campaign split-tape <run.tape> <report.json> <out-dir>\n  \
 psiv-campaign prefix-check <base.tape> <base-report.json> <run.tape> <run-save-dir>";

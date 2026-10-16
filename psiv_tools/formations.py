@@ -70,6 +70,16 @@ INLINE_FORMATIONS: list[dict[str, Any]] = [
     # (ps4.asm:47491), the record at 47505. Abilities $3A/$3B COMBINE
     # (84 BladeRight, 86 HakenLeft).
     {"label": "loc_23D00", "offset": 0x23D00, "loaded_by": "loc_23C84"},
+    # Object $FC (BattleObj_TarantellaCombine, ps4.asm:27454), state 4:
+    # `lea (loc_1308C).l, a0` (27557), the record at 27571-27572. Abilities
+    # $0C/$0D COMBINE (23 ArthroPod, 25 Wiredine).
+    {"label": "loc_1308C", "offset": 0x1308C, "loaded_by": "BattleObj_TarantellaCombine"},
+    # BattleObj_SlugFission ($160, ps4.asm:34947): `lea (loc_1987E).l, a0`
+    # (35062), the record at 35075-35076. Ability $1B FISSION (38 FractOoze).
+    {"label": "loc_1987E", "offset": 0x1987E, "loaded_by": "BattleObj_SlugFission"},
+    # Object $398 (loc_223C0, ps4.asm:45734), state 4: `lea (loc_224E8).l, a0`
+    # (45795), the record at 45818. Ability $41 NOTHING (94 InfantWorm).
+    {"label": "loc_224E8", "offset": 0x224E8, "loaded_by": "loc_223C0"},
 ]
 #: `lea (abs).l, a0`: opcode 41F9 and a 32-bit address.
 LEA_ABS_A0 = b"\x41\xF9"

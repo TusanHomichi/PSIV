@@ -29,6 +29,7 @@ from pathlib import Path
 from typing import Any
 
 from . import gfx, planes
+from .decode_cache import scoped
 from .enigma import decompress as enigma_decompress
 from .nemesis import decompress as nemesis_decompress
 from .text import DIALOGUE, decode_name
@@ -345,6 +346,7 @@ def extract_ship_menu(rom: bytes) -> tuple[dict[str, Any], dict[int, bytes]]:
     return record, backgrounds
 
 
+@scoped
 def emit_ship_menu(rom: bytes, directory: Path) -> dict[str, str]:
     """Write the screen into `directory` and return its manifest entry."""
     record, backgrounds = extract_ship_menu(rom)

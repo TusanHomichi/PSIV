@@ -177,8 +177,7 @@ halves, so there is no "pending" state left to model.
 `tests/session_menu_scenes.rs::the_aiedo_inn_rest_runs_the_scene_between_recovery_and_the_bill`
 and its flagged control cover the isolated pad path. START and CONTINUE clear
 the pending handoff alongside other per-frame menu state, preventing an old
-Aiedo bill from being charged when a later scene ends. The runner log's H13
-and `docs/campaign/AIEDO.md`'s G2 row record the defect this closes.
+Aiedo bill from being charged when a later scene ends.
 
 ## 5. Finding 4 — three shops were cut and their table rows left behind
 

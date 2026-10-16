@@ -10,3 +10,36 @@ publish = false
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+# The dev profile builds the GDExtension that certify and the native tape
+# drivers load: its checks are stated, not inherited by accident.
+[profile.dev]
+debug-assertions = true
+overflow-checks = true
+
+# Tests run optimized. Workspace `cargo test --test-threads=1` wall time:
+# 1150 s before (2026-10-14, AC); 117 s with this config (battery); 111 s on AC
+# with the CPU capped at 2.3 GHz (2026-10-15). Overflow checks and debug
+# assertions stay on, because retail integer widths rely on a wrap panicking;
+# psiv-core/tests/build_profile.rs fails if either is turned off.
+[profile.test]
+opt-level = 1
+debug-assertions = true
+overflow-checks = true
+
+# Only psiv-godot uses the godot crates and its tests take seconds; optimizing
+# them cost ~420 s of cold build (godot-core alone 326 s at CARGO_BUILD_JOBS=1).
+[profile.test.package.godot-core]
+opt-level = 0
+
+[profile.test.package.godot-ffi]
+opt-level = 0
+
+# The sound machine renders every frame, debug builds included (certify and the
+# native tape driver load the dev-profile extension). cc reads this opt level
+# for the Nuked OPN2 C core (-O3 instead of -O0); the PCM is bit-identical.
+[profile.dev.package.psiv-sound]
+opt-level = 3
+
+[profile.test.package.psiv-sound]
+opt-level = 3

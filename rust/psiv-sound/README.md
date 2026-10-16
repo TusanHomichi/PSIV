@@ -19,6 +19,13 @@ tests compare the ordered `(tick, chip, port, register, value)` writes. Future
 oracle captures can replace expected vectors without changing the extraction
 interface or renderer.
 
+Tracing is opt-in: build the machine with `SoundMachine::with_register_trace()`.
+`SoundMachine::new()`, the live game's machine, records nothing, and
+`take_register_log()` on it panics instead of returning an empty trace that two
+runs would compare equal. A DAC sample alone writes YM `$2A` about 21,000 times
+a second, so an always-on trace grew without bound for the life of the process
+(#92). Tracing never changes the PCM; `trace_tests.rs` checks that.
+
 ## YM core decision
 
 `build.rs` compiles the repository's existing Nuked OPN2 translation unit at

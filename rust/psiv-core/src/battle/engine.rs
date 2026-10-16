@@ -698,18 +698,7 @@ impl Battle {
                         remaining: fighter.stats.curr_skill_uses[slot],
                     });
                     let died = resolve_vehicle_skill(&mut self.roster, actor, skill, rolls, events);
-                    for fighter in died {
-                        if fighter.side() == Side::Enemy {
-                            let record = self
-                                .roster
-                                .get(fighter)
-                                .map(|f| f.stats.enemy_id)
-                                .and_then(|id| data.enemy(id).ok());
-                            if let Some(record) = record {
-                                self.pools.add(record.experience, record.meseta);
-                            }
-                        }
-                    }
+                    self.reward_defeated(&died, data)?;
                     return Ok(());
                 }
             },
@@ -737,19 +726,7 @@ impl Battle {
         };
 
         let died = resolve_attack(&mut self.roster, actor, intended, data, rolls, events)?;
-        for fighter in died {
-            if fighter.side() == Side::Enemy {
-                let record = self
-                    .roster
-                    .get(fighter)
-                    .map(|f| f.stats.enemy_id)
-                    .and_then(|id| data.enemy(id).ok());
-                if let Some(record) = record {
-                    self.pools.add(record.experience, record.meseta);
-                }
-            }
-        }
-        Ok(())
+        self.reward_defeated(&died, data)
     }
 
     /// `Battle_ProcessRUN` — `ps4.asm:7672`.
@@ -790,6 +767,11 @@ impl Battle {
         }
     }
 
+    /// The rewards of the enemies a party action felled: `loc_2D960`
+    /// (`ps4.asm:59628-59645`), which the death object calls, sets the death bit
+    /// and adds the record's experience and meseta. An enemy whose death object
+    /// never calls it ([`super::fighters::death_object_pays`]) leaves no death
+    /// bit, so the bit is the test.
     fn reward_defeated(
         &mut self,
         died: &[FighterId],
@@ -797,13 +779,11 @@ impl Battle {
     ) -> Result<(), BattleDataError> {
         for &fighter in died {
             if fighter.side() == Side::Enemy {
-                let id = self
-                    .roster
-                    .get(fighter)
-                    .expect("target present")
-                    .stats
-                    .enemy_id;
-                let record = data.enemy(id)?;
+                let stats = &self.roster.get(fighter).expect("target present").stats;
+                if stats.status & super::stats::status::DEAD == 0 {
+                    continue;
+                }
+                let record = data.enemy(stats.enemy_id)?;
                 self.pools.add(record.experience, record.meseta);
             }
         }

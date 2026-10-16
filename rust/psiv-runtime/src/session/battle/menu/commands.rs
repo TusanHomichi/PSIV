@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 
 use psiv_core::battle::{
-    BattleItem, Command, FighterId, ItemSource, Roster, RoundOrders, Side, Skill, Technique,
+    BattleItem, Command, FighterId, ItemSource, Roster, RoundOrders, Side, Skill, Stats, Technique,
     item_targets, skill_targets, status, technique_targets,
 };
 
@@ -169,18 +169,9 @@ impl CommandsMenu {
     fn known(&self) -> Vec<u8> {
         self.actor_fighter()
             .map(|f| {
-                f.stats
-                    .techniques
+                CommandsMenu::listed_techniques(&f.stats, |id| self.techniques.get(&id))
                     .iter()
-                    .rev()
-                    .copied()
-                    .filter(|id| {
-                        *id != 0
-                            && self
-                                .techniques
-                                .get(id)
-                                .is_some_and(|t| t.targeting & 0x10 != 0)
-                    })
+                    .map(|t| t.id)
                     .collect()
             })
             .unwrap_or_default()
@@ -190,18 +181,98 @@ impl CommandsMenu {
     fn known_skills(&self) -> Vec<(usize, u8)> {
         self.actor_fighter()
             .map(|f| {
-                f.stats
-                    .skills
+                CommandsMenu::listed_skills(&f.stats, |id| self.skills.get(&id))
                     .iter()
-                    .copied()
-                    .enumerate()
-                    .rev()
-                    .filter(|(_, id)| {
-                        *id != 0 && self.skills.get(id).is_some_and(|s| s.targeting & 0x10 != 0)
-                    })
+                    .map(|(slot, s)| (*slot, s.id))
                     .collect()
             })
             .unwrap_or_default()
+    }
+
+    /// The techniques a member's TECH window lists, newest learned first (the
+    /// order `Battle_FillTechList` walks the learned slots in): every learned
+    /// technique whose record is a battle technique (`targeting & $10`).
+    pub(crate) fn listed_techniques<'a>(
+        stats: &Stats,
+        record: impl Fn(u8) -> Option<&'a Technique>,
+    ) -> Vec<&'a Technique> {
+        stats
+            .techniques
+            .iter()
+            .rev()
+            .copied()
+            .filter(|id| *id != 0)
+            .filter_map(&record)
+            .filter(|t| t.targeting & 0x10 != 0)
+            .collect()
+    }
+
+    /// Whether the TECH window enables `tech` for a member with `stats`.
+    ///
+    /// The window refuses an entry on TP alone: `Battle_FillTechList` sets the
+    /// sign bit when the cost exceeds the member's TP (`ps4.asm:1721`) and
+    /// `Battle_TechWindow` ignores a negative id (`ps4.asm:2628`). A sealed
+    /// member may still choose; the cast is paid and wasted (`CharTech_Cast`,
+    /// `ps4.asm:14256`).
+    pub(crate) fn technique_enabled(stats: &Stats, tech: &Technique) -> bool {
+        tech.supported() && stats.curr_tp >= u16::from(tech.cost)
+    }
+
+    /// The character skills a member's SKILL window lists, newest learned
+    /// first, with their slot: every learned skill whose record is a battle
+    /// skill (`targeting & $10`).
+    pub(crate) fn listed_skills<'a>(
+        stats: &Stats,
+        record: impl Fn(u8) -> Option<&'a Skill>,
+    ) -> Vec<(usize, &'a Skill)> {
+        stats
+            .skills
+            .iter()
+            .copied()
+            .enumerate()
+            .rev()
+            .filter(|(_, id)| *id != 0)
+            .filter_map(|(slot, id)| record(id).map(|s| (slot, s)))
+            .filter(|(_, s)| s.targeting & 0x10 != 0)
+            .collect()
+    }
+
+    /// Whether the SKILL window enables the skill in `slot` for a member with
+    /// `stats`: a supported record with a use left, and a weapon in hand when
+    /// the record wants one (`armed`).
+    pub(crate) fn skill_enabled(stats: &Stats, slot: usize, skill: &Skill, armed: bool) -> bool {
+        skill.supported() && stats.curr_skill_uses[slot] > 0 && (!skill.requires_weapon || armed)
+    }
+
+    /// The items a member's ITEM window lists: their equipment, then the
+    /// pack's slots, each a record the battle knows.
+    pub(crate) fn listed_items<'a>(
+        equipment: &[u8],
+        inventory: &[u8],
+        record: impl Fn(u8) -> Option<&'a BattleItem>,
+    ) -> Vec<(ItemSource, &'a BattleItem)> {
+        equipment
+            .iter()
+            .copied()
+            .enumerate()
+            .map(|(slot, id)| (ItemSource::Equipment(slot as u8), id))
+            .chain(
+                inventory
+                    .iter()
+                    .copied()
+                    .enumerate()
+                    .map(|(slot, id)| (ItemSource::Inventory(slot as u8), id)),
+            )
+            .filter(|(_, id)| *id != 0)
+            .filter_map(|(source, id)| record(id).map(|item| (source, item)))
+            .collect()
+    }
+
+    /// Whether the ITEM window enables `item` before any reservation: a
+    /// supported record. The open window also refuses a pack copy an earlier
+    /// actor's order reserved ([`CommandsMenu::reserved`]).
+    pub(crate) fn item_enabled(item: &BattleItem) -> bool {
+        item.supported()
     }
 
     fn targets(&self, action: TargetKind) -> Vec<FighterId> {
@@ -257,14 +328,9 @@ impl CommandsMenu {
                 .iter()
                 .map(|id| {
                     let tech = &self.techniques[id];
-                    // The window refuses an entry on TP alone: `Battle_FillTechList`
-                    // sets the sign bit when the cost exceeds the member's TP
-                    // (`ps4.asm:1721`) and `Battle_TechWindow` ignores a negative
-                    // id (`ps4.asm:2628`). A sealed member may still choose; the
-                    // cast is paid and wasted (`CharTech_Cast`, `ps4.asm:14256`).
-                    let enabled = self.actor_fighter().is_some_and(|f| {
-                        tech.supported() && f.stats.curr_tp >= u16::from(tech.cost)
-                    });
+                    let enabled = self
+                        .actor_fighter()
+                        .is_some_and(|f| CommandsMenu::technique_enabled(&f.stats, tech));
                     (
                         format!(
                             "{} {:>2}{}",
@@ -288,9 +354,12 @@ impl CommandsMenu {
                             "{} {} OF {}",
                             skill.name, stats.curr_skill_uses[*slot], stats.max_skill_uses[*slot]
                         ),
-                        skill.supported()
-                            && stats.curr_skill_uses[*slot] > 0
-                            && (!skill.requires_weapon || self.armed_fighters.contains(&actor)),
+                        CommandsMenu::skill_enabled(
+                            stats,
+                            *slot,
+                            skill,
+                            self.armed_fighters.contains(&actor),
+                        ),
                     )
                 })
                 .collect(),
@@ -301,7 +370,7 @@ impl CommandsMenu {
                     let item = &self.items[id];
                     (
                         item.name.clone(),
-                        item.supported() && !self.reserved(*source),
+                        CommandsMenu::item_enabled(item) && !self.reserved(*source),
                     )
                 })
                 .collect(),
@@ -572,19 +641,9 @@ impl CommandsMenu {
             .actor_fighter()
             .map(|f| f.stats.equipment)
             .unwrap_or_default();
-        equipment
-            .into_iter()
-            .enumerate()
-            .map(|(slot, id)| (ItemSource::Equipment(slot as u8), id))
-            .chain(
-                self.inventory
-                    .slots()
-                    .iter()
-                    .copied()
-                    .enumerate()
-                    .map(|(slot, id)| (ItemSource::Inventory(slot as u8), id)),
-            )
-            .filter(|(_, id)| *id != 0 && self.items.contains_key(id))
+        CommandsMenu::listed_items(&equipment, self.inventory.slots(), |id| self.items.get(&id))
+            .iter()
+            .map(|(source, item)| (*source, item.id))
             .collect()
     }
 

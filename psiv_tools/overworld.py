@@ -122,13 +122,12 @@ import struct
 from dataclasses import dataclass
 from typing import Any, Sequence
 
+from .chunk_draw import CHUNK_PIXELS_X, CHUNK_PIXELS_Y
 from .layouts import (
-    CHUNK_PIXELS_X,
-    CHUNK_PIXELS_Y,
     COLLISION_CELL_TILES,
+    PLANES,
     PLANE_BG,
     PLANE_FG,
-    PLANES,
     Blob,
     Layout,
     MapLayout,

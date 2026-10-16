@@ -77,6 +77,7 @@ every dimension below is the retail one.
 
 from __future__ import annotations
 
+import functools
 import hashlib
 from pathlib import Path
 from typing import Any, NamedTuple, Sequence
@@ -105,6 +106,7 @@ from .gfx import (
     _gap_bounds,
     _slice,
 )
+from .extract_stamp import begin_png_export, write_png_stamp
 from .kosinski import decompress as kosinski_decompress
 
 RGB = tuple[int, int, int]
@@ -194,6 +196,9 @@ def compose(
     width = columns * TILE_WIDTH
     height = rows * TILE_HEIGHT
     pixels = bytearray(width * height)
+    # A plane repeats a handful of (pattern, flip, line) combinations across
+    # hundreds of cells, so each one is oriented and moved onto its line once.
+    drawn: dict[tuple[int, bool, bool, int], bytes] = {}
 
     for index, cell in enumerate(cells):
         art_index = cell.tile - art_vram_tile
@@ -203,19 +208,38 @@ def compose(
                 f"art index {art_index} of a {len(tiles)}-pattern blob loaded at "
                 f"VRAM tile 0x{art_vram_tile:03X}"
             )
-        tile = _oriented(tiles[art_index], cell.h_flip, cell.v_flip)
-        base = cell.palette_line * COLORS_PER_LINE
+        key = (art_index, cell.h_flip, cell.v_flip, cell.palette_line)
+        tile = drawn.get(key)
+        if tile is None:
+            tile = _on_line(
+                _oriented(tiles[art_index], cell.h_flip, cell.v_flip),
+                cell.palette_line * COLORS_PER_LINE,
+            )
+            drawn[key] = tile
         ox = (index % columns) * TILE_WIDTH
         oy = (index // columns) * TILE_HEIGHT
         for y in range(TILE_HEIGHT):
             start = (oy + y) * width + ox
-            row = tile[y * TILE_WIDTH:(y + 1) * TILE_WIDTH]
-            # Index 0 is transparent in every CRAM line, so it shows the
-            # backdrop colour (CRAM entry 0) rather than colour 0 of the line.
-            pixels[start:start + TILE_WIDTH] = bytes(
-                base + p if p else 0 for p in row
-            )
+            pixels[start:start + TILE_WIDTH] = tile[y * TILE_WIDTH:(y + 1) * TILE_WIDTH]
     return width, height, bytes(pixels)
+
+
+@functools.lru_cache(maxsize=None)
+def _line_table(base: int) -> bytes:
+    """`bytes.translate` table: pattern index p -> CRAM index on line `base`.
+
+    Index 0 is transparent in every CRAM line, so it shows the backdrop colour
+    (CRAM entry 0) rather than colour 0 of the line. Entries past 255 - base
+    are never used: `_on_line` refuses a pattern that reaches them.
+    """
+    return bytes((base + p if p else 0) if base + p < 0x100 else 0 for p in range(0x100))
+
+
+def _on_line(tile: bytes, base: int) -> bytes:
+    data = bytes(tile)
+    if data and base + max(data) > 0xFF:
+        raise ValueError("bytes must be in range(0, 256)")
+    return data.translate(_line_table(base))
 
 
 def render(
@@ -782,7 +806,7 @@ def export_plane_pngs(data: bytes, out_dir: str | Path) -> list[dict[str, Any]]:
     version control.
     """
     directory = Path(out_dir)
-    directory.mkdir(parents=True, exist_ok=True)
+    begin_png_export(directory)
     written: list[dict[str, Any]] = []
 
     def emit(label: str, cells, columns, tiles, cram, art_vram_tile, palette_name):
@@ -840,4 +864,5 @@ def export_plane_pngs(data: bytes, out_dir: str | Path) -> list[dict[str, Any]]:
             f"Pal_{symbol}BattleBG",
         )
 
+    write_png_stamp(directory, "planes", [entry["path"] for entry in written])
     return written

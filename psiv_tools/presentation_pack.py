@@ -26,6 +26,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from psiv_tools import gfx, png, planes
+from psiv_tools.decode_cache import scoped
 from psiv_tools.enigma import decompress as enigma_decompress
 from psiv_tools.layouts import decode_map_palette
 from psiv_tools.nemesis import decompress as nemesis_decompress
@@ -745,6 +746,7 @@ def _emit_generic_portrait(rom: bytes, root: Path) -> dict[str, Any]:
     }
 
 
+@scoped
 def emit_presentation(rom_bytes: bytes, out_dir: str | Path) -> dict[str, object]:
     """Emit every currently decoded scene-presentation surface."""
     root = Path(out_dir)

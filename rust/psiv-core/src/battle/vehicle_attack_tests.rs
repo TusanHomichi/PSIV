@@ -83,7 +83,7 @@ pub(super) fn data() -> BattleData {
 /// `Vehicle_Index` `index` at `hp`, seated in the party's first slot, against
 /// `enemy` in the first enemy slot.
 fn roster_against(index: u16, hp: u16, enemy: &EnemyRecord) -> (Roster, FighterId) {
-    let member = vehicle::battle_member(
+    let member = vehicle::battle_member_with_hp(
         index,
         VehicleRecord {
             current_hp: hp,
@@ -442,7 +442,7 @@ fn a_vehicle_round_swings_instead_of_skipping() {
     // The engine's own path: the runtime's `Command::Attack` for a mounted
     // battle, on a stream of zero rolls.
     let data = data();
-    let member = vehicle::battle_member(
+    let member = vehicle::battle_member_with_hp(
         1,
         VehicleRecord {
             current_hp: 740,
@@ -535,7 +535,8 @@ fn the_vehicle_identity_is_loc_78ee_s_fighter_ids() {
     assert!(is_vehicle_fighter(fighter));
     assert_eq!(VEHICLE_FIGHTER_IDS, [0x0C, 0x0D, 0x0E]);
     for index in 1..=3u16 {
-        let member = vehicle::battle_member(index, VehicleRecord::default()).expect("a vehicle");
+        let member =
+            vehicle::battle_member_with_hp(index, VehicleRecord::default()).expect("a vehicle");
         assert_eq!(
             member.character,
             u8::try_from(0x0B + index).expect("a byte"),

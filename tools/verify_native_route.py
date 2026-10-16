@@ -1,6 +1,7 @@
 """Replay a whole campaign run natively and compare every chapter save.
 
-Run this entry point under the shared heavy flock. It feeds one completed
+It holds one godot-class slot of the shared heavy lock (tools/heavy_lock.py)
+for the whole run, so no wrapper is needed. It feeds one completed
 `psiv-campaign run` (its `run.tape` and `report.json`) through the generic
 Godot tape driver in a single continuous replay from New Game, and compares the
 slot snapshot with each chapter's saved bytes at the frame the chapter ended
@@ -12,6 +13,23 @@ a loaded game restarts both (`psiv-campaign run --from-chapter` plays other
 battles, documented in docs/campaign/CAMPAIGN_RUNNER.md). Only the full tape
 from New Game is the route's evidence, so only a prefix of it can be replayed
 (`--until-chapter`), never a single chapter.
+
+`--rss-every N --rss-warmup-frames W --rss-bound-mb B` turns the replay into
+the #92 memory check: the driver samples memory every N frames and the receipt
+fails when memory past frame W grows beyond B (what is measured, and how, is
+`verify_native_tape.rss_verdict`). The check's coverage is set in frames, so
+every run plays the same maps and battles whatever the host's speed; the bound
+is judged over that window of frames. Growth is not normalized per frame:
+audio is rendered on the wall clock, so a slower host renders more of it per
+frame. The verdict reads Godot's static memory, which only debug builds
+report, so the check is for debug builds (the release path is #117). The
+reference window is the campaign prefix through chapter 14:
+
+    psiv-campaign run rust/psiv-campaign/routes/main.json \
+        --until-chapter aiedo-chaz-house --save-dir RUN --tape RUN/run.tape \
+        --report RUN/report.json
+    verify_native_route.py --run-dir RUN --out OUT \
+        --rss-every 2500 --rss-warmup-frames 20000 --rss-bound-mb 16
 
 `--continue-probes` is the other half: it loads each chapter save in a fresh
 Godot process through the ordinary title CONTINUE and requires the snapshot to
@@ -197,6 +215,12 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--pack", type=Path, default=verify_native_tape.ROOT / "runtime-pack")
     command.add_argument("--timeout", type=int, default=21600,
                          help="seconds for the whole replay (default six hours)")
+    command.add_argument("--rss-every", type=int,
+                         help="record Godot's resident memory every N gameplay frames (#92)")
+    command.add_argument("--rss-warmup-frames", type=int,
+                         help="frames before the RSS baseline")
+    command.add_argument("--rss-bound-mb", type=float,
+                         help="fail when RSS grows more than this past its baseline")
     command.add_argument("--drop-pad-at", type=int,
                          help="negative control: replace one pad byte with neutral")
     command.add_argument("--continue-probes", action="store_true",
@@ -211,6 +235,18 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    lock = verify_native_tape.heavy_lock_path(verify_native_tape.ROOT)
+    with verify_native_tape.hold_heavy_lock(lock, lock_class=verify_native_tape.GODOT_CLASS):
+        return verify_route(args)
+
+
+def verify_route(args: argparse.Namespace) -> int:
+    """The run `main` parsed, checked while it holds its godot slot."""
+    if args.rss_bound_mb is not None and (
+            args.rss_every is None or args.rss_warmup_frames is None
+            or args.rss_warmup_frames < args.rss_every):
+        parser().error("--rss-bound-mb needs --rss-every and --rss-warmup-frames of at least "
+                       "--rss-every")
     run_dir = args.run_dir.resolve(strict=True)
     try:
         report, chapters, chapters_in_run = load_chapters(run_dir, args.until_chapter)
@@ -244,6 +280,12 @@ def main(argv: list[str] | None = None) -> int:
         tape_args += ["--expect-written-save", str(final_pad_save)]
     if args.drop_pad_at is not None:
         tape_args += ["--drop-pad-at", str(args.drop_pad_at)]
+    if args.rss_every is not None:
+        tape_args += ["--rss-every", str(args.rss_every)]
+    if args.rss_warmup_frames is not None:
+        tape_args += ["--rss-warmup-frames", str(args.rss_warmup_frames)]
+    if args.rss_bound_mb is not None:
+        tape_args += ["--rss-bound-mb", str(args.rss_bound_mb)]
     started = time.monotonic()
     code = verify_native_tape.main(tape_args)
     wall_s = time.monotonic() - started
@@ -276,6 +318,8 @@ def main(argv: list[str] | None = None) -> int:
         "identity_stable": (tape_receipt or {}).get("identity_stable"),
         "mapped_library_matches_preflight":
             (tape_receipt or {}).get("mapped_library_matches_preflight"),
+        "rss": (tape_receipt or {}).get("rss"),
+        "host_power": (tape_receipt or {}).get("host_power"),
         "source_head": ((tape_receipt or {}).get("source_identity_before", {}).get("head")),
         "chapters": [f"{item['index']:02d}-{item['chapter']}" for item in receipts],
     }

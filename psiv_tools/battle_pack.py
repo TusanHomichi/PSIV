@@ -73,6 +73,7 @@ from .core import (
 )
 from .battle_records import build_characters, build_equipment
 from .battle_animations import build_enemy_animations
+from .decode_cache import scoped
 from .formations import extract_formation_indexes, extract_formations
 from .maps.encounters import extract_encounter_binding
 from .text import extract_names
@@ -507,6 +508,7 @@ def _write(directory: Path, name: str, payload: dict[str, Any], version: int) ->
     return hashlib.sha256(data).hexdigest()
 
 
+@scoped
 def emit_battle(rom: bytes, out_dir: str | Path, version: int) -> dict[str, Any]:
     """Write `battle/` and return the manifest fragment describing it.
 

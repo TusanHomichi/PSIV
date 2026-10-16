@@ -89,6 +89,9 @@ pub struct VehicleProfile {
     pub name: &'static str,
     /// The sprite-pack sheet id.
     pub sheet_id: &'static str,
+    /// Static HP, `VehicleData`'s first word (`ps4.asm:321152`): the battle
+    /// copy's current and maximum HP at every battle's start (`loc_77AE`).
+    pub hp: u16,
     /// Static strength.
     pub strength: u8,
     /// Static mental power.
@@ -116,6 +119,7 @@ const VEHICLE_PROFILES: [VehicleProfile; 3] = [
         index: 1,
         name: "LAND ROVER",
         sheet_id: "LandRover",
+        hp: 0x02E4,
         strength: 64,
         mental: 0,
         agility: 60,
@@ -131,6 +135,7 @@ const VEHICLE_PROFILES: [VehicleProfile; 3] = [
         index: 2,
         name: "ICE DIGGER",
         sheet_id: "IceDigger",
+        hp: 0x03C0,
         strength: 80,
         mental: 0,
         agility: 48,
@@ -146,6 +151,7 @@ const VEHICLE_PROFILES: [VehicleProfile; 3] = [
         index: 3,
         name: "HYDROFOIL",
         sheet_id: "Hydrofoil",
+        hp: 0x02A8,
         strength: 255,
         mental: 0,
         agility: 96,
@@ -168,16 +174,37 @@ pub fn profile(index: u16) -> Option<&'static VehicleProfile> {
         .find(|profile| profile.index == index)
 }
 
-/// Returns the saved vehicle as the one battle fighter retail creates.
+/// Returns the saved vehicle as the one battle fighter retail creates at a
+/// battle's start.
 ///
 /// Retail's `loc_78EE` writes `Obj_Fighters = 1` and replaces the ordinary
-/// party with fighter id `Vehicle_Index + $B` (`ps4.asm:11408-11414`). The
-/// saved record supplies the HP and skill uses here. The HP read is an
-/// intentional project correction: the retail entry path reloads static HP,
-/// but PSIV's save lane promises that the three vehicle records round-trip and
-/// the runtime must therefore carry their current HP into the battle surface.
+/// party with fighter id `Vehicle_Index + $B` (`ps4.asm:11408-11414`), and
+/// `loc_77AE` fills that fighter from `VehicleData`: its current *and* maximum
+/// HP are the static record's (`move.w (a0),curr_hp(a1)` /
+/// `move.w (a0)+,max_hp(a1)`, `ps4.asm:11309-11310`). The skill mask and the
+/// current skill uses come from `Saved_Vehicle_Stats` (`ps4.asm:11392-11402`),
+/// and the battle's end copies only the uses back (`ps4.asm:6372-6389`). So every vehicle battle starts
+/// at full static HP: damage never carries from one battle to the next. The
+/// saved record's HP is ignored here; [`battle_member_with_hp`] builds a
+/// fighter at a given HP for fixtures that model RAM directly.
 #[must_use]
 pub fn battle_member(index: u16, record: VehicleRecord) -> Option<PartyMember> {
+    let hp = profile(index)?.hp;
+    battle_member_with_hp(
+        index,
+        VehicleRecord {
+            current_hp: hp,
+            max_hp: hp,
+            ..record
+        },
+    )
+}
+
+/// The vehicle fighter with `record`'s HP, mask and uses as they stand: an
+/// oracle fixture or a test that sets `Vehicle_Stats` directly. A battle the
+/// game starts uses [`battle_member`].
+#[must_use]
+pub fn battle_member_with_hp(index: u16, record: VehicleRecord) -> Option<PartyMember> {
     let profile = profile(index)?;
     let mut skills = [0; SKILL_SLOTS];
     for (slot, skill) in skills.iter_mut().enumerate() {
@@ -632,8 +659,30 @@ mod tests {
         assert_eq!(state.render_offset_16ths(), (4, 0));
     }
 
+    /// A battle starts the vehicle at its static HP whatever the saved record
+    /// holds (`loc_77AE`); the mask and uses come from the record. Negative:
+    /// the explicit-HP constructor keeps the record's HP.
     #[test]
-    fn battle_member_carries_saved_hp_mask_and_uses() {
+    fn battle_member_starts_at_static_hp_with_saved_mask_and_uses() {
+        let record = VehicleRecord {
+            current_hp: 0x0065,
+            max_hp: 0x03C0,
+            skill_mask: 0x50,
+            current_skill_uses: [1, 2, 3, 4, 5, 6, 7, 8],
+            max_skill_uses: [8, 7, 6, 5, 4, 3, 2, 1],
+            ..VehicleRecord::default()
+        };
+        let member = battle_member(2, record).expect("Ice Digger");
+        assert_eq!(member.stats.curr_hp, 0x03C0);
+        assert_eq!(member.stats.max_hp, 0x03C0);
+        assert_eq!(member.stats.curr_skill_uses, record.current_skill_uses);
+        assert_eq!(member.stats.max_skill_uses, record.max_skill_uses);
+        let at = battle_member_with_hp(2, record).expect("Ice Digger");
+        assert_eq!(at.stats.curr_hp, 0x0065);
+    }
+
+    #[test]
+    fn battle_member_with_hp_carries_saved_hp_mask_and_uses() {
         let record = VehicleRecord {
             current_hp: 0x0123,
             max_hp: 0x0456,
@@ -642,7 +691,7 @@ mod tests {
             max_skill_uses: [8, 7, 6, 5, 4, 3, 2, 1],
             ..VehicleRecord::default()
         };
-        let member = battle_member(1, record).expect("Land Rover");
+        let member = battle_member_with_hp(1, record).expect("Land Rover");
         assert_eq!(member.character, 0x0C);
         assert_eq!(member.stats.curr_hp, 0x0123);
         assert_eq!(member.stats.max_hp, 0x0456);

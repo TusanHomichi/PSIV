@@ -34,4 +34,4 @@ starts (enemy 130, 4,540 HP; FLARE SHOT, PHONONMASR and BURSTROC strike the
 whole party). The engine runs no player skill beyond Crosscut and Vortex, so
 Chaz's Rayblade (anti-evil, which Dark Force 1 is weak to) and Rune's Efess are
 never cast: the party wins on techniques and plain attacks, and it took levels
-38 to 46 to do it ([RUNNER_LOG_KURAN.md](../campaign/RUNNER_LOG_KURAN.md#h34-dark-force-1-is-a-balance-loss-until-the-party-is-trained)).
+38 to 46 to do it (the route's `dezolis-training` chapter).

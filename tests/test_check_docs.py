@@ -12,8 +12,8 @@ lines it prints.
 The real tree passes case runs the same tool against this repository, so the
 guard is checked against the documents it guards. The rest are negative
 controls (a missing link target, a missing anchor, a missing command path, an
-unmatched glob and a `yaml` block that does not parse, each rejected by name
-and line) and positive cases that pin
+unmatched glob, a `yaml` block that does not parse and a host-absolute home
+path, each rejected by name and line) and positive cases that pin
 what the checker deliberately lets through: a duplicate heading's `-1` anchor,
 a link written inside a fenced block or inline code, an external URL, and
 git-ignored local inputs, as a link target and as a command path.
@@ -29,6 +29,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+
+from tools.repo_files import repo_files
 
 ROOT = Path(__file__).resolve().parents[1]
 CHECKER = ROOT / "tools" / "check_docs.py"
@@ -50,6 +52,49 @@ def git_env(home):
 def lines(*parts):
     """A file body, one newline-terminated line per part."""
     return "".join(part + "\n" for part in parts)
+
+
+YAML_LANGS = ("yaml", "yml")
+
+
+def yaml_block_count(texts):
+    """How many closed `yaml`/`yml` fenced blocks `texts` hold, counted here.
+
+    Deliberately not the checker's own parser: a fence opens with three or
+    more backticks or tildes behind at most three spaces (a backtick fence's
+    info string holds no backtick) and closes on a line of at least as many of
+    the same character. A block left open at the end of a file is never
+    checked, so it is not counted.
+    """
+    count = 0
+    for text in texts:
+        fence = None  # (character, length, is_yaml)
+        for line in text.splitlines():
+            body = line.lstrip(" ")
+            if len(line) - len(body) > 3:
+                continue  # indented code or block content, never a fence line
+            if fence is None:
+                char = body[:1]
+                run = len(body) - len(body.lstrip(char)) if char in ("`", "~") else 0
+                info = body[run:].strip()
+                if run >= 3 and not (char == "`" and "`" in info):
+                    words = info.split()
+                    fence = (char, run, bool(words) and words[0].lower() in YAML_LANGS)
+            elif body.rstrip() == fence[0] * len(body.rstrip()) and len(body.rstrip()) >= fence[1]:
+                count += fence[2]
+                fence = None
+    return count
+
+
+def tracked_markdown(root):
+    """The Markdown texts the checker scans: the change's `*.md` files."""
+    texts = []
+    for name in repo_files(root, ("*.md",)):
+        try:
+            texts.append((Path(root) / name).read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError):
+            continue  # the checker skips an unreadable file the same way
+    return texts
 
 
 def run_checker(cwd, home):
@@ -102,8 +147,21 @@ class RealTree(RepoCase):
         self.assertGreater(int(summary["links"]), 100)
         self.assertGreater(int(summary["anchors"]), 10)
         self.assertGreater(int(summary["paths"]), 10)
-        self.assertGreater(int(summary["yaml"]), 0)
+        # The tree may hold no yaml block at all, so the count is checked
+        # against an independent tally of the same files rather than a floor.
+        self.assertEqual(int(summary["yaml"]), yaml_block_count(tracked_markdown(ROOT)), out)
         self.assertEqual(summary["problems"], "0")
+
+    def test_a_yaml_block_appended_to_a_copy_is_counted(self):
+        """One yaml block added to a copy of a real document counts exactly once."""
+        original = (ROOT / "docs" / "ROADMAP.md").read_text(encoding="utf-8")
+        before = yaml_block_count([original])
+        appended = original + lines("", "```yaml", "added: [one]", "```")
+        self.assertEqual(yaml_block_count([appended]), before + 1)
+        code, out = self.check({"docs/ROADMAP.md": appended})
+        summary = SUMMARY_RE.search(out)
+        self.assertIsNotNone(summary, out)
+        self.assertEqual(int(summary["yaml"]), before + 1, out)
 
     def test_missing_link_in_a_copy_is_rejected(self):
         """A broken link in a copy of a real document is named with its line."""
@@ -181,6 +239,36 @@ class NegativeControls(RepoCase):
         self.assertIn(
             "docs/graph.md:7: yaml block does not parse: while scanning a quoted scalar", out
         )
+
+    def test_a_host_absolute_home_path(self):
+        """A `/home/<user>` or `/Users/<user>` path is named, in prose or a fence."""
+        code, out = self.check({
+            "docs/report.md": lines(
+                "# Report", "",
+                "Set GODOT=/home/alice/.local/bin/godot first.",
+                "```sh", "/Users/bob/bin/godot --path godot", "```",
+            ),
+        })
+        self.assertEqual(code, 1, out)
+        self.assertIn("docs/report.md:3: host-absolute home path: /home/alice", out)
+        self.assertIn("docs/report.md:5: host-absolute home path: /Users/bob", out)
+        self.assertIn("; 2 problem(s)", out)
+
+    def test_a_home_path_in_a_file_url_or_without_a_trailing_slash(self):
+        """`file:///home/<user>/...` and a bare `/home/<user>` at a word end are named."""
+        code, out = self.check({
+            "docs/report.md": lines(
+                "# Report", "",
+                "The capture is file:///home/carol/frames/f.png here.",
+                "Saves went to /home/dave.",
+                "Or `/Users/erin`",
+            ),
+        })
+        self.assertEqual(code, 1, out)
+        self.assertIn("docs/report.md:3: host-absolute home path: /home/carol", out)
+        self.assertIn("docs/report.md:4: host-absolute home path: /home/dave", out)
+        self.assertIn("docs/report.md:5: host-absolute home path: /Users/erin", out)
+        self.assertIn("; 3 problem(s)", out)
 
     def test_unmatched_glob(self):
         code, out = self.check({
@@ -273,6 +361,18 @@ class AcceptedCases(RepoCase):
         self.assertEqual(code, 1, out)
         self.assertIn("docs/report.md:4: command path not found: docs/absent", out)
         self.assertNotIn("docs/local", out)
+
+    def test_home_relative_paths_and_urls_pass(self):
+        """`~/` paths, `$HOME` and a URL whose path holds `/home/` are not host paths."""
+        code, out = self.check({
+            "docs/report.md": lines(
+                "# Report", "",
+                "The default is `~/.local/bin/psiv-godot`, or $HOME/.local/bin.",
+                "[site](https://example.invalid/home/alice/page)",
+                "See https://example.com/home/x for the page, and ~/home/a/b.",
+            ),
+        })
+        self.assertEqual(code, 0, out)
 
     def test_matched_glob_and_existing_paths_pass(self):
         code, out = self.check({

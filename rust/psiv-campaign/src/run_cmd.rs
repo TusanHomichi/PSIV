@@ -7,8 +7,9 @@
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use psiv_campaign::driver::MemberAtEnd;
 use psiv_campaign::prefix::check_prefix;
-use psiv_campaign::replay::replay;
+use psiv_campaign::replay::replay_observing;
 use psiv_campaign::route::Route;
 use psiv_campaign::runner::{RunConfig, run};
 use psiv_campaign::split::{ChapterCut, chapters_of, report_chapters, split_tape};
@@ -66,6 +67,9 @@ fn run_inner(args: &[String]) -> Result<ExitCode, String> {
             chapter.save.display(),
             chapter.party
         );
+        for battle in &chapter.event_battles {
+            println!("  {}", battle.end_line());
+        }
     }
     println!(
         "tape {} ({} frames); digest {}",
@@ -93,11 +97,25 @@ fn run_inner(args: &[String]) -> Result<ExitCode, String> {
     if let Some(path) = args.one("report") {
         let chapters = report_chapters(first_index, &result.chapters)
             .map_err(|e| format!("cannot hash a chapter save: {e}"))?;
+        let event_battles: Vec<serde_json::Value> = result
+            .chapters
+            .iter()
+            .flat_map(|chapter| {
+                chapter.event_battles.iter().map(|b| {
+                    serde_json::json!({
+                        "chapter": chapter.id, "id": b.id, "start_frame": b.start_frame,
+                        "end_frame": b.end_frame,
+                        "party_at_end": b.party_at_end.iter().map(MemberAtEnd::to_json).collect::<Vec<_>>(),
+                    })
+                })
+            })
+            .collect();
         let report = serde_json::json!({
             "result": "completed",
             "digest": result.digest.to_string(),
             "frames": result.tape.pads.len(),
             "chapters": chapters,
+            "event_battles": event_battles,
         });
         write_file(Path::new(path), &report.to_string())?;
     }
@@ -105,7 +123,11 @@ fn run_inner(args: &[String]) -> Result<ExitCode, String> {
     Ok(ExitCode::SUCCESS)
 }
 
-/// `replay <tape> [--from-save FILE] [--pack DIR]`.
+/// `replay <tape> [--from-save FILE] [--pack DIR] [--map-every N]`.
+///
+/// `--map-every N` prints `map-sample <frames> <map>` after every N frames:
+/// the map the native RSS samples were taken on, for re-judging recorded
+/// samples (`tools/verify_native_tape.py`, #92).
 pub fn cmd_replay(args: &[String]) -> ExitCode {
     match replay_inner(args) {
         Ok(code) => code,
@@ -124,7 +146,23 @@ fn replay_inner(args: &[String]) -> Result<ExitCode, String> {
     let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read {path}: {e}"))?;
     let tape = Tape::parse(&text).map_err(|e| format!("{path}: {e}"))?;
     let from_save = args.one("from-save").map(Path::new);
-    let result = replay(&pack_dir(&args), &tape, from_save).map_err(|e| e.to_string())?;
+    let map_every = match args.one("map-every") {
+        Some(text) => match text.parse::<usize>() {
+            Ok(every) if every > 0 => Some(every),
+            _ => {
+                return Err(format!(
+                    "--map-every needs a positive frame count, not {text:?}"
+                ));
+            }
+        },
+        None => None,
+    };
+    let result = replay_observing(&pack_dir(&args), &tape, from_save, |frames, runtime| {
+        if map_every.is_some_and(|every| frames % every == 0) {
+            println!("map-sample {frames} {}", runtime.map_id().0);
+        }
+    })
+    .map_err(|e| e.to_string())?;
     for (frame, fault) in &result.faults {
         println!("fault at frame {frame}: {fault}");
     }

@@ -82,7 +82,9 @@ pub(crate) fn narration(
                 FirstZioAction::Invocation
                 | FirstZioAction::Pause
                 | FirstZioAction::DarkForceCharge
-                | FirstZioAction::DarkForceReveal => "",
+                | FirstZioAction::DarkForceReveal
+                | FirstZioAction::ProfoundDarknessRise
+                | FirstZioAction::TreesTakeRoot => "",
             }
             .into(),
             beat: BattleBeat::None,

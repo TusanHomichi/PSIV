@@ -1,142 +1,123 @@
 # PSIV
 
-**Phantasy Star IV, rebuilt as a native Rust/Godot game.**
+**Phantasy Star IV, rebuilt as a native game.** It runs on Linux and the Steam
+Deck today; Windows and macOS are part of 1.0.
 
-PSIV pairs a cartridge-data extractor with a native game runtime. Python turns
-a user-supplied US ROM into a local asset/data pack; Rust runs the game rules,
-and Godot provides the desktop presentation and input. An emulator is used
-for development comparisons; playing the native build does not require one.
+PSIV reads the game's data out of your own copy of the US Genesis/Mega Drive
+cartridge and runs it natively: Python extracts the maps, graphics, sound,
+dialogue and battle tables into a local data pack, Rust reproduces the game's
+rules frame by frame, and Godot draws it and reads your controller. No emulator
+runs while you play, and the goal is the original game's behavior, quirks
+included.
 
-The goal is a complete, faithful playthrough on a modern computer, followed
-by modding tools. **This is an active development build, with the campaign
-still in progress.**
+**You bring the ROM.** PSIV contains no game data. It builds everything from a
+ROM image of the US retail release that you supply; nothing derived from it is
+distributed here.
 
-[Current status](#where-we-are) · [Roadmap](docs/ROADMAP.md) ·
-[Build and run](docs/DEVELOPMENT.md) · [Documentation](docs/README.md) · [MIT](LICENSE)
+[Roadmap](docs/ROADMAP.md) · [Contributing](CONTRIBUTING.md) ·
+[Developer guide](docs/DEVELOPMENT.md) · [Documentation](docs/README.md) ·
+[License](#license)
 
-Contributing with a coding agent? Start with [AGENTS.md](AGENTS.md) and the
-[agent workflow](docs/AGENT_WORKFLOW.md).
+## Status
 
-## Where we are
+PSIV is not at 1.0 yet. An automated playthrough, pressing the same buttons a
+player would, gets from New Game to Dark Force 2's defeat, and the native game
+replays it as far as the Air Castle so far. Every player technique and skill,
+and every enemy ability up to Dark Force 2, is checked against the cartridge.
+The rest, from there to the Ending, is in progress
+([#116](https://github.com/TusanHomichi/PSIV/issues/116)).
+Presentation (some animations, whole-scene staging, audio timing) still
+differs from the original in places.
 
-**Combined post-Zio checkpoint: October 3, 2026.**
+Version 1.0 means the unmodified game is completable from New Game to the
+Ending natively. The checklist:
 
-**Workflow setup is complete:** the [evidence-driven workflow](docs/AGENT_WORKFLOW.md)
-is the standing default, and the [setup ledger](docs/records/WORKFLOW_SETUP.md) retains
-the verified graph and checks. The docs were merged through PR #1.
-**Historical native campaign outcome:** the connected post-Rika party rested in Zema,
-crossed the newly opened northern bridge, and saved on Motavia `$00 (84,64)`
-with all five alive and 1129 meseta. Fresh-process CONTINUE and save-byte
-validation pass. See the
-[historical native receipt](docs/field/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
-and [next task handoff](docs/ROADMAP.md#task-graph-handoff).
+- [ ] The full campaign, New Game to the Ending, plays natively ([#116](https://github.com/TusanHomichi/PSIV/issues/116)).
+- [ ] Long sessions run without memory growth ([#92](https://github.com/TusanHomichi/PSIV/issues/92)).
+- [ ] Every story event that a trigger starts has its scene
+  ([#56](https://github.com/TusanHomichi/PSIV/issues/56), [#71](https://github.com/TusanHomichi/PSIV/issues/71), [#81](https://github.com/TusanHomichi/PSIV/issues/81), [#83](https://github.com/TusanHomichi/PSIV/issues/83)).
+- [ ] Hosted CI runs the checks that need no ROM ([#15](https://github.com/TusanHomichi/PSIV/issues/15)).
+- [ ] Windows and macOS builds ([#117](https://github.com/TusanHomichi/PSIV/issues/117)), on the latest Godot ([#133](https://github.com/TusanHomichi/PSIV/issues/133)), checked by testers with a built-in self-check ([#134](https://github.com/TusanHomichi/PSIV/issues/134)).
+- [ ] A release package for every platform ([#115](https://github.com/TusanHomichi/PSIV/issues/115)).
+- [x] Player instructions: this README.
 
-**Campaign milestone (October 7):** the ordinary-pad campaign route plays New
-Game through `Cutscene_DarkForce2Defeated` in 62 chapters (4,483,067 frames),
-twice with identical tapes and a replay that reproduces the digest. The whole
-tape, through the Air Castle's arrival, replays natively in Godot with every
-chapter's save byte-identical, and every chapter save loads through the title's
-CONTINUE ([native tape replay](docs/campaign/CAMPAIGN_RUNNER.md#r2-native-tape-replay-in-progress)).
-Every player technique and skill, and every enemy ability up to Dark Force 2, is
-transcribed and verified against cartridge captures. Each integration passes
-`tools/verify_candidate.py`: the route, the 12 certified presentation pairs at
-0.000000, and the full gate. The [run log](docs/campaign/RUNNER_LOG.md) records
-every halt and its fix; the [roadmap](docs/ROADMAP.md) holds the next action.
+The open items are the [v1.0 blocker issues](https://github.com/TusanHomichi/PSIV/issues?q=is%3Aissue+is%3Aopen+label%3Av1.0-blocker).
 
-| Area | Current evidence |
-| --- | --- |
-| Connected playthrough | Ordinary-input routes complete the Academy, Tonoe/Alshline and Zema aftermath, with saved checkpoints and fresh CONTINUE checks. |
-| BioPlant | Connected traversal, Rika join and escape are verified with all five alive, expected story flags, an ordinary Motavia save and fresh CONTINUE. The original healthy `$A7` save and failed attempts are preserved. |
-| Post-Rika travel | Paid Zema recovery and the northern bridge crossing pass through ordinary input and SAVE/CONTINUE. The missing overworld page-hook consumer is repaired; the bridge's named 32×32 region matches retail exactly. |
-| Combat and camp | Every player technique and skill (94) and every enemy ability through Dark Force 2, each replaying the cartridge's captured RNG exactly; all 26 usable battle-item records, recovery, shops, equipment, chests, travel and earned progression. Endgame enemy abilities are in progress, and the campaign's battle policy does not yet use every skill ([#88](https://github.com/TusanHomichi/PSIV/issues/88)). |
-| Recovery | A bounded BioPlant run wins one encounter, cures two poisoned members with ANTI, heals, saves and reloads. The playthrough driver now cures poison before HP recovery. |
-| Campaign route | 62 chapters from New Game to Dark Force 2's defeat, headless and deterministic. Native Godot replay of the 50-chapter tape to the Air Castle matches every chapter save; the twelve chapters past it are proven headless only until the next native replay. |
-| Presentation | Selected reference frames and four ORDER-menu regions match the cartridge exactly. Whole-scene, animation and UI fidelity still need work. |
-| Data | The extractor covers all 361 real maps, character progression, dialogue, battle records, graphics and sound. Extracted records do not imply implemented gameplay. |
+## Play it
 
-The [BioPlant checkpoint ledger](docs/campaign/BIOPLANT_NATIVE.md) and
-[travel continuation](docs/field/TRAVEL.md#post-rika-northern-crossing-2026-09-23)
-record the saves, hashes, successful checks and failed attempts. Save files, ROM-derived assets
-and captures stay local; their paths in the ledgers are reproduction evidence,
-not downloads included with the repository.
+PSIV currently runs from a source checkout; a packaged release is part of the
+1.0 work. You need:
 
-### Verified baseline
+- the US ROM, `Phantasy Star IV (USA).md` (`.md` is the Mega Drive ROM
+  extension; the accepted SHA-256 is in the
+  [developer guide](docs/DEVELOPMENT.md#prepare-the-local-pack));
+- Python, Rust and Godot at the versions the
+  [developer guide](docs/DEVELOPMENT.md#current-environment) names, plus `git`,
+  GNU `patch` and a C compiler.
 
-Code checkpoint [`82de4a3`](https://github.com/TusanHomichi/PSIV/commit/82de4a37fcce1799520bc033d251573244375445):
+### On Linux
 
-- **927 Python tests passed.**
-- **898 Rust workspace tests passed** on the matching source; post-commit camp checks passed too.
-- Formatting and strict Clippy passed.
-- Native SAVE/CONTINUE and bounded oracle comparisons have separate receipts.
+Build the data pack from your ROM, build the game, and start it. The exact
+commands are in the developer guide's
+[prepare the local pack](docs/DEVELOPMENT.md#prepare-the-local-pack) and
+[launch the native game](docs/DEVELOPMENT.md#launch-the-native-game) sections.
+In short: clone this repository, fetch the disassembly and the sound core the
+guide names, run `python3 -m psiv_tools pack <your ROM> runtime-pack`, build the
+`psiv-godot` extension with Cargo, and open the `godot/` project with Godot.
 
-These are recorded local results, not a claim of CI coverage or a finished game.
-The later [`e03700b`](https://github.com/TusanHomichi/PSIV/commit/e03700be2d71fcb298a3a877c3ebdf1bfcf85aad)
-fix suppresses cancelled BROSE/RIMIT cues; its
-[focused sound receipts](docs/sound/SOUND_INTEGRATION.md#cancelled-spell-cues-2026-09-15)
-are separate from the full-suite baseline above. The workflow setup does not
-rerun or recertify either gameplay result.
+Saves go to the directory `PSIV_SAVE_DIR` names, or to `saves/` in the
+directory the game starts from when it is unset. Load with the title screen's
+CONTINUE and save from the camp menu's STATE, then SAVE, as on the cartridge.
 
-## Next milestones
+### On the Steam Deck
 
-1. **One next route action:** continue after Zio toward the spaceport/Zelan/Wren.
-   The ship destination-menu gap is an explicit dependency; this route is
-   parked for the next work session, not implemented at this checkpoint.
-2. Then close remaining battle abilities, enemy AI and camp command gaps as the
-   campaign exposes them.
-3. Finish presentation fidelity and produce a reproducible desktop package.
-4. Build modding tools after the unmodified game is playable end to end.
+Build the pack on a Linux PC as above, then run
+`tools/package/deploy-deck.sh <deck-address>`: it builds a Deck-compatible
+release, puts the pack beside it, and copies both to `~/psiv` on the Deck over
+SSH. On the Deck, add `~/psiv/psiv.x86_64` as a non-Steam game. This is the
+developer path until the release package lands; its requirements are in the
+developer guide's [Steam Deck section](docs/DEVELOPMENT.md#package-for-the-steam-deck).
 
-See the [roadmap](docs/ROADMAP.md) for concrete completion criteria.
+### Controls
 
-## Build and run
+| Action | Keyboard | Controller |
+| --- | --- | --- |
+| Move, menu selection | Arrow keys or WASD | D-pad or left stick |
+| Confirm, talk | Enter, Space or Z | A (bottom face button) |
+| Cancel | Escape or X | B (right face button) |
+| Camp menu | C | X (left face button) |
+| Start | Tab | Start |
 
-The current GDExtension configuration targets **Linux x86-64**. The tested
-Godot version is **4.7.1**; other platforms need build/export work.
+## Known differences
 
-You need Python, a Rust toolchain supporting edition 2024, Godot, and the
-supported US ROM. The ROM and generated assets are not distributed here.
+Where PSIV knowingly differs from the cartridge, there is an open issue:
 
-```bash
-git clone https://github.com/TusanHomichi/PSIV.git
-cd PSIV
-git clone --depth 1 https://github.com/alechenninger/ps4disasm reference/ps4disasm
-./oracle/build_core.sh   # pinned core sources; the sound crate builds from them
-python3 -m psiv_tools pack "/path/to/Phantasy Star IV (USA).md" runtime-pack
-cargo build --manifest-path rust/Cargo.toml -p psiv-godot
-PSIV_SAVE_DIR="$PWD/saves" godot --path godot
-```
+- [Gameplay differences](https://github.com/TusanHomichi/PSIV/issues?q=is%3Aissue+is%3Aopen+label%3Agameplay-fidelity):
+  a rule that does not yet match the original.
+- [Presentation differences](https://github.com/TusanHomichi/PSIV/issues?q=is%3Aissue+is%3Aopen+label%3Apresentation):
+  drawing, animation, audio or timing that looks or sounds different.
 
-Use your Godot executable in place of `godot` if needed. Keep the default
-1280×800 viewport for desktop checks; reduced captures can clip camp windows.
-The [input table](docs/DEVELOPMENT.md#launch-the-native-game) lists the
-current controls.
+If you find a difference that is not listed, please open an issue with what you
+saw, where in the game, and what the original does.
 
-[Developer setup and verification](docs/DEVELOPMENT.md) covers the ROM hash,
-save directories, test commands and local launcher assumptions.
+## Modding
 
-## Inside the project
+The data pack is ordinary files: PNG images and JSON tables (plus some binary
+sound data) under `runtime-pack/`. Edit them and the game loads your edits,
+as long as they still fit the pack's schema (it refuses a malformed table).
+`python3 -m psiv_tools pack` rebuilds the pack from the ROM and overwrites
+edits made in place, so keep your changes separately. A mod overlay loader, so
+that mods sit beside the original pack instead of inside it, is planned after
+1.0 ([#118](https://github.com/TusanHomichi/PSIV/issues/118)).
 
-| Path | Responsibility |
-| --- | --- |
-| `psiv_tools/` | ROM readers, decompression, extraction and pack generation |
-| `rust/psiv-data/` | Typed pack loading and validation |
-| `rust/psiv-core/` | Deterministic field, battle, story and persistence rules |
-| `rust/psiv-runtime/` | Game orchestration and the presentation-facing API |
-| `rust/psiv-godot/`, `godot/` | Desktop rendering, menus and input |
-| `rust/psiv-sound/` | Sound-driver interpretation and chip emulation |
-| `oracle/`, `tools/` | Cartridge comparisons and native verification drivers |
+## Contributing
 
-The [extraction reference](docs/EXTRACTION.md) preserves the table census and
-CLI details. The [runtime architecture](docs/RUNTIME_DESIGN.md) describes the
-current layers and fidelity decisions.
+Start with [CONTRIBUTING.md](CONTRIBUTING.md). Coding agents also read
+[AGENTS.md](AGENTS.md), which holds the project's working rules.
 
 ## License
 
-The project's original code and documentation use the **[MIT License](LICENSE)**,
-copyright © 2026 Peter Permenter. MIT permits use, modification, distribution
-and commercial reuse, subject to its notice requirements; see the
-[MIT terms](https://opensource.org/license/mit).
-
-This license does not relicense the original game's ROM, extracted game
-content, or third-party components. Those retain their respective rights
-and licenses.
+PSIV's original code and documentation are under the [MIT License](LICENSE),
+copyright © 2026 Peter Permenter. That license does not cover the original
+game, its ROM, anything extracted from it, or third-party components; those
+keep their own rights and licenses.

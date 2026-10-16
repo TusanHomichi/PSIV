@@ -86,22 +86,81 @@ impl EnemySkill {
         self.is_fission() || self.is_warning()
     }
 
-    /// The two records `EnemyAttack_TechUser`'s object `$3D4` heals with.
+    /// The four heal records the [`HEALS`] arms cast.
     ///
-    /// Record 69 `$45` RES at `0x28358C` is `12 82 01 10 00 00 00 00` and record
-    /// 62 `$3E` GIRES at `0x283554` is `12 82 01 40 00 00 00 00`: effect `$12`
-    /// (`AbilityEffect_NormalLogic`), the MEN selector `$82`, target nibble 1,
-    /// a power byte (16 and 64) and neither a resistance selector nor an
+    /// Record 69 `$45` RES at `0x28358C` is `12 82 01 10 00 00 00 00`, record
+    /// 62 `$3E` GIRES at `0x283554` is `12 82 01 40 00 00 00 00`, and records 70
+    /// `$46` SAR and 73 `$49` GISAR are `12 82 02 10 00 00 00 00`: effect `$12`
+    /// (`AbilityEffect_NormalLogic`), the MEN selector `$82`, target nibble 1
+    /// or 2, a power byte (16 or 64) and neither a resistance selector nor an
     /// element. The whole records are pinned because the effect byte alone
     /// covers 44 ids.
     const fn is_tech_heal(&self) -> bool {
-        matches!((self.id, self.power), (69, 16) | (62, 64))
-            && self.effect == 18
+        matches!(
+            (self.id, self.power, self.target),
+            (69, 16, 1) | (62, 64, 1) | (70, 16, 2) | (73, 16, 2)
+        ) && self.effect == 18
             && self.power_stat == 130
-            && self.target == 1
             && self.resistance == 0
             && self.element == 0
     }
+}
+
+/// Whether [`resolve_fission`] can run `skill`: the refill records. The arm
+/// that reaches it is `EnemyAI_EmptySpace`, whatever the carrier.
+pub(super) const fn owns_refill(skill: &EnemySkill) -> bool {
+    skill.is_refill()
+}
+
+/// Whether [`resolve_no_effect_turn`] spends `skill`'s turn for `enemy`.
+pub(super) fn owns_wasted(enemy: u16, skill: &EnemySkill) -> bool {
+    (skill.is_fission() && FLOAT_MINE_CARRIERS.contains(&enemy))
+        || (skill.is_waiting()
+            && (FLOAT_MINE_CARRIERS.contains(&enemy) || ARM_DRONE_CARRIERS.contains(&enemy)))
+}
+
+/// Whether [`resolve_res`] heals with `skill` for `enemy`.
+pub(super) fn owns_heal(enemy: u16, skill: &EnemySkill) -> bool {
+    heal_of(enemy, skill).is_some()
+}
+
+/// Whom a heal arm's object hands to `GetEnemySkillEffectAndRange`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Healed {
+    /// `$3D4`'s `loc_21504` (`ps4.asm:44774`): the occupied enemy slot with the
+    /// lowest current HP, the earlier slot on a tie.
+    LowestHp,
+    /// Range 2, `AbilityRange_MultiEnemies`: every living enemy, slot order.
+    /// TechUser's `$3D8` (`loc_2132A`, 44654; its state 4 `loc_2136A` names
+    /// no single target) and Radhin's `$774` (`loc_2A4EC`, 55664).
+    AllEnemies,
+    /// SoldrFiend's `$378` (`loc_22FC0`, 46569): `move.w Current_Actor_Index,
+    /// Current_Target_Index` (46698) before the call, so the caster.
+    Caster,
+}
+
+/// One heal arm: the carrier, the ability, whom it heals.
+const HEALS: &[(u16, u8, Healed)] = &[
+    // EnemyAttack_TechUser ($63-$65): loc_EEAA (21266) clears the target; $3E
+    // and $45 load $3D4, $46 and $49 (loc_EF22 21295, loc_EF4A 21304) load $3D8.
+    (99, 0x45, Healed::LowestHp),
+    (100, 0x3E, Healed::LowestHp),
+    (100, 0x46, Healed::AllEnemies),
+    (101, 0x49, Healed::AllEnemies),
+    // EnemyAttack_Juza's loc_E6B6 (20766): $774.
+    (116, 0x49, Healed::AllEnemies),
+    // EnemyAttack_TwinArms's fall-through loc_F228 (21501): $378.
+    (88, 0x3E, Healed::Caster),
+];
+
+fn heal_of(enemy: u16, skill: &EnemySkill) -> Option<Healed> {
+    if !skill.is_tech_heal() {
+        return None;
+    }
+    HEALS
+        .iter()
+        .find(|(carrier, ability, _)| *carrier == enemy && *ability == skill.id)
+        .map(|(_, _, healed)| *healed)
 }
 
 /// EnemyInit_Igglanova and EnemyInit_Tower (`ps4.asm:18275`, `18243`) clear the
@@ -271,8 +330,7 @@ pub(super) fn resolve_no_effect_turn(
     let carrier = roster.get(actor).is_some_and(|fighter| {
         fighter.is_alive()
             && fighter.id.side() == Side::Enemy
-            && (FLOAT_MINE_CARRIERS.contains(&fighter.stats.enemy_id)
-                || (skill.is_waiting() && ARM_DRONE_CARRIERS.contains(&fighter.stats.enemy_id)))
+            && owns_wasted(fighter.stats.enemy_id, skill)
     });
     if !carrier {
         return false;
@@ -290,13 +348,6 @@ pub(super) fn resolve_no_effect_turn(
     });
     true
 }
-
-/// The `EnemyAttackOffs` entries that point at `EnemyAttack_TechUser`
-/// (`ps4.asm:21156`): `$63` 99 TechUser, `$64` 100 TechMaster and `$65` 101
-/// DarkWitch. Only 99 TechUser carries the record below, and only
-/// `EnemyAttack_TechUser` has the `$45` arm that loads the object doing the
-/// work.
-const TECH_USER_CARRIERS: [u16; 3] = [99, 100, 101];
 
 /// RES `$45` and GIRES `$3E` - the two heals of `EnemyAttack_TechUser`'s
 /// fall-through. RES is the conditional ability TechUser's own AI instruction
@@ -330,12 +381,16 @@ pub(super) fn resolve_res(
     rolls: &mut impl Rolls,
     events: &mut Vec<BattleEvent>,
 ) -> bool {
-    let Some(skill) = data.enemy_skill(ability).filter(|s| s.is_tech_heal()) else {
+    let Some(skill) = data.enemy_skill(ability) else {
         return false;
     };
-    let Some(caster) = roster.get(actor).filter(|f| {
-        f.is_alive() && f.id.side() == Side::Enemy && TECH_USER_CARRIERS.contains(&f.stats.enemy_id)
-    }) else {
+    let Some(caster) = roster
+        .get(actor)
+        .filter(|f| f.is_alive() && f.id.side() == Side::Enemy)
+    else {
+        return false;
+    };
+    let Some(healed) = heal_of(caster.stats.enemy_id, skill) else {
         return false;
     };
     // `AbilityStatsOffs[$82 & $7F]` is `mental_battle`; the mask is
@@ -348,31 +403,42 @@ pub(super) fn resolve_res(
         name: skill.name.clone(),
     });
     if sealed {
-        // `$3D4`'s frame `$F` seal test (`ps4.asm:44725-44730`): a sealed
-        // caster skips the cast, reaches phase 8 with bit 7 set at `$1D`
-        // (44742-44748) and `loc_21558` ends the turn there (44803-44805)
-        // without picking a target or calling the effect.
+        // Every heal object tests the caster first: `$3D4`/`$3D8`'s frame `$F`
+        // (`ps4.asm:44725-44730`; sealed, phase 8 with bit 7 at `$1D` and
+        // `loc_21558` ends the turn, 44803-44805), Radhin's `$774` (55692)
+        // and SoldrFiend's `$378` (46632-46636). No target, no effect call.
         return true;
     }
-    // `loc_21504`: the occupied enemy slot with the lowest `curr_hp`, the
-    // earlier one on a tie — an unoccupied slot never wins.
-    let Some(target) = roster
-        .side(Side::Enemy)
-        .filter(|f| f.is_alive())
-        .min_by_key(|f| f.stats.curr_hp)
-        .map(|f| f.id)
-    else {
-        return true;
+    let targets: Vec<FighterId> = match healed {
+        // `loc_21504`: the occupied enemy slot with the lowest `curr_hp`, the
+        // earlier one on a tie — an unoccupied slot never wins.
+        Healed::LowestHp => roster
+            .side(Side::Enemy)
+            .filter(|f| f.is_alive())
+            .min_by_key(|f| f.stats.curr_hp)
+            .map(|f| f.id)
+            .into_iter()
+            .collect(),
+        // `Ability_ProcessRange` over slots 6-9; `loc_2D0E` then heals each
+        // fighter whose effect word is set, in slot order (`ps4.asm:4447`).
+        Healed::AllEnemies => roster
+            .side(Side::Enemy)
+            .filter(|f| f.is_alive())
+            .map(|f| f.id)
+            .collect(),
+        Healed::Caster => vec![actor],
     };
-    let heal = super::calc_healing(power, u16::from(skill.power), rolls);
-    let fighter = roster.get_mut(target).expect("just selected");
-    let before = fighter.stats.curr_hp;
-    fighter.stats.curr_hp = before.saturating_add(heal).min(fighter.stats.max_hp);
-    events.push(BattleEvent::Healed {
-        actor,
-        target,
-        amount: fighter.stats.curr_hp - before,
-        remaining_hp: fighter.stats.curr_hp,
-    });
+    for target in targets {
+        let heal = super::calc_healing(power, u16::from(skill.power), rolls);
+        let fighter = roster.get_mut(target).expect("just selected");
+        let before = fighter.stats.curr_hp;
+        fighter.stats.curr_hp = before.saturating_add(heal).min(fighter.stats.max_hp);
+        events.push(BattleEvent::Healed {
+            actor,
+            target,
+            amount: fighter.stats.curr_hp - before,
+            remaining_hp: fighter.stats.curr_hp,
+        });
+    }
     true
 }

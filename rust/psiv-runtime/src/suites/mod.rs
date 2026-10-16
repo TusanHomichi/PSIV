@@ -35,6 +35,7 @@ mod dialogue_choice;
 mod dialogue_resume;
 mod dorin_dialogue;
 mod encounters;
+mod enemy_dispatch_census;
 mod golden;
 mod new_game;
 mod next_arc;

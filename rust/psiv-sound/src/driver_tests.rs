@@ -3,13 +3,13 @@ use crate::{Chip, SoundMachine};
 
 #[test]
 fn fixture_fm_register_trace_is_deterministic() {
-    let mut first = SoundMachine::new();
+    let mut first = SoundMachine::with_register_trace();
     first.load(SoundSequence::fixture_tone());
     first.start();
     let _ = first.tick();
     let first_log = first.take_register_log();
 
-    let mut second = SoundMachine::new();
+    let mut second = SoundMachine::with_register_trace();
     second.load(SoundSequence::fixture_tone());
     second.start();
     let _ = second.tick();
@@ -64,7 +64,7 @@ fn fixture_psg_trace_contains_latch_and_data_writes() {
         Vec::new(),
         vec![SoundTrack::psg(0, vec![0x81, 0x04, 0x08, 0xf2])],
     );
-    let mut machine = SoundMachine::new();
+    let mut machine = SoundMachine::with_register_trace();
     machine.load(sequence);
     machine.start();
     let _ = machine.tick();
@@ -88,7 +88,7 @@ fn command_loop_and_goto_are_executed() {
             vec![0xef, 0, 0x81, 1, 0xf7, 0, 2, 0xff, 0xf9, 0xf2],
         )],
     );
-    let mut machine = SoundMachine::new();
+    let mut machine = SoundMachine::with_register_trace();
     machine.load(sequence);
     machine.start();
     let _ = machine.tick();
@@ -104,7 +104,7 @@ fn disabled_pan_animation_consumes_only_its_count_byte() {
         Vec::new(),
         vec![SoundTrack::fm(0, vec![0xff, 0x00, 0x00, 0xf2])],
     );
-    let mut machine = SoundMachine::new();
+    let mut machine = SoundMachine::with_register_trace();
     machine.load(sequence);
     machine.start();
     let _ = machine.tick();
@@ -132,7 +132,7 @@ fn eb_sequence_sound_dispatch_overlays_music_deterministically() {
     );
     let bank = crate::SoundBank::new(vec![music, sfx], Vec::new());
 
-    let mut first = crate::SoundMachine::new();
+    let mut first = crate::SoundMachine::with_register_trace();
     first.load_bank(bank.clone());
     first.play(0x81);
     let _ = first.tick();
@@ -140,7 +140,7 @@ fn eb_sequence_sound_dispatch_overlays_music_deterministically() {
     let _ = first.tick();
     let first_log = first.take_register_log();
 
-    let mut second = crate::SoundMachine::new();
+    let mut second = crate::SoundMachine::with_register_trace();
     second.load_bank(bank);
     second.play(0x81);
     let _ = second.tick();
@@ -173,7 +173,7 @@ fn battle_action_sfx_dispatch_order_is_deterministic_over_theme() {
     );
 
     let run = |bank| {
-        let mut machine = crate::SoundMachine::new();
+        let mut machine = crate::SoundMachine::with_register_trace();
         machine.load_bank(bank);
         machine.play(0x81);
         let _ = machine.tick();
@@ -221,7 +221,7 @@ fn distinct_enemy_attack_sfx_register_log_is_ordered_and_deterministic() {
     );
 
     let run = |bank| {
-        let mut machine = crate::SoundMachine::new();
+        let mut machine = crate::SoundMachine::with_register_trace();
         machine.load_bank(bank);
         machine.play(0xD8); // Zoran Bult: retail EnemyAttack4.
         let _ = machine.tick();

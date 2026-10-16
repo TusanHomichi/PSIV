@@ -5,9 +5,9 @@ from pathlib import Path
 
 from psiv_tools import overworld as overworld_module
 from psiv_tools.core import read_rom
+from psiv_tools.chunk_draw import CHUNK_PIXELS_X
 from psiv_tools.layouts import (
     COLLISION_CELL_PIXELS,
-    CHUNK_PIXELS_X,
     collision_at,
     collision_type_name,
     is_blocking,

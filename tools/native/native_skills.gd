@@ -1,4 +1,4 @@
-# Real Godot command input on an isolated native save; docs/campaign/NATIVE_PLAYABILITY.md.
+# Real Godot command input on an isolated native save; docs/campaign/NATIVE_DRIVERS.md.
 # Chaz EARTH -> enemy 6, Alys VORTEX -> enemy 7, Hahn VISION -> party.
 extends SceneTree
 

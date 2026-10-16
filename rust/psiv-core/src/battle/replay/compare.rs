@@ -90,7 +90,9 @@ where
                     FirstZioAction::Invocation
                     | FirstZioAction::Pause
                     | FirstZioAction::DarkForceCharge
-                    | FirstZioAction::DarkForceReveal => 0,
+                    | FirstZioAction::DarkForceReveal
+                    | FirstZioAction::ProfoundDarknessRise
+                    | FirstZioAction::TreesTakeRoot => 0,
                 };
                 return EnemyTurn::Ability(ability);
             }
@@ -253,10 +255,15 @@ fn effect_divergence(
         .filter(|(_, before, after)| *before > 0 && *after <= 0)
         .map(|(who, _, _)| id(*who))
         .collect();
+    // The actor's own removal is an object clear, not an HP change - the
+    // caster CYANICBOMB's `$1C8` removes (`ps4.asm:33621-33627`) keeps its HP -
+    // so the log cannot show it; the port reports it on the death path.
     let mut port_dead: Vec<FighterId> = turn
         .iter()
         .filter_map(|event| match event {
-            BattleEvent::Died { fighter } => Some(*fighter),
+            BattleEvent::Died { fighter } if *fighter != actor || log_dead.contains(fighter) => {
+                Some(*fighter)
+            }
             _ => None,
         })
         .collect();
@@ -450,6 +457,16 @@ pub(crate) fn divergence(round: &Round, timeline: &[BattleEvent]) -> Option<Dive
                     // files the turn the same way: an attack that resolved no
                     // slot. Fusion keeps its id and is an ability turn.
                     BattleEvent::EnemiesFused { actor: who, .. } if *who == actor => {
+                        swing = Some(Vec::new());
+                        break;
+                    }
+                    // Profound Darkness's form changes clear `$24(a4)` in the
+                    // arm too (`ps4.asm:19902`, `19818`): the same filing.
+                    BattleEvent::EnemyStatsReloaded {
+                        actor: who,
+                        fighter,
+                        ..
+                    } if *who == actor && *fighter == actor => {
                         swing = Some(Vec::new());
                         break;
                     }

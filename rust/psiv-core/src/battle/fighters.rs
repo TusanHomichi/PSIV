@@ -154,8 +154,11 @@ impl Fighter {
                 } else {
                     status::DEAD
                 };
-        } else {
+        } else if death_object_pays(self.stats.enemy_id) {
             self.stats.status |= status::DEAD;
+        } else {
+            // Its death object takes it off the field without `loc_2D960`.
+            self.active = false;
         }
     }
 
@@ -164,6 +167,18 @@ impl Fighter {
     pub const fn is_alive(&self) -> bool {
         self.active && !self.stats.is_out()
     }
+}
+
+/// Whether `enemy_id`'s death object ends in `loc_2D960` (`ps4.asm:59628`),
+/// which sets the death bit and pays the record's experience and meseta.
+/// `Enemy_Dead` (18416-18422) sends ids `$82`-`$87` to `loc_2D936`, whose table
+/// (59623) names `$81C`, `$840` and - for `$87` ProfoundDarkness3 - `$8B8`
+/// (`loc_2DAC6`, 59734): it fades the battle out and loads the field
+/// (`Game_Mode_Index` 8, 59904-59908) without ever calling `loc_2D960`. Every
+/// other enemy's death object calls it.
+#[must_use]
+pub const fn death_object_pays(enemy_id: u16) -> bool {
+    enemy_id != 0x87
 }
 
 /// The nine slots, occupied or not.

@@ -13,26 +13,45 @@ recipe (MeetingRika, tape 28) is regenerated through the oracle host; every
 frame is hash-checked before use, so a regenerated or edited frame that
 differs from the certified one fails instead of silently re-baselining.
 
-Usage: `python3 tools/certify.py [--no-build] [--only NAME ...] [--list]`.
+Usage: `python3 tools/certify.py [--no-build] [--jobs N] [--only NAME ...] [--list]`.
 The debug extension is rebuilt first by default, so a capture always comes from
 the checked-out sources; `--no-build` skips that only when the caller has just
 built this exact tree (a stale extension once certified the wrong code).
 Receipts land in `build/certify/<UTC>-<sha>/`. Exit 0 only when every
 selected pair is 0.000000. Refuses while a process has the debug extension
 mapped (rebuilding or loading under a live Godot can crash it).
+
+Certify takes the shared heavy lock itself (tools/heavy_lock.py), so it needs
+no wrapper: the build in the exclusive class, then the captures holding one
+godot-class slot per worker. `--jobs N` (default min(3, the godot slot cap))
+runs the captures across N workers, longest first; each worker owns one Xvfb
+server for its life and each capture its own save directory and output files,
+so a pair's capture is the same bytes at any N. Under an exclusive holder (a
+candidate run) both steps are nested no-ops and N is capped by the slot cap;
+under a godot holder, by the slots it holds.
 """
 import argparse
+import ctypes
 import hashlib
 import json
 import os
+import queue
 import re
+import select
+import signal
 import subprocess
 import sys
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from gate import EXTENSION_PATH, git_info, loaded_extension_pids, utc_stamp  # noqa: E402
+from gate import (EXTENSION_PATH, display_path, git_info, loaded_extension_pids,  # noqa: E402
+                  utc_stamp)
+from heavy_lock import EXCLUSIVE, GODOT as GODOT_CLASS, godot_slots, hold_heavy_lock  # noqa: E402
 
 # `oracle` is a package of the repository root, not of `tools/`, so the root
 # goes on the path too. The one thing this module takes from there is the host
@@ -242,16 +261,77 @@ def capture_timeout(tick):
     return int(TIMEOUT_BASE_S + (tick + QUIT_MARGIN) * TIMEOUT_PER_TICK_S)
 
 
-def capture(name, env, tick, receipt):
+#: The Xvfb screen `xvfb-run` gives a server by default, which every certified
+#: capture was taken on; Godot's own window is the 1280x800 viewport regardless.
+XVFB_ARGS = ["-screen", "0", "640x480x24", "-nolisten", "tcp"]
+XVFB_START_S = 30
+#: The X server program (a stand-in for the cases).
+XVFB_COMMAND = ["Xvfb"]
+PR_SET_PDEATHSIG = 1
+
+
+def die_with_parent():
+    """A `preexec_fn` that has the kernel send the child SIGTERM when this
+    process dies, however it dies (SIGKILL included), so no Xvfb is orphaned.
+
+    The signal follows the thread that forks the child: call it on the thread
+    that outlives the server (`run_captures` starts every server on its caller's).
+    """
+    parent = os.getpid()
+    libc = ctypes.CDLL(None, use_errno=True)
+
+    def arm():
+        libc.prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
+        if os.getppid() != parent:  # the parent died before the prctl
+            os._exit(1)
+
+    return arm
+
+
+@contextmanager
+def xvfb_display(log):
+    """One Xvfb server for a worker's life; yields its DISPLAY (`:N`).
+
+    `-displayfd` makes the server pick a free display number and report it,
+    so concurrent workers (in this run or another worktree's) never collide.
+    """
+    read_end, write_end = os.pipe()
+    with open(log, "w") as handle:
+        server = subprocess.Popen([*XVFB_COMMAND, "-displayfd", str(write_end), *XVFB_ARGS],
+                                  pass_fds=(write_end,), stdout=handle,
+                                  stderr=subprocess.STDOUT, preexec_fn=die_with_parent())
+    os.close(write_end)
+    try:
+        number = b""
+        deadline = time.monotonic() + XVFB_START_S
+        while not number.endswith(b"\n"):
+            ready, _, _ = select.select([read_end], [], [], max(deadline - time.monotonic(), 0))
+            chunk = os.read(read_end, 64) if ready else b""
+            if not chunk:
+                raise RuntimeError(f"Xvfb reported no display within {XVFB_START_S} s; log={log}")
+            number += chunk
+        yield f":{int(number)}"
+    finally:
+        os.close(read_end)
+        server.terminate()
+        try:
+            server.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            server.kill()
+            server.wait()
+
+
+def capture(name, env, tick, receipt, display):
     shot = receipt / f"{name}-t{tick}.png"
     # A fresh, empty save directory per run: the title shows CONTINUE (and the
     # autostart picks a different row) when any slot is valid.
     saves = receipt / f"{name}-saves"
     saves.mkdir(parents=True, exist_ok=True)
-    full_env = {**os.environ, "LIBGL_ALWAYS_SOFTWARE": "1", "PSIV_DEBUG_SCENE_TICKS": "1",
-                "PSIV_SAVE_DIR": str(saves),
+    full_env = {**{k: v for k, v in os.environ.items() if k != "XAUTHORITY"},
+                "DISPLAY": display, "LIBGL_ALWAYS_SOFTWARE": "1",
+                "PSIV_DEBUG_SCENE_TICKS": "1", "PSIV_SAVE_DIR": str(saves),
                 "PSIV_DEBUG_SHOT": str(shot), "PSIV_DEBUG_SHOT_FRAME": str(tick), **env}
-    command = ["xvfb-run", "-a", "timeout", f"{capture_timeout(tick)}s", GODOT,
+    command = ["timeout", f"{capture_timeout(tick)}s", GODOT,
                "--log-file", str(receipt / f"{name}-godot.log"), *GODOT_FLAGS,
                "--path", "godot", "--quit-after", str(tick + QUIT_MARGIN)]
     with open(receipt / f"{name}-run.log", "w") as handle:
@@ -273,9 +353,75 @@ def build_parser():
     parser.add_argument("--no-build", action="store_true",
                         help="skip `cargo build -p psiv-godot` (only when this tree was just built)")
     parser.add_argument("--build", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--jobs", type=int, metavar="N",
+                        help=f"capture workers, one godot slot each (default: min({DEFAULT_JOBS}, "
+                             "the godot slot cap))")
     parser.add_argument("--only", nargs="+", metavar="NAME", help="run only these pairs")
     parser.add_argument("--list", action="store_true", help="print the pairs and exit")
     return parser
+
+
+#: Workers when `--jobs` is not given, before the godot slot cap applies.
+DEFAULT_JOBS = 3
+
+
+def job_count(requested, cap):
+    """Workers for a run: `requested` (default min(DEFAULT_JOBS, cap)), or a
+    ValueError when it is not 1..cap, since more could never be granted."""
+    if requested is None:
+        return min(DEFAULT_JOBS, cap)
+    if not 1 <= requested <= cap:
+        raise ValueError(f"--jobs {requested}: the godot slot cap is {cap} "
+                         "(PSIV_GODOT_SLOTS raises it)")
+    return requested
+
+
+def run_captures(tasks, jobs, receipt, display=xvfb_display, take=None, results=None):
+    """Capture every `(name, env, tick)` task across `jobs` workers, longest
+    tick first; fills and returns `results`, `{name: (shot, godot exit, seconds)}`.
+
+    Each worker owns one display from `display(log)` for its life. `take` is
+    `capture` (a parameter so the cases can stand in for Godot). When a capture
+    raises or the wait is interrupted (Ctrl-C), the queued captures are
+    cancelled, the running ones finish, and the exception propagates with
+    `results` holding every capture that finished.
+    """
+    take = take or capture
+    jobs = min(jobs, len(tasks))
+    displays = queue.Queue()
+    results = {} if results is None else results
+    with ExitStack() as stack:
+        for worker in range(jobs):
+            displays.put(stack.enter_context(display(receipt / f"xvfb-{worker}.log")))
+
+        stop = threading.Event()  # set by the first failure; a worker checks it first
+
+        def run(task):
+            if stop.is_set():
+                return
+            name, env, tick = task
+            screen = displays.get()
+            try:
+                start = time.monotonic()
+                shot, code = take(name, env, tick, receipt, screen)
+                results[name] = (shot, code, round(time.monotonic() - start, 1))
+            except BaseException:
+                stop.set()
+                raise
+            finally:
+                displays.put(screen)
+
+        ordered = sorted(tasks, key=lambda task: -task[2])
+        pool = ThreadPoolExecutor(max_workers=max(jobs, 1))
+        try:
+            for future in [pool.submit(run, task) for task in ordered]:
+                future.result()
+        except BaseException:
+            stop.set()
+            raise
+        finally:
+            pool.shutdown(wait=True, cancel_futures=True)
+    return results
 
 
 def main(argv=None):
@@ -287,25 +433,53 @@ def main(argv=None):
         for name, env, tick, frame, _, _ in PAIRS:
             print(f"{name}: tick {tick} vs {frame} {env}")
         return 0 if args.list else 2
+    try:
+        jobs = min(job_count(args.jobs, godot_slots()), len(pairs))
+    except ValueError as error:
+        print(f"certify: refused, {error}")
+        return 2
     users = loaded_extension_pids(root / EXTENSION_PATH)
     if users:
         print(f"certify: refused, {EXTENSION_PATH} is mapped by PIDs {users}; close Godot first")
         return 3
     if not args.no_build:
-        built = subprocess.run(["cargo", "build", "-p", "psiv-godot", "--manifest-path",
-                                "rust/Cargo.toml"])
+        with hold_heavy_lock(lock_class=EXCLUSIVE):
+            built = subprocess.run(["cargo", "build", "-p", "psiv-godot", "--manifest-path",
+                                    "rust/Cargo.toml"])
         if built.returncode != 0:
             return built.returncode
     info = git_info(root)
-    receipt = root / "build" / "certify" / f"{utc_stamp(datetime.now(timezone.utc))}-{info['short_sha']}"
+    receipt = receipt_dir(root, info)
     receipt.mkdir(parents=True, exist_ok=True)
+    with hold_heavy_lock(lock_class=GODOT_CLASS, slots=jobs) as hold:
+        jobs = min(jobs, hold.slots)
+        print(f"certify: {len(pairs)} pairs on {jobs} worker(s), "
+              f"{'under the holder of' if hold.nested else 'holding'} {hold.lock_class} "
+              f"{hold.path}", flush=True)
+        started = time.monotonic()
+        records, tasks = [], []
+        for name, env, tick, frame, digest, recipe in pairs:
+            frame_path, error = oracle_frame(name, frame, digest, recipe, receipt)
+            records.append(({"pair": name, "tick": tick, "oracle": frame,
+                             "oracle_sha256": digest, "env": env}, frame_path, error))
+            if error is None:
+                tasks.append((name, env, tick))
+        prepared = time.monotonic()
+        shots, interrupted = {}, None
+        try:
+            run_captures(tasks, jobs, receipt, results=shots)
+        except BaseException as stop:  # Ctrl-C too: record what finished, then re-raise
+            interrupted = stop
+        timing = {"oracle_s": round(prepared - started, 1),
+                  "capture_s": round(time.monotonic() - prepared, 1)}
     results = []
-    for name, env, tick, frame, digest, recipe in pairs:
-        frame_path, error = oracle_frame(name, frame, digest, recipe, receipt)
-        record = {"pair": name, "tick": tick, "oracle": frame, "oracle_sha256": digest, "env": env}
+    for record, frame_path, error in records:
+        if error is None and record["pair"] not in shots:
+            error = "interrupted before its capture finished"
         if error is None:
-            shot, code = capture(name, env, tick, receipt)
+            shot, code, seconds = shots[record["pair"]]
             record["godot_exit"] = code
+            record["seconds"] = seconds
             if shot.exists():
                 record["capture_sha256"] = sha256(shot)
                 record["rmse"], record["compare"] = compare(shot, frame_path)
@@ -314,12 +488,26 @@ def main(argv=None):
         record["error"] = error
         record["pass"] = error is None and record.get("rmse") == "0.000000"
         results.append(record)
-        print(f"{name:13} {'PASS' if record['pass'] else 'FAIL'} "
+        print(f"{record['pair']:13} {'PASS' if record['pass'] else 'FAIL'} "
               f"rmse={record.get('rmse')} {error or ''}".rstrip(), flush=True)
-    (receipt / "certify.json").write_text(json.dumps({**info, "pairs": results}, indent=2) + "\n")
+    stopped = None if interrupted is None else f"{type(interrupted).__name__}: {interrupted}"
+    (receipt / "certify.json").write_text(json.dumps(
+        {**info, "jobs": jobs, **timing, "interrupted": stopped, "pairs": results},
+        indent=2) + "\n")
+    if interrupted is not None:
+        print(f"certify: interrupted ({stopped}); {len(shots)}/{len(tasks)} captures finished; "
+              f"receipt={display_path(receipt, root)}", flush=True)
+        raise interrupted
     passed = sum(r["pass"] for r in results)
-    print(f"certify: {passed}/{len(results)} pairs at 0.000000; receipt={receipt.relative_to(root)}")
+    print(f"certify: {passed}/{len(results)} pairs at 0.000000; captures {timing['capture_s']} s "
+          f"on {jobs} worker(s), oracle frames {timing['oracle_s']} s; "
+          f"receipt={display_path(receipt, root)}")
     return 0 if passed == len(results) else 1
+
+
+def receipt_dir(root, info):
+    """`build/certify/<UTC stamp>-<short sha>/` under `root`."""
+    return root / "build" / "certify" / f"{utc_stamp(datetime.now(timezone.utc))}-{info['short_sha']}"
 
 
 if __name__ == "__main__":
