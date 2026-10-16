@@ -28,7 +28,9 @@ waited for). Every grant is decided under `<lock>.mutex`, and only the head of
 the queue may take the lock, so the order is deterministic: priority waiters
 (`--priority`, or `PSIV_LOCK_PRIORITY=1` for code that calls
 `hold_heavy_lock`) before normal ones, each in arrival order. A holder is never
-preempted; the next grant goes to the head. While waiting, a line names the
+preempted; the next grant goes to the head, which waits in flock(2) itself, so
+a release wakes it together with any raw `flock(1)` waiter instead of that
+waiter winning every race against a poll. While waiting, a line names the
 holders and how many waiters (and priority waiters) are ahead, again whenever
 that changes.
 
@@ -53,6 +55,7 @@ import fcntl
 import os
 import subprocess
 import sys
+import threading
 import time
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -268,37 +271,83 @@ def _entry_pid(name):
     return int(name.split("-")[2])
 
 
-def _try_grant(lock, lock_class, slots, cap):
-    """The handles that hold `lock` in `lock_class` with `slots` godot slots, or
-    None (nothing held) when it is not free now. Never blocks."""
-    held = [os.open(lock, os.O_RDWR | os.O_CREAT, 0o644)]
-    try:
-        if lock_class == EXCLUSIVE:
-            fcntl.flock(held[0], fcntl.LOCK_EX | fcntl.LOCK_NB)
-            return held
-        fcntl.flock(held[0], fcntl.LOCK_SH | fcntl.LOCK_NB)
-        for index in range(cap):
-            if len(held) - 1 == slots:
-                break
-            handle = os.open(f"{lock}.godot{index}", os.O_RDWR | os.O_CREAT, 0o644)
-            try:
-                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except BlockingIOError:
-                os.close(handle)
-            else:
-                held.append(handle)
-        if len(held) - 1 == slots:
-            return held
-    except BlockingIOError:
-        pass
+def _take_slots(lock, slots, cap):
+    """Handles holding `slots` free godot slot files of `lock`, or None (nothing
+    held) when fewer are free. Never blocks."""
+    held = []
+    for index in range(cap):
+        if len(held) == slots:
+            break
+        handle = os.open(f"{lock}.godot{index}", os.O_RDWR | os.O_CREAT, 0o644)
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            os.close(handle)
+        else:
+            held.append(handle)
+    if len(held) == slots:
+        return held
     for handle in held:
         os.close(handle)
     return None
 
 
+def _main_mode(lock_class):
+    return fcntl.LOCK_EX if lock_class == EXCLUSIVE else fcntl.LOCK_SH
+
+
+def _try_grant(lock, lock_class, slots, cap):
+    """The handles that hold `lock` in `lock_class` with `slots` godot slots, or
+    None (nothing held) when it is not free now. Never blocks."""
+    main = os.open(lock, os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        fcntl.flock(main, _main_mode(lock_class) | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(main)
+        return None
+    taken = [] if lock_class == EXCLUSIVE else _take_slots(lock, slots, cap)
+    if taken is None:
+        os.close(main)
+        return None
+    return [main, *taken]
+
+
+class _Blocker:
+    """A thread blocked in flock(2) on its own handle of the lock file.
+
+    The queue's head waits in the kernel, as a raw `flock(1)` waiter does, so
+    it is woken with them when the holder releases instead of losing every
+    such race between two polls. The handle is the caller's once `done` is set;
+    `abandon()` gives it up, now or as soon as the flock returns.
+    """
+
+    def __init__(self, lock, mode):
+        self.handle = os.open(lock, os.O_RDWR | os.O_CREAT, 0o644)
+        self.done = threading.Event()
+        self._guard = threading.Lock()
+        self._abandoned = False
+        threading.Thread(target=self._wait, args=(mode,), daemon=True).start()
+
+    def _wait(self, mode):
+        fcntl.flock(self.handle, mode)
+        with self._guard:
+            if self._abandoned:
+                os.close(self.handle)
+            else:
+                self.done.set()
+
+    def abandon(self):
+        with self._guard:
+            if self.done.is_set():
+                os.close(self.handle)
+            else:
+                self._abandoned = True
+
+
 def _wait_line(lock, lock_class, priority, ahead):
     """One "waiting for" line: the holders with their class, the queue ahead."""
-    holders = ", ".join(f"{pid} ({mode})" for pid, mode in lock_modes(lock)) or "none"
+    holders = ", ".join(f"{pid} ({mode})" for pid, mode in lock_modes(lock)
+                        if pid != os.getpid()) or "none"  # a godot head holds it shared
     urgent = sum(1 for name in ahead if _entry_key(name)[0] == 0)
     me = f"{lock_class}, priority" if priority else lock_class
     return (f"waiting for {lock} held by pid {holders}; {len(ahead)} waiter(s) ahead, "
@@ -307,9 +356,15 @@ def _wait_line(lock, lock_class, priority, ahead):
 
 def _acquire(lock, lock_class, slots, cap, priority, report):
     """Queue for `lock` and return the granting handles once this waiter is the
-    head and the lock is free in its class."""
+    head and the lock is free in its class.
+
+    The head blocks in the kernel for the lock file in its class (`_Blocker`);
+    a godot head then takes its slots as they free. A waiter displaced from
+    the head (a priority waiter arrived) gives the lock file back at once.
+    """
     queue = _Queue(lock)
     entry = None
+    blocker = None
     shown = None
     try:
         while True:
@@ -327,18 +382,30 @@ def _acquire(lock, lock_class, slots, cap, priority, report):
                     entry = queue.join(priority, lock_class, waiting)
                     waiting = queue.entries()
                 ahead = waiting[:waiting.index(entry[0])]
-                if not ahead:
-                    held = _try_grant(lock, lock_class, slots, cap)
-                    if held:
-                        queue.leave(entry)
-                        entry = None
-                        return held
+                if ahead and blocker is not None:
+                    blocker.abandon()
+                    blocker = None
+                elif not ahead:
+                    blocker = blocker or _Blocker(lock, _main_mode(lock_class))
+                    if blocker.done.is_set():
+                        taken = [] if lock_class == EXCLUSIVE else _take_slots(lock, slots,
+                                                                               cap)
+                        if taken is not None:
+                            queue.leave(entry)
+                            entry = None
+                            held, blocker = [blocker.handle, *taken], None
+                            return held
                 line = _wait_line(lock, lock_class, priority, ahead)
             if line != shown:
                 print(line, file=report, flush=True)
                 shown = line
-            time.sleep(POLL_S)
+            if blocker is not None and not blocker.done.is_set():
+                blocker.done.wait(POLL_S)
+            else:
+                time.sleep(POLL_S)
     finally:
+        if blocker is not None:
+            blocker.abandon()
         if entry is not None:
             queue.leave(entry)
 

@@ -432,6 +432,32 @@ class QueueCase(unittest.TestCase):
         self.release(holder)
         self.assertEqual(self.finish(godot), ["godot"])
 
+    def kernel_waiters(self):
+        """PIDs blocked in flock(2) on the lock file (`->` lines in /proc/locks)."""
+        inode = os.stat(self.lock).st_ino
+        pids = []
+        for line in Path("/proc/locks").read_text().splitlines():
+            fields = line.split()
+            if len(fields) > 6 and fields[1] == "->" \
+                    and int(fields[6].rsplit(":", 1)[1]) == inode:
+                pids.append(int(fields[5]))
+        return pids
+
+    def test_the_head_waits_in_the_kernel_like_a_raw_flock_waiter(self):
+        """So a release wakes it together with any raw flock(1) waiter, instead
+        of the raw waiter winning every race against a poll."""
+        holder = self.holder()
+        first = self.waiter("first")
+        second = self.waiter("second")
+        for _ in range(150):  # bounded: 30 s for the head's blocker to enter flock(2)
+            if first.pid in self.kernel_waiters():
+                break
+            time.sleep(0.2)
+        self.assertIn(first.pid, self.kernel_waiters())
+        self.assertNotIn(second.pid, self.kernel_waiters(), "only the head blocks")
+        self.release(holder)
+        self.assertEqual(self.finish(first, second), ["first", "second"])
+
     def test_a_killed_waiter_does_not_block_the_queue(self):
         holder = self.holder()
         dead = self.waiter("dead")
