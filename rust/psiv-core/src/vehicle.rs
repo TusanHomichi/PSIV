@@ -181,7 +181,7 @@ pub fn profile(index: u16) -> Option<&'static VehicleProfile> {
 /// party with fighter id `Vehicle_Index + $B` (`ps4.asm:11408-11414`), and
 /// `loc_77AE` fills that fighter from `VehicleData`: its current *and* maximum
 /// HP are the static record's (`move.w (a0),curr_hp(a1)` /
-/// `move.w (a0)+,max_hp(a1)`, `ps4.asm:11295-11300`). The skill mask and the
+/// `move.w (a0)+,max_hp(a1)`, `ps4.asm:11309-11310`). The skill mask and the
 /// current skill uses come from `Saved_Vehicle_Stats` (`ps4.asm:11392-11402`),
 /// and the battle's end copies only the uses back (`ps4.asm:6372-6389`). So every vehicle battle starts
 /// at full static HP: damage never carries from one battle to the next. The
