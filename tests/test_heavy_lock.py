@@ -142,7 +142,7 @@ class SharedLockCase(unittest.TestCase):
             self.assert_one_file(old_relative_default)
 
     def test_verify_candidate_takes_the_shared_lock(self):
-        """verify_candidate's certify step holds the main checkout's heavy lock."""
+        """verify_candidate's build and certify steps hold the main checkout's heavy lock."""
         held = []
 
         def runner(command, log, lock):
@@ -160,7 +160,7 @@ class SharedLockCase(unittest.TestCase):
             finally:
                 os.chdir(cwd)
         locks = [lock for lock in held if lock is not None]
-        self.assertEqual(locks, [self.main / "build" / "continuation-heavy.lock"])
+        self.assertEqual(locks, [self.main / "build" / "continuation-heavy.lock"] * 2)  # build, certify
 
     def test_a_gate_in_the_worktree_refuses_while_the_main_checkouts_gate_runs(self):
         lock_file = gate_lock_path(self.main)

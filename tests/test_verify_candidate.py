@@ -18,9 +18,10 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from tools import verify_candidate as vc
-from tools.heavy_lock import HEAVY_LOCK_ENV, HELD_ENV
+from tools.heavy_lock import HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -105,12 +106,13 @@ class Candidate(RepoCase):
         (path,) = Path("build/candidate").glob("*/receipt.json")
         return json.loads(path.read_text())
 
-    def test_all_steps_pass_in_order_and_only_certify_holds_the_lock(self):
+    def test_all_steps_pass_in_order_and_the_build_and_certify_hold_the_lock(self):
         runner, calls = fake_runner()
         code, out = self.run_main(["--expect-digest", "abc", "--expect-chapters", "2"], runner)
         self.assertEqual(code, vc.EXIT_OK, out)
         self.assertEqual([name for name, _ in calls], ["build", "route", "certify", "gate"])
-        self.assertEqual([lock is not None for _, lock in calls], [False, False, True, False])
+        # The headless route takes no lock; the gate takes its own.
+        self.assertEqual([lock is not None for _, lock in calls], [True, False, True, False])
         receipt = self.receipt()
         self.assertEqual(receipt["route"]["digest"], "abc")
         self.assertEqual(receipt["route"]["chapters"], 2)
@@ -169,6 +171,43 @@ class RawFlockParent(RepoCase):
         done = self.run_child()
         self.assertNotIn("already held", done.stderr)
         self.assertEqual(self.steps.read_text().split(), ["build", "route", "certify", "gate"])
+
+
+class BuildStepLock(RepoCase):
+    """The build step's command really runs holding the heavy lock in the
+    exclusive class: each step's command is swapped for a probe that records
+    the class marker its process sees, run through the real `run_step`."""
+
+    def setUp(self):
+        super().setUp()
+        tmp = tempfile.TemporaryDirectory(prefix="candidate-lock-")
+        self.addCleanup(tmp.cleanup)
+        self.lock = Path(tmp.name) / "continuation-heavy.lock"
+        environ = {key: value for key, value in os.environ.items()
+                   if key not in (HELD_ENV, HELD_CLASS_ENV)}
+        environ[HEAVY_LOCK_ENV] = str(self.lock)
+        patcher = mock.patch.dict(os.environ, environ, clear=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def seen_classes(self):
+        seen = {}
+
+        def runner(command, log, lock):
+            probe = f'echo "class=${{{HELD_CLASS_ENV}:-none}}"'
+            code = vc.run_step(probe, log, lock)
+            seen[log.stem] = log.read_text().strip()
+            return code
+
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            vc.main([], runner=runner)
+        return seen
+
+    def test_the_build_runs_in_the_exclusive_class(self):
+        self.assertEqual(self.seen_classes()["build"], "class=exclusive")
+
+    def test_negative_control_the_headless_route_holds_nothing(self):
+        self.assertEqual(self.seen_classes()["route"], "class=none")
 
 
 if __name__ == "__main__":

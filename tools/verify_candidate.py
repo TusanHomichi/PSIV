@@ -6,7 +6,8 @@
 Run from the repository root on a clean tree (the candidate). It runs, one at a
 time and in this order:
 
-1. `cargo build --release -p psiv-campaign` (`CARGO_BUILD_JOBS=2`);
+1. `cargo build --release -p psiv-campaign` (`CARGO_BUILD_JOBS=2`), holding the
+   shared heavy lock in the exclusive class;
 2. the campaign route, `psiv-campaign run rust/psiv-campaign/routes/main.json`,
    into the receipt directory, and reads its `report.json`: the result must be
    `completed`, and `--expect-digest` / `--expect-chapters` must hold when given;
@@ -58,7 +59,7 @@ def steps(out: Path) -> list[tuple[str, str, bool]]:
     route = out / "route"
     return [
         ("build", "CARGO_BUILD_JOBS=2 cargo build --release --manifest-path "
-                  "rust/Cargo.toml -p psiv-campaign", False),
+                  "rust/Cargo.toml -p psiv-campaign", True),
         ("route", f"{CAMPAIGN} run {ROUTE} --save-dir {route} --tape {route}/run.tape "
                   f"--report {route}/report.json", False),
         ("certify", "python3 tools/certify.py", True),
