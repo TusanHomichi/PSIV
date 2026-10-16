@@ -109,6 +109,8 @@ struct Memory {
 #[derive(Debug, Clone, Default)]
 struct Book {
     damage: BTreeMap<u8, Value>,
+    /// The damage ordered that lands whatever the rolls.
+    sure: BTreeMap<u8, Value>,
     healing: BTreeMap<u8, Value>,
     raised: Vec<u8>,
     slept: Vec<u8>,
@@ -138,6 +140,9 @@ struct Pick {
     value: Value,
     intent: Intent,
     each: Vec<(u8, Value)>,
+    /// The damage each target takes whatever the rolls: a hit that can miss
+    /// and every effect but damage count nothing.
+    sure: Vec<(u8, Value)>,
     ability: Option<usize>,
     spend: Spend,
 }
@@ -285,14 +290,26 @@ impl Planner {
             free.push(board.actor);
             free.sort_unstable();
         }
-        // Finish it: if the whole round's offence empties the enemy side, no
-        // member spends a turn on a cure.
+        // Finish it: if the whole round's offence empties the enemy side
+        // whatever the rolls, no member spends a turn on a cure. Expected
+        // damage is not enough: a round that only probably kills leaves the
+        // members it did not cure to the enemy's next turn.
         let mut trial = self.clone();
         for id in &free {
             let intent = trial.offence(board, *id);
             trial.orders.insert(*id, intent);
         }
-        if board.enemies.iter().all(|e| trial.left(e) == 0) {
+        if board.enemies.iter().all(|e| trial.surely_left(e) == 0) {
+            if std::env::var_os("PSIV_CAMPAIGN_TRACE").is_some() {
+                let hp: Vec<(u8, u16)> = board.enemies.iter().map(|e| (e.id(), e.hp())).collect();
+                let sure: Vec<(u8, Value)> = trial
+                    .book
+                    .sure
+                    .iter()
+                    .map(|(id, v)| (*id, *v / HP))
+                    .collect();
+                eprintln!("  finish it: enemies {hp:?}, certain damage {sure:?}");
+            }
             *self = trial;
             return;
         }
@@ -603,6 +620,9 @@ impl Planner {
     fn commit(&mut self, kit: &Kit, pick: &Pick) {
         let ability = pick.ability.and_then(|index| kit.abilities.get(index));
         let class = ability.map_or(EffectClass::Damage, Ability::class);
+        for (id, value) in &pick.sure {
+            *self.book.sure.entry(*id).or_default() += value;
+        }
         for (id, value) in &pick.each {
             match class {
                 EffectClass::Damage | EffectClass::Death => {

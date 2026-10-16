@@ -237,6 +237,19 @@ pub fn max_damage(attack: u16, defence: u16, factor: u16, bonus: u16) -> u16 {
     ))
 }
 
+/// The least one damage pass can do: every draw 0.
+#[must_use]
+pub fn min_damage(attack: u16, defence: u16, factor: u16, bonus: u16) -> u16 {
+    let draws = draws_for(0);
+    clamp_damage(calculate_damage(
+        attack,
+        defence,
+        factor,
+        bonus,
+        &mut SliceRolls::new(&draws),
+    ))
+}
+
 /// The expected `Battle_CalcHealing` amount, capped at `cap` (what the
 /// patient is missing).
 #[must_use]

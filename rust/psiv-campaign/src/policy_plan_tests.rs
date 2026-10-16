@@ -12,7 +12,7 @@ use psiv_core::battle::{
 
 use super::*;
 use crate::policy_board::Weapon;
-use crate::policy_estimate::{damage, max_damage};
+use crate::policy_estimate::{HP, damage, max_damage, min_damage};
 
 const FIRE: u8 = 3;
 const WATER: u8 = 5;
@@ -462,9 +462,9 @@ fn the_cure_goes_to_the_member_whose_action_is_worth_least() {
 /// choice.
 #[test]
 fn equal_options_are_ranked_by_spend_not_list_order() {
-    let enemy = with(foe(50), |s| s.element_props[usize::from(FIRE - 1)] = 4);
-    let low_id = technique(4, 1, 1, 40, FIRE, 4, &[6]);
-    let high_id = technique(10, 1, 1, 40, FIRE, 4, &[6]);
+    let enemy = foe(50);
+    let low_id = technique(4, 1, 1, 120, FIRE, 4, &[6]);
+    let high_id = technique(10, 1, 1, 120, FIRE, 4, &[6]);
     for kit in [
         vec![low_id.clone(), high_id.clone()],
         vec![high_id.clone(), low_id.clone()],
@@ -472,7 +472,7 @@ fn equal_options_are_ranked_by_spend_not_list_order() {
         let chosen = scripted().decide(&board(vec![chaz()], vec![enemy.clone()], kit));
         assert_eq!(tech_id(&chosen), Some(4), "{chosen:?}");
     }
-    let cheap = technique(10, 1, 1, 40, FIRE, 2, &[6]);
+    let cheap = technique(10, 1, 1, 120, FIRE, 2, &[6]);
     for kit in [
         vec![low_id.clone(), cheap.clone()],
         vec![cheap.clone(), low_id.clone()],
@@ -480,4 +480,50 @@ fn equal_options_are_ranked_by_spend_not_list_order() {
         let chosen = scripted().decide(&board(vec![chaz()], vec![enemy.clone()], kit));
         assert_eq!(tech_id(&chosen), Some(10), "{chosen:?}");
     }
+}
+
+/// "Finish it" skips the round's cures only when the kill is certain: two
+/// casts whose expected damage empties the enemy but whose least rolls do not
+/// leave Rika, below half, to the enemy's turn. The round still cures her.
+/// Negative: the same board with the enemy at the casts' least damage, where
+/// the kill is certain and nobody cures.
+#[test]
+fn a_round_that_only_probably_kills_still_cures() {
+    let foi = technique(1, 1, 1, 120, FIRE, 4, &[6]);
+    let res = technique(24, 18, 4, 20, 0, 3, &[1, 2, 3]);
+    let weak = |hp| with(foe(50), |s| s.curr_hp = hp);
+    let least = min_damage(60, weak(1).stat(7), 2, 120);
+    let hp = 2 * least + 1;
+    let first = damage(60, weak(hp).stat(7), 2, 120, hp) / HP;
+    let rest = hp - u16::try_from(first).expect("a pass is under 65,536 HP");
+    let second = damage(60, weak(hp).stat(7), 2, 120, rest) / HP;
+    assert!(
+        first + second >= u64::from(hp),
+        "the board's premise: the expected casts empty the enemy ({first} + {second} of {hp})"
+    );
+    let hurt = with(rika(), |s| s.curr_hp = 100);
+    let mut gryz = renumbered(chaz(), 3);
+    gryz.fighter.name = "Gryz".into();
+    let round = |enemy_hp| Board {
+        data: &DATA,
+        actor: 1,
+        party: vec![chaz(), hurt.clone(), gryz.clone()],
+        enemies: vec![weak(enemy_hp)],
+        kits: vec![
+            kit(1, vec![foi.clone(), res.clone()]),
+            kit(3, vec![foi.clone()]),
+        ],
+        stock: Vec::new(),
+    };
+    let chosen = scripted().decide(&round(hp));
+    assert_eq!(
+        chosen,
+        Intent::Technique {
+            id: 24,
+            target: Some(2)
+        },
+        "{chosen:?}"
+    );
+    let chosen = scripted().decide(&round(2 * least));
+    assert_eq!(tech_id(&chosen), Some(1), "a certain kill: {chosen:?}");
 }

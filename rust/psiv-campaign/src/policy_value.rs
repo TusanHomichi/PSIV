@@ -8,7 +8,8 @@ use super::{BUFF_ROUNDS, ENCOUNTER_SPEND_FACTOR, Pick, Planner, Spend, ranks_abo
 use crate::policy::Intent;
 use crate::policy_board::{Ability, Board, Combatant, Kit, Source};
 use crate::policy_estimate::{
-    EffectClass, HP, Stat, Value, attack_damage, damage, landing_chance, max_damage,
+    EffectClass, HP, Stat, Value, attack_damage, damage, hit_outcomes, landing_chance, max_damage,
+    min_damage,
 };
 
 impl Planner {
@@ -39,6 +40,15 @@ impl Planner {
     /// An enemy's HP after the damage already ordered.
     pub(super) fn left(&self, enemy: &Combatant) -> u16 {
         let ordered = self.book.damage.get(&enemy.id()).copied().unwrap_or(0) / HP;
+        enemy
+            .hp()
+            .saturating_sub(u16::try_from(ordered).unwrap_or(u16::MAX))
+    }
+
+    /// An enemy's HP after the damage already ordered that lands whatever
+    /// the rolls.
+    pub(super) fn surely_left(&self, enemy: &Combatant) -> u16 {
+        let ordered = self.book.sure.get(&enemy.id()).copied().unwrap_or(0) / HP;
         enemy
             .hp()
             .saturating_sub(u16::try_from(ordered).unwrap_or(u16::MAX))
@@ -103,12 +113,25 @@ impl Planner {
                 self.left(e),
             )
         };
+        // A plain attack lands whatever the rolls only when its hit roll
+        // cannot miss; then its least damage pass.
+        let sure = |e: &Combatant| -> Value {
+            let agility = e.stats().agility.battle.into();
+            let (miss, _, _) =
+                hit_outcomes(me.stats().dexterity.battle.into(), agility, weapon.all);
+            if miss > 0 {
+                return 0;
+            }
+            let least = min_damage(me.attack(), e.defence(), board.weapon_factor(me, e), 0);
+            Value::from(least.min(self.surely_left(e))) * HP
+        };
         if weapon.all {
             let each: Vec<(u8, Value)> = board.enemies.iter().map(|e| (e.id(), hit(e))).collect();
             return Some(Pick {
                 value: each.iter().map(|(_, v)| v).sum(),
                 intent: Intent::ATTACK,
                 each,
+                sure: board.enemies.iter().map(|e| (e.id(), sure(e))).collect(),
                 ability: None,
                 spend: Spend::free(None),
             });
@@ -120,6 +143,12 @@ impl Planner {
             value,
             intent: Intent::Attack { target: Some(id) },
             each: vec![(id, value)],
+            sure: board
+                .enemies
+                .iter()
+                .filter(|e| e.id() == id)
+                .map(|e| (id, sure(e)))
+                .collect(),
             ability: None,
             spend: Spend::free(Some(id)),
         })
@@ -168,6 +197,26 @@ impl Planner {
             }
             _ => 0,
         }
+    }
+
+    /// The damage `ability` does to enemy `e` whatever the rolls: a damage
+    /// effect's least pass (the formula's every draw 0; techniques, skills and
+    /// items have no hit roll), anything else nothing.
+    fn sure_on_enemy(&self, board: &Board, kit: &Kit, ability: &Ability, e: &Combatant) -> Value {
+        if ability.class() != EffectClass::Damage {
+            return 0;
+        }
+        let Some(me) = board.member(kit.id) else {
+            return 0;
+        };
+        let factor = board.ability_factor(me, e, ability.element);
+        let least = min_damage(
+            ability.power_stat,
+            e.stat(ability.resistance),
+            factor,
+            ability.power.into(),
+        );
+        Value::from(least.min(self.surely_left(e))) * HP
     }
 
     /// What `ability` does for party member `m`, in HP over the rounds left.
@@ -225,6 +274,16 @@ impl Planner {
                 Some((*id, value))
             })
             .collect();
+        let sure = |id: u8| -> Value {
+            if !onto_enemies {
+                return 0;
+            }
+            board
+                .enemies
+                .iter()
+                .find(|e| e.id() == id)
+                .map_or(0, |e| self.sure_on_enemy(board, kit, ability, e))
+        };
         if ability.single() {
             let (id, value) = best_of(candidates.iter().copied(), |id| {
                 Spend::of(ability, Some(id))
@@ -233,6 +292,7 @@ impl Planner {
                 value,
                 intent: Self::intent(ability, Some(id)),
                 each: vec![(id, value)],
+                sure: vec![(id, sure(id))],
                 ability: Some(index),
                 spend: Spend::of(ability, Some(id)),
             })
@@ -240,6 +300,7 @@ impl Planner {
             Some(Pick {
                 value: candidates.iter().map(|(_, v)| v).sum(),
                 intent: Self::intent(ability, None),
+                sure: candidates.iter().map(|(id, _)| (*id, sure(*id))).collect(),
                 each: candidates,
                 ability: Some(index),
                 spend: Spend::of(ability, None),
