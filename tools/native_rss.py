@@ -10,14 +10,22 @@ fails its receipt on a FAIL.
 Total RSS is not the measure. Godot's own allocator holds the current map's
 images, so its static memory swings by ~110 MB with the map and returns, and
 a battle, a scene or a menu holds art of its own while it runs. A leak is
-growth that persists, so Godot's memory is compared like with like: only
-samples taken on the open field (`activity == "field"`), per map, across
-visits. Even there a map refresh can briefly hold two copies of the map's
+growth that persists, so the closing measure is a bracket: in the same Godot
+process, the driver loads one fixed save through the title's CONTINUE before
+the tape starts and again after it ends, lets each settle on the open field,
+and samples it (`PROBE_*`). The same save, in the same state, in the same
+process: whatever the run left behind and still holds shows as the end probe's
+floor over the start probe's, wherever in the run it grew.
+
+Between the probes, the samples taken on the open field (`activity ==
+"field"`) are compared per map across visits, as a diagnostic that still fails
+on a breach. Even there a map refresh can briefly hold two copies of the map's
 images (n92 map 208, +20.3 MB for one sample at 2,500-frame cadence), so each
 map's field samples are judged on floors: the minimum over the last
 `FLOOR_FRAMES` frames of field time observed on that map. A persistent leak
 raises every later floor; a field transient shorter than the window cannot
-raise any.
+raise any. A route's brief late visits leave stretches no map's floors can see
+(`coverage_gaps`); the bracket covers them, so coverage is reported.
 
 Godot reports static memory only in debug builds (`MEMORY_STATIC` is 0 under
 a release template, which would make the extension term equal RSS and fail
@@ -50,7 +58,26 @@ GAP_LIMIT_FRAMES = FLOOR_FRAMES
 #: coarse to tell a transient from a step and the verdict refuses it.
 MIN_FLOOR_SAMPLES = 2
 
+# The bracket probes. After CONTINUE the probe waits PROBE_SETTLE_FRAMES
+# consecutive frames on the open field (on n92 every field excursion above
+# 12 MB was gone within one 2,500-frame sample), then takes PROBE_SAMPLES
+# samples PROBE_SAMPLE_EVERY frames apart and keeps each measure's floor. A
+# probe that has not finished within PROBE_TIMEOUT_FRAMES of entering the game
+# fails the run: it must not pass for having measured nothing.
+PROBE_SETTLE_FRAMES = 2_500
+PROBE_SAMPLES = 8
+PROBE_SAMPLE_EVERY = 250
+PROBE_TIMEOUT_FRAMES = 20_000
+#: The CONTINUE slot (zero-based) the probe save is copied into. A retail slot
+#: file carries its slot's layout, so a chapter save (a slot-1 file) loads only
+#: as slot 1. The route's camp SAVE writes the same slot, so before the end
+#: probe the driver keeps the run's slot file as `RUN_SLOT_FILE` and puts the
+#: probe save back.
+PROBE_SLOT = 0
+RUN_SLOT_FILE = "slot_1.run.sram"
+
 FIELD = "field"
+PROBE_KEYS = ("rss_kb", "static_kb", "objects")
 RSS_SAMPLE_KEYS = ("frame", "elapsed_ms", "rss_kb", "static_kb", "objects", "map")
 
 
@@ -168,30 +195,94 @@ def growth(floors: dict, objects: dict, window: int, mb) -> dict:
     return maps
 
 
+def probe_floor(probe: dict | None) -> tuple[dict | None, str | None]:
+    """A probe's floor of each measure (`PROBE_KEYS` and the extension heap,
+    RSS minus static), or why it has none: missing, never settled on the open
+    field, too few samples, or a sample off the field or unreadable."""
+    if not isinstance(probe, dict):
+        return None, "missing"
+    if probe.get("settled") is not True:
+        return None, f"never settled on the open field ({probe.get('reason', 'no reason given')})"
+    samples = probe.get("samples")
+    if not isinstance(samples, list) or len(samples) < PROBE_SAMPLES:
+        return None, f"fewer than {PROBE_SAMPLES} samples"
+    if not all(isinstance(item, dict) and item.get("activity") == FIELD
+               and all(isinstance(item.get(key), int) for key in PROBE_KEYS)
+               and item["rss_kb"] > 0 for item in samples):
+        return None, "a sample off the open field or unreadable"
+    floor = {key: min(item[key] for item in samples) for key in PROBE_KEYS}
+    # Reported only: nodes in and out of the scene tree, when recorded.
+    for key in ("nodes", "orphan_nodes"):
+        if all(isinstance(item.get(key), int) for item in samples):
+            floor[key] = min(item[key] for item in samples)
+    floor["extension_kb"] = min(item["rss_kb"] - item["static_kb"] for item in samples)
+    return floor, None
+
+
+def bracket_verdict(probes: dict | None, bound_mb: float, object_bound: int) -> dict:
+    """The end probe's floors over the start probe's: Godot static memory and
+    the extension heap may not grow more than `bound_mb`, Godot's object count
+    more than `object_bound`. A missing or unsettled probe fails."""
+    probes = probes if isinstance(probes, dict) else {}
+    start, start_why = probe_floor(probes.get("start"))
+    end, end_why = probe_floor(probes.get("end"))
+    if start is None or end is None:
+        reasons = [f"{name} probe {why}" for name, why in (("start", start_why), ("end", end_why))
+                   if why]
+        return {"pass": False, "reason": "; ".join(reasons)}
+
+    def mb(kb: float) -> float:
+        return round(kb / 1024, 1)
+
+    static = end["static_kb"] - start["static_kb"]
+    extension = end["extension_kb"] - start["extension_kb"]
+    objects = end["objects"] - start["objects"]
+    return {
+        "start_floor": {"static_mb": mb(start["static_kb"]), "objects": start["objects"],
+                        "extension_mb": mb(start["extension_kb"]), "rss_mb": mb(start["rss_kb"])},
+        "end_floor": {"static_mb": mb(end["static_kb"]), "objects": end["objects"],
+                      "extension_mb": mb(end["extension_kb"]), "rss_mb": mb(end["rss_kb"])},
+        "static_growth_mb": mb(static), "extension_growth_mb": mb(extension),
+        "object_growth": objects,
+        "node_growth": end["nodes"] - start["nodes"]
+        if "nodes" in end and "nodes" in start else None,
+        "orphan_node_growth": end["orphan_nodes"] - start["orphan_nodes"]
+        if "orphan_nodes" in end and "orphan_nodes" in start else None,
+        "pass": static / 1024 <= bound_mb and extension / 1024 <= bound_mb
+        and objects <= object_bound}
+
+
 def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
                 object_bound: int = 256, floor_frames: int = FLOOR_FRAMES,
-                gap_limit_frames: int = GAP_LIMIT_FRAMES) -> dict:
-    """Memory after warm-up stays bounded (#92), judged in six parts over the
-    window from the first sample at or past `warmup_frames` to the last.
+                gap_limit_frames: int = GAP_LIMIT_FRAMES, probes: dict | None = None) -> dict:
+    """Memory after warm-up stays bounded (#92). Four parts are judged over the
+    window from the first sample at or past `warmup_frames` to the last, and
+    three are reported.
+
+    Judged:
+
+    - `bracket` (`bracket_verdict`): the end probe over the start probe. It
+      closes the check: it sees a persistent leak anywhere in the run.
 
     - `extension`: RSS minus Godot static memory (the extension's Rust heap
       and everything else outside Godot's allocator), over every sample, may
       not grow more than `bound_mb` past the window's first sample.
     - `godot_static`: on each map, the highest field floor (`map_floors`) may
-      not exceed the map's first floor by more than `bound_mb`.
+      not exceed the map's first floor by more than `bound_mb`: a breach is a
+      leak signal mid-run, though a map floored nowhere cannot breach.
     - `objects`: the same for Godot's object count, bounded by `object_bound`.
-    - `static_drift` and `object_drift`: a leak spread over maps that each
-      stay under the per-map bound still adds up, so the floors' growth is
-      pooled into one rate (`pooled_drift`), and the rate times the frames
-      from the earliest floor to the latest may not exceed the bound. The
-      limit of detection is the bound: a uniform leak of at most `bound_mb`
-      (or `object_bound` objects) over those frames passes.
-    - `coverage`: every gap (`coverage_gaps`) from the window's first sample to
-      its last, head and tail included, may not exceed `gap_limit_frames`.
+
+    Reported, with `within_bound`/`within_limit` for the reader:
+
+    - `static_drift` and `object_drift`: the floors' growth pooled into one
+      rate (`pooled_drift`) times the frames from the earliest floor to the
+      latest, against the bound.
+    - `coverage`: the gaps (`coverage_gaps`) no map's floors can see, against
+      `gap_limit_frames`. The bracket sees them.
 
     A map with fewer field samples than a floor window is listed under
     `maps_unjudged` with the reason. A cadence too coarse for the floor
-    window (`cadence_error`), a window with no floored map, and missing or
+    window (`cadence_error`), a missing or unsettled probe, and missing or
     unreadable samples (including one without its map or activity) fail
     rather than pass vacuously."""
     samples = samples if isinstance(samples, list) else []
@@ -262,33 +353,33 @@ def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
         "godot_static": {"worst_map": worst_static[0],
                          "growth_mb": worst_static[1]["static_growth_mb"],
                          "floor_frame": worst_static[1]["static_peak_floor_frame"],
-                         "pass": bool(maps) and all(value["static_growth_mb"] <= bound_mb
-                                                    for value in maps.values())},
+                         "maps_judged": len(maps),
+                         "pass": all(value["static_growth_mb"] <= bound_mb
+                                     for value in maps.values())},
         "objects": {"worst_map": worst_objects[0], "growth": worst_objects[1]["object_growth"],
                     "floor_frame": worst_objects[1]["object_peak_floor_frame"],
-                    "pass": bool(maps) and all(value["object_growth"] <= object_bound
-                                               for value in maps.values())},
+                    "pass": all(value["object_growth"] <= object_bound
+                                for value in maps.values())},
         "static_drift": {"floors_pooled": static_pooled,
                          "rate_kb_per_kframe": round(static_rate * 1000, 2)
                          if static_rate is not None else None,
                          "drift_mb": mb(static_drift) if static_drift is not None else None,
-                         "pass": static_drift is not None and static_drift / 1024 <= bound_mb},
+                         "within_bound": static_drift is not None
+                         and static_drift / 1024 <= bound_mb},
         "object_drift": {"floors_pooled": object_pooled,
                          "rate_per_kframe": round(object_rate * 1000, 3)
                          if object_rate is not None else None,
                          "drift": round(object_drift, 1) if object_drift is not None else None,
-                         "pass": object_drift is not None and object_drift <= object_bound},
+                         "within_bound": object_drift is not None
+                         and object_drift <= object_bound},
         "coverage": {"gaps": [{"from": low, "to": high, "frames": high - low}
                               for low, high in gaps],
                      "widest_gap_frames": widest[1] - widest[0] if widest else 0,
                      "uncovered_frames": sum(high - low for low, high in gaps),
-                     "pass": bool(maps) and all(high - low <= gap_limit_frames
-                                                for low, high in gaps)},
+                     "within_limit": bool(maps) and all(high - low <= gap_limit_frames
+                                                        for low, high in gaps)},
+        "bracket": bracket_verdict(probes, bound_mb, object_bound),
     })
-    if not maps:
-        verdict["reason"] = (f"no map has {window} field samples past warm-up; "
-                             "Godot memory is unjudged")
     verdict["pass"] = all(verdict[part]["pass"] for part in
-                          ("extension", "godot_static", "objects", "static_drift",
-                           "object_drift", "coverage"))
+                          ("extension", "bracket", "godot_static", "objects"))
     return verdict

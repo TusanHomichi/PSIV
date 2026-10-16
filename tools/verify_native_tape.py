@@ -23,10 +23,12 @@ import time
 
 try:  # imported as `tools.verify_native_tape` by tests
     from tools.heavy_lock import GODOT as GODOT_CLASS, heavy_lock_path, hold_heavy_lock
+    from tools import native_rss
     from tools.native_rss import cadence_error, rss_verdict
     from tools.repo_files import repo_files
 except ModuleNotFoundError:  # direct `python3 tools/verify_native_tape.py`
     from heavy_lock import GODOT as GODOT_CLASS, heavy_lock_path, hold_heavy_lock
+    import native_rss
     from native_rss import cadence_error, rss_verdict
     from repo_files import repo_files
 
@@ -224,7 +226,11 @@ def parser() -> argparse.ArgumentParser:
                          help="fail when memory grows more than this past warm-up (needs "
                               "--rss-every; see rss_verdict for what is measured)")
     command.add_argument("--rss-object-bound", type=int, default=256,
-                         help="fail when Godot's object count exceeds its warm-up peak by more")
+                         help="Godot object-count bound (tools/native_rss.py)")
+    command.add_argument("--rss-probe-save", type=Path,
+                         help="the save the memory bracket loads through the title's CONTINUE "
+                              "before and after the tape (copied into the isolated slot "
+                              f"{native_rss.PROBE_SLOT + 1}); required with --rss-bound-mb")
     command.add_argument("--render-capture", action="store_true")
     command.add_argument("--drop-pad-at", type=int, help="negative control: replace one byte with neutral")
     return command
@@ -262,6 +268,11 @@ def replay(args: argparse.Namespace) -> int:
                        "maps and battles load")
     if args.rss_bound_mb is not None and cadence_error(args.rss_every):
         parser().error(f"--rss-every: {cadence_error(args.rss_every)}")
+    if args.rss_bound_mb is not None and args.rss_probe_save is None:
+        parser().error("--rss-bound-mb needs --rss-probe-save: the memory bracket closes the check")
+    probe_save = args.rss_probe_save.resolve(strict=True) if args.rss_probe_save else None
+    if probe_save and args.from_save:
+        parser().error("--rss-probe-save needs a new-game tape: a save-start tape owns slot 1")
     checkpoints = args.checkpoints.resolve(strict=True) if args.checkpoints else None
     if args.expect_cell:
         parts = args.expect_cell.split(",")
@@ -277,6 +288,10 @@ def replay(args: argparse.Namespace) -> int:
     godot_log = out / "godot.log"
     capture = out / "selected-1280x800.png"
     source_before = sha256(source) if source else None
+    probe_sha = sha256(probe_save) if probe_save else None
+    if probe_save:
+        # A copy: the source save is never opened for writing.
+        (saves / f"slot_{native_rss.PROBE_SLOT + 1}.sram").write_bytes(probe_save.read_bytes())
     expected_sha = sha256(expected) if expected else None
     written_sha = sha256(written) if written else None
     # No inherited selector, autostart, retail-pace or load-slot override may
@@ -301,6 +316,14 @@ def replay(args: argparse.Namespace) -> int:
         "PSIV_TAPE_CHECKPOINTS": str(checkpoints) if checkpoints else "",
         "PSIV_TAPE_STOP_AT": str(args.stop_at) if args.stop_at is not None else "",
         "PSIV_TAPE_RSS_EVERY": str(args.rss_every) if args.rss_every is not None else "",
+        **({"PSIV_TAPE_PROBE_SLOT": str(native_rss.PROBE_SLOT), "PSIV_TAPE_PROBE_SHA256": probe_sha,
+            "PSIV_TAPE_PROBE_SAVE": str(probe_save),
+            "PSIV_TAPE_PROBE_RUN_SLOT": native_rss.RUN_SLOT_FILE,
+            "PSIV_TAPE_PROBE_SETTLE": str(native_rss.PROBE_SETTLE_FRAMES),
+            "PSIV_TAPE_PROBE_SAMPLES": str(native_rss.PROBE_SAMPLES),
+            "PSIV_TAPE_PROBE_EVERY": str(native_rss.PROBE_SAMPLE_EVERY),
+            "PSIV_TAPE_PROBE_TIMEOUT": str(native_rss.PROBE_TIMEOUT_FRAMES)}
+           if probe_save else {}),
         "LIBGL_ALWAYS_SOFTWARE": "1",
     })
     if args.drop_pad_at is not None:
@@ -380,7 +403,9 @@ def replay(args: argparse.Namespace) -> int:
                               and mapped["path"] == code_before["extension"]["path"]
                               and mapped["inode"] == code_before["extension"]["inode"])
     source_after = sha256(source) if source else None
-    live_slot = saves / "slot_1.sram"
+    # With the bracket, slot 1 holds the probe save again after the run; the
+    # driver kept the run's own slot file beside it.
+    live_slot = saves / (native_rss.RUN_SLOT_FILE if probe_save else "slot_1.sram")
     result = json.loads(native_report.read_text()) if native_report.is_file() else None
     save_acks = result.get("camp_save_acks") if isinstance(result, dict) else None
     acknowledged = (isinstance(save_acks, list) and len(save_acks) == 3
@@ -421,13 +446,18 @@ def replay(args: argparse.Namespace) -> int:
     receipt["checkpoint_saves_stable"] = saves_before == saves_after
     receipt["checkpoints_passed"] = checkpoints_passed(result, checkpoints)
     receipt["host_power"] = host_power()
+    receipt["rss_probe_save"] = str(probe_save) if probe_save else None
+    receipt["rss_probe_save_sha256_before"] = probe_sha
+    receipt["rss_probe_save_sha256_after"] = sha256(probe_save) if probe_save else None
     receipt["rss"] = (rss_verdict((result or {}).get("rss_samples"), args.rss_warmup_frames,
-                                  args.rss_bound_mb, args.rss_object_bound)
+                                  args.rss_bound_mb, args.rss_object_bound,
+                                  probes=(result or {}).get("rss_probes"))
                       if args.rss_bound_mb is not None else None)
     receipt["pass"] = (
         code == 0 and result is not None and result.get("result") == "pass"
         and identity_stable and mapped_library_matches
         and source_before == source_after
+        and receipt["rss_probe_save_sha256_before"] == receipt["rss_probe_save_sha256_after"]
         and (source is None or (result.get("source_hash_verified_before_copy") is True
                                 and result.get("source_copied") is True))
         and snapshot.is_file()
@@ -442,6 +472,12 @@ def replay(args: argparse.Namespace) -> int:
     if receipt["rss"] is not None:
         rss = receipt["rss"]
         if "extension" in rss:
+            bracket = rss["bracket"]
+            print(f"native tape: RSS bracket {'PASS' if bracket['pass'] else 'FAIL'}; " + (
+                f"end probe over start: Godot static +{bracket['static_growth_mb']} MB, "
+                f"extension heap +{bracket['extension_growth_mb']} MB, objects "
+                f"+{bracket['object_growth']}" if "static_growth_mb" in bracket
+                else bracket["reason"]))
             print(f"native tape: RSS {'PASS' if rss['pass'] else 'FAIL'}; frames "
                   f"{rss['baseline_frame']}..{rss['last_frame']}: extension heap "
                   f"+{rss['extension']['growth_mb']} MB; field floors over "
@@ -449,8 +485,8 @@ def replay(args: argparse.Namespace) -> int:
                   f"+{rss['godot_static']['growth_mb']} MB (map {rss['godot_static']['worst_map']}), "
                   f"objects +{rss['objects']['growth']} (map {rss['objects']['worst_map']}), drift "
                   f"{rss['static_drift']['drift_mb']} MB and {rss['object_drift']['drift']} objects; "
-                  f"widest coverage gap {rss['coverage']['widest_gap_frames']} frames (limit "
-                  f"{rss['gap_limit_frames']}); bounds {rss['bound_mb']} MB, "
+                  f"widest coverage gap {rss['coverage']['widest_gap_frames']} frames "
+                  f"(reported; limit {rss['gap_limit_frames']}); bounds {rss['bound_mb']} MB, "
                   f"{rss['object_bound']} objects; {len(rss['maps'])} maps judged, "
                   f"{len(rss['maps_unjudged'])} unjudged; RSS {rss['rss_mb']['baseline']} -> "
                   f"{rss['rss_mb']['last']} MB")

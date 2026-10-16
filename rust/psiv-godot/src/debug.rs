@@ -92,6 +92,28 @@ impl Field {
         })
     }
 
+    /// The tape driver's memory bracket (#92): puts the session at the title
+    /// through the session's own front door (`Session::start_title`, the call
+    /// a defeat's fade ends on), so the driver can load a save through the
+    /// ordinary CONTINUE before and after a replay in the same process.
+    /// `false` (and nothing done) unless `PSIV_NATIVE_TAPE=1`, without a
+    /// session, or while the title is already up.
+    pub(super) fn return_to_title_probe(&mut self) -> bool {
+        if std::env::var("PSIV_NATIVE_TAPE").as_deref() != Ok("1") {
+            return false;
+        }
+        let Some(session) = self.session.as_mut() else {
+            return false;
+        };
+        if session.title().is_some() {
+            return false;
+        }
+        session.start_title();
+        self.take_down_stage_for_title();
+        godot_print!("native tape: title restored for a memory probe");
+        true
+    }
+
     pub(super) fn play_probe(&self) -> GString {
         if std::env::var("PSIV_DEBUG_ROUTE").as_deref() != Ok("1") {
             return GString::new();

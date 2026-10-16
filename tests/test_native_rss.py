@@ -2,22 +2,28 @@
 
     PYTHONPATH=. python3 -m unittest tests.test_native_rss -v
 
-Godot's memory is compared only between field samples (`activity ==
-"field"`), per map, on floors over `FLOOR_FRAMES` of observed field time.
-Every negative control names the part of the verdict that must fail it, and
-every positive control the reason it must not: (a) growth at re-entry, (b) a
-static leak spread thinly over maps, (c) the shipped #92 build's recorded run,
-(d) n92's map-208 straddle, at 2,500- and 500-frame cadence, (e) a step in
-the run's tail, (f) a transient on a re-entry sample, (g) the drift's limit of
-detection; then the 2026-10-16 review's steps in coverage gaps, an
-objects-only leak over once-entered maps, and cadences too coarse to judge.
+The check closes on a bracket: the same save loaded through the title before
+and after the run, settled on the open field and floored. Between the probes,
+field samples are compared per map on floors over `FLOOR_FRAMES` of observed
+field time, and a per-map breach still fails. Every negative control names
+the part of the verdict that must fail it, and every positive control the
+reason it must not.
+
+The bracket (the 2026-10-17 ruling's controls): (a) a leak injected in each of
+the gap windows no map's floors see fails the bracket, (b) a 20 MB transient
+released before the end passes, (c) the shipped #92 build's recorded run fails
+on the heap, (d) a probe that never settles on the field fails. The per-map
+floors: growth at re-entry, a tail step, n92's map-208 straddle at 2,500- and
+500-frame cadence, a transient on a re-entry sample. Reported, not judged: the
+drifts and coverage.
 """
 
 import json
 import unittest
 from pathlib import Path
 
-from tools.native_rss import FLOOR_FRAMES, GAP_LIMIT_FRAMES, cadence_error, rss_verdict
+from tools.native_rss import (FLOOR_FRAMES, GAP_LIMIT_FRAMES, PROBE_SAMPLES,
+                               PROBE_SETTLE_FRAMES, cadence_error, rss_verdict)
 
 ROOT = Path(__file__).resolve().parents[1]
 CHAPTER14 = ROOT / "tests" / "native_rss_chapter14.json"
@@ -58,19 +64,116 @@ WARM = (9, 100, 2800, 1)
 SWING = [(1, 210, 2800, 4), (2, 100, 2800, 4)] * 3
 
 
+def probe(static=100, objects=2800, extension=150, settled=True, count=PROBE_SAMPLES):
+    """A settled bracket probe: `count` field samples at these values."""
+    return {"settled": settled, "frames_waited": PROBE_SETTLE_FRAMES + 2000,
+            "samples": [{"frame": PROBE_SETTLE_FRAMES + 250 * (i + 1),
+                         "rss_kb": int((static + extension) * 1024),
+                         "static_kb": int(static * 1024), "objects": objects,
+                         "activity": "field", "map": 19} for i in range(count)]}
+
+
+def bracket(start_static=100, end_static=100, start_objects=2800, end_objects=2800,
+            start_extension=150, end_extension=150):
+    """Start and end probes; the defaults are a run that left nothing behind."""
+    return {"start": probe(start_static, start_objects, start_extension),
+            "end": probe(end_static, end_objects, end_extension)}
+
+
 def judge(rows, **options):
     return rss_verdict(samples(*rows, every=options.pop("every", EVERY)),
-                       options.pop("warmup", WARMUP), 16, **options)
+                       options.pop("warmup", WARMUP), 16,
+                       probes=options.pop("probes", bracket()), **options)
+
+
+class Bracket(unittest.TestCase):
+    def test_a_run_that_leaves_nothing_behind_passes(self):
+        verdict = judge(visits(WARM, *SWING))
+        self.assertTrue(verdict["pass"], verdict)
+        self.assertEqual(verdict["bracket"]["static_growth_mb"], 0.0)
+        self.assertEqual(verdict["bracket"]["end_floor"]["extension_mb"], 150.0)
+
+    def gap_run(self, where, leak_mb=200):
+        """A stretch of brief visits (one sample each, never floored) at
+        `where` (n92's gaps: 2.53M-2.60M, 3.60M-3.66M, 4.17M-end), with maps
+        re-entered on either side that never cross it; a leak lands inside
+        the stretch and stays, so the end probe holds it."""
+        brief = [(40 + m, 100, 2800, 1) for m in range(6)]
+        before = [(1, 210, 2800, 4), (2, 100, 2800, 4)]
+        after = [(3, 210, 2800, 4), (4, 100, 2800, 4)]
+        plan = {"head": brief + after * 3, "middle": before * 2 + brief + after * 2,
+                "tail": before * 3 + brief}[where]
+        step_at = {"head": 3, "middle": 19, "tail": 28}[where]
+        return judge(visits(WARM, *plan, static_leak=lambda i: leak_mb * (i >= step_at)),
+                     probes=bracket(end_static=100 + leak_mb))
+
+    def test_a_leak_in_each_gap_window_fails_the_bracket(self):
+        # (a) No map's floors can see the step (coverage reports the gap),
+        # but the end probe holds it.
+        for where in ("head", "middle", "tail"):
+            verdict = self.gap_run(where)
+            self.assertFalse(verdict["pass"], where)
+            self.assertFalse(verdict["bracket"]["pass"], where)
+            self.assertEqual(verdict["bracket"]["static_growth_mb"], 200.0, where)
+            self.assertTrue(verdict["godot_static"]["pass"], where)
+            self.assertFalse(verdict["coverage"]["within_limit"], where)
+        # 17 MB in a gap is past the bound too; 15 MB is inside it.
+        self.assertFalse(self.gap_run("middle", 17)["bracket"]["pass"])
+        self.assertTrue(self.gap_run("middle", 15)["bracket"]["pass"])
+
+    def test_a_transient_released_before_the_end_passes(self):
+        # (b) 20 MB held for a stretch mid-run, then released: both probes
+        # read the same floor.
+        rows = visits(WARM, *SWING, static_leak=lambda i: 20 * (10 <= i < 14))
+        verdict = judge(rows)
+        self.assertTrue(verdict["bracket"]["pass"], verdict["bracket"])
+        self.assertEqual(verdict["bracket"]["static_growth_mb"], 0.0)
+
+    def test_the_extension_heap_and_objects_are_bracketed_too(self):
+        heap = judge(visits(WARM, *SWING), probes=bracket(end_extension=170))
+        self.assertFalse(heap["bracket"]["pass"])
+        self.assertEqual(heap["bracket"]["extension_growth_mb"], 20.0)
+        objects = judge(visits(WARM, *SWING), probes=bracket(end_objects=3100))
+        self.assertFalse(objects["bracket"]["pass"])
+        self.assertEqual(objects["bracket"]["object_growth"], 300)
+
+    def test_a_probe_that_never_settles_fails(self):
+        # (d) The probe waited out its timeout without a settled field: no
+        # floor, so the run cannot pass on it.
+        unsettled = bracket()
+        unsettled["end"] = {"settled": False, "frames_waited": 20000,
+                            "reason": "no 2500 field frames plus 8 samples within 20000 frames"}
+        verdict = judge(visits(WARM, *SWING), probes=unsettled)
+        self.assertFalse(verdict["pass"])
+        self.assertFalse(verdict["bracket"]["pass"])
+        self.assertIn("end probe never settled", verdict["bracket"]["reason"])
+        for broken, why in ((None, "start probe missing"),
+                            (probe(count=PROBE_SAMPLES - 1), "fewer than"),
+                            ({**probe(), "samples": [dict(probe()["samples"][0], activity="battle")]
+                              * PROBE_SAMPLES}, "off the open field")):
+            probes = bracket()
+            probes["start"] = broken
+            verdict = judge(visits(WARM, *SWING), probes=probes)
+            self.assertFalse(verdict["pass"], why)
+            self.assertIn(why, verdict["bracket"]["reason"])
+        self.assertIn("missing", judge(visits(WARM, *SWING), probes=None)["bracket"]["reason"])
+
+    def test_the_shipped_92_build_fails_on_its_heap(self):
+        # (c) Recorded 2026-10-15 over the chapter-14 prefix, before the
+        # bracket existed: the heap separates the arms on its own.
+        runs = json.loads(CHAPTER14.read_text())
+        shipped = rss_verdict(runs["shipped"], 20000, 16, probes=bracket())
+        fixed = rss_verdict(runs["fixed"], 20000, 16, probes=bracket())
+        self.assertFalse(shipped["pass"])
+        self.assertFalse(shipped["extension"]["pass"])
+        self.assertEqual(shipped["extension"]["growth_mb"], 115.5)
+        self.assertTrue(fixed["pass"], fixed)
+        self.assertEqual(fixed["extension"]["growth_mb"], 4.3)
 
 
 class Floors(unittest.TestCase):
-    def test_a_map_swing_with_no_leak_passes(self):
-        verdict = judge(visits(WARM, *SWING))
-        self.assertTrue(verdict["pass"], verdict)
-        self.assertEqual(verdict["floor_samples"], 4)
-        self.assertEqual(verdict["godot_static"]["growth_mb"], 0.0)
-        self.assertEqual(verdict["maps"]["1"]["field_samples"], 12)
-        self.assertLessEqual(verdict["coverage"]["widest_gap_frames"], GAP_LIMIT_FRAMES)
+    """Per-map field floors: diagnostics between the probes that still fail on
+    a breach."""
 
     def test_battles_and_scenes_are_never_compared(self):
         # A battle on map 1 holds 40 MB and 300 objects of its own art.
@@ -80,9 +183,9 @@ class Floors(unittest.TestCase):
         verdict = judge(rows)
         self.assertTrue(verdict["pass"], verdict)
         self.assertEqual(verdict["activities"], {"battle": 3, "field": 24, "scene": 2})
+        self.assertEqual(verdict["maps"]["1"]["field_samples"], 12)
 
     def test_a_growing_floor_at_re_entry_fails(self):
-        # (a) Map 1 is 10 MB bigger each time it is entered.
         rows = visits(WARM, (1, 100, 2800, 4), (2, 100, 2800, 4), (1, 110, 2800, 4),
                       (2, 100, 2800, 4), (1, 120, 2800, 4), (2, 100, 2800, 4))
         verdict = judge(rows)
@@ -90,28 +193,20 @@ class Floors(unittest.TestCase):
         self.assertFalse(verdict["godot_static"]["pass"])
         self.assertEqual((verdict["godot_static"]["worst_map"],
                           verdict["godot_static"]["growth_mb"]), ("1", 20.0))
-        self.assertTrue(verdict["extension"]["pass"])
-        self.assertTrue(verdict["coverage"]["pass"])
 
-    def test_a_static_leak_spread_thinly_over_maps_fails_the_drift(self):
-        # (b) 0.5 MB a sample on every map. Each map is re-entered 20 samples
-        # after its first visit, so its floor grows +10 MB, under the 16 MB
-        # bound; pooled over the run the leak is past it.
-        plan = [(m, 100, 2800, 4) for m in range(1, 6)] * 2
-        verdict = judge(visits(WARM, *plan, static_leak=lambda i: 0.5 * i))
-        self.assertTrue(verdict["godot_static"]["pass"], verdict["godot_static"])
-        self.assertEqual(verdict["godot_static"]["growth_mb"], 10.0)
-        self.assertFalse(verdict["static_drift"]["pass"])
-        self.assertEqual(verdict["static_drift"]["rate_kb_per_kframe"], 204.8)
-        self.assertGreater(verdict["static_drift"]["drift_mb"], 16)
-        self.assertTrue(verdict["coverage"]["pass"], verdict["coverage"])
-        self.assertFalse(verdict["pass"])
+    def test_a_step_in_a_long_tail_visit_fails(self):
+        head = visits(WARM, *SWING[:3])
+        tail = [(250, 100, 2800, 374)] * 6 + [(450, 300, 2800, 374)] * 8
+        verdict = judge(head + tail)
+        self.assertFalse(verdict["godot_static"]["pass"])
+        self.assertEqual((verdict["godot_static"]["worst_map"],
+                          verdict["godot_static"]["growth_mb"]), ("374", 200.0))
+        tail = [(250, 100, 2800, 374)] * 6 + [(250, 100, 4800, 374)] * 8
+        self.assertFalse(judge(head + tail)["objects"]["pass"])
 
     def test_map_208s_straddle_does_not_fail(self):
-        # (d) n92 at 2,500-frame cadence: map 208's two field samples, the
-        # second during a map refresh holding +20.3 MB and +140 objects, with
-        # a battle and a scene between them. Two field samples are fewer than
-        # a floor window: listed unjudged, nothing compared.
+        # n92 at 2,500-frame cadence: map 208's two field samples, the second
+        # during a map refresh holding +20.3 MB and +140 objects.
         rows = visits(WARM, *SWING[:4]) + [(269, 119, 3146, 208), (300, 150, 3300, 208, "battle"),
                                            (290, 160, 3300, 208, "scene"),
                                            (290, 140, 3286, 208)] + visits(*SWING[:2])
@@ -121,10 +216,8 @@ class Floors(unittest.TestCase):
                          {"208": "2 field sample(s) past warm-up, fewer than 4"})
 
     def test_map_208s_straddle_at_a_500_frame_cadence_does_not_fail(self):
-        # (d) The same visit sampled every 500 frames: the map refresh's
-        # +20.3 MB now spans 5 field samples (2,500 frames) of a long visit.
-        # A floor window is FLOOR_FRAMES of field time, 20 samples here, so
-        # the transient is still inside every window's minimum.
+        # The refresh's +20.3 MB spans 5 field samples at 500 frames; a floor
+        # window is FLOOR_FRAMES of field time (20 samples), so it holds.
         before = [(250, 100, 3000, 1)] * 24 + [(250, 100, 3000, 2)] * 24
         visit = ([(269, 119, 3146, 208)] * 20 + [(300, 150, 3300, 208, "battle")] * 10
                  + [(290, 160, 3300, 208, "scene")] * 10 + [(290, 140, 3286, 208)] * 5
@@ -133,128 +226,59 @@ class Floors(unittest.TestCase):
         verdict = judge([(250, 100, 3000, 9)] * 10 + before + visit + after,
                         every=500, warmup=5000)
         self.assertEqual(verdict["floor_samples"], FLOOR_FRAMES // 500)
-        self.assertTrue(verdict["pass"], {k: verdict[k] for k in
-                                          ("godot_static", "objects", "coverage")})
+        self.assertTrue(verdict["pass"], verdict)
         self.assertEqual(verdict["maps"]["208"]["static_growth_mb"], 0.0)
 
-    def test_a_step_in_the_runs_tail_fails(self):
-        # (e) The run ends in one long visit to a map not seen before, and
-        # Godot's static memory steps up 200 MB in it and stays there.
-        head = visits(WARM, *SWING[:3])
-        tail = [(250, 100, 2800, 374)] * 6 + [(450, 300, 2800, 374)] * 8
-        verdict = judge(head + tail)
-        self.assertFalse(verdict["pass"])
-        self.assertFalse(verdict["godot_static"]["pass"])
-        self.assertEqual((verdict["godot_static"]["worst_map"],
-                          verdict["godot_static"]["growth_mb"]), ("374", 200.0))
-        # The same step in objects: +2,000.
-        tail = [(250, 100, 2800, 374)] * 6 + [(250, 100, 4800, 374)] * 8
-        verdict = judge(head + tail)
-        self.assertFalse(verdict["objects"]["pass"])
-        self.assertEqual(verdict["objects"]["worst_map"], "374")
-
-    def test_a_step_in_a_tail_too_short_to_floor_fails_coverage(self):
-        # (e) The step lands in the last frames, after the last floor window
-        # could start: no floor can see it, so the uncovered tail fails.
-        head = visits(WARM, *SWING)
-        tail = visits(*[(30 + m, 300, 2800, 1) for m in range(6)])
-        verdict = judge(head + tail)
-        self.assertFalse(verdict["pass"])
-        self.assertFalse(verdict["coverage"]["pass"])
-        self.assertGreater(verdict["coverage"]["widest_gap_frames"], GAP_LIMIT_FRAMES)
-        self.assertTrue(verdict["godot_static"]["pass"])
-
     def test_a_transient_on_a_re_entry_sample_does_not_fail(self):
-        # (f) The first field sample after re-entering map 1 lands in a
-        # 20.3 MB transient.
         rows = visits(WARM, *SWING[:2]) + [(380.3, 230.3, 2940, 1)] + visits(
             (1, 210, 2800, 3), *SWING[1:])
         verdict = judge(rows)
         self.assertTrue(verdict["pass"], verdict)
         self.assertEqual(verdict["godot_static"]["growth_mb"], 0.0)
 
-    def test_the_drift_detects_a_uniform_leak_over_the_bound(self):
-        # (g) The limit of detection on clean data: a uniform leak of 15 MB
-        # over the floors' frames passes and 17 MB fails. A recorded run's
-        # own floor noise adds to it (n92: 4.6 MB of drift, nothing injected).
-        plan = SWING * 3
-
-        def run(total_mb):
-            # The floors span samples 1..(N - 4): spread the leak over those.
-            span = len(plan) * 4 - 4
-            rows = visits(WARM, *plan, static_leak=lambda i: total_mb * max(0, i - 1) / span)
-            return judge(rows)
-
-        self.assertTrue(run(15)["pass"], run(15)["static_drift"])
-        self.assertEqual(run(15)["static_drift"]["drift_mb"], 15.0)
-        failed = run(17)
-        self.assertFalse(failed["pass"])
-        self.assertFalse(failed["static_drift"]["pass"])
-        self.assertTrue(failed["godot_static"]["pass"])
-
-    def test_an_objects_leak_over_once_entered_maps_fails_the_object_drift(self):
-        # Ten maps, each entered once for 8 samples, while 4 objects leak a
-        # sample: each map's floor grows +16 objects, the run leaks ~300.
-        plan = [(m, 100, 2800, 8) for m in range(1, 11)]
-        verdict = judge(visits(WARM, *plan, object_leak=lambda i: 4 * i))
-        self.assertTrue(verdict["objects"]["pass"], verdict["objects"])
-        self.assertEqual(verdict["objects"]["growth"], 16)
-        self.assertFalse(verdict["object_drift"]["pass"])
-        self.assertGreater(verdict["object_drift"]["drift"], 256)
-        self.assertFalse(verdict["pass"])
-
-    def test_a_window_with_no_map_floored_fails(self):
-        verdict = judge(visits(WARM, *[(m, 100, 2800, 3) for m in range(1, 6)]))
-        self.assertFalse(verdict["pass"])
-        self.assertIn("no map has 4 field samples", verdict["reason"])
+    def test_no_floored_map_cannot_breach(self):
+        # Brief visits only: nothing per map to judge, which is no breach;
+        # the bracket decides.
+        rows = visits(WARM, *[(m, 100, 2800, 3) for m in range(1, 6)])
+        verdict = judge(rows)
+        self.assertEqual(verdict["godot_static"]["maps_judged"], 0)
+        self.assertTrue(verdict["pass"], verdict)
+        self.assertFalse(judge(rows, probes=bracket(end_static=140))["pass"])
 
 
-class Coverage(unittest.TestCase):
-    """The 2026-10-16 review: a persistent step inside a stretch no floor can
-    see passed. Every gap, head and internal and tail, is judged in frames."""
+class Reported(unittest.TestCase):
+    """Drift and coverage are reported for the reader; the bracket judges."""
 
-    def gap_run(self, where):
-        """A stretch of brief visits (one sample each, never floored) at
-        `where`, with maps re-entered on either side that never cross it
-        (maps 1 and 2 before, 3 and 4 after); a +200 MB step lands inside the
-        stretch and stays. No floor brackets it, so no part but coverage can
-        see it."""
-        brief = [(40 + m, 100, 2800, 1) for m in range(6)]
-        before = [(1, 210, 2800, 4), (2, 100, 2800, 4)]
-        after = [(3, 210, 2800, 4), (4, 100, 2800, 4)]
-        plan = {"head": brief + after * 3, "middle": before * 2 + brief + after * 2,
-                "tail": before * 3 + brief}[where]
-        step_at = {"head": 3, "middle": 19, "tail": 28}[where]
-        return judge(visits(WARM, *plan, static_leak=lambda i: 200 * (i >= step_at)))
-
-    def test_a_step_in_a_head_gap_fails(self):
-        verdict = self.gap_run("head")
-        self.assertFalse(verdict["coverage"]["pass"])
-        self.assertEqual(verdict["coverage"]["gaps"][0]["from"], 5000)
-
-    def test_a_step_in_an_internal_gap_fails(self):
-        verdict = self.gap_run("middle")
-        self.assertFalse(verdict["pass"])
-        self.assertFalse(verdict["coverage"]["pass"])
+    def test_a_thin_static_leak_shows_in_the_drift(self):
+        plan = [(m, 100, 2800, 4) for m in range(1, 6)] * 2
+        verdict = judge(visits(WARM, *plan, static_leak=lambda i: 0.5 * i),
+                        probes=bracket(end_static=120))
         self.assertTrue(verdict["godot_static"]["pass"])
+        self.assertEqual(verdict["static_drift"]["rate_kb_per_kframe"], 204.8)
+        self.assertFalse(verdict["static_drift"]["within_bound"])
+        self.assertFalse(verdict["bracket"]["pass"])
 
-    def test_a_step_bracketed_by_a_re_entered_map_is_seen(self):
-        # The control for the three above: when map 1 is re-entered after
-        # the brief stretch, its floors see the step and the stretch is no
-        # gap.
-        brief = [(40 + m, 100, 2800, 1) for m in range(6)]
-        cycle = [(1, 210, 2800, 4), (2, 100, 2800, 4)]
-        verdict = judge(visits(WARM, *cycle * 2, *brief, *cycle * 2,
-                               static_leak=lambda i: 200 * (i >= 19)))
-        self.assertTrue(verdict["coverage"]["pass"], verdict["coverage"])
-        self.assertFalse(verdict["godot_static"]["pass"])
-        self.assertEqual(verdict["godot_static"]["growth_mb"], 200.0)
+    def test_the_drift_reads_a_uniform_leak_exactly(self):
+        plan = SWING * 3
+        span = len(plan) * 4 - 4
+        rows = visits(WARM, *plan, static_leak=lambda i: 15 * max(0, i - 1) / span)
+        self.assertEqual(judge(rows)["static_drift"]["drift_mb"], 15.0)
 
-    def test_a_step_in_the_tail_gap_fails(self):
-        verdict = self.gap_run("tail")
-        self.assertFalse(verdict["pass"])
-        self.assertFalse(verdict["coverage"]["pass"])
-        self.assertEqual(verdict["coverage"]["gaps"][-1]["to"], verdict["last_frame"])
+    def test_an_objects_leak_over_once_entered_maps_shows_in_the_object_drift(self):
+        plan = [(m, 100, 2800, 8) for m in range(1, 11)]
+        verdict = judge(visits(WARM, *plan, object_leak=lambda i: 4 * i),
+                        probes=bracket(end_objects=2800 + 320))
+        self.assertTrue(verdict["objects"]["pass"])
+        self.assertFalse(verdict["object_drift"]["within_bound"])
+        self.assertFalse(verdict["bracket"]["pass"])
+        self.assertEqual(verdict["bracket"]["object_growth"], 320)
+
+    def test_coverage_gaps_are_reported_not_judged(self):
+        rows = visits(WARM, *SWING) + visits(*[(30 + m, 100, 2800, 1) for m in range(6)])
+        verdict = judge(rows)
+        self.assertFalse(verdict["coverage"]["within_limit"])
+        self.assertGreater(verdict["coverage"]["widest_gap_frames"], GAP_LIMIT_FRAMES)
+        self.assertTrue(verdict["pass"], verdict)
 
 
 class Cadence(unittest.TestCase):
@@ -275,11 +299,10 @@ class Cadence(unittest.TestCase):
 
 class Extension(unittest.TestCase):
     def test_a_growing_extension_heap_fails_whatever_the_map(self):
-        # The shipped #92 shape: the Rust heap grows while maps swing.
         verdict = rss_verdict(samples((250, 100, 2800, 2), (250, 100, 2800, 2),
                                       (380, 210, 2800, 1), (290, 100, 2800, 2),
                                       (420, 210, 2800, 1), every=1000), 2000, 16,
-                              floor_frames=2000, gap_limit_frames=2000)
+                              floor_frames=2000, gap_limit_frames=2000, probes=bracket())
         self.assertFalse(verdict["pass"])
         self.assertFalse(verdict["extension"]["pass"])
         self.assertEqual(verdict["extension"]["growth_mb"], 60.0)
@@ -291,52 +314,27 @@ class Extension(unittest.TestCase):
         self.assertFalse(verdict["pass"])
         self.assertFalse(verdict["extension"]["pass"])
 
-    def test_the_shipped_92_build_fails_on_its_heap_and_the_fix_does_not(self):
-        # (c) Recorded 2026-10-15 over the chapter-14 prefix, same options.
-        # That prefix has 12 field samples, 4 of them on one map: Godot's
-        # memory gets one floor and no coverage, so both arms fail coverage;
-        # the heap is what separates them.
-        runs = json.loads(CHAPTER14.read_text())
-        shipped = rss_verdict(runs["shipped"], 20000, 16)
-        fixed = rss_verdict(runs["fixed"], 20000, 16)
-        self.assertFalse(shipped["extension"]["pass"])
-        self.assertEqual(shipped["extension"]["growth_mb"], 115.5)
-        self.assertTrue(fixed["extension"]["pass"])
-        self.assertEqual(fixed["extension"]["growth_mb"], 4.3)
-        for verdict in (shipped, fixed):
-            self.assertFalse(verdict["pass"])
-            self.assertFalse(verdict["coverage"]["pass"])
-            self.assertEqual(verdict["activities"]["field"], 11)
-
 
 class Inputs(unittest.TestCase):
-    def test_objects_rising_on_a_floor_fail(self):
-        rows = visits(WARM, (1, 100, 10, 4), (2, 100, 10, 4), (1, 100, 300, 4),
-                      (2, 100, 10, 4))
-        verdict = judge(rows)
-        self.assertFalse(verdict["pass"])
-        self.assertFalse(verdict["objects"]["pass"])
-        self.assertEqual(verdict["objects"]["growth"], 290)
-
     def test_the_verdict_leaves_the_report_samples_untouched(self):
         rows = samples(*visits(WARM, *SWING))
-        before = [dict(item) for item in rows]
-        rss_verdict(rows, WARMUP, 16)
-        self.assertEqual(rows, before)
+        probes = bracket()
+        before = ([dict(item) for item in rows], json.dumps(probes))
+        rss_verdict(rows, WARMUP, 16, probes=probes)
+        self.assertEqual(([dict(item) for item in rows], json.dumps(probes)), before)
 
     def test_missing_or_unreadable_samples_fail_rather_than_pass(self):
-        self.assertFalse(rss_verdict(None, 0, 16)["pass"])
+        self.assertFalse(rss_verdict(None, 0, 16, probes=bracket())["pass"])
         flat = visits(WARM, *SWING)
-        # No warm-up sample, too few samples past warm-up, an unreadable RSS.
-        self.assertFalse(rss_verdict(samples(*flat), 0, 16)["pass"])
-        self.assertFalse(rss_verdict(samples(*flat[:2]), WARMUP, 16)["pass"])
+        self.assertFalse(rss_verdict(samples(*flat), 0, 16, probes=bracket())["pass"])
+        self.assertFalse(rss_verdict(samples(*flat[:2]), WARMUP, 16, probes=bracket())["pass"])
         unreadable = samples(*flat)
         unreadable[2]["rss_kb"] = -1
-        self.assertFalse(rss_verdict(unreadable, WARMUP, 16)["pass"])
+        self.assertFalse(rss_verdict(unreadable, WARMUP, 16, probes=bracket())["pass"])
         for key in ("static_kb", "map", "activity"):
             missing = samples(*flat)
             del missing[1][key]
-            verdict = rss_verdict(missing, WARMUP, 16)
+            verdict = rss_verdict(missing, WARMUP, 16, probes=bracket())
             self.assertFalse(verdict["pass"], key)
             self.assertIn("unreadable", verdict["reason"])
 

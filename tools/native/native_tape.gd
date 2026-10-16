@@ -29,6 +29,20 @@ var replay_started_ms := 0
 # process's VmRSS is recorded, so a long replay shows whether memory stays flat.
 var rss_every := 0
 var rss_samples: Array = []
+# The memory bracket (#92, tools/native_rss.py): before the tape and after it,
+# in this same process, the probe save in PSIV_TAPE_PROBE_SLOT is loaded
+# through the title's CONTINUE, left to settle on the open field and sampled.
+var probe_slot := -1
+var probe_sha := ""
+var probe_settle := 0
+var probe_count := 0
+var probe_every := 0
+var probe_timeout := 0
+var probe_stage := ""
+var probe_entered := false
+var probe_frames := 0
+var probe_field_run := 0
+var probe_samples: Array = []
 
 func _initialize() -> void:
     var tape_path := OS.get_environment("PSIV_TAPE_FILE")
@@ -80,6 +94,8 @@ func _prepare_tape() -> void:
         if _rss_kb() <= 0:
             _fail("resident memory is unreadable from /proc/self/status")
             return
+    if not _load_probe():
+        return
     var source_path := OS.get_environment("PSIV_TAPE_SOURCE_SAVE")
     if report["start_kind"] == "save":
         if source_path.is_empty() or not FileAccess.file_exists(source_path):
@@ -140,6 +156,125 @@ func _load_checkpoints() -> bool:
     report["checkpoints_declared"] = checkpoints.size()
     return true
 
+func _load_probe() -> bool:
+    var slot := OS.get_environment("PSIV_TAPE_PROBE_SLOT")
+    if slot.is_empty():
+        return true
+    if report["start_kind"] != "new-game":
+        _fail("memory probes need a new-game tape")
+        return false
+    probe_slot = int(slot)
+    probe_sha = OS.get_environment("PSIV_TAPE_PROBE_SHA256")
+    probe_settle = int(OS.get_environment("PSIV_TAPE_PROBE_SETTLE"))
+    probe_count = int(OS.get_environment("PSIV_TAPE_PROBE_SAMPLES"))
+    probe_every = int(OS.get_environment("PSIV_TAPE_PROBE_EVERY"))
+    probe_timeout = int(OS.get_environment("PSIV_TAPE_PROBE_TIMEOUT"))
+    if probe_slot < 0 or probe_slot > 2 or probe_sha.is_empty() or probe_settle < 1 \
+            or probe_count < 1 or probe_every < 1 or probe_timeout < 1:
+        _fail("memory probe settings are incomplete")
+        return false
+    if not _probe_save_intact():
+        return false
+    report["rss_probes"] = {}
+    probe_stage = "start"
+    return true
+
+# Before the end probe: the run's camp SAVE wrote the probe slot, so its file
+# moves aside (PSIV_TAPE_PROBE_RUN_SLOT, read by the verifier) and the probe
+# save, read from its source and never written there, goes back in.
+func _restore_probe_save() -> bool:
+    var dir := OS.get_environment("PSIV_SAVE_DIR")
+    var slot_path := dir.path_join("slot_%d.sram" % [probe_slot + 1])
+    if FileAccess.file_exists(slot_path):
+        var run_bytes := FileAccess.get_file_as_bytes(slot_path)
+        var kept := FileAccess.open(dir.path_join(OS.get_environment("PSIV_TAPE_PROBE_RUN_SLOT")), FileAccess.WRITE)
+        if kept == null:
+            _fail("cannot keep the run's own slot file before the end probe")
+            return false
+        kept.store_buffer(run_bytes)
+        kept.close()
+    var probe_bytes := FileAccess.get_file_as_bytes(OS.get_environment("PSIV_TAPE_PROBE_SAVE"))
+    if _sha256_hex(probe_bytes) != probe_sha:
+        _fail("memory probe source save changed during the run")
+        return false
+    var output := FileAccess.open(slot_path, FileAccess.WRITE)
+    if output == null:
+        _fail("cannot put the probe save back in its slot")
+        return false
+    output.store_buffer(probe_bytes)
+    output.close()
+    return _probe_save_intact()
+
+# The probe slot must hold the bytes the verifier copied, so both probes load
+# the same game.
+func _probe_save_intact() -> bool:
+    var path := OS.get_environment("PSIV_SAVE_DIR").path_join("slot_%d.sram" % [probe_slot + 1])
+    if not FileAccess.file_exists(path) \
+            or _sha256_hex(FileAccess.get_file_as_bytes(path)) != probe_sha:
+        _fail("memory probe save %s is missing or changed" % path)
+        return false
+    return true
+
+# One frame of a probe: the title to CONTINUE the probe slot, then the field.
+func _drive_probe(phase: int, window: int, cursor: int) -> void:
+    if phase >= 0:
+        if title_down:
+            _apply_pad(0)
+            title_down = false
+            return
+        if phase <= 2:
+            _apply_pad(0x80)
+        elif phase == 3 and window == 2:
+            _apply_pad(0x01 if cursor != 0 else 0x80) # CONTINUE is row 0.
+        elif phase == 4:
+            _apply_pad(0x02 if cursor < probe_slot else (0x01 if cursor > probe_slot else 0x80))
+        else:
+            _fail("%s memory probe: unexpected title phase %d window %d" % [probe_stage, phase, window])
+            return
+        title_down = true
+        return
+    _apply_pad(0)
+    if not probe_entered:
+        probe_entered = true
+        probe_frames = 0
+        probe_field_run = 0
+        probe_samples = []
+    probe_frames += 1
+    if str(game.debug_session_activity()) == "field":
+        probe_field_run += 1
+    else:
+        probe_field_run = 0
+        probe_samples = []
+    if probe_field_run > probe_settle and (probe_field_run - probe_settle) % probe_every == 0:
+        var state = JSON.parse_string(str(game.debug_play_state()))
+        probe_samples.append({"frame": probe_frames, "rss_kb": _rss_kb(),
+                "static_kb": int(Performance.get_monitor(Performance.MEMORY_STATIC)) / 1024,
+                "objects": int(Performance.get_monitor(Performance.OBJECT_COUNT)),
+                "nodes": int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
+                "orphan_nodes": int(Performance.get_monitor(Performance.OBJECT_ORPHAN_NODE_COUNT)),
+                "activity": "field", "map": int(state["map"]) if typeof(state) == TYPE_DICTIONARY else -1})
+        if probe_samples.size() >= probe_count:
+            _finish_probe()
+            return
+    if probe_frames >= probe_timeout:
+        report["rss_probes"][probe_stage] = {"settled": false, "frames_waited": probe_frames,
+                "reason": "no %d field frames plus %d samples within %d frames" % [probe_settle, probe_count, probe_timeout]}
+        _fail("%s memory probe did not settle on the open field within %d frames" % [probe_stage, probe_timeout])
+
+func _finish_probe() -> void:
+    report["rss_probes"][probe_stage] = {"settled": true, "frames_waited": probe_frames,
+            "settle_frames": probe_settle, "samples": probe_samples}
+    print("native-tape: %s memory probe settled after %d frames" % [probe_stage, probe_frames])
+    probe_entered = false
+    title_down = false
+    if probe_stage == "end":
+        probe_stage = ""
+        _pass()
+        return
+    probe_stage = ""
+    if not game.debug_return_to_title():
+        _fail("the title did not come back after the start memory probe")
+
 func _start_game() -> void:
     if failed:
         return
@@ -157,6 +292,9 @@ func _physics_process(_delta: float) -> bool:
     var count := int(boundary[0])
     var phase := int(boundary[2])
     if phase == -2: # Field has not installed its session yet.
+        return false
+    if probe_stage != "":
+        _drive_probe(phase, int(boundary[3]), int(boundary[4]))
         return false
     if not started:
         if phase >= 0:
@@ -401,9 +539,23 @@ func _finish() -> void:
             _fail("selected rendered capture failed")
             return
         report["capture"] = capture
+    report["endpoint_line"] = "map %s cell %s" % [state["map"], state["cell"]]
+    if probe_slot >= 0:
+        # The end probe: the same save, through the same title, in this process.
+        if not _restore_probe_save():
+            return
+        game.set_physics_process(true)
+        if not game.debug_return_to_title():
+            _fail("the title did not come back for the end memory probe")
+            return
+        probe_stage = "end"
+        return
+    _pass()
+
+func _pass() -> void:
     report["result"] = "pass"
     _write_report()
-    print("native-tape: PASS %d pads; map %s cell %s" % [consumed, state["map"], state["cell"]])
+    print("native-tape: PASS %d pads; %s" % [consumed, report["endpoint_line"]])
     quit(0)
 
 func _fail(message: String) -> void:

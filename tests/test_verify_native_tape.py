@@ -18,7 +18,7 @@ import json
 from tools import verify_native_tape
 from tools.heavy_lock import (HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV, HELD_SLOTS_ENV,
                               PRIORITY_ENV)
-from tests.test_native_rss import samples
+from tests.test_native_rss import bracket, samples
 from tools.verify_native_tape import (file_identity, host_power, identities_stable,
                                       source_identity, terminate_process_group)
 
@@ -185,10 +185,16 @@ FAKE_GODOT = """#!{python}
 # Stands in for Godot: writes the driver's report and slot snapshot.
 import json, os, sys
 samples = json.loads(os.environ["FAKE_RSS_SAMPLES"])
+probes = json.loads(os.environ["FAKE_RSS_PROBES"])
+slot = os.environ.get("PSIV_TAPE_PROBE_SLOT")
+if slot is not None:
+    # The probe save the verifier copied is where the driver looks for it.
+    path = os.path.join(os.environ["PSIV_SAVE_DIR"], "slot_%d.sram" % (int(slot) + 1))
+    assert open(path, "rb").read() == b"probe save", path
 with open(os.environ["PSIV_TAPE_SNAPSHOT_OUT"], "wb") as out:
     out.write(b"slot")
 with open(os.environ["PSIV_TAPE_REPORT"], "w") as out:
-    json.dump({{"result": "pass", "rss_samples": samples}}, out)
+    json.dump({{"result": "pass", "rss_samples": samples, "rss_probes": probes}}, out)
 """
 
 
@@ -196,9 +202,12 @@ class NativeTapeReceiptRss(unittest.TestCase):
     """`main` itself: a failing RSS verdict fails the receipt, everything else
     being a pass (Godot, the process map and Git are stood in for)."""
 
-    def run_main(self, rows, extra=()):
+    def run_main(self, rows, extra=(), probes=None):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            probe_save = root / "academy.sram"
+            probe_save.write_bytes(b"probe save")
+            extra = [str(probe_save) if arg == "PROBE" else arg for arg in extra]
             (root / "godot/.godot").mkdir(parents=True)
             (root / "godot/.godot/extension_list.cfg").write_text("res://psiv.gdextension\n")
             library = root / "rust/target/debug/libpsiv_godot.so"
@@ -215,7 +224,8 @@ class NativeTapeReceiptRss(unittest.TestCase):
             godot.write_text(FAKE_GODOT.format(python=sys.executable))
             godot.chmod(0o755)
             mapped = {"path": str(library.resolve()), "inode": library.stat().st_ino}
-            env = {"FAKE_RSS_SAMPLES": json.dumps(samples(*rows))}
+            env = {"FAKE_RSS_SAMPLES": json.dumps(samples(*rows)),
+                   "FAKE_RSS_PROBES": json.dumps(probes if probes is not None else bracket())}
             with mock.patch.object(verify_native_tape, "ROOT", root), \
                     mock.patch.object(verify_native_tape, "GODOT", godot), \
                     mock.patch.object(verify_native_tape, "mapped_extension_in_process_tree",
@@ -231,7 +241,7 @@ class NativeTapeReceiptRss(unittest.TestCase):
         return code, receipt
 
     def test_a_flat_run_passes_and_a_failing_rss_verdict_fails_the_receipt(self):
-        bound = ("--rss-warmup-frames", "5000", "--rss-bound-mb", "16")
+        bound = ("--rss-warmup-frames", "5000", "--rss-bound-mb", "16", "--rss-probe-save", "PROBE")
         flat = [(300, 100, 10, 1)] * 6
         code, receipt = self.run_main(flat, bound)
         self.assertEqual(code, 0, receipt.get("rss"))
@@ -241,13 +251,23 @@ class NativeTapeReceiptRss(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIs(receipt["rss"]["pass"], False)
         self.assertIs(receipt["pass"], False)
+        # The bracket alone: a flat run whose end probe holds 40 MB more.
+        code, receipt = self.run_main(flat, bound, bracket(end_static=140))
+        self.assertEqual(code, 1)
+        self.assertIs(receipt["rss"]["bracket"]["pass"], False)
+        self.assertEqual(receipt["rss"]["bracket"]["static_growth_mb"], 40.0)
+        self.assertEqual(receipt["rss_probe_save_sha256_before"],
+                         receipt["rss_probe_save_sha256_after"])
 
     def test_a_bound_without_a_warmup_sample_or_at_a_coarse_cadence_is_refused(self):
-        for extra in (("--rss-bound-mb", "16"),
-                      ("--rss-warmup-frames", "2499", "--rss-bound-mb", "16"),
+        for extra in (("--rss-bound-mb", "16", "--rss-probe-save", "PROBE"),
+                      ("--rss-warmup-frames", "2499", "--rss-bound-mb", "16",
+                       "--rss-probe-save", "PROBE"),
+                      # No bracket: the probe save is required.
+                      ("--rss-warmup-frames", "5000", "--rss-bound-mb", "16"),
                       # A cadence too coarse for the floor window (FLOOR_FRAMES).
                       ("--rss-every", "25000", "--rss-warmup-frames", "25000",
-                       "--rss-bound-mb", "16")):
+                       "--rss-bound-mb", "16", "--rss-probe-save", "PROBE")):
             with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
                 self.run_main([(300, 100, 10, 1)] * 6, extra)
 

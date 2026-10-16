@@ -249,6 +249,11 @@ impl Field {
     }
 
     #[func]
+    fn debug_return_to_title(&mut self) -> bool {
+        self.return_to_title_probe()
+    }
+
+    #[func]
     fn debug_walk_map(&self) -> GString {
         self.walk_probe()
     }
@@ -732,6 +737,14 @@ impl Field {
         if !fade.title_restored {
             return;
         }
+        self.take_down_stage_for_title();
+        self.play_sound(0xFB);
+        godot_print!("game over: title restored; saved slots unchanged");
+    }
+
+    /// Takes the battle stage, the scene presentation and the letterbox down
+    /// for a title the session has restored over the field.
+    pub(crate) fn take_down_stage_for_title(&mut self) {
         if let Some(screen) = self.battle_screen.as_mut() {
             screen.hide();
         }
@@ -742,8 +755,6 @@ impl Field {
             layer.bind_mut().panel_destroy_all();
         }
         self.set_letterbox(false);
-        self.play_sound(0xFB);
-        godot_print!("game over: title restored; saved slots unchanged");
     }
 }
 
