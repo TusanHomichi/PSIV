@@ -1,14 +1,13 @@
 # Enemy abilities on the Zelan-to-Kuran route
 
 The route evidence behind [`ENEMY_ABILITIES.md`](ENEMY_ABILITIES.md): section 1 is
-lane A3's damage routes (the route census, the chain corrections and the captures),
-section 2 is lane A4's status and stat abilities. Split out of the inventory when
-the two lanes merged (M34), because the inventory is a table and these are
-evidence. A bare `§N` or "section N" in the text below that names no file is a
+the damage routes (the route census, the chain corrections and the captures),
+section 2 the derived census of every ability the route meets. The inventory is
+a table; this is its evidence. A bare `§N` or "section N" in the text below that names no file is a
 section of the inventory, [`ENEMY_ABILITIES.md`](ENEMY_ABILITIES.md); the counts,
 classes and per-row status live there.
 
-## 1. A3: Zelan through early Dezolis and Kuran (2026-10-04)
+## 1. Damage routes: Zelan through early Dezolis and Kuran
 
 ### Reproducible scope
 
@@ -29,14 +28,14 @@ python3 -m oracle.sweep.route_abilities --data-dir generated \
   --scene-doc docs/scenes/46_NearDarkForce1.md \
   --scene-doc docs/scenes/47_DarkForce1.md \
   --scene-doc docs/scenes/48_DarkForce1Defeated.md \
-  --out build/a3-evidence/route-set.json
+  --out build/route-set.json
 ```
 
 Result: **31 maps, groups 11/12/13/44/45, 61 random formations, 21 random
 enemy IDs, event enemy IDs 130/138, 24 ability IDs**. Group 13 is the Dezolis
 vehicle table; omitting it or the conditional lists fails the synthetic census
-controls (`tests/test_route_abilities.py`). The ignored JSON records every map,
-formation, carrier, scene and input hash. It is an evidence output, not source data.
+controls (`tests/test_route_abilities.py`). The JSON output records every map,
+formation, carrier, scene and input hash; it is not committed.
 
 | class | derived ability IDs | scope carriers |
 |---|---|---|
@@ -57,21 +56,20 @@ formation, carrier, scene and input hash. It is an evidence output, not source d
 | damage | `$5A` FLAELI | event 138 ChaosSorcr2 |
 | damage after intro | `$63` BURSTROC | event 130 DarkForce1 |
 | damage | `$6A` WIND STORM | 143 Owltalon |
-| status/stat, A4 (`enemy_effect`) | `$24` POISONMIST, `$25` SLEEP GAS, `$4B` SHADOWBIND; `$1D` BARRIER captured by X86 | 57 Mistralgec, 63 GerotLux, event 138 ChaosSorcr2; 48 Siren386 |
-| no-effect (A3 repairs SatMinion WAITING) | `$07` FISSION2, `$17` WAITING | 50 FloatMine2; 42 SatMinion/44 FloatMine/50 FloatMine2 |
-| summon, outside damage/status lanes | `$14` WARNING | conditional 45 CommndBall; implemented by A4 as the refill (`resolve_fission`) |
+| status/stat (`enemy_effect`) | `$24` POISONMIST, `$25` SLEEP GAS, `$4B` SHADOWBIND; `$1D` BARRIER | 57 Mistralgec, 63 GerotLux, event 138 ChaosSorcr2; 48 Siren386 |
+| no-effect | `$07` FISSION2, `$17` WAITING | 50 FloatMine2; 42 SatMinion/44 FloatMine/50 FloatMine2 |
+| summon | `$14` WARNING | conditional 45 CommndBall; the refill (`resolve_fission`) |
 
 ### Chain corrections and implementation boundary
 
 Zelan sabotage formation 8 seats **138 ChaosSorcr2 in enemy slot 1**, fighter
 **6**. Retail `EnemyAttackOffs[138]` and `[111]` both point to `$00E762`;
-`psiv_tools.battle_animations`' retail guard and pointer tables were used to
-verify this (`build/a3-evidence/retail-pointers.json`, ROM hash recorded there).
+`psiv_tools.battle_animations`' retail guard and pointer tables verify this.
 All six FLAELI carriers have core coverage, and pack-backed tests load their
 stats and skill through `psiv-data` and the existing runtime bridge. See
 [`ENEMY_DAMAGE_ROUTES.md`](ENEMY_DAMAGE_ROUTES.md) §3 for the cited chains.
 
-A3 adds 44 registry pairs, bringing `DAMAGE_SKILL_ROUTES` to **93**. The
+The route adds 44 registry pairs to `DAMAGE_SKILL_ROUTES`. The
 per-carrier constructed controls use deliberately different mental, strength,
 attack and resistance values, flipped target nibbles, dead/empty party slots,
 and real-effect/unproven-pair negative controls. No retail stat or ability
@@ -105,28 +103,22 @@ record is copied into new committed fixtures.
   DarkForce1 clears `$FFFFEE87` and its rolled ability once before loading
   animation-only `$818` (`EnemyAttack_DarkForce1`, lines 20031–20035;
   `loc_32344`, lines 64872–65000). Its other two arms then enter their normal
-  damage routes. ProfoundDarkness1's different intro remains deferred (#62).
+  damage routes.
 
 ### Cartridge evidence
 
 Captures use `python3 -m oracle.force`, `--require-ability`, durable HP, a
 bounded round cap, and repeated byte-identical logs/traces. Only an ability
 **actually used in an extracted round** counts. `oracle.sweep.capture_route`
-rejects out-of-lane turns; the round-1 FLAELI miss is retained as a negative
-capture. A forced preview's measured load frame now calibrates durable HP
-patches; the initial mis-timed Helex captures remain retained as failures.
+rejects turns outside the abilities a capture is for. A forced preview's measured
+load frame calibrates the durable HP patch.
 
 The 16 captures are committed fixtures under
-`rust/psiv-core/src/battle/replay_fixtures/arc_zelan_damage/`, like every other
-lane's (integration, 2026-10-04: lane A3 first kept them in an ignored local
-directory behind a second loader, so a checkout without that directory
-replayed fewer fixtures silently; the loader and `PSIV_REPLAY_FIXTURES` are
-gone). Their enemy and skill records are in `motavia_pack.json`, regenerated by
+`rust/psiv-core/src/battle/replay_fixtures/arc_zelan_damage/`. Their enemy and skill records are in `motavia_pack.json`, regenerated by
 `python3 -m oracle.sweep.replay_pack`.
 
-Fixture paths below are relative to `rust/psiv-core/src/battle/replay_fixtures/arc_zelan_damage/`.
-Raw logs/traces, host receipts and failed delays are retained under
-`build/a3-evidence/captures/`; `ability-evidence.json` records the checked hashes.
+Fixture paths below are relative to `rust/psiv-core/src/battle/replay_fixtures/arc_zelan_damage/`;
+each fixture's `provenance` records its capture's hashes.
 
 | ability | fixture; formation; delay; captured carrier | round observed | generic replay |
 |---|---|---|---|
@@ -146,55 +138,25 @@ Raw logs/traces, host receipts and failed delays are retained under
 | `$4F` HEWN | `hewn.json`; 368; 2; 111 | 1 | exact |
 | `$5A` FLAELI | `flaeli.json`; 368; 1; 111 | 1 | exact |
 | `$6A` WIND STORM | `wind-storm.json`; 133; 2; 143,143 | 1 | exact |
-| `$63` BURSTROC | event battle 9, carrier 130; cited `$82C` chain and per-carrier/intro core tests | not capturable by `oracle.force` (#72) | event battle: chain + core; campaign proof remains open |
+| `$63` BURSTROC | event battle 9, carrier 130; cited `$82C` chain and per-carrier/intro core tests | not captured past round 1 ([#72](https://github.com/TusanHomichi/PSIV/issues/72)) | chain and core tests |
 
-The generic test replayed **128 fixtures (112 committed + 16 local)** with
-**zero divergence-manifest entries**. EXPLOSION's final fixture records victory
-with positive cached enemy HP and excludes the later item-drop draw, using the
-cartridge's logged victory declaration. Its original force report's HP-only
-`withdrawal` label and the pre-repair extracts are retained, not rewritten.
-
-The replay negative control changed only a copied FLAELI target's damage from
-113 to 114: the generic test exited **101**, reporting the intended value
-divergence at **f24988, round 1**. Original capture and manifest were untouched.
+Every fixture replays exactly. EXPLOSION's fixture records victory with positive
+cached enemy HP and excludes the later item-drop draw, using the cartridge's
+logged victory declaration.
 
 FLAELI and HEWN use random carrier 111's exact shared chain as evidence for
 event carrier 138. PHONONMASR and FLARE SHOT have different random/event chains;
 DarkForce1's event arms have their own cited registry rows and core controls.
-Only the connected route result below can establish event-battle progress.
 
-### Release campaign result
+### What is not captured
 
-The prescribed route ran from New Game with a fresh, explicit save directory:
+DarkForce1's event battle (battle 9) is captured only through its first action;
+FLARE SHOT, PHONONMASR and BURSTROC on that carrier are chain readings and core
+tests, not a cartridge comparison ([#72](https://github.com/TusanHomichi/PSIV/issues/72)).
+The campaign route plays the battle with ordinary input
+([campaign runner](../campaign/CAMPAIGN_RUNNER.md)).
 
-```sh
-CARGO_BUILD_JOBS=2 cargo build --release --manifest-path rust/Cargo.toml -p psiv-campaign
-PSIV_SAVE_DIR=build/a3-route ./rust/target/release/psiv-campaign run \
-  rust/psiv-campaign/routes/main.json --save-dir build/a3-route \
-  --tape build/a3-route/run.tape --report build/a3-route/report.json
-```
-
-Build **exit 0**; run **exit 0**, all **36 chapters** completed in
-**2,644,725 frames**, digest **`e6200509953185db`**. `zelan-sabotage` completed
-its one scripted battle and the crash landing in 13,919 frames. There was no
-status halt or balance loss. Final chapter `dezolis-tyler-grave` reaches the
-Hangar; a read-only `psiv-campaign inspect` of its save confirms map `$15F`,
-cell `(66,21)`, Chaz L27, Rika L29, Rune L27, Wren L20 and Raja L25.
-Report/tape/snapshots are retained under `build/a3-route/`; command receipts,
-binary/input/output hashes and the final-save reading are in
-`build/a3-evidence/`. The main route's SHA-256 remains
-`1ce3457606cb3a0df63780dfa5c4bb99f14d40addcd3ee3924d01308ae8318a1`.
-
-This closes the connected sabotage-battle gate for carrier 138. The campaign route then
-extended the main route through Landale and Kuran and won event battle 9.
-**BURSTROC's cartridge proof remains open.** The route fight is a connected
-campaign result with FLARE SHOT, PHONONMASR and BURSTROC striking the party, but
-it is not a cartridge comparison: there is no forced capture of event battle 9
-(#72), and the animation-only first act is not checked against
-`EnemyAttack_DarkForce1`. DarkForce1's FLARE SHOT/PHONONMASR event chains share
-this gap despite their different random carriers' exact replays.
-
-## 2. The Zelan-to-Kuran route (lane A4)
+## 2. The route's abilities, derived
 
 The campaign route crosses Dezolis to Kuran and Dark Force 1. The set of abilities it
 will meet is **derived**, not listed, by
@@ -203,10 +165,10 @@ will meet is **derived**, not listed, by
 python3 -m oracle.sweep.route_abilities            # markdown; --json for the data
 ```
 
-(`oracle/sweep/route_abilities.py`, the one census tool: lane A3's explicit
-map-pattern scope in section 1 above is the same derivation with another scope reader,
-and both scopes give identical abilities, carriers and classes on this route -
-M34 compared them. An ability with no row in §2 or §3 is an error.) By default it
+(`oracle/sweep/route_abilities.py`, the one census tool: the explicit map-pattern
+scope in section 1 is the same derivation with another scope reader, and both
+give identical abilities, carriers and classes on this route. An ability with no
+row in §2 or §3 is an error.) By default it
 reads the maps the route file names from
 the chapter `zelan-wren-canceller` to the last one (`rust/psiv-campaign/routes/main.json`),
 the maps the scenes `SPACESHIP_SABOTAGE` to `DARK_FORCE_1_DEFEATED` load
@@ -218,15 +180,6 @@ enemies its groups can draw; adds the event battles the scenes start
 regular and conditional ability of those enemies with the class this file's §2 and
 §3 give it. A vehicle-only group (Dezolis group 13) is listed apart from the groups on
 foot because the Ice Digger arrives with scene 48, after Kuran.
-
-**Where it disagrees with section 4's list.** §4 names POISONMIST, STRNGLIGHT and
-SLEEP GAS "on Dezolis and Hangar maps"; the derivation finds POISONMIST (Mistralgec,
-Dezolis group 11) and SLEEP GAS (GerotLux, Hangar group 44) and **not** STRNGLIGHT: its
-only carrier, 79 Shrieker, lives on the Island Cave maps. It also finds what §4 does
-not list for these maps: the conditional WARNING (Kuran, 45 CommndBall) and BARRIER
-(Kuran, 48 Siren386 by its arm-`$08` condition, which §2's carrier column leaves out),
-the Chaos Sorcerer's SHADOWBIND, and `$63` BURSTROC on Dark Force 1 (a damage ability,
-see its row).
 
 The tables below are the tool's output for the default stretch, regenerated with
 `--update-doc` (a test fails when they drift from the derivation):
@@ -298,11 +251,11 @@ Abilities the scope can meet
 
 <!-- route_abilities:end -->
 
-Who owns what (the `class` column above is §2's object-chain rule): the `damage`
-rows are the damage lane's (FLAELI first); the rest of the table is this lane's, with
-the status in the last column of §2/§3 - `$14`, `$24`, `$25` and `$4B` implemented,
-`$17`'s second carrier (42 SatMinion) read, `$1D` BARRIER implemented and captured
-([captures](ENEMY_EFFECT_ABILITIES.md#10-what-the-captures-show)), and Dark Force 1's
+The `class` column above is §2's object-chain rule. The `damage` rows are
+`enemy_damage`'s (section 1); the rest are `enemy_effect`'s and the scripted
+turns, with the status in the last column of §2/§3 - `$14`, `$24`, `$25` and `$4B`
+implemented, `$17`'s second carrier (42 SatMinion) read, `$1D` BARRIER implemented
+and captured ([captures](ENEMY_EFFECT_ABILITIES.md#10-what-the-captures-show)), and Dark Force 1's
 first action - not an ability id at all - modelled
 ([`battle/scripted_flag.rs`](../../rust/psiv-core/src/battle/scripted_flag.rs)): the
 latch's object `$818` replaces the rolled ability and requests nothing, replayed

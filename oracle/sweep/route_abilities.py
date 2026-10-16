@@ -161,12 +161,12 @@ ENDGAME_SCENE_DOCS = tuple(
     for path in sorted((ROOT / "docs" / "scenes").glob(f"{number}_*.md")))
 
 STRETCHES["air-castle-ending"] = Stretch(
-    # Everything after the Air Castle to the Ending (lane A6). The route file
+    # Everything after the Air Castle to the Ending. The route file
     # does not reach these maps yet, so the scope is the explicit kind: map
     # families and the scene documents 57-89. Each family is a dungeon whose
     # map event list (`generated/maps.json` `events`, indexes into
     # `RunEventsJmpTbl`, `ps4.asm:115011`) holds an event of those scenes, or
-    # a dungeon the owner's A6 scope names; the world maps the scenes load
+    # a dungeon the endgame scope names; the world maps the scenes load
     # (Motavia for Seth and Dark Force 3, Dezolis after Dark Force 2) come in
     # through the scene documents. Myst Vale (group 46) is left out: its only
     # events are the Musk Cats' interactions (`EventPtrs[$49]`/`[$4A]`,
@@ -188,7 +188,7 @@ STRETCHES["air-castle-ending"] = Stretch(
         (r"^Rykros$", "Rykros: Cutscene_Rykros once Dark Force 3 falls "
                       "(loc_64C1E, scene census 88)"),
         (r"^(VahalFort|WeaponPlant)", "Vahal Fort and the Weapon Plant "
-                                      "(named by the A6 scope)"),
+                                      "(scenes 110 and 111)"),
         (r"^(StrengthTower|CourageTower|AngerTower)",
          "the three towers: De Vars and Sa Lews at the tops ($49-$4C), the Alys "
          "fight and Re Faze ($4E, $51, $52, $56; scenes 75-81, 85-86)"),

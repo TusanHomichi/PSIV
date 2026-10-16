@@ -1,12 +1,12 @@
-# Enemy abilities on the Air Castle stretch (lane A5)
+# Enemy abilities on the Air Castle stretch
 
-The evidence behind the A5 rows of [`ENEMY_ABILITIES.md`](ENEMY_ABILITIES.md): the
+The evidence behind the Air Castle rows of [`ENEMY_ABILITIES.md`](ENEMY_ABILITIES.md): the
 abilities the campaign route meets from the Ice Digger to the Air Castle and the
 three fixed battles behind it - Xe-A-Thoul's room (event battle 14), Lashiec (16)
 and Dark Force 2 (17) - read out of the disassembly, implemented in `psiv-core`,
 captured on the cartridge and replayed exactly. The per-ability status and class
 live in the inventory; the damage chains in
-[`ENEMY_DAMAGE_ROUTES.md`](ENEMY_DAMAGE_ROUTES.md) ("A5 damage chains"); the status
+[`ENEMY_DAMAGE_ROUTES.md`](ENEMY_DAMAGE_ROUTES.md#the-air-castle-damage-chains); the status
 and stat arms in [`ENEMY_EFFECT_ABILITIES.md`](ENEMY_EFFECT_ABILITIES.md) section 8;
 the reload in [`ENEMY_FUSION.md`](ENEMY_FUSION.md). The census that set the work is
 section 7 below, generated.
@@ -81,7 +81,7 @@ shares the route uncaptured.
   `38389`, `39984`, `40129`, `41375`, `44729`, `45257`, `46636`, `46778`, `54387`,
   `55555`, `55692`, `56109`, `56242`, `56505`), several through a caster prelude
   shared by a whole routine's objects. Every registered route whose arm reaches one
-  is now `sealable` - the A5 rows and, as a class, the earlier GIWAT, WAT, FOI, ZAN,
+  is `sealable` - these rows and, as a class, the earlier GIWAT, WAT, FOI, ZAN,
   FORCEFLASH, RIMIT, DORAN, GELUN, SEALS, VOL, DEBAN and RES/GIRES arms. Each sealed
   exit was read to its end state (no request, no effect call, no call to the
   generator). The two census tests pin the sets. No capture yet shows a sealed
@@ -140,10 +140,8 @@ through `every_fixture_replays_as_recorded`, with `divergences.json` still empty
 | `reinforce` | event 16 | script, dexterity 120 | REINFORCE (5), then victory | 5 | f7e964c50fdb |
 | `dark_force_2` | event 17 | tape 07, durable | first action (1), LIGHTSHOWR (2, 4, 5, 8), EVIL EYE (3), SHDWBREATH (6, 7) | 8 | 39ff800109f7 |
 
-Retained failures (in the lane's `build/a5-evidence/`): three AIRSLASH delays with
-the tape party (it deals 1 damage to FrostSaber), the first COMBINE scripts (an
-opening ambush, then a missed swing), and a Lashiec script whose trace did not
-close at f26021-26022 (a call straddling a frame boundary) and whose party fell.
+AIRSLASH needs a scripted party: with the tape party it deals 1 damage to
+FrostSaber.
 
 **Negative controls**, each run against `every_fixture_replays_as_recorded`: the
 spark window at 29 (section 2), the old partner rule (section 3), ANOTHRGATE at 235
@@ -152,24 +150,8 @@ calls (fails), and the inline formation's lea count at zero or two
 
 ## 6. The route
 
-Both runs used a release `psiv-campaign` built from the lane's tree and a pack
-built from it (`python3 -m psiv_tools pack`, which carries the inline formations):
-
-- **`routes/main.json` from power-on** halts in chapter `esper-mansion`, objective
-  1: `expect_failed -- vehicle is 2, expected 0`, after 3,698,034 frames, digest
-  `ff9fbc995dc5b82a` - the cutscene field reload owned by another lane, and the
-  same frames and digest as the base revision's own probe of the route
-  (`build/c26-route-probe2`): nothing in this lane changes the route's prefix.
-- **The dropped chapter, restored.** `air-castle-xe-athoul-room`, which the
-  runner had dropped at the COMBINE halt,
-  without its `wait 7`, appended to a scratch copy of the route and run with
-  `--from-chapter` from the `air-castle-arrival` save of the base's last
-  completed candidate (`slot_1.sram` SHA-256 `06feecfa…41d7`): **completed**,
-  11,284 frames, 16 random battles, digest `99f2b2e5ace1a112`, the party at the
-  foot of the Xe-A-Thoul room (map `$184`, cell (31,51)). The walk no longer needs
-  a pause to re-roll its battles. The chapter is not in the committed route; its
-  restoration, with `Event_XeAThoulBeforeBattle` and its fight, is the campaign
-  lane's.
+The campaign route reaches this stretch; what it plays and where it stops are
+the [campaign runner](../campaign/CAMPAIGN_RUNNER.md)'s.
 
 ## 7. The census
 
