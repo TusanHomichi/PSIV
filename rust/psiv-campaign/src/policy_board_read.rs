@@ -101,6 +101,7 @@ fn techniques(
             power: tech.power,
             resistance: tech.resistance,
             element: tech.element,
+            single: tech.single_target(),
             tp_cost: tech.cost,
             targets: ids(&technique_targets(roster, actor, tech)),
         });
@@ -126,6 +127,7 @@ fn skill_list(
             power: skill.power,
             resistance: skill.resistance,
             element: skill.element,
+            single: skill.single_target(),
             tp_cost: 0,
             targets: ids(&skill_targets(roster, actor, skill)),
         });
@@ -165,6 +167,7 @@ fn items(
             power: item.power,
             resistance: item.resistance,
             element: item.element,
+            single: item.single_target(),
             tp_cost: 0,
             targets: ids(&item_targets(roster, actor, item)),
         });

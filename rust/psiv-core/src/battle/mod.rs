@@ -112,7 +112,7 @@ mod party_tests;
 
 pub use action::{
     HitPass, Reach, ability_element_factor, candidate_targets, character_element_factor,
-    critical_bonus, enemy_element_factor, resolve_attack, roll_hits, weapon_reach,
+    critical_bonus, enemy_element_factor, hit_verdict, resolve_attack, roll_hits, weapon_reach,
 };
 pub use ai::{ABILITY_ROLL_MASK, TARGET_RATES, choose_ability, choose_target, targetable_party};
 pub use chances::{CHANCE_ROLL_MASK, ESCAPE, PHYSICAL, START_PRIORITY, Verdict, calculate_chances};

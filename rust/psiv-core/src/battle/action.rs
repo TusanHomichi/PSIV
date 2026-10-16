@@ -197,7 +197,6 @@ pub fn roll_hits(
     rolls: &mut impl Rolls,
 ) -> HitPass {
     let dexterity = roster.get(actor).map_or(0, |f| f.stats.dexterity.battle);
-    let (scale, miss, crit) = PHYSICAL;
 
     let mut verdicts = Vec::with_capacity(targets.len());
     for target in targets {
@@ -207,22 +206,33 @@ pub fn roll_hits(
         if fighter.stats.is_out() {
             continue;
         }
-        let verdict = calculate_chances(
+        let verdict = hit_verdict(
             i16::from(dexterity),
             i16::from(fighter.stats.agility.battle),
-            scale,
-            miss,
-            crit,
+            multi_target,
             rolls,
         );
-        let verdict = if multi_target && verdict == Verdict::Critical {
-            Verdict::Normal
-        } else {
-            verdict
-        };
         verdicts.push((*target, verdict));
     }
     HitPass { verdicts }
+}
+
+/// One target's verdict in a physical hit pass: the `PHYSICAL` chance kernel
+/// on the attacker's dexterity and the target's agility, with a critical
+/// demoted to a normal hit when the swing reaches several targets.
+pub fn hit_verdict(
+    dexterity: i16,
+    agility: i16,
+    multi_target: bool,
+    rolls: &mut impl Rolls,
+) -> Verdict {
+    let (scale, miss, crit) = PHYSICAL;
+    let verdict = calculate_chances(dexterity, agility, scale, miss, crit, rolls);
+    if multi_target && verdict == Verdict::Critical {
+        Verdict::Normal
+    } else {
+        verdict
+    }
 }
 
 /// The `Character_Stats` indices whose Attack animation re-runs the hit pass.

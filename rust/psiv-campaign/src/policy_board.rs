@@ -188,6 +188,9 @@ pub struct Ability {
     pub resistance: u8,
     /// Byte 5: the element; `$10` and up is the actor's weapon.
     pub element: u8,
+    /// Whether the command takes a target cursor: the record's own
+    /// `single_target`.
+    pub single: bool,
     /// TP the command costs (techniques).
     pub tp_cost: u8,
     /// The fighters the command menu offers, in fighter-id order.
@@ -204,7 +207,7 @@ impl Ability {
     /// Whether the command takes a target cursor.
     #[must_use]
     pub const fn single(&self) -> bool {
-        matches!(self.range, 1 | 4 | 6 | 8)
+        self.single
     }
 
     /// Whether choosing it spends something a rest restores (TP, a skill use)

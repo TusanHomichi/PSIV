@@ -137,6 +137,8 @@ fn technique(
         power,
         resistance: 7,
         element,
+        // The fixture's record: ranges 1, 4, 6 and 8 take a target cursor.
+        single: matches!(range, 1 | 4 | 6 | 8),
         tp_cost: cost,
         targets: targets.to_vec(),
     }
@@ -302,6 +304,7 @@ fn the_policy_counts_crosscut_once() {
         power: 20,
         resistance: 6,
         element: 0x10,
+        single: true,
         tp_cost: 0,
         targets: vec![6],
     };
@@ -344,6 +347,7 @@ fn an_encounter_is_fought_cheaply_and_a_boss_with_everything() {
         power: 90,
         resistance: 6,
         element: 6,
+        single: true,
         tp_cost: 0,
         targets: vec![6],
     };
