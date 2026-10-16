@@ -27,7 +27,8 @@ is scanned, and fenced code blocks and inline code are skipped as content:
   `DATED_ROWS_LIMIT` or more rows that open with a date (`| 2026-09-23 |
   lane | ...`); and a `yaml` block that holds a task graph (a mapping anywhere
   in it with a `TASK_GRAPH_KEYS` key: `nodes`, `depends_on` or
-  `next_action`). Research documents pass: a dated heading or a dated
+  `next_action`); and a pointer to a run's evidence directory
+  (`EVIDENCE_PATH_RE`: `build/lane-evidence/...`). Research documents pass: a dated heading or a dated
   chronology entry (`## 2026-10-03 - Rounds that open no party command
   window`), a date inside a table cell, and `CHANGELOG.md` (one word) are all
   allowed;
@@ -103,6 +104,9 @@ RECORD_NAME_WORDS = frozenset({"LOG", "LOGS", "RUNLOG", "JOURNAL", "LEDGER", "LE
 #: Rows opening with a date that make a table a dated receipt ledger.
 DATED_ROWS_LIMIT = 3
 DATED_ROW_RE = re.compile(r"\A {0,3}\|\s*\d{4}-\d{2}-\d{2}\b")
+#: A pointer to a run's evidence directory (`build/lane-evidence/...`,
+#: `build/x86-evidence/`): local receipts no reader of the doc can open.
+EVIDENCE_PATH_RE = re.compile(r"\bbuild/[\w.-]*evidence\b")
 #: Keys that make a `yaml` block a task graph.
 TASK_GRAPH_KEYS = frozenset({"nodes", "depends_on", "next_action"})
 YAML_FENCE_LANGS = frozenset({"yaml", "yml"})
@@ -404,6 +408,10 @@ def check_tree() -> tuple[list[str], list[int]]:
                 problems.append(f"{name}:{index + 1}: host-absolute home path: {path}")
         dated = [index + 1 for index, text, info, _ in iter_fenced_lines(lines)
                  if info is None and DATED_ROW_RE.match(text)]
+        for index, text in enumerate(lines):
+            for found in EVIDENCE_PATH_RE.findall(text):
+                problems.append(f"{name}:{index + 1}: run evidence path ({found}): receipts "
+                                "belong in commits, issues and pull requests")
         if len(dated) >= DATED_ROWS_LIMIT:
             problems.append(f"{name}:{dated[0]}: dated receipt ledger ({len(dated)} table rows "
                             "open with a date): runs and receipts belong in commits, issues "

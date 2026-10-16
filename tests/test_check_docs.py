@@ -439,6 +439,14 @@ class RunRecords(RepoCase):
                 self.assertEqual(code, 1, out)
                 self.assertIn(f"docs/plan.md:3: yaml block is a task graph ({key})", out)
 
+    def test_a_run_evidence_path(self):
+        code, out = self.check({"docs/notes.md": lines(
+            "# Notes", "", "Transcripts are in `build/lane-evidence/run.log`.",
+            "", "```bash", "ls build/x86-evidence/", "```")})
+        self.assertEqual(code, 1, out)
+        self.assertIn("docs/notes.md:3: run evidence path (build/lane-evidence)", out)
+        self.assertIn("docs/notes.md:6: run evidence path (build/x86-evidence)", out)
+
     def test_research_shapes_pass(self):
         code, out = self.check({
             "docs/source-notes/battle.md": lines(
@@ -451,6 +459,7 @@ class RunRecords(RepoCase):
                 "| 2026-09-23 | one dated row |",
                 "| 2026-09-24 | and a second |",
                 "", "```yaml", "formation: 0x1E1", "rounds: [1, 2]", "```",
+                "", "Captures go to `build/forced/helex` and `build/sweep`.",
             ),
             "CHANGELOG.md": lines("# Changes"),
             "docs/CATALOG.md": lines("# Catalog"),
