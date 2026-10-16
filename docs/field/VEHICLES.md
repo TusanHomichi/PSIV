@@ -34,7 +34,7 @@ The retail static records at `ps4.asm:321152+` are:
 
 The battle member is built in `rust/psiv-core/src/vehicle.rs`
 (`battle_member`) as retail's `loc_77AE` builds it: static HP from the table
-above at every battle's start (`ps4.asm:11295-11300`), the saved record's mask
+above at every battle's start (`ps4.asm:11309-11310`), the saved record's mask
 and current uses. The battle's end copies only the uses back
 (`ps4.asm:6372-6389`), so vehicle damage never carries into the next battle.
 `battle_member_with_hp` builds the fighter at a given HP for oracle fixtures.
