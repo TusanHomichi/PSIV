@@ -100,6 +100,13 @@ Defend rewrites `physical_prop`'s high byte 2 to 1 for the round. Quirks that
 read as design stay faithful: the cure spells that also restore
 agility and dexterity, and enemy paralysis clearing each turn.
 
+## Other recorded deviations
+
+- **The Menu-button credits skip is not ported.** `Cutscene_Ending`
+  (`ps4.asm:158029-158033`) lets a player holding Menu at the scene's start jump
+  to the credits; the port plays the whole ending. Recorded in
+  [REVISION_AUDIT.md](../scenes/REVISION_AUDIT.md#recorded-deviation-the-menu-button-credits-skip).
+
 ## Public reverse-engineering references used
 
 - `squidfeatures/ps4disasm` (`ps4.asm`, `ps4.constants.asm`), including the documented record layouts and stable symbolic IDs.
