@@ -16,11 +16,17 @@ answer identically:
 - `gate_lock_path()`: `<main>/build/gate/.lock`, which `tools/gate.py` holds
   for a whole gate run.
 
+Lock order, everywhere: the gate lock first, then the heavy lock. Every
+deployed gate takes them in that order, so a process that took the heavy lock
+and then waited for the gate lock would deadlock against one of them.
+
 The heavy lock has two classes. `exclusive` (cargo, the Python suite, the gate,
 pack builds) holds the lock file with LOCK_EX and runs alone. `godot` (one
 Godot/Xvfb run, about 350 MB) holds it with LOCK_SH plus one of
 `PSIV_GODOT_SLOTS` (default 3) slot files beside it, so several Godot runs
-share the machine and an exclusive holder excludes them all.
+share the machine and an exclusive holder excludes them all. The cap must be
+the same for every process; one that finds a slot beyond its own cap held
+refuses (exit 2) rather than overfill the machine.
 
 Waiters queue in `<lock>.queue/`, one file per waiter that the waiter holds
 flocked for as long as it waits (a killed waiter's entry is pruned, never
@@ -53,6 +59,7 @@ from __future__ import annotations
 import argparse
 import fcntl
 import os
+import re
 import subprocess
 import sys
 import threading
@@ -230,6 +237,8 @@ class _Queue:
         """Live waiters, head first; entries whose waiter died are removed."""
         live = []
         for name in os.listdir(self.dir):
+            if not ENTRY_RE.match(name):
+                continue  # not a waiter: never ordered, never removed
             try:
                 handle = os.open(self.dir / name, os.O_RDWR)
             except FileNotFoundError:
@@ -239,7 +248,7 @@ class _Queue:
             except BlockingIOError:
                 live.append(name)
             else:
-                os.unlink(self.dir / name)
+                _unlink(self.dir / name)
             finally:
                 os.close(handle)
         return sorted(live, key=_entry_key)
@@ -254,11 +263,20 @@ class _Queue:
 
     def leave(self, entry):
         name, handle = entry
-        try:
-            os.unlink(self.dir / name)
-        except FileNotFoundError:
-            pass
+        _unlink(self.dir / name)
         os.close(handle)
+
+
+def _unlink(path):
+    """Remove `path`; one that a concurrent scan or its owner removed first is fine."""
+    try:
+        os.unlink(path)
+    except FileNotFoundError:
+        pass
+
+
+#: A waiter's file in `<lock>.queue/`: rank, sequence, pid and class.
+ENTRY_RE = re.compile(r"^[01]-\d{12}-\d+-(?:exclusive|godot)$")
 
 
 def _entry_key(name):
@@ -271,9 +289,35 @@ def _entry_pid(name):
     return int(name.split("-")[2])
 
 
+class SlotCapMismatch(RuntimeError):
+    """A godot slot beyond this process's cap is held: another process runs with
+    a larger `PSIV_GODOT_SLOTS`, so together they would exceed either cap."""
+
+
+def _check_slot_cap(lock, cap):
+    """Raise SlotCapMismatch when a slot file at an index >= `cap` is held."""
+    prefix = Path(f"{lock}.godot")
+    for path in prefix.parent.glob(prefix.name + "*"):
+        index = path.name[len(prefix.name):]
+        if not index.isdecimal() or int(index) < cap:
+            continue
+        handle = os.open(path, os.O_RDWR)
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            raise SlotCapMismatch(
+                f"heavy lock {lock}: godot slot {index} is held, so another process runs "
+                f"with {GODOT_SLOTS_ENV} above this one's {cap}; every process must use "
+                "the same value") from None
+        finally:
+            os.close(handle)
+
+
 def _take_slots(lock, slots, cap):
     """Handles holding `slots` free godot slot files of `lock`, or None (nothing
-    held) when fewer are free. Never blocks."""
+    held) when fewer are free. Never blocks. Raises SlotCapMismatch when a
+    process with a larger cap holds a slot this one cannot see."""
+    _check_slot_cap(lock, cap)
     held = []
     for index in range(cap):
         if len(held) == slots:
@@ -407,7 +451,8 @@ def _acquire(lock, lock_class, slots, cap, priority, report):
         if blocker is not None:
             blocker.abandon()
         if entry is not None:
-            queue.leave(entry)
+            with queue.locked():  # a scan never sees a half-removed entry
+                queue.leave(entry)
 
 
 @contextmanager
@@ -447,7 +492,11 @@ def hold_heavy_lock(path=None, environ=None, report=None, lock_class=EXCLUSIVE, 
         raise ValueError(f"{slots} godot slots requested; {GODOT_SLOTS_ENV} allows 1 to {cap}")
     if priority is None:
         priority = environ.get(PRIORITY_ENV) == "1"
-    held = _acquire(resolved, lock_class, slots, cap, priority, report)
+    try:
+        held = _acquire(resolved, lock_class, slots, cap, priority, report)
+    except SlotCapMismatch as mismatch:
+        print(mismatch, file=report, flush=True)
+        raise SystemExit(EXIT_HELD_BY_PARENT) from None
     granted = cap if lock_class == EXCLUSIVE else slots
     markers = {HELD_ENV: resolved, HELD_CLASS_ENV: lock_class, HELD_SLOTS_ENV: str(granted)}
     previous = {key: environ.get(key) for key in markers}

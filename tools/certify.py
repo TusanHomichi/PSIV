@@ -31,14 +31,17 @@ candidate run) both steps are nested no-ops and N is capped by the slot cap;
 under a godot holder, by the slots it holds.
 """
 import argparse
+import ctypes
 import hashlib
 import json
 import os
 import queue
 import re
 import select
+import signal
 import subprocess
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack, contextmanager
@@ -262,6 +265,27 @@ def capture_timeout(tick):
 #: capture was taken on; Godot's own window is the 1280x800 viewport regardless.
 XVFB_ARGS = ["-screen", "0", "640x480x24", "-nolisten", "tcp"]
 XVFB_START_S = 30
+#: The X server program (a stand-in for the cases).
+XVFB_COMMAND = ["Xvfb"]
+PR_SET_PDEATHSIG = 1
+
+
+def die_with_parent():
+    """A `preexec_fn` that has the kernel send the child SIGTERM when this
+    process dies, however it dies (SIGKILL included), so no Xvfb is orphaned.
+
+    The signal follows the thread that forks the child: call it on the thread
+    that outlives the server (`run_captures` starts every server on its caller's).
+    """
+    parent = os.getpid()
+    libc = ctypes.CDLL(None, use_errno=True)
+
+    def arm():
+        libc.prctl(PR_SET_PDEATHSIG, signal.SIGTERM)
+        if os.getppid() != parent:  # the parent died before the prctl
+            os._exit(1)
+
+    return arm
 
 
 @contextmanager
@@ -273,9 +297,9 @@ def xvfb_display(log):
     """
     read_end, write_end = os.pipe()
     with open(log, "w") as handle:
-        server = subprocess.Popen(["Xvfb", "-displayfd", str(write_end), *XVFB_ARGS],
+        server = subprocess.Popen([*XVFB_COMMAND, "-displayfd", str(write_end), *XVFB_ARGS],
                                   pass_fds=(write_end,), stdout=handle,
-                                  stderr=subprocess.STDOUT)
+                                  stderr=subprocess.STDOUT, preexec_fn=die_with_parent())
     os.close(write_end)
     try:
         number = b""
@@ -352,35 +376,51 @@ def job_count(requested, cap):
     return requested
 
 
-def run_captures(tasks, jobs, receipt, display=xvfb_display, take=None):
+def run_captures(tasks, jobs, receipt, display=xvfb_display, take=None, results=None):
     """Capture every `(name, env, tick)` task across `jobs` workers, longest
-    tick first; returns `{name: (shot, godot exit, seconds)}`.
+    tick first; fills and returns `results`, `{name: (shot, godot exit, seconds)}`.
 
     Each worker owns one display from `display(log)` for its life. `take` is
-    `capture` (a parameter so the cases can stand in for Godot).
+    `capture` (a parameter so the cases can stand in for Godot). When a capture
+    raises or the wait is interrupted (Ctrl-C), the queued captures are
+    cancelled, the running ones finish, and the exception propagates with
+    `results` holding every capture that finished.
     """
     take = take or capture
     jobs = min(jobs, len(tasks))
     displays = queue.Queue()
-    results = {}
+    results = {} if results is None else results
     with ExitStack() as stack:
         for worker in range(jobs):
             displays.put(stack.enter_context(display(receipt / f"xvfb-{worker}.log")))
 
+        stop = threading.Event()  # set by the first failure; a worker checks it first
+
         def run(task):
+            if stop.is_set():
+                return
             name, env, tick = task
             screen = displays.get()
             try:
                 start = time.monotonic()
                 shot, code = take(name, env, tick, receipt, screen)
                 results[name] = (shot, code, round(time.monotonic() - start, 1))
+            except BaseException:
+                stop.set()
+                raise
             finally:
                 displays.put(screen)
 
         ordered = sorted(tasks, key=lambda task: -task[2])
-        with ThreadPoolExecutor(max_workers=max(jobs, 1)) as pool:
+        pool = ThreadPoolExecutor(max_workers=max(jobs, 1))
+        try:
             for future in [pool.submit(run, task) for task in ordered]:
                 future.result()
+        except BaseException:
+            stop.set()
+            raise
+        finally:
+            pool.shutdown(wait=True, cancel_futures=True)
     return results
 
 
@@ -425,11 +465,17 @@ def main(argv=None):
             if error is None:
                 tasks.append((name, env, tick))
         prepared = time.monotonic()
-        shots = run_captures(tasks, jobs, receipt)
+        shots, interrupted = {}, None
+        try:
+            run_captures(tasks, jobs, receipt, results=shots)
+        except BaseException as stop:  # Ctrl-C too: record what finished, then re-raise
+            interrupted = stop
         timing = {"oracle_s": round(prepared - started, 1),
                   "capture_s": round(time.monotonic() - prepared, 1)}
     results = []
     for record, frame_path, error in records:
+        if error is None and record["pair"] not in shots:
+            error = "interrupted before its capture finished"
         if error is None:
             shot, code, seconds = shots[record["pair"]]
             record["godot_exit"] = code
@@ -444,8 +490,14 @@ def main(argv=None):
         results.append(record)
         print(f"{record['pair']:13} {'PASS' if record['pass'] else 'FAIL'} "
               f"rmse={record.get('rmse')} {error or ''}".rstrip(), flush=True)
+    stopped = None if interrupted is None else f"{type(interrupted).__name__}: {interrupted}"
     (receipt / "certify.json").write_text(json.dumps(
-        {**info, "jobs": jobs, **timing, "pairs": results}, indent=2) + "\n")
+        {**info, "jobs": jobs, **timing, "interrupted": stopped, "pairs": results},
+        indent=2) + "\n")
+    if interrupted is not None:
+        print(f"certify: interrupted ({stopped}); {len(shots)}/{len(tasks)} captures finished; "
+              f"receipt={display_path(receipt, root)}", flush=True)
+        raise interrupted
     passed = sum(r["pass"] for r in results)
     print(f"certify: {passed}/{len(results)} pairs at 0.000000; captures {timing['capture_s']} s "
           f"on {jobs} worker(s), oracle frames {timing['oracle_s']} s; "

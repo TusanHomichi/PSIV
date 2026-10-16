@@ -32,6 +32,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from tools import heavy_lock as heavy_lock_module
 from tools import verify_candidate
 from tools.gate import GateRefused, run_gate
 from tools.heavy_lock import (EXIT_HELD_BY_PARENT, GODOT_SLOTS_ENV, HEAVY_LOCK_ENV, HELD_CLASS_ENV,
@@ -458,6 +459,88 @@ class QueueCase(unittest.TestCase):
         self.release(holder)
         self.assertEqual(self.finish(first, second), ["first", "second"])
 
+    def test_a_godot_arrival_queues_behind_a_waiting_exclusive_run(self):
+        """A stream of godot runs cannot starve an exclusive waiter: a godot
+        request that could share the current holders still queues behind it."""
+        godot = self.holder("godot")
+        exclusive = self.waiter("exclusive")
+        later = self.waiter("later", "--class", "godot")  # fails here if it jumped the queue
+        self.assertIn("1 waiter(s) ahead", later.first_line)
+        self.release(godot)
+        self.assertEqual(self.finish(exclusive, later), ["exclusive", "later"])
+
+    def test_a_stray_file_in_the_queue_is_ignored_and_kept(self):
+        queue = Path(f"{self.lock}.queue")
+        queue.mkdir()
+        for stray in ("notes.txt", "1-abc", "0-000000000001-1-unknown"):
+            (queue / stray).write_text("not a waiter\n")
+        holder = self.holder()
+        waiter = self.waiter("waiter")
+        self.release(holder)
+        self.assertEqual(self.finish(waiter), ["waiter"])
+        self.assertEqual(sorted(path.name for path in queue.iterdir()),
+                         ["0-000000000001-1-unknown", "1-abc", "notes.txt"])
+
+    def test_an_entry_removed_during_a_scan_is_not_an_error(self):
+        """A dead waiter's entry that someone else removes between this scan's
+        lock test and its unlink (the race a leave outside the mutex opened)."""
+        queue = heavy_lock_module._Queue(self.lock)
+        (queue.dir / "1-000000000001-999999-exclusive").write_text("")  # dead: unlocked
+        real = os.unlink
+
+        def raced(path, *args, **kwargs):
+            real(path)  # the concurrent remover gets there first
+            return real(path, *args, **kwargs)
+
+        with mock.patch.object(heavy_lock_module.os, "unlink", raced):
+            self.assertEqual(queue.entries(), [])
+
+    def test_an_aborted_wait_leaves_the_queue_under_the_mutex(self):
+        holder = self.holder()
+        queue = heavy_lock_module._Queue(self.lock)
+        under_mutex = []
+        real_leave = heavy_lock_module._Queue.leave
+
+        def leave(this, entry):
+            under_mutex.append(os.getpid() in lock_holders(this.mutex))
+            real_leave(this, entry)
+
+        def boom(*args):
+            raise RuntimeError("interrupted while waiting")
+
+        with mock.patch.object(heavy_lock_module._Queue, "leave", leave), \
+                mock.patch.object(heavy_lock_module, "_wait_line", boom), \
+                self.assertRaises(RuntimeError):
+            with hold_heavy_lock(self.lock, environ={}, report=io.StringIO()):
+                self.fail("the lock is held by another process")
+        self.assertEqual(under_mutex, [True])
+        self.assertEqual(os.listdir(queue.dir), [])
+        self.release(holder)
+
+    def test_a_held_slot_beyond_this_cap_is_refused(self):
+        """Another process runs with a larger PSIV_GODOT_SLOTS (it holds slot 3)."""
+        slot = self.spawn(["-c", HOLDER_SLOT, f"{self.lock}.godot3"])
+        read_until(slot.stdout, "held")
+        done = subprocess.run(
+            [sys.executable, str(TOOLS / "heavy_lock.py"), "run", "--class", "godot", "--",
+             sys.executable, "-c", APPEND, str(self.order), "small-cap"],
+            capture_output=True, text=True, timeout=TIMEOUT,
+            env={**self.env, GODOT_SLOTS_ENV: "3"})
+        self.assertEqual(done.returncode, EXIT_HELD_BY_PARENT, done.stderr)
+        self.assertIn("every process must use the same value", done.stderr)
+        self.assertEqual(self.granted(), [])
+
+    def test_negative_control_the_same_cap_as_the_slot_holder_proceeds(self):
+        slot = self.spawn(["-c", HOLDER_SLOT, f"{self.lock}.godot3"])
+        read_until(slot.stdout, "held")
+        done = subprocess.run(
+            [sys.executable, str(TOOLS / "heavy_lock.py"), "run", "--class", "godot", "--",
+             sys.executable, "-c", APPEND, str(self.order), "same-cap"],
+            capture_output=True, text=True, timeout=TIMEOUT,
+            env={**self.env, GODOT_SLOTS_ENV: "4"})
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(self.granted(), ["same-cap"])
+
     def test_a_killed_waiter_does_not_block_the_queue(self):
         holder = self.holder()
         dead = self.waiter("dead")
@@ -498,6 +581,16 @@ class QueueCase(unittest.TestCase):
         self.assertEqual(marked.stdout.strip(), "None")
         self.assertIsNone(raw_flock_parent(self.lock, environ={}))  # free: nobody
 
+
+#: Holds the slot file `argv[1]` (as a godot holder would), says `held`,
+#: and keeps it until stdin closes.
+HOLDER_SLOT = """
+import fcntl, sys
+held = open(sys.argv[1], "a")
+fcntl.flock(held, fcntl.LOCK_EX)
+print("held", flush=True)
+sys.stdin.readline()
+"""
 
 #: RAW_FLOCK_PARENT, but printing its own pid before running the probe child.
 RAW_FLOCK_PARENT_PRINT = """

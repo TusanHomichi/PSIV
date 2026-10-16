@@ -186,9 +186,9 @@ process has the debug PSIV extension mapped
 (`rust/target/debug/libpsiv_godot.so`, which its cargo commands rebuild);
 `--wait` waits for the running gate instead of refusing, naming its holder
 once, and `--list` prints the commands without running them. The gate takes
-the [heavy-run lock](#heavy-run-lock) itself, in the exclusive class, and then
-the gate lock; both are one file each for the whole repository, under the main
-checkout's `build/` (`build/continuation-heavy.lock` and `build/gate/.lock`).
+the gate lock and then the [heavy-run lock](#heavy-run-lock) itself, in the
+exclusive class; both are one file each for the whole repository, under the main
+checkout's `build/` (`build/gate/.lock` and `build/continuation-heavy.lock`).
 Presentation certification
 is a separate entry point, `python3 tools/certify.py [--jobs N]` (Godot, Xvfb
 and the local oracle frames required; pairs and doctrine in
@@ -233,7 +233,10 @@ it), owned by `tools/heavy_lock.py`. It has two classes:
 
 An exclusive holder excludes every godot holder and they exclude it. The
 entry points in the table take their class themselves: never wrap them. A
-headless `psiv-campaign` run (about 40 MB) takes no lock.
+headless `psiv-campaign` run (about 40 MB) takes no lock. `PSIV_GODOT_SLOTS`
+must be the same for every process: one that finds a slot beyond its own cap
+held refuses with exit 2. A gate takes the gate lock first and the heavy lock
+second, as every deployed gate does; the reverse order deadlocks against them.
 
 Waiters queue in arrival order, and `--priority` (or `PSIV_LOCK_PRIORITY=1` for
 an entry point that takes the lock itself, such as the gate) puts a waiter

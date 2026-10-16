@@ -30,9 +30,9 @@ _LOCK_ENV = mock.patch.dict(os.environ, {HEAVY_LOCK_ENV: str(Path(_LOCK_DIR.name
 
 
 def setUpModule():
+    _LOCK_ENV.start()  # first, so its stop restores the markers popped below
     for key in (HELD_ENV, HELD_CLASS_ENV, HELD_SLOTS_ENV, PRIORITY_ENV):
-        os.environ.pop(key, None)  # restored by the patch's stop
-    _LOCK_ENV.start()
+        os.environ.pop(key, None)
 
 
 def tearDownModule():

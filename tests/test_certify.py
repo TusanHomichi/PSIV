@@ -13,10 +13,15 @@ servers when Xvfb is installed.
 import contextlib
 import hashlib
 import io
+import json
 import os
 import shutil
+import signal
+import subprocess
+import sys
 import tempfile
 import threading
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -257,9 +262,97 @@ class RunCapturesTest(unittest.TestCase):
         ticks = [int(name.split("-")[1]) for name in self.started]
         self.assertEqual(ticks, sorted(ticks, reverse=True))
 
+    def test_a_failing_capture_cancels_the_queued_ones(self):
+        def failing(name, env, tick, receipt, display):
+            self.started.append(name)
+            raise RuntimeError("godot launch failed")
+
+        results = {}
+        with self.assertRaises(RuntimeError):
+            certify.run_captures(self.TASKS, 1, self.receipt, self.display, failing,
+                                 results=results)
+        self.assertEqual(self.started, ["pair-4550"])  # the rest never started
+        self.assertEqual(results, {})
+
     def test_no_more_workers_than_tasks(self):
         certify.run_captures(self.TASKS[:2], 3, self.receipt, self.display, self.take())
         self.assertEqual(len(self.opened), 2)
+
+
+#: A stand-in X server: writes its pid to $FAKE_XVFB_PID, then reports display
+#: 77 on its -displayfd, then runs until signalled.
+FAKE_XVFB = """
+import os, sys, time
+open(os.environ["FAKE_XVFB_PID"] + ".tmp", "w").write(str(os.getpid()))
+os.rename(os.environ["FAKE_XVFB_PID"] + ".tmp", os.environ["FAKE_XVFB_PID"])
+os.write(int(sys.argv[sys.argv.index("-displayfd") + 1]), b"77\\n")  # after the pid
+time.sleep(120)
+"""
+
+#: Opens one worker display with the stand-in server, says `ready`, waits to
+#: be killed. With `argv[2] == "unarmed"`, the parent-death signal is left out.
+DISPLAY_OWNER = f"""
+import sys, time
+sys.path.insert(0, {str(ROOT / "tools")!r})
+import certify
+certify.XVFB_COMMAND = [sys.executable, sys.argv[1]]
+if sys.argv[2] == "unarmed":
+    certify.die_with_parent = lambda: None
+with certify.xvfb_display(sys.argv[3]) as display:
+    print("ready", display, flush=True)
+    time.sleep(120)
+"""
+
+
+class XvfbOrphanTest(unittest.TestCase):
+    """A certify killed outright (SIGKILL: no handler, no finally) must not
+    leave its X servers running."""
+
+    def run_owner(self, mode):
+        tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        fake = tmp / "fake_xvfb.py"
+        fake.write_text(FAKE_XVFB)
+        pid_file = tmp / "xvfb.pid"
+        owner = subprocess.Popen([sys.executable, "-c", DISPLAY_OWNER, str(fake), mode,
+                                  str(tmp / "xvfb.log")], stdout=subprocess.PIPE, text=True,
+                                 env={**os.environ, "FAKE_XVFB_PID": str(pid_file)})
+        self.addCleanup(owner.wait, 30)
+        self.addCleanup(owner.kill)
+        self.assertEqual(owner.stdout.readline().split(), ["ready", ":77"])
+        owner.stdout.close()
+        server = int(pid_file.read_text())
+        self.addCleanup(self.kill_quietly, server)
+        owner.kill()
+        owner.wait(timeout=30)
+        return server
+
+    @staticmethod
+    def alive(pid):
+        try:
+            state = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+        except OSError:
+            return False
+        return state != "Z"
+
+    @staticmethod
+    def kill_quietly(pid):
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+    def test_a_killed_certify_takes_its_x_server_with_it(self):
+        server = self.run_owner("armed")
+        for _ in range(100):  # bounded: 10 s for the kernel's signal to land
+            if not self.alive(server):
+                break
+            time.sleep(0.1)
+        self.assertFalse(self.alive(server), "the X server outlived certify")
+
+    def test_negative_control_without_the_death_signal_the_server_is_orphaned(self):
+        server = self.run_owner("unarmed")
+        time.sleep(1.0)
+        self.assertTrue(self.alive(server))
 
 
 @unittest.skipUnless(shutil.which("Xvfb"), "Xvfb is not installed")
@@ -288,13 +381,17 @@ class MainLocksTest(unittest.TestCase):
         self.holds.append((lock_class, slots))
         yield Hold(self.tmp / "heavy.lock", lock_class, slots, nested=False)
 
-    def run_main(self, argv, slots="3"):
+    def run_main(self, argv, slots="3", interrupt_after=None):
         frame = self.tmp / "frame.png"
         frame.write_bytes(b"f")
 
-        def captures(tasks, jobs, receipt):
+        def captures(tasks, jobs, receipt, results):
             self.jobs = jobs
-            return {name: (frame, 0, 0.0) for name, _, _ in tasks}
+            for count, (name, _, _) in enumerate(tasks):
+                if count == interrupt_after:
+                    raise KeyboardInterrupt
+                results[name] = (frame, 0, 0.0)
+            return results
 
         with mock.patch.object(certify, "hold_heavy_lock", self.hold), \
                 mock.patch.dict(os.environ, {"PSIV_GODOT_SLOTS": slots}), \
@@ -320,6 +417,22 @@ class MainLocksTest(unittest.TestCase):
         code, out = self.run_main(["--no-build", "--only", "title", "camp-root"])
         self.assertEqual(code, 0, out)
         self.assertEqual(self.holds, [("godot", 2)])  # the default 3, capped by two pairs
+
+    def test_an_interrupted_run_still_writes_its_receipt_then_reraises(self):
+        with self.assertRaises(KeyboardInterrupt):
+            self.run_main(["--no-build", "--only", "title", "camp-root"], interrupt_after=1)
+        receipt = json.loads((self.tmp / "receipt" / "certify.json").read_text())
+        self.assertEqual(receipt["interrupted"], "KeyboardInterrupt: ")
+        pairs = {pair["pair"]: pair for pair in receipt["pairs"]}
+        self.assertTrue(pairs["title"]["pass"])
+        self.assertFalse(pairs["camp-root"]["pass"])
+        self.assertIn("interrupted", pairs["camp-root"]["error"])
+
+    def test_negative_control_a_finished_run_is_not_marked_interrupted(self):
+        code, out = self.run_main(["--no-build", "--only", "title", "camp-root"])
+        self.assertEqual(code, 0, out)
+        receipt = json.loads((self.tmp / "receipt" / "certify.json").read_text())
+        self.assertIsNone(receipt["interrupted"])
 
     def test_more_jobs_than_slots_is_refused_before_any_lock(self):
         code, out = self.run_main(["--jobs", "4"], slots="3")

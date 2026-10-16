@@ -18,18 +18,19 @@ sums for `cargo test`; a count the run never reported is null, not zero). A gate
 result is reported from that receipt.
 
 A run holds two repository-wide locks, both resolved by tools/heavy_lock.py so
-every worktree shares one file each: the heavy lock in the exclusive class,
-through `hold_heavy_lock` (heavy runs are serialized by project rule; a run
-under `heavy_lock.py run --` or verify_candidate already holds it, so that step
-is a no-op there, and `PSIV_LOCK_PRIORITY=1` queues the gate as a priority
-waiter), and inside it the gate lock, `<main checkout>/build/gate/.lock`, for
-the whole run. The heavy lock comes first so its queue alone orders gates: a
-gate never holds the gate lock while it waits. Two guards refuse to start, both
-with exit 2 and nothing run: another gate holding the gate lock (a second gate
-exits at once instead of racing it; `--wait` waits for it instead, naming the
-holder once), and any process with `rust/target/debug/libpsiv_godot.so` mapped -
-the library godot/psiv.gdextension loads, which the cargo commands rebuild. A
-raw `flock(1)` wrapper around the gate is refused too (heavy_lock exits 2 rather
+every worktree shares one file each, always in this order (heavy_lock's
+docstring owns it; a gate taking them the other way deadlocks against one that
+does not): the gate lock, `<main checkout>/build/gate/.lock`, for the whole
+run, and inside it the heavy lock in the exclusive class, through
+`hold_heavy_lock` (heavy runs are serialized by project rule; a run under
+`heavy_lock.py run --` or verify_candidate already holds it, so that step is a
+no-op there, and `PSIV_LOCK_PRIORITY=1` queues the gate as a priority waiter).
+Two guards refuse to start, both with exit 2 and nothing run: another gate
+holding the gate lock (a second gate exits at once instead of racing it;
+`--wait` waits for it instead, naming the holder once), and any process with
+`rust/target/debug/libpsiv_godot.so` mapped - the library
+godot/psiv.gdextension loads, which the cargo commands rebuild. A raw
+`flock(1)` wrapper around the gate is refused too (heavy_lock exits 2 rather
 than wait on its own parent).
 
 `--fast` runs the per-commit fast tier (`FAST_COMMANDS`) with the same receipt,
@@ -429,10 +430,7 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
     receipt_dir = Path(receipt_dir).resolve()
     lock_file = gate_lock_path(root)
     heavy_lock = heavy_lock or heavy_lock_path(root)
-    if not wait:
-        with gate_lock(lock_file):  # refuse now, not after a wait in the heavy queue
-            pass
-    with hold_heavy_lock(heavy_lock, report=sys.stdout), gate_lock(lock_file, wait):
+    with gate_lock(lock_file, wait), hold_heavy_lock(heavy_lock, report=sys.stdout):
         extension = root / EXTENSION_PATH
         loaded = loaded_extension_pids(extension)
         if loaded:

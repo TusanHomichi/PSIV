@@ -30,7 +30,7 @@ from unittest import mock
 from tools.gate import (FAST_COMMANDS, GATE_COMMANDS, SLOW_PYTHON_MODULES, GateRefused,
                         command_slug, main, parse_counts, quick_unittest, run_gate)
 from tools.heavy_lock import (HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV, HELD_SLOTS_ENV,
-                              PRIORITY_ENV, gate_lock_path, heavy_lock_path)
+                              PRIORITY_ENV, gate_lock_path, heavy_lock_path, lock_holders)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DEVELOPMENT = REPO_ROOT / "docs" / "DEVELOPMENT.md"
@@ -97,6 +97,19 @@ held = open(sys.argv[1], "a")
 fcntl.flock(held, fcntl.LOCK_EX)
 print("held", flush=True)
 sys.stdin.readline()
+"""
+
+#: A gate from before the lock queue: the gate lock, then (on a line from
+#: stdin) the heavy lock, both by raw flock; prints `gate`, then `ran`.
+OLD_GATE = """
+import fcntl, sys
+gate = open(sys.argv[1], "a")
+fcntl.flock(gate, fcntl.LOCK_EX)
+print("gate", flush=True)
+sys.stdin.readline()
+heavy = open(sys.argv[2], "a")
+fcntl.flock(heavy, fcntl.LOCK_EX)
+print("ran", flush=True)
 """
 
 MMAP_CHILD = """
@@ -364,38 +377,65 @@ class GateRunCase(unittest.TestCase):
         receipt, _ = self.run_quiet([fake_step("again")])  # and the run released its own
         self.assertEqual(receipt["exit_code"], 0)
 
-    def test_a_gate_queued_for_the_heavy_lock_holds_no_gate_lock(self):
-        """The heavy lock comes first, so a waiting gate never holds the gate
-        lock: its queue alone orders gates (a priority gate is not stuck behind
-        a normal one that took the gate lock first), and no gate waits on the
-        heavy lock while holding what a heavy holder's nested gate needs."""
+    def test_the_gate_lock_is_taken_before_the_heavy_lock(self):
+        """One order everywhere (heavy_lock's docstring): every deployed gate
+        takes the gate lock and then the heavy lock."""
+        taken = []
+
+        @contextlib.contextmanager
+        def recorder(name):
+            taken.append(name)
+            yield
+
+        with mock.patch("tools.gate.gate_lock", lambda *a, **k: recorder("gate")), \
+                mock.patch("tools.gate.hold_heavy_lock", lambda *a, **k: recorder("heavy")):
+            self.run_quiet([fake_step("ordered")])
+        self.assertEqual(taken, ["gate", "heavy"])
+
+    def test_an_old_protocol_gate_and_a_new_gate_do_not_deadlock(self):
+        """An old gate holds the gate lock while the heavy lock is busy; a new
+        `--wait` gate arrives; the heavy holder leaves; only then does the old
+        gate ask for the heavy lock. Both must finish. A gate that took the
+        heavy lock first would hold it here while waiting for the gate lock,
+        and the old gate would wait on it forever."""
         heavy = heavy_lock_path(self.root)
         heavy.parent.mkdir(parents=True, exist_ok=True)
+        lock_file = gate_lock_path(self.root)
+        lock_file.parent.mkdir(parents=True, exist_ok=True)
         holder = subprocess.Popen([sys.executable, "-c", HEAVY_HOLDER, str(heavy)],
                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
         self.addCleanup(self.stop, holder)
         self.assertEqual(holder.stdout.readline().strip(), "held")
+        old = subprocess.Popen([sys.executable, "-c", OLD_GATE, str(lock_file), str(heavy)],
+                               stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        self.addCleanup(self.stop, old)
+        self.assertEqual(old.stdout.readline().strip(), "gate")
         output, outcome = io.StringIO(), {}
 
         def gate():
-            outcome["receipt"] = run_gate([fake_step("queued")], self.root, self.receipt_dir,
+            outcome["receipt"] = run_gate([fake_step("new")], self.root, self.receipt_dir,
                                           wait=True)
 
         with contextlib.redirect_stdout(output):
-            thread = threading.Thread(target=gate)
+            thread = threading.Thread(target=gate, daemon=True)
             thread.start()
-            for _ in range(300):  # bounded: 30 s for the gate to queue
+            for _ in range(300):  # bounded: 30 s for the new gate to start waiting
                 if "waiting for" in output.getvalue():
                     break
                 time.sleep(0.1)
-            self.assertIn(f"waiting for {heavy}", output.getvalue())
-            lock_file = gate_lock_path(self.root)
-            lock_file.parent.mkdir(parents=True, exist_ok=True)
-            with lock_file.open("a") as probe:  # free while the gate waits
-                fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                fcntl.flock(probe, fcntl.LOCK_UN)
+            self.assertIn("waiting for", output.getvalue())
             holder.stdin.close()
-            thread.join(timeout=60)
+            holder.wait(timeout=30)
+            for _ in range(20):  # give a heavy-first gate 2 s to take the heavy lock
+                if os.getpid() in lock_holders(heavy):
+                    break
+                time.sleep(0.1)
+            try:
+                ran, _ = old.communicate("go\n", timeout=30)
+            except subprocess.TimeoutExpired:
+                self.fail("deadlock: the old gate never got the heavy lock")
+            thread.join(timeout=30)
+        self.assertEqual(ran.strip(), "ran")
         self.assertFalse(thread.is_alive())
         self.assertEqual(outcome["receipt"]["exit_code"], 0)
 
