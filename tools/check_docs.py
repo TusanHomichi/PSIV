@@ -19,6 +19,18 @@ is scanned, and fenced code blocks and inline code are skipped as content:
   numbered `-1`, `-2`, ... in document order;
 - every `yaml` (or `yml`) block must parse (PyYAML `safe_load`): a broken quote
   turns a YAML record into text no tool can read;
+- no document is a run record (issue #119). Runs, receipts and task graphs
+  live in commits, issues and pull requests (`docs/AGENT_WORKFLOW.md`), so the
+  checker refuses the three shapes the deleted records had: a file named as a
+  log, ledger or receipt (a word of its name is one of `RECORD_NAME_WORDS`:
+  `RUNNER_LOG_KURAN.md`, `LANE_LEDGER.md`); a table with
+  `DATED_ROWS_LIMIT` or more rows that open with a date (`| 2026-09-23 |
+  lane | ...`); and a `yaml` block that holds a task graph (a mapping anywhere
+  in it with a `TASK_GRAPH_KEYS` key: `nodes`, `depends_on` or
+  `next_action`). Research documents pass: a dated heading or a dated
+  chronology entry (`## 2026-10-03 - Rounds that open no party command
+  window`), a date inside a table cell, and `CHANGELOG.md` (one word) are all
+  allowed;
 - inside a `bash`, `sh`, `shell` or `console` block, every token naming a path
   under `docs/`, `godot/`, `oracle/`, `psiv_tools/`, `rust/`, `tests/` or
   `tools/` (optionally behind `./` or `$PWD/`) must exist, and a token with a
@@ -82,6 +94,16 @@ CHECKED_PATH_PREFIXES = (
 PATH_STRIPPED_PREFIXES = ("./", "$PWD/", "${PWD}/", '"$PWD/', '"${PWD}/')
 
 COMMAND_FENCE_LANGS = frozenset({"bash", "sh", "shell", "console"})
+
+#: Words of a file name (split on `_`, `-` and `.`, any case) that name a run
+#: record: a run log, a receipt ledger (issue #119).
+RECORD_NAME_WORDS = frozenset({"LOG", "LOGS", "RUNLOG", "JOURNAL", "LEDGER", "LEDGERS",
+                               "RECEIPT", "RECEIPTS"})
+#: Rows opening with a date that make a table a dated receipt ledger.
+DATED_ROWS_LIMIT = 3
+DATED_ROW_RE = re.compile(r"\A {0,3}\|\s*\d{4}-\d{2}-\d{2}\b")
+#: Keys that make a `yaml` block a task graph.
+TASK_GRAPH_KEYS = frozenset({"nodes", "depends_on", "next_action"})
 YAML_FENCE_LANGS = frozenset({"yaml", "yml"})
 
 SCHEME_RE = re.compile(r"\A[A-Za-z][A-Za-z0-9+.\-]*:")
@@ -307,9 +329,10 @@ def check_link(
 
 
 def check_yaml(name: str, line: int, body: list[str]) -> str | None:
-    """A problem line when the `yaml` block opened at `line` does not parse."""
+    """A problem line when the `yaml` block opened at `line` does not parse,
+    or parses to a task graph."""
     try:
-        yaml.safe_load("\n".join(body))
+        data = yaml.safe_load("\n".join(body))
     except yaml.YAMLError as error:
         # The context mark is where the broken construct opened (a quote's
         # first character), which is the line to fix; the problem mark can sit
@@ -321,7 +344,35 @@ def check_yaml(name: str, line: int, body: list[str]) -> str | None:
             if part
         ) or str(error).splitlines()[0]
         return f"{name}:{at}: yaml block does not parse: {reason}"
+    keys = task_graph_keys(data)
+    if keys:
+        return (f"{name}:{line}: yaml block is a task graph ({', '.join(sorted(keys))}): "
+                "task graphs belong in issues and pull requests")
     return None
+
+
+def record_name_problem(name: str) -> str | None:
+    """A message when the file `name` is named as a run record, else None."""
+    stem = Path(name).name.rsplit(".", 1)[0]
+    words = {word.upper() for word in re.split(r"[_.\-]+", stem) if word}
+    found = sorted(words & RECORD_NAME_WORDS)
+    if found:
+        return (f"{name}:1: run record file name ({found[0]}): runs and receipts "
+                "belong in commits, issues and pull requests")
+    return None
+
+
+def task_graph_keys(data) -> set[str]:
+    """The `TASK_GRAPH_KEYS` that any mapping inside parsed yaml `data` holds."""
+    found: set[str] = set()
+    if isinstance(data, dict):
+        found |= TASK_GRAPH_KEYS & {key for key in data if isinstance(key, str)}
+        for value in data.values():
+            found |= task_graph_keys(value)
+    elif isinstance(data, list):
+        for value in data:
+            found |= task_graph_keys(value)
+    return found
 
 
 def check_tree() -> tuple[list[str], list[int]]:
@@ -344,9 +395,18 @@ def check_tree() -> tuple[list[str], list[int]]:
     problems: list[str] = []
     counts = [len(texts), 0, 0, 0, 0]  # files, links, anchors, command paths, yaml blocks
     for name, lines in texts.items():
+        message = record_name_problem(name)
+        if message:
+            problems.append(message)
         for index, text in enumerate(lines):
             for path in host_home_paths(text):
                 problems.append(f"{name}:{index + 1}: host-absolute home path: {path}")
+        dated = [index + 1 for index, text, info, _ in iter_fenced_lines(lines)
+                 if info is None and DATED_ROW_RE.match(text)]
+        if len(dated) >= DATED_ROWS_LIMIT:
+            problems.append(f"{name}:{dated[0]}: dated receipt ledger ({len(dated)} table rows "
+                            "open with a date): runs and receipts belong in commits, issues "
+                            "and pull requests")
         block = None  # (opening line, body) of the yaml block being read
         for index, text, info, delimiter in iter_fenced_lines(lines):
             line = index + 1

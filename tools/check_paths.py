@@ -69,8 +69,10 @@ BARE_EXTENSIONS = ("md", "gd", "rs", "py")
 #: whole file; a set exempts those exact tokens only. Each token must still
 #: occur in its file, and each file must exist.
 SYNTHETIC: dict[str, frozenset[str] | None] = {
-    # This checker's own docstring and this table name examples.
+    # This checker's own docstring and this table name examples, and so do
+    # check_docs's rules for run-record file names.
     "tools/check_paths.py": None,
+    "tools/check_docs.py": frozenset({"RUNNER_LOG_KURAN.md", "LANE_LEDGER.md", "CHANGELOG.md"}),
     # These build throwaway repositories and name the files they write there.
     "tests/test_check_docs.py": None,
     "tests/test_check_paths.py": None,

@@ -12,8 +12,9 @@ lines it prints.
 The real tree passes case runs the same tool against this repository, so the
 guard is checked against the documents it guards. The rest are negative
 controls (a missing link target, a missing anchor, a missing command path, an
-unmatched glob, a `yaml` block that does not parse and a host-absolute home
-path, each rejected by name and line) and positive cases that pin
+unmatched glob, a `yaml` block that does not parse, a host-absolute home
+path, and issue #119's run records: a log or ledger file name, a dated receipt
+table and a task-graph `yaml` block, each rejected by name and line) and positive cases that pin
 what the checker deliberately lets through: a duplicate heading's `-1` anchor,
 a link written inside a fenced block or inline code, an external URL, and
 git-ignored local inputs, as a link target and as a command path.
@@ -395,6 +396,68 @@ class AcceptedCases(RepoCase):
         self.assertEqual(SUMMARY_RE.search(out)["paths"], "4", out)
 
 
+class RunRecords(RepoCase):
+    """Issue #119: no new run log, dated receipt ledger or task graph in a doc.
+
+    One negative control per class, and the research shapes that must pass.
+    """
+
+    def test_a_run_log_file_name(self):
+        for name in ("docs/campaign/RUNNER_LOG_KURAN.md", "docs/run-log.md", "docs/logs.md"):
+            with self.subTest(name=name):
+                code, out = self.check({name: lines("# Runs")})
+                self.assertEqual(code, 1, out)
+                self.assertIn(f"{name}:1: run record file name", out)
+
+    def test_a_receipt_ledger_file_name(self):
+        code, out = self.check({"docs/LANE_LEDGER.md": lines("# Lanes"),
+                                "docs/receipts.md": lines("# Receipts")})
+        self.assertEqual(code, 1, out)
+        self.assertIn("docs/LANE_LEDGER.md:1: run record file name (LEDGER)", out)
+        self.assertIn("docs/receipts.md:1: run record file name (RECEIPTS)", out)
+
+    def test_a_dated_receipt_table(self):
+        code, out = self.check({"docs/notes.md": lines(
+            "# Notes", "",
+            "| date | lane | outcome |", "|---|---|---|",
+            "| 2026-09-23 | bake-D | accepted |",
+            "| 2026-09-24 | ab-F | accepted |",
+            "| 2026-09-24 | ab-G | sent back |",
+        )})
+        self.assertEqual(code, 1, out)
+        self.assertIn("docs/notes.md:5: dated receipt ledger (3 table rows open with a date)", out)
+
+    def test_a_task_graph_block(self):
+        graphs = {
+            "nodes": ["outcome: a route", "nodes:", "  - id: C1", "    state: ready"],
+            "depends_on": ["- id: C2", "  depends_on: [C1]"],
+            "next_action": ["plan:", "  next_action: C3"],
+        }
+        for key, body in graphs.items():
+            with self.subTest(key=key):
+                code, out = self.check({"docs/plan.md": lines("# Plan", "", "```yaml", *body, "```")})
+                self.assertEqual(code, 1, out)
+                self.assertIn(f"docs/plan.md:3: yaml block is a task graph ({key})", out)
+
+    def test_research_shapes_pass(self):
+        code, out = self.check({
+            "docs/source-notes/battle.md": lines(
+                "# Battle", "",
+                "## 2026-10-03 - Rounds that open no party command window", "",
+                "## 2026-09-24 - The vehicle's own attack", "",
+                "## 2026-09-12 - Battle items", "",
+                "| ability | captured |", "|---|---|",
+                "| VOL | 2026-10-15, three fixtures |",
+                "| 2026-09-23 | one dated row |",
+                "| 2026-09-24 | and a second |",
+                "", "```yaml", "formation: 0x1E1", "rounds: [1, 2]", "```",
+            ),
+            "CHANGELOG.md": lines("# Changes"),
+            "docs/CATALOG.md": lines("# Catalog"),
+        })
+        self.assertEqual(code, 0, out)
+
+
 class SummaryAndExit(RepoCase):
     """The summary line, the exit status and the root guard."""
 
@@ -408,7 +471,7 @@ class SummaryAndExit(RepoCase):
             ),
             "docs/notes.md": lines(
                 "# Notes", "## Notes", "",
-                "```yaml", "next_action: \"a quoted: colon\"", "evidence: [\"a\", \"b\"]", "```",
+                "```yaml", "note: \"a quoted: colon\"", "evidence: [\"a\", \"b\"]", "```",
                 "", "```yml", "also: [checked]", "```",
             ),
             "tests/test_one.py": lines("# a test"),

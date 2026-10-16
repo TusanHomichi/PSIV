@@ -18,7 +18,8 @@ the pull request that closes it: the observable outcome, its exclusions, the
 acceptance check and, for dependent work, the order of steps. Changes land on
 `main` through a branch and a pull request, and the PR description is the
 receipt. Commits, issues and PRs are the project's record; the docs hold no
-task graphs, run logs or status ledgers (git history keeps the old ones), and
+task graphs, run logs or status ledgers (git history keeps the old ones;
+`tools/check_docs.py` refuses new ones), and
 are updated only when the behavior, commands or retail findings they describe
 change.
 
