@@ -11,6 +11,9 @@ DECK_USER="${2:-deck}"
 # tools/package/deploy-deck.sh: the repository root is two levels up.
 HERE="$(cd "$(dirname "$0")/../.." && pwd)"
 
+# The Godot that exports: PSIV_GODOT, else `godot` on PATH, at the pinned version.
+GODOT="$(python3 "$HERE/tools/godot.py")"
+
 # Always ship a current build: release lib, then export. The Deck runs
 # SteamOS glibc 2.41 while this laptop tracks Fedora's newest; a plain
 # cargo build stamps the host's glibc symbol versions and the extension
@@ -22,7 +25,7 @@ PATH="$HOME/.local/bin:$PATH" cargo zigbuild --release -p psiv-godot \
     --target "x86_64-unknown-linux-gnu.$DECK_GLIBC"
 cp "$HERE/rust/target/x86_64-unknown-linux-gnu/release/libpsiv_godot.so" \
    "$HERE/rust/target/release/libpsiv_godot.so"
-"$HOME/.local/bin/psiv-godot-4.7.1" --headless --path "$HERE/godot" \
+"$GODOT" --headless --path "$HERE/godot" \
     --export-release "Linux-SteamDeck" 2>&1 | tail -3
 
 STAGE="$HERE/build/deck-stage/psiv"

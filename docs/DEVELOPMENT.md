@@ -76,15 +76,17 @@ Here `godot` means your Godot executable. The explicit save directory makes
 the example independent of a machine's default save location. Use the title
 menu for START/CONTINUE and camp STATE → SAVE for normal persistence.
 
-`godot/run.sh` is a local convenience launcher with build/launch locking.
-It currently expects `~/.local/bin/psiv-godot-4.7.1`, `rg` and `flock`;
-the commands above let you use another executable path.
+`godot/run.sh` is a local convenience launcher with build/launch locking; it
+needs `rg` and `flock`.
 
-`PSIV_GODOT` names the Godot executable for the scripted tools
-(`tools/certify.py`, `tools/verify_native_tape.py`) and for the capture
-commands in the subsystem documents, which write it as `"$PSIV_GODOT"`. The
-tools default to `~/.local/bin/psiv-godot-4.7.1` when it is unset; set it once
-in your shell for the documents' commands.
+`PSIV_GODOT` names the Godot executable; when it is unset, `godot` on `PATH`
+is used. `tools/godot.py` is the one lookup: it prints the executable, or
+refuses one that does not report the version pinned in `.godot-version`
+(`python3 tools/godot.py` checks your setup). `godot/run.sh` and
+`tools/package/deploy-deck.sh` ask it. `tools/certify.py` and
+`tools/verify_native_tape.py` still read `PSIV_GODOT` themselves and default
+to a fixed path when it is unset, so set it. The capture commands in the
+subsystem documents write it as `"$PSIV_GODOT"`; set it once in your shell.
 
 For campaign tape replay through the native game, use
 `tools/verify_native_tape.py`; for a whole `psiv-campaign run`,
