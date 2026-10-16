@@ -30,10 +30,11 @@ A file that no longer exists is cited by its commit instead: `RUNNER_LOG
 (commit 0faa91b^)` names the text `git show 0faa91b^:<path>` prints.
 
 A path git ignores is a local input (`AGENTS.md`, "Protect local inputs and
-evidence") and passes, as in `check_docs`. Some sources name paths of a
-synthetic tree on purpose, such as a test that builds a throwaway repository;
-those are listed in `SYNTHETIC`, file by file and with the reason, and an entry
-that no longer matches its file is itself a problem, so the list cannot rot.
+evidence") and passes, as in `check_docs`. Some sources name paths outside
+the change on purpose: a test that builds a throwaway repository, or a file of
+the disassembly clone. Those are listed in `EXEMPT`, file by file and with the
+reason, and an entry that no longer matches its file is itself a problem, so
+the list cannot rot.
 
 Problems print one per line as `path:line: message`, then a summary count.
 Exit status is 1 when a problem was found, 0 when the tree is clean, and 2 when
@@ -65,10 +66,10 @@ PATH_PREFIXES = (".github", "docs", "godot", "oracle", "psiv_tools", "rust", "te
 #: The extensions a bare file name is recognized by.
 BARE_EXTENSIONS = ("md", "gd", "rs", "py")
 
-#: Sources that name a synthetic tree on purpose. A value of None exempts the
+#: Sources that name paths outside the change on purpose. A value of None exempts the
 #: whole file; a set exempts those exact tokens only. Each token must still
 #: occur in its file, and each file must exist.
-SYNTHETIC: dict[str, frozenset[str] | None] = {
+EXEMPT: dict[str, frozenset[str] | None] = {
     # This checker's own docstring and this table name examples, and so do
     # check_docs's rules for run-record file names.
     "tools/check_paths.py": None,
@@ -93,6 +94,10 @@ SYNTHETIC: dict[str, frozenset[str] | None] = {
     "rust/psiv-core/src/battle/replay/stream.rs": frozenset({"state.md"}),
     # Rust syntax quoted as an example: `#[path = "x.rs"] mod x;`.
     "oracle/sweep/route_abilities.py": frozenset({"x.rs"}),
+    # The disassembly's own compressor, reference/ps4disasm/script/, a local
+    # input. Spelling it out would change psiv_tools/text.py, whose source is
+    # part of the extract stamp, and so stale every checkout's generated/.
+    "psiv_tools/text.py": frozenset({"compress_script.py"}),
 }
 
 _START = r"(?<![\w./$~-])"
@@ -217,7 +222,7 @@ Reference = tuple[str, int, str, "str | None", str]
 
 
 def scan(tree: Tree, sources: Iterable[str],
-         synthetic: dict[str, frozenset[str] | None]) -> tuple[list[Reference], int]:
+         exempt_table: dict[str, frozenset[str] | None]) -> tuple[list[Reference], int]:
     """Every reference `sources` make, as `(source, line, path, anchor, kind)`.
 
     `kind` is "path" for a repository path, "bare" for a bare file name and
@@ -227,7 +232,7 @@ def scan(tree: Tree, sources: Iterable[str],
     found: list[Reference] = []
     count = 0
     for source in sources:
-        exempt = synthetic.get(source, frozenset())
+        exempt = exempt_table.get(source, frozenset())
         if exempt is None:
             continue
         try:
@@ -258,30 +263,30 @@ def scan(tree: Tree, sources: Iterable[str],
 
 
 def check(root: Path | str = Path("."),
-          synthetic: dict[str, frozenset[str] | None] | None = None) -> tuple[list[str], int]:
+          exempt_table: dict[str, frozenset[str] | None] | None = None) -> tuple[list[str], int]:
     """Every problem in the change at `root`, and the number of paths read.
 
-    `synthetic` replaces `SYNTHETIC`. The table describes the repository this
+    `exempt_table` replaces `EXEMPT`. The table describes the repository this
     checker ships in, so its entries are verified against that tree only (any
     other tree, such as a test's throwaway repository, would fail every one);
     a table passed in is always verified.
     """
     root = Path(root)
     tree = Tree(root)
-    verify = synthetic is not None or root.resolve() == Path(__file__).resolve().parents[1]
-    synthetic = SYNTHETIC if synthetic is None else synthetic
+    verify = exempt_table is not None or root.resolve() == Path(__file__).resolve().parents[1]
+    exempt_table = EXEMPT if exempt_table is None else exempt_table
     sources = sorted(repo_files(root, SOURCE_PATTERNS))
-    references, count = scan(tree, sources, synthetic)
+    references, count = scan(tree, sources, exempt_table)
 
     problems = []
-    for source, exempt in sorted(synthetic.items()) if verify else ():
+    for source, exempt in sorted(exempt_table.items()) if verify else ():
         if source not in tree.files:
-            problems.append(f"tools/check_paths.py: SYNTHETIC names a missing file: {source}")
+            problems.append(f"tools/check_paths.py: EXEMPT names a missing file: {source}")
             continue
         text = (root / source).read_text(encoding="utf-8", errors="replace")
         for token in sorted(exempt or ()):
             if token not in text:
-                problems.append(f"tools/check_paths.py: SYNTHETIC token not in {source}: {token}")
+                problems.append(f"tools/check_paths.py: EXEMPT token not in {source}: {token}")
 
     unresolved = []
     for source, line, path, anchor, kind in references:

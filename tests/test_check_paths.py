@@ -8,7 +8,7 @@ throwaway git repository, run the checker the way the gate does, and read the
 `path:line: message` lines it prints. The negative controls are the three the
 issue names (a deleted file, a renamed anchor, a path inside a JSON route's
 note string) and the forms around them: a bare retired file name, a quoted
-section name, the far end of a range and a stale `SYNTHETIC` entry. The
+section name, the far end of a range and a stale `EXEMPT` entry. The
 accepted cases pin what the checker lets through on purpose.
 """
 import os
@@ -86,9 +86,9 @@ class RealTree(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
         self.assertRegex(proc.stdout, r"checked \d{3,} code paths; 0 problem\(s\)")
 
-    def test_every_synthetic_entry_names_a_tracked_file(self):
+    def test_every_exempt_entry_names_a_tracked_file(self):
         files = set(check_paths.repo_files(ROOT))
-        for source in check_paths.SYNTHETIC:
+        for source in check_paths.EXEMPT:
             self.assertIn(source, files)
 
 
@@ -155,16 +155,16 @@ class NegativeControls(RepoCase):
         self.assertIn("lib.rs:1: path not found: docs/gone.md", out)
         self.assertRegex(out, r"1 code paths; 1 problem\(s\)")
 
-    def test_a_stale_synthetic_entry(self):
+    def test_a_stale_exempt_entry(self):
         self.write({"tests/test_x.py": "# writes scratch.md\n"})
         self.git("add", "-A")
         problems, _ = check_paths.check(self.root, {
             "tests/test_x.py": frozenset({"scratch.md", "gone.md"}),
             "tests/test_removed.py": None,
         })
-        self.assertIn("tools/check_paths.py: SYNTHETIC token not in tests/test_x.py: gone.md",
+        self.assertIn("tools/check_paths.py: EXEMPT token not in tests/test_x.py: gone.md",
                       problems)
-        self.assertIn("tools/check_paths.py: SYNTHETIC names a missing file: "
+        self.assertIn("tools/check_paths.py: EXEMPT names a missing file: "
                       "tests/test_removed.py", problems)
         self.assertEqual(len(problems), 2, problems)
 
@@ -196,8 +196,8 @@ class AcceptedCases(RepoCase):
     def test_a_retired_file_cited_by_commit(self):
         self.assert_passes({"lib.rs": "// RUNNER_LOG (commit 0faa91b^) H16\n"})
 
-    def test_a_synthetic_file_is_skipped(self):
-        # tests/test_check_docs.py is exempt as a whole in SYNTHETIC; the table
+    def test_an_exempt_file_is_skipped(self):
+        # tests/test_check_docs.py is exempt as a whole in EXEMPT; the table
         # is not verified here, since this is not the checker's own tree.
         self.assert_passes({"tests/test_check_docs.py": "NAME = 'docs/gone.md'\n"})
 
