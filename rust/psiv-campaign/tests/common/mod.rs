@@ -42,3 +42,23 @@ pub fn pack() -> Option<&'static Pack> {
         })
         .as_ref()
 }
+
+/// A command window for fighter `actor` on the actions page, with nothing
+/// listed: tests fill in what the case needs.
+pub fn menu_window(actor: u8) -> psiv_runtime::CommandMenuView {
+    psiv_runtime::CommandMenuView {
+        strip: None,
+        list: None,
+        title: String::new(),
+        page: psiv_runtime::MenuPage::Actions,
+        rows: Vec::new(),
+        cursor: 0,
+        actor: Some(actor),
+        character: Some(actor - 1),
+        party: Vec::new(),
+        enemies: vec![6],
+        techniques: Vec::new(),
+        skills: Vec::new(),
+        targets: Vec::new(),
+    }
+}

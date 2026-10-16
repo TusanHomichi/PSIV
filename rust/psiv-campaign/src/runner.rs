@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use serde_json::{Value, json};
 
 use crate::digest::Digest;
-use crate::driver::{BattleRecord, Driver};
+use crate::driver::{BattleRecord, Driver, MemberAtEnd};
 use crate::exec::{Memory, budget_for, execute};
 use crate::halt::Halt;
 use crate::policy;
@@ -48,6 +48,9 @@ pub struct ChapterSummary {
     pub save: PathBuf,
     /// The party as the chapter ended: `Name Lv hp/max`, leader first.
     pub party: String,
+    /// The scripted (event) battles fought in the chapter, in order, each with
+    /// the party as it ended.
+    pub event_battles: Vec<BattleRecord>,
 }
 
 /// What a run produced.
@@ -227,6 +230,11 @@ fn play_chapter(
         battles: driver.battles().len() - battles_before,
         save,
         party: party_line(driver),
+        event_battles: driver.battles()[battles_before..]
+            .iter()
+            .filter(|b| b.kind == "event")
+            .cloned()
+            .collect(),
     })
 }
 
@@ -282,6 +290,7 @@ fn report_of(driver: &Driver, chapter: &Chapter, index: usize, failure: &Failure
                     json!({
                         "kind": b.kind, "id": b.id, "start_frame": b.start_frame,
                         "end_frame": b.end_frame, "meseta": b.meseta, "experience": b.experience,
+                        "party_at_end": b.party_at_end.iter().map(MemberAtEnd::to_json).collect::<Vec<_>>(),
                     })
                 })
                 .collect::<Vec<_>>()

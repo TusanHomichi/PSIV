@@ -164,7 +164,7 @@ fn command_button(
     match menu.page {
         MenuPage::Actions => {
             let row = match intent {
-                Intent::Attack => 0,
+                Intent::Attack { .. } => 0,
                 Intent::Technique { .. } => 1,
                 Intent::Skill { .. } => 2,
                 Intent::Item { .. } => 3,
@@ -217,6 +217,7 @@ fn command_button(
         }
         MenuPage::Targets(kind) => {
             let wanted = match (kind, &intent) {
+                (TargetKind::Attack, Intent::Attack { target: Some(id) }) => Some(*id),
                 (TargetKind::Attack, _) => menu.targets.first().copied(),
                 (
                     _,

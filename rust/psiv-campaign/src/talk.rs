@@ -47,14 +47,29 @@ impl Driver {
         for _ in 0..TALK_REPLANS {
             let (stand, face) = self.standing_place(npc)?;
             self.go_to(self.map(), stand)?;
-            // A wanderer can move while the party walks to it: press only when
-            // the party still stands where it faces the object, and otherwise
-            // plan again from here. Planning ticks no frame.
-            if self.standing_place(npc)? == (self.cell(), face) {
-                self.face(face)?;
-                self.press_speak()?;
-                return self.read_opened(Some(npc));
+            // A wanderer can move while the party walks to it, while it turns
+            // (turning settles the field first) and before the press lands:
+            // press only when the party still stands where it faces the
+            // object, and when the turn or the press missed because the
+            // object stepped off, plan again from here. Planning ticks no
+            // frame.
+            if self.object_moved(npc, face)? {
+                continue;
             }
+            if let Err(halt) = self.face(face) {
+                if self.object_moved(npc, face)? {
+                    continue;
+                }
+                return Err(halt);
+            }
+            self.press_speak()?;
+            let opened = self.read_opened(Some(npc));
+            if opened.is_err() && self.reached_nothing() && self.object_moved(npc, face)? {
+                // The leader's "nothing here" line is up: let it close.
+                self.settle(false)?;
+                continue;
+            }
+            return opened;
         }
         Err(Halt::new(
             HaltKind::Stuck,
@@ -116,6 +131,19 @@ impl Driver {
                     ),
                 )
             })
+    }
+
+    /// Whether object `npc` is no longer one cell ahead of the party, facing
+    /// `face`: it stepped off since the plan.
+    fn object_moved(&self, npc: usize, face: Direction) -> Res<bool> {
+        Ok(self.standing_place(npc)? != (self.cell(), face))
+    }
+
+    /// Whether the last Speak press reached nothing.
+    fn reached_nothing(&self) -> bool {
+        self.routed()
+            .iter()
+            .any(|routed| matches!(routed, Routed::NothingHere))
     }
 
     /// One Speak press at rest, with the routed windows forgotten first.

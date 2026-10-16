@@ -171,7 +171,10 @@ impl Runtime {
                         .vehicles_mut()
                         .get_mut(index.saturating_sub(1) as usize)
                 {
-                    record.current_hp = member.stats.curr_hp;
+                    // Retail's battle end copies only the skill uses back
+                    // (`Vehicle_Stats+$6A` to `Saved_Vehicle_Stats+6`,
+                    // `ps4.asm:6372-6389`); the saved HP is never written, and
+                    // the next battle starts at static HP (`loc_77AE`).
                     record.current_skill_uses = member.stats.curr_skill_uses;
                 }
             } else {

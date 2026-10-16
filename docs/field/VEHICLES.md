@@ -32,11 +32,12 @@ The retail static records at `ps4.asm:321152+` are:
 | Ice Digger | `$03C0` | 80 | 48 | 70 | 250 | 80 | 50 | `$50` | `8/4` |
 | Hydrofoil | `$02A8` | 255 | 96 | 70 | 150 | 70 | 40 | `$0C` | `4/2` |
 
-The battle member is built in `rust/psiv-core/src/vehicle.rs` from the saved
-record's HP, mask and current/max uses. Retail's entry routine reloads static
-vehicle HP in `FillBattleStats`; this project deliberately carries saved HP
-through the battle because the existing save lane promises round-trippable
-vehicle records. That is a project policy, not a claim about that retail read.
+The battle member is built in `rust/psiv-core/src/vehicle.rs`
+(`battle_member`) as retail's `loc_77AE` builds it: static HP from the table
+above at every battle's start (`ps4.asm:11295-11300`), the saved record's mask
+and current uses. The battle's end copies only the uses back
+(`ps4.asm:6372-6389`), so vehicle damage never carries into the next battle.
+`battle_member_with_hp` builds the fighter at a given HP for oracle fixtures.
 
 ## Mount and dismount
 

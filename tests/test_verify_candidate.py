@@ -4,10 +4,10 @@
 
 Each case runs `main` in a throwaway git repository with a fake step runner
 that writes what the real steps would (the route's report, log and tape, the
-certify and gate `receipt=` lines), so the order, the heavy lock, the
-expectations and the receipt are checked without building or running anything.
-`RawFlockParent` runs `main` in a child process under a raw `flock(1)` stand-in,
-because the refusal reads the real process tree.
+certify and gate `receipt=` lines, the resume check's `summary=`), so the order,
+the heavy lock, the expectations and the receipt are checked without building
+or running anything. `RawFlockParent` runs `main` in a child process under a raw
+`flock(1)` stand-in, because the refusal reads the real process tree.
 """
 import contextlib
 import io
@@ -65,6 +65,8 @@ def fake_runner(codes=None, digest="abc", chapters=("one", "two")):
             text = "".join(f"chapter {c}: 10 frames, 0 battles\n" for c in chapters)
         elif name in ("certify", "gate"):
             text = f"{name} done; receipt=build/{name}/x\n"
+        elif name == "resume":
+            text = "resume check: 9 of 9 resumes completed; summary=build/resume/x\n"
         log.write_text(text)
         return codes.get(name, 0)
 
@@ -110,15 +112,18 @@ class Candidate(RepoCase):
         runner, calls = fake_runner()
         code, out = self.run_main(["--expect-digest", "abc", "--expect-chapters", "2"], runner)
         self.assertEqual(code, vc.EXIT_OK, out)
-        self.assertEqual([name for name, _ in calls], ["build", "route", "certify", "gate"])
-        # The headless route takes no lock; the gate takes its own.
-        self.assertEqual([lock is not None for _, lock in calls], [True, False, True, False])
+        self.assertEqual([name for name, _ in calls],
+                         ["build", "route", "resume", "certify", "gate"])
+        # The headless route and resumes take no lock; the gate takes its own.
+        self.assertEqual([lock is not None for _, lock in calls],
+                         [True, False, False, True, False])
         receipt = self.receipt()
         self.assertEqual(receipt["route"]["digest"], "abc")
         self.assertEqual(receipt["route"]["chapters"], 2)
         self.assertEqual(receipt["route"]["frames"], 20)
         self.assertEqual(receipt["failures"], [])
-        self.assertEqual(receipt["steps"][3]["receipt"], "build/gate/x")
+        self.assertEqual(receipt["steps"][2]["receipt"], "build/resume/x")
+        self.assertEqual(receipt["steps"][4]["receipt"], "build/gate/x")
 
     def test_a_digest_mismatch_fails(self):
         runner, _ = fake_runner(digest="def")
@@ -130,8 +135,20 @@ class Candidate(RepoCase):
         runner, calls = fake_runner(codes={"certify": 1})
         code, out = self.run_main([], runner)
         self.assertEqual(code, vc.EXIT_FAILED, out)
-        self.assertEqual([name for name, _ in calls], ["build", "route", "certify", "gate"])
+        self.assertEqual([name for name, _ in calls],
+                         ["build", "route", "resume", "certify", "gate"])
         self.assertIn("step certify exited 1", self.receipt()["failures"])
+
+    def test_the_resume_check_runs_on_the_route_step_s_run_and_its_failure_fails(self):
+        runner, calls = fake_runner(codes={"resume": 1})
+        code, out = self.run_main([], runner)
+        self.assertEqual(code, vc.EXIT_FAILED, out)
+        self.assertEqual([name for name, _ in calls],
+                         ["build", "route", "resume", "certify", "gate"])
+        receipt = self.receipt()
+        self.assertIn("step resume exited 1", receipt["failures"])
+        route = Path(receipt["steps"][1]["log"]).parent / "route"
+        self.assertIn(f"--run {route} ", receipt["steps"][2]["command"])
 
     def test_a_dirty_tree_is_refused_before_anything_runs(self):
         Path("stray.txt").write_text("x")
