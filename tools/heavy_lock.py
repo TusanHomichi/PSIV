@@ -24,14 +24,15 @@ tools/gate.py ...`, and a gate nested under a heavy holder refuses a busy gate
 lock rather than wait.
 
 The heavy lock's classes are split by peak memory (the measured table is in
-docs/DEVELOPMENT.md, "Heavy-run lock"). `exclusive` (the gate as a whole, and
-the default of `run`) holds the lock file with LOCK_EX and runs alone. The
+docs/DEVELOPMENT.md, "Heavy-run lock"). `exclusive` (the gate as a whole, pack
+builds, which rewrite the runtime pack every run reads, and the default of
+`run`) holds the lock file with LOCK_EX and runs alone. The
 shared classes hold it with LOCK_SH plus units of a machine memory budget,
 `PSIV_LOCK_UNITS` (default `DEFAULT_LOCK_UNITS`) unit files of `UNIT_MB` each
 beside it, taken all or none, `CLASS_UNITS` each: `build` (any cargo build,
 test or clippy run: compilation is its peak), `godot` (one Godot/Xvfb run, per
-slot, plus one of `PSIV_GODOT_SLOTS` (default 3) slot files), `python` (the
-Python suite) and `pack` (a pack build). So shared holders run side by side
+slot, plus one of `PSIV_GODOT_SLOTS` (default 3) slot files) and `python` (the
+Python suite). So shared holders run side by side
 while their units fit, and an exclusive holder excludes them all. The slot cap
 and the budget must be the same for every process: each holder writes them
 into its slot and unit files, and a process that finds a held file recording
@@ -93,8 +94,7 @@ EXCLUSIVE = "exclusive"
 GODOT = "godot"
 BUILD = "build"
 PYTHON = "python"
-PACK = "pack"
-LOCK_CLASSES = (EXCLUSIVE, GODOT, BUILD, PYTHON, PACK)
+LOCK_CLASSES = (EXCLUSIVE, GODOT, BUILD, PYTHON)
 #: How /proc/locks shows a LOCK_SH holder that holds no slot or unit yet (a
 #: shared head between its flock and its grant).
 SHARED = "shared"
@@ -108,8 +108,8 @@ DEFAULT_LOCK_UNITS = 16
 #: Units each shared holder takes (godot: per slot), one rule for every class:
 #: ceil(the class's largest measured peak process-tree RSS / UNIT_MB), from
 #: the table in docs/DEVELOPMENT.md: a cold dev psiv-godot build 3,609 MB, a
-#: certify pair 418 MB, the Python suite 815 MB, a pack build 129 MB.
-CLASS_UNITS = {BUILD: 8, GODOT: 1, PYTHON: 2, PACK: 1}
+#: certify pair 418 MB, the Python suite 815 MB.
+CLASS_UNITS = {BUILD: 8, GODOT: 1, PYTHON: 2}
 #: Seconds between a waiter's looks at the queue. A heavy run lasts minutes.
 POLL_S = 0.2
 
@@ -715,7 +715,7 @@ def run_parser():
     parser.add_argument("--class", dest="lock_class", choices=LOCK_CLASSES, default=EXCLUSIVE,
                         help="exclusive (default: the whole machine), build (any cargo "
                              "build, test or clippy run), godot (one Godot/Xvfb run), "
-                             "python (the Python suite) or pack (a pack build)")
+                             "or python (the Python suite)")
     return parser
 
 

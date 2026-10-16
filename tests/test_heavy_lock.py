@@ -39,7 +39,7 @@ from unittest import mock
 from tools import heavy_lock as heavy_lock_module
 from tools import verify_candidate
 from tools.gate import GateRefused, run_gate
-from tools.heavy_lock import (BUILD, CLASS_UNITS, EXCLUSIVE, EXIT_HELD_BY_PARENT, GODOT, PACK,
+from tools.heavy_lock import (BUILD, CLASS_UNITS, EXCLUSIVE, EXIT_HELD_BY_PARENT, GODOT,
                               PYTHON,
                               GODOT_SLOTS_ENV, HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV,
                               HELD_SLOTS_ENV, PRIORITY_ENV, UNITS_ENV, gate_lock_path,
@@ -820,7 +820,9 @@ class BudgetCase(LockProcesses):
         self.assertNotIn("waiting", stderr)
 
     def test_an_exclusive_holder_excludes_every_shared_class_and_they_exclude_it(self):
-        for lock_class in (PYTHON, PACK):
+        """Pack builds and the gate take exclusive: this is what keeps a pack
+        rewrite away from every run that reads the pack."""
+        for lock_class in (BUILD, GODOT, PYTHON):
             holder = self.holder()
             waiter = self.waiter(lock_class, "--class", lock_class)
             self.assertIn(f"held by pid {holder.pid} (exclusive)", waiter.first_line)
@@ -831,14 +833,22 @@ class BudgetCase(LockProcesses):
             self.assertIn(f"held by pid {shared.pid} ({lock_class})", exclusive.first_line)
             self.release(shared)
             self.assertEqual(exclusive.wait(timeout=TIMEOUT), 0)
-        self.assertEqual(self.granted(), ["python", "exclusive-after-python", "pack",
-                                          "exclusive-after-pack"])
+        self.assertEqual(self.granted(), [step for name in (BUILD, GODOT, PYTHON)
+                                          for step in (name, f"exclusive-after-{name}")])
 
-    def test_negative_control_with_no_holder_python_and_pack_start_at_once(self):
-        for lock_class in (PYTHON, PACK):
+    def test_negative_control_with_no_holder_each_shared_class_starts_at_once(self):
+        for lock_class in (BUILD, GODOT, PYTHON):
             code, stderr = self.immediate(lock_class, "--class", lock_class)
             self.assertEqual(code, 0, stderr)
             self.assertNotIn("waiting", stderr)
+
+    def test_there_is_no_pack_class(self):
+        """A pack build rewrites the runtime pack in place, so it must exclude
+        every reader: it is exclusive, never a budgeted class."""
+        self.assertNotIn("pack", heavy_lock_module.LOCK_CLASSES)
+        code, stderr = self.immediate("pack", "--class", "pack")
+        self.assertEqual(code, 2, stderr)
+        self.assertEqual(self.granted(), [])
 
     def test_a_held_unit_under_another_budget_is_refused(self):
         self.holder("build", {UNITS_ENV: "16"})  # records 16 in its unit files

@@ -243,11 +243,10 @@ units fit:
 
 | Class | Holds | Taken by |
 | --- | --- | --- |
-| `exclusive` | the whole machine | `tools/gate.py` (both tiers, the whole run: its receipt is a timed, reproducible run), certify's extension build, any other cargo build or test that compiles `psiv-godot` (`-p psiv-godot` or `--workspace`), and `python3 tools/heavy_lock.py run -- <command>` without `--class` |
+| `exclusive` | the whole machine | `tools/gate.py` (both tiers, the whole run: its receipt is a timed, reproducible run), pack builds (`python3 -m psiv_tools pack` rewrites `runtime-pack/` in place, which every lane and suite reads), certify's extension build, any other cargo build or test that compiles `psiv-godot` (`-p psiv-godot` or `--workspace`), and `python3 tools/heavy_lock.py run -- <command>` without `--class` |
 | `build` | 8 units | every other cargo invocation (build, test or clippy, whether or not it loads the pack: compilation is its peak): `verify_candidate`'s release build and `heavy_lock.py run --class build -- cargo ...` |
 | `godot` | 1 unit and one of `PSIV_GODOT_SLOTS` slots (default 3) per run | `tools/certify.py` (one slot per `--jobs` worker), `tools/verify_native_tape.py`, `tools/verify_native_route.py`, and `heavy_lock.py run --class godot -- <command>` for any other single Godot/Xvfb run |
 | `python` | 2 units | the Python suite or part of it: `heavy_lock.py run --class python -- python3 -m unittest ...` |
-| `pack` | 1 unit | a pack build: `heavy_lock.py run --class pack -- python3 -m psiv_tools pack ...` |
 
 A cargo run that compiles `psiv-godot` fits the budget, but stays exclusive:
 it relinks the GDExtension library that a Godot run in the same checkout maps,
@@ -287,7 +286,7 @@ largest single process:
 | `cargo test -p psiv-campaign`, built | 38 s | 149 MB | 118 MB | loads | `build` |
 | the gate's workspace `cargo test`, built | 123 s | 292 MB | 199 MB | loads | `build` |
 | the Python suite (`unittest discover -s tests`, 1,648 tests) | 229 s | 815 MB | 813 MB | loads | `python` |
-| a full pack build (`python3 -m psiv_tools pack`) | 47 s | 129 MB | 130 MB | writes | `pack` |
+| a full pack build (`python3 -m psiv_tools pack`) | 47 s | 129 MB | 130 MB | writes | `exclusive` |
 | one certify pair (`--only battle-0x88 --jobs 1`, Godot and Xvfb) | 8 s | 418 MB | 340 MB | loads | `godot` |
 | one headless `psiv-campaign run` chapter (`academy`) | 0.4 s | - | 28 MB | loads | none |
 
