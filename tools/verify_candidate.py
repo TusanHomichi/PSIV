@@ -18,8 +18,8 @@ time and in this order:
    headless runs of about 40 MB, run in parallel, and take no heavy lock;
 4. `python3 tools/certify.py`, the certified pixel pairs; it takes the shared
    heavy lock (`PSIV_HEAVY_LOCK`, default the main checkout's
-   `build/continuation-heavy.lock`, from tools/heavy_lock.py) itself, a build
-   hold for its extension build and godot slots for its captures;
+   `build/continuation-heavy.lock`, from tools/heavy_lock.py) itself, an
+   exclusive hold for its extension build and godot slots for its captures;
 5. `python3 tools/gate.py --wait`, the integration gate (it waits for a
    running gate instead of refusing, and takes the heavy lock itself, in the
    exclusive class).

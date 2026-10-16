@@ -6,7 +6,7 @@ Hermetic: no Godot, no oracle host, no local game assets. They pin the shape of
 the pair table (so a pair cannot silently lose its hash or its recipe), the
 hash check that stops a regenerated or edited oracle frame from re-baselining a
 certified pair, and the parallel run: N workers really overlap, never share a
-display, take the longest pair first, and `main` takes the build class for
+display, take the longest pair first, and `main` takes the exclusive class for
 the build and N godot slots for the captures. One case starts real Xvfb
 servers when Xvfb is installed.
 """
@@ -366,7 +366,7 @@ class XvfbDisplayTest(unittest.TestCase):
 
 
 class MainLocksTest(unittest.TestCase):
-    """`main` takes the build class for the build, then one godot slot per
+    """`main` takes the exclusive class for the build, then one godot slot per
     worker for the captures, and refuses more workers than slots up front."""
 
     def setUp(self):
@@ -407,10 +407,12 @@ class MainLocksTest(unittest.TestCase):
             code = certify.main(argv)
         return code, out.getvalue()
 
-    def test_the_build_takes_the_build_class_and_the_captures_one_slot_per_worker(self):
+    def test_the_build_is_exclusive_and_the_captures_hold_one_slot_per_worker(self):
+        """Exclusive, not build: a Godot run in this checkout must not map the
+        extension while cargo relinks it."""
         code, out = self.run_main(["--only", "title", "camp-root", "battle-0x88", "--jobs", "2"])
         self.assertEqual(code, 0, out)
-        self.assertEqual(self.holds, [("build", 1), ("godot", 2)])
+        self.assertEqual(self.holds, [("exclusive", 1), ("godot", 2)])
         self.assertEqual(self.jobs, 2)
 
     def test_no_build_takes_only_the_godot_slots(self):
