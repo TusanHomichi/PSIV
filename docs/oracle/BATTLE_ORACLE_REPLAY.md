@@ -676,7 +676,7 @@ Not proved, and not claimed:
 ## What the comparator checks about status and stat effects
 
 The Motavia arc's abilities
-([`BATTLE_ORACLE_ARC.md`](BATTLE_ORACLE_ARC.md)) moved the comparator's
+([captures](../battle/ENEMY_EFFECT_ABILITIES.md#10-what-the-captures-show)) moved the comparator's
 ability branch from "a `StatusInflicted` exists for each status byte the log
 moved" to a two-way check, in `replay/compare.rs`'s `effect_divergence`:
 

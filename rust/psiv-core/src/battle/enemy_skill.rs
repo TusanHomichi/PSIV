@@ -177,7 +177,7 @@ fn heal_of(enemy: u16, skill: &EnemySkill) -> Option<Healed> {
 /// whose right-hand neighbor is a FloatMine keeps both neighbors. Two captured
 /// CommndBall formations show both outcomes: `$124` (FloatMine2 on both sides)
 /// opens with a queue of the CommndBall alone, `$125` (FloatMine on both sides)
-/// queues all three (`docs/oracle/BATTLE_ORACLE_ZELAN.md` and
+/// queues all three (`docs/battle/ENEMY_EFFECT_ABILITIES.md` section 10 and
 /// `docs/oracle/BATTLE_ORACLE_REPLAY.md`). Reading the word as the enemy's
 /// condition ids (`$0101`) cannot explain the second capture.
 pub(super) fn initialize_enemies(roster: &mut Roster) {
@@ -225,7 +225,7 @@ pub(super) fn initialize_enemies(roster: &mut Roster) {
 /// `ps4.asm:33852`) finishes with `clr.w (a4) / movea.l $7C(a4), a1 /
 /// jmp loc_14CBE` (`ps4.asm:33846-33850`) after an alarm animation
 /// (`loc_185EC`, `ps4.asm:33725`). The captured fight
-/// (`docs/oracle/BATTLE_ORACLE_ZELAN.md`) shows it: round 1's queue holds the
+/// (`docs/battle/ENEMY_EFFECT_ABILITIES.md` section 10) shows it: round 1's queue holds the
 /// CommndBall alone - `EnemyInit_Tower` (`ps4.asm:18243`) cleared both
 /// FloatMine2 beside it - and round 2 holds the one WARNING named.
 pub(super) fn resolve_fission(

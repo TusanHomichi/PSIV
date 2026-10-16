@@ -111,9 +111,10 @@ Three details the tool insists on, because each was found the hard way:
 
 ### 1.3 The policy
 
-X86 adds per-round `--party-script` commands through live cartridge menus.
-The format is in [oracle/README.md](../../oracle/README.md#party-command-scripts);
-state/RNG evidence is in [BATTLE_ORACLE_X86.md](BATTLE_ORACLE_X86.md).
+`--party-script` gives per-round commands through the live cartridge menus.
+The format is in [oracle/README.md](../../oracle/README.md#party-command-scripts),
+and what a scripted capture guarantees is
+[section 9](#9-party-command-scripts-what-a-capture-guarantees).
 The two existing `--policy` inputs below are unchanged.
 
 `attack` (the default) is tape 07's own fight input: one `C` press every 16
@@ -150,8 +151,7 @@ the knob is measured rather than assumed.
 
 **Historical limitation (2026-09-25), closed by X86.** The tool then had no
 policy commanding a technique, skill or item. The `--party-script` path now
-provides those inputs and command extraction; [X86 evidence](BATTLE_ORACLE_X86.md)
-records the closure. The original boundary was: `--policy` takes `attack` or `defend` and nothing else
+provides those inputs and command extraction (section 9). The original boundary was: `--policy` takes `attack` or `defend` and nothing else
 (`oracle/force/cli.py`; the frame patterns are `oracle/force/tape.py`'s
 `policy_steps`), so no run of this tool can open the TECH or SKILL list, pick an
 ability and pick its target - which is what a capture of the retarget rule's
@@ -780,7 +780,7 @@ that failed now capture. A formation whose probe draw happens to have the same
 enemy count gets the frame it always did.
 
 The Motavia arc's twelve captures
-([`BATTLE_ORACLE_ARC.md`](BATTLE_ORACLE_ARC.md)) were taken with it; their
+(`replay_fixtures/arc_motavia/`) were taken with it; their
 recipe is `python3 -m oracle.sweep.arc`.
 
 The durable patch's frame has a second case (2026-10-04). The slot-per-frame
@@ -828,4 +828,34 @@ What differs from `--formation`, and where the code says so:
   scripted-battle latch is raised (`battle/scripted_flag.rs`).
 
 The first captures: event 8 (the Chaos Sorcerer of the sabotage scene), event
-9 (Dark Force 1) - `docs/oracle/BATTLE_ORACLE_ZELAN.md`.
+9 (Dark Force 1), `replay_fixtures/arc_zelan/event_08_d9.json` and
+`event_09_d0.json`.
+
+## 9. Party command scripts: what a capture guarantees
+
+The format and menu rules have one owner:
+[oracle/README.md](../../oracle/README.md#party-command-scripts).
+`script.py` validates every written round against a hashed observation of the
+base tape's actual party, TP, learned lists and inventory. `script_menu.py`
+reads live cursor/list state and expands commands to joypad presses.
+`script_capture.py` uses a read-only frame hook, freezes the input tape, then
+the existing capture/verify path runs the stock self-building host.
+
+The script never writes `Character_Command_Data`, `Current_Command`, target
+cells, list scratch or menu cursors. Queue-build readback rejects another
+command, record or target instead of patching it. The probe's input prefix is
+preserved through its measured formation draw and selector restoration: pad
+changes before that draw can change HV and select another formation.
+
+Fixture extraction reads command bytes 1..5 and each selected id/target, plus
+the selected equipment/inventory copy. No-RNG party turns are observed through
+`loc_57C4` (`ps4.asm:8045-8055`), only outside menus and after the actor's `$EE`
+status exclusion (`loc_576A`, 8033-8043). List scratch aliases the actor/command
+words and must not create phantom turns. Inventory, party TP, enemy forms,
+HP, status and battle MDEF are also checked at round end.
+
+Party definitions in the replay's existing generated mirror are emitted by
+`oracle.sweep.replay_pack` from the ignored, psiv_tools-decoded runtime pack.
+The native runtime still loads that pack through `psiv-data`; no retail ability
+record is transcribed into new Rust/Python source. Party ability ids are kept
+separate from enemy ability ids when selecting mirror records.

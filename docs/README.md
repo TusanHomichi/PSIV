@@ -31,7 +31,7 @@ cartridge does. Status and active work live elsewhere, under the
 
 - Method, tapes, harness and captures: the [oracle guide](../oracle/README.md).
 - [Replaying captured battles](oracle/BATTLE_ORACLE_REPLAY.md), [forcing a formation](oracle/BATTLE_ORACLE_FORCED.md), [the divergence sweep](oracle/BATTLE_ORACLE_SWEEP.md).
-- Capture sets: [Motavia-arc status abilities](oracle/BATTLE_ORACLE_ARC.md), [Zelan-to-Kuran abilities](oracle/BATTLE_ORACLE_ZELAN.md), [scripted party commands, BARRIER and Psycho Wand](oracle/BATTLE_ORACLE_X86.md).
+- Capture sets: [what the status and stat captures show](battle/ENEMY_EFFECT_ABILITIES.md#10-what-the-captures-show).
 - [Battle measurements](battle/BATTLE_MEASUREMENTS.md), [walking and collision](field/MOVEMENT.md).
 
 ## field — field, map and travel behavior

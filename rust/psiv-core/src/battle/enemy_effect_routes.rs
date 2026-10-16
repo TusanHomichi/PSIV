@@ -4,7 +4,7 @@
 use super::{Calls, Guard, Handler, Pick, Route};
 
 /// Every `(enemy, ability)` arm this module resolves - the ones a capture saw run
-/// (`docs/oracle/BATTLE_ORACLE_ARC.md`, `docs/oracle/BATTLE_ORACLE_ZELAN.md`).
+/// (`docs/battle/ENEMY_EFFECT_ABILITIES.md` section 10).
 /// Radhin's SEALS and DEBAN (`EnemyAttack_Juza` arms at 20729 and `loc_E666`,
 /// 20747) are the same reads as Greneris's; their 116 rows are below, captured
 /// in `replay_fixtures/endgame/radhin.json` and `radhin_gisar.json`.

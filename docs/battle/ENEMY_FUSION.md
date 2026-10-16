@@ -15,7 +15,7 @@ Zio's fort (`$081`, group 29; formations `$D2`-`$D4`) is the only map that meets
 them, and the campaign runner passed it only because `run_unless_boss` escapes
 before the roll. This file is the rule the
 port now runs, from `rust/psiv-core/src/battle/enemy_fusion.rs`; the capture is
-`BATTLE_ORACLE_ARC.md`. The wider ledger is
+`replay_fixtures/arc_motavia/formation_D2_d2.json`. The wider ledger is
 [`ENEMY_EFFECT_ABILITIES.md`](ENEMY_EFFECT_ABILITIES.md).
 
 ## The chain
@@ -130,3 +130,21 @@ Three more arms reload the side through `loc_14D46`, each from a record the pack
 FISSION's effect byte is `$25`, another `AbilityEffect_None`; the reload table
 pins each arm's own effect byte. A record that seats several enemies emits one
 `EnemiesFused` per seat. Captures: [`ENEMY_ABILITIES_ENDGAME.md`](ENEMY_ABILITIES_ENDGAME.md).
+
+## The Psycho Wand reload (Zio, event 6)
+
+Event 6 loads enemy 139. The cartridge opens this encounter as an enemy ambush,
+so script round 1 is the first *player* command phase, battle round 2.
+Zio acts before Alys: Magic Barrier at f24896, Nightmare at f25225, then her
+Psycho Wand at f25473. The capture therefore observes the two scripted phases
+and the transition into normal vulnerable-form attacks, through battle round 6.
+
+`ItemObj_PsycoWand` (`ps4.asm:16305`) invokes the item effect and loads its
+object. `loc_3CF60` (79203-79215) changes only the first Zio formation entry,
+then `loc_7F22` (11908-11939) reloads the enemy records without running init.
+The phase counter is retained. Replay compares `EnemyStatsReloaded` against
+the decoded record and the observed cells, instead of requiring individual
+`StatChanged` events.
+
+The capture is `replay_fixtures/zio_event06_psycho.json`
+([what the captures show](ENEMY_EFFECT_ABILITIES.md#10-what-the-captures-show)).

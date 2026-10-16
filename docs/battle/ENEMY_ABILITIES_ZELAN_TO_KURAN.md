@@ -302,9 +302,9 @@ Who owns what (the `class` column above is §2's object-chain rule): the `damage
 rows are the damage lane's (FLAELI first); the rest of the table is this lane's, with
 the status in the last column of §2/§3 - `$14`, `$24`, `$25` and `$4B` implemented,
 `$17`'s second carrier (42 SatMinion) read, `$1D` BARRIER implemented and captured
-([BATTLE_ORACLE_X86.md](../oracle/BATTLE_ORACLE_X86.md)), and Dark Force 1's
+([captures](ENEMY_EFFECT_ABILITIES.md#10-what-the-captures-show)), and Dark Force 1's
 first action - not an ability id at all - modelled
 ([`battle/scripted_flag.rs`](../../rust/psiv-core/src/battle/scripted_flag.rs)): the
 latch's object `$818` replaces the rolled ability and requests nothing, replayed
 from the captured event battle 9. The captures, with the round each ability was seen
-in, are [`BATTLE_ORACLE_ZELAN.md`](../oracle/BATTLE_ORACLE_ZELAN.md).
+in, are [what the captures show](ENEMY_EFFECT_ABILITIES.md#10-what-the-captures-show).

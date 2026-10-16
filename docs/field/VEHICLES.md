@@ -403,7 +403,7 @@ flag that prevents the retail Piata re-entry branch, and place a Land Rover in
 clear field state. The tape itself then holds movement input, probes dismount,
 acknowledges the refusal window and leaves a frame for the mounted battle
 fixture. The full replay command and patch provenance are in
-[`oracle/README.md`](../../oracle/README.md#vehicle-tape-29).
+[tape 29, below](#tape-29-the-mounted-fixture).
 
 The pinned replay produced these checks:
 
@@ -501,3 +501,87 @@ presentation in the runtime vehicle and battle modules, and additive extraction
 in `psiv_tools/vehicle_pack.py` and `psiv_tools/battle_art_pack.py`. No scene
 runner, dialogue system, enemy animation code or save layout was changed for
 this slice. `title.rs` is touched only by the separate ERASE DATA closure.
+
+## Vehicle tapes 29 and 31
+
+Measured with the [oracle](../../oracle/README.md).
+
+### Tape 29: the mounted fixture
+
+Tape 29 uses the same fixture discipline for the mounted field and battle
+surface. The first patch starts the normal Motavia map loader and sets
+`EventFlag_PrincipalConfession` (`$FFFFF101:08`) so the retail
+`RunEvent_ReenterPiata` startup branch does not immediately redirect the test.
+The map loader settles normally. At frame 7200 the fixture then installs the
+Land Rover selector and object state at a clear Motavia anchor. At frame 7605
+it moves that anchor over raw standing collision `9`, producing the real retail
+`Cannot get off!` window. At frame 7830 the fixture enters the common
+`FieldRoutine_Battle` path while the selector is still mounted; that last write
+is an entry-surface probe, not a claim that a natural random encounter happened
+at that exact frame.
+
+```sh
+oracle/bin/psiv_oracle \
+    --core oracle/core/genesis_plus_gx_libretro.so \
+    --rom  "Phantasy Star IV (USA).md" \
+    --map  oracle/ram_map.tsv \
+    --tape oracle/tapes/29_vehicle_land_rover_probe.tape \
+    --groups core,pos,collision,vehicle,battle \
+    --out /tmp/vehicle29-mounted-battle.csv \
+    --ram-patch 7000:FFFFEC28:0000 \
+    --ram-patch 7000:FFFFEC2A:FFFF \
+    --ram-patch 7000:FFFFEF00:0008 \
+    --ram-patch 7000:FFFFF400:0000 \
+    --ram-patch 7000:FFFFECA8:FFFF \
+    --ram-patch 7000:FFFFF101:08 \
+    --ram-patch 7000:FFFFEC44:0000 \
+    --ram-patch 7000:FFFFEC46:0000 \
+    --ram-patch 7000:FFFFEC48:0124 \
+    --ram-patch 7000:FFFFEC4A:0040 \
+    --ram-patch 7200:FFFFEC20:0000 \
+    --ram-patch 7200:FFFFF43C:0001 \
+    --ram-patch 7200:FFFFC000:00B0 \
+    --ram-patch 7200:FFFFC030:0920 \
+    --ram-patch 7200:FFFFC032:0000 \
+    --ram-patch 7200:FFFFC034:0200 \
+    --ram-patch 7200:FFFFC036:0000 \
+    --ram-patch 7200:FFFFC038:0920 \
+    --ram-patch 7200:FFFFC03A:0200 \
+    --ram-patch 7605:FFFFC030:0940 \
+    --ram-patch 7605:FFFFC034:0480 \
+    --ram-patch 7605:FFFFC038:0940 \
+    --ram-patch 7605:FFFFC03A:0480 \
+    --ram-patch 7830:FFFFEC20:0014 \
+    --dump-frames 7605,7726,7830,7900 \
+    --dump-frames-dir /tmp/psiv-vehicle29-oracle
+```
+
+In the replay the mounted Land Rover advances four pixels a frame (an
+eight-frame 32-pixel step), stops at the solid boundary, reads the retail
+`Cannot get off!` window on raw collision `9` (frame 7726), and enters battle
+with the vehicle fighter selected (frames 7830-7900).
+
+A replay with the frame-7605 bad-terrain patches omitted dismounts by frame
+8125. That is the success-side check for the same retail `Event_GettingOffVehicle`
+path; the refusal and success cases are not inferred from the clone.
+
+### Tape 31: natural input
+
+`oracle/tapes/31_natural_land_rover.tape` is the natural-input companion to
+tape 29: scheduled joypad inputs from power-on, with no RAM patches, save-state
+loads or fixture writes. It reaches the Piata inn, the Zema/Igglanova sequence,
+Birth Valley B1 and the real `Cutscene_ProfHolt` completion, then returns to
+Motavia (131,130 frames; canonical log `oracle/logs/31_natural_land_rover.csv`).
+It stops before `GettingLandRover`, so tape 29 remains the fixture for mounted
+movement, dismount refusal and mounted encounters. The clone-side `psiv-replay`
+check starts at its `await_control` mark (frame 6,539).
+
+```sh
+oracle/bin/psiv_oracle \
+    --core oracle/core/genesis_plus_gx_libretro.so \
+    --rom  "Phantasy Star IV (USA).md" \
+    --map  oracle/ram_map.tsv \
+    --tape oracle/tapes/31_natural_land_rover.tape \
+    --groups core,pos,collision,party,battle,flags,chars,vehicle \
+    --out oracle/logs/31_natural_land_rover.csv
+```

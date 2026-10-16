@@ -352,7 +352,7 @@ fn floatmine2_formations_spend_fission2_and_waiting_turns_without_a_swing() {
 /// 292. `EnemyInit_Tower` clears both FloatMine2 beside it, so round 1's queue is
 /// the CommndBall alone and, with an empty slot on each side, its first action
 /// is `$14` WARNING - the refill, observed in the cartridge
-/// (`docs/oracle/BATTLE_ORACLE_ZELAN.md`). The refill brings one FloatMine2
+/// (`docs/battle/ENEMY_EFFECT_ABILITIES.md` section 10). The refill brings one FloatMine2
 /// back. The routine's other arm, `$19` Detonation, is a damage route
 /// (`enemy_damage::routes::machines`); it is not reachable in this round
 /// because the empty slots turn the roll into WARNING first.

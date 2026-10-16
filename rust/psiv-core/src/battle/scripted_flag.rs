@@ -21,7 +21,7 @@
 //! command input, and `Battle_OrderTurns` queues the enemies alone), and Dark
 //! Force 1's first action ([`first_action`]): object `$818`, a charge-up
 //! that requests nothing, replaces the rolled ability, and the captured fight
-//! (`docs/oracle/BATTLE_ORACLE_ZELAN.md`) shows the byte cleared and no slot
+//! (`docs/battle/ENEMY_EFFECT_ABILITIES.md` section 10) shows the byte cleared and no slot
 //! resolved; its later turns, with the latch down, take the ordinary ability
 //! roll into the damage registry; and Dark Force 2's ([`first_action`]):
 //! object `$83C` (`loc_3161C`, `ps4.asm:63924-64034`) decompresses the boss's
