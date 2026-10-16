@@ -240,6 +240,8 @@ class Main(unittest.TestCase):
         asked = []
         for extra in (("--rss-every", "5000", "--rss-bound-mb", "16"),
                       ("--rss-every", "5000", "--rss-warmup-frames", "100",
+                       "--rss-bound-mb", "16"),
+                      ("--rss-every", "25000", "--rss-warmup-frames", "25000",
                        "--rss-bound-mb", "16")):
             with tempfile.TemporaryDirectory() as directory, \
                     self.assertRaises(SystemExit), \

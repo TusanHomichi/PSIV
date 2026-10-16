@@ -23,11 +23,11 @@ import time
 
 try:  # imported as `tools.verify_native_tape` by tests
     from tools.heavy_lock import GODOT as GODOT_CLASS, heavy_lock_path, hold_heavy_lock
-    from tools.native_rss import rss_verdict
+    from tools.native_rss import cadence_error, rss_verdict
     from tools.repo_files import repo_files
 except ModuleNotFoundError:  # direct `python3 tools/verify_native_tape.py`
     from heavy_lock import GODOT as GODOT_CLASS, heavy_lock_path, hold_heavy_lock
-    from native_rss import rss_verdict
+    from native_rss import cadence_error, rss_verdict
     from repo_files import repo_files
 
 
@@ -260,6 +260,8 @@ def replay(args: argparse.Namespace) -> int:
         parser().error("--rss-bound-mb needs --rss-warmup-frames of at least --rss-every: "
                        "the verdict needs a warm-up sample, and memory grows while the first "
                        "maps and battles load")
+    if args.rss_bound_mb is not None and cadence_error(args.rss_every):
+        parser().error(f"--rss-every: {cadence_error(args.rss_every)}")
     checkpoints = args.checkpoints.resolve(strict=True) if args.checkpoints else None
     if args.expect_cell:
         parts = args.expect_cell.split(",")
@@ -442,13 +444,13 @@ def replay(args: argparse.Namespace) -> int:
         if "extension" in rss:
             print(f"native tape: RSS {'PASS' if rss['pass'] else 'FAIL'}; frames "
                   f"{rss['baseline_frame']}..{rss['last_frame']}: extension heap "
-                  f"+{rss['extension']['growth_mb']} MB; {rss['floor_samples']}-sample floors: "
-                  f"Godot static +{rss['godot_static']['growth_mb']} MB "
-                  f"(map {rss['godot_static']['worst_map']}), objects "
-                  f"+{rss['objects']['growth']} (map {rss['objects']['worst_map']}), drift "
-                  f"{rss['static_drift']['drift_mb']} MB; uncovered tail "
-                  f"{rss['coverage']['uncovered_tail_frames']} frames (limit "
-                  f"{rss['coverage']['tail_limit_frames']}); bounds {rss['bound_mb']} MB, "
+                  f"+{rss['extension']['growth_mb']} MB; field floors over "
+                  f"{rss['floor_frames']} frames: Godot static "
+                  f"+{rss['godot_static']['growth_mb']} MB (map {rss['godot_static']['worst_map']}), "
+                  f"objects +{rss['objects']['growth']} (map {rss['objects']['worst_map']}), drift "
+                  f"{rss['static_drift']['drift_mb']} MB and {rss['object_drift']['drift']} objects; "
+                  f"widest coverage gap {rss['coverage']['widest_gap_frames']} frames (limit "
+                  f"{rss['gap_limit_frames']}); bounds {rss['bound_mb']} MB, "
                   f"{rss['object_bound']} objects; {len(rss['maps'])} maps judged, "
                   f"{len(rss['maps_unjudged'])} unjudged; RSS {rss['rss_mb']['baseline']} -> "
                   f"{rss['rss_mb']['last']} MB")

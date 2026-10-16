@@ -226,12 +226,12 @@ class NativeTapeReceiptRss(unittest.TestCase):
                     contextlib.redirect_stdout(io.StringIO()):
                 code = verify_native_tape.main([
                     "--tape", str(tape), "--pack", str(pack), "--out", str(root / "out"),
-                    "--timeout", "60", "--rss-every", "1000", *extra])
+                    "--timeout", "60", "--rss-every", "2500", *extra])
                 receipt = json.loads((root / "out/receipt.json").read_text())
         return code, receipt
 
     def test_a_flat_run_passes_and_a_failing_rss_verdict_fails_the_receipt(self):
-        bound = ("--rss-warmup-frames", "2000", "--rss-bound-mb", "16")
+        bound = ("--rss-warmup-frames", "5000", "--rss-bound-mb", "16")
         flat = [(300, 100, 10, 1)] * 6
         code, receipt = self.run_main(flat, bound)
         self.assertEqual(code, 0, receipt.get("rss"))
@@ -242,9 +242,12 @@ class NativeTapeReceiptRss(unittest.TestCase):
         self.assertIs(receipt["rss"]["pass"], False)
         self.assertIs(receipt["pass"], False)
 
-    def test_a_bound_without_a_warmup_of_one_sample_is_refused(self):
+    def test_a_bound_without_a_warmup_sample_or_at_a_coarse_cadence_is_refused(self):
         for extra in (("--rss-bound-mb", "16"),
-                      ("--rss-warmup-frames", "999", "--rss-bound-mb", "16")):
+                      ("--rss-warmup-frames", "2499", "--rss-bound-mb", "16"),
+                      # A cadence too coarse for the floor window (FLOOR_FRAMES).
+                      ("--rss-every", "25000", "--rss-warmup-frames", "25000",
+                       "--rss-bound-mb", "16")):
             with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
                 self.run_main([(300, 100, 10, 1)] * 6, extra)
 

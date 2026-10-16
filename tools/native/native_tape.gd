@@ -264,6 +264,11 @@ func _sample_rss() -> void:
     var state = JSON.parse_string(str(game.debug_play_state()))
     if typeof(state) == TYPE_DICTIONARY and state.has("map") and state["map"] != null:
         sample["map"] = int(state["map"])
+    # What owns the session (`Session::activity`): the verdict compares Godot's
+    # memory only between samples taken on the open field (#92, #139).
+    var activity := str(game.debug_session_activity())
+    if not activity.is_empty():
+        sample["activity"] = activity
     rss_samples.append(sample)
     report["rss_samples"] = rss_samples
 

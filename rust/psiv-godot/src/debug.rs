@@ -79,6 +79,19 @@ impl Field {
     }
 
     /// Read-only observation for input-driven native regression routes.
+    /// What owns the session now (`Session::activity`), by name: the state
+    /// `tools/native/native_tape.gd` tags each memory sample with, so the #92
+    /// check compares Godot's memory between like states. Empty unless
+    /// `PSIV_DEBUG_ROUTE=1`, or before the session exists.
+    pub(super) fn activity_probe(&self) -> GString {
+        if std::env::var("PSIV_DEBUG_ROUTE").as_deref() != Ok("1") {
+            return GString::new();
+        }
+        self.session.as_ref().map_or_else(GString::new, |session| {
+            GString::from(session.activity().name())
+        })
+    }
+
     pub(super) fn play_probe(&self) -> GString {
         if std::env::var("PSIV_DEBUG_ROUTE").as_deref() != Ok("1") {
             return GString::new();

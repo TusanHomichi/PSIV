@@ -244,6 +244,11 @@ impl Field {
     }
 
     #[func]
+    fn debug_session_activity(&self) -> GString {
+        self.activity_probe()
+    }
+
+    #[func]
     fn debug_walk_map(&self) -> GString {
         self.walk_probe()
     }

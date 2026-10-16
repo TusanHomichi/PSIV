@@ -22,12 +22,14 @@ every run plays the same maps and battles whatever the host's speed; the bound
 is judged over that window of frames. Growth is not normalized per frame:
 audio is rendered on the wall clock, so a slower host renders more of it per
 frame. The verdict reads Godot's static memory, which only debug builds
-report, so the check is for debug builds (the release path is #117). The
-reference window is the campaign prefix through chapter 14:
+report, so the check is for debug builds (the release path is #117). Godot's
+memory is compared only between samples taken on the open field, so a window
+needs maps re-entered on the field throughout: the chapter-14 prefix has too
+few field samples and fails coverage. The reference window is a whole
+completed route:
 
     psiv-campaign run rust/psiv-campaign/routes/main.json \
-        --until-chapter aiedo-chaz-house --save-dir RUN --tape RUN/run.tape \
-        --report RUN/report.json
+        --save-dir RUN --tape RUN/run.tape --report RUN/report.json
     verify_native_route.py --run-dir RUN --out OUT \
         --rss-every 2500 --rss-warmup-frames 20000 --rss-bound-mb 16
 
@@ -247,6 +249,8 @@ def verify_route(args: argparse.Namespace) -> int:
             or args.rss_warmup_frames < args.rss_every):
         parser().error("--rss-bound-mb needs --rss-every and --rss-warmup-frames of at least "
                        "--rss-every")
+    if args.rss_bound_mb is not None and verify_native_tape.cadence_error(args.rss_every):
+        parser().error(f"--rss-every: {verify_native_tape.cadence_error(args.rss_every)}")
     run_dir = args.run_dir.resolve(strict=True)
     try:
         report, chapters, chapters_in_run = load_chapters(run_dir, args.until_chapter)
