@@ -81,7 +81,7 @@ all of which the interpreter must reproduce:
   the moment the fight starts too.
 
 Whether any of that is observable depends on whether the fight is escapable,
-which is a battle-lane question.
+which is a battle question.
 
 ## References
 
@@ -102,7 +102,7 @@ which is a battle-lane question.
    either. Presumably a flag-gated `MapDataManager` entry or an NPC-despawn
    extraction removes it on the next map build. Oracle claim: *after the battle,
    with `EventFlag_Igglanova` set, map `$17`'s NPC 0 is absent from the rebuilt
-   object list.* Worth confirming with the maps lane — if it is not flag-gated,
+   object list.* If it is not flag-gated,
    the boss stands there forever and something else removes it.
 2. **Battle-type semantics.** `Battle_Type = 1` for every event battle except
-   index `$1A`. Not chased; battle lane's problem.
+   index `$1A`; not read further.

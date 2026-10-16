@@ -283,8 +283,7 @@ does **not** reproduce retail page streaming after a flag changes while the
 same map remains loaded. Later dynamic chunk-definition writes, live object
 gating and whole-overworld visual parity remain separate work.
 
-## 13. A replacement pair whose one plane is the base (C8, 2026-10-07)
-
+## 13. A replacement pair whose one plane is the base
 Each retail `layout_replace` pair decompresses both layout planes, and one of
 them is the map's own blob (the pack marks that plane `identical_to_base`):
 `MapDataMan_GaruberkTowerPart2` writes FG `$1C8F7A`, Part2's own layout, beside

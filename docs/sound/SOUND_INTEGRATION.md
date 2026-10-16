@@ -57,8 +57,7 @@ The music ID table is the retail `MusicPtrs` table at `$D1C40`, with IDs
 | Sequence-internal `EB` | `commands.rs` queues the payload through the same driver priority path | Wired; register-log covered |
 | Vehicle battle `$96` `CyberneticCarnival` | Mounted `EncounterRolled` and debug vehicle-battle entry dispatch `$96` through `Field::play_sound` | Wired 2026-08-16 |
 
-### Cancelled spell cues (2026-09-15)
-
+### Cancelled spell cues
 BROSE and RIMIT now suppress their `$CB` spell cue when a late seal cancels
 execution. The core emits `TechniqueUsed` when it pays TP, followed immediately
 by `TechniqueRejected` for the same actor and technique when sealed. The sound

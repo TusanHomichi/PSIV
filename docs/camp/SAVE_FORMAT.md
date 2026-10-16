@@ -284,8 +284,7 @@ damaged/statused HP, changed equipment, skill bytes, and vehicle state.
 asserted after decode.
 
 
-## Native inherited-dungeon exit extension (2026-09-13)
-
+## Native inherited-dungeon exit extension
 Logical header $F022..$F025 carries `TR`, the live dungeon-exit byte and its
 complement. The original $ED51 value is outside the retail saved range; this
 native extension preserves the entrance through a restart inside Valley Maze

@@ -12,7 +12,7 @@ at the threshold misses. `BattleObj_RimitMain` (`ps4.asm:74245`) sets sleep bit
 3 on each target it lands on, without reducing agility. A sleeping fighter's
 turn is skipped by the queue and it wakes through the ordinary round-end
 recovery. The object starts sound `$CB`; a RIMIT that a late seal cancels has
-paid its TP and plays no cue ([cancelled spell cues](../sound/SOUND_INTEGRATION.md#cancelled-spell-cues-2026-09-15)).
+paid its TP and plays no cue ([cancelled spell cues](../sound/SOUND_INTEGRATION.md#cancelled-spell-cues)).
 Its spell artwork and exact object timing are not modelled.
 
 Tests: two core tests cover the chance boundary, the order, immunity, the

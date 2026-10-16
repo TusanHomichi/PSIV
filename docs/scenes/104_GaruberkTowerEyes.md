@@ -44,7 +44,6 @@ time the party enters it.
 frame, `$4F0` words to VRAM command `$4060` on even frames); Godot logs it with the other records it
 does not draw (`rust/psiv-godot/src/cutscene/ops.rs`).
 
-## In the route (C8)
-
+## In the route
 `garuberk-tower` touches both eyes: the first opens Part2's way to its far door, the second opens
 Part6's way to the stairs to Part7.

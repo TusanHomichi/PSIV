@@ -2,7 +2,7 @@
 
 Two arms replace the whole enemy side with a formation their object keeps
 inline: Fusion (two Zol slugs become a MetaSlug) and COMBINE (BladeRight and
-HakenLeft become TwinArms, lane A5, section "COMBINE" below). Both records are
+HakenLeft become TwinArms, section "COMBINE" below). Both records are
 the pack's (`battle/formations.json`'s `inline_formations`, decoded by
 `psiv_tools.formations`), looked up by label in `enemy_fusion.rs`; the engine
 holds no formation bytes.
@@ -113,10 +113,10 @@ extractor files the turn as an attack that resolved no slot, the comparator take
 (`replay_fixtures/air_castle/combine.json`, formation `$1BA`) is checked by the
 enemy the reload seats. The run byte changes there: `$1BA`'s `$3C` becomes the
 record's 0. In the Air Castle no formation pairs the two, so COMBINE does not
-fire on that stretch; the port's arms fired for a BladeRight with no partner until
-lane A5 ([`ENEMY_ABILITIES_AIR_CASTLE.md`](ENEMY_ABILITIES_AIR_CASTLE.md)).
+fire on that stretch, and a BladeRight with no partner does not fire
+([`ENEMY_ABILITIES_AIR_CASTLE.md`](ENEMY_ABILITIES_AIR_CASTLE.md)).
 
-## The endgame reloads (lane A6)
+## The endgame reloads
 
 Three more arms reload the side through `loc_14D46`, each from a record the pack's
 `inline_formations` carries (`psiv_tools.formations.INLINE_FORMATIONS`):

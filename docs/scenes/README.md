@@ -134,8 +134,7 @@ tables; the clone's hack-only bodies are not evidence.
 | `Event_AngerTowerExitTop` | `$6A` | [86](86_AngerTowerExitTop.md) | `$072262..$0722D1` |
 | `Cutscene_ProfoundDarkness` | `$8020` | [87](87_ProfoundDarkness.md) | `$078D30..$078F3D` |
 
-## Census-driven scenes (S7)
-
+## Census-driven scenes
 Found by runner halts and then closed as a class by the
 [event census](EVENT_COVERAGE.md): a trigger or dialogue the cartridge fires
 and the port never transcribed.
@@ -161,8 +160,7 @@ and the port never transcribed.
 | `Event_GaruberkTwEyeAction1` | `$39` | [104](104_GaruberkTowerEyes.md) | `$06F8A4..$06F995` |
 | `Event_GaruberkTwEyeAction2` | `$3A` | [104](104_GaruberkTowerEyes.md) | `$06F996..$06FA33` |
 
-## Vahal Fort and Weapon Plant (S9)
-
+## Vahal Fort and Weapon Plant
 The nineteen events of issue #82, transcribed ahead of the route (it does not
 reach the fort yet, so these are state tests, not campaign evidence). The story
 scenes are [110](110_VahalFortStory.md), the two chest events
@@ -394,8 +392,7 @@ after it has rebuilt and recast the new map. NPC `ActorMoveStarted` and
 `ActorArrived` edges update `FieldMap`, which is the authoritative landing
 state used by the comparator.
 
-### Vahal Fort and Weapon Plant extensions (S9)
-
+### Vahal Fort and Weapon Plant extensions
 Six ops, each cited, tested (`scene_runner/mechanics_tests.rs`) and used by the
 [Vahal Fort and Weapon Plant records](../field/PLATFORMS_AND_BELTS.md):
 

@@ -26,8 +26,7 @@ reorders Canceller, then writes Ice Digger into a free slot. The runtime scene
 uses the existing inventory ops and the arc test asserts the resulting `$97`.
 
 
-## In the route (C6)
-
+## In the route
 `RunEvent_DarkForce1Defeated` (`$32`) is flags-only (`$83` set, `$89` clear), so
 it fires on the first field frame after the battle's victory page. The scene's
 `LoadMap` leaves the party on **Zelan F1 `$18E` at (31,17)** with `$89` set, the

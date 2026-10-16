@@ -93,13 +93,7 @@ Findings:
   campaign records, not of the Dialogue2 class; tracked by
   [#71](https://github.com/TusanHomichi/PSIV/issues/71).
 
-## Open-gap issue handoff (2026-10-03)
-
-An audit at `82eed831af88234feec8ab8b9322a9d2624de91f` inspected all 44
-open and closed GitHub issues. Open [#71](https://github.com/TusanHomichi/PSIV/issues/71)
-already names all four missing callers and the party-move discrepancy; no
-duplicate issue was filed. Its sibling-dialogue census work remains outside
-this closeout.
+## The uncovered callers' spans
 
 The local image matches the [accepted US ROM hash](../DEVELOPMENT.md#prepare-the-local-pack).
 `psiv_tools/newgame.py::event_ptrs` resolves `EventPtrs` to `$05A2B4` from the

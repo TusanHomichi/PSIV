@@ -843,7 +843,7 @@ docs/source-notes/disassembly-discrepancies.md.
 
 The worked numerical example is preserved in
 [`BATTLE_ATTACK_EXAMPLE.md`](BATTLE_ATTACK_EXAMPLE.md). The current
-slice keeps the presentation boundary below as the main cross-lane contract.
+slice keeps the presentation boundary below as the contract between rules and presentation.
 
 ---
 
@@ -915,8 +915,7 @@ neighbourhood. `EnemySpriteMappingsOffs` and `Battle_EnemySpritesJmpTbl`
 `Enemy_Sprites` at `$FFFFEA00` (16 slots); the decoded renderer applies those
 pieces as dynamic tile replacements over the body.
 
-### Enemy overlay decode (2026-08-15)
-
+### Enemy overlay decode
 The retail table is `EnemySpriteMappingsOffs` at **`0x010FCE`**, 153
 self-relative words. Its data starts at `0x011100`. Each selected block is:
 
