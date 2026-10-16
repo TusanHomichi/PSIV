@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from .. import png
+from ..decode_cache import scoped
 from ..gfx import NEMESIS_ART, compose_sheet, decode_tiles, decompress_art
 from ..text import extract_dialogue
 from .art import (
@@ -48,6 +49,7 @@ from .window import (
     window_json,
 )
 
+@scoped
 def emit_dialogue(rom_bytes: bytes, out_dir: str | Path) -> dict[str, Any]:
     """Emit the dialogue half of the runtime pack; return the manifest fragment.
 

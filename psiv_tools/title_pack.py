@@ -18,6 +18,7 @@ import struct
 import zlib
 
 from . import png
+from .decode_cache import scoped
 from .gfx import decode_palette, palette_rgb
 from .planes import (
     MAPPINGS,
@@ -304,6 +305,7 @@ def _background(
     }, pieces, transfer
 
 
+@scoped
 def emit_title(rom_bytes: bytes, out_dir: str | Path) -> dict[str, Any]:
     """Emit title art, its composed background, and numeric provenance."""
     root = Path(out_dir)

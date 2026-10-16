@@ -12,6 +12,7 @@ existing enemy record shape remains the 48-byte ``Battle_EnemyData`` projection.
 
 from __future__ import annotations
 
+import copy
 import hashlib
 from collections import Counter
 from typing import Any
@@ -24,6 +25,7 @@ from .battle_animation_objects import object_evidence as decode_object_evidence
 from .battle_animation_objects import plc_art as decode_plc_art
 from .battle_animation_objects import plc_loads as decode_plc_loads
 from .core import EXPECTED_SHA256, EXPECTED_SIZE, be16, be32
+from .decode_cache import memoized
 from .sound_defs import SFX_NAMES
 from .symbols import ENEMY_SYMBOLS
 
@@ -656,7 +658,19 @@ def _walk_animation(
 
 
 def build_enemy_animations(rom: bytes, display: dict[int, str] | None = None) -> dict[str, Any]:
-    """Decode the retail enemy attack dispatch and battle-object records."""
+    """Decode the retail enemy attack dispatch and battle-object records.
+
+    `display` only names the enemies, so a build that asks twice decodes once.
+    """
+    payload = _decode_enemy_animations(rom)
+    display = display or {}
+    for animation in payload["animations"]:
+        animation["display_name"] = display.get(animation["enemy_id"])
+    return payload
+
+
+@memoized(copy=copy.deepcopy)
+def _decode_enemy_animations(rom: bytes) -> dict[str, Any]:
     _check_retail_rom(rom)
     from .battle_animation_receipts import apply_oracle_receipt
 
@@ -675,7 +689,6 @@ def build_enemy_animations(rom: bytes, display: dict[int, str] | None = None) ->
     art_banks: dict[int, int] = {}
     for record in art_records:
         art_banks[record["id"]] = len(build_tile_bank(rom, record, art_bounds)[0])
-    display = display or {}
     animations: list[dict[str, Any]] = []
 
     for enemy_id, routine in enumerate(routines):
@@ -806,7 +819,7 @@ def build_enemy_animations(rom: bytes, display: dict[int, str] | None = None) ->
         animation = {
             "enemy_id": enemy_id,
             "symbol": ENEMY_SYMBOLS[enemy_id],
-            "display_name": display.get(enemy_id),
+            "display_name": None,
             "routine_offset": _hex(routine),
             "root_object_ids": root_ids,
             "object_ids": objects,

@@ -94,6 +94,8 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
+from .decode_cache import memoized
+
 WINDOW_BITS = 0x10  # moveq #$10, d6
 
 # The two flags this decompressor supports, as they appear in the header byte
@@ -273,6 +275,7 @@ def _fetch_inline_value(stream: _Stream, header: EnigmaHeader) -> int:
     return value
 
 
+@memoized(copy=lambda result: (list(result[0]), result[1]))
 def decompress(
     data: bytes,
     offset: int = 0,

@@ -20,8 +20,8 @@ from __future__ import annotations
 
 from typing import Any, Sequence
 
+from .chunk_draw import CHUNK_WORDS, tile_index, vdp_word
 from .layouts import (
-    CHUNK_WORDS,
     MAX_CHUNKS,
     PLANE_BG,
     PLANE_FG,
@@ -33,8 +33,6 @@ from .layouts import (
     decode_collision,
     decode_layout,
     decode_tilesets,
-    tile_index,
-    vdp_word,
 )
 from .overworld import Overworld, decode_overworld, is_overworld
 from .warps import PackError

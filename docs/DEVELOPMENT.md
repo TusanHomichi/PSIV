@@ -152,6 +152,9 @@ capped at 2.3 GHz, 2026-10-15), against 1150 s before the change; the gate's
 `cargo test` stage, compile included, took 158.7 s on battery under the same
 cap. Tests requiring local assets may fail or explicitly skip when
 their fixtures are absent; report that distinction with the result.
+`build_pack` replays the map-independent sections an earlier build in the same
+process emitted from the same ROM; a test that patches an emitter's dependency,
+or compares two builds, builds inside `psiv_tools.pack_sections.fresh()`.
 
 The per-commit fast tier is `python3 tools/gate.py --fast`. It runs this list,
 in order, with the same receipt format (`tier: "fast"`, directory suffix

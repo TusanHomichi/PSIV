@@ -37,6 +37,8 @@ from __future__ import annotations
 
 from typing import NamedTuple
 
+from .decode_cache import memoized
+
 TILE_SIZE = 32  # 8 rows x one longword
 ROWS_PER_TILE = 8
 INLINE_MARKER = 0xFC  # cmpi.b #$FC,d1 -- six leading 1 bits
@@ -165,6 +167,7 @@ def build_code_table(data: bytes, offset: int) -> tuple[dict[int, tuple[int, int
                 table[base + i] = entry
 
 
+@memoized()
 def decompress(data: bytes, offset: int = 0) -> tuple[bytes, int]:
     """Decompress the Nemesis stream at `offset`.
 

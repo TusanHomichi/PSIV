@@ -123,6 +123,7 @@ from .battle_enemy_overlays import (
     OVERLAY_ART_NAME,
     emit_enemy_overlays,
 )
+from .decode_cache import scoped
 from .enigma import decompress as enigma_decompress
 from .gfx import (
     BATTLE_BG_ART_SYMBOLS,
@@ -844,6 +845,7 @@ def build_command_ui(rom: bytes) -> dict[str, Any]:
     }
 
 
+@scoped
 def emit_battle_art(rom: bytes, out_dir: str | Path, version: int) -> dict[str, Any]:
     """Write `battle/art/` and return the `art` subtree of the battle manifest."""
     from .battle_animations import emit_enemy_attack_art
