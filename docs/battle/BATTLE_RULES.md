@@ -60,6 +60,8 @@ animation objects.
 
 ## 2. The two RNGs — and the landmine
 
+The per-frame call schedule is measured in [BATTLE_MEASUREMENTS.md](BATTLE_MEASUREMENTS.md#rng).
+
 Two generators, one seed word. **This is the single biggest fidelity risk in
 the whole project.**
 
@@ -140,6 +142,8 @@ identical, not stream-identical". The oracle harness can still verify the
 ---
 
 ## 3. Turn order — `Battle_OrderTurns`, `ps4.asm:7723`
+
+Measured: [turn order versus agility](BATTLE_MEASUREMENTS.md#turn-order-versus-agility).
 
 `Battle_Turn_Order` at `$FFFFEFB0`, 9 entries × 4 bytes = `[fighter id .w][agility .w]`.
 
@@ -614,6 +618,8 @@ time. Multi-target enemy abilities override it to `$FFFF` (all) at execution.
 
 ## 8. Commands, escape, defend, macros
 
+Measured: [escape](BATTLE_MEASUREMENTS.md#escape) and [DEFEND](BATTLE_MEASUREMENTS.md#defend-and-the-physical_prop-clobber).
+
 `Battle_Command_Data` at `$FFFF410A`, 4 bytes per fighter:
 `[command][ability or item id][target index .w]`.
 
@@ -731,6 +737,8 @@ enemy count, bytes 5–6 group bitmasks, byte 7+ `(enemy id, position)` pairs,
 ---
 
 ## 10. Rewards and drops
+
+Measured: [rewards and the EXP divisor](BATTLE_MEASUREMENTS.md#rewards-and-the-exp-divisor).
 
 **Accumulation** — every enemy death (`loc_2D960`, retail `$0002D960`) adds the
 enemy record's `$60` (experience) to `$FFFF41CE` and `$62` (meseta) to

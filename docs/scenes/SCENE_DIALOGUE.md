@@ -167,3 +167,159 @@ differences are recorded in the node's receipt: the debug `PSIV_DEBUG_RETAIL_PAC
 harness now dismisses a page with a synthetic `ButtonSpeak` press in the pad
 (so the accelerated-frame cadence applies on that frame), and the
 field-status window's text is built in the shell and opened by the runtime.
+
+## Measured on the cartridge
+
+Measured on the cartridge with the [oracle](../../oracle/README.md); frame numbers cite marks in
+the named tape's log, which `oracle/verify.sh` regenerates.
+
+### Talk range: facing only, not beside
+
+**Settled, and it contradicts the remembered behaviour.**
+`Interaction_ChkObjects` (`ps4.asm:118729`) builds a probe point from the
+player's position projected to its step destination, plus a one-cell offset in
+the facing direction from `FieldObj_MovementsTbl`, then accepts an object only
+if both `|dx|` and `|dy|` are `<= $80000`. In the 16.16 fixed point these
+positions use, `$80000` is **8.0 pixels**. The accept box is therefore 16×16
+px — exactly one cell — centred one cell ahead of facing.
+
+An NPC directly beside the player is 16 px off-axis, which fails the test.
+**Standing beside an NPC and pressing Speak cannot talk to it.**  Beside-talk
+is not supported by the cartridge.
+
+Empirically confirmed on the facing side: Speak while facing an adjacent NPC
+opens the dialogue (`logs/03_npc_talk.csv`, mark `speak`). The beside-but-not-facing press is tape 11, below.
+
+### Dialogue timing
+
+From `logs/03_npc_talk.csv`:
+
+- Speak pressed f7185 → `Game_Mode_Routine` = 8 (`FieldRoutine_Interaction`).
+- f7187 `Window_Render_Mode` = `$0600` — the open animation starts.
+- f7196 `Windows_Opened_Num` = 1, render mode back to 0. **Window open takes
+  9 frames; 11 frames from press to open.**
+- The window then stays open with no input for the full 300-frame observation
+  window. **The final page does not auto-close; it requires a press.**
+- A press closes it over 9 frames (f7793 → f7802) and control returns at
+  f7803.
+
+**Text draws progressively at one character every 3 frames.** Sampling
+`Win_Tile_Buffer` (`$FFFFE220`, `constants:2106`) every frame during the
+dialogue shows writes at f7197, 7200, 7203, 7206, 7209, … in a strict 3-frame
+cadence, with occasional 6-frame gaps (consistent with `$F9` pauses or line
+breaks). At 60 Hz that is **20 characters per second**.
+
+Retail is a 3-frame-per-character typewriter.
+
+### A window opening is not proof of a talk
+
+`Interaction_ContinueChecks` ends with
+`beq.w Interaction_DoPlayerNothingMsg` — **pressing Speak at nothing opens a
+window too**, carrying the player's "nothing here" line. `Windows_Opened_Num`
+going 0 to 1 therefore proves only that *some* window opened.
+
+That matters for anything reported off this harness: `Windows_Opened_Num` is safe as a talk indicator for a *positive* test (the
+facing press really did open NPC dialogue), but it cannot support a negative
+test. **The sound discriminator is `Text_Buffer` ($FFFF7000):** capture a
+Speak in open ground as the "nothing here" reference and compare the bytes.
+
+### Beside-press: disproven on hardware
+
+Tape 11. The leader parks at cell (17,7) facing RIGHT, held there by the wall
+at (18,7), with a map $13 NPC at rest at (16,7) — orthogonally adjacent,
+directly behind the facing. An earlier Speak in open corridor supplies the
+reference message.
+
+**The beside press draws byte-identical text to the open-corridor press.** It
+took the "nothing here" path; the adjacent NPC was never reached. Combined with
+the facing press opening real dialogue, **talk range is facing-only**, with hardware evidence rather than only a
+reading of the code.
+
+Staging it has one trap: **the NPCs wander, so a test staged from pack spawn
+cells is invalid by the time the leader arrives.** The tape's wait is therefore *measured* — the run is first
+made with the leader parked, the log scanned for a frame where an at-rest
+object is orthogonally adjacent but outside the faced cell, and the press
+placed at that offset. A test that skips this fails silently: the NPC moves into
+the faced cell and the "beside" test becomes a facing test.
+
+### Accept press during the window-open animation
+
+Sweeping the press offset across the animation (`python3 -m oracle.scripts.anim_sweep`) and then
+holding the button (tape 15) shows what is really happening, and it is
+simpler.
+
+Speak lands at f7185, `Window_Render_Mode` goes `$0600` at f7187, and the
+window opens at f7196. Draws are counted as `Text_Buffer` writes, relative to
+the open frame:
+
+| press offset (from Speak) | inside animation | extra draws vs control |
+|---|---|---|
+| +4 … +7 | yes | **0 — identical to control** |
+| +8, +9 | yes | +1 |
+| +10, +11 | yes | +2 |
+| +12 and later | no (window already open) | +1 … +2 |
+
+And holding the button rather than tapping it, over a 40-frame hold well after
+the window is open:
+
+| | draws in the 40-frame span | gap between draws |
+|---|---|---|
+| control | 13 | 3 frames |
+| holding Speak | **39** | **1 frame** |
+
+**The mechanic is hold-to-accelerate, not a buffered page advance.** Text
+normally draws one character every 3 frames; **while Speak is held it draws one
+character per frame**, a 3x speed-up, for exactly as long as the button is
+down. The "extra draws" in the offset table are just a 4-frame hold overlapping
+the draw schedule.
+
+Two consequences for the renderer:
+
+- **A press landing in the first half of the open animation (Speak+4 to
+  Speak+7) really is dropped** — those offsets reproduce the control draw
+  sequence exactly. So "swallowed" is right for that window.
+- What we are missing is not press buffering but **hold-to-fast-forward while
+  text is drawing**. Implementing a queued page-advance would be wrong.
+
+### Holding Speak across a page boundary
+
+The NPC line in tape 03 is **two pages**. With no input, page 1 draws 58
+characters at one per 3 frames and finishes at f7371; the window then sits
+indefinitely. Three runs settle what a held button does (tape 16, measured on
+`Text_Buffer` writes):
+
+| run | page 1 draws | page 1 cadence | page 2 |
+|---|---|---|---|
+| no input | 58, ends f7371 | 3 frames | never starts |
+| **hold Speak across the boundary** | 58, ends f7257 | **1 frame** | **never starts** — dead stop while still held |
+| press after page 1 completes, keep holding | 58, ends f7371 | 3 frames | **55 draws from f7395, 1-frame cadence** |
+
+**Advancing a finished page needs a fresh press; a held button will not do it.**
+Holding drew page 1 three times faster and then stopped at the boundary for the
+remaining ~1100 frames with the button still down.
+
+**But the next page does start accelerated if the button is still held.** After
+a fresh press advances the page, page 2 drew all 55 of its characters at one per
+frame while the hold continued.
+
+So the two behaviours are independent and should be implemented as such:
+
+- **page advance is edge-triggered** — a press, not a level;
+- **draw acceleration is level-driven** — it applies to whatever page is
+  currently drawing, including a page that has just been advanced into.
+
+A single 24-frame gap separates the pages when advanced by a tap (page 1 ends
+f7371, the tap lands f7393, page 2's first draw is f7395), so the advance costs
+about two frames beyond the press itself.
+
+### Still unmeasured
+
+- **No page-index RAM field.** Tape 16 pins the page *boundary* behaviour, but
+  only by watching `Text_Buffer` writes. Nothing in the RAM map distinguishes
+  page N from page N+1, so a tape cannot assert "we are on page 2" directly.
+- **`$F9` pause length.** The 3-frame draw cadence has 6-frame gaps,
+  consistent with an explicit pause control code, but the pause's own duration
+  has not been measured against the dialogue data.
+- **Scroll-arrow timing.** `Text_Scroll_Arrow` ($FFFFC2C0) is mapped and its
+  `offscreen_flag` logged, but that byte reads 0 for the whole dialogue, so it
+  does not show the arrow's visibility; the right field has not been found.

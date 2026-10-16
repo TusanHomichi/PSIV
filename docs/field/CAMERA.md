@@ -280,6 +280,44 @@ at an alignment frame the retail camera holds whatever the opening scene left,
 and the engine cannot execute that scene. `psiv-replay --camera <x,y>` exists to
 supply it.
 
+## Measured on the cartridge
+
+Measured on the cartridge with the [oracle](../../oracle/README.md); frame numbers cite marks in
+the named tape's log, which `oracle/verify.sh` regenerates.
+
+### The camera columns, on map $13
+
+The oracle's `camera` group covers
+`Camera_X/Y_Pos_FG` ($FFFFEF94/$FFFFEF90) and `_BG` ($FFFFEF9C/$FFFFEF98) as
+16.16 longwords plus their high-word pixel views, the four
+`Camera_*_Step_Counter_*` longwords ($FFFFEC50-$FFFFEC5C), and
+`Map_Row/Column_Size_FG/BG` ($FFFFEC64-$FFFFEC67). Per object, the
+`offscreen_flag` byte (+$12) joins the existing `render_flags`. The leader's
+`x_step_constant` / `y_step_constant` (+$20/+$24) are in the `pos` group.
+
+Caveat on two of them: **`$FFFFEC24` and `$FFFFEC25` are not named in
+`ps4.constants.asm`** — the block runs straight from `Game_Mode_Routine`
+($EC20) to `Routine_Exit_Flags` ($EC27). They are logged positionally as
+`gate_ec24` / `gate_ec25`; the "plane select" and "FG camera driver enable"
+readings come from reading the code and are not corroborated by the constants file.
+On tape 02 both go `00 -> 01` at f1209 and never change again, so on this tape
+they are not a dynamic gate.
+
+From the tape-02 re-log, over the 1563 field-control frames:
+
+- **The camera is rigidly locked to the leader.** `leader - camera_FG` is
+  `(152, 88)` on *every* field-control frame — exactly one distinct offset, no
+  lag, no easing, no deadzone.
+- **FG and BG cameras are identical** on all 1563 of those frames. The 679
+  frames where they differ are all in the intro cutscene, so there is no
+  parallax to model for ordinary field play on this map.
+- **Camera step counters take three values only:** 0, `$00020000` (+2.0) and
+  `$FFFE0000` (-2.0) — the same 2 px/frame the characters move at.
+
+The `(152, 88)` leader lock and the identical FG/BG cameras are measured on
+one interior map only. Overworld maps are tori with paged scrolling and may
+behave differently; the columns are logged, but no tape covers one yet.
+
 ## Remaining camera debt
 
 The three accumulated camera debts are now represented end to end:

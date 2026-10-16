@@ -461,74 +461,17 @@ python3 -m oracle.force --formation 0x5E --out build/forced/helex \
     --require-ability 2
 python3 -m oracle.force --formation 0x53 --vehicle 2 \
     --out build/forced/icedigger
-```
-
-Its runs log `core,battle,bhit,enemy,chars,rng,vehicle,bcmd`
-(`oracle/force/runs.py`'s `GROUPS`) - the vehicle group because a vehicle
-battle's party side is built from `Vehicle_Stats` and its saved record, which a
-fixture's `vehicle` section reads, and `bcmd` (`Character_Command_Data`,
-`constants:2005-2011`) because the command a member chose is the only record of
-what a swing was *aimed* at: the cartridge moves `Current_Target_Index` off a
-commanded enemy that has fallen (`ps4.asm:8345-8409`), so the cell is what tells
-a swing that kept its aim from one the retarget scan re-aimed. A capture carries
-`current_target`/`current_command` (`$FFFF4144`/`$FFFF4146`) and
-`cmd0_target`..`cmd4_target` with it; the extractor records the command's target
-per party action (`assembly.command_entry`) and no target at all for a capture
-taken before the group existed. It takes a base tape
-whose field prefix walks into an encounter (tape 07's, by default), cuts it at
-the frame that encounter fires on, and drives the fight with a fixed input
-policy (`attack`: one `C` press every 16 frames, tape 07's
-own; `defend` is tape 14's menu walk). Two things decide which formation the
-load builds, and the tool forces both: the *group* (the map's encounter byte, a
-position-grid cell, or a vehicle table) with one patch a frame after the
-encounter fires, and the *entry* within the group's 32 formation ids by
-patching `RNG_Seed`'s high word - one frame before the formation draw - to the
-value that makes `UpdateRNGSeed2`'s roll land where it should.
-
-`--vehicle N` (1 Land Rover, 2 Ice Digger, 3 Hydrofoil) chooses which
-`VehicleData` record the forced battle loads, for a formation that sits in one
-of the four vehicle tables (groups 8, 9, 10, 13). Values outside the table's
-three records are refused, and so is a vehicle the table's region cannot seat:
-the Dezolis table (group `$D`, `Field_Map_Index != 0`) is the Ice Digger's -
-no item action boards a vehicle outside Motavia - while the Motavia tables take
-any of the three. Without the flag the table's own region decides (Land Rover on
-Motavia, Ice Digger on Dezolis), which is how the three older captures were
-taken. `oracle/force/selectors.py` carries the rule with its citations.
-
-`--event N` forces an *event battle* instead of a formation, for the bosses and
-scripted fights no encounter table reaches (`--formation` and `--event` are
-exclusive, one is required). `N` is the `Event_Battle_Index` of
-`generated/formations.json`'s `boss_formations`, which `Battle_SetupEnemyData`
-tests before it reads any group, grid or vehicle table
-(`ps4.asm:11813-11819`), so the tool writes that one byte (`$FFFFECFC`, one
-frame after the encounter fires, held for the battle - the scripted scenes leave
-it set the same way) and does no draw measurement and no seed patch. The probe
-run is the capture's own model: it must show exactly the boss formation the pack
-lists for `N`, or the capture is refused. The report carries `event_battle`
-(`null` for a formation capture) and the output files are named `event08` style:
-
-```sh
 python3 -m oracle.force --event 8 --out build/forced/event8 --durable \
     --max-rounds 3 --delay 9 --require-ability 0x4B
 ```
 
-`oracle/force/selectors.py`'s `event_selector` carries the rule with its
-citations; `tests/test_oracle_force_event.py` pins it. The Zelan-to-Kuran
-fixtures (`python3 -m oracle.sweep.zelan`, ledger
-[`BATTLE_ORACLE_ZELAN.md`](../docs/oracle/BATTLE_ORACLE_ZELAN.md)) use it for
-events 8 and 9; `oracle.sweep.air_castle` (14, 16, 17) and `oracle.sweep.endgame` (10-26), via `oracle.sweep.forced_cases`, whose fixtures add
-`oracle.fixture --event-battle N` ([replay ledger](../docs/oracle/BATTLE_ORACLE_REPLAY.md#reloads-and-event-battles)).
-
-Five oracle runs per capture: a scout, a probe that measures the draw, an
-untrimmed preview, the trimmed capture, and a re-run to byte-compare it, with
-`python3 -m oracle.rng_trace check` on the result. The output directory holds
-the composed tape, the `--ram-patch` list, every run's log and trace, and a
-`report.json` with the window, the outcome, the vehicle forced, the ability ids
-observed and every sha256. [`BATTLE_ORACLE_FORCED.md`](../docs/oracle/BATTLE_ORACLE_FORCED.md)
-is the ledger: the mechanism with its citations, four captures (Helex/FLAME
-BOLT, Fanbite/SPIRAL BLD, Desrt Leach/SAND STORM under the Land Rover and again
-under the Ice Digger), the Ice Digger's two-pass swing divergence and their
-limits.
+It cuts a base tape at the frame its encounter fires, forces the group with one
+patch and the entry within the group by patching `RNG_Seed`'s high word before
+the draw, and drives the fight with a fixed input policy. `--vehicle N` picks
+the vehicle record and `--event N` forces an event battle instead of a
+formation. [`BATTLE_ORACLE_FORCED.md`](../docs/oracle/BATTLE_ORACLE_FORCED.md)
+owns the mechanism with its citations, every option, the output directory, the
+captures and what they prove.
 
 ### Party command scripts
 
@@ -634,35 +577,13 @@ its concrete item copy, inventory and end-of-round HP/TP/form/MDEF state;
 
 ### Sweeping a region: `python3 -m oracle.sweep`
 
-`python3 -m oracle.force` captures one formation; `python3 -m oracle.sweep`
-runs it over a region's whole list - the distinct formation ids in
-`generated/formation_indexes.json` groups 0-7 (Motavia on foot) and 8, 9, 10
-(the vehicle tables), computed from the pack and committed as
-`oracle/sweep/motavia_formations.json` - and extracts a fixture for each:
-
-```sh
-python3 -m oracle.sweep --out build/lane-evidence/sweep --jobs 3
-```
-
-Three captures run at once (the machine's memory cap), a formation that fails
-is recorded rather than fatal, and re-running the command resumes: a formation
-whose fixture is on disk is skipped. `--reextract DIR` is the other half on its
-own - no emulator, no tape: every `formation_XX/` under a sweep's working
-directory that holds a capture is extracted again, with the numbers its own
-`report.json` recorded, into `--fixtures`. That is how a change in the
-extractor's reading reaches a sweep that has already been taken
-(`python3 -m oracle.sweep --reextract build/lane-evidence/sweep`).
-
-Every capture takes `--durable` (the party's HP cells patched to 999 so a
-level-1 tape party survives long enough to show a strong formation's later
-actions; `oracle/force/durable.py`) and
-`--max-rounds 5` (stop at round 5's end, with the fixture's outcome saying
-`truncated` and how many rounds it kept; `oracle/fixture/assembly.py`). The
-record is `<out>/sweep_motavia.json` - per formation the group, the selector,
-the capture's hashes, the outcome, the rounds, the abilities observed and the
-fixture's hash, plus a census - and
-[`BATTLE_ORACLE_SWEEP.md`](../docs/oracle/BATTLE_ORACLE_SWEEP.md) is what came out of
-this sweep: coverage, and every divergence the manifest holds, clustered.
+`python3 -m oracle.sweep` runs `oracle.force` over a region's whole formation
+list (committed as `oracle/sweep/motavia_formations.json`) and extracts a
+fixture for each, three captures at a time, resuming where it stopped;
+`--reextract DIR` re-extracts an existing sweep without the emulator.
+[`BATTLE_ORACLE_SWEEP.md`](../docs/oracle/BATTLE_ORACLE_SWEEP.md) owns the
+method (`--durable`, `--max-rounds`), the coverage and every divergence the
+sweep found.
 
 ### Deterministic scene fixtures
 
@@ -785,6 +706,24 @@ oracle/bin/psiv_oracle \
     --out oracle/logs/31_natural_land_rover.csv
 ```
 
+### Determinism
+
+Tape A run twice from power-on produces **byte-identical** logs. `verify.sh`
+prints the hash on every run and fails if the two differ; the hash itself is
+deliberately not pinned in this document, because it changes whenever the RAM
+map gains a column and a stale value here would look like a regression.
+
+Core: **Genesis Plus GX v1.7.4**, libretro build, commit
+`2d7131c5efa606f649d36e1685a8ca47c24f31b3`, region NTSC.
+
+Core options are pinned explicitly in `host/core_options.c` and **validated
+against the core's declared value list at startup, aborting on a mismatch**.
+That guard exists because a wrong value is otherwise silent: Genesis Plus GX
+parses its overclock option with `atoi()`, so an invalid `"1x"` became a 1%
+clock divisor and produced a log full of plausible-looking zeroes rather than
+an error. Anything not pinned falls through to the core's compiled-in default,
+which is fixed for a fixed core build; `--dump-options` prints the full set.
+
 ## Tape format
 
 Line-oriented, one step per line:
@@ -868,6 +807,35 @@ both citations so the arithmetic is auditable — for example `c1_facing` is
 sizes, alignment and address range on the way. `verify.sh` regenerates and
 diffs it, so the two cannot drift apart silently.
 
+### Battle groups
+
+The battle groups are all transcribed from the constants file with the
+same citation discipline as the rest of the map:
+
+| group | what it covers |
+|---|---|
+| `battle` | `Battle_Routine` ($FFFF4100), `Battle_Routine_2`, `Battle_Total_Comd_Input`, the cursor indices, `Battle_Priority` ($FFFFEE45: 0 normal / 1 surprise / $FF ambush), `Enemy_Count`, ambush and run chances, item drop rate, and `Battle_Turn_Order` ($FFFFEFB0) |
+| `bhit` | `Fighters_Hit_Flags` ($FFFF4150; $00 normal, $01 critical, $FF miss or untargeted) and `Battle_Heal_Damage_List` ($FFFF415A), the per-fighter damage numbers |
+| `enemy` | all four `Enemy_Stats` slots ($FFFF4200, $80 stride): id, level, HP/max HP, status, strength, agility and battle agility, dexterity, attack and defence |
+| `chars` | Chaz and Alys from `Character_Stats` ($FFFFF500, $80 stride): level, EXP, HP/TP, status, the same stat block, plus `Current_Money` |
+
+`Battle_Routine` values are decoded from `BattleRoutines` (`ps4.asm:7524`):
+`$08` ProcessCOMD, `$0A` ProcessMACRO, `$0C` ProcessRUN, `$0E` **OrderTurns**,
+`$16` **DoAttackEffect**. `Battle_OrderTurns` builds `Battle_Turn_Order` from
+each living fighter's `agility_battle`, four bytes per entry (index word then
+agility one byte in), sorted highest first — so turn order versus agility is
+readable straight out of the log.
+
+EXP is not accumulated in a battle-local total; `ps4.asm:4775` adds it directly
+into each character's `exp` field, so the award is observed as a delta on
+`chaz_exp` / `alys_exp`. Meseta accumulates in `$FFFF41D0` and is added to
+`Current_Money` at `ps4.asm:4801`.
+
+`python3 -m oracle.scripts.analyze_battle` reads a battle log and reports the
+formation and stats, the routine timeline, the turn order, every HP change
+with the hit flags, damage list and RNG seed at that frame, and the
+EXP/meseta deltas.
+
 ### Work-RAM byte order
 
 Genesis Plus GX builds with `-DLSB_FIRST`, which stores `work_ram` in
@@ -881,7 +849,8 @@ So:
 - long at even `A` → `word(A) << 16 | word(A + 2)`
 
 Get this backwards and every log line is quietly wrong, so `verify.sh` proves
-both paths against values the cartridge itself chose (see `../docs/oracle/RESULTS.md`).
+both paths against values the cartridge itself chose (see
+[where the measurements live](#where-the-measurements-live)).
 
 ## Tapes
 
@@ -928,15 +897,88 @@ presses that overrun the end of the scene cannot perturb the state being
 measured. Using Speak here would fire a Talk on the first frame of control.
 
 
-## Results and reference
+### The encounter clock, and why long tapes need tuning
 
-The detailed oracle findings live in two reference documents:
+Any tape that walks far inside a dungeon is playing a dice game, and it is
+worth stating the odds because they set what tape lengths are practical.
+`RunRandomBattles` (`ps4.asm:116840`) counts `$FFFFECE4` down from 10 — reset
+on every map entry and after every battle — on each *completed* step, then from
+that point rolls on every step: `UpdateRNGSeed`, and a battle if
+`RNG_Seed & $1F == 0` (`& $7F` in a vehicle). Flat 1/32 per step, no ramp.
 
-- [`RESULTS.md`](../docs/oracle/RESULTS.md) — determinism, field/talk/RNG/battle evidence,
-  and the chest/object findings through the second chest.
-- [`RESULTS_CONTINUED.md`](../docs/oracle/RESULTS_CONTINUED.md) — the retracted flag-bank
-  note, camera/object observations, story gates, RAM notes, tape-authoring
-  guidance, open questions, and comparator feeding.
+So an N-step route survives with probability `(31/32)^(N-10)`: 25 steps is a
+62% bet, 58 steps a 22% one. Tape 21's route is 58 steps, and sweeping its
+pre-walk idle over 14 values produced exactly 3 clean runs — 21%, against 22%
+predicted. That is a behavioural confirmation of the rule, and incidentally of
+`psiv-runtime`'s `GRACE_STEPS = 10` and `FOOT_MASK = 0x1F`, which match.
+
+The dodge is `python3 -m oracle.scripts.sweep_encounter`: idle frames advance
+the seed without consuming a step, so varying one `N . <mark>` wait re-rolls
+every check downstream while leaving the route byte-identical. It runs the
+variants in parallel and reports which values walk clean. Tapes 20 and 21 both
+carry a tuned wait, noted as such in their comments — a tape that walks far and
+has no tuned wait in it is a tape that has not been re-run since it was written.
+
+### Tape authoring tools
+
+`route.py` plans a walk over the runtime pack's own collision grids and warp
+graph, so a generated route that walks correctly on the cartridge is also a
+check that the extraction agrees with the cartridge. It models the anti-ping-
+pong rule (`GameMode_LoadFieldMap` initialising `Tile_Collision_Standing` to 1,
+so a doorway never fires on the frame you are placed on its destination) — the
+planner walks straight back through the door it came from without it.
+
+`python3 -m oracle.scripts.navigate` closes the loop, because terrain is not
+the whole story: it plans a short leg, runs it, reads where the character
+actually ended up, marks observed object footprints and cells the cartridge
+refused to enter, and re-plans. **The feedback is at authoring time only** — the
+artifact it writes is an ordinary static tape with no runtime feedback in it, so
+it still replays byte-identically like every other tape here.
+
+## Feeding a comparator
+
+The intended shape for comparing against `psiv-core`:
+
+1. `psiv-core` gains a replay entry point taking the same tape file and
+   emitting the same CSV columns — per frame, its own values for the mapped
+   fields.
+2. Comparison is a column-wise diff keyed on `frame`. Because the oracle log
+   is byte-reproducible, a golden log can be committed as a fixture and the
+   core checked against it without an emulator in CI.
+3. Not every column is a fair target. `rng_seed` and the raw `game_mode_*`
+   dispatch values are cartridge implementation detail; the meaningful
+   comparison set is position, facing, step durations, collision, party slots,
+   event flags, and window open/close frames. Suggest declaring a per-tape
+   column subset in the fixture rather than diffing everything.
+4. Frame alignment is exact — both sides count frames from power-on and the
+   tape is the same file — so a mismatch is a real behavioural divergence, not
+   drift.
+
+The RAM map is deliberately readable from Rust: `ram_map.json` carries the
+addresses, sizes and groups, so `psiv-data` can load the same file the oracle
+uses instead of re-declaring the field list.
+
+## Where the measurements live
+
+Each finding the tapes above measured lives in the document that owns its
+topic, beside the rule it confirms:
+
+- walking, collision, objects that block and the story gates walking finds:
+  [MOVEMENT.md](../docs/field/MOVEMENT.md);
+- talk range, text timing, the hold-to-accelerate press and page advance:
+  [SCENE_DIALOGUE.md](../docs/scenes/SCENE_DIALOGUE.md#measured-on-the-cartridge);
+- the new-game starting state: [01_GameStart.md](../docs/scenes/01_GameStart.md#measured-on-the-cartridge);
+- the RNG's per-frame schedule and the first battles (turn order, damage,
+  misses, criticals, escape, DEFEND, rewards):
+  [BATTLE_MEASUREMENTS.md](../docs/battle/BATTLE_MEASUREMENTS.md);
+- the level-up and its stat lag: [PROGRESSION.md](../docs/camp/PROGRESSION.md#measured-on-the-cartridge);
+- object slots and the wander RNG rule, and the wander timer's gate:
+  [NPC_WANDER.md](../docs/field/NPC_WANDER.md#measured-on-the-cartridge);
+- the camera columns: [CAMERA.md](../docs/field/CAMERA.md#measured-on-the-cartridge);
+- chest slots, opening, the flag bank and the no-duplicate guard:
+  [CHESTS.md](../docs/field/CHESTS.md#measured-on-the-cartridge);
+- where the temp event flags land, and the map-load clear:
+  [FIELD_STATE.md](../docs/field/FIELD_STATE.md#where-the-temp-event-flags-land-on-hardware).
 
 `./oracle/verify.sh` regenerates the measurements they cite from the pinned
 ROM and core.

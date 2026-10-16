@@ -182,83 +182,16 @@ implementation record is [`docs/camp/EQUIPMENT.md`](../camp/EQUIPMENT.md).
 
 ## 3. Treasure chests — implemented
 
-### A chest is a field object
-
-`LoadTreasureChests` (`ps4.asm:110966`) loads each chest through
-`Field_LoadObject` into `Field_Obj_Secondary` — the same pool the map's NPCs
-occupy — as type `$A0` (`FieldObj_TreasureChest`) or `$1D4`
-(`FieldObj_WhiteTreasureChest`, the ones in plants). Both `bset #3, $2(a4)`, so
-they are solid and talkable by the same bit-3 rule as any NPC, and both call
-`FieldObj_OnScreenTest`, so they freeze off screen. Both ids are in
-`psiv-core`'s `type_tests_visibility` table, which is a pleasing independent
-confirmation of that table.
-
-`GameMode_LoadFieldMap` calls `LoadMapObjects` before `LoadTreasureChests`, and
-`Field_LoadObject` takes the first free slot, so **a map's chests occupy the
-object slots immediately after its NPCs**. `Chest::object_slot` encodes that.
-
-### The record
-
-Four bytes (`ps4.asm:111000-111004`): white flag, `item_type` (`$39`),
-`chest_flag` (`$3A`), `item_id` (`$3B`). `item_type` zero means `item_id` is an
-item; non-zero means it is meseta in hundreds. The pack already emits all of
-this per map as `treasure_chests`, and `psiv-data` validates the type/contents
-pairing.
-
-### Opening
-
-`Interaction_ChkIfTreasureChest` (`ps4.asm:118579`) runs on whatever object the
-ordinary talk probe found, matches `$A0`/`$1D4`, copies the record into the
-interaction globals and switches to `FieldRoutine_ItemFound`. That routine, in
-order:
-
-1. tests the chest flag, and leaves without granting if it is set;
-2. plays `SFXID_ChestOpened` and sets animation frame 4, the open lid;
-3. grants — `money += item_id * 100` for meseta, first-free insert for an item,
-   diverting to the swap path when the count reaches forty;
-4. sets the chest flag, via `ChestFlags_Set` because `Interaction_Event_Type`
-   is 1. (Type 0 would set an ordinary event flag; the same routine serves both,
-   which is why chests and scripted item grants share it.)
-
-**The grant precedes the flag, and that ordering is load-bearing.** A full
-inventory diverts with the flag still clear, so the chest stays shut and can be
-opened again once the player makes room. `GameState::open_chest` reproduces
-this, returning `ChestOutcome::Full` without granting or flagging.
-
-Open-state needs no storage: it is derived from the flag, exactly as
-`LoadTreasureChests` derives the sprite frame by calling `ChestFlags_Test` as it
-loads each chest.
-
-### Which bank, and why it is shared
-
-**Chest flags are `$F120` bits**, the same array as the extended event flags —
-not `$F140`, whatever the disassembly's `Chest_Flags` label says. `state.rs`
-carries the byte-level proof and the evidence chain. `Flag::chest(n)` is
-exactly `Flag::event(0x100 + n)`.
-
-The sharing is deliberate. Every literal-id `$F120` test site in the ROM reads
-a real chest's flag — the five tower rings at `$A1`-`$A5`, plus `EclpsTorch`,
-`FradeMantl`, `Canceller`, `PalmaRing`, `AeroPrism` and `RepairKit` at
-`$08`-`$0D`. Story logic gates content on "has the player opened this chest".
-
-And **nothing ever clears one**. The `$F120` clear door at `0x0576B2` has a
-single caller in the whole ROM, `MapUpdate_ClrChestFlag`, which the
-disassembly annotates "Not referenced" and which clears the unused id `$A9`.
-Dead code. A chest, once opened, stays open for the life of the save — and the
-eleven the initialiser pre-sets (`$27 $28 $2A $34 $38 $50 $5B $5D $6B $78
-$A7`) can never be looted at all. Seven of them hold a HuntKnife across
-unrelated maps, which reads as placeholder records deliberately switched off.
-
-Temp flags are independent: `a_temp_flag_is_independent_of_the_chest_flag_of_that_id`
-pins that, and `the_eleven_preloaded_chests_read_as_open_at_a_new_game` pins the
-census.
+The chest rules (a chest is a field object, its record, opening, and the
+`$F120` bank it shares with the extended event flags) are in
+[CHESTS.md](CHESTS.md#retail-chest-rules).
 
 ## 4. Map load clears flags — implemented
 
 Oracle tape 18 measured a temporary-flag clear 39 frames after arriving on
-the destination map, allowing the Xanafalgue to respawn. The earlier claim
-that this also re-armed a chest was retracted: temporary flags and chest
-flags occupy different banks, as detailed below.
+the destination map, allowing the Xanafalgue to respawn
+([measured below](#where-the-temp-event-flags-land-on-hardware)). Temporary
+flags and chest flags occupy different banks.
 
 `MapDataManager` (`0x051B38`, `ps4.asm:107815`) is called from
 `GameMode_LoadFieldMap` and walks the map record's `$FFFF`-terminated list of
@@ -291,25 +224,105 @@ the object's routine. And `MapUpdate_ClrChestFlag` (`MapUpdateJmpTbl` entry
 `$38`) clears `$A9` every frame, but the disassembly annotates it **"Not
 referenced"**: dead code, recorded here so nobody else chases it.
 
-Every id above is a `$F140` id, and `$F140` carries **only** temp flags. An
-earlier revision concluded that these clears un-loot chests — that clearing
-`$13` re-armed `ChestFlag_GrbrkTwMoonSlashr`. Withdrawn: chest flags are
-`$F120` bits and nothing clears them.
+Every id above is a `$F140` id, and `$F140` carries **only** temp flags.
+Chest flags are `$F120` bits, and nothing clears them.
 
-Tape 18's *measurements* stand — the clear happens on destination load and the
-Xanafalgue respawns. Only the chest consequence, which the ledger itself
-flagged as an inference rather than a measurement, is gone.
+### Where the "temp" event flags land, on hardware
 
-### Withdrawn: the temp/chest alias
+[disassembly-discrepancies.md](../source-notes/disassembly-discrepancies.md) proves from ROM bytes that retail has **four** flag banks, not
+five: nothing addresses the clone's `Temp_Event_Flags` at `$FFFFF156`, and the
+"TempEveFlags" calls dispatch through the door at `$FFFFF140`. Only the name on
+that door is wrong. Tape 17 measures the write.
 
-Two earlier revisions of this document claimed temp flags and chest flags share
-bits — first six colliding ids, then "essentially the whole `$08`..`$1D`
-range". **Both are withdrawn.** They rested on `$F140` being the chest bank,
-which it is not. `TempEveFlag_*` ids and `ChestFlag_*` ids of the same number
-are different bits in different arrays and never interact.
+The prediction comes from `ChestFlags_Set` (`ps4.asm:116683`), whose bit
+numbering inside a byte is **reversed**: `bset (7 - (id & 7)), (bank + (id >> 3))`.
+So `TempEveFlag_Xanafalgue = $13` = 19 must land at byte `19 >> 3` = 2 and bit
+`7 - (19 & 7)` = 4 — that is, **`$10` at `$FFFFF142`**.
 
-What survives is the *other* sharing, which is real and deliberate: chest flags
-and extended event flags are one bank, `$F120`.
+Measured, walking a short way into the Piata basement:
+
+| | |
+|---|---|
+| `chestb2` (`$FFFFF142`) | **`00` → `$10` at f24618**, at cell (42,20) on map $15 |
+| `tempb0..3` (`$FFFFF156-9`) | **`00` for all 24,880 frames** — never written |
+| `extb3` (`$FFFFF123`) | `00` throughout |
+| `FieldRoutine_ItemFound` (`$24`) | never runs |
+
+The write lands exactly where the reversed-bit arithmetic predicts, and the
+clone's fifth bank stays dead.
+
+The innocent explanation is ruled out rather than assumed away: no chest was
+opened (the ItemFound routine never runs), and the basement's own chests write
+`$FFFFF123` — which stayed `00`. Nothing but the flag-$13 write can account for
+byte 2 bit 4.
+
+No chest shares this bit: chest id `$13` lives at `$FFFFF122` bit 4, in the
+`$F120` bank (tapes 20 and 21, [CHESTS.md](CHESTS.md)), and nothing in the
+Piata basement writes it.
+
+#### What the flag actually gates, and the flee itself
+
+Map $15 carries exactly **one** object: the Xanafalgue (`object_id` 388),
+spawned at cell (44,19). Logging the object columns alongside the flag catches
+the whole scripted moment:
+
+- From f24545 the Xanafalgue **runs west** as the party approaches — (43,19),
+  (42,19), … (25,19) — at **4 frames per cell**. That is the *fast* step mode:
+  the party walks at 8 frames/cell and wandering NPCs at ~32, so the flee is
+  twice the party's speed and eight times an idle townsperson's.
+- At **f24618 the object despawns** (`obj_id` `$8184` → `0000`) **and
+  `$FFFFF142` takes `$10` in the same frame.**
+
+So the flag gates the Xanafalgue's presence, and set-on-despawn is exact —
+same frame, no lag.
+
+#### Leaving clears it
+
+Tape 18 routes out of the basement into `PiataAcademyNearBasement` ($12):
+
+| frame | event |
+|---|---|
+| f24618 | flag sets (`$10`) as the Xanafalgue despawns |
+| f25191 | party arrives on map $12, flag still `$10` |
+| **f25230** | **`$FFFFF142` → `$00`** — cleared, 39 frames into the new map |
+
+**Retail clears it, in the `$F140` bank.** The clone's "cleared when you get
+out" prose is right about the behaviour and wrong only about which bank the
+write names.
+
+Set on entering the basement, cleared on leaving: an ordinary scene-scoped temp
+flag doing an ordinary temp flag's job. No chest flag is involved in either
+direction.
+
+One precision worth keeping: the clear lands **39 frames after arriving on map
+$12**, not on leaving $15, so it is tied to loading the destination map rather
+than to the exit itself. Whether every map clears id `$13` or only some is
+untested.
+
+#### And re-entering respawns it, so the whole thing is repeatable
+
+Continuing the same tape back down the stairs:
+
+| frame | event |
+|---|---|
+| f25191 | arrive on map $12, flag still `$10` |
+| f25230 | flag cleared to `$00` |
+| f25823 | back on map $15, flag `$00` |
+| **f25857** | **the Xanafalgue is back** — object slot 0 holds id 388 again at its spawn |
+
+So the scene resets completely: **leave, and the flag clears; return, and the
+Xanafalgue is there to flee again.** The set/clear cycle can be run as many
+times as the player likes.
+
+(Coming up the stairs leaves the party standing *on* the stairs cell, and the
+cartridge's anti-ping-pong rule will not fire a warp from the cell you were
+placed on, so the tape steps off and back on.)
+
+For `psiv-core`: model **four** banks, not five and not three. The `$F156` bank
+does not exist and must never be written. The `$F140` bank takes the "temp"
+event flag API. Chests get their own 256-id bank at `$F120`, which is also the
+bank `Event_GameStart` preloads. All of them use the same reversed in-byte
+numbering, `bit = 7 - (id & 7)`.
 
 ### Flag-clear extraction
 
@@ -318,13 +331,6 @@ used by the retail routines. `psiv_tools/map_effects/` emits the bank and
 flag ID and includes them in its census; `tests/test_map_effects.py` covers
 the decoding. The core also retains the transcribed map-load clear table in
 `rust/psiv-core/src/map_load.rs`. The earlier missing-decoder task is closed.
-
-## Save format
-
-The earlier JSON snapshot migration notes are obsolete. Native persistence
-uses the retail SRAM slot layout described in [SAVE_FORMAT.md](../camp/SAVE_FORMAT.md),
-including inventory, roster, flags and vehicle records. See that document
-for the current serialization contract.
 
 ## Native integration
 
@@ -365,24 +371,5 @@ absent pass does not. A dead benched character is paid.
 "that needs the roster of everyone recruited so far, which battle does not
 own" — so the two halves meet here.
 
-### Pinned against the level-up tape
-
-`the_level_up_tape_round_trips_through_the_roster` uses tape 10's measured
-numbers (`oracle/logs/verify_levelup.csv`), Chaz's second level-up:
-
-| frame | change |
-| --- | --- |
-| f51600 | level 1, exp 17, hp 20/25, tp 10/10, str 8 men 6 agi 7 dex 5 |
-| f51785 | exp 17 -> 26 (pool 27, three recipients, 9 each) |
-| f51786 | level 1 -> 2 |
-| f51817 | str 8 -> 9, men 6 -> 7 |
-| f51833 | agi 7 -> 8, dex 5 -> 6 |
-| f51849 | maxhp 25 -> 31, maxtp 10 -> 13 |
-| f51899 | level 2, exp 26, hp **20**/31, tp **10**/13 |
-
-The stat rises are staged over ~64 frames for presentation; only the end state
-persists. The load-bearing line is the last one: **a level-up raises the maxima
-and does not refill.** Chaz walks out on 20 of 31.
-
-Computing the rise is `battle::apply_level_ups` and is tested there. What this
-pins is the half the roster owns — the award arithmetic and what persists.
+The level-up tape's numbers, and what the roster persists from them, are in
+[PROGRESSION.md](../camp/PROGRESSION.md#pinned-against-the-level-up-tape).

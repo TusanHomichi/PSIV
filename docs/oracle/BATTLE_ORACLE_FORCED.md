@@ -248,6 +248,19 @@ python3 -m oracle.force --formation 0x53 --vehicle 2 \
     --out build/forced/icedigger
 ```
 
+Its runs log `core,battle,bhit,enemy,chars,rng,vehicle,bcmd`
+(`oracle/force/runs.py`'s `GROUPS`) - the vehicle group because a vehicle
+battle's party side is built from `Vehicle_Stats` and its saved record, which a
+fixture's `vehicle` section reads, and `bcmd` (`Character_Command_Data`,
+`constants:2005-2011`) because the command a member chose is the only record of
+what a swing was *aimed* at: the cartridge moves `Current_Target_Index` off a
+commanded enemy that has fallen (`ps4.asm:8345-8409`), so the cell is what tells
+a swing that kept its aim from one the retarget scan re-aimed. A capture carries
+`current_target`/`current_command` (`$FFFF4144`/`$FFFF4146`) and
+`cmd0_target`..`cmd4_target` with it; the extractor records the command's target
+per party action (`assembly.command_entry`) and no target at all for a capture
+taken before the group existed.
+
 Each writes, in its output directory: `scout.json` (the base tape's own run,
 cached and reused), `<stem>.full.tape` and `<stem>.tape` (the composed tape,
 before and after the trim), `<stem>.patches.txt` (the `--ram-patch` list),

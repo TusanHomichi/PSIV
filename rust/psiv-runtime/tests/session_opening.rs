@@ -205,7 +205,7 @@ fn the_opening_reaches_first_control_through_pads() {
     );
 
     // The native smoke's eight-frame Up: one cell north, to the standing cell
-    // the retail oracle recorded (`docs/oracle/RESULTS.md`: 768,288 pixels =
+    // the retail oracle recorded (`docs/scenes/01_GameStart.md`: 768,288 pixels =
     // cell 48,18).
     for _ in 0..UP_FRAMES {
         player.tick(Pad::new(Button::Up));

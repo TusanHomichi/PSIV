@@ -530,6 +530,37 @@ whole sequence, rather than growing the `SceneOp` enum by six presentation-only
 ops that no other scene will ever use. The exact frame counts (60, 20, 900, 20,
 90 / 20, 900, 20, 120, 40) are recorded above so the renderer can be faithful.
 
+## Measured on the cartridge
+
+Measured on the cartridge with the [oracle](../../oracle/README.md); frame numbers cite marks in
+the named tape's log, which `oracle/verify.sh` regenerates.
+
+### New-game starting state
+
+**First sustained `FieldRoutine_Controls` frame: 6456** (`logs/01_newgame.csv`,
+CSV line 6461).
+
+| | |
+|---|---|
+| map | `$13` = `MapID_PiataAcademy_F1` (`constants:1086`) |
+| position | (768, 288) px = **cell (48, 18)** |
+| facing | 0 = DOWN |
+| party | `Current_Party_Slots` = `00FFFFFF` — **Chaz alone**, slots 2-5 empty (`$FF`) |
+| world | 0 (Motavia) |
+
+The opening runs `Event_GameStart` (`$9F`) across maps `$11` → `$5E` → `$54`
+→ `$00` → `$13`, then `Event_PiataChazAlone` (`$A0`) plays unattended for 226
+frames (f6230-6455) before handing over.
+
+Character IDs observed during the intro: **Chaz = 0, Alys = 1**. Party slots
+pass through `0001FFFF` (Chaz, Alys) and then `0100FFFF` — Alys in slot 1 —
+which corroborates the `Event_AlysFound` note in `EVENT_ENGINE.md` that
+**Alys leads the opening party**. By first control she has left and Chaz is
+alone.
+
+The intro genuinely requires input: with no presses at all it never leaves map
+`$11`.
+
 ## Open questions
 
 1. **The prologue's total run time.** Statically: 60 + 2×(20 + 900 + 20) + 90 +

@@ -86,7 +86,7 @@ impl StepFrames {
     ///
     /// Confirmed on hardware by the oracle tape: exactly 8.00 frames per
     /// 16-pixel cell in all four directions, `x_step_duration` counting down
-    /// from `$1000` to 0 in `$200` steps (`docs/oracle/RESULTS.md`, "Walk timing").
+    /// from `$1000` to 0 in `$200` steps (`docs/field/MOVEMENT.md`, "Walk timing").
     pub const DEFAULT: StepFrames = StepFrames(8);
 
     /// Builds a step duration.
