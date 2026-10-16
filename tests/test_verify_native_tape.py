@@ -16,6 +16,7 @@ import io
 import json
 
 from tools import verify_native_tape
+from tools.godot import required_version
 from tools.heavy_lock import (HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV, HELD_SLOTS_ENV,
                               PRIORITY_ENV)
 from tools.verify_native_tape import (file_identity, host_power, identities_stable, rss_verdict,
@@ -283,8 +284,12 @@ class NativeTapeRssBound(unittest.TestCase):
 
 
 FAKE_GODOT = """#!{python}
-# Stands in for Godot: writes the driver's report and slot snapshot.
+# Stands in for Godot: answers the resolver's version query, then writes the
+# driver's report and slot snapshot.
 import json, os, sys
+if sys.argv[1:] == ["--version"]:
+    print("{version}.stable.official.fake")
+    sys.exit(0)
 samples = json.loads(os.environ["FAKE_RSS_SAMPLES"])
 with open(os.environ["PSIV_TAPE_SNAPSHOT_OUT"], "wb") as out:
     out.write(b"slot")
@@ -313,7 +318,7 @@ class NativeTapeReceiptRss(unittest.TestCase):
             tape = root / "run.tape"
             tape.write_text("tape")
             godot = root / "godot-bin"
-            godot.write_text(FAKE_GODOT.format(python=sys.executable))
+            godot.write_text(FAKE_GODOT.format(python=sys.executable, version=required_version()))
             godot.chmod(0o755)
             mapped = {"path": str(library.resolve()), "inode": library.stat().st_ino}
             env = {"FAKE_RSS_SAMPLES": json.dumps(samples(*rows))}

@@ -24,13 +24,15 @@ import time
 try:  # imported as `tools.verify_native_tape` by tests
     from tools.heavy_lock import GODOT as GODOT_CLASS, heavy_lock_path, hold_heavy_lock
     from tools.repo_files import repo_files
+    from tools.godot import GodotError, check as check_godot, find as find_godot
 except ModuleNotFoundError:  # direct `python3 tools/verify_native_tape.py`
     from heavy_lock import GODOT as GODOT_CLASS, heavy_lock_path, hold_heavy_lock
     from repo_files import repo_files
+    from godot import GodotError, check as check_godot, find as find_godot
 
 
 ROOT = Path(__file__).resolve().parents[1]
-GODOT = Path(os.environ.get("PSIV_GODOT", Path.home() / ".local/bin/psiv-godot-4.7.1"))
+GODOT = find_godot()  # tools/godot.py; replay() checks it before running it
 
 
 def sha256(path: Path) -> str:
@@ -359,8 +361,10 @@ def replay(args: argparse.Namespace) -> int:
     pack = args.pack.resolve(strict=True)
     if not (pack / "manifest.json").is_file():
         parser().error(f"pack lacks manifest.json: {pack}")
-    if not GODOT.is_file():
-        parser().error(f"Godot executable absent: {GODOT}")
+    try:
+        check_godot(GODOT)
+    except GodotError as error:
+        parser().error(str(error))
     if args.timeout <= 0:
         parser().error("--timeout must be positive")
     if args.stop_at is not None and args.stop_at < 1:

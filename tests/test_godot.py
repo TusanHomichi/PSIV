@@ -90,7 +90,7 @@ class NegativeControls(FakeGodot):
         self.fake("bin/godot")
         self.assert_refused({"PSIV_GODOT": str(self.dir / "missing"),
                              "PATH": str(self.dir / "bin")},
-                            "which is not an executable file")
+                            "is not an executable file")
 
     def test_no_godot_anywhere(self):
         self.assert_refused({"PATH": str(self.dir / "empty")}, "no Godot: set PSIV_GODOT")
@@ -141,16 +141,12 @@ class OnePlace(unittest.TestCase):
             with self.subTest(launcher=launcher):
                 self.assertIn("tools/godot.py", (ROOT / launcher).read_text())
 
-    #: Python tools still on their own lookup, awaiting the decision on how
-    #: far into their files the resolver may reach (the lanes that own them).
-    PENDING = {"tools/certify.py", "tools/verify_native_tape.py"}
-
     def test_no_code_names_a_host_godot_or_its_version(self):
         version = re.escape(godot.required_version())
         pattern = re.compile(rf"\.local/bin/[\w.-]*godot-\d|godot-{version}")
         code = [name for name in repo_files(ROOT)
                 if name.endswith((".py", ".sh", ".gd", ".rs"))
-                and name not in self.PENDING | {"tests/test_godot.py"}]
+                and name != "tests/test_godot.py"]
         hits = [name for name in code
                 if pattern.search((ROOT / name).read_text(encoding="utf-8", errors="replace"))]
         self.assertEqual(hits, [])

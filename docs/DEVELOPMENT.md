@@ -84,10 +84,9 @@ needs `rg` and `flock`.
 is used. `tools/godot.py` is the one lookup: it prints the executable, or
 refuses one that does not report the version pinned in `.godot-version`
 (`python3 tools/godot.py` checks your setup). `godot/run.sh` and
-`tools/package/deploy-deck.sh` ask it. `tools/certify.py` and
-`tools/verify_native_tape.py` still read `PSIV_GODOT` themselves and default
-to a fixed path when it is unset, so set it. The capture commands in the
-subsystem documents write it as `"$PSIV_GODOT"`; set it once in your shell.
+`tools/package/deploy-deck.sh`, `tools/certify.py` and
+`tools/verify_native_tape.py` ask it. The capture commands in the subsystem
+documents write it as `"$PSIV_GODOT"`; set it once in your shell.
 
 For campaign tape replay through the native game, use
 `tools/verify_native_tape.py`; for a whole `psiv-campaign run`,

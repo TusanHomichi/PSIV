@@ -381,7 +381,7 @@ class MainLocksTest(unittest.TestCase):
         self.holds.append((lock_class, slots))
         yield Hold(self.tmp / "heavy.lock", lock_class, slots, nested=False)
 
-    def run_main(self, argv, slots="3", interrupt_after=None):
+    def run_main(self, argv, slots="3", interrupt_after=None, godot=Path("godot")):
         frame = self.tmp / "frame.png"
         frame.write_bytes(b"f")
 
@@ -393,7 +393,13 @@ class MainLocksTest(unittest.TestCase):
                 results[name] = (frame, 0, 0.0)
             return results
 
+        def resolve():
+            if isinstance(godot, Exception):
+                raise godot
+            return godot
+
         with mock.patch.object(certify, "hold_heavy_lock", self.hold), \
+                mock.patch.object(certify, "resolve_godot", resolve), \
                 mock.patch.dict(os.environ, {"PSIV_GODOT_SLOTS": slots}), \
                 mock.patch.object(certify, "loaded_extension_pids", return_value=[]), \
                 mock.patch.object(certify.subprocess, "run",
@@ -438,6 +444,13 @@ class MainLocksTest(unittest.TestCase):
         code, out = self.run_main(["--jobs", "4"], slots="3")
         self.assertEqual(code, 2)
         self.assertIn("slot cap is 3", out)
+        self.assertEqual(self.holds, [])
+
+    def test_a_missing_or_wrong_godot_is_refused_before_any_lock(self):
+        error = certify.GodotError("/x/godot is Godot 4.6.1; PSIV needs 4.7.1 (.godot-version)")
+        code, out = self.run_main(["--only", "title"], godot=error)
+        self.assertEqual(code, 2)
+        self.assertIn("certify: refused, /x/godot is Godot 4.6.1", out)
         self.assertEqual(self.holds, [])
 
 

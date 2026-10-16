@@ -79,26 +79,32 @@ def same_version(left: str, right: str) -> bool:
     return fields(left) == fields(right)
 
 
-def resolve(env: Mapping[str, str] | None = None,
-            which: Callable[..., str | None] = shutil.which,
-            version_file: Path = VERSION_FILE) -> Path:
-    """The Godot executable to run, checked against the pinned version.
+def find(env: Mapping[str, str] | None = None,
+         which: Callable[..., str | None] = shutil.which) -> Path | None:
+    """The executable `PSIV_GODOT` names, else `godot` on PATH, unchecked.
 
-    Raises `GodotError` naming the cause when there is none to run.
+    Cheap and silent, so a tool can look it up at import; `check` it before
+    running it. None when neither names one.
     """
     env = os.environ if env is None else env
-    required = required_version(version_file)
     named = env.get(ENV, "")
     if named:
-        path = Path(named).expanduser()
-        if not (path.is_file() and os.access(path, os.X_OK)):
-            raise GodotError(f"{ENV} names {named}, which is not an executable file")
-    else:
-        found = which("godot", path=env.get("PATH"))
-        if found is None:
-            raise GodotError(f"no Godot: set {ENV} to the Godot {required} executable, "
-                             "or put it on PATH as `godot`")
-        path = Path(found)
+        return Path(named).expanduser()
+    found = which("godot", path=env.get("PATH"))
+    return Path(found) if found else None
+
+
+def check(path: Path | None, version_file: Path = VERSION_FILE) -> Path:
+    """`path`, once it is an executable reporting the pinned version.
+
+    Raises `GodotError` naming the cause otherwise.
+    """
+    required = required_version(version_file)
+    if path is None:
+        raise GodotError(f"no Godot: set {ENV} to the Godot {required} executable, "
+                         "or put it on PATH as `godot`")
+    if not (path.is_file() and os.access(path, os.X_OK)):
+        raise GodotError(f"{path} is not an executable file ({ENV}, or `godot` on PATH)")
     try:
         proc = subprocess.run([str(path), "--version"], capture_output=True, text=True,
                               timeout=VERSION_TIMEOUT, check=False)
@@ -111,6 +117,13 @@ def resolve(env: Mapping[str, str] | None = None,
         raise GodotError(f"{path} is Godot {version}; PSIV needs {required} "
                          f"({version_file.name})")
     return path
+
+
+def resolve(env: Mapping[str, str] | None = None,
+            which: Callable[..., str | None] = shutil.which,
+            version_file: Path = VERSION_FILE) -> Path:
+    """The Godot executable to run: `find`, then `check`."""
+    return check(find(env, which), version_file)
 
 
 def main() -> int:

@@ -61,7 +61,7 @@ from heavy_lock import EXCLUSIVE, GODOT as GODOT_CLASS, godot_slots, hold_heavy_
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from oracle import host_binary  # noqa: E402
 
-GODOT = os.environ.get("PSIV_GODOT", str(Path.home() / ".local/bin/psiv-godot-4.7.1"))
+from godot import GodotError, resolve as resolve_godot  # noqa: E402
 ROM = "Phantasy Star IV (USA).md"
 GODOT_FLAGS = ["--display-driver", "x11", "--rendering-method", "gl_compatibility",
                "--rendering-driver", "opengl3", "--audio-driver", "Dummy", "--fixed-fps", "60"]
@@ -331,7 +331,7 @@ def capture(name, env, tick, receipt, display):
                 "DISPLAY": display, "LIBGL_ALWAYS_SOFTWARE": "1",
                 "PSIV_DEBUG_SCENE_TICKS": "1", "PSIV_SAVE_DIR": str(saves),
                 "PSIV_DEBUG_SHOT": str(shot), "PSIV_DEBUG_SHOT_FRAME": str(tick), **env}
-    command = ["timeout", f"{capture_timeout(tick)}s", GODOT,
+    command = ["timeout", f"{capture_timeout(tick)}s", str(resolve_godot()),
                "--log-file", str(receipt / f"{name}-godot.log"), *GODOT_FLAGS,
                "--path", "godot", "--quit-after", str(tick + QUIT_MARGIN)]
     with open(receipt / f"{name}-run.log", "w") as handle:
@@ -433,6 +433,11 @@ def main(argv=None):
         for name, env, tick, frame, _, _ in PAIRS:
             print(f"{name}: tick {tick} vs {frame} {env}")
         return 0 if args.list else 2
+    try:
+        resolve_godot()
+    except GodotError as error:
+        print(f"certify: refused, {error}")
+        return 2
     try:
         jobs = min(job_count(args.jobs, godot_slots()), len(pairs))
     except ValueError as error:
