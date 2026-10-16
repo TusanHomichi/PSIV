@@ -108,10 +108,10 @@ campaign scenes:
   precise why-not gate rather than modeled as one invented “arrive at Rykros”
   op.
 
-## Registry result
+## The registry
 
-The typed registry now has 89 scenes: the former 86, plus Raja Sick `$8012`,
-Rykros `$801B`, and Ending `$8021`. The full-campaign headless proof keeps a
+The typed registry has 89 scenes, including Raja Sick `$8012`, Rykros `$801B`,
+and Ending `$8021`. The full-campaign headless proof keeps a
 single title-to-ending snapshot for the fixed story chain; this boundary file
 records the adjacent player-controlled surfaces that proof deliberately does
 not pretend to traverse.
