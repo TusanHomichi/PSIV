@@ -15,7 +15,11 @@ exits 2, and an unrelated holder is waited for. `QueueCase` runs real
 `heavy_lock.py run` holders and waiters and asserts on the order in which they
 wrote to a shared file while holding the lock: a priority waiter goes first, the
 godot class shares the machine up to its cap, an exclusive holder excludes it,
-and a killed waiter does not block the queue.
+and a killed waiter does not block the queue. `BudgetCase` does the same for
+the memory budget: a build holder runs beside a godot holder, exclusive runs
+still exclude both, the units held never exceed the budget (the negative
+control overfills it with a grant that is not all-or-none), and an exclusive
+waiter is not starved by a stream of build holders.
 """
 import contextlib
 import fcntl
@@ -35,10 +39,11 @@ from unittest import mock
 from tools import heavy_lock as heavy_lock_module
 from tools import verify_candidate
 from tools.gate import GateRefused, run_gate
-from tools.heavy_lock import (EXIT_HELD_BY_PARENT, GODOT_SLOTS_ENV, HEAVY_LOCK_ENV, HELD_CLASS_ENV,
-                              HELD_ENV, HELD_SLOTS_ENV, PRIORITY_ENV, gate_lock_path,
-                              heavy_lock_path, hold_heavy_lock, lock_holders, main_checkout,
-                              raw_flock_parent)
+from tools.heavy_lock import (BUILD, CLASS_UNITS, EXCLUSIVE, EXIT_HELD_BY_PARENT, GODOT,
+                              GODOT_SLOTS_ENV, HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV,
+                              HELD_SLOTS_ENV, PRIORITY_ENV, UNITS_ENV, gate_lock_path,
+                              heavy_lock_path, hold_heavy_lock, lock_holders, lock_modes,
+                              lock_units, main_checkout, raw_flock_parent, units_in_use)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TOOLS = REPO_ROOT / "tools"
@@ -73,7 +78,7 @@ time.sleep(120)
 
 
 LOCK_KEYS = (HEAVY_LOCK_ENV, HELD_ENV, HELD_CLASS_ENV, HELD_SLOTS_ENV, PRIORITY_ENV,
-             GODOT_SLOTS_ENV)
+             GODOT_SLOTS_ENV, UNITS_ENV)
 
 
 def clean_env():
@@ -143,10 +148,11 @@ class SharedLockCase(unittest.TestCase):
             self.assert_one_file(old_relative_default)
 
     def test_verify_candidate_takes_the_shared_lock(self):
-        """verify_candidate's build and certify steps hold the main checkout's heavy lock."""
+        """verify_candidate's build step holds the main checkout's heavy lock
+        (certify and the gate take it themselves)."""
         held = []
 
-        def runner(command, log, lock):
+        def runner(command, log, lock, lock_class):
             held.append(lock)
             return 0
 
@@ -161,7 +167,7 @@ class SharedLockCase(unittest.TestCase):
             finally:
                 os.chdir(cwd)
         locks = [lock for lock in held if lock is not None]
-        self.assertEqual(locks, [self.main / "build" / "continuation-heavy.lock"] * 2)  # build, certify
+        self.assertEqual(locks, [self.main / "build" / "continuation-heavy.lock"])  # build
 
     def test_a_gate_in_the_worktree_refuses_while_the_main_checkouts_gate_runs(self):
         lock_file = gate_lock_path(self.main)
@@ -316,7 +322,7 @@ def read_until(stream, needle, timeout=TIMEOUT):
     return seen.decode()
 
 
-class QueueCase(unittest.TestCase):
+class LockProcesses(unittest.TestCase):
     """Real holders and waiters on a temp lock. Each waiter appends its name to
     `self.order` while it holds the lock, so the file is the grant order."""
 
@@ -364,6 +370,18 @@ class QueueCase(unittest.TestCase):
         for process in waiters:
             self.assertEqual(process.wait(timeout=TIMEOUT), 0)
         return self.granted()
+
+    def immediate(self, name, *flags, env=None):
+        """A `run` that must finish without waiting: (exit code, stderr)."""
+        done = subprocess.run(
+            [sys.executable, str(TOOLS / "heavy_lock.py"), "run", *flags, "--",
+             sys.executable, "-c", APPEND, str(self.order), name],
+            capture_output=True, text=True, timeout=TIMEOUT, env={**self.env, **(env or {})})
+        return done.returncode, done.stderr
+
+
+class QueueCase(LockProcesses):
+    """The queue, the godot class and the slot cap; see LockProcesses."""
 
     def acquisition_order(self, *second_flags, second_env=None):
         """Holder, then waiter `first`, then waiter `second`; release; the grant order."""
@@ -600,6 +618,186 @@ class QueueCase(unittest.TestCase):
                                 capture_output=True, text=True, timeout=TIMEOUT, env=self.env)
         self.assertEqual(marked.stdout.strip(), "None")
         self.assertIsNone(raw_flock_parent(self.lock, environ={}))  # free: nobody
+
+
+#: A budget with room for exactly one build holder and one godot holder.
+PAIR_BUDGET = {UNITS_ENV: str(CLASS_UNITS[BUILD] + CLASS_UNITS[GODOT])}
+
+
+def overfilling_take_files(lock, kind, count, cap, env):
+    """The mutation for the budget's negative control: `_take_files` without
+    all-or-none, so a grant proceeds on whatever units are free."""
+    held = []
+    for index in range(cap):
+        if len(held) == count:
+            break
+        handle = os.open(f"{lock}.{kind}{index}", os.O_RDWR | os.O_CREAT, 0o644)
+        try:
+            fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            os.close(handle)
+        else:
+            held.append(handle)
+    return held
+
+
+class BudgetCase(LockProcesses):
+    """The build class and the unit budget; see LockProcesses."""
+
+    def test_a_build_runs_beside_a_godot_holder_without_waiting(self):
+        godot = self.holder("godot")
+        code, stderr = self.immediate("build", "--class", "build")
+        self.assertEqual(code, 0, stderr)
+        self.assertNotIn("waiting", stderr)
+        self.assertEqual(self.granted(), ["build"])
+        build = self.holder("build")  # both held at once, each in its class
+        self.assertEqual(sorted(lock_modes(self.lock)),
+                         sorted([(godot.pid, GODOT), (build.pid, BUILD)]))
+        self.assertEqual(units_in_use(self.lock), CLASS_UNITS[GODOT] + CLASS_UNITS[BUILD])
+        out = io.StringIO()
+        heavy_lock_module.status(self.lock, out)
+        self.assertIn(f"{build.pid} build:", out.getvalue())
+        self.assertIn(f"units in use: {CLASS_UNITS[GODOT] + CLASS_UNITS[BUILD]} of",
+                      out.getvalue())
+
+    def test_negative_control_a_budget_without_room_makes_the_build_wait(self):
+        """The same pair under a budget of one build's units: the budget, not an
+        unheld lock, is what admitted the build above."""
+        budget = {UNITS_ENV: str(CLASS_UNITS[BUILD])}
+        godot = self.holder("godot", budget)
+        build = self.waiter("build", "--class", "build", env=budget)
+        self.assertIn(f"{godot.pid} (godot)", build.first_line)
+        time.sleep(0.5)
+        self.assertEqual(self.granted(), [])
+        self.release(godot)
+        self.assertEqual(self.finish(build), ["build"])
+
+    def test_a_build_holder_excludes_an_exclusive_run(self):
+        build = self.holder("build")
+        exclusive = self.waiter("exclusive")
+        self.assertIn(f"held by pid {build.pid} (build)", exclusive.first_line)
+        time.sleep(0.5)
+        self.assertEqual(self.granted(), [])
+        self.release(build)
+        self.assertEqual(self.finish(exclusive), ["exclusive"])
+
+    def test_an_exclusive_holder_excludes_a_build(self):
+        holder = self.holder()
+        build = self.waiter("build", "--class", "build")
+        self.assertIn(f"held by pid {holder.pid} (exclusive)", build.first_line)
+        time.sleep(0.5)
+        self.assertEqual(self.granted(), [])
+        self.release(holder)
+        self.assertEqual(self.finish(build), ["build"])
+
+    def test_negative_control_with_no_holder_both_start_at_once(self):
+        for name, flags in (("exclusive", ()), ("build", ("--class", "build"))):
+            code, stderr = self.immediate(name, *flags)
+            self.assertEqual(code, 0, stderr)
+            self.assertNotIn("waiting", stderr)
+        self.assertEqual(self.granted(), ["exclusive", "build"])
+
+    def test_a_full_budget_makes_every_shared_arrival_wait(self):
+        build = self.holder("build", PAIR_BUDGET)
+        godot = self.holder("godot", PAIR_BUDGET)
+        budget = int(PAIR_BUDGET[UNITS_ENV])
+        self.assertEqual(units_in_use(self.lock), budget)
+        second_godot = self.waiter("second-godot", "--class", "godot", env=PAIR_BUDGET)
+        self.assertIn(f"{build.pid} (build)", second_godot.first_line)
+        time.sleep(0.5)
+        self.assertLessEqual(units_in_use(self.lock), budget)
+        self.assertEqual(self.granted(), [])
+        self.release(godot)
+        self.assertEqual(self.finish(second_godot), ["second-godot"])
+        second_build = self.waiter("second-build", "--class", "build", env=PAIR_BUDGET)
+        time.sleep(0.5)
+        self.assertEqual(self.granted(), ["second-godot"])
+        self.release(build)
+        self.assertEqual(self.finish(second_build), ["second-godot", "second-build"])
+
+    def grant_in_turn(self, classes, budget):
+        """Grant each class in turn in this process, as a head would; returns
+        the units the granted holders take, by class, never more than fit."""
+        handles, taken = [], 0
+        try:
+            for lock_class in classes:
+                need = heavy_lock_module._Need.of(lock_class, 1, 3, budget)
+                held = heavy_lock_module._try_grant(str(self.lock), need)
+                if held is not None:
+                    handles += held
+                    taken += need.units
+                self.assertLessEqual(taken, budget, f"{classes} overfilled {budget} units")
+            return taken
+        finally:
+            for handle in handles:
+                os.close(handle)
+
+    def test_the_budget_is_never_exceeded(self):
+        budget = int(PAIR_BUDGET[UNITS_ENV])
+        order = [BUILD, BUILD, GODOT, GODOT, BUILD]
+        self.assertEqual(self.grant_in_turn(order, budget), budget)
+
+    def test_negative_control_a_grant_that_is_not_all_or_none_overfills(self):
+        budget = int(PAIR_BUDGET[UNITS_ENV])
+        with mock.patch.object(heavy_lock_module, "_take_files", overfilling_take_files), \
+                self.assertRaisesRegex(AssertionError, "overfilled"):
+            self.grant_in_turn([BUILD, BUILD, GODOT, GODOT, BUILD], budget)
+
+    def test_a_build_arrival_queues_behind_a_waiting_exclusive_run(self):
+        """A stream of build holders cannot starve an exclusive waiter: a build
+        that would fit beside the current holder still queues behind it."""
+        build = self.holder("build")
+        exclusive = self.waiter("exclusive")
+        later = self.waiter("later", "--class", "build")  # fails here if it jumped the queue
+        self.assertIn("1 waiter(s) ahead", later.first_line)
+        self.release(build)
+        self.assertEqual(self.finish(exclusive, later), ["exclusive", "later"])
+
+    def test_negative_control_without_the_exclusive_waiter_the_build_starts(self):
+        self.holder("build")
+        code, stderr = self.immediate("later", "--class", "build")
+        self.assertEqual(code, 0, stderr)
+        self.assertNotIn("waiting", stderr)
+
+    def nested(self, held, requested, env=None):
+        flags = () if held == EXCLUSIVE else ("--class", held)
+        return subprocess.run(
+            [sys.executable, str(TOOLS / "heavy_lock.py"), "run", *flags, "--",
+             sys.executable, "-c", NESTED_REQUEST, str(self.lock), requested],
+            capture_output=True, text=True, timeout=TIMEOUT, env={**self.env, **(env or {})})
+
+    def test_a_request_under_a_shared_holder_of_another_class_is_refused(self):
+        for held, requested in ((GODOT, BUILD), (BUILD, GODOT), (BUILD, EXCLUSIVE)):
+            done = self.nested(held, requested)
+            self.assertEqual(done.returncode, EXIT_HELD_BY_PARENT, (held, requested, done))
+            self.assertIn(f"{requested} run was started under a {held}-class holder",
+                          done.stderr)
+
+    def test_negative_control_the_same_class_or_an_exclusive_holder_nests(self):
+        for held, requested in ((BUILD, BUILD), (EXCLUSIVE, BUILD)):
+            done = self.nested(held, requested)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            self.assertEqual(done.stdout.split()[0], held)
+            self.assertEqual(done.stdout.split()[2], "True")
+
+    def test_a_held_unit_under_another_budget_is_refused(self):
+        self.holder("build", {UNITS_ENV: "16"})  # records 16 in its unit files
+        code, stderr = self.immediate("other", "--class", "build", env={UNITS_ENV: "20"})
+        self.assertEqual(code, EXIT_HELD_BY_PARENT, stderr)
+        self.assertIn(f"{UNITS_ENV}=16, this one has 20", stderr)
+        self.assertEqual(self.granted(), [])
+
+    def test_negative_control_the_holders_budget_proceeds(self):
+        self.holder("build", {UNITS_ENV: "16"})
+        code, stderr = self.immediate("same", "--class", "build", env={UNITS_ENV: "16"})
+        self.assertEqual(code, 0, stderr)
+        self.assertEqual(self.granted(), ["same"])
+
+    def test_a_budget_below_the_largest_class_is_refused(self):
+        with self.assertRaises(ValueError):
+            lock_units({UNITS_ENV: str(max(CLASS_UNITS.values()) - 1)})
+        self.assertEqual(lock_units({UNITS_ENV: str(max(CLASS_UNITS.values()))}),
+                         max(CLASS_UNITS.values()))
 
 
 #: Holds the slot file `argv[1]` (as a godot holder would), says `held`,

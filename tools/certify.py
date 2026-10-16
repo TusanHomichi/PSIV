@@ -22,13 +22,15 @@ selected pair is 0.000000. Refuses while a process has the debug extension
 mapped (rebuilding or loading under a live Godot can crash it).
 
 Certify takes the shared heavy lock itself (tools/heavy_lock.py), so it needs
-no wrapper: the build in the exclusive class, then the captures holding one
-godot-class slot per worker. `--jobs N` (default min(3, the godot slot cap))
+no wrapper: the build in the build class (its memory fits beside Godot runs;
+the extension it rewrites is this checkout's, which the mapped-extension
+refusal above guards), then the captures holding one godot-class slot per
+worker. `--jobs N` (default min(3, the godot slot cap))
 runs the captures across N workers, longest first; each worker owns one Xvfb
 server for its life and each capture its own save directory and output files,
-so a pair's capture is the same bytes at any N. Under an exclusive holder (a
-candidate run) both steps are nested no-ops and N is capped by the slot cap;
-under a godot holder, by the slots it holds.
+so a pair's capture is the same bytes at any N. Under an exclusive holder both
+steps are nested no-ops and N is capped by the slot cap; under a godot holder
+(with `--no-build`: a build there is refused), by the slots it holds.
 """
 import argparse
 import ctypes
@@ -51,7 +53,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from gate import (EXTENSION_PATH, display_path, git_info, loaded_extension_pids,  # noqa: E402
                   utc_stamp)
-from heavy_lock import EXCLUSIVE, GODOT as GODOT_CLASS, godot_slots, hold_heavy_lock  # noqa: E402
+from heavy_lock import BUILD, GODOT as GODOT_CLASS, godot_slots, hold_heavy_lock  # noqa: E402
 
 # `oracle` is a package of the repository root, not of `tools/`, so the root
 # goes on the path too. The one thing this module takes from there is the host
@@ -443,7 +445,7 @@ def main(argv=None):
         print(f"certify: refused, {EXTENSION_PATH} is mapped by PIDs {users}; close Godot first")
         return 3
     if not args.no_build:
-        with hold_heavy_lock(lock_class=EXCLUSIVE):
+        with hold_heavy_lock(lock_class=BUILD):
             built = subprocess.run(["cargo", "build", "-p", "psiv-godot", "--manifest-path",
                                     "rust/Cargo.toml"])
         if built.returncode != 0:

@@ -340,6 +340,31 @@ class GateRunCase(unittest.TestCase):
         self.assertEqual((self.root / "marker.txt").read_text(),
                          str(self.root / "build" / "continuation-heavy.lock"))
 
+    def test_every_command_runs_in_the_exclusive_class_and_the_receipt_says_so(self):
+        probe = ("python3 -c \"import os; open('class.txt', 'a')"
+                 f".write(os.environ.get('{HELD_CLASS_ENV}', 'none') + '\\\\n')\"")
+        receipt, _ = self.run_quiet([probe, probe])
+        self.assertEqual(receipt["exit_code"], 0)
+        self.assertEqual((self.root / "class.txt").read_text().split(), ["exclusive"] * 2)
+        self.assertEqual(receipt["heavy_lock_class"], "exclusive")
+        self.assertEqual([record["lock_class"] for record in receipt["commands"]],
+                         ["exclusive"] * 2)
+        self.assertEqual(self.stored()["heavy_lock_class"], "exclusive")
+
+    def test_negative_control_a_gate_under_a_build_holder_is_refused(self):
+        """The class is real: under a holder that excludes nobody the gate's
+        exclusive request exits 2 and runs nothing."""
+        heavy = heavy_lock_path(self.root)
+        with mock.patch.dict(os.environ, {HELD_ENV: str(heavy.resolve()),
+                                          HELD_CLASS_ENV: "build"}), \
+                contextlib.redirect_stdout(io.StringIO()) as out, \
+                self.assertRaises(SystemExit) as refused:
+            run_gate([fake_step("only", marker="ran.txt")], self.root, self.receipt_dir)
+        self.assertEqual(refused.exception.code, 2)
+        self.assertIn("an exclusive run was started under a build-class holder",
+                      out.getvalue())
+        self.assertFalse((self.root / "ran.txt").exists())
+
     def test_receipt_records_a_dirty_tree_and_its_paths(self):
         (self.root / "scratch.txt").write_text("uncommitted\n")
         receipt, _ = self.run_quiet([fake_step("only")])
