@@ -28,7 +28,7 @@ use std::rc::Rc;
 
 use psiv_core::{Cell, Direction, FieldMap, Flag, GameState, MapError};
 use psiv_data::{GameData, MapRecord};
-use psiv_runtime::{BridgeError, evaluate_map_effects, field_map_entered};
+use psiv_runtime::{BridgeError, FieldLoad, adjust_field_load, evaluate_map_effects, field_map_entered};
 
 use crate::cell_plan::{CellPlanError, Flood, Mover};
 
@@ -304,13 +304,29 @@ impl<'a> MapGraph<'a> {
             .flood(from)?
             .warp_plan(warp)
             .ok_or(PlanError::Cells(from.map, CellPlanError::Unreachable))?;
-        let w = map.warps()[warp];
+        let load = self.warp_load(from.map, map.warps()[warp]);
         Ok(Leg {
             map: from.map,
             from: from.cell,
             steps: plan.steps,
-            hop: hop_of(record, warp, &w),
+            hop: hop_of(record, warp, load),
         })
+    }
+
+    /// The load `warp` of map `from` makes under this graph's flags: the warp's
+    /// own destination, then the field loader's four redirects
+    /// (`GameMode_LoadFieldMap`, [`adjust_field_load`]), which the runtime
+    /// applies to the same load.
+    fn warp_load(&self, from: u16, warp: psiv_core::Warp) -> FieldLoad {
+        adjust_field_load(
+            &self.base,
+            FieldLoad {
+                map: warp.target_map,
+                cell: warp.target_cell,
+                facing: warp.facing,
+                previous_map: from,
+            },
+        )
     }
 
     /// Plans the cheapest chain of warps (then final walk) from `from` to
@@ -328,15 +344,15 @@ impl<'a> MapGraph<'a> {
 ///
 /// `FieldMap` drops warps with no trigger area, so its index is the position
 /// among the record's warps that have one.
-fn hop_of(record: &MapRecord, index: usize, warp: &psiv_core::Warp) -> Hop {
+fn hop_of(record: &MapRecord, index: usize, load: FieldLoad) -> Hop {
     let pack = record.warps.iter().filter(|p| p.rect.is_some()).nth(index);
     Hop {
         warp_index: index,
         pack_index: pack.map_or(u32::MAX, |p| p.index),
         record_offset: pack.map_or_else(String::new, |p| p.record_offset.clone()),
-        target_map: warp.target_map.0,
-        arrival: warp.target_cell,
-        facing: warp.facing,
+        target_map: load.map.0,
+        arrival: load.cell,
+        facing: load.facing,
     }
 }
 
@@ -401,14 +417,13 @@ impl MapGraph<'_> {
                 let Some(plan) = flood.warp_plan(warp) else {
                     continue;
                 };
-                let w = map.warps()[warp];
-                let target_id = w.target_map.0;
-                if self.record(target_id).is_none() {
+                let load = self.warp_load(here.map, map.warps()[warp]);
+                if self.record(load.map.0).is_none() {
                     continue; // a warp out of the packed set cannot be followed
                 }
                 let arrival = Position {
-                    map: target_id,
-                    cell: w.target_cell,
+                    map: load.map.0,
+                    cell: load.cell,
                 };
                 let next_cost = cost + plan.steps.len();
                 let slot = *index.entry(arrival).or_insert_with(|| {
@@ -429,7 +444,7 @@ impl MapGraph<'_> {
                         map: here.map,
                         from: here.cell,
                         steps: plan.steps,
-                        hop: hop_of(record, warp, &w),
+                        hop: hop_of(record, warp, load),
                     },
                 ));
                 seq += 1;

@@ -246,9 +246,19 @@ impl<'a> Run<'a> {
                 })
             }
             Objective::StepOnto { map, cell } => self.step_onto(*map, cell.cell()),
-            Objective::GoToMap { map, via_warp } => {
+            Objective::GoToMap {
+                map,
+                via_warp,
+                arrival_scene,
+            } => {
                 self.require_map(*map)?;
-                self.go_to_map(*map, *via_warp)
+                self.go_to_map(*map, *via_warp)?;
+                if *arrival_scene {
+                    // The scene the load starts moves the party: where it ends
+                    // is the next `expect`'s claim.
+                    self.pos = None;
+                }
+                Ok(())
             }
             Objective::Wait { frames } => {
                 if (1..=MAX_WAIT_FRAMES).contains(frames) {

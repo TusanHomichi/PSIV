@@ -200,13 +200,37 @@ impl Driver {
     ///
     /// As [`Driver::go_to`].
     pub fn go_to_map(&mut self, map: u16, via_warp: Option<u32>) -> Res {
+        self.go_to_map_with(map, via_warp, false)
+    }
+
+    /// As [`Driver::go_to_map`] for a map whose load starts a scene that
+    /// carries the party off it (the Reunion on the Dezo Spaceport, `RunEvent_Reunion`
+    /// firing on the arrival): the objective is met once the scene has run,
+    /// wherever it left the party, and the next objective asserts that place.
+    ///
+    /// # Errors
+    ///
+    /// As [`Driver::go_to_map`].
+    pub fn go_to_map_scene(&mut self, map: u16, via_warp: Option<u32>) -> Res {
+        self.go_to_map_with(map, via_warp, true)
+    }
+
+    fn go_to_map_with(&mut self, map: u16, via_warp: Option<u32>, arrival_scene: bool) -> Res {
         let mut stalled = 0;
         let mut first = via_warp;
         let start_map = self.map();
+        let scenes_before = self.scenes_ended();
         for _ in 0..REPLAN_LIMIT {
             let settled = self.settle_at(true, true)?;
             let prompt = settled == Settled::Choice;
             let here = (self.map(), self.cell());
+            if arrival_scene && here.0 != map && self.scenes_ended() > scenes_before {
+                self.note(format!(
+                    "go_to_map {map:#x}: a scene took the party to map {:#x}",
+                    here.0
+                ));
+                return Ok(());
+            }
             if settled == Settled::Menu {
                 // The same for the ship's menu a scene opens on arrival.
                 if here.0 == map {

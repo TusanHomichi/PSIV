@@ -32,6 +32,7 @@ use psiv_core::{Cell, Direction, Flag, GameState, MapId};
 use crate::bridge::{self, build_bespoke, build_wander, clear_bespoke_entry_flags};
 use crate::effects;
 use crate::geometry::{camera_for_record, driver_of};
+use crate::map_load_adjust::{FieldLoad, adjust_field_load};
 use crate::vehicle;
 use crate::{BridgeError, Runtime, RuntimeEvent};
 
@@ -277,6 +278,31 @@ impl Runtime {
         previous_map: u16,
         kind: MapLoad,
     ) -> Result<(), BridgeError> {
+        // `GameMode_LoadFieldMap` redirects four maps from the event flags
+        // before it reads the record (`ps4.asm:107526-107529`); `RefreshMap`
+        // does not.
+        let FieldLoad {
+            map: target,
+            cell,
+            facing,
+            previous_map,
+        } = match kind {
+            MapLoad::Field => adjust_field_load(
+                &self.game,
+                FieldLoad {
+                    map: target,
+                    cell,
+                    facing,
+                    previous_map,
+                },
+            ),
+            MapLoad::Refresh => FieldLoad {
+                map: target,
+                cell,
+                facing,
+                previous_map,
+            },
+        };
         let keep_old_music =
             matches!(kind, MapLoad::Field) && self.map_load_flags & LOAD_FLAG_AFTER_BATTLE != 0;
         // The routine's flag test comes first in the cartridge: the object

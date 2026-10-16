@@ -70,6 +70,7 @@ pub(crate) mod post_rika_events;
 pub(crate) mod post_zio_cutscenes;
 pub(crate) mod recovery;
 pub(crate) mod retail_endgame;
+pub(crate) mod soldiers_temple;
 mod vahal_common;
 pub(crate) mod vahal_fort;
 pub(crate) mod vehicles;
@@ -206,6 +207,10 @@ pub static SCENES: &[Scene] = &[
     garuberk_events::DOOR_ENTERED_2,
     garuberk_events::EYE_ACTION_1,
     garuberk_events::EYE_ACTION_2,
+    soldiers_temple::CAVE_DIALOGUE_1,
+    soldiers_temple::CAVE_DIALOGUE_2,
+    soldiers_temple::TEMPLE_REACHED,
+    soldiers_temple::AERO_PRISM_FOUND,
     post_zio_cutscenes::LANDALE,
     post_zio_cutscenes::KURAN_ARRIVAL,
     post_zio_cutscenes::NEAR_DARK_FORCE_1,
@@ -371,6 +376,10 @@ mod tests {
             ("Event_GaruberkTwDoorEntered2", 21),
             ("Event_GaruberkTwEyeAction1", 8),
             ("Event_GaruberkTwEyeAction2", 4),
+            ("Event_SoldiersTempleCaveDialogue1", 2),
+            ("Event_SoldiersTempleCaveDialogue2", 2),
+            ("Event_SoldiersTempleReached", 2),
+            ("Event_AeroPrismFound", 3),
             ("Cutscene_Landale", 24),
             ("Event_KuranArrival", 2),
             ("Event_NearDarkForce1", 2),
