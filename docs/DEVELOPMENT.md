@@ -244,7 +244,7 @@ units fit:
 | Class | Holds | Taken by |
 | --- | --- | --- |
 | `exclusive` | the whole machine | `tools/gate.py` (both tiers, the whole run: its receipt is a timed, reproducible run), certify's extension build, and, through `python3 tools/heavy_lock.py run --class exclusive -- <command>`, pack builds (`python3 -m psiv_tools pack` rewrites `runtime-pack/` in place, which every lane and suite reads) and any other cargo build or test that compiles `psiv-godot` (`-p psiv-godot` or `--workspace`) |
-| `build` | 8 units | every other cargo invocation (build, test or clippy, whether or not it loads the pack: compilation is its peak): `verify_candidate`'s release build and `heavy_lock.py run --class build -- cargo ...` |
+| `build` | 7 units | every other cargo invocation (build, test or clippy, whether or not it loads the pack: compilation is its peak): `verify_candidate`'s release build and `heavy_lock.py run --class build -- cargo ...` |
 | `godot` | 1 unit and one of `PSIV_GODOT_SLOTS` slots (default 3) per run | `tools/certify.py` (one slot per `--jobs` worker), `tools/verify_native_tape.py`, `tools/verify_native_route.py`, and `heavy_lock.py run --class godot -- <command>` for any other single Godot/Xvfb run |
 | `python` | 2 units | the Python suite or part of it: `heavy_lock.py run --class python -- python3 -m unittest ...` |
 
@@ -257,28 +257,40 @@ keeps every Godot run out until the build ends.
 and exits 2, so no command takes the whole machine by default.
 
 An exclusive holder excludes every shared holder and they exclude it. A cargo
-run, two Godot runs and a Python suite fit together (12 units); a second cargo
-run then waits, and two cargo runs fit alone (16). The entry points in the
+run, two Godot runs and a Python suite fit together (11 units); a second cargo
+run then waits (18), and two cargo runs fit with one Godot run (15). The entry points in the
 table take their class themselves: never wrap them. A headless
 `psiv-campaign` run takes no lock. `PSIV_GODOT_SLOTS` and
 `PSIV_LOCK_UNITS` must be the same for every process: each holder records them
 in its slot and unit files, and a process that finds a held file recording
 another value refuses with exit 2.
 
-One sizing rule holds for every class: its units are ceil(its largest measured
-peak process-tree RSS / 512 MB), the RSS summed over every process of the job
-and sampled every 0.2 s. The safety margin is the budget, not the units: 16
-units leave about 5.5 GB outside the lock for the desktop, the agent sessions,
-unlocked headless runs and any job that peaks above its measurement. One
-run each, 2026-10-16, on the 8-core 13.5 GB host on AC with the CPU capped at
-2.3 GHz (`bios_limit` 2300000), at `20a76de`; `/usr/bin/time -v` reports the
-largest single process:
+One sizing rule holds for every class: its units are the fewest that keep at
+least 15% of the holding above its largest measured peak process-tree RSS,
+ceil(peak / (0.85 × 512 MB)), the RSS summed over every process of the job.
+`build` is sized by the cold `cargo test --workspace --exclude psiv-godot
+--no-run` (2,964 MB in 7 units, 17% headroom), `godot` by a certify pair
+(418 MB in 1, 18%), `python` by the suite (815 MB in 2, 20%); jobs that
+compile `psiv-godot` are exclusive and do not size `build`. The budget is the
+machine's margin: 16 units leave about 5.5 GB outside the lock for the
+desktop, the agent sessions, unlocked headless runs and any job that peaks
+above its measurement. One run each, 2026-10-16, on the 8-core 13.5 GB host on
+AC with the CPU capped at 2.3 GHz (`bios_limit` 2300000); `/usr/bin/time -v`
+reports the largest single process. Rows marked 0.1 s sampled the tree every
+0.1 s at `4abbbc2`; the others every 0.2 s at `20a76de`:
 
 | Job | Wall | Tree peak RSS | `time -v` max RSS | Pack | Class |
 | --- | ---: | ---: | ---: | --- | --- |
 | `cargo build --release -p psiv-campaign`, cold target, default jobs | 49 s | 1,073 MB | 633 MB | - | `build` |
 | the same, after touching `psiv-core` | 45 s | 1,060 MB | 629 MB | - | `build` |
 | `cargo build -p psiv-godot` (dev), cold target | 88 s | 3,609 MB | 3,617 MB | - | `exclusive` (relinks the extension) |
+| the same, 0.1 s | 93 s | 3,608 MB | 3,591 MB | - | `exclusive` |
+| the opt-level-3 extension build ([native tape replay](campaign/CAMPAIGN_RUNNER.md#native-tape-replay)), `CARGO_BUILD_JOBS=2`, cold, 0.1 s | 380 s | 4,817 MB | 3,018 MB | - | `exclusive` |
+| the same at default jobs, cold, 0.1 s | 264 s | 5,582 MB | 4,140 MB | - | `exclusive` |
+| `cargo build --workspace` (dev), cold, 0.1 s | 87 s | 3,523 MB | 3,496 MB | - | `exclusive` (compiles `psiv-godot`) |
+| `cargo test --workspace --exclude psiv-godot --no-run`, cold, 0.1 s | 255 s | **2,964 MB** | 900 MB | - | `build` (sizes it) |
+| `cargo clippy --workspace --all-targets`, cold, 0.1 s | 90 s | 2,560 MB | 1,984 MB | - | `build` |
+| `cargo build --release -p psiv-campaign`, cold, 0.1 s | 92 s | 974 MB | 627 MB | - | `build` |
 | `cargo test --workspace --no-run`, default jobs | 165 s | 3,050 MB | 887 MB | - | `exclusive` (compiles `psiv-godot`) |
 | `cargo clippy --workspace --all-targets`, warm | 25 s | 1,762 MB | 525 MB | - | `build` |
 | `cargo test -p psiv-data`, built | 5 s | 291 MB | 199 MB | reads | `build` |

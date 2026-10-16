@@ -108,10 +108,13 @@ DEFAULT_GODOT_SLOTS = 3
 UNIT_MB = 512
 DEFAULT_LOCK_UNITS = 16
 #: Units each shared holder takes (godot: per slot), one rule for every class:
-#: ceil(the class's largest measured peak process-tree RSS / UNIT_MB), from
-#: the table in docs/DEVELOPMENT.md: a cold dev psiv-godot build 3,609 MB, a
-#: certify pair 418 MB, the Python suite 815 MB.
-CLASS_UNITS = {BUILD: 8, GODOT: 1, PYTHON: 2}
+#: the fewest units that keep at least 15% of the holding above the class's
+#: largest measured peak process-tree RSS, ceil(peak / (0.85 * UNIT_MB)), from
+#: the table in docs/DEVELOPMENT.md: a cold `cargo test --workspace --exclude
+#: psiv-godot --no-run` 2,964 MB (7 units, 17% headroom), a certify pair 418 MB
+#: (1, 18%), the Python suite 815 MB (2, 20%). Builds that compile psiv-godot
+#: are exclusive, so they do not size `build`.
+CLASS_UNITS = {BUILD: 7, GODOT: 1, PYTHON: 2}
 #: Seconds between a waiter's looks at the queue. A heavy run lasts minutes.
 POLL_S = 0.2
 
