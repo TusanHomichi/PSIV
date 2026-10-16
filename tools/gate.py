@@ -24,7 +24,7 @@ does not): the gate lock, `<main checkout>/build/gate/.lock`, for the whole
 run, and inside it the heavy lock in `GATE_LOCK_CLASS`, exclusive, through
 `hold_heavy_lock` for every command (the gate's receipt is a timed,
 reproducible run, so nothing shares the machine with it; the receipt names the class at the top and on each command; a run under
-an exclusive `heavy_lock.py run` already holds it, so that step is a no-op there, and
+`heavy_lock.py run --class exclusive` already holds it, so that step is a no-op there, and
 `PSIV_LOCK_PRIORITY=1` queues the gate as a priority waiter). A gate nested
 under a heavy holder takes the gate lock without waiting, `--wait` or not: the
 wait would hold the heavy lock while waiting for the gate lock.
@@ -431,7 +431,7 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
     receipt_dir = Path(receipt_dir).resolve()
     lock_file = gate_lock_path(root)
     heavy_lock = heavy_lock or heavy_lock_path(root)
-    # Under a heavy holder (`heavy_lock.py run`) the heavy lock
+    # Under a heavy holder (`heavy_lock.py run --class ...`) the heavy lock
     # is already taken, so waiting here for the gate lock would invert the one
     # lock order (heavy_lock's docstring) and can deadlock: refuse instead.
     nested = os.environ.get(HELD_ENV) == str(Path(heavy_lock).resolve())

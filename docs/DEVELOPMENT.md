@@ -243,7 +243,7 @@ units fit:
 
 | Class | Holds | Taken by |
 | --- | --- | --- |
-| `exclusive` | the whole machine | `tools/gate.py` (both tiers, the whole run: its receipt is a timed, reproducible run), pack builds (`python3 -m psiv_tools pack` rewrites `runtime-pack/` in place, which every lane and suite reads), certify's extension build, any other cargo build or test that compiles `psiv-godot` (`-p psiv-godot` or `--workspace`), and `python3 tools/heavy_lock.py run -- <command>` without `--class` |
+| `exclusive` | the whole machine | `tools/gate.py` (both tiers, the whole run: its receipt is a timed, reproducible run), certify's extension build, and, through `python3 tools/heavy_lock.py run --class exclusive -- <command>`, pack builds (`python3 -m psiv_tools pack` rewrites `runtime-pack/` in place, which every lane and suite reads) and any other cargo build or test that compiles `psiv-godot` (`-p psiv-godot` or `--workspace`) |
 | `build` | 8 units | every other cargo invocation (build, test or clippy, whether or not it loads the pack: compilation is its peak): `verify_candidate`'s release build and `heavy_lock.py run --class build -- cargo ...` |
 | `godot` | 1 unit and one of `PSIV_GODOT_SLOTS` slots (default 3) per run | `tools/certify.py` (one slot per `--jobs` worker), `tools/verify_native_tape.py`, `tools/verify_native_route.py`, and `heavy_lock.py run --class godot -- <command>` for any other single Godot/Xvfb run |
 | `python` | 2 units | the Python suite or part of it: `heavy_lock.py run --class python -- python3 -m unittest ...` |
@@ -252,6 +252,9 @@ A cargo run that compiles `psiv-godot` fits the budget, but stays exclusive:
 it relinks the GDExtension library that a Godot run in the same checkout maps,
 and the mapped-extension checks run once, before the lock, so only exclusion
 keeps every Godot run out until the build ends.
+
+`run` requires `--class`: without one it prints the classes with their units
+and exits 2, so no command takes the whole machine by default.
 
 An exclusive holder excludes every shared holder and they exclude it. A cargo
 run, two Godot runs and a Python suite fit together (12 units); a second cargo

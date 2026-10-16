@@ -238,7 +238,8 @@ class AcquireCase(unittest.TestCase):
 
     def test_run_exports_the_marker_and_a_nested_acquire_does_not_block(self):
         env = {**self.env, HEAVY_LOCK_ENV: str(self.lock)}
-        done = self.run_child(str(TOOLS / "heavy_lock.py"), "run", "--", sys.executable,
+        done = self.run_child(str(TOOLS / "heavy_lock.py"), "run", "--class", "exclusive",
+                              "--", sys.executable,
                               "-c", ACQUIRE_CHILD, str(self.lock), env=env)
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(done.stdout.strip(), "acquired")
@@ -323,6 +324,11 @@ def read_until(stream, needle, timeout=TIMEOUT):
     return seen.decode()
 
 
+def with_class(flags):
+    """`flags` with `--class exclusive` added when they name no class."""
+    return flags if "--class" in flags else ("--class", "exclusive", *flags)
+
+
 class LockProcesses(unittest.TestCase):
     """Real holders and waiters on a temp lock. Each waiter appends its name to
     `self.order` while it holds the lock, so the file is the grant order."""
@@ -354,7 +360,7 @@ class LockProcesses(unittest.TestCase):
 
     def waiter(self, name, *flags, env=None):
         """A `run` waiter that has printed its first waiting line (so it is queued)."""
-        process = self.spawn([str(TOOLS / "heavy_lock.py"), "run", *flags, "--",
+        process = self.spawn([str(TOOLS / "heavy_lock.py"), "run", *with_class(flags), "--",
                               sys.executable, "-c", APPEND, str(self.order), name], env)
         process.first_line = read_until(process.stderr, "\n")
         return process
@@ -375,7 +381,7 @@ class LockProcesses(unittest.TestCase):
     def immediate(self, name, *flags, env=None):
         """A `run` that must finish without waiting: (exit code, stderr)."""
         done = subprocess.run(
-            [sys.executable, str(TOOLS / "heavy_lock.py"), "run", *flags, "--",
+            [sys.executable, str(TOOLS / "heavy_lock.py"), "run", *with_class(flags), "--",
              sys.executable, "-c", APPEND, str(self.order), name],
             capture_output=True, text=True, timeout=TIMEOUT, env={**self.env, **(env or {})})
         return done.returncode, done.stderr
@@ -383,6 +389,22 @@ class LockProcesses(unittest.TestCase):
 
 class QueueCase(LockProcesses):
     """The queue, the godot class and the slot cap; see LockProcesses."""
+
+    def test_run_without_a_class_prints_the_classes_and_runs_nothing(self):
+        done = subprocess.run(
+            [sys.executable, str(TOOLS / "heavy_lock.py"), "run", "--",
+             sys.executable, "-c", APPEND, str(self.order), "classless"],
+            capture_output=True, text=True, timeout=TIMEOUT, env=self.env)
+        self.assertEqual(done.returncode, 2, done.stderr)
+        for name in heavy_lock_module.LOCK_CLASSES:
+            self.assertIn(f"  {name} ", done.stderr)
+        self.assertEqual(self.granted(), [])
+        self.assertFalse(self.lock.exists(), "nothing was taken")
+
+    def test_negative_control_the_same_run_with_a_class_runs(self):
+        code, stderr = self.immediate("classed", "--class", "exclusive")
+        self.assertEqual(code, 0, stderr)
+        self.assertEqual(self.granted(), ["classed"])
 
     def acquisition_order(self, *second_flags, second_env=None):
         """Holder, then waiter `first`, then waiter `second`; release; the grant order."""
@@ -600,7 +622,7 @@ class QueueCase(LockProcesses):
 
     def test_a_godot_request_under_an_exclusive_holder_gets_every_slot(self):
         done = subprocess.run(
-            [sys.executable, str(TOOLS / "heavy_lock.py"), "run", "--",
+            [sys.executable, str(TOOLS / "heavy_lock.py"), "run", "--class", "exclusive", "--",
              sys.executable, "-c", NESTED_REQUEST, str(self.lock), "godot"],
             capture_output=True, text=True, timeout=TIMEOUT,
             env={**self.env, GODOT_SLOTS_ENV: "4"})
@@ -614,7 +636,8 @@ class QueueCase(LockProcesses):
                               probe], capture_output=True, text=True, timeout=TIMEOUT,
                              env=self.env)
         self.assertEqual(raw.stdout.split(), [raw.stdout.split()[0]] * 2, raw.stderr)
-        marked = subprocess.run([sys.executable, str(TOOLS / "heavy_lock.py"), "run", "--",
+        marked = subprocess.run([sys.executable, str(TOOLS / "heavy_lock.py"), "run",
+                                 "--class", "exclusive", "--",
                                  sys.executable, "-c", probe, str(self.lock)],
                                 capture_output=True, text=True, timeout=TIMEOUT, env=self.env)
         self.assertEqual(marked.stdout.strip(), "None")
@@ -761,7 +784,7 @@ class BudgetCase(LockProcesses):
         self.assertNotIn("waiting", stderr)
 
     def nested(self, held, requested, env=None):
-        flags = () if held == EXCLUSIVE else ("--class", held)
+        flags = ("--class", held)
         return subprocess.run(
             [sys.executable, str(TOOLS / "heavy_lock.py"), "run", *flags, "--",
              sys.executable, "-c", NESTED_REQUEST, str(self.lock), requested],

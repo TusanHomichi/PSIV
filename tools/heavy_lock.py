@@ -3,7 +3,7 @@
 
     python3 tools/heavy_lock.py [--gate]          # print the lock path
     python3 tools/heavy_lock.py status            # print holders and waiters
-    python3 tools/heavy_lock.py run [--priority] [--class CLASS] -- <cmd...>
+    python3 tools/heavy_lock.py run [--priority] --class CLASS -- <cmd...>
 
 Heavy runs are serialized by project rule across every worktree, so their locks
 must name one file for the whole repository, not one per checkout. Both locks
@@ -25,8 +25,8 @@ lock rather than wait.
 
 The heavy lock's classes are split by peak memory (the measured table is in
 docs/DEVELOPMENT.md, "Heavy-run lock"). `exclusive` (the gate as a whole, pack
-builds, which rewrite the runtime pack every run reads, and the default of
-`run`) holds the lock file with LOCK_EX and runs alone. The
+builds, which rewrite the runtime pack every run reads, and builds of the
+GDExtension) holds the lock file with LOCK_EX and runs alone. The
 shared classes hold it with LOCK_SH plus units of a machine memory budget,
 `PSIV_LOCK_UNITS` (default `DEFAULT_LOCK_UNITS`) unit files of `UNIT_MB` each
 beside it, taken all or none, `CLASS_UNITS` each: `build` (any cargo build,
@@ -51,7 +51,9 @@ holders and how many waiters (and priority waiters) are ahead, again whenever
 that changes.
 
 `hold_heavy_lock(path)` is the one way in-repo code takes the heavy lock, and
-`run -- <cmd>` the one way to wrap a command in it. The holder exports
+`run --class CLASS -- <cmd>` the one way to wrap a command in it. The class is
+required: without one, `run` prints the classes and exits 2, so no command
+takes the whole machine by default. The holder exports
 `PSIV_HEAVY_LOCK_HELD=<resolved path>` with the class and slot count, so a
 descendant that asks for the same lock (certify under an exclusive `run`)
 proceeds without blocking on its own ancestor; a request under a shared
@@ -301,7 +303,8 @@ def raw_flock_parent(path=None, environ=None):
 def refuse_message(path, parent):
     """What a child of a raw `flock(1)` holder prints before exiting 2."""
     return (f"heavy lock {path} is already held by your parent pid {parent}; "
-            "use `python3 tools/heavy_lock.py run -- <command>` or run without a wrapper")
+            "use `python3 tools/heavy_lock.py run --class CLASS -- <command>` or run "
+            "without a wrapper")
 
 
 class _Queue:
@@ -712,24 +715,40 @@ def run_parser():
         description="Run a command holding the heavy lock.")
     parser.add_argument("--priority", action="store_true",
                         help="go ahead of every normal waiter (speedup lanes, a yield)")
-    parser.add_argument("--class", dest="lock_class", choices=LOCK_CLASSES, default=EXCLUSIVE,
-                        help="exclusive (default: the whole machine), build (any cargo "
-                             "build, test or clippy run), godot (one Godot/Xvfb run), "
-                             "or python (the Python suite)")
+    parser.add_argument("--class", dest="lock_class", choices=LOCK_CLASSES,
+                        help="required; see CLASS_HELP")
     return parser
 
 
+#: What `run` prints when no class is given, one line per class.
+CLASS_HELP = {
+    EXCLUSIVE: "the whole machine: pack builds, builds or tests that compile psiv-godot",
+    BUILD: "any other cargo build, test or clippy run",
+    GODOT: "one Godot/Xvfb run",
+    PYTHON: "the Python suite, or part of it",
+}
+
+
+def class_usage():
+    """`run`'s usage line and one line per class with its units."""
+    lines = ["usage: python3 tools/heavy_lock.py run [--priority] --class CLASS "
+             "-- <command...>", "classes (docs/DEVELOPMENT.md, \"Heavy-run lock\"):"]
+    for name in LOCK_CLASSES:
+        units = "every unit" if name == EXCLUSIVE else f"{CLASS_UNITS[name]} unit(s)"
+        lines.append(f"  {name:<9} {units:<12} {CLASS_HELP[name]}")
+    return "\n".join(lines)
+
+
 def main(argv=None):
-    """Print a lock path or the lock's status, or `run -- <cmd>` under the heavy
-    lock (its exit code)."""
+    """Print a lock path or the lock's status, or `run --class CLASS -- <cmd>`
+    under the heavy lock (its exit code)."""
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv[:1] == ["run"]:
         options, command = (argv[1:argv.index("--")], argv[argv.index("--") + 1:]) \
             if "--" in argv else ([], argv[1:])
         args = run_parser().parse_args(options)
-        if not command:
-            print("usage: python3 tools/heavy_lock.py run [--priority] "
-                  f"[--class {'|'.join(LOCK_CLASSES)}] -- <command...>", file=sys.stderr)
+        if not command or args.lock_class is None:
+            print(class_usage(), file=sys.stderr)
             return 2
         with hold_heavy_lock(lock_class=args.lock_class, priority=args.priority or None):
             return subprocess.run(command).returncode
