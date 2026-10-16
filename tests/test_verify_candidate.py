@@ -187,7 +187,10 @@ class RawFlockParent(RepoCase):
     def test_negative_control_without_the_wrapper_the_steps_run(self):
         done = self.run_child()
         self.assertNotIn("already held", done.stderr)
-        self.assertEqual(self.steps.read_text().split(), ["build", "route", "certify", "gate"])
+        # Every step verify_candidate defines ran, in order; read from steps()
+        # so a new step cannot leave this control asserting a stale list.
+        self.assertEqual(self.steps.read_text().split(),
+                         [name for name, _, _ in vc.steps(Path("build/candidate/x"))])
 
 
 class BuildStepLock(RepoCase):
