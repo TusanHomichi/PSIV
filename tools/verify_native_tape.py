@@ -23,9 +23,11 @@ import time
 
 try:  # imported as `tools.verify_native_tape` by tests
     from tools.heavy_lock import GODOT as GODOT_CLASS, heavy_lock_path, hold_heavy_lock
+    from tools.native_rss import rss_verdict
     from tools.repo_files import repo_files
 except ModuleNotFoundError:  # direct `python3 tools/verify_native_tape.py`
     from heavy_lock import GODOT as GODOT_CLASS, heavy_lock_path, hold_heavy_lock
+    from native_rss import rss_verdict
     from repo_files import repo_files
 
 
@@ -195,122 +197,6 @@ def host_power(sys_root: Path = Path("/sys"), proc_root: Path = Path("/proc")) -
             "cpu0_bios_limit_khz": read(cpufreq / "bios_limit"),
             "cpu0_scaling_max_freq_khz": read(cpufreq / "scaling_max_freq"),
             "cpu0_cpuinfo_max_freq_khz": read(cpufreq / "cpuinfo_max_freq")}
-
-
-def rss_slope(samples: list, key: str = "rss_kb") -> float | None:
-    """Least-squares slope of `key` in KiB per 1,000 gameplay frames. Reported,
-    not judged: wall-clock work such as audio rendering makes growth per frame
-    depend on the host's frame rate."""
-    if len(samples) < 2:
-        return None
-    frames = [item["frame"] / 1000 for item in samples]
-    values = [item[key] for item in samples]
-    mean_f = sum(frames) / len(frames)
-    mean_v = sum(values) / len(values)
-    spread = sum((f - mean_f) ** 2 for f in frames)
-    if spread == 0:
-        return None
-    return round(sum((f - mean_f) * (v - mean_v) for f, v in zip(frames, values)) / spread, 1)
-
-
-RSS_SAMPLE_KEYS = ("frame", "elapsed_ms", "rss_kb", "static_kb", "objects", "map")
-
-
-def rss_verdict(samples: list | None, warmup_frames: int, bound_mb: float,
-                object_bound: int = 256) -> dict:
-    """Memory after warm-up stays bounded (#92), judged in three parts over the
-    window from the first sample at or past `warmup_frames` to the last.
-
-    Total RSS is not the measure: Godot's own allocator holds the current
-    map's images, so its static memory swings by ~110 MB with the map and
-    returns. Instead:
-
-    - `extension`: RSS minus Godot static memory (the extension's Rust heap
-      and everything else outside Godot's allocator) may not grow more than
-      `bound_mb` past the window's first sample;
-    - `godot_static`: on each map, Godot's static memory may not grow more
-      than `bound_mb` past that map's first sample in the window;
-    - `objects`: on each map, Godot's object count may not grow more than
-      `object_bound` past that map's first sample in the window (leaked
-      nodes, images or textures).
-
-    A map is only compared with itself, so a leak inside Godot's allocator
-    cannot hide under a bigger map's images. A map sampled once in the window
-    proves nothing about growth and is listed as unjudged; a window in which no
-    map is sampled twice fails. Godot reports static memory only in debug
-    builds (`MEMORY_STATIC` is 0 under a release template, which would make
-    `extension` equal RSS and fail on the map swing), so this verdict is for
-    debug builds of the extension and engine.
-
-    Missing or unreadable samples (including a sample without its map) prove
-    nothing, so they fail rather than pass vacuously."""
-    samples = samples if isinstance(samples, list) else []
-    verdict = {"warmup_frames": warmup_frames, "bound_mb": bound_mb,
-               "object_bound": object_bound, "samples": len(samples)}
-    readable = all(isinstance(item, dict) and isinstance(item.get(key), int)
-                   for item in samples for key in RSS_SAMPLE_KEYS)
-    warmup = [item for item in samples if readable and item["frame"] < warmup_frames]
-    measured = [item for item in samples if readable and item["frame"] >= warmup_frames]
-    verdict["samples_after_warmup"] = len(measured)
-    if (len(measured) < 2 or not warmup or not readable
-            or any(item["rss_kb"] <= 0 for item in samples)):
-        verdict.update({"pass": False, "reason": "missing or unreadable samples around warm-up"})
-        return verdict
-    measured = [dict(item, extension_kb=item["rss_kb"] - item["static_kb"]) for item in measured]
-    baseline = measured[0]
-    last = measured[-1]
-    span_s = (last["elapsed_ms"] - baseline["elapsed_ms"]) / 1000
-
-    def mb(kb: float) -> float:
-        return round(kb / 1024, 1)
-
-    peak_ext = max(measured, key=lambda item: item["extension_kb"])
-    extension_growth = peak_ext["extension_kb"] - baseline["extension_kb"]
-    by_map: dict[int, list] = {}
-    for item in measured:
-        by_map.setdefault(item["map"], []).append(item)
-    maps = {}
-    for map_id, visits in sorted(by_map.items()):
-        first = visits[0]
-        peak_static = max(visits, key=lambda item: item["static_kb"])
-        peak_objects = max(visits, key=lambda item: item["objects"])
-        maps[str(map_id)] = {
-            "samples": len(visits), "first_frame": first["frame"],
-            "static_growth_mb": mb(peak_static["static_kb"] - first["static_kb"]),
-            "static_peak_frame": peak_static["frame"],
-            "object_growth": peak_objects["objects"] - first["objects"]}
-    judged = {key: value for key, value in maps.items() if value["samples"] >= 2}
-    worst_static = max(judged.items(), key=lambda item: item[1]["static_growth_mb"],
-                       default=(None, {"static_growth_mb": None}))
-    worst_objects = max(judged.items(), key=lambda item: item[1]["object_growth"],
-                        default=(None, {"object_growth": None}))
-    verdict.update({
-        "baseline_frame": baseline["frame"], "last_frame": last["frame"],
-        "span_s": round(span_s, 1),
-        "rss_mb": {"baseline": mb(baseline["rss_kb"]), "last": mb(last["rss_kb"]),
-                   "peak": mb(max(item["rss_kb"] for item in measured)),
-                   "slope_kb_per_kframe": rss_slope(measured)},
-        "extension": {"baseline_mb": mb(baseline["extension_kb"]),
-                      "peak_mb": mb(peak_ext["extension_kb"]), "peak_frame": peak_ext["frame"],
-                      "last_mb": mb(last["extension_kb"]), "growth_mb": mb(extension_growth),
-                      "growth_mb_per_min": round(extension_growth / 1024 / span_s * 60, 2)
-                      if span_s > 0 else None,
-                      "slope_kb_per_kframe": rss_slope(measured, "extension_kb"),
-                      "pass": extension_growth / 1024 <= bound_mb},
-        "maps": maps,
-        "maps_unjudged": sorted(int(key) for key, value in maps.items() if value["samples"] < 2),
-        "godot_static": {"worst_map": worst_static[0],
-                         "growth_mb": worst_static[1]["static_growth_mb"],
-                         "pass": bool(judged) and all(value["static_growth_mb"] <= bound_mb
-                                                      for value in judged.values())},
-        "objects": {"worst_map": worst_objects[0], "growth": worst_objects[1]["object_growth"],
-                    "pass": bool(judged) and all(value["object_growth"] <= object_bound
-                                                 for value in judged.values())},
-    })
-    if not judged:
-        verdict["reason"] = "no map was sampled twice past warm-up; Godot memory is unjudged"
-    verdict["pass"] = all(verdict[part]["pass"] for part in ("extension", "godot_static", "objects"))
-    return verdict
 
 
 def parser() -> argparse.ArgumentParser:
@@ -556,12 +442,15 @@ def replay(args: argparse.Namespace) -> int:
         if "extension" in rss:
             print(f"native tape: RSS {'PASS' if rss['pass'] else 'FAIL'}; frames "
                   f"{rss['baseline_frame']}..{rss['last_frame']}: extension heap "
-                  f"+{rss['extension']['growth_mb']} MB; per map, Godot static "
-                  f"+{rss['godot_static']['growth_mb']} MB (map {rss['godot_static']['worst_map']}), "
-                  f"objects +{rss['objects']['growth']} (map {rss['objects']['worst_map']}); "
-                  f"bounds {rss['bound_mb']} MB, {rss['object_bound']} objects; "
-                  f"{len(rss['maps']) - len(rss['maps_unjudged'])} maps judged, "
-                  f"{len(rss['maps_unjudged'])} sampled once; RSS {rss['rss_mb']['baseline']} -> "
+                  f"+{rss['extension']['growth_mb']} MB; {rss['floor_samples']}-sample floors: "
+                  f"Godot static +{rss['godot_static']['growth_mb']} MB "
+                  f"(map {rss['godot_static']['worst_map']}), objects "
+                  f"+{rss['objects']['growth']} (map {rss['objects']['worst_map']}), drift "
+                  f"{rss['static_drift']['drift_mb']} MB; uncovered tail "
+                  f"{rss['coverage']['uncovered_tail_frames']} frames (limit "
+                  f"{rss['coverage']['tail_limit_frames']}); bounds {rss['bound_mb']} MB, "
+                  f"{rss['object_bound']} objects; {len(rss['maps'])} maps judged, "
+                  f"{len(rss['maps_unjudged'])} unjudged; RSS {rss['rss_mb']['baseline']} -> "
                   f"{rss['rss_mb']['last']} MB")
         else:
             print(f"native tape: RSS FAIL; {rss['reason']}")

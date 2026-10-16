@@ -17,7 +17,7 @@ from New Game is the route's evidence, so only a prefix of it can be replayed
 `--rss-every N --rss-warmup-frames W --rss-bound-mb B` turns the replay into
 the #92 memory check: the driver samples memory every N frames and the receipt
 fails when memory past frame W grows beyond B (what is measured, and how, is
-`verify_native_tape.rss_verdict`). The check's coverage is set in frames, so
+`tools/native_rss.py`). The check's coverage is set in frames, so
 every run plays the same maps and battles whatever the host's speed; the bound
 is judged over that window of frames. Growth is not normalized per frame:
 audio is rendered on the wall clock, so a slower host renders more of it per
@@ -220,7 +220,7 @@ def parser() -> argparse.ArgumentParser:
     command.add_argument("--rss-warmup-frames", type=int,
                          help="frames before the RSS baseline")
     command.add_argument("--rss-bound-mb", type=float,
-                         help="fail when RSS grows more than this past its baseline")
+                         help="memory bound in MB past warm-up (tools/native_rss.py)")
     command.add_argument("--drop-pad-at", type=int,
                          help="negative control: replace one pad byte with neutral")
     command.add_argument("--continue-probes", action="store_true",

@@ -18,7 +18,8 @@ import json
 from tools import verify_native_tape
 from tools.heavy_lock import (HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV, HELD_SLOTS_ENV,
                               PRIORITY_ENV)
-from tools.verify_native_tape import (file_identity, host_power, identities_stable, rss_verdict,
+from tests.test_native_rss import samples
+from tools.verify_native_tape import (file_identity, host_power, identities_stable,
                                       source_identity, terminate_process_group)
 
 
@@ -160,109 +161,7 @@ class NativeTapeIdentityGuard(unittest.TestCase):
                             os.kill(child_pid, signal.SIGKILL)
 
 
-def samples(*rows, every=1000, step_ms=1000):
-    """One sample per row of (rss_mb, static_mb, objects, map) every `every`
-    frames; the first row is frame `every`."""
-    return [{"frame": every * (i + 1), "elapsed_ms": step_ms * (i + 1),
-             "rss_kb": int(rss * 1024), "static_kb": int(static * 1024), "objects": objects,
-             "map": map_id}
-            for i, (rss, static, objects, map_id) in enumerate(rows)]
-
-
-# Warm-up is frames < 2000: the first row of every sample list below.
-WARMUP = 2000
-
-
-class NativeTapeRssBound(unittest.TestCase):
-    """#92: memory past warm-up stays bounded, with Godot's map-sized static
-    memory compared one map at a time."""
-
-    def test_a_map_swing_with_no_leak_passes(self):
-        # Map 1's images take 110 MB of Godot static memory; map 2's, none.
-        verdict = rss_verdict(samples((360, 210, 2800, 1), (250, 100, 2800, 2),
-                                      (360, 210, 2900, 1), (252, 100, 2850, 2),
-                                      (362, 212, 2900, 1)), WARMUP, 16)
-        self.assertTrue(verdict["pass"], verdict)
-        self.assertEqual(verdict["extension"]["growth_mb"], 2.0)
-        self.assertEqual((verdict["godot_static"]["worst_map"],
-                          verdict["godot_static"]["growth_mb"]), ("1", 2.0))
-        self.assertEqual(verdict["maps_unjudged"], [])
-
-    def test_a_leak_inside_godot_cannot_hide_under_a_bigger_maps_images(self):
-        # The reviewer's probe: a 210 MB map in warm-up, then a 100 MB map
-        # whose static memory climbs 3 MB a sample (105 MB leaked). Judged
-        # against the warm-up peak, this passed.
-        rows = [(360, 210, 2800, 1)] + [(250 + 3 * i, 100 + 3 * i, 2800, 2)
-                                        for i in range(36)]
-        verdict = rss_verdict(samples(*rows), WARMUP, 16)
-        self.assertFalse(verdict["pass"])
-        self.assertTrue(verdict["extension"]["pass"])
-        self.assertFalse(verdict["godot_static"]["pass"])
-        self.assertEqual((verdict["godot_static"]["worst_map"],
-                          verdict["godot_static"]["growth_mb"]), ("2", 105.0))
-
-    def test_a_map_sampled_once_is_listed_unjudged(self):
-        verdict = rss_verdict(samples((300, 100, 10, 1), (300, 100, 10, 1),
-                                      (500, 300, 900, 7), (300, 100, 10, 1)), WARMUP, 16)
-        self.assertTrue(verdict["pass"], verdict)
-        self.assertEqual(verdict["maps_unjudged"], [7])
-        self.assertEqual(verdict["maps"]["7"]["samples"], 1)
-
-    def test_a_window_with_no_map_sampled_twice_fails(self):
-        verdict = rss_verdict(samples((300, 100, 10, 1), (300, 100, 10, 2),
-                                      (300, 100, 10, 3)), WARMUP, 16)
-        self.assertFalse(verdict["pass"])
-        self.assertIn("no map was sampled twice", verdict["reason"])
-
-    def test_warmup_growth_is_not_counted(self):
-        self.assertTrue(rss_verdict(samples((100, 50, 10, 1), (900, 50, 10, 1),
-                                            (905, 50, 10, 1)), WARMUP, 16)["pass"])
-
-    def test_a_growing_extension_heap_fails_whatever_the_map(self):
-        # The shipped #92 shape: the Rust heap grows while maps swing.
-        verdict = rss_verdict(samples((250, 100, 2800, 2), (250, 100, 2800, 2),
-                                      (380, 210, 2800, 1), (290, 100, 2800, 2),
-                                      (420, 210, 2800, 1)), WARMUP, 16)
-        self.assertFalse(verdict["pass"])
-        self.assertFalse(verdict["extension"]["pass"])
-        self.assertTrue(verdict["godot_static"]["pass"])
-        self.assertEqual(verdict["extension"]["growth_mb"], 60.0)
-        self.assertEqual(verdict["extension"]["slope_kb_per_kframe"], 20480.0)
-
-    def test_a_transient_extension_peak_counts_even_if_it_falls_back(self):
-        self.assertFalse(rss_verdict(samples((250, 100, 1, 1), (250, 100, 1, 1),
-                                             (300, 100, 1, 1), (250, 100, 1, 1)),
-                                     WARMUP, 16)["pass"])
-
-    def test_objects_climbing_on_one_map_fail(self):
-        verdict = rss_verdict(samples((300, 200, 10, 1), (300, 200, 10, 1),
-                                      (300, 200, 300, 1)), WARMUP, 16)
-        self.assertFalse(verdict["pass"])
-        self.assertFalse(verdict["objects"]["pass"])
-        self.assertEqual(verdict["objects"]["growth"], 290)
-
-    def test_the_verdict_leaves_the_report_samples_untouched(self):
-        rows = samples((300, 200, 10, 1), (300, 200, 10, 1), (300, 200, 10, 1))
-        before = [dict(item) for item in rows]
-        rss_verdict(rows, WARMUP, 16)
-        self.assertEqual(rows, before)
-
-    def test_missing_or_unreadable_samples_fail_rather_than_pass(self):
-        self.assertFalse(rss_verdict(None, 0, 16)["pass"])
-        # No warm-up sample, too few samples past warm-up, an unreadable RSS.
-        self.assertFalse(rss_verdict(samples((470, 1, 1, 1), (480, 1, 1, 1)), 0, 16)["pass"])
-        self.assertFalse(rss_verdict(samples((470, 1, 1, 1), (480, 1, 1, 1), (490, 1, 1, 1)),
-                                     3000, 16)["pass"])
-        unreadable = samples((470, 1, 1, 1), (480, 1, 1, 1), (490, 1, 1, 1))
-        unreadable[2]["rss_kb"] = -1
-        self.assertFalse(rss_verdict(unreadable, WARMUP, 16)["pass"])
-        for key in ("static_kb", "map"):
-            missing = samples((470, 1, 1, 1), (480, 1, 1, 1), (490, 1, 1, 1))
-            del missing[1][key]
-            verdict = rss_verdict(missing, WARMUP, 16)
-            self.assertFalse(verdict["pass"], key)
-            self.assertIn("unreadable", verdict["reason"])
-
+class NativeTapeHostPower(unittest.TestCase):
     def test_host_power_reads_supplies_the_cpu_cap_and_the_load(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -333,11 +232,11 @@ class NativeTapeReceiptRss(unittest.TestCase):
 
     def test_a_flat_run_passes_and_a_failing_rss_verdict_fails_the_receipt(self):
         bound = ("--rss-warmup-frames", "2000", "--rss-bound-mb", "16")
-        flat = [(300, 100, 10, 1)] * 4
+        flat = [(300, 100, 10, 1)] * 6
         code, receipt = self.run_main(flat, bound)
         self.assertEqual(code, 0, receipt.get("rss"))
         self.assertIs(receipt["pass"], True)
-        growing = [(300, 100, 10, 1), (300, 100, 10, 1), (400, 100, 10, 1), (500, 100, 10, 1)]
+        growing = [(300, 100, 10, 1)] * 4 + [(400, 100, 10, 1), (500, 100, 10, 1)]
         code, receipt = self.run_main(growing, bound)
         self.assertEqual(code, 1)
         self.assertIs(receipt["rss"]["pass"], False)
@@ -347,7 +246,7 @@ class NativeTapeReceiptRss(unittest.TestCase):
         for extra in (("--rss-bound-mb", "16"),
                       ("--rss-warmup-frames", "999", "--rss-bound-mb", "16")):
             with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
-                self.run_main([(300, 100, 10, 1)] * 4, extra)
+                self.run_main([(300, 100, 10, 1)] * 6, extra)
 
 class TakesItsGodotSlot(unittest.TestCase):
     """The replay holds one godot-class slot of the heavy lock itself."""
