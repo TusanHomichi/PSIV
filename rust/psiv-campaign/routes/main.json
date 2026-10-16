@@ -487,7 +487,7 @@
     {
       "id": "zio-fort-demi",
       "title": "Zio Fort F3 and F4: the Demi rescue and Zio's first battle",
-      "source": "docs/scenes/31_DemiRescue.md (Zio Fort F4 $8B, RunEvent_SavingDemi $1C, leader Y exactly $170 = standing cell row 24, Zio $42 clear; sets $42, event battle 4) and 32_AlysWounded.md (RunEvent_AlysWounded $1D, Zio $42 set, Demi Joined $47 clear; sets $47); docs/scenes/12_ArcTriggerCensus.md",
+      "source": "docs/scenes/31_DemiRescue.md (Zio Fort F4 $8B, RunEvent_SavingDemi $1C, leader Y exactly $170 = standing cell row 24, Zio $42 clear; sets $42, event battle 4) and 32_AlysWounded.md (RunEvent_AlysWounded $1D, Zio $42 set, Demi Joined $47 clear; sets $47); docs/scenes/TRIGGER_CENSUS.md",
       "random_battle_policy": "run_then_win",
       "objectives": [
         {"do": "go_to_map", "map": 138, "note": "ZioFort_F3, by the stairs Juza's defeat opened"},
@@ -597,7 +597,7 @@
     {
       "id": "zio-fort-barrier",
       "title": "Zio Fort: the invisible barrier on the way to Nurvus",
-      "source": "docs/scenes/12_ArcTriggerCensus.md (Event_ZioFortBarrier $30, direct Zio Fort map-data path); reference/ps4disasm/ps4.asm Event_ZioFortBarrier (148155: tests After Alys Death $63 set, runs dialogue $44, sets ZioFortBarrier $64) and ZioFort $82 map effect entry $42 (BarrierBeam1-4 and the InvisibleBlock objects despawn when $64 is set); psiv-campaign plan --from-map 57 --from-cell 20,15 --to-map 130 --flag event:0x35",
+      "source": "docs/scenes/TRIGGER_CENSUS.md (Event_ZioFortBarrier $30, direct Zio Fort map-data path); reference/ps4disasm/ps4.asm Event_ZioFortBarrier (148155: tests After Alys Death $63 set, runs dialogue $44, sets ZioFortBarrier $64) and ZioFort $82 map effect entry $42 (BarrierBeam1-4 and the InvisibleBlock objects despawn when $64 is set); psiv-campaign plan --from-map 57 --from-cell 20,15 --to-map 130 --flag event:0x35",
       "random_battle_policy": "run_then_win",
       "objectives": [
         {"do": "go_to_map", "map": 130, "note": "Zio Fort $82 by the passageway and Kadary, on foot (seven warps); the party runs from random encounters"},

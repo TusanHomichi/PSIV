@@ -119,7 +119,7 @@ selected tree numbers and the number of areas differing from the map tree.
 map has parameters on both sides of the decoded unsigned cutoff.
 
 [Issue #42](https://github.com/TusanHomichi/PSIV/issues/42)'s trigger-census Tree
-column in [opening triggers](00_triggers.md#which-maps-check-which-triggers)
+column in [opening triggers](TRIGGER_CENSUS.md#which-maps-check-which-triggers)
 is correct **as a map-loaded NPC/default-scene binding**, not as the tree for
 all interactions. Piata's map tree 2 and Academy's tree 1 remain correct;
 their type-0 areas select tree 28 on World_Index 0. Thus the ambiguous column

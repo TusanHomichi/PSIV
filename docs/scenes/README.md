@@ -14,7 +14,7 @@ through Zema, the Tonoe road, the BioPlant escape, the Rika hand-off, Zio's
 fall, the Zelan spaceship route, Dezolis/Raja arrival and the first Kuran/Dark
 Force handoff. The Dezo campaign continuation runs from Le Roof through the
 Reunion gate and the Profound Darkness battle request. The trigger/map census is
-[12_ArcTriggerCensus](12_ArcTriggerCensus.md); what a scene's return does, and the
+[trigger census](TRIGGER_CENSUS.md); what a scene's return does, and the
 field reload a cutscene's zero starts, is [FIELD_RELOAD](FIELD_RELOAD.md); the per-scene records are
 [13_ProfHolt](13_ProfHolt.md) through [50_JuzaDefeated](50_JuzaDefeated.md).
 The native registry and headless proof live beside those documents in
@@ -202,7 +202,7 @@ byte ranges are repeated here.
 
 The complete retail table census, including the input-driven surfaces that
 remain precise why-not boundaries, is in
-[12_ArcTriggerCensus](12_ArcTriggerCensus.md). The persistent headless proof
+[trigger census](TRIGGER_CENSUS.md). The persistent headless proof
 is `rust/psiv-runtime/src/suites/next_arc.rs`: it runs title through the `$8020`
 battle request and the `$8021` ending, asserting the relevant flags and party
 roster at each handoff. `rust/psiv-runtime/src/suites/retail_boundaries.rs` covers
@@ -436,7 +436,7 @@ is the map *resident when the scene starts*, not a map the scene plays on.
 
 | # | Scene | Event id | Retail | Fork status |
 |---|---|---|---|---|
-| [00](00_triggers.md) | Trigger table | — | `$560E8` | clean, spot-verified |
+| [census](TRIGGER_CENSUS.md) | Trigger table | — | `$560E8` | clean, spot-verified |
 | [01](01_GameStart.md) | `Event_GameStart` | `$9F` | `$73946`–`$73ECE` | **body deleted, epilogue edited** |
 | [02](02_PiataChazAlone.md) | `Event_PiataChazAlone` | `$A0` | `$73ECE`–`$73EE0` | **body deleted** |
 | [03](03_AlysFound.md) | `Event_AlysFound` | `$03` | `$6B2D8`–`$6B3BA` | **partly deleted + 2 edits** |

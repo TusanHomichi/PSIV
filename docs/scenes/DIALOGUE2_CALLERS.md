@@ -44,7 +44,7 @@ second is the address in the US image, which is the authority. "Tree" is what
 `GetDialogueByID` indexes at the call: the tree the scene loads itself, or else
 the tree bound to the map the scene runs on (`runtime-pack/maps/*.json`
 `dialogue_tree`, from the trigger census in
-[12_ArcTriggerCensus](12_ArcTriggerCensus.md)). Entry text is the first line in
+[trigger census](TRIGGER_CENSUS.md)). Entry text is the first line in
 `runtime-pack/dialogue/trees.json` for that tree and entry.
 
 | # | `ps4.asm` | Image `jsr` | Scene (event) | Entry | Tree at the call | Entry text | Port before | Port after |
