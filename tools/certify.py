@@ -424,8 +424,10 @@ def main(argv=None):
                              "oracle_sha256": digest, "env": env}, frame_path, error))
             if error is None:
                 tasks.append((name, env, tick))
+        prepared = time.monotonic()
         shots = run_captures(tasks, jobs, receipt)
-        wall = round(time.monotonic() - started, 1)
+        timing = {"oracle_s": round(prepared - started, 1),
+                  "capture_s": round(time.monotonic() - prepared, 1)}
     results = []
     for record, frame_path, error in records:
         if error is None:
@@ -443,9 +445,10 @@ def main(argv=None):
         print(f"{record['pair']:13} {'PASS' if record['pass'] else 'FAIL'} "
               f"rmse={record.get('rmse')} {error or ''}".rstrip(), flush=True)
     (receipt / "certify.json").write_text(json.dumps(
-        {**info, "jobs": jobs, "wall_s": wall, "pairs": results}, indent=2) + "\n")
+        {**info, "jobs": jobs, **timing, "pairs": results}, indent=2) + "\n")
     passed = sum(r["pass"] for r in results)
-    print(f"certify: {passed}/{len(results)} pairs at 0.000000 in {wall} s on {jobs} worker(s); "
+    print(f"certify: {passed}/{len(results)} pairs at 0.000000; captures {timing['capture_s']} s "
+          f"on {jobs} worker(s), oracle frames {timing['oracle_s']} s; "
           f"receipt={display_path(receipt, root)}")
     return 0 if passed == len(results) else 1
 
