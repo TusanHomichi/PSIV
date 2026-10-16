@@ -449,7 +449,7 @@ rule seen from the RNG stream's side.
 80 SandWorm's `$38` EARTHQUAKE object shakes the screen with 28
 `UpdateRNGSeed2` calls before its damage request. The mechanism, the capture
 evidence and the census of objects that draw are
-[ENEMY_DAMAGE_ROUTES.md](../battle/ENEMY_DAMAGE_ROUTES.md#the-chains-own-rng-calls-read-for-the-38-pair-2026-09-25);
+[ENEMY_DAMAGE_ROUTES.md](../battle/ENEMY_DAMAGE_ROUTES.md#the-chains-own-rng-calls-read-for-the-38-pair);
 the route table carries it as `ObjectDraws::EarthquakeShake`.
 
 ## 5. Re-extraction

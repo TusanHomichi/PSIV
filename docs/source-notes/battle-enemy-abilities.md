@@ -507,4 +507,4 @@ The Motavia sweep's last divergence (`formation_3B` round 3: 126 calls in the
 log, 82 in the port) traced to `BattleObj_Earthquake`'s screen shake, which
 takes 28 `UpdateRNGSeed2` calls before its damage request. The mechanism, the
 capture evidence and the census of chain objects that draw are
-[ENEMY_DAMAGE_ROUTES.md](../battle/ENEMY_DAMAGE_ROUTES.md#the-chains-own-rng-calls-read-for-the-38-pair-2026-09-25).
+[ENEMY_DAMAGE_ROUTES.md](../battle/ENEMY_DAMAGE_ROUTES.md#the-chains-own-rng-calls-read-for-the-38-pair).
