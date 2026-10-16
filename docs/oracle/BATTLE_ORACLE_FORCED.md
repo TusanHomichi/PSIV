@@ -744,9 +744,11 @@ number at all.
   capture at a round boundary and the fixture keeps the log's action frames; no
   frame-level animation claim is made here (that is
   `BATTLE_ANIMATIONS.md`'s and the presentation lane's).
-- **Anything about the deferred carriers.** 133 ProfoundDarkness1's `$21` and
-  140 Zio2's `$4D` are behind gates this port does not model
-  (`$FFFFEE87` and the `$FFFFEE98` phase counter) and have no capture.
+- **The gated carriers.** 133 ProfoundDarkness1's `$21` and 140 Zio2's `$4D`
+  sit behind `$FFFFEE87` and the `$FFFFEE98` phase counter. The port models
+  both, and their captures run each event battle's own script:
+  `replay_fixtures/endgame/profound_darkness*.json` and
+  `replay_fixtures/zio_event06_psycho.json`.
 
 ## 7. The durable patch's frame, corrected (2026-10-02)
 

@@ -84,8 +84,10 @@ shares the route uncaptured.
   is now `sealable` - the A5 rows and, as a class, the earlier GIWAT, WAT, FOI, ZAN,
   FORCEFLASH, RIMIT, DORAN, GELUN, SEALS, VOL, DEBAN and RES/GIRES arms. Each sealed
   exit was read to its end state (no request, no effect call, no call to the
-  generator). The two census tests pin the sets; no capture yet shows a sealed
-  caster.
+  generator). The two census tests pin the sets. No capture yet shows a sealed
+  caster on one of these arms; `player/seal_debuffs_ready.json` shows two sealed
+  DimensWorms cast DISTORTION, an arm with no seal test (`sealable: false`), and
+  hit.
 - **DarkForce2's EVIL EYE calls the effect twice** (`loc_30F10`): the Haunt pair's
   once. **SHDWBREATH is DarkForce2's single damage request**, not a scripted turn;
   **POSESSION makes no damage request**. The inventory's classes are corrected.

@@ -85,7 +85,7 @@ action.
 | | 107 Spector | `16D_d1` | r1 f24870, f24965, r2 f25132 | 2, 4, 2 | Chaz, Alys, then Hahn asleep |
 | `$2F` VOL | 115 Greneris | `119_d8` | r1 f24859 | 2 | Alys dead (999 -> 0), no status or stat cell moves |
 | | 72 BloodSaber | `1C6_d0`, `1C6_d1` | r1, r4, r5 and r1, r2, r3 | 2 each | one member killed each time; the party is wiped |
-| | 88 SoldrFiend | `1E1_d0` | r1 f24880 | 2 | a miss: the roll is drawn, nothing moves (its kill arm is read, not observed) |
+| | 88 SoldrFiend | `1E1_d0` | r1 f24880 | 2 | Alys dead (999 -> 0); `replay_fixtures/endgame/soldrfiend.json` and `soldrfiend_gires.json` show the same kill |
 | `$0B` STASISBALL | 19 Blauzen | `100_d0` | r4 f26635, r6 f27499, r10 f28619 | 2, 2, 1 | Chaz then Alys paralyzed (`$02`) with `agi_bat` -> 1; the third use finds Alys already paralyzed and draws nothing |
 | | 21 Goldine | `1A3_d0` | r5 f26619, r6 f27003, r8 f27547 | 2, 3, 3 | Alys, Chaz, Hahn paralyzed in turn |
 | | 26 LifeDeletr | `1A5_d5` | r1 f24862 | 3 | Alys paralyzed; the ability roll re-rolled once |
@@ -107,11 +107,16 @@ the log's cells on the other.
 
 ## 3. Deferred carriers
 
+116 Radhin's SEALS and DEBAN are routed and captured from forced formation
+`$189` (`replay_fixtures/endgame/radhin.json`, `radhin_gisar.json`), and 131
+DarkForce2's and 135 ProfoundDarkness3's EVIL EYE from their event battles
+(`replay_fixtures/air_castle/dark_force_2.json`,
+`replay_fixtures/endgame/profound_darkness*.json`). The carriers below are
+still deferred.
+
 | carrier | why |
 |---|---|
-| 116 Radhin: `$29` SEALS, `$2D` DEBAN | Every Radhin fight carries abilities nothing implements: `$26` SHIFT and `$27` SANER (`AbilityEffect_AttackUp` / `AgilityUp`, status/stat rows outside this issue) and `$56` FORCEFLASH (lane a1). The `$187` capture (two Radhin, group 55 via `map 0x19B`, kept locally, not committed) shows it: r1 opens with SEALS and ends with FORCEFLASH in the same round, r2 with SANER, SHIFT. No clean prefix exists, so the pair is not routed. `EnemyAttack_Juza` is the routine Greneris uses, so the arm is the same read; it is unobserved clean, which this ledger does not count. |
 | 72 BloodSaber `$2D` DEBAN | The routine (`EnemyAttack_ShadowSabr`) and arm are ShadowSabr's, whose DEBAN is routed; no BloodSaber capture has the party *hit* it before its turn (it dodges every swing of the tape party), so `EnemyAI_PhysicalAtkReceived` never fires there and the cast was never seen. |
-| 107 Spector, 131 DarkForce2, 135 ProfoundDarkness3 `$4C` | Spector is routed (`16D_d1`). DarkForce2 and ProfoundDarkness3 are the cutscene-gated routines of `ENEMY_ABILITIES.md` section 5 (the scripted-battle flag `$FFFFEE87` is tested first); no map reaches them. |
 | `$2A` RIMIT / `$4C` EVIL EYE beyond the fixtures' prefixes | Their carriers' lists also hold abilities nothing runs yet (GIZAN, CORRSION, FORCEFLASH, ZAN, DEATH SPELL `$4E`), which is why each fixture is a prefix. |
 
 ## 4. Harness changes the captures needed
@@ -197,5 +202,5 @@ committed (it edits source in place); the table is what it printed.
   campaign party, and the encounters are not natural.
 - Nothing here proves a sealed caster's fizzle (no way to seal an enemy yet) or
   the animations' timing.
-- SoldrFiend's VOL kill, Spector's and TechPlant's wake-up through a round-end
-  roll, and Haunt's other formations are read, not observed.
+- Spector's and TechPlant's wake-up through a round-end roll, and Haunt's
+  other formations, are read, not observed.

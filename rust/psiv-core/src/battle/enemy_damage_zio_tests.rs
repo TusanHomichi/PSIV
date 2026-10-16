@@ -483,21 +483,14 @@ fn every_zio_route_resolves_in_an_ordinary_round() {
     }
 }
 
-/// The pairs the damage half leaves to later lanes, and why each one is not a
-/// row. Every case here is refused with nothing drawn, nothing emitted and no
-/// state moved — which is what keeps the caller on the explicit
-/// [`BattleEvent::UnsupportedAbility`] path instead of resolving a turn the
-/// chain reading does not support:
-///
-/// - **133 ProfoundDarkness1's `$21`**, covered in
-///   `enemy_damage_firebreath_tests`.
-/// - **`$4C` EVIL EYE, `$2A` RIMIT and `$2F` VOL**, whose chains make no
-///   `move.w #$C` request on any carrier read so far: the effect handler
-///   (`$07` SleepParalyze, `$02` Death) is the whole turn, and it belongs to
-///   the status-effect lane. A row here would report damage the cartridge never
-///   deals.
+/// The pairs these carriers cast that are not damage routes: `$4C` EVIL EYE,
+/// `$2A` RIMIT and `$2F` VOL make no `move.w #$C` request on any carrier read
+/// so far. The effect handler (`$07` SleepParalyze, `$02` Death) is the whole
+/// turn, and `enemy_effect_routes.rs` runs it. The damage resolver refuses each
+/// with nothing drawn, nothing emitted and no state moved; a row here would
+/// report damage the cartridge never deals.
 #[test]
-fn the_deferred_pairs_are_refused() {
+fn the_effect_only_pairs_are_not_damage_routes() {
     for (carrier, ability) in [
         (HAUNT, EVIL_EYE),
         (SPECTOR, EVIL_EYE),

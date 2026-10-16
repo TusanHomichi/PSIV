@@ -95,7 +95,8 @@ A carrier appears in `ROUTES` only if a capture saw it use the ability
 arm and object (72 BloodSaber's DEBAN, beside the captured 70 and 71); the ones
 that are not routed, and why, are that ledger's section 3 and section 8 below,
 and they stay on the explicit `UnsupportedAbility` path.
-Radhin's SEALS and DEBAN (the `116` entries above) are the deferred pairs.
+Radhin's SEALS and DEBAN (the `116` entries above) are routed and captured
+(`replay_fixtures/endgame/radhin.json`, `radhin_gisar.json`).
 
 ## 3. What each ability does
 
@@ -296,11 +297,13 @@ enemy could sleep or seal a party member, wrong the moment VOICE or SEALS landed
   `atk_bat` cells that `oracle/sweep/arc.py` adds from the log. Adding both sides'
   cells to `oracle/fixture/observations.py`'s `EFFECT_FIELDS` is outside this
   lane's write set and would make the DEBAN proof direct.
-- **Carriers no capture has seen use the ability** are not routed
-  (`BATTLE_ORACLE_ARC.md` section 3 lists them).
-- **SoldrFiend's VOL kill** is read, not observed: the one capture of it is a
-  miss. Its object ends in the same `loc_25048` the two observed carriers use
-  (`ps4.asm:46878`).
+- **Carriers no capture has seen use the ability** are not routed, except 72
+  BloodSaber's DEBAN, which shares a captured carrier's routine, arm and object
+  (section 2; `BATTLE_ORACLE_ARC.md` section 3 lists the rest).
+- **SoldrFiend's VOL kill** is observed: `replay_fixtures/endgame/soldrfiend.json`,
+  `soldrfiend_gires.json` and `arc_motavia/formation_1E1_d0.json` each show the
+  target's HP set to 0. Its object ends in the same `loc_25048` the other
+  carriers use (`ps4.asm:46878`).
 
 ## 7. The Zelan route pairs
 
