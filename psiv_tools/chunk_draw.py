@@ -4,8 +4,7 @@ The geometry and the word fields come from the retail load path that
 `psiv_tools.layouts` describes (`SetupChunksFG`, `ChunkTilesToBuffer`); they
 live here so that the two plane draws -- `layouts.compose_layout`, the base render,
 and `render.priority_overlay`, the above-sprites layer -- share one drawing
-routine instead of two per-pixel loops. `psiv_tools.layouts` re-exports every
-name, so `from psiv_tools.layouts import TILE_PIXELS` keeps working.
+routine instead of two per-pixel loops. Import these names from here.
 
 A layout repeats a few hundred chunks across thousands of cells (#130), so a
 chunk is drawn once into a 32x32 block and the block is copied after that.

@@ -71,14 +71,17 @@ FAST_COMMANDS = [
     "CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml --workspace -- --test-threads=1",
 ]
 
-#: Python test modules the fast tier leaves to the full gate: every module that
-#: took 6 s or more in one in-process run of the whole suite (2026-10-15, CPU
-#: capped at 2.3 GHz; 202 s in all, the other modules 63 s). The suite emits
-#: the pack's map-independent sections once per process (#130), so the first
-#: module that builds a pack pays ~10 s for the rest. Every name must be a
-#: module under tests/ (tests/test_gate.py checks), so a rename cannot leave a
-#: stale entry here. Values are those seconds.
+#: Python test modules the fast tier leaves to the full gate (2026-10-16, CPU
+#: capped at 2.3 GHz; values are seconds). First, every module that took 6 s or
+#: more in one in-process run of the whole suite (202 s in all). Then a fixed
+#: point over the fast tier's own run: the first module in it that builds a pack
+#: pays the ~10 s one-time emit of the map-independent sections (#130), so each
+#: such module at >= 6 s there was moved here in turn until the payer was
+#: test_title_boot, whose shared PackFixtureCase most fast-tier modules need
+#: (fast tier 77 s -> 66 s). Every name must be a module under tests/
+#: (tests/test_gate.py checks), so a rename cannot leave a stale entry here.
 SLOW_PYTHON_MODULES = {
+    # whole suite
     "test_pack_maps": 36.5,
     "test_reload_frames": 31.4,
     "test_pack_manifest": 13.7,
@@ -88,6 +91,14 @@ SLOW_PYTHON_MODULES = {
     "test_oracle_host_binary": 10.3,
     "test_sprites": 6.6,
     "test_extract_stamp": 6.6,
+    # fast tier, as the first pack builder
+    "test_map_effects": 12.3,
+    "test_newgame": 12.5,
+    "test_npc_commands": 11.9,
+    "test_pack_game_start": 12.7,
+    "test_pack_sprites": 15.2,
+    "test_render": 12.3,
+    "test_shop_flow": 13.8,
 }
 
 #: Where receipts go, relative to the root. The lock is shared: see heavy_lock.

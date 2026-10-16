@@ -9,7 +9,7 @@ from pathlib import Path
 
 from psiv_tools import battle_animation_objects as objects
 from psiv_tools.core import read_rom
-from psiv_tools import layouts, render
+from psiv_tools import chunk_draw, layouts, render
 from psiv_tools.gfx import COLORS_PER_LINE, TILE_HEIGHT, TILE_WIDTH, decode_tile
 from psiv_tools.maps import extract_maps
 from psiv_tools.pack_layouts import decode_map_section
@@ -58,7 +58,7 @@ def reference_call_sites(rom, start, stop):
 
 def reference_draw(layout, words_at, patterns, pixels, width, overlay):
     """`compose_layout`'s and `_draw_priority_plane`'s per-pixel loop."""
-    L = layouts
+    L = chunk_draw
     for chunk_y in range(layout.height_chunks):
         for chunk_x in range(layout.width_chunks):
             for tile_x, tile_y, raw in words_at(layout.chunk_at(chunk_x, chunk_y)):
@@ -142,7 +142,7 @@ class TestMapDraws(unittest.TestCase):
             with self.subTest(map_id=hex(map_id)):
                 decoded, _, _ = decode_map_section(self.rom, self.records[map_id])
                 chunks, patterns = decoded.chunks, decoded.patterns
-                cols = layouts.CHUNK_TILES_X
+                cols = chunk_draw.CHUNK_TILES_X
 
                 def all_words(chunk_id):
                     words = chunks[chunk_id]

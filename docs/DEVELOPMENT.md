@@ -129,6 +129,9 @@ overflow checks and debug assertions kept on (`psiv-core/tests/build_profile.rs`
 fails if either is turned off), so the Rust suite runs in about two minutes on
 a warm build. Tests requiring local assets may fail or explicitly skip when
 their fixtures are absent; report that distinction with the result.
+`build_pack` replays the map-independent sections an earlier build in the same
+process emitted from the same ROM; a test that patches an emitter's dependency,
+or compares two builds, builds inside `psiv_tools.pack_sections.fresh()`.
 
 The per-commit fast tier is `python3 tools/gate.py --fast`. It runs this list,
 in order, with the same receipt format (`tier: "fast"`, directory suffix

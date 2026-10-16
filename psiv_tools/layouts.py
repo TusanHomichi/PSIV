@@ -48,7 +48,7 @@ from pathlib import Path
 from typing import Any, Iterable, Sequence
 
 from . import png
-from .chunk_draw import (  # noqa: F401 -- re-exported, see chunk_draw
+from .chunk_draw import (
     CHUNK_TILES_X,
     CHUNK_TILES_Y,
     CHUNK_WORDS,
@@ -56,24 +56,11 @@ from .chunk_draw import (  # noqa: F401 -- re-exported, see chunk_draw
     TILE_PIXELS,
     CHUNK_PIXELS_X,
     CHUNK_PIXELS_Y,
-    TILE_INDEX_MASK,
-    H_FLIP_BIT,
-    V_FLIP_BIT,
-    PALETTE_BIT,
-    COLLISION_BIT,
-    PRIORITY_BIT,
-    VDP_WORD_MASK,
     VRAM_TILES,
     PreparedChunk,
     collision_flag,
-    h_flip,
     overlay_chunk,
-    palette_line,
     prepare_chunk,
-    priority,
-    tile_index,
-    v_flip,
-    vdp_word,
 )
 from .extract_stamp import check_accumulating_png_directory, write_png_stamp
 from .gfx import GRAYSCALE_RAMP, RGB, decode_palette, decode_tile, palette_rgb
