@@ -1,6 +1,6 @@
-# Retail SRAM save scout and implementation
+# The save format
 
-Scouted from the USA retail disassembly and the existing oracle tape on
+Read from the USA retail disassembly and the existing oracle tape on
 2026-08-16. The implementation lives in `rust/psiv-core/src/save.rs` and
 `rust/psiv-runtime/src/save.rs`; the camp presentation owns only the modern
 STATE screen's SAVE row and slot chooser. Every slot operation — the title's
@@ -36,7 +36,7 @@ The decoded flow is:
 5. The success string is `-File has been saved.` (`ps4.asm:340780-340782`).
 
 Retail's system SAVE path is separate from the camp STATE chooser. The
-camp scout pins STATE as a two-row child window with `STATUS` and
+camp research pins STATE as a two-row child window with `STATUS` and
 `ORDER` only (`docs/camp/CAMP_MENU_LAYOUT.md`, “STATE chooser”). The native game
 exposes SAVE as a third row under camp STATE. Its title screen and CONTINUE
 flow are implemented; see [TITLE_BOOT.md](../scenes/TITLE_BOOT.md). The retail two-row
@@ -215,7 +215,7 @@ Rust serializer reproduces that exact byte sum and rejects a bad signature or
 checksum before construction.
 
 The Rust header also uses logical `$F020` as a two-byte occupancy mask for
-`Option<Stats>` seats. No retail routine in the scouted header range addresses
+`Option<Stats>` seats. No retail routine in the header range read here addresses
 that word. This is the deliberate compatibility extension that preserves an
 intentionally all-zero `Stats` record; ordinary retail payloads without the
 extension use the all-zero-record heuristic.

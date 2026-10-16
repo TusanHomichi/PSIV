@@ -2,7 +2,7 @@
 
 Retail research began 2026-08-15. Inventory, roster, map flags and chest
 rules are implemented, with later native integration recorded in
-[CHESTS.md](CHESTS.md), [SAVE_SCOUT.md](../camp/SAVE_SCOUT.md) and
+[CHESTS.md](CHESTS.md), [SAVE_FORMAT.md](../camp/SAVE_FORMAT.md) and
 [PARTY_STATUS.md](../camp/PARTY_STATUS.md). Citations below are to
 `reference/ps4disasm/ps4.asm` and `ps4.constants.asm` unless stated otherwise.
 
@@ -178,7 +178,7 @@ Consumable item commands return to the runtime and mutate `GameState` through
 `inventory_mut().remove()` and `roster_mut().get_mut()`. Healing and status
 cures use the `item_effects` records from `battle/abilities.json`; EQUIP uses
 the pack's type/mask rules through the core equipment seam. The scout and
-implementation record is [`docs/camp/EQUIP_SCOUT.md`](../camp/EQUIP_SCOUT.md).
+implementation record is [`docs/camp/EQUIPMENT.md`](../camp/EQUIPMENT.md).
 
 ## 3. Treasure chests — implemented
 
@@ -322,7 +322,7 @@ the decoding. The core also retains the transcribed map-load clear table in
 ## Save format
 
 The earlier JSON snapshot migration notes are obsolete. Native persistence
-uses the retail SRAM slot layout described in [SAVE_SCOUT.md](../camp/SAVE_SCOUT.md),
+uses the retail SRAM slot layout described in [SAVE_FORMAT.md](../camp/SAVE_FORMAT.md),
 including inventory, roster, flags and vehicle records. See that document
 for the current serialization contract.
 
@@ -334,8 +334,8 @@ for the implemented grant/discard flow and remaining fidelity limits. The old
 NPC-only object-pool gap is closed.
 
 Camp status, equipment and SAVE/CONTINUE are implemented. Their focused ledgers
-are [PARTY_STATUS.md](../camp/PARTY_STATUS.md), [EQUIP_SCOUT.md](../camp/EQUIP_SCOUT.md) and
-[SAVE_SCOUT.md](../camp/SAVE_SCOUT.md). These integrations do not certify every route;
+are [PARTY_STATUS.md](../camp/PARTY_STATUS.md), [EQUIPMENT.md](../camp/EQUIPMENT.md) and
+[SAVE_FORMAT.md](../camp/SAVE_FORMAT.md). These integrations do not certify every route;
 use the campaign ledger for connected proof.
 
 ## The roster, as built

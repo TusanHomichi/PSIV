@@ -31,7 +31,7 @@ the ROM-derived map record. Piata is map `$013`; its pack binding is music
 
 The music ID table is the retail `MusicPtrs` table at `$D1C40`, with IDs
 `$81..$B4`. The corresponding symbols and dispatch rules are documented in
-`docs/sound/SOUND_SCOUT.md` and sourced from:
+`docs/sound/SOUND_DRIVER.md` and sourced from:
 
 - `reference/ps4disasm/sound/ps4.sound_driver.asm` for pointer records and
   `PlaySoundID` dispatch;

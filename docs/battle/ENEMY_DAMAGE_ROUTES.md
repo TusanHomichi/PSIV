@@ -680,7 +680,7 @@ of them is a `damage` row in §2.
    **152 unique table keys**.
    `oracle.sweep.route_abilities` enumerates the forward route's regular and
    conditional lists, vehicle groups and scene battles; the command, set and
-   input hashes are recorded in `ENEMY_ABILITIES_ROUTE.md` section 1.
+   input hashes are recorded in `ENEMY_ABILITIES_ZELAN_TO_KURAN.md` section 1.
 3. All **110 registry pairs** are marked in §2. The core registry completeness
    test rejects duplicate keys, and the A3 carrier controls enumerate their
    source-read families independently of the production registry.

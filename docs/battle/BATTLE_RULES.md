@@ -1,4 +1,4 @@
-# Battle system: retail research
+# Battle rules
 
 Research began 2026-08-15. This document records cartridge routines and
 measurements. The battle engine is implemented; remaining gaps are GitHub
@@ -10,7 +10,7 @@ Method note: every retail address below was **verified against the cartridge**
 not by trusting the fork. Where a `if bugfixes=1` gate exists, the retail branch
 was confirmed from ROM bytes and is the one transcribed here.
 
-**Citation convention discovered while scouting, and it matters:** in
+**Citation convention, and it matters:** in
 `ps4.asm` the `loc_XXXXX` *labels* are retail addresses (`loc_266C` is at
 `0x00266C`, `loc_B716` at `0x00B716`, `loc_27F3BC` at `0x0027F3BC` — all
 byte-verified). The auto-generated `;0x0 (0x0000....)` *inline comments* are
@@ -834,7 +834,7 @@ docs/source-notes/disassembly-discrepancies.md.
 ## 12. Worked example — one complete basic attack, real numbers
 
 The worked numerical example is preserved in
-[`BATTLE_SCOUT_CONTINUATION.md`](BATTLE_SCOUT_CONTINUATION.md). The current
+[`BATTLE_ATTACK_EXAMPLE.md`](BATTLE_ATTACK_EXAMPLE.md). The current
 slice keeps the presentation boundary below as the main cross-lane contract.
 
 ---
@@ -965,9 +965,9 @@ given invented coordinates: ids **44–46, 50, 70–72, 139–140, and 152**.
 
 The original v1 sizing, proposed scope ladder and design-session questions
 are retired. Current work is tracked in [ROADMAP.md](../ROADMAP.md). The worked
-example and address tables remain in [the continuation](BATTLE_SCOUT_CONTINUATION.md).
+example and address tables remain in [the continuation](BATTLE_ATTACK_EXAMPLE.md).
 
 ## Appendix: verified retail addresses
 
 The full address table and battle RAM notes continue in
-[`BATTLE_SCOUT_CONTINUATION.md`](BATTLE_SCOUT_CONTINUATION.md).
+[`BATTLE_ATTACK_EXAMPLE.md`](BATTLE_ATTACK_EXAMPLE.md).

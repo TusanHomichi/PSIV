@@ -39,7 +39,7 @@ frames (f6230-6455) before handing over.
 
 Character IDs observed during the intro: **Chaz = 0, Alys = 1**. Party slots
 pass through `0001FFFF` (Chaz, Alys) and then `0100FFFF` — Alys in slot 1 —
-which corroborates the `Event_AlysFound` note in `../scenes/EVENT_ENGINE_SCOUT.md` that
+which corroborates the `Event_AlysFound` note in `../scenes/EVENT_ENGINE.md` that
 **Alys leads the opening party**. By first control she has left and Chaz is
 alone.
 

@@ -4,7 +4,7 @@
 //! `#[path]` so it stays a child module and can reach the engine's private
 //! state, which several of these assert against directly.
 //!
-//! The cartridge-derived numbers come from `docs/battle/BATTLE_SCOUT.md` §12 (the
+//! The cartridge-derived numbers come from `docs/battle/BATTLE_RULES.md` §12 (the
 //! worked example) and `docs/oracle/RESULTS.md` "Battle ground truth" (tapes 07 and
 //! 09), by way of [`crate::battle::fixtures`].
 //!

@@ -17,10 +17,10 @@ cartridge does. Status and active work live elsewhere, under the
 
 ## battle — battle rules and retail research
 
-- [Battle research](battle/BATTLE_SCOUT.md) and its [worked continuation](battle/BATTLE_SCOUT_CONTINUATION.md).
+- [Battle research](battle/BATTLE_RULES.md) and its [worked continuation](battle/BATTLE_ATTACK_EXAMPLE.md).
 - [Player abilities](battle/PLAYER_ABILITIES.md).
 - [Enemy ability inventory](battle/ENEMY_ABILITIES.md) and its route sets:
-  [Zelan to Kuran](battle/ENEMY_ABILITIES_ROUTE.md),
+  [Zelan to Kuran](battle/ENEMY_ABILITIES_ZELAN_TO_KURAN.md),
   [the Air Castle stretch](battle/ENEMY_ABILITIES_AIR_CASTLE.md),
   [the Air Castle to the Ending](battle/ENEMY_ABILITIES_ENDGAME.md).
 - [Enemy damage routes](battle/ENEMY_DAMAGE_ROUTES.md), [enemy status and stat effects](battle/ENEMY_EFFECT_ABILITIES.md), [enemy Fusion](battle/ENEMY_FUSION.md).
@@ -43,21 +43,21 @@ cartridge does. Status and active work live elsewhere, under the
 ## camp — menus, party, shops and saves
 
 - [Camp menu layout](camp/CAMP_MENU_LAYOUT.md), [shop layout](camp/SHOP_LAYOUT_DECODED.md), [shops](camp/SHOPS.md).
-- [Party ORDER](camp/PARTY_ORDER.md), [party status](camp/PARTY_STATUS.md), [equipment](camp/EQUIP_SCOUT.md), [progression](camp/PROGRESSION.md).
-- [Save format](camp/SAVE_SCOUT.md).
+- [Party ORDER](camp/PARTY_ORDER.md), [party status](camp/PARTY_STATUS.md), [equipment](camp/EQUIPMENT.md), [progression](camp/PROGRESSION.md).
+- [Save format](camp/SAVE_FORMAT.md).
 
 ## scenes — scenes, dialogue and boot
 
 - [Scene registry](scenes/README.md) and the numbered scene transcriptions beside it.
 - [Event coverage census](scenes/EVENT_COVERAGE.md), [dialogue callers](scenes/DIALOGUE2_CALLERS.md), [dialogue tree selection](scenes/DIALOGUE_TREE_SELECTION.md).
 - [Scene dialogue](scenes/SCENE_DIALOGUE.md), [dialogue actions](scenes/DIALOGUE_ACTIONS.md), [scene presentation](scenes/SCENE_PRESENTATION.md), [field reload](scenes/FIELD_RELOAD.md).
-- [Event engine scout](scenes/EVENT_ENGINE_SCOUT.md), [title boot](scenes/TITLE_BOOT.md),
+- [Event engine scout](scenes/EVENT_ENGINE.md), [title boot](scenes/TITLE_BOOT.md),
   [revision-conditional op audit](scenes/REVISION_AUDIT.md),
   [live-layout write census](scenes/LIVE_LAYOUT_WRITES.md).
 
 ## sound — sound extraction and integration
 
-- [Sound scout](sound/SOUND_SCOUT.md), [sound extraction](sound/SOUND_EXTRACTION.md), [sound integration](sound/SOUND_INTEGRATION.md).
+- [Sound scout](sound/SOUND_DRIVER.md), [sound extraction](sound/SOUND_EXTRACTION.md), [sound integration](sound/SOUND_INTEGRATION.md).
 
 ## campaign — the route runner and native replay
 

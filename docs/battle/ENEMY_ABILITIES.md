@@ -3,7 +3,7 @@
 The work queue for enemy abilities: one row per distinct nonzero **regular**
 ability id the cartridge can roll, with the dispatch and the effect handler read
 out of the disassembly, and whether `psiv-core` implements it. Read
-`docs/battle/BATTLE_SCOUT.md` §7 for the roll and
+`docs/battle/BATTLE_RULES.md` §7 for the roll and
 [THREAD and POISON](ENEMY_EFFECT_ABILITIES.md#thread-and-poison-10-11-the-crawler-family)
 for the shape of one finished dispatch. Nothing here changes code; it is the map for doing so
 one ability at a time.
@@ -11,7 +11,7 @@ one ability at a time.
 **83 distinct nonzero regular ability ids.** 83 implemented, 0 partial, 0
 unsupported - lane A6 closed the last 33 and every per-carrier gap. The route
 census and A3 evidence are in §6
-([`ENEMY_ABILITIES_ROUTE.md`](ENEMY_ABILITIES_ROUTE.md)); the A4
+([`ENEMY_ABILITIES_ZELAN_TO_KURAN.md`](ENEMY_ABILITIES_ZELAN_TO_KURAN.md)); the A4
 status and stat captures are in
 [`BATTLE_ORACLE_ZELAN.md`](../oracle/BATTLE_ORACLE_ZELAN.md); lane A5's Air Castle
 stretch is [`ENEMY_ABILITIES_AIR_CASTLE.md`](ENEMY_ABILITIES_AIR_CASTLE.md); lane
@@ -688,7 +688,7 @@ The abilities the campaign route can meet from Zelan to Kuran are derived by
 `python3 -m oracle.sweep.route_abilities`, never listed here. The census, the
 damage-route chain corrections and captures of lane A3, and the status and stat
 captures of lane A4 are in
-[`ENEMY_ABILITIES_ROUTE.md`](ENEMY_ABILITIES_ROUTE.md); the per-ability status is
+[`ENEMY_ABILITIES_ZELAN_TO_KURAN.md`](ENEMY_ABILITIES_ZELAN_TO_KURAN.md); the per-ability status is
 the last column of §2 and §3 above.
 
 ## Appendix — how to re-check this file

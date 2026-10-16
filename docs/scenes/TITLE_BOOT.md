@@ -90,7 +90,7 @@ refused with no state change at all (`ps4.asm:87678`). `ERASE DATA` asks about
 the selected populated slot and on YES zeroes only that file's 0x1400-byte
 physical payload, leaving the 0x200-byte common header untouched; the erased
 row then leaves the title's slot list. The exact retail flow and byte boundary
-are recorded in [`SAVE_SCOUT.md`](../camp/SAVE_SCOUT.md).
+are recorded in [`SAVE_FORMAT.md`](../camp/SAVE_FORMAT.md).
 
 `rust/psiv-godot/src/title.rs` is presentation only: it builds the decoded
 assets at the 3x camera scale and applies each frame's `TitleView`, which the

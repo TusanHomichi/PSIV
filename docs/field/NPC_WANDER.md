@@ -2,7 +2,7 @@
 
 Scouted 2026-08-16 (core-lane) from `reference/ps4disasm`, cross-checked
 against `runtime-pack/npc_commands.json` (overworld-lane's extraction of the
-same tables). Written to the `../battle/BATTLE_SCOUT.md` standard: routine labels are
+same tables). Written to the `../battle/BATTLE_RULES.md` standard: routine labels are
 retail and load-bearing, **inline comments in the clone drift and are not
 evidence**. Everything below is the instruction stream.
 
@@ -36,7 +36,7 @@ unreproducible.
 
 That means **cartridge NPC positions are bit-exactly reproducible** given the
 same seed and the same frame cadence. Nothing about wander needs the "which
-substitute generator" decision that `../battle/BATTLE_SCOUT.md` §16.1 leaves open.
+substitute generator" decision that `../battle/BATTLE_RULES.md` §16.1 leaves open.
 
 ## The per-frame tick structure — and what wander is *not*
 

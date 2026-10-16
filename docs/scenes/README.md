@@ -217,7 +217,7 @@ checked in cannot assemble (`script/eventptrs.asm`, `script/cutsceneptrs.asm`
 and `script/runeventsjmptbl.asm` are missing too), so "build it and diff" was
 never an option either.
 
-> **Correction to `docs/scenes/EVENT_ENGINE_SCOUT.md`.** The scout records "17 scene
+> **Correction to `docs/scenes/EVENT_ENGINE.md`.** The scout records "17 scene
 > routines include `script/scenes/*/event.asm` **ungated**". The count of 17 is
 > right; the *ungated* part is not. Walking the conditional nesting, only
 > **7 of the 17 are ungated**:

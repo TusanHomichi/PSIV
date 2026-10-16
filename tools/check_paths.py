@@ -106,6 +106,12 @@ EXEMPT: dict[str, frozenset[str] | None] = {
     # input. Spelling it out would change psiv_tools/text.py, whose source is
     # part of the extract stamp, and so stale every checkout's generated/.
     "psiv_tools/text.py": frozenset({"compress_script.py"}),
+    # Docs renamed for their topic (BATTLE_RULES.md, SOUND_DRIVER.md). These
+    # comments keep the old names until a comment edit stops changing the
+    # extract stamp (issue #143); remove the entries when it does.
+    "psiv_tools/battle_pack.py": frozenset({"docs/battle/BATTLE_SCOUT.md"}),
+    "psiv_tools/battle_records.py": frozenset({"docs/battle/BATTLE_SCOUT.md"}),
+    "psiv_tools/sound_defs.py": frozenset({"docs/sound/SOUND_SCOUT.md"}),
 }
 
 _START = r"(?<![\w./$~-])"

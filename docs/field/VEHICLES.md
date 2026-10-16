@@ -19,7 +19,7 @@ but their collision masks and movement timing are not interchangeable.
 
 Selectors above `3` fail closed. The save layout is unchanged. The runtime
 consumes the existing `Saved_Vehicle_Stats` records at `$FFFFFA80..$FFFFFB00`,
-documented in [`SAVE_SCOUT.md`](../camp/SAVE_SCOUT.md): current/max HP at `$00/$02`,
+documented in [`SAVE_FORMAT.md`](../camp/SAVE_FORMAT.md): current/max HP at `$00/$02`,
 the skill mask at `$04`, and eight current/max use pairs at `$06..$15`.
 Mounted battle state writes current HP and current uses back to that same
 record; no serialization path was added.

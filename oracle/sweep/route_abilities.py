@@ -4,7 +4,7 @@
     python3 -m oracle.sweep.route_abilities --json       # the same, as JSON
     python3 -m oracle.sweep.route_abilities --stretch zelan-kuran
     python3 -m oracle.sweep.route_abilities --out build/route-set.json
-    python3 -m oracle.sweep.route_abilities --update-doc docs/battle/ENEMY_ABILITIES_ROUTE.md
+    python3 -m oracle.sweep.route_abilities --update-doc docs/battle/ENEMY_ABILITIES_ZELAN_TO_KURAN.md
     python3 -m oracle.sweep.route_abilities --stretch dezolis-air-castle \
         --update-doc docs/battle/ENEMY_ABILITIES_AIR_CASTLE.md
     python3 -m oracle.sweep.route_abilities --map-pattern '^(Zelan|Kuran)' \\
@@ -209,7 +209,7 @@ STRETCHES["air-castle-ending"] = Stretch(
 #: (`--update-doc`); `tests/test_route_abilities.py` holds every one to its
 #: derivation.
 STRETCH_DOCS = {
-    "zelan-kuran": ROOT / "docs" / "battle" / "ENEMY_ABILITIES_ROUTE.md",
+    "zelan-kuran": ROOT / "docs" / "battle" / "ENEMY_ABILITIES_ZELAN_TO_KURAN.md",
     "dezolis-air-castle": ROOT / "docs" / "battle" / "ENEMY_ABILITIES_AIR_CASTLE.md",
     "air-castle-ending": ROOT / "docs" / "battle" / "ENEMY_ABILITIES_ENDGAME.md",
 }

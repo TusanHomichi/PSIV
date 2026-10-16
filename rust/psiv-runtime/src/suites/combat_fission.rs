@@ -413,7 +413,7 @@ fn a_commndball_starts_alone_and_its_first_action_calls_a_neighbour_back() {
 /// empty, the roll stays `$19` Detonation, and `loc_17C9E` (`ps4.asm:33114-33127`)
 /// damages the party before `loc_17D4A` (`33154-33177`) clears both neighbour
 /// objects without clearing their cached stats - the capture in
-/// `docs/battle/ENEMY_ABILITIES_ROUTE.md` section 1. Neither a wasted turn nor a
+/// `docs/battle/ENEMY_ABILITIES_ZELAN_TO_KURAN.md` section 1. Neither a wasted turn nor a
 /// fallback.
 #[test]
 fn detonation_on_a_float_mine_formation_damages_the_party_and_removes_only_its_neighbours() {

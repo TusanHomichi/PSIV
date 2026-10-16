@@ -215,7 +215,7 @@ require validation against the retail bytes. See [scene research](scenes/README.
 
 Save serialization uses the retail SRAM layout with three local slot files, and
 every slot operation (the title's slot list, CONTINUE, ERASE DATA and the camp's
-STATE > SAVE) runs inside the session's `SaveStore`. See [save format](camp/SAVE_SCOUT.md),
+STATE > SAVE) runs inside the session's `SaveStore`. See [save format](camp/SAVE_FORMAT.md),
 [field state](field/FIELD_STATE.md) and [party ORDER](camp/PARTY_ORDER.md).
 
 ## RNG design
