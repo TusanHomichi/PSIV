@@ -147,7 +147,7 @@ The build passes a SHA-256 over `host/*.c` and `*.h` in as
 `-DPSIV_ORACLE_BUILD_ID`, and the host prints it back for `--build-id`. Nothing
 used to tie the binary to its sources, so a checkout could drive the tapes with
 a host older than itself - issue #61 was a three-week-old `bin/psiv_oracle`
-with no `--rng-trace`, rebuilt by hand, mid-lane. Every entry point that
+with no `--rng-trace`, rebuilt by hand mid-run. Every entry point that
 launches the host now asks `oracle/host_binary.py` for the path instead: it
 compares what the binary reports with the fingerprint of the sources in front
 of it and rebuilds through the entry point when they differ - about a second,
@@ -502,10 +502,10 @@ inventory at its encounter seam:
 
 ```sh
 python3 -m oracle.force --formation 0x126 --prepare-script \
-  --scout build/x86/scout.json --out build/x86/base
+  --scout build/scripted/scout.json --out build/scripted/base
 python3 -m oracle.force --formation 0x126 --durable --max-rounds 4 \
-  --party-script commands.json --scout build/x86/scout.json \
-  --require-ability 0x1D --out build/x86/siren
+  --party-script commands.json --scout build/scripted/scout.json \
+  --require-ability 0x1D --out build/scripted/siren
 ```
 
 The script is strict JSON. Every round names all occupied party fighters by
@@ -553,7 +553,7 @@ negative-control rules are owned there. A recipe batch uses the same driver:
 
 ```sh
 python3 -m oracle.sweep.player_capture --cases build/player/cases.json \
-  --scout build/x86/scout.json --out build/player/captures \
+  --scout build/scripted/scout.json --out build/player/captures \
   --fixtures rust/psiv-core/src/battle/replay_fixtures/player
 python3 -m oracle.sweep.replay_pack
 CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \

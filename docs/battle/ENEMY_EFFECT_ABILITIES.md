@@ -16,7 +16,7 @@ Code: `rust/psiv-core/src/battle/enemy_effect.rs` (the status and stat handlers)
 rule is a line of `reference/ps4disasm/ps4.asm`, and every pair was seen run in a
 capture ([section 10](#10-what-the-captures-show)).
 
-The Zelan-to-Kuran route (issue #58 class, lane A4, 2026-10-04) added POISONMIST,
+The Zelan-to-Kuran route added POISONMIST,
 SLEEP GAS, SHADOWBIND and the refill WARNING to the same table and moved the
 crawlers' THREAD and POISON into it, so that every status or stat ability the
 port runs goes through one handler per effect byte: [section 7](#7-the-zelan-route-pairs).
@@ -122,8 +122,7 @@ members can draw one roll; sleep ends the usual way, by the end-of-round wake ro
 
 Both are `AbilityEffect_SleepParalyze` (effect `$07`) with a sleep bit the object
 sets, exactly VOICE's shape. Neither writes a damage request: the census classed
-them `damage` from the handler-and-object rule of its section 1, and the damage
-lane's reading of the chains found no `move.w #$C` in any of them - they write the
+them `damage` from the handler-and-object rule of its section 1, and the chain reading found no `move.w #$C` in any of them - they write the
 flinch (`move.w #5`) and nothing else - so `ENEMY_ABILITIES.md` now carries them as
 status/stat effects.
 
@@ -295,8 +294,8 @@ enemy could sleep or seal a party member, wrong the moment VOICE or SEALS landed
   damage the party deals afterwards (`D8_d0`; a defence raised by one point instead of
   eighteen turns a hit of 1 into a hit of 4); GELUN's, on the party, through the party's
   `atk_bat` cells that `oracle/sweep/arc.py` adds from the log. Adding both sides'
-  cells to `oracle/fixture/observations.py`'s `EFFECT_FIELDS` is outside this
-  lane's write set and would make the DEBAN proof direct.
+  cells to `oracle/fixture/observations.py`'s `EFFECT_FIELDS` would make the
+  DEBAN proof direct.
 - **Carriers no capture has seen use the ability** are not routed, except 72
   BloodSaber's DEBAN, which shares a captured carrier's routine, arm and object
   (section 2; [section 10](#10-what-the-captures-show) lists the rest).
@@ -434,9 +433,8 @@ fighter object's enemy id, is `$2C` (`ps4.asm:18244-18246`; formation `$125` que
 all three, [section 10](#10-what-the-captures-show)).
 The port already ran Fission's refill (`enemy_skill::resolve_fission`); the
 WARNING record joins it (`EnemySkill::is_refill`) and `initialize_enemies`
-covers 39 Tower and 45. The first version of this lane read WARNING as a spent
-turn with an alarm and the capture refuted it: the log's first round queue holds
-the CommndBall alone.
+covers 39 Tower and 45. WARNING is not a spent turn with an alarm: the log's
+first round queue holds the CommndBall alone.
 
 ### BARRIER (`$1D`, Siren386 and Browren486)
 
@@ -467,7 +465,7 @@ word wrap, living-slot range and second-cast fallback.
 |---|---|
 | 58 FlameNewt `$24`, 105 ShadMirage and 132 DarkForce3 `$4B` | Share a routine with a routed pair, are not on the route, were not captured. |
 
-## 8. The Air Castle pairs (lane A5)
+## 8. The Air Castle pairs
 
 The captures and the census are
 [`ENEMY_ABILITIES_AIR_CASTLE.md`](ENEMY_ABILITIES_AIR_CASTLE.md); the pairs are in
@@ -504,7 +502,7 @@ section 2's table.
   `enemy_skill::resolve_res` takes the same exit for RES and GIRES (`$3D4`'s
   test at line 44729, phase 8 with bit 7 at `loc_21558`).
 
-## 9. The endgame pairs (lane A6)
+## 9. The endgame pairs
 
 Section 2 of [`ENEMY_ABILITIES_ENDGAME.md`](ENEMY_ABILITIES_ENDGAME.md) lists them,
 with the captures. Four handlers are new - `$09` AttackUp, `$0C` AgilityUp, `$21`

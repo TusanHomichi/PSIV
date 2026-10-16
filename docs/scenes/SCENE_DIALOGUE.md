@@ -1,9 +1,8 @@
 # Scene dialogue and map object lifetimes
 
-The connected Alshline return exposed two faults that isolated scene-outcome
-tests missed. The first native attempt is preserved under
-`build/native-zema-missing-dialogue/`; it reached a save, but is **not a valid
-campaign checkpoint** because it skipped the rescue conversations.
+How a scene picks its dialogue tree, how long the objects a scene adds or
+removes live, where the dialogue rules run, and what the cartridge's text and
+talk timing is.
 
 ## Dialogue tree selection
 
@@ -58,76 +57,44 @@ an explicit despawn. Battle/chunk refreshes retain live object state.
 
 ## Verification
 
-`build/native-dialogue-trees/` holds the dialogue census, workspace tests and
-focused regressions. The native route now observes fully revealed dialogue
-pages through a read-only probe and checks both the conversations and seven
-restored residents before saving. The intermediate rerun is preserved at
-`build/native-zema-dialogue-restored/`: all **50** pages appeared, nine random
-encounters were escaped, Igglanova was defeated with normal commands, all seven
-residents returned, and slot 1 was saved outside Zema with 3063 meseta. That
-run exposed the presentation faults below, so it is not visual parity proof.
+The dialogue census and focused regressions cover tree selection, and the
+campaign route plays the Zema rescue conversations (all 50 pages) with ordinary
+input before it saves.
 
 ## Field entrance and panel cleanup
 
-The old `$0188` object lasted one frame and its subsequent `$8000` Y velocity
-was incorrectly represented as a replacement object id. The scene now creates
-Igglanova at `(480,160)`, keeps it alive until the explicit slot-7 despawn,
-and executes `Event_StepObject` for **64** frames at a signed 16.16 Y step
-of `$8000`. It lands at `(480,192)` before the next camera move. The object
-retains fractional coordinates across successive moves. Scene timing blocks
-for the movement, and full map reloads clear temporary objects.
+The scene creates Igglanova at `(480,160)`, keeps it alive until the explicit
+slot-7 despawn, and executes `Event_StepObject` for **64** frames at a signed
+16.16 Y step of `$8000`. It lands at `(480,192)` before the next camera move.
+The object retains fractional coordinates across successive moves. Scene timing
+blocks for the movement, and full map reloads clear temporary objects.
 
-The sprite extraction now applies the original fourteen palette words at
-`$052848..$052863`, retaining Zema's last two words. The old asset wrongly
-used the petrified town palette. The sprite plays its two-frame sequence.
+The sprite takes the fourteen palette words at `$052848..$052863`, keeping
+Zema's last two words (not the petrified town palette), and plays its two-frame
+sequence.
 
-Native page 38 also showed old comic panels covering the restored map. Full
-map reloads now clear those panel layers. The unfortunately named
+Full map reloads clear comic panel layers. The unfortunately named
 `Render_Sprites_In_Cutscenes` byte is a **suppression** flag when event bit 15
-is set, and also selects the panel portrait placement. The renderer previously
-treated it as an enable flag and gave every scene the panel portrait placement.
-The runtime now exposes the active event index; field-event dialogue keeps
-its F7 pause behavior while using the appropriate field or panel portrait.
-F7 and FF both clear the byte; only the text cursor survives F7. The window
-routine's panel destruction also runs on F7, so earlier panels cannot leak
-into the resumed section. The original flag write before Alshline's resume
-was restored. The missing flag write before the Zema aftermath's `$69`
-dialogue was restored from the
-US instruction at `$074588` (the scene range is `$074556..$0745DD`).
+is set, and also selects the panel portrait placement. The runtime exposes the
+active event index; field-event dialogue keeps its F7 pause behavior while
+using the appropriate field or panel portrait. F7 and FF both clear the byte;
+only the text cursor survives F7. The window routine's panel destruction also
+runs on F7, so earlier panels cannot leak into the resumed section. A flag
+write precedes Alshline's resume, and another precedes the Zema aftermath's
+`$69` dialogue (US instruction at `$074588`, scene range `$074556..$0745DD`).
+The window routine's exit fade cadence has not been compared with the oracle.
 
-`build/native-igglanova/` holds the motion, renderer, palette and integrated
-checks. The connected rerun in `build/native-zema-return/` completed all
-50 pages, the monster entrance position checks, battle, restored residents,
-SAVE and fresh title Continue. The halfway capture visibly shows the green
-monster. At the recorded arrival the next dialogue panel already covers it;
-the position probe records `(480,192)`. Page 38 has its proper new panel and
-field portrait, with the old collage cleared. This establishes those fixes
-without certifying every staging frame.
-Exact fade cadence for the window routine's exit still needs an oracle
-comparison; the current cleanup fixes the stale state without certifying that
-timing.
-
-The town capture also revealed that the seven active residents still used
-their grey sprite sheets. `deferred_effects` already contains the extracted
-palette copy's NPC sheet replacements, but the Rust data reader discarded
-them. The reader now retains and validates them, the existing map-effect
-gate selects the replacements, and Godot uses those selected sheets when
-building map objects. The same path gives Birth Valley's NPCs their petrified
+The extracted palette copy's NPC sheet replacements (`deferred_effects`) are
+kept by the data reader and selected by the map-effect gate, so Zema's seven
+residents take their restored sheets and Birth Valley's NPCs their petrified
 palette before the rescue. A regression checks both flag directions and all
-seven restored Zema assets. Native re-entry proof is pending in the outfit run.
+seven restored Zema assets.
 
-## The interpreter moved into the runtime (2026-10-01, node S1)
+## Where the dialogue rules run
 
-The dialogue rules used to live in the Godot crate: `psiv-godot`'s
-`dialogue/text_flow.rs` walked the bytes, `dialogue.rs` owned the window's
-clock and a *copy* of the 512-entry event-flag bank, and `dialogue/choice.rs`
-read the pad inside the node. Its own header admitted the flow was on the
-wrong side of the layer line.
+The dialogue rules live in `rust/psiv-runtime/src/dialogue/`:
 
-They now live in `rust/psiv-runtime/src/dialogue/`:
-
-- `text_flow.rs`: the retail byte walk (`RunText_CharacterLoop`), unchanged,
-  except that every `$FA` reads the live `GameState` at the moment the branch
+- `text_flow.rs`: the retail byte walk (`RunText_CharacterLoop`); every `$FA` reads the live `GameState` at the moment the branch
   is evaluated and `$F2` 11 writes it. There is no flag copy left.
 - `mod.rs`: the `DialogueRunner` — the open animation, the typewriter, the
   yes/no window, the `$F7` cursor, `$F6`, the pending event, the tree — and
@@ -146,7 +113,7 @@ Next to it, `rust/psiv-runtime/src/pad.rs` is the joypad byte
 (`ButtonUp`=0 … `ButtonStart`=7, `ps4.constants.asm:1877-1884`), the runtime's
 only input type.
 
-`RuntimeEvent::SceneDialogue`'s handler no longer resolves a tree; it calls
+`RuntimeEvent::SceneDialogue`'s handler calls
 `Runtime::open_scene_dialogue(entry, panel_layout)`, whose three answers are
 `Opened`, `Empty` (acknowledge the scene and run on) and `UnknownTree` (the
 scene recorded an address no packed tree claims; the dialogue barrier stays
@@ -156,17 +123,14 @@ pending, as before).
 frame and draws the pack's nine frame tiles, the glyph strip, the portrait and
 the arrow. `Field::physics_process` builds the `Pad`, hands it to
 `Runtime::dialogue_frame` before the field tick, runs the field, and calls
-`Runtime::dialogue_tick` afterwards — the order two nodes had before, kept
-because a `$F2` flag write must land after the field tick that precedes it.
+`Runtime::dialogue_tick` afterwards, because a `$F2` flag write must land after
+the field tick that precedes it.
 
-Evidence: `build/lane-evidence/` (the pre/post test-name lists and their diff,
-the `Ctrl::` grep over `psiv-godot`, the negative controls for the new runner
-tests, and the gate output). The pagination census over all 2,736 entries
-moved with the flow and still matches the extractor exactly. Two behaviour
-differences are recorded in the node's receipt: the debug `PSIV_DEBUG_RETAIL_PACE`
-harness now dismisses a page with a synthetic `ButtonSpeak` press in the pad
-(so the accelerated-frame cadence applies on that frame), and the
-field-status window's text is built in the shell and opened by the runtime.
+The pagination census over all 2,736 entries matches the extractor exactly.
+The debug `PSIV_DEBUG_RETAIL_PACE` harness dismisses a page with a synthetic
+`ButtonSpeak` press in the pad (so the accelerated-frame cadence applies on that
+frame), and the field-status window's text is built in the shell and opened by
+the runtime.
 
 ## Continuations and choices
 
