@@ -234,9 +234,13 @@ it), owned by `tools/heavy_lock.py`. It has two classes:
 An exclusive holder excludes every godot holder and they exclude it. The
 entry points in the table take their class themselves: never wrap them. A
 headless `psiv-campaign` run (about 40 MB) takes no lock. `PSIV_GODOT_SLOTS`
-must be the same for every process: one that finds a slot beyond its own cap
-held refuses with exit 2. A gate takes the gate lock first and the heavy lock
-second, as every deployed gate does; the reverse order deadlocks against them.
+must be the same for every process: each holder records its cap in its slot
+file, and a process that finds a held slot recording another cap refuses with
+exit 2. A gate takes the gate lock first and the heavy lock second, as every
+deployed gate does; the reverse order deadlocks against them. So never wrap the
+gate in `heavy_lock.py run`: a priority gate is `PSIV_LOCK_PRIORITY=1 python3
+tools/gate.py ...`, and a gate nested under a heavy holder refuses (exit 2,
+naming the holder) when the gate lock is busy instead of waiting.
 
 Waiters queue in arrival order, and `--priority` (or `PSIV_LOCK_PRIORITY=1` for
 an entry point that takes the lock itself, such as the gate) puts a waiter
@@ -248,8 +252,7 @@ names the holders and how many waiters, and priority waiters, are ahead.
 pid's command line.
 
 The holder exports `PSIV_HEAVY_LOCK_HELD` and its class, so an entry point
-nested under it (the gate under `run`, certify under `verify_candidate`) takes
-nothing new; an exclusive request under a godot holder exits 2, since that
+nested under it (certify under `verify_candidate`) takes nothing new; an exclusive request under a godot holder exits 2, since that
 holder excludes nobody. A raw `flock(1)` wrapper sets no marker: a gate,
 candidate, certify or native replay under one exits 2 naming the parent
 instead of waiting forever, and `verify_candidate` refuses it at startup,

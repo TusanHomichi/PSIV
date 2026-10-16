@@ -541,6 +541,26 @@ class QueueCase(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(self.granted(), ["same-cap"])
 
+    def godot_arrival(self, cap):
+        return subprocess.run(
+            [sys.executable, str(TOOLS / "heavy_lock.py"), "run", "--class", "godot", "--",
+             sys.executable, "-c", APPEND, str(self.order), f"cap-{cap}"],
+            capture_output=True, text=True, timeout=TIMEOUT,
+            env={**self.env, GODOT_SLOTS_ENV: cap})
+
+    def test_a_larger_cap_arrival_is_refused_by_the_cap_a_holder_recorded(self):
+        self.holder("godot", {GODOT_SLOTS_ENV: "3"})  # records 3 in its slot file
+        done = self.godot_arrival("5")
+        self.assertEqual(done.returncode, EXIT_HELD_BY_PARENT, done.stderr)
+        self.assertIn(f"{GODOT_SLOTS_ENV}=3, this one has 5", done.stderr)
+        self.assertEqual(self.granted(), [])
+
+    def test_negative_control_an_arrival_with_the_holders_cap_proceeds(self):
+        self.holder("godot", {GODOT_SLOTS_ENV: "3"})
+        done = self.godot_arrival("3")
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(self.granted(), ["cap-3"])
+
     def test_a_killed_waiter_does_not_block_the_queue(self):
         holder = self.holder()
         dead = self.waiter("dead")

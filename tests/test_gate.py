@@ -28,7 +28,8 @@ from pathlib import Path
 from unittest import mock
 
 from tools.gate import (FAST_COMMANDS, GATE_COMMANDS, SLOW_PYTHON_MODULES, GateRefused,
-                        command_slug, main, parse_counts, quick_unittest, run_gate)
+                        command_slug, gate_lock, main, parse_counts, quick_unittest,
+                        run_gate)
 from tools.heavy_lock import (HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV, HELD_SLOTS_ENV,
                               PRIORITY_ENV, gate_lock_path, heavy_lock_path, lock_holders)
 
@@ -376,6 +377,57 @@ class GateRunCase(unittest.TestCase):
         self.assertEqual(receipt["exit_code"], 0)
         receipt, _ = self.run_quiet([fake_step("again")])  # and the run released its own
         self.assertEqual(receipt["exit_code"], 0)
+
+    def gate_lock_holder(self):
+        lock_file = gate_lock_path(self.root)
+        lock_file.parent.mkdir(parents=True, exist_ok=True)
+        holder = subprocess.Popen([sys.executable, "-c", HEAVY_HOLDER, str(lock_file)],
+                                  stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+        self.addCleanup(self.stop, holder)
+        self.assertEqual(holder.stdout.readline().strip(), "held")
+        return lock_file, holder
+
+    def test_a_nested_gate_refuses_a_busy_gate_lock_even_with_wait(self):
+        """Under a heavy holder the heavy lock is already taken; waiting for the
+        gate lock would invert the lock order, so the gate refuses at once."""
+        heavy = heavy_lock_path(self.root)
+        heavy.parent.mkdir(parents=True, exist_ok=True)
+        lock_file, holder = self.gate_lock_holder()
+        outcome = {}
+
+        def gate():
+            try:
+                run_gate([fake_step("nested", marker="nested.txt")], self.root,
+                         self.receipt_dir, wait=True)
+            except GateRefused as refusal:
+                outcome["refused"] = refusal
+
+        with mock.patch.dict(os.environ, {HELD_ENV: str(heavy.resolve()),
+                                          HELD_CLASS_ENV: "exclusive"}), \
+                contextlib.redirect_stdout(io.StringIO()):
+            thread = threading.Thread(target=gate, daemon=True)
+            thread.start()
+            thread.join(timeout=10)
+        self.assertFalse(thread.is_alive(), "the nested gate waited for the gate lock")
+        self.assertEqual(outcome["refused"].exit_code, 2)
+        self.assertIn(f"pid {holder.pid}", str(outcome["refused"]))
+        self.assertFalse((self.root / "nested.txt").exists())
+
+    def test_negative_control_a_blocking_gate_lock_acquire_there_hangs(self):
+        lock_file, holder = self.gate_lock_holder()
+
+        def acquire():
+            with gate_lock(lock_file, wait=True):
+                pass
+
+        with contextlib.redirect_stdout(io.StringIO()):
+            thread = threading.Thread(target=acquire, daemon=True)
+            thread.start()
+            thread.join(timeout=1.0)
+            self.assertTrue(thread.is_alive(), "a blocking acquire waits on the holder")
+            holder.stdin.close()
+            thread.join(timeout=30)
+        self.assertFalse(thread.is_alive())
 
     def test_the_gate_lock_is_taken_before_the_heavy_lock(self):
         """One order everywhere (heavy_lock's docstring): every deployed gate

@@ -18,15 +18,19 @@ answer identically:
 
 Lock order, everywhere: the gate lock first, then the heavy lock. Every
 deployed gate takes them in that order, so a process that took the heavy lock
-and then waited for the gate lock would deadlock against one of them.
+and then waited for the gate lock would deadlock against one of them. Never
+wrap the gate in `run`; a priority gate is `PSIV_LOCK_PRIORITY=1 python3
+tools/gate.py ...`, and a gate nested under a heavy holder refuses a busy gate
+lock rather than wait.
 
 The heavy lock has two classes. `exclusive` (cargo, the Python suite, the gate,
 pack builds) holds the lock file with LOCK_EX and runs alone. `godot` (one
 Godot/Xvfb run, about 350 MB) holds it with LOCK_SH plus one of
 `PSIV_GODOT_SLOTS` (default 3) slot files beside it, so several Godot runs
 share the machine and an exclusive holder excludes them all. The cap must be
-the same for every process; one that finds a slot beyond its own cap held
-refuses (exit 2) rather than overfill the machine.
+the same for every process: each holder writes its cap into its slot file, and
+a process that finds a held slot recording another cap refuses (exit 2) rather
+than overfill the machine.
 
 Waiters queue in `<lock>.queue/`, one file per waiter that the waiter holds
 flocked for as long as it waits (a killed waiter's entry is pruned, never
@@ -43,8 +47,8 @@ that changes.
 `hold_heavy_lock(path)` is the one way in-repo code takes the heavy lock, and
 `run -- <cmd>` the one way to wrap a command in it. The holder exports
 `PSIV_HEAVY_LOCK_HELD=<resolved path>` with the class and slot count, so a
-descendant that asks for the same lock (the gate under `run`, certify under
-verify_candidate) proceeds without blocking on its own ancestor; an exclusive
+descendant that asks for the same lock (certify under verify_candidate)
+proceeds without blocking on its own ancestor; an exclusive
 request under a godot holder is refused instead, because the holder never
 excluded anyone. A raw `flock(1)` wrapper sets no marker; a child that finds
 the lock held by one of its ancestors (by inode in /proc/locks) exits 2 naming
@@ -290,33 +294,37 @@ def _entry_pid(name):
 
 
 class SlotCapMismatch(RuntimeError):
-    """A godot slot beyond this process's cap is held: another process runs with
-    a larger `PSIV_GODOT_SLOTS`, so together they would exceed either cap."""
+    """A godot slot is held by a process with a different `PSIV_GODOT_SLOTS`, so
+    together they could exceed either cap."""
 
 
 def _check_slot_cap(lock, cap):
-    """Raise SlotCapMismatch when a slot file at an index >= `cap` is held."""
+    """Raise SlotCapMismatch when a held slot records a cap other than `cap`
+    (each holder writes its cap into its slot file), or sits at an index >= `cap`."""
     prefix = Path(f"{lock}.godot")
     for path in prefix.parent.glob(prefix.name + "*"):
         index = path.name[len(prefix.name):]
-        if not index.isdecimal() or int(index) < cap:
+        if not index.isdecimal():
             continue
         handle = os.open(path, os.O_RDWR)
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            raise SlotCapMismatch(
-                f"heavy lock {lock}: godot slot {index} is held, so another process runs "
-                f"with {GODOT_SLOTS_ENV} above this one's {cap}; every process must use "
-                "the same value") from None
+            recorded = os.pread(handle, 16, 0).decode(errors="replace").strip()
+            if int(index) >= cap or (recorded.isdecimal() and int(recorded) != cap):
+                theirs = recorded if recorded.isdecimal() else f"above {cap}"
+                raise SlotCapMismatch(
+                    f"heavy lock {lock}: godot slot {index} is held by a process with "
+                    f"{GODOT_SLOTS_ENV}={theirs}, this one has {cap}; every process must "
+                    "use the same value") from None
         finally:
             os.close(handle)
 
 
 def _take_slots(lock, slots, cap):
-    """Handles holding `slots` free godot slot files of `lock`, or None (nothing
-    held) when fewer are free. Never blocks. Raises SlotCapMismatch when a
-    process with a larger cap holds a slot this one cannot see."""
+    """Handles holding `slots` free godot slot files of `lock`, each recording
+    `cap`, or None (nothing held) when fewer are free. Never blocks. Raises
+    SlotCapMismatch when a held slot was taken under a different cap."""
     _check_slot_cap(lock, cap)
     held = []
     for index in range(cap):
@@ -328,6 +336,8 @@ def _take_slots(lock, slots, cap):
         except BlockingIOError:
             os.close(handle)
         else:
+            os.ftruncate(handle, 0)
+            os.pwrite(handle, str(cap).encode(), 0)
             held.append(handle)
     if len(held) == slots:
         return held

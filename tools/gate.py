@@ -23,8 +23,10 @@ docstring owns it; a gate taking them the other way deadlocks against one that
 does not): the gate lock, `<main checkout>/build/gate/.lock`, for the whole
 run, and inside it the heavy lock in the exclusive class, through
 `hold_heavy_lock` (heavy runs are serialized by project rule; a run under
-`heavy_lock.py run --` or verify_candidate already holds it, so that step is a
-no-op there, and `PSIV_LOCK_PRIORITY=1` queues the gate as a priority waiter).
+verify_candidate already holds it, so that step is a no-op there, and
+`PSIV_LOCK_PRIORITY=1` queues the gate as a priority waiter). A gate nested
+under a heavy holder takes the gate lock without waiting, `--wait` or not: the
+wait would hold the heavy lock while waiting for the gate lock.
 Two guards refuse to start, both with exit 2 and nothing run: another gate
 holding the gate lock (a second gate exits at once instead of racing it;
 `--wait` waits for it instead, naming the holder once), and any process with
@@ -55,8 +57,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from heavy_lock import (gate_lock_path, heavy_lock_path, hold_heavy_lock,  # noqa: E402
-                        lock_holders)
+from heavy_lock import (HELD_ENV, gate_lock_path, heavy_lock_path,  # noqa: E402
+                        hold_heavy_lock, lock_holders)
 
 EXIT_OK = 0
 EXIT_FAILED = 1
@@ -277,12 +279,12 @@ def gate_lock(lock_file, wait=False):
         try:
             fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError as exc:
+            holders = ", ".join(str(pid) for pid in lock_holders(lock_file)) or "unknown"
             if not wait:
                 raise GateRefused(
-                    f"gate refuses to start: another gate holds {lock_file} "
+                    f"gate refuses to start: another gate (pid {holders}) holds {lock_file} "
                     f"({exc.strerror or exc}); heavy runs are serialized one at a time"
                 ) from exc
-            holders = ", ".join(str(pid) for pid in lock_holders(lock_file)) or "unknown"
             print(f"gate: waiting for {lock_file} held by pid {holders}", flush=True)
             fcntl.flock(handle, fcntl.LOCK_EX)
         yield handle
@@ -430,7 +432,12 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
     receipt_dir = Path(receipt_dir).resolve()
     lock_file = gate_lock_path(root)
     heavy_lock = heavy_lock or heavy_lock_path(root)
-    with gate_lock(lock_file, wait), hold_heavy_lock(heavy_lock, report=sys.stdout):
+    # Under a heavy holder (verify_candidate, `heavy_lock.py run`) the heavy lock
+    # is already taken, so waiting here for the gate lock would invert the one
+    # lock order (heavy_lock's docstring) and can deadlock: refuse instead.
+    nested = os.environ.get(HELD_ENV) == str(Path(heavy_lock).resolve())
+    with gate_lock(lock_file, wait and not nested), \
+            hold_heavy_lock(heavy_lock, report=sys.stdout):
         extension = root / EXTENSION_PATH
         loaded = loaded_extension_pids(extension)
         if loaded:
