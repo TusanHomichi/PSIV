@@ -28,7 +28,9 @@ use std::rc::Rc;
 
 use psiv_core::{Cell, Direction, FieldMap, Flag, GameState, MapError};
 use psiv_data::{GameData, MapRecord};
-use psiv_runtime::{BridgeError, FieldLoad, adjust_field_load, evaluate_map_effects, field_map_entered};
+use psiv_runtime::{
+    BridgeError, FieldLoad, adjust_field_load, evaluate_map_effects, field_map_entered,
+};
 
 use crate::cell_plan::{CellPlanError, Flood, Mover};
 

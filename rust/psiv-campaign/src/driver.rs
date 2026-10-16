@@ -8,7 +8,7 @@
 //! faulting frame into a [`Halt`]. It reads the runtime through its read-only
 //! views and never calls a mutator.
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 
 use psiv_core::{Cell, Direction};
@@ -160,6 +160,8 @@ pub struct Driver {
     routed: Vec<Routed>,
     areas: Vec<(u32, u16)>,
     scenes_ended: u64,
+    /// How many times each map has loaded (`RuntimeEvent::MapChanged`).
+    map_loads: HashMap<u16, u64>,
     battles: Vec<BattleRecord>,
     in_battle: bool,
     /// Where the route's `save` objectives write, or `None` while replaying
@@ -225,6 +227,7 @@ impl Driver {
             routed: Vec::new(),
             areas: Vec::new(),
             scenes_ended: 0,
+            map_loads: HashMap::new(),
             battles: Vec::new(),
             in_battle: false,
             scratch,
@@ -323,6 +326,13 @@ impl Driver {
     #[must_use]
     pub fn scenes_ended(&self) -> u64 {
         self.scenes_ended
+    }
+
+    /// How many times `map` has loaded since the run began: a walk reads it
+    /// to tell that it arrived on a map a scene then carried the party off.
+    #[must_use]
+    pub fn map_loads(&self, map: u16) -> u64 {
+        self.map_loads.get(&map).copied().unwrap_or(0)
     }
 
     /// Forgets the routed windows and areas, at the start of an objective.
@@ -458,6 +468,9 @@ impl Driver {
                     self.areas.push((*area, *event));
                 }
                 RuntimeEvent::SceneEnded => self.scenes_ended += 1,
+                RuntimeEvent::MapChanged { map, .. } => {
+                    *self.map_loads.entry(map.0).or_default() += 1;
+                }
                 other if is_scene_fault(other, scene_began, self.is_doorway_row(other)) => {
                     raise(HaltKind::SceneFault, format!("{event:?}"));
                 }

@@ -330,16 +330,13 @@ impl Runtime {
         let Some(destination) = self.pending_travel.take() else {
             return Ok(Vec::new());
         };
-        self.change_map_from(
+        let loaded = self.change_map_from(
             MapId(destination.map),
             destination.cell,
             destination.facing,
             destination.previous_map,
         )?;
         self.set_field_suspended(false);
-        Ok(vec![RuntimeEvent::MapChanged {
-            map: MapId(destination.map),
-            trigger: WarpTrigger::MapChange,
-        }])
+        Ok(vec![loaded.event(WarpTrigger::MapChange)])
     }
 }

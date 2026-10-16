@@ -61,3 +61,67 @@ pub static AERO_PRISM_FOUND: Scene = Scene {
     event: EventIndex(0x009D),
     ops: &[standard(0x11), set_flag(0xC9), set_flag(0xC8)],
 };
+
+#[cfg(test)]
+mod tests {
+    use crate::collision::CollisionGrid;
+    use crate::map::{FieldMap, MapId};
+    use crate::scene::{DialogueId, SceneEffect, SceneInput};
+    use crate::scene_runner::SceneRunner;
+    use crate::state::{Flag, GameState};
+    use crate::trigger::EventIndex;
+
+    /// Plays the scene registered for `event` to its end, closing each
+    /// dialogue at once; returns the dialogues it opened and the flags it
+    /// set, in order.
+    fn play(event: u16) -> (Vec<u16>, Vec<Flag>) {
+        let scene = super::super::scene_for(EventIndex(event))
+            .unwrap_or_else(|| panic!("${event:04X} is not registered"));
+        let map = FieldMap::new(
+            MapId(0),
+            CollisionGrid::filled(4, 4, 0).unwrap(),
+            vec![],
+            vec![],
+        )
+        .unwrap();
+        let mut state = GameState::new();
+        let mut runner = SceneRunner::new(scene.ops, vec![], crate::StepFrames::default());
+        let mut dialogues = Vec::new();
+        let mut flags = Vec::new();
+        let mut input = SceneInput::None;
+        for _ in 0..200 {
+            let effects = runner.tick(&map, &mut state, input);
+            input = SceneInput::None;
+            for effect in effects {
+                match effect {
+                    SceneEffect::DialogueOpen(DialogueId(id)) => {
+                        dialogues.push(id);
+                        input = SceneInput::DialogueClosed;
+                    }
+                    SceneEffect::FlagChanged { flag, value: true } => flags.push(flag),
+                    SceneEffect::Faulted(fault) => panic!("${event:04X} faulted: {fault:?}"),
+                    _ => {}
+                }
+            }
+            if runner.is_finished() {
+                return (dialogues, flags);
+            }
+        }
+        panic!("${event:04X} did not finish");
+    }
+
+    /// Each body as `ps4.asm:153412-153433` and the retail bytes
+    /// `$073880..$0738D1` have it: one dialogue of the map's tree, then the
+    /// flag (two for the Aero-Prism, `$C9` before `$C8`).
+    #[test]
+    fn each_scene_opens_its_dialogue_then_sets_its_flags() {
+        let event = |id| vec![Flag::event(id)];
+        assert_eq!(play(0x9A), (vec![0x0E], event(0xC2)));
+        assert_eq!(play(0x9B), (vec![0x0F], event(0xC3)));
+        assert_eq!(play(0x9C), (vec![0x10], event(0xC4)));
+        assert_eq!(
+            play(0x9D),
+            (vec![0x11], vec![Flag::event(0xC9), Flag::event(0xC8)])
+        );
+    }
+}

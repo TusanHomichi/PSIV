@@ -1,8 +1,9 @@
 # The Soldier's Temple island (`$9A`..`$9D`)
 
 Four short events, all of the shape `moveq #n, d0` / `jsr Event_GetAndRunDialogue` and a flag set
-(`ps4.asm:153412-153433`). They left the #81 allowlist with lane C9, which met the first of them on
-the way from Seth's island to the temple ([the C9 log](../campaign/RUNNER_LOG_ENDGAME.md)).
+(`ps4.asm:153412-153433`). They left the #81 allowlist when the campaign route reached them: the
+`island-cave` and `soldiers-temple` chapters of `rust/psiv-campaign/routes/main.json` fire all four
+([campaign runner](../campaign/CAMPAIGN_RUNNER.md)).
 
 - **Data:** `rust/psiv-core/src/scenes/soldiers_temple.rs`.
 - **Clone audit:** each body was read from the US image through `EventPtrs[$9A..$9D]`

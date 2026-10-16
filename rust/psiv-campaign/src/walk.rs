@@ -204,9 +204,10 @@ impl Driver {
     }
 
     /// As [`Driver::go_to_map`] for a map whose load starts a scene that
-    /// carries the party off it (the Reunion on the Dezo Spaceport, `RunEvent_Reunion`
-    /// firing on the arrival): the objective is met once the scene has run,
-    /// wherever it left the party, and the next objective asserts that place.
+    /// carries the party off it (the Reunion on the Dezo Spaceport,
+    /// `RunEvent_Reunion` firing on the arrival): the objective is met once
+    /// `map` has loaded and a scene has then left the party on another map,
+    /// and the next objective asserts that place.
     ///
     /// # Errors
     ///
@@ -220,11 +221,28 @@ impl Driver {
         let mut first = via_warp;
         let start_map = self.map();
         let scenes_before = self.scenes_ended();
+        let loads_before = self.map_loads(map);
         for _ in 0..REPLAN_LIMIT {
             let settled = self.settle_at(true, true)?;
             let prompt = settled == Settled::Choice;
             let here = (self.map(), self.cell());
-            if arrival_scene && here.0 != map && self.scenes_ended() > scenes_before {
+            if here.0 != map
+                && self.map_loads(map) > loads_before
+                && self.scenes_ended() > scenes_before
+            {
+                // `map` loaded and a scene carried the party off it. Only an
+                // objective that says so ends here; any other would walk back
+                // into a map whose scene has already run.
+                if !arrival_scene {
+                    return Err(Halt::new(
+                        HaltKind::UnexpectedState,
+                        format!(
+                            "map {map:#x} loaded and a scene took the party to map {:#x}: \
+                             the go_to_map needs arrival_scene",
+                            here.0
+                        ),
+                    ));
+                }
                 self.note(format!(
                     "go_to_map {map:#x}: a scene took the party to map {:#x}",
                     here.0

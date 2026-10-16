@@ -33,9 +33,9 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
     let route = Route::parse(&main_text()).expect("main.json parses");
     let ids: Vec<&str> = route.chapters.iter().map(|c| c.id.as_str()).collect();
     assert_eq!(ids.first(), Some(&"academy"));
-    assert_eq!(ids.last(), Some(&"garuberk-dark-force-2"));
+    assert_eq!(ids.last(), Some(&"soldiers-temple"));
     assert_eq!(
-        ids[ids.len() - 15..],
+        ids[ids.len() - 19..],
         [
             "esper-inner-sanctuary",
             "gumbious-torch-stolen",
@@ -51,7 +51,11 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
             "dezolis-eclipse-torch",
             "garuberk-tower-first-eye",
             "garuberk-tower-second-eye",
-            "garuberk-dark-force-2"
+            "garuberk-dark-force-2",
+            "gumbious-bishop",
+            "seth-island",
+            "island-cave",
+            "soldiers-temple"
         ][..]
     );
     assert!(ids.contains(&"nurvus-zio"));
@@ -518,4 +522,38 @@ fn wait_is_bounded_and_a_scene_menu_board_validates() {
     );
     let shipped = run(&main_text()).unwrap();
     assert!(shipped.errors.is_empty(), "{:?}", shipped.errors);
+}
+
+/// `arrival_scene` leaves the position unknown: the scene the load starts
+/// moves the party, so a walk after it needs an `expect` that pins the map.
+/// The Gumbious B2 arrival marked so, with its `expect` keeping only the
+/// parked vehicle (no map, no cell), is rejected at the next walk; unmarked it
+/// validates (the negative control).
+#[test]
+fn an_arrival_scene_needs_an_expect_before_the_next_walk() {
+    let pin = "{\"do\": \"expect\", \"map\": 356, \"cell\": [30, 35], \"vehicle\": 0, \"note\": \"the map load parked the Ice Digger\"},";
+    let unpinned = mutate(&main_text(), pin, "{\"do\": \"expect\", \"vehicle\": 0},");
+    let Some(report) = run(&unpinned) else { return };
+    assert!(
+        !report.errors.iter().any(|e| e.chapter == "gumbious-bishop"),
+        "a plain arrival keeps the position: {:?}",
+        report.errors
+    );
+    let marked = mutate(
+        &unpinned,
+        "{\"do\": \"go_to_map\", \"map\": 356, ",
+        "{\"do\": \"go_to_map\", \"map\": 356, \"arrival_scene\": true, ",
+    );
+    let report = run(&marked).unwrap();
+    let error = report
+        .errors
+        .iter()
+        .find(|e| e.chapter == "gumbious-bishop")
+        .unwrap_or_else(|| panic!("the walk after the scene is rejected: {:?}", report.errors));
+    assert_eq!(error.objective, Some(4), "{error}");
+    assert!(
+        error.reason.contains("needs a known map"),
+        "{}",
+        error.reason
+    );
 }

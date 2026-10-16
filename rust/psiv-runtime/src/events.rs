@@ -217,7 +217,9 @@ pub enum RuntimeEvent {
     /// rebuild the scene for [`crate::Runtime::map_id`]; `trigger` says whether
     /// this was a doorway (fade) or ground transition (scroll), per the design doc.
     MapChanged {
-        /// The map now loaded.
+        /// The map now loaded: after `GameMode_LoadFieldMap`'s redirects,
+        /// so it can differ from the warp's own target. Only
+        /// `map_change::MapLoaded::event` builds this variant.
         map: MapId,
         /// Which transition class fired.
         trigger: WarpTrigger,

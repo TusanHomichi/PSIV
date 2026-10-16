@@ -314,15 +314,12 @@ impl Runtime {
         // writes the scene made around it.
         let cell = Cell::new(start_x / 2, start_y / 2 + 1);
         match self.change_map_refresh(MapId(map), cell, facing, prev_map, clear_load_flags) {
-            Ok(()) => {
+            Ok(loaded) => {
                 let cast = self.build_cast();
                 if let Some(runner) = self.scene.as_mut() {
                     runner.recast(cast);
                 }
-                events.push(RuntimeEvent::MapChanged {
-                    map: MapId(map),
-                    trigger: WarpTrigger::MapChange,
-                });
+                events.push(loaded.event(WarpTrigger::MapChange));
             }
             Err(_) => events.push(RuntimeEvent::UnpackedTarget { map: MapId(map) }),
         }

@@ -134,12 +134,9 @@ impl Runtime {
                         }
                     }
                     match self.change_map(target_map, target_cell, facing) {
-                        Ok(()) => {
+                        Ok(loaded) => {
                             map_changed = true;
-                            events.push(RuntimeEvent::MapChanged {
-                                map: target_map,
-                                trigger,
-                            });
+                            events.push(loaded.event(trigger));
                         }
                         Err(BridgeError::NotPacked(id)) => {
                             events.push(RuntimeEvent::UnpackedTarget { map: MapId(id) });

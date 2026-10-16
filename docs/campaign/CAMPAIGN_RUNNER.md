@@ -16,7 +16,9 @@ A route is an ordered list of chapters following the story order in
 [docs/scenes](../scenes/README.md). Each chapter holds objectives the runner
 resolves into pad input:
 
-- reach a map and cell, path-finding across the pack's warp graph, on foot or
+- reach a map and cell, path-finding across the pack's warp graph (each hop
+  lands where `GameMode_LoadFieldMap`'s four story redirects send it, the same
+  `psiv_runtime::adjust_field_load` the field loader applies), on foot or
   in the vehicle the party rides (a mounted party moves two cells a press over
   the terrain its machine crosses, `psiv_core::can_enter`; the route says so
   with `"vehicle": N` in an `expect` and ends it with `dismount`);
@@ -36,6 +38,12 @@ resolves into pad input:
   because a `go_to` plans again from where the scene leaves the party and fires
   the trigger a second time; it halts when the party stands on the cell and no
   scene ran;
+- `go_to_map` with `arrival_scene` onto a map whose load starts a scene that
+  carries the party off it (`Cutscene_Reunion` on the Dezo spaceport): the
+  objective ends when the map has loaded and the scene has left the party
+  elsewhere, and the next `expect` says where; an unmarked `go_to_map` halts
+  there instead of walking back. `plan --from-save FILE` plans from a chapter
+  save's position and event, temp and town flags;
 - `wait` frames while the field runs (an object a scene sent walking, the
   Esper Mansion's guards, finishes before the next walk is planned around it),
   and `opens` on a `talk` for the cells such a conversation clears, as on an

@@ -196,11 +196,15 @@ impl Runtime {
                     facing,
                     ..
                 } => match self.change_map(target_map, target_cell, facing) {
-                    Ok(()) => {
+                    Ok(loaded) => {
                         map_changed = true;
-                        events.push(RuntimeEvent::MapChanged {
-                            map: target_map,
-                            trigger,
+                        events.push(loaded.event(trigger));
+                    }
+                    // The loader's redirects can name another map than the
+                    // warp; report the one that was not packed, as on foot.
+                    Err(BridgeError::NotPacked(id)) => {
+                        events.push(RuntimeEvent::UnpackedTarget {
+                            map: psiv_core::MapId(id),
                         });
                     }
                     Err(_) => events.push(RuntimeEvent::UnpackedTarget { map: target_map }),

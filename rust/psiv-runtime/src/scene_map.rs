@@ -59,16 +59,13 @@ impl Runtime {
             return;
         };
         match self.change_map(warp.target_map, warp.target_cell, warp.facing) {
-            Ok(()) => {
+            Ok(loaded) => {
                 let cast = self.build_cast();
                 if let Some(runner) = self.scene.as_mut() {
                     runner.recast(cast);
                 }
                 self.scene_input = SceneInput::MapLoaded;
-                events.push(RuntimeEvent::MapChanged {
-                    map: warp.target_map,
-                    trigger: WarpTrigger::NormalGround,
-                });
+                events.push(loaded.event(WarpTrigger::NormalGround));
             }
             Err(error) => {
                 self.scene = None;
