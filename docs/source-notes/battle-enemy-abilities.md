@@ -491,8 +491,6 @@ one-line `targets.reverse()`) fails seven of the nine core tests, led by
 `every_all_party_route_resolves_in_an_ordinary_round` ("the whole party, in slot
 order, left `[3, 2, 1]`"). Restoring the order passes all nine again. The two
 refusal tests pass in both states, which is what they are for: they draw nothing.
-Logs: `build/lane-evidence/negative-control-reversed-order.txt` and
-`negative-control-restored.txt` (not committed; `build/` is ignored).
 
 ## The enemy AI instruction block (2026-09-25)
 
