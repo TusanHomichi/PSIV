@@ -9,31 +9,10 @@
    "objective_kind": "step_onto",
    "kind": "lost_battle",
    "battle": "event:14",
-   "resumes": ["zema-outfit", "machine-center-control-key", "zelan-sabotage", "dezolis-outside-raja-temple", "dezolis-ice-digger", "dezolis-saving-kyra"],
+   "resumes": ["aiedo-chaz-house", "zio-fort-approach"],
    "issue": "https://github.com/TusanHomichi/PSIV/issues/107",
-   "date": "2026-10-07",
-   "note": "Xe-A-Thoul (event battle 14) defeats the party: 6 of the 50 resumes that reach him"
-  },
-  {
-   "chapter": "dezolis-gyuna",
-   "objective": 1,
-   "objective_kind": "go_to_map",
-   "kind": "unreachable",
-   "resumes": ["aiedo", "passage-to-zio-fort"],
-   "issue": "https://github.com/TusanHomichi/PSIV/issues/109",
-   "date": "2026-10-07",
-   "note": "no walk from (39,36) reaches warp 9 of map $144"
-  },
-  {
-   "chapter": "dezolis-eclipse-torch",
-   "objective": 5,
-   "objective_kind": "go_to",
-   "kind": "lost_battle",
-   "battle": "random",
-   "resumes": ["dezolis-gyuna"],
-   "issue": "https://github.com/TusanHomichi/PSIV/issues/110",
-   "date": "2026-10-07",
-   "note": "a random battle on the Eclipse Torch drive defeats the party"
+   "date": "2026-10-16",
+   "note": "Xe-A-Thoul (event battle 14) defeats the party: 2 of the resumes that reach him"
   }
  ]
 }
