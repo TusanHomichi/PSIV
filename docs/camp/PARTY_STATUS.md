@@ -25,18 +25,12 @@ retain their positions.
 The five-person visual fixture deliberately seats original Raja, Chaz,
 Hahn, Gryz and Rune records in that order. It changes only the party and
 location; character stats remain their original initial values. Raja and
-Rune supply three-digit values without invented stats. The first native run completed under `build/native-status/route`: an ordinary
-battle, victory, summary, STATUS and SAVE. Fresh title Continue from slot 2,
-one downward step and SAVE to slot 3 passed, changing only standing Y at
-logical save offset 0x309. Source slots remain unchanged. All 875 workspace
-tests passed at that checkpoint; the Godot library accounted for 72.
-Status/command icons still use the existing question-mark placeholder.
+Rune supply three-digit values without invented stats.
+`tools/native/native_status.gd` plays an ordinary battle, victory, summary,
+STATUS and SAVE with it. Status and command icons use a placeholder.
 
 
-The same capture exposed two further shortcuts: STATUS tiled Chaz's 48x48
-dialogue portrait into a 64x64 box for every character, and the schema read
-`name` while the pack supplied `display_name` for professions. STATUS now
-loads each character's separate original 80x80 portrait map, including its
+STATUS loads each character's own 80x80 portrait map, including its
 border, at (24,16). `status_portraits.py` reads the eleven Nemesis-art pointers
 at 0x5D548 and raw 10x10 map pointers at 0x5D574; every map uses CRAM line 2.
 The original age words at 0x2A8E12 supply all eleven ages; zero remains
@@ -45,9 +39,5 @@ character records, keeping the native renderer independent of the ROM.
 
 The new extraction regression covers all eleven maps and ages. A real-pack
 runtime regression checks all eleven professions, ages and distinct paths.
-Native verification passed in `build/native-status/portraits/route/receipt.json`.
-The fixture wins its battle, switches STATUS through Raja, Chaz, Hahn, Gryz
-and Rune, and saves. The clean five-person battle capture, Raja's portrait/
-PRIEST/age 85 and Chaz's portrait/HUNTER/age 16 were visually inspected.
-The pack determinism/manifest tests also pass (15 tests including portrait
-extraction). This is isolated rendering evidence, not late-game campaign proof.
+The native fixture switches STATUS through Raja, Chaz, Hahn, Gryz and Rune and
+saves; it is isolated rendering evidence, not late-game campaign proof.

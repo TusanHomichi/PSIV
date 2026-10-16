@@ -69,14 +69,10 @@ The verified US ROM's `CharTech_Cast` at `$9208` tests status bit 4
 spell object. This preserves the original paid-but-cancelled behavior;
 it does not change TP costs or implement SEALS itself.
 
-`build/sealed-spell-sound/before-fix.log` records the reproduced failure.
 The focused sound tests cover both spell IDs and successful-but-missed casts;
 the real-pack RIMIT test verifies a 10-TP payment with no sleep effect or spell
-cue. The existing successful RIMIT and four-technique recovery/save checks
-also pass: three sound tests and three integration tests in total. Logs are
-`focused-tests.log` and `integration-tests.log` in the same local directory.
-This is runtime event/cue evidence; exact audio timing and waveform parity
-remain separate work.
+cue. This is runtime event and cue evidence; exact audio timing and waveform
+parity are separate work.
 
 Battle presentation now receives a `BattleTimeline`: the core event vector is
 unchanged, and `BattleSoundEvent { event_index, id }` plus
