@@ -14,7 +14,7 @@ use psiv_data::{BattleFiles, GameData};
 use std::path::Path;
 
 /// The Zio-arc routes are real-pack reachable, on the maps the campaign runner
-/// walks (`docs/campaign/RUNNER_LOG.md` H15/H16). `generated/enemies.json` gives
+/// walks (the runner log's H15/H16, commit 0faa91b^). `generated/enemies.json` gives
 /// 83 Ripper `$21` FIREBREATH in regular slots 6-8, and formation `$DB` is two of
 /// them (the Zio Fort's, `$082`); 100 TechMaster `$47` ZAN in slot 8, and
 /// formation `$110` is two of them (Nurvus `$0CC`); 106 Haunt `$4D` CORRSION in

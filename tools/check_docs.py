@@ -28,6 +28,11 @@ is scanned, and fenced code blocks and inline code are skipped as content:
   one): it works on one machine only. Write a `~/`-relative path,
   an environment variable such as `$PSIV_GODOT`, or a placeholder.
 
+The code of the change is checked too: `tools/check_paths.py` (issue #114)
+fails on a repository path, file name or Markdown section that Rust, GDScript,
+Python, shell, C or a campaign route names and the tree does not have. It runs
+here so both gate tiers carry it without a command of their own.
+
 A path git ignores is a local input (`AGENTS.md`, "Protect local inputs and
 evidence"), not repository content - and not a file of the change either: the
 ROM, `reference/`, generated packs, saves and captures live outside Git, so a
@@ -382,12 +387,19 @@ def main() -> int:
               file=sys.stderr)
         return 2
     problems, counts = check_tree()
+    # Imported here: check_paths reads this module's slug rules at its import.
+    try:
+        from tools.check_paths import check as check_code_paths
+    except ModuleNotFoundError:
+        from check_paths import check as check_code_paths
+    code_problems, code_paths = check_code_paths(root)
+    problems += code_problems
     for problem in problems:
         print(problem)
     files, links, anchors, paths, yaml_blocks = counts
     summary = (
         f"checked {files} files, {links} links, {anchors} anchors, {paths} command paths, "
-        f"{yaml_blocks} yaml blocks"
+        f"{yaml_blocks} yaml blocks, {code_paths} code paths"
     )
     print(f"{summary}; {len(problems)} problem(s)")
     return 1 if problems else 0

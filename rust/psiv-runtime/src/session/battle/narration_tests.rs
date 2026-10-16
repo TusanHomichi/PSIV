@@ -1,5 +1,5 @@
 //! The narration table's own tests, moved here from
-//! `psiv-godot/src/battle/timeline.rs` with the strings they pin.
+//! the Godot crate's battle timeline (commit 25701a1) with the strings they pin.
 
 use super::*;
 

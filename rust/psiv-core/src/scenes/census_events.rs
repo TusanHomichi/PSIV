@@ -33,7 +33,7 @@ const LOAD_FLAGS_EVENT_BATTLE: SceneOp = SceneOp::SetMapLoadFlags {
 
 /// `$002A`, `Event_CancellerReminder`, retail `$06DEAE..$06DEBD`: Zelan F1's
 /// reminder when the party reaches the elevator before opening the Canceller
-/// chest (runner log H26).
+/// chest (runner log H26, commit 0faa91b^).
 pub static CANCELLER_REMINDER: Scene = Scene {
     name: "Event_CancellerReminder",
     event: EventIndex(0x002A),

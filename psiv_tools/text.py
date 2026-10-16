@@ -189,11 +189,12 @@ NAME_TABLE_SIGNATURES: dict[str, str] = {
 # Dialogue trees
 #
 # `DialogueTree1` sits at a $100 boundary and the 43 blobs follow one another,
-# each padded to a 16-byte boundary with zeros (the padding `compress_script.py`
-# documents). Only the start of each blob is recorded: the end is whatever the
-# decompressor consumes, and `extract_dialogue` requires the next blob to begin
-# at the next 16-byte boundary after it, which turns the whole chain into one
-# continuous length check.
+# each padded to a 16-byte boundary with zeros (the padding
+# `reference/ps4disasm/script/compress_script.py` documents). Only the start
+# of each blob is recorded: the end is whatever the decompressor consumes, and
+# `extract_dialogue` requires the next blob to begin at the next 16-byte
+# boundary after it, which turns the whole chain into one continuous length
+# check.
 #
 # `portrait_operand_bytes` is 2 for exactly trees 31 and 32 and 1 everywhere
 # else. `TextCtrlCode_Portrait` reads a second operand byte only when
@@ -488,10 +489,10 @@ def dialogue_tree_specs(data: bytes) -> list[dict[str, Any]]:
 def trim_tree_alignment(block: bytes, label: str) -> tuple[bytes, int]:
     """Drop the even-length pad byte some decompressed trees end with.
 
-    `compress_script.py` appends a single zero when the uncompressed tree has
-    an odd length, so 20 of the 43 retail trees decompress to `...$FF $00`.
-    Only that exact shape is accepted; anything else after the final
-    terminator is a decode failure.
+    `reference/ps4disasm/script/compress_script.py` appends a single zero when
+    the uncompressed tree has an odd length, so 20 of the 43 retail trees
+    decompress to `...$FF $00`. Only that exact shape is accepted; anything
+    else after the final terminator is a decode failure.
     """
     if not block or block[-1] == 0xFF:
         return block, 0

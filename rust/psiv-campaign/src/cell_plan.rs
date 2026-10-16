@@ -20,7 +20,8 @@
 //! A step that fires a warp leaves the map, so it is never traversed *through*.
 //! It is a terminal. During a leg only the intended terminal may be taken;
 //! every other firing step is simply not an edge (the generalised rule of the
-//! single-map `first_step` in `psiv-runtime/examples/support/mod.rs`, which
+//! single-map `first_step` of the runtime's retired route examples (commit
+//! 2c936ed^), which
 //! avoided every cell of another warp's rectangle).
 //!
 //! # Mounted

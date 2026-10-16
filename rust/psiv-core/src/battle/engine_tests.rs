@@ -5,7 +5,7 @@
 //! state, which several of these assert against directly.
 //!
 //! The cartridge-derived numbers come from `docs/battle/BATTLE_SCOUT.md` §12 (the
-//! worked example) and `oracle/README.md` "Battle ground truth" (tapes 07 and
+//! worked example) and `docs/oracle/RESULTS.md` "Battle ground truth" (tapes 07 and
 //! 09), by way of [`crate::battle::fixtures`].
 //!
 //! What stays here is the harness the cases share — the fixture battle

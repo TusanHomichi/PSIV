@@ -11,7 +11,7 @@
 //!
 //! The three abilities are also the shapes issue
 //! [#58](https://github.com/TusanHomichi/PSIV/issues/58)'s campaign halts were
-//! about: `docs/campaign/RUNNER_LOG.md` H16 stops at Juza on ZAN and
+//! about: the runner log's H16 (commit 0faa91b^) stops at Juza on ZAN and
 //! FORCEFLASH, and the Zio Fort's and Ladea Tower's Haunts and the Nurvus
 //! TechMasters carry CORRSION and ZAN.
 

@@ -75,6 +75,32 @@ as one.
   treats invisible no-dialogue blockers as solid and silent; hardware
   confirmation remains pending.
 
+## Deliberate fixes to retail battle bugs
+
+The owner's battle ruling (2026-08-15) fixes bugs that are plainly
+unintended, under the rule in
+[RUNTIME_DESIGN.md](../RUNTIME_DESIGN.md#fidelity-and-original-bugs). The
+retail behaviour of each is in the `bugfixes=1` table of
+[BATTLE_SCOUT.md](../battle/BATTLE_SCOUT.md#new-retail-cartridge-findings)
+(`ps4.asm` line numbers there); the port takes the fixed branch:
+
+- the level-99 pointer desync in the results loop (`ps4.asm:5926`);
+- the shield-element read: a shield's element is applied as a weapon's
+  (`ps4.asm:3822`, `3913`);
+- the stat lag after a level-up: `UpdateCharModStats` is not re-run
+  (`ps4.asm:6119`);
+- the Defend and physical-resistance armour clobber of `physical_prop`
+  (`ps4.asm:6368`, `9835`, `11287`);
+- Telepipe and Escapipe consumed in battle (`ps4.asm:16109`);
+- an ability effect id past the end of `AbilityEffectsOffs` (Zio3's `$2C`),
+  rejected when the pack loads instead of dispatched.
+
+The stat lag and the clobber are measured on hardware (tapes 10 and 14): Chaz
+levels to 2, strength goes 8 to 9 and `atk_pow` stays 18 across 600 frames;
+Defend rewrites `physical_prop`'s high byte 2 to 1 for the round. Quirks that
+read as design stay faithful: the cure spells that also restore
+agility and dexterity, and enemy paralysis clearing each turn.
+
 ## Public reverse-engineering references used
 
 - `squidfeatures/ps4disasm` (`ps4.asm`, `ps4.constants.asm`), including the documented record layouts and stable symbolic IDs.

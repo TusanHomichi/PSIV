@@ -411,7 +411,7 @@ impl BattleScreen {
 ///
 /// `null` unless the per-character command window is open — that is the
 /// contract the drivers' own loops read (`tools/native/native_battle_recovery.gd`,
-/// `native_alshline.gd`, `native_bioplant.gd`: a null `menu` with `ready` true
+/// and the campaign drivers retired in commit 138da9f: a null `menu` with `ready` true
 /// is the COMD/MACR/RUN window, and they press accept to open it). `page` keeps
 /// Rust's own `Debug` spelling of the runtime's page enum (`"Actions"`,
 /// `"Targets(Technique(31))"`), which is what those drivers compare against.

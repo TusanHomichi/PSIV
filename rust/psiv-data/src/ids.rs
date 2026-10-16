@@ -35,7 +35,7 @@ impl From<u16> for MapId {
 /// A SHA-256 digest as 64 lowercase hex characters.
 ///
 /// The pack records the ROM it was extracted from; the same fail-closed hash
-/// discipline as the rest of the project (docs/RUNTIME_DESIGN.md, "Data path").
+/// discipline as the rest of the project (docs/EXTRACTION.md, "Supported ROM").
 /// Parsing rejects anything that is not exactly 64 hex digits, so a truncated
 /// or placeholder hash cannot reach a comparison and quietly not match.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]

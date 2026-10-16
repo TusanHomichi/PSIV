@@ -4,7 +4,7 @@
 //! trigger 124 and Chaz's `$6D` line), and an eight-frame `Up`, and finds the
 //! cartridge's first control: map `$13`, standing cell `(48,18)`, Chaz alone,
 //! no active scene, 500 meseta and town flags `80008040`
-//! (`docs/campaign/PLAYABILITY_FOUNDATIONS.md`, "Evidence"). This case reaches
+//! (the foundations playability record's "Evidence", commit 0faa91b^). This case reaches
 //! the same state the same way a player does: one [`Pad`] per frame, Speak
 //! presses to dismiss the message boxes, then `Up`.
 //!

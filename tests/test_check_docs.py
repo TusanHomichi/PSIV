@@ -38,7 +38,7 @@ CHECKER = ROOT / "tools" / "check_docs.py"
 SUMMARY_RE = re.compile(
     r"checked (?P<files>\d+) files, (?P<links>\d+) links, "
     r"(?P<anchors>\d+) anchors, (?P<paths>\d+) command paths, "
-    r"(?P<yaml>\d+) yaml blocks; "
+    r"(?P<yaml>\d+) yaml blocks, (?P<code>\d+) code paths; "
     r"(?P<problems>\d+) problem\(s\)"
 )
 
