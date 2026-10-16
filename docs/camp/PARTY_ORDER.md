@@ -45,7 +45,7 @@ without altering enemy rules, levels, equipment or resources.
 
 ## Validation
 
-`rust/psiv-runtime/tests/camp_order.rs` checks invalid permutations, atomic
+`rust/psiv-runtime/src/suites/camp_order.rs` checks invalid permutations, atomic
 commit, unchanged roster and field positions, SAVE/load, battle slot order,
 the complete target-roll distribution, and rejection during battle.
 The UI unit test checks nontrivial pick/undo restoration and auto-completion.

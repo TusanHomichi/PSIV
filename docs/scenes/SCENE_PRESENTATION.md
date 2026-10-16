@@ -9,7 +9,7 @@ it does not replay or infer scene operations.
 
 The ordering contract is covered by
 `presentation_events_keep_scene_order_and_tick_boundaries` in
-`rust/psiv-runtime/tests/next_arc.rs`.
+`rust/psiv-runtime/src/suites/next_arc.rs`.
 
 ## Pixel-exactness pass (2026-08-17)
 

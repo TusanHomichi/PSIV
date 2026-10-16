@@ -701,11 +701,9 @@ about a line, not label citations.
 
 ### Run note
 
-The checks above ran from scripts kept out of the repository (`build/lane-scratch/`;
-`build/` is ignored): `report2.py` (arm/object/damage extraction), `check_pairs.py`
-(completeness, carrier sets, the Acid Breath class), `check_citations.py` (label
-citations) and `check_other.py` (a second, whole-region scan for every `other`
-row). Results at this revision:
+The checks above were one-off scripts (arm, object and damage extraction;
+completeness, carrier sets and the Acid Breath class; label citations; a second,
+whole-region scan for every `other` row), not kept in the repository. Results at this revision:
 
 - pair set: 146 rows, 146 distinct keys, 0 missing and 0 extra against
   `enemies.json`;

@@ -23,14 +23,14 @@ cartridge does. Status and active work live elsewhere, under the
   [Zelan to Kuran](battle/ENEMY_ABILITIES_ROUTE.md),
   [the Air Castle stretch](battle/ENEMY_ABILITIES_AIR_CASTLE.md),
   [the Air Castle to the Ending](battle/ENEMY_ABILITIES_ENDGAME.md).
-- [Enemy damage routes](battle/ENEMY_DAMAGE_ROUTES.md), [enemy POISON](battle/ENEMY_POISON.md), [enemy status and stat effects](battle/ENEMY_EFFECT_ABILITIES.md), [enemy Fusion](battle/ENEMY_FUSION.md).
+- [Enemy damage routes](battle/ENEMY_DAMAGE_ROUTES.md), [enemy status and stat effects](battle/ENEMY_EFFECT_ABILITIES.md), [enemy Fusion](battle/ENEMY_FUSION.md).
 - [Battle command windows, status panes and the MetaSlug](battle/BATTLE_COMMAND_UI.md), [battle animations](battle/BATTLE_ANIMATIONS.md), [battle geometry](battle/BATTLE_GEOMETRY.md), [battle recovery](battle/BATTLE_RECOVERY.md), [instant death](battle/INSTANT_DEATH.md).
-- [THREAD](battle/THREAD.md), [RIMIT](battle/RIMIT.md).
+- [RIMIT](battle/RIMIT.md).
 
 ## oracle — comparing against the cartridge
 
 - Method, tapes, harness and captures: the [oracle guide](../oracle/README.md).
-- [Replaying captured battles](oracle/BATTLE_ORACLE_REPLAY.md), [forcing a formation](oracle/BATTLE_ORACLE_FORCED.md), [the divergence sweep](oracle/BATTLE_ORACLE_SWEEP.md), [battle UI](oracle/BATTLE_ORACLE_UI.md).
+- [Replaying captured battles](oracle/BATTLE_ORACLE_REPLAY.md), [forcing a formation](oracle/BATTLE_ORACLE_FORCED.md), [the divergence sweep](oracle/BATTLE_ORACLE_SWEEP.md).
 - Capture sets: [Motavia-arc status abilities](oracle/BATTLE_ORACLE_ARC.md), [Zelan-to-Kuran abilities](oracle/BATTLE_ORACLE_ZELAN.md), [scripted party commands, BARRIER and Psycho Wand](oracle/BATTLE_ORACLE_X86.md).
 - [Field measurements](oracle/RESULTS.md) and [their continuation](oracle/RESULTS_CONTINUED.md).
 

@@ -241,7 +241,7 @@ Presentation uses extracted art and decoded layouts. The current desktop
 viewport is 1280×800; selected comparisons use the original 320×224 surface.
 Viewport, camera, timing and matched game state are part of a visual result.
 See [camera](field/CAMERA.md), [color pipeline](field/COLOR_PIPELINE.md),
-[battle UI](oracle/BATTLE_ORACLE_UI.md) and [sound integration](sound/SOUND_INTEGRATION.md).
+[battle UI](battle/BATTLE_COMMAND_UI.md) and [sound integration](sound/SOUND_INTEGRATION.md).
 
 ## Verification
 

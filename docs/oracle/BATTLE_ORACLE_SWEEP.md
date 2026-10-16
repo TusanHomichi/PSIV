@@ -399,7 +399,7 @@ then moves it (`loc_5AE6`), and the sweep's captures do not carry the group:
 The sweep's 81 fixtures cannot show it - their captures were taken before the
 group existed - so a lane that fixes the retarget rule should re-capture the ten
 affected formations (`python3 -m oracle.sweep --only 0x02,...`) or take the
-test's evidence from `tests/test_oracle_battle_fixture.Commands`.
+test's evidence from `tests.test_oracle_battle_fixture.Commands`.
 
 A capture taken with the group, of cluster 1's own anchor fixtures, is what the
 rule looks like in the cells: `python3 -m oracle.sweep --only 0x02` (this lane

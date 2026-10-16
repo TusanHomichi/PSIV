@@ -3,8 +3,9 @@
 The work queue for enemy abilities: one row per distinct nonzero **regular**
 ability id the cartridge can roll, with the dispatch and the effect handler read
 out of the disassembly, and whether `psiv-core` implements it. Read
-`docs/battle/BATTLE_SCOUT.md` §7 for the roll and `docs/battle/THREAD.md` for the shape of one
-finished dispatch (THREAD). Nothing here changes code; it is the map for doing so
+`docs/battle/BATTLE_SCOUT.md` §7 for the roll and
+[THREAD and POISON](ENEMY_EFFECT_ABILITIES.md#thread-and-poison-10-11-the-crawler-family)
+for the shape of one finished dispatch. Nothing here changes code; it is the map for doing so
 one ability at a time.
 
 **83 distinct nonzero regular ability ids.** 83 implemented, 0 partial, 0
@@ -196,10 +197,10 @@ by A3; ProfoundDarkness1 remains deferred for `$21` and `$22` (#62).
 | `$0E` (14) **MicroMissl**<br>MICROMISSL | eff `$01` · stat $05 (attack) · tgt 9 · pow 0 · res $06 (defense) · el `1` physical | `EnemyAttack_BalDuel` (`ps4.asm:23316`)<br>→ loc_378FC (`ps4.asm:72007`)<br>`EnemyAttack_LifeDeletr` (`ps4.asm:23124`)<br>→ BattleObj_LifeDeletrMicroMissl (`ps4.asm:52229`) | `AbilityEffect_None` (`ps4.asm:9092`) | 26 LifeDeletr, 28 DragerDuel, 29 JurafaDuel<br>13/504 formations | damage | implemented - `enemy_damage`, all party for every carrier: LifeDeletr's `$80C`/`$810` after eight calls (line 52107, `ObjectDraws::MicroMissile`), the BalDuels' two `$E8` (loc_378FC, request at 72120; not `BattleObj_AbeFrogAtk`); captured, [`ENEMY_ABILITIES_ENDGAME.md`](ENEMY_ABILITIES_ENDGAME.md) |
 | `$0F` (15) **FlamLaunch**<br>FLAMLAUNCH | eff `$01` · stat $01 (strength) · tgt 8 · pow 64 · res $07 (magic_defense) · el `3` fire | `EnemyAttack_BalDuel` (`ps4.asm:23316`)<br>→ loc_37704 (`ps4.asm:71820`) | `AbilityEffect_None` (`ps4.asm:9092`) | 29 JurafaDuel<br>4/504 formations | damage | implemented - `enemy_damage`: `$E4` (`loc_37704`, `ps4.asm:71820`), single (line 71974) - not the zero arm's `$E0`; captured, [`ENEMY_ABILITIES_ENDGAME.md`](ENEMY_ABILITIES_ENDGAME.md) |
 | `$10` (16) **Thread**<br>THREAD | eff `$06` · stat $01 (strength) · tgt 8 · pow 64 · res $03 (agility) · el `1` physical | `EnemyAttack_Crawler` (`ps4.asm:23081`)<br>→ BattleObj_Thread (`ps4.asm:36186`) | `AbilityEffect_AgilityDown` (`ps4.asm:9139`) | 31 CarrionCr<br>3/504 formations | — | implemented — `enemy_effect` (`ROUTES`, handler `$06`), moved there from `enemy_skill::resolve_thread` by lane A4 ([ENEMY_EFFECT_ABILITIES.md](ENEMY_EFFECT_ABILITIES.md) section 7) |
-| `$11` (17) **Poison**<br>POISON | eff `$1B` · stat $01 (strength) · tgt 8 · pow 64 · res $01 (strength) · el `13` efess | `EnemyAttack_Crawler` (`ps4.asm:23081`)<br>→ BattleObj_Poison (`ps4.asm:36279`) | `AbilityEffect_Poison` (`ps4.asm:9410`) | 32 Caterpillr<br>7/504 formations | status/stat effect | implemented — `enemy_effect` (`ROUTES`, handler `$1B`), moved there from `enemy_skill::resolve_poison` by lane A4 ([ENEMY_POISON.md](ENEMY_POISON.md)); seven swept fixtures replay it |
+| `$11` (17) **Poison**<br>POISON | eff `$1B` · stat $01 (strength) · tgt 8 · pow 64 · res $01 (strength) · el `13` efess | `EnemyAttack_Crawler` (`ps4.asm:23081`)<br>→ BattleObj_Poison (`ps4.asm:36279`) | `AbilityEffect_Poison` (`ps4.asm:9410`) | 32 Caterpillr<br>7/504 formations | status/stat effect | implemented — `enemy_effect` (`ROUTES`, handler `$1B`), ([the crawler family](ENEMY_EFFECT_ABILITIES.md#thread-and-poison-10-11-the-crawler-family)); seven swept fixtures replay it |
 | `$13` (19) **CellSplit**<br>CELL SPLIT | eff `$01` · stat $01 (strength) · tgt 9 · pow 80 · res $06 (defense) · el `1` physical | `EnemyAttack_MetaSlug` (`ps4.asm:22931`)<br>→ BattleObj_CellSplit (`ps4.asm:35240`)<br>BattleObj_CellSplit2 (`ps4.asm:35344`)<br>BattleObj_CellSplit3 (`ps4.asm:35392`)<br>BattleObj_CellSplit4 (`ps4.asm:35445`)<br>BattleObj_CellSplit5 (`ps4.asm:35493`) | `AbilityEffect_None` (`ps4.asm:9092`) | 37 SnowSlug, 38 FractOoze, 137 FractOoze2<br>5/504 formations (+1 boss) | damage | implemented - `enemy_damage::resolve_damage_skill`; A3 routes and evidence in §6 |
 | `$16` (22) **Flash**<br>FLASH | eff `$21` · stat $01 (strength) · tgt 9 · pow 64 · res $02 (mental) · el `11` psychic | `EnemyAttack_ArmDrone` (`ps4.asm:22789`)<br>→ loc_1886C (`ps4.asm:33905`) | `AbilityEffect_DexterityDown` (`ps4.asm:9457`) | 43 StarDrone<br>7/504 formations | status/stat effect | implemented - `enemy_effect`: `$194` makes no request; one call of `AbilityEffect_DexterityDown` (`ps4.asm:9457`) on party slots 1-5; captured, [`ENEMY_ABILITIES_ENDGAME.md`](ENEMY_ABILITIES_ENDGAME.md) |
-| `$17` (23) **Waiting**<br>WAITING | eff `$22` · stat $00 (none) · tgt 0 · pow 0 · res $00 (none) · el `0` none | `EnemyAttack_FloatMine` (`ps4.asm:22675`) — no object; the routine clears `$24(a4)` | `AbilityEffect_None` (`ps4.asm:9092`) | 44 FloatMine, 46 VopalSphre, 50 FloatMine2<br>10/504 formations | no effect | implemented — `enemy_skill::resolve_no_effect_turn` (`rust/psiv-core/src/battle/enemy_skill.rs`): all three carriers are `EnemyAttack_FloatMine` entries (`$2C`/`$2E`/`$32`) whose routine has no `$17` arm, so `loc_10406` (`ps4.asm:22781`) spends the turn. A3 also covers the conditional WAITING arm shared by 41 ArmDrone and 42 SatMinion (`loc_10468`, lines 22807–22813), which clears the same target/ability cells; FISSION2 is not accepted on those carriers. `rust/psiv-godot/src/battle/timeline.rs` narrates `BattleEvent::EnemyAbilityWasted` as an empty line with no beat — which is what retail shows — and its `narration` match now names every variant, so a new core event fails to compile there until it is given its line |
+| `$17` (23) **Waiting**<br>WAITING | eff `$22` · stat $00 (none) · tgt 0 · pow 0 · res $00 (none) · el `0` none | `EnemyAttack_FloatMine` (`ps4.asm:22675`) — no object; the routine clears `$24(a4)` | `AbilityEffect_None` (`ps4.asm:9092`) | 44 FloatMine, 46 VopalSphre, 50 FloatMine2<br>10/504 formations | no effect | implemented — `enemy_skill::resolve_no_effect_turn` (`rust/psiv-core/src/battle/enemy_skill.rs`): all three carriers are `EnemyAttack_FloatMine` entries (`$2C`/`$2E`/`$32`) whose routine has no `$17` arm, so `loc_10406` (`ps4.asm:22781`) spends the turn. A3 also covers the conditional WAITING arm shared by 41 ArmDrone and 42 SatMinion (`loc_10468`, lines 22807–22813), which clears the same target/ability cells; FISSION2 is not accepted on those carriers. `rust/psiv-runtime/src/session/battle/narration.rs` narrates `BattleEvent::EnemyAbilityWasted` as an empty line with no beat — which is what retail shows — and its `narration` match now names every variant, so a new core event fails to compile there until it is given its line |
 | `$19` (25) **Detonation**<br>DETONATION | eff `$24` · stat $05 (attack) · tgt 9 · pow 24 · res $06 (defense) · el `1` physical | `EnemyAttack_FloatMine` (`ps4.asm:22675`)<br>→ loc_17B5E (`ps4.asm:33029`)<br>loc_17DA6 (`ps4.asm:33183`)<br>loc_17E1A (`ps4.asm:33211`)<br>loc_17F6C (`ps4.asm:33295`)<br>loc_1804A (`ps4.asm:33351`)<br>loc_18144 (`ps4.asm:33412`)<br>loc_1816A (`ps4.asm:33424`)<br>loc_1824A (`ps4.asm:33483`)<br>loc_18270 (`ps4.asm:33495`)<br>loc_18344 (`ps4.asm:33550`) | `AbilityEffect_None` (`ps4.asm:9092`) | 45 CommndBall<br>2/504 formations | damage | implemented - `enemy_damage::resolve_damage_skill`; A3 routes and evidence in §6 |
 | `$1C` (28) **FlareShot**<br>FLARE SHOT | eff `$01` · stat $05 (attack) · tgt 8 · pow 16 · res $06 (defense) · el `2` energy | `EnemyAttack_DarkForce1` (`ps4.asm:20030`)<br>→ loc_31F60 (`ps4.asm:64584`)<br>`EnemyAttack_Warren286` (`ps4.asm:22515`)<br>→ loc_1786E (`ps4.asm:32828`) | `AbilityEffect_None` (`ps4.asm:9092`) | 47 Warren286, 48 Siren386, 49 Browren486, 130 DarkForce1<br>13/504 formations (+1 boss) | damage † | implemented - `enemy_damage::resolve_damage_skill`; A3 routes and evidence in §6 |
 | `$1D` (29) **Barrier**<br>BARRIER | eff `$0B` · stat $01 (strength) · tgt 2 · pow 0 · res $00 (none) · el `0` none | `EnemyAttack_Warren286` (`ps4.asm:22515`)<br>→ loc_1769E (`ps4.asm:32706`)<br>loc_175A2 (`ps4.asm:32636`)<br>loc_174BE (`ps4.asm:32575`)<br>loc_1740E (`ps4.asm:32526`)<br>loc_17364 (`ps4.asm:32478`)<br>loc_172CA (`ps4.asm:32429`)<br>loc_171D0 (`ps4.asm:32358`) | `AbilityEffect_MagicDefenseUp` (`ps4.asm:9220`) | 49 Browren486 (regular), 48 Siren386 (conditional, arm `$08`)<br>5/504 formations | status/stat effect | implemented — `enemy_effect`, signed MDEF guard; scripted FOI triggers Siren386 and Browren486 uses its regular slot ([BATTLE_ORACLE_X86.md](../oracle/BATTLE_ORACLE_X86.md)) |
@@ -383,10 +384,10 @@ and conditional-only damage routes in §6:
 - `$10` THREAD → `enemy_effect` (a `ROUTES` entry since lane A4). Carrier 31 CarrionCr →
   `EnemyAttack_Crawler` (`ps4.asm:23081`) → `BattleObj_Thread` (`ps4.asm:36186`)
   for `$10`, `BattleObj_Poison` (`ps4.asm:36279`) otherwise — matching
-  `docs/battle/THREAD.md`.
+  [the crawler family](ENEMY_EFFECT_ABILITIES.md#thread-and-poison-10-11-the-crawler-family).
 - `$11` POISON → `enemy_effect` (a `ROUTES` entry since lane A4). Carrier 32 Caterpillr →
   `EnemyAttack_Crawler` → `BattleObj_Poison`; effect `$1B` →
-  `AbilityEffect_Poison`. See [`ENEMY_POISON.md`](ENEMY_POISON.md).
+  `AbilityEffect_Poison`. See [the crawler family](ENEMY_EFFECT_ABILITIES.md#thread-and-poison-10-11-the-crawler-family).
 - `$33` ACIDBREATH → `enemy_damage::resolve_damage_skill` for all four carriers
   (`DAMAGE_SKILL_ROUTES`, `rust/psiv-core/src/battle/enemy_damage/routes/`). 75
   FlattrPlnt and 76 FlyScreamr (`EnemyAttackOffs` `$4B`/`$4C`) →
@@ -573,8 +574,9 @@ and conditional-only damage routes in §6:
   the ones the conditional path reaches.
 - **Enemy 30 Crawler carries an all-zero list**, yet the THREAD family's routine
   `EnemyAttack_Crawler` is shared by enemies 30-32: ability `$10` belongs to 31
-  CarrionCr and `$11` to 32 Caterpillr. `docs/battle/THREAD.md`'s "crawler family" is about
-  the shared routine, not about all three enemies rolling THREAD.
+  CarrionCr and `$11` to 32 Caterpillr. The "crawler family" of
+  `docs/battle/ENEMY_EFFECT_ABILITIES.md` means the shared routine, not all three
+  enemies rolling THREAD.
 - **The formation group masks are not a spawn filter.** Bytes 5-6 of a formation
   (`group_1_mask`/`group_2_mask`) are read only by `loc_7B94` (`ps4.asm:11590`) to
   choose the group leader's sprite; the spawner `loc_7F2E` (`ps4.asm:11911`) walks
@@ -703,7 +705,7 @@ the last column of §2 and §3 above.
   deliberately carry no `ps4.asm:` prefix.
 - **Classes.** The verdicts come from the object-chain rule in §1. Three of them can
   be cross-read against existing documents and agree: THREAD (`no damage`,
-  `docs/battle/THREAD.md`), Acid Breath (`damage`, `docs/source-notes/battle-enemy-abilities.md`) and Fission
+  `docs/battle/ENEMY_EFFECT_ABILITIES.md`), Acid Breath (`damage`, `docs/source-notes/battle-enemy-abilities.md`) and Fission
   (`no damage`, the resolver's comments).
 - The original inventory is static chain reading. A3 adds fresh cartridge
   captures and exact generic replays (§6). Their damage/state evidence does not

@@ -40,10 +40,11 @@ is scanned, and fenced code blocks and inline code are skipped as content:
   one): it works on one machine only. Write a `~/`-relative path,
   an environment variable such as `$PSIV_GODOT`, or a placeholder.
 
-The code of the change is checked too: `tools/check_paths.py` (issue #114)
-fails on a repository path, file name or Markdown section that Rust, GDScript,
-Python, shell, C or a campaign route names and the tree does not have. It runs
-here so both gate tiers carry it without a command of their own.
+Paths written outside links are checked too: `tools/check_paths.py` (issue
+#114) fails on a repository path, file name or Markdown section that Rust,
+GDScript, Python, shell, C, a campaign route or Markdown prose and inline code
+names and the tree does not have. It runs here so both gate tiers carry it
+without a command of their own.
 
 A path git ignores is a local input (`AGENTS.md`, "Protect local inputs and
 evidence"), not repository content - and not a file of the change either: the

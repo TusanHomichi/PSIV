@@ -43,7 +43,7 @@ The movement and dialogue repairs do not constitute visual parity.
 
 ## Verification
 
-`rust/psiv-runtime/tests/dorin_dialogue.rs` checks both the completed-reply
+`rust/psiv-runtime/src/suites/dorin_dialogue.rs` checks both the completed-reply
 and four-resume branches, including flag timing, Alys movement and Dorin
 facing. Native connected verification completed in `build/native-tonoe/route`,
 including all three choices and four resumed sections. The earlier run in

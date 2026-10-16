@@ -84,8 +84,8 @@ unchanged, and `BattleSoundEvent { event_index, id }` plus
 `BattleAnimationEvent` are ordered sidecars. `psiv-runtime` captures weapon
 state and the selected enemy record before round mutation, maps the retail
 weapon-index table, and attaches requests to `Attacked`, miss, and death
-events. `psiv-godot/src/battle/sfx.rs` pairs both sidecars with the screen
-queue; `Field::drive_battle_if_active` drains sound IDs into the existing live
+events. The runtime's battle queue (`rust/psiv-runtime/src/session/battle/queue.rs`)
+pairs both sidecars with the screen queue; `Field::drive_battle_if_active` drains sound IDs into the existing live
 `Field::play_sound` path. The driver remains responsible for mixing SFX with
 the active theme. The enemy records and their object/frame provenance live in
 `battle/enemy_animations.json`; the scout and its explicit deferred surface

@@ -203,9 +203,9 @@ byte ranges are repeated here.
 The complete retail table census, including the input-driven surfaces that
 remain precise why-not boundaries, is in
 [12_ArcTriggerCensus](12_ArcTriggerCensus.md). The persistent headless proof
-is `rust/psiv-runtime/tests/next_arc.rs`: it runs title through the `$8020`
+is `rust/psiv-runtime/src/suites/next_arc.rs`: it runs title through the `$8020`
 battle request and the `$8021` ending, asserting the relevant flags and party
-roster at each handoff. `rust/psiv-runtime/tests/retail_boundaries.rs` covers
+roster at each handoff. `rust/psiv-runtime/src/suites/retail_boundaries.rs` covers
 the deterministic Raja Sick and Rykros records independently.
 
 ## Why these were disassembled and not read
@@ -283,10 +283,6 @@ code was proven byte-identical to retail, corroboration.
    table at `$80`, `DoMapUpdateLoop`, `Event_MoveCamera`, `Event_GetCharacter`,
    the NPC movement-command table). Names that the clone's *commented-out*
    retail bodies later confirmed are noted as such.
-
-The scratch tooling lives outside the repo (session scratchpad):
-`psdis.py` (annotated disassembler), `align.py` (retail↔clone aligner),
-`walk.py` (self-checking label walker), `bootstrap_syms.py`, `namehunt.py`.
 
 ## Facts derived here that the interpreter needs
 

@@ -6,20 +6,23 @@ Run from the repository root:
     python3 tools/check_paths.py
 
 `tools/check_docs.py` runs the same check, so it is in both gate tiers without
-a gate command of its own. It reads every Rust, GDScript, Python, shell and C
-source of the change and the campaign's JSON routes (`SOURCE_PATTERNS`),
-comments and string literals alike, and fails on:
+a gate command of its own. It reads every Rust, GDScript, Python, shell, C
+and Markdown file of the change and the campaign's JSON routes
+(`SOURCE_PATTERNS`), comments, string literals, prose and inline code alike
+(in Markdown, fenced blocks and link targets are left to `check_docs`), and
+fails on:
 
 - a repository path (`docs/...`, `godot/...`, `oracle/...`, `psiv_tools/...`,
   `rust/...`, `tests/...`, `tools/...`, `.github/...`) that names neither a
-  file nor a directory of the change. A path inside a Rust crate may also be
-  written relative to that crate (`tests/runner.rs`). A path written as a
+  file nor a directory of the change. A path resolves beside the file that
+  names it first (a Markdown link's way), then from the repository root, then,
+  inside a Rust crate, from that crate (`tests/runner.rs`). A path written as a
   template (`oracle/states/{name}.json`, `tools/native/*.gd`) is checked up to
   its last whole directory, and a range of siblings
   (`docs/scenes/03_A.md..11_B.md`) is checked at both ends;
 - a bare file name (`native_alshline.gd`, `RUNNER_LOG.md`,
-  `battle/BATTLE_RULES.md`) ending in `.md`, `.gd`, `.rs` or `.py` that no file
-  of the change ends with;
+  `battle/BATTLE_RULES.md`) ending in `.md`, `.gd`, `.rs` or `.py` that resolves
+  nowhere as above and that no file of the change ends with;
 - a section of a Markdown file that the file does not have. `path.md#anchor`
   must be a heading's slug, slugged as `check_docs` slugs it. A quoted name
   after the path, `` `path.md` "Heading" ``, `` `path.md`'s "Heading" ``,
@@ -43,6 +46,7 @@ the checker cannot run at all.
 
 from __future__ import annotations
 
+import os
 import re
 import subprocess
 import sys
@@ -50,14 +54,14 @@ from collections.abc import Iterable
 from pathlib import Path
 
 try:  # imported as `tools.check_paths`: the suite, and the gate's `PYTHONPATH=.`
-    from tools.check_docs import heading_slugs, slugify
+    from tools.check_docs import LINK_RE, heading_slugs, iter_fenced_lines, slugify
     from tools.repo_files import RepoFilesError, repo_files
 except ModuleNotFoundError:  # `python3 tools/check_paths.py` puts `tools/` itself on sys.path
-    from check_docs import heading_slugs, slugify
+    from check_docs import LINK_RE, heading_slugs, iter_fenced_lines, slugify
     from repo_files import RepoFilesError, repo_files
 
 #: The sources scanned: code, and the routes whose note strings cite docs.
-SOURCE_PATTERNS = ("*.rs", "*.gd", "*.py", "*.sh", "*.c", "*.h",
+SOURCE_PATTERNS = ("*.rs", "*.gd", "*.py", "*.sh", "*.c", "*.h", "*.md",
                    "rust/psiv-campaign/routes/*.json")
 
 #: The top-level directories a repository path starts with.
@@ -91,6 +95,10 @@ EXEMPT: dict[str, frozenset[str] | None] = {
     # Scratch files a test or tool writes into its own output directory.
     "tests/test_player_abilities.py": frozenset({"ledger.md"}),
     "tools/verify_native_route.py": frozenset({"summary.md"}),
+    "docs/campaign/CAMPAIGN_RUNNER.md": frozenset({"summary.md"}),
+    # The optional, untracked local override the agent guidance reads.
+    "AGENTS.md": frozenset({"AGENTS.override.md"}),
+    "docs/AGENT_WORKFLOW.md": frozenset({"AGENTS.override.md"}),
     "rust/psiv-core/src/battle/replay/stream.rs": frozenset({"state.md"}),
     # Rust syntax quoted as an example: `#[path = "x.rs"] mod x;`.
     "oracle/sweep/route_abilities.py": frozenset({"x.rs"}),
@@ -210,12 +218,27 @@ class Tree:
 def _resolve(tree: Tree, source: str, path: str) -> str | None:
     """The file of the change `path` names from `source`, or None."""
     path = path.rstrip("/")
+    beside = os.path.normpath(os.path.join(os.path.dirname(source), path))
+    if tree.exists(beside):
+        return beside
     if tree.exists(path):
         return path
     crate = _crate_root(source, tree.crates)
     if crate and tree.exists(f"{crate}/{path}"):
         return f"{crate}/{path}"
     return None
+
+
+def _lines(source: str, text: str):
+    """`(number, line)` to scan. In Markdown, fenced blocks and link targets are
+    `check_docs`'s (its command paths and links), so they are left out here."""
+    lines = text.splitlines()
+    if not source.endswith(".md"):
+        yield from enumerate(lines, 1)
+        return
+    for index, line, info, _ in iter_fenced_lines(lines):
+        if info is None:
+            yield index + 1, LINK_RE.sub(lambda match: match.group(0).split("](")[0], line)
 
 
 Reference = tuple[str, int, str, "str | None", str]
@@ -239,7 +262,7 @@ def scan(tree: Tree, sources: Iterable[str],
             text = (tree.root / source).read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        for number, line in enumerate(text.splitlines(), 1):
+        for number, line in _lines(source, text):
             for match in _PREFIXED_RE.finditer(line):
                 first, *rest = _RANGE_RE.split(match["path"].rstrip("."))
                 paths = [first] + [f"{first.rsplit('/', 1)[0]}/{last}" for last in rest]
@@ -290,7 +313,9 @@ def check(root: Path | str = Path("."),
 
     unresolved = []
     for source, line, path, anchor, kind in references:
-        target = _resolve(tree, source, path) if kind == "path" else tree.suffix_match(path)
+        target = _resolve(tree, source, path)
+        if target is None and kind != "path":
+            target = tree.suffix_match(path)
         if target is None and kind == "heading":
             continue  # the same text's path or file name reports the missing file
         if target is None:

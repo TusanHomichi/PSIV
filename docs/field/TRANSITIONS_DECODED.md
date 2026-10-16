@@ -9,7 +9,7 @@ rewrite. The cover levels are discrete, never a continuous alpha tween.
 ## Evidence captures
 
 All captures below came from `oracle/tapes/07_first_battle.tape`, except the
-game-start sequence from `oracle/tapes/01_newgame.tape`. Each pair is a
+game-start sequence from `oracle/tapes/01_newgame_to_first_control.tape`. Each pair is a
 durable 320x224 PNG under `oracle/frames/transitions/`.
 
 | transition | before | after / transition state |

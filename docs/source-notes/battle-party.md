@@ -603,7 +603,7 @@ first living enemy and is kept by the same early return. A capture with no
 `bcmd` group (every fixture except the twelve) therefore replays as it did. The
 native game's own path was already right: the command menu's enemy picker
 returns `Command::AttackTarget` for the chosen slot
-(`rust/psiv-godot/src/battle/commands.rs`), so a played battle re-aims exactly
+(`rust/psiv-runtime/src/session/battle/menu/`), so a played battle re-aims exactly
 where the cartridge does.
 
 Unit tests in `rust/psiv-core/src/battle/action_retarget_tests.rs`: a kept aim

@@ -148,6 +148,11 @@ class NegativeControls(RepoCase):
                           "oracle/verify.sh:1: path not found: docs/gone.md",
                           "oracle/host/rng.c:1: path not found: docs/gone.md")
 
+    def test_a_path_in_markdown_prose_or_inline_code(self):
+        self.assert_fails({"docs/b.md": "# B\n\nsee docs/gone.md and `tests/old.rs`\n"},
+                          "docs/b.md:3: path not found: docs/gone.md",
+                          "docs/b.md:3: path not found: tests/old.rs")
+
     def test_check_docs_carries_the_check(self):
         self.write({"lib.rs": "// docs/gone.md\n"})
         code, out = self.run_tool(DOCS_CHECKER)
@@ -201,8 +206,9 @@ class AcceptedCases(RepoCase):
         # is not verified here, since this is not the checker's own tree.
         self.assert_passes({"tests/test_check_docs.py": "NAME = 'docs/gone.md'\n"})
 
-    def test_markdown_is_left_to_check_docs(self):
-        self.assert_passes({"docs/b.md": "# B\n\nsee docs/gone.md\n"})
+    def test_a_path_resolves_beside_the_file_that_names_it(self):
+        self.assert_passes({"docs/battle/b.md": "# B\n\nsee `../a.md` and `c.md`\n",
+                            "docs/battle/c.md": "# C\n"})
 
 
 if __name__ == "__main__":

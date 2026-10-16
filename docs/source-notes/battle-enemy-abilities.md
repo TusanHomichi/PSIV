@@ -213,7 +213,7 @@ round-level `every_motavia_route_resolves_in_an_ordinary_round` (all 21 pairs,
 30 draws, no swing), the flipped refusal control
 `a_listed_route_resolves_with_its_record_on_the_nibble_9_target` and the new
 refusal `a_listed_route_with_an_effect_handler_is_refused`. Runtime
-(`rust/psiv-runtime/tests/combat_enemy_attacks.rs`):
+(`rust/psiv-runtime/src/suites/combat_enemy_attacks.rs`):
 `motavia_single_target_abilities_resolve_in_their_real_formations` drives
 formation `$53` (one DesrtLeach, which resolves `$37`) and formation `$2A` (two
 TechUsers, which resolve `$40` and `$44`, both seen in the eight-round search at
@@ -475,7 +475,7 @@ first and second `Resolved`), `every_all_party_pair_deals_its_own_record_number`
 `every_all_party_route_resolves_in_an_ordinary_round` (62 draws for three living
 members: 13 ordering and target draws, the ability index, 48 damage draws; no
 `Attacked` and no `UnsupportedAbility`). Runtime
-(`rust/psiv-runtime/tests/combat_enemy_attacks.rs`):
+(`rust/psiv-runtime/src/suites/combat_enemy_attacks.rs`):
 `motavia_all_party_abilities_resolve_in_their_real_formations` drives formation
 `$37` (two Fanbites, `$08`) and formation `$3B` (one SandWorm, `$38`) through
 `start_battle_timeline` at fixed seeds, checks every ability use in twelve

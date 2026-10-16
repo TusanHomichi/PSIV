@@ -353,7 +353,7 @@ and the flag-set whose absence would re-fire the trigger forever.
   alias is chest <-> extended-event, same-id same-bit; chest open state
   renders via the object's facing_dir byte, derived from the flag at
   load; grant and flag write are simultaneous. Oracle process lesson
-  kept in oracle/README: a negative about RAM is only as good as the
+  kept in oracle/README.md: a negative about RAM is only as good as the
   watched range — whole-RAM diff before ever reporting an absence.
 - CORRECTION to the shop-counter reading: the counter is NOT gated on
   collision type $C — loc_65D12 never touches the collision grid; the

@@ -321,9 +321,64 @@ SHADOWBIND share a handler with the crawler arm of the same effect instead of
 copying it. The seven POISON fixtures of the Motavia sweep replay through the
 new path unchanged; THREAD has no committed capture (no CarrionCr formation is in
 the swept set), so its evidence stays the unit tests in
-`enemy_effect_crawler_tests.rs` and the chain read in `THREAD.md`. A route is
+`enemy_effect_crawler_tests.rs` and the chain read below. A route is
 the `(enemy, ability)` pair plus the record's effect byte and range nibble, which
 is weaker than the old full-record pins; the record still drives every number.
+
+### THREAD and POISON (`$10`, `$11`, the crawler family)
+
+`EnemyAttack_Crawler` (`ps4.asm:23081`) is shared by enemies 30 to 32 and has
+three arms. Ability 0 loads the plain-attack pair `BattleObj_CrawlerAtk` `$130` +
+`BattleObj_CrawlerAtk2` `$12C`; `cmpi.w #$10, $24(a4)` (`ps4.asm:23108`) sends
+THREAD to `$134` (`loc_1084A`, `ps4.asm:23113`); and `loc_10836`
+(`ps4.asm:23107`) sends every other nonzero ability to `$138`, which
+`BattleObjsGroup3Ptrs` (`ps4.asm:30968`) maps to `BattleObj_Poison`
+(`ps4.asm:36279`). `Current_Target_Index` is left where target selection put it.
+Enemy 30 Crawler's list is all zero; `$10` is 31 CarrionCr's and `$11` is 32
+Caterpillr's (`00 00 00 00 11 11 11 11`, 7 of 504 formations).
+
+`BattleObj_Poison` is `BattleObj_Thread` (`ps4.asm:36186`) with a different
+sound and artwork. Both initialise with `bset #7,(a4)` / `clr.w $14(a4)` /
+`bset #1,$2(a4)` and run the same three-entry phase table (POISON's is
+`loc_1A8E4`, `ps4.asm:36300`, pointing at the shared `loc_1A572`, its own
+`loc_1A8F0` and the shared `loc_1A816`). Phase 1 writes the wind-up sound
+(`SFXID_EnemyAttack4` `$D8` for POISON, `ps4.asm:36310`; `EnemyAttack5` `$DA`
+for THREAD, `ps4.asm:36209`), then calls `loc_25474` (`ps4.asm:49303`), which
+loads the actor's ability, and `GetEnemySkillEffectAndRange` (`ps4.asm:8687`)
+once, at the animation handoff. It sets `Battle_Routine_2` to `$27` and
+`$FFFFEE82`. No arm of either object, and none of the helpers they call, writes
+a damage request, so the turn is the effect and nothing else.
+`Battle_DoAttackEffect` returns at `tst.w $24(a0)` / `bne.w loc_5DD2`
+(`ps4.asm:8576`) for any nonzero ability, which `roll_enemy_ability` mirrors by
+returning before `resolve_attack`.
+
+**THREAD.** Record `$10` at `0x2833E4` is effect `$06`, STR against live AGI,
+physical resistance, miss threshold 64, range 8 (the drawn target). A success
+sets battle AGI to `max(1, modified AGI - actor STR)`; it does not stack on a
+previous debuff, change HP, paralyze or touch dexterity. Defending's physical
+resistance affects the chance.
+
+**POISON.** Record 17 at `0x2833EC` is `1b 01 08 40 01 0d 00 00`: effect `$1B`,
+STR, range 8, hit chance `$40`, STR resistance, element 13 (efess, stats
+offset `$48`). `AbilityEffect_Poison` (`ps4.asm:9410`) returns at once for a
+target already poisoned, so that target spends no roll. Otherwise
+`Battle_ProcessEffect` (`ps4.asm:9513`) reaches `Effect_SetupSkillParams`
+(`ps4.asm:9576`) and `loc_6652` (`ps4.asm:9670`) calls
+`Battle_CalculateChances` (`ps4.asm:17338`): `v = (r + actor - target) *
+element`, `r` in 0..=63, a miss when `v <= $40`. One draw; an immune target (a
+zero efess factor) still spends it. A miss stores nothing, so the port emits
+nothing beyond `EnemySkillUsed`. The sound is bound at the event level:
+`EnemySkillUsed { skill: 17 }` plays `$D8`, as THREAD's plays `$DA`.
+
+Tests: `enemy_effect_crawler_tests.rs` (the hit-chance boundary, the skipped
+draw on an existing ailment and the spent draw on immunity, a lookalike record
+or another carrier refused, a missing or dead target, the engine dispatch with
+no physical attack, THREAD's single roll and its AGI floor) and
+`rust/psiv-runtime/src/suites/combat_enemy_poison.rs` (three Caterpillrs from
+the pack: the poison lands, survives the escape to the field and a save round
+trip). Not modelled: both objects' artwork, frame tables and timelines, their
+palette write and the `bset #4,$2(a4)` sprite flag. Field poison (1 HP per four
+steps) is `rust/psiv-runtime/src/field_status.rs`.
 
 ### POISONMIST (`$24`, Mistralgec)
 
