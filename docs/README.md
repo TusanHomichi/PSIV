@@ -71,8 +71,7 @@ cartridge does. Status and active work live elsewhere, under the
   [oracle methodology](source-notes/oracle-methodology.md),
   [disassembly discrepancies](source-notes/disassembly-discrepancies.md),
   [enemy abilities and damage routes](source-notes/battle-enemy-abilities.md),
-  [party actions, items and battle flow](source-notes/battle-party.md),
-  [dialogue and field travel](source-notes/field-and-dialogue.md).
+  [party actions, items and battle flow](source-notes/battle-party.md).
 
 ## Rule owners
 

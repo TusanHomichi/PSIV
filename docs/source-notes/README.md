@@ -16,7 +16,6 @@ index lists every topic file.
 | [disassembly-discrepancies.md](disassembly-discrepancies.md) | Where the fork's annotations and the retail bytes disagree, and the dated retail-bug chronology | A dated record, correction or retraction |
 | [battle-enemy-abilities.md](battle-enemy-abilities.md) | Enemy damage skills, their targeting arms and measured routes | A dated enemy-ability record |
 | [battle-party.md](battle-party.md) | Party actions, items, rewards, battle entry/exit and the attack passes | A dated party or battle-flow record |
-| [field-and-dialogue.md](field-and-dialogue.md) | Dialogue continuations, choices, resting and overworld field travel | A dated dialogue or field-travel record |
 
 ## Retail bug ledger index
 

@@ -168,6 +168,23 @@ harness now dismisses a page with a synthetic `ButtonSpeak` press in the pad
 (so the accelerated-frame cadence applies on that frame), and the
 field-status window's text is built in the shell and opened by the runtime.
 
+## Continuations and choices
+
+**A scene's dialogue yields to its caller.** Retail `$F7` reaches
+`TextCtrlCode_Terminate3` and saves the following text address before
+returning to the event, so the scene's own ops run between chunks. The
+post-Igglanova entry (tree 33, entry 18) has two such breaks: Chaz turns before
+the second chunk, and Hahn moves before the third. The window keeps the tree
+and cursor while those ops execute.
+
+**Choice offsets start after both operands.** `TextCtrlCode_YesNo`
+(`ps4.asm:142780`) stores the selection in `Yes_No_Option`, advances past both
+operands, and calls `GetOffsetByID`. Zero continues in the current entry;
+positive values count subsequent `$FF` delimiters. Cancel selects NO.
+`Event_ChazHouse` (`:149074`) consults that saved answer after the response
+closes: both branches set its temporary visit flag, and only YES calls the
+recovery ([what a rest restores](../camp/SHOPS.md#what-a-night-restores)).
+
 ## Measured on the cartridge
 
 Measured on the cartridge with the [oracle](../../oracle/README.md); frame numbers cite marks in
