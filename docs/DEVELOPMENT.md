@@ -185,26 +185,21 @@ result from that receipt, not from a retyped summary. The gate refuses to start
 process has the debug PSIV extension mapped
 (`rust/target/debug/libpsiv_godot.so`, which its cargo commands rebuild);
 `--wait` waits for the running gate instead of refusing, naming its holder
-once, and `--list` prints the commands without running them. The gate lock and
-the heavy lock are one file each for the whole repository, under the main
-checkout's `build/` (`build/gate/.lock` and `build/continuation-heavy.lock`),
-and `tools/heavy_lock.py` owns both. The gate takes the heavy lock itself, as
-`tools/verify_candidate.py` does for its certify step, so gates and heavy runs
-in different worktrees serialize; never wrap either of them. Every other heavy
-command runs as `python3 tools/heavy_lock.py run -- <command>`: the holder
-exports `PSIV_HEAVY_LOCK_HELD`, so the gate or a driver nested under it does not
-wait on its own parent. A raw `flock(1)` wrapper sets no marker; a gate or
-candidate run under one exits 2 naming the parent instead of waiting forever.
+once, and `--list` prints the commands without running them. The gate takes
+the gate lock and then the [heavy-run lock](#heavy-run-lock) itself, in the
+exclusive class; both are one file each for the whole repository, under the main
+checkout's `build/` (`build/gate/.lock` and `build/continuation-heavy.lock`).
 Presentation certification
-is a separate entry point, `python3 tools/certify.py` (Godot, Xvfb and
-the local oracle frames required; pairs and doctrine in
+is a separate entry point, `python3 tools/certify.py [--jobs N]` (Godot, Xvfb
+and the local oracle frames required; pairs and doctrine in
 [scene presentation](scenes/SCENE_PRESENTATION.md)); run it for any change to
 Godot-visible paths and report it apart from the gate. An integration candidate
 is verified as a whole by `python3 tools/verify_candidate.py --expect-digest <hex>
 --expect-chapters <n>` on a clean tree: the release campaign route against the
 expected digest and chapter count, then certify under the shared heavy lock
 (`PSIV_HEAVY_LOCK` overrides it), then `gate.py --wait`, with
-one receipt under `build/candidate/`. Reporting a gate result means
+one receipt under `build/candidate/`. When it runs is set by the
+[verification tiers](#verification-tiers). Reporting a gate result means
 those commands; a subset, a different `CARGO_BUILD_JOBS`, parallel test threads
 or a per-crate run is a focused check and is reported as one. The gate does not
 cover:
@@ -224,6 +219,53 @@ into the repository (a script under `tools/` or `oracle/`, or a test in
 and a line in this guide or the owning ledger. A script under `build/` or a
 session's scratch space is not a repeatable check, and its result is not gate
 evidence.
+
+### Heavy-run lock
+
+Heavy runs share one machine, so every worktree takes one lock file,
+`<main checkout>/build/continuation-heavy.lock` (`PSIV_HEAVY_LOCK` overrides
+it), owned by `tools/heavy_lock.py`. It has two classes:
+
+| Class | Holds | Taken by |
+| --- | --- | --- |
+| `exclusive` | the whole machine | `tools/gate.py` (both tiers), certify's extension build, and, through `python3 tools/heavy_lock.py run -- <command>`, every other cargo build, test or clippy run, the Python suite and pack builds |
+| `godot` | one of `PSIV_GODOT_SLOTS` slots (default 3), about 350 MB each | `tools/certify.py` (one slot per `--jobs` worker), `tools/verify_native_tape.py`, `tools/verify_native_route.py`, and `heavy_lock.py run --class godot -- <command>` for any other single Godot/Xvfb run |
+
+An exclusive holder excludes every godot holder and they exclude it. The
+entry points in the table take their class themselves: never wrap them. A
+headless `psiv-campaign` run (about 40 MB) takes no lock. `PSIV_GODOT_SLOTS`
+must be the same for every process: each holder records its cap in its slot
+file, and a process that finds a held slot recording another cap refuses with
+exit 2. A gate takes the gate lock first and the heavy lock second, as every
+deployed gate does; the reverse order deadlocks against them. So never wrap the
+gate in `heavy_lock.py run`: a priority gate is `PSIV_LOCK_PRIORITY=1 python3
+tools/gate.py ...`, and a gate nested under a heavy holder refuses (exit 2,
+naming the holder) when the gate lock is busy instead of waiting.
+
+Waiters queue in arrival order, and `--priority` (or `PSIV_LOCK_PRIORITY=1` for
+an entry point that takes the lock itself, such as the gate) puts a waiter
+ahead of every normal waiter, including earlier ones. A holder is never
+preempted. Speedup lanes, whose work makes later runs faster, and the yield
+that lets one go ahead use the flag; nothing else does. While waiting, a line
+names the holders and how many waiters, and priority waiters, are ahead.
+`python3 tools/heavy_lock.py status` prints the holders and waiters with each
+pid's command line.
+
+The holder exports `PSIV_HEAVY_LOCK_HELD` and its class, so an entry point
+nested under it (certify under `verify_candidate`) takes nothing new; an exclusive request under a godot holder exits 2, since that
+holder excludes nobody. A raw `flock(1)` wrapper sets no marker: a gate,
+candidate, certify or native replay under one exits 2 naming the parent
+instead of waiting forever, and `verify_candidate` refuses it at startup,
+before the build.
+
+### Verification tiers
+
+A lane iterates on `python3 tools/gate.py --fast` and the focused checks for
+its change; it does not run the full gate or `verify_candidate.py` on its
+branch. Those run once per integration candidate, after every reviewed lane
+has merged, on the fastest merged process: speedup lanes merge first, so the
+others verify on the faster tools. A failing candidate is bisected by its
+merge commits, each verified on the same process.
 
 ### File size
 

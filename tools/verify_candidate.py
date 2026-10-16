@@ -6,7 +6,8 @@
 Run from the repository root on a clean tree (the candidate). It runs, one at a
 time and in this order:
 
-1. `cargo build --release -p psiv-campaign` (`CARGO_BUILD_JOBS=2`);
+1. `cargo build --release -p psiv-campaign` (`CARGO_BUILD_JOBS=2`), holding the
+   shared heavy lock in the exclusive class;
 2. the campaign route, `psiv-campaign run rust/psiv-campaign/routes/main.json`,
    into the receipt directory, and reads its `report.json`: the result must be
    `completed`, and `--expect-digest` / `--expect-chapters` must hold when given;
@@ -19,8 +20,9 @@ time and in this order:
 
 A failing step does not stop the later ones; the exit code is 1 when any step
 failed or an expectation did not hold, 0 otherwise, and 2 when the run is
-refused before anything runs (not the root, or a dirty tree without
-`--allow-dirty`). Everything lands in `build/candidate/<UTC stamp>-<short sha>/`:
+refused before anything runs (not the root, a raw `flock(1)` parent holding the
+heavy lock, which would leave certify waiting on its own ancestor after the
+build and the route, or a dirty tree without `--allow-dirty`). Everything lands in `build/candidate/<UTC stamp>-<short sha>/`:
 one log per step, the route's tape, saves and report, and `receipt.json` with
 the candidate SHA, each step's command, exit code and duration, the route's
 digest, chapter count, frames and tape SHA-256, and the certify and gate
@@ -48,7 +50,8 @@ ROUTE = "rust/psiv-campaign/routes/main.json"
 CAMPAIGN = "rust/target/release/psiv-campaign"
 CANDIDATE_DIR = Path("build") / "candidate"
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from heavy_lock import heavy_lock_path, hold_heavy_lock  # noqa: E402  (shared by every worktree)
+from heavy_lock import (heavy_lock_path, hold_heavy_lock, raw_flock_parent,  # noqa: E402
+                        refuse_message)  # (shared by every worktree)
 
 
 def steps(out: Path) -> list[tuple[str, str, bool]]:
@@ -56,7 +59,7 @@ def steps(out: Path) -> list[tuple[str, str, bool]]:
     route = out / "route"
     return [
         ("build", "CARGO_BUILD_JOBS=2 cargo build --release --manifest-path "
-                  "rust/Cargo.toml -p psiv-campaign", False),
+                  "rust/Cargo.toml -p psiv-campaign", True),
         ("route", f"{CAMPAIGN} run {ROUTE} --save-dir {route} --tape {route}/run.tape "
                   f"--report {route}/report.json", False),
         ("certify", "python3 tools/certify.py", True),
@@ -147,6 +150,11 @@ def main(argv: list[str] | None = None, runner=run_step) -> int:
     if top != Path.cwd().resolve():
         print(f"verify_candidate: run from the repository root ({top})", file=sys.stderr)
         return EXIT_REFUSED
+    lock = heavy_lock_path()
+    parent = raw_flock_parent(lock)
+    if parent is not None:
+        print(f"verify_candidate: {refuse_message(lock, parent)}", file=sys.stderr)
+        return EXIT_REFUSED
     dirty = git("status", "--porcelain")
     if dirty and not args.allow_dirty:
         print("verify_candidate: the tree is dirty; freeze the candidate first "
@@ -156,7 +164,6 @@ def main(argv: list[str] | None = None, runner=run_step) -> int:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     out = CANDIDATE_DIR / f"{stamp}-{sha[:7]}"
     out.mkdir(parents=True)
-    lock = heavy_lock_path()
 
     records = []
     for name, command, heavy in steps(out):

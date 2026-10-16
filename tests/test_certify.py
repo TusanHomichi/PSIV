@@ -3,17 +3,31 @@
     PYTHONPATH=. python3 -m unittest tests.test_certify -v
 
 Hermetic: no Godot, no oracle host, no local game assets. They pin the shape of
-the pair table (so a pair cannot silently lose its hash or its recipe) and the
+the pair table (so a pair cannot silently lose its hash or its recipe), the
 hash check that stops a regenerated or edited oracle frame from re-baselining a
-certified pair.
+certified pair, and the parallel run: N workers really overlap, never share a
+display, take the longest pair first, and `main` takes the exclusive class for
+the build and N godot slots for the captures. One case starts real Xvfb
+servers when Xvfb is installed.
 """
+import contextlib
 import hashlib
+import io
+import json
+import os
+import shutil
+import signal
+import subprocess
+import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
 
 from tools import certify
+from tools.heavy_lock import Hold
 
 SIX = ["opening-p1", "opening-p2", "meeting-rika", "title", "battle-0x88", "camp-root"]
 BATTLE = ["battle-status", "battle-status-2", "battle-fusion", "battle-strip", "battle-tech"]
@@ -157,10 +171,6 @@ class OracleFrameHashCase(unittest.TestCase):
         self.assertIn("exited 7", error)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class BuildByDefaultTest(unittest.TestCase):
     """A capture must come from the checked-out sources (a stale extension once
     certified the wrong code), so building is the default."""
@@ -184,3 +194,252 @@ class CaptureTimeoutTest(unittest.TestCase):
     def test_the_longest_pair_outlasts_ten_frames_a_second(self):
         longest = max(tick for _, _, tick, *_ in certify.PAIRS)
         self.assertGreaterEqual(certify.capture_timeout(longest), (longest + certify.QUIT_MARGIN) / 10)
+
+
+class JobCountTest(unittest.TestCase):
+    def test_the_default_is_three_or_the_slot_cap_when_smaller(self):
+        self.assertEqual(certify.job_count(None, 5), 3)
+        self.assertEqual(certify.job_count(None, 2), 2)
+
+    def test_more_workers_than_slots_is_refused(self):
+        self.assertEqual(certify.job_count(3, 3), 3)
+        for bad in (0, 4):
+            with self.subTest(jobs=bad), self.assertRaises(ValueError):
+                certify.job_count(bad, 3)
+
+
+class RunCapturesTest(unittest.TestCase):
+    """`run_captures` with stand-ins for Xvfb and Godot."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.receipt = Path(tmp.name)
+        self.opened = []
+        self.in_use = set()
+        self.started = []
+        self.peak = 0
+        self.guard = threading.Lock()
+
+    @contextlib.contextmanager
+    def display(self, log):
+        name = f":{len(self.opened)}"
+        self.opened.append(log)
+        yield name
+
+    def take(self, barrier=None):
+        def run(name, env, tick, receipt, display):
+            with self.guard:
+                self.assertNotIn(display, self.in_use, "two captures on one display")
+                self.in_use.add(display)
+                self.started.append(name)
+                self.peak = max(self.peak, len(self.in_use))
+            if barrier is not None:
+                barrier.wait()  # breaks unless `parties` captures overlap
+            with self.guard:
+                self.in_use.discard(display)
+            return receipt / f"{name}.png", 0
+        return run
+
+    TASKS = [(f"pair-{tick}", {}, tick) for tick in (60, 4550, 200, 480, 3550, 160)]
+
+    def test_n_workers_overlap_on_their_own_displays(self):
+        shots = certify.run_captures(self.TASKS, 3, self.receipt, self.display,
+                                     self.take(threading.Barrier(3, timeout=10)))
+        self.assertEqual(sorted(shots), sorted(name for name, _, _ in self.TASKS))
+        self.assertEqual(len(self.opened), 3)
+        self.assertEqual(self.peak, 3)
+
+    def test_negative_control_one_worker_never_overlaps(self):
+        certify.run_captures(self.TASKS, 1, self.receipt, self.display, self.take())
+        self.assertEqual(self.peak, 1)
+        with self.assertRaises(threading.BrokenBarrierError):
+            certify.run_captures(self.TASKS[:2], 1, self.receipt, self.display,
+                                 self.take(threading.Barrier(2, timeout=0.5)))
+
+    def test_the_longest_pair_starts_first(self):
+        certify.run_captures(self.TASKS, 1, self.receipt, self.display, self.take())
+        ticks = [int(name.split("-")[1]) for name in self.started]
+        self.assertEqual(ticks, sorted(ticks, reverse=True))
+
+    def test_a_failing_capture_cancels_the_queued_ones(self):
+        def failing(name, env, tick, receipt, display):
+            self.started.append(name)
+            raise RuntimeError("godot launch failed")
+
+        results = {}
+        with self.assertRaises(RuntimeError):
+            certify.run_captures(self.TASKS, 1, self.receipt, self.display, failing,
+                                 results=results)
+        self.assertEqual(self.started, ["pair-4550"])  # the rest never started
+        self.assertEqual(results, {})
+
+    def test_no_more_workers_than_tasks(self):
+        certify.run_captures(self.TASKS[:2], 3, self.receipt, self.display, self.take())
+        self.assertEqual(len(self.opened), 2)
+
+
+#: A stand-in X server: writes its pid to $FAKE_XVFB_PID, then reports display
+#: 77 on its -displayfd, then runs until signalled.
+FAKE_XVFB = """
+import os, sys, time
+open(os.environ["FAKE_XVFB_PID"] + ".tmp", "w").write(str(os.getpid()))
+os.rename(os.environ["FAKE_XVFB_PID"] + ".tmp", os.environ["FAKE_XVFB_PID"])
+os.write(int(sys.argv[sys.argv.index("-displayfd") + 1]), b"77\\n")  # after the pid
+time.sleep(120)
+"""
+
+#: Opens one worker display with the stand-in server, says `ready`, waits to
+#: be killed. With `argv[2] == "unarmed"`, the parent-death signal is left out.
+DISPLAY_OWNER = f"""
+import sys, time
+sys.path.insert(0, {str(ROOT / "tools")!r})
+import certify
+certify.XVFB_COMMAND = [sys.executable, sys.argv[1]]
+if sys.argv[2] == "unarmed":
+    certify.die_with_parent = lambda: None
+with certify.xvfb_display(sys.argv[3]) as display:
+    print("ready", display, flush=True)
+    time.sleep(120)
+"""
+
+
+class XvfbOrphanTest(unittest.TestCase):
+    """A certify killed outright (SIGKILL: no handler, no finally) must not
+    leave its X servers running."""
+
+    def run_owner(self, mode):
+        tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        fake = tmp / "fake_xvfb.py"
+        fake.write_text(FAKE_XVFB)
+        pid_file = tmp / "xvfb.pid"
+        owner = subprocess.Popen([sys.executable, "-c", DISPLAY_OWNER, str(fake), mode,
+                                  str(tmp / "xvfb.log")], stdout=subprocess.PIPE, text=True,
+                                 env={**os.environ, "FAKE_XVFB_PID": str(pid_file)})
+        self.addCleanup(owner.wait, 30)
+        self.addCleanup(owner.kill)
+        self.assertEqual(owner.stdout.readline().split(), ["ready", ":77"])
+        owner.stdout.close()
+        server = int(pid_file.read_text())
+        self.addCleanup(self.kill_quietly, server)
+        owner.kill()
+        owner.wait(timeout=30)
+        return server
+
+    @staticmethod
+    def alive(pid):
+        try:
+            state = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+        except OSError:
+            return False
+        return state != "Z"
+
+    @staticmethod
+    def kill_quietly(pid):
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+
+    def test_a_killed_certify_takes_its_x_server_with_it(self):
+        server = self.run_owner("armed")
+        for _ in range(100):  # bounded: 10 s for the kernel's signal to land
+            if not self.alive(server):
+                break
+            time.sleep(0.1)
+        self.assertFalse(self.alive(server), "the X server outlived certify")
+
+    def test_negative_control_without_the_death_signal_the_server_is_orphaned(self):
+        server = self.run_owner("unarmed")
+        time.sleep(1.0)
+        self.assertTrue(self.alive(server))
+
+
+@unittest.skipUnless(shutil.which("Xvfb"), "Xvfb is not installed")
+class XvfbDisplayTest(unittest.TestCase):
+    def test_concurrent_servers_get_distinct_displays(self):
+        with tempfile.TemporaryDirectory() as tmp, contextlib.ExitStack() as stack:
+            names = [stack.enter_context(certify.xvfb_display(Path(tmp) / f"x{i}.log"))
+                     for i in range(2)]
+            self.assertRegex(names[0], r"^:\d+$")
+            self.assertNotEqual(names[0], names[1])
+
+
+class MainLocksTest(unittest.TestCase):
+    """`main` takes the exclusive class for the build, then one godot slot per
+    worker for the captures, and refuses more workers than slots up front."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = Path(tmp.name)
+        self.addCleanup(os.chdir, os.getcwd())
+        self.holds = []
+
+    @contextlib.contextmanager
+    def hold(self, lock_class="exclusive", slots=1, **_):
+        self.holds.append((lock_class, slots))
+        yield Hold(self.tmp / "heavy.lock", lock_class, slots, nested=False)
+
+    def run_main(self, argv, slots="3", interrupt_after=None):
+        frame = self.tmp / "frame.png"
+        frame.write_bytes(b"f")
+
+        def captures(tasks, jobs, receipt, results):
+            self.jobs = jobs
+            for count, (name, _, _) in enumerate(tasks):
+                if count == interrupt_after:
+                    raise KeyboardInterrupt
+                results[name] = (frame, 0, 0.0)
+            return results
+
+        with mock.patch.object(certify, "hold_heavy_lock", self.hold), \
+                mock.patch.dict(os.environ, {"PSIV_GODOT_SLOTS": slots}), \
+                mock.patch.object(certify, "loaded_extension_pids", return_value=[]), \
+                mock.patch.object(certify.subprocess, "run",
+                                  return_value=mock.Mock(returncode=0)), \
+                mock.patch.object(certify, "git_info", return_value={"short_sha": "abc"}), \
+                mock.patch.object(certify, "receipt_dir", return_value=self.tmp / "receipt"), \
+                mock.patch.object(certify, "oracle_frame", return_value=(frame, None)), \
+                mock.patch.object(certify, "run_captures", captures), \
+                mock.patch.object(certify, "compare", return_value=("0.000000", "")), \
+                contextlib.redirect_stdout(io.StringIO()) as out:
+            code = certify.main(argv)
+        return code, out.getvalue()
+
+    def test_the_build_is_exclusive_and_the_captures_hold_one_slot_per_worker(self):
+        code, out = self.run_main(["--only", "title", "camp-root", "battle-0x88", "--jobs", "2"])
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.holds, [("exclusive", 1), ("godot", 2)])
+        self.assertEqual(self.jobs, 2)
+
+    def test_no_build_takes_only_the_godot_slots(self):
+        code, out = self.run_main(["--no-build", "--only", "title", "camp-root"])
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.holds, [("godot", 2)])  # the default 3, capped by two pairs
+
+    def test_an_interrupted_run_still_writes_its_receipt_then_reraises(self):
+        with self.assertRaises(KeyboardInterrupt):
+            self.run_main(["--no-build", "--only", "title", "camp-root"], interrupt_after=1)
+        receipt = json.loads((self.tmp / "receipt" / "certify.json").read_text())
+        self.assertEqual(receipt["interrupted"], "KeyboardInterrupt: ")
+        pairs = {pair["pair"]: pair for pair in receipt["pairs"]}
+        self.assertTrue(pairs["title"]["pass"])
+        self.assertFalse(pairs["camp-root"]["pass"])
+        self.assertIn("interrupted", pairs["camp-root"]["error"])
+
+    def test_negative_control_a_finished_run_is_not_marked_interrupted(self):
+        code, out = self.run_main(["--no-build", "--only", "title", "camp-root"])
+        self.assertEqual(code, 0, out)
+        receipt = json.loads((self.tmp / "receipt" / "certify.json").read_text())
+        self.assertIsNone(receipt["interrupted"])
+
+    def test_more_jobs_than_slots_is_refused_before_any_lock(self):
+        code, out = self.run_main(["--jobs", "4"], slots="3")
+        self.assertEqual(code, 2)
+        self.assertIn("slot cap is 3", out)
+        self.assertEqual(self.holds, [])
+
+
+if __name__ == "__main__":
+    unittest.main()

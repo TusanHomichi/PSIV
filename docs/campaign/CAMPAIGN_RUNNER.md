@@ -222,19 +222,14 @@ chapter save byte-for-byte. That read-only snapshot is the normal SAVE writer's
 encoding; equality does **not** by itself prove a camp SAVE action occurred.
 
 ```bash
-PSIV_HEAVY_LOCK=/absolute/path/to/primary/build/continuation-heavy.lock
-CARGO_BUILD_JOBS=1 flock -x "$PSIV_HEAVY_LOCK" \
-  python3 tools/verify_native_tape.py --tape /path/to/run.tape \
+python3 tools/verify_native_tape.py --tape /path/to/run.tape \
   --expect-save /path/to/chapter/slot_1.sram --pack /path/to/runtime-pack \
   --out build/native-tape-academy
 ```
 
-Use the same absolute ignored lock path from every worktree; a relative
-`build/` lock serializes only that one checkout. `python3 tools/heavy_lock.py`
-prints it (the main checkout's `build/continuation-heavy.lock`, from any
-worktree), and `python3 tools/heavy_lock.py run -- <command>` is the preferred
-wrapper: it marks the hold, so a gate or candidate run nested under it does not
-wait on its own parent ([gate and coverage](../DEVELOPMENT.md#gate-and-coverage)).
+The verifier takes one godot-class slot of the repository's heavy-run lock
+itself, so it needs no wrapper; a raw `flock(1)` around it makes it exit 2
+([heavy-run lock](../DEVELOPMENT.md#heavy-run-lock)).
 
 For a save-start tape, add `--from-save /path/to/preceding/slot_1.sram`.
 For a fresh-process CONTINUE check of a newly written slot, use
@@ -287,14 +282,14 @@ longer hash to the report's `save_fnv`.
 # Once, in the worktree that will replay (never while a Godot process has the
 # extension loaded): an extension that replays at about 1,000 frames/s.
 CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_OPT_LEVEL=3 CARGO_PROFILE_DEV_DEBUG_ASSERTIONS=false \
-  cargo build --manifest-path rust/Cargo.toml -p psiv-godot
-CARGO_BUILD_JOBS=2 cargo build --release --manifest-path rust/Cargo.toml -p psiv-campaign
+  python3 tools/heavy_lock.py run -- cargo build --manifest-path rust/Cargo.toml -p psiv-godot
+CARGO_BUILD_JOBS=2 python3 tools/heavy_lock.py run -- \
+  cargo build --release --manifest-path rust/Cargo.toml -p psiv-campaign
 rust/target/release/psiv-campaign run rust/psiv-campaign/routes/main.json \
   --save-dir build/r2-route --tape build/r2-route/run.tape --report build/r2-route/report.json
-PSIV_HEAVY_LOCK=/absolute/path/to/primary/build/continuation-heavy.lock
-flock -x "$PSIV_HEAVY_LOCK" python3 tools/verify_native_route.py \
-  --run-dir build/r2-route --out build/r2-native
-flock -x "$PSIV_HEAVY_LOCK" python3 tools/verify_native_route.py \
+# Each verifier takes its own godot-class slot of the heavy-run lock.
+python3 tools/verify_native_route.py --run-dir build/r2-route --out build/r2-native
+python3 tools/verify_native_route.py \
   --run-dir build/r2-route --out build/r2-native-continue --continue-probes
 ```
 

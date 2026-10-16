@@ -118,9 +118,12 @@ press in the pad rather than an advance with no button held, so the next
 page's first glyph frame types at the held cadence. Auto-dismissed pages
 settle about two frames earlier each; re-derive clone ticks on that timeline.
 
-Capture doctrine, final form: `xvfb-run -a env LIBGL_ALWAYS_SOFTWARE=1 …
---display-driver x11 --rendering-method gl_compatibility --rendering-driver
-opengl3 --audio-driver Dummy --fixed-fps 60`. The `--fixed-fps 60` flag is
+Capture doctrine, final form: `tools/certify.py` starts one X server per
+worker, `Xvfb -displayfd <fd> -screen 0 640x480x24 -nolisten tcp` (the screen
+`xvfb-run` gave every earlier certified capture; the captures are byte-identical),
+and runs each pair as `DISPLAY=:<n> LIBGL_ALWAYS_SOFTWARE=1 … --display-driver
+x11 --rendering-method gl_compatibility --rendering-driver opengl3
+--audio-driver Dummy --fixed-fps 60`. The `--fixed-fps 60` flag is
 load-bearing for any pair whose content animates: without it, Godot's
 physics catch-up under uneven render pacing makes the captured
 previous-frame texture reflect a load-dependent tick, and animation-phase

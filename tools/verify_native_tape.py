@@ -1,8 +1,10 @@
 """Replay one campaign tape through Godot's ordinary input and compare a slot.
 
-Run this entry point under the shared heavy flock. Tape parsing and its FNV
-save-start check live in psiv-runtime's TapeFeed; this launcher does neither.
-Every invocation creates a fresh save directory and retains raw logs/receipts.
+The replay holds one godot-class slot of the shared heavy lock
+(tools/heavy_lock.py) itself, so no wrapper is needed; under a holder it is a
+no-op. Tape parsing and its FNV save-start check live in psiv-runtime's
+TapeFeed; this launcher does neither. Every invocation creates a fresh save
+directory and retains raw logs/receipts.
 """
 
 from __future__ import annotations
@@ -20,8 +22,10 @@ import sys
 import time
 
 try:  # imported as `tools.verify_native_tape` by tests
+    from tools.heavy_lock import GODOT as GODOT_CLASS, heavy_lock_path, hold_heavy_lock
     from tools.repo_files import repo_files
 except ModuleNotFoundError:  # direct `python3 tools/verify_native_tape.py`
+    from heavy_lock import GODOT as GODOT_CLASS, heavy_lock_path, hold_heavy_lock
     from repo_files import repo_files
 
 
@@ -342,6 +346,12 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    with hold_heavy_lock(heavy_lock_path(ROOT), lock_class=GODOT_CLASS):
+        return replay(args)
+
+
+def replay(args: argparse.Namespace) -> int:
+    """The replay `main` parsed, run while it holds its godot slot."""
     tape = args.tape.resolve(strict=True)
     source = args.from_save.resolve(strict=True) if args.from_save else None
     expected = args.expect_save.resolve(strict=True) if args.expect_save else None
