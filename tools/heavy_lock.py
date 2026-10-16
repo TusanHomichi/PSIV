@@ -412,13 +412,15 @@ class _Need:
         slots = _take_files(lock, GODOT, self.slots, self.cap, GODOT_SLOTS_ENV)
         if slots is None:
             return None
-        units = _take_files(lock, "unit", self.units, self.budget, UNITS_ENV,
-                            self.lock_class)
-        if units is None:
-            for handle in slots:
-                os.close(handle)
-            return None
-        return slots + units
+        units = None
+        try:
+            units = _take_files(lock, "unit", self.units, self.budget, UNITS_ENV,
+                                self.lock_class)
+        finally:
+            if units is None:  # no units, or a mismatch raised: give the slots back
+                for handle in slots:
+                    os.close(handle)
+        return None if units is None else slots + units
 
 
 def _check_cap(lock, kind, cap, env):
@@ -491,11 +493,13 @@ def _try_grant(lock, need):
     except BlockingIOError:
         os.close(main)
         return None
-    taken = need.take(lock)
-    if taken is None:
-        os.close(main)
-        return None
-    return [main, *taken]
+    taken = None
+    try:
+        taken = need.take(lock)
+    finally:
+        if taken is None:  # not free, or a mismatch raised: give the lock file back
+            os.close(main)
+    return None if taken is None else [main, *taken]
 
 
 class _Blocker:
