@@ -13,8 +13,11 @@ Post PSIV publicly, let people play and mod it, then maintain it.
   to the Ending. Remaining fidelity and presentation gaps ship as a list of
   known differences (the `gameplay-fidelity` and `presentation` issues) and
   are fixed in maintenance.
-- **Platforms for 1.0:** Linux and the Steam Deck. Windows comes later, as its
-  own work item.
+- **Platforms for 1.0:** Linux, the Steam Deck, Windows and macOS (owner,
+  2026-10-15, replacing "Linux and the Steam Deck"), on the latest stable
+  Godot with one pinned engine version. The project has no Windows or Mac
+  hardware, so those platforms are verified by testers through a built-in
+  self-check.
 - **Active work is GitHub issues**, under the record policy the
   [workflow](AGENT_WORKFLOW.md#where-work-and-its-record-live) owns.
 
@@ -34,13 +37,21 @@ The open items are the
   [#83](https://github.com/TusanHomichi/PSIV/issues/83)).
 - [ ] **Hosted CI** for the checks that need no ROM
   ([#15](https://github.com/TusanHomichi/PSIV/issues/15)).
-- [ ] **A release package** for Linux and the Steam Deck ([#115](https://github.com/TusanHomichi/PSIV/issues/115)).
+- [ ] **The latest Godot and gdext**, one pinned engine version
+  ([#133](https://github.com/TusanHomichi/PSIV/issues/133)).
+- [ ] **Windows and macOS builds**
+  ([#117](https://github.com/TusanHomichi/PSIV/issues/117)).
+- [ ] **A self-check** that compares a player's build against the reference
+  results, so testers on other platforms can report a verdict
+  ([#134](https://github.com/TusanHomichi/PSIV/issues/134)).
+- [ ] **A release package** for every platform ([#115](https://github.com/TusanHomichi/PSIV/issues/115)).
+- [ ] **Documentation for public readers**
+  ([#132](https://github.com/TusanHomichi/PSIV/issues/132)).
 - [x] **A README for players:** build the pack, run the game, controls, known
   differences ([README](../README.md)).
 
 ## After 1.0
 
-- Windows support ([#117](https://github.com/TusanHomichi/PSIV/issues/117)).
 - A mod overlay loader, so mods sit beside the original pack instead of
   editing it ([#118](https://github.com/TusanHomichi/PSIV/issues/118)).
 - Presentation fidelity: whole-scene staging, ability animations, audio timing

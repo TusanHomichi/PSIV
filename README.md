@@ -1,6 +1,7 @@
 # PSIV
 
-**Phantasy Star IV, rebuilt as a native game for Linux and the Steam Deck.**
+**Phantasy Star IV, rebuilt as a native game.** It runs on Linux and the Steam
+Deck today; Windows and macOS are part of 1.0.
 
 PSIV reads the game's data out of your own copy of the US Genesis/Mega Drive
 cartridge and runs it natively: Python extracts the maps, graphics, sound,
@@ -36,11 +37,11 @@ Ending natively. The checklist:
 - [ ] Every story event that a trigger starts has its scene
   ([#56](https://github.com/TusanHomichi/PSIV/issues/56), [#71](https://github.com/TusanHomichi/PSIV/issues/71), [#81](https://github.com/TusanHomichi/PSIV/issues/81), [#83](https://github.com/TusanHomichi/PSIV/issues/83)).
 - [ ] Hosted CI runs the checks that need no ROM ([#15](https://github.com/TusanHomichi/PSIV/issues/15)).
-- [ ] A release package for Linux and the Steam Deck ([#115](https://github.com/TusanHomichi/PSIV/issues/115)).
+- [ ] Windows and macOS builds ([#117](https://github.com/TusanHomichi/PSIV/issues/117)), on the latest Godot ([#133](https://github.com/TusanHomichi/PSIV/issues/133)), checked by testers with a built-in self-check ([#134](https://github.com/TusanHomichi/PSIV/issues/134)).
+- [ ] A release package for every platform ([#115](https://github.com/TusanHomichi/PSIV/issues/115)).
 - [x] Player instructions: this README.
 
 The open items are the [v1.0 blocker issues](https://github.com/TusanHomichi/PSIV/issues?q=is%3Aissue+is%3Aopen+label%3Av1.0-blocker).
-Windows support comes after 1.0 ([#117](https://github.com/TusanHomichi/PSIV/issues/117)).
 
 ## Play it
 
