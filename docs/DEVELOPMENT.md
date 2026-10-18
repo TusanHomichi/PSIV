@@ -251,7 +251,15 @@ units fit:
 A cargo run that compiles `psiv-godot` fits the budget, but stays exclusive:
 it relinks the GDExtension library that a Godot run in the same checkout maps,
 and the mapped-extension checks run once, before the lock, so only exclusion
-keeps every Godot run out until the build ends.
+keeps every Godot run out until the build ends. `heavy_lock.py run` enforces
+it: a cargo `build`, `test`, `run` or `bench` that can compile `psiv-godot`
+(`-p psiv-godot`, `--workspace` or `--all` without `--exclude psiv-godot`, or
+no `-p` at the workspace root or in `rust/psiv-godot`), seen through `env`
+and wrapper prefixes and `bash -c` scripts, is refused in every shared class
+with exit 2 naming `--class exclusive`; a `bash -c` script it cannot read is
+refused the same way. `cargo check` and `cargo clippy` stay in `build`.
+`can_relink_extension` in `tools/heavy_lock_extension.py` owns that decision;
+a script file is not opened, so its author states its class.
 
 `run` requires `--class`: without one it prints the classes with their units
 and exits 2, so no command takes the whole machine by default.

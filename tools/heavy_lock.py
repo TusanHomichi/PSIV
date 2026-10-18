@@ -53,7 +53,9 @@ that changes.
 `hold_heavy_lock(path)` is the one way in-repo code takes the heavy lock, and
 `run --class CLASS -- <cmd>` the one way to wrap a command in it. The class is
 required: without one, `run` prints the classes and exits 2, so no command
-takes the whole machine by default. The holder exports
+takes the whole machine by default. A command that can relink the GDExtension
+library (tools/heavy_lock_extension.py decides) is refused in every class but
+exclusive, also with exit 2. The holder exports
 `PSIV_HEAVY_LOCK_HELD=<resolved path>` with the class and slot count, so a
 descendant that asks for the same lock (certify under an exclusive `run`)
 proceeds without blocking on its own ancestor; a request under a shared
@@ -80,6 +82,11 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+
+try:  # imported as `tools.heavy_lock` by tests and verifiers
+    from tools.heavy_lock_extension import can_relink_extension
+except ModuleNotFoundError:  # direct `python3 tools/heavy_lock.py`
+    from heavy_lock_extension import can_relink_extension
 
 HEAVY_LOCK_ENV = "PSIV_HEAVY_LOCK"
 HELD_ENV = "PSIV_HEAVY_LOCK_HELD"
@@ -756,6 +763,11 @@ def main(argv=None):
         args = run_parser().parse_args(options)
         if not command or args.lock_class is None:
             print(class_usage(), file=sys.stderr)
+            return 2
+        relinks = None if args.lock_class == EXCLUSIVE else can_relink_extension(command)
+        if relinks:
+            print(f"heavy_lock run: refused --class {args.lock_class}: {relinks}",
+                  file=sys.stderr)
             return 2
         with hold_heavy_lock(lock_class=args.lock_class, priority=args.priority or None):
             return subprocess.run(command).returncode
