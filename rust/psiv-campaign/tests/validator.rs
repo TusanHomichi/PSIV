@@ -33,9 +33,9 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
     let route = Route::parse(&main_text()).expect("main.json parses");
     let ids: Vec<&str> = route.chapters.iter().map(|c| c.id.as_str()).collect();
     assert_eq!(ids.first(), Some(&"academy"));
-    assert_eq!(ids.last(), Some(&"soldiers-temple"));
+    assert_eq!(ids.last(), Some(&"reunion"));
     assert_eq!(
-        ids[ids.len() - 19..],
+        ids[ids.len() - 29..],
         [
             "esper-inner-sanctuary",
             "gumbious-torch-stolen",
@@ -55,7 +55,17 @@ fn the_shipped_route_parses_and_has_its_chapters_in_order() {
             "gumbious-bishop",
             "seth-island",
             "island-cave",
-            "soldiers-temple"
+            "soldiers-temple",
+            "aero-prism-dark-force-3",
+            "le-roof-meeting",
+            "strength-tower-top",
+            "de-vars",
+            "courage-tower-top",
+            "sa-lews",
+            "le-roof-again",
+            "before-elsydeon-cave",
+            "elsydeon",
+            "reunion"
         ][..]
     );
     assert!(ids.contains(&"nurvus-zio"));
@@ -470,10 +480,15 @@ fn the_kuran_chapters_reject_a_missing_door_and_a_bad_world() {
 
 /// The Esper Mansion's door guards stand on the door row until the
 /// conversation sends them away: drop the `talk`'s `opens` and the chapter that
-/// walks through is rejected naming the hall; the inner guards likewise.
+/// walks through is rejected naming the hall; the inner guards likewise, and
+/// on the second visit the `wait` that lets them step aside.
 #[test]
 fn the_esper_chapter_rejects_a_door_the_talk_does_not_open() {
-    let shut = mutate(&main_text(), "\"opens\": [[32, 36], [33, 36]], ", "");
+    let shut = mutate(
+        &main_text(),
+        "\"opens\": [[32, 36], [33, 36]], \"note\": \"object 0",
+        "\"note\": \"object 0",
+    );
     let Some(report) = run(&shut) else { return };
     let error = report
         .errors
@@ -481,10 +496,30 @@ fn the_esper_chapter_rejects_a_door_the_talk_does_not_open() {
         .find(|e| e.chapter == "esper-mansion")
         .unwrap_or_else(|| panic!("the shut door is rejected: {:?}", report.errors));
     assert!(error.reason.contains("0x167"), "{}", error.reason);
-    let inner = mutate(&main_text(), "\"opens\": [[47, 20], [48, 20]], ", "");
+    let inner = mutate(
+        &main_text(),
+        "\"npc\": 3, \"opens\": [[47, 20], [48, 20]], ",
+        "\"npc\": 3, ",
+    );
     let report = run(&inner).unwrap();
     assert!(
         report.errors.iter().any(|e| e.chapter == "esper-mansion"),
+        "{:?}",
+        report.errors
+    );
+    // On the second visit $96 is set and the inner guards step aside with no
+    // talk: the `wait`'s own `opens` is what lets the walk past them plan.
+    let unopened = mutate(
+        &main_text(),
+        "{\"do\": \"wait\", \"frames\": 90, \"opens\": [[47, 20], [48, 20]], ",
+        "{\"do\": \"wait\", \"frames\": 90, ",
+    );
+    let report = run(&unopened).unwrap();
+    assert!(
+        report
+            .errors
+            .iter()
+            .any(|e| e.chapter == "before-elsydeon-cave" && e.objective == Some(13)),
         "{:?}",
         report.errors
     );

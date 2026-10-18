@@ -50,7 +50,8 @@ resolves into pad input:
 - `wait` frames while the field runs (an object a scene sent walking, the
   Esper Mansion's guards, finishes before the next walk is planned around it),
   and `opens` on a `talk` for the cells such a conversation clears, as on an
-  `interact`; `board` without a `step` answers the destination menu a scene
+  `interact`, or on a `wait` for the cells objects the field moves by itself
+  clear (the inner guards once `$96` is set); `board` without a `step` answers the destination menu a scene
   opens by itself (`Cutscene_FindingAirCastle`);
 - fight scripted battles; random battles use a policy that issues commands
   through the battle menu with the same pad input a player would use.

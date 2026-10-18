@@ -260,8 +260,15 @@ impl<'a> Run<'a> {
                 }
                 Ok(())
             }
-            Objective::Wait { frames } => {
+            Objective::Wait { frames, opens } => {
                 if (1..=MAX_WAIT_FRAMES).contains(frames) {
+                    if !opens.is_empty() {
+                        let here = self.here("wait with opens")?;
+                        self.opened
+                            .entry(here.map)
+                            .or_default()
+                            .extend(opens.iter().map(|c| c.cell()));
+                    }
                     Ok(())
                 } else {
                     Err(format!(
