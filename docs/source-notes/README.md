@@ -83,7 +83,7 @@ The owner's battle ruling (2026-08-15) fixes bugs that are plainly
 unintended, under the rule in
 [RUNTIME_DESIGN.md](../RUNTIME_DESIGN.md#fidelity-and-original-bugs). The
 retail behaviour of each is in the `bugfixes=1` table of
-[BATTLE_RULES.md](../battle/BATTLE_RULES.md#new-retail-cartridge-findings)
+[BATTLE_RULES.md](../battle/BATTLE_RULES.md#fork-contamination)
 (`ps4.asm` line numbers there); the port takes the fixed branch:
 
 - the level-99 pointer desync in the results loop (`ps4.asm:5926`);
