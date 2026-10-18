@@ -12,6 +12,9 @@ use super::transitions::{Transition, TransitionKind};
 use super::view::{SheetView, camp_receipt_frame, sequence_name};
 use super::{Field, Session};
 
+/// The transition overlay: four rects, made on the first transition.
+pub(crate) const TRANSITION_RECTS: usize = 4;
+
 impl Field {
     /// Places and animates the party sprite, animates NPCs, moves the camera.
     pub(super) fn sync_visuals(&mut self, walking: bool) {
@@ -508,7 +511,7 @@ impl Field {
         if !self.transition_nodes.is_empty() {
             return;
         }
-        for _ in 0..4 {
+        for _ in 0..TRANSITION_RECTS {
             let mut node = ColorRect::new_alloc();
             node.set_visible(false);
             node.set_z_index(600);

@@ -78,6 +78,116 @@ impl Field {
         }
     }
 
+    /// What owns the session now (`Session::activity`), by name: the state
+    /// `tools/native/native_tape.gd` tags each memory sample with, so the #92
+    /// check compares Godot's memory between like states. Empty unless
+    /// `PSIV_DEBUG_ROUTE=1`, or before the session exists.
+    pub(super) fn activity_probe(&self) -> GString {
+        if std::env::var("PSIV_DEBUG_ROUTE").as_deref() != Ok("1") {
+            return GString::new();
+        }
+        self.session.as_ref().map_or_else(GString::new, |session| {
+            GString::from(session.activity().name())
+        })
+    }
+
+    /// The tape driver's memory bracket (#92): puts the session at the title
+    /// through the session's own front door (`Session::start_title`, the call
+    /// a defeat's fade ends on), so the driver can load a save through the
+    /// ordinary CONTINUE before and after a replay in the same process.
+    /// `false` (and nothing done) unless `PSIV_NATIVE_TAPE=1`, without a
+    /// session, or while the title is already up.
+    pub(super) fn return_to_title_probe(&mut self) -> bool {
+        if std::env::var("PSIV_NATIVE_TAPE").as_deref() != Ok("1") {
+            return false;
+        }
+        let Some(session) = self.session.as_mut() else {
+            return false;
+        };
+        if session.title().is_some() {
+            return false;
+        }
+        session.start_title();
+        self.take_down_stage_for_title();
+        godot_print!("native tape: title restored for a memory probe");
+        true
+    }
+
+    /// The extension's counted heap (`rust_heap.rs`): live bytes, live
+    /// allocations, allocations ever made. Empty unless `PSIV_NATIVE_TAPE=1`.
+    pub(super) fn rust_heap_probe(&self) -> PackedInt64Array {
+        let mut values = PackedInt64Array::new();
+        if std::env::var("PSIV_NATIVE_TAPE").as_deref() == Ok("1") {
+            for value in crate::rust_heap::snapshot() {
+                values.push(i64::try_from(value).unwrap_or(i64::MAX));
+            }
+        }
+        values
+    }
+
+    /// The shell's first-use caches by name (`named_caches.rs`), as JSON:
+    /// `{name: {entries, objects, bytes, ceiling}}`. Empty unless
+    /// `PSIV_NATIVE_TAPE=1`.
+    pub(super) fn named_caches_probe(&self) -> GString {
+        if std::env::var("PSIV_NATIVE_TAPE").as_deref() != Ok("1") {
+            return GString::new();
+        }
+        let mut reports = Vec::new();
+        if let Some(screen) = self.battle_screen.as_ref() {
+            reports.extend(screen.bind().cache_reports());
+        }
+        if let Some(window) = self.dialogue.as_ref() {
+            reports.push(window.bind().cache_report());
+        }
+        use crate::named_caches::CacheReport;
+        reports.push(CacheReport::textures(
+            "field_sprite_sheets",
+            self.sheet_views.values().map(|view| &view.texture),
+            self.runtime()
+                .map_or(0, |runtime| runtime.data().sheets().len()),
+        ));
+        // Node pools made on first use and reused: one node per entry.
+        reports.extend([
+            CacheReport::pool(
+                "field_follower_nodes",
+                self.follower_nodes.len(),
+                0,
+                psiv_core::PARTY_SLOTS - 1,
+            ),
+            CacheReport::pool(
+                "field_temporary_nodes",
+                self.temporary_nodes.len(),
+                0,
+                crate::named_caches::temporary_slot_ceiling(),
+            ),
+            CacheReport::pool(
+                "letterbox_bars",
+                self.letterbox.len(),
+                0,
+                crate::LETTERBOX_BARS,
+            ),
+            CacheReport::pool(
+                "transition_rects",
+                self.transition_nodes.len(),
+                0,
+                crate::field_visuals::TRANSITION_RECTS,
+            ),
+            // The effect's node, plus its material and shader.
+            CacheReport::pool(
+                "red_palette",
+                usize::from(self.red_palette.made()),
+                if self.red_palette.made() { 2 } else { 0 },
+                1,
+            ),
+            CacheReport::pool("poison_flash", self.status_presentation.objects(), 0, 1),
+        ]);
+        let map: serde_json::Map<String, serde_json::Value> = reports
+            .iter()
+            .map(|report| (report.name.to_owned(), report.to_json()))
+            .collect();
+        GString::from(serde_json::Value::Object(map).to_string().as_str())
+    }
+
     /// Read-only observation for input-driven native regression routes.
     pub(super) fn play_probe(&self) -> GString {
         if std::env::var("PSIV_DEBUG_ROUTE").as_deref() != Ok("1") {

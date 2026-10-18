@@ -23,8 +23,10 @@ mod field_map;
 mod field_status;
 mod field_visuals;
 mod input;
+mod named_caches;
 mod red_palette;
 mod runtime_events;
+mod rust_heap;
 mod save_dir;
 mod shop;
 #[path = "sound_hooks.rs"]
@@ -72,6 +74,9 @@ pub(crate) fn session_store() -> Option<SaveStore> {
         }
     }
 }
+
+/// The cinema letterbox: four bars, made the first time a scene needs them.
+pub(crate) const LETTERBOX_BARS: usize = 4;
 
 /// The shell's configuration of a session it did not build itself — a runtime
 /// fixture (`psiv_runtime::camp_fixture`, `scene_fixture`): the run's store and
@@ -241,6 +246,26 @@ impl Field {
     #[func]
     fn debug_play_state(&self) -> GString {
         self.play_probe()
+    }
+
+    #[func]
+    fn debug_session_activity(&self) -> GString {
+        self.activity_probe()
+    }
+
+    #[func]
+    fn debug_return_to_title(&mut self) -> bool {
+        self.return_to_title_probe()
+    }
+
+    #[func]
+    fn debug_named_caches(&self) -> GString {
+        self.named_caches_probe()
+    }
+
+    #[func]
+    fn debug_rust_heap(&self) -> PackedInt64Array {
+        self.rust_heap_probe()
     }
 
     #[func]
@@ -727,8 +752,17 @@ impl Field {
         if !fade.title_restored {
             return;
         }
+        self.take_down_stage_for_title();
+        self.play_sound(0xFB);
+        godot_print!("game over: title restored; saved slots unchanged");
+    }
+
+    /// Takes the battle stage, the scene presentation and the letterbox down
+    /// for a title the session has restored over the field.
+    pub(crate) fn take_down_stage_for_title(&mut self) {
         if let Some(screen) = self.battle_screen.as_mut() {
             screen.hide();
+            screen.bind_mut().release_stage();
         }
         self.battle_field_visibility = None;
         self.presentation.reset_scene();
@@ -737,8 +771,6 @@ impl Field {
             layer.bind_mut().panel_destroy_all();
         }
         self.set_letterbox(false);
-        self.play_sound(0xFB);
-        godot_print!("game over: title restored; saved slots unchanged");
     }
 }
 
@@ -831,7 +863,7 @@ impl Field {
     /// Cinema mode: letterbox bars over the world, under the dialogue box.
     fn set_letterbox(&mut self, on: bool) {
         if on && self.letterbox.is_empty() {
-            for _ in 0..4 {
+            for _ in 0..LETTERBOX_BARS {
                 let mut bar = godot::classes::ColorRect::new_alloc();
                 bar.set_color(Color::from_rgb(0.0, 0.0, 0.0));
                 bar.set_z_index(500);

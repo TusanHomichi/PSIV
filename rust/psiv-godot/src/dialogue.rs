@@ -427,8 +427,20 @@ impl DialogueWindow {
         Some(DrawList { fill, quads, arrow })
     }
 
-    /// Loads the portraits an entry needs. Called when a view asks for one, so
-    /// the 39 PNGs are never all in memory at once.
+    /// The portraits shown so far (#92), at most every portrait in the pack.
+    pub(crate) fn cache_report(&self) -> crate::named_caches::CacheReport {
+        crate::named_caches::CacheReport::textures(
+            "dialogue_portraits",
+            self.portraits.values(),
+            self.view
+                .as_ref()
+                .map_or(0, |view| view.portrait_pngs.len()),
+        )
+    }
+
+    /// Loads the portrait an entry needs the first time a view asks for it,
+    /// and keeps it: the cache holds only portraits already shown, never more
+    /// than the pack's (`cache_report`).
     fn cache_portrait(&mut self, id: u8) {
         if self.portraits.contains_key(&id) {
             return;

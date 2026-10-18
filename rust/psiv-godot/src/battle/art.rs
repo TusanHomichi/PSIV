@@ -317,6 +317,11 @@ impl BattleArt {
     pub(crate) fn background_path_by_index(&self, index: u8) -> Option<&str> {
         self.backgrounds.get(&index).map(String::as_str)
     }
+    /// The enemy records with art.
+    pub(crate) fn enemy_count(&self) -> usize {
+        self.enemies.len()
+    }
+
     pub(crate) fn enemy_size(&self, enemy_id: u16) -> Option<(u16, u16)> {
         self.enemies
             .get(&enemy_id)
