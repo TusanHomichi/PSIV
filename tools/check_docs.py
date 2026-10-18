@@ -32,7 +32,9 @@ is scanned, and fenced code blocks and inline code are skipped as content:
   lane | ...`); and a `yaml` block that holds a task graph (a mapping anywhere
   in it with a `TASK_GRAPH_KEYS` key: `nodes`, `depends_on` or
   `next_action`); and a pointer to a run's evidence directory
-  (`EVIDENCE_PATH_RE`: `build/lane-evidence/...`). Research documents pass: a dated heading or a dated
+  (`EVIDENCE_PATH_RE`: `build/lane-evidence/...`, `build/lanes/<id>/`, or a
+  tool's timestamped receipt, `build/gate/20261018T025426Z-3bddaba`).
+  Research documents pass: a dated heading or a dated
   chronology entry (`## 2026-10-03 - Rounds that open no party command
   window`), a date inside a table cell, and `CHANGELOG.md` (one word) are all
   allowed;
@@ -120,9 +122,14 @@ DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
 #: Rows opening with a date that make a table a dated receipt ledger.
 DATED_ROWS_LIMIT = 3
 DATED_ROW_RE = re.compile(r"\A {0,3}\|\s*\d{4}-\d{2}-\d{2}\b")
-#: A pointer to a run's evidence directory (`build/lane-evidence/...`,
-#: `build/x86-evidence/`): local receipts no reader of the doc can open.
-EVIDENCE_PATH_RE = re.compile(r"\bbuild/[\w.-]*evidence\b")
+#: A pointer to a run's evidence directory: local receipts no reader of the doc
+#: can open. That is a lane's evidence (`build/lane-evidence/...`,
+#: `build/x86-evidence/`), a lane's archived build (`build/lanes/<id>/`) and a
+#: tool's timestamped receipt (`build/gate/20261018T025426Z-3bddaba`,
+#: `build/certify/20261006T230810Z-1b01ee7/`). A template
+#: (`build/gate/<UTC stamp>-<sha>/`) names where receipts go, and passes.
+EVIDENCE_PATH_RE = re.compile(
+    r"\bbuild/(?:[\w.-]*evidence\b|lanes\b|(?:[\w.-]+/)*\d{8}T\d{6}Z-[0-9a-f]{7,40}\b)")
 #: The files that own a toolchain version, and how to read it from each. A
 #: document points at the file, so a version bump is one line (issue #133).
 PIN_FILES = {

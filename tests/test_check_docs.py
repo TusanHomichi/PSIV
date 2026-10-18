@@ -511,6 +511,27 @@ class RunRecords(RepoCase):
         self.assertIn("docs/notes.md:3: run evidence path (build/lane-evidence)", out)
         self.assertIn("docs/notes.md:6: run evidence path (build/x86-evidence)", out)
 
+    def test_a_timestamped_receipt_directory(self):
+        code, out = self.check({"docs/notes.md": lines(
+            "# Notes", "", "12/12 (receipt", "`build/certify/20261006T230810Z-1b01ee7/`).",
+            "Gate: build/gate/20261018T025426Z-3bddabae1a684f30c10fa66987de76700ddc308f.")})
+        self.assertEqual(code, 1, out)
+        self.assertIn("docs/notes.md:4: run evidence path "
+                      "(build/certify/20261006T230810Z-1b01ee7)", out)
+        self.assertIn("docs/notes.md:5: run evidence path (build/gate/20261018T025426Z-", out)
+
+    def test_an_archived_lane_build(self):
+        code, out = self.check({"docs/notes.md": lines(
+            "# Notes", "", "The capture is in `build/lanes/p88b/forced/`.")})
+        self.assertEqual(code, 1, out)
+        self.assertIn("docs/notes.md:3: run evidence path (build/lanes)", out)
+
+    def test_where_receipts_go_passes(self):
+        code, out = self.check({"docs/notes.md": lines(
+            "# Notes", "", "Each run writes `build/gate/<UTC stamp>-<sha>/` and",
+            "`build/certify/`; captures go to `build/forced/helex`, `build/lanesplit`.")})
+        self.assertEqual(code, 0, out)
+
     def test_research_shapes_pass(self):
         code, out = self.check({
             "docs/source-notes/battle.md": lines(
