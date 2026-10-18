@@ -185,7 +185,7 @@ class's 16 units (8,192 MB) free, above the sizing rule's 15%, and the built
 suite peaks at 364 MB on 8 threads. Default jobs grow with the core count, so
 a host with more cores re-measures that peak. Tests in one binary run on
 parallel threads, so a test's scratch directory is keyed by process and by call
-(`ParallelTestPathsCase` in `tests/test_gate.py` checks every `temp_dir()`
+(`tests/test_rust_temp_paths.py` checks every `temp_dir()`
 under `rust/`). `rust/Cargo.toml`'s `[profile.test]` builds tests at
 `opt-level = 1` with overflow checks and debug assertions kept on
 (`psiv-core/tests/build_profile.rs` fails if either is turned off;
