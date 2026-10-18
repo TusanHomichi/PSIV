@@ -168,7 +168,7 @@ The documentation check needs no local inputs. From the root:
 
 ```bash
 python3 tools/check_docs.py
-PYTHONPATH=. python3 -m unittest discover -s tests
+PYTHONPATH=. python3 tools/py_suite.py
 cargo fmt --manifest-path rust/Cargo.toml --all --check
 cargo test --manifest-path rust/Cargo.toml --workspace
 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
@@ -176,8 +176,24 @@ cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D war
 
 Run these sequentially: `python3 tools/gate.py` runs exactly this list, in
 order, from one entry point and writes a receipt
-([Gate and coverage](#gate-and-coverage)). The Python suite is most of the
-gate's time. The gate runs every command with `CARGO_BUILD_JOBS` and
+([Gate and coverage](#gate-and-coverage)). `tools/py_suite.py` runs the
+Python suite: the modules `python3 -m unittest discover -s tests` finds, one
+module per task, on min(cores, 4) fresh worker processes
+(`PYTHON_MEASURED_WORKERS`), slowest first, and it prints unittest's own report
+summed over every module: each failure's block, `Ran N tests` and `OK` or
+`FAILED (...)`. A failure, a module that cannot be imported and a worker that
+dies each fail the step; a dead worker's unfinished modules are named. A worker
+pays the one-time fixtures (the pack's map-independent sections, the shared
+`PackFixtureCase` pack and the map table, about 13 s) once, before its first
+module that needs them, so 4 workers pay them up to 4 times. Four is the
+measured fastest count on the 8-thread, 4-core host: the full suite took 270 s
+in one process and 151, 117, 91, 92, 93 and 100 s on 2, 3, 4, 5, 6 and 8
+workers ([the table](#heavy-run-lock)); past the physical cores the extra
+fixtures and the shared cores cost more than a worker gains. On 4 workers the
+slowest module, `test_pack_maps` (about 50 s), and the CPU time all workers
+spend (355 s against 268 s in one process) are what is left. A test that fails
+only beside another module is a defect to fix, as in the Rust suites. The gate
+runs every command with `CARGO_BUILD_JOBS` and
 `RUST_TEST_THREADS` set to the cores available, capped at 8
 (`GATE_MEASURED_PARALLELISM` in `tools/gate.py`), and its receipt records both.
 Eight is the configuration measured to fit the exclusive class the gate holds:
@@ -213,18 +229,19 @@ in order, with the same receipt format (`tier: "fast"`, directory suffix
 python3 tools/check_docs.py
 cargo fmt --manifest-path rust/Cargo.toml --all --check
 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
-PYTHONPATH=. python3 tools/gate.py --quick-unittest
+PYTHONPATH=. python3 tools/py_suite.py --fast
 cargo test --manifest-path rust/Cargo.toml --workspace
 ```
 
-`--quick-unittest` is the full gate's `unittest discover -s tests` minus the
-modules in `SLOW_PYTHON_MODULES` (`tools/gate.py`), which lists each one with
-its measured seconds. A new test module joins the fast tier unless it is added
+`py_suite.py --fast` is the full gate's Python suite minus the modules in
+`SLOW_PYTHON_MODULES` (`tools/py_suite.py`), which lists each one with its
+measured seconds. A new test module joins the fast tier unless it is added
 there. The fast tier is a commit check, not a gate result: integration still
 needs the full gate. It took 160 s on a warm target and 189 s after touching
 `psiv-core`, against 254 s and 291 s at one job and one thread (2026-10-18,
-receipts `20261018T090024Z` and `20261018T085042Z`); `--quick-unittest`, about
-112 s at one Python process, is now most of it.
+receipts `20261018T090024Z` and `20261018T085042Z`). Its Python step then took
+154 s in one process and takes 56 s on 4 workers, with the same 1,593 tests and
+skip.
 
 ### Gate and coverage
 
@@ -357,7 +374,8 @@ reports the largest single process. Rows marked 0.1 s sampled the tree every
 0.1 s at `4abbbc2`; the others every 0.2 s at `20a76de`. Rows marked #157 were
 measured 2026-10-18 at `0c64b19`, sampled every 0.1 s, on AC with the CPU
 uncapped (boosting to 3.9 GHz); each names its mean live clock
-(`/proc/cpuinfo`) and has no `time -v` figure:
+(`/proc/cpuinfo`) and has no `time -v` figure. Rows marked #166 were measured
+the same way with `tools/tree_rss.py`, at `6da25cd` plus the suite runner:
 
 | Job | Wall | Tree peak RSS | `time -v` max RSS | Pack | Class |
 | --- | ---: | ---: | ---: | --- | --- |
@@ -387,6 +405,15 @@ uncapped (boosting to 3.9 GHz); each names its mean live clock
 | the same, `--test-threads=2`, #157, 2.6 GHz | 78 s | 305 MB | - | reads | `exclusive` |
 | the same, `--test-threads=1`, #157, 2.5 GHz | 133 s | 305 MB | - | reads | `exclusive` |
 | the Python suite (`unittest discover -s tests`, 1,648 tests) | 229 s | 815 MB | 813 MB | reads | `python` |
+| the same, 1,822 tests, one process, #166, 2.5 GHz | 270 s | 926 MB | - | reads | `python` |
+| `tools/py_suite.py`, 2 workers, #166, 2.7 GHz | 151 s | 1,115 MB | - | reads | `exclusive` (the gate) |
+| the same, 3 workers, #166, 2.8 GHz | 117 s | 1,188 MB | - | reads | `exclusive` |
+| the same, 4 workers (the gate's), #166, 2.9 GHz | 91 s | 1,256 MB | - | reads | `exclusive` |
+| the same, 5 workers, #166, 2.8 GHz | 92 s | 1,347 MB | - | reads | `exclusive` |
+| the same, 6 workers, #166, 2.7 GHz | 93 s | 1,450 MB | - | reads | `exclusive` |
+| the same, 8 workers, #166, 2.6 GHz | 100 s | 1,639 MB | - | reads | `exclusive` |
+| the fast tier's Python step, one process (`--quick-unittest`, 1,593 tests), #166, 2.5 GHz | 154 s | 883 MB | - | reads | `exclusive` (the gate) |
+| `py_suite.py --fast`, 4 workers, #166, 2.9 GHz | 56 s | 1,197 MB | - | reads | `exclusive` (the gate) |
 | a full pack build (`python3 -m psiv_tools pack`) | 47 s | 129 MB | 130 MB | writes | `exclusive` |
 | one certify pair (`--only battle-0x88 --jobs 1`, Godot and Xvfb) | 8 s | 418 MB | 340 MB | reads | `godot` |
 | one headless `psiv-campaign run` chapter (`academy`) | 0.4 s | - | 28 MB | reads | none |

@@ -58,7 +58,6 @@ import shlex
 import subprocess
 import sys
 import time
-import unittest
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -75,7 +74,7 @@ EXIT_REFUSED = 2
 #: docs/DEVELOPMENT.md's `## Run checks` block, in order, verbatim.
 GATE_COMMANDS = [
     "python3 tools/check_docs.py",
-    "PYTHONPATH=. python3 -m unittest discover -s tests",
+    "PYTHONPATH=. python3 tools/py_suite.py",
     "cargo fmt --manifest-path rust/Cargo.toml --all --check",
     "cargo test --manifest-path rust/Cargo.toml --workspace",
     "cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
@@ -88,28 +87,9 @@ FAST_COMMANDS = [
     "python3 tools/check_docs.py",
     "cargo fmt --manifest-path rust/Cargo.toml --all --check",
     "cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
-    "PYTHONPATH=. python3 tools/gate.py --quick-unittest",
+    "PYTHONPATH=. python3 tools/py_suite.py --fast",
     "cargo test --manifest-path rust/Cargo.toml --workspace",
 ]
-
-#: Python test modules the fast tier leaves to the full gate: every module whose
-#: intrinsic time is 6 s or more. Intrinsic means measured in a process whose
-#: one-time fixtures are already built -- the pack's map-independent sections
-#: (#130), the shared PackFixtureCase pack and the map table, ~13 s that the
-#: first module to need them pays in any run -- taking the lower of a forward
-#: and a reverse discovery-order run (2026-10-16, CPU capped at 2.3 GHz).
-#: Values are those seconds. Every name must be a module under tests/
-#: (tests/test_gate.py checks), so a rename cannot leave a stale entry here.
-SLOW_PYTHON_MODULES = {
-    "test_pack_maps": 37.1,
-    "test_reload_frames": 32.0,
-    "test_battle_art_pack": 14.7,
-    "test_pack_manifest": 14.2,
-    "test_map_patches": 12.8,
-    "test_oracle_host_binary": 12.3,
-    "test_extract_stamp": 7.7,
-    "test_sprites": 7.2,
-}
 
 #: The heavy-lock class every gate command runs under. The gate's receipt is a
 #: timed, reproducible run, so it holds the machine for the whole run: the one
@@ -234,7 +214,7 @@ def parse_cargo_test(text):
 def parse_counts(command, text):
     """Parsed counts for `command`'s log text; `{}` when it has nothing to count."""
     words = _command_words(command)
-    if "unittest" in words or "--quick-unittest" in words:
+    if "unittest" in words or "tools/py_suite.py" in words:
         return parse_unittest(text)
     if _operand(words, "cargo") == "test":
         return parse_cargo_test(text)
@@ -447,46 +427,6 @@ def _summary(records, receipt_dir, root, tier="full"):
     return "; ".join(part for part in (head, counts) if part) + tail
 
 
-def _module_name(suite):
-    """The module a discovered per-module suite came from, or None when empty."""
-    for test in _flat_tests(suite):
-        return test.id().split(".")[0]
-    return None
-
-
-def _flat_tests(suite):
-    """Every test case in `suite`, depth first, in discovery order."""
-    for item in suite:
-        if isinstance(item, unittest.TestSuite):
-            yield from _flat_tests(item)
-        else:
-            yield item
-
-
-def quick_unittest(start="tests", excluded=SLOW_PYTHON_MODULES, stream=None):
-    """The fast tier's Python suite: `unittest discover -s tests` minus `excluded`.
-
-    Discovery is the full gate's, so a new module joins the fast tier unless
-    it is named in SLOW_PYTHON_MODULES; a module that fails to import still
-    reports its error here. Returns 0 when every test passed, 1 otherwise, and
-    prints unittest's own `Ran N tests` / `OK` / `FAILED` lines.
-    """
-    # The import path `python3 -m unittest discover -s tests` gives the tests:
-    # the cwd, not this script's tools/ (discover then puts the start first).
-    tools_dir = str(Path(__file__).resolve().parent)
-    saved = list(sys.path)
-    sys.path[:] = [os.getcwd()] + [entry for entry in sys.path if entry != tools_dir]
-    try:
-        start = str(Path(start).resolve())
-        suite = unittest.TestLoader().discover(start, top_level_dir=start)
-        kept = unittest.TestSuite(module for module in suite
-                                  if _module_name(module) not in excluded)
-        result = unittest.TextTestRunner(stream=stream or sys.stderr).run(kept)
-    finally:
-        sys.path[:] = saved
-    return EXIT_OK if result.wasSuccessful() else EXIT_FAILED
-
-
 def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=None):
     """Run `commands` in order under `root`, writing a receipt into `receipt_dir`.
 
@@ -561,12 +501,7 @@ def main(argv=None):
                         help="wait for a running gate to finish instead of refusing")
     parser.add_argument("--list", action="store_true",
                         help="print the commands and exit without running them")
-    parser.add_argument("--quick-unittest", action="store_true",
-                        help="run the fast tier's Python suite (tests/ minus "
-                             "SLOW_PYTHON_MODULES) in this process; no receipt")
     args = parser.parse_args(argv)
-    if args.quick_unittest:
-        return quick_unittest()
     commands, tier = (FAST_COMMANDS, "fast") if args.fast else (GATE_COMMANDS, "full")
     if args.list:
         for command in commands:

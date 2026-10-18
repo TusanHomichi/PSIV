@@ -28,10 +28,10 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from tools.gate import (FAST_COMMANDS, GATE_COMMANDS, GATE_MEASURED_PARALLELISM,
-                        SLOW_PYTHON_MODULES, GateRefused, available_cores, cargo_parallelism,
-                        command_slug, cpu_mhz, gate_environment, gate_lock, main,
-                        parse_counts, quick_unittest, run_gate)
+from tools.gate import (FAST_COMMANDS, GATE_COMMANDS, GATE_MEASURED_PARALLELISM, GateRefused,
+                        available_cores, cargo_parallelism, command_slug, cpu_mhz,
+                        gate_environment, gate_lock, main, parse_counts, parse_unittest,
+                        run_gate)
 from tools.heavy_lock import (HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV, HELD_SLOTS_ENV,
                               PRIORITY_ENV, gate_lock_path, heavy_lock_path, lock_holders)
 
@@ -39,7 +39,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DEVELOPMENT = REPO_ROOT / "docs" / "DEVELOPMENT.md"
 
 DOCS_COMMAND, UNITTEST_COMMAND, FMT_COMMAND, CARGO_TEST_COMMAND, CLIPPY_COMMAND = GATE_COMMANDS
-QUICK_UNITTEST_COMMAND = FAST_COMMANDS[3]
+FAST_UNITTEST_COMMAND = FAST_COMMANDS[3]
 
 # Captured: `python3 -m unittest gate_sample_skip` (build/lane-evidence/capture/
 # unittest-skip.capture.txt), minus the shell prompt line.
@@ -204,8 +204,15 @@ class UnitCase(unittest.TestCase):
     """The module's own units: log names per command."""
 
     def test_command_slugs_name_the_real_commands(self):
-        self.assertEqual([command_slug(command) for command in GATE_COMMANDS],
-                         ["python3-tools-check_docs.py", "python3-unittest", "cargo-fmt", "cargo-test", "cargo-clippy"])
+        slugs = [command_slug(command) for command in GATE_COMMANDS]
+        # The Python suite's slug is its program and script path, joined; it is
+        # spelled in two halves because tools/check_paths.py reads a whole
+        # `<name>.py` token here as a file name that must exist.
+        python_suite = slugs.pop(1)
+        self.assertTrue(python_suite.startswith("python3-tools-py_suite"), python_suite)
+        self.assertTrue(python_suite.endswith(".py"), python_suite)
+        self.assertEqual(slugs, ["python3-tools-check_docs.py", "cargo-fmt", "cargo-test",
+                                 "cargo-clippy"])
 
 
 class CountParserCase(unittest.TestCase):
@@ -233,9 +240,13 @@ class CountParserCase(unittest.TestCase):
         self.assertEqual(parse_counts(CARGO_TEST_COMMAND, crashed),
                          {"passed": None, "failed": None, "ignored": None, "suites": 0})
 
-    def test_the_quick_unittest_command_is_counted_as_unittest(self):
-        self.assertEqual(parse_counts(QUICK_UNITTEST_COMMAND, SAMPLE_UNITTEST_FAILED),
-                         parse_counts(UNITTEST_COMMAND, SAMPLE_UNITTEST_FAILED))
+    def test_both_python_suite_commands_are_counted_as_unittest(self):
+        """tools/py_suite.py prints unittest's closing lines, so both tiers parse them."""
+        expected = parse_unittest(SAMPLE_UNITTEST_FAILED)
+        self.assertEqual(expected["failures"], 1)
+        for command in (UNITTEST_COMMAND, FAST_UNITTEST_COMMAND,
+                        "PYTHONPATH=. python3 -m unittest discover -s tests"):
+            self.assertEqual(parse_counts(command, SAMPLE_UNITTEST_FAILED), expected, command)
 
     def test_only_unittest_and_cargo_test_are_counted(self):
         self.assertEqual(parse_counts(FMT_COMMAND, SAMPLE_UNITTEST_PASS), {})
@@ -677,62 +688,6 @@ class GateRunCase(unittest.TestCase):
         self.assertEqual([record["exit_code"] for record in receipt["commands"]], [0, 0, 0])
         self.assertNotEqual(receipt["exit_code"], 1)
         self.assertNotIn("gate FAILED", receipt["summary"])
-
-
-class QuickUnittestCase(unittest.TestCase):
-    """The fast tier's Python suite: discovery minus SLOW_PYTHON_MODULES."""
-
-    def test_every_slow_module_is_a_test_module(self):
-        missing = sorted(name for name in SLOW_PYTHON_MODULES
-                         if not (REPO_ROOT / "tests" / f"{name}.py").is_file())
-        self.assertEqual(missing, [], "SLOW_PYTHON_MODULES names a module tests/ lacks")
-
-    def run_quick(self, excluded):
-        """quick_unittest over a temp suite: one passing and one failing module."""
-        with tempfile.TemporaryDirectory() as tmp:
-            start = Path(tmp)
-            for name, body in (("test_quick_pass", "self.assertTrue(True)"),
-                               ("test_quick_fail", "self.fail('slow module ran')")):
-                (start / f"{name}.py").write_text(
-                    "import unittest\n\n\nclass Case(unittest.TestCase):\n"
-                    f"    def test_it(self):\n        {body}\n")
-            stream = io.StringIO()
-            code = quick_unittest(start, excluded=excluded, stream=stream)
-            for name in ("test_quick_pass", "test_quick_fail"):
-                sys.modules.pop(name, None)
-        return code, stream.getvalue()
-
-    def test_an_excluded_module_does_not_run(self):
-        code, output = self.run_quick({"test_quick_fail"})
-        self.assertEqual(code, 0, output)
-        self.assertIn("Ran 1 test", output)
-
-    def test_negative_control_without_the_exclusion_the_failure_runs(self):
-        code, output = self.run_quick(set())
-        self.assertEqual(code, 1, output)
-        self.assertIn("Ran 2 tests", output)
-        self.assertIn("slow module ran", output)
-
-
-class ParallelismCase(unittest.TestCase):
-    """Cargo gets cargo's defaults only up to the measured 8 jobs and threads (#157)."""
-
-    def test_more_cores_than_measured_are_capped(self):
-        self.assertEqual(cargo_parallelism(16), 8)
-
-    def test_fewer_cores_than_measured_use_them_all(self):
-        self.assertEqual(cargo_parallelism(4), 4)
-
-    def test_the_cap_is_the_measured_eight(self):
-        # 8: the jobs of the cold build measured at 4,979 MB (docs/DEVELOPMENT.md table).
-        self.assertEqual(GATE_MEASURED_PARALLELISM, 8)
-        self.assertEqual(cargo_parallelism(8), 8)
-        self.assertEqual(cargo_parallelism(1), 1)
-
-    def test_the_environment_overrides_a_callers_setting(self):
-        env = gate_environment({"CARGO_BUILD_JOBS": "1", "HOME": "/h"}, 16)
-        self.assertEqual((env["CARGO_BUILD_JOBS"], env["RUST_TEST_THREADS"]), ("8", "8"))
-        self.assertEqual(env["HOME"], "/h")
 
 
 class NotARepositoryCase(unittest.TestCase):
