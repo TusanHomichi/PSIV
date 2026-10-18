@@ -80,7 +80,7 @@ impl Driver {
                 // A scene fired on the way and carried the party off the map:
                 // the story took the party, and what it left is the next
                 // objective's to assert.
-                self.note(format!(
+                self.decide(format!(
                     "go_to ({},{}): a scene took the party to map {:#x}",
                     target.x, target.y, here.0
                 ));
@@ -245,7 +245,7 @@ impl Driver {
                         ),
                     ));
                 }
-                self.note(format!(
+                self.decide(format!(
                     "go_to_map {map:#x}: a scene took the party to map {:#x}",
                     here.0
                 ));
@@ -335,7 +335,7 @@ impl Driver {
     pub fn patrol(&mut self, map: u16, a: Cell, b: Cell, until: &Until, refuge: &[Step]) -> Res {
         loop {
             if !refuge.is_empty() && self.needs_refuge() {
-                self.note("patrol: the party cannot train on, taking the refuge");
+                self.decide("patrol: the party cannot train on, taking the refuge");
                 let mut memory = Memory::default();
                 for step in refuge {
                     execute(self, &mut memory, &step.objective)?;

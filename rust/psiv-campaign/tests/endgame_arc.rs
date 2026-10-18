@@ -265,6 +265,14 @@ fn an_arrival_scene_ends_the_go_to_map_and_an_unmarked_one_halts() {
     assert_eq!(driver.runtime().map_id().0, MOTA_SPACEPORT);
     assert!(flag(&driver, REUNION), "$DA: the cutscene ran to its end");
     assert_eq!(driver.map_loads(DEZO_SPACEPORT), 1);
+    // The verdict is a decision the chapter's report keeps.
+    let decisions = driver.take_decisions();
+    assert!(
+        decisions
+            .iter()
+            .any(|d| d.ends_with("go_to_map 0xd4: a scene took the party to map 0xbf")),
+        "{decisions:?}"
+    );
 
     let session = party_at(BESIDE_SPACEPORT, &flags).unwrap();
     let mut driver = Driver::new(session, None);

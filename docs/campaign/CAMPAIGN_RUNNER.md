@@ -88,7 +88,9 @@ about half a second; a debug build is an order of magnitude slower and plays
 chapter one in three seconds.
 
 A completed run's `--report` file lists its chapters (route position, id,
-frames, battles, save path and the FNV-1a 64 of the chapter save) beside the
+frames, battles, save path, the FNV-1a 64 of the chapter save and the
+controllers' `decisions`, each `f<frame>: <line>`: an objective beginning, a
+scene carrying the party off, a patrol's refuge, a camp action, a cure) beside the
 final digest and the frame count; a halted run's report is the halt report
 below. `split-tape <run.tape> <report.json> <out-dir>` cuts the run's tape at
 those frames into one `NN-id.tape` per chapter through the shared tape codec:
@@ -180,8 +182,8 @@ continue from. The report is JSON: `chapter`, `objective_index`,
 `objective_kind`, `objective`, `halt {kind, detail}`, `frame`, `map`, `cell`,
 `facing`, `mode`, `party` (HP, TP, level, status), `money`, the last 50 runtime
 `events`, `surroundings` (the collision values around the party),
-`nearby_warps`, `view` (the open dialogue, shop, camp, battle or chest) and the
-`battles` fought. `PSIV_CAMPAIGN_TRACE=1` prints every event and every battle
+`nearby_warps`, `view` (the open dialogue, shop, camp, battle or chest), the
+`battles` fought and the halted chapter's `decisions`. `PSIV_CAMPAIGN_TRACE=1` prints every event and every battle
 decision to stderr as the run goes.
 
 **Tape, saves and replay.** The tape is every frame's pad byte, run-length

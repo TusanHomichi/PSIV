@@ -341,7 +341,7 @@ impl Driver {
         }
         self.expect_camp_page(CampPage::AbilityResult)?;
         let message = self.camp()?.message.clone();
-        self.note(format!("camp technique: {message}"));
+        self.decide(format!("camp technique: {message}"));
         if message.contains("NO EFFECT") {
             return Err(Halt::new(
                 HaltKind::UnexpectedState,
@@ -392,7 +392,7 @@ impl Driver {
         // its event with nothing over it: there is no page left to read, only a
         // scene to wait out.
         if self.session().camp_view().is_none() && self.runtime().scene_active() {
-            self.note("camp item: the action closed the menu and started a scene");
+            self.decide("camp item: the action closed the menu and started a scene");
             return self.settle(false).map(|_| ());
         }
         if self.camp_page()? == CampPage::ItemTarget {
@@ -414,10 +414,10 @@ impl Driver {
         match self.session().camp_view().map(|view| view.page) {
             Some(CampPage::ItemResult) => {
                 let message = self.camp()?.message.clone();
-                self.note(format!("camp item: {message}"));
+                self.decide(format!("camp item: {message}"));
             }
             other if self.runtime().scene_active() => {
-                self.note(format!(
+                self.decide(format!(
                     "camp item: the action started a scene ({other:?} page)"
                 ));
             }

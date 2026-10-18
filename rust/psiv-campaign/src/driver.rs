@@ -160,6 +160,9 @@ pub struct Driver {
     routed: Vec<Routed>,
     areas: Vec<(u32, u16)>,
     scenes_ended: u64,
+    /// The controllers' decisions since [`Driver::take_decisions`] last
+    /// drained them, each `f<frame>: <line>`: what a chapter's report keeps.
+    decisions: Vec<String>,
     /// How many times each map has loaded (`RuntimeEvent::MapChanged`), and
     /// [`Driver::scenes_ended`] as it stood at the latest of those loads.
     map_loads: HashMap<u16, (u64, u64)>,
@@ -228,6 +231,7 @@ impl Driver {
             routed: Vec::new(),
             areas: Vec::new(),
             scenes_ended: 0,
+            decisions: Vec::new(),
             map_loads: HashMap::new(),
             battles: Vec::new(),
             in_battle: false,
@@ -359,6 +363,28 @@ impl Driver {
     }
 
     /// Adds a line to the event ring.
+    /// A controller's decision (a carry-off, a refuge, a camp action, a cure):
+    /// noted like an event, and kept for the chapter's entry in `report.json`
+    /// so a proof needs no code reading.
+    pub fn decide(&mut self, line: impl Into<String>) {
+        let line: String = line.into();
+        self.decisions.push(format!("f{}: {line}", self.frames()));
+        self.note(line);
+    }
+
+    /// The decisions not yet drained: the halted chapter's.
+    #[must_use]
+    pub fn pending_decisions(&self) -> &[String] {
+        &self.decisions
+    }
+
+    /// The decisions since the last call, oldest first.
+    pub fn take_decisions(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.decisions)
+    }
+
+    /// Notes `line` in the ring of recent events a halt report carries (and
+    /// the trace): events, not decisions; see [`Driver::decide`].
     pub fn note(&mut self, line: impl Into<String>) {
         let mut line: String = line.into();
         if line.chars().count() > EVENT_WIDTH {

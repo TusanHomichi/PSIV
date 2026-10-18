@@ -47,7 +47,7 @@ impl Driver {
             let Some(cure) = self.next_cure() else {
                 break;
             };
-            self.note(format!(
+            self.decide(format!(
                 "recovery: {} casts technique {} on {}",
                 cure.caster, cure.technique, cure.patient
             ));
