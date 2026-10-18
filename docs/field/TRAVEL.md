@@ -95,7 +95,19 @@ ability fixtures with SAVE and a fresh-process CONTINUE.
 
 Once Rika has joined (event `$35`), an overworld page hook opens a bridge north
 of the BioPlant, and Zema's inn is the party's recovery before the crossing.
-The retail addresses (the hook at `$053D16`, the inn rate and `RecoverStats`)
-and the trigger condition are recorded in the
-[source notes](../source-notes/field-and-dialogue.md#post-rika-overworld-crossing-and-recovery-2026-09-23);
-how the runtime applies the hook is [map effects §12](MAP_EFFECTS.md#12-native-overworld-page-hook-consumption).
+US retail `$053D16..$053D39` (`loc_53D16`) tests event `$35` before writing
+FG `$00` and BG `$48` at chunk `(42,33)`. This is a paged-overworld loader
+hook, not a MapDataManager entry. It opens Motavia cells `(84..85,66..67)`:
+the unpatched collision is water `$9`, and the final BG chunk supplies `$0`.
+The pack keeps the source records, and the runtime composes both planes and
+applies the flag-gated collision, raw chunk identity and render patches when it
+builds the map; how is [map effects §12](MAP_EFFECTS.md#12-native-overworld-page-hook-consumption).
+Same-map live page streaming after a flag change is not implemented.
+
+Zema's inn row `$068116` is `01 14`, rate 20 per occupied party slot; its
+keeper row is `$0683A4`, so five members pay 100. The rest is `RecoverStats`
+(`$0662DA`; what it restores is [SHOPS.md](../camp/SHOPS.md#what-a-night-restores)).
+
+The bridge's video comparison uses isolated SRAM position fixtures, not
+connected play. Their Y word is `(standing_y-1)*16`, which accounts for the
+native save-coordinate gap without modifying any campaign save.

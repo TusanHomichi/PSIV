@@ -2,7 +2,7 @@
 //! three rolled arms of 140 Zio2 behind its phase counter.
 //!
 //! These are the abilities the campaign runner meets in Zio's fort and behind
-//! it — Juza's own draws (`docs/campaign/RUNNER_LOG.md` H16), the Ripper and
+//! it — Juza's own draws (the runner log's H16, commit 0faa91b^), the Ripper and
 //! Haunt rooms around him, and Nurvus's TechMasters and Greneris — and all
 //! three resolve as **one hit per party slot**: every arm clears
 //! `Current_Target_Index` before it loads its object, and every object either

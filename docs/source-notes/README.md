@@ -1,6 +1,9 @@
 # Source / provenance notes
 
-The extractor is grounded against Peter's verified US retail PSIV ROM and the public `ps4disasm` work. No ROM bytes are shipped in this repository beyond very short structural signatures used as tests.
+The extractor is grounded against the US retail ROM (SHA-256
+`511f35cc11f88316f8b8940e28ab298bd75a4da193672a80172884d6eb913b6a`) and the
+public `ps4disasm` work. What the repository holds from the game, and what stays
+local, is listed in the [README](../../README.md#license-and-third-party-code).
 
 ## Topic files
 
@@ -16,7 +19,6 @@ index lists every topic file.
 | [disassembly-discrepancies.md](disassembly-discrepancies.md) | Where the fork's annotations and the retail bytes disagree, and the dated retail-bug chronology | A dated record, correction or retraction |
 | [battle-enemy-abilities.md](battle-enemy-abilities.md) | Enemy damage skills, their targeting arms and measured routes | A dated enemy-ability record |
 | [battle-party.md](battle-party.md) | Party actions, items, rewards, battle entry/exit and the attack passes | A dated party or battle-flow record |
-| [field-and-dialogue.md](field-and-dialogue.md) | Dialogue continuations, choices, resting and overworld field travel | A dated dialogue or field-travel record |
 
 ## Retail bug ledger index
 
@@ -80,6 +82,39 @@ as one.
   refreshed; the port records it as `SceneOp::Face` down, which also turns
   the sprite. Nothing shows it: battle `$18` starts on the same frame and the
   field is rebuilt after it. Record [114](../scenes/114_AngerTowerAlys.md).
+
+## Deliberate fixes to retail battle bugs
+
+The owner's battle ruling (2026-08-15) fixes bugs that are plainly
+unintended, under the rule in
+[RUNTIME_DESIGN.md](../RUNTIME_DESIGN.md#fidelity-and-original-bugs). The
+retail behaviour of each is in the `bugfixes=1` table of
+[BATTLE_RULES.md](../battle/BATTLE_RULES.md#fork-contamination)
+(`ps4.asm` line numbers there); the port takes the fixed branch:
+
+- the level-99 pointer desync in the results loop (`ps4.asm:5926`);
+- the shield-element read: a shield's element is applied as a weapon's
+  (`ps4.asm:3822`, `3913`);
+- the stat lag after a level-up: `UpdateCharModStats` is not re-run
+  (`ps4.asm:6119`);
+- the Defend and physical-resistance armour clobber of `physical_prop`
+  (`ps4.asm:6368`, `9835`, `11287`);
+- Telepipe and Escapipe consumed in battle (`ps4.asm:16109`);
+- an ability effect id past the end of `AbilityEffectsOffs` (Zio3's `$2C`),
+  rejected when the pack loads instead of dispatched.
+
+The stat lag and the clobber are measured on hardware (tapes 10 and 14): Chaz
+levels to 2, strength goes 8 to 9 and `atk_pow` stays 18 across 600 frames;
+Defend rewrites `physical_prop`'s high byte 2 to 1 for the round. Quirks that
+read as design stay faithful: the cure spells that also restore
+agility and dexterity, and enemy paralysis clearing each turn.
+
+## Other recorded deviations
+
+- **The Menu-button credits skip is not ported.** `Cutscene_Ending`
+  (`ps4.asm:158029-158033`) lets a player holding Menu at the scene's start jump
+  to the credits; the port plays the whole ending. Recorded in
+  [REVISION_AUDIT.md](../scenes/REVISION_AUDIT.md#recorded-deviation-the-menu-button-credits-skip).
 
 ## Public reverse-engineering references used
 

@@ -2,7 +2,7 @@
 
 The case file and every capture are local evidence, not committed cartridge
 records. A successful force command is still rejected if the extracted rounds
-do not contain the requested ability or include an out-of-lane ability.
+do not contain the requested ability or include an ability outside the case's set.
 """
 from __future__ import annotations
 
@@ -104,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
                                        fixture_sha256=hashlib.sha256(output.read_bytes()).hexdigest())
                         found = True
                     else:
-                        receipt["result"] = "extracted rounds absent or include out-of-lane ability"
+                        receipt["result"] = "extracted rounds absent or include an ability outside the case's set"
                 else:
                     receipt["result"] = "extraction failed"
             (args.out / "capture-receipts.json").write_text(json.dumps(receipts, indent=2) + "\n")

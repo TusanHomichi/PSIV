@@ -126,9 +126,8 @@ fn every_page_fits_the_window_and_every_glyph_exists() {
     }
     // A census of the pack as it stands: no page line exceeds 32 characters
     // and 335 are exactly 32. If that number moves, the decoder changed shape.
-    // (`psiv_tools/dialogue_pack.py`'s module docstring says 291, which is
-    // neither the page-line count nor the 338 lines of decoded `text` -- a
-    // stale number in that lane's prose, not a defect in this data.)
+    // `psiv_tools/dialogue_pack/__init__.py`'s module docstring records the
+    // same census.
     assert_eq!(exactly_full, 335);
     assert!(lines > 9_000, "only {lines} lines?");
 }

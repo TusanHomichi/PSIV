@@ -147,7 +147,8 @@ pub fn split_rewards(roster: &Roster, pools: Pools, vehicle: bool) -> Split {
 ///    frames while strength went 8 to 9. This calls
 ///    [`Stats::update_mod_stats`] on the way out.
 ///
-/// Both are in `docs/RUNTIME_DESIGN.md` "Battle bug policy".
+/// Both are in `docs/source-notes/README.md` "Deliberate fixes to retail battle
+/// bugs".
 ///
 /// # Errors
 /// [`BattleDataError::UnknownLevelTable`] when the character has no table.

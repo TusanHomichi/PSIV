@@ -56,8 +56,9 @@ FLAG_BANKS = {
     0xF160: "town_flags",
 }
 #: The inverse, so a write can carry the bank's address beside its name. The
-#: `$F140` name is under review -- core-lane's map-load scout finds that bank
-#: carries temp event flags, not chest flags -- and an address does not move
+#: `$F140` name is under review -- the map-load reading
+#: (`rust/psiv-core/src/map_load.rs`) finds that bank carries temp event flags,
+#: not chest flags -- and an address does not move
 #: when a name does.
 FLAG_BANK_ADDRESSES = {name: address for address, name in FLAG_BANKS.items()}
 

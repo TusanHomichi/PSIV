@@ -1,13 +1,12 @@
-# Enemy abilities from the Air Castle to the Ending (lane A6)
+# Enemy abilities from the Air Castle to the Ending
 
-The evidence behind the A6 rows of [`ENEMY_ABILITIES.md`](ENEMY_ABILITIES.md):
+The evidence behind the endgame rows of [`ENEMY_ABILITIES.md`](ENEMY_ABILITIES.md):
 every enemy ability the game can meet after the Air Castle - the Climate Center,
 D.Elm Lars, Garuberk Tower and Dark Force 2, Seth's Aero Prism and Dark Force 3,
 Reshel, Rykros, Vahal Fort and the Weapon Plant, the three towers and their
 guardians, Re Faze, Elsydeon, The Edge and Profound Darkness - read out of the
-disassembly, implemented in `psiv-core` and captured on the cartridge. With this
-lane every regular and reachable conditional ability is implemented, for every
-carrier: the per-pair census (section 6) has no open pair. The census that set
+disassembly, implemented in `psiv-core` and captured on the cartridge. Every
+regular and reachable conditional ability is implemented, for every carrier: the per-pair census (section 6) has no open pair. The census that set
 the work is section 9, generated.
 
 ## 1. The stretch
@@ -26,7 +25,7 @@ explicit kind (`oracle/sweep/route_abilities.py`, `STRETCHES`):
   Garuberk Tower (Dark Force 2, `$37`/`$38` at its seventh part), the Climate
   Center (`$3E`-`$41`), Reshel (`$3D`), Island Cave and the Soldiers' Temple (the
   Aero Prism, `$57`-`$5A`), Rykros (`Cutscene_Rykros` once Dark Force 3 falls),
-  Vahal Fort and the Weapon Plant (named by the A6 scope), the three towers
+  Vahal Fort and the Weapon Plant (scenes 110 and 111), the three towers
   (`$49`-`$4C`, `$4E`, `$51`, `$52`, `$56`), the Inner Sanctuary and Elsydeon
   Cave (`$39`, `$4F`) and The Edge (`$53`, `$54`). Myst Vale (group 46) is left
   out: its only events are the Musk Cats' interactions, no story scene.
@@ -110,12 +109,12 @@ Reloads (`enemy_fusion`, the pack's inline formations): the WorkerPods' COMBINE
 InfantWorm's NOTHING (`$41`, `loc_224E8`: one SandWorm). The WorkerPods' and
 FractOoze's arms keep `$24(a4)`; InfantWorm's clears it.
 
-## 3. `$FFFFEE87`, `$FFFFEE98` and Profound Darkness (#62)
+## 3. `$FFFFEE87`, `$FFFFEE98` and Profound Darkness
 
-`$FFFFEE98` (the Zio phase counter) was already modelled from all its writers and
+`$FFFFEE98` (the Zio phase counter) is modelled from all its writers and
 readers (`battle/zio.rs`): `EnemyInit_Zio` clears it (`ps4.asm:17896`) and the
 three Zio routines read and advance it (19411-19523); no endgame routine touches
-it. Zio2's CORRSION, the issue's second carrier, has been a route since lane F3.
+it. Zio2's CORRSION is a route.
 
 `$FFFFEE87` is a latch. Every access (`battle/scripted_flag.rs`):
 
@@ -125,7 +124,7 @@ it. Zio2's CORRSION, the issue's second carrier, has been a route since lane F3.
 | read | `loc_B62A` (17448): the opening priority becomes an enemy ambush, and every enemy slot's reaction byte takes the Ambush bit (17456-17463) |
 | read, clear | the first action of `EnemyAttack_ProfoundDarkness1` (19824-19828), `_DarkForce2` (19971-19975), `_DarkForce1` (20031-20035), `_CarnivorousTree` (20102-20105) |
 
-All four first actions are modelled now (`first_action`):
+All four first actions are modelled (`first_action`):
 
 - **Profound Darkness 1** loads `$864` (`loc_30376`, 62647): a palette fade and
   the `$868` raster wave; no request, no effect call, no call to the generator.
@@ -134,8 +133,7 @@ All four first actions are modelled now (`first_action`):
 - **The carnivorous trees** load `$808` (`loc_27706`, 52501), which redraws the
   trees and sets `StatusParalyzed` on the stats of `Fighter_Enemy_1`..`3`
   (52551-52555). `FirstZioAction::TreesTakeRoot` and the three
-  `StatusInflicted` events. Before this lane the port made that turn a physical
-  swing.
+  `StatusInflicted` events, not a physical swing.
 
 The forms (`battle/enemy_form.rs`): PD1's else arm (`$67`, written by its arm 2 at
 half HP) loads `$888`, which writes ProfoundDarkness2 over `Enemy_Positions`
@@ -274,9 +272,8 @@ second table.
 ## 7. Negative controls
 
 <!-- controls:begin -->
-Each control below changed one thing, ran `every_fixture_replays_as_recorded`
-(or the census) and was restored; the log is the lane's
-`build/a6-evidence/negative-controls.log`.
+Each control below changes one thing and runs `every_fixture_replays_as_recorded`
+(or the census); the table is what each break produces.
 
 | control | result |
 |---|---|
@@ -296,16 +293,11 @@ Each control below changed one thing, ran `every_fixture_replays_as_recorded`
 
 ## 8. The route
 
-`routes/main.json` from power-on with a release `psiv-campaign` built from this
-lane's tree completes its 50 chapters in 3,852,548 frames with digest
-`c73dc6fd2919f8ef`, not the base's `29c81ae27664b15b`. The first chapter that
-differs is `dezolis-saving-kyra` (7,799 frames against 7,547): the carnivorous
-trees' battle (event 10), whose first tree to act now spends the latch on `$808`
-and paralyzes the three trees instead of swinging. That is the cartridge's turn:
-`trees.json` replays exactly with it and diverges without it (section 7). The
-control run - the same tree with only `first_action(0x81)` returned to `None` -
-completes the 50 chapters with the base's digest, `29c81ae27664b15b`, in
-3,852,511 frames, so no other change touches the route.
+The carnivorous trees' battle (event 10) is on the campaign route: the first tree
+to act spends the latch on `$808` and paralyzes the three trees instead of
+swinging, which is the cartridge's turn (`trees.json` replays exactly with it and
+diverges without it, section 7). What the route plays and where it stops are the
+[campaign runner](../campaign/CAMPAIGN_RUNNER.md)'s.
 
 ## 9. The census
 
@@ -337,14 +329,14 @@ Maps and the groups they draw
 | `0C1` | ClimCenter_F1 | Climate Center: Gy-Laguiah and D.Elm Lars ($3E-$41, scenes 64-67) | 47 | - |
 | `0C2` | ClimCenter_F2 | Climate Center: Gy-Laguiah and D.Elm Lars ($3E-$41, scenes 64-67) | 48 | - |
 | `0C3` | ClimCenter_F3 | Climate Center: Gy-Laguiah and D.Elm Lars ($3E-$41, scenes 64-67) | 48 | - |
-| `0C4` | WeaponPlant | Vahal Fort and the Weapon Plant (named by the A6 scope) | 50 | - |
-| `0C5` | WeaponPlant_F1 | Vahal Fort and the Weapon Plant (named by the A6 scope) | 50 | - |
-| `0C6` | WeaponPlant_F2 | Vahal Fort and the Weapon Plant (named by the A6 scope) | 51 | - |
-| `0C7` | WeaponPlant_F3 | Vahal Fort and the Weapon Plant (named by the A6 scope) | 51 | - |
-| `0C8` | VahalFort | Vahal Fort and the Weapon Plant (named by the A6 scope) | 58 | - |
-| `0C9` | VahalFort_F1 | Vahal Fort and the Weapon Plant (named by the A6 scope) | 58 | - |
-| `0CA` | VahalFort_F2 | Vahal Fort and the Weapon Plant (named by the A6 scope) | 59 | - |
-| `0CB` | VahalFort_F3 | Vahal Fort and the Weapon Plant (named by the A6 scope) | 59 | - |
+| `0C4` | WeaponPlant | Vahal Fort and the Weapon Plant (scenes 110 and 111) | 50 | - |
+| `0C5` | WeaponPlant_F1 | Vahal Fort and the Weapon Plant (scenes 110 and 111) | 50 | - |
+| `0C6` | WeaponPlant_F2 | Vahal Fort and the Weapon Plant (scenes 110 and 111) | 51 | - |
+| `0C7` | WeaponPlant_F3 | Vahal Fort and the Weapon Plant (scenes 110 and 111) | 51 | - |
+| `0C8` | VahalFort | Vahal Fort and the Weapon Plant (scenes 110 and 111) | 58 | - |
+| `0C9` | VahalFort_F1 | Vahal Fort and the Weapon Plant (scenes 110 and 111) | 58 | - |
+| `0CA` | VahalFort_F2 | Vahal Fort and the Weapon Plant (scenes 110 and 111) | 59 | - |
+| `0CB` | VahalFort_F3 | Vahal Fort and the Weapon Plant (scenes 110 and 111) | 59 | - |
 | `0F2` | StrengthTower | the three towers: De Vars and Sa Lews at the tops ($49-$4C), the Alys fight and Re Faze ($4E, $51, $52, $56; scenes 75-81, 85-86) | 61 | - |
 | `0F3` | StrengthTower_F1 | the three towers: De Vars and Sa Lews at the tops ($49-$4C), the Alys fight and Re Faze ($4E, $51, $52, $56; scenes 75-81, 85-86) | 61 | - |
 | `0F4` | StrengthTower_F2 | the three towers: De Vars and Sa Lews at the tops ($49-$4C), the Alys fight and Re Faze ($4E, $51, $52, $56; scenes 75-81, 85-86) | 62 | - |

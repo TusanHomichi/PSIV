@@ -5,7 +5,8 @@ and where they sit in a chunk. The rest needs the cartridge, so the ROM-backed
 half builds a one-map pack for Piata: the town whose palm crowns, dome roofs
 and wall top course are the case that found the bug this overlay fixes. How
 the *pack* reports an overlay -- the `png_over` field, the null case, the
-manifest counts -- stays in `test_pack.py` with the rest of the emission.
+manifest counts -- stays in `test_pack_maps.py` and `test_pack_manifest.py` with the rest of the
+emission.
 """
 
 import struct

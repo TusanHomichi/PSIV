@@ -2,17 +2,21 @@
 
 [Project overview](../README.md) · [Documentation index](README.md)
 
-For agent-assisted contributions, read [AGENTS.md](../AGENTS.md) and the
-[agent workflow](AGENT_WORKFLOW.md) before choosing a verification run.
+This guide is developer setup and the checks. Playing needs less: the
+[quick start](../README.md#quick-start-linux) covers the ROM check, the
+prerequisites and the commands to build and start the game.
 
 ## Current environment
 
 This section owns the toolchain versions. The committed GDExtension library
 paths target Linux x86-64, and the Steam Deck build is the same Linux target
 (see [package for the Steam Deck](#package-for-the-steam-deck)). The supported
-Godot version is **4.7.1**, with a 1280×800 viewport. Python 3.10 or newer;
-Rust with edition 2024. Supported platforms are a [roadmap](ROADMAP.md)
-decision.
+Godot version is the one [`.godot-version`](../.godot-version) pins (a standard
+build), with a 1280×800 viewport. Python 3.10 or newer. Rust is the toolchain
+[`rust-toolchain.toml`](../rust-toolchain.toml) pins, with edition 2024; rustup
+reads that file and installs the toolchain on first use. Each file is the
+version's one owner, so a version bump is a one-line change there. Supported
+platforms are a [roadmap](ROADMAP.md) decision.
 
 The extraction tools use Python's standard library. Pixel-comparison scripts
 also use Pillow and NumPy, and `tools/check_docs.py` uses PyYAML to parse the
@@ -23,14 +27,23 @@ documents' `yaml` blocks. Native automated checks on Linux use Xvfb.
 From the repository root:
 
 ```bash
-git clone --depth 1 https://github.com/alechenninger/ps4disasm reference/ps4disasm
+git clone https://github.com/alechenninger/ps4disasm reference/ps4disasm
+git -C reference/ps4disasm checkout --detach 5d8dcb56943d2d9430b702950daab4436fb109e8
 ./oracle/build_core.sh
 python3 -m psiv_tools inspect "/path/to/Phantasy Star IV (USA).md"
 python3 -m psiv_tools pack "/path/to/Phantasy Star IV (USA).md" runtime-pack
 ```
 
-`./oracle/build_core.sh` fetches the pinned emulation core into the ignored
-`oracle/gpgx-src/` (it needs `git`, GNU `patch` and a C toolchain).
+The disassembly is a research reference: the tests, the oracle and the
+documents cite it, and the pack does not read it. The commit above is the one
+the citations were checked against. `inspect` prints the ROM's verified SHA-256
+and refuses any other image; the ROM is an argument to both commands and can
+live anywhere.
+
+`./oracle/build_core.sh` fetches Genesis Plus GX at its pinned commit
+`2d7131c5efa606f649d36e1685a8ca47c24f31b3` into the ignored `oracle/gpgx-src/`,
+applies `oracle/patches/` and builds the oracle's core (it needs `git`, GNU
+`patch`, `make` and a C toolchain).
 `psiv-sound`'s build script compiles the core's sound-chip sources from there,
 so every Rust build that includes `psiv-godot` or the whole workspace needs it
 first.
@@ -69,22 +82,28 @@ Close any running PSIV/Godot instance before rebuilding its loaded extension.
 
 ```bash
 cargo build --manifest-path rust/Cargo.toml -p psiv-godot
-PSIV_SAVE_DIR="$PWD/saves" godot --path godot
+python3 tools/godot.py prepare
+PSIV_SAVE_DIR="$PWD/saves" "$(python3 tools/godot.py)" --path godot
 ```
 
-Here `godot` means your Godot executable. The explicit save directory makes
+`python3 tools/godot.py prepare` writes the project's extension index,
+`godot/.godot/extension_list.cfg`, which Godot's editor import would write and
+Git ignores; without it a fresh clone starts on a black screen ("Cannot get
+class 'Field'"). It does nothing once the index lists the game's extension. The explicit save directory makes
 the example independent of a machine's default save location. Use the title
 menu for START/CONTINUE and camp STATE → SAVE for normal persistence.
 
-`godot/run.sh` is a local convenience launcher with build/launch locking.
-It currently expects `~/.local/bin/psiv-godot-4.7.1`, `rg` and `flock`;
-the commands above let you use another executable path.
+`godot/run.sh` is a local convenience launcher with build/launch locking; it
+needs `rg` and `flock`.
 
-`PSIV_GODOT` names the Godot executable for the scripted tools
-(`tools/certify.py`, `tools/verify_native_tape.py`) and for the capture
-commands in the subsystem documents, which write it as `"$PSIV_GODOT"`. The
-tools default to `~/.local/bin/psiv-godot-4.7.1` when it is unset; set it once
-in your shell for the documents' commands.
+`PSIV_GODOT` names the Godot executable; when it is unset, `godot` on `PATH`
+is used. `tools/godot.py` is the one lookup: it prints the executable, or
+refuses one that does not report the version pinned in `.godot-version` or is
+not a `stable` build (`python3 tools/godot.py` checks your setup). `godot/run.sh`
+and `tools/package/deploy-deck.sh`, `tools/certify.py` and
+`tools/verify_native_tape.py` ask it, and the three that start the game run its
+`prepare` step first. The capture commands in the subsystem
+documents write it as `"$PSIV_GODOT"`; set it once in your shell.
 
 For campaign tape replay through the native game, use
 `tools/verify_native_tape.py`; for a whole `psiv-campaign run`,
@@ -111,18 +130,33 @@ The keyboard and controller bindings are listed in the
 
 `tools/package/deploy-deck.sh` builds the release extension with
 `cargo zigbuild` against the Deck's glibc (a plain build links the host's newer
-symbol versions and the Deck refuses to load it), exports the Godot project's
-`Linux-SteamDeck` preset to `build/deck/`, stages the executable with a copy of
+symbol versions and the Deck refuses to load it), prepares the project
+(`python3 tools/godot.py prepare`), exports its `Linux-SteamDeck` preset to
+`build/deck/` (the full export log is `build/deck-export.log`; a failed export
+stops the script), stages the executable with a copy of
 `runtime-pack/` beside it (an exported build looks for the pack next to the
 executable), and copies the stage to `~/psiv` on the Deck with `rsync` over SSH.
-It needs SSH key access to the Deck and, as written, `cargo-zigbuild` and
-Godot under `~/.local/bin`. On the Deck, add `~/psiv/psiv.x86_64` as a
-non-Steam game.
+It needs:
+
+- SSH key access to the Deck;
+- [zig](https://ziglang.org/) and `cargo-zigbuild` (`cargo install
+  cargo-zigbuild`), on `PATH` or under `~/.local/bin`, which the script adds;
+- the Godot that `tools/godot.py` resolves, with the Linux export templates of
+  the same version installed (the editor's Export Template Manager, or the
+  templates file from the [download archive](https://godotengine.org/download/archive/)).
+
+On the Deck, add `~/psiv/psiv.x86_64` as a non-Steam game.
+
+## Working with agents
+
+Agent-assisted contributions read [AGENTS.md](../AGENTS.md) and the
+[agent workflow](AGENT_WORKFLOW.md) before choosing a verification run.
 
 ## Run checks
 
-For the complete Python suite, place the supported image at the repository
-root as `Phantasy Star IV (USA).md` and prepare the disassembly and full pack.
+The complete Python suite reads the ROM from a fixed place: put the supported
+image at the repository root as `Phantasy Star IV (USA).md` (a copy or a
+symbolic link; Git ignores it), and prepare the disassembly and the full pack.
 The battle-art emission tests also need the ignored indexed PNGs named by
 `oracle/fixtures/battle_animation_remainder.json` under
 `oracle/fixtures/battle_animation_art/` (184 in the current receipt). A missing
@@ -136,22 +170,37 @@ The documentation check needs no local inputs. From the root:
 python3 tools/check_docs.py
 PYTHONPATH=. python3 -m unittest discover -s tests
 cargo fmt --manifest-path rust/Cargo.toml --all --check
-CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml --workspace -- --test-threads=1
-CARGO_BUILD_JOBS=1 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
+cargo test --manifest-path rust/Cargo.toml --workspace
+cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
 ```
 
 Run these sequentially: `python3 tools/gate.py` runs exactly this list, in
 order, from one entry point and writes a receipt
 ([Gate and coverage](#gate-and-coverage)). The Python suite is most of the
-gate's time. Serial Rust tests keep one pack-loading case in memory at a time.
-`rust/Cargo.toml`'s `[profile.test]` builds tests at `opt-level = 1` with
-overflow checks and debug assertions kept on (`psiv-core/tests/build_profile.rs`
-fails if either is turned off; `tests/test_build_profiles.py` holds the dev
-profile to the same). The workspace suite took 111 s on a warm build (AC, CPU
-capped at 2.3 GHz, 2026-10-15), against 1150 s before the change; the gate's
-`cargo test` stage, compile included, took 158.7 s on battery under the same
-cap. Tests requiring local assets may fail or explicitly skip when
-their fixtures are absent; report that distinction with the result.
+gate's time. The gate runs every command with `CARGO_BUILD_JOBS` and
+`RUST_TEST_THREADS` set to the cores available, capped at 8
+(`GATE_MEASURED_PARALLELISM` in `tools/gate.py`), and its receipt records both.
+Eight is the configuration measured to fit the exclusive class the gate holds:
+its largest peak, a cold `cargo test --workspace --no-run` at 8 jobs (4,979 MB
+tree RSS on the 8-core host, [the table](#heavy-run-lock)), leaves 39% of the
+class's 16 units (8,192 MB) free, above the sizing rule's 15%, and the built
+suite peaks at 364 MB on 8 threads. Cargo's own defaults grow with the core
+count and the budget does not, so raising the cap takes a new measurement at
+the higher count. To repeat the gate's cargo steps by hand, set the same two
+variables. Tests in one binary run on
+parallel threads, so a test's scratch directory is keyed by process and by call
+(`tests/test_rust_temp_paths.py` checks every `temp_dir()`
+under `rust/`). `rust/Cargo.toml`'s `[profile.test]` builds tests at
+`opt-level = 1` with overflow checks and debug assertions kept on
+(`psiv-core/tests/build_profile.rs` fails if either is turned off;
+`tests/test_build_profiles.py` holds the dev profile to the same). The built
+workspace suite took 47 s on 8 threads against 133 s on one (2026-10-18, mean
+clock 2.7 and 2.5 GHz); cargo runs its 57 test binaries one after another, and
+the `psiv-runtime` unit tests (16 s) and `psiv-campaign`'s `validator` (11 s)
+are most of what is left. After touching `psiv-core`, the two cargo steps took
+76 s together against 182 s at one job and one thread. Tests requiring local
+assets may fail or explicitly skip when their fixtures are absent; report that
+distinction with the result.
 `build_pack` replays the map-independent sections an earlier build in the same
 process emitted from the same ROM; a test that patches an emitter's dependency,
 or compares two builds, builds inside `psiv_tools.pack_sections.fresh()`.
@@ -163,16 +212,19 @@ in order, with the same receipt format (`tier: "fast"`, directory suffix
 ```bash
 python3 tools/check_docs.py
 cargo fmt --manifest-path rust/Cargo.toml --all --check
-CARGO_BUILD_JOBS=1 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
+cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
 PYTHONPATH=. python3 tools/gate.py --quick-unittest
-CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml --workspace -- --test-threads=1
+cargo test --manifest-path rust/Cargo.toml --workspace
 ```
 
 `--quick-unittest` is the full gate's `unittest discover -s tests` minus the
 modules in `SLOW_PYTHON_MODULES` (`tools/gate.py`), which lists each one with
 its measured seconds. A new test module joins the fast tier unless it is added
 there. The fast tier is a commit check, not a gate result: integration still
-needs the full gate.
+needs the full gate. It took 160 s on a warm target and 189 s after touching
+`psiv-core`, against 254 s and 291 s at one job and one thread (2026-10-18,
+receipts `20261018T090024Z` and `20261018T085042Z`); `--quick-unittest`, about
+112 s at one Python process, is now most of it.
 
 ### Gate and coverage
 
@@ -181,8 +233,12 @@ The gate is `python3 tools/gate.py`, run from the root. It runs exactly the five
 commands above, in order, with the env prefixes and flags written there, and
 writes one log per command plus `receipt.json` under
 `build/gate/<UTC stamp>-<short sha>/`: the candidate SHA, whether the tree was
-dirty and its `git status --porcelain` paths, and each command's string, UTC
-start and end, duration, exit code, log path and parsed counts. Report a gate
+dirty and its `git status --porcelain` paths, the cores it could use
+(`cpu_count`), the `cargo_build_jobs` and `rust_test_threads` it set, and each
+command's string, UTC start and end, duration, exit code, CPU clock and
+highest 1-minute load average while it ran (`cpu_mhz` and `load_1m_max`,
+sampled every second; the heavy lock does not exclude unlocked headless runs,
+so a slow step is read beside its load), log path and parsed counts. Report a gate
 result from that receipt, not from a retyped summary. The gate refuses to start
 (exit 2, nothing run) while another gate holds the gate lock or while a
 process has the debug PSIV extension mapped
@@ -211,8 +267,9 @@ itself (`PSIV_HEAVY_LOCK` overrides it); then `gate.py --wait`, with one receipt
 same commit: `python3 tools/resume_check.py --evaluate <check dir>` re-judges a
 finished check against an edited manifest without running it again. When it
 runs is set by the [verification tiers](#verification-tiers). Reporting a gate result means
-those commands; a subset, a different `CARGO_BUILD_JOBS`, parallel test threads
-or a per-crate run is a focused check and is reported as one. The gate does not
+those commands, at the gate's jobs and threads; a subset, another
+`CARGO_BUILD_JOBS` or test-thread count, or a per-crate run is a focused check
+and is reported as one. The gate does not
 cover:
 
 - tests skipped for a missing ROM, disassembly or full pack: a checkout without
@@ -291,7 +348,10 @@ desktop, the agent sessions, unlocked headless runs and any job that peaks
 above its measurement. One run each, 2026-10-16, on the 8-core 13.5 GB host on
 AC with the CPU capped at 2.3 GHz (`bios_limit` 2300000); `/usr/bin/time -v`
 reports the largest single process. Rows marked 0.1 s sampled the tree every
-0.1 s at `4abbbc2`; the others every 0.2 s at `20a76de`:
+0.1 s at `4abbbc2`; the others every 0.2 s at `20a76de`. Rows marked #157 were
+measured 2026-10-18 at `0c64b19`, sampled every 0.1 s, on AC with the CPU
+uncapped (boosting to 3.9 GHz); each names its mean live clock
+(`/proc/cpuinfo`) and has no `time -v` figure:
 
 | Job | Wall | Tree peak RSS | `time -v` max RSS | Pack | Class |
 | --- | ---: | ---: | ---: | --- | --- |
@@ -305,7 +365,9 @@ reports the largest single process. Rows marked 0.1 s sampled the tree every
 | `cargo test --workspace --exclude psiv-godot --no-run`, cold, 0.1 s | 255 s | **2,964 MB** | 900 MB | - | `build` (sizes it) |
 | `cargo clippy --workspace --all-targets`, cold, 0.1 s | 90 s | 2,560 MB | 1,984 MB | - | `build` |
 | `cargo build --release -p psiv-campaign`, cold, 0.1 s | 92 s | 974 MB | 627 MB | - | `build` |
-| `cargo test --workspace --no-run`, default jobs | 165 s | 3,050 MB | 887 MB | - | `exclusive` (compiles `psiv-godot`) |
+| `cargo test --workspace --no-run`, cold, default jobs (8), #157, 2.8 GHz | 191 s | **4,979 MB** | - | - | `exclusive` (the gate's peak) |
+| the same, `CARGO_BUILD_JOBS=4`, #157, 2.6 GHz | 216 s | 3,999 MB | - | - | `exclusive` |
+| the same, `CARGO_BUILD_JOBS=1`, #157, 2.5 GHz | 583 s | 2,824 MB | - | - | `exclusive` |
 | `cargo clippy --workspace --all-targets`, warm | 25 s | 1,762 MB | 525 MB | - | `build` |
 | `cargo test -p psiv-data`, built | 5 s | 291 MB | 199 MB | reads | `build` |
 | `cargo test -p psiv-core`, built | 2 s | 263 MB | 133 MB | reads | `build` |
@@ -313,7 +375,11 @@ reports the largest single process. Rows marked 0.1 s sampled the tree every
 | `cargo test -p psiv-sound`, built | 1 s | 36 MB | 77 MB | none | `build` |
 | `cargo test -p psiv-godot`, built | 5 s | 63 MB | 33 MB | reads | `exclusive` (compiles `psiv-godot`) |
 | `cargo test -p psiv-campaign`, built | 38 s | 149 MB | 118 MB | reads | `build` |
-| the gate's workspace `cargo test`, built | 123 s | 292 MB | 199 MB | reads | `exclusive` (the gate) |
+| the workspace `cargo test --test-threads=1`, built (the gate before #157) | 123 s | 292 MB | 199 MB | reads | `exclusive` (the gate) |
+| the gate's workspace `cargo test`, built, default threads (8), #157, 2.7 GHz | 47 s | 364 MB | - | reads | `exclusive` (the gate) |
+| the same, `--test-threads=4`, #157, 2.8 GHz | 53 s | 305 MB | - | reads | `exclusive` |
+| the same, `--test-threads=2`, #157, 2.6 GHz | 78 s | 305 MB | - | reads | `exclusive` |
+| the same, `--test-threads=1`, #157, 2.5 GHz | 133 s | 305 MB | - | reads | `exclusive` |
 | the Python suite (`unittest discover -s tests`, 1,648 tests) | 229 s | 815 MB | 813 MB | reads | `python` |
 | a full pack build (`python3 -m psiv_tools pack`) | 47 s | 129 MB | 130 MB | writes | `exclusive` |
 | one certify pair (`--only battle-0x88 --jobs 1`, Godot and Xvfb) | 8 s | 418 MB | 340 MB | reads | `godot` |

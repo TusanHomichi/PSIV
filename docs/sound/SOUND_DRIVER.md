@@ -1,4 +1,4 @@
-# PSIV sound architecture scout
+# The sound driver
 
 Retail research recorded 2026-08-16. The native driver/core path is now
 implemented in `psiv-sound`; see [sound extraction](SOUND_EXTRACTION.md) and
@@ -71,7 +71,7 @@ extract.
 | `0xD1A3E` | `00 00 00 01 00 02 00 03 00 04 00 05 01 00 00 07` | Z80 DAC sound-to-bank lookup | `sound/Pointers.txt:6-10`, `sound/ps4.dac_driver.asm:509-526` |
 | `0xE0000` | `50 80 50 0C 50 80 50 0C A0 8C A0 04 A0 8C A0 04` | First DAC bank's 8-byte sample records | `sound/Notes.txt`, `sound/ps4.sound_driver.asm` bank section |
 
-`docs/source-notes/disassembly-discrepancies.md` and the existing battle scout establish the clone-drift
+`docs/source-notes/disassembly-discrepancies.md` and [the battle rules](../battle/BATTLE_RULES.md) establish the clone-drift
 rule: `loc_XXXXX` labels are retail addresses when their bytes match the
 cartridge; generated inline comments such as `;0x0 (0x0000...)` are fork
 build addresses and can drift. This report cites labels and retail offsets,
@@ -469,7 +469,7 @@ That ordering prevents “the WAV sounds close” from masking a broken driver.
 
 - [`docs/source-notes/README.md`](../source-notes/README.md) — retail SHA, clone provenance, and
   byte/signature policy.
-- [`docs/battle/BATTLE_SCOUT.md`](../battle/BATTLE_SCOUT.md) — explicit label-versus-generated-
+- [`docs/battle/BATTLE_RULES.md`](../battle/BATTLE_RULES.md) — explicit label-versus-generated-
   comment drift warning.
 - [`docs/RUNTIME_DESIGN.md`](../RUNTIME_DESIGN.md) — runtime-pack provenance and
   never-commit rule.

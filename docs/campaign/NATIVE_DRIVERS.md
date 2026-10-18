@@ -11,14 +11,17 @@ it, and whether it stays in `tools/native/`.
 
 ## The rule behind the decisions
 
+The retired drivers were removed in commit 138da9f; `git show
+138da9f^:tools/native/<name>.gd` prints one.
+
 A driver is **retired** when it plays a stretch of the story route the tape
 plays: the tape replays the same pads from New Game and its chapter saves
 (party, stats, equipment, inventory, purse, flags, map, cell) match the native
 game's bytes, which is a stronger state check than the driver's own
 assertions. Ten of the twelve retired drivers are named as sources in
 `rust/psiv-campaign/routes/main.json`, which was transcribed from them; the other
-two are variants of a named one (`native_alshline_retreat.gd` of
-`native_alshline.gd`, `native_bioplant_recovery.gd` of `native_bioplant.gd`).
+two are variants of a named one (`native_alshline_retreat` of
+`native_alshline`, `native_bioplant_recovery` of `native_bioplant`).
 
 A driver is **kept** when it starts from an isolated fixture or a debug
 selector and exercises a branch the route never presses (a cancel, an undo, a
@@ -42,18 +45,18 @@ Chapters are the 50 of `routes/main.json` at digest `40c7f505ecc5c357`
 
 | Driver | What it proved | Covering chapter | Decision |
 | --- | --- | --- | --- |
-| `native_route.gd` | One START, Piata and the Academy on foot, conversations, Igglanova's battle through the menu, the way out to Motavia | `academy` (0): 32,308 frames, 4 battles, the scripted Igglanova fight | Retired. It also took a camp SAVE and captured PNGs at fixed legs; the route SAVEs from chapter 1 on and the replay takes no per-leg capture |
-| `native_motavia.gd` | CONTINUE from the Academy save, camp RES recovery, the way to Holt and Holt's conversation | `holt` (1) | Retired. Its CONTINUE half is the per-chapter probe |
-| `native_tonoe.gd` | Holt to Rune and Dorin, the paid inn, the Dorin YES/NO prompts, Gryz joining | `rune-dorin` (2) | Retired |
-| `native_alshline.gd` | Gryz's door, the basement, the Alshline chest, an ordinary SAVE back in town | `alshline` (4); the chest is the route's first `open_chest`. The grinding of `basement-training` (3) is the route's own addition | Retired |
-| `native_alshline_retreat.gd` | The same quest using RUN on random encounters | The `run_unless_boss` policy of `rune-dorin` (2), `alshline` (4) and `zema-rescue` (5) presses RUN from the battle menu | Retired |
-| `native_zema_return.gd` | Rest, back through the pass, Zema's rescue boss, the post-battle conversation, SAVE | `zema-rescue` (5) | Retired. Not carried: the resident-palette, 50-page and Igglanova-entrance observations (see the gaps below) |
-| `native_zema_outfit.gd` | Purchases at two counters with exact prices, equipping through the camp, a paid rest, SAVE | `zema-outfit` (6): 6 buys, 7 equips, one `rest_inn` | Retired. Not carried: the hand-selector cancel check (see the gaps below) |
-| `native_zema_training.gd` | Birth Valley battles and paid Zema rests to a target level | `zema-training` (7), policy `train_with_inn` | Retired |
-| `native_zema_armour.gd` | Carbon suits bought and equipped for Alys and Chaz | `zema-armour` (8) | Retired |
-| `native_bioplant.gd` | The BioPlant doors, elevators, encounters, poison cures and dialogue to Rika, with the alarm palette captures | `bioplant-elevators` (9), `bioplant-rika` (11), policy `bioplant_survival` | Retired. Not carried: the alarm captures `verify_native_alarm.py` reads |
-| `native_bioplant_recovery.gd` | One BioPlant encounter, normal recovery, SAVE | `bioplant-elevators` (9): 4 battles, each followed by the camp recovery | Retired |
-| `native_post_rika.gd` | Zema's inn, then the opened northern crossing to the bank | `north-bank` (12) | Retired |
+| `native_route` | One START, Piata and the Academy on foot, conversations, Igglanova's battle through the menu, the way out to Motavia | `academy` (0): 32,308 frames, 4 battles, the scripted Igglanova fight | Retired. It also took a camp SAVE and captured PNGs at fixed legs; the route SAVEs from chapter 1 on and the replay takes no per-leg capture |
+| `native_motavia` | CONTINUE from the Academy save, camp RES recovery, the way to Holt and Holt's conversation | `holt` (1) | Retired. Its CONTINUE half is the per-chapter probe |
+| `native_tonoe` | Holt to Rune and Dorin, the paid inn, the Dorin YES/NO prompts, Gryz joining | `rune-dorin` (2) | Retired |
+| `native_alshline` | Gryz's door, the basement, the Alshline chest, an ordinary SAVE back in town | `alshline` (4); the chest is the route's first `open_chest`. The grinding of `basement-training` (3) is the route's own addition | Retired |
+| `native_alshline_retreat` | The same quest using RUN on random encounters | The `run_unless_boss` policy of `rune-dorin` (2), `alshline` (4) and `zema-rescue` (5) presses RUN from the battle menu | Retired |
+| `native_zema_return` | Rest, back through the pass, Zema's rescue boss, the post-battle conversation, SAVE | `zema-rescue` (5) | Retired. Not carried: the resident-palette, 50-page and Igglanova-entrance observations (see the gaps below) |
+| `native_zema_outfit` | Purchases at two counters with exact prices, equipping through the camp, a paid rest, SAVE | `zema-outfit` (6): 6 buys, 7 equips, one `rest_inn` | Retired. Not carried: the hand-selector cancel check (see the gaps below) |
+| `native_zema_training` | Birth Valley battles and paid Zema rests to a target level | `zema-training` (7), policy `train_with_inn` | Retired |
+| `native_zema_armour` | Carbon suits bought and equipped for Alys and Chaz | `zema-armour` (8) | Retired |
+| `native_bioplant` | The BioPlant doors, elevators, encounters, poison cures and dialogue to Rika, with the alarm palette captures | `bioplant-elevators` (9), `bioplant-rika` (11), policy `bioplant_survival` | Retired. Not carried: the alarm captures `verify_native_alarm.py` reads |
+| `native_bioplant_recovery` | One BioPlant encounter, normal recovery, SAVE | `bioplant-elevators` (9): 4 battles, each followed by the camp recovery | Retired |
+| `native_post_rika` | Zema's inn, then the opened northern crossing to the bank | `north-bank` (12) | Retired |
 
 ### Kept: isolated fixtures, branches the route never presses, captures
 
@@ -85,7 +88,7 @@ Chapters are the 50 of `routes/main.json` at digest `40c7f505ecc5c357`
 | Driver | What it proved | Covering chapter | Why it is still here |
 | --- | --- | --- | --- |
 | `native_opening.gd` | One Up press after the auto-acknowledged opening has returned control | `academy` (0) covers the state: it starts from START and the first pad is the first gameplay frame | It also takes the rendered first-control capture at frame 3360, which the tape replay cannot take until it captures at chosen frames ([#93](https://github.com/TusanHomichi/PSIV/issues/93)) |
-| `verify_native_alarm.py` | The BioPlant alarm palette ramp and its four-frame cadence in captured PNGs | None. Its only producer, `native_bioplant.gd`, is retired and the tape takes no mid-run capture | Its comparison is the check [#93](https://github.com/TusanHomichi/PSIV/issues/93) feeds from frame-addressed tape captures. Until then it has no producer, and the alarm check is suspended |
+| `verify_native_alarm.py` | The BioPlant alarm palette ramp and its four-frame cadence in captured PNGs | None. Its only producer, `native_bioplant`, is retired and the tape takes no mid-run capture | Its comparison is the check [#93](https://github.com/TusanHomichi/PSIV/issues/93) feeds from frame-addressed tape captures. Until then it has no producer, and the alarm check is suspended |
 
 ### Running the opening capture
 
@@ -124,9 +127,9 @@ These were proved by a retired driver and are carried by nothing today:
   above is the casualty. Capturing at named frames in `native_tape.gd` would
   restore all of them ([#93](https://github.com/TusanHomichi/PSIV/issues/93)).
 - **Resident palette, 50 dialogue pages and Igglanova's visible entrance**
-  (`native_zema_return.gd`): presentation observations of the Zema rescue
+  (`native_zema_return`): presentation observations of the Zema rescue
   ([#93](https://github.com/TusanHomichi/PSIV/issues/93)).
-- **The equipment hand-selector cancel** (`native_zema_outfit.gd`): cancelling
+- **The equipment hand-selector cancel** (`native_zema_outfit`): cancelling
   the hand choice mutates neither equipment nor inventory. `suites::camp_equipment`
   covers the accepted path only ([#121](https://github.com/TusanHomichi/PSIV/issues/121)).
 - **Per-chapter replay.** A chapter cannot be replayed alone, because a save

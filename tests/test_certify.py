@@ -12,6 +12,7 @@ servers when Xvfb is installed.
 """
 import contextlib
 import hashlib
+import inspect
 import io
 import json
 import os
@@ -274,6 +275,14 @@ class RunCapturesTest(unittest.TestCase):
         self.assertEqual(self.started, ["pair-4550"])  # the rest never started
         self.assertEqual(results, {})
 
+    def test_the_capture_is_always_passed(self):
+        """`capture` needs the resolved Godot, so no default `take` could run."""
+        parameters = inspect.signature(certify.run_captures).parameters
+        self.assertIs(parameters["take"].default, inspect.Parameter.empty)
+        self.assertIs(parameters["display"].default, inspect.Parameter.empty)
+        self.assertIs(inspect.signature(certify.capture).parameters["godot"].default,
+                      inspect.Parameter.empty)
+
     def test_no_more_workers_than_tasks(self):
         certify.run_captures(self.TASKS[:2], 3, self.receipt, self.display, self.take())
         self.assertEqual(len(self.opened), 2)
@@ -381,19 +390,35 @@ class MainLocksTest(unittest.TestCase):
         self.holds.append((lock_class, slots))
         yield Hold(self.tmp / "heavy.lock", lock_class, slots, nested=False)
 
-    def run_main(self, argv, slots="3", interrupt_after=None):
+    def run_main(self, argv, slots="3", interrupt_after=None, godot=Path("godot"),
+                 prepare_error=None):
         frame = self.tmp / "frame.png"
         frame.write_bytes(b"f")
 
-        def captures(tasks, jobs, receipt, results):
+        def captures(tasks, jobs, receipt, display, take, results):
             self.jobs = jobs
+            self.take = take
             for count, (name, _, _) in enumerate(tasks):
                 if count == interrupt_after:
                     raise KeyboardInterrupt
                 results[name] = (frame, 0, 0.0)
             return results
 
+        def resolve():
+            if isinstance(godot, Exception):
+                raise godot
+            return godot
+
+        def prepare(project):
+            self.prepared.append(project)
+            if isinstance(prepare_error, Exception):
+                raise prepare_error
+            return True
+
+        self.prepared = []
         with mock.patch.object(certify, "hold_heavy_lock", self.hold), \
+                mock.patch.object(certify, "resolve_godot", resolve), \
+                mock.patch.object(certify, "prepare_godot", prepare), \
                 mock.patch.dict(os.environ, {"PSIV_GODOT_SLOTS": slots}), \
                 mock.patch.object(certify, "loaded_extension_pids", return_value=[]), \
                 mock.patch.object(certify.subprocess, "run",
@@ -436,10 +461,29 @@ class MainLocksTest(unittest.TestCase):
         receipt = json.loads((self.tmp / "receipt" / "certify.json").read_text())
         self.assertIsNone(receipt["interrupted"])
 
+    def test_godot_is_resolved_once_and_the_project_prepared_before_captures(self):
+        code, out = self.run_main(["--no-build", "--only", "title"], godot=Path("/x/godot"))
+        self.assertEqual(code, 0, out)
+        self.assertEqual([project.name for project in self.prepared], ["godot"])
+        self.assertEqual(self.take.keywords, {"godot": Path("/x/godot")})
+
+    def test_a_project_that_cannot_be_prepared_is_refused(self):
+        error = certify.GodotError("cannot write godot/.godot/extension_list.cfg: denied")
+        code, out = self.run_main(["--no-build", "--only", "title"], prepare_error=error)
+        self.assertEqual(code, 2)
+        self.assertIn("certify: refused, cannot write godot/.godot/extension_list.cfg", out)
+
     def test_more_jobs_than_slots_is_refused_before_any_lock(self):
         code, out = self.run_main(["--jobs", "4"], slots="3")
         self.assertEqual(code, 2)
         self.assertIn("slot cap is 3", out)
+        self.assertEqual(self.holds, [])
+
+    def test_a_missing_or_wrong_godot_is_refused_before_any_lock(self):
+        error = certify.GodotError("/x/godot is Godot 4.6.1; PSIV needs 4.7.1 (.godot-version)")
+        code, out = self.run_main(["--only", "title"], godot=error)
+        self.assertEqual(code, 2)
+        self.assertIn("certify: refused, /x/godot is Godot 4.6.1", out)
         self.assertEqual(self.holds, [])
 
 

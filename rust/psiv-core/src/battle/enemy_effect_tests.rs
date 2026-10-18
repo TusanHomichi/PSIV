@@ -749,7 +749,7 @@ fn shadowbind_sets_agility_from_the_modified_value_on_every_slot_that_lands() {
 fn the_zelan_pairs_are_routes_only_for_their_own_carriers() {
     let data = data();
     // 57 Mistralgec's own list does not make SLEEP GAS a route. (58 FlameNewt
-    // shares POISONMIST's arm and object; lane A6 captured it and routed it.)
+    // shares POISONMIST's arm and object; it is captured and routed.)
     for (enemy_id, ability) in [(57u16, 37u8), (63, 36), (138, 36), (77, 75)] {
         let mut r = roster(&data, 1, 77, 1);
         r.get_mut(id(6)).unwrap().stats.enemy_id = enemy_id;

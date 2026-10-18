@@ -1,8 +1,7 @@
 # NPC wander: how the cartridge's townsfolk move
 
-Scouted 2026-08-16 (core-lane) from `reference/ps4disasm`, cross-checked
-against `runtime-pack/npc_commands.json` (overworld-lane's extraction of the
-same tables). Written to the `../battle/BATTLE_SCOUT.md` standard: routine labels are
+Read from `reference/ps4disasm`, cross-checked against
+`runtime-pack/npc_commands.json` (the extractor's reading of the same tables). Written to the `../battle/BATTLE_RULES.md` standard: routine labels are
 retail and load-bearing, **inline comments in the clone drift and are not
 evidence**. Everything below is the instruction stream.
 
@@ -36,13 +35,13 @@ unreproducible.
 
 That means **cartridge NPC positions are bit-exactly reproducible** given the
 same seed and the same frame cadence. Nothing about wander needs the "which
-substitute generator" decision that `../battle/BATTLE_SCOUT.md` §16.1 leaves open.
+substitute generator" decision that `../battle/BATTLE_RULES.md` §16.1 leaves open.
 
 ## The per-frame tick structure — and what wander is *not*
 
-Oracle-lane measured exactly **two `UpdateRNGSeed` calls per frame in field
-mode**, with the second disappearing while a menu is open, and asked whether
-that second call is the NPC update. **It is not.** The two per-frame calls are:
+The oracle measures exactly **two `UpdateRNGSeed` calls per frame in field
+mode**, with the second disappearing while a menu is open. Is that second call
+the NPC update? **It is not.** The two per-frame calls are:
 
 | # | call site | retail | when |
 |---|---|---|---|
@@ -73,7 +72,7 @@ exactly.
 **Wander rolls are additional and conditional.** `FieldObj_GetRandomMove` draws
 only when its object is idle *and* its countdown has expired — so a frame's
 total is 2 plus however many NPCs happen to roll on it. The occasional 3/frame
-oracle-lane saw is one NPC rolling; 4 or more is several timers expiring
+the oracle sees is one NPC rolling; 4 or more is several timers expiring
 together, which is uncommon but not rare. With ~8 wanderers on a map and pauses
 averaging ~32 frames, the expected extra is about a quarter of a call per
 frame.
@@ -234,8 +233,8 @@ frames and later has a four-way absolute-position RNG write; neither is a
 cell-walk contract. `XeAThoulAirCastle` is a deterministic map/frame flicker.
 Those routines stay `PresentationOnly` with the reason visible in the census.
 The field tick does not consume Mile Sand Worm's later four-way draw because it
-does not own the `$10/$11` animation-state transition that gates it; a visual
-lane that models that transition can take ownership of the draw without
+does not own the `$10/$11` animation-state transition that gates it; a renderer that
+models that transition can take ownership of the draw without
 changing field movement order. This is the honest boundary: no fake movement,
 no silent RNG draw, no palette regeneration.
 
@@ -313,7 +312,7 @@ below `$100` it follows that sequence; after `Character_1.$34 > $100`, it
 sets `$20 = $FFFC` and updates position without the random helper until its X
 falls below `$1A0`, then sets `TempEveFlag_Xanafalgue` and clears its object
 slot (`ps4.asm:98564-98602`). The runtime models the movement and slot clear;
-the temporary flag remains in the event-state lane.
+the temporary flag is not modelled.
 
 ### The direction remap
 
@@ -381,11 +380,11 @@ gated on `btst #3, render_flags(a4)`: an object with bit 3 clear does no object
 collision at all, which is the same bit that gates the talk probe and
 `FieldObj_DoObjCollision`. One flag, three readers.
 
-## Corrections, 2026-08-15
+## Two measurements, settled against the log
 
-Two conflicts with oracle-lane's report, both settled against the re-logged
-`oracle/logs/02_walk_timing.csv` object columns. **Both resolve in favour of
-this document**; the numbers below are read straight off slot `o00`.
+Two readings of the oracle's first report, both settled against the
+`oracle/logs/02_walk_timing.csv` object columns; the numbers below are read
+straight off slot `o00`.
 
 **Cadence — 32 frames per cell stands.** The oracle's report gave 8
 frames/cell, reading the duration as counting down in `$0200` steps. That is
@@ -450,7 +449,7 @@ this slice all pass `d7=0`, except the uninstantiated `loc_4B4B4` probe at
   turn-to-face is the interaction code's doing, and the next accepted wander
   command overwrites the facing.
 
-## The visibility gate, measured (2026-08-15)
+## The visibility gate, measured
 
 An off-screen object is not updated **at all** — no timer decrement, no roll, no
 movement. This is not a rendering optimisation we may skip: because the roll
@@ -489,12 +488,10 @@ its centre — sixteen pixels of difference, which is eight frames at the walkin
 rate of 2 px/frame. `docs/field/CAMERA.md` has the full transcription. With that
 camera implemented, all three wake frames reproduce exactly.
 
-### A correction, and the trap it came from (2026-08-15)
+### Slot 2's wake at 7606
 
-An earlier revision of this section claimed slot 2's wake at 7606 could not be a
-camera event, on the grounds that the leader had been parked since 7578 and a
-stationary driver cannot scroll a threshold-latched camera. The reasoning was
-sound; the premise was not. Slot 2's wake is not a visibility event at all — the
+The leader is parked from 7578, and a stationary driver cannot scroll a
+threshold-latched camera, so the wake is not a camera event. Slot 2's wake is not a visibility event at all — the
 object was **mid-step**, and `FieldObj_GetRandomMove` skips the timer decrement
 entirely while a step duration is running:
 
@@ -515,6 +512,103 @@ observation that started the whole investigation came from diffing against a
 fact been changing the whole time. A frozen-looking column is only evidence of a
 freeze if every column that would move is checked in the same source.
 
+## Measured on the cartridge
+
+Measured on the cartridge with the [oracle](../../oracle/README.md); frame numbers cite marks in
+the named tape's log, which `oracle/verify.sh` regenerates.
+
+### Field object columns, and the wander RNG rule
+
+`Field_RunObjects` (`ps4.asm:89478`) walks **64 slots of `$40`** from
+`Field_Objects_Memory` ($FFFFC000), dispatching each through
+`FieldObjectsJmpTbl` on `obj_id & $7FFC`. Slots 0-4 are `Character_1..5`,
+slot 10 is `Red_Cursor`, slot 11 is `Text_Scroll_Arrow`, and slots 12-63 are
+the 52 `Field_Obj_Secondary` entries ($FFFFC300) — the same 52
+`Interaction_ChkObjects` scans.
+
+The `objects` group logs **32 secondary slots** (the densest retail map, Jut,
+has 31 NPCs), eleven columns each: `id`, `rflags`, `facing`, `map_idx`,
+`timer`, `xdur`, `ydur`, `x_px`, `y_px`, `xbnd`, `ybnd`. Tapes 02, 03 and 08
+are logged with it.
+
+**Slot-to-record mapping is positional and exact.** `LoadMapObjects` fills the
+secondary slots in map-record order, so **secondary slot `i` is the pack's
+`npcs[i]`** — verified on map $13 at the spawn frame (f6175) for all 8 objects,
+matching pixel position, facing and object id. The comparator can join on the
+index; no spawn-cell join is needed. One gotcha: **RAM `obj_id` is
+`$8000 | pack object_id`** (mask with `$7FFF` to compare), and positions drift
+within a frame or two of spawn as wander starts, so any comparison against pack
+values has to be taken at the spawn frame.
+
+#### The third field-mode RNG call is a wander decision
+
+Correlating the RNG census against the new object columns over the 1154
+field-control frames of tape 08:
+
+| RNG calls that frame | wandering objects with `timer == 0` | frames |
+|---|---|---|
+| 2 | 0 | 1122 |
+| 3 | 1 | 32 |
+
+**The rule holds on 100% of frames:**
+
+```
+calls per frame = 1 (vblank)
+                + 1 (field-mode object update)
+                + 1 per wandering object whose timer is 0 this frame
+```
+
+The reloaded timer values are 1..63 across 31 samples, consistent with a
+6-bit mask. A decision can occupy two consecutive frames — slot 0's timer sat
+at 0 for f6871 and f6872 before reloading to 24 at f6873, consuming a call on
+each — which is why the rule is keyed on "timer is 0", not on the reload edge.
+
+**Object type decides whether a slot wanders at all.** 7 of map $13's 8 objects
+wander; slot 7 (`obj_id` 104, `NPCAlysPiata`) holds `timer == 0` permanently
+and consumes nothing, so a core that ticks the RNG for every zero-timer object
+will over-consume. Whether a slot wanders is a property of its `obj_id`
+routine, and the harness identifies it behaviourally as "its timer is ever
+non-zero".
+
+For the port, this is the portable part. The generator is the per-frame
+`UpdateRNGSeed`, and wander rides it by consuming extra calls on decision
+frames — so reclaiming tape 02's divergent tail needs the decision *schedule*
+to match, not just the generator.
+
+#### What actually gates an NPC's wander timer
+
+The question was whether slot 2's timer resuming at f7606, with the leader long
+stopped, meant a BG-plane object on an independent BG camera, or a step
+constant staying hot while walled. **Neither.**
+
+**The wander timer only ticks while the object is at rest.** Slot 2 was
+mid-step the whole time: its `x_step_duration` counts 3968 down to 0 across
+f7575-7605, and the timer resumes on f7606, the first frame after the step
+completes. Across all 32 slots for the whole tape: **1974 timer decrements,
+zero of them while `x_step_duration` or `y_step_duration` is non-zero**, and
+13101 mid-step frames with the timer frozen.
+
+So the rule is `timer ticks iff xdur == 0 and ydur == 0`. `render_flags` bit 2
+("animation finished") is *not* the gate — it sets at f7602, four frames early,
+and 270 of the 1974 decrements happen with it clear.
+
+Also from the same trace: **NPC steps are four times slower than the party's.**
+The step duration decrements by 128 per frame for objects versus 512 for the
+leader, so an NPC takes ~32 frames to cross a cell where the party takes 8.
+
+#### Do the leader's step constants stay hot while blocked?
+
+No. Holding Up into the wall at (50,15):
+
+| frame | `y_step_duration` | `y_step_constant` | `coll_up` |
+|---|---|---|---|
+| f7578 | 0 (step just landed) | `$FFFE0000` | `00` |
+| f7579 | 0 | **`$00000000`** | `08` (wall) |
+
+The constant is stale for exactly **one frame** — the landing frame, before the
+next step is evaluated — and is cleared the moment the blocked evaluation runs.
+It does not stay hot.
+
 ## What this leaves open
 - The initial `timer` value at spawn. `timer` is the word at `$1C`
   (`ps4.constants.asm:96`); the init block's `move.l d0, $28(a4)` clears the
@@ -523,10 +617,10 @@ freeze if every column that would move is checked in the same source.
   makes an NPC roll on its first on-screen frame.
 - Runtime event-state side effects after Xanafalgue crosses `$100`: the
   movement and object-slot clear are modelled, but `TempEveFlag_Xanafalgue`
-  remains in the event-state lane and is not folded into save serialization.
+  is not modelled and is not folded into save serialization.
 - Visual animation state for `StaticAnimation` and `PresentationOnly` actors.
   Their movement/RNG ownership is closed here; sprite art, frame tables, and
-  absolute-pixel presentation remain in the visual lane by scope.
+  absolute-pixel presentation are presentation work.
 
 ## Closed parity checks
 

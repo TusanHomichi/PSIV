@@ -58,5 +58,5 @@ the battle follows at once. The deviation is recorded in the
 against `Direction::delta`; the 8/16/8 path pixel by pixel for all four facings,
 ending on the cells above; the leader's sixteen frames one pixel each; and the
 lines, `$E4`, the placement at cell `(31,32)`, facing down and battle `$18`, in
-order. Negative controls (run by mutation, receipt of lane C9 Phase 3): the
-facing ignored, and `backwards` ignored, each fail the path test.
+order. Negative controls, run by mutating `drift.rs::start_step`: with the facing
+ignored (always down) or `backwards` ignored, the path test fails.

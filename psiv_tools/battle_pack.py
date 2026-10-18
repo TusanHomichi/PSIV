@@ -49,9 +49,11 @@ immediately after the table, so the entry count falls out as
 One retail record is past that end. Enemy skill 112 `BLACK WAVE` declares
 effect `$2C`, and reading the word one entry past the table gives `$4E75`,
 which as an offset points at the odd address `$00B033` -- an address error, as
-`docs/battle/BATTLE_SCOUT.md` section 11 finding 2 records. It is dormant because the
-only enemy that uses it appears in none of the 531 formations. The record is
-emitted with `effect_out_of_range: true` so a consumer rejects it deliberately
+`docs/battle/BATTLE_RULES.md` "New retail cartridge findings" records (finding
+2). Its only user is enemy 152 Zio3, fielded in the scripted Zio fight (event
+battle 4); whether retail reaches the crash there is unsettled
+(`docs/source-notes/disassembly-discrepancies.md`, the BLACK WAVE correction).
+The record is emitted with `effect_out_of_range: true` so a consumer rejects it deliberately
 rather than jumping where the cartridge would have.
 """
 

@@ -21,8 +21,14 @@ The cases are:
 - `NegativeControl` puts each guard back on the old index-only listing and
   shows the same fixture finding nothing, the failure a reverted guard
   produces;
+- `IgnoredPaths` pins `ignored_paths`, the owner of "is this a local input":
+  an ignored file, a path under a directory-only pattern that does not exist,
+  a path beyond an ignored symbolic link (with the negative control that a
+  single `--stdin` question about it fails), a tracked neighbour and a path
+  outside the repository;
 - `OneOwner` is the guard against regression: the string `ls-files` lives in
-  the owner and in this module, nowhere else under `tools/` or `tests/`.
+  the owner and in this module, nowhere else under `tools/` or `tests/`, and
+  no other tool runs `check-ignore`.
 """
 from __future__ import annotations
 
@@ -36,7 +42,7 @@ from unittest.mock import patch
 
 from tests.test_feature_map import check_map
 from tools import check_docs, size_guard
-from tools.repo_files import RepoFilesError, repo_files
+from tools.repo_files import RepoFilesError, ignored_paths, repo_files
 
 ROOT = Path(__file__).resolve().parents[1]
 CHECK_DOCS = ROOT / "tools" / "check_docs.py"
@@ -260,6 +266,39 @@ class NegativeControl(RepoCase):
         self.assertTrue(any(missing_module in item for item in problems), problems)
 
 
+class IgnoredPaths(RepoCase):
+    """Which paths Git ignores, asked the way both path guards ask it."""
+
+    def setUp(self):
+        super().setUp()
+        self.start({".gitignore": lines("oracle/states", "build/", "*.bin"),
+                    "oracle/kept.py": lines("# kept")})
+        self.target = self.home.parent / "states-target"
+        self.target.mkdir()
+        (self.root / "oracle" / "states").symlink_to(self.target, target_is_directory=True)
+
+    def test_ignored_paths_and_their_neighbours(self):
+        asked = ["rom.bin", "build/gate/never-written/run.log", "oracle/states",
+                 "oracle/states/beach.json", "oracle/kept.py", "oracle/missing.py",
+                 "../outside.md"]
+        self.assertEqual(ignored_paths(asked, self.root),
+                         {"rom.bin", "build/gate/never-written/run.log", "oracle/states",
+                          "oracle/states/beach.json"})
+
+    def test_one_question_about_a_path_beyond_the_link_fails(self):
+        proc = subprocess.run(
+            ["git", "check-ignore", "-q", "--stdin"], cwd=self.root, capture_output=True,
+            text=True, input="oracle/states/beach.json\noracle/states/beach.json/\n",
+        )
+        self.assertEqual(proc.returncode, 128, proc.stderr)
+        self.assertIn("beyond a symbolic link", proc.stderr)
+
+    def test_check_docs_asks_the_owner(self):
+        self.enter()
+        self.assertTrue(check_docs.is_ignored("oracle/states/beach.json"))
+        self.assertFalse(check_docs.is_ignored("oracle/missing.py"))
+
+
 class OneOwner(unittest.TestCase):
     """The file list has one reader of its own, and this module is not a second."""
 
@@ -279,6 +318,13 @@ class OneOwner(unittest.TestCase):
             "these list the files themselves instead of using tools/repo_files.py: "
             + ", ".join(offenders),
         )
+
+    def test_no_other_tool_runs_check_ignore(self):
+        offenders = [path.relative_to(ROOT).as_posix() for path in sorted(ROOT.glob("tools/*.py"))
+                     if path.name != "repo_files.py"
+                     and "check-ignore" in path.read_text(encoding="utf-8")]
+        self.assertEqual(offenders, [], "these ask Git themselves instead of using "
+                         "tools/repo_files.py ignored_paths: " + ", ".join(offenders))
 
     def test_the_three_guards_read_the_owner(self):
         guards = ("tools/check_docs.py", "tools/size_guard.py",

@@ -471,7 +471,9 @@ fn write_manifest_dump(path: &Path, lines: &[String]) {
 /// above always writes, however many findings it found.
 #[test]
 fn an_empty_dump_is_still_written() {
-    let dir = std::env::temp_dir().join("psiv-empty-manifest-dump");
+    // Keyed by process: a fixed name collided with any other test process
+    // (another checkout's suite) removing and rewriting the same directory.
+    let dir = std::env::temp_dir().join(format!("psiv-empty-manifest-dump-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     let path = dir.join("lane-evidence/findings.jsonl");
     write_manifest_dump(&path, &[]);

@@ -1,4 +1,4 @@
-//! Lane A6 at the engine: Profound Darkness's latch and form changes, the
+//! The endgame stretch at the engine: Profound Darkness's latch and form changes, the
 //! trees' first action, the new heal targets, the reloads and the draw counts
 //! of the new damage chains. Constructed records only.
 use super::*;

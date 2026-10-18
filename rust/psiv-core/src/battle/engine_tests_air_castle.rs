@@ -1,4 +1,4 @@
-//! Lane A5's engine paths: Dark Force 2's latch, Lashiec's REINFORCE latch and
+//! The Air Castle stretch's engine paths: Dark Force 2's latch, Lashiec's REINFORCE latch and
 //! COMBINE's reload. Constructed records; the inline formation is a stand-in
 //! with the shape `psiv_tools.formations` decodes.
 use super::*;

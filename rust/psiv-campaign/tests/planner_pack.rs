@@ -14,10 +14,11 @@ fn at(map: u16, x: u16, y: u16) -> Position {
     }
 }
 
-/// `docs/campaign/AIEDO.md` section 1 derived this route with `oracle/route.py`,
-/// a different tool: one warp (record `0x100706`, transition index 7), arrival
-/// at standing (47,83) facing up, 67 steps (13 up, 20 left, then the
-/// staircase down the cliff band, 8 left to the doorway).
+/// The Aiedo route notes (`AIEDO`, commit 0faa91b^) section 1 derived this
+/// route with `oracle/route.py`, a different tool: one warp (record
+/// `0x100706`, transition index 7), arrival at standing (47,83) facing up, 67
+/// steps (13 up, 20 left, then the staircase down the cliff band, 8 left to
+/// the doorway).
 #[test]
 fn the_aiedo_route_matches_the_independent_oracle() {
     let Some(pack) = pack() else { return };

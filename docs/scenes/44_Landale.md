@@ -27,8 +27,7 @@ pointer/include path is excluded. Actual-ROM range: `$077150..$0771D2`
 cutscene, not a Grand Cross scene body. Its event flag is kept in the same
 scene record because the call is part of this byte range's observable handoff.
 
-## The spaceport chunk is a live write (C6, 2026-10-04)
-
+## The spaceport chunk is a live write
 The first transcription kept the 369 passes as one `Wait` and dropped the
 chunk write `loc_6C148` makes, so the live Dezolis map kept open ground where
 the spaceport door stands. The cells are collision type 0 in the pack's base
@@ -47,8 +46,7 @@ as a stuck walk at (12,73) in the first full run.
   the negative control removes the op and the first test fails on the missing
   write.
 
-## The trigger sits on a warp (C6)
-
+## The trigger sits on a warp
 `RunEvent_FindingLandale` tests `curr_y_pos == $520` and `$1A0 <= curr_x_pos <= $1B0`
 (`ps4.asm:115866-115882`). A standing cell's y byte is its row less one, so
 `$520` is row 83, the first row of the Hangar's warp 0 (cells (26..27, 83) to

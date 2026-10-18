@@ -1,5 +1,5 @@
 //! The Hangar, the Dezo spaceport and Kuran's third floor, driven with pads from
-//! hand-built saves (lane C6).
+//! hand-built saves.
 //!
 //! The whole arc, Landale to the defeat of Dark Force 1, is the route's
 //! `dezolis-landale` .. `kuran-dark-force-1` chapters; the ignored whole-route

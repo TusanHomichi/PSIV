@@ -58,7 +58,7 @@ class Entry:
     #: `--max-rounds` of the capture.
     capture_rounds: int
     #: Rounds the fixture keeps: the capture cut before the first ability
-    #: another lane owns (`docs/oracle/BATTLE_ORACLE_ARC.md`).
+    #: another lane owns (`docs/battle/ENEMY_EFFECT_ABILITIES.md` section 10).
     rounds: int
     #: What the fixture is for.
     note: str

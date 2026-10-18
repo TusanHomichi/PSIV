@@ -44,7 +44,7 @@ second is the address in the US image, which is the authority. "Tree" is what
 `GetDialogueByID` indexes at the call: the tree the scene loads itself, or else
 the tree bound to the map the scene runs on (`runtime-pack/maps/*.json`
 `dialogue_tree`, from the trigger census in
-[12_ArcTriggerCensus](12_ArcTriggerCensus.md)). Entry text is the first line in
+[trigger census](TRIGGER_CENSUS.md)). Entry text is the first line in
 `runtime-pack/dialogue/trees.json` for that tree and entry.
 
 | # | `ps4.asm` | Image `jsr` | Scene (event) | Entry | Tree at the call | Entry text | Port before | Port after |
@@ -76,9 +76,8 @@ Findings:
 - **Ten of ten window-variant mismatches (rows 1 to 10):** nine transcribed
   callers used the standard window, which destroys the panels the cartridge
   leaves up, and the tenth was the resume of row 1.
-- **Every caller has a scene.** Rows 12 to 14 were transcribed by the event
-  census lane and row 11 (`Event_AngerTowerAlys`) by lane C9 Phase 3
-  ([114](114_AngerTowerAlys.md)). `UNTRANSCRIBED` in
+- **Every caller has a scene.** Rows 11 to 14 are transcribed
+  (row 11, `Event_AngerTowerAlys`, is [114](114_AngerTowerAlys.md)). `UNTRANSCRIBED` in
   `tests/test_dialogue2_callers.py` is empty, and the census still fails if the
   image gains a caller no documented scene holds.
 - **Not in scope, seen on the way:** `Event_CarnivorousTrees`
@@ -89,22 +88,16 @@ Findings:
   campaign records, not of the Dialogue2 class; tracked by
   [#71](https://github.com/TusanHomichi/PSIV/issues/71).
 
-## Open-gap issue handoff (2026-10-03)
-
-An audit at `82eed831af88234feec8ab8b9322a9d2624de91f` inspected all 44
-open and closed GitHub issues. Open [#71](https://github.com/TusanHomichi/PSIV/issues/71)
-already names all four missing callers and the party-move discrepancy; no
-duplicate issue was filed. All four callers have scenes now (rows 11 to 14);
-the party-move discrepancy and the sibling censuses below are what #71 still holds. Its sibling-dialogue census work remains outside
-this closeout.
+## The uncovered callers' spans
 
 The local image matches the [accepted US ROM hash](../DEVELOPMENT.md#prepare-the-local-pack).
 `psiv_tools/newgame.py::event_ptrs` resolves `EventPtrs` to `$05A2B4` from the
 retail dispatcher bytes. The pointer slots and adjacent entries establish the
 following spans; labels and fork build-address comments supply no authority.
 `tests/test_dialogue2_callers.py::rom_callers` independently finds fourteen
-callers, including these four, and the existing image/registry/document census
-reports no disagreement while retaining their explicit `UNTRANSCRIBED` status.
+callers, including these four; all four now have scenes (rows 11 to 14), so
+`UNTRANSCRIBED` is empty. What #71 still holds is the party-move discrepancy below
+and the sibling censuses.
 
 | Event | Pointer slot -> routine | EventPtrs-derived span (inclusive) | Entry load and `jsr $5ACDC` bytes |
 |---|---|---|---|

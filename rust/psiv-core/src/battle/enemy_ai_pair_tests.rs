@@ -1,4 +1,4 @@
-//! The arms whose reading changed with lane A5: the BladeRight/HakenLeft pair
+//! The arms the Air Castle stretch re-read: the BladeRight/HakenLeft pair
 //! (`$0D`/`$0E`), Lashiec's `$11` and its `$FFFFEE86` latch, and the bit-4
 //! clear `$12` makes before it reads the three slots.
 

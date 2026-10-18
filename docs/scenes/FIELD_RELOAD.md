@@ -152,8 +152,6 @@ the arrival name is `PlaceNameWindow`, read by the session's flight view.
 No certified pair crosses a cutscene end: `opening-p1` and `-p2` are inside
 `Event_GameStart` (an event), `meeting-rika` is clone tick 160 of `$8007`, long
 before its end, and `ship-menu` is the destination menu of `$800D`, before the
-flight. All twelve pairs were run on this change under the heavy lock
-(`python3 tools/certify.py --no-build`, receipt
-`build/certify/20261006T230810Z-1b01ee7/`): 12/12 at `rmse=0.000000`. A cutscene
+flight, so the certified pairs do not exercise this change. A cutscene
 end itself has no pair; its shell timing is covered by the runtime test of the
 frames and the transition unit test, not by a capture.

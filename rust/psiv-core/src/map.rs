@@ -3,7 +3,7 @@
 //!
 //! These are the core's own types. `psiv-data` owns the pack schema and bridges
 //! into these; the core deliberately knows nothing about JSON, serde, or the
-//! cartridge's record layout. See `docs/RUNTIME_DESIGN.md`, "Shape".
+//! cartridge's record layout. See `docs/RUNTIME_DESIGN.md`, "Data and runtime layers".
 
 use crate::chest::{CHEST_OPEN_FACING, CHEST_SHUT_FACING, Chest};
 use crate::collision::{CollisionGrid, CollisionType};

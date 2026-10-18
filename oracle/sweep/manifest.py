@@ -9,7 +9,7 @@ dump, assigns each finding to a **cluster**, and writes
 `replay_fixtures/divergences.json`.
 
     PSIV_MANIFEST_DUMP=build/lane-evidence/findings.jsonl \\
-        CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \\
+        cargo test --manifest-path rust/Cargo.toml -p psiv-core \\
         -- --ignored --nocapture dump_manifest_entries
     python3 -m oracle.sweep.manifest --dump build/lane-evidence/findings.jsonl \\
         --manifest rust/psiv-core/src/battle/replay_fixtures/divergences.json

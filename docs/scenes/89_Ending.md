@@ -252,15 +252,10 @@ then latches `GameCleared`. The headless test releases that gate explicitly,
 asserts `$E8`, Termi `$07B`, the `$17E` panel and `game_cleared()`, and never
 pretends that the credits are gameplay dialogue.
 
-## Census delta
+## Census
 
-| Surface | Before this wave | After this wave | Delta |
-|---|---:|---:|---:|
-| Registered typed scenes | 86 | 89 | +3 (`$8012`, `$801B`, `$8021`) |
-| Presentation panel records | 178 | 228 | +50 ending panels |
-| Raja Sick transcription | boundary placeholder | 54 ops | promoted |
-| Rykros transcription | boundary placeholder | 27 ops | promoted |
-| Ending transcription | boundary placeholder | 370 ops | promoted |
+The ending's transcription is 370 ops, and its 50 post-battle panels are
+among the pack's 228 presentation panel records.
 
 The remaining direct Raja/Gyuna, Rykros travel gate, guild, Alys tower and
 fifth-character controls are audited in [88](88_RetailBoundaries.md). Their

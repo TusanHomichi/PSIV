@@ -150,7 +150,7 @@ class ScopeTests(unittest.TestCase):
         self.assertEqual(sorted(found.battles), [10, 14, 16, 17])
         self.assertIn(0x184, found.maps)
         self.assertIn(0x173, found.maps, "the Air Castle walk is in it")
-        # It was lane A5's whole worklist: GRA, COMBINE, THNDRBLAST, Lashiec's
+        # It was the Air Castle stretch's whole worklist: GRA, COMBINE, THNDRBLAST, Lashiec's
         # and Dark Force 2's abilities are all in the scope, and none is left
         # unsupported (a `partial` row's other carriers are bosses outside it).
         try:

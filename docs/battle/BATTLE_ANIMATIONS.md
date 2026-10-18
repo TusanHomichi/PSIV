@@ -134,20 +134,14 @@ their separate effect tracks; their local attack layer stays at the
 receipt-backed formation anchor, so the movement census no longer hides a
 presentation clock behind static-analysis silence.
 
-## Census delta
+## Census
 
-The left side is the honest post-wave-6 baseline from the pack census. The
-right side is the current extractor and emitted art index.
+Every enemy record's animation is exact: timed frame records, mapping and art
+composition and movement track for all 153 records, and 1,355 exact attack
+frames across the 153 enemies.
 
-| Surface | Before exact | Before partial | Before deferred | After exact | After partial | After deferred |
-|---|---:|---:|---:|---:|---:|---:|
-| Timed frame records | 79 | 0 | 74 | 153 | 0 | 0 |
-| Mapping/art composition | 60 | 15 | 78 | 153 | 0 | 0 |
-| Movement track | 30 | 49 | 74 | 153 | 0 | 0 |
-| Exact attack PNG frames | 393 frames / 60 enemies | — | — | 1355 frames / 153 enemies | — | — |
-
-Direct SFX remains 153 exact, with no generic fallback. The current routine
-classification census is:
+Direct SFX is 153 exact, with no generic fallback. The routine classification
+census is:
 
 | Class | Enemy records | Frame result |
 |---|---:|---|
@@ -251,15 +245,16 @@ xvfb-run -a "$PSIV_GODOT" \
 
 ## Verification
 
-Run one cargo process at a time; this laptop has OOM-killed a five-wide
-workspace build.
+Run cargo through the [heavy-run lock](../DEVELOPMENT.md#heavy-run-lock), which
+sizes each job's memory class; this laptop once OOM-killed a five-wide workspace
+build run outside it.
 
 ```text
 PYTHONPATH=. python3 -m unittest tests.test_battle_animations tests.test_battle_pack tests.test_battle_art_pack
 PYTHONPATH=. python3 -m unittest discover -s tests
-CARGO_BUILD_JOBS=2 cargo fmt --manifest-path rust/Cargo.toml --all -- --check
-CARGO_BUILD_JOBS=2 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
-CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml --workspace
+cargo fmt --manifest-path rust/Cargo.toml --all -- --check
+cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
+cargo test --manifest-path rust/Cargo.toml --workspace
 PYTHONPATH=. python3 -m psiv_tools pack "Phantasy Star IV (USA).md" runtime-pack
 ```
 

@@ -24,7 +24,7 @@ ROM: `Phantasy Star IV (USA).md`, SHA-256
 | `Cutscene_RajaSick` / `$8012` | `$07734C..$077787` | **Transcribed** | 54 typed ops in `retail_endgame.rs`; fixed post-arrival presentation and map handoff. |
 | `Cutscene_Rykros` / `$801B` | `$07818E..$078345` | **Transcribed** | 27 typed ops; panels `$18B/$18F/$190`, palette cycle and flag `$D0`. |
 | `Cutscene_Ending` / `$8021` | `$078F3E..$07A811` | **Transcribed** | 370 typed ops; normal post-battle story panels, staff roll, credits renderer and final Start gate. See [89](89_Ending.md). |
-| Musk Cats / `EventPtrs[$49]` | `$07069E..$0706BF` | **Precise why-not** | One interaction dialogue (`$1C`), two NPC dialogue ids `$1D`, and event flag `$90` (`MuskCats`); it is an NPC interaction side effect, not a fixed campaign scene. The pointer body is still recorded in [12](12_ArcTriggerCensus.md). |
+| Musk Cats / `EventPtrs[$49]` | `$07069E..$0706BF` | **Precise why-not** | One interaction dialogue (`$1C`), two NPC dialogue ids `$1D`, and event flag `$90` (`MuskCats`); it is an NPC interaction side effect, not a fixed campaign scene. The pointer body is still recorded in [12](TRIGGER_CENSUS.md). |
 | Musk Cat Elder / `EventPtrs[$4A]` | `$0706C0..$070701` | **Precise why-not** | Branches on all 40 inventory slots: full inventory shows dialogue `$2E`; otherwise dialogue `$2D`, inserts Silver Tusk and sets its flag. The branch depends on live inventory capacity. |
 | Penguin Owner / `EventPtrs[$4B]` | `$070702..$070773` | **Precise why-not** | Computes the `$500` money gate, runs yes/no dialogue `$12`, inspects the retail dialogue terminator (`$35` on revision 1), then conditionally subtracts money, changes the NPC and sets the Penguin flag. Input and wallet state are part of the behavior. |
 | Esper Guard permission / `EventPtrs[$4F]` | `$0709A2..$070A29` | **Precise why-not** | Reads Dark Force 2 and Carnivorous Trees flags to choose dialogue `$00/$01/$02`, changes two guard dialogue ids, and sets temp flag `EspMansionGuards`. Direct interaction, not a linear story edge. |
@@ -108,10 +108,10 @@ campaign scenes:
   precise why-not gate rather than modeled as one invented “arrive at Rykros”
   op.
 
-## Registry result
+## The registry
 
-The typed registry now has 89 scenes: the former 86, plus Raja Sick `$8012`,
-Rykros `$801B`, and Ending `$8021`. The full-campaign headless proof keeps a
+The typed registry has 89 scenes, including Raja Sick `$8012`, Rykros `$801B`,
+and Ending `$8021`. The full-campaign headless proof keeps a
 single title-to-ending snapshot for the fixed story chain; this boundary file
 records the adjacent player-controlled surfaces that proof deliberately does
 not pretend to traverse.

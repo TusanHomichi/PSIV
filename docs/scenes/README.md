@@ -14,7 +14,7 @@ through Zema, the Tonoe road, the BioPlant escape, the Rika hand-off, Zio's
 fall, the Zelan spaceship route, Dezolis/Raja arrival and the first Kuran/Dark
 Force handoff. The Dezo campaign continuation runs from Le Roof through the
 Reunion gate and the Profound Darkness battle request. The trigger/map census is
-[12_ArcTriggerCensus](12_ArcTriggerCensus.md); what a scene's return does, and the
+[trigger census](TRIGGER_CENSUS.md); what a scene's return does, and the
 field reload a cutscene's zero starts, is [FIELD_RELOAD](FIELD_RELOAD.md); the per-scene records are
 [13_ProfHolt](13_ProfHolt.md) through [50_JuzaDefeated](50_JuzaDefeated.md).
 The native registry and headless proof live beside those documents in
@@ -137,8 +137,7 @@ tables; the clone's hack-only bodies are not evidence.
 | `Event_SilenceTmDoorOpening` | `$42` | [116](116_SilenceTmDoorOpening.md) | `$06FBEE..$06FC75` |
 | `Cutscene_ProfoundDarkness` | `$8020` | [87](87_ProfoundDarkness.md) | `$078D30..$078F3D` |
 
-## Census-driven scenes (S7)
-
+## Census-driven scenes
 Found by runner halts and then closed as a class by the
 [event census](EVENT_COVERAGE.md): a trigger or dialogue the cartridge fires
 and the port never transcribed.
@@ -170,8 +169,7 @@ and the port never transcribed.
 | `Event_InnerSanctGuard` | `$51` | [113](113_InnerSanctuaryGuard.md) | `$070A4E..$070A75` |
 | `Event_InnerSanctGuardBeforeElsydeon` | `$52` | [113](113_InnerSanctuaryGuard.md) | `$070A76..$070A9D` |
 
-## Vahal Fort and Weapon Plant (S9)
-
+## Vahal Fort and Weapon Plant
 The nineteen events of issue #82, transcribed ahead of the route (it does not
 reach the fort yet, so these are state tests, not campaign evidence). The story
 scenes are [110](110_VahalFortStory.md), the two chest events
@@ -211,10 +209,10 @@ byte ranges are repeated here.
 
 The complete retail table census, including the input-driven surfaces that
 remain precise why-not boundaries, is in
-[12_ArcTriggerCensus](12_ArcTriggerCensus.md). The persistent headless proof
-is `rust/psiv-runtime/tests/next_arc.rs`: it runs title through the `$8020`
+[trigger census](TRIGGER_CENSUS.md). The persistent headless proof
+is `rust/psiv-runtime/src/suites/next_arc.rs`: it runs title through the `$8020`
 battle request and the `$8021` ending, asserting the relevant flags and party
-roster at each handoff. `rust/psiv-runtime/tests/retail_boundaries.rs` covers
+roster at each handoff. `rust/psiv-runtime/src/suites/retail_boundaries.rs` covers
 the deterministic Raja Sick and Rykros records independently.
 
 ## Why these were disassembled and not read
@@ -226,7 +224,7 @@ checked in cannot assemble (`script/eventptrs.asm`, `script/cutsceneptrs.asm`
 and `script/runeventsjmptbl.asm` are missing too), so "build it and diff" was
 never an option either.
 
-> **Correction to `docs/scenes/EVENT_ENGINE_SCOUT.md`.** The scout records "17 scene
+> **Correction to `docs/scenes/EVENT_ENGINE.md`.** The scout records "17 scene
 > routines include `script/scenes/*/event.asm` **ungated**". The count of 17 is
 > right; the *ungated* part is not. Walking the conditional nesting, only
 > **7 of the 17 are ungated**:
@@ -293,10 +291,6 @@ code was proven byte-identical to retail, corroboration.
    the NPC movement-command table). Names that the clone's *commented-out*
    retail bodies later confirmed are noted as such.
 
-The scratch tooling lives outside the repo (session scratchpad):
-`psdis.py` (annotated disassembler), `align.py` (retail↔clone aligner),
-`walk.py` (self-checking label walker), `bootstrap_syms.py`, `namehunt.py`.
-
 ## Facts derived here that the interpreter needs
 
 - **`trap #0`** clears `d7+1` **longwords** at `(a0)+`; **`trap #1`** copies
@@ -325,7 +319,7 @@ The scratch tooling lives outside the repo (session scratchpad):
 ## SceneOp vocabulary
 
 Base vocabulary from `docs/RUNTIME_DESIGN.md`, plus the extensions the opening
-and next acts genuinely need. **The interpreter lane implements exactly this
+and next acts genuinely need. **The interpreter implements exactly this
 union.**
 
 ### Base (used as designed)
@@ -407,8 +401,7 @@ after it has rebuilt and recast the new map. NPC `ActorMoveStarted` and
 `ActorArrived` edges update `FieldMap`, which is the authoritative landing
 state used by the comparator.
 
-### Vahal Fort and Weapon Plant extensions (S9)
-
+### Vahal Fort and Weapon Plant extensions
 Six ops, each cited, tested (`scene_runner/mechanics_tests.rs`) and used by the
 [Vahal Fort and Weapon Plant records](../field/PLATFORMS_AND_BELTS.md):
 
@@ -439,7 +432,7 @@ no map update runs), `IntroTextFadeUp{}` / `IntroTextFadeDown{}` (the
 
 ## Documents
 
-Cross-checked against the new-game extraction lane where they overlap:
+Cross-checked against the new-game extraction where they overlap:
 `psiv_tools/newgame.py` and `runtime-pack/game_start.json` own the title
 handoff and `Event_GameStart`'s epilogue, and this set cites them rather than
 re-deriving. We agree on the routine start, on `rom_end = $073ECE`, on the
@@ -449,7 +442,7 @@ is the map *resident when the scene starts*, not a map the scene plays on.
 
 | # | Scene | Event id | Retail | Fork status |
 |---|---|---|---|---|
-| [00](00_triggers.md) | Trigger table | — | `$560E8` | clean, spot-verified |
+| [census](TRIGGER_CENSUS.md) | Trigger table | — | `$560E8` | clean, spot-verified |
 | [01](01_GameStart.md) | `Event_GameStart` | `$9F` | `$73946`–`$73ECE` | **body deleted, epilogue edited** |
 | [02](02_PiataChazAlone.md) | `Event_PiataChazAlone` | `$A0` | `$73ECE`–`$73EE0` | **body deleted** |
 | [03](03_AlysFound.md) | `Event_AlysFound` | `$03` | `$6B2D8`–`$6B3BA` | **partly deleted + 2 edits** |

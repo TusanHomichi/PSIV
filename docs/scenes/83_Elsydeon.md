@@ -23,6 +23,5 @@ is excluded. ROM range: `$078584..$078A7C` exclusive end.
 
 ## Revision-conditional ops
 
-`move.b #SFXID_Deban, (Sound_Index).l` at `$157483` sits under `if revision>0`
-(this build is English, `revision = 1`) between the `$31` dialogue's wait and
-the `$12B` panel. See the [revision audit](REVISION_AUDIT.md).
+One op runs only on `revision>0` builds, which the US retail cartridge is: the
+`SFXID_Deban` sound before the `$12B` panel. It is listed in the [revision audit](REVISION_AUDIT.md#every-other-revision-conditional-op-in-a-transcribed-body).

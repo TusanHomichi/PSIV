@@ -2,8 +2,8 @@
 //!
 //! Every number here is copied from `generated/*.json`, which the extractor
 //! proved against the retail image, and the party's derived stats are the ones
-//! the oracle logged out of live RAM (`oracle/README.md`, "Battle ground
-//! truth"). Hand-built rather than pack-loaded because `psiv-core` never reads
+//! the oracle logged out of live RAM (`docs/battle/BATTLE_MEASUREMENTS.md`,
+//! "Battle ground truth"). Hand-built rather than pack-loaded because `psiv-core` never reads
 //! a file — and because a fixture that fails to match the oracle is exactly the
 //! signal a test suite is for.
 

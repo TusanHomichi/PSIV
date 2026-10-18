@@ -7,16 +7,16 @@ runs each one, what the port does, and where the forced-formation captures that
 prove it are. It is the status/stat half of
 [issue #58](https://github.com/TusanHomichi/PSIV/issues/58); the damage half is
 [`ENEMY_DAMAGE_ROUTES.md`](ENEMY_DAMAGE_ROUTES.md). The inventory these rows come
-from is [`ENEMY_ABILITIES.md`](ENEMY_ABILITIES.md); the capture table is
-[`BATTLE_ORACLE_ARC.md`](../oracle/BATTLE_ORACLE_ARC.md).
+from is [`ENEMY_ABILITIES.md`](ENEMY_ABILITIES.md); the captures are
+[section 10](#10-what-the-captures-show).
 
 Code: `rust/psiv-core/src/battle/enemy_effect.rs` (the status and stat handlers),
 `enemy_skill.rs` (`resolve_res`, which now heals for GIRES as well as RES) and
 `enemy_fusion.rs` (Fusion). Nothing here is decided from an ability's name; every
 rule is a line of `reference/ps4disasm/ps4.asm`, and every pair was seen run in a
-capture (`BATTLE_ORACLE_ARC.md`).
+capture ([section 10](#10-what-the-captures-show)).
 
-The Zelan-to-Kuran route (issue #58 class, lane A4, 2026-10-04) added POISONMIST,
+The Zelan-to-Kuran route added POISONMIST,
 SLEEP GAS, SHADOWBIND and the refill WARNING to the same table and moved the
 crawlers' THREAD and POISON into it, so that every status or stat ability the
 port runs goes through one handler per effect byte: [section 7](#7-the-zelan-route-pairs).
@@ -91,11 +91,12 @@ table (`ROUTES`) gates which `(enemy, ability)` pairs may reach it.
 | `$4B` SHADOWBIND | 111 ChaosSorcr, 138 ChaosSorcr2 | `EnemyAttack_ChaosSorcr` (`ps4.asm:20816`), arm `loc_E83E` (20868) | object `$724`, `loc_2BCEA` (`ps4.asm:57360`) | `$06` | 9 |
 
 A carrier appears in `ROUTES` only if a capture saw it use the ability
-(`BATTLE_ORACLE_ARC.md` section 2), or it shares a captured carrier's routine,
+([section 10](#10-what-the-captures-show)), or it shares a captured carrier's routine,
 arm and object (72 BloodSaber's DEBAN, beside the captured 70 and 71); the ones
 that are not routed, and why, are that ledger's section 3 and section 8 below,
 and they stay on the explicit `UnsupportedAbility` path.
-Radhin's SEALS and DEBAN (the `116` entries above) are the deferred pairs.
+Radhin's SEALS and DEBAN (the `116` entries above) are routed and captured
+(`replay_fixtures/endgame/radhin.json`, `radhin_gisar.json`).
 
 ## 3. What each ability does
 
@@ -121,8 +122,7 @@ members can draw one roll; sleep ends the usual way, by the end-of-round wake ro
 
 Both are `AbilityEffect_SleepParalyze` (effect `$07`) with a sleep bit the object
 sets, exactly VOICE's shape. Neither writes a damage request: the census classed
-them `damage` from the handler-and-object rule of its section 1, and the damage
-lane's reading of the chains found no `move.w #$C` in any of them - they write the
+them `damage` from the handler-and-object rule of its section 1, and the chain reading found no `move.w #$C` in any of them - they write the
 flinch (`move.w #5`) and nothing else - so `ENEMY_ABILITIES.md` now carries them as
 status/stat effects.
 
@@ -256,7 +256,7 @@ port's `Battle::settle_outcome` now has the cartridge's rule and its order
   roll is not drawn in that round (`FB_d2`: a victory with Alys asleep, 48 rolls
   in the log, 49 in the port before the fix).
 - **The replay compares deaths and battle cells.** See
-  [`BATTLE_ORACLE_ARC.md`](../oracle/BATTLE_ORACLE_ARC.md) section 4.
+  [the comparator's checks](../oracle/BATTLE_ORACLE_REPLAY.md#what-the-comparator-checks-about-status-and-stat-effects).
 
 ## 5. Lasting state, and who clears it
 
@@ -294,19 +294,21 @@ enemy could sleep or seal a party member, wrong the moment VOICE or SEALS landed
   damage the party deals afterwards (`D8_d0`; a defence raised by one point instead of
   eighteen turns a hit of 1 into a hit of 4); GELUN's, on the party, through the party's
   `atk_bat` cells that `oracle/sweep/arc.py` adds from the log. Adding both sides'
-  cells to `oracle/fixture/observations.py`'s `EFFECT_FIELDS` is outside this
-  lane's write set and would make the DEBAN proof direct.
-- **Carriers no capture has seen use the ability** are not routed
-  (`BATTLE_ORACLE_ARC.md` section 3 lists them).
-- **SoldrFiend's VOL kill** is read, not observed: the one capture of it is a
-  miss. Its object ends in the same `loc_25048` the two observed carriers use
-  (`ps4.asm:46878`).
+  cells to `oracle/fixture/observations.py`'s `EFFECT_FIELDS` would make the
+  DEBAN proof direct.
+- **Carriers no capture has seen use the ability** are not routed, except 72
+  BloodSaber's DEBAN, which shares a captured carrier's routine, arm and object
+  (section 2; [section 10](#10-what-the-captures-show) lists the rest).
+- **SoldrFiend's VOL kill** is observed: `replay_fixtures/endgame/soldrfiend.json`,
+  `soldrfiend_gires.json` and `arc_motavia/formation_1E1_d0.json` each show the
+  target's HP set to 0. Its object ends in the same `loc_25048` the other
+  carriers use (`ps4.asm:46878`).
 
 ## 7. The Zelan route pairs
 
 What the route from Zelan to Kuran meets and how it was derived is
 [`ENEMY_ABILITIES.md`](ENEMY_ABILITIES.md) section 6; the captures that saw each
-pair are [`BATTLE_ORACLE_ZELAN.md`](../oracle/BATTLE_ORACLE_ZELAN.md).
+pair are in [section 10](#10-what-the-captures-show).
 
 ### One handler per effect byte
 
@@ -318,9 +320,73 @@ SHADOWBIND share a handler with the crawler arm of the same effect instead of
 copying it. The seven POISON fixtures of the Motavia sweep replay through the
 new path unchanged; THREAD has no committed capture (no CarrionCr formation is in
 the swept set), so its evidence stays the unit tests in
-`enemy_effect_crawler_tests.rs` and the chain read in `THREAD.md`. A route is
+`enemy_effect_crawler_tests.rs` and the chain read below. A route is
 the `(enemy, ability)` pair plus the record's effect byte and range nibble, which
 is weaker than the old full-record pins; the record still drives every number.
+
+### THREAD and POISON (`$10`, `$11`, the crawler family)
+
+`EnemyAttack_Crawler` (`ps4.asm:23081`) is shared by enemies 30 to 32 and has
+three arms. Ability 0 loads the plain-attack pair `BattleObj_CrawlerAtk` `$130` +
+`BattleObj_CrawlerAtk2` `$12C`; `cmpi.w #$10, $24(a4)` (`ps4.asm:23108`) sends
+THREAD to `$134` (`loc_1084A`, `ps4.asm:23113`); and `loc_10836`
+(`ps4.asm:23107`) sends every other nonzero ability to `$138`, which
+`BattleObjsGroup3Ptrs` (`ps4.asm:30968`) maps to `BattleObj_Poison`
+(`ps4.asm:36279`). `Current_Target_Index` is left where target selection put it.
+Enemy 30 Crawler's list is all zero; `$10` is 31 CarrionCr's and `$11` is 32
+Caterpillr's (`00 00 00 00 11 11 11 11`, 7 of 504 formations).
+
+`BattleObj_Poison` is `BattleObj_Thread` (`ps4.asm:36186`) with a different
+sound and artwork. Both initialise with `bset #7,(a4)` / `clr.w $14(a4)` /
+`bset #1,$2(a4)` and run the same three-entry phase table (POISON's is
+`loc_1A8E4`, `ps4.asm:36300`, pointing at the shared `loc_1A572`, its own
+`loc_1A8F0` and the shared `loc_1A816`). Phase 1 writes the wind-up sound
+(`SFXID_EnemyAttack4` `$D8` for POISON, `ps4.asm:36310`; `EnemyAttack5` `$DA`
+for THREAD, `ps4.asm:36209`), then calls `loc_25474` (`ps4.asm:49303`), which
+loads the actor's ability, and `GetEnemySkillEffectAndRange` (`ps4.asm:8687`)
+once, at the animation handoff. It sets `Battle_Routine_2` to `$27` and
+`$FFFFEE82`. The remaining differences between the two objects are cosmetic:
+POISON's `bset #4,$2(a4)`, a palette write, and the frame counts (`loc_1A946`
+`02 06`, `ps4.asm:36324`, against THREAD's `loc_1A7E8` `04 0B`,
+`ps4.asm:36223`). No arm of either object, and none of the animation helpers
+they call (`loc_12618`, `loc_15E1C`, `loc_256AE`, `loc_25474`, `loc_25978`,
+`QueueDMACommands`), writes a damage request or jumps into the shared damage
+tails, so the turn is the effect and nothing else.
+`Battle_DoAttackEffect` never runs the attack rider for that turn, for two
+reasons: it returns at `tst.b ($FFFFEE82).w` / `bne.w loc_5DDA`
+(`ps4.asm:8554`), the flag phase 1 set, and, decisively, at `tst.w $24(a0)` /
+`bne.w loc_5DD2` (`ps4.asm:8576`) for any nonzero ability, which
+`roll_enemy_ability` mirrors by returning before `resolve_attack`.
+
+**THREAD.** Record `$10` at `0x2833E4` is effect `$06`, STR against live AGI,
+physical resistance, miss threshold 64, range 8 (the drawn target). A success
+sets battle AGI to `max(1, modified AGI - actor STR)`; it does not stack on a
+previous debuff, change HP, paralyze or touch dexterity. Defending's physical
+resistance affects the chance.
+
+**POISON.** Record 17 at `0x2833EC` is `1b 01 08 40 01 0d 00 00`: effect `$1B`,
+STR, range 8, hit chance `$40`, STR resistance, element 13 (efess, stats
+offset `$48`). `AbilityEffect_Poison` (`ps4.asm:9410`) returns at once for a
+target already poisoned, so that target spends no roll. Otherwise
+`Battle_ProcessEffect` (`ps4.asm:9513`) reaches `Effect_SetupSkillParams`
+(`ps4.asm:9576`) and `loc_6652` (`ps4.asm:9670`) calls
+`Battle_CalculateChances` (`ps4.asm:17338`): `v = (r + actor - target) *
+element`, `r` in 0..=63, a miss when `v <= $40`. One draw; an immune target (a
+zero efess factor) still spends it. A miss stores nothing, so the port emits
+nothing beyond `EnemySkillUsed`. The sound is bound at the event level:
+`EnemySkillUsed { skill: 17 }` plays `$D8`, as THREAD's plays `$DA`.
+
+Tests: `enemy_effect_crawler_tests.rs` (the hit-chance boundary, the skipped
+draw on an existing ailment and the spent draw on immunity, a lookalike record
+or another carrier refused, a missing or dead target, the engine dispatch with
+no physical attack, THREAD's single roll and its AGI floor) and
+`rust/psiv-runtime/src/suites/combat_enemy_poison.rs` (three Caterpillrs from
+the pack: the poison lands, survives the escape to the field and a save round
+trip). Not modelled: both objects' artwork, frame tables (`02 06` and
+`04 0B`) and timelines, including the phase-8 teardown (`clr.w (a4)`,
+`Battle_Routine = $16`), POISON's palette write and its `bset #4,$2(a4)` sprite
+flag. Field poison (1 HP per four
+steps) is `rust/psiv-runtime/src/field_status.rs`.
 
 ### POISONMIST (`$24`, Mistralgec)
 
@@ -373,12 +439,11 @@ jmp loc_14CBE` (`ps4.asm:33846-33850`) - the refill of the neighbour slot
 `CommndBall` fights alone until a WARNING calls one of its two FloatMine2 back. Unless
 the next fighter is a FloatMine: the routine returns first when `$52(a4)`, the next
 fighter object's enemy id, is `$2C` (`ps4.asm:18244-18246`; formation `$125` queues
-all three, [`BATTLE_ORACLE_ZELAN.md`](../oracle/BATTLE_ORACLE_ZELAN.md) section 6).
+all three, [section 10](#10-what-the-captures-show)).
 The port already ran Fission's refill (`enemy_skill::resolve_fission`); the
 WARNING record joins it (`EnemySkill::is_refill`) and `initialize_enemies`
-covers 39 Tower and 45. The first version of this lane read WARNING as a spent
-turn with an alarm and the capture refuted it: the log's first round queue holds
-the CommndBall alone.
+covers 39 Tower and 45. WARNING is not a spent turn with an alarm: the log's
+first round queue holds the CommndBall alone.
 
 ### BARRIER (`$1D`, Siren386 and Browren486)
 
@@ -399,18 +464,20 @@ The decoded BARRIER record selects STR and no resistance stat, so the effect
 consumes no RNG (`Effect_SetupSkillParams`, 9576-9595). The guard examines the
 caster alone; lowered recipients are still reset from their derived values.
 
-The script captures and exact generic replays are in
-[BATTLE_ORACLE_X86.md](../oracle/BATTLE_ORACLE_X86.md). Unit negative controls
+The script captures and their exact replays are in [section 10](#10-what-the-captures-show). Unit negative controls
 reject an untraced carrier or wrong effect record and pin the signed guard,
 word wrap, living-slot range and second-cast fallback.
 
-### What is deferred, and why
+### The pairs that share these routines
 
-| pair | reason |
-|---|---|
-| 58 FlameNewt `$24`, 105 ShadMirage and 132 DarkForce3 `$4B` | Share a routine with a routed pair, are not on the route, were not captured. |
+58 FlameNewt `$24`, 105 ShadMirage `$4B` and 132 DarkForce3 `$4B` share a routine
+and object with a pair above and are routed in `enemy_effect_routes.rs`. FlameNewt's
+POISONMIST is captured in `endgame/poisonmist_newt.json` and DarkForce3's SHADOWBIND
+in `endgame/dark_force_3.json`
+([ENEMY_ABILITIES_ENDGAME.md](ENEMY_ABILITIES_ENDGAME.md)); ShadMirage's is
+covered by core tests only, since no US formation seats it.
 
-## 8. The Air Castle pairs (lane A5)
+## 8. The Air Castle pairs
 
 The captures and the census are
 [`ENEMY_ABILITIES_AIR_CASTLE.md`](ENEMY_ABILITIES_AIR_CASTLE.md); the pairs are in
@@ -447,7 +514,7 @@ section 2's table.
   `enemy_skill::resolve_res` takes the same exit for RES and GIRES (`$3D4`'s
   test at line 44729, phase 8 with bit 7 at `loc_21558`).
 
-## 9. The endgame pairs (lane A6)
+## 9. The endgame pairs
 
 Section 2 of [`ENEMY_ABILITIES_ENDGAME.md`](ENEMY_ABILITIES_ENDGAME.md) lists them,
 with the captures. Four handlers are new - `$09` AttackUp, `$0C` AgilityUp, `$21`
@@ -457,3 +524,158 @@ the route gained two traced arm behaviours: `Guard::AttackNotRaised` and
 random enemy pick before SHIFT, SPARK's android pick). CYANICBOMB's object removes
 its caster after the kill. Heals with other targets than RES's lowest-HP enemy
 (SAR, GISAR, SoldrFiend's GIRES) are `enemy_skill::resolve_res`'s `HEALS` table.
+
+## 10. What the captures show
+
+Every pair above was seen on the cartridge in a forced capture (the method is
+[BATTLE_ORACLE_FORCED.md](../oracle/BATTLE_ORACLE_FORCED.md)), and every capture
+replays **exactly** in `psiv-core` (`every_fixture_replays_as_recorded`): each
+action's queue, target list, verdict, damage, HP, deaths, status bits, battle
+stat cells and every round's draw count. The fixtures are under
+`rust/psiv-core/src/battle/replay_fixtures/`; each records its tape, selector,
+party and hashes in its `provenance`. The party is tape 07's, made durable (999
+HP), so these are rule evidence, not a campaign route.
+
+### The Motavia arc (`arc_motavia/`)
+
+"Round" and "frame" are the log's: the frame the ability's `eN_ability` byte
+moved on. "Rolls" is what the action drew (the ability roll plus one chance roll
+per visited slot). `status` and `stats` are the cells the log shows moving in the
+action.
+
+| ability | enemy | fixture | round, frame | rolls | what the log shows |
+|---|---|---|---|---|---|
+| `$34` VOICE | 76 FlyScreamr | `D7_d0` | r3 f26139 | 2 | Hahn asleep (`$00`->`$08`); Alys and Chaz were already paralyzed, so one chance roll |
+| | | `D5_d0` | r4 f26715, r6 f27211 | 4, 2 | all three asleep, then Alys only; the sleepers wake on the round-end rolls in r7 |
+| | | `D6_d0` | r2 f25579, r3-r5, r6, r8 | 3, 2, 2, 2, 2, 2 | sleep landing one slot at a time, a wake in r6, a skipped sleeper in r8 (f27560, one roll) |
+| | | `D6_d1` | r1 f25094, r2 f25356, r5 f26662 | 3, 3, 3 | two members slept at a time |
+| `$2A` RIMIT | 115 Greneris | `119_d8` | r2 f25043 | 3 | Chaz and Hahn asleep (Alys was dead from VOL); both wake on r3's round-end rolls |
+| | 77 TechPlant | `12E_d10`, `12E_d12` | r1 f25087, f25015 | 4, 4 | all three members asleep |
+| `$4C` EVIL EYE | 106 Haunt | `FB_d1` | r1 f25004, r2 f25628, r3 f26236 | 2, 2, 3 | a miss, Chaz asleep, a miss |
+| | | `FB_d2` | r2 f25709 | 2 | Alys asleep |
+| | 107 Spector | `16D_d1` | r1 f24870, f24965, r2 f25132 | 2, 4, 2 | Chaz, Alys, then Hahn asleep |
+| `$2F` VOL | 115 Greneris | `119_d8` | r1 f24859 | 2 | Alys dead (999 -> 0), no status or stat cell moves |
+| | 72 BloodSaber | `1C6_d0`, `1C6_d1` | r1, r4, r5 and r1, r2, r3 | 2 each | one member killed each time; the party is wiped |
+| | 88 SoldrFiend | `1E1_d0` | r1 f24880 | 2 | Alys dead (999 -> 0); `replay_fixtures/endgame/soldrfiend.json` and `soldrfiend_gires.json` show the same kill |
+| `$0B` STASISBALL | 19 Blauzen | `100_d0` | r4 f26635, r6 f27499, r10 f28619 | 2, 2, 1 | Chaz then Alys paralyzed (`$02`) with `agi_bat` -> 1; the third use finds Alys already paralyzed and draws nothing |
+| | 21 Goldine | `1A3_d0` | r5 f26619, r6 f27003, r8 f27547 | 2, 3, 3 | Alys, Chaz, Hahn paralyzed in turn |
+| | 26 LifeDeletr | `1A5_d5` | r1 f24862 | 3 | Alys paralyzed; the ability roll re-rolled once |
+| `$28` DORAN | 115 Greneris | `119_d0` | r2 f25115 | 4 | `agi_bat` Alys 15 -> 1 and Hahn 4 -> 1; Chaz unchanged |
+| | | `119_d2` | r3 f26093 | 4 | Alys 15 -> 1 |
+| | | `119_d8` | r3 f25167 | 6 | no `agi_bat` change survives the window: the two sleepers' wake rolls share it, and a wake restores agility |
+| `$29` SEALS | 115 Greneris | `119_d0` | r1 f24859, r3 f25659 | 5, 1 | all three sealed (`$10`); the second cast finds them sealed and draws only the ability roll |
+| | | `119_d2` | r1 f24973 | 4 | Hahn sealed |
+| `$57` GELUN | 115 Greneris | `119_d2` | r2 f25501 | 4 | no cell the extractor reads moves; `oracle.sweep.arc` adds `atk_bat`: Alys 13 -> 0 and Chaz 18 -> 0 |
+| `$2D` DEBAN | 70 ShadowSabr | `D8_d0` | r1 f25142 | 1 | nothing the log carries moves (the cell is `$2A`, which no column reads); every party hit on it afterwards deals the damage a defence of 26 gives, and from r2 it attacks instead of casting again |
+| `$3E` GIRES | 100 TechMaster | `116_d2` | r2 f25775 | 17 | TechMaster's own HP 113 -> 120 (sixteen heal draws, capped) |
+| `$12` Fusion | 34 ZolSlug | `D2_d2` | r1 f24865 | 1 | enemy slot 6: HP 50 -> 239, agility 14 -> 12, status bit 7 set on slots 6 and 7; the round ends there; seven more rounds against the MetaSlug replay |
+
+Every row is an observed use. The fixtures replay **exactly**: every action's
+queue, target list, verdict, damage, HP, deaths, status bits, `agi_bat` /
+`atk_bat` / `dfs_bat` cell and every round's draw count, with the port's
+`StatusInflicted` / `StatChanged` / `Died` / `EnemiesFused` events on one side and
+the log's cells on the other.
+
+### The Zelan route (`arc_zelan/`)
+
+"Round" and "frame" are the log's: the frame the action's ability byte moved on (for a
+fixture round, the first frame of the action). "Rolls" is what the action drew (the
+ability roll plus one chance roll per visited slot). `status` and `agi_bat` are the cells
+the log shows moving in the action; "nothing the log carries moves" is a landing on a
+target that already carried the status, a miss, or an arm that changes no cell. The
+table is generated: `python3 -m oracle.sweep.observed`.
+
+| fixture | ability | round | frame | actor | rolls | what the log shows |
+|---|---|---|---|---|---|---|
+| `event_08_d9` | `$4B` | 1 | f24980 | 6 | 4 | fighter 1 agi_bat 15->1; fighter 3 agi_bat 4->1 |
+| `event_08_d9` | `$4B` | 3 | f26004 | 6 | 4 | fighter 2 agi_bat 7->1 |
+| `formation_11E_d0` | `$25` | 1 | f25293 | 8 | 5 | fighter 3 status $00->$08 |
+| `formation_11E_d0` | `$25` | 4 | f27451 | 6 | 4 | fighter 1 status $01->$09; fighter 2 status $00->$08; fighter 3 status $00->$08 |
+| `formation_11E_d0` | `$25` | 4 | f27653 | 8 | 2 | nothing the log carries moves |
+| `formation_11E_d0` | `$25` | 7 | f29483 | 8 | 3 | fighter 2 status $01->$09; fighter 3 status $01->$09 |
+| `formation_11E_d0` | `$25` | 8 | f30067 | 7 | 3 | fighter 3 status $01->$09 |
+| `formation_124_d0` | `$14` | 1 | f24971 | 7 | 2 | nothing the log carries moves |
+| `formation_124_d2` | `$14` | 1 | f24868 | 7 | 4 | nothing the log carries moves |
+| `formation_124_d2` | `$14` | 2 | f25101 | 7 | 1 | nothing the log carries moves |
+| `formation_170_d0` | `$4B` | 1 | f24875 | 6 | 4 | fighter 1 agi_bat 15->1; fighter 2 agi_bat 7->1; fighter 3 agi_bat 4->1 |
+| `formation_61_d0` | `$24` | 1 | f24886 | 7 | 2 | fighter 2 status $00->$01 |
+| `formation_61_d0` | `$24` | 3 | f25883 | 6 | 1 | nothing the log carries moves |
+| `formation_61_d0` | `$24` | 5 | f27131 | 7 | 1 | nothing the log carries moves |
+| `formation_61_d0` | `$24` | 6 | f27755 | 6 | 2 | fighter 1 status $00->$01 |
+| `formation_61_d0` | `$24` | 7 | f28459 | 7 | 1 | nothing the log carries moves |
+| `formation_61_d0` | `$24` | 7 | f28519 | 6 | 1 | nothing the log carries moves |
+| `formation_9A_d0` | `$10` | 2 | f26050 | 7 | 2 | fighter 2 agi_bat 7->1 |
+| `formation_9A_d0` | `$10` | 3 | f26598 | 8 | 3 | nothing the log carries moves |
+
+Rows the table cannot show, by hand:
+
+| ability | enemy | fixture | round, frame | what the log shows |
+|---|---|---|---|---|
+| Dark Force 1's first action (`$818`) | 130 DarkForce1 | `event_09_d0` | r1 f24891 | the party is ambushed (priority `$FF`), the queue is the enemy alone, and the enemy's action reads ability `$00` with no slot resolved and no cell moving: one draw (the ability roll), nothing else. Rounds 2 and 3 of the same capture show FLARE SHOT at f25398 and are not kept |
+| `$17` WAITING (the spent turn, first observation) | 50 FloatMine2 | `formation_124_d2` | r2 f25179 | the refilled slot 8 acts: two draws (the ability roll and one re-roll), no hit pass, ability byte `$00` because `loc_10406` writes and clears it inside one frame |
+| `$14` WARNING's refill | 45 CommndBall | `formation_124_d2` | r1 f24868 -> r2 queue | round 1's queue is `[7]` alone (both FloatMine2 were cleared by `EnemyInit_Tower`); after the action slot 8 carries status `$80` (the seat marker) and is in round 2's queue, where it acts; the second WARNING (r2 f25101) refills slot 6 |
+
+Every row is an observed use. The fixtures replay **exactly**: every action's queue,
+target list, verdict, damage, HP, deaths, status bits, battle-agility cell and every
+round's draw count.
+
+### BARRIER and the Psycho Wand (party-script captures)
+
+| fixture under `rust/psiv-core/src/battle/replay_fixtures/` | rounds | battle calls | observed use |
+|---|---:|---:|---|
+| `siren386_126_magic.json` | 4 | 209 | fighter 6 BARRIER, round 3, f25745; both enemies' MDEF 2 → 52 |
+| `siren386_127_magic.json` | 4 | 280 | fighter 7 BARRIER, round 3, f26079; all three enemies' MDEF 2 → 52 |
+| `browren486_1ac_barrier.json` | 6 | 276 | fighter 6 regular-slot BARRIER, round 4, f26069; both enemies' MDEF 3 → 78 |
+| `zio_event06_psycho.json` | 6 | 214 | Alys ITEM `$39` at f25473; enemy 139 → 140, HP 16383 → 2889, MDEF 255 → 38 |
+
+### Cartridge findings from the captures
+
+- **WARNING is a refill, not a spent turn.** `EnemyInit_Tower` clears the objects beside
+  a CommndBall and its `$14` object ends in `loc_14CBE`, Fission's refill; the
+  capture's round-1 queue shows it.
+- **`EnemyInit_Tower` has a guard, and it reads the next fighter, not the conditions**
+  (formation `$125`'s capture). The routine opens with
+  `cmpi.w #$2C, $52(a4) / bne / rts` (`ps4.asm:18244-18246`). Fighter objects are
+  `next_obj = $40` apart and `fighter_id` is `$12` (`ps4.constants.asm:99,150`), so
+  `$52(a4)` is the next fighter's enemy id and `$2C` is 44 FloatMine. Formation `$124`
+  (FloatMine2 on both sides) opens with a queue of the CommndBall alone; formation
+  `$125` (FloatMine on both sides) queues all three, and the Detonation that follows
+  removes the neighbors. The word is not the enemy's condition ids (`$0101`, which
+  would never fire the guard). `enemy_skill::initialize_enemies` carries the guard.
+- **The FloatMine fall-through is now observed** (`$17` on 50 FloatMine2): the log's
+  ability byte is `$00` for it, which is why the extractor files it as an attack.
+- **BURSTROC `$63` is a damage ability**, not scripted/custom: object `$82C` jumps into
+  `loc_24A9E`, the all-party request tail (`ps4.asm:64263`, `48483`).
+- **Dark Force 1's first action** replaces the rolled ability (byte cleared) with object
+  `$818`, which requests nothing; the battle is an ambush because the latch is up.
+- **Siren386 carries `$1D` BARRIER as a conditional** (arm `$08`), beside 49
+  Browren486's regular one.
+- **STRNGLIGHT is not on this route**: its only carrier (Shrieker) is on the Island
+  Cave maps.
+- **A formation's slot records survive their init routine**: a cleared neighbour keeps
+  its record and `enemy_count` counts it.
+
+### Routed but not captured
+
+These carriers are routed in the core by the routine and arm they share with a
+captured pair; no capture shows them.
+
+| carrier | why no capture |
+|---|---|
+| 72 BloodSaber `$2D` DEBAN | Routed by ShadowSabr's routine and arm (captured), but no capture has the party *hit* it before its turn, so `EnemyAI_PhysicalAtkReceived` never fires there and the cast was never seen. |
+| 42 SatMinion `$17` WAITING (conditional, arm `$05`) | `EnemyAttack_ArmDrone`'s `$17` arm `loc_10468` (`ps4.asm:22806`) is the FloatMine fall-through `loc_10406`, which `formation_124_d2` shows; every formation that triggers it opens with CRayTube's CHARGCNNON, and no fixture of it is committed. |
+| 105 ShadMirage `$4B` | No US formation seats it; core tests only. |
+| 39 Tower `$14` | Same init and record as 45 CommndBall, whose WARNING is captured. |
+
+### What the captures do not prove
+
+- The enemies' own `atk_bat` / `dfs_bat` / `agi_bat` cells are not in the log, so
+  DEBAN's size is proven through the damage later hits deal, GELUN's through the
+  party cells `oracle/sweep/arc.py` adds, and SHADOWBIND's only on the party side.
+- The formations are real, but the party is not a campaign party and the
+  encounters are not natural; event battles are random encounters with
+  `Event_Battle_Index` written over them.
+- No capture shows a sealed enemy caster's fizzle on one of these arms, or the
+  animations' timing.
+- Spector's and TechPlant's wake-up through a round-end roll, and Haunt's other
+  formations, are read, not observed.

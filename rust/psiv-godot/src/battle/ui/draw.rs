@@ -1,6 +1,6 @@
 //! One frame of plane-A composition from the runtime's view.
 //!
-//! Lifted out of the single `battle/ui.rs` file with the S3 node. Every window
+//! Lifted out of the former single-file battle UI module (commit 25701a1). Every window
 //! rectangle, tile pattern and text origin here is a decoded oracle placement
 //! (`docs/battle/BATTLE_GEOMETRY.md`, `oracle/layouts/*.json`); what the
 //! windows *say* now comes from the runtime's `BattleView`.

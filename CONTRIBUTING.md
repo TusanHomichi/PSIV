@@ -19,30 +19,48 @@ code and focused test that own a feature in the [feature map](docs/FEATURE_MAP.m
 - Cite the cartridge for a rule (a disassembly symbol or ROM offset). A
   deliberate difference from the original is recorded in the
   [source notes](docs/source-notes/README.md).
-- Commit no ROM-derived data: not the ROM, the generated pack, extracted
-  images, captures or saves
-  ([local inputs](AGENTS.md#protect-local-inputs-and-evidence)).
+- Commit no ROM, pack, `generated/` output, extracted images or sound, captures
+  or saves ([local inputs](AGENTS.md#protect-local-inputs-and-evidence)), and
+  no table copied from the ROM: a test reads tables from the local pack. What
+  the repository does hold from the game (observed-state fixtures, byte
+  signatures, citations) is listed in the
+  [README](README.md#license-and-third-party-code).
 
-## Issues and labels
+## Questions, issues and labels
 
-Work is tracked in GitHub issues. Every open issue carries one of these labels:
+Questions and ideas go to [Discussions](https://github.com/TusanHomichi/PSIV/discussions)
+(Q&A for questions, Show and tell for mods); issues are for bugs and tracked
+work. A bug report gives the commit, the platform, your ROM's SHA-256 check and,
+when it helps, a save; the [issue form](https://github.com/TusanHomichi/PSIV/issues/new/choose)
+asks for each.
+
+These are the labels:
 
 | Label | Meaning |
 | --- | --- |
-| `v1.0-blocker` | Must close before the 1.0 release |
-| `gameplay-fidelity` | A rule differs from the cartridge |
-| `presentation` | Drawing, animation, audio or timing differs |
+| `bug` | Something isn't working |
+| `gameplay-fidelity` | A rule differs from the cartridge; listed in the known differences |
+| `presentation` | Drawing, animation, audio or timing differs; listed in the known differences |
+| `accessibility` | A barrier for players with disabilities |
+| `enhancement` | A new feature or request |
+| `documentation` | Improvements or additions to documentation |
 | `tooling` | Tests, oracle, gate, CI, route runner, workflow |
+| `guard` | Make a recurring mistake unrepresentable or statically caught (correction-ladder rung 1 or 2) |
+| `v1.0-blocker` | Must close before the 1.0 release |
 | `post-release` | After 1.0: options, mods, nice-to-haves |
+| `good first issue` | Small and self-contained, with the files and the check named in the issue |
+| `help wanted` | The maintainer would welcome a pull request |
 
 A known gap in the code is an issue link, not a comment explaining it away
 ([the codebase is memory](docs/AGENT_WORKFLOW.md#the-codebase-is-memory)).
 
 ## The record
 
-Put the reasoning, the evidence and the checks you ran in the PR description;
+Put the reasoning, the evidence and the checks you ran in the PR description
+(the [pull request template](.github/pull_request_template.md) asks for them);
 the [record policy](docs/AGENT_WORKFLOW.md#where-work-and-its-record-live)
-says where everything else lives.
+says where everything else lives. Security problems are reported privately
+([SECURITY.md](SECURITY.md)).
 
 Coding agents, and humans who want the full working rules, read
 [AGENTS.md](AGENTS.md) and the [workflow](docs/AGENT_WORKFLOW.md).

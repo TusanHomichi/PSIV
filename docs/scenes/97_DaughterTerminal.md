@@ -8,8 +8,8 @@
 ## Clone audit
 
 The body was read from the US image through its `EventPtrs` slot; the clone's label
-names it and nothing else. Transcribed by the event census lane (S7,
-[EVENT_COVERAGE](EVENT_COVERAGE.md)).
+names it and nothing else. Transcribed for the event census
+([EVENT_COVERAGE](EVENT_COVERAGE.md)).
 
 ## Retail transcription
 

@@ -1,7 +1,7 @@
 //! Runtime-level save/load proof: file I/O plus the loaded-runtime seam.
 
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::Runtime;
 use psiv_core::battle::{StatPair, StatTriple, Stats};
@@ -53,12 +53,16 @@ fn stats(index: u8) -> Stats {
     }
 }
 
+/// A directory no other call makes: keyed by process and by a per-call counter,
+/// since the tests calling it run on parallel threads and a clock reading can
+/// repeat between two of them. A leftover from an earlier process that had the
+/// same id is removed first.
 fn unique_directory() -> PathBuf {
-    let nanos = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .expect("system clock after epoch")
-        .as_nanos();
-    std::env::temp_dir().join(format!("psiv-save-test-{}-{nanos}", std::process::id()))
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+    let n = NEXT.fetch_add(1, Ordering::Relaxed);
+    let directory = std::env::temp_dir().join(format!("psiv-save-test-{}-{n}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&directory);
+    directory
 }
 
 #[test]

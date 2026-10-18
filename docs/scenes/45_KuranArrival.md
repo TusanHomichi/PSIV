@@ -18,8 +18,7 @@ hack-only includes. Actual-ROM pointer range: `$06FAD4..$06FAE6` exclusive end.
 | 0 | `$06FAD4..$06FADD` | dialogue entry `4` | standard dialogue |
 | 1 | `$06FADE..$06FAE5` | set `EventFlag_Kuran=$86` | flag |
 
-## In the route (C6)
-
+## In the route
 The `kuran-arrival` chapter flies from the Dezo spaceport (`board`, `to: 4`,
 destination mask `$D8` once `$82` is set) and lands on Kuran `$190` at (31,46).
 `RunEvent_EnterKuran` (`$2C`) has no position test: it fires on the first field

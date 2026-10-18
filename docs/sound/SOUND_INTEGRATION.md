@@ -31,7 +31,7 @@ the ROM-derived map record. Piata is map `$013`; its pack binding is music
 
 The music ID table is the retail `MusicPtrs` table at `$D1C40`, with IDs
 `$81..$B4`. The corresponding symbols and dispatch rules are documented in
-`docs/sound/SOUND_SCOUT.md` and sourced from:
+`docs/sound/SOUND_DRIVER.md` and sourced from:
 
 - `reference/ps4disasm/sound/ps4.sound_driver.asm` for pointer records and
   `PlaySoundID` dispatch;
@@ -57,8 +57,7 @@ The music ID table is the retail `MusicPtrs` table at `$D1C40`, with IDs
 | Sequence-internal `EB` | `commands.rs` queues the payload through the same driver priority path | Wired; register-log covered |
 | Vehicle battle `$96` `CyberneticCarnival` | Mounted `EncounterRolled` and debug vehicle-battle entry dispatch `$96` through `Field::play_sound` | Wired 2026-08-16 |
 
-### Cancelled spell cues (2026-09-15)
-
+### Cancelled spell cues
 BROSE and RIMIT now suppress their `$CB` spell cue when a late seal cancels
 execution. The core emits `TechniqueUsed` when it pays TP, followed immediately
 by `TechniqueRejected` for the same actor and technique when sealed. The sound
@@ -70,22 +69,18 @@ The verified US ROM's `CharTech_Cast` at `$9208` tests status bit 4
 spell object. This preserves the original paid-but-cancelled behavior;
 it does not change TP costs or implement SEALS itself.
 
-`build/sealed-spell-sound/before-fix.log` records the reproduced failure.
 The focused sound tests cover both spell IDs and successful-but-missed casts;
 the real-pack RIMIT test verifies a 10-TP payment with no sleep effect or spell
-cue. The existing successful RIMIT and four-technique recovery/save checks
-also pass: three sound tests and three integration tests in total. Logs are
-`focused-tests.log` and `integration-tests.log` in the same local directory.
-This is runtime event/cue evidence; exact audio timing and waveform parity
-remain separate work.
+cue. This is runtime event and cue evidence; exact audio timing and waveform
+parity are separate work.
 
 Battle presentation now receives a `BattleTimeline`: the core event vector is
 unchanged, and `BattleSoundEvent { event_index, id }` plus
 `BattleAnimationEvent` are ordered sidecars. `psiv-runtime` captures weapon
 state and the selected enemy record before round mutation, maps the retail
 weapon-index table, and attaches requests to `Attacked`, miss, and death
-events. `psiv-godot/src/battle/sfx.rs` pairs both sidecars with the screen
-queue; `Field::drive_battle_if_active` drains sound IDs into the existing live
+events. The runtime's battle queue (`rust/psiv-runtime/src/session/battle/queue.rs`)
+pairs both sidecars with the screen queue; `Field::drive_battle_if_active` drains sound IDs into the existing live
 `Field::play_sound` path. The driver remains responsible for mixing SFX with
 the active theme. The enemy records and their object/frame provenance live in
 `battle/enemy_animations.json`; the scout and its explicit deferred surface
@@ -297,7 +292,7 @@ real Piata track's existing first-three-tick fixture remains deterministic and
 includes YM DAC `$2A` data plus `$2B` enable writes.
 
 Headless Godot boots exit successfully and demonstrate normal Piata routing,
-debug-track routing, and combined debug-battle routing. Godot 4.7.1 reports
+debug-track routing, and combined debug-battle routing. Godot reports
 one engine-owned `AudioStreamGeneratorPlayback` ObjectDB warning during
 process teardown; the safe `stop`/stream-detach path is in place, but the
 headless engine does not retire that playback before its final leak audit.

@@ -58,7 +58,7 @@ had workarounds in it (`go_to_map` round trips); the rest were latent.
 | `Event_WreckageEngine` `$29` | `$06DD14` | one chunk | not transcribed |
 
 The remaining row is an already-recorded direct body outside this
-slice ([12_ArcTriggerCensus](12_ArcTriggerCensus.md)); listing it here keeps
+slice ([trigger census](TRIGGER_CENSUS.md)); listing it here keeps
 the *class* visible: each is a live collision change, not decoration.
 
 ### Visual-only writes on a collision plane that is not read

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions
+    url: https://github.com/TusanHomichi/PSIV/discussions/categories/q-a
+    about: Ask how to build, play or mod PSIV in Discussions Q&A.
+  - name: Show a mod
+    url: https://github.com/TusanHomichi/PSIV/discussions/categories/show-and-tell
+    about: Share a mod or something you made in Discussions "Show and tell".
+  - name: Report a security problem
+    url: https://github.com/TusanHomichi/PSIV/security/advisories/new
+    about: Report it privately; see SECURITY.md.

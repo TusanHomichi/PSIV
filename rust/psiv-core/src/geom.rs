@@ -4,7 +4,7 @@
 //! Everything here is integer-only by construction. There is no diagonal
 //! direction because the original has none: `GetChunkAndCollision` resolves a
 //! single 16-pixel cell per step and the walker commits to one axis at a time
-//! (see `docs/RUNTIME_DESIGN.md`, "Fidelity spine").
+//! (the field "Fidelity spine" of `docs/RUNTIME_DESIGN.md` at commit 3ea02d7^).
 
 /// Pixels along one edge of a collision cell. `GetChunkAndCollision` resolves
 /// one collision type per 16 pixels.

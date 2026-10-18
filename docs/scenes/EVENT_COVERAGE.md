@@ -243,8 +243,8 @@ cartridge keeps no other route to the field event dispatcher.
 
 ## Allowlist by tracking issue
 
-Each allowlisted event has exactly one of these five issues, so a route-chapter
-lane that reaches an area has its own worklist. A scene that lands removes its
+Each allowlisted event has exactly one of these five issues, so work that
+reaches an area has its own worklist. A scene that lands removes its
 entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
 `rust/psiv-core/tests/event_census.rs`.
 
@@ -266,7 +266,7 @@ entry and lowers `ALLOWLIST_CEILING` in `tests/event_census.py` and
   scenes. The entry stays so the issue's area keeps its row.
 - [#81](https://github.com/TusanHomichi/PSIV/issues/81): Motavia side content.
 - [#82](https://github.com/TusanHomichi/PSIV/issues/82): Vahal Fort and Weapon Plant.
-  All nineteen events are transcribed (S9): [the story scenes](110_VahalFortStory.md),
+  All nineteen events are transcribed: [the story scenes](110_VahalFortStory.md),
   [the chests](111_WrenSkillChests.md) and [the platforms, terminals and
   belts](../field/PLATFORMS_AND_BELTS.md). The entry stays so the issue's area
   keeps its row.
@@ -283,10 +283,9 @@ It needs something the scene vocabulary does not have, and it is off the route:
 
 One entry sits in an area only by closest fit: `$10` (`Event_GettingOffVehicle`,
 a field-input event with no map) is under #81. `$21` (`Event_Recovery`, the
-generic recovery tile) sat under #83 the same way until lane C8 transcribed it
-([102](102_Recovery.md)).
+generic recovery tile) is transcribed ([102](102_Recovery.md)).
 
-The Garuberk Tower's six events (`$35` to `$3A`) left the allowlist with lane C8
+The Garuberk Tower's six events (`$35` to `$3A`) are transcribed
 ([103](103_GaruberkTowerDoors.md), [104](104_GaruberkTowerEyes.md)). The ops this
 table once listed as missing were already there: `WriteActorMapChunks` writes at
 the leader's live position, a table row is a write and a four-frame `Wait`

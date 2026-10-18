@@ -6,7 +6,7 @@
 //! seconds in a debug build. The whole route from New Game is `#[ignore]`d:
 //!
 //! ```text
-//! cargo test --release -p psiv-campaign --test runner -- --ignored --test-threads=1
+//! cargo test --release -p psiv-campaign --test runner -- --ignored
 //! ```
 //!
 //! Cases that need the pack skip with a message when `runtime-pack` is absent,
@@ -657,7 +657,7 @@ fn the_whole_route_defeats_zio_saves_and_replays() {
     };
     // The spaceport chapter ends in Zelan: the ship's destination menu opened on
     // the Mota Spaceport's boarding row, `World_Index` 3 was picked with the
-    // pad, and the flight landed on loc_64B5A's Zelan row (RUNNER_LOG M23).
+    // pad, and the flight landed on loc_64B5A's Zelan row (RUNNER_LOG M23, commit 0faa91b^).
     let (at_zelan, _) = open_session(
         pack_dir().as_path(),
         &StartPoint::Save(save_of("mota-spaceport")),
@@ -670,7 +670,7 @@ fn the_whole_route_defeats_zio_saves_and_replays() {
     // The route ends at first control on Dezolis: Raja Temple's `$14C`, the
     // exit's foot, with the five-member party, the crash landing's flags and
     // `World_Index` 1 (`ps4.asm:155847`). Beyond it the exit's trigger event
-    // `$43` plays in the next chapter (RUNNER_LOG_DEZOLIS H28).
+    // `$43` plays in the next chapter (RUNNER_LOG_DEZOLIS H28, commit 0faa91b^).
     let (on_dezolis, _) = open_session(
         pack_dir().as_path(),
         &StartPoint::Save(save_of("dezolis-first-control")),
@@ -724,7 +724,7 @@ fn the_whole_route_defeats_zio_saves_and_replays() {
         );
     }
     // Landale: the spaceport rose on the live map and the party stands on
-    // Dezolis by its door with `$82` set (RUNNER_LOG_KURAN C6-1).
+    // Dezolis by its door with `$82` set (RUNNER_LOG_KURAN C6-1, commit 0faa91b^).
     let (landale, _) = open_session(
         pack_dir().as_path(),
         &StartPoint::Save(save_of("dezolis-landale")),

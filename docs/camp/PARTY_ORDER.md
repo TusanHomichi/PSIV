@@ -45,7 +45,7 @@ without altering enemy rules, levels, equipment or resources.
 
 ## Validation
 
-`rust/psiv-runtime/tests/camp_order.rs` checks invalid permutations, atomic
+`rust/psiv-runtime/src/suites/camp_order.rs` checks invalid permutations, atomic
 commit, unchanged roster and field positions, SAVE/load, battle slot order,
 the complete target-roll distribution, and rejection during battle.
 The UI unit test checks nontrivial pick/undo restoration and auto-completion.
@@ -53,8 +53,8 @@ The UI unit test checks nontrivial pick/undo restoration and auto-completion.
 `tools/native/native_party_order.gd` loads the connected map `$A7` SAVE, performs
 pick/undo/cancel, commits Gryz/Alys/Chaz/Hahn and saves through the menu.
 The original emulator can load the very same native SRAM without RAM
-patches; `build/native-order/oracle/order.tape` performs the matching ORDER
-sequence. Its RAM dump at frame 1985 contains `[4,1,0,2,255]` at `$F40A`.
+patches; an oracle run of the same ORDER sequence on it (a local tape, not
+committed) supplies the RAM and frames `verify_native_order.py` reads. Its RAM dump at frame 1985 contains `[4,1,0,2,255]` at `$F40A`.
 
 `tools/native/verify_native_order.py` compares the ordinary-input receipt, exact
 save bytes and original RAM. It also compares native captures with original

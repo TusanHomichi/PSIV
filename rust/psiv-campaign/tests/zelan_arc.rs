@@ -1,4 +1,4 @@
-//! Zelan F1 and the boarding row, driven with pads from hand-built saves (lane C5).
+//! Zelan F1 and the boarding row, driven with pads from hand-built saves.
 //!
 //! The whole arc, Wren to the crash landing, is the route's `zelan-wren-canceller`,
 //! `zelan-sabotage` and `dezolis-first-control` chapters; the ignored

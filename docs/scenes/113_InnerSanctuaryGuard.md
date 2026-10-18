@@ -9,7 +9,7 @@
   `$FA $A2 $01` then `$F6 $00 $51`: while `EventFlag_InnerSanctGuard1` (`$A2`) is clear it fires
   `$51`, and once it is set the chain skips to entry `$25`. Entry `$26`'s chain is `$FA $D9 +3`,
   `$FA $A3 +2`, `$FA $D7 +1`: with Elsydeon (`$D9`) and `$A3` clear and `$D7` set it lands on entry
-  `$27`, `$F6 $00 $52`. (`$FA`'s operand is a forward delta: [00](00_triggers.md).)
+  `$27`, `$F6 $00 $52`. (`$FA`'s operand is a forward delta: [trigger census](TRIGGER_CENSUS.md).)
 
 ## Clone audit
 

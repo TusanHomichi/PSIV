@@ -2,8 +2,8 @@
 //!
 //! Integer math only. No clocks, no randomness, no interior mutability, no
 //! hashed iteration — the same state, map and input sequence always produces
-//! the same state and the same effect log. See `docs/RUNTIME_DESIGN.md`,
-//! "Fidelity spine (field mode)".
+//! the same state and the same effect log. See the field "Fidelity spine" of
+//! `docs/RUNTIME_DESIGN.md` at commit 3ea02d7^.
 
 use crate::collision::CollisionType;
 use crate::error::MapError;
@@ -86,7 +86,7 @@ impl StepFrames {
     ///
     /// Confirmed on hardware by the oracle tape: exactly 8.00 frames per
     /// 16-pixel cell in all four directions, `x_step_duration` counting down
-    /// from `$1000` to 0 in `$200` steps (`oracle/README.md`, "Walk timing").
+    /// from `$1000` to 0 in `$200` steps (`docs/field/MOVEMENT.md`, "Walk timing").
     pub const DEFAULT: StepFrames = StepFrames(8);
 
     /// Builds a step duration.

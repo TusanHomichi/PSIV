@@ -19,6 +19,34 @@ is scanned, and fenced code blocks and inline code are skipped as content:
   numbered `-1`, `-2`, ... in document order;
 - every `yaml` (or `yml`) block must parse (PyYAML `safe_load`): a broken quote
   turns a YAML record into text no tool can read;
+- no document is a run record (issue #119). Runs, receipts and task graphs
+  live in commits, issues and pull requests (`docs/AGENT_WORKFLOW.md`), so the
+  checker refuses the shapes the deleted records had: a file named or titled
+  as a ledger, receipt, journal or archive (a word of its name or title is
+  one of `RECORD_WORDS`: `LANE_LEDGER.md`, "Native playability - evidence
+  ledger", "Implementation archive"), as a run log ("log" beside a
+  `RUN_WORDS` word: `RUNNER_LOG_KURAN.md`, "Runner log"; a document about the
+  game's message log, `MESSAGE_LOG.md`, is research and passes) or as a work
+  history ("history" beside a `WORK_WORDS` word: `IMPLEMENTATION_HISTORY`,
+  "Lane history"; a lore document, "The history of Algo", passes); a title
+  carrying a date ("Dispatch tiers (2026-08-15)"); a table with
+  `DATED_ROWS_LIMIT` or more rows that open with a date (`| 2026-09-23 |
+  lane | ...`); and a `yaml` block that holds a task graph (a mapping anywhere
+  in it with a `TASK_GRAPH_KEYS` key: `nodes`, `depends_on` or
+  `next_action`); and a pointer to a run's evidence directory
+  (`EVIDENCE_PATH_RE`: `build/lane-evidence/...`, `build/lanes/<id>/`, or a
+  tool's timestamped receipt, `build/gate/20261018T025426Z-3bddaba`); and a
+  lane's name or id (`LANE_NAME_RE`: `oracle-lane's`, `lane A4`; issue #120).
+  The lane-name rule also reads the comments and docstrings of tracked
+  Python, Rust, GDScript and shell (`CODE_PATTERNS`), with this checker's own
+  examples exempt line by line (`LANE_NAME_EXEMPT`).
+  Research documents pass: a dated heading or a dated
+  chronology entry (`## 2026-10-03 - Rounds that open no party command
+  window`), a date inside a table cell, and `CHANGELOG.md` (one word) are all
+  allowed. A known limit: a record written as prose under a neutral title,
+  with dated bold paragraphs (`**BioPlant checkpoint (2026-09-23):** ...`, as
+  in BIOPLANT_NATIVE (commit 0faa91b^)), passes, because a rule against dated
+  paragraphs would refuse research notes too;
 - inside a `bash`, `sh`, `shell` or `console` block, every token naming a path
   under `docs/`, `godot/`, `oracle/`, `psiv_tools/`, `rust/`, `tests/` or
   `tools/` (optionally behind `./` or `$PWD/`) must exist, and a token with a
@@ -27,6 +55,17 @@ is scanned, and fenced code blocks and inline code are skipped as content:
   `/Users/<user>`, a `file://` URL's included; a network URL's path is not
   one): it works on one machine only. Write a `~/`-relative path,
   an environment variable such as `$PSIV_GODOT`, or a placeholder.
+
+- no line, fenced or not, writes out a version a `PIN_FILES` file pins (the
+  Godot version in `.godot-version`, the Rust toolchain in
+  `rust-toolchain.toml`): a document points at the file, so a version bump
+  changes one line (issue #133).
+
+Paths written outside links are checked too: `tools/check_paths.py` (issue
+#114) fails on a repository path, file name or Markdown section that Rust,
+GDScript, Python, shell, C, a campaign route or Markdown prose and inline code
+names and the tree does not have. It runs here so both gate tiers carry it
+without a command of their own.
 
 A path git ignores is a local input (`AGENTS.md`, "Protect local inputs and
 evidence"), not repository content - and not a file of the change either: the
@@ -58,9 +97,9 @@ except ModuleNotFoundError:  # reported by `main`: the checker cannot run withou
     yaml = None
 
 try:  # imported as `tools.check_docs`: the suite, and the gate's `PYTHONPATH=.`
-    from tools.repo_files import repo_files
+    from tools.repo_files import ignored_paths, repo_files
 except ModuleNotFoundError:  # `python3 tools/check_docs.py` puts `tools/` itself on sys.path
-    from repo_files import repo_files
+    from repo_files import ignored_paths, repo_files
 
 CHECKED_PATH_PREFIXES = (
     "docs/",
@@ -77,6 +116,59 @@ CHECKED_PATH_PREFIXES = (
 PATH_STRIPPED_PREFIXES = ("./", "$PWD/", "${PWD}/", '"$PWD/', '"${PWD}/')
 
 COMMAND_FENCE_LANGS = frozenset({"bash", "sh", "shell", "console"})
+
+#: Words of a file name or title (split on anything but letters and digits, any
+#: case) that name a run record: a receipt ledger, a journal, a history or an
+#: archive (issue #119).
+RECORD_WORDS = frozenset({"RUNLOG", "JOURNAL", "LEDGER", "LEDGERS", "RECEIPT", "RECEIPTS",
+                          "ARCHIVE", "ARCHIVED"})
+#: "Log" names a run record only beside a word for a run or a lane (`RUNNER_LOG`,
+#: "Run log"): the game has a message log, and a document about it is research.
+LOG_WORDS = frozenset({"LOG", "LOGS"})
+RUN_WORDS = frozenset({"RUN", "RUNS", "RUNNER", "LANE", "LANES"})
+#: "History" names a run record only beside a word for the work
+#: (`IMPLEMENTATION_HISTORY`, "Lane history"): the game's world has a history,
+#: and a lore document about it is research.
+HISTORY_WORDS = frozenset({"HISTORY", "HISTORIES"})
+WORK_WORDS = RUN_WORDS | frozenset({"IMPLEMENTATION", "INTEGRATION"})
+#: A date in a document's title marks it a dated record ("Dispatch tiers (2026-08-15)").
+DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+#: Rows opening with a date that make a table a dated receipt ledger.
+DATED_ROWS_LIMIT = 3
+DATED_ROW_RE = re.compile(r"\A {0,3}\|\s*\d{4}-\d{2}-\d{2}\b")
+#: A pointer to a run's evidence directory: local receipts no reader of the doc
+#: can open. That is a lane's evidence (`build/lane-evidence/...`,
+#: `build/x86-evidence/`), a lane's archived build (`build/lanes/<id>/`) and a
+#: tool's timestamped receipt (`build/gate/20261018T025426Z-3bddaba`,
+#: `build/certify/20261006T230810Z-1b01ee7/`). A template
+#: (`build/gate/<UTC stamp>-<sha>/`) names where receipts go, and passes.
+EVIDENCE_PATH_RE = re.compile(
+    r"\bbuild/(?:[\w.-]*evidence\b|lanes\b|(?:[\w.-]+/)*\d{8}T\d{6}Z-[0-9a-f]{7,40}\b)")
+#: The files that own a toolchain version, and how to read it from each. A
+#: document points at the file, so a version bump is one line (issue #133).
+PIN_FILES = {
+    ".godot-version": re.compile(r"\A\s*(?P<version>\S+)\s*\Z"),
+    "rust-toolchain.toml": re.compile(r"^channel\s*=\s*\"(?P<version>[^\"]+)\"", re.M),
+}
+#: A delivery lane's name, the attribution of a finding to whoever ran it
+#: (issue #120): a hyphenated name ending in "lane" (`oracle-lane's`,
+#: `battle-scout-lane`) or a lane id (`lane A4`, `lanes P88b`). A document says
+#: what the cartridge does and how to reproduce it; who found it is in the Git log.
+LANE_NAME_RE = re.compile(r"\b[\w-]+-lanes?(?:'s)?(?![\w-])|\b[Ll]anes? [A-Z]{1,4}\d+[a-z]?\b")
+#: The code whose comments and docstrings are read for lane names too.
+CODE_PATTERNS = ("*.py", "*.rs", "*.gd", "*.sh")
+#: Lines that name a lane on purpose: this checker's own examples, by file and
+#: exact line text. An entry that matches no line is itself a problem.
+LANE_NAME_EXEMPT = {
+    ("tools/check_docs.py",
+     "lane's name or id (`LANE_NAME_RE`: `oracle-lane's`, `lane A4`; issue #120)."),
+    ("tools/check_docs.py",
+     '#: (issue #120): a hyphenated name ending in "lane" (`oracle-lane\'s`,'),
+    ("tools/check_docs.py",
+     "#: `battle-scout-lane`) or a lane id (`lane A4`, `lanes P88b`). A document says"),
+}
+#: Keys that make a `yaml` block a task graph.
+TASK_GRAPH_KEYS = frozenset({"nodes", "depends_on", "next_action"})
 YAML_FENCE_LANGS = frozenset({"yaml", "yml"})
 
 SCHEME_RE = re.compile(r"\A[A-Za-z][A-Za-z0-9+.\-]*:")
@@ -125,21 +217,9 @@ def git_stdout(*args: str) -> str:
 
 
 def is_ignored(path: str) -> bool:
-    """True when git ignores `path`, which marks it a local input.
-
-    A directory-only pattern (`oracle/frames/`) matches a path that does not
-    exist on disk only when the path is spelled with a trailing slash, so both
-    spellings go in. `-q` takes a single pathname; `--stdin` carries both.
-    """
-    proc = subprocess.run(
-        ["git", "check-ignore", "-q", "--stdin"],
-        input=f"{path}\n{path}/\n",
-        capture_output=True,
-        text=True,
-        cwd=Path.cwd(),
-        check=False,
-    )
-    return proc.returncode == 0
+    """True when git ignores `path`, which marks it a local input
+    (`tools/repo_files.py` `ignored_paths`, asked at the repository root)."""
+    return path in ignored_paths([path])
 
 
 def iter_fenced_lines(lines: list[str]):
@@ -302,9 +382,10 @@ def check_link(
 
 
 def check_yaml(name: str, line: int, body: list[str]) -> str | None:
-    """A problem line when the `yaml` block opened at `line` does not parse."""
+    """A problem line when the `yaml` block opened at `line` does not parse,
+    or parses to a task graph."""
     try:
-        yaml.safe_load("\n".join(body))
+        data = yaml.safe_load("\n".join(body))
     except yaml.YAMLError as error:
         # The context mark is where the broken construct opened (a quote's
         # first character), which is the line to fix; the problem mark can sit
@@ -316,7 +397,190 @@ def check_yaml(name: str, line: int, body: list[str]) -> str | None:
             if part
         ) or str(error).splitlines()[0]
         return f"{name}:{at}: yaml block does not parse: {reason}"
+    keys = task_graph_keys(data)
+    if keys:
+        return (f"{name}:{line}: yaml block is a task graph ({', '.join(sorted(keys))}): "
+                "task graphs belong in issues and pull requests")
     return None
+
+
+def record_words(text: str) -> list[str]:
+    """The words of `text` that name a run record, sorted; empty when none do."""
+    words = {word.upper() for word in re.split(r"[^A-Za-z0-9]+", text) if word}
+    found = words & RECORD_WORDS
+    if words & RUN_WORDS:
+        found |= words & LOG_WORDS
+    if words & WORK_WORDS:
+        found |= words & HISTORY_WORDS
+    return sorted(found)
+
+
+def record_name_problem(name: str) -> str | None:
+    """A message when the file `name` is named as a run record, else None."""
+    found = record_words(Path(name).name.rsplit(".", 1)[0])
+    if found:
+        return (f"{name}:1: run record file name ({found[0]}): runs and receipts "
+                "belong in commits, issues and pull requests")
+    return None
+
+
+def document_title(lines: list[str]) -> tuple[int, str] | None:
+    """`(line, text)` of the document's title: its first `#` heading, or, in a
+    document without one, its first non-blank line outside a fenced block (a
+    chapter of a split record opened with an italic "part of the ... ledger")."""
+    first = None
+    for index, text, info, _ in iter_fenced_lines(lines):
+        if info is not None or not text.strip():
+            continue
+        heading = HEADING_RE.match(text)
+        if heading and len(heading["hashes"]) == 1:
+            return index + 1, heading["text"] or ""
+        if first is None:
+            first = (index + 1, text)
+    return first
+
+
+def record_title_problem(name: str, lines: list[str]) -> str | None:
+    """A message when the document's title names it a run record or dates it."""
+    title = document_title(lines)
+    if title is None:
+        return None
+    line, text = title
+    found = record_words(text)
+    if found:
+        return (f"{name}:{line}: run record title ({found[0].lower()}): runs and receipts "
+                "belong in commits, issues and pull requests")
+    date = DATE_RE.search(text)
+    if date:
+        return (f"{name}:{line}: dated title ({date.group(0)}): a dated record belongs in "
+                "commits, issues and pull requests")
+    return None
+
+
+def task_graph_keys(data) -> set[str]:
+    """The `TASK_GRAPH_KEYS` that any mapping inside parsed yaml `data` holds."""
+    found: set[str] = set()
+    if isinstance(data, dict):
+        found |= TASK_GRAPH_KEYS & {key for key in data if isinstance(key, str)}
+        for value in data.values():
+            found |= task_graph_keys(value)
+    elif isinstance(data, list):
+        for value in data:
+            found |= task_graph_keys(value)
+    return found
+
+
+def pinned_versions(root: Path) -> dict[str, re.Pattern]:
+    """The pin file of each version `PIN_FILES` pins at `root`, with the
+    pattern that finds the version written out: not inside a longer number
+    (`4.7.10`, `14.7.1`), but behind a `v` (`v4.7.1`)."""
+    pins = {}
+    for name, reader in PIN_FILES.items():
+        try:
+            found = reader.search((root / name).read_text(encoding="utf-8"))
+        except OSError:
+            continue
+        if found:
+            version = re.escape(found["version"])
+            pins[name] = re.compile(rf"(?<![\d.]){version}(?!\d|\.\d)")
+    return pins
+
+
+def _quote_aware_comment(line: str, marker: str, state: dict) -> str | None:
+    """The comment text of one code line, or None: from `marker` (`//` or `#`)
+    outside a string literal to the end of the line. Rust's `/* */` blocks are
+    followed across lines through `state`. A `#` counts only at the start of a
+    word, so shell's `$#` and `${#x}` are not comments."""
+    found, quote, index = [], None, 0
+    while index < len(line):
+        if state.get("block"):
+            end = line.find("*/", index)
+            found.append(line[index:] if end < 0 else line[index:end])
+            if end < 0:
+                return " ".join(found)
+            state["block"], index = False, end + 2
+            continue
+        char = line[index]
+        if quote:
+            if char == "\\":
+                index += 2
+                continue
+            if char == quote:
+                quote = None
+        elif marker == "//" and line.startswith("'\"'", index):
+            index += 3  # Rust's character literal for a double quote
+            continue
+        elif char == '"' or (char == "'" and marker == "#"):
+            quote = char
+        elif line.startswith(marker, index) and (
+                marker == "//" or index == 0 or line[index - 1] in " \t;"):
+            found.append(line[index:])
+            return " ".join(found)
+        elif marker == "//" and line.startswith("/*", index):
+            state["block"], index = True, index + 2
+            continue
+        index += 1
+    return " ".join(found) or None
+
+
+def code_comments(name: str, text: str):
+    """`(line, text)` of every comment and docstring line in the code `name`."""
+    lines = text.splitlines()
+    if name.endswith(".py"):
+        import ast
+        import io
+        import tokenize
+        import warnings
+        try:
+            for token in tokenize.generate_tokens(io.StringIO(text).readline):
+                if token.type == tokenize.COMMENT:
+                    yield token.start[0], token.string
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", SyntaxWarning)  # another file's escapes
+                tree = ast.parse(text)
+        except (SyntaxError, tokenize.TokenError):
+            return
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef,
+                                 ast.AsyncFunctionDef)) and node.body:
+                first = node.body[0]
+                if (isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant)
+                        and isinstance(first.value.value, str)):
+                    for number in range(first.lineno, first.end_lineno + 1):
+                        yield number, lines[number - 1]
+        return
+    marker = "//" if name.endswith(".rs") else "#"
+    state: dict = {}
+    for number, line in enumerate(lines, 1):
+        comment = _quote_aware_comment(line, marker, state)
+        if comment:
+            yield number, comment
+
+
+def lane_name_problems(root: Path) -> list[str]:
+    """Lane names in the comments and docstrings of tracked code (issue #120)."""
+    problems, matched = [], set()
+    for name in repo_files(root, CODE_PATTERNS):
+        try:
+            text = (root / name).read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        lines = text.splitlines()
+        for number, comment in code_comments(name, text):
+            if not LANE_NAME_RE.search(comment):
+                continue
+            key = (name, lines[number - 1].strip())
+            if key in LANE_NAME_EXEMPT:
+                matched.add(key)
+                continue
+            for found in LANE_NAME_RE.findall(comment):
+                problems.append(f"{name}:{number}: lane name ({found}): say what the code "
+                                "does or which document owns the finding")
+    if Path(__file__).resolve().parents[1] == root.resolve():
+        for name, line in sorted(LANE_NAME_EXEMPT - matched):
+            problems.append(f"tools/check_docs.py: LANE_NAME_EXEMPT matches no line of {name}: "
+                            f"{line}")
+    return problems
 
 
 def check_tree() -> tuple[list[str], list[int]]:
@@ -335,13 +599,35 @@ def check_tree() -> tuple[list[str], list[int]]:
         except (OSError, UnicodeDecodeError):
             continue  # not readable text: a binary blob, or a permission
     slugs = {name: heading_slugs(lines) for name, lines in texts.items()}
+    pins = pinned_versions(root)
 
     problems: list[str] = []
     counts = [len(texts), 0, 0, 0, 0]  # files, links, anchors, command paths, yaml blocks
     for name, lines in texts.items():
+        for message in (record_name_problem(name), record_title_problem(name, lines)):
+            if message:
+                problems.append(message)
         for index, text in enumerate(lines):
             for path in host_home_paths(text):
                 problems.append(f"{name}:{index + 1}: host-absolute home path: {path}")
+            for pin, pattern in pins.items():
+                found = pattern.search(text)
+                if found:
+                    problems.append(f"{name}:{index + 1}: pinned version {found.group(0)} "
+                                    f"written out: point at {pin}, its one owner")
+        dated = [index + 1 for index, text, info, _ in iter_fenced_lines(lines)
+                 if info is None and DATED_ROW_RE.match(text)]
+        for index, text in enumerate(lines):
+            for found in EVIDENCE_PATH_RE.findall(text):
+                problems.append(f"{name}:{index + 1}: run evidence path ({found}): receipts "
+                                "belong in commits, issues and pull requests")
+            for found in LANE_NAME_RE.findall(text):
+                problems.append(f"{name}:{index + 1}: lane name ({found}): say what was found "
+                                "and how to reproduce it; who found it is in the Git log")
+        if len(dated) >= DATED_ROWS_LIMIT:
+            problems.append(f"{name}:{dated[0]}: dated receipt ledger ({len(dated)} table rows "
+                            "open with a date): runs and receipts belong in commits, issues "
+                            "and pull requests")
         block = None  # (opening line, body) of the yaml block being read
         for index, text, info, delimiter in iter_fenced_lines(lines):
             line = index + 1
@@ -368,6 +654,7 @@ def check_tree() -> tuple[list[str], list[int]]:
                     message = check_path(path, files)
                     if message:
                         problems.append(f"{name}:{line}: {message}")
+    problems += lane_name_problems(root)
     return problems, counts
 
 
@@ -382,12 +669,19 @@ def main() -> int:
               file=sys.stderr)
         return 2
     problems, counts = check_tree()
+    # Imported here: check_paths reads this module's slug rules at its import.
+    try:
+        from tools.check_paths import check as check_code_paths
+    except ModuleNotFoundError:
+        from check_paths import check as check_code_paths
+    code_problems, code_paths = check_code_paths(root)
+    problems += code_problems
     for problem in problems:
         print(problem)
     files, links, anchors, paths, yaml_blocks = counts
     summary = (
         f"checked {files} files, {links} links, {anchors} anchors, {paths} command paths, "
-        f"{yaml_blocks} yaml blocks"
+        f"{yaml_blocks} yaml blocks, {code_paths} code paths"
     )
     print(f"{summary}; {len(problems)} problem(s)")
     return 1 if problems else 0

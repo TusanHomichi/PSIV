@@ -86,7 +86,7 @@ impl Manifest {
 ///
 /// The pack records its hash and `psiv-data` refuses a mismatched pack set --
 /// the same fail-closed hash discipline as everything else in the project
-/// (docs/RUNTIME_DESIGN.md, "Data path").
+/// (docs/EXTRACTION.md, "Supported ROM").
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RomInfo {
     /// SHA-256 of the ROM image.

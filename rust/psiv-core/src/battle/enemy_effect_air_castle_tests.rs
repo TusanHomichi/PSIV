@@ -1,4 +1,4 @@
-//! Lane A5's status and stat arms: DEBAN's other two sabres and its seal test,
+//! The Air Castle stretch's status and stat arms: DEBAN's other two sabres and its seal test,
 //! DTHSPELL, POSESSION, REINFORCE and DarkForce2's two-call EVIL EYE.
 //!
 //! Constructed records only: the effect id and range nibble are the route's
@@ -114,7 +114,7 @@ fn an_unsealed_raised_sabre_still_swings_before_the_object_loads() {
 #[test]
 fn dthspell_kills_the_stored_target_on_a_landed_roll() {
     // 112 Illusionst and 113 ImagioMage reach another object, `$72C`, with the
-    // same call and kill (lane A6); 106 Haunt has no DTHSPELL arm.
+    // same call and kill (`ENEMY_ABILITIES_ENDGAME.md`); 106 Haunt has no DTHSPELL arm.
     for enemy in [112, 113] {
         let (data, mut roster) = setup(enemy, skill(0x4E, 0x02, 8, 2));
         let (turn, _, drawn) = run(&mut roster, &data, 0x4E, Some(id(2)), &[63]);
@@ -224,7 +224,7 @@ fn exactly_the_effect_arms_whose_object_tests_the_caster_seal_are_sealable() {
     assert_eq!(
         sealable,
         [
-            // Lane A6: the DarkMaraud family's shared state 0 `loc_1E94C`
+            // Endgame stretch: the DarkMaraud family's shared state 0 `loc_1E94C`
             // (frame $14, `ps4.asm:41371-41375`).
             (64, 0x26),
             (64, 0x28),
@@ -236,7 +236,7 @@ fn exactly_the_effect_arms_whose_object_tests_the_caster_seal_are_sealable() {
             (66, 0x2A),
             (70, 0x2D),
             (71, 0x2D),
-            // Lane A6: BloodSaber's SHIFT object `$2C4` starts in DEBAN's
+            // Endgame stretch: BloodSaber's SHIFT object `$2C4` starts in DEBAN's
             // seal-testing state (40125-40129).
             (72, 0x26),
             (72, 0x2D),
@@ -248,7 +248,7 @@ fn exactly_the_effect_arms_whose_object_tests_the_caster_seal_are_sealable() {
             (115, 0x2A),
             (115, 0x2F),
             (115, 0x57),
-            // Lane A6: Radhin's objects share the Juza prelude `loc_2AB2E`
+            // Endgame stretch: Radhin's objects share the Juza prelude `loc_2AB2E`
             // (seal test at 56109).
             (116, 0x26),
             (116, 0x27),
