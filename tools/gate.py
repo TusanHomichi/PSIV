@@ -21,9 +21,10 @@ A run holds two repository-wide locks, both resolved by tools/heavy_lock.py so
 every worktree shares one file each, always in this order (heavy_lock's
 docstring owns it; a gate taking them the other way deadlocks against one that
 does not): the gate lock, `<main checkout>/build/gate/.lock`, for the whole
-run, and inside it the heavy lock in the exclusive class, through
-`hold_heavy_lock` (heavy runs are serialized by project rule; a run under
-verify_candidate already holds it, so that step is a no-op there, and
+run, and inside it the heavy lock in `GATE_LOCK_CLASS`, exclusive, through
+`hold_heavy_lock` for every command (the gate's receipt is a timed,
+reproducible run, so nothing shares the machine with it; the receipt names the class at the top and on each command; a run under
+`heavy_lock.py run --class exclusive` already holds it, so that step is a no-op there, and
 `PSIV_LOCK_PRIORITY=1` queues the gate as a priority waiter). A gate nested
 under a heavy holder takes the gate lock without waiting, `--wait` or not: the
 wait would hold the heavy lock while waiting for the gate lock.
@@ -57,7 +58,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from heavy_lock import (HELD_ENV, gate_lock_path, heavy_lock_path,  # noqa: E402
+from heavy_lock import (EXCLUSIVE, HELD_ENV, gate_lock_path, heavy_lock_path,  # noqa: E402
                         hold_heavy_lock, lock_holders)
 
 EXIT_OK = 0
@@ -102,6 +103,11 @@ SLOW_PYTHON_MODULES = {
     "test_extract_stamp": 7.7,
     "test_sprites": 7.2,
 }
+
+#: The heavy-lock class every gate command runs under. The gate's receipt is a
+#: timed, reproducible run, so it holds the machine for the whole run: the one
+#: exclusive job (docs/DEVELOPMENT.md, "Heavy-run lock").
+GATE_LOCK_CLASS = EXCLUSIVE
 
 #: Where receipts go, relative to the root. The lock is shared: see heavy_lock.
 GATE_DIR = Path("build") / "gate"
@@ -345,6 +351,7 @@ def _run_command(command, index, total, root, receipt_dir):
         "exit_code": completed.returncode,
         "log": display_path(log_file, root),
         "counts": counts,
+        "lock_class": GATE_LOCK_CLASS,
     }
 
 
@@ -424,12 +431,12 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
     receipt_dir = Path(receipt_dir).resolve()
     lock_file = gate_lock_path(root)
     heavy_lock = heavy_lock or heavy_lock_path(root)
-    # Under a heavy holder (verify_candidate, `heavy_lock.py run`) the heavy lock
+    # Under a heavy holder (`heavy_lock.py run --class ...`) the heavy lock
     # is already taken, so waiting here for the gate lock would invert the one
     # lock order (heavy_lock's docstring) and can deadlock: refuse instead.
     nested = os.environ.get(HELD_ENV) == str(Path(heavy_lock).resolve())
     with gate_lock(lock_file, wait and not nested), \
-            hold_heavy_lock(heavy_lock, report=sys.stdout):
+            hold_heavy_lock(heavy_lock, report=sys.stdout, lock_class=GATE_LOCK_CLASS):
         extension = root / EXTENSION_PATH
         loaded = loaded_extension_pids(extension)
         if loaded:
@@ -457,6 +464,7 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
             "exit_code": EXIT_FAILED if any(r["exit_code"] != 0 for r in records) else EXIT_OK,
             "receipt_dir": display_path(receipt_dir, root),
             "tier": tier,
+            "heavy_lock_class": GATE_LOCK_CLASS,
             "commands": records,
             "summary": _summary(records, receipt_dir, root, tier),
         }
