@@ -214,7 +214,7 @@ class Prepare(unittest.TestCase):
 
 #: An executed shell line that prepares the project: at the start of a command,
 #: so not behind `#` or inside an `echo "..."`.
-SHELL_PREPARE_RE = re.compile(r'(?m)^[ \t]*python3 "?((?:\$HERE/)?tools/godot[.]py)"? prepare(?=[ \t]|$)')
+SHELL_PREPARE_RE = re.compile(r'(?m)^[ \t]*python3 "?((?:\$HERE/)?tools/godot\.py)"? prepare(?=[ \t]|$)')
 HEREDOC_RE = re.compile(r"<<-?[ \t]*(['\"]?)(\w+)\1[^\n]*\n.*?^[ \t]*\2[ \t]*$", re.S | re.M)
 
 
@@ -281,7 +281,7 @@ class OnePlace(unittest.TestCase):
                     self.assertFalse(shell_prepares(changed))
         for name in self.QUICK_STARTS:
             with self.subTest(name=name):
-                text = re.sub(r"(?m)^python3 tools/godot[.]py prepare\n", "", (ROOT / name).read_text())
+                text = re.sub(r"(?m)^python3 tools/godot\.py prepare\n", "", (ROOT / name).read_text())
                 self.assertFalse(markdown_prepares(text + "\nRun `python3 tools/godot.py prepare` first.\n"))
         for name in self.PYTHON_LAUNCHERS:
             with self.subTest(name=name):

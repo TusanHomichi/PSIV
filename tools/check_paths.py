@@ -40,6 +40,9 @@ fails on:
   `//!`, `#`, `#:`) with their markers stripped, and consecutive prose lines
   of Markdown.
 
+In Python, a regular expression's escaped dot is read as a dot, so
+`r"tools/godot\.py"` names `tools/godot.py`.
+
 A file that no longer exists is cited by its commit instead: `RUNNER_LOG
 (commit 0faa91b^)` names the text `git show 0faa91b^:<path>` prints.
 
@@ -352,6 +355,10 @@ def scan(tree: Tree, sources: Iterable[str],
                     found.append((source, text.count("\n", 0, start) + 1,
                                   f"{crate}/{match['path'].lstrip('/')}", None, "root"))
         for number, line in _lines(source, text):
+            if source.endswith(".py"):
+                # A regular expression's escaped dot (`r"tools/godot\.py"`) names
+                # the same path as the plain one.
+                line = line.replace("\\.", ".")
             for match in _PARENT_RE.finditer(line):
                 path = match["path"]
                 if path in exempt:

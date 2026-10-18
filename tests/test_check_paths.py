@@ -199,6 +199,10 @@ class NegativeControls(RepoCase):
                           "lib.rs:1: file name matches no file: .python-version",
                           "lib.rs:1: file name matches no file: pyproject.toml")
 
+    def test_an_escaped_dot_path_to_a_missing_file(self):
+        self.assert_fails({"tools/t.py": 'PATTERN = re.compile(r"python3 tools/gone\\.py run")\n'},
+                          "tools/t.py:1: path not found: tools/gone.py")
+
     def test_a_stale_exempt_entry(self):
         self.write({"tests/test_x.py": "# writes scratch.md\n"})
         self.git("add", "-A")
@@ -278,6 +282,10 @@ class AcceptedCases(RepoCase):
         self.assert_fails({"rust/c/Cargo.toml": "[package]\n",
                            "rust/c/src/lib.rs": "// leaves the dump under `rust/c/build/`\n"},
                           "rust/c/src/lib.rs:1: path not found: rust/c/build")
+
+    def test_an_escaped_dot_path_to_a_file_that_exists(self):
+        self.assert_passes({"tools/godot.py": "# the resolver\n",
+                            "tools/t.py": 'PATTERN = re.compile(r"python3 tools/godot\\.py prepare")\n'})
 
     def test_a_path_resolves_beside_the_file_that_names_it(self):
         self.assert_passes({"docs/battle/b.md": "# B\n\nsee `../a.md` and `c.md`\n",
