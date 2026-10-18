@@ -30,18 +30,58 @@ from the import: the project has no assets to import, and the title, a battle
 and the camp menu capture identically from an index-only project and a fully
 imported one.
 
+    python3 tools/godot.py run-root DIR [--profile P] [--library FILE] [--replace]
+
+creates a run root at DIR and prints the project path to pass to Godot's
+`--path`. Every Godot run a repository tool starts runs from one (`run_root`),
+never from the checkout's `godot/`, because the project loads its extension
+from `res://../rust/target/<profile>/libpsiv_godot.so`: from the checkout,
+that is the file every `cargo build` of psiv-godot relinks. A run root holds
+
+- `godot/`: a copy of the project's files (`repo_files`), prepared, and with
+  `projects=N`, `godot-1/` ... `godot-<N-1>/` beside it, one per worker;
+- `rust/target/<profile>/libpsiv_godot.so`: a reflink of the built library,
+  or a plain copy where the filesystem cannot reflink, never a hard link
+  (cargo's own uplift hard-links that name), read-only; every project
+  resolves the same `res://../` to it, so all of one run's workers load one
+  snapshot;
+- `runtime-pack`: a symbolic link to the pack's real path, resolved once at
+  creation, so a pack swapped in while the run lasts (`psiv_tools pack`) is
+  not seen half-way;
+- `run-root.json`: what it holds, with the library's sha256.
+
+So a build can relink the checkout's library while a run lasts, and the run
+records exactly which library it ran. A non-editor Godot never re-reads a
+loaded extension: Godot 4.7.1 enables extension reloading only with
+`--editor` (main/main.cpp, `set_extension_reloading_enabled`), and only the
+editor's focus-in calls `GDExtensionManager::reload_extensions`. The owner
+removes the bulk when the run ends (`RunRoot.release`), keeping
+`run-root.json`, the shell launchers on their next launch (`--replace`).
+
 Stdlib only, Python 3.
 """
 
 from __future__ import annotations
 
+import argparse
+import fcntl
+import hashlib
+import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
+import time
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
+
+try:  # imported as `tools.godot` by tests and verifiers
+    from tools.repo_files import RepoFilesError, repo_files
+except ModuleNotFoundError:  # direct `python3 tools/godot.py`, or `from godot import`
+    from repo_files import RepoFilesError, repo_files
 
 ROOT = Path(__file__).resolve().parent.parent
 
@@ -59,6 +99,18 @@ VERSION_TIMEOUT = 30
 PROJECT = ROOT / "godot"
 EXTENSION_INDEX = Path(".godot/extension_list.cfg")
 EXTENSION_ENTRY = "res://psiv.gdextension"
+
+#: The library the project's `psiv.gdextension` loads, per build profile,
+#: relative to the directory that holds the project.
+LIBRARY_NAME = "libpsiv_godot.so"
+PROFILES = ("debug", "release")
+
+#: A run root's record of itself, and the pack link inside it.
+RUN_ROOT_RECORD = "run-root.json"
+RUN_ROOT_PACK = "runtime-pack"
+
+#: Linux FICLONE: make the destination share the source's extents.
+FICLONE = 0x40049409
 
 _VERSION_RE = re.compile(r"\A\d+\.\d+(?:\.\d+)?\Z")
 
@@ -190,10 +242,170 @@ def prepare(project: Path = PROJECT) -> bool:
     return True
 
 
+def library_path(source: Path = ROOT, profile: str = "debug") -> Path:
+    """The library a project beside `source`'s `rust/` loads for `profile`."""
+    if profile not in PROFILES:
+        raise GodotError(f"unknown build profile {profile!r}; one of {', '.join(PROFILES)}")
+    return source / "rust" / "target" / profile / LIBRARY_NAME
+
+
+def sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def snapshot_file(source: Path, target: Path) -> str:
+    """Copy `source` to the new file `target`: a reflink where the filesystem
+    can share extents, else a plain copy; never a hard link, so nothing that
+    later writes `source` reaches `target`. Returns "reflink" or "copy"."""
+    with source.open("rb") as reader, target.open("xb") as writer:
+        try:
+            fcntl.ioctl(writer.fileno(), FICLONE, reader.fileno())
+            return "reflink"
+        except OSError:
+            writer.truncate(0)
+            shutil.copyfileobj(reader, writer, 1 << 20)
+            return "copy"
+
+
+@dataclass(frozen=True)
+class RunRoot:
+    """A run root `create_run_root` made; `projects[0]` is the one a single
+    run passes to `--path`."""
+
+    root: Path
+    projects: tuple[Path, ...]
+    library: Path
+    library_sha256: str
+    record: dict
+
+    @property
+    def project(self) -> Path:
+        return self.projects[0]
+
+    @property
+    def pack(self) -> Path:
+        return self.root / RUN_ROOT_PACK
+
+    def release(self) -> None:
+        """Remove what the run root holds but its record: the projects, the
+        library snapshot and the pack link. The run's evidence policy keeps
+        `run-root.json` (the library's path and sha256), not the 200 MB copy."""
+        remove_run_root(self.root, keep_record=True)
+
+
+def create_run_root(root: Path, *, profile: str = "debug", projects: int = 1,
+                    library: Path | None = None, pack: Path | None = None,
+                    source: Path = ROOT) -> RunRoot:
+    """Make a run root at `root`, a directory that must not exist yet.
+
+    `library` defaults to `source`'s built library for `profile`, `pack` to
+    `source`'s `runtime-pack`; a missing default pack makes no link (the game
+    reports it), while a named pack must exist. Raises `GodotError`."""
+    started = time.monotonic()
+    if projects < 1:
+        raise GodotError(f"a run root needs at least one project, not {projects}")
+    built = library_path(source, profile) if library is None else Path(library)
+    try:
+        built = built.resolve(strict=True)
+    except OSError as error:
+        raise GodotError(f"no built extension at {built}: {error}; build it first") from error
+    if pack is not None and not Path(pack).exists():
+        raise GodotError(f"no runtime pack at {pack}")
+    try:
+        files = repo_files(source, ("godot/*",))
+    except RepoFilesError as error:
+        raise GodotError(f"cannot list the project's files: {error}") from error
+    if "godot/project.godot" not in files:
+        raise GodotError(f"{source / 'godot'} holds no project.godot")
+    root = Path(root).absolute()
+    try:
+        root.mkdir(parents=True)
+        snapshot = library_path(root, profile)
+        snapshot.parent.mkdir(parents=True)
+        method = snapshot_file(built, snapshot)
+        snapshot.chmod(stat.S_IRUSR | stat.S_IXUSR | stat.S_IRGRP | stat.S_IXGRP
+                       | stat.S_IROTH | stat.S_IXOTH)
+        digest = sha256(snapshot)
+        pack_source = source / RUN_ROOT_PACK if pack is None else Path(pack)
+        pack_target = (os.path.realpath(pack_source)
+                       if pack is not None or pack_source.exists() else None)
+        if pack_target is not None:
+            (root / RUN_ROOT_PACK).symlink_to(pack_target, target_is_directory=True)
+        made = []
+        for index in range(projects):
+            project = root / ("godot" if index == 0 else f"godot-{index}")
+            for name in files:
+                target = project / Path(name).relative_to("godot")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source / name, target, follow_symlinks=True)
+            prepare(project)
+            made.append(project)
+    except OSError as error:
+        raise GodotError(f"cannot create the run root {root}: {error}") from error
+    record = {
+        "root": str(root), "projects": [str(project) for project in made],
+        "profile": profile, "library": str(snapshot), "library_sha256": digest,
+        "library_source": str(built), "library_copy": method,
+        "pack": str(root / RUN_ROOT_PACK) if pack_target else None,
+        "pack_target": pack_target, "created_s": round(time.monotonic() - started, 3),
+    }
+    (root / RUN_ROOT_RECORD).write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
+    return RunRoot(root, tuple(made), snapshot, digest, record)
+
+
+def remove_run_root(root: Path, keep_record: bool = False) -> None:
+    """Remove the run root at `root`, all of it or (`keep_record`) all but its
+    `run-root.json`. Refuses a directory that is not a run root."""
+    root = Path(root)
+    if not (root / RUN_ROOT_RECORD).is_file():
+        raise GodotError(f"{root} is not a run root (no {RUN_ROOT_RECORD}); not removing it")
+    for entry in root.iterdir():
+        if entry.name == RUN_ROOT_RECORD:
+            continue
+        if entry.is_dir() and not entry.is_symlink():
+            # The library snapshot is read-only; its directory is not.
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
+    if not keep_record:
+        (root / RUN_ROOT_RECORD).unlink()
+        root.rmdir()
+
+
+def run_root_main(argv: list[str]) -> int:
+    """`run-root DIR`: create a run root and print its project path."""
+    parser = argparse.ArgumentParser(prog="python3 tools/godot.py run-root",
+                                     description="Create a run root and print its project.")
+    parser.add_argument("dir", type=Path)
+    parser.add_argument("--profile", choices=PROFILES, default="debug")
+    parser.add_argument("--library", type=Path,
+                        help="the library to snapshot (default: rust/target/<profile>/)")
+    parser.add_argument("--replace", action="store_true",
+                        help="remove the run root already at DIR first")
+    args = parser.parse_args(argv)
+    try:
+        if args.replace and args.dir.exists():
+            remove_run_root(args.dir)
+        made = create_run_root(args.dir, profile=args.profile, library=args.library)
+    except GodotError as error:
+        print(f"godot: {error}", file=sys.stderr)
+        return 1
+    print(f"godot: run root {made.root}, library sha256 {made.library_sha256} "
+          f"({made.record['library_copy']}, {made.record['created_s']} s)", file=sys.stderr)
+    print(made.project)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["run-root"]:
+        return run_root_main(argv[1:])
     if argv not in ([], ["prepare"]):
-        print("usage: python3 tools/godot.py [prepare]", file=sys.stderr)
+        print("usage: python3 tools/godot.py [prepare | run-root DIR ...]", file=sys.stderr)
         return 2
     try:
         godot = resolve()

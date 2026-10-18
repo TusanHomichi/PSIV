@@ -105,6 +105,8 @@ EXEMPT: dict[str, frozenset[str] | None] = {
     "tests/test_check_paths.py": None,
     "tests/test_repo_files.py": None,
     "tests/test_feature_map.py": None,
+    # The launcher census's cases: launchers it reads from strings, not files.
+    "tests/test_run_root.py": None,
     "tests/test_size_guard.py": None,
     "tests/test_extract_stamp.py": frozenset({"a.py", "b.py", "unused.py", "sub/__init__.py",
                                               "sub/c.py", "../precious.txt",

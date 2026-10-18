@@ -33,6 +33,11 @@ server for its life and each capture its own save directory and output files,
 so a pair's capture is the same bytes at any N. Under an exclusive holder both
 steps are nested no-ops and N is capped by the slot cap; under a godot holder
 (with `--no-build`: a build there is refused), by the slots it holds.
+
+The captures run from one run root in the receipt directory
+(tools/godot.py `create_run_root`): one snapshot of the built extension that
+every worker loads, and one project copy per worker, so no capture maps the
+checkout's library and `certify.json` names the library by sha256.
 """
 import argparse
 import ctypes
@@ -66,7 +71,7 @@ from heavy_lock import EXCLUSIVE, GODOT as GODOT_CLASS, godot_slots, hold_heavy_
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from oracle import host_binary  # noqa: E402
 
-from godot import GodotError, prepare as prepare_godot, resolve as resolve_godot  # noqa: E402
+from godot import GodotError, create_run_root, resolve as resolve_godot  # noqa: E402
 ROM = "Phantasy Star IV (USA).md"
 GODOT_FLAGS = ["--display-driver", "x11", "--rendering-method", "gl_compatibility",
                "--rendering-driver", "opengl3", "--audio-driver", "Dummy", "--fixed-fps", "60"]
@@ -326,7 +331,7 @@ def xvfb_display(log):
             server.wait()
 
 
-def capture(name, env, tick, receipt, display, godot):
+def capture(name, env, tick, receipt, display, project, godot):
     shot = receipt / f"{name}-t{tick}.png"
     # A fresh, empty save directory per run: the title shows CONTINUE (and the
     # autostart picks a different row) when any slot is valid.
@@ -338,7 +343,7 @@ def capture(name, env, tick, receipt, display, godot):
                 "PSIV_DEBUG_SHOT": str(shot), "PSIV_DEBUG_SHOT_FRAME": str(tick), **env}
     command = ["timeout", f"{capture_timeout(tick)}s", str(godot),
                "--log-file", str(receipt / f"{name}-godot.log"), *GODOT_FLAGS,
-               "--path", "godot", "--quit-after", str(tick + QUIT_MARGIN)]
+               "--path", str(project), "--quit-after", str(tick + QUIT_MARGIN)]
     with open(receipt / f"{name}-run.log", "w") as handle:
         code = subprocess.run(command, env=full_env, stdout=handle,
                               stderr=subprocess.STDOUT).returncode
@@ -381,24 +386,28 @@ def job_count(requested, cap):
     return requested
 
 
-def run_captures(tasks, jobs, receipt, display, take, results=None):
+def run_captures(tasks, jobs, receipt, display, take, results=None, *, projects):
     """Capture every `(name, env, tick)` task across `jobs` workers, longest
     tick first; fills and returns `results`, `{name: (shot, godot exit, seconds)}`.
 
-    Each worker owns one display from `display(log)` (`xvfb_display`) for its
-    life. `take(name, env, tick, receipt, display)` makes one capture: `capture`
-    with the resolved Godot bound, which `main` passes; it has no default, since
-    `capture` alone cannot run without that Godot. When a capture
+    Each worker owns one display from `display(log)` (`xvfb_display`) and one
+    of `projects` (the run root's project copies, at least `jobs` of them) for
+    its life. `take(name, env, tick, receipt, display, project)` makes one
+    capture: `capture` with the resolved Godot bound, which `main` passes; it
+    has no default, since `capture` alone cannot run without that Godot. When a capture
     raises or the wait is interrupted (Ctrl-C), the queued captures are
     cancelled, the running ones finish, and the exception propagates with
     `results` holding every capture that finished.
     """
     jobs = min(jobs, len(tasks))
-    displays = queue.Queue()
+    if len(projects) < jobs:
+        raise ValueError(f"{jobs} workers need {jobs} projects, not {len(projects)}")
+    workers = queue.Queue()
     results = {} if results is None else results
     with ExitStack() as stack:
         for worker in range(jobs):
-            displays.put(stack.enter_context(display(receipt / f"xvfb-{worker}.log")))
+            workers.put((stack.enter_context(display(receipt / f"xvfb-{worker}.log")),
+                         projects[worker]))
 
         stop = threading.Event()  # set by the first failure; a worker checks it first
 
@@ -406,16 +415,16 @@ def run_captures(tasks, jobs, receipt, display, take, results=None):
             if stop.is_set():
                 return
             name, env, tick = task
-            screen = displays.get()
+            screen, project = workers.get()
             try:
                 start = time.monotonic()
-                shot, code = take(name, env, tick, receipt, screen)
+                shot, code = take(name, env, tick, receipt, screen, project)
                 results[name] = (shot, code, round(time.monotonic() - start, 1))
             except BaseException:
                 stop.set()
                 raise
             finally:
-                displays.put(screen)
+                workers.put((screen, project))
 
         ordered = sorted(tasks, key=lambda task: -task[2])
         pool = ThreadPoolExecutor(max_workers=max(jobs, 1))
@@ -467,11 +476,13 @@ def main(argv=None):
         print(f"certify: {len(pairs)} pairs on {jobs} worker(s), "
               f"{'under the holder of' if hold.nested else 'holding'} {hold.lock_class} "
               f"{hold.path}", flush=True)
-        try:  # a fresh clone's project has no extension index yet
-            prepare_godot(root / "godot")
+        try:  # one library snapshot, one prepared project per worker
+            run_root = create_run_root(receipt / "run-root", projects=jobs, source=root)
         except GodotError as error:
             print(f"certify: refused, {error}")
             return 2
+        print(f"certify: run root {display_path(run_root.root, root)}, library sha256 "
+              f"{run_root.library_sha256} ({run_root.record['created_s']} s)", flush=True)
         started = time.monotonic()
         records, tasks = [], []
         for name, env, tick, frame, digest, recipe in pairs:
@@ -484,9 +495,12 @@ def main(argv=None):
         shots, interrupted = {}, None
         try:
             run_captures(tasks, jobs, receipt, xvfb_display,
-                         functools.partial(capture, godot=godot), results=shots)
+                         functools.partial(capture, godot=godot), results=shots,
+                         projects=run_root.projects)
         except BaseException as stop:  # Ctrl-C too: record what finished, then re-raise
             interrupted = stop
+        finally:
+            run_root.release()  # certify.json keeps its record
         timing = {"oracle_s": round(prepared - started, 1),
                   "capture_s": round(time.monotonic() - prepared, 1)}
     results = []
@@ -509,7 +523,8 @@ def main(argv=None):
               f"rmse={record.get('rmse')} {error or ''}".rstrip(), flush=True)
     stopped = None if interrupted is None else f"{type(interrupted).__name__}: {interrupted}"
     (receipt / "certify.json").write_text(json.dumps(
-        {**info, "jobs": jobs, **timing, "interrupted": stopped, "pairs": results},
+        {**info, "jobs": jobs, **timing, "interrupted": stopped, "run_root": run_root.record,
+         "pairs": results},
         indent=2) + "\n")
     if interrupted is not None:
         print(f"certify: interrupted ({stopped}); {len(shots)}/{len(tasks)} captures finished; "

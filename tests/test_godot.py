@@ -212,14 +212,17 @@ class Prepare(unittest.TestCase):
         self.assertNotIn(missing, self.run_game(clone / "godot", self.dir / "prepared.log"))
 
 
-#: An executed shell line that prepares the project: at the start of a command,
-#: so not behind `#` or inside an `echo "..."`.
-SHELL_PREPARE_RE = re.compile(r'(?m)^[ \t]*python3 "?((?:\$HERE/)?tools/godot\.py)"? prepare(?=[ \t]|$)')
+#: An executed shell line that prepares a project, itself or by creating a run
+#: root (which prepares its copies): at the start of a command or of a command
+#: substitution assigned to a variable, so not behind `#` or inside an
+#: `echo "..."`.
+SHELL_PREPARE_RE = re.compile(r'(?m)^[ \t]*(?:\w+="?\$\()?python3 "?((?:\$HERE/)?tools/godot\.py)"? '
+                              r'(?:prepare|run-root)(?=[ \t]|$)')
 HEREDOC_RE = re.compile(r"<<-?[ \t]*(['\"]?)(\w+)\1[^\n]*\n.*?^[ \t]*\2[ \t]*$", re.S | re.M)
 
 
 def shell_prepares(text):
-    """True when a shell script runs `tools/godot.py prepare` as a command.
+    """True when a shell script runs `tools/godot.py prepare` or `run-root` as a command.
 
     Here-document bodies are data, so they are dropped first; a comment or a
     quoted string never starts its line with the command."""
@@ -235,13 +238,14 @@ def markdown_prepares(text):
 
 
 def python_prepares(text):
-    """True when a Python module calls `prepare` (`prepare_godot`, `godot.prepare`)."""
+    """True when a Python module calls `prepare` (`prepare_godot`, `godot.prepare`)
+    or `create_run_root`, which prepares each project it copies."""
     import ast
     for node in ast.walk(ast.parse(text)):
         if isinstance(node, ast.Call):
             func = node.func
             name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", None)
-            if name in ("prepare", "prepare_godot"):
+            if name in ("prepare", "prepare_godot", "create_run_root"):
                 return True
     return False
 
@@ -285,7 +289,8 @@ class OnePlace(unittest.TestCase):
                 self.assertFalse(markdown_prepares(text + "\nRun `python3 tools/godot.py prepare` first.\n"))
         for name in self.PYTHON_LAUNCHERS:
             with self.subTest(name=name):
-                text = re.sub(r"\b(prepare(?:_godot)?)\(", r'"\1"(', (ROOT / name).read_text())
+                text = re.sub(r"\b(prepare(?:_godot)?|create_run_root)\(", r'"\1"(',
+                              (ROOT / name).read_text())
                 self.assertFalse(python_prepares(text + "\n# prepare(ROOT / 'godot')\n"))
 
     SHELL_LAUNCHERS = ("godot/run.sh", "tools/package/deploy-deck.sh")

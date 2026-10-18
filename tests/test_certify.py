@@ -220,6 +220,7 @@ class RunCapturesTest(unittest.TestCase):
         self.in_use = set()
         self.started = []
         self.peak = 0
+        self.projects_in_use = set()
         self.guard = threading.Lock()
 
     @contextlib.contextmanager
@@ -229,49 +230,55 @@ class RunCapturesTest(unittest.TestCase):
         yield name
 
     def take(self, barrier=None):
-        def run(name, env, tick, receipt, display):
+        def run(name, env, tick, receipt, display, project):
             with self.guard:
                 self.assertNotIn(display, self.in_use, "two captures on one display")
+                self.assertNotIn(project, self.projects_in_use, "two captures in one project")
                 self.in_use.add(display)
+                self.projects_in_use.add(project)
                 self.started.append(name)
                 self.peak = max(self.peak, len(self.in_use))
             if barrier is not None:
                 barrier.wait()  # breaks unless `parties` captures overlap
             with self.guard:
                 self.in_use.discard(display)
+                self.projects_in_use.discard(project)
             return receipt / f"{name}.png", 0
         return run
+
+    def captures(self, tasks, jobs, take, **kwargs):
+        """`run_captures` with one stand-in project per possible worker."""
+        projects = kwargs.pop("projects", tuple(Path(f"godot-{n}") for n in range(3)))
+        return certify.run_captures(tasks, jobs, self.receipt, self.display, take,
+                                    projects=projects, **kwargs)
 
     TASKS = [(f"pair-{tick}", {}, tick) for tick in (60, 4550, 200, 480, 3550, 160)]
 
     def test_n_workers_overlap_on_their_own_displays(self):
-        shots = certify.run_captures(self.TASKS, 3, self.receipt, self.display,
-                                     self.take(threading.Barrier(3, timeout=10)))
+        shots = self.captures(self.TASKS, 3, self.take(threading.Barrier(3, timeout=10)))
         self.assertEqual(sorted(shots), sorted(name for name, _, _ in self.TASKS))
         self.assertEqual(len(self.opened), 3)
         self.assertEqual(self.peak, 3)
 
     def test_negative_control_one_worker_never_overlaps(self):
-        certify.run_captures(self.TASKS, 1, self.receipt, self.display, self.take())
+        self.captures(self.TASKS, 1, self.take())
         self.assertEqual(self.peak, 1)
         with self.assertRaises(threading.BrokenBarrierError):
-            certify.run_captures(self.TASKS[:2], 1, self.receipt, self.display,
-                                 self.take(threading.Barrier(2, timeout=0.5)))
+            self.captures(self.TASKS[:2], 1, self.take(threading.Barrier(2, timeout=0.5)))
 
     def test_the_longest_pair_starts_first(self):
-        certify.run_captures(self.TASKS, 1, self.receipt, self.display, self.take())
+        self.captures(self.TASKS, 1, self.take())
         ticks = [int(name.split("-")[1]) for name in self.started]
         self.assertEqual(ticks, sorted(ticks, reverse=True))
 
     def test_a_failing_capture_cancels_the_queued_ones(self):
-        def failing(name, env, tick, receipt, display):
+        def failing(name, env, tick, receipt, display, project):
             self.started.append(name)
             raise RuntimeError("godot launch failed")
 
         results = {}
         with self.assertRaises(RuntimeError):
-            certify.run_captures(self.TASKS, 1, self.receipt, self.display, failing,
-                                 results=results)
+            self.captures(self.TASKS, 1, failing, results=results)
         self.assertEqual(self.started, ["pair-4550"])  # the rest never started
         self.assertEqual(results, {})
 
@@ -280,12 +287,30 @@ class RunCapturesTest(unittest.TestCase):
         parameters = inspect.signature(certify.run_captures).parameters
         self.assertIs(parameters["take"].default, inspect.Parameter.empty)
         self.assertIs(parameters["display"].default, inspect.Parameter.empty)
+        self.assertIs(parameters["projects"].default, inspect.Parameter.empty)
         self.assertIs(inspect.signature(certify.capture).parameters["godot"].default,
                       inspect.Parameter.empty)
 
     def test_no_more_workers_than_tasks(self):
-        certify.run_captures(self.TASKS[:2], 3, self.receipt, self.display, self.take())
+        self.captures(self.TASKS[:2], 3, self.take())
         self.assertEqual(len(self.opened), 2)
+
+    def test_each_worker_keeps_its_own_project(self):
+        seen = {}
+
+        def take(name, env, tick, receipt, display, project):
+            with self.guard:
+                seen.setdefault(display, set()).add(project)
+            return receipt / f"{name}.png", 0
+
+        self.captures(self.TASKS, 3, take)
+        self.assertEqual(len(seen), 3)
+        self.assertTrue(all(len(projects) == 1 for projects in seen.values()), seen)
+        self.assertEqual(len(set().union(*seen.values())), 3)
+
+    def test_negative_control_fewer_projects_than_workers_is_refused(self):
+        with self.assertRaises(ValueError):
+            self.captures(self.TASKS, 3, self.take(), projects=(Path("godot"),))
 
 
 #: A stand-in X server: writes its pid to $FAKE_XVFB_PID, then reports display
@@ -395,9 +420,10 @@ class MainLocksTest(unittest.TestCase):
         frame = self.tmp / "frame.png"
         frame.write_bytes(b"f")
 
-        def captures(tasks, jobs, receipt, display, take, results):
+        def captures(tasks, jobs, receipt, display, take, results, projects):
             self.jobs = jobs
             self.take = take
+            self.projects = projects
             for count, (name, _, _) in enumerate(tasks):
                 if count == interrupt_after:
                     raise KeyboardInterrupt
@@ -409,16 +435,18 @@ class MainLocksTest(unittest.TestCase):
                 raise godot
             return godot
 
-        def prepare(project):
-            self.prepared.append(project)
+        def run_root(root, projects, source):
+            self.prepared.append((root, projects))
             if isinstance(prepare_error, Exception):
                 raise prepare_error
-            return True
+            made = [root / ("godot" if n == 0 else f"godot-{n}") for n in range(projects)]
+            return mock.Mock(root=root, projects=tuple(made), library_sha256="0" * 64,
+                             record={"root": str(root), "created_s": 0.1})
 
         self.prepared = []
         with mock.patch.object(certify, "hold_heavy_lock", self.hold), \
                 mock.patch.object(certify, "resolve_godot", resolve), \
-                mock.patch.object(certify, "prepare_godot", prepare), \
+                mock.patch.object(certify, "create_run_root", run_root), \
                 mock.patch.dict(os.environ, {"PSIV_GODOT_SLOTS": slots}), \
                 mock.patch.object(certify, "loaded_extension_pids", return_value=[]), \
                 mock.patch.object(certify.subprocess, "run",
@@ -464,8 +492,17 @@ class MainLocksTest(unittest.TestCase):
     def test_godot_is_resolved_once_and_the_project_prepared_before_captures(self):
         code, out = self.run_main(["--no-build", "--only", "title"], godot=Path("/x/godot"))
         self.assertEqual(code, 0, out)
-        self.assertEqual([project.name for project in self.prepared], ["godot"])
+        self.assertEqual(self.prepared, [(self.tmp / "receipt" / "run-root", 1)])
         self.assertEqual(self.take.keywords, {"godot": Path("/x/godot")})
+
+    def test_the_captures_run_from_one_run_root_with_a_project_per_worker(self):
+        code, out = self.run_main(["--no-build", "--only", "title", "camp-root", "battle-0x88",
+                                   "--jobs", "3"])
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.prepared, [(self.tmp / "receipt" / "run-root", 3)])
+        self.assertEqual(len(set(self.projects)), 3)
+        receipt = json.loads((self.tmp / "receipt" / "certify.json").read_text())
+        self.assertEqual(receipt["run_root"]["root"], str(self.tmp / "receipt" / "run-root"))
 
     def test_a_project_that_cannot_be_prepared_is_refused(self):
         error = certify.GodotError("cannot write godot/.godot/extension_list.cfg: denied")
