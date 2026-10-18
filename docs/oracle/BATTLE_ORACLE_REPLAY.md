@@ -109,8 +109,8 @@ python3 -m oracle.fixture --trace build/tape09_rolls.csv \
     --battle-first 25002 --battle-last 31908 \
     --out rust/psiv-core/src/battle/replay_fixtures/tape09_second_battle.json
 
-CARGO_BUILD_JOBS=2 cargo test --manifest-path rust/Cargo.toml -p psiv-core \
-    -- --test-threads=1 replay
+cargo test --manifest-path rust/Cargo.toml -p psiv-core \
+    -- replay
 rm "Phantasy Star IV (USA).md"
 ```
 
