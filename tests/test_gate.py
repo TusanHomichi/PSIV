@@ -18,6 +18,7 @@ import fcntl
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -28,7 +29,7 @@ from pathlib import Path
 from unittest import mock
 
 from tools.gate import (FAST_COMMANDS, GATE_COMMANDS, SLOW_PYTHON_MODULES, GateRefused,
-                        command_slug, gate_lock, main, parse_counts, quick_unittest,
+                        command_slug, cpu_mhz, gate_lock, main, parse_counts, quick_unittest,
                         run_gate)
 from tools.heavy_lock import (HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV, HELD_SLOTS_ENV,
                               PRIORITY_ENV, gate_lock_path, heavy_lock_path, lock_holders)
@@ -304,7 +305,20 @@ class GateRunCase(unittest.TestCase):
             log = self.root / record["log"]
             self.assertTrue(log.is_file(), record["log"])
             self.assertIn("ok", log.read_text())
+            if cpu_mhz() is not None:  # Linux: a sample before the command can finish
+                self.assertGreaterEqual(record["cpu_mhz"]["samples"], 1)
+                self.assertLessEqual(record["cpu_mhz"]["min"], record["cpu_mhz"]["max"])
+        self.assertEqual(receipt["cpu_count"], os.cpu_count())
         self.assertTrue((self.root / "second.txt").is_file())
+
+    def test_the_clock_is_sampled_while_a_command_runs(self):
+        """A longer command gets one clock sample per CPU_SAMPLE_S, not one in all."""
+        sleeper = 'python3 -c "import time; time.sleep(0.5)"'
+        with mock.patch("tools.gate.CPU_SAMPLE_S", 0.05), \
+                mock.patch("tools.gate.cpu_mhz", return_value=2300.0):
+            receipt, _ = self.run_quiet([sleeper])
+        self.assertEqual(receipt["commands"][0]["cpu_mhz"]["mean"], 2300)
+        self.assertGreaterEqual(receipt["commands"][0]["cpu_mhz"]["samples"], 5)
 
     def test_a_failure_is_recorded_and_later_commands_still_run(self):
         commands = [fake_step("first", marker="first.txt"),
@@ -647,6 +661,149 @@ class QuickUnittestCase(unittest.TestCase):
         self.assertEqual(code, 1, output)
         self.assertIn("Ran 2 tests", output)
         self.assertIn("slow module ran", output)
+
+
+def temp_dir_findings(text, name):
+    """Every `temp_dir()` call in Rust source `text` that parallel tests can collide on.
+
+    The gate runs each test binary's tests on parallel threads, and several
+    test processes (other checkouts' suites) share the system temp directory.
+    So a test's directory under `temp_dir()` is keyed by `std::process::id()`
+    in the expression that builds it, and, unless that expression sits directly
+    in one `#[test]` function, also by a per-call key: an atomic counter
+    (`fetch_add`) or a caller-supplied name (a second format placeholder or a
+    `.join(name)`), never a clock reading, which two threads can read alike.
+    The prefix after `temp_dir()` must also be unique across the tree, so two
+    call sites never share one directory. Returns `(path:line, reason)` pairs
+    and the prefixes seen, for the tree-wide uniqueness check.
+    """
+    lines = text.splitlines()
+    findings, prefixes = [], []
+    for index, line in enumerate(lines):
+        if "temp_dir()" not in line or line.lstrip().startswith("//"):
+            continue
+        where = f"{name}:{index + 1}"
+        statement = []
+        for following in lines[index:index + 8]:
+            statement.append(following)
+            if ";" in following or following.strip() == "}":
+                break
+        expression = " ".join(part.strip() for part in statement)
+        expression = expression[expression.index("temp_dir()"):]
+        prefix = re.search(r'"(psiv-[^"{]*)', expression)
+        if prefix is None:
+            findings.append((where, "no literal `psiv-` prefix after temp_dir()"))
+        else:
+            prefixes.append((prefix.group(1).rstrip("-"), where))
+        if "process::id()" not in expression:
+            findings.append((where, "not keyed by std::process::id()"))
+            continue
+        header = next((i for i in range(index, -1, -1)
+                       if re.match(r"\s*(pub(\([a-z]+\))? )?fn ", lines[i])), None)
+        attributes = []
+        for above in range(header - 1 if header is not None else -1, -1, -1):
+            stripped = lines[above].strip()
+            if not (stripped.startswith("#[") or stripped.startswith("///")):
+                break
+            attributes.append(stripped)
+        if "#[test]" in attributes:
+            continue
+        body = "\n".join(lines[header:index + len(statement)]) if header is not None else ""
+        format_string = re.search(r'format!\(\s*"([^"]*)"', expression)
+        placeholders = len(re.findall(r"\{[^}]*\}", format_string.group(1))) if format_string else 0
+        per_call = ("fetch_add" in body or placeholders >= 2
+                    or re.search(r"\)\s*\.join\(\s*[a-z_]\w*\s*\)", expression))
+        clock = "SystemTime" in body or "as_nanos" in body
+        if not per_call or (clock and "fetch_add" not in body):
+            findings.append((where, "outside a #[test] fn without a per-call key "
+                                    "(an atomic counter or a caller's name, not a clock)"))
+    return findings, prefixes
+
+
+def temp_dir_tree_findings(sources):
+    """`temp_dir_findings` over `(name, text)` pairs, plus every prefix two sites share."""
+    findings, seen, sites = [], {}, 0
+    for name, text in sources:
+        found, prefixes = temp_dir_findings(text, name)
+        findings += found
+        sites += len(prefixes)
+        for prefix, where in prefixes:
+            seen.setdefault(prefix, []).append(where)
+    findings += [(", ".join(wheres), f"prefix {prefix!r} shared")
+                 for prefix, wheres in seen.items() if len(wheres) > 1]
+    return findings, sites
+
+
+def rust_sources():
+    """`(path, text)` for every Rust file under rust/ that calls temp_dir(), outside build output."""
+    rust = REPO_ROOT / "rust"
+    for path in sorted(rust.rglob("*.rs")):
+        if "target" in path.relative_to(rust).parts:
+            continue
+        text = path.read_text()
+        if "temp_dir()" in text:
+            yield str(path.relative_to(REPO_ROOT)), text
+
+
+class ParallelTestPathsCase(unittest.TestCase):
+    """Rust tests run on parallel threads (#157): no two share a temp directory."""
+
+    def test_every_temp_dir_is_keyed_by_process_and_call(self):
+        findings, sites = temp_dir_tree_findings(rust_sources())
+        self.assertGreater(sites, 20, "the scan found too few temp_dir() sites to be reading the tree")
+        self.assertEqual(findings, [])
+
+    def check(self, source):
+        return [reason for _, reason in temp_dir_findings(source, "sample.rs")[0]]
+
+    def test_negative_control_an_unkeyed_name_is_found(self):
+        # The pre-#157 psiv-core/src/battle/replay/data.rs line, collided on by
+        # two suites at once ("cannot create .../lane-evidence: No such file").
+        self.assertEqual(self.check(
+            '#[test]\nfn t() {\n    let dir = std::env::temp_dir().join("psiv-empty-manifest-dump");\n}\n'),
+            ["not keyed by std::process::id()"])
+
+    def test_negative_control_a_shared_helper_needs_a_per_call_key(self):
+        helper = ('fn scratch() -> PathBuf {\n'
+                  '    std::env::temp_dir().join(format!("psiv-x-{}", std::process::id()))\n}\n')
+        self.assertEqual(len(self.check(helper)), 1)
+        clock = ('fn scratch() -> PathBuf {\n    let nanos = SystemTime::now().as_nanos();\n'
+                 '    std::env::temp_dir().join(format!("psiv-x-{}-{nanos}", std::process::id()))\n}\n')
+        self.assertEqual(len(self.check(clock)), 1)
+        counter = ('fn scratch() -> PathBuf {\n    let n = NEXT.fetch_add(1, Ordering::Relaxed);\n'
+                   '    std::env::temp_dir().join(format!("psiv-x-{}-{n}", std::process::id()))\n}\n')
+        self.assertEqual(self.check(counter), [])
+        named = ('fn scratch(name: &str) -> PathBuf {\n'
+                 '    std::env::temp_dir().join(format!("psiv-x-{}", std::process::id())).join(name)\n}\n')
+        self.assertEqual(self.check(named), [])
+
+    def test_negative_control_one_prefix_at_two_sites_is_found(self):
+        site = ('#[test]\nfn t() {\n    let d = std::env::temp_dir()'
+                '.join(format!("psiv-same-{}", std::process::id()));\n}\n')
+        findings, sites = temp_dir_tree_findings([("a.rs", site), ("b.rs", site)])
+        self.assertEqual(sites, 2)
+        self.assertEqual(findings, [("a.rs:3, b.rs:3", "prefix 'psiv-same' shared")])
+
+
+class ClockCase(unittest.TestCase):
+    """`cpu_mhz` reads /proc/cpuinfo's per-core clocks; no clocks is None, not 0."""
+
+    def read(self, text):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "cpuinfo"
+            if text is not None:
+                path.write_text(text)
+            return cpu_mhz(path)
+
+    def test_the_mean_over_every_core(self):
+        # Hand-written, in /proc/cpuinfo's layout: two cores at 2000 and 3000 MHz.
+        text = ("processor\t: 0\ncpu MHz\t\t: 2000.000\n\n"
+                "processor\t: 1\ncpu MHz\t\t: 3000.000\n")
+        self.assertEqual(self.read(text), 2500.0)
+
+    def test_negative_control_no_clock_lines_or_no_file_is_none(self):
+        self.assertIsNone(self.read("processor\t: 0\nmodel name\t: x\n"))
+        self.assertIsNone(self.read(None))
 
 
 class NotARepositoryCase(unittest.TestCase):

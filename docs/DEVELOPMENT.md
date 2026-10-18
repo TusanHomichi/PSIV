@@ -136,22 +136,33 @@ The documentation check needs no local inputs. From the root:
 python3 tools/check_docs.py
 PYTHONPATH=. python3 -m unittest discover -s tests
 cargo fmt --manifest-path rust/Cargo.toml --all --check
-CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml --workspace -- --test-threads=1
-CARGO_BUILD_JOBS=1 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
+cargo test --manifest-path rust/Cargo.toml --workspace
+cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
 ```
 
 Run these sequentially: `python3 tools/gate.py` runs exactly this list, in
 order, from one entry point and writes a receipt
 ([Gate and coverage](#gate-and-coverage)). The Python suite is most of the
-gate's time. Serial Rust tests keep one pack-loading case in memory at a time.
-`rust/Cargo.toml`'s `[profile.test]` builds tests at `opt-level = 1` with
-overflow checks and debug assertions kept on (`psiv-core/tests/build_profile.rs`
-fails if either is turned off; `tests/test_build_profiles.py` holds the dev
-profile to the same). The workspace suite took 111 s on a warm build (AC, CPU
-capped at 2.3 GHz, 2026-10-15), against 1150 s before the change; the gate's
-`cargo test` stage, compile included, took 158.7 s on battery under the same
-cap. Tests requiring local assets may fail or explicitly skip when
-their fixtures are absent; report that distinction with the result.
+gate's time. The cargo steps run at cargo's defaults, one build job and one
+test thread per core, because the gate holds the exclusive class: their largest
+measured peak, a cold `cargo test --workspace --no-run` at default jobs (4,979 MB
+tree RSS on the 8-core host, [the table](#heavy-run-lock)), leaves 39% of the
+class's 16 units (8,192 MB) free, above the sizing rule's 15%, and the built
+suite peaks at 364 MB on 8 threads. Default jobs grow with the core count, so
+a host with more cores re-measures that peak. Tests in one binary run on
+parallel threads, so a test's scratch directory is keyed by process and by call
+(`ParallelTestPathsCase` in `tests/test_gate.py` checks every `temp_dir()`
+under `rust/`). `rust/Cargo.toml`'s `[profile.test]` builds tests at
+`opt-level = 1` with overflow checks and debug assertions kept on
+(`psiv-core/tests/build_profile.rs` fails if either is turned off;
+`tests/test_build_profiles.py` holds the dev profile to the same). The built
+workspace suite took 47 s on 8 threads against 133 s on one (2026-10-18, mean
+clock 2.7 and 2.5 GHz); cargo runs its 57 test binaries one after another, and
+the `psiv-runtime` unit tests (16 s) and `psiv-campaign`'s `validator` (11 s)
+are most of what is left. After touching `psiv-core`, the two cargo steps took
+76 s together against 182 s at one job and one thread. Tests requiring local
+assets may fail or explicitly skip when their fixtures are absent; report that
+distinction with the result.
 `build_pack` replays the map-independent sections an earlier build in the same
 process emitted from the same ROM; a test that patches an emitter's dependency,
 or compares two builds, builds inside `psiv_tools.pack_sections.fresh()`.
@@ -163,16 +174,19 @@ in order, with the same receipt format (`tier: "fast"`, directory suffix
 ```bash
 python3 tools/check_docs.py
 cargo fmt --manifest-path rust/Cargo.toml --all --check
-CARGO_BUILD_JOBS=1 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
+cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings
 PYTHONPATH=. python3 tools/gate.py --quick-unittest
-CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml --workspace -- --test-threads=1
+cargo test --manifest-path rust/Cargo.toml --workspace
 ```
 
 `--quick-unittest` is the full gate's `unittest discover -s tests` minus the
 modules in `SLOW_PYTHON_MODULES` (`tools/gate.py`), which lists each one with
 its measured seconds. A new test module joins the fast tier unless it is added
 there. The fast tier is a commit check, not a gate result: integration still
-needs the full gate.
+needs the full gate. It took 160 s on a warm target and 189 s after touching
+`psiv-core`, against 254 s and 291 s at one job and one thread (2026-10-18,
+receipts `20261018T090024Z` and `20261018T085042Z`); `--quick-unittest`, about
+112 s at one Python process, is now most of it.
 
 ### Gate and coverage
 
@@ -181,8 +195,9 @@ The gate is `python3 tools/gate.py`, run from the root. It runs exactly the five
 commands above, in order, with the env prefixes and flags written there, and
 writes one log per command plus `receipt.json` under
 `build/gate/<UTC stamp>-<short sha>/`: the candidate SHA, whether the tree was
-dirty and its `git status --porcelain` paths, and each command's string, UTC
-start and end, duration, exit code, log path and parsed counts. Report a gate
+dirty and its `git status --porcelain` paths, the host's `cpu_count`, and each
+command's string, UTC start and end, duration, exit code, CPU clock while it
+ran (`cpu_mhz`, sampled every second), log path and parsed counts. Report a gate
 result from that receipt, not from a retyped summary. The gate refuses to start
 (exit 2, nothing run) while another gate holds the gate lock or while a
 process has the debug PSIV extension mapped
@@ -211,8 +226,9 @@ itself (`PSIV_HEAVY_LOCK` overrides it); then `gate.py --wait`, with one receipt
 same commit: `python3 tools/resume_check.py --evaluate <check dir>` re-judges a
 finished check against an edited manifest without running it again. When it
 runs is set by the [verification tiers](#verification-tiers). Reporting a gate result means
-those commands; a subset, a different `CARGO_BUILD_JOBS`, parallel test threads
-or a per-crate run is a focused check and is reported as one. The gate does not
+those commands; a subset, a `CARGO_BUILD_JOBS` or `--test-threads` setting
+the commands do not write, or a per-crate run is a focused check and is
+reported as one. The gate does not
 cover:
 
 - tests skipped for a missing ROM, disassembly or full pack: a checkout without
@@ -291,7 +307,10 @@ desktop, the agent sessions, unlocked headless runs and any job that peaks
 above its measurement. One run each, 2026-10-16, on the 8-core 13.5 GB host on
 AC with the CPU capped at 2.3 GHz (`bios_limit` 2300000); `/usr/bin/time -v`
 reports the largest single process. Rows marked 0.1 s sampled the tree every
-0.1 s at `4abbbc2`; the others every 0.2 s at `20a76de`:
+0.1 s at `4abbbc2`; the others every 0.2 s at `20a76de`. Rows marked #157 were
+measured 2026-10-18 at `0c64b19`, sampled every 0.1 s, on AC with the CPU
+uncapped (boosting to 3.9 GHz); each names its mean live clock
+(`/proc/cpuinfo`) and has no `time -v` figure:
 
 | Job | Wall | Tree peak RSS | `time -v` max RSS | Pack | Class |
 | --- | ---: | ---: | ---: | --- | --- |
@@ -305,7 +324,9 @@ reports the largest single process. Rows marked 0.1 s sampled the tree every
 | `cargo test --workspace --exclude psiv-godot --no-run`, cold, 0.1 s | 255 s | **2,964 MB** | 900 MB | - | `build` (sizes it) |
 | `cargo clippy --workspace --all-targets`, cold, 0.1 s | 90 s | 2,560 MB | 1,984 MB | - | `build` |
 | `cargo build --release -p psiv-campaign`, cold, 0.1 s | 92 s | 974 MB | 627 MB | - | `build` |
-| `cargo test --workspace --no-run`, default jobs | 165 s | 3,050 MB | 887 MB | - | `exclusive` (compiles `psiv-godot`) |
+| `cargo test --workspace --no-run`, cold, default jobs (8), #157, 2.8 GHz | 191 s | **4,979 MB** | - | - | `exclusive` (the gate's peak) |
+| the same, `CARGO_BUILD_JOBS=4`, #157, 2.6 GHz | 216 s | 3,999 MB | - | - | `exclusive` |
+| the same, `CARGO_BUILD_JOBS=1`, #157, 2.5 GHz | 583 s | 2,824 MB | - | - | `exclusive` |
 | `cargo clippy --workspace --all-targets`, warm | 25 s | 1,762 MB | 525 MB | - | `build` |
 | `cargo test -p psiv-data`, built | 5 s | 291 MB | 199 MB | reads | `build` |
 | `cargo test -p psiv-core`, built | 2 s | 263 MB | 133 MB | reads | `build` |
@@ -313,7 +334,11 @@ reports the largest single process. Rows marked 0.1 s sampled the tree every
 | `cargo test -p psiv-sound`, built | 1 s | 36 MB | 77 MB | none | `build` |
 | `cargo test -p psiv-godot`, built | 5 s | 63 MB | 33 MB | reads | `exclusive` (compiles `psiv-godot`) |
 | `cargo test -p psiv-campaign`, built | 38 s | 149 MB | 118 MB | reads | `build` |
-| the gate's workspace `cargo test`, built | 123 s | 292 MB | 199 MB | reads | `exclusive` (the gate) |
+| the workspace `cargo test --test-threads=1`, built (the gate before #157) | 123 s | 292 MB | 199 MB | reads | `exclusive` (the gate) |
+| the gate's workspace `cargo test`, built, default threads (8), #157, 2.7 GHz | 47 s | 364 MB | - | reads | `exclusive` (the gate) |
+| the same, `--test-threads=4`, #157, 2.8 GHz | 53 s | 305 MB | - | reads | `exclusive` |
+| the same, `--test-threads=2`, #157, 2.6 GHz | 78 s | 305 MB | - | reads | `exclusive` |
+| the same, `--test-threads=1`, #157, 2.5 GHz | 133 s | 305 MB | - | reads | `exclusive` |
 | the Python suite (`unittest discover -s tests`, 1,648 tests) | 229 s | 815 MB | 813 MB | reads | `python` |
 | a full pack build (`python3 -m psiv_tools pack`) | 47 s | 129 MB | 130 MB | writes | `exclusive` |
 | one certify pair (`--only battle-0x88 --jobs 1`, Godot and Xvfb) | 8 s | 418 MB | 340 MB | reads | `godot` |

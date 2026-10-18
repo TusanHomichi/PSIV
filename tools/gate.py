@@ -4,18 +4,20 @@
 `GATE_COMMANDS` is the ordered gate: exactly the `## Run checks` block of
 docs/DEVELOPMENT.md, so check and documentation cannot drift (tests/test_gate.py
 fails when they do). `python3 tools/gate.py`, run from the root, executes each
-string with `bash -c <string>`, one at a time, so the documented env prefixes
-(`PYTHONPATH=.`, `CARGO_BUILD_JOBS=1`) apply exactly as written. A failing
-command does not stop the run: one receipt shows every failure, and the exit
-code is 1 when any command failed, 0 otherwise.
+string with `bash -c <string>`, one at a time, so the documented env prefix
+(`PYTHONPATH=.`) applies exactly as written. A failing command does not stop
+the run: one receipt shows every failure, and the exit code is 1 when any
+command failed, 0 otherwise.
 
 The run writes `build/gate/<UTC YYYYmmddTHHMMSSZ>-<short sha>/`: one log per
 command plus `receipt.json`, holding the candidate SHA, whether the tree was
-dirty and its `git status --porcelain` paths, and for each command its string,
-UTC start and end, duration, exit code, log path and parsed counts (a
-`Ran N tests`/`OK`/`FAILED (...)` summary for a unittest command, `test result:`
-sums for `cargo test`; a count the run never reported is null, not zero). A gate
-result is reported from that receipt.
+dirty and its `git status --porcelain` paths, the host's `cpu_count`, and for
+each command its string, UTC start and end, duration, exit code, the CPU clock
+sampled every second while it ran (`cpu_mhz`: mean, min, max and samples, null
+without /proc/cpuinfo), log path and parsed counts (a `Ran N tests`/`OK`/
+`FAILED (...)` summary for a unittest command, `test result:` sums for
+`cargo test`; a count the run never reported is null, not zero). A gate result
+is reported from that receipt.
 
 A run holds two repository-wide locks, both resolved by tools/heavy_lock.py so
 every worktree shares one file each, always in this order (heavy_lock's
@@ -70,8 +72,8 @@ GATE_COMMANDS = [
     "python3 tools/check_docs.py",
     "PYTHONPATH=. python3 -m unittest discover -s tests",
     "cargo fmt --manifest-path rust/Cargo.toml --all --check",
-    "CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml --workspace -- --test-threads=1",
-    "CARGO_BUILD_JOBS=1 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
+    "cargo test --manifest-path rust/Cargo.toml --workspace",
+    "cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
 ]
 
 #: The per-commit fast tier, `python3 tools/gate.py --fast`: docs/DEVELOPMENT.md's
@@ -80,9 +82,9 @@ GATE_COMMANDS = [
 FAST_COMMANDS = [
     "python3 tools/check_docs.py",
     "cargo fmt --manifest-path rust/Cargo.toml --all --check",
-    "CARGO_BUILD_JOBS=1 cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
+    "cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D warnings",
     "PYTHONPATH=. python3 tools/gate.py --quick-unittest",
-    "CARGO_BUILD_JOBS=1 cargo test --manifest-path rust/Cargo.toml --workspace -- --test-threads=1",
+    "cargo test --manifest-path rust/Cargo.toml --workspace",
 ]
 
 #: Python test modules the fast tier leaves to the full gate: every module whose
@@ -108,6 +110,9 @@ SLOW_PYTHON_MODULES = {
 #: timed, reproducible run, so it holds the machine for the whole run: the one
 #: exclusive job (docs/DEVELOPMENT.md, "Heavy-run lock").
 GATE_LOCK_CLASS = EXCLUSIVE
+
+#: Seconds between a command's clock samples (its receipt's `cpu_mhz`).
+CPU_SAMPLE_S = 1.0
 
 #: Where receipts go, relative to the root. The lock is shared: see heavy_lock.
 GATE_DIR = Path("build") / "gate"
@@ -329,29 +334,68 @@ def loaded_extension_pids(extension, proc_dir=Path("/proc")):
     return sorted(pids)
 
 
+def cpu_mhz(cpuinfo=Path("/proc/cpuinfo")):
+    """The mean current clock over every core, in MHz, or None where the file has none.
+
+    Cargo's default jobs and test threads scale with the cores and the clock,
+    so a gate timing is read beside the clock it ran at (the host boosts
+    above its base clock under load; DEVELOPMENT.md's measurement table).
+    """
+    try:
+        values = [float(line.split(":", 1)[1]) for line in cpuinfo.read_text().splitlines()
+                  if line.startswith("cpu MHz")]
+    except (OSError, ValueError, IndexError):
+        return None
+    return sum(values) / len(values) if values else None
+
+
+def _clock_summary(clocks):
+    """A command's `cpu_mhz` receipt field: mean, min and max of its samples, or None."""
+    if not clocks:
+        return None
+    return {"mean": round(sum(clocks) / len(clocks)), "min": round(min(clocks)),
+            "max": round(max(clocks)), "samples": len(clocks)}
+
+
 def _run_command(command, index, total, root, receipt_dir):
     """Run one command, log it, and return its receipt record."""
     log_file = receipt_dir / f"{index:02d}-{command_slug(command)}.log"
     print(f"[{index}/{total}] {command}", flush=True)
     started_wall = datetime.now(timezone.utc)
     started = time.monotonic()
+    clocks = []
     with log_file.open("wb") as handle:
-        completed = subprocess.run(["bash", "-c", command], cwd=str(root),
+        process = subprocess.Popen(["bash", "-c", command], cwd=str(root),
                                    stdout=handle, stderr=subprocess.STDOUT)
+        try:
+            while True:
+                clock = cpu_mhz()
+                if clock is not None:
+                    clocks.append(clock)
+                try:
+                    process.wait(timeout=CPU_SAMPLE_S)
+                    break
+                except subprocess.TimeoutExpired:
+                    continue
+        except BaseException:
+            process.kill()
+            process.wait()
+            raise
     ended_wall = datetime.now(timezone.utc)
     duration = round(time.monotonic() - started, 3)
     counts = parse_counts(command, log_file.read_text(errors="replace"))
-    print(f"[{index}/{total}] exit {completed.returncode} in {duration:.1f}s -> {log_file.name}"
+    print(f"[{index}/{total}] exit {process.returncode} in {duration:.1f}s -> {log_file.name}"
           + (f"; {_counts_text(counts)}" if counts else ""), flush=True)
     return {
         "command": command,
         "start_utc": _utc(started_wall),
         "end_utc": _utc(ended_wall),
         "duration_s": duration,
-        "exit_code": completed.returncode,
+        "exit_code": process.returncode,
         "log": display_path(log_file, root),
         "counts": counts,
         "lock_class": GATE_LOCK_CLASS,
+        "cpu_mhz": _clock_summary(clocks),
     }
 
 
@@ -465,6 +509,7 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
             "receipt_dir": display_path(receipt_dir, root),
             "tier": tier,
             "heavy_lock_class": GATE_LOCK_CLASS,
+            "cpu_count": os.cpu_count(),
             "commands": records,
             "summary": _summary(records, receipt_dir, root, tier),
         }
