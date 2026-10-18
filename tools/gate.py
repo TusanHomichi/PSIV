@@ -5,14 +5,17 @@
 docs/DEVELOPMENT.md, so check and documentation cannot drift (tests/test_gate.py
 fails when they do). `python3 tools/gate.py`, run from the root, executes each
 string with `bash -c <string>`, one at a time, so the documented env prefix
-(`PYTHONPATH=.`) applies exactly as written. A failing command does not stop
-the run: one receipt shows every failure, and the exit code is 1 when any
-command failed, 0 otherwise.
+(`PYTHONPATH=.`) applies exactly as written. Every command runs with
+`CARGO_BUILD_JOBS` and `RUST_TEST_THREADS` set to the cores available, capped
+at `GATE_MEASURED_PARALLELISM`, the configuration measured to fit the gate's
+lock class. A failing command does not stop the run: one receipt shows every
+failure, and the exit code is 1 when any command failed, 0 otherwise.
 
 The run writes `build/gate/<UTC YYYYmmddTHHMMSSZ>-<short sha>/`: one log per
 command plus `receipt.json`, holding the candidate SHA, whether the tree was
-dirty and its `git status --porcelain` paths, the host's `cpu_count`, and for
-each command its string, UTC start and end, duration, exit code, the CPU clock
+dirty and its `git status --porcelain` paths, the cores it could use
+(`cpu_count`), the `cargo_build_jobs` and `rust_test_threads` it gave cargo,
+and for each command its string, UTC start and end, duration, exit code, the CPU clock
 sampled every second while it ran (`cpu_mhz`: mean, min, max and samples, null
 without /proc/cpuinfo) and the highest 1-minute load average seen then
 (`load_1m_max`, null without /proc/loadavg), log path and parsed counts (a `Ran N tests`/`OK`/
@@ -114,6 +117,15 @@ GATE_LOCK_CLASS = EXCLUSIVE
 
 #: Seconds between a command's clock samples (its receipt's `cpu_mhz`).
 CPU_SAMPLE_S = 1.0
+
+#: The most build jobs and test threads the gate gives cargo: the configuration
+#: measured to fit the exclusive class, cargo's default on the 8-core host (#157,
+#: 2026-10-18: a cold `cargo test --workspace --no-run` at 8 jobs peaked at
+#: 4,979 MB tree RSS, 39% under the class's 8,192 MB; the built suite at 8
+#: threads at 364 MB; docs/DEVELOPMENT.md, "Heavy-run lock"). Cargo's defaults
+#: grow with the cores and the budget does not, so a host with more cores still
+#: runs 8 until the peak is measured again at a higher count and this is raised.
+GATE_MEASURED_PARALLELISM = 8
 
 #: Where receipts go, relative to the root. The lock is shared: see heavy_lock.
 GATE_DIR = Path("build") / "gate"
@@ -371,7 +383,30 @@ def _clock_summary(clocks):
             "max": round(max(clocks)), "samples": len(clocks)}
 
 
-def _run_command(command, index, total, root, receipt_dir):
+def available_cores():
+    """The cores this process may run on (what cargo's defaults count), at least 1."""
+    try:
+        return max(1, len(os.sched_getaffinity(0)))
+    except AttributeError:  # not Linux
+        return max(1, os.cpu_count() or 1)
+
+
+def cargo_parallelism(cores):
+    """Build jobs and test threads for `cores` cores: cargo's default, capped at the measurement."""
+    return max(1, min(cores, GATE_MEASURED_PARALLELISM))
+
+
+def gate_environment(environ, cores):
+    """`environ` with `CARGO_BUILD_JOBS` and `RUST_TEST_THREADS` set to `cargo_parallelism`.
+
+    Set, not defaulted: a caller's own `CARGO_BUILD_JOBS=1` would make the run
+    a different measurement from the one the receipt describes.
+    """
+    count = str(cargo_parallelism(cores))
+    return {**environ, "CARGO_BUILD_JOBS": count, "RUST_TEST_THREADS": count}
+
+
+def _run_command(command, index, total, root, receipt_dir, env=None):
     """Run one command, log it, and return its receipt record."""
     log_file = receipt_dir / f"{index:02d}-{command_slug(command)}.log"
     print(f"[{index}/{total}] {command}", flush=True)
@@ -379,7 +414,7 @@ def _run_command(command, index, total, root, receipt_dir):
     started = time.monotonic()
     clocks, loads = [], []
     with log_file.open("wb") as handle:
-        process = subprocess.Popen(["bash", "-c", command], cwd=str(root),
+        process = subprocess.Popen(["bash", "-c", command], cwd=str(root), env=env,
                                    stdout=handle, stderr=subprocess.STDOUT)
         try:
             while True:
@@ -512,7 +547,9 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
         receipt_dir.mkdir(parents=True, exist_ok=True)
         print(f"gate: {len(commands)} commands -> {display_path(receipt_dir, root)}",
               flush=True)
-        records = [_run_command(command, index, len(commands), root, receipt_dir)
+        cores = available_cores()
+        env = gate_environment(os.environ, cores)
+        records = [_run_command(command, index, len(commands), root, receipt_dir, env)
                    for index, command in enumerate(commands, start=1)]
         finished = datetime.now(timezone.utc)
         receipt = {
@@ -527,7 +564,9 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
             "receipt_dir": display_path(receipt_dir, root),
             "tier": tier,
             "heavy_lock_class": GATE_LOCK_CLASS,
-            "cpu_count": os.cpu_count(),
+            "cpu_count": cores,
+            "cargo_build_jobs": int(env["CARGO_BUILD_JOBS"]),
+            "rust_test_threads": int(env["RUST_TEST_THREADS"]),
             "commands": records,
             "summary": _summary(records, receipt_dir, root, tier),
         }

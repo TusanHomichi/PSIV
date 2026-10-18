@@ -177,13 +177,17 @@ cargo clippy --manifest-path rust/Cargo.toml --workspace --all-targets -- -D war
 Run these sequentially: `python3 tools/gate.py` runs exactly this list, in
 order, from one entry point and writes a receipt
 ([Gate and coverage](#gate-and-coverage)). The Python suite is most of the
-gate's time. The cargo steps run at cargo's defaults, one build job and one
-test thread per core, because the gate holds the exclusive class: their largest
-measured peak, a cold `cargo test --workspace --no-run` at default jobs (4,979 MB
+gate's time. The gate runs every command with `CARGO_BUILD_JOBS` and
+`RUST_TEST_THREADS` set to the cores available, capped at 8
+(`GATE_MEASURED_PARALLELISM` in `tools/gate.py`), and its receipt records both.
+Eight is the configuration measured to fit the exclusive class the gate holds:
+its largest peak, a cold `cargo test --workspace --no-run` at 8 jobs (4,979 MB
 tree RSS on the 8-core host, [the table](#heavy-run-lock)), leaves 39% of the
 class's 16 units (8,192 MB) free, above the sizing rule's 15%, and the built
-suite peaks at 364 MB on 8 threads. Default jobs grow with the core count, so
-a host with more cores re-measures that peak. Tests in one binary run on
+suite peaks at 364 MB on 8 threads. Cargo's own defaults grow with the core
+count and the budget does not, so raising the cap takes a new measurement at
+the higher count. To repeat the gate's cargo steps by hand, set the same two
+variables. Tests in one binary run on
 parallel threads, so a test's scratch directory is keyed by process and by call
 (`tests/test_rust_temp_paths.py` checks every `temp_dir()`
 under `rust/`). `rust/Cargo.toml`'s `[profile.test]` builds tests at
@@ -229,7 +233,8 @@ The gate is `python3 tools/gate.py`, run from the root. It runs exactly the five
 commands above, in order, with the env prefixes and flags written there, and
 writes one log per command plus `receipt.json` under
 `build/gate/<UTC stamp>-<short sha>/`: the candidate SHA, whether the tree was
-dirty and its `git status --porcelain` paths, the host's `cpu_count`, and each
+dirty and its `git status --porcelain` paths, the cores it could use
+(`cpu_count`), the `cargo_build_jobs` and `rust_test_threads` it set, and each
 command's string, UTC start and end, duration, exit code, CPU clock and
 highest 1-minute load average while it ran (`cpu_mhz` and `load_1m_max`,
 sampled every second; the heavy lock does not exclude unlocked headless runs,
@@ -262,9 +267,9 @@ itself (`PSIV_HEAVY_LOCK` overrides it); then `gate.py --wait`, with one receipt
 same commit: `python3 tools/resume_check.py --evaluate <check dir>` re-judges a
 finished check against an edited manifest without running it again. When it
 runs is set by the [verification tiers](#verification-tiers). Reporting a gate result means
-those commands; a subset, a `CARGO_BUILD_JOBS` or `--test-threads` setting
-the commands do not write, or a per-crate run is a focused check and is
-reported as one. The gate does not
+those commands, at the gate's jobs and threads; a subset, another
+`CARGO_BUILD_JOBS` or test-thread count, or a per-crate run is a focused check
+and is reported as one. The gate does not
 cover:
 
 - tests skipped for a missing ROM, disassembly or full pack: a checkout without

@@ -28,9 +28,10 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from tools.gate import (FAST_COMMANDS, GATE_COMMANDS, SLOW_PYTHON_MODULES, GateRefused,
-                        command_slug, cpu_mhz, gate_lock, load_1m, main, parse_counts,
-                        quick_unittest, run_gate)
+from tools.gate import (FAST_COMMANDS, GATE_COMMANDS, GATE_MEASURED_PARALLELISM,
+                        SLOW_PYTHON_MODULES, GateRefused, available_cores, cargo_parallelism,
+                        command_slug, cpu_mhz, gate_environment, gate_lock, load_1m, main,
+                        parse_counts, quick_unittest, run_gate)
 from tools.heavy_lock import (HEAVY_LOCK_ENV, HELD_CLASS_ENV, HELD_ENV, HELD_SLOTS_ENV,
                               PRIORITY_ENV, gate_lock_path, heavy_lock_path, lock_holders)
 
@@ -308,7 +309,10 @@ class GateRunCase(unittest.TestCase):
             if cpu_mhz() is not None:  # Linux: a sample before the command can finish
                 self.assertGreaterEqual(record["cpu_mhz"]["samples"], 1)
                 self.assertLessEqual(record["cpu_mhz"]["min"], record["cpu_mhz"]["max"])
-        self.assertEqual(receipt["cpu_count"], os.cpu_count())
+        self.assertEqual(receipt["cpu_count"], available_cores())
+        expected = cargo_parallelism(available_cores())
+        self.assertEqual((receipt["cargo_build_jobs"], receipt["rust_test_threads"]),
+                         (expected, expected))
         self.assertTrue((self.root / "second.txt").is_file())
 
     def run_sampled(self, loads, samples):
@@ -346,6 +350,16 @@ class GateRunCase(unittest.TestCase):
         self.assertEqual(record["cpu_mhz"]["mean"], 2300)
         self.assertGreaterEqual(record["cpu_mhz"]["samples"], 20)
         self.assertEqual(record["load_1m_max"], 9.5)  # the highest, not the first or last
+
+    def test_commands_see_the_capped_cargo_environment(self):
+        """What a command's cargo reads, end to end, on a 16- and a 4-core host."""
+        echo = f'echo "$CARGO_BUILD_JOBS $RUST_TEST_THREADS" > {self.root / "seen"}'
+        for cores, expected in ((16, "8 8"), (4, "4 4")):
+            with mock.patch("tools.gate.available_cores", return_value=cores), \
+                    mock.patch.dict(os.environ, {"CARGO_BUILD_JOBS": "1"}):
+                receipt, _ = self.run_quiet([echo])
+            self.assertEqual((self.root / "seen").read_text().strip(), expected)
+            self.assertEqual(receipt["cargo_build_jobs"], int(expected.split()[0]))
 
     def test_negative_control_a_finite_load_supply_runs_out(self):
         """The pre-fix form: a fixed list of loads, shorter than the samples taken.
@@ -698,6 +712,27 @@ class QuickUnittestCase(unittest.TestCase):
         self.assertEqual(code, 1, output)
         self.assertIn("Ran 2 tests", output)
         self.assertIn("slow module ran", output)
+
+
+class ParallelismCase(unittest.TestCase):
+    """Cargo gets cargo's defaults only up to the measured 8 jobs and threads (#157)."""
+
+    def test_more_cores_than_measured_are_capped(self):
+        self.assertEqual(cargo_parallelism(16), 8)
+
+    def test_fewer_cores_than_measured_use_them_all(self):
+        self.assertEqual(cargo_parallelism(4), 4)
+
+    def test_the_cap_is_the_measured_eight(self):
+        # 8: the jobs of the cold build measured at 4,979 MB (docs/DEVELOPMENT.md table).
+        self.assertEqual(GATE_MEASURED_PARALLELISM, 8)
+        self.assertEqual(cargo_parallelism(8), 8)
+        self.assertEqual(cargo_parallelism(1), 1)
+
+    def test_the_environment_overrides_a_callers_setting(self):
+        env = gate_environment({"CARGO_BUILD_JOBS": "1", "HOME": "/h"}, 16)
+        self.assertEqual((env["CARGO_BUILD_JOBS"], env["RUST_TEST_THREADS"]), ("8", "8"))
+        self.assertEqual(env["HOME"], "/h")
 
 
 class ClockCase(unittest.TestCase):
