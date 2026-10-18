@@ -67,7 +67,7 @@ impl Driver {
                 match camp.page {
                     CampPage::LootMessage => {
                         let message = camp.message.clone();
-                        self.note(format!("chest: {}", message.replace('\n', " / ")));
+                        self.decide(format!("chest: {}", message.replace('\n', " / ")));
                         self.tap(Button::Speak)?;
                     }
                     CampPage::LootItems => {
@@ -109,7 +109,7 @@ impl Driver {
             if let Some(notice) = self.runtime().field_notice()
                 && self.runtime().dialogue_view().is_none()
             {
-                self.note(format!("field notice: {notice:?}"));
+                self.decide(format!("field notice: {notice:?}"));
                 self.tick(psiv_runtime::Pad::NEUTRAL)?;
                 quiet = 0;
                 continue;

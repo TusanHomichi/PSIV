@@ -2,7 +2,7 @@
 
 use psiv_core::battle::Outcome;
 use psiv_core::{
-    ActorRef, Cell, Driver, Input, MapId, ONE_PIXEL, PixelPos, SceneEffect, SceneInput, SceneOp,
+    ActorRef, Driver, Input, MapId, ONE_PIXEL, PixelPos, SceneEffect, SceneInput, SceneOp,
     WarpTrigger,
 };
 
@@ -312,17 +312,14 @@ impl Runtime {
         // everywhere in the pack. A scene's load is `RefreshMap`, whose
         // object-keeping bit is 3, and the op carries the `bclr`/`bset`
         // writes the scene made around it.
-        let cell = Cell::new(start_x / 2, start_y / 2 + 1);
+        let cell = crate::start_cell(start_x, start_y);
         match self.change_map_refresh(MapId(map), cell, facing, prev_map, clear_load_flags) {
-            Ok(()) => {
+            Ok(loaded) => {
                 let cast = self.build_cast();
                 if let Some(runner) = self.scene.as_mut() {
                     runner.recast(cast);
                 }
-                events.push(RuntimeEvent::MapChanged {
-                    map: MapId(map),
-                    trigger: WarpTrigger::MapChange,
-                });
+                events.push(loaded.event(WarpTrigger::MapChange));
             }
             Err(_) => events.push(RuntimeEvent::UnpackedTarget { map: MapId(map) }),
         }
@@ -784,7 +781,7 @@ impl Runtime {
 #[cfg(test)]
 mod boarding_sound_tests {
     use super::*;
-    use psiv_core::{Direction, MapId, StepFrames};
+    use psiv_core::{Cell, Direction, MapId, StepFrames};
     use std::path::Path;
 
     #[test]

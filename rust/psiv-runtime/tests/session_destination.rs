@@ -594,7 +594,7 @@ fn both_flights_return_control_on_tape_35s_exact_frame() {
             });
             for event in &frame.events {
                 match event {
-                    RuntimeEvent::MapChanged { map, .. } => maps.push((offset, map.0)),
+                    RuntimeEvent::MapChanged { map, .. } => maps.push((offset, map.id().0)),
                     RuntimeEvent::ScenePresentation { op } => ops.push((offset, *op)),
                     RuntimeEvent::SceneEnded => control = Some(offset),
                     _ => {}

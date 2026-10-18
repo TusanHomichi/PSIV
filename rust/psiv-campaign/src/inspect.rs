@@ -8,7 +8,7 @@
 use std::fmt::Write as _;
 use std::path::Path;
 
-use psiv_core::Flag;
+use psiv_core::{Flag, FlagBank};
 
 use crate::start::{SetupError, StartPoint, open_session};
 
@@ -92,10 +92,30 @@ pub fn inspect(pack: &Path, save: &Path) -> Result<String, SetupError> {
         .map(|item| format!("{}:{}", item.id, item.name))
         .collect();
     let _ = writeln!(out, "inventory {}", items.join(", "));
-    let set: Vec<String> = (0..512u16)
-        .filter(|id| runtime.game().is_set(Flag::event(*id)))
-        .map(|id| format!("{id:#x}"))
+    let set: Vec<String> = runtime
+        .game()
+        .set_flags()
+        .filter(|flag| flag.bank == FlagBank::Event)
+        .map(|flag| format!("{:#x}", flag.id))
         .collect();
     let _ = writeln!(out, "event flags {}", set.join(" "));
     Ok(out)
+}
+
+/// Where a save stands and the flags it holds: what `plan --from-save` plans
+/// from, so a walk is checked against the flags the game really has.
+///
+/// # Errors
+///
+/// [`SetupError`] when the pack or the save cannot be opened.
+pub fn save_position(
+    pack: &Path,
+    save: &Path,
+) -> Result<(u16, psiv_core::Cell, Vec<Flag>), SetupError> {
+    let (session, _) = open_session(pack, &StartPoint::Save(save.to_path_buf()))?;
+    let runtime = session.runtime();
+    let cell = crate::driver::standing_cell(runtime);
+    let game = runtime.game();
+    let flags = game.set_flags().collect();
+    Ok((runtime.map_id().0, cell, flags))
 }

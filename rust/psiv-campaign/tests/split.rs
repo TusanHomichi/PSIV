@@ -73,6 +73,14 @@ fn a_completed_report_names_its_chapters_and_the_tape_cuts_back() {
             "{id}: the report hashes the chapter's own save"
         );
         save_hashes.push(fnv1a64(&save));
+        // Each chapter keeps its controllers' decisions, frame-stamped,
+        // starting with its first objective.
+        let decisions = chapters[index]["decisions"].as_array().unwrap();
+        let first = decisions[0].as_str().unwrap();
+        assert!(
+            first.starts_with('f') && first.contains(": objective #0 "),
+            "{id}: {decisions:?}"
+        );
     }
 
     let out = dir.join("tapes");

@@ -536,7 +536,7 @@ fn the_zio_fort_barrier_walks_its_ring_and_opens_the_courtyard() {
     for _ in 0..40 {
         for event in runtime.tick(Input::Direction(Direction::Up)) {
             if let RuntimeEvent::MapChanged { map, .. } = event {
-                arrived = Some(map);
+                arrived = Some(map.id());
             }
         }
         if arrived.is_some() {

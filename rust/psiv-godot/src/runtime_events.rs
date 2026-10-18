@@ -39,7 +39,7 @@ impl Field {
                         WarpTrigger::MapChange => "doorway",
                         WarpTrigger::NormalGround => "ground",
                     };
-                    godot_print!("map change ({kind}) -> {:#05x}", map.0);
+                    godot_print!("map change ({kind}) -> {:#05x}", map.id().0);
                     self.presentation.reload_field_objects();
                     // RefreshMap replaces the VDP planes; old dialogue
                     // panels cannot remain layered over the new field.

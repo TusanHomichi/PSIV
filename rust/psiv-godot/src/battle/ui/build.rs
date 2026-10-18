@@ -16,6 +16,16 @@ use super::{BATTLE_BACKGROUND_HEIGHT, BATTLE_BACKGROUND_WIDTH, BATTLE_CELL_PIXEL
 use crate::battle::{BattleSetup, EnemyPlacement};
 
 impl BattleScreen {
+    /// Releases the stage a closed battle drew (#92): its background, enemy
+    /// and party sprites, the textures and overlay images they hold, and any
+    /// attack layer parented to an enemy. A hidden stage kept them until the
+    /// next battle began, about 120 Godot objects that no one reads; the next
+    /// `begin` builds its own.
+    pub(crate) fn release_stage(&mut self) {
+        self.clear_sprites();
+        self.enemy_positions.clear();
+    }
+
     pub(super) fn clear_sprites(&mut self) {
         if let Some(mut background) = self.background.take() {
             background.queue_free();

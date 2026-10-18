@@ -383,3 +383,27 @@ fn snapshots_round_trip() {
     assert_eq!(restored.money(), 400);
     assert_eq!(restored, state);
 }
+
+/// `set_flags` reaches every bank's first and last id, in bank order, and
+/// nothing that is clear. The last ids are the RAM map's, not the code's:
+/// `$F100..$F140` is 512 event bits, `$F140..$F160` 256 temp bits and
+/// `$F160..$F170` 128 town bits (the module's table), so a capacity that
+/// drifts from the cartridge fails here.
+#[test]
+fn set_flags_walks_every_bank_to_its_capacity() {
+    let mut state = GameState::new();
+    let mut want = Vec::new();
+    for (bank, last) in [
+        (FlagBank::Event, 0x1FF),
+        (FlagBank::Temp, 0xFF),
+        (FlagBank::Town, 0x7F),
+    ] {
+        for id in [0, last] {
+            let flag = Flag { bank, id };
+            state.set(flag).unwrap();
+            want.push(flag);
+        }
+    }
+    assert_eq!(state.set_flags().collect::<Vec<_>>(), want);
+    assert_eq!(GameState::new().set_flags().count(), 0);
+}

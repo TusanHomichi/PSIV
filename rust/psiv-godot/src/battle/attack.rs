@@ -30,7 +30,11 @@ pub(super) struct EnemyAttackState {
     elapsed: u16,
     frame_durations: Vec<u8>,
     frames: Vec<Gd<ImageTexture>>,
-    layer: Gd<Sprite2D>,
+    /// The sprite layer an attack with a proven sheet draws its frames on,
+    /// parented to the enemy's node. A flash-only attack has none: it only
+    /// tints the body (#92: it once allocated a layer it never parented or
+    /// freed, one orphan node per flash attack).
+    layer: Option<Gd<Sprite2D>>,
     origin_pixels: Vector2i,
     initial_offset_pixels: Vector2i,
     step_pixels: Vector2i,
@@ -74,7 +78,7 @@ impl EnemySprite {
                 elapsed: 0,
                 frame_durations,
                 frames: spec.frames,
-                layer,
+                layer: Some(layer),
                 origin_pixels: spec.origin_pixels,
                 initial_offset_pixels: spec.initial_offset_pixels,
                 step_pixels: spec.step_pixels,
@@ -90,7 +94,7 @@ impl EnemySprite {
                 elapsed: 0,
                 frame_durations: vec![1],
                 frames: Vec::new(),
-                layer: Sprite2D::new_alloc(),
+                layer: None,
                 origin_pixels: Vector2i::ZERO,
                 initial_offset_pixels: Vector2i::ZERO,
                 step_pixels: Vector2i::ZERO,
@@ -105,17 +109,17 @@ impl EnemySprite {
         };
         if attack.remaining > 1 {
             attack.remaining -= 1;
-            if !attack.frames.is_empty() {
+            if let Some(layer) = attack.layer.as_mut() {
                 attack.elapsed = attack.elapsed.saturating_add(1);
                 let frame = frame_index(attack.elapsed, &attack.frame_durations);
-                attack.layer.set_texture(&attack.frames[frame]);
+                layer.set_texture(&attack.frames[frame]);
                 let offset = motion_offset(
                     attack.elapsed,
                     attack.initial_offset_pixels,
                     attack.step_pixels,
                     attack.limit_offset_pixels,
                 );
-                attack.layer.set_position(Vector2::new(
+                layer.set_position(Vector2::new(
                     (attack.origin_pixels.x + offset.x) as f32,
                     (attack.origin_pixels.y + offset.y) as f32,
                 ));
@@ -126,10 +130,8 @@ impl EnemySprite {
     }
 
     pub(super) fn clear_attack(&mut self) {
-        if let Some(mut attack) = self.attack.take()
-            && !attack.frames.is_empty()
-        {
-            attack.layer.queue_free();
+        if let Some(mut layer) = self.attack.take().and_then(|attack| attack.layer) {
+            layer.queue_free();
         }
         self.node
             .set_self_modulate(Color::from_rgba8(255, 255, 255, 255));

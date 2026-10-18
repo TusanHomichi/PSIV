@@ -314,6 +314,19 @@ impl BattleScreen {
             .unwrap_or_default()
     }
 
+    /// The battle stage's first-use caches (#92): the command tiles and the
+    /// enemy bodies, at most one per enemy record and CRAM line (1 or 2).
+    pub(crate) fn cache_reports(&self) -> Vec<crate::named_caches::CacheReport> {
+        vec![
+            self.tiles.cache_report(),
+            crate::named_caches::CacheReport::textures(
+                "battle_enemy_textures",
+                self.enemy_textures.values(),
+                self.art.as_ref().map_or(0, |art| art.enemy_count() * 2),
+            ),
+        ]
+    }
+
     /// The frame's view, once the runtime has produced one.
     pub(crate) fn view(&self) -> Option<&BattleView> {
         self.view.as_ref()

@@ -539,10 +539,8 @@ mod tests {
                 .any(|event| {
                     matches!(
                         event,
-                        crate::RuntimeEvent::MapChanged {
-                            map: psiv_core::MapId(0),
-                            ..
-                        }
+                        crate::RuntimeEvent::MapChanged { map, .. }
+                            if map.id() == psiv_core::MapId(0)
                     )
                 })
         });
