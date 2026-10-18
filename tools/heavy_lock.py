@@ -25,14 +25,18 @@ lock rather than wait.
 
 The heavy lock's classes are split by peak memory (the measured table is in
 docs/DEVELOPMENT.md, "Heavy-run lock"). `exclusive` (the gate as a whole, pack
-builds, which rewrite the runtime pack every run reads, and builds of the
-GDExtension) holds the lock file with LOCK_EX and runs alone. The
+builds, which rewrite the runtime pack every run reads, and the opt-level-3
+extension build) holds the lock file with LOCK_EX and runs alone. The
 shared classes hold it with LOCK_SH plus units of a machine memory budget,
 `PSIV_LOCK_UNITS` (default `DEFAULT_LOCK_UNITS`) unit files of `UNIT_MB` each
-beside it, taken all or none, `CLASS_UNITS` each: `build` (any cargo build,
-test or clippy run: compilation is its peak), `godot` (one Godot/Xvfb run, per
-slot, plus one of `PSIV_GODOT_SLOTS` (default 3) slot files) and `python` (the
-Python suite). So shared holders run side by side
+beside it, taken all or none, `CLASS_UNITS` each: `build` (a cargo build,
+test or clippy run that does not compile psiv-godot: compilation is its peak),
+`extension` (one that does: `-p psiv-godot` or the workspace), `godot` (one
+Godot/Xvfb run, per slot, plus one of `PSIV_GODOT_SLOTS` (default 3) slot
+files) and `python` (the Python suite). The caller declares the class and is
+trusted: a build in `build` that compiles psiv-godot costs memory headroom,
+never a crash, because every Godot a repository tool starts loads its own copy
+of the library (tools/godot.py `create_run_root`). So shared holders run side by side
 while their units fit, and an exclusive holder excludes them all. The slot cap
 and the budget must be the same for every process: each holder writes them
 into its slot and unit files, and a process that finds a held file recording
@@ -53,9 +57,7 @@ that changes.
 `hold_heavy_lock(path)` is the one way in-repo code takes the heavy lock, and
 `run --class CLASS -- <cmd>` the one way to wrap a command in it. The class is
 required: without one, `run` prints the classes and exits 2, so no command
-takes the whole machine by default. A command that can relink the GDExtension
-library (tools/heavy_lock_extension.py decides) is refused in every class but
-exclusive, also with exit 2. The holder exports
+takes the whole machine by default. The holder exports
 `PSIV_HEAVY_LOCK_HELD=<resolved path>` with the class and slot count, so a
 descendant that asks for the same lock (certify under an exclusive `run`)
 proceeds without blocking on its own ancestor; a request under a shared
@@ -83,11 +85,6 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-try:  # imported as `tools.heavy_lock` by tests and verifiers
-    from tools.heavy_lock_extension import can_relink_extension
-except ModuleNotFoundError:  # direct `python3 tools/heavy_lock.py`
-    from heavy_lock_extension import can_relink_extension
-
 HEAVY_LOCK_ENV = "PSIV_HEAVY_LOCK"
 HELD_ENV = "PSIV_HEAVY_LOCK_HELD"
 HELD_CLASS_ENV = "PSIV_HEAVY_LOCK_CLASS"
@@ -102,8 +99,9 @@ EXIT_HELD_BY_PARENT = 2
 EXCLUSIVE = "exclusive"
 GODOT = "godot"
 BUILD = "build"
+EXTENSION = "extension"
 PYTHON = "python"
-LOCK_CLASSES = (EXCLUSIVE, GODOT, BUILD, PYTHON)
+LOCK_CLASSES = (EXCLUSIVE, GODOT, BUILD, EXTENSION, PYTHON)
 #: How /proc/locks shows a LOCK_SH holder that holds no slot or unit yet (a
 #: shared head between its flock and its grant).
 SHARED = "shared"
@@ -118,10 +116,11 @@ DEFAULT_LOCK_UNITS = 16
 #: the fewest units that keep at least 15% of the holding above the class's
 #: largest measured peak process-tree RSS, ceil(peak / (0.85 * UNIT_MB)), from
 #: the table in docs/DEVELOPMENT.md: a cold `cargo test --workspace --exclude
-#: psiv-godot --no-run` 2,964 MB (7 units, 17% headroom), a certify pair 418 MB
-#: (1, 18%), the Python suite 815 MB (2, 20%). Builds that compile psiv-godot
-#: are exclusive, so they do not size `build`.
-CLASS_UNITS = {BUILD: 7, GODOT: 1, PYTHON: 2}
+#: psiv-godot --no-run` 2,964 MB (7 units, 17% headroom), a dev `cargo build -p
+#: psiv-godot` 3,609 MB (`extension`: 9 units, 22%), a certify pair 418 MB
+#: (1, 18%), the Python suite 815 MB (2, 20%). The opt-level-3 extension build
+#: (5,582 MB, 13 units) is exclusive, so it does not size `extension`.
+CLASS_UNITS = {BUILD: 7, EXTENSION: 9, GODOT: 1, PYTHON: 2}
 #: Seconds between a waiter's looks at the queue. A heavy run lasts minutes.
 POLL_S = 0.2
 
@@ -736,8 +735,9 @@ def run_parser():
 
 #: What `run` prints when no class is given, one line per class.
 CLASS_HELP = {
-    EXCLUSIVE: "the whole machine: pack builds, builds or tests that compile psiv-godot",
-    BUILD: "any other cargo build, test or clippy run",
+    EXCLUSIVE: "the whole machine: pack builds, the opt-level-3 extension build",
+    BUILD: "a cargo build, test or clippy run that does not compile psiv-godot",
+    EXTENSION: "a cargo build, test or clippy run that compiles psiv-godot (or the workspace)",
     GODOT: "one Godot/Xvfb run",
     PYTHON: "the Python suite, or part of it",
 }
@@ -763,11 +763,6 @@ def main(argv=None):
         args = run_parser().parse_args(options)
         if not command or args.lock_class is None:
             print(class_usage(), file=sys.stderr)
-            return 2
-        relinks = None if args.lock_class == EXCLUSIVE else can_relink_extension(command)
-        if relinks:
-            print(f"heavy_lock run: refused --class {args.lock_class}: {relinks}",
-                  file=sys.stderr)
             return 2
         with hold_heavy_lock(lock_class=args.lock_class, priority=args.priority or None):
             return subprocess.run(command).returncode

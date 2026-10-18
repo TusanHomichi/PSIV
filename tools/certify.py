@@ -18,16 +18,11 @@ The debug extension is rebuilt first by default, so a capture always comes from
 the checked-out sources; `--no-build` skips that only when the caller has just
 built this exact tree (a stale extension once certified the wrong code).
 Receipts land in `build/certify/<UTC>-<sha>/`. Exit 0 only when every
-selected pair is 0.000000. Refuses while a process has the debug extension
-mapped (rebuilding or loading under a live Godot can crash it).
+selected pair is 0.000000.
 
 Certify takes the shared heavy lock itself (tools/heavy_lock.py), so it needs
-no wrapper: the build in the exclusive class, then the captures holding one
-godot-class slot per worker. The build stays exclusive although its memory
-would fit beside Godot runs: the mapped-extension refusal above is checked once,
-before the lock, so a Godot run in this checkout could map the library while
-cargo relinks it, and only exclusion keeps every Godot run out until the build
-ends. `--jobs N` (default min(3, the godot slot cap))
+no wrapper: the build in the extension class, then the captures holding one
+godot-class slot per worker. `--jobs N` (default min(3, the godot slot cap))
 runs the captures across N workers, longest first; each worker owns one Xvfb
 server for its life and each capture its own save directory and output files,
 so a pair's capture is the same bytes at any N. Under an exclusive holder both
@@ -59,9 +54,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from gate import (EXTENSION_PATH, display_path, git_info, loaded_extension_pids,  # noqa: E402
-                  utc_stamp)
-from heavy_lock import EXCLUSIVE, GODOT as GODOT_CLASS, godot_slots, hold_heavy_lock  # noqa: E402
+from gate import display_path, git_info, utc_stamp  # noqa: E402
+from heavy_lock import (EXTENSION, GODOT as GODOT_CLASS, godot_slots,  # noqa: E402
+                        hold_heavy_lock)
 
 # `oracle` is a package of the repository root, not of `tools/`, so the root
 # goes on the path too. The one thing this module takes from there is the host
@@ -458,12 +453,8 @@ def main(argv=None):
     except ValueError as error:
         print(f"certify: refused, {error}")
         return 2
-    users = loaded_extension_pids(root / EXTENSION_PATH)
-    if users:
-        print(f"certify: refused, {EXTENSION_PATH} is mapped by PIDs {users}; close Godot first")
-        return 3
     if not args.no_build:
-        with hold_heavy_lock(lock_class=EXCLUSIVE):
+        with hold_heavy_lock(lock_class=EXTENSION):
             built = subprocess.run(["cargo", "build", "-p", "psiv-godot", "--manifest-path",
                                     "rust/Cargo.toml"])
         if built.returncode != 0:

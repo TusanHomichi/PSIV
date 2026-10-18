@@ -28,13 +28,15 @@ reproducible run, so nothing shares the machine with it; the receipt names the c
 `PSIV_LOCK_PRIORITY=1` queues the gate as a priority waiter). A gate nested
 under a heavy holder takes the gate lock without waiting, `--wait` or not: the
 wait would hold the heavy lock while waiting for the gate lock.
-Two guards refuse to start, both with exit 2 and nothing run: another gate
-holding the gate lock (a second gate exits at once instead of racing it;
-`--wait` waits for it instead, naming the holder once), and any process with
-`rust/target/debug/libpsiv_godot.so` mapped - the library
-godot/psiv.gdextension loads, which the cargo commands rebuild. A raw
-`flock(1)` wrapper around the gate is refused too (heavy_lock exits 2 rather
-than wait on its own parent).
+Another gate holding the gate lock refuses the run with exit 2 and nothing
+run (a second gate exits at once instead of racing it; `--wait` waits for it
+instead, naming the holder once). A Godot that has the checkout's
+`rust/target/debug/libpsiv_godot.so` mapped does not: cargo replaces that file
+with a new one rather than writing it in place, a non-editor Godot never
+re-reads it, the editor reloads it on focus by design, and every Godot a
+repository tool starts loads its own copy (tools/godot.py `create_run_root`).
+A raw `flock(1)` wrapper around the gate is refused too (heavy_lock exits 2
+rather than wait on its own parent).
 
 `--fast` runs the per-commit fast tier (`FAST_COMMANDS`) with the same receipt,
 marked `tier: "fast"`. `--list` prints the commands and exits 0. Stdlib only,
@@ -111,9 +113,6 @@ GATE_LOCK_CLASS = EXCLUSIVE
 
 #: Where receipts go, relative to the root. The lock is shared: see heavy_lock.
 GATE_DIR = Path("build") / "gate"
-
-#: The library godot/psiv.gdextension loads, relative to the root.
-EXTENSION_PATH = Path("rust") / "target" / "debug" / "libpsiv_godot.so"
 
 
 class GateRefused(Exception):
@@ -290,45 +289,6 @@ def gate_lock(lock_file, wait=False):
         os.close(handle)
 
 
-def maps_path(line):
-    """The file name in one /proc/<pid>/maps line, or None when there is none."""
-    parts = line.split(None, 5)
-    if len(parts) < 6:
-        return None
-    path = parts[5].strip()
-    if path.endswith(" (deleted)"):
-        path = path[: -len(" (deleted)")]
-    return path or None
-
-
-def loaded_extension_pids(extension, proc_dir=Path("/proc")):
-    """PIDs with `extension` mapped, lowest first.
-
-    The file is matched by its resolved path, because that is what a map
-    records. /proc entries that cannot be read (another user's process, one
-    that exited mid-scan) are skipped.
-    """
-    target = os.path.realpath(extension)
-    pids = set()
-    try:
-        entries = sorted(proc_dir.iterdir())
-    except OSError:
-        return []
-    for entry in entries:
-        if not entry.name.isdigit():
-            continue
-        try:
-            maps = (entry / "maps").read_text(errors="replace")
-        except OSError:
-            continue
-        for line in maps.splitlines():
-            path = maps_path(line)
-            if path and os.path.realpath(path) == target:
-                pids.add(int(entry.name))
-                break
-    return sorted(pids)
-
-
 def _run_command(command, index, total, root, receipt_dir):
     """Run one command, log it, and return its receipt record."""
     log_file = receipt_dir / f"{index:02d}-{command_slug(command)}.log"
@@ -424,8 +384,7 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
     1 otherwise; the summary line is printed and stored. Holds `root`'s gate
     lock and heavy lock (`heavy_lock`, default `heavy_lock_path(root)`) for the
     run. Raises GateRefused (exit 2) without running anything when another gate
-    holds the gate lock and `wait` is false, or a process has the debug
-    extension mapped.
+    holds the gate lock and `wait` is false.
     """
     root = Path(root).resolve()
     receipt_dir = Path(receipt_dir).resolve()
@@ -437,14 +396,6 @@ def run_gate(commands, root, receipt_dir, tier="full", wait=False, heavy_lock=No
     nested = os.environ.get(HELD_ENV) == str(Path(heavy_lock).resolve())
     with gate_lock(lock_file, wait and not nested), \
             hold_heavy_lock(heavy_lock, report=sys.stdout, lock_class=GATE_LOCK_CLASS):
-        extension = root / EXTENSION_PATH
-        loaded = loaded_extension_pids(extension)
-        if loaded:
-            holders = ", ".join(str(pid) for pid in loaded)
-            raise GateRefused(
-                f"gate refuses to start: {extension} is loaded by PID(s) {holders}; "
-                "close them first, because the cargo commands rebuild that library"
-            )
         info = git_info(root)
         started = datetime.now(timezone.utc)
         receipt_dir.mkdir(parents=True, exist_ok=True)

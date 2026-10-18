@@ -65,8 +65,9 @@ against source and fresh observations.
 - Inspect a native driver's configuration before running it. Existing drivers
   can contain local paths, special fixtures or long campaign routes. Missing
   `build/` evidence on a fresh clone is expected; report that limitation.
-- Do not rebuild a GDExtension while a running Godot process has it loaded.
-  Use the configured launcher or close the relevant instance first.
+- Rebuilding the GDExtension during a Godot run is safe: repository tools run
+  Godot from a run root with its own library copy, and the editor reloads the
+  checkout's library on focus by design.
 
 ## Verify the claim you intend to make
 

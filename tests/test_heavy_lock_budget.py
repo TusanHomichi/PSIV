@@ -14,6 +14,7 @@ and a budget mismatch are refused. Each has a negative control.
 
 import fcntl
 import io
+import math
 import os
 import signal
 import subprocess
@@ -24,12 +25,16 @@ from unittest import mock
 
 from tests.test_heavy_lock import NESTED_REQUEST, TIMEOUT, TOOLS, LockProcesses
 from tools import heavy_lock as heavy_lock_module
-from tools.heavy_lock import (BUILD, CLASS_UNITS, EXCLUSIVE, EXIT_HELD_BY_PARENT, GODOT, PYTHON,
+from tools.heavy_lock import (BUILD, CLASS_UNITS, EXCLUSIVE, EXTENSION, EXIT_HELD_BY_PARENT, GODOT, PYTHON,
                               UNITS_ENV, lock_holders, lock_modes, lock_units, units_in_use)
 
 
 #: A budget with room for exactly one build holder and one godot holder.
-PAIR_BUDGET = {UNITS_ENV: str(CLASS_UNITS[BUILD] + CLASS_UNITS[GODOT])}
+#: A budget that one extension build and one Godot run fill. A budget below
+#: the largest class is refused, so the tight-budget cases use that class.
+PAIR_BUDGET = {UNITS_ENV: str(CLASS_UNITS[EXTENSION] + CLASS_UNITS[GODOT])}
+#: The units a build and a Godot run take, for the in-process grant cases.
+BUILD_PAIR_UNITS = CLASS_UNITS[BUILD] + CLASS_UNITS[GODOT]
 
 
 def overfilling_take_files(lock, kind, count, cap, env, label=None):
@@ -69,11 +74,12 @@ class BudgetCase(LockProcesses):
                       out.getvalue())
 
     def test_negative_control_a_budget_without_room_makes_the_build_wait(self):
-        """The same pair under a budget of one build's units: the budget, not an
-        unheld lock, is what admitted the build above."""
-        budget = {UNITS_ENV: str(CLASS_UNITS[BUILD])}
+        """A Godot run and a build under a budget of the largest class's units,
+        an extension build's: the budget, not an unheld lock, is what admitted
+        the build above."""
+        budget = {UNITS_ENV: str(CLASS_UNITS[EXTENSION])}
         godot = self.holder("godot", budget)
-        build = self.waiter("build", "--class", "build", env=budget)
+        build = self.waiter("build", "--class", EXTENSION, env=budget)
         self.assertIn(f"{godot.pid} (godot)", build.first_line)
         time.sleep(0.5)
         self.assertEqual(self.granted(), [])
@@ -106,18 +112,18 @@ class BudgetCase(LockProcesses):
         self.assertEqual(self.granted(), ["exclusive", "build"])
 
     def test_a_full_budget_makes_every_shared_arrival_wait(self):
-        build = self.holder("build", PAIR_BUDGET)
+        build = self.holder(EXTENSION, PAIR_BUDGET)
         godot = self.holder("godot", PAIR_BUDGET)
         budget = int(PAIR_BUDGET[UNITS_ENV])
         self.assertEqual(units_in_use(self.lock), budget)
         second_godot = self.waiter("second-godot", "--class", "godot", env=PAIR_BUDGET)
-        self.assertIn(f"{build.pid} (build)", second_godot.first_line)
+        self.assertIn(f"{build.pid} (extension)", second_godot.first_line)
         time.sleep(0.5)
         self.assertLessEqual(units_in_use(self.lock), budget)
         self.assertEqual(self.granted(), [])
         self.release(godot)
         self.assertEqual(self.finish(second_godot), ["second-godot"])
-        second_build = self.waiter("second-build", "--class", "build", env=PAIR_BUDGET)
+        second_build = self.waiter("second-build", "--class", EXTENSION, env=PAIR_BUDGET)
         time.sleep(0.5)
         self.assertEqual(self.granted(), ["second-godot"])
         self.release(build)
@@ -141,12 +147,12 @@ class BudgetCase(LockProcesses):
                 os.close(handle)
 
     def test_the_budget_is_never_exceeded(self):
-        budget = int(PAIR_BUDGET[UNITS_ENV])
+        budget = BUILD_PAIR_UNITS
         order = [BUILD, BUILD, GODOT, GODOT, BUILD]
         self.assertEqual(self.grant_in_turn(order, budget), budget)
 
     def test_negative_control_a_grant_that_is_not_all_or_none_overfills(self):
-        budget = int(PAIR_BUDGET[UNITS_ENV])
+        budget = BUILD_PAIR_UNITS
         with mock.patch.object(heavy_lock_module, "_take_files", overfilling_take_files), \
                 self.assertRaisesRegex(AssertionError, "overfilled"):
             self.grant_in_turn([BUILD, BUILD, GODOT, GODOT, BUILD], budget)
@@ -225,6 +231,35 @@ class BudgetCase(LockProcesses):
         code, stderr = self.immediate("second-cargo", "--class", BUILD, env=budget)
         self.assertEqual(code, 0, stderr)
         self.assertNotIn("waiting", stderr)
+
+    def test_the_extension_class_is_sized_by_the_dev_extension_build(self):
+        """ceil(3,609 MB / (0.85 x 512 MB)) = 9, from docs/DEVELOPMENT.md's
+        measured dev `cargo build -p psiv-godot`, a literal, not CLASS_UNITS."""
+        self.assertEqual(math.ceil(3609 / (0.85 * 512)), 9)
+        self.assertEqual(CLASS_UNITS[EXTENSION], 9)
+
+    def test_an_extension_build_shares_the_budget_with_a_build_but_not_two(self):
+        """9 + 7 fit the default 16 units; a second extension build (18) waits."""
+        extension = self.holder(EXTENSION)
+        code, stderr = self.immediate("cargo", "--class", BUILD)
+        self.assertEqual(code, 0, stderr)
+        self.assertNotIn("waiting", stderr)
+        self.assertEqual(units_in_use(self.lock), 9)
+        second = self.waiter("second-extension", "--class", EXTENSION)
+        self.assertIn(f"{extension.pid} (extension)", second.first_line)
+        time.sleep(0.5)
+        self.assertEqual(self.granted(), ["cargo"])
+        self.release(extension)
+        self.assertEqual(self.finish(second), ["cargo", "second-extension"])
+
+    def test_negative_control_an_extension_build_beside_three_godot_runs_and_a_suite_fits(self):
+        """9 + 3 + 2 = 14 of 16: the class does not exclude Godot runs."""
+        holders = [self.holder(GODOT), self.holder(GODOT), self.holder(GODOT),
+                   self.holder(PYTHON)]
+        code, stderr = self.immediate("extension", "--class", EXTENSION)
+        self.assertEqual(code, 0, stderr)
+        self.assertNotIn("waiting", stderr)
+        self.assertEqual(len(holders), 4)
 
     def test_an_exclusive_holder_excludes_every_shared_class_and_they_exclude_it(self):
         """Pack builds and the gate take exclusive: this is what keeps a pack
@@ -313,21 +348,21 @@ class BudgetCase(LockProcesses):
         self.assertEqual(self.held_slot_files(), [f"{self.lock.name}.godot0"])
 
     def test_a_killed_holders_units_come_back(self):
-        budget = {UNITS_ENV: str(CLASS_UNITS[BUILD])}
-        holder = self.holder(BUILD, budget)
-        self.assertEqual(units_in_use(self.lock), CLASS_UNITS[BUILD])
+        budget = {UNITS_ENV: str(CLASS_UNITS[EXTENSION])}
+        holder = self.holder(EXTENSION, budget)
+        self.assertEqual(units_in_use(self.lock), CLASS_UNITS[EXTENSION])
         holder.send_signal(signal.SIGKILL)
         holder.wait(timeout=TIMEOUT)
         self.assertEqual(units_in_use(self.lock), 0)
-        code, stderr = self.immediate("after-kill", "--class", BUILD, env=budget)
+        code, stderr = self.immediate("after-kill", "--class", EXTENSION, env=budget)
         self.assertEqual(code, 0, stderr)
         self.assertNotIn("waiting", stderr)
 
     def test_negative_control_a_live_holders_units_are_kept(self):
-        budget = {UNITS_ENV: str(CLASS_UNITS[BUILD])}
-        holder = self.holder(BUILD, budget)
-        waiter = self.waiter("waiter", "--class", BUILD, env=budget)
-        self.assertIn(f"{holder.pid} (build)", waiter.first_line)
+        budget = {UNITS_ENV: str(CLASS_UNITS[EXTENSION])}
+        holder = self.holder(EXTENSION, budget)
+        waiter = self.waiter("waiter", "--class", EXTENSION, env=budget)
+        self.assertIn(f"{holder.pid} (extension)", waiter.first_line)
         time.sleep(0.5)
         self.assertEqual(self.granted(), [])
         self.release(holder)
