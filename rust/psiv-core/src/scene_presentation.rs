@@ -220,9 +220,17 @@ pub enum PresentationOp {
         /// Corrected frame count.
         frames: u16,
     },
-    /// Run the retail `Pal_IncreaseTone`/`VInt_Prepare` loop.
+    /// What the retail `Pal_IncreaseTone` (`$58608`) / `VInt_Prepare` loop
+    /// does to the palette: for `frames` VBlanks, on each frame whose
+    /// `Main_Frame_Count & 3` is zero, every one of the 64 `Palette_Table_Buffer`
+    /// words not already `$EEE` steps one tone per component toward white
+    /// (each capped at `$E`). The record describes the palette only; the
+    /// frames themselves are the scene's following [`crate::SceneOp::WaitFrames`]
+    /// (`VInt_Prepare` with no map update), which the registry guard
+    /// `every_palette_tone_loop_is_followed_by_its_frames` holds it to.
     PaletteIncreaseTone {
-        /// Corrected loop count.
+        /// Corrected loop count (the `dbra` count plus one): how many frames
+        /// the tone steps over, not frames this record spends.
         frames: u16,
         /// A palette range the loop rewrites from ROM after every tone step,
         /// before the frame's `VInt_Prepare`, so it never brightens.
