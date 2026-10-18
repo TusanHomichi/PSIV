@@ -2,8 +2,9 @@
 
 [Project overview](../README.md) · [Documentation index](README.md)
 
-For agent-assisted contributions, read [AGENTS.md](../AGENTS.md) and the
-[agent workflow](AGENT_WORKFLOW.md) before choosing a verification run.
+This guide is developer setup and the checks. Playing needs less: the
+[quick start](../README.md#quick-start-linux) covers the ROM check, the
+prerequisites and the commands to build and start the game.
 
 ## Current environment
 
@@ -12,8 +13,8 @@ paths target Linux x86-64, and the Steam Deck build is the same Linux target
 (see [package for the Steam Deck](#package-for-the-steam-deck)). The supported
 Godot version is **4.7.1** (pinned in `.godot-version`), with a 1280×800
 viewport. Python 3.10 or newer; Rust 1.97.1 with edition 2024, pinned in
-`rust-toolchain.toml`, which rustup reads and installs on first use. Supported platforms are a [roadmap](ROADMAP.md)
-decision.
+`rust-toolchain.toml`, which rustup reads and installs on first use. Supported
+platforms are a [roadmap](ROADMAP.md) decision.
 
 The extraction tools use Python's standard library. Pixel-comparison scripts
 also use Pillow and NumPy, and `tools/check_docs.py` uses PyYAML to parse the
@@ -24,14 +25,23 @@ documents' `yaml` blocks. Native automated checks on Linux use Xvfb.
 From the repository root:
 
 ```bash
-git clone --depth 1 https://github.com/alechenninger/ps4disasm reference/ps4disasm
+git clone https://github.com/alechenninger/ps4disasm reference/ps4disasm
+git -C reference/ps4disasm checkout --detach 5d8dcb56943d2d9430b702950daab4436fb109e8
 ./oracle/build_core.sh
 python3 -m psiv_tools inspect "/path/to/Phantasy Star IV (USA).md"
 python3 -m psiv_tools pack "/path/to/Phantasy Star IV (USA).md" runtime-pack
 ```
 
-`./oracle/build_core.sh` fetches the pinned emulation core into the ignored
-`oracle/gpgx-src/` (it needs `git`, GNU `patch` and a C toolchain).
+The disassembly is a research reference: the tests, the oracle and the
+documents cite it, and the pack does not read it. The commit above is the one
+the citations were checked against. `inspect` prints the ROM's verified SHA-256
+and refuses any other image; the ROM is an argument to both commands and can
+live anywhere.
+
+`./oracle/build_core.sh` fetches Genesis Plus GX at its pinned commit
+`2d7131c5efa606f649d36e1685a8ca47c24f31b3` into the ignored `oracle/gpgx-src/`,
+applies `oracle/patches/` and builds the oracle's core (it needs `git`, GNU
+`patch`, `make` and a C toolchain).
 `psiv-sound`'s build script compiles the core's sound-chip sources from there,
 so every Rust build that includes `psiv-godot` or the whole workspace needs it
 first.
@@ -117,14 +127,20 @@ symbol versions and the Deck refuses to load it), exports the Godot project's
 `Linux-SteamDeck` preset to `build/deck/`, stages the executable with a copy of
 `runtime-pack/` beside it (an exported build looks for the pack next to the
 executable), and copies the stage to `~/psiv` on the Deck with `rsync` over SSH.
-It needs SSH key access to the Deck and, as written, `cargo-zigbuild` and
-Godot under `~/.local/bin`. On the Deck, add `~/psiv/psiv.x86_64` as a
+It needs SSH key access to the Deck, `cargo-zigbuild` under `~/.local/bin`, and
+the Godot that `tools/godot.py` resolves. On the Deck, add `~/psiv/psiv.x86_64` as a
 non-Steam game.
+
+## Working with agents
+
+Agent-assisted contributions read [AGENTS.md](../AGENTS.md) and the
+[agent workflow](AGENT_WORKFLOW.md) before choosing a verification run.
 
 ## Run checks
 
-For the complete Python suite, place the supported image at the repository
-root as `Phantasy Star IV (USA).md` and prepare the disassembly and full pack.
+The complete Python suite reads the ROM from a fixed place: put the supported
+image at the repository root as `Phantasy Star IV (USA).md` (a copy or a
+symbolic link; Git ignores it), and prepare the disassembly and the full pack.
 The battle-art emission tests also need the ignored indexed PNGs named by
 `oracle/fixtures/battle_animation_remainder.json` under
 `oracle/fixtures/battle_animation_art/` (184 in the current receipt). A missing

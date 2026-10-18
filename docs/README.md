@@ -1,77 +1,108 @@
 # Documentation
 
-These documents describe how PSIV and its tools work now, and what the
-cartridge does. Status and active work live elsewhere, under the
-[record policy](AGENT_WORKFLOW.md#where-work-and-its-record-live).
+These documents describe how PSIV works now and what the cartridge does. They
+are grouped by what a reader came to do. Status and active work are GitHub
+issues, not documents.
 
-## Start here
+## Play
 
-- [Project overview](../README.md) and [contributing](../CONTRIBUTING.md)
-- [Roadmap: the 1.0 bar and what comes after](ROADMAP.md)
-- [Build, run and verify](DEVELOPMENT.md)
-- [Feature map: a feature's owning paths and focused test](FEATURE_MAP.md)
-- [Runtime design: layers and the public runtime API](RUNTIME_DESIGN.md)
-- [ROM extraction reference](EXTRACTION.md)
-- [Repository instructions for agents](../AGENTS.md) and the [agent workflow](AGENT_WORKFLOW.md)
-- [MIT License](../LICENSE)
+- [Project overview and quick start](../README.md): what PSIV is, how far it
+  plays, how to build and start it, the controls and the known differences.
+- [Roadmap](ROADMAP.md): the 1.0 bar, the platforms, and what comes after.
+- [Save format](camp/SAVE_FORMAT.md): where saves go and what they hold.
 
-## battle — battle rules and retail research
+## Mod and contribute
 
-- [Battle research](battle/BATTLE_RULES.md) and its [worked continuation](battle/BATTLE_ATTACK_EXAMPLE.md).
-- [Player abilities](battle/PLAYER_ABILITIES.md).
-- [Enemy ability inventory](battle/ENEMY_ABILITIES.md) and its route sets:
+- [Modding guide](MODDING.md): which pack file holds what, and two worked
+  edits.
+- [Contributing](../CONTRIBUTING.md): issues, labels, pull requests and
+  where questions go.
+- [Build, run and verify](DEVELOPMENT.md): developer setup, the checks and
+  the gate.
+- [Feature map](FEATURE_MAP.md): a feature's owning paths and focused test.
+- [Runtime design](RUNTIME_DESIGN.md): the layers and the public runtime API.
+- [ROM extraction](EXTRACTION.md): what the extractor reads and writes.
+- [MIT License](../LICENSE).
+
+## Retail reference
+
+What the cartridge does, read from the disassembly and measured on the
+hardware's behavior through the oracle.
+
+**Battle**
+
+- [Battle rules](battle/BATTLE_RULES.md), [a worked basic attack](battle/BATTLE_ATTACK_EXAMPLE.md)
+  and [the rules measured on the cartridge](battle/BATTLE_MEASUREMENTS.md).
+- [Player abilities](battle/PLAYER_ABILITIES.md), [RIMIT](battle/RIMIT.md),
+  [instant death](battle/INSTANT_DEATH.md), [battle recovery](battle/BATTLE_RECOVERY.md).
+- [Enemy ability inventory](battle/ENEMY_ABILITIES.md) and its stretches:
   [Zelan to Kuran](battle/ENEMY_ABILITIES_ZELAN_TO_KURAN.md),
-  [the Air Castle stretch](battle/ENEMY_ABILITIES_AIR_CASTLE.md),
+  [the Air Castle](battle/ENEMY_ABILITIES_AIR_CASTLE.md),
   [the Air Castle to the Ending](battle/ENEMY_ABILITIES_ENDGAME.md).
-- [Enemy damage routes](battle/ENEMY_DAMAGE_ROUTES.md), [enemy status and stat effects](battle/ENEMY_EFFECT_ABILITIES.md), [enemy Fusion](battle/ENEMY_FUSION.md).
-- [Battle command windows, status panes and the MetaSlug](battle/BATTLE_COMMAND_UI.md), [battle animations](battle/BATTLE_ANIMATIONS.md), [battle geometry](battle/BATTLE_GEOMETRY.md), [battle recovery](battle/BATTLE_RECOVERY.md), [instant death](battle/INSTANT_DEATH.md).
-- [RIMIT](battle/RIMIT.md).
+- [Enemy damage routes](battle/ENEMY_DAMAGE_ROUTES.md),
+  [enemy status and stat effects](battle/ENEMY_EFFECT_ABILITIES.md),
+  [Fusion, COMBINE and reloads](battle/ENEMY_FUSION.md).
+- [Battle command windows and status panes](battle/BATTLE_COMMAND_UI.md),
+  [battle geometry](battle/BATTLE_GEOMETRY.md), [battle animations](battle/BATTLE_ANIMATIONS.md).
 
-## oracle — comparing against the cartridge
+**Field**
 
-- Method, tapes, harness and captures: the [oracle guide](../oracle/README.md).
-- [Replaying captured battles](oracle/BATTLE_ORACLE_REPLAY.md), [forcing a formation](oracle/BATTLE_ORACLE_FORCED.md), [the divergence sweep](oracle/BATTLE_ORACLE_SWEEP.md).
-- Capture sets: [what the status and stat captures show](battle/ENEMY_EFFECT_ABILITIES.md#10-what-the-captures-show).
-- [Battle measurements](battle/BATTLE_MEASUREMENTS.md), [walking and collision](field/MOVEMENT.md).
+- [Walking and collision](field/MOVEMENT.md), [the camera](field/CAMERA.md),
+  [NPC wander](field/NPC_WANDER.md), [transitions](field/TRANSITIONS_DECODED.md).
+- [Field state and flags](field/FIELD_STATE.md), [chests](field/CHESTS.md),
+  [map effects](field/MAP_EFFECTS.md), [per-frame map updates](field/MAP_UPDATES.md).
+- [Travel and pipes](field/TRAVEL.md), [vehicles](field/VEHICLES.md),
+  [platforms and belts](field/PLATFORMS_AND_BELTS.md), [the color pipeline](field/COLOR_PIPELINE.md).
 
-## field — field, map and travel behavior
+**Camp, shops and saves**
 
-- [Field state](field/FIELD_STATE.md), [map effects](field/MAP_EFFECTS.md), [per-frame map updates](field/MAP_UPDATES.md), [chests](field/CHESTS.md).
-- [Travel and pipes](field/TRAVEL.md), [vehicles](field/VEHICLES.md), [platforms and belts](field/PLATFORMS_AND_BELTS.md), [NPC wander](field/NPC_WANDER.md).
-- [Camera](field/CAMERA.md), [transitions](field/TRANSITIONS_DECODED.md), [color pipeline](field/COLOR_PIPELINE.md).
+- [Camp menu layout](camp/CAMP_MENU_LAYOUT.md), [party ORDER](camp/PARTY_ORDER.md),
+  [party status](camp/PARTY_STATUS.md), [equipment](camp/EQUIPMENT.md),
+  [progression](camp/PROGRESSION.md).
+- [Shops and inns](camp/SHOPS.md), [shop layout](camp/SHOP_LAYOUT_DECODED.md),
+  [the save format](camp/SAVE_FORMAT.md).
 
-## camp — menus, party, shops and saves
+**Scenes and dialogue**
 
-- [Camp menu layout](camp/CAMP_MENU_LAYOUT.md), [shop layout](camp/SHOP_LAYOUT_DECODED.md), [shops](camp/SHOPS.md).
-- [Party ORDER](camp/PARTY_ORDER.md), [party status](camp/PARTY_STATUS.md), [equipment](camp/EQUIPMENT.md), [progression](camp/PROGRESSION.md).
-- [Save format](camp/SAVE_FORMAT.md).
+- [The scene registry](scenes/README.md) and the numbered scene transcriptions
+  beside it; [the event engine](scenes/EVENT_ENGINE.md),
+  [the trigger census](scenes/TRIGGER_CENSUS.md),
+  [event coverage](scenes/EVENT_COVERAGE.md).
+- [Scene dialogue](scenes/SCENE_DIALOGUE.md), [dialogue tree selection](scenes/DIALOGUE_TREE_SELECTION.md),
+  [dialogue actions](scenes/DIALOGUE_ACTIONS.md), [the second dialogue routine's callers](scenes/DIALOGUE2_CALLERS.md).
+- [Scene presentation](scenes/SCENE_PRESENTATION.md), [the field reload](scenes/FIELD_RELOAD.md),
+  [live layout writes](scenes/LIVE_LAYOUT_WRITES.md), [revision-conditional ops](scenes/REVISION_AUDIT.md),
+  [the title and boot](scenes/TITLE_BOOT.md).
 
-## scenes — scenes, dialogue and boot
+**Sound**
 
-- [Scene registry](scenes/README.md) and the numbered scene transcriptions beside it.
-- [Event coverage census](scenes/EVENT_COVERAGE.md), [dialogue callers](scenes/DIALOGUE2_CALLERS.md), [dialogue tree selection](scenes/DIALOGUE_TREE_SELECTION.md).
-- [Scene dialogue](scenes/SCENE_DIALOGUE.md), [dialogue actions](scenes/DIALOGUE_ACTIONS.md), [scene presentation](scenes/SCENE_PRESENTATION.md), [field reload](scenes/FIELD_RELOAD.md).
-- [Event engine scout](scenes/EVENT_ENGINE.md), [title boot](scenes/TITLE_BOOT.md),
-  [revision-conditional op audit](scenes/REVISION_AUDIT.md),
-  [live-layout write census](scenes/LIVE_LAYOUT_WRITES.md).
+- [The sound driver](sound/SOUND_DRIVER.md), [sound extraction](sound/SOUND_EXTRACTION.md),
+  [sound integration](sound/SOUND_INTEGRATION.md).
 
-## sound — sound extraction and integration
+**Provenance and deliberate deviations**
 
-- [Sound scout](sound/SOUND_DRIVER.md), [sound extraction](sound/SOUND_EXTRACTION.md), [sound integration](sound/SOUND_INTEGRATION.md).
-
-## campaign — the route runner and native replay
-
-- [Campaign runner](campaign/CAMPAIGN_RUNNER.md): route files, the headless runner, and native tape replay.
-- [Native drivers](campaign/NATIVE_DRIVERS.md): the Godot drivers that remain beside the tape, and why.
-
-## source-notes — provenance and deviation records
-
-- [Source notes](source-notes/README.md), the provenance and deviation index; its records:
-  [cartridge formats](source-notes/formats.md),
-  [oracle methodology](source-notes/oracle-methodology.md),
+- [Source notes](source-notes/README.md), with the deviation record; its
+  topic files: [cartridge formats](source-notes/formats.md),
   [disassembly discrepancies](source-notes/disassembly-discrepancies.md),
   [enemy abilities and damage routes](source-notes/battle-enemy-abilities.md),
   [party actions, items and battle flow](source-notes/battle-party.md).
+
+## Tooling
+
+- [The oracle](../oracle/README.md): the emulator harness, tapes, the RAM map
+  and where each measurement lives; [oracle methodology](source-notes/oracle-methodology.md).
+- [Replaying captured battles](oracle/BATTLE_ORACLE_REPLAY.md),
+  [forcing a formation](oracle/BATTLE_ORACLE_FORCED.md),
+  [sweeping a region](oracle/BATTLE_ORACLE_SWEEP.md).
+- [The campaign runner](campaign/CAMPAIGN_RUNNER.md): route files, the
+  headless runner and native tape replay; [native drivers](campaign/NATIVE_DRIVERS.md).
+- [The sound core](../rust/psiv-sound/README.md), [oracle core patches](../oracle/patches/README.md).
+
+## Working with agents
+
+- [Repository instructions for agents](../AGENTS.md) and the
+  [agent workflow](AGENT_WORKFLOW.md): roles, authority, verification,
+  receipts and the correction ladder.
 
 ## Rule owners
 
