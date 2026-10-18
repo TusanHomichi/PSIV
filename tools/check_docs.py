@@ -45,6 +45,11 @@ is scanned, and fenced code blocks and inline code are skipped as content:
   one): it works on one machine only. Write a `~/`-relative path,
   an environment variable such as `$PSIV_GODOT`, or a placeholder.
 
+- no line, fenced or not, writes out a version a `PIN_FILES` file pins (the
+  Godot version in `.godot-version`, the Rust toolchain in
+  `rust-toolchain.toml`): a document points at the file, so a version bump
+  changes one line (issue #133).
+
 Paths written outside links are checked too: `tools/check_paths.py` (issue
 #114) fails on a repository path, file name or Markdown section that Rust,
 GDScript, Python, shell, C, a campaign route or Markdown prose and inline code
@@ -118,6 +123,12 @@ DATED_ROW_RE = re.compile(r"\A {0,3}\|\s*\d{4}-\d{2}-\d{2}\b")
 #: A pointer to a run's evidence directory (`build/lane-evidence/...`,
 #: `build/x86-evidence/`): local receipts no reader of the doc can open.
 EVIDENCE_PATH_RE = re.compile(r"\bbuild/[\w.-]*evidence\b")
+#: The files that own a toolchain version, and how to read it from each. A
+#: document points at the file, so a version bump is one line (issue #133).
+PIN_FILES = {
+    ".godot-version": re.compile(r"\A\s*(?P<version>\S+)\s*\Z"),
+    "rust-toolchain.toml": re.compile(r"^channel\s*=\s*\"(?P<version>[^\"]+)\"", re.M),
+}
 #: Keys that make a `yaml` block a task graph.
 TASK_GRAPH_KEYS = frozenset({"nodes", "depends_on", "next_action"})
 YAML_FENCE_LANGS = frozenset({"yaml", "yml"})
@@ -431,6 +442,22 @@ def task_graph_keys(data) -> set[str]:
     return found
 
 
+def pinned_versions(root: Path) -> dict[str, re.Pattern]:
+    """The pin file of each version `PIN_FILES` pins at `root`, with the
+    pattern that finds the version written out: not inside a longer number
+    (`4.7.10`, `14.7.1`), but behind a `v` (`Godot_v4.7.1-stable`)."""
+    pins = {}
+    for name, reader in PIN_FILES.items():
+        try:
+            found = reader.search((root / name).read_text(encoding="utf-8"))
+        except OSError:
+            continue
+        if found:
+            version = re.escape(found["version"])
+            pins[name] = re.compile(rf"(?<![\d.]){version}(?!\d|\.\d)")
+    return pins
+
+
 def check_tree() -> tuple[list[str], list[int]]:
     """Every problem in the tree, and the files/links/anchors/paths counts.
 
@@ -447,6 +474,7 @@ def check_tree() -> tuple[list[str], list[int]]:
         except (OSError, UnicodeDecodeError):
             continue  # not readable text: a binary blob, or a permission
     slugs = {name: heading_slugs(lines) for name, lines in texts.items()}
+    pins = pinned_versions(root)
 
     problems: list[str] = []
     counts = [len(texts), 0, 0, 0, 0]  # files, links, anchors, command paths, yaml blocks
@@ -457,6 +485,11 @@ def check_tree() -> tuple[list[str], list[int]]:
         for index, text in enumerate(lines):
             for path in host_home_paths(text):
                 problems.append(f"{name}:{index + 1}: host-absolute home path: {path}")
+            for pin, pattern in pins.items():
+                found = pattern.search(text)
+                if found:
+                    problems.append(f"{name}:{index + 1}: pinned version {found.group(0)} "
+                                    f"written out: point at {pin}, its one owner")
         dated = [index + 1 for index, text, info, _ in iter_fenced_lines(lines)
                  if info is None and DATED_ROW_RE.match(text)]
         for index, text in enumerate(lines):

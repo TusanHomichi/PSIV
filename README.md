@@ -50,8 +50,8 @@ the same hash and refuses any other image.
 | Tool | Version | Notes |
 | --- | --- | --- |
 | Python | 3.10 or newer | standard library only, to build the pack |
-| Rust | 1.97.1 | install [rustup](https://rustup.rs/); it reads `rust-toolchain.toml` and fetches this toolchain on first use |
-| Godot | 4.7.1 (standard build) | from the [Godot download archive](https://godotengine.org/download/archive/) |
+| Rust | the toolchain in [`rust-toolchain.toml`](rust-toolchain.toml) | install [rustup](https://rustup.rs/); it reads that file and fetches the toolchain on first use |
+| Godot | the version in [`.godot-version`](.godot-version), standard build | from the [Godot download archive](https://godotengine.org/download/archive/) |
 | git, GNU `patch`, `make`, a C compiler | any recent | fetch and compile the sound chip's sources |
 
 **Commands**, from a directory of your choice:
@@ -62,7 +62,7 @@ cd PSIV
 ./oracle/build_core.sh
 python3 -m psiv_tools pack "/path/to/Phantasy Star IV (USA).md" runtime-pack
 cargo build --manifest-path rust/Cargo.toml -p psiv-godot
-export PSIV_GODOT=/path/to/Godot_v4.7.1-stable_linux.x86_64
+export PSIV_GODOT=/path/to/godot
 python3 tools/godot.py
 PSIV_SAVE_DIR="$PWD/saves" "$PSIV_GODOT" --path godot
 ```

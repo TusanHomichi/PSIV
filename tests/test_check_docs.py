@@ -531,6 +531,33 @@ class RunRecords(RepoCase):
         self.assertEqual(code, 0, out)
 
 
+class PinnedVersions(RepoCase):
+    """Issue #133: a document points at a pin file instead of copying its version."""
+
+    PINS = {".godot-version": "4.7.1\n",
+            "rust-toolchain.toml": '[toolchain]\nchannel = "1.97.1"\n'}
+
+    def test_a_pinned_version_written_out(self):
+        code, out = self.check({**self.PINS, "README.md": lines(
+            "# Game", "", "| Godot | 4.7.1 | standard build |", "", "Rust 1.97.1 builds it.",
+            "", "```bash", "export PSIV_GODOT=/path/to/Godot_v4.7.1-stable_linux.x86_64", "```")})
+        self.assertEqual(code, 1, out)
+        self.assertIn("README.md:3: pinned version 4.7.1 written out: point at .godot-version", out)
+        self.assertIn("README.md:5: pinned version 1.97.1 written out: point at "
+                      "rust-toolchain.toml", out)
+        self.assertIn("README.md:8: pinned version 4.7.1 written out", out)
+
+    def test_other_versions_and_pointers_pass(self):
+        code, out = self.check({**self.PINS, "README.md": lines(
+            "# Game", "", "Godot is the version in `.godot-version`; 4.6.1 is refused,",
+            "and so are 4.7.10, 14.7.1 and 4.7.1.1; Rust is `rust-toolchain.toml`'s.")})
+        self.assertEqual(code, 0, out)
+
+    def test_without_pin_files_nothing_is_pinned(self):
+        code, out = self.check({"README.md": lines("# Game", "", "Godot 4.7.1 and Rust 1.97.1.")})
+        self.assertEqual(code, 0, out)
+
+
 class SummaryAndExit(RepoCase):
     """The summary line, the exit status and the root guard."""
 

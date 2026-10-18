@@ -11,9 +11,11 @@ prerequisites and the commands to build and start the game.
 This section owns the toolchain versions. The committed GDExtension library
 paths target Linux x86-64, and the Steam Deck build is the same Linux target
 (see [package for the Steam Deck](#package-for-the-steam-deck)). The supported
-Godot version is **4.7.1** (pinned in `.godot-version`), with a 1280×800
-viewport. Python 3.10 or newer; Rust 1.97.1 with edition 2024, pinned in
-`rust-toolchain.toml`, which rustup reads and installs on first use. Supported
+Godot version is the one [`.godot-version`](../.godot-version) pins (a standard
+build), with a 1280×800 viewport. Python 3.10 or newer. Rust is the toolchain
+[`rust-toolchain.toml`](../rust-toolchain.toml) pins, with edition 2024; rustup
+reads that file and installs the toolchain on first use. Each file is the
+version's one owner, so a version bump is a one-line change there. Supported
 platforms are a [roadmap](ROADMAP.md) decision.
 
 The extraction tools use Python's standard library. Pixel-comparison scripts

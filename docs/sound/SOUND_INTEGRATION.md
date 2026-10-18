@@ -292,7 +292,7 @@ real Piata track's existing first-three-tick fixture remains deterministic and
 includes YM DAC `$2A` data plus `$2B` enable writes.
 
 Headless Godot boots exit successfully and demonstrate normal Piata routing,
-debug-track routing, and combined debug-battle routing. Godot 4.7.1 reports
+debug-track routing, and combined debug-battle routing. Godot reports
 one engine-owned `AudioStreamGeneratorPlayback` ObjectDB warning during
 process teardown; the safe `stop`/stream-detach path is in place, but the
 headless engine does not retire that playback before its final leak audit.
