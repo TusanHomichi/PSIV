@@ -35,7 +35,8 @@ is scanned, and fenced code blocks and inline code are skipped as content:
   in it with a `TASK_GRAPH_KEYS` key: `nodes`, `depends_on` or
   `next_action`); and a pointer to a run's evidence directory
   (`EVIDENCE_PATH_RE`: `build/lane-evidence/...`, `build/lanes/<id>/`, or a
-  tool's timestamped receipt, `build/gate/20261018T025426Z-3bddaba`).
+  tool's timestamped receipt, `build/gate/20261018T025426Z-3bddaba`); and a
+  lane's name or id (`LANE_NAME_RE`: `oracle-lane's`, `lane A4`; issue #120).
   Research documents pass: a dated heading or a dated
   chronology entry (`## 2026-10-03 - Rounds that open no party command
   window`), a date inside a table cell, and `CHANGELOG.md` (one word) are all
@@ -146,6 +147,11 @@ PIN_FILES = {
     ".godot-version": re.compile(r"\A\s*(?P<version>\S+)\s*\Z"),
     "rust-toolchain.toml": re.compile(r"^channel\s*=\s*\"(?P<version>[^\"]+)\"", re.M),
 }
+#: A delivery lane's name, the attribution of a finding to whoever ran it
+#: (issue #120): a hyphenated name ending in "lane" (`oracle-lane's`,
+#: `battle-scout-lane`) or a lane id (`lane A4`, `lanes P88b`). A document says
+#: what the cartridge does and how to reproduce it; who found it is in the Git log.
+LANE_NAME_RE = re.compile(r"\b[\w-]+-lanes?(?:'s)?(?![\w-])|\b[Ll]anes? [A-Z]{1,4}\d+[a-z]?\b")
 #: Keys that make a `yaml` block a task graph.
 TASK_GRAPH_KEYS = frozenset({"nodes", "depends_on", "next_action"})
 YAML_FENCE_LANGS = frozenset({"yaml", "yml"})
@@ -503,6 +509,9 @@ def check_tree() -> tuple[list[str], list[int]]:
             for found in EVIDENCE_PATH_RE.findall(text):
                 problems.append(f"{name}:{index + 1}: run evidence path ({found}): receipts "
                                 "belong in commits, issues and pull requests")
+            for found in LANE_NAME_RE.findall(text):
+                problems.append(f"{name}:{index + 1}: lane name ({found}): say what was found "
+                                "and how to reproduce it; who found it is in the Git log")
         if len(dated) >= DATED_ROWS_LIMIT:
             problems.append(f"{name}:{dated[0]}: dated receipt ledger ({len(dated)} table rows "
                             "open with a date): runs and receipts belong in commits, issues "

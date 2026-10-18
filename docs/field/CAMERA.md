@@ -162,7 +162,7 @@ This ordering was measured, not read. `Event_MoveCamera`'s inner sequence puts
 gave a camera one frame behind the cartridge's — visible as a two-pixel lag in
 `cam_y_fg_px` the moment the party started walking. But `Event_MoveCamera` is a
 *scene* helper driving its own loop, not the field one. The decisive evidence is
-oracle-lane's camera columns: `leader - camera_FG` is exactly (152, 88) on
+the oracle's logged camera columns: `leader - camera_FG` is exactly (152, 88) on
 **every one** of tape 02's 1563 field-control frames — one distinct offset, no
 lag anywhere — which only latch-then-commit produces.
 

@@ -342,12 +342,12 @@ NPC-only object-pool gap is closed.
 Camp status, equipment and SAVE/CONTINUE are implemented. Their focused ledgers
 are [PARTY_STATUS.md](../camp/PARTY_STATUS.md), [EQUIPMENT.md](../camp/EQUIPMENT.md) and
 [SAVE_FORMAT.md](../camp/SAVE_FORMAT.md). These integrations do not certify every route;
-use the campaign ledger for connected proof.
+connected proof is the [campaign runner](../campaign/CAMPAIGN_RUNNER.md)'s.
 
 ## The roster, as built
 
 `psiv-core/src/roster.rs`. `GameState` owns a `CharacterRoster` of eleven
-`Option<Stats>` seats, seated through battle-scout-lane's
+`Option<Stats>` seats, seated through the battle code's
 `PartyMember::seat` / `Stats::from_character` path — no constructor of its own,
 because a second way to build a character record is a second way for one to be
 wrong.

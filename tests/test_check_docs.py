@@ -515,6 +515,26 @@ class RunRecords(RepoCase):
         self.assertIn("docs/notes.md:3: run evidence path (build/lane-evidence)", out)
         self.assertIn("docs/notes.md:6: run evidence path (build/x86-evidence)", out)
 
+    def test_a_lane_name(self):
+        code, out = self.check({"docs/notes.md": lines(
+            "# Notes", "",
+            # docs/field/CAMERA.md:165 before the #120 sweep.
+            "oracle-lane's camera columns: `leader - camera_FG` is exactly (152, 88) on",
+            "seated through battle-scout-lane's path; the render half is core-lane's.",
+            "Moved (lane A4), and lanes P88b and c9 agreed.")})
+        self.assertEqual(code, 1, out)
+        self.assertIn("docs/notes.md:3: lane name (oracle-lane's)", out)
+        self.assertIn("docs/notes.md:4: lane name (battle-scout-lane's)", out)
+        self.assertIn("docs/notes.md:4: lane name (core-lane's)", out)
+        self.assertIn("docs/notes.md:5: lane name (lane A4)", out)
+        self.assertIn("docs/notes.md:5: lane name (lanes P88b)", out)
+
+    def test_lane_as_a_word_passes(self):
+        code, out = self.check({"docs/notes.md": lines(
+            "# Notes", "", "A lane is a branch and a worktree; each lane runs the fast gate.",
+            "The planner keeps one lane per road (`lane_of`), and the lanes merge in order.")})
+        self.assertEqual(code, 0, out)
+
     def test_a_timestamped_receipt_directory(self):
         code, out = self.check({"docs/notes.md": lines(
             "# Notes", "", "12/12 (receipt", "`build/certify/20261006T230810Z-1b01ee7/`).",
