@@ -156,6 +156,10 @@ What the repository does hold from the game:
   replay fixtures under `rust/psiv-core/src/battle/replay_fixtures/` (party and
   enemy stats, random draws, damage, turn order) and the oracle receipts under
   `oracle/fixtures/`;
+- nine 8x8 tiles of the battle screen's damage numbers, copied from retail VRAM
+  tiles `$5E4`-`$5EA`, `$5EE` and `$5EF` as pixel strings in `damage_pattern`
+  (`rust/psiv-godot/src/battle/chrome.rs`), which the game draws its damage
+  numbers from;
 - one fixture that copies part of the ROM's battle tables (enemies, enemy
   skills, formations, equipment and techniques),
   `rust/psiv-core/src/battle/replay_fixtures/motavia_pack.json`, which
